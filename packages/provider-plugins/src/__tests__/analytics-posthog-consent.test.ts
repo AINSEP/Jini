@@ -37,6 +37,25 @@ function adapterWith({ fail = false } = {}) {
 const config = (overrides: Partial<PostHogConsentConfig> = {}): PostHogConsentConfig =>
   ({ ...postHogConsentContribution(base).adapter.config, ...overrides });
 
+it('revocation works when an SDK client does not provide the optional replay stopper', async () => {
+  const configs: Settings[] = [];
+  const adapter = createPostHogConsentAdapter({ ports: { location, loadSdk: async () => ({
+    init(_key, settings) {
+      const client = { set_config(next: Settings) { configs.push(next); },
+        identify() {}, get_distinct_id: () => 'visitor:existing' };
+      expect(settings.loaded).toBeTypeOf('function');
+      if (typeof settings.loaded !== 'function') throw new TypeError('missing SDK loaded callback');
+      settings.loaded(client);
+      return client;
+    },
+  }) } });
+  const revoker = await adapter.grant({ config: config(), state, signal: new AbortController().signal });
+  expect(await revoker!.revoke!()).toBe(true);
+  expect(configs).toHaveLength(1);
+  expect(configs[0]).toMatchObject({ disable_persistence: true, autocapture: false, disable_session_recording: true });
+  expect(configs[0]!.before_send({ event: '$pageview' })).toBeNull();
+});
+
 describe('postHogConsentContribution (server)', () => {
   it('refuses private keys, credential hosts and unsafe mount paths before producing browser config', () => {
     expect(() => postHogConsentContribution({ ...base, apiKey: ['phx', 'private'].join('_') })).toThrow('project key starting with phc_');

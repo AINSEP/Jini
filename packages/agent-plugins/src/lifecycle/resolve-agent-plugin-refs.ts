@@ -58,7 +58,6 @@ import { listInstalledPackageRoots, INSTALLED_PLUGIN_DIGEST_PATTERN } from "./in
  */
 import { createPersistentStateModule } from "./persistent-state.js";
 import path from "node:path";
-import { createPackagePathsModule } from "./package-paths.js";
 import type {  AgentPluginActivationVerdict } from "./activation.js";
 import { createActivationModule } from "./activation.js";
 import type {  BundledAgentPluginDigests } from "./bundled-digests.js";
@@ -94,7 +93,6 @@ export type ResolveAgentPluginRefsResult =
 
 function buildModule(ports: AgentPluginLifecyclePorts) {
   const persistentState = createPersistentStateModule(ports);
-  const { assertContainedOnDisk } = createPackagePathsModule(ports);
   const stat = ports.filesystem.stat.bind(ports.filesystem);
   const { resolveAgentPluginActivation } = createActivationModule(ports);
   const { preferBundledAgentPluginDigests, readBundledAgentPluginDigests } = createBundledDigestsModule(ports);
@@ -339,7 +337,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
   ): string {
     const framing = file === undefined || file === 'SKILL.md' ? "The SKILL.md above is this Agent Plugin's own instructions — follow them, including any files it directs you to load before starting work." : "The content above is the requested skill file.";
     const pointer = ports.formatPluginToolPointer({ pluginId: pluginRefId, skill, file: '<relative path>' });
-    return `\n\n${framing} Readable supporting files are listed relative to this skill folder. Request one with ${pointer}.\nfiles: ${JSON.stringify(files)}${fileNote ? `\n${fileNote}` : ""}`;
+    return `\n\n${framing} Readable supporting files are listed relative to this skill folder. Request one with ${pointer}.\nfiles: ${JSON.stringify(files)}${fileNote ? "\n" + fileNote : ""}`;
   }
 
   // Parity with `inject`'s own failure: a pinned ref whose eponymous skill is missing must fail

@@ -314,9 +314,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
 
     const dirs: string[] = [];
     for (const entry of entries) {
-      if (!entry.isDirectory()) continue;
-
-      if (ports.retiredBundledPlugins.has(entry.name)) continue;
+      if (!entry.isDirectory() || ports.retiredBundledPlugins.has(entry.name)) continue;
       try {
         const manifest = await stat(path.join(sourceRoot, entry.name, "plugin.json"));
         if (manifest.isFile()) dirs.push(entry.name);

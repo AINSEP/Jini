@@ -119,9 +119,8 @@ function compareTb01(a: readonly [string, Attachment], b: readonly [string, Atta
 
 /** The four JSON-primitive field types BR-06's declared-field vocabulary supports. The switch is
  * exhaustive over `HookRegistryFieldDecl["type"]`, and `validateManifest` (`VALID_FIELD_TYPES`)
- * refuses any other declared type before a plugin can attach, so there is no `default` arm: a type
- * outside the union would fall through to `undefined`, which the only caller reads as a mismatch
- * (still fail-closed). */
+ * refuses any other declared type before a plugin can attach, so the `default` arm is unreachable;
+ * it returns false so a type outside the union still fails closed. */
 function matchesDeclaredType(value: unknown, type: HookRegistryFieldDecl["type"]): boolean {
   switch (type) {
     case "integer":
@@ -132,6 +131,8 @@ function matchesDeclaredType(value: unknown, type: HookRegistryFieldDecl["type"]
       return typeof value === "string";
     case "boolean":
       return typeof value === "boolean";
+    default:
+      return false;
   }
 }
 

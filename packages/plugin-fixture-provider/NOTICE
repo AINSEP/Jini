@@ -1,0 +1,6 @@
+Jini fixture-provider provider plugin
+Copyright 2026 Leona Burime
+
+Plugin sources remain in packages/provider-plugins/src/fixture-provider.
+See LICENSE for the Apache License, Version 2.0.
+Bundled dependency licenses and source records are retained in the generated artifact.

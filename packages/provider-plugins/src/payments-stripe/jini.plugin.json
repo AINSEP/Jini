@@ -1,6 +1,6 @@
 {
   "id": "payments-stripe",
-  "name": "Stripe payments provider (moved; not activated)",
+  "name": "Stripe payments provider",
   "version": "0.6.12",
   "sdkRange": "^0.1.0 || ^1.0.0",
   "engine": 1,
@@ -10,7 +10,13 @@
     "open-marketing": { "id": "jini/payments-stripe" }
   },
   "capabilities": ["providers.register"],
-  "contributes": { "providers": [{ "contract": "payments", "id": "stripe", "contractVersion": 1 }] },
+  "contributes": { "providers": [{ "contract": "payments", "id": "stripe", "contractVersion": 1, "settings": [
+    { "name": "accountId", "label": "Account ID", "required": true },
+    { "name": "test_secretKey", "label": "Test secret key", "secret": true },
+    { "name": "test_webhookSecret", "label": "Test webhook secret", "secret": true },
+    { "name": "live_secretKey", "label": "Live secret key", "secret": true },
+    { "name": "live_webhookSecret", "label": "Live webhook secret", "secret": true }
+  ] }] },
   "hooks": [],
   "fields": [],
   "integrity": {}

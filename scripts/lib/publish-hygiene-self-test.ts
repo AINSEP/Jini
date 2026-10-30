@@ -19,17 +19,7 @@ export function runPublishHygieneSelfTest(_required: Record<string, never> = {},
     write(`packages/${name}/package.json`, JSON.stringify({ name: `@jini-ai/${name}`, dependencies, ...extra }));
   }
   function expect(condition: boolean, description: string): void { if (!condition) failures.push(description); }
-  try {
-    write('scripts/source-neutrality-allowlist.json', '[]');
-    manifest('core'); manifest('protocol', { '@jini-ai/core': '*' });
-    manifest('platform', { '@jini-ai/core': '*' }); manifest('sidecar');
-    manifest('cli', { '@jini-ai/sidecar': '*' });
-    manifest('oauth', { '@jini-ai/mcp': '*' }); manifest('mcp', { '@jini-ai/oauth': '*' });
-    manifest('http-kit', { '@jini-ai/cms': '*' }); manifest('cms');
-    manifest('chat', { '@jini-ai/platform': '*', '@jini-ai/ui': '*' }); manifest('ui', { '@jini-ai/platform': '*' });
-    manifest('analytics', { '@jini-ai/core': '*' });
-    manifest('sqlite', { '@jini-ai/server': '*' }); manifest('server');
-    manifest('user-management', {}, { peerDependencies: { '@jini-ai/ui': '*' }, peerDependenciesMeta: { '@jini-ai/ui': { optional: true } } });
+  function checkNeutralityFixtures(): void {
     // REGRESSION: fails if neutrality is case-sensitive or strips consumer identity comments.
     write('packages/core/src/identity.mts', '// tOvU consumer\nexport const value = 1;');
     // REGRESSION: fails if only the website path is forbidden.
@@ -57,7 +47,7 @@ export function runPublishHygieneSelfTest(_required: Record<string, never> = {},
     const has = (file: string, rule?: string) => neutrality.some(v => v.file.endsWith(file) && (!rule || v.rule === rule));
     expect(has('identity.mts', 'N1-consumer-identity'), 'identity comments must fail case-insensitively');
     expect(has('path.cts', 'N2-consumer-path'), 'desktop path comments must fail');
-    for (let index = 0; index < forbidden.length; index++) expect(has(`literal-${index}.ts`), `literal ${forbidden[index]} must fail`);
+    for (let index = 0;index < forbidden.length;index++) expect(has(`literal-${index}.ts`), `literal ${forbidden[index]} must fail`);
     for (const file of ['template.ts', 'css.css', 'jsx.tsx', 'after-regex.ts', 'escaped.ts']) expect(has(file), `${file} must fail`);
     for (const file of ['site-copy.ts', 'site-copy.css', 'site-copy.tsx']) expect(!has(file), `${file} generic site wording must pass`);
     expect(!has('ok.ts'), 'neutral URLs/regexes and rationale comments must pass');
@@ -66,6 +56,19 @@ export function runPublishHygieneSelfTest(_required: Record<string, never> = {},
     expect(checkSourceNeutrality({ repoRoot: root }).some(v => v.rule === 'N0-allowlist'), 'empty exception reason must fail');
     write('scripts/source-neutrality-allowlist.json', JSON.stringify([{ file: 'packages/core/src/identity.mts', rule: 'N1-consumer-identity', reason: 'fixture exception' }]));
     expect(!checkSourceNeutrality({ repoRoot: root }).some(v => v.file.endsWith('identity.mts')), 'exact reasoned exception must work');
+  }
+  try {
+    write('scripts/source-neutrality-allowlist.json', '[]');
+    manifest('core'); manifest('protocol', { '@jini-ai/core': '*' });
+    manifest('platform', { '@jini-ai/core': '*' }); manifest('sidecar');
+    manifest('cli', { '@jini-ai/sidecar': '*' });
+    manifest('oauth', { '@jini-ai/mcp': '*' }); manifest('mcp', { '@jini-ai/oauth': '*' });
+    manifest('http-kit', { '@jini-ai/cms': '*' }); manifest('cms');
+    manifest('chat', { '@jini-ai/platform': '*', '@jini-ai/ui': '*' }); manifest('ui', { '@jini-ai/platform': '*' });
+    manifest('analytics', { '@jini-ai/core': '*' });
+    manifest('sqlite', { '@jini-ai/server': '*' }); manifest('server');
+    manifest('user-management', {}, { peerDependencies: { '@jini-ai/ui': '*' }, peerDependenciesMeta: { '@jini-ai/ui': { optional: true } } });
+    checkNeutralityFixtures();
     // REGRESSION: fails if layers scan only manifests or ignore type-only imports.
     write('packages/core/src/up.ts', "import type { X } from '@jini-ai/platform';");
     write('packages/cli/src/ok.ts', "import { X } from '@jini-ai/sidecar';");

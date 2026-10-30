@@ -1,7 +1,7 @@
 {
   "name": "@jini-ai/agent-plugins",
   "version": "0.6.13",
-  "description": "Support for Agent Plugins, the open, vendor-neutral spec (v1.0.0, published 2026-08-06; v1.1.0 and later 1.x manifests are also accepted; Technical Steering Committee with maintainers from Amazon, Cursor, Google, Microsoft, OpenAI, and Vercel) for bundling Agent Skills and MCP servers into one portable directory: PluginManifest/McpManifest types + structural validators on the package root, plus the bundled plugins themselves, each on a subpath named for itself (./ui-ux-design). Extracted 2026-08-18 from @jini-ai/plugins, which now only reserves the unrelated, unimplemented ./host format.",
+  "description": "Support for Agent Plugins: vendor-neutral manifest types and validators, installation, activation, digests and trusted contribution loading. Portable plugin payloads are published separately; ui-ux-design is available as @jini-ai/plugin-ui-ux-design.",
   "license": "Apache-2.0",
   "repository": {
     "type": "git",
@@ -14,7 +14,6 @@
     "runtime": "universal",
     "entries": {
       ".": "universal",
-      "./ui-ux-design/*": "universal",
       "./lifecycle": "node",
       "./lifecycle/node": "node",
       "./lifecycle/yauzl": "node",
@@ -47,7 +46,6 @@
       "import": "./dist/index.js",
       "default": "./dist/index.js"
     },
-    "./ui-ux-design/*": "./ui-ux-design/*",
     "./lifecycle": {
       "types": "./dist/lifecycle/index.d.ts",
       "import": "./dist/lifecycle/index.js",
@@ -104,7 +102,6 @@
     "README.md",
     "CHANGELOG.md",
     "LICENSE",
-    "ui-ux-design",
     "!dist/**/*.test.js",
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",

@@ -70,21 +70,30 @@ function createResourceDisposer(required: {
   let disposal: Promise<void> | undefined;
   return () => {
     disposal ??= (async () => {
-      let timer: ReturnType<typeof setTimeout> | undefined;
       const work = Promise.resolve().then(() => required.resource.dispose({}, {})).catch(error => {
         required.report({ phase: 'dispose', error });
       });
+      const deadline = startDeadline(required.timeoutMs, () => {
+        required.report({ phase: 'dispose_timeout', error: new PluginProviderError({ message: 'provider disposal timed out' }) });
+      });
       try {
-        await Promise.race([work, new Promise<void>(resolve => {
-          timer = setTimeout(() => {
-            required.report({ phase: 'dispose_timeout', error: new PluginProviderError({ message: 'provider disposal timed out' }) });
-            resolve();
-          }, required.timeoutMs);
-        })]);
-      } finally { if (timer !== undefined) clearTimeout(timer); }
+        await Promise.race([work, deadline.elapsed]);
+      } finally { deadline.cancel(); }
     })();
     return disposal;
   };
+}
+
+/** Resolves (after calling `onElapsed`) once `ms` pass, unless cancelled first. */
+function startDeadline(ms: number, onElapsed: () => void): { elapsed: Promise<void>; cancel: () => void } {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const elapsed = new Promise<void>(resolve => {
+    timer = setTimeout(() => {
+      onElapsed();
+      resolve();
+    }, ms);
+  });
+  return { elapsed, cancel: () => clearTimeout(timer) };
 }
 
 function timeoutOption(value: number | undefined, fallback: number, name: string): number {

@@ -73,7 +73,7 @@ export function safePath({ path }: { path: string }, _optional = {}): string {
   return (path || '/').split('/').map(part => {
     let decoded: string;
     try { decoded = decodeURIComponent(part); } catch { return ':redacted'; }
-    return /@|[a-f0-9]{32,}|[A-Za-z0-9_-]{40,}/i.test(decoded) ? ':redacted' : part;
+    return /@|[a-f0-9]{32,}|[\w-]{40,}/i.test(decoded) ? ':redacted' : part;
   }).join('/');
 }
 
@@ -81,7 +81,7 @@ export function safePath({ path }: { path: string }, _optional = {}): string {
 function maskedChain(chain: string): string {
   return chain.split(';').slice(0, 32).map(element => {
     const tag = /^[a-z][a-z0-9-]*/i.exec(element);
-    return tag ? tag[0] + (element.match(/:nth-(?:child|of-type)\([0-9]+\)/g) ?? []).join('') : '';
+    return tag ? tag[0] + (element.match(/:nth-(?:child|of-type)\(\d+\)/g) ?? []).join('') : '';
   }).filter(Boolean).join(';');
 }
 

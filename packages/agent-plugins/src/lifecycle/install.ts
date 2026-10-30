@@ -291,58 +291,58 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
       const indexed = await indexInstalledRoot(extractionRoot, digest);
       if (optional.previewOnly) return indexed;
 
+      // Layout B needs the manifest id before choosing the package destination. Dedup still
+      // skips publication and freezing, after one bounded staging extraction.
+      // Owner decision 2026-10-04: learned facts begin empty for each site; author guidance stays
+      // in package docs. Package extension files never seed learned memory or the user's notes.
+      // Content-addressed dedup, scoped to THIS workspace's own tree (`workspaceLayout` was just
+      // resolved above, atomically, from this same `workspaceId`): identical bytes were already
+      // extracted, verified, and frozen by a prior install of this same workspace's — never
+      // re-extracted for a different workspace, by construction, since a different workspace's
+      // `workspaceLayout.packages` is a different path entirely. one bounded staging extraction precedes this check.
+      // Publish BEFORE freezing permissions, not after: `rename()` moves `extractionRoot` as a single
+      // directory-entry operation, and on this filesystem renaming an already-read-only (0o555)
+      // directory itself fails EACCES (observed, not merely theoretical — see the regression test this
+      // ordering fixed). Freezing after publish also closes a smaller race for free: nothing outside
+      // this function can observe the package at its live path while it is still writable, because the
+      // live path does not exist until `publish` returns.
+      let publishedPlugin: InstalledAgentPlugin | undefined;
+      const publishPackage = async (): Promise<InstalledAgentPlugin> => {
+        // The manifest identifies the plugin only after bounded staging extraction (Layout B).
+        const pluginId = indexed.pluginId;
+        const packagesDir = workspaceLayout.pluginPackagesDir({ pluginId });
+        await persistentState.assertOwnedPath({ workspaceRoot: workspaceLayout.root, entryPath: path.relative(workspaceLayout.root, packagesDir) });
+        await mkdir(packagesDir, { recursive: true, mode: 0o700 });
+        const finalRoot = await assertContainedOnDisk(packagesDir, digest);
+        for (const directory of [workspaceLayout.pluginDataDir({ pluginId }),
+          workspaceLayout.pluginMemoryDir({ pluginId, kind: 'learned' }),
+          workspaceLayout.pluginMemoryDir({ pluginId, kind: 'notes' })]) {
+          await persistentState.assertOwnedPath({ workspaceRoot: workspaceLayout.root, entryPath: path.relative(workspaceLayout.root, directory) });
+          await mkdir(directory, { recursive: true, mode: 0o700 });
+        }
+        if (await isRealDirectory(finalRoot)) {
+          publishedPlugin = await indexInstalledRoot(finalRoot, digest);
+          return publishedPlugin;
+        }
+        await publish(extractionRoot, finalRoot);
+        await freezeTree(finalRoot, executablePaths);
+        /** Absolute, read-only (frozen) path to the extracted package root. */
+        publishedPlugin = { ...indexed, packageRoot: finalRoot };
+        return publishedPlugin;
+      };
+      const publishWithinPluginLock = () => persistentState.withPluginLock({ workspaceRoot: workspaceLayout.root, pluginId: indexed.pluginId, run: async () => {
+        // Every install and replacement, not only an update, is a mutation of this plugin: an
+        // unfinished update journal refuses it here, under the same plugin lock, because boot
+        // recovery removes only the journal's own candidate digest and would otherwise restore the
+        // old revision beside whatever this install published.
+        // The journal lives under the layout this install was given, the one it publishes into.
+        await settleAgentPluginUpdateJournal({ store: createAgentPluginUpdateStore({ ports: { ...ports, layout }, workspaceId, pluginId: indexed.pluginId }) });
+        const installed = await (optional.publishGuard ? optional.publishGuard({ plugin: indexed, publish: publishPackage }, {}) : publishPackage());
+        if (publishedPlugin) await pruneSupersededRevisions({ workspaceRoot: workspaceLayout.root, installed: publishedPlugin });
+        return installed;
+      } });
       return await persistentState.withIdentityLock({ workspaceRoot: workspaceLayout.root, run: async () => {
         await assertIdentityAvailable(workspaceLayout.root, indexed);
-        const publishWithinPluginLock = () => persistentState.withPluginLock({ workspaceRoot: workspaceLayout.root, pluginId: indexed.pluginId, run: async () => {
-          // Every install and replacement, not only an update, is a mutation of this plugin: an
-          // unfinished update journal refuses it here, under the same plugin lock, because boot
-          // recovery removes only the journal's own candidate digest and would otherwise restore the
-          // old revision beside whatever this install published.
-          // The journal lives under the layout this install was given, the one it publishes into.
-          await settleAgentPluginUpdateJournal({ store: createAgentPluginUpdateStore({ ports: { ...ports, layout }, workspaceId, pluginId: indexed.pluginId }) });
-          // Layout B needs the manifest id before choosing the package destination. Dedup still
-          // skips publication and freezing, after one bounded staging extraction.
-          // Owner decision 2026-10-04: learned facts begin empty for each site; author guidance stays
-          // in package docs. Package extension files never seed learned memory or the user's notes.
-          // Content-addressed dedup, scoped to THIS workspace's own tree (`workspaceLayout` was just
-          // resolved above, atomically, from this same `workspaceId`): identical bytes were already
-          // extracted, verified, and frozen by a prior install of this same workspace's — never
-          // re-extracted for a different workspace, by construction, since a different workspace's
-          // `workspaceLayout.packages` is a different path entirely. one bounded staging extraction precedes this check.
-          // Publish BEFORE freezing permissions, not after: `rename()` moves `extractionRoot` as a single
-          // directory-entry operation, and on this filesystem renaming an already-read-only (0o555)
-          // directory itself fails EACCES (observed, not merely theoretical — see the regression test this
-          // ordering fixed). Freezing after publish also closes a smaller race for free: nothing outside
-          // this function can observe the package at its live path while it is still writable, because the
-          // live path does not exist until `publish` returns.
-          let publishedPlugin: InstalledAgentPlugin | undefined;
-          const publishPackage = async (): Promise<InstalledAgentPlugin> => {
-            // The manifest identifies the plugin only after bounded staging extraction (Layout B).
-            const pluginId = indexed.pluginId;
-            const packagesDir = workspaceLayout.pluginPackagesDir({ pluginId });
-            await persistentState.assertOwnedPath({ workspaceRoot: workspaceLayout.root, entryPath: path.relative(workspaceLayout.root, packagesDir) });
-            await mkdir(packagesDir, { recursive: true, mode: 0o700 });
-            const finalRoot = await assertContainedOnDisk(packagesDir, digest);
-            for (const directory of [workspaceLayout.pluginDataDir({ pluginId }),
-              workspaceLayout.pluginMemoryDir({ pluginId, kind: 'learned' }),
-              workspaceLayout.pluginMemoryDir({ pluginId, kind: 'notes' })]) {
-              await persistentState.assertOwnedPath({ workspaceRoot: workspaceLayout.root, entryPath: path.relative(workspaceLayout.root, directory) });
-              await mkdir(directory, { recursive: true, mode: 0o700 });
-            }
-            if (await isRealDirectory(finalRoot)) {
-              publishedPlugin = await indexInstalledRoot(finalRoot, digest);
-              return publishedPlugin;
-            }
-            await publish(extractionRoot, finalRoot);
-            await freezeTree(finalRoot, executablePaths);
-            /** Absolute, read-only (frozen) path to the extracted package root. */
-            publishedPlugin = { ...indexed, packageRoot: finalRoot };
-            return publishedPlugin;
-          };
-          const installed = await (optional.publishGuard ? optional.publishGuard({ plugin: indexed, publish: publishPackage }, {}) : publishPackage());
-          if (publishedPlugin) await pruneSupersededRevisions({ workspaceRoot: workspaceLayout.root, installed: publishedPlugin });
-          return installed;
-        } });
         if (ports.identityAdmission) return ports.identityAdmission({ id: indexed.id!, localId: indexed.pluginId, run: publishWithinPluginLock }, {});
         return publishWithinPluginLock();
       } });
@@ -443,10 +443,17 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
   /** Ported from Jini 78d4b60b: reject from metadata before a staging transaction exists.
  * A second central-directory walk opens no content streams and avoids over-cap disk churn. */
   async function assertEntryCountWithinCap(entries: AsyncIterable<AgentPluginArchiveEntry>): Promise<void> {
+    // Only the count matters, so the entries are stepped through without being bound to a name.
+    // Leaving early closes the walk the way for-await would, without letting a failing close
+    // replace the cap error.
+    const iterator = entries[Symbol.asyncIterator]();
     let entryCount = 0;
-    for await (const _entry of entries) {
+    for (let next = await iterator.next(); !next.done; next = await iterator.next()) {
       entryCount += 1;
-      if (entryCount > LIMITS.maxEntries) throw tooManyEntriesError();
+      if (entryCount > LIMITS.maxEntries) {
+        await Promise.resolve(iterator.return?.()).catch(() => undefined);
+        throw tooManyEntriesError();
+      }
     }
   }
 

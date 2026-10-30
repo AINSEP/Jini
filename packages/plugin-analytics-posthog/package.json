@@ -1,0 +1,47 @@
+{
+  "name": "@jini-ai/plugin-analytics-posthog",
+  "version": "0.7.0",
+  "description": "Standalone PostHog product analytics provider and consent-gated browser assets.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/plugin-analytics-posthog"
+  },
+  "jini": {
+    "domain": "tooling",
+    "kind": "plugin-packaging",
+    "runtime": "node",
+    "entries": {
+      "./package.json": "node",
+      "./plugins/*": "node"
+    }
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    "./plugins/*": "./plugins/*"
+  },
+  "files": [
+    "plugins/analytics-posthog",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "build": "node --import tsx ../provider-plugins/scripts/build.ts analytics-posthog .",
+    "prepack": "node --import tsx ../provider-plugins/scripts/build.ts analytics-posthog .",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@jini-ai/analytics": "workspace:^",
+    "@jini-ai/cookie-consent": "workspace:^",
+    "@jini-ai/diagnostics": "workspace:^",
+    "@jini-ai/plugins": "workspace:^",
+    "tsx": "^4.19.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  }
+}

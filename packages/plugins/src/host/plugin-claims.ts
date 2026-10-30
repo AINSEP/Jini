@@ -198,11 +198,16 @@ export function resolvePluginConflicts(
   return result;
 }
 
+/** The core's own spelling of the claim, when it differs from the requested key. */
+function heldKeyNote(conflict: PluginConflict): string {
+  return conflict.heldKey === conflict.key ? "" : ` ('${conflict.heldKey}')`;
+}
+
 /** One conflict, in words: `tool 'x' is provided by plugin 'a' (A)` / `... is reserved by the host core ('/api/*')`. */
 function describeOne(conflict: PluginConflict): string {
   const holder =
     conflict.heldBy === CORE_OWNER_ID
-      ? `is reserved by ${conflict.heldByName}${conflict.heldKey === conflict.key ? "" : ` ('${conflict.heldKey}')`}`
+      ? `is reserved by ${conflict.heldByName}${heldKeyNote(conflict)}`
       : `is provided by plugin '${conflict.heldBy}' (${conflict.heldByName})`;
   return `${conflict.kind} '${conflict.key}' ${holder}`;
 }

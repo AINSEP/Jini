@@ -12,7 +12,8 @@ export const ADMIN_SURFACE_STATE_LIMITS = Object.freeze({ maxKeyLength: PLUGIN_S
 export const STATE_CREDENTIAL_MESSAGE = 'The plugin tried to save a connection credential in its settings; nothing was saved.';
 
 function isStateScalar(value: unknown): boolean {
-  return value === null || typeof value === 'string' || typeof value === 'boolean' || (typeof value === 'number' && Number.isFinite(value));
+  if (typeof value === 'number') return Number.isFinite(value);
+  return value === null || typeof value === 'string' || typeof value === 'boolean';
 }
 
 /** True for plain JSON data only: no undefined, functions, NaN, class instances or deep nesting. @complexity O(n) nodes. */

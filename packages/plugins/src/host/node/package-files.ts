@@ -221,11 +221,16 @@ async function readDirectoryLevel(rootReal: string, relativeDir: string, state: 
     return [];
   }
   const subdirectories: string[] = [];
-  for (const entry of entries.sort(byName)) {
-    if (!admitEntry(state)) break;
+  const sorted = entries.sort(byName);
+  // Stop at the first entry the limits refuse, or once visiting an entry truncated the walk.
+  let index = 0;
+  let open = true;
+  while (open && index < sorted.length && admitEntry(state)) {
+    const entry = sorted[index]!;
     const relativePath = relativeDir === "" ? entry.name : `${relativeDir}/${entry.name}`;
     if (await visitEntry(rootReal, relativePath, entry, state)) subdirectories.push(relativePath);
-    if (state.truncated) break;
+    index += 1;
+    open = !state.truncated;
   }
   return subdirectories;
 }
@@ -233,8 +238,11 @@ async function readDirectoryLevel(rootReal: string, relativeDir: string, state: 
 /** Records a symlink or file now; `true` when the entry is a subdirectory for the next level. */
 async function visitEntry(rootReal: string, relativePath: string, entry: Dirent, state: WalkState): Promise<boolean> {
   if (entry.isDirectory()) return true;
-  if (entry.isSymbolicLink()) state.files.push(omittedFile(relativePath, 0, "symlink"));
-  else if (entry.isFile()) await readFileEntry({ absolutePath: path.join(rootReal, relativePath), relativePath, state });
+  if (entry.isSymbolicLink()) {
+    state.files.push(omittedFile(relativePath, 0, "symlink"));
+    return false;
+  }
+  if (entry.isFile()) await readFileEntry({ absolutePath: path.join(rootReal, relativePath), relativePath, state });
   return false;
 }
 

@@ -38,6 +38,8 @@ import { checkModelFallbackFreshness } from './check-model-fallback-freshness.js
 import { checkProtocolPurity } from './check-protocol-purity.js';
 import { checkSourceNeutrality } from './lib/source-neutrality.js';
 import { checkPackageLayers } from './check-package-layers.js';
+import { checkPluginPackages } from './check-plugin-packages.js';
+import { REPO_ROOT } from './lib/walk-imports.js';
 import { checkSubpathIsolation } from './check-subpath-isolation.js';
 import { runPublishHygieneSelfTest } from './lib/publish-hygiene-self-test.js';
 import { runGuardSelfTest } from './lib/self-test.js';
@@ -113,9 +115,7 @@ export function diffAgainstBaseline(baseline: readonly Violation[], current: rea
   return { added, removed };
 }
 
-async function main(): Promise<void> {
-  const selfTestFailures = await runGuardSelfTest();
-  for (const expectation of runPublishHygieneSelfTest()) selfTestFailures.push({ expectation, detail: 'publish hygiene fixture' });
+function assertWorkingGuards(selfTestFailures: { expectation: string }[]): void {
   if (selfTestFailures.length) {
     console.error('[guard:drift] SELF-TEST FAILED — refusing to trust the checks against the real repo.');
     for (const failure of selfTestFailures) {
@@ -123,15 +123,23 @@ async function main(): Promise<void> {
     }
     console.error(
       '\nA guard check no longer detects a known-bad fixture. No baseline can exempt this — see' +
-        ' scripts/lib/self-test.ts and guard.ts\'s own header before touching any check-*.ts module.',
+      ' scripts/lib/self-test.ts and guard.ts\'s own header before touching any check-*.ts module.',
     );
     process.exit(1);
   }
+
+}
+
+async function main(): Promise<void> {
+  const selfTestFailures = await runGuardSelfTest();
+  for (const expectation of runPublishHygieneSelfTest()) selfTestFailures.push({ expectation, detail: 'publish hygiene fixture' });
+  assertWorkingGuards(selfTestFailures);
 
   const results = [
     await checkEngineBoundaries(),
     checkSourceNeutrality(),
     checkPackageLayers(),
+    checkPluginPackages({ repoRoot: REPO_ROOT }),
     checkSubpathIsolation(),
     await checkProtocolPurity(),
     await checkAgenticDomPurity({ domSubdir: 'src/core/dom' }),

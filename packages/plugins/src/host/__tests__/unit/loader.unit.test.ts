@@ -4,6 +4,7 @@ import type { PluginManifest } from '../../manifest.js';
 import type { CapabilityScopedSdkCoreDeps } from '../../capability-sdk.js';
 import type { PluginTierPolicy } from '../../ports.js';
 import { PluginSnapshotIntegrityError } from '../../node/module-snapshot.js';
+import { PluginInstallError } from '../../node/install.js';
 import { loadPlugin, PluginLoadError, type LoadPluginRequired } from '../../node/loader.js';
 import { pluginSdkBinding } from '../support/fixture-bindings.js';
 
@@ -31,6 +32,16 @@ function load(overrides: Partial<LoadPluginRequired> = {}) {
     ...overrides,
   } as LoadPluginRequired);
 }
+
+it.each(['PLUGIN_PACKAGE_UNSAFE', 'PLUGIN_PACKAGE_TOO_LARGE'] as const)
+('maps package snapshot refusal %s to integrity failure', async code => {
+  const importModule = vi.fn(async () => { throw new PluginInstallError(code, 'package refused'); });
+  await expect(load({ importModule })).resolves.toEqual({ loaded: false, reason: 'INTEGRITY_FAILED' });
+  expect(importModule).toHaveBeenCalledTimes(1);
+  expect(importModule).toHaveBeenCalledWith({
+    plugin: { pluginId: 'demo', packageRoot: '/plugins/demo/1.0.0' }, modulePath: entryPath,
+  });
+});
 
 describe('loadPlugin pipeline', () => {
   it('loads a verified, compatible, admitted module and runs setup', async () => {

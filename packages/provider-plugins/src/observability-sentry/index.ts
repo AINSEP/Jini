@@ -22,12 +22,17 @@ export function createSentryProvider(required: Readonly<Record<string, unknown>>
   const { dsn, environment = '', tracesSampleRate = 0 } = required;
   if (typeof dsn !== 'string' || !dsn.trim()) throw new TypeError('dsn must be a non-empty string');
   if (typeof environment !== 'string') throw new TypeError('environment must be a string');
-  if (typeof tracesSampleRate !== 'number' || !(tracesSampleRate >= 0 && tracesSampleRate <= 1)) throw new TypeError('tracesSampleRate must be within 0..1');
+  const sampleRate = validatedSampleRate({ tracesSampleRate });
   const tags = attributionOf(required.attribution).attributes;
   const resolvedEnvironment = environment || tags['deployment.environment'];
-  const config = { enabled: true as const, dsn: dsn.trim(), tracesSampleRate, tags, ...releaseInput(required), ...(resolvedEnvironment ? { environment: resolvedEnvironment } : {}) };
+  const config = { enabled: true as const, dsn: dsn.trim(), tracesSampleRate: sampleRate, tags, ...releaseInput(required), ...(resolvedEnvironment ? { environment: resolvedEnvironment } : {}) };
   const { port, dispose } = createSentryObservabilityAdapter({ config }, optional as SentryAdapterOptions);
   return { port, dispose: (_required: Record<string, never>, _optional: Record<string, never> = {}) => dispose() };
+}
+
+function validatedSampleRate({ tracesSampleRate }: { tracesSampleRate: unknown }, _options = {}): number {
+  if (typeof tracesSampleRate !== 'number' || !(tracesSampleRate >= 0 && tracesSampleRate <= 1)) throw new TypeError('tracesSampleRate must be within 0..1');
+  return tracesSampleRate;
 }
 
 export default {

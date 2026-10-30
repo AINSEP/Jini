@@ -62,6 +62,8 @@ import { checkModelFallbackFreshness } from './check-model-fallback-freshness.js
 import { checkProtocolPurity } from './check-protocol-purity.js';
 import { checkSourceNeutrality } from './lib/source-neutrality.js';
 import { checkPackageLayers } from './check-package-layers.js';
+import { checkPluginPackages } from './check-plugin-packages.js';
+import { REPO_ROOT } from './lib/walk-imports.js';
 import { checkSubpathIsolation } from './check-subpath-isolation.js';
 import { runPublishHygieneSelfTest } from './lib/publish-hygiene-self-test.js';
 import { runGuardSelfTest } from './lib/self-test.js';
@@ -87,6 +89,7 @@ async function main() {
     await checkEngineBoundaries(),
     checkSourceNeutrality(),
     checkPackageLayers(),
+    checkPluginPackages({ repoRoot: REPO_ROOT }),
     checkSubpathIsolation(),
     await checkProtocolPurity(),
     // domSubdir override: the DOM-bearing tree moved from src/dom to src/core/dom (see

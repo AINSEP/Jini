@@ -1,0 +1,11 @@
+Jini OpenTelemetry Provider Plugin
+Copyright 2026 Leona Burime
+
+This product includes software derived from Open Design
+(https://github.com/nexu-io/open-design), Copyright its contributors,
+used under the Apache License, Version 2.0.
+
+The provider sources remain at packages/provider-plugins/src/observability-opentelemetry.
+This standalone distribution is extracted from @jini-ai/provider-plugins.
+Bundled dependency licenses and notices are retained under the artifact's licenses/
+directory by the shared builder and are included in its integrity manifest.

@@ -17,13 +17,18 @@ export async function initializeBundledPlugins(
   _options: Record<string, never> = {},
 ): Promise<BundledInitializationResult> {
   const enabled: string[] = []; const skipped: string[] = []; const failed: { pluginId: string; error: unknown }[] = [];
+  // Already-activated and non-bundled ids are skipped; only a fresh bundled plugin is enabled.
+  const initializeOne = async (pluginId: string): Promise<'enabled' | 'skipped'> => {
+    if (await deps.repo.getActivation({ workspaceId: input.workspaceId, pluginId })) return 'skipped';
+    const bundled = deps.discovery.find((record) => record.id === pluginId && record.source === 'built-in');
+    if (!bundled) return 'skipped';
+    await setPluginEnabled({ deps, input: { workspaceId: input.workspaceId, pluginId, enabled: true } });
+    return 'enabled';
+  };
   for (const pluginId of new Set(input.pluginIds)) {
     try {
-      if (await deps.repo.getActivation({ workspaceId: input.workspaceId, pluginId })) { skipped.push(pluginId); continue; }
-      const bundled = deps.discovery.find((record) => record.id === pluginId && record.source === 'built-in');
-      if (!bundled) { skipped.push(pluginId); continue; }
-      await setPluginEnabled({ deps, input: { workspaceId: input.workspaceId, pluginId, enabled: true } });
-      enabled.push(pluginId);
+      const outcome = await initializeOne(pluginId);
+      (outcome === 'enabled' ? enabled : skipped).push(pluginId);
     } catch (error) { failed.push({ pluginId, error }); }
   }
   return { enabled, skipped, failed };

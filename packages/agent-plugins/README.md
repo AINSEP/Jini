@@ -29,7 +29,7 @@ decides its own install mechanism, permission model, and sandboxing.
 
 ## What a plugin looks like on disk
 
-A plugin is a directory. Example (this package's own bundled plugin, `ui-ux-design/`):
+A plugin is a directory. Example (`@jini-ai/plugin-ui-ux-design` publishes this payload):
 
 ```
 ui-ux-design/
@@ -104,13 +104,13 @@ Catalog format) that this package does not implement.
 | `.` (root) | universal | `PluginManifest`/`McpManifest` types, `validatePluginManifest({ value })`/`validateMcpManifest({ value })` structural validators (plus compatible `isPluginManifest(value)`/`isMcpManifest(value)` wrappers), and the known path constants (`PLUGIN_MANIFEST_FILENAME`, `PLUGIN_SKILLS_DIRNAME`, `PLUGIN_MCP_MANIFEST_FILENAME`). No filesystem access, no DOM. |
 | `./manifest` | universal | Strict manifest/MCP parsing and typed namespace readers; object structural validators are also re-exported here. |
 | `./lifecycle` | node | Host-injected installation, activation, locks, digests, bundles, trusted files, reference resolution, ranking and MCP provisioning helpers. |
+| `./lifecycle` packing | node | `createAgentPluginLifecycle(ports).packAgentPluginDirectory({ sourceDir }, { allowPaths, excludeNames, excludeSuffixes, includeTests })`; explicit allow-paths and their ancestors beat name exclusions; excluded descendants still skip. Suffix exclusions always win; test skips require `includeTests: true` to disable. |
 | `./lifecycle/node` | node | `createNodeAgentPluginEffects({})` opt-in native effects. |
 | `./lifecycle/yauzl` | node | `createYauzlAgentPluginArchiveReader({ yauzl })`; the host supplies the optional peer library. |
 | `./folder-zip` | universal | `zipFolderFiles({ files, maxBytes })`: packs picked folder `File`s into one stored-mode, binary-safe `.zip` `File` (the admin "Upload a folder" encoder). |
 | `./folder-zip/node` | node | `zipLocalFolder({ path, maxBytes })`: the same encoder over a local folder; refuses symlinks/special files, bounds entries and bytes. |
 | `./admin-surfaces` | universal | Plugin-owned admin surfaces: the contribution definition (host-named file), sandboxed-iframe/CSP/bootstrap helpers, the host-page message gate and the server-side action dispatcher. See "Admin surfaces" below. |
 | `./admin-surfaces/client` | universal | `createAdminSurfaceClient(...)`: the self-contained surface-side protocol client a plugin's UI imports or copies. |
-| `./ui-ux-design/*` | — | Raw files of the bundled `ui-ux-design` plugin — static JSON/Markdown, not run through the TS build. |
 
 The universal root handles structural validation. The separate Node lifecycle entry implements
 local archive installation and host-owned activation policy; it does not implement remote catalog discovery.
@@ -150,42 +150,19 @@ package supports. Do not confuse the two — "agent plugins" (this package, a
 public spec) and "Jini plugins" (`@jini-ai/plugins`'s `./host`, Jini's own unbuilt format) share
 the word "plugin" and nothing else.
 
-## Bundled plugins
+## Independently packaged plugins
 
-Real, install-ready plugin directories shipped alongside the code — not illustrative examples.
-Each lives at the package root under **its own name** (`ui-ux-design/`).
-Plugins live at the package root rather than inside `src/` because `src/` is the TypeScript
-compile root (`rootDir: "src"`, `include: ["src"]`) — a plugin's skill trees can carry files
-(`.tsx` examples, etc.) that are illustrative content, not package code, and putting them under
-`src/` makes `tsc` try to compile them (measured, on `ui-ux-design`: 207 errors from the three
-`shadcn-ui/examples/*.tsx` files alone). Static content and compiler input are kept in separate
-trees on purpose.
+Starting with the breaking 0.7.0 release, this library ships manifest and lifecycle code only.
+Install `@jini-ai/plugin-ui-ux-design` explicitly for the design payload. Resolve
+`@jini-ai/plugin-ui-ux-design/plugin.json`; its containing directory holds the portable assets.
+Stage that directory beneath the host's bundled-source root, then call the existing
+`seedBundledAgentPlugins({ layout, workspaceId, sourceRoot })`. Read contributions through trusted
+installed-package readers. Seeding preserves digest selection and operator activation decisions.
 
-### `ui-ux-design/`
-
-Bundles the AI-Dev-Shop Web Design agent's full skill set (per its `agents/web-design/skills.md`
-persona and the `framework/routing/skills-registry.md` ownership mapping) into one portable plugin:
-
-- `ui-ux-design` — design-foundations (tokens, typography, spacing, breakpoints, component state
-  matrix) *and* first-impression polish, scanning hierarchy, conversion-focused visual signals —
-  one skill, not two. AI-Dev-Shop merged its former separate `ux-design` and `premium-ui` skills
-  into this single `ui-ux-design` skill; this sample tracks that merge instead of carrying the two
-  predecessor skills as stale copies (see git history for the 2026-08-12 consolidation).
-- `interface-design` — repeatable, memory-consistent visual systems for dashboards/admin panels/apps
-- `gstack-design` — manual four-mode workflow (consultation, shotgun, html, review)
-- `frontend-accessibility` — WCAG 2.1 AA checklist
-- `vercel-web-design-guidelines` — Vercel Web Interface Guidelines auditor
-- `shadcn-ui` — shadcn/ui (Radix + Tailwind) component discovery/integration guidance
-- `web-compliance` — legal/compliance checkpoints for public-facing UX flows
-
-Each skill directory is a verbatim copy of the corresponding `AI-Dev-Shop/skills/<name>/` tree —
-copied rather than referenced, because the whole point of a plugin is that it is self-contained and
-portable to a host that has never heard of AI-Dev-Shop. `AI-Dev-Shop/agents/web-design/skills.md`
-itself (the persona that composes these skills into one role) is not bundled — it is ADS-specific
-routing glue, not a portable skill.
-
-Consumers may read bundled raw assets through the public wildcard subpath. Product-specific
-plugin assets are owned and shipped by their product, outside this library.
+The editable design source remains at `ui-ux-design/` here, outside `src/`: its `.tsx` examples
+are illustrative skill content and must not enter the TypeScript compile root. Assembly generates
+only the standalone package's payload. The old `@jini-ai/agent-plugins/ui-ux-design/*` export is
+removed; product-specific assets remain owned by their product.
 
 ## Scripts
 
@@ -198,18 +175,12 @@ pnpm --filter @jini-ai/agent-plugins test
 The build and typecheck include lifecycle test sources. Copied Node test options are
 translated to Vitest registration, preserving per-test timeouts and platform skip conditions.
 
-## Adding another bundled plugin
+## Adding another plugin
 
-1. Create `<plugin-name>/plugin.json` at the package root with at least
-   `{ "$schema": AGENT_PLUGINS_SCHEMA_URL, "name": "<plugin-name>" }`. Do **not** put it under
-   `src/` — see "Bundled plugins" above for why.
-2. Add `<plugin-name>/skills/<skill-name>/SKILL.md` per skill (plus any `references/`,
-   `examples/`, `scripts/` the skill needs).
-3. Register it in `package.json`: an `exports` key `"./<plugin-name>/*": "./<plugin-name>/*"`, a
-   matching `jini.entries` key (the R8 guard requires every export to have one), and a
-   `files` entry.
-4. Add coverage in `src/__tests__/manifest.test.ts` following the `ui-ux-design plugin` block — assert the manifest validates and the expected skill
-   directories exist.
+Create a separate `@jini-ai/plugin-<id>` workspace package with its own reviewed manifest,
+README, LICENSE and NOTICE. Generate only that plugin's payload; do not add plugin assets or
+plugin dependencies to this lifecycle library. Keep skill trees outside TypeScript compile roots,
+validate the plugin manifest and test installation through this package's existing lifecycle.
 
 ## Lifecycle API and ports
 

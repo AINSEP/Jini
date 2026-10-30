@@ -73,6 +73,104 @@ async function readFiles({ packed, reader = packed.archiveReader! }: {
 }
 
 describe('opt-in source packing', () => {
+  test('explicit files traverse excluded ancestors without admitting excluded siblings', async () => {
+    const { api, calls } = fixture({ nodes: {
+      'ns/dist/index.mjs': { kind: 'file', content: 'runtime' },
+      'ns/dist/other.mjs': { kind: 'file', content: 'other' },
+      'dist/unwanted.mjs': { kind: 'file', content: 'unwanted' },
+    } });
+    const selection = { allowPaths: ['ns/dist/index.mjs'], limits };
+    const baseline = await api.packAgentPluginDirectory({ sourceDir: '/source' }, selection);
+    calls.length = 0;
+    const packed = await api.packAgentPluginDirectory({ sourceDir: '/source' }, {
+      ...selection, excludeNames: ['ns', 'dist', 'index.mjs'],
+    });
+    expect(packed.files).toEqual(['ns/dist/index.mjs']);
+    expect(packed.bytes).toEqual(baseline.bytes);
+    expect(await readFiles({ packed, reader: api.createBundledSourceArchiveReader({}) }))
+      .toEqual({ 'ns/dist/index.mjs': 'runtime' });
+    expect(calls).not.toContain('list:/source/dist');
+    expect(calls).not.toContain('open:/source/ns/dist/other.mjs');
+  });
+
+  test('an explicitly selected directory beats its name exclusion, while descendant exclusions still apply', async () => {
+    const { api } = fixture({ nodes: {
+      'ns/dist/index.mjs': { kind: 'file', content: 'runtime' },
+      'ns/dist/drop.txt': { kind: 'file', content: 'drop' },
+    } });
+    const packed = await api.packAgentPluginDirectory({ sourceDir: '/source' }, {
+      allowPaths: ['ns\\dist/'], excludeNames: ['dist', 'drop.txt'],
+    });
+    expect(packed.files).toEqual(['ns/dist/index.mjs']);
+  });
+
+  test('suffix exclusions prune every depth before reads, including explicitly allowed paths', async () => {
+    const { api, calls } = fixture({ nodes: {
+      'root.tsbuildinfo': { kind: 'file', content: 'cache' },
+      'ns/cache.tsbuildinfo': { kind: 'file', content: 'cache' },
+      'ns/assets.cache/hidden': { kind: 'file', content: 'hidden' },
+      'ns/index.mjs': { kind: 'file', content: 'runtime' },
+    } });
+    const selection = { allowPaths: ['root.tsbuildinfo', 'ns'], limits };
+    const baseline = await api.packAgentPluginDirectory({ sourceDir: '/source' }, selection);
+    expect(baseline.files).toEqual(['ns/assets.cache/hidden', 'ns/cache.tsbuildinfo', 'ns/index.mjs', 'root.tsbuildinfo']);
+    calls.length = 0;
+    const packed = await api.packAgentPluginDirectory({ sourceDir: '/source' }, {
+      ...selection, excludeSuffixes: ['.tsbuildinfo', '.cache'],
+    });
+    expect(await readFiles({ packed, reader: api.createBundledSourceArchiveReader({}) }))
+      .toEqual({ 'ns/index.mjs': 'runtime' });
+    expect(calls.filter(call => call.startsWith('open:'))).toEqual(['open:/source/ns/index.mjs']);
+    expect(calls).not.toContain('list:/source/ns/assets.cache');
+  });
+
+  test.each([undefined, false, true])('test source inclusion is opt-in (%s)', async includeTests => {
+    const { api } = fixture({ nodes: {
+      '__tests__/fixture.txt': { kind: 'file', content: 'fixture' },
+      'ns/__tests__/nested.txt': { kind: 'file', content: 'nested' },
+      'ns/a.test.ts': { kind: 'file', content: 'test' },
+      'ns/b.spec.mjs': { kind: 'file', content: 'spec' },
+      'ns/runtime.mjs': { kind: 'file', content: 'runtime' },
+    } });
+    const packed = await api.packAgentPluginDirectory({ sourceDir: '/source' },
+      includeTests === undefined ? {} : { includeTests });
+    expect(await readFiles({ packed, reader: api.createBundledSourceArchiveReader({}) })).toEqual(includeTests ? {
+      '__tests__/fixture.txt': 'fixture', 'ns/__tests__/nested.txt': 'nested',
+      'ns/a.test.ts': 'test', 'ns/b.spec.mjs': 'spec', 'ns/runtime.mjs': 'runtime',
+    } : { 'ns/runtime.mjs': 'runtime' });
+  });
+
+  test('including tests keeps source selection, exclusions and non-regular entry policies', async () => {
+    const { api } = fixture({ nodes: {
+      '__tests__/keep.txt': { kind: 'file', content: 'fixture' },
+      '__tests__/drop.spec.ts': { kind: 'file', content: 'spec' },
+      '__tests__/cache.tsbuildinfo': { kind: 'file', content: 'cache' },
+      '__tests__/link': { kind: 'symlink' },
+      'other/runtime.mjs': { kind: 'file', content: 'runtime' },
+    } });
+    const selection = { includeTests: true, allowPaths: ['__tests__'],
+      excludeNames: ['drop.spec.ts'], excludeSuffixes: ['.tsbuildinfo'] };
+    expect((await api.packAgentPluginDirectory({ sourceDir: '/source' }, selection)).files)
+      .toEqual(['__tests__/keep.txt']);
+    await expect(api.packAgentPluginDirectory({ sourceDir: '/source' }, { ...selection, symlinkPolicy: 'reject' }))
+      .rejects.toThrow("symlink '__tests__/link'");
+  });
+
+  test('explicit test paths still require includeTests, and the opt-in retains file limits', async () => {
+    const { api } = fixture({ nodes: {
+      '__tests__/fixture.txt': { kind: 'file', content: 'fixture' },
+      'ns/a.test.ts': { kind: 'file', content: 'test' },
+      'ns/b.spec.mjs': { kind: 'file', content: 'spec' },
+    } });
+    const selection = { allowPaths: ['__tests__', 'ns/a.test.ts', 'ns/b.spec.mjs'] };
+    expect((await api.packAgentPluginDirectory({ sourceDir: '/source' }, selection)).files).toEqual([]);
+    const packed = await api.packAgentPluginDirectory({ sourceDir: '/source' }, { ...selection, includeTests: true });
+    expect(packed.files).toEqual(['__tests__/fixture.txt', 'ns/a.test.ts', 'ns/b.spec.mjs']);
+    await expect(api.packAgentPluginDirectory({ sourceDir: '/source' }, {
+      ...selection, includeTests: true, limits: { ...limits, maxFiles: 2 },
+    })).rejects.toThrow('maxFiles');
+  });
+
   test('allowlist subtrees deduplicate, exclusions win, and unrelated directories are never entered', async () => {
     const { api, calls } = fixture({ nodes: {
       '__tests__': { kind: 'file', content: 'runtime file' },
@@ -80,6 +178,8 @@ describe('opt-in source packing', () => {
       'keep/a.test.ts': { kind: 'file', content: 'test' }, 'other/no.txt': { kind: 'file', content: 'no' },
     } });
     const baseline = await api.packAgentPluginDirectory({ sourceDir: '/source' });
+    expect(await api.packAgentPluginDirectory({ sourceDir: '/source' }, { excludeSuffixes: [], includeTests: false }))
+      .toEqual(baseline);
     expect(baseline.files).toEqual(['__tests__', 'keep/a.txt', 'keep/drop/secret', 'other/no.txt']);
     calls.length = 0;
     const packed = await api.packAgentPluginDirectory({ sourceDir: '/source' }, {

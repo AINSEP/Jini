@@ -40,13 +40,14 @@ export function mergeGlueToolRegistrations(
   };
   const messageOf = (error: unknown): string => (error instanceof Error ? error.message : String(error));
 
-  for (const module of glueModules) {
+  // A module either registers all its tools or is quarantined with the reason; core ids and
+  // earlier modules' ids are never shadowed.
+  const registerModule = (module: (typeof glueModules)[number]): { reason: GlueToolQuarantineReason; detail: string } | undefined => {
     let registrations: readonly GlueToolRegistration[];
     try {
       registrations = module.build({});
     } catch (error) {
-      quarantine(module.moduleId, "THROW", `registration build failed: ${messageOf(error)}`);
-      continue;
+      return { reason: "THROW", detail: `registration build failed: ${messageOf(error)}` };
     }
 
     const moduleToolIds = new Set<string>();
@@ -56,23 +57,23 @@ export function mergeGlueToolRegistrations(
       return false;
     });
     if (duplicate) {
-      quarantine(
-        module.moduleId,
-        "DUPLICATE_TOOL_ID",
-        `tool id '${duplicate.toolId}' is already registered by core or an earlier glue module`
-      );
-      continue;
+      return { reason: "DUPLICATE_TOOL_ID", detail: `tool id '${duplicate.toolId}' is already registered by core or an earlier glue module` };
     }
 
     try {
       hostPort.registerTools({ moduleId: module.moduleId, registrations });
     } catch (error) {
-      quarantine(module.moduleId, "THROW", `host port registration failed: ${messageOf(error)}`);
-      continue;
+      return { reason: "THROW", detail: `host port registration failed: ${messageOf(error)}` };
     }
 
     for (const registration of registrations) claimedToolIds.add(registration.toolId);
-    registeredModuleIds.push(module.moduleId);
+    return undefined;
+  };
+
+  for (const module of glueModules) {
+    const failure = registerModule(module);
+    if (failure) quarantine(module.moduleId, failure.reason, failure.detail);
+    else registeredModuleIds.push(module.moduleId);
   }
 
   return { registeredModuleIds, quarantined };

@@ -304,7 +304,10 @@ export function createUpdateModule(ports: AgentPluginLifecyclePorts, optional: {
     const workspace = ports.layout.forWorkspace({ workspaceId });
     let entries;
     try { entries = await ports.filesystem.readdir(workspace.root, { withFileTypes: true }); }
-    catch (error) { if (!isMissing({ error })) throw error; return []; }
+    catch (error) {
+      if (!isMissing({ error })) throw error;
+      return [];
+    }
     return entries.filter(entry => entry.isDirectory() && isPluginStateRoot({ workspace, pluginId: entry.name })).map(entry => entry.name);
   }
 
@@ -317,8 +320,10 @@ export function createUpdateModule(ports: AgentPluginLifecyclePorts, optional: {
     const store = createAgentPluginUpdateStore({ ports, workspaceId, pluginId });
     const switchOff = (error: unknown) => switchOffUnrecovered({ workspaceId, pluginId, error });
     const journal = await store.read({}).catch(switchOff);
-    if (journal?.state === 'committed') await store.finish({ journal });
-    else if (journal) await restoreUpdate({ workspaceId, journal }).catch(switchOff);
+    // A committed update only needs finishing; any other journal is rolled back.
+    const committed = journal?.state === 'committed';
+    if (journal && committed) await store.finish({ journal });
+    if (journal && !committed) await restoreUpdate({ workspaceId, journal }).catch(switchOff);
     for (const rollbackRoot of await store.listRollbackRoots({})) await removal.removeFrozenPackageTree(rollbackRoot);
   }
 

@@ -67,8 +67,11 @@ export function createInstalledPackageIndex(required: { readonly ports: AgentPlu
     async function walk(absolute: string, prefix: string): Promise<void> {
       for (const entry of await readdir(absolute, { withFileTypes: true })) {
         const relative = prefix ? `${prefix}/${entry.name}` : entry.name;
-        if (entry.isDirectory()) await walk(path.join(absolute, entry.name), relative);
-        else if (entry.isFile()) files.push(relative);
+        if (entry.isDirectory()) {
+          await walk(path.join(absolute, entry.name), relative);
+          continue;
+        }
+        if (entry.isFile()) files.push(relative);
         // Anything that is neither a directory nor a regular file (a symlink somehow already present,
         // a device node) is skipped rather than indexed — extraction itself never creates one, so
         // encountering one here would mean the filesystem changed out from under an already-published,

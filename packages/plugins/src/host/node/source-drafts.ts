@@ -61,13 +61,25 @@ function safeId(id: string): void {
   if (typeof id !== 'string' || validatePluginIdFormat({ id }, {}).length) fail('PLUGIN_SOURCE_PATH_INVALID', 'Use a lowercase plugin id of at most 50 characters containing letters, numbers and hyphens.');
 }
 /** Reject both POSIX and Windows absolute/traversal syntax, even on a POSIX host. */
+function isSafeDraftPath(file: string): boolean {
+  if (typeof file !== 'string' || !file) return false;
+  if (file.includes('\\') || file.includes('\0')) return false;
+  if (path.posix.isAbsolute(file) || path.win32.isAbsolute(file)) return false;
+  return !file.split('/').some(part => !part || part === '.' || part === '..');
+}
 function safeFile(file: string): void {
-  if (typeof file !== 'string' || !file || file.includes('\\') || file.includes('\0') || path.posix.isAbsolute(file) || path.win32.isAbsolute(file) || file.split('/').some(part => !part || part === '.' || part === '..')) {
+  if (!isSafeDraftPath(file)) {
     fail('PLUGIN_SOURCE_PATH_INVALID', 'File paths must be relative to the draft, without .., absolute paths or empty segments.');
   }
 }
 async function exists(target: string): Promise<boolean> {
-  try { await lstat(target); return true; } catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false; throw error; }
+  try {
+    await lstat(target);
+    return true;
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return false;
+    throw error;
+  }
 }
 /** Checks every existing segment, including the configured root. Like the installer, this
  * rejects links and hardlinks; a hostile concurrent native process is outside this boundary. */
@@ -156,7 +168,7 @@ export function createPluginSourceService(required: PluginSourceDeps, optional: 
     if (required.builtInIds.some(builtIn => builtIn.toLowerCase() === id)) fail('PLUGIN_SHADOWS_BUILT_IN', 'Built-in plugin source cannot be edited.');
     await confined(root, root);
     if (options.createRoot) await mkdir(root, { recursive: true });
-    else if (!await exists(root)) fail('PLUGIN_SOURCE_DRAFT_MISSING', 'Create or open a plugin draft first.');
+    if (!options.createRoot && !await exists(root)) fail('PLUGIN_SOURCE_DRAFT_MISSING', 'Create or open a plugin draft first.');
     try {
       return await withFileLock({ lockPath: root + '-source-lock', run: action }, { ...optional.lockPorts, timeoutMs: 100, staleMs: Infinity });
     } catch (error) {
@@ -243,7 +255,7 @@ export function createPluginSourceService(required: PluginSourceDeps, optional: 
       const plugin = await required.installer.install({ ...input, expectedDigest: preview.digest }, { versionAppend: true });
       // Host-owned, digest-bound provenance cannot be claimed by a manifest or written through
       // a draft path. Tier-3 has full server access by owner decision (2026-10-09), so this is an
-      // assistant-tool boundary, not isolation from executing code. TODO: sandbox tier-3 later.
+      // assistant-tool boundary, not isolation from executing code. Sandboxing tier-3 is planned for later.
       await writeAtomic(root, marker(id, version), jsonBytes({ digest: plugin.digest }));
       return await reloadAndPrune(id, plugin, rollbackFrom ? { rollbackFrom } : {});
     } finally { await rm(staging, { recursive: true, force: true }); }
@@ -286,7 +298,8 @@ export function createPluginSourceService(required: PluginSourceDeps, optional: 
     read: ({ id, path: file }, _options = {}) => locked(id, () => read(id, file)),
     write: ({ id, path: file, content }, _options = {}) => locked(id, () => write(id, file, content)),
     edit: ({ id, path: file, oldString, newString, replaceAll }, _options = {}) => locked(id, async () => {
-      if (typeof oldString !== 'string' || !oldString || typeof newString !== 'string' || (replaceAll !== undefined && typeof replaceAll !== 'boolean')) fail('PLUGIN_SOURCE_INPUT_INVALID', 'Provide a nonempty oldString, a newString and optional boolean replaceAll.');
+      const validReplaceAll = replaceAll === undefined || typeof replaceAll === 'boolean';
+      if (typeof oldString !== 'string' || !oldString || typeof newString !== 'string' || !validReplaceAll) fail('PLUGIN_SOURCE_INPUT_INVALID', 'Provide a nonempty oldString, a newString and optional boolean replaceAll.');
       const { content, bytes } = await read(id, file);
       const parts = content.split(oldString);
       const replacements = parts.length - 1;
