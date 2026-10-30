@@ -202,6 +202,9 @@ export type DeliverMidRunMessage = (input: { runId: string; text: string; attach
 
 export interface ChatPaneProps extends UserTextRedactionOptions {
   transport: ChatTransport;
+  /** Host-localized text shown verbatim while the active run is awaiting acceptance.
+   * Omit to use the translated `Sending…` label; ignored once sending ends. */
+  sendingLabel?: string;
   /** Current effective host limits, used for a warning before the first message is sent. */
   nativeToolPolicy?: NativeToolPolicyInput;
   agents?: readonly ChatPaneAgent[];

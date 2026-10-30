@@ -203,6 +203,11 @@ The SSE transport takes an injected decoder; browser hosts must supply a browser
 
 ## React integration boundaries
 
+`ChatPane` accepts an optional `sendingLabel?: string` for host-localized startup feedback,
+for example `<ChatPane transport={transport} sendingLabel="Connecting to the assistant…" />`.
+The active, sending activity line displays it verbatim until run acceptance. Omitting the prop
+restores the translated `Sending…` label; it has no effect once sending ends.
+
 Model/provider selection belongs to the host-injected `ModelAgentPickerSlot`, because choosing
 an LLM or agent is a provider concern rather than a chat-domain concern. The unused internal
 picker was removed after a fresh caller check confirmed that only its own tests reached it.

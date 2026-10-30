@@ -96,6 +96,9 @@ export interface MessageRowProps {
   runStreaming?: boolean;
   /** Whether the server has yet to accept this reply's run (its user turn is still pending). */
   runSending?: boolean;
+  /** Host-localized text shown verbatim only while this run is active and sending.
+   * Omit to use the translated `Sending…` label. */
+  sendingLabel?: string;
   runSucceeded?: boolean;
   /** Whether this message's question-form (if any) is still the active/answerable one. */
   questionFormInteractive?: boolean;
@@ -219,9 +222,10 @@ function messageAwaitingAnswer(
 }
 
 function AssistantMessageFooter(
-  { message, usageEvent, showUsageTotal, terminalNotice, pending, runInProgress, runStreaming, runSending, visibleContent, isAnsweredCard }: {
+  { message, usageEvent, showUsageTotal, terminalNotice, pending, runInProgress, runStreaming, runSending, sendingLabel, visibleContent, isAnsweredCard }: {
     message: ChatMessage; usageEvent: ChatUsageSummary | undefined; showUsageTotal: boolean; terminalNotice: string | null;
     pending: boolean; runInProgress: boolean; runStreaming?: boolean; runSending: boolean; visibleContent: string; isAnsweredCard: IsAnsweredCard;
+    sendingLabel: string | undefined;
   }, _optional = {},
 ) {
   const t = useT();
@@ -239,7 +243,7 @@ function AssistantMessageFooter(
         </div>
       ) : null}
       {runInProgress ? <RunActivityLine events={message.events} active={pending || (runStreaming === true && runInProgress)} isAnsweredCard={isAnsweredCard}
-        sending={runSending} /> : null}
+        sending={runSending} sendingLabel={sendingLabel} /> : null}
   </>;
 }
 
@@ -319,6 +323,7 @@ function AssistantMessageRow({
   showThinking,
   runStreaming,
   runSending,
+  sendingLabel,
   runSucceeded,
   questionFormInteractive,
   questionFormSubmittedAnswers,
@@ -469,7 +474,7 @@ function AssistantMessageRow({
             {flatExtGroups.length > 0 ? <div className="jini-message-ext-events">{flatExtGroups.map(renderExtGroup)}</div> : null}
           </>
         )}
-      {footer && <AssistantMessageFooter {...{ message, usageEvent: footerUsage, showUsageTotal, terminalNotice, pending, runInProgress, runStreaming, runSending, visibleContent, isAnsweredCard: answeredCards.isAnsweredCard }} />}
+      {footer && <AssistantMessageFooter {...{ message, usageEvent: footerUsage, showUsageTotal, terminalNotice, pending, runInProgress, runStreaming, runSending, sendingLabel, visibleContent, isAnsweredCard: answeredCards.isAnsweredCard }} />}
     </div>
   );
   // The lossless fallback keeps the host's text intact; user receipts still own separate rows,
@@ -519,13 +524,14 @@ function isUserSection({ section }: { section: readonly AssistantBlock[] | undef
  * The live "what is it doing" line under a running reply (see `core/run-activity.ts`). Replaces the
  * old "Thinking…" placeholder, which vanished for good as soon as the first tool row appeared.
  * Kept a separate component so its one-second tick re-renders only this line, not the whole row.
+ * A host's already-localized sending label is used verbatim until acceptance.
  */
-function RunActivityLine({ events, active, isAnsweredCard, sending }: { events: AgentEvent[] | undefined; active: boolean; isAnsweredCard: IsAnsweredCard; sending: boolean }) {
+function RunActivityLine({ events, active, isAnsweredCard, sending, sendingLabel }: { events: AgentEvent[] | undefined; active: boolean; isAnsweredCard: IsAnsweredCard; sending: boolean; sendingLabel: string | undefined }) {
   const t = useT();
   const activityLabel = useRunActivity({ events: events, active: active }, { isAnsweredCard });
   // Until the server accepts the start the turn is still on its way: "Thinking…" there read as the
   // model working while the text had not even arrived (owner, 2026-10-27). No timeout.
-  const label = active && sending ? t('Sending…') : continuingRunNotice({ events, active }, {}) ?? activityLabel;
+  const label = active && sending ? sendingLabel ?? t('Sending…') : continuingRunNotice({ events, active }, {}) ?? activityLabel;
   if (label === null) return null;
   return (
     <div className="jini-message-pending jini-run-activity" aria-live="off">

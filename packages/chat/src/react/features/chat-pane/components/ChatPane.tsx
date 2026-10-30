@@ -659,6 +659,7 @@ function buildChatPaneSlots(
 
 interface ChatPaneTranscriptProps {
   pane: UseChatPaneResult;
+  sendingLabel: ChatPaneProps['sendingLabel'];
   emptyState: ReactNode;
   embed: boolean;
   suggestions: readonly string[];
@@ -673,6 +674,7 @@ interface ChatPaneTranscriptProps {
 
 function ChatPaneTranscript({
   pane,
+  sendingLabel,
   emptyState,
   embed,
   suggestions,
@@ -695,6 +697,7 @@ function ChatPaneTranscript({
   return (
     <MessageList
       messages={pane.conversation.messages}
+      {...definedProps({ source: { sendingLabel } })}
       isStreaming={pane.conversation.isStreaming}
       scrollIntent={pane.conversation.scrollIntent}
       onScrolled={pane.conversation.acknowledgeScroll}
@@ -844,6 +847,7 @@ export function ChatPane(props: ChatPaneProps) {
       <div className="jini-chat-pane__body">
         <ChatPaneTranscript
           pane={pane}
+          sendingLabel={p.sendingLabel}
           emptyState={p.emptyState}
           embed={surface.embed}
           suggestions={p.suggestions}
