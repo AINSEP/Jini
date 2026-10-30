@@ -1,5 +1,5 @@
 /**
- * @file Real `ImageTransformerPort` adapter — calls `sharp` to actually
+ * @file Real `ImageTransformerPort` / `ImageCodecPort` adapter — calls `sharp` to actually
  * resize/re-encode pixels (renditions are always re-encoded,
  * never passed through unmodified).
  *
@@ -27,6 +27,7 @@
  *    {@link ImageTransformUnavailableError} — a named, thrown error, not a
  *    silently-passed-through/faked image.
  */
+import type { ImageCodecPort, ImageCodecLimits, ImageMetadata, ImageEncodeInput, ImageGeometry, EncodedImage, ImageTileInput } from "./image-codec.js";
 import { createRequire } from "node:module";
 
 import type { ImageTransformerPort, TransformImageInput, TransformImageOutput } from "./image-transformer.js";
@@ -170,11 +171,53 @@ function loadSharpFactory(loadSharp: () => SharpFactory): SharpFactory {
  * success-path code is reviewed for correctness against `sharp`'s documented
  * API.
  */
-export class SharpImageTransformer implements ImageTransformerPort {
+export class SharpImageTransformer implements ImageTransformerPort, ImageCodecPort {
   private readonly loadSharp: () => SharpFactory;
 
   constructor(_required: Record<string, never> = {}, optional: SharpImageTransformerOptional = {}) {
     this.loadSharp = optional.loadSharp ?? requireSharp;
+  }
+
+  /** Decode header facts without changing the source. Native decode errors propagate.
+   * @complexity One bounded header decode; O(1) result storage. */
+  async inspect({ source }: { source: Uint8Array }, options: ImageCodecLimits = {}): Promise<ImageMetadata> {
+    return this.openCodec({ source }, options).metadata();
+  }
+
+  /** Orient, crop, rotate, mirror, resize and encode in that order. Metadata is stripped by default.
+   * @throws Native option/decode errors. @complexity O(pixels) time and space, subject to options' limits. */
+  async encode({ source, format, quality, stripMetadata, flatten, ...geometry }: ImageEncodeInput, options: ImageCodecLimits = {}): Promise<EncodedImage> {
+    let pipeline = applyGeometry({ pipeline: this.openCodec({ source }, options), geometry });
+    // JPEG cannot carry alpha; explicit white avoids libvips' black background for logos.
+    if (flatten) pipeline = pipeline.flatten(flatten);
+    if (stripMetadata === false) pipeline = pipeline.keepMetadata();
+    const { data, info } = await pipeline.toFormat(format, { quality }).toBuffer({ resolveWithObject: true });
+    return { bytes: data, width: info.width, height: info.height };
+  }
+
+  /** Resize once, then encode JPEG tiles in order; the final tile retains its remaining height.
+   * @throws RangeError for a non-positive/non-integer tile height; native decode/encode errors.
+   * @complexity O(pixels + encoded bytes) time and space. */
+  async encodeTiles({ source, maxWidth, tileHeight }: ImageTileInput, { quality = 70 }: { quality?: number } = {}): Promise<(EncodedImage & { top: number })[]> {
+    if (!Number.isSafeInteger(tileHeight) || tileHeight <= 0) throw new RangeError("tileHeight must be a positive integer");
+    const { data, info } = await this.openCodec({ source }).resize({ width: maxWidth, withoutEnlargement: true }).raw().toBuffer({ resolveWithObject: true });
+    const raw = { width: info.width, height: info.height, channels: info.channels };
+    const tiles: (EncodedImage & { top: number })[] = [];
+    for (let top = 0; top < info.height; top += tileHeight) {
+      const height = Math.min(tileHeight, info.height - top);
+      const { data: bytes } = await this.openCodec({ source: data, raw }).extract({ left: 0, top, width: info.width, height }).toFormat("jpeg", { quality }).toBuffer({ resolveWithObject: true });
+      tiles.push({ top, width: info.width, height, bytes });
+    }
+    return tiles;
+  }
+
+  /** Share this adapter's lazy optional-dependency loader across renditions and pixel operations. */
+  private openCodec({ source, raw }: { source: Uint8Array; raw?: { width: number; height: number; channels: number } }, { maxInputPixels, timeoutSeconds }: ImageCodecLimits = {}): CodecPipeline {
+    const factory = loadSharpFactory(this.loadSharp) as unknown as CodecFactory;
+    // Reuse Buffers so each tile does not copy the entire decoded screenshot raster.
+    let pipeline = factory(Buffer.isBuffer(source) ? source : Buffer.from(source), { limitInputPixels: maxInputPixels, raw });
+    if (timeoutSeconds !== undefined) pipeline = pipeline.timeout({ seconds: timeoutSeconds });
+    return pipeline;
   }
 
   async transform(input: TransformImageInput): Promise<TransformImageOutput> {
@@ -214,4 +257,33 @@ export class SharpImageTransformer implements ImageTransformerPort {
       );
     }
   }
+}
+
+/** Structural native types remain private to this adapter, so codecs stay optional for consumers. */
+interface CodecPipeline {
+  metadata(): Promise<ImageMetadata>;
+  autoOrient(): CodecPipeline;
+  extract(input: NonNullable<ImageGeometry["extract"]>): CodecPipeline;
+  rotate(angle: number, options: { background: string | { r: number; g: number; b: number; alpha: number } }): CodecPipeline;
+  flip(): CodecPipeline;
+  flop(): CodecPipeline;
+  resize(input: ImageGeometry["resize"] & { background?: string | { r: number; g: number; b: number; alpha: number } }): CodecPipeline;
+  flatten(options: { background: string }): CodecPipeline;
+  keepMetadata(): CodecPipeline;
+  raw(): CodecPipeline;
+  timeout(options: { seconds: number }): CodecPipeline;
+  toFormat(format: string, options: { quality?: number | undefined }): CodecPipeline;
+  toBuffer(options: { resolveWithObject: true }): Promise<{ data: Buffer; info: { width: number; height: number; channels: number } }>;
+}
+type CodecFactory = (source: Buffer, options: { limitInputPixels?: number | undefined; raw?: { width: number; height: number; channels: number } | undefined }) => CodecPipeline;
+
+/** Geometry in a fixed order: orient, crop, rotate, mirror, resize. @complexity O(pixels). */
+function applyGeometry({ pipeline, geometry: o }: { pipeline: CodecPipeline; geometry: ImageGeometry }, _options = {}): CodecPipeline {
+  const background = o.background ?? { r: 0, g: 0, b: 0, alpha: 0 };
+  let next = o.autoOrient ? pipeline.autoOrient() : pipeline;
+  if (o.extract) next = next.extract(o.extract);
+  if (o.rotate) next = next.rotate(o.rotate, { background });
+  if (o.flip) next = next.flip();
+  if (o.flop) next = next.flop();
+  return o.resize ? next.resize({ ...o.resize, background }) : next;
 }

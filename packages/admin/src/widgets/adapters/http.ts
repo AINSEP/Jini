@@ -1,5 +1,6 @@
 import type { AdminWidgetsPort } from '../ports.js';
 import type { WidgetsRequestOptions } from '../models.js';
+import { querySuffix } from '../../core/transport/query-suffix.js';
 /** Host owns auth, JSON serialization, request deadlines/retries, and status/error decoding. */
 export interface WidgetsTransportPort {
   request<T>(required: { path: string; method: 'GET' | 'POST' | 'PUT'; body?: unknown | undefined }, optional?: WidgetsRequestOptions | undefined): Promise<T>;
@@ -19,7 +20,7 @@ export function createHttpWidgetsApi({ transport, basePath }: { transport: Widge
       if (widgetType) query.set('widgetType', widgetType);
       if (includeInactive) query.set('includeInactive', 'true');
       const suffix = query.toString();
-      return request<Awaited<ReturnType<AdminWidgetsPort['listWidgets']>>>(`${base}${suffix ? `?${suffix}` : ''}`, 'GET', undefined, options);
+      return request<Awaited<ReturnType<AdminWidgetsPort['listWidgets']>>>(`${base}${querySuffix(suffix)}`, 'GET', undefined, options);
     },
     getWidget({ id }, options = {}) { return request<Awaited<ReturnType<AdminWidgetsPort['getWidget']>>>(`${base}/${encodeURIComponent(id)}`, 'GET', undefined, options); },
     createWidget(input, options = {}) { return request<Awaited<ReturnType<AdminWidgetsPort['createWidget']>>>(base, 'POST', input, options); },

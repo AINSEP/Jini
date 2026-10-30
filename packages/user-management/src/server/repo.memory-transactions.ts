@@ -38,13 +38,14 @@ export function createTransactionalInMemoryIdentityRepos(required: {
     }
   }
 
+  const snapshot = (repo: InMemoryIdentityRows<unknown>) => {
+    const rows = repo.snapshotRows({});
+    return { restore: () => repo.restoreRows({ rows }) };
+  };
   const transactions: IdentityTransactionPort = {
     run: ({ execute }) => exclusive(async () => {
       // Every store was checked to be InMemoryIdentityRows when the bag was bound above.
-      const snapshots = stores.map((repo) => {
-        const rows = repo.snapshotRows({});
-        return { restore: () => repo.restoreRows({ rows }) };
-      });
+      const snapshots = stores.map(snapshot);
       try {
         return await execute();
       } catch (error) {
@@ -53,16 +54,19 @@ export function createTransactionalInMemoryIdentityRepos(required: {
       }
     }),
   };
+  function queuedMember(member: (...args: unknown[]) => unknown, target: object) {
+    return (...args: unknown[]) => exclusive(async () => {
+      // Detach inputs/outputs so a row reference outside the queue cannot mutate stored state.
+      const result = await Reflect.apply(member, target, structuredClone(args));
+      return structuredClone(result);
+    });
+  }
   function wrap<T extends object>(repo: T): T {
     return new Proxy(repo, {
       get(target, property, receiver) {
         const member = Reflect.get(target, property, receiver);
         if (typeof member !== 'function') return member;
-        return (...args: unknown[]) => exclusive(async () => {
-          // Detach inputs/outputs so a row reference outside the queue cannot mutate stored state.
-          const result = await Reflect.apply(member, target, structuredClone(args));
-          return structuredClone(result);
-        });
+        return queuedMember(member as (...args: unknown[]) => unknown, target);
       },
     });
   }

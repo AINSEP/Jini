@@ -321,6 +321,33 @@ function tool(deps: MediaToolDeps, id: string, optional: Parameters<typeof build
   return found;
 }
 
+test("m1: omitted list input uses the same empty Library and Media pages as an empty object", async () => {
+  const { deps } = fakeDeps();
+  const context = { ...executionContext({}), input: undefined };
+  assert.deepEqual(await tool(deps, "library_list").handler(context), { documents: [], nextCursor: null });
+  assert.deepEqual(await tool(deps, "media_list_assets").handler(context), { media: [], nextCursor: null });
+});
+
+test("m1: an unavailable document extractor returns the typed safe failure without invented install guidance", async () => {
+  const { deps } = fakeDeps();
+  const document = await seedDocument(deps, "guide.pdf", "%PDF-1.7\n%%EOF");
+  assert.deepEqual(await tool(deps, "library_read").handler(executionContext({ documentId: document.id })), {
+    untrusted: true, error: { code: "DOCUMENT_TEXT_UNAVAILABLE", message: "extraction unavailable — configure a document-text adapter for this format" },
+  });
+  assert.equal((await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: document.id }))?.id, document.id);
+});
+
+test("m1: a legacy document without provenance keeps its metadata without inventing a source", async () => {
+  const { deps, mediaRepo } = fakeDeps();
+  const document = await seedDocument(deps, "legacy.txt", "Legacy text");
+  const { provenance: _provenance, ...source } = document.source;
+  await mediaRepo.remove({ workspaceId: WORKSPACE_ID, id: document.id });
+  await mediaRepo.save({ ...document, source });
+  const result = await tool(deps, "library_list").handler(executionContext({})) as { documents: unknown[]; nextCursor: string | null };
+  assert.deepEqual(result, { documents: [{ id: document.id, title: "legacy", filename: "legacy.txt", originalFilename: "legacy.txt",
+    contentType: "text/plain", byteSize: 11, createdAt: NOW, createdBy: "uploader", publicUrl: null }], nextCursor: null });
+});
+
 async function seedDocument(deps: MediaToolDeps, filename: string, body: string): Promise<MediaRecord> {
   const { media } = await uploadMedia({
     deps: { clock: deps.clock, idGen: deps.idGen, mediaRepo: deps.mediaRepo, blobRepo: deps.assetBlobRepo, renditionRepo: deps.assetRenditionRepo, blobStore: deps.blobStore },
@@ -338,8 +365,8 @@ test("library_list lists only active documents, with display filename, content t
   const result = await tool(deps, "library_list").handler(executionContext({}));
   assert.deepEqual(result, { documents: [{
     id: guide.id, title: "guide", filename: "guide.md", originalFilename: "guide.md", contentType: "text/markdown",
-    byteSize: 8, createdAt: NOW, createdBy: "uploader", publicUrl: null,
-  }] });
+    byteSize: 8, createdAt: NOW, createdBy: "uploader", publicUrl: null, source: { kind: 'upload' },
+  }], nextCursor: null });
 });
 
 test("library_list reports an unknown byte size when the blob row is gone or the store cannot size blobs", async () => {

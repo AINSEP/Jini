@@ -91,12 +91,14 @@ export interface VideoExtractionLock {
  * Returns a synchronous try-acquire port; release follows decoder cleanup. @complexity O(1). */
 export function createVideoExtractionLock(_required: Record<string, never>, _optional: Record<string, never> = {}): VideoExtractionLock {
   let extracting = false;
-  return { tryAcquire() {
-    if (extracting) return undefined;
-    extracting = true;
-    let released = false;
-    return () => { if (!released) { released = true; extracting = false; } };
-  } };
+  return {
+    tryAcquire() {
+      if (extracting) return undefined;
+      extracting = true;
+      let released = false;
+      return () => { if (!released) { released = true; extracting = false; } };
+    }
+  };
 }
 // Shared across ALL adapter instances: a second catalog/tenant cannot run a second ffmpeg in this
 // process. Fail busy instead of holding arbitrary numbers of uploaded videos in a pending queue.
@@ -190,7 +192,10 @@ const appendOutput = ({ args, label, path, limit }: { args: string[]; label: str
   '-map', label, '-an', '-sn', '-dn', '-frames:v', '1', '-c:v', 'mjpeg', '-threads', '1',
   '-q:v', '5', '-fs', String(limit), '-f', 'mjpeg', '-fps_mode', 'passthrough', path,
 );
-const isJpeg = (image: Uint8Array) => image.length >= 4 && image[0] === 255 && image[1] === 216 && image[image.length - 2] === 255 && image[image.length - 1] === 217;
+const isJpeg = (image: Uint8Array) => {
+  if (image.length < 4) return false;
+  return image[0] === 255 && image[1] === 216 && image[image.length - 2] === 255 && image[image.length - 1] === 217;
+};
 
 async function readImage({ path, perImageLimit, fileLimit }: { path: string; perImageLimit: number; fileLimit: number }, { checkDeadline }: Pick<ExtractionRun, 'checkDeadline'>): Promise<Uint8Array> {
   checkDeadline();
@@ -331,17 +336,19 @@ export function createFfmpegVideoFrameExtractor(
   _optional: Record<string, never> = {},
 ): VideoFrameExtractor {
   const deps: ExtractorDeps = { findBinaries, runProcess, nowMs: () => nowMs({}, {}), env, platform };
-  return { extract: async ({ bytes }, options): Promise<VideoFrameResult> => {
-    const rejected = rejectVideoInput({ bytes });
-    if (rejected) return rejected;
-    const release = lock.tryAcquire({}, {});
-    if (!release) return { ok: false, reason: 'busy', message: 'Video preview is busy. Try again after the current extraction finishes.' };
-    const deadline = deps.nowMs() + VIDEO_EXTRACTION_TIMEOUT_MS;
-    const workspace: { directory?: string } = {};
-    const result = await extractLocked({ bytes, options, deadline, workspace }, deps).catch(toVideoFailure);
-    // Neither step throws, so the lock is always released, and only after cleanup.
-    const cleanupFailure = await removeWorkspace(workspace);
-    release();
-    return cleanupFailure ?? result;
-  } };
+  return {
+    extract: async ({ bytes }, options): Promise<VideoFrameResult> => {
+      const rejected = rejectVideoInput({ bytes });
+      if (rejected) return rejected;
+      const release = lock.tryAcquire({}, {});
+      if (!release) return { ok: false, reason: 'busy', message: 'Video preview is busy. Try again after the current extraction finishes.' };
+      const deadline = deps.nowMs() + VIDEO_EXTRACTION_TIMEOUT_MS;
+      const workspace: { directory?: string } = {};
+      const result = await extractLocked({ bytes, options, deadline, workspace }, deps).catch(toVideoFailure);
+      // Neither step throws, so the lock is always released, and only after cleanup.
+      const cleanupFailure = await removeWorkspace(workspace);
+      release();
+      return cleanupFailure ?? result;
+    }
+  };
 }

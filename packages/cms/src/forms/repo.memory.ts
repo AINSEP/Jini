@@ -38,7 +38,8 @@ function cloneStored(row: StoredFormDefinition): StoredFormDefinition {
 
 /** Strips the internal-only `deletedAt` before a row crosses `FormDefinitionRepoPort`'s boundary. */
 function toPublicRecord(row: StoredFormDefinition): FormDefinitionRecord {
-  const { deletedAt: _deletedAt, ...record } = cloneStored(row);
+  const record = cloneStored(row);
+  Reflect.deleteProperty(record, "deletedAt");
   return record;
 }
 
@@ -141,7 +142,9 @@ function cloneSubmission(row: StoredFormSubmission): StoredFormSubmission {
 
 /** The port's view of a stored row: the Trash columns stay inside this adapter. */
 function toSubmissionRecord(row: StoredFormSubmission): FormSubmissionRecord {
-  const { deletedAt: _deletedAt, version: _version, ...record } = row;
+  const record = { ...row };
+  Reflect.deleteProperty(record, "deletedAt");
+  Reflect.deleteProperty(record, "version");
   return { ...record, data: structuredClone(record.data) };
 }
 

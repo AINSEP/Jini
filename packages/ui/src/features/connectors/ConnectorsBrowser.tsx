@@ -194,6 +194,8 @@ export function ConnectorsBrowser({
     onOpenExternalUrl: (url) => void deps.data.openExternalUrl(url),
   };
 
+  const categoryLabelProps = getCategoryLabel ? { getCategoryLabel } : {};
+  const gateProps = gate ? { gate: { ...gate, onClick: handleGateClick } } : {};
   return (
     <div className="tab-panel connectors-panel connectors-panel-embedded">
       <div className="tab-panel-toolbar">
@@ -236,9 +238,9 @@ export function ConnectorsBrowser({
           toolsLoaded={catalog.enriched}
           {...actions}
           onOpenDetails={detail.openDetails}
-          {...(getCategoryLabel ? { getCategoryLabel } : {})}
+          {...categoryLabelProps}
           onClearSearch={() => setFilter('')}
-          {...(gate ? { gate: { ...gate, onClick: handleGateClick } } : {})}
+          {...gateProps}
           {...subHandleProp({ base: agentHandle, action: 'connector' })}
         />
       )}

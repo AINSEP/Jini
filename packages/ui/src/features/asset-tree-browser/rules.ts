@@ -116,8 +116,7 @@ function collectFolderChildren(input: {
 }): void {
   for (const folder of input.folders) {
     const segment = childSegment(folder.path, input.prefix);
-    if (!segment) continue;
-    if (!segment.nested && !segment.head) continue; // the current directory itself
+    if (!segment || (!segment.nested && !segment.head)) continue; // the current directory itself
     input.dirs.add(segment.head);
   }
 }

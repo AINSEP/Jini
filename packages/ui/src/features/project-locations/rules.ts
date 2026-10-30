@@ -1,4 +1,5 @@
 import type { ProjectLocation, ProjectLocationDraft, StoredProjectLocation } from './types.js';
+import { trimTrailingChars } from '../../utils/trim-chars.js';
 
 /**
  * The id meaning "the host's own default root".
@@ -92,5 +93,5 @@ export function isDuplicatePath(
 function normalizePathForCompare(value: string): string {
   const trimmed = value.trim();
   if (trimmed.length <= 1) return trimmed;
-  return trimmed.replace(/[\\/]+$/, '') || trimmed;
+  return trimTrailingChars(trimmed, '\\/') || trimmed;
 }

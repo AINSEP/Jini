@@ -148,17 +148,11 @@ function hasRecognizedContextMenuAction(menu: HTMLUListElement, recognized: Read
 function pruneContextMenuItems(menu: HTMLUListElement, allowed: ReadonlySet<string>): Map<string, HTMLLIElement> {
   const byAction = new Map<string, HTMLLIElement>();
   for (const child of Array.from(menu.children)) {
-    if (child instanceof HTMLHRElement) {
-      child.remove();
-      continue;
-    }
+    if (child instanceof HTMLHRElement) child.remove();
     if (!(child instanceof HTMLLIElement)) continue;
     const actionName = child.getAttribute('data-testid') ?? '';
-    if (!allowed.has(actionName)) {
-      child.remove();
-      continue;
-    }
-    byAction.set(actionName, child);
+    if (allowed.has(actionName)) byAction.set(actionName, child);
+    else child.remove();
   }
   return byAction;
 }

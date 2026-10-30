@@ -59,7 +59,8 @@ export function toDefinitionRow(record: FormDefinitionRecord, _optional: Record<
 
 /** The columns `update()` writes: everything but the key and `version`. */
 export function updatableDefinitionColumns(row: ReturnType<typeof toDefinitionRow>, _optional: Record<string, never> = {}) {
-  const { id: _id, workspace_id: _workspaceId, version: _version, ...rest } = row;
+  const rest: Omit<typeof row, "id" | "workspace_id" | "version"> = { ...row };
+  for (const key of ["id", "workspace_id", "version"]) Reflect.deleteProperty(rest, key);
   return rest;
 }
 

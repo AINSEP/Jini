@@ -1,5 +1,4 @@
 import { useId } from "react";
-import type { Translate } from "@jini-ai/ui/panel-kit";
 import { SecretInput } from "@jini-ai/ui";
 import type { AdminUser } from "../models.js";
 import { useLogin, type LoginHookProps, type LoginOptions } from "./hooks/use-login.hooks.js";

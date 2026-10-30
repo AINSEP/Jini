@@ -70,7 +70,8 @@ export function toRow({ record }: { record: RedirectRecord }, _optional: Record<
 
 /** The columns an existing row's upsert replaces — everything but the match key `id`. */
 export function updatableColumns({ row }: { row: ReturnType<typeof toRow> }, _optional: Record<string, never> = {}) {
-  const { id: _id, ...rest } = row;
+  const rest: Omit<typeof row, "id"> = { ...row };
+  Reflect.deleteProperty(rest, "id");
   return rest;
 }
 

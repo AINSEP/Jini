@@ -76,8 +76,10 @@ function wrapperAttributes(gallery: GalleryConfig): { extra: string; extraClass:
 function renderGalleryWrapper({ gallery, figures }: { gallery: GalleryConfig; figures: string }): string {
   const { extra, extraClass, authoredStyle } = wrapperAttributes(gallery);
   const ratio = gallery.aspectRatio === undefined ? '' : `;--jini-gallery-ratio:${gallery.aspectRatio}`;
-  const className = `jini-gallery jini-gallery-${gallery.layout}${extraClass ? ` ${escapeHtml({ text: extraClass })}` : ''}`;
-  const style = `--jini-gallery-columns:${gallery.columns ?? 3}${ratio}${authoredStyle ? `;${escapeHtml({ text: authoredStyle })}` : ''}`;
+  const classSuffix = extraClass ? ` ${escapeHtml({ text: extraClass })}` : '';
+  const className = `jini-gallery jini-gallery-${gallery.layout}${classSuffix}`;
+  const styleSuffix = authoredStyle ? `;${escapeHtml({ text: authoredStyle })}` : '';
+  const style = `--jini-gallery-columns:${gallery.columns ?? 3}${ratio}${styleSuffix}`;
   return GALLERY_STYLE + `<div class="${className}"${extra} style="${style}">${figures}</div>`;
 }
 

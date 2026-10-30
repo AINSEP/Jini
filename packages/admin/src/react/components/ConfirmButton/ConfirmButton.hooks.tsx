@@ -27,7 +27,7 @@ export function useConfirmButton(
   // beyond the button element itself, so mounting many of them (one per table row) does not add a
   // standing per-row document listener.
   useEffect(() => {
-    if (!confirming) return;
+    if (!confirming) return undefined;
     function disarm() {
       setConfirming(false);
     }

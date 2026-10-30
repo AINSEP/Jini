@@ -158,7 +158,8 @@ function compareTieBreak(a: CandidateMatch, b: CandidateMatch): number {
   const aRecency = a.rule.updatedAt || a.rule.createdAt;
   const bRecency = b.rule.updatedAt || b.rule.createdAt;
   if (aRecency !== bRecency) return aRecency > bRecency ? -1 : 1;
-  return a.rule.id < b.rule.id ? -1 : a.rule.id > b.rule.id ? 1 : 0;
+  if (a.rule.id < b.rule.id) return -1;
+  return a.rule.id > b.rule.id ? 1 : 0;
 }
 
 /** Within a precedence band, longest/most-specific `fromPattern` wins first, then the tie-break chain. */

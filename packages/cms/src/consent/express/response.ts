@@ -57,6 +57,9 @@ function writeOverflow({ response, result, body, write, writeHead, flushHeaders,
       response.writeHead = writeHead; response.flushHeaders = flushHeaders;
       if (!Reflect.apply(write, response, [body, typeof done === 'function' ? done : undefined])) return;
     } else if (typeof done === 'function') done();
+    else {
+      // A buffered write without a callback still releases backpressure below.
+    }
     queueMicrotask(() => response.emit('drain'));
   });
   return false;
@@ -114,7 +117,7 @@ async function completeBody({ response, collected, transform, reportError, finis
  * replacement is inert; an explicit disabled policy resumes streaming without changing bytes.
  * @complexity O(min(n, maxBytes)) space and O(n) time for n response bytes, plus the injected transformation. */
 export function captureConsentHtml({ response, transform }: { response: Response; transform: (required: { body: Buffer }) => Promise<Buffer> }, { reportError = () => console.error("Consent HTML transform failed; optional content is blocked."), maxBytes = CONSENT_MAX_HTML_BYTES, overflow = async () => inertConsentBody({ response }) }: { reportError?: Reporter; maxBytes?: number; overflow?: Overflow } = {}): void {
-  const write = response.write, end = response.end, writeHead = response.writeHead, flushHeaders = response.flushHeaders;
+  const { write, end, writeHead, flushHeaders } = response;
   const chunks: Buffer[] = [];
   let bytes = 0, buffering = false;
   let overflowing: Promise<Buffer | null> | undefined;

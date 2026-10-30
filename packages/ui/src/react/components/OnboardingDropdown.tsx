@@ -88,7 +88,8 @@ export type OnboardingDropdownProps =
  * string (or otherwise falsy value) becomes an empty selection.
  */
 export function resolveOnboardingSelectedValues(value: string | string[]): string[] {
-  return Array.isArray(value) ? value : value ? [value] : [];
+  if (Array.isArray(value)) return value;
+  return value ? [value] : [];
 }
 
 /**
@@ -194,7 +195,7 @@ export function useOnboardingDropdownPlacement(
   });
 
   useLayoutEffect(() => {
-    if (!open) return;
+    if (!open) return undefined;
 
     function measureMenu() {
       const node = rootRef.current;
@@ -269,7 +270,7 @@ export function useOnboardingDropdown(props: OnboardingDropdownProps): UseOnboar
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const rootRef = useRef<HTMLDivElement | null>(null);
-  const dropdownIdRef = useRef(`onboarding-dropdown-${Math.random().toString(36).slice(2)}`);
+  const dropdownIdRef = useRef(`onboarding-dropdown-${globalThis.crypto.getRandomValues(new Uint32Array(1))[0]!.toString(36)}`);
 
   const { placement: resolvedPlacement, maxHeight: menuMaxHeight } = useOnboardingDropdownPlacement(
     rootRef,
@@ -279,7 +280,7 @@ export function useOnboardingDropdown(props: OnboardingDropdownProps): UseOnboar
   );
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) return undefined;
 
     function handlePointerDown(event: PointerEvent) {
       if (!rootRef.current?.contains(event.target as Node)) {

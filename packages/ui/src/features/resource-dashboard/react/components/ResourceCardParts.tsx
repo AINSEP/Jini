@@ -105,13 +105,14 @@ export function ResourceCardMeta<TBody>({
   statusLabel: string | undefined;
   toneMap: ResourceStatusToneMap | undefined;
 }) {
+  const toneMapProps = toneMap ? { toneMap } : {};
   return (
     <div className="resource-board-card-meta">
       <div className="resource-board-card-title" title={item.title}>
         {item.title}
       </div>
       {item.subtitle ? <div className="resource-board-card-subtitle">{item.subtitle}</div> : null}
-      {item.status && statusLabel ? <StatusPill status={item.status} label={statusLabel} {...(toneMap ? { toneMap } : {})} /> : null}
+      {item.status && statusLabel ? <StatusPill status={item.status} label={statusLabel} {...toneMapProps} /> : null}
     </div>
   );
 }

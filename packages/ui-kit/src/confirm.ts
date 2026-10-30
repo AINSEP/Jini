@@ -12,7 +12,8 @@ const defaultConsequences: ReadonlyMap<ConfirmTone, string> = new Map<ConfirmTon
 export function planConfirm(required: ConfirmInput, _optional: Record<string, never> = {}) {
   const pending = required.pending === true, tone = required.tone ?? 'default';
   const consequence = required.consequence?.trim() || defaultConsequences.get(tone);
-  const confirmLabel = `${required.confirmLabel} — ${required.title}${consequence ? `; ${consequence}` : ''}`;
+  const consequenceLabel = consequence ? '; ' + consequence : '';
+  const confirmLabel = `${required.confirmLabel} — ${required.title}${consequenceLabel}`;
   const cancelLabel = required.cancelLabel ?? 'Cancel';
   const agent = (action: string, label: string): AgentSpec | undefined => required.agentHandle === undefined ? undefined :
     { handle: `${required.agentHandle}-${action}`, role: 'button', label };
@@ -36,7 +37,8 @@ export function createConfirmController(required: {
     },
     async confirm(input: { actor?: 'human' | 'agent' } = {}, _optional: Record<string, never> = {}): Promise<boolean> {
       const policy = required.read({});
-      if (executing || !policy.open || policy.pending || (input.actor === 'agent' && policy.agentMayConfirm === false)) return false;
+      if (executing || !policy.open || policy.pending) return false;
+      if (input.actor === 'agent' && policy.agentMayConfirm === false) return false;
       // Set synchronously before calling the port: two clicks in one React frame must not execute twice.
       executing = true;
       try { await required.onConfirm({}); return true; } finally { executing = false; }

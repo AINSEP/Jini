@@ -47,6 +47,8 @@ function labelText(node: Element): string {
     if ("value" in child) text += child.value;
     else if ("tagName" in child && !["input", "select", "textarea", "script", "style"].includes(child.tagName)) {
       stack.push(...[...child.childNodes].reverse());
+    } else {
+      // Controls, executable elements and non-text nodes do not contribute to a label.
     }
   }
   return text.trim();

@@ -1,4 +1,4 @@
-import type { AgentToolDefinition, AgentToolSideEffect, AgentToolActorClassRule } from "@jini-ai/core";
+import type { AgentToolDefinition } from "@jini-ai/core";
 /**
  * @file the Collections content-types agent-tool catalog, instantiating
  * a naming/callability convention (mirrors `features/database/agent-tools.ts`'s
@@ -33,6 +33,10 @@ import type { AgentToolDefinition, AgentToolSideEffect, AgentToolActorClassRule 
 
 import { IDENTIFIER_GRAMMAR_PATTERN } from "./index-provisioning.js";
 import { CONTENT_TYPE_FIELD_KINDS } from "./types.js";
+
+const MUTATES_DURABLE_STATE = "mutates-durable-state";
+const ADMIN_COLLECTIONS_MANAGE = "admin.collections.manage";
+
 
 
 
@@ -137,15 +141,15 @@ export const contentTypesAgentToolCatalog: AgentToolDefinition[] = [
   {
     name: "collections_execute_cleanup",
     description: "Executes the destructive, atomic removal of a tombstoned content type and all of its scoped rows, using a previously redeemed token.",
-    sideEffects: "mutates-durable-state",
-    authorization: { permission: "admin.collections.manage" },
+    sideEffects: MUTATES_DURABLE_STATE,
+    authorization: { permission: ADMIN_COLLECTIONS_MANAGE },
     actorClassRule: "confirmer-must-equal-own-delegatedBy",
   },
   {
     name: "collections_content_type_define",
     description: "Registers a new operator-defined content type in the registry.",
-    sideEffects: "mutates-durable-state",
-    authorization: { permission: "admin.collections.manage" },
+    sideEffects: MUTATES_DURABLE_STATE,
+    authorization: { permission: ADMIN_COLLECTIONS_MANAGE },
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -164,8 +168,8 @@ export const contentTypesAgentToolCatalog: AgentToolDefinition[] = [
   {
     name: "collections_content_type_update_fields",
     description: "Full-replaces a content type's field schema.",
-    sideEffects: "mutates-durable-state",
-    authorization: { permission: "admin.collections.manage" },
+    sideEffects: MUTATES_DURABLE_STATE,
+    authorization: { permission: ADMIN_COLLECTIONS_MANAGE },
     inputSchema: {
       type: "object",
       additionalProperties: false,
@@ -180,22 +184,22 @@ export const contentTypesAgentToolCatalog: AgentToolDefinition[] = [
   {
     name: "collections_content_type_deprecate",
     description: "Deprecates an active content type, blocking new entry creation only.",
-    sideEffects: "mutates-durable-state",
-    authorization: { permission: "admin.collections.manage" },
+    sideEffects: MUTATES_DURABLE_STATE,
+    authorization: { permission: ADMIN_COLLECTIONS_MANAGE },
     inputSchema: LIFECYCLE_INPUT_SCHEMA,
   },
   {
     name: "collections_content_type_reactivate",
     description: "Reactivates a deprecated content type back to active.",
-    sideEffects: "mutates-durable-state",
-    authorization: { permission: "admin.collections.manage" },
+    sideEffects: MUTATES_DURABLE_STATE,
+    authorization: { permission: ADMIN_COLLECTIONS_MANAGE },
     inputSchema: LIFECYCLE_INPUT_SCHEMA,
   },
   {
     name: "collections_content_type_tombstone",
     description: "Tombstones a deprecated content type and tears down its provisioned queryable-field indexes.",
-    sideEffects: "mutates-durable-state",
-    authorization: { permission: "admin.collections.manage" },
+    sideEffects: MUTATES_DURABLE_STATE,
+    authorization: { permission: ADMIN_COLLECTIONS_MANAGE },
     inputSchema: LIFECYCLE_INPUT_SCHEMA,
   },
 ];

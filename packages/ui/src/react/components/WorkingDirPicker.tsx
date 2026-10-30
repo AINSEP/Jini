@@ -8,6 +8,7 @@ import {
   type MutableRefObject,
 } from 'react';
 import { Icon } from './Icon.js';
+import { withClassName } from '../../utils/class-names.js';
 
 export type WorkingDirPlacement = 'down' | 'up';
 
@@ -115,7 +116,7 @@ export function useDismissablePanel(onOpen?: () => void): UseDismissablePanelRes
   }, [open, onOpen]);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open) return undefined;
     function onPointer(event: MouseEvent) {
       if (wrapRef.current?.contains(event.target as Node)) return;
       setOpen(false);
@@ -295,9 +296,9 @@ function useWorkingDirFocusHandoff({ open, triggerRef, panelRef }: {
     if (open) {
       wasOpenRef.current = true;
       panelRef.current?.querySelector<HTMLElement>(MENU_ITEM_SELECTOR)?.focus();
-      return;
+      return undefined;
     }
-    if (!wasOpenRef.current) return;
+    if (!wasOpenRef.current) return undefined;
     wasOpenRef.current = false;
     const timeout = window.setTimeout(() => triggerRef.current?.focus(), 0);
     return () => window.clearTimeout(timeout);
@@ -475,7 +476,7 @@ export function WorkingDirPicker({
   return (
     <div
       ref={wrapRef}
-      className={`jini-working-dir-picker${className ? ` ${className}` : ''}`}
+      className={withClassName('jini-working-dir-picker', className)}
       data-testid="working-dir-picker"
     >
       <WorkingDirTrigger

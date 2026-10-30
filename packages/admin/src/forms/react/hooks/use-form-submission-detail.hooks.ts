@@ -129,11 +129,9 @@ export function useFormSubmissionDetail(
   // The delete's own failure outranks a background load-refresh failure — flat `if`s rather than a
   // nested ternary, per `@jini-ai/ui/fetch-query`'s `resolveFetchQueryStatus` doc on why the two carry
   // a different complexity-gate weight for the same branch count.
-  let error: string | null = null;
+  let error: string | null = list.error ? describeApiError(list.error, "failed to load submission") : null;
   if (deleteMutation.error) {
     error = describeTrashError({ error: deleteMutation.error, fallback: "delete failed", versionChangedMessage: t("This item changed since you loaded it. Reload and try again.") }).message;
-  } else if (list.error) {
-    error = describeApiError(list.error, "failed to load submission");
   }
 
   return {

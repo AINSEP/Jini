@@ -1,5 +1,6 @@
 import { agentHandle } from '@jini-ai/agentic';
 import type { AgentAttrsPort, KitAttrs } from '@jini-ai/ui-kit';
+import { omitKeys } from '../../../core/omit-keys.js';
 
 /**
  * The agent-attribute port `ConfirmDialog` hands UI-kit's confirm controller. UI-kit names selects
@@ -21,6 +22,5 @@ export const confirmDialogAgentAttrs: AgentAttrsPort = (required, optional = {})
  * @complexity O(k) in the number of attributes.
  */
 export function withoutAccessibleName({ attrs }: { attrs: KitAttrs | undefined }, _optional: Record<string, never> = {}): KitAttrs {
-  const { 'aria-label': _accessibleName, ...rest } = attrs ?? {};
-  return rest;
+  return omitKeys(attrs ?? {}, ['aria-label']);
 }

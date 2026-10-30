@@ -9,7 +9,8 @@ export function createSitemapController(
   let generation = 0;
   async function load(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {
     if (!enabled) return;
-    const ticket = ++generation;
+    generation += 1;
+    const ticket = generation;
     store.set({ patch: { status: 'loading', error: null } });
     try {
       const { text } = await api.fetchSitemapXml({}, { signal: store.signal });

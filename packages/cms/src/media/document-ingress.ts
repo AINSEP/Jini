@@ -118,7 +118,8 @@ function archiveApplication({ office, extension }: ArchiveScan): string {
 }
 
 async function scanArchiveEntry(scan: ArchiveScan, entry: ArchiveEntry): Promise<void> {
-  if (++scan.count > MAX_ARCHIVE_ENTRIES) invalid(`${scan.label} has too many archive entries`);
+  ++scan.count;
+  if (scan.count > MAX_ARCHIVE_ENTRIES) invalid(`${scan.label} has too many archive entries`);
   const name = entry.entryPath;
   const path = name.endsWith('/') ? name.slice(0, -1) : name;
   assertArchivePath(scan, path);
@@ -138,8 +139,10 @@ async function validateDocumentArchive(required: { bytes: Uint8Array; extension:
   const label = required.extension.toUpperCase();
   const office = required.extension in OFFICE_PACKAGES ? OFFICE_PACKAGES[required.extension as OfficeExtension] : undefined;
   if (!required.archiveReader) invalid(`${label} validation requires an archive reader`);
-  const scan: ArchiveScan = { label, extension: required.extension, office, archiveBytes: required.bytes.byteLength,
-    names: new Set(), members: new Map(), count: 0, total: 0, iworkMarker: false };
+  const scan: ArchiveScan = {
+    label, extension: required.extension, office, archiveBytes: required.bytes.byteLength,
+    names: new Set(), members: new Map(), count: 0, total: 0, iworkMarker: false
+  };
   try {
     for await (const entry of required.archiveReader.entries({ archive: required.bytes })) await scanArchiveEntry(scan, entry);
   } catch (error) {
@@ -148,6 +151,9 @@ async function validateDocumentArchive(required: { bytes: Uint8Array; extension:
   }
   if (office) await validateOfficePackage({ members: scan.members, extension: required.extension as OfficeExtension });
   else if (!scan.iworkMarker) invalid(`${label} is missing its required iWork package members`);
+  else {
+    // A non-Office archive with its iWork marker has passed this package-shape check.
+  }
 }
 
 const CONTENT_TYPES_NAMESPACE = 'http://schemas.openxmlformats.org/package/2006/content-types';
@@ -160,9 +166,11 @@ type OfficeSpec = (typeof OFFICE_PACKAGES)[OfficeExtension];
 const hasMainOverride = (typesRoot: Element, spec: OfficeSpec) => [...typesRoot.children].some(node => node.localName === 'Override' && node.namespaceURI === CONTENT_TYPES_NAMESPACE &&
   node.getAttribute('PartName') === '/' + spec.part && node.getAttribute('ContentType') === `application/vnd.openxmlformats-officedocument.${spec.mainType}.main+xml`);
 /** The package relationship must point at the internal main part as the office document. */
-const hasOfficeDocumentRelationship = (relsRoot: Element, spec: OfficeSpec) => [...relsRoot.children].some(node => node.localName === 'Relationship' && node.namespaceURI === RELATIONSHIPS_NAMESPACE &&
-  [spec.part, '/' + spec.part].includes(node.getAttribute('Target') ?? '') && node.getAttribute('TargetMode') !== 'External' &&
-  OFFICE_DOCUMENT_RELATIONSHIPS.includes(node.getAttribute('Type') ?? ''));
+const hasOfficeDocumentRelationship = (relsRoot: Element, spec: OfficeSpec) => [...relsRoot.children].some(node => {
+  if (node.localName !== 'Relationship' || node.namespaceURI !== RELATIONSHIPS_NAMESPACE) return false;
+  return [spec.part, '/' + spec.part].includes(node.getAttribute('Target') ?? '') && node.getAttribute('TargetMode') !== 'External' &&
+    OFFICE_DOCUMENT_RELATIONSHIPS.includes(node.getAttribute('Type') ?? '');
+});
 const isOfficeMainRoot = (root: Element, spec: OfficeSpec) => root.localName === spec.root &&
   [`http://schemas.openxmlformats.org/${spec.family}/2006/main`, `http://purl.oclc.org/ooxml/${spec.family}/main`].includes(root.namespaceURI ?? '');
 

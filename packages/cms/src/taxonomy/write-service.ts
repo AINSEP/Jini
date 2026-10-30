@@ -104,8 +104,9 @@ export interface ContentLookupPort {
  * `null` = not a live registry type (not applicable).
  * See docs/decisions/DR-005-ordered-taxonomy-validation.md.
  */
+type ApplicableTaxonomies = "all" | ReadonlySet<string> | null;
 export interface ContentTypeTaxonomyPolicyPort {
-  taxonomiesFor(params: { contentType: string }): Promise<"all" | ReadonlySet<string> | null>;
+  taxonomiesFor(params: { contentType: string }): Promise<ApplicableTaxonomies>;
 }
 
 /** The hardcoded post/page taxonomy allow-list (permanent, see
@@ -611,36 +612,38 @@ export async function renameTerm(
   // The narrow taxonomy repo stays independent; the host binds the shared transaction explicitly.
   const transaction = deps.transaction;
   if (!transaction) throw new Error("term rename requires a transaction port");
-  return transaction({ fn: async () => {
-    const current = await deps.terms.findById({ id: termId });
-    if (!current) {
-      throw new TermRecordNotFoundError({ message: `term '${termId}' was not found` });
+  return transaction({
+    fn: async () => {
+      const current = await deps.terms.findById({ id: termId });
+      if (!current) {
+        throw new TermRecordNotFoundError({ message: `term '${termId}' was not found` });
+      }
+
+      const now = kernelNowIso({ clock: deps.clock });
+      const updated: Term = {
+        id: current.id,
+        taxonomyId: current.taxonomyId,
+        parentId: (current as { parentId?: string | null }).parentId ?? null,
+        name: newName,
+        status: (current as { status?: string }).status ?? "active",
+        updatedAt: now,
+        version: ((current as { version?: number }).version ?? 1) + 1,
+      };
+
+      await deps.terms.update(updated);
+      await deps.revisions.insert({
+        taxonomyId: current.taxonomyId,
+        op: "rename",
+        previousState: { name: current.name },
+        actorId: principalId,
+        recordedAt: now,
+      });
+      await deps.stampWatermark({});
+      await deps.outbox.enqueue({ event: { name: "taxonomy.term_renamed", termId, actorId: principalId, occurredAt: now } });
+
+      return updated;
     }
-
-    const now = kernelNowIso({ clock: deps.clock });
-    const updated: Term = {
-      id: current.id,
-      taxonomyId: current.taxonomyId,
-      parentId: (current as { parentId?: string | null }).parentId ?? null,
-      name: newName,
-      status: (current as { status?: string }).status ?? "active",
-      updatedAt: now,
-      version: ((current as { version?: number }).version ?? 1) + 1,
-    };
-
-    await deps.terms.update(updated);
-    await deps.revisions.insert({
-      taxonomyId: current.taxonomyId,
-      op: "rename",
-      previousState: { name: current.name },
-      actorId: principalId,
-      recordedAt: now,
-    });
-    await deps.stampWatermark({});
-    await deps.outbox.enqueue({ event: { name: "taxonomy.term_renamed", termId, actorId: principalId, occurredAt: now } });
-
-    return updated;
-  } });
+  });
 }
 
 export interface AssignTermsRequired {
@@ -765,14 +768,16 @@ export async function assignTerms(
   }
 
   await deps.stampWatermark({});
-  await deps.outbox.enqueue({ event: {
-    name: "taxonomy.terms_assigned",
-    contentType,
-    contentId,
-    termIds,
-    actorId: principalId,
-    occurredAt: now,
-  } });
+  await deps.outbox.enqueue({
+    event: {
+      name: "taxonomy.terms_assigned",
+      contentType,
+      contentId,
+      termIds,
+      actorId: principalId,
+      occurredAt: now,
+    }
+  });
 }
 
 /** A2 (taxonomy plan) — the removal half of `assignTerms`. `remove()` lives on an additive port
@@ -817,14 +822,16 @@ export async function unassignTerms(
 
   const now = kernelNowIso({ clock: deps.clock });
   await deps.stampWatermark({});
-  await deps.outbox.enqueue({ event: {
-    name: "taxonomy.terms_unassigned",
-    contentType,
-    contentId,
-    termIds: removedTermIds,
-    actorId: principalId,
-    occurredAt: now,
-  } });
+  await deps.outbox.enqueue({
+    event: {
+      name: "taxonomy.terms_unassigned",
+      contentType,
+      contentId,
+      termIds: removedTermIds,
+      actorId: principalId,
+      occurredAt: now,
+    }
+  });
   return { removedTermIds };
 }
 
@@ -846,9 +853,11 @@ export interface OnContentDeletedRequired {
  * wire the logger for diagnostics; legacy callers without it remain silent. */
 export async function onContentDeleted(
   required: OnContentDeletedRequired,
-  optional: { logger?: {
-    warn(required: { message: string; error: unknown; event: OnContentDeletedRequired["event"] }): void | Promise<void>;
-  } } = {}
+  optional: {
+    logger?: {
+      warn(required: { message: string; error: unknown; event: OnContentDeletedRequired["event"] }): void | Promise<void>;
+    }
+  } = {}
 ): Promise<void> {
   const { event, entryTerms } = required;
   try {
@@ -981,44 +990,48 @@ export async function deleteTerm(
   const { deps, principalId, termId } = required;
   await authorizeTaxonomyManage(deps, principalId);
 
-  return deps.transaction({ fn: async () => {
-    const current = await deps.terms.findById({ id: termId });
-    if (!current) {
-      throw new TermRecordNotFoundError({ message: `term '${termId}' was not found` });
+  return deps.transaction({
+    fn: async () => {
+      const current = await deps.terms.findById({ id: termId });
+      if (!current) {
+        throw new TermRecordNotFoundError({ message: `term '${termId}' was not found` });
+      }
+
+      const childCount = await deps.terms.countChildren({ parentId: termId });
+      if (childCount > 0) {
+        throw new TermHasChildTermsError({ message: `term '${termId}' has ${childCount} child term(s) and cannot be deleted`, childCount: childCount });
+      }
+
+      const assignedCount = await deps.entryTerms.countByTerm({ termId });
+      if (assignedCount > 0) {
+        throw new TermHasAssignedContentError({ message: `term '${termId}' is assigned to ${assignedCount} content item(s) and cannot be deleted`, assignedCount: assignedCount }
+        );
+      }
+
+      await deps.terms.delete({ id: termId });
+
+      const now = kernelNowIso({ clock: deps.clock });
+      await deps.revisions.insert({
+        taxonomyId: current.taxonomyId,
+        op: "delete",
+        previousState: { termId, name: current.name ?? null },
+        actorId: principalId,
+        recordedAt: now,
+      });
+      await deps.stampWatermark({});
+      await deps.outbox.enqueue({
+        event: {
+          name: "taxonomy.term_deleted",
+          termId,
+          taxonomyId: current.taxonomyId,
+          actorId: principalId,
+          occurredAt: now,
+        }
+      });
+
+      return { deletedTermId: termId };
     }
-
-    const childCount = await deps.terms.countChildren({ parentId: termId });
-    if (childCount > 0) {
-      throw new TermHasChildTermsError({ message: `term '${termId}' has ${childCount} child term(s) and cannot be deleted`, childCount: childCount });
-    }
-
-    const assignedCount = await deps.entryTerms.countByTerm({ termId });
-    if (assignedCount > 0) {
-      throw new TermHasAssignedContentError({ message: `term '${termId}' is assigned to ${assignedCount} content item(s) and cannot be deleted`, assignedCount: assignedCount }
-      );
-    }
-
-    await deps.terms.delete({ id: termId });
-
-    const now = kernelNowIso({ clock: deps.clock });
-    await deps.revisions.insert({
-      taxonomyId: current.taxonomyId,
-      op: "delete",
-      previousState: { termId, name: current.name ?? null },
-      actorId: principalId,
-      recordedAt: now,
-    });
-    await deps.stampWatermark({});
-    await deps.outbox.enqueue({ event: {
-      name: "taxonomy.term_deleted",
-      termId,
-      taxonomyId: current.taxonomyId,
-      actorId: principalId,
-      occurredAt: now,
-    } });
-
-    return { deletedTermId: termId };
-  } });
+  });
 }
 
 export interface DeleteTaxonomyRequired {
@@ -1059,46 +1072,50 @@ export async function deleteTaxonomy(
   const { deps, principalId, taxonomyId } = required;
   await authorizeTaxonomyManage(deps, principalId);
 
-  return deps.transaction({ fn: async () => {
-    const taxonomy = await deps.taxonomies.findById({ id: taxonomyId });
-    if (!taxonomy) {
-      throw new TaxonomyRecordNotFoundError({ message: `taxonomy '${taxonomyId}' was not found` });
+  return deps.transaction({
+    fn: async () => {
+      const taxonomy = await deps.taxonomies.findById({ id: taxonomyId });
+      if (!taxonomy) {
+        throw new TaxonomyRecordNotFoundError({ message: `taxonomy '${taxonomyId}' was not found` });
+      }
+
+      const memberTerms = await deps.terms.listByTaxonomy({ taxonomyId });
+
+      let totalAssigned = 0;
+      for (const term of memberTerms) {
+        totalAssigned += await deps.entryTerms.countByTerm({ termId: term.id });
+      }
+      if (totalAssigned > 0) {
+        throw new TaxonomyHasAssignedContentError({ message: `taxonomy '${taxonomyId}' has ${totalAssigned} content assignment(s) across its terms and cannot be deleted`, assignedCount: totalAssigned }
+        );
+      }
+
+      for (const term of memberTerms) {
+        await deps.terms.delete({ id: term.id });
+      }
+      await deps.taxonomies.delete({ id: taxonomyId });
+
+      const now = kernelNowIso({ clock: deps.clock });
+      const deletedTermIds = memberTerms.map((term) => term.id);
+      await deps.revisions.insert({
+        taxonomyId,
+        op: "delete",
+        previousState: { deletedTermIds },
+        actorId: principalId,
+        recordedAt: now,
+      });
+      await deps.stampWatermark({});
+      await deps.outbox.enqueue({
+        event: {
+          name: "taxonomy.deleted",
+          taxonomyId,
+          deletedTermIds,
+          actorId: principalId,
+          occurredAt: now,
+        }
+      });
+
+      return { deletedTaxonomyId: taxonomyId, deletedTermIds };
     }
-
-    const memberTerms = await deps.terms.listByTaxonomy({ taxonomyId });
-
-    let totalAssigned = 0;
-    for (const term of memberTerms) {
-      totalAssigned += await deps.entryTerms.countByTerm({ termId: term.id });
-    }
-    if (totalAssigned > 0) {
-      throw new TaxonomyHasAssignedContentError({ message: `taxonomy '${taxonomyId}' has ${totalAssigned} content assignment(s) across its terms and cannot be deleted`, assignedCount: totalAssigned }
-      );
-    }
-
-    for (const term of memberTerms) {
-      await deps.terms.delete({ id: term.id });
-    }
-    await deps.taxonomies.delete({ id: taxonomyId });
-
-    const now = kernelNowIso({ clock: deps.clock });
-    const deletedTermIds = memberTerms.map((term) => term.id);
-    await deps.revisions.insert({
-      taxonomyId,
-      op: "delete",
-      previousState: { deletedTermIds },
-      actorId: principalId,
-      recordedAt: now,
-    });
-    await deps.stampWatermark({});
-    await deps.outbox.enqueue({ event: {
-      name: "taxonomy.deleted",
-      taxonomyId,
-      deletedTermIds,
-      actorId: principalId,
-      occurredAt: now,
-    } });
-
-    return { deletedTaxonomyId: taxonomyId, deletedTermIds };
-  } });
+  });
 }

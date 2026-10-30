@@ -83,8 +83,11 @@ function selectedSourceStart(
   let copiesBefore = 0;
   let reached = false;
   visit(wrapper, component => {
-    if (component === selected) reached = true;
-    else if (!reached && component.is(PROTECTED_ELEMENT_TYPE) && protectedElementHtml({ component }, {}) === original) copiesBefore++;
+    if (component === selected) {
+      reached = true;
+      return;
+    }
+    if (!reached && component.is(PROTECTED_ELEMENT_TYPE) && protectedElementHtml({ component }, {}) === original) copiesBefore += 1;
   });
   let start = -1;
   for (let i = 0; i <= copiesBefore; i++) start = html.indexOf(original, start + 1);

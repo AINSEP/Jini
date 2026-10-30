@@ -43,14 +43,14 @@ export function useSeeMoreClamp({ lines, children }: { lines: number; children: 
   }, [expanded, lineCount, children, measure]);
 
   useEffect(() => {
-    if (expanded) return;
+    if (expanded) return undefined;
     const el = textRef.current;
     // Guarded rather than assumed, the same way `Select.tsx` guards `elementFromPoint` and
     // `scrollIntoView`: this app's jsdom test harness implements no `ResizeObserver` at all, so an
     // unguarded `new ResizeObserver` throws on mount in every test that renders this component.
     // Where it is missing, the layout effect above still measures on mount and on content change —
     // only reflow-from-width-change goes unnoticed, which jsdom has no layout engine to produce.
-    if (!el || typeof ResizeObserver !== "function") return;
+    if (!el || typeof ResizeObserver !== "function") return undefined;
     const observer = new ResizeObserver(() => measure());
     observer.observe(el);
     return () => observer.disconnect();

@@ -67,5 +67,6 @@ export function EntityField(props: EntityFieldProps): ReactNode {
     case 'real': return <NumberInput {...props} />;
     case 'text': return <input {...commonProps(props)} value={typeof value === 'string' ? value : ''}
       onChange={(e) => onChange({ value: blankToUndefined(e.target.value) })} />;
+    default: return null;
   }
 }

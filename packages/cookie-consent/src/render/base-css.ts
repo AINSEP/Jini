@@ -1,5 +1,5 @@
 // MOVED-FROM: @jini-ai/cms consent/html/styles.ts (CONSENT_CSS). Changed: scoped to the new visitor-independent
-// markup (no data-has-record states, no form). TODO(P4): delete the cms copy once the consumer reads this package.
+// markup (no data-has-record states, no form). Follow-up (P4): delete the cms copy once the consumer reads this package.
 /** Compact defaults for the Jini banner. Theme tokens (--jini-surface, --jini-text, ...) are honoured when the
  * host page defines them; owner tokens/CSS from compileConsentCss() follow, then the engine parity block. */
 // Auto-fit keeps actions equally sized in one row when they fit, without growing the text controls.

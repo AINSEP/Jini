@@ -6,9 +6,9 @@ import { ADAPTER_KIND, CONFIG_ID, CONSENT_COOKIE, OPEN_EVENT, OPTIONAL, READY_EV
   type AdapterContribution, type ClientConfig, type ConsentAction, type ConsentAdapter, type ConsentState, type Contribution,
   type Evidence, type Flags, type JiniConsentApi, type LazyAdapter, type Optional, type PageConfig, type PluginRegistry,
   type RawContribution, type Revoker, type StoragePrefixes, type StoredChoice } from '../contract.js';
-import { choicesFor, DAY_MS, effective, parseStored, RECEIPT_ID, regionFrom } from '../policy.js';
-import { ADAPTER_SLOT, createPluginRegistry } from '../plugins.js';
-import { activateInert, installOpeners, purge, readCookie, writeCookie } from './dom.js';
+import { choicesFor, DAY_MS, effective, parseStored, RECEIPT_ID, regionFrom } from '../contracts/policy.js';
+import { ADAPTER_SLOT, createPluginRegistry } from '../contracts/plugins.js';
+import { activateInert, installOpeners, purge, readCookie, waiting, writeCookie } from './dom.js';
 
 export interface ClientPorts {
   doc: Document; fetch: typeof fetch; now: () => number; gpc: () => boolean; reload: () => void;
@@ -55,7 +55,7 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
       quiet(() => adapter.onState?.({ state }));
       if (ctl.signal.aborted || anonymous && state.analyticsLevel === 'none') return null;                              // withdrawn first: nothing ran
       return Promise.resolve().then(() => adapter.grant({ config: slot.entry.config ?? adapter.config, state, signal: ctl.signal }))
-        .then(r => r === undefined ? {} : r, () => ({}));             // a grant that threw may have run code
+        .then((r = {}) => r, () => ({}));                            // a grant that threw may have run code
     }, () => null);                                                     // import failed: nothing ran
     slot.run = { ctl, result };
   }
@@ -76,10 +76,8 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
     const stops: Promise<boolean>[] = [];
     for (const slot of slots.values()) {
       const allowed = anonymous ? next.analyticsLevel === 'anonymous' : next.allowed[slot.entry.category];
-      if (allowed) {
-        if (!slot.run) start(slot);
-      }
-      else if (slot.run) stops.push(stop(slot));
+      if (allowed && !slot.run) start(slot);
+      if (!allowed && slot.run) stops.push(stop(slot));
       quiet(() => slot.adapter?.onState?.({ state: next }));
     }
     // Raw tags cannot promise anonymous behavior; only declared adapters can.
@@ -120,7 +118,7 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
     persist();
     const now = apply();                                                // denial is live here, before any network
     const sent = confirm(stored, previousId);
-    if (durable && OPTIONAL.some(c => now.choices[c] && !now.allowed[c])) await within(sent, durable.waitMs ?? 1500);
+    if (durable && waiting(now)) await within(sent, durable.waitMs ?? 1500);
     return state;
   }
 
@@ -147,7 +145,7 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
     const latest = fromCookie();
     // A refused cookie write leaves only this tab's choice; absence cannot supersede it.
     if (!latest && !cookiePersisted) return false;
-    if (latest?.t === stored?.t && latest?.a === stored?.a && latest?.r === stored?.r) return false;
+    if (sameStoredChoice({ latest, stored })) return false;
     stored = latest;
     apply();
     return true;
@@ -168,6 +166,10 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
   doc.defaultView?.addEventListener('pageshow', () => adopt());
   if (stored?.q && stored.p === config.policy) void confirm(stored);   // durable retry of an earlier failed receipt
   return api;
+}
+
+function sameStoredChoice({ latest, stored }: { latest: StoredChoice | null; stored: StoredChoice | null }): boolean {
+  return latest?.t === stored?.t && latest?.a === stored?.a && latest?.r === stored?.r;
 }
 
 function durableEvidence({ evidence }: ClientOptions, _optional = {}): Extract<Evidence, { mode: 'durable' }> | null {

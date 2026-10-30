@@ -68,7 +68,8 @@ export function createLibraryController(
     // Retry reads only, never destructive writes. Keep trying at a capped delay so
     // recovery needs no manual repair, while an offline service isn't hammered.
     if (isRetryableMediaError({ error })) {
-      const delay = Math.min(1000 * 2 ** Math.min(retryAttempt++, 5), 30000);
+      const delay = Math.min(1000 * 2 ** Math.min(retryAttempt, 5), 30000);
+      retryAttempt += 1;
       retryTimer = setTimeout(() => { retryTimer = null; void load(); }, delay);
     }
   }
@@ -81,7 +82,8 @@ export function createLibraryController(
     readAbort?.abort();
     const abort = new AbortController();
     readAbort = abort;
-    const ticket = ++generation;
+    generation += 1;
+    const ticket = generation;
     store.set({ patch: { loading: true, error: null } });
     try {
       const all = await api.list({}, { signal: abort.signal });

@@ -456,6 +456,7 @@ function CommentSideSelectBar({
 }) {
   const t = useT();
   if (selectedCount === 0) return null;
+  const idleSendLabel = queueOnSend ? t('Queue') : t('Send to chat');
   return (
     <div className="comment-side-selectbar" data-testid="comment-side-selectbar">
       <span className="comment-side-selectcount">{t('{n} selected', { n: selectedCount })}</span>
@@ -469,7 +470,7 @@ function CommentSideSelectBar({
         disabled={sending || sendDisabled}
         onClick={() => void onSendSelected()}
       >
-        {sending ? t('Sending…') : queueOnSend ? t('Queue') : t('Send to chat')}
+        {sending ? t('Sending…') : idleSendLabel}
       </button>
     </div>
   );

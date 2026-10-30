@@ -39,11 +39,11 @@ export class InMemoryRedirectRepo implements RedirectRepoPort, RedirectDbHandle 
     includeOverrideOnly: boolean;
   }, _optional: Record<string, never> = {}): Promise<RedirectRecord | null> {
     const candidates = this.all(required.workspaceId).filter(
-      (r) =>
-        r.status === "active" &&
-        r.matchType === "exact" &&
-        sameRedirectPath({ a: r.fromPattern, b: required.path }, {}) &&
-        (!required.includeOverrideOnly || r.override)
+      (r) => {
+        if (r.status !== "active" || r.matchType !== "exact") return false;
+        return sameRedirectPath({ a: r.fromPattern, b: required.path }, {}) &&
+          (!required.includeOverrideOnly || r.override);
+      }
     );
     candidates.sort((a, b) => compareTieBreak({ a, b }, {}));
     return candidates[0] ? { ...candidates[0] } : null;

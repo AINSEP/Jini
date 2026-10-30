@@ -287,7 +287,7 @@ export function useInteractiveHtmlEditor(
 
   useEffect(() => {
     const wrapper = wrapperRef.current;
-    if (!wrapper) return;
+    if (!wrapper) return undefined;
     const sourcePlan = prepareEditorSource({ html }, { isProtectedElement, describeHostElement: describeEmbedPlaceholder, translate: options.translate });
     let integrityFailure: EditorSourceError | undefined;
     const reportSourceError = (error: EditorSourceError) => {
@@ -297,14 +297,14 @@ export function useInteractiveHtmlEditor(
     };
     if (!sourcePlan.ok) {
       reportSourceError(new EditorSourceError({ message: sourcePlan.problem }, {}));
-      return;
+      return undefined;
     }
     const mountEl = document.createElement('div');
     mountEl.style.height = '100%';
     wrapper.appendChild(mountEl);
     let editor: Editor;
     try { editor = initInteractiveHtmlEditor(mountEl, sourcePlan, canvasStyling, { ...options, onSerializationError: reportSourceError }); }
-    catch { reportSourceError(new EditorSourceError()); mountEl.remove(); return; }
+    catch { reportSourceError(new EditorSourceError()); mountEl.remove(); return undefined; }
     const decorate = () => {
       protectTextAncestors({ editor }, {});
       const describe = sourcePlan.instances.length ? protectedCanvasDescriber({ editor }, {}) : describeEmbedPlaceholder;

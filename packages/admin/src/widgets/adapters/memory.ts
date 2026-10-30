@@ -37,7 +37,7 @@ export function createMemoryWidgetsApi({ widgets = [], regions = [], areas = {},
     async createWidget(input, options = {}) {
       options.signal?.throwIfAborted();
       let id: string;
-      do { id = `fake-${++widgetSequence}`; } while (rows.some(w => w.id === id || w.slug === `fake-slug-${widgetSequence}`));
+      do { widgetSequence += 1; id = `fake-${widgetSequence}`; } while (rows.some(w => w.id === id || w.slug === `fake-slug-${widgetSequence}`));
       const widget: AdminWidget = { id, workspaceId, slug: `fake-slug-${widgetSequence}`, title: input.title, status: 'active', widgetType: input.widgetType, config: copy(input.config), updatedAt: now(), version: 1 };
       rows.push(widget);
       return { widget: copy(widget) };
@@ -62,7 +62,7 @@ export function createMemoryWidgetsApi({ widgets = [], regions = [], areas = {},
       options.signal?.throwIfAborted();
       if (regionRows.has(regionKey) || bindings.some(b => b.regionKey === regionKey)) fail('WIDGETS_REGION_BOUND', 'Region already bound');
       let id: string;
-      do { id = `fake-area-${++areaSequence}`; } while (bindings.some(b => b.areaEntryId === id) || [...regionRows.values()].some(r => r.area.id === id));
+      do { areaSequence += 1; id = `fake-area-${areaSequence}`; } while (bindings.some(b => b.areaEntryId === id) || [...regionRows.values()].some(r => r.area.id === id));
       const area: AdminWidgetArea = { id, workspaceId, regionKey, updatedAt: now(), version: 1 };
       bindings.push({ workspaceId, regionKey, areaEntryId: id, updatedAt: area.updatedAt, placementCount: 0 });
       regionRows.set(regionKey, { area, placements: [] });

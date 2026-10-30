@@ -186,13 +186,16 @@ export function sceneContentSignature(
 export function exportedImageFileName(fileName: string, sourceExtension?: string): string {
   const slash = fileName.lastIndexOf('/');
   const baseName = slash >= 0 ? fileName.slice(slash + 1) : fileName;
-  const stem =
-    typeof sourceExtension === 'string'
-      ? baseName.toLowerCase().endsWith(sourceExtension.toLowerCase())
-        ? baseName.slice(0, baseName.length - sourceExtension.length)
-        : baseName
-      : baseName.replace(/\.[^./]+$/, '');
+  const stem = typeof sourceExtension === 'string'
+    ? stripKnownExtension(baseName, sourceExtension)
+    : baseName.replace(/\.[^./]+$/, '');
   return `${stem || 'sketch'}.png`;
+}
+
+function stripKnownExtension(baseName: string, extension: string): string {
+  return baseName.toLowerCase().endsWith(extension.toLowerCase())
+    ? baseName.slice(0, baseName.length - extension.length)
+    : baseName;
 }
 
 export function exportedImageResultFileName(result: SketchExportImageResult, fallback: string): string {
@@ -257,15 +260,13 @@ export function buildSketchTooltipLabels(t: SketchTranslate): SketchTooltipLabel
  * in `overrides` matches (caller should leave the node untouched).
  */
 export function translateDomTextValue(value: string, overrides: SketchDomTextOverrides): string | null {
-  // Every group in this pattern is quantified with `*` (zero-or-more), so it
-  // matches every string input, including `''` — `.match()` can never return
-  // null here, and each capture group is always defined (possibly empty).
-  // The nullable return/`| undefined` group types are just `RegExp.match`'s
-  // and `RegExpMatchArray`'s general signatures, not a real runtime path.
-  const match = value.match(/^(\s*)([\s\S]*?)(\s*)$/)!;
-  const leading = match[1]!;
-  const core = match[2]!;
-  const trailing = match[3]!;
+  // Split into leading whitespace, core, trailing whitespace (an all-whitespace
+  // value is all leading). `trimStart`/`trimEnd` strip exactly regex `\s`.
+  const coreStart = value.length - value.trimStart().length;
+  const leading = value.slice(0, coreStart);
+  const rest = value.slice(coreStart);
+  const core = rest.trimEnd();
+  const trailing = rest.slice(core.length);
   const normalized = core.replace(/\s+/g, ' ').trim();
   if (!normalized) return null;
   const exact = overrides[normalized];

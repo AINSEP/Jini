@@ -37,7 +37,7 @@ export function useNativeMenu(required: MenuProps, _optional: Record<string, nev
   const [open, setOpen] = useState(false), trigger = useRef<HTMLButtonElement>(null), menu = useRef<HTMLDivElement>(null), id = useId();
   const [position, setPosition] = useState({ top: 0, left: 0 });
   useLayoutEffect(() => {
-    if (!open || !trigger.current || !menu.current) return;
+    if (!open || !trigger.current || !menu.current) return undefined;
     // Portals escape the preview card's overflow clipping. Follow the anchor on scroll/resize.
     const update = () => {
       const anchor = trigger.current!.getBoundingClientRect();
@@ -52,7 +52,7 @@ export function useNativeMenu(required: MenuProps, _optional: Record<string, nev
   function close() { setOpen(false); trigger.current?.focus(); }
   function focus(index: number) { menu.current?.querySelectorAll<HTMLButtonElement>('[role="menuitem"]:not(:disabled)')[index]?.focus(); }
   useEffect(() => {
-    if (!open) return;
+    if (!open) return undefined;
     focus(0);
     const dismiss = (event: PointerEvent) => {
       if (event.target instanceof Node && !menu.current?.contains(event.target) && !trigger.current?.contains(event.target)) setOpen(false);

@@ -28,9 +28,14 @@ export type OnboardingChipFieldProps =
       className?: string;
     };
 
+/** A single-select value as a selection list; an empty string selects nothing. */
+function singleSelection(value: string): string[] {
+  return value ? [value] : [];
+}
+
 export function OnboardingChipField(props: OnboardingChipFieldProps) {
   const { label, options, className } = props;
-  const selected = props.multiple ? props.value : props.value ? [props.value] : [];
+  const selected = props.multiple ? props.value : singleSelection(props.value);
 
   return (
     <div className={['onboarding-chip-field', className].filter(Boolean).join(' ')}>

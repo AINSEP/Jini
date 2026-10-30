@@ -25,7 +25,7 @@ export function useMemoryFlash(): MemoryFlashController {
   }, []);
 
   useEffect(() => {
-    if (!flash) return;
+    if (!flash) return undefined;
     const id = setTimeout(() => setFlash(null), 1800);
     return () => clearTimeout(id);
   }, [flash]);

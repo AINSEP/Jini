@@ -370,11 +370,8 @@ export function useMemoryConnectors(
     [selectedConnectorIds, connectedMemoryConnectors],
   );
   const connectedCount = connectedMemoryConnectors.length;
-  const connectorScanLabel = connectorExtracting
-    ? 'Scanning apps'
-    : selectedConnectedConnectorIds.length === 0
-      ? 'Select apps to scan'
-      : 'Scan selected apps';
+  const idleScanLabel = selectedConnectedConnectorIds.length === 0 ? 'Select apps to scan' : 'Scan selected apps';
+  const connectorScanLabel = connectorExtracting ? 'Scanning apps' : idleScanLabel;
   const selectedConnectorSuggestions = useMemo(
     () => connectorSuggestions.filter((suggestion) => selectedSuggestionIds.has(suggestion.id)),
     [connectorSuggestions, selectedSuggestionIds],

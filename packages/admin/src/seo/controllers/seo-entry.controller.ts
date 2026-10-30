@@ -40,7 +40,8 @@ export function createSeoEntryController(
       store.set({ patch: { resolved, touched: {}, notice: t('Saved.') } });
       // Saving finishes with the PUT, before this best-effort analysis settles. A newer save's
       // analysis must supersede an earlier slow response (the source's 2026-09-07 race fix).
-      const ticket = ++analyzeGeneration;
+      analyzeGeneration += 1;
+      const ticket = analyzeGeneration;
       void api.analyzeSeoEntry({ entryId }).then(analysis => {
         if (ticket === analyzeGeneration) store.set({ patch: { analysis } });
       }).catch(() => { /* analysis refresh is best-effort; the save already succeeded */ });

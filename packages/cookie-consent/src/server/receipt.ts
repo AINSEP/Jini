@@ -2,9 +2,9 @@
  * same function. The response never sets a cookie: the browser client owns the cookie, so a slow Accept
  * response can't overwrite a newer Reject. */
 // MOVED-FROM: @jini-ai/cms consent/policy.ts createConsentRecord/readConsentRecord and consent/express receipt
-// handling (origin check, policy race, no IP/user-agent in evidence). TODO(P4): delete the cms copies.
+// handling (origin check, policy race, no IP/user-agent in evidence). Follow-up (P4): delete the cms copies.
 import { ACTIONS, CONSENT_COOKIE, REGION_COOKIE, type Choices, type ConsentAction, type ConsentState, type RegionMode } from '../contract.js';
-import { choicesFor, clamp, DEFAULT_MAX_AGE_MS, effective, isFlags, parseStored, RECEIPT_ID, regionFrom } from '../policy.js';
+import { choicesFor, clamp, DEFAULT_MAX_AGE_MS, effective, isFlags, parseStored, RECEIPT_ID, regionFrom } from '../contracts/policy.js';
 
 /** Immutable evidence; no IP, user-agent, or principal identity is collected. */
 export interface ConsentRecord { id: string; timestamp: string; policyVersion: string; choices: Choices; regionMode: RegionMode; gpc: boolean; action: ConsentAction }
@@ -91,8 +91,7 @@ async function readJson({ request, maxBytes }: { request: Request; maxBytes: num
 function cookie(header: string | null | undefined, name: string): string | null {
   for (const part of (header ?? '').split(/;\s*/)) {
     const at = part.indexOf('=');
-    if (at < 1) continue;
-    if (part.slice(0, at) !== name) continue;
+    if (at < 1 || part.slice(0, at) !== name) continue;
     try { return decodeURIComponent(part.slice(at + 1)); } catch { return null; }
   }
   return null;

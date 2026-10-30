@@ -41,8 +41,12 @@ export function movePlacement<T>({ items, index, direction }: { items: T[]; inde
 }
 // Distinguishes draft keys created in the same millisecond without randomUUID.
 let draftPlacementSequence = 0;
+function fallbackDraftPlacementId(): string {
+  draftPlacementSequence += 1;
+  return `p-${Date.now()}-${draftPlacementSequence}`;
+}
 /** Draft identity survives reorder/remove/toggle until the server accepts the ordered placements. */
-export function buildDraftPlacement({ widgetInstanceId }: { widgetInstanceId: string }, { id = () => globalThis.crypto?.randomUUID?.() ?? `p-${Date.now()}-${++draftPlacementSequence}` }: { id?: (() => string) | undefined } = {}): AdminWidgetPlacement {
+export function buildDraftPlacement({ widgetInstanceId }: { widgetInstanceId: string }, { id = () => globalThis.crypto?.randomUUID?.() ?? fallbackDraftPlacementId() }: { id?: (() => string) | undefined } = {}): AdminWidgetPlacement {
   return { placementId: id(), widgetEntryId: widgetInstanceId, enabled: true, widgetTitle: null, widgetType: null, broken: false };
 }
 export interface WidgetSaveErrorOutcome { error: string; fieldErrors: Array<{ field: string; reason: string }> }

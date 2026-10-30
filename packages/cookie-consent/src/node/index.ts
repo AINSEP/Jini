@@ -1,10 +1,10 @@
 // MOVED-FROM: @jini-ai/cms consent/node/index.ts, unchanged except the record types now come from ../server.
-// TODO(P4): delete the cms copy once the consumer reads this package.
+// Follow-up (P4): delete the cms copy once the consumer reads this package.
 import path from 'node:path';
 import * as fs from 'node:fs/promises';
 import { isIP } from 'node:net';
 import { randomUUID } from 'node:crypto';
-import { DEFAULT_MAX_AGE_MS as CONSENT_MAX_AGE_MS } from '../policy.js';
+import { DEFAULT_MAX_AGE_MS as CONSENT_MAX_AGE_MS } from '../contracts/policy.js';
 import type { ConsentRecord, ConsentRecordPort } from '../server/receipt.js';
 
 const RECEIPT_FILENAME = /^[a-zA-Z0-9_-]{16,128}\.json$/;

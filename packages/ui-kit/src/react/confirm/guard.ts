@@ -2,7 +2,8 @@ import type { ConfirmController } from '../types.js';
 function visible(element: HTMLElement) {
   for (let current: HTMLElement | null = element; current; current = current.parentElement) {
     const style = getComputedStyle(current);
-    if (current.hidden || current.getAttribute('aria-hidden') === 'true' || style.display === 'none' || style.visibility === 'hidden' || style.visibility === 'collapse' || style.opacity === '0') return false;
+    if (current.hidden || current.getAttribute('aria-hidden') === 'true' || style.display === 'none') return false;
+    if (style.visibility === 'hidden' || style.visibility === 'collapse' || style.opacity === '0') return false;
   }
   return true;
 }
@@ -38,8 +39,8 @@ function inspectInteraction({ controller: c, checkFocus, cancel, confirm, active
 }
 function inspectDescription({ description, frame, confirm, consequence }: { description: HTMLElement | null; frame: HTMLElement; confirm: HTMLElement; consequence: string }, _optional: Record<string, never> = {}): string[] {
   const describedIds = confirm.getAttribute('aria-describedby')?.split(/\s+/) ?? [];
-  if (!description || !frame.contains(description) || !visible(description) ||
-    !describedIds.includes(description.id) || !description.textContent?.includes(consequence)) return ['missing consequence label'];
+  if (!description || !frame.contains(description) || !visible(description)) return ['missing consequence label'];
+  if (!describedIds.includes(description.id) || !description.textContent?.includes(consequence)) return ['missing consequence label'];
   return [];
 }
 function inspectConsequence({ controller: c, frame, confirm, document: dom }: { controller: ConfirmController; frame: HTMLElement; confirm: HTMLElement | null; document: Pick<Document, 'getElementById'> }, _optional: Record<string, never> = {}): string[] {

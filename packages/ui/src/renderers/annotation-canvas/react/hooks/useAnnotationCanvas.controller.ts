@@ -65,7 +65,8 @@ export interface SendGate {
 /** Shared by the hook's `canSubmit` value and `send()`'s own gate — both computed the identical chain before this extraction. */
 export function deriveSendGate(input: SendGateInput): SendGate {
   const { hasInk, hasBox, hasText, hasCaptureTarget, captureViewport, noteTrimmed, extraFilesCount } = input;
-  const shouldCapture = hasInk || hasBox || hasText || hasCaptureTarget || captureViewport;
+  const hasAnnotation = hasInk || hasBox || hasText;
+  const shouldCapture = hasAnnotation || hasCaptureTarget || captureViewport;
   const canSubmitNow = shouldCapture || Boolean(noteTrimmed) || extraFilesCount > 0;
   return { shouldCapture, canSubmitNow };
 }
@@ -84,7 +85,8 @@ export function selectNoScreenshotMessage(
   t: Translate,
 ): string {
   const { captureViewport, hasInk, hasBox, hasCaptureTarget } = input;
-  return captureViewport && !hasInk && !hasBox && !hasCaptureTarget
+  const hasMark = hasInk || hasBox || hasCaptureTarget;
+  return captureViewport && !hasMark
     ? t('No screenshot was captured for this annotation.')
     : t('No screenshot was captured for this mark.');
 }

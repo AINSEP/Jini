@@ -22,6 +22,7 @@ import {
 } from 'react';
 
 import { Icon } from './Icon.js';
+import { withClassName } from '../../utils/class-names.js';
 
 export type ToastTone = 'default' | 'success' | 'error' | 'loading';
 export type ToastPlacement = 'bottom' | 'top';
@@ -118,7 +119,8 @@ export function toastClassName(options: {
   leaving: boolean;
 }): string {
   const { tone, placement, className, leaving } = options;
-  return `jini-toast tone-${tone} placement-${placement}${className ? ` ${className}` : ''}${leaving ? ' leaving' : ''}`;
+  const base = withClassName(`jini-toast tone-${tone} placement-${placement}`, className);
+  return leaving ? `${base} leaving` : base;
 }
 
 // --- Hooks (co-located, exported) -----------------------------------------
@@ -182,7 +184,7 @@ export function useToastAutoDismiss(
     // Re-entrant: a new message reuses the same mounted toast, so clear any
     // prior leaving state before re-arming the timers.
     setLeaving(false);
-    if (!toastShouldAutoDismiss(hasDismiss, effectiveTtl)) return;
+    if (!toastShouldAutoDismiss(hasDismiss, effectiveTtl)) return undefined;
     const fadeId = window.setTimeout(() => setLeaving(true), toastFadeDelay(effectiveTtl));
     const dismissId = window.setTimeout(fireDismiss, effectiveTtl);
     return () => {

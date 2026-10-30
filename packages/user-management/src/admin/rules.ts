@@ -34,12 +34,20 @@ export function describeRolesError({ error, fallback }: {
 export function destructiveCopy({ target }: {
     target: DestructiveTarget | null;
 }, _optional: Record<string, never> = {}) {
-    if (target?.kind === 'permission')
-        return { title: 'Remove permission?', label: 'Remove', tone: 'warning' as const,
-            body: `Remove "${target.row.permission}"${target.row.resourceType ? ` (${target.row.resourceType})` : ''} from this policy? This changes live access immediately.`, consequence: 'changes live access immediately' };
+    if (target?.kind === 'permission') {
+        const scope = target.row.resourceType ? ` (${target.row.resourceType})` : '';
+        return {
+            title: 'Remove permission?', label: 'Remove', tone: 'warning' as const,
+            body: `Remove "${target.row.permission}"${scope} from this policy? This changes live access immediately.`, consequence: 'changes live access immediately'
+        };
+    }
     if (target?.kind === 'policy')
-        return { title: 'Delete policy?', label: 'Delete', tone: 'danger' as const,
-            body: `Delete "${target.policy.name}"? Policies still attached to users or roles cannot be deleted.`, consequence: 'cannot be undone' };
-    return { title: 'Delete role?', label: 'Delete', tone: 'danger' as const,
-        body: target?.kind === 'role' ? `Delete "${target.role.name}"? Roles still assigned to users cannot be deleted.` : '', consequence: 'cannot be undone' };
+        return {
+            title: 'Delete policy?', label: 'Delete', tone: 'danger' as const,
+            body: `Delete "${target.policy.name}"? Policies still attached to users or roles cannot be deleted.`, consequence: 'cannot be undone'
+        };
+    return {
+        title: 'Delete role?', label: 'Delete', tone: 'danger' as const,
+        body: target?.kind === 'role' ? `Delete "${target.role.name}"? Roles still assigned to users cannot be deleted.` : '', consequence: 'cannot be undone'
+    };
 }

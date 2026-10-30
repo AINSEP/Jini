@@ -263,8 +263,7 @@ export function applyCanvasEmbedPlaceholders(
     const existingCard = el.closest(`[${CARD_ROOT_MARKER}]`) as HTMLElement | null;
     if (existingCard && !canRefreshRuntimeCard({ el, card: existingCard }, {})) continue;
     const descriptor = describe(el);
-    if (!descriptor) continue;
-    updatePlaceholder({ el, doc, descriptor, existingCard }, {});
+    if (descriptor) updatePlaceholder({ el, doc, descriptor, existingCard }, {});
   }
 }
 

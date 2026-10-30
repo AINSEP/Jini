@@ -160,7 +160,8 @@ function parseEmbedConfig(raw: string | null): { readonly config: Record<string,
 
 function galleryIdentityLabel(config: Readonly<Record<string, unknown>>): string {
   const count = Array.isArray(config.images) ? config.images.length : 0;
-  return count === 0 ? 'no images set' : `${count} ${count === 1 ? 'image' : 'images'}`;
+  if (count === 0) return 'no images set';
+  return count === 1 ? '1 image' : `${count} images`;
 }
 
 export type InteractiveHtmlEditorProps = Omit<HtmlEditorProps, 'isProtectedElement' | 'describeEmbedPlaceholder'>;

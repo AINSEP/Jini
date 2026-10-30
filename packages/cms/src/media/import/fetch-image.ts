@@ -1,3 +1,4 @@
+import { trimChars } from "@jini-ai/core/primitives";
 /** Binary URL import; the outbound adapter owns per-hop SSRF controls, while this module enforces caller MIME/byte policy and preserves source provenance. */
 // URL/byte rules are separate from tool permissions and persistence so a fake HTTP port or a byte
 // array can exercise them directly. Composition supplies the guarded client; never construct an
@@ -43,13 +44,14 @@ export function parseImportUrl({ raw }: { raw: string }): URL {
 export function buildImportFilename({ url, contentType }: { url: URL; contentType: string }, { override }: { override?: string } = {}): string {
   const extension = mediaFileExtension({ contentType });
   const rawName = override ?? decodeLastPathSegment(url);
-  const slug = rawName
-    .replace(/\.[a-zA-Z0-9]{1,5}$/, "")
-    .replace(/[^a-zA-Z0-9\s-]/g, " ")
-    .trim()
-    .replace(/\s+/g, "-")
-    .slice(0, 60)
-    .replace(/^-+|-+$/g, "");
+  const slug = trimChars({
+    text: rawName
+      .replace(/\.[a-zA-Z0-9]{1,5}$/, "")
+      .replace(/[^a-zA-Z0-9\s-]/g, " ")
+      .trim()
+      .replace(/\s+/g, "-")
+      .slice(0, 60), chars: "-"
+  });
   return `${slug || "imported-image"}.${extension}`;
 }
 
@@ -83,19 +85,25 @@ export function validateImageBytes({ source, bytes, bytesTruncated, maxBytes, al
   const isRemote = source instanceof URL;
   const label = isRemote ? source.href : source;
   if (bytesTruncated || bytes.byteLength > maxBytes) {
-    throw new MediaImportValidationError({ message: isRemote
+    throw new MediaImportValidationError({
+      message: isRemote
         ? `the image at '${label}' exceeds the ${maxBytes}-byte import limit. Nothing was saved — a partially downloaded image would be a corrupt file, not a smaller one.`
-        : `file '${label}' exceeds the ${maxBytes}-byte import limit. Nothing was saved.` });
+        : `file '${label}' exceeds the ${maxBytes}-byte import limit. Nothing was saved.`
+    });
   }
   if (bytes.byteLength === 0) {
-    throw new MediaImportValidationError({ message: isRemote
-      ? `'${label}' returned an empty response body — there is nothing to import.`
-      : `file '${label}' is empty — there is nothing to import.` });
+    throw new MediaImportValidationError({
+      message: isRemote
+        ? `'${label}' returned an empty response body — there is nothing to import.`
+        : `file '${label}' is empty — there is nothing to import.`
+    });
   }
   const contentType = sniffer.sniff({ bytes });
   if (!allowedContentTypes.has(contentType)) {
-    throw new MediaImportValidationError({ message: `'${label}' is not an importable file: its actual bytes are '${contentType}'. ` +
-        `Only ${[...allowedContentTypes].join(", ")} can be imported (${isRemote ? 'the served Content-Type header' : 'the file extension'} is deliberately ignored — the bytes decide).` });
+    throw new MediaImportValidationError({
+      message: `'${label}' is not an importable file: its actual bytes are '${contentType}'. ` +
+        `Only ${[...allowedContentTypes].join(", ")} can be imported (${isRemote ? 'the served Content-Type header' : 'the file extension'} is deliberately ignored — the bytes decide).`
+    });
   }
   return contentType;
 }

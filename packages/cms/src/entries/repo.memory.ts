@@ -21,7 +21,10 @@ export class InMemoryEntryRepo implements EntryRepoPort, EntryListPort {
   async findBySlug(params: { workspaceId: string; type: string; slug: string }): Promise<EntryRecord | null> {
     const target = InMemoryEntryRepo.slugKey(params.workspaceId, params.type, params.slug);
     for (const row of this.byId.values()) {
-      if (InMemoryEntryRepo.slugKey(row.workspaceId, row.type, row.slug) === target) return { ...row };
+      if (InMemoryEntryRepo.slugKey(row.workspaceId, row.type, row.slug) === target) {
+        return { ...row };
+      }
+
     }
     return null;
   }
@@ -37,7 +40,10 @@ export class InMemoryEntryRepo implements EntryRepoPort, EntryListPort {
       // A create (`null`) needs the id free in every workspace: the id is the key here, as the
       // primary key is in a SQL adapter, so a foreign row with it would be overwritten.
       const found = stored && (options.expectedVersion === null || stored.workspaceId === row.workspaceId) ? stored.version : null;
-      if (found !== options.expectedVersion) throw entryVersionConflictError({ id: row.id, expectedVersion: options.expectedVersion, found });
+      if (found !== options.expectedVersion) {
+        throw entryVersionConflictError({ id: row.id, expectedVersion: options.expectedVersion, found });
+      }
+
     }
     this.byId.set(row.id, { ...row });
   }
@@ -50,7 +56,10 @@ export class InMemoryEntryRepo implements EntryRepoPort, EntryListPort {
    * entries are unchanged. @complexity O(r) time and space over stored revisions. */
   async hardDelete(required: { workspaceId: string; id: string }, _optional: Record<string, never> = {}): Promise<void> {
     const row = this.byId.get(required.id);
-    if (!row || row.workspaceId !== required.workspaceId) return;
+    if (!row || row.workspaceId !== required.workspaceId) {
+      return;
+    }
+
     this.byId.delete(required.id);
     this.revisions = this.revisions.filter(revision => revision.workspaceId !== required.workspaceId || revision.entryId !== required.id);
   }
@@ -73,7 +82,12 @@ export class InMemoryEntryRepo implements EntryRepoPort, EntryListPort {
 
     if (optional.orderBy === "updatedAt") {
       const dir = optional.orderDirection === "asc" ? 1 : -1;
-      rows = rows.sort((a, b) => (a.updatedAt < b.updatedAt ? -dir : a.updatedAt > b.updatedAt ? dir : 0));
+      rows = rows.sort((a, b) => {
+        if (a.updatedAt < b.updatedAt) {
+          return -dir;
+        }
+        return a.updatedAt > b.updatedAt ? dir : 0;
+      });
     }
     if (typeof optional.limit === "number") {
       rows = rows.slice(0, optional.limit);

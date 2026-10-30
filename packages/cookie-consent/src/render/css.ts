@@ -4,7 +4,7 @@
  * Reject-parity block always apply. No DOM, no I/O. */
 // MOVED-FROM: @jini-ai/cms consent/css.ts (value rules, contrast check, parity block). Changed: the selector
 // gate is "anything under the scope" instead of a fixed surface list, and problems drop one rule instead
-// of the whole customization. TODO(P4): delete the cms copy once the consumer reads this package.
+// of the whole customization. Follow-up (P4): delete the cms copy once the consumer reads this package.
 import { ConsentCssSyntaxError, parseConsentCss, type ConsentCssDeclaration, type ConsentCssRule } from './css-parser.js';
 
 export const CONSENT_CSS_SCOPE = '#jini-consent';
@@ -61,7 +61,9 @@ function lengthList({ value, min = 0, max = 32, count = 4 }: { value: string; mi
 /** Alpha is permitted only for shadows, never for text or control fills. @complexity O(value length). */
 function shadowColor(value: string): boolean {
   if (isColor(value)) return true;
-  const match = /^rgba\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(0(?:\.\d+)?|1(?:\.0+)?|\.\d+)\s*\)$/.exec(value);
+  const channel = String.raw`\s*(\d{1,3})\s*,`;
+  const alpha = String.raw`\s*(0(?:\.\d+)?|1(?:\.0+)?|\.\d+)\s*`;
+  const match = new RegExp(String.raw`^rgba\(${channel}${channel}${channel}${alpha}\)$`).exec(value);
   return match !== null && match.slice(1, 4).every(channel => Number(channel) <= 255);
 }
 
@@ -133,7 +135,7 @@ const ROOTS = /^(?:#jini-consent|\.jini-consent|\.jini-consent-reopen)(?=$|[\s>:
 
 /** Normalized selector, or null when it leaves the banner scope or could break Reject parity. @complexity O(selector length). */
 export function scopedSelector(selector: string): string | null {
-  const normalized = selector.trim().replace(/\s*>\s*/g, ' > ').replace(/\s+/g, ' ');
+  const normalized = selector.trim().split('>').map(part => part.trim()).join(' > ').replace(/\s+/g, ' ');
   if (!ROOTS.test(normalized)) return null;
   const compounds = normalized.split(' ').filter(part => part !== '>');
   return compounds.every(part => part && COMPOUND.test(part)) ? normalized.replace(/^\.jini-consent(?=$|[\s>:])/, CONSENT_CSS_SCOPE) : null;
@@ -250,7 +252,9 @@ function withoutRootColors(rules: readonly ConsentCssRule[]): ConsentCssRule[] {
 
 /** Emit only validated selectors/declarations, retaining their optional width condition. @complexity O(rule bytes). */
 function emitRule(rule: ConsentCssRule): string {
-  const css = `${rule.selector.split(',').map(s => scopedSelector(s)).join(',')}{${rule.declarations.map(({ property, value }) => `${property}:${value}`).join(';')}}`;
+  const selectors = rule.selector.split(',').map(s => scopedSelector(s)).join(',');
+  const declarations = rule.declarations.map(({ property, value }) => `${property}:${value}`).join(';');
+  const css = `${selectors}{${declarations}}`;
   return rule.media === undefined ? css : `@media ${rule.media}{${css}}`;
 }
 

@@ -25,11 +25,10 @@
  *    boundaries downstream of that point cannot be trusted (value text could re-parse as a name) —
  *    that failure mode still discards everything and fails the WHOLE string closed, same as before.
  *
- * The media admin adapter keeps its OWN hand-copied allowlist, unchanged
- * by this task — it is a UX hint only (never gates `save()`, incident `a7cce060`), and the
- * browser/Node split between admin and this server-side file is the existing precedent (see that
- * file's own header). Widening ITS list, and Jini's write-path copy, is tracked separately (plan
- * slice J) — until then, an admin Media-library save with `style` still gets Jini's own 400.
+ * The media admin adapter delegates to this browser-safe parser for UX hints, retaining its
+ * own error messages. Hints never gate `save()` (incident `a7cce060`): a bad attribute must not
+ * prevent saving unrelated metadata. The server independently enforces write/render policy;
+ * the narrower CMS media write validator remains a separate boundary.
  */
 
 /** Why one parsed attribute token was rejected. `unsafe-url` replaces the old `javascript-url` name
@@ -92,15 +91,17 @@ export const EMBED_HTML_ATTRIBUTE_ALLOWED_NAMES = [
 ] as const;
 
 /**
- * The shape EVERY accepted attribute name must have, checked before allowlist membership (ported
- * unchanged from the 2026-09-07 stored-XSS fix in the media admin attribute validator). The
- * `data-`/`aria-` families are open-ended by design — no fixed suffix list — so the prefix check
- * alone would accept whatever characters {@link HTML_ATTRIBUTE_TOKEN}'s name class (`[^\s="']+`,
- * which excludes only whitespace, `=` and quotes) lets through; `<`, `>` and `/` are all legal in
- * that class, and the renderer templates a name into ` name="value"` escaping only the VALUE — so a
- * stored `data-x><svg/onload=alert(1)` would close the tag and open a live `<svg onload>`.
- * Constraining the NAME to characters a real HTML attribute name can contain is what makes escaping
- * only the value sufficient.
+ * The shape EVERY accepted attribute name must have, checked before allowlist membership
+ * (2026-09-07 stored-XSS fix; the narrower `@jini-ai/cms/media` write validator also enforces
+ * this name shape).
+ *
+ * The `data-`/`aria-` families below are open-ended by design — no fixed suffix list — so the
+ * prefix check alone accepted whatever characters {@link HTML_ATTRIBUTE_TOKEN}'s name class
+ * (`[^\s="']+`, which excludes only whitespace, `=` and quotes) let through. `<`, `>` and `/` are
+ * all legal in that class, and the server renderer templating a name into ` name="value"` escapes
+ * only the VALUE — so a stored `data-x><svg/onload=alert(1)` closed the `<img>` and opened a live
+ * `<svg onload>` on the public page. Constraining the NAME to the characters a real HTML attribute
+ * name can contain is what makes "the value is escaped" sufficient.
  */
 const EMBED_HTML_ATTRIBUTE_NAME_PATTERN = /^[a-z][a-z0-9-]*$/;
 
@@ -129,9 +130,9 @@ const ASCII_WHITESPACE_OR_CONTROL_MAX_CODE_POINT = 0x20;
  * stripped and the result lowercased, starts with `javascript:`, `vbscript:` or `data:` — the three
  * schemes a browser will still execute or navigate to even when the URL carries interior whitespace
  * a naive end-trim (the old `.trim()`-only check) would miss, e.g. `java\tscript:x`: browsers strip
- * tabs and newlines from inside a URL before parsing its scheme, so the check must too. Filters by
- * code point rather than a regex character class so no literal control character ever has to appear
- * in a pattern.
+ * tabs and newlines from inside a URL before parsing its scheme, so this check must too. The
+ * admin media hint delegates here so this scheme policy cannot drift. Filtering code points
+ * avoids writing literal control characters in a regex pattern.
  *
  * @complexity O(n) in the value's length (one filter pass, one prefix test).
  */
@@ -151,9 +152,9 @@ function isUnsafeUrlValue(value: string): boolean {
  * `url(...)`, `-moz-binding`/`behavior:` (XBL/HTC script bindings), `@import` (pulls in a second,
  * unvetted stylesheet), or ANY backslash in an inline attribute — a CSS escape sequence (`\65`
  * is `e`) can respell any of the above past a plain substring check, so a backslash anywhere in
- * an inline value is rejected outright
- * rather than trying to first decode every possible CSS escape. Plain `url(...)` values (background
- * images) are otherwise allowed — authors here are the owner/admins, not anonymous input.
+ * an inline value is rejected outright rather than decoding every possible CSS escape.
+ * Plain `url(...)` values (background images) are otherwise allowed — authors here are the
+ * owner/admins, not anonymous input.
  * Stylesheets additionally allow non-ASCII scalar hex escapes (e.g. `\2713` for a checkmark).
  * They cannot respell the ASCII injection vocabulary. Only the validation projection changes;
  * the accepted value remains byte-for-byte authored CSS. ASCII/invalid/other escapes still fail.
@@ -163,28 +164,26 @@ function isUnsafeUrlValue(value: string): boolean {
 const UNSAFE_STYLE_PATTERN = /expression\(|javascript:|vbscript:|-moz-binding|behavior:|@import|\\/i;
 function isUnsafeStyleValue(value: string, { styleContext }: { styleContext?: "stylesheet" } = {}): boolean {
   const inspected = styleContext === "stylesheet"
-    ? value.replace(/\\([0-9a-f]{1,6})(?:\r\n|[ \t\n\r\f])?/gi, (escape, hex: string) => {
+    ? value.replace(/\\([0-9a-f]{1,6})(?:\r\n|[ \t\n\r\f])?/gi, (escaped, hex: string) => {
       const codePoint = Number.parseInt(hex, 16);
-      if (codePoint < 0xa0 || codePoint > 0x10ffff || (codePoint >= 0xd800 && codePoint <= 0xdfff)) return escape;
+      if (codePoint < 0xa0 || codePoint > 0x10ffff || (codePoint >= 0xd800 && codePoint <= 0xdfff)) return escaped;
       return String.fromCodePoint(codePoint);
     })
     : value;
   return UNSAFE_STYLE_PATTERN.test(inspected);
 }
 
-/**
- * Classifies one already-tokenized `name`/`value` pair into a rejection reason, or `null` when it is
- * accepted. Split out of {@link parseEmbedHtmlAttributes} into its own function, and into three
- * single-purpose checks ({@link isAllowedEmbedHtmlAttributeName}, {@link isUnsafeUrlValue},
- * {@link isUnsafeStyleValue}), so each rejection reason is its own directly testable branch and this
- * function's own complexity stays low.
+/** Classifies one already-tokenized `name`/`value` pair. Split out of {@link parseEmbedHtmlAttributes}
+ *  so each rejection reason is its own directly testable branch, and so the loop below reads as
+ *  "tokenize, then classify" rather than one function doing both.
  *
- * Order matters: `on*` is checked FIRST (so an `onerror` always reports as `event-handler`, the more
- * actionable reason, never the generic `disallowed-name`), then the URL-scheme check runs against
- * EVERY value regardless of name (matching the pre-existing `javascript:` check this is ported from
- * — the only allowlisted attribute with a URL-shaped value is `poster`, but checking unconditionally
- * costs nothing and adds no gap), then allowlist membership, then — only for an already-allowed
- * `style` — the CSS-specific unsafe-value check.
+ * Order matters:
+ * `on*` is checked FIRST (so an `onerror` always reports as `event-handler`, the more actionable
+ * reason, never the generic `disallowed-name`), then the URL-scheme check runs against EVERY value
+ * regardless of name (matching the pre-existing `javascript:` check this is ported from), then
+ * allowlist membership, then — only for an already-allowed `style` — the CSS-specific unsafe-value
+ * check. `poster` is the only allowlisted URL-shaped attribute, but checking every value adds
+ * no gap. Keeping these checks separate also keeps the classifier's own complexity low.
  *
  * @complexity O(1) — four fixed checks against one already-extracted token; each check's own O(n) in
  * the token's length is linear, not nested.

@@ -100,30 +100,30 @@ export function createTrashSweep(deps: TrashSweepDeps): TrashSweepOnce {
         // Keep the lease: immediately retrying an uninstalled domain would starve the batch.
         // Its snapshot stays listed until expiry, and removal can resume when the domain returns.
         results.push({ id: claim.id, outcome: "adapter-unavailable" });
-        continue;
-      }
-      if (!deps.entityPolicy({ entityType: claim.entityType })) { results.push({ id: claim.id, outcome: "forbidden" }); continue; }
+      } else if (!deps.entityPolicy({ entityType: claim.entityType })) {
+        results.push({ id: claim.id, outcome: "forbidden" });
+      } else {
+        const outcome = await deps.transaction({
+          work: async (): Promise<PurgeItemOutcome> => {
 
-      const outcome = await deps.transaction({
-        work: async (): Promise<PurgeItemOutcome> => {
+            // Restore removes the index in its own transaction, including unversioned domains.
+            const [row] = await deps.repo.findByIds({ workspaceId: claim.workspaceId, ids: [claim.id] });
+            if (!row) return "not-found";
 
-          // Restore removes the index in its own transaction, including unversioned domains.
-          const [row] = await deps.repo.findByIds({ workspaceId: claim.workspaceId, ids: [claim.id] });
-          if (!row) return "not-found";
-
-          // Versioned domains also stand down on a compare-and-delete mismatch.
-          const result = await adapter.purge({
-            workspaceId: row.workspaceId,
-            entityId: row.entityId,
-            expectedVersion: row.entityVersion,
-          });
-          if (result === "purged" || result === "already-gone") {
-            await deps.repo.deleteById({ workspaceId: row.workspaceId, id: row.id });
+            // Versioned domains also stand down on a compare-and-delete mismatch.
+            const result = await adapter.purge({
+              workspaceId: row.workspaceId,
+              entityId: row.entityId,
+              expectedVersion: row.entityVersion,
+            });
+            if (result === "purged" || result === "already-gone") {
+              await deps.repo.deleteById({ workspaceId: row.workspaceId, id: row.id });
+            }
+            return result;
           }
-          return result;
-        }
-      });
-      results.push({ id: claim.id, outcome });
+        });
+        results.push({ id: claim.id, outcome });
+      }
     }
 
     return {

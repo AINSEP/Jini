@@ -122,11 +122,9 @@ export function ListDetailPanel<TItem extends ListDetailItem>({
           >
             {loadingDetailContent}
           </div>
-        ) : selectedItem ? (
-          renderDetail(selectedItem)
-        ) : (
-          emptyDetailContent
-        )}
+        ) : null}
+        {!loading && selectedItem ? renderDetail(selectedItem) : null}
+        {!loading && !selectedItem ? emptyDetailContent : null}
       </section>
     </div>
   );

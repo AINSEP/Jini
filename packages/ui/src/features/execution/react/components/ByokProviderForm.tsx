@@ -521,9 +521,7 @@ function ByokConnectionResult({ connectionTest, canTestConnection }: {
         {/* Host-reported messages route through `t()` so fixed runtime sentences (e.g.
             "No API key saved. Save one to test the connection.") translate; any
             message not in the dictionary — a provider's own error text — renders verbatim. */}
-        {connectionTest.status === 'ok'
-          ? (connectionTest.message !== undefined ? t(connectionTest.message) : t('Connection succeeded'))
-          : t(connectionTest.message)}
+        {t(connectionTest.message ?? 'Connection succeeded')}
       </span>
     </div>
   );

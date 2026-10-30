@@ -29,7 +29,7 @@ export function useMentionColorStamping(
   const [editor] = useLexicalComposerContext();
 
   useEffect(() => {
-    if (!resolveMentionColor) return;
+    if (!resolveMentionColor) return undefined;
 
     const stampByKey = (key: string): void => {
       const dom = editor.getElementByKey(key);

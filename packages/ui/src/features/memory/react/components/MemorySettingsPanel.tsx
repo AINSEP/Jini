@@ -62,6 +62,8 @@ export function MemorySettingsPanel({
   // needs to reach it, so it's owned here rather than threaded through props.
   const sectionRef = useRef<HTMLElement | null>(null);
 
+  const savedHandleProps = agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'saved' }) } : {};
+  const howHandleProps = agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'how' }) } : {};
   return (
     <div className="memory-settings-panel">
       <section className="memory-panel-head-card">
@@ -135,9 +137,9 @@ export function MemorySettingsPanel({
       </section>
 
       {topTab === 'memories' ? (
-        <MemoryList sectionRef={sectionRef} {...savedMemory} {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'saved' }) } : {})} />
+        <MemoryList sectionRef={sectionRef} {...savedMemory} {...savedHandleProps} />
       ) : (
-        <MemoryHowPanel {...howItWorks} {...(agentHandle ? { agentHandle: agentSubHandle({ base: agentHandle, action: 'how' }) } : {})} />
+        <MemoryHowPanel {...howItWorks} {...howHandleProps} />
       )}
     </div>
   );

@@ -26,6 +26,7 @@ export function createMemoryFormsApi(
   const definitions = structuredClone([...forms]);
   const answers = structuredClone([...submissions]);
   let sequence = definitions.length;
+  const nextFakeId = () => { sequence += 1; return `fake-${sequence}`; };
   const missing = (id: string, { kind = 'form definition' }: { kind?: 'form definition' | 'form submission' } = {}): never => {
     throw new AdminApiError({ message: `${kind} '${id}' was not found`, status: 404 });
   };
@@ -50,8 +51,8 @@ export function createMemoryFormsApi(
     async getFormDefinition({ id }, _optional = {}) { return structuredClone(find(id)); },
     async createFormDefinition(input, options = {}) {
       if (definitions.some(form => form.slug === input.slug)) throw new AdminApiError({ message: 'form slug already exists', status: 409 });
-      let id = nextId?.() ?? `fake-${++sequence}`;
-      if (!nextId) while (definitions.some(form => form.id === id)) id = `fake-${++sequence}`;
+      let id = nextId?.() ?? nextFakeId();
+      if (!nextId) while (definitions.some(form => form.id === id)) id = nextFakeId();
       if (definitions.some(form => form.id === id)) throw new AdminApiError({ message: 'form id already exists', status: 409 });
       const created: AdminFormDefinition = { ...structuredClone(input), id, notify: structuredClone(options.notify ?? { enabled: false, recipients: [] }), status: 'active', createdAt: now(), updatedAt: now() };
       definitions.push(created);

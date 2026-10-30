@@ -8,9 +8,9 @@ export type PooledIframeProps = ComponentPropsWithoutRef<'iframe'> & {
 export function setForwardedRef(ref: Ref<HTMLIFrameElement> | undefined, value: HTMLIFrameElement | null) {
   if (typeof ref === 'function') {
     ref(value);
-  } else if (ref) {
-    (ref as { current: HTMLIFrameElement | null }).current = value;
+    return;
   }
+  if (ref) (ref as { current: HTMLIFrameElement | null }).current = value;
 }
 
 export function propNameToAttributeName(name: string): string {

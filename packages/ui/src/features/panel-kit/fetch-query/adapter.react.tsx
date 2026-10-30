@@ -61,7 +61,7 @@ export function useFetchQuery<T>(required: Pick<FetchQueryOptions<T>, "key" | "f
   const state = useSyncExternalStore(subscribe, snapshot, snapshot);
   const fetch = useCallback(() => latest.current.fetch(), []);
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled) return undefined;
     const release = cache.observe({ entry: entry, observer: { fetch, staleTime, focus: refetchOnWindowFocus } });
     void cache.load({ entry: entry, fetch: fetch, staleTime: staleTime });
     return release;
@@ -87,7 +87,8 @@ export function useFetchMutation<TInput, TOutput>(required: Pick<FetchMutationOp
   useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const [state, setState] = useState<{ status: MutationResult<TInput, TOutput>['status']; error: Error | null }>({ status: 'idle', error: null });
   const mutate = useCallback(({ input }: { input: TInput }): Promise<TOutput> => {
-    const current = ++generation.current;
+    generation.current += 1;
+    const current = generation.current;
     const { run, invalidates } = latest.current;
     setState({ status: 'pending', error: null });
     // Surface a rejected write immediately instead of silently retrying authorization or

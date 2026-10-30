@@ -84,6 +84,8 @@ export interface ConfirmationSurfaceSpec {
   readonly description?: string;
   /** The facts being agreed about. A dialog that says "delete this?" without naming *this* is not consent. */
   readonly details?: readonly SurfaceDetail[];
+  /** Technical identifiers and input stay available without crowding out the consent wording. */
+  readonly detailDisclosure?: { readonly label: string; readonly details: readonly SurfaceDetail[] };
   /**
    * Optional per-row checkboxes, rendered unchecked between the details and the warning. Ticking one
    * never confirms anything by itself — the same property the module doc opens with, extended to a
@@ -236,6 +238,7 @@ function confirmationBodyHtml(spec: ConfirmationSurfaceSpec, required: { affirma
       spec.description === undefined ? { title: spec.title } : { title: spec.title, description: spec.description },
     ),
     renderDetailList(spec.details ?? []),
+    spec.detailDisclosure === undefined ? '' : `<details class="mcpui-detail-disclosure mcpui-technical-details"><summary aria-expanded="false">${escapeHtml(spec.detailDisclosure.label)}</summary>${renderDetailList(spec.detailDisclosure.details)}</details>`,
     renderChoices(spec.choices ?? []),
     warning,
     // Confirm starts disabled; the script enables it once the dwell has run out.

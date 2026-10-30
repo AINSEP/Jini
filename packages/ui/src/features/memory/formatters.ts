@@ -27,6 +27,11 @@ import type {
  *  there was the SHAPE of the translate function, not the hook. */
 type Translate = (key: string, vars?: Record<string, string | number>) => string;
 
+const KIND_LABEL_KEYS: Partial<Record<NonNullable<MemoryExtractionRecord['kind']>, string>> = {
+  heuristic: 'Heuristic',
+  connector: 'Connected apps',
+};
+
 export function describeConnectorReadIssue(result: ConnectorMemorySuggestionResponse): string | null {
   const failed = result.connectors.filter((connector) => connector.status === 'failed');
   const skipped = result.connectors.filter((connector) => connector.status === 'skipped');
@@ -252,7 +257,7 @@ export function describeRecord(
   // that was the only writer at the time, so labelling them as such
   // keeps the history list legible after upgrading.
   const kind = record.kind ?? 'llm';
-  const kindLabel = kind === 'heuristic' ? t('Heuristic') : kind === 'connector' ? t('Connected apps') : t('Model');
+  const kindLabel = t(KIND_LABEL_KEYS[kind] ?? 'Model');
   return { phaseLabel, reasonLabel, kindLabel, tone };
 }
 

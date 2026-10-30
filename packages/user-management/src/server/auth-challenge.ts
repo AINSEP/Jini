@@ -83,7 +83,7 @@ export function newChallengeSecrets(
 
 /** Exact ASCII shape; without the m flag, $ also refuses trailing line terminators. O(1). */
 function isChallengeCode(code: string): boolean {
-  return /^[0-9]{6}$/.test(code);
+  return /^\d{6}$/.test(code);
 }
 
 /**
@@ -114,8 +114,8 @@ export async function verifyChallengeCode(
 
 /** Invalid counters or limits deny access; O(1), without changing the stored counter. */
 function hasAttemptsRemaining(failedAttempts: number, maxAttempts: number): boolean {
-  return Number.isSafeInteger(failedAttempts) && failedAttempts >= 0
-    && Number.isSafeInteger(maxAttempts) && maxAttempts > 0 && failedAttempts < maxAttempts;
+  if (!Number.isSafeInteger(failedAttempts) || failedAttempts < 0) return false;
+  return Number.isSafeInteger(maxAttempts) && maxAttempts > 0 && failedAttempts < maxAttempts;
 }
 
 /**

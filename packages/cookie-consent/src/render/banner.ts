@@ -43,7 +43,7 @@ const esc = (s: string) => String(s).replace(/[&<>"']/g, ch => ESC[ch]!);
 const json = (v: unknown) => JSON.stringify(v).replace(/</g, '\\u003c');
 const EMPTY: RenderedBanner = Object.freeze({ head: '', body: '', htmlAttrs: '', problems: [] }) as RenderedBanner;
 
-// MOVED-FROM: @jini-ai/cms consent/html/render.ts consentPolicyHref. TODO(P4): delete the cms copy.
+// MOVED-FROM: @jini-ai/cms consent/html/render.ts consentPolicyHref. Follow-up (P4): delete the cms copy.
 /** Refuse executable/data/protocol-relative links; local pages are the common case. @complexity O(url length). */
 export function safeHref(url: string | undefined): string | null {
   if (!url) return null;

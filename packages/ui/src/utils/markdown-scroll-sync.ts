@@ -167,7 +167,7 @@ function buildMirrorMarkup({ blockLines, text }: { blockLines: number[]; text: s
 // is escaped, so it cannot inject one), so each index is a valid block index.
 function readMarkerOffsets({ mirror, blockCount }: { mirror: HTMLDivElement; blockCount: number }): number[] {
   document.body.appendChild(mirror);
-  const offsets = new Array<number>(blockCount).fill(0);
+  const offsets = Array.from({ length: blockCount }, () => 0);
   try {
     for (const marker of Array.from(mirror.querySelectorAll<HTMLElement>('span[data-md-block]'))) {
       offsets[Number(marker.getAttribute('data-md-block'))] = marker.offsetTop;

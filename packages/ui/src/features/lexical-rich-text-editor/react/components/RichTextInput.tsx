@@ -151,6 +151,7 @@ function EditorSurface(props: RichTextInputProps, ref: ForwardedRef<RichTextInpu
         );
       },
       insertMention(insert: MentionInsert) {
+        const isActiveTrigger = (trigger: RichTextTriggerConfig) => trigger.id === mentionTriggerIdRef.current;
         editor.update(
           () => {
             let sel = $getSelection();
@@ -165,7 +166,7 @@ function EditorSurface(props: RichTextInputProps, ref: ForwardedRef<RichTextInpu
             // early-return branch no real document state can trigger.
             const rangeSel = sel as RangeSelection;
             const mentionTrigger =
-              triggersRef.current.find((t) => t.id === mentionTriggerIdRef.current) ??
+              triggersRef.current.find(isActiveTrigger) ??
               triggersRef.current[0];
             if (mentionTrigger) {
               deleteActiveTrigger(rangeSel, buildTriggerDeletionRegex(mentionTrigger));

@@ -151,9 +151,9 @@ function walk(value: unknown, schema: WidgetConfigJsonSchema, path: string, erro
  */
 export function validateWidgetConfig(
   required: {
-  schema: Record<string, unknown>;
-  config: Record<string, unknown>;
-},
+    schema: Record<string, unknown>;
+    config: Record<string, unknown>;
+  },
   _optional: Record<string, never> = {},
 ): ValidateWidgetConfigResult {
   const errors: WidgetConfigFieldError[] = [];
@@ -171,6 +171,9 @@ function collectStrings(value: unknown, schema: WidgetConfigJsonSchema, out: str
   if (schema.type === "string") collectString(value, schema, out);
   else if (schema.type === "array") collectArrayStrings(value, schema, out);
   else if (schema.type === "object") collectObjectStrings(value, schema, out);
+  else {
+    // Non-text schema types cannot contribute searchable strings.
+  }
 }
 
 /** A declared string counts unless it is a ref field (`x-ref-target` names other content by id). */

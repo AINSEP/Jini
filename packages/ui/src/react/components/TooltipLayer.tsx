@@ -74,6 +74,8 @@ export function positionTooltip(
   } else if (placement === 'right') {
     left = rect.right + TOOLTIP_GAP;
     top = rect.top + rect.height / 2 - tip.height / 2;
+  } else {
+    // 'top': the centred-above position computed above already applies.
   }
 
   return {
@@ -224,7 +226,7 @@ export function useTooltipLayer(): UseTooltipLayerResult {
   }, [restoreNativeTitle]);
 
   useEffect(() => {
-    if (!state?.target || typeof MutationObserver === 'undefined') return;
+    if (!state?.target || typeof MutationObserver === 'undefined') return undefined;
     const target = state.target;
     const observer = new MutationObserver(() => {
       if (!isTooltipTarget(target)) {

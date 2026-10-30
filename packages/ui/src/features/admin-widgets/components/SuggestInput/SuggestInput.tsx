@@ -59,7 +59,10 @@ export function SuggestInput({ value, onValueChange, suggestions, onPick, onKeyD
         onFocus={vm.openList}
         onBlur={vm.closeList}
         onKeyDown={(event) => {
-          if (event.nativeEvent.isComposing) return onKeyDown?.(event);
+          if (event.nativeEvent.isComposing) {
+            onKeyDown?.(event);
+            return;
+          }
           const result = vm.handleKey(event.key);
           if (result.consumed) {
             event.preventDefault();

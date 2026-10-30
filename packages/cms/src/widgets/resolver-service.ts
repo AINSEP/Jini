@@ -110,12 +110,12 @@ function forEachDocNode(root: unknown, visit: (node: Record<string, unknown>) =>
     const node = stack.pop();
     if (Array.isArray(node)) {
       for (let i = node.length - 1; i >= 0; i--) stack.push(node[i]);
-      continue;
+    } else {
+      const candidate = { value: node };
+      if (!isNonArrayRecord(candidate)) continue;
+      visit(candidate.value);
+      if (Array.isArray(candidate.value.content)) stack.push(candidate.value.content);
     }
-    const candidate = { value: node };
-    if (!isNonArrayRecord(candidate)) continue;
-    visit(candidate.value);
-    if (Array.isArray(candidate.value.content)) stack.push(candidate.value.content);
   }
 }
 
@@ -180,10 +180,11 @@ function groupWidgetInstancesByType(
   for (const row of widgetRows) {
     if (!referencedIds.has(row.id)) continue;
     const instance = parseWidgetInstanceRow(row);
-    if (!instance) continue;
-    const list = byType.get(instance.widgetType) ?? [];
-    list.push(instance);
-    byType.set(instance.widgetType, list);
+    if (instance) {
+      const list = byType.get(instance.widgetType) ?? [];
+      list.push(instance);
+      byType.set(instance.widgetType, list);
+    }
   }
   return byType;
 }
@@ -239,18 +240,19 @@ async function resolveRegionPlacements(
     const binding = await deps.bindingRepo.findByRegion({ workspaceId, regionKey });
     if (!binding) continue;
     const areaEntry = await deps.entryRepo.findById({ workspaceId, id: binding.areaEntryId });
-    if (!areaEntry || areaEntry.type !== WIDGET_AREA_CONTENT_TYPE) continue;
-    try {
-      const payload = parseWidgetAreaPayload({ fieldsJson: areaEntry.fieldsJson });
-      regionPlacements.set(
-        regionKey,
-        payload.doc.placements.filter((placement) => placement.enabled)
-      );
-    } catch {
-      // REQ-27: a malformed widget_area payload (e.g. wiped by an unrelated generic-entry update
-      // that bypassed this feature's own write path) degrades this one region to "no widgets" —
-      // this function must never throw, matching the doc comment above it that this call site was
-      // violating (Fable adversarial-review fix, 2026-07-21, Finding B).
+    if (areaEntry && areaEntry.type === WIDGET_AREA_CONTENT_TYPE) {
+      try {
+        const payload = parseWidgetAreaPayload({ fieldsJson: areaEntry.fieldsJson });
+        regionPlacements.set(
+          regionKey,
+          payload.doc.placements.filter((placement) => placement.enabled)
+        );
+      } catch {
+        // REQ-27: a malformed widget_area payload (e.g. wiped by an unrelated generic-entry update
+        // that bypassed this feature's own write path) degrades this one region to "no widgets" —
+        // this function must never throw, matching the doc comment above it that this call site was
+        // violating (Fable adversarial-review fix, 2026-07-21, Finding B).
+      }
     }
   }
   return regionPlacements;
@@ -495,6 +497,8 @@ function collectWidgetIdsToLoad(
       console.warn('[widgets] resolveHtmlPageEmbeds: unresolved "widget" reference — missing or invalid "id"/"slug" in data-embed-config', {
         workspaceId: context.workspaceId,
       });
+    } else {
+      // Slug-addressed references are added from the shared batched lookup below.
     }
   }
   for (const id of idBySlug.values()) ids.add(id);
@@ -680,6 +684,7 @@ async function buildMediaImageIr(
       // emitter. See the rewritten comment at this function's own caller for why emitting the slug
       // here is now safe (S2a/S2b's `media_slug_history` rename safety).
       slug: mediaIrSlug(record),
+      sha256: record.source.sha256,
       transformName,
       version: definition.version,
       alt: record.alt,
@@ -725,6 +730,7 @@ function playerMediaIr({ canonicalAssetId, record, contentType }: { canonicalAss
     props: {
       assetId: canonicalAssetId,
       slug: mediaIrSlug(record),
+      sha256: record.source.sha256,
       contentType,
       alt: record.alt,
       width: record.width,
@@ -947,6 +953,7 @@ async function resolvePostContentMediaContext(
           cssClass: record.cssClass,
           htmlAttributes: record.htmlAttributes,
           slug: mediaIrSlug(record),
+          sha256: record.source.sha256,
           contentType: contentTypes?.get(record.source.sha256) ?? null,
         },
       ])

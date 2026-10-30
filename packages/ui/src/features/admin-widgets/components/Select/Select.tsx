@@ -125,6 +125,7 @@ function SelectPanel({
   optionHandles?: readonly string[] | undefined;
   t: Translate;
 }) {
+  const searchHandleProps = searchHandle ? agentHandle({ handle: searchHandle }, { role: "field", label: "Search the option list" }) : {};
   return (
     <div
       ref={panelRef}
@@ -142,7 +143,7 @@ function SelectPanel({
           placeholder={t("Search…")}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          {...(searchHandle ? agentHandle({ handle: searchHandle }, { role: "field", label: "Search the option list" }) : {})}
+          {...searchHandleProps}
         />
       ) : null}
       <ul className="select-list" role="listbox" id={listboxId}>

@@ -15,8 +15,15 @@ export function standingDraftRecoveryMessage(
 ): string {
   const captured = Date.parse(draft.savedAt);
   const server = Date.parse(serverUpdatedAt ?? draft.serverUpdatedAt ?? "");
-  const comparison = server > captured ? "Server content is newer."
-    : server < captured ? "Local changes are newer."
-    : server === captured ? "Both copies have the same timestamp." : "";
-  return `${t("Restore unsaved changes from")} ${formatSavedAt(draft.savedAt)}${comparison ? ` · ${t(comparison)}` : ""}`;
+  const comparison = compareTimestamps(server, captured);
+  const suffix = comparison ? ` · ${t(comparison)}` : "";
+  return `${t("Restore unsaved changes from")} ${formatSavedAt(draft.savedAt)}${suffix}`;
+}
+
+/** Which copy is newer; empty when either timestamp failed to parse (NaN compares unequal to all). */
+function compareTimestamps(server: number, captured: number): string {
+  if (server > captured) return "Server content is newer.";
+  if (server < captured) return "Local changes are newer.";
+  if (server === captured) return "Both copies have the same timestamp.";
+  return "";
 }

@@ -97,7 +97,8 @@ export function ProjectLocationsTab({ port, defaultLocationId, onDefaultLocation
         return null;
     }
   })();
-  const errorNotice = result.status === 'save-error' ? saveErrorLabel : result.status === 'scan-error' ? scanErrorLabel : null;
+  const errorNoticeByStatus: Partial<Record<typeof result.status, string>> = { 'save-error': saveErrorLabel, 'scan-error': scanErrorLabel };
+  const errorNotice = errorNoticeByStatus[result.status] ?? null;
 
   return (
     <section className="jini-settings-section jini-settings-project-locations">

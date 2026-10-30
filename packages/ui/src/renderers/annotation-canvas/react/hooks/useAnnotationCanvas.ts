@@ -173,6 +173,9 @@ export interface AnnotationCanvasController {
   closeOverlay: () => void;
 }
 
+/** The analytics toolbar element each mark tool reports as. */
+const TOOLBAR_TOOL_FOR_MARK_TOOL: Partial<Record<MarkTool, DrawToolbarElement>> = { box: 'rect', text: 'text' };
+
 export function useAnnotationCanvas(options: UseAnnotationCanvasOptions): AnnotationCanvasController {
   const { active, onActiveChange, captureViewport = false, captureTarget = null, filePath, sendDisabled = false, hideChrome = false, onToolbarClick, port } = options;
   const t = useT();
@@ -315,7 +318,7 @@ export function useAnnotationCanvas(options: UseAnnotationCanvasOptions): Annota
     }
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Dependency list intentionally follows the lifecycle rationale above.
   }, [active, onActiveChange, sending]);
 
   // Keyboard shortcut #2: Escape closes the staged-image preview modal first (capture phase).
@@ -521,7 +524,7 @@ export function useAnnotationCanvas(options: UseAnnotationCanvasOptions): Annota
     syncHistoryState();
     redraw();
     bumpLayoutRevision();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Dependency list intentionally follows the lifecycle rationale above.
   }, [active, redraw]);
 
   const autosizeTextArea = useCallback((el: HTMLTextAreaElement | null) => {
@@ -661,7 +664,7 @@ export function useAnnotationCanvas(options: UseAnnotationCanvasOptions): Annota
   }, [extraFiles]);
 
   function selectMarkTool(nextTool: MarkTool) {
-    onToolbarClick?.(nextTool === 'box' ? 'rect' : nextTool === 'text' ? 'text' : 'pen');
+    onToolbarClick?.(TOOLBAR_TOOL_FOR_MARK_TOOL[nextTool] ?? 'pen');
     setMarkTool(nextTool);
     setMarkToolMenuOpen(false);
   }
@@ -755,7 +758,9 @@ export function useAnnotationCanvas(options: UseAnnotationCanvasOptions): Annota
 
   function waitForOverlayHidden(): Promise<void> {
     return new Promise((resolve) => {
-      requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      const finish = () => resolve();
+      const afterNextFrame = () => requestAnimationFrame(finish);
+      requestAnimationFrame(afterNextFrame);
     });
   }
 
@@ -897,7 +902,7 @@ export function useAnnotationCanvas(options: UseAnnotationCanvasOptions): Annota
       anchor,
     });
     setDockPlacement((current) => (dockPlacementEquals(current, next) ? current : next));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // Dependency list intentionally follows the lifecycle rationale above.
   }, [active, captureTarget, layoutRevision, imagePreviews.length, captureWarning?.message]);
 
   useLayoutEffect(() => {

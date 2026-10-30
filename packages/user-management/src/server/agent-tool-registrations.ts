@@ -40,6 +40,9 @@ import type {
 } from "../core/index.js";
 import type { PolicyRecord, PrincipalRecord, PrincipalRoleRecord, RoleRecord, UserRecord } from "../core/index.js";
 
+const MUTATES_DURABLE_STATE = "mutates-durable-state";
+
+
 const CATALOG_BY_ID = indexCatalogById({ catalog: identityAgentToolCatalog });
 
 /**
@@ -117,34 +120,34 @@ export const identityDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToo
   ["identity_role_list", "none"],
   ["identity_policy_list", "none"],
   // -> createUser (grant-service.ts): saves a principal row AND a users row (credential).
-  ["identity_user_create", "mutates-durable-state"],
+  ["identity_user_create", MUTATES_DURABLE_STATE],
   // -> updateUser (admin-crud-service.ts): users.save, email field only.
-  ["identity_user_update_email", "mutates-durable-state"],
+  ["identity_user_update_email", MUTATES_DURABLE_STATE],
   // -> updateUser (admin-crud-service.ts): users.save, username field only, plus the transactional audit.
-  ["identity_user_change_username", "mutates-durable-state"],
+  ["identity_user_change_username", MUTATES_DURABLE_STATE],
   // -> disablePrincipal (admin-crud-service.ts): status flip, guarded by the owner floor. See docs/decisions/DR-007-workspace-and-owner-floors.md.
-  ["identity_user_disable", "mutates-durable-state"],
+  ["identity_user_disable", MUTATES_DURABLE_STATE],
   // -> enablePrincipal (admin-crud-service.ts): status flip back to active.
-  ["identity_user_enable", "mutates-durable-state"],
+  ["identity_user_enable", MUTATES_DURABLE_STATE],
   // -> createRole (grant-service.ts): roles.save, always isBuiltin=false.
-  ["identity_role_create", "mutates-durable-state"],
+  ["identity_role_create", MUTATES_DURABLE_STATE],
   // -> assignRole (grant-service.ts): principalRoles.save behind the grant clamp. The one. See docs/decisions/DR-007-workspace-and-owner-floors.md.
   //    identity tool that confers permissions, hence the heaviest of these.
-  ["identity_role_assign", "mutates-durable-state"],
+  ["identity_role_assign", MUTATES_DURABLE_STATE],
   // -> updateRole (admin-crud-service.ts): roles.save, refuses built-ins.
-  ["identity_role_rename", "mutates-durable-state"],
+  ["identity_role_rename", MUTATES_DURABLE_STATE],
   // -> deleteRole (admin-crud-service.ts): roles.delete, refuses built-ins and referenced roles.
-  ["identity_role_delete", "mutates-durable-state"],
+  ["identity_role_delete", MUTATES_DURABLE_STATE],
   // -> createPolicy (grant-service.ts): policies.save, always isBuiltin=false/isFrozen=false.
-  ["identity_policy_create", "mutates-durable-state"],
+  ["identity_policy_create", MUTATES_DURABLE_STATE],
   // -> updatePolicy (admin-crud-service.ts): policies.save, refuses built-in/frozen.
-  ["identity_policy_update", "mutates-durable-state"],
+  ["identity_policy_update", MUTATES_DURABLE_STATE],
   // -> deletePolicy (admin-crud-service.ts): policyPermissions.deleteByPolicyId + policies.delete,
   //    refuses built-in/frozen and still-referenced policies.
-  ["identity_policy_delete", "mutates-durable-state"],
+  ["identity_policy_delete", MUTATES_DURABLE_STATE],
   // -> attachPolicy (grant-service.ts): principalPolicies.save behind the grant clamp — the. See docs/decisions/DR-007-workspace-and-owner-floors.md.
   //    direct-grant counterpart to identity_role_assign, same weight.
-  ["identity_policy_attach", "mutates-durable-state"],
+  ["identity_policy_attach", MUTATES_DURABLE_STATE],
 ]);
 
 /**
@@ -412,9 +415,11 @@ export function buildIdentityRegistrations(routeDeps: IdentityToolDeps): ToolReg
     identity_user_change_username: async (ctx) => {
       const input = identityInput({ toolId: "identity_user_change_username", input: ctx.input });
       const principalId = input.req("principalId");
-      const { user } = await updateUser({ deps: serviceDeps(), input: {
-        workspaceId: routeDeps.workspaceId, callerPrincipalId: ctx.principal.id, principalId,
-      } }, { username: input.req("username") });
+      const { user } = await updateUser({
+        deps: serviceDeps(), input: {
+          workspaceId: routeDeps.workspaceId, callerPrincipalId: ctx.principal.id, principalId,
+        }
+      }, { username: input.req("username") });
       const principal = await routeDeps.principalRepo.findById({ workspaceId: routeDeps.workspaceId, id: principalId });
       if (!principal) throw new Error(`principal '${principalId}' was not found`);
       return { user: toIdentityUserView({ principal, user, roleIds: await roleIdsFor(routeDeps, principalId) }) };

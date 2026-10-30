@@ -363,6 +363,11 @@ export const ATTRIBUTE_NAME_SUGGESTIONS = [
  *  stable identity — same `_rowId`/module-counter pattern `collections/rules.ts`'s
  *  `EditFieldsDialog` support uses for its own draft field rows. */
 let nextAttrRowId = 0;
+function takeAttrRowId(): number {
+  const id = nextAttrRowId;
+  nextAttrRowId += 1;
+  return id;
+}
 
 export interface AttrRow {
   _rowId: number;
@@ -371,7 +376,7 @@ export interface AttrRow {
 }
 
 export function attrRowsFromField({ field }: { field: AdminFormField }, _optional: Record<string, never> = {}): AttrRow[] {
-  return Object.entries(field.attributes ?? {}).map(([name, value]) => ({ _rowId: nextAttrRowId++, name, value }));
+  return Object.entries(field.attributes ?? {}).map(([name, value]) => ({ _rowId: takeAttrRowId(), name, value }));
 }
 
 /** @complexity O(n) in `rows.length`. */
@@ -386,7 +391,7 @@ export function removeAttrRow({ rows, rowId }: { rows: AttrRow[]; rowId: number 
 
 /** @complexity O(n) in `rows.length`. */
 export function addAttrRow({ rows }: { rows: AttrRow[] }, _optional: Record<string, never> = {}): AttrRow[] {
-  return [...rows, { _rowId: nextAttrRowId++, name: "", value: "" }];
+  return [...rows, { _rowId: takeAttrRowId(), name: "", value: "" }];
 }
 
 export type FieldAttributesSubmitResult = { ok: true; patch: Partial<AdminFormField> } | { ok: false; error: string };

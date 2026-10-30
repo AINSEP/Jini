@@ -28,7 +28,7 @@ export interface ProgressCardData {
    *  'indeterminate' (both always compute a percentage) — it's included as a
    *  forward-looking capability for Jini's own Run/Agent/Tool dashboards. */
   progress: number | 'indeterminate';
-  /** The primary step/todo checklist. */
+  /** The primary step/to-do checklist. */
   steps: ProgressCardItem[];
   /** An optional secondary list, e.g. "files touched" by an agent run. */
   secondaryItems?: ProgressCardItem[];

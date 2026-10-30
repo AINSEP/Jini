@@ -10,23 +10,26 @@ export const SKETCH_CONTEXT_MENU_MARGIN = 8;
  * Host-overridable via `SketchEditorProps.tooltipTargets` for a forked or
  * newer Excalidraw build with different markup.
  */
+/** Anchor the tooltip on the toolbar button's wrapping `<label>`. */
+const CLOSEST_LABEL = 'closest-label';
+
 export const DEFAULT_SKETCH_TOOLTIP_TARGETS: readonly SketchTooltipTarget[] = [
   { selector: '[data-testid="main-menu-trigger"]', label: 'mainMenu', placement: 'bottom' },
-  { selector: '[data-testid="toolbar-lock"]', target: 'closest-label', label: 'lock', placement: 'bottom' },
-  { selector: '[data-testid="toolbar-hand"]', target: 'closest-label', label: 'hand', placement: 'bottom' },
-  { selector: '[data-testid="toolbar-selection"]', target: 'closest-label', label: 'selection', placement: 'bottom' },
-  { selector: '[data-testid="toolbar-rectangle"]', target: 'closest-label', label: 'rectangle', placement: 'bottom' },
-  { selector: '[data-testid="toolbar-diamond"]', target: 'closest-label', label: 'diamond', placement: 'bottom' },
-  { selector: '[data-testid="toolbar-ellipse"]', target: 'closest-label', label: 'ellipse', placement: 'bottom' },
-  { selector: '[data-testid="toolbar-arrow"]', target: 'closest-label', label: 'arrow', placement: 'bottom' },
-  { selector: '[data-testid="toolbar-line"]', target: 'closest-label', label: 'line', placement: 'bottom' },
-  { selector: '[data-testid="toolbar-freedraw"]', target: 'closest-label', label: 'freedraw', placement: 'bottom' },
-  { selector: '[data-testid="toolbar-text"]', target: 'closest-label', label: 'text', placement: 'bottom' },
-  { selector: '[data-testid="toolbar-image"]', target: 'closest-label', label: 'image', placement: 'bottom' },
-  { selector: '[data-testid="toolbar-eraser"]', target: 'closest-label', label: 'eraser', placement: 'bottom' },
-  { selector: '[data-testid="toolbar-frame"]', target: 'closest-label', label: 'frame', placement: 'bottom' },
-  { selector: '[data-testid="toolbar-embeddable"]', target: 'closest-label', label: 'embeddable', placement: 'bottom' },
-  { selector: '[data-testid="toolbar-laser"]', target: 'closest-label', label: 'laser', placement: 'bottom' },
+  { selector: '[data-testid="toolbar-lock"]', target: CLOSEST_LABEL, label: 'lock', placement: 'bottom' },
+  { selector: '[data-testid="toolbar-hand"]', target: CLOSEST_LABEL, label: 'hand', placement: 'bottom' },
+  { selector: '[data-testid="toolbar-selection"]', target: CLOSEST_LABEL, label: 'selection', placement: 'bottom' },
+  { selector: '[data-testid="toolbar-rectangle"]', target: CLOSEST_LABEL, label: 'rectangle', placement: 'bottom' },
+  { selector: '[data-testid="toolbar-diamond"]', target: CLOSEST_LABEL, label: 'diamond', placement: 'bottom' },
+  { selector: '[data-testid="toolbar-ellipse"]', target: CLOSEST_LABEL, label: 'ellipse', placement: 'bottom' },
+  { selector: '[data-testid="toolbar-arrow"]', target: CLOSEST_LABEL, label: 'arrow', placement: 'bottom' },
+  { selector: '[data-testid="toolbar-line"]', target: CLOSEST_LABEL, label: 'line', placement: 'bottom' },
+  { selector: '[data-testid="toolbar-freedraw"]', target: CLOSEST_LABEL, label: 'freedraw', placement: 'bottom' },
+  { selector: '[data-testid="toolbar-text"]', target: CLOSEST_LABEL, label: 'text', placement: 'bottom' },
+  { selector: '[data-testid="toolbar-image"]', target: CLOSEST_LABEL, label: 'image', placement: 'bottom' },
+  { selector: '[data-testid="toolbar-eraser"]', target: CLOSEST_LABEL, label: 'eraser', placement: 'bottom' },
+  { selector: '[data-testid="toolbar-frame"]', target: CLOSEST_LABEL, label: 'frame', placement: 'bottom' },
+  { selector: '[data-testid="toolbar-embeddable"]', target: CLOSEST_LABEL, label: 'embeddable', placement: 'bottom' },
+  { selector: '[data-testid="toolbar-laser"]', target: CLOSEST_LABEL, label: 'laser', placement: 'bottom' },
   { selector: '.App-toolbar__extra-tools-trigger', label: 'moreTools', placement: 'bottom' },
 ];
 

@@ -21,8 +21,8 @@ async function rejects({ check, run, name }: { check: ConformanceRun; run: () =>
 function hasConflictVersion({ settled, version }: { settled: Settled; version: number }, _optional: Record<string, never> = {}): boolean {
   if (!settled.threw) return false;
   const e = settled.error;
-  return e instanceof Error && 'status' in e && e.status === 409 && 'body' in e
-    && (e.body as Record<string, unknown>)?.currentVersion === version;
+  if (!(e instanceof Error && 'status' in e && e.status === 409)) return false;
+  return 'body' in e && (e.body as Record<string, unknown>)?.currentVersion === version;
 }
 
 async function checkPaging({ check }: { check: ConformanceRun }, _optional: Record<string, never> = {}) {

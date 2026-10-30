@@ -1,4 +1,5 @@
 import { forwardRef } from 'react';
+import { SecretInput as KitSecretInput } from '@jini-ai/ui-kit/react';
 import type { CSSProperties, InputHTMLAttributes, TextareaHTMLAttributes } from 'react';
 import { useT } from '../../features/i18n/index.js';
 import { Icon } from './Icon.js';
@@ -71,16 +72,10 @@ function useSecretToggle(
 }
 
 export const SecretInput = forwardRef<HTMLInputElement, SecretInputProps>(function SecretInput(props, ref) {
-  // The toggle props are pulled off so they never reach the DOM `<input>`.
-  const { label, toggleLabels, toggleAttrs, revealed, onRevealedChange, ...inputProps } = props;
-  const { reveal, button } = useSecretToggle(props, { value: inputProps.value, disabled: inputProps.disabled });
-  return (
-    <span className="jini-secret">
-      {/* spellCheck off: once revealed as type="text", enhanced spellcheck would send the secret out. */}
-      <input {...inputProps} spellCheck={false} ref={ref} type={reveal.inputType} />
-      {button}
-    </span>
-  );
+  const t = useT();
+  return <KitSecretInput {...props} ref={ref} toggleLabels={props.toggleLabels ?? {
+    show: `${t('Show')} ${props.label}`, hide: `${t('Hide')} ${props.label}`,
+  }} />;
 });
 
 export const SecretTextarea = forwardRef<HTMLTextAreaElement, SecretTextareaProps>(function SecretTextarea(props, ref) {

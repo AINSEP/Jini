@@ -206,11 +206,8 @@ export function useVersionManager<TVersion extends VersionRecord>(
       setVersions(nextVersions);
       const currentVersion = nextVersions.find((version) => version.current);
       seedCurrentVersionContent({ currentVersion, currentContent, contentCache: contentCacheRef.current });
-      const nextSelected =
-        (preferredId ? nextVersions.find((version) => version.id === preferredId) : null) ??
-        currentVersion ??
-        nextVersions[0] ??
-        null;
+      const preferredVersion = preferredId ? nextVersions.find((version) => version.id === preferredId) : null;
+      const nextSelected = preferredVersion ?? currentVersion ?? nextVersions[0] ?? null;
       setSelectedId(nextSelected?.id ?? null);
       setLoading(false);
     },
@@ -228,7 +225,7 @@ export function useVersionManager<TVersion extends VersionRecord>(
     if (!selectedId) {
       setSelectedContent(null);
       setSelectedContentVersionId(null);
-      return;
+      return undefined;
     }
     const cached = contentCacheRef.current.get(selectedId);
     if (cached !== undefined) {
@@ -240,7 +237,7 @@ export function useVersionManager<TVersion extends VersionRecord>(
       } else {
         setError(null);
       }
-      return;
+      return undefined;
     }
     // Cache miss: keep the previous preview mounted (don't clear
     // `selectedContent`) so switching versions never blanks to empty while
@@ -277,7 +274,7 @@ export function useVersionManager<TVersion extends VersionRecord>(
   // Safety net: clear a stuck loading overlay if the iframe's `load` event
   // is ever missed.
   useEffect(() => {
-    if (!previewDocument || loadedPreviewDocument === previewDocument) return;
+    if (!previewDocument || loadedPreviewDocument === previewDocument) return undefined;
     const fallback = setTimeout(() => setLoadedPreviewDocument(previewDocument), PREVIEW_LOAD_FALLBACK_MS);
     return () => clearTimeout(fallback);
   }, [previewDocument, loadedPreviewDocument]);

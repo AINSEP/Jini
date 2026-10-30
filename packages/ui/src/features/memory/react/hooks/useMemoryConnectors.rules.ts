@@ -109,14 +109,14 @@ export function describeConnectorSuggestionsSaveOutcome({
   totalCount: number;
   failure: unknown;
 }): ConnectorSuggestionsSaveOutcome {
-  const status =
-    savedCount > 0 ? `Saved ${savedCount} memor${savedCount === 1 ? 'y' : 'ies'} from connected apps.` : null;
-  const error = failure
-    ? failure instanceof Error
-      ? failure.message
-      : String(failure)
-    : savedCount !== totalCount
-      ? `Saved ${savedCount} of ${totalCount} selected memories. Please try the remaining items again.`
-      : null;
-  return { status, error };
+  const noun = savedCount === 1 ? 'memory' : 'memories';
+  const status = savedCount > 0 ? `Saved ${savedCount} ${noun} from connected apps.` : null;
+  return { status, error: connectorSaveError({ savedCount, totalCount, failure }) };
+}
+
+function connectorSaveError({ savedCount, totalCount, failure }: { savedCount: number; totalCount: number; failure: unknown }): string | null {
+  if (failure) return failure instanceof Error ? failure.message : String(failure);
+  return savedCount !== totalCount
+    ? `Saved ${savedCount} of ${totalCount} selected memories. Please try the remaining items again.`
+    : null;
 }

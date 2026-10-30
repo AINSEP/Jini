@@ -1,4 +1,5 @@
 import { Icon } from './Icon.js';
+import { withClassName } from '../../utils/class-names.js';
 
 interface SpinnerProps {
   size?: number;
@@ -24,7 +25,7 @@ interface SkeletonProps {
 export function Skeleton({ width, height = 14, radius = 6, className }: SkeletonProps) {
   return (
     <span
-      className={`skeleton-block${className ? ` ${className}` : ''}`}
+      className={withClassName('skeleton-block', className)}
       style={{ width, height, borderRadius: radius }}
       aria-hidden
     />

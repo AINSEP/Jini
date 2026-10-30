@@ -68,7 +68,7 @@ export function useBrandFonts(
   }, [googleUrls, document]);
 
   useEffect(() => {
-    if (!projectId || !resolveProjectAssetUrl) return;
+    if (!projectId || !resolveProjectAssetUrl) return undefined;
     let cancelled = false;
     let styleEl: HTMLStyleElement | null = null;
     void (async () => {

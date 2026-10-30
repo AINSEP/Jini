@@ -42,6 +42,24 @@ function humanClick(surface: Surface, action: string): void {
 }
 
 describe('renderConfirmationDocument', () => {
+  it('keeps technical facts in a closed Details disclosure and preserves the consent controls', () => {
+    const surface = mountSurface(renderConfirmationDocument({ ...DELETE_POST,
+      detailDisclosure: { label: 'Details', details: [
+        { label: 'Tool', value: 'internal_delete' }, { label: 'Input', value: { id: 'p1', html: '<img src=x>' } },
+      ] },
+    }));
+    const disclosure = surface.doc.querySelector<HTMLDetailsElement>('details.mcpui-technical-details')!;
+    expect(disclosure).not.toBeNull();
+    expect(disclosure.open).toBe(false);
+    expect(disclosure.querySelector('summary')?.textContent).toBe('Details');
+    expect(disclosure.textContent).toContain('internal_delete');
+    expect(disclosure.textContent).toContain('<img src=x>');
+    expect(disclosure.querySelector('img')).toBeNull();
+    expect(surface.doc.querySelector('h1')?.textContent).toBe('Delete this post?');
+    expect(surface.button('confirm').disabled).toBe(true);
+    expect(surface.calls).toEqual([]);
+  });
+
   beforeEach(() => {
     vi.useFakeTimers({ toFake: ['Date', 'performance', 'setTimeout', 'clearTimeout'] });
   });
@@ -67,6 +85,21 @@ describe('renderConfirmationDocument', () => {
 
     const safe = mountSurface(renderConfirmationDocument({ ...DELETE_POST, danger: false }));
     expect(safe.button('confirm').className).toContain('mcpui-button-primary');
+  });
+
+  it('updates disclosure aria-expanded without calling or enabling a confirmation action', () => {
+    const surface = mountSurface(renderConfirmationDocument({ ...DELETE_POST, details: [{ label: 'Configuration', value: { customCss: '.banner { color: red; }' } }] }));
+    const details = surface.doc.querySelector<HTMLDetailsElement>('details.mcpui-detail-code')!;
+    const summary = details.querySelector('summary')!;
+    expect(summary.getAttribute('aria-expanded')).toBe('false');
+    details.open = true;
+    details.dispatchEvent(new Event('toggle'));
+    expect(summary.getAttribute('aria-expanded')).toBe('true');
+    details.open = false;
+    details.dispatchEvent(new Event('toggle'));
+    expect(summary.getAttribute('aria-expanded')).toBe('false');
+    expect(surface.api.callTool).not.toHaveBeenCalled();
+    expect(surface.button('confirm').disabled).toBe(true);
   });
 
   it('keeps the confirmation token out of everything except the inline script', () => {

@@ -24,8 +24,12 @@ export function formatTime12h(time: string): string {
   const h = Number(m[1]);
   const mm = m[2];
   const suffix = h >= 12 ? 'PM' : 'AM';
-  const h12 = h === 0 ? 12 : h > 12 ? h - 12 : h;
-  return `${h12}:${mm} ${suffix}`;
+  return `${to12Hour(h)}:${mm} ${suffix}`;
+}
+
+function to12Hour(h: number): number {
+  if (h === 0) return 12;
+  return h > 12 ? h - 12 : h;
 }
 
 function weekdayLongName(weekday: Weekday, weekdays: WeekdayOption[]): string {
@@ -45,12 +49,10 @@ export function decomposeSchedule(
   if (schedule.kind === 'hourly') {
     return { kind: 'hourly', minute: String(schedule.minute).padStart(2, '0') };
   }
-  const freq =
-    schedule.kind === 'daily'
-      ? 'Daily'
-      : schedule.kind === 'weekdays'
-        ? 'Weekdays'
-        : weekdayLongName(schedule.weekday, weekdays);
+  let freq: string;
+  if (schedule.kind === 'daily') freq = 'Daily';
+  else if (schedule.kind === 'weekdays') freq = 'Weekdays';
+  else freq = weekdayLongName(schedule.weekday, weekdays);
   return { kind: 'timed', freq, time: formatTime12h(schedule.time), tz: schedule.timezone };
 }
 

@@ -71,12 +71,11 @@ export function buildPackageFileTree({ paths }: { paths: readonly string[] }, op
   for (const path of paths) {
     const segments = path.split("/").filter(Boolean);
     const fileName = segments.pop();
-    if (!fileName) continue;
-    const folder = folderAt({ root, segments });
-    const normalized = [...segments, fileName].join("/");
-    if (seen.has(normalized)) continue;
+    // A repeat of an already-listed path (after normalization) adds nothing; its folder exists.
+    const normalized = fileName ? [...segments, fileName].join("/") : null;
+    if (!fileName || normalized === null || seen.has(normalized)) continue;
     seen.add(normalized);
-    folder.files.push({ name: fileName, path });
+    folderAt({ root, segments }).files.push({ name: fileName, path });
   }
   return freeze(root, "", optional.locale === undefined ? collator : new Intl.Collator(optional.locale, { numeric: true, sensitivity: "base" }));
 }

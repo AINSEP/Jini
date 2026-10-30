@@ -92,8 +92,10 @@ function boundConstraints(field: FieldDescriptor): string[] {
 const isInvalidFileSize = (size: number | undefined): boolean =>
   size !== undefined && (!Number.isInteger(size) || size < 1 || size > MAX_FORM_FILE_BYTES);
 const isSafeAccept = (mime: string): boolean => Object.hasOwn(SAFE_FORM_FILE_TYPES, mime) || WILDCARD_ACCEPTS.includes(mime);
-const isInvalidAccept = (accept: string[] | undefined): boolean =>
-  accept !== undefined && (!Array.isArray(accept) || accept.length === 0 || accept.length > 20 || !accept.every(isSafeAccept));
+const isInvalidAccept = (accept: string[] | undefined): boolean => {
+  if (accept === undefined) return false;
+  return !Array.isArray(accept) || accept.length === 0 || accept.length > 20 || !accept.every(isSafeAccept);
+};
 /** File fields may narrow the safe list/size, and cannot synthesize a default upload. */
 function fileConstraints(field: FieldDescriptor): string[] {
   if (field.type !== "file") return field.accept !== undefined || field.maxFileSize !== undefined ? ["accept/maxFileSize are only supported on file fields"] : [];

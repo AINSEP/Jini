@@ -480,14 +480,17 @@ export function normalizeEmbedMarkerQuoting({ html }: { html: string }, _optiona
     const valueRange = (match as RegExpExecArray & { indices: RegExpIndicesArray }).indices[4];
     if (!valueRange) continue;
     const decoded = decodeAttributeValue(html.slice(...valueRange));
+    let validJson = true;
     try {
       JSON.parse(decoded);
     } catch {
-      continue;
+      validJson = false;
     }
-    // The value's quotes sit one character outside its capture group on either side.
-    result += `${html.slice(copiedUpTo, valueRange[0] - 1)}'${toSingleQuotedValue(decoded)}'`;
-    copiedUpTo = valueRange[1] + 1;
+    if (validJson) {
+      // The value's quotes sit one character outside its capture group on either side.
+      result += `${html.slice(copiedUpTo, valueRange[0] - 1)}'${toSingleQuotedValue(decoded)}'`;
+      copiedUpTo = valueRange[1] + 1;
+    }
   }
   return result + html.slice(copiedUpTo);
 }
@@ -859,9 +862,7 @@ export function parseMarkerAttributes({ marker }: { marker: EmbedMarker }, _opti
   let match: RegExpExecArray | null;
   while ((match = MARKER_ATTRIBUTE_TOKEN.exec(marker.attrs)) !== null) {
     const name = match[1]!.toLowerCase();
-    if (name === "data-embed-config") continue;
-    if (!MARKER_ATTRIBUTE_NAME_PATTERN.test(name)) continue;
-    if (seenNames.has(name)) continue;
+    if (name === "data-embed-config" || !MARKER_ATTRIBUTE_NAME_PATTERN.test(name) || seenNames.has(name)) continue;
     seenNames.add(name);
     const value = match[2] ?? match[3] ?? match[4] ?? null;
     attributes.push({ name, value });

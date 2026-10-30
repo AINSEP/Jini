@@ -23,9 +23,11 @@ export function useByokFieldValidation(
   return {
     missing,
     baseUrlInvalid,
-    isMissing: ({ field }: { field: Field }, _options: Record<string, never> = {}) =>
-      (missing.has(field) || (field === 'baseUrl' && baseUrlInvalid)) &&
-      (!optional.deferMissingFeedback || (touched.providerId === config.providerId && touched.fields.has(field))),
+    isMissing: ({ field }: { field: Field }, _options: Record<string, never> = {}) => {
+      const invalid = missing.has(field) || (field === 'baseUrl' && baseUrlInvalid);
+      if (!invalid || !optional.deferMissingFeedback) return invalid;
+      return touched.providerId === config.providerId && touched.fields.has(field);
+    },
     markTouched: ({ field }: { field: Field }, _options: Record<string, never> = {}) => {
       setTouched(current => ({
         providerId: config.providerId,

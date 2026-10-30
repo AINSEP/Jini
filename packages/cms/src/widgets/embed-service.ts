@@ -121,13 +121,15 @@ function collectEmbeds(root: unknown, out: WidgetEmbedNode[]): void {
   // 5000-deep body overflowed the call stack here on every embed save (same class as f646ba397's
   // GET-path walkers). Children are pushed in reverse so the walk stays pre-order — document order,
   // which `reorderWidgetEmbeds` relies on.
-  someNode({ root, visit: (node) => {
-    const attrs = widgetEmbedAttrs(node);
-    if (attrs && typeof attrs.placementId === "string" && typeof attrs.widgetEntryId === "string") {
-      out.push({ type: "widgetEmbed", placementId: attrs.placementId, widgetEntryId: attrs.widgetEntryId });
+  someNode({
+    root, visit: (node) => {
+      const attrs = widgetEmbedAttrs(node);
+      if (attrs && typeof attrs.placementId === "string" && typeof attrs.widgetEntryId === "string") {
+        out.push({ type: "widgetEmbed", placementId: attrs.placementId, widgetEntryId: attrs.widgetEntryId });
+      }
+      return false;
     }
-    return false;
-  } });
+  });
 }
 
 function widgetEmbedNode(placementId: UUID, widgetEntryId: UUID): JsonValue {
@@ -162,7 +164,8 @@ type RewriteTask = { node: unknown; assign: (value: unknown) => void };
 
 /** Queues a copy of `children` (assigned to its parent now, filled in as each child's task runs). */
 function pushArrayCopy(stack: RewriteTask[], children: unknown[], assign: (value: unknown) => void): void {
-  const copy: unknown[] = new Array(children.length);
+  const copy: unknown[] = [];
+  copy.length = children.length;
   assign(copy);
   // Reverse push preserves pre-order, including new placement-id allocation order.
   for (let i = children.length - 1; i >= 0; i--) {
@@ -220,7 +223,13 @@ function reorderEmbedSlots({ node: root, newIds, orderedWidgetEntryIds }: {
   let index = 0;
   return rewriteTree({ root }, {
     // reorderWidgetEmbeds validates one supplied id per existing embed slot.
-    replace: (node) => (widgetEmbedAttrs(node) ? widgetEmbedNode(newIds(), orderedWidgetEntryIds[index++]!) : undefined),
+    replace: (node) => {
+      if (!widgetEmbedAttrs(node)) return undefined;
+      const placementId = newIds();
+      const widgetEntryId = orderedWidgetEntryIds[index]!;
+      index++;
+      return widgetEmbedNode(placementId, widgetEntryId);
+    },
   });
 }
 
@@ -511,15 +520,17 @@ export async function insertWidgetEmbed(required: InsertWidgetEmbedRequired, _op
     permission: "widgets.place",
   });
 
-  return withEntryLock({ key: `${input.workspaceId}::${input.hostEntryId}`, fn: async () => {
-    const host = await loadEmbedHost(deps, input.workspaceId, input.hostEntryId);
-    await assertEmbedTargetIsLiveWidget(deps, input.workspaceId, input.widgetEntryId);
-    const placementId = deps.ids.newId();
-    const nextBodyJson = appendEmbed(host.record.bodyJson, placementId, input.widgetEntryId);
-    assertGuardrails(deps, hostBodyType(host), nextBodyJson);
-    const entry = await writeEmbedHost({ deps, input, host, nextBodyJson });
-    return { entry, placementId };
-  } }, deps.entryLocks ? { locks: deps.entryLocks } : {});
+  return withEntryLock({
+    key: `${input.workspaceId}::${input.hostEntryId}`, fn: async () => {
+      const host = await loadEmbedHost(deps, input.workspaceId, input.hostEntryId);
+      await assertEmbedTargetIsLiveWidget(deps, input.workspaceId, input.widgetEntryId);
+      const placementId = deps.ids.newId();
+      const nextBodyJson = appendEmbed(host.record.bodyJson, placementId, input.widgetEntryId);
+      assertGuardrails(deps, hostBodyType(host), nextBodyJson);
+      const entry = await writeEmbedHost({ deps, input, host, nextBodyJson });
+      return { entry, placementId };
+    }
+  }, deps.entryLocks ? { locks: deps.entryLocks } : {});
 }
 
 export interface RemoveWidgetEmbedInput {
@@ -546,20 +557,22 @@ export async function removeWidgetEmbed(required: RemoveWidgetEmbedRequired, _op
     permission: "widgets.place",
   });
 
-  return withEntryLock({ key: `${input.workspaceId}::${input.hostEntryId}`, fn: async () => {
-    const host = await loadEmbedHost(deps, input.workspaceId, input.hostEntryId);
-    if (!containsEmbedWithPlacementId({ node: host.record.bodyJson, placementId: input.placementId })) {
-      // C4d fix: `removeEmbedByPlacementId` is a no-op filter — without this check a stale/bogus
-      // placementId fell through to `writeHostBody` unchanged and reported success while writing
-      // nothing.
-      throw new WidgetEmbedPlacementNotFoundError({ message: `no widget embed with placementId '${input.placementId}' was found in host '${input.hostEntryId}'` }
-      );
+  return withEntryLock({
+    key: `${input.workspaceId}::${input.hostEntryId}`, fn: async () => {
+      const host = await loadEmbedHost(deps, input.workspaceId, input.hostEntryId);
+      if (!containsEmbedWithPlacementId({ node: host.record.bodyJson, placementId: input.placementId })) {
+        // C4d fix: `removeEmbedByPlacementId` is a no-op filter — without this check a stale/bogus
+        // placementId fell through to `writeHostBody` unchanged and reported success while writing
+        // nothing.
+        throw new WidgetEmbedPlacementNotFoundError({ message: `no widget embed with placementId '${input.placementId}' was found in host '${input.hostEntryId}'` }
+        );
+      }
+      const nextBodyJson = removeEmbedByPlacementId({ node: host.record.bodyJson, placementId: input.placementId });
+      assertGuardrails(deps, hostBodyType(host), nextBodyJson);
+      const entry = await writeEmbedHost({ deps, input, host, nextBodyJson });
+      return { entry };
     }
-    const nextBodyJson = removeEmbedByPlacementId({ node: host.record.bodyJson, placementId: input.placementId });
-    assertGuardrails(deps, hostBodyType(host), nextBodyJson);
-    const entry = await writeEmbedHost({ deps, input, host, nextBodyJson });
-    return { entry };
-  } }, deps.entryLocks ? { locks: deps.entryLocks } : {});
+  }, deps.entryLocks ? { locks: deps.entryLocks } : {});
 }
 
 export interface ReorderWidgetEmbedsInput {
@@ -601,32 +614,34 @@ export async function reorderWidgetEmbeds(required: ReorderWidgetEmbedsRequired,
     permission: "widgets.place",
   });
 
-  return withEntryLock({ key: `${input.workspaceId}::${input.hostEntryId}`, fn: async () => {
-    const host = await loadEmbedHost(deps, input.workspaceId, input.hostEntryId);
+  return withEntryLock({
+    key: `${input.workspaceId}::${input.hostEntryId}`, fn: async () => {
+      const host = await loadEmbedHost(deps, input.workspaceId, input.hostEntryId);
 
-    const existing: WidgetEmbedNode[] = [];
-    collectEmbeds(host.record.bodyJson, existing);
-    if (existing.length !== input.orderedWidgetEntryIds.length) {
-      throw new WidgetEmbedReorderCountMismatchError({ message: `reorder must supply exactly one widgetEntryId per existing embed slot (${existing.length} present, ${input.orderedWidgetEntryIds.length} supplied)`, expectedCount: existing.length, actualCount: input.orderedWidgetEntryIds.length }
-      );
-    }
-
-    // Round-2 external-audit fix (2026-07-21, codex WIDGETS-R2-001/blocker): reorder assigns NEW
-    // widgetEntryId values to slots (see reorderEmbedSlots below) exactly like insertWidgetEmbed
-    // does, but never got the same REQ-16/17 target-existence/liveness/type check — an authorized
-    // widgets.place caller could persist a nonexistent, wrong-type, trashed, or cross-workspace id
-    // (codex reproduced both a numeric id and a dangling entry_refs row for "does-not-exist").
-    // Every distinct replacement target is validated before the host document or entry_refs change.
-    for (const widgetEntryId of new Set(input.orderedWidgetEntryIds)) {
-      if (typeof widgetEntryId !== "string" || widgetEntryId.length === 0) {
-        throw new WidgetInstanceNotFoundError({ message: "reorder contains an invalid widgetEntryId" });
+      const existing: WidgetEmbedNode[] = [];
+      collectEmbeds(host.record.bodyJson, existing);
+      if (existing.length !== input.orderedWidgetEntryIds.length) {
+        throw new WidgetEmbedReorderCountMismatchError({ message: `reorder must supply exactly one widgetEntryId per existing embed slot (${existing.length} present, ${input.orderedWidgetEntryIds.length} supplied)`, expectedCount: existing.length, actualCount: input.orderedWidgetEntryIds.length }
+        );
       }
-      await assertEmbedTargetIsLiveWidget(deps, input.workspaceId, widgetEntryId);
-    }
 
-    const nextBodyJson = reorderEmbedSlots({ node: host.record.bodyJson, newIds: () => deps.ids.newId(), orderedWidgetEntryIds: input.orderedWidgetEntryIds });
-    assertGuardrails(deps, hostBodyType(host), nextBodyJson);
-    const entry = await writeEmbedHost({ deps, input, host, nextBodyJson });
-    return { entry };
-  } }, deps.entryLocks ? { locks: deps.entryLocks } : {});
+      // Round-2 external-audit fix (2026-07-21, codex WIDGETS-R2-001/blocker): reorder assigns NEW
+      // widgetEntryId values to slots (see reorderEmbedSlots below) exactly like insertWidgetEmbed
+      // does, but never got the same REQ-16/17 target-existence/liveness/type check — an authorized
+      // widgets.place caller could persist a nonexistent, wrong-type, trashed, or cross-workspace id
+      // (codex reproduced both a numeric id and a dangling entry_refs row for "does-not-exist").
+      // Every distinct replacement target is validated before the host document or entry_refs change.
+      for (const widgetEntryId of new Set(input.orderedWidgetEntryIds)) {
+        if (typeof widgetEntryId !== "string" || widgetEntryId.length === 0) {
+          throw new WidgetInstanceNotFoundError({ message: "reorder contains an invalid widgetEntryId" });
+        }
+        await assertEmbedTargetIsLiveWidget(deps, input.workspaceId, widgetEntryId);
+      }
+
+      const nextBodyJson = reorderEmbedSlots({ node: host.record.bodyJson, newIds: () => deps.ids.newId(), orderedWidgetEntryIds: input.orderedWidgetEntryIds });
+      assertGuardrails(deps, hostBodyType(host), nextBodyJson);
+      const entry = await writeEmbedHost({ deps, input, host, nextBodyJson });
+      return { entry };
+    }
+  }, deps.entryLocks ? { locks: deps.entryLocks } : {});
 }

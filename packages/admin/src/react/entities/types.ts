@@ -44,7 +44,7 @@ export interface EntityEditProps extends EntityScreenDependencies {
 export function entityText(
   { translate, key, values }: { readonly translate: EntityTranslate; readonly key: string; readonly values: Readonly<Record<string, string | number>> },
 ): string {
-  return translate({ key: key }).replace(/\{([\w]+)\}/g, (match, name: string) =>
+  return translate({ key: key }).replace(/\{(\w+)\}/g, (match, name: string) =>
     Object.hasOwn(values, name) ? String(values[name]) : match);
 }
 

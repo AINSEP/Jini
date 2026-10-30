@@ -45,10 +45,8 @@ export function useFieldAttributesDialog(props: {
 }, _optional: Record<string, never> = {}): FieldAttributesDialogController {
   const { controller: stateController, snapshot: stateSnapshot } = useController({ create: () => createFieldAttributesDialogController({ field: props.field }), dependencies: [] });
   const state = stateSnapshot ?? { className: props.field.className ?? "", rows: [], settings: settingsFormFromField({ field: props.field }), error: null };
-  const className = state.className;
+  const { className, rows, error } = state;
   const setClassName = (value: FieldAttributesDialogStateValue<"className">) => stateController?.update({ key: "className", value });
-  const rows = state.rows;
-  const error = state.error;
 
   function updateRow(rowId: number, patch: Partial<AttrRow>) { stateController?.updateRow({ rowId, patch }); }
   function removeRow(rowId: number) { stateController?.removeRow({ rowId }); }

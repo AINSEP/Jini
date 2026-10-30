@@ -18,7 +18,9 @@ export function createAgentPluginsController({ api, permissions = [] }: { api: A
     store.set({ patch: { plugins: rows, inspectedId: listed(state.inspectedId) ? state.inspectedId : null, pendingDisable: pendingStillEnabled ? state.pendingDisable : null, expandedIds: state.expandedIds.filter(id => listed(id)) } });
   }
   async function load(_required: Record<string, never>, _optional = {}) {
-    if (!canRead()) return; const ticket = ++generation, version = revision;
+    if (!canRead()) return;
+    generation += 1;
+    const ticket = generation, version = revision;
     store.set({ patch: { loading: true, error: null } });
     try {
       const plugins = await api.list({}, { signal: store.signal });
@@ -51,7 +53,8 @@ export function createAgentPluginsController({ api, permissions = [] }: { api: A
     requestDisable(input: AgentPluginDisableRequest, _optional = {}) {
       if (canWrite() && !store.getSnapshot().pendingDisable && rowFor(input.pluginId)?.enabled && !store.getSnapshot().busyIds.includes(input.pluginId)) store.set({ patch: { pendingDisable: { ...input } } });
     },
-    cancelDisable(_required: Record<string, never>, _optional = {}) { const p = store.getSnapshot().pendingDisable; if (!p || store.getSnapshot().busyIds.includes(p.pluginId)) return; store.set({ patch: { pendingDisable: null } }); },
+    cancelDisable(_required: Record<string, never>, _optional = {}) { const p = store.getSnapshot().pendingDisable; if (!p || store.getSnapshot().busyIds.includes(p.pluginId)) return;
+      store.set({ patch: { pendingDisable: null } }); },
     async confirmDisable(_required: Record<string, never>, _optional = {}) {
       const pending = store.getSnapshot().pendingDisable;
       if (!pending || !canWrite() || !rowFor(pending.pluginId)?.enabled) { store.set({ patch: { pendingDisable: null } }); return false; }
@@ -61,7 +64,8 @@ export function createAgentPluginsController({ api, permissions = [] }: { api: A
       if (accepted) store.set({ patch: { pendingDisable: null } });
       return accepted;
     },
-    toggleExpanded({ pluginId }: { pluginId: string }, _optional = {}) { if (!canRead() || !rowFor(pluginId)) return; const ids = store.getSnapshot().expandedIds; store.set({ patch: { expandedIds: ids.includes(pluginId) ? ids.filter(id => id !== pluginId) : [...ids, pluginId] } }); },
+    toggleExpanded({ pluginId }: { pluginId: string }, _optional = {}) { if (!canRead() || !rowFor(pluginId)) return;
+      const ids = store.getSnapshot().expandedIds; store.set({ patch: { expandedIds: ids.includes(pluginId) ? ids.filter(id => id !== pluginId) : [...ids, pluginId] } }); },
     inspect({ pluginId }: { pluginId: string }, _optional = {}) { if (canRead() && rowFor(pluginId)) store.set({ patch: { inspectedId: pluginId } }); },
     closeInspector(_required: Record<string, never>, _optional = {}) { store.set({ patch: { inspectedId: null } }); },
     dispose(_required: Record<string, never> = {}, _optional = {}) { generation++; store.set({ patch: { pendingDisable: null, inspectedId: null, busyIds: [] } }); store.dispose(); },

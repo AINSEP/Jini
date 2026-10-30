@@ -66,6 +66,9 @@ export type FormFieldType = "text" | "email" | "textarea" | "checkbox" | (string
  *  file header on why this port has no delete for definitions at all. */
 export type FormDefinitionStatus = "active" | "disabled" | (string & {});
 
+/** How a form is authored: the field Builder or a hand-written HTML body. */
+export type AdminFormMode = "builder" | "html";
+
 export interface AdminFormField {
   readonly id: string;
   readonly label: string;
@@ -105,7 +108,7 @@ export interface AdminFormDefinition {
   readonly createdAt: string;
   readonly updatedAt: string;
   /** HTML authoring is explicit; absent mode means the existing Builder contract. */
-  readonly mode?: "builder" | "html" | undefined;
+  readonly mode?: AdminFormMode | undefined;
   readonly html?: string | undefined;
 }
 
@@ -130,7 +133,7 @@ export interface AdminFormCreateInput {
   readonly name: string;
   readonly slug: string;
   readonly fields: readonly AdminFormField[];
-  readonly mode?: "builder" | "html" | undefined;
+  readonly mode?: AdminFormMode | undefined;
   readonly html?: string | undefined;
   readonly notify?: AdminFormNotifyConfig;
 }
@@ -139,7 +142,7 @@ export interface AdminFormCreateInput {
 export interface AdminFormUpdatePatch {
   readonly name?: string;
   /** A mode/body patch uses the authoring route; an ordinary patch keeps the CRUD route. */
-  readonly mode?: "builder" | "html" | undefined;
+  readonly mode?: AdminFormMode | undefined;
   readonly html?: string | undefined;
   /** Whole-array replace with an add/edit-only constraint — see file header. */
   readonly fields?: readonly AdminFormField[];

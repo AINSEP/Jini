@@ -70,13 +70,9 @@ export function MemoryEntryCard({
       </div>
       {previewId === entry.id && (
         <div className="library-preview" style={{ width: '100%' }}>
-          {previewBody === null ? (
-            <p>{t('Loading…')}</p>
-          ) : previewBody ? (
-            <div className="library-preview-body">{renderMarkdown(previewBody)}</div>
-          ) : (
-            <p className="hint">—</p>
-          )}
+          {previewBody === null ? <p>{t('Loading…')}</p> : null}
+          {previewBody ? <div className="library-preview-body">{renderMarkdown(previewBody)}</div> : null}
+          {previewBody === '' ? <p className="hint">—</p> : null}
         </div>
       )}
     </div>

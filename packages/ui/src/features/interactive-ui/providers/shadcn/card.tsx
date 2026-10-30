@@ -1,6 +1,7 @@
 /**
- * Ported verbatim from shadcn's `new-york` style registry (`ui.shadcn.com/r/styles/new-york/card.json`,
+ * Ported from shadcn's `new-york` style registry (`ui.shadcn.com/r/styles/new-york/card.json`,
  * 2026-08-18). Only the `cn` import path changed, same as `table.tsx`.
+ * The unused private footer primitive is omitted.
  */
 import * as React from 'react';
 
@@ -31,9 +32,4 @@ const CardContent = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDi
 ));
 CardContent.displayName = 'CardContent';
 
-const CardFooter = React.forwardRef<HTMLDivElement, React.HTMLAttributes<HTMLDivElement>>(({ className, ...props }, ref) => (
-  <div ref={ref} className={cn('flex items-center p-6 pt-0', className)} {...props} />
-));
-CardFooter.displayName = 'CardFooter';
-
-export { Card, CardHeader, CardFooter, CardTitle, CardDescription, CardContent };
+export { Card, CardHeader, CardTitle, CardDescription, CardContent };
