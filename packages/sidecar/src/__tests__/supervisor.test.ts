@@ -227,3 +227,89 @@ test("restart or shutdown while a crash retry is scheduled cancels that retry", 
   assert.equal(s.tasks.size, 0);
   assert.equal(s.children.length, 1);
 });
+
+function readyHarness({ probe }: { probe?: (input: { pid: number }) => Promise<boolean> } = {}) {
+  let now = 0;
+  let readyPid: number | undefined;
+  const tasks = new Map<() => void, number>();
+  const children: { pid: number; events: EventEmitter }[] = [];
+  const supervisor = createDaemonSupervisor({
+    now: () => now,
+    policy: createRespawnPolicy({ now: () => now }, { backoffScheduleMs: [5] }),
+    scheduler: { schedule: ({ run, delayMs }) => { tasks.set(run, now + delayMs); return () => { tasks.delete(run); }; } },
+    spawnDaemonProcess: () => {
+      const child = { pid: children.length + 100, events: new EventEmitter() };
+      children.push(child);
+      return { pid: child.pid, kill: () => true, on(input) {
+        if (input.event === "exit") child.events.on("exit", () => input.listener({ code: 1, signal: null }));
+      } };
+    },
+    terminateProcess: () => undefined,
+    classifyExit: () => ({ isPortConflict: false, reason: "crashed" }),
+    failureReporter: { clear() {}, record() {} }, logger: { emit() {} },
+    readiness: { isReady: async ({ pid }) => probe ? probe({ pid }) : pid === readyPid },
+  });
+  return { supervisor, children, ready: (pid: number) => { readyPid = pid; },
+    async tick(ms = 250) { now += ms; for (const [run, due] of [...tasks]) { if (due <= now) { tasks.delete(run); run(); } } await Promise.resolve(); await Promise.resolve(); },
+  };
+}
+
+test("ensureReady: concurrent cold demands spawn once and wait for current-child discovery", async () => {
+  const h = readyHarness();
+  const first = h.supervisor.ensureReady({}, {});
+  assert.equal(h.supervisor.ensureReady({}, {}), first);
+  assert.equal(h.children.length, 1);
+  let resolved = false;
+  void first.then(() => { resolved = true; });
+  h.ready(99); await h.tick();
+  assert.equal(resolved, false, "another PID cannot establish readiness");
+  h.ready(100); await h.tick(); await first;
+  assert.equal(h.supervisor.isReady(), true);
+});
+
+test("ensureReady rides through scheduled backoff without tripping the on-demand cooldown", async () => {
+  const h = readyHarness();
+  const pending = h.supervisor.ensureReady({}, {});
+  await Promise.resolve();
+  h.children[0]!.events.emit("exit");
+  await h.tick();
+  assert.equal(h.children.length, 2);
+  h.ready(101); await h.tick(); await pending;
+  assert.equal(h.supervisor.isReady(), true);
+});
+
+test("ensureReady times out at 30 seconds while discovery remains unready", async () => {
+  const h = readyHarness();
+  const pending = h.supervisor.ensureReady({}, {});
+  const rejected = assert.rejects(pending, /readiness timed out/);
+  await h.tick(30_000); await rejected;
+  assert.equal(h.supervisor.isReady(), false);
+});
+
+test("ensureReady: a caller abort does not cancel another waiter; shutdown prevents resurrection", async () => {
+  const h = readyHarness();
+  const controller = new AbortController();
+  const cancelled = h.supervisor.ensureReady({}, { signal: controller.signal });
+  const pending = h.supervisor.ensureReady({}, {});
+  const aborted = assert.rejects(cancelled, { name: "AbortError" });
+  controller.abort(); await aborted;
+  const stopped = assert.rejects(pending, /shutting down/);
+  h.supervisor.shutdown(); await h.tick(); await stopped;
+  assert.equal(h.children.length, 1);
+});
+
+
+test("ensureReady rejects a stale discovery result that completes after child replacement", async () => {
+  let finishOldRead!: (ready: boolean) => void;
+  const oldRead = new Promise<boolean>((resolve) => { finishOldRead = resolve; });
+  let replacementReady = false;
+  const h = readyHarness({ probe: ({ pid }) => pid === 100 ? oldRead : Promise.resolve(replacementReady) });
+  let done = false;
+  const pending = h.supervisor.ensureReady({}, {}).then(() => { done = true; });
+  h.children[0]!.events.emit("exit"); await h.tick();
+  assert.equal(h.children.length, 2);
+  finishOldRead(true); await Promise.resolve(); await Promise.resolve();
+  await h.tick(); assert.equal(done, false); assert.equal(h.supervisor.isReady(), false);
+  replacementReady = true; await h.tick(); await pending;
+  assert.equal(h.supervisor.isReady(), true);
+});
