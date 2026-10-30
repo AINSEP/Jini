@@ -54,6 +54,8 @@ export interface ChatPaneAgent {
   supportsTools?: boolean;
   /** Native OFF switches can be enforced and audited; absence fails closed when limits exist. */
   supportsNativeToolAccess?: boolean;
+  fullCliAccessOnly?: boolean;
+  fullCliAccessNote?: string;
 }
 
 export interface ChatPaneAgentSelection {

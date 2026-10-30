@@ -35,9 +35,13 @@ export function runtimeAgentStatus({ agent }: { agent: ChatPaneAgent }): string 
 function NativeToolPolicyWarning({ agent, policy, isApi }: {
   agent: ChatPaneAgent | undefined; policy: NativeToolPolicyInput | undefined; isApi: boolean;
 }): ReactNode {
-  if (!agent || !policy || isApi) return null;
-  const warning = assessNativeToolPolicy({ def: agent, policy });
-  return warning ? <p role="alert">{warning}</p> : null;
+  const t = useT();
+  if (!agent || isApi) return null;
+  const warning = policy || agent.fullCliAccessOnly ? assessNativeToolPolicy({ def: agent, policy: policy ?? {} }) : null;
+  return <>
+    {agent.fullCliAccessNote ? <p>{t(agent.fullCliAccessNote)}</p> : null}
+    {warning ? <p role="alert">{t(warning)}</p> : null}
+  </>;
 }
 
 interface RuntimeModeButtonsProps {
@@ -92,6 +96,7 @@ function RuntimeModeButtons({
 
 interface RuntimeAgentListProps {
   orderedAgents: readonly ChatPaneAgent[];
+  nativeToolPolicy: NativeToolPolicyInput | undefined;
   value: ChatPaneAgentSelection;
   onChange: (selection: ChatPaneAgentSelection) => void;
   agentIconBasePath?: string;
@@ -100,6 +105,7 @@ interface RuntimeAgentListProps {
 
 function RuntimeAgentList({
   orderedAgents,
+  nativeToolPolicy,
   value,
   onChange,
   agentIconBasePath,
@@ -112,12 +118,14 @@ function RuntimeAgentList({
     <>
       {orderedAgents.map((agent) => {
         const active = agent.id === value.agentId;
-        const status = runtimeAgentStatus({ agent: agent });
+        const reason = agent.fullCliAccessOnly ? assessNativeToolPolicy({ def: agent, policy: nativeToolPolicy ?? {} }) : null;
+        const status = reason ? t(reason) : runtimeAgentStatus({ agent: agent });
         return (
           <button
             type="button"
             role="radio"
             aria-checked={active}
+            disabled={reason !== null}
             className={`jini-runtime-agent${active ? ' is-active' : ''}`}
             key={agent.id}
             aria-current={active ? 'true' : undefined}
@@ -132,6 +140,7 @@ function RuntimeAgentList({
             />
             <span className="jini-runtime-agent__copy">
               <strong>{agent.name}</strong>
+              {agent.fullCliAccessNote ? <small>{t(agent.fullCliAccessNote)}</small> : null}
             </span>
             {agent.supportsTools === false ? (
               <span
@@ -142,7 +151,7 @@ function RuntimeAgentList({
               </span>
             ) : null}
             <span className="jini-runtime-agent__status">
-              {active ? t('selected') : status}
+              {active && !reason ? t('selected') : status}
             </span>
             {active ? (
               <RemixIcon name="check-line" size={19} className="jini-runtime-check" />
@@ -374,6 +383,7 @@ function RuntimeTrigger({ picker, isApi, byokRuntime, agentIconBasePath, t }: Ru
 }
 
 interface RuntimePopoverProps {
+  nativeToolPolicy: NativeToolPolicyInput | undefined;
   picker: UseAgentRuntimePickerResult;
   value: ChatPaneAgentSelection;
   onChange: (selection: ChatPaneAgentSelection) => void;
@@ -390,6 +400,7 @@ interface RuntimePopoverProps {
 }
 
 function RuntimePopover({
+  nativeToolPolicy,
   picker,
   value,
   onChange,
@@ -440,6 +451,7 @@ function RuntimePopover({
           <div role="radiogroup" aria-label={t('Code agent')}>
             <RuntimeAgentList
               orderedAgents={picker.orderedAgents}
+              nativeToolPolicy={nativeToolPolicy}
               value={value}
               onChange={onChange}
               {...definedProps({ source: { agentIconBasePath } })}
@@ -499,6 +511,7 @@ export function AgentRuntimePicker({
       <NativeToolPolicyWarning agent={picker.selectedAgent} policy={nativeToolPolicy} isApi={isApi} />
 
       <RuntimePopover
+        nativeToolPolicy={nativeToolPolicy}
         picker={picker}
         value={value}
         onChange={onChange}

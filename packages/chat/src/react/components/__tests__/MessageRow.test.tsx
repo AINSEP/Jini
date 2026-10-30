@@ -1,3 +1,4 @@
+import { I18nContext } from '../../hooks/context.js';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -12,6 +13,22 @@ import { MessageRow } from '../MessageRow.js';
 import { registerMidRunUserMessageRenderer } from '../MidRunUserMessage.js';
 
 describe('MessageRow', () => {
+  it('shows one translated access note at the top of its run, including after replay', () => {
+    const note = 'Gemini (Antigravity) always runs with full access to this computer, like running it in your own terminal. Pick Claude or Codex if you want the tool limits.';
+    const message: ChatMessage = { id: 'agy-access', role: 'assistant', content: 'Result', runStatus: 'succeeded', events: [
+      { kind: 'status', label: 'full_cli_access', detail: note },
+      { kind: 'status', label: 'full_cli_access', detail: note },
+      { kind: 'text', text: 'Result' },
+    ] };
+    const view = render(<I18nContext.Provider value={{ t: key => `translated: ${key}`, locale: 'test' }}>
+      <MessageRow message={message} /></I18nContext.Provider>);
+    expect(screen.getAllByRole('note')).toHaveLength(1);
+    expect(screen.getByRole('note')).toHaveTextContent(`translated: ${note}`);
+    expect(screen.getByRole('note').compareDocumentPosition(screen.getByText('Result')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    view.rerender(<MessageRow message={{ ...message, events: [{ kind: 'text', text: 'Result' }] }} />);
+    expect(screen.queryByRole('note')).not.toBeInTheDocument();
+  });
+
   it('renders a user message with its content and attachments', () => {
     const message: ChatMessage = { id: 'u1', role: 'user', content: 'hello there', attachments: [{ path: '/a.png', name: 'a.png', kind: 'image' }] };
     render(<MessageRow message={message} />);

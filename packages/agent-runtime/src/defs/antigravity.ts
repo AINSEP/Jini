@@ -258,7 +258,9 @@ export const antigravityAgentDef = {
   // Structured receipts enable native-tool auditing; they do not enforce an OFF switch.
   // agy's CLI reference exposes no run-scoped settings/permission/MCP override. Global settings
   // writes race other runs, and relocating HOME breaks auth, so audited output alone cannot grant this.
-  // Keep refusing each requested OFF capability until its real run-scoped control exists.
+  // Owner 2026-10-29 supersedes the interim refusal: eligible owners always use full access.
+  fullCliAccessOnly: true,
+  fullCliAccessNote: "Gemini (Antigravity) always runs with full access to this computer, like running it in your own terminal. Pick Claude or Codex if you want the tool limits.",
   streamFormat: 'json-event-stream',
   eventParser: 'antigravity',
   supportsNativeToolAccess: false,

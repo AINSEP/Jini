@@ -24,7 +24,7 @@ afterEach(() => vi.useRealTimers());
 async function startFixture(
   { agentId, hostEnv }: { agentId: 'codex' | 'pi' | 'claude' | 'antigravity' | 'opencode'; hostEnv: NodeJS.ProcessEnv },
   policies: { codexDisablePlugins?: boolean; piGracefulShutdownMs?: number; mcpJsonInjection?: McpJsonInjectionOptions; bufferedStdoutMaxBytes?: number } = {},
-  runPolicy: { nativeToolAccess?: boolean; nativeCapabilities?: Partial<import('@jini-ai/agent-runtime').NativeCapabilities>; cliParity?: boolean; permissionMode?: 'bypass' | 'restricted' } = {},
+  runPolicy: { canGrantFullCliAccess?: boolean; nativeToolAccess?: boolean; nativeCapabilities?: Partial<import('@jini-ai/agent-runtime').NativeCapabilities>; cliParity?: boolean; permissionMode?: 'bypass' | 'restricted' } = {},
   { ownRuntimeState = true }: { ownRuntimeState?: boolean } = {},
 ) {
   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
@@ -83,37 +83,33 @@ it('refuses to ignore individual restrictions on an unsupported CLI even in pari
 // native-tool policy and audit adapter", because the host's default has personal MCP OFF and agy
 // cannot keep it off. Interim decision B (2026-10-27): keep refusing, but say which CLI and which
 // switch, and what to do.
+// The interim 2026-10-27 refusal is superseded by the owner’s 2026-10-29 decision:
+// agy cannot enforce run-scoped limits, so only an eligible owner gets an unrestricted run.
 const hostDefaultCapabilities = { shell: true, fileWrite: true, userMcp: false, subagents: true,
   userSettings: true, web: true, workflows: true, loginEnvironment: true };
 const parityRun = { nativeToolAccess: true, cliParity: true, permissionMode: 'bypass' } as const;
+const ownerRun = { ...parityRun, canGrantFullCliAccess: true };
 
-it.each([
-  ['shell', 'Bash/shell'], ['fileWrite', 'File edit/write'], ['userMcp', 'Your MCP servers'],
-  ['subagents', 'Subagents/Task'], ['userSettings', 'Your skills and settings'], ['web', 'Web fetch/search'],
-  ['workflows', 'Workflows'], ['loginEnvironment', 'Your shell environment'],
-] as const)('refuses only the requested unsupported Antigravity limit: %s', async (key, label) => {
-  await expect(startFixture({ agentId: 'antigravity', hostEnv: {} }, {}, { ...parityRun,
-    nativeCapabilities: { ...hostDefaultCapabilities, userMcp: true, [key]: false } })).rejects.toMatchObject({
-    code: 'NATIVE_TOOL_POLICY_UNSUPPORTED',
-    message: `Antigravity can't run with '${label}' off. Turn it on in the assistant settings, or choose Claude or Codex.`,
+it.each(['shell', 'fileWrite', 'userMcp', 'subagents', 'userSettings', 'web', 'workflows', 'loginEnvironment'] as const)(
+  'starts Antigravity with full access for an owner despite the %s limit', async key => {
+    const run = await startFixture({ agentId: 'antigravity', hostEnv: {} }, {}, {
+      canGrantFullCliAccess: true, nativeToolAccess: false, cliParity: false, permissionMode: 'restricted',
+      nativeCapabilities: { ...hostDefaultCapabilities, [key]: false },
+    });
+    try { expect(run.calls[0]!.args).toContain('--dangerously-skip-permissions'); }
+    finally { run.child.emit('close', 0, null); }
   });
+
+it.each([false, undefined])('refuses Antigravity before spawn without owner eligibility (%s)', async canGrantFullCliAccess => {
+  await expect(startFixture({ agentId: 'antigravity', hostEnv: {} }, {}, {
+    ...parityRun, ...(canGrantFullCliAccess === undefined ? {} : { canGrantFullCliAccess }),
+  })).rejects.toMatchObject({ code: 'NATIVE_TOOL_POLICY_UNSUPPORTED', message: 'Only the owner can change Full CLI access.' });
 });
 
-it.each([
-  ['antigravity', "Antigravity can't run with 'Your MCP servers' off. Turn it on in the assistant settings, or choose Claude or Codex."],
-  ['opencode', "OpenCode can't run with 'Your MCP servers' off. Turn it on in the assistant settings, or choose Claude or Codex."],
-] as const)('refuses %s with personal MCP OFF, naming the CLI and the switch', async (agentId, message) => {
-  await expect(startFixture({ agentId, hostEnv: {} }, {}, { ...parityRun, nativeCapabilities: hostDefaultCapabilities }))
-    .rejects.toMatchObject({ code: 'NATIVE_TOOL_POLICY_UNSUPPORTED', message });
-});
-
-it('names every OFF switch, and the Full CLI switch when no single switch is the cause', async () => {
-  await expect(startFixture({ agentId: 'antigravity', hostEnv: {} }, {}, { ...parityRun,
-    nativeCapabilities: { ...hostDefaultCapabilities, shell: false } })).rejects.toMatchObject({ code: 'NATIVE_TOOL_POLICY_UNSUPPORTED',
-    message: "Antigravity can't run with 'Bash/shell' and 'Your MCP servers' off. Turn them on in the assistant settings, or choose Claude or Codex." });
-  await expect(startFixture({ agentId: 'antigravity', hostEnv: {} }, {}, { nativeToolAccess: true })).rejects.toMatchObject({
-    code: 'NATIVE_TOOL_POLICY_UNSUPPORTED',
-    message: "Antigravity can't run with this chat's CLI tool limits. Turn on 'Full CLI access' in the assistant settings, or choose Claude or Codex." });
+it('keeps the existing refusal for other unsupported CLIs', async () => {
+  await expect(startFixture({ agentId: 'opencode', hostEnv: {} }, {}, { ...parityRun, nativeCapabilities: hostDefaultCapabilities }))
+    .rejects.toMatchObject({ code: 'NATIVE_TOOL_POLICY_UNSUPPORTED',
+      message: "OpenCode can't run with 'Your MCP servers' off. Turn it on in the assistant settings, or choose Claude or Codex." });
 });
 
 /** The host's MCP bridge staging with every effect faked: Codex can only turn personal MCP off by
@@ -141,8 +137,8 @@ it('runs Codex with personal MCP OFF as a single exec on the staged home', async
   } finally { run.child.emit('close', 0, null); }
 });
 
-it('runs antigravity in parity once personal MCP is ON', async () => {
-  const run = await startFixture({ agentId: 'antigravity', hostEnv: {} }, {}, { ...parityRun,
+it('runs Antigravity with the explicit owner grant', async () => {
+  const run = await startFixture({ agentId: 'antigravity', hostEnv: {} }, {}, { ...ownerRun,
     nativeCapabilities: { ...hostDefaultCapabilities, userMcp: true } });
   try {
     expect(run.calls[0]!.args).toContain('--dangerously-skip-permissions');
@@ -151,7 +147,7 @@ it('runs antigravity in parity once personal MCP is ON', async () => {
 });
 
 it('publishes Antigravity native shell receipts through the real executor lifecycle', async () => {
-  const run = await startFixture({ agentId: 'antigravity', hostEnv: {} }, {}, { ...parityRun,
+  const run = await startFixture({ agentId: 'antigravity', hostEnv: {} }, {}, { ...ownerRun,
     nativeCapabilities: { ...hostDefaultCapabilities, userMcp: true } });
   const events: unknown[] = [];
   const subscription = await run.lifecycle.stream({ runId: run.runId, onEvent: event => events.push(event) });
@@ -171,7 +167,7 @@ it('publishes Antigravity native shell receipts through the real executor lifecy
 });
 
 it('redacts buffered Antigravity JSON sign-in errors before any lifecycle event', async () => {
-  const run = await startFixture({ agentId: 'antigravity', hostEnv: {} }, {}, parityRun);
+  const run = await startFixture({ agentId: 'antigravity', hostEnv: {} }, {}, ownerRun);
   const events: unknown[] = [];
   await run.lifecycle.stream({ runId: run.runId, onEvent: event => events.push(event) });
   const wire = JSON.stringify({ event: 'result', result: { status: 'ERROR', error:
@@ -187,7 +183,7 @@ it('redacts buffered Antigravity JSON sign-in errors before any lifecycle event'
 });
 
 it('fails closed when buffered structured audit output is truncated', async () => {
-  const run = await startFixture({ agentId: 'antigravity', hostEnv: {} }, { bufferedStdoutMaxBytes: 100 }, parityRun);
+  const run = await startFixture({ agentId: 'antigravity', hostEnv: {} }, { bufferedStdoutMaxBytes: 100 }, ownerRun);
   run.child.stdout.write(JSON.stringify({ event: 'result', result: { status: 'SUCCESS', response: 'Done' } }) + '\n');
   run.child.stdout.write('x'.repeat(101));
   run.child.emit('close', 0, null);

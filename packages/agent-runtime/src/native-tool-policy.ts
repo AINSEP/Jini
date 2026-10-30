@@ -51,10 +51,27 @@ export function resolveNativeToolDenies(required: {
 
 /** Current run limits, shared by launch enforcement and browser preflight. */
 export interface NativeToolPolicyInput {
+  /** Trusted host eligibility, independent of the current workspace switches. */
+  canGrantFullCliAccess?: boolean;
   nativeToolAccess?: boolean;
   nativeCapabilities?: Partial<NativeCapabilities>;
   cliParity?: boolean;
   permissionMode?: 'bypass' | 'restricted';
+}
+
+/** Shared picker/launch reason; hosts translate this key through their existing t() helper. */
+export const FULL_CLI_OWNER_REASON = 'Only the owner can change Full CLI access.';
+
+/** Resolve a full-access-only runtime after the host grants eligibility. Other policies stay intact.
+ * Identity and environment checks belong to the host; this pure projection cannot grant eligibility.
+ */
+export function resolveNativeToolPolicy({ def, policy }: {
+  def: { name?: string; fullCliAccessOnly?: boolean }; policy: NativeToolPolicyInput;
+}, _options: Record<string, never> = {}): NativeToolPolicyInput {
+  if (!def.fullCliAccessOnly || policy.canGrantFullCliAccess !== true) return policy;
+  return { ...policy, nativeToolAccess: true, cliParity: true, permissionMode: 'bypass',
+    nativeCapabilities: { shell: true, fileWrite: true, userMcp: true, subagents: true,
+      userSettings: true, web: true, workflows: true, loginEnvironment: true } };
 }
 
 /** Switch names a person sees for each native capability (the host's settings use the same words). */
@@ -80,9 +97,10 @@ function nativeToolPolicyRefusal({ cliName, offSwitches }: { cliName: string; of
  * Unknown explicit OFF switches stay blocked. O(c) over declared limits, without effects.
  */
 export function assessNativeToolPolicy({ def, policy }: {
-  def: { name: string; supportsNativeToolAccess?: boolean };
+  def: { name: string; supportsNativeToolAccess?: boolean; fullCliAccessOnly?: boolean };
   policy: NativeToolPolicyInput;
 }, _options: Record<string, never> = {}): string | null {
+  if (def.fullCliAccessOnly) return policy.canGrantFullCliAccess === true ? null : FULL_CLI_OWNER_REASON;
   if (def.supportsNativeToolAccess === true) return null;
   const parity = policy.cliParity === true && policy.permissionMode === 'bypass' && policy.nativeToolAccess !== false;
   const offSwitches = Object.entries(policy.nativeCapabilities ?? {}).filter(([, value]) => value === false).map(([key]) => key);

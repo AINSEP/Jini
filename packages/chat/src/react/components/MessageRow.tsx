@@ -192,6 +192,14 @@ function flatToolGroups(
 }
 
 /** The model's reasoning, folded under a "Thinking" summary so it never crowds the answer. */
+/** A host status belongs to the run that emitted it, regardless of the current picker selection. */
+function RunAccessNotice({ events }: { events: readonly AgentEvent[] | undefined }) {
+  const t = useT();
+  const notice = events?.find(event => event.kind === 'status' && event.label === 'full_cli_access');
+  if (notice?.kind !== 'status' || !notice.detail) return null;
+  return <div className="jini-chat-pane__notice" role="note">{t(notice.detail)}</div>;
+}
+
 function ThinkingBlock({ text }: { text: string }) {
   const t = useT();
   if (!text.trim()) return null;
@@ -466,13 +474,14 @@ function AssistantMessageRow({
   // The lossless fallback keeps the host's text intact; user receipts still own separate rows,
   // in their original receipt order, outside the assistant's actions and usage footer.
   if (blocks === null) return <>
+    <RunAccessNotice events={message.events} />
     {renderAssistantSection({ section: null, key: message.id, footer: true })}
     {extGroups.filter(group => group.name === MID_RUN_USER_MESSAGE_EXT_EVENT_NAME).map(renderExtGroup)}
   </>;
   // A reply boundary without reported usage renders nothing; it must not create an empty row's gap.
   const visibleBlocks = blocks.filter(block => block.kind !== 'reply-end' || (showUsageLine && usage.replies[block.index] !== undefined));
   const { sections, footerIndex } = transcriptSections({ blocks: visibleBlocks, runInProgress });
-  return <>{sections.map((section, index) => isUserSection({ section })
+  return <><RunAccessNotice events={message.events} />{sections.map((section, index) => isUserSection({ section })
     ? <React.Fragment key={section[0]!.key}>{section.map(renderBlock)}</React.Fragment>
     : renderAssistantSection({ section, key: section[0]?.key ?? message.id, footer: index === footerIndex }))}</>;
 }

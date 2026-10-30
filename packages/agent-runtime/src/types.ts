@@ -343,6 +343,10 @@ export type RuntimeAgentDef = Partial<AgentModelDiscoveryPort> & {
   /** This adapter enforces nativeToolAccess and emits normalized shell/edit tool_use events.
    * A host requesting the policy must fail closed when this capability is absent. */
   supportsNativeToolAccess?: boolean;
+  /** Native tools cannot be limited per run; hosts must explicitly authorize full access. */
+  fullCliAccessOnly?: boolean;
+  /** Translation key explaining this runtime’s full-access requirement to the user. */
+  fullCliAccessNote?: string;
   /** The CLI ships a native subagent tool (e.g. Claude Code's Task/Agent) a run can delegate to.
    * Declarative only: hosts read it through `runtimeSupportsSubagents`, never by model name.
    * Absent = no native subagents. */

@@ -1,7 +1,10 @@
 import { expect, it } from 'vitest';
-import { assessNativeToolPolicy } from '../native-tool-policy.js';
+import { antigravityAgentDef } from '../defs/antigravity.js';
+import { claudeAgentDef } from '../defs/claude.js';
+import { codexAgentDef } from '../defs/codex.js';
+import { resolveNativeToolPolicy, assessNativeToolPolicy } from '../native-tool-policy.js';
 
-it.each(['Antigravity', 'OpenCode', 'another CLI'])('names only the unsupported OFF switch for %s', name => {
+it.each(['OpenCode', 'another CLI'])('names only the unsupported OFF switch for %s', name => {
   expect(assessNativeToolPolicy({ def: { name }, policy: { nativeToolAccess: true, cliParity: true,
     permissionMode: 'bypass', nativeCapabilities: { shell: true, userMcp: false } } })).toBe(
     `${name} can't run with 'Your MCP servers' off. Turn it on in the assistant settings, or choose Claude or Codex.`);
@@ -10,9 +13,9 @@ it.each(['Antigravity', 'OpenCode', 'another CLI'])('names only the unsupported 
 it('does not reject supported adapters, unrestricted parity, or a standalone unspecified policy', () => {
   expect(assessNativeToolPolicy({ def: { name: 'Claude', supportsNativeToolAccess: true }, policy: {
     nativeToolAccess: false, nativeCapabilities: { userMcp: false } } })).toBeNull();
-  expect(assessNativeToolPolicy({ def: { name: 'Antigravity' }, policy: {
+  expect(assessNativeToolPolicy({ def: { name: 'Another CLI' }, policy: {
     nativeToolAccess: true, cliParity: true, permissionMode: 'bypass' } })).toBeNull();
-  expect(assessNativeToolPolicy({ def: { name: 'Antigravity' }, policy: {} })).toBeNull();
+  expect(assessNativeToolPolicy({ def: { name: 'Another CLI' }, policy: {} })).toBeNull();
 });
 
 it('never lets parity override the master lock, a restricted run, or an unknown explicit OFF', () => {
@@ -20,5 +23,24 @@ it('never lets parity override the master lock, a restricted run, or an unknown 
     { nativeToolAccess: false, cliParity: true, permissionMode: 'bypass' as const },
     { nativeToolAccess: true, cliParity: true, permissionMode: 'restricted' as const },
     { nativeCapabilities: JSON.parse('{"futureSwitch":false}') },
-  ]) expect(assessNativeToolPolicy({ def: { name: 'Antigravity' }, policy })).toMatch(/can't run/);
+  ]) expect(assessNativeToolPolicy({ def: { name: 'Another CLI' }, policy })).toMatch(/can't run/);
+});
+
+it('projects full access only for a definition requiring it and a trusted eligible owner', () => {
+  const limits = { nativeToolAccess: false, permissionMode: 'restricted' as const,
+    nativeCapabilities: { shell: false, userMcp: false }, canGrantFullCliAccess: true };
+  const full = resolveNativeToolPolicy({ def: antigravityAgentDef, policy: limits });
+  expect(full).toMatchObject({ nativeToolAccess: true, cliParity: true, permissionMode: 'bypass' });
+  expect(Object.values(full.nativeCapabilities!)).toEqual(Array(8).fill(true));
+  expect(assessNativeToolPolicy({ def: antigravityAgentDef, policy: limits })).toBeNull();
+  for (const canGrantFullCliAccess of [false, undefined]) {
+    const { canGrantFullCliAccess: _grant, ...withoutGrant } = limits;
+    const policy = canGrantFullCliAccess === undefined ? withoutGrant : { ...limits, canGrantFullCliAccess };
+    expect(resolveNativeToolPolicy({ def: antigravityAgentDef, policy })).toBe(policy);
+    expect(assessNativeToolPolicy({ def: antigravityAgentDef, policy })).toBe('Only the owner can change Full CLI access.');
+  }
+  for (const def of [claudeAgentDef, codexAgentDef]) {
+    expect(resolveNativeToolPolicy({ def, policy: limits })).toBe(limits);
+    expect(assessNativeToolPolicy({ def, policy: limits })).toBeNull();
+  }
 });

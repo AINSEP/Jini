@@ -409,6 +409,47 @@ function parseJsonObject(text: string | null, where: string): Record<string, unk
   return parsed as Record<string, unknown>;
 }
 
+/** Check the installed JSON entry using the installer’s own path and launch contract.
+ * Read failures and stale/disabled entries name the repair without exposing configuration values.
+ * This does not mutate global config or persist a run credential. O(config bytes).
+ */
+export async function verifyJsonAgentInstall(
+  { agentId, spec, ctx, readFile }: { agentId: string; spec: McpLaunchSpec; ctx: PlanContext;
+    readFile: (required: { path: string }) => Promise<string> },
+  _optional: Record<string, never> = {},
+): Promise<void> {
+  const slug = { value: agentId };
+  if (!isAgentSlug(slug)) throw new Error('Unknown MCP agent installation');
+  const plan = planAgentInstall({ slug: slug.value, spec, ctx });
+  if (plan.kind !== 'json') throw new Error('MCP installation does not use a JSON registry');
+  try {
+    assertSafeJsonInstallPlan(plan);
+    const root = parseJsonObject(await readFile({ path: plan.configPath }), plan.configPath);
+    const entry = installedJsonEntry({ root, plan });
+    if (!installedLaunchMatches({ entry, expected: plan.entry })) throw new Error('Invalid bridge entry');
+  } catch {
+    throw new Error(`The assistant's tools are not set up in ${agentId}. Run "mcp install ${agentId}" to repair the bridge entry in ${plan.configPath}, then try again.`);
+  }
+}
+
+function installedJsonEntry({ root, plan }: { root: Record<string, unknown>; plan: JsonInstallPlan }): unknown {
+  let value: unknown = root;
+  for (const key of [...plan.keyPath, plan.serverKey]) {
+    if (!value || typeof value !== 'object' || !Object.hasOwn(value, key)) return undefined;
+    value = (value as Record<string, unknown>)[key];
+  }
+  return value;
+}
+
+function installedLaunchMatches({ entry, expected }: { entry: unknown; expected: unknown }): boolean {
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
+  const actual = entry as Record<string, unknown>;
+  const wanted = expected as Record<string, unknown>;
+  if (actual.disabled === true || actual.command !== wanted.command) return false;
+  if (JSON.stringify(actual.args ?? []) !== JSON.stringify(wanted.args ?? [])) return false;
+  return JSON.stringify(actual.env ?? {}) === JSON.stringify(wanted.env ?? {});
+}
+
 // --- Snippets for the manual (print-only) strategy ----------------------
 
 function hermesYamlSnippet(spec: McpLaunchSpec, name: string): string {

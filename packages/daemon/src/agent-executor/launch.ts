@@ -19,6 +19,7 @@ import {
 import {
   agentCapabilities,
   assessNativeToolPolicy,
+  resolveNativeToolPolicy,
   createClaudeFilesystemSupportProbe,
   claudeFilesystemRuntimePaths,
   claudeFilesystemSettings,
@@ -1045,6 +1046,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
   }
 
   async function enforceNativeToolPolicy({ input, def }: { input: MutableRunInput; def: RuntimeAgentDef }, _options = {}) {
+    Object.assign(input, resolveNativeToolPolicy({ def, policy: input }));
     // Never silently ignore a host's locked native-tool policy on another CLI.
     // Parity cannot override an explicit lock or a restricted run.
     input.cliParity = input.cliParity === true && input.permissionMode === 'bypass' && input.nativeToolAccess !== false;
@@ -1354,7 +1356,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
    * @complexity O(1) setup (registry lookup, launch resolution, one spawn call); steady-state cost thereafter belongs to {@link wireChildLifecycle}.
    * @overallScore 100/100
    */
-  async function run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs: Pick<AgentExecutorRunInput, "filesystemRoot" | "model" | "reasoning" | "nativeToolAccess" | "nativeCapabilities" | "cliParity" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "readOnlyExtraDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings" | "chromeIntegration"> = {}): Promise<void> {
+  async function run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs: Pick<AgentExecutorRunInput, "filesystemRoot" | "model" | "reasoning" | "nativeToolAccess" | "canGrantFullCliAccess" | "nativeCapabilities" | "cliParity" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "readOnlyExtraDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings" | "chromeIntegration"> = {}): Promise<void> {
     const { input, def, streamFormat } = await prepareRunContext({ requiredArgs, optionalArgs }, {});
 
     // Computed once, before anything downstream ever looks at "the prompt" or "the allowed

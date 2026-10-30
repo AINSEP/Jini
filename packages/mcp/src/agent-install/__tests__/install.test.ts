@@ -1,3 +1,4 @@
+import { verifyJsonAgentInstall } from '../install.js';
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile, lstat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -493,5 +494,32 @@ describe('antigravity install against a temp HOME', () => {
       theme: 'dark',
       mcpServers: { other: { command: 'other', args: ['x'] }, jini: entry },
     });
+  });
+});
+
+describe('launch validation of the installed JSON bridge', () => {
+  const spec = { command: '/node', args: ['/jini/serve.js'], env: {} };
+  const ctx = { home: '/home/test', platform: 'darwin' as const, serverName: 'jini' };
+  const config = (entry: unknown) => JSON.stringify({ mcpServers: { other: { command: 'keep' }, jini: entry } });
+  it('checks the installer-owned CLI registry path without writing or storing run credentials', async () => {
+    const paths: string[] = [];
+    const raw = config({ command: spec.command, args: spec.args });
+    await verifyJsonAgentInstall({ agentId: 'antigravity', spec, ctx,
+      readFile: async ({ path }) => { paths.push(path); return raw; } });
+    expect(paths).toEqual(['/home/test/.gemini/config/mcp_config.json']);
+    expect(raw).toBe(config({ command: spec.command, args: spec.args }));
+  });
+  it.each([
+    '{}', '{broken', '[]', config(null), config({ command: '/old/node', args: spec.args }),
+    config({ ...spec, disabled: true }), config({ ...spec, args: ['/missing/bridge.js'] }),
+    config({ ...spec, env: { JINI_DAEMON_TOKEN: 'stale-value' } }),
+  ])('rejects a missing, stale or broken entry with a repair command and no config values', async raw => {
+    await expect(verifyJsonAgentInstall({ agentId: 'antigravity', spec, ctx, readFile: async () => raw }))
+      .rejects.toThrow('Run "mcp install antigravity" to repair the bridge entry');
+  });
+  it('replaces unreadable-file errors with a plain repair message', async () => {
+    await expect(verifyJsonAgentInstall({ agentId: 'antigravity', spec, ctx,
+      readFile: async () => { throw new Error('sensitive filesystem detail'); } }))
+      .rejects.toThrow("The assistant's tools are not set up in antigravity. Run");
   });
 });
