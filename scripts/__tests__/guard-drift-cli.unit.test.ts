@@ -12,6 +12,7 @@ vi.mock('../check-extensionless-imports.js', () => ({ checkExtensionlessImports:
 vi.mock('../check-model-fallback-freshness.js', () => ({ checkModelFallbackFreshness: () => [] }));
 vi.mock('../check-protocol-purity.js', () => ({ checkProtocolPurity: () => [] }));
 vi.mock('../check-package-layers.js', () => ({ checkPackageLayers: () => [] }));
+vi.mock('../check-plugin-packages.js', () => ({ checkPluginPackages: () => [] }));
 vi.mock('../check-subpath-isolation.js', () => ({ checkSubpathIsolation: () => [] }));
 vi.mock('../lib/source-neutrality.js', () => ({ checkSourceNeutrality: () => [] }));
 vi.mock('../lib/publish-hygiene-self-test.js', () => ({ runPublishHygieneSelfTest: () => [] }));

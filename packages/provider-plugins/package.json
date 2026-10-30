@@ -15,11 +15,13 @@
     "kind": "plugin-packaging",
     "runtime": "node",
     "entries": {
+      "./build": "node",
       "./catalog": "node",
       "./plugins/*": "node"
     }
   },
   "exports": {
+    "./build": "./scripts/build.ts",
     "./catalog": "./catalog.json",
     "./plugins/*": "./plugins/*"
   },

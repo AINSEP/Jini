@@ -1,4 +1,3 @@
-import { executeDdl } from "../../shared/ddl.adapter.js";
 import type { MigrationStep } from "../../migrate/step.js";
 
 /** Owner-only history: no site tables or foreign workspace records are required. */
@@ -33,6 +32,8 @@ export const ownerStoreMigration: MigrationStep = {
   id: "0000_owner_store",
   checksum: "ea2c33cf1835f6b1db0f52a4de3419aaf8c1a2e2edeece1e2b3240c517592446",
   async up(kernel) {
+    // Reading migration metadata must not load the SQL adapter or its optional Kysely peer.
+    const { executeDdl } = await import("../../shared/ddl.adapter.js");
     await executeDdl({ kernel, ddl: ownerStoreDdl });
   },
 };

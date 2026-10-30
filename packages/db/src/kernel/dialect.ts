@@ -12,6 +12,19 @@ import type { StorageDialect, StorageKernel } from "./port.js";
  * same `ON CONFLICT … DO UPDATE` on both; "the value being inserted" is `eb.ref("excluded.col")`.
  */
 
+/**
+ * Runs a `;`-separated DDL script one statement at a time; the runner owns the encompassing
+ * transaction. Shared adapter so independent migration domains need no Kysely import.
+ * @throws Propagates kernel execution failures; the caller's transaction owns rollback.
+ * @complexity O(n) time and space in DDL length, plus the database's execution cost.
+ */
+export async function executeDdl({ kernel, ddl }: { kernel: StorageKernel<unknown>; ddl: string }, _options = {}): Promise<void> {
+  // Kysely executes one SQLite statement at a time.
+  for (const statement of ddl.split(";").filter(part => part.trim())) {
+    await kernel.execute(sql.raw(statement));
+  }
+}
+
 const JSON_KEY = /^\w+$/;
 /** json_type() names SQLite reports for a JSON scalar of each JS type; strings are "text". */
 const SQLITE_JSON_TYPES: Readonly<Record<string, readonly string[]>> = { number: ["integer", "real"], boolean: ["true", "false"] };

@@ -37,7 +37,7 @@
   },
   {
     "kind": "agent", "id": "ui-ux-design", "publisherIdentity": "jini/ui-ux-design",
-    "packageName": "@jini-ai/plugin-ui-ux-design", "version": "0.7.0", "pluginVersion": "0.4.6",
+    "packageName": "@jini-ai/plugin-ui-ux-design", "version": "0.6.13", "pluginVersion": "0.4.6",
     "path": "ui-ux-design", "contract": { "id": "agent-plugins", "version": "1.0.0" },
     "description": "UI/UX design, interface-design-system, accessibility, and shadcn/ui component skills bundled as one portable Agent Plugin.",
     "expectedDigests": null

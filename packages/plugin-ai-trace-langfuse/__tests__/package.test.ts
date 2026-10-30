@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { computePluginIntegrity } from '@jini-ai/plugins/host/node';
-import { buildProviderPlugin } from '../../provider-plugins/scripts/build.js';
+import { buildProviderPlugin } from '../../../scripts/testing/provider-plugin.js';
 
 const id = 'ai-trace-langfuse';
 const packageRoot = fileURLToPath(new URL('..', import.meta.url));

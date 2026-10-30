@@ -41,6 +41,8 @@ export function replySegments({ events }: { events: readonly AgentEvent[] | unde
       started = false;
       continue;
     }
+    // Repeated delivery receipts are bookkeeping, never content of the reply they already split.
+    if (isReplyBoundary({ event })) continue;
     const lateResult = event.kind === 'usage' && !started && segments.length > 1;
     started ||= producesReplyOutput({ event });
     segments[segments.length - (lateResult ? 2 : 1)]!.push(event);

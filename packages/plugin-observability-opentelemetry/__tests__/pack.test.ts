@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { computePluginIntegrity } from '@jini-ai/plugins/host/node';
 import type { PluginManifest } from '@jini-ai/plugins/host';
-import { buildProviderPlugin } from '../../provider-plugins/scripts/build.js';
+import { buildProviderPlugin } from '../../../scripts/testing/provider-plugin.js';
 import { assertPluginPackageIsolation } from '../../../scripts/check-plugin-isolation.js';
 
 const exec = promisify(execFile);

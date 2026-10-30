@@ -11,6 +11,7 @@ const root = fileURLToPath(new URL('..', import.meta.url));
 const packagesRoot = path.dirname(root);
 const readJson = async (file: string) => JSON.parse(await readFile(file, 'utf8'));
 const entries = await readJson(path.join(root, 'catalog.json')) as CatalogEntry[];
+const designPackage = await readJson(path.join(packagesRoot, 'plugin-ui-ux-design/package.json'));
 const digest = `sha256-${'a'.repeat(64)}`;
 
 describe('standalone plugin catalog', () => {
@@ -27,14 +28,14 @@ describe('standalone plugin catalog', () => {
     const pluginManifest = await readJson(path.join(packagesRoot, source));
     expect(entry).toEqual({ ...catalogEntry({ id: entry.id, packageManifest, pluginManifest }), expectedDigests: entry.expectedDigests });
     expect(entry.publisherIdentity).toBe(`jini/${entry.id}`);
-    expect(packageManifest.version).toBe('0.7.0');
+    if (entry.kind === 'provider') expect(packageManifest.version).toBe('0.7.0');
     expect(entry.path.startsWith('/')).toBe(false);
     expect(entry.path.split('/')).not.toContain('..');
   });
 
   it('preserves the agent manifest version independently of the npm release', () => {
     expect(entries.find(entry => entry.kind === 'agent')).toMatchObject({
-      version: '0.7.0', pluginVersion: '0.4.6', contract: { id: 'agent-plugins', version: '1.0.0' },
+      version: designPackage.version, pluginVersion: '0.4.6', contract: { id: 'agent-plugins', version: '1.0.0' },
     });
   });
 
@@ -132,7 +133,7 @@ describe('release catalog generation', () => {
       readJson: async file => file.endsWith('package.json') ? pkg : plugin,
       integrity: async () => ({ 'plugin.json': digest, 'skills/ui-ux-design/SKILL.md': digest }),
     } });
-    expect(result[0]).toMatchObject({ kind: 'agent', pluginVersion: '0.4.6', version: '0.7.0',
+    expect(result[0]).toMatchObject({ kind: 'agent', pluginVersion: '0.4.6', version: pkg.version,
       contract: { id: 'agent-plugins', version: '1.0.0' },
       expectedDigests: { 'plugin.json': digest, 'skills/ui-ux-design/SKILL.md': digest } });
   });

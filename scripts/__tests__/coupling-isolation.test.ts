@@ -6,6 +6,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 import { auditSubpathIsolation, type SubpathIsolationAudit } from '../check-subpath-isolation.js';
 import { extractImports } from '../lib/walk-imports.js';
 import { checkPackageLayers } from '../check-package-layers.js';
+import { checkEngineBoundaries } from '../check-engine-boundaries.js';
 import { createHardwiringInspector } from '../../packages/devops/src/checks/hardwiring.js';
 
 const repoRoot = fileURLToPath(new URL('../../', import.meta.url));
@@ -28,7 +29,8 @@ describe('platform OS helper import isolation', () => {
     if (name === 'process') files.push('packages/platform/src/command.ts', 'packages/platform/src/shell.ts',
       'packages/platform/src/windows-system-tools.ts');
     expect(entry?.files).toEqual([...new Set(files)].sort());
-    expect(entry?.dependencies).toEqual([]); // In particular, no Undici, drivers or renderer SDKs.
+    // Core reuse is intentional (d62cf2a9f); Undici, drivers and renderer SDKs remain excluded.
+    expect(entry?.dependencies).toEqual(['command', 'process', 'proxy-env'].includes(name) ? ['@jini-ai/core'] : []);
     expect(audit.findings.filter(finding => finding.package === '@jini-ai/platform'
       && finding.subpath === `./${name}` && (finding.kind === 'a' || finding.kind === 'resolution'))).toEqual([]);
   });
@@ -91,9 +93,20 @@ describe('verified shared leaves retain their existing owners', () => {
 });
 
 describe('re-verify dependency and state regressions', () => {
-  it('declares the shared secret-input owner on the permitted UI layer edge', () => {
+  it('keeps standalone plugin tooling on package public entries', async () => {
+    expect((await checkEngineBoundaries({ repoRoot })).filter(finding => finding.rule === 'R2-deep-path'
+      && finding.file.startsWith('packages/plugin-'))).toEqual([]);
+  });
+
+  it('declares the shared secret-input owner on the permitted optional UI layer edge', () => {
     expect(checkPackageLayers({ repoRoot }).filter(finding => finding.file.startsWith('packages/ui/')
       && finding.reason.startsWith('ui → @jini-ai/ui-kit'))).toEqual([]);
+    expect(audit.findings.filter(finding => finding.package === '@jini-ai/ui'
+      && finding.rule === 'SI-dependency')).toEqual([]);
+    const pkg = JSON.parse(readFileSync(new URL('../../packages/ui/package.json', import.meta.url), 'utf8'));
+    expect(pkg.devDependencies['@jini-ai/ui-kit']).toBe('workspace:^');
+    expect(pkg.peerDependencies['@jini-ai/ui-kit']).toBe('^0.6.10');
+    expect(pkg.peerDependenciesMeta['@jini-ai/ui-kit']).toEqual({ optional: true });
   });
 
   it.each([

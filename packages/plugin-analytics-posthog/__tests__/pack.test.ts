@@ -8,10 +8,9 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { computePluginIntegrity } from '@jini-ai/plugins/host/node';
 import type { PluginManifest } from '@jini-ai/plugins/host';
-import { buildProviderPlugin } from '../../provider-plugins/scripts/build.js';
+import { buildProviderPlugin, ADAPTER_FILE, POSTHOG_SDK_INTEGRITY, SDK_FILE } from '../../../scripts/testing/provider-plugin.js';
 import { assertPluginPackageIsolation } from '../../../scripts/check-plugin-isolation.js';
 import { createHash } from 'node:crypto';
-import { ADAPTER_FILE, POSTHOG_SDK_INTEGRITY, SDK_FILE } from '../../provider-plugins/src/analytics-posthog/consent.js';
 
 const exec = promisify(execFile);
 const packageRoot = fileURLToPath(new URL('../', import.meta.url));

@@ -31,6 +31,9 @@
     "quality:sonar": "eslint --config development/quality/eslint.sonar.config.mjs --format ./development/quality/sonar-formatter.mjs --no-error-on-unmatched-pattern packages"
   },
   "devDependencies": {
+    "@jini-ai/core": "workspace:^",
+    "@jini-ai/plugins": "workspace:^",
+    "@jini-ai/provider-plugins": "workspace:^",
     "@changesets/cli": "^2.31.1",
     "@types/node": "^24.0.0",
     "@vitest/coverage-v8": "^2.1.9",

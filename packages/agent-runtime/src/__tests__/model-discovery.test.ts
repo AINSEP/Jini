@@ -200,7 +200,8 @@ describe('shared adapter conformance', () => {
     fake.setOutput('gemini-flash-high\tGemini Flash High\n');
     const pinned = await resolveModelForLaunch({ def, context }, { deps: fake.deps });
     expect(pinned.model).toBe('gemini-flash-high');
-    expect(def.buildArgs({ prompt: 'test', imagePaths: [] }, { options: { model: pinned.model } }).slice(0, 2)).toEqual(['--model', 'gemini-flash-high']);
+    const args = def.buildArgs({ prompt: 'test', imagePaths: [] }, { options: { model: pinned.model } });
+    expect(args.slice(args.indexOf('--model'), args.indexOf('--model') + 2)).toEqual(['--model', 'gemini-flash-high']);
   });
   it('refuses an old default snapshot after the config changes, including resumed sessions', async () => {
     const def = AGENT_DEFS.find((row) => row.id === 'codex')!; const fake = fakeDeps();

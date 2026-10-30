@@ -3012,11 +3012,11 @@ describe('AgentExecutor — stdoutPolicy: buffer-until-close + sanitize (antigra
     });
   });
 
-  it('ignores stdoutPolicy for a structured (JSON-stream) def, whose events come from the parser', async () => {
-    // `stdoutPolicy` is documented as only meaningful for `plain`. A JSON-stream
-    // def that declared it must keep feeding its parser, not silently swallow
-    // every event until close.
-    const def = createFakeDef({ stdoutPolicy: { buffering: 'until-close', sanitize: () => 'SHOULD NOT APPEAR' } });
+  it.each(['codex', 'antigravity'] as const)('sanitizes buffered %s output before structured parsing at close', async eventParser => {
+    // Structured errors can contain sign-in URLs too, so the policy now precedes parsing.
+    // A secret split across chunks must stay private until the complete wire text is sanitized.
+    const sanitize = vi.fn(({ fullText }: { fullText: string }) => fullText.replace('wire-secret', 'parsed reply'));
+    const def = createFakeDef({ eventParser, stdoutPolicy: { buffering: 'until-close', sanitize } });
     const { lifecycle, executor, child } = createHarness({ def });
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
 
@@ -3024,16 +3024,28 @@ describe('AgentExecutor — stdoutPolicy: buffer-until-close + sanitize (antigra
     await flushAsync();
     await runPromise;
 
-    child.stdout.emit('data', '{"type":"item.completed","item":{"type":"agent_message","text":"parsed reply"}}\n');
+    const wire = eventParser === 'codex'
+      ? '{"type":"item.completed","item":{"type":"agent_message","text":"wire-secret"}}\n'
+      : '{"event":"step_update","step_update":{"step_type":"agent_response","text_delta":"wire-secret"}}\n';
+    const split = wire.indexOf('secret');
+    child.stdout.emit('data', wire.slice(0, split));
+    child.stdout.emit('data', wire.slice(split));
     await flushAsync();
 
-    const events = await collectEvents(lifecycle, run.id);
-    expect(agentPayloadTypes(events)).toContain('text_delta');
-    expect(JSON.stringify(events)).not.toContain('SHOULD NOT APPEAR');
-    expect(JSON.stringify(events)).toContain('parsed reply');
+    const pending = await collectEvents(lifecycle, run.id);
+    expect(agentPayloadTypes(pending)).not.toContain('text_delta');
+    expect(JSON.stringify(pending)).not.toContain('wire-secret');
+    expect(sanitize).not.toHaveBeenCalled();
 
     child.emit('close', 0, null);
     await lifecycle.waitForTerminal({ runId: run.id });
+
+    const events = await collectEvents(lifecycle, run.id);
+    expect(sanitize).toHaveBeenCalledTimes(1);
+    expect(sanitize).toHaveBeenCalledWith({ fullText: wire });
+    expect(agentPayloadTypes(events)).toContain('text_delta');
+    expect(JSON.stringify(events)).not.toContain('wire-secret');
+    expect(JSON.stringify(events)).toContain('parsed reply');
   });
 });
 

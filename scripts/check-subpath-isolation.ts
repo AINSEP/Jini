@@ -25,11 +25,14 @@ const FOUNDATION = new Set(['@jini-ai/core', '@jini-ai/protocol']);
  *   that root; as optional peers a fresh agent-runtime install fails (tests/loads-without-integrations, 11/17 red).
  * - diagnostics -> js-tokens: ./redaction/secrets-only and ./observability load it, and their published consumers
  *   (chat's user-text redaction, hosts' ./observability) do not declare it; an optional peer breaks them at load.
+ * - ui -> ui-kit: ui's root re-exports SecretInput, which loads ui-kit; Tovu site-chat and desktop import that root
+ *   without declaring ui-kit, so an optional peer breaks them at load (811f37ecb declared it on purpose).
  */
 const REQUIRED_SUBSET_DEPENDENCIES: Readonly<Record<string, ReadonlySet<string>>> = {
   '@jini-ai/agent-runtime': new Set(['@jini-ai/oauth']),
   '@jini-ai/oauth': new Set(['openid-client', 'oauth4webapi']),
   '@jini-ai/diagnostics': new Set(['js-tokens']),
+  '@jini-ai/ui': new Set(['@jini-ai/ui-kit']),
 };
 
 interface IsolationConfig {

@@ -9,6 +9,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { computePluginIntegrity } from '@jini-ai/plugins/host/node';
 import { ADAPTER_FILE, POSTHOG_SDK_INTEGRITY, SDK_FILE } from '../src/analytics-posthog/consent.js';
 
+// Pack tests use the same pinned asset contract as the builder.
+export { ADAPTER_FILE, POSTHOG_SDK_INTEGRITY, SDK_FILE } from '../src/analytics-posthog/consent.js';
+
 interface CatalogEntry { readonly id: string; readonly version: string; readonly path: string }
 
 async function owningPackage(required: { input: string }): Promise<string> {

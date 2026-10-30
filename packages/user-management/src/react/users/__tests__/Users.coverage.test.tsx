@@ -330,9 +330,11 @@ describe("UserResetPasswordDialog", () => {
     renderWith(statefulResetHook());
     const [newToggle] = revealToggles();
     expect(newToggle).not.toHaveAttribute("aria-pressed");
-    // EyeIcon while hidden: the eye outline path plus its pupil circle.
-    expect(newToggle!.querySelectorAll("svg path")).toHaveLength(1);
-    expect(newToggle!.querySelectorAll("svg circle")).toHaveLength(1);
+    // The shared UI-kit eye draws its outline and pupil as paths while hidden.
+    expect(newToggle!.querySelectorAll("svg path")).toHaveLength(2);
+    expect(newToggle!.querySelectorAll("svg circle")).toHaveLength(0);
+    expect(newToggle!.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+    const hiddenIcon = newToggle!.querySelector("svg")!.innerHTML;
     fireEvent.click(newToggle!);
     expect(newPasswordField()).toHaveAttribute("type", "text");
     expect(newPasswordField()).toHaveAttribute("autocomplete", "new-password");
@@ -341,7 +343,8 @@ describe("UserResetPasswordDialog", () => {
     expect(newToggle).toHaveAttribute("aria-label", "Hide New password");
     expect(newToggle).toHaveAttribute("title", "Hide New password");
     // The shared eye-off glyph includes the diagonal slash.
-    expect(newToggle!.querySelector("svg path")).toHaveAttribute("d", "m3 3 18 18");
+    expect(newToggle!.querySelector('svg path[d="M2 2l20 20"]')).not.toBeNull();
+    expect(newToggle!.querySelector("svg")!.innerHTML).not.toBe(hiddenIcon);
   });
 
   it("reveals only the confirm field through its own toggle", () => {

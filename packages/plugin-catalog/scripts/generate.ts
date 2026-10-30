@@ -3,7 +3,7 @@ import { readFile, readdir, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
-import { readPluginIdentity } from '../../core/plugin-directory.js';
+import { readPluginIdentity } from '@jini-ai/core/plugin-directory';
 
 interface PluginManifest {
   id?: string; name: string; version: string; description?: string; $schema?: string;
@@ -107,7 +107,7 @@ async function writeCatalog(): Promise<void> {
   const packagesRoot = path.dirname(root);
   const names = await readdir(path.join(packagesRoot, 'provider-plugins/src'), { withFileTypes: true });
   const ids = names.filter(item => item.isDirectory() && !item.name.startsWith('__')).map(item => item.name);
-  const { computePluginIntegrity } = await import('../../plugins/src/host/node/install.js');
+  const { computePluginIntegrity } = await import('@jini-ai/plugins/host/node');
   const entries = await generateCatalog({ packagesRoot, ids: [...ids, 'ui-ux-design'], ports: {
     readJson: async file => JSON.parse(await readFile(file, 'utf8')) as unknown,
     integrity: computePluginIntegrity,
