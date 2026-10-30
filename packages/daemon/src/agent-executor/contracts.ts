@@ -173,8 +173,6 @@ export interface AgentExecutorRunInput {
    * delegate auto-approval, and any unknown mode is rejected before launching a process.
    */
   readonly permissionMode?: 'bypass' | 'restricted';
-  /** Host-confirmed eligibility to run full-access-only CLIs. */
-  readonly canGrantFullCliAccess?: boolean;
   /** Host-authorized native shell/edit grant; unsupported restricted providers fail before spawn. */
   readonly nativeToolAccess?: boolean;
   /** Independent host-verified permissions, snapshotted for this run. */
@@ -263,7 +261,7 @@ export interface AgentExecutor {
    * underlying run is always already transitioned to `'failed'` via
    * `lifecycle.finish()` before this rejects (see index.ts module doc's Invariant).
    */
-  run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs?: Pick<AgentExecutorRunInput, "filesystemRoot" | "model" | "reasoning" | "nativeToolAccess" | "canGrantFullCliAccess" | "nativeCapabilities" | "cliParity" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "readOnlyExtraDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings" | "chromeIntegration">): Promise<void>;
+  run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs?: Pick<AgentExecutorRunInput, "filesystemRoot" | "model" | "reasoning" | "nativeToolAccess" | "nativeCapabilities" | "cliParity" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "readOnlyExtraDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings" | "chromeIntegration">): Promise<void>;
   /**
    * Delivers a message the human sent while `runId` is going straight into its live agent process
    * (see {@link UserMessageDelivery} for each outcome). A stream-json agent queues the message

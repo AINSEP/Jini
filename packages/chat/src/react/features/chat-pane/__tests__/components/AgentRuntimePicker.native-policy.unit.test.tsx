@@ -14,10 +14,10 @@ const agents = [
   { id: 'codex', name: 'Codex', available: true, supportsNativeToolAccess: true },
   { id: 'other', name: 'Another CLI', available: true },
 ];
-const policy = { canGrantFullCliAccess: true, nativeToolAccess: false, cliParity: false,
+const policy = { nativeToolAccess: false, cliParity: false,
   permissionMode: 'restricted' as const, nativeCapabilities: { shell: false, userMcp: false } };
 
-it('carries owner eligibility through ChatPane and shows the plain note before any send', () => {
+it('shows the plain note through ChatPane without owner eligibility before any send', () => {
   const transport = createFakeChatTransport();
   render(<ChatPane transport={transport} agents={agents} selection={{ agentId: 'antigravity' }} nativeToolPolicy={policy} />);
   expect(screen.getByText(note)).toBeInTheDocument();
@@ -25,35 +25,29 @@ it('carries owner eligibility through ChatPane and shows the plain note before a
   expect(transport.calls).toHaveLength(0);
 });
 
-it.each([true, false])('enables Antigravity only for an eligible owner (%s), with a reason beside the option', async owner => {
+it.each([policy, undefined])('lets a non-owner pick Antigravity with current policy %s and shows the note', async nativeToolPolicy => {
   const user = userEvent.setup();
   const onChange = vi.fn();
   render(<AgentRuntimePicker agents={agents} value={{ agentId: 'claude' }} onChange={onChange}
-    nativeToolPolicy={{ ...policy, canGrantFullCliAccess: owner }} />);
+    {...(nativeToolPolicy ? { nativeToolPolicy } : {})} />);
   await user.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
   const agy = screen.getByRole('radio', { name: /Antigravity/ });
   expect(agy).toHaveTextContent(note);
-  if (owner) {
-    expect(agy).toBeEnabled();
-    await user.click(agy);
-    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ agentId: 'antigravity' }));
-  } else {
-    expect(agy).toBeDisabled();
-    expect(agy).toHaveTextContent('Only the owner can change Full CLI access.');
-    await user.click(agy);
-    expect(onChange).not.toHaveBeenCalled();
-  }
+  expect(agy).toBeEnabled();
+  expect(agy).not.toHaveTextContent('Only the owner can change Full CLI access.');
+  await user.click(agy);
+  expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ agentId: 'antigravity' }));
 });
 
-it('uses t() for the note and reason, and clears the note in API mode', () => {
+it('uses t() for the note without an owner warning, and clears the note in API mode', () => {
   const t = (key: string) => `translated: ${key}`;
   const props = { agents, value: { agentId: 'antigravity' }, onChange: vi.fn(),
-    nativeToolPolicy: { ...policy, canGrantFullCliAccess: false } };
+    nativeToolPolicy: policy };
   const { rerender } = render(<I18nContext.Provider value={{ t, locale: 'test' }}><AgentRuntimePicker {...props} /></I18nContext.Provider>);
   expect(screen.getByText(`translated: ${note}`)).toBeInTheDocument();
-  expect(screen.getByRole('alert')).toHaveTextContent('translated: Only the owner can change Full CLI access.');
-  rerender(<AgentRuntimePicker {...props} executionMode="api" />);
-  expect(screen.queryByText(note)).not.toBeInTheDocument();
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  rerender(<I18nContext.Provider value={{ t, locale: 'test' }}><AgentRuntimePicker {...props} executionMode="api" /></I18nContext.Provider>);
+  expect(screen.queryByText(`translated: ${note}`)).not.toBeInTheDocument();
   expect(screen.queryByRole('alert')).not.toBeInTheDocument();
 });
 

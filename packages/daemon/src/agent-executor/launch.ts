@@ -1356,7 +1356,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
    * @complexity O(1) setup (registry lookup, launch resolution, one spawn call); steady-state cost thereafter belongs to {@link wireChildLifecycle}.
    * @overallScore 100/100
    */
-  async function run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs: Pick<AgentExecutorRunInput, "filesystemRoot" | "model" | "reasoning" | "nativeToolAccess" | "canGrantFullCliAccess" | "nativeCapabilities" | "cliParity" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "readOnlyExtraDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings" | "chromeIntegration"> = {}): Promise<void> {
+  async function run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs: Pick<AgentExecutorRunInput, "filesystemRoot" | "model" | "reasoning" | "nativeToolAccess" | "nativeCapabilities" | "cliParity" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "readOnlyExtraDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings" | "chromeIntegration"> = {}): Promise<void> {
     const { input, def, streamFormat } = await prepareRunContext({ requiredArgs, optionalArgs }, {});
 
     // Computed once, before anything downstream ever looks at "the prompt" or "the allowed

@@ -343,7 +343,7 @@ export type RuntimeAgentDef = Partial<AgentModelDiscoveryPort> & {
   /** This adapter enforces nativeToolAccess and emits normalized shell/edit tool_use events.
    * A host requesting the policy must fail closed when this capability is absent. */
   supportsNativeToolAccess?: boolean;
-  /** Native tools cannot be limited per run; hosts must explicitly authorize full access. */
+  /** Native tools cannot be limited per run; always use full access for authorized assistant users. */
   fullCliAccessOnly?: boolean;
   /** Translation key explaining this runtime’s full-access requirement to the user. */
   fullCliAccessNote?: string;

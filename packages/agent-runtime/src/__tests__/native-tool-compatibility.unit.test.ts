@@ -26,19 +26,16 @@ it('never lets parity override the master lock, a restricted run, or an unknown 
   ]) expect(assessNativeToolPolicy({ def: { name: 'Another CLI' }, policy })).toMatch(/can't run/);
 });
 
-it('projects full access only for a definition requiring it and a trusted eligible owner', () => {
+it('projects full access for a definition requiring it without owner eligibility', () => {
   const limits = { nativeToolAccess: false, permissionMode: 'restricted' as const,
-    nativeCapabilities: { shell: false, userMcp: false }, canGrantFullCliAccess: true };
-  const full = resolveNativeToolPolicy({ def: antigravityAgentDef, policy: limits });
-  expect(full).toMatchObject({ nativeToolAccess: true, cliParity: true, permissionMode: 'bypass' });
-  expect(Object.values(full.nativeCapabilities!)).toEqual(Array(8).fill(true));
-  expect(assessNativeToolPolicy({ def: antigravityAgentDef, policy: limits })).toBeNull();
-  for (const canGrantFullCliAccess of [false, undefined]) {
-    const { canGrantFullCliAccess: _grant, ...withoutGrant } = limits;
-    const policy = canGrantFullCliAccess === undefined ? withoutGrant : { ...limits, canGrantFullCliAccess };
-    expect(resolveNativeToolPolicy({ def: antigravityAgentDef, policy })).toBe(policy);
-    expect(assessNativeToolPolicy({ def: antigravityAgentDef, policy })).toBe('Only the owner can change Full CLI access.');
+    nativeCapabilities: { shell: false, userMcp: false } };
+  for (const policy of [limits, {}]) {
+    const full = resolveNativeToolPolicy({ def: antigravityAgentDef, policy });
+    expect(full).toMatchObject({ nativeToolAccess: true, cliParity: true, permissionMode: 'bypass' });
+    expect(Object.values(full.nativeCapabilities!)).toEqual(Array(8).fill(true));
+    expect(assessNativeToolPolicy({ def: antigravityAgentDef, policy })).toBeNull();
   }
+  expect(limits.nativeCapabilities).toEqual({ shell: false, userMcp: false });
   for (const def of [claudeAgentDef, codexAgentDef]) {
     expect(resolveNativeToolPolicy({ def, policy: limits })).toBe(limits);
     expect(assessNativeToolPolicy({ def, policy: limits })).toBeNull();

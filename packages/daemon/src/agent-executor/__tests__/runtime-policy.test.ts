@@ -24,7 +24,7 @@ afterEach(() => vi.useRealTimers());
 async function startFixture(
   { agentId, hostEnv }: { agentId: 'codex' | 'pi' | 'claude' | 'antigravity' | 'opencode'; hostEnv: NodeJS.ProcessEnv },
   policies: { codexDisablePlugins?: boolean; piGracefulShutdownMs?: number; mcpJsonInjection?: McpJsonInjectionOptions; bufferedStdoutMaxBytes?: number } = {},
-  runPolicy: { canGrantFullCliAccess?: boolean; nativeToolAccess?: boolean; nativeCapabilities?: Partial<import('@jini-ai/agent-runtime').NativeCapabilities>; cliParity?: boolean; permissionMode?: 'bypass' | 'restricted' } = {},
+  runPolicy: { nativeToolAccess?: boolean; nativeCapabilities?: Partial<import('@jini-ai/agent-runtime').NativeCapabilities>; cliParity?: boolean; permissionMode?: 'bypass' | 'restricted' } = {},
   { ownRuntimeState = true }: { ownRuntimeState?: boolean } = {},
 ) {
   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
@@ -84,26 +84,25 @@ it('refuses to ignore individual restrictions on an unsupported CLI even in pari
 // cannot keep it off. Interim decision B (2026-10-27): keep refusing, but say which CLI and which
 // switch, and what to do.
 // The interim 2026-10-27 refusal is superseded by the owner’s 2026-10-29 decision:
-// agy cannot enforce run-scoped limits, so only an eligible owner gets an unrestricted run.
+// agy cannot enforce run-scoped limits, so every assistant user gets an unrestricted run.
 const hostDefaultCapabilities = { shell: true, fileWrite: true, userMcp: false, subagents: true,
   userSettings: true, web: true, workflows: true, loginEnvironment: true };
 const parityRun = { nativeToolAccess: true, cliParity: true, permissionMode: 'bypass' } as const;
-const ownerRun = { ...parityRun, canGrantFullCliAccess: true };
 
 it.each(['shell', 'fileWrite', 'userMcp', 'subagents', 'userSettings', 'web', 'workflows', 'loginEnvironment'] as const)(
-  'starts Antigravity with full access for an owner despite the %s limit', async key => {
+  'starts Antigravity with full access without owner eligibility despite the %s limit', async key => {
     const run = await startFixture({ agentId: 'antigravity', hostEnv: {} }, {}, {
-      canGrantFullCliAccess: true, nativeToolAccess: false, cliParity: false, permissionMode: 'restricted',
+      nativeToolAccess: false, cliParity: false, permissionMode: 'restricted',
       nativeCapabilities: { ...hostDefaultCapabilities, [key]: false },
     });
     try { expect(run.calls[0]!.args).toContain('--dangerously-skip-permissions'); }
     finally { run.child.emit('close', 0, null); }
   });
 
-it.each([false, undefined])('refuses Antigravity before spawn without owner eligibility (%s)', async canGrantFullCliAccess => {
-  await expect(startFixture({ agentId: 'antigravity', hostEnv: {} }, {}, {
-    ...parityRun, ...(canGrantFullCliAccess === undefined ? {} : { canGrantFullCliAccess }),
-  })).rejects.toMatchObject({ code: 'NATIVE_TOOL_POLICY_UNSUPPORTED', message: 'Only the owner can change Full CLI access.' });
+it('starts Antigravity with full access when no host policy is provided', async () => {
+  const run = await startFixture({ agentId: 'antigravity', hostEnv: {} });
+  try { expect(run.calls[0]!.args).toContain('--dangerously-skip-permissions'); }
+  finally { run.child.emit('close', 0, null); }
 });
 
 it('keeps the existing refusal for other unsupported CLIs', async () => {
@@ -137,8 +136,8 @@ it('runs Codex with personal MCP OFF as a single exec on the staged home', async
   } finally { run.child.emit('close', 0, null); }
 });
 
-it('runs Antigravity with the explicit owner grant', async () => {
-  const run = await startFixture({ agentId: 'antigravity', hostEnv: {} }, {}, { ...ownerRun,
+it('runs Antigravity without an owner grant', async () => {
+  const run = await startFixture({ agentId: 'antigravity', hostEnv: {} }, {}, { ...parityRun,
     nativeCapabilities: { ...hostDefaultCapabilities, userMcp: true } });
   try {
     expect(run.calls[0]!.args).toContain('--dangerously-skip-permissions');
@@ -147,7 +146,7 @@ it('runs Antigravity with the explicit owner grant', async () => {
 });
 
 it('publishes Antigravity native shell receipts through the real executor lifecycle', async () => {
-  const run = await startFixture({ agentId: 'antigravity', hostEnv: {} }, {}, { ...ownerRun,
+  const run = await startFixture({ agentId: 'antigravity', hostEnv: {} }, {}, { ...parityRun,
     nativeCapabilities: { ...hostDefaultCapabilities, userMcp: true } });
   const events: unknown[] = [];
   const subscription = await run.lifecycle.stream({ runId: run.runId, onEvent: event => events.push(event) });
@@ -167,7 +166,7 @@ it('publishes Antigravity native shell receipts through the real executor lifecy
 });
 
 it('redacts buffered Antigravity JSON sign-in errors before any lifecycle event', async () => {
-  const run = await startFixture({ agentId: 'antigravity', hostEnv: {} }, {}, ownerRun);
+  const run = await startFixture({ agentId: 'antigravity', hostEnv: {} }, {}, parityRun);
   const events: unknown[] = [];
   await run.lifecycle.stream({ runId: run.runId, onEvent: event => events.push(event) });
   const wire = JSON.stringify({ event: 'result', result: { status: 'ERROR', error:
@@ -183,7 +182,7 @@ it('redacts buffered Antigravity JSON sign-in errors before any lifecycle event'
 });
 
 it('fails closed when buffered structured audit output is truncated', async () => {
-  const run = await startFixture({ agentId: 'antigravity', hostEnv: {} }, { bufferedStdoutMaxBytes: 100 }, ownerRun);
+  const run = await startFixture({ agentId: 'antigravity', hostEnv: {} }, { bufferedStdoutMaxBytes: 100 }, parityRun);
   run.child.stdout.write(JSON.stringify({ event: 'result', result: { status: 'SUCCESS', response: 'Done' } }) + '\n');
   run.child.stdout.write('x'.repeat(101));
   run.child.emit('close', 0, null);
