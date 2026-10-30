@@ -3,7 +3,7 @@
 import { OPEN_EVENT, OPTIONAL, type Choices, type ConsentAction, type ConsentState, type Flags, type JiniConsentApi, type Optional, type StoragePrefixes } from '../contract.js';
 
 const INERT = 'script[type="text/plain"][data-consent-category],iframe[data-consent-category][data-src]';
-const SKIP: ReadonlySet<string> = new Set(['type', 'data-src', 'data-type', 'data-consent-category']);
+const SKIP: readonly string[] = ['type', 'data-src', 'data-type', 'data-consent-category'];
 // Not <html>: the client sets html[data-consent-open] while the banner shows, and every click's closest() would hit it.
 const OPENERS = ':not(html)[data-consent-open],a[href="#privacy-choices"]';
 
@@ -15,15 +15,15 @@ export function readCookie(doc: Document, name: string): string | null {
 
 export function writeCookie(doc: Document, { name, value, maxAgeS }: { name: string; value: string; maxAgeS: number }, { domain }: { domain?: string | undefined } = {}): void {
   const secure = doc.defaultView?.location.protocol === 'https:' ? '; Secure' : '';
-  const domainAttribute = domain ? '; Domain=' + domain : '';
-  doc.cookie = `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${Math.floor(maxAgeS)}; SameSite=Lax${secure}${domainAttribute}`;
+  doc.cookie = `${name}=${encodeURIComponent(value)}; Path=/; Max-Age=${Math.floor(maxAgeS)}; SameSite=Lax${secure}` + (domain ? '; Domain=' + domain : '');
 }
 
 /** Vendors set cookies on the registrable domain, so expire on the host and each parent domain. */
 function expireEverywhere(doc: Document, name: string): void {
   const parts = (doc.defaultView?.location.hostname ?? '').split('.');
-  doc.cookie = `${name}=; Path=/; Max-Age=0`;
-  for (let i = 0; i < parts.length - 1; i++) doc.cookie = `${name}=; Path=/; Max-Age=0; Domain=.${parts.slice(i).join('.')}`;
+  const expired = `${name}=; Path=/; Max-Age=0`;
+  doc.cookie = expired;
+  for (let i = 0; i < parts.length - 1; i++) doc.cookie = `${expired}; Domain=.${parts.slice(i).join('.')}`;
 }
 
 /** Expire prefixed cookies and local-storage keys; storage access can throw in sandboxes. @complexity O(cookies + keys). */
@@ -55,7 +55,7 @@ export function activateInert(doc: Document, { allowed, ran }: { allowed: Choice
 
 function liveScript(doc: Document, inert: HTMLScriptElement): HTMLScriptElement {
   const s = doc.createElement('script');
-  for (const { name, value } of Array.from(inert.attributes)) if (!SKIP.has(name)) s.setAttribute(name, value);
+  for (const { name, value } of inert.attributes) if (!SKIP.includes(name)) s.setAttribute(name, value);
   if (inert.nonce) s.nonce = inert.nonce;              // owner-set CSPs keep working
   if (inert.dataset.type) s.type = inert.dataset.type;
   if (inert.dataset.src) s.src = inert.dataset.src; else s.text = inert.text;

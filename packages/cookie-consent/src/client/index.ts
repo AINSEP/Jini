@@ -198,7 +198,8 @@ function readPage(doc: Document): PageConfig | null {
  * A missing or broken config installs nothing, so nothing optional can run (fail closed). */
 export function boot(win: Window & typeof globalThis = window, { ports = browserPorts(win), bindBanner }: BootOptions = {}): JiniConsentApi | undefined {
   if (win.jiniConsent) return win.jiniConsent;
-  const page = readPage(win.document);
+  const doc = win.document;
+  const page = readPage(doc);
   if (!page) return undefined;
   const { evidence, ...config } = page;
   const api = createCookieConsent({ config, ports }, { evidence });
@@ -207,9 +208,9 @@ export function boot(win: Window & typeof globalThis = window, { ports = browser
   win.jiniConsent = api;
   win.jiniConsentQueue = { push: (...items) => items.forEach(item => api.plugins.registerPlugin(item, { source: 'queue' })) };
   win.jiniConsentQueue.push(...queued);
-  installOpeners({ api, doc: win.document });
-  if (config.banner === 'jini') bindBanner?.({ api, doc: win.document });
-  win.document.dispatchEvent(new CustomEvent(READY_EVENT, { detail: api }));
+  installOpeners({ api, doc });
+  if (config.banner === 'jini') bindBanner?.({ api, doc });
+  doc.dispatchEvent(new CustomEvent(READY_EVENT, { detail: api }));
   return api;
 }
 /** Delete only the caller's storage prefixes; blocked localStorage is tolerated.

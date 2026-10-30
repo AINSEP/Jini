@@ -2,7 +2,7 @@
  * (`pnpm -r run build`); locally run `npm run build` first. */
 import { existsSync, readFileSync } from 'node:fs';
 import { JSDOM, VirtualConsole } from 'jsdom';
-import { describe, expect, test } from 'vitest';
+import { describe, expect, test, vi } from 'vitest';
 import { renderBanner } from '../render/index.js';
 
 const BUNDLE = new URL('../../dist/client.min.js', import.meta.url);
@@ -23,8 +23,10 @@ function page() {
   const win = Object.assign(dom.window, { reloads }) as unknown as Window & typeof globalThis & { grants: string[]; inertRan?: number; reloads: string[]; eval(code: string): unknown };
   // jsdom has no fetch; every target browser does. Local evidence never calls it.
   win.fetch = (() => Promise.reject(new Error('no network in the smoke test'))) as typeof fetch;
+  const ready = vi.fn();
+  win.document.addEventListener('jini:consent-ready', ready);
   win.eval(readFileSync(BUNDLE, 'utf8'));
-  return win;
+  return Object.assign(win, { ready });
 }
 const click = (win: Window, selector: string) => (win.document.querySelector(selector) as HTMLElement).click();
 const settle = () => new Promise(r => setTimeout(r, 20));
@@ -43,6 +45,8 @@ describe('dist/client.min.js', () => {
     expect(win.jiniConsent?.plugins.list({ kind: 'consent-adapter' }).map(p => p.id)).toEqual(['fake']);
     expect(win.grants).toEqual([]);
     expect(win.inertRan).toBeUndefined();
+    expect(win.ready).toHaveBeenCalledTimes(1);
+    expect((win.ready.mock.calls[0]![0] as CustomEvent).detail).toBe(win.jiniConsent);
   });
 
   test('Accept grants the adapter, runs the inert tag, writes the cookie and closes the banner', async () => {

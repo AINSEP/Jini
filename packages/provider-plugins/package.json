@@ -1,5 +1,6 @@
 {
   "name": "@jini-ai/provider-plugins",
+  "private": true,
   "version": "0.6.13",
   "description": "Self-contained server provider plugin artifacts for the existing Jini plugin host.",
   "type": "module",
@@ -31,7 +32,7 @@
     "NOTICE"
   ],
   "scripts": {
-    "build": "node --import tsx scripts/build.ts",
+    "build": "pnpm run typecheck",
     "prepack": "pnpm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",

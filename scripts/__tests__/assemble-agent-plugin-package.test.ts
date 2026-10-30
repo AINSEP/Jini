@@ -1,4 +1,5 @@
 import * as fs from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
@@ -89,4 +90,27 @@ test('refuses a symlink within a selected asset tree without replacing completed
   await fs.symlink(path.join(input.sourceDir, 'plugin.json'), path.join(input.sourceDir, 'skills/linked.json'));
   await expect(assembleAgentPluginPackage(input)).rejects.toThrow('regular file or directory');
   expect(await fs.readFile(path.join(payloadRoot, 'plugin.json'))).toEqual(original);
+});
+
+test('the build CLI assembles a payload under node --import tsx and reports assembly failures', async () => {
+  const input = await fixture();
+  const script = path.join(input.root, 'scripts/assemble-agent-plugin-package.ts');
+  const sourceDir = path.join(input.root, 'packages/agent-plugins/ui-ux-design');
+  const packageRoot = path.join(input.root, 'packages/plugin-ui-ux-design');
+  await fs.mkdir(path.dirname(script), { recursive: true });
+  await fs.copyFile(path.join(workspace, 'scripts/assemble-agent-plugin-package.ts'), script);
+  await fs.mkdir(path.dirname(sourceDir), { recursive: true });
+  await fs.rename(input.sourceDir, sourceDir);
+  await fs.rename(input.packageRoot, packageRoot);
+  const run = () => spawnSync(process.execPath, ['--import', 'tsx', script], { cwd: workspace, encoding: 'utf8' });
+  const built = run();
+  expect(built.status, built.stderr).toBe(0);
+  const payloadRoot = path.join(packageRoot, 'ui-ux-design');
+  expect(await files(payloadRoot)).toEqual(await files(sourceDir));
+  const completedManifest = await fs.readFile(path.join(payloadRoot, 'plugin.json'));
+  await fs.unlink(path.join(sourceDir, 'mcp.json'));
+  const failed = run();
+  expect(failed.status).toBe(1);
+  expect(failed.stderr).toContain('ENOENT');
+  expect(await fs.readFile(path.join(payloadRoot, 'plugin.json'))).toEqual(completedManifest);
 });

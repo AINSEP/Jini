@@ -57,8 +57,11 @@ export async function assembleAgentPluginPackage(
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
-  await assembleAgentPluginPackage({
+  assembleAgentPluginPackage({
     sourceDir: fileURLToPath(new URL('../packages/agent-plugins/ui-ux-design/', import.meta.url)),
     packageRoot: fileURLToPath(new URL('../packages/plugin-ui-ux-design/', import.meta.url)),
+  }).catch((error: unknown) => {
+    console.error(error);
+    process.exitCode = 1;
   });
 }
