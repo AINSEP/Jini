@@ -3,3 +3,4 @@ export * from './repository-target.js';
 export * from './kit.js';
 export * from './registry.js';
 export * from './commit.js';
+export * from './repository-path.js';

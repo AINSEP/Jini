@@ -402,6 +402,19 @@ describe('renderConfirmationDocument', () => {
     expect(failing.status()).toBe('Failed: nope');
   });
 
+  it('keeps a held-open confirmation idle before a click and reports delivery separately from execution', async () => {
+    const surface = mountSurface(renderConfirmationDocument({ ...DELETE_POST, text: { done: 'Response received.' } }));
+    expect(surface.status()).toBe('');
+    expect(surface.statusState()).toBe('idle');
+    expect(surface.calls).toHaveLength(0);
+    humanClick(surface, 'confirm');
+    expect(surface.status()).toBe('Working…');
+    await surface.settle('resolve', { delivered: true });
+    expect(surface.status()).toBe('Response received.');
+    expect(surface.status()).not.toBe('Done.');
+    expect(surface.api.callTool).toHaveBeenCalledTimes(1);
+  });
+
   it('reports the app identity and token overrides through to the document', () => {
     const html = renderConfirmationDocument({
       ...DELETE_POST,

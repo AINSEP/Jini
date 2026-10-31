@@ -193,6 +193,41 @@ test('preview reports an export failure with the first failed route', async () =
   assert.deepEqual(await previewCommitExport(f.args), { ok: false, code: 'EXPORT_FAILED', message: "refused to commit: 2 route(s) failed to export (first: '/broken' — expected 200, got 500)" });
 });
 
+test('folder previews prefix paths and commits forward the normalized destination once', async () => {
+  const f = fixture();
+  const args = { ...f.args, folder: 'static_sites\\summer//' };
+  const preview = await previewCommitExport(args);
+  if (!preview.ok) assert.fail(preview.message);
+  assert.deepEqual(preview.paths, ['static_sites/summer/assets/a.bin', 'static_sites/summer/index.html']);
+  const result = await commitSiteToSourceControl({ ...args, supportsFolder: true });
+  assert.equal(result.ok, true);
+  assert.equal((f.captured() as { folder: string }).folder, 'static_sites/summer');
+  assert.equal((f.captured() as { files: { path: string }[] }).files[0]!.path, 'index.html');
+});
+
+test('unsafe folders and unsupported providers refuse before credentials and export', async () => {
+  for (const folder of ['../escape', '/absolute', 'safe']) {
+    const f = fixture();
+    const result = await commitSiteToSourceControl({ ...f.args, folder });
+    assert.equal(result.ok, false);
+    if (result.ok) assert.fail('unsafe commit accepted');
+    assert.equal(result.code, 'INVALID_CONFIG');
+    assert.deepEqual(f.events, []);
+  }
+});
+
+test('unsafe exported file paths fail as export outcomes before the provider sees them', async () => {
+  const f = fixture();
+  f.report.routes.succeeded[0]!.outputFile = '../escape.html';
+  const preview = await previewCommitExport({ ...f.args, folder: 'site' });
+  if (preview.ok) assert.fail('unsafe preview accepted');
+  assert.equal(preview.code, 'EXPORT_FAILED');
+  const commit = await commitSiteToSourceControl({ ...f.args, folder: 'site', supportsFolder: true });
+  if (commit.ok) assert.fail('unsafe commit accepted');
+  assert.equal(commit.code, 'EXPORT_FAILED');
+  assert.equal(f.events.includes('commit'), false);
+});
+
 test('a describeError that throws while reporting an export fault propagates and still cleans up', async () => {
   const f = fixture();
   f.args.files.export = async () => { throw new Error('export'); };

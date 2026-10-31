@@ -3,6 +3,15 @@ import { expect, test } from 'vitest';
 import { buildSourceControlProvider, buildSourceControlProviders, buildSourceControlProviderForApi, findReservedPath, isUnderWorkflowPath, loadSourceControlProviderRegistry, parseSourceControlProvidersFile, pickSourceControlProviderForApi } from '../registry.js';
 import { createSourceControlProviderKit } from '../kit.js';
 import type { CatalogPackage, DescriptorExtensionReader, SourceControlProviderOperations } from '../contracts.js';
+import { sourceControlProviderModuleError, buildLoadedSourceControlProvider } from '../registry.js';
+
+test('folder support is declared by the module, validated and preserved on the built provider', () => {
+  assert.match(sourceControlProviderModuleError({ value: { create() {}, supportsFolder: 'yes' } }) ?? '', /supportsFolder/);
+  for (const supportsFolder of [undefined, false, true]) {
+    const provider = buildLoadedSourceControlProvider({ loaded: { descriptor: { id: 'test', label: 'Test', apiOrigin: 'https://example.test', module: 'p.mjs' }, module: { ...(supportsFolder === undefined ? {} : { supportsFolder }), create: () => ({ supportsFolder: true }) } }, kit: {} });
+    assert.equal(provider.supportsFolder, supportsFolder === true);
+  }
+});
 
 const readExtensions: DescriptorExtensionReader = ({ entry }) => ({ ok: true, extensions: { ...(entry.credential !== undefined ? { credential: entry.credential } : {}), ...(entry.i18n !== undefined ? { i18n: entry.i18n } : {}) } });
 const descriptor = { id: 'example', label: 'Example', apiOrigin: 'https://example.test', module: 'source/provider.mjs', reservedPaths: ['.ci'], workflowPaths: ['.ci/jobs'] };

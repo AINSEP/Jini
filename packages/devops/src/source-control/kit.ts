@@ -2,6 +2,7 @@ import type { HttpClientPort } from '@jini-ai/core/primitives';
 import { assertNotRedirected, redirectGuardInit } from '../core/redirect-guard.js';
 import { DeployError } from '../core/deploy-types.js';
 import type { DescribedTransportError, SourceControlFetchPort, SourceControlProviderKit } from './contracts.js';
+import { normalizeRepositoryFolder, prefixRepositoryPath, repositoryPathContained } from './repository-path.js';
 
 /** Build a kit without globals or a silently missing guarded HTTP client. */
 export function createSourceControlProviderKit(required: {
@@ -10,6 +11,7 @@ export function createSourceControlProviderKit(required: {
   describeTransportError(required: { error: unknown }): DescribedTransportError;
 }, optional: { fetchRedirectPolicy?: "guard" | "caller" } = {}): SourceControlProviderKit {
   return {
+    repositoryPaths: { normalizeFolder: normalizeRepositoryFolder, prefixPath: prefixRepositoryPath, contains: repositoryPathContained },
     fetch: ({ url, init }) => required.fetch({ url }, { init: optional.fetchRedirectPolicy === "caller" ? init : redirectGuardInit({ init }) }),
     redirectGuardInit: ({ init }) => redirectGuardInit({ init }),
     assertNotRedirected: ({ response, hostName }) => assertNotRedirected({ resp: response, providerLabel: hostName }),

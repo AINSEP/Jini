@@ -1,10 +1,11 @@
 import type { SourceControlProviderOperations, DescriptorExtensionReader, LoadedSourceControlProvider, ProviderCatalogPort, SourceControlProvider, SourceControlProviderDescriptor, SourceControlProviderKit, SourceControlProviderModule, SourceControlProviderRegistry } from './contracts.js';
+import { repositoryPathContained } from './repository-path.js';
 
 type ParseResult = { ok: true; descriptors: SourceControlProviderDescriptor[] } | { ok: false; reason: string };
 function object(value: unknown): value is Record<string, unknown> { return value !== null && typeof value === 'object' && !Array.isArray(value); }
 /** Shared relative-path rule: no backslash, colon or control character; no empty, `.` or `..` segment. */
 function safeRelativePath(value: string): boolean {
-  return !/[\\\x00-\x1f\x7f:]/.test(value) && value.split('/').every(segment => segment !== '' && segment !== '.' && segment !== '..');
+  return repositoryPathContained({ path: value });
 }
 /** True for `https://host[:port]` exactly — what `new URL(x).origin` gives back. @complexity O(1). */
 function httpsOrigin(value: unknown): value is string {
@@ -77,6 +78,7 @@ export function parseSourceControlProvidersFile(required: { raw: string; readExt
 export function sourceControlProviderModuleError({ value }: { value: unknown }, _optional = {}): string | null {
   if (!object(value) || typeof value.create !== 'function') return 'its module has no create() function';
   if (value.validateTarget !== undefined && typeof value.validateTarget !== 'function') return "its module's validateTarget is not a function";
+  if (value.supportsFolder !== undefined && typeof value.supportsFolder !== 'boolean') return "its module's supportsFolder is not a boolean";
   return null;
 }
 type CatalogItem = Awaited<ReturnType<ProviderCatalogPort['list']>>[number];
@@ -130,12 +132,12 @@ export async function loadSourceControlProviderRegistry(required: {
 /** Build operations and host facts without allowing module operations to overwrite declared facts. */
 export interface SharedLoadedProvider<Kit, Operations> {
   readonly descriptor: SourceControlProviderDescriptor;
-  readonly module: { create(required: { kit: Kit }): Operations; validateTarget?: (required: { owner: string; repo: string }) => string | null };
+  readonly module: { create(required: { kit: Kit }): Operations; supportsFolder?: boolean; validateTarget?: (required: { owner: string; repo: string }) => string | null };
 }
-export function buildLoadedSourceControlProvider<Kit, Operations>(required: { loaded: SharedLoadedProvider<Kit, Operations>; kit: Kit }, _optional = {}): Operations & import('./contracts.js').SourceControlHostFacts & { validateTarget?: (required: { owner: string; repo: string }) => string | null } {
+export function buildLoadedSourceControlProvider<Kit, Operations>(required: { loaded: SharedLoadedProvider<Kit, Operations>; kit: Kit }, _optional = {}): Operations & import('./contracts.js').SourceControlHostFacts & { supportsFolder: boolean; validateTarget?: (required: { owner: string; repo: string }) => string | null } {
   const { loaded, kit } = required;
   const { id, label, apiOrigin, maxFileBytes, reservedPaths, workflowPaths } = loaded.descriptor;
-  return { ...loaded.module.create({ kit }), ...(loaded.module.validateTarget ? { validateTarget: loaded.module.validateTarget } : {}), id, label, apiOrigin,
+  return { ...loaded.module.create({ kit }), supportsFolder: loaded.module.supportsFolder === true, ...(loaded.module.validateTarget ? { validateTarget: loaded.module.validateTarget } : {}), id, label, apiOrigin,
     ...(maxFileBytes !== undefined ? { maxFileBytes } : {}), ...(reservedPaths !== undefined ? { reservedPaths } : {}), ...(workflowPaths !== undefined ? { workflowPaths } : {}) };
 }
 export interface SharedProviderRegistry<Kit, Operations> {

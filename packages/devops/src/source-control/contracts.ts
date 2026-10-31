@@ -1,12 +1,12 @@
 import type { HttpClientPort } from '@jini-ai/core/primitives';
 import type { ExportReport } from '../static-export/contracts.js';
 
-/** Repository-relative bytes, passed unchanged to the provider. */
+/** Folder-relative bytes; the provider applies the destination prefix once. */
 export interface CommitFile { readonly path: string; readonly data: string | Buffer }
 export type SourceControlCommitResult =
   | { ok: true; branch: string; branchCreated: boolean; commitSha: string; commitUrl: string; filesChanged: number; filesDeleted: number; divergedPaths?: readonly string[] }
   | { ok: false; code: 'repository-not-found' | 'no-changes' | 'diverged' | 'network-unreachable' | 'provider-error'; message: string };
-export interface CommitSiteInput { readonly token: string; readonly owner: string; readonly repo: string; readonly commitMessage: string; readonly files: readonly CommitFile[] }
+export interface CommitSiteInput { readonly token: string; readonly owner: string; readonly repo: string; readonly folder?: string; readonly commitMessage: string; readonly files: readonly CommitFile[] }
 export type ProviderCallFailure = { ok: false; code: 'provider-error'; message: string } | { ok: false; code: 'network-unreachable'; message: string; logDetail: string };
 export interface CredentialedRepositoryTarget { readonly baseUrl: string; readonly authorization: string; readonly owner: string; readonly repo: string }
 export interface WriteFile { readonly path: string; readonly content: string }
@@ -41,7 +41,7 @@ export interface SourceControlProviderOperations {
 }
 export interface RepositoryTarget { readonly owner: string; readonly repo: string }
 export type RepositoryTargetValidator = (required: RepositoryTarget) => string | null;
-export type SourceControlProvider = SourceControlProviderOperations & SourceControlHostFacts & { readonly validateTarget?: RepositoryTargetValidator };
+export type SourceControlProvider = SourceControlProviderOperations & SourceControlHostFacts & { readonly supportsFolder?: boolean; readonly validateTarget?: RepositoryTargetValidator };
 export interface DescribedTransportError { readonly refusal: string | undefined; readonly logDetail: string }
 
 /** Structural guarded HTTP port: the host owns origin/DNS/redirect policy and secret redaction. */
@@ -49,6 +49,11 @@ export type { HttpClientPort } from '@jini-ai/core/primitives';
 /** The host binds guarded/native HTTP through object arguments. */
 export type SourceControlFetchPort = (required: { url: string }, optional?: { init?: RequestInit }) => Promise<Response>;
 export interface SourceControlProviderKit {
+  readonly repositoryPaths: {
+    normalizeFolder: typeof import('./repository-path.js').normalizeRepositoryFolder;
+    prefixPath: typeof import('./repository-path.js').prefixRepositoryPath;
+    contains: typeof import('./repository-path.js').repositoryPathContained;
+  };
   fetch(required: { url: string; init: RequestInit }): Promise<Response>;
   redirectGuardInit(required: { init: RequestInit }): RequestInit;
   assertNotRedirected(required: { response: Response; hostName: string }): void;
@@ -56,7 +61,7 @@ export interface SourceControlProviderKit {
   readonly httpClient: HttpClientPort;
   describeTransportError(required: { error: unknown }): DescribedTransportError;
 }
-export interface SourceControlProviderModule { create(required: { kit: SourceControlProviderKit }): SourceControlProviderOperations; validateTarget?: RepositoryTargetValidator }
+export interface SourceControlProviderModule { create(required: { kit: SourceControlProviderKit }): SourceControlProviderOperations; validateTarget?: RepositoryTargetValidator; readonly supportsFolder?: boolean }
 
 export interface SourceControlProviderDescriptor extends SourceControlHostFacts { readonly module: string; readonly credential?: unknown; readonly i18n?: unknown }
 export interface LoadedSourceControlProvider { readonly descriptor: SourceControlProviderDescriptor; readonly pluginId: string; readonly module: SourceControlProviderModule }
@@ -82,6 +87,7 @@ export interface CommitLayoutPort {
   cleanup(required: { outputDir: string }): Promise<void>;
 }
 export interface CommitExportArgs {
+  folder?: string;
   workspaceId: string;
   owner: string;
   repo: string;
@@ -93,7 +99,7 @@ export interface CommitExportArgs {
   /** Must return caller-safe text without credentials. */
   describeError(required: { error: unknown }): string;
 }
-export interface CommitOrchestrationArgs extends CommitExportArgs { credentials: CredentialResolverPort; adapter: Pick<SourceControlProviderOperations, 'commitSite'> }
+export interface CommitOrchestrationArgs extends CommitExportArgs { supportsFolder?: boolean; credentials: CredentialResolverPort; adapter: Pick<SourceControlProviderOperations, 'commitSite'> }
 export interface CommitOptions { branch?: string; validateTarget?: RepositoryTargetValidator }
 export type CommitFailureCode = 'INVALID_CONFIG' | 'NO_CREDENTIALS_CONFIGURED' | 'EXPORT_FAILED' | 'REPOSITORY_NOT_FOUND' | 'NO_CHANGES' | 'DIVERGED_BRANCH' | 'NETWORK_UNREACHABLE' | 'PROVIDER_ERROR';
 export type SourceControlCommitOutcome =

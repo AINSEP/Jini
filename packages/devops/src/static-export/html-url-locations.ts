@@ -74,10 +74,21 @@ export function htmlUrlLocations({ html }: { html: string }, _optional = {}): Ht
 }
 
 
-/** CSS, sitemap and manifest positions use their response format, never an HTML text scan. */
+/** Generated llms indexes use one Markdown list link per line; prose stays untouched.
+ * @complexity O(body bytes), returning destination ranges only; no effects.
+ */
+function markdownLinkLocations({ body }: { body: string }, _optional = {}): HtmlUrlLocation[] {
+  return [...body.matchAll(/^- \[[^\r\n]*\]\(([^)\r\n]*)\)/gm)].map(match => ({
+    start: match.index! + match[0].length - match[1]!.length - 1,
+    end: match.index! + match[0].length - 1, kind: 'url',
+  }));
+}
+
+/** CSS, Markdown indexes, sitemap and manifest positions use their response format, never an HTML text scan. */
 export function exportUrlLocations({ body, contentType }: { body: string; contentType: string }, _optional = {}): HtmlUrlLocation[] {
   if (/^text\/html\b/i.test(contentType)) return htmlUrlLocations({ html: body });
   if (/^text\/css\b/i.test(contentType)) return cssUrlTokens(body).map(({ start, end }) => ({ start, end, kind: 'css' }));
+  if (/^text\/markdown\b/i.test(contentType)) return markdownLinkLocations({ body });
   if (/\bxml\b/i.test(contentType)) return [...body.matchAll(/<((?:[\w-]+:)?loc)>([^<]*)<\/\1>/g)].map(match => ({ start: match.index! + match[1]!.length + 2, end: match.index! + match[0].length - match[1]!.length - 3, kind: 'url' }));
   if (!/\bjson\b/i.test(contentType)) return [];
   try { JSON.parse(body); } catch { return []; }
