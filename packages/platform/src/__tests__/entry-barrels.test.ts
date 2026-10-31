@@ -3,6 +3,7 @@
 import { expect, test } from 'vitest';
 import * as net from '../net/index.js';
 import * as address from '../net/address.js';
+import * as localHttpProbe from '../net/local-http-probe.js';
 import * as web from '../web/index.js';
 import * as webPage from '../web/web-page.js';
 import * as htmlDocument from '../web/html-document.js';
@@ -11,9 +12,10 @@ import * as secretsTesting from '../secrets/testing.js';
 import { InMemoryKeyring } from '../secrets/keyring.memory.js';
 import { FixedRootKeyKeyring } from '../secrets/keyring.env.js';
 
-test('./net publishes the address classifiers by identity', () => {
-  expect(Object.keys(net).sort()).toEqual(['expandIpv6', 'isBlockedExternalApiHostname', 'isLoopbackApiHost', 'isLoopbackHostname', 'isPrivateAddress']);
-  for (const name of Object.keys(net) as (keyof typeof net)[]) expect(net[name]).toBe(address[name]);
+test('./net publishes the address classifiers and the loopback probe by identity', () => {
+  const expected = { ...address, ...localHttpProbe };
+  expect(Object.keys(net).sort()).toEqual(['expandIpv6', 'isBlockedExternalApiHostname', 'isLoopbackApiHost', 'isLoopbackHostname', 'isPrivateAddress', 'probeLoopbackHttp']);
+  for (const name of Object.keys(net) as (keyof typeof net)[]) expect(net[name]).toBe(expected[name]);
   expect(net.isPrivateAddress({ address: '10.0.0.1' })).toBe(true);
   expect(net.isPrivateAddress({ address: '203.0.113.1' })).toBe(false);
 });
