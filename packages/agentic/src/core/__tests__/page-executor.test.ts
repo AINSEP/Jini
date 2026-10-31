@@ -240,6 +240,35 @@ describe('page.highlight', () => {
 });
 
 describe('page.scroll_to and page.click', () => {
+  it('scrolls the surviving clicked control after the surface settles', async () => {
+    const order: string[] = [];
+    const observing = createFakeDriver({
+      click: vi.fn(async () => { order.push('click'); }),
+      settle: vi.fn(async () => { order.push('settle'); }),
+      scrollTo: vi.fn(async () => { order.push('scroll'); }),
+    });
+    await executePageCapability({ driver: observing, capabilityId: 'page.click', input: { handle: 'add-task-button' } });
+    expect(order).toEqual(['click', 'settle', 'scroll']);
+    expect(observing.scrollTo).toHaveBeenCalledWith({ handle: 'add-task-button' });
+  });
+
+  it('does not try to scroll a target removed by its click', async () => {
+    const removed = createFakeDriver({
+      click: vi.fn(async () => { removed.findElements = vi.fn(async () => []); }),
+    });
+    await expect(executePageCapability({ driver: removed, capabilityId: 'page.click', input: { handle: 'add-task-button' } }))
+      .resolves.toEqual({ clicked: 'add-task-button' });
+    expect(removed.scrollTo).not.toHaveBeenCalled();
+  });
+
+  it('reports expansion even when a disclosure keeps the same label and text', async () => {
+    const observing = createFakeDriver({ describeState: vi.fn()
+      .mockResolvedValueOnce({ text: 'Details', expanded: false, visible: true })
+      .mockResolvedValueOnce({ text: 'Details', expanded: true, visible: true }) });
+    await expect(executePageCapability({ driver: observing, capabilityId: 'page.click', input: { handle: 'add-task-button' } }))
+      .resolves.toMatchObject({ before: { expanded: false }, after: { expanded: true, visible: true }, targetChanged: true });
+  });
+
   it('scrolls to a handle', async () => {
     expect(await executePageCapability({ driver, capabilityId: 'page.scroll_to', input: { handle: 'add-task-button' } }))
       .toEqual({ scrolledTo: 'add-task-button' });
@@ -385,6 +414,56 @@ describe('page.select_option', () => {
 });
 
 describe('page.navigate', () => {
+  const navigation = { id: 'notes', label: 'Notes', description: 'Notes', path: '/notes',
+    routeTemplates: ['/notes'], allowedQueryParams: {}, entityTargets: [{ type: 'note', routeTemplate: '/notes' }] };
+
+  it('reveals an entity control and returns its state without activating it', async () => {
+    const order: string[] = [];
+    const entity = createFakeDriver({
+      listPages: vi.fn(async () => [{ id: 'notes', label: 'Notes', navigation }]),
+      navigate: vi.fn(async () => ({ path: '/notes', nextAction: { query: 'add-task', role: 'button' as const, intent: 'details' } })),
+      settle: vi.fn(async () => { order.push('settle'); }),
+      scrollTo: vi.fn(async () => { order.push('scroll'); }),
+      describeState: vi.fn(async () => ({ text: 'Details', expanded: false, visible: true })),
+    });
+    await expect(executePageCapability({ driver: entity, capabilityId: 'page.navigate', input: { page: 'notes', entity: { type: 'note', id: 'one' } } }))
+      .resolves.toMatchObject({ target: { handle: 'add-task-button', label: 'Submit the new task', state: { expanded: false, visible: true } } });
+    expect(entity.findElements).toHaveBeenCalledWith({}, { query: 'add-task', role: 'button' });
+    expect(entity.scrollTo).toHaveBeenCalledWith({ handle: 'add-task-button' });
+    expect(order).toEqual(['settle', 'scroll']);
+    expect(entity.click).not.toHaveBeenCalled();
+  });
+
+  it.each(['missing', 'ambiguous'])('leaves a %s entity control for discovery without guessing', async kind => {
+    const entity = createFakeDriver({
+      listPages: vi.fn(async () => [{ id: 'notes', label: 'Notes', navigation }]),
+      navigate: vi.fn(async () => ({ path: '/notes', nextAction: { query: kind === 'missing' ? 'absent' : '', role: 'button' as const, intent: 'details' } })),
+    });
+    // Two distinct buttons satisfy the ambiguous discovery query.
+    if (kind === 'ambiguous') entity.findElements = vi.fn(async () => [ELEMENTS[0]!, { ...ELEMENTS[0]!, handle: 'other-button' }]);
+    const result = await executePageCapability({ driver: entity, capabilityId: 'page.navigate', input: { page: 'notes', entity: { type: 'note', id: 'one' } } });
+    expect(result).not.toHaveProperty('target');
+    expect(result).toHaveProperty('nextAction');
+    expect(entity.scrollTo).not.toHaveBeenCalled();
+    expect(entity.click).not.toHaveBeenCalled();
+  });
+
+  it('distinguishes the details disclosure from other buttons for the same entity', async () => {
+    const entity = createFakeDriver({
+      listPages: vi.fn(async () => [{ id: 'notes', label: 'Notes', navigation }]),
+      navigate: vi.fn(async () => ({ path: '/notes', nextAction: { query: 'note', role: 'button' as const, intent: 'details' } })),
+      findElements: vi.fn(async () => ['details', 'inspect', 'remove'].map(action => ({
+        handle: `note-${action}`, role: 'button' as const, label: action, labelTruncated: false, page: 'notes',
+      }))),
+      describeState: vi.fn(async ({ handle }) => ({ text: handle, ...(handle === 'note-details' ? { expanded: false } : {}) })),
+    });
+    await expect(executePageCapability({ driver: entity, capabilityId: 'page.navigate', input: { page: 'notes', entity: { type: 'note', id: 'one' } } }))
+      .resolves.toMatchObject({ target: { handle: 'note-details', state: { expanded: false } } });
+    expect(entity.scrollTo).toHaveBeenCalledTimes(1);
+    expect(entity.scrollTo).toHaveBeenCalledWith({ handle: 'note-details' });
+    expect(entity.click).not.toHaveBeenCalled();
+  });
+
   it('navigates to a published page, reporting what was showing before and after', async () => {
     expect(await executePageCapability({ driver, capabilityId: 'page.navigate', input: { page: 'notes' } }))
       .toEqual({

@@ -68,6 +68,44 @@ afterEach(() => {
 });
 
 describe('findElements', () => {
+  it('smoothly centers the resolved entity after navigation without opening its details', async () => {
+    const scroll = vi.fn();
+    const navigation = { id: 'plugins', label: 'Plugins', description: 'Plugins', path: '/plugins',
+      routeTemplates: ['/plugins'], allowedQueryParams: {}, entityTargets: [{ type: 'plugin', routeTemplate: '/plugins' }] };
+    const driver = createDomPageDriver({ root, pages: { plugins: { label: 'Plugins', navigation, navigate: async () => {
+      root.innerHTML = '<section data-agent-page="plugins"><button data-agent-element="plugin-design-details" data-agent-role="button" aria-expanded="false">Design details</button><button data-agent-element="plugin-design-inspect" data-agent-role="button">Inspect</button></section>';
+      root.querySelector('button')!.scrollIntoView = scroll;
+      return { path: '/plugins', nextAction: { query: 'plugin-design', role: 'button', intent: 'details' } };
+    } } } });
+    const result = await executePageCapability({ driver, capabilityId: 'page.navigate', input: { page: 'plugins', entity: { type: 'plugin', id: 'design' } } });
+    expect(scroll).toHaveBeenCalledTimes(1);
+    expect(scroll).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' });
+    expect(result).toMatchObject({ target: { handle: 'plugin-design-details', state: { expanded: false } }, after: { page: 'plugins' } });
+    expect(root.querySelector('button')!.getAttribute('aria-expanded')).toBe('false');
+  });
+
+  it('clicks and smoothly centers a disclosure, returning its expanded post-state', async () => {
+    root.innerHTML = '<section data-agent-page="agent-lab"><button data-agent-element="plugin-details" data-agent-role="button" aria-expanded="false">Plugin details</button></section>';
+    const button = root.querySelector('button')!;
+    const scroll = vi.fn();
+    button.scrollIntoView = scroll;
+    button.addEventListener('click', () => button.setAttribute('aria-expanded', 'true'));
+    const result = await executePageCapability({ driver: makeDriver(), capabilityId: 'page.click', input: { handle: 'plugin-details' } });
+    expect(scroll).toHaveBeenCalledTimes(1);
+    expect(scroll).toHaveBeenCalledWith({ behavior: 'smooth', block: 'center' });
+    expect(result).toMatchObject({ before: { expanded: false }, after: { expanded: true }, targetChanged: true });
+  });
+
+  it('reads native details expansion through either its wrapper or summary handle', async () => {
+    root.innerHTML = '<details data-agent-element="details"><summary data-agent-element="summary">Details</summary><p>Body</p></details>';
+    const driver = makeDriver();
+    expect(await driver.describeState?.({ handle: 'details' })).toMatchObject({ expanded: false });
+    expect(await driver.describeState?.({ handle: 'summary' })).toMatchObject({ expanded: false });
+    root.querySelector('details')!.open = true;
+    expect(await driver.describeState?.({ handle: 'details' })).toMatchObject({ expanded: true });
+    expect(await driver.describeState?.({ handle: 'summary' })).toMatchObject({ expanded: true });
+  });
+
   it('lists every tagged element, skipping ones with no usable handle', async () => {
     const handles = (await makeDriver().findElements({}, {})).map((element) => element.handle);
     expect(handles).toEqual([

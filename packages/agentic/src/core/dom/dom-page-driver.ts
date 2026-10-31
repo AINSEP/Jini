@@ -192,6 +192,7 @@ function rawElementStateOf(
   _optional: Record<string, never> = {},
 ): AgentElementRawState {
   const text = publicTextOf(element);
+  const expanded = expansionOf({ element, control });
   return {
     text,
     // A contenteditable region has no `.value`; its content IS its value, so `text` is the
@@ -204,6 +205,7 @@ function rawElementStateOf(
     // driver deciding here which values are secret is a driver holding policy.
     ...(value !== undefined ? { value } : {}),
     ...(checkable ? { checked: (control as HTMLInputElement).checked } : {}),
+    ...(expanded !== undefined ? { expanded } : {}),
     ...(disabledOf(control) !== undefined ? { disabled: disabledOf(control) } : {}),
     ...(visibilityOf(element) !== undefined ? { visible: visibilityOf(element) } : {}),
     ...(readable !== null ? { field: readable } : {}),
@@ -215,6 +217,18 @@ function rawElementStateOf(
         }
       : {}),
   } satisfies AgentElementRawState;
+}
+
+/** Read disclosure semantics, not text changes: opening a panel often leaves its button unchanged.
+ * Native summaries have no aria-expanded; their owning details element carries the open state.
+ * @returns The platform's disclosure state, or undefined when this is not a disclosure control.
+ */
+function expansionOf({ element, control }: { element: Element; control: Element }, _options = {}): boolean | undefined {
+  const aria = control.getAttribute('aria-expanded') ?? element.getAttribute('aria-expanded');
+  if (aria === 'true' || aria === 'false') return aria === 'true';
+  if (element instanceof HTMLDetailsElement) return element.open;
+  if (control.matches('summary') && control.parentElement instanceof HTMLDetailsElement) return control.parentElement.open;
+  return undefined;
 }
 
 /**

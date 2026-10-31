@@ -119,6 +119,8 @@ export interface AgentElementState {
   readonly valueWithheld?: string;
   /** Checkbox/radio state. Absent when the element is neither. */
   readonly checked?: boolean;
+  /** Disclosure state from aria-expanded or a native details element; absent for other controls. */
+  readonly expanded?: boolean;
   readonly disabled?: boolean;
   /** False when the element is present in the DOM but not rendered. */
   readonly visible?: boolean;
@@ -154,6 +156,8 @@ export interface AgentElementRawState {
   /** Raw field contents, reported unconditionally; the executor applies the read guard. */
   readonly value?: string | undefined;
   readonly checked?: boolean | undefined;
+  /** Raw disclosure state; the executor preserves it for action verification. */
+  readonly expanded?: boolean | undefined;
   readonly disabled?: boolean | undefined;
   readonly visible?: boolean | undefined;
   /** Present when the element resolves to a field, so the executor can apply the read guard. */

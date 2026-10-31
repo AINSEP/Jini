@@ -84,7 +84,7 @@ export const PAGE_CAPABILITIES: readonly CapabilityDef[] = [
   {
     id: 'page.click',
     description:
-      'Activate one control — a button, link or checkbox. This carries whatever that control actually does, which may be irreversible, so prefer page.highlight first when you are not certain you have the right target. Returns the target\'s state before and after, so you can check the click landed instead of assuming it did; other parts of the page may have changed too, which only page.find_elements will show.',
+      'Activate one control — a button, link or checkbox — and scroll its surviving target into view. This carries whatever that control actually does, which may be irreversible, so prefer page.highlight first when you are not certain you have the right target. Returns the target\'s state before and after, including expanded for disclosure controls. Confirm the observed after state before saying it opened or completed; a clicked handle alone is not proof. If inconclusive, inspect with page.find_elements and withState; other parts of the page may have changed too.',
     inputSchema: {
       type: 'object',
       properties: { ...HANDLE_PROPERTY },

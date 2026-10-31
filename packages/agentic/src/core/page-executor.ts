@@ -30,7 +30,7 @@ import {
   normalizeAgentLabel,
 } from './guards.js';
 import { PAGE_CAPABILITIES } from './page-capabilities.js';
-import type { PageNavigationInput } from './page-navigation.js';
+import type { PageNavigationInput, PageNavigationResult } from './page-navigation.js';
 import type { PageDriver, PageSummary } from './page-driver.js';
 
 /** Default marker lifetime, long enough to notice and short enough not to linger. */
@@ -172,6 +172,7 @@ function projectOptionalState(
 ): Partial<AgentElementState> {
   return {
     ...(raw.checked !== undefined && refusal === null ? { checked: raw.checked } : {}),
+    ...(raw.expanded !== undefined ? { expanded: raw.expanded } : {}),
     ...(raw.disabled !== undefined ? { disabled: raw.disabled } : {}),
     ...(raw.visible !== undefined ? { visible: raw.visible } : {}),
     // Bounded like every other page-authored string, but never withheld: the options a dropdown
@@ -214,7 +215,8 @@ function sameElementState(a: AgentElementState, b: AgentElementState): boolean {
     // honest "no caller may observe whether it did".
     && a.textWithheld === b.textWithheld;
   const sameValue = a.value === b.value && a.valueWithheld === b.valueWithheld;
-  const sameFlags = a.checked === b.checked && a.disabled === b.disabled && a.visible === b.visible;
+  const sameFlags = a.checked === b.checked && a.disabled === b.disabled && a.visible === b.visible
+    && a.expanded === b.expanded;
   return sameText && sameValue && sameFlags;
 }
 
@@ -309,6 +311,7 @@ export async function executePageCapability({ driver, capabilityId, input }: { d
     case 'page.click': {
       const handle = requireHandle(input, 'handle');
       const observation = await observeWrite(driver, handle, () => driver.click({ handle }));
+      await revealClickedElement({ driver, handle });
       return { clicked: handle, ...observation };
     }
 
@@ -468,7 +471,38 @@ async function navigatePage(
   const destination = await driver.navigate({ page, ...navigation });
   if (driver.settle !== undefined) await driver.settle({});
   const after = await summarizePage(driver);
-  return { navigatedTo: page, ...destination, before, after };
+  const target = navigation.entity && destination && destination.nextAction
+    ? await revealNavigationTarget({ driver, control: destination.nextAction }) : undefined;
+  return { navigatedTo: page, ...destination, before, after, ...(target ? { target } : {}) };
+}
+
+/** Reveal the surviving target after rendering; a click may remove itself or replace its node.
+ * Reuse the driver's scroll primitive so every frontend bridge gets the same behavior.
+ * @complexity O(n) in published controls; no extra action or observation of unrelated fields.
+ */
+async function revealClickedElement(
+  { driver, handle }: { driver: PageDriver; handle: string }, _options = {},
+): Promise<void> {
+  const matches = (await driver.findElements({}, { query: handle })).filter(element => element.handle === handle);
+  if (matches.length === 1) await driver.scrollTo({ handle });
+}
+
+/** Reveal only an unambiguous, published entity control. Never activate the follow-up action.
+ * Returns the existing bounded, secret-filtered element projection for same-call verification.
+ * @complexity O(n) in published controls; state reads retain MAX_STATEFUL_ELEMENTS's cap.
+ */
+async function revealNavigationTarget(
+  { driver, control }: { driver: PageDriver; control: NonNullable<PageNavigationResult['nextAction']> }, _options = {},
+): Promise<PageElementResult | undefined> {
+  const result = await findPageElements({ driver, input: { query: control.query, role: control.role, withState: true } });
+  // An entity row can also publish Inspect and Remove buttons. Disclosure semantics identify
+  // Details without inventing a handle suffix or activating a different control in that row.
+  const candidates = result.elements.length > 1 && control.intent === 'details'
+    ? result.elements.filter(element => element.state?.expanded !== undefined) : result.elements;
+  const target = candidates[0];
+  if (candidates.length !== 1 || !target || !isValidElementHandle({ handle: target.handle })) return undefined;
+  await driver.scrollTo({ handle: target.handle });
+  return target;
 }
 
 /** Boundary schema has already checked object fields; omit absent keys for existing drivers. */
