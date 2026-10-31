@@ -13,8 +13,9 @@ function record({ value }: { value: unknown }, _options = {}): Record<string, un
   return isNonArrayRecord(candidate) ? candidate.value : {};
 }
 
-/** Project inline JSON-schema property copy into the existing dotted-path label contract.
- * No reference resolution or schema validation; unknown fields keep the renderer's fallback.
+/** Project inline JSON-schema property titles into the existing dotted-path label contract.
+ * Only `title`: `description` is guidance written for the model (often a paragraph), not a label;
+ * untitled fields keep the renderer's humanized-key fallback. No reference resolution or validation.
  * @complexity O(n * depth) time and space in property-path bytes; no effects or input mutation. */
 function schemaLabels(
   { schema, path = '' }: { schema: unknown; path?: string },
@@ -24,7 +25,7 @@ function schemaLabels(
   return Object.fromEntries(Object.entries(properties).flatMap(([key, property]) => {
     const field = record({ value: property });
     const fieldPath = path ? `${path}.${key}` : key;
-    const label = nonBlank({ value: field.title }) ?? nonBlank({ value: field.description });
+    const label = nonBlank({ value: field.title });
     return [
       ...(label ? [[fieldPath, text({ key: label })]] : []),
       ...Object.entries(schemaLabels({ schema: field, path: fieldPath }, { text })),

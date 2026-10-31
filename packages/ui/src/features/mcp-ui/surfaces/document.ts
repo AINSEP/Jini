@@ -72,6 +72,11 @@ body {
 }
 .mcpui-details dt { color: var(--jini-mcpui-text-soft); font-weight: 500; overflow-wrap: anywhere; }
 .mcpui-details dd { margin: 0; overflow-wrap: anywhere; color: var(--jini-mcpui-text); }
+.mcpui-details dt .mcpui-hint { display: block; font-weight: 400; }
+/* A nested group (a tool's input fields) gets the card's full width, not the narrow value column. */
+.mcpui-details > dt:has(+ dd > .mcpui-detail-group),
+.mcpui-details > dd:has(> .mcpui-detail-group) { grid-column: 1 / -1; }
+.mcpui-details > dt:has(+ dd > .mcpui-detail-group) { margin-bottom: 6px; }
 .mcpui-details-outcome { display: flex; flex-direction: column; gap: 8px; }
 .mcpui-outcome-row { display: flex; align-items: flex-start; gap: 14px; }
 .mcpui-outcome-row dt { flex: 1; min-width: 0; overflow-wrap: anywhere; }

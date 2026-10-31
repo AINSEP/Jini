@@ -671,26 +671,26 @@ it('an alternative submit action collects checked fields and carries its own act
 describe('renderFormDocument exact output', () => {
   const digest = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex');
   const cases: ReadonlyArray<readonly [string, FormSurfaceSpec, string]> = [
-    ['shared spec with an untargeted cancel', SPEC, '5bc78af32fb2c56c9a329220fb597c684e2a48756bf9bd145d8360ffc245a701'],
-    ['minimal spec with no cancel', { title: 'T', fields: [], submitLabel: 'Go', toolName: 'tool' }, '471aed655ff6352fa068e265342bd5565381764bc0ea82829ff390d91a3665a5'],
+    ['shared spec with an untargeted cancel', SPEC, '6d3631428d4bf2e5ffbac68090c6fb0870bd2f663775f8036be4356d7c6f8930'],
+    ['minimal spec with no cancel', { title: 'T', fields: [], submitLabel: 'Go', toolName: 'tool' }, '6e0e6e9229d1ae14d1c93d9c52c154868b6afcc7c471109e23512e37fcbd5c73'],
     ['every option, with a tool-routed cancel', {
       ...SPEC, warning: 'Careful <now>', danger: true,
       fields: [...SPEC.fields, { kind: 'string', name: 'key', label: 'Key', secret: true, multiline: true }],
       additionalSubmitActions: [{ id: 'later', label: 'Later', params: { when: 'later' } }],
       cancel: { label: 'Stop', toolName: 'cancel_tool', params: { reason: 'x' } },
       text: { working: 'W', showSecret: 'Reveal' }, app: { appName: 'a', appVersion: '2' }, lang: 'fr', tokens: { '--jini-mcpui-bg': '#000' },
-    }, '0513e25bd3ff5203a64a927b2cd624b27a8fd3347424e7054c7f72abd7054b27'],
-    ['a cancel tool with no params', { ...SPEC, cancel: { label: 'Stop', toolName: 'cancel_tool' } }, 'aa581b262ebbf2ea6b6057ddcbeb3400d5641244506545bd44cfc9e371f708ea'],
+    }, '24047acfbc88f6c549677bd613bf314bfbdb2df37ed92371162e060af74035fb'],
+    ['a cancel tool with no params', { ...SPEC, cancel: { label: 'Stop', toolName: 'cancel_tool' } }, '2dad1bb84506c4d0980c25b10573f52ffa3967915ccfd39b51b2bf44cd5a0f71'],
   ];
   it.each(cases)('%s', (_name, spec, expected) => {
     expect(digest(renderFormDocument(spec))).toBe(expected);
   });
 
   it('pins the framed resource wrapper', () => {
-    expect(digest(buildFormSurface({ ...SPEC, uri: 'ui://h/f/1', preferredFrameSize: ['1px', '2px'] }))).toBe('98d145766692c00a15574ccb2f3e0c372824b793af4780111e4aff4f8eb14185');
+    expect(digest(buildFormSurface({ ...SPEC, uri: 'ui://h/f/1', preferredFrameSize: ['1px', '2px'] }))).toBe('9a83d8785103c5ffb19b8fbdacfc2cbe04c919a8c71048476d879a6683b2154c');
   });
 
   it('pins the unframed resource wrapper', () => {
-    expect(digest(buildFormSurface({ ...SPEC, uri: 'ui://h/f/2' }))).toBe('a57b2a03e9ac5098bf56df8da2c2442109e8b29b296967ae71ea7058e97d2271');
+    expect(digest(buildFormSurface({ ...SPEC, uri: 'ui://h/f/2' }))).toBe('48b0339406d6787f6a63fa5e94b980f32468e0300e4904a437d7dde5039603da');
   });
 });

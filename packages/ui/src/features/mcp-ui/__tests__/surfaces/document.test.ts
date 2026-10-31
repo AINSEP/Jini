@@ -133,6 +133,10 @@ describe('renderDetailList', () => {
     expect(SURFACE_BASE_CSS).not.toMatch(/\.mcpui-details \{[^}]*max-content/);
     expect(SURFACE_BASE_CSS).toMatch(/\.mcpui-details dt \{[^}]*overflow-wrap: anywhere;/);
     expect(SURFACE_BASE_CSS).toMatch(/\.mcpui-details dd \{[^}]*overflow-wrap: anywhere;/);
+    // A label's description is its own muted line, never run into the label ("InputTechnical name").
+    expect(SURFACE_BASE_CSS).toMatch(/\.mcpui-details dt \.mcpui-hint \{[^}]*display: block;/);
+    // A value that is a nested group takes the full card width instead of the narrow value column.
+    expect(SURFACE_BASE_CSS).toMatch(/\.mcpui-details > dt:has\(\+ dd > \.mcpui-detail-group\),\s*\.mcpui-details > dd:has\(> \.mcpui-detail-group\) \{[^}]*grid-column: 1 \/ -1;/);
   });
 
   it('stacks label above value in narrow frames without touching the outcome layout', () => {

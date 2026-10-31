@@ -28,21 +28,21 @@ describe('tool approval presentation', () => {
     });
   });
 
-  it('uses schema titles, then descriptions, and leaves other labels to the shared renderer', () => {
+  it('labels fields by schema title or humanized key, never by the model-facing description', () => {
     const inputSchema = { properties: {
       projectName: { title: 'Site name', description: 'Title takes precedence' },
-      target: { description: 'Hosting provider' },
+      target: { description: 'Which hosting provider to publish to: call get_capabilities first; a host listed with supported: false is refused.' },
       config: { properties: { branchName: { title: 'Release branch' } } },
       privacyPolicyUrl: { type: 'string' },
     } };
     const { labels } = toolApprovalPresentation({ descriptor: { id: 'publish', inputSchema } }, { text });
-    expect(labels).toEqual({ projectName: 'Site name', target: 'Hosting provider', 'config.branchName': 'Release branch' });
+    expect(labels).toEqual({ projectName: 'Site name', 'config.branchName': 'Release branch' });
     const html = renderDetailList([{ label: 'Input', labels, value: {
       projectName: 'new-site', target: 'host', config: { branchName: 'main' }, privacyPolicyUrl: '/privacy',
     } }]);
     const doc = new DOMParser().parseFromString(html, 'text/html');
     expect([...doc.querySelectorAll('dt')].map(node => node.textContent)).toEqual([
-      'Input', 'Site name', 'Hosting provider', 'Config', 'Release branch', 'Privacy policy URL',
+      'Input', 'Site name', 'Target', 'Config', 'Release branch', 'Privacy policy URL',
     ]);
   });
 

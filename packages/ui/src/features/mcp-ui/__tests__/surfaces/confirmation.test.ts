@@ -746,20 +746,20 @@ describe('renderConfirmationDocument exact output', () => {
     text: { working: 'W' }, app: { appName: 'a', appVersion: '2' }, lang: 'fr', tokens: { '--jini-mcpui-bg': '#000' },
   } as const;
   const cases: ReadonlyArray<readonly [string, Parameters<typeof renderConfirmationDocument>[0], string]> = [
-    ['tool-routed cancel', DELETE_POST, '0b9964fd69f0a545e9cc4c93ed4f58e6a35e9f487a71f211f8348574ba36a839'],
-    ['minimal with no cancel', { title: 'T', confirm: { label: 'Yes', toolName: 't', params: {} } }, 'f94c9f8866cd812d45f523e8f9c2d2dda8e98e8e8a7fdc931283531f27fee761'],
-    ['local-only cancel', { title: 'T', confirm: { label: 'Yes', toolName: 't', params: {} }, cancel: { label: 'No' } }, '662e25a79b23e4d689bf55b5ff0441ec34db1ea5feb22c144c2cba8251b4766d'],
-    ['choices, alternatives and every option', FULL, 'a302b5c7db27ffe907bcff95ad0c0750da30860a7f47778aea805e8e6a49cbad'],
+    ['tool-routed cancel', DELETE_POST, 'a50943210fb1f5a939d04fa118825fb03b46d5ca4e68ff2416b708b94e585cd3'],
+    ['minimal with no cancel', { title: 'T', confirm: { label: 'Yes', toolName: 't', params: {} } }, 'd804da2a45ee580bacd6013d2b2318a6905087be9920e4ab0896f915fd0320d9'],
+    ['local-only cancel', { title: 'T', confirm: { label: 'Yes', toolName: 't', params: {} }, cancel: { label: 'No' } }, '1e264cd034a4bd480bdc68d2d7b07dbe85c2fcad2b80ae31bfc3d3b1eb862fc2'],
+    ['choices, alternatives and every option', FULL, '15cc40d2019cbddf2aa41f04ae58cc77bbc7e003756e33e28da6b558be24357f'],
   ];
   it.each(cases)('%s', (_name, spec, expected) => {
     expect(digest(renderConfirmationDocument(spec))).toBe(expected);
   });
 
   it('pins the framed, expiring resource wrapper and its action plan', () => {
-    expect(digest(buildConfirmationSurface({ ...FULL, uri: 'ui://h/c/1', preferredFrameSize: ['1px', '2px'], expiresAtMs: 123 }))).toBe('43b29adc0f1bfceedb492f8eb3330e4c8b92ea4ccf9ff1d988a473e8d7411175');
+    expect(digest(buildConfirmationSurface({ ...FULL, uri: 'ui://h/c/1', preferredFrameSize: ['1px', '2px'], expiresAtMs: 123 }))).toBe('fc617bf57bad4fc36b597abaf2ef2555646bbb0f752c295a8a15b492150601f6');
   });
 
   it('pins the bare resource wrapper', () => {
-    expect(digest(buildConfirmationSurface({ title: 'T', confirm: { label: 'Yes', toolName: 't', params: {} }, uri: 'ui://h/c/2' }))).toBe('adaa68dec3ebcc0cc32b0753fb67d19070e9c53b85ea524b2ebd331f281d37bd');
+    expect(digest(buildConfirmationSurface({ title: 'T', confirm: { label: 'Yes', toolName: 't', params: {} }, uri: 'ui://h/c/2' }))).toBe('07804f8f0c611e03633df46079513d5fdfce3ef58dafec793a946eb2489e58db');
   });
 });

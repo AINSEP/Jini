@@ -428,13 +428,13 @@ describe('secret-card exact emitted output', () => {
     f.setAnswer({ status: 'received', params: { token: CANARY, label: 'Changed' } });
     expect(await f.run()).toEqual({ saved: true, id: 'saved-1' });
     expect(f.save.mock.calls).toEqual([[{ values: { token: CANARY, label: 'Changed' }, prep: { target: 'entry-1' }, signal: f.ctx.signal }]]);
-    expect(digest(f.emissions)).toBe('4a050f26341658947f4524ef4e62540520935b781ef52453308d547a48ba5236');
+    expect(digest(f.emissions)).toBe('b3e9481866c368af7e53cad5470757da39d4125f23fa1ed77b011f7e37406d23');
   });
 
   it('pins the default-option form, options cancel label fallback and success outcome', async () => {
     const f = fixture({ text: { cancelLabel: 'Options cancel' } });
     expect(await f.run()).toEqual({ saved: true, id: 'saved-1' });
-    expect(digest(f.emissions)).toBe('d3044a8cf4e694bd3ce188189c9e79e89773399ed7c5d23898b366a029d35e1e');
+    expect(digest(f.emissions)).toBe('78b069cacc5f0b0867de8e7e84849ab6a21dd6e133334638c7c83229c406777e');
   });
 
   it('pins the redacted failure outcome, result and fixed log metadata', async () => {
@@ -444,7 +444,7 @@ describe('secret-card exact emitted output', () => {
     const output = await f.run();
     expect(output).toEqual({ saved: false, reason: 'failed', message: 'Rejected [REDACTED:exact_secret]' });
     expect(logFailure.mock.calls).toEqual([[{ toolId: 'save_credential', exchangeId: 'exchange-1', saved: false }]]);
-    expect(digest(f.emissions)).toBe('f83a649c5db6a36e873c53aa6a475e61a82fa7dc1081065ff12fed9a35975e34');
+    expect(digest(f.emissions)).toBe('d1fd335162f902bd55dccaf297ff9a04f0d413a0cc35655864fcb13e4a4aedfa');
   });
 
   it.each([
@@ -456,7 +456,7 @@ describe('secret-card exact emitted output', () => {
     f.setAnswer(answer);
     expect(await f.run()).toEqual({ saved: false, reason });
     expect(f.save).not.toHaveBeenCalled();
-    expect(digest(f.emissions)).toBe('8b56c9a6832096537f4324604dca8af6a778f029e972b84b85aac929cc2c76f9');
+    expect(digest(f.emissions)).toBe('e6fc984cbfc14719f839ec170c716e6ca98bae1a59602a9470a28e962b8f8148');
   });
 
   it('an abort raised while the submitted values are read wins over the save', async () => {
