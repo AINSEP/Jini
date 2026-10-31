@@ -2,7 +2,7 @@
  * The Jini banner is a client of the public API, exactly like an owner's own ("My own") banner. */
 import { OPEN_EVENT, OPTIONAL, type Choices, type ConsentAction, type ConsentState, type Flags, type JiniConsentApi, type Optional, type StoragePrefixes } from '../contract.js';
 
-const INERT = 'script[type="text/plain"][data-consent-category],iframe[data-consent-category][data-src]';
+const INERT = 'script[type="text/plain"][data-consent-category],iframe[data-consent-category][data-src],template[data-jini-consent-resource]';
 const SKIP: readonly string[] = ['type', 'data-src', 'data-type', 'data-consent-category'];
 // Not <html>: the client sets html[data-consent-open] while the banner shows, and every click's closest() would hit it.
 const OPENERS = ':not(html)[data-consent-open],a[href="#privacy-choices"]';
@@ -39,15 +39,17 @@ export function purge(doc: Document, storage?: StoragePrefixes): void {
   } catch { /* no storage: nothing to purge */ }
 }
 
-// MOVED-FROM: @jini-ai/cms consent/html/client.ts template release (ordered, each template consumed once).
+// Resource templates are owned by the CMS gate; consume its output rather than re-encoding subtrees.
 // Follow-up (P4): delete the cms runtime once the consumer inserts this client.
 /** Allowed inert tags become live, in authored order (async=false). Unknown labels stay inert.
  * @complexity O(inert tags). */
 export function activateInert(doc: Document, { allowed, ran }: { allowed: Choices; ran: Set<Optional> }): void {
   doc.querySelectorAll<HTMLElement>(INERT).forEach(node => {
-    const category = node.dataset.consentCategory as Optional;
+    const category = (node.tagName === 'TEMPLATE' ? node.dataset.category : node.dataset.consentCategory) as Optional;
     if (!OPTIONAL.includes(category) || !allowed[category]) return;
     ran.add(category);
+    // Moving the fragment consumes the wrapper once and preserves the gate's markup and position.
+    if (node.tagName === 'TEMPLATE') { node.replaceWith((node as HTMLTemplateElement).content); return; }
     if (node.tagName === 'IFRAME') { node.setAttribute('src', node.dataset.src!); node.removeAttribute('data-src'); return; }
     node.replaceWith(liveScript(doc, node as HTMLScriptElement));
   });
