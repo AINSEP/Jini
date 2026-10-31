@@ -49,6 +49,8 @@ export interface SentryConfigEnabled {
 export type SentryClient = Pick<NodeClient, "close" | "getOptions">;
 
 export interface SentryAdapterOptions extends ProviderTelemetryOptions {
+  /** Host policy, separate from configuration and consent. Missing permission denies export. */
+  exportEnabled?: boolean;
   /** Test seam: a transport that records envelopes instead of sending them. */
   transport?: NodeOptions["transport"];
   /** A client the host already initialized: reused as-is, never closed by `dispose`. */
@@ -68,8 +70,10 @@ function sanitizedError(error: unknown): Error {
   return sanitized;
 }
 
-function privateClient({ config }: { config: SentryConfigEnabled }, { transport }: { transport?: NodeOptions["transport"] | undefined }): NodeClient {
+/** Build a private SDK client; enabled gates its outbound transport without changing local admission. */
+function privateClient({ config }: { config: SentryConfigEnabled }, { transport, exportEnabled }: SentryAdapterOptions): NodeClient {
   return new NodeClient({
+    enabled: exportEnabled === true,
     dsn: config.dsn, environment: config.environment, tracesSampleRate: config.tracesSampleRate,
     ...(config.release === undefined ? {} : { release: config.release }),
     // No default integrations: they patch globals. Collect nothing personal (Sentry 11's successor to
@@ -93,12 +97,15 @@ function minidumpEndpoint({ dsn }: { dsn: string }, _options = {}): string | und
 }
 
 /**
- * @returns `{ port, dispose }`: operations become Sentry spans and error reports become events;
+ * @param options Host export permission, SDK seams and local diagnostics. Missing permission denies.
+ * @returns `{ port, dispose }`: allowed operations/errors reach Sentry; denied errors still admit
+ *   locally, and native upload configuration is withheld;
  *   `dispose` closes a private client (removing the SDK's `beforeExit` listeners) and never throws.
  * @throws SDK construction errors (an invalid DSN) during setup.
  * @complexity O(1) per signal, excluding the SDK's own buffered send.
  */
 export function createSentryObservabilityAdapter({ config }: { config: SentryConfigEnabled }, options: SentryAdapterOptions = {}): ObservabilityAdapter {
+  const exportEnabled = options.exportEnabled === true;
   const owned = options.client === undefined;
   const reporter = createProviderTelemetryReporter({ endpoint: config.dsn }, options);
   const transport: NonNullable<NodeOptions["transport"]> = (input) => {
@@ -116,8 +123,8 @@ export function createSentryObservabilityAdapter({ config }: { config: SentryCon
       }
     } };
   };
-  const client = (options.client ?? privateClient({ config }, { transport })) as NodeClient;
-  const submitURL = minidumpEndpoint({ dsn: config.dsn });
+  const client = (options.client ?? privateClient({ config }, { transport, exportEnabled })) as NodeClient;
+  const submitURL = exportEnabled ? minidumpEndpoint({ dsn: config.dsn }) : undefined;
   const active = new AsyncLocalStorage<Span>();
   // A span keeps the scope it started in, so tags set here reach its transaction as well as exceptions.
   const inClient = <T>(fn: () => T): T => withScope((scope) => { scope.setClient(client); scope.setTags(config.tags ?? {}); return fn(); });
@@ -128,6 +135,8 @@ export function createSentryObservabilityAdapter({ config }: { config: SentryCon
       return { submitURL, globalExtra: { sentry: JSON.stringify({ release, environment }) } };
     } } : {}),
     trackOperation({ name, attributes = {} }) {
+      // A host-owned enabled client must never receive denied spans. Work still runs locally.
+      if (!exportEnabled) return createNoopObservabilityPort({}).trackOperation({ name, attributes });
       const parentSpan = active.getStore();
       const safe = redactOperationAttributes({ attributes });
       const span = inClient(() => (parentSpan
@@ -146,6 +155,9 @@ export function createSentryObservabilityAdapter({ config }: { config: SentryCon
       };
     },
     reportError({ error, context }) {
+      // Denied export is still an admitted local handoff, preserving request deduplication.
+      // The private client's SDK enabled flag also gates delivery; borrowed clients stay untouched.
+      if (!exportEnabled && !owned) return undefined;
       try {
         const span = active.getStore();
         const capture = () => captureException(sanitizedError(error), { ...(context.level ? { level: context.level } : {}), tags: { operation: context.operation }, contexts: {
@@ -160,7 +172,7 @@ export function createSentryObservabilityAdapter({ config }: { config: SentryCon
       }
     },
   };
-  reporter.initialized({ message: "Sentry reporting" });
+  reporter.initialized({ message: exportEnabled ? "Sentry reporting" : "Sentry export disabled" });
   return {
     port,
     dispose: async () => {

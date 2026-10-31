@@ -18,6 +18,7 @@
  * `page-executor.ts` runs before the driver is called.
  */
 import type { AgentElementDescriptor, AgentElementRawState, AgentElementRole } from './element-handles.js';
+import type { AgentNavigationScreen, PageNavigationInput, PageNavigationResult } from './page-navigation.js';
 import type { FieldDescriptor } from './guards.js';
 
 /** Filter for {@link PageDriver.findElements}. Both fields are optional; absent means "no filter". */
@@ -39,6 +40,7 @@ export interface FindElementsFilter {
 export interface PageSummary {
   readonly id: string;
   readonly label: string;
+  readonly navigation?: AgentNavigationScreen;
 }
 
 /**
@@ -102,7 +104,7 @@ export interface PageDriver {
   selectOption(required: { handle: string; option: string }, optional?: { selected?: boolean | undefined }): Promise<void>;
 
   /** Called only after `page` has been checked against {@link PageDriver.listPages}. */
-  navigate(required: { page: string }, _optional?: Record<string, never>): Promise<void>;
+  navigate(required: { page: string } & PageNavigationInput, _optional?: Record<string, never>): Promise<void | PageNavigationResult>;
 
   /**
    * What the element currently is: its live text, a field's contents, checked/disabled/visible.

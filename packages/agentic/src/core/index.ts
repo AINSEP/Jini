@@ -163,3 +163,6 @@ export {
 export { defaultAgenticMessages } from "./messages.js";
 export { createAnnotatedActionsScript } from './annotated-actions-script.js';
 export * from './site-guide/index.js';
+
+export { resolvePageNavigation, validatePageLink } from './page-navigation.js';
+export type { AgentNavigationScreen, AgentEntityTarget, PageNavigationInput, PageNavigationResult, ResolvedPageEntity, PageEntityLookup } from './page-navigation.js';

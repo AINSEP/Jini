@@ -6,8 +6,9 @@ import { metrics } from "@opentelemetry/api";
 import { AggregationTemporality, DataPointType, InMemoryMetricExporter, PeriodicExportingMetricReader } from "@opentelemetry/sdk-metrics";
 import { createTracker } from "@jini-ai/diagnostics/observability/node";
 import type { ProviderTelemetryReport } from "@jini-ai/diagnostics/observability";
-import { createOpenTelemetryProvider } from "../observability-opentelemetry/index.js";
+import { createOpenTelemetryProvider as openTelemetryProvider } from "../observability-opentelemetry/index.js";
 
+const createOpenTelemetryProvider: typeof openTelemetryProvider = (required, optional = {}) => openTelemetryProvider(required, { exportEnabled: true, ...optional });
 const CONFIG = { serviceName: "metric-test", tracerName: "metric-scope", endpoint: "https://collector.test/otlp", auth: "none" };
 
 test("the SDK aggregates counter increments, defaults to last-value gauge, and exports histogram units and safe attributes", async () => {

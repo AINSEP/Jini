@@ -63,6 +63,8 @@ export interface FrontendCapabilitySpec {
   readonly description: string;
   /** Surfaced on the descriptor so `ToolExecutor`'s confirmation gate enforces it. */
   readonly requiresConfirmation?: boolean;
+  /** Protected page calls require a browser that supplies the human dialog channel. */
+  readonly requiresFrontendApproval?: boolean;
   /** Carried onto `ToolDescriptor.inputSchema` so a discovery surface can state the arguments. */
   readonly inputSchema?: unknown;
 }
@@ -152,10 +154,15 @@ export function createFrontendCapabilityRegistrations(requiredArgs: Pick<CreateF
     policy,
     // `ctx.signal` is `ToolExecutor`'s own timeout/cancel signal, so the descriptor's `timeoutMs`
     // and a cancelled run both reach the pending invocation without this module owning a timer.
-    handler: async (ctx) =>
-      registry.invoke(
+    handler: async (ctx, options) => {
+      // page.approval advertises the bound tab's human dialog, not an executable tool.
+      if (capability.requiresFrontendApproval && registry.sessionFor({ runId: ctx.run.id }) && !registry.capabilitiesFor({ runId: ctx.run.id }).includes('page.approval')) {
+        throw new Error('Attached frontend has no page approval dialog; reload the page.');
+      }
+      return registry.invoke(
         { runId: ctx.run.id, capabilityId: capability.id, input: toCapabilityInput(capability.id, ctx.input) },
-        { signal: ctx.signal },
-      ),
+        { signal: ctx.signal, ...(options?.onApprovalStateChange ? { onApprovalStateChange: options.onApprovalStateChange } : {}) },
+      );
+    },
   }));
 }

@@ -572,3 +572,59 @@ describe('createFrontendSessionRegistry', () => {
     });
   });
 });
+
+it('an originating tab token isolates two tabs; missing/stale bindings never choose an available tab', async () => {
+  const registry = createFrontendSessionRegistry({});
+  const first = recordingSurface(); const second = recordingSurface();
+  const a = registry.attach({ descriptor: { sessionId: 'tab-a', capabilities: ['page.navigate'] }, deliver: first.deliver });
+  const b = registry.attach({ descriptor: { sessionId: 'tab-b', capabilities: ['page.navigate'] }, deliver: second.deliver });
+  registry.bindRunByToken({ runId: 'run-b', bindToken: b.bindToken });
+  const result = registry.invoke({ runId: 'run-b', capabilityId: 'page.navigate', input: { page: 'plugins' } });
+  expect(first.delivered).toEqual([]);
+  expect(second.delivered).toHaveLength(1);
+  registry.settle({ sessionId: 'tab-b', invocationId: second.delivered[0]!.invocationId, outcome: { ok: true, output: 'opened' } });
+  expect(await result).toBe('opened');
+  await expect(registry.invoke({ runId: 'unbound', capabilityId: 'page.navigate', input: {} })).rejects.toThrow('no frontend');
+  b.detach({});
+  expect(() => registry.bindRunByToken({ runId: 'stale', bindToken: b.bindToken })).toThrow('expired');
+  expect(first.delivered).toEqual([]);
+  a.detach({});
+});
+
+it('only the originating session can report human waiting, and cancellation consumes the pending invocation', async () => {
+  const registry = createFrontendSessionRegistry({});
+  const surface = recordingSurface(); const cancel = vi.fn(); const progress = vi.fn();
+  const handle = registry.attach({ descriptor: { sessionId: 'tab', capabilities: ['page.click'] }, deliver: surface.deliver, cancel });
+  registry.bindRunByToken({ runId: 'run', bindToken: handle.bindToken });
+  const controller = new AbortController();
+  const result = registry.invoke({ runId: 'run', capabilityId: 'page.click', input: { handle: 'details' } }, { signal: controller.signal, onApprovalStateChange: progress });
+  const invocationId = surface.delivered[0]!.invocationId;
+  expect(registry.progress({ sessionId: 'other-tab', invocationId, pending: true })).toBe(false);
+  expect(progress).not.toHaveBeenCalled();
+  expect(registry.progress({ sessionId: 'tab', invocationId, pending: true })).toBe(true);
+  expect(progress).toHaveBeenCalledWith({ pending: true });
+  controller.abort();
+  await expect(result).rejects.toThrow('cancelled');
+  expect(cancel).toHaveBeenCalledOnce();
+  expect(cancel).toHaveBeenCalledWith({ invocationId });
+  expect(registry.progress({ sessionId: 'tab', invocationId, pending: false })).toBe(false);
+  expect(registry.settle({ sessionId: 'tab', invocationId, outcome: { ok: true, output: 'late' } })).toBe(false);
+});
+
+
+it('records only one modal outcome from the bound pending session', async () => {
+  const registry = createFrontendSessionRegistry({});
+  const surface = recordingSurface(); const progress = vi.fn();
+  registry.attach({ descriptor: { sessionId: 'tab', capabilities: ['page.click'] }, deliver: surface.deliver });
+  registry.bindRun({ runId: 'run', sessionId: 'tab' });
+  const pending = registry.invoke({ runId: 'run', capabilityId: 'page.click', input: {} }, { onApprovalStateChange: progress });
+  const invocationId = surface.delivered[0]!.invocationId;
+  registry.progress({ sessionId: 'other-tab', invocationId, pending: false, decision: 'approved' });
+  registry.progress({ sessionId: 'tab', invocationId, pending: true });
+  registry.progress({ sessionId: 'tab', invocationId, pending: false, decision: 'declined' });
+  registry.progress({ sessionId: 'tab', invocationId, pending: true });
+  registry.progress({ sessionId: 'tab', invocationId, pending: false, decision: 'approved' });
+  expect(progress.mock.calls.map(([state]) => state.decision).filter(Boolean)).toEqual(['declined']);
+  registry.settle({ sessionId: 'tab', invocationId, outcome: { ok: true, output: { executed: false } } });
+  await expect(pending).resolves.toEqual({ executed: false });
+});

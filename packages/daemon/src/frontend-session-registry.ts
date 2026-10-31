@@ -46,6 +46,7 @@
  *    so the existing `timeoutMs` on a tool descriptor covers this for free.
  */
 import { randomUUID } from 'node:crypto';
+import type { ToolApprovalDecision, ToolExecutionOptions } from '@jini-ai/core';
 
 /** A surface that has attached itself and can execute capabilities on a bound run's behalf. */
 export interface FrontendSessionDescriptor {
@@ -98,7 +99,7 @@ export interface FrontendSessionRegistry {
    *
    * @throws If `sessionId` is already attached.
    */
-  attach(args: { readonly descriptor: FrontendSessionDescriptor; readonly deliver: (invocation: FrontendInvocation) => void }
+  attach(args: { readonly descriptor: FrontendSessionDescriptor; readonly deliver: (invocation: FrontendInvocation) => void; readonly cancel?: (args: { invocationId: string }) => void }
   ): FrontendSessionHandle;
   /**
    * Associates a started run with the surface that originated it, so capability calls made by that
@@ -112,6 +113,8 @@ export interface FrontendSessionRegistry {
    * produce calls that hang until their tool timeout instead of failing immediately.
    */
   bindRun(args: { readonly runId: string; readonly sessionId: string }): () => void;
+  /** Acknowledges human-wait progress only for a still-pending invocation on this session. */
+  progress(args: { sessionId: string; invocationId: string; pending: boolean; decision?: ToolApprovalDecision }): boolean;
   /**
    * Binds a run to whichever surface holds `bindToken` — the wire-safe form of {@link bindRun}.
    *
@@ -134,7 +137,7 @@ export interface FrontendSessionRegistry {
    * @throws If no surface is bound to `runId`, if the bound surface does not claim `capabilityId`,
    * if delivery fails, if the surface answers with a refusal, or if `signal` aborts first.
    */
-  invoke(args: { readonly runId: string; readonly capabilityId: string; readonly input: Record<string, unknown> }, optionalArgs?: { readonly signal?: AbortSignal }
+  invoke(args: { readonly runId: string; readonly capabilityId: string; readonly input: Record<string, unknown> }, optionalArgs?: { readonly signal?: AbortSignal; readonly onApprovalStateChange?: ToolExecutionOptions["onApprovalStateChange"] }
   ): Promise<unknown>;
   /**
    * Settles a pending invocation with the surface's answer.
@@ -167,6 +170,9 @@ export interface CreateFrontendSessionRegistryOptions {
 }
 
 interface PendingInvocation {
+  approvalPending?: boolean;
+  approvalRecorded?: boolean;
+  readonly onApprovalStateChange?: ToolExecutionOptions["onApprovalStateChange"];
   readonly resolve: (output: unknown) => void;
   readonly reject: (error: Error) => void;
   /** Removes the abort listener; called on every settlement path so a long run cannot leak them. */
@@ -174,6 +180,7 @@ interface PendingInvocation {
 }
 
 interface AttachedSession {
+  readonly cancel?: (args: { invocationId: string }) => void;
   readonly descriptor: FrontendSessionDescriptor;
   readonly deliver: (invocation: FrontendInvocation) => void;
   readonly pending: Map<string, PendingInvocation>;
@@ -245,12 +252,12 @@ export function createFrontendSessionRegistry(requiredArgs: Record<string, never
     return session;
   }
 
-  function attach({ descriptor, deliver }: { readonly descriptor: FrontendSessionDescriptor; readonly deliver: (invocation: FrontendInvocation) => void }
+  function attach({ descriptor, deliver, cancel }: { readonly descriptor: FrontendSessionDescriptor; readonly deliver: (invocation: FrontendInvocation) => void; readonly cancel?: (args: { invocationId: string }) => void }
   ): FrontendSessionHandle {
     if (sessions.has(descriptor.sessionId)) {
       throw new Error(`FrontendSessionRegistry: session "${descriptor.sessionId}" is already attached`);
     }
-    const session: AttachedSession = { descriptor, deliver, pending: new Map() };
+    const session: AttachedSession = { descriptor, deliver, ...(cancel ? { cancel } : {}), pending: new Map() };
     sessions.set(descriptor.sessionId, session);
     const bindToken = newBindToken();
     bindTokens.set(bindToken, descriptor.sessionId);
@@ -272,6 +279,7 @@ export function createFrontendSessionRegistry(requiredArgs: Record<string, never
         }
         for (const [, entry] of session.pending) {
           entry.dispose();
+          entry.onApprovalStateChange?.({ pending: false });
           entry.reject(new Error(`frontend session "${descriptor.sessionId}" detached before answering`));
         }
         session.pending.clear();
@@ -308,7 +316,7 @@ export function createFrontendSessionRegistry(requiredArgs: Record<string, never
   // every other failure here. Throwing synchronously out of a Promise-returning function would
   // make `invoke(...).catch(...)` an uncaught exception for exactly the fail-closed cases this
   // registry exists to report.
-  async function invoke({ runId, capabilityId, input }: { readonly runId: string; readonly capabilityId: string; readonly input: Record<string, unknown> }, { signal }: { readonly signal?: AbortSignal } = {}
+  async function invoke({ runId, capabilityId, input }: { readonly runId: string; readonly capabilityId: string; readonly input: Record<string, unknown> }, { signal, onApprovalStateChange }: { readonly signal?: AbortSignal; readonly onApprovalStateChange?: ToolExecutionOptions["onApprovalStateChange"] } = {}
   ): Promise<unknown> {
     const target = resolveTarget(runId, capabilityId);
     const invocationId = newInvocationId();
@@ -318,6 +326,8 @@ export function createFrontendSessionRegistry(requiredArgs: Record<string, never
         new Error(`"${capabilityId}" was cancelled before the frontend answered`);
       const onAbort = (): void => {
         target.pending.delete(invocationId);
+        try { target.cancel?.({ invocationId }); } catch { /* A closed channel cannot revive the action. */ }
+        onApprovalStateChange?.({ pending: false });
         reject(cancelled());
       };
       const dispose = (): void => signal?.removeEventListener('abort', onAbort);
@@ -327,7 +337,7 @@ export function createFrontendSessionRegistry(requiredArgs: Record<string, never
         return;
       }
       signal?.addEventListener('abort', onAbort, { once: true });
-      target.pending.set(invocationId, { resolve, reject, dispose });
+      target.pending.set(invocationId, { resolve, reject, dispose, ...(onApprovalStateChange ? { onApprovalStateChange } : {}) });
 
       try {
         target.deliver({ invocationId, capabilityId, input });
@@ -335,9 +345,21 @@ export function createFrontendSessionRegistry(requiredArgs: Record<string, never
         // A dead channel must fail the call rather than leave it pending until the tool times out.
         target.pending.delete(invocationId);
         dispose();
+        onApprovalStateChange?.({ pending: false });
         reject(error instanceof Error ? error : new Error(String(error)));
       }
     });
+  }
+
+  function progress({ sessionId, invocationId, pending, decision }: { sessionId: string; invocationId: string; pending: boolean; decision?: ToolApprovalDecision }): boolean {
+    const entry = sessions.get(sessionId)?.pending.get(invocationId);
+    if (!entry) return false;
+    // Only the first outcome following a real wait is recorded; replayed frames are observation-free.
+    const settledDecision = entry.approvalPending && !pending ? decision : undefined;
+    if (settledDecision) entry.approvalRecorded = true;
+    entry.approvalPending = pending && !entry.approvalRecorded;
+    entry.onApprovalStateChange?.({ pending, ...(settledDecision ? { decision: settledDecision } : {}) });
+    return true;
   }
 
   function settle({ sessionId, invocationId, outcome }: { readonly sessionId: string; readonly invocationId: string; readonly outcome: FrontendOutcome }): boolean {
@@ -346,6 +368,7 @@ export function createFrontendSessionRegistry(requiredArgs: Record<string, never
     if (session === undefined || entry === undefined) return false;
     session.pending.delete(invocationId);
     entry.dispose();
+    entry.onApprovalStateChange?.({ pending: false });
     if (outcome.ok) entry.resolve(outcome.output);
     else entry.reject(new Error(outcome.message));
     return true;
@@ -359,5 +382,5 @@ export function createFrontendSessionRegistry(requiredArgs: Record<string, never
     return sessionFor({ runId: runId })?.capabilities ?? [];
   }
 
-  return { attach, bindRun, bindRunByToken, invoke, settle, capabilitiesFor, sessionFor };
+  return { attach, bindRun, bindRunByToken, invoke, settle, progress, capabilitiesFor, sessionFor };
 }

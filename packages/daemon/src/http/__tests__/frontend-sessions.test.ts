@@ -337,6 +337,30 @@ describe('frontendSessionResponseRoute', () => {
     return { body, query: {}, params: { sessionId } };
   }
 
+  it('relays human-wait progress without settling the call and streams cancellation to its tab', async () => {
+    const registry = createFrontendSessionRegistry({}, { newInvocationId: () => 'waiting' });
+    const { req, res, raw } = makeReqRes({ capability: 'page.click' });
+    const progress = vi.fn();
+    handleFrontendSessionStream({ req, res, deps: makeDeps(registry) });
+    registry.bindRun({ runId: 'run-1', sessionId: 'session-1' });
+    const controller = new AbortController();
+    const pending = registry.invoke({ runId: 'run-1', capabilityId: 'page.click', input: { handle: 'save' } }, { signal: controller.signal, onApprovalStateChange: progress });
+    for (const phase of ['approval-pending', 'execution-started']) {
+      const parsed = parse(input({ invocationId: 'waiting', phase }));
+      expect(parsed.ok).toBe(true);
+      expect(await frontendSessionResponseRoute.handle({ input: (parsed as { ok: true; value: never }).value, deps: makeDeps(registry) }))
+        .toEqual({ ok: true, value: { settled: true } });
+    }
+    expect(progress.mock.calls).toEqual([[{ pending: true }], [{ pending: false }]]);
+    controller.abort();
+    await expect(pending).rejects.toThrow('cancelled');
+    expect(sentEvents(raw)).toContainEqual({ type: 'cancelled', invocationId: 'waiting' });
+    const late = parse(input({ invocationId: 'waiting', phase: 'execution-started' }));
+    expect(await frontendSessionResponseRoute.handle({ input: (late as { ok: true; value: never }).value, deps: makeDeps(registry) }))
+      .toEqual({ ok: true, value: { settled: false } });
+    req.emit('close');
+  });
+
   it('settles a pending invocation with the surface\'s output', async () => {
     const registry = createFrontendSessionRegistry({}, { newInvocationId: () => 'inv-1' });
     const { req, res } = makeReqRes({ capability: 'page.click' });
@@ -411,4 +435,12 @@ describe('frontendSessionResponseRoute', () => {
       expect(parsed.ok).toBe(true);
     });
   });
+});
+
+
+it('validates the fixed modal decision vocabulary on progress frames', () => {
+  const parse = frontendSessionResponseRoute.parse;
+  const input = (decision: unknown) => ({ query: {}, params: { sessionId: 'tab' }, body: { invocationId: 'action', phase: 'execution-started', decision } });
+  expect(parse(input('declined')).ok).toBe(true);
+  for (const decision of ['operator secret', ['approved'], { confirmed: true }]) expect(parse(input(decision)).ok).toBe(false);
 });

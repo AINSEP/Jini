@@ -32,7 +32,8 @@ it.each([policy, undefined])('lets a non-owner pick Antigravity with current pol
     {...(nativeToolPolicy ? { nativeToolPolicy } : {})} />);
   await user.click(screen.getByRole('button', { name: 'Choose AI runtime' }));
   const agy = screen.getByRole('radio', { name: /Antigravity/ });
-  expect(agy).toHaveTextContent(note);
+  // The note is the radio's description, read from the warning icon beside it (owner 2026-10-30).
+  expect(agy).toHaveAccessibleDescription(note);
   expect(agy).toBeEnabled();
   expect(agy).not.toHaveTextContent('Only the owner can change Full CLI access.');
   await user.click(agy);

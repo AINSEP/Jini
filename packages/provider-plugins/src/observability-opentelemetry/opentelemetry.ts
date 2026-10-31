@@ -41,6 +41,8 @@ import { createProviderTelemetryReporter, type ProviderTelemetryOptions } from "
 import { trimTrailingSlashes } from "../trim-trailing-slashes.js";
 
 export interface OtelAdapterOptions extends ProviderTelemetryOptions {
+  /** Host eligibility, independent of configuration and consent; absent permission denies export. */
+  exportEnabled?: boolean;
   /** OTLP/HTTP request headers (e.g. a collector's `Authorization`); any OTLP endpoint, no vendor-specific code. */
   headers?: Readonly<Record<string, string>>;
   /** Test seam: replace the OTLP batch pipeline with explicit SDK span processors. */
@@ -179,7 +181,7 @@ export function createOtelFactories(_required: Record<string, never>, options: O
     shutdown: async () => { await Promise.all(providers.map((provider) => provider.shutdown())); },
     exporterFactory: {
       create: ({ endpoint }) => {
-        if (options.spanProcessors !== undefined) return undefined;
+        if (options.exportEnabled !== true || options.spanProcessors !== undefined) return undefined;
         const exporter = createInjectedOtlpTraceExporter({ url: endpoint }, options);
         exporterPipelines.set(exporter, createReportingExporter({ exporter,
           reporter: createProviderTelemetryReporter({ endpoint }, options) }));
@@ -188,7 +190,7 @@ export function createOtelFactories(_required: Record<string, never>, options: O
     },
     tracerProviderFactory: {
       create: ({ serviceName, exporter }) => {
-        let spanProcessors = options.spanProcessors;
+        let spanProcessors = options.exportEnabled === true ? options.spanProcessors : [];
         if (spanProcessors === undefined) {
           // The diagnostics port treats exporters as opaque. Narrow at the SDK boundary rather
           // than casting an arbitrary port value into a live processor's exporter dependency.
@@ -228,7 +230,7 @@ export function resolveMetricsEndpoint(
  */
 function createMetricProvider({ config }: { config: ObservabilityConfigEnabled }, options: OtelAdapterOptions = {}): MeterProvider {
   const endpoint = resolveMetricsEndpoint({ tracesEndpoint: config.endpoint }, options);
-  const readers = options.metricReaders ?? [new PeriodicExportingMetricReader({
+  const readers = options.exportEnabled !== true ? [] : options.metricReaders ?? [new PeriodicExportingMetricReader({
     exporter: createReportingExporter({
       exporter: createInjectedOtlpExporter({
         url: endpoint, serializer: JsonMetricsSerializer, component: "otlp_http_metric_exporter", helper: MetricsExporterMetricsHelper,
@@ -276,6 +278,8 @@ function createMetrics({ config }: { config: ObservabilityConfigEnabled }, optio
 }
 
 /**
+ * Export permission controls processors/readers, preserving local tracing and error admission
+ * even when the host denies outbound telemetry.
  * The adapter plus its lifecycle (review 2026-10-25 #6): the host registers `dispose` with its own
  * teardown, so a closed site flushes and stops its provider.
  * @returns `{ port, dispose }`; `dispose` never throws.
@@ -286,7 +290,7 @@ export function createOtelObservabilityAdapter({ config }: { config: Observabili
   const { shutdown, ...factories } = createOtelFactories({}, options);
   const metrics = createMetrics({ config }, options);
   const port = { ...createOtelObservabilityPort({ config, ...factories }, { scope: createAsyncLocalSpanScope({}) }), metric: metrics.metric, supportsMetric: true };
-  reporter.initialized({ message: "OpenTelemetry exporting" });
+  reporter.initialized({ message: options.exportEnabled === true ? "OpenTelemetry exporting" : "OpenTelemetry export disabled" });
   return { port, dispose: async () => {
     try { await Promise.all([shutdown(), metrics.shutdown()]); reporter.result({ phase: "shutdown", outcome: "ok" }); }
     catch (error) { reporter.result({ phase: "shutdown", outcome: "failed", error }); /* teardown is best-effort */ }

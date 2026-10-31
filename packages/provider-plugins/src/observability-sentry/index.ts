@@ -15,7 +15,8 @@ function releaseInput({ release }: Readonly<Record<string, unknown>>, _options =
  * The rate defaults to 0: errors only.
  *   The host's attribution attributes become tags on every event and transaction; a blank
  *   `environment` defaults to its `deployment.environment`.
- * @param optional `{ client?, transport? }`: a host-owned client to reuse, or a test transport.
+ * @param optional `{ exportEnabled?, client?, transport? }`: explicit host export permission (defaults
+ *   false), a host-owned client to reuse, or a test transport. Permission never grants consent.
  * @returns `{ port, dispose }`. @throws TypeError on invalid card fields or a malformed attribution.
  */
 export function createSentryProvider(required: Readonly<Record<string, unknown>>, optional: Readonly<Record<string, unknown>> = {}) {

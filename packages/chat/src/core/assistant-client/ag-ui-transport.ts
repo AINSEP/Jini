@@ -37,6 +37,13 @@ export interface AgUiRunClient {
   fetchAgUiRunStatus(required: Record<string, never>, optional?: Record<string, never>): Promise<null>;
   stopAgUiRun(required: { runId: string }, optional?: Record<string, never>): Promise<void>;
 }
+/** Only the originating attachment can authorize page execution. Read its token for every turn;
+ * caller-supplied tool definitions never authorize or execute a transcript event. */
+function frontendBinding({ input }: { input: StartRunInput }, _options = {}): Record<string, string> {
+  const token = input.context?.["frontendBindToken"];
+  return typeof token === "string" && token.length > 0 ? { frontendBindToken: token } : {};
+}
+
 /** Bind the official client without adding its dependency to every chat consumer. */
 export function createAgUiRunClient({ ports }: { ports: AgUiClientPorts }, _options: Record<string, never> = {}): AgUiRunClient {
   /** In-flight AG-UI turns' driving `HttpAgent`, keyed by the client-minted runId — the ONLY way
@@ -96,8 +103,10 @@ export function createAgUiRunClient({ ports }: { ports: AgUiClientPorts }, _opti
     const threadId = input.conversationId ?? ports.mintId({}, {});
 
     const agent = ports.createAgent({ url: ports.endpoint, threadId }, {});
+    if (input.signal.aborted) throw new DOMException("Run cancelled", "AbortError");
     agUiAgents.set(runId, agent);
-    input.signal?.addEventListener("abort", () => agent.abortRun());
+    const abort = () => agent.abortRun();
+    input.signal.addEventListener("abort", abort, { once: true });
 
     const messages: Message[] = input.history.filter((message) => message.content.trim().length > 0).map(toAgUiMessage);
 
@@ -109,6 +118,7 @@ export function createAgUiRunClient({ ports }: { ports: AgUiClientPorts }, _opti
       tools: [],
       context: [],
       forwardedProps: {
+        ...frontendBinding({ input }),
         ...(input.agentId ? { agentId: input.agentId } : {}),
         ...(input.history.findLast(message => message.role === "user")?.secretRedaction?.secretRedacted ? { secretRedacted: true } : {}),
       },
@@ -120,6 +130,7 @@ export function createAgUiRunClient({ ports }: { ports: AgUiClientPorts }, _opti
       if (settled) return;
       settled = true;
       agUiAgents.delete(runId);
+      input.signal.removeEventListener("abort", abort);
       handlers.onDone(collected);
     };
     const state = createAgUiToAgentTranslationState({ customEventNames: ports.customEventNames }, {});
@@ -141,6 +152,7 @@ export function createAgUiRunClient({ ports }: { ports: AgUiClientPorts }, _opti
         },
         error: (error: unknown) => {
           agUiAgents.delete(runId);
+          input.signal.removeEventListener("abort", abort);
           const err = error instanceof Error ? error : new Error(String(error));
           if (!startSettled) {
             startSettled = true;

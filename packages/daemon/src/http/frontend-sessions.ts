@@ -29,6 +29,7 @@
  * directly — see `@jini-ai/daemon`'s own module doc for why attach and bind are separate.
  */
 import { randomUUID } from 'node:crypto';
+import type { ToolApprovalDecision } from '@jini-ai/core';
 import type { Express, Request, Response } from 'express';
 import { createApiError } from '@jini-ai/protocol';
 import type { FrontendSessionHandle, FrontendSessionRegistry } from '../index.js';
@@ -72,6 +73,7 @@ export interface FrontendSessionErrorEvent {
 }
 
 export type FrontendSessionStreamEvent =
+  | { readonly type: 'cancelled'; readonly invocationId: string }
   | FrontendSessionAttachedEvent
   | FrontendSessionInvocationEvent
   | FrontendSessionErrorEvent;
@@ -86,6 +88,7 @@ export type FrontendSessionStreamEvent =
  * to fabricate an impossible input.
  */
 export type FrontendSessionResponseRequest =
+  | { readonly sessionId: string; readonly invocationId: string; readonly phase: 'approval-pending' | 'execution-started'; readonly decision?: ToolApprovalDecision }
   | {
     readonly sessionId: string;
     readonly invocationId: string;
@@ -176,7 +179,8 @@ export function handleFrontendSessionStream({ req, res, deps }: { readonly req: 
   }
 
   const sessionId = (deps.newSessionId ?? randomUUID)();
-  handle = deps.registry.attach({ descriptor: { sessionId, capabilities }, deliver: (invocation) => connection.send({ data: { type: 'invocation', ...invocation } satisfies FrontendSessionInvocationEvent }) });
+  handle = deps.registry.attach({ descriptor: { sessionId, capabilities }, deliver: (invocation) => connection.send({ data: { type: 'invocation', ...invocation } satisfies FrontendSessionInvocationEvent }),
+    cancel: ({ invocationId }) => connection.send({ data: { type: 'cancelled', invocationId } }) });
 
   connection.send({
     data: {
@@ -202,12 +206,31 @@ function parseFrontendSessionResponse(input: RouteInputContext): Result<Frontend
   if (typeof invocationId !== 'string' || invocationId.trim().length === 0) {
     return err({ error: validationError({ message: 'invocationId must be a non-empty string' }, { issues: [{ path: 'invocationId', message: 'required non-empty string' }] }) });
   }
-  const okFlag = input.body['ok'];
+  return parseResponseOutcome({ sessionId, invocationId, body: input.body });
+}
+
+/** Progress is scoped to a pending invocation; only fixed, value-free decisions enter the audit. */
+function parseApprovalProgress(
+  { sessionId, invocationId, phase, decision }: { sessionId: string; invocationId: string; phase: 'approval-pending' | 'execution-started'; decision: unknown },
+  _options = {},
+): Result<FrontendSessionResponseRequest> {
+  if (decision === undefined) return ok({ value: { sessionId, invocationId, phase } });
+  if (phase !== 'execution-started' || typeof decision !== 'string' || !['approved', 'declined', 'expired', 'abandoned'].includes(decision)) {
+    return err({ error: validationError({ message: 'invalid approval decision' }) });
+  }
+  return ok({ value: { sessionId, invocationId, phase, decision: decision as ToolApprovalDecision } });
+}
+
+/** Identity parsing precedes outcome parsing so progress and results share exactly one scope. */
+function parseResponseOutcome({ sessionId, invocationId, body }: { sessionId: string; invocationId: string; body: Record<string, unknown> }, _options = {}): Result<FrontendSessionResponseRequest> {
+  const phase = body['phase'];
+  if (phase === 'approval-pending' || phase === 'execution-started') return parseApprovalProgress({ sessionId, invocationId, phase, decision: body['decision'] });
+  const okFlag = body['ok'];
   if (typeof okFlag !== 'boolean') {
     return err({ error: validationError({ message: 'ok must be a boolean' }, { issues: [{ path: 'ok', message: 'required boolean' }] }) });
   }
   if (!okFlag) {
-    const message = input.body['message'];
+    const message = body['message'];
     if (typeof message !== 'string' || message.trim().length === 0) {
       // A failure with no reason gives the agent nothing to act on, which is how a caller ends up
       // retrying the same refusal forever.
@@ -215,7 +238,7 @@ function parseFrontendSessionResponse(input: RouteInputContext): Result<Frontend
     }
     return ok({ value: { sessionId, invocationId, ok: false, message } });
   }
-  return ok({ value: { sessionId, invocationId, ok: true, output: input.body['output'] } });
+  return ok({ value: { sessionId, invocationId, ok: true, output: body['output'] } });
 }
 
 /**
@@ -229,6 +252,7 @@ export const frontendSessionResponseRoute = defineJsonRoute<
   FrontendSessionsHttpDeps
 >({
   method: 'post', path: FRONTEND_SESSION_RESPONSE_ROUTE_PATH, parse: parseFrontendSessionResponse, handle: ({ input, deps }) => {
+    if ('phase' in input) return ok({ value: { settled: deps.registry.progress({ sessionId: input.sessionId, invocationId: input.invocationId, pending: input.phase === 'approval-pending', ...(input.decision ? { decision: input.decision } : {}) }) } });
     const settled = deps.registry.settle({ sessionId: input.sessionId, invocationId: input.invocationId, outcome: input.ok
         ? { ok: true, output: input.output }
         : { ok: false, message: input.message } });

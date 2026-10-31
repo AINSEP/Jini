@@ -6,14 +6,14 @@ import type { AdminShellNavigationPort, AdminShellPanel, AdminShellProps, AdminS
 
 // Generalized App prototype-key, agent-page, rail-storage and session-seam tests.
 const panels: readonly AdminShellPanel[] = [
-  { id: 'dashboard', render: () => <h1>Overview screen</h1>, nav: { label: 'Overview' } },
+  { id: 'dashboard', description: 'Manage dashboard.', render: () => <h1>Overview screen</h1>, nav: { label: 'Overview' } },
   {
-    id: 'records', nav: { label: 'Records', group: 'Work' }, requires: ['records'], permissions: ['records.read'],
+    id: 'records', description: 'Manage records.', nav: { label: 'Records', group: 'Work' }, requires: ['records'], permissions: ['records.read'],
     routes: [{ pattern: '/:recordId', view: 'detail', agentPageId: 'record-detail' }],
     render: ({ route, context }) => <div data-testid="record">{route.view}:{route.params.recordId}:{route.query.get('tab')}:{context.workspace.projectId}</div>,
   },
-  { id: 'private', render: () => <h1>Private screen</h1>, nav: { label: 'Private' }, permissions: ['private.read'] },
-  { id: 'hidden', render: () => <h1>Unlisted screen</h1> },
+  { id: 'private', description: 'Manage private.', render: () => <h1>Private screen</h1>, nav: { label: 'Private' }, permissions: ['private.read'] },
+  { id: 'hidden', description: 'Manage hidden.', render: () => <h1>Unlisted screen</h1> },
 ];
 
 function fixture(path = '/') {
@@ -93,7 +93,7 @@ it.each(['constructor', 'valueOf', '__proto__', 'toString', 'hasOwnProperty'])('
 it('a bad detail URL renders a clean default route, without stale params or view', async () => {
   const f = fixture('/records/r7/typo?tab=history');
   const renderDefault = vi.fn((_args: AdminShellRenderArgs) => <h1>Fallback</h1>);
-  render(<AdminShell {...f.props} panels={[{ id: 'home', render: renderDefault }, ...panels]} defaultPanelId="home" />);
+  render(<AdminShell {...f.props} panels={[{ id: 'home', description: 'Manage home.', render: renderDefault }, ...panels]} defaultPanelId="home" />);
   await screen.findByRole('heading', { name: 'Fallback' });
   expect(renderDefault.mock.calls[0]?.[0]).toMatchObject({ route: { panelId: 'home', view: null, params: {} } });
   act(() => f.go('/'));
@@ -128,7 +128,7 @@ it('a failed logout shows login instead of offering a session-restoring retry', 
 it('renders the dashboard destination even when another panel owns the root URL', async () => {
   const f = fixture();
   render(<AdminShell {...f.props} defaultPanelId="home" panels={[
-    { id: 'home', render: () => <h1>Home screen</h1> }, ...panels,
+    { id: 'home', description: 'Manage home.', render: () => <h1>Home screen</h1> }, ...panels,
   ]} />);
   await screen.findByRole('heading', { name: 'Home screen' });
   const dashboard = screen.getByRole('link', { name: 'Overview' });
@@ -232,7 +232,7 @@ it('lets another host supply its own login, features, branding and footer', asyn
     ...f.props.slots, sidebarFooter: ({ logout }) => <button onClick={() => { void logout(); }}>Leave workspace</button>,
   };
   render(<AdminShell {...f.props} apiBase="/mock" title="Workspace console" slots={logoutSlot}
-    workspace={{ organizationId: 'org' }} panels={[{ id: 'tasks', render: () => <h1>Task board</h1>, nav: { label: 'Tasks' } }]} defaultPanelId="tasks" />);
+    workspace={{ organizationId: 'org' }} panels={[{ id: 'tasks', description: 'Manage tasks.', render: () => <h1>Task board</h1>, nav: { label: 'Tasks' } }]} defaultPanelId="tasks" />);
   await screen.findByRole('heading', { name: 'Task board' });
   expect(screen.getByText('Workspace console')).toBeInTheDocument();
   expect(within(screen.getByRole('navigation')).getByRole('link', { name: 'Tasks' })).toBeInTheDocument();

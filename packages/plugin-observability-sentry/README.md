@@ -21,3 +21,10 @@ version for the generated artifact. The npm release is **0.6.15** in Jini's fixe
 Changesets release group. Build output under `plugins/` is generated and uncommitted.
 Reviewed LICENSE and NOTICE files belong to this distribution; the builder retains them
 and bundled dependency licenses inside the artifact before computing its integrity.
+
+
+The host must pass `exportEnabled: true` in provider factory options to permit outbound
+observability. Missing permission denies export while preserving local admission. Resolve the
+boolean using `observabilityExportAllowed` from `@jini-ai/diagnostics/observability`; runtime
+eligibility remains separate from configuration and consent. Rebuild this standalone artifact
+when its provider implementation changes; installed bundles do not read workspace sources.

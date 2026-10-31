@@ -168,12 +168,19 @@ export interface ToolExecutionContext {
   readonly signal: AbortSignal;
 }
 
+/** Value-free human-dialog outcomes recorded by the executor; never authorization grants. */
+export type ToolApprovalDecision = 'approved' | 'declined' | 'expired' | 'abandoned';
+
 /** Optional handler ports supplied by the invoking transport. */
 export interface ToolExecutionOptions {
   readonly emitSurface?: SurfaceEmitter;
   /** Reports the human wait to the executor so concurrent writes can be refused. This is
-   * notification only; it never supplies a confirmation decision or grants authority. */
-  readonly onApprovalStateChange?: (required: { pending: boolean }, optional?: Record<string, never>) => void;
+   * notification only; it never grants authority or substitutes for the human dialog. */
+  readonly onApprovalStateChange?: (required: {
+    pending: boolean;
+    /** Bound frontend's human-dialog outcome; observation only, never an authorization grant. */
+    decision?: ToolApprovalDecision;
+  }, optional?: Record<string, never>) => void;
   /** Invoke through the same executor, retaining this call's principal, run, cancellation and
    * transport gates. Rejects on denial, failed confirmation, validation or execution failure.
    * A composition-owned registry may retain a source registration behind a derived catalog card.

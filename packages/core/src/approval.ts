@@ -3,6 +3,9 @@ import { ToolInputError } from './tool-registry.js';
 import type { ToolExecutionContext, ToolExecutionOptions, ToolHandler, ToolRegistration } from './tool-registry.js';
 import { isNonArrayRecord } from './records.js';
 
+/** Maximum human approval wait for one invocation, independent of execution time. */
+export const APPROVAL_WAIT_TIMEOUT_MS = 120_000;
+
 /** A host describes the action; core owns the decision lifecycle, never the card format. */
 export interface ApprovalPlan<TDescription> {
   readonly ask: boolean;
@@ -184,37 +187,70 @@ export function createApprovalProposalStore<TDescription>(
   type Pending = { approvalId: string; description: TDescription };
   type Snapshot = { pending: Pending | null; error: string | null };
   let snapshot: Snapshot = { pending: null, error: null };
-  let action: { approvalId: string; execute: () => Promise<unknown>; signal: AbortSignal } | null = null;
+  let action: { approvalId: string; execute: () => Promise<unknown>; signal: AbortSignal; humanOnly: boolean; decide?: (answer: ApprovalAnswer) => void } | null = null;
   let detach: (() => void) | null = null;
   const listeners = new Set<() => void>();
   const publish = (next: Snapshot) => { snapshot = next; for (const listener of listeners) listener(); };
-  const clear = () => {
+  const clear = (answer: ApprovalAnswer = { confirmed: false, reason: 'abandoned' }) => {
+    const decide = action?.decide;
     detach?.(); detach = null; action = null; publish({ pending: null, error: null });
+    decide?.(answer);
   };
-  return {
+  /** Resolve authority before consuming the single-use action; model input cannot set source. */
+  const actionForReply = ({ approvalId, source }: { approvalId: string; source: 'human' | undefined }) => {
+    if (!action || action.approvalId !== approvalId) throw new Error(messages.missing);
+    if (action.humanOnly && source !== 'human') throw new Error('This decision requires the app dialog');
+    return action;
+  };
+  const store = {
     getSnapshot: (_required = {}, _optional = {}) => snapshot,
     subscribe: ({ listener }: { listener: () => void }, _optional = {}) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
-    propose({ description, execute, signal }: { description: TDescription; execute: () => Promise<unknown>; signal: AbortSignal }, _optional = {}) {
+    propose({ description, execute, signal }: { description: TDescription; execute: () => Promise<unknown>; signal: AbortSignal }, { humanOnly = false, decide }: { humanOnly?: boolean; decide?: (answer: ApprovalAnswer) => void } = {}) {
       if (signal.aborted) throw new Error(messages.closed);
       if (snapshot.pending) throw new Error(messages.pending);
       const frozenDescription = structuredClone(description);
       const approvalId = createId();
-      action = { approvalId, execute, signal };
-      signal.addEventListener('abort', clear, { once: true });
-      detach = () => signal.removeEventListener('abort', clear);
+      action = { approvalId, execute, signal, humanOnly, ...(decide ? { decide } : {}) };
+      const abort = () => clear();
+      signal.addEventListener('abort', abort, { once: true });
+      detach = () => signal.removeEventListener('abort', abort);
       publish({ pending: { approvalId, description: structuredClone(frozenDescription) }, error: null });
       return { status: 'approval_required' as const, approvalId, description: frozenDescription, responseTool };
     },
-    async respond({ approvalId, approved }: { approvalId: string; approved: boolean }, _optional = {}) {
-      if (!action || action.approvalId !== approvalId) throw new Error(messages.missing);
-      const prepared = action;
-      clear();
+    async respond({ approvalId, approved }: { approvalId: string; approved: boolean }, { source }: { source?: 'human' } = {}) {
+      const prepared = actionForReply({ approvalId, source });
+      clear(approved === true ? { confirmed: true } : { confirmed: false, reason: 'declined' });
+      // An awaiting caller owns execution after this decision; do not start a second lifecycle.
+      if (prepared.decide) return { status: approved === true ? 'approved' : 'declined' };
       const answer = await resolveApproval({ signal: prepared.signal, askHuman: async () => approved === true ? { confirmed: true } : { confirmed: false, reason: 'declined' } });
       if (!answer.confirmed) return { status: 'declined' };
       try { return await prepared.execute(); }
       catch (error) { publish({ ...snapshot, error: error instanceof Error ? error.message : String(error) }); throw error; }
     },
   };
+  /** Park a call on this same store without publishing any assistant reply capability. The app
+   * dialog alone may decide it. Expiry/abort consume the proposal before resolving the waiter. */
+  async function request(
+    { description, signal }: { description: TDescription; signal: AbortSignal },
+    { timeoutMs = APPROVAL_WAIT_TIMEOUT_MS }: { timeoutMs?: number } = {},
+  ): Promise<ApprovalAnswer> {
+    const lifetime = new AbortController();
+    const abort = () => lifetime.abort();
+    if (signal.aborted) return { confirmed: false, reason: 'abandoned' };
+    signal.addEventListener('abort', abort, { once: true });
+    let expired = false;
+    const timer = setTimeout(() => { expired = true; lifetime.abort(); }, timeoutMs);
+    try {
+      return await resolveApproval({ signal: lifetime.signal, askHuman: () => new Promise<ApprovalAnswer>(resolve => {
+        store.propose({ description, signal: lifetime.signal, execute: async () => undefined }, { humanOnly: true, decide: resolve });
+      }) }).then(answer => expired ? { confirmed: false, reason: 'expired' } as const : answer);
+    } finally {
+      clearTimeout(timer);
+      signal.removeEventListener('abort', abort);
+      lifetime.abort();
+    }
+  }
+  return { ...store, request };
 }
 
 /** Apply a host classification through the same handler owner used by domain plans.

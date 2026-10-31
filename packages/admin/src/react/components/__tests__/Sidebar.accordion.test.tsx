@@ -11,10 +11,10 @@ import type { AdminPanel } from '../../../core/manifest/types.js';
  */
 
 const panels: AdminPanel<null>[] = [
-  { id: 'dashboard', render: null, nav: { label: 'Dashboard', icon: '<path d="M1 1" />' } },
-  { id: 'posts', render: null, nav: { label: 'Posts', group: 'Content', order: 1 } },
-  { id: 'users', render: null, nav: { label: 'Users', group: 'People', order: 1 } },
-  { id: 'roles', render: null, nav: { label: 'Roles', group: 'People', order: 2 } },
+  { id: 'dashboard', description: 'Manage dashboard.', render: null, nav: { label: 'Dashboard', icon: '<path d="M1 1" />' } },
+  { id: 'posts', description: 'Manage posts.', render: null, nav: { label: 'Posts', group: 'Content', order: 1 } },
+  { id: 'users', description: 'Manage users.', render: null, nav: { label: 'Users', group: 'People', order: 1 } },
+  { id: 'roles', description: 'Manage roles.', render: null, nav: { label: 'Roles', group: 'People', order: 2 } },
 ];
 
 const groups = buildNav({ panels: panels });

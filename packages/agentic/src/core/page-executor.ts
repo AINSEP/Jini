@@ -30,6 +30,7 @@ import {
   normalizeAgentLabel,
 } from './guards.js';
 import { PAGE_CAPABILITIES } from './page-capabilities.js';
+import type { PageNavigationInput } from './page-navigation.js';
 import type { PageDriver, PageSummary } from './page-driver.js';
 
 /** Default marker lifetime, long enough to notice and short enough not to linger. */
@@ -396,14 +397,16 @@ async function findPageElements(
   const pages: readonly PageSummary[] = rawPages.map((page) => ({
     id: page.id,
     label: normalizeAgentLabel({ raw: page.label }).text,
+    ...(page.navigation ? { navigation: page.navigation } : {}),
   }));
 
   return {
     elements,
     pages,
-    untrustedFields: observing
-      ? ['elements[].label', 'elements[].state.text', 'elements[].state.value', 'pages[].label']
-      : ['elements[].label', 'pages[].label'],
+    untrustedFields: [
+      ...(observing ? ['elements[].label', 'elements[].state.text', 'elements[].state.value', 'pages[].label'] : ['elements[].label', 'pages[].label']),
+      ...navigationTextFields({ pages: rawPages }),
+    ],
     ...(withState && !observing ? { stateUnavailable: true } : {}),
     ...(observing && found.length > MAX_STATEFUL_ELEMENTS ? { stateTruncated: true } : {}),
   };
@@ -438,7 +441,8 @@ async function navigatePage(
   // Required and string-typed by the manifest, already enforced above. See page.fill.
   const page = input['page'] as string;
   const pages = await driver.listPages({});
-  if (!pages.some((candidate) => candidate.id === page)) {
+  const published = pages.find((candidate) => candidate.id === page);
+  if (!published) {
     // Every other piece of page-authored (or, here, caller-authored-but-page-shaped) text
     // this system hands to a model goes through normalizeAgentLabel first — bounded, control-
     // and bidi-stripped. This refusal was the one path that skipped it: the raw `page`
@@ -459,9 +463,36 @@ async function navigatePage(
       `"${safePage}" is not a published page. Available: ${safePages.length > 0 ? safePages.join(', ') : '(none)'}`,
     );
   }
+  const navigation = supportedNavigationInput({ input, published });
   const before = await summarizePage(driver);
-  await driver.navigate({ page });
+  const destination = await driver.navigate({ page, ...navigation });
   if (driver.settle !== undefined) await driver.settle({});
   const after = await summarizePage(driver);
-  return { navigatedTo: page, before, after };
+  return { navigatedTo: page, ...destination, before, after };
+}
+
+/** Boundary schema has already checked object fields; omit absent keys for existing drivers. */
+function navigationInput({ input }: { input: Record<string, unknown> }, _options = {}): PageNavigationInput {
+  if (input.entity) {
+    const entity = input.entity as Record<string, unknown>;
+    if (Object.keys(entity).some(key => key !== 'type' && key !== 'id') || typeof entity.type !== 'string' || typeof entity.id !== 'string' || !entity.id || !entity.type) {
+      throw new Error('Entity requires exactly type and id strings');
+    }
+  }
+  return {
+    ...(input.entity ? { entity: input.entity as NonNullable<PageNavigationInput['entity']> } : {}),
+    ...(input.query ? { query: input.query as NonNullable<PageNavigationInput['query']> } : {}),
+  };
+}
+
+/** Older drivers cannot silently discard an entity or query and claim they opened it. */
+function supportedNavigationInput({ input, published }: { input: Record<string, unknown>; published: PageSummary }, _options = {}): PageNavigationInput {
+  const navigation = navigationInput({ input });
+  if ((navigation.entity || navigation.query) && !published.navigation) throw new Error('This frontend does not publish entity or query navigation targets');
+  return navigation;
+}
+
+/** Route metadata is descriptive UI data, never instructions to the calling model. */
+function navigationTextFields({ pages }: { pages: readonly PageSummary[] }, _options = {}): readonly string[] {
+  return pages.some(page => page.navigation !== undefined) ? ['pages[].navigation.label', 'pages[].navigation.description'] : [];
 }

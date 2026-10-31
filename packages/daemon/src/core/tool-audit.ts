@@ -74,17 +74,21 @@ function thrownAttempt({ error }: { readonly error: unknown }, _optional: Record
 
 /** Settled details retain truncation or an errorId link, never error text or operator content. */
 function settledDetail(
-  { result, readErrorId }: { readonly result: ToolExecutionResult; readonly readErrorId: (args: { result: ToolExecutionResult }) => string | undefined },
+  { result, readErrorId, readAuditRecord }: { readonly result: ToolExecutionResult; readonly readErrorId: (args: { result: ToolExecutionResult }) => string | undefined; readonly readAuditRecord: () => ToolExecutionAuditRecord | null },
   options: ToolAuditOptions,
 ): string | null {
-  if (result.truncated) return 'output truncated';
+  let detail: string | null = result.truncated ? 'output truncated' : null;
   // Host error-ID metadata is optional observation, never part of execution success.
   try {
-    const id = readErrorId({ result });
-    return id === undefined ? null : `errorId=${id}`;
+    const id = result.truncated ? undefined : readErrorId({ result });
+    if (id !== undefined) detail = `errorId=${id}`;
+    const decision = readAuditRecord()?.events.find(event => event.detail?.startsWith('frontend approval: '))?.detail;
+    // A frontend may supply inputs, but only these fixed outcomes belong in the durable trail.
+    const approval = ['approved', 'declined', 'expired', 'abandoned'].map(value => `frontend approval: ${value}`).find(value => value === decision);
+    return [detail, approval].filter(Boolean).join('; ') || null;
   } catch (error) {
     reportSinkError(error, options);
-    return null;
+    return detail;
   }
 }
 
@@ -117,7 +121,7 @@ export function withToolAttemptAudit(
         await appendSafely({ ...base, executionId: null, phase, at: deps.now(), detail }, deps, options);
         throw error;
       }
-      const detail = settledDetail({ result, readErrorId: deps.readErrorId }, options);
+      const detail = settledDetail({ result, readErrorId: deps.readErrorId, readAuditRecord: () => deps.inner.getAuditRecord({ executionId: result.executionId }) }, options);
       await appendSafely({ ...base, executionId: result.executionId, phase: result.status, at: deps.now(), detail }, deps, options);
       return result;
     },

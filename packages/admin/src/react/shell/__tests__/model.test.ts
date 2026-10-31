@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { resolveAdminShellModel } from '../model.js';
 import type { AdminShellPanel } from '../types.js';
 
-const panel = (id: string, extra: Partial<AdminShellPanel> = {}): AdminShellPanel => ({ id, render: () => null, nav: { label: id }, ...extra });
+const panel = (id: string, extra: Partial<AdminShellPanel> = {}): AdminShellPanel => ({ id, description: `Manage ${id}.`, render: () => null, nav: { label: id }, ...extra });
 const user = { id: 'u1', username: 'operator' };
 
 describe('resolveAdminShellModel', () => {

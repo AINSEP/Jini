@@ -27,9 +27,17 @@ export type CapabilityRisk = 'read' | 'write';
  */
 export type CapabilitySurface = 'session' | 'server';
 
+export interface CapabilityInputProperty {
+  readonly type: string;
+  readonly description?: string;
+  readonly enum?: readonly string[];
+  readonly properties?: Record<string, CapabilityInputProperty>;
+  readonly required?: readonly string[];
+  readonly additionalProperties?: boolean | CapabilityInputProperty;
+}
 export interface CapabilityInputSchema {
   readonly type: 'object';
-  readonly properties: Record<string, { type: string; description?: string; enum?: readonly string[] }>;
+  readonly properties: Record<string, CapabilityInputProperty>;
   readonly required?: readonly string[];
   readonly additionalProperties?: boolean;
 }
@@ -67,8 +75,9 @@ export function findCapability({ capabilities, id }: { capabilities: readonly Ca
  * Manifests advertise `additionalProperties: false` and a `required` list, but nothing was
  * enforcing either — handlers read the fields they knew about and ignored the rest, so a
  * misnamed argument silently became a missing one. This closes that for any surface that calls
- * it. Intentionally a shallow check, not a JSON Schema engine: these schemas are flat by
- * construction, and a real validator is a dependency this package will not take.
+ * it. Intentionally a shallow check, not a JSON Schema engine. Nested schemas describe the public
+ * contract; the owning executor enforces their shape before any effect (for example navigation
+ * entity/query inputs). This check enforces top-level types, required and unknown arguments.
  *
  * @param capability - The capability being invoked.
  * @param input - Raw caller-supplied arguments.

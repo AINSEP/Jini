@@ -150,3 +150,13 @@ The shared helper takes `redactRequestTarget({ path }, { routePattern? })`.
 Sentry inherits the no-op measurement method: its configured adapter owns errors and traces.
 PostHog only registers product analytics, so metrics are no-ops for that plugin; measurements are
 never recast as product events and do not bypass the existing analytics consent owner.
+
+
+### Outbound observability eligibility
+
+`observabilityExportAllowed(facts, options = {})` is the pure decision shared by hosts. Facts are
+`forceEnable`, `development`, `packagedDesktop` and `deployedProduction` (optional booleans).
+An explicit debugging override wins; otherwise development denies, a packaged desktop or deployed
+production allows, and missing evidence denies. This decides eligibility only and never grants consent.
+Hosts interpret environment/packaging facts and pass the resulting boolean as the observability
+provider factory's `exportEnabled` option. Labels, DSNs and release strings are not launch evidence.

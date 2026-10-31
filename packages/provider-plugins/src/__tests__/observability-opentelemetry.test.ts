@@ -18,8 +18,12 @@ import { OTLPExporterBase } from "@opentelemetry/otlp-exporter-base";
 import { createAsyncLocalSpanScope } from "@jini-ai/diagnostics/observability/node";
 import type { ObservabilityConfigEnabled } from "@jini-ai/diagnostics/observability";
 
-import { createOtelFactories, createOtelObservabilityAdapter } from "../observability-opentelemetry/opentelemetry.js";
-import plugin, { createOpenTelemetryProvider, otlpAuthHeaders, otlpHeadersOf } from "../observability-opentelemetry/index.js";
+import { createOtelFactories as otelFactories, createOtelObservabilityAdapter as otelAdapter } from "../observability-opentelemetry/opentelemetry.js";
+import plugin, { createOpenTelemetryProvider as openTelemetryProvider, otlpAuthHeaders, otlpHeadersOf } from "../observability-opentelemetry/index.js";
+
+const createOtelFactories: typeof otelFactories = (required, optional = {}) => otelFactories(required, { exportEnabled: true, ...optional });
+const createOtelObservabilityAdapter: typeof otelAdapter = (required, optional = {}) => otelAdapter(required, { exportEnabled: true, ...optional });
+const createOpenTelemetryProvider: typeof openTelemetryProvider = (required, optional = {}) => openTelemetryProvider(required, { exportEnabled: true, ...optional });
 
 const TEST_CONFIG: ObservabilityConfigEnabled = {
   enabled: true,
@@ -398,7 +402,7 @@ test("dispose never throws when the SDK shutdown fails", async () => {
 test("plugin setup only registers the observability factory; it constructs nothing", () => {
   const registered: unknown[] = [];
   plugin.definition.setup({ providers: { register: (value: unknown) => { registered.push(value); } } } as never);
-  assert.deepEqual(registered, [{ contract: "observability", id: "opentelemetry", contractVersion: 1, factory: createOpenTelemetryProvider }]);
+  assert.deepEqual(registered, [{ contract: "observability", id: "opentelemetry", contractVersion: 1, factory: openTelemetryProvider }]);
 });
 
 test("the factory resolves a general endpoint to /v1/traces and serves the port until disposed", async () => {
@@ -605,7 +609,7 @@ test("span admission caps attribute count and value length, including late attri
   const processor: import("@opentelemetry/sdk-trace-base").SpanProcessor = {
     onStart() {}, onEnd(span) { finished.push(span); }, async shutdown() {}, async forceFlush() {},
   };
-  const factories = createOtelFactories({}, { spanProcessors: [processor] });
+  const factories = createOtelFactories({}, { exportEnabled: true, spanProcessors: [processor] });
   try {
     const provider = factories.tracerProviderFactory.create({ serviceName: "limits", exporter: undefined });
     const span = provider.getTracer({ name: "limits" }).startSpan({ name: "bounded", kind: "internal", attributes: { long: "x".repeat(2000) } });

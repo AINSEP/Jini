@@ -254,3 +254,14 @@ describe('createFrontendCapabilityRegistrations', () => {
     });
   });
 });
+
+it('requires the protected page approval channel before dispatching to an older tab', async () => {
+  const registry = createFrontendSessionRegistry({});
+  const deliver = vi.fn();
+  const tab = registry.attach({ descriptor: { sessionId: 'old-tab', capabilities: ['page.click'] }, deliver });
+  registry.bindRunByToken({ runId: 'run-1', bindToken: tab.bindToken });
+  const [registration] = createFrontendCapabilityRegistrations({ registry, capabilities: [{ id: 'page.click', description: 'click', requiresFrontendApproval: true }] }, { policy: { authorize: () => 'allow' } });
+  await expect(registration!.handler({ executionId: 'x', principal: { id: 'human' }, run: { id: 'run-1' }, input: { handle: 'delete' }, signal: new AbortController().signal }))
+    .rejects.toThrow('page approval dialog');
+  expect(deliver).not.toHaveBeenCalled();
+});

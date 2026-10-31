@@ -9,7 +9,7 @@ afterEach(() => {
 it('uses required root and page ports with live DOM identity or an optional pinned page', async () => {
   const root = document.createElement('main');
   root.innerHTML = '<section data-agent-page="overview"><button data-agent-element="save" data-agent-role="button">Save</button></section>';
-  const navigate = vi.fn((_required: Record<string, never>) => {
+  const navigate = vi.fn(() => {
     root.querySelector('section')!.setAttribute('data-agent-page', 'settings');
   });
   const pages = { settings: { label: 'Settings', navigate } };
