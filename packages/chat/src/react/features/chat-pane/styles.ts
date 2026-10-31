@@ -1404,6 +1404,26 @@ export const CHAT_PANE_STYLES = `
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+/* An agent's full-access note (FullAccessNoteTip): a danger-tinted warning icon whose InfoTip holds
+   the text, in place of the paragraph that squeezed the composer row. 24px hit target; flex: none
+   so it never shrinks or wraps the row. The popover is portalled out of .jini-chat-pane, hence the
+   fallback colour. */
+.jini-runtime-access-note { display: inline-flex; flex: none; }
+.jini-runtime-access-note .info-tip { margin-left: 0; }
+.jini-runtime-access-note .info-tip-icon,
+.jini-runtime-access-note .info-tip:hover .info-tip-icon,
+.jini-runtime-access-note .info-tip:focus-within .info-tip-icon {
+  width: 24px;
+  height: 24px;
+  color: var(--jini-chat-danger, #e5484d);
+  border-radius: 6px;
+}
+.jini-runtime-access-note .info-tip-icon:hover { background: var(--jini-chat-subtle); }
+.jini-runtime-access-note .info-tip-icon:focus-visible { outline: 2px solid var(--jini-chat-accent); outline-offset: 1px; border-radius: 6px; }
+/* The note's icon sits beside its radio, not inside it (a control may not nest in a button). */
+.jini-runtime-agent-row { display: flex; align-items: center; }
+.jini-runtime-agent-row > .jini-runtime-agent { flex: 1; min-width: 0; }
+.jini-runtime-agent-row > .jini-runtime-access-note { margin-right: 4px; }
 .jini-runtime-empty { padding: 10px 11px; color: var(--jini-chat-muted); font-size: 12px; }
 .jini-runtime-models {
   display: flex;

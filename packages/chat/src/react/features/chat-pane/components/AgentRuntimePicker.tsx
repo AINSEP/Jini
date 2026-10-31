@@ -1,7 +1,8 @@
 import { pickerModelValue, pickerCatalogNote, pickerModelOptions, shortModelLabel } from '../model-options.js';
-import type { ReactNode } from 'react';
+import { useId, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AgentIcon, RemixIcon, SearchableModelSelect } from '@jini-ai/ui';
+import { InfoTip } from '@jini-ai/ui/admin-widgets';
 import { assessNativeToolPolicy, type NativeToolPolicyInput } from '@jini-ai/agent-runtime/native-tool-policy';
 
 import { useT } from '../../../hooks/context.js';
@@ -31,6 +32,27 @@ export function runtimeAgentStatus({ agent }: { agent: ChatPaneAgent }): string 
   return agent.version ?? 'Installed';
 }
 
+/**
+ * An agent's `fullCliAccessNote` as a warning icon whose tip (hover, focus, tap) holds the text.
+ * It was a paragraph beside the model picker that squeezed the composer row (owner 2026-10-30).
+ * `descriptionId` lets the agent's own radio in the picker list read the same text.
+ */
+function FullAccessNoteTip({ note, descriptionId, t }: {
+  note: string; descriptionId?: string | undefined; t: (key: string) => string;
+}): ReactNode {
+  return (
+    <span className="jini-runtime-access-note">
+      <InfoTip
+        label={t(note)}
+        triggerLabel={t('Full computer access')}
+        descriptionId={descriptionId}
+        placement="top"
+        icon={<RemixIcon name="alert-line" size={16} />}
+      />
+    </span>
+  );
+}
+
 /** Selection preflight uses the launch assessor; it never substitutes for enforcement. */
 function NativeToolPolicyWarning({ agent, policy, isApi }: {
   agent: ChatPaneAgent | undefined; policy: NativeToolPolicyInput | undefined; isApi: boolean;
@@ -39,7 +61,7 @@ function NativeToolPolicyWarning({ agent, policy, isApi }: {
   if (!agent || isApi) return null;
   const warning = policy ? assessNativeToolPolicy({ def: agent, policy }) : null;
   return <>
-    {agent.fullCliAccessNote ? <p>{t(agent.fullCliAccessNote)}</p> : null}
+    {agent.fullCliAccessNote ? <FullAccessNoteTip note={agent.fullCliAccessNote} t={t} /> : null}
     {warning ? <p role="alert">{t(warning)}</p> : null}
   </>;
 }
@@ -109,53 +131,78 @@ function RuntimeAgentList({
   agentIconBasePath,
   t,
 }: RuntimeAgentListProps): ReactNode {
+  const noteIdPrefix = useId();
   if (orderedAgents.length === 0) {
     return <div className="jini-runtime-empty">{t('No available code agents')}</div>;
   }
   return (
     <>
-      {orderedAgents.map((agent) => {
-        const active = agent.id === value.agentId;
-        const status = runtimeAgentStatus({ agent: agent });
-        return (
-          <button
-            type="button"
-            role="radio"
-            aria-checked={active}
-            className={`jini-runtime-agent${active ? ' is-active' : ''}`}
-            key={agent.id}
-            aria-current={active ? 'true' : undefined}
-            aria-label={`${agent.name} · ${status}`}
-            onClick={() => onChange(defaultChatPaneSelection({ agent: agent }))}
-          >
-            <AgentIcon
-              id={agent.id}
-              size={20}
-              className="jini-runtime-agent-icon"
-              {...definedProps({ source: { basePath: agentIconBasePath } })}
-            />
-            <span className="jini-runtime-agent__copy">
-              <strong>{agent.name}</strong>
-              {agent.fullCliAccessNote ? <small>{t(agent.fullCliAccessNote)}</small> : null}
-            </span>
-            {agent.supportsTools === false ? (
-              <span
-                className="jini-runtime-agent__badge"
-                title={t("This CLI has no MCP support, so it cannot use this app's tools.")}
-              >
-                {t('No tools')}
-              </span>
-            ) : null}
-            <span className="jini-runtime-agent__status">
-              {active ? t('selected') : status}
-            </span>
-            {active ? (
-              <RemixIcon name="check-line" size={19} className="jini-runtime-check" />
-            ) : null}
-          </button>
-        );
-      })}
+      {orderedAgents.map((agent) => (
+        <RuntimeAgentRow
+          key={agent.id}
+          agent={agent}
+          active={agent.id === value.agentId}
+          noteId={agent.fullCliAccessNote ? `${noteIdPrefix}-${agent.id}-note` : undefined}
+          onChange={onChange}
+          agentIconBasePath={agentIconBasePath}
+          t={t}
+        />
+      ))}
     </>
+  );
+}
+
+interface RuntimeAgentRowProps {
+  agent: ChatPaneAgent;
+  active: boolean;
+  /** Set when the agent has a `fullCliAccessNote`: the radio is described by the note's text. */
+  noteId: string | undefined;
+  onChange: (selection: ChatPaneAgentSelection) => void;
+  agentIconBasePath?: string | undefined;
+  t: (key: string) => string;
+}
+
+function RuntimeAgentRow({ agent, active, noteId, onChange, agentIconBasePath, t }: RuntimeAgentRowProps): ReactNode {
+  const status = runtimeAgentStatus({ agent: agent });
+  // The note's icon is a control of its own, so it sits beside the radio, never inside it.
+  return (
+    <div className="jini-runtime-agent-row">
+      <button
+        type="button"
+        role="radio"
+        aria-checked={active}
+        className={`jini-runtime-agent${active ? ' is-active' : ''}`}
+        aria-current={active ? 'true' : undefined}
+        aria-label={`${agent.name} · ${status}`}
+        {...(noteId ? { 'aria-describedby': noteId } : {})}
+        onClick={() => onChange(defaultChatPaneSelection({ agent: agent }))}
+      >
+        <AgentIcon
+          id={agent.id}
+          size={20}
+          className="jini-runtime-agent-icon"
+          {...definedProps({ source: { basePath: agentIconBasePath } })}
+        />
+        <span className="jini-runtime-agent__copy">
+          <strong>{agent.name}</strong>
+        </span>
+        {agent.supportsTools === false ? (
+          <span
+            className="jini-runtime-agent__badge"
+            title={t("This CLI has no MCP support, so it cannot use this app's tools.")}
+          >
+            {t('No tools')}
+          </span>
+        ) : null}
+        <span className="jini-runtime-agent__status">
+          {active ? t('selected') : status}
+        </span>
+        {active ? (
+          <RemixIcon name="check-line" size={19} className="jini-runtime-check" />
+        ) : null}
+      </button>
+      {agent.fullCliAccessNote ? <FullAccessNoteTip note={agent.fullCliAccessNote} descriptionId={noteId} t={t} /> : null}
+    </div>
   );
 }
 
