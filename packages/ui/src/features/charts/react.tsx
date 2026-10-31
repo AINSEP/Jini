@@ -5,7 +5,7 @@ import { InteractiveUiRegistry, type InteractiveComponentEntry } from '../intera
 import { chartSpecSchema, DEFAULT_CHART_THEME, type ChartKind, type ChartSpec, type ChartTheme } from './contract.js';
 import { mountChart, type MountedChart, type MountChartOptions } from './browser.js';
 import { chartCapability, chartProvidersByKind, type ChartProviderRegistry } from './registry.js';
-import { chartWireManifests, legacyChartSpec } from './wire.js';
+import { chartWireManifests, legacyChartSpec, withSeriesLabels } from './wire.js';
 
 export interface ChartHostProps {
   readonly spec: ChartSpec;
@@ -46,7 +46,7 @@ const LEGACY_CHART_KINDS = ['bar', 'line', 'pie'] as const;
 function chartComponent(kind: ChartKind, providers: ChartProviderRegistry, options: { siteProvider?: string | undefined; theme?: ChartTheme }): ComponentType<Record<string, unknown>> {
   return function RegisteredChart(props: Record<string, unknown>): ReactElement {
     const legacyKind = LEGACY_CHART_KINDS.find((legacy) => legacy === kind);
-    const spec = legacyKind ? legacyChartSpec({ kind: legacyKind, props }) : chartSpecSchema.parse(props.spec);
+    const spec = withSeriesLabels({ spec: legacyKind ? legacyChartSpec({ kind: legacyKind, props }) : chartSpecSchema.parse(props.spec) });
     return <ChartHost spec={spec} registry={providers} {...options} />;
   };
 }
