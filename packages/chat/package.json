@@ -33,21 +33,21 @@
       "./transports/http": "universal",
       "./transports/ag-ui": "universal",
       "./browser/session-store": "browser",
-      "./browser/page-actions": "browser",
       "./server/durable-runs": "node",
       "./store/runtime": "node",
       "./vanilla": "browser",
       "./browser/lazy-loader": "browser",
-      "./vanilla/style.css": "browser"
+      "./vanilla/style.css": "browser",
+      "./browser/frontend-session-bridge": "browser"
     },
     "neutralEntries": [
       "src/store/contracts"
     ],
     "isolation": {
       "entries": {
-        "./browser/page-actions": "core",
         "./transports/http": "core",
-        "./transports/ag-ui": "core"
+        "./transports/ag-ui": "core",
+        "./browser/frontend-session-bridge": "core"
       }
     }
   },
@@ -150,11 +150,6 @@
       "import": "./dist/embed-widget/browser/session-store.js",
       "default": "./dist/embed-widget/browser/session-store.js"
     },
-    "./browser/page-actions": {
-      "types": "./dist/embed-widget/browser/page-actions.d.ts",
-      "import": "./dist/embed-widget/browser/page-actions.js",
-      "default": "./dist/embed-widget/browser/page-actions.js"
-    },
     "./server/durable-runs": {
       "types": "./dist/server/durable-runs/entry.d.ts",
       "import": "./dist/server/durable-runs/entry.js",
@@ -175,7 +170,12 @@
       "import": "./dist/embed-widget/browser/lazy-loader.js",
       "default": "./dist/embed-widget/browser/lazy-loader.js"
     },
-    "./vanilla/style.css": "./dist/embed-widget/vanilla/style.css"
+    "./vanilla/style.css": "./dist/embed-widget/vanilla/style.css",
+    "./browser/frontend-session-bridge": {
+      "types": "./dist/embed-widget/browser/frontend-session-bridge.d.ts",
+      "import": "./dist/embed-widget/browser/frontend-session-bridge.js",
+      "default": "./dist/embed-widget/browser/frontend-session-bridge.js"
+    }
   },
   "files": [
     "dist",
@@ -369,9 +369,6 @@
       "browser/session-store": [
         "./dist/embed-widget/browser/session-store.d.ts"
       ],
-      "browser/page-actions": [
-        "./dist/embed-widget/browser/page-actions.d.ts"
-      ],
       "server/durable-runs": [
         "./dist/server/durable-runs/entry.d.ts"
       ],
@@ -383,6 +380,9 @@
       ],
       "browser/lazy-loader": [
         "./dist/embed-widget/browser/lazy-loader.d.ts"
+      ],
+      "browser/frontend-session-bridge": [
+        "./dist/embed-widget/browser/frontend-session-bridge.d.ts"
       ]
     }
   }

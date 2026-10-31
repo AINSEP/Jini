@@ -14,32 +14,28 @@ export interface BrowserSessionStore {
   load(args: Record<string, never>): PersistedEmbedState;
   save(args: { state: PersistedEmbedState }): void;
   clear(args: Record<string, never>): void;
-  enqueue(args: { action: unknown }): void;
-  drain(args: Record<string, never>): unknown | null;
 }
 export interface BrowserSessionStoreArgs {
   readonly storage: SessionStoragePort;
   readonly transcriptKey: string;
-  readonly actionKey: string;
   readonly maxMessages: number;
   readonly maxBytes: number;
   readonly validateMessage: (args: { value: unknown }) => boolean;
 }
 
 /**
- * Creates bounded, fail-soft transcript storage and a single-slot action queue.
- * Corrupt transcripts are cleared as a whole. Actions are deleted before delivery,
- * and a failed delete prevents delivery. Serialization/storage failures never escape.
+ * Creates bounded, fail-soft transcript storage.
+ * Corrupt transcripts are cleared as a whole. Serialization/storage failures never escape.
  * Reject oversized stored envelopes before parsing, validate the whole message batch, then trim
  * oldest messages first. Circular serialization is fail-soft. Keys, limits, validator and Storage
  * are injected so separate controllers never accidentally share a product-selected namespace.
  * @complexity Load O(bytes + messages); save O(messages * serialized bytes) in the
- * worst trimming case; queue O(serialized action bytes). State is instance-local.
+ * worst trimming case. State is instance-local.
  */
 export function createBrowserSessionStore(args: BrowserSessionStoreArgs): BrowserSessionStore {
-  const { storage, transcriptKey, actionKey, maxMessages, maxBytes, validateMessage } = args;
-  if (!transcriptKey || !actionKey || transcriptKey === actionKey) {
-    throw new Error('Transcript and action keys must be nonempty and distinct');
+  const { storage, transcriptKey, maxMessages, maxBytes, validateMessage } = args;
+  if (!transcriptKey) {
+    throw new Error('Transcript key must be nonempty');
   }
   if (!Number.isSafeInteger(maxMessages) || maxMessages < 0) throw new Error('Invalid message limit');
   // The smallest envelope (open=false) is 28 UTF-8 bytes.
@@ -69,19 +65,7 @@ export function createBrowserSessionStore(args: BrowserSessionStoreArgs): Browse
       } catch { /* The live conversation continues even when serialization or storage fails. */ }
     },
     clear,
-    enqueue({ action }) {
-      try {
-        const serialized = JSON.stringify(action);
-        if (serialized !== undefined) storage.setItem(actionKey, serialized);
-      } catch { /* The live page continues without a queued action. */ }
-    },
-    drain(_args) {
-      let raw: string | null;
-      try { raw = storage.getItem(actionKey); } catch { return null; }
-      if (raw === null) return null;
-      try { storage.removeItem(actionKey); } catch { return null; }
-      try { return JSON.parse(raw) as unknown; } catch { return null; }
-    },
+
   };
 }
 

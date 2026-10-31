@@ -1,3 +1,5 @@
+import { createPublicationFilter, publishedText } from './publication-filter.js';
+import type { PagePublication } from '../page-publication.js';
 import {
   AGENT_ELEMENT_ATTRIBUTE,
   AGENT_LABEL_ATTRIBUTE,
@@ -168,6 +170,7 @@ function dropdownFieldDescriptorOf(
   if (dropdown === undefined) return null;
   return {
     type: 'select',
+    autocomplete: dropdown.getAttribute('autocomplete')?.toLowerCase() || undefined,
     name: dropdown.name || undefined,
     id: dropdown.id || undefined,
     // Same reason `fieldDescriptorOf` carries these: a `<select aria-label="Card number"
@@ -292,9 +295,9 @@ function publicTextOf(element: Element): string {
   return copy.textContent ?? '';
 }
 
-function describe(element: Element, page: string | undefined): AgentElementDescriptor {
+function describe(element: Element, page: string | undefined, publicText?: string): AgentElementDescriptor {
   const role = element.getAttribute(AGENT_ROLE_ATTRIBUTE);
-  const text = publicTextOf(element);
+  const text = publicText ?? publicTextOf(element);
   // Live text is a fine fallback label for an ordinary element — it is the page's own ontology,
   // rendered openly. For an editable region it is not: a contenteditable's content is the *user's
   // data*, so falling back to it published the contents of a rich-text field to every
@@ -373,6 +376,9 @@ export interface DomPageDriverOptions {
    * view (it is bound to the connection, not the render).
    */
   readonly currentPage?: string | undefined;
+  readonly publication?: PagePublication;
+  /** Public hosts acknowledge terminal native submissions before executing the one saved effect. */
+  readonly deferSubmit?: (args: { execute: () => Promise<void> }) => void;
 }
 
 /**
@@ -414,8 +420,11 @@ export function createDomPageDriver({ root, pages }: DomPageDriverRequired, opti
    * publishes the same handle twice makes `find`'s single-match resolution ambiguous — surfaced
    * here so both callers below can refuse rather than silently pick one.
    */
-  const findAll = (handle: string): Element[] => Array.from(root.querySelectorAll(resolveHandleSelector({ handle })))
-    .filter((element) => !isPrivate(element));
+  const findAll = (handle: string): Element[] => {
+    const matches = Array.from(root.querySelectorAll(resolveHandleSelector({ handle })));
+    if (options.publication && matches.length !== 1) return [];
+    return matches.filter(element => !isPrivate(element) && (!publicationFilter || publicationFilter.allows({ element, action: 'read' })));
+  };
 
   /**
    * More than one element answers to the same handle — a page-authoring bug (duplicate
@@ -431,11 +440,13 @@ export function createDomPageDriver({ root, pages }: DomPageDriverRequired, opti
     + 'caller can resolve; publish a unique handle per element',
   );
 
-  const find = (handle: string): Element => {
+  const find = (handle: string, action = 'read'): Element => {
     const matches = findAll(handle);
     if (matches.length === 0) throw new Error(`no element published as "${handle}" on this page`);
     if (matches.length > 1) throw ambiguousHandleError(handle, matches.length);
-    return matches[0]!;
+    const element = matches[0]!;
+    if (publicationFilter && !publicationFilter.allows({ element: controlOf(element), action })) throw new Error('Published action unavailable');
+    return element;
   };
 
   /**
@@ -470,11 +481,14 @@ export function createDomPageDriver({ root, pages }: DomPageDriverRequired, opti
     return candidate ?? element;
   };
 
+  const publicationFilter = options.publication ? createPublicationFilter({ root, publication: options.publication,
+    fieldOf: element => fieldDescriptorOf(controlOf(element)) ?? dropdownFieldDescriptorOf({ dropdown: element instanceof HTMLSelectElement ? element : undefined }) }) : undefined;
+
   return {
     async findElements(_required: Record<string, never>, filter: FindElementsFilter = {}) {
       const found = Array.from(root.querySelectorAll(`[${AGENT_ELEMENT_ATTRIBUTE}]`))
-        .filter((element) => !isPrivate(element))
-        .map((element) => describe(element, pageOf(element)))
+        .filter(element => !isPrivate(element) && (!publicationFilter || findAll(element.getAttribute(AGENT_ELEMENT_ATTRIBUTE) ?? '').includes(element)))
+        .map((element) => describe(element, pageOf(element), publicationFilter ? publishedText({ element }) : undefined))
         .filter((element) => element.handle.length > 0);
       const query = filter.query?.toLowerCase();
       return found.filter((element) => {
@@ -518,7 +532,8 @@ export function createDomPageDriver({ root, pages }: DomPageDriverRequired, opti
       const value = field !== null
         ? (control as HTMLInputElement | HTMLTextAreaElement).value
         : dropdown?.value;
-      return rawElementStateOf({ element, control, checkable, readable, value, dropdown });
+      const state = rawElementStateOf({ element, control, checkable, readable, value, dropdown });
+      return publicationState({ state, element, filtered: Boolean(publicationFilter) });
     },
 
     /**
@@ -547,7 +562,7 @@ export function createDomPageDriver({ root, pages }: DomPageDriverRequired, opti
     },
 
     async highlight({ handle, durationMs }: { handle: string; durationMs: number }, _optional: Record<string, never> = {}) {
-      const element = find(handle);
+      const element = find(handle, 'highlight');
       // Same refusal as `click()`, for the same reason: an SVG (or other non-HTMLElement) target
       // has no `.style` to draw an outline on, so silently returning here drew nothing while
       // `page-executor.ts` unconditionally reports the highlight as successful — a guaranteed
@@ -574,17 +589,24 @@ export function createDomPageDriver({ root, pages }: DomPageDriverRequired, opti
     },
 
     async scrollTo({ handle }: { handle: string }, _optional: Record<string, never> = {}) {
-      find(handle).scrollIntoView({ behavior: 'smooth', block: 'center' });
+      find(handle, 'scrollTo').scrollIntoView({ behavior: 'smooth', block: 'center' });
     },
 
     async click({ handle }: { handle: string }, _optional: Record<string, never> = {}) {
-      const control = controlOf(find(handle));
+      const control = controlOf(find(handle, 'click'));
       if (!(control instanceof HTMLElement)) throw new Error(`"${handle}" is not clickable`);
-      control.click();
+      if (options.deferSubmit && nativeSubmitter(control)) {
+        options.deferSubmit({ execute: async () => {
+          // A changed or replaced form/submitter cannot inherit the accepted plan.
+          const live = controlOf(find(handle, 'click'));
+          if (live !== control) throw new Error('Submission target changed');
+          control.click();
+        } });
+      } else control.click();
     },
 
     async fill({ handle, text }: { handle: string; text: string }, _optional: Record<string, never> = {}) {
-      const control = controlOf(find(handle));
+      const control = controlOf(find(handle, 'fill'));
       if (isEditableRegion(control)) {
         // A contenteditable region has no `value`; its content *is* its children, and a real
         // editor owns that subtree. See `fillEditableRegion` for why this drives it through
@@ -609,7 +631,7 @@ export function createDomPageDriver({ root, pages }: DomPageDriverRequired, opti
     },
 
     async selectOption({ handle, option }: { handle: string; option: string }, { selected = true }: { selected?: boolean | undefined } = {}) {
-      const control = controlOf(find(handle));
+      const control = controlOf(find(handle, 'selectOption'));
       if (!(control instanceof HTMLSelectElement)) {
         throw new Error(`"${handle}" is not a dropdown`);
       }
@@ -725,4 +747,12 @@ function fillEditableRegion(control: HTMLElement, text: string): void {
 export function currentAgentPage({ root }: { root: ParentNode }, _optional: Record<string, never> = {}): string | undefined {
   const tagged = root.querySelector(`[${AGENT_PAGE_ATTRIBUTE}]`);
   return tagged?.getAttribute(AGENT_PAGE_ATTRIBUTE) ?? undefined;
+}
+
+function publicationState({ state, element, filtered }: { state: AgentElementRawState; element: Element; filtered: boolean }): AgentElementRawState {
+  return filtered ? { ...state, text: publishedText({ element }) } : state;
+}
+
+function nativeSubmitter(control: HTMLElement): boolean {
+  return (control instanceof HTMLButtonElement || control instanceof HTMLInputElement) && control.type === 'submit' && control.form !== null;
 }

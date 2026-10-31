@@ -11,16 +11,15 @@ it('mounts an accessible dialog, streams replies, traps focus, confirms reset an
   let handlers: RunHandlers | undefined;
   let seq = 0;
   let renderFrame: (() => void) | undefined;
-  const mount = mountVanillaChat({ element, document, agentId: 'visitor', directiveEventName: 'client_directive',
+  const mount = mountVanillaChat({ element, document, agentId: 'visitor',
     suggestions: ['Find posts', 'Find pages'],
     ids: () => String(++seq), createAbortController: () => new AbortController(),
     transport: { async startRun(_input, callbacks) { handlers = callbacks; return { runId: 'r' }; },
       async reattachRun() {}, async fetchRunStatus() { return null; }, async stopRun() {} },
-    session: { load: () => ({ open: false, messages: [] }), save: () => {}, clear: () => {}, enqueue: () => {}, drain: () => null },
-    pageActions: { allows: () => true, navigate: () => true, execute: () => true, clearHighlight: () => {} },
+    session: { load: () => ({ open: false, messages: [] }), save: () => {}, clear: () => {},},
     scheduleFrame: ({ callback }) => { renderFrame = callback; return () => { renderFrame = undefined; }; }, renderMarkdown: ({ content, element: target }) => { target.textContent = content; },
     copy: { title: 'Chat', fabLabel: 'Open chat', placeholder: 'Message', send: 'Send', stop: 'Stop', close: 'Close', reset: 'New thread',
-      resetQuestion: 'Discard thread?', confirm: 'Confirm', confirmDraft: 'Discard draft', keep: 'Keep', proposalGo: 'Go', proposalLabel: ({ title }) => title, thinking: 'Replying',
+      resetQuestion: 'Discard thread?', confirm: 'Confirm', confirmDraft: 'Discard draft', keep: 'Keep', thinking: 'Replying',
       greeting: 'Ask about this site.', suggestionsLabel: 'Example prompts' },
   });
   const fab = element.querySelector<HTMLButtonElement>('.jini-chat-bubble')!;
@@ -110,32 +109,6 @@ it('mounts an accessible dialog, streams replies, traps focus, confirms reset an
   expect(element.children).toHaveLength(0);
 });
 
-it('drains a queued destination treatment once without replaying stored replies', () => {
-  const element = document.createElement('div');
-  document.body.replaceChildren(element);
-  let drains = 0;
-  let effects = 0;
-  let canceled = false;
-  let scheduled: (() => void) | null = null;
-  const mount = mountVanillaChat({ element, document, agentId: 'visitor', directiveEventName: 'client_directive',
-    ids: () => 'unused', createAbortController: () => new AbortController(),
-    transport: { async startRun() { return { runId: 'unused' }; }, async reattachRun() {}, async fetchRunStatus() { return null; }, async stopRun() {} },
-    session: { load: () => ({ open: false, messages: [] }), save: () => {}, clear: () => {}, enqueue: () => {},
-      drain: () => { drains++; return { type: 'highlight', target: { title: 'About', path: '/about', slug: 'about' } }; } },
-    pageActions: { allows: () => true, navigate: () => { throw new Error('Unexpected navigation'); }, execute: () => { effects++; return true; }, clearHighlight: () => {} },
-    scheduleFrame: ({ callback }) => { scheduled = callback; return () => { canceled = true; }; }, renderMarkdown: () => {},
-    copy: { title: 'Chat', fabLabel: 'Open chat', placeholder: 'Message', send: 'Send', stop: 'Stop', close: 'Close', reset: 'New thread',
-      resetQuestion: 'Discard?', confirm: 'Confirm', keep: 'Keep', proposalGo: 'Go', proposalLabel: ({ title }) => title, thinking: 'Replying' },
-  });
-  expect(drains).toBe(1);
-  (scheduled as unknown as () => void)();
-  expect(effects).toBe(1);
-  mount.controller.setOpen({ open: true });
-  expect(drains).toBe(1);
-  mount.unmount({});
-  expect(canceled).toBe(true);
-});
-
 function focusFixture({ restored = false, renderMarkdown, startRun }: {
   restored?: boolean; renderMarkdown?: MountVanillaChatArgs['renderMarkdown']; startRun?: ChatTransport['startRun'];
 } = {}) {
@@ -147,20 +120,19 @@ function focusFixture({ restored = false, renderMarkdown, startRun }: {
   let handlers: RunHandlers | undefined;
   const frames = new Set<() => void>();
   const rendered: string[] = [];
-  const mount = mountVanillaChat({ element, document, agentId: 'visitor', directiveEventName: 'client_directive',
+  const mount = mountVanillaChat({ element, document, agentId: 'visitor',
     ids: () => String(++sequence), createAbortController: () => new AbortController(),
     transport: { startRun: startRun ?? (async (_input, callbacks) => { handlers = callbacks; return { runId: 'run' }; }),
       async reattachRun() {}, async fetchRunStatus() { return null; }, async stopRun() {} },
     session: { load: () => ({ open: restored, messages: restored ? [{ id: 'old', role: 'assistant', content: 'Previous reply', runStatus: 'succeeded' }] : [] }),
-      save: () => {}, clear: () => {}, enqueue: () => {}, drain: () => null },
-    pageActions: { allows: () => true, navigate: () => true, execute: () => true, clearHighlight: () => {} },
+      save: () => {}, clear: () => {},},
     scheduleFrame: ({ callback }) => { frames.add(callback); return () => { frames.delete(callback); }; },
     renderMarkdown: ({ content, element: target }) => {
       rendered.push(content);
       if (renderMarkdown) renderMarkdown({ content, element: target }); else target.textContent = content;
     },
     copy: { title: 'Chat', fabLabel: 'Open chat', placeholder: 'Message', send: 'Send', stop: 'Stop', close: 'Close', reset: 'New thread',
-      resetQuestion: 'Discard?', confirm: 'Confirm', keep: 'Keep', proposalGo: 'Go', proposalLabel: ({ title }) => title, thinking: 'Replying' },
+      resetQuestion: 'Discard?', confirm: 'Confirm', keep: 'Keep', thinking: 'Replying' },
   });
   return { outside, element, mount, frames, rendered, callbacks: () => handlers!, flush: () => {
     const pending = [...frames]; frames.clear(); pending.forEach(callback => callback());
@@ -328,21 +300,6 @@ describe('vanilla widget interaction boundaries', () => {
   const navigateDirective: AgentEvent = { kind: 'ext', name: 'client_directive',
     data: { kind: 'page_action', action: { type: 'navigate', auto: false, target: { slug: 'about', title: 'About', path: '/about' } } } };
 
-  it('shows the proposal label for a pending navigation and hides it once accepted', async () => {
-    const f = focusFixture();
-    try {
-      f.element.dispatchEvent(new Event('jini-chat-open'));
-      await f.mount.controller.send({ text: 'Where?' });
-      f.callbacks().onDone([navigateDirective]);
-      const proposal = f.element.querySelector<HTMLElement>('.jini-chat-vanilla__proposal')!;
-      expect(proposal.hidden).toBe(false);
-      expect(proposal.textContent).toBe('AboutGo');
-      byLabel(f.element, 'Go').click();
-      expect(proposal.hidden).toBe(true);
-      expect(proposal.querySelector('span')!.textContent).toBe('');
-    } finally { f.mount.unmount({}); }
-  });
-
   it('focuses Close when the bubble opens the panel during a running reply', async () => {
     const f = focusFixture();
     try {
@@ -500,14 +457,13 @@ describe('vanilla widget interaction boundaries', () => {
     detached.body.append(element);
     let mounted = 0;
     element.addEventListener('jini-chat-mounted', () => { mounted++; });
-    const mount = mountVanillaChat({ element, document: detached, agentId: 'visitor', directiveEventName: 'client_directive',
+    const mount = mountVanillaChat({ element, document: detached, agentId: 'visitor',
       ids: () => 'id', createAbortController: () => new AbortController(),
       transport: { async startRun() { return { runId: 'run' }; }, async reattachRun() {}, async fetchRunStatus() { return null; }, async stopRun() {} },
-      session: { load: () => ({ open: false, messages: [] }), save: () => {}, clear: () => {}, enqueue: () => {}, drain: () => null },
-      pageActions: { allows: () => true, navigate: () => true, execute: () => true, clearHighlight: () => {} },
+      session: { load: () => ({ open: false, messages: [] }), save: () => {}, clear: () => {},},
       scheduleFrame: () => () => {}, renderMarkdown: () => {},
       copy: { title: 'Chat', fabLabel: 'Open chat', placeholder: 'Message', send: 'Send', stop: 'Stop', close: 'Close', reset: 'New thread',
-        resetQuestion: 'Discard?', confirm: 'Confirm', keep: 'Keep', proposalGo: 'Go', proposalLabel: ({ title }) => title, thinking: 'Replying' } });
+        resetQuestion: 'Discard?', confirm: 'Confirm', keep: 'Keep', thinking: 'Replying' } });
     expect(detached.defaultView).toBeNull();
     expect(mounted).toBe(1);
     expect(element.dataset.chatMounted).toBe('true');

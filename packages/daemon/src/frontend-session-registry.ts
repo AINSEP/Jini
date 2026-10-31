@@ -48,10 +48,26 @@
 import { randomUUID } from 'node:crypto';
 import type { ToolApprovalDecision, ToolExecutionOptions } from '@jini-ai/core';
 
+/** Host-authenticated ownership, never derived from a model/run context blob. */
+export interface FrontendSessionOwner {
+  readonly workspaceId: string;
+  readonly principalId: string;
+  readonly tabId: string;
+}
+
+/** Shared owner comparison for attachment, binding and human-only reply gates. */
+export function sameFrontendOwner({ expected: a, actual: b }: { expected: FrontendSessionOwner | undefined; actual: FrontendSessionOwner | undefined }, _options = {}): boolean {
+  if (!a || !b) return a === b;
+  return a.workspaceId === b.workspaceId && a.principalId === b.principalId && a.tabId === b.tabId;
+}
+
 /** A surface that has attached itself and can execute capabilities on a bound run's behalf. */
 export interface FrontendSessionDescriptor {
   /** Identifies this surface. Minted by the host at attach time; opaque here. */
   readonly sessionId: string;
+  readonly owner?: FrontendSessionOwner;
+  /** Host-authenticated quota scopes (e.g. guest and trusted client IP), never browser claims. */
+  readonly capacityKeys?: readonly string[];
   /**
    * Capability ids this surface claims it can execute. A call for anything this surface does not
    * claim fails closed rather than hanging.
@@ -93,6 +109,8 @@ export interface FrontendSessionHandle {
 }
 
 export interface FrontendSessionRegistry {
+  /** HTTP response authentication; possession of a URL session id grants nothing. */
+  ownsSession(args: { sessionId: string; owner: FrontendSessionOwner; bindToken: string }): boolean;
   /**
    * Registers a surface and the function that pushes invocations to it (an SSE write, a WebSocket
    * send, an in-process call for a browser-resident caller that needs no relay at all).
@@ -130,7 +148,7 @@ export interface FrontendSessionRegistry {
    * distinguish "never existed" from "detached" — telling a caller which one it guessed is how a
    * probe learns whether a token is worth retrying.
    */
-  bindRunByToken(args: { readonly runId: string; readonly bindToken: string }): () => void;
+  bindRunByToken(args: { readonly runId: string; readonly bindToken: string; readonly owner?: FrontendSessionOwner }): () => void;
   /**
    * Routes one capability call to the surface bound to `runId` and resolves with its output.
    *
@@ -157,6 +175,8 @@ export interface FrontendSessionRegistry {
 }
 
 export interface CreateFrontendSessionRegistryOptions {
+  readonly maxSessions?: number;
+  readonly maxSessionsPerKey?: number;
   /** Injectable id source for invocation ids — defaults to `randomUUID`. Test-only hook. */
   readonly newInvocationId?: () => string;
   /**
@@ -186,6 +206,28 @@ interface AttachedSession {
   readonly pending: Map<string, PendingInvocation>;
 }
 
+/** Expected admission refusal; HTTP maps it to a quiet 429 before opening SSE. */
+export class FrontendSessionCapacityError extends Error {
+  constructor() { super('Frontend session capacity reached'); this.name = 'FrontendSessionCapacityError'; }
+}
+
+/** Admission is synchronous with attach, so concurrent opens cannot oversubscribe a scope.
+ * O(s × k) over the bounded live sessions and the host's quota keys; no retained IP counters.
+ * Detach automatically releases capacity, including stale handles and expired connections. */
+function assertSessionCapacity({ sessions, descriptor, options }: {
+  sessions: ReadonlyMap<string, AttachedSession>; descriptor: FrontendSessionDescriptor; options: CreateFrontendSessionRegistryOptions;
+}): void {
+  if (options.maxSessions !== undefined && sessions.size >= options.maxSessions) throw new FrontendSessionCapacityError();
+  if (options.maxSessionsPerKey === undefined) return;
+  for (const key of descriptor.capacityKeys ?? []) {
+    let count = 0;
+    for (const session of sessions.values()) {
+      if (session.descriptor.capacityKeys?.includes(key)) count++;
+    }
+    if (count >= options.maxSessionsPerKey) throw new FrontendSessionCapacityError();
+  }
+}
+
 /**
  * Creates an in-memory registry of attached surfaces.
  *
@@ -193,10 +235,10 @@ interface AttachedSession {
  * so it cannot outlive the process that holds it, and a restart correctly presents as "nothing
  * attached" rather than as a stale route to a tab that is long gone.
  *
- * @complexity Every operation is O(1) except `detach`, which is O(p + b) in that surface\'s pending
- * invocations and bound runs.
+ * @complexity `attach` checks O(s × k) live sessions/quota keys when limits are configured;
+ * `detach` is O(p + b) in pending invocations and bound runs. Other addressing operations are O(1).
  */
-export function createFrontendSessionRegistry(requiredArgs: Record<string, never>, optionalArgs: Pick<CreateFrontendSessionRegistryOptions, "newInvocationId" | "newBindToken"> = {}
+export function createFrontendSessionRegistry(requiredArgs: Record<string, never>, optionalArgs: Pick<CreateFrontendSessionRegistryOptions, "newInvocationId" | "newBindToken" | "maxSessions" | "maxSessionsPerKey"> = {}
 ): FrontendSessionRegistry {
   const options: CreateFrontendSessionRegistryOptions = { ...requiredArgs, ...optionalArgs };
   const newInvocationId = options.newInvocationId ?? randomUUID;
@@ -254,6 +296,7 @@ export function createFrontendSessionRegistry(requiredArgs: Record<string, never
 
   function attach({ descriptor, deliver, cancel }: { readonly descriptor: FrontendSessionDescriptor; readonly deliver: (invocation: FrontendInvocation) => void; readonly cancel?: (args: { invocationId: string }) => void }
   ): FrontendSessionHandle {
+    assertSessionCapacity({ sessions, descriptor, options });
     if (sessions.has(descriptor.sessionId)) {
       throw new Error(`FrontendSessionRegistry: session "${descriptor.sessionId}" is already attached`);
     }
@@ -301,12 +344,12 @@ export function createFrontendSessionRegistry(requiredArgs: Record<string, never
     };
   }
 
-  function bindRunByToken({ runId, bindToken }: { readonly runId: string; readonly bindToken: string }): () => void {
+  function bindRunByToken({ runId, bindToken, owner }: { readonly runId: string; readonly bindToken: string; readonly owner?: FrontendSessionOwner }): () => void {
     const sessionId = bindTokens.get(bindToken);
     // One message for both "no such token" and "the surface holding it detached". Distinguishing
     // them tells a caller whether a guess was close, which is the feedback a probe needs and the
     // only feedback it needs.
-    if (sessionId === undefined) {
+    if (sessionId === undefined || !sameFrontendOwner({ expected: sessions.get(sessionId)?.descriptor.owner, actual: owner })) {
       throw new Error(`FrontendSessionRegistry: cannot bind run "${runId}" — unknown or expired bind token`);
     }
     return bindRun({ runId: runId, sessionId: sessionId });
@@ -382,5 +425,9 @@ export function createFrontendSessionRegistry(requiredArgs: Record<string, never
     return sessionFor({ runId: runId })?.capabilities ?? [];
   }
 
-  return { attach, bindRun, bindRunByToken, invoke, settle, progress, capabilitiesFor, sessionFor };
+  function ownsSession({ sessionId, owner, bindToken }: { sessionId: string; owner: FrontendSessionOwner; bindToken: string }): boolean {
+    return bindTokens.get(bindToken) === sessionId && sameFrontendOwner({ expected: sessions.get(sessionId)?.descriptor.owner, actual: owner });
+  }
+
+  return { attach, bindRun, bindRunByToken, invoke, settle, progress, capabilitiesFor, sessionFor, ownsSession };
 }

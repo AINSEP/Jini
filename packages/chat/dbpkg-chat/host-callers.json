@@ -712,19 +712,6 @@
         "apps/site-chat/src/main.tsx": 1
       }
     },
-    "page-actions": {
-      "totalMatchingImportLines": 11,
-      "files": {
-        "apps/site-chat/src/SiteAssistantWidget.tsx": 2,
-        "apps/site-chat/src/__tests__/highlight.test.ts": 1,
-        "apps/site-chat/src/main.tsx": 2,
-        "apps/site-chat/src/__tests__/client-directives.test.ts": 1,
-        "apps/website/src/assistant/index.ts": 2,
-        "apps/website/src/assistant/site/tools.ts": 1,
-        "apps/website/src/assistant/site/__tests__/client-directives.test.ts": 1,
-        "apps/website/src/assistant/site/capability-registry.ts": 1
-      }
-    },
     "skill-install": {
       "totalMatchingImportLines": 2,
       "files": {

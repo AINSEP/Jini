@@ -35,6 +35,8 @@
  * their own metadata in it. The engine stays neutral and the host keeps one place to look.
  */
 import type { Express } from 'express';
+import type { FrontendSessionOwner } from '../frontend-session-registry.js';
+import type { FrontendSessionsHttpDeps } from './frontend-sessions.js';
 import type { ToolPolicy, ToolRegistration } from '@jini-ai/core';
 import {
   createFrontendCapabilityRegistrations,
@@ -71,6 +73,7 @@ export interface CreateFrontendControlOptions {
    * (see `frontend-capability-tools.ts`'s module doc for why the edge points one way).
    */
   readonly capabilities: readonly FrontendCapabilitySpec[];
+  readonly session?: Pick<FrontendSessionsHttpDeps, 'routePrefix' | 'resolveOwner' | 'sessionTtlMs' | 'resolveCapacityKeys'> & { readonly maxSessions?: number; readonly maxSessionsPerKey?: number };
   /**
    * Reads this run's bind token out of the host's own run request, or returns `undefined` when the
    * run has no originating surface.
@@ -101,6 +104,8 @@ export interface CreateFrontendControlOptions {
 }
 
 export interface FrontendControl {
+  /** Request-lifetime binding for hosts without daemon runs; release in finally and on cancel. */
+  bindRequest(required: { runId: string; bindToken: string; owner: FrontendSessionOwner; signal: AbortSignal }, optional?: Record<string, never>): () => void;
   /**
    * Mounts the frontend-session stream and response routes. Pass in `createLocalNodeDaemon`'s
    * `httpExtensions`, or call it directly with `(app, { adapter })` from a host that owns its own
@@ -144,7 +149,10 @@ function defaultBindErrorSink(context: FrontendBindErrorContext): void {
 export function createFrontendControl(requiredArgs: Omit<CreateFrontendControlOptions, 'policy' | 'timeoutMs' | 'maxOutputBytes' | 'onBindError'>, optionalArgs: Pick<CreateFrontendControlOptions, 'policy' | 'timeoutMs' | 'maxOutputBytes' | 'onBindError'> = {}): FrontendControl {
   const options = { ...requiredArgs, ...optionalArgs };
   // Closed over, never exposed. See the module doc: reaching this is reaching an ungated `invoke`.
-  const registry = createFrontendSessionRegistry({});
+  const registry = createFrontendSessionRegistry({}, {
+    ...(options.session?.maxSessions !== undefined ? { maxSessions: options.session.maxSessions } : {}),
+    ...(options.session?.maxSessionsPerKey !== undefined ? { maxSessionsPerKey: options.session.maxSessionsPerKey } : {}),
+  });
   const onBindError = options.onBindError ?? defaultBindErrorSink;
 
   const toolRegistrations = createFrontendCapabilityRegistrations({
@@ -157,7 +165,7 @@ export function createFrontendControl(requiredArgs: Omit<CreateFrontendControlOp
   });
 
   const httpExtension: FrontendHttpExtension = ({ app, context }) => {
-    registerFrontendSessionRoutes({ app, deps: { registry }, adapter: context.adapter });
+    registerFrontendSessionRoutes({ app, deps: { registry, ...options.session, allowedCapabilities: options.capabilities.map(c => c.id) }, adapter: context.adapter });
   };
 
   /**
@@ -204,5 +212,12 @@ export function createFrontendControl(requiredArgs: Omit<CreateFrontendControlOp
       .catch(() => undefined);
   };
 
-  return { httpExtension, toolRegistrations, bindOnStarted };
+  const bindRequest: FrontendControl['bindRequest'] = ({ runId, bindToken, owner, signal }) => {
+    if (signal.aborted) throw new Error('Frontend request cancelled');
+    const unbind = registry.bindRunByToken({ runId, bindToken, owner });
+    const release = () => { signal.removeEventListener('abort', release); unbind(); };
+    signal.addEventListener('abort', release, { once: true });
+    return release;
+  };
+  return { httpExtension, toolRegistrations, bindOnStarted, bindRequest };
 }

@@ -7,7 +7,7 @@ const TRANSCRIPT_STORAGE_KEY = 'example.transcript.v1';
 const ACTION_QUEUE_STORAGE_KEY = 'example.action-queue.v1';
 function store(storage: SessionStoragePort) {
   return createBrowserSessionStore({ storage, transcriptKey: TRANSCRIPT_STORAGE_KEY,
-    actionKey: ACTION_QUEUE_STORAGE_KEY, maxMessages: 50, maxBytes: 200_000,
+    maxMessages: 50, maxBytes: 200_000,
     validateMessage: ({ value }) => {
       if (typeof value !== 'object' || value === null) return false;
       const m = value as Record<string, unknown>;
@@ -17,8 +17,6 @@ function store(storage: SessionStoragePort) {
 const loadPersistedState = (storage: SessionStoragePort) => store(storage).load({});
 const savePersistedState = (storage: SessionStoragePort, state: PersistedEmbedState) => store(storage).save({ state });
 const clearPersistedState = (storage: SessionStoragePort) => store(storage).clear({});
-const enqueueAction = (storage: SessionStoragePort, action: unknown) => store(storage).enqueue({ action });
-const drainQueuedAction = (storage: SessionStoragePort) => store(storage).drain({});
 class FakeStorage implements Storage {
   private data = new Map<string, string>();
   get length(): number {
@@ -229,98 +227,16 @@ describe("transcript-storage", () => {
   });
 });
 
-describe("action-queue", () => {
-  it("drains null when nothing was queued", () => {
-    const storage = new FakeStorage();
-    assert.equal(drainQueuedAction(storage), null);
-  });
-
-  it("returns exactly what was enqueued", () => {
-    const storage = new FakeStorage();
-    const action = { kind: "example", value: 42 };
-    enqueueAction(storage, action);
-    assert.deepEqual(drainQueuedAction(storage), action);
-  });
-
-  it("deletes the entry from storage before drainQueuedAction returns — a reload can never re-fire it", () => {
-    const storage = new FakeStorage();
-    enqueueAction(storage, { kind: "example" });
-    assert.notEqual(storage.getItem(ACTION_QUEUE_STORAGE_KEY), null, "sanity: the action was actually queued");
-
-    const first = drainQueuedAction(storage);
-    assert.deepEqual(first, { kind: "example" });
-    assert.equal(storage.getItem(ACTION_QUEUE_STORAGE_KEY), null, "storage must be empty immediately, not after some later step");
-
-    // Simulates the exact failure mode exists to prevent: a reload calls drainQueuedAction. See docs/decisions/DR-001-single-shot-page-actions.md.
-    // again against the SAME storage. It must come back empty, not re-fire the first action.
-    const second = drainQueuedAction(storage);
-    assert.equal(second, null);
-  });
-
-  it("deletes before the JSON.parse step, so a corrupt entry cannot survive a failed drain", () => {
-    const storage = new FakeStorage();
-    storage.setItem(ACTION_QUEUE_STORAGE_KEY, "{not valid json");
-    const result = drainQueuedAction(storage);
-    assert.equal(result, null);
-    assert.equal(storage.getItem(ACTION_QUEUE_STORAGE_KEY), null, "the corrupt entry must not be left behind for the next mount to trip over again");
-  });
-
-  it("later enqueueAction calls overwrite the pending slot rather than stacking a FIFO", () => {
-    const storage = new FakeStorage();
-    enqueueAction(storage, { kind: "first" });
-    enqueueAction(storage, { kind: "second" });
-    assert.deepEqual(drainQueuedAction(storage), { kind: "second" });
-    assert.equal(drainQueuedAction(storage), null, "only one action was ever pending");
-  });
-
-  it("never throws when the underlying storage throws on every call", () => {
-    const throwing: Storage = {
-      length: 0,
-      clear: () => {},
-      key: () => null,
-      getItem: () => {
-        throw new Error("blocked");
-      },
-      removeItem: () => {
-        throw new Error("blocked");
-      },
-      setItem: () => {
-        throw new Error("blocked");
-      },
-    };
-    assert.doesNotThrow(() => enqueueAction(throwing, { kind: "x" }));
-    assert.doesNotThrow(() => assert.equal(drainQueuedAction(throwing), null));
-  });
-
-  it("fails closed (never returns the action) when removeItem itself throws, rather than risking a re-fire", () => {
-    const data = new Map<string, string>([[ACTION_QUEUE_STORAGE_KEY, JSON.stringify({ kind: "x" })]]);
-    const storage: Storage = {
-      length: 1,
-      clear: () => {},
-      key: () => null,
-      getItem: (key) => (data.has(key) ? (data.get(key) as string) : null),
-      removeItem: () => {
-        throw new Error("removeItem blocked");
-      },
-      setItem: (key, value) => {
-        data.set(key, value);
-      },
-    };
-    assert.equal(drainQueuedAction(storage), null, "cannot guarantee single-shot delivery, so it must not deliver at all");
-  });
-});
-
 
 describe('host configuration and failure boundaries', () => {
   const valid = ({ value }: { value: unknown }) => typeof value === 'object' && value !== null
     && 'id' in value && typeof value.id === 'string' && 'role' in value && (value.role === 'user' || value.role === 'assistant')
     && 'content' in value && typeof value.content === 'string';
   function configured(storage: SessionStoragePort, maxMessages = 2, maxBytes = 200_000) {
-    return createBrowserSessionStore({ storage, transcriptKey: 'a', actionKey: 'b', maxMessages, maxBytes, validateMessage: valid });
+    return createBrowserSessionStore({ storage, transcriptKey: 'a', maxMessages, maxBytes, validateMessage: valid });
   }
-  it('requires distinct nonempty keys and finite limits', () => {
-    const args = { storage: new FakeStorage(), transcriptKey: 'a', actionKey: 'b', maxMessages: 2, maxBytes: 28, validateMessage: valid };
-    assert.throws(() => createBrowserSessionStore({ ...args, actionKey: 'a' }), /distinct/);
+  it('requires a nonempty key and finite limits', () => {
+    const args = { storage: new FakeStorage(), transcriptKey: 'a', maxMessages: 2, maxBytes: 28, validateMessage: valid };
     assert.throws(() => createBrowserSessionStore({ ...args, transcriptKey: '' }), /nonempty/);
     for (const invalid of [-1, NaN, Infinity, 1.5]) {
       assert.throws(() => createBrowserSessionStore({ ...args, maxMessages: invalid }), /message limit/);
@@ -343,14 +259,13 @@ describe('host configuration and failure boundaries', () => {
     assert.deepEqual(configured(storage).load({}), { open: false, messages: [] });
     assert.equal(storage.getItem('a'), null);
   });
-  it('never throws when transcript or queue serialization encounters circular data', () => {
+  it('never throws when transcript serialization encounters circular data', () => {
     const storage = new FakeStorage();
     const session = configured(storage);
     const circular: Record<string, unknown> = {};
     circular.self = circular;
     const m = { ...message('u', 'user', 'hi'), extra: circular };
     assert.doesNotThrow(() => session.save({ state: { open: true, messages: [m] } }));
-    assert.doesNotThrow(() => session.enqueue({ action: circular }));
     assert.equal(storage.getItem('a'), null);
     assert.equal(storage.getItem('b'), null);
   });
@@ -359,11 +274,8 @@ describe('host configuration and failure boundaries', () => {
     const first = configured(storage);
     first.load({}).messages.push(message('mutated', 'user', 'hi'));
     assert.deepEqual(first.load({}), { open: false, messages: [] });
-    const second = createBrowserSessionStore({ storage, transcriptKey: 'other.a', actionKey: 'other.b', maxMessages: 2, maxBytes: 1000, validateMessage: valid });
+    const second = createBrowserSessionStore({ storage, transcriptKey: 'other.a', maxMessages: 2, maxBytes: 1000, validateMessage: valid });
     first.save({ state: { open: true, messages: [message('u', 'user', 'hi')] } });
-    first.enqueue({ action: { x: 1 } });
     assert.deepEqual(second.load({}), { open: false, messages: [] });
-    assert.equal(second.drain({}), null);
-    assert.deepEqual(first.drain({}), { x: 1 });
   });
 });

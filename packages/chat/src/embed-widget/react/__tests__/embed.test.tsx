@@ -33,16 +33,11 @@ function fixture(initial: ChatMessage[] = []) {
   const widget: { -readonly [K in keyof EmbedChatWidgetArgs]: EmbedChatWidgetArgs[K] } = {
     agent: { id: 'host-agent', name: 'Host agent', available: true },
     copy: { title: 'Help', eyebrow: 'Visitor help', newThread: 'New thread', cancel: 'Keep chat', discard: 'Discard',
-      fabLabel: 'Open help', placeholder: 'Your question', proposalLabel: ({ title }) => `Visit ${title}?`, proposalGo: 'Visit' },
-    transport, directiveEventName: 'page_directive',
+      fabLabel: 'Open help', placeholder: 'Your question',},
+    transport,
     session: {
       load: vi.fn(() => ({ open: true, messages: initial })),
       save: vi.fn(() => { order.push('save'); }), clear: vi.fn(),
-      enqueue: vi.fn(() => { order.push('enqueue'); }), drain: vi.fn(() => null),
-    },
-    pageActions: {
-      allows: vi.fn(({ action }) => action.target.path.startsWith('/') && !action.target.path.startsWith('//')),
-      navigate: vi.fn(() => { order.push('navigate'); return true; }), execute: vi.fn(() => true), clearHighlight: vi.fn(),
     },
     keyboard: { subscribe: () => () => {} },
     scheduleFrame: ({ callback }) => { callback(); return () => {}; },
@@ -67,57 +62,6 @@ describe('embed composition', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Open help' }));
     expect(widget.session.save).toHaveBeenLastCalledWith({ state: { open: false, messages: initial } });
   });
-  it('never replays a restored navigation directive', () => {
-    const { widget } = fixture([reply([nav])]);
-    render(<EmbedChatWidget {...widget} />);
-    expect(widget.pageActions.navigate).not.toHaveBeenCalled();
-    expect(widget.session.enqueue).not.toHaveBeenCalled();
-  });
-  it('waits for terminal status and writes queued treatment and transcript before navigation exactly once', () => {
-    const { widget, order } = fixture();
-    render(<EmbedChatWidget {...widget} />);
-    emit([reply([nav, highlight], 'new', 'running')]);
-    expect(widget.pageActions.navigate).not.toHaveBeenCalled();
-    order.length = 0;
-    const settled = [reply([nav, highlight], 'new')];
-    emit(settled);
-    expect(order.slice(0, 3)).toEqual(['enqueue', 'save', 'navigate']);
-    expect(widget.session.enqueue).toHaveBeenCalledWith({ action: highlight });
-    expect(widget.session.save).toHaveBeenCalledWith({ state: { open: true, messages: settled } });
-    emit(settled);
-    expect(widget.pageActions.navigate).toHaveBeenCalledTimes(1);
-  });
-  it('shows a non-auto proposal and only queues/navigates on its click', () => {
-    const { widget, order } = fixture();
-    render(<EmbedChatWidget {...widget} />);
-    emit([reply([{ ...nav, auto: false }, highlight])]);
-    expect(screen.getByText('Visit Article?')).toBeInTheDocument();
-    expect(widget.pageActions.navigate).not.toHaveBeenCalled();
-    order.length = 0;
-    fireEvent.click(screen.getByRole('button', { name: 'Visit' }));
-    expect(order.slice(0, 3)).toEqual(['enqueue', 'save', 'navigate']);
-    expect(screen.queryByText('Visit Article?')).toBeNull();
-  });
-  it('neither queues nor navigates when the host refuses the target by the time the visitor consents', () => {
-    const { widget, order } = fixture();
-    render(<EmbedChatWidget {...widget} />);
-    emit([reply([{ ...nav, auto: false }, highlight])]);
-    widget.pageActions.allows = vi.fn(() => false);
-    order.length = 0;
-    fireEvent.click(screen.getByRole('button', { name: 'Visit' }));
-    expect(order).toEqual([]);
-    expect(widget.pageActions.navigate).not.toHaveBeenCalled();
-  });
-
-  it('ignores rejected paths and executes a standalone treatment once', () => {
-    const { widget } = fixture();
-    render(<EmbedChatWidget {...widget} />);
-    emit([reply([{ ...nav, target: { ...target, path: '//outside.example' } }, highlight])]);
-    expect(widget.pageActions.navigate).not.toHaveBeenCalled();
-    expect(widget.pageActions.execute).toHaveBeenCalledWith({ action: highlight });
-    emit([reply([highlight])]);
-    expect(widget.pageActions.execute).toHaveBeenCalledTimes(1);
-  });
   it('confirms reset, remounts an empty pane and discards pending proposals', () => {
     const { widget } = fixture();
     render(<EmbedChatWidget {...widget} />);
@@ -131,28 +75,6 @@ describe('embed composition', () => {
     expect(pane.props!.initialMessages).toEqual([]);
     expect(screen.queryByText('Visit Article?')).toBeNull();
   });
-  it('drains one queued treatment, cancels deferred execution and cleans highlight on unmount', () => {
-    const { widget } = fixture();
-    widget.session.drain = vi.fn(() => highlight);
-    const cancel = vi.fn();
-    let callback!: () => void;
-    widget.scheduleFrame = ({ callback: next }) => { callback = next; return cancel; };
-    const view = render(<EmbedChatWidget {...widget} />);
-    expect(widget.session.drain).toHaveBeenCalledTimes(1);
-    expect(widget.pageActions.execute).not.toHaveBeenCalled();
-    act(() => callback());
-    expect(widget.pageActions.execute).toHaveBeenCalledWith({ action: highlight });
-    view.unmount();
-    expect(cancel).toHaveBeenCalledTimes(1);
-    expect(widget.pageActions.clearHighlight).toHaveBeenCalledTimes(1);
-  });
-  it.each([null, { junk: true }, nav])('does not schedule a drained navigation or malformed entry: %j', entry => {
-    const { widget } = fixture();
-    widget.session.drain = () => entry;
-    widget.scheduleFrame = vi.fn(() => () => {});
-    render(<EmbedChatWidget {...widget} />);
-    expect(widget.scheduleFrame).not.toHaveBeenCalled();
-  });
   it('isolates transcripts and processed reply IDs between two widget instances', () => {
     const first = fixture();
     const second = fixture();
@@ -161,10 +83,7 @@ describe('embed composition', () => {
     const b = render(<EmbedChatWidget {...second.widget} />);
     const secondChange = pane.props!.onMessagesChange!;
     act(() => firstChange([reply([nav])]));
-    expect(first.widget.pageActions.navigate).toHaveBeenCalledTimes(1);
-    expect(second.widget.pageActions.navigate).not.toHaveBeenCalled();
     act(() => secondChange([reply([nav])]));
-    expect(second.widget.pageActions.navigate).toHaveBeenCalledTimes(1);
     a.unmount(); b.unmount();
   });
   it('mounts into the supplied node and returns cleanup', async () => {
@@ -176,7 +95,6 @@ describe('embed composition', () => {
     expect(element.querySelector('h2')!.textContent).toBe('Help');
     await act(async () => mounted.unmount({}));
     expect(element.childNodes.length).toBe(0);
-    expect(widget.pageActions.clearHighlight).toHaveBeenCalledTimes(1);
     element.remove();
   });
 });

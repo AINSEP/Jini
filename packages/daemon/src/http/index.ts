@@ -386,3 +386,4 @@ export type { RemoteAttachmentLookupOptional, RemoteAttachmentLookupRequired } f
 export { createRemoteAttachmentLookup } from '../remote-attachment-lookup.js';
 
 export { createTavilyResearchProvider } from './research-tavily.adapter.js';
+export { createFrontendGuestScope } from './frontend-guest-scope.js';

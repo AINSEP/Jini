@@ -24,6 +24,12 @@ describe('annotated browser actions', () => {
     s.cleanup();
   });
 
+  it('visitor-only read, menu and accordion marks never register as external tools', async () => {
+    const s = await setup('<button type="button" data-toolname="menu" data-tooldescription="Menu" data-tool-action="menu">Menu</button><button type="button" data-toolname="read" data-tooldescription="Read" data-tool-action="read">Read</button><button type="button" data-toolname="faq" data-tooldescription="FAQ" data-tool-action="accordion">FAQ</button><button type="button" data-toolname="existing" data-tooldescription="Existing action">Action</button>');
+    expect([...s.tools.keys()]).toEqual(['existing']);
+    s.cleanup();
+  });
+
   it('fails closed on denied consent, invalid input, disabled controls and stale callbacks', async () => {
     const s = await setup('<button type="button" data-toolname="toggle" data-tooldescription="Toggle panel">Toggle</button>');
     const button = document.querySelector('button')!;

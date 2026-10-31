@@ -3,21 +3,16 @@ import type { ChatMessage } from '../../core/messages.js';
 import { assistantContentFromEvents } from '../../core/assistant-content.js';
 import type { ChatTransport } from '../../core/transport.js';
 import type { BrowserSessionStore } from '../browser/session-store.js';
-import { extractPageActions, splitPageActions } from '../../core/browser/page-actions.js';
-import type { PageActionPort, NavigateAction, NonNavigateAction } from '../../core/browser/page-actions.js';
 
 export interface VanillaChatState {
   readonly open: boolean;
   readonly messages: ChatMessage[];
   readonly busy: boolean;
   readonly error: string | null;
-  readonly proposal: { navigate: NavigateAction; bundled: NonNavigateAction | null } | null;
 }
 export interface VanillaChatControllerArgs {
   readonly transport: ChatTransport;
   readonly session: BrowserSessionStore;
-  readonly pageActions: PageActionPort;
-  readonly directiveEventName: string;
   readonly agentId: string;
   readonly ids: (args: Record<string, never>) => string;
   readonly createAbortController: (args: Record<string, never>) => AbortController;
@@ -25,40 +20,21 @@ export interface VanillaChatControllerArgs {
 }
 
 /**
- * Framework-free visitor state over the existing transport/session/page-action owners.
- * Restored messages never replay directives. Only a successful live settlement can act;
- * persistence and queued effects finish synchronously before navigation tears down the page.
+ * Framework-free visitor state over the existing transport/session owners.
+ * Restored messages never replay effects; page control belongs to the shared frontend bridge.
+ * Terminal navigation flushes the transport snapshot before the host tears down the page.
  * Reset invalidates callbacks before aborting, preventing late chunks from reviving a thread.
  * @complexity O(retained transcript + reply events + reply characters) per update; storage writes
  * occur only on settle/open/reset/navigation, never per streamed chunk. Session bounds persisted bytes.
  */
 export function createVanillaChatController(args: VanillaChatControllerArgs, _options = {}) {
   const initial = args.session.load({});
-  let state: VanillaChatState = { ...initial, busy: false, error: null, proposal: null };
+  let state: VanillaChatState = { ...initial, busy: false, error: null };
   let generation = 0;
   let active: AbortController | null = null;
   const publish = ({ persist = true }: { persist?: boolean } = {}) => {
     if (persist) args.session.save({ state: { open: state.open, messages: state.messages } });
     args.onChange({ state });
-  };
-  const go = (proposal: NonNullable<VanillaChatState['proposal']>) => {
-    if (!args.pageActions.allows({ action: proposal.navigate })) return;
-    if (proposal.bundled && args.pageActions.allows({ action: proposal.bundled })) args.session.enqueue({ action: proposal.bundled });
-    state = { ...state, proposal: null };
-    publish();
-    args.pageActions.navigate({ action: proposal.navigate });
-  };
-  const settleActions = (events: AgentEvent[]) => {
-    const actions = extractPageActions({ events, directiveEventName: args.directiveEventName })
-      .filter(action => args.pageActions.allows({ action }));
-    const { navigate, other } = splitPageActions({ actions });
-    if (!navigate) {
-      if (other) args.pageActions.execute({ action: other });
-      return;
-    }
-    const proposal = { navigate, bundled: other };
-    if (navigate.auto) go(proposal);
-    else { state = { ...state, proposal }; publish(); }
   };
   return {
     getState(_input: Record<string, never> = {}, _opts = {}) { return state; },
@@ -72,7 +48,7 @@ export function createVanillaChatController(args: VanillaChatControllerArgs, _op
       active = abort;
       const history = [...state.messages, { id: args.ids({}), role: 'user' as const, content }];
       const reply: ChatMessage = { id: args.ids({}), role: 'assistant', content: '', events: [], runStatus: 'running' };
-      state = { ...state, messages: [...history, reply], busy: true, error: null, proposal: null };
+      state = { ...state, messages: [...history, reply], busy: true, error: null };
       publish({ persist: false });
       let events: AgentEvent[] = [];
       let failed = false;
@@ -97,7 +73,6 @@ export function createVanillaChatController(args: VanillaChatControllerArgs, _op
         const completedStatus = abort.signal.aborted ? 'canceled' : 'succeeded';
         updateReply({ ...reply, content: assistantContentFromEvents({ events }), events: [...events],
           runStatus: failed ? 'failed' : completedStatus }, { persist: true });
-        if (!failed && !abort.signal.aborted) settleActions(events);
       };
       try {
         await args.transport.startRun({ history, agentId: args.agentId, assistantMessageId: reply.id, signal: abort.signal }, {
@@ -112,14 +87,13 @@ export function createVanillaChatController(args: VanillaChatControllerArgs, _op
       } catch (error) { fail(error instanceof Error ? error : new Error(String(error))); done(events); }
       return true;
     },
-    acceptProposal(_input: Record<string, never> = {}, _opts = {}) { if (state.proposal) go(state.proposal); },
     cancel(_input: Record<string, never> = {}, _opts = {}) { active?.abort(); },
     reset(_input: Record<string, never> = {}, _opts = {}) {
       generation += 1;
       active?.abort();
       active = null;
       args.session.clear({});
-      state = { open: state.open, messages: [], busy: false, error: null, proposal: null };
+      state = { open: state.open, messages: [], busy: false, error: null };
       publish();
     },
     dispose(_input: Record<string, never> = {}, _opts = {}) { generation += 1; active?.abort(); active = null; },

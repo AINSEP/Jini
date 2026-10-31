@@ -273,7 +273,7 @@ state · [README](packages/chat/README.md)
 | `@jini-ai/chat/react/embed` | Mount an embeddable chat widget with host copy and header. | `EmbedChatWidget`, `mountEmbedChat` | browser | none yet |
 | `@jini-ai/chat/transports/fetch-sse` | Fetch/SSE chat transport over an injected decoder and frame mapping. | `buildJsonChatRequest`, `mapJsonChatSseFrame`, `createFetchSseTransport` | universal | none yet |
 | `@jini-ai/chat/browser/session-store` | Persist embed/session state through browser storage ports. | `createBrowserSessionStore` | browser | none yet |
-| `@jini-ai/chat/browser/page-actions` | Parse and consume queued navigation/page actions once before execution. | `isQueuedPageAction`, `isPageActionDirective`, `extractPageActions` | browser | none yet |
+| `@jini-ai/chat/browser/frontend-session-bridge` | Framework-free, scoped page-control transport shared by React and vanilla hosts. | `createFrontendSessionBridge`, `openFetchFrontendStream` | browser | Tovu: site-chat |
 
 ## admin · `@jini-ai/admin`
 

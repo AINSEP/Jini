@@ -7,11 +7,9 @@ function controllerWith({ startRun, blockedPaths }: { startRun?: ChatTransport['
   let handlers: RunHandlers | null = null;
   const writes: string[] = [];
   let serial = 0;
-  const controller = createVanillaChatController({ agentId: 'visitor', directiveEventName: 'client_directive',
+  const controller = createVanillaChatController({ agentId: 'visitor',
     ids: () => String(++serial), createAbortController: () => new AbortController(), onChange: () => {},
-    session: { load: () => ({ open: true, messages: [] }), save: () => {}, clear: () => {}, enqueue: () => { writes.push('enqueue'); }, drain: () => null },
-    pageActions: { allows: ({ action }) => !blockedPaths.has(action.target.path), navigate: () => { writes.push('navigate'); return true; },
-      execute: () => true, clearHighlight: () => {} },
+    session: { load: () => ({ open: true, messages: [] }), save: () => {}, clear: () => {},},
     transport: { startRun: startRun ?? (async (_input, callbacks) => { handlers = callbacks; return { runId: 'run' }; }),
       async reattachRun() {}, async fetchRunStatus() { return null; }, async stopRun() {} },
   });
@@ -22,26 +20,6 @@ const directive = (type: 'navigate' | 'highlight', path: string): AgentEvent => 
 });
 
 describe('vanilla chat controller edges', () => {
-  it('re-checks a bundled treatment at consent time and drops it if the host now refuses it', async () => {
-    const blocked = new Set<string>();
-    const f = controllerWith({ blockedPaths: blocked });
-    await f.controller.send({ text: 'Show pricing' });
-    f.callbacks().onDone([directive('navigate', '/pricing'), directive('highlight', '/pricing#plans')]);
-    blocked.add('/pricing#plans');
-    f.controller.acceptProposal({});
-    expect(f.writes).toEqual(['navigate']);
-  });
-
-  it('never navigates when the host refuses the target by the time the visitor consents', async () => {
-    const blocked = new Set<string>();
-    const f = controllerWith({ blockedPaths: blocked });
-    await f.controller.send({ text: 'Go' });
-    f.callbacks().onDone([directive('navigate', '/admin')]);
-    blocked.add('/admin');
-    f.controller.acceptProposal({});
-    expect(f.writes).toEqual([]);
-    expect(f.controller.getState({}).proposal).not.toBeNull();
-  });
 
   it('disposes cleanly when no run is in flight', () => {
     const f = controllerWith({ blockedPaths: new Set() });
@@ -57,7 +35,6 @@ describe('vanilla chat controller edges', () => {
     f.controller.dispose({});
     expect(signal?.aborted).toBe(true);
     callbacks.onDone([directive('navigate', '/x')]);
-    expect(f.controller.getState({}).proposal).toBeNull();
   });
 
   it('keeps a reply failed when output still streams in after an error', async () => {

@@ -3,7 +3,6 @@ const ARIA_LABEL = 'aria-label';
 import { CHAT_BUBBLE_STYLE } from '../../contracts/chat-bubble-style.js';
 import { createVanillaChatController } from './state.js';
 import type { VanillaChatControllerArgs, VanillaChatState } from './state.js';
-import { isQueuedPageAction } from '../../core/browser/page-actions.js';
 export { createVanillaChatController } from './state.js';
 export type { VanillaChatControllerArgs, VanillaChatState } from './state.js';
 
@@ -19,8 +18,6 @@ export interface VanillaChatCopy {
   readonly confirm: string;
   readonly confirmDraft?: string;
   readonly keep: string;
-  readonly proposalGo: string;
-  readonly proposalLabel: (args: { title: string }) => string;
   readonly thinking: string;
   readonly greeting?: string;
   readonly suggestionsLabel?: string;
@@ -108,9 +105,11 @@ export function mountVanillaChat(args: MountVanillaChatArgs, options: { initialO
   announcements.setAttribute('aria-atomic', 'false');
   const error = node('div', 'jini-chat-vanilla__error');
   error.setAttribute('role', 'alert');
-  const proposal = node('div', 'jini-chat-vanilla__proposal');
+  const proposal = node('div', 'jini-chat-vanilla__tool-confirmation');
+  proposal.hidden = true;
+  proposal.setAttribute('data-agent-private', '');
   const proposalText = node('span', '');
-  const go = button(copy.proposalGo);
+  const go = button('Allow');
   proposal.append(proposalText, go);
   const form = node('form', 'jini-chat-vanilla__composer');
   const input = node('textarea', 'jini-chat-vanilla__input');
@@ -154,8 +153,6 @@ export function mountVanillaChat(args: MountVanillaChatArgs, options: { initialO
     send.disabled = state.busy || !input.value.trim();
     input.disabled = state.busy;
     stop.hidden = !state.busy;
-    proposal.hidden = state.proposal === null;
-    proposalText.textContent = state.proposal ? copy.proposalLabel({ title: state.proposal.navigate.target.title }) : '';
   };
   const createRow = ({ message }: { message: VanillaChatState['messages'][number] }) => {
     const row = { element: node('div', `jini-chat-vanilla__message jini-chat-vanilla__message--${message.role}`), content: '\0' };
@@ -261,7 +258,6 @@ export function mountVanillaChat(args: MountVanillaChatArgs, options: { initialO
   const dismissConfirmation = () => { confirmation.hidden = true; reset.focus(); };
   listen(keep, 'click', dismissConfirmation);
   listen(confirm, 'click', () => { confirmation.hidden = true; input.value = ''; controller.reset({}); input.focus(); });
-  listen(go, 'click', () => controller.acceptProposal({}));
   listen(stop, 'click', () => controller.cancel({}));
   listen(form, 'submit', event => {
     event.preventDefault();
@@ -303,12 +299,6 @@ export function mountVanillaChat(args: MountVanillaChatArgs, options: { initialO
     controller.setOpen({ open: true });
     focusEntry({ busy: controller.getState({}).busy });
   });
-  const queued = { value: args.session.drain({}) };
-  let cancelFrame = () => {};
-  if (isQueuedPageAction(queued) && queued.value.type !== 'navigate') {
-    const action = queued.value;
-    cancelFrame = args.scheduleFrame({ callback: () => { args.pageActions.execute({ action }); } });
-  }
   controller.setOpen({ open: options.initialOpen ?? controller.getState({}).open });
   initialized = true;
   element.dataset.chatMounted = 'true';
@@ -317,11 +307,9 @@ export function mountVanillaChat(args: MountVanillaChatArgs, options: { initialO
     controller,
     unmount(_input: Record<string, never> = {}, _opts = {}) {
       listeners.forEach(dispose => dispose());
-      cancelFrame();
       cancelRenderFrame();
       delete element.dataset.chatMounted;
       controller.dispose({});
-      args.pageActions.clearHighlight({});
       shell.remove();
     },
   };

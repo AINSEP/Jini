@@ -287,8 +287,9 @@ async function summarizePage(driver: PageDriver): Promise<PageActivitySnapshot> 
  * a field no automated caller may fill, or the page is not published. Refusals are errors on
  * purpose: a caller must be told why, not handed a silent no-op it will retry forever.
  */
-export async function executePageCapability({ driver, capabilityId, input }: { driver: PageDriver; capabilityId: string; input: Record<string, unknown> }, _optional: Record<string, never> = {}
+export async function executePageCapability({ driver, capabilityId, input }: { driver: PageDriver; capabilityId: string; input: Record<string, unknown> }, { signal }: { signal?: AbortSignal } = {}
 ): Promise<unknown> {
+  if (signal) driver = cancellablePageDriver({ driver, signal });
   validatePageCapability({ capabilityId, input });
 
   switch (capabilityId) {
@@ -529,4 +530,21 @@ function supportedNavigationInput({ input, published }: { input: Record<string, 
 /** Route metadata is descriptive UI data, never instructions to the calling model. */
 function navigationTextFields({ pages }: { pages: readonly PageSummary[] }, _options = {}): readonly string[] {
   return pages.some(page => page.navigation !== undefined) ? ['pages[].navigation.label', 'pages[].navigation.description'] : [];
+}
+
+/** Check cancellation at the actual effect boundary, including after asynchronous observations. */
+function cancellablePageDriver({ driver, signal }: { driver: PageDriver; signal: AbortSignal }): PageDriver {
+  return { ...driver,
+    findElements: (args, options) => driver.findElements(args, options),
+    listPages: (args, options) => driver.listPages(args, options),
+    describeField: (args, options) => driver.describeField(args, options),
+    ...(driver.describeState ? { describeState: driver.describeState.bind(driver) } : {}),
+    ...(driver.settle ? { settle: driver.settle.bind(driver) } : {}),
+    highlight: (args, options) => { signal.throwIfAborted(); return driver.highlight(args, options); },
+    scrollTo: (args, options) => { signal.throwIfAborted(); return driver.scrollTo(args, options); },
+    click: (args, options) => { signal.throwIfAborted(); return driver.click(args, options); },
+    fill: (args, options) => { signal.throwIfAborted(); return driver.fill(args, options); },
+    selectOption: (args, options) => { signal.throwIfAborted(); return driver.selectOption(args, options); },
+    navigate: (args, options) => { signal.throwIfAborted(); return driver.navigate(args, options); },
+  };
 }

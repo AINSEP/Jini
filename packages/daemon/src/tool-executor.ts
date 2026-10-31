@@ -85,7 +85,7 @@ export interface ToolConfirmationRequest {
  * The transport-supplied seam for the two touchpoints a headless kernel
  * cannot render itself. Both are optional: a tool whose `ToolPolicy`
  * always resolves definitively needs no `onAuthorize`, and a tool with
- * `requiresConfirmation` unset never triggers `onConfirm`.
+ * `requiresConfirmation` unset has no default prompt; a host may strengthen a single call with `requireConfirmation: true`.
  */
 export interface ExecutionDelegate {
   /**
@@ -177,9 +177,10 @@ export interface ToolExecutor {
    * @param emitSurface - Transport-supplied seam letting the handler push a human-only surface into
    * the run's event stream *before* this call settles. Omit for a caller with no run event stream;
    * see `@jini-ai/core`'s `SurfaceEmitter` for why a handler that waits on a human needs it.
+   * @param requireConfirmation - Strengthens this call only; cannot bypass a descriptor confirmation.
    * @throws {ToolInputError} If `toolId` isn't registered, with up to eight registered prefix matches.
    */
-  execute(args: { readonly principal: Principal; readonly run: RunRef; readonly toolId: string; readonly input: unknown }, optionalArgs?: { readonly signal?: AbortSignal; readonly emitSurface?: SurfaceEmitter }
+  execute(args: { readonly principal: Principal; readonly run: RunRef; readonly toolId: string; readonly input: unknown }, optionalArgs?: { readonly signal?: AbortSignal; readonly emitSurface?: SurfaceEmitter; readonly requireConfirmation?: true }
   ): Promise<ToolExecutionResult>;
   /** @throws If `executionId` has no confirmation currently pending (already resumed, never required one, or unknown). */
   resumeConfirmation(args: { readonly executionId: string; readonly decision: ConfirmationDecision }): void;
@@ -659,7 +660,7 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     }
   }
 
-  async function execute({ principal, run, toolId, input }: { readonly principal: Principal; readonly run: RunRef; readonly toolId: string; readonly input: unknown }, { signal, emitSurface, invocationRegistry = registry }: { readonly signal?: AbortSignal; readonly emitSurface?: SurfaceEmitter; readonly invocationRegistry?: ToolRegistry } = {}
+  async function execute({ principal, run, toolId, input }: { readonly principal: Principal; readonly run: RunRef; readonly toolId: string; readonly input: unknown }, { signal, emitSurface, invocationRegistry = registry, requireConfirmation }: { readonly signal?: AbortSignal; readonly emitSurface?: SurfaceEmitter; readonly invocationRegistry?: ToolRegistry; readonly requireConfirmation?: true } = {}
   ): Promise<ToolExecutionResult> {
     // Existence is checked separately from — and before — authorization so the audit record can
     // be opened before the (possibly slow, possibly throwing) authorization gate runs, matching
@@ -722,7 +723,7 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     }
     const admitted = gate.allowed;
     const { descriptor } = admitted;
-    if (descriptor.requiresConfirmation) {
+    if (descriptor.requiresConfirmation || requireConfirmation) {
       const declined = await confirmGate({ executionId, principal, run, tool: descriptor, input: admitted.input });
       if (declined) {
         cleanupCancellation();

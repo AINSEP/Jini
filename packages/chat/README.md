@@ -197,7 +197,7 @@ required argument objects: e.g. `isTerminalRunStatus({ status })`,
 `registerExtEventRenderer({ name, renderer }, { slotKey })`. A slot-key callback receives `{ data }`.
 `interleaveMessageBlocks({ events, content, rows }, { slotOf })` retains its reconstruction checks.
 The isolated `core/run-events`, `core/ag-ui`, `server/run-finalizer`, `react/embed`,
-`transports/fetch-sse`, `browser/session-store` and `browser/page-actions` subpaths are published.
+`transports/fetch-sse`, `browser/session-store` and `browser/frontend-session-bridge` subpaths are published. Page control uses the shared frontend bridge and page executor; the retired directive executor and cross-page action queue have been removed.
 `FrontendSessionBridgeArgs` is exported from `react`; hosts pass baseUrl and openStream, optionally request or native fetch.
 The SSE transport takes an injected decoder; browser hosts must supply a browser-safe module.
 

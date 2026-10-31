@@ -11,6 +11,7 @@ it('publishes every isolated extraction entry with its browser or universal clas
     expect(manifest.jini.entries[entry]).toBe(merge.jini.entries[entry]);
     expect(manifest.typesVersions['*'][entry.slice(2)]).toEqual(merge.typesVersions['*'][entry.slice(2)]);
   }
+  expect(manifest.exports['./browser/page-actions']).toBeUndefined();
   const expectedPeers = {
     'react': '^18.3.0 || ^19.0.0',
     'react-dom': '^18.3.0 || ^19.0.0',

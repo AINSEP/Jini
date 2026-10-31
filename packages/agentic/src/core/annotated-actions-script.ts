@@ -70,6 +70,8 @@ export function createAnnotatedActionsScript(
       return true;
     }
     function descriptor(element) {
+      // Visitor discovery/disclosure marks are not external WebMCP action declarations.
+      if (['read', 'menu', 'accordion'].includes(element.getAttribute('data-tool-action'))) return null;
       var name = element.getAttribute('data-toolname') || '';
       var description = element.getAttribute('data-tooldescription') || '';
       if (!/^[A-Za-z0-9_.-]{1,128}$/.test(name) || !description.trim() || !visible(element)) return null;
@@ -147,6 +149,6 @@ export function createAnnotatedActionsScript(
     refresh();
     observer = new MutationObserver(refresh);
     observer.observe(doc.documentElement, { subtree: true, childList: true, attributes: true,
-      attributeFilter: ['data-toolname', 'data-tooldescription', 'toolname', 'href', 'download', 'type', 'disabled', 'aria-disabled', 'hidden', 'inert', 'aria-hidden', 'style', 'class', 'open'] });
+      attributeFilter: ['data-tool-action', 'data-toolname', 'data-tooldescription', 'toolname', 'href', 'download', 'type', 'disabled', 'aria-disabled', 'hidden', 'inert', 'aria-hidden', 'style', 'class', 'open'] });
   })(` + config + ');';
 }

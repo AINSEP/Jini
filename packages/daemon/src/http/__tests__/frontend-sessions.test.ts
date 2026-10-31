@@ -56,6 +56,16 @@ describe('registerFrontendSessionRoutes', () => {
     return `http://127.0.0.1:${adapter.resolvedPortRef.current}`;
   }
 
+  it('refuses full capacity with a quiet HTTP 429 before opening SSE', async () => {
+    const registry = createFrontendSessionRegistry({}, { maxSessions: 0 });
+    const onInternalError = vi.fn();
+    const base = await listen(makeDeps(registry, { onInternalError }));
+    const response = await fetch(`${base}${FRONTEND_SESSION_STREAM_ROUTE_PATH}`);
+    expect(response.status).toBe(429);
+    expect(response.headers.get('content-type')).not.toContain('text/event-stream');
+    expect(onInternalError).not.toHaveBeenCalled();
+  });
+
   it('serves a real SSE stream and routes a capability call through it end to end', async () => {
     const registry = createFrontendSessionRegistry({}, { newInvocationId: () => 'inv-1', newBindToken: () => 'bind-1' });
     const base = await listen(makeDeps(registry));
