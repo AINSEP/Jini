@@ -7,10 +7,17 @@ never become dependencies or peers of a core `@jini-ai/*` package.
 | plugin id | provider (`contract` / `id`) | factory `required` input | factory `optional` input |
 |---|---|---|---|
 | `fixture-provider` | `fixture` / `fixture` | `{ value }` | — (conformance fixture) |
-| `observability-opentelemetry` | `observability` / `opentelemetry` | `{ serviceName, tracerName, endpoint?, tracesEndpoint?, username?, token?, headers? }` — any OTLP/HTTP endpoint; `token` (+ `username`) becomes `Authorization: Bearer` (or `Basic`), extra `headers` ride as given | `{ spanProcessors? }` (tests) |
+| `observability-opentelemetry` | `observability` / `opentelemetry` | `{ serviceName, tracerName, endpoint?, tracesEndpoint?, username?, token?, headers? }` — any OTLP/HTTP endpoint; `token` (+ `username`) becomes `Authorization: Bearer` (or `Basic`), extra `headers` ride as given | `{ exportEnabled?, spanProcessors?, metricReaders? }` |
 | `ai-trace-langfuse` | `ai_trace` / `langfuse` | `{ publicKey, secretKey, baseUrl?, environment?, release? }` | `{ client? }` (tests) |
 | `analytics-posthog` | `product_analytics` / `posthog` | `{ apiKey, host }` | `{ fetch?, flushAt? }` (tests) |
-| `observability-sentry` | `observability` / `sentry` | `{ dsn, environment?, tracesSampleRate? }` (rate default 0) | `{ client?, transport? }` (host-owned client is never closed) |
+| `observability-sentry` | `observability` / `sentry` | `{ dsn, environment?, tracesSampleRate? }` (rate default 0) | `{ exportEnabled?, client?, transport? }` (host-owned client is never closed) |
+
+Observability factories deny outbound delivery unless the host passes `exportEnabled: true` in
+factory options, independently of saved configuration and user consent. Hosts use diagnostics'
+`observabilityExportAllowed` decision with their own runtime facts. Sentry uses its private client's
+SDK `enabled` option and guards borrowed clients; denied instances advertise no native `crashUpload`.
+OpenTelemetry retains local tracing and metric admission with no export processors/readers when
+denied. Analytics and AI tracing keep their existing policies.
 
 Observability factories return diagnostics' `ObservabilityPort` plus `dispose`; `analytics-posthog`
 returns `@jini-ai/analytics/product`'s `ProductAnalyticsPort`, which the host wraps in

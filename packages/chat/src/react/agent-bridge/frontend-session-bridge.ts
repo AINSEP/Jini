@@ -37,12 +37,18 @@
 import { CHAT_CAPABILITIES } from '../../core/index.js';
 import { PAGE_CAPABILITIES, executePageCapability, type PageDriver } from '@jini-ai/agentic';
 
+import type { ApprovalAnswer } from '@jini-ai/core';
 import type { ChatPaneAgentBridgeAccess, ChatPaneAgentToolAction } from '../features/chat-pane/types.js';
 
 /** How many settled invocation ids to remember for replay suppression. */
 const EXECUTED_MEMORY = 256;
 
 export interface FrontendSessionBridgeOptions {
+  /** Host policy and the existing app dialog. It never receives an assistant decision. */
+  readonly pageApproval?: {
+    isDirect(required: { capabilityId: string; input: Record<string, unknown> }): boolean;
+    request(required: { capabilityId: string; input: Record<string, unknown>; signal: AbortSignal }): Promise<ApprovalAnswer>;
+  };
   /** Supplying one claims the six `page.*` verbs. Omit for a chat-only surface. */
   readonly pageDriver?: PageDriver;
   /**
@@ -89,6 +95,8 @@ function claimedCapabilities(options: FrontendSessionBridgeOptions): readonly st
   if (options.pageDriver !== undefined) {
     claims.push(...PAGE_CAPABILITIES.map((capability) => capability.id));
   }
+  // Dialog-support handshake only; page.approval is not an executable tool id.
+  if (options.pageApproval) claims.push('page.approval');
   claims.push(...Object.keys(options.executors ?? {}));
   return claims;
 }
@@ -99,6 +107,7 @@ function errorMessage(error: unknown): string {
 
 /** What one server-sent frame means to this surface, decided without touching any state. */
 type FrameReading =
+  | { readonly kind: 'cancelled'; readonly invocationId: string }
   | { readonly kind: 'attached'; readonly sessionId: string; readonly bindToken: string }
   | { readonly kind: 'refused'; readonly message: string }
   | { readonly kind: 'invocation'; readonly action: ChatPaneAgentToolAction }
@@ -146,6 +155,8 @@ function readFrame(data: string): FrameReading {
   if ('error' in parsed) return { kind: 'malformed', error: parsed.error };
   const { frame } = parsed;
   switch (frame['type']) {
+    case 'cancelled':
+      return { kind: 'cancelled', invocationId: String(frame['invocationId']) };
     case 'attached':
       return { kind: 'attached', sessionId: String(frame['sessionId']), bindToken: String(frame['bindToken']) };
     case 'error':
@@ -191,6 +202,8 @@ export function createFrontendSessionBridge(
   const chatListeners = new Set<(action: ChatPaneAgentToolAction) => void>();
   /** Invocation ids already run here, so a stream reconnect cannot double-click a button. */
   const executed = new Set<string>();
+  const pending = new Map<string, AbortController>();
+  const abortPending = () => { for (const controller of pending.values()) controller.abort(); pending.clear(); };
 
   const query = capabilities.map((id) => `capability=${encodeURIComponent(id)}`).join('&');
   const source = openStream({ url: `${base}/api/frontend-sessions/stream?${query}` });
@@ -203,6 +216,10 @@ export function createFrontendSessionBridge(
       timeoutMs: 15_000,
     });
     if (!response.ok) throw new Error(`answering "${invocationId}" failed: ${response.status}`);
+    if ('phase' in body) {
+      const result = await response.json() as { settled?: boolean };
+      if (!result.settled) throw new Error('Page invocation expired or was cancelled; no action was taken');
+    }
   }
 
   const respondSuccess = (invocationId: string, output: unknown): Promise<void> =>
@@ -210,12 +227,30 @@ export function createFrontendSessionBridge(
   const respondError = (invocationId: string, message: string): Promise<void> =>
     respond(invocationId, { ok: false, message });
 
+  /** Freeze once, ask on the app's existing human-only channel, then use the same page executor.
+   * The server pauses its execution deadline only after acknowledging the bounded human wait. */
+  async function servePage(action: ChatPaneAgentToolAction, signal: AbortSignal): Promise<unknown> {
+    const input = structuredClone(action.input);
+    const args = { capabilityId: action.capabilityId, input };
+    if (options.pageApproval && !options.pageApproval.isDirect(args)) {
+      await respond(action.invocationId, { phase: 'approval-pending' });
+      const answer = await options.pageApproval.request({ ...args, input: structuredClone(input), signal });
+      // Report the decision before effects, including decline/expiry; the server audits it.
+      await respond(action.invocationId, { phase: 'execution-started', decision: answer.confirmed ? 'approved' : answer.reason });
+      if (!answer.confirmed) return { executed: false, reason: answer.reason };
+    }
+    if (signal.aborted) return { executed: false, reason: 'abandoned' };
+    return executePageCapability({ driver: options.pageDriver!, ...args });
+  }
+
   /** Runs one non-chat invocation here and answers it. Chat ones go to the pane instead. */
   async function serveLocally(action: ChatPaneAgentToolAction): Promise<void> {
     let output: unknown;
+    const controller = new AbortController();
+    pending.set(action.invocationId, controller);
     try {
       if (options.pageDriver !== undefined && action.capabilityId.startsWith('page.')) {
-        output = await executePageCapability({ driver: options.pageDriver, capabilityId: action.capabilityId, input: action.input });
+        output = await servePage(action, controller.signal);
       } else {
         const entry = Object.entries(options.executors ?? {})
           .find(([prefix]) => action.capabilityId.startsWith(prefix));
@@ -223,9 +258,11 @@ export function createFrontendSessionBridge(
         output = await entry[1](action.capabilityId, action.input);
       }
     } catch (error) {
+      pending.delete(action.invocationId);
       await respondError(action.invocationId, errorMessage(error)).catch(options.onError ?? (() => undefined));
       return;
     }
+    pending.delete(action.invocationId);
     await respondSuccess(action.invocationId, output).catch(options.onError ?? (() => undefined));
   }
 
@@ -257,7 +294,11 @@ export function createFrontendSessionBridge(
   source.addEventListener('message', (event: MessageEvent<string>) => {
     const frame = readFrame(event.data);
     switch (frame.kind) {
+      case 'cancelled':
+        pending.get(frame.invocationId)?.abort();
+        return;
       case 'attached':
+        abortPending();
         sessionId = frame.sessionId;
         currentBindToken = frame.bindToken;
         // A no-op after the first attach — which is exactly why `currentBindToken` exists.
@@ -278,6 +319,7 @@ export function createFrontendSessionBridge(
   });
 
   source.addEventListener('error', (event) => {
+    abortPending();
     // The daemon deletes a session's bind token the instant that connection drops, so by the time
     // this fires the token in hand is already gone from the registry. Holding it until the next
     // `attached` frame leaves a window where `bindToken()` hands back something dead, and a run
@@ -304,6 +346,7 @@ export function createFrontendSessionBridge(
     ready,
     bindToken: () => currentBindToken,
     close() {
+      abortPending();
       source.close();
       chatListeners.clear();
       // A closed bridge serves nothing, so binding a run to it would strand that run rather than

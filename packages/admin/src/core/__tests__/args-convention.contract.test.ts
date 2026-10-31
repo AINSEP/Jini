@@ -8,7 +8,7 @@ import type { AdminPanel, AdminCommentsPort, AdminIdentityPort, AdminTransport }
 describe('admin object argument contracts', () => {
   it('keeps registry, route and permission behavior through the public barrel', () => {
     const panels: readonly AdminPanel[] = [
-      { id: 'records', requires: ['records'], permissions: ['records.read'], nav: { label: 'Records' }, render: null },
+      { id: 'records', description: 'Manage records.', requires: ['records'], permissions: ['records.read'], nav: { label: 'Records' }, render: null },
     ];
     const resolved = resolvePanels({ panels }, { capabilities: ['records'], permissions: ['*'] });
     expect(hasPermission({ permissions: ['*'], permission: 'records.read' })).toBe(true);

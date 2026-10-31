@@ -6,10 +6,10 @@ import { buildNav } from '../../../core/manifest/rules.js';
 import type { AdminPanel } from '../../../core/manifest/types.js';
 
 const panels: AdminPanel<null>[] = [
-  { id: 'dashboard', render: null, nav: { label: 'Dashboard', icon: '<path d="M1 1" />' } },
-  { id: 'posts', render: null, nav: { label: 'Posts', group: 'Content', order: 1 } },
-  { id: 'media', render: null, nav: { label: 'Media', group: 'Content', order: 2 } },
-  { id: 'billing', render: null, nav: { label: 'Billing', group: 'Content', order: 3, soon: true } },
+  { id: 'dashboard', description: 'Manage dashboard.', render: null, nav: { label: 'Dashboard', icon: '<path d="M1 1" />' } },
+  { id: 'posts', description: 'Manage posts.', render: null, nav: { label: 'Posts', group: 'Content', order: 1 } },
+  { id: 'media', description: 'Manage media.', render: null, nav: { label: 'Media', group: 'Content', order: 2 } },
+  { id: 'billing', description: 'Manage billing.', render: null, nav: { label: 'Billing', group: 'Content', order: 3, soon: true } },
 ];
 
 const groups = buildNav({ panels });
@@ -148,8 +148,8 @@ describe('Sidebar.Nav', () => {
     // the shared one would give the "override the soon badge text" test two "Coming soon" matches
     // for a `getByText` that expects one.
     const previewablePanels: AdminPanel<null>[] = [
-      { id: 'posts', render: null, nav: { label: 'Posts' } },
-      { id: 'deployment', render: null, nav: { label: 'Deployment', soon: true, soonPreviewable: true } },
+      { id: 'posts', description: 'Manage posts.', render: null, nav: { label: 'Posts' } },
+      { id: 'deployment', description: 'Manage deployment.', render: null, nav: { label: 'Deployment', soon: true, soonPreviewable: true } },
     ];
     render(
       <Sidebar activeId="posts">
@@ -180,7 +180,7 @@ describe('Sidebar.Nav', () => {
       '<path d="M2 2" onclick="window.__pwned = true" style="background:url(javascript:0)" />' +
       '<foreignObject><body xmlns="http://www.w3.org/1999/xhtml"><img src="x" onerror="window.__pwned = true" /></body></foreignObject>';
     const hostilePanels: AdminPanel<null>[] = [
-      { id: 'posts', render: null, nav: { label: 'Posts', icon: hostileIcon } },
+      { id: 'posts', description: 'Manage posts.', render: null, nav: { label: 'Posts', icon: hostileIcon } },
     ];
     const { container } = render(
       <Sidebar activeId="posts">
@@ -214,7 +214,7 @@ describe('Sidebar.Nav', () => {
   });
 
   it('drops malformed icon markup but keeps the row and its label', () => {
-    const brokenPanels: AdminPanel<null>[] = [{ id: 'posts', render: null, nav: { label: 'Posts', icon: '<path d="M1 1"' } }];
+    const brokenPanels: AdminPanel<null>[] = [{ id: 'posts', description: 'Manage posts.', render: null, nav: { label: 'Posts', icon: '<path d="M1 1"' } }];
     const { container } = render(
       <Sidebar activeId="posts">
         <Sidebar.Nav groups={buildNav({ panels: brokenPanels })} />

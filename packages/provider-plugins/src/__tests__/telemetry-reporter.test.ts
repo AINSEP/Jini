@@ -10,7 +10,7 @@ it.each(["", "not-a-dsn"])("a borrowed Sentry client tolerates malformed DSN %j 
   let closed = false;
   const reporter = createProviderTelemetryReporter({ endpoint: dsn }, { reportTelemetry: report => { reports.push(report); } });
   reporter.result({ phase: "export", outcome: "ok" });
-  const resource = createSentryObservabilityAdapter({ config: { enabled: true, dsn, tracesSampleRate: 0 } }, {
+  const resource = createSentryObservabilityAdapter({ config: { enabled: true, dsn, tracesSampleRate: 0 } }, { exportEnabled: true,
     client: { close: async () => { closed = true; return true; },
       getOptions: () => ({ integrations: [], stackParser: defaultStackParser, transport: makeNodeTransport }) },
     info: message => { logs.push(message); },

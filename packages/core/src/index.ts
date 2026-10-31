@@ -23,6 +23,7 @@ export type {
   ToolDescriptor,
   ToolExecutionContext,
   ToolExecutionOptions,
+  ToolApprovalDecision,
   ToolHandler,
   ToolPolicy,
   ToolRegistration,

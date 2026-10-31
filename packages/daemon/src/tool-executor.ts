@@ -48,6 +48,7 @@
 import { randomUUID } from 'node:crypto';
 import {
   ToolInputError,
+  APPROVAL_WAIT_TIMEOUT_MS,
   withNormalizationNotes,
   ToolInputNormalizationError,
   isReadOnlyTool,
@@ -115,6 +116,7 @@ export type ToolExecutionPhase =
   | 'authorized'
   | 'denied'
   | 'confirmed'
+  | 'approval-recorded'
   | 'confirmation-denied'
   | 'started'
   | 'completed'
@@ -372,15 +374,36 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
   function startTimeout(
     controller: AbortController,
     timeoutMs: number | undefined,
-  ): { handle: ReturnType<typeof setTimeout> | undefined; timedOut: () => boolean } {
-    if (timeoutMs === undefined) return { handle: undefined, timedOut: () => false };
+  ) {
+    let handle: ReturnType<typeof setTimeout> | undefined;
     let timedOut = false;
-    const handle = setTimeout(() => {
-      timedOut = true;
-      controller.abort();
-    }, timeoutMs);
-    handle.unref?.();
-    return { handle, timedOut: () => timedOut };
+    let waiting = false;
+    let approvalWindowUsed = false;
+    let remaining = timeoutMs;
+    let started = Date.now();
+    const stop = () => { clearTimeout(handle); handle = undefined; };
+    const arm = (duration: number | undefined) => {
+      stop();
+      started = Date.now();
+      if (duration === undefined) return;
+      handle = setTimeout(() => { timedOut = true; controller.abort(); }, duration);
+      handle.unref?.();
+    };
+    arm(remaining);
+    return {
+      stop,
+      timedOut: () => timedOut,
+      /** Human waiting is bounded independently and cannot replenish the execution budget.
+       * Duplicate progress frames cannot extend either deadline. */
+      approval: ({ pending }: { pending: boolean }) => {
+        if (pending === waiting || controller.signal.aborted) return;
+        if (pending && approvalWindowUsed) return;
+        if (pending) approvalWindowUsed = true;
+        if (pending && remaining !== undefined) remaining = Math.max(0, remaining - (Date.now() - started));
+        waiting = pending;
+        arm(pending ? APPROVAL_WAIT_TIMEOUT_MS : remaining);
+      },
+    };
   }
 
   /** Records a terminal transition that carries no detail and returns its bare result. */
@@ -604,7 +627,8 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     // the catch). Repeating one call avoids leaving an uncoverable branch
     // behind instead of writing a contrived test or suppressing it.
     const cleanup = () => {
-      if (timeout.handle) clearTimeout(timeout.handle);
+      timeout.stop();
+      approvalStateChange({ run, executionId, toolId: call.toolId, pending: false });
     };
     appendEvent(executionId, 'started');
     try {
@@ -619,7 +643,12 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
         signal: controller.signal,
       }, {
         ...surfaceOption(emitSurface),
-        onApprovalStateChange: ({ pending }) => approvalStateChange({ run, executionId, toolId: call.toolId, pending }),
+        onApprovalStateChange: ({ pending, decision }) => {
+          // The tab owns human confirmation; retain its outcome without opening a chat surface.
+          if (decision) appendEvent(executionId, 'approval-recorded', `frontend approval: ${decision}`);
+          timeout.approval({ pending });
+          approvalStateChange({ run, executionId, toolId: call.toolId, pending });
+        },
         invokeTool: nestedInvoker({ principal, run, toolId: call.toolId, invocationRegistry: call.invocationRegistry, signal: controller.signal }, { emitSurface }),
       });
       cleanup();

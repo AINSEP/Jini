@@ -11,6 +11,7 @@ import {
   type AgentElementRole,
 } from '../element-handles.js';
 import { normalizeAgentLabel, type FieldDescriptor } from '../guards.js';
+import type { AgentNavigationScreen, PageNavigationInput, PageNavigationResult } from '../page-navigation.js';
 import type { FindElementsFilter, PageDriver } from '../page-driver.js';
 
 /**
@@ -336,7 +337,8 @@ export interface DomPageDriverPage {
   /** Shown to a caller by `page.find_elements`/`page.navigate`'s refusal message — see
    *  `PageSummary.label` for why this exists at all. */
   readonly label: string;
-  readonly navigate: (required: Record<string, never>) => void;
+  readonly navigation?: AgentNavigationScreen;
+  readonly navigate: (required: PageNavigationInput) => void | PageNavigationResult | Promise<void | PageNavigationResult>;
 }
 
 export interface DomPageDriverRequired {
@@ -473,7 +475,7 @@ export function createDomPageDriver({ root, pages }: DomPageDriverRequired, opti
       // `Object.entries`, same own-enumerable-keys-only guarantee `Object.keys` gives `navigate`'s
       // own `hasOwnProperty` check above — no risk of a `pages.label`/`pages.navigate`-shaped
       // prototype entry leaking in as a fake page id.
-      return Object.entries(pages).map(([id, page]) => ({ id, label: page.label }));
+      return Object.entries(pages).map(([id, page]) => ({ id, label: page.label, ...(page.navigation ? { navigation: page.navigation } : {}) }));
     },
 
     async describeField({ handle }: { handle: string }, _optional: Record<string, never> = {}) {
@@ -639,7 +641,7 @@ export function createDomPageDriver({ root, pages }: DomPageDriverRequired, opti
       control.dispatchEvent(new Event('change', { bubbles: true }));
     },
 
-    async navigate({ page }: { page: string }, _optional: Record<string, never> = {}) {
+    async navigate({ page, ...input }: { page: string } & PageNavigationInput, _optional: Record<string, never> = {}) {
       // `hasOwnProperty`, not `pages[page]`: a plain object literal inherits everything
       // `Object.prototype` contributes, so a bare lookup answered `navigate("constructor")` with
       // the `Object` constructor — a function the host never published, which this then called,
@@ -654,7 +656,7 @@ export function createDomPageDriver({ root, pages }: DomPageDriverRequired, opti
       // the executor entirely, hands `page` in unsanitized, so the same bound-and-strip treatment
       // applies here too rather than assuming the only caller is the one that already checked.
       if (!published) throw new Error(`"${normalizeAgentLabel({ raw: page }).text}" is not a published page`);
-      pages[page]!.navigate({});
+      return pages[page]!.navigate(input);
     },
   };
 }

@@ -1,10 +1,10 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { execFile } from 'node:child_process';
-import { copyFile, mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, readdir, realpath, rm } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { computePluginIntegrity } from '@jini-ai/plugins/host/node';
 import type { PluginManifest } from '@jini-ai/plugins/host';
@@ -75,7 +75,26 @@ it('preserves the source contract and retains only this distribution attribution
 
 it('resolves the package manifest and artifact export outside the workspace with no sibling plugin installed', async () => {
   const resolve = createRequire(path.join(root, 'host.cjs')).resolve;
-  expect(resolve(`${packageName}/package.json`)).toBe(path.join(installed, 'package.json'));
-  expect(resolve(`${packageName}/${artifactPath}/server/index.mjs`)).toBe(path.join(artifact, 'server/index.mjs'));
+  // Node resolves symlinks; macOS's /var scratch path aliases /private/var.
+  expect(await realpath(resolve(`${packageName}/package.json`))).toBe(await realpath(path.join(installed, 'package.json')));
+  expect(await realpath(resolve(`${packageName}/${artifactPath}/server/index.mjs`))).toBe(await realpath(path.join(artifact, 'server/index.mjs')));
   expect(await readdir(path.join(root, 'node_modules/@jini-ai'))).toEqual([`plugin-${id}`]);
+});
+
+
+it.each([undefined, false, true])('installed OTel artifact gates injected export processors with exportEnabled=%s', async exportEnabled => {
+  const { createOpenTelemetryProvider } = await import(pathToFileURL(path.join(artifact, 'server/index.mjs')).href);
+  const spans: unknown[] = [];
+  const resource = createOpenTelemetryProvider({ serviceName: 'fixture', endpoint: 'https://collector.invalid' }, {
+    exportEnabled, metricReaders: [],
+    spanProcessors: [{ onStart() {}, onEnd(span: unknown) { spans.push(span); }, async shutdown() {}, async forceFlush() {} }],
+  });
+  try {
+    const op = resource.port.trackOperation({ name: 'telemetry.test' });
+    op.run(() => resource.port.reportError({ error: new Error('test error'), context: { operation: 'telemetry.test' } }));
+    op.end({ outcome: 'failed', failed: true });
+    expect(resource.port.supportsMetric).toBe(true);
+    resource.port.metric({ name: 'local.gauge', value: 1 });
+  } finally { await resource.dispose({}); }
+  expect(spans.length).toBe(exportEnabled === true ? 1 : 0);
 });

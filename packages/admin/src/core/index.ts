@@ -11,6 +11,7 @@
 export type { AdminNavEntry, AdminPanel, AdminRoutePattern } from './manifest/types.js';
 export {
   buildAgentPageMap,
+  buildAgentScreens,
   buildNav,
   panelHref,
   resolveAgentPageId,

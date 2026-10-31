@@ -4,6 +4,7 @@ import { adminHref, currentRoutePath, matchRoute, stripTrailingSlash } from '../
 
 const panel = (id: string, routes?: AdminPanel['routes']): AdminPanel<null> => ({
   id,
+  description: `Manage ${id}.`,
   render: null,
   ...(routes ? { routes } : {}),
 });

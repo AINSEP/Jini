@@ -116,6 +116,12 @@ export interface AdminPanel<TRender = unknown> {
    * the page could not act on it without a translation table.
    */
   readonly id: string;
+  /** One plain-language sentence describing what an operator does here. */
+  readonly description: string;
+  /** Allowed route-state keys; null means a free text value, an array constrains its vocabulary. */
+  readonly allowedQueryParams?: Readonly<Record<string, readonly string[] | null>>;
+  /** Existing entity routes, relative to this panel. Empty pattern addresses the landing page. */
+  readonly agentEntities?: readonly { readonly type: string; readonly pattern: string }[];
 
   /** What the shell renders for this panel. */
   readonly render: TRender;

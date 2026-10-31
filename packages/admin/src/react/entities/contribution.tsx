@@ -55,6 +55,7 @@ export function createEntityPanel(
   const dependencies = { registry: args.registry, translate: args.translate, routes };
   return {
     id: args.panelId,
+    description: args.translate({ key: 'Browse and edit data records.' }),
     nav: options.nav ?? { label: args.translate({ key: 'Data' }) },
     agentReachable: options.agentReachable ?? false,
     ...(options.requires === undefined ? {} : { requires: options.requires }),

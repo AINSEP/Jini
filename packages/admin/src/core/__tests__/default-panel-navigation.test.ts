@@ -3,8 +3,8 @@ import { buildAgentPageMap, buildNav, panelHref } from '../manifest/rules.js';
 import { resolveAdminShellModel } from '../../react/shell/model.js';
 
 const panels = [
-  { id: 'home', render: () => null, nav: { label: 'Home' }, agentReachable: true },
-  { id: 'dashboard', render: () => null, nav: { label: 'Dashboard' }, agentReachable: true },
+  { id: 'home', description: 'Manage home.', render: () => null, nav: { label: 'Home' }, agentReachable: true },
+  { id: 'dashboard', description: 'Manage dashboard.', render: () => null, nav: { label: 'Dashboard' }, agentReachable: true },
 ];
 const session = { user: { id: 'u1', username: 'operator' } };
 

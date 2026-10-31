@@ -52,6 +52,7 @@ describe("createAgUiRunClient", () => {
     const agent = agents[0]!;
     expect(created).toEqual([{ url: "/api/ag-ui", threadId: "conv-1" }]);
     expect(agent.inputs[0]).toMatchObject({
+      // The daemon owns tool registrations; only the originating tab token crosses this transport.
       threadId: "conv-1", runId: "agui-id1", state: null, tools: [], context: [],
       messages: [{ id: "u1", role: "user", content: "hi" }, { id: "a1", role: "assistant", content: "hello" }],
       forwardedProps: { agentId: "agent-7", secretRedacted: true },
@@ -142,4 +143,14 @@ describe("createAgUiRunClient", () => {
     client.handleAgUiEvent({ event: { type: EventType.RUN_FINISHED, threadId: "t", runId: "r" }, ctx });
     expect(finish).toHaveBeenCalledOnce();
   });
+});
+
+
+it("forwards the current originating tab token without client tool definitions", async () => {
+  const { client, agents, handlers } = setup();
+  const started = client.startAgUiRun({ input: { history, context: { frontendBindToken: "tab-B-current" }, signal: new AbortController().signal }, handlers });
+  expect(agents[0]!.inputs[0]!.forwardedProps).toMatchObject({ frontendBindToken: "tab-B-current" });
+  expect(agents[0]!.inputs[0]!.tools).toEqual([]);
+  agents[0]!.observer!.complete();
+  await started;
 });

@@ -537,3 +537,70 @@ describe('frame and transport boundaries', () => {
     expect(fetchMock).not.toHaveBeenCalled();
   });
 });
+
+describe('page actions through the app approval channel', () => {
+  it.each([true, false])('uses one frozen proposal and one decision, approved=%s', async confirmed => {
+    fetchMock.mockImplementation(async () => ({ ok: true, status: 200, json: async () => ({ settled: true }) }));
+    let decide!: (answer: { confirmed: true } | { confirmed: false; reason: 'declined' }) => void;
+    const request = vi.fn((_args: { capabilityId: string; input: Record<string, unknown>; signal: AbortSignal }) => new Promise<{ confirmed: true } | { confirmed: false; reason: 'declined' }>(resolve => { decide = resolve; }));
+    const driver = createDriver();
+    const bridge = createFrontendSessionBridge({ baseUrl: '', fetch: globalThis.fetch, openStream: ({ url }) => new EventSource(url) }, {
+      pageDriver: driver, pageApproval: { isDirect: () => false, request },
+    });
+    const source = FakeEventSource.last!;
+    source.emit({ type: 'attached', sessionId: 'tab', bindToken: 'token' });
+    const input = { handle: 'save-button' };
+    source.emit({ type: 'invocation', invocationId: 'protected', capabilityId: 'page.click', input });
+    await flush();
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(driver.click).not.toHaveBeenCalled();
+    // Neither the caller nor a mutable description can replace the input the effect will use.
+    input.handle = 'different-button';
+    request.mock.calls[0]![0].input.handle = 'forged-button';
+    decide(confirmed ? { confirmed: true } : { confirmed: false, reason: 'declined' });
+    await flush();
+    expect(driver.click).toHaveBeenCalledTimes(confirmed ? 1 : 0);
+    if (confirmed) expect(driver.click).toHaveBeenCalledWith({ handle: 'save-button' });
+    expect(postedBodies().filter(body => body.phase === 'approval-pending')).toHaveLength(1);
+    expect(postedBodies().filter(body => body.phase === 'execution-started'))
+      .toEqual([expect.objectContaining({ decision: confirmed ? 'approved' : 'declined' })]);
+    expect(postedBodies().at(-1)).toMatchObject(confirmed ? { ok: true, output: { clicked: 'save-button' } } : { ok: true, output: { executed: false, reason: 'declined' } });
+    source.emit({ type: 'invocation', invocationId: 'protected', capabilityId: 'page.click', input: { handle: 'save-button' } });
+    await flush();
+    expect(request).toHaveBeenCalledTimes(1);
+    expect(driver.click).toHaveBeenCalledTimes(confirmed ? 1 : 0);
+    bridge.close();
+  });
+
+  it.each(['cancelled', 'disconnect', 'close'])('a late approval after %s cannot click', async mode => {
+    fetchMock.mockImplementation(async () => ({ ok: true, status: 200, json: async () => ({ settled: true }) }));
+    let approve!: () => void;
+    const driver = createDriver();
+    const bridge = createFrontendSessionBridge({ baseUrl: '', fetch: globalThis.fetch, openStream: ({ url }) => new EventSource(url) }, {
+      pageDriver: driver, pageApproval: { isDirect: () => false, request: () => new Promise(resolve => { approve = () => resolve({ confirmed: true }); }) },
+    });
+    const source = FakeEventSource.last!;
+    source.emit({ type: 'attached', sessionId: 'tab', bindToken: 'token' });
+    source.emit({ type: 'invocation', invocationId: 'protected', capabilityId: 'page.click', input: { handle: 'save-button' } });
+    await flush();
+    if (mode === 'cancelled') source.emit({ type: 'cancelled', invocationId: 'protected' });
+    if (mode === 'disconnect') source.fail();
+    if (mode === 'close') bridge.close();
+    approve(); await flush();
+    expect(driver.click).not.toHaveBeenCalled();
+    bridge.close();
+  });
+
+  it('does not open a dialog or act for an already expired server invocation', async () => {
+    fetchMock.mockImplementation(async () => ({ ok: true, status: 200, json: async () => ({ settled: false }) }));
+    const request = vi.fn(); const driver = createDriver();
+    const bridge = createFrontendSessionBridge({ baseUrl: '', fetch: globalThis.fetch, openStream: ({ url }) => new EventSource(url) }, {
+      pageDriver: driver, pageApproval: { isDirect: () => false, request },
+    });
+    FakeEventSource.last!.emit({ type: 'attached', sessionId: 'tab', bindToken: 'token' });
+    FakeEventSource.last!.emit({ type: 'invocation', invocationId: 'expired', capabilityId: 'page.click', input: { handle: 'save-button' } });
+    await flush();
+    expect(request).not.toHaveBeenCalled(); expect(driver.click).not.toHaveBeenCalled();
+    bridge.close();
+  });
+});

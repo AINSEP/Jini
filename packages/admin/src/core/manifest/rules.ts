@@ -171,3 +171,48 @@ export function resolveAgentPageId<T>(
   const matched = (panel.routes ?? []).find((r) => r.view === view);
   return matched?.agentPageId ?? panel.id;
 }
+
+
+/** Extend the existing page projection with descriptions, templates and entity contracts.
+ * Host aliases come from its router adapter, keeping one route owner. Runtime fallback protects
+ * older/untyped panels; compile-time contracts and host drift tests require descriptions. @complexity O(p * r) for p panels. */
+export function buildAgentScreens<T>(
+  { panels }: { panels: readonly AdminPanel<T>[] },
+  { defaultReachable = false, paths = {} }: { defaultReachable?: boolean; paths?: Readonly<Record<string, string>> } = {},
+) {
+  const pages = buildAgentPageMap({ panels }, { defaultReachable });
+  return Object.entries(pages).map(([id, originalPath]) => {
+    const panel = panels.find(candidate => candidate.id === id || candidate.routes?.some(route => route.agentPageId === id));
+    if (!panel) throw new Error(`Missing owner for admin page "${id}"`);
+    return projectAgentScreen({ id, path: paths[id] ?? originalPath, panel, paths });
+  });
+}
+
+/** Project the sidebar label or title-case a published route id. */
+function screenLabel<T>({ id, panel }: { id: string; panel: AdminPanel<T> }, _options = {}): string {
+  const label = panel.id === id ? panel.nav?.label : undefined;
+  return label ?? id.split('-').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ');
+}
+
+/** Pure projection over the panel's own route declarations; no route may be invented here. */
+function projectAgentScreen<T>(
+  { id, path, panel, paths }: { id: string; path: string; panel: AdminPanel<T>; paths: Readonly<Record<string, string>> },
+  _options = {},
+) {
+  const label = screenLabel({ id, panel });
+  const base = (paths[panel.id] ?? panelHref({ panelId: panel.id })).split('?')[0]!;
+  const template = (pattern: string) => `${base === '/' ? '' : base}${pattern}` || '/';
+  return {
+    id, label, description: panel.description?.trim() || label, path,
+    routeTemplates: [...new Set([path.split('?')[0]!, ...(panel.routes ?? []).map(route => template(route.pattern))])],
+    allowedQueryParams: panel.allowedQueryParams ?? {},
+    entityTargets: entitiesForPage({ id, panel }).map(entity => ({ type: entity.type, routeTemplate: template(entity.pattern) })),
+  };
+}
+
+
+/** A secondary destination reports its own page identity, so it must not advertise an editor
+ * whose route reports the parent page instead. */
+function entitiesForPage<T>({ id, panel }: { id: string; panel: AdminPanel<T> }, _options = {}) {
+  return panel.id === id ? panel.agentEntities ?? [] : [];
+}

@@ -2,8 +2,8 @@
 import assert from "node:assert/strict";
 import { test, vi, onTestFinished } from "vitest";
 
-import type { Principal, RunRef, SurfaceEmitter } from "@jini-ai/core";
-import type { ToolExecutionResult, ToolExecutor } from "../tool-executor.js";
+import { createToolRegistry, type Principal, type RunRef, type SurfaceEmitter } from "@jini-ai/core";
+import { createToolExecutor, type ToolExecutionResult, type ToolExecutor } from "../tool-executor.js";
 
 import { createInMemoryToolAttemptAuditSink } from "./audit-fixture.js";
 import type { ToolAttemptAuditSink } from "../tool-audit.js";
@@ -282,4 +282,25 @@ test("describeInput handles every shape without throwing, and never returns a va
   assert.equal(describeInput([1, 2, 3]), "input: an array of 3");
   assert.equal(describeInput("a-secret-string"), "input: a string");
   assert.equal(describeInput(42), "input: a number");
+});
+
+
+test("bound modal outcomes persist in the existing audit sink without operator values", async () => {
+  for (const decision of ['approved', 'declined', 'expired', 'abandoned'] as const) {
+    const registry = createToolRegistry({});
+    registry.register({ descriptor: { id: 'page.click', description: 'Activate a control' },
+      policy: { authorize: () => 'allow' }, handler: async (_ctx, options) => {
+        options?.onApprovalStateChange?.({ pending: true });
+        options?.onApprovalStateChange?.({ pending: false, decision });
+        return decision === 'approved' ? 'clicked' : { executed: false, reason: decision };
+      },
+    });
+    const sink = createInMemoryToolAttemptAuditSink();
+    const inner = createToolExecutor({ registry });
+    const result = await wrap(inner, sink).execute({ principal: PRINCIPAL, run: RUN, toolId: 'page.click', input: { handle: 'private-value' } });
+    assert.equal(result.status, 'completed');
+    assert.ok(inner.getAuditRecord({ executionId: result.executionId })?.events.some(event => event.phase === 'approval-recorded'));
+    assert.equal(sink.events.at(-1)?.detail, `frontend approval: ${decision}`);
+    assert.ok(!JSON.stringify(sink.events).includes('private-value'));
+  }
 });

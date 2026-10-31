@@ -797,3 +797,60 @@ it('preserves a rejected write status and delivers its prepared guidance to the 
   expect(result.error).toContain('Invalid markup');
   expect(result.error).toContain('Design guidance');
 });
+
+describe('bounded human waiting versus execution timeout', () => {
+  it('preserves the remaining execution budget while a human decides, ignoring duplicate progress', async () => {
+    vi.useFakeTimers();
+    try {
+      let enter!: () => void; let leave!: () => void; let complete!: () => void;
+      const registry = registryWith({ descriptor: { id: 'page.click', timeoutMs: 30_000 }, policy: allowAll(), handler: async (ctx, options) => {
+        enter = () => options?.onApprovalStateChange?.({ pending: true });
+        leave = () => options?.onApprovalStateChange?.({ pending: false });
+        return new Promise(resolve => {
+          complete = () => resolve('clicked');
+          ctx.signal.addEventListener('abort', () => resolve('aborted'), { once: true });
+        });
+      } });
+      const executor = createToolExecutor({ registry });
+      const pending = executor.execute({ principal, run, toolId: 'page.click', input: {} });
+      await vi.advanceTimersByTimeAsync(5_000); enter();
+      await vi.advanceTimersByTimeAsync(50_000); enter();
+      await vi.advanceTimersByTimeAsync(50_000); leave();
+      await vi.advanceTimersByTimeAsync(24_000); complete();
+      expect(await pending).toMatchObject({ status: 'completed', output: 'clicked' });
+    } finally { vi.useRealTimers(); }
+  });
+
+  it('expires an abandoned human wait even if duplicate pending frames keep arriving', async () => {
+    vi.useFakeTimers();
+    try {
+      let enter!: () => void;
+      const registry = registryWith({ descriptor: { id: 'page.click', timeoutMs: 30_000 }, policy: allowAll(), handler: async (ctx, options) => {
+        enter = () => options?.onApprovalStateChange?.({ pending: true }); enter();
+        return new Promise(resolve => ctx.signal.addEventListener('abort', () => resolve('late'), { once: true }));
+      } });
+      const pending = createToolExecutor({ registry }).execute({ principal, run, toolId: 'page.click', input: {} });
+      await vi.advanceTimersByTimeAsync(60_000); enter();
+      await vi.advanceTimersByTimeAsync(60_001);
+      expect(await pending).toMatchObject({ status: 'timed-out' });
+    } finally { vi.useRealTimers(); }
+  });
+});
+
+
+it('does not grant a second human-wait window after execution resumes', async () => {
+  vi.useFakeTimers();
+  try {
+    let progress!: (pending: boolean) => void;
+    const registry = registryWith({ descriptor: { id: 'page.click', timeoutMs: 30_000 }, policy: allowAll(), handler: async (ctx, options) => {
+      progress = pending => options?.onApprovalStateChange?.({ pending });
+      return new Promise(resolve => ctx.signal.addEventListener('abort', () => resolve('late'), { once: true }));
+    } });
+    const pending = createToolExecutor({ registry }).execute({ principal, run, toolId: 'page.click', input: {} });
+    await vi.advanceTimersByTimeAsync(5_000); progress(true);
+    await vi.advanceTimersByTimeAsync(50_000); progress(false);
+    await vi.advanceTimersByTimeAsync(1_000); progress(true);
+    await vi.advanceTimersByTimeAsync(24_001);
+    expect(await pending).toMatchObject({ status: 'timed-out' });
+  } finally { vi.useRealTimers(); }
+});

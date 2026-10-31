@@ -780,3 +780,13 @@ describe('page.find_elements — withState', () => {
       .rejects.toThrow(/"withState" must be a boolean, received string/);
   });
 });
+
+it.each([
+  { entity: { type: 'page', id: 'id' } },
+  { query: { tab: 'installed' } },
+])('an older driver cannot silently discard navigation state %j', async target => {
+  const legacy = createFakeDriver();
+  await expect(executePageCapability({ driver: legacy, capabilityId: 'page.navigate', input: { page: 'notes', ...target } }))
+    .rejects.toThrow('does not publish entity or query navigation targets');
+  expect(legacy.navigate).not.toHaveBeenCalled();
+});

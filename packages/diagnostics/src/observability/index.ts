@@ -3,6 +3,7 @@ import type { ExporterFactory, TracerProviderFactory, ObservabilityPort } from '
 import { createNoopObservabilityPort } from './noop.js';
 import { createOtelObservabilityPort, type OtelAdapterOptions } from './otel.js';
 export * from './config.js';
+export * from './export-policy.js';
 export * from './ports.js';
 export * from './noop.js';
 export * from './otel.js';

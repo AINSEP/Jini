@@ -1,4 +1,5 @@
-import { describe, expect, it } from 'vitest';
+import { buildAgentScreens } from "../manifest/rules.js";
+import { describe, expect, expectTypeOf, it } from 'vitest';
 import {
   buildAgentPageMap,
   buildNav,
@@ -10,6 +11,7 @@ import type { AdminPanel } from '../manifest/types.js';
 
 const p = (id: string, extra: Partial<AdminPanel<null>> = {}): AdminPanel<null> => ({
   id,
+  description: `Manage ${id}.`,
   render: null,
   ...extra,
 });
@@ -236,4 +238,14 @@ describe('resolveAgentPageId', () => {
   it('returns null for an unmatched route', () => {
     expect(resolveAgentPageId({ panels: panels, panelId: null, view: null })).toBeNull();
   });
+});
+
+it('published screens require a typed purpose, tolerate legacy panels and derive templates from their owner', () => {
+  expectTypeOf<AdminPanel<null>>().toMatchTypeOf<{ readonly description: string }>();
+  // Older/untyped contributions must not crash the bundle; host drift tests reject missing copy.
+  const legacyPanel = { id: 'new-panel', render: null } as AdminPanel<null>;
+  expect(buildAgentScreens({ panels: [legacyPanel] }, { defaultReachable: true })[0])
+    .toMatchObject({ label: 'New Panel', description: 'New Panel' });
+  expect(buildAgentScreens({ panels: [p('pages', { description: 'Edit pages.', routes: [{ pattern: '/:slug', view: 'editor' }], agentEntities: [{ type: 'page', pattern: '/:slug' }] })] }, { defaultReachable: true }))
+    .toEqual([{ id: 'pages', label: 'Pages', description: 'Edit pages.', path: '/pages', routeTemplates: ['/pages', '/pages/:slug'], allowedQueryParams: {}, entityTargets: [{ type: 'page', routeTemplate: '/pages/:slug' }] }]);
 });

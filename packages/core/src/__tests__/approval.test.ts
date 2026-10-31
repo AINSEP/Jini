@@ -1,4 +1,4 @@
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
 import { createApprovalProposalStore, createApprovalHandler, resolveApproval, type ApprovalAnswer, type ApprovalSteps, type RememberedApprovalPort } from '../approval.js';
 import type { ToolExecutionContext } from '../tool-registry.js';
 
@@ -106,4 +106,32 @@ it('abort between a browser reply and effect prevents execution', async () => {
   store.propose({ description: {}, signal: controller.signal, execute: async () => { calls++; } });
   const pending = store.respond({ approvalId: 'proposal', approved: true }); controller.abort();
   expect(await pending).toEqual({ status: 'declined' }); expect(calls).toBe(0);
+});
+
+it('the app dialog alone may decide an awaiting proposal; inputs are frozen and decisions are single use', async () => {
+  const store = createApprovalProposalStore<{ target: string }>({ responseTool: 'reply', messages: { closed: 'closed', pending: 'pending', missing: 'missing' } }, { createId: () => 'human' });
+  const description = { target: 'original' };
+  const pending = store.request({ description, signal: new AbortController().signal });
+  description.target = 'replacement';
+  expect(store.getSnapshot().pending?.description).toEqual({ target: 'original' });
+  await expect(store.respond({ approvalId: 'human', approved: true })).rejects.toThrow('app dialog');
+  expect(store.getSnapshot().pending?.approvalId).toBe('human');
+  await store.respond({ approvalId: 'human', approved: true }, { source: 'human' });
+  expect(await pending).toEqual({ confirmed: true });
+  await expect(store.respond({ approvalId: 'human', approved: true }, { source: 'human' })).rejects.toThrow('missing');
+});
+
+it.each(['declined', 'expired', 'abandoned'] as const)('an awaiting proposal settles %s without executing an action', async reason => {
+  vi.useFakeTimers();
+  try {
+    const store = createApprovalProposalStore<string>({ responseTool: 'reply', messages: { closed: 'closed', pending: 'pending', missing: 'missing' } }, { createId: () => 'human' });
+    const controller = new AbortController();
+    const pending = store.request({ description: 'delete', signal: controller.signal }, { timeoutMs: 100 });
+    if (reason === 'declined') await store.respond({ approvalId: 'human', approved: false }, { source: 'human' });
+    if (reason === 'expired') await vi.advanceTimersByTimeAsync(101);
+    if (reason === 'abandoned') controller.abort();
+    expect(await pending).toEqual({ confirmed: false, reason });
+    expect(store.getSnapshot().pending).toBeNull();
+    await expect(store.respond({ approvalId: 'human', approved: true }, { source: 'human' })).rejects.toThrow('missing');
+  } finally { vi.useRealTimers(); }
 });

@@ -48,8 +48,8 @@ let navigated: string[];
 function makeDriver(overrides: { currentPage?: string } = {}) {
   navigated = [];
   return createDomPageDriver({ root, pages: {
-      'agent-lab': { label: 'Agent Lab', navigate: () => navigated.push('agent-lab') },
-      signup: { label: 'Signup', navigate: () => navigated.push('signup') },
+      'agent-lab': { label: 'Agent Lab', navigate: () => { navigated.push('agent-lab'); } },
+      signup: { label: 'Signup', navigate: () => { navigated.push('signup'); } },
     } }, { ...overrides });
 }
 
