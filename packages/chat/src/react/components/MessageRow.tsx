@@ -73,7 +73,7 @@ import { Markdown } from './Markdown.js';
 import { ToolCard } from './ToolCard.js';
 import { QuestionForm } from './QuestionForm.js';
 import { ToolCallGroup } from './ToolCallGroup.js';
-import { applyToolCallDisplay, toolRowsForDisplay, type ToolCallDisplay } from '../tool-call-display.js';
+import { applyToolCallDisplay, retriedToolRowIds, toolRowsForDisplay, type ToolCallDisplay } from '../tool-call-display.js';
 
 export interface MessageRowProps {
   message: ChatMessage;
@@ -353,9 +353,11 @@ function AssistantMessageRow({
   const footerUsage = showUsageLine ? usage.footer : undefined;
   const lastFinishedReply = !runInProgress && !usage.footer ? usage.replies.findLastIndex(value => value !== undefined) : -1;
 
+  const retriedRows = retriedToolRowIds({ rows: timeline.rows });
   const renderToolCard = (row: ToolTimelineRow) => (
     <ToolCard
       key={row.id}
+      retried={retriedRows.has(row.id)}
       use={row.use}
       result={row.result}
       runStreaming={runStreaming}

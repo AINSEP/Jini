@@ -185,6 +185,47 @@ describe('MessageRow toolCallDisplay', () => {
   });
 });
 
+describe('MessageRow retried tool calls (f2: a failure the turn retried successfully)', () => {
+  const retriedTurn = assistant('retried', [
+    { kind: 'text', text: 'Writing the page. ' },
+    use('w1', 'content_post_create'), result('w1', true),
+    use('w2', 'content_post_create'), result('w2'),
+    use('x1', 'media_list'), result('x1', true),
+    { kind: 'text', text: 'Done.' },
+  ]);
+
+  it('collapsed counts only the failure with no later success of the same tool', () => {
+    render(<MessageRow message={retriedTurn} runSucceeded toolCallDisplay="collapsed" />);
+    expect(screen.getByRole('button', { name: 'Used 3 tools · 1 failed' })).toBeInTheDocument();
+  });
+
+  it('show renders the retried failure as a neutral "Retried" row, keeps the real failure red, and keeps details expandable', async () => {
+    const user = userEvent.setup();
+    const { container } = render(<MessageRow message={retriedTurn} runSucceeded />);
+    const cards = [...container.querySelectorAll('.jini-message-tools .op-card')];
+    expect(cards).toHaveLength(3);
+    expect(cards[0]!.querySelector('.op-status-error')).toBeNull();
+    expect(cards[0]!.querySelector('.op-status-retried')).toHaveAttribute('title', 'Retried');
+    expect(cards[1]!.querySelector('.op-status-ok')).not.toBeNull();
+    expect(cards[2]!.querySelector('.op-status-error')).not.toBeNull();
+    const head = cards[0]!.querySelector('button.op-card-head')!;
+    await user.click(head);
+    expect(head).toHaveAttribute('aria-expanded', 'true');
+    expect(cards[0]!.querySelector('.op-output')).toHaveTextContent('boom');
+  });
+
+  it('delegated wrapper calls match by their tool id, not the shared wrapper name', () => {
+    const wrapper = (id: string, toolId: string): AgentEvent => ({ kind: 'tool_use', id, name: 'mcp__jini__execute_readonly_delegated_tool', input: { toolId, input: {} } });
+    const wrapped = assistant('wrapped', [
+      wrapper('d1', 'content.read'), result('d1', true),
+      wrapper('d2', 'media.list'), result('d2', true),
+      wrapper('d3', 'content.read'), result('d3'),
+    ]);
+    render(<MessageRow message={wrapped} runSucceeded toolCallDisplay="collapsed" />);
+    expect(screen.getByRole('button', { name: 'Used 3 tools · 1 failed' })).toBeInTheDocument();
+  });
+});
+
 describe('MessageRow showUsageLine', () => {
   it('shows the Done line by default and hides it when off', () => {
     const view = render(<MessageRow message={turn} runSucceeded />);

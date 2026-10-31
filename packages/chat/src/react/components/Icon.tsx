@@ -23,7 +23,8 @@ export type IconName =
   | 'search'
   | 'plus'
   | 'pencil'
-  | 'copy';
+  | 'copy'
+  | 'retry';
 
 interface IconProps extends Omit<SVGProps<SVGSVGElement>, 'name'> {
   name: IconName;
@@ -38,6 +39,7 @@ const ICON_GLYPHS: Record<IconName, ReactNode> = {
   check: <path d="M20 6 9 17l-5-5" />,
   close: CROSS,
   x: CROSS,
+  retry: <><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" /><path d="M3 3v5h5" /></>,
   'chevron-down': <path d="m6 9 6 6 6-6" />,
   /** Conversation-switcher trigger — a speech bubble reads as "chat history" without a label. */
   comment: (

@@ -13,7 +13,7 @@
  * out of `MessageRow.tsx` so every mode is testable without rendering.
  */
 import type { ToolStatus } from '../core/index.js';
-import { humanizeToolName } from '../core/index.js';
+import { humanizeToolName, isDelegatedWrapperToolName } from '../core/index.js';
 import type { MessageBlock } from './message-blocks.js';
 
 export type ToolCallDisplay = 'show' | 'collapsed' | 'hidden';
@@ -33,6 +33,33 @@ export interface ToolDisplayRow {
  */
 export function isFailedToolRow({ row }: { row: Pick<ToolDisplayRow, 'status'> }): boolean {
   return row.status === 'error';
+}
+
+/** The tool a row called: a delegated wrapper's `input.toolId`, else its own name (wrappers share one name). */
+function toolIdentity(row: ToolDisplayRow): string {
+  if (!isDelegatedWrapperToolName({ name: row.name })) return row.name;
+  const input = row.use?.input;
+  const toolId = typeof input === 'object' && input !== null ? (input as Record<string, unknown>).toolId : undefined;
+  return typeof toolId === 'string' && toolId ? toolId : row.name;
+}
+
+/**
+ * Ids of failed rows that a LATER successful call of the same tool retried (owner, 2026-10-31: a
+ * red "HTTP 400 … page was NOT written" row and "· 2 failed" stayed on screen after the immediate
+ * retry wrote the page). Those rows render as a neutral "Retried" and are not counted as failed;
+ * a failure nothing later succeeded at stays red. Pass one turn's rows.
+ * @complexity O(n) in rows.
+ */
+export function retriedToolRowIds({ rows }: { rows: readonly ToolDisplayRow[] }): ReadonlySet<string> {
+  const succeededLater = new Set<string>();
+  const retried = new Set<string>();
+  for (let i = rows.length - 1; i >= 0; i -= 1) {
+    const row = rows[i]!;
+    const tool = toolIdentity(row);
+    if (row.status === 'complete') succeededLater.add(tool);
+    else if (isFailedToolRow({ row }) && succeededLater.has(tool)) retried.add(row.id);
+  }
+  return retried;
 }
 
 /** Running = no result yet while the run streams (`'executing'`), or not started (`'inProgress'`). */
@@ -146,7 +173,8 @@ export function summarizeToolGroup({ rows }: { rows: readonly ToolDisplayRow[] }
     const row = rows[i]!;
     if (isRunningToolRow(row)) return { kind: 'running', name: humanizeToolName({ name: row.name }, { input: row.use?.input }) };
   }
-  return { kind: 'done', count: rows.length, failed: rows.filter((row) => isFailedToolRow({ row })).length };
+  const retried = retriedToolRowIds({ rows });
+  return { kind: 'done', count: rows.length, failed: rows.filter((row) => isFailedToolRow({ row }) && !retried.has(row.id)).length };
 }
 
 /**

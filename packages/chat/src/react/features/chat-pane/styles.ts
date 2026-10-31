@@ -1510,6 +1510,7 @@ export const CHAT_PANE_STYLES = `
 .jini-chat-pane .op-status { display: inline-flex; flex-shrink: 0; }
 .jini-chat-pane .op-status-ok { color: #4e875f; }
 .jini-chat-pane .op-status-error { color: var(--danger); }
+.jini-chat-pane .op-status-retried { color: var(--jini-chat-muted); }
 .jini-chat-pane .op-status-running { color: var(--jini-chat-accent); }
 .jini-chat-pane .op-title { font-weight: 600; flex-shrink: 0; }
 .jini-chat-pane .shimmer-text { animation: jini-chat-shimmer 1.6s ease-in-out infinite; }

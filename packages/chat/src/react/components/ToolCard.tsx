@@ -21,7 +21,7 @@ const RUNNING_TITLE_CLASS = ' shimmer-text';
  * `AskUserQuestion`) falls through to `GenericCard`, which is a correct,
  * generic rendering for it.
  */
-import { useId, useState, type ReactNode } from 'react';
+import { createContext, useContext, useId, useState, type ReactNode } from 'react';
 import type { AgentEvent, ToolResultMediaBlock } from '../../core/index.js';
 import { COLLAPSED_DETAIL_MAX_CHARS, describeCollapsedToolCall, describeToolCallDetail, isDelegatedWrapperToolName, isTodoWriteToolName, parseTodoWriteInput, redactUserText, toRenderProps } from '../../core/index.js';
 import { useT, useToolRendererRegistry } from '../hooks/context.js';
@@ -43,12 +43,20 @@ export interface ToolCardProps {
   projectFileNames?: Set<string>;
   /** Lifts a basename up to the host so it can focus the matching tab in its own file viewer. */
   onRequestOpenFile?: (name: string) => void;
+  /** A later call of the same tool in this turn succeeded (`retriedToolRowIds`): a failure shows a neutral "Retried" badge, not red. */
+  retried?: boolean;
 }
+
+/**
+ * Read by `ErrorBadge` only. A context, not one more prop threaded through every family card,
+ * because each card renders its own badge and all of them must agree.
+ */
+const RetriedContext = createContext(false);
 
 /** A Jini registry tool id: dotted, lowercase, snake_case segments — `page.fill`, `daemon.db.vacuum`, `chat.send_message`. Never matches an agent-vendor tool name (`Bash`, `Write`, `mcp__jini__execute_delegated_tool`), which is the point — this is how a canonical delegated-tool event is told apart from everything else. */
 const JINI_TOOL_ID_PATTERN = /^[a-z][a-z_]*(\.[a-z][a-z_]*)+$/;
 
-export function ToolCard({ use, result, runStreaming, runSucceeded, projectFileNames, onRequestOpenFile }: ToolCardProps) {
+export function ToolCard({ use, result, runStreaming, runSucceeded, projectFileNames, onRequestOpenFile, retried = false }: ToolCardProps) {
   const registry = useToolRendererRegistry();
   const name = use.name;
   const card: CardProps = { input: use.input, result: result, runStreaming: runStreaming ?? false, runSucceeded: runSucceeded ?? false };
@@ -61,7 +69,7 @@ export function ToolCard({ use, result, runStreaming, runSucceeded, projectFileN
   // ambiguous the way a repeated literal handle would be.
   return (
     <div data-agent-element={`tool-call-${use.id}`} data-agent-role="region" data-agent-label={`A ${humanizeToolId(name)} tool call the AI made`}>
-      {content}
+      <RetriedContext.Provider value={retried}>{content}</RetriedContext.Provider>
     </div>
   );
 }
@@ -550,6 +558,22 @@ function ToolCallDetail({ input, result, runStreaming, runSucceeded, children }:
   );
 }
 
+/** A failed result: neutral "Retried" when a later call of the same tool succeeded, else red. */
+function ErrorBadge({ result }: { result: ToolResultEvent }) {
+  const t = useT();
+  if (useContext(RetriedContext))
+    return (
+      <span className="op-status op-status-retried" title={t('Retried')}>
+        <Icon name="retry" size={14} />
+      </span>
+    );
+  return (
+    <span className="op-status op-status-error" title={describeToolCallDetail({ input: null, result }, { maxChars: COLLAPSED_DETAIL_MAX_CHARS }).outputText ?? t('Error')}>
+      <Icon name="close" size={14} />
+    </span>
+  );
+}
+
 function ResultBadge({ result, runStreaming, runSucceeded }: { result?: ToolResultEvent | undefined; runStreaming: boolean; runSucceeded: boolean }) {
   const t = useT();
   if (!result && runStreaming)
@@ -564,12 +588,7 @@ function ResultBadge({ result, runStreaming, runSucceeded }: { result?: ToolResu
         <Icon name="close" size={14} />
       </span>
     );
-  if (result?.isError)
-    return (
-      <span className="op-status op-status-error" title={describeToolCallDetail({ input: null, result }, { maxChars: COLLAPSED_DETAIL_MAX_CHARS }).outputText ?? t('Error')}>
-        <Icon name="close" size={14} />
-      </span>
-    );
+  if (result?.isError) return <ErrorBadge result={result} />;
   return (
     <span className="op-status op-status-ok" title={t('Done')}>
       <Icon name="check" size={14} />
