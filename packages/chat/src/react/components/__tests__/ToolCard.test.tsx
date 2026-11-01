@@ -68,11 +68,19 @@ describe('ToolCard', () => {
       expect(document.querySelector('.op-title')).toHaveAttribute('title', 'Tool call · Content Post Update');
       expect(document.querySelector('.op-meta')).toHaveAttribute('title', 'Spring menu');
     });
+
+    // Owner bug 11-01 (ui-look-4): the visible "Tool call · " prefix took half a ~333px dock row, so
+    // names read "Tool call · Cont…". The row shows only the name; screen readers still hear the prefix.
+    it('shows the bare name but still announces "Tool call" in the row\'s accessible name', () => {
+      row({ id: UUID, title: 'Spring menu' });
+      expect(document.querySelector('.op-title')?.textContent).toBe('Content Post Update');
+      expect(screen.getByRole('button', { name: /^Tool call · Content Post Update/ })).toBeInTheDocument();
+    });
   });
 
   it('falls back to GenericCard for an unrecognized tool', () => {
     render(<ToolCard use={{ kind: 'tool_use', id: 't2', name: 'CustomTool', input: { query: 'hello' } }} runSucceeded />);
-    expect(document.querySelector('.op-title')?.textContent).toBe('Tool call · CustomTool');
+    expect(document.querySelector('.op-title')?.textContent).toBe('CustomTool');
     expect(screen.getByText('hello')).toBeInTheDocument();
   });
 
@@ -516,7 +524,7 @@ describe('ToolCard', () => {
   describe('GenericCard / argsSummary / truncate', () => {
     it('renders nothing extra when input is null/undefined', () => {
       render(<ToolCard use={{ kind: 'tool_use', id: 'gen1', name: 'Mystery', input: null }} runSucceeded />);
-      expect(document.querySelector('.op-title')?.textContent).toBe('Tool call · Mystery');
+      expect(document.querySelector('.op-title')?.textContent).toBe('Mystery');
       expect(document.querySelector('.op-meta')).toBeNull();
     });
 
@@ -540,7 +548,7 @@ describe('ToolCard', () => {
       const circular: Record<string, unknown> = {};
       circular.self = circular;
       render(<ToolCard use={{ kind: 'tool_use', id: 'gen4', name: 'Mystery', input: circular }} runSucceeded />);
-      expect(document.querySelector('.op-title')?.textContent).toBe('Tool call · Mystery');
+      expect(document.querySelector('.op-title')?.textContent).toBe('Mystery');
       expect(document.querySelector('.op-meta')).toBeNull();
     });
 
@@ -586,19 +594,19 @@ describe('ToolCard', () => {
     it('a snake_case tool (content_post_update) gets "Tool call · Content Post Update" and its slug, not the JSON args', () => {
       const input = { id: '30127d31-2419-4e74-96e5-764442807909', kind: 'post', expectedVersion: 3, slug: 'ui-check-post', bodyJson: { type: 'doc' } };
       render(<ToolCard use={{ kind: 'tool_use', id: 'h1', name: 'content_post_update', input }} runSucceeded />);
-      expect(document.querySelector('.op-title')?.textContent).toBe('Tool call · Content Post Update');
+      expect(document.querySelector('.op-title')?.textContent).toBe('Content Post Update');
       expect(document.querySelector('.op-meta')?.textContent).toBe('ui-check-post');
     });
 
     it('a question tool (assistant_ask_choice) shows its title, never {"title":…', () => {
       render(<ToolCard use={{ kind: 'tool_use', id: 'h2', name: 'assistant_ask_choice', input: { title: 'No hosting key yet', options: [{ id: 'a' }] } }} runSucceeded />);
-      expect(document.querySelector('.op-title')?.textContent).toBe('Tool call · Assistant Ask Choice');
+      expect(document.querySelector('.op-title')?.textContent).toBe('Assistant Ask Choice');
       expect(document.querySelector('.op-meta')?.textContent).toBe('No hosting key yet');
     });
 
     it('an MCP-prefixed name drops its mcp__server__ prefix in the title and the agent label', () => {
       const { container } = render(<ToolCard use={{ kind: 'tool_use', id: 'h3', name: 'mcp__tovu__theme_list_files', input: { themeId: 'basic-2' } }} runSucceeded />);
-      expect(document.querySelector('.op-title')?.textContent).toBe('Tool call · Theme List Files');
+      expect(document.querySelector('.op-title')?.textContent).toBe('Theme List Files');
       expect(document.querySelector('.op-meta')?.textContent).toBe('basic-2');
       expect(container.querySelector('[data-agent-element="tool-call-h3"]')).toHaveAttribute('data-agent-label', 'A Theme List Files tool call the AI made');
     });
@@ -746,7 +754,7 @@ describe('ToolCard', () => {
       // between the two underscores — capitalizing that would read index 0 of an empty string.
       render(<ToolCard use={{ kind: 'tool_use', id: 'd6', name: 'page.fill__legacy', input: {} }} runSucceeded />);
       // The run of underscores is one separator, so no empty word and no doubled space.
-      expect(document.querySelector('.op-title')?.textContent).toBe('Tool call · Page Fill Legacy');
+      expect(document.querySelector('.op-title')?.textContent).toBe('Page Fill Legacy');
     });
   });
 

@@ -152,7 +152,8 @@ function renderToolCardBody(args: ToolCardBodyArgs): ReactNode {
 }
 
 /**
- * The head every Jini/MCP/unknown tool row shares: status, "Tool call · <Humanized Name>", and the
+ * The head every Jini/MCP/unknown tool row shares: status, "<Humanized Name>" (announced as
+ * "Tool call · <Humanized Name>"), and the
  * target ({@link toolRowTarget}). One place, so a tool id the family table doesn't know (`content_post_update`,
  * `mcp__tovu__theme_list_files`) still reads as a label and never as its raw name and JSON args.
  */
@@ -160,14 +161,18 @@ function ToolRowHead({ name, input, result, runStreaming, runSucceeded }: CardPr
   const t = useT();
   const target = toolRowTarget({ input: input, resultContent: result?.content });
   const summary = target ? headSummary({ text: target }) : undefined;
-  const label = `${t('Tool call')} · ${humanizeToolName({ name: name })}`;
+  const prefix = `${t('Tool call')} · `;
+  const toolName = humanizeToolName({ name: name });
   const isRunning = runStreaming && !result;
   // Name and target each carry their full text as a tooltip: on a narrow dock the name truncates
   // first and the target is capped (styles.ts `.op-title`/`.op-meta`), so either can be cut.
+  // The "Tool call · " prefix is visually hidden (owner bug 11-01: it took half a ~333px dock row, so
+  // names read "Tool call · Cont…") but stays in the row's accessible name and the tooltip.
   return (
     <>
       <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
-      <span className={`op-title${isRunning ? RUNNING_TITLE_CLASS : ''}`} title={label}>{label}</span>
+      <span className="op-sr-prefix">{prefix}</span>
+      <span className={`op-title${isRunning ? RUNNING_TITLE_CLASS : ''}`} title={prefix + toolName}>{toolName}</span>
       {summary ? <span className="op-meta op-target" title={summary}>{summary}</span> : null}
     </>
   );

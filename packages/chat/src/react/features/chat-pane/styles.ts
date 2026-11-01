@@ -1521,8 +1521,10 @@ export const CHAT_PANE_STYLES = `
 .jini-chat-pane .op-status-running { color: var(--jini-chat-accent); }
 /* The name truncates before the target does (owner bug 11-01: "Content Read Content…" squeezed the
    target out — the target was flex: 1 with a 0 basis beside a name that would not shrink). A generic
-   row's target (.op-target, ToolCard's ToolRowHead) keeps its own width up to 40% of the row; both
-   carry their full text as a title. Family cards keep .op-meta filling the row after a short name. */
+   row's target (.op-target, ToolCard's ToolRowHead) keeps its own width up to 35% of the row; both
+   carry their full text as a title. Family cards keep .op-meta filling the row after a short name.
+   35%, not 40%: on the ~333px dock 40% still cut "Content Post Update" to "Content Post Upd…"
+   (checked in Chrome 11-01); 35% shows the whole name and ~12 characters of target. */
 .jini-chat-pane .op-title {
   font-weight: 600;
   flex: 0 1 auto;
@@ -1542,7 +1544,18 @@ export const CHAT_PANE_STYLES = `
   flex: 1;
   min-width: 0;
 }
-.jini-chat-pane .op-meta.op-target { flex: 0 0 auto; max-width: 40%; }
+.jini-chat-pane .op-meta.op-target { flex: 0 0 auto; max-width: 35%; }
+/* ToolRowHead's "Tool call · " prefix: screen readers still hear it, the ~333px dock row doesn't spend
+   half its width on it (owner bug 11-01). Clipped, never display:none, so it stays in the accessible name. */
+.jini-chat-pane .op-sr-prefix {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  clip-path: inset(50%);
+}
 .jini-chat-pane .op-expand-chev { flex-shrink: 0; margin-left: auto; color: var(--jini-chat-faint); }
 /* Collapsed by default: 0 max-height clips the inner content, no display:none — keeps the height
    transition instead of an instant jump cut. */

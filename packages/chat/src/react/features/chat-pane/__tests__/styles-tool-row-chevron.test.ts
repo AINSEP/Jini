@@ -23,4 +23,13 @@ describe('CHAT_PANE_STYLES — tool row chevron', () => {
     expect(meta).toMatch(/flex:\s*0 0 auto/);
     expect(meta).toMatch(/max-width:\s*\d+%/);
   });
+
+  // Owner bug 11-01 (ui-look-4): the row hides its "Tool call · " prefix visually (it ate half a ~333px
+  // dock row) but keeps it in the DOM for screen readers — clipped, never display:none.
+  it('hides the tool row prefix visually without removing it from the accessibility tree', () => {
+    const rule = /\.jini-chat-pane \.op-sr-prefix\s*\{([^}]*)\}/.exec(CHAT_PANE_STYLES)?.[1] ?? '';
+    expect(rule).toMatch(/position:\s*absolute/);
+    expect(rule).toMatch(/clip-path:\s*inset\(50%\)/);
+    expect(rule).not.toMatch(/display:\s*none/);
+  });
 });
