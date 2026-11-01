@@ -2,7 +2,7 @@
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 import { ADAPTER_KIND, type ConsentAdapter } from '../contract.js';
 import { bindBanner, browserPorts, createCookieConsent, type ClientPorts } from '../client/index.js';
-import { purge, readCookie, writeCookie } from '../client/dom.js';
+import { activateInert, purge, readCookie, writeCookie } from '../client/dom.js';
 
 const flush = async () => { for (let i = 0; i < 5; i++) await new Promise(r => setTimeout(r, 0)); };
 /** A cookie jar fake: records every write so Domain/Secure attributes can be asserted. */
@@ -61,6 +61,31 @@ describe('cookie helpers', () => {
 });
 
 describe('client edges', () => {
+  test('mixed legacy iframes and CMS templates release once; unlabelled tags stay inert', () => {
+    document.body.innerHTML = `<template data-jini-consent-resource data-category="marketing"><div id="released">CMS resource</div></template>
+      <iframe id="legacy" data-src="/embed" data-consent-category="analytics"></iframe>
+      <iframe id="unlabelled" data-src="/blocked"></iframe>
+      <script id="unlabelled-script" type="text/plain">window.shouldNotRun = true;</script>
+      <template id="unknown" data-jini-consent-resource data-category="unknown"><div>Blocked</div></template>
+      <iframe id="already-live" src="/existing" data-consent-category="analytics"></iframe>`;
+    const iframe = document.querySelector('#legacy');
+    const ran = new Set<'functional' | 'analytics' | 'marketing'>();
+    const input = { allowed: { necessary: true as const, functional: false, analytics: true, marketing: true }, ran };
+    activateInert(document, input);
+    const released = document.querySelector('#released');
+    expect([...document.body.children].map(node => node.id)).toEqual(['released', 'legacy', 'unlabelled', 'unlabelled-script', 'unknown', 'already-live']);
+    expect(iframe?.getAttribute('src')).toBe('/embed');
+    expect(iframe?.hasAttribute('data-src')).toBe(false);
+    expect(document.querySelector('#unlabelled')?.hasAttribute('src')).toBe(false);
+    expect(document.querySelector('#unlabelled-script')?.getAttribute('type')).toBe('text/plain');
+    expect(document.querySelector('#unknown')?.tagName).toBe('TEMPLATE');
+    expect(document.querySelector('#already-live')?.getAttribute('src')).toBe('/existing');
+    expect([...ran]).toEqual(['marketing', 'analytics']);
+    activateInert(document, input);
+    expect(document.querySelector('#released')).toBe(released);
+    expect(document.querySelector('#legacy')).toBe(iframe);
+  });
+
   test('a grant that returns nothing is treated as unstoppable: withdrawal reloads', async () => {
     const p = ports();
     const api = createCookieConsent({ config, ports: p });

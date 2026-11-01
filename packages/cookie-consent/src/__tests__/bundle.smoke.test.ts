@@ -1,6 +1,7 @@
 /** Smoke test of the shipped artifact: dist/client.min.js, not the source. CI builds before it tests
  * (`pnpm -r run build`); locally run `npm run build` first. */
 import { existsSync, readFileSync } from 'node:fs';
+import { gzipSync } from 'node:zlib';
 import { JSDOM, VirtualConsole } from 'jsdom';
 import { describe, expect, test, vi } from 'vitest';
 import { renderBanner } from '../render/index.js';
@@ -34,6 +35,7 @@ const settle = () => new Promise(r => setTimeout(r, 20));
 describe('dist/client.min.js', () => {
   test('is built', () => {
     expect(existsSync(BUNDLE), 'run `npm run build` in packages/cookie-consent first').toBe(true);
+    expect(gzipSync(readFileSync(BUNDLE), { level: 9 }).length).toBeLessThanOrEqual(4608);
   });
 
   test('boots from the page config, shows the banner and drains the queue without granting', () => {
