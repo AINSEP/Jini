@@ -1,6 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { I18nProvider, useT } from '../context.js';
+import { ACCENT_SWATCH_PRESETS } from '../../appearance/constants.js';
 import {
   SETTINGS_DIALOG_DICTIONARIES,
   SETTINGS_DIALOG_EN,
@@ -19,6 +20,14 @@ describe('settings-dialog dictionaries: cross-locale key parity', () => {
 
   it('has more than one locale', () => {
     expect(locales.length).toBeGreaterThan(1);
+  });
+
+  it('ships a translation for every accent preset name in every settings locale', () => {
+    for (const [locale, dict] of Object.entries(SETTINGS_DIALOG_DICTIONARIES)) {
+      for (const { nameKey } of ACCENT_SWATCH_PRESETS) {
+        expect(dict?.[nameKey], `${locale} is missing the accent name ${nameKey}`).toBeTruthy();
+      }
+    }
   });
 
   it('ship the exact same key set across every locale', () => {

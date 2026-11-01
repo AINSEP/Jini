@@ -1,11 +1,21 @@
 import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { I18nProvider } from '../../../../i18n/index.js';
+import { I18nProvider, SETTINGS_DIALOG_DICTIONARIES } from '../../../../i18n/index.js';
 import { DEFAULT_ACCENT_COLOR } from '../../../../../utils/appearance.js';
 import { AppearanceTab } from '../../../react/components/AppearanceTab.js';
 
 describe('AppearanceTab', () => {
+  it('names all swatches in French using only the shipped settings dictionaries', () => {
+    render(
+      <I18nProvider dictionaries={SETTINGS_DIALOG_DICTIONARIES} initialLocale="fr">
+        <AppearanceTab theme="light" onThemeChange={() => {}} onAccentColorChange={() => {}} />
+      </I18nProvider>,
+    );
+    expect(screen.getAllByRole('radio').map((radio) => radio.getAttribute('aria-label')))
+      .toEqual(['Anthracite', 'Argile', 'Violet', 'Vert', 'Rouge', 'Ambre', 'Bleu canard', 'Rose']);
+  });
+
   it('names every built-in swatch by its color and keeps hex codes in tooltips', () => {
     render(<AppearanceTab theme="light" onThemeChange={() => {}} onAccentColorChange={() => {}} />);
     for (const [name, hex] of [
