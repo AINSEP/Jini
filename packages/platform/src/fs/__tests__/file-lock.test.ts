@@ -7,6 +7,36 @@ import { isLockStale, withFileLockSync, withFileLock, FileLockTimeoutError } fro
 const roots: string[] = [];
 function target(): string { const root = fs.mkdtempSync(path.join(os.tmpdir(), "inode-lock-")); roots.push(root); return path.join(root, "file.lock"); }
 afterEach(() => { vi.restoreAllMocks(); for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true }); });
+
+for (const adapter of ["sync", "async"] as const) test(`${adapter} lock wait can follow a live bounded operation beyond 125 seconds`, async () => {
+  const lockPath = target();
+  fs.writeFileSync(lockPath, `${process.pid}:builder`);
+  let elapsed = 0;
+  let polls = 0;
+  const options = { timeoutMs: Infinity, staleMs: Infinity, monotonicMs: () => elapsed,
+    sleep: () => {
+      elapsed += 75_000;
+      expect(fs.readFileSync(lockPath, "utf8")).toBe(`${process.pid}:builder`);
+      if (++polls === 3) fs.rmSync(lockPath);
+    } };
+  const required = { lockPath, run: () => "bundle ready" };
+  const result = adapter === "sync" ? withFileLockSync(required, options) : await withFileLock(required, options);
+  expect(result).toBe("bundle ready");
+  expect(elapsed).toBe(225_000);
+  expect(fs.existsSync(lockPath)).toBe(false);
+});
+
+test("an unlimited waiter still reclaims a dead local builder and finite waiters still time out", async () => {
+  const lockPath = target();
+  fs.writeFileSync(lockPath, "4242:dead-builder");
+  await expect(withFileLock({ lockPath, run: () => "recovered" }, { timeoutMs: Infinity, staleMs: Infinity,
+    process: { pid: process.pid, isAlive: () => false } })).resolves.toBe("recovered");
+  fs.writeFileSync(lockPath, `${process.pid}:live-builder`);
+  let elapsed = 0;
+  await expect(withFileLock({ lockPath, run: () => "must not run" }, { timeoutMs: 125_000, staleMs: Infinity,
+    monotonicMs: () => elapsed, sleep: () => { elapsed += 75_000; } })).rejects.toBeInstanceOf(FileLockTimeoutError);
+  expect(fs.readFileSync(lockPath, "utf8")).toBe(`${process.pid}:live-builder`);
+});
 // REGRESSION: fails if the inode equality term is removed from isLockStale.
 test("dead or aged locks are stealable only on the same inode and device", () => {
   const base = { nowMs: 1000, mtimeMs: 0, staleMs: 100, ownerAlive: true, observedInode: 1, currentInode: 1, observedDevice: 3, currentDevice: 3 };

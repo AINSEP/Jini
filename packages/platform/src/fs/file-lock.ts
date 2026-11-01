@@ -28,6 +28,7 @@ export interface HeldFileLockSync { readonly lockPath: string; assertHeld(requir
 export type FileLockSyncFilesystem = Pick<typeof fs, "mkdirSync" | "openSync" | "writeSync" | "fstatSync" | "readFileSync" | "statSync" | "closeSync" | "rmSync">;
 export type FileLockAsyncFilesystem = Pick<typeof asyncFs, "mkdir" | "open" | "stat" | "rm">;
 export interface FileLockOptions {
+  /** Infinity follows an operation with its own deadline; dead local owners remain reclaimable. */
   timeoutMs?: number;
   /** Infinity disables age stealing; dead local owners remain reclaimable. */
   staleMs?: number;
@@ -98,7 +99,7 @@ export function isLockStale(required: { nowMs: number; mtimeMs: number; staleMs:
   return (required.ownerAlive === false || required.nowMs - required.mtimeMs > required.staleMs) && required.observedInode === required.currentInode && required.observedDevice === required.currentDevice;
 }
 function intervalsValid({ timeoutMs, staleMs, pollMs }: { timeoutMs: number; staleMs: number; pollMs: number }): boolean {
-  const validTimeout = Number.isSafeInteger(timeoutMs) && timeoutMs >= 0;
+  const validTimeout = (Number.isSafeInteger(timeoutMs) && timeoutMs >= 0) || timeoutMs === Infinity;
   const validStale = (Number.isSafeInteger(staleMs) || staleMs === Infinity) && staleMs > 0;
   const validPoll = Number.isSafeInteger(pollMs) && pollMs > 0;
   return validTimeout && validStale && validPoll;
