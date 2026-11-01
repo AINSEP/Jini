@@ -2,6 +2,7 @@ import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import type { AgentEvent } from '../../../core/index.js';
 import { useToolTimeline } from '../useToolTimeline.js';
+import { DIRECT_MCP_EVENTS } from '../../../core/__tests__/fixtures/direct-mcp-events.js';
 
 const events: AgentEvent[] = [
   { kind: 'text', text: 'starting' },
@@ -11,6 +12,21 @@ const events: AgentEvent[] = [
 ];
 
 describe('useToolTimeline', () => {
+  it('shows one direct MCP row using the bridge result and status, including while streaming', () => {
+    const { result, rerender } = renderHook(({ stored }: { stored: AgentEvent[] }) =>
+      useToolTimeline({ events: stored }, { runStreaming: true }),
+    { initialProps: { stored: DIRECT_MCP_EVENTS.slice(0, 1) } });
+    expect(result.current.rows).toHaveLength(1);
+    rerender({ stored: DIRECT_MCP_EVENTS.slice(0, 2) });
+    expect(result.current.rows.map(row => [row.id, row.status])).toEqual([['67fcf6dd-7237-4c6a-9ee3-f25130822bdf', 'executing']]);
+    rerender({ stored: DIRECT_MCP_EVENTS });
+    expect(result.current.rows).toHaveLength(1);
+    expect(result.current.rows[0]).toMatchObject({
+      id: '67fcf6dd-7237-4c6a-9ee3-f25130822bdf', name: 'assistant_ask_choice', status: 'complete',
+      renderProps: { result: expect.stringContaining('"choice":"about"'), isError: false },
+    });
+  });
+
   it('pairs tool_use with its tool_result and derives status', () => {
     const { result } = renderHook(() => useToolTimeline({ events: events }, { runStreaming: true }));
     expect(result.current.rows).toHaveLength(2);

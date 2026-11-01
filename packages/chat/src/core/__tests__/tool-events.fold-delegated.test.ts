@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { AgentEvent } from '../events.js';
 import { dedupeToolUsesById, foldDelegatedWrapperCalls, isDelegatedWrapperToolName } from '../tool-events.js';
+import { DIRECT_MCP_EVENTS } from './fixtures/direct-mcp-events.js';
 
 /**
  * The event sequence stored for chat.db message e8c84205 (2026-10-05): the model called the
@@ -27,6 +28,78 @@ const STORED_SEQUENCE: AgentEvent[] = [
 function toolUseIds(events: AgentEvent[]): string[] {
   return events.flatMap((e) => (e.kind === 'tool_use' ? [e.id] : []));
 }
+
+describe('foldDelegatedWrapperCalls — direct MCP transport calls', () => {
+  it('keeps only the bridge row and its real result for the reported ask-choice sequence', () => {
+    const folded = foldDelegatedWrapperCalls({ events: dedupeToolUsesById({ events: DIRECT_MCP_EVENTS }) });
+    expect(folded).toEqual(DIRECT_MCP_EVENTS.slice(1, 3));
+  });
+
+  it.each(['jini', 'my_host'])('folds mcp__%s__ names with structurally equal, reordered inputs', (server) => {
+    const events: AgentEvent[] = [
+      { kind: 'tool_use', id: 'w', name: `mcp__${server}__theme_read_file`, input: { path: 'a', options: { lines: [1, 2], raw: true } } },
+      { kind: 'tool_use', id: 'c', name: 'theme_read_file', input: { options: { raw: true, lines: [1, 2] }, path: 'a' } },
+    ];
+    expect(foldDelegatedWrapperCalls({ events })).toEqual([events[1]]);
+  });
+
+  it.each([
+    [{ path: 'a' }, { path: 'b' }],
+    [{ lines: [1, 2] }, { lines: [2, 1] }],
+    [undefined, {}],
+    [null, {}],
+  ])('keeps calls whose inputs differ: %j versus %j', (first, second) => {
+    const events: AgentEvent[] = [
+      { kind: 'tool_use', id: 'w', name: 'mcp__jini__theme_read_file', input: first },
+      { kind: 'tool_use', id: 'c', name: 'theme_read_file', input: second },
+    ];
+    expect(foldDelegatedWrapperCalls({ events })).toBe(events);
+  });
+
+  it.each(['a', 'b'])('keeps two sequential genuine calls when the second input is %s', (path) => {
+    const events: AgentEvent[] = [
+      { kind: 'tool_use', id: 'w1', name: 'mcp__jini__theme_read_file', input: { path: 'a' } },
+      { kind: 'tool_use', id: 'c1', name: 'theme_read_file', input: { path: 'a' } },
+      { kind: 'tool_result', toolUseId: 'c1', content: 'first', isError: false },
+      { kind: 'tool_result', toolUseId: 'w1', content: 'done', isError: false },
+      { kind: 'tool_use', id: 'w2', name: 'mcp__jini__theme_read_file', input: { path } },
+      { kind: 'tool_use', id: 'c2', name: 'theme_read_file', input: { path } },
+      { kind: 'tool_result', toolUseId: 'c2', content: 'second', isError: true },
+      { kind: 'tool_result', toolUseId: 'w2', content: 'failed', isError: true },
+    ];
+    expect(foldDelegatedWrapperCalls({ events })).toEqual([events[1], events[2], events[5], events[6]]);
+  });
+
+  it('claims a bridge row once across parallel calls and replayed CLI events', () => {
+    const wrapper: AgentEvent = { kind: 'tool_use', id: 'w1', name: 'mcp__jini__render_ui', input: {} };
+    const events: AgentEvent[] = [wrapper, wrapper,
+      { ...wrapper, id: 'w2' },
+      { kind: 'tool_use', id: 'c1', name: 'render_ui', input: {} },
+    ];
+    expect(toolUseIds(foldDelegatedWrapperCalls({ events }))).toEqual(['w2', 'c1']);
+  });
+
+  it('keeps a failed CLI call separate from a later identical call after its result', () => {
+    const events: AgentEvent[] = [
+      { kind: 'tool_use', id: 'w1', name: 'mcp__jini__render_ui', input: {} },
+      { kind: 'tool_result', toolUseId: 'w1', content: 'bridge unavailable', isError: true },
+      { kind: 'tool_use', id: 'w2', name: 'mcp__jini__render_ui', input: {} },
+      { kind: 'tool_use', id: 'c2', name: 'render_ui', input: {} },
+    ];
+    expect(foldDelegatedWrapperCalls({ events })).toEqual([events[0], events[1], events[3]]);
+  });
+
+  it('keeps bare calls, earlier rows, mismatched names and incomplete MCP names', () => {
+    const events: AgentEvent[] = [
+      { kind: 'tool_use', id: 'c0', name: 'render_ui', input: {} },
+      { kind: 'tool_use', id: 'w', name: 'mcp__jini__render_ui', input: {} },
+      { kind: 'tool_use', id: 'c1', name: 'assistant_ask_choice', input: {} },
+      { kind: 'tool_use', id: 'c2', name: 'assistant_ask_choice', input: {} },
+      { kind: 'tool_use', id: 'x', name: 'mcp__render_ui', input: {} },
+    ];
+    expect(foldDelegatedWrapperCalls({ events })).toBe(events);
+  });
+});
 
 describe('isDelegatedWrapperToolName', () => {
   it('matches both gateways, bare and under any mcp__<server>__ prefix', () => {

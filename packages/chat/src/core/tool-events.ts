@@ -1,4 +1,5 @@
 import type { AgentEvent, ToolUseEvent } from './events.js';
+import { canonicalJson } from '@jini-ai/core/records';
 
 /**
  * Drop repeated `tool_use` events that share an `id`. A retried/duplicated
@@ -50,15 +51,26 @@ export function isDelegatedWrapperToolName({ name }: { name: string }): boolean 
   return DELEGATED_WRAPPER_PATTERN.test(name);
 }
 
-function wrapperToolId({ event }: { event: ToolUseEvent }): string | undefined {
-  if (!isDelegatedWrapperToolName({ name: event.name })) return undefined;
+/** The tool `mcp__<server>__X` names (`X`), or undefined for any other name. O(n) in the name length. */
+function directMcpToolName({ name }: { name: string }): string | undefined {
+  if (!name.startsWith('mcp__')) return undefined;
+  // The server segment is at least one character, so its closing `__` starts at index 6 or later.
+  const separator = name.indexOf('__', 6);
+  return separator === -1 ? undefined : name.slice(separator + 2);
+}
+
+/** Resolve a transport's tool id; direct MCP names carry it in the name, gateways in input.
+ * Pure; returns undefined for non-wrappers or malformed gateways. O(n) in the tool name length.
+ */
+function wrapperToolId({ event }: { event: ToolUseEvent }, _options: Record<string, never> = {}): string | undefined {
+  if (!isDelegatedWrapperToolName({ name: event.name })) return directMcpToolName({ name: event.name });
   const input = event.input;
   const toolId = typeof input === 'object' && input !== null ? (input as Record<string, unknown>).toolId : undefined;
   return typeof toolId === 'string' && toolId ? toolId : undefined;
 }
 
 /**
- * Drop each delegated-tool wrapper call that the daemon also reported as its own canonical row,
+ * Drop each delegated or direct MCP wrapper call that the daemon also reported as its own canonical row,
  * so one call shows as one row.
  *
  * WHY. A delegated call arrives twice: the vendor CLI's wrapper `tool_use`
@@ -68,16 +80,23 @@ function wrapperToolId({ event }: { event: ToolUseEvent }): string | undefined {
  * failed call showed two red rows. The canonical row is the one to keep: it carries the tool's own
  * name, input and result.
  *
- * A wrapper folds onto the first LATER canonical `tool_use` whose name equals its `input.toolId`
- * and that no earlier wrapper has claimed; its `tool_result` events go with it. A wrapper with no
- * such canonical row (refused before the bridge, e.g. a read-only 403) stays, so its error is not
- * hidden.
+ * A direct call (`mcp__jini__theme_read_file`) arrives twice the same way: the CLI's `mcp__<server>__X`
+ * row and the bridge's `X` row with the same input, so every direct Jini MCP call drew two rows.
+ *
+ * A gateway folds onto the first LATER canonical `tool_use` whose name equals its `input.toolId`.
+ * A direct call folds onto the first LATER `X` row with structurally equal JSON input that arrives
+ * before the CLI's own result for it. No canonical row is claimed twice, and a folded wrapper's
+ * `tool_result` events go with it. A wrapper with no such canonical row (refused before the
+ * bridge, e.g. a read-only 403) stays, so its error is not hidden.
  *
  * @param events - The event list, normally already passed through {@link dedupeToolUsesById}.
  * @returns A new array without the folded wrappers, or the original reference when none fold.
- * @complexity O(n·w): n events, w wrapper calls (a handful per message).
+ * @throws CanonicalJsonError if a direct call's input contains non-JSON values.
+ * @complexity O(n·w·s): n events, w wrappers, s canonical input serialization cost (including key sorting).
+ * O(n + s) extra space; inputs and events are not mutated.
+ * @example foldDelegatedWrapperCalls({ events }); // canonical rows retain their own results
  */
-export function foldDelegatedWrapperCalls({ events }: { events: AgentEvent[] | undefined }): AgentEvent[] {
+export function foldDelegatedWrapperCalls({ events }: { events: AgentEvent[] | undefined }, _options: Record<string, never> = {}): AgentEvent[] {
   if (!events || events.length === 0) return [];
 
   const claimed = new Set<number>();
@@ -87,7 +106,7 @@ export function foldDelegatedWrapperCalls({ events }: { events: AgentEvent[] | u
     const toolId = wrapperToolId({ event });
     // A replayed wrapper (same id) must not claim a second canonical row.
     if (toolId === undefined || folded.has(event.id)) return;
-    const match = events.findIndex((other, j) => j > i && !claimed.has(j) && other.kind === 'tool_use' && other.name === toolId);
+    const match = findCanonicalRow({ events, wrapper: event, wrapperIndex: i, toolId, claimed });
     if (match === -1) return;
     claimed.add(match);
     folded.add(event.id);
@@ -98,4 +117,26 @@ export function foldDelegatedWrapperCalls({ events }: { events: AgentEvent[] | u
     (event.kind === 'tool_use' && folded.has(event.id)) ||
     (event.kind === 'tool_result' && folded.has(event.toolUseId))
   ));
+}
+
+/**
+ * Index of the first unclaimed canonical `toolId` row after the wrapper, or -1. A gateway matches
+ * on name alone (its input is the `{toolId, input}` envelope); a direct call also needs equal input.
+ * @throws CanonicalJsonError if a direct call's input contains non-JSON values.
+ * @complexity O(n·s): n events, s canonical input serialization cost.
+ */
+function findCanonicalRow({ events, wrapper, wrapperIndex, toolId, claimed }: {
+  events: AgentEvent[]; wrapper: ToolUseEvent; wrapperIndex: number; toolId: string; claimed: ReadonlySet<number>;
+}): number {
+  const delegated = isDelegatedWrapperToolName({ name: wrapper.name });
+  const inputKey = delegated ? undefined : canonicalJson({ value: { input: wrapper.input } });
+  // A completed/refused direct call cannot consume a later, genuinely separate retry.
+  const resultIndex = delegated ? -1 : events.findIndex(other => other.kind === 'tool_result' && other.toolUseId === wrapper.id);
+  const end = resultIndex === -1 ? events.length : resultIndex;
+  for (let j = wrapperIndex + 1; j < end; j += 1) {
+    const other = events[j]!;
+    if (claimed.has(j) || other.kind !== 'tool_use' || other.name !== toolId) continue;
+    if (inputKey === undefined || canonicalJson({ value: { input: other.input } }) === inputKey) return j;
+  }
+  return -1;
 }
