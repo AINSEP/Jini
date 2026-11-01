@@ -41,6 +41,26 @@ function entropy(text: string): number {
   return bits;
 }
 
+/** Recognize identifier paths, including the fragment after a space in a typed path.
+ * Require multiple segments and readable words: arbitrary base64 and long digit-mixed runs
+ * must still reach the entropy guard. Specific credential rules have already run. */
+function isIdentifierPath({ text }: { readonly text: string }, _options = {}): boolean {
+  const segments = text.replace(/^(?:[a-z]:|~)?[\\/]*/i, '').split(/[\\/]/).filter(Boolean);
+  return segments.length >= 2 && segments.every(segment =>
+    /^[a-z][a-z0-9]*(?:[-_.][a-z0-9]+)*$/.test(segment)
+    || segment.split(/[-_.]/).every(word => /^[A-Z]$/.test(word)
+      || /^[A-Z]?[a-z]{2,}(?:[A-Z][a-z]{2,}|[0-9]{1,4}(?=[A-Z][a-z]{2,}|$))*$/.test(word)));
+}
+
+/** A piece of a random key: long, both letter cases, and a character-class change at most positions.
+ * Readable names (CamelCase, SCREAMING_CASE, dated file names) change class far less often, and
+ * every piece of a 40-character base64 key split by '/' is 12+ characters in most keys. */
+function isOpaqueSegment(segment: string): boolean {
+  if (segment.length < 12 || !/[A-Z]/.test(segment) || !/[a-z]/.test(segment)) return false;
+  const changes = segment.match(/[A-Z](?=[^A-Z])|[a-z](?=[^a-z])|\d(?=\D)/g)?.length ?? 0;
+  return changes / (segment.length - 1) >= 0.4;
+}
+
 /** Stricter than error redaction: also detects unlabelled long tokens, while retaining ordinary URLs,
  * filesystem paths, hexadecimal hashes, identifiers and prose. Strong credential syntax inside
  * URLs or paths is still caught. */
@@ -57,15 +77,23 @@ export function redactUserText({ text }: { readonly text: string }, { secretFiel
   const base = redactSecretShapes({ text: protectedText, policy: { additionalRules: CHAT_RULES } });
   let count = base.redactions;
   // Exempt locations only AFTER specific secret rules. Only quoted paths may contain whitespace;
-  // unquoted paths end there so an adjacent slash-bearing secret cannot inherit the exemption.
+  // unquoted paths and URLs end there, and at , | ; and invisible separators, so an adjacent
+  // secret glued after them cannot inherit the exemption.
   // A quoted path ends at its first matching quote, which must sit on a word boundary, so an
   // apostrophe later in the line ("don't") cannot close an unterminated quote and exempt the gap.
   // Require a root boundary so a slash inside an opaque token cannot exempt that token, and a
   // folder after the root so a bare "/" + token is not mistaken for a path.
-  const locations = [...base.text.matchAll(/\b[a-z][a-z0-9+.-]*:\/\/[^\s<>"']+|(?<!\w)(["'`])(?:~\/|[a-z]:[\\/]|\\\\|\/)[^\r\n"'`\\/]+[\\/](?:(?!\1)[^\r\n])*\1(?!\w)|(?<![\w+\/=\\~.-])(?:~\/|[a-z]:[\\/]|\\\\|\/)[^\s<>"'`\\/]+[\\/][^\s<>"'`]*/gi)]
-    .map(match => ({ start: match.index!, end: match.index! + match[0].length }));
+  const locations = [
+    ...[...base.text.matchAll(/\b[a-z][a-z0-9+.-]*:\/\/[^\s<>"'`,|;\u200B-\u200D\uFEFF]+|(?<!\w)(["'`])(?:~\/|[a-z]:[\\/]|\\\\|\/)[^\r\n"'`\\/]+[\\/](?:(?!\1)[^\r\n])*\1(?!\w)|(?<![\w+\/=\\~.-])(?:~\/|[a-z]:[\\/]|\\\\|\/)[^\s<>"'`,|;\u200B-\u200D\uFEFF\\/]+[\\/][^\s<>"'`,|;\u200B-\u200D\uFEFF]*/gi)]
+      .map(match => ({ match, url: /^[a-z][a-z0-9+.-]*:\/\//i.test(match[0]) })),
+    // The part of a hand-typed unquoted path after a space (Work/CustomerPortal…) has no root.
+    ...[...base.text.matchAll(/[^\s<>"'`,|;\u200B-\u200D\uFEFF]+/g)]
+      .filter(match => isIdentifierPath({ text: match[0] })).map(match => ({ match, url: false })),
+  ].map(({ match, url }) => ({ start: match.index!, end: match.index! + match[0].length, url }));
   let cleaned = base.text.replace(/(?<![A-Za-z0-9_+\/=-])[A-Za-z0-9_+\/=-]{40,}(?![A-Za-z0-9_+\/=-])/g, (candidate: string, offset: number) => {
-    if (locations.some(location => offset >= location.start && offset < location.end)) return candidate;
+    const location = locations.find(span => offset >= span.start && offset + candidate.length <= span.end);
+    // A key glued straight onto a path (/proj/KEY) is still checked; URLs keep their opaque ids.
+    if (location && (location.url || !candidate.split(/[\\/]/).some(isOpaqueSegment))) return candidate;
     if (/^[a-f0-9]+$/i.test(candidate) || !/[A-Za-z]/.test(candidate)) return candidate;
     const bits = entropy(candidate);
     const mixedAlphabet = /[A-Z]/.test(candidate) && /[a-z]/.test(candidate);
