@@ -1,8 +1,38 @@
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { resolveAgentBin } from '../resolution.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { createAgentSelectionResolver, resolveAgentBin } from '../resolution.js';
+
+describe('saved agent selection', () => {
+  it('falls back for removed and unknown ids, warning only once per resolver', () => {
+    const onFallback = vi.fn();
+    const resolve = createAgentSelectionResolver({ defaultAgentId: 'claude', onFallback });
+    expect(resolve({ agentId: 'copilot' })).toBe('claude');
+    expect(resolve({ agentId: 'copilot' })).toBe('claude');
+    expect(resolve({ agentId: 'no-longer-registered' })).toBe('claude');
+    expect(onFallback.mock.calls).toEqual([[{ agentId: 'copilot', defaultAgentId: 'claude' }]]);
+  });
+
+  it('preserves known selections and silently defaults an omitted selection', () => {
+    const onFallback = vi.fn();
+    const resolve = createAgentSelectionResolver({ defaultAgentId: 'claude', onFallback });
+    expect(resolve({ agentId: 'codex' })).toBe('codex');
+    expect(resolve({})).toBe('claude');
+    expect(onFallback).not.toHaveBeenCalled();
+  });
+
+  it('uses the host registry and default, keeping warning state local to the resolver', () => {
+    const getDef = ({ id }: { id: string }) => id === 'custom' ? { id } : null;
+    const onFallback = vi.fn();
+    const resolve = createAgentSelectionResolver({ defaultAgentId: 'custom', onFallback }, { getDef });
+    expect(resolve({ agentId: 'custom' })).toBe('custom');
+    expect(resolve({ agentId: 'claude' })).toBe('custom');
+    const another = createAgentSelectionResolver({ defaultAgentId: 'custom', onFallback }, { getDef });
+    expect(another({ agentId: 'copilot' })).toBe('custom');
+    expect(onFallback).toHaveBeenCalledTimes(2);
+  });
+});
 
 describe('resolveAgentBin', () => {
   let dir: string;
