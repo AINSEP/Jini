@@ -158,7 +158,7 @@ describe('ToolCard', () => {
 
     it('puts the full name and target in tooltips', () => {
       row({ id: UUID, title: 'Spring menu' });
-      expect(document.querySelector('.op-title')).toHaveAttribute('title', 'Tool call · Content Post Update');
+      expect(document.querySelector('.op-title')).toHaveAttribute('title', 'Content Post Update');
       expect(document.querySelector('.op-meta')).toHaveAttribute('title', 'Spring menu');
     });
 

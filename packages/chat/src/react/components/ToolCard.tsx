@@ -177,12 +177,13 @@ function ToolRowHead({ name, input, result, runStreaming, runSucceeded }: CardPr
   // Name and target each carry their full text as a tooltip: on a narrow dock the name truncates
   // first and the target is capped (styles.ts `.op-title`/`.op-meta`), so either can be cut.
   // The "Tool call · " prefix is visually hidden (owner bug 11-01: it took half a ~333px dock row, so
-  // names read "Tool call · Cont…") but stays in the row's accessible name and the tooltip.
+  // names read "Tool call · Cont…") but stays in the row's accessible name. The name's tooltip must
+  // not repeat it: trees that read a child's title before its text announced "Tool call · Tool call ·".
   return (
     <>
       <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
       <span className="op-sr-prefix">{prefix}</span>
-      <span className={`op-title${isRunning ? RUNNING_TITLE_CLASS : ''}`} title={prefix + toolName}>{toolName}</span>
+      <span className={`op-title${isRunning ? RUNNING_TITLE_CLASS : ''}`} title={toolName}>{toolName}</span>
       {summary ? <span className="op-meta op-target" title={summary}>{summary}</span> : null}
     </>
   );

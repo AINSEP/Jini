@@ -38,4 +38,14 @@ describe('saved CLI tool receipts', () => {
     expect(screen.getByRole('button', { name: 'Tool call · Theme List Files' })).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /Tool call.*Tool call/ })).not.toBeInTheDocument();
   });
+
+  // Some accessibility trees (Claude in Chrome's, which chat-qa-1 read on 11-01) name a child span by
+  // its `title` before its text; a title repeating the visually hidden prefix then announces
+  // "Tool call · Tool call · …". Model that reading: each head child by title, else text.
+  it.each(['mcp__jini__fs_list_files', 'fs_list_files'])('says Tool call once even when a child title replaces its text: %s', name => {
+    render(<ToolCard use={{ kind: 'tool_use', id: name, name, input: { root: 'site' } }} runSucceeded />);
+    const head = screen.getByRole('button', { name: /Fs List Files/ });
+    const titleFirst = [...head.children].map(child => child.getAttribute('title') ?? child.textContent ?? '').join(' ');
+    expect(titleFirst.match(/Tool call/g)).toHaveLength(1);
+  });
 });
