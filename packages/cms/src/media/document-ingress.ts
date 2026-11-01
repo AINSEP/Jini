@@ -1,3 +1,4 @@
+import { loadOptionalPeer } from '@jini-ai/core/optional-peer';
 import { MediaValidationError } from './types.js';
 
 /** Private Library documents have a smaller cap than a host's image/video uploads. */
@@ -194,7 +195,7 @@ async function validateOfficePackage(required: { members: ReadonlyMap<string, st
   const label = required.extension.toUpperCase();
   const sources = ['[Content_Types].xml', '_rels/.rels', spec.part].map(name => required.members.get(name) ?? '');
   if (sources.some(xml => /<!DOCTYPE|<!ENTITY|macroEnabled|vbaProject/i.test(xml))) invalid(`${label} DTDs, entities and macros are not allowed`);
-  const { JSDOM } = await import('jsdom');
+  const { JSDOM } = await loadOptionalPeer({ feature: 'Server-side HTML and SVG processing', dependency: 'jsdom', load: () => import('jsdom') });
   const window = new JSDOM('').window;
   try {
     assertOfficeXml({ documents: sources.map(source => new window.DOMParser().parseFromString(source, 'application/xml')), spec, label });

@@ -49,6 +49,23 @@
         "./transports/ag-ui": "core",
         "./browser/frontend-session-bridge": "core"
       }
+    },
+    "optionalPeers": {
+      "better-sqlite3": "opt-in: sqlite storage — SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
+      "@electric-sql/pglite": "opt-in: embedded postgresql storage — Embedded PostgreSQL storage could not load @electric-sql/pglite. Install @electric-sql/pglite to enable this feature, or check its installed version and native binaries.",
+      "pg": "opt-in: postgresql storage — PostgreSQL storage could not load pg. Install pg to enable this feature, or check its installed version and native binaries.",
+      "@ag-ui/core": "opt-in: ag ui protocol adapter; import @jini-ai/chat/core/ag-ui — AG UI protocol adapter could not load @ag-ui/core. Install @ag-ui/core to enable this feature, or check its installed version and native binaries.",
+      "@mcp-ui/client": "opt-in: mcp ui renderer; import @jini-ai/chat/react — MCP UI renderer could not load @mcp-ui/client. Install @mcp-ui/client to enable this feature, or check its installed version and native binaries.",
+      "@radix-ui/react-checkbox": "opt-in: interactive ui controls; import @jini-ai/chat/react — Interactive UI controls could not load @radix-ui/react-checkbox. Install @radix-ui/react-checkbox to enable this feature, or check its installed version and native binaries.",
+      "@radix-ui/react-label": "opt-in: interactive ui controls; import @jini-ai/chat/react — Interactive UI controls could not load @radix-ui/react-label. Install @radix-ui/react-label to enable this feature, or check its installed version and native binaries.",
+      "@radix-ui/react-radio-group": "opt-in: interactive ui controls; import @jini-ai/chat/react — Interactive UI controls could not load @radix-ui/react-radio-group. Install @radix-ui/react-radio-group to enable this feature, or check its installed version and native binaries.",
+      "@radix-ui/react-select": "opt-in: interactive ui controls; import @jini-ai/chat/react — Interactive UI controls could not load @radix-ui/react-select. Install @radix-ui/react-select to enable this feature, or check its installed version and native binaries.",
+      "@radix-ui/react-slot": "opt-in: interactive ui controls — Interactive UI controls could not load @radix-ui/react-slot. Install @radix-ui/react-slot to enable this feature, or check its installed version and native binaries.",
+      "@jini-ai/agent-runtime": "opt-in: agent execution adapters; import @jini-ai/chat/react — Agent execution adapters could not load @jini-ai/agent-runtime. Install @jini-ai/agent-runtime to enable this feature, or check its installed version and native binaries.",
+      "@jini-ai/protocol": "opt-in: agent protocol adapters; import @jini-ai/chat/server/durable-runs — Agent protocol adapters could not load @jini-ai/protocol. Install @jini-ai/protocol to enable this feature, or check its installed version and native binaries.",
+      "@jini-ai/ui": "opt-in: ui integrations; import @jini-ai/chat/react — UI integrations could not load @jini-ai/ui. Install @jini-ai/ui to enable this feature, or check its installed version and native binaries.",
+      "react": "opt-in: react chat ui; import @jini-ai/chat/react — React chat UI could not load react. Install react to enable this feature, or check its installed version.",
+      "react-dom": "opt-in: react chat ui; import @jini-ai/chat/react — React chat UI could not load react-dom. Install react-dom to enable this feature, or check its installed version."
     }
   },
   "type": "module",
@@ -204,13 +221,15 @@
     "test:properties": "vitest run src/core/__tests__/unit/partial-json.property.unit.test.ts"
   },
   "dependencies": {
-    "@jini-ai/core": "workspace:^"
+    "@jini-ai/core": "workspace:^",
+    "@jini-ai/agentic": "workspace:^",
+    "@jini-ai/db": "workspace:^",
+    "@jini-ai/diagnostics": "workspace:^",
+    "kysely": "^0.29.6"
   },
   "peerDependencies": {
     "react": "^18.3.0 || ^19.0.0",
     "react-dom": "^18.3.0 || ^19.0.0",
-    "@jini-ai/db": "^0.6.10",
-    "kysely": "^0.29.6",
     "better-sqlite3": "^13.0.0",
     "@electric-sql/pglite": "0.5.8",
     "pg": "^8.23.0",
@@ -222,69 +241,8 @@
     "@radix-ui/react-select": "^2.3.7",
     "@radix-ui/react-slot": "^1.3.3",
     "@jini-ai/agent-runtime": "^0.6.10",
-    "@jini-ai/agentic": "^0.6.10",
     "@jini-ai/protocol": "^0.6.10",
-    "@jini-ai/ui": "^0.6.10",
-    "@jini-ai/diagnostics": "^0.6.10"
-  },
-  "peerDependenciesMeta": {
-    "react": {
-      "optional": true
-    },
-    "react-dom": {
-      "optional": true
-    },
-    "@jini-ai/db": {
-      "optional": true
-    },
-    "kysely": {
-      "optional": true
-    },
-    "better-sqlite3": {
-      "optional": true
-    },
-    "@electric-sql/pglite": {
-      "optional": true
-    },
-    "pg": {
-      "optional": true
-    },
-    "@ag-ui/core": {
-      "optional": true
-    },
-    "@mcp-ui/client": {
-      "optional": true
-    },
-    "@radix-ui/react-checkbox": {
-      "optional": true
-    },
-    "@radix-ui/react-label": {
-      "optional": true
-    },
-    "@radix-ui/react-radio-group": {
-      "optional": true
-    },
-    "@radix-ui/react-select": {
-      "optional": true
-    },
-    "@radix-ui/react-slot": {
-      "optional": true
-    },
-    "@jini-ai/agent-runtime": {
-      "optional": true
-    },
-    "@jini-ai/agentic": {
-      "optional": true
-    },
-    "@jini-ai/protocol": {
-      "optional": true
-    },
-    "@jini-ai/ui": {
-      "optional": true
-    },
-    "@jini-ai/diagnostics": {
-      "optional": true
-    }
+    "@jini-ai/ui": "^0.6.10"
   },
   "devDependencies": {
     "@mcp-ui/client": "7.1.1",
@@ -384,6 +342,53 @@
       "browser/frontend-session-bridge": [
         "./dist/embed-widget/browser/frontend-session-bridge.d.ts"
       ]
+    }
+  },
+  "peerDependenciesMeta": {
+    "better-sqlite3": {
+      "optional": true
+    },
+    "@electric-sql/pglite": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    },
+    "@ag-ui/core": {
+      "optional": true
+    },
+    "@mcp-ui/client": {
+      "optional": true
+    },
+    "@radix-ui/react-checkbox": {
+      "optional": true
+    },
+    "@radix-ui/react-label": {
+      "optional": true
+    },
+    "@radix-ui/react-radio-group": {
+      "optional": true
+    },
+    "@radix-ui/react-select": {
+      "optional": true
+    },
+    "@radix-ui/react-slot": {
+      "optional": true
+    },
+    "@jini-ai/agent-runtime": {
+      "optional": true
+    },
+    "@jini-ai/protocol": {
+      "optional": true
+    },
+    "@jini-ai/ui": {
+      "optional": true
+    },
+    "react": {
+      "optional": true
+    },
+    "react-dom": {
+      "optional": true
     }
   }
 }

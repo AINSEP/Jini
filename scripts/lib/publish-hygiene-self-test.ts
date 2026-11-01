@@ -107,10 +107,10 @@ export function runPublishHygieneSelfTest(_required: Record<string, never> = {},
       expect(!layers.some(v => v.file.endsWith(file)), `${file} listed exception must pass`);
     }
     expect(layers.some(v => v.file.endsWith('core/src/up.ts') && v.rule === 'L3-undeclared-edge'), 'undeclared source edge must fail');
-    // Fail closed: prove both rules and the type/core/optional-peer positive case.
+    // Fail closed: prove domain isolation and optional-peer classification, then the valid opt-in case.
     manifest('isolation-fixture', { 'domain-driver': '*' }, {
       exports: { './alpha': './dist/alpha/index.js', './beta': './dist/beta/index.js', './core': './dist/core/index.js' },
-      sideEffects: false,
+      sideEffects: false, peerDependencies: { 'domain-driver': '*' }, peerDependenciesMeta: { 'domain-driver': { optional: true } },
     });
     write('packages/isolation-fixture/src/alpha/index.ts', "export * from '../core/bridge.js';");
     write('packages/isolation-fixture/src/core/bridge.ts', "export { value } from '../beta/index.js';");
@@ -118,12 +118,13 @@ export function runPublishHygieneSelfTest(_required: Record<string, never> = {},
     write('packages/isolation-fixture/src/core/index.ts', 'export const common = true;');
     const isolation = checkSubpathIsolation({ repoRoot: root });
     expect(isolation.some(v => v.rule === 'SI-domain' && v.file.endsWith('core/bridge.ts')), 'indirect runtime cross-domain import must fail');
-    expect(isolation.some(v => v.rule === 'SI-dependency' && v.file.endsWith('isolation-fixture/package.json')), 'subset-only regular dependency must fail');
+    expect(isolation.some(v => v.rule === 'SI-optional-peer' && v.file.endsWith('isolation-fixture/package.json')), 'unclassified optional peer must fail');
     write('packages/isolation-fixture/src/alpha/index.ts', "import type { value } from '../beta/index.js'; export { common } from '../core/index.js';");
     write('packages/isolation-fixture/src/core/bridge.ts', 'export const unused = true;');
     manifest('isolation-fixture', {}, {
       exports: { './alpha': './dist/alpha/index.js', './beta': './dist/beta/index.js', './core': './dist/core/index.js' },
       sideEffects: false, peerDependencies: { 'domain-driver': '*' }, peerDependenciesMeta: { 'domain-driver': { optional: true } },
+      jini: { optionalPeers: { 'domain-driver': 'opt-in: beta adapter — This feature needs domain-driver.' } },
     });
     expect(!checkSubpathIsolation({ repoRoot: root }).some(v => v.file.includes('isolation-fixture/')), 'type-only sibling, shared core and optional peer must pass');
     return failures;

@@ -20,6 +20,11 @@
       "./react": "browser",
       "./session": "universal",
       "./node": "node"
+    },
+    "optionalPeers": {
+      "parse5": "opt-in: html parsing; import @jini-ai/vibecoding/html/node — HTML parsing could not load parse5. Install parse5 to enable this feature, or check its installed version and native binaries.",
+      "react": "opt-in: react vibecoding ui; import @jini-ai/vibecoding/react — React vibecoding UI could not load react. Install react to enable this feature, or check its installed version.",
+      "react-dom": "opt-in: react vibecoding ui — React vibecoding UI could not load react-dom. Install react-dom to enable this feature, or check its installed version."
     }
   },
   "type": "module",
@@ -104,13 +109,13 @@
     "parse5": "^7.3.0 || ^8.0.1"
   },
   "peerDependenciesMeta": {
+    "parse5": {
+      "optional": true
+    },
     "react": {
       "optional": true
     },
     "react-dom": {
-      "optional": true
-    },
-    "parse5": {
       "optional": true
     }
   }

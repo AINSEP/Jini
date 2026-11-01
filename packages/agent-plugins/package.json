@@ -36,6 +36,12 @@
         "src/lifecycle/contribution-loader.ts",
         "src/lifecycle/tools/capabilities.ts"
       ]
+    },
+    "optionalPeers": {
+      "yauzl": "opt-in: plugin zip import — Plugin ZIP import could not load yauzl. Install yauzl to enable this feature, or check its installed version and native binaries.",
+      "@jini-ai/platform": "opt-in: platform-backed adapters; import @jini-ai/agent-plugins/lifecycle — Platform-backed adapters could not load @jini-ai/platform. Install @jini-ai/platform to enable this feature, or check its installed version and native binaries.",
+      "@cfworker/json-schema": "opt-in: json schema validation; import @jini-ai/agent-plugins/lifecycle/tools — JSON Schema validation could not load @cfworker/json-schema. Install @cfworker/json-schema to enable this feature, or check its installed version and native binaries.",
+      "semver": "opt-in: plugin version compatibility; import @jini-ai/agent-plugins/lifecycle — Plugin version compatibility could not load semver. Install semver to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",

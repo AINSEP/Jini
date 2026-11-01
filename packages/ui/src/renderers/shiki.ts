@@ -3,6 +3,7 @@
  * `apps/web/src/runtime/shiki.ts` in the origin project — no product-specific
  * logic in the original. See `archived provenance ledger`.
  */
+import { loadOptionalPeer } from '@jini-ai/core/optional-peer';
 import type { BundledLanguage, BundledTheme, HighlighterGeneric } from 'shiki/bundle/web';
 
 let highlighterPromise: Promise<HighlighterGeneric<BundledLanguage, BundledTheme>> | null = null;
@@ -17,7 +18,7 @@ const CACHE_MAX = 128;
 // around with a cast that would fail at runtime. See `archived provenance ledger`.
 function getHighlighter(): Promise<HighlighterGeneric<BundledLanguage, BundledTheme>> {
   if (!highlighterPromise) {
-    highlighterPromise = import('shiki/bundle/web').then(({ createHighlighter }) =>
+    highlighterPromise = loadOptionalPeer({ feature: 'Syntax highlighting', dependency: 'shiki', load: () => import('shiki/bundle/web') }).then(({ createHighlighter }) =>
       createHighlighter({
         themes: ['github-light-default', 'github-dark-default'],
         langs: [

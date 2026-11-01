@@ -1,4 +1,5 @@
 import type { ModelDiscoveryContext, ModelDiscoveryDeps, ModelProbeResult } from './model-discovery-types.js';
+import { loadOptionalPeer } from '@jini-ai/core/optional-peer';
 import { ModelProbeError, modelIdentityKind } from './model-discovery-shared.js';
 
 /** UNVERIFIED locally. The host may install the official SDK or inject the RPC port.
@@ -36,7 +37,8 @@ export async function createCopilotMetadataClient(
   context: ModelDiscoveryContext,
   { importSdk = (name: string) => import(name) as Promise<CopilotSdkModule> }: { importSdk?: (name: string) => Promise<CopilotSdkModule> } = {},
 ): Promise<CopilotMetadataClient> {
-  const sdk = await importSdk('@github/copilot-sdk');
+  // Optional peer: hosts that never install the SDK keep the catalog's fallback models.
+  const sdk = await loadOptionalPeer({ feature: 'Copilot model discovery', dependency: '@github/copilot-sdk', load: () => importSdk('@github/copilot-sdk') });
   const env = Object.fromEntries(Object.entries(context.env).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
   // RuntimeConnection is the current SDK API; older SDKs expose cliPath/cwd/useStdio.
   const connection = sdk.RuntimeConnection?.forStdio({ path: context.executable, env });

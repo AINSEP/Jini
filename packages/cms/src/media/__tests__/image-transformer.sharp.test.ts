@@ -215,10 +215,12 @@ test('og JPEG applies named dimensions and quality to real pixels', async () => 
 });
 
 test('a sharp loader that fails is reported as ImageTransformUnavailableError, never as a corrupt source', async () => {
-  const transformer = new SharpImageTransformer({}, { loadSharp: () => { throw Object.assign(new Error("Cannot find module 'sharp'"), { code: 'MODULE_NOT_FOUND' }); } });
+  const cause = Object.assign(new Error("Cannot find module 'sharp'"), { code: 'MODULE_NOT_FOUND' });
+  const transformer = new SharpImageTransformer({}, { loadSharp: () => { throw cause; } });
   await assert.rejects(transformer.transform({ bytes: new Uint8Array([1]), params: { format: 'png' } }), (error: unknown) => {
     assert.ok(error instanceof ImageTransformUnavailableError);
-    assert.match(error.message, /'sharp' npm package is not installed/);
+    assert.match(error.message, /Image transformations could not load sharp/);
+    assert.equal(error.cause, cause);
     return true;
   });
 });

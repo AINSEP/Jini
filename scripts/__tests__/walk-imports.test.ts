@@ -58,11 +58,15 @@ describe('shared import extraction', () => {
       const requirePackage = createRequire(import.meta.url);
       const driver = requirePackage('driver');
       const other = require('other');
+      const inline = createRequire(import.meta.url)('inline');
+      requirePackage.resolve('resolved');
       import legacy = require('legacy');
     `)).toEqual([
       { specifier: 'node:module', typeOnly: false },
       { specifier: 'driver', typeOnly: false },
       { specifier: 'other', typeOnly: false },
+      { specifier: 'inline', typeOnly: false },
+      { specifier: 'resolved', typeOnly: false },
       { specifier: 'legacy', typeOnly: false },
     ]);
   });

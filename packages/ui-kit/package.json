@@ -18,6 +18,9 @@
       "./react/native": "browser",
       "./react/native/styles.css": "browser",
       "./react/testing": "browser"
+    },
+    "optionalPeers": {
+      "vue": "opt-in: vue kit bindings — Vue kit bindings could not load vue. Install vue to enable this feature, or check its installed version."
     }
   },
   "type": "module",
@@ -75,12 +78,6 @@
     "vue": "^3.5.0"
   },
   "peerDependenciesMeta": {
-    "react": {
-      "optional": true
-    },
-    "react-dom": {
-      "optional": true
-    },
     "vue": {
       "optional": true
     }

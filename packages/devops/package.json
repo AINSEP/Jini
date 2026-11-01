@@ -35,6 +35,12 @@
       "shared": [
         "src/core/export-failure-summary.ts"
       ]
+    },
+    "optionalPeers": {
+      "parse5": "opt-in: html parsing; import @jini-ai/devops/static-export — HTML parsing could not load parse5. Install parse5 to enable this feature, or check its installed version and native binaries.",
+      "typescript": "opt-in: typescript source analysis — TypeScript source analysis could not load typescript. Install typescript to enable this feature, or check its installed version and native binaries.",
+      "@jini-ai/platform": "opt-in: platform-backed adapters; import @jini-ai/devops/deploy/node — Platform-backed adapters could not load @jini-ai/platform. Install @jini-ai/platform to enable this feature, or check its installed version and native binaries.",
+      "undici": "opt-in: custom http dispatchers; import @jini-ai/devops/deploy/node — Custom HTTP dispatchers could not load undici. Install undici to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",
@@ -168,7 +174,9 @@
     "parse5": "7.3.0"
   },
   "peerDependenciesMeta": {
-    "parse5": { "optional": true },
+    "parse5": {
+      "optional": true
+    },
     "typescript": {
       "optional": true
     },

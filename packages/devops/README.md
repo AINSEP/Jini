@@ -12,8 +12,8 @@ public subpath and permission boundary.
 | `./source-control` | Trusted provider catalogs, repository validation, export preview and commit orchestration. |
 | `./static-export` | Manifest/app/writer-driven static export, path transforms and route/asset failure summaries. |
 | `./static-export/node` | Explicit Node loopback app, artifact writer and theme-file inventory adapters. |
-| `./packaging/electron` | Dependency staging, archive byte verification, reachable-import, freshness and quiet-tree policies. |
-| `./packaging/electron/typescript` | Host-supplied TypeScript AST adapter; TypeScript is an optional peer. |
+| `./packaging/electron` | Dependency staging, staged runtime closure checks, optional-peer contracts, archive byte verification, freshness and quiet-tree policies. |
+| `./packaging/electron/typescript` | Host-supplied TypeScript AST adapter; TypeScript is a required peer. |
 | `./agent-jobs` | Bounded CLI jobs with resume, stdin prompts, raw logs and stream-based completion. |
 | `./checks/published-types` | Published type-surface, registry-drift, linked-package and captured-log checks. |
 | `./checks/coverage` | LCOV, floor, diff, disk-inventory and contamination/baseline policies. |

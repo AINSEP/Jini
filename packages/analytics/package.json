@@ -15,6 +15,9 @@
     "entries": {
       ".": "node",
       "./product": "universal"
+    },
+    "optionalPeers": {
+      "@jini-ai/agent-runtime": "opt-in: agent execution adapters — Agent execution adapters could not load @jini-ai/agent-runtime. Install @jini-ai/agent-runtime to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",
@@ -52,9 +55,6 @@
   "peerDependencies": {
     "@jini-ai/agent-runtime": "^0.6.13"
   },
-  "peerDependenciesMeta": {
-    "@jini-ai/agent-runtime": { "optional": true }
-  },
   "publishConfig": {
     "access": "public",
     "registry": "https://registry.npmjs.org"
@@ -63,5 +63,10 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run"
+  },
+  "peerDependenciesMeta": {
+    "@jini-ai/agent-runtime": {
+      "optional": true
+    }
   }
 }

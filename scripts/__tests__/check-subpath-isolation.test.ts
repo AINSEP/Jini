@@ -115,14 +115,12 @@ describe('source subpath and installation isolation', () => {
     }]);
   });
 
-  it('reports subset-only dependencies even when a broad root also uses them', () => {
+  it('keeps subset dependencies required even when a broad root also uses them', () => {
     manifest({ dependencies: { driver: '^1.0.0' }, exports: { '.': './dist/index.js', './alpha': './dist/alpha/index.js', './beta': './dist/beta/index.js' } });
     write({ file: 'packages/sample/src/index.ts', content: "export * from './alpha/index.js'; export * from './beta/index.js';" });
     write({ file: 'packages/sample/src/beta/index.ts', content: "import 'driver'; export const beta = true;" });
-    expect(findings()).toEqual([{
-      rule: 'SI-dependency', file: 'packages/sample/package.json',
-      reason: 'driver is an install-time dependency used by 2/3 source closures; declare an optional peer and a development dependency',
-    }]);
+    expect(findings()).toEqual([]);
+    expect(auditSubpathIsolation({ repoRoot: root }).closures.find(c => c.subpath === './beta')?.dependencies).toContain('driver');
     expect(auditSubpathIsolation({ repoRoot: root }).findings.filter(finding => finding.kind === 'd')).toHaveLength(1);
   });
 
@@ -133,51 +131,42 @@ describe('source subpath and installation isolation', () => {
     expect(findings()).toEqual([]);
   });
 
-  it('keeps OAuth mandatory for the agent-runtime root without exempting other dependencies', () => {
-    manifest({ name: '@jini-ai/agent-runtime', dependencies: { '@jini-ai/oauth': '*', driver: '*' } });
-    write({ file: 'packages/oauth/package.json', content: JSON.stringify({ name: '@jini-ai/oauth',
-      sideEffects: false, exports: { '.': './dist/index.js' } }) });
-    write({ file: 'packages/oauth/src/index.ts', content: 'export const value = true;' });
-    write({ file: 'packages/sample/src/beta/index.ts', content: "import '@jini-ai/oauth'; import 'driver'; export const beta = true;" });
-    expect(findings()).toEqual([{
-      rule: 'SI-dependency', file: 'packages/sample/package.json',
-      reason: 'driver is an install-time dependency used by 1/3 source closures; declare an optional peer and a development dependency',
-    }]);
-    manifest({ dependencies: { '@jini-ai/oauth': '*' } });
-    expect(findings().some(finding => finding.rule === 'SI-dependency' && finding.reason.startsWith('@jini-ai/oauth '))).toBe(true);
+  it('keeps OAuth and other required dependencies without package-specific exceptions', () => {
+    manifest({ dependencies: { 'oauth-client': '*', driver: '*' } });
+    write({ file: 'packages/sample/src/beta/index.ts', content: "import 'oauth-client'; import 'driver'; export const beta = true;" });
+    expect(findings()).toEqual([]);
+    expect(auditSubpathIsolation({ repoRoot: root }).closures.find(c => c.subpath === './beta')?.dependencies).toEqual(['driver', 'oauth-client']);
   });
 
   it.each([
     ['@jini-ai/oauth', 'openid-client'], ['@jini-ai/oauth', 'oauth4webapi'], ['@jini-ai/diagnostics', 'js-tokens'],
-  ])('keeps the reviewed %s root dependency %s mandatory without exempting other dependencies', (name, dependency) => {
+  ])('keeps %s root dependency %s mandatory without a hand-kept exception', (name, dependency) => {
     manifest({ name, dependencies: { [dependency]: '*', driver: '*' } });
     write({ file: 'packages/sample/src/beta/index.ts', content: `import '${dependency}'; import 'driver'; export const beta = true;` });
-    expect(findings()).toEqual([{
-      rule: 'SI-dependency', file: 'packages/sample/package.json',
-      reason: 'driver is an install-time dependency used by 1/3 source closures; declare an optional peer and a development dependency',
-    }]);
-    manifest({ dependencies: { [dependency]: '*' } });
-    expect(findings().some(finding => finding.rule === 'SI-dependency' && finding.reason.startsWith(`${dependency} `))).toBe(true);
+    expect(findings()).toEqual([]);
+    expect(auditSubpathIsolation({ repoRoot: root }).closures.find(c => c.subpath === './beta')?.dependencies).toContain(dependency);
   });
 
-  it.each(['dependencies', 'optionalDependencies', 'peerDependencies'])('rejects a forced subset installation via %s', field => {
+  it.each(['dependencies', 'optionalDependencies', 'peerDependencies'])('does not use subset fractions to demote %s', field => {
     manifest({ [field]: { driver: '*' } });
     write({ file: 'packages/sample/src/beta/index.ts', content: "import 'driver'; export const beta = true;" });
-    expect(findings().map(finding => finding.rule)).toEqual(['SI-dependency']);
+    expect(findings()).toEqual([]);
+    expect(auditSubpathIsolation({ repoRoot: root }).closures.find(c => c.subpath === './beta')?.dependencies).toEqual(['driver']);
   });
 
-  it('permits optional peers but does not let type-only usage justify a regular dependency', () => {
+  it('permits erased imports but still rejects an unclassified optional peer', () => {
     write({ file: 'packages/sample/src/beta/index.ts', content: "import type { Driver } from 'driver'; export const beta = true;" });
     manifest({ dependencies: { driver: '*' } });
-    expect(findings()[0]?.rule).toBe('SI-dependency');
-    manifest({ peerDependencies: { driver: '*' }, peerDependenciesMeta: { driver: { optional: true } } });
     expect(findings()).toEqual([]);
+    manifest({ peerDependencies: { driver: '*' }, peerDependenciesMeta: { driver: { optional: true } } });
+    expect(findings()).toEqual([expect.objectContaining({ rule: 'SI-optional-peer' })]);
   });
 
-  it('counts build-free JavaScript and type-only aliases correctly', () => {
+  it('counts build-free JavaScript and type-only aliases correctly without forcing optionality', () => {
     manifest({ exports: { '.': './dist/core/index.js', './core': './dist/core/index.js', './alpha': './alpha.js' }, dependencies: { driver: '*' } });
     write({ file: 'packages/sample/alpha.js', content: "import 'driver'; export const value = 1;" });
-    expect(findings()[0]?.reason).toContain('1/2 source closures');
+    expect(findings()).toEqual([]);
+    expect(auditSubpathIsolation({ repoRoot: root }).closures.find(c => c.subpath === './alpha')?.dependencies).toEqual(['driver']);
   });
 
   it('allows CMS to register runtime restrictions without a second walker', () => {

@@ -16,6 +16,12 @@
       "entries": {
         "./store/projects/sqlite": "storage"
       }
+    },
+    "optionalPeers": {
+      "better-sqlite3": "opt-in: sqlite storage — SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
+      "@jini-ai/chat": "opt-in: chat host assembly; import @jini-ai/server/storage/legacy/sqlite — Chat host assembly could not load @jini-ai/chat. Install @jini-ai/chat to enable this feature, or check its installed version and native binaries.",
+      "@jini-ai/platform": "opt-in: platform-backed adapters; import @jini-ai/server/owner-store — Platform-backed adapters could not load @jini-ai/platform. Install @jini-ai/platform to enable this feature, or check its installed version and native binaries.",
+      "kysely": "opt-in: sql storage adapters; import @jini-ai/server/owner-store — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",
@@ -88,47 +94,27 @@
     "kysely": "^0.29.6"
   },
   "dependencies": {
-    "@jini-ai/core": "workspace:^"
+    "@jini-ai/core": "workspace:^",
+    "@jini-ai/agent-runtime": "workspace:^",
+    "@jini-ai/daemon": "workspace:^",
+    "@jini-ai/db": "workspace:^",
+    "@jini-ai/http-kit": "workspace:^",
+    "@jini-ai/registry": "workspace:^",
+    "@jini-ai/sidecar": "workspace:^"
   },
   "peerDependencies": {
     "better-sqlite3": "^13.0.0",
-    "@jini-ai/agent-runtime": "^0.6.10",
-    "@jini-ai/daemon": "^0.6.10",
-    "@jini-ai/http-kit": "^0.6.10",
-    "@jini-ai/sidecar": "^0.6.10",
     "express": "^4.21.0 || ^5.0.0",
-    "@jini-ai/db": "^0.6.13",
     "@jini-ai/chat": "^0.6.10",
-    "@jini-ai/registry": "^0.6.10",
     "@jini-ai/platform": "^0.6.10",
     "kysely": "^0.29.6"
   },
+  "sideEffects": false,
   "peerDependenciesMeta": {
     "better-sqlite3": {
       "optional": true
     },
-    "@jini-ai/agent-runtime": {
-      "optional": true
-    },
-    "@jini-ai/daemon": {
-      "optional": true
-    },
-    "@jini-ai/http-kit": {
-      "optional": true
-    },
-    "@jini-ai/sidecar": {
-      "optional": true
-    },
-    "express": {
-      "optional": true
-    },
-    "@jini-ai/db": {
-      "optional": true
-    },
     "@jini-ai/chat": {
-      "optional": true
-    },
-    "@jini-ai/registry": {
       "optional": true
     },
     "@jini-ai/platform": {
@@ -137,6 +123,5 @@
     "kysely": {
       "optional": true
     }
-  },
-  "sideEffects": false
+  }
 }

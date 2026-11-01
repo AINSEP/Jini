@@ -72,8 +72,8 @@
  *   solution belongs at the lifecycle or transport boundary, rather than a
  *   restart-unsafe recorder cache that makes the two paths disagree.
  *
- * node-pty uses native addons. Linux deployment requires python3, make and a
- * C/C++ compiler during installation; source compilation is the fallback.
+ * The opt-in @jini-ai/daemon/terminal adapter uses node-pty's native addon.
+ * Linux hosts selecting it need python3, make and a C/C++ compiler for fallback compilation.
  * Vendoring foreign prebuilt binaries would create an unowned maintenance burden.
  * See the owning modules and packages/daemon/README.md for detailed contracts.
  */

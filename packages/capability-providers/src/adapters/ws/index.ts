@@ -10,7 +10,11 @@
  * can't resolve Node-only packages — to also resolve `ws`. Import from here
  * only when you actually want this concrete adapter.
  */
-import { WebSocketServer, type ServerOptions, type WebSocket } from 'ws';
+import { createRequire } from 'node:module';
+import { loadOptionalPeer } from '@jini-ai/core/optional-peer';
+import type { WebSocketServer, ServerOptions, WebSocket } from 'ws';
+
+const require = createRequire(import.meta.url);
 import type { RealtimeHandler, RealtimeProvider, RealtimeUnsubscribe } from '../../realtime.js';
 
 /** WebSocket `readyState` value meaning "open and ready to communicate" (WHATWG WebSocket spec; `ws`'s `WebSocket.OPEN` is the same constant `1`). Spelled out locally so `WebSocketRealtimeProvider`'s core class has no runtime import of `ws` — only the `RealtimeWebSocketLike`/`RealtimeWebSocketServerLike` structural types below, and the `createWebSocketRealtimeProvider` factory, actually touch the real package. */
@@ -175,7 +179,7 @@ export function createWebSocketRealtimeProvider(
   options: CreateWebSocketRealtimeProviderOptions,
   optional: { createServer?: (required: { wsOptions: ServerOptions }) => WebSocketServer } = {},
 ): { readonly provider: WebSocketRealtimeProvider; readonly server: WebSocketServer } {
-  const server = (optional.createServer ?? (({ wsOptions }) => new WebSocketServer(wsOptions)))({ wsOptions: options.wsOptions });
+  const server = (optional.createServer ?? createNativeServer)({ wsOptions: options.wsOptions });
   const provider = new WebSocketRealtimeProvider({
     server: {
       on({ listener }) {
@@ -184,6 +188,13 @@ export function createWebSocketRealtimeProvider(
     },
   });
   return { provider, server };
+}
+
+
+/** Preserve synchronous construction and let host-injected servers work without the ws peer. */
+function createNativeServer({ wsOptions }: { wsOptions: ServerOptions }): WebSocketServer {
+  const { WebSocketServer } = loadOptionalPeer({ feature: 'WebSocket realtime adapter', dependency: 'ws', load: () => require('ws') as typeof import('ws') });
+  return new WebSocketServer(wsOptions);
 }
 
 

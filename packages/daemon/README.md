@@ -20,8 +20,18 @@ npm install @jini-ai/daemon
 
 `node-pty` is an **optional peer dependency** — the package boots and every other capability
 (run lifecycle, tool executor, agent executor, routines) works without it. Only
-`createTerminalSessionManager`'s real (non-test) `PtySpawn` — an actual interactive terminal/PTY
-spawn — needs `node-pty` installed; everything else has no native-addon dependency at all.
+the native adapter at `@jini-ai/daemon/terminal` needs `node-pty` installed.
+The default entry's session manager requires a host-supplied `terminalService` or `loadSpawnPty`:
+
+```ts
+import { createTerminalSessionManager } from '@jini-ai/daemon';
+import { loadRealSpawnPty } from '@jini-ai/daemon/terminal';
+
+const manager = createTerminalSessionManager({}, { loadSpawnPty: () => loadRealSpawnPty({}) });
+```
+
+With `@jini-ai/server`, pass that loader as `featureOptions.terminal.loadSpawnPty` to
+`composeJiniKernel`, or as `loadTerminalSpawnPty` to `createLocalNodeDaemon`.
 
 ## What you get
 
@@ -47,8 +57,8 @@ spawn — needs `node-pty` installed; everything else has no native-addon depend
   browser surface) and `createFrontendCapabilityRegistrations` (projects a frontend capability
   manifest into `ToolRegistry` registrations — the only door into it).
 - **Terminal sessions** — `createTerminalSessionManager`, `createTerminalToolRegistrations` — a
-  `node-pty`-backed session manager built on `@jini-ai/platform`'s generic ring-buffer engine, plus
-  session-token gating.
+  session manager built on `@jini-ai/platform`'s generic ring-buffer engine, plus session-token
+  gating. The optional native `loadRealSpawnPty` adapter lives at `@jini-ai/daemon/terminal`.
 - **Routines** — `RoutineService`, `createInMemoryRoutineStore` (`routines/`) — a DST-safe
   wall-clock scheduler plus CRUD + run-history store port.
 - **Run-orchestration helpers** (`run/`) — `runResultFromStatus`, `deriveRunErrorCode`,

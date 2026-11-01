@@ -20,6 +20,13 @@
       "./api-connections": "node",
       "./media-providers/node": "node",
       "./saved-requests": "node"
+    },
+    "optionalPeers": {
+      "@jini-ai/db": "opt-in: database-backed adapters — Database-backed adapters could not load @jini-ai/db. Install @jini-ai/db to enable this feature, or check its installed version and native binaries.",
+      "better-sqlite3": "opt-in: sqlite storage; import @jini-ai/integrations/media-providers — SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
+      "@jini-ai/platform": "opt-in: platform-backed adapters; import @jini-ai/integrations/media-providers — Platform-backed adapters could not load @jini-ai/platform. Install @jini-ai/platform to enable this feature, or check its installed version and native binaries.",
+      "@jini-ai/oauth": "opt-in: oauth connections; import @jini-ai/integrations/api-connections — OAuth connections could not load @jini-ai/oauth. Install @jini-ai/oauth to enable this feature, or check its installed version and native binaries.",
+      "@cfworker/json-schema": "opt-in: json schema validation; import @jini-ai/integrations/saved-requests — JSON Schema validation could not load @cfworker/json-schema. Install @cfworker/json-schema to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",
@@ -118,6 +125,17 @@
     "@jini-ai/oauth": "^0.6.10",
     "@cfworker/json-schema": "^4.1.1"
   },
+  "devDependencies": {
+    "@jini-ai/db": "workspace:^",
+    "@types/better-sqlite3": "^7.6.11",
+    "better-sqlite3": "^13.0.0",
+    "@vitest/coverage-v8": "^2.1.9",
+    "@jini-ai/core": "workspace:*",
+    "@jini-ai/platform": "workspace:*",
+    "@jini-ai/oauth": "workspace:*",
+    "@jini-ai/agent-plugins": "workspace:*",
+    "@cfworker/json-schema": "^4.1.1"
+  },
   "peerDependenciesMeta": {
     "@jini-ai/db": {
       "optional": true
@@ -134,16 +152,5 @@
     "@cfworker/json-schema": {
       "optional": true
     }
-  },
-  "devDependencies": {
-    "@jini-ai/db": "workspace:^",
-    "@types/better-sqlite3": "^7.6.11",
-    "better-sqlite3": "^13.0.0",
-    "@vitest/coverage-v8": "^2.1.9",
-    "@jini-ai/core": "workspace:*",
-    "@jini-ai/platform": "workspace:*",
-    "@jini-ai/oauth": "workspace:*",
-    "@jini-ai/agent-plugins": "workspace:*",
-    "@cfworker/json-schema": "^4.1.1"
   }
 }

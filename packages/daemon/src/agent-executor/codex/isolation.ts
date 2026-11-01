@@ -1,4 +1,4 @@
-import { createRequire } from 'node:module';
+import { parse } from 'smol-toml';
 import { JINI_MCP_SERVER_KEY } from '../mcp-bridge.js';
 import { isRecord } from '../values.js';
 
@@ -18,8 +18,7 @@ export function codexIsolationRefusalMessage(reason: string): string {
  * @complexity O(n) in the file length.
  */
 function parseCodexLayer({ raw, path }: { raw: string; path: string }, _optional = {}): Record<string, unknown> {
-  // The optional parser is needed only for Codex isolation, so memory-only hosts can still boot.
-  const { parse } = createRequire(import.meta.url)('smol-toml') as typeof import('smol-toml');
+  // Codex isolation is a default security boundary; its parser must ship with the daemon.
   try {
     return parse(raw);
   } catch {

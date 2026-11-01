@@ -10,11 +10,11 @@ import type {
 } from '@jini-ai/platform';
 import { createTerminalService } from '@jini-ai/platform';
 import { createToolExecutor, type ToolExecutor } from '../tool-executor.js';
+import { loadRealSpawnPty } from '../terminal.adapter.js';
 import {
   createTerminalSessionManager,
   createTerminalToolRegistrations,
   denyAllTerminalCreatePolicy,
-  loadRealSpawnPty,
   TERMINAL_CREATE_TOOL_ID,
   type TerminalSessionActionResult,
   type TerminalSessionInfo,
@@ -208,13 +208,22 @@ describe('createTerminalSessionManager — create/get/list', () => {
     expect(session.shell).toBe('/bin/zsh');
   });
 
-  it('createTerminalSessionManager() defaults loadSpawnPty to loadRealSpawnPty (fully mocked node-pty/spawn-helper machinery), and forwards every tuning knob to the underlying engine', async () => {
+  it('uses the host-injected native loader from the terminal subpath and forwards tuning knobs', async () => {
     const fakePty = new FakeIPty();
     nodePtySpawnMock.mockReturnValue(fakePty);
-    const manager = createTerminalSessionManager({  }, { maxEvents: 10, maxBufferBytes: 1024, exitTailBytes: 256, flushIntervalMs: 1, flushThresholdBytes: 64, shutdownGraceMs: 1 });
+    const manager = createTerminalSessionManager({  }, { loadSpawnPty: () => loadRealSpawnPty({}), maxEvents: 10, maxBufferBytes: 1024, exitTailBytes: 256, flushIntervalMs: 1, flushThresholdBytes: 64, shutdownGraceMs: 1 });
     const session = await manager.create({ principal: alice, options: { cwd: '/work' } });
     expect(session.status).toBe('running');
     expect(nodePtySpawnMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('keeps boot inert and rejects terminal creation without a host-supplied implementation', async () => {
+    const manager = createTerminalSessionManager({});
+    expect(manager.list({ principal: alice })).toEqual([]);
+    await expect(manager.create({ principal: alice, options: { cwd: '/work' } })).rejects.toThrow(
+      'Interactive terminals require a host-supplied terminalService or loadSpawnPty. Import loadRealSpawnPty from @jini-ai/daemon/terminal to enable node-pty.',
+    );
+    expect(nodePtySpawnMock).not.toHaveBeenCalled();
   });
 
   it('forwards exactly the tuning knobs that were supplied to the engine, and only those', () => {

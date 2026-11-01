@@ -11,7 +11,7 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import ts from 'typescript';
-import { parseSource } from './package-sources.js';
+import { runtimeImportReferences } from '../../packages/devops/src/packaging/electron/typescript.js';
 
 export interface ImportRef {
   /** Repo-relative path of the file containing the import, forward-slashed. */
@@ -20,6 +20,7 @@ export interface ImportRef {
   readonly specifier: string;
   /** True for explicit type clauses and all-inline-type clauses; false for value imports. */
   readonly typeOnly: boolean;
+  readonly deferred?: boolean;
 }
 
 const REPO_ROOT = new URL('../../', import.meta.url).pathname;
@@ -132,67 +133,10 @@ export function stripComments(source: string): string {
   return out;
 }
 
-function importClauseRef(node: ts.ImportDeclaration, file: string): ImportRef | undefined {
-  if (!ts.isStringLiteral(node.moduleSpecifier)) return undefined;
-  const clause = node.importClause;
-  const bindings = clause?.namedBindings;
-  const inlineTypes = !clause?.name && bindings && ts.isNamedImports(bindings)
-    && bindings.elements.length > 0 && bindings.elements.every(element => element.isTypeOnly);
-  return { file, specifier: node.moduleSpecifier.text, typeOnly: Boolean(clause?.isTypeOnly || inlineTypes) };
-}
-
-function exportClauseRef(node: ts.ExportDeclaration, file: string): ImportRef | undefined {
-  if (!node.moduleSpecifier || !ts.isStringLiteral(node.moduleSpecifier)) return undefined;
-  const clause = node.exportClause;
-  const inlineTypes = clause && ts.isNamedExports(clause) && clause.elements.length > 0
-    && clause.elements.every(element => element.isTypeOnly);
-  return { file, specifier: node.moduleSpecifier.text, typeOnly: Boolean(node.isTypeOnly || inlineTypes) };
-}
-
-function callImportRef(node: ts.CallExpression, file: string, requireNames: Set<string>): ImportRef | undefined {
-  const imports = node.expression.kind === ts.SyntaxKind.ImportKeyword
-    || (ts.isIdentifier(node.expression) && requireNames.has(node.expression.text));
-  const argument = node.arguments[0];
-  if (imports && argument && ts.isStringLiteralLike(argument)) return { file, specifier: argument.text, typeOnly: false };
-  return undefined;
-}
-
-function nodeImportRef(node: ts.Node, file: string, requireNames: Set<string>): ImportRef | undefined {
-  if (ts.isImportDeclaration(node)) return importClauseRef(node, file);
-  if (ts.isExportDeclaration(node)) return exportClauseRef(node, file);
-  if (ts.isCallExpression(node)) return callImportRef(node, file, requireNames);
-  if (ts.isImportEqualsDeclaration(node) && ts.isExternalModuleReference(node.moduleReference)
-    && node.moduleReference.expression && ts.isStringLiteral(node.moduleReference.expression)) {
-    return { file, specifier: node.moduleReference.expression.text, typeOnly: node.isTypeOnly };
-  }
-  return undefined;
-}
-
-/** Extracts every import/export specifier from one `.ts`/`.tsx` file, repo-root-absolute or relative. */
+/** Shared maintained AST reader; includes deferred loads so lazy imports cannot hide required peers. */
 export function extractImports(absFilePath: string): ImportRef[] {
-  const source = parseSource({ file: absFilePath, source: readFileSync(absFilePath, 'utf8') });
-  const file = toRepoRelative(absFilePath);
-  const refs: ImportRef[] = [];
-  // Source syntax is the shared owner of import discovery. Regex clauses could consume a
-  // later type export after a value declaration, or match import-shaped strings; either
-  // mistake changes a runtime closure. Reuse the parser already used by the layer guard.
-  const requireNames = new Set(['require']);
-  for (const statement of source.statements) {
-    if (!ts.isVariableStatement(statement)) continue;
-    for (const declaration of statement.declarationList.declarations) {
-      if (ts.isIdentifier(declaration.name) && declaration.initializer
-        && ts.isCallExpression(declaration.initializer)
-        && ts.isIdentifier(declaration.initializer.expression)
-        && declaration.initializer.expression.text === 'createRequire') requireNames.add(declaration.name.text);
-    }
-  }
-  function visit(node: ts.Node): void {
-    const ref = nodeImportRef(node, file, requireNames);
-    if (ref) refs.push(ref);
-    ts.forEachChild(node, visit);
-  }
-  visit(source);
-  return refs;
+  return runtimeImportReferences({ compiler: ts, file: absFilePath, source: readFileSync(absFilePath, 'utf8') })
+    .map(ref => ({ ...ref, file: toRepoRelative(absFilePath), typeOnly: ref.typeOnly ?? false }));
 }
 
 export { REPO_ROOT };

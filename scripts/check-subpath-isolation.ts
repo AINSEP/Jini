@@ -15,25 +15,7 @@ import type { Violation } from './check-engine-boundaries.js';
 import { parseSource, sourcePackages, type PackageManifest, type SourcePackage } from './lib/package-sources.js';
 import { extractImports, listSourceFiles, REPO_ROOT, type ImportRef } from './lib/walk-imports.js';
 
-// Foundation packages supply shared runtime primitives across otherwise isolated subpaths.
-// Coordinator decision 2026-10-07: their installation is required even for subset use.
-const FOUNDATION = new Set(['@jini-ai/core', '@jini-ai/protocol']);
-/** Reviewed exceptions to the subset-dependency rule: each is a regression proven by a packed install, not a waiver.
- * - agent-runtime -> oauth: its root statically loads the OAuth redactor and PKCE bridge. The packaged root must boot
- *   without consumer-supplied peers; lightweight leaves do not make it optional (desktop launch regression).
- * - oauth -> openid-client, oauth4webapi: the root protocol client loads them and agent-runtime's required root imports
- *   that root; as optional peers a fresh agent-runtime install fails (tests/loads-without-integrations, 11/17 red).
- * - diagnostics -> js-tokens: ./redaction/secrets-only and ./observability load it, and their published consumers
- *   (chat's user-text redaction, hosts' ./observability) do not declare it; an optional peer breaks them at load.
- * - ui -> ui-kit: ui's root re-exports SecretInput, which loads ui-kit; Tovu site-chat and desktop import that root
- *   without declaring ui-kit, so an optional peer breaks them at load (811f37ecb declared it on purpose).
- */
-const REQUIRED_SUBSET_DEPENDENCIES: Readonly<Record<string, ReadonlySet<string>>> = {
-  '@jini-ai/agent-runtime': new Set(['@jini-ai/oauth']),
-  '@jini-ai/oauth': new Set(['openid-client', 'oauth4webapi']),
-  '@jini-ai/diagnostics': new Set(['js-tokens']),
-  '@jini-ai/ui': new Set(['@jini-ai/ui-kit']),
-};
+import { optionalPeerContractProblems } from '../packages/devops/src/packaging/electron/optional-peers.js';
 
 interface IsolationConfig {
   entries?: Record<string, string>;
@@ -44,8 +26,9 @@ interface IsolationConfig {
 }
 interface Manifest extends PackageManifest {
   sideEffects?: boolean | string[];
+  main?: string;
   optionalDependencies?: Record<string, string>;
-  jini?: { isolation?: IsolationConfig; entries?: Record<string, string>; runtime?: string };
+  jini?: { isolation?: IsolationConfig; entries?: Record<string, string>; runtime?: string; optionalPeers?: Record<string, string> };
 }
 interface Entry {
   subpath: string;
@@ -69,7 +52,7 @@ export interface SubpathClosure {
 export interface IsolationFinding extends Violation {
   package: string;
   subpath: string;
-  kind: 'a' | 'b' | 'c' | 'd' | 'resolution';
+  kind: 'a' | 'b' | 'c' | 'd' | 'resolution' | 'optional-peer';
 }
 export interface SubpathIsolationAudit {
   closures: SubpathClosure[];
@@ -156,7 +139,7 @@ function exportEntries(pkg: SourcePackage): Entry[] {
   const files = listSourceFiles(join(pkg.directory, 'src'), { includeJavaScript: true })
     .filter(file => !file.includes('/__tests__/') && !/\.test\./.test(file));
   const entries: Entry[] = [];
-  const rawExports = manifest.exports;
+  const rawExports = manifest.exports ?? manifest.main;
   const exports = typeof rawExports === 'string' ? { '.': rawExports } : rawExports ?? {};
   const subpaths = Object.keys(exports).some(key => key.startsWith('.')) ? exports : { '.': exports };
   for (const [key, value] of Object.entries(subpaths)) {
@@ -253,6 +236,8 @@ export function auditSubpathIsolation(
 ): SubpathIsolationAudit {
   const root = required.repoRoot;
   const packages = loadPackages(root);
+  const owners = [...packages].sort((a, b) => b.directory.length - a.directory.length);
+  const fileOwners = new Map<string, Package | undefined>();
   const byName = new Map(packages.map(pkg => [pkg.manifest.name, pkg]));
   const imports = new Map<string, ImportRef[]>();
   const effects = new Map<string, string[]>();
@@ -323,6 +308,7 @@ export function auditSubpathIsolation(
     }
     for (const ref of refs) {
       if (ref.typeOnly) continue;
+      checkDefaultLoad(pkg, entry, file, ref);
       const resolved = resolveRuntimeImport(pkg, entry, file, ref, dependencies);
       enqueueTargets(pkg, entry, file, ref, resolved, pending);
       checkForbiddenImport(pkg, entry, file, ref);
@@ -361,31 +347,30 @@ export function auditSubpathIsolation(
     return closure;
   }
 
-  function checkInstallDependencies(pkg: Package, ownClosures: SubpathClosure[]): void {
-    // Static assets and aliases do not distort the install denominator. An aggregate root
-    // still counts: dependencies it alone loads must be optional for leaf-only consumers.
-    const distinct = ownClosures.filter((closure, index) => ownClosures.findIndex(other =>
-      other.files.join('\n') === closure.files.join('\n')) === index);
-    if (distinct.length <= 1) return;
-    const forced = {
-      ...pkg.manifest.dependencies, ...pkg.manifest.optionalDependencies,
-      ...Object.fromEntries(Object.entries(pkg.manifest.peerDependencies ?? {}).filter(([name]) =>
-        pkg.manifest.peerDependenciesMeta?.[name]?.optional !== true))
-    };
-    for (const dependency of Object.keys(forced)) {
-      if (FOUNDATION.has(dependency)) continue;
-      if (REQUIRED_SUBSET_DEPENDENCIES[pkg.manifest.name]?.has(dependency)) continue;
-      const used = distinct.filter(closure => closure.dependencies.includes(dependency));
-      if (used.length < distinct.length) add(pkg, used.map(closure => closure.subpath).join(', ') || '(none)',
-        'b', join(pkg.directory, 'package.json'),
-        `${dependency} is an install-time dependency used by ${used.length}/${distinct.length} source closures; declare an optional peer and a development dependency`);
-    }
+  /** Subset-only installation is not a correctness failure. Required dependencies stay required.
+   * Opt-in ownership, rather than the fraction of exports using a library, governs optionality. */
+  function checkOptionalPeers(pkg: Package): void {
+    if (pkg.manifest.private) return;
+    for (const reason of optionalPeerContractProblems({ manifest: pkg.manifest }))
+      add(pkg, '(all)', 'optional-peer', join(pkg.directory, 'package.json'), reason);
+  }
+  /** The public subpath is the opt-in boundary. Deferred default loads still need installation.
+   * Owner lookup is cached per file: O(1) after the first O(packages) lookup, O(files) space. */
+  function checkDefaultLoad(pkg: Package, entry: Entry, file: string, ref: ImportRef): void {
+    if (entry.subpath !== '.') return;
+    if (!fileOwners.has(file)) fileOwners.set(file, owners.find(candidate => inside(file, candidate.directory)));
+    const ownerPackage = fileOwners.get(file);
+    if (!ownerPackage) return;
+    const name = packageName(ref.specifier);
+    if (ownerPackage.manifest.peerDependenciesMeta?.[name]?.optional !== true) return;
+    add(pkg, entry.subpath, 'optional-peer', file,
+      `default path ${pkg.manifest.name}${entry.subpath} reaches optional peer ${name}; a default feature needs a required dependency`);
   }
 
   for (const pkg of packages) {
+    checkOptionalPeers(pkg);
     if (!pkg.entries.length) continue;
-    const ownClosures = pkg.entries.map(entry => auditEntry(pkg, entry));
-    checkInstallDependencies(pkg, ownClosures);
+    for (const entry of pkg.entries) auditEntry(pkg, entry);
     if (pkg.manifest.sideEffects !== false) add(pkg, '(all)', 'c', join(pkg.directory, 'package.json'),
       Array.isArray(pkg.manifest.sideEffects) ? `sideEffects is an asset allowlist (${pkg.manifest.sideEffects.join(', ')}); retain CSS effects, JS must stay isolated`
         : 'missing sideEffects: false; inspect module initialization before marking JS side-effect free');
@@ -393,12 +378,12 @@ export function auditSubpathIsolation(
   return { closures, findings };
 }
 
-/** Fails runtime cross-domain loading, subset-only regular dependencies, and unresolved source edges. */
+/** Fails cross-domain loading, invalid optional-peer contracts, default optional loads and unresolved edges. */
 export function checkSubpathIsolation(
   required: { repoRoot: string } = { repoRoot: REPO_ROOT },
   optional: Record<string, never> = {},
 ): Violation[] {
   return auditSubpathIsolation(required, optional).findings.filter(finding =>
-    finding.kind === 'a' || finding.kind === 'b' || finding.kind === 'resolution')
+    finding.kind === 'a' || finding.kind === 'b' || finding.kind === 'resolution' || finding.kind === 'optional-peer')
     .map(({ rule, file, reason }) => ({ rule, file, reason }));
 }

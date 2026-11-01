@@ -90,23 +90,10 @@
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^",
-    "@jini-ai/protocol": "workspace:^"
-  },
-  "peerDependencies": {
+    "@jini-ai/protocol": "workspace:^",
     "@cfworker/json-schema": "^4.1.1",
-    "@jini-ai/platform": "^0.6.10",
-    "@modelcontextprotocol/sdk": "^1.29.0"
-  },
-  "peerDependenciesMeta": {
-    "@cfworker/json-schema": {
-      "optional": true
-    },
-    "@jini-ai/platform": {
-      "optional": true
-    },
-    "@modelcontextprotocol/sdk": {
-      "optional": true
-    }
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@jini-ai/platform": "workspace:^"
   },
   "devDependencies": {
     "@cfworker/json-schema": "^4.1.1",

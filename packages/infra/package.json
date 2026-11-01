@@ -15,7 +15,10 @@
     "runtime": "node",
     "neutralEntries": [
       "src/db/core"
-    ]
+    ],
+    "optionalPeers": {
+      "@jini-ai/db": "opt-in: database-backed adapters; import @jini-ai/infra/db/core — Database-backed adapters could not load @jini-ai/db. Install @jini-ai/db to enable this feature, or check its installed version and native binaries."
+    }
   },
   "type": "module",
   "sideEffects": false,
@@ -85,6 +88,8 @@
     "@jini-ai/db": "^0.6.10"
   },
   "peerDependenciesMeta": {
-    "@jini-ai/db": { "optional": true }
+    "@jini-ai/db": {
+      "optional": true
+    }
   }
 }

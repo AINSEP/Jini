@@ -1,3 +1,4 @@
+import { loadOptionalPeer } from '@jini-ai/core/optional-peer';
 import type { FederationMessages } from "./messages.js";
 import { parseSseRecord } from "@jini-ai/core/primitives";
 import type { TextReadOptions } from "@jini-ai/platform/fetch-with-timeout";
@@ -482,7 +483,7 @@ export function createFetchMcpHttpExchange(
         wwwAuthenticate: response.headers.get("www-authenticate") ?? undefined,
         text: optional.maxResponseBytes === undefined && !optional.strictUtf8
           ? await response.text()
-          : await (await import("@jini-ai/platform/fetch-with-timeout")).readFetchResponseText({ response }, optional),
+          : await (await loadOptionalPeer({ feature: 'Platform-backed adapters', dependency: '@jini-ai/platform', load: () => import("@jini-ai/platform/fetch-with-timeout") })).readFetchResponseText({ response }, optional),
       };
     },
   };

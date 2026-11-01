@@ -29,6 +29,11 @@
         "./adapters/blob-storage": "storage",
         "./adapters/jwt-auth": "auth"
       }
+    },
+    "optionalPeers": {
+      "better-sqlite3": "opt-in: sqlite storage — SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
+      "ws": "opt-in: websocket realtime adapter; import @jini-ai/capability-providers/adapters/ws — WebSocket realtime adapter could not load ws. Install ws to enable this feature, or check its installed version and native binaries.",
+      "@jini-ai/platform": "opt-in: platform-backed adapters; import @jini-ai/capability-providers/adapters/blob-storage — Platform-backed adapters could not load @jini-ai/platform. Install @jini-ai/platform to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",
@@ -107,6 +112,15 @@
     "ws": "^8.18.0",
     "@jini-ai/platform": "^0.6.10"
   },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/ws": "^8.18.0",
+    "@vitest/coverage-v8": "^2.1.9",
+    "better-sqlite3": "^13.0.0",
+    "ws": "^8.18.0",
+    "@jini-ai/core": "workspace:*",
+    "@jini-ai/platform": "workspace:*"
+  },
   "peerDependenciesMeta": {
     "better-sqlite3": {
       "optional": true
@@ -117,14 +131,5 @@
     "@jini-ai/platform": {
       "optional": true
     }
-  },
-  "devDependencies": {
-    "@types/better-sqlite3": "^7.6.11",
-    "@types/ws": "^8.18.0",
-    "@vitest/coverage-v8": "^2.1.9",
-    "better-sqlite3": "^13.0.0",
-    "ws": "^8.18.0",
-    "@jini-ai/core": "workspace:*",
-    "@jini-ai/platform": "workspace:*"
   }
 }

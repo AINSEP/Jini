@@ -65,18 +65,8 @@
     "@jini-ai/sidecar": "workspace:*"
   },
   "dependencies": {
-    "@jini-ai/core": "workspace:^"
-  },
-  "peerDependencies": {
-    "@jini-ai/platform": "^0.6.10",
-    "@jini-ai/sidecar": "^0.6.10"
-  },
-  "peerDependenciesMeta": {
-    "@jini-ai/platform": {
-      "optional": true
-    },
-    "@jini-ai/sidecar": {
-      "optional": true
-    }
+    "@jini-ai/core": "workspace:^",
+    "@jini-ai/platform": "workspace:^",
+    "@jini-ai/sidecar": "workspace:^"
   }
 }

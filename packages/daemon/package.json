@@ -14,6 +14,7 @@
     "runtime": "node",
     "entries": {
       ".": "node",
+      "./terminal": "node",
       "./store/event-log/sqlite": "node",
       "./store/agent-sessions": "universal",
       "./store/agent-sessions/sqlite": "node",
@@ -34,6 +35,12 @@
         "src/surface-exchanges.ts",
         "src/scheduler.ts"
       ]
+    },
+    "optionalPeers": {
+      "node-pty": "opt-in: import @jini-ai/daemon/terminal — Interactive terminals could not load node-pty. Install node-pty to enable this feature, or check its installed version and native binaries.",
+      "better-sqlite3": "opt-in: sqlite storage — SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
+      "@electric-sql/pglite": "opt-in: embedded postgresql storage — Embedded PostgreSQL storage could not load @electric-sql/pglite. Install @electric-sql/pglite to enable this feature, or check its installed version and native binaries.",
+      "pg": "opt-in: postgresql storage — PostgreSQL storage could not load pg. Install pg to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",
@@ -45,6 +52,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./terminal": {
+      "types": "./dist/terminal.adapter.d.ts",
+      "import": "./dist/terminal.adapter.js",
+      "default": "./dist/terminal.adapter.js"
     },
     "./store/event-log/sqlite": {
       "types": "./dist/store/event-log/sqlite.d.ts",
@@ -158,30 +170,23 @@
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^",
-    "@jini-ai/protocol": "workspace:^"
+    "@jini-ai/protocol": "workspace:^",
+    "smol-toml": "1.9.1",
+    "@jini-ai/agent-runtime": "workspace:^",
+    "@jini-ai/db": "workspace:^",
+    "@jini-ai/http-kit": "workspace:^",
+    "@jini-ai/platform": "workspace:^",
+    "kysely": "^0.29.6"
   },
   "peerDependencies": {
-    "smol-toml": "1.9.1",
     "node-pty": "^1.1.0",
-    "@jini-ai/db": "^0.6.10",
-    "kysely": "^0.29.6",
     "better-sqlite3": "^13.0.0",
     "@electric-sql/pglite": "0.5.8",
     "pg": "^8.23.0",
-    "@jini-ai/http-kit": "^0.6.10",
-    "express": "^4.21.0 || ^5.0.0",
-    "@jini-ai/agent-runtime": "^0.6.10",
-    "@jini-ai/platform": "^0.6.10"
+    "express": "^4.21.0 || ^5.0.0"
   },
   "peerDependenciesMeta": {
-    "smol-toml": { "optional": true },
     "node-pty": {
-      "optional": true
-    },
-    "@jini-ai/db": {
-      "optional": true
-    },
-    "kysely": {
       "optional": true
     },
     "better-sqlite3": {
@@ -191,18 +196,6 @@
       "optional": true
     },
     "pg": {
-      "optional": true
-    },
-    "@jini-ai/http-kit": {
-      "optional": true
-    },
-    "express": {
-      "optional": true
-    },
-    "@jini-ai/agent-runtime": {
-      "optional": true
-    },
-    "@jini-ai/platform": {
       "optional": true
     }
   }

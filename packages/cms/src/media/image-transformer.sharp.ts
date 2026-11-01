@@ -27,6 +27,7 @@
  *    {@link ImageTransformUnavailableError} — a named, thrown error, not a
  *    silently-passed-through/faked image.
  */
+import { loadOptionalPeer } from '@jini-ai/core/optional-peer';
 import type { ImageCodecPort, ImageCodecLimits, ImageMetadata, ImageEncodeInput, ImageGeometry, EncodedImage, ImageTileInput } from "./image-codec.js";
 import { createRequire } from "node:module";
 
@@ -104,18 +105,11 @@ const ANIMATION_CAPABLE_FORMATS: ReadonlySet<TransformFormat> = new Set(["webp",
  *
  * @complexity O(1) — a single `require` call, cached by Node's module system
  * on subsequent calls.
- * @overallScore 100
  */
 function loadSharpFactory(loadSharp: () => SharpFactory): SharpFactory {
-  try {
-    return loadSharp();
-  } catch {
-    throw new ImageTransformUnavailableError({ message: "the 'sharp' npm package is not installed in this environment (run `npm install sharp`) — " +
-        "SharpImageTransformer cannot perform a real pixel transform without it. This is a " +
-        "disclosed, optional-dependency blocker, not a silent stub: no bytes are faked or passed " +
-        "through unmodified." }
-    );
-  }
+  return loadOptionalPeer({ feature: 'Image transformations', dependency: 'sharp', load: loadSharp }, {
+    createError: ({ message, cause }) => new ImageTransformUnavailableError({ message }, { cause }),
+  });
 }
 
 /**

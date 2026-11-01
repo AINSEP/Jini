@@ -28,6 +28,7 @@ import {
   createTerminalSessionManager,
   createTerminalToolRegistrations,
   type ResolveRunInput,
+  type CreateTerminalSessionManagerOptions,
   type TerminalSessionManager,
 } from '@jini-ai/daemon';
 import {
@@ -84,6 +85,8 @@ export interface BuiltInFeatureOptions {
   };
   readonly hostTools?: { readonly resolveWorkspaceRoot?: WorkspaceRootResolver };
   readonly terminal?: {
+    /** Host-selected PTY implementation; the native adapter is at `@jini-ai/daemon/terminal`. */
+    readonly loadSpawnPty?: CreateTerminalSessionManagerOptions['loadSpawnPty'];
     readonly resolveWorkspaceRoot?: WorkspaceRootResolver;
     readonly principal?: Principal;
   };
@@ -393,7 +396,9 @@ export function createBuiltInFeatures(options: BuiltInFeatureOptions = {}): read
     id: 'terminal',
     provides: ['host:exec'],
     compose: (context) => {
-      const manager: TerminalSessionManager = createTerminalSessionManager({});
+      const manager: TerminalSessionManager = createTerminalSessionManager({}, {
+        ...(options.terminal?.loadSpawnPty === undefined ? {} : { loadSpawnPty: options.terminal.loadSpawnPty }),
+      });
       return {
         pack: definePack({
           name: 'jini.terminal',

@@ -38,7 +38,7 @@ import express, { type Express } from 'express';
 import type { DetectedAgent, OAuthCallbackListener } from '@jini-ai/agent-runtime';
 import type { Bindings, Principal, ToolRegistration } from '@jini-ai/core';
 import type { AnyPack, MissingTokenIds } from '@jini-ai/core/composition';
-import type { ResolveRunInput, RunLifecycle } from '@jini-ai/daemon';
+import type { CreateTerminalSessionManagerOptions, ResolveRunInput, RunLifecycle } from '@jini-ai/daemon';
 import { installRouteRegistrationGuard, mountPackHttp, type AdapterContext } from '@jini-ai/http-kit';
 import type {  DelegatedToolExecuteRequest,  RunStartHandler,  WorkspaceRootResolver } from '@jini-ai/daemon/http';
 import { removeDaemonRegistryRecordIfCurrent, resolveDaemonRegistryPath, writeDaemonRegistryRecord } from '@jini-ai/sidecar';
@@ -170,6 +170,8 @@ export interface CreateLocalNodeDaemonConfig<
    * with `404`, never fabricating or guessing a path.
    */
   resolveWorkspaceRoot?: WorkspaceRootResolver;
+  /** Opt into PTYs with `() => loadRealSpawnPty({})` from `@jini-ai/daemon/terminal`. */
+  loadTerminalSpawnPty?: CreateTerminalSessionManagerOptions['loadSpawnPty'];
   /**
    * Optional product/capability route registrars. They run after the host's security middleware
    * and locked route packs, before caller packs and daemon-status routes.
@@ -290,6 +292,7 @@ function localFeatureOptions(
       ...(config.resolveWorkspaceRoot === undefined ? {} : { resolveWorkspaceRoot: config.resolveWorkspaceRoot }),
     },
     terminal: {
+      ...(config.loadTerminalSpawnPty === undefined ? {} : { loadSpawnPty: config.loadTerminalSpawnPty }),
       ...(config.resolveWorkspaceRoot === undefined ? {} : { resolveWorkspaceRoot: config.resolveWorkspaceRoot }),
     },
     ...(config.resolveDelegatedPrincipal === undefined

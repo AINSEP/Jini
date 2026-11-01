@@ -1,3 +1,4 @@
+import { loadOptionalPeer } from '@jini-ai/core/optional-peer';
 import { createRequire } from "node:module";
 
 import type { PasswordHasherPort } from "../core/ports.js";
@@ -49,7 +50,7 @@ const requirePeer = createRequire(import.meta.url);
 
 /** Resolve the optional native peer only when this adapter is used. */
 export function loadArgon2Binding(_required: Record<string, never>): Argon2BindingPort {
-  const native = requirePeer("argon2") as Argon2NativeBinding;
+  const native = loadOptionalPeer({ feature: 'Argon2 password hashing', dependency: 'argon2', load: () => requirePeer("argon2") as Argon2NativeBinding });
   return {
     argon2id: native.argon2id,
     hash: ({ password }, optional = {}) => native.hash(password, { ...DEFAULT_OPTIONS, type: native.argon2id, ...optional }),

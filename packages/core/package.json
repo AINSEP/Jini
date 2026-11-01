@@ -28,7 +28,8 @@
       "./settings": "universal",
       "./settings/express": "node",
       "./plugin-directory": "universal",
-      "./filesystem": "universal"
+      "./filesystem": "universal",
+      "./optional-peer": "universal"
     },
     "isolation": {
       "entries": {
@@ -75,6 +76,9 @@
           "@jini-ai/cms"
         ]
       }
+    },
+    "optionalPeers": {
+      "express": "opt-in: express settings routes — Express settings routes could not load express. Install express to enable this feature, or check its installed version."
     }
   },
   "type": "module",
@@ -161,6 +165,11 @@
       "types": "./dist/filesystem.d.ts",
       "import": "./dist/filesystem.js",
       "default": "./dist/filesystem.js"
+    },
+    "./optional-peer": {
+      "types": "./dist/optional-peer.d.ts",
+      "import": "./dist/optional-peer.js",
+      "default": "./dist/optional-peer.js"
     }
   },
   "files": [

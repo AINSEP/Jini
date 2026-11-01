@@ -208,13 +208,10 @@ describe('user-management optional admin integration layer exception', () => {
     }]);
   });
 
-  it('requires the admin peer to be optional', () => {
+  it('allows required admin peers within the same approved adapter boundary', () => {
     userManifest({ optional: false });
     write({ file: 'packages/user-management/src/admin/roles.ts', content: "import { X } from '@jini-ai/admin/core/module';" });
-    expect(checkPackageLayers({ repoRoot: root })).toEqual([
-      { rule: 'L1-layer-edge', file: 'packages/user-management/package.json', reason: 'user-management → @jini-ai/admin: L4 cannot depend on L5' },
-      { rule: 'L1-layer-edge', file: 'packages/user-management/src/admin/roles.ts', reason: 'user-management → @jini-ai/admin/core/module: L4 cannot depend on L5' },
-    ]);
+    expect(checkPackageLayers({ repoRoot: root })).toEqual([]);
   });
 
   it('still rejects a required dependency even alongside the optional peer', () => {

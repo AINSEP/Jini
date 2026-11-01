@@ -35,6 +35,12 @@
         "src/kernel/typegen.ts",
         "src/sqlite/checked-state.ts"
       ]
+    },
+    "optionalPeers": {
+      "better-sqlite3": "opt-in: sqlite storage — SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
+      "@electric-sql/pglite": "opt-in: embedded postgresql storage — Embedded PostgreSQL storage could not load @electric-sql/pglite. Install @electric-sql/pglite to enable this feature, or check its installed version and native binaries.",
+      "pg": "opt-in: postgresql storage — PostgreSQL storage could not load pg. Install pg to enable this feature, or check its installed version and native binaries.",
+      "@jini-ai/platform": "opt-in: platform-backed adapters; import @jini-ai/db/secrets-vault — Platform-backed adapters could not load @jini-ai/platform. Install @jini-ai/platform to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",
@@ -210,31 +216,14 @@
     "test:postgres": "vitest run --config vitest.postgres.config.ts"
   },
   "dependencies": {
-    "@jini-ai/core": "workspace:^"
+    "@jini-ai/core": "workspace:^",
+    "kysely": "^0.29.6"
   },
   "peerDependencies": {
-    "kysely": "^0.29.6",
     "better-sqlite3": "^13.0.0",
     "@electric-sql/pglite": "0.5.8",
     "pg": "^8.23.0",
     "@jini-ai/platform": "^0.6.10"
-  },
-  "peerDependenciesMeta": {
-    "better-sqlite3": {
-      "optional": true
-    },
-    "@electric-sql/pglite": {
-      "optional": true
-    },
-    "pg": {
-      "optional": true
-    },
-    "kysely": {
-      "optional": true
-    },
-    "@jini-ai/platform": {
-      "optional": true
-    }
   },
   "devDependencies": {
     "@electric-sql/pglite": "0.5.8",
@@ -246,5 +235,19 @@
     "pg": "8.23.0",
     "@jini-ai/core": "workspace:*",
     "@jini-ai/platform": "workspace:*"
+  },
+  "peerDependenciesMeta": {
+    "better-sqlite3": {
+      "optional": true
+    },
+    "@electric-sql/pglite": {
+      "optional": true
+    },
+    "pg": {
+      "optional": true
+    },
+    "@jini-ai/platform": {
+      "optional": true
+    }
   }
 }

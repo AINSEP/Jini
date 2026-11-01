@@ -19,6 +19,10 @@
       "./a2ui": "universal",
       "./skills/install": "node",
       "./skills/install/node": "node"
+    },
+    "optionalPeers": {
+      "@jini-ai/protocol": "opt-in: agent protocol adapters — Agent protocol adapters could not load @jini-ai/protocol. Install @jini-ai/protocol to enable this feature, or check its installed version and native binaries.",
+      "@jini-ai/core": "opt-in: core module integrations — Core module integrations could not load @jini-ai/core. Install @jini-ai/core to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",
@@ -87,18 +91,17 @@
   },
   "peerDependencies": {
     "@jini-ai/protocol": "^0.6.10",
-    "zod": "^3.25.76",
     "@jini-ai/core": "^0.6.10"
   },
   "peerDependenciesMeta": {
     "@jini-ai/protocol": {
       "optional": true
     },
-    "zod": {
-      "optional": true
-    },
     "@jini-ai/core": {
       "optional": true
     }
+  },
+  "dependencies": {
+    "zod": "^3.25.76"
   }
 }

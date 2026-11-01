@@ -69,7 +69,7 @@ consumer-adoption pass — see each package's own the archived provenance ledger
 | `@jini-ai/registry` | `better-sqlite3` | `peerDependencies` (optional) — `database-backend.ts` only needs the *type*, the caller owns/opens the real handle | Only pay the native-compile cost if you actually install `better-sqlite3` yourself to use `DatabaseRegistryBackend`; `StaticRegistryBackend` and friends need nothing. |
 | `@jini-ai/capability-providers` | `better-sqlite3` | `peerDependencies` (optional), and the code that needs it is behind the `./adapters/sqlite` subpath | Nothing on the root barrel references it, in code *or* in emitted `.d.ts`. Only pay the native-compile cost if you import `./adapters/sqlite` for `SqliteDbProvider`. |
 | `@jini-ai/integrations` (`./media-providers`) | `better-sqlite3` | Dynamically imported (`await import('better-sqlite3')`) inside `createSqliteMediaTaskStore` only | Importing anything else from `./media-providers` (e.g. `renderStub`) never touches the native binary at all; the cost is paid only if you actually call that one factory. |
-| `@jini-ai/daemon` | `node-pty` | `peerDependencies` (optional) + dynamically imported (`await import('node-pty')`) inside `loadRealSpawnPty` only | The rest of the package (agent execution, tool registry, etc.) boots fine with `node-pty` absent — only an actual terminal-session spawn fails, cleanly. Install `node-pty` yourself if you want terminals. **This also means every transitive consumer (`@jini-ai/http-kit`, `@jini-ai/server`) stops paying a native compile just to mount one JSON route.** |
+| `@jini-ai/daemon` | `node-pty` | Optional peer; native adapter at `./terminal` | The default entry uses an injected PTY port. Only hosts opting into `loadRealSpawnPty` from `@jini-ai/daemon/terminal` install the native addon. |
 
 Everything else in the workspace (`shiki` in `@jini-ai/ui`'s `./renderers` subpath, the various
 vendor SDKs in `@jini-ai/integrations`'s `./media-providers` dispatch providers) is pure JS — no
@@ -78,9 +78,10 @@ native compile step, no Electron ABI concern, regardless of how heavy the packag
 ### Optional peer dependencies — the convention
 
 Beyond the native addons above, several packages declare a heavy but *pure-JS* dependency as an
-optional peer rather than a hard `dependencies` entry. The rule: **if a dependency is only reachable
-through a non-root `exports` subpath, it is an optional peer.** Installing the package for its root
-barrel then costs nothing extra, and the subpath tells you exactly what to add if you want it.
+optional peer rather than a hard `dependencies` entry. A runtime optional peer belongs behind an
+explicitly classified opt-in subpath that the default `.` entry cannot reach. Importing that subpath
+opts into installing its peers; static imports there are allowed without changing synchronous APIs.
+Default-entry runtime libraries require regular dependencies.
 
 | Package | Optional peer | Needed only for |
 |---|---|---|
@@ -93,14 +94,49 @@ barrel then costs nothing extra, and the subpath tells you exactly what to add i
 | `@jini-ai/ui` | `@mcp-ui/client` | `./mcp-ui` (`McpUiHost`) |
 | `@jini-ai/chat` | `@radix-ui/react-checkbox`, `@radix-ui/react-label`, `@radix-ui/react-radio-group`, `@radix-ui/react-select`, `@radix-ui/react-slot`, `recharts`, `@mcp-ui/client` | `./react*` surface cards (reachable through `./react`; `./react/chat-pane` and `./react/embed` do not import these cards) |
 | `@jini-ai/registry` | `better-sqlite3` | `DatabaseRegistryBackend` |
-| `@jini-ai/daemon` | `node-pty` | Terminal sessions (`loadRealSpawnPty`) |
 
-`react` and `react-dom` are peers of every React package (`@jini-ai/ui`, whose `./renderers` subpath
-covers what was once planned as a separate `renderers-react` package, and `@jini-ai/chat`, whose
-`./react` subpath covers what was once planned as a separate `chat-react` package) — declared as
-`peerDependenciesMeta`-optional, never `dependencies`. A React library that declares React as a
-normal dependency can get a second copy installed under itself, which breaks hooks at runtime in
-ways that are hard to diagnose. The declared range is `^18.3.0 || ^19.0.0`.
+`react`, `react-dom`, `vue`, and `express` are always peers, never `dependencies`: a second React
+copy under a library breaks hooks. They are required peers only where a default `.` entry loads them
+(`@jini-ai/ui` → React; `@jini-ai/server` → Express; `@jini-ai/ui-kit` and `@jini-ai/daemon`, whose
+React/Express code the `ui`/`server` defaults reach). Elsewhere they are classified optional peers, so
+npm/pnpm never auto-install Express into a browser app or React/Vue into a server.
+
+Default-path production dependencies include `smol-toml` in daemon; `mammoth` and
+`unpdf` in CMS; `@jini-ai/integrations` and `@jini-ai/platform` in agent-runtime (`@github/copilot-sdk` stays an
+optional peer: it pulls a native FFI addon and only adds account model listing);
+and `@modelcontextprotocol/sdk`, `@jini-ai/platform` plus `@cfworker/json-schema` in MCP. Each
+package's manifest lists its complete required set. These are installed automatically.
+
+Every optional peer in a published package must declare its contract in the owning manifest:
+
+```json
+{
+  "peerDependencies": { "@e2b/code-interpreter": "^2.0.0" },
+  "peerDependenciesMeta": { "@e2b/code-interpreter": { "optional": true } },
+  "jini": {
+    "optionalPeers": {
+      "@e2b/code-interpreter": "opt-in: import @jini-ai/sandbox/e2b — E2B sandboxes need @e2b/code-interpreter. Install it before importing this subpath."
+    }
+  }
+}
+```
+
+The classification names the public import that opts in and explains its peer requirement.
+Static imports inside that subpath may report the native module loader's error when the peer is
+absent. Guarded deferred loaders retain their feature-specific messages and original causes.
+Type-only peers have no runtime load to guard. A classification or deferred-module annotation
+never exempts an optional load reachable from the default entry.
+
+The existing subpath guard rejects unclassified optional peers and default-entry reachability
+into their loads, including lazy CommonJS loads. Classification is required even when a package's
+composition cannot be inferred. Neutral driver and adapter-layer boundaries remain
+in force independently of installation requiredness.
+
+Native addon installation costs are therefore explicit. Hosts must stage required libraries and
+validate their actual packaged closure. Jini's `@jini-ai/devops/packaging/electron` owns that audit;
+it checks literal imports, dynamic imports, require/createRequire calls and require.resolve using
+Node's import/require conditions and rejects targets outside the stage. Its Node resolver needs
+`node --experimental-import-meta-resolve` so each importer supplies its own parent URL.
 
 ### ESM only
 
@@ -138,13 +174,9 @@ for a wholly type-only clause: with `verbatimModuleSyntax`, inline `type` specif
 alone can otherwise leave an empty runtime import in emitted JavaScript.
 
 A subpath may reach its domain and the package's shared core. Its runtime closure
-must not reach a sibling domain. A dependency used by a subset of distinct source
-closures must be an optional peer, with `peerDependenciesMeta[name].optional: true`,
-and remain in `devDependencies` for workspace development. A mandatory peer or an
-`optionalDependencies` entry still attempts installation and cannot substitute for
-an optional peer. A dependency required by every closure through always-loaded
-core may remain regular. Compatibility aggregate barrels remain available; using
-one does not exempt its independent subpaths from either rule.
+must not reach a sibling domain. Installation requiredness follows the feature contract above,
+never the fraction of subpaths using a dependency. Compatibility aggregate barrels do not exempt
+independent subpaths from runtime domain isolation.
 
 The optional `jini.isolation` map records source ownership when an export's first
 segment alone does not express it:

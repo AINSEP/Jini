@@ -10,12 +10,10 @@
  * before this task) — this module does **not** reimplement that. It adds
  * exactly the three things that engine deliberately left to a caller:
  *
- * 1. **A real `node-pty`-backed `PtySpawn`.** `@jini-ai/platform` intentionally
- *    does not depend on `node-pty` (a native compiled addon); `@jini-ai/daemon`
- *    does (see this package's `package.json` and `archived provenance ledger`'s dated
- *    section for why that dependency now lives here, not in `@jini-ai/http-kit` or
- *    `@jini-ai/platform`). {@link loadRealSpawnPty} is the real, dynamically
- *    imported default the reference session manager below uses.
+ * 1. **A host-injected `PtySpawn` or `TerminalService`.** The native adapter
+ *    lives exclusively at `@jini-ai/daemon/terminal`; this default-entry
+ *    session manager never imports it. The host opts in by supplying
+ *    `loadSpawnPty: () => loadRealSpawnPty({})` from that subpath.
  *
  * 2. **Session-token gating.** The proposal's blocker was that a
  *    *session-scoped* dangerous capability (once a shell is spawned, every
@@ -47,16 +45,10 @@
  *    for the same session id sees `killed: true` and is rejected — it never
  *    depends on the real process having actually exited yet.
  */
-import { createRequire } from 'node:module';
-import type { IPty } from 'node-pty';
 import type { Principal, ToolPolicy, ToolRegistration } from '@jini-ai/core';
 import {
   createTerminalService,
-  ensureSpawnHelperExecutable,
-  spawnHelperCandidatePaths,
-  type PtyProcess,
   type PtySpawn,
-  type PtySpawnOptions,
   type TerminalService,
   type TerminalSession as PlatformTerminalSession,
   type TerminalSseSink,
@@ -79,49 +71,6 @@ export const TERMINAL_CREATE_TOOL_ID = 'terminal.create';
 export const denyAllTerminalCreatePolicy: ToolPolicy = {
   authorize: () => 'deny',
 };
-
-const daemonRequire = createRequire(import.meta.url);
-
-/** Adapts a real `node-pty` `IPty` to `@jini-ai/platform`'s narrower `PtyProcess` port — explicit per-member mapping rather than relying on structural assignability, matching this package's established "explicit adapter, no implicit coercion" convention (e.g. `agent-executor.ts`'s `toStringEnvRecord`). */
-function toPtyProcess(pty: IPty): PtyProcess {
-  return {
-    onData: (cb) => {
-      pty.onData(cb);
-    },
-    onExit: (cb) => {
-      pty.onExit(cb);
-    },
-    write: (input) => pty.write(input),
-    resize: (cols, rows) => pty.resize(cols, rows),
-    kill: (signal) => pty.kill(signal),
-  };
-}
-
-/**
- * The real, `node-pty`-backed {@link PtySpawn}. Dynamically imports
- * `node-pty` (mirroring OD's origin `await import('node-pty')`, not a
- * static top-level import) so a host process whose platform/environment
- * lacks a usable `node-pty` addon can still boot — only an actual
- * `terminal.create` call fails, cleanly, rather than crashing at
- * module-eval time. Before the first spawn, repairs `node-pty`'s bundled
- * `spawn-helper` binary's executable bit (pnpm unpacks it non-executable —
- * see `@jini-ai/platform`'s `terminal.ts` module doc for the full story) via
- * that package's own `spawnHelperCandidatePaths`/`ensureSpawnHelperExecutable`,
- * but with the resolver anchored at **this** module
- * (`createRequire(import.meta.url)` here, not `@jini-ai/platform`'s own
- * default): `@jini-ai/platform` deliberately does not depend on `node-pty`, so
- * its default `require.resolve('node-pty')` would not find the copy this
- * package (`@jini-ai/daemon`) actually declares — this is exactly the
- * resolver injection seam `spawnHelperCandidatePaths` was built for.
- */
-export async function loadRealSpawnPty(_requiredArgs: Record<string, never>): Promise<PtySpawn> {
-  ensureSpawnHelperExecutable(
-    spawnHelperCandidatePaths({ resolve: (specifier) => daemonRequire.resolve(specifier) }),
-  );
-  const nodePty = await import('node-pty');
-  return (shell: string, args: string[], options: PtySpawnOptions) =>
-    toPtyProcess(nodePty.spawn(shell, args, options));
-}
 
 /** The public, principal-neutral session snapshot this module exposes — deliberately its own shape rather than re-exporting `@jini-ai/platform`'s `TerminalSession` verbatim, since that type carries an OD-shaped per-session grouping key (see `@jini-ai/platform`'s `terminal.ts`) this module replaces entirely with the caller-supplied `resourceRef` (see {@link CreateTerminalSessionOptions}), tracked only in this module's own metadata and never forwarded to `@jini-ai/platform` at all — this package's own identifier-neutrality lint (`__tests__/identifier-lint.test.ts`) forbids that origin field's exact name from appearing anywhere in this package's source. */
 export interface TerminalSessionInfo {
@@ -203,9 +152,9 @@ export interface TerminalSessionManager {
 }
 
 export interface CreateTerminalSessionManagerOptions {
-  /** Injected for tests (a fake session manager without a real pty) or an alternate host wiring. @default a fresh `@jini-ai/platform` `TerminalService` backed by {@link loadRealSpawnPty}. */
+  /** Host-owned session service. Otherwise a fresh platform service uses the injected `loadSpawnPty`. */
   readonly terminalService?: TerminalService;
-  /** @default {@link loadRealSpawnPty} */
+  /** Host-owned PTY loader, e.g. `() => loadRealSpawnPty({})` from `@jini-ai/daemon/terminal`. Required for creation unless `terminalService` is supplied. */
   readonly loadSpawnPty?: () => Promise<PtySpawn>;
   readonly maxEvents?: number;
   readonly maxBufferBytes?: number;
@@ -253,13 +202,17 @@ async function runExclusive<T>(locks: Map<string, Promise<unknown>>, id: string,
  * around a `@jini-ai/platform` `TerminalService` adding session ownership,
  * the kill/write/resize lock, and (via {@link createTerminalToolRegistrations})
  * `ToolExecutor` gating for creation. See module doc for the full design.
+ * Without a host-owned service or loader, boot is inert and `create()` rejects
+ * with injection guidance. Wrapper setup is O(1); session work stays in the platform service.
  */
 export function createTerminalSessionManager(_requiredArgs: Record<string, never>, options: Pick<CreateTerminalSessionManagerOptions, "terminalService" | "loadSpawnPty" | "maxEvents" | "maxBufferBytes" | "exitTailBytes" | "flushIntervalMs" | "flushThresholdBytes" | "ttlMs" | "shutdownGraceMs"> = {}
 ): TerminalSessionManager {
   const terminalService =
     options.terminalService ??
     createTerminalService({
-      loadSpawnPty: options.loadSpawnPty ?? (() => loadRealSpawnPty({})),
+      loadSpawnPty: options.loadSpawnPty ?? (() => {
+        throw new Error('Interactive terminals require a host-supplied terminalService or loadSpawnPty. Import loadRealSpawnPty from @jini-ai/daemon/terminal to enable node-pty.');
+      }),
       ...definedOnly({
         maxEvents: options.maxEvents,
         maxBufferBytes: options.maxBufferBytes,

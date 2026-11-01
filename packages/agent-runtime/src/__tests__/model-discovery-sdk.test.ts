@@ -74,6 +74,11 @@ describe('official metadata SDK category', () => {
     }) });
     expect(built).toEqual([{ cliPath: '/chosen/cli', cwd: '/project', env: { HOME: '/fake' }, useStdio: true, autoRestart: false }]);
   });
+  it('names the missing optional Copilot SDK and keeps the loader error as cause', async () => {
+    const cause = new Error('Cannot find package @github/copilot-sdk');
+    const failure = await createCopilotMetadataClient(context, { importSdk: async () => { throw cause; } }).catch((error: unknown) => error);
+    expect(failure).toMatchObject({ message: expect.stringContaining('could not load @github/copilot-sdk'), cause });
+  });
   it('the default importer loads the installed SDK and builds an unstarted client', async () => {
     const client = await createCopilotMetadataClient(context);
     expect(typeof client.start).toBe('function');

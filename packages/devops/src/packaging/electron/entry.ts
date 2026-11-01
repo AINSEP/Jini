@@ -6,3 +6,6 @@ export * from './imports.js';
 export * from './stability.js';
 export * from './node.js';
 export * from './asar-adapter.js';
+export * from './optional-peers.js';
+export * from './staged-closure.js';
+export * from './staged-closure-node.js';

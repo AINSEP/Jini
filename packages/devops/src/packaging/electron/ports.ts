@@ -20,7 +20,13 @@ export interface ArchiveReaderPort {
   read(required: { archivePath: string; entryPath: string }): Uint8Array;
 }
 /** Must parse static imports, re-exports and literal dynamic imports using an AST, ignoring comments. */
-export interface ImportReaderPort { imports(required: { file: string; source: string }): readonly string[] }
+export interface ImportReaderPort {
+  imports(required: { file: string; source: string }): readonly string[];
+  references?(required: { file: string; source: string }): readonly { specifier: string; kind: 'import' | 'require'; line: number; deferred: boolean }[];
+}
+export interface RuntimeResolverPort {
+  resolve(required: { fromFile: string; specifier: string; kind: 'import' | 'require' }): string;
+}
 export interface ImportAliasPort { resolve(required: { specifier: string; fromFile: string; distDir: string }): string | undefined }
 /** Bind to scripts/lib/pack-jini-packages.ts buildAndPackClosure in the host, not inside a package. */
 export interface WorkspacePackagePackerPort {

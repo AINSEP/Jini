@@ -78,32 +78,32 @@ interface LayerEdge {
   byName: Map<string, SourcePackage>;
 }
 
-function isOptionalPeer({ pkg, target, sourcePath, declaredPeer }: LayerEdge): boolean {
-  // Optional metadata must not exempt a required dependency in the manifest.
+function isIntegrationPeer({ pkg, target, sourcePath, declaredPeer }: LayerEdge): boolean {
+  // Peer composition has the same boundary whether installation is required or opt-in.
+  // A direct dependency still cannot claim the narrower integration-peer exception.
   return declaredPeer || (sourcePath !== undefined
-    && pkg.manifest.peerDependencies?.[`@jini-ai/${target}`] !== undefined
-    && pkg.manifest.peerDependenciesMeta?.[`@jini-ai/${target}`]?.optional === true);
+    && pkg.manifest.peerDependencies?.[`@jini-ai/${target}`] !== undefined);
 }
 
-function hasReactPeer({ owner, target }: LayerEdge, optionalPeer: boolean): boolean {
-  return (owner === 'user-management' && ['ui', 'admin', 'agentic'].includes(target) && optionalPeer)
+function hasReactPeer({ owner, target }: LayerEdge, integrationPeer: boolean): boolean {
+  return (owner === 'user-management' && ['ui', 'admin', 'agentic'].includes(target) && integrationPeer)
     || (owner === 'chat' && target === 'ui');
 }
 
 // React integrations compose UI peers in their React subtree. Chat's declared UI
 // dependency covers its React components/hooks/helpers, including the embed adapter,
 // never its framework-free code.
-function isReactIntegration(edge: LayerEdge, optionalPeer: boolean): boolean {
+function isReactIntegration(edge: LayerEdge, integrationPeer: boolean): boolean {
   const { owner, sourcePath } = edge;
-  return hasReactPeer(edge, optionalPeer)
+  return hasReactPeer(edge, integrationPeer)
     && (sourcePath === undefined || /^src\/react\//.test(sourcePath)
       || (owner === 'chat' && /^src\/embed-widget\/react\//.test(sourcePath)));
 }
 
 // User management owns an optional admin integration; only its admin subtree may
 // compose published admin entries, keeping server/core and private imports isolated.
-function isAdminIntegration({ owner, target, sourcePath, spec, byName }: LayerEdge, optionalPeer: boolean): boolean {
-  return owner === 'user-management' && target === 'admin' && optionalPeer
+function isAdminIntegration({ owner, target, sourcePath, spec, byName }: LayerEdge, integrationPeer: boolean): boolean {
+  return owner === 'user-management' && target === 'admin' && integrationPeer
     && sourcePath !== undefined && /^src\/admin\//.test(sourcePath)
     && isPublicEntry({ spec, pkg: byName.get('@jini-ai/admin') });
 }
@@ -115,9 +115,9 @@ function isReviewedLeaf({ owner, target, sourcePath, spec }: LayerEdge): boolean
 }
 
 function isAllowedLayerEdge(edge: LayerEdge, ownerLayer: number, targetLayer: number): boolean {
-  const optionalPeer = isOptionalPeer(edge);
+  const integrationPeer = isIntegrationPeer(edge);
   return targetLayer < ownerLayer || sameLayerEdges.has(`${edge.owner}→${edge.target}`)
-    || isReactIntegration(edge, optionalPeer) || isAdminIntegration(edge, optionalPeer) || isReviewedLeaf(edge);
+    || isReactIntegration(edge, integrationPeer) || isAdminIntegration(edge, integrationPeer) || isReviewedLeaf(edge);
 }
 
 function isMcpOauthEdge(owner: string, target: string): boolean {
@@ -190,7 +190,7 @@ export function checkPackageLayers(
     }
     for (const name of Object.keys(pkg.manifest.dependencies ?? {})) check(pkg, name, manifestFile);
     for (const name of Object.keys(pkg.manifest.peerDependencies ?? {})) check(pkg, name, manifestFile,
-      undefined, pkg.manifest.peerDependenciesMeta?.[name]?.optional === true);
+      undefined, true);
 
   }
   function checkSources(pkg: SourcePackage): void {

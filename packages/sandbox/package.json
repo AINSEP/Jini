@@ -19,7 +19,10 @@
     "runtime": "node",
     "neutralEntries": [
       "src/core"
-    ]
+    ],
+    "optionalPeers": {
+      "@e2b/code-interpreter": "opt-in: e2b sandboxes; import @jini-ai/sandbox/e2b — E2B sandboxes could not load @e2b/code-interpreter. Install @e2b/code-interpreter to enable this feature, or check its installed version and native binaries."
+    }
   },
   "type": "module",
   "sideEffects": false,
@@ -92,15 +95,15 @@
   "peerDependencies": {
     "@e2b/code-interpreter": "^2.0.0"
   },
-  "peerDependenciesMeta": {
-    "@e2b/code-interpreter": {
-      "optional": true
-    }
-  },
   "devDependencies": {
     "@e2b/code-interpreter": "^2.0.0",
     "@vitest/coverage-v8": "^2.1.9",
     "typescript": "^5.9.2",
     "vitest": "^3.2.4"
+  },
+  "peerDependenciesMeta": {
+    "@e2b/code-interpreter": {
+      "optional": true
+    }
   }
 }

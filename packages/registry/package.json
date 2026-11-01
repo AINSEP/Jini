@@ -24,6 +24,10 @@
         "./tool-catalog-builder": "tool-catalog",
         "./tool-catalog-builder/sqlite": "tool-catalog"
       }
+    },
+    "optionalPeers": {
+      "better-sqlite3": "opt-in: sqlite storage — SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
+      "@jini-ai/db": "opt-in: database-backed adapters — Database-backed adapters could not load @jini-ai/db. Install @jini-ai/db to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",
@@ -81,23 +85,12 @@
   },
   "dependencies": {
     "@jini-ai/protocol": "workspace:^",
-    "@jini-ai/core": "workspace:^"
+    "@jini-ai/core": "workspace:^",
+    "@jini-ai/platform": "workspace:^"
   },
   "peerDependencies": {
     "better-sqlite3": "^13.0.0",
-    "@jini-ai/db": "^0.6.10",
-    "@jini-ai/platform": "^0.6.10"
-  },
-  "peerDependenciesMeta": {
-    "better-sqlite3": {
-      "optional": true
-    },
-    "@jini-ai/db": {
-      "optional": true
-    },
-    "@jini-ai/platform": {
-      "optional": true
-    }
+    "@jini-ai/db": "^0.6.10"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.11",
@@ -106,5 +99,13 @@
     "@jini-ai/platform": "workspace:^",
     "@jini-ai/protocol": "workspace:^",
     "@jini-ai/core": "workspace:^"
+  },
+  "peerDependenciesMeta": {
+    "better-sqlite3": {
+      "optional": true
+    },
+    "@jini-ai/db": {
+      "optional": true
+    }
   }
 }

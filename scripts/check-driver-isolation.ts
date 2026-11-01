@@ -16,9 +16,9 @@
  *     resolves outside it is a violation. This is what makes transitive reachability impossible
  *     by construction rather than by a graph walk: if nothing inside can reach outside, nothing
  *     outside can be reached indirectly either.
- *  2. **No optional peer dependency may be imported from it.** The forbidden list is not
- *     hardcoded — it is derived from the package's own `peerDependenciesMeta` optional entries.
- *     Marking a new peer optional (adding `pg` later) automatically extends this check with no
+ *  2. **No backend peer dependency may be imported from it.** The forbidden list is not
+ *     hardcoded — it is derived from the package's peer declarations, regardless of optionality.
+ *     Declaring a new peer (adding `pg` later) automatically extends this check with no
  *     edit here, which is the property that keeps it from rotting.
  *
  * Opt-in per package via `jini.neutralEntries` in package.json — a list of package-relative
@@ -47,7 +47,7 @@ interface NeutralTarget {
   readonly neutralRel: string;
   /** Absolute path of the neutral directory. */
   readonly neutralDir: string;
-  /** Bare specifiers this package declares as optional peers — the derived driver list. */
+  /** Bare specifiers this package declares as peers — the derived driver list. */
   readonly optionalPeers: readonly string[];
 }
 
@@ -113,7 +113,10 @@ function collectTargets(packagesDir: string): NeutralTarget[] {
     const manifest = readJson(join(packageDir, 'package.json'));
     if (!manifest) continue;
 
-    const optionalPeers = readOptionalPeers(manifest);
+    // Installation requiredness must never disable a neutral entry's driver boundary.
+    const peers = manifest['peerDependencies'];
+    const declared = peers && typeof peers === 'object' ? Object.keys(peers) : [];
+    const optionalPeers = [...new Set([...declared, ...readOptionalPeers(manifest)])];
     for (const neutralRel of readNeutralEntries(manifest)) {
       targets.push({
         packageDirName,
@@ -178,7 +181,7 @@ function evaluateImport(
   return {
     rule: 'R12-driver-isolation',
     file,
-    reason: `"${target.neutralRel}" imports "${specifier}", but "${pkg}" is an optional peerDependency of @jini-ai/${target.packageDirName} — importing it from the neutral entry point makes it effectively required for every consumer, including ones that installed a different backend. Depend on a port declared in "${target.neutralRel}" and implement it in the driver directory instead.`,
+    reason: `"${target.neutralRel}" imports "${specifier}", but "${pkg}" is a backend peerDependency of @jini-ai/${target.packageDirName} — importing it from the neutral entry point makes it effectively required for every consumer, including ones that installed a different backend. Depend on a port declared in "${target.neutralRel}" and implement it in the driver directory instead.`,
   };
 }
 

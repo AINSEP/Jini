@@ -17,6 +17,9 @@
       "./tools": "universal",
       "./testkit": "universal",
       "./contribution": "node"
+    },
+    "optionalPeers": {
+      "@jini-ai/agent-plugins": "opt-in: agent plugin integrations; import @jini-ai/search/contribution — Agent plugin integrations could not load @jini-ai/agent-plugins. Install @jini-ai/agent-plugins to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",

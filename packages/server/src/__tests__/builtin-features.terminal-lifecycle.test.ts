@@ -18,8 +18,7 @@ vi.mock('@jini-ai/daemon', async importOriginal => {
   return {
     ...actual,
     createTerminalSessionManager: (...args: Parameters<typeof actual.createTerminalSessionManager>) => {
-      const manager = actual.createTerminalSessionManager(args[0], { ...args[1], shutdownGraceMs: 0,
-        loadSpawnPty: async () => () => { child.running = true; return pty; } });
+      const manager = actual.createTerminalSessionManager(args[0], { ...args[1], shutdownGraceMs: 0 });
       managers.push(manager);
       return manager;
     },
@@ -37,6 +36,7 @@ it('P9: closing the kernel terminates PTYs owned by the terminal feature', async
         webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' },
       security: { mode: 'host' }, storage: { kind: 'memory' }, profile: 'agent-core-v1',
       capabilities: { 'host:exec': true }, features: { terminal: true },
+      featureOptions: { terminal: { loadSpawnPty: async () => () => { child.running = true; return pty; } } },
     });
     expect(managers).toHaveLength(1);
     const manager = managers[0]!;

@@ -1,3 +1,4 @@
+import { loadOptionalPeer } from '@jini-ai/core/optional-peer';
 import { sniffContentType } from "./content-type-sniffer.js";
 import { MediaValidationError } from "./types.js";
 
@@ -19,7 +20,7 @@ function hasUnsafeCss(value: string): boolean {
 
 async function createRuntime() {
   // Load the DOM only for SVG; ordinary image uploads keep their existing lightweight path.
-  const [{ JSDOM }, { default: createDOMPurify }] = await Promise.all([import("jsdom"), import("dompurify")]);
+  const [{ JSDOM }, { default: createDOMPurify }] = await Promise.all([loadOptionalPeer({ feature: 'Server-side HTML and SVG processing', dependency: 'jsdom', load: () => import("jsdom") }), loadOptionalPeer({ feature: 'SVG sanitization', dependency: 'dompurify', load: () => import("dompurify") })]);
   const window = new JSDOM("").window;
   const purifier = createDOMPurify(window);
   purifier.addHook("uponSanitizeElement", (node) => {

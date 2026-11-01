@@ -18,7 +18,10 @@
       "./verified-origin": "universal",
       "./observability": "node"
     },
-    "runtime": "node"
+    "runtime": "node",
+    "optionalPeers": {
+      "express": "opt-in: express middleware — Express middleware could not load express. Install express to enable this feature, or check its installed version."
+    }
   },
   "type": "module",
   "sideEffects": false,
@@ -83,16 +86,13 @@
   },
   "dependencies": {
     "@jini-ai/protocol": "workspace:^",
-    "@jini-ai/core": "workspace:^"
+    "@jini-ai/core": "workspace:^",
+    "@jini-ai/platform": "workspace:^"
   },
   "peerDependencies": {
-    "@jini-ai/platform": "^0.6.10",
     "express": "^4.21.0 || ^5.0.0"
   },
   "peerDependenciesMeta": {
-    "@jini-ai/platform": {
-      "optional": true
-    },
     "express": {
       "optional": true
     }

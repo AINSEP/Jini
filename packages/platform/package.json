@@ -55,6 +55,13 @@
         "src/fetch-with-timeout.ts",
         "src/http/guarded/errors.ts"
       ]
+    },
+    "optionalPeers": {
+      "hast-util-from-parse5": "opt-in: html to markdown conversion; import @jini-ai/platform/web — HTML to Markdown conversion could not load hast-util-from-parse5. Install hast-util-from-parse5 to enable this feature, or check its installed version and native binaries.",
+      "hast-util-to-mdast": "opt-in: html to markdown conversion; import @jini-ai/platform/web — HTML to Markdown conversion could not load hast-util-to-mdast. Install hast-util-to-mdast to enable this feature, or check its installed version and native binaries.",
+      "mdast-util-to-markdown": "opt-in: html to markdown conversion; import @jini-ai/platform/web — HTML to Markdown conversion could not load mdast-util-to-markdown. Install mdast-util-to-markdown to enable this feature, or check its installed version and native binaries.",
+      "mdast-util-gfm-table": "opt-in: markdown table conversion; import @jini-ai/platform/web — Markdown table conversion could not load mdast-util-gfm-table. Install mdast-util-gfm-table to enable this feature, or check its installed version and native binaries.",
+      "parse5": "opt-in: html parsing; import @jini-ai/platform/web — HTML parsing could not load parse5. Install parse5 to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",
@@ -206,7 +213,8 @@
     "!dist/**/*.map"
   ],
   "dependencies": {
-    "@jini-ai/core": "^0.6.13"
+    "@jini-ai/core": "^0.6.13",
+    "undici": "^7.25.0"
   },
   "publishConfig": {
     "access": "public",
@@ -230,7 +238,6 @@
     "fast-check": "4.3.0"
   },
   "peerDependencies": {
-    "undici": "^7.25.0",
     "hast-util-from-parse5": "8.0.3",
     "hast-util-to-mdast": "10.1.2",
     "mdast-util-to-markdown": "2.1.2",
@@ -238,9 +245,6 @@
     "parse5": "7.3.0"
   },
   "peerDependenciesMeta": {
-    "undici": {
-      "optional": true
-    },
     "hast-util-from-parse5": {
       "optional": true
     },
