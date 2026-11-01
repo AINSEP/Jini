@@ -1,9 +1,10 @@
-/** Test-only P-256/SHA-256 certificates, valid for 100 years from 2026-10-31; trusted nowhere by default.
- * leaf/other/wronghost share a CA; self is a self-signed non-CA leaf. Keys are disposable fixtures.
- * Generated once with OpenSSL req/x509 (-sha256) and SAN, serverAuth, CA:FALSE extensions.
- * No external certificate generator is needed when running these tests, including on Windows.
+/** Public P-256 certificate templates retain the non-CA/SAN/issuer cases used by the TLS tests.
+ * Keys and signatures are regenerated per process with Node crypto: no committed private material,
+ * OpenSSL executable, or external certificate generator is needed, including on Windows.
  */
-export const ROOT_CERT = `-----BEGIN CERTIFICATE-----
+import { generateKeyPairSync, sign, X509Certificate, type KeyObject } from 'node:crypto';
+
+const ROOT_TEMPLATE = `-----BEGIN CERTIFICATE-----
 MIIBVzCB/qADAgECAgkAyxkTLNq3PWUwCgYIKoZIzj0EAwIwHjEcMBoGA1UEAwwT
 TG9jYWwgcHJvYmUgdGVzdCBDQTAgFw0yNjEwMzEyMzAwNTRaGA8yMTI2MTAwNzIz
 MDA1NFowHjEcMBoGA1UEAwwTTG9jYWwgcHJvYmUgdGVzdCBDQTBZMBMGByqGSM49
@@ -13,7 +14,7 @@ MAMBAf8wDgYDVR0PAQH/BAQDAgEGMAoGCCqGSM49BAMCA0gAMEUCID11433NXZzf
 tudNksWZBQDTymWunASZyjo/+4fubz8OAiEAj1EX0nmIhgQ18SJK/Yj5sBxb+Tu8
 mYvdxMz/qlWKqr0=
 -----END CERTIFICATE-----`;
-export const LEAF_CERT = `-----BEGIN CERTIFICATE-----
+const LEAF_TEMPLATE = `-----BEGIN CERTIFICATE-----
 MIIBbzCCARSgAwIBAgIBATAKBggqhkjOPQQDAjAeMRwwGgYDVQQDDBNMb2NhbCBw
 cm9iZSB0ZXN0IENBMCAXDTI2MTAzMTIzMDA1NFoYDzIxMjYxMDA3MjMwMDU0WjAU
 MRIwEAYDVQQDDAlsb2NhbGhvc3QwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAAR6
@@ -23,12 +24,7 @@ gDATBgNVHSUEDDAKBggrBgEFBQcDATAUBgNVHREEDTALgglsb2NhbGhvc3QwCgYI
 KoZIzj0EAwIDSQAwRgIhAKb75Px1a2N4aMT2vJ2kxsQKBe9JffcSd6KbC045Usj8
 AiEAnTJ8XtYSw6agfHaikH4U4tEW1evkp5DJ2CNmItKBqiM=
 -----END CERTIFICATE-----`;
-export const LEAF_KEY = `-----BEGIN EC PRIVATE KEY-----
-MHcCAQEEIEg1R/f56Xq7llJGe/e97Fx+AZ8fAQlB7pf4qNIM3DrWoAoGCCqGSM49
-AwEHoUQDQgAEen3G3ma0u93a7dLjLfUQxep2WwWGiC3p6CboPblCxy8pn/WIB5NP
-ByJdXXj0jIDqQa3ZraIkCcrshtd9ENmrcQ==
------END EC PRIVATE KEY-----`;
-export const OTHER_CERT = `-----BEGIN CERTIFICATE-----
+const OTHER_TEMPLATE = `-----BEGIN CERTIFICATE-----
 MIIBbzCCARSgAwIBAgIBAjAKBggqhkjOPQQDAjAeMRwwGgYDVQQDDBNMb2NhbCBw
 cm9iZSB0ZXN0IENBMCAXDTI2MTAzMTIzMDA1NFoYDzIxMjYxMDA3MjMwMDU0WjAU
 MRIwEAYDVQQDDAlsb2NhbGhvc3QwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAAS7
@@ -38,12 +34,7 @@ gDATBgNVHSUEDDAKBggrBgEFBQcDATAUBgNVHREEDTALgglsb2NhbGhvc3QwCgYI
 KoZIzj0EAwIDSQAwRgIhAO4asBl662qwKkcKANgmRWTcPMvuLIShhAgof1gDx0HX
 AiEAzp3x7mjqoh4inzSM2tCTYLdIqE34HEJEd3iwa98lJiY=
 -----END CERTIFICATE-----`;
-export const OTHER_KEY = `-----BEGIN EC PRIVATE KEY-----
-MHcCAQEEIEJuO9ZNlRz5dvrb2FDORi32PWOVBtB/m6TZNl9KF+FhoAoGCCqGSM49
-AwEHoUQDQgAEu8u9nUF1nDWPqpJij/VA0z9VftxDZ7COH7MQNr87jaoOVH9IJG6x
-HyCM6P+27Fi/ClHpJobTGF6/wAvdh7RV6A==
------END EC PRIVATE KEY-----`;
-export const WRONGHOST_CERT = `-----BEGIN CERTIFICATE-----
+const WRONGHOST_TEMPLATE = `-----BEGIN CERTIFICATE-----
 MIIBdTCCARygAwIBAgIBAzAKBggqhkjOPQQDAjAeMRwwGgYDVQQDDBNMb2NhbCBw
 cm9iZSB0ZXN0IENBMCAXDTI2MTAzMTIzMDA1NFoYDzIxMjYxMDA3MjMwMDU0WjAY
 MRYwFAYDVQQDDA13cm9uZy5leGFtcGxlMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcD
@@ -53,12 +44,7 @@ BAMCB4AwEwYDVR0lBAwwCgYIKwYBBQUHAwEwGAYDVR0RBBEwD4INd3JvbmcuZXhh
 bXBsZTAKBggqhkjOPQQDAgNHADBEAiAgfBqTMJGNmQBBNjDhaiwcPiJEYH/2Wgt9
 2KTCQvRmNwIgOH0INY8Z3x+aeqeK9DprCdL+XDQpdu5H5JY5EJN4vcs=
 -----END CERTIFICATE-----`;
-export const WRONGHOST_KEY = `-----BEGIN EC PRIVATE KEY-----
-MHcCAQEEIJIHGSqpfABrJSBrPGfyVWCfboRhNZmTUmgDr81ry5ywoAoGCCqGSM49
-AwEHoUQDQgAEDqghNaPIffplj7KdVuwV/lk2p2tDsgaT05TZ9MlB0dkuM2C9wXy8
-nr5lxO1NvFy0KX42LQ86qn/RTPe1nCl39Q==
------END EC PRIVATE KEY-----`;
-export const SELF_CERT = `-----BEGIN CERTIFICATE-----
+const SELF_TEMPLATE = `-----BEGIN CERTIFICATE-----
 MIIBZDCCAQqgAwIBAgIBBDAKBggqhkjOPQQDAjAUMRIwEAYDVQQDDAlsb2NhbGhv
 c3QwIBcNMjYxMDMxMjMwMDU0WhgPMjEyNjEwMDcyMzAwNTRaMBQxEjAQBgNVBAMM
 CWxvY2FsaG9zdDBZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABNH7V7wvSAMJYMzq
@@ -68,8 +54,44 @@ MAoGCCsGAQUFBwMBMBQGA1UdEQQNMAuCCWxvY2FsaG9zdDAKBggqhkjOPQQDAgNI
 ADBFAiADSiAicpJBRvNdrss97qXAxAVCGbaDGLGEnULpC/a87gIhAKsOg0TEpSlr
 bQUHwHAxZPOXrgyhDu+TJVawgTUmpEkG
 -----END CERTIFICATE-----`;
-export const SELF_KEY = `-----BEGIN EC PRIVATE KEY-----
-MHcCAQEEIFvicUiSBqQNWa1gf05c25c43ezX1GbwGPgrsOvs6cW4oAoGCCqGSM49
-AwEHoUQDQgAE0ftXvC9IAwlgzOp1az4F4imh2NTXsae76pvJVy6UcVVWPwxzWFhT
-WxrkG4H3FEAEQvvT66kgtCFNTZVnTl6f8g==
------END EC PRIVATE KEY-----`;
+
+/** Read one trusted fixture's DER value bounds; this is not an untrusted-certificate parser. */
+function valueBounds(bytes: Buffer, offset: number): { start: number; end: number } {
+  const first = bytes[offset + 1]!;
+  const width = first < 128 ? 0 : first & 0x7f;
+  const length = width === 0 ? first : bytes.readUIntBE(offset + 2, width);
+  const start = offset + 2 + width;
+  return { start, end: start + length };
+}
+
+/** Re-encode the envelope/bit-string length after an ECDSA signature changes size. */
+function der(tag: number, content: Buffer): Buffer {
+  const length = content.length;
+  const size = length < 128 ? [length] : length < 256 ? [0x81, length] : [0x82, length >> 8, length & 0xff];
+  return Buffer.concat([Buffer.from([tag, ...size]), content]);
+}
+
+/** Replace only a template's fixed-size P-256 public key, then sign its unchanged X.509 claims.
+ * O(certificate bytes); ephemeral private keys exist only in the test process.
+ */
+function rekeyCertificate({ template }: { template: string }, { issuerKey }: { issuerKey?: KeyObject } = {}) {
+  const original = new X509Certificate(template);
+  const pair = generateKeyPairSync('ec', { namedCurve: 'prime256v1' });
+  const raw = original.raw;
+  const envelope = valueBounds(raw, 0);
+  const tbs = valueBounds(raw, envelope.start);
+  const body = Buffer.from(raw.subarray(envelope.start, tbs.end));
+  const oldPublicKey = original.publicKey.export({ format: 'der', type: 'spki' });
+  pair.publicKey.export({ format: 'der', type: 'spki' }).copy(body, body.indexOf(oldPublicKey));
+  const algorithm = raw.subarray(tbs.end, valueBounds(raw, tbs.end).end);
+  const signature = sign('sha256', body, issuerKey ?? pair.privateKey);
+  const cert = new X509Certificate(der(0x30, Buffer.concat([body, algorithm, der(0x03, Buffer.concat([Buffer.of(0), signature]))])));
+  return { cert: cert.toString(), key: pair.privateKey.export({ format: 'pem', type: 'pkcs8' }).toString(), privateKey: pair.privateKey };
+}
+
+const root = rekeyCertificate({ template: ROOT_TEMPLATE });
+export const ROOT_CERT = root.cert;
+export const { cert: LEAF_CERT, key: LEAF_KEY } = rekeyCertificate({ template: LEAF_TEMPLATE }, { issuerKey: root.privateKey });
+export const { cert: OTHER_CERT, key: OTHER_KEY } = rekeyCertificate({ template: OTHER_TEMPLATE }, { issuerKey: root.privateKey });
+export const { cert: WRONGHOST_CERT, key: WRONGHOST_KEY } = rekeyCertificate({ template: WRONGHOST_TEMPLATE }, { issuerKey: root.privateKey });
+export const { cert: SELF_CERT, key: SELF_KEY } = rekeyCertificate({ template: SELF_TEMPLATE });
