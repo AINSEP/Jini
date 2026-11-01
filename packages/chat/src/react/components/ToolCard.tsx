@@ -29,6 +29,7 @@ import type { ToolRendererRegistry } from '../tool-renderer-registry.js';
 import { Icon } from './Icon.js';
 import { SAFE_LINK_HREF } from './Markdown.js';
 import { TodoCard } from './TodoCard.js';
+import { toolRowTarget } from './ToolCard.rules.js';
 
 type ToolUseEvent = Extract<AgentEvent, { kind: 'tool_use' }>;
 type ToolResultEvent = Extract<AgentEvent, { kind: 'tool_result' }>;
@@ -150,44 +151,24 @@ function renderToolCardBody(args: ToolCardBodyArgs): ReactNode {
   return <GenericCard name={name} {...card} />;
 }
 
-/** Argument keys that name *what* a call acted on, best first: an element handle or page, then a human title/name/slug, then a path or query, then an id. */
-const SUMMARY_KEYS = ['element', 'page', 'handle', 'title', 'name', 'slug', 'file_path', 'path', 'pattern', 'url', 'query', 'command', 'toolId', 'id'];
-
-/**
- * A row's one-line summary of a call's arguments — the one argument that best identifies what it
- * acted on (see {@link SUMMARY_KEYS}), else the first string-valued one. Never the JSON of the whole
- * object: that read as raw machine output in the head (`{"id":"30127d…","kind":"post",…`); the
- * full arguments are in the expanded detail. `undefined` when nothing reads as a summary.
- */
-function argsSummary(input: unknown): string | undefined {
-  if (input == null) return undefined;
-  if (typeof input === 'string') return input || undefined;
-  if (typeof input !== 'object') return String(input);
-  const obj = input as Record<string, unknown>;
-  for (const key of SUMMARY_KEYS) {
-    const v = obj[key];
-    if (typeof v === 'string' && v) return v;
-  }
-  for (const v of Object.values(obj)) {
-    if (typeof v === 'string' && v) return v;
-  }
-  return undefined;
-}
-
 /**
  * The head every Jini/MCP/unknown tool row shares: status, "Tool call · <Humanized Name>", and the
- * argument summary. One place, so a tool id the family table doesn't know (`content_post_update`,
+ * target ({@link toolRowTarget}). One place, so a tool id the family table doesn't know (`content_post_update`,
  * `mcp__tovu__theme_list_files`) still reads as a label and never as its raw name and JSON args.
  */
 function ToolRowHead({ name, input, result, runStreaming, runSucceeded }: CardProps & { name: string }) {
   const t = useT();
-  const target = argsSummary(input);
+  const target = toolRowTarget({ input: input, resultContent: result?.content });
+  const summary = target ? headSummary({ text: target }) : undefined;
+  const label = `${t('Tool call')} · ${humanizeToolName({ name: name })}`;
   const isRunning = runStreaming && !result;
+  // Name and target each carry their full text as a tooltip: on a narrow dock the name truncates
+  // first and the target is capped (styles.ts `.op-title`/`.op-meta`), so either can be cut.
   return (
     <>
       <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
-      <span className={`op-title${isRunning ? RUNNING_TITLE_CLASS : ''}`}>{t('Tool call')} · {humanizeToolName({ name: name })}</span>
-      {target ? <span className="op-meta">{headSummary({ text: target })}</span> : null}
+      <span className={`op-title${isRunning ? RUNNING_TITLE_CLASS : ''}`} title={label}>{label}</span>
+      {summary ? <span className="op-meta op-target" title={summary}>{summary}</span> : null}
     </>
   );
 }

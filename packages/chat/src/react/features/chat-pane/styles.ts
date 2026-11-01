@@ -1519,7 +1519,18 @@ export const CHAT_PANE_STYLES = `
 .jini-chat-pane .op-status-error { color: var(--danger); }
 .jini-chat-pane .op-status-retried { color: var(--jini-chat-muted); }
 .jini-chat-pane .op-status-running { color: var(--jini-chat-accent); }
-.jini-chat-pane .op-title { font-weight: 600; flex-shrink: 0; }
+/* The name truncates before the target does (owner bug 11-01: "Content Read Content…" squeezed the
+   target out — the target was flex: 1 with a 0 basis beside a name that would not shrink). A generic
+   row's target (.op-target, ToolCard's ToolRowHead) keeps its own width up to 55% of the row; both
+   carry their full text as a title. Family cards keep .op-meta filling the row after a short name. */
+.jini-chat-pane .op-title {
+  font-weight: 600;
+  flex: 0 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .jini-chat-pane .shimmer-text { animation: jini-chat-shimmer 1.6s ease-in-out infinite; }
 @keyframes jini-chat-shimmer { 0%, 100% { opacity: 1; } 50% { opacity: .45; } }
 @media (prefers-reduced-motion: reduce) { .jini-chat-pane .shimmer-text { animation: none; opacity: .6; } }
@@ -1531,6 +1542,7 @@ export const CHAT_PANE_STYLES = `
   flex: 1;
   min-width: 0;
 }
+.jini-chat-pane .op-meta.op-target { flex: 0 0 auto; max-width: 55%; }
 .jini-chat-pane .op-expand-chev { flex-shrink: 0; margin-left: auto; color: var(--jini-chat-faint); }
 /* Collapsed by default: 0 max-height clips the inner content, no display:none — keeps the height
    transition instead of an instant jump cut. */

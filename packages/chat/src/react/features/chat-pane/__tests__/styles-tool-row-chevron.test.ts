@@ -10,4 +10,17 @@ describe('CHAT_PANE_STYLES — tool row chevron', () => {
     const rule = /\.jini-chat-pane \.op-expand-chev\s*\{([^}]*)\}/.exec(CHAT_PANE_STYLES);
     expect(rule?.[1]).toMatch(/margin-left:\s*auto/);
   });
+
+  // Owner bug 11-01: a long name ("Content Read Content…") squeezed the target out entirely — the
+  // target was `flex: 1` (basis 0) beside a title that would not shrink. The target keeps its own
+  // width up to a cap and the name truncates instead.
+  it('lets the name truncate and keeps the target its own width up to a cap', () => {
+    const title = /\.jini-chat-pane \.op-title\s*\{([^}]*)\}/.exec(CHAT_PANE_STYLES)?.[1] ?? '';
+    const meta = /\.jini-chat-pane \.op-meta\.op-target\s*\{([^}]*)\}/.exec(CHAT_PANE_STYLES)?.[1] ?? '';
+    expect(title).toMatch(/min-width:\s*0/);
+    expect(title).toMatch(/text-overflow:\s*ellipsis/);
+    expect(title).not.toMatch(/flex-shrink:\s*0/);
+    expect(meta).toMatch(/flex:\s*0 0 auto/);
+    expect(meta).toMatch(/max-width:\s*\d+%/);
+  });
 });

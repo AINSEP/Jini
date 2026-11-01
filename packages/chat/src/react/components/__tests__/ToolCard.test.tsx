@@ -37,6 +37,39 @@ describe('ToolCard', () => {
     expect(container.querySelector('[data-agent-element="tool-call-call-3"]')).not.toBeInTheDocument();
   });
 
+  // Owner bug 11-01: rows read "Content Post Update 30127d31-…" — a raw UUID where the post's name
+  // should be. A row names its target by title/slug from the args or the result, else by its kind.
+  describe('tool row target', () => {
+    const UUID = '30127d31-4c2b-4e0a-9d1f-6b2a7c9e1f00';
+    const row = (input: unknown, content = '') => render(
+      <ToolCard use={{ kind: 'tool_use', id: 'tr', name: 'content_post_update', input }} result={content ? { kind: 'tool_result', toolUseId: 'tr', content, isError: false } : undefined} runSucceeded />,
+    );
+
+    it('prefers a human field from the args over an opaque id', () => {
+      row({ id: UUID, kind: 'post', title: 'Spring menu' });
+      expect(document.querySelector('.op-meta')?.textContent).toBe('Spring menu');
+    });
+
+    it('takes the title from the result when the args carry only an id', () => {
+      row({ id: UUID, kind: 'post', status: 'published' }, JSON.stringify({ post: { id: UUID, title: 'Spring menu', slug: 'spring-menu' } }));
+      expect(document.querySelector('.op-meta')?.textContent).toBe('Spring menu');
+    });
+
+    it('falls back to the kind, never a bare UUID', () => {
+      row({ id: UUID, kind: 'post' }, 'Updated.');
+      expect(document.querySelector('.op-meta')?.textContent).toBe('post');
+      row({ id: UUID });
+      const heads = Array.from(document.querySelectorAll('.op-card-head'), (head) => head.textContent).join(' ');
+      expect(heads).not.toContain(UUID.slice(0, 8));
+    });
+
+    it('puts the full name and target in tooltips', () => {
+      row({ id: UUID, title: 'Spring menu' });
+      expect(document.querySelector('.op-title')).toHaveAttribute('title', 'Tool call · Content Post Update');
+      expect(document.querySelector('.op-meta')).toHaveAttribute('title', 'Spring menu');
+    });
+  });
+
   it('falls back to GenericCard for an unrecognized tool', () => {
     render(<ToolCard use={{ kind: 'tool_use', id: 't2', name: 'CustomTool', input: { query: 'hello' } }} runSucceeded />);
     expect(document.querySelector('.op-title')?.textContent).toBe('Tool call · CustomTool');
