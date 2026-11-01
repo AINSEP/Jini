@@ -513,6 +513,7 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
     return {
       messages: byokMessages({ history: input.history }, {}),
       ...attachmentIdsField(input),
+      ...(input.folders?.length ? { folders: input.folders } : {}),
       ...conversationIdField(input),
       agentPluginState: input.context?.["agentPluginState"],
       userPrompt: input.context?.["userPrompt"],
@@ -740,6 +741,7 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
       ...modelField(input),
       ...reasoningField(input),
       ...attachmentIdsField(input),
+      ...(input.folders?.length ? { folders: input.folders } : {}),
       ...pluginRefIdsField(input),
       agentPluginState: input.context?.["agentPluginState"],
       userPrompt: input.context?.["userPrompt"],

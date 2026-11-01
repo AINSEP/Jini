@@ -2017,4 +2017,17 @@ export const CHAT_PANE_STYLES = `
     height: 44px;
   }
 }
+
+.jini-composer-attachments { display: flex; flex-wrap: wrap; gap: 6px; min-width: 0; }
+.jini-composer-attachments:empty { display: none; }
+.jini-folder-chips { min-width: 0; max-width: 100%; color: var(--jini-chat-text); }
+.jini-folder-chips__toggle, .jini-folder-chips__item { display: flex; align-items: center; gap: 6px; min-width: 0; max-width: 100%; }
+.jini-folder-chips__toggle { border: 1px solid var(--jini-chat-border); border-radius: 8px; padding: 5px 8px; background: var(--jini-chat-subtle); color: inherit; cursor: pointer; }
+.jini-folder-chips__toggle span { overflow-wrap: anywhere; min-width: 0; }
+.jini-folder-chips__list { display: flex; flex-wrap: wrap; gap: 6px; padding: 0; margin: 6px 0 0; list-style: none; }
+.jini-folder-chips__item { padding: 4px 6px; border: 1px solid var(--jini-chat-border); border-radius: 6px; background: var(--jini-chat-subtle); }
+.jini-folder-chips__name { min-width: 0; overflow-wrap: anywhere; }
+.jini-folder-chips svg, .jini-folder-chips button { flex-shrink: 0; }
+.jini-folder-chips__remove { display: inline-flex; padding: 4px; background: transparent; border: 0; color: inherit; cursor: pointer; }
+.jini-folder-chips button:focus-visible { outline: 2px solid var(--jini-chat-accent); outline-offset: 2px; }
 `;

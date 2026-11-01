@@ -493,3 +493,24 @@ describe('recoveryClock', () => {
     expect(f.rows('SELECT * FROM assistant_run_attempts')).toEqual([]);
   });
 });
+
+it('retains current folder references when acceptance rewrites the browser-saved question', async () => {
+  const h = await setup();
+  const folders = ['/tmp/A B', String.raw`C:\A B`, String.raw`\\srv\share`];
+  const message: ChatMessage = { id: 'u1', role: 'user', content: 'inspect', folders };
+  await h.history.appendMessage({ conversationId: 'c', message });
+  const run = await h.store.accept(acceptInput({}, { userMessage: message }), {});
+  expect(run?.transcript[0]?.folders).toEqual(folders);
+  expect((await h.history.messages({ conversationId: 'c' }))[0]?.folders).toEqual(folders);
+});
+
+it('preserves each queued input receipt and its own folder list through durable acceptance', async () => {
+  const { acceptedInputUserEvent, projectAcceptedInputMessages } = await import('../../../core/accepted-input.js');
+  const h = await setup();
+  const inputs = [{ id: 'first', text: 'first', folders: [String.raw`C:\A B`] }, { id: 'second', text: 'second', folders: [String.raw`\\srv\share`] }];
+  const message: ChatMessage = { id: 'u1', role: 'user', content: 'first\n\nsecond', folders: inputs.flatMap(input => input.folders),
+    events: inputs.map(input => acceptedInputUserEvent({ input }, { receipt: 'accepted' })) };
+  const run = await h.store.accept(acceptInput({}, { userMessage: message }), {});
+  const replay = projectAcceptedInputMessages({ messages: [...(run?.transcript ?? [])] }).filter(message => message.role === 'user');
+  expect(replay.map(message => ({ id: message.id, folders: message.folders }))).toEqual(inputs.map(({ id, folders }) => ({ id, folders })));
+});

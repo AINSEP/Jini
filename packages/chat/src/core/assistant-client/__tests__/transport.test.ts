@@ -704,3 +704,15 @@ it('leaves a refused pending composer input out of both browser persistence path
   expect(persistableMessages({ messages: [{ ...pending, inputPending: false }] })).toEqual([{ ...pending, inputPending: false }]);
   expect(pending.inputPending).toBe(true);
 });
+
+it('carries folder paths outside prompt text through the CLI envelope and BYOK body', async () => {
+  const folders = [String.raw`C:\A B`, String.raw`\\srv\share`];
+  const h = harness();
+  const local = input([user('inspect', { folders })], { agentId: 'codex', folders });
+  const context = h.client.buildLocalCliContextRef({ input: local, prompt: 'inspect' }, {});
+  expect(context.folders).toEqual(folders);
+  expect(context.prompt).toBe('inspect');
+  const byok = h.transport({ getExecutionConfig: () => ({ mode: 'byok', byok: { protocol: 'openai', apiKey: 'k', model: 'm', baseUrl: '' } }) });
+  await byok.startRun(local, recorder().handlers);
+  expect(byokBodyOf(h.fetched[0]).folders).toEqual(folders);
+});

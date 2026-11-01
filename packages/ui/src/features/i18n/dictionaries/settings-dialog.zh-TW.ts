@@ -19,6 +19,10 @@ import type { SettingsDialogDict } from './types.js';
 
 
 export const SETTINGS_DIALOG_ZH_TW: SettingsDialogDict = {
+  "Folders ({count})": "資料夾（{count}）",
+  "Copy folder path: {path}": "複製資料夾路徑：{path}",
+  "Remove folder: {path}": "移除資料夾：{path}",
+
   "I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.": "我已從你的訊息中移除疑似金鑰的內容。如果是真實金鑰，請更換它。請使用安全表單儲存。",
   // eslint-disable-next-line sonarjs/no-hardcoded-passwords -- Translation of user-facing credential-safety guidance; the value is prose, not a password.
   "Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.": "請使用安全表單儲存金鑰、權杖、密碼和機密資訊。聊天回答會傳送給助理。",

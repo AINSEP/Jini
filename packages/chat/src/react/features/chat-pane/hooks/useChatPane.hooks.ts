@@ -213,7 +213,7 @@ const ATTACHMENTS_ONLY_PROMPT = 'Review the attached file(s).';
  */
 function composerPrompt(composer: UseComposerResult): string {
   return composer.draft.trim()
-    || (composer.attachments.length > 0 ? ATTACHMENTS_ONLY_PROMPT : '');
+    || (composer.attachments.length > 0 || composer.folders?.length ? ATTACHMENTS_ONLY_PROMPT : '');
 }
 
 /** History hydration can replace a controller without an edit. Compare the accepted empty draft
@@ -221,7 +221,7 @@ function composerPrompt(composer: UseComposerResult): string {
 function isRepeatedComposerSubmission(
   { composer, submitted }: { composer: UseComposerResult; submitted: UseComposerResult | null }, _options = {},
 ): boolean {
-  return submitted === composer || (submitted !== null && composer.draft.trim() === '' && submitted.attachments === composer.attachments);
+  return submitted === composer || (submitted !== null && composer.draft.trim() === '' && submitted.attachments === composer.attachments && submitted.folders === composer.folders);
 }
 
 function composerDeliveryBlocked(
@@ -409,7 +409,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   const queuedForLiveDeliveryRef = useRef(false);
   const submittedComposerRef = useRef<UseComposerResult | null>(null);
   const startingPromptRef = useRef(false);
-  const refusedSendRef = useRef<{ redaction: UserTextRedaction; draft: string; attachments: ChatAttachment[] } | null>(null);
+  const refusedSendRef = useRef<{ redaction: UserTextRedaction; draft: string; attachments: ChatAttachment[]; folders: string[] } | null>(null);
   const [typedAnswerNotice, setTypedAnswerNotice] = useState<TypedAnswerNotice | null>(null);
   // Shared delivery lock: a second Enter cannot submit the same answer or screenshot twice.
   const deliveringTypedAnswerRef = useRef(false);
@@ -557,6 +557,8 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   latestComposerRef.current = composer;
   const latestDraftRef = useRef(composer.draft);
   latestDraftRef.current = composer.draft;
+  const latestFoldersRef = useRef(composer.folders ?? []);
+  latestFoldersRef.current = composer.folders ?? [];
   const latestAttachmentsRef = useRef(composer.attachments);
   latestAttachmentsRef.current = composer.attachments;
 
@@ -664,6 +666,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     { inputs, text, attachments }: { inputs: AcceptedChatInput[] | undefined; text: string; attachments: ChatAttachment[] }, _options = {},
   ) => {
     if (inputs === undefined) return;
+    latestComposerRef.current.addFolders({ folders: inputs.flatMap(input => input.folders ?? []) });
     latestComposerRef.current.setDraft([text, latestDraftRef.current].filter(Boolean).join('\n\n'));
     const staged = new Set(latestAttachmentsRef.current.map(attachment => attachment.path));
     for (const attachment of attachments) {
@@ -674,23 +677,24 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   /** A refused composer send is kept for Retry and goes back only into a composer that is still
    * empty: text typed (or files staged) while it was sending are never overwritten. */
   const restoreRefusedDraft = useCallback((
-    { redaction, draft, attachments }: { redaction: UserTextRedaction; draft: string; attachments: ChatAttachment[] }, _options = {},
+    { redaction, draft, attachments, folders = [] }: { redaction: UserTextRedaction; draft: string; attachments: ChatAttachment[]; folders?: string[] }, _options = {},
   ) => {
-    refusedSendRef.current = { redaction, draft, attachments };
+    refusedSendRef.current = { redaction, draft, attachments, folders };
+    latestComposerRef.current.addFolders({ folders });
     if (latestDraftRef.current.trim() !== '' || latestAttachmentsRef.current.length > 0) return;
     latestComposerRef.current.setDraft(draft);
     for (const attachment of attachments) latestComposerRef.current.addAttachment(attachment);
   }, []);
 
   const finishPromptSend = useCallback((
-    { accepted, inputs, redaction, submittedDraft, attachments, composerDraft }: {
+    { accepted, inputs, redaction, submittedDraft, attachments, composerDraft, folders }: {
       accepted: boolean; inputs: AcceptedChatInput[] | undefined; redaction: UserTextRedaction;
-      submittedDraft: string; attachments: ChatAttachment[]; composerDraft: string | undefined;
+      submittedDraft: string; attachments: ChatAttachment[]; composerDraft: string | undefined; folders: string[];
     }, _options = {},
   ) => {
     if (!accepted) {
       if (composerDraft === undefined) restoreQueuedDraft({ inputs, text: redaction.text, attachments });
-      else restoreRefusedDraft({ redaction, draft: composerDraft, attachments });
+      else restoreRefusedDraft({ redaction, draft: composerDraft, attachments, folders });
       return;
     }
     refusedSendRef.current = null;
@@ -699,14 +703,19 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
       latestComposerRef.current.setDraft('');
       latestComposerRef.current.closeMention();
     }
+    // Composer/queued sends already took these references. A later pick, even of the same path,
+    // belongs to the next draft and must survive this send's asynchronous acceptance.
+    if (composerDraft === undefined && inputs === undefined) {
+      for (const path of folders) latestComposerRef.current.removeFolder({ path });
+    }
     consumeDeliveredAttachments({ attachments });
   }, [consumeDeliveredAttachments, restoreQueuedDraft, restoreRefusedDraft]);
 
   /** `composerDraft`: the composer text this send already took out of the composer, so the
    * composer is never cleared again on acceptance and a refusal hands the text back. */
   const sendGuardedPrompt = useCallback(async (
-    { redaction, inputs, attachments = composer.attachments, composerDraft }: {
-      redaction: UserTextRedaction; inputs?: AcceptedChatInput[]; attachments?: ChatAttachment[]; composerDraft?: string;
+    { redaction, inputs, attachments = composer.attachments, composerDraft, folders = inputs ? inputs.flatMap(input => input.folders ?? []) : composer.folders ?? [] }: {
+      redaction: UserTextRedaction; inputs?: AcceptedChatInput[]; attachments?: ChatAttachment[]; composerDraft?: string; folders?: string[];
     }, _options = {},
   ) => {
     const trimmed = redaction.text.trim();
@@ -726,6 +735,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
         // Empty attachment arrays remain absent at the transport boundary.
         attachments: attachments.length === 0 ? undefined : attachments,
         context,
+        folders: folders.length ? folders : undefined,
         acceptedInputs: inputs,
         onAccepted: ({ inputs: acceptedInputs }: { inputs: AcceptedChatInput[] }) => {
           accepted = true;
@@ -733,7 +743,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
         },
       } }));
       if (!mountedRef.current || generation !== typedAnswerGenerationRef.current) return;
-      finishPromptSend({ accepted, inputs, redaction, submittedDraft, attachments, composerDraft });
+      finishPromptSend({ accepted, inputs, redaction, submittedDraft, attachments, composerDraft, folders });
     } finally { startingPromptRef.current = false; }
   }, [composer, conversation, options.onActivityChange, options.runContext, recordAcceptedInput, finishPromptSend,
     selection, sendBlocker, workingDirectoryState.workingDirectory]);
@@ -748,15 +758,17 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     if (sendBlocker !== null || startingPromptRef.current) return;
     const draft = latestDraftRef.current;
     const attachments = latestAttachmentsRef.current;
+    const folders = latestFoldersRef.current;
+    for (const path of folders) latestComposerRef.current.removeFolder({ path });
     latestComposerRef.current.setDraft('');
     latestComposerRef.current.closeMention();
     for (const attachment of attachments) latestComposerRef.current.removeAttachment(attachment.path);
     const redaction = guard.redact({ text: prompt.trim() }, {});
     try {
-      await sendGuardedPrompt({ redaction, attachments, composerDraft: draft });
+      await sendGuardedPrompt({ redaction, attachments, folders, composerDraft: draft });
     } catch (error) {
       // A host hook that throws (run context, activity) must not cost the typed text either.
-      restoreRefusedDraft({ redaction, draft, attachments });
+      restoreRefusedDraft({ redaction, draft, attachments, folders });
       throw error;
     }
   }, [guard.redact, restoreRefusedDraft, sendBlocker, sendGuardedPrompt]);
@@ -768,7 +780,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
       turn: UserTextRedaction; inputs?: QueuedChatInput[]; attachments?: ChatAttachment[];
     }, _options = {},
   ) => {
-    const accepted: QueuedChatInput[] = inputs ?? [{ id: createChatLocalId({}), text: turn.text, attachments,
+    const accepted: QueuedChatInput[] = inputs ?? [{ id: createChatLocalId({}), text: turn.text, attachments, folders: composer.folders ?? [],
       ...(turn.secretRedacted ? { secretRedaction: { secretRedacted: true as const, count: turn.count } } : {}) }];
     const sameConversation = queuedConversationIdRef.current === options.conversationId;
     queuedConversationIdRef.current = options.conversationId;
@@ -779,7 +791,8 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     setQueuedInputs(queued => [...(sameConversation ? queued : []), ...accepted]);
     // MOVE: Take files out of the composer without rotating their batch: every queued message ships together.
     for (const attachment of attachments) latestComposerRef.current.removeAttachment(attachment.path);
-  }, [composer.attachments, options.conversationId, recordAcceptedInput]);
+    for (const path of composer.folders ?? []) latestComposerRef.current.removeFolder({ path });
+  }, [composer.folders, composer.attachments, options.conversationId, recordAcceptedInput]);
 
   const answerWaitingQuestion = useCallback(async (
     { deliver, questionId, text }: { deliver: DeliverTypedAnswer; questionId: string; text: string },
@@ -897,7 +910,8 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
       queuedForLiveDeliveryRef.current = queuedTurn === null || queuedForLiveDeliveryRef.current;
     }
     // MOVE: The existing queue owns its files; a later steer must join it to preserve send order.
-    const target = uploadPending || queuedInputs.some(input => input.liveMessageId === undefined) ? null : findMidRunTarget({
+    // Folder context is attached on ordinary run start; live messages have no such envelope.
+    const target = uploadPending || composer.folders?.length || queuedInputs.some(input => input.liveMessageId === undefined) ? null : findMidRunTarget({
       deliver: options.deliverMidRunMessage,
       blocker: sendBlocker,
       attachmentCount: composer.attachments.length,
@@ -936,7 +950,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
       await sendOrdinaryTurn(prompt);
       return;
     }
-    const typedAnswer = findTypedAnswerTarget({
+    const typedAnswer = composer.folders?.length ? null : findTypedAnswerTarget({
       deliver: options.deliverTypedAnswer,
       blocker: sendBlocker,
       attachmentCount: composer.attachments.length,
@@ -965,7 +979,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
       return;
     }
     if (sendBlocker !== null || startingPromptRef.current) return;
-    await sendGuardedPrompt({ redaction: refused.redaction, attachments: refused.attachments, composerDraft: refused.draft });
+    await sendGuardedPrompt({ redaction: refused.redaction, attachments: refused.attachments, composerDraft: refused.draft, folders: refused.folders });
   }, [send, sendBlocker, sendGuardedPrompt]);
 
   const sendAsNewMessage = useCallback(async () => {
@@ -1025,7 +1039,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
       return;
     }
     if (activeUploadCount > 0 || attachmentError !== null) return;
-    const target = queuedForLiveDeliveryRef.current ? findMidRunTarget({
+    const target = queuedForLiveDeliveryRef.current && !queuedInputs.some(input => input.folders?.length) ? findMidRunTarget({
       deliver: options.deliverMidRunMessage,
       blocker: sendBlocker, attachmentCount: queuedInputs.flatMap(input => input.attachments).length, messages: conversation.messages,
     }) : null;

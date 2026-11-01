@@ -43,3 +43,14 @@ describe('accepted input projections', () => {
     expect(projectAcceptedInputEvents({ events: [...events] })).not.toBe(first);
   });
 });
+
+it('keeps folder ownership per receipt through projection and recall, including empty folder lists', () => {
+  const folders = [String.raw`C:\A B`, String.raw`\\srv\share`];
+  const inputs = [{ id: 'one', text: 'first', folders: [folders[0]!] }, { id: 'two', text: 'second', folders: [folders[1]!] }];
+  const messages: ChatMessage[] = [{ id: 'turn', role: 'user', content: 'first\n\nsecond', folders,
+    events: inputs.map(input => acceptedInputUserEvent({ input }, { receipt: 'accepted' })) }];
+  expect(projectAcceptedInputMessages({ messages }).map(message => message.folders)).toEqual(inputs.map(input => input.folders));
+  expect(acceptedInputsFromMessages({ messages })).toEqual(inputs);
+  const empty = { ...messages[0]!, events: [acceptedInputUserEvent({ input: { ...inputs[0]!, folders: [] } }, { receipt: 'accepted' })] };
+  expect(projectAcceptedInputMessages({ messages: [empty] })[0]?.folders).toEqual([]);
+});

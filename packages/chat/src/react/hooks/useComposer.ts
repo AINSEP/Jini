@@ -32,6 +32,8 @@ import type { ChatAttachment, ChatMessage } from '../../core/index.js';
 import type { ComposerHistoryStoragePort } from '../../core/composer-history.js';
 import { useComposerHistory, type ComposerHistoryController } from './useComposerHistory.hooks.js';
 import {
+  readCachedFolders,
+  writeCachedFolders,
   readCachedAttachments,
   readCachedDraft,
   rememberCachedDraft,
@@ -118,6 +120,9 @@ export interface UseComposerResult {
   /** Optional for compatibility with host-created composer controllers. */
   history?: ComposerHistoryController;
   setDraft: (next: string) => void;
+  folders?: string[];
+  addFolders: (input: { folders: readonly string[] }, options?: {}) => void;
+  removeFolder: (input: { path: string }, options?: {}) => void;
   attachments: ChatAttachment[];
   /** Uploads via `project.uploadFiles` (when supplied) and stages the results; no-ops (with a rejected promise) when no upload port is wired. */
   addAttachments: (files: File[]) => Promise<void>;
@@ -222,6 +227,23 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
   const [draft, setDraftState] = useState<string>(
     () => options.initialDraft ?? persistence?.read() ?? readCachedDraft({ conversationId: conversationId }) ?? '',
   );
+  const [folders, setFolders] = useState(() => readCachedFolders({ conversationId }));
+  // Persist inside the state transition with its conversation key: switching cannot write an old
+  // render's folders over the newly selected conversation, and a pick survives immediate unmount.
+  const addFolders = useCallback(({ folders: picked }: { folders: readonly string[] }, _options = {}) => {
+    setFolders(previous => {
+      const next = [...new Set([...previous, ...picked])];
+      writeCachedFolders({ conversationId, folders: next });
+      return next;
+    });
+  }, [conversationId]);
+  const removeFolder = useCallback(({ path }: { path: string }, _options = {}) => {
+    setFolders(previous => {
+      const next = previous.filter(folder => folder !== path);
+      writeCachedFolders({ conversationId, folders: next });
+      return next;
+    });
+  }, [conversationId]);
   const [attachments, setAttachments] = useState<ChatAttachment[]>([]);
   const [agent, setAgent] = useState<AgentSelection | undefined>(options.initialAgent);
   const [mention, setMention] = useState<MentionPopoverState>(EMPTY_MENTION);
@@ -289,9 +311,12 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
     // reason — nothing was switched away from.
     if (previousConversationId == null && conversationId != null && restored === null && draftRef.current.trim() !== '') {
       writeCachedDraft({ conversationId: conversationId, draft: draftRef.current });
+      writeCachedFolders({ conversationId, folders });
       return;
     }
 
+    if (previousConversationId == null && conversationId != null) writeCachedFolders({ conversationId, folders });
+    else setFolders(readCachedFolders({ conversationId }));
     setDraftState(restored ?? '');
     setAttachments([]);
     setMention(EMPTY_MENTION);
@@ -425,17 +450,22 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
 
   const reset = useCallback(() => {
     setDraft('');
+    setFolders([]);
+    writeCachedFolders({ conversationId, folders: [] });
     clearAttachments();
     closeMention();
-  }, [clearAttachments, closeMention, setDraft]);
+  }, [clearAttachments, closeMention, setDraft, conversationId]);
 
-  const canSubmit = draft.trim().length > 0 || attachments.length > 0;
+  const canSubmit = draft.trim().length > 0 || attachments.length > 0 || folders.length > 0;
 
   return useMemo(
     () => ({
       draft,
       history,
       setDraft,
+      folders,
+      addFolders,
+      removeFolder,
       attachments,
       addAttachments,
       addAttachment,
@@ -451,6 +481,6 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
       reset,
       flushDraft: deferredWrite.flush,
     }),
-    [draft, history, setDraft, attachments, addAttachments, addAttachment, removeAttachment, clearAttachments, agent, mention, openMention, closeMention, selectMention, canSubmit, reset, deferredWrite.flush],
+    [draft, history, setDraft, folders, addFolders, removeFolder, attachments, addAttachments, addAttachment, removeAttachment, clearAttachments, agent, mention, openMention, closeMention, selectMention, canSubmit, reset, deferredWrite.flush],
   );
 }

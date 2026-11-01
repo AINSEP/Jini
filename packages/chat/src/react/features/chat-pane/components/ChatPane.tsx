@@ -607,6 +607,7 @@ function useComposerHandlePublisher(
   useEffect(() => {
     if (!composerHandle) return undefined;
     composerHandle.current = {
+      addFolders: pane.composer.addFolders,
       insertText: (text) => {
         pane.composer.setDraft(appendComposerDiscovery({ draft: composerDraftRef.current, insertText: text }));
       },

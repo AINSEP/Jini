@@ -60,6 +60,8 @@ export interface StartRunInput {
   history: ChatMessage[];
   agentId?: string;
   conversationId?: string | null;
+  /** Picked directory paths, kept byte-exact and separate from upload references. */
+  folders?: string[];
   attachments?: ChatAttachment[];
   context?: RunContext;
   /** Stops the browser-side subscription; the run continues host-side. */

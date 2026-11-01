@@ -162,6 +162,8 @@ export interface ChatPaneComposerHandle {
    * exposes no other prop for pushing text into an in-progress draft from outside.
    */
   insertText: (text: string) => void;
+  /** Stage directory references without changing the text draft. */
+  addFolders: (input: { folders: readonly string[] }, options?: {}) => void;
 }
 
 /**

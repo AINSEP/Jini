@@ -64,6 +64,10 @@ export const COMPOSER_DRAFT_STORAGE_PREFIX = 'jini.chat.composer-draft.v1.';
  * so a corrupt or unwritable attachment entry can never cost the operator their words, and vice
  * versa. See {@link readCachedAttachments} for what these references are and are not.
  */
+const COMPOSER_FOLDERS_STORAGE_PREFIX = 'jini.chat.composer-folders.v1.';
+const folderDrafts = new Map<string, readonly string[]>();
+interface StoredFolders { v: 1; t: number; folders: readonly string[] }
+
 export const COMPOSER_ATTACHMENTS_STORAGE_PREFIX = 'jini.chat.composer-attachments.v1.';
 
 /** The stored shape. `t` is a write timestamp, used only to pick an eviction victim at the cap. */
@@ -239,7 +243,7 @@ function storedTimestamp(store: Storage, { key }: { key: string }): number {
  * @complexity Time O(n) in the envelope's size, plus a prune (see {@link pruneStored}) only
  * when this introduces a new key at the cap. Space O(n) in the envelope's size.
  */
-function writeStoredEnvelope(prefix: string, { conversationId, envelope }: { conversationId: string; envelope: StoredDraft | StoredAttachments | null }): void {
+function writeStoredEnvelope(prefix: string, { conversationId, envelope }: { conversationId: string; envelope: StoredDraft | StoredAttachments | StoredFolders | null }): void {
   const store = storage();
   if (!store) return;
   const key = `${prefix}${conversationId}`;
@@ -491,9 +495,30 @@ export function writeCachedAttachments({ conversationId, attachments }: { conver
  */
 export function __resetComposerDraftCacheForTests(options?: { readonly keepStorage?: boolean }): void {
   drafts.clear();
+  folderDrafts.clear();
   stagedAttachments.clear();
   stagedBatchIds.clear();
   if (options?.keepStorage === true) return;
+  pruneStored(COMPOSER_FOLDERS_STORAGE_PREFIX, 0);
   pruneStored(COMPOSER_DRAFT_STORAGE_PREFIX, 0);
   pruneStored(COMPOSER_ATTACHMENTS_STORAGE_PREFIX, 0);
+}
+
+/** Folder drafts share the bounded cache owner, but never upload liveness or TTL checks. */
+export function readCachedFolders({ conversationId }: { conversationId: string | null | undefined }, _options = {}): string[] {
+  if (!conversationId) return [];
+  const cached = folderDrafts.get(conversationId);
+  if (cached) return [...cached];
+  const stored = readStoredEnvelope(COMPOSER_FOLDERS_STORAGE_PREFIX, { conversationId, decode: parsed => {
+    const value = parsed as Partial<StoredFolders> | null;
+    return value?.v === 1 && Array.isArray(value.folders) && value.folders.every(path => typeof path === 'string') ? value.folders as string[] : null;
+  } });
+  return stored ?? [];
+}
+
+/** Persist exact strings independently of text and attachment validation. */
+export function writeCachedFolders({ conversationId, folders }: { conversationId: string | null | undefined; folders: readonly string[] }, _options = {}): void {
+  if (!conversationId) return;
+  setBounded(folderDrafts, { key: conversationId, value: [...folders] });
+  writeStoredEnvelope(COMPOSER_FOLDERS_STORAGE_PREFIX, { conversationId, envelope: folders.length ? { v: 1, t: Date.now(), folders } : null });
 }

@@ -16,6 +16,10 @@ import type { SettingsDialogDict } from './types.js';
 
 
 export const SETTINGS_DIALOG_TR: SettingsDialogDict = {
+  "Folders ({count})": "Klasörler ({count})",
+  "Copy folder path: {path}": "Klasör yolunu kopyala: {path}",
+  "Remove folder: {path}": "Klasörü kaldır: {path}",
+
   "I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.": "Mesajınızdan anahtara benzeyen metni kaldırdım. Gerçekse yenileyin. Kaydetmek için güvenli formu kullanın.",
   "Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.": "Anahtarları, tokenları, parolaları ve gizli bilgileri kaydetmek için güvenli formu kullanın. Sohbet yanıtları asistana gönderilir.",
 

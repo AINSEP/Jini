@@ -1,3 +1,5 @@
+import { acceptedInputEvent, acceptedInputUserEvent } from "../../core/accepted-input.js";
+import { redactUserMessage } from "../../core/user-text-redaction.js";
 import type { RunIdPolicy } from "../../core/durable-runs/ports.js";
 import { recoveredRunEvents, type AgentEvent, type ChatMessage } from "../../core/index.js";
 import type { ChatKernel, ChatDatabase } from "./kernel.js";
@@ -31,11 +33,38 @@ function isAcceptedUserShape({ message }: { message: ChatMessage }, _optional = 
   return message.createdAt === undefined || Number.isFinite(message.createdAt);
 }
 
+/** Directory existence is host policy; the neutral store validates only its message contract. */
+function validAcceptedFolders({ folders }: { folders: unknown }, _options = {}): boolean {
+  return Array.isArray(folders) && folders.length <= 10 && folders.every(path => typeof path === 'string' && path.length > 0);
+}
+
 function areAcceptedAttachments({ attachments }: { attachments: unknown }, _optional = {}): boolean {
   return Array.isArray(attachments) && attachments.every((attachment) => {
     if (!attachment || typeof attachment.path !== "string" || typeof attachment.name !== "string") return false;
     return attachment.kind === "file" || attachment.kind === "image";
   });
+}
+
+/** Both top-level and queued user inputs obey the same reference contract. */
+function validateAcceptedMetadata({ message }: { message: Pick<ChatMessage, 'folders' | 'attachments'> }, _options = {}): void {
+  if (message.folders !== undefined && !validAcceptedFolders({ folders: message.folders })) throw new Error("Invalid accepted user folders");
+  if (message.attachments !== undefined && !areAcceptedAttachments({ attachments: message.attachments }, {})) throw new Error("Invalid accepted user attachments");
+}
+
+/** Preserve only accepted user receipts; a browser cannot supply assistant lifecycle events.
+ * Receipt text uses the same guard as ordinary user text; folder data remains byte-exact.
+ */
+function acceptedReceiptFields({ message }: { message: ChatMessage }, _options = {}): Pick<ChatMessage, 'events'> {
+  if (!Array.isArray(message.events)) return {};
+  const events = message.events.flatMap(event => {
+    if (!event || typeof event !== 'object') return [];
+    const input = acceptedInputEvent({ event })?.data;
+    if (!input) return [];
+    validateAcceptedMetadata({ message: input });
+    const safe = redactUserMessage({ message: { role: 'user', content: input.text } }).message;
+    return [acceptedInputUserEvent({ input: { ...input, text: safe.content } }, { receipt: 'accepted' })];
+  });
+  return events.length ? { events } : {};
 }
 
 function acceptedUserMessage(
@@ -46,10 +75,12 @@ function acceptedUserMessage(
   const message = context.userMessage;
   if (message === undefined) return null;
   if (!isAcceptedUserShape({ message }, {})) throw new Error("Invalid accepted user message");
-  if (message.attachments !== undefined && !areAcceptedAttachments({ attachments: message.attachments }, {})) throw new Error("Invalid accepted user attachments");
-  // User input cannot claim an assistant run's status/events. Keep the same identity and payload
+  validateAcceptedMetadata({ message });
+  // User input cannot claim assistant lifecycle events. Keep the same identity and payload
   // as its browser PUT, including the original clock and attachment order.
   return { id: message.id, role: "user", content: message.content, createdAt: message.createdAt ?? now,
+    ...acceptedReceiptFields({ message }),
+    ...(message.folders ? { folders: message.folders } : {}),
     ...(message.attachments ? { attachments: message.attachments } : {}) };
 }
 

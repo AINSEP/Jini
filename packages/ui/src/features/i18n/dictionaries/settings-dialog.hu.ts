@@ -6,6 +6,10 @@
 import type { SettingsDialogDict } from './types.js';
 
 export const SETTINGS_DIALOG_HU: SettingsDialogDict = {
+  "Folders ({count})": "Mappák ({count})",
+  "Copy folder path: {path}": "Mappa elérési útjának másolása: {path}",
+  "Remove folder: {path}": "Mappa eltávolítása: {path}",
+
   "I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.": "Eltávolítottam az üzenetedből azt, ami kulcsnak tűnt. Ha valódi volt, cseréld le. A biztonságos űrlapon mentsd el.",
   "Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.": "A kulcsokat, tokeneket, jelszavakat és titkokat a biztonságos űrlapon mentsd el. A chatválaszokat elküldjük az asszisztensnek.",
 

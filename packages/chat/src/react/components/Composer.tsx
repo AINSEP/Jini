@@ -11,6 +11,7 @@
  * the slots a host supplies; it does not itself know what a "library
  * picker" or "session mode" is.
  */
+import { FolderChips } from './FolderChips.js';
 import {
   useEffect,
   useLayoutEffect,
@@ -432,7 +433,10 @@ export function Composer({
   return (
     <div className="jini-composer">
       <AccessorySlot className="jini-composer-leading">{leadingAccessories}</AccessorySlot>
-      <AttachmentTray attachments={composer.attachments} onRemove={composer.removeAttachment} />
+      <div className="jini-composer-attachments">
+        <AttachmentTray attachments={composer.attachments} onRemove={composer.removeAttachment} />
+        <FolderChips folders={composer.folders} onRemove={composer.removeFolder} />
+      </div>
       <textarea
         ref={textareaRef}
         className="jini-composer-input"

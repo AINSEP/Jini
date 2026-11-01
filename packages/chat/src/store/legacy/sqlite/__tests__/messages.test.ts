@@ -321,3 +321,11 @@ describe('deleteMessage', () => {
     expect(listMessages({ db, conversationId: 'c' }).map((m) => m.id)).toEqual(['b']);
   });
 });
+
+it('persists exact folder references separately from text and attachment rows', () => {
+  const db = freshDb();
+  const folders = ['/tmp/A B', String.raw`C:\A B`, String.raw`\\srv\share`];
+  upsertMessage({ db, conversationId: 'c', m: { id: 'folders', role: 'user', content: 'inspect', folders } });
+  expect(listMessages({ db, conversationId: 'c' })[0]).toMatchObject({ folders, content: 'inspect' });
+  expect(rawRow(db, 'folders').attachments_json).toBeNull();
+});

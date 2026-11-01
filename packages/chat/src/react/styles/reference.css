@@ -328,3 +328,9 @@
  * deleted silently) so a future reader who remembers seeing "queued" in this file finds the pointer
  * instead of concluding the removal was accidental.
  */
+
+.jini-composer-attachments, .jini-folder-chips__list { display: flex; flex-wrap: wrap; }
+.jini-folder-chips, .jini-folder-chips__name { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.jini-folder-chips__toggle, .jini-folder-chips__item { display: flex; align-items: center; }
+.jini-folder-chips__list { list-style: none; }
+.jini-folder-chips svg, .jini-folder-chips button { flex-shrink: 0; }

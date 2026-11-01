@@ -37,6 +37,8 @@ export interface SendMessageOptions {
   onAccepted?: (input: { inputs: AcceptedChatInput[] }) => void;
   /** Non-secret signal from a composer that already sanitized the content before this boundary. */
   secretRedaction?: ChatMessage['secretRedaction'];
+  /** Picked directory paths, kept byte-exact and separate from upload references. */
+  folders?: string[];
   attachments?: ChatAttachment[];
   context?: RunContext;
   agentId?: string;
@@ -85,6 +87,7 @@ function pendingUserMessage(
   content,
   createdAt: Date.now(),
   ...(sendOptions.secretRedaction ? { secretRedaction: sendOptions.secretRedaction } : {}),
+  ...(sendOptions.folders ? { folders: sendOptions.folders } : {}),
   ...(sendOptions.attachments ? { attachments: sendOptions.attachments } : {}),
 } }, options).message;
 }
@@ -258,6 +261,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
         history,
         ...(resolvedAgentId !== undefined ? { agentId: resolvedAgentId } : {}),
         conversationId,
+        ...(sendOptions.folders !== undefined ? { folders: sendOptions.folders } : {}),
         ...(sendOptions.attachments !== undefined ? { attachments: sendOptions.attachments } : {}),
         ...(sendOptions.context !== undefined ? { context: sendOptions.context } : {}),
       });
@@ -267,7 +271,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
         setSendRefused(true);
         return;
       }
-      const inputs = sendOptions.acceptedInputs ?? [{ id: userMessage.id, text: userMessage.content }];
+      const inputs = sendOptions.acceptedInputs ?? [{ id: userMessage.id, text: userMessage.content, ...(userMessage.folders ? { folders: userMessage.folders } : {}) }];
       setMessagesState(prev => prev.map(message => message.id === userMessage.id ? { ...message, inputPending: false } : message));
       sendOptions.onAccepted?.({ inputs });
     },
@@ -301,6 +305,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
         history,
         ...(resolvedAgentId !== undefined ? { agentId: resolvedAgentId } : {}),
         conversationId,
+        ...(priorUser.folders !== undefined ? { folders: priorUser.folders } : {}),
         ...(priorUser.attachments !== undefined ? { attachments: priorUser.attachments } : {}),
       });
     },

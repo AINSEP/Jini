@@ -16,6 +16,7 @@ export type IconName =
   | 'chevron-left'
   | 'chevron-right'
   | 'attach'
+  | 'folder'
   | 'file'
   | 'image'
   | 'x'
@@ -50,6 +51,7 @@ const ICON_GLYPHS: Record<IconName, ReactNode> = {
   'chevron-left': <path d="m15 18-6-6 6-6" />,
   'chevron-right': <path d="m9 18 6-6-6-6" />,
   attach: <path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48" />,
+  folder: <path d="M3 7V5a2 2 0 0 1 2-2h5l2 3h7a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z" />,
   file: <><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z" /><path d="M14 2v6h6" /><path d="M8 13h8M8 17h6" /></>,
   image: <><rect width="18" height="18" x="3" y="3" rx="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-5-5L5 21" /></>,
   pencil: <><path d="m16 3 5 5L8 21H3v-5L16 3Z" /><path d="m14 5 5 5" /></>,

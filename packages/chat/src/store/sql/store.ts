@@ -1,3 +1,4 @@
+import { withFolderReceipt, foldersFromReceipts } from '../../core/accepted-input.js';
 import type { OnConflictBuilder } from 'kysely';
 const MESSAGE_POSITION = 'm.position';
 
@@ -119,11 +120,13 @@ function agentFields(row: MessageRow): Pick<ChatMessage, 'agentId' | 'agentName'
 }
 
 /** Unparseable or absent JSON columns are omitted rather than failing the read. */
-function jsonFields(row: MessageRow): Pick<ChatMessage, 'events' | 'attachments'> {
+function jsonFields(row: MessageRow): Pick<ChatMessage, 'events' | 'attachments' | 'folders'> {
   const events = parseJsonColumn(row.events_json);
   const attachments = parseJsonColumn(row.attachments_json);
+  const folders = foldersFromReceipts({ events });
   return {
     ...(events === undefined ? {} : { events }),
+    ...(folders.length ? { folders } : {}),
     ...(attachments === undefined ? {} : { attachments }),
   };
 }
@@ -252,7 +255,8 @@ export function createSqlChatStore<DB extends ChatDatabase>(
   }
 
   /** Writes and projects one message inside the borrowed transaction; null for absent/foreign IDs. */
-  function writeMessage(conversationId: string, m: ChatMessage): Promise<ChatMessage | null> {
+  function writeMessage(conversationId: string, message: ChatMessage): Promise<ChatMessage | null> {
+    const m = withFolderReceipt({ message });
     return kernel.transaction(async () => {
       await kernel.lockKey(conversationLockKey(conversationId));
       const owned = await run((db) =>

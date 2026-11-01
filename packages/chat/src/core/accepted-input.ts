@@ -13,6 +13,8 @@ export interface AcceptedChatInput {
   answerText?: string;
   /** Absent for legacy/ordinary inputs; consumed only after a CLI UUID receipt. */
   deliveryState?: 'queued' | 'consumed';
+  /** Picked directory paths, kept byte-exact and separate from upload references. */
+  folders?: string[];
   attachments?: ChatAttachment[];
   secretRedaction?: ChatMessage['secretRedaction'];
   /** Wire ids replaced by this receipt remain seen by recall. */
@@ -33,9 +35,11 @@ export function projectAcceptedInputMessages({ messages }: { messages: readonly 
     if (inputs.length === 0) return [message];
     const turn = { ...message };
     delete turn.attachments;
+    delete turn.folders;
     delete turn.secretRedaction;
     // MOVE: Older receipts have no per-input files; retain those legacy files on the final bubble.
     return inputs.map((input, index) => ({ ...turn, id: input.id, content: input.text,
+      folders: input.folders ?? (index === inputs.length - 1 ? message.folders ?? [] : []),
       attachments: input.attachments ?? (index === inputs.length - 1 ? message.attachments ?? [] : []), ...(input.secretRedaction ? { secretRedaction: input.secretRedaction } : {}) }));
   });
 }
@@ -285,12 +289,36 @@ export function acceptedInputsFromMessages(
         const input = acceptedInputEvent({ event });
         return input ? [input.data] : [];
       });
-      return receipts.length > 0 ? receipts : [{ id: message.id, text: message.content }];
+      return receipts.length > 0 ? receipts : [{ id: message.id, text: message.content, ...(message.folders ? { folders: message.folders } : {}) }];
     }
     return projectAcceptedInputEvents({ events: message.events ?? [] }).flatMap(event => {
       const input = acceptedInputEvent({ event });
       if (!input) return [];
       return input.data.inputs?.map((receipt, index) => index === 0 ? { ...receipt, aliases: input.data.aliases ?? [] } : receipt) ?? [input.data];
     });
+  });
+}
+
+/** Preserve folder metadata through existing event JSON storage; no attachment lifecycle or schema.
+ * Existing per-input receipts already own queued variants and must retain their identities.
+ */
+export function withFolderReceipt({ message }: { message: ChatMessage }, _options = {}): ChatMessage {
+  if (message.role !== 'user' || !message.folders?.length) return message;
+  const events = message.events ?? [];
+  if (events.some(event => acceptedInputEvent({ event }))) return message;
+  return { ...message, events: [...events, acceptedInputUserEvent({ input: {
+    id: message.id, text: message.content, folders: message.folders,
+    ...(message.secretRedaction ? { secretRedaction: message.secretRedaction } : {}),
+    ...(message.attachments ? { attachments: message.attachments } : {}),
+  } }, { receipt: 'accepted' })] };
+}
+
+/** Hydrate the message's folder list from its accepted receipts after a database read. */
+export function foldersFromReceipts({ events }: { events: unknown }, _options = {}): string[] {
+  if (!Array.isArray(events)) return [];
+  return events.flatMap(event => {
+    if (event === null || typeof event !== 'object') return [];
+    const folders = acceptedInputEvent({ event })?.data.folders;
+    return Array.isArray(folders) ? folders.filter((path): path is string => typeof path === 'string') : [];
   });
 }

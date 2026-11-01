@@ -6,6 +6,10 @@
 import type { SettingsDialogDict } from './types.js';
 
 export const SETTINGS_DIALOG_FA: SettingsDialogDict = {
+  "Folders ({count})": "پوشه‌ها ({count})",
+  "Copy folder path: {path}": "کپی مسیر پوشه: {path}",
+  "Remove folder: {path}": "حذف پوشه: {path}",
+
   "I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.": "متنی را که شبیه کلید بود از پیامتان حذف کردم. اگر واقعی بود، آن را تعویض کنید. برای ذخیره از فرم امن استفاده کنید.",
   "Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.": "برای ذخیره کلیدها، توکن‌ها، گذرواژه‌ها و اطلاعات محرمانه از فرم امن استفاده کنید. پاسخ‌های گفتگو به دستیار فرستاده می‌شوند.",
 

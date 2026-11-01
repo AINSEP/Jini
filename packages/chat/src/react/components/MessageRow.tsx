@@ -1,3 +1,4 @@
+import { FolderChips } from './FolderChips.js';
 import { projectAcceptedInputEvents } from '../../core/accepted-input.js';
 import { MidRunUserMessage, MID_RUN_USER_MESSAGE_EXT_EVENT_NAME } from './MidRunUserMessage.js';
 import { useSurfaceAnswerContexts } from './mcp-ui-question-input.js';
@@ -295,10 +296,11 @@ function UserMessageRow({ message, renderAttachment }: Pick<MessageRowProps, 'me
       data-agent-role="region"
       data-agent-label="A message from the user"
     >
-      {message.attachments && message.attachments.length > 0 ? (
+      {(message.attachments?.length || message.folders?.length) ? (
         <div className="jini-message-attachments">
           {/* Images this browser still holds draw as thumbnails; everything else is a filename chip. */}
-          {message.attachments.map((a) => (
+          <FolderChips folders={message.folders} />
+          {(message.attachments ?? []).map((a) => (
             <SentAttachmentButton key={a.path} attachment={a} onOpen={gallery.open} renderAttachment={renderAttachment} />
           ))}
         </div>

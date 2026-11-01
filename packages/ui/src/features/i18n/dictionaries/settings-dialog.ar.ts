@@ -6,6 +6,10 @@
 import type { SettingsDialogDict } from './types.js';
 
 export const SETTINGS_DIALOG_AR: SettingsDialogDict = {
+  "Folders ({count})": "المجلدات ({count})",
+  "Copy folder path: {path}": "نسخ مسار المجلد: {path}",
+  "Remove folder: {path}": "إزالة المجلد: {path}",
+
   "I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.": "أزلت من رسالتك ما بدا كمفتاح. إن كان حقيقيًا، فاستبدله. استخدم النموذج الآمن لحفظه.",
   "Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.": "استخدم النموذج الآمن لحفظ المفاتيح والرموز وكلمات المرور والأسرار. تُرسل إجابات الدردشة إلى المساعد.",
 

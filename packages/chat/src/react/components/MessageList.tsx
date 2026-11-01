@@ -9,6 +9,7 @@
  * scroll-anchoring state lives in `useMessageListAutoScroll`
  * (`MessageList.hooks.ts`); see that file for why it is presentational.
  */
+import { FolderChips } from './FolderChips.js';
 import { memo, useMemo } from 'react';
 import { projectAcceptedInputMessages } from '../../core/accepted-input.js';
 import type { ChatAttachment, ChatMessage } from '../../core/index.js';
@@ -24,6 +25,7 @@ import { useAttachmentGallery } from './AttachmentGallery.hooks.js';
 interface PendingPrompt {
   id?: string;
   text: string;
+  folders?: string[];
   attachments?: ChatAttachment[];
   onCancel: () => void;
 }
@@ -154,6 +156,7 @@ function QueuedMessage({ prompt, renderAttachment }: {
       data-agent-label="A message queued to send once the current run finishes"
     >
       <div>{t('Queued — sends when this reply finishes')}</div>
+      {prompt.folders?.length ? <div className="jini-message-attachments"><FolderChips folders={prompt.folders} /></div> : null}
       <div className="jini-chat-pane__queued-text">{prompt.text}</div>
       {attachments.length > 0 && <div className="jini-message-attachments">
         {attachments.map(attachment => <SentAttachmentButton key={attachment.path} attachment={attachment}

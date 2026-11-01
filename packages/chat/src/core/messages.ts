@@ -66,5 +66,7 @@ export interface ChatMessage {
   lastRunEventId?: string;
   startedAt?: number;
   endedAt?: number;
+  /** Picked directory paths, kept byte-exact and separate from upload references. */
+  folders?: string[];
   attachments?: ChatAttachment[];
 }

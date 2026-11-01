@@ -6,6 +6,10 @@
 import type { SettingsDialogDict } from './types.js';
 
 export const SETTINGS_DIALOG_KO: SettingsDialogDict = {
+  "Folders ({count})": "폴더 ({count})",
+  "Copy folder path: {path}": "폴더 경로 복사: {path}",
+  "Remove folder: {path}": "폴더 제거: {path}",
+
   "I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.": "메시지에서 키로 보이는 내용을 제거했습니다. 실제 키였다면 교체하세요. 저장하려면 보안 양식을 사용하세요.",
   "Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.": "키, 토큰, 비밀번호, 비밀 정보를 저장하려면 보안 양식을 사용하세요. 채팅 답변은 어시스턴트에게 전송됩니다.",
 

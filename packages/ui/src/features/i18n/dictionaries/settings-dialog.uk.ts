@@ -16,6 +16,10 @@ import type { SettingsDialogDict } from './types.js';
 
 
 export const SETTINGS_DIALOG_UK: SettingsDialogDict = {
+  "Folders ({count})": "Теки ({count})",
+  "Copy folder path: {path}": "Копіювати шлях теки: {path}",
+  "Remove folder: {path}": "Прибрати теку: {path}",
+
   "I removed what looked like a key from your message. If it was real, rotate it. Use the secure form to save it.": "Я видалив із повідомлення те, що було схоже на ключ. Якщо він справжній, замініть його. Збережіть його через захищену форму.",
   "Use the secure form to save keys, tokens, passwords, and secrets. Chat answers are sent to the assistant.": "Використовуйте захищену форму для збереження ключів, токенів, паролів і секретів. Відповіді в чаті надсилаються асистенту.",
 

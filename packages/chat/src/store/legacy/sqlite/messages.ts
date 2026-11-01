@@ -1,3 +1,5 @@
+import { withFolderReceipt, foldersFromReceipts } from "../../../core/accepted-input.js";
+import type { ChatMessage } from "../../../core/messages.js";
 import { redactUserText, type SecretRedactionSignal, type UserTextRedactionOptions } from '../../../core/user-text-redaction.js';
 /**
  * @module db/messages/messages
@@ -147,7 +149,7 @@ function messageFieldValues(m: DbRow) {
     m.role,
     m.content,
     ...[m.agentId, m.agentName, m.runId, m.runStatus, m.lastRunEventId].map(orNull),
-    jsonOrNull(m.events),
+    jsonOrNull(withFolderReceipt({ message: m as unknown as ChatMessage }).events),
     jsonOrNull(m.attachments),
     normalizeMessageSessionMode(m.sessionMode) ?? null,
     jsonOrNull(m.runContext),
@@ -336,6 +338,7 @@ export function deleteMessage({ db, id }: { db: SqliteDb; id: string }) {
 
 /** @internal Converts a raw SQLite row to a plain object with JSON columns parsed and null coerced to undefined. */
 function normalizeMessage(row: DbRow) {
+  const folders = foldersFromReceipts({ events: parseJsonOrUndef(row.eventsJson) });
   return {
     id: row.id,
     role: row.role,
@@ -347,6 +350,7 @@ function normalizeMessage(row: DbRow) {
     lastRunEventId: row.lastRunEventId ?? undefined,
     events: parseJsonOrUndef(row.eventsJson),
     attachments: parseJsonOrUndef(row.attachmentsJson),
+    ...(folders.length ? { folders } : {}),
     sessionMode: normalizeMessageSessionMode(row.sessionMode),
     runContext: parseJsonOrUndef(row.runContextJson),
     createdAt: row.createdAt ?? undefined,
