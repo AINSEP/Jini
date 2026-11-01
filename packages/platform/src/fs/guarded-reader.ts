@@ -18,6 +18,27 @@ export type DescriptorReadPolicy = {
 /** Additive descriptor policy in the guarded reader's existing options object. */
 export type AddedReaderOptions = { descriptorRead?: DescriptorReadPolicy };
 export type GuardedReaderFilesystem = Pick<typeof nodeFs, "existsSync" | "lstatSync" | "readdirSync" | "realpathSync" | "statSync" | "openSync" | "readSync" | "closeSync" | "createReadStream"> & DescriptorCapabilities;
+/** Opt-in listing pages; omitted options preserve the legacy recursive reader contract.
+ * Cursors are offsets in a sorted snapshot; keep path/depth fixed and restart after tree changes.
+ */
+export interface GuardedListingOptions {
+    relativePath?: string;
+    depth?: number;
+    limit?: number;
+    cursor?: string;
+    maxOutputBytes?: number;
+}
+export interface GuardedListingResult {
+    files: string[];
+    truncated: boolean;
+    remaining?: number;
+    nextCursor?: string;
+    message?: string;
+}
+/** Adds optional paging without changing existing guarded-reader implementations. */
+export interface PagedGuardedFileReader extends GuardedFileReader {
+    list(required: Record<string, never>, optional?: GuardedListingOptions): GuardedListingResult;
+}
 /** Native filesystem adapter; callers can replace individual operations for a virtual filesystem. */
 export function createNodeGuardedReaderFilesystem(_required: Record<string, never>): GuardedReaderFilesystem { return nodeFs; }
 /** Contains both requested and resolved paths, including symlink aliases and nonexistent descendants.
@@ -32,7 +53,7 @@ export function createGuardedFileReader({ rootPath, denyRules, limits, filesyste
     filesystem: GuardedReaderFilesystem;
 }, { excludedListingDirs = new Set(["node_modules", ".git", "dist"]), descriptorRead }: {
     excludedListingDirs?: ReadonlySet<string>;
-} & AddedReaderOptions = {}): GuardedFileReader {
+} & AddedReaderOptions = {}): PagedGuardedFileReader {
     if (!rootPath)
         throw new TypeError("rootPath is required");
     for (const value of Object.values(limits))
@@ -180,6 +201,10 @@ export function createGuardedFileReader({ rootPath, denyRules, limits, filesyste
         if (stat.isDirectory()) {
             if (isDeniedFsPathSegment(name) || EXCLUDED_LISTING_DIR_NAMES.has(name))
                 return;
+            if (state.paged && depth === state.maxDepth) {
+                found.push(relative(base, full).split(sep).join("/") + "/");
+                return;
+            }
             walkFsDir(full, depth + 1, base, found, state);
             return;
         }
@@ -192,18 +217,23 @@ export function createGuardedFileReader({ rootPath, denyRules, limits, filesyste
     interface FsWalkState {
         remaining: number;
         truncated: boolean;
+        maxDepth: number;
+        maxFiles: number;
+        paged: boolean;
     }
     // Results, entries, and depth are independent limits; keep the decision shared by entry and
     // loop checks so adding one limit cannot leave an unbounded arm.
     function walkBoundReached(found: string[], state: FsWalkState, depth: number): boolean {
-        return depth > MAX_WALK_DEPTH || found.length >= MAX_LISTED_FILES || state.remaining <= 0;
+        return depth > state.maxDepth || found.length >= state.maxFiles || state.remaining <= 0;
     }
     function walkFsDir(dir: string, depth: number, base: string, found: string[], state: FsWalkState): void {
         if (walkBoundReached(found, state, depth)) {
             state.truncated = true;
             return;
         }
-        for (const name of readdirSync(dir)) {
+        const names = readdirSync(dir);
+        if (state.paged) names.sort();
+        for (const name of names) {
             // Recheck per entry: this loop spends traversal budget and adds results. Remaining
             // entries mean a bound must set truncated rather than present a short list as complete.
             if (walkBoundReached(found, state, depth)) {
@@ -214,34 +244,38 @@ export function createGuardedFileReader({ rootPath, denyRules, limits, filesyste
             visitFsDirEntry(dir, name, depth, base, found, state);
         }
     }
-    interface ListFsFilesResult {
-        readonly files: string[];
-        // Ignoring this flag presents an incomplete listing as the whole directory.
-        readonly truncated: boolean;
-    }
+    /** Walk with existing containment/deny rules, then bound the serialized page independently.
+     * @complexity At most maxWalkEntries probes; sorting uses O(n log n) time and O(n) paths.
+     * Directory reads remain synchronous; traversal exhaustion is reported as an unknown remainder.
+     */
     function listFsFiles(required: {
         rootPath: string;
-        relativePath?: string;
-    }): ListFsFilesResult {
+    } & GuardedListingOptions): GuardedListingResult {
+        const paged = [required.depth, required.limit, required.cursor, required.maxOutputBytes].some(value => value !== undefined);
+        const page = listingPageOptions(required, { maxDepth: MAX_WALK_DEPTH, maxFiles: MAX_LISTED_FILES });
         const { rootPath } = required;
         const relativePath = required.relativePath ?? "";
+        const pathLabel = relativePath || ".";
         const startDir = relativePath.length === 0 ? resolve(rootPath) : resolveFsFilePath({ rootPath, relativePath });
         // Freshly provisioned roots/subdirectories may not exist yet; an empty listing is valid.
         if (!existsSync(startDir))
             return { files: [], truncated: false };
-        const startStat = statOrFsPathError(startDir, relativePath || ".");
+        const startStat = statOrFsPathError(startDir, pathLabel);
         if (!startStat)
             return { files: [], truncated: false };
         if (!startStat.isDirectory()) {
-            throw new FsFilePathError({ message: `path '${relativePath || "."}' is not a directory` });
+            throw new FsFilePathError({ message: `path '${pathLabel}' is not a directory` });
         }
         const base = realpathSync(startDir);
         const found: string[] = [];
-        const state: FsWalkState = { remaining: MAX_WALK_ENTRIES, truncated: false };
+        const state: FsWalkState = { remaining: MAX_WALK_ENTRIES, truncated: false,
+            maxDepth: paged ? page.depth - 1 : MAX_WALK_DEPTH,
+            maxFiles: paged ? MAX_WALK_ENTRIES : MAX_LISTED_FILES, paged };
         walkFsDir(base, 0, base, found, state);
         // Paths are relative to the requested walk base, so a subdirectory listing can be consumed
         // without stripping that subdirectory's prefix a second time.
-        return { files: found.sort(), truncated: state.truncated };
+        const listing = { files: found.sort(), truncated: state.truncated };
+        return paged ? paginateListing(listing, page) : listing;
     }
     // Circular-link ELOOP and other filesystem exceptions must become the reader's refusal class,
     // not escape raw while an ordinary missing path is represented by undefined.
@@ -394,6 +428,55 @@ export function createGuardedFileReader({ rootPath, denyRules, limits, filesyste
         isDeniedPathSegment: ({ segmentName }) => isDeniedFsPathSegment(segmentName),
     };
 }
+/** Validate page controls even for raw callers bypassing a tool schema; no filesystem effects. */
+function listingPageOptions(input: GuardedListingOptions, { maxDepth, maxFiles }: { maxDepth: number; maxFiles: number }) {
+    const depth = input.depth ?? 1, limit = input.limit ?? Math.min(100, maxFiles), maxOutputBytes = input.maxOutputBytes ?? 8000;
+    for (const [name, value, max] of [["depth", depth, maxDepth], ["limit", limit, maxFiles], ["maxOutputBytes", maxOutputBytes, Number.MAX_SAFE_INTEGER]] as const) {
+        if (!Number.isSafeInteger(value) || value < 1 || value > max)
+            throw new FsFilePathError({ message: `${name} must be an integer between 1 and ${max}` });
+    }
+    if (maxOutputBytes < 512)
+        throw new FsFilePathError({ message: "maxOutputBytes must be at least 512 to fit listing metadata" });
+    return { depth, limit, maxOutputBytes, offset: listingOffset(input) };
+}
+
+/** Parse only cursors the pager can issue; refuse unsafe numeric offsets before traversal. */
+function listingOffset({ cursor = "0" }: Pick<GuardedListingOptions, "cursor">, _options = {}): number {
+    if (typeof cursor !== "string" || !/^(0|[1-9]\d*)$/.test(cursor) || !Number.isSafeInteger(Number(cursor)))
+        throw new FsFilePathError({ message: "cursor must be a non-negative integer string returned as nextCursor; keep path/depth fixed" });
+    return Number(cursor);
+}
+
+/** Bound JSON bytes as well as entry count: long or escaped filenames must not flood model input.
+ * Rescanning keeps cursors stateless; the existing traversal budget bounds work on every page.
+ * @throws FsFilePathError if one path cannot fit; narrowing path shortens relative entries.
+ */
+function paginateListing(listing: GuardedListingResult, { limit, maxOutputBytes, offset }: { limit: number; maxOutputBytes: number; offset: number }): GuardedListingResult {
+    const files: string[] = [];
+    // Reserve space for truncation guidance, cursor and the tool's root/path envelope.
+    let bytes = 512;
+    for (const file of listing.files.slice(offset, offset + limit)) {
+        const size = Buffer.byteLength(JSON.stringify(file)) + 1;
+        if (bytes + size > maxOutputBytes) break;
+        files.push(file);
+        bytes += size;
+    }
+    const end = offset + files.length, remaining = Math.max(0, listing.files.length - end);
+    if (remaining > 0 && files.length === 0)
+        throw new FsFilePathError({ message: "A listing entry exceeds the output budget; pass a narrower path to shorten the relative filename" });
+    return listingPageResult({ files, end, remaining, walkTruncated: listing.truncated });
+}
+
+/** Never claim an exact count when the traversal budget left directories unscanned. */
+function listingPageResult({ files, end, remaining, walkTruncated }: { files: string[]; end: number; remaining: number; walkTruncated: boolean }, _options = {}): GuardedListingResult {
+    if (remaining === 0 && !walkTruncated) return { files, truncated: false };
+    const count = walkTruncated ? "unknown" : String(remaining);
+    return { files, truncated: true,
+        ...(!walkTruncated ? { remaining } : {}),
+        ...(remaining > 0 ? { nextCursor: String(end) } : {}),
+        message: `truncated: ${count} more entries; pass path/depth/cursor to see more. Keep path/depth fixed when paging; restart if files change.${walkTruncated ? " Traversal limit reached; narrow path to inspect unscanned directories." : ""}` };
+}
+
 /** Validate opt-in capability support without weakening legacy filesystem adapters. */
 function descriptorOpenFlags({ filesystem, policy }: {
     filesystem: GuardedReaderFilesystem; policy: DescriptorReadPolicy;

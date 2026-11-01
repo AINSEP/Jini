@@ -43,6 +43,89 @@ function listFsFiles(input: {
 }) { return reader(input.rootPath).list({}, input.relativePath === undefined ? {} : { relativePath: input.relativePath }); }
 function isDeniedFsFileName(fileName: string) { return reader("/unused").isDeniedFileName({ fileName }); }
 function isDeniedFsPathSegment(segmentName: string) { return reader("/unused").isDeniedPathSegment({ segmentName }); }
+
+test("paged listings bound serialized paths, count omitted entries and resume deterministically", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "listing-page-"));
+    try {
+        for (let i = 0; i < 117; i++) fs.writeFileSync(path.join(root, `${String(i).padStart(3, "0")}-${"x".repeat(100)}.txt`), "x");
+        const first = reader(root).list({}, { depth: 1, limit: 100, maxOutputBytes: 2000 });
+        assert.ok(Buffer.byteLength(JSON.stringify(first)) < 3000);
+        assert.equal(first.truncated, true);
+        assert.equal(first.remaining, 117 - first.files.length);
+        assert.match(first.message ?? "", /truncated: \d+ more entries.*path.*depth.*cursor/i);
+        assert.ok(first.nextCursor);
+        const second = reader(root).list({}, { depth: 1, limit: 100, maxOutputBytes: 2000, cursor: first.nextCursor });
+        assert.ok(second.files.length > 0);
+        assert.equal(first.files.some(file => second.files.includes(file)), false);
+    } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test("following nextCursor yields every entry exactly once, in order, with no skips at page edges", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "listing-walk-"));
+    try {
+        const names = Array.from({ length: 57 }, (_, i) => `${String(i).padStart(2, "0")}.txt`);
+        for (const name of names) fs.writeFileSync(path.join(root, name), "x");
+        const seen: string[] = [];
+        let cursor: string | undefined;
+        do {
+            const page = reader(root).list({}, { depth: 1, limit: 10, ...(cursor === undefined ? {} : { cursor }) });
+            seen.push(...page.files);
+            cursor = page.nextCursor;
+        } while (cursor !== undefined && seen.length <= names.length);
+        assert.deepEqual(seen, names);
+    } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test("paged recursive listings continue beyond the legacy result cap and keep secrets excluded", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "listing-recursive-"));
+    try {
+        fs.mkdirSync(path.join(root, "content"));
+        fs.mkdirSync(path.join(root, "secrets"));
+        fs.writeFileSync(path.join(root, "secrets", "hidden.txt"), "secret");
+        fs.writeFileSync(path.join(root, "content", ".env"), "secret");
+        for (let i = 0; i < 2101; i++) fs.writeFileSync(path.join(root, "content", `${String(i).padStart(4, "0")}.txt`), "x");
+        assert.deepEqual(reader(root).list({}, { depth: 1, limit: 100 }).files, ["content/"]);
+        const last = reader(root).list({}, { depth: 12, limit: 100, cursor: "2100" });
+        assert.deepEqual(last.files, ["content/2100.txt"]);
+        assert.equal(last.truncated, false);
+    } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test("listing options reject invalid values instead of silently losing entries", () => {
+    const { root } = makeAllowedRoot();
+    try {
+        for (const options of [{ depth: -1 }, { depth: 1.5 }, { depth: 13 }, { limit: 0 }, { cursor: "-1" }, { cursor: "NaN" }, { cursor: "9007199254740992" }, { maxOutputBytes: 0 }, { maxOutputBytes: 511 }]) {
+            assert.throws(() => reader(root).list({}, options), FsFilePathError);
+        }
+    } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test("a full page is complete at the exact boundary and bounds UTF-8 and JSON-escaped filenames", () => {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "listing-bytes-"));
+    try {
+        for (let i = 0; i < 100; i++) fs.writeFileSync(path.join(root, `${i}-${'界"\\'.repeat(15)}.txt`), "x");
+        const complete = reader(root).list({}, { depth: 1, limit: 100, maxOutputBytes: 20000 });
+        assert.equal(complete.files.length, 100);
+        assert.equal(complete.truncated, false);
+        assert.equal(complete.nextCursor, undefined);
+        const bounded = reader(root).list({}, { depth: 1, limit: 100, maxOutputBytes: 2000 });
+        assert.ok(Buffer.byteLength(JSON.stringify(bounded)) <= 2000);
+        assert.equal(bounded.remaining, 100 - bounded.files.length);
+    } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
+
+test("traversal exhaustion reports an unknown remainder and directs the caller to narrow path", () => {
+    const { root } = makeAllowedRoot();
+    try {
+        const limited = createGuardedFileReader({ rootPath: root, denyRules, limits: { ...limits, maxWalkEntries: 1 }, filesystem: createNodeGuardedReaderFilesystem({}) });
+        const result = limited.list({}, { depth: 1, limit: 100 });
+        assert.equal(result.truncated, true);
+        assert.equal(result.remaining, undefined, "a scan budget must not advertise an exact remaining count");
+        assert.equal(result.nextCursor, undefined, "a cursor cannot advance beyond the scan budget");
+        assert.match(result.message ?? "", /truncated: unknown more entries/);
+        assert.match(result.message ?? "", /Traversal limit reached; narrow path/);
+    } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});
 /**
  * @file Certifies the path containment `fs_list_files`/`fs_read_file`'s whole safety argument rests
  * on: an allowlisted "read/list anything under ONE named root" capability is only sound while
