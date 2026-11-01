@@ -125,6 +125,7 @@ body {
 .mcpui-field { display: flex; flex-direction: column; gap: 4px; }
 .mcpui-field-inline { flex-direction: row; align-items: flex-start; gap: 8px; }
 .mcpui-label { font-weight: 500; color: var(--jini-mcpui-text-strong); }
+.mcpui-visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
 .mcpui-required { color: var(--jini-mcpui-accent); margin-left: 2px; }
 .mcpui-hint { color: var(--jini-mcpui-text-soft); font-size: 13px; }
 .mcpui-input, .mcpui-select, .mcpui-textarea {
@@ -440,6 +441,9 @@ function reportCallFailure(error) {
  * three silently — a space in a `name` produces an `id` the `for` attribute cannot reference, so
  * clicking the label stops focusing the control and nothing reports an error.
  */
+/** Hides an element visually while keeping it in the accessibility tree (see `.mcpui-visually-hidden` in {@link SURFACE_BASE_CSS}). */
+export const VISUALLY_HIDDEN_CLASS = 'mcpui-visually-hidden';
+
 const FIELD_NAME_PATTERN = /^[A-Za-z_][A-Za-z0-9_.-]*$/;
 
 /**
@@ -466,13 +470,15 @@ export function renderFieldLabel(spec: {
   label: string;
   required?: boolean;
   hint?: string;
+  /** Visually hide the label (it repeats the card title); it stays the control's accessible name. */
+  labelHidden?: boolean;
 }): string {
   const required = spec.required === true ? '<span class="mcpui-required" aria-hidden="true">*</span>' : '';
   const hint =
     spec.hint === undefined
       ? ''
       : `\n<span class="mcpui-hint" id="${escapeHtml(fieldElementId(spec.name))}-hint">${escapeHtml(spec.hint)}</span>`;
-  return `<label class="mcpui-label" for="${escapeHtml(fieldElementId(spec.name))}">${escapeHtml(spec.label)}${required}</label>${hint}`;
+  return `<label class="mcpui-label${spec.labelHidden === true ? ` ${VISUALLY_HIDDEN_CLASS}` : ''}" for="${escapeHtml(fieldElementId(spec.name))}">${escapeHtml(spec.label)}${required}</label>${hint}`;
 }
 
 /** The `aria-describedby` attribute pointing at a field's hint, or `''` when it has none. */

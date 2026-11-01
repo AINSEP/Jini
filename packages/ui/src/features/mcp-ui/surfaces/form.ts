@@ -102,10 +102,16 @@ function formActions(spec: FormSurfaceSpec): SurfaceAction[] {
   return actions;
 }
 
+/** Case- and whitespace-insensitive equality: a field label that only repeats the card title is the same question. */
+function sameText(a: string, b: string): boolean {
+  const norm = (s: string) => s.trim().replace(/\s+/g, ' ').toLowerCase();
+  return norm(a) === norm(b);
+}
+
 /** Header, context, the `<form>` itself and the status region. @complexity O(n) in the rendered length. */
 function formBodyHtml(spec: FormSurfaceSpec, text: FormText): string {
   const controls = spec.fields
-    .map((field) => renderFieldControl(field, { showSecret: text.showSecret, hideSecret: text.hideSecret }))
+    .map((field) => renderFieldControl(field, { showSecret: text.showSecret, hideSecret: text.hideSecret }, { labelHidden: sameText(field.label, spec.title) }))
     .join('\n');
   const warning = spec.warning === undefined ? '' : `<p class="mcpui-warning">${escapeHtml(spec.warning)}</p>`;
   return [

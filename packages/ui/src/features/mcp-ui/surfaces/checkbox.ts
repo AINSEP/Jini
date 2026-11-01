@@ -23,6 +23,8 @@ export interface CheckboxProps {
    */
   readonly required?: boolean;
   readonly disabled?: boolean;
+  /** Visually hide the label (it repeats the card title); it stays the accessible name. */
+  readonly labelHidden?: boolean;
   /**
    * One extra `data-*` attribute on the `<input>`, escaped like every other value. For a caller
    * that needs to look the box up by something other than its DOM `name` — e.g. the confirmation

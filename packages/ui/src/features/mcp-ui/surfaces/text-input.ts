@@ -28,6 +28,8 @@ export interface TextInputProps extends Partial<SecretInputText> {
   readonly hint?: string;
   readonly required?: boolean;
   readonly disabled?: boolean;
+  /** Visually hide the label (it repeats the card title); it stays the accessible name. */
+  readonly labelHidden?: boolean;
   /** `'number'` also constrains the on-screen keyboard on touch devices, which `'text'` would not. */
   readonly inputType?: 'text' | 'number';
   /** Renders as `<input type="password">`, or a masked textarea when multiline — either way with

@@ -103,21 +103,27 @@ function present<T extends object, K extends keyof T>(source: T, keys: readonly 
   return picked;
 }
 
-function base(field: SurfaceField): { name: string; label: string; hint?: string; required?: boolean; disabled?: boolean } {
-  return { name: field.name, label: field.label, ...present(field, ['hint', 'required', 'disabled']) };
+/** Presentation the form decides for a field, not part of the field's own data. */
+export interface FieldRenderOptions {
+  /** The label repeats the card title: keep it as the accessible name, but don't show it twice. */
+  readonly labelHidden?: boolean;
+}
+
+function base(field: SurfaceField, options: FieldRenderOptions = {}): { name: string; label: string; hint?: string; required?: boolean; disabled?: boolean; labelHidden?: boolean } {
+  return { name: field.name, label: field.label, ...present(field, ['hint', 'required', 'disabled']), ...(options.labelHidden === true ? { labelHidden: true } : {}) };
 }
 
 /** One-of-N, drawn as radios or a select per {@link EnumField.presentation}. @complexity O(n) in the rendered length. */
-function renderEnumField(field: EnumField): string {
+function renderEnumField(field: EnumField, options: FieldRenderOptions): string {
   if (field.presentation === 'radio') {
     return renderChoiceGroup({
-      ...base(field),
+      ...base(field, options),
       selection: 'single',
       options: field.options,
       ...(field.value === undefined ? {} : { value: [field.value] }),
     });
   }
-  return renderSelect({ ...base(field), options: field.options, ...present(field, ['value', 'placeholder']) });
+  return renderSelect({ ...base(field, options), options: field.options, ...present(field, ['value', 'placeholder']) });
 }
 
 /**
@@ -125,21 +131,22 @@ function renderEnumField(field: EnumField): string {
  *
  * @param field - See {@link SurfaceField}.
  * @param text - Optional host translations for secret reveal controls.
+ * @param options - See {@link FieldRenderOptions}.
  * @returns An HTML fragment.
  * @complexity O(n) in the rendered length.
  */
-export function renderFieldControl(field: SurfaceField, text?: Partial<SecretInputText>): string {
+export function renderFieldControl(field: SurfaceField, text?: Partial<SecretInputText>, options: FieldRenderOptions = {}): string {
   switch (field.kind) {
     case 'string':
-      return renderTextInput({ ...base(field), ...text, ...present(field, ['value', 'placeholder', 'multiline', 'rows', 'secret']) });
+      return renderTextInput({ ...base(field, options), ...text, ...present(field, ['value', 'placeholder', 'multiline', 'rows', 'secret']) });
     case 'number':
-      return renderTextInput({ ...base(field), inputType: 'number', ...present(field, ['value', 'placeholder', 'min', 'max', 'step']) });
+      return renderTextInput({ ...base(field, options), inputType: 'number', ...present(field, ['value', 'placeholder', 'min', 'max', 'step']) });
     case 'boolean':
-      return renderCheckbox({ ...base(field), ...present(field, ['value']) });
+      return renderCheckbox({ ...base(field, options), ...present(field, ['value']) });
     case 'enum':
-      return renderEnumField(field);
+      return renderEnumField(field, options);
     case 'multi-enum':
-      return renderChoiceGroup({ ...base(field), selection: 'multiple', options: field.options, ...present(field, ['value']) });
+      return renderChoiceGroup({ ...base(field, options), selection: 'multiple', options: field.options, ...present(field, ['value']) });
   }
   return unhandledCase(field);
 }

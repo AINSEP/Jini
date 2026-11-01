@@ -31,7 +31,7 @@
  */
 import { escapeHtml } from '../escape.js';
 import type { SelectOption } from './select.js';
-import { fieldElementId } from './document.js';
+import { fieldElementId, VISUALLY_HIDDEN_CLASS } from './document.js';
 
 export interface ChoiceGroupProps {
   /** HTML `name`, DOM `id` stem, and the params key the value is posted under. */
@@ -56,6 +56,8 @@ export interface ChoiceGroupProps {
    */
   readonly required?: boolean;
   readonly disabled?: boolean;
+  /** Visually hide the legend (it repeats the card title); it stays the group's accessible name. */
+  readonly labelHidden?: boolean;
 }
 
 /**
@@ -98,7 +100,7 @@ export function renderChoiceGroup(props: ChoiceGroupProps): string {
 
   return (
     `<fieldset class="mcpui-field mcpui-choice-group"${describedBy}>\n` +
-    `<legend class="mcpui-label">${escapeHtml(props.label)}${required}</legend>${hint}\n` +
+    `<legend class="mcpui-label${props.labelHidden === true ? ` ${VISUALLY_HIDDEN_CLASS}` : ''}">${escapeHtml(props.label)}${required}</legend>${hint}\n` +
     `${options}\n` +
     `</fieldset>`
   );

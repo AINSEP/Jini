@@ -35,6 +35,8 @@ export interface SelectProps {
   /** Label for that leading empty option. Defaults to an em-dash. */
   readonly placeholder?: string;
   readonly disabled?: boolean;
+  /** Visually hide the label (it repeats the card title); it stays the accessible name. */
+  readonly labelHidden?: boolean;
 }
 
 /**

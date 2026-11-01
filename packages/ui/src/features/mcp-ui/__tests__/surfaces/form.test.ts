@@ -43,6 +43,29 @@ describe('renderFormDocument credential autofill guard', () => {
   });
 });
 
+describe('renderFormDocument question shown once', () => {
+  // A one-question card (assistant_ask_choice with no separate label) titled the card with the
+  // question and labelled the radio group with the same question — the person read it twice.
+  const question = 'No hosting credential is set up. How do you want to proceed?';
+  const choice = { kind: 'enum' as const, name: 'choice', label: question, presentation: 'radio' as const, required: true, options: [{ value: 'a' }, { value: 'b' }] };
+
+  it('hides a field label that repeats the card title, keeping it as the group\'s accessible name', () => {
+    const { doc } = mountSurface(renderFormDocument({ title: question, fields: [choice], submitLabel: 'Submit', toolName: 't' }));
+    const visible = [...doc.querySelectorAll('h1, h2, h3, legend, label, p')].filter((el) => !el.closest('.mcpui-visually-hidden'));
+    expect(visible.filter((el) => el.textContent?.replace('*', '').trim() === question)).toHaveLength(1);
+    const legend = doc.querySelector('legend');
+    expect(legend?.textContent).toContain(question);
+    expect(legend?.classList.contains('mcpui-visually-hidden')).toBe(true);
+  });
+
+  it('keeps a field label that differs from the title, and a text input\'s echo label stays its accessible name', () => {
+    const { doc } = mountSurface(renderFormDocument({ ...SPEC, title: 'Deploy', fields: [{ ...choice, label: 'Which host?' }, { kind: 'string', name: 'deploy', label: ' deploy ' }] }));
+    expect(doc.querySelector('legend')?.classList.contains('mcpui-visually-hidden')).toBe(false);
+    const label = doc.querySelector('label.mcpui-label[for="mcpui-field-deploy"], label.mcpui-label');
+    expect(label?.classList.contains('mcpui-visually-hidden')).toBe(true);
+  });
+});
+
 describe('renderFormDocument', () => {
   it('accepts an entered or kept alternate credential, and restores the requirement when an entered alternative is cleared', () => {
     for (const saved of [false, true]) {
@@ -671,26 +694,26 @@ it('an alternative submit action collects checked fields and carries its own act
 describe('renderFormDocument exact output', () => {
   const digest = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex');
   const cases: ReadonlyArray<readonly [string, FormSurfaceSpec, string]> = [
-    ['shared spec with an untargeted cancel', SPEC, '6d3631428d4bf2e5ffbac68090c6fb0870bd2f663775f8036be4356d7c6f8930'],
-    ['minimal spec with no cancel', { title: 'T', fields: [], submitLabel: 'Go', toolName: 'tool' }, '6e0e6e9229d1ae14d1c93d9c52c154868b6afcc7c471109e23512e37fcbd5c73'],
+    ['shared spec with an untargeted cancel', SPEC, '6b45cb4f65357ce923867528d995d255372d46cc7703fc7a0f9e45db115dc70a'],
+    ['minimal spec with no cancel', { title: 'T', fields: [], submitLabel: 'Go', toolName: 'tool' }, '5d0ef9361b1135a1a678329624f2a4e599b40758d68303052416f353c11209a8'],
     ['every option, with a tool-routed cancel', {
       ...SPEC, warning: 'Careful <now>', danger: true,
       fields: [...SPEC.fields, { kind: 'string', name: 'key', label: 'Key', secret: true, multiline: true }],
       additionalSubmitActions: [{ id: 'later', label: 'Later', params: { when: 'later' } }],
       cancel: { label: 'Stop', toolName: 'cancel_tool', params: { reason: 'x' } },
       text: { working: 'W', showSecret: 'Reveal' }, app: { appName: 'a', appVersion: '2' }, lang: 'fr', tokens: { '--jini-mcpui-bg': '#000' },
-    }, '24047acfbc88f6c549677bd613bf314bfbdb2df37ed92371162e060af74035fb'],
-    ['a cancel tool with no params', { ...SPEC, cancel: { label: 'Stop', toolName: 'cancel_tool' } }, '2dad1bb84506c4d0980c25b10573f52ffa3967915ccfd39b51b2bf44cd5a0f71'],
+    }, 'c1910a226eea7cffa976e983179c9792d46669ac2a0e4b780871c4212af1ec91'],
+    ['a cancel tool with no params', { ...SPEC, cancel: { label: 'Stop', toolName: 'cancel_tool' } }, '92956c30b4d5f48eff30f3b78fbab28bf4e580ee5dd0c8951da9e56f608cfef4'],
   ];
   it.each(cases)('%s', (_name, spec, expected) => {
     expect(digest(renderFormDocument(spec))).toBe(expected);
   });
 
   it('pins the framed resource wrapper', () => {
-    expect(digest(buildFormSurface({ ...SPEC, uri: 'ui://h/f/1', preferredFrameSize: ['1px', '2px'] }))).toBe('9a83d8785103c5ffb19b8fbdacfc2cbe04c919a8c71048476d879a6683b2154c');
+    expect(digest(buildFormSurface({ ...SPEC, uri: 'ui://h/f/1', preferredFrameSize: ['1px', '2px'] }))).toBe('e11980e0dcea6ac6dd1fc9d196c8cf6440fa39d5e7ecd9ce889874cdf8018071');
   });
 
   it('pins the unframed resource wrapper', () => {
-    expect(digest(buildFormSurface({ ...SPEC, uri: 'ui://h/f/2' }))).toBe('48b0339406d6787f6a63fa5e94b980f32468e0300e4904a437d7dde5039603da');
+    expect(digest(buildFormSurface({ ...SPEC, uri: 'ui://h/f/2' }))).toBe('67a57a3fd0cd8a216fe00227c186b718c2bdde73763f00cef927d2ccd1ea4dff');
   });
 });
