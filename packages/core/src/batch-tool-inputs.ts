@@ -178,6 +178,29 @@ async function normalizeBatchItem({ registration, defaults, shared, item }: {
   return { input: normalized.input, notes: [...layers.flatMap(layer => layer.notes), ...normalized.notes] };
 }
 
+/** Restore the single-call requirement the published batch schema intentionally omits, from the
+ * wrapped tool's own schema. Normalize first so repaired spellings and domain aliases satisfy it.
+ * @throws ToolInputError with every required name/type when any required value is missing.
+ * @complexity O(r) for r required fields, plus the existing normalization; no effects.
+ */
+async function normalizeSingleBatchInput({ input, registration }: { input: Record<string, unknown>; registration: ToolRegistration }) {
+  const normalized = await normalizeToolInput({ input, registration });
+  const value = normalized.input;
+  const schema = registration.descriptor.inputSchema as ObjectSchema;
+  const required = schema.required ?? [];
+  if (!isPlainObject(value) || required.every(name => value[name] !== undefined)) return normalized;
+  const missing = required.filter(name => value[name] === undefined);
+  const fields = required.map(name => `${name} (${schemaTypeLabel(schema.properties?.[name])})`);
+  throw new ToolInputError({ message: `${registration.descriptor.id}: missing required inputs: ${missing.join(', ')}. Required inputs: ${fields.join(', ')}.` });
+}
+
+/** A property's declared JSON type, `a | b` for a type list, `unknown` when undeclared. */
+function schemaTypeLabel(property: unknown): string {
+  const type = isPlainObject(property) ? property.type : undefined;
+  if (Array.isArray(type)) return type.join(' | ');
+  return typeof type === 'string' ? type : 'unknown';
+}
+
 /** A batch result is one JSON value, so an item's MCP `image` block would reach the model and the
  * chat as base64 text (a 20-item import batch, 20 previews). Drop images from item envelopes; the
  * item's text blocks still carry its result. Anything that is not an envelope is returned as is. */
@@ -237,7 +260,7 @@ export function withBatchInput(
     // The plan owns one confirmation. Normalize every merged item before the outer gate so
     // its policy and planner receive the same targets; never execute items to preflight them.
     normalizeInput: async ({ input }) => {
-      if (!Object.hasOwn(input, 'items')) return normalizeToolInput({ input, registration });
+      if (!Object.hasOwn(input, 'items')) return normalizeSingleBatchInput({ input, registration });
       const { items: rawItems, ...shared } = input;
       const items = readItems({ items: rawItems, toolId, maxItems });
       const normalized = [];
@@ -275,9 +298,9 @@ export function withBatchInput(
   };
   return { ...registration, descriptor, handler,
     // Domain normalization belongs to each merged item, not the incomplete shared layer.
-    normalizeInput: async ({ input }, options) => Object.hasOwn(input, 'items') || !registration.normalizeInput
+    normalizeInput: async ({ input }) => Object.hasOwn(input, 'items')
       ? { input, notes: [] }
-      : registration.normalizeInput({ input }, options),
+      : normalizeSingleBatchInput({ input, registration }),
   };
 }
 
