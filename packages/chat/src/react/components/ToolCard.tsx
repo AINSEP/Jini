@@ -533,7 +533,17 @@ function ExpandableCard({ className, head, after, call, children }: { className:
 
 /** The collapsed row's stand-in for its panel — see {@link ExpandableCard} and `describeCollapsedToolCall`. */
 function CollapsedReaderText({ call }: { call: CardProps }) {
-  const text = describeCollapsedToolCall({ input: call.input, result: call.result }, { runStreaming: call.runStreaming, runSucceeded: call.runSucceeded });
+  const input = call.input;
+  const resultContent = call.result?.content;
+  const resultIsError = call.result?.isError ?? false;
+  // Streaming deltas recreate envelopes; only changed reader text needs formatting/redaction.
+  // Run state explains a missing result, but cannot change the text of a recorded result.
+  const runStreaming = !call.result && call.runStreaming;
+  const runSucceeded = !call.result && call.runSucceeded;
+  const text = useMemo(() => describeCollapsedToolCall(
+    { input, result: resultContent === undefined ? undefined : { content: resultContent, isError: resultIsError } },
+    { runStreaming, runSucceeded },
+  ), [input, resultContent, resultIsError, runStreaming, runSucceeded]);
   return <span className="op-card-reader-text" hidden>{text}</span>;
 }
 

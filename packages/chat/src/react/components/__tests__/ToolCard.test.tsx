@@ -3,10 +3,48 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, afterEach, vi } from 'vitest';
 import { ToolCard } from '../ToolCard.js';
 import { registerToolRenderer, clearToolRenderers } from '../../tool-renderer-registry.js';
+import { formatToolOutputForDisplay } from '../../../core/tool-output.js';
+
+vi.mock('../../../core/tool-output.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../../../core/tool-output.js')>();
+  return { ...actual, formatToolOutputForDisplay: vi.fn(actual.formatToolOutputForDisplay) };
+});
 
 afterEach(() => clearToolRenderers({}));
 
 describe('ToolCard', () => {
+  it('formats collapsed output once across new result envelopes and run states, then refreshes changed content', () => {
+    const format = vi.mocked(formatToolOutputForDisplay).mockClear();
+    const use = { kind: 'tool_use' as const, id: 'cached', name: 'CustomTool', input: {} };
+    const result = { kind: 'tool_result' as const, toolUseId: use.id, content: '{"value":1}', isError: false };
+    const { container, rerender } = render(<ToolCard use={use} result={result} runStreaming />);
+    expect(format).toHaveBeenCalledTimes(1);
+    rerender(<ToolCard use={{ ...use }} result={{ ...result }} runStreaming />);
+    rerender(<ToolCard use={use} result={{ ...result }} runSucceeded />);
+    expect(format).toHaveBeenCalledTimes(1);
+    rerender(<ToolCard use={use} result={{ ...result, content: '{"value":2}' }} runSucceeded />);
+    expect(format).toHaveBeenCalledTimes(2);
+    expect(container.querySelector('.op-card-reader-text')?.textContent).toContain('"value": 2');
+  });
+
+  it('refreshes the collapsed reader when input, empty-result error state, or missing-result run state changes', () => {
+    const use = { kind: 'tool_use' as const, id: 'reader-state', name: 'CustomTool', input: { value: 1 } };
+    const result = { kind: 'tool_result' as const, toolUseId: use.id, content: '', isError: false };
+    const { container, rerender } = render(<ToolCard use={use} result={result} />);
+    const reader = () => container.querySelector('.op-card-reader-text')?.textContent;
+    expect(reader()).toContain('Finished with no output.');
+    rerender(<ToolCard use={use} result={{ ...result, isError: true }} />);
+    expect(reader()).toContain('Failed without an error message.');
+    rerender(<ToolCard use={{ ...use, input: { value: 2 } }} result={{ ...result, isError: true }} />);
+    expect(reader()).toContain('"value": 2');
+    rerender(<ToolCard use={use} runStreaming />);
+    expect(reader()).toContain('Waiting for the result or answer…');
+    rerender(<ToolCard use={use} />);
+    expect(reader()).toContain('The run ended before this call returned a result.');
+    rerender(<ToolCard use={use} runSucceeded />);
+    expect(reader()).toContain('No result was recorded for this call.');
+  });
+
   it('renders a Bash card with the command and output', async () => {
     render(<ToolCard use={{ kind: 'tool_use', id: 't1', name: 'Bash', input: { command: 'ls -la' } }} result={{ kind: 'tool_result', toolUseId: 't1', content: 'a.txt\nb.txt', isError: false }} runSucceeded />);
     expect(screen.getByText('Bash')).toBeInTheDocument();
@@ -80,7 +118,9 @@ describe('ToolCard', () => {
       try {
         // The hidden reader also formats JSON. A row with an explicit argument title bypasses
         // target parsing, giving a real rendered control for that independent formatter's cost.
-        const control = render(<ToolCard use={{ ...use, id: 'control', input: { ...use.input, title: 'Control' } }} result={{ ...result, toolUseId: 'control' }} runStreaming />);
+        // Keep both inputs stable so the control does not invalidate only its reader memo.
+        const controlUse = { ...use, id: 'control', input: { ...use.input, title: 'Control' } };
+        const control = render(<ToolCard use={controlUse} result={{ ...result, toolUseId: 'control' }} runStreaming />);
         const parsesOf = (text: string) => parse.mock.calls.filter(([value]) => value === text).length;
         const controlParses = parsesOf(content);
         const { rerender } = render(<ToolCard use={use} result={result} runStreaming />);
@@ -90,7 +130,7 @@ describe('ToolCard', () => {
           rerender(<ToolCard use={{ ...use }} result={{ ...result }} runStreaming={delta < 2} />);
           const rowParses = parsesOf(content) - before;
           const beforeControl = parsesOf(content);
-          control.rerender(<ToolCard use={{ ...use, id: 'control', input: { ...use.input, title: 'Control' } }} result={{ ...result, toolUseId: 'control' }} runStreaming={delta < 2} />);
+          control.rerender(<ToolCard use={{ ...controlUse }} result={{ ...result, toolUseId: 'control' }} runStreaming={delta < 2} />);
           expect(rowParses).toBe(parsesOf(content) - beforeControl);
         }
         control.unmount();
