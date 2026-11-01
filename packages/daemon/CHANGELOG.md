@@ -1,3 +1,9 @@
+## 0.6.17
+
+### Patch Changes
+
+- Handle npm 12 pack JSON through the shared parser in packed agent-session fixtures.
+
 ## 0.6.16
 
 ### Minor Changes

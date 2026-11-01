@@ -1,3 +1,9 @@
+## 0.6.17
+
+### Patch Changes
+
+- Handle npm 12 pack JSON through the shared parser in packed fixtures.
+
 ## 0.5.1 — 2026-10-08
 
 ### BREAKING

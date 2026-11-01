@@ -1,5 +1,11 @@
 # @jini-ai/memory
 
+## 0.6.17
+
+### Patch Changes
+
+- Version bump only.
+
 ## 0.6.13
 
 ### Patch Changes

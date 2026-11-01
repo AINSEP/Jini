@@ -1,4 +1,4 @@
-# Standalone plugin packages — 0.6.16
+# Standalone plugin packages — 0.6.17
 
 Each package contains one prebuilt plugin. Sources remain in
 `packages/provider-plugins/src/<id>` and `packages/agent-plugins/ui-ux-design`;
@@ -50,10 +50,10 @@ contract, signature rejection and absence of legacy Charge/Refund methods.
 ## Release and first publication
 
 Keep `.changeset/config.json`'s fixed `@jini-ai/*` group. The approved public release
-set is **0.6.16**, including the new public plugin packages and catalog. Set manifest
+set is **0.6.17**, including the new public plugin packages and catalog. Set manifest
 versions and consume pending changesets into package changelogs by hand for this
 release; do not run `changeset version`, which would advance the fixed group to
-0.7.x. The private conformance fixture follows 0.6.16 for catalog and pack checks.
+0.7.x. The private conformance fixture follows 0.6.17 for catalog and pack checks.
 
 In the release environment, install with the frozen lockfile and build from the
 Jini root. Run `pnpm guard:plugins`, `pnpm guard:plugins:catalog`,

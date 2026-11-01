@@ -1,3 +1,12 @@
+## 0.6.17
+
+### Patch Changes
+
+- Carry picked folders as per-message folder references, with draft and sent-message chips, persistence and replay.
+- Preserve ordinary typed paths while redacting glued-on secrets and slash-containing keys.
+- Handle npm 12 pack JSON through the shared parser in isolated-consumer tests.
+- Treat Node builtin dependencies as builtins when copying isolated runtime fixtures.
+
 ## 0.6.13
 
 ### Patch Changes

@@ -4,7 +4,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, sep } from 'node:path';
-import { createRequire } from 'node:module';
+import { createRequire, isBuiltin } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { beforeAll, afterAll, expect, it } from 'vitest';
 const packageRoot=fileURLToPath(new URL('../../../',import.meta.url));
@@ -21,6 +21,8 @@ function copyRuntimeTree(name:string,source:string,dir:string,seen=new Set<strin
  const root=realpathSync(source),manifest=JSON.parse(readFileSync(join(root,'package.json'),'utf8'));
  const req=createRequire(join(root,'package.json'));
  for(const dependency of Object.keys(manifest.dependencies??{})){
+  // Node resolves builtins to their specifiers, not files that can be copied.
+  if(isBuiltin(dependency))continue;
   let entry=req.resolve(dependency),parent=dirname(realpathSync(entry));
   while(!existsSync(join(parent,'package.json')) || JSON.parse(readFileSync(join(parent,'package.json'),'utf8')).name!==dependency){
    const next=dirname(parent);if(next===parent)throw new Error(`Cannot locate installed package ${dependency}`);parent=next;
@@ -105,4 +107,16 @@ it('Postgres packed consumer constructs with injected pg, without SQLite, PGlite
  const result=run(dir,`import pg from 'pg';import {openPostgresKernel} from '@jini-ai/db/kernel/postgres';import {createPostgresChatStore} from '@jini-ai/chat/store/postgres';const k=openPostgresKernel({pg});const s=createPostgresChatStore({kernel:k,scope:{scopeId:'s',ownerKind:'user',ownerId:'u'}});console.log(JSON.stringify([k.transport,typeof s.pageConversations]));await k.close();`);
  expect(result.stderr).toBe('');expect(result.status).toBe(0);expect(JSON.parse(result.stdout)).toEqual(['node-postgres','function']);
  for(const name of ['better-sqlite3','@electric-sql/pglite','react'])expect(run(dir,`await import(${JSON.stringify(name)})`).status).not.toBe(0);
+});
+
+// Builtins are runtime capabilities, not package directories to copy into an isolated install.
+it.each(['node:fs', 'string_decoder'])('isolated runtime fixtures preserve builtin dependency %s', dependency => {
+ const name = dependency === 'node:fs' ? 'prefixed-builtin-fixture' : 'bare-builtin-fixture';
+ const source = join(root, name);mkdirSync(source);
+ writeFileSync(join(source, 'package.json'), JSON.stringify({name, main: 'index.cjs', dependencies: {[dependency]: '*'}}));
+ writeFileSync(join(source, 'index.cjs'), `module.exports = typeof require(${JSON.stringify(dependency)}).${dependency === 'node:fs' ? 'readFile' : 'StringDecoder'};`);
+ copyRuntimeTree(name, source, dirs.store!);
+ const result = run(dirs.store!, `console.log((await import(${JSON.stringify(name)})).default)`);
+ expect(result.stderr).toBe('');expect(result.status).toBe(0);expect(result.stdout.trim()).toBe('function');
+ expect(existsSync(join(dirs.store!, 'node_modules', dependency))).toBe(false);
 });

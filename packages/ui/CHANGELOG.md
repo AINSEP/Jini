@@ -1,5 +1,12 @@
 # @jini-ai/ui
 
+## 0.6.17
+
+### Patch Changes
+
+- Add localized folder-chip strings.
+- Handle npm 12 pack JSON through the shared parser in publication-hygiene tests.
+
 ## 0.6.16
 
 ### Minor Changes

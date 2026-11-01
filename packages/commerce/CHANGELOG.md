@@ -1,5 +1,11 @@
 # @jini-ai/commerce
 
+## 0.6.17
+
+### Patch Changes
+
+- Handle npm 12 pack JSON through the shared parser in packaging tests.
+
 ## Unreleased — Phase 1 (2026-10-29)
 
 - Compose one-time orders with the payment kernel through a reserved-before-dispatch association,

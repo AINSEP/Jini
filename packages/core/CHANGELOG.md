@@ -1,5 +1,11 @@
 # @jini-ai/core
 
+## 0.6.17
+
+### Patch Changes
+
+- Mark required single-call fields in published batched-tool schemas and descriptions while preserving batching and clear missing-input errors.
+
 ## 0.6.16
 
 ### Patch Changes

@@ -1,3 +1,11 @@
+## 0.6.17
+
+### Patch Changes
+
+- Keep the newest five database backups and restore points.
+- Check free space before database copies and report insufficient capacity with DatabaseDiskSpaceError.
+- Accept a directory option in captureRestorePoint.
+
 ## 0.6.15
 
 ### Minor Changes
