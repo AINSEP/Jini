@@ -172,7 +172,7 @@ function createDelegatedGateway(
 
   return {
     name: variant.name,
-    description: `${variant.description} ${APPROVAL_GUIDANCE} Put the tool's own arguments inside input; non-conflicting top-level tool arguments are moved there automatically.`,
+    description: `${variant.description} MCP-local tool names advertised here are also accepted through their existing handlers. ${APPROVAL_GUIDANCE} Put the tool's own arguments inside input; non-conflicting top-level tool arguments are moved there automatically.`,
     argumentNormalization: { foldIntoInput: true },
     inputSchema: {
       type: 'object',
@@ -209,6 +209,11 @@ function createDelegatedGateway(
     },
     handler: async ({ args, ctx }) => {
       const toolId = requireString({ value: args.toolId, name: 'toolId' });
+      // Local tools are advertised by this MCP host, not registered in the daemon catalog.
+      // Use their existing handler/validator instead of inventing a second implementation there.
+      const local = await ctx.callLocalTool?.({ name: toolId, input: (args.input ?? {}) as Record<string, unknown>,
+        requireReadOnly: variant.requireReadOnly === true }, {});
+      if (local !== undefined) return local;
       const toolUseId = generateToolUseId({});
       const body: Record<string, unknown> = {
         runId,

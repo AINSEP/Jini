@@ -88,7 +88,8 @@ const SERVER_VERSION = '0.0.0';
 const INSTRUCTIONS =
   'Tools proxying this host\'s Jini daemon over loopback HTTP, scoped to the run that spawned this MCP server process. ' +
   'Use execute_delegated_tool to invoke a Jini-registered tool (never an agent-vendor-specific tool name) against that run — ' +
-  'every call is routed through the daemon\'s deny-by-default ToolExecutor gate. ' +
+  'Registered operation calls use the daemon\'s deny-by-default ToolExecutor gate; ' +
+  'MCP-local names use their existing validated handlers. ' +
   'Concrete operation tools accept their own arguments directly. describe_tool publishes a concrete definition; ' +
   'refresh tools/list when supported, or use the delegated gateways as the compatibility fallback. ' +
   'When the host provides site_guide, consult jini://site-guide or call site_guide with operation overview ' +

@@ -320,8 +320,21 @@ export function createMcpToolServer(requiredArgs: McpToolServerRequiredArgs, opt
         schema: CallToolRequestSchema,
         handler: withActivity(async ({ request }: { request: { params: { name: string; arguments?: Record<string, unknown> } } }, { extra }: { extra?: { signal?: AbortSignal } } = {}) => {
           const callContext = extra?.signal !== undefined ? { ...ctx, signal: extra.signal } : ctx;
-          const result = await handleToolCall({ name: request.params.name, tools: toolIndex, ctx: callContext }, { rawArgs: request.params.arguments });
-          if (!options.messageRelay || request.params.name === 'check_messages') return result;
+          let checkedMessages = request.params.name === 'check_messages';
+          const callLocalTool: NonNullable<McpToolContext['callLocalTool']> = async ({ name, input, requireReadOnly }, _optional = {}) => {
+            const tool = toolIndex.get(name);
+            if (!tool) return undefined;
+            if (requireReadOnly && tool.annotations?.readOnlyHint !== true) {
+              throw new Error(`Tool "${name}" is not declared read-only; use execute_delegated_tool.`);
+            }
+            checkedMessages = name === 'check_messages';
+            // Keep nesting bounded: a local gateway's own handler receives the base context.
+            return handleToolCall({ name, tools: toolIndex, ctx: callContext }, { rawArgs: input });
+          };
+          const result = await handleToolCall({ name: request.params.name, tools: toolIndex,
+            ctx: { ...callContext, callLocalTool } }, { rawArgs: request.params.arguments });
+          // A delegated check must keep its trusted nonce and claim only once, just like a direct check.
+          if (!options.messageRelay || checkedMessages) return result;
           return prependRunUserMessages({ result, relay: options.messageRelay, ctx: callContext });
         }),
       });

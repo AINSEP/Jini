@@ -11,7 +11,7 @@ const scope = { runId: 'run-a', nonce: 'a'.repeat(48) };
 it('guides every CLI to call the MCP-local check_messages directly', () => {
   const guidance = messageRelayInstructions(scope);
   expect(guidance).toContain('call the MCP-local check_messages tool directly');
-  expect(guidance).toContain('never pass check_messages as toolId to either delegated gateway');
+  expect(guidance).toContain('either delegated gateway also accepts check_messages as toolId');
 });
 
 /** Stand-in for the daemon's synchronous FIFO claim (tested in the daemon package); importing daemon

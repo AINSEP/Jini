@@ -55,6 +55,10 @@ import { scopeNestedSchemaRefs } from './schema-ref-scope.js';
 
 /** What every tool handler receives alongside its parsed arguments. */
 export interface McpToolContext {
+  /** Resolve MCP-local names through the hosting server; undefined leaves daemon dispatch intact. */
+  readonly callLocalTool?: (required: {
+    name: string; input: Record<string, unknown>; requireReadOnly: boolean;
+  }, optional?: Record<string, never>) => Promise<CallToolResult | undefined>;
   /** Publishes a successfully described, host-owned descriptor in this server run only. */
   readonly publishTool?: (required: { descriptor: ToolDescriptor }, optional?: Record<string, never>) => Promise<void>;
   /** Host registration metadata, supplied outside model-controlled arguments. */
