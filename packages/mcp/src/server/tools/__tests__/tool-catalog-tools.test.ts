@@ -10,6 +10,13 @@ import { buildToolIndex, handleToolCall, type McpToolContext } from '../../tool-
 const ctx: McpToolContext = { baseUrl: 'http://d.example', fetchImpl: fetch };
 
 describe('TOOL_CATALOG_TOOLS', () => {
+  it('publishes discovery guidance without hard-coded accuracy percentages, including nested parameter descriptions', () => {
+    // Guard the advertised contract rather than comments or one particular percentage.
+    const descriptions = JSON.stringify(TOOL_CATALOG_TOOLS, (key, value) =>
+      key === 'handler' ? undefined : value);
+    expect(descriptions).not.toMatch(/\d+(?:\.\d+)?\s*(?:%|percent\b)/i);
+  });
+
   it('exports both tools with unique names', () => {
     expect(TOOL_CATALOG_TOOLS.map((t) => t.name)).toEqual(['search_tools', 'describe_tool']);
   });

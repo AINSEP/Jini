@@ -88,13 +88,14 @@ export const searchToolsTool: McpToolDef = {
       // ranked just below the cutoff, never absent. Raising the DEFAULT to 20 would buy those 2
       // cases at ~900 extra tokens on every single call; telling the caller to escalate on demand
       // buys the same ceiling only when it is needed. Same lever as the descriptive-phrasing fix
-      // above: a prompt change, not an LLM call.
+      // above: a prompt change, not an LLM call. Those numbers stay HERE, never in the description:
+      // retrieval varies with each host's catalog and index, so one benchmark promises nothing to a caller.
       limit: {
         type: 'integer',
         minimum: 1,
         maximum: 25,
         description:
-          'Max hits to return (1-25). Optional, defaults to 10. If none of the returned candidates fit what you need, search again with a HIGHER limit (try 25) before concluding no tool exists — the right tool is in the top 10 about 98% of the time and in the top 20 100% of the time, so a near-miss is ranked just below the default cutoff rather than missing.',
+          'Max hits to return (1-25). Optional, defaults to 10. If none of the returned candidates fit what you need, search again with a HIGHER limit (try 25) or different phrasing before concluding no tool exists — a matching tool may rank below the default cutoff.',
       },
       max_results: {
         type: 'integer',
