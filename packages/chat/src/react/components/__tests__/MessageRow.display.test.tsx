@@ -91,11 +91,11 @@ describe('MessageRow toolCallDisplay', () => {
     await user.click(show);
     expect(show).toHaveAttribute('aria-expanded', 'true');
     expect(cardTitles()).toHaveLength(2);
-    expect(cardTitles()[0]).toContain('alpha');
-    expect(cardTitles()[1]).toContain('beta');
+    expect(cardTitles()[0]).toContain('Alpha');
+    expect(cardTitles()[1]).toContain('Beta');
     // Show reveals the existing cards; each card's own disclosure opens its result.
     for (const name of ['alpha', 'beta']) {
-      const card = screen.getByRole('button', { name: new RegExp(name) });
+      const card = screen.getByRole('button', { name: new RegExp(name, 'i') });
       expect(card).toHaveAttribute('aria-expanded', 'false');
       await user.click(card);
       expect(card).toHaveAttribute('aria-expanded', 'true');
@@ -139,7 +139,7 @@ describe('MessageRow toolCallDisplay', () => {
     expect(cardTitles()).toHaveLength(0);
     await user.click(screen.getByRole('button', { name: 'Show' }));
     expect(cardTitles()).toHaveLength(1);
-    const card = screen.getByRole('button', { name: /alpha/ });
+    const card = screen.getByRole('button', { name: /alpha/i });
     expect(card).toHaveAttribute('aria-expanded', 'false');
     await user.click(card);
     expect(card).toHaveAttribute('aria-expanded', 'true');
@@ -161,10 +161,10 @@ describe('MessageRow toolCallDisplay', () => {
     expect(cardTitles()).toHaveLength(0);
     await user.click(shows[0]!);
     expect(cardTitles()).toHaveLength(1);
-    expect(cardTitles()[0]).toContain('alpha');
+    expect(cardTitles()[0]).toContain('Alpha');
     await user.click(shows[1]!);
     expect(cardTitles()).toHaveLength(2);
-    expect(cardTitles()[1]).toContain('gamma');
+    expect(cardTitles()[1]).toContain('Gamma');
   });
 
   it('hidden uses later event text to prove recovery when the host rewrites content', () => {

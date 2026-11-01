@@ -39,7 +39,7 @@ describe('ToolCard', () => {
 
   it('falls back to GenericCard for an unrecognized tool', () => {
     render(<ToolCard use={{ kind: 'tool_use', id: 't2', name: 'CustomTool', input: { query: 'hello' } }} runSucceeded />);
-    expect(screen.getByText('CustomTool')).toBeInTheDocument();
+    expect(document.querySelector('.op-title')?.textContent).toBe('Tool call · CustomTool');
     expect(screen.getByText('hello')).toBeInTheDocument();
   });
 
@@ -480,10 +480,10 @@ describe('ToolCard', () => {
     });
   });
 
-  describe('GenericCard / describeInput / truncate', () => {
+  describe('GenericCard / argsSummary / truncate', () => {
     it('renders nothing extra when input is null/undefined', () => {
       render(<ToolCard use={{ kind: 'tool_use', id: 'gen1', name: 'Mystery', input: null }} runSucceeded />);
-      expect(screen.getByText('Mystery')).toBeInTheDocument();
+      expect(document.querySelector('.op-title')?.textContent).toBe('Tool call · Mystery');
       expect(document.querySelector('.op-meta')).toBeNull();
     });
 
@@ -498,16 +498,16 @@ describe('ToolCard', () => {
       expect(document.querySelector('.op-meta')?.textContent).toBe('42');
     });
 
-    it('falls back to JSON.stringify when no known key matches', () => {
+    it('falls back to the first string argument, never the JSON, when no known key matches', () => {
       render(<ToolCard use={{ kind: 'tool_use', id: 'gen3', name: 'Mystery', input: { foo: 'bar' } }} runSucceeded />);
-      expect(screen.getByText('{"foo":"bar"}')).toBeInTheDocument();
+      expect(document.querySelector('.op-meta')?.textContent).toBe('bar');
     });
 
-    it('returns an empty description when JSON.stringify throws on a circular object', () => {
+    it('shows no summary for a circular object with no string argument', () => {
       const circular: Record<string, unknown> = {};
       circular.self = circular;
       render(<ToolCard use={{ kind: 'tool_use', id: 'gen4', name: 'Mystery', input: circular }} runSucceeded />);
-      expect(screen.getByText('Mystery')).toBeInTheDocument();
+      expect(document.querySelector('.op-title')?.textContent).toBe('Tool call · Mystery');
       expect(document.querySelector('.op-meta')).toBeNull();
     });
 
@@ -546,6 +546,39 @@ describe('ToolCard', () => {
     it('renders nothing when the error result content is whitespace-only', () => {
       render(<ToolCard use={{ kind: 'tool_use', id: 'fe1', name: 'Write', input: { file_path: '/a.txt' } }} result={{ kind: 'tool_result', toolUseId: 'fe1', content: '   ', isError: true }} />);
       expect(document.querySelector('.op-output')).toBeNull();
+    });
+  });
+
+  describe('every tool row is humanized: label + short summary, never a raw id or JSON args', () => {
+    it('a snake_case tool (content_post_update) gets "Tool call · Content Post Update" and its slug, not the JSON args', () => {
+      const input = { id: '30127d31-2419-4e74-96e5-764442807909', kind: 'post', expectedVersion: 3, slug: 'ui-check-post', bodyJson: { type: 'doc' } };
+      render(<ToolCard use={{ kind: 'tool_use', id: 'h1', name: 'content_post_update', input }} runSucceeded />);
+      expect(document.querySelector('.op-title')?.textContent).toBe('Tool call · Content Post Update');
+      expect(document.querySelector('.op-meta')?.textContent).toBe('ui-check-post');
+    });
+
+    it('a question tool (assistant_ask_choice) shows its title, never {"title":…', () => {
+      render(<ToolCard use={{ kind: 'tool_use', id: 'h2', name: 'assistant_ask_choice', input: { title: 'No hosting key yet', options: [{ id: 'a' }] } }} runSucceeded />);
+      expect(document.querySelector('.op-title')?.textContent).toBe('Tool call · Assistant Ask Choice');
+      expect(document.querySelector('.op-meta')?.textContent).toBe('No hosting key yet');
+    });
+
+    it('an MCP-prefixed name drops its mcp__server__ prefix in the title and the agent label', () => {
+      const { container } = render(<ToolCard use={{ kind: 'tool_use', id: 'h3', name: 'mcp__tovu__theme_list_files', input: { themeId: 'basic-2' } }} runSucceeded />);
+      expect(document.querySelector('.op-title')?.textContent).toBe('Tool call · Theme List Files');
+      expect(document.querySelector('.op-meta')?.textContent).toBe('basic-2');
+      expect(container.querySelector('[data-agent-element="tool-call-h3"]')).toHaveAttribute('data-agent-label', 'A Theme List Files tool call the AI made');
+    });
+
+    it('args with no string value show no summary rather than JSON', () => {
+      render(<ToolCard use={{ kind: 'tool_use', id: 'h4', name: 'content_stats', input: { limit: 5, nested: { a: 'b' } } }} runSucceeded />);
+      expect(document.querySelector('.op-meta')).toBeNull();
+    });
+
+    it('the full JSON args are still available in the expanded detail', async () => {
+      render(<ToolCard use={{ kind: 'tool_use', id: 'h5', name: 'content_post_update', input: { id: 'p1', expectedVersion: 2 } }} runSucceeded />);
+      await userEvent.click(screen.getByRole('button'));
+      expect(document.querySelector('.op-command')?.textContent).toContain('expectedVersion');
     });
   });
 
@@ -662,10 +695,10 @@ describe('ToolCard', () => {
       expect(document.querySelector('.op-command')?.textContent).toBe('{}');
     });
 
-    it('shows no target for a non-object input, rather than stringifying it into the summary', () => {
-      // `primaryTarget` only ever surfaces a *named* argument; a bare scalar has no name to show.
+    it('shows a bare string input as the target, the same as every other tool row', () => {
+      // One summary rule for every row (`argsSummary`): a bare string argument is what the call acted on.
       render(<ToolCard use={{ kind: 'tool_use', id: 'd4', name: 'page.snapshot', input: 'agent-lab' }} runSucceeded />);
-      expect(document.querySelector('.op-meta')).toBeNull();
+      expect(document.querySelector('.op-meta')?.textContent).toBe('agent-lab');
     });
 
     it('falls back to the first string-valued argument as the target when no conventional key is present', () => {
@@ -679,9 +712,8 @@ describe('ToolCard', () => {
       // `page.fill__legacy` is a legal Jini tool id, and splitting on `_` yields an empty segment
       // between the two underscores — capitalizing that would read index 0 of an empty string.
       render(<ToolCard use={{ kind: 'tool_use', id: 'd6', name: 'page.fill__legacy', input: {} }} runSucceeded />);
-      // The empty word between the two underscores contributes nothing, leaving a doubled space
-      // that testing-library normalizes away — the point is that the row renders at all.
-      expect(document.querySelector('.op-title')?.textContent).toContain('Page Fill  Legacy');
+      // The run of underscores is one separator, so no empty word and no doubled space.
+      expect(document.querySelector('.op-title')?.textContent).toBe('Tool call · Page Fill Legacy');
     });
   });
 

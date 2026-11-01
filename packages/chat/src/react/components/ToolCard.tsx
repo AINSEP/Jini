@@ -23,7 +23,7 @@ const RUNNING_TITLE_CLASS = ' shimmer-text';
  */
 import { createContext, useContext, useId, useState, type ReactNode } from 'react';
 import type { AgentEvent, ToolResultMediaBlock } from '../../core/index.js';
-import { COLLAPSED_DETAIL_MAX_CHARS, describeCollapsedToolCall, describeToolCallDetail, isDelegatedWrapperToolName, isTodoWriteToolName, parseTodoWriteInput, redactUserText, toRenderProps } from '../../core/index.js';
+import { COLLAPSED_DETAIL_MAX_CHARS, describeCollapsedToolCall, describeToolCallDetail, humanizeToolName, isDelegatedWrapperToolName, isTodoWriteToolName, parseTodoWriteInput, redactUserText, toRenderProps } from '../../core/index.js';
 import { useT, useToolRendererRegistry } from '../hooks/context.js';
 import type { ToolRendererRegistry } from '../tool-renderer-registry.js';
 import { Icon } from './Icon.js';
@@ -69,7 +69,7 @@ export function ToolCard({ use, result, runStreaming, runSucceeded, projectFileN
   // stable identifier (unique per call within a message), never reused, so this handle is never
   // ambiguous the way a repeated literal handle would be.
   return (
-    <div data-agent-element={`tool-call-${use.id}`} data-agent-role="region" data-agent-label={`A ${humanizeToolId(name)} tool call the AI made`}>
+    <div data-agent-element={`tool-call-${use.id}`} data-agent-role="region" data-agent-label={`A ${humanizeToolName({ name: name })} tool call the AI made`}>
       <RetriedContext.Provider value={retried}>{content}</RetriedContext.Provider>
     </div>
   );
@@ -150,19 +150,21 @@ function renderToolCardBody(args: ToolCardBodyArgs): ReactNode {
   return <GenericCard name={name} {...card} />;
 }
 
-/** `"page.fill"` -> `"Page Fill"`, `"daemon.db.vacuum"` -> `"Daemon Db Vacuum"`. Cosmetic only — never used to make a routing decision. */
-function humanizeToolId(id: string): string {
-  return id
-    .split('.')
-    .map((segment) => segment.split('_').map((word) => (word ? word[0]!.toUpperCase() + word.slice(1) : word)).join(' '))
-    .join(' ');
-}
+/** Argument keys that name *what* a call acted on, best first: an element handle or page, then a human title/name/slug, then a path or query, then an id. */
+const SUMMARY_KEYS = ['element', 'page', 'handle', 'title', 'name', 'slug', 'file_path', 'path', 'pattern', 'url', 'query', 'command', 'toolId', 'id'];
 
-/** The one argument that best identifies *what* a call acted on, for the card's collapsed summary — an element handle, a page id, or (for tools with neither) whatever the first string-valued argument is. */
-function primaryTarget(input: unknown): string | undefined {
-  if (input == null || typeof input !== 'object') return undefined;
+/**
+ * A row's one-line summary of a call's arguments — the one argument that best identifies what it
+ * acted on (see {@link SUMMARY_KEYS}), else the first string-valued one. Never the JSON of the whole
+ * object: that read as raw machine output in the head (`{"id":"30127d…","kind":"post",…`); the
+ * full arguments are in the expanded detail. `undefined` when nothing reads as a summary.
+ */
+function argsSummary(input: unknown): string | undefined {
+  if (input == null) return undefined;
+  if (typeof input === 'string') return input || undefined;
+  if (typeof input !== 'object') return String(input);
   const obj = input as Record<string, unknown>;
-  for (const key of ['element', 'page', 'handle', 'toolId', 'id']) {
+  for (const key of SUMMARY_KEYS) {
     const v = obj[key];
     if (typeof v === 'string' && v) return v;
   }
@@ -170,6 +172,24 @@ function primaryTarget(input: unknown): string | undefined {
     if (typeof v === 'string' && v) return v;
   }
   return undefined;
+}
+
+/**
+ * The head every Jini/MCP/unknown tool row shares: status, "Tool call · <Humanized Name>", and the
+ * argument summary. One place, so a tool id the family table doesn't know (`content_post_update`,
+ * `mcp__tovu__theme_list_files`) still reads as a label and never as its raw name and JSON args.
+ */
+function ToolRowHead({ name, input, result, runStreaming, runSucceeded }: CardProps & { name: string }) {
+  const t = useT();
+  const target = argsSummary(input);
+  const isRunning = runStreaming && !result;
+  return (
+    <>
+      <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
+      <span className={`op-title${isRunning ? RUNNING_TITLE_CLASS : ''}`}>{t('Tool call')} · {humanizeToolName({ name: name })}</span>
+      {target ? <span className="op-meta">{headSummary({ text: target })}</span> : null}
+    </>
+  );
 }
 
 interface DelegatedToolCardProps extends CardProps {
@@ -184,25 +204,16 @@ interface DelegatedToolCardProps extends CardProps {
  * blob this replaces.
  */
 function DelegatedToolCard({ name, input, result, runStreaming, runSucceeded }: DelegatedToolCardProps) {
-  const t = useT();
   // Wrapper form (only reached on a failed wrapper call, per ToolCard's suppression comment):
   // the real id and args are nested under {toolId, input}, not `input` itself.
   const wrapper = (input ?? {}) as { toolId?: string; input?: unknown };
   const toolId = isDelegatedWrapperToolName({ name: name }) ? (wrapper.toolId ?? name) : name;
   const args = isDelegatedWrapperToolName({ name: name }) ? wrapper.input : input;
-  const target = primaryTarget(args);
-  const isRunning = runStreaming && !result;
   return (
     <ExpandableCard
       className="op-jini-tool"
       call={{ input: args ?? {}, result: result, runStreaming: runStreaming, runSucceeded: runSucceeded }}
-      head={
-        <>
-          <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
-          <span className={`op-title${isRunning ? RUNNING_TITLE_CLASS : ''}`}>{t('Tool call')} · {humanizeToolId(toolId)}</span>
-          {target ? <span className="op-meta">{headSummary({ text: target })}</span> : null}
-        </>
-      }
+      head={<ToolRowHead name={toolId} input={args} result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />}
       after={<FileErrorDetail result={result} />}
     >
       <ToolCallDetail input={args ?? {}} result={result} runStreaming={runStreaming} runSucceeded={runSucceeded}>
@@ -490,18 +501,11 @@ function WebSearchCard({ input, result, runStreaming, runSucceeded }: CardProps)
 
 /** Any tool this package has no family card for — an MCP tool, or a card tool such as `assistant_ask_choice` whose form renders elsewhere in the turn. The row still opens to the full call. */
 function GenericCard({ name, input, result, runStreaming, runSucceeded }: CardProps & { name: string }) {
-  const summary = describeInput(input);
   return (
     <ExpandableCard
       className="op-generic"
       call={{ input: input, result: result, runStreaming: runStreaming, runSucceeded: runSucceeded }}
-      head={
-        <>
-          <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
-          <span className="op-title">{name}</span>
-          {summary ? <span className="op-meta">{headSummary({ text: summary })}</span> : null}
-        </>
-      }
+      head={<ToolRowHead name={name} input={input} result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />}
       after={<ToolResultMedia result={result} />}
     >
       <ToolCallDetail input={input} result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
@@ -656,22 +660,6 @@ function FileErrorDetail({ result }: { result?: ToolResultEvent | undefined }) {
   // and redactor so large failures cannot retain their full output in those alternate DOM sinks.
   const detail = describeToolCallDetail({ input: null, result }, { maxChars: COLLAPSED_DETAIL_MAX_CHARS });
   return detail.outputText === null ? null : <pre className="op-output">{detail.outputText}</pre>;
-}
-
-function describeInput(input: unknown): string {
-  if (input == null) return '';
-  if (typeof input === 'string') return input;
-  if (typeof input !== 'object') return String(input);
-  const obj = input as Record<string, unknown>;
-  for (const key of ['file_path', 'path', 'pattern', 'url', 'query', 'name', 'command']) {
-    const v = obj[key];
-    if (typeof v === 'string') return v;
-  }
-  try {
-    return JSON.stringify(obj);
-  } catch {
-    return '';
-  }
 }
 
 /**
