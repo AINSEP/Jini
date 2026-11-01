@@ -99,6 +99,8 @@ test.each(['canonical', 'symlink'] as const)('the build CLI assembles a payload 
   const packageRoot = path.join(input.root, 'packages/plugin-ui-ux-design');
   await fs.mkdir(path.dirname(script), { recursive: true });
   await fs.copyFile(path.join(workspace, 'scripts/assemble-agent-plugin-package.ts'), script);
+  await fs.mkdir(path.join(path.dirname(script), 'lib'));
+  await fs.copyFile(path.join(workspace, 'scripts/lib/is-main-module.ts'), path.join(path.dirname(script), 'lib/is-main-module.ts'));
   await fs.mkdir(path.dirname(sourceDir), { recursive: true });
   await fs.rename(input.sourceDir, sourceDir);
   await fs.rename(input.packageRoot, packageRoot);

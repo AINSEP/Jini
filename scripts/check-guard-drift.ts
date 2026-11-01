@@ -43,6 +43,7 @@ import { REPO_ROOT } from './lib/walk-imports.js';
 import { checkSubpathIsolation } from './check-subpath-isolation.js';
 import { runPublishHygieneSelfTest } from './lib/publish-hygiene-self-test.js';
 import { runGuardSelfTest } from './lib/self-test.js';
+import { isMainModule } from './lib/is-main-module.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -182,10 +183,8 @@ async function main(): Promise<void> {
 // `diffAgainstBaseline`/`violationKey` to unit-test the diff logic in isolation. Without this guard,
 // importing those two pure functions would also run the real checks against the real repo (slow) and
 // risk a bare `process.exit(1)` killing the whole test process outright the moment a real violation
-// ever appears, rather than failing one test with a normal assertion. Mirrors the same
-// `import.meta.url === process.argv[1]` idiom `packages/cli/src/main.ts` already uses for the same
-// reason.
-const isMainModule = process.argv[1] !== undefined && fileURLToPath(import.meta.url) === process.argv[1];
-if (isMainModule) {
+// ever appears, rather than failing one test with a normal assertion. Resolve entry aliases just
+// like Node does, so macOS temporary-directory symlinks cannot silently bypass this gate.
+if (isMainModule({ moduleUrl: import.meta.url, entryPath: process.argv[1] })) {
   void main();
 }

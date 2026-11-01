@@ -21,7 +21,7 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { isMainModule } from './lib/is-main-module.js';
 
 const UPSTREAM_DAEMON_PREFIX = 'apps/daemon';
 const MIRRORED_DAEMON_PREFIX = 'foundry/integrations/open-design/daemon';
@@ -112,9 +112,6 @@ function runCli(argv: readonly string[]): void {
   console.log('PATCH_CANARY_OK');
 }
 
-const isMainModule =
-  typeof process.argv[1] === 'string' && import.meta.url === pathToFileURL(process.argv[1]).href;
-
-if (isMainModule) {
+if (isMainModule({ moduleUrl: import.meta.url, entryPath: process.argv[1] })) {
   runCli(process.argv.slice(2));
 }

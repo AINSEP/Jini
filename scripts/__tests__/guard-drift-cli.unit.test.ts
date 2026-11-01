@@ -2,7 +2,10 @@ import { fileURLToPath } from 'node:url';
 import { afterEach, expect, it, vi } from 'vitest';
 
 // The command owns orchestration and reporting; guard behavior has real fixture suites.
-vi.mock('node:fs', () => ({ readFileSync: () => '{"violations":[]}' }));
+vi.mock('node:fs', async importOriginal => ({
+  ...await importOriginal<typeof import('node:fs')>(),
+  readFileSync: () => '{"violations":[]}',
+}));
 vi.mock('../check-agentic-dom-purity.js', () => ({ checkAgenticDomPurity: () => [] }));
 vi.mock('../check-chatpane-public-surface.js', () => ({ checkChatPanePublicSurface: () => [] }));
 vi.mock('../check-driver-isolation.js', () => ({ checkDriverIsolation: () => [] }));
