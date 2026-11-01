@@ -23,7 +23,9 @@ it('keeps exports and entry runtime metadata synchronized', () => {
   expect(manifest.jini.entries['./settings/express']).toBe('node');
   expect(Object.hasOwn(manifest.exports, './http/settings')).toBe(false);
   expect(Object.hasOwn(manifest.jini.entries, './http/settings')).toBe(false);
-  expect(manifest.dependencies).toEqual({ "@jini-ai/core": "workspace:^" });
+  // deaf9cc: the document-text extractors' libraries are required, never optional peers (packages/README.md;
+  // scripts/__tests__/optional-peer-contract.test.ts pins cms → mammoth/unpdf as production deps).
+  expect(manifest.dependencies).toEqual({ "@jini-ai/core": "workspace:^", unpdf: "^1.8.1", mammoth: "^1.12.3" });
   expect(Object.hasOwn(manifest.peerDependencies, "@jini-ai/core")).toBe(false);
   expect(Object.hasOwn(manifest.peerDependenciesMeta, "@jini-ai/core")).toBe(false);
 });
