@@ -5,6 +5,7 @@ export { SqliteClientError } from "./checked-state.js";
 export { withSqliteTransaction, type TransactionSession, type Work } from "./transaction.js";
 export { openSqliteConnection, DEFAULT_PRAGMAS } from "./open.js";
 export { SqliteDbOpsAdapter, type SqliteDbOpsAdapterDeps } from "./db-ops.js";
+export { DATABASE_COPY_RETENTION, DatabaseDiskSpaceError, assertDatabaseCopySpace, pruneDatabaseCopies, type DatabaseCopy } from "./backup-policy.js";
 export type { SqliteBackupSource, SqliteRecoveryHook, OpenSqliteConnectionOptions } from "./restore-types.js";
 
 export type { SqliteSyncClient, SqliteSyncStatement, SqliteSyncTransaction, SqliteSyncOpener, SqliteDb } from "./sync-types.js";

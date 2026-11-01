@@ -1,4 +1,5 @@
 import path from "node:path";
+import { assertDatabaseCopySpace } from "../../sqlite/backup-policy.js";
 
 import { Kysely, type SqliteDatabase, SqliteDialect } from "kysely";
 
@@ -121,6 +122,7 @@ export function sqliteKernel<DB>(source: SqliteConnectionSource): SqliteKernel<D
     lockKey: async () => {},
     foreignTransactionOpen: () => client.inTransaction,
     backup: async (destPath) => {
+      await assertDatabaseCopySpace({ sourcePath: client.memory ? ':memory:' : client.name, destinationPath: destPath });
       await client.backup(destPath);
     },
     close: async () => {},

@@ -1,4 +1,5 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import fs from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 
@@ -34,6 +35,21 @@ describe('SqliteDbOpsAdapter', () => {
   });
 
   describe('captureRestorePoint', () => {
+    it('refuses low disk space with a typed actionable storage error before writing', async () => {
+      const filePath = join(dir, 'content.db');
+      writeFileSync(filePath, Buffer.alloc(10 * 1024 * 1024));
+      const actual = await fs.statfs(dir);
+      const probe = vi.spyOn(fs, 'statfs').mockResolvedValue({ ...actual, bavail: 12, bsize: 1024 * 1024 });
+      const backup = vi.fn().mockResolvedValue(undefined);
+      try {
+        const adapter = new SqliteDbOpsAdapter({ connection: { backup }, filePath, readWatermark: () => 0 });
+        await expect(adapter.captureRestorePoint({ scopeId: 's' })).rejects.toMatchObject({
+          name: 'DatabaseDiskSpaceError', code: 'INSUFFICIENT_STORAGE', status: 507,
+          message: "The server's disk is almost full (12 MB free, needs 62 MB) — free space or grow the disk.",
+        });
+        expect(backup).not.toHaveBeenCalled();
+      } finally { probe.mockRestore(); }
+    });
     it('writes a real, restorable backup next to the live database file', async () => {
       const filePath = join(dir, 'content.db');
       const connection = openSqliteConnection({ open: ({ filePath }, o) => new Database(filePath, o), filePath });

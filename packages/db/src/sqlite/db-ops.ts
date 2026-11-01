@@ -17,6 +17,7 @@ import path from 'node:path';
 import { restorePointFilename } from '../core/artifact-naming.js';
 import type { DbOpsPort, RestoreCapability, RestorePoint, WatermarkReader } from '../core/ports.js';
 import type { SqliteBackupSource } from './restore-types.js';
+import { assertDatabaseCopySpace } from './backup-policy.js';
 
 /** Sentinel `filePath` for an ephemeral connection with no file behind it. */
 const IN_MEMORY = ':memory:';
@@ -60,14 +61,15 @@ export class SqliteDbOpsAdapter implements DbOpsPort {
    * An in-memory connection has no directory of its own, so its artifacts land in the OS temp
    * directory rather than failing: the backup itself is still a real, consistent file.
    */
-  async captureRestorePoint(required: { scopeId: string }): Promise<RestorePoint> {
+  async captureRestorePoint(required: { scopeId: string }, options: { directory?: string } = {}): Promise<RestorePoint> {
     const watermarkAtCapture = await this.readWatermark();
-    const targetDir = this.filePath === IN_MEMORY ? os.tmpdir() : path.dirname(this.filePath);
+    const targetDir = options.directory ?? (this.filePath === IN_MEMORY ? os.tmpdir() : path.dirname(this.filePath));
     const artifactRef = path.join(
       targetDir,
       restorePointFilename({ scopeId: required.scopeId, watermarkAtCapture, timestamp: this.now() }),
     );
 
+    await assertDatabaseCopySpace({ sourcePath: this.filePath, destinationPath: artifactRef });
     await this.connection.backup(artifactRef);
 
     return { artifactRef, watermarkAtCapture };

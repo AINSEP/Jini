@@ -51,6 +51,10 @@ export interface MigrationOptions {
   allowUnknownApplied?: boolean;
   /** Where to copy an existing database before the first pending step changes it (see the file header). */
   backupPath?: string;
+  /** Opt-in host recovery policy. Without it every backup failure still aborts migration. */
+  onBackupError?: MigrationContext['onBackupError'];
+  /** Host-owned retention runs on successful copies even when a subsequent migration fails. */
+  onBackupComplete?: MigrationContext['onBackupComplete'];
   /** Postgres only: the schema holding the ledger, created with it when missing. */
   schema?: string;
   /** Names the newer runtime in {@link UnknownAppliedMigrationError}'s message (default "version"). */
@@ -228,7 +232,7 @@ export async function runMigrations(
   const note = (message: string) => {
     report.notes.push(message);
   };
-  const context: MigrationContext = options.backupPath === undefined ? { note } : { backupPath: options.backupPath, note };
+  const context = migrationContext({ options, note });
   if (options.atomicity === "batch") return applyBatch({ kernel, ledger, steps, options, context, report });
   const done = new Set(report.alreadyApplied);
   let backedUp = false;
@@ -249,6 +253,17 @@ export async function runMigrations(
   return report;
 }
 
+/** Expose only step context, retaining absent optional fields for existing prepare hooks.
+ * @complexity O(1), no I/O. */
+function migrationContext({ options, note }: { options: MigrationOptions; note: MigrationContext['note'] }, _optional = {}): MigrationContext {
+  return {
+    note,
+    ...(options.backupPath === undefined ? {} : { backupPath: options.backupPath }),
+    ...(options.onBackupError === undefined ? {} : { onBackupError: options.onBackupError }),
+    ...(options.onBackupComplete === undefined ? {} : { onBackupComplete: options.onBackupComplete }),
+  };
+}
+
 async function preparePendingStep({ kernel, context, step, backedUp }: { kernel: StorageKernel<unknown>; context: MigrationContext; step: MigrationStep; backedUp: boolean }): Promise<void> {
   if (!backedUp) await backUpBeforeChange(kernel, context);
   await step.prepare?.(kernel, context);
@@ -260,8 +275,15 @@ async function backUpBeforeChange(kernel: StorageKernel<unknown>, context: Migra
   if (target === undefined || !kernel.capabilities.backup || (await listTables(kernel)).length === 0) return;
   // The folder is made only when a copy is taken, so a run with nothing to copy leaves none behind.
   fs.mkdirSync(path.dirname(path.resolve(target)), { recursive: true });
-  await kernel.backupTo(target);
+  try {
+    await kernel.backupTo(target);
+  } catch (error) {
+    if (context.onBackupError === undefined) throw error;
+    context.onBackupError({ error, backupPath: target });
+    return;
+  }
   context.note(`backed up the database to ${target} before migrating it`);
+  await context.onBackupComplete?.({ backupPath: target });
 }
 
 async function ledgerExists(kernel: StorageKernel<unknown>, ledger: Ledger): Promise<boolean> {

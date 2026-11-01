@@ -2,7 +2,8 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { afterAll as after, test } from "vitest";
+import { afterAll as after, test, vi } from "vitest";
+import fsp from "node:fs/promises";
 
 import Database from "better-sqlite3";
 import { sql } from "kysely";
@@ -18,6 +19,18 @@ import { PGlite } from "@electric-sql/pglite";
 
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "jini-db-kernel-backup-"));
 after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+
+test("kernel refuses copies on low destination space before creating a file", async () => {
+  const client = new Database(path.join(tmp, "budget-source.db"));
+  const kernel = sqliteKernel<unknown>(client);
+  const target = path.join(tmp, "budget-copy.db");
+  const space = await fsp.statfs(tmp);
+  const probe = vi.spyOn(fsp, "statfs").mockResolvedValue({ ...space, bavail: 0 });
+  try {
+    await assert.rejects(kernel.backupTo(target), { name: "DatabaseDiskSpaceError", code: "INSUFFICIENT_STORAGE", status: 507 });
+    assert.equal(fs.existsSync(target), false);
+  } finally { probe.mockRestore(); client.close(); }
+});
 
 test("SQLite backupTo writes a readable copy with the committed rows", async () => {
   const client = new Database(path.join(tmp, "source.db"));

@@ -12,6 +12,10 @@ export const MIGRATION_ID = /^\d{4}_[a-z0-9_]+$/;
 export interface MigrationContext {
   /** Where the runner copied (or would copy) the database before the first pending step; the caller decides. */
   readonly backupPath?: string;
+  /** A host may explicitly continue after selected backup failures; throwing preserves refusal. */
+  readonly onBackupError?: (input: { error: unknown; backupPath: string }) => void;
+  /** Runs only after the copy succeeds, before any step changes the source database. */
+  readonly onBackupComplete?: (input: { backupPath: string }) => Promise<void>;
   /** Something worth telling the operator (a backup taken, a legacy tail applied). */
   note(message: string): void;
 }
