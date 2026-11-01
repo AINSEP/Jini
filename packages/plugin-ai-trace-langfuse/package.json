@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/plugin-ai-trace-langfuse",
-  "version": "0.6.15",
+  "version": "0.6.16",
   "description": "Self-contained Langfuse AI tracing provider artifact.",
   "type": "module",
   "license": "Apache-2.0",

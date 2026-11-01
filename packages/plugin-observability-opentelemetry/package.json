@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/plugin-observability-opentelemetry",
-  "version": "0.6.15",
+  "version": "0.6.16",
   "description": "Standalone OpenTelemetry server observability provider artifact.",
   "type": "module",
   "license": "Apache-2.0",
