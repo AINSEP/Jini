@@ -97,5 +97,15 @@ describe('parseStored', () => {
     expect(isFlags(null)).toBe(false);
     expect(isFlags({ functional: true, analytics: true })).toBe(false);
     expect(isFlags({ functional: false, analytics: false, marketing: false })).toBe(true);
+    const all = { functional: true, analytics: true, marketing: true };
+    expect(isFlags(Object.create(all))).toBe(false);
+    // A single inherited grant must fail too, whichever category inherits it.
+    for (const key of Object.keys(all)) {
+      const flags = Object.assign(Object.create({ [key]: true }), all);
+      delete flags[key];
+      expect(isFlags(flags), key).toBe(false);
+    }
+    expect(isFlags(Object.assign(Object.create(null), all))).toBe(true);
+    expect(isFlags({ ...all, hasOwnProperty: false })).toBe(true);
   });
 });

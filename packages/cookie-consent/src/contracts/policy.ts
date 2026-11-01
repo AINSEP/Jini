@@ -88,5 +88,5 @@ function isStored(s: Partial<StoredChoice> | null): s is StoredChoice {
 export function isFlags(c: unknown): c is Flags {
   const f = c as Partial<Flags> | null;
   if (!f || typeof f !== 'object') return false;
-  return typeof f.functional === 'boolean' && typeof f.analytics === 'boolean' && typeof f.marketing === 'boolean';
+  return ['functional', 'analytics', 'marketing'].every(key => Object.hasOwn(f, key) && typeof f[key as keyof Flags] === 'boolean');
 }
