@@ -54,6 +54,54 @@ describe('batchDescriptorFor', () => {
     expect(items.maxItems).toBe(DEFAULT_MAX_BATCH_ITEMS);
     expect(items.description).not.toContain('Each item needs');
     expect(batched.description).toMatch(/^ Batch: /);
+    expect(batched.description).not.toContain('Single call requires:');
+  });
+
+  it('marks every required object property for single calls, preserving descriptions and optional or boolean schemas', () => {
+    const descriptor = { id: 'theme_list_files', description: 'Lists theme files.', inputSchema: {
+      type: 'object', required: ['themeId', 'path', 'empty', 'allowed', 'denied'], properties: {
+        themeId: { type: 'string', description: 'The theme to inspect.', minLength: 1 },
+        path: { type: 'string' }, empty: { description: '' }, allowed: true, denied: false,
+        includeTrash: { type: 'boolean', description: 'Include deleted files.' },
+      },
+    } };
+    const snapshot = structuredClone(descriptor);
+    const batched = batchDescriptorFor({ descriptor, tool: { toolId: descriptor.id } });
+    const published = batched.inputSchema as { properties: Record<string, unknown> };
+
+    expect(published.properties).toMatchObject({
+      themeId: { type: 'string', minLength: 1, description: 'Required for a single call (or set it in each item). The theme to inspect.' },
+      path: { type: 'string', description: 'Required for a single call (or set it in each item). ' },
+      empty: { description: 'Required for a single call (or set it in each item). ' },
+      allowed: true, denied: false,
+      includeTrash: { type: 'boolean', description: 'Include deleted files.' },
+    });
+    expect(batched.description).toContain('Single call requires: themeId, path, empty, allowed, denied.');
+    expect(withoutBatchGuidance({ description: batched.description! })).toBe('Lists theme files.');
+    expect(descriptor).toEqual(snapshot);
+    expect(published).not.toHaveProperty('required');
+    expect(published).not.toHaveProperty('anyOf');
+  });
+
+  it('round-trips required names from structured data even when item prose changes or names contain prose delimiters', () => {
+    const names = ['themeId', 'destination, label', 'path (inside each item).'];
+    const descriptor = { id: 'move', inputSchema: { type: 'object', required: names,
+      properties: Object.fromEntries(names.map(name => [name, { type: 'string' }])) } };
+    const batched = batchDescriptorFor({ descriptor, tool: { toolId: descriptor.id } });
+    const published = batched.inputSchema as { properties: { items: { description: string } } };
+    published.properties.items.description = 'Batch inputs, with independently edited guidance.';
+
+    expect(batchItemRequiredFields({ inputSchema: published })).toEqual(names);
+    const recovered = batchItemRequiredFields({ inputSchema: published });
+    recovered.pop();
+    expect(batchItemRequiredFields({ inputSchema: { ...published } })).toEqual(names);
+    expect(descriptor.inputSchema.required).toEqual(names);
+  });
+
+  it('does not infer requirements from arbitrary schema prose', () => {
+    expect(batchItemRequiredFields({ inputSchema: { properties: { items: {
+      description: ' Each item needs invented (inside each item).',
+    } } } })).toEqual([]);
   });
 
   it('recovers exactly the moved required fields from a batch schema, and none from any other schema', () => {

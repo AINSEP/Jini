@@ -31,19 +31,18 @@ export function withoutBatchGuidance({ description }: { description: string }, _
 
 const ITEM_NEEDS = " Each item needs ";
 const ITEM_NEEDS_END = " (inside each item).";
+// Keep discovery requirements through descriptor/schema spreads without adding wire-schema keys.
+const BATCH_ITEM_REQUIRED_FIELDS = Symbol('batchItemRequiredFields');
 
-/** The top-level `required` fields {@link batchDescriptorFor} moved into its `items` description.
+/** The original top-level `required` fields retained by {@link batchDescriptorFor} as schema metadata.
  * A batch schema declares no top-level `required`, so a discovery signature built from it alone
  * makes a single call look argument-free and the model sends `{}` — this recovers them.
  * @returns The moved field names in order; [] for a non-batch schema or a tool that required none.
- * @complexity O(n) in the items description length; pure. */
+ * @complexity O(r) time and space for r required fields; pure. */
 export function batchItemRequiredFields({ inputSchema }: { inputSchema: unknown }, _optional = {}): string[] {
-  const items = isPlainObject(inputSchema) && isPlainObject(inputSchema.properties) ? inputSchema.properties.items : undefined;
-  const text = isPlainObject(items) && typeof items.description === "string" ? items.description : "";
-  const start = text.indexOf(ITEM_NEEDS);
-  const end = text.indexOf(ITEM_NEEDS_END, start);
-  if (start === -1 || end === -1) return [];
-  return text.slice(start + ITEM_NEEDS.length, end).split(", ");
+  if (!isPlainObject(inputSchema)) return [];
+  const schema = inputSchema as { [BATCH_ITEM_REQUIRED_FIELDS]?: readonly string[] };
+  return [...(schema[BATCH_ITEM_REQUIRED_FIELDS] ?? [])];
 }
 
 /** Used when a {@link BatchableTool} names no `maxItems`. */
@@ -96,15 +95,16 @@ interface ObjectSchema {
 
 /**
  * The descriptor a batchable tool publishes: its own schema plus an `items` array, its top-level
- * `required` list moved into the `items` description (a batch call sets those per item or once at
- * the top level through the declared legacy normalization), and batch guidance appended to its description.
+ * `required` list retained as metadata and described on required properties (a batch call sets
+ * those per item or once at the top level through the declared legacy normalization), and batch
+ * guidance appended to its description.
  *
  * @param required.descriptor - The tool's registered descriptor.
  * @param required.tool - Its batch settings.
  * @returns A new descriptor; the input is not mutated.
  * @throws {Error} If the tool publishes no object schema, or already has an `items` property
  * (the batch field would shadow it) — both developer errors caught at composition time.
- * @complexity O(p) in the schema's top-level property count.
+ * @complexity O(p + r) time and space for p top-level properties and r required fields.
  */
 export function batchDescriptorFor(
   { descriptor, tool }: { descriptor: ToolRegistration["descriptor"]; tool: BatchableTool },
@@ -119,9 +119,18 @@ export function batchDescriptorFor(
   }
   const maxItems = tool.maxItems ?? DEFAULT_MAX_BATCH_ITEMS;
   const requiredFields = schema.required ?? [];
+  const requiredNames = new Set(requiredFields);
+  const properties = Object.fromEntries(Object.entries(schema.properties).map(([name, property]) => [
+    name,
+    requiredNames.has(name) && isPlainObject(property)
+      ? { ...property, description: `Required for a single call (or set it in each item). ${property.description ?? ""}` }
+      : property,
+  ]));
   const rest = { ...schema };
   delete rest.required;
   const needs = requiredFields.length > 0 ? `${ITEM_NEEDS}${requiredFields.join(", ")}${ITEM_NEEDS_END}` : "";
+  // Inside the removable guidance so search keeps only the authored description and signature.
+  const singleNeeds = requiredFields.length > 0 ? `Single call requires: ${requiredFields.join(", ")}. ` : "";
   const items = {
     type: "array",
     minItems: 1,
@@ -136,8 +145,9 @@ export function batchDescriptorFor(
     description:
       `${descriptor.description ?? ""}${BATCH_GUIDANCE_MARKER}to do several at once, pass items: [{...}, ...] (up to ${maxItems}) in ONE call instead of one call per item. ` +
       "Canonical shape: {items:[{...}, ...]} only. Legacy shared top-level fields are normalized into each item; item values win. " +
+      singleNeeds +
       "Returns { batch: true, outcome: completed | partial_failure | error, total, succeeded, failed, results: [{ index, ok, result | error }] }; one item's failure does not stop the others.",
-    inputSchema: { ...rest, properties: { ...schema.properties, items } },
+    inputSchema: { ...rest, [BATCH_ITEM_REQUIRED_FIELDS]: [...requiredFields], properties: { ...properties, items } },
   };
 }
 
