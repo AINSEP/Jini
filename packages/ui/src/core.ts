@@ -59,7 +59,7 @@ export {
 
 // --- appearance ---
 export type { SettingsThemeChoice } from './features/appearance/types.js';
-export { THEME_OPTIONS, DEFAULT_ACCENT_COLOR, ACCENT_SWATCHES } from './features/appearance/constants.js';
+export { THEME_OPTIONS, DEFAULT_ACCENT_COLOR, ACCENT_SWATCHES, ACCENT_SWATCH_PRESETS } from './features/appearance/constants.js';
 export type { ThemeOption } from './features/appearance/constants.js';
 export { normalizeAccentColor, resolveAccentColor, accentVars } from './features/appearance/rules.js';
 export type { AccentCssVars } from './features/appearance/rules.js';

@@ -10,7 +10,7 @@ import {
   normalizeAccentColor,
   resolveAccentColor,
 } from '../../../../utils/appearance.js';
-import { THEME_OPTIONS } from '../../constants.js';
+import { ACCENT_SWATCH_PRESETS, THEME_OPTIONS } from '../../constants.js';
 import type { SettingsThemeChoice } from '../../types.js';
 
 export interface AppearanceTabProps {
@@ -61,7 +61,6 @@ export function AppearanceTab({
   const swatchHandles = agentHandle ? buildAgentListHandles({ prefix: agentSubHandle({ base: agentHandle, action: 'swatch' }), ids: accentSwatches }) : undefined;
   const resolvedAriaLabel = ariaLabel ?? t('Appearance');
   const resolvedAccentLabel = accentLabel ?? t('Accent color');
-  const resolvedDefaultAccentAriaLabel = defaultAccentAriaLabel ?? t('Default accent color');
   const resolvedCustomAccentAriaLabel = customAccentAriaLabel ?? t('Custom accent color');
 
   const appliedTheme = theme === 'system' ? undefined : theme;
@@ -98,7 +97,8 @@ export function AppearanceTab({
         <div className="jini-accent-swatches" role="radiogroup" aria-label={resolvedAccentLabel}>
           {accentSwatches.map((color, index) => {
             const active = resolvedAccent === color;
-            const swatchLabel = color === DEFAULT_ACCENT_COLOR ? resolvedDefaultAccentAriaLabel : color;
+            const nameKey = ACCENT_SWATCH_PRESETS.find((swatch) => swatch.color === color.toLowerCase())?.nameKey ?? color;
+            const swatchLabel = color === DEFAULT_ACCENT_COLOR && defaultAccentAriaLabel !== undefined ? defaultAccentAriaLabel : t(nameKey);
             return (
               <button
                 key={color}
@@ -106,6 +106,7 @@ export function AppearanceTab({
                 className={`jini-accent-swatch${active ? ' active' : ''}`}
                 style={{ background: color }}
                 aria-label={swatchLabel}
+                title={color}
                 aria-checked={active}
                 role="radio"
                 onClick={() => onAccentColorChange(normalizeAccentColor({ value: color }) ?? color)}

@@ -21,13 +21,17 @@ export const THEME_OPTIONS: ThemeOption[] = [
  *  config/branding; this only guarantees the CSS vars are always set. */
 export const DEFAULT_ACCENT_COLOR = defaultAdminTheme.light.primary;
 
-export const ACCENT_SWATCHES = [
-  DEFAULT_ACCENT_COLOR,
-  '#c96442',
-  '#7c3aed',
-  '#059669',
-  '#dc2626',
-  '#d97706',
-  '#0891b2',
-  '#db2777',
+/** One owner for each preset's color and English translation key. Hosts supply translations. */
+export const ACCENT_SWATCH_PRESETS = [
+  { color: DEFAULT_ACCENT_COLOR, nameKey: 'Charcoal' },
+  { color: '#c96442', nameKey: 'Clay' },
+  { color: '#7c3aed', nameKey: 'Violet' },
+  { color: '#059669', nameKey: 'Green' },
+  { color: '#dc2626', nameKey: 'Red' },
+  { color: '#d97706', nameKey: 'Amber' },
+  { color: '#0891b2', nameKey: 'Teal' },
+  { color: '#db2777', nameKey: 'Pink' },
 ] as const;
+
+/** Keep the existing string palette API for hosts that compose their own swatch lists. */
+export const ACCENT_SWATCHES: readonly string[] = ACCENT_SWATCH_PRESETS.map(({ color }) => color);
