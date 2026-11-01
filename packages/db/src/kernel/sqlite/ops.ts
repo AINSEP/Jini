@@ -1,6 +1,18 @@
 import { outsideTransactionOf, StorageOpError, type StorageKernel, type StorageOps } from "../index.js";
 import { sqliteConnectionOf } from "./driver.js";
 
+/** Synchronous WAL-safe snapshot for admission code that must commit under a synchronous lock.
+ * Accepts either the host's SQLite client or Node's built-in DatabaseSync; the caller owns it.
+ * @throws SQLite errors, including an existing destination or an active transaction.
+ * @complexity O(database bytes), performed by SQLite without buffering the database in JS.
+ */
+export function copySqliteInto({ source, targetPath }: {
+  source: { prepare(sql: string): { run(targetPath: string): unknown } }; targetPath: string;
+}, _options = {}): void {
+  // Bind the destination: quotes in a folder name must never become SQL syntax.
+  source.prepare("VACUUM INTO ?").run(targetPath);
+}
+
 /**
  * The storage ops (`@jini-ai/db/kernel`'s `StorageOps`) for a kernel the sqlite driver built:
  * `VACUUM INTO` for the copy; `VACUUM` + WAL checkpoint + `integrity_check` for compacting. Must be
@@ -17,8 +29,7 @@ export function sqliteOps<DB>(kernel: StorageKernel<DB>): StorageOps {
   return {
     async copyTo(targetPath) {
       outsideTransaction("copyTo");
-      // Bound parameter: VACUUM INTO takes an expression, so the path is never spliced into SQL.
-      client.prepare("VACUUM INTO ?").run(targetPath);
+      copySqliteInto({ source: client, targetPath });
     },
     async compactAndVerify() {
       outsideTransaction("compactAndVerify");
