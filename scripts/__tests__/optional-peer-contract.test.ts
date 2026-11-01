@@ -129,7 +129,11 @@ it('feature load messages match the owning manifest classifications', async () =
         try { loadOptionalPeer({ feature: fields.feature!, dependency: fields.dependency!, load: () => { throw new Error('absent'); } }); }
         catch (error) { message = (error as Error).message; }
         const classification = manifest.jini.optionalPeers?.[fields.dependency!];
-        if (classification) expect(classification, file).toContain(` — ${message}`);
+        // 8ff9f6a57: manifests own the feature/dependency headline; core owns the cause-specific advice
+        // after it (pinned per cause in packages/core/src/__tests__/optional-peer.test.ts).
+        const headline = `${fields.feature} could not load ${fields.dependency}.`;
+        expect(message.slice(0, headline.length + 1), file).toBe(`${headline} `);
+        if (classification) expect(classification, file).toContain(` — ${headline} `);
         else expect(manifest.dependencies?.[fields.dependency!], file).toBeTruthy();
       }
       ts.forEachChild(node, visit);

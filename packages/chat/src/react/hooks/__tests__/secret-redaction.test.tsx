@@ -1,5 +1,6 @@
 import { act, fireEvent, render, renderHook, screen } from '@testing-library/react';
 import { expect, it } from 'vitest';
+import { formatDroppedFolderPaths } from '@jini-ai/ui/core';
 import { useConversation } from '../useConversation.js';
 import { useChatPane } from '../../features/chat-pane/hooks/useChatPane.hooks.js';
 import { ChatPane } from '../../features/chat-pane/components/ChatPane.js';
@@ -143,7 +144,8 @@ it.each([
   const transport = createFakeChatTransport();
   const signals: unknown[] = [];
   const contexts: string[] = [];
-  const prompt = `Please inspect ${path}`;
+  // b2c3f637e: the picker quotes whitespace-containing paths before they reach chat.
+  const prompt = `Please inspect ${formatDroppedFolderPaths([path])}`;
   render(<ChatPane transport={transport} agents={agents} initialSelection={{ agentId: 'a' }} initialDraft={prompt}
     onSecretRedacted={signal => signals.push(signal)} runContext={({ prompt }) => { contexts.push(prompt); return {}; }} />);
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Send' })); });

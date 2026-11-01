@@ -148,8 +148,13 @@ describe('formatDroppedFolderPaths', () => {
     expect(formatDroppedFolderPaths(['/a/One', '/a/Two', '/a/Three'])).toBe('/a/One /a/Two /a/Three');
   });
 
-  it('joins a path that contains a space as-is, unquoted (the current, ambiguous format)', () => {
-    expect(formatDroppedFolderPaths(['/Users/x/My Site', '/a/Two'])).toBe('/Users/x/My Site /a/Two');
+  // b2c3f637e: whitespace-containing paths must stay quoted at the redaction boundary.
+  it.each([
+    ['/Users/x/My Site', '"/Users/x/My Site" /a/Two'],
+    ['/Users/x/My\tSite', '"/Users/x/My\tSite" /a/Two'],
+    ['C:\\Users\\x\\My Site', '"C:\\Users\\x\\My Site" /a/Two'],
+  ])('quotes a whitespace-containing path %j while preserving drop order', (path, expected) => {
+    expect(formatDroppedFolderPaths([path, '/a/Two'])).toBe(expected);
   });
 });
 
