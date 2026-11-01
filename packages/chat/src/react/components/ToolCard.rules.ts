@@ -55,10 +55,28 @@ function resultName(content: string | undefined): string | undefined {
   return firstReadable(obj, RESULT_NAME_KEYS) ?? nested.map((v) => firstReadable(v, RESULT_NAME_KEYS)).find(Boolean);
 }
 
+/** A batch member's own target: a readable string member, or an object member's summary key. O(k). */
+function memberTarget(first: unknown): string | undefined {
+  if (readable(first)) return first;
+  return first != null && typeof first === 'object' ? firstReadable(first as Record<string, unknown>, SUMMARY_KEYS) : undefined;
+}
+
+/** A shallow batch target, independent of CLI and collection key. No document-body traversal.
+ * O(k) in the envelope and first member's key counts; never scans or serializes all members.
+ */
+function batchTarget(input: unknown): string | undefined {
+  const members = Array.isArray(input) ? input : Object.values(input as Record<string, unknown>).find(Array.isArray);
+  if (!members?.length) return undefined;
+  const target = memberTarget(members[0]);
+  if (!target) return `${members.length} ${members.length === 1 ? 'item' : 'items'}`;
+  return members.length === 1 ? target : `${target} +${members.length - 1}`;
+}
+
 /**
  * What a tool row names as its target, for a person, best first: an argument that names it (see
- * {@link SUMMARY_KEYS}: handle, title, slug, path, query…), the name the result returned, the
- * record's kind ("post"), then any other readable string argument. Never the JSON of the whole
+ * {@link SUMMARY_KEYS}: handle, title, slug, path, query…), the name the result returned, a shallow
+ * batch summary (after the result name, so an incidental array argument like `tags` never hides the
+ * record a single-record call returned), the record's kind ("post"), then any other readable string argument. Never the JSON of the whole
  * object — that read as raw machine output in the head (`{"id":"30127d…","kind":"post",…`); the
  * full arguments are in the expanded detail — and never an opaque id (owner bug 11-01: "Content
  * Post Update 30127d31-…"). `undefined` when nothing reads as a target.
@@ -69,5 +87,6 @@ export function toolRowTarget({ input, resultContent }: { input: unknown; result
   if (typeof input === 'string') return readable(input) ? input : undefined;
   if (input != null && typeof input !== 'object') return String(input);
   const args = (input ?? {}) as Record<string, unknown>;
-  return firstReadable(args, SUMMARY_KEYS) ?? resultName(resultContent) ?? firstReadable(args, KIND_KEYS) ?? Object.values(args).find(readable);
+  const named = firstReadable(args, SUMMARY_KEYS) ?? resultName(resultContent);
+  return named ?? batchTarget(args) ?? firstReadable(args, KIND_KEYS) ?? Object.values(args).find(readable);
 }

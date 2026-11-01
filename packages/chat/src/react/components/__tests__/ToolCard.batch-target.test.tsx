@@ -1,0 +1,37 @@
+import { render, screen } from '@testing-library/react';
+import { describe, expect, it } from 'vitest';
+import { ToolCard } from '../ToolCard.js';
+
+describe('tool targets for batches across CLIs', () => {
+  it.each(['theme_read_file', 'content_post_create', 'custom_batch'])('summarizes %s by the first target and remaining count', name => {
+    render(<ToolCard use={{ kind: 'tool_use', id: name, name,
+      input: { items: [{ path: 'index.html' }, { path: 'about.html' }, { path: 'contact.html' }] } }} runSucceeded />);
+    expect(screen.getByRole('button', { name: /index.html \+2$/ })).toBeInTheDocument();
+  });
+
+  it.each([
+    { records: [{ title: 'First' }, { title: 'Second' }] },
+    [{ title: 'First' }, { title: 'Second' }],
+  ])('supports named arrays and direct arrays: %j', input => {
+    render(<ToolCard use={{ kind: 'tool_use', id: 'batch', name: 'batch', input }} runSucceeded />);
+    expect(screen.getByRole('button', { name: /First \+1$/ })).toBeInTheDocument();
+  });
+
+  it('shows a count when no batch member carries a readable target', () => {
+    render(<ToolCard use={{ kind: 'tool_use', id: 'batch', name: 'batch', input: { items: [{}, {}, {}] } }} runSucceeded />);
+    expect(screen.getByRole('button', { name: /3 items$/ })).toBeInTheDocument();
+  });
+
+  it('keeps empty batches and normal calls readable without descending into document bodies', () => {
+    render(<ToolCard use={{ kind: 'tool_use', id: 'normal', name: 'custom_batch',
+      input: { title: 'Normal', items: [], body: { content: [{ title: 'nested' }] } } }} runSucceeded />);
+    expect(screen.getByRole('button', { name: /Normal$/ })).toBeInTheDocument();
+  });
+
+  it('lets the record name a single-record result returned win over an incidental array argument', () => {
+    render(<ToolCard use={{ kind: 'tool_use', id: 'tagged', name: 'content_post_update',
+      input: { id: '30127d31-0000-4000-8000-000000000000', tags: ['hero', 'dark'] } }}
+      result={{ kind: 'tool_result', toolUseId: 'tagged', content: '{"post":{"title":"Spring Menu"}}', isError: false }} runSucceeded />);
+    expect(screen.getByRole('button', { name: /Spring Menu$/ })).toBeInTheDocument();
+  });
+});

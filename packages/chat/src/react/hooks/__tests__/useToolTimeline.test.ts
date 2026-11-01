@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { AgentEvent } from '../../../core/index.js';
 import { useToolTimeline } from '../useToolTimeline.js';
 import { DIRECT_MCP_EVENTS } from '../../../core/__tests__/fixtures/direct-mcp-events.js';
+import { ANTIGRAVITY_BUFFERED_EVENTS } from '../../../core/__tests__/fixtures/antigravity-buffered-events.js';
 
 const events: AgentEvent[] = [
   { kind: 'text', text: 'starting' },
@@ -12,6 +13,45 @@ const events: AgentEvent[] = [
 ];
 
 describe('useToolTimeline', () => {
+  it('never adds a phantom row when buffered Antigravity wrappers arrive after the bridge', () => {
+    const bridgeId = '90bb33de-9693-41c2-bf80-b551abccd86c';
+    const wrapperId = 'd8e6d95d-b865-4c31-a8f2-86ab2c485a6f:20';
+    const stored = ANTIGRAVITY_BUFFERED_EVENTS.filter(event => event.kind === 'tool_use'
+      ? [bridgeId, wrapperId].includes(event.id)
+      : event.kind === 'tool_result' && [bridgeId, wrapperId].includes(event.toolUseId));
+    const renderedIds: string[][] = [];
+    const { result, rerender } = renderHook(({ current }: { current: AgentEvent[] }) => {
+      const timeline = useToolTimeline({ events: current }, { runStreaming: true });
+      renderedIds.push(timeline.rows.map(row => row.id));
+      return timeline;
+    }, { initialProps: { current: stored.slice(0, 1) } });
+    act(() => result.current.toggle(bridgeId));
+    for (let length = 2; length <= stored.length; length += 1) {
+      rerender({ current: stored.slice(0, length) });
+      expect(result.current.rows).toHaveLength(1);
+      expect(result.current.rows[0]).toMatchObject({ id: bridgeId, status: 'complete', expanded: true });
+    }
+    expect(renderedIds.every(ids => ids.length === 1 && ids[0] === bridgeId)).toBe(true);
+    expect(result.current.rows[0]?.result).toEqual(stored[1]);
+  });
+
+  it('never pairs a turn-two wrapper with the equal bridge call from turn one', () => {
+    const canonical: AgentEvent = { kind: 'tool_use', id: 'turn-one', name: 'theme_read_file', input: { path: 'a' } };
+    const wrapper: AgentEvent = { kind: 'tool_use', id: 'turn-two', name: 'call_mcp_tool',
+      input: { ServerName: 'jini', ToolName: 'theme_read_file', Arguments: { path: 'a' } } };
+    const { result, rerender } = renderHook(({ next }: { next: AgentEvent[] }) => ({
+      first: useToolTimeline({ events: [canonical] }).rows,
+      second: useToolTimeline({ events: next }, { runStreaming: true }).rows,
+    }), { initialProps: { next: [] as AgentEvent[] } });
+    rerender({ next: [wrapper] });
+    expect(result.current.first.map(row => row.id)).toEqual(['turn-one']);
+    expect(result.current.second.map(row => row.id)).toEqual(['turn-two']);
+    const nextBridge = { ...canonical, id: 'turn-two-bridge' };
+    rerender({ next: [wrapper, nextBridge] });
+    expect(result.current.first.map(row => row.id)).toEqual(['turn-one']);
+    expect(result.current.second.map(row => row.id)).toEqual(['turn-two-bridge']);
+  });
+
   it('shows one direct MCP row using the bridge result and status, including while streaming', () => {
     const { result, rerender } = renderHook(({ stored }: { stored: AgentEvent[] }) =>
       useToolTimeline({ events: stored }, { runStreaming: true }),

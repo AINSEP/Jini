@@ -99,6 +99,17 @@ describe('foldDelegatedWrapperCalls — direct MCP transport calls', () => {
     ];
     expect(foldDelegatedWrapperCalls({ events })).toBe(events);
   });
+
+  it('retains direct MCP ordering and result boundaries alongside a buffered Antigravity wrapper', () => {
+    const events: AgentEvent[] = [
+      { kind: 'tool_use', id: 'earlier', name: 'render_ui', input: {} },
+      { kind: 'tool_use', id: 'agy', name: 'call_mcp_tool', input: { ServerName: 'jini', ToolName: 'render_ui', Arguments: {} } },
+      { kind: 'tool_use', id: 'claude', name: 'mcp__jini__render_ui', input: {} },
+      { kind: 'tool_result', toolUseId: 'claude', content: 'bridge unavailable', isError: true },
+      { kind: 'tool_use', id: 'later', name: 'render_ui', input: {} },
+    ];
+    expect(foldDelegatedWrapperCalls({ events })).toEqual([events[0], events[2], events[3], events[4]]);
+  });
 });
 
 describe('isDelegatedWrapperToolName', () => {

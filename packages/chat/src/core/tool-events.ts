@@ -1,5 +1,6 @@
 import type { AgentEvent, ToolUseEvent } from './events.js';
 import { canonicalJson } from '@jini-ai/core/records';
+import { toolPresentation } from './tool-presentation.js';
 
 /**
  * Drop repeated `tool_use` events that share an `id`. A retried/duplicated
@@ -59,14 +60,22 @@ function directMcpToolName({ name }: { name: string }): string | undefined {
   return separator === -1 ? undefined : name.slice(separator + 2);
 }
 
-/** Resolve a transport's tool id; direct MCP names carry it in the name, gateways in input.
- * Pure; returns undefined for non-wrappers or malformed gateways. O(n) in the tool name length.
+type WrapperCall = { name: string; input: unknown; matchInput: boolean; buffered: boolean };
+
+/** Resolve the generic wrapper contract or an MCP gateway/direct name. Pure; O(n) in the name.
+ * Legacy gateways retain name-only matching for malformed-input bridge errors;
+ * Antigravity's adapter-described wrappers require equal inner inputs but may arrive buffered.
  */
-function wrapperToolId({ event }: { event: ToolUseEvent }, _options: Record<string, never> = {}): string | undefined {
-  if (!isDelegatedWrapperToolName({ name: event.name })) return directMcpToolName({ name: event.name });
-  const input = event.input;
-  const toolId = typeof input === 'object' && input !== null ? (input as Record<string, unknown>).toolId : undefined;
-  return typeof toolId === 'string' && toolId ? toolId : undefined;
+function wrapperCall({ event }: { event: ToolUseEvent }, _options: Record<string, never> = {}): WrapperCall | undefined {
+  const wrapper = toolPresentation(event).wrapper;
+  const call = wrapper ?? event;
+  if (!isDelegatedWrapperToolName({ name: call.name })) {
+    const name = wrapper ? wrapper.name : directMcpToolName({ name: call.name });
+    return name ? { name, input: call.input, matchInput: true, buffered: wrapper !== undefined } : undefined;
+  }
+  const args = call.input !== null && typeof call.input === 'object' ? call.input as Record<string, unknown> : {};
+  const name = args.toolId;
+  return typeof name === 'string' && name ? { name, input: args.input, matchInput: wrapper !== undefined, buffered: wrapper !== undefined } : undefined;
 }
 
 /**
@@ -83,13 +92,16 @@ function wrapperToolId({ event }: { event: ToolUseEvent }, _options: Record<stri
  * A direct call (`mcp__jini__theme_read_file`) arrives twice the same way: the CLI's `mcp__<server>__X`
  * row and the bridge's `X` row with the same input, so every direct Jini MCP call drew two rows.
  *
- * A gateway folds onto the first LATER canonical `tool_use` whose name equals its `input.toolId`.
+ * Antigravity buffers CLI receipts: its adapter-described wrappers match equal inner inputs
+ * anywhere in this assistant turn, in appearance order among equal keys. Pass only one turn's events;
+ * no state is retained across calls. Wrapper and bridge rows are each claimed at most once.
+ * A legacy gateway folds onto the first LATER canonical `tool_use` whose name equals its `input.toolId`.
  * A direct call folds onto the first LATER `X` row with structurally equal JSON input that arrives
  * before the CLI's own result for it. No canonical row is claimed twice, and a folded wrapper's
  * `tool_result` events go with it. A wrapper with no such canonical row (refused before the
  * bridge, e.g. a read-only 403) stays, so its error is not hidden.
  *
- * @param events - The event list, normally already passed through {@link dedupeToolUsesById}.
+ * @param events - One assistant turn's events, normally already passed through {@link dedupeToolUsesById}.
  * @returns A new array without the folded wrappers, or the original reference when none fold.
  * @throws CanonicalJsonError if a direct call's input contains non-JSON values.
  * @complexity O(n·w·s): n events, w wrappers, s canonical input serialization cost (including key sorting).
@@ -103,10 +115,10 @@ export function foldDelegatedWrapperCalls({ events }: { events: AgentEvent[] | u
   const folded = new Set<string>();
   events.forEach((event, i) => {
     if (event.kind !== 'tool_use') return;
-    const toolId = wrapperToolId({ event });
+    const call = wrapperCall({ event });
     // A replayed wrapper (same id) must not claim a second canonical row.
-    if (toolId === undefined || folded.has(event.id)) return;
-    const match = findCanonicalRow({ events, wrapper: event, wrapperIndex: i, toolId, claimed });
+    if (call === undefined || folded.has(event.id)) return;
+    const match = findCanonicalRow({ events, wrapper: event, wrapperIndex: i, call, claimed });
     if (match === -1) return;
     claimed.add(match);
     folded.add(event.id);
@@ -120,23 +132,32 @@ export function foldDelegatedWrapperCalls({ events }: { events: AgentEvent[] | u
 }
 
 /**
- * Index of the first unclaimed canonical `toolId` row after the wrapper, or -1. A gateway matches
- * on name alone (its input is the `{toolId, input}` envelope); a direct call also needs equal input.
+ * Index of the first unclaimed canonical row in the wrapper's matching window, or -1. Legacy gateways match
+ * on name alone; direct calls and adapter-described wrappers also require equal inner input.
  * @throws CanonicalJsonError if a direct call's input contains non-JSON values.
  * @complexity O(n·s): n events, s canonical input serialization cost.
  */
-function findCanonicalRow({ events, wrapper, wrapperIndex, toolId, claimed }: {
-  events: AgentEvent[]; wrapper: ToolUseEvent; wrapperIndex: number; toolId: string; claimed: ReadonlySet<number>;
+function findCanonicalRow({ events, wrapper, wrapperIndex, call, claimed }: {
+  events: AgentEvent[]; wrapper: ToolUseEvent; wrapperIndex: number; call: WrapperCall; claimed: ReadonlySet<number>;
 }): number {
-  const delegated = isDelegatedWrapperToolName({ name: wrapper.name });
-  const inputKey = delegated ? undefined : canonicalJson({ value: { input: wrapper.input } });
-  // A completed/refused direct call cannot consume a later, genuinely separate retry.
-  const resultIndex = delegated ? -1 : events.findIndex(other => other.kind === 'tool_result' && other.toolUseId === wrapper.id);
-  const end = resultIndex === -1 ? events.length : resultIndex;
-  for (let j = wrapperIndex + 1; j < end; j += 1) {
+  const inputKey = call.matchInput ? canonicalJson({ value: { input: call.input } }) : undefined;
+  const [start, end] = canonicalSearchWindow({ events, wrapper, wrapperIndex, call });
+  for (let j = start; j < end; j += 1) {
     const other = events[j]!;
-    if (claimed.has(j) || other.kind !== 'tool_use' || other.name !== toolId) continue;
+    if (claimed.has(j) || other.kind !== 'tool_use' || other.name !== call.name) continue;
     if (inputKey === undefined || canonicalJson({ value: { input: other.input } }) === inputKey) return j;
   }
   return -1;
+}
+
+/** Pure matching bounds within one turn; O(n) time, O(1) space for n events.
+ * Antigravity's buffered receipts cannot establish arrival/result boundaries. Direct MCP calls
+ * retain their later-only window so a completed/refused call cannot consume a separate retry.
+ */
+function canonicalSearchWindow({ events, wrapper, wrapperIndex, call }: {
+  events: AgentEvent[]; wrapper: ToolUseEvent; wrapperIndex: number; call: WrapperCall;
+}, _options: Record<string, never> = {}): [number, number] {
+  if (call.buffered) return [0, events.length];
+  const resultIndex = !call.matchInput ? -1 : events.findIndex(other => other.kind === 'tool_result' && other.toolUseId === wrapper.id);
+  return [wrapperIndex + 1, resultIndex === -1 ? events.length : resultIndex];
 }

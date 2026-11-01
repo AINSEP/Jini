@@ -30,6 +30,7 @@ import { Icon } from './Icon.js';
 import { SAFE_LINK_HREF } from './Markdown.js';
 import { TodoCard } from './TodoCard.js';
 import { toolRowTarget } from './ToolCard.rules.js';
+import { toolPresentation, type ToolPresentation } from '../../core/tool-presentation.js';
 
 type ToolUseEvent = Extract<AgentEvent, { kind: 'tool_use' }>;
 type ToolResultEvent = Extract<AgentEvent, { kind: 'tool_result' }>;
@@ -60,9 +61,12 @@ const JINI_TOOL_ID_PATTERN = /^[a-z][a-z_]*(\.[a-z][a-z_]*)+$/;
 
 export function ToolCard({ use, result, runStreaming, runSucceeded, projectFileNames, onRequestOpenFile, retried = false }: ToolCardProps) {
   const registry = useToolRendererRegistry();
+  // Resolve vendor dialects for rendering only; tool ids and stored events stay intact.
+  const presentation = toolPresentation(use);
+  use = { ...use, ...presentation };
   const name = use.name;
   const card: CardProps = { input: use.input, result: result, runStreaming: runStreaming ?? false, runSucceeded: runSucceeded ?? false };
-  const content = renderToolCardBody({ use, card, fileCtx: { projectFileNames, onRequestOpenFile }, registry });
+  const content = renderToolCardBody({ use, card, wrapper: presentation.wrapper, fileCtx: { projectFileNames, onRequestOpenFile }, registry });
   if (content === null) return null;
   // Tagged once here, at the single dispatch point every branch below funnels through, rather than
   // in each of the dozen card variants — one place to keep correct, and every variant (including a
@@ -81,6 +85,7 @@ interface ToolCardBodyArgs {
   card: CardProps;
   fileCtx: FileToolCtx;
   registry: ToolRendererRegistry;
+  wrapper?: ToolPresentation['wrapper'];
 }
 
 type FamilyCardRender = (card: CardProps, fileCtx: FileToolCtx) => ReactNode;
@@ -134,7 +139,8 @@ function renderToolCardBody(args: ToolCardBodyArgs): ReactNode {
   // `useToolTimeline`: `foldDelegatedWrapperCalls` drops it in favour of that canonical row. This
   // check still covers a host that renders `<ToolCard>` straight from raw events.)
   // Covers the read-only gateway (`execute_readonly_delegated_tool`) too.
-  if (isDelegatedWrapperToolName({ name: name }) && card.result && !card.result.isError) return null;
+  // An outer transport receipt may have no bridge row; keep its inner call visible.
+  if (!args.wrapper && isDelegatedWrapperToolName({ name: name }) && card.result && !card.result.isError) return null;
 
   if (isTodoWriteToolName({ name: name })) return <TodoCard todos={parseTodoWriteInput({ input: use.input })} runStreaming={card.runStreaming} />;
   // Jini tool ids are dotted and wrapper names are `execute_*delegated_tool`, so neither ever
