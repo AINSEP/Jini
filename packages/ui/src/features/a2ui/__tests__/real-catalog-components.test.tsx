@@ -95,7 +95,9 @@ describe('real catalog: recharts.bar-chart', () => {
       { id: 'chart', component: 'recharts.bar-chart', data: [{ month: 'Jan', revenue: 100 }], categoryKey: 'month', valueKey: 'revenue' },
     ]);
     const { container } = render(<A2uiSurfaceRenderer interpreter={interpreter} surfaceId={SURFACE_ID} registry={DEFAULT_INTERACTIVE_UI_REGISTRY} />);
-    expect(screen.getByText('Revenue')).toBeInTheDocument();
+    // The title and the accessible fallback column header intentionally share this label.
+    expect(screen.getByText('Revenue', { selector: '[data-a2ui-component-id="title"]' })).toBeInTheDocument();
+    expect(screen.getByRole('columnheader', { name: 'Revenue' })).toBeInTheDocument();
     expect(container.querySelector('table.jini-data-table')).toHaveTextContent('Jan100');
   });
 });
