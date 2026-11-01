@@ -65,6 +65,12 @@ describe('searchToolsTool.inputSchema limit bounds', () => {
     expect(limitSchema).toMatchObject({ type: 'integer', minimum: 1, maximum: 25 });
   });
 
+  it('advertises max_results with the same bounds and an explicit normalization to limit', () => {
+    const properties = searchToolsTool.inputSchema.properties as Record<string, Record<string, unknown>>;
+    for (const key of ['type', 'minimum', 'maximum']) expect(properties.max_results?.[key]).toEqual(properties.limit?.[key]);
+    expect(searchToolsTool.argumentNormalization?.aliases?.max_results).toBe('limit');
+  });
+
   it.each([0, -1, 1.5, 26])('rejects out-of-range limit %p instead of forwarding it to the daemon', async (limit) => {
     const result = await call(limit);
     expect(result.isError).toBe(true);

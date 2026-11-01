@@ -1,8 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { buildToolIndex, handleToolCall } from '../../tool-protocol.js';
 import type { McpToolDef } from '../../tool-protocol.js';
-import { describeToolTool, searchToolsTool } from '../tool-catalog-tools.js';
-import { getRunTool } from '../run-tools.js';
+import { describeToolTool, searchToolsTool, TOOL_CATALOG_TOOLS } from '../tool-catalog-tools.js';
+import { getRunTool, RUN_TOOLS } from '../run-tools.js';
+import { COMPONENT_CATALOG_TOOLS } from '../component-catalog-tools.js';
 import { createExecuteDelegatedToolTool, createExecuteReadonlyDelegatedToolTool } from '../delegated-tool.js';
 
 const completed = { status: 'completed', output: 'executed' };
@@ -19,7 +20,47 @@ beforeEach(() => {
   fetchImpl.mockImplementation(async () => Response.json({ result: completed }));
 });
 
+it('every built-in tool declares the aliases and explicitly named arguments its guidance advertises', () => {
+  const tools = [...RUN_TOOLS, ...TOOL_CATALOG_TOOLS, ...COMPONENT_CATALOG_TOOLS,
+    createExecuteDelegatedToolTool({ runId: 'run' }), createExecuteReadonlyDelegatedToolTool({ runId: 'run' })];
+  for (const tool of tools) {
+    const properties = tool.inputSchema.properties ?? {};
+    for (const [alias, canonical] of Object.entries(tool.argumentNormalization?.aliases ?? {})) {
+      expect(properties, `${tool.name}: advertised alias ${alias}`).toHaveProperty(alias);
+      expect(properties, `${tool.name}: canonical argument ${canonical}`).toHaveProperty(canonical);
+    }
+    // Match explicit input references, not output field names in return-shape documentation.
+    const guidance = [tool.description, ...Object.values(properties).map(field => (field as { description?: string }).description)].join('\n');
+    for (const match of guidance.matchAll(/(?:argument|parameter)\s+[`"']?(\w+)[`"']|[`"'](\w+)[`"']\s+(?:argument|parameter)/g)) {
+      expect(properties, `${tool.name}: ${match[0]}`).toHaveProperty(match[1] ?? match[2]!);
+    }
+  }
+});
+
 describe('proxy argument recovery', () => {
+  it('search_tools accepts max_results through strict dispatch and forwards its limit', async () => {
+    fetchImpl.mockImplementation(async () => Response.json({ hits: [{ id: 'post.read' }] }));
+    const result = await call({ tool: searchToolsTool, args: { query: 'read posts', max_results: 3 } });
+    expect(result.isError).toBeUndefined();
+    expect(result.content).toEqual([{ type: 'text', text: '[{"id":"post.read"}]' }]);
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe('http://daemon.example/api/tools/search?q=read+posts&limit=3');
+    expect(searchToolsTool.inputSchema.properties).toHaveProperty('max_results');
+  });
+
+  it.each([0, 26, 1.5, '3'])('search_tools validates max_results %j using the limit contract', async max_results => {
+    const result = await call({ tool: searchToolsTool, args: { query: 'read posts', max_results } });
+    expect(result.isError).toBe(true);
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
+  it('search_tools refuses conflicting limit aliases and unrelated unknown arguments', async () => {
+    for (const args of [{ query: 'read posts', limit: 1, max_results: 2 }, { query: 'read posts', junk: 2 }]) {
+      const result = await call({ tool: searchToolsTool, args });
+      expect(result.isError).toBe(true);
+    }
+    expect(fetchImpl).not.toHaveBeenCalled();
+  });
+
   it.each(['toolId', 'name'])('describe_tool accepts and advertises %s as an alias of id', async (alias) => {
     const descriptor = { id: 'page/read', description: 'Read a page', inputSchema: { type: 'object' } };
     fetchImpl.mockImplementation(async () => Response.json(descriptor));

@@ -30,6 +30,25 @@ function fixture() {
 }
 
 describe('analytics delivery uses existing explicit consent evidence', () => {
+  it.each(['missing', 'accepted', 'unavailable'])('disabled consent ignores %s receipts without read errors during repeated analytics requests', async state => {
+    const f = fixture();
+    const failures: unknown[] = [], reads: string[] = [];
+    f.ports.config.get = async () => ({ ...config, enabled: false });
+    f.ports.records.read = async ({ id }) => {
+      reads.push(id);
+      if (state === 'unavailable') throw new Error('receipt storage unavailable');
+      return state === 'accepted' ? accepted : null;
+    };
+    f.ports.reportError = error => { failures.push(error); };
+    for (let poll = 0; poll < 3; poll++) {
+      expect(await readRequestAnalyticsProof({ ports: f.ports, request: f.request() })).toBeUndefined();
+      expect(await readRequestBrowserAnalyticsMode({ ports: f.ports, request: f.request() })).toBe('pending');
+      expect(await allowsAnalyticsProof({ ports: f.ports, proof: { receiptId: accepted.id, policyVersion: config.policyVersion } })).toBe(false);
+    }
+    expect(reads).toEqual([]);
+    expect(failures).toEqual([]);
+  });
+
   it('requires a receipt even in opt-out regions, and DNT/GPC override an accepted receipt', async () => {
     const f = fixture();
     expect(await readRequestAnalyticsProof({ ports: f.ports, request: f.request({ cookie: '' }) })).toBeUndefined();

@@ -253,6 +253,8 @@ export async function readRequestAnalyticsProof(
   if (request.get('sec-gpc') === '1' || request.get('dnt') === '1' || !ports.records.retire) return undefined;
   try {
     const config = await ports.config.get({});
+    // A disabled policy has no active receipt contract, including cookies left by another site.
+    if (!config.enabled) return undefined;
     const { record } = await currentRecord({ ports, request, config }, { cookieName });
     if (!record?.choices.analytics || record.gpc) return undefined;
     return { receiptId: record.id, policyVersion: record.policyVersion };
@@ -268,7 +270,7 @@ export async function allowsAnalyticsProof(
   if (!ports.records.retire) return false;
   try {
     const config = await ports.config.get({});
-    if (config.policyVersion !== proof.policyVersion) return false;
+    if (!config.enabled || config.policyVersion !== proof.policyVersion) return false;
     const record = readConsentRecord({ value: await ports.records.read({ id: proof.receiptId }), policyVersion: config.policyVersion, nowMs: ports.clock.nowMs() });
     return record?.choices.analytics === true && record.gpc !== true;
   } catch { return false; }
@@ -283,6 +285,8 @@ export async function readRequestBrowserAnalyticsMode(
 ): Promise<'pending' | 'anonymous' | 'full'> {
   try {
     const config = await ports.config.get({});
+    // Consent OFF is not evidence of an explicit choice for browser analytics.
+    if (!config.enabled) return 'pending';
     const { record } = await currentRecord({ ports, request, config }, { cookieName });
     if (!record) return 'pending';
     if (!record.choices.analytics || record.gpc) return 'anonymous';

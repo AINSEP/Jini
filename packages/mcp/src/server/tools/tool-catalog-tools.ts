@@ -96,10 +96,18 @@ export const searchToolsTool: McpToolDef = {
         description:
           'Max hits to return (1-25). Optional, defaults to 10. If none of the returned candidates fit what you need, search again with a HIGHER limit (try 25) before concluding no tool exists — the right tool is in the top 10 about 98% of the time and in the top 20 100% of the time, so a near-miss is ranked just below the default cutoff rather than missing.',
       },
+      max_results: {
+        type: 'integer',
+        minimum: 1,
+        maximum: 25,
+        description: 'Alias of limit (1-25). Supply only one value when using both names.',
+      },
     },
     required: ['query'],
     additionalProperties: false,
   },
+  // Models also use this conventional search argument; normalize only the declared alias.
+  argumentNormalization: { aliases: { max_results: 'limit' } },
   annotations: { ...READ_ANNOTATIONS, title: 'Search the tool catalog' },
   handler: async ({ args, ctx }) => {
     const query = requireString({ value: args.query, name: 'query' });
