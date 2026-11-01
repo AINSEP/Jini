@@ -558,7 +558,7 @@ const INLINE_RE = new RegExp(String.raw`(\x60[^\x60]+\x60)|(${MD_LINK})|(\*\*[^*
 
 // Only these targets become anchors; anything else (`javascript:`, `data:`, protocol-relative
 // `//host`) stays literal text, since the text is untrusted model output.
-const SAFE_LINK_HREF = /^(?:https?:\/\/|mailto:|\/(?!\/)|#)/iu;
+export const SAFE_LINK_HREF = /^(?:https?:\/\/|mailto:|\/(?!\/)|#)/iu;
 // Every link opens in a new tab — an in-app path too, so following one never navigates the tab the
 // chat lives in (owner 2026-10-08). Only a `#` same-document anchor stays in place. ChatPane's
 // click guard (`useChatPaneNewTabLinks`) covers links this renderer does not draw.

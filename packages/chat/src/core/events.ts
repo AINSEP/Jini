@@ -18,11 +18,17 @@
  * not depend on `@jini-ai/protocol` (or, by the same reasoning, on `@jini-ai/daemon`), the same
  * "translate the wire, don't import it" posture `assistant-ag-ui.ts` documents for its own port of
  * this package's vocabulary in the other direction. Keep in sync by hand if the daemon's shape
- * changes — there are exactly two fields, so drift is easy to spot in review.
+ * changes — the image arm has two required and two optional fields, so drift is easy to spot in review.
  */
 export type ToolResultMediaBlock =
   | { readonly type: 'text'; readonly text: string }
-  | { readonly type: 'image'; readonly mimeType: string; readonly data: string };
+  | {
+      readonly type: 'image'; readonly mimeType: string; readonly data: string;
+      /** Optional caption and alt text (e.g. the media item's title). */
+      readonly title?: string;
+      /** Optional link to the full file; the renderer only links a safe (http(s) or same-site) target. */
+      readonly href?: string;
+    };
 
 /**
  * A single renderable unit of agent output. Covers every generic variant a

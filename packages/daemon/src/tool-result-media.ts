@@ -46,6 +46,10 @@ export interface ToolResultImageBlock {
   readonly mimeType: string;
   /** Base64-encoded image bytes. */
   readonly data: string;
+  /** Optional caption and alt text for a chat renderer. Not an MCP field; MCP clients ignore it. */
+  readonly title?: string;
+  /** Optional link the chat opens on click (e.g. the full-size file). The renderer still checks it. */
+  readonly href?: string;
 }
 
 /** A tool result content block `media` may carry. Modeled on MCP's own content-block vocabulary —
@@ -73,9 +77,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
  *  `mimeType`/`data`). */
 function asImageBlock(block: unknown): ToolResultImageBlock | undefined {
   if (!isRecord(block) || block['type'] !== 'image') return undefined;
-  const { mimeType, data } = block;
+  const { mimeType, data, title, href } = block;
   if (typeof mimeType !== 'string' || typeof data !== 'string') return undefined;
-  return { type: 'image', mimeType, data };
+  // Untrusted extras are kept only as strings, so a caption or link can never smuggle an object.
+  return { type: 'image', mimeType, data, ...(typeof title === 'string' ? { title } : {}), ...(typeof href === 'string' ? { href } : {}) };
 }
 
 /**

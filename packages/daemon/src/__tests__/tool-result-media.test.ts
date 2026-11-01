@@ -37,6 +37,21 @@ describe('extractResultMedia', () => {
     expect(remainder).toEqual({ content: [{ type: 'text', text: 'here is your image' }] });
   });
 
+  it('keeps an image block\'s optional string title and href for the chat caption and link, and drops non-string ones', () => {
+    const output = {
+      content: [
+        { type: 'image', mimeType: 'image/webp', data: 'AAAA', title: 'Sunset hero', href: '/m/sunset-hero/original.png' },
+        { type: 'image', mimeType: 'image/webp', data: 'BBBB', title: 42, href: { evil: true } },
+      ],
+    };
+    const { media } = extractResultMedia({ output });
+
+    expect(media).toEqual([
+      { type: 'image', mimeType: 'image/webp', data: 'AAAA', title: 'Sunset hero', href: '/m/sunset-hero/original.png' },
+      { type: 'image', mimeType: 'image/webp', data: 'BBBB' },
+    ]);
+  });
+
   it('extracts multiple image blocks in arrival order, interleaved with text', () => {
     const output = {
       content: [

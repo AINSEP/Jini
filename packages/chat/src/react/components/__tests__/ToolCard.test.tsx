@@ -141,6 +141,34 @@ describe('ToolCard', () => {
     expect(Array.from(atob(rawBase64), (ch) => ch.charCodeAt(0)).slice(0, 8)).toEqual(PNG_SIGNATURE);
   });
 
+  it('shows a titled tool image as a captioned link to the full file, with the title as alt text', () => {
+    const { container } = render(
+      <ToolCard
+        use={{ kind: 'tool_use', id: 't2g', name: 'media_import_from_url', input: { url: 'https://cdn.test/a.png' } }}
+        result={{ kind: 'tool_result', toolUseId: 't2g', content: '{"media":{}}', isError: false, media: [{ type: 'image', mimeType: 'image/png', data: REAL_PNG_BASE64, title: 'Sunset hero', href: '/m/sunset-hero/original.png' }] }}
+        runSucceeded
+      />,
+    );
+    const link = screen.getByRole('link', { name: 'Sunset hero' });
+    expect(link).toHaveAttribute('href', '/m/sunset-hero/original.png');
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    expect(screen.getByRole('img', { name: 'Sunset hero' })).toHaveAttribute('src', `data:image/png;base64,${REAL_PNG_BASE64}`);
+    expect(container.querySelector('figcaption')?.textContent).toBe('Sunset hero');
+  });
+
+  it('never turns an unsafe image href into a link', () => {
+    render(
+      <ToolCard
+        use={{ kind: 'tool_use', id: 't2h', name: 'CustomTool', input: {} }}
+        result={{ kind: 'tool_result', toolUseId: 't2h', content: 'ok', isError: false, media: [{ type: 'image', mimeType: 'image/png', data: REAL_PNG_BASE64, title: 'x', href: 'javascript:alert(1)' }] }}
+        runSucceeded
+      />,
+    );
+    expect(screen.queryByRole('link')).not.toBeInTheDocument();
+    expect(screen.getByRole('img', { name: 'x' })).toBeInTheDocument();
+  });
+
   it('renders no media element for a result whose media holds only text blocks', () => {
     const { container } = render(
       <ToolCard use={{ kind: 'tool_use', id: 't2f', name: 'CustomTool', input: {} }} result={{ kind: 'tool_result', toolUseId: 't2f', content: 'ok', isError: false, media: [{ type: 'text', text: 'note' }] }} runSucceeded />,

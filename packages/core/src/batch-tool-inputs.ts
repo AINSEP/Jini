@@ -161,6 +161,15 @@ async function normalizeBatchItem({ registration, defaults, shared, item }: {
   return { input: normalized.input, notes: [...layers.flatMap(layer => layer.notes), ...normalized.notes] };
 }
 
+/** A batch result is one JSON value, so an item's MCP `image` block would reach the model and the
+ * chat as base64 text (a 20-item import batch, 20 previews). Drop images from item envelopes; the
+ * item's text blocks still carry its result. Anything that is not an envelope is returned as is. */
+function withoutItemImages(output: unknown): unknown {
+  if (!isPlainObject(output) || !Array.isArray(output.content)) return output;
+  const content = output.content.filter((block: unknown) => !isPlainObject(block) || block.type !== 'image');
+  return content.length === output.content.length ? output : { ...output, content };
+}
+
 /** Classify one returned output without dropping error payloads or normalization notes.
  * @complexity O(n) for a nested batch's n results, plus formatting its notes; no effects.
  */
@@ -240,7 +249,7 @@ export function withBatchInput(
         tool.validateItem?.({ input: normalized.input });
         if (!options?.invokeTool) throw new Error(`${toolId}: batch items require the gated ToolExecutor invocation port`);
         const output = await options.invokeTool({ toolId, input: normalized.input }, { registry: itemRegistry });
-        results.push(batchItemResult({ index, output, notes: normalized.notes }));
+        results.push(batchItemResult({ index, output: withoutItemImages(output), notes: normalized.notes }));
       } catch (error) {
         results.push({ index, ok: false, error: withNormalizationNotes({ output: itemErrorMessage({ error, toolId }), notes }) as string });
       }

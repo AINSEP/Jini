@@ -108,6 +108,18 @@ describe('withBatchInput item mode', () => {
     });
   });
 
+  it('drops image blocks from batch item results, so a preview image never lands in the batch JSON as base64 text', async () => {
+    const invokeTool = vi.fn<Invoke>(async () => ({ content: [{ type: 'text', text: '{"id":"m1"}' }, { type: 'image', mimeType: 'image/webp', data: 'PIXELS' }] }));
+    const wrapped = withBatchInput({ registration: registrationWith(), tool: { toolId: 'edit' } });
+    const result = await wrapped.handler(context({ items: [{ path: 'a' }] }), { invokeTool });
+
+    expect(result).toEqual({
+      batch: true, outcome: 'completed', total: 1, succeeded: 1, failed: 0,
+      results: [{ index: 0, ok: true, result: { content: [{ type: 'text', text: '{"id":"m1"}' }] } }],
+    });
+    expect(JSON.stringify(result)).not.toContain('PIXELS');
+  });
+
   it('records a validateItem refusal and a thrown non-Error as that item\'s failure while later items still run', async () => {
     const invokeTool = vi.fn<Invoke>(async ({ input }) => {
       if ((input as { path: string }).path === 'boom') throw 'plain string failure';

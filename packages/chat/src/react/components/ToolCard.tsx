@@ -27,6 +27,7 @@ import { COLLAPSED_DETAIL_MAX_CHARS, describeCollapsedToolCall, describeToolCall
 import { useT, useToolRendererRegistry } from '../hooks/context.js';
 import type { ToolRendererRegistry } from '../tool-renderer-registry.js';
 import { Icon } from './Icon.js';
+import { SAFE_LINK_HREF } from './Markdown.js';
 import { TodoCard } from './TodoCard.js';
 
 type ToolUseEvent = Extract<AgentEvent, { kind: 'tool_use' }>;
@@ -611,20 +612,41 @@ function ResultBadge({ result, runStreaming, runSucceeded }: { result?: ToolResu
 function ToolResultMedia({ result }: { result?: ToolResultEvent | undefined }) {
   const blocks = result?.media;
   if (!blocks || blocks.length === 0) return null;
-  const images = blocks.filter((block): block is Extract<ToolResultMediaBlock, { type: 'image' }> => block.type === 'image');
+  const images = blocks.filter((block): block is ToolResultImage => block.type === 'image');
   if (images.length === 0) return null;
   return (
     <div className="op-media">
-      {images.map((block, index) => (
-        <img
-          key={index}
-          className="op-media-image"
-          src={`data:${block.mimeType};base64,${block.data}`}
-          alt=""
-          style={{ maxWidth: '100%', height: 'auto', display: 'block' }}
-        />
-      ))}
+      {images.map((block, index) => <ToolResultImageFigure key={index} block={block} />)}
     </div>
+  );
+}
+
+type ToolResultImage = Extract<ToolResultMediaBlock, { type: 'image' }>;
+
+/**
+ * One tool image: captioned by its `title` (also the alt text) and linked to its `href` in a new
+ * tab, so a picture a tool just saved opens full size. The href is tool output, so it gets the same
+ * safe-target rule as chat links (`Markdown.tsx`); `javascript:`/`data:` stays an unlinked image.
+ */
+function ToolResultImageFigure({ block }: { block: ToolResultImage }) {
+  const img = (
+    <img
+      className="op-media-image"
+      src={`data:${block.mimeType};base64,${block.data}`}
+      alt={block.title ?? ''}
+      style={{ maxWidth: '100%', height: 'auto', display: 'block' }}
+    />
+  );
+  const linked = block.href !== undefined && SAFE_LINK_HREF.test(block.href) && !block.href.startsWith('#')
+    ? <a className="op-media-link" href={block.href} target="_blank" rel="noopener noreferrer">{img}</a>
+    : img;
+  if (block.title === undefined) return linked;
+  return (
+    // No host stylesheet styles op-media yet; reset the UA figure margin (40px sides) inline, like the img.
+    <figure className="op-media-figure" style={{ margin: 0 }}>
+      {linked}
+      <figcaption className="op-media-caption">{block.title}</figcaption>
+    </figure>
   );
 }
 
