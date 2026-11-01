@@ -6,6 +6,7 @@ import { tmpdir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, expect, test } from 'vitest';
 import { assembleAgentPluginPackage } from '../assemble-agent-plugin-package.js';
+import { parseNpmPackJson } from '../lib/npm-pack-json.js';
 import { createAgentPluginLayout, createAgentPluginLifecycle } from '../../packages/agent-plugins/src/lifecycle/index.js';
 import { ports } from '../../packages/agent-plugins/src/lifecycle/__tests__/test-support.js';
 import { forceRemove } from '../../packages/agent-plugins/src/lifecycle/__tests__/fixtures/force-remove.js';
@@ -23,13 +24,13 @@ beforeAll(async () => {
   const distribution = path.join(root, 'distribution');
   await assembleAgentPluginPackage({ packageRoot, sourceDir: path.join(workspace, 'packages/agent-plugins/ui-ux-design') }, { outputRoot: distribution });
   for (const name of ['package.json', 'README.md', 'LICENSE', 'NOTICE']) await fs.copyFile(path.join(packageRoot, name), path.join(distribution, name));
-  const packed = JSON.parse(execFileSync('npm', ['pack', '--offline', '--ignore-scripts', '--json', '--cache', path.join(root, 'npm-cache')], {
+  const packed = parseNpmPackJson({ stdout: execFileSync('npm', ['pack', '--offline', '--ignore-scripts', '--json', '--cache', path.join(root, 'npm-cache')], {
     cwd: distribution, encoding: 'utf8',
-  })) as { filename: string; files: { path: string }[] }[];
-  packedFiles = packed[0]!.files.map(file => file.path).sort();
+  }) });
+  packedFiles = (packed.files ?? []).map(file => file.path).sort();
   const installed = path.join(root, 'node_modules/@jini-ai/plugin-ui-ux-design');
   await fs.mkdir(installed, { recursive: true });
-  execFileSync('tar', ['-xzf', path.join(distribution, packed[0]!.filename), '-C', installed, '--strip-components', '1']);
+  execFileSync('tar', ['-xzf', path.join(distribution, packed.filename), '-C', installed, '--strip-components', '1']);
   const resolve = createRequire(path.join(root, 'host.cjs')).resolve;
   sourceDir = path.dirname(resolve('@jini-ai/plugin-ui-ux-design/plugin.json'));
 }, 60_000);

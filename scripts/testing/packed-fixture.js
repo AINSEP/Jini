@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join, relative, sep } from 'node:path';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
+import { parseNpmPackJson } from '../lib/npm-pack-json.js';
 export const packages = fileURLToPath(new URL('../../packages/', import.meta.url));
 export function fixture(prefix) {
   const dir = mkdtempSync(join(tmpdir(), prefix));
@@ -16,8 +17,8 @@ export function pack(dir, name) {
   const source = join(packages, name), dest = join(dir, 'node_modules', '@jini-ai', name);
   rmSync(dest, { recursive: true, force: true });
   mkdirSync(dest, { recursive: true });
-  const result = JSON.parse(execFileSync('npm', ['pack', '--offline', '--ignore-scripts', '--json', '--cache', join(dir, 'npm-cache'), '--pack-destination', dir], { cwd: source, encoding: 'utf8' }));
-  execFileSync('tar', ['-xzf', join(dir, result[0].filename), '-C', dest, '--strip-components', '1']);
+  const result = parseNpmPackJson({ stdout: execFileSync('npm', ['pack', '--offline', '--ignore-scripts', '--json', '--cache', join(dir, 'npm-cache'), '--pack-destination', dir], { cwd: source, encoding: 'utf8' }) });
+  execFileSync('tar', ['-xzf', join(dir, result.filename), '-C', dest, '--strip-components', '1']);
 }
 export function copyPackage(dir, name, source) {
   const dest = join(dir, 'node_modules', name), root = realpathSync(source);

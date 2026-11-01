@@ -6,6 +6,7 @@ import { join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { assertPluginPackageIsolation, type PluginIsolationManifest } from './check-plugin-isolation.js';
 import { discoverJiniPackages, type JiniPackageEntry } from './lib/pack-jini-packages.js';
+import { parseNpmPackJson } from './lib/npm-pack-json.js';
 import { assertPackedExports } from './lib/packed-exports.js';
 
 interface PackageInventory { manifest: PluginIsolationManifest & { exports?: unknown }; packedPaths: readonly string[] }
@@ -25,10 +26,10 @@ export function inspectPluginPackageTarball(
 ): PackageInventory {
   const scratch = mkdtempSync(join(tmpdir(), 'jini-plugin-pack-'));
   try {
-    const result = JSON.parse(execFileSync('npm', ['pack', '--offline', '--ignore-scripts', '--json', '--cache', join(scratch, 'cache'), '--pack-destination', scratch],
-      { cwd: entry.dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] })) as { filename: string }[];
+    const packed = parseNpmPackJson({ stdout: execFileSync('npm', ['pack', '--offline', '--ignore-scripts', '--json', '--cache', join(scratch, 'cache'), '--pack-destination', scratch],
+      { cwd: entry.dir, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }) });
     // npm's inventory is useful to readers, but tar's inventory is the published evidence.
-    const archive = join(scratch, result[0]!.filename);
+    const archive = join(scratch, packed.filename);
     const manifest = JSON.parse(execFileSync('tar', ['-xzOf', archive, 'package/package.json'], { encoding: 'utf8' })) as PackageInventory['manifest'];
     const packedPaths = execFileSync('tar', ['-tzf', archive], { encoding: 'utf8' }).trim().split('\n');
     return { manifest, packedPaths };
