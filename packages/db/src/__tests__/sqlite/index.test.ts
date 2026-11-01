@@ -29,7 +29,8 @@ describe('@jini-ai/infra/db/sqlite barrel', () => {
   });
 
   it('exports exactly the runtime surface it promises', () => {
-    expect(Object.keys(sqlite).sort()).toEqual(['DEFAULT_PRAGMAS', 'SqliteClientError', 'SqliteDbOpsAdapter', 'createCheckedSqliteClient', 'inspectSqliteDatabase', 'openSqliteConnection', 'verifySqliteIntegrity', 'withSqliteTransaction']);
+    // 2375af6 added the backup-policy exports (free-space check + newest-five copy retention).
+    expect(Object.keys(sqlite).sort()).toEqual(['DATABASE_COPY_RETENTION', 'DEFAULT_PRAGMAS', 'DatabaseDiskSpaceError', 'SqliteClientError', 'SqliteDbOpsAdapter', 'assertDatabaseCopySpace', 'createCheckedSqliteClient', 'inspectSqliteDatabase', 'openSqliteConnection', 'pruneDatabaseCopies', 'verifySqliteIntegrity', 'withSqliteTransaction']);
   });
 
   it('re-exports a working connection opener', () => {
