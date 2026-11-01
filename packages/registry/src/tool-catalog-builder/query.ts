@@ -1,6 +1,7 @@
 import { toolDiscoveryMetadata } from '@jini-ai/core';
 import { nowIso } from '@jini-ai/core/primitives';
 import type { CatalogBuilderArgs, ToolCatalogEntry, ToolCatalogQuery } from './ports.js';
+import { inputSignature } from './input-signature.js';
 
 /** Live overview, preserving registration order; vocabulary and source policy are host-owned. */
 export function listToolCatalogEntries(
@@ -32,6 +33,9 @@ export function buildToolCatalogQuery(
     throw new Error('catalog tool IDs must be unique');
   }
   const authored = new Map<string, string>();
+  // Hits carry a compact signature, never the schema (PROP §6.1): every hit's first call needs the
+  // required names and types, while full schemas on every hit doubled each search's output.
+  const signatures = new Map(descriptors.map(descriptor => [descriptor.id, inputSignature({ inputSchema: descriptor.inputSchema })]));
   const effects = new Map(descriptors.map(descriptor => [descriptor.id, toolDiscoveryMetadata({ descriptor })]));
   const entries = descriptors.map(descriptor => {
     const description = descriptor.description ?? '';
@@ -54,7 +58,10 @@ export function buildToolCatalogQuery(
   return {
     search({ query }, { limit = 10 } = {}) {
       if (!Number.isSafeInteger(limit) || limit < 0) throw new RangeError('catalog limit must be a nonnegative integer');
-      return store.search({ query }, { limit }).map(hit => ({ ...hit, ...effects.get(hit.id), description: descriptionFor(hit) }));
+      return store.search({ query }, { limit }).map(({ inputSchema: _schema, ...hit }) => {
+        const signature = signatures.get(hit.id);
+        return { ...hit, ...effects.get(hit.id), ...(signature === undefined ? {} : { signature }), description: descriptionFor(hit) };
+      });
     },
     describe({ id }) {
       const entry = store.describe({ id });

@@ -45,6 +45,14 @@ describe('searchToolsTool', () => {
     const result = await searchToolsTool.handler({ args: { query: 'fill' }, ctx: ctx });
     expect(result).toBe(hits);
   });
+
+  it('passes signatures through and publishes nothing on search', async () => {
+    const hits = [{ id: 'files_0', description: 'List files.', source: 'files', score: 1, signature: 'root: string' }];
+    const publishTool = vi.fn();
+    getDaemonJson.mockResolvedValueOnce({ hits });
+    expect(await searchToolsTool.handler({ args: { query: 'list files' }, ctx: { ...ctx, publishTool } })).toBe(hits);
+    expect(publishTool).not.toHaveBeenCalled();
+  });
 });
 
 describe('searchToolsTool.inputSchema limit bounds', () => {

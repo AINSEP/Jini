@@ -45,6 +45,7 @@ interface ToolCatalogSearchResponse {
     readonly description: string;
     readonly source: string;
     readonly score: number;
+    readonly signature?: string;
   }>;
 }
 
@@ -52,7 +53,7 @@ interface ToolCatalogSearchResponse {
 export const searchToolsTool: McpToolDef = {
   name: 'search_tools',
   description:
-    'Search the durable tool catalog. Returns ranked {id, description, source, score, readOnly, sideEffects} candidates only — no input schemas, so this stays cheap to call broadly. Call describe_tool on the 1-3 candidates that look right before calling execute_delegated_tool. If nothing in the results fits, re-search with a higher limit or different phrasing rather than assuming the tool does not exist.',
+    'Search the durable tool catalog. Returns ranked {id, description, source, score, readOnly, sideEffects, signature} candidates — no full input schemas, so this stays cheap to call broadly. signature lists the arguments (required first, then name?: optional): supply EVERY required one on the first call; never send {} when signature names a required argument. Call describe_tool when signature is missing, says describe_tool, or a nested shape is unclear, before calling execute_delegated_tool. If nothing in the results fits, re-search with a higher limit or different phrasing rather than assuming the tool does not exist.',
   inputSchema: {
     type: 'object',
     properties: {

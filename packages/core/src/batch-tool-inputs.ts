@@ -29,6 +29,23 @@ export function withoutBatchGuidance({ description }: { description: string }, _
   }).join("");
 }
 
+const ITEM_NEEDS = " Each item needs ";
+const ITEM_NEEDS_END = " (inside each item).";
+
+/** The top-level `required` fields {@link batchDescriptorFor} moved into its `items` description.
+ * A batch schema declares no top-level `required`, so a discovery signature built from it alone
+ * makes a single call look argument-free and the model sends `{}` — this recovers them.
+ * @returns The moved field names in order; [] for a non-batch schema or a tool that required none.
+ * @complexity O(n) in the items description length; pure. */
+export function batchItemRequiredFields({ inputSchema }: { inputSchema: unknown }, _optional = {}): string[] {
+  const items = isPlainObject(inputSchema) && isPlainObject(inputSchema.properties) ? inputSchema.properties.items : undefined;
+  const text = isPlainObject(items) && typeof items.description === "string" ? items.description : "";
+  const start = text.indexOf(ITEM_NEEDS);
+  const end = text.indexOf(ITEM_NEEDS_END, start);
+  if (start === -1 || end === -1) return [];
+  return text.slice(start + ITEM_NEEDS.length, end).split(", ");
+}
+
 /** Used when a {@link BatchableTool} names no `maxItems`. */
 export const DEFAULT_MAX_BATCH_ITEMS = 25;
 
@@ -104,7 +121,7 @@ export function batchDescriptorFor(
   const requiredFields = schema.required ?? [];
   const rest = { ...schema };
   delete rest.required;
-  const needs = requiredFields.length > 0 ? ` Each item needs ${requiredFields.join(", ")} (inside each item).` : "";
+  const needs = requiredFields.length > 0 ? `${ITEM_NEEDS}${requiredFields.join(", ")}${ITEM_NEEDS_END}` : "";
   const items = {
     type: "array",
     minItems: 1,

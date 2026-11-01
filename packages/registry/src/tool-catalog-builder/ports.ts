@@ -18,7 +18,11 @@ export interface ToolCatalogEntry {
   readonly description: string;
   readonly inputSchema?: unknown;
 }
-export interface ToolCatalogHit extends ToolCatalogEntry { readonly score: number }
+export interface ToolCatalogHit extends ToolCatalogEntry {
+  readonly score: number;
+  /** Bounded one-line argument signature (required names and types); describe_tool has the schema. */
+  readonly signature?: string;
+}
 export interface ToolCatalogQuery {
   search(required: { query: string }, optional?: { limit?: number }): ToolCatalogHit[];
   describe(required: { id: string }): ToolCatalogEntry | null;

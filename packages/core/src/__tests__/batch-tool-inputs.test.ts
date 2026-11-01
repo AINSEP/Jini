@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
-  applyBatchInputs, BATCH_GUIDANCE_MARKER, batchDescriptorFor, batchEligibilityFor, withoutBatchGuidance, batchOutcomeFor, DEFAULT_MAX_BATCH_ITEMS, defaultBatchableTools, withBatchInput,
+  applyBatchInputs, BATCH_GUIDANCE_MARKER, batchDescriptorFor, batchEligibilityFor, batchItemRequiredFields, withoutBatchGuidance, batchOutcomeFor, DEFAULT_MAX_BATCH_ITEMS, defaultBatchableTools, withBatchInput,
 } from '../batch-tool-inputs.js';
 import { ToolInputError } from '../tool-input-errors.js';
 import type { ToolExecutionContext, ToolHandler, ToolRegistration } from '../tool-registry.js';
@@ -54,6 +54,16 @@ describe('batchDescriptorFor', () => {
     expect(items.maxItems).toBe(DEFAULT_MAX_BATCH_ITEMS);
     expect(items.description).not.toContain('Each item needs');
     expect(batched.description).toMatch(/^ Batch: /);
+  });
+
+  it('recovers exactly the moved required fields from a batch schema, and none from any other schema', () => {
+    const descriptor = { id: 'move', inputSchema: { type: 'object', required: ['themeId', 'path'], properties: { themeId: {}, path: {}, to: {} } } };
+    expect(batchItemRequiredFields({ inputSchema: batchDescriptorFor({ descriptor, tool: { toolId: 'move' } }).inputSchema })).toEqual(['themeId', 'path']);
+    const none = batchDescriptorFor({ descriptor: { id: 'list', inputSchema: { type: 'object', properties: {} } }, tool: { toolId: 'list' } });
+    for (const inputSchema of [none.inputSchema, descriptor.inputSchema, undefined, { properties: { items: { description: 7 } } },
+      { properties: { items: { description: ' Each item needs path, never closed' } } }]) {
+      expect(batchItemRequiredFields({ inputSchema })).toEqual([]);
+    }
   });
 
   it.each([

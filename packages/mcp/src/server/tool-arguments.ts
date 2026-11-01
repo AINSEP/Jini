@@ -116,20 +116,41 @@ function namedFieldMessage({ error, path }: { error: OutputUnit; path: string })
   return error.keyword === 'required' ? `supply required argument \`${key}\`` : `remove unknown argument \`${key}\``;
 }
 
+/** A complete small contract for repair diagnostics. Never truncate a schema into a misleading
+ * partial contract, including nested choices, batches and local refs. (Search hits carry only a
+ * compact signature; the full schema is paid for here, once a call has actually failed.)
+ * @returns The original schema up to 4 KiB, or an explicit describe instruction; absent stays absent.
+ * @complexity O(s) time/space for serialized schema bytes; pure, no input mutation.
+ */
+function boundedToolInputSchema(
+  { inputSchema }: { inputSchema: unknown }, _options: Record<string, never> = {},
+): { inputSchema?: unknown; schemaNotice?: string } {
+  if (inputSchema == null) return {};
+  if (Buffer.byteLength(JSON.stringify(inputSchema), 'utf8') > 4096) {
+    return { schemaNotice: 'Input schema exceeds 4096 bytes. Call describe_tool before execution.' };
+  }
+  return { inputSchema };
+}
+
 /**
  * Formats structured validation errors as field-specific recovery instructions.
- * @param requiredArgs - Validator errors, including JSON Pointer locations and keywords.
+ * @param requiredArgs - Validator errors and, when available, the tool's complete wire input schema.
  * @param _options - Reserved formatting options.
- * @returns One actionable diagnostic; no schema-location trace.
- * @complexity O(e + p) for e errors and p characters in the selected field path.
+ * @returns A field instruction plus a bounded contract for missing fields or malformed array items.
+ * @complexity O(e + p + s) for e errors, p path characters and s serialized schema bytes.
  */
 export function argumentShapeMessage(
-  { errors }: { errors: readonly OutputUnit[] },
+  { errors, inputSchema }: { errors: readonly OutputUnit[]; inputSchema?: unknown },
   _options: Record<string, never> = {},
 ): string {
   // Keep the additionalProperties diagnostic ahead of its generic false-schema child.
   const error = errors.find((entry) => entry.keyword === 'required' || entry.keyword === 'additionalProperties' || entry.instanceLocation !== '#') ?? errors[0];
   if (error === undefined) return 'supply arguments matching the declared input schema';
   const path = pointerToFieldPath({ instanceLocation: error.instanceLocation });
-  return namedFieldMessage({ error, path }) ?? `change \`${path || 'arguments'}\`: ${error.error}`;
+  const message = namedFieldMessage({ error, path }) ?? `change \`${path || 'arguments'}\`: ${error.error}`;
+  // Missing fields and generic array-item errors otherwise force one guess per retry.
+  if (!errors.some(entry => ['required', 'items'].includes(entry.keyword))) return message;
+  const hint = boundedToolInputSchema({ inputSchema });
+  const contract = hint.inputSchema === undefined ? hint.schemaNotice : `Input schema: ${JSON.stringify(hint.inputSchema)}`;
+  return contract ? `${message}; ${contract}` : message;
 }

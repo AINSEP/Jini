@@ -532,12 +532,32 @@ describe('argument normalization and diagnostics (characterization)', () => {
   });
 
   it('names a missing required argument at the top level', async () => {
-    expect(await callEcho({ inputSchema: { ...flat, required: ['id'] } }, {})).toEqual({ isError: true, text: 'invalid arguments for echo: supply required argument `id`' });
+    const schema = { ...flat, required: ['id'] };
+    expect(await callEcho({ inputSchema: schema }, {})).toEqual({ isError: true, text: `invalid arguments for echo: supply required argument \`id\`; Input schema: ${JSON.stringify(schema)}` });
   });
 
   it('names a missing required argument inside a nested object by its dotted path', async () => {
     const schema = { type: 'object', properties: { opts: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] } } } as const;
-    expect(await callEcho({ inputSchema: schema }, { opts: {} })).toEqual({ isError: true, text: 'invalid arguments for echo: supply required argument `opts.id`' });
+    expect(await callEcho({ inputSchema: schema }, { opts: {} })).toEqual({ isError: true, text: `invalid arguments for echo: supply required argument \`opts.id\`; Input schema: ${JSON.stringify(schema)}` });
+  });
+
+  it('an empty first call lists every required argument and its type in one repair contract', async () => {
+    const schema = { type: 'object', required: ['themeId', 'path'], properties: {
+      themeId: { type: 'string', minLength: 1 }, path: { type: 'string', minLength: 1 },
+    }, additionalProperties: false } satisfies McpToolDef['inputSchema'];
+    const result = await callEcho({ inputSchema: schema }, {});
+    expect(result.isError).toBe(true);
+    expect(result.text).toContain(`Input schema: ${JSON.stringify(schema)}`);
+  });
+
+  it('repairs with a schema of exactly 4096 UTF-8 bytes, but never a truncated larger one', async () => {
+    const exact = { type: 'object' as const, required: ['id'], properties: { id: { type: 'string' } }, description: '' };
+    // Spaced prose: one unbroken run would be redacted as a possible secret.
+    exact.description = 'ab '.repeat(2000).slice(0, 4096 - Buffer.byteLength(JSON.stringify(exact)));
+    expect((await callEcho({ inputSchema: exact }, {})).text).toContain(`Input schema: ${JSON.stringify(exact)}`);
+    const oversized = { ...exact, description: '界'.repeat(1400) };
+    expect((await callEcho({ inputSchema: oversized }, {})).text).toBe(
+      'invalid arguments for echo: supply required argument `id`; Input schema exceeds 4096 bytes. Call describe_tool before execution.');
   });
 
   it('names an unknown nested argument by its dotted path', async () => {

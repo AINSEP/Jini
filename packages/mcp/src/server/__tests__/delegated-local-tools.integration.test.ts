@@ -4,6 +4,15 @@ import { CallToolRequestSchema, ListToolsRequestSchema, type CallToolResult, typ
 import { expect, it } from 'vitest';
 import { serve } from '../../bin/serve.js';
 import { createMcpToolServer, type McpServerLike, type McpTransportLike } from '../tool-server.js';
+import { ASK_CHOICE_INPUT_SCHEMA } from '../../tools/ask-choice/schema.js';
+
+const discovered = [
+  { id: 'theme_list_files', readOnly: true, inputSchema: { type: 'object', required: ['themeId'],
+    properties: { themeId: { type: 'string', minLength: 1 } }, additionalProperties: false } },
+  { id: 'fs_list_files', readOnly: true, inputSchema: { type: 'object', required: ['root'],
+    properties: { root: { type: 'string', enum: ['site', 'custom'] } }, additionalProperties: false } },
+  { id: 'assistant_ask_choice', readOnly: false, inputSchema: ASK_CHOICE_INPUT_SCHEMA },
+];
 
 /** Exercise the production serve tool list and dispatch handlers without opening a listener. */
 async function host() {
@@ -27,10 +36,15 @@ async function host() {
     fetchImpl: async (url, init) => {
       const body = JSON.parse(String(init?.body ?? '{}'));
       requests.push({ url: String(url), body, headers: new Headers(init?.headers) });
+      if (String(url).includes('/api/tools/search?')) return Response.json({ hits: discovered.map(({ inputSchema: _schema, ...tool }) => ({
+        ...tool, description: `Call ${tool.id}`, source: 'fixture', score: 1, signature: `signature of ${tool.id}`,
+      })) });
+      const described = discovered.find(tool => String(url).endsWith(`/api/tools/${tool.id}`));
+      if (described) return Response.json(described);
       if (String(url).endsWith('/api/tools/fixture_read')) return Response.json({ id: 'fixture_read', readOnly: true,
         inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'], additionalProperties: false } });
       if (String(url).endsWith('/api/delegated-tool-calls')) {
-        if (body.toolId === 'fixture_read') return Response.json({ result: {
+        if (body.toolId === 'fixture_read' || discovered.some(tool => tool.id === body.toolId)) return Response.json({ result: {
           status: 'completed', output: { content: [{ type: 'text', text: `found ${JSON.stringify(body.input)}` }] },
         } });
         return Response.json({ error: { code: 'TOOL_NOT_FOUND', message: `no tool registered: ${body.toolId}` } }, { status: 404 });
@@ -130,5 +144,47 @@ it('delegated check_messages preserves the trusted nonce and validates input bef
       `[run-user-message nonce=${'a'.repeat(48)} id=user-1 seq=1]\n{"text":"Keep going"}` }] });
     expect(h.pending).toEqual([]);
     expect(h.requests).toHaveLength(1);
+  } finally { await h.close(); }
+}, 10_000);
+
+it('search returns compact signatures without publishing; describe publishes, and a {} call then gets the full contract, for every CLI', async () => {
+  const h = await host();
+  try {
+    const before = (await h.list()).tools.map(tool => tool.name);
+    const search = await h.call('search_tools', { query: 'list files and ask a question' });
+    const hits = JSON.parse((search.content[0] as { text: string }).text) as Array<{ id: string; signature: string }>;
+    expect(hits.map(hit => hit.signature)).toEqual(discovered.map(tool => `signature of ${tool.id}`));
+    expect(JSON.stringify(hits)).not.toContain('inputSchema');
+    // Publishing every hit would re-send up to 64 schemas in tools/list on every later turn.
+    expect((await h.list()).tools.map(tool => tool.name)).toEqual(before);
+    for (const tool of discovered) expect((await h.call('describe_tool', { id: tool.id })).isError).not.toBe(true);
+    const { tools } = await h.list();
+    for (const tool of discovered) expect(tools.find(listed => listed.name === tool.id)?.inputSchema).toEqual(tool.inputSchema);
+    h.requests.length = 0;
+    for (const tool of discovered) {
+      for (const gateway of [tool.id, 'execute_delegated_tool', ...(tool.readOnly ? ['execute_readonly_delegated_tool'] : [])]) {
+        const error = await h.call(gateway, gateway === tool.id ? {} : { toolId: tool.id, input: {} });
+        expect(error.isError).toBe(true);
+        const text = (error.content[0] as { text: string }).text;
+        expect(text).toContain(`invalid arguments for ${tool.id}`);
+        expect(text).toContain(`Input schema: ${JSON.stringify(tool.inputSchema)}`);
+      }
+    }
+    // Malformed calls must be refused before reaching the daemon's handlers.
+    expect(h.requests.map(request => request.url)).toEqual(Array(8).fill('http://127.0.0.1/api/runs/run-a/messages/claim'));
+    const invalidOptions = await h.call('assistant_ask_choice', { question: 'Which?', options: ['One'] });
+    expect(invalidOptions.isError).toBe(true);
+    expect((invalidOptions.content[0] as { text: string }).text).toContain('"required":["label"]');
+    const refusedWrite = await h.call('execute_readonly_delegated_tool', { toolId: 'assistant_ask_choice', input: {} });
+    expect(refusedWrite.isError).toBe(true);
+    expect(JSON.stringify(refusedWrite)).toContain('read-only');
+    for (const [toolId, input] of [
+      ['theme_list_files', { themeId: 'plain' }], ['fs_list_files', { root: 'site' }],
+      ['assistant_ask_choice', { question: 'Which?', options: [{ label: 'One' }] }],
+    ] as const) {
+      expect((await h.call(toolId, input)).isError).toBeUndefined();
+      expect(h.requests.filter(request => request.url.endsWith('/api/delegated-tool-calls')).at(-1)?.body)
+        .toMatchObject({ toolId, input, runId: 'run-a' });
+    }
   } finally { await h.close(); }
 }, 10_000);

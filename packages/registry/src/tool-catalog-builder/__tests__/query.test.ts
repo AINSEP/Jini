@@ -15,7 +15,7 @@ function fixture(descriptors: ToolDescriptor[] = [
   const search = vi.fn(() => seeded.map(entry => ({ ...entry, score: 1 })));
   const storeFactory: CatalogStoreFactory = { create: vi.fn(({ entries }) => {
     seeded = entries;
-    return { search, describe: ({ id }) => seeded.find(entry => entry.id === id) ?? null };
+    return { search, describe: ({ id }: { id: string }) => seeded.find(entry => entry.id === id) ?? null };
   }) };
   const required = { source: { list: () => descriptors }, enricher, classifier, storeFactory,
     clock: { nowMs: () => Date.parse('2026-10-01T00:00:00.000Z') } };
@@ -39,6 +39,20 @@ test('search forwards query and explicit/default limits while returning authored
   expect(f.search).toHaveBeenLastCalledWith({ query: 'invite' }, { limit: 10 });
   query.search({ query: 'forms' }, { limit: 1 });
   expect(f.search).toHaveBeenLastCalledWith({ query: 'forms' }, { limit: 1 });
+});
+
+test('a hit carries the registered signature, never the schema, whatever the ranking backend returns', () => {
+  const inputSchema = { type: 'object', required: ['themeId'], properties: { themeId: { type: 'string', minLength: 1 } } };
+  const f = fixture([{ id: 'theme_list_files', description: 'List theme files.', inputSchema }, { id: 'no_schema', description: 'None.' }]);
+  const storeFactory: CatalogStoreFactory = { create: () => ({
+    search: () => [{ id: 'theme_list_files', description: 'List theme files.', source: 'theme', score: 1, inputSchema },
+      { id: 'no_schema', description: 'None.', source: 'none', score: 1 }],
+    describe: () => null,
+  }) };
+  const [hit, bare] = buildToolCatalogQuery({ ...f.required, storeFactory }).search({ query: 'list theme files' });
+  expect(hit).toMatchObject({ id: 'theme_list_files', signature: 'themeId: string' });
+  expect(hit).not.toHaveProperty('inputSchema');
+  expect(bare).not.toHaveProperty('signature');
 });
 
 test('keyword and question folds can be independently disabled', () => {

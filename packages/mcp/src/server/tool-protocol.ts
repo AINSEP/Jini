@@ -272,7 +272,11 @@ export async function handleToolCall(
     const args = normalizeToolArguments({ tool, rawArgs: rawArgs ?? {} });
     const validation = validatorForTool(tool).validate(args);
     if (!validation.valid) {
-      return errorResult({ message: `invalid arguments for ${tool.name}: ${sanitizeUntrustedText({ text: argumentShapeMessage({ errors: validation.errors }) }, { diagnosticToolIds })}` });
+      return errorResult({ message: `invalid arguments for ${tool.name}: ${sanitizeUntrustedText({ text: argumentShapeMessage({ errors: validation.errors, inputSchema: wireInputSchema(tool) }) }, {
+        diagnosticToolIds,
+        // A complete bounded contract must survive the default 500-character diagnostic cap.
+        maxLength: 4608,
+      })}` });
     }
     validatedArgs = args;
   } catch (err) {
