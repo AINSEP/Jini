@@ -1,8 +1,9 @@
+import { parseNpmPackJson } from '../../../../scripts/lib/npm-pack-json.js';
 import { afterAll, beforeAll, expect, it, vi } from 'vitest';
 import { paymentsProviderContract, type PaymentProvider, type ProviderContext } from '@jini-ai/commerce/payments/kernel';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdtemp, mkdir, readdir, readFile, rm, copyFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readdir, readFile, rm, copyFile, realpath } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -56,7 +57,8 @@ const SPECS: Record<string, { contract: string; id: string; validate: (port: unk
 let root: string;
 const artifacts = new Map<string, { artifact: string; installedPackage: string; packedPaths: string[] }>();
 beforeAll(async () => {
-  root = await mkdtemp(path.join(tmpdir(), 'provider-artifact-'));
+  // Node resolution canonicalizes symlinks, including macOS /var → /private/var.
+  root = await realpath(await mkdtemp(path.join(tmpdir(), 'provider-artifact-')));
   for (const id of Object.keys(SPECS).sort()) {
     const destinationPackageRoot = path.join(packageRoot, '..', `plugin-${id}`);
     const outputRoot = path.join(root, id, 'distribution');
@@ -65,14 +67,14 @@ beforeAll(async () => {
     // ignoring lifecycle here prevents npm from rerunning the build against this isolated staging dir.
     for (const filename of ['package.json', 'README.md', 'LICENSE', 'NOTICE']) await copyFile(path.join(destinationPackageRoot, filename), path.join(outputRoot, filename));
     const packed = await exec('npm', ['pack', '--offline', '--ignore-scripts', '--json', '--cache', path.join(root, 'npm-cache')], { cwd: outputRoot });
-    const [packedFile] = JSON.parse(packed.stdout) as Array<{ filename: string; files: { path: string }[] }>;
+    const packedFile = parseNpmPackJson({ stdout: packed.stdout });
     const hostRoot = path.join(root, id, 'host');
     const installedPackage = path.join(hostRoot, 'node_modules/@jini-ai', `plugin-${id}`);
     await mkdir(installedPackage, { recursive: true });
-    await exec('tar', ['-xzf', path.join(outputRoot, packedFile!.filename), '-C', installedPackage, '--strip-components', '1']);
+    await exec('tar', ['-xzf', path.join(outputRoot, packedFile.filename), '-C', installedPackage, '--strip-components', '1']);
     const resolve = createRequire(path.join(hostRoot, 'host.cjs')).resolve;
     expect(resolve(`@jini-ai/plugin-${id}/package.json`)).toBe(path.join(installedPackage, 'package.json'));
-    artifacts.set(id, { artifact: path.join(installedPackage, entry.path), installedPackage, packedPaths: packedFile!.files.map(file => file.path) });
+    artifacts.set(id, { artifact: path.join(installedPackage, entry.path), installedPackage, packedPaths: packedFile.files!.map(file => file.path) });
   }
 }, 120_000);
 afterAll(async () => { await rm(root, { recursive: true, force: true }); });

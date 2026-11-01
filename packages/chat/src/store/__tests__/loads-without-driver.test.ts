@@ -1,4 +1,5 @@
 /** C1 packed consumers: plain Node resolution in disposable isolated installs, never bundler erasure. */
+import { parseNpmPackJson } from '../../../../../scripts/lib/npm-pack-json.js';
 import { execFileSync, spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -30,7 +31,7 @@ function copyRuntimeTree(name:string,source:string,dir:string,seen=new Set<strin
 function run(dir:string,source:string){return spawnSync(process.execPath,['--input-type=module','-e',source],{cwd:dir,encoding:'utf8'});}
 beforeAll(()=>{
  root=mkdtempSync(join(tmpdir(),'chat-packed-'));
- const pack=JSON.parse(execFileSync('npm',['pack','--offline','--ignore-scripts','--json','--cache',join(root,'npm-cache'),'--pack-destination',root],{cwd:packageRoot,encoding:'utf8'}))[0].filename;
+ const pack=parseNpmPackJson({ stdout: execFileSync('npm',['pack','--offline','--ignore-scripts','--json','--cache',join(root,'npm-cache'),'--pack-destination',root],{cwd:packageRoot,encoding:'utf8'}) }).filename;
  for(const name of ['store','neutral','sqlite','pglite','postgres']){
   const dir=join(root,name);dirs[name]=dir;mkdirSync(dir,{recursive:true});writeFileSync(join(dir,'package.json'),JSON.stringify({type:'module'}));const dest=join(dir,'node_modules/@jini-ai/chat');mkdirSync(dest,{recursive:true});
   execFileSync('tar',['-xzf',join(root,pack),'-C',dest,'--strip-components','1']);

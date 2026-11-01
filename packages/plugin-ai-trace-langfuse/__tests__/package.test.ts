@@ -1,4 +1,5 @@
 /** Standalone publication contract: inspect the tarball built from the real selected source. */
+import { parseNpmPackJson } from '../../../scripts/lib/npm-pack-json.js';
 import { afterEach, expect, it } from 'vitest';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -42,8 +43,8 @@ it('packs exactly the selected versioned payload with verified integrity and ret
   // Include the real tests in staging so the publication allowlist must actively exclude them.
   await cp(path.join(packageRoot, '__tests__'), path.join(root, '__tests__'), { recursive: true });
   const packed = await exec('npm', ['pack', '--ignore-scripts', '--json', '--cache', path.join(root, 'npm-cache')], { cwd: root });
-  const [tarball] = JSON.parse(packed.stdout) as Array<{ filename: string }>;
-  const archive = path.join(root, tarball!.filename);
+  const tarball = parseNpmPackJson({ stdout: packed.stdout });
+  const archive = path.join(root, tarball.filename);
   const listing = await exec('tar', ['-tzf', archive]);
   await exec('tar', ['-xzf', archive, '-C', root]);
   const artifact = path.join(root, 'package', entry.path);

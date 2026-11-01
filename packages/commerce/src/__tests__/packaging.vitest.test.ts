@@ -1,3 +1,4 @@
+import { parseNpmPackJson } from '../../../../scripts/lib/npm-pack-json.js';
 import { execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -11,8 +12,8 @@ it('ships the Open SaaS MIT attribution in the commerce npm file list', async ()
   const cache = await mkdtemp(path.join(tmpdir(), 'commerce-pack-'));
   try {
     const packed = await promisify(execFile)('npm', ['pack', '--dry-run', '--ignore-scripts', '--json', '--cache', cache], { cwd: packageRoot, timeout: 30_000 });
-    const [entry] = JSON.parse(packed.stdout) as Array<{ files: Array<{ path: string }> }>;
-    expect(entry!.files.map(file => file.path)).toContain('NOTICE');
+    const entry = parseNpmPackJson({ stdout: packed.stdout });
+    expect(entry.files!.map(file => file.path)).toContain('NOTICE');
     const notice = await readFile(path.join(packageRoot, 'NOTICE'), 'utf8');
     expect(notice).toContain('Open SaaS');
     expect(notice).toContain('c2c6285bdb14b040584505372ad9bb062a0bca11');

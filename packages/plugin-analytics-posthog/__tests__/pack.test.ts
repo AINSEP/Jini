@@ -1,6 +1,7 @@
+import { parseNpmPackJson } from '../../../scripts/lib/npm-pack-json.js';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { execFile } from 'node:child_process';
-import { copyFile, mkdir, mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, readFile, readdir, rm, realpath } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -26,7 +27,8 @@ let packedFiles: string[];
 let manifest: PluginManifest;
 
 beforeAll(async () => {
-  root = await mkdtemp(path.join(tmpdir(), 'analytics-posthog-pack-'));
+  // Match Node's canonical resolution when TMPDIR traverses symlinks (macOS /var).
+  root = await realpath(await mkdtemp(path.join(tmpdir(), 'analytics-posthog-pack-')));
   const distribution = path.join(root, 'distribution');
   await mkdir(distribution);
   for (const name of documents) await copyFile(path.join(packageRoot, name), path.join(distribution, name));
@@ -34,8 +36,8 @@ beforeAll(async () => {
   artifactPath = entry.path;
   // Build in scratch first; lifecycle suppression keeps pack inspection from rewriting the checkout.
   const packed = await exec('npm', ['pack', '--offline', '--ignore-scripts', '--json', '--cache', path.join(root, 'npm-cache')], { cwd: distribution });
-  const [result] = JSON.parse(packed.stdout) as { filename: string }[];
-  const tarball = path.join(distribution, result!.filename);
+  const result = parseNpmPackJson({ stdout: packed.stdout });
+  const tarball = path.join(distribution, result.filename);
   const inventory = await exec('tar', ['-tzf', tarball]);
   packedFiles = inventory.stdout.trim().split('\n').filter(name => !name.endsWith('/')).map(name => name.replace(/^package\//, '')).sort();
   installed = path.join(root, 'node_modules', packageName);

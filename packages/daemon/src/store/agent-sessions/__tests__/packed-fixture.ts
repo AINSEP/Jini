@@ -1,4 +1,5 @@
 /** Offline packed imports use plain Node in a disposable directory, never workspace symlinks. */
+import { parseNpmPackJson } from '../../../../../../scripts/lib/npm-pack-json.js';
 import { execFileSync, spawnSync, type SpawnSyncReturns } from 'node:child_process';
 import { cpSync, mkdirSync, mkdtempSync, realpathSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -20,12 +21,10 @@ export function pack({ dir, name }: { dir: string; name: string }): void {
   const source = join(packages, name);
   const dest = join(dir, 'node_modules', '@jini-ai', name);
   mkdirSync(dest, { recursive: true });
-  const archives: { filename: string }[] = JSON.parse(execFileSync('npm', [
+  const archive = parseNpmPackJson({ stdout: execFileSync('npm', [
     'pack', '--offline', '--ignore-scripts', '--json', '--cache', join(dir, 'npm-cache'),
     '--pack-destination', dir,
-  ], { cwd: source, encoding: 'utf8' }));
-  const archive = archives[0];
-  if (!archive) throw new Error('npm pack returned no archive');
+  ], { cwd: source, encoding: 'utf8' }) });
   execFileSync('tar', ['-xzf', join(dir, archive.filename), '-C', dest, '--strip-components', '1']);
 }
 

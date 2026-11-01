@@ -112,10 +112,10 @@ test('the seeded digest selects the independent package over a retained legacy r
 
 test('packing the lifecycle library publishes no design assets or design export', async () => {
   const lifecycleRoot = path.join(workspace, 'packages/agent-plugins');
-  const packed = JSON.parse(execFileSync('npm', ['pack', '--offline', '--ignore-scripts', '--json', '--cache', path.join(root, 'npm-cache'), '--pack-destination', root], {
+  const packed = parseNpmPackJson({ stdout: execFileSync('npm', ['pack', '--offline', '--ignore-scripts', '--json', '--cache', path.join(root, 'npm-cache'), '--pack-destination', root], {
     cwd: lifecycleRoot, encoding: 'utf8',
-  })) as { files: { path: string }[] }[];
-  expect(packed[0]!.files.some(file => file.path.startsWith(`${pluginId}/`))).toBe(false);
+  }) });
+  expect(packed.files!.some(file => file.path.startsWith(`${pluginId}/`))).toBe(false);
   const manifest = JSON.parse(await fs.readFile(path.join(lifecycleRoot, 'package.json'), 'utf8'));
   expect(manifest.files).not.toContain(pluginId);
   expect(Object.hasOwn(manifest.exports, `./${pluginId}/*`)).toBe(false);

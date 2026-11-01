@@ -1,4 +1,5 @@
 // @vitest-environment node
+import { parseNpmPackJson } from '../../../../../../../scripts/lib/npm-pack-json.js';
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -43,9 +44,9 @@ describe('published test-code exclusions', () => {
         const output = execFileSync('npm', [
           'pack', '--dry-run', '--json', '--ignore-scripts', '--offline', '--cache', join(fixture, 'npm-cache'),
         ], { cwd: fixture, encoding: 'utf8', timeout: 10_000 });
-        const packs: Array<{ files: Array<{ path: string }> }> = JSON.parse(output);
-        expect(packs).toHaveLength(1);
-        const packedPaths = packs.flatMap((pack) => pack.files.map((file) => file.path));
+        // The shared reader asserts exactly one package for both npm output shapes.
+        const pack = parseNpmPackJson({ stdout: output });
+        const packedPaths = pack.files!.map((file) => file.path);
         expect(packedPaths).toEqual(expect.arrayContaining(['package.json', ...runtimeFiles]));
         for (const file of testFiles) expect(packedPaths).not.toContain(file);
       } finally {

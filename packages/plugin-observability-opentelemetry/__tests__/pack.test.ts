@@ -1,3 +1,4 @@
+import { parseNpmPackJson } from '../../../scripts/lib/npm-pack-json.js';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { execFile } from 'node:child_process';
 import { copyFile, mkdir, mkdtemp, readFile, readdir, realpath, rm } from 'node:fs/promises';
@@ -33,8 +34,8 @@ beforeAll(async () => {
   artifactPath = entry.path;
   // Build in scratch first; lifecycle suppression keeps pack inspection from rewriting the checkout.
   const packed = await exec('npm', ['pack', '--offline', '--ignore-scripts', '--json', '--cache', path.join(root, 'npm-cache')], { cwd: distribution });
-  const [result] = JSON.parse(packed.stdout) as { filename: string }[];
-  const tarball = path.join(distribution, result!.filename);
+  const result = parseNpmPackJson({ stdout: packed.stdout });
+  const tarball = path.join(distribution, result.filename);
   const inventory = await exec('tar', ['-tzf', tarball]);
   packedFiles = inventory.stdout.trim().split('\n').filter(name => !name.endsWith('/')).map(name => name.replace(/^package\//, '')).sort();
   installed = path.join(root, 'node_modules', packageName);
