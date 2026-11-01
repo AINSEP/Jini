@@ -15,8 +15,6 @@ it('publishes every isolated extraction entry with its browser or universal clas
   const expectedPeers = {
     'react': '^18.3.0 || ^19.0.0',
     'react-dom': '^18.3.0 || ^19.0.0',
-    '@jini-ai/db': '^0.6.10',
-    'kysely': '^0.29.6',
     'better-sqlite3': '^13.0.0',
     '@electric-sql/pglite': '0.5.8',
     'pg': '^8.23.0',
@@ -28,10 +26,8 @@ it('publishes every isolated extraction entry with its browser or universal clas
     '@radix-ui/react-select': '^2.3.7',
     '@radix-ui/react-slot': '^1.3.3',
     '@jini-ai/agent-runtime': '^0.6.10',
-    '@jini-ai/agentic': '^0.6.10',
     '@jini-ai/protocol': '^0.6.10',
     '@jini-ai/ui': '^0.6.10',
-    '@jini-ai/diagnostics': '^0.6.10',
   };
   expect(manifest.peerDependencies).toEqual(expectedPeers);
   expect(manifest.peerDependenciesMeta).toEqual(
@@ -39,6 +35,13 @@ it('publishes every isolated extraction entry with its browser or universal clas
   );
   expect(manifest.devDependencies['@ag-ui/core']).toBe('0.0.58');
   expect(manifest.devDependencies['@jini-ai/agent-runtime']).toBe('workspace:*');
-  // SQL stores and surface cards use core's default clock at runtime, so core is required.
-  expect(manifest.dependencies).toEqual({ '@jini-ai/core': 'workspace:^' });
+  // Default widget/bridge features need these at runtime; the dependency contract makes
+  // them regular dependencies. Only opt-in subpaths and host UI peers remain optional.
+  expect(manifest.dependencies).toEqual({
+    '@jini-ai/core': 'workspace:^',
+    '@jini-ai/agentic': 'workspace:^',
+    '@jini-ai/db': 'workspace:^',
+    '@jini-ai/diagnostics': 'workspace:^',
+    'kysely': '^0.29.6',
+  });
 });

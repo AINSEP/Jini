@@ -382,7 +382,11 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     let approvalWindowUsed = false;
     let remaining = timeoutMs;
     let started = Date.now();
-    const stop = () => { clearTimeout(handle); handle = undefined; };
+    const stop = () => {
+      if (handle === undefined) return;
+      clearTimeout(handle);
+      handle = undefined;
+    };
     const arm = (duration: number | undefined) => {
       stop();
       started = Date.now();

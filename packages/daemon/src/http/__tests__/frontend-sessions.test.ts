@@ -48,8 +48,9 @@ describe('registerFrontendSessionRoutes', () => {
     const app = express();
     app.use(express.json());
     registerFrontendSessionRoutes({ app: app as never, deps, adapter: adapter as never });
-    const server = await new Promise<Server>((resolve) => {
+    const server = await new Promise<Server>((resolve, reject) => {
       const s = app.listen(0, '127.0.0.1', () => resolve(s));
+      s.once('error', reject);
     });
     servers.push(server);
     adapter.resolvedPortRef.current = (server.address() as AddressInfo).port;
@@ -82,7 +83,9 @@ describe('registerFrontendSessionRoutes', () => {
     const decoder = new TextDecoder();
     const readEvent = async (): Promise<Record<string, unknown>> => {
       for (; ;) {
-        const { value } = await reader.read();
+        const { value, done } = await reader.read();
+        // EOF must fail the assertion, not spin microtasks forever and starve the test timeout.
+        if (done) throw new Error('frontend session stream ended before the next event');
         const text = decoder.decode(value);
         const line = text.split('\n').find((l) => l.startsWith('data: '));
         if (line) return JSON.parse(line.slice('data: '.length));

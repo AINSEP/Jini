@@ -41,8 +41,9 @@ describe('createFrontendControl', () => {
       webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST',
     };
     control.httpExtension({ app, context: { adapter } });
-    const server = await new Promise<Server>((resolve) => {
+    const server = await new Promise<Server>((resolve, reject) => {
       const s = app.listen(0, '127.0.0.1', () => resolve(s));
+      s.once('error', reject);
     });
     servers.push(server);
     resolvedPortRef.current = (server.address() as AddressInfo).port;
@@ -85,10 +86,10 @@ describe('createFrontendControl', () => {
   }
 
   describe('what a host is given', () => {
-    it('exposes only the extension, the registrations and the bind hook', () => {
+    it('exposes only the extension, the registrations and the run/request bind hooks', () => {
       const control = createFrontendControl({ capabilities: [PAGE_CLICK], resolveBindToken: () => undefined });
 
-      expect(Object.keys(control).sort()).toEqual(['bindOnStarted', 'httpExtension', 'toolRegistrations']);
+      expect(Object.keys(control).sort()).toEqual(['bindOnStarted', 'bindRequest', 'httpExtension', 'toolRegistrations']);
     });
 
     // The registry's invoke() drives a real user's screen with no policy, confirmation, timeout or
