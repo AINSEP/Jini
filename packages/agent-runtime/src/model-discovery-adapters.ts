@@ -9,7 +9,7 @@ import { CLAUDE_CODE_INITIALIZE_ARGS, CLAUDE_CODE_INITIALIZE_REQUEST } from './c
 import { listProviderModels, type ProviderModelsInput } from './providers/model-catalog.js';
 import { execAgentFile } from './invocation.js';
 import { scheduleProbeProcess } from './probe-scheduler.js';
-import { probeCopilotSdk, probeDroidSdk } from './model-discovery-sdk.js';
+import { probeDroidSdk } from './model-discovery-sdk.js';
 import { parseSettingsJson, readModelConfiguration } from './model-discovery-config.js';
 import { ModelProbeError, modelIdentityKind, withModelProbeTimeout } from './core/model-discovery-shared.js';
 import type { AgentDiscoveryConfiguration, DiscoveredModel, ModelDiscoveryContext, ModelDiscoveryDeps, ModelProbeResult } from './model-discovery-types.js';
@@ -25,7 +25,7 @@ const CLI_ARGS: Record<string, readonly string[]> = {
   amp: ['plugins', 'show-agent-options', '--json'], crush: ['models'], deepseek: ['models'], qoder: ['--list-models'],
 };
 export function modelProbeTimeoutMs(agentId: string): number {
-  if (ACP_ARGS[agentId] || ['claude', 'codebuddy', 'pi', 'copilot', 'droid'].includes(agentId)) return 15_000;
+  if (ACP_ARGS[agentId] || ['claude', 'codebuddy', 'pi', 'droid'].includes(agentId)) return 15_000;
   return 10_000;
 }
 /** Shared CLI-subcommand adapter. Output parsers are pure def-owned functions, not vendor tools. */
@@ -202,7 +202,7 @@ async function probeCodeBuddyCatalog(agentId: string, context: ModelDiscoveryCon
 /** Agents with a dedicated discovery category, checked before any declared listing command. */
 const AGENT_PROBES: ReadonlyMap<string, AgentProbe> = new Map<string, AgentProbe>([
   ['claude', probeClaudeCatalog],
-  ['pi', probeRpc], ['copilot', probeRpc], ['droid', probeRpc],
+  ['pi', probeRpc], ['droid', probeRpc],
   // UNVERIFIED CLI-owned effective credential adapters; OAuth/unknown endpoints require host ports.
   ['aider', probeProviderApi], ['qwen', probeProviderApi], ['mimo', probeProviderApi],
   ['codebuddy', probeCodeBuddyCatalog],
@@ -380,7 +380,6 @@ export const defaultModelDiscoveryDeps: ModelDiscoveryDeps = {
   acp: createAcpDiscoveryAdapter({ probe: nativeAcpModelProbe }),
   rpc: { async probe({ agentId, context, signal }) {
     // UNVERIFIED locally: use official prompt-free SDK interfaces, not invented CLI flags.
-    if (agentId === 'copilot') return scheduleProbeProcess({ work: () => probeCopilotSdk(context, signal) }, { signal });
     if (agentId === 'droid') return probeDroidSdk(context, defaultModelDiscoveryDeps, signal);
     if (agentId !== 'pi') throw new ModelProbeError('unsupported-version');
     const { stdout } = await defaultModelDiscoveryDeps.process.run({ context, args: ['--mode', 'rpc'], stdin: '{"type":"get_available_models","id":"catalog"}\n{"type":"get_state","id":"state"}\n', signal, timeoutMs: 15_000,

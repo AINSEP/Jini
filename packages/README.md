@@ -95,15 +95,18 @@ Default-entry runtime libraries require regular dependencies.
 | `@jini-ai/chat` | `@radix-ui/react-checkbox`, `@radix-ui/react-label`, `@radix-ui/react-radio-group`, `@radix-ui/react-select`, `@radix-ui/react-slot`, `recharts`, `@mcp-ui/client` | `./react*` surface cards (reachable through `./react`; `./react/chat-pane` and `./react/embed` do not import these cards) |
 | `@jini-ai/registry` | `better-sqlite3` | `DatabaseRegistryBackend` |
 
-`react`, `react-dom`, `vue`, and `express` are always peers, never `dependencies`: a second React
-copy under a library breaks hooks. They are required peers only where a default `.` entry loads them
-(`@jini-ai/ui` → React; `@jini-ai/server` → Express; `@jini-ai/ui-kit` and `@jini-ai/daemon`, whose
-React/Express code the `ui`/`server` defaults reach). Elsewhere they are classified optional peers, so
-npm/pnpm never auto-install Express into a browser app or React/Vue into a server.
+Host frameworks are peers, never `dependencies`: a second React copy under a library breaks
+hooks. Runtime reachability from each package's exports governs installation. `@jini-ai/ui` keeps
+React and ReactDOM required because its default entry loads them; `@jini-ai/server` keeps Express
+required for the same reason. Those default closures also load UI kit's React bindings and daemon's
+HTTP routes, so UI kit's React/ReactDOM peers and daemon's Express peer stay required. Admin loads
+React/ReactDOM exclusively through opt-in React subpaths, so its peers are optional and classified.
+Type-only Express references in core and HTTP kit do not load Express; neither declares a runtime
+Express peer. Unimplemented Vue bindings in UI kit and unused ReactDOM in vibecoding likewise
+have no peer declaration. Other opt-in framework peers retain their manifest classifications.
 
 Default-path production dependencies include `smol-toml` in daemon; `mammoth` and
-`unpdf` in CMS; `@jini-ai/integrations` and `@jini-ai/platform` in agent-runtime (`@github/copilot-sdk` stays an
-optional peer: it pulls a native FFI addon and only adds account model listing);
+`unpdf` in CMS; `@jini-ai/integrations` and `@jini-ai/platform` in agent-runtime;
 and `@modelcontextprotocol/sdk`, `@jini-ai/platform` plus `@cfworker/json-schema` in MCP. Each
 package's manifest lists its complete required set. These are installed automatically.
 

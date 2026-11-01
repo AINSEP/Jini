@@ -2,7 +2,7 @@
  * @module ai-trace-lifecycle
  *
  * Wraps a {@link RunLifecycle} so every run it drives is also recorded as an AI trace. This is
- * the single tap for every provider path: child stream parsers (Claude Code, Copilot, Qoder,
+ * the single tap for every provider path: child stream parsers (Claude Code, Qoder,
  * Codex/OpenCode/Cursor/Kimi JSON streams), ACP sessions and pi-rpc all publish their normalized
  * events through `lifecycle.emit({ event: 'agent' })`. Observing the committed stream also sees
  * watchdog-driven terminal transitions, which call the base lifecycle's closed-over `finish()`.

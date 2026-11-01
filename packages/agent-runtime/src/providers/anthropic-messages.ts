@@ -18,7 +18,7 @@ import { redactSecrets } from '@jini-ai/core';
  * `connection-guard.ts`'s SSRF guard + secret redaction,
  * `role-marker-guard.ts`'s contamination detector, and the
  * "one file per vendor's stream-parsing shape" precedent
- * `claude-stream.ts`/`copilot-stream.ts`/`qoder-stream.ts` already
+ * `claude-stream.ts`/`qoder-stream.ts` already
  * establish) rather than duplicating any of that inside `@jini-ai/http-kit` — see
  * the proposal's "real question: where does provider-specific wire-protocol
  * logic belong?" section for the placement decision this file implements.

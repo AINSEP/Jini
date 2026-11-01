@@ -20,7 +20,7 @@
 //                claude / codex / kimi.
 //   - 'json'   : the agent reads a JSON config file with a known schema.
 //                We deep-merge one server entry, never clobbering the
-//                rest of the file. Used for cursor / copilot / cline /
+//                rest of the file. Used for cursor / cline /
 //                opencode / openclaw / antigravity / trae.
 //   - 'manual' : we could not verify the agent's config path/format
 //                authoritatively (pi / hermes / vibe). We refuse to write
@@ -42,7 +42,6 @@ export const AGENT_SLUGS = [
   'claude',
   'codex',
   'cursor',
-  'copilot',
   'openclaw',
   'antigravity',
   'pi',
@@ -159,7 +158,7 @@ function withEnv(entry: Record<string, unknown>, env: Record<string, string>, ke
   return entry;
 }
 
-/** JSON server entry shared by the `env`-style agents (cursor / copilot /
+/** JSON server entry shared by the `env`-style agents (cursor /
  *  cline / openclaw / antigravity / trae). `extra` carries per-agent
  *  fields; env is only attached when non-empty so configs stay clean. */
 function jsonEntry(spec: McpLaunchSpec, extra: Record<string, unknown> = {}): Record<string, unknown> {
@@ -226,11 +225,6 @@ const AGENT_PLANNERS: { readonly [K in AgentSlug]: (args: PlannerArgs) => Instal
   // ----- JSON config-file agents (safe deep-merge) -----
   cursor: ({ spec, ctx: { home, serverName } }) =>
     jsonPlan('cursor', path.join(home, '.cursor', 'mcp.json'), ['mcpServers'], serverName, jsonEntry(spec, { type: 'stdio' })),
-  // GitHub Copilot CLI: ~/.copilot/mcp-config.json, type "local".
-  // (VS Code Copilot uses a different `servers` key in
-  // .vscode/mcp.json; the terminal installer targets the CLI.)
-  copilot: ({ spec, ctx: { home, serverName } }) =>
-    jsonPlan('copilot', path.join(home, '.copilot', 'mcp-config.json'), ['mcpServers'], serverName, jsonEntry(spec, { type: 'local', tools: ['*'] })),
   cline: ({ spec, ctx: { home, platform, serverName }, appData }) =>
     jsonPlan('cline', clineConfigPath(home, platform, appData), ['mcpServers'], serverName, jsonEntry(spec, { disabled: false, autoApprove: [] })),
   // OpenCode nests under `mcp`, folds command+args into one array,

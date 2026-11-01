@@ -48,3 +48,10 @@ test('refuses links, same identity and over-budget replacement bytes', async () 
   await symlink(path.join(input.path, input.edit.path), path.join(input.path, 'link'));
   await expect(zipCustomizedAgentPluginFolder(input)).rejects.toThrow();
 });
+
+// The upload and manifest parser share the spec's id grammar, including delimiter and size bounds.
+test.each(['Uppercase', 'has--double', 'has..double', '-leading', 'trailing.', 'a'.repeat(65)])
+('refuses an invalid fork name: %s', async name => {
+  const input = await fixture();
+  await expect(zipCustomizedAgentPluginFolder({ ...input, name })).rejects.toThrow('Choose a valid new Agent Plugin id');
+});

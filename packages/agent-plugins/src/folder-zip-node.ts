@@ -2,7 +2,7 @@ import * as fs from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
 import { FOLDER_MAX_FILES, FOLDER_UNREADABLE, FolderZipError, zipFolderFiles } from "./folder-zip.js";
-import { isAgentPluginName } from './lifecycle/manifest.js';
+import { isAgentPluginName } from './core/plugin-name.js';
 
 /** Code-unit order, independent of locale. */
 function compareCodeUnits(a: string, b: string): number {

@@ -17,7 +17,6 @@ vi.mock('../defs/index.js', () => ({
   clineAgentDef: { id: 'cline', name: 'Cline' },
   codebuddyAgentDef: { id: 'codebuddy', name: 'CodeBuddy' },
   codexAgentDef: { id: 'codex', name: 'Codex' },
-  copilotAgentDef: { id: 'copilot', name: 'Copilot' },
   crushAgentDef: { id: 'crush', name: 'Crush' },
   cursorAgentDef: { id: 'cursor-agent', name: 'Cursor' },
   deepseekAgentDef: { id: 'deepseek', name: 'DeepSeek' },

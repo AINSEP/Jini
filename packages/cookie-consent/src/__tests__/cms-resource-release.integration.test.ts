@@ -5,9 +5,11 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { gateConsentHtml } from '../../../cms/src/consent/html/gate.js';
-import { config } from '../../../cms/src/consent/__tests__/fixtures.js';
+import { gateConsentHtml } from '@jini-ai/cms/consent/html';
+import type { ConsentConfig } from '@jini-ai/cms/consent';
 import { renderBanner } from '../render/index.js';
+
+const config: ConsentConfig = { enabled: true, regionMode: 'auto', policyVersion: '1', privacyPolicyUrl: '/privacy', title: 'Your cookie choices', message: 'Choose optional cookies.', acceptLabel: 'Accept all', rejectLabel: 'Reject non-essential', preferencesLabel: 'Cookie preferences' };
 
 const SRC = 'https://www.youtube.com/embed/dQw4w9WgXcQ';
 const PAGE = `<!doctype html><html><head><title>Hero</title></head><body><main>

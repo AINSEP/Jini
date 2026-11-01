@@ -14,12 +14,9 @@ that were split out of OD's monolithic daemon (see the archived provenance ledge
 npm install @jini-ai/platform
 ```
 
-`undici@^7.25.0` is an optional peer for the SSRF-safe asset cache's default dispatcher.
-Install it when calling `createAssetCacheDispatcher` or creating a cache without a host-supplied
-guarded dispatcher. Root imports and `@jini-ai/platform/asset-cache` imports do not load undici;
-the synchronous factory loads it on demand and reports a missing-peer error if it is absent.
-The root declarations retain undici types, so TypeScript consumers of those declarations also
-need the peer available. The dispatcher validates DNS at connection time, and cache `close()`
+`undici@^7.25.0` is a regular dependency, installed with this package for the SSRF-safe asset
+cache's default dispatcher. The synchronous factory constructs it on demand and propagates
+construction failures. The dispatcher validates DNS at connection time, and cache `close()`
 closes only its default dispatcher; a host-supplied dispatcher remains owned by the host.
 Interactive terminal sessions (`createTerminalService`)
 need a `PtySpawn` implementation supplied by the caller — this package defines the `PtyProcess`/

@@ -60,7 +60,7 @@ removeJsonInstall({ existingText, plan }: { existingText: string | null; plan: J
 
 Install payload inputs require cliPath/cliExists/execPath/nodeExists/port/platform/dataDir/dataDirEnvVar/electronAsNode/isSidecarMode/sidecarEnv. Options carry webBaseUrl? and subcommand? (default mcp). Output is command/args/env/daemonUrl/webBaseUrl/platform/cliExists/nodeExists/buildHint.
 
-Root McpLaunchSpec is `{command:string,args:string[],env:Record<string,string>}`. PlanContext requires home/platform/serverName. `AGENT_SLUGS` and `AgentSlug` cover claude/codex/cursor/copilot/openclaw/antigravity/pi/vibe/hermes/cline/kimi/trae/opencode. Plans are `CliInstallPlan` (slug/bin/addArgv/removeArgv/getArgv), `JsonInstallPlan` (slug/configPath/keyPath/serverKey/entry), or `ManualInstallPlan` (slug/format/configPath/snippet/reason), discriminated by kind. Execution, backup, permission enforcement and external CLI compatibility belong to the host.
+Root McpLaunchSpec is `{command:string,args:string[],env:Record<string,string>}`. PlanContext requires home/platform/serverName. `AGENT_SLUGS` and `AgentSlug` cover claude/codex/cursor/openclaw/antigravity/pi/vibe/hermes/cline/kimi/trae/opencode. Plans are `CliInstallPlan` (slug/bin/addArgv/removeArgv/getArgv), `JsonInstallPlan` (slug/configPath/keyPath/serverKey/entry), or `ManualInstallPlan` (slug/format/configPath/snippet/reason), discriminated by kind. Execution, backup, permission enforcement and external CLI compatibility belong to the host.
 
 ## Root: server, daemon client and idle lifecycle
 

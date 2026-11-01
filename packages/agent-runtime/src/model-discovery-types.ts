@@ -65,7 +65,7 @@ export interface ModelDiscoveryDeps {
   http: { list(input: ProviderModelsInput): Promise<import('./providers/types.js').ProviderModelsResponse> };
   credential: { connection(input: { agentId: string; context: ModelDiscoveryContext; signal: AbortSignal }): Promise<ProviderModelsInput | null> };
   acp: { probe(input: { context: ModelDiscoveryContext; args: readonly string[]; signal: AbortSignal }): Promise<ModelProbeResult> };
-  /** Copilot/Droid SDK ports: no undocumented CLI flags or inference prompts. */
+  /** Droid SDK ports: no undocumented CLI flags or inference prompts. */
   rpc: { probe(input: { agentId: string; context: ModelDiscoveryContext; signal: AbortSignal }): Promise<ModelProbeResult> };
   clock: { now(): number };
   cache: Map<string, ModelCacheEntry>;

@@ -12,12 +12,12 @@ import type { RuntimeAgentDef } from '../types.js';
 //     prints only its final assistant message (we read the structured
 //     stream instead). The prompt is delivered via stdin (`promptViaStdin`),
 //     matching the `echo "..." | amp -x` shape documented in `amp --help`.
-//     This avoids the argv length caps that bite copilot/claude on a single
+//     This avoids the argv length caps that bite Claude on a single
 //     `-p <body>` argv entry.
 //   - `--stream-json` (requires `--execute`) switches stdout to the
 //     Claude-Code-compatible JSONL stream the daemon already parses.
 //   - `--dangerously-allow-all` is the non-interactive auto-approve flag
-//     (Amp's equivalent of Copilot's `--allow-all-tools` / Codex's headless
+//     (Amp's equivalent of Codex's headless
 //     auto-approve): without it the agent blocks waiting for human approval
 //     on every tool call.
 //

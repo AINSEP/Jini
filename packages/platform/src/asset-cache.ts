@@ -178,20 +178,9 @@ export interface AssetCache {
   close?(): Promise<void>;
 }
 
-/** Default adapter: validate DNS at connection time, so the checked address is the connected one.
- * @throws {AssetCacheError} When the host has not installed the optional undici peer.
- */
+/** Default adapter: validate DNS at connection time, so the checked address is the connected one. */
 export function createAssetCacheDispatcher(_required: Record<string, never>, { lookupImpl }: { lookupImpl?: DnsLookupCb } = {}): Agent {
-  // Keep the factory synchronous while root imports and host-supplied dispatchers need no undici.
-  try {
-    return createUndiciAssetCacheDispatcher({ lookup: createValidatingLookup(lookupImpl) as unknown as LookupFunction });
-  } catch (error) {
-    if (error instanceof Error && (error as NodeJS.ErrnoException).code === 'MODULE_NOT_FOUND'
-      && error.message.split('\n')[0] === "Cannot find module 'undici'") {
-      throw new AssetCacheError(500, 'Asset cache dispatcher requires the optional peer "undici"; install undici@^7.25.0 or supply a guarded dispatcher.');
-    }
-    throw error;
-  }
+  return createUndiciAssetCacheDispatcher({ lookup: createValidatingLookup(lookupImpl) as unknown as LookupFunction });
 }
 
 /** Build a disk-backed cache for external sandboxed-content media. Concurrent

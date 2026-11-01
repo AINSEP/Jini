@@ -35,7 +35,6 @@ const CONFIG_FILES: ReadonlyMap<string, (paths: ConfigPaths) => ConfigFile[]> = 
   // UNVERIFIED locally: the survey documents these settings, not installed schema behavior.
   ['grok-build', ({ user }) => [{ path: user('.grok/config.toml'), format: 'toml', key: 'models.model' }]],
   ['codebuddy', ({ user, local }) => [json(user('.codebuddy/settings.json')), json(local('.codebuddy/settings.json')), json(local('.codebuddy/settings.local.json'))]],
-  ['copilot', ({ user }) => [json(user('.copilot/config.json'))]],
   ['cursor-agent', ({ user }) => [json(user('.cursor/cli-config.json'))]],
   ['droid', ({ user }) => [json(user('.factory/settings.json'), 'sessionDefaultSettings.model')]],
   ['qoder', ({ env, user, local }) => [json(join(env.QODER_CONFIG_DIR || user('.qoder'), 'settings.json'), MODEL_NAME_PATH), json(local('.qoder/settings.json'), MODEL_NAME_PATH), json(local('.qoder/settings.local.json'), MODEL_NAME_PATH)]],

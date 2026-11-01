@@ -11,12 +11,12 @@
  *
  * ## v1 scope: all 24 registered agent defs
  *
- * `@jini-ai/agent-runtime`'s registry ships 24 built-in defs across four
- * `streamFormat` families. The JSON-stream-parser family — the four
+ * `@jini-ai/agent-runtime`'s registry ships built-in defs across four
+ * `streamFormat` families. The JSON-stream-parser family — the three
  * `createXStreamHandler`-shaped parsers (`claude-stream-json`,
- * `json-event-stream`, `copilot-stream-json`, `qoder-stream-json`), covering
- * 9 defs (amp, codebuddy, claude, codex, cursor-agent, opencode, mimo,
- * copilot, qoder) — plus all 9 `acp-json-rpc` defs, plus the one `pi-rpc`
+ * `json-event-stream`, `qoder-stream-json`), covering
+ * 8 defs (amp, codebuddy, claude, codex, cursor-agent, opencode, mimo,
+ * qoder) — plus all 9 `acp-json-rpc` defs, plus the one `pi-rpc`
  * def (`pi`), are wired here. ACP and pi-rpc each own their own JSON-RPC
  * prompt-delivery protocol, so each takes its own lifecycle branch rather
  * than being treated as a stdout-tail parser; pi-rpc's events arrive through

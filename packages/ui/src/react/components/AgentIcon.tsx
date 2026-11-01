@@ -22,7 +22,6 @@ const ICON_EXT: Record<string, 'svg' | 'png'> = {
   gemini: 'svg',
   opencode: 'svg',
   'cursor-agent': 'svg',
-  copilot: 'svg',
   qwen: 'svg',
   qoder: 'svg',
   deepseek: 'svg',

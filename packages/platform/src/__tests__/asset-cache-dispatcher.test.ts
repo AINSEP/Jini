@@ -1,13 +1,10 @@
-// Pins createAssetCacheDispatcher's optional-peer handling: only the exact
-// "undici is not installed" failure becomes the 500 AssetCacheError; every
-// other adapter failure is rethrown untouched.
-
+// undici is a production dependency; adapter failures propagate without install advice.
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const adapter = vi.hoisted(() => ({ createUndiciAssetCacheDispatcher: vi.fn() }));
 vi.mock('../asset-cache.adapter.js', () => adapter);
 
-import { AssetCacheError, createAssetCache, createAssetCacheDispatcher } from '../asset-cache.js';
+import { createAssetCache, createAssetCacheDispatcher } from '../asset-cache.js';
 
 function moduleNotFound(message: string): NodeJS.ErrnoException {
   const error: NodeJS.ErrnoException = new Error(message);
@@ -15,26 +12,16 @@ function moduleNotFound(message: string): NodeJS.ErrnoException {
   return error;
 }
 
-const MISSING_PEER =
-  'Asset cache dispatcher requires the optional peer "undici"; install undici@^7.25.0 or supply a guarded dispatcher.';
-
-describe('createAssetCacheDispatcher optional peer', () => {
+describe('createAssetCacheDispatcher', () => {
   beforeEach(() => {
     adapter.createUndiciAssetCacheDispatcher.mockReset();
   });
 
-  it('maps a missing undici (first line of a require stack) to 500 with an install hint', () => {
-    adapter.createUndiciAssetCacheDispatcher.mockImplementation(() => {
-      throw moduleNotFound("Cannot find module 'undici'\nRequire stack:\n- /x/asset-cache.adapter.js");
-    });
-    let caught: unknown;
-    try {
-      createAssetCacheDispatcher({});
-    } catch (error) {
-      caught = error;
-    }
-    expect(caught).toBeInstanceOf(AssetCacheError);
-    expect(caught).toMatchObject({ status: 500, message: MISSING_PEER });
+  it('preserves dispatcher construction failures without optional-install advice', () => {
+    const failure = moduleNotFound("Cannot find module 'undici'");
+    adapter.createUndiciAssetCacheDispatcher.mockImplementation(() => { throw failure; });
+    expect(() => createAssetCacheDispatcher({})).toThrow(failure);
+    expect(() => createAssetCache({ cacheDir: '/unused' })).toThrow(failure);
   });
 
   it('rethrows a MODULE_NOT_FOUND for a different module untouched', () => {
@@ -65,13 +52,6 @@ describe('createAssetCacheDispatcher optional peer', () => {
     adapter.createUndiciAssetCacheDispatcher.mockReturnValue(agent);
     expect(createAssetCacheDispatcher({})).toBe(agent);
     expect(typeof adapter.createUndiciAssetCacheDispatcher.mock.calls[0]?.[0].lookup).toBe('function');
-  });
-
-  it('createAssetCache builds the default dispatcher eagerly and surfaces the 500 when undici is missing', () => {
-    adapter.createUndiciAssetCacheDispatcher.mockImplementation(() => {
-      throw moduleNotFound("Cannot find module 'undici'");
-    });
-    expect(() => createAssetCache({ cacheDir: '/unused' })).toThrow(MISSING_PEER);
   });
 
   it('createAssetCache wires opts.lookupImpl into the default dispatcher lookup', async () => {

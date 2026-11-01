@@ -40,7 +40,7 @@ export function extractUsageTokens({ rawUsage }: { readonly rawUsage: Record<str
  * fields beyond the basic counts — `thought_tokens`,
  * `cached_read_tokens`/`cached_write_tokens` (opencode/gemini/codex),
  * `modelUsage`/`stopReason`/`isError` (qoder), a top-level `stopReason`
- * (claude/copilot). Cache/reasoning counters and stop reasons now survive tracing; vendor-only
+ * (claude). Cache/reasoning counters and stop reasons now survive tracing; vendor-only
  * `modelUsage` and `isError` remain outside this neutral usage contract.
  * @param rawEvent - The raw `{type:'usage', ...}` record from a stream parser.
  * @returns The narrowed `RunAgentPayload` `usage` variant.
@@ -191,9 +191,9 @@ const EVENT_TYPE_TRANSLATORS: Readonly<Record<string, (rawEvent: Record<string, 
  * assertable in isolation.
  *
  * Defensive by construction: several real parser emissions carry fields
- * looser than `RunAgentPayload`'s types promise (e.g. copilot's
- * `tool.execution_start` emits `id: data.toolCallId ?? null` — a literal
- * `null`, not the `string` `RunAgentPayload['tool_use']['id']` demands).
+ * looser than `RunAgentPayload`'s types promise (e.g. an untrusted
+ * tool event can carry a literal `null`, not the `string`
+ * `RunAgentPayload['tool_use']['id']` demands).
  * Every field read here is defensively coerced (`asString`/
  * `asOptionalString`/`asOptionalNumber`) rather than trusted, so a
  * malformed or null field degrades to a safe default instead of

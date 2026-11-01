@@ -175,10 +175,10 @@ describe('probeAgentCatalog routing', () => {
     expect(await probeAgentCatalog('trae-cli', context, config({}), fake.deps, signal)).toBe(rpcResult);
     expect(fake.calls).toEqual(['acp:acp serve']);
   });
-  it('sends Pi, Copilot and Droid to the RPC port', async () => {
+  it('sends Pi and Droid to the RPC port', async () => {
     const fake = fakeDeps();
-    for (const agentId of ['pi', 'copilot', 'droid']) await probeAgentCatalog(agentId, context, config({}), fake.deps, signal);
-    expect(fake.calls).toEqual(['rpc:pi', 'rpc:copilot', 'rpc:droid']);
+    for (const agentId of ['pi', 'droid']) await probeAgentCatalog(agentId, context, config({}), fake.deps, signal);
+    expect(fake.calls).toEqual(['rpc:pi', 'rpc:droid']);
   });
   it('sends Aider, Qwen and Mimo to the provider API', async () => {
     const fake = fakeDeps();
@@ -370,7 +370,7 @@ describe('default filesystem and RPC ports', () => {
     const result = await defaultModelDiscoveryDeps.http.list({ protocol: 'openai', baseUrl: 'http://127.0.0.1:9', apiKey: 'k', signal });
     expect(result.ok).toBe(false);
   });
-  it('refuses RPC discovery for agents other than Pi, Copilot and Droid', async () => {
+  it('refuses RPC discovery for agents other than Pi and Droid', async () => {
     expect(await probeError(defaultModelDiscoveryDeps.rpc.probe({ agentId: 'kimi', context, signal }))).toBe('unsupported-version');
   });
 });
@@ -441,10 +441,7 @@ describe('default RPC port over real child processes', () => {
     expect(outcome).not.toBe('resolved');
   }, 30_000);
 
-  it('refuses Copilot metadata when the CLI the SDK would start does not exist', async () => {
-    const outcome = await probeError(defaultModelDiscoveryDeps.rpc.probe({ agentId: 'copilot', context: scope(join(rpcDir, 'missing-copilot')), signal }));
-    expect(outcome).not.toBe('resolved');
-  }, 30_000);
+
 });
 
 describe('env credential port default base URLs', () => {

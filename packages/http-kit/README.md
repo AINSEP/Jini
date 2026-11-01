@@ -12,8 +12,9 @@ lives in `@jini-ai/daemon/read-only-tools`. CMS settings live in `@jini-ai/cms/h
 npm install @jini-ai/http-kit express
 ```
 
-Regular dependencies are core, platform, protocol and Express. There is no daemon,
-agent-runtime or CMS dependency.
+Regular dependencies are core, platform and protocol. Express is supplied by the host and
+referenced only through erased types, so this package declares no Express runtime peer.
+There is no daemon, agent-runtime or CMS dependency.
 
 ## Surface
 

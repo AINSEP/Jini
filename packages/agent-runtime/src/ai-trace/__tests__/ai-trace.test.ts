@@ -136,7 +136,7 @@ describe('normalizeAiUsage', () => {
     expect(normalizeAiUsage({ usage })).toEqual(expected);
   });
 
-  it('returns null for absent or counter-less usage (copilot reports only duration)', () => {
+  it('returns null for absent or counter-less usage', () => {
     expect(normalizeAiUsage({ usage: null })).toBeNull();
     expect(normalizeAiUsage({ usage: { sessionDurationMs: 900 } })).toBeNull();
   });

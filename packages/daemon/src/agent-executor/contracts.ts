@@ -60,7 +60,6 @@ export type StreamHandler = { feed(args: { chunk: string }): void; flush(): void
 export const SUPPORTED_STREAM_FORMATS = [
   'claude-stream-json',
   'json-event-stream',
-  'copilot-stream-json',
   'qoder-stream-json',
   'acp-json-rpc',
   'pi-rpc',

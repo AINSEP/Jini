@@ -77,11 +77,9 @@ it.each([
   ['capability-providers', 'ws'], ['user-management', 'argon2'], ['cms', 'sharp'],
   ['cms', 'jsdom'], ['ui', '@excalidraw/excalidraw'], ['ui', 'grapesjs'],
   ['ui', 'lexical'], ['ui', 'shiki'], ['sandbox', '@e2b/code-interpreter'],
-  // Vendor SDK with a native FFI dependency; account model listing falls back to the catalog.
-  ['agent-runtime', '@github/copilot-sdk'],
   // Host frameworks used only by opt-in subpaths or types must not be auto-installed by npm/pnpm.
-  ['core', 'express'], ['http-kit', 'express'], ['cms', 'express'], ['commerce', 'express'], ['commerce', 'react'],
-  ['admin', 'react'], ['chat', 'react'], ['user-management', 'react'], ['vibecoding', 'react'], ['ui-kit', 'vue'],
+  ['cms', 'express'], ['commerce', 'express'], ['commerce', 'react'],
+  ['admin', 'react'], ['chat', 'react'], ['user-management', 'react'], ['vibecoding', 'react'],
 ])('keeps %s → %s an explicitly classified opt-in peer', async (directory, dependency) => {
   const { readFileSync } = await import('node:fs');
   const manifest = JSON.parse(readFileSync(new URL(`../../packages/${directory}/package.json`, import.meta.url), 'utf8'));
@@ -171,3 +169,24 @@ it('all real default entries keep runtime libraries required and classify opt-in
   });
   expect(missingSubpaths).toEqual([]);
 }, 120000);
+
+// Cross-package defaults count too: UI loads UI kit's React bindings; server loads daemon HTTP.
+it.each([['ui', 'react'], ['ui', 'react-dom'], ['daemon', 'express'], ['server', 'express'],
+  ['ui-kit', 'react'], ['ui-kit', 'react-dom']])
+('keeps default-entry host framework %s → %s required', async (directory, dependency) => {
+  const { readFileSync } = await import('node:fs');
+  const manifest = JSON.parse(readFileSync(new URL(`../../packages/${directory}/package.json`, import.meta.url), 'utf8'));
+  expect(manifest.peerDependencies[dependency]).toBeTruthy();
+  expect(manifest.peerDependenciesMeta?.[dependency]?.optional).not.toBe(true);
+  expect(manifest.jini.optionalPeers?.[dependency]).toBeUndefined();
+  expect(manifest.dependencies?.[dependency]).toBeUndefined();
+});
+
+it.each([['core', 'express'], ['http-kit', 'express'], ['ui-kit', 'vue'], ['vibecoding', 'react-dom']])
+('removes %s → %s when no runtime entry loads it', async (directory, dependency) => {
+  const { readFileSync } = await import('node:fs');
+  const manifest = JSON.parse(readFileSync(new URL(`../../packages/${directory}/package.json`, import.meta.url), 'utf8'));
+  expect(manifest.peerDependencies?.[dependency]).toBeUndefined();
+  expect(manifest.peerDependenciesMeta?.[dependency]).toBeUndefined();
+  expect(manifest.jini.optionalPeers?.[dependency]).toBeUndefined();
+});

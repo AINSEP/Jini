@@ -15,8 +15,9 @@ set of tokens, and fails to typecheck if any pack's declared dependency is left 
 npm install @jini-ai/core
 ```
 
-The root has no runtime dependencies and never loads settings or Express. `express` is an optional
-peer used only by `@jini-ai/core/settings/express`; install it in hosts mounting those routes.
+The root has no runtime dependencies and never loads settings or Express. The
+`@jini-ai/core/settings/express` adapter uses Express types and the host's injected app; it never
+loads the Express runtime, so this package declares no Express peer.
 
 ## What you get
 

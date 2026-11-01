@@ -23,7 +23,6 @@ import type {
 } from '@jini-ai/protocol';
 import {
   createClaudeStreamHandler,
-  createCopilotStreamHandler,
   createJsonEventStreamHandler,
   createQoderStreamHandler,
   attachAcpSession,
@@ -119,8 +118,6 @@ function createStreamHandlerForDef(
   switch (streamFormat) {
     case 'claude-stream-json':
       return createClaudeStreamHandler({ onEvent: onEvent }, { costBasis: def.usageCostBasis ?? 'run' });
-    case 'copilot-stream-json':
-      return createCopilotStreamHandler({ onEvent: onEvent });
     case 'qoder-stream-json':
       return createQoderStreamHandler({ onEvent: onEvent });
     case 'json-event-stream':

@@ -60,7 +60,6 @@ export * from './model-registry.js';
 export { createClaudeStreamHandler, type ClaudeStreamEvent } from './claude-stream.js';
 export { createJsonEventStreamHandler } from './json-event-stream.js';
 export { createQoderStreamHandler, type QoderEvent } from './qoder-stream.js';
-export { createCopilotStreamHandler, type CopilotStreamEvent } from './copilot-stream.js';
 
 // Host-injected seams; each owner documents its contract.
 export * from './amr-profile-resolver.js';

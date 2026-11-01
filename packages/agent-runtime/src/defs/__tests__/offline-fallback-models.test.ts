@@ -9,7 +9,6 @@ import { aiderAgentDef } from '../aider.js';
 import { ampAgentDef } from '../amp.js';
 import { auggieAgentDef } from '../auggie.js';
 import { clineAgentDef } from '../cline.js';
-import { copilotAgentDef } from '../copilot.js';
 import { crushAgentDef } from '../crush.js';
 import { deepseekAgentDef } from '../deepseek.js';
 import { droidAgentDef } from '../droid.js';
@@ -20,7 +19,7 @@ import { kiloAgentDef } from '../kilo.js';
 import { kimiAgentDef } from '../kimi.js';
 import { discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
 
-const defs = [aiderAgentDef, ampAgentDef, auggieAgentDef, clineAgentDef, copilotAgentDef, crushAgentDef, deepseekAgentDef, droidAgentDef,
+const defs = [aiderAgentDef, ampAgentDef, auggieAgentDef, clineAgentDef, crushAgentDef, deepseekAgentDef, droidAgentDef,
   gooseAgentDef, grokBuildAgentDef, hermesAgentDef, kiloAgentDef, kimiAgentDef];
 
 describe('offline discovery falls back to each def\'s own static model list', () => {

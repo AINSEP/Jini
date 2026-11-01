@@ -70,7 +70,7 @@ type DecodedSseEvent = { readonly event: string | null; readonly data: string };
 
 ProviderTurnEvent is a discriminated union: status(label), text_delta(delta), tool_use(id/name/input), tool_result(toolUseId/content/isError), usage(usage or null), error(message), end(reason). Its tool-result content is text even when image payloads are passed to the model. Raw provider events can additionally report fabricated_role_marker; the neutral wrapper suppresses that event while retaining end/contaminated.
 
-createJsonEventStreamHandler accepts a string kind; current dedicated dispatch covers opencode, kimi, cursor-agent and codex, with generic/raw handling for other input. legacy-google-stream-json is a retained wire decoder, not a registered agent. Its event payload remains Record<string, unknown>; the Claude, Qoder and Copilot parser factories export their explicit event unions. execAgentFile uses native execFile output encoding: default text, Buffer when a buffer/null encoding is requested; its promise also carries the native child handle.
+createJsonEventStreamHandler accepts a string kind; current dedicated dispatch covers opencode, kimi, cursor-agent and codex, with generic/raw handling for other input. legacy-google-stream-json is a retained wire decoder, not a registered agent. Its event payload remains Record<string, unknown>; the Claude and Qoder parser factories export their explicit event unions. execAgentFile uses native execFile output encoding: default text, Buffer when a buffer/null encoding is requested; its promise also carries the native child handle.
 
 RuntimeModelOption carries id, label, identityKind/resolvedId evidence and optional per-model reasoning rows. Every RuntimeAgentDef implements discoverModels({context}, {deps, signal, force}) and resolveDefaultModel({context, catalog}, {deps, signal}); detected inventories include modelCatalog provenance and structured defaultModelResolution. Packaged fallbackModels appear only as Offline fallback. DetectedAgent exposes available, models, modelsSource live/fallback, optional auth status/message, executable path/version and diagnostics; it strips spawn functions and internal configuration. AgentDefinition, CredentialStatus, ModelCatalogOption, ModelProvider and AgentDiagnostic vocabulary are re-exported from @jini-ai/protocol. They are distinct from RuntimeAgentDef and ACP's narrower ModelOption.
 
@@ -406,12 +406,6 @@ function createJsonEventStreamHandler({ kind, onEvent }: { kind: ParserKind; onE
 function createQoderStreamHandler({ onEvent }: { onEvent: QoderEventSink }): StreamParser;
 ```
 
-### [copilot-stream.ts](../../src/copilot-stream.ts)
-
-```ts
-function createCopilotStreamHandler({ onEvent }: { onEvent: EventSink }): StreamParser;
-```
-
 ### [acp-model-probe.ts](../../src/acp-model-probe.ts)
 
 ```ts
@@ -723,7 +717,6 @@ Every listed name is exported from the root; source links define fields and lite
 | [defs/cline.ts](../../src/defs/cline.ts) | `clineAgentDef` |
 | [defs/codebuddy.ts](../../src/defs/codebuddy.ts) | `codebuddyAgentDef` |
 | [defs/codex.ts](../../src/defs/codex.ts) | `codexAgentDef` |
-| [defs/copilot.ts](../../src/defs/copilot.ts) | `copilotAgentDef` |
 | [defs/crush.ts](../../src/defs/crush.ts) | `crushAgentDef` |
 | [defs/cursor-agent.ts](../../src/defs/cursor-agent.ts) | `cursorAgentDef` |
 | [defs/droid.ts](../../src/defs/droid.ts) | `droidAgentDef` |
@@ -746,7 +739,6 @@ Every listed name is exported from the root; source links define fields and lite
 | [model-registry.ts](../../src/model-registry.ts) | `AgentModelChoice` |
 | [claude-stream.ts](../../src/claude-stream.ts) | `ClaudeStreamEvent` |
 | [qoder-stream.ts](../../src/qoder-stream.ts) | `QoderEvent` |
-| [copilot-stream.ts](../../src/copilot-stream.ts) | `CopilotStreamEvent` |
 | [amr-profile-resolver.ts](../../src/amr-profile-resolver.ts) | `AmrProfileResolver`, `noopAmrProfileResolver` |
 | [acp-model-probe.ts](../../src/acp-model-probe.ts) | `AcpModelProbe`, `AcpModelProbeRequest`, `noopAcpModelProbe` |
 | [prompt-augmenter.ts](../../src/prompt-augmenter.ts) | `PromptAugmenter`, `RunContextSelection`, `WorkspaceContextItem`, `noopPromptAugmenter` |

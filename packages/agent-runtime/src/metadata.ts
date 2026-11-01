@@ -61,10 +61,6 @@ export const DEFAULT_AGENT_INSTALL_LINKS: Record<string, AgentInstallMeta> = {
     installUrl: 'https://qoder.com/download',
     docsUrl: 'https://docs.qoder.com',
   },
-  copilot: {
-    installUrl: 'https://github.com/github/copilot-cli',
-    docsUrl: 'https://docs.github.com/en/copilot/how-tos/use-copilot-extensions/use-in-cli',
-  },
   pi: {
     docsUrl: 'https://github.com/badlogic/pi-mono/blob/main/packages/coding-agent/README.md',
   },

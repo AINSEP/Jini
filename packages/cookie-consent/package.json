@@ -13,7 +13,9 @@
     "kind": "consent",
     "runtime": "universal",
     "isolation": {
-      "entries": { "./client.min.js": "client" }
+      "entries": {
+        "./client.min.js": "client"
+      }
     },
     "entries": {
       ".": "universal",
@@ -91,6 +93,7 @@
   },
   "dependencies": {},
   "devDependencies": {
+    "@jini-ai/cms": "workspace:^",
     "@types/node": "^24.0.0",
     "@vitest/coverage-v8": "^2.1.9",
     "esbuild": "^0.28.1",

@@ -82,7 +82,6 @@ export const DEFAULT_AGENT_DESCRIPTIONS: Readonly<Record<string, string>> = {
   'cursor-agent': 'Cursor command line',
   opencode: 'Open-source agent CLI',
   qwen: 'Qwen coding CLI',
-  copilot: 'GitHub coding CLI',
   devin: 'Cognition terminal CLI',
   kimi: 'Moonshot Kimi CLI',
   qoder: 'Alibaba coding CLI',

@@ -7,7 +7,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { createAiTraceRecorder, createRecordingAiTraceSink, type AiTraceEvent } from '../index.js';
 import { createClaudeStreamHandler } from '../../claude-stream.js';
-import { createCopilotStreamHandler } from '../../copilot-stream.js';
 import { createQoderStreamHandler } from '../../qoder-stream.js';
 import { createJsonEventStreamHandler } from '../../json-event-stream.js';
 import { createAcpSessionState, handleSessionUpdate, type AcpSessionEffects } from '../../agent-protocol/acp/session.js';
@@ -61,26 +60,6 @@ describe('Claude Code (claude-stream-json)', () => {
     expect(trace.turns).toHaveLength(1);
     expect(trace.turns[0]).toMatchObject({ model: 'claude-sonnet-4-5', costUsd: 0.0123, costSource: 'provider', stopReason: 'end_turn', usage: { inputTokens: 1800, outputTokens: 75, cacheReadTokens: 500 } });
     expect(trace.tools.map((t) => [t.name, t.isError, t.errorClass])).toEqual([['mcp__jini__content_post_create', true, 'input_validation'], ['mcp__jini__content_post_create', false, null]]);
-  });
-});
-
-describe('GitHub Copilot CLI (copilot-stream-json)', () => {
-  it('tools and denial class; no token counters and no cost (CLI reports duration only)', () => {
-    const trace = traceOf((observe) => {
-      const handler = createCopilotStreamHandler({ onEvent: observe });
-      handler.feed({ chunk: jsonl([
-        { type: 'session.tools_updated', data: { model: 'gpt-5.2' } },
-        { type: 'assistant.message_delta', data: { deltaContent: 'Looking into it.' } },
-        { type: 'tool.execution_start', data: { toolCallId: 'call_1', toolName: 'bash', arguments: { command: 'ls' } } },
-        { type: 'tool.execution_complete', data: { toolCallId: 'call_1', result: 'index.html', success: true } },
-        { type: 'tool.execution_start', data: { toolCallId: 'call_2', toolName: 'bash', arguments: { command: 'rm -rf /' } } },
-        { type: 'tool.execution_complete', data: { toolCallId: 'call_2', result: 'permission denied', success: false } },
-        { type: 'result', usage: { sessionDurationMs: 900 }, success: true },
-      ]) });
-      handler.flush();
-    }, 'copilot') as Awaited<ReturnType<typeof traceOf>>;
-    expect(trace.turns[0]).toMatchObject({ model: 'gpt-5.2', usage: null, costUsd: null, stopReason: 'completed' });
-    expect(trace.tools.map((t) => [t.name, t.isError, t.errorClass])).toEqual([['bash', false, null], ['bash', true, 'denied']]);
   });
 });
 

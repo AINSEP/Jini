@@ -149,10 +149,10 @@ await terminals.shutdownActive();
 ## Root: downloads, cache, signing, blob stores
 
 `./asset-cache` exposes the existing asset-cache functions and types directly; their root exports
-remain available. The optional peer `undici@^7.25.0` loads only when the synchronous default
-dispatcher factory runs. The root and this leaf import successfully without it. Factory calls
-without the peer throw `AssetCacheError` with status 500 and installation guidance. Public
-declarations retain undici's `Agent`/`Dispatcher` types, requiring the peer for their type resolution.
+remain available. The regular dependency `undici@^7.25.0` is installed with platform and its
+Agent is constructed when the synchronous default dispatcher factory runs. Construction failures
+propagate unchanged; there is no optional-peer installation branch. Public declarations expose
+undici's `Agent`/`Dispatcher` types.
 
 | Export | Current signature / return | Required inputs and ports |
 |---|---|---|
@@ -162,7 +162,7 @@ declarations retain undici's `Agent`/`Dispatcher` types, requiring the peer for 
 | `removeManagedDownload` | `(options: RemoveManagedDownloadOptions): Promise<RemoveManagedDownloadResult>` | Same |
 | `pruneManagedDownloads` | `(options: PruneManagedDownloadsOptions): Promise<PruneManagedDownloadsResult>` | basePath; optional now/olderThanMs |
 | `createAssetCache` | `(required: AssetCacheOptions, options: { dispatcher?: Dispatcher } = {}): AssetCache` | cacheDir; optional maxBytes/fetchTimeoutMs/fetchImpl/lookupImpl/dispatcher |
-| `createAssetCacheDispatcher` | `({}, { lookupImpl? } = {}): Agent` | Optional DNS callback adapter; requires the optional undici peer |
+| `createAssetCacheDispatcher` | `({}, { lookupImpl? } = {}): Agent` | Optional DNS callback adapter; uses platform's required undici dependency |
 | `AssetCache.close` | `(): Promise<void>` | Closes the default dispatcher; the host owns injected dispatchers |
 | `AssetCache.get` | `(rawUrl: string): Promise<AssetCacheResult>` | URL |
 | `isCacheableExternalUrl` | `(raw: unknown): raw is string` | Media HTTP(S) URL predicate |

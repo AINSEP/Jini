@@ -14,7 +14,7 @@ Package version: `0.1.0`. UI contract: `KIT_CONTRACT.version === '1.0.0'`. These
 | `@jini-ai/ui-kit/react/native/styles.css` | Optional native styling in `@layer jini.kit` |
 | `@jini-ai/ui-kit/react/testing` | Conformance scenario data and React driver |
 
-The root has no dependencies and imports no React, React DOM, or Vue. Those frameworks are optional peers and development dependencies; a headless consumer can import the root without installing them. React consumers install React and React DOM. Vue and Angular adapters are future subpaths; v1 does not implement them.
+The root has no dependencies and imports no React, React DOM, or Vue. React and React DOM remain required peers because `@jini-ai/ui`'s default entry reaches this package's React bindings. This package's own root does not load them. React consumers install React and React DOM. Vue and Angular adapters are future subpaths; v1 does not implement them or declare runtime peers for them.
 
 ## Inject a partial kit
 

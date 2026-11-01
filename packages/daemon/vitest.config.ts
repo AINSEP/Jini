@@ -8,6 +8,8 @@ const jini = fileURLToPath(new URL('../', import.meta.url));
 
 export default defineConfig({
   resolve: { alias: [
+    // Use the current registry and parsers when a source-only change retires a transport.
+    { find: /^@jini-ai\/agent-runtime$/, replacement: `${jini}agent-runtime/src/index.ts` },
     { find: /^@jini-ai\/db\/(.*)$/, replacement: `${jini}db/dist/$1/index.js` },
     { find: /^@jini-ai\/daemon\/store\/(.*)$/, replacement: `${jini}daemon/src/store/$1.ts` },
     { find: '@jini-ai/chat/store/legacy/sqlite', replacement: `${jini}chat/src/store/legacy/sqlite/index.ts` },

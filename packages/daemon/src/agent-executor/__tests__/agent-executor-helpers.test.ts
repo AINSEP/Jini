@@ -329,7 +329,7 @@ describe('isStdinDrivenFormat', () => {
   });
 
   it('is true for every stdout-tailing format', () => {
-    for (const format of ['claude-stream-json', 'json-event-stream', 'copilot-stream-json', 'qoder-stream-json', 'plain'] as const) {
+    for (const format of ['claude-stream-json', 'json-event-stream', 'qoder-stream-json', 'plain'] as const) {
       expect(isStdinDrivenFormat({ streamFormat: format })).toBe(true);
     }
   });

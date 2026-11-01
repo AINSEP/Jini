@@ -1,51 +1,5 @@
 import type { ModelDiscoveryContext, ModelDiscoveryDeps, ModelProbeResult } from './model-discovery-types.js';
-import { loadOptionalPeer } from '@jini-ai/core/optional-peer';
 import { ModelProbeError, modelIdentityKind } from './model-discovery-shared.js';
-
-/** UNVERIFIED locally. The host may install the official SDK or inject the RPC port.
- * Use the CLI's authenticated server, not an unrelated HTTP token or an inference prompt.
- * https://github.com/github/copilot-sdk/blob/main/nodejs/src/client.ts */
-export interface CopilotMetadataClient {
-  start(): Promise<unknown>;
-  listModels(): Promise<{ id: string; name?: string }[]>;
-  forceStop(): Promise<unknown>;
-}
-export async function probeCopilotSdk(context: ModelDiscoveryContext, signal: AbortSignal, optional: { createClient?: (context: ModelDiscoveryContext) => Promise<CopilotMetadataClient> } = {}): Promise<ModelProbeResult> {
-  const client = await (optional.createClient ?? createCopilotMetadataClient)(context);
-  if (signal.aborted) { await client.forceStop().catch(() => {}); throw new ModelProbeError('timeout'); }
-  const stop = () => { void Promise.resolve(client.forceStop()).catch(() => {}); };
-  signal.addEventListener('abort', stop, { once: true });
-  try {
-    await client.start();
-    if (signal.aborted) throw new ModelProbeError('timeout');
-    const rows = await client.listModels();
-    return { models: rows.map((row) => ({ id: row.id, label: row.name || row.id, identityKind: modelIdentityKind(row.id) })), source: 'rpc', coverage: 'account' };
-  } finally {
-    signal.removeEventListener('abort', stop);
-    // forceStop also closes the child when a failed handshake never reached connected state.
-    await client.forceStop().catch(() => {});
-  }
-}
-/** The slice of `@github/copilot-sdk` this probe constructs a metadata client from. */
-export interface CopilotSdkModule {
-  readonly RuntimeConnection?: { forStdio(input: { path: string; env: Record<string, string> }): unknown };
-  readonly CopilotClient: new (options: Record<string, unknown>) => CopilotMetadataClient;
-}
-/** Builds the metadata client from the host-installed SDK. `importSdk` is the module-loading port
- * (Node's dynamic import by default), injectable so both SDK API generations are testable. */
-export async function createCopilotMetadataClient(
-  context: ModelDiscoveryContext,
-  { importSdk = (name: string) => import(name) as Promise<CopilotSdkModule> }: { importSdk?: (name: string) => Promise<CopilotSdkModule> } = {},
-): Promise<CopilotMetadataClient> {
-  // Optional peer: hosts that never install the SDK keep the catalog's fallback models.
-  const sdk = await loadOptionalPeer({ feature: 'Copilot model discovery', dependency: '@github/copilot-sdk', load: () => importSdk('@github/copilot-sdk') });
-  const env = Object.fromEntries(Object.entries(context.env).filter((entry): entry is [string, string] => typeof entry[1] === 'string'));
-  // RuntimeConnection is the current SDK API; older SDKs expose cliPath/cwd/useStdio.
-  const connection = sdk.RuntimeConnection?.forStdio({ path: context.executable, env });
-  return new sdk.CopilotClient(connection
-    ? { connection, workingDirectory: context.cwd, autoRestart: false }
-    : { cliPath: context.executable, cwd: context.cwd, env, useStdio: true, autoRestart: false });
-}
 
 /** UNVERIFIED locally. Official Python SDK metadata bridge; no session/inference call.
  * SDK installation belongs to the host's Python environment.

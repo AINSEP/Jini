@@ -3413,44 +3413,6 @@
       "totalLines": 691,
       "hasStructuralAnalysis": true
     },
-    "packages/agent-runtime/src/copilot-stream.ts": {
-      "filePath": "packages/agent-runtime/src/copilot-stream.ts",
-      "contentHash": "e9b1c6b8fbb2c458a5b49ddc077f30db327efcfedfce22d990512d21b46db873",
-      "functions": [
-        {
-          "name": "isRecord",
-          "params": [
-            "value"
-          ],
-          "exported": false,
-          "lineCount": 3
-        },
-        {
-          "name": "createCopilotStreamHandler",
-          "params": [
-            "onEvent"
-          ],
-          "exported": true,
-          "lineCount": 98
-        },
-        {
-          "name": "stringifyResult",
-          "params": [
-            "r"
-          ],
-          "returnType": "string",
-          "exported": false,
-          "lineCount": 8
-        }
-      ],
-      "classes": [],
-      "imports": [],
-      "exports": [
-        "createCopilotStreamHandler"
-      ],
-      "totalLines": 145,
-      "hasStructuralAnalysis": true
-    },
     "packages/agent-runtime/src/defs/aider.ts": {
       "filePath": "packages/agent-runtime/src/defs/aider.ts",
       "contentHash": "1686b35d1b06ff8bb9e619c202697237c4f334e33569a716918d35c71a879e2d",
@@ -3859,31 +3821,6 @@
         "codexAgentDef"
       ],
       "totalLines": 213,
-      "hasStructuralAnalysis": true
-    },
-    "packages/agent-runtime/src/defs/copilot.ts": {
-      "filePath": "packages/agent-runtime/src/defs/copilot.ts",
-      "contentHash": "612a0c3aa3e534c11d8825f07fe0fc50f9736ea5f1315f4013492d39b4b63d44",
-      "functions": [],
-      "classes": [],
-      "imports": [
-        {
-          "source": "./shared.js",
-          "specifiers": [
-            "DEFAULT_MODEL_OPTION"
-          ]
-        },
-        {
-          "source": "../types.js",
-          "specifiers": [
-            "RuntimeAgentDef"
-          ]
-        }
-      ],
-      "exports": [
-        "copilotAgentDef"
-      ],
-      "totalLines": 91,
       "hasStructuralAnalysis": true
     },
     "packages/agent-runtime/src/defs/cursor-agent.ts": {
@@ -5043,7 +4980,6 @@
         "createClaudeStreamHandler",
         "createJsonEventStreamHandler",
         "createQoderStreamHandler",
-        "createCopilotStreamHandler",
         "AcpModelProbe",
         "AcpModelProbeRequest",
         "noopAcpModelProbe",
@@ -8155,7 +8091,6 @@
             "claudeAgentDef",
             "codebuddyAgentDef",
             "codexAgentDef",
-            "copilotAgentDef",
             "cursorAgentDef",
             "deepseekAgentDef",
             "devinAgentDef",
@@ -22161,7 +22096,6 @@
           "specifiers": [
             "applyAgentLaunchEnv",
             "createClaudeStreamHandler",
-            "createCopilotStreamHandler",
             "createJsonEventStreamHandler",
             "createQoderStreamHandler",
             "getAgentDef",

@@ -27,7 +27,6 @@ import {
   clineAgentDef,
   codebuddyAgentDef,
   codexAgentDef,
-  copilotAgentDef,
   crushAgentDef,
   cursorAgentDef,
   deepseekAgentDef,
@@ -64,7 +63,6 @@ export const BASE_AGENT_DEFS: RuntimeAgentDef[] = [
   qwenAgentDef,
   // Gemini CLI retired 2026-10-06; Antigravity (agy) is the Google CLI path.
   qoderAgentDef,
-  copilotAgentDef,
   ampAgentDef,
   piAgentDef,
   kiroAgentDef,
@@ -102,7 +100,7 @@ export function getAgentDef({ id }: { id: string }): RuntimeAgentDef | null {
  * tools) into a session run by this
  * def, per its own `externalMcpInjection` declaration (`types.ts`'s own doc names the six wired
  * strategies and the defs that leave the field `undefined` because the CLI has no mechanism to
- * receive one — `aider`, `amp`, `copilot`, `crush`, `cursor-agent`, `deepseek`, `droid`,
+ * receive one — `aider`, `amp`, `crush`, `cursor-agent`, `deepseek`, `droid`,
  * `grok-build`, `pi`, `qoder`, and `qwen` today, each documenting why in its own def file).
  *
  * This is the single seam a tool-availability UI (e.g. the chat runtime picker's "No tools" badge)

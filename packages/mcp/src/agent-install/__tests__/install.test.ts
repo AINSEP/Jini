@@ -72,13 +72,6 @@ describe('planAgentInstall — JSON agents', () => {
     expect(plan.entry).toEqual({ command: '/usr/bin/node', args: ['/app/cli.js', 'mcp'], type: 'stdio', env: { A: '1' } });
   });
 
-  it('copilot omits env when empty', () => {
-    const plan = planAgentInstall({ slug: 'copilot', spec: spec(), ctx: ctx() });
-    if (plan.kind !== 'json') throw new Error('expected json');
-    expect(plan.configPath).toBe('/home/u/.copilot/mcp-config.json');
-    expect(plan.entry).toEqual({ command: '/usr/bin/node', args: ['/app/cli.js', 'mcp'], type: 'local', tools: ['*'] });
-  });
-
   it('opencode folds command+args and attaches environment when env is present', () => {
     const plan = planAgentInstall({ slug: 'opencode', spec: spec({ E: '2' }), ctx: ctx() });
     if (plan.kind !== 'json') throw new Error('expected json');
@@ -379,12 +372,11 @@ describe('planAgentInstall — characterization pins (before refactor)', () => {
       .toMatchObject({ configPath: '/home/u/.config/Code/User/globalStorage/saoudrizwan.claude-dev/settings/cline_mcp_settings.json' });
   });
 
-  it('pins the exact entry shapes for cursor, copilot, cline, openclaw, antigravity, trae and opencode with env', () => {
+  it('pins the exact entry shapes for cursor, cline, openclaw, antigravity, trae and opencode with env', () => {
     const s = spec({ A: '1' });
     const base = { command: '/usr/bin/node', args: ['/app/cli.js', 'mcp'] };
     const entry = (slug: AgentSlug) => (planAgentInstall({ slug, spec: s, ctx: ctx() }) as JsonInstallPlan).entry;
     expect(JSON.stringify(entry('cursor'))).toBe(JSON.stringify({ ...base, type: 'stdio', env: { A: '1' } }));
-    expect(JSON.stringify(entry('copilot'))).toBe(JSON.stringify({ ...base, type: 'local', tools: ['*'], env: { A: '1' } }));
     expect(JSON.stringify(entry('cline'))).toBe(JSON.stringify({ ...base, disabled: false, autoApprove: [], env: { A: '1' } }));
     expect(JSON.stringify(entry('openclaw'))).toBe(JSON.stringify({ ...base, env: { A: '1' } }));
     expect(JSON.stringify(entry('antigravity'))).toBe(JSON.stringify({ ...base, env: { A: '1' } }));

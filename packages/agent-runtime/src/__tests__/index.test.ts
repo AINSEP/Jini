@@ -20,7 +20,6 @@ describe('@jini-ai/agent-runtime root barrel', () => {
     expect(typeof pkgBarrel.createClaudeStreamHandler).toBe('function');
     expect(typeof pkgBarrel.createJsonEventStreamHandler).toBe('function');
     expect(typeof pkgBarrel.createQoderStreamHandler).toBe('function');
-    expect(typeof pkgBarrel.createCopilotStreamHandler).toBe('function');
   });
 
   it('resolves the two barrel-merge name collisions to distinct, real implementations', () => {

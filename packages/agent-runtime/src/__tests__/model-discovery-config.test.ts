@@ -23,7 +23,7 @@ function fakeDeps(files: Record<string, string> = {}, projectRoot?: string | nul
 
 describe('modelConfigFiles', () => {
   it('falls back to the OS home directory when HOME is unset', () => {
-    expect(paths('copilot', { env: {} })).toEqual([`${homedir()}/.copilot/config.json`]);
+    expect(paths('cursor-agent', { env: {} })).toEqual([`${homedir()}/.cursor/cli-config.json`]);
   });
   it('resolves Codex config under CODEX_HOME, adding the profile file only when a profile is set', () => {
     expect(paths('codex')).toEqual(['/h/.codex/config.toml', '/work/.codex/config.toml']);
@@ -176,7 +176,7 @@ describe('readModelConfiguration', () => {
     expect((await readModelConfiguration('qwen', { ...context, model: 'explicit', env: { HOME: '/h', QWEN_MODEL: 'env' } }, fake.deps, signal)).selection).toBe('explicit');
   });
   it('omits the selection and fingerprints every file path with its raw content', async () => {
-    const fake = fakeDeps({ '/h/.copilot/config.json': '{"other":1}' });
-    expect(await readModelConfiguration('copilot', context, fake.deps, signal)).toEqual({ fingerprintMaterial: JSON.stringify([[['/h/.copilot/config.json', '{"other":1}']], '']) });
+    const fake = fakeDeps({ '/h/.cursor/cli-config.json': '{"other":1}' });
+    expect(await readModelConfiguration('cursor-agent', context, fake.deps, signal)).toEqual({ fingerprintMaterial: JSON.stringify([[['/h/.cursor/cli-config.json', '{"other":1}']], '']) });
   });
 });

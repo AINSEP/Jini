@@ -76,9 +76,6 @@
           "@jini-ai/cms"
         ]
       }
-    },
-    "optionalPeers": {
-      "express": "opt-in: express settings routes — Express settings routes could not load express. Install express to enable this feature, or check its installed version."
     }
   },
   "type": "module",
@@ -201,13 +198,5 @@
     "@vitest/coverage-v8": "^2.1.9",
     "express": "^4.21.0",
     "@types/express": "^4.17.21"
-  },
-  "peerDependencies": {
-    "express": "^4.21.0 || ^5.0.0"
-  },
-  "peerDependenciesMeta": {
-    "express": {
-      "optional": true
-    }
   }
 }

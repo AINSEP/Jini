@@ -7,7 +7,7 @@
  * and `VibecodingWorkbench` (both, composed). See this package's README for the three-piece shape
  * this entry point exists to fill in, and each exported module's own doc for its design rationale.
  *
- * React (and `react-dom`, transitively via these components) is an **optional peer dependency** —
+ * React is an **optional peer dependency**; these components do not load `react-dom` —
  * see this package's `package.json` — so importing `../core` or `../html` alone never pulls React
  * in. Only a consumer of this `./react` subpath needs it installed.
  */

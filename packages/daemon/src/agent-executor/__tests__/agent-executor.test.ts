@@ -952,22 +952,6 @@ describe('AgentExecutor — turn_end closes stdin exactly once', () => {
 });
 
 describe('AgentExecutor — stream-format dispatch covers every supported parser', () => {
-  it('dispatches copilot-stream-json to the copilot parser', async () => {
-    const { lifecycle, executor, child } = createHarness({ def: createFakeDef({ streamFormat: 'copilot-stream-json' }) });
-    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
-
-    const runPromise = executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'x', cwd: '/work' });
-    await flushAsync();
-    await runPromise;
-
-    child.stdout.emit('data', '{"type":"assistant.message_delta","data":{"deltaContent":"hi"}}\n');
-    child.emit('close', 0, null);
-    await lifecycle.waitForTerminal({ runId: run.id });
-
-    const events = await collectEvents(lifecycle, run.id);
-    expect(agentPayloadTypes(events)).toEqual(['text_delta']);
-  });
-
   it('dispatches qoder-stream-json to the qoder parser', async () => {
     const { lifecycle, executor, child } = createHarness({ def: createFakeDef({ streamFormat: 'qoder-stream-json' }) });
     const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
@@ -1214,7 +1198,6 @@ describe('isSupportedStreamFormat', () => {
   it('accepts every family with a real driver (JSON-stream, ACP, pi-rpc, plain), and rejects an unknown format', () => {
     expect(isSupportedStreamFormat({ value: 'claude-stream-json' })).toBe(true);
     expect(isSupportedStreamFormat({ value: 'json-event-stream' })).toBe(true);
-    expect(isSupportedStreamFormat({ value: 'copilot-stream-json' })).toBe(true);
     expect(isSupportedStreamFormat({ value: 'qoder-stream-json' })).toBe(true);
     expect(isSupportedStreamFormat({ value: 'acp-json-rpc' })).toBe(true);
     expect(isSupportedStreamFormat({ value: 'pi-rpc' })).toBe(true);
@@ -1506,7 +1489,7 @@ describe('translateAgentRuntimeEvent', () => {
     });
   });
 
-  it('adversarial: coerces a null id/name (copilot\'s tool.execution_start shape) instead of crashing or propagating null', () => {
+  it('adversarial: coerces a null id/name (untrusted tool event shape) instead of crashing or propagating null', () => {
     expect(translateAgentRuntimeEvent({ rawEvent: { type: 'tool_use', id: null, name: null, input: null } })).toEqual({
       kind: 'agent',
       payload: { type: 'tool_use', id: '', name: '', input: null },
@@ -6467,19 +6450,18 @@ describe('isAgentExecutorSupported / assessAgentExecutorCompatibility', () => {
     expect(isAgentExecutorSupported({ def: def })).toBe(true);
   });
 
-  // All 30 registered defs are now driveable. A def added later that this
+  // All registered defs are now driveable. A def added later that this
   // driver cannot actually run should fail *here*, at the point someone can
   // still decide what to do about it, rather than at a user's first run.
-  // 29 since Gemini CLI was retired on 2026-10-06 (Antigravity is the Google CLI path).
-  it('accepts every one of the 29 registered defs', () => {
+  it('accepts every registered def', () => {
     const rejected = AGENT_DEFS.filter((def) => !isAgentExecutorSupported({ def: def })).map((def) => def.id);
     expect(rejected).toEqual([]);
-    expect(AGENT_DEFS).toHaveLength(29);
+    expect(AGENT_DEFS).toHaveLength(28);
   });
 
   // The three new fields must stay opt-in: exactly one def declares them, and
-  // the other 29 keep their pre-existing behavior by declaring none.
-  it('leaves the other 29 defs — including the 6 other plain-format ones — declaring none of the three new fields', () => {
+  // the other defs keep their pre-existing behavior by declaring none.
+  it('leaves the other defs — including the 6 other plain-format ones — declaring none of the three new fields', () => {
     const withNewFields = AGENT_DEFS.filter(
       (def) => def.needsAgentLogFile !== undefined || def.stdoutPolicy !== undefined || def.runtimeLock !== undefined,
     ).map((def) => def.id);
@@ -6753,9 +6735,9 @@ function registryDef(id: string): RuntimeAgentDef {
 }
 
 describe('AgentExecutor — system-prompt overlay reaches the bytes each transport actually sends', () => {
-  // Transport 1 of 4: stdin. These 8 defs' `buildArgs` declares `_prompt` and discards it, so argv can
+  // Transport 1 of 4: stdin. These 7 defs' `buildArgs` declares `_prompt` and discards it, so argv can
   // never carry the overlay for them; the stdin write is the only channel there is.
-  it.each(['amp', 'codebuddy', 'codex', 'copilot', 'cursor-agent', 'mimo', 'qoder', 'qwen'])(
+  it.each(['amp', 'codebuddy', 'codex', 'cursor-agent', 'mimo', 'qoder', 'qwen'])(
     'stdin transport (%s): the overlay is in the bytes written to the child stdin, ahead of the user prompt',
     async (id) => {
       const probe = await probeOverlayDelivery(registryDef(id));

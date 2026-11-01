@@ -12,6 +12,7 @@ describe('registry', () => {
   it('exposes a non-empty catalog of built-in agent defs', () => {
     expect(BASE_AGENT_DEFS.length).toBeGreaterThan(20);
     expect(AGENT_DEFS).toEqual(BASE_AGENT_DEFS);
+    expect(AGENT_DEFS.map(def => def.id)).not.toContain('copilot');
   });
 
   it('has no duplicate ids in the built-in catalog', () => {
@@ -107,7 +108,7 @@ describe('registry', () => {
         .sort();
 
       expect(toolLess).toEqual(
-        ['aider', 'amp', 'copilot', 'crush', 'cursor-agent', 'deepseek', 'droid', 'grok-build', 'pi', 'qoder', 'qwen'].sort(),
+        ['aider', 'amp', 'crush', 'cursor-agent', 'deepseek', 'droid', 'grok-build', 'pi', 'qoder', 'qwen'].sort(),
       );
       expect(toolCapable.length).toBe(BASE_AGENT_DEFS.length - toolLess.length);
       expect(toolCapable).toContain('claude');

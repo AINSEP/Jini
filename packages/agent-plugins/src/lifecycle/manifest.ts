@@ -54,6 +54,8 @@
  * own "receives a JS value, never a file path or raw bytes" contract. `install.ts` is the only
  * caller that reads the file and hands the parsed value here.
  */
+import { isAgentPluginName, MAX_NAME_LENGTH } from '../core/plugin-name.js';
+export { isAgentPluginName } from '../core/plugin-name.js';
 import { readAgentPluginCompatibilityMetadata } from "./compatibility-metadata.js";
 import { parseAgentPluginExports, type AgentPluginExportMetadata } from './exports.js';
 export * from './exports.js';
@@ -111,25 +113,6 @@ function readSpecVersion(value: unknown, file: "plugin" | "mcp"): SpecVersion {
   return { version, warning: `${file}.json targets Agent Plugins ${version}, newer than this loader knows; validated with the ${newest} grammar` };
 }
 
-/**
- * §5.5's grammar as one regex: alnum runs separated by single `-`/`.` delimiters. This shape alone
- * guarantees start/end are alphanumeric (the regex can only start and end on `[a-z0-9]+`) AND that
- * no two delimiters are ever adjacent (a delimiter is always followed by at least one alnum char
- * before the next one can appear) — so "no leading/trailing hyphen" and "no consecutive delimiters"
- * fall out of one pattern rather than needing separate checks that could disagree.
- */
-const NAME_PATTERN = /^[a-z0-9]+(?:[-.][a-z0-9]+)*$/;
-const MAX_NAME_LENGTH = 64;
-
-/**
- * True when `value` is a valid Agent Plugin id: `plugin.json`'s `name` grammar (§5.5, see
- * `NAME_PATTERN`), 1-64 characters. The one owner of that grammar: a host checks an id taken from a
- * URL or a tool input here before it names anything on disk, instead of restating the pattern.
- * @complexity O(n) in the value's length.
- */
-export function isAgentPluginName({ value }: { readonly value: unknown }, _optional: Record<string, never> = {}): boolean {
-  return typeof value === "string" && value.length <= MAX_NAME_LENGTH && NAME_PATTERN.test(value);
-}
 
 export interface AgentPluginManifest extends AgentPluginExportMetadata {
   readonly name: string;
@@ -191,7 +174,7 @@ function parseManifestAuthor(value: unknown): string | PluginManifestAuthor | un
 }
 
 /**
- * Validates `plugin.json`'s `name` field per §5.5's grammar (see `NAME_PATTERN`'s own header for
+ * Validates `plugin.json`'s `name` field per §5.5's grammar (see `core/plugin-name.ts`'s header for
  * what the one regex encodes). Returns the valid name, or the one error message to report — never
  * both, so the caller needs exactly one branch to consume this instead of the original's
  * required-then-format else-if chain.

@@ -34,9 +34,6 @@
           "./model-discovery-sdk.js"
         ]
       }
-    },
-    "optionalPeers": {
-      "@github/copilot-sdk": "opt-in: Copilot account model discovery — Copilot model discovery could not load @github/copilot-sdk. Install @github/copilot-sdk to list account models; built-in fallbacks are used otherwise."
     }
   },
   "type": "module",
@@ -138,13 +135,5 @@
     "@jini-ai/protocol": "workspace:^",
     "@jini-ai/integrations": "workspace:^",
     "@jini-ai/platform": "workspace:^"
-  },
-  "peerDependencies": {
-    "@github/copilot-sdk": "*"
-  },
-  "peerDependenciesMeta": {
-    "@github/copilot-sdk": {
-      "optional": true
-    }
   }
 }

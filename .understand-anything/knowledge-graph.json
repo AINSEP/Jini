@@ -6434,37 +6434,6 @@
       "complexity": "complex"
     },
     {
-      "id": "file:packages/agent-runtime/src/copilot-stream.ts",
-      "type": "file",
-      "name": "copilot-stream.ts",
-      "filePath": "packages/agent-runtime/src/copilot-stream.ts",
-      "summary": "Implements the Copilot stream handler — parses NDJSON events from a Copilot model response, mapping them to normalized run events for text, tool-use, thinking, errors, and turn completion.",
-      "tags": [
-        "streaming",
-        "copilot-api",
-        "event-handling",
-        "agent-runtime"
-      ],
-      "complexity": "moderate"
-    },
-    {
-      "id": "function:packages/agent-runtime/src/copilot-stream.ts:createCopilotStreamHandler",
-      "type": "function",
-      "name": "createCopilotStreamHandler",
-      "filePath": "packages/agent-runtime/src/copilot-stream.ts",
-      "lineRange": [
-        38,
-        135
-      ],
-      "summary": "Creates a stateful Copilot stream handler that buffers NDJSON input, parses objects, and emits normalized run events for text, tool-use, thinking, and completion.",
-      "tags": [
-        "streaming",
-        "copilot-api",
-        "factory"
-      ],
-      "complexity": "moderate"
-    },
-    {
       "id": "file:packages/agent-runtime/src/defs/aider.ts",
       "type": "file",
       "name": "aider.ts",
@@ -6755,20 +6724,6 @@
         "configuration"
       ],
       "complexity": "simple"
-    },
-    {
-      "id": "file:packages/agent-runtime/src/defs/copilot.ts",
-      "type": "file",
-      "name": "copilot.ts",
-      "filePath": "packages/agent-runtime/src/defs/copilot.ts",
-      "summary": "Declarative RuntimeAgentDef for the GitHub Copilot coding-agent CLI, defining binary detection, model options, and invocation flags.",
-      "tags": [
-        "agent-def",
-        "data-model",
-        "configuration",
-        "copilot"
-      ],
-      "complexity": "moderate"
     },
     {
       "id": "file:packages/agent-runtime/src/defs/cursor-agent.ts",
@@ -15759,7 +15714,7 @@
         167,
         169
       ],
-      "summary": "Type guard that validates whether a given string is one of the supported agent stream formats (claude, copilot, qoder, json-events, plain).",
+      "summary": "Type guard that validates whether a given string is one of the supported agent stream formats (claude, qoder, json-events, plain).",
       "tags": [
         "validation",
         "type-guard",
@@ -42821,20 +42776,6 @@
       "weight": 0.8
     },
     {
-      "source": "file:packages/agent-runtime/src/copilot-stream.ts",
-      "target": "function:packages/agent-runtime/src/copilot-stream.ts:createCopilotStreamHandler",
-      "type": "contains",
-      "direction": "forward",
-      "weight": 1
-    },
-    {
-      "source": "file:packages/agent-runtime/src/copilot-stream.ts",
-      "target": "function:packages/agent-runtime/src/copilot-stream.ts:createCopilotStreamHandler",
-      "type": "exports",
-      "direction": "forward",
-      "weight": 0.8
-    },
-    {
       "source": "function:packages/agent-runtime/src/agent-protocol/acp/session.ts:attachAcpSession",
       "target": "function:packages/agent-runtime/src/agent-protocol/acp/text-suppression.ts:createToolCallTextSuppressor",
       "type": "calls",
@@ -43024,20 +42965,6 @@
       "weight": 0.7
     },
     {
-      "source": "file:packages/agent-runtime/src/defs/copilot.ts",
-      "target": "file:packages/agent-runtime/src/defs/shared.ts",
-      "type": "imports",
-      "direction": "forward",
-      "weight": 0.7
-    },
-    {
-      "source": "file:packages/agent-runtime/src/defs/copilot.ts",
-      "target": "file:packages/agent-runtime/src/types.ts",
-      "type": "imports",
-      "direction": "forward",
-      "weight": 0.7
-    },
-    {
       "source": "file:packages/agent-runtime/src/defs/cursor-agent.ts",
       "target": "file:packages/agent-runtime/src/defs/shared.ts",
       "type": "imports",
@@ -43159,13 +43086,6 @@
     {
       "source": "file:packages/agent-runtime/src/defs/index.ts",
       "target": "file:packages/agent-runtime/src/defs/codex.ts",
-      "type": "imports",
-      "direction": "forward",
-      "weight": 0.7
-    },
-    {
-      "source": "file:packages/agent-runtime/src/defs/index.ts",
-      "target": "file:packages/agent-runtime/src/defs/copilot.ts",
       "type": "imports",
       "direction": "forward",
       "weight": 0.7
@@ -44104,13 +44024,6 @@
     {
       "source": "file:packages/agent-runtime/src/index.ts",
       "target": "file:packages/agent-runtime/src/qoder-stream.ts",
-      "type": "imports",
-      "direction": "forward",
-      "weight": 0.7
-    },
-    {
-      "source": "file:packages/agent-runtime/src/index.ts",
-      "target": "file:packages/agent-runtime/src/copilot-stream.ts",
       "type": "imports",
       "direction": "forward",
       "weight": 0.7
@@ -80376,7 +80289,6 @@
         "file:packages/agent-runtime/src/auth.ts",
         "file:packages/agent-runtime/src/capabilities.ts",
         "file:packages/agent-runtime/src/claude-stream.ts",
-        "file:packages/agent-runtime/src/copilot-stream.ts",
         "file:packages/agent-runtime/src/defs/aider.ts",
         "file:packages/agent-runtime/src/defs/amp.ts",
         "file:packages/agent-runtime/src/defs/amr.ts",
@@ -80384,7 +80296,6 @@
         "file:packages/agent-runtime/src/defs/claude.ts",
         "file:packages/agent-runtime/src/defs/codebuddy.ts",
         "file:packages/agent-runtime/src/defs/codex.ts",
-        "file:packages/agent-runtime/src/defs/copilot.ts",
         "file:packages/agent-runtime/src/defs/cursor-agent.ts",
         "file:packages/agent-runtime/src/defs/deepseek.ts",
         "file:packages/agent-runtime/src/defs/devin.ts",

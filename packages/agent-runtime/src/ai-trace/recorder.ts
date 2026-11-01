@@ -4,7 +4,7 @@
  * Turns the normalized agent-event stream into {@link AiTraceEvent}s. Every provider path in the
  * runtime already converges on one vocabulary before the daemon sees it — `status` (model),
  * `text_delta`, `thinking_delta`, `tool_use`, `tool_result`, `usage`, `turn_end`, `error`, `end`
- * — emitted by `claude-stream`, `copilot-stream`, `qoder-stream`, `json-event-stream` (Codex,
+ * — emitted by `claude-stream`, `qoder-stream`, `json-event-stream` (Codex,
  * OpenCode, Cursor, Kimi), the ACP session (Gemini/Codex/Hermes over ACP) and
  * `runProviderToolTurn` (OpenAI/Anthropic/Azure/Google HTTP). Tapping that one vocabulary is
  * what makes tracing provider-agnostic: no per-vendor code lives here.
@@ -12,8 +12,7 @@
  * A model turn follows explicit request boundaries (`status: requesting`, `end`) when the stream has them;
  * otherwise each usage report closes one turn (CLI per-step or per-run usage).
  * Within a request, usage reports are snapshots, not boundaries: a final frame can contain usage AND more text.
- * HTTP tool-turn produces one turn per call; CLIs that report once per run (Claude Code `result`,
- * Copilot) produce one turn per run with all its tool calls — the granularity the provider gave,
+ * HTTP tool-turn produces one turn per call; CLIs that report once per run (Claude Code `result`) produce one turn per run with all its tool calls — the granularity the provider gave,
  * not a guess.
  */
 import { captureText, stringifyForCapture, type CaptureTextOptions } from './capture.js';

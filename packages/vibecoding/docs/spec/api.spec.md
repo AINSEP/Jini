@@ -17,7 +17,7 @@ spec_mode: reverse_spec
 | `@jini-ai/vibecoding/html/node` | parse5-backed strict parser and non-throwing region scan |
 | `@jini-ai/vibecoding/session` | Universal session and tools; no React dependency |
 | `@jini-ai/vibecoding/node` | Local file-tree projects; Node filesystem runtime |
-| `@jini-ai/vibecoding/react` | Session/tool re-exports, hook and React components; React/ReactDOM optional peers required here |
+| `@jini-ai/vibecoding/react` | Session/tool re-exports, hook and React components; React optional peer required here; no ReactDOM runtime load |
 
 Signatures describe current source. Factories with optional settings use `(required, optional = {})`; one-object functions and zero-argument methods below currently do not accept a second options object. `createParse5RegionParser()` is a remaining zero-argument factory.
 
