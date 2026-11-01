@@ -55,6 +55,59 @@ describe('ToolCard', () => {
       expect(document.querySelector('.op-meta')?.textContent).toBe('Spring menu');
     });
 
+    it.each([
+      { error: { name: 'NotFoundError' } },
+      { error: 'not found', title: 'Failure title' },
+      { error: { name: 'NotFoundError' }, post: { title: 'Stale post' } },
+      { isError: true, name: 'NotFoundError' },
+      { status: 'failed', post: { title: 'Stale post' } },
+      { success: false, name: 'NotFoundError' },
+    ])('never takes a target from an error-shaped result: %j', (content) => {
+      row({ id: UUID, kind: 'post' }, JSON.stringify(content));
+      expect(document.querySelector('.op-target')?.textContent).toBe('post');
+    });
+
+    it('ignores names in results marked as errors by the event envelope', () => {
+      render(<ToolCard use={{ kind: 'tool_use', id: 'tr', name: 'content_post_update', input: { id: UUID, kind: 'post' } }} result={{ kind: 'tool_result', toolUseId: 'tr', content: '{"name":"NotFoundError"}', isError: true }} runSucceeded />);
+      expect(document.querySelector('.op-target')?.textContent).toBe('post');
+    });
+
+    it('parses a result once across streaming rerenders, and refreshes when content or input changes', () => {
+      const content = JSON.stringify({ post: { title: 'Spring menu' } });
+      const use = { kind: 'tool_use' as const, id: 'tr', name: 'content_post_update', input: { id: UUID, kind: 'post' } };
+      const result = { kind: 'tool_result' as const, toolUseId: 'tr', content, isError: false };
+      const parse = vi.spyOn(JSON, 'parse');
+      try {
+        // The hidden reader also formats JSON. A row with an explicit argument title bypasses
+        // target parsing, giving a real rendered control for that independent formatter's cost.
+        const control = render(<ToolCard use={{ ...use, id: 'control', input: { ...use.input, title: 'Control' } }} result={{ ...result, toolUseId: 'control' }} runStreaming />);
+        const parsesOf = (text: string) => parse.mock.calls.filter(([value]) => value === text).length;
+        const controlParses = parsesOf(content);
+        const { rerender } = render(<ToolCard use={use} result={result} runStreaming />);
+        expect(parsesOf(content) - controlParses).toBe(controlParses + 1);
+        for (let delta = 0; delta < 3; delta++) {
+          const before = parsesOf(content);
+          rerender(<ToolCard use={{ ...use }} result={{ ...result }} runStreaming={delta < 2} />);
+          const rowParses = parsesOf(content) - before;
+          const beforeControl = parsesOf(content);
+          control.rerender(<ToolCard use={{ ...use, id: 'control', input: { ...use.input, title: 'Control' } }} result={{ ...result, toolUseId: 'control' }} runStreaming={delta < 2} />);
+          expect(rowParses).toBe(parsesOf(content) - beforeControl);
+        }
+        control.unmount();
+        expect(document.querySelector('.op-target')?.textContent).toBe('Spring menu');
+        const updated = JSON.stringify({ post: { title: 'Summer menu' } });
+        rerender(<ToolCard use={use} result={{ ...result, content: updated }} runSucceeded />);
+        expect(parsesOf(updated)).toBe(controlParses + 1);
+        expect(document.querySelector('.op-target')?.textContent).toBe('Summer menu');
+        rerender(<ToolCard use={{ ...use, input: { ...use.input, title: 'Argument title' } }} result={{ ...result, content: updated }} runSucceeded />);
+        expect(document.querySelector('.op-target')?.textContent).toBe('Argument title');
+        rerender(<ToolCard use={use} result={{ ...result, content: updated, isError: true }} runSucceeded />);
+        expect(document.querySelector('.op-target')?.textContent).toBe('post');
+      } finally {
+        parse.mockRestore();
+      }
+    });
+
     it('falls back to the kind, never a bare UUID', () => {
       row({ id: UUID, kind: 'post' }, 'Updated.');
       expect(document.querySelector('.op-meta')?.textContent).toBe('post');

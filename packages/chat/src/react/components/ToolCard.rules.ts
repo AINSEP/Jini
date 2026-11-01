@@ -27,11 +27,18 @@ function firstReadable(obj: Record<string, unknown>, keys: readonly string[]): s
   return undefined;
 }
 
+/** Failure metadata describes the error, never the acted-on record. @complexity O(1). */
+function isErrorResult(obj: Record<string, unknown>): boolean {
+  const hasError = obj.error != null && obj.error !== false;
+  const failedStatus = obj.status === 'failed' || obj.status === 'error';
+  return hasError || failedStatus || obj.isError === true || obj.success === false;
+}
+
 /**
  * The record name a JSON tool result carries — at its top level or one object level down
- * (`{ post: { title } }`). `undefined` for non-JSON text or a result with no name field.
+ * (`{ post: { title } }`). `undefined` for failures, non-JSON text or a result with no name field.
  *
- * @complexity O(k) in the parsed result's top-level key count; one `JSON.parse` of `content`.
+ * @complexity O(n + k) for content length n and top-level key count k; one `JSON.parse`.
  */
 function resultName(content: string | undefined): string | undefined {
   if (!content || !content.trimStart().startsWith('{')) return undefined;
@@ -43,6 +50,7 @@ function resultName(content: string | undefined): string | undefined {
   }
   if (parsed == null || typeof parsed !== 'object') return undefined;
   const obj = parsed as Record<string, unknown>;
+  if (isErrorResult(obj)) return undefined;
   const nested = Object.values(obj).filter((v): v is Record<string, unknown> => v != null && typeof v === 'object' && !Array.isArray(v));
   return firstReadable(obj, RESULT_NAME_KEYS) ?? nested.map((v) => firstReadable(v, RESULT_NAME_KEYS)).find(Boolean);
 }

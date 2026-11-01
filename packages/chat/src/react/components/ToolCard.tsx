@@ -21,7 +21,7 @@ const RUNNING_TITLE_CLASS = ' shimmer-text';
  * `AskUserQuestion`) falls through to `GenericCard`, which is a correct,
  * generic rendering for it.
  */
-import { createContext, useContext, useId, useState, type ReactNode } from 'react';
+import { createContext, useContext, useId, useMemo, useState, type ReactNode } from 'react';
 import type { AgentEvent, ToolResultMediaBlock } from '../../core/index.js';
 import { COLLAPSED_DETAIL_MAX_CHARS, describeCollapsedToolCall, describeToolCallDetail, humanizeToolName, isDelegatedWrapperToolName, isTodoWriteToolName, parseTodoWriteInput, redactUserText, toRenderProps } from '../../core/index.js';
 import { useT, useToolRendererRegistry } from '../hooks/context.js';
@@ -159,7 +159,11 @@ function renderToolCardBody(args: ToolCardBodyArgs): ReactNode {
  */
 function ToolRowHead({ name, input, result, runStreaming, runSucceeded }: CardProps & { name: string }) {
   const t = useT();
-  const target = toolRowTarget({ input: input, resultContent: result?.content });
+  // Streaming deltas recreate result envelopes; parse only when the target's inputs change.
+  // A failed event's payload describes the error even when it contains human-looking names.
+  const resultContent = result?.content;
+  const resultIsError = result?.isError;
+  const target = useMemo(() => toolRowTarget({ input: input, resultContent: resultIsError ? undefined : resultContent }), [input, resultContent, resultIsError]);
   const summary = target ? headSummary({ text: target }) : undefined;
   const prefix = `${t('Tool call')} · `;
   const toolName = humanizeToolName({ name: name });
