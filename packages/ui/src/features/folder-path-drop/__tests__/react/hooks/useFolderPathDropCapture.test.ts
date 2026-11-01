@@ -2,6 +2,7 @@ import { act, renderHook } from '@testing-library/react';
 import type { DragEvent } from 'react';
 import { describe, expect, it } from 'vitest';
 import type { FolderPathDropPort } from '../../../ports.js';
+import { formatDroppedFolderPaths } from '../../../rules.js';
 import {
   useFolderPathDropCapture,
   type UseFolderPathDropCaptureOptions,
@@ -44,6 +45,28 @@ function renderCapture(initialProps: UseFolderPathDropCaptureOptions) {
 }
 
 describe('useFolderPathDropCapture', () => {
+  it.each([' ', '\t', '\n', '\u00a0'])('quotes a dropped folder containing %j before inserting it into the composer', whitespace => {
+    const path = `/Users/x/Client${whitespace}Work`;
+    const calls: string[] = [];
+    const { result } = renderCapture({
+      port: constantPort(path),
+      composer: recordingComposer(calls),
+      onFolderPaths: paths => calls.push(`onFolderPaths:${paths.join('|')}`),
+    });
+
+    act(() => result.current(recordingDrop(true, calls)));
+
+    expect(calls).toEqual(['preventDefault', 'stopPropagation', `insertText:"${path}"`, `onFolderPaths:${path}`]);
+  });
+
+  it('quotes only paths containing whitespace and preserves drop order', () => {
+    expect(formatDroppedFolderPaths(['/Users/x/Site', '/Users/x/Client Work', String.raw`C:\Client Work\Site`])).toBe(
+      '/Users/x/Site "/Users/x/Client Work" "C:\\Client Work\\Site"',
+    );
+    expect(formatDroppedFolderPaths([])).toBe('');
+    expect(formatDroppedFolderPaths(['/Users/x/Site', '/Users/x/Other'])).toBe('/Users/x/Site /Users/x/Other');
+  });
+
   it('keeps the handler identity across re-renders, even when port and onFolderPaths change identity', () => {
     const composer = recordingComposer([]);
     const { result, rerender } = renderCapture({ port: constantPort('/a'), composer, onFolderPaths: () => {} });

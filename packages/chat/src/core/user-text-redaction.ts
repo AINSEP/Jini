@@ -56,11 +56,13 @@ export function redactUserText({ text }: { readonly text: string }, { secretFiel
   }).replaceAll(REMOVED, INTERNAL_REMOVED);
   const base = redactSecretShapes({ text: protectedText, policy: { additionalRules: CHAT_RULES } });
   let count = base.redactions;
-  // Exempt locations only AFTER specific secret rules. Quoting delimits spaces; unquoted spaces
-  // continue a path only with another separator, so an adjacent opaque token stays protected.
+  // Exempt locations only AFTER specific secret rules. Only quoted paths may contain whitespace;
+  // unquoted paths end there so an adjacent slash-bearing secret cannot inherit the exemption.
+  // A quoted path ends at its first matching quote, which must sit on a word boundary, so an
+  // apostrophe later in the line ("don't") cannot close an unterminated quote and exempt the gap.
   // Require a root boundary so a slash inside an opaque token cannot exempt that token, and a
   // folder after the root so a bare "/" + token is not mistaken for a path.
-  const locations = [...base.text.matchAll(/\b[a-z][a-z0-9+.-]*:\/\/[^\s<>"']+|(["'`])(?:~\/|[a-z]:[\\/]|\\\\|\/)[^\r\n"'`\\/]+[\\/][^\r\n]*?\1|(?<![\w+\/=\\~.-])(?:~\/|[a-z]:[\\/]|\\\\|\/)[^\s<>"'`\\/]+[\\/][^\s<>"'`]*(?:[ \t]+[^\s<>"'`]*[\\/][^\s<>"'`]*)*/gi)]
+  const locations = [...base.text.matchAll(/\b[a-z][a-z0-9+.-]*:\/\/[^\s<>"']+|(?<!\w)(["'`])(?:~\/|[a-z]:[\\/]|\\\\|\/)[^\r\n"'`\\/]+[\\/](?:(?!\1)[^\r\n])*\1(?!\w)|(?<![\w+\/=\\~.-])(?:~\/|[a-z]:[\\/]|\\\\|\/)[^\s<>"'`\\/]+[\\/][^\s<>"'`]*/gi)]
     .map(match => ({ start: match.index!, end: match.index! + match[0].length }));
   let cleaned = base.text.replace(/(?<![A-Za-z0-9_+\/=-])[A-Za-z0-9_+\/=-]{40,}(?![A-Za-z0-9_+\/=-])/g, (candidate: string, offset: number) => {
     if (locations.some(location => offset >= location.start && offset < location.end)) return candidate;

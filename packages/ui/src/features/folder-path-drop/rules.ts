@@ -73,14 +73,13 @@ export function folderPathsFromDataTransfer(dataTransfer: DataTransfer, port: Fo
 }
 
 /**
- * The text a folder drop inserts: every path, space-joined, in drop order. The one place the format
- * lives — a path that itself contains a space is ambiguous in this format, so any change to quoting
- * or separators belongs here and nowhere else.
+ * The text a folder drop inserts: every path, space-joined, in drop order. Quote whitespace-containing
+ * paths so text consumers can distinguish the path from adjacent prose or secrets.
  *
  * @complexity Time/space: O(total path length).
  */
 export function formatDroppedFolderPaths(paths: readonly string[]): string {
-  return paths.join(' ');
+  return paths.map(path => /\s/.test(path) ? `"${path}"` : path).join(' ');
 }
 
 /**

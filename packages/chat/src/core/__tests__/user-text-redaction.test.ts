@@ -66,6 +66,23 @@ describe('user text paste guard', () => {
 });
 
 describe('entropy fallback classification corpus', () => {
+  const awsSecret = 'wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY';
+  const unquotedRoots = ['/Users/la/proj', '~/proj', String.raw`C:\Users\la\proj`, String.raw`\\server\share\proj`];
+  for (const root of unquotedRoots) {
+    it.each([' ', '\t', '\n', '\u00a0'])('redacts a slash-bearing secret after unquoted ' + root + ' separated by %j', separator => {
+      const text = `${root}${separator}${awsSecret}`;
+      expect(redactUserText({ text })).toEqual({ text: `${root}${separator}[token removed]`, secretRedacted: true, count: 1 });
+      expect(buildTranscript({ history: [{ id: 'secret', role: 'user', content: text }] })).toBe(`## user\n${root}${separator}[token removed]`);
+    });
+  }
+  it.each([
+    "look in '/Users/la/proj and use KEY, don't share",
+    "look in '/Users/la/proj and use KEY, don't share 'x'",
+    'check `~/proj and KEY isn`t it',
+  ])('an apostrophe later in the line does not close an unterminated quoted path: %s', template => {
+    const text = template.replace('KEY', awsSecret);
+    expect(redactUserText({ text })).toEqual({ text: template.replace('KEY', '[token removed]'), secretRedacted: true, count: 1 });
+  });
   const mustKeep = [
     ['macOS folder', '/Users/la/Documents/Tovu/Some-Folder2026'],
     ['Linux folder', '/home/alex/Projects/Customer-Portal2026/SourceFiles'],
@@ -75,8 +92,10 @@ describe('entropy fallback classification corpus', () => {
     ['UNC folder', String.raw`\\FileServer\SharedProjects\Customer-Portal2026\SourceFiles`],
     ['long Windows segment', String.raw`C:\Projects\CustomerPortal2026ProductionSourceFilesAndDocuments`],
     ['long UNC segment', String.raw`\\FileServer\Projects\CustomerPortal2026ProductionSourceFilesAndDocuments`],
-    ['unquoted POSIX folder with spaces', '/Users/alex/Client Work/CustomerPortal2026ProductionSourceFilesAndDocuments'],
-    ['unquoted Windows folder with spaces', String.raw`C:\Users\Alex\Client Work\CustomerPortal2026ProductionSourceFilesAndDocuments`],
+    // Whitespace-containing folders survive only when quoted (folder drops quote them); an unquoted
+    // path ends at whitespace so an adjacent slash-bearing secret cannot inherit the exemption.
+    ['quoted POSIX folder with a tab', '"/Users/alex/Client\tWork/CustomerPortal2026ProductionSourceFilesAndDocuments"'],
+    ['single-quoted Windows folder with spaces', String.raw`'C:\Users\Alex\Client Work\CustomerPortal2026ProductionSourceFilesAndDocuments'`],
     ['quoted POSIX folder with spaces', '"/Users/alex/Client Work/CustomerPortal2026ProductionSourceFilesAndDocuments"'],
     ['quoted Windows folder with spaces', String.raw`"C:\Users\Alex\Client Work\CustomerPortal2026ProductionSourceFilesAndDocuments"`],
     ['backtick path', '`~/Client Work/CustomerPortal2026ProductionSourceFilesAndDocuments`'],
