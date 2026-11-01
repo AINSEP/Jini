@@ -45,6 +45,38 @@ function nestedWorkspace(root: string, options: Parameters<typeof createNodeDire
   }, { env: {}, ...options });
 }
 
+describe("updateConfig error contract", () => {
+  it("types validation and environment refusals while preserving settings", () => {
+    const root = tempRoot(), workspace = nestedWorkspace(root);
+    const file = path.join(root, "regular-file"); fs.writeFileSync(file, "keep");
+    const invalid: unknown[] = [null, [], { extra: true }, { sitesHome: "" }, { siteRoots: [5] }, { databases: "invalid" }, { sitesHome: file }];
+    for (const patch of invalid) {
+      expect(() => workspace.updateConfig({ patch: patch as Parameters<typeof workspace.updateConfig>[0]["patch"] }))
+        .toThrowError(expect.objectContaining({ name: "DirectoryUserConfigRefusal" }));
+    }
+    const overridden: Array<[NodeJS.ProcessEnv, Parameters<typeof workspace.updateConfig>[0]["patch"]]> = [
+      [{ PRODUCT_HOME: root }, { sitesHome: root }], [{ PRODUCT_ROOTS: root }, { siteRoots: [root] }],
+    ];
+    for (const [env, patch] of overridden) {
+      expect(() => nestedWorkspace(root, { env }).updateConfig({ patch }))
+        .toThrowError(expect.objectContaining({ name: "DirectoryUserConfigRefusal" }));
+    }
+    expect(fs.existsSync(workspace.config({}).configPath)).toBe(false);
+  });
+
+  it("propagates I/O errors unchanged instead of labeling them as user refusals", () => {
+    const root = tempRoot(), failure = errno("EIO");
+    const ports = { ...createNodeDurableJsonPorts({}), filesystem: observedFilesystem((method, args) => {
+      if (method === "renameSync") throw failure;
+      return args;
+    }) };
+    const workspace = nestedWorkspace(root, { ports });
+    expect(() => workspace.updateConfig({ patch: { databases: "appData" } })).toThrow(failure);
+    expect(failure.name).toBe("Error");
+    expect(fs.existsSync(workspace.config({}).configPath)).toBe(false);
+  });
+});
+
 describe("a workspace without a user config policy", () => {
   it("refuses config-only operations and serves its single home as roots and database location", () => {
     const root = tempRoot(), workspace = plainWorkspace(root);

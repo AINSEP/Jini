@@ -1,5 +1,6 @@
 /** Opaque guest cookie plus independently minted document credential for public frontends. */
 import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { timingSafeTokenMatch } from '@jini-ai/core';
 import type { Request, Response } from 'express';
 import type { FrontendSessionOwner } from '../frontend-session-registry.js';
 
@@ -20,7 +21,8 @@ export function createFrontendGuestScope({ workspaceId, cookieName, cookiePath, 
     const [payload, signature] = parts;
     if (!payload || !signature) return null;
     const expected = sign(payload);
-    if (signature.length !== expected.length || !timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null;
+    // The shared matcher checks UTF-8 byte lengths before native comparison can throw.
+    if (!timingSafeTokenMatch({ presented: signature, expected, timingSafeEqual: ({ left, right }) => timingSafeEqual(left, right) })) return null;
     try {
       const parsed = JSON.parse(Buffer.from(payload, 'base64url').toString('utf8'));
       return typeof parsed.expires === 'number' && parsed.expires > now() ? parsed : null;

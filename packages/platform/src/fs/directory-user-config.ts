@@ -5,6 +5,14 @@ import { resolveDirectoryHome } from "./directory-home.js";
 import { resolveUserDataDirectories, type UserDirectoryOptions } from "./user-data-directories.js";
 import { detectDirectorySync, type DirectorySyncProvider } from "./directory-sync.js";
 
+/** An expected settings refusal whose message is safe to show to the caller.
+ * Filesystem and persistence failures retain their original errors for private diagnostics.
+ */
+export class DirectoryUserConfigRefusal extends Error {
+  readonly name = "DirectoryUserConfigRefusal";
+  constructor({ message }: { message: string }, _options = {}) { super(message); }
+}
+
 export interface DirectoryUserConfig { sitesHome: string; siteRoots: string[]; databases: "inSite" | "appData"; }
 export interface DirectoryUserConfigPolicy {
   appName: string;
@@ -90,12 +98,12 @@ export function createDirectoryUserConfig(
     for (const directory of [checked.sitesHome, ...(checked.siteRoots ?? [])]) {
       if (directory === undefined) continue;
       const expanded = expand(directory);
-      if (exists(expanded) && !isDirectory(expanded)) throw new Error(`Sites folder is not a directory: ${directory}`);
+      if (exists(expanded) && !isDirectory(expanded)) throw new DirectoryUserConfigRefusal({ message: `Sites folder is not a directory: ${directory}` });
     }
   }
   function assertNotOverridden(checked: Partial<DirectoryUserConfig>): void {
-    if (checked.sitesHome !== undefined && env[envName] !== undefined) throw new Error(`${envName} overrides this setting. Unset it before changing the directory home.`);
-    if (checked.siteRoots !== undefined && env[policy.rootsEnvName] !== undefined) throw new Error(`${policy.rootsEnvName} overrides this setting. Unset it before changing site roots.`);
+    if (checked.sitesHome !== undefined && env[envName] !== undefined) throw new DirectoryUserConfigRefusal({ message: `${envName} overrides this setting. Unset it before changing the directory home.` });
+    if (checked.siteRoots !== undefined && env[policy.rootsEnvName] !== undefined) throw new DirectoryUserConfigRefusal({ message: `${policy.rootsEnvName} overrides this setting. Unset it before changing site roots.` });
   }
   function merged(previous: Partial<DirectoryUserConfig>, checked: Partial<DirectoryUserConfig>, incremental: boolean): Partial<DirectoryUserConfig> {
     const next = { ...previous, ...checked,
@@ -209,9 +217,9 @@ const SETTING_RULES: readonly (readonly [key: keyof DirectoryUserConfig, valid: 
  * @complexity O(n) root strings. No I/O or mutation.
  */
 export function validateDirectoryUserConfig({ value }: { value: unknown }, _options = {}): Partial<DirectoryUserConfig> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) throw new Error("User config must be an object.");
+  if (!value || typeof value !== "object" || Array.isArray(value)) throw new DirectoryUserConfigRefusal({ message: "User config must be an object." });
   const row = value as Record<string, unknown>;
-  if (Object.keys(row).some((key) => !SETTING_RULES.some(([known]) => known === key))) throw new Error("Unknown user config setting.");
-  for (const [key, valid, message] of SETTING_RULES) if (row[key] !== undefined && !valid(row[key])) throw new Error(message);
+  if (Object.keys(row).some((key) => !SETTING_RULES.some(([known]) => known === key))) throw new DirectoryUserConfigRefusal({ message: "Unknown user config setting." });
+  for (const [key, valid, message] of SETTING_RULES) if (row[key] !== undefined && !valid(row[key])) throw new DirectoryUserConfigRefusal({ message });
   return row as Partial<DirectoryUserConfig>;
 }

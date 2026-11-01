@@ -2,6 +2,26 @@ import { expect, it } from 'vitest';
 import type { Request, Response } from 'express';
 import { createFrontendGuestScope } from '../frontend-guest-scope.js';
 
+it('rejects same-character-count non-ASCII signatures in guest cookies and tab credentials without throwing', async () => {
+  const scope = createFrontendGuestScope({ workspaceId: 'site', cookieName: 'visitor', cookiePath: '/public', allowsRequest: async () => true });
+  let cookie = '';
+  const request = (value = '', tab = '') => ({ secure: true, get: (name: string) => ({ cookie: value, 'x-frontend-tab': tab }[name]) }) as Request;
+  const res = { cookie: (_name: string, value: string) => { cookie = `visitor=${value}`; }, setHeader() {} } as unknown as Response;
+  const issued = await scope.issue({ req: request(), res });
+  expect(issued).not.toBeNull();
+  const [payload, signature] = issued!.tabCredential.split('.');
+  expect(signature).toHaveLength(43);
+  // These all retain the HMAC's JS string length but encode to a different UTF-8 byte length.
+  for (const character of ['é', '中', '\ud800']) {
+    const malformed = `${payload}.${character}${signature!.slice(1)}`;
+    await expect(scope.resolveOwner({ req: request(cookie, malformed) })).resolves.toBeNull();
+    const badCookie = `visitor=${cookie.slice('visitor='.length).split('.')[0]}.${character}${signature!.slice(1)}`;
+    await expect(scope.resolveGuest({ req: request(badCookie) })).resolves.toBeUndefined();
+    await expect(scope.resolveOwner({ req: request(badCookie, issued!.tabCredential) })).resolves.toBeNull();
+    await expect(scope.issue({ req: request(badCookie), res })).resolves.toHaveProperty('tabCredential');
+  }
+});
+
 it('guest and tab credentials are independently minted, scoped, expiring and origin-gated', async () => {
   let now = 100; const cookies: string[] = [];
   const scope = createFrontendGuestScope({ workspaceId: 'site', cookieName: 'visitor', cookiePath: '/public', allowsRequest: async ({ req }) => req.get('origin') === 'same' }, { now: () => now, lifetimeMs: 10 });
