@@ -578,7 +578,8 @@ export function createDomPageDriver({ root, pages }: DomPageDriverRequired, opti
         borderRadius: element.style.borderRadius,
       };
       Object.assign(element.style, HIGHLIGHT_STYLE);
-      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Embedded DOMs may omit scrolling; highlighting must still restore its styles.
+      if (typeof element.scrollIntoView === 'function') element.scrollIntoView({ behavior: 'smooth', block: 'center' });
 
       const timer = setTimeout(() => {
         // Restore what was there rather than clearing: the element may have had its own outline.
@@ -589,7 +590,9 @@ export function createDomPageDriver({ root, pages }: DomPageDriverRequired, opti
     },
 
     async scrollTo({ handle }: { handle: string }, _optional: Record<string, never> = {}) {
-      find(handle, 'scrollTo').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const element = find(handle, 'scrollTo');
+      // Revealing a clicked control is best-effort in DOMs without layout (including jsdom).
+      if (typeof element.scrollIntoView === 'function') element.scrollIntoView({ behavior: 'smooth', block: 'center' });
     },
 
     async click({ handle }: { handle: string }, _optional: Record<string, never> = {}) {

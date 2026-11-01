@@ -800,6 +800,26 @@ describe('duplicate data-agent-element handles', () => {
 });
 
 describe('scrollTo', () => {
+  it.each([undefined, null, 'unavailable'])('keeps page.click working when scrollIntoView is %s', async (scrollIntoView) => {
+    const button = root.querySelector<HTMLButtonElement>('[data-agent-element="save-button"]')!;
+    Object.defineProperty(button, 'scrollIntoView', { configurable: true, value: scrollIntoView });
+    const clicked = vi.fn();
+    button.addEventListener('click', clicked);
+    await executePageCapability({ driver: makeDriver(), capabilityId: 'page.click', input: { handle: 'save-button' } });
+    expect(clicked).toHaveBeenCalledOnce();
+  });
+
+  it('highlights without a scrolling API and restores the original style', async () => {
+    vi.useFakeTimers();
+    const element = root.querySelector<HTMLElement>('[data-agent-element="status-line"]')!;
+    Object.defineProperty(element, 'scrollIntoView', { configurable: true, value: undefined });
+    const original = element.style.outline;
+    await makeDriver().highlight?.({ handle: 'status-line', durationMs: 20 });
+    expect(element.style.outline).not.toBe(original);
+    vi.advanceTimersByTime(20);
+    expect(element.style.outline).toBe(original);
+  });
+
   it('scrolls the handle into view', async () => {
     await makeDriver().scrollTo({ handle: 'status-line' });
     const element = root.querySelector('[data-agent-element="status-line"]');
