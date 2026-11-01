@@ -1,5 +1,6 @@
 /** Build-time asset assembly only; installed packages use the existing Agent Plugin lifecycle. */
 import * as filesystem from 'node:fs/promises';
+import { existsSync, realpathSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
@@ -56,7 +57,9 @@ export async function assembleAgentPluginPackage(
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(path.resolve(process.argv[1])).href) {
+// Node resolves the entry module's symlinks, including macOS temporary-directory aliases.
+// Stdin's "-" is a virtual entrypoint: importing the assembler must remain safe there.
+if (process.argv[1] && existsSync(process.argv[1]) && import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href) {
   assembleAgentPluginPackage({
     sourceDir: fileURLToPath(new URL('../packages/agent-plugins/ui-ux-design/', import.meta.url)),
     packageRoot: fileURLToPath(new URL('../packages/plugin-ui-ux-design/', import.meta.url)),

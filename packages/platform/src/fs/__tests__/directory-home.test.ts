@@ -29,4 +29,27 @@ describe("operator-visible directory home", () => {
       .toThrow("More than one registered directory has this name. Select its registry ID.");
     expect(selectWorkspaceDirectory({ ...base, selected: "new-site", isInitialized: initialized([]) }, {})).toBe("/repo/sites/new-site");
   });
+  it.each([false, true])("resolves a duplicate basename to its sole available site in either registry order (reverse=%s)", (reverse) => {
+    const live = { id: "live", name: "Site", path: "/external/blog", createdBy: "Web", lastOpened: null };
+    const stale = { ...live, id: "stale", path: "/scratch/blog" };
+    const entries = reverse ? [stale, live] : [live, stale];
+    const before = structuredClone(entries);
+    const input = { home: "/home/sites", fallback: "/repo/sites/dev", selected: "blog", entries,
+      listDirectories: () => [], isInitialized: () => false };
+    const options = { isAvailable: ({ path }: { path: string }) => path === live.path };
+    expect(selectWorkspaceDirectory(input, options)).toBe(live.path);
+    expect(entries).toEqual(before);
+    // An explicit identity still names an offline site; availability must not redirect it.
+    expect(selectWorkspaceDirectory({ ...input, selected: stale.id }, options)).toBe(stale.path);
+  });
+  it("keeps ambiguous live or offline names explicit and propagates availability failures", () => {
+    const entries = ["/external/blog", "/scratch/blog"].map((path, index) => ({ id: String(index), name: "Site", path, createdBy: "Web", lastOpened: null }));
+    const input = { home: "/home/sites", fallback: "/repo/sites/dev", selected: "blog", entries,
+      listDirectories: () => [], isInitialized: () => false };
+    for (const available of [false, true]) {
+      expect(() => selectWorkspaceDirectory(input, { isAvailable: () => available })).toThrow("Select its registry ID");
+    }
+    expect(() => selectWorkspaceDirectory(input, { isAvailable: () => { throw new Error("storage unavailable"); } })).toThrow("storage unavailable");
+    expect(() => selectWorkspaceDirectory(input)).toThrow("Select its registry ID");
+  });
 });

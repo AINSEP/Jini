@@ -2,7 +2,7 @@ import * as fs from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { tmpdir } from 'node:os';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterEach, expect, test } from 'vitest';
 import { assembleAgentPluginPackage } from '../assemble-agent-plugin-package.js';
 
@@ -92,7 +92,7 @@ test('refuses a symlink within a selected asset tree without replacing completed
   expect(await fs.readFile(path.join(payloadRoot, 'plugin.json'))).toEqual(original);
 });
 
-test('the build CLI assembles a payload under node --import tsx and reports assembly failures', async () => {
+test.each(['canonical', 'symlink'] as const)('the build CLI assembles a payload through a %s path and reports assembly failures', async (entryPath) => {
   const input = await fixture();
   const script = path.join(input.root, 'scripts/assemble-agent-plugin-package.ts');
   const sourceDir = path.join(input.root, 'packages/agent-plugins/ui-ux-design');
@@ -102,7 +102,14 @@ test('the build CLI assembles a payload under node --import tsx and reports asse
   await fs.mkdir(path.dirname(sourceDir), { recursive: true });
   await fs.rename(input.sourceDir, sourceDir);
   await fs.rename(input.packageRoot, packageRoot);
-  const run = () => spawnSync(process.execPath, ['--import', 'tsx', script], { cwd: workspace, encoding: 'utf8' });
+  let invokedScript = await fs.realpath(script);
+  if (entryPath === 'symlink') {
+    // Exercise aliases on every OS, even when its temporary directory is already canonical.
+    const alias = path.join(input.root, 'linked-root');
+    await fs.symlink(await fs.realpath(input.root), alias, 'dir');
+    invokedScript = path.join(alias, 'scripts/assemble-agent-plugin-package.ts');
+  }
+  const run = () => spawnSync(process.execPath, ['--import', 'tsx', invokedScript], { cwd: workspace, encoding: 'utf8' });
   const built = run();
   expect(built.status, built.stderr).toBe(0);
   const payloadRoot = path.join(packageRoot, 'ui-ux-design');
@@ -113,4 +120,14 @@ test('the build CLI assembles a payload under node --import tsx and reports asse
   expect(failed.status).toBe(1);
   expect(failed.stderr).toContain('ENOENT');
   expect(await fs.readFile(path.join(payloadRoot, 'plugin.json'))).toEqual(completedManifest);
+});
+
+test('the assembler remains importable from stdin without running its CLI', () => {
+  const moduleUrl = pathToFileURL(path.join(workspace, 'scripts/assemble-agent-plugin-package.ts')).href;
+  const imported = spawnSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-'], {
+    cwd: workspace, encoding: 'utf8',
+    input: `import ${JSON.stringify(moduleUrl)}; console.log('imported');`,
+  });
+  expect(imported.status, imported.stderr).toBe(0);
+  expect(imported.stdout.trim()).toBe('imported');
 });
