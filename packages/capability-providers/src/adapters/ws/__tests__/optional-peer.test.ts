@@ -5,7 +5,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { spawnSync } from 'node:child_process';
 import { expect, it } from 'vitest';
 
-it('injected WebSocket servers work without ws; the native adapter reports its real missing peer', () => {
+it('injected WebSocket servers work without ws; a broken installed adapter is not reported as absent', () => {
   const root = mkdtempSync(join(tmpdir(), 'jini-ws-opt-in-'));
   try {
     copyFileSync(fileURLToPath(new URL('../index.ts', import.meta.url)), join(root, 'ws.ts'));
@@ -26,6 +26,6 @@ it('injected WebSocket servers work without ws; the native adapter reports its r
       catch (error) { console.log(JSON.stringify({ message: error.message, cause: error.cause?.code })); }`;
     const result = spawnSync(process.execPath, ['--input-type=module', '--eval', script], { encoding: 'utf8', timeout: 15_000 });
     expect(result.status, result.stderr).toBe(0);
-    expect(JSON.parse(result.stdout)).toEqual({ message: 'WebSocket realtime adapter could not load ws. Install ws to enable this feature, or check its installed version and native binaries.', cause: 'MODULE_NOT_FOUND' });
+    expect(JSON.parse(result.stdout)).toEqual({ message: 'WebSocket realtime adapter could not load ws. Check its installed dependencies and native binaries.', cause: 'MODULE_NOT_FOUND' });
   } finally { rmSync(root, { recursive: true, force: true }); }
 });

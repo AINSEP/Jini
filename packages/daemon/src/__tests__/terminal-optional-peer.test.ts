@@ -25,6 +25,6 @@ it('a real terminal opt-in without node-pty reports an actionable feature error'
     const source = `const { loadRealSpawnPty } = await import(${JSON.stringify(pathToFileURL(join(root, 'terminal.adapter.ts')).href)});\ntry { await loadRealSpawnPty({}); process.exitCode = 2; } catch (error) { console.log(JSON.stringify({ message: error.message, cause: error.cause?.code })); }`;
     const result = spawnSync(process.execPath, ['--import', hook, '--input-type=module', '--eval', source], { encoding: 'utf8', timeout: 30_000 });
     expect(result.status, result.stderr).toBe(0);
-    expect(JSON.parse(result.stdout)).toEqual({ message: 'Interactive terminals could not load node-pty. Install node-pty to enable this feature, or check its installed version and native binaries.', cause: 'ERR_MODULE_NOT_FOUND' });
+    expect(JSON.parse(result.stdout)).toEqual({ message: 'Interactive terminals could not load node-pty. It is not installed. Install node-pty to enable this feature.', cause: 'ERR_MODULE_NOT_FOUND' });
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
