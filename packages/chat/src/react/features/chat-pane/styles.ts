@@ -2025,6 +2025,13 @@ export const CHAT_PANE_STYLES = `
 .jini-folder-chips__toggle { border: 1px solid var(--jini-chat-border); border-radius: 8px; padding: 5px 8px; background: var(--jini-chat-subtle); color: inherit; cursor: pointer; }
 .jini-folder-chips__toggle span { overflow-wrap: anywhere; min-width: 0; }
 .jini-folder-chips__list { display: flex; flex-wrap: wrap; gap: 6px; padding: 0; margin: 6px 0 0; list-style: none; }
+.jini-folder-chips__list:first-child { margin-top: 0; }
+/* Same 14px inset as '.jini-composer-input' so chips line up with the placeholder, not the border.
+   On the chips, not the shared row: the image tray beside them already carries its own padding. */
+.jini-chat-pane .jini-composer-attachments .jini-folder-chips { padding: 8px 14px 0; }
+/* Sent bubbles are right-aligned: keep the toggle at the right edge whether the list is open or not. */
+.jini-chat-pane .jini-message-user .jini-folder-chips { display: flex; flex-direction: column; align-items: flex-end; }
+.jini-chat-pane .jini-message-user .jini-folder-chips__list { justify-content: flex-end; }
 .jini-folder-chips__item { padding: 4px 6px; border: 1px solid var(--jini-chat-border); border-radius: 6px; background: var(--jini-chat-subtle); }
 .jini-folder-chips__name { min-width: 0; overflow-wrap: anywhere; }
 .jini-folder-chips svg, .jini-folder-chips button { flex-shrink: 0; }

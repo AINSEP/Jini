@@ -123,8 +123,30 @@ it('does not consume a folder picked again while the prior send is awaiting acce
   act(() => handle.current!.addFolders({ folders: [folders[0]!] }));
   await act(async () => release());
   const composer = document.querySelector('.jini-composer')! as HTMLElement;
-  const chip = within(composer).getByRole('button', { name: folders[0]! });
+  const chip = within(composer).getByText('Folder with spaces');
   expect(chip).toHaveAttribute('title', folders[0]);
-  expect(chip).toHaveTextContent('Folder with spaces');
+  expect(within(composer).getAllByRole('listitem')).toHaveLength(1);
   act(() => fake.finish([]));
+});
+
+it('shows a single folder as its chip directly — no toggle — with copy and remove tooltips', async () => {
+  const handle = createRef<ChatPaneComposerHandle>();
+  const transport = createFakeChatTransport();
+  render(<ChatPane transport={transport} agents={agents} composerHandle={handle} initialDraft="inspect" />);
+  act(() => handle.current!.addFolders({ folders: [folders[0]!] }));
+  const composer = document.querySelector('.jini-composer-attachments')! as HTMLElement;
+  expect(within(composer).queryByRole('button', { name: /Folders \(/ })).toBeNull();
+  expect(composer.querySelector('[aria-expanded]')).toBeNull();
+  expect(within(composer).getByText('Folder with spaces')).toHaveAttribute('title', folders[0]);
+  const copy = within(composer).getByRole('button', { name: `Copy folder path: ${folders[0]}` });
+  expect(copy).toHaveAttribute('title', `Copy folder path: ${folders[0]}`);
+  expect(within(composer).getByRole('button', { name: `Remove folder: ${folders[0]}` }))
+    .toHaveAttribute('title', `Remove folder: ${folders[0]}`);
+  fireEvent.click(screen.getByRole('button', { name: 'Send' }));
+  await waitFor(() => expect(transport.calls).toHaveLength(1));
+  const user = document.querySelector('.jini-message-user')! as HTMLElement;
+  expect(within(user).queryByRole('button', { name: /Folders \(/ })).toBeNull();
+  expect(within(user).getByText('Folder with spaces')).toHaveAttribute('title', folders[0]);
+  expect(within(user).queryByRole('button', { name: /Remove folder/ })).toBeNull();
+  act(() => transport.finish([]));
 });

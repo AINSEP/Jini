@@ -8,6 +8,8 @@ interface CopyMessageButtonProps {
   text: string;
   /** Accessible name while idle; swaps to a "Copied" label once the copy lands. */
   label: string;
+  /** Optional hover tooltip; icon-only buttons outside a message action row have no other visible label. */
+  title?: string | undefined;
 }
 
 /**
@@ -17,9 +19,10 @@ interface CopyMessageButtonProps {
  * the icon swap and the accessible announcement of the transient state.
  * @param props.text - Exact string to copy, verbatim.
  * @param props.label - Idle accessible name (already translated by the caller).
+ * @param props.title - Optional hover tooltip (already translated); swaps to "Copied" like the label.
  * @complexity O(1) — one child hook call, no branching beyond the copied-state read.
  */
-export function CopyMessageButton({ text, label }: CopyMessageButtonProps) {
+export function CopyMessageButton({ text, label, title }: CopyMessageButtonProps) {
   const t = useT();
   const { copied, copy } = useCopyToClipboard();
   return (
@@ -28,6 +31,7 @@ export function CopyMessageButton({ text, label }: CopyMessageButtonProps) {
         type="button"
         className="jini-message-action-btn"
         aria-label={copied ? t('Copied') : label}
+        title={title && (copied ? t('Copied') : title)}
         onClick={() => {
           void copy(text);
         }}
