@@ -34,6 +34,7 @@
     "test": "vitest run"
   },
   "devDependencies": {
+    "@jini-ai/cookie-consent": "workspace:^",
     "@jini-ai/diagnostics": "workspace:^",
     "@jini-ai/plugins": "workspace:^",
     "tsx": "^4.19.0"

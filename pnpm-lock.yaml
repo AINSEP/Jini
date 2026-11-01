@@ -975,6 +975,9 @@ importers:
       '@jini-ai/agent-runtime':
         specifier: workspace:^
         version: link:../agent-runtime
+      '@jini-ai/cookie-consent':
+        specifier: workspace:^
+        version: link:../cookie-consent
       '@jini-ai/plugins':
         specifier: workspace:^
         version: link:../plugins
@@ -1004,6 +1007,9 @@ importers:
 
   packages/plugin-fixture-provider:
     devDependencies:
+      '@jini-ai/cookie-consent':
+        specifier: workspace:^
+        version: link:../cookie-consent
       '@jini-ai/plugins':
         specifier: workspace:^
         version: link:../plugins
@@ -1013,6 +1019,9 @@ importers:
 
   packages/plugin-observability-opentelemetry:
     devDependencies:
+      '@jini-ai/cookie-consent':
+        specifier: workspace:^
+        version: link:../cookie-consent
       '@jini-ai/diagnostics':
         specifier: workspace:^
         version: link:../diagnostics
@@ -1025,6 +1034,9 @@ importers:
 
   packages/plugin-observability-sentry:
     devDependencies:
+      '@jini-ai/cookie-consent':
+        specifier: workspace:^
+        version: link:../cookie-consent
       '@jini-ai/diagnostics':
         specifier: workspace:^
         version: link:../diagnostics
@@ -1040,6 +1052,9 @@ importers:
       '@jini-ai/commerce':
         specifier: workspace:^
         version: link:../commerce
+      '@jini-ai/cookie-consent':
+        specifier: workspace:^
+        version: link:../cookie-consent
       '@jini-ai/plugins':
         specifier: workspace:^
         version: link:../plugins

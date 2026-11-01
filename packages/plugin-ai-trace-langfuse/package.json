@@ -19,6 +19,7 @@
   },
   "devDependencies": {
     "@jini-ai/agent-runtime": "workspace:^",
+    "@jini-ai/cookie-consent": "workspace:^",
     "@jini-ai/plugins": "workspace:^",
     "tsx": "^4.19.0"
   },
