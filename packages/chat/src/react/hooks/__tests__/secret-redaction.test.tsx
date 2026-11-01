@@ -133,6 +133,28 @@ it('pane notice uses the host translator and exposes only safe metadata to open 
   expect(signals).toEqual([{ secretRedacted: true, count: 1 }]);
 });
 
+it.each([
+  '/Users/la/Documents/Tovu/Some-Folder2026',
+  '~/Documents/Customer-Portal2026/SourceFiles',
+  String.raw`C:\Projects\CustomerPortal2026ProductionSourceFilesAndDocuments`,
+  String.raw`\\FileServer\Projects\CustomerPortal2026ProductionSourceFilesAndDocuments`,
+  '/Users/alex/Client Work/CustomerPortal2026ProductionSourceFilesAndDocuments',
+])('sends a picked folder intact without showing a key warning: %s', async path => {
+  const transport = createFakeChatTransport();
+  const signals: unknown[] = [];
+  const contexts: string[] = [];
+  const prompt = `Please inspect ${path}`;
+  render(<ChatPane transport={transport} agents={agents} initialSelection={{ agentId: 'a' }} initialDraft={prompt}
+    onSecretRedacted={signal => signals.push(signal)} runContext={({ prompt }) => { contexts.push(prompt); return {}; }} />);
+  await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Send' })); });
+  expect(transport.calls).toHaveLength(1);
+  expect(transport.calls[0]?.input.history[0]?.content).toBe(prompt);
+  expect(transport.calls[0]?.input.history[0]?.secretRedaction).toBeUndefined();
+  expect(contexts).toEqual([prompt]);
+  expect(signals).toEqual([]);
+  expect(screen.queryByText(SECRET_REDACTED_NOTICE)).toBeNull();
+});
+
 it('direct conversation sends and retries sanitize legacy user history before transport', async () => {
   const transport = createFakeChatTransport();
   const initialMessages = [{ id: 'old', role: 'user' as const, content: 'old api_key=x' }];

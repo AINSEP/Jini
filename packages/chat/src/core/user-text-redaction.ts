@@ -42,7 +42,8 @@ function entropy(text: string): number {
 }
 
 /** Stricter than error redaction: also detects unlabelled long tokens, while retaining ordinary URLs,
- * hexadecimal hashes, identifiers and prose. Strong credential syntax inside a URL is still caught. */
+ * filesystem paths, hexadecimal hashes, identifiers and prose. Strong credential syntax inside
+ * URLs or paths is still caught. */
 export function redactUserText({ text }: { readonly text: string }, { secretField = false }: { readonly secretField?: boolean } = {}): UserTextRedaction {
   // Existing removal markers must survive a second pass through assignment rules (api_key=…).
   const literalMarkers = new Map<string, string>();
@@ -55,10 +56,14 @@ export function redactUserText({ text }: { readonly text: string }, { secretFiel
   }).replaceAll(REMOVED, INTERNAL_REMOVED);
   const base = redactSecretShapes({ text: protectedText, policy: { additionalRules: CHAT_RULES } });
   let count = base.redactions;
-  const urls = [...base.text.matchAll(/\b[a-z][a-z0-9+.-]*:\/\/[^\s<>"']+/gi)]
+  // Exempt locations only AFTER specific secret rules. Quoting delimits spaces; unquoted spaces
+  // continue a path only with another separator, so an adjacent opaque token stays protected.
+  // Require a root boundary so a slash inside an opaque token cannot exempt that token, and a
+  // folder after the root so a bare "/" + token is not mistaken for a path.
+  const locations = [...base.text.matchAll(/\b[a-z][a-z0-9+.-]*:\/\/[^\s<>"']+|(["'`])(?:~\/|[a-z]:[\\/]|\\\\|\/)[^\r\n"'`\\/]+[\\/][^\r\n]*?\1|(?<![\w+\/=\\~.-])(?:~\/|[a-z]:[\\/]|\\\\|\/)[^\s<>"'`\\/]+[\\/][^\s<>"'`]*(?:[ \t]+[^\s<>"'`]*[\\/][^\s<>"'`]*)*/gi)]
     .map(match => ({ start: match.index!, end: match.index! + match[0].length }));
   let cleaned = base.text.replace(/(?<![A-Za-z0-9_+\/=-])[A-Za-z0-9_+\/=-]{40,}(?![A-Za-z0-9_+\/=-])/g, (candidate: string, offset: number) => {
-    if (urls.some(url => offset >= url.start && offset < url.end)) return candidate;
+    if (locations.some(location => offset >= location.start && offset < location.end)) return candidate;
     if (/^[a-f0-9]+$/i.test(candidate) || !/[A-Za-z]/.test(candidate)) return candidate;
     const bits = entropy(candidate);
     const mixedAlphabet = /[A-Z]/.test(candidate) && /[a-z]/.test(candidate);
