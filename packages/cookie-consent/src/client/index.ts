@@ -24,7 +24,7 @@ const quiet = (fn: () => void) => { try { fn(); } catch { /* a broken plugin or 
 export function createCookieConsent({ config, ports }: { config: ClientConfig; ports: ClientPorts }, options: ClientOptions = {}): JiniConsentApi {
   const { doc } = ports;
   const plugins = options.plugins ?? createPluginRegistry({}, { slots: [ADAPTER_SLOT] });
-  const durable = durableEvidence(options);
+  const durable = options.evidence?.mode === 'durable' ? options.evidence : null;
   const slots = new Map<string, Slot>();
   const listeners = new Set<(s: ConsentState) => void>();
   const ran = new Set<Optional>();                                    // categories whose raw inert tags executed
@@ -106,7 +106,9 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
     // Superseded in this tab, or another tab wrote a newer choice (adopt it): the late receipt is ignored.
     if (stored !== choice || adopt()) return;
     if (typeof out?.id !== 'string' || !RECEIPT_ID.test(out.id)) return; // failed: q stays, retried at the next boot
-    stored = { v: 1, p: choice.p, c: choice.c, t: choice.t, a: choice.a, r: out.id };
+    // Keep the choice intact, replacing its pending marker with the confirmed receipt.
+    stored = { ...choice, r: out.id };
+    delete stored.q;
     persist();
     apply();                                                            // the receipt is what lets durable grants run
   }
@@ -145,7 +147,7 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
     const latest = fromCookie();
     // A refused cookie write leaves only this tab's choice; absence cannot supersede it.
     if (!latest && !cookiePersisted) return false;
-    if (sameStoredChoice({ latest, stored })) return false;
+    if (latest?.t === stored?.t && latest?.a === stored?.a && latest?.r === stored?.r) return false;
     stored = latest;
     apply();
     return true;
@@ -163,17 +165,9 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
   config.plugins?.forEach(item => plugins.registerPlugin(item, { source: 'page' }));
   apply();
   doc.addEventListener('visibilitychange', () => { if (doc.visibilityState === 'visible') adopt(); });
-  doc.defaultView?.addEventListener('pageshow', () => adopt());
+  doc.defaultView?.addEventListener('pageshow', adopt);
   if (stored?.q && stored.p === config.policy) void confirm(stored);   // durable retry of an earlier failed receipt
   return api;
-}
-
-function sameStoredChoice({ latest, stored }: { latest: StoredChoice | null; stored: StoredChoice | null }): boolean {
-  return latest?.t === stored?.t && latest?.a === stored?.a && latest?.r === stored?.r;
-}
-
-function durableEvidence({ evidence }: ClientOptions, _optional = {}): Extract<Evidence, { mode: 'durable' }> | null {
-  return evidence?.mode === 'durable' ? evidence : null;
 }
 
 export function browserPorts(win: Window & typeof globalThis): ClientPorts {
@@ -201,15 +195,15 @@ export function boot(win: Window & typeof globalThis = window, { ports = browser
   const doc = win.document;
   const page = readPage(doc);
   if (!page) return undefined;
-  const { evidence, ...config } = page;
-  const api = createCookieConsent({ config, ports }, { evidence });
+  // The parsed page already satisfies ClientConfig; avoid copying it just to omit evidence.
+  const api = createCookieConsent({ config: page, ports }, { evidence: page.evidence });
   // Before boot the queue is a plain array; an already-replaced queue object has nothing left to drain.
   const queued = Array.isArray(win.jiniConsentQueue) ? (win.jiniConsentQueue as RawContribution[]) : [];
   win.jiniConsent = api;
   win.jiniConsentQueue = { push: (...items) => items.forEach(item => api.plugins.registerPlugin(item, { source: 'queue' })) };
   win.jiniConsentQueue.push(...queued);
   installOpeners({ api, doc });
-  if (config.banner === 'jini') bindBanner?.({ api, doc });
+  if (page.banner === 'jini') bindBanner?.({ api, doc });
   doc.dispatchEvent(new CustomEvent(READY_EVENT, { detail: api }));
   return api;
 }

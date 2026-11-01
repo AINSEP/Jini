@@ -110,7 +110,7 @@ export function bindBanner({ api, doc }: { api: JiniConsentApi; doc: Document })
     if (!waiting(s)) show(false);
   };
   root.addEventListener('click', event => {
-    const action = (event.target as Element).closest?.('[data-consent-action]')?.getAttribute('data-consent-action');
+    const action = (event.target as Element).closest?.<HTMLElement>('[data-consent-action]')?.dataset.consentAction;
     if (!action) return;
     event.preventDefault();
     void api.set({ action: action as ConsentAction }, { choices: readPicked(root) }).then(settle);

@@ -44,17 +44,12 @@ export function effective(
   { maxAgeMs = DEFAULT_MAX_AGE_MS, durable = false, anonymous = false }: { maxAgeMs?: number; durable?: boolean; anonymous?: boolean } = {},
 ): ConsentState {
   // Banner-off never revives an old identity or consent grant, even in an opt-out region.
-  const live = current({ stored, policy, nowMs, maxAgeMs, anonymous });
+  // Policy mismatch, future (beyond skew) and expired choices are all stale.
+  const live = !anonymous && stored && stored.p === policy && stored.t <= nowMs + SKEW_MS && nowMs - stored.t <= maxAgeMs ? stored : null;
   const choices = clamp({ flags: anonymous ? DENIED : live?.c ?? flags(region === 'opt-out'), gpc });
   const base = { contract: 1, policy, region, gpc, choices, ...permissionFor({ choices, live, durable, anonymous, gpc }) } as const;
   if (!live) return { ...base, status: 'pending', action: null, at: null, receipt: 'none' };
   return { ...base, status: 'set', action: live.a, at: live.t, receipt: receiptOf(live) };
-}
-
-/** Unparseable, future (beyond skew) and expired choices are all stale. @complexity O(1). */
-function current({ stored, policy, nowMs, maxAgeMs, anonymous }: { stored: StoredChoice | null; policy: string; nowMs: number; maxAgeMs: number; anonymous: boolean }): StoredChoice | null {
-  if (anonymous || !stored || stored.p !== policy) return null;
-  return stored.t <= nowMs + SKEW_MS && nowMs - stored.t <= maxAgeMs ? stored : null;
 }
 
 /** Runtime permissions differ from choices for anonymous delivery and unconfirmed durable grants.

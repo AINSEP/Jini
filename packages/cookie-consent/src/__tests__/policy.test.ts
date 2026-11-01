@@ -69,7 +69,11 @@ describe('effective', () => {
     expect(effective({ ...base, stored: choice({ p: 'p0' }) }).status).toBe('pending');
     expect(effective({ ...base, stored: choice({ t: NOW - 181 * DAY_MS }) }).status).toBe('pending');
     expect(effective({ ...base, stored: choice({ t: NOW - 2 * DAY_MS }) }, { maxAgeMs: DAY_MS }).status).toBe('pending');
+    expect(effective({ ...base, stored: choice({ t: NOW - DAY_MS }) }, { maxAgeMs: DAY_MS }).status).toBe('set');
+    expect(effective({ ...base, stored: choice({ t: NOW - DAY_MS - 1 }) }, { maxAgeMs: DAY_MS }).status).toBe('pending');
     expect(effective({ ...base, stored: choice({ t: NOW + 30_000 }) }).status).toBe('set');      // clock skew allowed
+    expect(effective({ ...base, stored: choice({ t: NOW + 60_000 }) }).status).toBe('set');
+    expect(effective({ ...base, stored: choice({ t: NOW + 60_001 }) }).status).toBe('pending');
     expect(effective({ ...base, stored: choice({ t: NOW + 120_000 }) }).status).toBe('pending');
   });
 });
