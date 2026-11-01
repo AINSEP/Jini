@@ -1531,7 +1531,7 @@ export const CHAT_PANE_STYLES = `
   flex: 1;
   min-width: 0;
 }
-.jini-chat-pane .op-expand-chev { flex-shrink: 0; color: var(--jini-chat-faint); }
+.jini-chat-pane .op-expand-chev { flex-shrink: 0; margin-left: auto; color: var(--jini-chat-faint); }
 /* Collapsed by default: 0 max-height clips the inner content, no display:none — keeps the height
    transition instead of an instant jump cut. */
 .jini-chat-pane .accordion-collapsible { max-height: 0; overflow: hidden; transition: max-height .15s ease; }
