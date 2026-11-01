@@ -380,3 +380,37 @@ test('discoverRoutes follows a chain of discovered routes once each, scanning ra
   assert.deepEqual(cappedReport.skippedManifestEntries.at(-1), { reason: 'discovered-route-cap', detail: '/missing-2000 (over 2000 discovered routes)' });
   assert.equal(cappedReport.routes.failed.length, 2000);
 });
+
+test('query variants claim a physical asset output once, including CSS font query tails', async () => {
+  const f = fixture();
+  const writes: string[] = [];
+  const originalWrite = f.args.writer.write;
+  f.args.writer.write = async (input) => { writes.push(input.outputFile); await originalWrite(input); };
+  const originalFetch = f.args.fetch;
+  f.args.fetch = async (input, options) => {
+    const url = new URL(input.url);
+    if (url.pathname === '/') return new Response('<link href="/assets/plain/main.css?v=1"><link href="/assets/plain/main.css?v=2">', { headers: { 'content-type': 'text/html' } });
+    if (url.pathname === '/assets/plain/main.css') return new Response('@font-face{src:url(font.bin?#iefix),url(font.bin?v=2)}', { headers: { 'content-type': 'text/css' } });
+    return originalFetch(input, options);
+  };
+  const report = await exportSite(f.args);
+  assert.deepEqual(report.assets.failed, []);
+  assert.deepEqual(report.assets.succeeded.map(asset => asset.outputFile), ['assets/plain/main.css', 'assets/plain/font.bin']);
+  assert.equal(writes.filter(file => file === 'assets/plain/main.css').length, 1);
+  assert.equal(writes.filter(file => file === 'assets/plain/font.bin').length, 1);
+});
+
+test('a failed query variant leaves its output available to a later successful variant', async () => {
+  const f = fixture();
+  const originalFetch = f.args.fetch;
+  f.args.fetch = async (input, options) => {
+    const url = new URL(input.url);
+    if (url.pathname === '/') return new Response('<link href="/assets/plain/main.css?v=1"><link href="/assets/plain/main.css?v=2">', { headers: { 'content-type': 'text/html' } });
+    if (url.pathname === '/assets/plain/main.css' && url.search === '?v=1') return new Response('missing', { status: 404 });
+    return originalFetch(input, options);
+  };
+  const report = await exportSite(f.args);
+  assert.deepEqual(report.assets.failed.map(asset => asset.url), ['/assets/plain/main.css?v=1']);
+  assert.deepEqual(report.assets.succeeded.filter(asset => asset.outputFile === 'assets/plain/main.css').map(asset => asset.url), ['/assets/plain/main.css?v=2']);
+  assert.equal(String(f.writes.get('assets/plain/main.css')), 'a{src:url(font.bin)}');
+});

@@ -22,6 +22,10 @@ export function declaredDependencies({ packageDir, fs }: { packageDir: string; f
 export function stageDir(required: { source: string; destination: string; fs: PackagingFilesystemPort }, optional: { dropNestedModules?: boolean } = {}): void {
   required.fs.copy({ from: required.source, to: required.destination }, optional);
 }
+/** Host policy selects runtime edges; the planner still owns resolution/version safety. */
+interface DependencyOptions {
+  dependencies?: (required: { packageDir: string; fs: PackagingFilesystemPort }) => readonly string[];
+}
 type PlannedPackage = { directory: string; version: string | undefined };
 function stagedPath(outDir: string, name: string): string { return path.join(outDir, 'node_modules', name); }
 function resolveDependency(required: { from: string; name: string; fs: PackagingFilesystemPort; resolver: PackageResolverPort }): string {
@@ -44,7 +48,7 @@ function assertFlattenable(required: { name: string; planned: PlannedPackage; ex
 }
 interface ClosurePlan {
   outDir: string; excluded: ReadonlySet<string>; fs: PackagingFilesystemPort; resolver: PackageResolverPort;
-  staged: Map<string, PlannedPackage>; visited: Set<string>; queue: string[];
+  staged: Map<string, PlannedPackage>; roots: ReadonlySet<string>; visited: Set<string>; queue: string[];
 }
 /** Add one declared dependency of `from` to the plan (validated, resolved, conflict-checked) and queue its directory once. */
 function planDependency(plan: ClosurePlan, required: { from: string; name: string }): void {
@@ -53,22 +57,27 @@ function planDependency(plan: ClosurePlan, required: { from: string; name: strin
   safePackageName(name);
   if (isExcluded({ name, excluded })) return;
   const directory = resolveDependency({ from, name, fs, resolver });
+  if (plan.roots.has(directory)) return;
   const planned = { directory, version: manifest(directory, fs).version };
   const existing = staged.get(name);
   assertFlattenable({ name, planned, existing, destination: stagedPath(outDir, name), fs });
   if (!existing) staged.set(name, planned);
   if (!visited.has(directory)) { visited.add(directory); queue.push(directory); }
 }
-/** Plan the production closure first. Fail unresolved/conflicting versions before copying anything. */
+/** Plan selected runtime edges before copying; unresolved/conflicting versions throw atomically.
+ * Supplied roots are already owned by the caller and are never copied through a back edge.
+ * @complexity O(packages + edges × ancestor depth) filesystem reads, O(packages) plan memory.
+ * @example stageTransitiveDependencies({ roots, outDir, excluded, fs, resolver });
+ */
 export function stageTransitiveDependencies(required: {
   roots: readonly string[]; outDir: string; excluded: ReadonlySet<string>; fs: PackagingFilesystemPort; resolver: PackageResolverPort;
-}): number {
+}, optional: DependencyOptions = {}): number {
   const { roots, outDir, fs } = required;
   const visited = new Set(roots.map(root => fs.realpath({ path: root })));
-  const plan: ClosurePlan = { ...required, staged: new Map(), visited, queue: [...visited] };
+  const plan: ClosurePlan = { ...required, staged: new Map(), roots: new Set(visited), visited, queue: [...visited] };
   for (let index = 0; index < plan.queue.length; index++) {
     const from = plan.queue[index]!;
-    for (const name of declaredDependencies({ packageDir: from, fs })) planDependency(plan, { from, name });
+    for (const name of (optional.dependencies ?? declaredDependencies)({ packageDir: from, fs })) planDependency(plan, { from, name });
   }
   let count = 0;
   for (const [name, entry] of plan.staged) {
@@ -88,20 +97,48 @@ export function stagedPackageDirs({ modulesDir, fs }: { modulesDir: string; fs: 
     return fs.entries({ path: full }).map(scoped => path.join(full, scoped)).filter(dir => fs.exists({ path: path.join(dir, PACKAGE_JSON) }));
   });
 }
-/** Check nested/hoisted dependencies only inside shipped modules; ancestors cannot fill gaps. */
-export function assertClosureComplete(required: { outDir: string; excluded: ReadonlySet<string>; fs: PackagingFilesystemPort }): void {
+/** Resolve a dependency using Node's ancestor search, bounded to the shipped modules tree.
+ * Symlinks escaping the payload cannot satisfy an edge. O(ancestor depth) filesystem probes.
+ */
+function shippedDependency({ directory, name, modulesDir, fs }: { directory: string; name: string; modulesDir: string; fs: PackagingFilesystemPort }, _optional = {}): boolean {
+  const candidates: string[] = [];
+  for (let current = directory; current.startsWith(modulesDir + path.sep); current = path.dirname(current)) candidates.push(path.join(current, 'node_modules', name));
+  const found = [...candidates, path.join(modulesDir, name)].find(candidate => fs.exists({ path: path.join(candidate, PACKAGE_JSON) }));
+  if (!found) return false;
+  const relative = path.relative(fs.realpath({ path: modulesDir }), fs.realpath({ path: found }));
+  return relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative);
+}
+
+/** Inventory every staged package, including nested scopes, and report missing declared edges.
+ * Hosts may select peers/optionals through the same policy seam as the staging planner.
+ * @returns Ordered package-to-dependency diagnostics, suitable for host-specific refusal messages.
+ * @throws Error if the staged modules tree is missing.
+ * @complexity O(packages + edges × ancestor depth) filesystem probes; O(packages + gaps) memory.
+ * @example missingClosureDependencies({ outDir, excluded, fs });
+ */
+export function missingClosureDependencies(required: { outDir: string; excluded: ReadonlySet<string>; fs: PackagingFilesystemPort }, optional: DependencyOptions = {}): string[] {
   const { outDir, excluded, fs } = required;
   const modulesDir = path.join(outDir, 'node_modules');
-  const missing: string[] = [];
   if (!fs.exists({ path: modulesDir })) throw new Error('staged node_modules tree is missing');
-  // Hoisted beside the package, or nested inside it: the only two places a shipped require can land.
-  const shipped = (directory: string, name: string) => fs.exists({ path: path.join(modulesDir, name, PACKAGE_JSON) }) || fs.exists({ path: path.join(directory, 'node_modules', name, PACKAGE_JSON) });
-  for (const directory of stagedPackageDirs({ modulesDir, fs })) {
-    for (const name of declaredDependencies({ packageDir: directory, fs })) {
+  const packages = stagedPackageDirs({ modulesDir, fs });
+  const missing: string[] = [], visited = new Set<string>();
+  // Inventory nested packages even when no top-level dependency happens to reference them.
+  for (const directory of packages) {
+    const real = fs.realpath({ path: directory });
+    if (visited.has(real)) continue;
+    visited.add(real);
+    packages.push(...stagedPackageDirs({ modulesDir: path.join(directory, 'node_modules'), fs }));
+    for (const name of (optional.dependencies ?? declaredDependencies)({ packageDir: directory, fs })) {
       safePackageName(name);
-      if (!isExcluded({ name, excluded }) && !shipped(directory, name)) missing.push(`${path.relative(modulesDir, directory)} -> ${name}`);
+      if (!isExcluded({ name, excluded }) && !shippedDependency({ directory, name, modulesDir, fs })) missing.push(`${path.relative(modulesDir, directory)} -> ${name}`);
     }
   }
+  return missing;
+}
+
+/** Refuse incomplete nested/hoisted closures; checkout ancestors cannot fill shipped gaps. */
+export function assertClosureComplete(required: { outDir: string; excluded: ReadonlySet<string>; fs: PackagingFilesystemPort }, optional: DependencyOptions = {}): void {
+  const missing = missingClosureDependencies(required, optional);
   if (missing.length) throw new Error(`staged tree is missing ${missing.length} declared dependencies:\n  ${missing.join('\n  ')}`);
 }
 /** Share the existing workspace build/pack/rewritten-tarball implementation via a host binding. */

@@ -137,3 +137,27 @@ test('archive adapter forwards the exact archive and host separator paths to the
   assert.deepEqual(archive.header({ archivePath: '/archive.asar' }), { files });
   assert.equal(archive.read({ archivePath: '/archive.asar', entryPath: String.raw`src\main.js` }), bytes);
 });
+
+test('staging accepts host-selected runtime edges and does not restage a supplied root through a cycle', () => fixture(root => {
+  const a = path.join(root, 'a'), b = path.join(a, 'node_modules/b'), outDir = path.join(root, 'out');
+  pkg(a, 'a'); pkg(b, 'b');
+  fs.mkdirSync(path.join(b, 'node_modules'), { recursive: true });
+  fs.symlinkSync(a, path.join(b, 'node_modules/a'));
+  const count = stageTransitiveDependencies({ roots: [a], outDir, excluded: new Set(), fs: filesystem, resolver }, {
+    dependencies: ({ packageDir }) => [packageDir === a ? 'b' : 'a'],
+  });
+  assert.equal(count, 1);
+  assert.equal(fs.existsSync(path.join(outDir, 'node_modules/b/package.json')), true);
+  assert.equal(fs.existsSync(path.join(outDir, 'node_modules/a')), false);
+}));
+
+test('declared closure audits nested packages without accepting checkout ancestor dependencies', () => fixture(root => {
+  const outDir = path.join(root, 'out');
+  pkg(path.join(outDir, 'node_modules/a'), 'a', { '@scope/b': '*' });
+  pkg(path.join(outDir, 'node_modules/a/node_modules/@scope/b'), '@scope/b', { missing: '*' });
+  pkg(path.join(root, 'node_modules/missing'), 'missing');
+  const input = { outDir, excluded: new Set<string>(), fs: filesystem };
+  assert.throws(() => assertClosureComplete(input), /a\/node_modules\/@scope\/b -> missing/);
+  pkg(path.join(outDir, 'node_modules/missing'), 'missing');
+  assert.doesNotThrow(() => assertClosureComplete(input));
+}));

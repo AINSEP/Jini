@@ -135,11 +135,12 @@ function assetFailureReason(required: { ctx: RunContext; url: string; error: unk
   const { ctx, url, error } = required;
   return error instanceof ExportPathError && ctx.args.assetPathFailureReason !== undefined ? ctx.args.assetPathFailureReason : failureReason(ctx, url, error);
 }
-/** Fetches one asset; a crawled stylesheet's children join the queue without further crawling. */
+/** Fetch one asset and queue its children, returning its physical output claim on success.
+ * Failed variants leave the destination available for another URL's retry. */
 async function fetchAndQueueAsset(
   { ctx, url, crawlCss, queue }: { ctx: RunContext; url: string; crawlCss: boolean; queue: { url: string; crawlCss: boolean }[] },
   out: { succeeded: ExportedAsset[]; failed: FailedAsset[] },
-): Promise<void> {
+): Promise<string | undefined> {
   const outcome = await fetchAsset({ ctx, url, crawlCss });
   if ('reason' in outcome) {
     out.failed.push({ url, reason: outcome.reason });
@@ -147,17 +148,21 @@ async function fetchAndQueueAsset(
   }
   out.succeeded.push(outcome.asset);
   for (const child of outcome.children) queue.push({ url: child, crawlCss: false });
+  return outcome.asset.outputFile;
 }
 async function writeAssets(ctx: RunContext, initial: readonly string[]): Promise<{ succeeded: ExportedAsset[]; failed: FailedAsset[] }> {
   const succeeded: ExportedAsset[] = [], failed: FailedAsset[] = [];
-  const seen = new Set<string>();
+  const seen = new Set<string>(), written = new Set<string>();
   const queue = initial.map(url => ({ url, crawlCss: true }));
   for (let index = 0; index < queue.length; index++) {
     const { url, crawlCss } = queue[index]!;
     if (seen.has(url)) continue;
     seen.add(url);
     try {
-      await fetchAndQueueAsset({ ctx, url, crawlCss, queue }, { succeeded, failed });
+      // Query/cache variants share one static filename; report exactly the file the writer owns.
+      if (written.has(outputFileForUrl({ url }))) continue;
+      const outputFile = await fetchAndQueueAsset({ ctx, url, crawlCss, queue }, { succeeded, failed });
+      if (outputFile !== undefined) written.add(outputFile);
     } catch (error) { failed.push({ url, reason: assetFailureReason({ ctx, url, error }) }); }
   }
   return { succeeded, failed };
