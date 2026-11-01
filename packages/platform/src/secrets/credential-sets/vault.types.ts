@@ -111,7 +111,7 @@ export interface VaultRepoPort {
 
 /** The record belongs to the query's exact workspace, kind, owner and principal; an omitted provider
  * matches every provider. @complexity O(1). */
-export function isInVaultQueryScope({ record, query }: { record: VaultRecord; query: VaultQuery }, _options: VaultOptions = {}): boolean {
+export function isInVaultQueryScope({ record, query }: { record: Pick<VaultRecord, keyof VaultQuery>; query: VaultQuery }, _options: VaultOptions = {}): boolean {
   const sameOwner = record.workspaceId === query.workspaceId && record.kind === query.kind && record.ownerKey === query.ownerKey;
   const sameProvider = query.provider === undefined || record.provider === query.provider;
   return sameOwner && record.principalId === query.principalId && sameProvider;

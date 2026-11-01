@@ -68,6 +68,7 @@ export function readRecordMeta({ meta }: { meta: unknown }): OAuthTokenRecordMet
  * re-pointed to another connection is refused on read. */
 export function buildTokenPayload(
   required: { key: string; owner: OAuthConnectionOwner; generation: number; tokens: OAuthTokenSet | null },
+  _options: Record<string, never> = {},
 ): VaultMeta {
   const { key, owner, generation, tokens } = required;
   return { format: OAUTH_TOKEN_RECORD_FORMAT, version: PAYLOAD_VERSION, key, generation,
@@ -101,6 +102,7 @@ export function parseTokenSet({ value }: { value: unknown }): OAuthTokenSet {
  * @throws `owner-mismatch` when it belongs elsewhere, `invalid-record` when malformed. */
 export function parseTokenPayload(
   required: { payload: unknown; key: string; owner: OAuthConnectionOwner },
+  _options: Record<string, never> = {},
 ): OAuthTokenPayload {
   const { payload, key, owner } = required;
   if (!isRecord(payload) || payload.format !== OAUTH_TOKEN_RECORD_FORMAT || payload.version !== PAYLOAD_VERSION) throw invalid();
