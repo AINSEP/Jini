@@ -2,6 +2,7 @@ import * as fs from "node:fs/promises";
 import { constants } from "node:fs";
 import path from "node:path";
 import { FOLDER_MAX_FILES, FOLDER_UNREADABLE, FolderZipError, zipFolderFiles } from "./folder-zip.js";
+import { isAgentPluginName } from './lifecycle/manifest.js';
 
 /** Code-unit order, independent of locale. */
 function compareCodeUnits(a: string, b: string): number {
@@ -65,6 +66,11 @@ async function collectDirectory(required: {
  * bounded to 4096 entries and maxBytes. No network I/O.
  */
 export async function zipLocalFolder(required: { path: string; maxBytes: number }, _optional: Record<string, never> = {}): Promise<Uint8Array> {
+  return encodeLocalFiles({ files: await collectLocalFiles(required), maxBytes: required.maxBytes });
+}
+
+/** Shared bounded, no-link directory reader for uploads and customized copies. No writes. */
+async function collectLocalFiles(required: { path: string; maxBytes: number }): Promise<File[]> {
   const collection: FolderCollection = { files: [], pending: [], entries: 0, total: 0 };
   try {
     const root = await fs.realpath(required.path);
@@ -76,9 +82,86 @@ export async function zipLocalFolder(required: { path: string; maxBytes: number 
     const { files } = collection;
     // Stable order gives repeat local-folder installs identical ZIP digests.
     files.sort((a, b) => compareCodeUnits(a.webkitRelativePath, b.webkitRelativePath));
-    return new Uint8Array(await (await zipFolderFiles({ files, maxBytes: required.maxBytes })).arrayBuffer());
+    return files;
   } catch (error) {
     if (error instanceof FolderZipError) throw error;
     throw new FolderZipError("unreadable", FOLDER_UNREADABLE);
   }
+}
+
+/** Encode through the upload owner, rechecking the byte budget after any transformation. */
+async function encodeLocalFiles({ files, maxBytes }: { files: readonly File[]; maxBytes: number }): Promise<Uint8Array> {
+  return new Uint8Array(await (await zipFolderFiles({ files, maxBytes })).arrayBuffer());
+}
+
+export interface CustomizeAgentPluginFolderInput {
+  readonly path: string;
+  readonly maxBytes: number;
+  readonly name: string;
+  readonly identityNamespace: string;
+  readonly edit: { readonly path: string; readonly oldString: string; readonly newString: string };
+}
+
+/** Replace captured bytes while preserving the upload encoder's relative path. */
+function replaceCapturedFile({ file, text }: { file: File; text: string }): File {
+  const next = new File([text], file.name);
+  Object.defineProperty(next, 'webkitRelativePath', { value: file.webkitRelativePath });
+  return next;
+}
+
+/** Non-UTF-8 or NUL-bearing bytes are binary; refuse them as a named error, not a decoder TypeError. */
+function decodeEditableText(bytes: Uint8Array): string {
+  let text: string;
+  try { text = new TextDecoder('utf-8', { fatal: true }).decode(bytes); } catch { text = '\0'; }
+  if (text.includes('\0')) throw new FolderZipError('unreadable', 'Binary files cannot be edited as text.');
+  return text;
+}
+
+/** Require exactly one literal match; `$&` and other replacement syntax remain plain text. */
+function customizeText({ text, edit }: { text: string; edit: CustomizeAgentPluginFolderInput['edit'] }): string {
+  if (!edit.oldString) throw new FolderZipError('unreadable', 'oldString must not be empty.');
+  const index = text.indexOf(edit.oldString);
+  if (index < 0 || text.indexOf(edit.oldString, index + edit.oldString.length) >= 0) {
+    throw new FolderZipError('unreadable', 'oldString must match exactly once. Read the file and send more context.');
+  }
+  return text.slice(0, index) + edit.newString + text.slice(index + edit.oldString.length);
+}
+
+/** A fork must not retain its publisher identity or historical aliases and supersession claims. */
+function customizeManifest({ text, name, identityNamespace }: { text: string; name: string; identityNamespace: string }): string {
+  const manifest = JSON.parse(text);
+  if (!isAgentPluginName({ value: name }) || manifest.name === name) {
+    throw new FolderZipError('unreadable', 'Choose a valid new Agent Plugin id different from the source.');
+  }
+  manifest.name = name;
+  const extension = manifest.extensions?.[identityNamespace];
+  if (extension) {
+    extension.id = `local/${name}`;
+    delete extension.renamedFrom;
+    delete extension.supersedes;
+  }
+  return JSON.stringify(manifest, null, 2) + '\n';
+}
+
+/**
+ * Fork a captured Agent Plugin package with one exact text edit and a fresh identity.
+ * Uses the folder upload reader/encoder; never writes into an immutable installed package.
+ * @param required Source folder, byte ceiling, new local id, host namespace and literal edit.
+ * @returns ZIP bytes for the existing upload preview/installer. Does not grant bundled trust.
+ * @throws {FolderZipError} Unsafe/missing paths, links, non-unique text, identity or size refusal.
+ * @complexity O(e log e + b) time and O(e + b) space, bounded by upload entry/byte ceilings.
+ * @example zipCustomizedAgentPluginFolder({ path, maxBytes, name: 'my-plugin', identityNamespace: 'host', edit })
+ */
+export async function zipCustomizedAgentPluginFolder(required: CustomizeAgentPluginFolderInput, _optional: Record<string, never> = {}): Promise<Uint8Array> {
+  const files = await collectLocalFiles(required);
+  // Match captured package paths, never join a model-supplied edit path onto the filesystem.
+  const target = files.findIndex(file => file.webkitRelativePath === `folder/${required.edit.path}`);
+  const manifest = files.findIndex(file => file.webkitRelativePath === 'folder/plugin.json');
+  if (target < 0 || manifest < 0 || target === manifest) {
+    throw new FolderZipError('unreadable', 'Choose an existing package-relative text file other than plugin.json.');
+  }
+  const text = decodeEditableText(new Uint8Array(await files[target]!.arrayBuffer()));
+  files[target] = replaceCapturedFile({ file: files[target]!, text: customizeText({ text, edit: required.edit }) });
+  files[manifest] = replaceCapturedFile({ file: files[manifest]!, text: customizeManifest({ text: await files[manifest]!.text(), name: required.name, identityNamespace: required.identityNamespace }) });
+  return encodeLocalFiles({ files, maxBytes: required.maxBytes });
 }
