@@ -427,6 +427,13 @@ export const CHAT_PANE_STYLES = `
   border-radius: 8px;
   font-size: 12px;
 }
+.jini-chat-pane__status--dismissible {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.jini-chat-pane__status--dismissible > button { flex: none; }
 .jini-chat-pane__drop-target {
   position: relative;
   margin: -8px -8px -8px;

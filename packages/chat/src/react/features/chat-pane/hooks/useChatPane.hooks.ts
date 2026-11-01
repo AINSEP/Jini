@@ -87,8 +87,10 @@ export interface UseChatPaneOptions extends UserTextRedactionOptions {
 }
 
 export interface UseChatPaneResult extends UseChatPaneWorkingDirectoryResult {
-  /** Show a localized non-secret notice when a paste was removed. */
+  /** Show a localized non-secret notice when a paste was removed. Cleared by the next send or {@link dismissSecretRedacted}. */
   secretRedacted: boolean;
+  /** Hides the redaction notice. */
+  dismissSecretRedacted: () => void;
   conversation: UseConversationResult;
   composer: UseComposerResult;
   selection: ChatPaneAgentSelection;
@@ -928,6 +930,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     const prompt = composerPrompt(composer) || (uploadingWhileStreaming ? ATTACHMENTS_ONLY_PROMPT : '');
     if (!prompt || composerDeliveryBlocked({ delivering: deliveringTypedAnswerRef.current, starting: startingPromptRef.current, composer, submitted: submittedComposerRef.current })) return;
     setTypedAnswerNotice(null);
+    guard.clearNotice();
     // Until upload completes, an empty attachment list is not evidence of a text-only answer.
     if (uploadingWhileStreaming) {
       await sendOrdinaryTurn(prompt);
@@ -949,6 +952,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     composer,
     conversation.isStreaming,
     conversation.messages,
+    guard.clearNotice,
     options.deliverTypedAnswer,
     sendBlocker,
     sendOrdinaryTurn,
@@ -968,16 +972,18 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     const prompt = composerPrompt(composer);
     if (!prompt || composerDeliveryBlocked({ delivering: deliveringTypedAnswerRef.current, starting: startingPromptRef.current, composer, submitted: submittedComposerRef.current })) return;
     setTypedAnswerNotice(null);
+    guard.clearNotice();
     await sendOrdinaryTurn(prompt);
-  }, [composer, sendOrdinaryTurn]);
+  }, [composer, guard.clearNotice, sendOrdinaryTurn]);
 
   const interruptSend = useCallback(() => {
     const prompt = composerPrompt(composer);
     if (!prompt || composerDeliveryBlocked({ delivering: deliveringTypedAnswerRef.current, starting: startingPromptRef.current, composer, submitted: submittedComposerRef.current })) return;
+    guard.clearNotice();
     enqueueTurn({ turn: guard.redact({ text: prompt }, {}) });
     composer.setDraft('');
     conversation.cancel();
-  }, [composer, conversation, enqueueTurn, guard.redact]);
+  }, [composer, conversation, enqueueTurn, guard.clearNotice, guard.redact]);
 
   /** Abort only uploads owned by the removed inputs; late completions must not refill the composer. */
   const discardQueuedUploads = useCallback(({ id }: { id?: string }, _options = {}) => {
@@ -1048,6 +1054,7 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     composer.reset();
     setAttachmentError(null);
     setTypedAnswerNotice(null);
+    guard.clearNotice();
     typedAnswerGenerationRef.current += 1;
     // Without this, a prompt queued behind a streaming run survives `reset()` and — once
     // `conversation.cancel()` above clears the streaming blocker — the flush effect fires it into
@@ -1057,10 +1064,11 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     queuedUploadOwnersRef.current.clear();
     setQueuedInputs([]);
     refusedSendRef.current = null;
-  }, [composer, conversation, options.initialMessages]);
+  }, [composer, conversation, guard.clearNotice, options.initialMessages]);
 
   return {
     secretRedacted: guard.secretRedacted,
+    dismissSecretRedacted: guard.clearNotice,
     conversation,
     composer,
     selection,

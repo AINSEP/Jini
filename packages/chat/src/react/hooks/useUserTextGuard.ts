@@ -14,5 +14,7 @@ export function useUserTextGuard(options: UserTextRedactionOptions, _optional: R
     return result;
   }, [options.redactUserText, notifyRedaction]);
   const redactText = useCallback((text: string) => redact({ text }, {}).text, [redact]);
-  return { secretRedacted, redact, redactText, notifyRedaction };
+  /** The notice is about one message: the pane clears it when the person sends the next one (a key in that one sets it again) or dismisses it. */
+  const clearNotice = useCallback(() => setSecretRedacted(false), []);
+  return { secretRedacted, redact, redactText, notifyRedaction, clearNotice };
 }

@@ -863,7 +863,12 @@ export function ChatPane(props: ChatPaneProps) {
           {showsControlsSuggestions(surface.embed, pane.conversation.messages.length, p.emptyState) && (
             <ChatPaneSuggestionsRow suggestions={p.suggestions} onSelect={selectSuggestion} t={t} />
           )}
-          {pane.secretRedacted ? <div className="jini-chat-pane__notice" role="status">{t(SECRET_REDACTED_NOTICE)}</div> : null}
+          {pane.secretRedacted ? (
+            <div className="jini-chat-pane__status jini-chat-pane__status--dismissible" role="status">
+              <span>{t(SECRET_REDACTED_NOTICE)}</span>
+              <button type="button" className="jini-chat-pane__error-action" onClick={pane.dismissSecretRedacted}>{t('Dismiss')}</button>
+            </div>
+          ) : null}
           <ChatPaneStatusMessages
             unavailable={unavailable}
             scanningAgents={runtimeView.scanningAgents}

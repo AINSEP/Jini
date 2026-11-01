@@ -25,7 +25,7 @@ describe('ChatPane secret redaction notice', () => {
 
     await waitFor(() => expect(transport.calls).toHaveLength(1));
     expect(transport.calls[0]?.input.history.at(-1)?.content).toBe('deploy with key:[removed]');
-    expect(await screen.findByText(SECRET_REDACTED_NOTICE)).toHaveAttribute('role', 'status');
+    expect((await screen.findByText(SECRET_REDACTED_NOTICE)).closest('[role="status"]')).not.toBeNull();
     expect(onSecretRedacted).toHaveBeenCalledWith({ secretRedacted: true, count: 1 });
     act(() => transport.finish([]));
   });
