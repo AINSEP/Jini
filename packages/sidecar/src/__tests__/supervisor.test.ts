@@ -286,6 +286,51 @@ test("ensureReady times out at 30 seconds while discovery remains unready", asyn
   assert.equal(h.supervisor.isReady(), false);
 });
 
+test("a slow daemon becomes ready in the background after the request deadline without another demand or respawn", async () => {
+  const h = readyHarness();
+  try {
+    const pending = h.supervisor.ensureReady({}, {});
+    const rejected = assert.rejects(pending, /readiness timed out/);
+    await h.tick(30_000); await rejected;
+    assert.equal(h.supervisor.isReady(), false);
+    h.ready(100);
+    await h.tick();
+    assert.equal(h.supervisor.isReady(), true, "a timed-out request must not stop discovery of the still-live daemon");
+    assert.equal(h.children.length, 1, "load is not a reason to replace a healthy process");
+    await h.supervisor.ensureReady({}, {});
+  } finally { h.supervisor.shutdown(); }
+});
+
+test("shutdown cancels background readiness after a timed-out request", async () => {
+  let reads = 0;
+  const h = readyHarness({ probe: async () => { reads += 1; return false; } });
+  const pending = h.supervisor.ensureReady({}, {});
+  const rejected = assert.rejects(pending, /readiness timed out/);
+  await h.tick(30_000); await rejected;
+  h.supervisor.shutdown();
+  const before = reads;
+  await h.tick(60_000);
+  assert.equal(reads, before);
+  assert.equal(h.supervisor.isReady(), false);
+});
+
+test("a second demand after timeout shares an outstanding slow discovery read", async () => {
+  let reads = 0;
+  let complete!: (ready: boolean) => void;
+  const discovery = new Promise<boolean>(resolve => { complete = resolve; });
+  const h = readyHarness({ probe: () => { reads += 1; return discovery; } });
+  try {
+    const first = h.supervisor.ensureReady({}, {});
+    const rejected = assert.rejects(first, /readiness timed out/);
+    await h.tick(30_000); await rejected;
+    const second = h.supervisor.ensureReady({}, {});
+    assert.equal(reads, 1, "new demand must not start overlapping discovery I/O");
+    complete(true); await second;
+    assert.equal(h.supervisor.isReady(), true);
+    assert.equal(h.children.length, 1);
+  } finally { h.supervisor.shutdown(); }
+});
+
 test("ensureReady: a caller abort does not cancel another waiter; shutdown prevents resurrection", async () => {
   const h = readyHarness();
   const controller = new AbortController();

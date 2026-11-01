@@ -90,6 +90,7 @@ export function createDaemonSupervisor(deps: DaemonSupervisorRequired, options: 
   let lastOnDemandAttemptAt: number | undefined;
   let readyChild: ChildState | undefined;
   let readyWork: Promise<void> | undefined;
+  let discoveryWork: Promise<void> | undefined;
   let cancelReadiness: (() => void) | undefined;
 
   function isCurrentLive({ candidate }: { candidate: ChildState | undefined }): boolean {
@@ -100,17 +101,16 @@ export function createDaemonSupervisor(deps: DaemonSupervisorRequired, options: 
     return readyChild !== undefined && isCurrentLive({ candidate: readyChild });
   }
 
-  /** One deadline covers discovery and scheduled crash retries; never re-enter the demand cooldown.
+  /** Discovery outlives individual request deadlines; never re-enter the demand cooldown.
    * O(1) state and at most one discovery read per 250ms, excluding the injected read itself. */
   function waitForReady(): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       let settled = false;
       let cancelPoll: (() => void) | undefined;
-      const cancelDeadline = deps.scheduler.schedule({ delayMs: 30_000, run: () => finish(new Error("daemon readiness timed out")) });
       cancelReadiness = () => finish(new Error("shutting down"));
       function finish(error?: Error): void {
         if (settled) return;
-        settled = true; cancelPoll?.(); cancelDeadline(); cancelReadiness = undefined;
+        settled = true; cancelPoll?.(); cancelReadiness = undefined;
         if (error) reject(error); else resolve();
       }
       async function poll(): Promise<void> {
@@ -121,7 +121,7 @@ export function createDaemonSupervisor(deps: DaemonSupervisorRequired, options: 
             const discovered = await deps.readiness!.isReady({ pid: candidate.child.pid });
             // The read may have crossed an exit/replacement or terminal shutdown.
             if (discovered && !settled && isCurrentLive({ candidate })) {
-              readyChild = candidate; finish(); return;
+              readyChild = candidate; deps.failureReporter.clear(); finish(); return;
             }
           }
         } catch { /* Missing or partly-published discovery is not readiness; keep waiting. */ }
@@ -139,7 +139,10 @@ export function createDaemonSupervisor(deps: DaemonSupervisorRequired, options: 
     if (!readyWork) {
       const start = supervisor.ensureStarted();
       if (!start.ok) return Promise.reject(new Error(start.reason));
-      readyWork = waitForReady().finally(() => { readyWork = undefined; });
+      // A slow healthy child must keep being discovered after an HTTP caller gives up.
+      // Share the monitor across subsequent demands; only shutdown cancels background polling.
+      discoveryWork ??= waitForReady().finally(() => { discoveryWork = undefined; });
+      readyWork = readinessDeadline({ work: discoveryWork, scheduler: deps.scheduler }).finally(() => { readyWork = undefined; });
     }
     return signal ? awaitForCaller({ work: readyWork, signal }) : readyWork;
   }
@@ -270,6 +273,14 @@ export function createDaemonSupervisor(deps: DaemonSupervisorRequired, options: 
     },
   };
   return supervisor;
+}
+
+/** Bound demand waits without cancelling shared discovery. O(1) timers and handlers per wait. */
+function readinessDeadline({ work, scheduler }: { work: Promise<void>; scheduler: SupervisorScheduler }, _options = {}): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const cancel = scheduler.schedule({ delayMs: 30_000, run: () => reject(new Error("daemon readiness timed out")) });
+    work.then(() => { cancel(); resolve(); }, error => { cancel(); reject(error); });
+  });
 }
 
 /** Cancellation belongs to one caller; it cannot cancel another caller's startup. */
