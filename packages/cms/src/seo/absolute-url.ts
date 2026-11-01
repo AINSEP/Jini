@@ -64,11 +64,20 @@ function isAbsoluteUrl(value: string): boolean {
  *   always starts with exactly one `/` (the root case is the literal string `"/"`, never `""`), and
  *   {@link originBaseUrl} never ends in one, so plain concatenation cannot produce `//`.
  *
- * @complexity O(1).
+ * @param required.baseUrl - Serving/deploy address for this render only; never verified security evidence.
+ * @complexity O(URL bytes), pure; invalid render base URLs throw.
  */
-export function toAbsoluteUrl(required: { origin: VerifiedOrigin | undefined; path: string }, _optional: Record<string, never> = {}): string {
+export function toAbsoluteUrl(required: { origin: VerifiedOrigin | undefined; path: string; baseUrl?: string | undefined }, _optional: Record<string, never> = {}): string {
   const { origin, path } = required;
-  if (isAbsoluteUrl(path)) return path;
+  if (isAbsoluteUrl(path)) return required.baseUrl && path.startsWith("//") ? new URL(path, required.baseUrl).href : path;
+  // A serving address is render data, never new redirect/egress trust or persisted identity.
+  if (required.baseUrl) {
+    const base = new URL(required.baseUrl);
+    const prefix = base.pathname.replace(/\/$/, "");
+    // Routing can already include the project prefix; do not prepend it a second time.
+    const suffix = path === prefix || path.startsWith(prefix + "/") ? path : prefix + path;
+    return base.origin + suffix;
+  }
   if (!origin) return path;
   return `${originBaseUrl(origin)}${path}`;
 }

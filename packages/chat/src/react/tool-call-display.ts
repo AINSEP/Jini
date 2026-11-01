@@ -43,19 +43,48 @@ function toolIdentity(row: ToolDisplayRow): string {
   return typeof toolId === 'string' && toolId ? toolId : row.name;
 }
 
+/** Prefer a stable id over editable slugs/paths; normalize input aliases within each kind.
+ * @complexity O(target bytes), fixed field count; pure, absent coordinates return undefined.
+ */
+function targetCoordinate({ input }: { input: Record<string, unknown> }, _options = {}): readonly unknown[] | undefined {
+  const kinds = [
+    ['id', ['postId', 'post_id', 'pageId', 'page_id', 'entryId', 'entry_id', 'id']],
+    ['slug', ['slug']],
+    ['path', ['path', 'filePath', 'file_path']],
+  ] as const;
+  for (const [kind, fields] of kinds) {
+    const field = fields.find(key => typeof input[key] === 'number' || (typeof input[key] === 'string' && input[key] !== ''));
+    if (field !== undefined) return [kind, input[field]];
+  }
+  return undefined;
+}
+
+/** Target coordinates only: corrected content must not prevent a retry from matching.
+ * Wrapper inputs belong to the delegated tool, whose identity toolIdentity already resolves.
+ * @complexity O(target bytes); the coordinate list is fixed. Pure, with no input mutation.
+ */
+function retryIdentity({ row }: { row: ToolDisplayRow }, _options = {}): string {
+  const input = row.use?.input;
+  const record = typeof input === 'object' && input !== null ? input as Record<string, unknown> : {};
+  const target = isDelegatedWrapperToolName({ name: row.name }) ? record.input : record;
+  const coordinates = typeof target === 'object' && target !== null ? target as Record<string, unknown> : {};
+  return JSON.stringify([toolIdentity(row), targetCoordinate({ input: coordinates })]);
+}
+
 /**
- * Ids of failed rows that a LATER successful call of the same tool retried (owner, 2026-10-31: a
+ * Ids of failed rows that a LATER successful call of the same tool and target retried (owner, 2026-10-31: a
  * red "HTTP 400 … page was NOT written" row and "· 2 failed" stayed on screen after the immediate
  * retry wrote the page). Those rows render as a neutral "Retried" and are not counted as failed;
- * a failure nothing later succeeded at stays red. Pass one turn's rows.
- * @complexity O(n) in rows.
+ * a failure nothing later succeeded at stays red. Inputs without target coordinates match by
+ * tool alone; a targetless success cannot clear a failure naming a target. Pass one turn's rows.
+ * @complexity O(n + target bytes) time and space.
  */
-export function retriedToolRowIds({ rows }: { rows: readonly ToolDisplayRow[] }): ReadonlySet<string> {
+export function retriedToolRowIds({ rows }: { rows: readonly ToolDisplayRow[] }, _options = {}): ReadonlySet<string> {
   const succeededLater = new Set<string>();
   const retried = new Set<string>();
   for (let i = rows.length - 1; i >= 0; i -= 1) {
     const row = rows[i]!;
-    const tool = toolIdentity(row);
+    const tool = retryIdentity({ row });
     if (row.status === 'complete') succeededLater.add(tool);
     else if (isFailedToolRow({ row }) && succeededLater.has(tool)) retried.add(row.id);
   }

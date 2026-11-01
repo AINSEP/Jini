@@ -3,7 +3,7 @@ import { cssUrlTokens } from './css-urls.js';
 
 type Node = DefaultTreeAdapterMap['node'];
 type Element = DefaultTreeAdapterMap['element'];
-export interface HtmlUrlLocation { start: number; end: number; kind: 'url' | 'srcset' | 'css' | 'action'; attribute?: string }
+export interface HtmlUrlLocation { start: number; end: number; kind: 'url' | 'srcset' | 'css' | 'action'; attribute?: string; identity?: boolean }
 const URL_ATTRIBUTES: ReadonlySet<string> = new Set(['src', 'href', 'poster']);
 
 /** The exact attribute value range, preserving quotes, spacing and all surrounding source bytes. */
@@ -45,6 +45,14 @@ function styleLocations({ element }: { element: Element }, _optional = {}): Html
     ? [{ start: child.sourceCodeLocation.startOffset, end: child.sourceCodeLocation.endOffset, kind: 'css' as const }] : []);
 }
 
+/** Canonical identity and feed discovery must remain absolute when a download relocates files. */
+function isIdentityLink({ element }: { element: Element }, _optional = {}): boolean {
+  if (element.tagName !== 'link') return false;
+  const rel = element.attrs.find(attr => attr.name === 'rel')?.value.toLowerCase().split(/\s+/) ?? [];
+  const type = element.attrs.find(attr => attr.name === 'type')?.value.toLowerCase();
+  return rel.includes('canonical') || (rel.includes('alternate') && (type === 'application/rss+xml' || type === 'application/atom+xml'));
+}
+
 /** Collect one element's real URL/style positions, excluding lookalike strings in text and scripts. */
 function elementLocations({ element, html }: { element: Element; html: string }, _optional = {}): HtmlUrlLocation[] {
   const locations: HtmlUrlLocation[] = [];
@@ -53,7 +61,7 @@ function elementLocations({ element, html }: { element: Element; html: string },
     const source = element.sourceCodeLocation?.attrs?.[attr.name];
     if (!kind || !source) continue;
     const location = attributeLocation({ html, start: source.startOffset, end: source.endOffset, kind });
-    if (location) locations.push({ ...location, attribute: attr.name });
+    if (location) locations.push({ ...location, attribute: attr.name, ...(isIdentityLink({ element }) ? { identity: true } : {}) });
   }
   locations.push(...styleLocations({ element }));
   return locations;

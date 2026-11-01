@@ -1,22 +1,7 @@
 import { trimCharsEnd } from '@jini-ai/core/primitives';
 import { hasForbiddenRawUrlCharacter } from "./origin.js";
 import { createVerifiedOrigin, type VerifiedOrigin } from "./types.js";
-
-/**
- * Loopback (including *.localhost and 127.0.0.0/8) cannot represent a public deployment. Rejecting
- * it also prevents a shared public-URL setting from overriding development TLS-derived schemes
- * with a workspace-setting HTTPS origin on a server that only answers HTTP.
- * Private network ranges remain valid: intranet deployments can legitimately use private hosts.
- */
-const LOOPBACK_HOSTS = new Set(["localhost", "0.0.0.0", "::1", "[::1]", "::", "[::]"]);
-
-const LOOPBACK_IPV4 = /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/;
-
-function isLoopbackHost(host: string): boolean {
-  if (LOOPBACK_HOSTS.has(host)) return true;
-  if (host.endsWith(".localhost")) return true;
-  return LOOPBACK_IPV4.test(host);
-}
+import { isLoopbackHost } from "./loopback-host.js";
 
 // Match candidate-origin normalization so a trailing DNS dot has one meaning across decisions.
 function normalizeHost(hostname: string): string {
@@ -44,7 +29,7 @@ function refusalReason(url: URL): string | null {
 
   const host = normalizeHost(url.hostname);
   if (host === "") return "its host is empty";
-  if (isLoopbackHost(host)) return `'${host}' is a loopback host, not a public origin`;
+  if (isLoopbackHost({ host })) return `'${host}' is a loopback host, not a public origin`;
   return null;
 }
 

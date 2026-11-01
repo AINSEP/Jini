@@ -1,4 +1,5 @@
 import type { HeadElement, PageHeadContext, PageHeadEntryRef, SeoMeta } from "./types.js";
+import { toAbsoluteUrl } from "./absolute-url.js";
 import { FEED_PATH } from "./feed.js";
 import { getEntryMeta, type GetEntryMetaDeps } from "./seo.js";
 
@@ -69,11 +70,10 @@ function buildBreadcrumbJsonLd(ancestors: PageHeadEntryRef["ancestors"]): HeadEl
   };
 }
 
-/** RSS auto-discovery (`features/seo/feed.ts`), on every page. Root-relative, so a static export's
- *  base-path rewrite prefixes it like any other site link. Priority 125: after canonical, before
- *  robots. */
-function feedAlternateLink(siteTitle: string): HeadElement {
-  return { kind: "link", rel: "alternate", type: "application/rss+xml", title: siteTitle, href: FEED_PATH, priority: 125 };
+/** RSS discovery uses the same serving base as canonical and XML documents.
+ * Legacy non-render callers retain their relative fallback. Priority 125 precedes robots. */
+function feedAlternateLink(siteTitle: string, baseUrl?: string): HeadElement {
+  return { kind: "link", rel: "alternate", type: "application/rss+xml", title: siteTitle, href: toAbsoluteUrl({ origin: undefined, path: FEED_PATH, baseUrl }), priority: 125 };
 }
 
 /** Builds SEO's own `PageHeadHook`, closing over the deps `getEntryMeta` needs.
@@ -95,7 +95,7 @@ export async function buildHeadElements(required: {
     return [
       { kind: "title", text: ctx.siteTitle, priority: 100 },
       { kind: "link", rel: "canonical", href: ctx.canonicalUrl, priority: 120 },
-      feedAlternateLink(ctx.siteTitle),
+      feedAlternateLink(ctx.siteTitle, deps.renderBaseUrl),
     ];
   }
 
@@ -110,7 +110,7 @@ export async function buildHeadElements(required: {
     elements.push({ kind: "meta", name: "description", content: resolved.description, priority: 110 });
   }
   elements.push({ kind: "link", rel: "canonical", href: resolved.canonical, priority: 120 });
-  elements.push(feedAlternateLink(ctx.siteTitle));
+  elements.push(feedAlternateLink(ctx.siteTitle, deps.renderBaseUrl));
   elements.push({
     kind: "meta",
     name: "robots",

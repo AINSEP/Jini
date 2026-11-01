@@ -119,15 +119,15 @@ function isPublicCandidate(required: { deps: SeoSitemapDeps; post: PostRecord; n
  * local origin (INV-07), consistent with `getEntryMeta`'s own fallback.
  */
 export async function buildRobots(
-  required: { deps: { settings: SeoSettingsReaderPort; originRegistry: OriginRegistryPort; runtimeMode: string }; input: { workspaceId: UUID } },
+  required: { deps: { settings: SeoSettingsReaderPort; originRegistry: OriginRegistryPort; runtimeMode: string; renderBaseUrl?: string | undefined }; input: { workspaceId: UUID } },
   _optional: Record<string, never> = {}
 ): Promise<RobotsPolicy> {
   const { deps, input } = required;
   const settings = await deps.settings.getSeoSettings({ workspaceId: input.workspaceId });
-  const origin = await resolveWorkspaceOrigin({ originRegistry: deps.originRegistry, workspaceId: input.workspaceId, runtimeMode: deps.runtimeMode });
+  const origin = deps.renderBaseUrl ? undefined : await resolveWorkspaceOrigin({ originRegistry: deps.originRegistry, workspaceId: input.workspaceId, runtimeMode: deps.runtimeMode });
   return {
     rules: settings.robotsRules,
-    sitemapUrls: settings.sitemapEnabled ? [toAbsoluteUrl({ origin, path: "/sitemap.xml" })] : [],
+    sitemapUrls: settings.sitemapEnabled ? [toAbsoluteUrl({ origin, baseUrl: deps.renderBaseUrl, path: "/sitemap.xml" })] : [],
   };
 }
 
@@ -219,23 +219,23 @@ export function createSitemapService(required: { deps: SeoSitemapDeps }, _option
     return entries;
   }
 
-  async function computeSitemapEntries(workspaceId: UUID, nowIso: string): Promise<SitemapEntry[]> {
+  async function computeSitemapEntries(workspaceId: UUID, nowIso: string, renderDeps = deps): Promise<SitemapEntry[]> {
     // `meta.canonical` is absolute when the workspace has a verified origin (2026-09-03 fix,
     // `getEntryMeta`'s own `resolveCanonical`) — sitemap `loc` entries are required to be absolute
     // by the sitemap protocol, same requirement `og:url` has. Falls back to the bare relative path
     // for the same disclosed no-origin degradation `getEntryMeta` documents; unchanged from before
     // this fix for a workspace with no verified origin yet.
-    const entries: SitemapEntry[] = (await computeIndexableEntries({ deps, input: { workspaceId, nowIso } })).map(({ post, meta }) => ({
+    const entries: SitemapEntry[] = (await computeIndexableEntries({ deps: renderDeps, input: { workspaceId, nowIso } })).map(({ post, meta }) => ({
       loc: meta.canonical,
       lastmod: post.updatedAt,
     }));
 
     for (const hook of [...sitemapCollectHooks].sort((a, b) => a.priority - b.priority)) {
-      const collected = await hook.handle({ workspaceId, baseUrl: "" });
+      const collected = await hook.handle({ workspaceId, baseUrl: renderDeps.renderBaseUrl ?? "" });
       entries.push(...collected);
     }
 
-    return entries;
+    return renderDeps.renderBaseUrl ? entries.map(entry => ({ ...entry, loc: toAbsoluteUrl({ origin: undefined, baseUrl: renderDeps.renderBaseUrl, path: entry.loc }) })) : entries;
   }
 
   /**
@@ -243,7 +243,9 @@ export function createSitemapService(required: { deps: SeoSitemapDeps }, _option
    * when empty (EC-04). Never includes a non-published or effective-`noindex`
    * entry (INV-04/05).
    */
-  async function buildSitemap(input: { workspaceId: UUID }, _optional: Record<string, never> = {}): Promise<SitemapEntry[]> {
+  async function buildSitemap(input: { workspaceId: UUID }, optional: { renderBaseUrl?: string | undefined } = {}): Promise<SitemapEntry[]> {
+    // Cached workspace URLs cannot cross serving contexts. Reuse the same collector with scoped deps.
+    if (optional.renderBaseUrl) return computeSitemapEntries(input.workspaceId, deps.clock.nowIso(), { ...deps, renderBaseUrl: optional.renderBaseUrl });
     const key = cacheKey(input.workspaceId);
     const cached = sitemapCache.get(key);
     const expiry = sitemapExpiry.get(key);

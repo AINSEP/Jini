@@ -86,6 +86,8 @@ export interface GetEntryMetaDeps {
   media: ResolveSeoImageRefDeps;
   /** Host-owned share-card variant; omitted preserves persisted transform choices. */
   shareImageTransform?: string | undefined;
+  /** Request/destination base URL, scoped to one render; never persisted as workspace identity. */
+  renderBaseUrl?: string | undefined;
   originRegistry: OriginRegistryPort;
   runtimeMode: string;
   urls: SeoUrlsPort;
@@ -102,14 +104,11 @@ export interface GetEntryMetaInput {
 
 type ResolvedSeoSettings = Awaited<ReturnType<SeoSettingsReaderPort["getSeoSettings"]>>;
 
-/** canonical: override (accepted cross-domain as-is, EC-10) > routing-resolved > bare path — then
- *  joined onto the workspace's verified origin ({@link toAbsoluteUrl}) so the result is always an
- *  absolute URL. A relative override (an author who typed `/pricing` rather than a full URL) is
- *  absolutized the same way; an already-absolute override (the intended EC-10 case) passes through
- *  {@link toAbsoluteUrl} unchanged. No local origin is ever invented (INV-07's real intent — the
- *  origin comes only from `OriginRegistryPort`, never a guess): with no verified origin registered
- *  yet, `origin` is `undefined` and this degrades to the bare relative path, same as before this
- *  fix existed. */
+/** Canonical: explicit override (including cross-domain, EC-10), routing, then the post path.
+ * The host's serving/deploy base joins relative paths for this render; it never changes security
+ * evidence. Non-render callers retain the verified-workspace fallback and disclose relative paths
+ * when neither context is available. One URL join keeps canonical, OG, sitemap and feed aligned.
+ */
 async function resolveCanonical(
   deps: GetEntryMetaDeps,
   post: PostRecord,
@@ -121,7 +120,7 @@ async function resolveCanonical(
     target: { kind: "entryRef", entryId: post.id, contentType: post.kind },
     ctx: { workspaceId },
   });
-  return toAbsoluteUrl({ origin, path: overrides.canonical ?? routed?.canonicalUrl ?? deps.urls.postPublicPath({ slug: post.slug }) });
+  return toAbsoluteUrl({ origin, baseUrl: deps.renderBaseUrl, path: overrides.canonical ?? routed?.canonicalUrl ?? deps.urls.postPublicPath({ slug: post.slug }) });
 }
 
 /** robots: override > site default > derived (draft-safety fallback for noindex, EC-11). */
@@ -191,8 +190,8 @@ async function resolveShareImages(
   const ogImageResolved = await firstResolvedImage(deps, workspaceId, overrides.ogImage ? [overrides.ogImage] : fallbacks);
   const twitterImageResolved = overrides.twitterImage ? await firstResolvedImage(deps, workspaceId, [overrides.twitterImage]) : ogImageResolved;
   return {
-    ogImage: ogImageResolved ? { ...ogImageResolved, url: toAbsoluteUrl({ origin, path: ogImageResolved.url }) } : undefined,
-    twitterImage: twitterImageResolved ? { ...twitterImageResolved, url: toAbsoluteUrl({ origin, path: twitterImageResolved.url }) } : undefined,
+    ogImage: ogImageResolved ? { ...ogImageResolved, url: toAbsoluteUrl({ origin, baseUrl: deps.renderBaseUrl, path: ogImageResolved.url }) } : undefined,
+    twitterImage: twitterImageResolved ? { ...twitterImageResolved, url: toAbsoluteUrl({ origin, baseUrl: deps.renderBaseUrl, path: twitterImageResolved.url }) } : undefined,
   };
 }
 
@@ -322,7 +321,7 @@ export async function getEntryMeta(required: { deps: GetEntryMetaDeps; input: Ge
   const overrides = parseOverrides(post);
   const settings = await deps.settings.getSeoSettings({ workspaceId: input.workspaceId });
 
-  const origin = await resolveWorkspaceOrigin({ originRegistry: deps.originRegistry, workspaceId: input.workspaceId, runtimeMode: deps.runtimeMode });
+  const origin = deps.renderBaseUrl ? undefined : await resolveWorkspaceOrigin({ originRegistry: deps.originRegistry, workspaceId: input.workspaceId, runtimeMode: deps.runtimeMode });
   const { title: entryTitle, description } = resolveTitleAndDescription(post, overrides, settings, deps.postRepo);
   const title = overrides.title ?? input.homeTitle ?? entryTitle;
   const canonical = await resolveCanonical(deps, post, overrides, input.workspaceId, origin);

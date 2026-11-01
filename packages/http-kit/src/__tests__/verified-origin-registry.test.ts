@@ -7,6 +7,20 @@ import { OriginNotVerifiedError, createVerifiedOrigin, InsecureOriginSourceError
 
 const WORKSPACE = "workspace-1";
 
+test("public origin writes refuse loopback and legacy loopback rows resolve as unset", async () => {
+  for (const host of ["localhost", "LOCALHOST.", "preview.localhost", "127.0.0.2", "127.1", "[::1]", "[::ffff:127.0.0.1]", "::1", "::", "0.0.0.0", "::ffff:127.0.0.1"]) {
+    const origin = { scheme: "https" as const, host, port: 3000, verifiedAt: "2026-10-31T00:00:00Z", source: "workspace-setting" as const };
+    assert.throws(() => new InMemoryOriginSettingRepo({ seeds: [{ workspaceId: WORKSPACE, origin }] }), OriginNotVerifiedError, host);
+    // A legacy persisted row bypassed today's constructor. Reads must revalidate it too.
+    const registry = new OriginRegistry({ repo: {
+      findByWorkspaceId: async () => origin,
+      findRedirectAllowlist: async () => [],
+      findEgressAllowlist: async () => [],
+    } });
+    await assert.rejects(registry.canonicalOrigin({ workspaceId: WORKSPACE }), OriginNotVerifiedError, host);
+  }
+});
+
 function makeRegistry(options?: {
   redirectAllowlist?: string[];
   egressAllowlist?: string[];

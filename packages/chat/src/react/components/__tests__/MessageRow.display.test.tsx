@@ -186,6 +186,54 @@ describe('MessageRow toolCallDisplay', () => {
 });
 
 describe('MessageRow retried tool calls (f2: a failure the turn retried successfully)', () => {
+  it.each(['postId', 'post_id', 'id', 'slug', 'path', 'file_path'])('keeps a failed write to a different %s red', (key) => {
+    const write = (id: string, target: string): AgentEvent => ({ kind: 'tool_use', id, name: 'content_post_update', input: { [key]: target, html: id } });
+    const message = assistant('different-targets', [write('a', 'page-a'), result('a', true), write('b', 'page-b'), result('b')]);
+    const view = render(<MessageRow message={message} runSucceeded />);
+    expect(view.container.querySelector('.op-status-retried')).toBeNull();
+    expect(view.container.querySelector('.op-status-error')).not.toBeNull();
+    view.rerender(<MessageRow message={message} runSucceeded toolCallDisplay="collapsed" />);
+    expect(screen.getByRole('button', { name: 'Used 2 tools · 1 failed' })).toBeInTheDocument();
+  });
+
+  it('marks the same target retried even when the corrected payload differs', () => {
+    const write = (id: string): AgentEvent => ({ kind: 'tool_use', id, name: 'content_post_update', input: { postId: 'page-a', html: id } });
+    const message = assistant('same-target', [write('a'), result('a', true), write('b'), result('b')]);
+    const view = render(<MessageRow message={message} runSucceeded />);
+    expect(view.container.querySelector('.op-status-retried')).toHaveAttribute('title', 'Retried');
+    expect(view.container.querySelector('.op-status-error')).toBeNull();
+    view.rerender(<MessageRow message={message} runSucceeded toolCallDisplay="collapsed" />);
+    expect(screen.getByRole('button', { name: 'Used 2 tools' })).toBeInTheDocument();
+  });
+
+  it('matches delegated wrapper targets inside their nested input', () => {
+    const write = (id: string, postId: string): AgentEvent => ({ kind: 'tool_use', id, name: 'mcp__jini__execute_readonly_delegated_tool', input: { toolId: 'content.write', input: { postId } } });
+    const message = assistant('nested-target', [write('a', 'page-a'), result('a', true), write('b', 'page-b'), result('b')]);
+    const view = render(<MessageRow message={message} runSucceeded />);
+    expect(view.container.querySelector('.op-status-retried')).toBeNull();
+    expect(view.container.querySelector('.op-status-error')).not.toBeNull();
+  });
+
+  it('uses a stable post id when the corrected write changes its slug or id spelling', () => {
+    const message = assistant('stable-id', [
+      { kind: 'tool_use', id: 'a', name: 'content_post_update', input: { postId: 'page-a', slug: 'bad-slug' } }, result('a', true),
+      { kind: 'tool_use', id: 'b', name: 'content_post_update', input: { post_id: 'page-a', slug: 'corrected-slug' } }, result('b'),
+    ]);
+    const view = render(<MessageRow message={message} runSucceeded />);
+    expect(view.container.querySelector('.op-status-retried')).toHaveAttribute('title', 'Retried');
+    expect(view.container.querySelector('.op-status-error')).toBeNull();
+  });
+
+  it('does not let a targetless success clear a targeted failure', () => {
+    const message = assistant('unknown-target', [
+      { kind: 'tool_use', id: 'a', name: 'content_post_update', input: { postId: 'page-a' } }, result('a', true),
+      use('b', 'content_post_update'), result('b'),
+    ]);
+    const view = render(<MessageRow message={message} runSucceeded />);
+    expect(view.container.querySelector('.op-status-retried')).toBeNull();
+    expect(view.container.querySelector('.op-status-error')).not.toBeNull();
+  });
+
   const retriedTurn = assistant('retried', [
     { kind: 'text', text: 'Writing the page. ' },
     use('w1', 'content_post_create'), result('w1', true),

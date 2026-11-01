@@ -88,6 +88,12 @@ export interface DeployPublishResult {
  */
 export interface DeployTarget {
   readonly id: string;
+  /** Resolve the destination before rendering public links. May provision the project's identity
+   * as part of an authorized publish; must not upload files or guess a deployment hostname.
+   * Optional for older adapters; a host may refuse to publish without it rather than render
+   * public links for a locally saved domain.
+   */
+  resolvePublicUrl?(requiredArgs: { projectName: string }, optionalArgs?: Record<string, never>): Promise<string>;
   publish(requiredArgs: DeployPublishInput, optionalArgs?: DeployPublishOptions): Promise<DeployPublishResult>;
   checkReachability(requiredArgs: { url: string }): Promise<DeploymentUrlCheck>;
 }

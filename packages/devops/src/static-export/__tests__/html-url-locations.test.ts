@@ -14,3 +14,9 @@ it('does not treat Markdown examples in HTML scripts or arbitrary plain text as 
   expect(exportUrlLocations({ body: '<script>"[Example](/example)"</script>', contentType: 'text/html' })).toEqual([]);
   expect(exportUrlLocations({ body: 'No generated links here.', contentType: 'text/markdown' })).toEqual([]);
 });
+
+it('marks canonical and feed discovery references so portable copies preserve their absolute identity', () => {
+  const body = '<link rel="canonical" href="https://site.test/about"><link rel="alternate" type="application/rss+xml" href="https://site.test/feed.xml"><a href="https://site.test/about">About</a>';
+  const locations = exportUrlLocations({ body, contentType: 'text/html' });
+  expect(locations.map(location => location.identity === true)).toEqual([true, true, false]);
+});

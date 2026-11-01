@@ -131,7 +131,7 @@ export interface SitemapCollectHook {
 export interface SeoQueryPort {
   getEntryMeta(input: { workspaceId: string; entryId: string }, optional?: Record<string, never>): Promise<SeoMeta>;
   renderHead(ctx: PageHeadContext, optional?: Record<string, never>): Promise<HeadElement[]>;
-  buildSitemap(input: { workspaceId: string }, optional?: Record<string, never>): Promise<SitemapEntry[]>;
+  buildSitemap(input: { workspaceId: string }, optional?: { renderBaseUrl?: string | undefined }): Promise<SitemapEntry[]>;
   buildRobots(input: { workspaceId: string }, optional?: Record<string, never>): Promise<RobotsPolicy>;
   analyzeEntry(input: { workspaceId: string; entryId: string }, optional?: Record<string, never>): Promise<SeoAnalysis>;
 }

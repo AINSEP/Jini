@@ -56,8 +56,8 @@ export async function buildFeed(required: { deps: SeoSitemapDeps; input: { works
     })
     .slice(0, FEED_ITEM_LIMIT)
     .map(({ post, meta }) => ({ title: post.title, link: meta.canonical, publishedAt: deps.liveness.postDisplayDateIso({ post }), description: deriveExcerpt({ post, postRepo: deps.postRepo }) }));
-  const origin = await resolveWorkspaceOrigin({ originRegistry: deps.originRegistry, workspaceId: input.workspaceId, runtimeMode: deps.runtimeMode });
-  return { siteTitle: input.siteTitle, siteLink: toAbsoluteUrl({ origin, path: "/" }), feedUrl: toAbsoluteUrl({ origin, path: FEED_PATH }), items };
+  const origin = deps.renderBaseUrl ? undefined : await resolveWorkspaceOrigin({ originRegistry: deps.originRegistry, workspaceId: input.workspaceId, runtimeMode: deps.runtimeMode });
+  return { siteTitle: input.siteTitle, siteLink: toAbsoluteUrl({ origin, baseUrl: deps.renderBaseUrl, path: "/" }), feedUrl: toAbsoluteUrl({ origin, baseUrl: deps.renderBaseUrl, path: FEED_PATH }), items };
 }
 
 function renderItem(item: FeedItem): string {
