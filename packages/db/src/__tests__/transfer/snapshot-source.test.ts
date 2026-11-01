@@ -31,3 +31,26 @@ it("normalizes a WAL snapshot on a copied byte buffer without changing the calle
     expect([bytes[18], bytes[19]]).toEqual([2, 2]);
   } finally { source.close(); }
 });
+
+it("exposes the same WAL normalization to snapshot consumers without mutating their source", async () => {
+  const { mkdtempSync, rmSync } = await import("node:fs");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const transfer = await import("../../transfer/index.js");
+  const directory = mkdtempSync(join(tmpdir(), "wal-snapshot-"));
+  const original = new Database(join(directory, "source.db"));
+  try {
+    original.pragma("journal_mode = WAL");
+    original.exec("CREATE TABLE cells(value TEXT); INSERT INTO cells VALUES ('latest uncheckpointed value')");
+    const bytes = original.serialize(), before = Buffer.from(bytes);
+    const readable = transfer.inMemoryReadableBytes({ bytes });
+    const snapshot = new Database(readable, { readonly: true });
+    try {
+      expect(snapshot.prepare("SELECT value FROM cells").get()).toEqual({ value: "latest uncheckpointed value" });
+      expect(() => snapshot.exec("DELETE FROM cells")).toThrow(/readonly/);
+      expect(bytes).toEqual(before);
+      expect([bytes[18], bytes[19]]).toEqual([2, 2]);
+      expect([readable[18], readable[19]]).toEqual([1, 1]);
+    } finally { snapshot.close(); }
+  } finally { original.close(); rmSync(directory, { recursive: true, force: true }); }
+});

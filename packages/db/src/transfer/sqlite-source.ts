@@ -84,8 +84,11 @@ function where(keep: string | undefined): string {
  * A site database runs in WAL mode, and its snapshot's header says so (bytes 18-19 = 2). SQLite
  * cannot open WAL-mode bytes in memory ("unable to open database file"), so a copy of the bytes is
  * marked rollback-journal (1) first. The pages themselves are complete: a backup never needs the WAL.
+ * For complete backup/serialized images only, never a live main file with unapplied WAL pages.
+ * @returns Readable bytes; WAL headers are changed only on a copy, leaving the input untouched.
+ * @complexity O(snapshot bytes) time/space for WAL images, otherwise O(1).
  */
-function inMemoryReadableBytes(bytes: Buffer): Buffer {
+export function inMemoryReadableBytes({ bytes }: { bytes: Buffer }, _options: Record<string, never> = {}): Buffer {
   if (bytes[18] !== 2 && bytes[19] !== 2) return bytes;
   const copy = Buffer.from(bytes);
   copy[18] = 1;
@@ -137,7 +140,7 @@ function layoutOf(db: SnapshotClient, table: string): SourceTableLayout | null {
 
 /** @complexity O(database size) to deserialize the snapshot. */
 export function openSqliteSnapshotSource({ bytes }: { bytes: Buffer }, { open }: { open: SnapshotOpener }): TransferSource {
-  const db = open(inMemoryReadableBytes(bytes), { readonly: true });
+  const db = open(inMemoryReadableBytes({ bytes }), { readonly: true });
   return {
     tableNames() {
       return (db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' ORDER BY name").all() as { name: string }[]).map((row) => row.name);
