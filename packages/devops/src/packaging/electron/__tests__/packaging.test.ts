@@ -70,6 +70,17 @@ test('unresolved dependencies and conflicting package versions fail before any s
   assert.throws(() => stageTransitiveDependencies({ roots: [a, b], outDir, excluded: new Set(), fs: filesystem, resolver }), /conflict/);
   assert.equal(fs.existsSync(outDir), false);
 }));
+test('a transitive package ships its own nested version beside a different hoisted one, as npm laid it out', () => fixture(root => {
+  const app = path.join(root, 'app'), modules = path.join(app, 'node_modules'), outDir = path.join(root, 'out');
+  pkg(app, 'app', { b: '*', debug: '*' }); pkg(path.join(modules, 'b'), 'b', { debug: '*' });
+  write(path.join(modules, 'debug/package.json'), JSON.stringify({ name: 'debug', version: '4.4.3' }));
+  write(path.join(modules, 'b/node_modules/debug/package.json'), JSON.stringify({ name: 'debug', version: '2.6.9' }));
+  assert.equal(stageTransitiveDependencies({ roots: [app], outDir, excluded: new Set(), fs: filesystem, resolver }), 3);
+  const version = (relative: string) => JSON.parse(fs.readFileSync(path.join(outDir, 'node_modules', relative, 'package.json'), 'utf8')).version;
+  assert.equal(version('debug'), '4.4.3');
+  assert.equal(version('b/node_modules/debug'), '2.6.9');
+  assert.doesNotThrow(() => assertClosureComplete({ outDir, excluded: new Set(), fs: filesystem }));
+}));
 test('mtime walk ignores tests, hidden files and dependencies, using stored timestamps', () => fixture(root => {
   write(path.join(root, 'source.ts'), 'source'); fs.utimesSync(path.join(root, 'source.ts'), 1, 1);
   for (const relative of ['__tests__/a.ts', '__measurements__/a.ts', 'node_modules/pkg/a.js', '.cache/a.js']) write(path.join(root, relative), 'newer');

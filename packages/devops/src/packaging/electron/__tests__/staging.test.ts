@@ -91,15 +91,15 @@ describe('stageTransitiveDependencies', () => {
     } });
   }
   const sharedResolver = () => resolverOf({ '/store/a -> shared': '/one', '/store/b -> shared': '/two' });
-  test('two different directories with different versions conflict before any copy', () => {
-    const fs = twoCopies({ first: '1.0.0', second: '2.0.0' });
-    assert.throws(() => stageTransitiveDependencies({ ...base, fs, resolver: sharedResolver() }), { message: 'Package version conflict while flattening shared' });
-    assert.deepEqual(effects(fs), []);
-  });
-  test('two different directories without a version conflict', () => {
-    const fs = twoCopies({ first: undefined, second: undefined });
-    assert.throws(() => stageTransitiveDependencies({ ...base, fs, resolver: sharedResolver() }), { message: 'Package version conflict while flattening shared' });
-  });
+  for (const versions of [{ first: '1.0.0', second: '2.0.0' }, { first: undefined, second: undefined }]) {
+    test(`two different directories (${versions.first ?? 'unversioned'} / ${versions.second ?? 'unversioned'}): the second nests under its dependent`, () => {
+      const fs = twoCopies(versions);
+      assert.equal(stageTransitiveDependencies({ ...base, fs, resolver: sharedResolver() }), 4);
+      assert.deepEqual(effects(fs).filter(call => call.op === 'copy' && call.to.endsWith('/shared')).map(call => call.op === 'copy' && `${call.from} -> ${call.to}`), [
+        '/one -> /out/node_modules/shared', '/two -> /out/node_modules/b/node_modules/shared',
+      ]);
+    });
+  }
   test('two different directories with the same version stage the first one only', () => {
     const fs = twoCopies({ first: '1.0.0', second: '1.0.0' });
     assert.equal(stageTransitiveDependencies({ ...base, fs, resolver: sharedResolver() }), 3);
@@ -115,17 +115,68 @@ describe('stageTransitiveDependencies', () => {
     assert.equal(stageTransitiveDependencies({ ...base, fs, resolver: resolverOf() }), 0);
     assert.deepEqual(effects(fs), []);
   });
+  test('an already-staged destination with the same version still has its own dependencies staged', () => {
+    const fs = memoryFs({ files: { '/app/package.json': manifestOf('app', '1', { a: '1' }), '/store/a/package.json': manifestOf('a', '1', { z: '1' }), '/store/z/package.json': manifestOf('z', '1'), '/out/node_modules/a/package.json': manifestOf('a', '1') } });
+    assert.equal(stageTransitiveDependencies({ ...base, fs, resolver: resolverOf() }), 1);
+    assert.deepEqual(effects(fs).map(call => call.op === 'copy' && call.to), ['/out/node_modules/z']);
+  });
   test('an already-staged destination with another version conflicts', () => {
     const fs = memoryFs({ files: { '/app/package.json': manifestOf('app', '1', { a: '1' }), '/store/a/package.json': manifestOf('a', '1'), '/out/node_modules/a/package.json': manifestOf('a', '2') } });
-    assert.throws(() => stageTransitiveDependencies({ ...base, fs, resolver: resolverOf() }), { message: 'Package version conflict while flattening a' });
+    assert.throws(() => stageTransitiveDependencies({ ...base, fs, resolver: resolverOf() }), { message: /^Package version conflict while flattening a: \/store\/a / });
   });
   test('an already-staged destination without a manifest conflicts', () => {
     const fs = memoryFs({ files: { '/app/package.json': manifestOf('app', '1', { a: '1' }), '/store/a/package.json': manifestOf('a', '1'), '/out/node_modules/a/index.js': '' } });
-    assert.throws(() => stageTransitiveDependencies({ ...base, fs, resolver: resolverOf() }), { message: 'Package version conflict while flattening a' });
+    assert.throws(() => stageTransitiveDependencies({ ...base, fs, resolver: resolverOf() }), { message: /^Package version conflict while flattening a: \/store\/a / });
   });
   test('an already-staged destination conflicts when the source has no version', () => {
     const fs = memoryFs({ files: { '/app/package.json': manifestOf('app', '1', { a: '1' }), '/store/a/package.json': manifestOf('a', undefined), '/out/node_modules/a/package.json': manifestOf('a', undefined) } });
-    assert.throws(() => stageTransitiveDependencies({ ...base, fs, resolver: resolverOf() }), { message: 'Package version conflict while flattening a' });
+    assert.throws(() => stageTransitiveDependencies({ ...base, fs, resolver: resolverOf() }), { message: /^Package version conflict while flattening a: \/store\/a / });
+  });
+  /** npm's layout: /app needs b and debug@4 (hoisted); b keeps its own debug@2 in /store/b/node_modules. */
+  function nestedDebug(extra: Record<string, string> = {}) {
+    return memoryFs({ files: {
+      '/app/package.json': manifestOf('app', '1', { b: '1', debug: '4' }), '/store/b/package.json': manifestOf('b', '1', { debug: '2' }),
+      '/store/debug/package.json': manifestOf('debug', '4.4.3'), '/store/b/node_modules/debug/package.json': manifestOf('debug', '2.6.9'), ...extra,
+    } });
+  }
+  const nestedResolver = (table: Record<string, string> = {}) => resolverOf({ '/store/b -> debug': '/store/b/node_modules/debug', ...table });
+  test('a transitive package keeps its own conflicting nested version under itself instead of failing', () => {
+    const fs = nestedDebug();
+    assert.equal(stageTransitiveDependencies({ ...base, fs, resolver: nestedResolver() }), 3);
+    assert.deepEqual(effects(fs).map(call => call.op === 'copy' && `${call.from} -> ${call.to}`), [
+      '/store/b -> /out/node_modules/b', '/store/debug -> /out/node_modules/debug',
+      '/store/b/node_modules/debug -> /out/node_modules/b/node_modules/debug',
+    ]);
+  });
+  test('a nested version also stays nested when the top level was staged before the walk', () => {
+    const fs = nestedDebug({ '/app/package.json': manifestOf('app', '1', { b: '1' }), '/out/node_modules/debug/package.json': manifestOf('debug', '4.4.3') });
+    assert.equal(stageTransitiveDependencies({ ...base, fs, resolver: nestedResolver() }), 2);
+    assert.deepEqual(effects(fs).map(call => call.op === 'copy' && call.to), ['/out/node_modules/b', '/out/node_modules/b/node_modules/debug']);
+  });
+  test('a nested package resolves its own dependencies from where it is staged', () => {
+    const fs = nestedDebug({
+      '/store/debug/package.json': manifestOf('debug', '4.4.3', { ms: '2.1' }), '/store/ms/package.json': manifestOf('ms', '2.1.3'),
+      '/store/b/node_modules/debug/package.json': manifestOf('debug', '2.6.9', { ms: '2.0' }), '/store/b/node_modules/ms/package.json': manifestOf('ms', '2.0.0'),
+    });
+    stageTransitiveDependencies({ ...base, fs, resolver: nestedResolver({ '/store/b/node_modules/debug -> ms': '/store/b/node_modules/ms' }) });
+    // npm's own layout: b's ms sits beside b's debug, where Node finds it from debug.
+    assert.ok(effects(fs).some(call => call.op === 'copy' && call.from === '/store/b/node_modules/ms' && call.to === '/out/node_modules/b/node_modules/ms'));
+    assert.doesNotThrow(() => assertClosureComplete({ outDir: '/out', excluded: new Set(), fs }));
+  });
+  test('a nested package already shipped above its dependent is reused, not copied again', () => {
+    const fs = nestedDebug({ '/store/b/node_modules/c/package.json': manifestOf('c', '1', { debug: '2' }), '/store/b/package.json': manifestOf('b', '1', { debug: '2', c: '1' }) });
+    const resolver = nestedResolver({ '/store/b -> c': '/store/b/node_modules/c', '/store/b/node_modules/c -> debug': '/store/b/node_modules/debug' });
+    assert.equal(stageTransitiveDependencies({ ...base, fs, resolver }), 4);
+    assert.ok(!effects(fs).some(call => call.op === 'copy' && call.to.endsWith('/c/node_modules/debug')));
+  });
+  test('conflicting versions that alternate down a dependency cycle are refused instead of nesting forever', () => {
+    const fs = memoryFs({ files: {
+      '/app/package.json': manifestOf('app', '1', { a: '1', b: '1' }), '/store/a/package.json': manifestOf('a', '1', { b: '1' }), '/store/b/package.json': manifestOf('b', '1', { a: '2' }),
+      '/a2/package.json': manifestOf('a', '2', { b: '2' }), '/b2/package.json': manifestOf('b', '2', { a: '1' }),
+    } });
+    const resolver = resolverOf({ '/store/b -> a': '/a2', '/a2 -> b': '/b2', '/b2 -> a': '/store/a' });
+    assert.throws(() => stageTransitiveDependencies({ ...base, fs, resolver }), { message: /^Package version conflict while flattening b: / });
+    assert.deepEqual(effects(fs), []);
   });
   test('a scoped dependency is staged under its scope directory', () => {
     const fs = memoryFs({ files: { '/app/package.json': manifestOf('app', '1', { '@s/a': '1' }), '/store/@s/a/package.json': manifestOf('@s/a', '1') } });

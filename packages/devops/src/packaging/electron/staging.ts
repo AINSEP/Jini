@@ -27,6 +27,8 @@ interface DependencyOptions {
   dependencies?: (required: { packageDir: string; fs: PackagingFilesystemPort }) => readonly string[];
 }
 type PlannedPackage = { directory: string; version: string | undefined };
+/** Roots carry no destination: the caller staged them, so their edges can only land at the top level. */
+type QueuedPackage = { directory: string; destination?: string };
 function stagedPath(outDir: string, name: string): string { return path.join(outDir, 'node_modules', name); }
 function resolveDependency(required: { from: string; name: string; fs: PackagingFilesystemPort; resolver: PackageResolverPort }): string {
   const { from, name, fs, resolver } = required;
@@ -34,54 +36,111 @@ function resolveDependency(required: { from: string; name: string; fs: Packaging
   if (!resolved) throw new Error(`Unresolved production dependency: ${from} -> ${name}`);
   return fs.realpath({ path: resolved });
 }
+interface ClosurePlan {
+  outDir: string; excluded: ReadonlySet<string>; fs: PackagingFilesystemPort; resolver: PackageResolverPort;
+  /** Planned copies keyed by staged destination; one source may be planned at several destinations. */
+  staged: Map<string, PlannedPackage>; roots: ReadonlySet<string>; queue: QueuedPackage[];
+}
+/** Staged package directories from `destination` up to (excluding) the modules root, nearest first. */
+function stagedAncestors(required: { outDir: string; destination: string | undefined }): string[] {
+  const { outDir, destination } = required;
+  const modulesDir = path.join(outDir, 'node_modules'), ancestors: string[] = [];
+  for (let current = destination ?? modulesDir; current.startsWith(modulesDir + path.sep); current = path.dirname(current)) {
+    if (path.basename(current) !== 'node_modules') ancestors.push(current);
+  }
+  return ancestors;
+}
+/** Where Node looks for `name` from a package staged at `destination`, nearest first, ending at the top level. */
+function resolutionPath(required: { outDir: string; name: string; destination: string | undefined }): string[] {
+  const { outDir, name, destination } = required;
+  return [...stagedAncestors({ outDir, destination }).map(directory => path.join(directory, 'node_modules', name)), stagedPath(outDir, name)];
+}
+/** A planned copy, or a destination already on disk (which carries no source directory). */
+function occupantAt(plan: ClosurePlan, required: { destination: string }): PlannedPackage | undefined {
+  const { destination } = required;
+  const planned = plan.staged.get(destination);
+  if (planned || !plan.fs.exists({ path: destination })) return planned;
+  return { directory: destination, version: plan.fs.exists({ path: path.join(destination, PACKAGE_JSON) }) ? manifest(destination, plan.fs).version : undefined };
+}
 /**
  * Flattening `name` from `directory` conflicts with an already planned copy from another directory
  * unless both carry the same known version, and with an already staged destination unless that
  * destination carries the same known version. Unversioned packages never count as the same.
  */
-function assertFlattenable(required: { name: string; planned: PlannedPackage; existing: PlannedPackage | undefined; destination: string; fs: PackagingFilesystemPort }): void {
-  const { name, planned: { directory, version }, existing, destination, fs } = required;
-  const destinationVersion = fs.exists({ path: path.join(destination, PACKAGE_JSON) }) ? manifest(destination, fs).version : undefined;
-  const plannedConflict = existing !== undefined && existing.directory !== directory && (!version || existing.version !== version);
-  const stagedConflict = fs.exists({ path: destination }) && (!version || destinationVersion !== version);
-  if (plannedConflict || stagedConflict) throw new Error(`Package version conflict while flattening ${name}`);
+function compatible(required: { occupant: PlannedPackage; planned: PlannedPackage }): boolean {
+  const { occupant, planned } = required;
+  return occupant.directory === planned.directory || (planned.version !== undefined && occupant.version === planned.version);
 }
-interface ClosurePlan {
-  outDir: string; excluded: ReadonlySet<string>; fs: PackagingFilesystemPort; resolver: PackageResolverPort;
-  staged: Map<string, PlannedPackage>; roots: ReadonlySet<string>; visited: Set<string>; queue: string[];
+/** npm's own position for `directory`: inside the source tree of a package staged on the dependent's path. */
+function sourceLayoutPosition(plan: ClosurePlan, required: { from: QueuedPackage; directory: string }): string | undefined {
+  for (const ancestor of stagedAncestors({ outDir: plan.outDir, destination: required.from.destination })) {
+    const source = plan.staged.get(ancestor)?.directory;
+    if (source && required.directory.startsWith(path.join(source, 'node_modules') + path.sep)) return ancestor + required.directory.slice(source.length);
+  }
+  return undefined;
 }
-/** Add one declared dependency of `from` to the plan (validated, resolved, conflict-checked) and queue its directory once. */
-function planDependency(plan: ClosurePlan, required: { from: string; name: string }): void {
-  const { outDir, excluded, fs, resolver, staged, visited, queue } = plan;
+function conflictError(required: { name: string; planned: PlannedPackage; from: QueuedPackage }): Error {
+  const { name, planned, from } = required;
+  return new Error(`Package version conflict while flattening ${name}: ${planned.directory} (${planned.version ?? 'unversioned'}) needed by ${from.directory}`);
+}
+/**
+ * Choose where `planned` ships so Node resolves it from the dependent, or nothing when an existing
+ * copy already serves it. A version that conflicts with the hoisted copy stays nested under its
+ * dependent, preferring npm's own position, instead of failing or silently picking first-wins.
+ * Supplied roots have no known position, so a conflict on their edges still throws.
+ */
+function placeDependency(plan: ClosurePlan, required: { from: QueuedPackage; name: string; planned: PlannedPackage }): string | undefined {
+  const { from, name, planned } = required;
+  const candidates = resolutionPath({ outDir: plan.outDir, name, destination: from.destination });
+  const index = candidates.findIndex(candidate => occupantAt(plan, { destination: candidate }));
+  const occupant = index < 0 ? undefined : occupantAt(plan, { destination: candidates[index]! });
+  if (occupant && compatible({ occupant, planned })) return plan.staged.has(candidates[index]!) ? undefined : candidates[index];
+  // Only positions nearer than the occupant are seen by Node; with no occupant, hoist like npm does.
+  const open = index < 0 ? candidates : candidates.slice(0, index);
+  const position = openPosition({ open, layout: sourceLayoutPosition(plan, { from, directory: planned.directory }), hoist: index < 0 });
+  // A source already staged above the chosen spot means conflicting versions alternate down a cycle.
+  if (!position || stagedAncestors({ outDir: plan.outDir, destination: path.dirname(position) }).some(ancestor => plan.staged.get(ancestor)?.directory === planned.directory)) throw conflictError({ name, planned, from });
+  return position;
+}
+/** npm's position when Node can see it from the dependent; otherwise the top level (`hoist`) or the dependent's own node_modules. */
+function openPosition(required: { open: readonly string[]; layout: string | undefined; hoist: boolean }): string | undefined {
+  const { open, layout, hoist } = required;
+  if (layout && open.includes(layout)) return layout;
+  return hoist ? open.at(-1) : open[0];
+}
+/** Add one declared dependency of `from` to the plan (validated, resolved, placed) and queue each new destination once. */
+function planDependency(plan: ClosurePlan, required: { from: QueuedPackage; name: string }): void {
   const { from, name } = required;
   safePackageName(name);
-  if (isExcluded({ name, excluded })) return;
-  const directory = resolveDependency({ from, name, fs, resolver });
+  if (isExcluded({ name, excluded: plan.excluded })) return;
+  const directory = resolveDependency({ from: from.directory, name, fs: plan.fs, resolver: plan.resolver });
   if (plan.roots.has(directory)) return;
-  const planned = { directory, version: manifest(directory, fs).version };
-  const existing = staged.get(name);
-  assertFlattenable({ name, planned, existing, destination: stagedPath(outDir, name), fs });
-  if (!existing) staged.set(name, planned);
-  if (!visited.has(directory)) { visited.add(directory); queue.push(directory); }
+  const planned = { directory, version: manifest(directory, plan.fs).version };
+  const destination = placeDependency(plan, { from, name, planned });
+  if (!destination) return;
+  plan.staged.set(destination, planned);
+  plan.queue.push({ directory, destination });
 }
-/** Plan selected runtime edges before copying; unresolved/conflicting versions throw atomically.
+/** Plan selected runtime edges before copying; unresolved/irreconcilable versions throw atomically.
  * Supplied roots are already owned by the caller and are never copied through a back edge.
- * @complexity O(packages + edges × ancestor depth) filesystem reads, O(packages) plan memory.
+ * A version that conflicts with the hoisted copy is staged nested under its dependent, so every
+ * staged package still resolves its declared dependencies from where it sits.
+ * @complexity O(packages × nesting depth + edges × ancestor depth) filesystem reads, O(packages) plan memory.
  * @example stageTransitiveDependencies({ roots, outDir, excluded, fs, resolver });
  */
 export function stageTransitiveDependencies(required: {
   roots: readonly string[]; outDir: string; excluded: ReadonlySet<string>; fs: PackagingFilesystemPort; resolver: PackageResolverPort;
 }, optional: DependencyOptions = {}): number {
-  const { roots, outDir, fs } = required;
-  const visited = new Set(roots.map(root => fs.realpath({ path: root })));
-  const plan: ClosurePlan = { ...required, staged: new Map(), roots: new Set(visited), visited, queue: [...visited] };
+  const { roots, fs } = required;
+  const rootDirectories = new Set(roots.map(root => fs.realpath({ path: root })));
+  const plan: ClosurePlan = { ...required, staged: new Map(), roots: rootDirectories, queue: [...rootDirectories].map(directory => ({ directory })) };
   for (let index = 0; index < plan.queue.length; index++) {
     const from = plan.queue[index]!;
-    for (const name of (optional.dependencies ?? declaredDependencies)({ packageDir: from, fs })) planDependency(plan, { from, name });
+    for (const name of (optional.dependencies ?? declaredDependencies)({ packageDir: from.directory, fs })) planDependency(plan, { from, name });
   }
   let count = 0;
-  for (const [name, entry] of plan.staged) {
-    const destination = stagedPath(outDir, name);
+  // Insertion order puts every dependent before the packages nested under it.
+  for (const [destination, entry] of plan.staged) {
     if (fs.exists({ path: destination })) continue;
     stageDir({ source: entry.directory, destination, fs }, { dropNestedModules: true });
     count++;

@@ -1,5 +1,9 @@
 # @jini-ai/devops
 
+## Unreleased
+
+- Electron payload staging (`stageTransitiveDependencies`): a transitive package whose own nested dependency conflicts with the hoisted version now ships that version nested under itself, at npm's position, instead of failing with "Package version conflict while flattening <name>" (desktop release run 41398191741: nested debug 4 beside a top-level debug 2). Conflicts on the caller's own roots still refuse; the error now names the conflicting directory and its dependent.
+
 ## 0.6.17
 
 ### Patch Changes
