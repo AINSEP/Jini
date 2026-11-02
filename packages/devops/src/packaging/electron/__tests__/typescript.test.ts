@@ -29,3 +29,16 @@ test('lexically shadowed require never hides the outer CommonJS boundary', () =>
     'require.resolve("outer-resolve");',
   ].join('\n') }), ['outer', 'outer-resolve']);
 });
+test('a local function declaration named require is a capability check, not a module require', () => {
+  const imports = createTypeScriptImportReader({ compiler: ts });
+  // Shape of @jini-ai/db kernel-core: a factory-local `function require(capability)` called from nested functions.
+  assert.deepEqual(imports.imports({ file: 'built.js', source: [
+    'export function createKernel() {',
+    '  function require(capability) { if (!caps[capability]) throw new Error(capability); }',
+    '  async function transaction() { require("interactiveTransactions"); }',
+    '  return { require, backupTo() { require("backup"); } };',
+    '}',
+    'require("outer");',
+    '{ class require {} require("class-local"); }',
+  ].join('\n') }), ['outer']);
+});

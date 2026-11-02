@@ -43,10 +43,15 @@ export function runtimeImportReferences(
     const value = init && c.isCallExpression(init) && isCreator(init.expression) ? 'require' : 'other';
     bind(node, node.name.text, value);
   }
+  /** A declared function or class (e.g. a factory-local `function require(capability)`) shadows the module require in its scope. */
+  function declarationBinding(node: ts.Node): void {
+    if ((c.isFunctionDeclaration(node) || c.isClassDeclaration(node)) && node.name) bind(node, node.name.text, 'other');
+  }
   function bindings(node: ts.Node): void {
     if (c.isImportSpecifier(node) && (node.propertyName ?? node.name).text === 'createRequire') bind(node, node.name.text, 'creator');
     if (c.isParameter(node) && c.isIdentifier(node.name)) bind(node, node.name.text, 'other');
     variableBinding(node);
+    declarationBinding(node);
     c.forEachChild(node, bindings);
   }
   bindings(tree);
