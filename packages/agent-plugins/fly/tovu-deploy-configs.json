@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "generators": [
+    {
+      "id": "fly",
+      "label": "Fly.io",
+      "module": "deploy-configs/fly.mjs",
+      "candidatePaths": [
+        {
+          "path": "fly.toml",
+          "order": 1
+        },
+        {
+          "path": ".github/workflows/fly-deploy.yml",
+          "order": 5
+        }
+      ],
+      "workflowFile": "fly-deploy.yml"
+    }
+  ]
+}

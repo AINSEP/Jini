@@ -1,0 +1,81 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "fly",
+  "version": "1.0.0",
+  "description": "Deploys the host's server to fly.io: one machine only for volume-backed state, secrets never in fly.toml, deploying ships code, not content. Contributes Fly operations, server config generation and the FlyV1 credential scheme.",
+  "author": "Tovu",
+  "license": "Apache-2.0",
+  "extensions": {
+    "tovu": {
+      "vendorAliases": ["FLY_", "fly.io", "flyctl", "fly.toml", "machines.dev", "flyv1"],
+      "displayName": "Fly.io",
+      "summary": "Puts the Tovu server itself online on Fly.io.",
+      "hostSignals": [
+        {
+          "env": "FLY_APP_NAME",
+          "facts": { "hosted": true, "trustProxyHops": 1, "nativeToolsRestricted": true },
+          "label": "Fly.io (FLY_APP_NAME)"
+        },
+        { "env": "FLY_MACHINE_ID", "facts": { "nativeToolsRestricted": true } },
+        { "env": "FLY_ALLOC_ID", "facts": { "nativeToolsRestricted": true } }
+      ],
+      "deploymentAdvice": "Set TOVU_RUNTIME_MODE=production (fly.toml and docker-compose.yml already do).",
+      "id": "tovu/fly",
+      "provides": [
+        "deploy-ops:fly",
+        "deploy-config:fly",
+        "credential-scheme:fly-io"
+      ],
+      "credentialCards": [
+        {
+          "target": "fly",
+          "title": "Connect Fly.io",
+          "label": "fly.io",
+          "ownedApiLabel": "fly.io",
+          "category": "hosting",
+          "intro": "Connect Fly.io to inspect and deploy the Tovu server and manage its Machines.",
+          "usedFor": [
+            "Deploys your Tovu server and checks its status and logs",
+            "Manages the app's running servers",
+            "Creates and manages apps when you grant access to the organization"
+          ],
+          "keyHint": "Use a deploy token scoped to this app. Use an org-scoped token only when creating or managing apps across that organization. In the Fly dashboard, select the app or organization, then Tokens. Avoid the short-lived login auth token.",
+          "saveKind": "api",
+          "additionalHosts": [
+            "https://api.machines.dev"
+          ],
+          "baseUrl": "https://api.fly.io"
+        }
+      ],
+      "toolKeywords": {
+        "credential_save": "fly flyio fly.io fly api token hosting account",
+        "custom_credential_list": "flyio fly.io",
+        "custom_credential_make_request": "fly.io",
+        "custom_credential_verify": "fly.io",
+        "deployment_ops_deploy": "fly",
+        "deployment_ops_list_secrets": "fly",
+        "deployment_ops_list_targets": "fly",
+        "deployment_ops_logs": "fly",
+        "deployment_ops_set_secret": "fly",
+        "deployment_ops_status": "fly fly.io",
+        "deployment_ops_unset_secret": "fly",
+        "search_agent_plugin_local": "fly.io"
+      }
+    }
+  },
+  "keywords": [
+    "deploy",
+    "hosting",
+    "fly",
+    "fly.io",
+    "flyctl",
+    "machines",
+    "server",
+    "volume",
+    "secrets",
+    "readyz",
+    "deploy-ops:fly",
+    "deploy-config:fly",
+    "credential-scheme:fly-io"
+  ]
+}

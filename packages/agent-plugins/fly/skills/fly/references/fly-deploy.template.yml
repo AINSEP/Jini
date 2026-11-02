@@ -1,0 +1,117 @@
+#>> header
+# ============================================================================
+# fly.io deploy workflow TEMPLATE.
+#
+# Derived from a working production deploy workflow.
+# Write this to `.github/workflows/fly-deploy.yml` in the operator's repo.
+#
+# flyctl runs HERE, on GitHub's runner — never on the operator's machine. That
+# is the point of this path: no local CLI, no local Docker, nothing to install.
+#
+# Replace every `<<PLACEHOLDER: ...>>` before committing.
+# ============================================================================
+# ----------------------------------------------------------------------------
+# Template regions (read by scripts/render-deploy-workflow.mjs; ignore them when copying by hand):
+#   `#>> <name>` ... `#<< <name>`  the operator version. A host's own rendered workflow replaces a
+#                                 region with that host's block for <name>; the rest is shared.
+# ----------------------------------------------------------------------------
+#
+# ---------------------------------------------------------------------------
+# ONE-TIME SETUP THIS WORKFLOW CANNOT DO FOR YOU
+# ---------------------------------------------------------------------------
+#
+# 1. Repo secret `FLY_API_TOKEN`
+#      Settings -> Secrets and variables -> Actions -> New repository secret
+#    Named exactly `FLY_API_TOKEN`, value a fly.io deploy token. A HUMAN must
+#    paste this. It cannot be set by an assistant: the GitHub API requires the
+#    value encrypted against the repo public key, which would mean the token
+#    passing through the model's context — precisely what the saved-credential
+#    design exists to prevent.
+#
+# 2. The volume, created before the first deploy — this workflow does not create
+#    one, and a missing volume means no persistent storage and silent data loss
+#    on the next deploy:
+#      flyctl volumes create <name> --region <region> -a <app>
+#    The name must match `fly.toml`'s `[[mounts]] source` exactly.
+#
+# 3. App secrets, via `flyctl secrets set -a <app> KEY=value` — never in this
+#    file and never in fly.toml's committed `[env]`. Which secrets the server
+#    refuses to boot without is the host's to say: follow the host guidance.
+#    Generate random ones as:
+#      node -e "console.log(require('node:crypto').randomBytes(32).toString('hex'))"
+#
+# 4. Migrations and any other first-boot step: the host guidance says whether
+#    the server applies them itself. Add no step here that it does not ask for.
+# ============================================================================
+
+#<< header
+name: Deploy to Fly.io
+
+#>> trigger-notes
+# Deploy-only, deliberately separate from any test/CI workflow. It builds and
+# deploys whatever is already on the triggering commit; it runs no tests.
+#
+# `push` fires only on the repo's DEFAULT branch. A push to any other branch
+# will not trigger this — use the `workflow_dispatch` "Run workflow" button, or
+# an API dispatch, to deploy from elsewhere.
+#<< trigger-notes
+on:
+  push:
+    branches: [<<PLACEHOLDER: default branch, e.g. main>>]
+#>> dispatch
+  workflow_dispatch: {}
+#<< dispatch
+
+permissions:
+  contents: read
+
+#>> concurrency-notes
+# One deploy at a time. Two `flyctl deploy` runs racing against a single SQLite
+# volume is a real hazard, not just wasted runner minutes.
+#
+# `cancel-in-progress: false` on purpose: a deploy cut off mid-way is worse than
+# a later push waiting its turn. Expect runs to sit in `queued` behind an active
+# deploy — that is correct behaviour, not a stuck job.
+#<< concurrency-notes
+concurrency:
+#>> concurrency-group
+  group: fly-deploy-<<PLACEHOLDER: fly app name>>
+#<< concurrency-group
+  cancel-in-progress: false
+
+#>> env
+#<< env
+jobs:
+#>> jobs
+#<< jobs
+  deploy:
+#>> deploy-needs
+#<< deploy-needs
+    runs-on: ubuntu-latest
+    steps:
+#>> pre-checkout
+#<< pre-checkout
+      - uses: actions/checkout@v4
+#>> checkout-with
+#<< checkout-with
+
+      - uses: superfly/flyctl-actions/setup-flyctl@v1
+
+#>> build
+      # Fly's REMOTE builder does the image build. This runner only uploads the
+      # build context and polls status, so no Docker or BuildKit setup is needed
+      # here.
+      #
+      # Add one `--build-arg NAME=value` per build argument the host's Dockerfile
+      # needs (the host guidance lists them). Build args were lost once already
+      # in a history force-push and two deploys failed before anyone noticed — if
+      # you are editing an existing copy of this file, diff MODIFIED files, not
+      # just added and deleted ones.
+#<< build
+#>> deploy-command
+      - run: flyctl deploy --remote-only
+#<< deploy-command
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+#>> post-deploy
+#<< post-deploy

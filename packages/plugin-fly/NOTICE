@@ -1,0 +1,11 @@
+Jini Fly Agent Plugin
+Copyright 2026 Leona Burime
+
+Portable plugin sources remain at packages/agent-plugins/fly.
+Moved from Tovu's bundled content/agent-plugins/fly (2026-11-02); product-specific
+guidance, notes and runtime switches stay with the host as an overlay.
+All text and code are original.
+No third-party text or code is included.
+
+This distribution contains dependency-free plugin modules (.mjs) and no vendor SDK.
+See LICENSE for the Apache License, Version 2.0.

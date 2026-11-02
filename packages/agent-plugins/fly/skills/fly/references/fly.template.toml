@@ -1,0 +1,81 @@
+# ============================================================================
+# fly.io app config TEMPLATE.
+#
+# Matches the plugin's deploy-configs/fly.mjs renderer. Write this to the
+# root of the operator's repo, next to `Dockerfile`.
+#
+# EVERY `<<PLACEHOLDER: ...>>` below must be replaced before this file is
+# committed. A surviving placeholder is not a harmless default — it is a deploy
+# that either fails confusingly or succeeds against the wrong app.
+#
+# This file is COMMITTED TO THE REPO AND IS PUBLIC. Nothing secret may appear
+# in it. See `[env]` below.
+# ============================================================================
+
+# The fly app to deploy into. There is no safe default: a wrong name here either
+# deploys over someone else's app or silently creates a stray one.
+app = "<<PLACEHOLDER: fly app name>>"
+
+# UNVERIFIED DEFAULT, not a recommendation. Pick the region the operator
+# actually wants and match it in the volume's own `--region`. If this is left as
+# `iad`, say so explicitly rather than letting them assume it was chosen.
+primary_region = "<<PLACEHOLDER: fly region, e.g. iad — this is NOT a default>>"
+
+[build]
+  dockerfile = "Dockerfile"
+
+# ----------------------------------------------------------------------------
+# NON-SECRET VALUES ONLY. This block is public.
+#
+# Real secrets go through `flyctl secrets set`, never here. The host guidance
+# names the server's boot-required secrets and any production-mode switch that
+# belongs in this block.
+# ----------------------------------------------------------------------------
+[env]
+  PORT = "<<PLACEHOLDER: container port the server listens on>>"
+
+# ----------------------------------------------------------------------------
+# Persistent state: the server's database and uploaded files live here;
+# everything else in the image is disposable.
+#
+# TWO THINGS ABOUT THIS MOUNT:
+#
+# 1. It must exist BEFORE the first deploy. The workflow does not create it.
+#    Without it the app boots with no persistent storage and every write is lost
+#    on the next deploy — a silent data loss, not a startup error.
+#       flyctl volumes create <name> --region <region> -a <app>
+#    `source` below must match that name EXACTLY.
+#
+# 2. The mount HIDES whatever the image has at that path at runtime — not
+#    merged, not per-file, gone. Anything the server must read at boot has to
+#    live outside the mount path in the image (the host guidance says where).
+# ----------------------------------------------------------------------------
+[[mounts]]
+  source = "<<PLACEHOLDER: volume name — must match `flyctl volumes create` exactly>>"
+  destination = "<<PLACEHOLDER: volume mount path inside the container>>"
+
+[http_service]
+  internal_port = <<PLACEHOLDER: container port, the same as PORT>>
+  force_https = true
+
+  # ONE MACHINE ONLY when the server keeps its state on the volume above (SQLite): a
+  # fly volume attaches to a single machine — so a second machine does not share
+  # this database, it gets its OWN separate volume and its own divergent
+  # database file. Writes then land in one or the other depending on which machine
+  # served the request. Nothing errors and nothing warns.
+  #
+  # These two settings keep the one machine up. Neither caps the MAXIMUM —
+  # nothing in fly.toml does. Never run `fly scale count` above 1, and never
+  # enable autoscaling.
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+
+  # Point this at a READINESS path (503 until migrations and seeding finish),
+  # not a liveness-only one that reports OK on a server that cannot yet serve.
+  [[http_service.checks]]
+    grace_period = "60s"
+    interval = "30s"
+    method = "GET"
+    timeout = "5s"
+    path = "<<PLACEHOLDER: readiness check path, e.g. /readyz>>"
