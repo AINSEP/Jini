@@ -1,0 +1,51 @@
+{
+  "name": "@jini-ai/plugin-charts-recharts",
+  "version": "0.6.17",
+  "description": "Recharts bar, line and pie chart provider (browser bundle) and its charts agent plugin, installable on their own.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/plugin-charts-recharts"
+  },
+  "jini": {
+    "domain": "tooling",
+    "kind": "plugin-packaging",
+    "runtime": "node",
+    "entries": {
+      "./package.json": "node",
+      "./plugin.json": "universal",
+      "./charts-recharts/*": "universal",
+      "./plugins/*": "node"
+    }
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    "./plugin.json": "./charts-recharts/plugin.json",
+    "./charts-recharts/*": "./charts-recharts/*",
+    "./plugins/*": "./plugins/*"
+  },
+  "files": [
+    "plugins/charts-recharts",
+    "charts-recharts",
+    "README.md",
+    "LICENSE",
+    "NOTICE"
+  ],
+  "scripts": {
+    "build": "node --import tsx ../provider-plugins/scripts/build.ts charts-recharts . && node --import tsx ../../scripts/assemble-agent-plugin-package.ts charts-recharts",
+    "prepack": "node --import tsx ../provider-plugins/scripts/build.ts charts-recharts . && node --import tsx ../../scripts/assemble-agent-plugin-package.ts charts-recharts",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@jini-ai/cookie-consent": "workspace:^",
+    "@jini-ai/plugins": "workspace:^",
+    "@jini-ai/ui": "workspace:^",
+    "tsx": "^4.19.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  }
+}
