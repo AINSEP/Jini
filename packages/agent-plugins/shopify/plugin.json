@@ -1,0 +1,22 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "shopify",
+  "version": "0.1.0",
+  "description": "Runs a shop on this site while Shopify keeps the products, cart, checkout, payments and orders. Works with no Shopify key at all: it reads the store's public product data (<store>/products.json and /meta.json), copies every product into a 'product' collection here (price, stock, photo, Buy link), and builds the shop grid with the collection embed whose Buy buttons are Shopify cart links (https://<shop>.myshopify.com/cart/<variant_id>:1) that open Shopify's own checkout. Re-running updates the same entries instead of duplicating them. Also encodes the domain move that breaks checkout when done in the wrong order (connect a shop. subdomain to Shopify and make it primary BEFORE the main domain points at this site). Follow the shopify skill and the host guidance.",
+  "author": "Tovu",
+  "license": "Apache-2.0",
+  "extensions": {
+    "tovu": {
+      "maturity": "soon",
+      "summary": "Lets your site sell your Shopify products while Shopify handles the cart, checkout, payments and orders.\n\nThe assistant copies your products onto your site and adds Buy buttons that open Shopify's checkout. It also keeps your shop working when you move your web address to this site. Live prices and a cart drawer are available too, with no Shopify key needed.",
+      "id": "tovu/shopify",
+      "provides": ["commerce:shopify"]
+    }
+  },
+  "keywords": [
+    "shopify", "shop", "store", "online-store", "ecommerce", "e-commerce", "commerce", "sell", "selling",
+    "products", "product", "catalog", "prices", "stock", "inventory", "buy", "buy-button", "cart",
+    "checkout", "payments", "orders", "storefront", "myshopify", "migrate-from-shopify", "shopify-import",
+    "product-grid", "commerce:shopify"
+  ]
+}

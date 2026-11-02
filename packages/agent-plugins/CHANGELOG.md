@@ -2,6 +2,7 @@
 
 ## Unreleased (0.6.19)
 
+- Add the portable Shopify catalog and checkout skill under `@jini-ai/agent-plugins/shopify`; host collection tools, markup and domain routing stay in the host overlay.
 - Pin Fly's portable template safety settings: operator placeholders, secret-free app configuration, single-machine defaults, serialized deploys and repository-secret token wiring.
 - `charts-recharts` and `charts-echarts` declare `provides: ["chart"]` (the kind their provider draws), so capability lookup and automatic-use ranking find the chart faces.
 - Plugin-folder suites (`<id>/**/__tests__/*.test.mjs`) are node:test files: the root `test:agent-plugins:content` script runs them and this package's vitest config no longer collects them. Shipped plugin `.mjs` modules are under the root `complexity:strict` gate.
