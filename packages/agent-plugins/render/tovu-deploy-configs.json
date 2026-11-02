@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "generators": [
+    {
+      "id": "render",
+      "label": "Render",
+      "module": "deploy-configs/render.mjs",
+      "candidatePaths": [
+        {
+          "path": "render.yaml",
+          "order": 2
+        }
+      ]
+    }
+  ]
+}

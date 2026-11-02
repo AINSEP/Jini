@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "platforms": [
+    {
+      "id": "render",
+      "label": "Render",
+      "module": "deploy-ops/render.mjs",
+      "hosts": ["api.render.com"]
+    }
+  ]
+}

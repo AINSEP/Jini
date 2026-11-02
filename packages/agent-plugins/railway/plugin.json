@@ -1,0 +1,45 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "railway",
+  "version": "1.0.0",
+  "description": "Deploys existing Railway services, checks deployment status and logs, stages variables, and generates railway.json for the host's server.",
+  "author": "Tovu",
+  "license": "Apache-2.0",
+  "extensions": {
+    "tovu": {
+      "maturity": "soon",
+      "displayName": "Railway",
+      "summary": "Deploys and checks an existing Railway service, stages variables, and writes the server settings file.",
+      "id": "tovu/railway",
+      "provides": [
+        "deploy-config:railway",
+        "deploy-ops:railway"
+      ],
+      "credentialCards": [
+        {
+          "target": "railway",
+          "title": "Connect Railway",
+          "label": "Railway API",
+          "ownedApiLabel": "Railway API",
+          "category": "hosting",
+          "intro": "Save a Railway token for deploying this site from Tovu. The assistant can look up your Railway projects, deploy your server, check status and logs, and stage variables. Writing the deployment settings file needs no token. Untested: this connection hasn't been tried end to end yet.",
+          "usedFor": [
+            "Looks up your Railway projects",
+            "Deploys your server"
+          ],
+          "keyHint": "In Railway, open Account Settings → Tokens → Create Token and select the workspace that holds the site. The token can do anything in that workspace; Railway has no read-only option.",
+          "saveKind": "api",
+          "helpUrl": "https://railway.com/account/tokens",
+          "helpLabel": "Create a Railway token",
+          "baseUrl": "https://backboard.railway.com/graphql/v2"
+        }
+      ]
+    }
+  },
+  "keywords": [
+    "railway",
+    "deploy",
+    "deploy-config:railway",
+    "deploy-ops:railway"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "schemaVersion": 1,
+  "platforms": [
+    {
+      "id": "railway",
+      "label": "Railway",
+      "module": "deploy-ops/railway.mjs",
+      "hosts": ["backboard.railway.com"]
+    }
+  ]
+}

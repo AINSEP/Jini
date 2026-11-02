@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "generators": [
+    {
+      "id": "railway",
+      "label": "Railway",
+      "module": "deploy-configs/railway.mjs",
+      "candidatePaths": [
+        {
+          "path": "railway.toml",
+          "order": 3
+        }
+      ]
+    }
+  ]
+}

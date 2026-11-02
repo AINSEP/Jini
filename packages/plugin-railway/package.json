@@ -1,0 +1,39 @@
+{
+  "name": "@jini-ai/plugin-railway",
+  "version": "0.6.17",
+  "description": "Independently installable Railway deploy plugin (railway.json generation and deploy operations) in the portable Agent Plugins format.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/plugin-railway"
+  },
+  "jini": {
+    "domain": "tooling",
+    "kind": "plugin-packaging",
+    "runtime": "universal",
+    "entries": {
+      "./package.json": "universal",
+      "./plugin.json": "universal",
+      "./railway/*": "universal"
+    }
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    "./plugin.json": "./railway/plugin.json",
+    "./railway/*": "./railway/*"
+  },
+  "files": ["railway", "README.md", "LICENSE", "NOTICE"],
+  "scripts": {
+    "build": "node --import tsx ../../scripts/assemble-agent-plugin-package.ts railway",
+    "prepack": "node --import tsx ../../scripts/assemble-agent-plugin-package.ts railway"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  }
+}
