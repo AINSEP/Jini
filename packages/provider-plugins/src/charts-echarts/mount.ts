@@ -16,7 +16,6 @@ use([BarChart, LineChart, PieChart, ScatterChart, AriaComponent, GridComponent, 
 const REPLACED_COMPONENTS = ['series', 'xAxis', 'yAxis', 'grid'];
 /** The same plot height as the Recharts provider; width follows the host frame. */
 const CHART_HEIGHT_PX = 300;
-let describedBySequence = 0;
 
 export class UnsupportedChartSpecError extends Error {
   constructor() { super('Unsupported ECharts chart specification.'); this.name = 'UnsupportedChartSpecError'; }
@@ -37,7 +36,7 @@ function createFrame({ element }: { element: HTMLElement }): ChartFrame {
 }
 
 /** Title and description go in through textContent: agent-supplied text never reaches innerHTML. */
-function describeFrame({ figure, caption, spec }: ChartFrame & { spec: ChartSpec }): void {
+function describeFrame({ figure, caption, spec, descriptionId }: ChartFrame & { spec: ChartSpec; descriptionId: string }): void {
   const text = chartTitle({ spec });
   const title = figure.ownerDocument.createElement('span'); title.textContent = text;
   caption.replaceChildren(title);
@@ -45,7 +44,7 @@ function describeFrame({ figure, caption, spec }: ChartFrame & { spec: ChartSpec
   figure.removeAttribute('aria-describedby');
   if (spec.description === undefined) return;
   const description = figure.ownerDocument.createElement('span');
-  description.id = `jini-echarts-description-${++describedBySequence}`; description.textContent = spec.description;
+  description.id = descriptionId; description.textContent = spec.description;
   caption.append(description); figure.setAttribute('aria-describedby', description.id);
 }
 
@@ -69,12 +68,14 @@ export function mount(
   if (!supportsEChartsSpec({ spec: input.spec })) throw new UnsupportedChartSpecError();
   const frame = createFrame({ element });
   const chart = init(frame.surface, undefined, { renderer: 'svg' });
+  // ECharts' own instance id is unique per page, so the description id needs no module counter.
+  const descriptionId = `jini-echarts-description-${chart.id}`;
   let destroyed = false;
   function render(next: ChartRenderInput): void {
     if (destroyed) return;
     if (!supportsEChartsSpec({ spec: next.spec })) throw new UnsupportedChartSpecError();
     applyChartTheme({ element, theme: next.theme });
-    describeFrame({ ...frame, spec: next.spec });
+    describeFrame({ ...frame, spec: next.spec, descriptionId });
     chart.setOption(buildEChartsOption({ spec: next.spec }), { replaceMerge: REPLACED_COMPONENTS });
   }
   try { render(input); } catch (error) { chart.dispose(); element.replaceChildren(); throw error; }
