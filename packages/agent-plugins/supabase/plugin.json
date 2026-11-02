@@ -1,0 +1,78 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "supabase",
+  "version": "1.1.0",
+  "description": "Gives this site a hosted database (Supabase) for sign-ups, forms and app data, set up from chat with no setup steps for the person. Use it whenever someone says they need a database, want to store data, or want sign-ups or form entries saved. Always start with agent_plugin_connect { pluginId: \"supabase\" }: it shows a sign-in card (the person signs in or signs up at Supabase themselves), turns the connection on, and returns once connected. Then follow the supabase skill: find or create the database, handle Supabase's free limit of two active databases, and speak in plain words only.",
+  "author": "Tovu",
+  "license": "Apache-2.0",
+  "extensions": {
+    "tovu": {
+      "maturity": "soon",
+      "summary": "Gives your site a database for sign-ups and form entries. You sign in to Supabase and the assistant sets up the rest.",
+      "id": "tovu/supabase",
+      "provides": [
+        "database:supabase"
+      ],
+      "credentialCards": [
+        {
+          "target": "supabase-sign-in",
+          "title": "Connect Supabase",
+          "label": "Supabase account",
+          "category": "general",
+          "intro": "Connect Supabase to set up and work with this site’s database.",
+          "usedFor": [
+            "Finds your accounts and databases",
+            "Reads the selected database",
+            "Sets up databases and applies database changes you approve"
+          ],
+          "keyHint": "Review the account and project access requested on the Supabase sign-in page.",
+          "saveKind": "oauth",
+          "saveTarget": "supabase",
+          "permissions": "Allows the connected tools to discover your organizations and projects and work with the selected database. Creating, pausing or restoring a project and running database changes require the applicable tool permissions.",
+          "baseUrl": "https://mcp.supabase.com"
+        },
+        {
+          "target": "supabase",
+          "title": "Connect Supabase with an access token",
+          "label": "Supabase account",
+          "category": "general",
+          "intro": "Use this fallback only when browser sign-in cannot start. The token connects the Supabase account, not a site mailer or a project’s public API.",
+          "usedFor": [
+            "Finds your accounts and databases",
+            "Reads the selected database",
+            "Sets up databases and applies database changes you approve"
+          ],
+          "keyHint": "Use a Management API personal access token, not an anon or service-role key. Discovery: Organizations, Projects (account-wide), Organization Settings and Project Settings → Read. Database tools: Database, Migrations, API Keys, Advisors and Logs → Read. Add Organization Projects → Read-write only to create a project, Project Settings → Read-write to pause/restore, and Migrations → Read-write to apply migrations. Tool write grants are still required separately.",
+          "saveKind": "agent-plugin-token",
+          "helpUrl": "https://supabase.com/dashboard/account/tokens",
+          "helpLabel": "Create a personal access token",
+          "baseUrl": "https://api.supabase.com"
+        }
+      ]
+    }
+  },
+  "keywords": [
+    "supabase",
+    "database",
+    "db",
+    "i-need-a-database",
+    "store-data",
+    "save-data",
+    "data",
+    "signups",
+    "sign-ups",
+    "forms",
+    "form-entries",
+    "backend",
+    "app-data",
+    "postgres",
+    "postgresql",
+    "sql",
+    "tables",
+    "connect",
+    "sign-in",
+    "login",
+    "setup",
+    "database:supabase"
+  ]
+}

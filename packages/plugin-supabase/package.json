@@ -1,0 +1,39 @@
+{
+  "name": "@jini-ai/plugin-supabase",
+  "version": "0.6.17",
+  "description": "Independently installable Supabase database setup skill and hosted MCP connection in the portable Agent Plugins format.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/plugin-supabase"
+  },
+  "jini": {
+    "domain": "tooling",
+    "kind": "plugin-packaging",
+    "runtime": "universal",
+    "entries": {
+      "./package.json": "universal",
+      "./plugin.json": "universal",
+      "./supabase/*": "universal"
+    }
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    "./plugin.json": "./supabase/plugin.json",
+    "./supabase/*": "./supabase/*"
+  },
+  "files": ["supabase", "README.md", "LICENSE", "NOTICE"],
+  "scripts": {
+    "build": "node --import tsx ../../scripts/assemble-agent-plugin-package.ts supabase",
+    "prepack": "node --import tsx ../../scripts/assemble-agent-plugin-package.ts supabase"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  }
+}
