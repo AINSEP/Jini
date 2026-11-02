@@ -2,6 +2,7 @@
 
 ## Unreleased (0.6.19)
 
+- Pin Fly's portable template safety settings: operator placeholders, secret-free app configuration, single-machine defaults, serialized deploys and repository-secret token wiring.
 - Plugin-folder suites (`<id>/**/__tests__/*.test.mjs`) are node:test files: the root `test:agent-plugins:content` script runs them and this package's vitest config no longer collects them. Shipped plugin `.mjs` modules are under the root `complexity:strict` gate.
 - Every Jini agent plugin now ships in this package as a subpath: `@jini-ai/agent-plugins/<id>`
   resolves to `<id>/plugin.json` and `@jini-ai/agent-plugins/<id>/*` to its files (ui-ux-design,
