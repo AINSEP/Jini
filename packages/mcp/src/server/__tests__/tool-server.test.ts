@@ -693,7 +693,8 @@ describe('run() context and transport options (characterization)', () => {
 
   it('builds a minimal tool context when no optional context fields are configured', async () => {
     const { seenCtx } = await runOnce({});
-    expect(seenCtx).toEqual({ baseUrl: 'http://d.example', fetchImpl: fetch, diagnosticToolIds: ['noop'] });
+    // Every call also carries its own callLocalTool gateway (a fresh closure per call, so it is matched by kind).
+    expect(seenCtx).toEqual({ baseUrl: 'http://d.example', fetchImpl: fetch, diagnosticToolIds: ['noop'], callLocalTool: expect.any(Function) });
   });
 
   it('carries host diagnostic IDs into the tool context after the registered tool names', async () => {
