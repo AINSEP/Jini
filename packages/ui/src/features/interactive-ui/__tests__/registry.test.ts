@@ -63,3 +63,11 @@ it('retains every chart wire id with a neutral host and core table fallback', as
     expect(typeof chart.Component).toBe('function');
   }
 });
+
+it('renders a saved chart.spec in a host with no provider snapshot (core table, not unknown)', async () => {
+  const { DEFAULT_INTERACTIVE_UI_REGISTRY } = await import('../index.js');
+  const spec = DEFAULT_INTERACTIVE_UI_REGISTRY.resolveById({ id: 'chart.spec' })!;
+  expect(spec.provider).toBe('core.table');
+  expect(spec.capabilities).toEqual(['chart', 'chart-spec']);
+  expect(typeof spec.Component).toBe('function');
+});

@@ -35,7 +35,8 @@ describe('interactive-ui manifests entry point', () => {
 
   it('declares the same order as the React registry, so search rank and fallback order agree', async () => {
     const { DEFAULT_INTERACTIVE_UI_REGISTRY } = await import('../index.js');
-    expect(DEFAULT_INTERACTIVE_UI_REGISTRY.list().map((entry) => entry.id)).toEqual(manifests.ALL_MANIFESTS.map((m) => m.id));
+    // The registry adds only the generic chart entry after the legacy wire set.
+    expect(DEFAULT_INTERACTIVE_UI_REGISTRY.list().map((entry) => entry.id)).toEqual([...manifests.ALL_MANIFESTS.map((m) => m.id), 'chart.spec']);
   });
 });
 

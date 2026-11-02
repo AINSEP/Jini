@@ -53,6 +53,7 @@ import {
 import { createChartProviderRegistry } from '../charts/registry.js';
 import { createChartInteractiveRegistry } from '../charts/react.js';
 import { chartWireManifests } from '../charts/wire.js';
+import { CHART_SPEC_COMPONENT_ID } from '../charts/catalog-manifests.js';
 
 /**
  * Every provider currently registered, shadcn preferred over the dependency-free native fallback
@@ -82,8 +83,10 @@ const nonChartRegistry = new InteractiveUiRegistry({ entries: [
 
 // Charts retain their wire IDs and validation while an unconfigured host renders the core table.
 // Runtime providers belong to the host's admitted boot snapshot, never to the default registry.
+// `chart.spec` is here too, so a saved multi-series chart still renders (as a table) in a host that
+// has no provider snapshot. It stays out of `ALL_MANIFESTS`: that list is the legacy wire set.
 const chartHosts = createChartInteractiveRegistry({ registry: nonChartRegistry, providers: createChartProviderRegistry({ providers: [] }) });
 export const DEFAULT_INTERACTIVE_UI_REGISTRY = new InteractiveUiRegistry({ entries: [
   ...nonChartRegistry.list(),
-  ...chartWireManifests.map(({ id }) => chartHosts.resolveById({ id })!),
+  ...[...chartWireManifests.map(({ id }) => id), CHART_SPEC_COMPONENT_ID].map((id) => chartHosts.resolveById({ id })!),
 ] });

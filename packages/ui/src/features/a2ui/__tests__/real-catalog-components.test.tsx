@@ -124,6 +124,6 @@ describe('real catalog: DEFAULT_INTERACTIVE_UI_REGISTRY coverage', () => {
 
   it('resolves by capability, e.g. every "chart" provider', () => {
     const chartEntries = DEFAULT_INTERACTIVE_UI_REGISTRY.resolveByCapability({ capability: 'chart' });
-    expect(chartEntries.map((entry) => entry.id)).toEqual(['recharts.bar-chart', 'recharts.line-chart', 'recharts.pie-chart']);
+    expect(chartEntries.map((entry) => entry.id)).toEqual(['recharts.bar-chart', 'recharts.line-chart', 'recharts.pie-chart', 'chart.spec']);
   });
 });

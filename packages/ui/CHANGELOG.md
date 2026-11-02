@@ -4,6 +4,7 @@
 
 - `@jini-ai/ui/charts` adds `chartCatalogManifests({ providers }, { siteProvider })`, the one headless owner of chart catalog entries: per-provider `<provider>.<kind>-chart` entries (now described), the legacy `recharts.*` entries with unchanged ids, schemas and descriptions, and a stable `chart.spec` entry (`{ spec }`, any kind, one or more series; `chartSpecPropsSchema` rejects empty series or data, rows missing a series or category, and non-numeric series values). `chart.spec` is listed with zero providers and then renders the data table.
 - `createChartInteractiveRegistry` now attaches components to exactly those manifests. The unadvertised `core.table.<kind>-chart` fallback ids are gone; the legacy `recharts.*` ids report `core.table` when no provider draws their kind.
+- `DEFAULT_INTERACTIVE_UI_REGISTRY` now also holds `chart.spec` (after the legacy chart ids), so a host with no chart provider snapshot still renders a saved `chart.spec` surface as the data table. `ALL_MANIFESTS` is unchanged.
 
 ## Unreleased (0.6.18)
 
