@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
 import { isMcpManifest, isPluginManifest, PLUGIN_SKILLS_DIRNAME } from '../manifest.js';
+import { parseAgentPluginManifest } from '../lifecycle/manifest.js';
 
 describe('isPluginManifest', () => {
   it('accepts a manifest with a non-empty name', () => {
@@ -91,10 +92,10 @@ describe('slide-design plugin', () => {
   const skill = readFileSync(join(skillRoot, 'SKILL.md'), 'utf8');
   const references = readdirSync(join(skillRoot, 'references')).sort();
 
-  it('has a plugin.json that validates as a PluginManifest', () => {
-    const manifest: unknown = JSON.parse(readFileSync(join(pluginRoot, 'plugin.json'), 'utf8'));
-    expect(isPluginManifest(manifest)).toBe(true);
-    expect(manifest).toMatchObject({ name: 'slide-design', version: '0.1.0', license: 'Apache-2.0' });
+  it('has a plugin.json the strict parser accepts, with its publisher id and capability', () => {
+    const parsed = parseAgentPluginManifest({ value: JSON.parse(readFileSync(join(pluginRoot, 'plugin.json'), 'utf8')) });
+    if (!parsed.ok) throw new Error(parsed.errors.join('; '));
+    expect(parsed.manifest).toMatchObject({ name: 'slide-design', id: 'jini/slide-design', provides: ['slide-design'], version: '0.1.0', license: 'Apache-2.0' });
   });
 
   it('bundles exactly one skill whose frontmatter names it', () => {
