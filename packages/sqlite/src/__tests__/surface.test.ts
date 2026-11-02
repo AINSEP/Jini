@@ -10,14 +10,16 @@ it('preserves the remaining runtime surface and removes server composition',()=>
  // REGRESSION: fails if any server-owned compatibility re-export is restored.
  for (const name of serverOwnedNames) expect(name in shim).toBe(false);
 });
-it('preserves every old declaration name, including migrate, DDL, helpers and CRUD',()=>{
- const root=ts.createSourceFile('index.d.ts',readFileSync(new URL('../../dist/index.d.ts',import.meta.url),'utf8'),ts.ScriptTarget.Latest,true);
+it.each(['../index.ts', '../../dist/index.d.ts'])('preserves every frozen declaration name in %s, including DDL, helpers and CRUD',path=>{
+ const root=ts.createSourceFile('index.d.ts',readFileSync(new URL(path,import.meta.url),'utf8'),ts.ScriptTarget.Latest,true);
  const names=root.statements.flatMap(node=>ts.isExportDeclaration(node) && node.exportClause && ts.isNamedExports(node.exportClause)?node.exportClause.elements.map(e=>({name:e.name.text,runtime:!node.isTypeOnly&&!e.isTypeOnly})):[]);
  expect(names.sort((a,b)=>a.name.localeCompare(b.name))).toEqual(old);
 });
 it('the shim has no driver dependencies or runtime references to the removed package',()=>{
  const manifest=JSON.parse(readFileSync(new URL('../../package.json',import.meta.url),'utf8'));
- expect(manifest.name).toBe('@jini-ai/sqlite');expect(manifest.version).toBe('0.5.2');
+ expect(manifest.name).toBe('@jini-ai/sqlite');
+ // Owner decision (2026-11-01, #8): freeze the shim API, publish its version with the Jini lockstep.
+ expect(manifest.version).toBe(JSON.parse(readFileSync(new URL('../../../core/package.json', import.meta.url), 'utf8')).version);
  expect(Object.keys(manifest.dependencies).sort()).toEqual(['@jini-ai/chat','@jini-ai/daemon','@jini-ai/db','@jini-ai/registry']);
  expect(readFileSync(new URL('../index.ts',import.meta.url),'utf8')).not.toContain('sqlite-chat');
 });

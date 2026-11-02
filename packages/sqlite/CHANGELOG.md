@@ -1,3 +1,7 @@
+## Unreleased (0.6.18)
+
+- Keep the compatibility API frozen while testing the package version against the Jini release lockstep.
+
 ## 0.6.17
 
 ### Patch Changes
