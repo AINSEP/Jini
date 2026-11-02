@@ -30,8 +30,9 @@ look at them small, side by side, for consistency. Ideally see it full screen on
 - Titles are topic labels, or the title chain doesn't read. Image-only talk slides, dividers and
   teaching questions are allowed exceptions (`storyline.md`).
 - More than one message on a slide; a wall of text.
-- The wrong chart for the question, no highlight, a legend instead of labels, a bar axis that
-  doesn't start at zero.
+- The wrong chart for the question, no highlight, a legend where direct labels would fit, a
+  magnitude bar or column axis that doesn't start at zero (floating waterfall change bars are
+  fine, `charts-and-exhibits.md`).
 - Groups that overlap or leave gaps.
 - Fonts, colours or positions that change between slides; more than one accent on a slide.
 - Missing speaker notes on presented slides; missing alt text.

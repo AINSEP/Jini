@@ -16,6 +16,9 @@
   declared an id (and under the requesting host's key even when none existed), and removes
   `renamedFrom` and `supersedes` from every key, not only the requesting host's.
 - README documents the extension-namespace policy: one `extensions` key per host.
+- slide-design review checklist matches the chart guide: a compact legend is fine when direct
+  labels would collide, and only magnitude bars and columns must start at zero (waterfall change
+  bars float).
 
 ## 0.6.17
 
