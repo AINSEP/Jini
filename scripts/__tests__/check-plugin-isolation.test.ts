@@ -75,6 +75,12 @@ describe('plugin package installation isolation', () => {
     }
   });
 
+  it.each(['dist/render/banner.js', 'dist/vercel/index.js'])(
+    'a core package library folder that shares a plugin id is not a payload: %s', path => {
+      expect(() => assertPluginPackageIsolation({ manifest: { name: '@jini-ai/cookie-consent' }, packedPaths: [...docs, `package/${path}`],
+        pluginIds: [...pluginIds, 'render', 'vercel'] })).not.toThrow();
+    });
+
   it.each(['ui-ux-design/skills/design/SKILL.md', 'plugins/payments-stripe/0.6.17/server/index.mjs',
     'dist/vendor/future-plugin/jini.plugin.json', 'dist/content/future-agent/plugin.json',
     'plugins/future-plugin/1.0.0/server/index.mjs'])(
