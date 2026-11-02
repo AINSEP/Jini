@@ -15,13 +15,15 @@ it('keeps neutral and browser entries unchanged while SQL entries are explicit N
 });
 it('makes every SQL, React and surface-card UI peer optional, with one pinned dev Kysely and PGlite',()=>{
  // The surface-card peers became optional in d5abdfbc; Recharts is now artifact-owned.
- const peers={'@jini-ai/db':'^0.6.10',kysely:'^0.29.6','better-sqlite3':'^13.0.0','@electric-sql/pglite':'0.5.8',pg:'^8.23.0',react:'^18.3.0 || ^19.0.0','react-dom':'^18.3.0 || ^19.0.0','@ag-ui/core':'0.0.58',
+ const peers={'better-sqlite3':'^13.0.0','@electric-sql/pglite':'0.5.8',pg:'^8.23.0',react:'^18.3.0 || ^19.0.0','react-dom':'^18.3.0 || ^19.0.0','@ag-ui/core':'0.0.58',
   '@mcp-ui/client':'7.1.1','@radix-ui/react-checkbox':'^1.3.11','@radix-ui/react-label':'^2.1.15','@radix-ui/react-radio-group':'^1.4.7','@radix-ui/react-select':'^2.3.7','@radix-ui/react-slot':'^1.3.3'};
- const jiniPeers={'@jini-ai/agent-runtime':'^0.6.10','@jini-ai/agentic':'^0.6.10','@jini-ai/protocol':'^0.6.10',
-  '@jini-ai/ui':'^0.6.10','@jini-ai/diagnostics':'^0.6.10'};
+ const jiniPeers={'@jini-ai/agent-runtime':'^0.6.10','@jini-ai/protocol':'^0.6.10','@jini-ai/ui':'^0.6.10'};
  expect(manifest.peerDependencies).toEqual({...peers,...jiniPeers});
  // SQL stores and surface cards use core's default clock at runtime, so core is required.
- expect(manifest.dependencies).toEqual({'@jini-ai/core':'workspace:^'});
+ // Default widget/bridge/SQL entries load agentic, db, diagnostics and Kysely, so they became regular
+ // dependencies (deaf9cc, squashed; pinned alike by dbpkg-chat-manifest.test.ts).
+ expect(manifest.dependencies).toEqual({'@jini-ai/core':'workspace:^','@jini-ai/agentic':'workspace:^','@jini-ai/db':'workspace:^',
+  '@jini-ai/diagnostics':'workspace:^',kysely:'^0.29.6'});
  for(const name of Object.keys({...peers,...jiniPeers})){
   expect(manifest.peerDependenciesMeta[name]).toEqual({optional:true});
   expect(manifest.dependencies??{}).not.toHaveProperty(name);

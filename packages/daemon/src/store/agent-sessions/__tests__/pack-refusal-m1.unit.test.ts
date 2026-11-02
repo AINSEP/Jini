@@ -10,7 +10,8 @@ it('refuses an empty npm pack result before attempting to extract an unspecified
   const dir = fixture({ prefix: 'pack-refusal-m1-' });
   try {
     vi.mocked(execFileSync).mockReturnValue('[]');
-    expect(() => pack({ dir, name: 'daemon' })).toThrow('npm pack returned no archive');
+    // 88e8f9f routed pack() through the shared npm 11/12 reader, which owns this refusal message.
+    expect(() => pack({ dir, name: 'daemon' })).toThrow('npm pack --json: expected exactly one packed package, got 0');
     expect(execFileSync).toHaveBeenCalledTimes(1);
     expect(vi.mocked(execFileSync).mock.calls[0]?.[0]).toBe('npm');
   } finally { rmSync(dir, { recursive: true, force: true }); }

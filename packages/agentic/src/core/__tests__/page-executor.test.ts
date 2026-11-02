@@ -869,3 +869,32 @@ it.each([
     .rejects.toThrow('does not publish entity or query navigation targets');
   expect(legacy.navigate).not.toHaveBeenCalled();
 });
+
+describe('executePageCapability — the cancellation signal is transparent to the driver', () => {
+  // Bug class: the signal path wraps the driver in a decorator; a decorator that re-spells
+  // `(args, options) => driver.x(args, options)` hands every driver an explicit `undefined`
+  // options argument no caller passed. With and without a signal, every driver method must see
+  // byte-for-byte the same calls.
+  const VERBS: ReadonlyArray<{ capabilityId: string; input: Record<string, unknown> }> = [
+    { capabilityId: 'page.find_elements', input: { query: 'task' } },
+    { capabilityId: 'page.highlight', input: { handle: 'add-task-button' } },
+    { capabilityId: 'page.scroll_to', input: { handle: 'add-task-button' } },
+    { capabilityId: 'page.click', input: { handle: 'add-task-button' } },
+    { capabilityId: 'page.fill', input: { handle: 'new-task-input', text: 'Water plants' } },
+    { capabilityId: 'page.select_option', input: { handle: 'add-task-button', option: 'Notes' } },
+    { capabilityId: 'page.navigate', input: { page: 'notes' } },
+  ];
+  const METHODS = ['findElements', 'listPages', 'describeField', 'highlight', 'scrollTo', 'click', 'fill', 'selectOption', 'navigate'] as const;
+
+  async function callsFor(verb: (typeof VERBS)[number], signal?: AbortSignal) {
+    const fake = createFakeDriver();
+    await executePageCapability({ driver: fake, ...verb }, signal ? { signal } : {});
+    return Object.fromEntries(METHODS.map(method => [method, vi.mocked(fake[method]).mock.calls]));
+  }
+
+  it.each(VERBS)('$capabilityId reaches the driver with the same arguments and arity', async verb => {
+    const plain = await callsFor(verb);
+    const signalled = await callsFor(verb, new AbortController().signal);
+    expect(signalled).toStrictEqual(plain);
+  });
+});

@@ -37,8 +37,11 @@ it("isolates settings and its optional Express adapter from the kernel root", as
   expect(Object.keys(manifest.exports).sort()).toEqual(Object.keys(manifest.jini.entries).sort());
   expect(manifest.jini.entries["./settings"]).toBe("universal");
   expect(manifest.jini.entries["./settings/express"]).toBe("node");
-  expect(manifest.peerDependencies.express).toBe("^4.21.0 || ^5.0.0");
-  expect(manifest.peerDependenciesMeta.express.optional).toBe(true);
+  // 5e48b4f: the adapter imports Express types only and receives the host's app, so core declares
+  // no Express peer at all (scripts/__tests__/optional-peer-contract.test.ts pins core → express removed).
+  expect(manifest.peerDependencies?.express).toBeUndefined();
+  expect(manifest.peerDependenciesMeta?.express).toBeUndefined();
+  expect(manifest.jini.optionalPeers?.express).toBeUndefined();
   expect(manifest.dependencies?.express).toBeUndefined();
   expect(manifest.optionalDependencies?.express).toBeUndefined();
 });

@@ -114,11 +114,15 @@ describe('integrated runtime contracts', () => {
     // The root statically loads OAuth through the runtime definitions and PKCE bridge.
     // Packaged consumers must receive it even when they never start an OAuth flow.
     // The Claude stream parser also loads the shared delegated-result codec at runtime.
+    // deaf9cc: root modules also statically import @jini-ai/platform (command, toolchain, net, proxy-env,
+    // fetch-with-timeout) and @jini-ai/integrations; packages/README.md lists both as required.
     expect(manifest.dependencies).toEqual({
       '@jini-ai/core': 'workspace:^', '@jini-ai/oauth': 'workspace:^', '@jini-ai/protocol': 'workspace:^',
+      '@jini-ai/integrations': 'workspace:^', '@jini-ai/platform': 'workspace:^',
     });
-    expect(manifest.peerDependencies).not.toHaveProperty('@jini-ai/oauth');
-    expect(manifest.peerDependenciesMeta).not.toHaveProperty('@jini-ai/oauth');
+    // 5e48b4f removed the last peer (@github/copilot-sdk), so no peer maps exist — oauth included.
+    expect(manifest.peerDependencies).toBeUndefined();
+    expect(manifest.peerDependenciesMeta).toBeUndefined();
     expect(manifest.devDependencies).not.toHaveProperty('@jini-ai/oauth');
   });
 });

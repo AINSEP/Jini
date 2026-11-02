@@ -161,7 +161,7 @@ function renderToolCardBody(args: ToolCardBodyArgs): ReactNode {
  * The head every Jini/MCP/unknown tool row shares: status, "<Humanized Name>" (announced as
  * "Tool call · <Humanized Name>"), and the
  * target ({@link toolRowTarget}). One place, so a tool id the family table doesn't know (`content_post_update`,
- * `mcp__tovu__theme_list_files`) still reads as a label and never as its raw name and JSON args.
+ * `mcp__acme__theme_list_files`) still reads as a label and never as its raw name and JSON args.
  */
 function ToolRowHead({ name, input, result, runStreaming, runSucceeded }: CardProps & { name: string }) {
   const t = useT();

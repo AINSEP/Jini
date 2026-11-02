@@ -532,19 +532,22 @@ function navigationTextFields({ pages }: { pages: readonly PageSummary[] }, _opt
   return pages.some(page => page.navigation !== undefined) ? ['pages[].navigation.label', 'pages[].navigation.description'] : [];
 }
 
-/** Check cancellation at the actual effect boundary, including after asynchronous observations. */
+/** Check cancellation at the actual effect boundary, including after asynchronous observations.
+ * Each method forwards the caller's arguments verbatim (`...call`), never a re-spelled
+ * `(args, options)`: a transparent decorator must not change arity, or a driver sees an explicit
+ * `undefined` options argument that no caller passed. */
 function cancellablePageDriver({ driver, signal }: { driver: PageDriver; signal: AbortSignal }): PageDriver {
   return { ...driver,
-    findElements: (args, options) => driver.findElements(args, options),
-    listPages: (args, options) => driver.listPages(args, options),
-    describeField: (args, options) => driver.describeField(args, options),
+    findElements: (...call) => driver.findElements(...call),
+    listPages: (...call) => driver.listPages(...call),
+    describeField: (...call) => driver.describeField(...call),
     ...(driver.describeState ? { describeState: driver.describeState.bind(driver) } : {}),
     ...(driver.settle ? { settle: driver.settle.bind(driver) } : {}),
-    highlight: (args, options) => { signal.throwIfAborted(); return driver.highlight(args, options); },
-    scrollTo: (args, options) => { signal.throwIfAborted(); return driver.scrollTo(args, options); },
-    click: (args, options) => { signal.throwIfAborted(); return driver.click(args, options); },
-    fill: (args, options) => { signal.throwIfAborted(); return driver.fill(args, options); },
-    selectOption: (args, options) => { signal.throwIfAborted(); return driver.selectOption(args, options); },
-    navigate: (args, options) => { signal.throwIfAborted(); return driver.navigate(args, options); },
+    highlight: (...call) => { signal.throwIfAborted(); return driver.highlight(...call); },
+    scrollTo: (...call) => { signal.throwIfAborted(); return driver.scrollTo(...call); },
+    click: (...call) => { signal.throwIfAborted(); return driver.click(...call); },
+    fill: (...call) => { signal.throwIfAborted(); return driver.fill(...call); },
+    selectOption: (...call) => { signal.throwIfAborted(); return driver.selectOption(...call); },
+    navigate: (...call) => { signal.throwIfAborted(); return driver.navigate(...call); },
   };
 }

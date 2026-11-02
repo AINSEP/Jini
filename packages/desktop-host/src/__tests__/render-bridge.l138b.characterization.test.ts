@@ -91,7 +91,10 @@ describe('render bridge client characterization', () => {
   it('accepts PNG output exactly at the byte limit', async () => {
     const png = Buffer.alloc(URL_CAPTURE_MAX_BYTES);
     const send: typeof fetch = async () => new Response(JSON.stringify({ ...result, png: png.toString('base64') }));
-    expect(await client({ send }).captureUrl(request)).toEqual({ ...result, png });
+    const captured = await client({ send }).captureUrl(request);
+    // Deep equality walks a 16 MiB Buffer element by element and exhausts a 2 GB worker heap; compare the bytes natively.
+    expect(Buffer.isBuffer(captured.png) && Buffer.compare(captured.png, png)).toBe(0);
+    expect({ ...captured, png: null }).toEqual({ ...result, png: null });
   });
 
   it.each([
