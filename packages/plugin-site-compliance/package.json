@@ -1,0 +1,39 @@
+{
+  "name": "@jini-ai/plugin-site-compliance",
+  "version": "0.6.17",
+  "description": "Independently installable privacy, consent and accessibility risk-screening skill in the portable Agent Plugins format.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/plugin-site-compliance"
+  },
+  "jini": {
+    "domain": "tooling",
+    "kind": "plugin-packaging",
+    "runtime": "universal",
+    "entries": {
+      "./package.json": "universal",
+      "./plugin.json": "universal",
+      "./site-compliance/*": "universal"
+    }
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    "./plugin.json": "./site-compliance/plugin.json",
+    "./site-compliance/*": "./site-compliance/*"
+  },
+  "files": ["site-compliance", "README.md", "LICENSE", "NOTICE"],
+  "scripts": {
+    "build": "node --import tsx ../../scripts/assemble-agent-plugin-package.ts site-compliance",
+    "prepack": "node --import tsx ../../scripts/assemble-agent-plugin-package.ts site-compliance"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  }
+}

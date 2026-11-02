@@ -1,0 +1,34 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "site-compliance",
+  "version": "1.0.0",
+  "description": "Evidence-based privacy, cookie/consent, and accessibility risk screening for a website. Collects citable evidence from the site's own configuration and its own rendered pages, reports findings with the exact page path, selector, header, or request that supports each one, and says 'cannot determine' where the evidence is missing. Never asserts a GDPR, CCPA/CPRA, or WCAG compliance verdict.",
+  "author": "Tovu",
+  "license": "Apache-2.0",
+  "extensions": {
+    "tovu": {
+      "maturity": "soon",
+      "summary": "Checks your site for privacy, cookie and accessibility risks and shows where each one is. It flags risks; it doesn't certify compliance.",
+      "id": "tovu/site-compliance",
+      "provides": [
+        "site-compliance"
+      ]
+    }
+  },
+  "keywords": [
+    "compliance",
+    "privacy",
+    "gdpr",
+    "ccpa",
+    "cpra",
+    "cookie",
+    "consent",
+    "tracking",
+    "accessibility",
+    "wcag",
+    "audit",
+    "evidence",
+    "risk-screening",
+    "site-compliance"
+  ]
+}
