@@ -80,6 +80,14 @@ jobs:
         run: pnpm typecheck
         continue-on-error: true
 
+      # The plugin-folder node:test suites (packages/agent-plugins/<id>/__tests__/*.test.mjs) are
+      # excluded from every vitest config; this is their only automated caller besides publishing.
+      # After the build: they import sibling `@jini-ai/*` packages through `dist/`.
+      - name: agent-plugin content tests
+        id: agent_plugin_content
+        run: pnpm test:agent-plugins:content
+        continue-on-error: true
+
       # Not gated with continue-on-error/an id checked below: `complexity` and
       # `sonarjs/cognitive-complexity` are `warn`-level repo-wide, so this step cannot exit non-zero
       # as currently configured — it is here purely so the warning count is visible in every run's
@@ -109,10 +117,11 @@ jobs:
         continue-on-error: true
 
       - name: fail if a blocking gate failed
-        if: steps.guard.outcome == 'failure' || steps.typecheck.outcome == 'failure'
+        if: steps.guard.outcome == 'failure' || steps.typecheck.outcome == 'failure' || steps.agent_plugin_content.outcome == 'failure'
         run: |
           echo "guard:    ${{ steps.guard.outcome }}"
           echo "typecheck: ${{ steps.typecheck.outcome }}"
+          echo "agent-plugin content tests: ${{ steps.agent_plugin_content.outcome }}"
           exit 1
 
   secrets-report:
