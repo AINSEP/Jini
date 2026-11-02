@@ -473,42 +473,42 @@ describe('frame and transport boundaries', () => {
 
   it('names the offending value when a frame is valid JSON but not an object', () => {
     const onError = vi.fn<(error: unknown) => void>();
-    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url) }, { onError });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { onError });
     FakeEventSource.last?.emit('42');
     expect(onError).toHaveBeenCalledWith(new Error('malformed frame: expected a JSON object, got 42'));
   });
 
   it('tolerates an unparseable frame with no host error sink', () => {
-    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url) });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch });
     expect(() => FakeEventSource.last?.emit('not json')).not.toThrow();
   });
 
   it('tolerates a non-object frame with no host error sink', () => {
-    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url) });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch });
     expect(() => FakeEventSource.last?.emit('"text"')).not.toThrow();
   });
 
   it('reports an empty invocationId with the same message as a missing one', () => {
     const onError = vi.fn<(error: unknown) => void>();
-    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url) }, { onError });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { onError });
     FakeEventSource.last?.emit({ type: 'invocation', invocationId: '', capabilityId: 'page.click' });
     expect(onError).toHaveBeenCalledWith(new Error('invocation frame missing invocationId'));
   });
 
   it('tolerates an invocation without an id when no host error sink is registered', () => {
-    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url) });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch });
     expect(() => FakeEventSource.last?.emit({ type: 'invocation', capabilityId: 'page.click' })).not.toThrow();
   });
 
   it('stringifies non-string attachment fields rather than storing them raw', async () => {
-    const bridge = createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url) });
+    const bridge = createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 7, bindToken: 9 });
     await expect(bridge.ready).resolves.toEqual({ sessionId: '7', bindToken: '9' });
   });
 
   it('does not report a failed "already executed" refusal post to onError', async () => {
     const onError = vi.fn<(error: unknown) => void>();
-    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url) }, { pageDriver: createDriver(), onError });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { pageDriver: createDriver(), onError });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     const frame = { type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: { handle: 'save-button' } };
     FakeEventSource.last?.emit(frame);
@@ -521,7 +521,7 @@ describe('frame and transport boundaries', () => {
 
   it('routes a page.* id to a "page." executor when no page driver is wired', async () => {
     const executor = vi.fn(async () => 'from executor');
-    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url) }, { executors: { 'page.': executor } });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch }, { executors: { 'page.': executor } });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'page.click', input: {} });
     await flush();
@@ -530,7 +530,7 @@ describe('frame and transport boundaries', () => {
   });
 
   it('does not post an answer for a chat verb, leaving that to the pane', async () => {
-    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url) });
+    createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.emit({ type: 'invocation', invocationId: 'i1', capabilityId: 'chat.set_draft', input: {} });
     await flush();

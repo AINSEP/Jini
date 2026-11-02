@@ -193,6 +193,8 @@ export function createFrontendSessionBridge(
   options: FrontendSessionBridgeOptions = {},
 ): FrontendSessionBridge {
   const capabilities = claimedCapabilities(options);
+  // 0.6.x compatibility: fetch was optional for published hosts;
+  // remove when fetch injection becomes required in the next minor.
   // The only caller (`respond`) never passes its own signal, so the deadline is the whole signal.
   const send = request ?? (({ url, init, timeoutMs }: { url: string; init: RequestInit; timeoutMs: number }) =>
     (fetch ?? globalThis.fetch)(url, { ...init, signal: AbortSignal.timeout(timeoutMs) }));
@@ -394,6 +396,8 @@ export function createFrontendSessionBridge(
 /** Authenticated streaming replacement for EventSource when credentials belong in headers.
  * Uses the shared SSE decoder; reconnect creates a new attachment and clears the old token.
  * O(stream bytes), bounded frame buffer; close aborts fetch/readers and the reconnect timer. */
+// 0.6.x compatibility: existing hosts may omit fetch;
+// remove when fetch injection becomes required in the next minor.
 export function openFetchFrontendStream({ url, headers }: { url: string; headers: () => Record<string, string> },
   { fetch: send = globalThis.fetch, reconnectMs = 1000 }: { fetch?: typeof globalThis.fetch; reconnectMs?: number } = {},
 ): Pick<EventSource, 'addEventListener' | 'close'> {

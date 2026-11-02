@@ -19,7 +19,7 @@ it('opens the host-selected stream without consulting a browser transport global
   const source = { addEventListener: vi.fn(), close: vi.fn() } as unknown as EventSource;
   const openStream = vi.fn(() => source);
   const request = vi.fn(async () => new Response(null, { status: 200 }));
-  const bridge = createFrontendSessionBridge({ baseUrl: 'https://daemon.example', openStream, request });
+  const bridge = createFrontendSessionBridge({ baseUrl: 'https://daemon.example', fetch: globalThis.fetch, openStream, request });
   expect(openStream).toHaveBeenCalledTimes(1);
   expect(openStream.mock.calls[0]).toEqual([{
     url: expect.stringContaining('https://daemon.example/api/frontend-sessions/stream?capability=chat.'),

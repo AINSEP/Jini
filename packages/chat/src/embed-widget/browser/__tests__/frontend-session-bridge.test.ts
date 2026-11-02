@@ -1,6 +1,19 @@
-import { expect, it, vi } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { createFrontendSessionBridge, openFetchFrontendStream } from '../frontend-session-bridge.js';
 import type { PageDriver } from '@jini-ai/agentic';
+
+afterEach(() => { vi.unstubAllGlobals(); });
+
+it('retains the published stream fetch default for hosts upgrading within 0.6.x', async () => {
+  const send = vi.fn<typeof fetch>(async () => new Response('', { status: 429 }));
+  vi.stubGlobal('fetch', send);
+  // Deliberately omit injection only in compatibility tests; production hosts inject it.
+  const stream = openFetchFrontendStream({ url: '/stream', headers: () => ({ 'x-tab': 'credential' }) });
+  try {
+    await vi.waitFor(() => expect(send).toHaveBeenCalledOnce());
+    expect(send).toHaveBeenCalledWith('/stream', expect.objectContaining({ headers: { 'x-tab': 'credential' }, signal: expect.any(AbortSignal) }));
+  } finally { stream.close(); }
+});
 
 it('fetch streams back off transient failures and stop on 429', async () => {
   vi.useFakeTimers();
