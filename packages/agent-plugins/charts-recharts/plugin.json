@@ -1,0 +1,31 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "charts-recharts",
+  "version": "0.1.0",
+  "description": "Teaches the assistant to draw bar, line and pie charts in chat with the Recharts chart provider: finding the chart components with search_components, the data shape each one takes, what Recharts draws and what falls back to a table, and the generic chart.spec entry for several series. Know-how only: no code, no MCP server; the Recharts provider plugin (charts-recharts) draws the charts and switches this plugin on and off.",
+  "license": "Apache-2.0",
+  "extensions": {
+    "tovu": {
+      "id": "jini/charts-recharts-agent",
+      "displayName": "Recharts",
+      "summary": "Lets the assistant draw bar, line and pie charts in chat. Ask for a chart of your data.",
+      "providerPlugin": "charts-recharts"
+    }
+  },
+  "keywords": [
+    "chart",
+    "charts",
+    "graph",
+    "plot",
+    "bar-chart",
+    "line-chart",
+    "pie-chart",
+    "data-visualization",
+    "visualization",
+    "trend",
+    "breakdown",
+    "chart-spec",
+    "recharts",
+    "charts-recharts"
+  ]
+}
