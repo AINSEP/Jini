@@ -5,6 +5,33 @@ import path from 'node:path';
 import { test, vi } from 'vitest';
 import { assertDatabaseCopySpace, DatabaseDiskSpaceError, pruneDatabaseCopies } from '../../sqlite/backup-policy.js';
 
+test('copy preflight preserves errors other than a missing destination directory', async () => {
+  const probe = vi.spyOn(fs, 'statfs');
+  try {
+    for (const code of ['EACCES', 'EIO', 'ENOTDIR']) {
+      const failure = Object.assign(new Error(`statfs failed: ${code}`), { code });
+      probe.mockRejectedValueOnce(failure);
+      await assert.rejects(
+        assertDatabaseCopySpace({ sourcePath: ':memory:', destinationPath: '/copy.db' }),
+        (error: unknown) => error === failure,
+      );
+    }
+  } finally { probe.mockRestore(); }
+});
+
+test('a missing source remains a source error without probing destination space', async () => {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'backup-missing-source-'));
+  const sourcePath = path.join(dir, 'missing.db');
+  const probe = vi.spyOn(fs, 'statfs');
+  try {
+    await assert.rejects(
+      assertDatabaseCopySpace({ sourcePath, destinationPath: path.join(dir, 'copy.db') }),
+      { code: 'ENOENT', syscall: 'stat', path: sourcePath },
+    );
+    assert.equal(probe.mock.calls.length, 0);
+  } finally { probe.mockRestore(); await fs.rm(dir, { recursive: true, force: true }); }
+});
+
 test('disk budget accepts equality and rejects one byte below source size times 1.2 plus 50 MB', async () => {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'backup-budget-'));
   const sourcePath = path.join(dir, 'source.db');

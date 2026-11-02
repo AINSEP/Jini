@@ -1,3 +1,9 @@
+## Unreleased (0.6.18)
+
+### Patch Changes
+
+- Preserve the clear missing-directory error, including its path, when SQLite backup space checks fail with ENOENT. Other filesystem errors propagate unchanged.
+
 ## 0.6.17
 
 ### Patch Changes

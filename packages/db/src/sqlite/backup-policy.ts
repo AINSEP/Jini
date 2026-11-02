@@ -16,7 +16,8 @@ export class DatabaseDiskSpaceError extends Error {
   }
 }
 
-/** Check the destination filesystem before allocating a full copy. Source/statfs errors propagate.
+/** Check the destination filesystem before allocating a full copy. Missing destination directories
+ * get the backup API's clear error; source errors and other statfs errors propagate unchanged.
  * The reserve leaves room for the live DB's WAL and journal during the operation.
  * @complexity O(1), two metadata reads; no database bytes are read.
  * @example await assertDatabaseCopySpace({ sourcePath: '/site/content.db', destinationPath: '/site/copy.db' }); */
@@ -25,7 +26,14 @@ export async function assertDatabaseCopySpace(
   _options: Record<string, never> = {},
 ): Promise<void> {
   const sourceBytes = sourcePath === ':memory:' ? 0 : (await fs.stat(sourcePath)).size;
-  const space = await fs.statfs(path.dirname(path.resolve(destinationPath)));
+  const directory = path.dirname(path.resolve(destinationPath));
+  const space = await fs.statfs(directory).catch((error: unknown) => {
+    // Preserve the backup API's diagnostic now that preflight reaches the filesystem first.
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+      throw new TypeError(`Cannot save backup because the directory does not exist: ${directory}`, { cause: error });
+    }
+    throw error;
+  });
   const freeBytes = space.bavail * space.bsize;
   const requiredBytes = Math.ceil(sourceBytes * 1.2) + DISK_RESERVE_BYTES;
   if (freeBytes < requiredBytes) throw new DatabaseDiskSpaceError({ freeBytes, requiredBytes });

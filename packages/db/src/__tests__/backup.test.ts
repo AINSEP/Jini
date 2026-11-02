@@ -20,6 +20,23 @@ import { PGlite } from "@electric-sql/pglite";
 const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "jini-db-kernel-backup-"));
 after(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
+for (const source of [':memory:', path.join(tmp, 'missing-directory-source.db')]) {
+  test(`SQLite backupTo reports a missing destination directory for ${source === ':memory:' ? 'memory' : 'file'} sources`, async () => {
+    const client = new Database(source);
+    const kernel = sqliteKernel<unknown>(client);
+    const directory = path.join(tmp, 'missing', 'nested');
+    try {
+      await assert.rejects(kernel.backupTo(path.join(directory, 'copy.db')), (error: unknown) => {
+        assert.ok(error instanceof Error);
+        assert.match(error.message, /directory does not exist/);
+        assert.ok(error.message.includes(directory), 'identify the missing destination directory');
+        return true;
+      });
+      assert.equal(fs.existsSync(directory), false, 'preflight must not create destination directories');
+    } finally { client.close(); }
+  });
+}
+
 test("kernel refuses copies on low destination space before creating a file", async () => {
   const client = new Database(path.join(tmp, "budget-source.db"));
   const kernel = sqliteKernel<unknown>(client);
