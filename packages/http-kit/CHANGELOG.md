@@ -1,5 +1,9 @@
 # @jini-ai/http-kit
 
+## Unreleased (0.6.18)
+
+- Redact exception logs with the shared core redactor while preserving correlation IDs and error codes.
+
 ## 0.6.17
 
 ### Patch Changes

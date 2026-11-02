@@ -7,6 +7,8 @@
  * CLI) and the higher-level `startDaemonRuntime`/`runDaemonCliStartup` wrappers belong to a future
  * `@jini-ai/cli` task, not this one — this module is deliberately CLI-shape-agnostic.
  */
+import { inspect } from 'node:util';
+import { redactSecrets } from '@jini-ai/core';
 import type { Server } from 'node:http';
 
 export const DEFAULT_DAEMON_BIND_HOST = '127.0.0.1';
@@ -175,7 +177,7 @@ export function installGracefulShutdown(
     void stop()
       .catch((error: unknown) => {
         // eslint-disable-next-line no-console
-        logger.error(`[@jini-ai/server] graceful shutdown failed after ${signal}`, error);
+        logger.error(`[@jini-ai/server] graceful shutdown failed after ${signal}`, redactSecrets({ input: inspect(error) }, { redactPii: false }));
         // Re-thrown so the `.finally` below still distinguishes success from failure via rejection
         // state rather than a second flag.
         throw error;

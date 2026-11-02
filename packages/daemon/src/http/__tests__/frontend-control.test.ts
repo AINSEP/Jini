@@ -166,7 +166,7 @@ describe('createFrontendControl', () => {
       expect(() => control.bindOnStarted(startContext('run-1', 'x'))).not.toThrow();
       expect(onBindError).toHaveBeenCalledWith({
         runId: 'run-1',
-        error: expect.objectContaining({ message: expect.stringContaining('unknown or expired bind token') }),
+        error: expect.stringContaining('unknown or expired bind token'),
       });
     });
 
@@ -207,7 +207,7 @@ describe('createFrontendControl', () => {
 
       expect(consoleError).toHaveBeenCalledWith(
         expect.stringContaining('could not bind run "run-1"'),
-        expect.objectContaining({ message: expect.stringContaining('unknown or expired bind token') }),
+        expect.stringContaining('unknown or expired bind token'),
       );
       consoleError.mockRestore();
     });

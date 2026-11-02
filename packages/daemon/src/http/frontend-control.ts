@@ -34,6 +34,8 @@
  * envelope that host already uses — `contextRef` is an opaque host blob precisely so hosts can put
  * their own metadata in it. The engine stays neutral and the host keeps one place to look.
  */
+import { inspect } from 'node:util';
+import { redactSecrets } from '@jini-ai/core';
 import type { Express } from 'express';
 import type { FrontendSessionOwner } from '../frontend-session-registry.js';
 import type { FrontendSessionsHttpDeps } from './frontend-sessions.js';
@@ -133,7 +135,7 @@ export interface FrontendControl {
 
 function defaultBindErrorSink(context: FrontendBindErrorContext): void {
   // eslint-disable-next-line no-console
-  console.error(`[@jini-ai/server] could not bind run "${context.runId}" to a frontend surface`, context.error);
+  console.error(`[@jini-ai/server] could not bind run "${context.runId}" to a frontend surface`, redactSecrets({ input: inspect(context.error) }, { redactPii: false }));
 }
 
 /**

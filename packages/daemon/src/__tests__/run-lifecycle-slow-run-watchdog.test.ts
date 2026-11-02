@@ -271,7 +271,7 @@ describe('RunLifecycle — slow-run notice', () => {
       const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
       try {
         await vi.advanceTimersByTimeAsync(1_000);
-        expect(consoleError).toHaveBeenCalledWith(`[@jini-ai/daemon] internal error (slow-run-notice, runId=${run.id})`, appendError);
+        expect(consoleError).toHaveBeenCalledWith(`[@jini-ai/daemon] internal error (slow-run-notice, runId=${run.id})`, expect.stringContaining(`Error: ${appendError.message}`));
       } finally { consoleError.mockRestore(); }
       expect((await lifecycle.get({ runId: run.id }))?.state).toBe('running');
     });
@@ -285,7 +285,7 @@ describe('RunLifecycle — slow-run notice', () => {
       const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
       try {
         await vi.advanceTimersByTimeAsync(1_000);
-        expect(consoleError).toHaveBeenCalledWith(`[@jini-ai/daemon] internal error sink failed (slow-run-notice, runId=${run.id})`, sinkError);
+        expect(consoleError).toHaveBeenCalledWith(`[@jini-ai/daemon] internal error sink failed (slow-run-notice, runId=${run.id})`, expect.stringContaining(`Error: ${sinkError.message}`));
       } finally { consoleError.mockRestore(); }
       expect((await lifecycle.get({ runId: run.id }))?.state).toBe('running');
     });

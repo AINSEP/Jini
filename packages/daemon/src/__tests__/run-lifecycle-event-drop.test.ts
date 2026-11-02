@@ -57,17 +57,21 @@ describe('RunLifecycle — dropEventsOnEviction', () => {
 
   it('falls back to console.error without a sink, and contains a throwing sink', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
-    const error = new Error('drop failed');
+    const error = new Error('drop failed password=hunter2');
     const noSinkLog = unboundedLog();
     vi.spyOn(noSinkLog, 'drop').mockRejectedValue(error);
     await finishedRun(createRunLifecycle({ eventLog: noSinkLog }, { terminalRetentionMs: 10, dropEventsOnEviction: true }), 'a');
-    const sinkError = new Error('sink failed');
+    const sinkError = new Error('sink failed password=hunter2');
     const throwingSinkLog = unboundedLog();
     vi.spyOn(throwingSinkLog, 'drop').mockRejectedValue(error);
     const onInternalError = () => { throw sinkError; };
     await finishedRun(createRunLifecycle({ eventLog: throwingSinkLog }, { terminalRetentionMs: 10, dropEventsOnEviction: true, onInternalError }), 'b');
     await vi.advanceTimersByTimeAsync(10);
-    expect(consoleError).toHaveBeenCalledWith('[@jini-ai/daemon] internal error (event-log-drop, runId=a)', error);
-    expect(consoleError).toHaveBeenCalledWith('[@jini-ai/daemon] internal error sink failed (event-log-drop, runId=b)', sinkError);
+    expect(consoleError).toHaveBeenCalledWith('[@jini-ai/daemon] internal error (event-log-drop, runId=a)', expect.stringContaining('Error: drop failed'));
+    expect(consoleError).toHaveBeenCalledWith('[@jini-ai/daemon] internal error sink failed (event-log-drop, runId=b)', expect.stringContaining('Error: sink failed'));
+    for (const call of consoleError.mock.calls) {
+      expect(String(call[1])).toContain('[REDACTED:');
+      expect(String(call[1])).not.toContain('hunter2');
+    }
   });
 });

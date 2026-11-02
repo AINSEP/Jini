@@ -73,6 +73,31 @@ beforeEach(() => {
 });
 
 describe('http adapter', () => {
+  it.each([false, true])('redacts exception logs and preserves request IDs and codes (non-Error=%s)', async (nonError) => {
+    const secret = 'sk-live-0123456789abcdefghijklmnopqrstuv';
+    const failure = Object.assign(new Error(`UPSTREAM_FAILED ${secret} Bearer abcdefghijklmnopqrst password=hunter2`), { code: 'ECONNREFUSED' });
+    const route = defineJsonRoute<void, unknown, unknown>({
+      method: 'get', path: '/log-redaction', parse: () => ok({ value: undefined }),
+      handle: () => { throw nonError ? failure.message : failure; },
+    });
+    const app = makeApp();
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      mountJsonRoute({ app: app as any, spec: route, deps: {}, adapter });
+      const res = makeRes();
+      await app.handlers['GET /log-redaction']!({ body: {}, query: {}, params: {} }, res);
+      const body = res.json.mock.calls[0]![0] as { error: { requestId: string; code: string } };
+      expect(body.error.code).toBe('INTERNAL_ERROR');
+      expect(body.error.requestId).toEqual(expect.any(String));
+      const output = log.mock.calls.flat().map(String).join(' ');
+      expect(output).toContain(body.error.requestId);
+      expect(output).toContain('UPSTREAM_FAILED');
+      expect(output).toContain('[REDACTED:');
+      for (const value of [secret, 'abcdefghijklmnopqrst', 'hunter2']) expect(output).not.toContain(value);
+      if (!nonError) expect(output).toContain('ECONNREFUSED');
+    } finally { log.mockRestore(); }
+  });
+
   it('parses input and returns the success payload', async () => {
     const route = defineJsonRoute<{ value: string }, { echoed: string }, unknown>({ method: 'post', path: '/echo', parse: (raw) => ok({ value: { value: String((raw.body as any).value) } }), handle: ({ input }) => ok({ value: { echoed: input.value } }) });
     const app = makeApp();

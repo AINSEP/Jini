@@ -25,6 +25,8 @@
  * - Adapts `deps.manager.attach`'s push/end sink to `sse.ts`'s generic SSE
  *   channel, the same way `runs.ts` adapts `RunLifecycle.stream`.
  */
+import { inspect } from 'node:util';
+import { redactSecrets } from '@jini-ai/core';
 import { randomUUID } from 'node:crypto';
 import type { Express, Request, Response } from 'express';
 import type { Principal } from '@jini-ai/core';
@@ -55,7 +57,7 @@ export interface TerminalsInternalErrorContext {
 
 function defaultTerminalsInternalErrorSink(context: TerminalsInternalErrorContext): void {
   // eslint-disable-next-line no-console
-  console.error(`[@jini-ai/http-kit] internal error (${context.source}, correlationId=${context.correlationId})`, context.error);
+  console.error(`[@jini-ai/http-kit] internal error (${context.source}, correlationId=${context.correlationId})`, redactSecrets({ input: inspect(context.error) }, { redactPii: false }));
 }
 
 /** Everything this route pack needs from the host. */

@@ -212,7 +212,7 @@ describe('registerFrontendSessionRoutes', () => {
     await (await fetch(`${base}${FRONTEND_SESSION_STREAM_ROUTE_PATH}?capability=page.click`)).text();
     expect(consoleError).toHaveBeenCalledWith(
       expect.stringContaining('frontend-sessions:stream'),
-      expect.any(Error),
+      expect.stringContaining('Error: registry exploded'),
     );
 
     // A sink that itself throws must not turn a contained failure into an unhandled rejection.
@@ -223,7 +223,7 @@ describe('registerFrontendSessionRoutes', () => {
     expect(throwingSink).toHaveBeenCalled();
     expect(consoleError).toHaveBeenCalledWith(
       expect.stringContaining('internal error sink failed'),
-      expect.any(Error),
+      expect.stringContaining('Error: sink exploded'),
     );
     consoleError.mockRestore();
   });

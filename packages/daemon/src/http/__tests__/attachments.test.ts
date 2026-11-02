@@ -1843,7 +1843,7 @@ describe('attachment routes — default internal-error sink', () => {
     expect(response.status).toBe(500);
     expect(consoleError).toHaveBeenCalledWith(
       expect.stringContaining('internal error (attachment-upload, correlationId='),
-      expect.any(Error),
+      expect.stringContaining('Error: boom'),
     );
   });
 });

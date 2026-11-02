@@ -1,3 +1,4 @@
+import { inspect } from 'node:util';
 import type { DelegatedResultCorrelation } from '../delegated-result-correlation.js';
 /**
  * @module delegated-tools
@@ -29,7 +30,7 @@ import type { DelegatedResultCorrelation } from '../delegated-result-correlation
 import { randomUUID } from 'node:crypto';
 import type { Express } from 'express';
 import { createApiError } from '@jini-ai/protocol';
-import { batchOutcomeFor, ToolInputError, type Principal, type ToolRegistry } from '@jini-ai/core';
+import { redactSecrets, batchOutcomeFor, ToolInputError, type Principal, type ToolRegistry } from '@jini-ai/core';
 import { createDelegatedToolBridge, type RunLifecycle, type ToolExecutionResult, type ToolExecutor } from '../index.js';
 import { defineJsonRoute, err, mountJsonRoute, ok, validationError, type AdapterContext, type Result, type RouteInputContext } from '@jini-ai/http-kit';
 import * as readOnlyTools from '../core/read-only-tools.js';
@@ -147,8 +148,9 @@ function checkReadOnlyConstraint(
 
 /** Logs the real failure server-side and returns the generic, correlation-id-bearing public error (SEC-005: never the raw exception). */
 function defaultInternalErrorSink(context: DelegatedToolsInternalErrorContext): void {
+  // Exceptions can echo credentials; inspect preserves stacks and codes before shared redaction.
   // eslint-disable-next-line no-console
-  console.error(`[@jini-ai/http-kit] internal error (${context.source}, correlationId=${context.correlationId})`, context.error);
+  console.error(`[@jini-ai/http-kit] internal error (${context.source}, correlationId=${context.correlationId})`, redactSecrets({ input: inspect(context.error) }, { redactPii: false }));
 }
 
 /**
@@ -164,7 +166,7 @@ function describeSafely(deps: DelegatedToolsHttpDeps, context: DelegatedToolsInt
     return typeof text === 'string' && text.length > 0 ? text : undefined;
   } catch (error) {
     // eslint-disable-next-line no-console
-    console.error(`[@jini-ai/http-kit] describeInternalError threw (correlationId=${context.correlationId})`, error);
+    console.error(`[@jini-ai/http-kit] describeInternalError threw (correlationId=${context.correlationId})`, redactSecrets({ input: inspect(error) }, { redactPii: false }));
     return undefined;
   }
 }

@@ -39,6 +39,8 @@
  * itself can throw before ever creating a task — an unregistered `toolId`-shaped programming
  * error, per `MediaDispatchEngine.generate`'s own contract).
  */
+import { inspect } from 'node:util';
+import { redactSecrets } from '@jini-ai/core';
 import { randomUUID } from 'node:crypto';
 import type { Express } from 'express';
 import { createApiError } from '@jini-ai/protocol';
@@ -167,7 +169,7 @@ export interface MediaHttpDeps {
 
 function defaultInternalErrorSink(context: MediaInternalErrorContext): void {
   // eslint-disable-next-line no-console
-  console.error(`[@jini-ai/http-kit] internal error (${context.source}, correlationId=${context.correlationId})`, context.error);
+  console.error(`[@jini-ai/http-kit] internal error (${context.source}, correlationId=${context.correlationId})`, redactSecrets({ input: inspect(context.error) }, { redactPii: false }));
 }
 
 function reportInternalError(

@@ -1054,7 +1054,7 @@ describe('RunLifecycle — inactivity watchdog', () => {
 
       expect(consoleError).toHaveBeenCalledWith(
         expect.stringContaining(`internal error (inactivity-timeout, runId=${run.id})`),
-        appendError,
+        expect.stringContaining(`Error: ${appendError.message}`),
       );
       // Containment, not recovery: the run is left exactly as it was.
       expect(await lifecycle.get({ runId: run.id })).toMatchObject({ state: 'running' });
@@ -1089,7 +1089,7 @@ describe('RunLifecycle — inactivity watchdog', () => {
       expect(onInternalError).toHaveBeenCalledTimes(1);
       expect(consoleError).toHaveBeenCalledWith(
         expect.stringContaining(`internal error sink failed (inactivity-timeout, runId=${run.id})`),
-        sinkError,
+        expect.stringContaining(`Error: ${sinkError.message}`),
       );
       expect(await lifecycle.get({ runId: run.id })).toMatchObject({ state: 'running' });
     } finally {

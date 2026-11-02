@@ -1,3 +1,5 @@
+import { inspect } from 'node:util';
+import { redactSecrets } from '@jini-ai/core';
 import type { SqliteSyncOpener } from '@jini-ai/db/sqlite';
 /**
  * @module create-local-node-daemon
@@ -391,7 +393,7 @@ export async function createLocalNodeDaemon(
         // rejection stays on `stopPromise`, so an explicit `stop()` caller still observes it.
         void stop().catch((error: unknown) => {
           // eslint-disable-next-line no-console
-          console.error('[@jini-ai/server] shutdown requested through POST /api/daemon/shutdown failed', error);
+          console.error('[@jini-ai/server] shutdown requested through POST /api/daemon/shutdown failed', redactSecrets({ input: inspect(error) }, { redactPii: false }));
         });
       },
     }),

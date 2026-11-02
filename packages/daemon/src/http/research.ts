@@ -1,4 +1,3 @@
-import { redactSecrets } from '@jini-ai/core';
 /**
  * @module research
  *
@@ -95,6 +94,8 @@ import { redactSecrets } from '@jini-ai/core';
  * token out of any upstream error text before it is even logged, belt-and-braces alongside the
  * generic-message substitution.
  */
+import { inspect } from 'node:util';
+import { redactSecrets } from '@jini-ai/core';
 import { randomUUID } from 'node:crypto';
 import type { Express } from 'express';
 import { createTavilyResearchProvider } from './research-tavily.adapter.js';
@@ -151,7 +152,7 @@ export interface ResearchHttpDeps {
 
 function defaultInternalErrorSink(context: ResearchInternalErrorContext): void {
   // eslint-disable-next-line no-console
-  console.error(`[@jini-ai/http-kit] internal error (research/search, correlationId=${context.correlationId})`, context.error);
+  console.error(`[@jini-ai/http-kit] internal error (research/search, correlationId=${context.correlationId})`, redactSecrets({ input: inspect(context.error) }, { redactPii: false }));
 }
 
 /**

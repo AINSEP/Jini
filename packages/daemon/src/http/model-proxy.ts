@@ -81,6 +81,8 @@
  * over routing for the five providers that already have a dedicated, more
  * specifically-typed path.
  */
+import { inspect } from 'node:util';
+import { redactSecrets } from '@jini-ai/core';
 import { randomUUID } from 'node:crypto';
 import type { Express, Request, Response } from 'express';
 import {
@@ -153,7 +155,7 @@ export interface ModelProxyInternalErrorContext {
 
 function defaultInternalErrorSink(context: ModelProxyInternalErrorContext): void {
   // eslint-disable-next-line no-console
-  console.error(`[@jini-ai/http-kit] internal error (model-proxy/${context.provider}, correlationId=${context.correlationId})`, context.error);
+  console.error(`[@jini-ai/http-kit] internal error (model-proxy/${context.provider}, correlationId=${context.correlationId})`, redactSecrets({ input: inspect(context.error) }, { redactPii: false }));
 }
 
 export interface ModelProxyHttpDeps {
@@ -584,7 +586,7 @@ function reportCatchAllError(providerParam: string, onInternalError: InternalErr
     onInternalError({ provider: providerParam, correlationId, error });
   } else {
     // eslint-disable-next-line no-console
-    console.error(`[@jini-ai/http-kit] internal error (model-proxy/${providerParam || 'unknown'}, correlationId=${correlationId})`, error);
+    console.error(`[@jini-ai/http-kit] internal error (model-proxy/${providerParam || 'unknown'}, correlationId=${correlationId})`, redactSecrets({ input: inspect(error) }, { redactPii: false }));
   }
   return correlationId;
 }

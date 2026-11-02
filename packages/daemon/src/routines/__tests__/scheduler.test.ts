@@ -680,7 +680,7 @@ describe('RoutineService scheduled run idempotency', () => {
       await vi.advanceTimersByTimeAsync(0);
 
       const logged = errors.mock.calls.find(
-        (call) => String(call[0]).includes('prepare cleanup failed') && call[1] === 'raw discard failure',
+        (call) => String(call[0]).includes('prepare cleanup failed') && call[1] === "'raw discard failure'",
       );
       expect(logged).toBeDefined();
     } finally {
@@ -902,11 +902,11 @@ describe('RoutineService scheduled run idempotency', () => {
       service.start({});
       await vi.advanceTimersByTimeAsync(60_000);
 
-      // ScheduledRunPersistenceError wraps the raw discard failure as `originalError`; the
-      // logger's ternary must fall through to the raw-value branch (not `.message`) for it.
+      // ScheduledRunPersistenceError wraps the raw discard failure as `originalError`;
+      // the diagnostic must retain that non-Error value through inspection and redaction.
       expect(errors).toHaveBeenCalled();
       const logged = errors.mock.calls[0]!;
-      expect(String(logged[1])).toBe('raw discard failure');
+      expect(String(logged[1])).toBe("'raw discard failure'");
 
       // A ScheduledRunPersistenceError retries the same slot rather than advancing the cadence —
       // still scheduled (not silently dropped) after the failed attempt.
@@ -943,7 +943,7 @@ describe('RoutineService scheduled run idempotency', () => {
       await vi.advanceTimersByTimeAsync(60_000);
       await vi.advanceTimersByTimeAsync(0);
 
-      const logged = errors.mock.calls.find((call) => String(call[1]) === 'raw prepare failure');
+      const logged = errors.mock.calls.find((call) => String(call[1]) === "'raw prepare failure'");
       expect(logged).toBeDefined();
 
       // Not a ScheduledRunPersistenceError, so the scheduler advances to the next normal cadence

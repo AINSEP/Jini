@@ -20,6 +20,8 @@
  * faithful port, not a redesign, per the proposal's own warning against "casually reinventing"
  * the race-safe scheduled-slot claim below.
  */
+import { inspect } from 'node:util';
+import { redactSecrets } from '@jini-ai/core';
 import { randomUUID } from 'node:crypto';
 import { nextRunAtForSchedule } from './schedule.js';
 import type {
@@ -61,10 +63,10 @@ export class ScheduledRunPersistenceError extends Error {
   }
 }
 
-/** What a failed scheduled run logs: the underlying error's message when there is one. */
+/** Preserve the underlying failure (including its code) for the redacted log diagnostic. */
 function scheduledRunFailureDetail(error: unknown): unknown {
   const cause = error instanceof ScheduledRunPersistenceError ? error.originalError : error;
-  return cause instanceof Error ? cause.message : cause;
+  return cause;
 }
 function isScheduledRunPersistenceError(error: unknown): error is ScheduledRunPersistenceError {
   return error instanceof ScheduledRunPersistenceError;
@@ -180,7 +182,7 @@ export class RoutineService {
         .catch((error) => {
           console.error(
             `[@jini-ai/daemon] routine ${routine.id} scheduled run failed:`,
-            scheduledRunFailureDetail(error),
+            redactSecrets({ input: inspect(scheduledRunFailureDetail(error)) }, { redactPii: false }),
           );
           if (isScheduledRunPersistenceError(error)) {
             this.retryScheduledSlot(routine.id, fireAt);
@@ -292,7 +294,7 @@ export class RoutineService {
     if (discardError != null) {
       console.error(
         `[@jini-ai/daemon] routine ${attempt.routine.id} prepare cleanup failed:`,
-        errorMessage(discardError),
+        redactSecrets({ input: inspect(discardError) }, { redactPii: false }),
       );
     }
     run.projectId = clearRoutinePlaceholderId(run.projectId);

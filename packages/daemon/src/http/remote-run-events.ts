@@ -22,6 +22,8 @@
  * would also present, and this route grants direct run-event-injection, a materially different
  * capability from what the general API token was designed to gate.
  */
+import { inspect } from 'node:util';
+import { redactSecrets } from '@jini-ai/core';
 import { randomUUID } from 'node:crypto';
 import type { Express, NextFunction, Request, Response } from 'express';
 import { createApiError, isTerminalRunState } from '@jini-ai/protocol';
@@ -56,7 +58,7 @@ export interface RemoteRunEventHttpDeps {
 
 function defaultInternalErrorSink(context: RemoteRunEventInternalErrorContext): void {
   // eslint-disable-next-line no-console
-  console.error(`[@jini-ai/http-kit] internal error (remote-run-events/${context.source}, correlationId=${context.correlationId})`, context.error);
+  console.error(`[@jini-ai/http-kit] internal error (remote-run-events/${context.source}, correlationId=${context.correlationId})`, redactSecrets({ input: inspect(context.error) }, { redactPii: false }));
 }
 
 const DEFAULT_TOKEN_ENV_VAR = 'JINI_REMOTE_TOOL_BRIDGE_TOKEN';

@@ -57,6 +57,33 @@ function requestIdOf(result: Awaited<ReturnType<typeof callRoute>>['result']): s
 }
 
 describe('delegated tool route: describeInternalError (host-supplied model-safe text for the 500)', () => {
+  it.each([false, true])('redacts default and describer failure logs while retaining request IDs (describer=%s)', async (describerThrows) => {
+    const secret = 'sk-live-0123456789abcdefghijklmnopqrstuv';
+    const failure = Object.assign(new Error(`UPSTREAM_FAILED ${secret} Bearer abcdefghijklmnopqrst password=hunter2`), { code: 'ECONNREFUSED' });
+    const executor = { ...throwingExecutor(), execute: async () => { throw failure; } };
+    const deps: DelegatedToolsHttpDeps = {
+      lifecycle: createRunLifecycle({ eventLog: createInMemoryEventLog({}) }),
+      toolExecutor: executor,
+      resolvePrincipal: () => PRINCIPAL,
+      ...(describerThrows ? { describeInternalError: () => { throw failure; } } : {}),
+    };
+    const { run } = await deps.lifecycle.start({ contextRef: 'ctx-log-redaction' });
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const result = await delegatedToolExecuteRoute.handle({ input: { runId: run.id, toolUseId: 'tu-log', toolId: 'broken' }, deps });
+      const requestId = requestIdOf(result);
+      expect(log).toHaveBeenCalledTimes(describerThrows ? 2 : 1);
+      for (const line of log.mock.calls) {
+        const output = line.map(String).join(' ');
+        expect(output).toContain(requestId);
+        expect(output).toContain('UPSTREAM_FAILED');
+        expect(output).toContain('[REDACTED:');
+        for (const value of [secret, 'abcdefghijklmnopqrst', 'hunter2']) expect(output).not.toContain(value);
+        expect(output).toContain('ECONNREFUSED');
+      }
+    } finally { log.mockRestore(); }
+  });
+
   it('an executor infrastructure failure answers with the host text instead of the generic message', async () => {
     const describeInternalError = vi.fn((context: DelegatedToolsInternalErrorContext) =>
       `Error ERR-1: ${(context.error as Error).message}`,

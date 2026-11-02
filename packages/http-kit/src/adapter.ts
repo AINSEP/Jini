@@ -3,6 +3,8 @@
  * `handle`, and response serialization into a single Express route handler. This is the only
  * file in the module that knows about Express `req`/`res` on the mounting side.
  */
+import { inspect } from 'node:util';
+import { redactSecrets } from '@jini-ai/core';
 import { randomUUID } from 'node:crypto';
 import type { Express, Request, Response } from 'express';
 import { createApiError, type ApiError } from '@jini-ai/protocol';
@@ -34,8 +36,9 @@ export interface AdapterContext extends OriginContext {
 }
 
 function defaultInternalErrorSink(context: AdapterInternalErrorContext): void {
+  // Exceptions can echo credentials; inspect preserves stacks and codes before shared redaction.
   // eslint-disable-next-line no-console
-  console.error(`[@jini-ai/http-kit] internal error (${context.method.toUpperCase()} ${context.path}, correlationId=${context.correlationId})`, context.error);
+  console.error(`[@jini-ai/http-kit] internal error (${context.method.toUpperCase()} ${context.path}, correlationId=${context.correlationId})`, redactSecrets({ input: inspect(context.error) }, { redactPii: false }));
 }
 
 /**

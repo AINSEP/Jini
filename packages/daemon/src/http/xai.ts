@@ -1,4 +1,3 @@
-import { redactSecrets } from '@jini-ai/core';
 /**
  * @module xai
  *
@@ -117,6 +116,8 @@ import { redactSecrets } from '@jini-ai/core';
  *    `@jini-ai/agent-runtime`'s already-shipped generic module, outside this file's own scope to alter
  *    without special-casing one provider's capitalization inside otherwise-generic code.
  */
+import { inspect } from 'node:util';
+import { redactSecrets } from '@jini-ai/core';
 import { randomUUID } from 'node:crypto';
 import type { Express } from 'express';
 import {
@@ -215,7 +216,7 @@ interface ResolvedXaiHttpDeps {
 
 function defaultInternalErrorSink(context: XaiInternalErrorContext): void {
   // eslint-disable-next-line no-console
-  console.error(`[@jini-ai/http-kit] internal error (xai/${context.source}, correlationId=${context.correlationId})`, context.error);
+  console.error(`[@jini-ai/http-kit] internal error (xai/${context.source}, correlationId=${context.correlationId})`, redactSecrets({ input: inspect(context.error) }, { redactPii: false }));
 }
 
 /** Resolves every optional `XaiHttpDeps` field to a concrete value. Idempotent — calling this again on an already-resolved object (e.g. `registerXaiRoutes`'s own single resolution, passed through to each route's `handle`) is a harmless pass-through. See module doc on why stateful fields (`pending`/`listenerRef`) must be resolved once per registration, not once per request. */
