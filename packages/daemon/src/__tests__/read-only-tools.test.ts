@@ -309,3 +309,52 @@ test('read-only catalog search and describe carry live registration metadata', (
   assert.deepEqual(visible.search({ query: 'read' }), [{ ...hit, readOnly: true, sideEffects: 'none' }]);
   assert.deepEqual(visible.describe({ id: 'pick' }), { ...hit, readOnly: true, sideEffects: 'none' });
 });
+
+// Bug class: catalog guidance (retired-alias pointers, namespace overviews) is not a tool, so the
+// read-only view cannot judge it by its own id. Each guidance entry names its targets; the view
+// shows it only when every target is a registered read-only tool, and fails closed otherwise.
+test('a read-only caller sees catalog guidance only when every tool it points at is read-only', () => {
+  const { registry } = harness();
+  const guidance: Record<string, { id: string; source: string; description: string; targetToolIds?: readonly string[] }> = {
+    old_pick: { id: 'old_pick', source: 'test', description: 'old_pick was renamed to pick.', targetToolIds: ['pick'] },
+    old_set: { id: 'old_set', source: 'test', description: 'old_set was renamed to set.', targetToolIds: ['set'] },
+    mixed: { id: 'mixed', source: 'test', description: 'pick and set.', targetToolIds: ['pick', 'set'] },
+    untargeted: { id: 'untargeted', source: 'test', description: 'Points somewhere unknown.' },
+    empty: { id: 'empty', source: 'test', description: 'Points nowhere.', targetToolIds: [] },
+  };
+  const catalog: ToolCatalogQuery = {
+    search: () => [],
+    describe: ({ id }) => guidance[id] ?? null,
+  };
+  const visible = filterReadOnlyToolCatalog({ principal: READ_ONLY, registry, catalog });
+  assert.deepEqual(visible.describe({ id: 'old_pick' }), guidance.old_pick, 'an alias to a read-only tool stays visible');
+  for (const id of ['old_set', 'mixed', 'untargeted', 'empty']) {
+    assert.equal(visible.describe({ id }), null, `${id} must not reach a read-only caller`);
+  }
+  assert.deepEqual(filterReadOnlyToolCatalog({ principal: PRINCIPAL, registry, catalog }).describe({ id: 'old_set' }), guidance.old_set);
+});
+
+test('a read-only caller gets a namespace overview built from read-only members only', () => {
+  const { registry } = harness();
+  const members = ['verify', 'set', 'pick'];
+  const seen: (ReadonlySet<string> | undefined)[] = [];
+  const catalog: ToolCatalogQuery = {
+    search: () => [],
+    describe: ({ id }, { visibleToolIds } = {}) => {
+      if (id !== 'family') return null;
+      seen.push(visibleToolIds);
+      const listed = members.filter(member => !visibleToolIds || visibleToolIds.has(member));
+      return { id, source: 'test', description: listed.join('\n'), targetToolIds: listed };
+    },
+  };
+  const overview = filterReadOnlyToolCatalog({ principal: READ_ONLY, registry, catalog }).describe({ id: 'family' });
+  assert.deepEqual(overview?.targetToolIds, ['verify', 'pick']);
+  assert.equal(overview?.description, 'verify\npick');
+  assert.deepEqual([...(seen[0] ?? [])].sort(), ['pick', 'verify']);
+  // A producer that ignores the visible set still cannot leak a write member: fail closed.
+  const careless: ToolCatalogQuery = {
+    search: () => [],
+    describe: ({ id }) => id === 'family' ? { id, source: 'test', description: members.join('\n'), targetToolIds: members } : null,
+  };
+  assert.equal(filterReadOnlyToolCatalog({ principal: READ_ONLY, registry, catalog: careless }).describe({ id: 'family' }), null);
+});

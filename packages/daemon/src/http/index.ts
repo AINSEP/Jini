@@ -160,6 +160,7 @@ export {
 } from './db-ops.js';
 export type {
   ToolCatalogEntry,
+  ToolCatalogDescribeOptions,
   ToolCatalogHttpDeps,
   ToolCatalogQuery,
   ToolCatalogSearchHit,

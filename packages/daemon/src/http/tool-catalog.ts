@@ -41,12 +41,27 @@ export interface ToolCatalogEntry {
   readonly description: string;
   readonly inputSchema?: unknown;
   readonly source: string;
+  /**
+   * Set only on guidance entries that are not tools themselves (a retired-alias pointer, a
+   * namespace overview): every tool id the guidance points at. A read-only view shows guidance
+   * only when each target is a registered read-only tool, and hides guidance without targets.
+   */
+  readonly targetToolIds?: readonly string[];
+}
+
+/** Optional describe inputs. */
+export interface ToolCatalogDescribeOptions {
+  /**
+   * When set, the caller may use only these tool ids; guidance that lists tools (a namespace
+   * overview) should list only these. Never consulted for a registered tool's own entry.
+   */
+  readonly visibleToolIds?: ReadonlySet<string>;
 }
 
 /** Structurally identical to `@jini-ai/sqlite-chat`'s `searchToolCatalog`/`getToolCatalogEntry` — defined locally so this package incurs no `better-sqlite3` dependency. */
 export interface ToolCatalogQuery {
   readonly search: ({ query }: { readonly query: string }, optionalArgs?: { readonly limit?: number | undefined }) => readonly ToolCatalogSearchHit[];
-  readonly describe: ({ id }: { readonly id: string }, _optional?: Record<string, never>) => ToolCatalogEntry | null;
+  readonly describe: ({ id }: { readonly id: string }, optional?: ToolCatalogDescribeOptions) => ToolCatalogEntry | null;
 }
 
 export interface ToolCatalogHttpDeps {

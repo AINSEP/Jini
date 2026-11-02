@@ -2,7 +2,7 @@ import { isReadOnlyTool, toolDiscoveryMetadata, type Principal, type ToolRegistr
 import type { ToolExecutor } from '../tool-executor.js';
 import type { IdGenerator } from '@jini-ai/core/primitives';
 import { toolCandidates } from './tool-candidates.js';
-import type { ToolCatalogQuery } from '../http/tool-catalog.js';
+import type { ToolCatalogEntry, ToolCatalogQuery } from '../http/tool-catalog.js';
 
 /** ` — did you mean a, b?` for any close tool ids, else nothing. */
 function didYouMean(candidates: readonly string[]): string {
@@ -95,6 +95,8 @@ export function principalIsReadOnlyConstrained(
 /**
  * Hide writes and unclassified tools from a constrained caller's search and schema discovery.
  * Uses the same classification as dispatch; discovery never grants execution authority.
+ * Guidance entries (`targetToolIds`) are shown only when every target is allowed; the catalog is
+ * told the allowed ids so an overview can list just those.
  * @param required - Per-call identity, live descriptors, and the existing catalog owner.
  * @returns A filtered catalog, or the original catalog for an unconstrained caller.
  * @example filterReadOnlyToolCatalog({ principal, registry, catalog });
@@ -116,11 +118,24 @@ export function filterReadOnlyToolCatalog(
         .map(hit => ({ ...hit, ...toolDiscoveryMetadata({ descriptor: allowed.get(hit.id) }) }));
     },
     describe(input) {
-      const descriptor = allowedTools().get(input.id);
-      const entry = descriptor ? required.catalog.describe(input) : null;
+      const allowed = allowedTools();
+      const descriptor = allowed.get(input.id);
+      if (!descriptor) return readOnlyGuidance({ entry: required.catalog.describe(input, { visibleToolIds: new Set(allowed.keys()) }), allowed });
+      const entry = required.catalog.describe(input);
       return entry ? { ...entry, ...toolDiscoveryMetadata({ descriptor }) } : null;
     },
   };
+}
+
+// An id that is not a registered read-only tool can still name guidance (a retired alias, a
+// namespace overview). Guidance is judged by what it points at, never by its own id; guidance
+// without declared targets cannot be judged, so it stays hidden (fail closed).
+function readOnlyGuidance(
+  { entry, allowed }: { entry: ToolCatalogEntry | null; allowed: ReadonlyMap<string, unknown> },
+): ToolCatalogEntry | null {
+  const targets = entry?.targetToolIds;
+  if (!targets || targets.length === 0) return null;
+  return targets.every(id => allowed.has(id)) ? entry : null;
 }
 
 /** @returns Required host wording for a registered non-read-only tool. */
