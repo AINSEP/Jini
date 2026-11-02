@@ -1,0 +1,327 @@
+{
+  "schemaVersion": 1,
+  "targets": [
+    {
+      "id": "github-pages",
+      "label": "GitHub Pages",
+      "module": "targets/github-pages.mjs",
+      "projectName": {
+        "label": "Commit message",
+        "help": "Used as the commit message when Tovu pushes the export to the gh-pages branch."
+      },
+      "config": [
+        {
+          "name": "owner",
+          "label": "Owner",
+          "required": true,
+          "help": "The GitHub user or organization that owns the repository. Default it to the verified account (accountLabel) and confirm it; never guess it.",
+          "userHelp": "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it."
+        },
+        {
+          "name": "repo",
+          "label": "Repository",
+          "required": true,
+          "help": "The repository to publish to. The site is served from /<repository>."
+        },
+        {
+          "name": "branch",
+          "label": "Branch",
+          "help": "Defaults to gh-pages."
+        }
+      ],
+      "env": {
+        "tokenVars": [
+          "GITHUB_TOKEN",
+          "GH_TOKEN",
+          "GITHUB_ACCESS_TOKEN"
+        ]
+      },
+      "credential": {
+        "vendorId": "github",
+        "vendorLabel": "GitHub",
+        "yieldsAccountLabel": true,
+        "help": "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.",
+        "tokenPageUrl": "https://github.com/settings/tokens",
+        "fields": [
+          {
+            "name": "token",
+            "label": "Personal access token",
+            "required": true,
+            "secret": true,
+            "help": "GitHub: Settings > Developer settings > Personal access tokens, with write access to the repository's contents."
+          }
+        ]
+      },
+      "i18n": {
+        "es": {
+          "Commit message": "Mensaje de confirmación",
+          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "Se usa como mensaje de confirmación cuando Tovu envía la exportación a la rama gh-pages.",
+          "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "Necesita un token de acceso personal clásico con el alcance \"repo\", o un token de granularidad fina con permisos Contents y Pages configurados en Read and write.",
+          "Repository": "Repositorio",
+          "Owner": "Propietario",
+          "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "El usuario u organización de GitHub propietario del repositorio. Escribe tu propio nombre de usuario, o el nombre de la organización si el repositorio es suyo.",
+          "The repository to publish to. The site is served from /<repository>.": "El repositorio en el que se publica. El sitio se sirve desde /<repository>.",
+          "Branch": "Rama",
+          "Defaults to gh-pages.": "Por defecto, gh-pages.",
+          "Personal access token": "Token de acceso personal",
+          "GitHub: Settings > Developer settings > Personal access tokens, with write access to the repository's contents.": "GitHub: Settings > Developer settings > Personal access tokens, con acceso de escritura al contenido del repositorio."
+        },
+        "id": {
+          "Commit message": "Pesan commit",
+          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "Digunakan sebagai pesan commit saat Tovu mendorong ekspor ke branch gh-pages.",
+          "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "Memerlukan token akses pribadi klasik dengan cakupan \"repo\", atau token terperinci dengan izin Contents dan Pages yang disetel ke Read and write.",
+          "Repository": "Repositori",
+          "Owner": "Pemilik",
+          "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "Pengguna atau organisasi GitHub yang memiliki repositori. Masukkan nama pengguna Anda sendiri, atau nama organisasi jika repositori dimiliki organisasi.",
+          "The repository to publish to. The site is served from /<repository>.": "Repositori tujuan publikasi. Situs disajikan dari /<repository>.",
+          "Defaults to gh-pages.": "Bawaannya gh-pages.",
+          "Personal access token": "Token akses pribadi",
+          "GitHub: Settings > Developer settings > Personal access tokens, with write access to the repository's contents.": "GitHub: Settings > Developer settings > Personal access tokens, dengan akses tulis ke isi repositori."
+        },
+        "de": {
+          "Commit message": "Commit-Nachricht",
+          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "Wird als Commit-Nachricht verwendet, wenn Tovu den Export in den Branch gh-pages pusht.",
+          "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "Benötigt einen klassischen persönlichen Zugriffstoken mit dem Bereich \"repo\" oder einen feingranularen Token mit den Berechtigungen Contents und Pages auf Read and write.",
+          "Owner": "Inhaber",
+          "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "Der GitHub-Benutzer oder die Organisation, dem bzw. der das Repository gehört. Geben Sie Ihren eigenen Benutzernamen ein oder den Namen der Organisation, wenn es der Organisation gehört.",
+          "The repository to publish to. The site is served from /<repository>.": "Das Repository, in das veröffentlicht wird. Die Website wird unter /<repository> ausgeliefert.",
+          "Defaults to gh-pages.": "Standardmäßig gh-pages.",
+          "Personal access token": "Persönlicher Zugriffstoken",
+          "GitHub: Settings > Developer settings > Personal access tokens, with write access to the repository's contents.": "GitHub: Settings > Developer settings > Personal access tokens, mit Schreibzugriff auf die Inhalte des Repositorys."
+        },
+        "zh-CN": {
+          "Commit message": "提交消息",
+          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "Tovu 将导出内容推送到 gh-pages 分支时，会使用此消息作为提交消息。",
+          "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "需要具有 \"repo\" 范围的经典个人访问令牌，或将 Contents 和 Pages 权限设为 Read and write 的细粒度令牌。",
+          "Repository": "仓库",
+          "Owner": "所有者",
+          "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "拥有该仓库的 GitHub 用户或组织。请输入您自己的用户名；如果仓库归组织所有，请输入组织名称。",
+          "The repository to publish to. The site is served from /<repository>.": "要发布到的仓库。站点将从 /<repository> 提供服务。",
+          "Branch": "分支",
+          "Defaults to gh-pages.": "默认为 gh-pages。",
+          "Personal access token": "个人访问令牌",
+          "GitHub: Settings > Developer settings > Personal access tokens, with write access to the repository's contents.": "GitHub：Settings > Developer settings > Personal access tokens，需具有仓库内容的写入权限。"
+        },
+        "zh-TW": {
+          "Commit message": "提交訊息",
+          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "Tovu 將匯出內容推送至 gh-pages 分支時，會使用此訊息作為提交訊息。",
+          "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "需要具有 \"repo\" 範圍的傳統個人存取權杖，或將 Contents 與 Pages 權限設為 Read and write 的細微權杖。",
+          "Repository": "儲存庫",
+          "Owner": "擁有者",
+          "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "擁有該儲存庫的 GitHub 使用者或組織。請輸入您自己的使用者名稱；若儲存庫屬於組織，請輸入組織名稱。",
+          "The repository to publish to. The site is served from /<repository>.": "要發佈到的儲存庫。網站將從 /<repository> 提供。",
+          "Branch": "分支",
+          "Defaults to gh-pages.": "預設為 gh-pages。",
+          "Personal access token": "個人存取權杖",
+          "GitHub: Settings > Developer settings > Personal access tokens, with write access to the repository's contents.": "GitHub：Settings > Developer settings > Personal access tokens，需具備儲存庫內容的寫入權限。"
+        },
+        "pt-BR": {
+          "Commit message": "Mensagem de commit",
+          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "Usada como mensagem de commit quando o Tovu envia a exportação para a branch gh-pages.",
+          "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "Precisa de um token de acesso pessoal clássico com o escopo \"repo\", ou de um token refinado com as permissões Contents e Pages definidas como Read and write.",
+          "Repository": "Repositório",
+          "Owner": "Proprietário",
+          "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "O usuário ou a organização do GitHub dona do repositório. Digite seu próprio nome de usuário, ou o nome da organização se o repositório for dela.",
+          "The repository to publish to. The site is served from /<repository>.": "O repositório para onde publicar. O site é servido a partir de /<repository>.",
+          "Defaults to gh-pages.": "O padrão é gh-pages.",
+          "Personal access token": "Token de acesso pessoal",
+          "GitHub: Settings > Developer settings > Personal access tokens, with write access to the repository's contents.": "GitHub: Settings > Developer settings > Personal access tokens, com acesso de escrita ao conteúdo do repositório."
+        },
+        "ru": {
+          "Commit message": "Сообщение коммита",
+          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "Используется как сообщение коммита, когда Tovu отправляет экспорт в ветку gh-pages.",
+          "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "Нужен классический персональный токен доступа с областью \"repo\" или детализированный токен с разрешениями Contents и Pages, установленными в Read and write.",
+          "Owner": "Владелец",
+          "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "Пользователь или организация GitHub, которой принадлежит репозиторий. Введите своё имя пользователя или название организации, если репозиторий принадлежит ей.",
+          "Repository": "Репозиторий",
+          "The repository to publish to. The site is served from /<repository>.": "Репозиторий, в который выполняется публикация. Сайт обслуживается по пути /<repository>.",
+          "Branch": "Ветка",
+          "Defaults to gh-pages.": "По умолчанию gh-pages.",
+          "Personal access token": "Персональный токен доступа",
+          "GitHub: Settings > Developer settings > Personal access tokens, with write access to the repository's contents.": "GitHub: Settings > Developer settings > Personal access tokens, с правом записи в содержимое репозитория."
+        },
+        "fa": {
+          "Commit message": "پیام کامیت",
+          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "وقتی Tovu خروجی را به شاخه gh-pages پوش می‌کند، از این به‌عنوان پیام کامیت استفاده می‌شود.",
+          "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "به یک توکن دسترسی شخصی کلاسیک با دامنه \"repo\"، یا یک توکن ریزدانه با مجوزهای Contents و Pages روی Read and write نیاز دارد.",
+          "Owner": "مالک",
+          "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "کاربر یا سازمان GitHub که مالک مخزن است. نام کاربری خودتان را وارد کنید، یا اگر مخزن متعلق به سازمان است، نام سازمان را.",
+          "Repository": "مخزن",
+          "The repository to publish to. The site is served from /<repository>.": "مخزنی که در آن منتشر می‌شود. سایت از /<repository> ارائه می‌شود.",
+          "Branch": "شاخه",
+          "Defaults to gh-pages.": "پیش‌فرض gh-pages است.",
+          "Personal access token": "توکن دسترسی شخصی",
+          "GitHub: Settings > Developer settings > Personal access tokens, with write access to the repository's contents.": "GitHub: Settings > Developer settings > Personal access tokens، با دسترسی نوشتن به محتوای مخزن."
+        },
+        "ar": {
+          "Commit message": "رسالة الالتزام",
+          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "تُستخدم كرسالة التزام عندما يدفع Tovu التصدير إلى فرع gh-pages.",
+          "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "يتطلب رمز وصول شخصياً تقليدياً بنطاق \"repo\"، أو رمزاً دقيق الصلاحيات مع تعيين أذونات Contents وPages إلى Read and write.",
+          "Owner": "المالك",
+          "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "مستخدم GitHub أو المؤسسة التي تملك المستودع. أدخل اسم المستخدم الخاص بك، أو اسم المؤسسة إذا كانت هي المالكة.",
+          "Repository": "المستودع",
+          "The repository to publish to. The site is served from /<repository>.": "المستودع الذي يتم النشر إليه. يُقدَّم الموقع من /<repository>.",
+          "Branch": "الفرع",
+          "Defaults to gh-pages.": "القيمة الافتراضية gh-pages.",
+          "Personal access token": "رمز وصول شخصي",
+          "GitHub: Settings > Developer settings > Personal access tokens, with write access to the repository's contents.": "GitHub: Settings > Developer settings > Personal access tokens، مع صلاحية الكتابة على محتويات المستودع."
+        },
+        "ja": {
+          "Commit message": "コミットメッセージ",
+          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "Tovu がエクスポートを gh-pages ブランチへプッシュするときのコミットメッセージとして使われます。",
+          "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "\"repo\" スコープの従来の個人アクセストークン、または Contents と Pages の権限を Read and write に設定したきめ細かいトークンが必要です。",
+          "Repository": "リポジトリ",
+          "Owner": "オーナー",
+          "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "リポジトリを所有する GitHub ユーザーまたは Organization。自分のユーザー名か、Organization が所有している場合はその名前を入力します。",
+          "The repository to publish to. The site is served from /<repository>.": "公開先のリポジトリ。サイトは /<repository> から配信されます。",
+          "Branch": "ブランチ",
+          "Defaults to gh-pages.": "既定は gh-pages です。",
+          "Personal access token": "個人アクセストークン",
+          "GitHub: Settings > Developer settings > Personal access tokens, with write access to the repository's contents.": "GitHub: Settings > Developer settings > Personal access tokens。リポジトリのコンテンツへの書き込み権限が必要です。"
+        },
+        "ko": {
+          "Commit message": "커밋 메시지",
+          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "Tovu가 내보내기를 gh-pages 브랜치로 푸시할 때 커밋 메시지로 사용됩니다.",
+          "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "\"repo\" 범위가 있는 클래식 개인 액세스 토큰 또는 Contents와 Pages 권한이 Read and write로 설정된 세분화된 토큰이 필요합니다.",
+          "Repository": "리포지토리",
+          "Owner": "소유자",
+          "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "리포지토리를 소유한 GitHub 사용자 또는 조직입니다. 본인의 사용자 이름을 입력하거나, 조직이 소유한 경우 조직 이름을 입력하세요.",
+          "The repository to publish to. The site is served from /<repository>.": "게시할 리포지토리입니다. 사이트는 /<repository>에서 제공됩니다.",
+          "Branch": "브랜치",
+          "Defaults to gh-pages.": "기본값은 gh-pages입니다.",
+          "Personal access token": "개인 액세스 토큰",
+          "GitHub: Settings > Developer settings > Personal access tokens, with write access to the repository's contents.": "GitHub: Settings > Developer settings > Personal access tokens, 리포지토리 콘텐츠에 대한 쓰기 권한 포함."
+        },
+        "pl": {
+          "Commit message": "Komunikat commitu",
+          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "Używane jako komunikat commitu, gdy Tovu wysyła eksport do gałęzi gh-pages.",
+          "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "Wymaga klasycznego osobistego tokenu dostępu z zakresem \"repo\" albo szczegółowego tokenu z uprawnieniami Contents i Pages ustawionymi na Read and write.",
+          "Owner": "Właściciel",
+          "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "Użytkownik lub organizacja GitHub, do której należy repozytorium. Wpisz swoją nazwę użytkownika albo nazwę organizacji, jeśli to ona jest właścicielem.",
+          "Repository": "Repozytorium",
+          "The repository to publish to. The site is served from /<repository>.": "Repozytorium, do którego publikujesz. Witryna jest serwowana spod /<repository>.",
+          "Branch": "Gałąź",
+          "Defaults to gh-pages.": "Domyślnie gh-pages.",
+          "Personal access token": "Osobisty token dostępu",
+          "GitHub: Settings > Developer settings > Personal access tokens, with write access to the repository's contents.": "GitHub: Settings > Developer settings > Personal access tokens, z uprawnieniem zapisu do zawartości repozytorium."
+        },
+        "hu": {
+          "Commit message": "Commit üzenet",
+          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "Ezt használja commit üzenetként, amikor a Tovu az exportot a gh-pages ágba küldi.",
+          "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "Klasszikus személyes hozzáférési token szükséges \"repo\" hatókörrel, vagy finomhangolt token, amelynél a Contents és Pages engedélyek Read and write értékre vannak állítva.",
+          "Owner": "Tulajdonos",
+          "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "Az a GitHub-felhasználó vagy szervezet, amelyé a tároló. Adja meg a saját felhasználónevét, vagy a szervezet nevét, ha a tároló a szervezeté.",
+          "Repository": "Tároló",
+          "The repository to publish to. The site is served from /<repository>.": "A tároló, ahová a közzététel történik. A webhely a /<repository> útvonalon érhető el.",
+          "Branch": "Ág",
+          "Defaults to gh-pages.": "Alapértelmezés: gh-pages.",
+          "Personal access token": "Személyes hozzáférési token",
+          "GitHub: Settings > Developer settings > Personal access tokens, with write access to the repository's contents.": "GitHub: Settings > Developer settings > Personal access tokens, a tároló tartalmára vonatkozó írási jogosultsággal."
+        },
+        "fr": {
+          "Commit message": "Message de commit",
+          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "Utilisé comme message de commit lorsque Tovu envoie l’export vers la branche gh-pages.",
+          "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "Nécessite un jeton d’accès personnel classique avec la portée \"repo\", ou un jeton à granularité fine avec les autorisations Contents et Pages réglées sur Read and write.",
+          "Repository": "Dépôt",
+          "Owner": "Propriétaire",
+          "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "L’utilisateur ou l’organisation GitHub propriétaire du dépôt. Saisissez votre propre nom d’utilisateur, ou le nom de l’organisation si le dépôt lui appartient.",
+          "The repository to publish to. The site is served from /<repository>.": "Le dépôt dans lequel publier. Le site est servi depuis /<repository>.",
+          "Branch": "Branche",
+          "Defaults to gh-pages.": "gh-pages par défaut.",
+          "Personal access token": "Jeton d’accès personnel",
+          "GitHub: Settings > Developer settings > Personal access tokens, with write access to the repository's contents.": "GitHub : Settings > Developer settings > Personal access tokens, avec un accès en écriture au contenu du dépôt."
+        },
+        "uk": {
+          "Commit message": "Повідомлення коміту",
+          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "Використовується як повідомлення коміту, коли Tovu надсилає експорт до гілки gh-pages.",
+          "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "Потрібен класичний персональний токен доступу з областю \"repo\" або деталізований токен із дозволами Contents і Pages, установленими на Read and write.",
+          "Owner": "Власник",
+          "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "Користувач або організація GitHub, якій належить репозиторій. Введіть своє ім’я користувача або назву організації, якщо репозиторій належить їй.",
+          "Repository": "Репозиторій",
+          "The repository to publish to. The site is served from /<repository>.": "Репозиторій, у який виконується публікація. Сайт обслуговується за шляхом /<repository>.",
+          "Branch": "Гілка",
+          "Defaults to gh-pages.": "За замовчуванням gh-pages.",
+          "Personal access token": "Персональний токен доступу",
+          "GitHub: Settings > Developer settings > Personal access tokens, with write access to the repository's contents.": "GitHub: Settings > Developer settings > Personal access tokens, з правом запису до вмісту репозиторію."
+        },
+        "tr": {
+          "Commit message": "Commit mesajı",
+          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "Tovu dışa aktarmayı gh-pages dalına gönderdiğinde commit mesajı olarak kullanılır.",
+          "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "\"repo\" kapsamına sahip klasik bir kişisel erişim belirteci veya Contents ve Pages izinleri Read and write olarak ayarlanmış ayrıntılı bir belirteç gerekir.",
+          "Owner": "Sahip",
+          "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "Deponun sahibi olan GitHub kullanıcısı veya kuruluşu. Kendi kullanıcı adınızı ya da depo bir kuruluşa aitse kuruluşun adını girin.",
+          "Repository": "Depo",
+          "The repository to publish to. The site is served from /<repository>.": "Yayınlanacak depo. Site /<repository> yolundan sunulur.",
+          "Branch": "Dal",
+          "Defaults to gh-pages.": "Varsayılan: gh-pages.",
+          "Personal access token": "Kişisel erişim belirteci",
+          "GitHub: Settings > Developer settings > Personal access tokens, with write access to the repository's contents.": "GitHub: Settings > Developer settings > Personal access tokens, deponun içeriğine yazma erişimiyle."
+        },
+        "th": {
+          "Commit message": "ข้อความคอมมิต",
+          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "ใช้เป็นข้อความคอมมิตเมื่อ Tovu พุชการส่งออกไปยังสาขา gh-pages",
+          "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "ต้องใช้โทเค็นการเข้าถึงส่วนบุคคลแบบคลาสสิกที่มีขอบเขต \"repo\" หรือโทเค็นแบบละเอียดที่ตั้งค่าสิทธิ์ Contents และ Pages เป็น Read and write",
+          "Owner": "เจ้าของ",
+          "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "ผู้ใช้หรือองค์กร GitHub ที่เป็นเจ้าของรีโพซิทอรี ใส่ชื่อผู้ใช้ของคุณเอง หรือชื่อองค์กรหากองค์กรเป็นเจ้าของ",
+          "Repository": "รีโพซิทอรี",
+          "The repository to publish to. The site is served from /<repository>.": "รีโพซิทอรีที่จะเผยแพร่ไป เว็บไซต์จะให้บริการจาก /<repository>",
+          "Branch": "สาขา",
+          "Defaults to gh-pages.": "ค่าเริ่มต้นคือ gh-pages",
+          "Personal access token": "โทเค็นการเข้าถึงส่วนบุคคล",
+          "GitHub: Settings > Developer settings > Personal access tokens, with write access to the repository's contents.": "GitHub: Settings > Developer settings > Personal access tokens พร้อมสิทธิ์เขียนเนื้อหาของรีโพซิทอรี"
+        },
+        "it": {
+          "Commit message": "Messaggio di commit",
+          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "Usato come messaggio di commit quando Tovu invia l’esportazione al branch gh-pages.",
+          "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "Richiede un token di accesso personale classico con l’ambito \"repo\", oppure un token granulare con i permessi Contents e Pages impostati su Read and write.",
+          "Owner": "Proprietario",
+          "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "L’utente o l’organizzazione GitHub proprietaria del repository. Inserisci il tuo nome utente, oppure il nome dell’organizzazione se il repository è suo.",
+          "The repository to publish to. The site is served from /<repository>.": "Il repository in cui pubblicare. Il sito viene servito da /<repository>.",
+          "Branch": "Ramo",
+          "Defaults to gh-pages.": "Predefinito: gh-pages.",
+          "Personal access token": "Token di accesso personale",
+          "GitHub: Settings > Developer settings > Personal access tokens, with write access to the repository's contents.": "GitHub: Settings > Developer settings > Personal access tokens, con accesso in scrittura ai contenuti del repository."
+        },
+        "hi": {
+          "Commit message": "कमिट संदेश",
+          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "जब Tovu एक्सपोर्ट को gh-pages शाखा में पुश करता है, तो यह कमिट संदेश के रूप में उपयोग होता है।",
+          "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "\"repo\" स्कोप वाला क्लासिक व्यक्तिगत एक्सेस टोकन, या Contents और Pages अनुमतियों को Read and write पर सेट किया गया फाइन-ग्रेन्ड टोकन चाहिए।",
+          "Owner": "स्वामी",
+          "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "वह GitHub उपयोगकर्ता या संगठन जिसके पास रिपॉज़िटरी है। अपना उपयोगकर्ता नाम दर्ज करें, या यदि रिपॉज़िटरी संगठन की है तो संगठन का नाम।",
+          "Repository": "रिपॉज़िटरी",
+          "The repository to publish to. The site is served from /<repository>.": "वह रिपॉज़िटरी जिसमें प्रकाशित करना है। साइट /<repository> से परोसी जाती है।",
+          "Branch": "ब्रांच",
+          "Defaults to gh-pages.": "डिफ़ॉल्ट gh-pages है।",
+          "Personal access token": "व्यक्तिगत एक्सेस टोकन",
+          "GitHub: Settings > Developer settings > Personal access tokens, with write access to the repository's contents.": "GitHub: Settings > Developer settings > Personal access tokens, रिपॉज़िटरी की सामग्री पर लिखने की पहुँच के साथ।"
+        },
+        "ur": {
+          "Commit message": "کمٹ پیغام",
+          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "جب Tovu ایکسپورٹ کو gh-pages برانچ پر پش کرتا ہے تو اسے کمٹ پیغام کے طور پر استعمال کیا جاتا ہے۔",
+          "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "\"repo\" دائرہ کار والا کلاسک ذاتی رسائی ٹوکن، یا Contents اور Pages کی اجازتیں Read and write پر سیٹ والا باریک ٹوکن درکار ہے۔",
+          "Owner": "مالک",
+          "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "وہ GitHub صارف یا تنظیم جس کی ملکیت میں ریپوزٹری ہے۔ اپنا صارف نام درج کریں، یا اگر ریپوزٹری تنظیم کی ہے تو تنظیم کا نام۔",
+          "Repository": "ریپوزٹری",
+          "The repository to publish to. The site is served from /<repository>.": "وہ ریپوزٹری جس میں شائع کرنا ہے۔ سائٹ /<repository> سے پیش کی جاتی ہے۔",
+          "Branch": "برانچ",
+          "Defaults to gh-pages.": "ڈیفالٹ gh-pages ہے۔",
+          "Personal access token": "ذاتی رسائی ٹوکن",
+          "GitHub: Settings > Developer settings > Personal access tokens, with write access to the repository's contents.": "GitHub: Settings > Developer settings > Personal access tokens، ریپوزٹری کے مواد پر لکھنے کی رسائی کے ساتھ۔"
+        },
+        "bn": {
+          "Commit message": "কমিট বার্তা",
+          "Used as the commit message when Tovu pushes the export to the gh-pages branch.": "Tovu যখন gh-pages শাখায় এক্সপোর্ট পুশ করে, তখন এটি কমিট বার্তা হিসেবে ব্যবহৃত হয়।",
+          "Needs a classic personal access token with the \"repo\" scope, or a fine-grained token with Contents and Pages permissions set to Read and write.": "\"repo\" স্কোপসহ একটি ক্লাসিক ব্যক্তিগত অ্যাক্সেস টোকেন, অথবা Contents এবং Pages অনুমতি Read and write-এ সেট করা একটি সূক্ষ্ম-গ্রেইন টোকেন প্রয়োজন।",
+          "Owner": "মালিক",
+          "The GitHub user or organization that owns the repository. Enter your own username, or the organization's name if the organization owns it.": "যে GitHub ব্যবহারকারী বা সংস্থা রিপোজিটরির মালিক। আপনার নিজের ব্যবহারকারী নাম লিখুন, অথবা রিপোজিটরি সংস্থার হলে সংস্থার নাম।",
+          "Repository": "রিপোজিটরি",
+          "The repository to publish to. The site is served from /<repository>.": "যে রিপোজিটরিতে প্রকাশ করা হবে। সাইটটি /<repository> থেকে পরিবেশিত হয়।",
+          "Branch": "ব্রাঞ্চ",
+          "Defaults to gh-pages.": "ডিফল্ট gh-pages।",
+          "Personal access token": "ব্যক্তিগত অ্যাক্সেস টোকেন",
+          "GitHub: Settings > Developer settings > Personal access tokens, with write access to the repository's contents.": "GitHub: Settings > Developer settings > Personal access tokens, রিপোজিটরির বিষয়বস্তুতে লেখার অনুমতিসহ।"
+        }
+      }
+    }
+  ]
+}

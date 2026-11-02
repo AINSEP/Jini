@@ -1,0 +1,48 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "github-pages",
+  "version": "0.1.0",
+  "description": "Publishes the site's static export to GitHub Pages with the workspace's own saved token. Ships the host code itself (a host loads it only because that host chose to ship this plugin) and the know-how an agent needs: which token permissions to grant, never guessing the owner, the address and base path, and what each failure means in plain words.",
+  "author": "Tovu",
+  "license": "Apache-2.0",
+  "extensions": {
+    "tovu": {
+      "vendorAliases": ["github_pages", "github pages", "githubpages", "github.io"],
+      "displayName": "GitHub Pages",
+      "summary": "Puts your website online on GitHub Pages. The assistant shows you a preview first.",
+      "id": "tovu/github-pages",
+      "provides": [
+        "deploy-target:github-pages"
+      ],
+      "credentialCards": [
+        {
+          "target": "github-pages",
+          "title": "Connect GitHub Pages",
+          "label": "GitHub Pages connection",
+          "category": "hosting",
+          "intro": "Connect GitHub Pages to commit this site’s static export and enable Pages for the selected repository.",
+          "usedFor": [
+            "Publishes your website to the selected repository's GitHub Pages site"
+          ],
+          "keyHint": "Select only the destination repository. Fine-grained token: Contents and Pages → Read and write. A classic token needs repo scope.",
+          "saveKind": "publish-host",
+          "helpUrl": "https://github.com/settings/personal-access-tokens/new",
+          "helpLabel": "Create a token",
+          "baseUrl": "https://api.github.com"
+        }
+      ]
+    }
+  },
+  "keywords": [
+    "github-pages",
+    "github",
+    "deploy",
+    "publish",
+    "hosting",
+    "static-site",
+    "static-export",
+    "go-live",
+    "website",
+    "deploy-target:github-pages"
+  ]
+}
