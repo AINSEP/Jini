@@ -1,52 +1,1090 @@
 [
   {
-    "kind": "provider", "id": "ai-trace-langfuse", "publisherIdentity": "jini/ai-trace-langfuse",
-    "packageName": "@jini-ai/plugin-ai-trace-langfuse", "version": "0.6.17", "pluginVersion": "0.6.17",
-    "path": "plugins/ai-trace-langfuse/0.6.17", "contract": { "id": "ai_trace", "version": 1 },
-    "description": "Langfuse", "expectedDigests": null
+    "kind": "provider",
+    "path": "plugins/ai-trace-langfuse/0.6.17",
+    "pluginVersion": "0.6.17",
+    "contract": {
+      "id": "ai_trace",
+      "version": 1
+    },
+    "id": "ai-trace-langfuse",
+    "publisherIdentity": "jini/ai-trace-langfuse",
+    "packageName": "@jini-ai/plugin-ai-trace-langfuse",
+    "version": "0.6.17",
+    "description": "Langfuse",
+    "expectedDigests": {
+      "licenses/_jini-ai_plugin-ai-trace-langfuse/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
+      "licenses/_jini-ai_plugin-ai-trace-langfuse/NOTICE": "sha256-3e795e2d068b53ee6964c05e2724f467451faaf9749dec970884dfa1ad4368de",
+      "licenses/_jini-ai_plugin-ai-trace-langfuse/package-license.json": "sha256-82b921ecc40331f3312418696fcb274c5f7d6bc4785d3c273b53a4f0c2cfbd2d",
+      "licenses/langfuse/LICENSE": "sha256-500dc50774b3a1b58900bf28e03f63906d6e910a56da147ef154cddb5c1619b3",
+      "licenses/langfuse/LICENSE-SOURCE": "sha256-86e467e07d45cff307b1b33738dea99cf2ae2a22fbe5fb571ae3a03819d41f54",
+      "licenses/langfuse/SOURCE": "sha256-7828b8d9c40401be34ccf1682306881431fd1ee6d86a3b5ad10f4104c217ce0a",
+      "licenses/langfuse/package-license.json": "sha256-d2211982a29978bd5c2d4cdb9ce682b8e584fbf0e474d72c1f24289b2b9382ef",
+      "licenses/langfuse-core/LICENSE": "sha256-500dc50774b3a1b58900bf28e03f63906d6e910a56da147ef154cddb5c1619b3",
+      "licenses/langfuse-core/LICENSE-SOURCE": "sha256-86e467e07d45cff307b1b33738dea99cf2ae2a22fbe5fb571ae3a03819d41f54",
+      "licenses/langfuse-core/SOURCE": "sha256-7828b8d9c40401be34ccf1682306881431fd1ee6d86a3b5ad10f4104c217ce0a",
+      "licenses/langfuse-core/package-license.json": "sha256-ddcfec5e1d2d66f0fa8747045c7318fadec83d68721520abfd8c9f45f3a545f5",
+      "licenses/mustache/LICENSE": "sha256-e60b280838180a70cbb4b934f825c8119cdcf8912259ff4c6da20b284231c832",
+      "licenses/mustache/package-license.json": "sha256-288d7af593a0809e08ead527831b7bd2dff0bd84fef7a5bbb61b0b9c812720ab",
+      "server/index.mjs": "sha256-78793710ec44af8b230b8ac0e33c93766cc1b9395de7bc814e1de6817a73ebde"
+    }
   },
   {
-    "kind": "provider", "id": "analytics-posthog", "publisherIdentity": "jini/analytics-posthog",
-    "packageName": "@jini-ai/plugin-analytics-posthog", "version": "0.6.17", "pluginVersion": "0.6.17",
-    "path": "plugins/analytics-posthog/0.6.17", "contract": { "id": "product_analytics", "version": 1 },
-    "description": "PostHog", "expectedDigests": null
+    "kind": "provider",
+    "path": "plugins/analytics-posthog/0.6.17",
+    "pluginVersion": "0.6.17",
+    "contract": {
+      "id": "product_analytics",
+      "version": 1
+    },
+    "id": "analytics-posthog",
+    "publisherIdentity": "jini/analytics-posthog",
+    "packageName": "@jini-ai/plugin-analytics-posthog",
+    "version": "0.6.17",
+    "description": "PostHog",
+    "expectedDigests": {
+      "licenses/_jini-ai_cookie-consent/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
+      "licenses/_jini-ai_cookie-consent/LICENSE-SOURCE": "sha256-9992015beca1bef8eff0344f7e53c39a47f9e9ded30d01384c29b6beaabe2d04",
+      "licenses/_jini-ai_cookie-consent/NOTICE": "sha256-75da95e7c5263160f874d3eb197e3010f2196378b40df69cedc6ff3247261cf3",
+      "licenses/_jini-ai_cookie-consent/package-license.json": "sha256-05393ac8803411c0ddba4aedcf90b55ccdbdcd6284cecc1694b223580bb75c15",
+      "licenses/_jini-ai_core/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
+      "licenses/_jini-ai_core/package-license.json": "sha256-9958142dc859b814d24998f235a9dbbe8effe7756bd64317888de4bb437535d5",
+      "licenses/_jini-ai_diagnostics/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
+      "licenses/_jini-ai_diagnostics/package-license.json": "sha256-39282a624a7ac1bb9cfd3aa0fb6a0dc64d6ea5503cde07f845dc53226ce9c020",
+      "licenses/_jini-ai_plugin-analytics-posthog/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
+      "licenses/_jini-ai_plugin-analytics-posthog/NOTICE": "sha256-75da95e7c5263160f874d3eb197e3010f2196378b40df69cedc6ff3247261cf3",
+      "licenses/_jini-ai_plugin-analytics-posthog/package-license.json": "sha256-930dca780711ba39b732438511a38a0216760fab4d5fb61e08d322789f58fe0a",
+      "licenses/_posthog_core/LICENSE": "sha256-d3fb92ac01f0bef4078f89aac9f20f76da3383ad45becf6204abdf5495f43f8f",
+      "licenses/_posthog_core/package-license.json": "sha256-51e1e60575cebc489313e9ffe4c5b9c08582bdefa071de03cf4c0772df66ccc5",
+      "licenses/js-tokens/LICENSE": "sha256-33038d552d766f4501d8da25b66053ed217c61274ffce1c6bee413bb037c259c",
+      "licenses/js-tokens/package-license.json": "sha256-337c203b235cd5b3626735f17d6ec6b41c509df27ef0a494ce4d673937f7082b",
+      "licenses/posthog-js/LICENSE": "sha256-a3f86c7ac54e89e50df3f0944fd14ec8bb23d4350721fc6f59db0558d0d160b0",
+      "licenses/posthog-js/package-license.json": "sha256-15156f5af3c1699358c4857b0c155fa444c21527b295aecff8edcdcdbbc349f6",
+      "licenses/posthog-node/LICENSE": "sha256-d3fb92ac01f0bef4078f89aac9f20f76da3383ad45becf6204abdf5495f43f8f",
+      "licenses/posthog-node/package-license.json": "sha256-477479010682b08537c8ad318f1f71dc25b0e88a9b0f9f6b4cc90c168624c6be",
+      "server/consent-adapter.mjs": "sha256-a37d6ad7073b5d5149572a4bf8a95c71d24337f4b6358ab98676481e2d663035",
+      "server/index.mjs": "sha256-61e2500f0e5b81506b805da5cbd3e903a84fa133d41d057f0db9d58e74c06a10",
+      "server/posthog-browser.js": "sha256-42c78610e8c1a1ff3258259c13becb34699668a81f091af2e80146b3a006be2a"
+    }
   },
   {
-    "kind": "provider", "id": "fixture-provider", "publisherIdentity": "jini/fixture-provider",
-    "packageName": "@jini-ai/plugin-fixture-provider", "version": "0.6.17", "pluginVersion": "0.6.17",
-    "path": "plugins/fixture-provider/0.6.17", "contract": { "id": "fixture", "version": 1 },
-    "description": "Provider artifact fixture", "expectedDigests": null
+    "kind": "agent",
+    "path": "charts-echarts",
+    "pluginVersion": "0.1.0",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "charts-echarts",
+    "publisherIdentity": "jini/charts-echarts-agent",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.17",
+    "description": "Teaches the assistant to draw bar, stacked bar, line, area, pie, donut and scatter charts in chat with the Apache ECharts chart provider: finding the chart components with search_components, the data shape each one takes, several series in one chart through the generic chart.spec entry, axis names and number formats, and what falls back to a table. Know-how only: no code, no MCP server; the ECharts provider plugin (charts-echarts) draws the charts and switches this plugin on and off.",
+    "expectedDigests": {
+      "plugin.json": "sha256-d95e1cb65ca74f4d55d988abb8ae04dca8247a4a14aef1a29f0716886003ec7e",
+      "skills/charts-echarts/SKILL.md": "sha256-1f714a441aea1201b8c416e2f14c4f96e9494cf5877503958cd6c37797179760"
+    }
   },
   {
-    "kind": "provider", "id": "observability-opentelemetry", "publisherIdentity": "jini/observability-opentelemetry",
-    "packageName": "@jini-ai/plugin-observability-opentelemetry", "version": "0.6.17", "pluginVersion": "0.6.17",
-    "path": "plugins/observability-opentelemetry/0.6.17", "contract": { "id": "observability", "version": 1 },
-    "description": "OpenTelemetry", "expectedDigests": null
+    "kind": "provider",
+    "path": "plugins/charts-echarts/0.6.13",
+    "pluginVersion": "0.6.13",
+    "contract": {
+      "id": "browser-provider:chart",
+      "version": 1
+    },
+    "id": "charts-echarts",
+    "publisherIdentity": "jini/charts-echarts",
+    "packageName": "@jini-ai/provider-plugins",
+    "version": "0.6.13",
+    "description": "Apache ECharts",
+    "expectedDigests": {
+      "client/provider.js": "sha256-be38eb191edafb9c7108fe7664045b2107feeaccac6156eee7fa7f3eb28b6e58",
+      "client/styles.css": "sha256-be5e0483f8883b44bf2319beed8ceefc7f26f74c3f2389efafb4c09aaf901d08",
+      "licenses/_jini-ai_provider-plugins/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
+      "licenses/_jini-ai_provider-plugins/NOTICE": "sha256-41f25c5b9af4c8e8e98e2a7c658b3922253c760686e17e0ef7fa003fae83cb95",
+      "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-a740c1af0bca2b02a4a8ba5f6a9f44dc9f0cf71769efef21d10fa62e849f9090",
+      "licenses/_jini-ai_ui/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
+      "licenses/_jini-ai_ui/LICENSE-SOURCE": "sha256-113250809e447a0218f14344cf6f7ffd037fd427ad218f7e3207600dc2ae1383",
+      "licenses/_jini-ai_ui/NOTICE": "sha256-41f25c5b9af4c8e8e98e2a7c658b3922253c760686e17e0ef7fa003fae83cb95",
+      "licenses/_jini-ai_ui/package-license.json": "sha256-ea57379093cfd1d30b9b6a1fa320b01335d934580b5f58f87892c510c914fc88",
+      "licenses/echarts/LICENSE": "sha256-634293835b43a6dd2094fa39182a3d9a6b9ca43b7fdb9ac354e8037af2a3093a",
+      "licenses/echarts/NOTICE": "sha256-d491d358344f842685c1b1585970999db65fe30ecf7ef3867af8814f4016c016",
+      "licenses/echarts/package-license.json": "sha256-adef4e80c943177659d316c9b67cad6a7bacc06320d4b29984f3c0c1342ddd29",
+      "licenses/tslib/LICENSE.txt": "sha256-210b19e543130388c68654b7497e967119ce17145f66ab7d85688fbd70f08751",
+      "licenses/tslib/package-license.json": "sha256-0631fdf5de7edbd13866801beace40245eb32b0c432cb41785902068716c6e9e",
+      "licenses/zod/LICENSE": "sha256-3f1189b28e3866e0d979968d466b78f813f76827cfdca1fbb124cc0a5c8841f8",
+      "licenses/zod/package-license.json": "sha256-b874b502e45d7154ce82a27bdb9c9b6c1d5f3c0129ff43175b19ecfab2b2fb3b",
+      "licenses/zrender/LICENSE": "sha256-a681e9d183c72b4af4856935893805eb48c08f0f5a3f260203db7444c20fb98a",
+      "licenses/zrender/package-license.json": "sha256-6a497385161a5f04baf27548306db4bd15d3ae5efcc833d5be6ec627a14a2162",
+      "server/index.mjs": "sha256-62e0944daa1adbf19817783d9882960443a5c377e3090c2d91ad177ff0afceda"
+    }
   },
   {
-    "kind": "provider", "id": "observability-sentry", "publisherIdentity": "jini/observability-sentry",
-    "packageName": "@jini-ai/plugin-observability-sentry", "version": "0.6.17", "pluginVersion": "0.6.17",
-    "path": "plugins/observability-sentry/0.6.17", "contract": { "id": "observability", "version": 1 },
-    "description": "Sentry", "expectedDigests": null
+    "kind": "agent",
+    "path": "charts-recharts",
+    "pluginVersion": "0.1.0",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "charts-recharts",
+    "publisherIdentity": "jini/charts-recharts-agent",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.17",
+    "description": "Teaches the assistant to draw bar, line and pie charts in chat with the Recharts chart provider: finding the chart components with search_components, the data shape each one takes, what Recharts draws and what falls back to a table, and the generic chart.spec entry for several series. Know-how only: no code, no MCP server; the Recharts provider plugin (charts-recharts) draws the charts and switches this plugin on and off.",
+    "expectedDigests": {
+      "plugin.json": "sha256-e3e1c2c0c96cb5729b1e1a593c2106d92a1705c1853a3a233e7d52ac9a034d58",
+      "skills/charts-recharts/SKILL.md": "sha256-c45e9cdd4b4b36addf6e418189458746558065e7fedbd4c390ba1bbdb1bc8553"
+    }
   },
   {
-    "kind": "provider", "id": "payments-stripe", "publisherIdentity": "jini/payments-stripe",
-    "packageName": "@jini-ai/plugin-payments-stripe", "version": "0.6.17", "pluginVersion": "0.6.17",
-    "path": "plugins/payments-stripe/0.6.17", "contract": { "id": "payments", "version": 1 },
-    "description": "Stripe payments provider", "expectedDigests": null
+    "kind": "provider",
+    "path": "plugins/charts-recharts/0.6.13",
+    "pluginVersion": "0.6.13",
+    "contract": {
+      "id": "browser-provider:chart",
+      "version": 1
+    },
+    "id": "charts-recharts",
+    "publisherIdentity": "tovu/charts-recharts",
+    "packageName": "@jini-ai/provider-plugins",
+    "version": "0.6.13",
+    "description": "Recharts",
+    "expectedDigests": {
+      "client/provider.js": "sha256-d2df735b9c19666c772bc1114290a55c79ac84ab05a55f919d5e17996e147369",
+      "client/styles.css": "sha256-8bf7290ed757364db0ab99e55f2ab682647f572fbdda622f1c39937727e8eb3c",
+      "licenses/_jini-ai_provider-plugins/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
+      "licenses/_jini-ai_provider-plugins/NOTICE": "sha256-41f25c5b9af4c8e8e98e2a7c658b3922253c760686e17e0ef7fa003fae83cb95",
+      "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-a740c1af0bca2b02a4a8ba5f6a9f44dc9f0cf71769efef21d10fa62e849f9090",
+      "licenses/_jini-ai_ui/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
+      "licenses/_jini-ai_ui/LICENSE-SOURCE": "sha256-113250809e447a0218f14344cf6f7ffd037fd427ad218f7e3207600dc2ae1383",
+      "licenses/_jini-ai_ui/NOTICE": "sha256-41f25c5b9af4c8e8e98e2a7c658b3922253c760686e17e0ef7fa003fae83cb95",
+      "licenses/_jini-ai_ui/package-license.json": "sha256-ea57379093cfd1d30b9b6a1fa320b01335d934580b5f58f87892c510c914fc88",
+      "licenses/_reduxjs_toolkit/LICENSE": "sha256-49784961ec6c4941437b7a2c54d8977d0528076a9e7c73dd40f7d0942b8f106d",
+      "licenses/_reduxjs_toolkit/package-license.json": "sha256-841f76ddac88a780f1d16a201f72ad529d0b50148fcba84d103a65a8689f95b0",
+      "licenses/clsx/license": "sha256-9a9edad7baae52622bddf3c15b2ef8a33d2c89f2d25408ad13e8a7481c6b0c97",
+      "licenses/clsx/package-license.json": "sha256-3c6f359a107dc95f67b8fecccd18257a3cfdb127a9d01f4eb01e5cef1c0c51ab",
+      "licenses/d3-array/LICENSE": "sha256-3e6849627f74ff73c257a3ae1efb574015d94fc1035c05ec3c15805165efcbc4",
+      "licenses/d3-array/package-license.json": "sha256-b24887be0f7bd9f832d427c94322f7803bd6a48fb925a0eb749b74b90cb029f1",
+      "licenses/d3-color/LICENSE": "sha256-faa682e3e430941f958d26180458f5934a62f58dac4d70ccdd15608c15d0f884",
+      "licenses/d3-color/package-license.json": "sha256-20d0241a9a4da4ffc6e6f3b5380310d71d8cd26fd7716a1f63447382bd73df0d",
+      "licenses/d3-format/LICENSE": "sha256-2a6d2d5f32ba0b755ddbc1c833f766e30cdbe6ebe9a6d4e3e24427721f0b63d3",
+      "licenses/d3-format/package-license.json": "sha256-196e9bdf613fdaf3b896a34a5bc696c16b91960bfca827193e90192cbb51e220",
+      "licenses/d3-interpolate/LICENSE": "sha256-e008c5e25a6be382593089c29bfabbc553c6378eee02895aec46ce396cc404ee",
+      "licenses/d3-interpolate/package-license.json": "sha256-2924e9f7b424c749f4d690ddbe7ff9266d4f06a971bf0de2e854f58bfa1f3623",
+      "licenses/d3-path/LICENSE": "sha256-a09b0d6d76e768fca2085fad05743ee81ddd11946bcda160a3cf5e1081a479aa",
+      "licenses/d3-path/package-license.json": "sha256-9af8f26d221e2f671e05ed8086fab26974562d0095ea8c08516c927e38770134",
+      "licenses/d3-scale/LICENSE": "sha256-e008c5e25a6be382593089c29bfabbc553c6378eee02895aec46ce396cc404ee",
+      "licenses/d3-scale/package-license.json": "sha256-da8dde35c77ac5c672f4184a6b4d6474a6adadb7fc352280ffc7f91b671e0a9a",
+      "licenses/d3-shape/LICENSE": "sha256-faa682e3e430941f958d26180458f5934a62f58dac4d70ccdd15608c15d0f884",
+      "licenses/d3-shape/package-license.json": "sha256-0d83e82ab9636ecf3e6a1fb4501b9a8a796d99625c42f70b100de36a01e19882",
+      "licenses/d3-time/LICENSE": "sha256-faa682e3e430941f958d26180458f5934a62f58dac4d70ccdd15608c15d0f884",
+      "licenses/d3-time/package-license.json": "sha256-218a0f8b88ddbab89e8cca6b16fae46ff3d8b7608edb6a82b8959192afed6321",
+      "licenses/d3-time-format/LICENSE": "sha256-e008c5e25a6be382593089c29bfabbc553c6378eee02895aec46ce396cc404ee",
+      "licenses/d3-time-format/package-license.json": "sha256-e41d14702b5db73ca9e76e0e0abae67194e33f92a3fb382a218bb88a9a0e8026",
+      "licenses/decimal.js-light/LICENCE.md": "sha256-fc0397fbd5c128bec7edef4e8d3f45e15db5fd043cdd0a2edfc4f14d47fbc3e4",
+      "licenses/decimal.js-light/package-license.json": "sha256-e3c96d33f14b9645b319a0edc94c832c20d348f6c48a30c4384ac39ec0ddc1c2",
+      "licenses/es-toolkit/LICENSE": "sha256-51f3674294d988d89dbebd31273baaeb3c697a15482d9699b14d1fded2e132a7",
+      "licenses/es-toolkit/package-license.json": "sha256-f93bae16609dbb188e02aceb896a0fe6b04bfacc8dbaa7e0f1abe6cf2397e162",
+      "licenses/eventemitter3/LICENSE": "sha256-3aecc12b1cb28832b5f65ab64291de96568c3f236a74d646281b4491f7bcadbf",
+      "licenses/eventemitter3/package-license.json": "sha256-bf0d027341b4646153c08e429b981b358a3366a64bdc109d9e45bbae09b2e057",
+      "licenses/immer/LICENSE": "sha256-99cf22f6960a6fe228ec84ea9aefb0d75b27999ece83a3a9801e1c2081fa270b",
+      "licenses/immer/package-license.json": "sha256-0e72a621ea42e771da505e6ac09ccd6b2151c2846cc7e72e05202dc99f42d9e4",
+      "licenses/internmap/LICENSE": "sha256-9ea8903938dab5f12c4572d60725069bec2d1b0dc3bcc210b09bae946a5ebb1f",
+      "licenses/internmap/package-license.json": "sha256-0de9dc34835acc99743e68facb1eecfd48d4442240853f1e79ce553dd5c92a0d",
+      "licenses/react/LICENSE": "sha256-da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93",
+      "licenses/react/package-license.json": "sha256-a9e4cd232557d1bdffd10b4c9dc694ee975f250e30bb6641fd17ea3e0d861bb1",
+      "licenses/react-dom/LICENSE": "sha256-da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93",
+      "licenses/react-dom/package-license.json": "sha256-3401f979e83126af6eda1348437cf927066a4c49cf64f6c5c958c93e354e6d9e",
+      "licenses/react-is/LICENSE": "sha256-52412d7bc7ce4157ea628bbaacb8829e0a9cb3c58f57f99176126bc8cf2bfc85",
+      "licenses/react-is/package-license.json": "sha256-09e091b983080debc57039eea1eedcda7729ada086fa07e1afbd78f956ac7b2c",
+      "licenses/react-redux/LICENSE.md": "sha256-f2da73c752c6b87624755edacf927cbd915fa76555d383e74494bad4a5155ab3",
+      "licenses/react-redux/package-license.json": "sha256-1181b7bcf0a314f65281243a9019fc2526c1afa63d698a049625229bb4748d8f",
+      "licenses/recharts/LICENSE": "sha256-2d3aa48a8d1d3b93093680e8e68d3a64cfb590c3ade377ffcaefc69dac7c2ce5",
+      "licenses/recharts/package-license.json": "sha256-1271b62a556e9ed8b32f2187192c7663fecf60951b5fce53e400862a8616c58b",
+      "licenses/redux/LICENSE.md": "sha256-f2da73c752c6b87624755edacf927cbd915fa76555d383e74494bad4a5155ab3",
+      "licenses/redux/package-license.json": "sha256-ff007f00731f8a9ce406bc94dafe6a325e607329b14c1a5230674595ce4fca3f",
+      "licenses/redux-thunk/LICENSE.md": "sha256-635da794c92d278f8355428be0f9922d643f556d4f75f33fe4aca6b98d27affe",
+      "licenses/redux-thunk/package-license.json": "sha256-4ac2774ba1453e66cdc18ceb48271aa1cab57553e65b12c756cf8d597829ee85",
+      "licenses/reselect/LICENSE": "sha256-e98047a5dee068b33f82e8c4b7a63037b5108c93393198efd4097753004af5dd",
+      "licenses/reselect/package-license.json": "sha256-265373a61edec5d5616e04f2df1f401bc39b1f0f8d1f083435f7ee1447461bf6",
+      "licenses/scheduler/LICENSE": "sha256-da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93",
+      "licenses/scheduler/package-license.json": "sha256-3ce8edaf40744a9561b4a65904de56aa0a0485103668f0a00704044d50ceae9b",
+      "licenses/tiny-invariant/LICENSE": "sha256-b1c501095de70182748cb8e8d97ac5577701a4ef3b755ba30d59fd87b24bdb0f",
+      "licenses/tiny-invariant/package-license.json": "sha256-1423e4f10ec810cc816f6914a1cf4732726bf5869c636f6fe5a0d5d0dc10e1af",
+      "licenses/use-sync-external-store/LICENSE": "sha256-da6d3703ed11cbe42bd212c725957c98da23cbff1998c05fa4b3d976d1a58e93",
+      "licenses/use-sync-external-store/package-license.json": "sha256-be330d23f9f8507a3871ea40ac093dfd3cc5dcdf42294599606cc40aac8fcfc7",
+      "licenses/victory-vendor/LICENSE.txt": "sha256-909af77588b84d9e557d26c4bd1a26a282aaba7123c4a839c75287c803166955",
+      "licenses/victory-vendor/package-license.json": "sha256-c49c483e1ea4b423861fd21dae1b9fb7129a47f8f06cc7a9037b42f0adb0c701",
+      "licenses/zod/LICENSE": "sha256-3f1189b28e3866e0d979968d466b78f813f76827cfdca1fbb124cc0a5c8841f8",
+      "licenses/zod/package-license.json": "sha256-b874b502e45d7154ce82a27bdb9c9b6c1d5f3c0129ff43175b19ecfab2b2fb3b",
+      "server/index.mjs": "sha256-49db3039500e0247df3a8f9a31814807afc5a9913fa94219c1cc6a67b040b69f"
+    }
   },
   {
-    "kind": "agent", "id": "slide-design", "publisherIdentity": "jini/slide-design",
-    "packageName": "@jini-ai/plugin-slide-design", "version": "0.6.17", "pluginVersion": "0.1.0",
-    "path": "slide-design", "contract": { "id": "agent-plugins", "version": "1.0.0" },
+    "kind": "agent",
+    "path": "cloudflare",
+    "pluginVersion": "0.3.1",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "cloudflare",
+    "publisherIdentity": "tovu/cloudflare",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.17",
+    "description": "Publishes static exports to Cloudflare Workers or Pages and attaches reviewed custom domains using your saved Cloudflare connection. Workers sites with active forms store submissions in a D1 database in your Cloudflare account for the host to pull. Preview reads current infrastructure; domain changes require human confirmation.",
+    "expectedDigests": {
+      "NOTES.md": "sha256-3841fc50cb2fd214ab350755340d7d25b314b30ad610304a9e093e38eac748d2",
+      "form-destinations/cloudflare-d1.mjs": "sha256-bf2cf556fbf39048a5e6bc59092f214e671c2adf91f50a4c5ac6db0d6c3bfeb4",
+      "lib/api.mjs": "sha256-9daf1704c087faaf13bcee798f27f60c98beaf9456c409c18de2d01c972beda7",
+      "lib/assets.mjs": "sha256-8a65fa11d08405cab204cf56b8049c17914cc297b56a031cb363cb8a310a25f9",
+      "lib/dns.mjs": "sha256-eeb2a5d079834c3285a5842d5255f45daf7666d831f35187e1f8acf5d96b6bb1",
+      "lib/domain-inventory.mjs": "sha256-f6ac6106be2224a89fb59a3046f4a89979bc6d5358641bf0c96a8fd2accc0579",
+      "lib/domain-status.mjs": "sha256-19f6427e4d9d0b75e9b20f41b1b3a9c7530e99d6a434f3985e56c1f2b741ccc9",
+      "lib/domains.mjs": "sha256-175f56995dce4866019696b29879ff5402ca7ccd87022463ffd8b4591fa6c80a",
+      "lib/forms.mjs": "sha256-23e3407fde107b5b55e011ac0402179f9f3f5bcfec47333f9e536599a5ceda5a",
+      "lib/pages-upload.mjs": "sha256-7712c6fd855a2edc4d92e9fbdbbdb47368d2f45b965d481c3d499f36088dc1f2",
+      "lib/target.mjs": "sha256-e6332c7ce1711f46b93e97fd50519c06b2798185da2e912eb4d0455d2ba4f98c",
+      "lib/workers-upload.mjs": "sha256-544ad8b3398c74a1374411635f7bc3d126b9081cc1d71aef09ee25c9256ab468",
+      "lib/zones.mjs": "sha256-53c3815db92dd7ede2255457f7af9ae3c1a1e3558e0cb723739bf1ea505d0988",
+      "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
+      "plugin.json": "sha256-7af83c59dc52148405979bd68bc7a86d20af17430cc28dc78e141452778480b4",
+      "skills/cloudflare/SKILL.md": "sha256-b3c1d884662e5cb75f14d88f6ad900a128118d8cc2eafcece8ca0435e4f9e96d",
+      "skills/cloudflare/references/domains.md": "sha256-33392b046b67b83e3b5d0008b4cb589399f0b2a4bca513e387ed0776e2200b80",
+      "skills/cloudflare/references/pages.md": "sha256-f47935e4b5976d7ae366bc1a633bb651242fd957a0407c7085125733c6d122cd",
+      "skills/cloudflare/references/permissions.md": "sha256-a72a21cf5582e2422ff4b795bd098cdadb9396b947fc12417e75859f24e50b89",
+      "skills/cloudflare/references/troubleshooting.md": "sha256-22b1b717a8a9c94dd2348de8a870b2e23448d18f4ab521c0a17f13e2b766427d",
+      "skills/cloudflare/references/workers.md": "sha256-46a23236a6d22a2748bc0d7dee7158b56859e79a73323a04ac2d2aa6074291be",
+      "targets/cloudflare-pages.mjs": "sha256-bae9ff1e9842391fade3f1cab1f25d146ea4f693f23fc64c7c8a16894fcd09b4",
+      "targets/cloudflare-workers.mjs": "sha256-c7f2a2d403487bcf26d3095c023e70166537d3e87d169d0a81749d56f8360e87",
+      "tovu-consent.json": "sha256-293658ce9c99d9d42708454b3cd57101c0e8de5d78fe308dc16dec43a5906a50",
+      "tovu-deploy-targets.json": "sha256-fc4d27bb08a19db61c1b1684b6da6a09d075e42ec154f60385214415f326ce9c",
+      "tovu-form-destinations.json": "sha256-f0ce2bb4ffe864b09185ab95b6ec910f32da2db909e485691bc4527afd484c1e",
+      "worker/forms-receiver.mjs": "sha256-ca6d06652390948c0058d6f01208fef69ec97deacf82fd1336bf566378780c7d"
+    }
+  },
+  {
+    "kind": "agent",
+    "path": "composio",
+    "pluginVersion": "1.0.0",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "composio",
+    "publisherIdentity": "tovu/composio",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.17",
+    "description": "Lets the assistant use the user's other apps (Gmail, Google Calendar, Slack, Notion, GitHub, HubSpot, Linear and 1000+ more) through Composio Connect, Composio's hosted MCP server. One browser sign-in to Composio connects it; each app is then connected on first use by a Composio sign-in link, with no API keys anywhere.",
+    "expectedDigests": {
+      "mcp.json": "sha256-4a8a18118e45396fa361b38ce126a04446ac862bb7df6b3f668288666f3ab21c",
+      "plugin.json": "sha256-6270aa97d8725cbbae19999f8b7ef39327df7cee97ce4d9ff2066ddb2c22e755",
+      "skills/composio/SKILL.md": "sha256-f79d78f653623433ce6f54acab2b857aa3a7c28ac87f4809fac18c7853a2e00e"
+    }
+  },
+  {
+    "kind": "provider",
+    "path": "plugins/fixture-provider/0.6.17",
+    "pluginVersion": "0.6.17",
+    "contract": {
+      "id": "fixture",
+      "version": 1
+    },
+    "id": "fixture-provider",
+    "publisherIdentity": "jini/fixture-provider",
+    "packageName": "@jini-ai/plugin-fixture-provider",
+    "version": "0.6.17",
+    "description": "Provider artifact fixture",
+    "expectedDigests": {
+      "licenses/_jini-ai_plugin-fixture-provider/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
+      "licenses/_jini-ai_plugin-fixture-provider/NOTICE": "sha256-ba24755dd792a6b5f96d36691db4fbc9b423eff278d2300aa9365c858ba1685f",
+      "licenses/_jini-ai_plugin-fixture-provider/package-license.json": "sha256-7a9549b396877fa75ff7ceecfd85f4a738ebbac71bd592c35330c812a41fc4bb",
+      "server/index.mjs": "sha256-644c4647ba4b20bf02f1e577b13cc33ffa84a8e6dce5159266bd83a4f6e76284"
+    }
+  },
+  {
+    "kind": "agent",
+    "path": "fly",
+    "pluginVersion": "1.0.0",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "fly",
+    "publisherIdentity": "tovu/fly",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.17",
+    "description": "Deploys the host's server to fly.io: one machine only for volume-backed state, secrets never in fly.toml, deploying ships code, not content. Contributes Fly operations, server config generation and the FlyV1 credential scheme.",
+    "expectedDigests": {
+      "deploy-configs/fly.mjs": "sha256-1a79d00d5a2a343309e81c27fee738b13d834b78233318b8b87e637f5cf39aed",
+      "deploy-ops/fly.mjs": "sha256-a4ac6479b6aedd61dd07e2a0b7a6f1ea15019f2a2fedecf35c062042a6f61b79",
+      "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
+      "plugin.json": "sha256-33cc79f1086a9c7ae612113968a766719a60aa00aa5121006e50f3a637095066",
+      "scripts/render-deploy-workflow.mjs": "sha256-f38fbcb6c2b08006ee7d3d74d90aee88bd760ee60a0f2675133a643284ab2ea9",
+      "skills/fly/SKILL.md": "sha256-e847e8fd39446e5ba0d445de68a0de4a4a0e53462107b7dd53e458a8f2e4e8d3",
+      "skills/fly/references/fly-deploy.template.yml": "sha256-459122945582cc4a2917cea070e11d3ae1d5dfcfde317ad77aed204dadb03214",
+      "skills/fly/references/fly.template.toml": "sha256-729a0428931f236156751028b08636ba7d3f56303f667aa746b6256cc98f2c82",
+      "tovu-credential-schemes.json": "sha256-9f87fce241e0b8f51420bc82d70714e78f1736c967d21e4efe30219ada1128ce",
+      "tovu-deploy-configs.json": "sha256-f4671bc0a96799f456feff97516428b07a7a0170e4b78de46efc3c6290c34e1a",
+      "tovu-deploy-ops.json": "sha256-200365349872c35fe5b5f0d925a0c8da10cf35a1e4782d6cf42db3f42379bbe4"
+    }
+  },
+  {
+    "kind": "agent",
+    "path": "github",
+    "pluginVersion": "1.1.0",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "github",
+    "publisherIdentity": "tovu/github",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.17",
+    "description": "Everything a host's assistant needs to work against a GitHub repository through the workspace's own saved credentials, with no git, no gh CLI, and no token ever passing through the assistant: writing and updating files in one atomic commit, dispatching and following a GitHub Actions run, reading a failed run's logs, committing the site's rendered static export, backing up the site itself (database, media, themes, plugins, settings) to a private repository, and deploying the host's server through its GitHub Actions deploy workflow (the `github-actions` deployment ops platform). Encodes the rules that generic GitHub knowledge gets wrong here — a 204 dispatch means queued and never deployed, a workflow only fires on the branch its own trigger names, a repository secret is the human's step and never the assistant's, a 403 on an org-wide listing is a normal app-scoped-token boundary rather than a broken credential, and editing an existing file means diffing the MODIFIED files and not only the added and deleted ones.",
+    "expectedDigests": {
+      "deploy-ops/github-actions.mjs": "sha256-66adf13a6b9635e054b0b1647b82560be5ccc701803570328aa41861af48a28d",
+      "deployments/github.mjs": "sha256-386c366ff9740acb8a98c74aa4e27baa6cd17dfefce85a393fae81427d501b2c",
+      "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
+      "plugin.json": "sha256-3a2d4ce6299275a65404c4c63b9b41f584287bbe36ce9959f8e5fd22d8d502a0",
+      "skills/github/SKILL.md": "sha256-e61d5285c8f6444f65b00984b00bb5ab75417f6c5c6d91c189903c5958826ba0",
+      "skills/github/references/actions.md": "sha256-76a1e5271900dd09169d1c35b908e07e136c2dcedebcc968ae4257280e213adc",
+      "skills/github/references/auth-and-tokens.md": "sha256-a445a8c71c0017a762f37745a4cae4ca49b64688d2c97521a1aecfb78d1753b2",
+      "skills/github/references/repo-files.md": "sha256-854cef26cb432e7195bda48d51ceed6d664dcccb6cc78117c90205116d868ef0",
+      "skills/github/references/site-backup.md": "sha256-49ad9b8fb7d05a2e47ae74d500ede2543e4de9028053539afd10b6686b537c34",
+      "skills/github/references/source-control.md": "sha256-e06c02e24b43fb2f9fd3e59f6235e7bd836c70f264da6f137b2190de4b0debff",
+      "source-control/backup-push.mjs": "sha256-e1da5874c8a9efb1ed3e61e378ee4a830e8b9c778e307aa6a8c64c1a69084eae",
+      "source-control/commit-site.mjs": "sha256-4b389e222d0f4b79f521bdbc5f2f9fc29e8cc2d218feacdaecc370252b5ea626",
+      "source-control/github.mjs": "sha256-776dd3b9c84c21654da8afb64fffb5218940ec799a845b5eb48815582b85f49e",
+      "source-control/write-files.mjs": "sha256-ae6af9407f2989b5598d6998bf593a73ccd23b2c36b15f76d5480a8a5524a01f",
+      "tovu-deploy-ops.json": "sha256-592ce3242c4dc5cc57a89ba5219bc7d4efabe153b4e8f5bc0ddbee38fabbb337",
+      "tovu-source-control.json": "sha256-8ec49b9790e7d681d5193ea2f87ff524ffbd9d1f37abb7ea773e95507807fb94"
+    }
+  },
+  {
+    "kind": "agent",
+    "path": "github-pages",
+    "pluginVersion": "0.1.0",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "github-pages",
+    "publisherIdentity": "tovu/github-pages",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.17",
+    "description": "Publishes the site's static export to GitHub Pages with the workspace's own saved token. Ships the host code itself (a host loads it only because that host chose to ship this plugin) and the know-how an agent needs: which token permissions to grant, never guessing the owner, the address and base path, and what each failure means in plain words.",
+    "expectedDigests": {
+      "NOTES.md": "sha256-203ec670780b90eb7087ceaf09675e32d254a507a2f5c8ac390e08a3f18793ae",
+      "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
+      "plugin.json": "sha256-84ca46e9af80c61e2004af1b46d499e78ea635e90b7e4642ec5a4c77874b3845",
+      "skills/github-pages/SKILL.md": "sha256-631648c51633ea4cf9eabcb27906b5927eb79ccb43ecca3928204fd2de8b50eb",
+      "targets/github-pages.mjs": "sha256-fc22ad950ad3b5675f329d25fa71f6cd6de85176996e7812681d6cd1bac650c9",
+      "tovu-deploy-targets.json": "sha256-cbec20a48ab811c2b3dc9beb9aeb5cdf69037037c1e3fa2dccc04f1c07c5792e"
+    }
+  },
+  {
+    "kind": "agent",
+    "path": "google-login",
+    "pluginVersion": "0.1.0",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "google-login",
+    "publisherIdentity": "tovu/google-login",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.17",
+    "description": "Adds Google sign-in for Tovu members using this site's own Google OAuth client. Includes setup guidance for apps using Supabase Auth.",
+    "expectedDigests": {
+      "exports/google-g.svg": "sha256-95bcef150b35e3fe4544af6052763471e6bb545106af862075d08d03455b8138",
+      "exports/sign-in-button.css": "sha256-55720b665f5ae09abc7e88a7eceaf869bf47165052490d79a9cdf63eee1ec666",
+      "exports/sign-in-button.html": "sha256-b493a62c7d7d73f36d3930354ce0c8e035ae1cf11eea27afda521f66491f890b",
+      "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
+      "plugin.json": "sha256-d30973f7ea60a8ad6506eb8b5337129ea9ac118ff10a20d570d52f12476fdf7d",
+      "skills/google-login/SKILL.md": "sha256-710436810c5c2c08048c2edd877cceea5a812211e22c436b6160ad5da15dfce1",
+      "tovu-login-providers.json": "sha256-52e5bb89a8fb5d604da458328e526610f0771e7f831589928c91c980a98cf786"
+    }
+  },
+  {
+    "kind": "agent",
+    "path": "google-workspace",
+    "pluginVersion": "0.1.0",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "google-workspace",
+    "publisherIdentity": "tovu/google-workspace",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.17",
+    "description": "Connects one Google account to this site with Google's own sign-in, then works with the Google files the person picks or this site creates (the drive.file permission, never the whole Drive). v1 ships Google Sheets: chat tools for spreadsheets and a form destination that appends submissions as rows. Products are turned on separately; turning one off stops its tools and deliveries without revoking the sign-in.",
+    "expectedDigests": {
+      "README.md": "sha256-c2501014519dca8128a22f315e09004b4a5d3ac9676e76f4d9f5e4bc0bb6e345",
+      "form-destinations/README.md": "sha256-304c556846e516a606f7ea6885fc9061d26834e202e0519f4d512556941f70cd",
+      "form-destinations/dedupe.mjs": "sha256-929698a7096adc378e753e75a0f850f7b453436a32b1fc538460ccb377e47fad",
+      "form-destinations/delivery-result.mjs": "sha256-0d9f58289001d5c705c03cd1fbe8d8ecfb9fef02d86bdc80b131c62751c7f4f6",
+      "form-destinations/mapping.mjs": "sha256-43d4e84385c5f048d0175d1c32b566d625a1c9bfd8fed926ec1b1858cb1b2e8d",
+      "form-destinations/sheets.mjs": "sha256-0c0da07ffdf7cbb80ac22ea129c5f390ba846393d234e768fbb02b517160d56a",
+      "lib/auth.mjs": "sha256-009acd297b0e6ce642823a50282124f23381fad8054bd0ee39cbf538fb14be3e",
+      "lib/drive-files.mjs": "sha256-90c4104d9a72ff8e6db36af54e95994cb0e89e2e7b480d99b322559d2dfb20da",
+      "lib/form-destination-settings.mjs": "sha256-200ac96bb9dd013ff1dd80fd82b3b679c497dd1d65b431d459d87581e42eecd3",
+      "lib/http.mjs": "sha256-1e250e12c2d9c2f537ed202f38f20cd0f21ff52bcb74fc54a2dc239b6c39444e",
+      "lib/picker-flow.mjs": "sha256-76d9ccb6100a038574f138c229baa6793ca153edf6dfd171214b542dcdb0e264",
+      "lib/picker-selection.mjs": "sha256-7de251d983fad349f6a81cff8fba6ce03c220969ec7df3935ec034733524a759",
+      "lib/product-state.mjs": "sha256-38b60e6829e485c7ca7e180ddc21a892d73ae72e941c7c5ebdf893b319ce059d",
+      "lib/request-policy.mjs": "sha256-3bcd06711abcf6b5af52ec35c6689ea5d0a1f247bb762b5726a0f5f309e7f1e7",
+      "lib/sheets-a1.mjs": "sha256-22dbb1045274098bbfc1c63ed552a2d7c82a908bcc32592ebf6a85ea5a11c7bc",
+      "lib/sheets-admin-csv.mjs": "sha256-c0431f4e2322d321067722b7419cb02655924a42580d074da6f38ae2ba0109d6",
+      "lib/sheets-admin-request-kinds.mjs": "sha256-8a9f7ffed71d40e7312508043f8902a749ecacd31a0d84f189d8251d47e25337",
+      "lib/sheets-client.mjs": "sha256-becde804f58d07afffa8de44643a3313ea75c135fa1047e5339224dde988d34c",
+      "lib/surface-actions.mjs": "sha256-ae1e33623b3137759d39aa16a145d3cb95a2bf81c93b4b2edc92a70a1abd05ae",
+      "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
+      "plugin.json": "sha256-14ec41f8adea9b986ace3c8a64940c3c916b23b5587ac4ef555123116bdff447",
+      "products.json": "sha256-66414614357e647b5d0efc9718634219bdebe732f80498926eb661e46c2c87dc",
+      "skills/google-workspace/SKILL.md": "sha256-fcd0c7a83b1b5197c070b14048713053dc3ea95f841b1a95e0da5979bbcf36fd",
+      "skills/google-workspace/references/connection.md": "sha256-ae024d104646e01f9fdd32e78d1c7fba0124207872486db7e2a0c3a2fbe618e7",
+      "skills/google-workspace/references/form-delivery.md": "sha256-1ebbd159d1ad2cbb7c6796e20c6c7c5bc6fa68efd948beace2e9dd7c4f316fac",
+      "skills/google-workspace/references/sheets.md": "sha256-c0bb3282414b5cb447eb5d5f5793a9cb01a91b6bd2a587a6762661aa5be9605c",
+      "skills/google-workspace/references/troubleshooting.md": "sha256-69e37da0ead0ddcac13692c708934ae5f8d2235b505b85cb6abbb116d79b6289",
+      "tools/account-info.mjs": "sha256-2e81d9301e759b79ebb01c09326f434b2971d4ba40c02ddc7cc77037a32340d7",
+      "tools/sheets/README.md": "sha256-365c698eec8f961078593e20753d2e713be4a9cd1afe542034522280eb19ba87",
+      "tools/sheets/copy-tab.mjs": "sha256-fb16b9667f8573818fdff0be18bceaf0826d1a0dcb08f7b72ee3e636d433d831",
+      "tools/sheets/copy.mjs": "sha256-489f07c7ec4157592e0f0fdf51b2964e644b33b8d9ef9647764ea0718078699e",
+      "tools/sheets/create.mjs": "sha256-95f123a4338e48bea92d3c853a4a3116caa9520a152351deed72b9ed15f75485",
+      "tools/sheets/find-replace.mjs": "sha256-8e2dea784dea9c1b88dbb23f8e71c437958550b806143af18469d41e9e9bd722",
+      "tools/sheets/find.mjs": "sha256-42179e1a8c1f082e314282f8f8b90cfa921ef11cdce2342ef3a616fabc52c6f6",
+      "tools/sheets/get-by-data-filter.mjs": "sha256-f95e393a50e4b96ce2559322fea0b24798d7cbd9c7e207db9051ebf2a4119b22",
+      "tools/sheets/get.mjs": "sha256-941cd62b1add6f789980a735261da1d995469febe01112401c8b61b7028098ab",
+      "tools/sheets/values-append.mjs": "sha256-c50990e3a875ee8cd009bf5b89f30f4d7f8b480a86ecde62e1302fa112222c35",
+      "tools/sheets/values-batch-clear.mjs": "sha256-5722a96c188a489ab34b287c10e9252ea01311c5ae7a10a57744e213f2578dbf",
+      "tools/sheets/values-batch-get.mjs": "sha256-d8d23616f865d9dfa14437b9966cd10734df0218146efa4848ed7f9d38fb0198",
+      "tools/sheets/values-batch-update.mjs": "sha256-a063582a01db3fb77793f5a38ed7e5995edde97fc9064023cba1e8f376b01ba5",
+      "tools/sheets/values-by-data-filter.mjs": "sha256-899ddca5b7a522d60cc85d6d4ce2d23e208f9cba6b5f4cccc6551f7271cf02ce",
+      "tools/sheets/values-clear.mjs": "sha256-f6cccb2b5efeb628e08f79713b4358eb0b37b18a70b19f183d6f70a87e145c9b",
+      "tools/sheets/values-get.mjs": "sha256-9eb0797d9cc37290fd787a75609d71a7f9f2820b0cc6b82e04964c531b0fbab3",
+      "tools/sheets/values-update.mjs": "sha256-8648c4adf08c1ea359c749cb1f4272b5854a13536bf7c67cd44a3276f840f95f",
+      "tools/sheets-admin/README.md": "sha256-56eec59b263595cdc7214d72d235932fa139aa11578658f0c81acd0c1ec82e1d",
+      "tools/sheets-admin/basic-filter.mjs": "sha256-da58e9a7690fcd1122abea6554f119d9496486f87a7f276bad6e7765d4fbb374",
+      "tools/sheets-admin/batch-update.mjs": "sha256-04fec03cb06c9b2558aed6391df40a675f130da0c9c232a1258fb0df50bcc673",
+      "tools/sheets-admin/developer-metadata.mjs": "sha256-7c1f1e4cffeb4181754e3a618c0e051ea65365b7b2ced963cd4f9fe94e8a9291",
+      "tools/sheets-admin/export-csv.mjs": "sha256-3927d7455ad6d7b170a8e6c7212aaf0ed58a6003c3201dc983df4b12cb0848c8",
+      "tools/sheets-admin/filter-views.mjs": "sha256-d2596201c66b1a8fcc4e3a8941d6af276b38fc8245ce5352d32fe2c543c237c2",
+      "tools/sheets-admin/format.mjs": "sha256-db338e3e37d71279edc2c4f0ec84edd5babb02c69585d55bf49e7a34d1629740",
+      "tools/sheets-admin/named-ranges.mjs": "sha256-1d2014e59d301ca7339e8dfa2924ea7c6e22ebcd9c7c7d716f45a242417689d2",
+      "tools/sheets-admin/open-existing.mjs": "sha256-bb2cd9ea8aaf58fb82aba0558fbf13ccc4da5886c9400ca59d810281721a4975",
+      "tools/sheets-admin/protected-ranges-get.mjs": "sha256-b7b87c515ec452d83525d45e7ac5d20c737012f2bc96f53ef634b8f75a1cad71",
+      "tools/sheets-admin/sort.mjs": "sha256-5ae0e4cf6338d14237e3e53da0a854f04f45b7970ebe582c0ea75054dc77ab26",
+      "tools/sheets-admin/tab-modify.mjs": "sha256-24fa4590a08dbf5b07c31e739871d2809fea11014401c0cd4ed0bb0792a4bb6c",
+      "tovu-admin-surfaces.json": "sha256-e0f450422432e9d03deb2a72e6f3ff5bd372a024d9828d027fe2fac050d2bbd1",
+      "tovu-agent-tools.json": "sha256-22ed4bc3ade2712cca75a16118c13a5aaed528ad9922263f33a49373e04c88da",
+      "tovu-connections.json": "sha256-85848950aa6cf90dba1bdfde4f1877d27ce7af8d211fd1f5494ff62a12ccee4a",
+      "tovu-form-destinations.json": "sha256-00428d228e5c2a91a4ddc9c80fcda736fc444b2bca32949a252cf7fe89febdb9",
+      "ui/README.md": "sha256-03008571afa00ec3584e157296ee69efcf595f963d3355c4cc79debe36530328",
+      "ui/connection-panel.handler.mjs": "sha256-bea9a983d2a41549ed719e68b95b127c97e40940ebcd7deee8c23f550072d252",
+      "ui/connection-panel.html": "sha256-fb6fcc0cd20b4558acf3fd7943abaf093f65958ede8ee49c14fe5c386b0b867b",
+      "ui/connection-panel.mjs": "sha256-bb8f62e1c204a8f1ef1557779d1c1e7a8e2dc0c9f7149202ac941ab6ec4b5869",
+      "ui/connection-view.mjs": "sha256-f998dea514732ca2d84fe8f258f58ce5412c0edd2c20b207e2f02e9361ad4ab6",
+      "ui/destination-panel.handler.mjs": "sha256-1ef07b8e2d46eca167a184ea53cd3f1fb878500c27a634fff0be4cbdc24afeea",
+      "ui/destination-panel.html": "sha256-7a9a3d1e9dc6d8774556f3071a1d1b2d899f5c9e3c798b3fc81d85cd020907fb",
+      "ui/destination-panel.mjs": "sha256-584f9b912bc98675ca49bd479cbc469f7bf9e0fd154e60a5f4258ad113100a30",
+      "ui/dom.mjs": "sha256-4b470a605193234304b0055aec29fd42737431c2b592a19b3237a7880ebb566e",
+      "ui/panel.css": "sha256-d74eb22a05e8a062350c488d3174fad41f8939fdbf5a682202c19539f14e429c",
+      "ui/picker-flow.mjs": "sha256-0882ce895dd883553cdbc8b2ea3ea0891b86e9446bcbab2f538b066ca1593635",
+      "ui/picker-view.mjs": "sha256-4d90dd5dc9c56953427ea79bcefcc99c2ce7350fc402e57c2bf5e16bf73b563f",
+      "ui/picker.handler.mjs": "sha256-6752c908de57227381cb0d7b9d925da80519334098b14a3313b2c3e8dbae5ed9",
+      "ui/picker.html": "sha256-7ab55136bca03bb248f424632c8fed97c656df2e952e2c1601028682e8645388",
+      "ui/picker.mjs": "sha256-e1232643234de934975255800594ddad9732f7b6724c1d1f7ee30fa3f7098ad2",
+      "ui/surface-client.mjs": "sha256-e210e8a31f021d17b1d0c24e5ad7ddd49f57ea72ee93447f3daa4eadde561dca"
+    }
+  },
+  {
+    "kind": "agent",
+    "path": "higgsfield-media",
+    "pluginVersion": "1.0.0",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "higgsfield-media",
+    "publisherIdentity": "tovu/higgsfield-media",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.17",
+    "description": "Generates images or video through Higgsfield's hosted MCP server, follows asynchronous jobs, then imports the returned asset into this site's Media library. Connect with agent_plugin_connect and the person's browser sign-in, never an API key. Discover this account's current tools, schemas and model entitlements; the worked model and plan examples are historical, not guarantees. Covers operator write grants, polling without sync:true, connection recovery and media_import_from_url.",
+    "expectedDigests": {
+      "mcp.json": "sha256-98af9b33fa9274d6a4553c5e7f78dd070142ec35dc5dff69c22a93c757118d5a",
+      "plugin.json": "sha256-ee730cfd1d9c3b27d1b132fdd61611a0a00adc81213679fe98609fc73e2b90d3",
+      "skills/higgsfield-media/SKILL.md": "sha256-8e44fe5199b649c0052d214df272ca917af0dbcd035b74d26c032100a9a42a16",
+      "skills/higgsfield-media/references/failure-modes.md": "sha256-b34ee0a2c1b53d6007e32b719c07ffb856844ff399145cda2e750d715e40f496",
+      "skills/higgsfield-media/references/models-and-plan-gates.md": "sha256-2703b460ec6e99837bd5284349a3d60526527f0f22d544327abc3e50e8f72fc2"
+    }
+  },
+  {
+    "kind": "agent",
+    "path": "jev",
+    "pluginVersion": "1.0.0",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "jev",
+    "publisherIdentity": "tovu/jev",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.17",
+    "description": "Teaches an agent what Jev (TypeSafe's 'System One' model) is and when it belongs in a design: a fast, cheap, non-generative model that takes state plus a typed Choice/Score/Noul question and returns a typed answer with a calibrated probability distribution, for classification, routing, scoring, and confidence-gated automation — not for writing prose. Covers the three primitives' exact request/response shapes, how to read and threshold confidence, the documented architectural patterns, jev-1.13's known jaggedness (counting, dates, indirection, adversarial content, generation), and both the HTTP API and the JavaScript SDK. This plugin declares no MCP server: Jev has no official MCP integration, so a host's assistant cannot call it directly through chat yet. The skill exists for designing and writing code that calls Jev itself, authenticated with an API key (TYPESAFE_API_KEY, the documented SDK env var) the operator sets outside of chat.",
+    "expectedDigests": {
+      "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
+      "plugin.json": "sha256-2e9e4b002736b40e8fb9262db82c08a3102d13d6ae957ca61fd006b56d5fdab0",
+      "skills/jev/SKILL.md": "sha256-c57b3631b8c586a5966de85b928418699a416a7f8ce1da1ed641444a9a118790",
+      "skills/jev/references/cookbooks.md": "sha256-1010e7b43e5f680b95982a0f7a6dea252ed38cf8e17ed5885a1760101ed85227",
+      "skills/jev/references/jaggedness.md": "sha256-2cadacbbd40e57c0351610ab364988a4fe3ae4c0acbdb8d132c36dcf875ffa19",
+      "skills/jev/references/javascript-sdk.md": "sha256-76a64ca8de0394022478b1c26d1f2e90ba01a3d4d0d0e584e11e2f9599196d83",
+      "skills/jev/references/patterns.md": "sha256-840f31f5ce4f8706605e4387b8b71a9c7d759f0303c300eaf8d0df1210a74af1",
+      "skills/jev/references/primitives-reference.md": "sha256-d6a5599bb397702039df69544684339e314a7a3f7d9b4f92c37ea6d55618c48c"
+    }
+  },
+  {
+    "kind": "agent",
+    "path": "meilisearch",
+    "pluginVersion": "0.1.0",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "meilisearch",
+    "publisherIdentity": "tovu/meilisearch",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.17",
+    "description": "Runs the site's visitor search on a Meilisearch server (self-hosted or Meilisearch Cloud) instead of the host's built-in search. Ships the search provider itself (a host loads it only when the host shipped it) and the know-how to connect it. Meilisearch receives PUBLIC content only: published, publicly visible titles, text and URLs. Members-only or otherwise restricted content is never sent to it and stays in the host's built-in search.",
+    "expectedDigests": {
+      "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
+      "plugin.json": "sha256-cd48483e4ef9238b066018a3fd04ab159fde23e915207cf9ecbae7d5a10aea72",
+      "providers/meilisearch.mjs": "sha256-7171c66a9a0007019a6456df23ea5f56a944afab64ff3a56a9ffbd79b2b6f3d4",
+      "skills/meilisearch/SKILL.md": "sha256-48478084d178142232e991b4eb0aa7e5487855856f5f35dae08a13430bfaa9a3",
+      "tovu-search-providers.json": "sha256-7828483352cf3161f85557fd1a3d05646701aa9367c093fe77260b2a0e68e0a0"
+    }
+  },
+  {
+    "kind": "agent",
+    "path": "netlify",
+    "pluginVersion": "0.1.0",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "netlify",
+    "publisherIdentity": "tovu/netlify",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.17",
+    "description": "Publishes the site's static export to Netlify with the workspace's own saved token. Ships the host code itself (a host loads it only because that host chose to ship this plugin) and the know-how an agent needs: where to get a token, how the Netlify site is named, and what each failure means in plain words.",
+    "expectedDigests": {
+      "NOTES.md": "sha256-bd8c3fba094156e1fdb1673b211b4de2e15507b0bdfae9c7518f20ab3b03495a",
+      "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
+      "plugin.json": "sha256-e5463e882a8d3879828898a407fe05d93322bda23dbdca857abf96a4b65f9d64",
+      "skills/netlify/SKILL.md": "sha256-4589665d12e3bc187c511d8d0a8ed5e3eedf8109077de33a02545830828384d7",
+      "targets/netlify.mjs": "sha256-6122ff0d70cebd31baf15a4487940781809c7c1b49341a901f1fb9f5d67f7374",
+      "tovu-consent.json": "sha256-131b61c5f6b3dd439519a431763bbd66cc94c4685d9da47f2ec0020b532cac0c",
+      "tovu-deploy-targets.json": "sha256-4808efb46250e65e867f28d37f5221fd2f969bc54aafe2b28dc441478388fc5c"
+    }
+  },
+  {
+    "kind": "provider",
+    "path": "plugins/observability-opentelemetry/0.6.17",
+    "pluginVersion": "0.6.17",
+    "contract": {
+      "id": "observability",
+      "version": 1
+    },
+    "id": "observability-opentelemetry",
+    "publisherIdentity": "jini/observability-opentelemetry",
+    "packageName": "@jini-ai/plugin-observability-opentelemetry",
+    "version": "0.6.17",
+    "description": "OpenTelemetry",
+    "expectedDigests": {
+      "licenses/_jini-ai_core/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
+      "licenses/_jini-ai_core/package-license.json": "sha256-9958142dc859b814d24998f235a9dbbe8effe7756bd64317888de4bb437535d5",
+      "licenses/_jini-ai_diagnostics/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
+      "licenses/_jini-ai_diagnostics/package-license.json": "sha256-39282a624a7ac1bb9cfd3aa0fb6a0dc64d6ea5503cde07f845dc53226ce9c020",
+      "licenses/_jini-ai_plugin-observability-opentelemetry/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
+      "licenses/_jini-ai_plugin-observability-opentelemetry/NOTICE": "sha256-4a7f0e18c512c3a2d50e3c5072e8dcee983e4a5a904f189194310b1e1db3edc7",
+      "licenses/_jini-ai_plugin-observability-opentelemetry/package-license.json": "sha256-27d37c7d7f11b9a67e94d023a521595f50383ae8ed6c442071bce18a029558a6",
+      "licenses/_jini-ai_plugins/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
+      "licenses/_jini-ai_plugins/LICENSE-SOURCE": "sha256-9992015beca1bef8eff0344f7e53c39a47f9e9ded30d01384c29b6beaabe2d04",
+      "licenses/_jini-ai_plugins/package-license.json": "sha256-b8b0bd94a1e061547ac4821194737cf6b2debca056adba59d5c5ccb16305b4e5",
+      "licenses/_opentelemetry_api/LICENSE": "sha256-c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "licenses/_opentelemetry_api/package-license.json": "sha256-1535b30eb72144f96b0f2f473308b5a6239bd81c6346d9c151842b2e9b3cd3d1",
+      "licenses/_opentelemetry_api-logs/LICENSE": "sha256-c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "licenses/_opentelemetry_api-logs/package-license.json": "sha256-f2c5f743f4f65faa962cfc4fdfb4acae002866f32a82c9ce6b077fcb83e27bcf",
+      "licenses/_opentelemetry_context-async-hooks/LICENSE": "sha256-c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "licenses/_opentelemetry_context-async-hooks/package-license.json": "sha256-f68bdd1e6dde6ca1bb27d3f9c6ffb0645078ebebdbb011336bb9640b89a7ce9e",
+      "licenses/_opentelemetry_core/LICENSE": "sha256-c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "licenses/_opentelemetry_core/package-license.json": "sha256-f0bd5450886bfe727c9181a7bb258f573331cb2c1ee2bcee642c30861371702f",
+      "licenses/_opentelemetry_otlp-exporter-base/LICENSE": "sha256-c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "licenses/_opentelemetry_otlp-exporter-base/package-license.json": "sha256-69cd32112c6599badceca710928a3e9d68c939a30b1738e45aa48e1208c44169",
+      "licenses/_opentelemetry_otlp-transformer/LICENSE": "sha256-c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "licenses/_opentelemetry_otlp-transformer/package-license.json": "sha256-a310478ed15cfb44796795f5d10263a0fc65d013d74d5c352d6b297ba1a04983",
+      "licenses/_opentelemetry_resources/LICENSE": "sha256-c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "licenses/_opentelemetry_resources/package-license.json": "sha256-797423e3690ab9d72da31fe272d106b98d81abd38877d037f3b8e40c6e9e2edd",
+      "licenses/_opentelemetry_sdk-metrics/LICENSE": "sha256-c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "licenses/_opentelemetry_sdk-metrics/package-license.json": "sha256-4177a14d33437b5be7d488bc4aaaebff5383fb9514842a9db0a7fb8a4e9fdfc8",
+      "licenses/_opentelemetry_sdk-trace/LICENSE": "sha256-c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "licenses/_opentelemetry_sdk-trace/package-license.json": "sha256-8b8c2efcfbd6a0f897dd7a7a2ff85599e88e9ff2334151c33227d3c87188628c",
+      "licenses/_opentelemetry_sdk-trace-base/LICENSE": "sha256-c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "licenses/_opentelemetry_sdk-trace-base/package-license.json": "sha256-780bbf21ea58218a1b056054e17382ceb5c679287b2f77c510cb1474fbfdaaa5",
+      "licenses/_opentelemetry_sdk-trace-node/LICENSE": "sha256-c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "licenses/_opentelemetry_sdk-trace-node/package-license.json": "sha256-a9e210dd7a5ae500f89190574449fcfc99d2f9ad8a44bf83e4e81a889841af78",
+      "licenses/_opentelemetry_semantic-conventions/LICENSE": "sha256-c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "licenses/_opentelemetry_semantic-conventions/package-license.json": "sha256-0ec80485a2d86ac074d8840badc0243f5c4481e542dfb9c3aa5d9dcbed96c386",
+      "licenses/js-tokens/LICENSE": "sha256-33038d552d766f4501d8da25b66053ed217c61274ffce1c6bee413bb037c259c",
+      "licenses/js-tokens/package-license.json": "sha256-337c203b235cd5b3626735f17d6ec6b41c509df27ef0a494ce4d673937f7082b",
+      "licenses/semver/LICENSE": "sha256-4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b",
+      "licenses/semver/package-license.json": "sha256-850ac2ae774f31fc6da3760c39cb2f489f31e35278b1489d09ce63adb98d89ef",
+      "server/index.mjs": "sha256-6e91087ed99a67ad45a34df4f573d11143c6a088bf9d4e547906822c959847dc"
+    }
+  },
+  {
+    "kind": "provider",
+    "path": "plugins/observability-sentry/0.6.17",
+    "pluginVersion": "0.6.17",
+    "contract": {
+      "id": "observability",
+      "version": 1
+    },
+    "id": "observability-sentry",
+    "publisherIdentity": "jini/observability-sentry",
+    "packageName": "@jini-ai/plugin-observability-sentry",
+    "version": "0.6.17",
+    "description": "Sentry",
+    "expectedDigests": {
+      "licenses/_jini-ai_core/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
+      "licenses/_jini-ai_core/package-license.json": "sha256-9958142dc859b814d24998f235a9dbbe8effe7756bd64317888de4bb437535d5",
+      "licenses/_jini-ai_diagnostics/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
+      "licenses/_jini-ai_diagnostics/package-license.json": "sha256-39282a624a7ac1bb9cfd3aa0fb6a0dc64d6ea5503cde07f845dc53226ce9c020",
+      "licenses/_jini-ai_plugin-observability-sentry/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
+      "licenses/_jini-ai_plugin-observability-sentry/NOTICE": "sha256-9b76d3e8027cefee5f9df2dbffd3f71e6d95d7b7c0a4f4e4e47a2eaae81b63d7",
+      "licenses/_jini-ai_plugin-observability-sentry/package-license.json": "sha256-cb2bb8a512515b6eae5dc7c8e9f76b4010167f51d78203d05048c8008696d268",
+      "licenses/_opentelemetry_api/LICENSE": "sha256-c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "licenses/_opentelemetry_api/package-license.json": "sha256-1535b30eb72144f96b0f2f473308b5a6239bd81c6346d9c151842b2e9b3cd3d1",
+      "licenses/_sentry_conventions/LICENSE": "sha256-6c459083310e285797954222cc75bb33a56c04512d4f07c8b1b80258f99b0278",
+      "licenses/_sentry_conventions/package-license.json": "sha256-07e1e17e9f5b1ab428fd7ecaae8624f8cb3224fc2bccf46cf6e6332a1ac1ca59",
+      "licenses/_sentry_core/LICENSE": "sha256-f3df0b92efcd9d8cc0de5a36c151569a12a647d65b851abbb696ef7b13dee10b",
+      "licenses/_sentry_core/package-license.json": "sha256-8a60a97943f7eeb2df4faa623b74ec5c6bd1e787f8049ee288056ed1297c39bb",
+      "licenses/_sentry_node/LICENSE": "sha256-e580c7d30024b7e9a41f4386d359d56ab2397a1aeadee2588ffbe7d03d21506b",
+      "licenses/_sentry_node/package-license.json": "sha256-27096780aedcca81e1f2eeff7b6f1e91734364631172cb17811b2e7755585e33",
+      "licenses/_sentry_opentelemetry/LICENSE": "sha256-e580c7d30024b7e9a41f4386d359d56ab2397a1aeadee2588ffbe7d03d21506b",
+      "licenses/_sentry_opentelemetry/package-license.json": "sha256-b82b02c28858f7e7ac94270e82850ab7063ef8d15d6ddff383b3a4071aad3779",
+      "licenses/_sentry_server-runtime-injection/LICENSE": "sha256-f3df0b92efcd9d8cc0de5a36c151569a12a647d65b851abbb696ef7b13dee10b",
+      "licenses/_sentry_server-runtime-injection/LICENSE-SOURCE": "sha256-dabf27713f74b53ed1b4f6412fa417dfa1b757da97f94ea243bbdb05503c168d",
+      "licenses/_sentry_server-runtime-injection/package-license.json": "sha256-f44f5c5d008b8820e6b19204844e9565742cbdf3d563a41a8787ee7b1e32b775",
+      "licenses/_sentry_server-utils/LICENSE": "sha256-f3df0b92efcd9d8cc0de5a36c151569a12a647d65b851abbb696ef7b13dee10b",
+      "licenses/_sentry_server-utils/LICENSE-SOURCE": "sha256-dabf27713f74b53ed1b4f6412fa417dfa1b757da97f94ea243bbdb05503c168d",
+      "licenses/_sentry_server-utils/package-license.json": "sha256-fc86dcf64159ae72833f6c8655f0841c714aed8b67a241e76ca00a2bfb0bd9b7",
+      "licenses/js-tokens/LICENSE": "sha256-33038d552d766f4501d8da25b66053ed217c61274ffce1c6bee413bb037c259c",
+      "licenses/js-tokens/package-license.json": "sha256-337c203b235cd5b3626735f17d6ec6b41c509df27ef0a494ce4d673937f7082b",
+      "server/index.mjs": "sha256-ca27fb7424768a4247f870715df935a71b750d398f67ed80722e499421900de3"
+    }
+  },
+  {
+    "kind": "agent",
+    "path": "opentelemetry",
+    "pluginVersion": "0.1.0",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "opentelemetry",
+    "publisherIdentity": "tovu/opentelemetry",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.17",
+    "description": "Connects the site's traces to any OpenTelemetry (OTLP/HTTP) backend, such as Grafana Cloud or Honeycomb, through the OpenTelemetry provider plugin in the same package (observability-opentelemetry). Ships the know-how and a secure key card: the person enters the OTLP endpoint, an optional username or instance ID, and the token; the host saves it to your project, and you choose which sites use it. No vendor code here; the provider plugin exports the traces.",
+    "expectedDigests": {
+      "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
+      "plugin.json": "sha256-b8c1a56bad0f1d26b2f833df97281d4c040ef660bc6365762b020b69a67a207a",
+      "skills/opentelemetry/SKILL.md": "sha256-88a4e4fb5b51aee3fc807bf96232dda0c72334834edee5d160bb00caedbf7f2e"
+    }
+  },
+  {
+    "kind": "provider",
+    "path": "plugins/payments-stripe/0.6.17",
+    "pluginVersion": "0.6.17",
+    "contract": {
+      "id": "payments",
+      "version": 1
+    },
+    "id": "payments-stripe",
+    "publisherIdentity": "jini/payments-stripe",
+    "packageName": "@jini-ai/plugin-payments-stripe",
+    "version": "0.6.17",
+    "description": "Stripe payments provider",
+    "expectedDigests": {
+      "licenses/_jini-ai_commerce/LICENSE": "sha256-c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+      "licenses/_jini-ai_commerce/NOTICE": "sha256-613e1d6b4e14e9364c7146a8c6780fa0a6469f988c06e2f92b63c8b9a40529fa",
+      "licenses/_jini-ai_commerce/package-license.json": "sha256-8168f0c4c00945abda1db14b507cefd28e3395394f54930311df58f197b92c1b",
+      "licenses/_jini-ai_core/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
+      "licenses/_jini-ai_core/package-license.json": "sha256-9958142dc859b814d24998f235a9dbbe8effe7756bd64317888de4bb437535d5",
+      "licenses/_jini-ai_plugin-payments-stripe/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
+      "licenses/_jini-ai_plugin-payments-stripe/NOTICE": "sha256-41f25c5b9af4c8e8e98e2a7c658b3922253c760686e17e0ef7fa003fae83cb95",
+      "licenses/_jini-ai_plugin-payments-stripe/package-license.json": "sha256-74f1969fc7315dc39f1977eb1bfea0ab281057dca6f5a90dc4e820177e06b448",
+      "server/index.mjs": "sha256-4d722d9ec7b5cdaf46e74cbef0af3649ccd9a035d163f440c3a0e9abdc7d0ab3"
+    }
+  },
+  {
+    "kind": "agent",
+    "path": "posthog",
+    "pluginVersion": "0.1.0",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "posthog",
+    "publisherIdentity": "tovu/posthog",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.17",
+    "description": "Connects the site to PostHog product analytics through the PostHog provider plugin in the same package (analytics-posthog). Ships the know-how and a secure key card: the assistant opens the card, the person picks the region (US by default, EU or a self-hosted URL) and pastes the project API key, and the host saves it to your project, and you choose which sites use it. No PostHog code here; the provider plugin sends the events.",
+    "expectedDigests": {
+      "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
+      "plugin.json": "sha256-07e09c3ebf5cf3440321dd347c3d9ac823482342e4d01a03abd2f39ab832b3e8",
+      "skills/posthog/SKILL.md": "sha256-224f2781d2cb9c085f1a12306467fcc76bab4a5c4810eb21a373d0d2c53ffbd5"
+    }
+  },
+  {
+    "kind": "agent",
+    "path": "railway",
+    "pluginVersion": "1.0.0",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "railway",
+    "publisherIdentity": "tovu/railway",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.17",
+    "description": "Deploys existing Railway services, checks deployment status and logs, stages variables, and generates railway.json for the host's server.",
+    "expectedDigests": {
+      "deploy-configs/railway.mjs": "sha256-9d6dafa830de1211c760c1d97ad61756057108c17638ee6d2104673df2aea61c",
+      "deploy-ops/railway.mjs": "sha256-d43a60c7cf9065b86bf926a67bbeadab178576bfce0ade0f6e02feeb2a86346c",
+      "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
+      "plugin.json": "sha256-0213b14bfbba914b4c0ef68602734344e3117cd5f415bc558216594b932b8417",
+      "skills/railway/SKILL.md": "sha256-8b47d58e3a52b73e1a9a2f90f731098167262b91d7ff6b5a33a3bdc238193e44",
+      "tovu-deploy-configs.json": "sha256-fe91255d5c34ea545a56d28e1c37c661ec0062c6834dbb50828c45319b6e665c",
+      "tovu-deploy-ops.json": "sha256-be77a44326a9cdbd38c841c80f2e2b50c52bbe356f4450392dac2dfe654f445c"
+    }
+  },
+  {
+    "kind": "agent",
+    "path": "render",
+    "pluginVersion": "1.0.0",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "render",
+    "publisherIdentity": "tovu/render",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.17",
+    "description": "Generates render.yaml and deploys existing Render server services through the API, with status, logs and environment variable tools.",
+    "expectedDigests": {
+      "deploy-configs/render.mjs": "sha256-16d7e27bef2d8c42c8df232a4b766dbf2aea0216c0a88f8d5b539d9da29e0342",
+      "deploy-ops/render.mjs": "sha256-45dc701ec68af2a3597bbde65b538fe989c52fa308e96d608cb8c8663403e2c4",
+      "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
+      "plugin.json": "sha256-bcf86cded4c7ec012585ad5e912004e12672c05006d9c5f90a983b31fad3bd67",
+      "skills/render/SKILL.md": "sha256-eb58cbe74b070d4b33feda6a3e01a37909121b9e5f316b155806e6ad50abd7b1",
+      "tovu-deploy-configs.json": "sha256-ca97e7381b662a8c0ae8083912a36f12319278487f5dab47eefc6dc9cab5e8f6",
+      "tovu-deploy-ops.json": "sha256-c3b4947dfadb79524066c30dbb69c7339636a91a9d229acdec145f42bed0cbf5"
+    }
+  },
+  {
+    "kind": "agent",
+    "path": "resend",
+    "pluginVersion": "0.2.1",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "resend",
+    "publisherIdentity": "tovu/resend",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.17",
+    "description": "Sends the site's email (sign-in links, form notifications, newsletters) through Resend's hosted email API, and connects the assistant to Resend's own hosted MCP server for work on the Resend account itself: domains and their DNS verification, broadcasts, contacts, segments, topics, templates, logs and usage. Ships the mail adapter (a host loads it only when the host shipped it) and the know-how to set both up: a sending key saved through credential_save for site mail, and a separate Full access key saved through the secure account card for the account tools.",
+    "expectedDigests": {
+      "NOTES.md": "sha256-07f4e3c2b67ecbf510e9d0ba2e1723b984b4f2ce8a080941d91a446c04545fda",
+      "adapters/resend.mjs": "sha256-00c53165f6c3acd757b539548b0b01ce6a1592d4a77f70023ce0a2c7cab4edc3",
+      "lib/domains.mjs": "sha256-29af8b8c9b882fc31d8ee3070c9efa353607ef0db29722e24489f417bcc1c564",
+      "lib/errors.mjs": "sha256-28bb77a8727b6f83532f5748514076e939211c20ae21a475de4a9c4d87dde461",
+      "lib/feedback.mjs": "sha256-b1051b2938e21ec8b55d04f2087482345a6354c5557ed3f56717079d36eb6642",
+      "mcp.json": "sha256-18b1715c1f7d62cc831490b23f9d5ce882454a07f911e0282bf00b25422e14fa",
+      "plugin.json": "sha256-17b316f58d9f89e07c2652b20840181ded2859bfb54fe0073ec6c551167e0a84",
+      "skills/resend/SKILL.md": "sha256-ebc61bac925a01502eb8eed7964d7932d9ac638abc4b5a284a234ee01039aecb",
+      "tovu-mail-adapters.json": "sha256-070d992b757c3c438573816ac5c70c292275fdcb5e562920851fab5518a6ce18"
+    }
+  },
+  {
+    "kind": "agent",
+    "path": "s3-compatible",
+    "pluginVersion": "0.1.0",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "s3-compatible",
+    "publisherIdentity": "tovu/s3-compatible",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.17",
+    "description": "Publishes the site's static export to S3-compatible object storage (AWS S3, Cloudflare R2, Backblaze B2, DigitalOcean Spaces, Wasabi, MinIO, ...) with the workspace's own saved access key. Ships the host code itself (a host loads it only because that host chose to ship this plugin) and the know-how an agent needs: what to set up in the bucket first, which credential fields go where, and what each failure means in plain words.",
+    "expectedDigests": {
+      "NOTES.md": "sha256-e9df4668467019852707a0a6b9e7655dde1b1cf1ab176810c1e0d643f579ba86",
+      "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
+      "object-stores/s3-compatible.mjs": "sha256-8234cb8036a997707c7fe1e643f16f1776d3b0ff86f08604f6305887393237c0",
+      "plugin.json": "sha256-6cc0a4be7333a40341d8e96f9d4fa271ff3f01ff2b8b550a190d93d38cec9e0c",
+      "skills/s3-compatible/SKILL.md": "sha256-f89684260978eab07cdaeee61e81e89f58f949f19ca450b45e7f17392288f767",
+      "targets/s3-compatible.mjs": "sha256-fee1028f4429020d60192e8003a4568e5cb95ceeccf42944a6852aff95a86799",
+      "tovu-deploy-targets.json": "sha256-42971b1a66cbd84c864711adc3fb622c12b54df9eb4a86383faa582473a7abe9",
+      "tovu-object-stores.json": "sha256-f565cd66a359b72c8b537e83a77042ccf6c0db698ccb7f3c3d4034286a2d0265"
+    }
+  },
+  {
+    "kind": "agent",
+    "path": "sentry",
+    "pluginVersion": "0.1.0",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "sentry",
+    "publisherIdentity": "tovu/sentry",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.17",
+    "description": "Connects the site's error tracking to Sentry through the Sentry provider plugin in the same package (observability-sentry). Ships the know-how and a secure key card: the person pastes the project's DSN and an optional environment name; the host saves it to your project, and you choose which sites use it. No Sentry code here; the provider plugin reports the errors.",
+    "expectedDigests": {
+      "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
+      "plugin.json": "sha256-1307f425d9994dfa3f1a1de5f1b0eaa4a94f26054a6a17bb483e62ea7276129a",
+      "skills/sentry/SKILL.md": "sha256-61c65ec06639d3796b84113a784cfd30a1787aa4bceba6f1e36d4e2ff755c17e"
+    }
+  },
+  {
+    "kind": "agent",
+    "path": "shopify",
+    "pluginVersion": "0.1.0",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "shopify",
+    "publisherIdentity": "tovu/shopify",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.17",
+    "description": "Runs a shop on this site while Shopify keeps the products, cart, checkout, payments and orders. Works with no Shopify key at all: it reads the store's public product data (<store>/products.json and /meta.json), copies every product into a 'product' collection here (price, stock, photo, Buy link), and builds the shop grid with the collection embed whose Buy buttons are Shopify cart links (https://<shop>.myshopify.com/cart/<variant_id>:1) that open Shopify's own checkout. Re-running updates the same entries instead of duplicating them. Also encodes the domain move that breaks checkout when done in the wrong order (connect a shop. subdomain to Shopify and make it primary BEFORE the main domain points at this site). Follow the shopify skill and the host guidance.",
+    "expectedDigests": {
+      "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
+      "plugin.json": "sha256-99b24d75ebf854363d01a4f8cc2788fb018a85dbf3217c51d33284ea2740a671",
+      "skills/shopify/SKILL.md": "sha256-a1bccec418de6219bb70f454b64164cf8346a4b5a31ed2df84a78cfdbfe9ed99",
+      "skills/shopify/references/catalog-sync.md": "sha256-9e680bd79d70fe3305abeecd8b66e7d0794132879492f6ba12836c2abe1c440a",
+      "skills/shopify/references/domains.md": "sha256-a5707e74d2aeec686c9aa2493aa13a18bab3409a32cca18da3b82513aa257941",
+      "skills/shopify/references/live-storefront.md": "sha256-5d6bc668efd630b0e27a38b8b625a5f0c49be4829e15973875e6051ed39a1be1",
+      "skills/shopify/references/storefront-snippets.md": "sha256-6f238be1b451e660a92b35f5e1af3f612be2d656a13d2d4be379c94586809a03"
+    }
+  },
+  {
+    "kind": "agent",
+    "path": "site-compliance",
+    "pluginVersion": "1.0.0",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "site-compliance",
+    "publisherIdentity": "tovu/site-compliance",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.17",
+    "description": "Evidence-based privacy, cookie/consent, and accessibility risk screening for a website. Collects citable evidence from the site's own configuration and its own rendered pages, reports findings with the exact page path, selector, header, or request that supports each one, and says 'cannot determine' where the evidence is missing. Never asserts a GDPR, CCPA/CPRA, or WCAG compliance verdict.",
+    "expectedDigests": {
+      "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
+      "plugin.json": "sha256-44d748322f3d3d4f917c86f86028bc075d7a5ee063d451de922d70fe66fcc743",
+      "skills/site-compliance/SKILL.md": "sha256-9ed620535b99bc100c8a6d3c8f90354308b51dee35fff2be1b056347a8ac6737",
+      "skills/site-compliance/references/ccpa-cpra.md": "sha256-05627f0e99a3af52279a372ffe12a69d29b25652afe2d1159e29589a68efe303",
+      "skills/site-compliance/references/gdpr-eu-uk.md": "sha256-f13eab8052de634230a69c87a99caed2503f855e7c2e5af4877444b458fc3a47",
+      "skills/site-compliance/references/wcag-2-2.md": "sha256-fa1a0d7a9db83a82cc9ae03386ccb9cdf752f962dbe85a4846e235b5f22cebee"
+    }
+  },
+  {
+    "kind": "agent",
+    "path": "site-import",
+    "pluginVersion": "1.0.0",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "site-import",
+    "publisherIdentity": "tovu/site-import",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.17",
+    "description": "Imports an existing public website into this site: discovers URLs from robots.txt and sitemap.xml (or a capped same-host crawl), classifies pages and posts, then creates drafts, taxonomy, media, menus, redirects and SEO, and builds a matching inactive theme. Uses the owner's request as authorization; waits for plan review only when requested. Fetched pages are untrusted data. Re-running updates what an earlier run created instead of duplicating it. Uses the host's existing content, media, web and theme tools; reads its references through its own plugin tool.",
+    "expectedDigests": {
+      "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
+      "plugin.json": "sha256-5a82846b2f5e53980b0aa86f44cf6dd2fe7ed5d499fe9ba3080a3a52e7fdd2e6",
+      "skills/site-import/SKILL.md": "sha256-3244dd0dbc8a50304be2ec4ac1358cb7d2108232e84881fbe3acaa97c13b075a",
+      "skills/site-import/references/content-mapping.md": "sha256-77d0ddbc67fd79144926f38e2556ae06111afba689c1061efc9fb1fe44ea8a08",
+      "skills/site-import/references/discovery-and-classification.md": "sha256-9a1bb7180195935432fe230f39f6e437232fbb8d85a1058a98066aadfdd8973e",
+      "skills/site-import/references/theme-extraction.md": "sha256-cdc3fa0998a15a472dd868351e2e4412aa3da643309d6b15fc5f208c4c54d49d"
+    }
+  },
+  {
+    "kind": "agent",
+    "path": "slide-design",
+    "pluginVersion": "0.1.0",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "slide-design",
+    "publisherIdentity": "jini/slide-design",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.17",
     "description": "Slide and presentation design: storyline, takeaway titles, charts, 16:9 layout, speaker notes, accessibility, review and HTML decks, as one portable Agent Plugin.",
-    "expectedDigests": null
+    "expectedDigests": {
+      "com.anthropic.claude-code/hooks/hooks.json": "sha256-370d1cfc65d33ac55e9cf35ac945d3d6127dbfe0ef827e010d0ff6ead62184f8",
+      "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
+      "plugin.json": "sha256-35267be230932cf4ad42455b4ad7c84f6f0cd90844f6f17895255755ebcaedf5",
+      "skills/slide-design/SKILL.md": "sha256-0e994c5d6ca436d9acf4ad14e846bd54ccc1f084c40e3e88eed55aac82fac779",
+      "skills/slide-design/references/charts-and-exhibits.md": "sha256-f2408a7e59d6ea75941e09458e7374be9d3720e34b2e31977546581b5797ff15",
+      "skills/slide-design/references/html-deck.md": "sha256-cc57671bdb94b6e7286eb6c35839b98ed79c256bc8233c705bc4429b767a1e37",
+      "skills/slide-design/references/layout-and-style.md": "sha256-a3061cde434f95956d0d883a7dd32918afa0df450a2cfa3bbef51f2154edd145",
+      "skills/slide-design/references/review.md": "sha256-98aaab2253c2eaa03d8454d96fc1be937251b8c532bbf866074eb80bb4e89193",
+      "skills/slide-design/references/storyline.md": "sha256-7ee8c37f4f8341f77a97e492fc8efd2686f671f1c420dbe6a18e205fa995ac76"
+    }
   },
   {
-    "kind": "agent", "id": "ui-ux-design", "publisherIdentity": "jini/ui-ux-design",
-    "packageName": "@jini-ai/plugin-ui-ux-design", "version": "0.6.17", "pluginVersion": "0.4.6",
-    "path": "ui-ux-design", "contract": { "id": "agent-plugins", "version": "1.0.0" },
+    "kind": "agent",
+    "path": "supabase",
+    "pluginVersion": "1.1.0",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "supabase",
+    "publisherIdentity": "tovu/supabase",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.17",
+    "description": "Gives this site a hosted database (Supabase) for sign-ups, forms and app data, set up from chat with no setup steps for the person. Use it whenever someone says they need a database, want to store data, or want sign-ups or form entries saved. Always start with agent_plugin_connect { pluginId: \"supabase\" }: it shows a sign-in card (the person signs in or signs up at Supabase themselves), turns the connection on, and returns once connected. Then follow the supabase skill: find or create the database, handle Supabase's free limit of two active databases, and speak in plain words only.",
+    "expectedDigests": {
+      "mcp.json": "sha256-ae3709b49292d019f4c117bd8a72a698f182bbcc2a10ea1cb10e6579050c8746",
+      "plugin.json": "sha256-23d66625de43bb7778c9c9348c4020f508fef66d6f62cd7a1ebd05f9dc3aa7bb",
+      "skills/supabase/SKILL.md": "sha256-5e466dcdc3b73ebd805b36d2488ac367f381162bf5a38afed46a6a5464d05115",
+      "skills/supabase/references/failure-modes.md": "sha256-25c643663666d8ccc6cc9b42c5ba5f7302190a0e8221f8ef1946c49f666f05fc"
+    }
+  },
+  {
+    "kind": "agent",
+    "path": "ui-ux-design",
+    "pluginVersion": "0.6.1",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "ui-ux-design",
+    "publisherIdentity": "jini/ui-ux-design",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.17",
     "description": "UI/UX design, interface-design-system, accessibility, and shadcn/ui component skills bundled as one portable Agent Plugin.",
-    "expectedDigests": null
+    "expectedDigests": {
+      "com.anthropic.claude-code/hooks/hooks.json": "sha256-370d1cfc65d33ac55e9cf35ac945d3d6127dbfe0ef827e010d0ff6ead62184f8",
+      "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
+      "plugin.json": "sha256-b46922ca7d50d2930650d0147f1ce45318ab8bb0369f52544c0d8caac788e9e7",
+      "skills/frontend-accessibility/SKILL.md": "sha256-be7aeb4fbe026808d79af95c38b73ef42d8ceac055bf0f2124c1af485ffcedd5",
+      "skills/gstack-design/SKILL.md": "sha256-68e8223d3b4860e570574b5562d4d84ede1570837cc7aba07e2687d3a1256aa1",
+      "skills/gstack-design/references/consultation.md": "sha256-64448181afd6bdf3ed463097bf2ca787d249630004ce77c60a17ab98fee39421",
+      "skills/gstack-design/references/html.md": "sha256-b348d29b08f43e300413665670d4302395699e281f847368eb2a1f3ba0abb67b",
+      "skills/gstack-design/references/review.md": "sha256-d25a21137a5d112dc7c3df611f1de42c1a10f1ef7e9c5043399956fc704d3c75",
+      "skills/gstack-design/references/shotgun.md": "sha256-f3192722110a64b877cdb3c846b44ef21c2f6018271958eb2d5083c6841345bd",
+      "skills/gstack-design/references/upstream-notes.md": "sha256-7b664ece67ce515b907bad6051fa9849e8b33b90c59af406133d957da4d4381a",
+      "skills/interface-design/ORIGINAL.md": "sha256-a28e81d5ee44f27670eaa16f3bb381d40e1bab72bfc709ab71b543f7c979d97a",
+      "skills/interface-design/SKILL.md": "sha256-0c50b9dcf2ffde655ecfaac308596331ea2d2dfe52f147b6c993d2fc4f30e3a7",
+      "skills/interface-design/references/commands/audit.md": "sha256-76df28f386a702e293aca18d58d614af5776f7d16470d63b3d2115a99e7fb5c3",
+      "skills/interface-design/references/commands/critique.md": "sha256-789856caae0cb05e3d18c4546252c5db16d932ccb0db3f8e15a7e07e02d2e4eb",
+      "skills/interface-design/references/commands/extract.md": "sha256-01baca8bb29efcbe0ab03f5e19d69b715bacd569bca44f5d4731a52a76259c0a",
+      "skills/interface-design/references/commands/init.md": "sha256-3b1e4c6a28cdd9a7125ecbabd7fa95a333222110d8baa76ac780d53a42735b60",
+      "skills/interface-design/references/commands/status.md": "sha256-243b8ac5b82a02e57b937aa28fedff29c76d77d6d52d60d37305c4cac82a91bc",
+      "skills/interface-design/references/examples/system-precision.md": "sha256-23400c66847997c0c250c3dc814eca8173221cfe9c638973dabb6807dcc5a2e1",
+      "skills/interface-design/references/examples/system-warmth.md": "sha256-9b3b192a77a49bdd07af7380039f0ac1220ca1a33ea0e948ac93b3945f1d5bf2",
+      "skills/interface-design/references/system-template.md": "sha256-cfac7d15afee4ebe00b7b5cd8892a59964874c730774a475e6f0ae52c2d21067",
+      "skills/shadcn-ui/README.md": "sha256-514019a4699a4d26c6d5e9a7ad586c7de312a03cd326cbf64ca11050fccfdc85",
+      "skills/shadcn-ui/SKILL.md": "sha256-39f2150d8d3ca937f4d34533f303dc747fc29a590eef437686a13d4bcc551505",
+      "skills/shadcn-ui/examples/auth-layout.tsx": "sha256-31781d165e2e5098c68eabc089bccb653400fd106712e212f4e94e343c687f46",
+      "skills/shadcn-ui/examples/data-table.tsx": "sha256-c86cb4872c1d4261a7b21590a273247d54c2f548ceb7b5c269a9e65785c4069a",
+      "skills/shadcn-ui/examples/form-pattern.tsx": "sha256-8b4c2271d18368069cdfb94e1234a1654dacb530a328c695878f5328516ff03f",
+      "skills/shadcn-ui/resources/component-catalog.md": "sha256-0215b4d9b04dca45040f68e24ad24ab7862aa1bfe7c0608fa69c012ba65e9650",
+      "skills/shadcn-ui/resources/customization-guide.md": "sha256-c626feb69599bc0ec16ec67b06a0fae8a55c953138e6dd815e7e4986802fc650",
+      "skills/shadcn-ui/resources/migration-guide.md": "sha256-81dabd227a1d180fdf2b8ac373a4baaecf421222a8da5885cd1c1703f67ad7a4",
+      "skills/shadcn-ui/resources/setup-guide.md": "sha256-02ab4cc9e9c2f11e004ab0c79486fa46e7e05127d97ab2c8e48c6c587648a364",
+      "skills/shadcn-ui/scripts/verify-setup.sh": "sha256-5341d7cb9b6e19050035b1fb4c377e81de5801374c37802d949288001c39edd9",
+      "skills/ui-ux-design/SKILL.md": "sha256-42a1253a0cf23f0eccc6948407f49672c0a391847aaef0c2eba069c47ab42898",
+      "skills/ui-ux-design/references/brand-and-voice.md": "sha256-1219c6e379190daf18752f97a876e1b4651c96c3e40f3543038f0c9866044ffc",
+      "skills/ui-ux-design/references/chrome-mobile-test-matrix.md": "sha256-70029c86479ff8c6309a3653fbeabc2967086a9dc3e13790a88c8b5bea2cefae",
+      "skills/ui-ux-design/references/components-and-states.md": "sha256-f42e3ce748a8b451bfde8c319e35b6db10bad92b34f110c0ec66c5d7cb71a704",
+      "skills/ui-ux-design/references/delight-and-motion.md": "sha256-2850cc26360fd9f6d60fb25be68009cd95d1bc697f8714ed26c23d716ed9eec6",
+      "skills/ui-ux-design/references/foundations.md": "sha256-8b9a8a8ee46a51189f0f9458408a621a06acf4991b6fc590f823d0a6b857bd1b",
+      "skills/ui-ux-design/references/inclusive-ai-imagery.md": "sha256-c219aaa9ff1415df0aa0507d9fce51945bb675025a13a7c7c13e97b3f9aa0510",
+      "skills/ui-ux-design/references/kole-jain-uiux-concepts.md": "sha256-24b042fdef57e4893acd34b2f46e8b54ea0265c10915980722f1fac732df9af1",
+      "skills/ui-ux-design/references/kuinetic-reference.md": "sha256-aa4e9473c9de5e8df3e5590ef555f2fbd24d2a83c5152cbcc415d4b99d11b093",
+      "skills/ui-ux-design/references/openai-frontend-skill.md": "sha256-766d1c73a75eee39e3d8e1b0051f7acb899adc17b5b0fdb58c8a49fd7ddaf355",
+      "skills/ui-ux-design/references/premium-ui.md": "sha256-55f19e8d9c0fcf2104c64f9feac07f5cee49ec69de6e87b3f3be55b769c379de",
+      "skills/ui-ux-design/references/research-and-validation.md": "sha256-8f4131ce3400b3a7f4413ec71f113c9fa10fa54d19f176f4767f8c93c6988833",
+      "skills/ui-ux-design/references/sam-crawford-premium-websites.md": "sha256-4a002d558241b0b81cfa9db5eaf8dce249dcd839eef5c3c8fd648168faa6afef",
+      "skills/ui-ux-design/references/self-made-web-designer-core-skills.md": "sha256-2e1c1eed23ee7028b41e81409ca7c23ca8ac6fa00610f83acf876cf2dec7d0c0",
+      "skills/ui-ux-design/references/ui-animation.md": "sha256-b06b11388e230c0597332ba0661b5337631c8f8a3208b81a2fb79dc6e64dcc98",
+      "skills/ui-ux-design/references/ui-loop.md": "sha256-ca24581dc5b8716a5b93c03424bcbbacab1f7fa9d3c26e6d61d2bb5188cded45",
+      "skills/ui-ux-design/references/visual-storytelling.md": "sha256-aa3c3ae9d7937d588a69e7464abcfb8f4e317bc94bb58d52ca7e4c06624d87c5",
+      "skills/vercel-web-design-guidelines/SKILL.md": "sha256-8dafb22326c1058720e47c712401d1e2709c523600a72c127f731a18e715c975",
+      "skills/web-compliance/SKILL.md": "sha256-4aedb4d12b013083e818d5fc430423cc51f9b51e936247de9b4020f82964e540",
+      "skills/web-compliance/references/audit-evidence.md": "sha256-a0c9b016444d52425ece736e2b495b789a829415488bb0ce6ed03f2d39dba235"
+    }
+  },
+  {
+    "kind": "agent",
+    "path": "vercel",
+    "pluginVersion": "0.1.0",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "vercel",
+    "publisherIdentity": "tovu/vercel",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.17",
+    "description": "Publishes the site's static export to Vercel with the workspace's own saved token. Ships the host code itself (a host loads it only because that host chose to ship this plugin) and the know-how an agent needs: where to get a token, the optional team, Deployment Protection, and what each failure means in plain words.",
+    "expectedDigests": {
+      "NOTES.md": "sha256-4e66a0fde078adb60d003f71f13a59fb111a8365fae0e9213ff3f22181fcb093",
+      "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
+      "object-stores/vercel-blob.mjs": "sha256-2bdb4256efc2965c171731b9fb4019d4c3f80467107f557c4c368495226ecb27",
+      "plugin.json": "sha256-9c49933345d5abdc799a73462578d7cbb1d390720358689b946fe2c253a0a34d",
+      "skills/vercel/SKILL.md": "sha256-7a0a8e6b81528392b0b5fabd2539dfdc5f52ccfc276b678dd3280c384aeaa497",
+      "targets/vercel.mjs": "sha256-ab4e9631079d20b74b40f167cb08f9062eaa6af50dc7a7b6407a7968ab4c447a",
+      "tovu-consent.json": "sha256-38f0554d42c8339403e228250b22894c462d398d35ad80c42d974d22abfa9f8d",
+      "tovu-deploy-targets.json": "sha256-96bd6f2daa322095abc7a1e37887a845dca243c32983dd2343df4ed05daf5e7d",
+      "tovu-object-stores.json": "sha256-aeced733674d924fef5d7415879cbeefa765f8abe6969b80482706232de7197b"
+    }
+  },
+  {
+    "kind": "agent",
+    "path": "wordpress",
+    "pluginVersion": "0.1.0",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "wordpress",
+    "publisherIdentity": "tovu/wordpress",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.17",
+    "description": "Guides publishing a site through an existing host, connecting an owned subdomain, or redirecting a free WordPress.com address. Uses existing hosting, DNS and page-reading tools. Includes WordPress.com dashboard steps and marks unconfirmed redirect pricing and host URL eligibility for dashboard confirmation.",
+    "expectedDigests": {
+      "NOTES.md": "sha256-45f4afad805dbba8a0476bbd4280e518d9c799ec08720647434e1dae93dc83a0",
+      "plugin.json": "sha256-de1a8f6e64e268feb14038e95329941fb0066966ef0ab24edcc2d5dc4a7a5a45",
+      "skills/wordpress/SKILL.md": "sha256-abf3e2d9cb3736d54cc90db3b62d8c06ad2a83901159a0d7a6b85c771e7df56b",
+      "skills/wordpress/references/free-site-redirect.md": "sha256-d11688d01765c24ca763e153d9e6083a02a876aa77182d128d8595db8df0ceb0",
+      "skills/wordpress/references/subdomain.md": "sha256-5eba566be7ca2765588d7e6fab5e714ebeae35839f2f042108bbf61382caa373"
+    }
   }
 ]
