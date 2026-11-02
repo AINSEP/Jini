@@ -67,6 +67,7 @@
     "@types/jsdom": "21.1.7",
     "@types/react": "19.2.17",
     "@types/react-dom": "19.2.3",
+    "echarts": "6.1.0",
     "esbuild": "^0.28.1",
     "jsdom": "25.0.1",
     "langfuse": "3.39.2",

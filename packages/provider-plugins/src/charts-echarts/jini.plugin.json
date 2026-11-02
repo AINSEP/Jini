@@ -1,0 +1,27 @@
+{
+  "id": "charts-echarts",
+  "name": "Apache ECharts",
+  "version": "0.6.20",
+  "sdkRange": "^0.1.0 || ^1.0.0",
+  "engine": 1,
+  "tier": "tier-3",
+  "extensions": {
+    "tovu": {
+      "id": "jini/charts-echarts"
+    }
+  },
+  "capabilities": [],
+  "hooks": [],
+  "fields": [],
+  "browserProviders": [
+    {
+      "id": "plugin.echarts",
+      "kind": "chart",
+      "contractVersion": 1,
+      "kinds": ["bar", "line", "area", "pie", "donut", "scatter", "stacked-bar"],
+      "javascript": "client/provider.js",
+      "stylesheet": "client/styles.css"
+    }
+  ],
+  "integrity": {}
+}

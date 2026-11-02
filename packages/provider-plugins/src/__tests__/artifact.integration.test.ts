@@ -60,6 +60,7 @@ const SPECS: Record<string, ServerSpec | BrowserSpec> = {
   'observability-sentry': { contract: 'observability', id: 'sentry', validate: port => typeof (port as { reportError?: unknown })?.reportError === 'function',
     input: () => ({ dsn: 'https://public@sentry.invalid/1' }) },
   'charts-recharts': { browser: { id: 'plugin.recharts', kinds: ['bar', 'line', 'pie'], javascript: 'client/provider.js', stylesheet: 'client/styles.css' } },
+  'charts-echarts': { browser: { id: 'plugin.echarts', kinds: ['bar', 'line', 'area', 'pie', 'donut', 'scatter', 'stacked-bar'], javascript: 'client/provider.js', stylesheet: 'client/styles.css' } },
 };
 const SERVER_IDS = Object.keys(SPECS).filter(id => !isBrowserSpec(SPECS[id]!));
 const BROWSER_IDS = Object.keys(SPECS).filter(id => isBrowserSpec(SPECS[id]!));
@@ -256,7 +257,7 @@ it.each(BROWSER_IDS)('%s: packs, installs, loads and admits identical browser-on
     import { readdirSync } from 'node:fs';
     const resolve = createRequire(${JSON.stringify(pathToFileURL(path.join(installedPackage, 'package.json')).href)}).resolve;
     if (readdirSync(${JSON.stringify(path.dirname(installedPackage))}).join() !== ${JSON.stringify(`plugin-${pluginId}`)}) throw new Error('sibling plugin available');
-    for (const name of ['recharts', 'react', 'react-dom']) {
+    for (const name of ['recharts', 'react', 'react-dom', 'echarts', 'zrender']) {
       let available = false;
       try { resolve(name); available = true; } catch (error) { if (error.code !== 'MODULE_NOT_FOUND') throw error; }
       if (available) throw new Error('chart library available: ' + name);
@@ -290,6 +291,23 @@ it('charts-recharts: the built client bundle mounts and draws a bar chart with w
     expect(element.querySelector('figure')?.getAttribute('data-chart-provider')).toBe('plugin.recharts');
     expect(element.querySelectorAll('.recharts-bar-rectangle')).toHaveLength(2);
     expect(Array.from(element.querySelectorAll('.recharts-yAxis-tick-labels .recharts-cartesian-axis-tick-value')).map(tick => tick.textContent)).toEqual(['0', '1']);
+    destroy();
+    expect(element.children).toHaveLength(0);
+  } finally { dom.close(); }
+}, 60_000);
+
+// The built bytes, not the source: ECharts' modular core bundled into one module draws SVG (never canvas)
+// with the aria description, and a later update replaces the drawn series.
+it('charts-echarts: the built client bundle mounts and draws a stacked bar chart as SVG', async () => {
+  const { artifact } = artifacts.get('charts-echarts')!;
+  const dom = await openBuiltChart({ javascript: path.join(artifact, 'client/provider.js') });
+  try {
+    const spec = { kind: 'stacked-bar', data: [{ month: 'Jan', revenue: 3, cost: 1 }, { month: 'Feb', revenue: 2, cost: 2 }], categoryKey: 'month', series: [{ key: 'revenue' }, { key: 'cost' }] };
+    const { element, destroy } = await dom.draw({ spec });
+    expect(element.querySelector('figure')?.getAttribute('data-chart-provider')).toBe('plugin.echarts');
+    expect(element.querySelector('svg')).not.toBeNull();
+    expect(element.querySelector('canvas')).toBeNull();
+    expect(element.querySelector('.jini-chart-surface')?.getAttribute('aria-label')).toContain('revenue');
     destroy();
     expect(element.children).toHaveLength(0);
   } finally { dom.close(); }

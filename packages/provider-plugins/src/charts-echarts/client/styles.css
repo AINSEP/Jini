@@ -1,0 +1,79 @@
+/* Scoped ECharts provider theme. Shared surface/ink tokens remain host-owned; no global reset.
+   The SVG marks paint with `var(--jini-chart-N, var(--jini-chart-default-N))` (option.ts), so the palette
+   below applies only where a host sets no `--jini-chart-N` of its own. */
+
+/* Default chart palette: the same owner-approved, validated light/dark values as the Recharts provider
+   (series 1 is the warm Claude orange, owner 2026-10-05; 2-6 are fixed-order categorical hues at matched
+   lightness, CVD >= 8, >= 3:1 contrast on Jini's light and dark surfaces). Kept here rather than shared
+   because each provider artifact is self-contained and plugins never import each other. */
+.jini-chart[data-chart-provider="plugin.echarts"] {
+  --jini-chart-default-1: oklch(55.29% 0.1129 43.4);
+  --jini-chart-default-2: oklch(50% 0.11 240);
+  --jini-chart-default-3: oklch(64% 0.13 88);
+  --jini-chart-default-4: oklch(58% 0.15 350);
+  --jini-chart-default-5: oklch(50% 0.11 155);
+  --jini-chart-default-6: oklch(48% 0.12 295);
+}
+
+/* Both dark attributes: the base tokens flip on `data-color-scheme`, while hosts that follow the
+   `data-theme` convention on <html> flip that; `data-chart-theme` is the provider's own ChartTheme mode. */
+[data-color-scheme="dark"] .jini-chart[data-chart-provider="plugin.echarts"],
+[data-chart-theme="dark"] .jini-chart[data-chart-provider="plugin.echarts"],
+[data-theme="dark"] .jini-chart[data-chart-provider="plugin.echarts"] {
+  --jini-chart-default-1: oklch(62% 0.11 44);
+  --jini-chart-default-2: oklch(64% 0.11 240);
+  --jini-chart-default-3: oklch(66% 0.13 88);
+  --jini-chart-default-4: oklch(65% 0.14 350);
+  --jini-chart-default-5: oklch(56% 0.12 155);
+  --jini-chart-default-6: oklch(64% 0.12 295);
+}
+
+/* Local neutral-theme tokens, confined to this provider; host chart tokens still win. */
+[data-chart-theme="dark"] .jini-chart[data-chart-provider="plugin.echarts"] {
+  --jini-bg: #171717; --jini-text: #f5f5f5; --jini-muted: #a3a3a3; --jini-border: #404040;
+}
+
+/* An explicit light chart may live inside a dark host; the supplied chart theme wins. */
+[data-chart-theme="light"] .jini-chart[data-chart-provider="plugin.echarts"] {
+  --jini-chart-default-1: oklch(55.29% 0.1129 43.4);
+  --jini-chart-default-2: oklch(50% 0.11 240);
+  --jini-chart-default-3: oklch(64% 0.13 88);
+  --jini-chart-default-4: oklch(58% 0.15 350);
+  --jini-chart-default-5: oklch(50% 0.11 155);
+  --jini-chart-default-6: oklch(48% 0.12 295);
+}
+
+.jini-chart[data-chart-provider="plugin.echarts"] {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  color: var(--jini-chart-text, var(--jini-text, #171717));
+  font-family: var(--jini-font-body, system-ui, sans-serif);
+  font-size: 0.75rem;
+}
+
+.jini-chart[data-chart-provider="plugin.echarts"] .jini-chart-caption {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+/* The surface keeps the inline 300px height the mount sets; width follows the host frame. */
+.jini-chart[data-chart-provider="plugin.echarts"] .jini-chart-surface {
+  min-width: 0;
+}
+
+/* ECharts sets the tooltip's colors inline from the same chart tokens; only type and wrapping live here. */
+.jini-chart[data-chart-provider="plugin.echarts"] .jini-chart-tooltip {
+  max-width: min(22rem, 80vw);
+  font-family: var(--jini-font-body, system-ui, sans-serif);
+  font-variant-numeric: tabular-nums;
+  overflow-wrap: anywhere;
+  white-space: normal !important;
+}
