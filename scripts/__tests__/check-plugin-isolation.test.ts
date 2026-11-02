@@ -85,8 +85,9 @@ describe('plugin package installation isolation', () => {
   it('the legacy ui-ux-design package ships only its own payload; a subpath-only plugin has no package', () => {
     expect(() => check({ name: '@jini-ai/plugin-ui-ux-design' }, [...docs, 'package/ui-ux-design/plugin.json'])).not.toThrow();
     expect(() => check({ name: '@jini-ai/plugin-ui-ux-design' }, [...docs, 'package/slide-design/plugin.json'])).toThrow("another plugin's payload");
+    // slide-design ships only as an @jini-ai/agent-plugins subpath, so a package under its old name owns no payload root.
     expect(() => check({ name: '@jini-ai/plugin-slide-design' }, [...docs, 'package/slide-design/skills/slide-design/SKILL.md']))
-      .toThrow("another plugin's payload");
+      .toThrow('@jini-ai/plugin-slide-design: unexpected packed file slide-design/skills/slide-design/SKILL.md');
   });
 
   it('rejects provider assets bundled with the agent plugin', () => {
