@@ -5,7 +5,7 @@
 One bundled Agent Plugin for everything Google: the Google sign-in and every Google product as a
 module. v1 ships Sheets. All Google-specific code (endpoints, scopes, request formats, response
 parsing, revocation, later the Picker) lives here; host core and Jini core name no provider. It ships
-in `@jini-ai/plugin-google-workspace` (sources here, in `packages/agent-plugins/google-workspace`).
+as `@jini-ai/agent-plugins/google-workspace` (this folder, `packages/agent-plugins/google-workspace`).
 A host that selects it stages the payload into its bundled-source root and seeds it **disabled**;
 the bundled-digest ledger records its digest at seed time, which the executable trust gate checks
 before any module loads. Host-specific chat guidance (exact tool names, admin paths, the OAuth
