@@ -2,6 +2,9 @@
 
 Use this reference when the design needs a validation plan, clearer user framing, or a way to separate assumptions from evidence.
 
+This file owns proposed evidence-gathering, not visual self-review. Use `ui-loop.md`
+for the design gate.
+
 ## Important Constraint
 
 Do not present invented research as completed research. Use this reference to structure:
@@ -51,9 +54,16 @@ Define:
 - metrics to watch
 - qualitative prompts
 
-### Validation Checklist
+### Validation Plan Contract
 
-Use before handoff:
+Map each uncertain user or usability claim to a research question, participant or
+evidence source, task, success criterion, and decision the result would change.
+Keep untested claims labeled as hypotheses.
+
+### Reference-Specific Validation Questions
+
+Use these to decide what the research or usability plan must observe; do not treat
+untested answers as evidence:
 
 - does the layout support the primary user goal quickly
 - are key decisions reversible

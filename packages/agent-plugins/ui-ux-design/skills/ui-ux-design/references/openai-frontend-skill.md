@@ -2,6 +2,10 @@
 
 Use this reference for visually led landing pages, branded demos, polished prototypes, and other frontend work where composition and art direction matter more than component count.
 
+This reference supplies an optional composition language. `ui-loop.md` owns generic
+review, `visual-storytelling.md` owns narrative sequencing, and
+`delight-and-motion.md` owns contextual motion decisions.
+
 Source note: adapted into local reference form from OpenAI's curated frontend skill on 2026-03-21 so this repo does not need to fetch it from the web during use.
 
 ## Activation Guardrail
@@ -16,10 +20,8 @@ Source note: adapted into local reference form from OpenAI's curated frontend sk
 Before designing, define:
 
 1. visual thesis: the mood, material, and energy
-2. content plan: hero, support, detail, final CTA
-3. interaction thesis: 2-3 motions that materially change the feel
-
-Each section should have one job, one dominant visual idea, and one primary takeaway or action.
+2. dominant visual plane: what carries the composition before component details
+3. interaction character: how static, tactile, cinematic, or editorial it should feel
 
 ## Composition Defaults
 
@@ -28,7 +30,6 @@ Each section should have one job, one dominant visual idea, and one primary take
 - Treat the first screen like a poster, not a document.
 - Make the brand or product name the loudest text on branded pages.
 - Use spacing, scale, alignment, contrast, and cropping before adding extra UI chrome.
-- Limit the system by default: two typefaces max, one accent color max.
 - Default to cardless layouts unless the card itself is the interaction.
 
 ## Landing Page Sequence
@@ -45,10 +46,10 @@ Default structure:
 - One composition only.
 - Use a full-bleed image or another dominant visual plane when the brief supports it.
 - Keep the text column narrow and placed over a calm visual area.
-- Keep headlines readable in one glance.
-- Preserve contrast and tap-target clarity for text over imagery.
-- If the header is sticky or fixed, count it against the viewport budget.
-- Avoid stacking persistent chrome above a `100vh` or `100svh` hero without accounting for that space.
+- Keep headlines readable in one glance and protect contrast and tap targets when
+  text sits over imagery.
+- Count sticky or fixed headers against the first-viewport budget. Do not stack
+  persistent chrome above a `100vh` or `100svh` hero without accounting for it.
 
 ## Product UI Rules
 
@@ -78,9 +79,8 @@ Organize product UI around:
 ## Copy Rules
 
 - Write in product language, not design commentary.
-- Let the headline carry meaning.
-- Keep supporting copy short.
-- Cut repetition between sections.
+- Let the headline carry meaning, keep supporting copy short, and cut repetition
+  between sections.
 - Give each section one responsibility: explain, prove, deepen, or convert.
 
 For dashboards or operational UI:
@@ -89,23 +89,20 @@ For dashboards or operational UI:
 - lead with status, action, scope, or decision value
 - avoid homepage-style hero language unless explicitly requested
 
-## Motion Rules
+## Motion Recipe
 
-Ship a small number of intentional motions for visually led work:
+For visually led work, explore a small set of intentional motions:
 
 - one entrance sequence in the hero
 - one scroll, sticky, or depth effect
 - one hover, reveal, or layout transition
 
-Motion should be:
+Keep the selected motions noticeable enough to support the intended atmosphere,
+fast and smooth on mobile, and consistent across the page. Remove any that are
+merely ornamental. This is an art-direction recipe, not a required motion count;
+`ui-loop.md` owns the final restraint and reduced-motion review.
 
-- noticeable in a quick recording
-- smooth on mobile
-- fast and restrained
-- consistent across the page
-- removed when it is ornamental only
-
-## Hard Bans
+## Composition Anti-Patterns
 
 - no cards by default
 - no hero cards by default
@@ -117,7 +114,7 @@ Motion should be:
 - no more than two typefaces without a reason
 - no more than one accent color unless the product already has a system
 
-## Failure Checks
+## Failure Examples
 
 Reject or revise when you see:
 
@@ -128,7 +125,7 @@ Reject or revise when you see:
 - carousel with no narrative purpose
 - app UI built from stacked cards instead of layout
 
-## Litmus Checks
+## Source Litmus Questions
 
 - Is the brand or product unmistakable in the first screen?
 - Is there one strong visual anchor?
@@ -137,3 +134,6 @@ Reject or revise when you see:
 - Are cards actually necessary?
 - Does motion improve hierarchy or atmosphere?
 - Would the design still feel strong if shadows and decorative polish were removed?
+
+Do not turn these defaults into fixed numeric caps or a second acceptance checklist.
+Use the UI Loop to judge whether the selected composition succeeds in context.

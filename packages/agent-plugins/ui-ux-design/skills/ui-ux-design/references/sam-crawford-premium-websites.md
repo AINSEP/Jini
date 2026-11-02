@@ -19,6 +19,12 @@ Premium websites create a fast feeling of quality, trust, and authority through 
 - **Halo effect:** visitors form an initial judgment extremely quickly, and that judgment colors how they interpret the rest of the site. Treat the hero and first viewport as the highest-value real estate.
 - **Cognitive fluency:** people trust experiences that are easy to process. Reduce confusion with simple navigation, strong hierarchy, predictable layouts, clear copy, and generous spacing.
 - **Peak-end rule:** users remember standout moments and the ending more than the average of the whole experience. Use micro-interactions, confirmation states, polished transitions, and good completion moments to create small positive peaks.
+- **First-impression feeling:** name the intended immediate feeling—calm,
+  confidence, authority, excitement, exclusivity, technical competence, or another
+  product-specific target—before selecting premium signals.
+- **Blink test:** expose the composition only briefly, then check what remains in
+  memory. The offer or current task, intended audience, and next action should
+  survive the glance.
 
 ## Premium Signals
 
@@ -60,25 +66,29 @@ Premium websites create a fast feeling of quality, trust, and authority through 
 - A premium site must feel fast, especially on mobile and weak connections.
 - Compress images, avoid bloated plugins, and question every unnecessary animation or asset.
 - Test outside the designer's ideal setup: mobile viewport, slower network, and realistic user paths.
+
+## Commercial And Ownership Constraints
+
 - Avoid black-box builds when client ownership matters. A premium site should be practical to update, not a trap that requires a developer for every content change.
 - Treat launch as the start: collect data, test, optimize, add fresh proof, and keep the site current.
 
-## Audit Checklist
+## Applying These Principles
 
-- Does the first viewport create the intended feeling within a blink?
-- Can a scanner understand what the business does, who it helps, and what to do next?
-- Is the hero visually premium without being vague?
-- Are images real, bespoke, or clearly product-relevant rather than generic filler?
-- Are typography, logo, and colors cohesive?
-- Is there enough whitespace for calm and hierarchy?
-- Does each section have one primary job?
-- Are CTAs clear, repeated at logical points, and easy to act on?
-- Is proof specific: numbers, clients, outcomes, faces, stories, case studies?
-- Does the site repel poor-fit visitors as well as attract good-fit visitors?
-- Are animations subtle, purposeful, and performant?
-- Is the page fast on mobile?
-- Is the site maintainable after launch?
-- Are there obvious next optimization steps after launch?
+Use `ui-loop.md` for generic design and rendered review. This reference contributes
+premium psychology, signal selection, copy/conversion techniques,
+motion/performance examples, and commercial/ownership constraints.
+
+Client ownership, maintainability after launch, and future optimization remain
+additional product constraints when the brief includes them. Record those in the
+design output rather than turning them into universal visual checks.
+
+## Reference-Specific Output
+
+- first-impression psychology and selected premium signals
+- scanner-oriented copy, proof, and qualification decisions
+- CTA/page-purpose and information-architecture implications
+- motion and weak-connection performance constraints
+- client ownership and post-launch maintenance requirements
 
 ## Conflict Handling For Future References
 

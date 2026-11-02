@@ -2,6 +2,11 @@
 
 Use this reference when the product should feel lively, memorable, or distinctive without sacrificing usability.
 
+This file selects where delight and personality belong. `ui-loop.md` owns the final
+motion/restraint review and accessibility baseline.
+How to animate (timing, easing, kUInetic, micro-interaction recipes) lives in
+`ui-animation.md`.
+
 ## Default Rule
 
 Delight is optional. Clarity, speed, and accessibility are not.
@@ -13,22 +18,6 @@ Delight is optional. Clarity, speed, and accessibility are not.
 - empty states that benefit from warmth
 - lightweight hover/focus feedback
 - brand personality in low-risk surfaces
-
-## Motion Rules
-
-Motion should:
-
-- clarify state change
-- reinforce hierarchy
-- acknowledge user action
-- reduce abruptness
-
-Motion should not:
-
-- block task completion
-- hide information
-- trigger distraction loops
-- ignore reduced-motion preferences
 
 ## Microcopy Rules
 

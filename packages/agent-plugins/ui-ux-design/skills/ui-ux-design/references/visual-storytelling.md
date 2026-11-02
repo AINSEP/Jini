@@ -2,6 +2,9 @@
 
 Use this reference for marketing pages, explainers, campaign surfaces, infographics, and interfaces where narrative sequence materially affects comprehension.
 
+This file owns narrative framing and visual-proof selection. `ui-loop.md` owns the
+generic clarity, hierarchy, motion, and final rendered review.
+
 ## Core Rule
 
 A narrative surface needs an intentional sequence, not just stacked sections.
@@ -27,11 +30,9 @@ Define:
 
 ## Information Design Rules
 
-- one primary message per section
-- strong heading hierarchy
-- visual proof close to the claim it supports
-- charts selected for comparison clarity, not decoration
-- progressive disclosure where density is high
+- keep visual proof close to the claim it supports
+- select charts for comparison clarity, not decoration
+- use progressive disclosure where density is high
 
 ## Visual Proof Options
 
@@ -49,9 +50,5 @@ Define:
 - do not rely on color alone
 - use narrative annotations sparingly and intentionally
 
-## Anti-Patterns
-
-- motion-heavy storytelling with no information gain
-- hero sections that hide the actual value proposition
-- decorative diagrams with no explanatory role
-- multi-section pages where every section competes equally
+Select proof that directly supports the narrative claim; the UI Loop determines
+whether it is clear, credible, restrained, and well composed in the final surface.

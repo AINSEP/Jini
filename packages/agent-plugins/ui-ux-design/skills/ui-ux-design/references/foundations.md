@@ -2,6 +2,10 @@
 
 Use this reference when creating or extending the visual system for a product or feature.
 
+This file owns the token, layout, and visual-system contract. `ui-loop.md` owns the
+resulting page/screen quality review; do not treat this reference's decisions or
+anti-patterns as a substitute completion checklist.
+
 ## Goals
 
 - Define a stable visual foundation before designing individual screens.
@@ -60,12 +64,6 @@ Define:
 - caption/supporting text
 - monospace usage if relevant
 - line-height and weight rules
-
-Check:
-
-- readable body sizing on mobile first
-- heading contrast and hierarchy
-- no decorative type that harms readability
 
 ### Spacing
 
@@ -132,7 +130,10 @@ Do not add a theme toggle only because it is possible.
 - decorative motion without purpose
 - dark mode or theme switching as mandatory default
 
-## Output Checklist
+## Reference-Specific Output
+
+Record the applicable foundation decisions in the authorized design artifact or
+living visual `design.md`:
 
 - visual direction named
 - semantic token groups defined

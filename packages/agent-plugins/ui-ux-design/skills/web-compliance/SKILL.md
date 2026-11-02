@@ -1,3 +1,8 @@
+---
+name: web-compliance
+description: Screen website features for privacy, consent, accessibility and policy risks using observed evidence; identify uncertainty for specialist review, without certifying legal compliance.
+---
+
 # Web Compliance
 
 ## Purpose

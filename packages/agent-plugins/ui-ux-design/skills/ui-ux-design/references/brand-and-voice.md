@@ -2,6 +2,9 @@
 
 Use this reference when the design work includes identity direction, messaging behavior, or visual tone.
 
+This file owns brand inputs and translation rules. `ui-loop.md` owns the resulting
+page/screen quality review.
+
 ## When to Use
 
 - greenfield product with no established brand system
@@ -63,7 +66,10 @@ For public-facing surfaces, define:
 - brand tone that conflicts with task clarity
 - visual identity choices that reduce readability or accessibility
 
-## Output Checklist
+## Reference-Specific Output
+
+Record the applicable brand decisions in the authorized design artifact or living
+visual `design.md`:
 
 - brand assumptions stated
 - tone/voice rules stated

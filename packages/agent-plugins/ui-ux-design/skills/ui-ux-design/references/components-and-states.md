@@ -2,6 +2,9 @@
 
 Use this reference when defining the reusable UI pieces and behavior needed for implementation.
 
+This file owns component and state specification. The UI Loop judges the assembled
+surface, while the Chrome mobile matrix verifies rendered mobile interaction.
+
 ## Component-First Rule
 
 Do not spec isolated screens only. Identify the reusable components first, then define where they are used.
@@ -97,7 +100,9 @@ Specify:
 - hover-only affordances on mobile-relevant UI
 - components invented without checking existing system primitives
 
-## Output Checklist
+## Reference-Specific Output
+
+Record the applicable component decisions in the authorized design artifact:
 
 - component inventory listed
 - state matrix covered

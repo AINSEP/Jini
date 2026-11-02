@@ -27,16 +27,11 @@ Strong web design comes from a small set of repeatable fundamentals: typography,
 - Use systems rather than dragging elements until they feel right.
 - Start from a responsive column grid: 12 columns on desktop, 8 on tablet, and 4 on mobile is a useful default.
 - Use an 8-point spacing system for rhythm: 8, 16, 24, 32, and so on.
-- Build visual hierarchy with proximity, size, contrast, and alignment.
-- Keep related items close together and unrelated items clearly separated.
-- Use clean alignment to make the structure feel intentional.
 
 ### Color
 
-- Use fewer colors more intentionally. A small palette usually beats many unrelated colors.
 - Use the 60/30/10 rule as a starting point: neutral/background/text colors, supporting colors, and accent colors for CTAs or emphasis.
 - Prefer opacity and tints from a core color before adding more unrelated colors.
-- Check contrast: roughly 4.5:1 for smaller text and 3:1 for larger text are useful accessibility thresholds.
 - Borrow and refine proven palettes rather than inventing every palette from scratch.
 - Use browser tooling such as Chrome DevTools CSS Overview to inspect real sites' color and type systems.
 
@@ -105,19 +100,20 @@ Strong web design comes from a small set of repeatable fundamentals: typography,
 - Push far enough away from the first version to reveal better possibilities.
 - Compare variants against the page goal, first-impression target, readability, and conversion path.
 
-## Practical Audit Checklist
+## Applying These Principles
 
-- Is the type system deliberate, readable, and distinctive enough for the brand?
-- Are heading, body, line-height, and spacing choices systematic?
-- Does the layout use a clear responsive grid?
-- Is spacing rhythmic and based on repeatable increments?
-- Is the page hierarchy obvious to a scanner?
-- Does the palette have a restrained structure and clear roles?
-- Does every important color pairing pass contrast expectations?
-- Is there one primary page goal?
-- Are CTAs visible early and repeated where the user naturally needs them?
-- Does the page have a memorable focal idea connected to the offer?
-- Are visual details repeated enough to feel cohesive?
-- Is depth subtle and supportive?
-- Are less important elements visually quieter?
-- Were multiple meaningfully different variants explored before settling?
+The canonical UI Loop handles generic design and rendered review. This reference
+contributes candidate construction heuristics—type scales, grids, spacing, palette
+ratios, font pairing, focal ideas, visual rhyming, depth, and opacity hierarchy—not
+a second definition of quality.
+
+The Web Design persona's Principal Direction Pass owns when and how many variants to
+generate. This section supplies possible axes of divergence only.
+
+## Reference-Specific Output
+
+- selected type-scale, grid, spacing, and palette heuristics
+- font-pairing or single-family decision
+- focal “star of the show” and its connection to the page story
+- visual-rhyming, depth, and opacity-hierarchy rules
+- variant axes explored and the selected direction

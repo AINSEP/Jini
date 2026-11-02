@@ -1,5 +1,12 @@
 # @jini-ai/plugin-ui-ux-design
 
+## Unreleased
+
+- One shared copy with Tovu: the skills carry Tovu's newer AI-Dev-Shop sync (c10abee: UI loop,
+  Chrome mobile matrix, animation and kUInetic references), Tovu's card summary and Jini's search
+  keywords. Host chat rules are replaced by host-neutral tool-use wording; hosts add their own at
+  delivery. Inner plugin version 0.6.1 (above Tovu's installed 0.6.0).
+
 ## 0.6.17
 
 ### Patch Changes

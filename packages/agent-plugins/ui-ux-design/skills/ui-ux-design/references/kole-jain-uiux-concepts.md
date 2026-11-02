@@ -44,7 +44,6 @@ Good UI/UX makes behavior legible without explanation. Interfaces should communi
 - Start with one primary brand color and derive lighter backgrounds or darker text treatments from it.
 - Build toward a color ramp when the interface needs chips, states, charts, and repeated semantic uses.
 - Use semantic colors for meaning: danger, warning, success, trust, focus, urgency, or newness.
-- Use color for purpose, not decoration.
 - In dark mode, reduce harsh borders and create depth by making foreground surfaces slightly lighter than the background.
 - Dim overly bright chips or accents in dark mode and preserve hierarchy with adjusted saturation, brightness, and text contrast.
 
@@ -85,18 +84,21 @@ Good UI/UX makes behavior legible without explanation. Interfaces should communi
 - Prefer a directional gradient when the text occupies one side or edge of the image.
 - Ensure the final composition preserves both image quality and text contrast.
 
-## Practical Audit Checklist
+## Applying These Principles
 
-- Does the UI communicate clickable, selected, disabled, loading, and error states?
-- Can users infer what controls afford before reading instructions?
-- Is the most important information visually dominant?
-- Are related elements grouped by proximity, container, or spacing?
-- Does whitespace make the screen easier to parse?
-- Are type sizes appropriate for the surface: broader for landing pages, tighter for dense apps?
-- Are colors semantic and purposeful?
-- Does dark mode avoid harsh borders and overbright accents?
-- Are shadows subtle and layer-appropriate?
-- Do icons align with the text they support?
-- Do all user actions produce visible feedback?
-- Are micro-interactions confirming real outcomes rather than decorating the page?
-- Is text over imagery protected by a readable overlay or blur treatment?
+Use `ui-loop.md` for generic design and rendered review, and
+`components-and-states.md` for the implementation-level state matrix. This reference adds
+concrete product-UI treatments for affordances, contextual grids, dark-mode depth,
+shadows, icon/button pairing, micro-interaction feedback, and text over imagery.
+
+When these treatments are used, specify their intended affordance, dark-mode depth,
+layer/shadow relationship, icon alignment, outcome-linked feedback, or protected
+text zone so implementation does not require guesswork.
+
+## Reference-Specific Output
+
+- affordance and action-feedback rules
+- hierarchy, grouping, grid, and whitespace decisions
+- semantic color and dark-mode depth treatment
+- icon/button alignment and component-state notes
+- text-over-image protection when used

@@ -11,15 +11,31 @@ verifies its digest, installs atomically, records activation and selects the bun
 Use the lifecycle's trusted installed-file readers for contributions. Host policy controls activation;
 installing this npm package grants no permission and preserves operator disablement on later boots.
 
-The next npm release is **0.6.17**, matching Jini's fixed release group. The inner `plugin.json`
-version remains **0.4.6**; package extraction does not change the plugin's identity or authored bytes.
+The npm version follows Jini's fixed release group. The inner `plugin.json` version (**0.6.1**)
+orders the plugin's own content releases; hosts refuse a lower one over an installed copy.
 The `./ui-ux-design/*` export exposes its raw assets for host staging.
 
 Sources remain in `packages/agent-plugins/ui-ux-design`. The build and prepack script generates only
 `ui-ux-design/` here, selecting `plugin.json`, `mcp.json`, the complete skills tree (including
 references, examples and scripts), and the existing `com.anthropic.claude-code` extension.
 Tests, build output and caches are excluded; selected symlinks refuse assembly. LICENSE and NOTICE retain provenance;
-no provider plugin or vendor SDK is included. Tovu-specific wording reconciliation is a later task.
+no provider plugin or vendor SDK is included.
+
+## Host-neutral wording
+
+This is the one shared copy for every host. Its text names no host tools: it tells the agent to
+discover the host's tools, follow the host's permissions and explain a missing capability. The
+`shadcn-ui` frontmatter keeps `Bash` for coding hosts. A host that forbids shell use adds its own
+chat rules and strips that entry when it delivers the guidance (Tovu does both from
+`content/agent-plugin-overlays/ui-ux-design/`).
+
+## Upstream
+
+`skills/ui-ux-design/` is synced from AI-Dev-Shop's `skills/ui-ux-design/` (last sync: commit
+c10abee, 2026-10-30). Change guidance there first, then sync here, keeping the local host-neutral
+parts: the "Tool use and context" section and the "Read any supplied feature spec" bullet in
+`skills/ui-ux-design/SKILL.md`, the opening tool-discovery paragraph in `skills/shadcn-ui/SKILL.md`,
+and the `name`/`description` frontmatter in `skills/web-compliance/SKILL.md`.
 
 ## Included skills
 
