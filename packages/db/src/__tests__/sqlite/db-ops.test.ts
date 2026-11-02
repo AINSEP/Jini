@@ -35,6 +35,39 @@ describe('SqliteDbOpsAdapter', () => {
   });
 
   describe('captureRestorePoint', () => {
+    it('preserves earlier snapshots and reserves distinct paths across concurrent same-clock adapters', async () => {
+      const filePath = join(dir, 'content.db');
+      const connection = new Database(filePath);
+      connection.exec('CREATE TABLE notes (id TEXT)');
+      const adapter = () => new SqliteDbOpsAdapter({ connection, filePath, readWatermark: () => 1, now: () => 7 });
+      try {
+        connection.exec("INSERT INTO notes VALUES ('before')");
+        const first = await adapter().captureRestorePoint({ scopeId: 'same' });
+        connection.exec("INSERT INTO notes VALUES ('after')");
+        const later = await Promise.all([adapter().captureRestorePoint({ scopeId: 'same' }), adapter().captureRestorePoint({ scopeId: 'same' })]);
+        expect(new Set([first, ...later].map(point => point.artifactRef)).size).toBe(3);
+        for (const [point, rows] of [[first, 1], ...later.map(point => [point, 2] as const)] as const) {
+          const snapshot = new Database(point.artifactRef, { readonly: true });
+          try { expect(snapshot.prepare('SELECT id FROM notes').all()).toHaveLength(rows); }
+          finally { snapshot.close(); }
+        }
+      } finally { connection.close(); }
+    });
+
+    it('removes its reserved partial artifact after a backup failure without deleting another capture', async () => {
+      const original = join(dir, 'restore-point-s-wm0-1.db');
+      writeFileSync(original, 'keep this snapshot');
+      let partial = '';
+      const failure = new Error('backup interrupted');
+      const adapter = new SqliteDbOpsAdapter({
+        connection: { backup: async target => { partial = target; writeFileSync(target, 'partial'); throw failure; } },
+        filePath: ':memory:', readWatermark: () => 0, now: () => 1,
+      });
+      await expect(adapter.captureRestorePoint({ scopeId: 's' }, { directory: dir })).rejects.toBe(failure);
+      expect(readFileSync(original, 'utf8')).toBe('keep this snapshot');
+      expect(existsSync(partial)).toBe(false);
+    });
+
     it('refuses low disk space with a typed actionable storage error before writing', async () => {
       const filePath = join(dir, 'content.db');
       writeFileSync(filePath, Buffer.alloc(10 * 1024 * 1024));
@@ -118,6 +151,7 @@ describe('SqliteDbOpsAdapter', () => {
       const point = await adapter.captureRestorePoint({ scopeId: 's' });
       expect(dirname(point.artifactRef)).toBe(tmpdir());
       expect(backup).toHaveBeenCalledWith(point.artifactRef);
+      await fs.rm(point.artifactRef);
     });
 
     it('defaults its clock to Date.now when none is injected', async () => {
@@ -132,6 +166,7 @@ describe('SqliteDbOpsAdapter', () => {
       const stamped = Number(/-wm0-(\d+)\.db$/.exec(basename(point.artifactRef))?.[1]);
       expect(stamped).toBeGreaterThanOrEqual(before);
       expect(stamped).toBeLessThanOrEqual(Date.now());
+      await fs.rm(point.artifactRef);
     });
   });
 

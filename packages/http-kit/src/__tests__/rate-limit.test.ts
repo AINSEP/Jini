@@ -49,6 +49,45 @@ function fakeClock(startIso: string) {
   };
 }
 
+test("live budgets preserve consumed counts when lowered, raised, and checked concurrently", async () => {
+  const { clock, advanceMs } = fakeClock("2026-01-01T00:00:00.000Z");
+  let max = 2;
+  const limiter = createLimiter({ profile: SHORT_WINDOW, clock, store: createMemoryCounterStore({}) }, { getMax: async () => max });
+  assert.deepEqual(await Promise.all([limiter.check({ key: "a" }), limiter.check({ key: "a" }), limiter.check({ key: "a" })]),
+    [{ allowed: true }, { allowed: true }, { allowed: false, retryAfterSeconds: 60 }]);
+  max = 1;
+  assert.equal((await limiter.check({ key: "a" })).allowed, false, "a lower budget must not reset the counter");
+  assert.equal((await limiter.check({ key: "b" })).allowed, true, "clients keep separate counters");
+  max = 3;
+  assert.equal((await limiter.check({ key: "a" })).allowed, true, "raising the budget makes only the remaining slot available");
+  assert.equal((await limiter.check({ key: "a" })).allowed, false);
+  max = 0;
+  assert.equal((await limiter.check({ key: "new" })).allowed, false, "zero must also refuse a new window");
+  max = 1;
+  advanceMs(60_000);
+  assert.equal((await limiter.check({ key: "a" })).allowed, true);
+});
+
+test("a failed or invalid live budget never authorizes a request or consumes its counter", async () => {
+  const { clock } = fakeClock("2026-01-01T00:00:00.000Z");
+  let max = -1;
+  const limiter = createLimiter({ profile: SHORT_WINDOW, clock, store: createMemoryCounterStore({}) }, { getMax: async () => max });
+  await assert.rejects(limiter.check({ key: "a" }), RangeError);
+  max = 1;
+  assert.equal((await limiter.check({ key: "a" })).allowed, true);
+  const failure = new Error("settings unavailable");
+  const failed = createLimiter({ profile: SHORT_WINDOW, clock, store: createMemoryCounterStore({}) }, { getMax: async () => { throw failure; } });
+  await assert.rejects(failed.check({ key: "a" }), error => error === failure);
+});
+
+test("a live max retains the configured burst allowance", async () => {
+  const { clock } = fakeClock("2026-01-01T00:00:00.000Z");
+  const limiter = createLimiter({ profile: { ...SHORT_WINDOW, burst: 1 }, clock, store: createMemoryCounterStore({}) }, { getMax: () => 1 });
+  assert.equal((await limiter.check({ key: "a" })).allowed, true);
+  assert.equal((await limiter.check({ key: "a" })).allowed, true);
+  assert.equal((await limiter.check({ key: "a" })).allowed, false);
+});
+
 test("createRateLimiter: requests under the max all pass", async () => {
   assert.deepEqual(SHORT_WINDOW, { max: 10, windowSeconds: 60, burst: 0 });
   const { clock } = fakeClock("2026-01-01T00:00:00.000Z");

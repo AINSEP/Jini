@@ -66,24 +66,35 @@ export function createMemoryCounterStore(
  * delays. Counter updates and periodic eviction run in arrival order across
  * storage awaits. Rejected checks do not consume more of the budget.
  * @param required - Host profile, clock and dedicated counter store.
+ * @param options - Optional live max resolver, awaited within the check queue. Window duration
+ * and burst stay fixed; changing the max never resets counts. Resolver failures reject checks.
  * @returns An async limiter. Storage failures reject the caller's check.
  * Invalid keys reject with TypeError before storage or queue state is touched.
  * @example const result = await limiter.check({ key: clientIp });
  */
 export function createRateLimiter(
   { profile, clock, store }: { profile: RateLimitProfile; clock: Clock; store: CounterStore },
-  _optional: Record<string, never> = {},
+  { getMax }: { getMax?: (required: { key: string }, optional: Record<string, never>) => number | Promise<number> } = {},
 ): RateLimiter {
   const windowMs = profile.windowSeconds * 1000;
-  const effectiveMax = profile.max + profile.burst;
   let lastSweepMs: number | null = null;
   let pending: Promise<void> = Promise.resolve();
+
+  /** Read the current budget without changing the active window; invalid policy fails closed. */
+  async function budgetFor(key: string): Promise<number> {
+    const max = getMax ? await getMax({ key }, {}) : profile.max;
+    if (!Number.isInteger(max) || max < 0) throw new RangeError('rate limit max must be a non-negative integer');
+    return max + profile.burst;
+  }
 
   // Expiry sweeps prevent attacker-controlled keys (for example rotating anonymous source IPs)
   // from accumulating forever. Work is O(tracked keys) only once per window; per-request full
   // scans would replace a memory-exhaustion risk with linear request latency. Active key volume
   // still determines memory use, and separate in-memory processes each retain their own budget.
   async function consume(key: string): Promise<RateLimitResult> {
+    // Resolve inside the serialized check: a settings change must not reset consumed counters
+    // or create independent queues over the same store. Resolver failures fail closed.
+    const effectiveMax = await budgetFor(key);
     const nowMs = clock.nowMs();
     if (lastSweepMs === null) {
       lastSweepMs = nowMs;
@@ -100,6 +111,7 @@ export function createRateLimiter(
 
     const existing = await store.get({ key });
     if (!existing || nowMs - existing.windowStartMs >= windowMs) {
+      if (effectiveMax === 0) return { allowed: false, retryAfterSeconds: Math.ceil(windowMs / 1000) };
       await store.set({ key, state: { windowStartMs: nowMs, count: 1 } });
       return { allowed: true };
     }

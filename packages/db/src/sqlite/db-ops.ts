@@ -64,13 +64,20 @@ export class SqliteDbOpsAdapter implements DbOpsPort {
   async captureRestorePoint(required: { scopeId: string }, options: { directory?: string } = {}): Promise<RestorePoint> {
     const watermarkAtCapture = await this.readWatermark();
     const targetDir = options.directory ?? (this.filePath === IN_MEMORY ? os.tmpdir() : path.dirname(this.filePath));
-    const artifactRef = path.join(
+    const timestamp = this.now();
+    const candidate = path.join(
       targetDir,
-      restorePointFilename({ scopeId: required.scopeId, watermarkAtCapture, timestamp: this.now() }),
+      restorePointFilename({ scopeId: required.scopeId, watermarkAtCapture, timestamp }),
     );
 
-    await assertDatabaseCopySpace({ sourcePath: this.filePath, destinationPath: artifactRef });
-    await this.connection.backup(artifactRef);
+    await assertDatabaseCopySpace({ sourcePath: this.filePath, destinationPath: candidate });
+    const artifactRef = await reserveRestorePoint({ targetDir, scopeId: required.scopeId, watermarkAtCapture, timestamp });
+    try { await this.connection.backup(artifactRef); }
+    catch (error) {
+      // Only our exclusive reservation may be removed; a prior capture must survive a failed copy.
+      await fs.rm(artifactRef, { force: true }).catch(() => undefined);
+      throw error;
+    }
 
     return { artifactRef, watermarkAtCapture };
   }
@@ -114,5 +121,27 @@ export class SqliteDbOpsAdapter implements DbOpsPort {
     ]);
 
     return { restartRequired: true };
+  }
+}
+
+/** Reserve before backup: SQLite otherwise overwrites an existing same-millisecond snapshot.
+ * Exclusive create also arbitrates between different processes. Advance the filename stamp only
+ * on collision, preserving the existing artifact-name contract and host retention matchers.
+ * @complexity O(c) metadata operations for c collisions; no database bytes are copied here.
+ */
+async function reserveRestorePoint(
+  required: { targetDir: string; scopeId: string; watermarkAtCapture: number; timestamp: number },
+  _options: Record<string, never> = {},
+): Promise<string> {
+  for (let timestamp = required.timestamp; ; timestamp++) {
+    const artifactRef = path.join(required.targetDir, restorePointFilename({ ...required, timestamp }));
+    try {
+      const reservation = await fs.open(artifactRef, 'wx', 0o600);
+      await reservation.close();
+      return artifactRef;
+    } catch (error) {
+      if (error instanceof Error && 'code' in error && error.code === 'EEXIST') continue;
+      throw error;
+    }
   }
 }
