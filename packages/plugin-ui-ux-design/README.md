@@ -1,5 +1,9 @@
 # `@jini-ai/plugin-ui-ux-design`
 
+> **Superseded** by `@jini-ai/agent-plugins/ui-ux-design` (the same plugin; every Jini agent plugin is
+> now a subpath of `@jini-ai/agent-plugins`). This package keeps publishing the same payload until the
+> owner deprecates it on npm (see `docs/plugin-packages-migration.md`).
+
 Portable Agent Plugins payload containing seven design skills: UI/UX design, interface design,
 gstack design, frontend accessibility, Vercel web guidelines, shadcn/ui, and web compliance.
 Installing this package downloads only this plugin; it has no runtime or plugin dependencies.
