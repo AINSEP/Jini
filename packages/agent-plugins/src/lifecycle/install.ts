@@ -157,6 +157,13 @@ export interface InstallAgentPluginOptional {
   /** Host policy transaction, called inside the existing per-plugin lock after validation.
    * It must invoke publish exactly once to install. Shared lifecycle counterpart is in chat-tools.jini.patch. */
   readonly publishGuard?: (required: { readonly plugin: InstalledAgentPlugin; readonly publish: () => Promise<InstalledAgentPlugin> }, optional: Record<string, never>) => Promise<InstalledAgentPlugin>;
+  /** Default true: an explicit install, update or replace retires this plugin's other revisions.
+   * Bundled seeding passes false. A revision's digest names the bytes it was published with, not
+   * what is on disk now, and nothing records whether a same-name copy came from an upload, an
+   * operator edit or an older build, so a boot-time seed cannot prove a copy is safe to delete.
+   * The bundled-digests ledger selects the build's digest instead (owner rule 2026-10-29: other
+   * copies are "kept unselected"). */
+  readonly pruneSupersededRevisions?: boolean;
 }
 
 function buildModule(ports: AgentPluginLifecyclePorts) {
@@ -338,7 +345,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
         // The journal lives under the layout this install was given, the one it publishes into.
         await settleAgentPluginUpdateJournal({ store: createAgentPluginUpdateStore({ ports: { ...ports, layout }, workspaceId, pluginId: indexed.pluginId }) });
         const installed = await (optional.publishGuard ? optional.publishGuard({ plugin: indexed, publish: publishPackage }, {}) : publishPackage());
-        if (publishedPlugin) await pruneSupersededRevisions({ workspaceRoot: workspaceLayout.root, installed: publishedPlugin });
+        if (publishedPlugin && optional.pruneSupersededRevisions !== false) await pruneSupersededRevisions({ workspaceRoot: workspaceLayout.root, installed: publishedPlugin });
         return installed;
       } });
       return await persistentState.withIdentityLock({ workspaceRoot: workspaceLayout.root, run: async () => {

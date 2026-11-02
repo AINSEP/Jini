@@ -265,13 +265,16 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
       const packing = typeof optional.packing === 'function'
         ? await optional.packing({ sourceDir: args.sourceDir, dirName: args.dirName }, {}) : optional.packing;
       const packed = await packAgentPluginDirectory(args.sourceDir, packing);
+      // No revision pruning here, not even of the digest the ledger recorded last boot: that digest
+      // names the bytes this build once published, not what is on disk now, so an operator edit
+      // under it would be deleted. Every same-name copy stays; the ledger selects this build's.
       const installed = await installAgentPlugin({
         archive: packed.bytes,
         expectedSha256: packed.sha256,
         archiveReader: packed.archiveReader ?? createBundledSourceArchiveReader(),
         layout: args.layout,
         workspaceId: args.workspaceId,
-      });
+      }, { pruneSupersededRevisions: false });
 
       const { recorded } = await recordBundledAgentPluginIfAbsent(
         { workspaceRoot: args.layout.forWorkspace({ workspaceId: args.workspaceId }).root, pluginId: installed.pluginId },
