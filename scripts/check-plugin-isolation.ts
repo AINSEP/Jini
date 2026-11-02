@@ -1,7 +1,10 @@
 /** Packaging policy only: callers supply real tarball inventories and esbuild inputs.
  * Packing, integrity, installation and loading remain with their existing owners.
  */
+import { existsSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { agentPluginPackageId, agentPluginPackages, type AgentPluginPackageRow } from './lib/agent-plugin-packages.js';
 
 const dependencyFields = ['dependencies', 'optionalDependencies', 'peerDependencies', 'devDependencies'] as const;
 type DependencyField = typeof dependencyFields[number];
@@ -14,14 +17,19 @@ type Dependency = { name: string; specifier: string };
 export interface PluginIsolationPorts {
   /** Resolve a file/link/workspace path through its target manifest, never its folder name. */
   readonly resolveLocalDependency?: (input: Dependency) => string | undefined;
+  /** Agent payload layout; defaults to the reviewed table. */
+  readonly agentPluginPackages?: readonly AgentPluginPackageRow[];
+  /** Whether `provider-plugins/src/<id>` exists; defaults to this checkout's sources. */
+  readonly providerSourceExists?: (input: { id: string }) => boolean;
 }
 
 const documentation = new Set(['package.json', 'README.md', 'LICENSE', 'NOTICE', 'CHANGELOG.md']);
 const pluginReference = /@jini-ai\/(?:plugin-[a-z0-9-]+|provider-plugins)(?=$|[^a-z0-9-])/;
 const neutralHelpers = new Set(['attribution.ts', 'telemetry-reporter.ts', 'trim-trailing-slashes.ts']);
-// Agent plugin packages publish their payload under `<id>/`; provider packages under `plugins/<id>/`.
-const agentPluginIds = new Set(['slide-design', 'ui-ux-design']);
-const agentPayloadSource = new RegExp(`(?:^|/)(?:plugin-[a-z0-9-]+|${[...agentPluginIds].join('|')})/`);
+// Agent payloads publish under `<name>/` (layout table); provider payloads under `plugins/<id>/`.
+const agentPayloadSource = new RegExp(`(?:^|/)(?:plugin-[a-z0-9-]+|agent-plugins/(?:${agentPluginPackages.map(row => row.name).join('|')}))/`);
+const providerSources = fileURLToPath(new URL('../packages/provider-plugins/src/', import.meta.url));
+const checkoutProviderSourceExists = ({ id }: { id: string }) => existsSync(resolve(providerSources, id));
 
 /** Reject aliases as well as declared names; unresolved local references fail closed. */
 function assertDependency(
@@ -60,17 +68,34 @@ function packedPath(required: { path: string }): string {
   return path;
 }
 
-function assertPayloadPath(required: { owner: string; path: string; ownId: string | undefined; pluginIds: ReadonlySet<string> }): void {
-  const { owner, path, ownId, pluginIds } = required;
+interface PayloadPolicy { ownId: string | undefined; ownNames: ReadonlySet<string>; roots: readonly string[]; pluginIds: ReadonlySet<string> }
+
+/** Allowed payload roots for one package: each agent row it ships (`<name>/`), plus `plugins/<id>/`
+ * when it has a provider source. A package with no agent rows keeps the provider-only layout. */
+function payloadPolicy(
+  required: { ownId: string | undefined; pluginIds: readonly string[] },
+  optional: PluginIsolationPorts,
+): PayloadPolicy {
+  const rows = optional.agentPluginPackages ?? agentPluginPackages;
+  const own = required.ownId === undefined ? [] : rows.filter(row => agentPluginPackageId(row) === required.ownId);
+  const roots = own.map(row => `${row.name}/`);
+  const providerSourceExists = optional.providerSourceExists ?? checkoutProviderSourceExists;
+  if (required.ownId !== undefined && (own.length === 0 || providerSourceExists({ id: required.ownId }))) roots.push(`plugins/${required.ownId}/`);
+  // Agent payload names count as plugin ids, so a package cannot carry another package's face.
+  const pluginIds = new Set([...required.pluginIds, ...rows.map(row => row.name)]);
+  return { ownId: required.ownId, ownNames: new Set([required.ownId ?? '', ...own.map(row => row.name)]), roots, pluginIds };
+}
+
+function assertPayloadPath(required: { owner: string; path: string; policy: PayloadPolicy }): void {
+  const { owner, path, policy } = required;
   const segments = path.split('/');
-  if (segments.some(segment => pluginIds.has(segment) && segment !== ownId)) {
+  if (segments.some(segment => policy.pluginIds.has(segment) && !policy.ownNames.has(segment))) {
     throw new TypeError(`${owner}: another plugin's payload in ${path}`);
   }
-  if (ownId !== undefined) {
-    const prefix = agentPluginIds.has(ownId) ? `${ownId}/` : `plugins/${ownId}/`;
-    if (path.startsWith(prefix)) {
+  if (policy.ownId !== undefined) {
+    if (policy.roots.some(root => path.startsWith(root))) {
       const providers = [...path.matchAll(/(?:^|\/)plugins\/([^/]+)/g)];
-      if (providers.some(match => match[1] !== ownId)) throw new TypeError(`${owner}: another plugin's payload in ${path}`);
+      if (providers.some(match => match[1] !== policy.ownId)) throw new TypeError(`${owner}: another plugin's payload in ${path}`);
       return;
     }
     throw new TypeError(`${owner}: unexpected packed file ${path}`);
@@ -84,7 +109,8 @@ function assertPayloadPath(required: { owner: string; path: string; ownId: strin
 
 /** Enforce installation isolation using the packed manifest and actual tarball file list.
  * @param required Package manifest, tarball paths, and all standalone plugin IDs from workspace discovery.
- * @param optional Local-reference resolver port; resolution errors propagate, absent results fail closed.
+ * @param optional Local-reference resolver, layout rows and provider-source ports; resolution errors propagate,
+ *   absent results fail closed.
  * @throws TypeError for forbidden dependencies, sibling payloads or core payload publication.
  * @complexity O(D + F × L) time, O(I + L) space for D dependencies, F paths of L segments, I plugin IDs.
  */
@@ -97,7 +123,7 @@ export function assertPluginPackageIsolation(
   let ownId: string | undefined;
   if (!catalog && manifest.name.startsWith('@jini-ai/plugin-')) ownId = manifest.name.slice('@jini-ai/plugin-'.length);
   assertDependencies({ manifest }, optional);
-  const knownIds = new Set(pluginIds);
+  const policy = payloadPolicy({ ownId, pluginIds }, optional);
   for (const input of packedPaths) {
     if (!input || input.endsWith('/')) continue;
     const path = packedPath({ path: input });
@@ -106,7 +132,7 @@ export function assertPluginPackageIsolation(
       if (path === 'catalog.json') continue;
       throw new TypeError(`${manifest.name}: catalog must be metadata-only: ${path}`);
     }
-    assertPayloadPath({ owner: manifest.name, path, ownId, pluginIds: knownIds });
+    assertPayloadPath({ owner: manifest.name, path, policy });
   }
 }
 

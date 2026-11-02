@@ -95,6 +95,56 @@ describe('plugin package installation isolation', () => {
     expect(() => check({ name: '@jini-ai/plugin-ui-ux-design' }, [...docs, ownPayload])).toThrow("another plugin's payload");
   });
 
+  describe('payload roots come from the layout table', () => {
+    const rows = [
+      { name: 'posthog', sourceDir: 'packages/agent-plugins/posthog', packageId: 'analytics-posthog' },
+      { name: 'charts-fixture', sourceDir: 'packages/agent-plugins/charts-fixture' },
+      { name: 'sentry', sourceDir: 'packages/agent-plugins/sentry', packageId: 'observability-sentry' },
+      { name: 'ui-ux-design', sourceDir: 'packages/agent-plugins/ui-ux-design' },
+    ];
+    const providers = new Set(['analytics-posthog', 'charts-fixture', 'observability-sentry']);
+    const ports = { agentPluginPackages: rows, providerSourceExists: ({ id }: { id: string }) => providers.has(id) };
+    const combined = (packageName: string, paths: readonly string[]) => assertPluginPackageIsolation({
+      manifest: { name: packageName }, packedPaths: [...docs, ...paths.map(file => `package/${file}`)],
+      pluginIds: [...pluginIds, 'charts-fixture'],
+    }, ports);
+
+    it('a combined provider package ships its provider payload and its face under a different name', () => {
+      expect(() => combined(name, ['plugins/analytics-posthog/0.6.19/server/index.mjs', 'posthog/plugin.json',
+        'posthog/skills/posthog/SKILL.md'])).not.toThrow();
+    });
+
+    it('a provider and its face may share one local id', () => {
+      expect(() => combined('@jini-ai/plugin-charts-fixture', ['plugins/charts-fixture/0.6.19/client/provider.js',
+        'charts-fixture/plugin.json'])).not.toThrow();
+    });
+
+    it.each(['sentry/plugin.json', 'ui-ux-design/plugin.json', 'plugins/analytics-posthog/0.6.19/sentry/plugin.json',
+      'posthog/plugins/observability-sentry/0.6.19/server/index.mjs'])(
+      'a combined package still rejects another package\'s payload: %s', path => {
+        expect(() => combined(name, ['posthog/plugin.json', path])).toThrow("another plugin's payload");
+      });
+
+    it('a combined package rejects a third, unlisted root', () => {
+      expect(() => combined(name, ['posthog/plugin.json', 'analytics-posthog/plugin.json'])).toThrow('unexpected packed file analytics-posthog/plugin.json');
+      expect(() => combined(name, ['extra/plugin.json'])).toThrow('unexpected packed file extra/plugin.json');
+    });
+
+    it('an agent-only package gets no provider root', () => {
+      expect(() => combined('@jini-ai/plugin-ui-ux-design', ['plugins/ui-ux-design/0.6.19/server/index.mjs']))
+        .toThrow('unexpected packed file plugins/ui-ux-design/0.6.19/server/index.mjs');
+    });
+
+    it('a core package may not publish a face named only in the table', () => {
+      expect(() => combined('@jini-ai/agent-plugins', ['posthog/skills/posthog/SKILL.md'])).toThrow("another plugin's payload");
+    });
+
+    it('the default provider-source port reads this checkout', () => {
+      expect(() => assertPluginPackageIsolation({ manifest: { name }, packedPaths: [ownPayload, 'package/posthog/plugin.json'], pluginIds },
+        { agentPluginPackages: rows })).not.toThrow();
+    });
+  });
+
   it('keeps the catalog metadata-only and forbids even aliased plugin dependencies', () => {
     const catalog = { name: '@jini-ai/plugin-catalog' };
     expect(() => check(catalog, [...docs, 'package/catalog.json'])).not.toThrow();
