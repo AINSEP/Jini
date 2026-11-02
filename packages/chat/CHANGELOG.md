@@ -1,5 +1,6 @@
 ## Unreleased (0.6.18)
 
+- A direct MCP call (`mcp__<server>__X`, any CLI) shows as one row even when the MCP server normalized its arguments before the bridge saw them: once the CLI's own result has arrived, the call pairs by name with the bridge's `X` row between the two. Equal-input pairing still runs first across the turn; refusals and open calls never pair by name.
 - The chat model picker names raw catalog ids friendly ("Claude Opus 5.5", context and date suffixes kept), shows "Offline fallback" only once the live model list has actually failed rather than while the host is still probing, and closes on Escape from the menu or its trigger even when an ancestor stops the keydown.
 - A reply's "Done · time" runs from the person's send to the run's end for every CLI; the CLI's own reported duration, which leaves out its start-up wait, is only the fallback.
 - Keep failed tool receipts visible unless a matching canonical call also failed, including buffered CLI receipts.

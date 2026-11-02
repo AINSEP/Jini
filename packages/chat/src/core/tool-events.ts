@@ -100,7 +100,9 @@ function wrapperCall({ event }: { event: ToolUseEvent }, _options: Record<string
  * regardless of buffered receipt ordering.
  * A legacy gateway folds onto the first LATER canonical `tool_use` whose name equals its `input.toolId`.
  * A direct call folds onto the first LATER `X` row with structurally equal JSON input that arrives
- * before the CLI's own result for it. No canonical row is claimed twice, and a folded wrapper's
+ * before the CLI's own result for it; failing that, once that result has arrived, onto the first
+ * unclaimed same-name row between the two, since argument normalization can change the bridge's
+ * input (see {@link findCanonicalRow}). No canonical row is claimed twice, and a folded wrapper's
  * `tool_result` events go with it. A wrapper with no such canonical row (refused before the
  * bridge, e.g. a read-only 403) stays, so its error is not hidden.
  *
@@ -117,16 +119,20 @@ export function foldDelegatedWrapperCalls({ events }: { events: AgentEvent[] | u
   const claimed = new Set<number>();
   const folded = new Set<string>();
   const failedResults = new Set(events.flatMap(event => event.kind === 'tool_result' && event.isError ? [event.toolUseId] : []));
-  events.forEach((event, i) => {
-    if (event.kind !== 'tool_use') return;
-    const call = wrapperCall({ event });
-    // A replayed wrapper (same id) must not claim a second canonical row.
-    if (call === undefined || folded.has(event.id)) return;
-    const match = findCanonicalRow({ events, wrapper: event, wrapperIndex: i, call, claimed, failedResults });
-    if (match === -1) return;
-    claimed.add(match);
-    folded.add(event.id);
-  });
+  // Equal inputs pair first across the whole turn, so a by-name pairing never takes the row an
+  // exact match needed; only then may a direct call pair by name inside its closed window.
+  for (const byName of [false, true]) {
+    events.forEach((event, i) => {
+      if (event.kind !== 'tool_use') return;
+      const call = wrapperCall({ event });
+      // A replayed wrapper (same id) must not claim a second canonical row.
+      if (call === undefined || folded.has(event.id)) return;
+      const match = findCanonicalRow({ events, wrapper: event, wrapperIndex: i, call, claimed, failedResults }, { byName });
+      if (match === -1) return;
+      claimed.add(match);
+      folded.add(event.id);
+    });
+  }
   if (folded.size === 0) return events;
 
   return events.filter((event) => !(
@@ -138,33 +144,60 @@ export function foldDelegatedWrapperCalls({ events }: { events: AgentEvent[] | u
 /**
  * Index of the first unclaimed canonical row in the wrapper's matching window, or -1. Legacy gateways match
  * on name alone; direct calls and adapter-described wrappers also require equal inner input.
+ *
+ * `byName` (the second pass) lets a direct `mcp__<server>__X` call pair with a same-name row whose
+ * input differs, but only inside a CLOSED window: after the call and before the CLI's own result for
+ * it. The MCP server normalizes arguments before the bridge sees them (an integer string read as the
+ * integer, an alias renamed, see `@jini-ai/mcp`'s `tool-arguments.ts`), so the bridge row's input is
+ * not always the CLI's (demo practice run, 2026-11-02: every such call showed twice). The CLI's result
+ * only returns after the bridge row its call caused, so a same-name row in that window is that call.
+ * An open window (no CLI result yet) and buffered or legacy wrappers never pair by name.
  * @throws CanonicalJsonError if a direct call's input contains non-JSON values.
  * @complexity O(n·s): n events, s canonical input serialization cost.
  */
 function findCanonicalRow({ events, wrapper, wrapperIndex, call, claimed, failedResults }: {
   events: AgentEvent[]; wrapper: ToolUseEvent; wrapperIndex: number; call: WrapperCall; claimed: ReadonlySet<number>;
   failedResults: ReadonlySet<string>;
-}): number {
-  const inputKey = call.matchInput ? canonicalJson({ value: { input: call.input } }) : undefined;
-  const [start, end] = canonicalSearchWindow({ events, wrapper, wrapperIndex, call });
+}, { byName = false }: { byName?: boolean } = {}): number {
+  const [start, end, closed] = canonicalSearchWindow({ events, wrapper, wrapperIndex, call });
+  const match = matchRule({ call, byName, closed });
+  if (match === undefined) return -1;
+  const inputKey = match.compareInput ? canonicalJson({ value: { input: call.input } }) : undefined;
+  const wrapperFailed = failedResults.has(wrapper.id);
   for (let j = start; j < end; j += 1) {
     const other = events[j]!;
-    if (claimed.has(j) || other.kind !== 'tool_use' || other.name !== call.name) continue;
-    // Outcome parity keeps successes from consuming failed rows and duplicating later refusals.
-    if (failedResults.has(wrapper.id) !== failedResults.has(other.id)) continue;
-    if (inputKey === undefined || canonicalJson({ value: { input: other.input } }) === inputKey) return j;
+    if (!claimed.has(j) && isCandidateRow({ other, name: call.name, wrapperFailed, failedResults, inputKey })) return j;
   }
   return -1;
+}
+
+/** How one pass matches `call`, or undefined when this pass must skip it. Pass two (`byName`) only
+ * revisits direct calls whose window is closed; everything else already had its chance. Pure; O(1). */
+function matchRule({ call, byName, closed }: { call: WrapperCall; byName: boolean; closed: boolean }, _options: Record<string, never> = {}): { compareInput: boolean } | undefined {
+  if (!byName) return { compareInput: call.matchInput };
+  return closed && call.matchInput && !call.buffered ? { compareInput: false } : undefined;
+}
+
+/** Whether `other` is an unclaimed row's possible canonical twin: a same-name `tool_use` with the same
+ * outcome and, when `inputKey` is given, structurally equal input. Pure; O(s) input serialization. */
+function isCandidateRow({ other, name, wrapperFailed, failedResults, inputKey }: {
+  other: AgentEvent; name: string; wrapperFailed: boolean; failedResults: ReadonlySet<string>; inputKey: string | undefined;
+}, _options: Record<string, never> = {}): boolean {
+  if (other.kind !== 'tool_use' || other.name !== name) return false;
+  // Outcome parity keeps successes from consuming failed rows and duplicating later refusals.
+  if (wrapperFailed !== failedResults.has(other.id)) return false;
+  return inputKey === undefined || canonicalJson({ value: { input: other.input } }) === inputKey;
 }
 
 /** Pure matching bounds within one turn; O(n) time, O(1) space for n events.
  * Antigravity's buffered receipts cannot establish arrival/result boundaries. Direct MCP calls
  * retain their later-only window so a completed/refused call cannot consume a separate retry.
+ * `closed` is true only when the CLI's own result ends the window (the by-name pass needs it).
  */
 function canonicalSearchWindow({ events, wrapper, wrapperIndex, call }: {
   events: AgentEvent[]; wrapper: ToolUseEvent; wrapperIndex: number; call: WrapperCall;
-}, _options: Record<string, never> = {}): [number, number] {
-  if (call.buffered) return [0, events.length];
+}, _options: Record<string, never> = {}): [start: number, end: number, closed: boolean] {
+  if (call.buffered) return [0, events.length, false];
   const resultIndex = !call.matchInput ? -1 : events.findIndex(other => other.kind === 'tool_result' && other.toolUseId === wrapper.id);
-  return [wrapperIndex + 1, resultIndex === -1 ? events.length : resultIndex];
+  return resultIndex === -1 ? [wrapperIndex + 1, events.length, false] : [wrapperIndex + 1, resultIndex, true];
 }
