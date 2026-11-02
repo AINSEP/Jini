@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "providers": [
+    {
+      "id": "google",
+      "label": "Google",
+      "issuer": "https://accounts.google.com",
+      "authorizationEndpoint": "https://accounts.google.com/o/oauth2/v2/auth",
+      "tokenEndpoint": "https://oauth2.googleapis.com/token",
+      "jwksUri": "https://www.googleapis.com/oauth2/v3/certs",
+      "scopes": ["openid", "email", "profile"],
+      "signingAlgorithm": "RS256",
+      "clientAuthentication": "client_secret_post",
+      "pkce": "S256",
+      "credentialLabel": "google-login/google OAuth client",
+      "credentialCardTarget": "google-login-oauth-client",
+      "authoritativeEmailDomains": ["gmail.com", "googlemail.com"],
+      "hostedDomainClaim": "hd"
+    }
+  ]
+}

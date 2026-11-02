@@ -1,0 +1,59 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "google-login",
+  "version": "0.1.0",
+  "description": "Adds Google sign-in for Tovu members using this site's own Google OAuth client. Includes setup guidance for apps using Supabase Auth.",
+  "author": "Tovu",
+  "license": "Apache-2.0",
+  "extensions": {
+    "tovu": {
+      "maturity": "soon",
+      "id": "tovu/google-login",
+      "displayName": "Google Login",
+      "summary": "Let members sign in with Google, or set up Google in an app's existing Supabase Auth.",
+      "provides": ["member-login:google"],
+      "exports": {
+        "sign-in-button": {
+          "template": "exports/sign-in-button.html",
+          "styles": "exports/sign-in-button.css",
+          "assets": { "mark": "exports/google-g.svg" },
+          "version": 1,
+          "consent": "necessary",
+          "staticExport": "fallback-only",
+          "hostLinks": { "signIn": "member-login:google" },
+          "props": {
+            "type": "object",
+            "properties": { "variant": { "type": "string", "enum": ["light", "dark", "neutral"] } },
+            "required": ["variant"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "credentialCards": [
+        {
+          "target": "google-login-oauth-client",
+          "title": "Set up Google member login",
+          "label": "google-login/google OAuth client",
+          "ownedApiLabel": "google-login/google OAuth client",
+          "category": "general",
+          "intro": "Use this site's own Google Web application client to let members sign in with Google. Enter the Client ID below and the Client Secret in the secure secret field.",
+          "usedFor": ["Lets members sign in to this site with Google"],
+          "keyHint": "In Google Auth Platform → Clients, create a Web application. Add this site's configured address plus /api/members/v1/workspaces/<workspaceId>/oidc/google/callback as an authorized redirect URI; ask the assistant for the exact address. Paste the Client Secret here, never in chat. For Supabase Auth only, enter it directly in Supabase instead.",
+          "saveKind": "api",
+          "helpUrl": "https://console.cloud.google.com/auth/clients",
+          "helpLabel": "Create your Google sign-in app",
+          "baseUrl": "https://oauth2.googleapis.com/token",
+          "fields": [
+            {
+              "name": "username",
+              "label": "Google client ID",
+              "hint": "Required. Use the client ID belonging to the same Web application as the Client Secret.",
+              "required": true
+            }
+          ]
+        }
+      ]
+    }
+  },
+  "keywords": ["google-login", "sign-in-with-google", "member-login", "oidc"]
+}

@@ -1,0 +1,68 @@
+/* Google branding: https://developers.google.com/identity/branding-guidelines
+ * Layered defaults let a site's unlayered theme win without specificity fights.
+ * Keep the mark unfiltered, proportional and on white even with a dark button. */
+@layer plugin-exports {
+  .plugin-google-login-sign-in-button {
+    box-sizing: border-box;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--plugin-signin-gap, 10px);
+    min-height: var(--plugin-signin-height, 44px);
+    max-width: 100%;
+    padding: var(--plugin-signin-padding, 10px 12px);
+    border: 1px solid var(--plugin-signin-border, var(--plugin-signin-variant-border, #747775));
+    border-radius: var(--plugin-signin-radius, 4px);
+    background: var(--plugin-signin-bg, var(--plugin-signin-variant-bg, #fff));
+    color: var(--plugin-signin-fg, var(--plugin-signin-variant-fg, #1f1f1f));
+    font-family: var(--plugin-signin-font, "Google Sans", Arial, sans-serif);
+    font-size: var(--plugin-signin-font-size, 14px);
+    font-weight: var(--plugin-signin-font-weight, 500);
+    line-height: var(--plugin-signin-line-height, 20px);
+    letter-spacing: var(--plugin-signin-letter-spacing, 0.25px);
+    text-align: center;
+    text-decoration: none;
+    text-transform: none;
+    cursor: pointer;
+  }
+
+  .plugin-google-login-sign-in-button--dark {
+    --plugin-signin-variant-bg: #131314;
+    --plugin-signin-variant-fg: #e3e3e3;
+    --plugin-signin-variant-border: #8e918f;
+  }
+
+  .plugin-google-login-sign-in-button--neutral {
+    --plugin-signin-variant-bg: #f2f2f2;
+    --plugin-signin-variant-fg: #1f1f1f;
+    --plugin-signin-variant-border: transparent;
+  }
+
+  .plugin-google-login-sign-in-button:hover {
+    box-shadow: var(--plugin-signin-hover-shadow, 0 1px 3px rgb(0 0 0 / 20%));
+  }
+
+  .plugin-google-login-sign-in-button:focus-visible {
+    outline: var(--plugin-signin-focus-width, 3px) solid var(--plugin-signin-focus-color, #0b57d0);
+    outline-offset: var(--plugin-signin-focus-offset, 3px);
+  }
+
+  .plugin-google-login-sign-in-button:active {
+    box-shadow: var(--plugin-signin-active-shadow, inset 0 0 0 1px currentColor);
+  }
+
+  .plugin-google-login-sign-in-button__mark {
+    display: block;
+    flex: 0 0 20px;
+    width: 20px;
+    height: 20px;
+    object-fit: contain;
+    background: #fff;
+    border-radius: 50%;
+  }
+
+  .plugin-google-login-sign-in-button__label {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+}

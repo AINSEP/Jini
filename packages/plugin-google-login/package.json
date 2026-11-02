@@ -1,0 +1,39 @@
+{
+  "name": "@jini-ai/plugin-google-login",
+  "version": "0.6.17",
+  "description": "Independently installable Google member sign-in Agent Plugin (login provider, setup skill and sign-in button export) in the portable Agent Plugins format.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/plugin-google-login"
+  },
+  "jini": {
+    "domain": "tooling",
+    "kind": "plugin-packaging",
+    "runtime": "universal",
+    "entries": {
+      "./package.json": "universal",
+      "./plugin.json": "universal",
+      "./google-login/*": "universal"
+    }
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    "./plugin.json": "./google-login/plugin.json",
+    "./google-login/*": "./google-login/*"
+  },
+  "files": ["google-login", "README.md", "LICENSE", "NOTICE"],
+  "scripts": {
+    "build": "node --import tsx ../../scripts/assemble-agent-plugin-package.ts google-login",
+    "prepack": "node --import tsx ../../scripts/assemble-agent-plugin-package.ts google-login"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  }
+}
