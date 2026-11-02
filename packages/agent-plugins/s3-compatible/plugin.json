@@ -1,0 +1,56 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "s3-compatible",
+  "version": "0.1.0",
+  "description": "Publishes the site's static export to S3-compatible object storage (AWS S3, Cloudflare R2, Backblaze B2, DigitalOcean Spaces, Wasabi, MinIO, ...) with the workspace's own saved access key. Ships the host code itself (a host loads it only because that host chose to ship this plugin) and the know-how an agent needs: what to set up in the bucket first, which credential fields go where, and what each failure means in plain words.",
+  "author": "Tovu",
+  "license": "Apache-2.0",
+  "extensions": {
+    "tovu": {
+      "maturity": "soon",
+      "vendorAliases": ["s3_compatible", "s3 compatible", "s3compatible", "amazonaws", "backblaze", "wasabi", "digitaloceanspaces"],
+      "displayName": "S3",
+      "summary": "Puts your website online in your own storage bucket, like Amazon S3 or Cloudflare R2. The assistant shows you a preview first.",
+      "id": "tovu/s3-compatible",
+      "provides": [
+        "deploy-target:s3-compatible"
+      ],
+      "credentialCards": [
+        {
+          "target": "s3-compatible",
+          "title": "Connect S3-compatible storage",
+          "label": "S3-compatible storage connection",
+          "category": "hosting",
+          "intro": "Connect your storage provider to upload this site to an existing public bucket. Create the bucket and public hosting first.",
+          "usedFor": [
+            "Publishes your website to your public storage bucket",
+            "Stores and retrieves site media in your configured private bucket"
+          ],
+          "keyHint": "Use an access key ID and secret access key limited to the selected bucket: ListBucket and GetObject, PutObject, DeleteObject on its objects. If using a separate private media bucket, grant only the required read/write access there too.",
+          "saveKind": "publish-host",
+          "baseUrl": "https://s3.amazonaws.com"
+        }
+      ],
+      "toolKeywords": {
+        "media_import_from_url": "s3",
+        "credential_save": "s3"
+      }
+    }
+  },
+  "keywords": [
+    "s3-compatible",
+    "s3",
+    "r2",
+    "b2",
+    "object-storage",
+    "bucket",
+    "deploy",
+    "publish",
+    "hosting",
+    "static-site",
+    "static-export",
+    "go-live",
+    "website",
+    "deploy-target:s3-compatible"
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "name": "@jini-ai/plugin-s3-compatible",
+  "version": "0.6.17",
+  "description": "Independently installable S3-compatible static-site publishing and media object storage (AWS S3, Cloudflare R2, Backblaze B2, DigitalOcean Spaces, Wasabi, MinIO) in the portable Agent Plugins format.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/plugin-s3-compatible"
+  },
+  "jini": {
+    "domain": "tooling",
+    "kind": "plugin-packaging",
+    "runtime": "universal",
+    "entries": {
+      "./package.json": "universal",
+      "./plugin.json": "universal",
+      "./s3-compatible/*": "universal"
+    }
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    "./plugin.json": "./s3-compatible/plugin.json",
+    "./s3-compatible/*": "./s3-compatible/*"
+  },
+  "files": ["s3-compatible", "README.md", "LICENSE", "NOTICE"],
+  "scripts": {
+    "build": "node --import tsx ../../scripts/assemble-agent-plugin-package.ts s3-compatible",
+    "prepack": "node --import tsx ../../scripts/assemble-agent-plugin-package.ts s3-compatible"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  }
+}
