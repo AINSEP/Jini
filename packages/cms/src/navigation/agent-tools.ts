@@ -58,6 +58,7 @@ import type { AgentToolDefinition } from "@jini-ai/core";
  */
 
 import { ALLOWED_HREF_SHAPES_DESCRIPTION } from "./menu-service.js";
+import { MENU_REL_TOKENS } from "./link-rel.js";
 
 
 
@@ -172,7 +173,10 @@ const NAV_ITEM_NODE_SCHEMA = {
     target: NAV_TARGET_SCHEMA,
     attrs: {
       type: "object",
-      description: "Optional presentational attributes: openInNewTab (boolean), rel (string), cssClass (string), description (string), icon (string).",
+      description:
+        "Optional presentational attributes: openInNewTab (boolean), rel (string), cssClass (string), description (string), icon (string). " +
+        `rel keeps only these space-separated tokens: ${[...MENU_REL_TOKENS].join(", ")}; other tokens are dropped. ` +
+        "When openInNewTab is true, noopener noreferrer is always added to rel.",
     },
     children: { type: "array", items: { $ref: "#/$defs/navItem" }, description: "Nested child items. Max nesting depth 5 (root = depth 1); max 500 total items across the whole tree." },
   },
