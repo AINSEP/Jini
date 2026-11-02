@@ -144,6 +144,10 @@ async function assertDigestsMatchBytes(required: { artifact: string; manifest: P
  * The loaded plugin's contributions land in the returned registry; the loader itself must succeed. */
 async function installAndLoad(required: { pluginId: string; artifact: string; manifest: PluginManifest; namespace: string; runtimeSdkVersion: string }) {
   const { pluginId, artifact, manifest, namespace, runtimeSdkVersion } = required;
+  // Browser providers load only as a built-in plugin with an approval pinning the packaged declaration
+  // (loader admission since 6cb5190b); server providers load as an ordinary site install.
+  const browser = (manifest.browserProviders?.length ?? 0) > 0;
+  const approvals = browser ? [{ pluginId: manifest.id, version: manifest.version, browserProviders: manifest.browserProviders!, integrity: manifest.integrity }] : [];
   const deps = { ...host, identityNamespace: namespace, tierPolicy, installDir: path.join(root, pluginId, namespace, 'installed'), builtInIds: [],
     repo: { listAll: async () => [] }, conflicts: async () => [], archiveReader: async () => new Map<string, Uint8Array>(),
   };
@@ -151,7 +155,7 @@ async function installAndLoad(required: { pluginId: string; artifact: string; ma
   await installSitePlugin({ sourceDir: artifact, expectedDigest: preview.digest, deps });
   const installedRoot = path.join(deps.installDir, manifest.id, manifest.version);
   const registry = createPluginContributionRegistry({});
-  const loaded = await loadPlugin({ manifest, record: discoveryRecord(manifest, 'site'),
+  const loaded = await loadPlugin({ manifest, record: discoveryRecord(manifest, browser ? 'built-in' : 'site'), browserProviderApprovals: approvals,
     entryPath: path.join(installedRoot, 'server/index.mjs'), pluginSdkBinding: { ...binding, runtimeSdkVersion }, tierPolicy,
     verifyDigest: async ({ absoluteFilePath }) => `sha256-${createHash('sha256').update(await readFile(absoluteFilePath)).digest('hex')}`,
     importModule: async () => {
@@ -161,7 +165,10 @@ async function installAndLoad(required: { pluginId: string; artifact: string; ma
     providerContributions: { registry, isSelected: () => true },
     coreDeps: { getCurrentEntry() { throw new Error('unused'); }, writeExtField() { throw new Error('unused'); }, attachFilter() { throw new Error('unused'); } },
   });
-  expect(loaded).toEqual({ loaded: true });
+  // A browser plugin's load result carries its admitted declarations, exactly the packaged ones.
+  const admitted = 'browserProviders' in loaded ? loaded.browserProviders : undefined;
+  expect({ ...loaded, browserProviders: admitted?.map(({ pluginId: id, version, declaration }) => ({ id, version, declaration })) })
+    .toEqual({ loaded: true, browserProviders: browser ? manifest.browserProviders!.map((declaration) => ({ id: manifest.id, version: manifest.version, declaration })) : undefined });
   return { registry, installedRoot };
 }
 
