@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Superseded by `@jini-ai/agent-plugins/ui-ux-design` (same payload). The owner deprecates this name on npm after hosts move; the command is in `docs/plugin-packages-migration.md`.
 - One shared copy with Tovu: the skills carry Tovu's newer AI-Dev-Shop sync (c10abee: UI loop,
   Chrome mobile matrix, animation and kUInetic references), Tovu's card summary and Jini's search
   keywords. Host chat rules are replaced by host-neutral tool-use wording; hosts add their own at
