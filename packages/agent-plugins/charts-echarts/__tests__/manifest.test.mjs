@@ -38,6 +38,15 @@ test('the face links to the ECharts provider by local id and never reuses its pu
   assert.deepEqual(Object.keys(manifest.extensions), ['tovu']);
 });
 
+// Capability lookup and automatic-use ranking read `provides`; the name is the chart kind the
+// provider already declares (browserProviders[].kind), never a second chart vocabulary.
+test('the face provides the chart capability its provider draws', async () => {
+  const manifest = await readJson(path.join(root, 'plugin.json'));
+  const provider = await readJson(providerManifestPath);
+  assert.deepEqual(manifest.extensions.tovu.provides, [provider.browserProviders[0].kind]);
+  assert.deepEqual(manifest.extensions.tovu.provides, ['chart']);
+});
+
 test('keywords are nonempty strings that a chart request finds', async () => {
   const { keywords } = await readJson(path.join(root, 'plugin.json'));
   assert.ok(keywords.every(keyword => typeof keyword === 'string' && keyword.trim() === keyword && keyword.length > 0));

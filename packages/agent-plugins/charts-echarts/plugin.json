@@ -9,7 +9,8 @@
       "id": "jini/charts-echarts-agent",
       "displayName": "ECharts",
       "summary": "Lets the assistant draw bar, stacked bar, line, area, pie, donut and scatter charts in chat, with several series. Ask for a chart of your data.",
-      "providerPlugin": "charts-echarts"
+      "providerPlugin": "charts-echarts",
+      "provides": ["chart"]
     }
   },
   "keywords": [

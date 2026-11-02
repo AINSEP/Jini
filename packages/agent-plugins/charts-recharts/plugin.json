@@ -9,7 +9,8 @@
       "id": "jini/charts-recharts-agent",
       "displayName": "Recharts",
       "summary": "Lets the assistant draw bar, line and pie charts in chat. Ask for a chart of your data.",
-      "providerPlugin": "charts-recharts"
+      "providerPlugin": "charts-recharts",
+      "provides": ["chart"]
     }
   },
   "keywords": [
