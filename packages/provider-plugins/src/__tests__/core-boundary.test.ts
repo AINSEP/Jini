@@ -16,7 +16,8 @@ import ts from 'typescript';
 import { expect, it } from 'vitest';
 
 const packagesRoot = fileURLToPath(new URL('../../..', import.meta.url));
-const VENDOR = /^(?:@opentelemetry\/|@sentry\/|posthog-(?:node|js)$|langfuse(?:$|-)|stripe$)/;
+// Chart libraries count too: Recharts and ECharts ship only inside their provider plugins (plan §2.4).
+const VENDOR = /^(?:@opentelemetry\/|@sentry\/|posthog-(?:node|js)$|langfuse(?:$|-)|stripe$|(?:re|e)charts(?:$|\/))/;
 
 /** A literal module name: a string or a template without substitutions. */
 const literalText = (node: ts.Node | undefined): string | undefined =>
@@ -141,11 +142,11 @@ it('no core package imports or declares a vendor SDK', async () => {
   expect(offenders).toEqual([]);
 }, 60_000);
 
-it.each(['@opentelemetry/api', '@sentry/node', 'posthog-node', 'posthog-js', 'langfuse', 'stripe'])('the scan recognizes %s', (specifier) => {
+it.each(['@opentelemetry/api', '@sentry/node', 'posthog-node', 'posthog-js', 'langfuse', 'stripe', 'recharts', 'echarts', 'echarts/core'])('the scan recognizes %s', (specifier) => {
   expect(VENDOR.test(specifier)).toBe(true);
 });
 
-it.each(['@jini-ai/diagnostics', 'stripe-like', 'posthog', 'node:fs'])('the scan ignores %s', (specifier) => {
+it.each(['@jini-ai/diagnostics', 'stripe-like', 'posthog', 'node:fs', '@jini-ai/ui/charts', '@jini-ai/plugin-charts-recharts'])('the scan ignores %s', (specifier) => {
   expect(VENDOR.test(specifier)).toBe(false);
 });
 
