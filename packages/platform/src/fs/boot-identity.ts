@@ -59,10 +59,12 @@ export function fromEarlierBoot({ boot, bootId, atMs }: { boot: BootIdentity | u
 
 /** True only when a recorded holder provably ran in THIS boot: a Linux boot_id compared exactly, or two
  * time-derived (numeric) ids within {@link BOOT_CLOCK_TOLERANCE_MS}, since Darwin/Windows re-derive them
- * from a wall clock the OS may step. No boot, or no recorded id, is never proof. @complexity O(1).
+ * from a wall clock the OS may step. A legacy record with no boot id counts only when its own
+ * timestamp `atMs` falls after this boot began (same tolerance). No boot is never proof. @complexity O(1).
  */
-export function fromThisBoot({ boot, bootId }: { boot: BootIdentity | undefined; bootId: string | undefined }, _options = {}): boolean {
-  if (!boot || bootId === undefined) return false;
+export function fromThisBoot({ boot, bootId, atMs }: { boot: BootIdentity | undefined; bootId: string | undefined; atMs: number }, _options = {}): boolean {
+  if (!boot) return false;
+  if (bootId === undefined) return Number.isFinite(atMs) && atMs >= boot.startedAtMs - BOOT_CLOCK_TOLERANCE_MS;
   if (bootId === boot.id) return true;
   return /^\d+$/.test(bootId) && /^\d+$/.test(boot.id) && Math.abs(Number(bootId) - Number(boot.id)) <= BOOT_CLOCK_TOLERANCE_MS;
 }

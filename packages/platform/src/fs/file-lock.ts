@@ -142,7 +142,7 @@ function shortHostname(hostname: string): string { return hostname.split(".", 1)
  * boot). Another machine with the same first label would also need this exact boot to be mistaken. */
 function sameMachine(holder: FileLockHolder, s: Settings): boolean {
   if (holder.hostname === s.hostname) return true;
-  return shortHostname(holder.hostname) === shortHostname(s.hostname) && fromThisBoot({ boot: s.boot, bootId: holder.bootId });
+  return shortHostname(holder.hostname) === shortHostname(s.hostname) && fromThisBoot({ boot: s.boot, bootId: holder.bootId, atMs: Date.parse(holder.acquiredAt) });
 }
 function holderAlive(holder: FileLockHolder, s: Settings): boolean | undefined {
   if (!sameMachine(holder, s)) return undefined;

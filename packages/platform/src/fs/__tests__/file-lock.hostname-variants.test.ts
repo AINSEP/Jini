@@ -61,9 +61,17 @@ for (const adapter of ["sync", "async"] as const) {
     expect(fs.readFileSync(lockPath, "utf8")).toBe(raw);
   });
 
+  // Locks written before the process port recorded a boot (the one wedging that site's boot) carry
+  // only `acquiredAt`: taken after this boot began, they are this boot's too.
+  test(`${adapter} reclaims a dead holder with no recorded boot that was taken during this boot`, async () => {
+    const lockPath = lockPathIn();
+    plant(lockPath, { bootId: undefined, acquiredAt: new Date(BOOT.startedAtMs + 60_000).toISOString() });
+    await expect(lock(lockPath, options())).resolves.toBe("acquired");
+  });
+
   test.each([
     ["another machine name", { hostname: "build-box.lan" }],
-    ["no recorded boot", { bootId: undefined }],
+    ["no recorded boot, taken before this boot", { bootId: undefined, acquiredAt: "2020-01-01T00:00:00.000Z" }],
     ["a different kernel boot id", { bootId: "0b9f2c1e-0000-4000-8000-000000000000" }],
   ])(`${adapter} still never probes a holder from %s`, async (_case, holder) => {
     const lockPath = lockPathIn();
