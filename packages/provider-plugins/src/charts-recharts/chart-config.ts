@@ -56,7 +56,7 @@ export const chartTickFormatter = (value: unknown): string => formatChartValue({
  * Y-axis tick props for whole counts: integers only, one tick per count up to five, so a chart whose
  * largest count is 1 draws a 0–1 axis, not Recharts' default 0–4 with quarter-height bars (and never
  * 0, 0.8, 1.5…). The span runs from zero because the numeric domain includes 0. Fractional or
- * non-numeric data keeps Recharts' defaults. Owner bugs 2026-11-01 (Tovu 6ca90820a, 194095b1a).
+ * non-numeric data keeps Recharts' defaults. Owner bugs 2026-11-01 (host commits 6ca90820a, 194095b1a).
  * @param input Rows and the plotted value key.
  * @returns Props spread onto a bar or line `YAxis`.
  * @complexity O(n) time, O(n) space for n rows; no I/O.

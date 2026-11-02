@@ -19,7 +19,7 @@ const MIN_TICK_WIDTH = 40;
 /**
  * Binds each " · " separator to the word before it with a no-break space (Recharts breaks lines only
  * on ordinary whitespace), so a narrow band never draws "·" alone on a line. Reported 2026-11-01
- * (Tovu 47b4199e0): at 180px "Pages · Published" wrapped as "Pages / · / Publ…". Tovu's bundle
+ * (host commit 47b4199e0): at 180px "Pages · Published" wrapped as "Pages / · / Publ…". The host's bundle
  * patch bound it to the next word instead, which lengthens the second line and re-truncates
  * "Published" at the ~300px dock width; binding backwards keeps every label that fit before.
  */
@@ -34,7 +34,7 @@ function keepSeparatorsAttached(label: string): string {
  * first and last. The full text stays in the tick's `<title>` and the bar tooltip.
  * Measured in the dock (2026-10-31): at a ~300px chart each 4-bar band gave the label 52px and two
  * lines, so "Pages · Published" became "Pages · / Publish…". The label now gets the band less
- * 4px and three lines (Tovu bd018de69).
+ * 4px and three lines (host commit bd018de69).
  * @complexity O(label length · log label length) per tick (Recharts' ellipsis search).
  */
 function CategoryTick({ x, y, width, index, visibleTicksCount, payload, className, textAnchor, verticalAnchor }: XAxisTickContentProps) {

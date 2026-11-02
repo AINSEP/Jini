@@ -54,7 +54,7 @@ function numberFormatter(format: ChartFormat | undefined): NumberFormatter | und
   return (value) => formatter.format(value);
 }
 
-/** Whole counts get whole ticks (the Recharts fix of Tovu 6ca90820a); `minInterval` is ECharts' own knob. */
+/** Whole counts get whole ticks (the Recharts fix of host commit 6ca90820a); `minInterval` is ECharts' own knob. */
 function wholeNumbers(values: readonly (ChartValue | undefined)[]): boolean {
   return values.every((value) => value === null || value === undefined || (typeof value === 'number' && Number.isInteger(value)));
 }
