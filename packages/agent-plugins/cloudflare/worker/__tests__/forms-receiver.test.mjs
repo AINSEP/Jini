@@ -24,7 +24,7 @@ const post = (body, { slug = 'waitlist', type = 'application/x-www-form-urlencod
   method: 'POST', body, headers: { 'Content-Type': type, Referer: 'https://site.example/join/?form=old&form_status=error&keep=1', 'CF-Connecting-IP': '203.0.113.9', ...headers } });
 const valid = 'email=a%40b.co&interests=attending&interests=hosting&_hp=&_attempt=abc';
 
-test('stores a valid submission with repeated checkbox values as an array and 303s back with the host's result keys', async () => {
+test('stores a valid submission with repeated checkbox values as an array and 303s back with the host\'s result keys', async () => {
   const s = setup();
   const resp = await s.call(post(valid));
   assert.equal(resp.status, 303);
