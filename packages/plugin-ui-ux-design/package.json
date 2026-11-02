@@ -26,8 +26,8 @@
   },
   "files": ["ui-ux-design", "README.md", "LICENSE", "NOTICE"],
   "scripts": {
-    "build": "node --import tsx ../../scripts/assemble-agent-plugin-package.ts",
-    "prepack": "node --import tsx ../../scripts/assemble-agent-plugin-package.ts"
+    "build": "node --import tsx ../../scripts/assemble-agent-plugin-package.ts ui-ux-design",
+    "prepack": "node --import tsx ../../scripts/assemble-agent-plugin-package.ts ui-ux-design"
   },
   "devDependencies": {
     "tsx": "^4.19.0"

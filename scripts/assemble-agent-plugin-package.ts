@@ -7,6 +7,11 @@ import { isMainModule } from './lib/is-main-module.js';
 type AssemblyFilesystem = Pick<typeof filesystem, 'cp' | 'lstat' | 'mkdir' | 'mkdtemp' | 'readFile' | 'rename' | 'rm'>;
 const assets = ['plugin.json', 'mcp.json', 'skills', 'com.anthropic.claude-code'] as const;
 const excludedNames = new Set(['node_modules', '.git', '.DS_Store', '__tests__', 'coverage', 'dist', '.cache']);
+/** Reviewed source → package pairs; paths are relative to this script. */
+export const agentPluginPackages = [
+  { name: 'slide-design', sourceDir: '../packages/agent-plugins/slide-design/', packageRoot: '../packages/plugin-slide-design/' },
+  { name: 'ui-ux-design', sourceDir: '../packages/agent-plugins/ui-ux-design/', packageRoot: '../packages/plugin-ui-ux-design/' },
+] as const;
 
 /** Select portable assets before copying; refusing links avoids publishing files outside the source.
  * @throws On symlinks, special files or filesystem failures.
@@ -20,7 +25,7 @@ async function selectAsset(required: { sourceDir: string; source: string; fs: As
   return true;
 }
 
-/** Assemble only the design plugin into a workspace package; preserve its inner manifest version.
+/** Assemble one reviewed agent plugin into its workspace package; preserve its inner manifest version.
  * @param required Source directory and reviewed destination package root.
  * @param optional Scratch output root and filesystem port for build-tool tests.
  * @returns The generated payload directory, ready for npm packing.
@@ -34,7 +39,8 @@ export async function assembleAgentPluginPackage(
   const fs = optional.filesystem ?? filesystem;
   const manifest = JSON.parse(await fs.readFile(path.join(required.sourceDir, 'plugin.json'), 'utf8'));
   const pkg = JSON.parse(await fs.readFile(path.join(required.packageRoot, 'package.json'), 'utf8'));
-  if (manifest.name !== 'ui-ux-design' || pkg.name !== '@jini-ai/plugin-ui-ux-design') throw new Error('Agent plugin source and destination identities must agree');
+  const known = agentPluginPackages.some(entry => entry.name === manifest.name);
+  if (!known || pkg.name !== `@jini-ai/plugin-${manifest.name}`) throw new Error('Agent plugin source and destination identities must agree');
   const outputRoot = optional.outputRoot ?? required.packageRoot;
   await fs.mkdir(outputRoot, { recursive: true });
   const staging = await fs.mkdtemp(path.join(outputRoot, '.agent-package-'));
@@ -57,11 +63,20 @@ export async function assembleAgentPluginPackage(
   }
 }
 
+/** CLI: assemble the named plugin (each package's build passes its own name), or every plugin. */
+async function main(required: { name: string | undefined }): Promise<void> {
+  const selected = agentPluginPackages.filter(entry => required.name === undefined || entry.name === required.name);
+  if (selected.length === 0) throw new Error(`Unknown agent plugin package: ${required.name}`);
+  for (const entry of selected) {
+    await assembleAgentPluginPackage({
+      sourceDir: fileURLToPath(new URL(entry.sourceDir, import.meta.url)),
+      packageRoot: fileURLToPath(new URL(entry.packageRoot, import.meta.url)),
+    });
+  }
+}
+
 if (isMainModule({ moduleUrl: import.meta.url, entryPath: process.argv[1] })) {
-  assembleAgentPluginPackage({
-    sourceDir: fileURLToPath(new URL('../packages/agent-plugins/ui-ux-design/', import.meta.url)),
-    packageRoot: fileURLToPath(new URL('../packages/plugin-ui-ux-design/', import.meta.url)),
-  }).catch((error: unknown) => {
+  main({ name: process.argv[2] }).catch((error: unknown) => {
     console.error(error);
     process.exitCode = 1;
   });

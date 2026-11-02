@@ -4,20 +4,20 @@ import path from 'node:path';
 import { tmpdir } from 'node:os';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterEach, expect, test } from 'vitest';
-import { assembleAgentPluginPackage } from '../assemble-agent-plugin-package.js';
+import { agentPluginPackages, assembleAgentPluginPackage } from '../assemble-agent-plugin-package.js';
 
 const workspace = fileURLToPath(new URL('../../', import.meta.url));
 const temporary: string[] = [];
 afterEach(async () => { for (const root of temporary.splice(0)) await fs.rm(root, { recursive: true, force: true }); });
 
-async function fixture() {
+async function fixture(id = 'ui-ux-design') {
   const root = await fs.mkdtemp(path.join(tmpdir(), 'agent-package-assembly-'));
   temporary.push(root);
   const sourceDir = path.join(root, 'source');
   const packageRoot = path.join(root, 'destination');
   await fs.mkdir(packageRoot);
-  await fs.copyFile(path.join(workspace, 'packages/plugin-ui-ux-design/package.json'), path.join(packageRoot, 'package.json'));
-  await fs.cp(path.join(workspace, 'packages/agent-plugins/ui-ux-design'), sourceDir, { recursive: true });
+  await fs.copyFile(path.join(workspace, `packages/plugin-${id}/package.json`), path.join(packageRoot, 'package.json'));
+  await fs.cp(path.join(workspace, `packages/agent-plugins/${id}`), sourceDir, { recursive: true });
   return { root, sourceDir, packageRoot };
 }
 
@@ -40,6 +40,42 @@ test('assembles exactly the authored runtime files, preserving manifests, refere
   expect(JSON.parse(await fs.readFile(path.join(payloadRoot, 'plugin.json'), 'utf8')).version).toBe('0.4.6');
   expect((await fs.stat(path.join(payloadRoot, 'skills/shadcn-ui/scripts/verify-setup.sh'))).mode & 0o777)
     .toBe((await fs.stat(path.join(input.sourceDir, 'skills/shadcn-ui/scripts/verify-setup.sh'))).mode & 0o777);
+});
+
+test('assembles the slide-design payload byte for byte under its own name', async () => {
+  const input = await fixture('slide-design');
+  const before = await files(input.sourceDir);
+  const { payloadRoot } = await assembleAgentPluginPackage(input);
+  expect(path.basename(payloadRoot)).toBe('slide-design');
+  expect(await files(payloadRoot)).toEqual(before);
+  expect(before).toEqual([
+    'com.anthropic.claude-code/hooks/hooks.json', 'mcp.json', 'plugin.json', 'skills/slide-design/SKILL.md',
+    'skills/slide-design/references/charts-and-exhibits.md', 'skills/slide-design/references/html-deck.md',
+    'skills/slide-design/references/layout-and-style.md', 'skills/slide-design/references/review.md',
+    'skills/slide-design/references/storyline.md',
+  ]);
+  for (const name of before) expect(await fs.readFile(path.join(payloadRoot, name))).toEqual(await fs.readFile(path.join(input.sourceDir, name)));
+  expect(JSON.parse(await fs.readFile(path.join(payloadRoot, 'plugin.json'), 'utf8')).version).toBe('0.1.0');
+});
+
+test('every table entry pairs a real source with its own package and build script', async () => {
+  expect(agentPluginPackages.map(entry => entry.name)).toEqual(['slide-design', 'ui-ux-design']);
+  for (const entry of agentPluginPackages) {
+    const scriptDir = path.join(workspace, 'scripts');
+    const manifest = JSON.parse(await fs.readFile(path.join(scriptDir, entry.sourceDir, 'plugin.json'), 'utf8'));
+    const pkg = JSON.parse(await fs.readFile(path.join(scriptDir, entry.packageRoot, 'package.json'), 'utf8'));
+    expect(manifest.name).toBe(entry.name);
+    expect(pkg.name).toBe(`@jini-ai/plugin-${entry.name}`);
+    expect(pkg.scripts.build).toBe(`node --import tsx ../../scripts/assemble-agent-plugin-package.ts ${entry.name}`);
+    expect(pkg.scripts.prepack).toBe(pkg.scripts.build);
+  }
+});
+
+test('refuses a package that does not match the plugin it is given', async () => {
+  const input = await fixture('slide-design');
+  await fs.copyFile(path.join(workspace, 'packages/plugin-ui-ux-design/package.json'), path.join(input.packageRoot, 'package.json'));
+  await expect(assembleAgentPluginPackage(input)).rejects.toThrow('identities must agree');
+  expect((await fs.readdir(input.packageRoot)).sort()).toEqual(['package.json']);
 });
 
 test('selects only runtime roots and excludes nested tests, dependency trees and caches on repeat assembly', async () => {
@@ -111,7 +147,7 @@ test.each(['canonical', 'symlink'] as const)('the build CLI assembles a payload 
     await fs.symlink(await fs.realpath(input.root), alias, 'dir');
     invokedScript = path.join(alias, 'scripts/assemble-agent-plugin-package.ts');
   }
-  const run = () => spawnSync(process.execPath, ['--import', 'tsx', invokedScript], { cwd: workspace, encoding: 'utf8' });
+  const run = () => spawnSync(process.execPath, ['--import', 'tsx', invokedScript, 'ui-ux-design'], { cwd: workspace, encoding: 'utf8' });
   const built = run();
   expect(built.status, built.stderr).toBe(0);
   const payloadRoot = path.join(packageRoot, 'ui-ux-design');
@@ -122,6 +158,9 @@ test.each(['canonical', 'symlink'] as const)('the build CLI assembles a payload 
   expect(failed.status).toBe(1);
   expect(failed.stderr).toContain('ENOENT');
   expect(await fs.readFile(path.join(payloadRoot, 'plugin.json'))).toEqual(completedManifest);
+  const unknown = spawnSync(process.execPath, ['--import', 'tsx', invokedScript, 'no-such-plugin'], { cwd: workspace, encoding: 'utf8' });
+  expect(unknown.status).toBe(1);
+  expect(unknown.stderr).toContain('Unknown agent plugin package: no-such-plugin');
 });
 
 test('the assembler remains importable from stdin without running its CLI', () => {
