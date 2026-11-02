@@ -1,5 +1,9 @@
 # @jini-ai/provider-plugins
 
+## Unreleased (0.6.19)
+
+- The builder bundles each manifest-declared `browserProviders` script and stylesheet from the same `client/` path under the source (`.ts`/`.tsx` for scripts) for the browser (ESM, es2022, minified, `NODE_ENV=production`), refuses any remaining import (no Node-builtin allowance), retains bundled licenses, covers the assets in the integrity map and validates the declarations before staged publication.
+
 ## 0.6.17
 
 ### Patch Changes

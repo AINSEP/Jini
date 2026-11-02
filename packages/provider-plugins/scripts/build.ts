@@ -3,9 +3,10 @@ import { build, type Metafile } from 'esbuild';
 import { createHash } from 'node:crypto';
 import { createRequire } from 'node:module';
 import { isBuiltin } from 'node:module';
-import { mkdir, mkdtemp, readdir, readFile, rename, rm, copyFile, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readdir, readFile, rename, rm, copyFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { isPluginRelativePath, validateBrowserProviders, type BrowserProviderDeclaration } from '@jini-ai/plugins/host';
 import { computePluginIntegrity } from '@jini-ai/plugins/host/node';
 import { ADAPTER_FILE, POSTHOG_SDK_INTEGRITY, SDK_FILE } from '../src/analytics-posthog/consent.js';
 
@@ -107,11 +108,49 @@ export async function addPostHogBrowserFiles(required: { packageRoot: string; de
   await retainLicenses({ ...required, inputs: [sdk, ...Object.keys(adapter.metafile.inputs)] });
 }
 
+/** Browser assets load as standalone modules, so unlike the server bundle not even a Node builtin may remain. */
+function assertImportFree(required: { metafile: Metafile; asset: string }): void {
+  const imports = Object.values(required.metafile.outputs).flatMap(output => output.imports);
+  if (imports.length) throw new Error(`Browser provider asset ${required.asset} keeps a runtime import: ${imports[0]!.path}`);
+}
+
+/** A declared `client/` asset is built from the same path under `src/<id>/`; a script's source is `.ts` or `.tsx`.
+ * @throws On a path outside `client/` (checked before anything is written) or a missing source. */
+async function browserSource(required: { source: string; asset: string }): Promise<string> {
+  if (!isPluginRelativePath({ path: required.asset }) || !/^client\/.+\.(?:m?js|css)$/.test(required.asset)) {
+    throw new Error(`Browser provider asset must be a client/ script or stylesheet: ${required.asset}`);
+  }
+  const target = path.join(required.source, required.asset);
+  const candidates = target.endsWith('.css') ? [target] : ['.ts', '.tsx'].map(extension => target.replace(/\.m?js$/, extension));
+  for (const candidate of candidates) if (await access(candidate).then(() => true, () => false)) return candidate;
+  throw new Error(`No browser provider source for ${required.asset}`);
+}
+
+/** Bundle one declared browser asset into the staged artifact; returns its inputs for license retention. */
+async function bundleBrowserAsset(required: { packageRoot: string; source: string; artifactRoot: string; asset: string }, _optional = {}): Promise<string[]> {
+  const result = await build({ absWorkingDir: required.packageRoot, entryPoints: [await browserSource(required)],
+    outfile: path.join(required.artifactRoot, required.asset), bundle: true, platform: 'browser', format: 'esm', target: 'es2022',
+    minify: true, metafile: true, legalComments: 'inline', sourcemap: false, define: { 'process.env.NODE_ENV': '"production"' } });
+  assertImportFree({ metafile: result.metafile, asset: required.asset });
+  return Object.keys(result.metafile.inputs);
+}
+
+/** Build every script and stylesheet the manifest's `browserProviders` declare. Returns all bundled inputs.
+ * O(declared assets) esbuild runs. */
+async function addBrowserProviderFiles(required: { packageRoot: string; source: string; artifactRoot: string; declarations: readonly BrowserProviderDeclaration[] }, _optional = {}): Promise<string[]> {
+  const inputs: string[] = [];
+  for (const declaration of required.declarations) {
+    for (const asset of [declaration.javascript, declaration.stylesheet]) if (asset) inputs.push(...await bundleBrowserAsset({ ...required, asset }));
+  }
+  return inputs;
+}
+
 /** Bundle the selected entry and browser assets, retain their licenses, then seal the staged manifest.
  * Build/validation failures propagate before publication. Work scales with selected inputs and retained bytes. */
 async function buildArtifact(required: { packageRoot: string; destinationPackageRoot: string; staging: string; id: string; version: string }, _optional = {}): Promise<CatalogEntry> {
   const source = path.join(required.packageRoot, 'src', required.id);
-  const manifest = JSON.parse(await readFile(path.join(source, 'jini.plugin.json'), 'utf8')) as { id: string; version: string; integrity: Record<string, string> };
+  const manifest = JSON.parse(await readFile(path.join(source, 'jini.plugin.json'), 'utf8')) as {
+    id: string; version: string; integrity: Record<string, string>; browserProviders?: readonly BrowserProviderDeclaration[] };
   if (manifest.id !== required.id) throw new Error('Plugin directory and manifest id must agree');
   manifest.version = required.version;
   const relative = `plugins/${manifest.id}/${manifest.version}`;
@@ -127,9 +166,13 @@ async function buildArtifact(required: { packageRoot: string; destinationPackage
   });
   assertSelfContained({ metafile: result.metafile });
   if (required.id === 'analytics-posthog') await addPostHogBrowserFiles({ ...required, artifactRoot });
-  await retainLicenses({ ...required, artifactRoot, inputs: Object.keys(result.metafile.inputs) });
-  // The existing installer owns exact-file hashing, including retained license files.
+  const browserInputs = await addBrowserProviderFiles({ ...required, source, artifactRoot, declarations: manifest.browserProviders ?? [] });
+  await retainLicenses({ ...required, artifactRoot, inputs: [...Object.keys(result.metafile.inputs), ...browserInputs] });
+  // The existing installer owns exact-file hashing, including retained license files and client assets.
   manifest.integrity = await computePluginIntegrity({ sourceDir: artifactRoot });
+  // Fail the build, not the host's later admission, when a declaration or its digest coverage is wrong.
+  const invalid = validateBrowserProviders({ browserProviders: manifest.browserProviders, integrity: manifest.integrity });
+  if (invalid.length) throw new Error(`Invalid browserProviders: ${invalid.map(error => error.message).join(' ')}`);
   await writeFile(path.join(artifactRoot, 'jini.plugin.json'), JSON.stringify(manifest, null, 2) + '\n');
   return { id: manifest.id, version: manifest.version, path: relative };
 }
@@ -156,7 +199,7 @@ async function replacePayload(required: { staging: string; outputRoot: string },
 }
 
 /** Build exactly one source into a destination package's generated `plugins` payload.
- * No executable adapter barrel.
+ * No executable adapter barrel. Each `browserProviders` asset is bundled from the same `client/` path under the source.
  * @param required Source workspace, plugin id, and reviewed destination package directory.
  * @param optional Scratch output override; version and first-party attribution still come from the destination.
  * @returns The installer-compatible versioned artifact path, relative to the output directory.
