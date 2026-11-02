@@ -54,6 +54,15 @@ test("each options.env variable becomes a shell-quoted railway variables set ste
   assert.doesNotMatch(contents, /SITE_ID/);
 });
 
+test("values with newlines or control characters are refused: a single-quoted shell argument cannot carry them safely", () => {
+  for (const value of ["first\nsecond\u0000", "nul\u0000byte", "cr\rx", "tab\tx", "esc\u001bx", "del\u007fx", "c1\u0085x"]) {
+    assert.throws(
+      () => render({ region: "us-west2", env: { SITE_ID: value } }),
+      (error) => error instanceof FakeValidationError && /SITE_ID/.test(error.message) && /control character/.test(error.message) && !error.message.includes(value)
+    );
+  }
+});
+
 test("invalid names, non-strings and declared secrets are refused without echoing the value", () => {
   for (const env of [{ "A-B": "x" }, { A: 1 }, { ADMIN_PASSWORD: "secret-value" }]) {
     assert.throws(() => render({ region: "us-west2", env }), (error) => error instanceof FakeValidationError && !error.message.includes("secret-value"));

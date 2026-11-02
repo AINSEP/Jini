@@ -2,6 +2,7 @@
 
 ## Unreleased (0.6.19)
 
+- Railway's deploy-config generator refuses an `env` value containing a newline or control character (C0, DEL, C1) with an error naming the variable. Before, it printed the raw LF or NUL into the copy-paste `railway variables set` command. The error never echoes the value.
 - Add the portable Shopify catalog and checkout skill under `@jini-ai/agent-plugins/shopify`; host collection tools, markup and domain routing stay in the host overlay.
 - Pin Fly's portable template safety settings: operator placeholders, secret-free app configuration, single-machine defaults, serialized deploys and repository-secret token wiring.
 - `charts-recharts` and `charts-echarts` declare `provides: ["chart"]` (the kind their provider draws), so capability lookup and automatic-use ranking find the chart faces.

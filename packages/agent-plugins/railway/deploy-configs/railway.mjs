@@ -38,12 +38,34 @@
 export const RAILWAY_VALID_REGIONS = Object.freeze(["us-west2", "us-east4-eqdc4a", "europe-west4-drams3a", "asia-southeast1-eqsg3a"]);
 
 /**
+ * True when `value` holds a C0 control (NUL, tab, LF, CR…), DEL or a C1 control. Checked by code
+ * point rather than a regex character class, which eslint's no-control-regex rejects.
+ * @param {string} value
+ * @returns {boolean}
+ * @complexity O(n) for n UTF-16 code units.
+ */
+function hasControlCharacter(value) {
+  for (let index = 0; index < value.length; index++) {
+    const code = value.charCodeAt(index);
+    if (code < 0x20 || (code >= 0x7f && code <= 0x9f)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+/**
  * railway.json cannot hold variables, so each explicit non-secret one the host passes in `options.env`
  * becomes a `railway variables set` step, single-quoted for the shell.
+ * Values with control characters (C0, DEL, C1) are refused rather than quoted: a raw newline breaks a
+ * copy-pasted one-line command, NUL cannot exist in a shell argument at all, and the only quoting that
+ * spells them (`$'...'`) is not POSIX sh. Like the Render generator's newline refusal, the operator
+ * sets such a value through the Dashboard instead.
  * @param {{ env: Readonly<Record<string, string>>, secrets: readonly DeploymentSecret[] }} input
  * @param {DeployConfigKit} kit
  * @returns {string[]}
- * @throws {Error} For an invalid name, a non-string value or a declared secret name; never echoes the value.
+ * @throws {Error} For an invalid name, a non-string value, a declared secret name or a value with a
+ * control character; never echoes the value.
  * @complexity O(n + s) for n variable characters and s declared secrets.
  */
 function envNotes({ env, secrets }, kit) {
@@ -51,6 +73,11 @@ function envNotes({ env, secrets }, kit) {
   return Object.entries(env).map(([name, value]) => {
     if (!/^[A-Za-z_]\w*$/.test(name) || typeof value !== "string" || secretNames.has(name)) {
       throw kit.validationError("env must contain only non-secret string variables with valid names");
+    }
+    if (hasControlCharacter(value)) {
+      throw kit.validationError(
+        `env ${name} contains a newline or other control character, which a copy-pasteable shell command cannot carry — set it in the Railway Dashboard instead`
+      );
     }
     return `Set ${name} with: railway variables set ${name}='${value.replace(/'/g, "'\\''")}' — railway.json has no env-var section.`;
   });
