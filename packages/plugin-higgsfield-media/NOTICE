@@ -1,0 +1,10 @@
+Jini Higgsfield Media Agent Plugin
+Copyright 2026 Leona Burime
+
+Portable skill sources remain at packages/agent-plugins/higgsfield-media.
+Moved from Tovu's bundled content/agent-plugins/higgsfield-media (2026-11-02); host-specific
+setup text moved to the host's own guidance.
+The plugin declares a connection to Higgsfield's hosted MCP server; it contains no Higgsfield code.
+
+This distribution contains no executable code, provider plugin or vendor SDK.
+See LICENSE for the Apache License, Version 2.0.

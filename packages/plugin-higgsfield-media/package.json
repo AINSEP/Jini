@@ -1,0 +1,39 @@
+{
+  "name": "@jini-ai/plugin-higgsfield-media",
+  "version": "0.6.17",
+  "description": "Independently installable Higgsfield image and video generation skill and hosted MCP connection in the portable Agent Plugins format.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/plugin-higgsfield-media"
+  },
+  "jini": {
+    "domain": "tooling",
+    "kind": "plugin-packaging",
+    "runtime": "universal",
+    "entries": {
+      "./package.json": "universal",
+      "./plugin.json": "universal",
+      "./higgsfield-media/*": "universal"
+    }
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    "./plugin.json": "./higgsfield-media/plugin.json",
+    "./higgsfield-media/*": "./higgsfield-media/*"
+  },
+  "files": ["higgsfield-media", "README.md", "LICENSE", "NOTICE"],
+  "scripts": {
+    "build": "node --import tsx ../../scripts/assemble-agent-plugin-package.ts higgsfield-media",
+    "prepack": "node --import tsx ../../scripts/assemble-agent-plugin-package.ts higgsfield-media"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  }
+}

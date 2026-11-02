@@ -1,0 +1,91 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "higgsfield-media",
+  "version": "1.0.0",
+  "description": "Generates images or video through Higgsfield's hosted MCP server, follows asynchronous jobs, then imports the returned asset into this site's Media library. Connect with agent_plugin_connect and the person's browser sign-in, never an API key. Discover this account's current tools, schemas and model entitlements; the worked model and plan examples are historical, not guarantees. Covers operator write grants, polling without sync:true, connection recovery and media_import_from_url.",
+  "author": "Tovu",
+  "license": "Apache-2.0",
+  "keywords": [
+    "higgsfield",
+    "image",
+    "image-generation",
+    "generate",
+    "media",
+    "media-library",
+    "import",
+    "external-mcp",
+    "federation",
+    "mcp",
+    "oauth",
+    "async",
+    "job-status",
+    "polling",
+    "cdn",
+    "photo",
+    "photograph",
+    "picture",
+    "illustration",
+    "art",
+    "artwork",
+    "visual",
+    "graphic",
+    "connect",
+    "connection",
+    "sign-in",
+    "login",
+    "authorize",
+    "authentication",
+    "credential",
+    "setup",
+    "onboarding",
+    "getting-started",
+    "api-key",
+    "text-to-image",
+    "higgsfield-media",
+    "media:image",
+    "media:video"
+  ],
+  "extensions": {
+    "tovu": {
+      "vendorAliases": ["higgsfield"],
+      "summary": "Makes AI images with Higgsfield and saves them to your Media library. You sign in to Higgsfield once in your browser.",
+      "mcpServers": {
+        "higgsfield": {
+          "tovuAuthMode": "oauth",
+          "tovuDefaultTools": {
+            "read": [
+              "models_explore",
+              "job_status"
+            ]
+          }
+        }
+      },
+      "id": "tovu/higgsfield-media",
+      "provides": [
+        "media:image",
+        "media:video"
+      ],
+      "credentialCards": [
+        {
+          "target": "higgsfield-media",
+          "title": "Connect Higgsfield",
+          "label": "Higgsfield account",
+          "category": "media",
+          "intro": "Connect Higgsfield to generate images or video and save the finished files in this site’s Media library.",
+          "usedFor": [
+            "Checks available image and video models and generation progress",
+            "Generates images and videos using your account's credits"
+          ],
+          "keyHint": "Browser sign-in only; this connection does not accept a pasted API key.",
+          "saveKind": "oauth",
+          "permissions": "Model discovery and job status can be read. Generation tools require a separate write grant and use the models and credits available on your account. Review the permissions on the sign-in page.",
+          "baseUrl": "https://mcp.higgsfield.ai"
+        }
+      ],
+      "toolKeywords": {
+        "external_mcp_list": "higgsfield",
+        "external_mcp_save": "higgsfield"
+      }
+    }
+  }
+}
