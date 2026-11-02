@@ -28,6 +28,7 @@ import type { Clock, IdGenerator, UUID } from "@jini-ai/core/primitives";
 import type { DomainEvent, OutboxPort } from "../core/ports.js";
 import type { MenuRepoPort } from "./repo.memory.js";
 import type { NavLocationBindingRepoPort } from "./ports.js";
+import { normalizeMenuItemAttrs } from "./link-rel.js";
 import { menuHtmlInputProblem, mergeMenuHtml, type MenuHtmlAuthoring, type MenuHtmlNormalizer } from "./menu-html.js";
 import {
   NAV_DOC_TYPE,
@@ -283,7 +284,9 @@ export function validateAndCloneTree(
       validateTarget(node.target);
 
       const children = node.children ? walk(node.children, depth + 1) : undefined;
-      return { ...node, children };
+      // `rel` is cleaned here, not rejected — see `link-rel.ts` for the policy.
+      const attrs = normalizeMenuItemAttrs({ attrs: node.attrs });
+      return { ...node, ...(attrs === undefined ? {} : { attrs }), children };
     });
   }
 

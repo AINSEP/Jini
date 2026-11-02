@@ -108,7 +108,8 @@ export type NavTarget = NavEntryTarget | NavTermTarget | NavUrlTarget | NavRoute
  */
 export interface NavItemAttrs {
   readonly openInNewTab?: boolean | undefined;
-  /** `rel` tokens (e.g. `nofollow`), validated against an allowlist. */
+  /** `rel` tokens (e.g. `nofollow`); unknown tokens are dropped and a new-tab link always gets
+   *  `noopener noreferrer` — see `link-rel.ts`. */
   readonly rel?: string | undefined;
   /** Theme-facing CSS class hint. */
   readonly cssClass?: string | undefined;

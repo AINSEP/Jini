@@ -31,6 +31,7 @@
  * from here reads storage directly (render-IR boundary honored by
  * returning only `ResolvedNav`/`ResolvedNavItem` data).
  */
+import { normalizeMenuItemAttrs } from "./link-rel.js";
 import type { MenuRepoPort } from "./repo.memory.js";
 import type { NavLocationBindingRepoPort, NavResolveContext } from "./ports.js";
 import type {
@@ -252,7 +253,8 @@ async function resolveItem(
     available,
     isCurrent,
     isActive,
-    attrs: node.attrs,
+    // Rows stored before the rel policy are cleaned on the way out (see `link-rel.ts`).
+    attrs: normalizeMenuItemAttrs({ attrs: node.attrs }),
     children,
   };
 }
