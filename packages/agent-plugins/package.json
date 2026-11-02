@@ -272,7 +272,6 @@
     "@jini-ai/plugins": "workspace:^",
     "@types/semver": "^7.5.8",
     "semver": "^7.6.2",
-    "@jini-ai/devops": "workspace:^",
     "@jini-ai/oauth": "workspace:^",
     "fast-check": "4.3.0",
     "jsdom": "^25.0.1"

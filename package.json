@@ -33,6 +33,7 @@
   },
   "devDependencies": {
     "@jini-ai/core": "workspace:^",
+    "@jini-ai/devops": "workspace:^",
     "@jini-ai/plugins": "workspace:^",
     "@jini-ai/provider-plugins": "workspace:^",
     "@changesets/cli": "^2.31.1",

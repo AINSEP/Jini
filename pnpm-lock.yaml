@@ -14,6 +14,9 @@ importers:
       '@jini-ai/core':
         specifier: workspace:^
         version: link:packages/core
+      '@jini-ai/devops':
+        specifier: workspace:^
+        version: link:packages/devops
       '@jini-ai/plugins':
         specifier: workspace:^
         version: link:packages/plugins
@@ -276,9 +279,6 @@ importers:
       '@jini-ai/core':
         specifier: ^0.6.13
         version: link:../core
-      '@jini-ai/devops':
-        specifier: workspace:^
-        version: link:../devops
       '@jini-ai/oauth':
         specifier: workspace:^
         version: link:../oauth
