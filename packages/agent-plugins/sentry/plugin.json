@@ -1,0 +1,49 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "sentry",
+  "version": "0.1.0",
+  "description": "Connects the site's error tracking to Sentry through the Sentry provider plugin in the same package (observability-sentry). Ships the know-how and a secure key card: the person pastes the project's DSN and an optional environment name; the host saves it to your project, and you choose which sites use it. No Sentry code here; the provider plugin reports the errors.",
+  "author": "Tovu",
+  "license": "Apache-2.0",
+  "extensions": {
+    "tovu": {
+      "toolKeywords": { "observability_send_test_error": "Sentry" },
+      "displayName": "Sentry",
+      "summary": "Sends your site's errors to Sentry. Ask the assistant to add error tracking.",
+      "id": "tovu/sentry",
+      "providerPlugin": "observability-sentry",
+      "provides": [
+        "error-tracking",
+        "observability"
+      ],
+      "credentialCards": [
+        {
+          "target": "sentry",
+          "title": "Connect Sentry",
+          "label": "Sentry",
+          "category": "ops",
+          "intro": "Send this site's errors to Sentry.",
+          "usedFor": [
+            "Reports server errors and slow requests to your Sentry project"
+          ],
+          "keyHint": "In Sentry open Project settings → Client Keys (DSN) and copy the DSN.",
+          "helpUrl": "https://docs.sentry.io/concepts/key-terms/dsn-explainer/#where-to-find-your-dsn",
+          "helpLabel": "Where to find your DSN",
+          "saveKind": "provider-settings",
+          "saveTarget": "observability-sentry"
+        }
+      ]
+    }
+  },
+  "keywords": [
+    "sentry",
+    "error-tracking",
+    "errors",
+    "exceptions",
+    "crash-reporting",
+    "monitoring",
+    "observability",
+    "provider-settings",
+    "observability-sentry"
+  ]
+}

@@ -1,0 +1,46 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "posthog",
+  "version": "0.1.0",
+  "description": "Connects the site to PostHog product analytics through the PostHog provider plugin in the same package (analytics-posthog). Ships the know-how and a secure key card: the assistant opens the card, the person picks the region (US by default, EU or a self-hosted URL) and pastes the project API key, and the host saves it to your project, and you choose which sites use it. No PostHog code here; the provider plugin sends the events.",
+  "author": "Tovu",
+  "license": "Apache-2.0",
+  "extensions": {
+    "tovu": {
+      "displayName": "PostHog",
+      "summary": "Sends your site's product analytics to PostHog. Ask the assistant to connect PostHog.",
+      "id": "tovu/posthog",
+      "providerPlugin": "analytics-posthog",
+      "provides": [
+        "product-analytics"
+      ],
+      "credentialCards": [
+        {
+          "target": "posthog",
+          "title": "Connect PostHog",
+          "label": "PostHog",
+          "category": "ops",
+          "intro": "Send this site's product analytics to PostHog.",
+          "usedFor": [
+            "Sends product analytics events to your PostHog project"
+          ],
+          "keyHint": "In PostHog open Project settings and copy the Project API key (starts with phc_).",
+          "helpUrl": "https://us.posthog.com/settings/project#variables",
+          "helpLabel": "Find your project API key",
+          "saveKind": "provider-settings",
+          "saveTarget": "analytics-posthog"
+        }
+      ]
+    }
+  },
+  "keywords": [
+    "posthog",
+    "analytics",
+    "product-analytics",
+    "events",
+    "tracking",
+    "funnels",
+    "provider-settings",
+    "analytics-posthog"
+  ]
+}

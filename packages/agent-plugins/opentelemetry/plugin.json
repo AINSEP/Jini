@@ -1,0 +1,52 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "opentelemetry",
+  "version": "0.1.0",
+  "description": "Connects the site's traces to any OpenTelemetry (OTLP/HTTP) backend, such as Grafana Cloud or Honeycomb, through the OpenTelemetry provider plugin in the same package (observability-opentelemetry). Ships the know-how and a secure key card: the person enters the OTLP endpoint, an optional username or instance ID, and the token; the host saves it to your project, and you choose which sites use it. No vendor code here; the provider plugin exports the traces.",
+  "author": "Tovu",
+  "license": "Apache-2.0",
+  "extensions": {
+    "tovu": {
+      "toolKeywords": { "observability_send_test_error": "OpenTelemetry" },
+      "displayName": "OpenTelemetry",
+      "summary": "Sends your site's traces to Grafana Cloud, Honeycomb or any OpenTelemetry backend.",
+      "id": "tovu/opentelemetry",
+      "providerPlugin": "observability-opentelemetry",
+      "provides": [
+        "observability",
+        "tracing"
+      ],
+      "credentialCards": [
+        {
+          "target": "opentelemetry",
+          "title": "Connect OpenTelemetry (Grafana Cloud, Honeycomb…)",
+          "label": "OpenTelemetry",
+          "category": "ops",
+          "intro": "Send this site's traces to an OpenTelemetry (OTLP/HTTP) backend.",
+          "usedFor": [
+            "Exports request, database and assistant traces over OTLP/HTTP"
+          ],
+          "keyHint": "Grafana Cloud: your stack → OpenTelemetry → Configure shows the endpoint, the instance ID (username) and creates a token. Honeycomb: endpoint https://api.honeycomb.io and Extra headers x-honeycomb-team=<ingest API key>.",
+          "helpUrl": "https://grafana.com/docs/grafana-cloud/send-data/otlp/send-data-otlp/",
+          "helpLabel": "Grafana Cloud OTLP setup",
+          "saveKind": "provider-settings",
+          "saveTarget": "observability-opentelemetry"
+        }
+      ]
+    }
+  },
+  "keywords": [
+    "opentelemetry",
+    "otel",
+    "otlp",
+    "observability",
+    "tracing",
+    "traces",
+    "grafana",
+    "grafana-cloud",
+    "honeycomb",
+    "monitoring",
+    "provider-settings",
+    "observability-opentelemetry"
+  ]
+}
