@@ -1,0 +1,47 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "netlify",
+  "version": "0.1.0",
+  "description": "Publishes the site's static export to Netlify with the workspace's own saved token. Ships the host code itself (a host loads it only because that host chose to ship this plugin) and the know-how an agent needs: where to get a token, how the Netlify site is named, and what each failure means in plain words.",
+  "author": "Tovu",
+  "license": "Apache-2.0",
+  "extensions": {
+    "tovu": {
+      "maturity": "soon",
+      "displayName": "Netlify",
+      "summary": "Puts your website online on Netlify. The assistant shows you a preview first.",
+      "id": "tovu/netlify",
+      "provides": [
+        "deploy-target:netlify"
+      ],
+      "credentialCards": [
+        {
+          "target": "netlify",
+          "title": "Connect Netlify",
+          "label": "Netlify connection",
+          "category": "hosting",
+          "intro": "Connect Netlify to publish and update this site.",
+          "usedFor": [
+            "Publishes and updates your website on Netlify"
+          ],
+          "keyHint": "Use a personal access token for an account allowed to create sites and deployments. If the team requires SSO, grant the token access to that team when creating it.",
+          "saveKind": "publish-host",
+          "helpUrl": "https://app.netlify.com/user/applications#personal-access-tokens",
+          "helpLabel": "Create a token",
+          "baseUrl": "https://api.netlify.com"
+        }
+      ]
+    }
+  },
+  "keywords": [
+    "netlify",
+    "deploy",
+    "publish",
+    "hosting",
+    "static-site",
+    "static-export",
+    "go-live",
+    "website",
+    "deploy-target:netlify"
+  ]
+}

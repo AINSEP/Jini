@@ -1,0 +1,12 @@
+Jini Netlify Agent Plugin
+Copyright 2026 Leona Burime
+
+Portable plugin sources remain at packages/agent-plugins/netlify.
+Moved from Tovu's bundled content/agent-plugins/netlify (2026-11-02); product words in skill prose,
+notes and module headers were made host-neutral. Frozen names (the tovu-*.json contribution file names, the netlify target id and credential-card target, and the jini-<project> site-name prefix)
+are unchanged.
+All code and skill text is original. It calls Netlify's public HTTP APIs with fetch only and
+links public documentation; no vendor SDK or other third-party code is included.
+
+This distribution contains plain ESM modules and no vendor SDK or npm dependency.
+See LICENSE for the Apache License, Version 2.0.

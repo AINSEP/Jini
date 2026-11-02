@@ -1,0 +1,163 @@
+{
+  "schemaVersion": 1,
+  "targets": [
+    {
+      "id": "netlify",
+      "label": "Netlify",
+      "module": "targets/netlify.mjs",
+      "projectName": {
+        "label": "Site name",
+        "help": "Netlify finds or creates a site with this name on every publish."
+      },
+      "env": {
+        "tokenVars": [
+          "NETLIFY_TOKEN",
+          "NETLIFY_ACCESS_TOKEN",
+          "NETLIFY_AUTH_TOKEN"
+        ]
+      },
+      "credential": {
+        "vendorId": "netlify",
+        "help": "A personal access token from your Netlify account.",
+        "tokenPageUrl": "https://app.netlify.com/user/applications#personal-access-tokens",
+        "fields": [
+          {
+            "name": "token",
+            "label": "Personal access token",
+            "required": true,
+            "secret": true,
+            "help": "Netlify: User settings > Applications > Personal access tokens."
+          }
+        ]
+      },
+      "i18n": {
+        "es": {
+          "Site name": "Nombre del sitio",
+          "Netlify finds or creates a site with this name on every publish.": "Netlify busca o crea un sitio con este nombre en cada publicación.",
+          "A personal access token from your Netlify account.": "Un token de acceso personal de tu cuenta de Netlify.",
+          "Personal access token": "Token de acceso personal"
+        },
+        "id": {
+          "Site name": "Nama situs",
+          "Netlify finds or creates a site with this name on every publish.": "Netlify menemukan atau membuat situs dengan nama ini setiap kali menerbitkan.",
+          "A personal access token from your Netlify account.": "Token akses pribadi dari akun Netlify Anda.",
+          "Personal access token": "Token akses pribadi"
+        },
+        "de": {
+          "Site name": "Website-Name",
+          "Netlify finds or creates a site with this name on every publish.": "Netlify findet oder erstellt bei jeder Veröffentlichung eine Website mit diesem Namen.",
+          "A personal access token from your Netlify account.": "Ein persönlicher Zugriffstoken aus Ihrem Netlify-Konto.",
+          "Personal access token": "Persönlicher Zugriffstoken"
+        },
+        "zh-CN": {
+          "Site name": "站点名称",
+          "Netlify finds or creates a site with this name on every publish.": "Netlify 会在每次发布时查找或创建使用此名称的站点。",
+          "A personal access token from your Netlify account.": "来自您 Netlify 帐户的个人访问令牌。",
+          "Personal access token": "个人访问令牌"
+        },
+        "zh-TW": {
+          "Site name": "網站名稱",
+          "Netlify finds or creates a site with this name on every publish.": "Netlify 會在每次發佈時尋找或建立使用此名稱的網站。",
+          "A personal access token from your Netlify account.": "您 Netlify 帳戶的個人存取權杖。",
+          "Personal access token": "個人存取權杖"
+        },
+        "pt-BR": {
+          "Site name": "Nome do site",
+          "Netlify finds or creates a site with this name on every publish.": "A Netlify encontra ou cria um site com este nome em cada publicação.",
+          "A personal access token from your Netlify account.": "Um token de acesso pessoal da sua conta Netlify.",
+          "Personal access token": "Token de acesso pessoal"
+        },
+        "ru": {
+          "Site name": "Название сайта",
+          "Netlify finds or creates a site with this name on every publish.": "Netlify при каждой публикации находит или создаёт сайт с этим именем.",
+          "A personal access token from your Netlify account.": "Персональный токен доступа из вашей учётной записи Netlify.",
+          "Personal access token": "Персональный токен доступа"
+        },
+        "fa": {
+          "Site name": "نام سایت",
+          "Netlify finds or creates a site with this name on every publish.": "Netlify در هر انتشار سایتی با این نام پیدا یا ایجاد می‌کند.",
+          "A personal access token from your Netlify account.": "یک توکن دسترسی شخصی از حساب Netlify شما.",
+          "Personal access token": "توکن دسترسی شخصی"
+        },
+        "ar": {
+          "Site name": "اسم الموقع",
+          "Netlify finds or creates a site with this name on every publish.": "يعثر Netlify على موقع بهذا الاسم أو ينشئه عند كل نشر.",
+          "A personal access token from your Netlify account.": "رمز وصول شخصي من حساب Netlify الخاص بك.",
+          "Personal access token": "رمز وصول شخصي"
+        },
+        "ja": {
+          "Site name": "サイト名",
+          "Netlify finds or creates a site with this name on every publish.": "Netlify は公開のたびにこの名前のサイトを見つけるか作成します。",
+          "A personal access token from your Netlify account.": "Netlify アカウントの個人アクセストークン。",
+          "Personal access token": "個人アクセストークン"
+        },
+        "ko": {
+          "Site name": "사이트 이름",
+          "Netlify finds or creates a site with this name on every publish.": "Netlify는 게시할 때마다 이 이름의 사이트를 찾거나 만듭니다.",
+          "A personal access token from your Netlify account.": "Netlify 계정의 개인 액세스 토큰입니다.",
+          "Personal access token": "개인 액세스 토큰"
+        },
+        "pl": {
+          "Site name": "Nazwa witryny",
+          "Netlify finds or creates a site with this name on every publish.": "Netlify przy każdej publikacji znajduje lub tworzy witrynę o tej nazwie.",
+          "A personal access token from your Netlify account.": "Osobisty token dostępu z Twojego konta Netlify.",
+          "Personal access token": "Osobisty token dostępu"
+        },
+        "hu": {
+          "Site name": "Webhely neve",
+          "Netlify finds or creates a site with this name on every publish.": "A Netlify minden közzétételkor megkeres vagy létrehoz egy ilyen nevű webhelyet.",
+          "A personal access token from your Netlify account.": "Személyes hozzáférési token a Netlify-fiókjából.",
+          "Personal access token": "Személyes hozzáférési token"
+        },
+        "fr": {
+          "Site name": "Nom du site",
+          "Netlify finds or creates a site with this name on every publish.": "Netlify trouve ou crée un site portant ce nom à chaque publication.",
+          "A personal access token from your Netlify account.": "Un jeton d’accès personnel de votre compte Netlify.",
+          "Personal access token": "Jeton d’accès personnel"
+        },
+        "uk": {
+          "Site name": "Назва сайту",
+          "Netlify finds or creates a site with this name on every publish.": "Netlify під час кожної публікації знаходить або створює сайт із цією назвою.",
+          "A personal access token from your Netlify account.": "Персональний токен доступу з вашого облікового запису Netlify.",
+          "Personal access token": "Персональний токен доступу"
+        },
+        "tr": {
+          "Site name": "Site adı",
+          "Netlify finds or creates a site with this name on every publish.": "Netlify her yayında bu adla bir site bulur veya oluşturur.",
+          "A personal access token from your Netlify account.": "Netlify hesabınızdan bir kişisel erişim belirteci.",
+          "Personal access token": "Kişisel erişim belirteci"
+        },
+        "th": {
+          "Site name": "ชื่อเว็บไซต์",
+          "Netlify finds or creates a site with this name on every publish.": "Netlify ค้นหาหรือสร้างเว็บไซต์ชื่อนี้ทุกครั้งที่เผยแพร่",
+          "A personal access token from your Netlify account.": "โทเค็นการเข้าถึงส่วนบุคคลจากบัญชี Netlify ของคุณ",
+          "Personal access token": "โทเค็นการเข้าถึงส่วนบุคคล"
+        },
+        "it": {
+          "Site name": "Nome del sito",
+          "Netlify finds or creates a site with this name on every publish.": "Netlify trova o crea un sito con questo nome a ogni pubblicazione.",
+          "A personal access token from your Netlify account.": "Un token di accesso personale dal tuo account Netlify.",
+          "Personal access token": "Token di accesso personale"
+        },
+        "hi": {
+          "Site name": "साइट नाम",
+          "Netlify finds or creates a site with this name on every publish.": "Netlify हर प्रकाशन पर इस नाम से साइट खोजता या बनाता है।",
+          "A personal access token from your Netlify account.": "आपके Netlify खाते का व्यक्तिगत एक्सेस टोकन।",
+          "Personal access token": "व्यक्तिगत एक्सेस टोकन"
+        },
+        "ur": {
+          "Site name": "سائٹ کا نام",
+          "Netlify finds or creates a site with this name on every publish.": "Netlify ہر اشاعت پر اس نام کی سائٹ ڈھونڈتا یا بناتا ہے۔",
+          "A personal access token from your Netlify account.": "آپ کے Netlify اکاؤنٹ کا ذاتی رسائی ٹوکن۔",
+          "Personal access token": "ذاتی رسائی ٹوکن"
+        },
+        "bn": {
+          "Site name": "সাইটের নাম",
+          "Netlify finds or creates a site with this name on every publish.": "Netlify প্রতিটি প্রকাশনার সময় এই নামের একটি সাইট খুঁজে বা তৈরি করে।",
+          "A personal access token from your Netlify account.": "আপনার Netlify অ্যাকাউন্টের একটি ব্যক্তিগত অ্যাক্সেস টোকেন।",
+          "Personal access token": "ব্যক্তিগত অ্যাক্সেস টোকেন"
+        }
+      }
+    }
+  ]
+}
