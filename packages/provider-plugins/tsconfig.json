@@ -1,5 +1,7 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": { "noEmit": true, "resolveJsonModule": true, "lib": ["ES2023", "DOM"] },
-  "include": ["src", "scripts"]
+  "include": ["src", "scripts"],
+  // Chart provider sources are JSX: tsconfig.charts.json checks them with the JSX setting scoped to them.
+  "exclude": ["src/charts-*"]
 }

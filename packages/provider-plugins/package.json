@@ -36,7 +36,7 @@
   "scripts": {
     "build": "pnpm run typecheck",
     "prepack": "pnpm run build",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.charts.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run -c vitest.coverage.config.ts --coverage"
   },
@@ -52,6 +52,7 @@
     "@jini-ai/cookie-consent": "workspace:^",
     "@jini-ai/diagnostics": "workspace:^",
     "@jini-ai/plugins": "workspace:^",
+    "@jini-ai/ui": "workspace:^",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/otlp-exporter-base": "^0.221.0",
     "@opentelemetry/otlp-transformer": "^0.221.0",
@@ -61,10 +62,19 @@
     "@opentelemetry/sdk-trace-node": "^2.10.0",
     "@opentelemetry/semantic-conventions": "^1.43.0",
     "@sentry/node": "11.6.0",
+    "@testing-library/jest-dom": "6.9.1",
+    "@testing-library/react": "16.3.2",
+    "@types/jsdom": "21.1.7",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
     "esbuild": "^0.28.1",
+    "jsdom": "25.0.1",
     "langfuse": "3.39.2",
     "posthog-js": "1.260.2",
     "posthog-node": "5.55.1",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "recharts": "3.10.1",
     "tsx": "^4.19.0",
     "typescript": "^5.9.3"
   }
