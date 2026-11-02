@@ -1,0 +1,10 @@
+Jini Meilisearch Agent Plugin
+Copyright 2026 Leona Burime
+
+Portable plugin sources remain at packages/agent-plugins/meilisearch.
+Moved from Tovu's bundled content/agent-plugins/meilisearch (2026-11-02); product words
+were made host-neutral.
+All skill text and provider code are original. The provider talks to Meilisearch's public HTTP
+API; no Meilisearch SDK or other third-party code is included.
+
+See LICENSE for the Apache License, Version 2.0.

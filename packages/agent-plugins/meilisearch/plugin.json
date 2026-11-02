@@ -1,0 +1,54 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "meilisearch",
+  "version": "0.1.0",
+  "description": "Runs the site's visitor search on a Meilisearch server (self-hosted or Meilisearch Cloud) instead of the host's built-in search. Ships the search provider itself (a host loads it only when the host shipped it) and the know-how to connect it. Meilisearch receives PUBLIC content only: published, publicly visible titles, text and URLs. Members-only or otherwise restricted content is never sent to it and stays in the host's built-in search.",
+  "author": "Tovu",
+  "license": "Apache-2.0",
+  "extensions": {
+    "tovu": {
+      "maturity": "soon",
+      "summary": "Powers your site's search with Meilisearch. Only public content is sent to it.",
+      "id": "tovu/meilisearch",
+      "provides": [
+        "site-search"
+      ],
+      "credentialCards": [
+        {
+          "target": "meilisearch",
+          "title": "Connect Meilisearch",
+          "label": "Tovu Search — Meilisearch",
+          "ownedApiLabel": "Tovu Search — Meilisearch",
+          "category": "general",
+          "intro": "Connect your Meilisearch server to index and search this site’s public content only.",
+          "usedFor": [
+            "Keeps a search index of your site's public content",
+            "Finds matching public content for your site's visitors"
+          ],
+          "keyHint": "Scope the key to the site index: indexes.create, indexes.delete, documents.add, documents.get, search, settings.update and tasks.get. Use a scoped key rather than the master key.",
+          "saveKind": "api",
+          "fields": [
+            {
+              "name": "baseUrl",
+              "label": "Meilisearch server URL",
+              "hint": "The HTTPS URL of your own Cloud or self-hosted Meilisearch server.",
+              "required": true
+            }
+          ]
+        }
+      ],
+      "toolKeywords": {
+        "search_status": "meilisearch",
+        "search_set_provider": "meilisearch"
+      }
+    }
+  },
+  "keywords": [
+    "meilisearch",
+    "search",
+    "site-search",
+    "full-text-search",
+    "typo-tolerance",
+    "search-engine"
+  ]
+}

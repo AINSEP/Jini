@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "providers": [
+    {
+      "id": "meilisearch",
+      "label": "Meilisearch",
+      "module": "providers/meilisearch.mjs"
+    }
+  ]
+}
