@@ -16,6 +16,8 @@ never dependencies or peers of a core `@jini-ai/*` package.
 | `ai-trace-langfuse` | `ai_trace` / `langfuse` | `{ publicKey, secretKey, baseUrl?, environment?, release? }` | `{ client? }` (tests) |
 | `analytics-posthog` | `product_analytics` / `posthog` | `{ apiKey, host }` | `{ fetch?, flushAt? }` (tests) |
 | `observability-sentry` | `observability` / `sentry` | `{ dsn, environment?, tracesSampleRate? }` (rate default 0) | `{ exportEnabled?, client?, transport? }` (host-owned client is never closed) |
+| `charts-recharts` | browser `chart` / `plugin.recharts` (bar, line, pie) | — browser-only; the server entry registers nothing | — |
+| `charts-echarts` | browser `chart` / `plugin.echarts` (bar, line, area, pie, donut, scatter, stacked-bar) | — browser-only; the server entry registers nothing | — |
 
 Observability factories deny outbound delivery unless the host passes `exportEnabled: true` in
 factory options, independently of saved configuration and user consent. Hosts use diagnostics'
