@@ -157,7 +157,9 @@ reading `oauth.status` — **there is no "wait for it" tool**.
 
 **Step D — the write grant.** Even with OAuth connected, `generate_image` or `generate_video` stays
 refused until it is in `writeAllowedToolNames`. See the next section — this is the failure that
-looks like nothing at all.
+looks like nothing at all. This plugin declares both lists above as its default tools, so a host
+that grants declared defaults at sign-in has already filled them after a normal
+`agent_plugin_connect`; read the row before asking the person to grant anything by hand.
 
 **Manual recovery may require the host's admin screens.** Plugin enablement has its own
 confirmation dialog. The normal connect card still requires the person's own browser sign-in.

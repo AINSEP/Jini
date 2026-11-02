@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "higgsfield-media",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Generates images or video through Higgsfield's hosted MCP server, follows asynchronous jobs, then imports the returned asset into this site's Media library. Connect with agent_plugin_connect and the person's browser sign-in, never an API key. Discover this account's current tools, schemas and model entitlements; the worked model and plan examples are historical, not guarantees. Covers operator write grants, polling without sync:true, connection recovery and media_import_from_url.",
   "author": "Tovu",
   "license": "Apache-2.0",
@@ -53,6 +53,21 @@
         "higgsfield": {
           "tovuAuthMode": "oauth",
           "tovuDefaultTools": {
+            "allow": [
+              "generate_image",
+              "generate_video",
+              "models_explore",
+              "job_status",
+              "jobs_wait",
+              "show_generations",
+              "reveal_generation",
+              "show_generation_by_ids"
+            ],
+            "write": [
+              "generate_image",
+              "generate_video",
+              "reveal_generation"
+            ],
             "read": [
               "models_explore",
               "job_status"
@@ -78,7 +93,7 @@
           ],
           "keyHint": "Browser sign-in only; this connection does not accept a pasted API key.",
           "saveKind": "oauth",
-          "permissions": "Model discovery and job status can be read. Generation tools require a separate write grant and use the models and credits available on your account. Review the permissions on the sign-in page.",
+          "permissions": "Signing in turns on model discovery, job status and generation. Generation uses the models and credits available on your account. You can turn any tool off later in the connection settings. Review the permissions on the sign-in page.",
           "baseUrl": "https://mcp.higgsfield.ai"
         }
       ],
