@@ -4,16 +4,23 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { readPluginIdentity } from '@jini-ai/core/plugin-directory';
+import {
+  agentPluginPackageId, agentPluginPackages, type AgentPluginPackageRow,
+} from '../../../scripts/lib/agent-plugin-packages.js';
 
+interface BrowserProvider { kind: string; contractVersion: number; javascript: string }
 interface PluginManifest {
   id?: string; name: string; version: string; description?: string; $schema?: string;
   extensions: Record<string, { id: string }>;
   contributes?: { providers: { contract: string; contractVersion: number }[] };
+  browserProviders?: BrowserProvider[];
   integrity?: Record<string, string>;
 }
 interface PackageManifest { name: string; version: string; description: string }
-/** Agent plugin packages; every other catalog id is a provider-plugins source. */
-export const agentPluginIds = ['slide-design', 'ui-ux-design'] as const;
+type CatalogKind = 'provider' | 'agent';
+/** The catalog currently describes the Tovu host's identity (`extensions.tovu`). A per-host catalog
+ * waits until a second host (Open Marketing) consumes it. */
+export const CATALOG_HOST_NAMESPACE = 'tovu';
 export interface CatalogEntry {
   kind: 'provider' | 'agent'; id: string; publisherIdentity: string;
   packageName: string; version: string; pluginVersion: string; path: string;
@@ -26,62 +33,115 @@ interface CatalogPorts {
 }
 
 /** Project existing manifests into display metadata; no activation or loading authority.
+ * @param required Local id (provider id or agent plugin name) and both manifests.
+ * @param optional `kind` (default: by manifest format) and the shipping package id (default: `id`), from the layout table.
  * @returns One entry with an explicit pending-digests marker, preserving the agent version.
  * @throws TypeError for a package/id mismatch, malformed identity, or missing contract.
  * @example catalogEntry({ id: 'fixture-provider', packageManifest, pluginManifest })
  * @complexity O(k) in manifest keywords/identity fields, with no I/O. */
 export function catalogEntry(required: {
   id: string; packageManifest: PackageManifest; pluginManifest: PluginManifest;
-}, _optional: Record<string, never> = {}): CatalogEntry {
+}, optional: { kind?: CatalogKind; packageId?: string } = {}): CatalogEntry {
   const { id, packageManifest: pkg, pluginManifest: plugin } = required;
-  if (pkg.name !== `@jini-ai/plugin-${id}` || (plugin.id ?? plugin.name) !== id) {
+  if (pkg.name !== `@jini-ai/plugin-${optional.packageId ?? id}` || (plugin.id ?? plugin.name) !== id) {
     throw new TypeError(`Package and plugin identity disagree: ${id}`);
   }
+  const kind = optional.kind ?? (plugin.$schema === undefined ? 'provider' : 'agent');
   return {
-    ...artifactMetadata(required), id,
-    publisherIdentity: readPluginIdentity({ manifest: { ...plugin }, namespace: 'tovu', name: id }).id,
+    ...(kind === 'agent' ? agentMetadata(required) : providerMetadata(required)), id,
+    publisherIdentity: readPluginIdentity({ manifest: { ...plugin }, namespace: CATALOG_HOST_NAMESPACE, name: id }).id,
     packageName: pkg.name, version: pkg.version,
     description: plugin.description ?? plugin.name, expectedDigests: null,
   };
 }
 
-/** Keep the two existing manifest formats distinct; missing provider contracts fail immediately. */
-function artifactMetadata({ id, packageManifest: pkg, pluginManifest: plugin }: {
-  id: string; packageManifest: PackageManifest; pluginManifest: PluginManifest;
-}): Pick<CatalogEntry, 'kind' | 'path' | 'pluginVersion' | 'contract'> {
-  if (plugin.$schema !== undefined) return { kind: 'agent', path: id, pluginVersion: plugin.version,
+type ArtifactMetadata = Pick<CatalogEntry, 'kind' | 'path' | 'pluginVersion' | 'contract'>;
+
+/** Agent payloads sit at `<name>/` and keep their own manifest version. */
+function agentMetadata({ id, pluginManifest: plugin }: { id: string; pluginManifest: PluginManifest }): ArtifactMetadata {
+  if (plugin.$schema === undefined) throw new TypeError(`Missing agent plugin schema: ${id}`);
+  return { kind: 'agent', path: id, pluginVersion: plugin.version,
     contract: { id: 'agent-plugins', version: plugin.$schema.split('/').at(-2)! } };
+}
+
+/** Server providers name their contribution contract. A browser-only provider (no server
+ * contribution) is described by its first browser declaration; no dummy server contribution is added. */
+function providerMetadata({ id, packageManifest: pkg, pluginManifest: plugin }: {
+  id: string; packageManifest: PackageManifest; pluginManifest: PluginManifest;
+}): ArtifactMetadata {
   const provider = plugin.contributes?.providers[0];
-  if (!provider) throw new TypeError(`Missing provider contract: ${id}`);
-  return { kind: 'provider', path: `plugins/${id}/${pkg.version}`, pluginVersion: pkg.version,
-    contract: { id: provider.contract, version: provider.contractVersion } };
+  const browser = plugin.browserProviders?.[0];
+  let contract: CatalogEntry['contract'];
+  if (provider) contract = { id: provider.contract, version: provider.contractVersion };
+  else if (browser && plugin.contributes === undefined) contract = { id: `browser-provider:${browser.kind}`, version: browser.contractVersion };
+  else throw new TypeError(`Missing provider contract: ${id}`);
+  return { kind: 'provider', path: `plugins/${id}/${pkg.version}`, pluginVersion: pkg.version, contract };
+}
+
+/** One catalog source. Kind comes from where the source lives, never from its id. */
+interface CatalogSource { kind: CatalogKind; id: string; packageId: string; sourceDir: string; manifestName: string }
+
+/** Provider sources live in `provider-plugins/src/<id>`; agent sources come from the layout table. */
+function catalogSources(required: {
+  packagesRoot: string; providerIds: readonly string[]; agentPlugins: readonly AgentPluginPackageRow[];
+}): CatalogSource[] {
+  const providers = required.providerIds.map(id => ({ kind: 'provider' as const, id, packageId: id,
+    sourceDir: path.join(required.packagesRoot, 'provider-plugins/src', id), manifestName: 'jini.plugin.json' }));
+  // Row source paths are repository-relative; the packages root sits directly under the repository root.
+  const agents = required.agentPlugins.map(row => ({ kind: 'agent' as const, id: row.name, packageId: agentPluginPackageId(row),
+    sourceDir: path.join(path.dirname(required.packagesRoot), row.sourceDir), manifestName: 'plugin.json' }));
+  // Code-unit order, as the previous `ids.sort()`, so the generated catalog keeps its order.
+  const order = (a: string, b: string) => (a < b ? -1 : Number(a > b));
+  return [...providers, ...agents].sort((a, b) => order(a.id, b.id) || order(a.kind, b.kind));
+}
+
+/** Entries are keyed by (kind, id): a face and its provider may share a local id. Anything that would
+ * still collapse two plugins into one record (same kind and id, or the same publisher identity across
+ * kinds) is a hard error rather than a silent merge.
+ * @throws TypeError naming the clashing key. */
+function assertDistinctEntries(required: { entries: readonly CatalogEntry[] }): void {
+  const keys = new Set<string>();
+  const identities = new Set<string>();
+  for (const entry of required.entries) {
+    const key = `${entry.kind}:${entry.id}`;
+    if (keys.has(key)) throw new TypeError(`Duplicate catalog entry: ${key}`);
+    if (identities.has(entry.publisherIdentity)) throw new TypeError(`Catalog publisher identity clash: ${entry.publisherIdentity}`);
+    keys.add(key);
+    identities.add(entry.publisherIdentity);
+  }
 }
 
 /** Generate a release catalog from reviewed packages and completed payloads via injected I/O.
  * No builder runs here: missing or stale payloads fail before a catalog is published.
- * @returns Entries in stable id order with the integrity owner's exact file digests.
- * @throws On I/O failure, manifest drift, absent executable integrity, or digest mismatch.
- * @example await generateCatalog({ packagesRoot, ports })
+ * @param required Packages root, provider source ids and agent layout rows (`agentPluginPackages`).
+ * @returns Entries in stable (id, kind) order with the integrity owner's exact file digests.
+ * @throws On I/O failure, manifest drift, absent executable integrity, digest mismatch or an identity clash.
+ * @example await generateCatalog({ packagesRoot, providerIds, agentPlugins: agentPluginPackages, ports })
  * @complexity O(n log n + b) for n packages and b payload bytes; no network or plugin imports. */
 export async function generateCatalog(required: {
-  packagesRoot: string; ids: readonly string[]; ports: CatalogPorts;
+  packagesRoot: string; providerIds: readonly string[]; agentPlugins: readonly AgentPluginPackageRow[]; ports: CatalogPorts;
 }, _optional: Record<string, never> = {}): Promise<CatalogEntry[]> {
   const { packagesRoot, ports } = required;
   const entries: CatalogEntry[] = [];
-  for (const id of [...required.ids].sort()) {
-    const root = path.join(packagesRoot, `plugin-${id}`);
+  for (const source of catalogSources(required)) {
+    const root = path.join(packagesRoot, `plugin-${source.packageId}`);
     const pkg = await ports.readJson(path.join(root, 'package.json')) as PackageManifest;
-    const agent = (agentPluginIds as readonly string[]).includes(id);
-    const manifestName = agent ? 'plugin.json' : 'jini.plugin.json';
-    const source = agent ? `agent-plugins/${id}` : `provider-plugins/src/${id}`;
-    const plugin = await ports.readJson(path.join(packagesRoot, source, manifestName)) as PluginManifest;
-    const entry = catalogEntry({ id, packageManifest: pkg, pluginManifest: plugin });
+    const plugin = await ports.readJson(path.join(source.sourceDir, source.manifestName)) as PluginManifest;
+    const entry = catalogEntry({ id: source.id, packageManifest: pkg, pluginManifest: plugin }, { kind: source.kind, packageId: source.packageId });
     const artifactRoot = path.join(root, entry.path);
-    const artifact = await ports.readJson(path.join(artifactRoot, manifestName)) as PluginManifest;
+    const artifact = await ports.readJson(path.join(artifactRoot, source.manifestName)) as PluginManifest;
     await sealEntry({ entry, plugin, artifact, artifactRoot, ports });
     entries.push(entry);
   }
+  assertDistinctEntries({ entries });
   return entries;
+}
+
+/** Executable files a provider payload must carry: the server entry when it contributes server
+ * providers, and each declared browser bundle. */
+function providerEntryFiles(required: { plugin: PluginManifest }): string[] {
+  const files = (required.plugin.browserProviders ?? []).map(browser => browser.javascript);
+  return required.plugin.contributes ? ['server/index.mjs', ...files] : files;
 }
 
 /** Bind display metadata to completed payload files; reject stale manifests before publishing.
@@ -94,12 +154,14 @@ async function sealEntry(required: {
   const expected = { ...plugin, version: entry.pluginVersion };
   if (entry.kind === 'provider') expected.integrity = artifact.integrity;
   if (!isDeepStrictEqual(artifact, expected)) throw new TypeError(`Stale plugin metadata: ${entry.id}`);
-  entry.expectedDigests = await ports.integrity({ sourceDir: artifactRoot });
-  if (entry.kind === 'provider' && !isDeepStrictEqual(artifact.integrity, entry.expectedDigests)) {
+  const digests = await ports.integrity({ sourceDir: artifactRoot });
+  entry.expectedDigests = digests;
+  if (entry.kind === 'provider' && !isDeepStrictEqual(artifact.integrity, digests)) {
     throw new TypeError(`Plugin integrity mismatch: ${entry.id}`);
   }
-  if (entry.kind === 'provider' && !entry.expectedDigests['server/index.mjs']) throw new TypeError(`Missing provider entry digest: ${entry.id}`);
-  if (Object.keys(entry.expectedDigests).length === 0) throw new TypeError(`Missing plugin digests: ${entry.id}`);
+  const entryFiles = entry.kind === 'provider' ? providerEntryFiles({ plugin }) : [];
+  if (entryFiles.some(file => !digests[file])) throw new TypeError(`Missing provider entry digest: ${entry.id}`);
+  if (Object.keys(digests).length === 0) throw new TypeError(`Missing plugin digests: ${entry.id}`);
 }
 
 /** Release-only composition reuses the installer's integrity owner, never a vendor entry point.
@@ -110,7 +172,7 @@ async function writeCatalog(): Promise<void> {
   const names = await readdir(path.join(packagesRoot, 'provider-plugins/src'), { withFileTypes: true });
   const ids = names.filter(item => item.isDirectory() && !item.name.startsWith('__')).map(item => item.name);
   const { computePluginIntegrity } = await import('@jini-ai/plugins/host/node');
-  const entries = await generateCatalog({ packagesRoot, ids: [...ids, ...agentPluginIds], ports: {
+  const entries = await generateCatalog({ packagesRoot, providerIds: ids, agentPlugins: agentPluginPackages, ports: {
     readJson: async file => JSON.parse(await readFile(file, 'utf8')) as unknown,
     integrity: computePluginIntegrity,
   } });

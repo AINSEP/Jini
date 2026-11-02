@@ -5,7 +5,8 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { agentPluginIds, catalogEntry, generateCatalog, type CatalogEntry } from '../scripts/generate.js';
+import { catalogEntry, generateCatalog, type CatalogEntry } from '../scripts/generate.js';
+import { agentPluginPackageId, agentPluginPackages } from '../../../scripts/lib/agent-plugin-packages.js';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const packagesRoot = path.dirname(root);
@@ -18,16 +19,20 @@ describe('standalone plugin catalog', () => {
   it('lists every provider source exactly once and each agent plugin package', async () => {
     const sources = await readdir(path.join(packagesRoot, 'provider-plugins/src'), { withFileTypes: true });
     const ids = sources.filter(item => item.isDirectory() && !item.name.startsWith('__')).map(item => item.name);
-    expect(agentPluginIds).toEqual(['slide-design', 'ui-ux-design']);
-    expect(entries.map(entry => entry.id)).toEqual([...ids, ...agentPluginIds].sort());
+    const keys = (list: { kind: string; id: string }[]) => list.map(item => `${item.kind}:${item.id}`).sort();
+    expect(keys(entries)).toEqual(keys([...ids.map(id => ({ kind: 'provider', id })),
+      ...agentPluginPackages.map(row => ({ kind: 'agent', id: row.name }))]));
   });
 
-  it.each(entries)('$id matches its real package, publisher, path and contract', async entry => {
-    const packageManifest = await readJson(path.join(packagesRoot, `plugin-${entry.id}/package.json`));
-    const source = entry.kind === 'agent' ? `agent-plugins/${entry.id}/plugin.json`
-      : `provider-plugins/src/${entry.id}/jini.plugin.json`;
-    const pluginManifest = await readJson(path.join(packagesRoot, source));
-    expect(entry).toEqual({ ...catalogEntry({ id: entry.id, packageManifest, pluginManifest }), expectedDigests: entry.expectedDigests });
+  it.each(entries)('$kind $id matches its real package, publisher, path and contract', async entry => {
+    const row = entry.kind === 'agent' ? agentPluginPackages.find(item => item.name === entry.id)! : undefined;
+    const packageId = row ? agentPluginPackageId(row) : entry.id;
+    const packageManifest = await readJson(path.join(packagesRoot, `plugin-${packageId}/package.json`));
+    const source = row ? path.join(path.dirname(packagesRoot), row.sourceDir, 'plugin.json')
+      : path.join(packagesRoot, `provider-plugins/src/${entry.id}/jini.plugin.json`);
+    const pluginManifest = await readJson(source);
+    expect(entry).toEqual({ ...catalogEntry({ id: entry.id, packageManifest, pluginManifest }, { kind: entry.kind, packageId }),
+      expectedDigests: entry.expectedDigests });
     expect(entry.publisherIdentity).toBe(`jini/${entry.id}`);
     if (entry.kind === 'provider') expect(packageManifest.version).toBe('0.6.17');
     expect(entry.path.startsWith('/')).toBe(false);
@@ -84,10 +89,96 @@ function fixture() {
   return { pluginManifest, packageManifest, artifact, ports };
 }
 
+const designRow = { name: 'ui-ux-design', sourceDir: 'packages/agent-plugins/ui-ux-design' };
+
+/** One package carrying a browser-only provider and its agent face under the same local id. */
+function combinedFixture() {
+  const packageManifest = { name: '@jini-ai/plugin-charts-fixture', version: '0.6.19', description: 'Fixture charts' };
+  const provider = { id: 'charts-fixture', name: 'Fixture charts', version: '0.6.12',
+    extensions: { tovu: { id: 'jini/charts-fixture' } },
+    browserProviders: [{ id: 'plugin.charts-fixture', kind: 'chart', contractVersion: 1, kinds: ['bar'], javascript: 'client/provider.js' }] };
+  const integrity: Record<string, string> = { 'client/provider.js': digest };
+  const providerArtifact = { ...provider, version: '0.6.19', integrity };
+  const face = { $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json', name: 'charts-fixture', version: '0.1.0',
+    extensions: { tovu: { id: 'jini/charts-fixture-agent' } } };
+  const files: Record<string, unknown> = {
+    '/packages/plugin-charts-fixture/package.json': packageManifest,
+    '/packages/provider-plugins/src/charts-fixture/jini.plugin.json': provider,
+    '/packages/plugin-charts-fixture/plugins/charts-fixture/0.6.19/jini.plugin.json': providerArtifact,
+    '/packages/agent-plugins/charts-fixture/plugin.json': face,
+    '/packages/plugin-charts-fixture/charts-fixture/plugin.json': face,
+  };
+  const digests: Record<string, Record<string, string>> = {
+    '/packages/plugin-charts-fixture/plugins/charts-fixture/0.6.19': { 'client/provider.js': digest },
+    '/packages/plugin-charts-fixture/charts-fixture': { 'plugin.json': digest },
+  };
+  const ports = {
+    readJson: async (file: string) => {
+      if (!(file in files)) throw new Error(`ENOENT ${file}`);
+      return files[file];
+    },
+    integrity: async ({ sourceDir }: { sourceDir: string }) => digests[sourceDir] ?? {},
+  };
+  const generate = () => generateCatalog({ packagesRoot: '/packages', providerIds: ['charts-fixture'],
+    agentPlugins: [{ name: 'charts-fixture', sourceDir: 'packages/agent-plugins/charts-fixture' }], ports });
+  return { files, digests, provider, providerArtifact, face, generate };
+}
+
+describe('combined packages and browser-only providers', () => {
+  it('lists a provider and its face that share a local id as two entries keyed by kind', async () => {
+    const result = await combinedFixture().generate();
+    expect(result).toEqual([
+      { kind: 'agent', path: 'charts-fixture', pluginVersion: '0.1.0', contract: { id: 'agent-plugins', version: '1.0.0' },
+        id: 'charts-fixture', publisherIdentity: 'jini/charts-fixture-agent', packageName: '@jini-ai/plugin-charts-fixture',
+        version: '0.6.19', description: 'charts-fixture', expectedDigests: { 'plugin.json': digest } },
+      { kind: 'provider', path: 'plugins/charts-fixture/0.6.19', pluginVersion: '0.6.19', contract: { id: 'browser-provider:chart', version: 1 },
+        id: 'charts-fixture', publisherIdentity: 'jini/charts-fixture', packageName: '@jini-ai/plugin-charts-fixture',
+        version: '0.6.19', description: 'Fixture charts', expectedDigests: { 'client/provider.js': digest } },
+    ]);
+  });
+
+  it('refuses a face and a provider that claim the same publisher identity instead of merging them', async () => {
+    const input = combinedFixture();
+    input.face.extensions.tovu.id = 'jini/charts-fixture';
+    await expect(input.generate()).rejects.toThrow('Catalog publisher identity clash: jini/charts-fixture');
+  });
+
+  it('refuses the same plugin listed twice in one kind', async () => {
+    const input = fixture();
+    await expect(generateCatalog({ packagesRoot: '/packages', providerIds: ['fixture-provider', 'fixture-provider'], agentPlugins: [],
+      ports: input.ports })).rejects.toThrow('Duplicate catalog entry: provider:fixture-provider');
+  });
+
+  it('requires the declared browser bundle digest of a browser-only provider', async () => {
+    const input = combinedFixture();
+    input.digests['/packages/plugin-charts-fixture/plugins/charts-fixture/0.6.19'] = { 'client/other.js': digest };
+    input.providerArtifact.integrity = { 'client/other.js': digest };
+    await expect(input.generate()).rejects.toThrow('Missing provider entry digest: charts-fixture');
+  });
+
+  it('does not invent a contract for a provider with neither server nor browser contributions', () => {
+    const { provider } = combinedFixture();
+    const packageManifest = { name: '@jini-ai/plugin-charts-fixture', version: '0.6.19', description: '' };
+    expect(() => catalogEntry({ id: 'charts-fixture', packageManifest, pluginManifest: { ...provider, browserProviders: [] } }))
+      .toThrow('Missing provider contract');
+    expect(() => catalogEntry({ id: 'charts-fixture', packageManifest,
+      pluginManifest: { ...provider, contributes: { providers: [] } } })).toThrow('Missing provider contract');
+  });
+
+  it('takes the package of a face from its layout row, not from its name', () => {
+    const { face } = combinedFixture();
+    const pluginManifest = { ...face, name: 'posthog', extensions: { tovu: { id: 'jini/posthog' } } };
+    const packageManifest = { name: '@jini-ai/plugin-analytics-posthog', version: '0.6.19', description: '' };
+    expect(catalogEntry({ id: 'posthog', packageManifest, pluginManifest }, { kind: 'agent', packageId: 'analytics-posthog' }))
+      .toMatchObject({ kind: 'agent', path: 'posthog', packageName: '@jini-ai/plugin-analytics-posthog' });
+    expect(() => catalogEntry({ id: 'posthog', packageManifest, pluginManifest }, { kind: 'agent' })).toThrow('identity disagree');
+  });
+});
+
 describe('release catalog generation', () => {
   it('records the integrity owner output and keeps the source unchanged', async () => {
     const input = fixture();
-    const result = await generateCatalog({ packagesRoot: '/packages', ids: ['fixture-provider'], ports: input.ports });
+    const result = await generateCatalog({ packagesRoot: '/packages', providerIds: ['fixture-provider'], agentPlugins: [], ports: input.ports });
     expect(result[0]).toEqual({ ...catalogEntry({ id: 'fixture-provider', ...input }), expectedDigests: { 'server/index.mjs': digest } });
     expect(input.pluginManifest.version).toBe('0.6.12');
     expect(input.pluginManifest.integrity).toEqual({});
@@ -108,24 +199,24 @@ describe('release catalog generation', () => {
   it('rejects missing completed payloads instead of publishing placeholders', async () => {
     const input = fixture();
     input.ports.integrity = async () => { throw new Error('ENOENT'); };
-    await expect(generateCatalog({ packagesRoot: '/packages', ids: ['fixture-provider'], ports: input.ports })).rejects.toThrow('ENOENT');
+    await expect(generateCatalog({ packagesRoot: '/packages', providerIds: ['fixture-provider'], agentPlugins: [], ports: input.ports })).rejects.toThrow('ENOENT');
   });
 
   it('rejects stale artifact versions', async () => {
     const input = fixture();
     input.artifact.version = '0.6.13';
-    await expect(generateCatalog({ packagesRoot: '/packages', ids: ['fixture-provider'], ports: input.ports })).rejects.toThrow('Stale plugin metadata');
+    await expect(generateCatalog({ packagesRoot: '/packages', providerIds: ['fixture-provider'], agentPlugins: [], ports: input.ports })).rejects.toThrow('Stale plugin metadata');
   });
 
   it('rejects modified payloads even with otherwise matching metadata', async () => {
     const input = fixture();
     input.artifact.integrity['server/index.mjs'] = `sha256-${'b'.repeat(64)}`;
-    await expect(generateCatalog({ packagesRoot: '/packages', ids: ['fixture-provider'], ports: input.ports })).rejects.toThrow('Plugin integrity mismatch');
+    await expect(generateCatalog({ packagesRoot: '/packages', providerIds: ['fixture-provider'], agentPlugins: [], ports: input.ports })).rejects.toThrow('Plugin integrity mismatch');
   });
 
   it('rejects a provider payload with no entry digest', async () => {
     const input = fixture();
-    await expect(generateCatalog({ packagesRoot: '/packages', ids: ['fixture-provider'], ports: {
+    await expect(generateCatalog({ packagesRoot: '/packages', providerIds: ['fixture-provider'], agentPlugins: [], ports: {
       readJson: async file => file.includes('/plugins/') ? { ...input.artifact, integrity: {} } : input.ports.readJson(file),
       integrity: async () => ({}),
     } })).rejects.toThrow('Missing provider entry digest');
@@ -134,7 +225,7 @@ describe('release catalog generation', () => {
   it('records agent file digests without changing its manifest or schema version', async () => {
     const plugin = await readJson(path.join(packagesRoot, 'agent-plugins/ui-ux-design/plugin.json'));
     const pkg = await readJson(path.join(packagesRoot, 'plugin-ui-ux-design/package.json'));
-    const result = await generateCatalog({ packagesRoot: '/packages', ids: ['ui-ux-design'], ports: {
+    const result = await generateCatalog({ packagesRoot: '/packages', providerIds: [], agentPlugins: [designRow], ports: {
       readJson: async file => file.endsWith('package.json') ? pkg : plugin,
       integrity: async () => ({ 'plugin.json': digest, 'skills/ui-ux-design/SKILL.md': digest }),
     } });
@@ -146,7 +237,7 @@ describe('release catalog generation', () => {
   it('rejects an empty agent payload digest map', async () => {
     const plugin = await readJson(path.join(packagesRoot, 'agent-plugins/ui-ux-design/plugin.json'));
     const pkg = await readJson(path.join(packagesRoot, 'plugin-ui-ux-design/package.json'));
-    await expect(generateCatalog({ packagesRoot: '/packages', ids: ['ui-ux-design'], ports: {
+    await expect(generateCatalog({ packagesRoot: '/packages', providerIds: [], agentPlugins: [designRow], ports: {
       readJson: async file => file.endsWith('package.json') ? pkg : plugin,
       integrity: async () => ({}),
     } })).rejects.toThrow('Missing plugin digests');
