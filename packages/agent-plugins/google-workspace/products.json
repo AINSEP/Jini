@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "baseScopes": ["https://www.googleapis.com/auth/drive.file"],
+  "products": [
+    {
+      "id": "sheets",
+      "label": "Google Sheets",
+      "toolPrefix": "sheets_",
+      "requiredScopes": ["https://www.googleapis.com/auth/drive.file"]
+    }
+  ]
+}

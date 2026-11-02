@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "connections": [
+    {
+      "id": "account",
+      "module": "lib/auth.mjs",
+      "label": "Google Workspace",
+      "authorizationEndpoint": "https://accounts.google.com/o/oauth2/v2/auth",
+      "tokenEndpoint": "https://oauth2.googleapis.com/token",
+      "authorizationParams": {
+        "public": { "access_type": "offline", "prompt": "consent" },
+        "confidential": { "access_type": "offline", "include_granted_scopes": "true" }
+      },
+      "forceConsentParams": { "prompt": "consent" },
+      "startParams": [
+        { "name": "trigger_onepick", "maxLength": 8 },
+        { "name": "mimetypes", "maxLength": 256 }
+      ],
+      "callbackFields": [
+        { "name": "picked_file_ids", "maxLength": 4096 }
+      ],
+      "budgets": [
+        { "scope": "connection", "perMinute": 45 },
+        { "scope": "instance", "perMinute": 240 }
+      ],
+      "scopeSets": ["sheets"],
+      "apiOrigins": ["https://sheets.googleapis.com", "https://www.googleapis.com"],
+      "byoClient": true,
+      "clients": {
+        "web": { "clientIdEnv": "TOVU_GOOGLE_WORKSPACE_OAUTH_WEB_CLIENT_ID", "clientSecretEnv": "TOVU_GOOGLE_WORKSPACE_OAUTH_WEB_CLIENT_SECRET" },
+        "desktop": { "clientIdEnv": "TOVU_GOOGLE_WORKSPACE_OAUTH_DESKTOP_CLIENT_ID", "clientSecretEnv": "TOVU_GOOGLE_WORKSPACE_OAUTH_DESKTOP_CLIENT_SECRET" }
+      }
+    }
+  ]
+}

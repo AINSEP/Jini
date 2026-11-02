@@ -1,0 +1,1178 @@
+{
+  "schemaVersion": 1,
+  "tools": [
+    {
+      "name": "account_info",
+      "description": "Show which Google account a Google Workspace connection is signed in as. Pass the connectionRef from the connection status. Returns the account label only, never a token.",
+      "effect": "read",
+      "module": "tools/account-info.mjs",
+      "inputSchema": {
+        "type": "object",
+        "required": ["connectionRef"],
+        "additionalProperties": false,
+        "properties": { "connectionRef": { "type": "string", "minLength": 1, "maxLength": 512 } }
+      }
+    },
+    {
+      "name": "sheets_get",
+      "description": "Get a spreadsheet's title, URL and tabs (tab ids, sizes, frozen rows). Cell data only with includeGridData and explicit ranges; results over 64 KiB are refused, so ask for less.",
+      "effect": "read",
+      "module": "tools/sheets/get.mjs",
+      "inputSchema": {
+        "type": "object",
+        "required": ["connectionRef", "spreadsheetId"],
+        "additionalProperties": false,
+        "properties": {
+          "connectionRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "The connectionRef from the Google Workspace connection status."
+          },
+          "spreadsheetId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{10,200}$",
+            "description": "Spreadsheet id (the file must be one Tovu created or the person picked)."
+          },
+          "ranges": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256,
+              "description": "A1 range, for example 'Leads'!A1:D50 or Sheet1."
+            }
+          },
+          "includeGridData": { "type": "boolean" },
+          "fields": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "pattern": "^[A-Za-z0-9_.,()/*]+$",
+            "description": "Optional Google field mask; the default returns title, URL and tabs."
+          }
+        }
+      }
+    },
+    {
+      "name": "sheets_get_by_data_filter",
+      "description": "Get spreadsheet metadata (and optionally cell data) for the parts matching data filters: A1 ranges, grid ranges or developer-metadata lookups. Results over 64 KiB are refused.",
+      "effect": "read",
+      "module": "tools/sheets/get-by-data-filter.mjs",
+      "inputSchema": {
+        "type": "object",
+        "required": ["connectionRef", "spreadsheetId", "dataFilters"],
+        "additionalProperties": false,
+        "properties": {
+          "connectionRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "The connectionRef from the Google Workspace connection status."
+          },
+          "spreadsheetId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{10,200}$",
+            "description": "Spreadsheet id (the file must be one Tovu created or the person picked)."
+          },
+          "dataFilters": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "minProperties": 1,
+              "maxProperties": 1,
+              "properties": {
+                "a1Range": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256,
+                  "description": "A1 range, for example 'Leads'!A1:D50 or Sheet1."
+                },
+                "gridRange": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["sheetId"],
+                  "properties": {
+                    "sheetId": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 2147483647,
+                      "description": "Numeric tab id (from sheets_get)."
+                    },
+                    "startRowIndex": { "type": "integer", "minimum": 0, "maximum": 10000000 },
+                    "endRowIndex": { "type": "integer", "minimum": 0, "maximum": 10000000 },
+                    "startColumnIndex": { "type": "integer", "minimum": 0, "maximum": 10000000 },
+                    "endColumnIndex": { "type": "integer", "minimum": 0, "maximum": 10000000 }
+                  }
+                },
+                "developerMetadataLookup": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "minProperties": 1,
+                  "properties": {
+                    "metadataId": { "type": "integer", "minimum": 0 },
+                    "metadataKey": { "type": "string", "maxLength": 256 },
+                    "metadataValue": { "type": "string", "maxLength": 256 },
+                    "locationType": { "enum": ["ROW", "COLUMN", "SHEET", "SPREADSHEET"] },
+                    "locationMatchingStrategy": { "enum": ["EXACT_LOCATION", "INTERSECTING_LOCATION"] },
+                    "visibility": { "enum": ["DOCUMENT", "PROJECT"] },
+                    "metadataLocation": { "type": "object", "maxProperties": 4 }
+                  }
+                }
+              }
+            }
+          },
+          "includeGridData": { "type": "boolean" },
+          "fields": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1024,
+            "pattern": "^[A-Za-z0-9_.,()/*]+$",
+            "description": "Optional Google field mask; the default returns title, URL and tabs."
+          }
+        }
+      }
+    },
+    {
+      "name": "sheets_create",
+      "description": "Create a new spreadsheet in the connected Google Drive, optionally with named tabs. Returns its id, URL and tab ids. Asks the person to confirm. If the answer is lost the outcome is unknown: check Drive before creating again.",
+      "effect": "write",
+      "module": "tools/sheets/create.mjs",
+      "inputSchema": {
+        "type": "object",
+        "required": ["connectionRef", "title"],
+        "additionalProperties": false,
+        "properties": {
+          "connectionRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "The connectionRef from the Google Workspace connection status."
+          },
+          "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "tabs": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 50,
+            "items": { "type": "string", "minLength": 1, "maxLength": 100 }
+          },
+          "locale": { "type": "string", "maxLength": 16 },
+          "timeZone": { "type": "string", "maxLength": 64 }
+        }
+      }
+    },
+    {
+      "name": "sheets_copy",
+      "description": "Copy a whole spreadsheet to a new file with the given title, optionally into a folder the connection can open. Returns the new id and URL. Asks the person to confirm; never repeat it after an unknown outcome.",
+      "effect": "write",
+      "module": "tools/sheets/copy.mjs",
+      "inputSchema": {
+        "type": "object",
+        "required": ["connectionRef", "spreadsheetId", "title"],
+        "additionalProperties": false,
+        "properties": {
+          "connectionRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "The connectionRef from the Google Workspace connection status."
+          },
+          "spreadsheetId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{10,200}$",
+            "description": "Spreadsheet id (the file must be one Tovu created or the person picked)."
+          },
+          "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+          "parentFolderId": { "type": "string", "pattern": "^[A-Za-z0-9_-]{1,256}$" }
+        }
+      }
+    },
+    {
+      "name": "sheets_copy_tab",
+      "description": "Copy one tab (by numeric sheetId) into another spreadsheet the connection can open. Returns the new tab's id, title and position. Asks the person to confirm.",
+      "effect": "write",
+      "module": "tools/sheets/copy-tab.mjs",
+      "inputSchema": {
+        "type": "object",
+        "required": ["connectionRef", "spreadsheetId", "sheetId", "destinationSpreadsheetId"],
+        "additionalProperties": false,
+        "properties": {
+          "connectionRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "The connectionRef from the Google Workspace connection status."
+          },
+          "spreadsheetId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{10,200}$",
+            "description": "Spreadsheet id (the file must be one Tovu created or the person picked)."
+          },
+          "sheetId": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647,
+            "description": "Numeric tab id (from sheets_get)."
+          },
+          "destinationSpreadsheetId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{10,200}$",
+            "description": "Spreadsheet id (the file must be one Tovu created or the person picked)."
+          }
+        }
+      }
+    },
+    {
+      "name": "sheets_values_get",
+      "description": "Read the values of one explicit A1 range. Returns at most 500 rows / 5,000 cells / 64 KiB; when there is more, `continuation` is the exact range to read next.",
+      "effect": "read",
+      "module": "tools/sheets/values-get.mjs",
+      "inputSchema": {
+        "type": "object",
+        "required": ["connectionRef", "spreadsheetId", "range"],
+        "additionalProperties": false,
+        "properties": {
+          "connectionRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "The connectionRef from the Google Workspace connection status."
+          },
+          "spreadsheetId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{10,200}$",
+            "description": "Spreadsheet id (the file must be one Tovu created or the person picked)."
+          },
+          "range": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "A1 range, for example 'Leads'!A1:D50 or Sheet1."
+          },
+          "valueRenderOption": { "enum": ["FORMATTED_VALUE", "UNFORMATTED_VALUE", "FORMULA"] },
+          "dateTimeRenderOption": { "enum": ["SERIAL_NUMBER", "FORMATTED_STRING"] }
+        }
+      }
+    },
+    {
+      "name": "sheets_values_batch_get",
+      "description": "Read up to 20 explicit A1 ranges at once. All ranges share one bound (500 rows / 5,000 cells / 64 KiB); each cut range has its own `continuation`.",
+      "effect": "read",
+      "module": "tools/sheets/values-batch-get.mjs",
+      "inputSchema": {
+        "type": "object",
+        "required": ["connectionRef", "spreadsheetId", "ranges"],
+        "additionalProperties": false,
+        "properties": {
+          "connectionRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "The connectionRef from the Google Workspace connection status."
+          },
+          "spreadsheetId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{10,200}$",
+            "description": "Spreadsheet id (the file must be one Tovu created or the person picked)."
+          },
+          "ranges": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256,
+              "description": "A1 range, for example 'Leads'!A1:D50 or Sheet1."
+            }
+          },
+          "valueRenderOption": { "enum": ["FORMATTED_VALUE", "UNFORMATTED_VALUE", "FORMULA"] },
+          "dateTimeRenderOption": { "enum": ["SERIAL_NUMBER", "FORMATTED_STRING"] }
+        }
+      }
+    },
+    {
+      "name": "sheets_values_append",
+      "description": "Append rows after the table in a tab or range; new rows are inserted, nothing below is overwritten. Values are stored as plain text (RAW) unless valueInputOption is USER_ENTERED. Asks the person to confirm. Never repeat an append whose outcome is unknown.",
+      "effect": "write",
+      "module": "tools/sheets/values-append.mjs",
+      "inputSchema": {
+        "type": "object",
+        "required": ["connectionRef", "spreadsheetId", "range", "values"],
+        "additionalProperties": false,
+        "properties": {
+          "connectionRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "The connectionRef from the Google Workspace connection status."
+          },
+          "spreadsheetId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{10,200}$",
+            "description": "Spreadsheet id (the file must be one Tovu created or the person picked)."
+          },
+          "range": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "A1 range, for example 'Leads'!A1:D50 or Sheet1."
+          },
+          "values": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 10000,
+            "items": {
+              "type": "array",
+              "maxItems": 18278,
+              "items": { "type": ["string", "number", "boolean", "null"], "maxLength": 50000 }
+            },
+            "description": "Rows of cell values."
+          },
+          "valueInputOption": {
+            "enum": ["RAW", "USER_ENTERED"],
+            "description": "RAW (default) stores text exactly as given; USER_ENTERED parses it like typing into Sheets (formulas included). Use USER_ENTERED only when the person asks for it."
+          },
+          "insertDataOption": { "enum": ["INSERT_ROWS", "OVERWRITE"] }
+        }
+      }
+    },
+    {
+      "name": "sheets_values_update",
+      "description": "Overwrite one explicit A1 range with the given rows (RAW unless valueInputOption is USER_ENTERED). Replaces current values; asks the person to confirm. Body at most 1 MiB.",
+      "effect": "destructive",
+      "module": "tools/sheets/values-update.mjs",
+      "inputSchema": {
+        "type": "object",
+        "required": ["connectionRef", "spreadsheetId", "range", "values"],
+        "additionalProperties": false,
+        "properties": {
+          "connectionRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "The connectionRef from the Google Workspace connection status."
+          },
+          "spreadsheetId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{10,200}$",
+            "description": "Spreadsheet id (the file must be one Tovu created or the person picked)."
+          },
+          "range": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "A1 range, for example 'Leads'!A1:D50 or Sheet1."
+          },
+          "values": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 10000,
+            "items": {
+              "type": "array",
+              "maxItems": 18278,
+              "items": { "type": ["string", "number", "boolean", "null"], "maxLength": 50000 }
+            },
+            "description": "Rows of cell values."
+          },
+          "valueInputOption": {
+            "enum": ["RAW", "USER_ENTERED"],
+            "description": "RAW (default) stores text exactly as given; USER_ENTERED parses it like typing into Sheets (formulas included). Use USER_ENTERED only when the person asks for it."
+          }
+        }
+      }
+    },
+    {
+      "name": "sheets_values_batch_update",
+      "description": "Overwrite up to 100 explicit A1 ranges in one request (RAW unless valueInputOption is USER_ENTERED). Replaces current values; asks the person to confirm. Body at most 1 MiB.",
+      "effect": "destructive",
+      "module": "tools/sheets/values-batch-update.mjs",
+      "inputSchema": {
+        "type": "object",
+        "required": ["connectionRef", "spreadsheetId", "data"],
+        "additionalProperties": false,
+        "properties": {
+          "connectionRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "The connectionRef from the Google Workspace connection status."
+          },
+          "spreadsheetId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{10,200}$",
+            "description": "Spreadsheet id (the file must be one Tovu created or the person picked)."
+          },
+          "data": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "type": "object",
+              "required": ["range", "values"],
+              "additionalProperties": false,
+              "properties": {
+                "range": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256,
+                  "description": "A1 range, for example 'Leads'!A1:D50 or Sheet1."
+                },
+                "values": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 10000,
+                  "items": {
+                    "type": "array",
+                    "maxItems": 18278,
+                    "items": { "type": ["string", "number", "boolean", "null"], "maxLength": 50000 }
+                  },
+                  "description": "Rows of cell values."
+                }
+              }
+            }
+          },
+          "valueInputOption": {
+            "enum": ["RAW", "USER_ENTERED"],
+            "description": "RAW (default) stores text exactly as given; USER_ENTERED parses it like typing into Sheets (formulas included). Use USER_ENTERED only when the person asks for it."
+          }
+        }
+      }
+    },
+    {
+      "name": "sheets_values_clear",
+      "description": "Clear every value in one explicit A1 range (formatting stays). Asks the person to confirm; cannot be undone from Tovu.",
+      "effect": "destructive",
+      "module": "tools/sheets/values-clear.mjs",
+      "inputSchema": {
+        "type": "object",
+        "required": ["connectionRef", "spreadsheetId", "range"],
+        "additionalProperties": false,
+        "properties": {
+          "connectionRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "The connectionRef from the Google Workspace connection status."
+          },
+          "spreadsheetId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{10,200}$",
+            "description": "Spreadsheet id (the file must be one Tovu created or the person picked)."
+          },
+          "range": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 256,
+            "description": "A1 range, for example 'Leads'!A1:D50 or Sheet1."
+          }
+        }
+      }
+    },
+    {
+      "name": "sheets_values_batch_clear",
+      "description": "Clear every value in up to 100 explicit A1 ranges. Asks the person to confirm; cannot be undone from Tovu.",
+      "effect": "destructive",
+      "module": "tools/sheets/values-batch-clear.mjs",
+      "inputSchema": {
+        "type": "object",
+        "required": ["connectionRef", "spreadsheetId", "ranges"],
+        "additionalProperties": false,
+        "properties": {
+          "connectionRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "The connectionRef from the Google Workspace connection status."
+          },
+          "spreadsheetId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{10,200}$",
+            "description": "Spreadsheet id (the file must be one Tovu created or the person picked)."
+          },
+          "ranges": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256,
+              "description": "A1 range, for example 'Leads'!A1:D50 or Sheet1."
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "sheets_values_by_data_filter",
+      "description": "Read (action get), overwrite (action update) or clear (action clear) the values matching data filters. Always asks the person to confirm, even for get. get/clear take dataFilters; update takes data entries of { dataFilter, values } (RAW unless valueInputOption is USER_ENTERED).",
+      "effect": "destructive",
+      "module": "tools/sheets/values-by-data-filter.mjs",
+      "inputSchema": {
+        "type": "object",
+        "required": ["connectionRef", "spreadsheetId", "action"],
+        "additionalProperties": false,
+        "properties": {
+          "connectionRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "The connectionRef from the Google Workspace connection status."
+          },
+          "spreadsheetId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{10,200}$",
+            "description": "Spreadsheet id (the file must be one Tovu created or the person picked)."
+          },
+          "action": { "enum": ["get", "update", "clear"] },
+          "dataFilters": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "minProperties": 1,
+              "maxProperties": 1,
+              "properties": {
+                "a1Range": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 256,
+                  "description": "A1 range, for example 'Leads'!A1:D50 or Sheet1."
+                },
+                "gridRange": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": ["sheetId"],
+                  "properties": {
+                    "sheetId": {
+                      "type": "integer",
+                      "minimum": 0,
+                      "maximum": 2147483647,
+                      "description": "Numeric tab id (from sheets_get)."
+                    },
+                    "startRowIndex": { "type": "integer", "minimum": 0, "maximum": 10000000 },
+                    "endRowIndex": { "type": "integer", "minimum": 0, "maximum": 10000000 },
+                    "startColumnIndex": { "type": "integer", "minimum": 0, "maximum": 10000000 },
+                    "endColumnIndex": { "type": "integer", "minimum": 0, "maximum": 10000000 }
+                  }
+                },
+                "developerMetadataLookup": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "minProperties": 1,
+                  "properties": {
+                    "metadataId": { "type": "integer", "minimum": 0 },
+                    "metadataKey": { "type": "string", "maxLength": 256 },
+                    "metadataValue": { "type": "string", "maxLength": 256 },
+                    "locationType": { "enum": ["ROW", "COLUMN", "SHEET", "SPREADSHEET"] },
+                    "locationMatchingStrategy": { "enum": ["EXACT_LOCATION", "INTERSECTING_LOCATION"] },
+                    "visibility": { "enum": ["DOCUMENT", "PROJECT"] },
+                    "metadataLocation": { "type": "object", "maxProperties": 4 }
+                  }
+                }
+              }
+            }
+          },
+          "data": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {
+              "type": "object",
+              "required": ["dataFilter", "values"],
+              "additionalProperties": false,
+              "properties": {
+                "dataFilter": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "minProperties": 1,
+                  "maxProperties": 1,
+                  "properties": {
+                    "a1Range": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 256,
+                      "description": "A1 range, for example 'Leads'!A1:D50 or Sheet1."
+                    },
+                    "gridRange": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "required": ["sheetId"],
+                      "properties": {
+                        "sheetId": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "maximum": 2147483647,
+                          "description": "Numeric tab id (from sheets_get)."
+                        },
+                        "startRowIndex": { "type": "integer", "minimum": 0, "maximum": 10000000 },
+                        "endRowIndex": { "type": "integer", "minimum": 0, "maximum": 10000000 },
+                        "startColumnIndex": { "type": "integer", "minimum": 0, "maximum": 10000000 },
+                        "endColumnIndex": { "type": "integer", "minimum": 0, "maximum": 10000000 }
+                      }
+                    },
+                    "developerMetadataLookup": {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "minProperties": 1,
+                      "properties": {
+                        "metadataId": { "type": "integer", "minimum": 0 },
+                        "metadataKey": { "type": "string", "maxLength": 256 },
+                        "metadataValue": { "type": "string", "maxLength": 256 },
+                        "locationType": { "enum": ["ROW", "COLUMN", "SHEET", "SPREADSHEET"] },
+                        "locationMatchingStrategy": { "enum": ["EXACT_LOCATION", "INTERSECTING_LOCATION"] },
+                        "visibility": { "enum": ["DOCUMENT", "PROJECT"] },
+                        "metadataLocation": { "type": "object", "maxProperties": 4 }
+                      }
+                    }
+                  }
+                },
+                "values": {
+                  "type": "array",
+                  "minItems": 1,
+                  "maxItems": 10000,
+                  "items": {
+                    "type": "array",
+                    "maxItems": 18278,
+                    "items": { "type": ["string", "number", "boolean", "null"], "maxLength": 50000 }
+                  },
+                  "description": "Rows of cell values."
+                }
+              }
+            }
+          },
+          "valueInputOption": {
+            "enum": ["RAW", "USER_ENTERED"],
+            "description": "RAW (default) stores text exactly as given; USER_ENTERED parses it like typing into Sheets (formulas included). Use USER_ENTERED only when the person asks for it."
+          },
+          "valueRenderOption": { "enum": ["FORMATTED_VALUE", "UNFORMATTED_VALUE", "FORMULA"] },
+          "dateTimeRenderOption": { "enum": ["SERIAL_NUMBER", "FORMATTED_STRING"] }
+        },
+        "oneOf": [
+          {
+            "properties": { "action": { "enum": ["get", "clear"] } },
+            "required": ["dataFilters"],
+            "not": { "required": ["data"] }
+          },
+          {
+            "properties": { "action": { "const": "update" } },
+            "required": ["data"],
+            "not": { "required": ["dataFilters"] }
+          }
+        ]
+      }
+    },
+    {
+      "name": "sheets_find",
+      "description": "Find cells whose text contains (or, with matchEntireCell, equals) a text in up to 20 explicit ranges. Plain text, no regular expressions. Returns up to 100 cell references with short excerpts (`truncated` when there are more); scanning more than 50,000 cells is refused.",
+      "effect": "read",
+      "module": "tools/sheets/find.mjs",
+      "inputSchema": {
+        "type": "object",
+        "required": ["connectionRef", "spreadsheetId", "ranges", "text"],
+        "additionalProperties": false,
+        "properties": {
+          "connectionRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "The connectionRef from the Google Workspace connection status."
+          },
+          "spreadsheetId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{10,200}$",
+            "description": "Spreadsheet id (the file must be one Tovu created or the person picked)."
+          },
+          "ranges": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 256,
+              "description": "A1 range, for example 'Leads'!A1:D50 or Sheet1."
+            }
+          },
+          "text": { "type": "string", "minLength": 1, "maxLength": 1000 },
+          "matchCase": { "type": "boolean" },
+          "matchEntireCell": { "type": "boolean" },
+          "valueRenderOption": { "enum": ["FORMATTED_VALUE", "UNFORMATTED_VALUE", "FORMULA"] }
+        }
+      }
+    },
+    {
+      "name": "sheets_find_replace",
+      "description": "Replace every match of a text on one tab (sheetId) or on every tab (allSheets: true). Overwrites matched cells; asks the person to confirm. Never repeat it after an unknown outcome.",
+      "effect": "destructive",
+      "module": "tools/sheets/find-replace.mjs",
+      "inputSchema": {
+        "type": "object",
+        "required": ["connectionRef", "spreadsheetId", "find", "replacement"],
+        "additionalProperties": false,
+        "properties": {
+          "connectionRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 512,
+            "description": "The connectionRef from the Google Workspace connection status."
+          },
+          "spreadsheetId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]{10,200}$",
+            "description": "Spreadsheet id (the file must be one Tovu created or the person picked)."
+          },
+          "find": { "type": "string", "minLength": 1, "maxLength": 1000 },
+          "replacement": { "type": "string", "maxLength": 1000 },
+          "sheetId": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 2147483647,
+            "description": "Numeric tab id (from sheets_get)."
+          },
+          "allSheets": { "const": true },
+          "matchCase": { "type": "boolean" },
+          "matchEntireCell": { "type": "boolean" },
+          "searchByRegex": { "type": "boolean" },
+          "includeFormulas": { "type": "boolean" }
+        },
+        "oneOf": [{ "required": ["sheetId"] }, { "required": ["allSheets"] }]
+      }
+    },
+    {
+      "name": "sheets_tab_modify",
+      "description": "Pass the connectionRef from the connection status and the spreadsheetId of a spreadsheet the person picked or Tovu created. Add, rename, delete, duplicate or move one tab (sheetId is the tab's numeric id). add needs title; rename needs sheetId and title; delete and duplicate need sheetId (duplicate may set title and index); move needs sheetId and index. Deleting a tab deletes its data. The person confirms on a card before anything changes; remote changes cannot be undone from Tovu.",
+      "effect": "destructive",
+      "module": "tools/sheets-admin/tab-modify.mjs",
+      "inputSchema": {
+        "type": "object",
+        "required": ["connectionRef", "spreadsheetId", "action"],
+        "additionalProperties": false,
+        "properties": {
+          "connectionRef": {"type": "string", "minLength": 1, "maxLength": 512},
+          "spreadsheetId": {"type": "string", "pattern": "^[A-Za-z0-9_-]{10,200}$"},
+          "action": {"enum": ["add", "rename", "delete", "duplicate", "move"]},
+          "sheetId": {"type": "integer", "minimum": 0},
+          "title": {"type": "string", "minLength": 1, "maxLength": 100},
+          "index": {"type": "integer", "minimum": 0}
+        },
+        "allOf": [
+          {
+            "if": {"properties": {"action": {"const": "add"}}, "required": ["action"]},
+            "then": {"required": ["title"]}
+          },
+          {
+            "if": {"properties": {"action": {"const": "rename"}}, "required": ["action"]},
+            "then": {"required": ["sheetId", "title"]}
+          },
+          {
+            "if": {"properties": {"action": {"const": "delete"}}, "required": ["action"]},
+            "then": {"required": ["sheetId"]}
+          },
+          {
+            "if": {"properties": {"action": {"const": "duplicate"}}, "required": ["action"]},
+            "then": {"required": ["sheetId"]}
+          },
+          {
+            "if": {"properties": {"action": {"const": "move"}}, "required": ["action"]},
+            "then": {"required": ["sheetId", "index"]}
+          }
+        ]
+      }
+    },
+    {
+      "name": "sheets_sort",
+      "description": "Pass the connectionRef from the connection status and the spreadsheetId of a spreadsheet the person picked or Tovu created. Physically reorder the rows of a grid range (zero-based, end-exclusive indices) by up to 10 columns; dimensionIndex is the zero-based column. The old row order is not kept. The person confirms on a card before anything changes; remote changes cannot be undone from Tovu.",
+      "effect": "destructive",
+      "module": "tools/sheets-admin/sort.mjs",
+      "inputSchema": {
+        "type": "object",
+        "required": ["connectionRef", "spreadsheetId", "range", "sortSpecs"],
+        "additionalProperties": false,
+        "properties": {
+          "connectionRef": {"type": "string", "minLength": 1, "maxLength": 512},
+          "spreadsheetId": {"type": "string", "pattern": "^[A-Za-z0-9_-]{10,200}$"},
+          "range": {
+            "type": "object",
+            "required": ["sheetId"],
+            "additionalProperties": false,
+            "properties": {
+              "sheetId": {"type": "integer", "minimum": 0},
+              "startRowIndex": {"type": "integer", "minimum": 0},
+              "endRowIndex": {"type": "integer", "minimum": 0},
+              "startColumnIndex": {"type": "integer", "minimum": 0},
+              "endColumnIndex": {"type": "integer", "minimum": 0}
+            }
+          },
+          "sortSpecs": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 10,
+            "items": {
+              "type": "object",
+              "required": ["dimensionIndex"],
+              "additionalProperties": false,
+              "properties": {
+                "dimensionIndex": {"type": "integer", "minimum": 0},
+                "sortOrder": {"enum": ["ASCENDING", "DESCENDING"]}
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "sheets_basic_filter",
+      "description": "Pass the connectionRef from the connection status and the spreadsheetId of a spreadsheet the person picked or Tovu created. Set or clear the basic filter of a tab. clear needs sheetId; set needs range and may give filterSpecs (Sheets FilterSpec objects). To read a tab's filter without a confirmation, call sheets_get with fields \"sheets(properties(sheetId),basicFilter)\". A filter hides rows; it never deletes or reorders data (to sort rows, use sheets_sort). The person confirms on a card before anything changes; remote changes cannot be undone from Tovu.",
+      "effect": "write",
+      "module": "tools/sheets-admin/basic-filter.mjs",
+      "inputSchema": {
+        "type": "object",
+        "required": ["connectionRef", "spreadsheetId", "action"],
+        "additionalProperties": false,
+        "properties": {
+          "connectionRef": {"type": "string", "minLength": 1, "maxLength": 512},
+          "spreadsheetId": {"type": "string", "pattern": "^[A-Za-z0-9_-]{10,200}$"},
+          "action": {"enum": ["set", "clear"]},
+          "sheetId": {"type": "integer", "minimum": 0},
+          "range": {
+            "type": "object",
+            "required": ["sheetId"],
+            "additionalProperties": false,
+            "properties": {
+              "sheetId": {"type": "integer", "minimum": 0},
+              "startRowIndex": {"type": "integer", "minimum": 0},
+              "endRowIndex": {"type": "integer", "minimum": 0},
+              "startColumnIndex": {"type": "integer", "minimum": 0},
+              "endColumnIndex": {"type": "integer", "minimum": 0}
+            }
+          },
+          "filterSpecs": {"type": "array", "maxItems": 50, "items": {"type": "object"}}
+        },
+        "allOf": [
+          {
+            "if": {"properties": {"action": {"const": "set"}}, "required": ["action"]},
+            "then": {"required": ["range"]}
+          },
+          {
+            "if": {"properties": {"action": {"const": "clear"}}, "required": ["action"]},
+            "then": {"required": ["sheetId"]}
+          }
+        ]
+      }
+    },
+    {
+      "name": "sheets_filter_views",
+      "description": "Pass the connectionRef from the connection status and the spreadsheetId of a spreadsheet the person picked or Tovu created. List, add, update, duplicate or delete saved filter views. list may narrow to one sheetId; add needs filter (with range); update needs filterViewId, filter and fields (the filter properties to change); duplicate and delete need filterViewId. The person confirms on a card before anything changes; remote changes cannot be undone from Tovu.",
+      "effect": "destructive",
+      "module": "tools/sheets-admin/filter-views.mjs",
+      "inputSchema": {
+        "type": "object",
+        "required": ["connectionRef", "spreadsheetId", "action"],
+        "additionalProperties": false,
+        "properties": {
+          "connectionRef": {"type": "string", "minLength": 1, "maxLength": 512},
+          "spreadsheetId": {"type": "string", "pattern": "^[A-Za-z0-9_-]{10,200}$"},
+          "action": {"enum": ["list", "add", "update", "duplicate", "delete"]},
+          "sheetId": {"type": "integer", "minimum": 0},
+          "filterViewId": {"type": "integer", "minimum": 0},
+          "filter": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "title": {"type": "string", "minLength": 1, "maxLength": 100},
+              "range": {
+                "type": "object",
+                "required": ["sheetId"],
+                "additionalProperties": false,
+                "properties": {
+                  "sheetId": {"type": "integer", "minimum": 0},
+                  "startRowIndex": {"type": "integer", "minimum": 0},
+                  "endRowIndex": {"type": "integer", "minimum": 0},
+                  "startColumnIndex": {"type": "integer", "minimum": 0},
+                  "endColumnIndex": {"type": "integer", "minimum": 0}
+                }
+              },
+              "namedRangeId": {"type": "string", "minLength": 1, "maxLength": 128},
+              "sortSpecs": {
+                "type": "array",
+                "minItems": 1,
+                "maxItems": 10,
+                "items": {
+                  "type": "object",
+                  "required": ["dimensionIndex"],
+                  "additionalProperties": false,
+                  "properties": {
+                    "dimensionIndex": {"type": "integer", "minimum": 0},
+                    "sortOrder": {"enum": ["ASCENDING", "DESCENDING"]}
+                  }
+                }
+              },
+              "filterSpecs": {"type": "array", "maxItems": 50, "items": {"type": "object"}}
+            }
+          },
+          "fields": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 5,
+            "uniqueItems": true,
+            "items": {"enum": ["title", "range", "namedRangeId", "sortSpecs", "filterSpecs"]}
+          }
+        },
+        "allOf": [
+          {
+            "if": {"properties": {"action": {"const": "add"}}, "required": ["action"]},
+            "then": {"required": ["filter"]}
+          },
+          {
+            "if": {"properties": {"action": {"const": "update"}}, "required": ["action"]},
+            "then": {"required": ["filterViewId", "filter", "fields"]}
+          },
+          {
+            "if": {"properties": {"action": {"const": "duplicate"}}, "required": ["action"]},
+            "then": {"required": ["filterViewId"]}
+          },
+          {
+            "if": {"properties": {"action": {"const": "delete"}}, "required": ["action"]},
+            "then": {"required": ["filterViewId"]}
+          }
+        ]
+      }
+    },
+    {
+      "name": "sheets_format",
+      "description": "Pass the connectionRef from the connection status and the spreadsheetId of a spreadsheet the person picked or Tovu created. Format a grid range: cellFormat (a Sheets CellFormat: numberFormat, textFormat, backgroundColor, horizontalAlignment, wrapStrategy and so on) with fields naming exactly which format properties to set (for example [\"textFormat.bold\", \"numberFormat\"]); borders (top, bottom, left, right, innerHorizontal, innerVertical); frozenRowCount and frozenColumnCount for the range's tab; columnWidth in pixels for the range's columns. Never changes cell values. The person confirms on a card before anything changes; remote changes cannot be undone from Tovu.",
+      "effect": "write",
+      "module": "tools/sheets-admin/format.mjs",
+      "inputSchema": {
+        "type": "object",
+        "required": ["connectionRef", "spreadsheetId", "range"],
+        "additionalProperties": false,
+        "properties": {
+          "connectionRef": {"type": "string", "minLength": 1, "maxLength": 512},
+          "spreadsheetId": {"type": "string", "pattern": "^[A-Za-z0-9_-]{10,200}$"},
+          "range": {
+            "type": "object",
+            "required": ["sheetId"],
+            "additionalProperties": false,
+            "properties": {
+              "sheetId": {"type": "integer", "minimum": 0},
+              "startRowIndex": {"type": "integer", "minimum": 0},
+              "endRowIndex": {"type": "integer", "minimum": 0},
+              "startColumnIndex": {"type": "integer", "minimum": 0},
+              "endColumnIndex": {"type": "integer", "minimum": 0}
+            }
+          },
+          "cellFormat": {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": false,
+            "properties": {
+              "numberFormat": {},
+              "backgroundColor": {},
+              "backgroundColorStyle": {},
+              "borders": {},
+              "padding": {},
+              "horizontalAlignment": {},
+              "verticalAlignment": {},
+              "wrapStrategy": {},
+              "textDirection": {},
+              "textFormat": {},
+              "hyperlinkDisplayType": {},
+              "textRotation": {}
+            }
+          },
+          "fields": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 20,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "maxLength": 100,
+              "pattern": "^(numberFormat|backgroundColor|backgroundColorStyle|borders|padding|horizontalAlignment|verticalAlignment|wrapStrategy|textDirection|textFormat|hyperlinkDisplayType|textRotation)(\\.[A-Za-z]+)*$"
+            }
+          },
+          "borders": {
+            "type": "object",
+            "minProperties": 1,
+            "additionalProperties": false,
+            "properties": {
+              "top": {"type": "object"},
+              "bottom": {"type": "object"},
+              "left": {"type": "object"},
+              "right": {"type": "object"},
+              "innerHorizontal": {"type": "object"},
+              "innerVertical": {"type": "object"}
+            }
+          },
+          "frozenRowCount": {"type": "integer", "minimum": 0, "maximum": 1000},
+          "frozenColumnCount": {"type": "integer", "minimum": 0, "maximum": 100},
+          "columnWidth": {"type": "integer", "minimum": 1, "maximum": 2000}
+        },
+        "dependentRequired": {"cellFormat": ["fields"], "fields": ["cellFormat"]},
+        "anyOf": [
+          {"required": ["cellFormat"]},
+          {"required": ["borders"]},
+          {"required": ["frozenRowCount"]},
+          {"required": ["frozenColumnCount"]},
+          {"required": ["columnWidth"]}
+        ]
+      }
+    },
+    {
+      "name": "sheets_named_ranges",
+      "description": "Pass the connectionRef from the connection status and the spreadsheetId of a spreadsheet the person picked or Tovu created. List, add, update or delete named ranges. add needs name and range; update needs namedRangeId and a new name or range; delete needs namedRangeId. Formulas that use a deleted or moved name change with it. The person confirms on a card before anything changes; remote changes cannot be undone from Tovu.",
+      "effect": "destructive",
+      "module": "tools/sheets-admin/named-ranges.mjs",
+      "inputSchema": {
+        "type": "object",
+        "required": ["connectionRef", "spreadsheetId", "action"],
+        "additionalProperties": false,
+        "properties": {
+          "connectionRef": {"type": "string", "minLength": 1, "maxLength": 512},
+          "spreadsheetId": {"type": "string", "pattern": "^[A-Za-z0-9_-]{10,200}$"},
+          "action": {"enum": ["list", "add", "update", "delete"]},
+          "namedRangeId": {"type": "string", "minLength": 1, "maxLength": 128},
+          "name": {"type": "string", "pattern": "^[A-Za-z_][A-Za-z0-9_.]{0,99}$"},
+          "range": {
+            "type": "object",
+            "required": ["sheetId"],
+            "additionalProperties": false,
+            "properties": {
+              "sheetId": {"type": "integer", "minimum": 0},
+              "startRowIndex": {"type": "integer", "minimum": 0},
+              "endRowIndex": {"type": "integer", "minimum": 0},
+              "startColumnIndex": {"type": "integer", "minimum": 0},
+              "endColumnIndex": {"type": "integer", "minimum": 0}
+            }
+          }
+        },
+        "allOf": [
+          {
+            "if": {"properties": {"action": {"const": "add"}}, "required": ["action"]},
+            "then": {"required": ["name", "range"]}
+          },
+          {
+            "if": {"properties": {"action": {"const": "update"}}, "required": ["action"]},
+            "then": {"required": ["namedRangeId"]}
+          },
+          {
+            "if": {"properties": {"action": {"const": "delete"}}, "required": ["action"]},
+            "then": {"required": ["namedRangeId"]}
+          },
+          {
+            "if": {"properties": {"action": {"const": "update"}}, "required": ["action"]},
+            "then": {"anyOf": [{"required": ["name"]}, {"required": ["range"]}]}
+          }
+        ]
+      }
+    },
+    {
+      "name": "sheets_protected_ranges_get",
+      "description": "Pass the connectionRef from the connection status and the spreadsheetId of a spreadsheet the person picked or Tovu created. Which ranges are protected, who may edit them, and whether the connected account can (requestingUserCanEdit). Optionally only one tab (sheetId). Changing protection goes through sheets_batch_update.",
+      "effect": "read",
+      "module": "tools/sheets-admin/protected-ranges-get.mjs",
+      "inputSchema": {
+        "type": "object",
+        "required": ["connectionRef", "spreadsheetId"],
+        "additionalProperties": false,
+        "properties": {
+          "connectionRef": {"type": "string", "minLength": 1, "maxLength": 512},
+          "spreadsheetId": {"type": "string", "pattern": "^[A-Za-z0-9_-]{10,200}$"},
+          "sheetId": {"type": "integer", "minimum": 0}
+        }
+      }
+    },
+    {
+      "name": "sheets_developer_metadata",
+      "description": "Pass the connectionRef from the connection status and the spreadsheetId of a spreadsheet the person picked or Tovu created. Read developer metadata: get one entry by metadataId, or search with up to 20 Sheets DataFilter objects. Creating, changing or deleting metadata goes through sheets_batch_update.",
+      "effect": "read",
+      "module": "tools/sheets-admin/developer-metadata.mjs",
+      "inputSchema": {
+        "type": "object",
+        "required": ["connectionRef", "spreadsheetId", "action"],
+        "additionalProperties": false,
+        "properties": {
+          "connectionRef": {"type": "string", "minLength": 1, "maxLength": 512},
+          "spreadsheetId": {"type": "string", "pattern": "^[A-Za-z0-9_-]{10,200}$"},
+          "action": {"enum": ["get", "search"]},
+          "metadataId": {"type": "integer", "minimum": 0},
+          "dataFilters": {"type": "array", "minItems": 1, "maxItems": 20, "items": {"type": "object"}}
+        },
+        "allOf": [
+          {
+            "if": {"properties": {"action": {"const": "get"}}, "required": ["action"]},
+            "then": {"required": ["metadataId"]}
+          },
+          {
+            "if": {"properties": {"action": {"const": "search"}}, "required": ["action"]},
+            "then": {"required": ["dataFilters"]}
+          }
+        ]
+      }
+    },
+    {
+      "name": "sheets_batch_update",
+      "description": "Pass the connectionRef from the connection status and the spreadsheetId of a spreadsheet the person picked or Tovu created. Send up to 100 Sheets batchUpdate request objects (each names exactly one request kind, for example {\"insertDimension\": {...}}) in one atomic call, at most 1 MiB. Only reviewed, generally available request kinds are accepted (see the Sheets reference of this plugin); any other kind is refused before anything is sent. Field masks must be explicit, never *. The card lists every request kind. The person confirms on a card before anything changes; remote changes cannot be undone from Tovu.",
+      "effect": "destructive",
+      "module": "tools/sheets-admin/batch-update.mjs",
+      "inputSchema": {
+        "type": "object",
+        "required": ["connectionRef", "spreadsheetId", "requests"],
+        "additionalProperties": false,
+        "properties": {
+          "connectionRef": {"type": "string", "minLength": 1, "maxLength": 512},
+          "spreadsheetId": {"type": "string", "pattern": "^[A-Za-z0-9_-]{10,200}$"},
+          "requests": {
+            "type": "array",
+            "minItems": 1,
+            "maxItems": 100,
+            "items": {"type": "object", "minProperties": 1, "maxProperties": 1}
+          }
+        }
+      }
+    },
+    {
+      "name": "sheets_export_csv",
+      "description": "Pass the connectionRef from the connection status and the spreadsheetId of a spreadsheet the person picked or Tovu created. Export one tab (sheetId), or an A1 range of it such as A1:F500, as a CSV file the person can download. At most 20,000 rows and 100,000 cells; a larger export is refused, never cut short. valueRenderOption FORMATTED_VALUE (default, as displayed) or UNFORMATTED_VALUE. Returns the file reference and its size, not the data.",
+      "effect": "read",
+      "module": "tools/sheets-admin/export-csv.mjs",
+      "inputSchema": {
+        "type": "object",
+        "required": ["connectionRef", "spreadsheetId", "sheetId"],
+        "additionalProperties": false,
+        "properties": {
+          "connectionRef": {"type": "string", "minLength": 1, "maxLength": 512},
+          "spreadsheetId": {"type": "string", "pattern": "^[A-Za-z0-9_-]{10,200}$"},
+          "sheetId": {"type": "integer", "minimum": 0},
+          "range": {"type": "string", "pattern": "^[A-Z]{1,3}[1-9][0-9]{0,6}:[A-Z]{1,3}[1-9][0-9]{0,6}$"},
+          "valueRenderOption": {"enum": ["FORMATTED_VALUE", "UNFORMATTED_VALUE"]}
+        }
+      }
+    },
+    {
+      "name": "sheets_open_existing",
+      "description": "Work with a spreadsheet the person already has. Pass the connectionRef. Without spreadsheetId it answers waiting: the person chooses the file with Google's file picker in the Google Workspace plugin (a pasted link grants nothing). With the spreadsheetId of a picked file it checks that Tovu can open it and that it is a spreadsheet, and returns its id, title and link.",
+      "effect": "read",
+      "module": "tools/sheets-admin/open-existing.mjs",
+      "inputSchema": {
+        "type": "object",
+        "required": ["connectionRef"],
+        "additionalProperties": false,
+        "properties": {
+          "connectionRef": {"type": "string", "minLength": 1, "maxLength": 512},
+          "spreadsheetId": {"type": "string", "pattern": "^[A-Za-z0-9_-]{10,200}$"}
+        }
+      }
+    }
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "destinations": [
+    {
+      "id": "google-sheets",
+      "label": "Google Sheets",
+      "module": "form-destinations/sheets.mjs"
+    }
+  ]
+}

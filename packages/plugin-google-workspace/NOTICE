@@ -1,0 +1,12 @@
+Jini Google Workspace Agent Plugin
+Copyright 2026 Leona Burime
+
+Portable plugin sources remain at packages/agent-plugins/google-workspace.
+Moved from Tovu's bundled content/agent-plugins/google-workspace (2026-11-02); product-specific
+guidance stays with the host as an overlay.
+All skill text and code is original.
+No third-party text or code is included.
+
+This distribution contains executable plugin modules (lib/, tools/, ui/, form-destinations/) that
+call Google's public APIs over HTTP supplied by the host. It bundles no vendor SDK.
+See LICENSE for the Apache License, Version 2.0.
