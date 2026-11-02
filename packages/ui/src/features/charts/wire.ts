@@ -29,6 +29,51 @@ export const rechartsPieChartManifest: InteractiveComponentManifest = {
 };
 export const chartWireManifests = [rechartsBarChartManifest, rechartsLineChartManifest, rechartsPieChartManifest] as const;
 
+/** A series point is a finite number, or null for a gap (a missing month on a line). */
+function isSeriesValue(value: unknown): boolean {
+  return value === null || (typeof value === 'number' && Number.isFinite(value));
+}
+
+function isCategoryValue(value: unknown): boolean {
+  return typeof value === 'string' || (typeof value === 'number' && Number.isFinite(value));
+}
+
+/** Report the first bad row per key only, so a large table of strings yields one issue, not thousands. */
+function checkColumn(
+  { rows, key, accepts, expected, ctx }: {
+    rows: readonly Record<string, unknown>[]; key: string; accepts: (value: unknown) => boolean; expected: string; ctx: z.RefinementCtx;
+  },
+  _options: Record<string, never> = {},
+): void {
+  const index = rows.findIndex((row) => !Object.hasOwn(row, key) || !accepts(row[key]));
+  if (index < 0) return;
+  const problem = Object.hasOwn(rows[index]!, key) ? `is not ${expected}` : 'is missing';
+  ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['data', index, key], message: `Row ${index} "${key}" ${problem}; every row needs it.` });
+}
+
+/** Rows are the shared x axis: every row carries every series key, so series lengths always match. */
+function checkSeriesShape(spec: z.infer<typeof chartSpecSchema>, ctx: z.RefinementCtx): void {
+  const keys = spec.series.map(({ key }) => key);
+  const duplicate = keys.find((key, index) => keys.indexOf(key) !== index);
+  if (duplicate !== undefined) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['series'], message: `Series key "${duplicate}" is listed twice.` });
+  }
+  if (spec.categoryKey !== undefined) {
+    checkColumn({ rows: spec.data, key: spec.categoryKey, accepts: isCategoryValue, expected: 'a string or number', ctx });
+  }
+  for (const key of new Set(keys)) checkColumn({ rows: spec.data, key, accepts: isSeriesValue, expected: 'a number or null', ctx });
+}
+
+/** `chart.spec` props: one neutral spec, any kind, one or more series. Stricter than the contract
+ * (which also carries converted legacy data) because an agent writes this shape directly.
+ */
+export const chartSpecPropsSchema = z.object({
+  spec: chartSpecSchema.extend({
+    data: chartSpecSchema.shape.data.min(1),
+    series: chartSpecSchema.shape.series.min(1),
+  }).superRefine(checkSeriesShape),
+}).passthrough();
+
 /** Convert validated legacy props to the neutral contract; optional provider overrides stay data.
  * @example legacyChartSpec({ kind: 'pie', props: { data: [{ name: 'A', value: 2 }] } })
  * @throws ZodError for an invalid wire shape or nonserializable row data.
