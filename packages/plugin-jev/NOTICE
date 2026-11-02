@@ -1,0 +1,11 @@
+Jini Jev Agent Plugin
+Copyright 2026 Leona Burime
+
+Portable skill sources remain at packages/agent-plugins/jev.
+Moved from Tovu's bundled content/agent-plugins/jev (2026-11-02); product words
+were made host-neutral.
+Skill text is original, written from TypeSafe's public Jev documentation, which it links.
+No TypeSafe SDK or other third-party code is included.
+
+This distribution contains no executable code, provider plugin or vendor SDK.
+See LICENSE for the Apache License, Version 2.0.
