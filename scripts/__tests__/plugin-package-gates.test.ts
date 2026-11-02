@@ -5,12 +5,15 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { checkPluginPackages, inspectPluginPackageTarball } from '../check-plugin-packages.js';
 import { checkPackageLayers } from '../check-package-layers.js';
 import type { JiniPackageEntry } from '../lib/pack-jini-packages.js';
+import { agentPluginPackageRoot, agentPluginPackages } from '../lib/agent-plugin-packages.js';
 
 type InspectionInput = { entry: JiniPackageEntry };
 
-const names = ['plugin-ai-trace-langfuse', 'plugin-analytics-posthog', 'plugin-fixture-provider',
-  'plugin-observability-opentelemetry', 'plugin-observability-sentry', 'plugin-payments-stripe',
-  'plugin-slide-design', 'plugin-ui-ux-design', 'plugin-catalog'];
+// Provider distributions; agent plugin packages come from the layout table, so a new row needs no edit here.
+const providerPackages = ['plugin-ai-trace-langfuse', 'plugin-analytics-posthog', 'plugin-fixture-provider',
+  'plugin-observability-opentelemetry', 'plugin-observability-sentry', 'plugin-payments-stripe'];
+const agentPackages = agentPluginPackages.map(row => agentPluginPackageRoot(row).slice('packages/'.length));
+const names = [...new Set([...providerPackages, ...agentPackages]), 'plugin-catalog'];
 const documents = ['package.json', 'README.md', 'LICENSE', 'NOTICE'];
 let root: string;
 
@@ -30,7 +33,7 @@ beforeEach(() => {
 });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 
-it('registers all eight distribution leaves and the catalog without allowing core imports of them', () => {
+it('registers every distribution leaf and the catalog without allowing core imports of them', () => {
   expect(checkPluginPackages({ repoRoot: root })).toEqual([]);
   expect(checkPackageLayers({ repoRoot: root })).toEqual([]);
   manifest({ name: 'core', fields: { dependencies: { '@jini-ai/plugin-fixture-provider': '^0.6.17' } } });
@@ -38,6 +41,22 @@ it('registers all eight distribution leaves and the catalog without allowing cor
     rule: 'L1-layer-edge', file: 'packages/core/package.json',
     reason: 'core → @jini-ai/plugin-fixture-provider: L0 cannot depend on L7',
   }]);
+});
+
+it('treats a new plugin package as a leaf by rule, while an unlisted core package still needs a layer', () => {
+  manifest({ name: 'plugin-brand-new' });
+  manifest({ name: 'brand-new-core' });
+  expect(checkPackageLayers({ repoRoot: root })).toEqual([{
+    rule: 'L0-unlisted-package', file: 'packages/brand-new-core/package.json', reason: 'package missing from the approved layer table',
+  }]);
+  rmSync(join(root, 'packages/brand-new-core'), { recursive: true });
+  manifest({ name: 'agent-plugins', fields: { dependencies: { '@jini-ai/plugin-brand-new': '^0.6.19' } } });
+  expect(checkPackageLayers({ repoRoot: root })).toContainEqual({
+    rule: 'L1-layer-edge', file: 'packages/agent-plugins/package.json',
+    reason: 'agent-plugins → @jini-ai/plugin-brand-new: L4 cannot depend on L7',
+  });
+  manifest({ name: 'plugin-brand-new', fields: { dependencies: { '@jini-ai/core': '^0.6.19' } } });
+  expect(checkPackageLayers({ repoRoot: root }).filter(violation => violation.file === 'packages/plugin-brand-new/package.json')).toEqual([]);
 });
 
 it('checks workspace dependency aliases and resolves local targets by their manifest identity', () => {

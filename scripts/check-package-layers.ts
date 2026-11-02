@@ -26,11 +26,16 @@ const layers: Readonly<Record<string, number>> = {
   // Provider plugin sources adapt lower-layer domain ports (diagnostics, analytics, agent-runtime,
   // capability-providers) and register through plugins; no core package may depend on them.
   'provider-plugins': 7,
-  // Standalone distributions remain leaves; a catalog only describes those leaves.
-  'plugin-ai-trace-langfuse': 7, 'plugin-analytics-posthog': 7, 'plugin-fixture-provider': 7,
-  'plugin-observability-opentelemetry': 7, 'plugin-observability-sentry': 7,
-  'plugin-payments-stripe': 7, 'plugin-slide-design': 7, 'plugin-ui-ux-design': 7, 'plugin-catalog': 7,
 };
+// Standalone distributions remain leaves; a catalog only describes those leaves. One rule covers
+// every `plugin-*` package, so adding a plugin package never edits this table.
+const pluginDistributionLayer = 7;
+
+/** Approved layer of a package (name without `@jini-ai/`), or undefined when it is unlisted. */
+function layerOf(name: string): number | undefined {
+  if (Object.hasOwn(layers, name)) return layers[name];
+  return name.startsWith('plugin-') ? pluginDistributionLayer : undefined;
+}
 const sameLayerEdges = new Set(['cli→sidecar', 'cms-forms→cms', 'admin→ui']);
 
 // Reviewed feature owners expose these contracts/catalogs without dispatch or service code.
@@ -165,8 +170,8 @@ export function checkPackageLayers(
     if (!spec.startsWith('@jini-ai/')) return;
     const owner = pkg.manifest.name.slice('@jini-ai/'.length);
     const target = spec.slice('@jini-ai/'.length).split('/')[0]!;
-    const ownerLayer = layers[owner];
-    const targetLayer = layers[target];
+    const ownerLayer = layerOf(owner);
+    const targetLayer = layerOf(target);
     const reason = `${owner} → ${spec}`;
     if (ownerLayer === undefined || targetLayer === undefined) {
       violations.push({ rule: 'L0-unlisted-package', file, reason: `${reason}: package missing from the approved layer table` }); return;
@@ -185,7 +190,7 @@ export function checkPackageLayers(
   }
   function checkManifest(pkg: SourcePackage): void {
     const manifestFile = relative(root, join(pkg.directory, 'package.json')).split('\\').join('/');
-    if (layers[pkg.manifest.name.slice('@jini-ai/'.length)] === undefined) {
+    if (layerOf(pkg.manifest.name.slice('@jini-ai/'.length)) === undefined) {
       violations.push({ rule: 'L0-unlisted-package', file: manifestFile, reason: 'package missing from the approved layer table' });
     }
     for (const name of Object.keys(pkg.manifest.dependencies ?? {})) check(pkg, name, manifestFile);

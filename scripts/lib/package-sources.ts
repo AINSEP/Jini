@@ -18,7 +18,11 @@ export interface SourcePackage { directory: string; manifest: PackageManifest }
 
 export function sourcePackages(required: { packagesDir: string }, _optional: Record<string, never> = {}): SourcePackage[] {
   const packages: SourcePackage[] = [];
+  // Every child of the agent-plugins package is its src or plugin content (a plugin folder may ship
+  // its own package.json fixtures); none is a workspace package.
+  const agentPluginContent = join(required.packagesDir, 'agent-plugins');
   function visit(directory: string): void {
+    if (directory === agentPluginContent) return;
     for (const entry of readdirSync(directory, { withFileTypes: true })) {
       if (!entry.isDirectory() || ['node_modules', 'dist', '.git'].includes(entry.name)) continue;
       const child = join(directory, entry.name);
@@ -29,7 +33,7 @@ export function sourcePackages(required: { packagesDir: string }, _optional: Rec
       }
       // Package roots and their immediate children can contain nested packages (<family>/<domain>).
       // Runtime asset projects inside src are content, not workspace packages.
-      if (!['src', 'docs', 'ui-ux-design'].includes(entry.name)) visit(child);
+      if (!['src', 'docs'].includes(entry.name)) visit(child);
     }
   }
   visit(required.packagesDir);
