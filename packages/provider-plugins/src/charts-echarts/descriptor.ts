@@ -6,8 +6,8 @@ export const ECHARTS_KINDS = ['bar', 'line', 'area', 'pie', 'donut', 'scatter', 
 export type EChartsKind = typeof ECHARTS_KINDS[number];
 type ChartFormat = NonNullable<ChartSpec['format']>;
 
-export function isEChartsKind({ kind }: { kind: string }, _options: Record<string, never> = {}): kind is EChartsKind {
-  return ECHARTS_KINDS.some((candidate) => candidate === kind);
+export function isEChartsKind(required: { kind: string }, _options: Record<string, never> = {}): required is { kind: EChartsKind } {
+  return ECHARTS_KINDS.some((candidate) => candidate === required.kind);
 }
 
 /** Part-to-whole kinds draw concentric series of slices; every other kind draws series on x/y axes. */
