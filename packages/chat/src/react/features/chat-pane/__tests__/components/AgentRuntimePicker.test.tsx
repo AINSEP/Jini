@@ -73,10 +73,11 @@ describe('AgentRuntimePicker', () => {
       { id: 'claude-opus-5-5[1m]', label: 'Default (recommended)', identityKind: 'concrete' },
     ], defaultModelResolution: { status: 'resolved', id: 'claude-opus-5-5[1m]', source: 'rpc', resolvedAt: '2026-10-08T00:00:00.000Z', launchFingerprint: 'fixture' } };
     const { rerender } = render(<AgentRuntimePicker agents={[claude]} value={{ agentId: 'claude' }} onChange={onChange} />);
-    // The catalog has no display name for it, so the bar prettifies the id and drops "Claude".
-    expect(screen.getByRole('button', { name: 'Model: claude-opus-5-5[1m]' })).toHaveTextContent(/^Opus 5\.5$/);
+    // The catalog has no display name for it, so the bar prettifies the id and drops "Claude";
+    // the full name and the list read it friendly but exact, context suffix kept.
+    expect(screen.getByRole('button', { name: 'Model: Claude Opus 5.5 [1m]' })).toHaveTextContent(/^Opus 5\.5$/);
     await userEvent.click(screen.getByRole('button', { name: /^Model:/ }));
-    expect(screen.getByRole('menuitemradio', { name: 'claude-opus-5-5[1m]' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByRole('menuitemradio', { name: 'Claude Opus 5.5 [1m]' })).toHaveAttribute('aria-checked', 'true');
     expect(screen.queryByText('Default (recommended)')).not.toBeInTheDocument();
     await userEvent.click(screen.getByRole('menuitemradio', { name: 'Claude Sonnet 5' }));
     expect(onChange).toHaveBeenCalledWith({ agentId: 'claude', model: 'claude-sonnet-5' });
@@ -834,5 +835,19 @@ describe('AgentRuntimePicker', () => {
     // without throwing on an empty control list instead of indexing into it.
     fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Tab' });
     expect(screen.getByRole('dialog')).toBeInTheDocument();
+  });
+});
+
+describe('AgentRuntimePicker model names before the live list', () => {
+  it('lists raw catalog ids by friendly name, and the bar names the chosen one the same way', async () => {
+    const user = userEvent.setup();
+    const claude: ChatPaneAgent = { id: 'claude', name: 'Claude Code', available: true, discoveryPending: true,
+      models: [{ id: 'claude-sonnet-5-5', label: 'claude-sonnet-5-5' }, { id: 'claude-opus-5-5', label: 'claude-opus-5-5' }] };
+    render(<AgentRuntimePicker agents={[claude]} value={{ agentId: 'claude', model: 'claude-sonnet-5-5' }} onChange={vi.fn()} />);
+    const model = screen.getByRole('button', { name: 'Model: Claude Sonnet 5.5' });
+    await user.click(model);
+    const menu = screen.getByRole('menu', { name: 'Model' });
+    expect(within(menu).getAllByRole('menuitemradio').map((item) => item.textContent)).toEqual(['Claude Sonnet 5.5', 'Claude Opus 5.5']);
+    expect(menu).not.toHaveTextContent('Offline fallback');
   });
 });

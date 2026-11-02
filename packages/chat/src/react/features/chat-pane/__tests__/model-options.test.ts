@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { configuredPickerModel, pickerCatalogNote, pickerModelLabel, pickerModelOptions, pickerModelValue, shortModelLabel } from '../model-options.js';
+import { configuredPickerModel, friendlyModelLabel, pickerCatalogNote, pickerModelLabel, pickerModelOptions, pickerModelValue, shortModelLabel } from '../model-options.js';
 import { defaultChatPaneSelection, resolveChatPaneSelection } from '../rules.js';
 import type { ChatPaneAgent } from '../types.js';
 const agent: ChatPaneAgent = { id: 'codex', name: 'Codex', available: true,
@@ -140,5 +140,31 @@ describe('shortModelLabel (composer bar)', () => {
     expect(capped).toBe('4 Argon Ultra T…');
     expect(capped).toHaveLength(16);
     expect(shortModelLabel({ label: 'Choose model' })).toBe('Choose model');
+  });
+});
+
+// Demo practice run (2026-11-02): the picker first listed raw ids ("claude-sonnet-5-5") under an
+// "Offline fallback" note while the host was still probing for the live list.
+describe('model picker before the live list arrives', () => {
+  it.each([
+    ['claude-opus-5-5', 'Claude Opus 5.5'],
+    ['gpt-6.1-sol', 'GPT 6.1 Sol'],
+    // A date or context suffix stays, so two exact ids never share one name.
+    ['claude-haiku-4-5-20251001', 'Claude Haiku 4.5 20251001'],
+    ['gpt-6-astra[1m]', 'GPT 6 Astra [1m]'],
+    // A routing prefix names a different exact model; it is left as the id.
+    ['anthropic/claude-sonnet-5', 'anthropic/claude-sonnet-5'],
+    ['Opus 5.5', 'Opus 5.5'],
+    ['Fable (alias)', 'Fable (alias)'],
+  ])('names %s as %s', (label, expected) => {
+    expect(friendlyModelLabel({ label })).toBe(expected);
+  });
+
+  it('says nothing about an offline fallback while the host is still probing', () => {
+    const pending: ChatPaneAgent = { ...agent, discoveryPending: true, modelCatalog: { ...agent.modelCatalog!, freshness: 'offline-fallback' } };
+    expect(pickerCatalogNote(pending)).toBeUndefined();
+    expect(pickerCatalogNote({ id: 'host', name: 'Host', models: agent.models!, discoveryPending: true })).toBeUndefined();
+    expect(pickerCatalogNote({ ...pending, modelCatalog: { ...pending.modelCatalog!, freshness: 'stale' } })).toBe('Cached · 2026-10-06T00:00:00.000Z');
+    expect(pickerCatalogNote({ ...pending, discoveryPending: false })).toBe('Offline fallback');
   });
 });

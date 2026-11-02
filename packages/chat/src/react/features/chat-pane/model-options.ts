@@ -35,6 +35,9 @@ export function pickerModelValue(agent: ChatPaneAgent, requested?: string): stri
 export function pickerCatalogNote(agent: ChatPaneAgent, t: I18nAdapter['t'] = passthrough): string | undefined {
   const catalog = agent.modelCatalog;
   if (catalog?.freshness === 'stale') return `${t('Cached')} · ${catalog.fetchedAt}`;
+  // While the host is still probing, the live list has not failed yet: the rows are the
+  // cached/fallback list the inventory contract says to show meanwhile, not an offline verdict.
+  if (agent.discoveryPending) return undefined;
   if (catalog?.freshness === 'offline-fallback' || !catalog && agent.models) return t('Offline fallback');
   return undefined;
 }
@@ -50,18 +53,33 @@ const BAR_VENDOR_WORDS: Readonly<Record<string, readonly string[]>> = {
 const RAW_MODEL_ID = /^(?:[a-z0-9._-]+\/)*[a-z0-9][a-z0-9._-]*(?:\[[^\]]*\])?$/;
 const BRAND_CASING: Readonly<Record<string, string>> = { gpt: 'GPT' };
 
-function prettifyRawModelId(id: string): string[] {
+function prettifyRawModelId(id: string, { keepDates = false }: { keepDates?: boolean } = {}): string[] {
   // A routing prefix ("anthropic/") is the full name's job; the bar names only the model.
   // The caller proved RAW_MODEL_ID, so the first '[' can only start its trailing context suffix.
-  const tokens = id.slice(id.lastIndexOf('/') + 1).split('[', 1)[0]!.split(/[-_]+/).filter((token) => token && !/^\d{8}$/.test(token));
+  const tokens = id.slice(id.lastIndexOf('/') + 1).split('[', 1)[0]!.split(/[-_]+/).filter((token) => token && (keepDates || !/^\d{8}$/.test(token)));
   const words: string[] = [];
   for (const token of tokens) {
     const previous = words[words.length - 1];
     // Dash-separated version digits read as one dotted version: "5-5" → "5.5".
-    if (/^\d+$/.test(token) && previous && /^\d+(?:\.\d+)*$/.test(previous)) words[words.length - 1] = `${previous}.${token}`;
+    // A kept 8-digit date stays its own word, never a version part.
+    if (/^\d{1,7}$/.test(token) && previous && /^\d+(?:\.\d+)*$/.test(previous)) words[words.length - 1] = `${previous}.${token}`;
     else words.push(BRAND_CASING[token] ?? token.charAt(0).toUpperCase() + token.slice(1));
   }
   return words;
+}
+
+/**
+ * A catalog row's display name: a bare raw id ("claude-opus-5-5", which offline fallback lists carry)
+ * reads as "Claude Opus 5.5"; a human label is kept as written. Still exact: a date or context suffix
+ * stays, and a routed id ("anthropic/…") is left whole, since its prefix names a different model.
+ * @example friendlyModelLabel({ label: 'claude-haiku-4-5-20251001' }) // "Claude Haiku 4.5 20251001"
+ * @complexity O(n) in the label length. Pure.
+ */
+export function friendlyModelLabel({ label }: { label: string }, _options: Record<string, never> = {}): string {
+  if (!RAW_MODEL_ID.test(label) || label.includes('/')) return label;
+  const suffix = label.indexOf('[');
+  const words = prettifyRawModelId(label, { keepDates: true }).join(' ');
+  return suffix === -1 ? words : `${words} ${label.slice(suffix)}`;
 }
 
 /**

@@ -1,4 +1,4 @@
-import { pickerModelValue, pickerCatalogNote, pickerModelOptions, shortModelLabel } from '../model-options.js';
+import { friendlyModelLabel, pickerModelValue, pickerCatalogNote, pickerModelOptions, shortModelLabel } from '../model-options.js';
 import { useId, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AgentIcon, RemixIcon, SearchableModelSelect } from '@jini-ai/ui';
@@ -223,14 +223,16 @@ interface RuntimeBarMenusProps {
  */
 function RuntimeBarMenus({ selectedAgent, value, onChange, modelLabel, t }: RuntimeBarMenusProps): ReactNode {
   if (!selectedAgent) return null;
-  const models = pickerModelOptions(selectedAgent);
+  // Raw catalog ids (an offline fallback list's rows) read as friendly names in the bar and its list.
+  const models = pickerModelOptions(selectedAgent).map((row) => ({ ...row, label: friendlyModelLabel({ label: row.label }) }));
   const efforts = selectedAgent.reasoningOptions ?? [];
+  const modelName = friendlyModelLabel({ label: modelLabel });
   return (
     <>
       {models.length > 0 ? (
         <RuntimeDropUp
           label={t('Model')}
-          valueLabel={modelLabel}
+          valueLabel={modelName}
           // The agent icon sits right beside it, so the bar drops the vendor word and caps the rest.
           triggerLabel={shortModelLabel({ label: modelLabel, agentId: selectedAgent.id })}
           value={pickerModelValue(selectedAgent, value.model)}

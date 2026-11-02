@@ -131,13 +131,29 @@ export function useRuntimeDropUp({ width }: { width: number }): UseRuntimeDropUp
     (checked ?? menu?.querySelector<HTMLElement>(MENU_ITEMS))?.focus();
   }, [open, position]);
 
+  // Escape is also handled here, on the menu and the trigger themselves: the document listener
+  // above never hears a keydown that something between them and the document stopped (demo
+  // practice run, 2026-11-02: Escape left the model picker open). preventDefault marks it consumed,
+  // so a host's own Escape (the admin dock closing) leaves this press to the menu.
+  const closeOnOwnEscape = useCallback((event: ReactKeyboardEvent<HTMLElement>): boolean => {
+    if (event.key !== 'Escape') return false;
+    event.preventDefault();
+    closeToTrigger();
+    return true;
+  }, [closeToTrigger]);
+
   const handleTriggerKeyDown = useCallback((event: ReactKeyboardEvent<HTMLButtonElement>) => {
-    if (open || (event.key !== 'ArrowUp' && event.key !== 'ArrowDown')) return;
+    if (open) {
+      closeOnOwnEscape(event);
+      return;
+    }
+    if (event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return;
     event.preventDefault();
     setOpen(true);
-  }, [open]);
+  }, [closeOnOwnEscape, open]);
 
   const handleMenuKeyDown = useCallback((event: ReactKeyboardEvent<HTMLDivElement>) => {
+    if (closeOnOwnEscape(event)) return;
     if (event.key === 'Tab') {
       setOpen(false);
       return;
@@ -153,7 +169,7 @@ export function useRuntimeDropUp({ width }: { width: number }): UseRuntimeDropUp
     if (next === null) return;
     event.preventDefault();
     items[next]?.focus();
-  }, []);
+  }, [closeOnOwnEscape]);
 
   const choose = useCallback((apply: () => void) => {
     apply();
