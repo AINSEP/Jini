@@ -1,5 +1,6 @@
 ## Unreleased (0.6.18)
 
+- The chat model picker names raw catalog ids friendly ("Claude Opus 5.5", context and date suffixes kept), shows "Offline fallback" only once the live model list has actually failed rather than while the host is still probing, and closes on Escape from the menu or its trigger even when an ancestor stops the keydown.
 - A reply's "Done · time" runs from the person's send to the run's end for every CLI; the CLI's own reported duration, which leaves out its start-up wait, is only the fallback.
 - Keep failed tool receipts visible unless a matching canonical call also failed, including buffered CLI receipts.
 - Remove an obsolete hook lint directive for an uninstalled rule.
