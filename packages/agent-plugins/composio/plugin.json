@@ -1,0 +1,68 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "composio",
+  "version": "1.0.0",
+  "description": "Lets the assistant use the user's other apps (Gmail, Google Calendar, Slack, Notion, GitHub, HubSpot, Linear and 1000+ more) through Composio Connect, Composio's hosted MCP server. One browser sign-in to Composio connects it; each app is then connected on first use by a Composio sign-in link, with no API keys anywhere.",
+  "author": "Tovu",
+  "license": "Apache-2.0",
+  "extensions": {
+    "tovu": {
+      "maturity": "soon",
+      "summary": "Lets the assistant use your other apps, like Gmail, Google Calendar, Slack and Notion. You connect each app with one sign-in link.",
+      "id": "tovu/composio",
+      "provides": [
+        "app-connectors"
+      ],
+      "credentialCards": [
+        {
+          "target": "composio",
+          "title": "Connect Composio",
+          "label": "Composio account",
+          "category": "general",
+          "intro": "Connect Composio to use your other apps. Sign in here, then approve each app separately when you need it.",
+          "usedFor": [
+            "Finds tools for your other apps",
+            "Connects each app with your approval and carries out the tasks you request"
+          ],
+          "keyHint": "Browser sign-in only; this connection does not accept a pasted API key.",
+          "saveKind": "oauth",
+          "permissions": "Connects tool discovery, schemas, account connections and requested app actions. App permissions are approved at each app’s own sign-in. Connection management and action execution need separate write grants; do not grant remote Bash or workbench tools.",
+          "baseUrl": "https://connect.composio.dev"
+        }
+      ]
+    }
+  },
+  "keywords": [
+    "composio",
+    "apps",
+    "connect",
+    "connect-my-account",
+    "integrations",
+    "connectors",
+    "gmail",
+    "email",
+    "google-calendar",
+    "calendar",
+    "google-drive",
+    "google-sheets",
+    "slack",
+    "notion",
+    "github",
+    "linear",
+    "jira",
+    "hubspot",
+    "crm",
+    "discord",
+    "stripe",
+    "airtable",
+    "trello",
+    "asana",
+    "automation",
+    "send-email",
+    "external-mcp",
+    "mcp",
+    "oauth",
+    "sign-in",
+    "app-connectors"
+  ]
+}
