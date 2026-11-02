@@ -17,19 +17,23 @@ An exhibit is the proof for its slide's title. Write the title first, then pick 
 | One number matters | Big number with its comparison | Gauge, speedometer |
 | When things happen (plan) | Timeline or Gantt | Bulleted dates |
 
-If two charts are needed to prove one title, the slide likely holds two messages. Split it.
+Use several aligned charts on one slide when they support the same takeaway. Different takeaways
+get different slides.
 
 ## Finish the chart
 
-Make the chart say the title, in this order:
+Make the chart say the title, in this order. Steps 2, 4 and 5 are defaults, not laws:
 
 1. **Strip.** Remove borders, background fills, 3D, shadows and heavy gridlines. Keep light
    gridlines only if people need to read values.
-2. **Mute.** Draw all data in a neutral grey.
+2. **Mute.** Draw supporting data in a neutral grey. When series are categories people must tell
+   apart (products, regions), keep their colours from the deck's colour key instead.
 3. **Highlight.** Put the one bar, line or point that proves the title in the accent colour.
-4. **Label directly.** Name lines at their ends and put values on the bars that matter.
-   Drop the legend. Drop the value axis if every bar is labelled.
-5. **Add a reference.** Target, average, last year or plan, as a thin dashed labelled line.
+4. **Label directly.** Name lines at their ends and put values on the bars that matter, then drop
+   the legend. If direct labels would collide, keep a compact legend. Drop the value axis if
+   every bar is labelled.
+5. **Add a reference** only when it means something here: target, average, last year or plan, as
+   a thin dashed labelled line.
 6. **Annotate.** One short callout where it matters ("Launch, Mar"), with a thin leader line if
    needed. Two at most.
 7. **Round.** 2–3 significant figures. Units once, in the axis title or label. Same units across
@@ -38,11 +42,15 @@ Make the chart say the title, in this order:
 
 ## Axes and honesty
 
-- Bars and columns start at zero. Lines may zoom in if the axis is clearly labelled.
+- Ordinary bars and columns that show magnitude start at zero. Lines may zoom in if the axis is
+  clearly labelled.
+- Waterfalls: the start and end bars rise from zero; each change bar floats from the previous
+  running total. Label the start, every change and the end.
 - Charts shown side by side share a scale.
 - No dual y-axes. Use two aligned charts instead.
 - Time runs left to right.
-- Sort categories by value unless they have a natural order (months, age bands).
+- Rank bars largest to smallest, top to bottom. Leave built-in sequences as they are: periods,
+  age bands, rating scales from "disagree" to "agree".
 - Show uncertainty when it changes the decision: a range, error bars, "est.".
 - Don't cherry-pick the time window. If you crop it, say why in the notes.
 
@@ -70,15 +78,6 @@ Use a table when people need exact values to look up.
 
 Rules for all diagrams: same shape for the same kind of thing, one line weight, text inside
 shapes at body size or larger, no decorative arrows or 3D.
-
-## Grouping without overlaps or gaps
-
-When you split a topic into columns, boxes or bullets:
-
-- each item fits exactly one group;
-- the groups together cover the whole topic;
-- the groups are the same kind of thing (all customer segments, not segments plus a channel);
-- 3–5 groups. An "Other" group must stay small.
 
 ## Numbers on slides
 

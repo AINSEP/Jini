@@ -10,7 +10,7 @@ Work top-down and fix in that order. Don't polish a slide that will be cut.
 3. **Detail:** numbers, words, alignment, sizes.
 
 If the host can take screenshots, capture every slide at 1920×1080 and look at each one, then
-look at them small, side by side, for consistency.
+look at them small, side by side, for consistency. Ideally see it full screen on the real display.
 
 ## Checklist by severity
 
@@ -18,15 +18,17 @@ look at them small, side by side, for consistency.
 
 - No clear deck message, or no ask in a pitch or decision deck.
 - A title claims something its slide doesn't show, or the data contradicts it.
+- Invented data, quotes or sources; a causal claim resting only on a before/after trend.
 - Wrong or inconsistent numbers: totals that don't add up, units that change.
 - Text below the minimum sizes, or contrast below 4.5:1 (3:1 for large titles).
 - Personal or confidential data on screen; images without the rights to use them.
 - Broken slides: text overflowing or cut off, missing images, placeholder text left in.
-- A typo in a title, a name or a number.
+- A typo in a title, a name, a number or a date. Check these letter by letter.
 
 **Major** — fix before presenting:
 
-- Titles are topic labels, or the title chain doesn't read.
+- Titles are topic labels, or the title chain doesn't read. Image-only talk slides, dividers and
+  teaching questions are allowed exceptions (`storyline.md`).
 - More than one message on a slide; a wall of text.
 - The wrong chart for the question, no highlight, a legend instead of labels, a bar axis that
   doesn't start at zero.
@@ -39,7 +41,8 @@ look at them small, side by side, for consistency.
 **Minor** — fix if there's time:
 
 - Elements off the grid by a few pixels; uneven gaps.
-- Number formats that differ; a missing source line.
+- Number formats that differ; a chart without its source and date.
+- A title slide missing the deck title, presenter or date.
 - A single word alone on a title's last line.
 - Mixed icon styles.
 - Other typos.
@@ -62,17 +65,14 @@ Give the fix with each problem, not just the problem.
 
 1. **Find the message.** What is the slide trying to say? If its title doesn't say it, propose a
    takeaway title and say it's your reading.
-2. **List everything on it:** every text, number, image and chart. Nothing disappears silently.
-3. **Sort each item:**
-   - proves the message → stays on the slide;
-   - useful context → speaker notes;
-   - detail someone may ask for → appendix;
-   - noise → cut. List what you cut.
-4. **Pick the form:** chart, diagram, comparison, big number or short text
+2. **Give each element a destination** as you go: a text, figure, image or chart that proves the
+   message stays; context moves to the notes; detail someone may ask for goes to the appendix;
+   noise is cut. Write the destinations down; the user sees every cut.
+3. **Pick the form:** chart, diagram, comparison, big number or short text
    (`charts-and-exhibits.md`).
-5. **Rebuild** on the grid, with the takeaway as the title (`layout-and-style.md`).
-6. **Check:** every listed item is accounted for, the message is clearer, sizes and contrast pass.
-7. Still two messages? Make two slides.
+4. **Rebuild** on the grid, with the takeaway as the title (`layout-and-style.md`).
+5. **Check:** the message reads faster than before; sizes and contrast pass.
+6. Still two messages? Make two slides.
 
 Answer with: the new title, the new layout spec, where each moved or cut item went, and a short
 before → after.
@@ -90,11 +90,3 @@ then consistency across slides. Show the new titles-only outline before rebuildi
 - The appendix comes after the closing slide, under its own divider. Point to it from the body
   ("see A3").
 - After every edit, check the summary slide still matches the body.
-
-## Final pass
-
-- Names, numbers and dates checked letter by letter.
-- Every chart has a source and date.
-- Title slide has the deck title, presenter and date.
-- Notes on every presented slide; alt text on every meaningful image.
-- Seen full screen, ideally on the real display.

@@ -13,8 +13,9 @@ All sizes are for a 16:9 slide designed at 1920×1080 px. On a 13.33 × 7.5 in s
   4 + 4 + 4, 3 + 3 + 3 + 3.
 - **Spacing scale:** 8, 16, 24, 32, 48, 64, 96 px. Use 16–24 inside a group and 48–64 between
   groups. The same relationship always gets the same gap.
-- **Title zone:** starts at the top margin, same place on every slide, up to 2 lines.
-  Body starts about 240 px from the top.
+- **Header zone:** starts at the top margin, same height on every slide: room for a kicker plus
+  2 title lines (about 220 px with a 72 px title). The body starts below it, whatever the title's
+  length.
 - **Footer zone (optional):** the bottom 48 px. Source on the left, slide number on the right.
 
 ## Type
@@ -26,11 +27,9 @@ All sizes are for a 16:9 slide designed at 1920×1080 px. On a 13.33 × 7.5 in s
 | Big number | 160–240 px | 80–120 pt |
 | Body, presented | 40–48 px, never below 36 px | 20–24 pt, never below 18 pt |
 | Body, read alone | 28–32 px, never below 24 px | 14–16 pt, never below 12 pt |
-| Chart labels, captions | at least 28 px | at least 14 pt |
-| Source, footer | 20–24 px | 10–12 pt |
+| Chart labels needed to read the chart | the body minimum: 36 px presented, 24 px read alone | 18 pt / 12 pt |
+| Source, footnote, footer (supplementary only) | 20–24 px | 10–12 pt |
 
-- **Back-of-room test:** shrink the slide to a quarter of its size on screen. If you can't read
-  it, people at the back can't either.
 - Lines up to about 60 characters. Line height 1.1–1.2 for titles, 1.3–1.4 for body.
 - At most 2 typefaces, or 1 family in 2 weights. Use the host theme's fonts when there are some.
 - Left-align text. Centre only title slides, statements and big numbers.
@@ -47,14 +46,15 @@ All sizes are for a 16:9 slide designed at 1920×1080 px. On a 13.33 × 7.5 in s
 
 ## Alignment and grouping
 
-- **Proximity:** related things close, unrelated things apart. The gap between groups is at least
-  twice the gap inside a group.
-- **Similarity:** items of the same kind look the same: size, colour, shape.
+- **Gaps carry grouping:** use the 16–24 px step inside a group and 48–64 px between groups.
+  Never let a between-group gap shrink to an inside-group size.
+- **Parallel items share a style:** every option card, step or bullet in a set gets the same size,
+  fill and title weight. Change the style only to mark the highlighted item.
 - **Alignment:** every edge sits on a grid line. Title and body share one left edge.
 - **Repetition:** equal gaps between repeated items, equal sizes for parallel boxes.
 - **Consistency:** title, logo, source and slide number stay put across slides.
-- **Squint test:** blur your eyes or view a thumbnail. You should still see the structure and
-  the focal point.
+- **Squint test:** view a thumbnail; structure and focal point should still show. A thumbnail
+  checks hierarchy; check legibility on the intended display.
 
 ## Colour
 
@@ -62,15 +62,16 @@ Where colours come from, in order:
 
 1. The host's theme tokens (primary or accent, text, background, fonts), read with its theme tools.
 2. A brand the user supplies: hex codes, logo, fonts.
-3. The neutral default: text #1A1A1A on #FFFFFF or #FAFAF7, greys #6B6B6B and #D4D4D4 for
-   secondary text and muted data, one accent #2563EB.
+3. The neutral default: text #1A1A1A on #FFFFFF or #FAFAF7, grey #6B6B6B for secondary text and
+   muted data marks, #D4D4D4 for decorative separators and gridlines only, one accent #2563EB.
 
 Rules:
 
 - Give colours roles: background, text, muted text, neutral data, accent, and optionally
   good and bad. Don't pick colours slide by slide.
 - One accent per slide for "look here". Use shades of one hue before adding a second hue.
-- The same colour means the same thing across the deck (product A is always teal).
+- Before building, write a colour key: each recurring category (product, region, segment) and its
+  hex. Every chart in the deck uses that key.
 - Light backgrounds suit read-alone decks and printing. Dark ones suit talks in dim rooms. Pick
   one per deck.
 - At most about 5 colours in one chart. Group the rest as "Other".
@@ -103,7 +104,7 @@ Rules:
 - **Motion and media:** captions for video and audio, no flashing more than 3 times a second,
   little motion.
 - **Plain words:** spell out an acronym the first time it appears.
-- Share the deck and notes as a file people can open on their own device.
+- Share the deck and notes as a file people can open on their own device (for HTML, the reading copy).
 
 ## Builds and transitions
 

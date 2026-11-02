@@ -41,7 +41,8 @@ This skill covers the thinking and the design. It renders nothing itself.
 
 ## Core rules
 
-1. One message per slide. The title states it as a full sentence.
+1. One message per slide. Its title states that message by default; `references/storyline.md`
+   lists the exceptions.
 2. Read in order, the titles tell the whole story.
 3. Answer first in update, report and decision decks; detail follows.
 4. The body proves the title. Anything else goes to notes or the appendix.
@@ -51,19 +52,24 @@ This skill covers the thinking and the design. It renders nothing itself.
 8. Everything sits on one grid. Titles, sources and slide numbers never move.
 9. Every presented slide has speaker notes.
 10. Accessible by default: contrast, alt text, reading order, never colour alone.
+11. Never invent data, quotes or sources. Keep observations, estimates and causal evidence
+    distinct; a before/after trend shows timing, not cause.
 
 ## Output
 
 Default: an outline and slide specs in chat, one block per slide:
 
 ```
-### 4. Churn fell by a third after the new onboarding shipped
-Visual: line chart, monthly churn Jan–Dec; months after launch in accent; dashed line at the 6% target
-On slide: "Launch, Mar" callout; y-axis "Monthly churn, %"
-Notes: The point: onboarding fixed churn. Look at March... (40–120 words)
-Alt: Line chart: churn fell from 8.1% to 5.4% after the March launch.
-Source: Billing data, Jan–Dec 2026
+### 4. Churn fell by a third after the onboarding rollout
+Visual: line chart, monthly churn Jan–Oct; months after rollout in accent; dashed line at the 6% target
+On slide: "Rollout, Mar" callout; y-axis "Monthly churn, %"
+Notes: The point: churn declined after rollout; attribution needs further evidence, such as a
+  cohort comparison. Look at March... (40–120 words)
+Alt: Line chart: churn fell from 8.1% to 5.4% after the March rollout.
+Source: Billing data, Jan–Oct 2026
 ```
+
+All figures in this skill's examples are illustrative.
 
 Other outputs:
 - **HTML deck** — one HTML document, one section per slide (`references/html-deck.md`).
@@ -90,8 +96,8 @@ Load only what the task needs.
 - `references/storyline.md` — deck types and their structures, answer-first, the opening, titles,
   summary slide, outline, closing slide, speaker notes.
 - `references/charts-and-exhibits.md` — choosing a chart from the question, finishing it,
-  tables, diagrams, grouping, numbers, icons.
+  tables, diagrams, numbers, icons.
 - `references/layout-and-style.md` — 16:9 canvas, grid and spacing numbers, type sizes, density,
   colour roles, images, accessibility, slide types.
-- `references/review.md` — checklist by severity, fixing one slide, long decks, final pass.
-- `references/html-deck.md` — an HTML deck: structure, CSS, notes, printing to PDF, checks.
+- `references/review.md` — checklist by severity, fixing one slide, long decks.
+- `references/html-deck.md` — an HTML deck: structure, CSS, reading copy, notes, printing, checks.

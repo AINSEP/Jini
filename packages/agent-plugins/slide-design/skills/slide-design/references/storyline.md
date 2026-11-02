@@ -4,15 +4,17 @@ Decide what the deck says before deciding how it looks.
 
 ## The deck message
 
-Write one sentence a listener could repeat to a colleague afterwards:
-"<what is true> so <what we should do>". If you can't write it, the brief isn't finished.
+Resolve the audience's intended outcome before outlining. Then write one sentence a listener
+could repeat to a colleague afterwards: "<what is true> so <what we should do>". Stuck? Ask the
+user what the audience should decide or do next, and build the sentence from that answer.
 Every slide either supports this sentence or leaves the deck.
 
 ## Structure by deck type
 
 | Type | Goal | Structure | Typical size |
 |---|---|---|---|
-| Pitch | Win belief and an ask (investment, a deal) | Problem → why now → solution → proof (demo, traction) → market → business model → team → ask | 10–15 slides |
+| Investor pitch | Win belief and an investment | Problem → why now → solution → proof (demo, traction) → market → business model → team → ask | 10–15 slides |
+| Sales pitch | Win a deal | Their problem → cost of doing nothing → solution → proof (demo, customer results) → plan and price → ask. Market, model and team only if the buyer asks | 6–12 slides |
 | Talk | Change how people think | Hook → one big idea → 3 parts, each with a story or example → recap → call to action | 1 slide per 1–2 min, image-led |
 | Teaching | People can do something new | Goals → what they know already → concept → worked example → practice or check → recap | One concept per slide |
 | Update | Show status and get help | Status in one line → what changed → metrics vs. plan → risks → asks and next steps | 5–10 slides |
@@ -51,23 +53,25 @@ talk, open on the tension.
 
 ## Titles
 
-- The title is the takeaway: a full sentence with a verb that says what the slide proves.
-  - Weak: "Churn". Better: "Churn fell by a third after the new onboarding shipped".
+- The title is the takeaway: the claim the slide's evidence supports. Test it: could someone in
+  the room disagree? A label like "Churn" gives nothing to disagree with.
+  - Weak: "Churn". Better: "Churn fell by a third after the onboarding rollout".
 - Aim for 8–15 words, at most 2 lines. Be specific: numbers, names, dates.
 - Topic words ("Background", "Results") are labels, not titles. If you need one, set it as a
   small kicker above the title.
 - **Title chain test:** read only the titles, in order. They should read like a short memo. If a
   title doesn't follow from the one before, reorder, merge, or add a bridge slide.
-- Allowed exceptions: an image-only talk slide whose point the speaker says aloud; section
-  dividers; questions as titles in teaching decks.
+- Allowed exceptions (review honours them too): an image-only talk slide whose point the speaker
+  says aloud; section dividers; questions as titles in teaching decks.
 
 ## Summary slide
 
 Decision and report decks get one right after the title slide:
 
 - what we found or recommend, in one sentence;
-- 3–4 reasons, one sentence each;
-- what we need: a decision, budget, people, a date.
+- 3–4 findings or reasons, one sentence each, and what they imply;
+- the ask (a decision, budget, people, a date) when the deck seeks action. Decision decks always
+  do; a report that only informs ends on implications.
 
 A reader who stops here should still get the point. Talks and teaching decks use an agenda or
 "what you'll learn" slide instead.
@@ -108,14 +112,7 @@ Leave it on screen during questions. The appendix comes after it.
 - Then where to look first and what it means, in spoken sentences, not bullets.
 - End with a one-line bridge to the next slide.
 - Put caveats and data definitions here when they don't fit on the slide.
-- Read-alone decks may skip notes, but then the slide must stand on its own.
-
-## Presented vs. read alone
-
-| | Presented | Read alone |
-|---|---|---|
-| Words on slide | Few; the speaker carries detail | Full-sentence titles, short text blocks |
-| Charts | One highlight, built step by step if needed | Fully labelled, with source |
-| Notes | Required | Optional |
-
-When a deck must do both, build the read version and present it with builds or a trimmed copy.
+- Read-alone decks may skip notes, but then each slide must stand on its own: fully labelled
+  charts with sources, and the word budget in `layout-and-style.md`.
+- A deck that is both presented and read: build the read version, then present it with builds or
+  a trimmed copy.
