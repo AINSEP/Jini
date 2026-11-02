@@ -34,13 +34,20 @@ test('the higgsfield-media package ships its skill and both references, each cit
   assert.deepEqual(manifest.extensions.tovu.provides, ['media:image', 'media:video']);
 });
 
+// The tools the skill's own setup table names (Step B). The sign-in grants exactly these, so a
+// person who enables the plugin and signs in can generate with no trip to the host's settings
+// (owner, 2026-11-02: "the user should not have to do this. should just work").
+const DECLARED_TOOLS = ['generate_image', 'generate_video', 'models_explore', 'job_status', 'jobs_wait', 'show_generations', 'reveal_generation', 'show_generation_by_ids'];
+const DECLARED_WRITE_TOOLS = ['generate_image', 'generate_video', 'reveal_generation'];
+
 test('browser sign-in and operator read trust are declared without a token', async () => {
   const config = await readJson('mcp.json');
   assert.deepEqual(config.mcpServers.higgsfield, { type: 'streamable-http', url: 'https://mcp.higgsfield.ai/mcp' });
   const metadata = (await readJson('plugin.json')).extensions.tovu.mcpServers.higgsfield;
   assert.equal(metadata.tovuAuthMode, 'oauth');
   assert.deepEqual(metadata.tovuDefaultTools.read, ['models_explore', 'job_status']);
-  assert.equal(metadata.tovuDefaultTools.allow, undefined, 'the package must not pre-grant generation');
+  assert.deepEqual(metadata.tovuDefaultTools.allow, DECLARED_TOOLS, 'the sign-in grants the tools the skill documents');
+  assert.deepEqual(metadata.tovuDefaultTools.write, DECLARED_WRITE_TOOLS, 'the generators that write get their may-write grant at sign-in');
   const skill = await readText('SKILL.md');
   assert.match(skill, /agent_plugin_connect/);
   assert.match(skill, /media_import_from_url/);
