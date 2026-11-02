@@ -113,6 +113,10 @@ describe('ToolCard', () => {
       { isError: true, name: 'NotFoundError' },
       { status: 'failed', post: { title: 'Stale post' } },
       { success: false, name: 'NotFoundError' },
+      // resultName also reads one object level down, so an error envelope nested there is the same class.
+      { result: { error: 'not found', name: 'NotFoundError' } },
+      { data: { isError: true, title: 'Failure title' } },
+      { response: { status: 'error', name: 'NotFoundError' } },
     ])('never takes a target from an error-shaped result: %j', (content) => {
       row({ id: UUID, kind: 'post' }, JSON.stringify(content));
       expect(document.querySelector('.op-target')?.textContent).toBe('post');

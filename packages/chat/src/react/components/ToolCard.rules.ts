@@ -51,7 +51,8 @@ function resultName(content: string | undefined): string | undefined {
   if (parsed == null || typeof parsed !== 'object') return undefined;
   const obj = parsed as Record<string, unknown>;
   if (isErrorResult(obj)) return undefined;
-  const nested = Object.values(obj).filter((v): v is Record<string, unknown> => v != null && typeof v === 'object' && !Array.isArray(v));
+  // The nested level gets the same error check: `{ result: { error, name: 'NotFoundError' } }` is still a failure.
+  const nested = Object.values(obj).filter((v): v is Record<string, unknown> => v != null && typeof v === 'object' && !Array.isArray(v) && !isErrorResult(v as Record<string, unknown>));
   return firstReadable(obj, RESULT_NAME_KEYS) ?? nested.map((v) => firstReadable(v, RESULT_NAME_KEYS)).find(Boolean);
 }
 
