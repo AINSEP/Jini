@@ -1,0 +1,10 @@
+Jini GitHub Agent Plugin
+Copyright 2026 Leona Burime
+
+Portable plugin sources remain at packages/agent-plugins/github.
+Moved from Tovu's bundled content/agent-plugins/github (2026-11-02); product words were made
+host-neutral and the host's deploy-workflow protocol stays with the host as an overlay.
+All skill text and module code are original. The modules talk to GitHub's public REST API; no
+GitHub SDK, git client or other third-party code is included.
+
+See LICENSE for the Apache License, Version 2.0.

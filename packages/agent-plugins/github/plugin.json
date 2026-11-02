@@ -1,0 +1,105 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "github",
+  "version": "1.1.0",
+  "description": "Everything a host's assistant needs to work against a GitHub repository through the workspace's own saved credentials, with no git, no gh CLI, and no token ever passing through the assistant: writing and updating files in one atomic commit, dispatching and following a GitHub Actions run, reading a failed run's logs, committing the site's rendered static export, backing up the site itself (database, media, themes, plugins, settings) to a private repository, and deploying the host's server through its GitHub Actions deploy workflow (the `github-actions` deployment ops platform). Encodes the rules that generic GitHub knowledge gets wrong here — a 204 dispatch means queued and never deployed, a workflow only fires on the branch its own trigger names, a repository secret is the human's step and never the assistant's, a 403 on an org-wide listing is a normal app-scoped-token boundary rather than a broken credential, and editing an existing file means diffing the MODIFIED files and not only the added and deleted ones.",
+  "author": "Tovu",
+  "license": "Apache-2.0",
+  "extensions": {
+    "tovu": {
+      "vendorAliases": ["github_pat_"],
+      "displayName": "GitHub",
+      "summary": "Lets the assistant save your site's files to GitHub, run builds there, and back up your whole site.",
+      "id": "tovu/github",
+      "provides": [
+        "source-control",
+        "site-backup",
+        "deploy-ops:github-actions"
+      ],
+      "credentialCards": [
+        {
+          "target": "github",
+          "title": "Connect GitHub",
+          "label": "github",
+          "category": "source-control",
+          "intro": "Connect GitHub for repository files, Actions and site backups.",
+          "usedFor": [
+            "Reads and updates repository files",
+            "Starts workflows and checks their results and logs",
+            "Backs up your site to a private repository"
+          ],
+          "keyHint": "Select only the repositories you need. Contents → Read and write for commits; Workflows → Read and write for workflow files; Actions → Read for runs or Read and write for dispatch. Reading secret names needs Secrets → Read. Never grant secret-writing access for this flow.",
+          "saveKind": "api",
+          "helpUrl": "https://github.com/settings/personal-access-tokens/new",
+          "helpLabel": "Create a fine-grained token",
+          "baseUrl": "https://api.github.com",
+          "probeUrl": "https://api.github.com/user"
+        },
+        {
+          "target": "github-source-control",
+          "title": "Connect GitHub for source control",
+          "label": "default",
+          "category": "source-control",
+          "intro": "Connect GitHub to commit this site’s rendered static export to a repository.",
+          "usedFor": [
+            "Commits your site's exported website files to a repository"
+          ],
+          "keyHint": "Select only the destination repository, with Contents → Read and write. A classic token with repo scope also works but has broader access.",
+          "saveKind": "source-control",
+          "saveTarget": "github",
+          "helpUrl": "https://github.com/settings/personal-access-tokens/new",
+          "helpLabel": "Create a fine-grained token",
+          "baseUrl": "https://api.github.com"
+        }
+      ],
+      "toolKeywords": {
+        "credential_save": "github",
+        "deployment_ops_deploy": "github",
+        "deployment_ops_logs": "github",
+        "deployment_ops_status": "github",
+        "site_backup_plan": "github",
+        "site_backup_push": "github",
+        "skills_install": "github",
+        "source_control_execute_commit": "github",
+        "source_control_get_capabilities": "github"
+      }
+    }
+  },
+  "keywords": [
+    "github",
+    "git",
+    "repo",
+    "repository",
+    "commit",
+    "push",
+    "branch",
+    "pull-request",
+    "source-control",
+    "version-control",
+    "github-actions",
+    "actions",
+    "workflow",
+    "workflow-dispatch",
+    "ci",
+    "cd",
+    "pipeline",
+    "run",
+    "job",
+    "logs",
+    "secrets",
+    "repository-secret",
+    "token",
+    "pat",
+    "scopes",
+    "permissions",
+    "api",
+    "rest",
+    "git-data-api",
+    "blob",
+    "tree",
+    "ref",
+    "backup",
+    "site-backup",
+    "deploy-ops:github-actions"
+  ]
+}

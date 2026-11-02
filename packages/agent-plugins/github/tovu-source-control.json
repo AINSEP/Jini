@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "providers": [
+    {
+      "id": "github",
+      "label": "GitHub",
+      "apiOrigin": "https://api.github.com",
+      "maxFileBytes": 104857600,
+      "reservedPaths": [
+        ".github"
+      ],
+      "workflowPaths": [
+        ".github/workflows"
+      ],
+      "module": "source-control/github.mjs",
+      "credential": {
+        "tokenPageUrl": "https://github.com/settings/personal-access-tokens/new",
+        "help": "Needs a fine-grained personal access token scoped to just this repository, with Contents permission set to Read and write. A classic token with the \"repo\" scope also works, but reaches every repository this account can access — prefer the fine-grained token.",
+        "tokenField": "token",
+        "fields": [
+          {
+            "name": "token",
+            "label": "Access token",
+            "required": true,
+            "secret": true
+          }
+        ]
+      },
+      "i18n": {
+        "es": {
+          "Needs a fine-grained personal access token scoped to just this repository, with Contents permission set to Read and write. A classic token with the \"repo\" scope also works, but reaches every repository this account can access — prefer the fine-grained token.": "Necesita un token de acceso personal de grano fino limitado a este repositorio, con el permiso Contents configurado en Read and write. Un token clásico con el permiso \"repo\" también funciona, pero alcanza todos los repositorios a los que esta cuenta tiene acceso: se prefiere el token de grano fino.",
+          "Access token": "Token de acceso"
+        },
+        "id": {
+          "Needs a fine-grained personal access token scoped to just this repository, with Contents permission set to Read and write. A classic token with the \"repo\" scope also works, but reaches every repository this account can access — prefer the fine-grained token.": "Memerlukan token akses pribadi fine-grained yang dibatasi hanya untuk repositori ini, dengan izin Contents diatur ke Read and write. Token klasik dengan cakupan \"repo\" juga berfungsi, tetapi menjangkau setiap repositori yang dapat diakses akun ini — token fine-grained lebih disarankan.",
+          "Access token": "Token akses"
+        },
+        "de": {
+          "Needs a fine-grained personal access token scoped to just this repository, with Contents permission set to Read and write. A classic token with the \"repo\" scope also works, but reaches every repository this account can access — prefer the fine-grained token.": "Benötigt ein fein abgestuftes Personal Access Token, das auf genau dieses Repository beschränkt ist, mit der Berechtigung Contents auf Read and write gesetzt. Ein klassisches Token mit dem Bereich \"repo\" funktioniert ebenfalls, erreicht aber jedes Repository, auf das dieses Konto Zugriff hat — das fein abgestufte Token wird bevorzugt.",
+          "Access token": "Zugriffstoken"
+        },
+        "zh-CN": {
+          "Needs a fine-grained personal access token scoped to just this repository, with Contents permission set to Read and write. A classic token with the \"repo\" scope also works, but reaches every repository this account can access — prefer the fine-grained token.": "需要仅限于此仓库的 fine-grained 个人访问令牌，并将 Contents 权限设置为 Read and write。具有 \"repo\" 范围的经典令牌也可以使用，但它会涉及此账户可访问的每个仓库 — 建议优先使用 fine-grained 令牌。",
+          "Access token": "访问令牌"
+        },
+        "zh-TW": {
+          "Needs a fine-grained personal access token scoped to just this repository, with Contents permission set to Read and write. A classic token with the \"repo\" scope also works, but reaches every repository this account can access — prefer the fine-grained token.": "需要僅限於此儲存庫的 fine-grained 個人存取權杖，並將 Contents 權限設為 Read and write。具有 \"repo\" 範圍的傳統權杖也可使用，但會涉及此帳戶可存取的每個儲存庫 — 建議優先使用 fine-grained 權杖。",
+          "Access token": "存取權杖"
+        },
+        "pt-BR": {
+          "Needs a fine-grained personal access token scoped to just this repository, with Contents permission set to Read and write. A classic token with the \"repo\" scope also works, but reaches every repository this account can access — prefer the fine-grained token.": "Precisa de um token de acesso pessoal refinado, restrito apenas a este repositório, com a permissão Contents definida como Read and write. Um token clássico com o escopo \"repo\" também funciona, mas alcança todos os repositórios aos quais esta conta tem acesso — prefira o token refinado.",
+          "Access token": "Token de acesso"
+        },
+        "ru": {
+          "Needs a fine-grained personal access token scoped to just this repository, with Contents permission set to Read and write. A classic token with the \"repo\" scope also works, but reaches every repository this account can access — prefer the fine-grained token.": "Требуется детализированный (fine-grained) персональный токен доступа, ограниченный только этим репозиторием, с разрешением Contents, установленным на Read and write. Классический токен с областью действия \"repo\" тоже подойдёт, но он охватывает каждый репозиторий, доступный этой учётной записи — предпочтителен детализированный токен.",
+          "Access token": "Токен доступа"
+        },
+        "fa": {
+          "Needs a fine-grained personal access token scoped to just this repository, with Contents permission set to Read and write. A classic token with the \"repo\" scope also works, but reaches every repository this account can access — prefer the fine-grained token.": "به یک توکن دسترسی شخصی fine-grained نیاز دارد که فقط محدود به این مخزن باشد، با مجوز Contents تنظیم‌شده روی Read and write. یک توکن کلاسیک با دامنه \"repo\" هم کار می‌کند، اما به هر مخزنی که این حساب به آن دسترسی دارد می‌رسد — توکن fine-grained ترجیح داده می‌شود.",
+          "Access token": "توکن دسترسی"
+        },
+        "ar": {
+          "Needs a fine-grained personal access token scoped to just this repository, with Contents permission set to Read and write. A classic token with the \"repo\" scope also works, but reaches every repository this account can access — prefer the fine-grained token.": "يتطلب رمز وصول شخصي دقيق التحبب (fine-grained) مقتصرًا على هذا المستودع فقط، بصلاحية Contents مضبوطة على Read and write. يعمل أيضًا رمز كلاسيكي بنطاق \"repo\"، لكنه يصل إلى كل مستودع يمكن لهذا الحساب الوصول إليه — يُفضَّل الرمز دقيق التحبب.",
+          "Access token": "رمز الوصول"
+        },
+        "ja": {
+          "Needs a fine-grained personal access token scoped to just this repository, with Contents permission set to Read and write. A classic token with the \"repo\" scope also works, but reaches every repository this account can access — prefer the fine-grained token.": "このリポジトリのみに限定され、Contents権限をRead and writeに設定したfine-grainedパーソナルアクセストークンが必要です。\"repo\" スコープを持つクラシックトークンも機能しますが、このアカウントがアクセスできるすべてのリポジトリに及びます — fine-grainedトークンを推奨します。",
+          "Access token": "アクセストークン"
+        },
+        "ko": {
+          "Needs a fine-grained personal access token scoped to just this repository, with Contents permission set to Read and write. A classic token with the \"repo\" scope also works, but reaches every repository this account can access — prefer the fine-grained token.": "이 저장소로만 범위가 제한되고 Contents 권한이 Read and write로 설정된 fine-grained 개인 액세스 토큰이 필요합니다. \"repo\" 범위를 가진 클래식 토큰도 작동하지만 이 계정이 액세스할 수 있는 모든 저장소에 미칩니다 — fine-grained 토큰을 권장합니다.",
+          "Access token": "액세스 토큰"
+        },
+        "pl": {
+          "Needs a fine-grained personal access token scoped to just this repository, with Contents permission set to Read and write. A classic token with the \"repo\" scope also works, but reaches every repository this account can access — prefer the fine-grained token.": "Wymaga precyzyjnego osobistego tokena dostępu ograniczonego tylko do tego repozytorium, z uprawnieniem Contents ustawionym na Read and write. Token klasyczny z zakresem \"repo\" również działa, ale obejmuje każde repozytorium dostępne dla tego konta — preferowany jest token precyzyjny.",
+          "Access token": "Token dostępu"
+        },
+        "hu": {
+          "Needs a fine-grained personal access token scoped to just this repository, with Contents permission set to Read and write. A classic token with the \"repo\" scope also works, but reaches every repository this account can access — prefer the fine-grained token.": "Finomhangolt személyes hozzáférési token szükséges, amely csak erre az egy tárolóra korlátozódik, a Contents jogosultsággal Read and write értékre állítva. A klasszikus token a \"repo\" hatókörrel is működik, de minden tárolót elér, amelyhez ez a fiók hozzáfér — a finomhangolt token az előnyben részesített.",
+          "Access token": "Hozzáférési token"
+        },
+        "fr": {
+          "Needs a fine-grained personal access token scoped to just this repository, with Contents permission set to Read and write. A classic token with the \"repo\" scope also works, but reaches every repository this account can access — prefer the fine-grained token.": "Nécessite un jeton d'accès personnel fin limité à ce seul dépôt, avec la permission Contents définie sur Read and write. Un jeton classique avec le champ d'application \"repo\" fonctionne aussi, mais atteint tous les dépôts accessibles à ce compte — préférez le jeton fin.",
+          "Access token": "Jeton d'accès"
+        },
+        "uk": {
+          "Needs a fine-grained personal access token scoped to just this repository, with Contents permission set to Read and write. A classic token with the \"repo\" scope also works, but reaches every repository this account can access — prefer the fine-grained token.": "Потрібен деталізований (fine-grained) персональний токен доступу, обмежений лише цим репозиторієм, із дозволом Contents, встановленим на Read and write. Класичний токен з областю дії \"repo\" також працює, але охоплює кожен репозиторій, доступний цьому обліковому запису — деталізований токен є пріоритетним.",
+          "Access token": "Токен доступу"
+        },
+        "tr": {
+          "Needs a fine-grained personal access token scoped to just this repository, with Contents permission set to Read and write. A classic token with the \"repo\" scope also works, but reaches every repository this account can access — prefer the fine-grained token.": "Yalnızca bu depoyla sınırlı, Contents izni Read and write olarak ayarlanmış ince taneli (fine-grained) bir kişisel erişim jetonu gerekir. \"repo\" kapsamına sahip klasik bir jeton da çalışır, ancak bu hesabın erişebildiği her depoya ulaşır — ince taneli jeton tercih edilmelidir.",
+          "Access token": "Erişim jetonu"
+        },
+        "th": {
+          "Needs a fine-grained personal access token scoped to just this repository, with Contents permission set to Read and write. A classic token with the \"repo\" scope also works, but reaches every repository this account can access — prefer the fine-grained token.": "ต้องใช้โทเคนการเข้าถึงส่วนบุคคลแบบ fine-grained ที่จำกัดเฉพาะที่เก็บนี้เท่านั้น โดยตั้งค่าสิทธิ์ Contents เป็น Read and write โทเคนแบบคลาสสิกที่มีขอบเขต \"repo\" ก็ใช้งานได้เช่นกัน แต่จะเข้าถึงทุกที่เก็บที่บัญชีนี้เข้าถึงได้ — แนะนำให้ใช้โทเคนแบบ fine-grained",
+          "Access token": "โทเคนการเข้าถึง"
+        },
+        "it": {
+          "Needs a fine-grained personal access token scoped to just this repository, with Contents permission set to Read and write. A classic token with the \"repo\" scope also works, but reaches every repository this account can access — prefer the fine-grained token.": "Richiede un token di accesso personale granulare limitato a questo solo repository, con il permesso Contents impostato su Read and write. Funziona anche un token classico con l'ambito \"repo\", ma raggiunge ogni repository a cui questo account ha accesso — preferisci il token granulare.",
+          "Access token": "Token di accesso"
+        },
+        "hi": {
+          "Needs a fine-grained personal access token scoped to just this repository, with Contents permission set to Read and write. A classic token with the \"repo\" scope also works, but reaches every repository this account can access — prefer the fine-grained token.": "केवल इस रिपॉज़िटरी तक सीमित एक fine-grained व्यक्तिगत एक्सेस टोकन चाहिए, जिसमें Contents अनुमति Read and write पर सेट हो। \"repo\" स्कोप वाला क्लासिक टोकन भी काम करता है, लेकिन वह इस खाते द्वारा एक्सेस की जा सकने वाली हर रिपॉज़िटरी तक पहुंचता है — fine-grained टोकन को प्राथमिकता दें।",
+          "Access token": "एक्सेस टोकन"
+        },
+        "ur": {
+          "Needs a fine-grained personal access token scoped to just this repository, with Contents permission set to Read and write. A classic token with the \"repo\" scope also works, but reaches every repository this account can access — prefer the fine-grained token.": "صرف اسی ریپوزٹری تک محدود ایک fine-grained پرسنل ایکسیس ٹوکن درکار ہے، جس میں Contents اجازت Read and write پر سیٹ ہو۔ \"repo\" اسکوپ کے ساتھ کلاسک ٹوکن بھی کام کرتا ہے، لیکن یہ اس اکاؤنٹ کی رسائی میں آنے والی ہر ریپوزٹری تک پہنچتا ہے — fine-grained ٹوکن کو ترجیح دی جاتی ہے۔",
+          "Access token": "رسائی ٹوکن"
+        },
+        "bn": {
+          "Needs a fine-grained personal access token scoped to just this repository, with Contents permission set to Read and write. A classic token with the \"repo\" scope also works, but reaches every repository this account can access — prefer the fine-grained token.": "শুধুমাত্র এই রিপোজিটরির মধ্যে সীমাবদ্ধ একটি fine-grained পার্সোনাল অ্যাক্সেস টোকেন প্রয়োজন, যেখানে Contents অনুমতি Read and write-এ সেট থাকে। \"repo\" স্কোপসহ একটি ক্লাসিক টোকেনও কাজ করে, তবে এটি এই অ্যাকাউন্টের অ্যাক্সেসযোগ্য প্রতিটি রিপোজিটরিতে পৌঁছায় — fine-grained টোকেন অগ্রাধিকারযোগ্য।",
+          "Access token": "অ্যাক্সেস টোকেন"
+        }
+      }
+    }
+  ]
+}
