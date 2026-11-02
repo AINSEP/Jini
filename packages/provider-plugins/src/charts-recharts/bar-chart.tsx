@@ -17,6 +17,17 @@ export interface BarChartProps {
 const MIN_TICK_WIDTH = 40;
 
 /**
+ * Binds each " · " separator to the word before it with a no-break space (Recharts breaks lines only
+ * on ordinary whitespace), so a narrow band never draws "·" alone on a line. Reported 2026-11-01
+ * (Tovu 47b4199e0): at 180px "Pages · Published" wrapped as "Pages / · / Publ…". Tovu's bundle
+ * patch bound it to the next word instead, which lengthens the second line and re-truncates
+ * "Published" at the ~300px dock width; binding backwards keeps every label that fit before.
+ */
+function keepSeparatorsAttached(label: string): string {
+  return label.replace(/[ \t]+·/g, '\u00a0·');
+}
+
+/**
  * Category label sized to its own band: wraps onto up to three lines and ends in "…" (Recharts' own
  * `Text` measuring), so long labels never overlap. When bands are narrower than
  * `MIN_TICK_WIDTH`, every `step`-th label is drawn across `step` bands, always keeping the
@@ -35,7 +46,7 @@ function CategoryTick({ x, y, width, index, visibleTicksCount, payload, classNam
   return (
     <g>
       <title>{label}</title>
-      <Text {...{ x, y, className, textAnchor, verticalAnchor }} {...CHART_AXIS_TICK} width={band * step - 4} maxLines={3}>{label}</Text>
+      <Text {...{ x, y, className, textAnchor, verticalAnchor }} {...CHART_AXIS_TICK} width={band * step - 4} maxLines={3}>{keepSeparatorsAttached(label)}</Text>
     </g>
   );
 }

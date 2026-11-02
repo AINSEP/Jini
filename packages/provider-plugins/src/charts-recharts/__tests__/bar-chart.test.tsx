@@ -143,7 +143,8 @@ describe('recharts BarChart', () => {
       const { container } = render(<BarChart data={labels.map((name, i) => ({ name, count: i + 1 }))} categoryKey="name" valueKey="count" />);
       const ticks = tickValues(container);
       expect(ticks).toHaveLength(4);
-      expect(tickLines(ticks[0]!)).toEqual(['Posts ·', 'Draft ·', 'Live']);
+      // Each separator stays on its word's line through a no-break space (2026-11-01).
+      expect(tickLines(ticks[0]!)).toEqual(['Posts\u00a0·', 'Draft\u00a0·', 'Live']);
       expect(tickLines(ticks[1]!)).toEqual(['Pages']);
       expect(tickLines(ticks[2]!).length).toBeLessThanOrEqual(3);
       expect(ticks[2]!.textContent).toMatch(/…$/);
