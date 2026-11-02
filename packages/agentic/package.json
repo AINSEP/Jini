@@ -15,6 +15,7 @@
     "entries": {
       ".": "universal",
       "./core": "universal",
+      "./core/handle": "universal",
       "./dom": "browser",
       "./a2ui": "universal",
       "./skills/install": "node",
@@ -39,6 +40,11 @@
       "types": "./dist/core/index.d.ts",
       "import": "./dist/core/index.js",
       "default": "./dist/core/index.js"
+    },
+    "./core/handle": {
+      "types": "./dist/core/handle.d.ts",
+      "import": "./dist/core/handle.js",
+      "default": "./dist/core/handle.js"
     },
     "./dom": {
       "types": "./dist/core/dom/index.d.ts",
