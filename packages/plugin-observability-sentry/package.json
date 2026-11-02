@@ -1,7 +1,7 @@
 {
   "name": "@jini-ai/plugin-observability-sentry",
   "version": "0.6.17",
-  "description": "Standalone Sentry server observability provider artifact and its Sentry setup agent plugin.",
+  "description": "Standalone Sentry server observability provider artifact.",
   "type": "module",
   "license": "Apache-2.0",
   "repository": {
@@ -15,27 +15,22 @@
     "runtime": "node",
     "entries": {
       "./package.json": "node",
-      "./plugin.json": "universal",
-      "./sentry/*": "universal",
       "./plugins/*": "node"
     }
   },
   "exports": {
     "./package.json": "./package.json",
-    "./plugin.json": "./sentry/plugin.json",
-    "./sentry/*": "./sentry/*",
     "./plugins/*": "./plugins/*"
   },
   "files": [
     "plugins/observability-sentry",
-    "sentry",
     "README.md",
     "LICENSE",
     "NOTICE"
   ],
   "scripts": {
-    "build": "node --import tsx ../provider-plugins/scripts/build.ts observability-sentry . && node --import tsx ../../scripts/assemble-agent-plugin-package.ts observability-sentry",
-    "prepack": "node --import tsx ../provider-plugins/scripts/build.ts observability-sentry . && node --import tsx ../../scripts/assemble-agent-plugin-package.ts observability-sentry",
+    "build": "node --import tsx ../provider-plugins/scripts/build.ts observability-sentry .",
+    "prepack": "node --import tsx ../provider-plugins/scripts/build.ts observability-sentry .",
     "test": "vitest run"
   },
   "devDependencies": {

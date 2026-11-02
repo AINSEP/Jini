@@ -1,11 +1,5 @@
 # @jini-ai/plugin-observability-opentelemetry
 
-## Unreleased
-
-- Ship the `opentelemetry` agent plugin (the OpenTelemetry setup skill and key card, formerly a Tovu bundled plugin)
-  in this package next to the `observability-opentelemetry` provider: payload `opentelemetry/`, exports `./plugin.json` and
-  `./opentelemetry/*`. `build` and `prepack` run the provider builder, then the agent plugin assembler.
-
 ## 0.6.17
 
 ### Patch Changes

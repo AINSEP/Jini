@@ -1,4 +1,2 @@
 /plugins/
 /.provider-build-*/
-/posthog/
-/.agent-package-*/

@@ -1,7 +1,7 @@
 {
   "name": "@jini-ai/plugin-analytics-posthog",
   "version": "0.6.17",
-  "description": "Standalone PostHog product analytics provider, consent-gated browser assets and its PostHog setup agent plugin.",
+  "description": "Standalone PostHog product analytics provider and consent-gated browser assets.",
   "type": "module",
   "license": "Apache-2.0",
   "repository": {
@@ -15,27 +15,22 @@
     "runtime": "node",
     "entries": {
       "./package.json": "node",
-      "./plugin.json": "universal",
-      "./posthog/*": "universal",
       "./plugins/*": "node"
     }
   },
   "exports": {
     "./package.json": "./package.json",
-    "./plugin.json": "./posthog/plugin.json",
-    "./posthog/*": "./posthog/*",
     "./plugins/*": "./plugins/*"
   },
   "files": [
     "plugins/analytics-posthog",
-    "posthog",
     "README.md",
     "LICENSE",
     "NOTICE"
   ],
   "scripts": {
-    "build": "node --import tsx ../provider-plugins/scripts/build.ts analytics-posthog . && node --import tsx ../../scripts/assemble-agent-plugin-package.ts analytics-posthog",
-    "prepack": "node --import tsx ../provider-plugins/scripts/build.ts analytics-posthog . && node --import tsx ../../scripts/assemble-agent-plugin-package.ts analytics-posthog",
+    "build": "node --import tsx ../provider-plugins/scripts/build.ts analytics-posthog .",
+    "prepack": "node --import tsx ../provider-plugins/scripts/build.ts analytics-posthog .",
     "test": "vitest run"
   },
   "devDependencies": {

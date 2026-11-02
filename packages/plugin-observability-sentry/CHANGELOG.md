@@ -1,11 +1,5 @@
 # @jini-ai/plugin-observability-sentry
 
-## Unreleased
-
-- Ship the `sentry` agent plugin (the Sentry setup skill and key card, formerly a Tovu bundled plugin)
-  in this package next to the `observability-sentry` provider: payload `sentry/`, exports `./plugin.json` and
-  `./sentry/*`. `build` and `prepack` run the provider builder, then the agent plugin assembler.
-
 ## 0.6.17
 
 ### Patch Changes

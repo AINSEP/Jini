@@ -1,7 +1,7 @@
 {
   "name": "@jini-ai/plugin-observability-opentelemetry",
   "version": "0.6.17",
-  "description": "Standalone OpenTelemetry server observability provider artifact and its OpenTelemetry setup agent plugin.",
+  "description": "Standalone OpenTelemetry server observability provider artifact.",
   "type": "module",
   "license": "Apache-2.0",
   "repository": {
@@ -15,27 +15,22 @@
     "runtime": "node",
     "entries": {
       "./package.json": "node",
-      "./plugin.json": "universal",
-      "./opentelemetry/*": "universal",
       "./plugins/*": "node"
     }
   },
   "exports": {
     "./package.json": "./package.json",
-    "./plugin.json": "./opentelemetry/plugin.json",
-    "./opentelemetry/*": "./opentelemetry/*",
     "./plugins/*": "./plugins/*"
   },
   "files": [
     "plugins/observability-opentelemetry",
-    "opentelemetry",
     "README.md",
     "LICENSE",
     "NOTICE"
   ],
   "scripts": {
-    "build": "node --import tsx ../provider-plugins/scripts/build.ts observability-opentelemetry . && node --import tsx ../../scripts/assemble-agent-plugin-package.ts observability-opentelemetry",
-    "prepack": "node --import tsx ../provider-plugins/scripts/build.ts observability-opentelemetry . && node --import tsx ../../scripts/assemble-agent-plugin-package.ts observability-opentelemetry",
+    "build": "node --import tsx ../provider-plugins/scripts/build.ts observability-opentelemetry .",
+    "prepack": "node --import tsx ../provider-plugins/scripts/build.ts observability-opentelemetry .",
     "test": "vitest run"
   },
   "devDependencies": {
