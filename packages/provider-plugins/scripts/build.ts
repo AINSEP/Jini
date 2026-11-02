@@ -181,14 +181,17 @@ async function buildArtifact(required: { packageRoot: string; destinationPackage
 class PayloadRecoveryError extends AggregateError {}
 
 /** Swap only a completed payload, restoring its predecessor if publication fails.
+ * Only `plugins/<id>` is swapped, so a distribution that builds several ids keeps the others.
  * Filesystem errors propagate. O(1) renames; cleanup is owned by the caller. */
-async function replacePayload(required: { staging: string; outputRoot: string }, _optional = {}): Promise<void> {
-  const target = path.join(required.outputRoot, 'plugins');
-  const backup = path.join(required.staging, 'previous-plugins');
+async function replacePayload(required: { staging: string; outputRoot: string; id: string }, _optional = {}): Promise<void> {
+  const target = path.join(required.outputRoot, 'plugins', required.id);
+  const backup = path.join(required.staging, 'previous-plugins', required.id);
+  await mkdir(path.dirname(target), { recursive: true });
+  await mkdir(path.dirname(backup), { recursive: true });
   let replaced = false;
   try { await rename(target, backup); replaced = true; }
   catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
-  try { await rename(path.join(required.staging, 'plugins'), target); }
+  try { await rename(path.join(required.staging, 'plugins', required.id), target); }
   catch (error) {
     if (replaced) {
       try { await rename(backup, target); }
@@ -219,7 +222,7 @@ export async function buildProviderPlugin(required: { packageRoot: string; id: s
   let preserveStaging = false;
   try {
     const entry = await buildArtifact({ packageRoot, destinationPackageRoot, staging, id: required.id, version });
-    await replacePayload({ staging, outputRoot });
+    await replacePayload({ staging, outputRoot, id: required.id });
     return entry;
   } catch (error) {
     preserveStaging = error instanceof PayloadRecoveryError;

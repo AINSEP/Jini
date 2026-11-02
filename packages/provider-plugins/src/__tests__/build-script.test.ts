@@ -172,6 +172,19 @@ it('replaces the completed payload on success without changing reviewed package 
   expect((await readdir(root)).filter(name => name.startsWith('.provider-build-'))).toEqual([]);
 });
 
+it('keeps other ids\' payloads when a second id builds into the same distribution', async () => {
+  const root = await packageRoot({ id: 'alpha' });
+  await mkdir(path.join(root, 'src/beta'));
+  await writeFile(path.join(root, 'src/beta/jini.plugin.json'), JSON.stringify({ ...MANIFEST, id: 'beta' }));
+  await writeFile(path.join(root, 'src/beta/index.ts'), 'export default { definition: { setup() {} } };\n');
+  await buildProviderPlugin({ packageRoot: root, id: 'alpha', destinationPackageRoot: root });
+  const alpha = await readFile(path.join(root, 'plugins/alpha/1.2.3/server/index.mjs'), 'utf8');
+  await buildProviderPlugin({ packageRoot: root, id: 'beta', destinationPackageRoot: root });
+  expect(await readdir(path.join(root, 'plugins'))).toEqual(['alpha', 'beta']);
+  expect(await readFile(path.join(root, 'plugins/alpha/1.2.3/server/index.mjs'), 'utf8')).toBe(alpha);
+  expect(await readdir(path.join(root, 'plugins/beta'))).toEqual(['1.2.3']);
+});
+
 it('leaves the old payload intact when the backup rename is refused', async () => {
   const root = await packageRoot({ id: 'alpha' });
   const previous = await previousPayload({ root });
