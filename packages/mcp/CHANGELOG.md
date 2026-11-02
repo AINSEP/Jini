@@ -3,6 +3,7 @@
 ## Unreleased (0.6.18)
 
 - Redact config/token parsing and federation bootstrap exception diagnostics.
+- A top-level `integer` argument sent as a canonical integer string (`search_tools {max_results: "8"}`) is read as that integer instead of refused, so the agent does not lose a turn retrying.
 
 ## 0.6.17
 

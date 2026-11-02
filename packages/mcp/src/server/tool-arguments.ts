@@ -42,6 +42,24 @@ function applyAliases({ args, aliases }: { args: Record<string, unknown>; aliase
   }
 }
 
+/** A canonical base-10 integer spelling: no sign, padding, leading zero, fraction or exponent. */
+const CANONICAL_INTEGER = /^(?:0|[1-9]\d{0,14})$/;
+
+/**
+ * Replaces each top-level argument that the schema types `integer` and the caller sent as a
+ * canonical integer string (`"8"`) with that number, in place. Models do send numbers as strings
+ * (Claude Code sent `search_tools {max_results: "8"}` and lost a turn to the refusal); anything
+ * else, including `"1.5"` or `"08"`, is left for schema validation to refuse.
+ * @complexity O(k) for k argument keys.
+ */
+function coerceIntegerStrings({ args, properties }: { args: Record<string, unknown>; properties: Record<string, unknown> }): void {
+  for (const [key, value] of Object.entries(args)) {
+    const property = properties[key];
+    if (typeof value !== 'string' || !isRecord(property) || property.type !== 'integer') continue;
+    if (CANONICAL_INTEGER.test(value)) args[key] = Number(value);
+  }
+}
+
 /**
  * Moves `extraKeys` from the top level of `args` into its `input` object (created when absent), in place.
  * @throws Error when `input` is not a JSON object, or already holds one of the keys being folded.
@@ -73,7 +91,8 @@ function assertNoMisplacedInputKey({ args, schema }: { args: Record<string, unkn
 }
 
 /**
- * Copies caller arguments into their canonical wrapper shape before schema validation.
+ * Copies caller arguments into their canonical wrapper shape before schema validation, reading a
+ * canonical integer string as the integer a top-level `integer` property declares.
  * @param requiredArgs - Tool contract and untrusted arguments; neither is mutated.
  * @param _options - Reserved normalization options.
  * @returns Canonical arguments; nested tool input is copied only when fields are folded.
@@ -88,6 +107,7 @@ export function normalizeToolArguments(
   const args = { ...rawArgs };
   const properties = tool.inputSchema.properties ?? {};
   applyAliases({ args, aliases: tool.argumentNormalization?.aliases ?? {} });
+  coerceIntegerStrings({ args, properties });
   const extraKeys = Object.keys(args).filter((key) => !Object.hasOwn(properties, key));
   if (tool.argumentNormalization?.foldIntoInput && extraKeys.length > 0) {
     foldExtraKeysIntoInput({ args, extraKeys });

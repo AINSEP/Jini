@@ -47,7 +47,16 @@ describe('proxy argument recovery', () => {
     expect(searchToolsTool.inputSchema.properties).toHaveProperty('max_results');
   });
 
-  it.each([0, 26, 1.5, '3'])('search_tools validates max_results %j using the limit contract', async max_results => {
+  // The demo practice run (2026-11-02): Claude Code on Sonnet 5.5 sent `max_results: "8"`, was refused,
+  // and spent a turn retrying with `limit: 8`. A canonical integer string means the integer.
+  it.each([['max_results', '8'], ['limit', '8']])('search_tools reads %s %j as the integer it spells', async (key, value) => {
+    fetchImpl.mockImplementation(async () => Response.json({ hits: [] }));
+    const result = await call({ tool: searchToolsTool, args: { query: 'duplicate a theme', [key]: value } });
+    expect(result.isError).toBeUndefined();
+    expect(fetchImpl.mock.calls[0]?.[0]).toBe('http://daemon.example/api/tools/search?q=duplicate+a+theme&limit=8');
+  });
+
+  it.each([0, 26, 1.5, '1.5', '08', ' 3', '26', 'eight'])('search_tools validates max_results %j using the limit contract', async max_results => {
     const result = await call({ tool: searchToolsTool, args: { query: 'read posts', max_results } });
     expect(result.isError).toBe(true);
     expect(fetchImpl).not.toHaveBeenCalled();
@@ -152,7 +161,7 @@ describe('proxy argument recovery', () => {
   });
 
   it('names a mistyped field and says how to fix it', async () => {
-    const result = await call({ tool: searchToolsTool, args: { query: 'echo', limit: '5' } });
+    const result = await call({ tool: searchToolsTool, args: { query: 'echo', limit: 'five' } });
     expect(result.isError).toBe(true);
     expect((result.content[0] as { text: string }).text).toContain('change `limit`');
     expect(fetchImpl).not.toHaveBeenCalled();
