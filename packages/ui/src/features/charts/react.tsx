@@ -1,11 +1,12 @@
 /** The only React adapter for the vanilla chart lifecycle; providers own any internal roots. */
 import { useEffect, useRef, type ComponentType, type ReactElement } from 'react';
-import { z } from 'zod';
 import { InteractiveUiRegistry, type InteractiveComponentEntry } from '../interactive-ui/registry.js';
-import { chartSpecSchema, DEFAULT_CHART_THEME, type ChartKind, type ChartSpec, type ChartTheme } from './contract.js';
+import type { InteractiveComponentManifest } from '../interactive-ui/types.js';
+import { chartSpecSchema, DEFAULT_CHART_THEME, type ChartSpec, type ChartTheme } from './contract.js';
 import { mountChart, type MountedChart, type MountChartOptions } from './browser.js';
-import { chartCapability, chartProvidersByKind, type ChartProviderRegistry } from './registry.js';
-import { chartWireManifests, legacyChartSpec, withSeriesLabels } from './wire.js';
+import { chartCatalogManifests } from './catalog-manifests.js';
+import { chartCapability, type ChartProviderRegistry } from './registry.js';
+import { legacyChartSpec, withSeriesLabels } from './wire.js';
 
 export interface ChartHostProps {
   readonly spec: ChartSpec;
@@ -37,47 +38,49 @@ export function ChartHost({ spec, registry, theme = DEFAULT_CHART_THEME, sitePro
   return <div ref={element} className="jini-chart-host" />;
 }
 
-/** Known wire kinds use the established shapes. Other providers register spec-based entries without
- * adding fields or kinds to the core grammar. This closure is built once per host snapshot.
- */
 /** Wire kinds that predate spec-based entries and keep their established prop shapes. */
 const LEGACY_CHART_KINDS = ['bar', 'line', 'pie'] as const;
+type LegacyChartKind = (typeof LEGACY_CHART_KINDS)[number];
+type ChartHostOptions = { siteProvider?: string | undefined; theme?: ChartTheme };
 
-function chartComponent(kind: ChartKind, providers: ChartProviderRegistry, options: { siteProvider?: string | undefined; theme?: ChartTheme }): ComponentType<Record<string, unknown>> {
+/** Known wire kinds use the established shapes. Every other entry, `chart.spec` included, takes
+ * `{ spec }`, so providers add kinds without adding fields or kinds to the core grammar.
+ */
+function chartComponent(
+  { legacyKind, providers }: { legacyKind: LegacyChartKind | undefined; providers: ChartProviderRegistry },
+  options: ChartHostOptions,
+): ComponentType<Record<string, unknown>> {
   return function RegisteredChart(props: Record<string, unknown>): ReactElement {
-    const legacyKind = LEGACY_CHART_KINDS.find((legacy) => legacy === kind);
     const spec = withSeriesLabels({ spec: legacyKind ? legacyChartSpec({ kind: legacyKind, props }) : chartSpecSchema.parse(props.spec) });
     return <ChartHost spec={spec} registry={providers} {...options} />;
   };
 }
 
-/** Create a snapshot for validation AND rendering. Resolve each legacy alias through its specific
- * capability, then copy its wire id onto that same entry (same schema and Component).
+/** The legacy kind an entry draws, read from its specific `<kind>-chart` capability. */
+function legacyKindOf({ manifest }: { manifest: InteractiveComponentManifest }, _options: Record<string, never> = {}): LegacyChartKind | undefined {
+  const capability = manifest.capabilities.find((candidate) => candidate.endsWith('-chart'));
+  return LEGACY_CHART_KINDS.find((kind) => chartCapability({ kind }) === capability);
+}
+
+/** Create a snapshot for validation AND rendering. The entries are exactly the headless catalog
+ * manifests (same ids, schemas and providers), each with a component; entries of one legacy kind
+ * share one component, so a wire alias and its selected provider entry render identically.
+ * This closure is built once per host snapshot.
  * @example createChartInteractiveRegistry({ registry: base, providers }, { siteProvider: 'plugin.recharts' })
  */
 export function createChartInteractiveRegistry(
   { registry, providers }: { registry: InteractiveUiRegistry; providers: ChartProviderRegistry },
-  options: { siteProvider?: string | undefined; theme?: ChartTheme } = {},
+  options: ChartHostOptions = {},
 ): InteractiveUiRegistry {
-  const kinds = [...new Set(['bar', 'line', 'pie', ...providers.list().flatMap(({ kinds }) => kinds)])];
-  const entries: InteractiveComponentEntry[] = [];
-  for (const kind of kinds) {
-    const capability = chartCapability({ kind });
-    const wire = chartWireManifests.find((manifest) => manifest.capabilities.includes(capability));
-    const Component = chartComponent(kind, providers, options);
-    const propsSchema = wire?.propsSchema ?? z.object({ spec: chartSpecSchema.extend({ kind: z.literal(kind) }) }).passthrough();
-    const selected = chartProvidersByKind({ registry: providers, kind }, options);
-    for (const provider of selected) entries.push({
-      id: `${provider.id}.${capability}`, provider: provider.id, capabilities: ['chart', capability, 'graph'], propsSchema, Component,
-    });
-    if (wire) entries.push({ ...wire, id: `core.table.${capability}`, Component });
-  }
+  const admitted = providers.list().filter(({ enabled }) => enabled).map(({ id, kinds }) => ({ id, kinds }));
+  const manifests = chartCatalogManifests({ providers: admitted }, { siteProvider: options.siteProvider });
+  const components = new Map<LegacyChartKind | undefined, ComponentType<Record<string, unknown>>>();
+  const componentFor = (legacyKind: LegacyChartKind | undefined): ComponentType<Record<string, unknown>> => {
+    const component = components.get(legacyKind) ?? chartComponent({ legacyKind, providers }, options);
+    components.set(legacyKind, component);
+    return component;
+  };
+  const entries: InteractiveComponentEntry[] = manifests.map((manifest) => ({ ...manifest, Component: componentFor(legacyKindOf({ manifest })) }));
   const existing = registry.list().filter(({ capabilities }) => !capabilities.includes('chart'));
-  let snapshot = new InteractiveUiRegistry({ entries: [...entries, ...existing] });
-  for (const wire of chartWireManifests) {
-    const capability = wire.capabilities.find((capability) => capability.endsWith('-chart'))!;
-    const selected = snapshot.resolveByCapability({ capability })[0]!;
-    snapshot = snapshot.register({ entry: { ...selected, id: wire.id } });
-  }
-  return snapshot;
+  return new InteractiveUiRegistry({ entries: [...entries, ...existing] });
 }
