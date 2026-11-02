@@ -95,6 +95,8 @@ function wrapperCall({ event }: { event: ToolUseEvent }, _options: Record<string
  * Antigravity buffers CLI receipts: its adapter-described wrappers match equal inner inputs
  * anywhere in this assistant turn, in appearance order among equal keys. Pass only one turn's events;
  * no state is retained across calls. Wrapper and bridge rows are each claimed at most once.
+ * A failed receipt requires a failed canonical result: an identical successful call cannot
+ * account for a refusal before the bridge, regardless of buffered receipt ordering.
  * A legacy gateway folds onto the first LATER canonical `tool_use` whose name equals its `input.toolId`.
  * A direct call folds onto the first LATER `X` row with structurally equal JSON input that arrives
  * before the CLI's own result for it. No canonical row is claimed twice, and a folded wrapper's
@@ -113,12 +115,13 @@ export function foldDelegatedWrapperCalls({ events }: { events: AgentEvent[] | u
 
   const claimed = new Set<number>();
   const folded = new Set<string>();
+  const failedResults = new Set(events.flatMap(event => event.kind === 'tool_result' && event.isError ? [event.toolUseId] : []));
   events.forEach((event, i) => {
     if (event.kind !== 'tool_use') return;
     const call = wrapperCall({ event });
     // A replayed wrapper (same id) must not claim a second canonical row.
     if (call === undefined || folded.has(event.id)) return;
-    const match = findCanonicalRow({ events, wrapper: event, wrapperIndex: i, call, claimed });
+    const match = findCanonicalRow({ events, wrapper: event, wrapperIndex: i, call, claimed, failedResults });
     if (match === -1) return;
     claimed.add(match);
     folded.add(event.id);
@@ -137,14 +140,17 @@ export function foldDelegatedWrapperCalls({ events }: { events: AgentEvent[] | u
  * @throws CanonicalJsonError if a direct call's input contains non-JSON values.
  * @complexity O(n·s): n events, s canonical input serialization cost.
  */
-function findCanonicalRow({ events, wrapper, wrapperIndex, call, claimed }: {
+function findCanonicalRow({ events, wrapper, wrapperIndex, call, claimed, failedResults }: {
   events: AgentEvent[]; wrapper: ToolUseEvent; wrapperIndex: number; call: WrapperCall; claimed: ReadonlySet<number>;
+  failedResults: ReadonlySet<string>;
 }): number {
   const inputKey = call.matchInput ? canonicalJson({ value: { input: call.input } }) : undefined;
   const [start, end] = canonicalSearchWindow({ events, wrapper, wrapperIndex, call });
   for (let j = start; j < end; j += 1) {
     const other = events[j]!;
     if (claimed.has(j) || other.kind !== 'tool_use' || other.name !== call.name) continue;
+    // Never hide a transport refusal behind a separate success (or a still-pending call).
+    if (failedResults.has(wrapper.id) && !failedResults.has(other.id)) continue;
     if (inputKey === undefined || canonicalJson({ value: { input: other.input } }) === inputKey) return j;
   }
   return -1;

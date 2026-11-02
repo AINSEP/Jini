@@ -34,6 +34,11 @@ const ITEM_NEEDS_END = " (inside each item).";
 // Keep discovery requirements through descriptor/schema spreads without adding wire-schema keys.
 const BATCH_ITEM_REQUIRED_FIELDS = Symbol('batchItemRequiredFields');
 
+/** Shared by item and plan descriptions so neither can make single calls look argument-free. */
+function singleCallGuidance({ fields }: { fields: readonly string[] }, _options = {}): string {
+  return fields.length > 0 ? `Single call requires: ${fields.join(', ')}. ` : '';
+}
+
 /** The original top-level `required` fields retained by {@link batchDescriptorFor} as schema metadata.
  * A batch schema declares no top-level `required`, so a discovery signature built from it alone
  * makes a single call look argument-free and the model sends `{}` — this recovers them.
@@ -130,7 +135,7 @@ export function batchDescriptorFor(
   delete rest.required;
   const needs = requiredFields.length > 0 ? `${ITEM_NEEDS}${requiredFields.join(", ")}${ITEM_NEEDS_END}` : "";
   // Inside the removable guidance so search keeps only the authored description and signature.
-  const singleNeeds = requiredFields.length > 0 ? `Single call requires: ${requiredFields.join(", ")}. ` : "";
+  const singleNeeds = singleCallGuidance({ fields: requiredFields });
   const items = {
     type: "array",
     minItems: 1,
@@ -265,7 +270,7 @@ export function withBatchInput(
   const descriptor = batchDescriptorFor({ descriptor: registration.descriptor, tool });
   if (mode === 'plan') return {
     ...registration, descriptor: { ...descriptor,
-      description: `${registration.descriptor.description ?? ''}${BATCH_GUIDANCE_MARKER}up to ${maxItems} inputs are normalized before authorization and passed to the existing combined approval plan.`,
+      description: `${registration.descriptor.description ?? ''}${BATCH_GUIDANCE_MARKER}${singleCallGuidance({ fields: batchItemRequiredFields({ inputSchema: descriptor.inputSchema }) })}up to ${maxItems} inputs are normalized before authorization and passed to the existing combined approval plan.`,
     },
     // The plan owns one confirmation. Normalize every merged item before the outer gate so
     // its policy and planner receive the same targets; never execute items to preflight them.

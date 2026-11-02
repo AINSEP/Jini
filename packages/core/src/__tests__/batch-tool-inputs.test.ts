@@ -263,13 +263,25 @@ describe('withBatchInput plan mode', () => {
     const handler = vi.fn<ToolHandler>(async () => 'plan applied');
     const wrapped = withBatchInput({ registration: registrationWith({ handler }), tool: { toolId: 'edit', maxItems: 4 } }, { mode: 'plan' });
     expect(wrapped.handler).toBe(handler);
-    expect(wrapped.descriptor.description).toBe('Edits a file. Batch: up to 4 inputs are normalized before authorization and passed to the existing combined approval plan.');
+    expect(wrapped.descriptor.description).toBe('Edits a file. Batch: Single call requires: path. up to 4 inputs are normalized before authorization and passed to the existing combined approval plan.');
     expect((wrapped.descriptor.inputSchema as { properties: Record<string, unknown> }).properties).toHaveProperty('items');
   });
 
   it('describes a plan batch even when the tool publishes no description of its own', () => {
     const wrapped = withBatchInput({ registration: registrationWith({ descriptor: { id: 'edit', inputSchema: schema } }), tool: { toolId: 'edit' } }, { mode: 'plan' });
-    expect(wrapped.descriptor.description).toBe(` Batch: up to ${DEFAULT_MAX_BATCH_ITEMS} inputs are normalized before authorization and passed to the existing combined approval plan.`);
+    expect(wrapped.descriptor.description).toBe(` Batch: Single call requires: path. up to ${DEFAULT_MAX_BATCH_ITEMS} inputs are normalized before authorization and passed to the existing combined approval plan.`);
+  });
+
+  it('preserves every single-call requirement for plans and omits guidance for tools requiring none', () => {
+    for (const required of [['path', 'count'], []]) {
+      const wrapped = withBatchInput({ registration: registrationWith({ descriptor: {
+        id: 'edit', description: 'Edits a file.', inputSchema: { ...schema, required },
+      } }), tool: { toolId: 'edit' } }, { mode: 'plan' });
+      expect(batchItemRequiredFields({ inputSchema: wrapped.descriptor.inputSchema })).toEqual(required);
+      if (required.length > 0) expect(wrapped.descriptor.description).toContain('Single call requires: path, count.');
+      else expect(wrapped.descriptor.description).not.toContain('Single call requires:');
+      expect(wrapped.descriptor.inputSchema).not.toHaveProperty('required');
+    }
   });
 
   it('normalizes every merged item before the outer gate, validating each, without executing any', async () => {

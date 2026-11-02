@@ -15,6 +15,27 @@ function result(id: string): AgentEvent {
 }
 
 describe('Antigravity wrapper folding safety', () => {
+  it.each([AGY_DIRECT, AGY_GATEWAY])('keeps a refused receipt separate from an identical successful call in either order: $id', wrapper => {
+    const canonical = bridge(wrapper);
+    const refused: AgentEvent = { kind: 'tool_result', toolUseId: wrapper.id, content: '403: refused before bridge', isError: true };
+    const successful = { ...wrapper, id: 'successful' };
+    const canonicalEvents = [canonical, result(canonical.id)];
+    const receipts = [wrapper, refused, successful, result(successful.id)];
+    for (const events of [[...canonicalEvents, ...receipts], [...receipts, ...canonicalEvents]]) {
+      expect(foldDelegatedWrapperCalls({ events })).toEqual(events.filter(event =>
+        event !== successful && !(event.kind === 'tool_result' && event.toolUseId === successful.id)));
+    }
+  });
+
+  it.each([AGY_DIRECT, AGY_GATEWAY])('folds a failed receipt only when a failed canonical result exists: $id', wrapper => {
+    const canonical = bridge(wrapper);
+    const refused: AgentEvent = { kind: 'tool_result', toolUseId: wrapper.id, content: 'failed', isError: true };
+    const pending = [canonical, wrapper, refused];
+    expect(foldDelegatedWrapperCalls({ events: pending })).toBe(pending);
+    const failed: AgentEvent = { kind: 'tool_result', toolUseId: canonical.id, content: 'tool input refused', isError: true };
+    expect(foldDelegatedWrapperCalls({ events: [canonical, failed, wrapper, refused] })).toEqual([canonical, failed]);
+  });
+
   it.each([AGY_DIRECT, AGY_GATEWAY])('folds a wrapper onto a matching later bridge row: $id', wrapper => {
     const canonical = bridge(wrapper);
     expect(foldDelegatedWrapperCalls({ events: [wrapper, canonical, result(canonical.id), result(wrapper.id)] }))

@@ -2,6 +2,7 @@
 
 ## Unreleased (0.6.18)
 
+- Preserve detached, frozen batch schema symbol metadata in tool exposure snapshots and single-call required-field guidance in plan-mode descriptions.
 - Redact complete quoted credential keys and values in inspected and JSON diagnostics, including API keys, cookies, tokens and private keys, while preserving diagnostic context.
 - Add universal `formatErrorForLog` diagnostics that retain stacks, codes and structured context, redact secrets and never interrupt recovery for hostile thrown values.
 - Redact default settings-stream exception logs through the shared secret policy.

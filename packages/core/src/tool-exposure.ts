@@ -119,7 +119,7 @@ function assertLimit(value: number): void {
 function freezeData(value: unknown, seen = new Set<object>()): void {
   if (value === null || typeof value !== 'object' || Object.isFrozen(value) || seen.has(value)) return;
   seen.add(value);
-  for (const child of Object.values(value)) freezeData(child, seen);
+  for (const key of Reflect.ownKeys(value)) freezeData(Reflect.get(value, key), seen);
   Object.freeze(value);
 }
 
@@ -127,6 +127,15 @@ function freezeData(value: unknown, seen = new Set<object>()): void {
 function pinDescriptor(descriptor: ToolDescriptor): { descriptor: ToolDescriptor; bytes: number } {
   try {
     const pinned = structuredClone(descriptor);
+    // structuredClone omits symbol keys. Batch schemas keep discovery requirements there
+    // so providers see a plain wire schema; detach that metadata before freezing it too.
+    if (descriptor.inputSchema !== null && typeof descriptor.inputSchema === 'object') {
+      for (const symbol of Object.getOwnPropertySymbols(descriptor.inputSchema)) {
+        Object.defineProperty(pinned.inputSchema, symbol, {
+          value: structuredClone(Reflect.get(descriptor.inputSchema, symbol)), enumerable: true,
+        });
+      }
+    }
     const json = JSON.stringify(pinned.inputSchema);
     const bytes = json === undefined ? 0 : new TextEncoder().encode(json).byteLength;
     freezeData(pinned);

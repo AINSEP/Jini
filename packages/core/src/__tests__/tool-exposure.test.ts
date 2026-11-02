@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createToolExposure, createToolNameMap, ToolExposureError } from '../index.js';
 import { createToolRegistrationScope, createToolRegistry, type ToolDescriptor, type ToolRegistry } from '../tool-registry.js';
+import { batchDescriptorFor, batchItemRequiredFields } from '../batch-tool-inputs.js';
 
 function register(registry: ToolRegistry, descriptor: ToolDescriptor): void {
   registry.register({ descriptor, handler: async () => 'executor-owned', policy: { authorize: () => 'deny' } });
@@ -56,6 +57,28 @@ describe('wire-name projection', () => {
 });
 
 describe('run-scoped exposure', () => {
+  it('retains detached, frozen single-call requirements when publishing a batch descriptor', () => {
+    const descriptor = batchDescriptorFor({ descriptor: { id: 'files.read', inputSchema: {
+      type: 'object', required: ['root', 'path'], properties: { root: { type: 'string' }, path: { type: 'string' } },
+    } }, tool: { toolId: 'files.read' } });
+    const registry = registryWith([descriptor]);
+    const exposure = createToolExposure({ registry });
+    const exposed = exposure.promote({ toolIds: [descriptor.id] }).snapshot.tools[0]!.descriptor;
+    expect(batchItemRequiredFields({ inputSchema: exposed.inputSchema })).toEqual(['root', 'path']);
+    expect(JSON.stringify(exposed.inputSchema)).toBe(JSON.stringify(descriptor.inputSchema));
+    const sourceSchema = descriptor.inputSchema as object;
+    const pinnedSchema = exposed.inputSchema as object;
+    for (const symbol of Object.getOwnPropertySymbols(sourceSchema)) {
+      const original = Reflect.get(sourceSchema, symbol) as string[];
+      const pinned = Reflect.get(pinnedSchema, symbol) as string[];
+      expect(pinned).not.toBe(original);
+      expect(Object.isFrozen(pinned)).toBe(true);
+      expect(() => pinned.push('overwrite')).toThrow(TypeError);
+      original.push('later');
+    }
+    expect(batchItemRequiredFields({ inputSchema: exposed.inputSchema })).toEqual(['root', 'path']);
+  });
+
   it('isolates promotions, revisions and reverse lookup across two runs', () => {
     const registry = registryWith([{ id: 'one.read' }, { id: 'two.write' }]);
     const first = createToolExposure({ registry });

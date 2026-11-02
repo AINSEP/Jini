@@ -230,7 +230,6 @@ export function useConversation(options: UseConversationOptions): UseConversatio
   // permanently unset.
   useEffect(() => {
     applyRunToAssistantMessage();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [run.events, run.status, run.runId]);
 
   const sendMessage = useCallback(
