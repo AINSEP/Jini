@@ -635,7 +635,10 @@ function emitCodexErrorOnce(message: string, onEvent: StreamEventHandler, state:
 function codexMcpToolName(item: JsonObject): string {
   const tool = nonEmptyString(item.tool);
   // Preserve the bridge's catalog names; external MCP must never masquerade as Bash/Edit.
-  if (item.server === 'jini') return tool ?? 'mcp_tool_call';
+  // A Jini call is named `mcp__jini__X` exactly as Claude Code names it: the daemon bridge also
+  // reports a direct call as its own `X` row, and @jini-ai/chat folds the pair into one row only
+  // when the CLI row carries the MCP prefix (a bare `X` drew every Codex direct call twice).
+  if (item.server === 'jini') return tool ? `mcp__jini__${tool}` : 'mcp_tool_call';
   const server = typeof item.server === 'string' ? item.server : 'external';
   return `mcp__${server}__${tool ?? 'call'}`;
 }
@@ -646,7 +649,8 @@ function codexMcpToolName(item: JsonObject): string {
  * `item.completed` — already rely on, since Codex reports both frames for one call).
  *
  * `item.tool` — the literal MCP tool name Codex called (`search_tools`, `describe_tool`,
- * `execute_delegated_tool`) — is used verbatim as the emitted `name`, never unwrapped to the
+ * `execute_delegated_tool`) — is used verbatim (behind the `mcp__jini__` prefix, see
+ * {@link codexMcpToolName}) as the emitted `name`, never unwrapped to the
  * delegated `toolId` inside `item.arguments`: `@jini-ai/chat`'s `ToolCard`/`DelegatedToolCard`
  * already recover that id from `{toolId, input}` for `execute_delegated_tool` specifically (see that
  * component's own doc), so duplicating the unwrap here would be a second, driftable copy of the same

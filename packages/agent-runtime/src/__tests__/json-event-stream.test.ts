@@ -164,7 +164,7 @@ describe('createJsonEventStreamHandler (codex)', () => {
       {
         type: 'tool_use',
         id: 'item_0',
-        name: 'execute_delegated_tool',
+        name: 'mcp__jini__execute_delegated_tool',
         input: { toolId: 'media_generate_asset', input: { prompt: 'A solid green square' } },
       },
     ]);
@@ -1583,17 +1583,21 @@ describe('pinned behaviour before the complexity refactor', () => {
     expect(events).toEqual([{ type: 'error', message: 'bad', raw: '[object Object]' }]);
   });
 
+  // A direct Jini call is also reported by the daemon bridge as its own `X` row. Naming the CLI row
+  // `mcp__jini__X`, as Claude Code does, is what lets @jini-ai/chat's fold pair the two into one row.
   it('names codex MCP tool uses for jini, external and nameless servers', () => {
     const events = feed('codex', [
       { type: 'item.started', item: { id: 'a', type: 'mcp_tool_call', server: 'jini', tool: '' } },
       { type: 'item.started', item: { id: 'b', type: 'mcp_tool_call', server: 'jini', tool: 'search_tools', arguments: { q: 1 } } },
+      { type: 'item.started', item: { id: 'e', type: 'mcp_tool_call', server: 'jini', tool: 'theme_read_file', arguments: { path: 'theme.css' } } },
       { type: 'item.started', item: { id: 'c', type: 'mcp_tool_call', tool: 'x' } },
       { type: 'item.started', item: { id: 'd', type: 'mcp_tool_call', server: 'chrome' } },
       { type: 'item.started', item: { id: 'd', type: 'mcp_tool_call', server: 'chrome' } },
     ]);
     expect(events).toEqual([
       { type: 'tool_use', id: 'a', name: 'mcp_tool_call', input: {} },
-      { type: 'tool_use', id: 'b', name: 'search_tools', input: { q: 1 } },
+      { type: 'tool_use', id: 'b', name: 'mcp__jini__search_tools', input: { q: 1 } },
+      { type: 'tool_use', id: 'e', name: 'mcp__jini__theme_read_file', input: { path: 'theme.css' } },
       { type: 'tool_use', id: 'c', name: 'mcp__external__x', input: {} },
       { type: 'tool_use', id: 'd', name: 'mcp__chrome__call', input: {} },
     ]);
