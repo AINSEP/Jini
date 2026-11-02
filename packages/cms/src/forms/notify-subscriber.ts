@@ -1,3 +1,4 @@
+import { formatErrorForLog } from '@jini-ai/core';
 import type { FormDefinitionRecord, FormSubmissionRecord } from "./types.js";
 /**
  * @file `registerFormNotifySubscriber` — the Forms-owned outbox subscriber (SPEC-010 REQ-12,
@@ -68,9 +69,10 @@ export async function registerFormNotifySubscriber(
   );
 }
 
-/** Failure reporting is isolated too: a logger cannot interrupt sibling event subscribers. */
+/** Provider refusals can echo credentials without throwing. Redact both the message and cause;
+ * failure reporting is isolated too, so a logger cannot interrupt sibling event subscribers. */
 function warn(logger: Pick<Logger, 'warn'>, message: string, error?: unknown): void {
-  try { logger.warn({ message }, error === undefined ? {} : { error }); } catch { /* Host logging failure is terminal. */ }
+  try { logger.warn({ message: formatErrorForLog({ error: message }) }, error === undefined ? {} : { error: formatErrorForLog({ error }) }); } catch { /* Host logging failure is terminal. */ }
 }
 
 /** One recipient's delivery failure is terminal and cannot interrupt sibling recipients. */

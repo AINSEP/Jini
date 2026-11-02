@@ -1,3 +1,5 @@
+import { inspect } from 'node:util';
+import { redactSecrets } from '@jini-ai/core';
 import type { Request, Response } from "express";
 import { FormDefinitionNotFoundError, FormRateLimitExceededError, FormSubmissionValidationError, FormSubmissionTooFastError } from "../errors.js";
 import type { FieldDescriptor } from "../types.js";
@@ -268,7 +270,7 @@ export function createFormSubmitHandler(
         try {
           await setFormFlashCookieForValidationFailure(req, res, deps, slug, body);
         } catch (flashErr) {
-          console.error(`[site/forms-submit] failed to set validation flash cookie (slug=${slug})`, flashErr);
+          console.error(`[site/forms-submit] failed to set validation flash cookie (slug=${slug})`, redactSecrets({ input: inspect(flashErr) }, { redactPii: false }));
         }
       }
       sendFormSubmitOutcome(req, res, outcomeForError(slug, err), deps);

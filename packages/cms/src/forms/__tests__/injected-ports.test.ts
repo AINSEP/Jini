@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { test, vi } from "vitest";
+import { expect, test, vi } from "vitest";
 import { submitForm } from "../submit-service.js";
 import { registerFormNotifySubscriber } from "../notify-subscriber.js";
 import { createFormDefinition, updateFormDefinition } from "../write-service.js";
@@ -81,11 +81,13 @@ test("async rate limiter receives the composite key before persistence", async (
 test.each(["reject", "throw"])("background dispatcher may %s without rejecting submission", async (failure) => {
   const { writes, input, submitDeps } = setup();
   await createFormDefinition({ deps: writes, input });
-  const error = new Error("dispatcher unavailable");
+  const secret = "ghp_" + "s".repeat(36);
+  const error = new Error(`dispatcher unavailable ${secret}`);
   const deps = { ...submitDeps, dispatcher: { dispatch: failure === "throw" ? () => { throw error; } : async () => { throw error; } } };
   assert.deepEqual(await submitForm({ deps, input: { workspaceId: "workspace", slug: "new", body: { name: "Ada" }, sourceIp: "source" } }), { status: "accepted" });
   await vi.waitFor(() => assert.equal(submitDeps.logger.warn.mock.calls.length, 1));
-  assert.deepEqual(submitDeps.logger.warn.mock.calls[0], [{ message: "form outbox dispatch failed" }, { error }]);
+  expect(submitDeps.logger.warn).toHaveBeenCalledWith({ message: "form outbox dispatch failed" }, { error: expect.stringContaining("Error: dispatcher unavailable [REDACTED:github_token]") });
+  expect(JSON.stringify(submitDeps.logger.warn.mock.calls)).not.toContain(secret);
 });
 
 test("a throwing logger on a failed background dispatch still leaves the submission accepted with no unhandled rejection", async () => {
@@ -128,4 +130,22 @@ test("injected sender is used and failed delivery still reaches the next recipie
   await bus.publish(event);
   assert.equal(send.mock.calls.length, 2);
   assert.equal(siblingCalls, 2);
+});
+
+test("failed mailer results redact provider messages and still deliver to sibling recipients and subscribers", async () => {
+  const { writes, input, submitDeps } = setup();
+  await createFormDefinition({ deps: writes, input }, { notify: { enabled: true, recipients: ["first@example.org", "second@example.org"] } });
+  await submitForm({ deps: submitDeps, input: { workspaceId: "workspace", slug: "new", body: { name: "Ada" }, sourceIp: "source" } });
+  const bus = new InMemoryEventBus();
+  const send = vi.fn(async () => ({ ok: false as const, retryable: false, errorCode: "UPSTREAM_FAILED", message: 'requestId=req-42 password="provider secret"' }));
+  const warn = vi.fn();
+  await registerFormNotifySubscriber({ bus, mailer: { send }, sender: { email: "host@example.org" }, logger: { warn }, formDefinitionRepo: submitDeps.definitionRepo, formSubmissionRepo: submitDeps.submissionRepo });
+  let siblingCalls = 0;
+  await bus.subscribe({ eventName: "form.submission.received", handler: async () => { siblingCalls++; } });
+  await bus.publish(submitDeps.outbox.events[0]!);
+  assert.equal(send.mock.calls.length, 2);
+  assert.equal(siblingCalls, 1);
+  const diagnostic = JSON.stringify(warn.mock.calls);
+  expect(diagnostic).not.toContain("provider secret");
+  for (const value of ["UPSTREAM_FAILED", "req-42", "[REDACTED:"]) expect(diagnostic).toContain(value);
 });

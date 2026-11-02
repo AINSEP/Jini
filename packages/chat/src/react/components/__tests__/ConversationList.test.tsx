@@ -327,7 +327,7 @@ describe('rejected host effects are reported, not left as unhandled rejections',
       await waitFor(() => {
         expect(consoleError).toHaveBeenCalledWith(
           '[@jini-ai/chat] ConversationList onSearch host effect failed:',
-          failure,
+          failure.stack,
         );
       });
     } finally {
@@ -350,7 +350,7 @@ describe('rejected host effects are reported, not left as unhandled rejections',
       await waitFor(() => {
         expect(consoleError).toHaveBeenCalledWith(
           '[@jini-ai/chat] ConversationList onRename host effect failed:',
-          failure,
+          failure.stack,
         );
       });
     } finally {
@@ -370,7 +370,7 @@ describe('rejected host effects are reported, not left as unhandled rejections',
       await waitFor(() => {
         expect(consoleError).toHaveBeenCalledWith(
           '[@jini-ai/chat] ConversationList onCreate host effect failed:',
-          failure,
+          failure.stack,
         );
       });
     } finally {
@@ -390,7 +390,7 @@ describe('rejected host effects are reported, not left as unhandled rejections',
       await waitFor(() => {
         expect(consoleError).toHaveBeenCalledWith(
           '[@jini-ai/chat] ConversationList onDelete host effect failed:',
-          failure,
+          failure.stack,
         );
       });
     } finally {

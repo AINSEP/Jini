@@ -102,7 +102,7 @@ test("file: a failed media cleanup is logged and the original submission failure
   const { f, deps } = failingCleanup((entry, optional) => { warnings.push({ message: entry.message, error: optional?.error }); });
   await f.deps.definitionRepo.create(definition());
   await assert.rejects(submitForm({ deps, input: f.input }), /outbox failed/);
-  assert.deepEqual(warnings.map((w) => [w.message, (w.error as Error).message]), [["form upload cleanup failed", "media store unavailable"]]);
+  assert.deepEqual(warnings.map((w) => [w.message, String(w.error).split("\n")[0]]), [["form upload cleanup failed", "Error: media store unavailable"]]);
 });
 test("file: a throwing logger during cleanup cannot replace the original submission failure", async () => {
   const { f, deps } = failingCleanup(() => { throw new Error("logger down"); });

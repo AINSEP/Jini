@@ -22,12 +22,27 @@ function openAddMenu() {
 afterEach(() => vi.restoreAllMocks());
 
 describe('Composer guards', () => {
+  it.each([
+    ['null prototype', Object.create(null) as unknown],
+    ['throwing coercion', { toString() { throw new Error('coercion failed'); } }],
+  ])('settles discovery after a %s throw so the next selection reaches the host', (_label, failure) => {
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+    const onDiscoverySelect = vi.fn(() => { throw failure; });
+    render(<Harness slots={{ discoveryGroups: GROUPS, onDiscoverySelect }} />);
+    openAddMenu();
+    fireEvent.click(screen.getByRole('menuitem', { name: /Word Count/ }));
+    openAddMenu();
+    fireEvent.click(screen.getByRole('menuitem', { name: /Word Count/ }));
+    expect(onDiscoverySelect).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole('textbox')).toHaveValue('Word Count plugin Word Count plugin');
+  });
+
   it('reports a host effect that throws synchronously and keeps rendering', () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
     const failure = new Error('sync boom');
     render(<Harness slots={{ plusMenuItems: [{ id: 'p', label: 'Boom', onSelect: () => { throw failure; } }] }} />);
     fireEvent.click(screen.getByRole('button', { name: 'Boom' }));
-    expect(error).toHaveBeenCalledWith('[@jini-ai/chat] Composer plusMenuItems.onSelect host effect failed:', failure);
+    expect(error).toHaveBeenCalledWith('[@jini-ai/chat] Composer plusMenuItems.onSelect host effect failed:', failure.stack);
     expect(screen.getByRole('button', { name: 'Boom' })).toBeInTheDocument();
   });
 

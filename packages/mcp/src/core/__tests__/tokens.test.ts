@@ -272,3 +272,15 @@ describe('isTokenExpired', () => {
     expect(isTokenExpired({ token: { accessToken: 'x', tokenType: 'Bearer', savedAt: 1, expiresAt: 1 } })).toBe(true);
   });
 });
+
+it('redacts credentials echoed by malformed token JSON', async () => {
+  const dir = tmp();
+  const raw = 'Bearer ' + 'x';
+  writeRaw(dir, raw);
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    await expect(readTokensFile({ dataDir: dir })).resolves.toEqual({ servers: {} });
+    expect(log).toHaveBeenCalledWith('[mcp-tokens] Corrupted JSON, returning empty:', expect.stringContaining('[REDACTED:'));
+    expect(String(log.mock.calls[0]?.[1])).not.toContain(raw);
+  } finally { log.mockRestore(); }
+});

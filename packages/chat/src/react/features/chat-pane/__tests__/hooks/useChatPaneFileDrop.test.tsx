@@ -125,7 +125,7 @@ describe('useChatPaneFileDrop', () => {
       expect(onFiles).toHaveBeenCalledWith([file]);
       expect(consoleError).toHaveBeenCalledWith(
         '[@jini-ai/chat] useChatPaneFileDrop onFiles host effect failed:',
-        failure,
+        failure.stack,
       );
     } finally {
       consoleError.mockRestore();

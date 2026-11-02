@@ -1,3 +1,5 @@
+import { inspect } from 'node:util';
+import { redactSecrets } from '@jini-ai/core';
 import { isLoopbackHostname } from '@jini-ai/platform/net';
 /**
  * @module @jini-ai/mcp/core/config
@@ -265,7 +267,7 @@ export async function readMcpConfig({ dataDir }: { dataDir: string }, { filesyst
     const e = err as { code?: string; name?: string; message?: string };
     if (e.code === 'ENOENT') return { servers: [] };
     if (e.name === 'SyntaxError') {
-      console.error('[mcp-config] Corrupted JSON, returning empty:', e.message);
+      console.error('[mcp-config] Corrupted JSON, returning empty:', redactSecrets({ input: inspect(e) }, { redactPii: false }));
       return { servers: [] };
     }
     throw err;

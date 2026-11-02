@@ -1,3 +1,4 @@
+import { formatErrorForLog } from '@jini-ai/core';
 const RUNNING_TITLE_CLASS = ' shimmer-text';
 
 /**
@@ -116,7 +117,7 @@ function renderRegistered({ use, card, registry }: ToolCardBodyArgs): ReactNode 
     const node = custom(toRenderProps({ use: use, result: card.result, runStreaming: card.runStreaming }, { runSucceeded: card.runSucceeded }));
     if (node !== undefined && node !== null && node !== false) return node;
   } catch (err) {
-    console.error(`[ToolCard] custom renderer for "${use.name}" threw; falling back`, err);
+    console.error(`[ToolCard] custom renderer for "${use.name}" threw; falling back`, formatErrorForLog({ error: err }));
   }
   return undefined;
 }

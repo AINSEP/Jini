@@ -1,3 +1,4 @@
+import { formatErrorForLog } from '@jini-ai/core';
 /**
  * @module ConversationList
  *
@@ -72,7 +73,7 @@ export interface ConversationListProps {
 }
 
 function reportConversationListHostEffectFailure(effectName: string, error: unknown) {
-  console.error(`[@jini-ai/chat] ConversationList ${effectName} host effect failed:`, error);
+  console.error(`[@jini-ai/chat] ConversationList ${effectName} host effect failed:`, formatErrorForLog({ error }));
 }
 
 /** Invokes a host callback and reports a synchronous throw or async rejection without leaving it unhandled. */

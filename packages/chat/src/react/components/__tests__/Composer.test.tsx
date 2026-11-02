@@ -131,7 +131,7 @@ describe('Composer', () => {
 
       expect(consoleError).toHaveBeenCalledWith(
         '[@jini-ai/chat] Composer plusMenuItems.onSelect host effect failed:',
-        failure,
+        failure.stack,
       );
     } finally {
       consoleError.mockRestore();
@@ -404,7 +404,7 @@ describe('Composer', () => {
 
       expect(consoleError).toHaveBeenCalledWith(
         '[@jini-ai/chat] Composer onDiscoverySelect host effect failed:',
-        failure,
+        failure.stack,
       );
     } finally {
       consoleError.mockRestore();
@@ -577,7 +577,7 @@ describe('Composer', () => {
 
       expect(consoleError).toHaveBeenCalledWith(
         '[@jini-ai/chat] Composer attachmentPicker.onFiles host effect failed:',
-        failure,
+        failure.stack,
       );
     } finally {
       consoleError.mockRestore();
@@ -763,7 +763,7 @@ describe('Composer', () => {
         expect(textarea).toHaveValue('/search aria listbox');
         expect(consoleError).toHaveBeenCalledWith(
           '[@jini-ai/chat] Composer onDiscoverySelect host effect failed:',
-          failure,
+          failure.stack,
         );
 
         // The in-flight guard released after the rejection settled — a second selection now fires.

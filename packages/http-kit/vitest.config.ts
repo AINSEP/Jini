@@ -1,6 +1,9 @@
 import { defineConfig } from 'vitest/config';
+import { fileURLToPath } from 'node:url';
 
 export default defineConfig({
+  // Sink regressions must exercise the current shared redactor without requiring a package build.
+  resolve: { alias: [{ find: /^@jini-ai\/core$/, replacement: fileURLToPath(new URL('../core/src/index.ts', import.meta.url)) }] },
   test: {
     coverage: {
       provider: 'v8',

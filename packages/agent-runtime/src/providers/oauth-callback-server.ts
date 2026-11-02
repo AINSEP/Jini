@@ -1,3 +1,5 @@
+import { inspect } from 'node:util';
+import { redactSecrets } from '@jini-ai/core';
 /**
  * @module providers/oauth-callback-server
  *
@@ -140,7 +142,7 @@ export async function startOAuthCallbackListener(requiredArgs: Pick<StartOAuthCa
     try {
       await input.onCallback(outcome);
     } catch (err: unknown) {
-      console.error('[oauth-callback-server] onCallback failed:', err);
+      console.error('[oauth-callback-server] onCallback failed:', redactSecrets({ input: inspect(err) }, { redactPii: false }));
     } finally {
       void stop();
     }

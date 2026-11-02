@@ -141,7 +141,7 @@ describe('startChatExpirySweep', () => {
     const { maintenance } = scripted([new Error('locked'), () => Promise.reject('plain')]);
     const stop = startChatExpirySweep({ maintenance }, { intervalMs: 10 });
     await vi.advanceTimersByTimeAsync(10);
-    expect(warn.mock.calls).toEqual([['[chat-expiry-sweep] sweep failed: locked'], ['[chat-expiry-sweep] sweep failed: plain']]);
+    expect(warn.mock.calls).toEqual([['[chat-expiry-sweep] sweep failed:', expect.stringContaining('Error: locked')], ['[chat-expiry-sweep] sweep failed:', "'plain'"]]);
     await stop();
   });
 });

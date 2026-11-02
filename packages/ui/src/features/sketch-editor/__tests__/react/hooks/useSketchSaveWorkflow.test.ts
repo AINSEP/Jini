@@ -42,6 +42,22 @@ function baseParams(overrides: Partial<Parameters<typeof useSketchSaveWorkflow>[
 }
 
 describe('useSketchSaveWorkflow', () => {
+  it.each([
+    ['null prototype', Object.create(null) as unknown],
+    ['throwing coercion', { toString() { throw new Error('coercion failed'); } }],
+  ])('shows the export error toast and clears exporting after a %s rejection', async (_label, failure) => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const engine = createFakeSketchEditorEngine({ exportToBlob: async () => { throw failure; } });
+      const onExportImage = vi.fn();
+      const { result } = renderHook(() => useSketchSaveWorkflow(baseParams({ engine, onExportImage })));
+      await act(async () => { await result.current.handleExportImage(); });
+      expect(result.current.toast).toEqual({ message: 'Could not export image', tone: 'error' });
+      expect(result.current.exporting).toBe(false);
+      expect(onExportImage).not.toHaveBeenCalled();
+    } finally { warn.mockRestore(); }
+  });
+
   it('shows the saved indicator once savedAt is set (while not dirty/saving), then hides it after the TTL', () => {
     vi.useFakeTimers();
     try {
@@ -144,7 +160,8 @@ describe('useSketchSaveWorkflow', () => {
 
   it('handleExportImage surfaces an error toast when reading the exported blob fails', async () => {
     const reader = new FakeFileReader();
-    reader.error = new Error('disk read failed');
+    const secret = 'ghp_' + 's'.repeat(36);
+    reader.error = new Error(`disk read failed ${secret}`);
     vi.stubGlobal(
       'FileReader',
       vi.fn(() => reader),
@@ -158,6 +175,8 @@ describe('useSketchSaveWorkflow', () => {
         await result.current.handleExportImage();
       });
       expect(result.current.toast).toEqual({ message: 'Could not export image', tone: 'error' });
+      expect(warn).toHaveBeenCalledWith('[SketchEditor] export image failed', expect.stringContaining('[REDACTED:github_token]'));
+      expect(String(warn.mock.calls[0]?.[1])).not.toContain(secret);
       expect(onExportImage).not.toHaveBeenCalled();
       warn.mockRestore();
     } finally {
@@ -207,8 +226,7 @@ describe('useSketchSaveWorkflow', () => {
         await result.current.handleExportImage();
       });
       expect(result.current.toast).toEqual({ message: 'Could not export image', tone: 'error' });
-      expect(warn).toHaveBeenCalledWith('[SketchEditor] export image failed', expect.any(Error));
-      expect((warn.mock.calls[0]![1] as Error).message).toBe('Could not read exported image');
+      expect(warn).toHaveBeenCalledWith('[SketchEditor] export image failed', expect.stringContaining('Error: Could not read exported image'));
       warn.mockRestore();
     } finally {
       vi.unstubAllGlobals();

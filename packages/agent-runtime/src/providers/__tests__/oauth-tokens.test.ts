@@ -149,7 +149,7 @@ describe('writeTokenFile chmod fallback', () => {
     expect(warnSpy).toHaveBeenCalledWith(
       '[oauth-tokens] could not chmod 0600',
       expect.stringContaining(FILE_NAME),
-      'io error',
+      expect.stringContaining('Error: io error'),
     );
   });
 
@@ -164,13 +164,13 @@ describe('writeTokenFile chmod fallback', () => {
     expect(warnSpy).not.toHaveBeenCalled();
   });
 
-  it('falls back to the raw error object when the chmod failure has no message', async () => {
+  it('formats the error properties when the chmod failure has no message', async () => {
     fsMockState.chmodImpl = async () => {
       throw { code: 'EIO' };
     };
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
     await setStoredOAuthToken({ dataDir: dataDir, fileName: FILE_NAME, token: token() });
-    expect(warnSpy).toHaveBeenCalledWith('[oauth-tokens] could not chmod 0600', expect.stringContaining(FILE_NAME), { code: 'EIO' });
+    expect(warnSpy).toHaveBeenCalledWith('[oauth-tokens] could not chmod 0600', expect.stringContaining(FILE_NAME), "{ code: 'EIO' }");
   });
 });
 
@@ -240,4 +240,17 @@ describe('isOAuthTokenExpired', () => {
     const fresh = token({ expiresAt: Date.now() + 10 * 60 * 1000 });
     expect(isOAuthTokenExpired({ token: fresh })).toBe(false);
   });
+});
+
+it('redacts parser and chmod failures before logging OAuth token diagnostics', async () => {
+  const secret = 'ghp_' + 's'.repeat(36);
+  const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {});
+  const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+  fsMockState.readFileImpl = async () => { throw new SyntaxError(`invalid token data ${secret}`); };
+  await expect(readOAuthTokenFile({ dataDir, fileName: FILE_NAME })).resolves.toEqual({});
+  expect(errorLog).toHaveBeenCalledWith('[oauth-tokens] Corrupted JSON, returning empty:', expect.stringContaining('[REDACTED:github_token]'));
+  fsMockState.chmodImpl = async () => { throw Object.assign(new Error(`chmod failed ${secret}`), { code: 'EIO' }); };
+  await setStoredOAuthToken({ dataDir, fileName: FILE_NAME, token: token() });
+  expect(warning).toHaveBeenCalledWith('[oauth-tokens] could not chmod 0600', expect.stringContaining(FILE_NAME), expect.stringContaining('[REDACTED:github_token]'));
+  expect(JSON.stringify([...errorLog.mock.calls, ...warning.mock.calls])).not.toContain(secret);
 });

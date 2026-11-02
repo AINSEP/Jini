@@ -1,3 +1,4 @@
+import { formatErrorForLog } from '@jini-ai/core';
 /**
  * @module Composer
  *
@@ -109,7 +110,7 @@ export interface ComposerProps {
 }
 
 function reportComposerHostEffectFailure(effectName: string, error: unknown) {
-  console.error(`[@jini-ai/chat] Composer ${effectName} host effect failed:`, error);
+  console.error(`[@jini-ai/chat] Composer ${effectName} host effect failed:`, formatErrorForLog({ error }));
 }
 
 /**

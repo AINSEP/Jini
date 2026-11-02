@@ -1,6 +1,7 @@
 ## Unreleased (0.6.18)
 
 - Redact exception logs with the shared core redactor while preserving correlation IDs and error codes.
+- Redact host-supplied paths and payload names in the default migration logger; preserve bind-error callback object assertions.
 
 ## 0.6.17
 

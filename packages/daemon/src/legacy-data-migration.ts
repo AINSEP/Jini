@@ -16,6 +16,7 @@
  * connection opens, so it can't race a concurrent open of the destination.
  */
 import * as nodeFilesystem from 'node:fs';
+import { redactSecrets } from '@jini-ai/core';
 
 /** Node filesystem ABI, injected so migration can run against a host-owned adapter. */
 export type LegacyFilesystemPort = Pick<typeof nodeFilesystem, 'statSync' | 'lstatSync' | 'existsSync' | 'readdirSync' | 'mkdirSync' | 'cpSync' | 'renameSync' | 'rmSync' | 'writeFileSync'>;
@@ -315,7 +316,8 @@ function stagePromoteAndMark({ plan, markerFile, payloadEntries, writeMarker }: 
 export function migrateLegacyDataDirSync(requiredArgs: Pick<MigrateLegacyDataDirOptions, "legacyDir" | "dataDir" | "payloadEntries" | "proofEntry">, optionalArgs: Pick<MigrateLegacyDataDirOptions, "logger" | "writeMarker" | "markerFile" | "filesystem"> = {}): MigrateLegacyDataDirResult {
   const options: MigrateLegacyDataDirOptions = { ...requiredArgs, ...optionalArgs };
   const fs = options.filesystem ?? nodeFilesystem;
-  const log = options.logger ?? { info: ({ message }: { message: string }) => console.log(`[jini-migrate] ${message}`) };
+  // Paths and payload names are host input, so the default sink redacts the complete diagnostic.
+  const log = options.logger ?? { info: ({ message }: { message: string }) => console.log(redactSecrets({ input: `[jini-migrate] ${message}` }, { redactPii: false })) };
   const markerFile = options.markerFile ?? DEFAULT_MARKER_FILE;
 
   const plan = planMigration({ legacyDir: options.legacyDir, dataDir: options.dataDir, markerFile }, fs);

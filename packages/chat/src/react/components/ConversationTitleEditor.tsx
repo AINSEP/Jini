@@ -1,3 +1,4 @@
+import { formatErrorForLog } from '@jini-ai/core';
 import { useRef, useState } from 'react';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '../../core/conversation-title.js';
 import { useT } from '../hooks/context.js';
@@ -35,7 +36,7 @@ export function ConversationTitleEditor({ title, onCommit, onCancel, className =
     try {
       await onCommit(next);
     } catch (error) {
-      console.error('[@jini-ai/chat] ConversationTitleEditor onCommit host effect failed:', error);
+      console.error('[@jini-ai/chat] ConversationTitleEditor onCommit host effect failed:', formatErrorForLog({ error }));
     }
   };
 

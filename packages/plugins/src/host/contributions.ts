@@ -1,3 +1,4 @@
+import { formatErrorForLog } from '@jini-ai/core';
 /** Executable contribution admission on the existing plugin loader, never a second loader.
  * Captures stay private until setup succeeds. A sealed generation cannot register from a timer.
  * Tier-3 currently runs with full in-process authority; a hardened worker at this boundary is
@@ -200,7 +201,7 @@ export async function renderPluginWidgetFragments(required: {
         if (typeof html !== 'string' || !required.registry.list({}).includes(snapshot) || !await required.isEnabled({ pluginId: snapshot.pluginId })) return;
         fragments[widget.name] = required.validateHtml({ html });
       } catch (error) {
-        (optional.onError ?? ((failure) => console.warn(`[plugins] Plugin '${failure.pluginId}' widget '${failure.widgetName}' failed`, failure.error)))({ pluginId: snapshot.pluginId, widgetName: widget.name, error }, {});
+        (optional.onError ?? (({ pluginId, widgetName, error: failureError }) => console.warn(`[plugins] Plugin '${pluginId}' widget '${widgetName}' failed`, formatErrorForLog({ error: failureError }))))({ pluginId: snapshot.pluginId, widgetName: widget.name, error }, {});
         fragments[widget.name] = '';
       } finally { if (timer !== undefined) clearTimeout(timer); }
     }));

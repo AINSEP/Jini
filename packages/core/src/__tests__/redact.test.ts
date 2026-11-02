@@ -3,6 +3,52 @@ import { describe, expect, it } from 'vitest';
 import { redactSecrets, redactSecretsWithCounts } from '../redact.js';
 
 describe('@jini-ai/core — redact — redactSecrets', () => {
+  it.each([',', ';', '&', '}', '"', "'"])(
+    'retains complete unquoted credential masking when a value contains %s', (separator) => {
+      expect(redactSecrets({ input: `password=first${separator}second` }, { redactPii: false }))
+        .toBe('password=[REDACTED:labeled_secret]');
+    },
+  );
+
+  it('protects quoted credential labels from exact-secret replacement and scans successive values', () => {
+    const input = `{"apiKey":"opaque two words","x-api-key":"another value","private_key":"last value","code":"UPSTREAM_FAILED"}`;
+    const redacted = redactSecrets({ input }, { exactSecrets: ['a', 'key'], redactPii: false });
+    for (const word of ['opaque', 'two words', 'another', 'last value']) expect(redacted).not.toContain(word);
+    for (const key of ['apiKey', 'x-api-key', 'private_key']) expect(redacted).toContain(`"${key}"`);
+    expect(redacted).toContain('"code":"UPSTREAM_FAILED"');
+    expect(redactSecretsWithCounts({ input: redacted }, { exactSecrets: ['a', 'key'], redactPii: false }))
+      .toEqual({ redacted, counts: {} });
+  });
+
+  it.each([
+    "'x-api-key': 'synthetic-opaque-value'",
+    "password: 'synthetic two words'",
+    '"apiKey":"synthetic-opaque-value"',
+  ])('redacts complete serialized credential keys and values: %s', (input) => {
+    const redacted = redactSecrets({ input }, { redactPii: false });
+    expect(redacted).not.toContain('synthetic');
+    expect(redacted).not.toContain('two words');
+    expect(redacted).toContain('[REDACTED:');
+    expect(redactSecretsWithCounts({ input: redacted }, { redactPii: false }))
+      .toEqual({ redacted, counts: {} });
+  });
+
+  it.each([
+    'apiKey', 'api_key', 'api-key', 'api key', 'x-api-key', 'x-goog-api-key',
+    'authorization', 'password', 'secret', 'token', 'access_token', 'refresh-token',
+    'cookie', 'set-cookie', 'client_secret', 'private_key',
+  ])('masks %s across JSON and inspect quoting without losing neighboring diagnostics', (key) => {
+    for (const quote of ["'", '"']) {
+      const input = `{ ${quote}${key}${quote} : ${quote}first \\${quote}second\\${quote} last${quote}, code: 'UPSTREAM_FAILED' }`;
+      const redacted = redactSecrets({ input }, { redactPii: false });
+      for (const word of ['first', 'second', 'last']) expect(redacted).not.toContain(word);
+      expect(redacted).toContain(`${quote}${key}${quote}`);
+      expect(redacted).toContain("code: 'UPSTREAM_FAILED'");
+      expect(redactSecretsWithCounts({ input: redacted }, { redactPii: false }))
+        .toEqual({ redacted, counts: {} });
+    }
+  });
+
   it('preserves versioned paths while redacting email addresses with alphabetic TLDs', () => {
     const stack = 'at run (/workspace/node_modules/.pnpm/vitest@4.0.1/node_modules/vitest/runner.js:42:7)\nat load (/workspace/pkg@1.2.3/index.js:8:2)';
     expect(redactSecrets({ input: stack })).toBe(stack);

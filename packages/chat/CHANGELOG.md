@@ -1,3 +1,7 @@
+## Unreleased (0.6.18)
+
+- Document the two 0.6.x fetch fallback exceptions, inject fetch in repo hosts, and redact expiry/React callback exception logs.
+
 ## 0.6.17
 
 ### Patch Changes

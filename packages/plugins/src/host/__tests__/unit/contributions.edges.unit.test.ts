@@ -59,6 +59,21 @@ describe('renderPluginWidgetFragments', () => {
     registry, names: ['hello'], workspaceId: 'ws', isEnabled: async () => true, validateHtml: ({ html }: { html: string }) => html,
   });
 
+  it.each([
+    ['null prototype', Object.create(null) as unknown],
+    ['throwing coercion', { toString() { throw new Error('coercion failed'); } }],
+    ['throwing property', { get message() { throw new Error('getter failed'); } }],
+  ])('still places the empty fragment and renders siblings after a %s throw', async (_label, failure) => {
+    vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    const registry = createPluginContributionRegistry({});
+    registry.replace({ contributions: sealed('sample', {
+      hello: () => { throw failure; }, other: () => '<b>survived</b>',
+    }) });
+    const fragments = await renderPluginWidgetFragments({ ...base(registry), names: ['hello', 'other'] });
+    expect(fragments.hello).toBe('');
+    expect(fragments.other).toBe('<b>survived</b>');
+  });
+
   it.each([0, -1, 1.5, Number.NaN])('refuses an invalid timeout (%s) before rendering anything', async (timeoutMs) => {
     await expect(renderPluginWidgetFragments(base(), { timeoutMs })).rejects.toThrow(new RangeError('invalid widget timeout'));
   });
@@ -99,12 +114,14 @@ describe('renderPluginWidgetFragments', () => {
     expect(checks).toBe(2);
   });
 
-  it('without an error port, a failing widget renders empty and is reported on the console', async () => {
+  it.each([true, false])('without an error port, widget failures are redacted (Error instance=%s)', async asError => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const registry = createPluginContributionRegistry({});
-    const failure = new Error('render exploded');
+    const secret = 'ghp_' + 's'.repeat(36);
+    const failure = asError ? new Error(`render exploded ${secret}`) : `render exploded ${secret}`;
     registry.replace({ contributions: sealed('sample', { hello: () => { throw failure; } }) });
     expect((await renderPluginWidgetFragments(base(registry))).hello).toBe('');
-    expect(warn).toHaveBeenCalledWith("[plugins] Plugin 'sample' widget 'hello' failed", failure);
+    expect(warn).toHaveBeenCalledWith("[plugins] Plugin 'sample' widget 'hello' failed", expect.stringContaining("render exploded [REDACTED:github_token]"));
+    expect(String(warn.mock.calls[0]?.[1])).not.toContain(secret);
   });
 });

@@ -13,6 +13,19 @@ vi.mock('../../../core/tool-output.js', async (importOriginal) => {
 afterEach(() => clearToolRenderers({}));
 
 describe('ToolCard', () => {
+  it.each([
+    ['null prototype', Object.create(null) as unknown],
+    ['throwing coercion', { toString() { throw new Error('coercion failed'); } }],
+  ])('renders the built-in tool card after a %s custom renderer throw', (_label, failure) => {
+    const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      registerToolRenderer({ name: 'Bash', renderer: () => { throw failure; } });
+      const { container } = render(<ToolCard use={{ kind: 'tool_use', id: 'hostile', name: 'Bash', input: { command: 'echo survived' } }} runSucceeded />);
+      expect(screen.getByText('Bash')).toBeInTheDocument();
+      expect(container.textContent).toContain('echo survived');
+    } finally { spy.mockRestore(); }
+  });
+
   it('formats collapsed output once across new result envelopes and run states, then refreshes changed content', () => {
     const format = vi.mocked(formatToolOutputForDisplay).mockClear();
     const use = { kind: 'tool_use' as const, id: 'cached', name: 'CustomTool', input: {} };
@@ -342,7 +355,7 @@ describe('ToolCard', () => {
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     render(<ToolCard use={{ kind: 'tool_use', id: 't6', name: 'Bash', input: { command: 'x' } }} runSucceeded />);
     expect(screen.getByText('Bash')).toBeInTheDocument();
-    expect(spy).toHaveBeenCalledWith(expect.stringContaining('custom renderer for "Bash" threw'), err);
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('custom renderer for "Bash" threw'), err.stack);
     spy.mockRestore();
   });
 

@@ -1,3 +1,7 @@
+## Unreleased (0.6.18)
+
+- Redact OAuth callback, token parsing and file-permission failure diagnostics.
+
 ## 0.6.17
 
 ### Patch Changes

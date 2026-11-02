@@ -2,6 +2,8 @@
 
 ## Unreleased (0.6.18)
 
+- Extend the exception-log class guard to core, CMS, agent runtime, MCP, DB, chat, plugins and UI, including JSX and structured logs; reject caught values aliased to `message`.
+
 - Redact exception logs with the shared core redactor while preserving correlation IDs and error codes.
 
 ## 0.6.17

@@ -161,7 +161,7 @@ describe('passive conversation refresh', () => {
       await act(() => h.emit());
       expect(result.current.conversation.messages).toEqual([]);
       expect(report).toHaveBeenCalledTimes(1);
-      expect(report).toHaveBeenCalledWith('[chat] conversation refresh failed', error);
+      expect(report).toHaveBeenCalledWith('[chat] conversation refresh failed', error.stack);
       fail = false;
       await act(() => h.emit());
       expect(result.current.conversation.messages).toEqual([message('saved', 'Read recovered')]);

@@ -178,6 +178,21 @@ describe('migrateLegacyDataDirSync', () => {
     }
   });
 
+  it('redacts credentials in host-supplied paths at the default console sink', () => {
+    const secret = 'ghp_' + 's'.repeat(36);
+    const source = path.join(legacyDir, secret);
+    seedLegacyDir(source);
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    try {
+      expect(migrateLegacyDataDirSync({ ...config, legacyDir: source, dataDir }).status).toBe('migrated');
+      const output = log.mock.calls.flat().join(' ');
+      expect(output).not.toContain(secret);
+      expect(output).toContain('[REDACTED:github_token]');
+      expect(output).toContain('migration complete');
+      expect(fs.existsSync(path.join(dataDir, 'app.sqlite'))).toBe(true);
+    } finally { log.mockRestore(); }
+  });
+
   it('rethrows (via the outer rollback) when the default marker writer fails, e.g. a markerFile naming a missing subdirectory', () => {
     seedLegacyDir(legacyDir);
     let captured: unknown;

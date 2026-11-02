@@ -1,3 +1,7 @@
+## Unreleased (0.6.18)
+
+- Redact comment/form handler diagnostics, background form exceptions and unsuccessful mail-result messages before logging; keep form diagnostics universal and safe for recovery.
+
 ## 0.6.17
 
 ### Patch Changes

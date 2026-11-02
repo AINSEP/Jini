@@ -32,7 +32,7 @@ describe('useChatPaneFileDrop — a host effect that throws synchronously', () =
 
       expect(onFiles).toHaveBeenCalledWith([file]);
       expect(consoleError).toHaveBeenCalledTimes(1);
-      expect(consoleError).toHaveBeenCalledWith('[@jini-ai/chat] useChatPaneFileDrop onFiles host effect failed:', failure);
+      expect(consoleError).toHaveBeenCalledWith('[@jini-ai/chat] useChatPaneFileDrop onFiles host effect failed:', failure.stack);
       expect(result.current.dropReadError).toBeNull();
     } finally {
       consoleError.mockRestore();

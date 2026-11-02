@@ -1,5 +1,9 @@
 # @jini-ai/mcp
 
+## Unreleased (0.6.18)
+
+- Redact config/token parsing and federation bootstrap exception diagnostics.
+
 ## 0.6.17
 
 ### Patch Changes

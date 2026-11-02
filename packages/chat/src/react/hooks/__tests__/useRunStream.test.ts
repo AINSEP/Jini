@@ -425,7 +425,7 @@ describe('useRunStream', () => {
       expect(transport.stopRun).toHaveBeenCalledWith('run-1');
       expect(consoleError).toHaveBeenCalledWith(
         '[@jini-ai/chat] useRunStream transport.stopRun (cancel) host effect failed:',
-        failure,
+        failure.stack,
       );
     } finally {
       consoleError.mockRestore();
@@ -469,7 +469,7 @@ describe('useRunStream', () => {
       expect(transport.stopRun).toHaveBeenCalledWith('run-late');
       expect(consoleError).toHaveBeenCalledWith(
         '[@jini-ai/chat] useRunStream transport.stopRun (orphaned generation) host effect failed:',
-        failure,
+        failure.stack,
       );
     } finally {
       consoleError.mockRestore();

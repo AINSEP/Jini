@@ -166,7 +166,7 @@ describe('createFrontendControl', () => {
       expect(() => control.bindOnStarted(startContext('run-1', 'x'))).not.toThrow();
       expect(onBindError).toHaveBeenCalledWith({
         runId: 'run-1',
-        error: expect.stringContaining('unknown or expired bind token'),
+        error: expect.objectContaining({ message: expect.stringContaining('unknown or expired bind token') }),
       });
     });
 

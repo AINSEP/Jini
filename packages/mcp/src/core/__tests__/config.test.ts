@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
@@ -482,4 +482,16 @@ it('accepts a legal dot-prefixed project while rejecting a sibling prefix', () =
   const resolvePath = ({ filePath }: { filePath: string }) => path.resolve(filePath);
   expect(isManagedProjectCwd({ projectsDir, cwd: path.join(projectsDir, '..legal-name') }, { resolvePath })).toBe(true);
   expect(isManagedProjectCwd({ projectsDir, cwd: projectsDir + '-sibling/site' }, { resolvePath })).toBe(false);
+});
+
+it('redacts credentials echoed by malformed config JSON', async () => {
+  const dir = tmp();
+  const raw = 'Bearer ' + 'x';
+  fs.writeFileSync(path.join(dir, 'mcp-config.json'), raw);
+  const log = vi.spyOn(console, 'error').mockImplementation(() => {});
+  try {
+    await expect(readMcpConfig({ dataDir: dir })).resolves.toEqual({ servers: [] });
+    expect(log).toHaveBeenCalledWith('[mcp-config] Corrupted JSON, returning empty:', expect.stringContaining('[REDACTED:'));
+    expect(String(log.mock.calls[0]?.[1])).not.toContain(raw);
+  } finally { log.mockRestore(); }
 });

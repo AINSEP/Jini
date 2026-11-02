@@ -54,7 +54,7 @@ describe('ConversationList rows and host effects', () => {
     const { user } = setup({ onCreate: () => { throw failure; } });
     await user.click(screen.getByTestId('conversation-trigger'));
     await user.click(screen.getByTestId('conversation-new'));
-    expect(consoleError).toHaveBeenCalledWith('[@jini-ai/chat] ConversationList onCreate host effect failed:', failure);
+    expect(consoleError).toHaveBeenCalledWith('[@jini-ai/chat] ConversationList onCreate host effect failed:', failure.stack);
     expect(screen.queryByTestId('conversation-menu')).toBeNull();
   });
 

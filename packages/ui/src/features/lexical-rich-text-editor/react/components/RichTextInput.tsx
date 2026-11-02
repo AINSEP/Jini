@@ -1,4 +1,5 @@
 'use client';
+import { formatErrorForLog } from '@jini-ai/core';
 
 import { forwardRef, useImperativeHandle, useRef, type ForwardedRef } from 'react';
 import { LexicalComposer } from '@lexical/react/LexicalComposer';
@@ -260,7 +261,7 @@ export const RichTextInput = forwardRef<RichTextInputHandle, RichTextInputProps>
       theme: EDITOR_THEME,
       onError(err) {
         if (process.env.NODE_ENV !== 'production') {
-          console.error('[rich-text-input]', err);
+          console.error('[rich-text-input]', formatErrorForLog({ error: err }));
         }
       },
       // editorState intentionally omitted → empty on first paint (SSR-safe).

@@ -1,3 +1,5 @@
+import { inspect } from 'node:util';
+import { redactSecrets } from '@jini-ai/core';
 import { createConsoleLogger, type Logger } from "@jini-ai/core/primitives";
 import type { ToolRegistration, ToolRegistry } from "@jini-ai/core";
 
@@ -286,7 +288,7 @@ async function attachOneFederatedConnection(params: {
 
     return { registeredToolIds, session, report };
   } catch (error) {
-    logger.warn({ message: `mcp-federation: '${connectionId}' failed, continuing without its tools — ${messageOf(error)}` });
+    logger.warn({ message: `mcp-federation: '${connectionId}' failed, continuing without its tools — ${redactSecrets({ input: inspect(error) }, { redactPii: false })}` });
     // A session that connected but failed during listing/admission still owns a child process.
     await session?.close({}).catch(() => undefined);
     return { registeredToolIds: [], session: null, report: null, connectFailureReason: messageOf(error) };
@@ -313,7 +315,7 @@ export function resolveFederatedMcpPresets({ env, logger, registry }: { env: Nod
       if (connection) connections.push(connection);
     } catch (error) {
       logger.warn(
-        { message: `mcp-federation: preset '${preset.presetId}' configuration is invalid, continuing without federated tools — ${messageOf(error)}` },
+        { message: `mcp-federation: preset '${preset.presetId}' configuration is invalid, continuing without federated tools — ${redactSecrets({ input: inspect(error) }, { redactPii: false })}` },
       );
     }
   }

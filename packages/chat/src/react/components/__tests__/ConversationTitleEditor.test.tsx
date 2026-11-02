@@ -17,12 +17,14 @@ describe('ConversationTitleEditor', () => {
   });
 
   it('reports a failing host commit instead of leaving the rejection unhandled', async () => {
-    const failure = new Error('rename failed');
+    const secret = 'ghp_' + 's'.repeat(36);
+    const failure = new Error(`rename failed ${secret}`);
     const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {});
     const user = userEvent.setup();
     render(<ConversationTitleEditor title={null} onCommit={() => Promise.reject(failure)} onCancel={vi.fn()} />);
     await user.type(screen.getByRole('textbox', { name: 'Rename chat' }), 'Fresh{Enter}');
-    await waitFor(() => expect(errorLog).toHaveBeenCalledWith(expect.stringContaining('onCommit host effect failed'), failure));
+    await waitFor(() => expect(errorLog).toHaveBeenCalledWith(expect.stringContaining('onCommit host effect failed'), expect.stringContaining('Error: rename failed [REDACTED:github_token]')));
+    expect(String(errorLog.mock.calls[0]?.[1])).not.toContain(secret);
     errorLog.mockRestore();
   });
 });

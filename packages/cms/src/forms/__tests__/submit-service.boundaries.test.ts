@@ -198,7 +198,7 @@ test("submitForm: a failed upload cleanup is logged and the original submission 
   const discard: FormFileStoragePort["discard"] = async () => { throw cleanupError; };
   const outbox: SubmitFormDeps["outbox"] = { enqueue: async () => { throw new Error("outbox failed"); } };
   await assert.rejects(submitForm({ deps: { ...f.deps, outbox, files: { ...f.files, discard } }, input: f.input({ front: photo }) }), { message: "outbox failed" });
-  assert.deepEqual(f.warnings, [{ message: "form upload cleanup failed", error: cleanupError }]);
+  assert.deepEqual(f.warnings, [{ message: "form upload cleanup failed", error: cleanupError.stack }]);
 });
 
 test("submitForm: a throwing logger during upload cleanup cannot replace the original submission error", async () => {
@@ -326,7 +326,7 @@ test("submitForm: a failing dispatch is logged and never rejects the accepted su
   const dispatchError = new Error("smtp down");
   assert.deepEqual(await submitForm({ deps: f.deps, input: f.input({ name: "Ada" }) }, { dispatch: async () => { throw dispatchError; } }), { status: "accepted" });
   await settle();
-  assert.deepEqual(f.warnings, [{ message: "form outbox dispatch failed", error: dispatchError }]);
+  assert.deepEqual(f.warnings, [{ message: "form outbox dispatch failed", error: dispatchError.stack }]);
 });
 
 test("submitForm: a throwing logger on dispatch failure is swallowed", async () => {

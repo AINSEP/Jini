@@ -1,3 +1,5 @@
+import { inspect } from 'node:util';
+import { redactSecrets } from '../../redact.js';
 import type { Request, Response } from "express";
 import type { Authorize, SettingsChangeFeed, SettingsHttpOptions, Scheduler } from "./contracts.js";
 
@@ -117,7 +119,7 @@ function createErrorReporter(optional: SettingsHttpOptions): (operation: string,
     // Reporting is best-effort: a host hook must never turn recovery into an unhandled rejection.
     try {
       if (optional.onError) optional.onError({ operation, error });
-      else console.error(`[settings] change feed ${operation} failed`, error);
+      else console.error(`[settings] change feed ${operation} failed`, redactSecrets({ input: inspect(error) }, { redactPii: false }));
     } catch { /* Diagnostic failures cannot interrupt stream cleanup or retries. */ }
   };
 }

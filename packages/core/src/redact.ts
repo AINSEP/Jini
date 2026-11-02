@@ -197,8 +197,10 @@ const PATTERNS: readonly SecretRedactionPattern[] = [
 // non-card numbers (timestamps, IDs, hashes). We isolate the candidate
 // then run a Luhn check before redacting.
 const CARD_CANDIDATE = /\b(?:\d[ -]?){12,18}\d\b/g;
+// Inspect/JSON credentials can contain spaces and escaped quotes; consume the entire value.
+const QUOTED_SECRET_VALUE = String.raw`"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'`;
 const API_KEY_HEADER =
-  /(^|[^?&\w-])("?)(x-api-key|api-key|x-goog-api-key)\2(\s*[:=]\s*)("[^"]*"|[^\s,;"'#}]+)/gi;
+  new RegExp(`(^|[^?&\\w-])(["']?)(x-api-key|api-key|x-goog-api-key)\\2(\\s*[:=]\\s*)(${QUOTED_SECRET_VALUE}|[^\\s,;"'#}]+)`, 'gi');
 const API_KEY_QUERY = /([?&](?:key|api_key|api-key)=)[^&#\s,;"']+/gi;
 
 // The length guard and the per-digit `d < 0 || d > 9` guard from the origin
@@ -247,6 +249,8 @@ export interface SecretRedactionOptions {
 // operator; delegated-tool-calls is the route segment named in delegated tool failures.
 // Matching the ENTIRE run keeps a secret glued onto either spelling redactable.
 const SECRET_LABELS = 'authorization|bearer|api[-_]?key|access[-_]?token|refresh[-_]?token|client[-_]?secret|password|secret|cookie';
+// Keep historical URL categories and the bounded sanitizer's vocabulary stable.
+const SERIALIZED_SECRET_LABELS = `${SECRET_LABELS}|x[-_](?:goog[-_])?api[-_]?key|api key|token|set[-_]cookie|private[-_]?key`;
 export const LABELED_SECRET_RE = new RegExp(`\\b(${SECRET_LABELS})\\b\\s*[:=]\\s*\\S+`, 'gi');
 export const OPAQUE_TOKEN_RE = /[A-Za-z0-9_-]{20,}/g;
 // Pattern parts, only ever used inside the anchored NON_SECRET_TOKEN_RE.
@@ -257,9 +261,11 @@ export const NON_SECRET_TOKEN_RE = new RegExp(`^(?:${CORRELATION_ID}|delegated-t
 // its historical lowercase marker contract and uses the unmodified lexical vocabulary.
 // Reject a masked header/query value before matching, so a following field's credential
 // remains available to the global scan rather than being consumed beside the marker.
+// Quoted values end at their matching quote; opaque unquoted values retain punctuation.
+// An ampersand cannot start a value: an empty URL parameter must not eat its neighbor.
 const MASK_AWARE_LABELED_SECRET_RE = new RegExp(
-  LABELED_SECRET_RE.source.replace(/\\S\+$/, "(?!Bearer\\s+\\[REDACTED:[^\\]]+\\](?:\\s|$))(?!\\[REDACTED:[^\\]]+\\][;&])(\\S+)"),
-  LABELED_SECRET_RE.flags,
+  `(?<![\\w-])((["']?)(?:${SERIALIZED_SECRET_LABELS})\\2\\s*[:=]\\s*)(?!Bearer\\s+\\[REDACTED:[^\\]]+\\](?:\\s|$))(?!\\[REDACTED:[^\\]]+\\][;&])(${QUOTED_SECRET_VALUE}|(?!&)\\S+)`,
+  'gi',
 );
 // Provider failures also echo short bearer values. Exclude our own marker on subsequent passes.
 // The leading lookahead only lets the lookbehind run where a value can start (see bearer_token).
@@ -304,6 +310,52 @@ function isMaskedValue(value: string): boolean {
  */
 export function redactSecrets({ input }: { input: string }, options: SecretRedactionOptions = {}): string {
   return redactSecretsWithCounts({ input }, options).redacted;
+}
+
+/**
+ * Universal diagnostic text for any thrown value. Keeps native stacks and structured metadata,
+ * then applies the shared credential policy (PII stays readable unless explicitly requested).
+ * Diagnostic getters, serialization and coercion can themselves fail; fixed fallback text keeps
+ * those failures from replacing the original error or interrupting the caller's recovery.
+ * @param required.error - Untrusted thrown value; never mutated.
+ * @param options - Shared redaction options, including caller-owned exact secrets.
+ * @returns Redacted text; never throws, including for circular objects and hostile accessors.
+ * @complexity O(n) serialization in the diagnostic's fields/characters, plus shared redaction passes.
+ */
+export function formatErrorForLog(
+  required: { error: unknown }, options: SecretRedactionOptions = {},
+): string {
+  try {
+    const { error } = required;
+    let text: string;
+    if (error instanceof Error) {
+      const message = String(error.message);
+      text = String(error.stack ?? `${error.name}: ${message}`);
+      if (!text.includes(message)) text += `\n${message}`;
+      const fields = Object.fromEntries(Object.getOwnPropertyNames(error)
+        .filter(key => !['name', 'message', 'stack'].includes(key)).map(key => [key, Reflect.get(error, key)]));
+      if (Object.keys(fields).length) text += `\n${diagnosticJson(fields)}`;
+    } else {
+      text = error !== null && typeof error === 'object' ? diagnosticJson(error) : String(error);
+    }
+    return redactSecrets({ input: text }, { redactPii: false, ...options });
+  } catch {
+    return '[Unformattable error]';
+  }
+}
+
+/** JSON preserves structured fields without coercing objects; track cycles and native Error fields.
+ * Property access remains inside formatErrorForLog's recovery boundary. O(n) visited fields. */
+function diagnosticJson(error: unknown): string {
+  const seen = new WeakSet<object>();
+  return JSON.stringify(error, (_key, value: unknown) => {
+    if (value !== null && typeof value === 'object') {
+      if (seen.has(value)) return '[Circular]';
+      seen.add(value);
+      if (value instanceof Error) return Object.fromEntries(Object.getOwnPropertyNames(value).map(key => [key, Reflect.get(value, key)]));
+    }
+    return typeof value === 'bigint' ? String(value) : value;
+  }) ?? String(error);
 }
 
 /**
@@ -386,7 +438,7 @@ function applyPatterns({ text, marker, patterns }: RedactionPass & { patterns: r
 // and left `hunter2` visible; `api_key` swallowed the whole `api_key=` label), and they split
 // earlier markers (`a` inside `exact_secret`, `email` inside `[REDACTED:email]`).
 const PROTECTED_SPAN_RE = new RegExp([
-  `\\b(?:${SECRET_LABELS})\\b\\s*[:=]`,
+  `(?<![\\w-])["']?(?:${SERIALIZED_SECRET_LABELS})["']?\\s*[:=]`,
   '\\bbearer\\s+',
   URL_SECRET_PARAM_RE.source.slice(0, URL_SECRET_PARAM_RE.source.lastIndexOf('=') + 1),
   URL_CREDENTIALS_RE.source.slice(0, URL_CREDENTIALS_RE.source.indexOf(')') + 1),
@@ -459,7 +511,8 @@ function redactKeyedCredentials({ text, marker }: RedactionPass): string {
     // Already masked values are not new credentials and should not inflate the audit count.
     if (isMaskedValue(value)) return `${prefix}${quote}${name}${quote}${separator}${value}`;
     marker('api_key_header');
-    const redactedValue = value.startsWith('"') ? '"[REDACTED:api_key_header]"' : '[REDACTED:api_key_header]';
+    const valueQuote = /^["']/.test(value) ? value.charAt(0) : '';
+    const redactedValue = `${valueQuote}[REDACTED:api_key_header]${valueQuote}`;
     return `${prefix}${quote}${name}${quote}${separator}${redactedValue}`;
   });
   // The provider rule includes a query fragment in an echoed key; mask that whole value
@@ -477,11 +530,12 @@ function redactKeyedCredentials({ text, marker }: RedactionPass): string {
   // Sweep other URL parameters before the general labeled rule can consume harmless
   // neighboring parameters (`password=x&page=2` used to lose `&page=2`).
   out = redactUrlSecretParams({ text: out, marker });
-  return out.replace(MASK_AWARE_LABELED_SECRET_RE, (match, _label: string, value: string) => {
+  return out.replace(MASK_AWARE_LABELED_SECRET_RE, (match, prefix: string, _quote: string, value: string) => {
     // Replace only the captured value, retaining labels even when no whitespace separates
     // them. Glued credential suffixes fail the complete-marker check and remain maskable.
     if (isMaskedValue(value)) return match;
-    return `${match.slice(0, -value.length)}${marker('labeled_secret')}`;
+    const valueQuote = /^["']/.test(value) ? value.charAt(0) : '';
+    return `${prefix}${valueQuote}${marker('labeled_secret')}${valueQuote}`;
   });
 }
 

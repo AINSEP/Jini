@@ -1,3 +1,5 @@
+import { inspect } from 'node:util';
+import { redactSecrets } from '@jini-ai/core';
 import { Kysely, PostgresDialect } from "kysely";
 
 import { PG_PARSERS } from "../../core/index.js";
@@ -31,7 +33,7 @@ export function openPostgresKernel<DB>(
   // An idle connection dropped by the server (restart, failover, pg_terminate_backend, a pooler's
   // idle cut) is evicted by the pool and reopened on next use; without a listener it would crash the
   // process.
-  pool.on("error", (err) => console.warn(`[postgres] idle pool connection dropped: ${err.message}`));
+  pool.on("error", (err) => console.warn('[postgres] idle pool connection dropped:', redactSecrets({ input: inspect(err) }, { redactPii: false })));
   const base = new Kysely<DB>({ dialect: new PostgresDialect({ pool }) });
   return buildKernel<DB>({
     dialect: "postgres",

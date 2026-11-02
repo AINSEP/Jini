@@ -1,3 +1,5 @@
+import { inspect } from 'node:util';
+import { redactSecrets } from '@jini-ai/core';
 /**
  * @module providers/oauth-tokens
  *
@@ -83,7 +85,7 @@ export async function readOAuthTokenFile({ dataDir, fileName }: { dataDir: strin
     const e = err as { code?: string; name?: string; message?: string };
     if (e.code === 'ENOENT') return {};
     if (e.name === 'SyntaxError') {
-      console.error('[oauth-tokens] Corrupted JSON, returning empty:', e.message);
+      console.error('[oauth-tokens] Corrupted JSON, returning empty:', redactSecrets({ input: inspect(e) }, { redactPii: false }));
       return {};
     }
     throw err;
@@ -124,7 +126,7 @@ async function writeTokenFile(
       console.warn(
         '[oauth-tokens] could not chmod 0600',
         file,
-        e.message ?? err,
+        redactSecrets({ input: inspect(err) }, { redactPii: false }),
       );
     }
   }

@@ -1,5 +1,9 @@
 # @jini-ai/ui
 
+## Unreleased (0.6.18)
+
+- Redact sketch export and rich-text editor callback exception diagnostics without Node-only imports.
+
 ## 0.6.17
 
 ### Patch Changes

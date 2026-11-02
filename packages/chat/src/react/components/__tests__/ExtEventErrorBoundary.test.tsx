@@ -66,7 +66,7 @@ describe('ExtEventErrorBoundary', () => {
     );
     expect(spy).toHaveBeenCalledWith(
       '[ExtEventErrorBoundary] ext event "a2ui" failed to render:',
-      expect.objectContaining({ message: 'boom' }),
+      expect.stringContaining('Error: boom'),
     );
   });
 

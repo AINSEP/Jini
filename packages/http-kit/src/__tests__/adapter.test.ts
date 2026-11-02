@@ -73,6 +73,35 @@ beforeEach(() => {
 });
 
 describe('http adapter', () => {
+  it('redacts inspected config headers and quoted credentials while retaining stack, code and correlation', async () => {
+    const failure = Object.assign(new Error('UPSTREAM_FAILED'), {
+      code: 'ECONNREFUSED',
+      config: { headers: { 'x-api-key': 'synthetic-opaque-value' } },
+      password: 'synthetic two words',
+      detail: JSON.stringify({ apiKey: 'synthetic-json-value' }),
+    });
+    const route = defineJsonRoute<void, unknown, unknown>({
+      method: 'get', path: '/quoted-credentials', parse: () => ok({ value: undefined }),
+      handle: () => { throw failure; },
+    });
+    const app = makeApp();
+    const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      mountJsonRoute({ app: app as any, spec: route, deps: {}, adapter });
+      const res = makeRes();
+      await app.handlers['GET /quoted-credentials']!({ body: {}, query: {}, params: {} }, res);
+      const body = res.json.mock.calls[0]![0] as { error: { requestId: string } };
+      const output = log.mock.calls.flat().map(String).join(' ');
+      for (const word of ['synthetic', 'two words']) expect(output).not.toContain(word);
+      expect(output).toContain('ECONNREFUSED');
+      expect(output).toContain('UPSTREAM_FAILED');
+      expect(output).toContain('adapter.test.ts:');
+      expect(output).toContain(body.error.requestId);
+      expect(body.error.requestId).toEqual(expect.any(String));
+      expect(res.status).toHaveBeenCalledWith(500);
+    } finally { log.mockRestore(); }
+  });
+
   it.each([false, true])('redacts exception logs and preserves request IDs and codes (non-Error=%s)', async (nonError) => {
     const secret = 'sk-live-0123456789abcdefghijklmnopqrstuv';
     const failure = Object.assign(new Error(`UPSTREAM_FAILED ${secret} Bearer abcdefghijklmnopqrst password=hunter2`), { code: 'ECONNREFUSED' });
