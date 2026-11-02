@@ -553,7 +553,7 @@ function collectMcpConfigErrors({ raw }: { readonly raw: Readonly<Record<string,
 
 /** The per-server metadata `plugin.json` declares under `extensionNamespace`, or `{}` when it declares none. */
 function readExtensionServers({ pluginManifest, extensionNamespace }: { readonly pluginManifest: unknown; readonly extensionNamespace: string }): Readonly<Record<string, unknown>> {
-  const manifest = parseAgentPluginManifest({ value: pluginManifest });
+  const manifest = parseAgentPluginManifest({ value: pluginManifest }, { identityNamespace: extensionNamespace });
   if (!manifest.ok) return {};
   return readAgentPluginExtension({ manifest: manifest.manifest, namespace: extensionNamespace, read: ({ value }) => isJsonObject(value.mcpServers) ? value.mcpServers : {} }) ?? {};
 }

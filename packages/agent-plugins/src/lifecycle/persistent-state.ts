@@ -26,7 +26,7 @@ export function createPersistentStateModule(ports: AgentPluginLifecyclePorts, _o
     assertOwnedPath: (required: { workspaceRoot: string; entryPath: string }, optional = {}) => assertPluginStatePath({ ...effects, ...required }, optional),
     migrate: (required: { workspaceRoot: string }, optional = {}) => migratePluginLayout({ ...effects, ...required,
       parsePluginId: ({ value }) => {
-        const parsed = parseAgentPluginManifest({ value });
+        const parsed = parseAgentPluginManifest({ value }, { identityNamespace: ports.extensionNamespace });
         if (!parsed.ok) throw new Error(parsed.errors.join('; '));
         return parsed.manifest.name;
       }, ...(ports.onEvent ? { onEvent: ports.onEvent } : {}),
