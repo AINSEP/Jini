@@ -7,19 +7,27 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, test } from 'vitest';
 import { assembleAgentPluginPackage } from '../assemble-agent-plugin-package.js';
 import { parseNpmPackJson } from '../lib/npm-pack-json.js';
+import { agentPluginPackageName, agentPluginPackageRoot, agentPluginPackages } from '../lib/agent-plugin-packages.js';
 import { createAgentPluginLayout, createAgentPluginLifecycle } from '../../packages/agent-plugins/src/lifecycle/index.js';
 import { ports } from '../../packages/agent-plugins/src/lifecycle/__tests__/test-support.js';
 import { forceRemove } from '../../packages/agent-plugins/src/lifecycle/__tests__/fixtures/force-remove.js';
 import { installLegacyRevision } from '../../packages/agent-plugins/src/lifecycle/__tests__/fixtures/install-legacy-revision.js';
 
 const workspace = fileURLToPath(new URL('../../', import.meta.url));
-const plugins = [
-  { pluginId: 'ui-ux-design', fileCount: 46, skills: ['frontend-accessibility', 'gstack-design', 'interface-design', 'shadcn-ui', 'ui-ux-design', 'vercel-web-design-guidelines', 'web-compliance'] },
-  { pluginId: 'slide-design', fileCount: 9, skills: ['slide-design'] },
-];
+/** Per-row expectations; the rows themselves come from the layout table (INT adds one entry per new row). */
+const expectations: Readonly<Record<string, { fileCount: number; skills: string[] }>> = {
+  'ui-ux-design': { fileCount: 46, skills: ['frontend-accessibility', 'gstack-design', 'interface-design', 'shadcn-ui', 'ui-ux-design', 'vercel-web-design-guidelines', 'web-compliance'] },
+  'slide-design': { fileCount: 9, skills: ['slide-design'] },
+};
+const plugins = agentPluginPackages.map(row => ({ row, pluginId: row.name, fileCount: -1, skills: [] as string[], ...expectations[row.name] }));
 
-describe.each(plugins)('standalone $pluginId package', ({ pluginId, fileCount, skills }) => {
-  const packageRoot = path.join(workspace, `packages/plugin-${pluginId}`);
+test('every layout row has standalone expectations', () => {
+  expect(Object.keys(expectations).sort()).toEqual(agentPluginPackages.map(row => row.name).sort());
+});
+
+describe.each(plugins)('standalone $pluginId package', ({ row, pluginId, fileCount, skills }) => {
+  const packageRoot = path.join(workspace, agentPluginPackageRoot(row));
+  const packageName = agentPluginPackageName(row);
   const skillPath = `skills/${pluginId}/SKILL.md`;
   let root: string;
   let sourceDir: string;
@@ -28,17 +36,17 @@ describe.each(plugins)('standalone $pluginId package', ({ pluginId, fileCount, s
   beforeAll(async () => {
     root = await fs.mkdtemp(path.join(tmpdir(), 'standalone-agent-plugin-'));
     const distribution = path.join(root, 'distribution');
-    await assembleAgentPluginPackage({ packageRoot, sourceDir: path.join(workspace, `packages/agent-plugins/${pluginId}`) }, { outputRoot: distribution });
+    await assembleAgentPluginPackage({ packageRoot, sourceDir: path.join(workspace, row.sourceDir) }, { outputRoot: distribution });
     for (const name of ['package.json', 'README.md', 'LICENSE', 'NOTICE']) await fs.copyFile(path.join(packageRoot, name), path.join(distribution, name));
     const packed = parseNpmPackJson({ stdout: execFileSync('npm', ['pack', '--offline', '--ignore-scripts', '--json', '--cache', path.join(root, 'npm-cache')], {
       cwd: distribution, encoding: 'utf8',
     }) });
     packedFiles = (packed.files ?? []).map(file => file.path).sort();
-    const installed = path.join(root, `node_modules/@jini-ai/plugin-${pluginId}`);
+    const installed = path.join(root, 'node_modules', packageName);
     await fs.mkdir(installed, { recursive: true });
     execFileSync('tar', ['-xzf', path.join(distribution, packed.filename), '-C', installed, '--strip-components', '1']);
     const resolve = createRequire(path.join(root, 'host.cjs')).resolve;
-    sourceDir = path.dirname(resolve(`@jini-ai/plugin-${pluginId}/plugin.json`));
+    sourceDir = path.dirname(resolve(`${packageName}/plugin.json`));
   }, 60_000);
   afterAll(async () => { if (root) await forceRemove(root); });
 
@@ -57,7 +65,7 @@ describe.each(plugins)('standalone $pluginId package', ({ pluginId, fileCount, s
     for (const field of ['dependencies', 'optionalDependencies', 'peerDependencies', 'bundledDependencies', 'bundleDependencies']) expect(manifest[field]).toBeUndefined();
     expect(Object.keys(manifest.devDependencies)).toEqual(['tsx']);
     for (const hook of ['preinstall', 'install', 'postinstall', 'prepare']) expect(manifest.scripts[hook]).toBeUndefined();
-    expect(await fs.readdir(path.join(root, 'node_modules/@jini-ai'))).toEqual([`plugin-${pluginId}`]);
+    expect(await fs.readdir(path.join(root, 'node_modules/@jini-ai'))).toEqual([packageName.slice('@jini-ai/'.length)]);
   });
 
   test('real seeding installs readable skills deterministically and repeat boots preserve operator disablement', async () => {

@@ -3,15 +3,15 @@ import * as filesystem from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { isMainModule } from './lib/is-main-module.js';
+import {
+  agentPluginPackageId, agentPluginPackageName, agentPluginPackageRoot, agentPluginPackages, type AgentPluginPackageRow,
+} from './lib/agent-plugin-packages.js';
 
 type AssemblyFilesystem = Pick<typeof filesystem, 'cp' | 'lstat' | 'mkdir' | 'mkdtemp' | 'readFile' | 'rename' | 'rm'>;
-const assets = ['plugin.json', 'mcp.json', 'skills', 'com.anthropic.claude-code'] as const;
+// The whole plugin folder ships minus these; `plugin.json` is the only required file, so client
+// extension roots such as `com.anthropic.claude-code` and `mcp.json` are optional.
 const excludedNames = new Set(['node_modules', '.git', '.DS_Store', '__tests__', 'coverage', 'dist', '.cache']);
-/** Reviewed source → package pairs; paths are relative to this script. */
-export const agentPluginPackages = [
-  { name: 'slide-design', sourceDir: '../packages/agent-plugins/slide-design/', packageRoot: '../packages/plugin-slide-design/' },
-  { name: 'ui-ux-design', sourceDir: '../packages/agent-plugins/ui-ux-design/', packageRoot: '../packages/plugin-ui-ux-design/' },
-] as const;
+const repoRoot = new URL('../', import.meta.url);
 
 /** Select portable assets before copying; refusing links avoids publishing files outside the source.
  * @throws On symlinks, special files or filesystem failures.
@@ -26,34 +26,32 @@ async function selectAsset(required: { sourceDir: string; source: string; fs: As
 }
 
 /** Assemble one reviewed agent plugin into its workspace package; preserve its inner manifest version.
+ * Copies the whole source folder through `selectAsset`, so the payload equals the authored plugin.
  * @param required Source directory and reviewed destination package root.
- * @param optional Scratch output root and filesystem port for build-tool tests.
+ * @param optional Scratch output root, filesystem port and layout rows (default: the reviewed table).
  * @returns The generated payload directory, ready for npm packing.
  * @throws On mismatched identities, missing required assets, unsafe entries or filesystem failures.
  * @complexity O(e + b) for e selected entries and b copied bytes. Staging completes before replacement.
  */
 export async function assembleAgentPluginPackage(
   required: { sourceDir: string; packageRoot: string },
-  optional: { outputRoot?: string; filesystem?: AssemblyFilesystem } = {},
+  optional: { outputRoot?: string; filesystem?: AssemblyFilesystem; rows?: readonly AgentPluginPackageRow[] } = {},
 ): Promise<{ payloadRoot: string }> {
   const fs = optional.filesystem ?? filesystem;
   const manifest = JSON.parse(await fs.readFile(path.join(required.sourceDir, 'plugin.json'), 'utf8'));
   const pkg = JSON.parse(await fs.readFile(path.join(required.packageRoot, 'package.json'), 'utf8'));
-  const known = agentPluginPackages.some(entry => entry.name === manifest.name);
-  if (!known || pkg.name !== `@jini-ai/plugin-${manifest.name}`) throw new Error('Agent plugin source and destination identities must agree');
+  const row = (optional.rows ?? agentPluginPackages).find(entry => entry.name === manifest.name);
+  if (!row || pkg.name !== agentPluginPackageName(row)) throw new Error('Agent plugin source and destination identities must agree');
   const outputRoot = optional.outputRoot ?? required.packageRoot;
   await fs.mkdir(outputRoot, { recursive: true });
   const staging = await fs.mkdtemp(path.join(outputRoot, '.agent-package-'));
   const payloadRoot = path.join(outputRoot, manifest.name);
   try {
     const stagedPayload = path.join(staging, manifest.name);
-    await fs.mkdir(stagedPayload);
-    for (const asset of assets) {
-      await fs.cp(path.join(required.sourceDir, asset), path.join(stagedPayload, asset), {
-        recursive: true,
-        filter: source => selectAsset({ sourceDir: required.sourceDir, source, fs }),
-      });
-    }
+    await fs.cp(required.sourceDir, stagedPayload, {
+      recursive: true,
+      filter: source => selectAsset({ sourceDir: required.sourceDir, source, fs }),
+    });
     // Stage all selected bytes first: a bad source must not destroy the last completed payload.
     await fs.rm(payloadRoot, { recursive: true, force: true });
     await fs.rename(stagedPayload, payloadRoot);
@@ -63,20 +61,20 @@ export async function assembleAgentPluginPackage(
   }
 }
 
-/** CLI: assemble the named plugin (each package's build passes its own name), or every plugin. */
-async function main(required: { name: string | undefined }): Promise<void> {
-  const selected = agentPluginPackages.filter(entry => required.name === undefined || entry.name === required.name);
-  if (selected.length === 0) throw new Error(`Unknown agent plugin package: ${required.name}`);
-  for (const entry of selected) {
+/** CLI: assemble every row of the named package (each package's build passes its own id), or all rows. */
+async function main(required: { packageId: string | undefined }): Promise<void> {
+  const selected = agentPluginPackages.filter(row => required.packageId === undefined || agentPluginPackageId(row) === required.packageId);
+  if (selected.length === 0) throw new Error(`Unknown agent plugin package: ${required.packageId}`);
+  for (const row of selected) {
     await assembleAgentPluginPackage({
-      sourceDir: fileURLToPath(new URL(entry.sourceDir, import.meta.url)),
-      packageRoot: fileURLToPath(new URL(entry.packageRoot, import.meta.url)),
+      sourceDir: fileURLToPath(new URL(row.sourceDir, repoRoot)),
+      packageRoot: fileURLToPath(new URL(agentPluginPackageRoot(row), repoRoot)),
     });
   }
 }
 
 if (isMainModule({ moduleUrl: import.meta.url, entryPath: process.argv[1] })) {
-  main({ name: process.argv[2] }).catch((error: unknown) => {
+  main({ packageId: process.argv[2] }).catch((error: unknown) => {
     console.error(error);
     process.exitCode = 1;
   });
