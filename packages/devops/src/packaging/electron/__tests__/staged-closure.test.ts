@@ -89,3 +89,15 @@ test('a third-party package nested under Jini retains third-party ownership', t 
   f.write('stage/node_modules/@jini-ai/daemon/node_modules/vendor/dist/index.js', 'try { require("vendor-optional"); } catch {}');
   assert.deepEqual(f.audit().problems, []);
 });
+test('a nameless dist/cjs type marker does not hide the owning optional-peer opt-in', t => {
+  const f = fixture(t);
+  // Dual builds write dist/cjs/package.json = {"type":"commonjs"}; the named package.json above it owns the contract.
+  f.write('stage/node_modules/@jini-ai/daemon/package.json', { name: '@jini-ai/daemon', exports: './dist/index.js', peerDependencies: { 'smol-toml': '*' }, peerDependenciesMeta: { 'smol-toml': { optional: true } }, jini: { optionalPeers: { 'smol-toml': 'opt-in: terminal — This feature needs smol-toml.' } } });
+  f.write('stage/node_modules/@jini-ai/daemon/dist/index.js', 'export const ok = true;');
+  f.write('stage/node_modules/@jini-ai/daemon/dist/cjs/package.json', { type: 'commonjs' });
+  f.write('stage/node_modules/@jini-ai/daemon/dist/cjs/index.js', 'exports.parse = () => require("smol-toml");');
+  const result = f.audit();
+  assert.deepEqual(result.problems, []);
+  assert.equal(result.optIns.length, 1);
+  assert.match(result.optIns[0]!, /dist[\\/]cjs[\\/]index\.js/);
+});

@@ -48,7 +48,11 @@ function manifestOwner(required: { file: string; root: string; fs: PackagingFile
   let directory = path.dirname(file);
   while (inside(root, directory)) {
     const manifest = path.join(directory, 'package.json');
-    if (fs.exists({ path: manifest })) return JSON.parse(Buffer.from(fs.read({ path: manifest })).toString('utf8'));
+    // A nameless manifest (dual builds' dist/cjs/package.json = {"type":"commonjs"}) only scopes the module type;
+    // the named manifest above it owns the optional-peer contract.
+    const parsed: OptionalPeerManifest | undefined = fs.exists({ path: manifest })
+      ? JSON.parse(Buffer.from(fs.read({ path: manifest })).toString('utf8')) : undefined;
+    if (parsed?.name) return parsed;
     if (directory === root) break;
     directory = path.dirname(directory);
   }

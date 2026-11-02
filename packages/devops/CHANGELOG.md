@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Staged-closure audit: a nameless `package.json` (a dual build's `dist/cjs/package.json` = `{"type":"commonjs"}`) no longer hides the owning package's `jini.optionalPeers` opt-in, so a CommonJS entry's optional peer is classified the same as its ESM twin (`@jini-ai/sandbox/dist/cjs/e2b/provider.js` -> `@e2b/code-interpreter`).
 - Import reader: a local `function require(...)` or `class require` declaration now shadows the module `require` in its scope, like a parameter or variable already did. `@jini-ai/db`'s kernel capability checks (`require("interactiveTransactions")`, `require("backup")`) no longer read as missing packages in the staged-closure audit (desktop release run 41494042238).
 - Electron payload staging (`stageTransitiveDependencies`): a transitive package whose own nested dependency conflicts with the hoisted version now ships that version nested under itself, at npm's position, instead of failing with "Package version conflict while flattening <name>" (desktop release run 41398191741: nested debug 4 beside a top-level debug 2). Conflicts on the caller's own roots still refuse; the error now names the conflicting directory and its dependent.
 
