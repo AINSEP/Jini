@@ -57,6 +57,61 @@ describe('ChartSpec to ECharts option', () => {
     expect(pie.tooltip.trigger).toBe('item');
   });
 
+  it('draws a two-series pie as equally wide concentric rings with the original slice styling', () => {
+    const result = option({ ...sales, kind: 'pie', data: [{ month: 'Jan', revenue: 100, cost: 60 }, { month: 'Feb', revenue: 150, cost: 70 }] });
+    expect(result.series.map(({ type, name, radius, data }) => ({ type, name, radius, data }))).toEqual([
+      { type: 'pie', name: 'Revenue', radius: ['0%', '37.5%'], data: [{ name: 'Jan', value: 100 }, { name: 'Feb', value: 150 }] },
+      { type: 'pie', name: 'cost', radius: ['37.5%', '75%'], data: [{ name: 'Jan', value: 60 }, { name: 'Feb', value: 70 }] },
+    ]);
+    expect(result.series.map(({ itemStyle }) => itemStyle)).toEqual([
+      { borderColor: 'var(--jini-chart-surface, var(--jini-bg, #ffffff))', borderWidth: 2 },
+      { borderColor: 'var(--jini-chart-surface, var(--jini-bg, #ffffff))', borderWidth: 2 },
+    ]);
+    expect(result.tooltip.trigger).toBe('item');
+  });
+
+  it('splits a three-series donut evenly without filling its hole, and preserves number formatting', () => {
+    const result = option({ kind: 'donut', categoryKey: 'status', series: [{ key: 'a' }, { key: 'b', label: 'Second' }, { key: 'c' }],
+      data: [{ status: 'Draft', a: 1000, b: 2000, c: 3000 }], format: { locale: 'de-DE' } });
+    expect(result.series).toHaveLength(3);
+    const radii = result.series.map(({ radius }) => (radius as string[]).map(parseFloat));
+    expect(radii[0]![0]).toBe(50);
+    expect(radii[2]![1]).toBe(75);
+    for (const [inner, outer] of radii) expect(outer! - inner!).toBeCloseTo(25 / 3);
+    expect(radii[0]![1]).toBe(radii[1]![0]);
+    expect(radii[1]![1]).toBe(radii[2]![0]);
+    expect(result.series.map(({ name, data }) => ({ name, data }))).toEqual([
+      { name: 'a', data: [{ name: 'Draft', value: 1000 }] },
+      { name: 'Second', data: [{ name: 'Draft', value: 2000 }] },
+      { name: 'c', data: [{ name: 'Draft', value: 3000 }] },
+    ]);
+    expect(result.tooltip.valueFormatter!(1234.5)).toBe('1.234,5');
+  });
+
+  it.each(['pie', 'donut'])('pins the complete single-series %s option, including serialized field order', (kind) => {
+    expect(JSON.stringify(option({ ...shares, kind }))).toBe(JSON.stringify({
+      animation: false,
+      color: [
+        'var(--jini-chart-1, var(--jini-chart-default-1))', 'var(--jini-chart-2, var(--jini-chart-default-2))',
+        'var(--jini-chart-3, var(--jini-chart-default-3))', 'var(--jini-chart-4, var(--jini-chart-default-4))',
+        'var(--jini-chart-5, var(--jini-chart-default-5))', 'var(--jini-chart-6, var(--jini-chart-default-6))',
+      ],
+      aria: { enabled: true }, title: { show: false, text: 'Posts by status' },
+      textStyle: { color: 'var(--jini-chart-text, var(--jini-text, #171717))' },
+      legend: { type: 'scroll', bottom: 0, icon: 'roundRect', itemWidth: 10, itemHeight: 10, textStyle: { color: 'var(--jini-chart-text, var(--jini-text, #171717))' } },
+      tooltip: {
+        confine: true, className: 'jini-chart-tooltip', backgroundColor: 'var(--jini-chart-surface, var(--jini-bg, #ffffff))',
+        borderColor: 'var(--jini-chart-grid, var(--jini-border, #e5e5e5))', textStyle: { color: 'var(--jini-chart-text, var(--jini-text, #171717))' }, trigger: 'item',
+      },
+      series: [{
+        type: 'pie', name: 'Posts', radius: kind === 'donut' ? ['50%', '75%'] : '75%', center: ['50%', '45%'],
+        label: { show: false }, labelLine: { show: false }, emphasis: { disabled: true },
+        itemStyle: { borderColor: 'var(--jini-chart-surface, var(--jini-bg, #ffffff))', borderWidth: 2 },
+        data: [{ name: 'Draft', value: 2 }, { name: '', value: 5 }],
+      }],
+    }));
+  });
+
   it('reads scatter categoryKey as numeric x and each series as a y, dropping points with a gap', () => {
     const result = option({ kind: 'scatter', categoryKey: 'height', series: [{ key: 'weight' }, { key: 'age' }],
       data: [{ height: 170, weight: 65, age: 30 }, { height: 182.5, weight: null, age: 41 }] });

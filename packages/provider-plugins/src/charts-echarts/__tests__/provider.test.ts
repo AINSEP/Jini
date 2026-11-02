@@ -40,6 +40,24 @@ describe('ECharts artifact through the neutral UI chart host', () => {
     chart.destroy({});
   });
 
+  it.each(['pie', 'donut'])('renders multi-series %s and falls back to all table cells when category coverage no longer matches', async (kind) => {
+    const element = document.createElement('div'); document.body.append(element);
+    const spec: ChartSpec = { ...stacked, kind, provider: ECHARTS_PROVIDER_ID };
+    const chart = mountChart({ element, spec, registry: registry() });
+    await chart.ready;
+    expect(element.querySelector('svg')).not.toBeNull();
+    expect(element.querySelector<HTMLElement>('[data-chart-fallback]')!.hidden).toBe(true);
+    const data: ChartSpec['data'] = [{ month: 'Jan', revenue: 100 }, { month: 'Feb', cost: 70 }];
+    await chart.update({ spec: { ...spec, data } });
+    expect(element.querySelector('figure')).toBeNull();
+    const fallback = element.querySelector<HTMLElement>('[data-chart-fallback]')!;
+    expect(fallback.hidden).toBe(false);
+    expect(Array.from(fallback.querySelectorAll('tbody tr'), (row) => Array.from(row.querySelectorAll('td'), (cell) => cell.textContent))).toEqual([
+      ['Jan', '100', ''], ['Feb', '', '70'],
+    ]);
+    chart.destroy({});
+  });
+
   it('is listed in the chart catalog for each of its kinds', () => {
     const manifests = chartCatalogManifests({ providers: [{ id: ECHARTS_PROVIDER_ID, kinds: ECHARTS_KINDS }] });
     const ids = manifests.map(({ id }) => id);

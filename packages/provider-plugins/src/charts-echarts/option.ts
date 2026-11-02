@@ -1,6 +1,6 @@
 /** Pure ChartSpec → ECharts option mapping. No DOM and no ECharts runtime, so every kind is unit-testable. */
 import type { EChartsCoreOption } from 'echarts/core';
-import type { BarSeriesOption, LineSeriesOption, ScatterSeriesOption } from 'echarts/charts';
+import type { BarSeriesOption, LineSeriesOption, PieSeriesOption, ScatterSeriesOption } from 'echarts/charts';
 import type { ChartSpec, ChartValue } from '@jini-ai/ui/charts';
 import { isFiniteNumber, isPartToWhole } from './descriptor.js';
 
@@ -131,17 +131,39 @@ function axisOption(spec: ChartSpec): EChartsCoreOption {
   };
 }
 
-/** Pie and donut: one ring of slices in palette order, named in the legend and tooltip (no outside labels,
- * which truncate at dock width). Slice borders use the surface color so adjacent slices stay distinct. */
-function partToWholeOption(spec: ChartSpec): EChartsCoreOption {
-  const series = spec.series[0]!;
+/** Split the existing radial range evenly without overlap, retaining the donut's hole.
+ * The one-series radius keeps its original shape as well as its values for option compatibility.
+ * @complexity O(1) time and space; pure mapping of an admitted series index.
+ */
+function partToWholeRadius({ spec, index }: { spec: ChartSpec; index: number }, _options: Record<string, never> = {}): string | [string, string] {
+  if (spec.series.length === 1) return spec.kind === 'donut' ? ['50%', '75%'] : '75%';
+  const inner = spec.kind === 'donut' ? 50 : 0;
+  const width = (75 - inner) / spec.series.length;
+  return [`${inner + index * width}%`, `${inner + (index + 1) * width}%`];
+}
+
+/** One ring uses the same category order and slice palette as the single-series chart. Series labels
+ * name the ring; categories name its slices. Surface-colored borders keep adjacent slices distinct.
+ * @complexity O(rows) time and space; no I/O or mutation.
+ */
+function partToWholeSeries({ spec, index }: { spec: ChartSpec; index: number }, _options: Record<string, never> = {}): PieSeriesOption {
+  const series = spec.series[index]!;
   const data = spec.data.map((row) => { const value = row[series.key]; return { name: categoryLabel(row[spec.categoryKey!]), value: isFiniteNumber(value) ? value : 0 }; });
   return {
+    type: 'pie', name: series.label ?? series.key, radius: partToWholeRadius({ spec, index }), center: ['50%', '45%'],
+    label: { show: false }, labelLine: { show: false }, emphasis: NO_EMPHASIS, itemStyle: { borderColor: SURFACE_COLOR, borderWidth: 2 }, data,
+  };
+}
+
+/** Pie and donut rings have no outside labels, which truncate at dock width. ECharts' native legend
+ * deduplicates category names across rings, and its item tooltip escapes and shows series + category +
+ * formatted value; keep those owners rather than building another legend or HTML formatter.
+ * @complexity O(rows × series) time and space; no I/O or mutation.
+ */
+function partToWholeOption({ spec }: { spec: ChartSpec }, _options: Record<string, never> = {}): EChartsCoreOption {
+  return {
     tooltip: { ...TOOLTIP, trigger: 'item', ...tooltipValueFormatter({ y: numberFormatter(spec.format) }) },
-    series: [{
-      type: 'pie', name: series.label ?? series.key, radius: spec.kind === 'donut' ? ['50%', '75%'] : '75%', center: ['50%', '45%'],
-      label: { show: false }, labelLine: { show: false }, emphasis: NO_EMPHASIS, itemStyle: { borderColor: SURFACE_COLOR, borderWidth: 2 }, data,
-    }],
+    series: spec.series.map((_series, index) => partToWholeSeries({ spec, index })),
   };
 }
 
@@ -162,6 +184,6 @@ export function buildEChartsOption({ spec }: { spec: ChartSpec }, _options: Reco
     title: { show: false, text: chartTitle({ spec }) },
     textStyle: { color: TEXT_COLOR },
     legend: LEGEND,
-    ...(isPartToWhole({ kind: spec.kind }) ? partToWholeOption(spec) : axisOption(spec)),
+    ...(isPartToWhole({ kind: spec.kind }) ? partToWholeOption({ spec }) : axisOption(spec)),
   };
 }

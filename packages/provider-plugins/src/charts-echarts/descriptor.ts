@@ -10,7 +10,7 @@ export function isEChartsKind({ kind }: { kind: string }, _options: Record<strin
   return ECHARTS_KINDS.some((candidate) => candidate === kind);
 }
 
-/** Part-to-whole kinds draw one series of slices; every other kind draws series on x/y axes. */
+/** Part-to-whole kinds draw concentric series of slices; every other kind draws series on x/y axes. */
 export function isPartToWhole({ kind }: { kind: string }, _options: Record<string, never> = {}): boolean {
   return kind === 'pie' || kind === 'donut';
 }
@@ -27,12 +27,16 @@ function formatsSupported(spec: ChartSpec): boolean {
   return [spec.format, spec.axes?.x?.format, spec.axes?.y?.format].every(formatSupported);
 }
 
-/** One series of non-negative numbers with a positive total: an all-zero pie has no shares to draw. */
-function partToWholeSupported(spec: ChartSpec): boolean {
-  if (spec.series.length !== 1) return false;
-  const key = spec.series[0]!.key;
-  const values = spec.data.map((row) => row[key]);
-  return values.every((value) => isFiniteNumber(value) && value >= 0) && values.some((value) => value !== 0);
+/** Every ring needs non-negative numbers and a positive total: an all-zero ring has no shares to draw.
+ * ChartSpec shares category rows across series. A missing/null share means mismatched category coverage;
+ * refuse it so the core table preserves the data instead of inventing zero shares or dropping categories.
+ * @complexity O(rows × series) time, O(rows) transient space; no I/O or mutation.
+ */
+function partToWholeSupported({ spec }: { spec: ChartSpec }, _options: Record<string, never> = {}): boolean {
+  return spec.series.every(({ key }) => {
+    const values = spec.data.map((row) => row[key]);
+    return values.every((value) => isFiniteNumber(value) && value >= 0) && values.some((value) => value !== 0);
+  });
 }
 
 /** Axis series may leave gaps (null), but every value is a finite number or null and at least one is drawn.
@@ -51,5 +55,5 @@ function axisSupported(spec: ChartSpec): boolean {
 export function supportsEChartsSpec({ spec }: { spec: ChartSpec }, _options: Record<string, never> = {}): boolean {
   if (!isEChartsKind({ kind: spec.kind }) || !spec.categoryKey || spec.series.length === 0 || spec.data.length === 0) return false;
   if (!formatsSupported(spec)) return false;
-  return isPartToWhole({ kind: spec.kind }) ? partToWholeSupported(spec) : axisSupported(spec);
+  return isPartToWhole({ kind: spec.kind }) ? partToWholeSupported({ spec }) : axisSupported(spec);
 }

@@ -29,6 +29,20 @@ describe('ECharts provider admission', () => {
     expect(supportsEChartsSpec({ spec: points })).toBe(true);
   });
 
+  it.each(['pie', 'donut'])('accepts multiple %s series sharing every category, including zero-valued shares', (kind) => {
+    expect(supportsEChartsSpec({ spec: { ...shares, kind, series: [{ key: 'count' }, { key: 'other' }],
+      data: [{ status: 'Draft', count: 2, other: 0 }, { status: 'Published', count: 0, other: 3 }] } })).toBe(true);
+  });
+
+  it.each<[string, ChartSpec['data'][number]]>([
+    ['a missing share', { status: 'Draft', count: 2 }],
+    ['a null share', { status: 'Draft', count: 2, other: null }],
+    ['a negative share', { status: 'Draft', count: 2, other: -1 }],
+    ['an all-zero ring', { status: 'Draft', count: 2, other: 0 }],
+  ])('refuses a later ring with %s', (_name, row) => {
+    expect(supportsEChartsSpec({ spec: { ...shares, series: [{ key: 'count' }, { key: 'other' }], data: [row] } })).toBe(false);
+  });
+
   it.each<[string, ChartSpec]>([
     ['an unknown kind', { ...sales, kind: 'sankey' }],
     ['a missing categoryKey', { kind: 'bar', series: [{ key: 'revenue' }], data: [{ revenue: 1 }] }],
@@ -40,7 +54,7 @@ describe('ECharts provider admission', () => {
     ['only gaps', { ...sales, data: [{ month: 'Jan', revenue: null, cost: null }, { month: 'Feb' }] }],
     ['a malformed locale', { ...sales, format: { locale: 'not a locale!' } }],
     ['a malformed axis locale', { ...sales, axes: { y: { format: { locale: '!!' } } } }],
-    ['a two-series pie', { ...shares, series: [{ key: 'count' }, { key: 'other' }] }],
+    ['a pie with mismatched category coverage', { ...shares, series: [{ key: 'count' }, { key: 'other' }] }],
     ['a negative pie share', { ...shares, data: [{ status: 'Draft', count: -1 }, { status: 'Published', count: 3 }] }],
     ['a pie gap', { ...shares, data: [{ status: 'Draft', count: null }, { status: 'Published', count: 3 }] }],
     ['an all-zero pie', { ...shares, kind: 'donut', data: [{ status: 'Draft', count: 0 }] }],

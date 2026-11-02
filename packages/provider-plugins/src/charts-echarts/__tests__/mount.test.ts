@@ -82,10 +82,39 @@ describe('ECharts vanilla lifecycle', () => {
     instance.destroy({});
   });
 
+  it('shares category colors and one legend across rings, and identifies the hovered ring, category and formatted value', async () => {
+    const element = host();
+    const spec: ChartSpec = { ...sales, kind: 'pie', series: [{ key: 'revenue', label: 'Revenue' }, { key: 'cost', label: 'Costs' }],
+      data: [{ month: 'Jan', revenue: 100, cost: 1234.5 }, { month: 'Feb', revenue: 150, cost: 70 }], format: { locale: 'de-DE' } };
+    const instance = mount({ element, spec, theme: { mode: 'light' } });
+    await instance.ready;
+    expect(optionOf(element).series.map(({ type, name }) => ({ type, name }))).toEqual([
+      { type: 'pie', name: 'Revenue' }, { type: 'pie', name: 'Costs' },
+    ]);
+    const labels = Array.from(element.querySelectorAll('svg text'), (text) => text.textContent);
+    expect(labels.filter((label) => label === 'Jan')).toHaveLength(1);
+    expect(labels.filter((label) => label === 'Feb')).toHaveLength(1);
+    const chart = getInstanceByDom(surfaceOf(element))!;
+    for (const seriesIndex of [0, 1]) {
+      expect(chart.getVisual({ seriesIndex, dataIndex: 0 }, 'color')).toBe('var(--jini-chart-1, var(--jini-chart-default-1))');
+      expect(chart.getVisual({ seriesIndex, dataIndex: 1 }, 'color')).toBe('var(--jini-chart-2, var(--jini-chart-default-2))');
+    }
+    chart.dispatchAction({ type: 'showTip', seriesIndex: 1, dataIndex: 0 });
+    await vi.waitFor(() => {
+      const tooltip = element.querySelector('.jini-chart-tooltip');
+      expect(tooltip?.textContent).toContain('Costs');
+      expect(tooltip?.textContent).toContain('Jan');
+      expect(tooltip?.textContent).toContain('1.234,5');
+    });
+    instance.update({ spec: SPECS.pie!, theme: { mode: 'light' } });
+    expect(optionOf(element).series.map(({ name }) => name)).toEqual(['count']);
+    instance.destroy({});
+  });
+
   it('refuses an unsupported spec at mount (leaving nothing behind) and at update (keeping the chart)', () => {
     const element = host();
-    const multiSeriesPie = { ...SPECS.pie!, series: [{ key: 'count' }, { key: 'other' }] };
-    expect(() => mount({ element, spec: multiSeriesPie, theme: { mode: 'light' } })).toThrow(UnsupportedChartSpecError);
+    const mismatchedPie = { ...SPECS.pie!, series: [{ key: 'count' }, { key: 'other' }] };
+    expect(() => mount({ element, spec: mismatchedPie, theme: { mode: 'light' } })).toThrow(UnsupportedChartSpecError);
     expect(element.children).toHaveLength(0);
     const instance = mount({ element, spec: SPECS.bar!, theme: { mode: 'light' } });
     expect(() => instance.update({ spec: { ...SPECS.bar!, kind: 'sankey' }, theme: { mode: 'light' } })).toThrow('Unsupported ECharts chart specification.');
