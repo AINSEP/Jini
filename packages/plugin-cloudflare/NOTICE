@@ -1,0 +1,13 @@
+Jini Cloudflare Agent Plugin
+Copyright 2026 Leona Burime
+
+Portable plugin sources remain at packages/agent-plugins/cloudflare.
+Moved from Tovu's bundled content/agent-plugins/cloudflare (2026-11-02); product words in prose,
+comments and messages were made host-neutral. Frozen wire names (TOVU_FORMS bindings, tovu-forms-*
+D1 databases, /_tovu/* receiver routes, tovu-*.json contribution files) are unchanged.
+All code and skill text is original. It calls Cloudflare's public HTTP API with fetch only and links
+Cloudflare's public documentation; no Cloudflare SDK or other third-party code is included.
+
+This distribution contains plain ESM modules (deploy targets, a form destination and a Workers
+form receiver) and no vendor SDK or npm dependency.
+See LICENSE for the Apache License, Version 2.0.

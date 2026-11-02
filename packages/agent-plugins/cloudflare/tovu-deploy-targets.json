@@ -1,0 +1,630 @@
+{
+  "schemaVersion": 1,
+  "targets": [
+    {
+      "id": "cloudflare-workers",
+      "label": "Cloudflare Workers",
+      "module": "targets/cloudflare-workers.mjs",
+      "projectName": {
+        "label": "Project name",
+        "help": "Finds or creates a stable jini-<project> Worker for this static export."
+      },
+      "env": {
+        "tokenVars": [
+          "CLOUDFLARE_WORKERS_TOKEN"
+        ],
+        "fields": {
+          "accountId": "CLOUDFLARE_ACCOUNT_ID"
+        }
+      },
+      "credential": {
+        "vendorId": "cloudflare",
+        "vendorLabel": "Cloudflare",
+        "help": "Needs Account → Workers Scripts → Edit and the Cloudflare Account ID. Custom domains additionally need the read and edit permissions listed in the Cloudflare skill.",
+        "tokenPageUrl": "https://dash.cloudflare.com/profile/api-tokens",
+        "fields": [
+          {
+            "name": "token",
+            "label": "API token",
+            "required": true,
+            "secret": true,
+            "help": "Cloudflare: My Profile > API Tokens. Select Account → Workers Scripts → Edit."
+          },
+          {
+            "name": "accountId",
+            "label": "Account ID",
+            "required": true,
+            "help": "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/."
+          },
+          {
+            "name": "zoneId",
+            "label": "Default Zone ID",
+            "required": false,
+            "help": "Optional default zone; per-publish Zone ID takes precedence."
+          }
+        ]
+      },
+      "i18n": {
+        "es": {
+          "Project name": "Nombre del proyecto",
+          "Account ID": "ID de cuenta",
+          "API token": "Token de API",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Panel de Cloudflare: el ID largo de la barra de direcciones, justo después de dash.cloudflare.com/.",
+          "Custom domain": "Dominio personalizado",
+          "Zone ID": "ID de zona",
+          "Existing remote name": "Nombre remoto existente",
+          "Workers account plan": "Plan de la cuenta Workers",
+          "Default Zone ID": "ID de zona predeterminado"
+        },
+        "id": {
+          "Project name": "Nama proyek",
+          "Account ID": "ID akun",
+          "API token": "Token API",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Dasbor Cloudflare: ID panjang di bilah alamat, tepat setelah dash.cloudflare.com/.",
+          "Custom domain": "Domain kustom",
+          "Zone ID": "ID zona",
+          "Existing remote name": "Nama jarak jauh yang ada",
+          "Workers account plan": "Paket akun Workers",
+          "Default Zone ID": "ID zona default"
+        },
+        "de": {
+          "Project name": "Projektname",
+          "Account ID": "Konto-ID",
+          "API token": "API-Token",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Cloudflare-Dashboard: die lange ID in der Adressleiste, direkt nach dash.cloudflare.com/.",
+          "Custom domain": "Eigene Domain",
+          "Zone ID": "Zonen-ID",
+          "Existing remote name": "Vorhandener Remotename",
+          "Workers account plan": "Workers-Kontotarif",
+          "Default Zone ID": "Standard-Zonen-ID"
+        },
+        "zh-CN": {
+          "Project name": "项目名称",
+          "Account ID": "账户 ID",
+          "API token": "API 令牌",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Cloudflare 控制面板：地址栏中紧跟在 dash.cloudflare.com/ 之后的那串长 ID。",
+          "Custom domain": "自定义域名",
+          "Zone ID": "区域 ID",
+          "Existing remote name": "现有远程名称",
+          "Workers account plan": "Workers 账户套餐",
+          "Default Zone ID": "默认区域 ID"
+        },
+        "zh-TW": {
+          "Project name": "專案名稱",
+          "Account ID": "帳戶 ID",
+          "API token": "API 權杖",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Cloudflare 控制台：網址列中緊接在 dash.cloudflare.com/ 之後的那串長 ID。",
+          "Custom domain": "自訂網域",
+          "Zone ID": "區域 ID",
+          "Existing remote name": "現有遠端名稱",
+          "Workers account plan": "Workers 帳戶方案",
+          "Default Zone ID": "預設區域 ID"
+        },
+        "pt-BR": {
+          "Project name": "Nome do projeto",
+          "Account ID": "ID da conta",
+          "API token": "Token de API",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Painel da Cloudflare: o ID longo na barra de endereço, logo depois de dash.cloudflare.com/.",
+          "Custom domain": "Domínio personalizado",
+          "Zone ID": "ID da zona",
+          "Existing remote name": "Nome remoto existente",
+          "Workers account plan": "Plano da conta Workers",
+          "Default Zone ID": "ID de zona padrão"
+        },
+        "ru": {
+          "Project name": "Название проекта",
+          "Account ID": "ID учётной записи",
+          "API token": "Токен API",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Панель Cloudflare: длинный ID в адресной строке, сразу после dash.cloudflare.com/.",
+          "Custom domain": "Свой домен",
+          "Zone ID": "ID зоны",
+          "Existing remote name": "Существующее удалённое имя",
+          "Workers account plan": "Тариф аккаунта Workers",
+          "Default Zone ID": "ID зоны по умолчанию"
+        },
+        "fa": {
+          "Project name": "نام پروژه",
+          "Account ID": "شناسه حساب",
+          "API token": "توکن API",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "داشبورد Cloudflare: شناسه طولانی در نوار آدرس، درست بعد از dash.cloudflare.com/.",
+          "Custom domain": "دامنه سفارشی",
+          "Zone ID": "شناسه ناحیه",
+          "Existing remote name": "نام موجود در سرویس",
+          "Workers account plan": "طرح حساب Workers",
+          "Default Zone ID": "شناسه ناحیه پیش‌فرض"
+        },
+        "ar": {
+          "Project name": "اسم المشروع",
+          "Account ID": "معرّف الحساب",
+          "API token": "رمز API",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "لوحة Cloudflare: المعرّف الطويل في شريط العنوان، مباشرةً بعد dash.cloudflare.com/.",
+          "Custom domain": "نطاق مخصص",
+          "Zone ID": "معرّف المنطقة",
+          "Existing remote name": "الاسم الحالي في الخدمة",
+          "Workers account plan": "خطة حساب Workers",
+          "Default Zone ID": "معرّف المنطقة الافتراضي"
+        },
+        "ja": {
+          "Project name": "プロジェクト名",
+          "Account ID": "アカウント ID",
+          "API token": "API トークン",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Cloudflare ダッシュボード: アドレスバーの dash.cloudflare.com/ の直後にある長い ID。",
+          "Custom domain": "カスタムドメイン",
+          "Zone ID": "ゾーン ID",
+          "Existing remote name": "既存のリモート名",
+          "Workers account plan": "Workers アカウントプラン",
+          "Default Zone ID": "既定のゾーン ID"
+        },
+        "ko": {
+          "Project name": "프로젝트 이름",
+          "Account ID": "계정 ID",
+          "API token": "API 토큰",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Cloudflare 대시보드: 주소 표시줄에서 dash.cloudflare.com/ 바로 뒤에 있는 긴 ID입니다.",
+          "Custom domain": "사용자 지정 도메인",
+          "Zone ID": "영역 ID",
+          "Existing remote name": "기존 원격 이름",
+          "Workers account plan": "Workers 계정 요금제",
+          "Default Zone ID": "기본 영역 ID"
+        },
+        "pl": {
+          "Project name": "Nazwa projektu",
+          "Account ID": "Identyfikator konta",
+          "API token": "Token API",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Panel Cloudflare: długi identyfikator w pasku adresu, zaraz po dash.cloudflare.com/.",
+          "Custom domain": "Własna domena",
+          "Zone ID": "ID strefy",
+          "Existing remote name": "Istniejąca nazwa zdalna",
+          "Workers account plan": "Plan konta Workers",
+          "Default Zone ID": "Domyślny ID strefy"
+        },
+        "hu": {
+          "Project name": "Projekt neve",
+          "Account ID": "Fiókazonosító",
+          "API token": "API-token",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Cloudflare-irányítópult: a hosszú azonosító a címsorban, közvetlenül a dash.cloudflare.com/ után.",
+          "Custom domain": "Egyéni domain",
+          "Zone ID": "Zónaazonosító",
+          "Existing remote name": "Meglévő távoli név",
+          "Workers account plan": "Workers-fiók csomagja",
+          "Default Zone ID": "Alapértelmezett zónaazonosító"
+        },
+        "fr": {
+          "Project name": "Nom du projet",
+          "Account ID": "ID de compte",
+          "API token": "Jeton API",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Tableau de bord Cloudflare : le long ID dans la barre d’adresse, juste après dash.cloudflare.com/.",
+          "Custom domain": "Domaine personnalisé",
+          "Zone ID": "ID de zone",
+          "Existing remote name": "Nom distant existant",
+          "Workers account plan": "Offre du compte Workers",
+          "Default Zone ID": "ID de zone par défaut"
+        },
+        "uk": {
+          "Project name": "Назва проєкту",
+          "Account ID": "ID облікового запису",
+          "API token": "Токен API",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Панель Cloudflare: довгий ID в адресному рядку, одразу після dash.cloudflare.com/."
+        },
+        "tr": {
+          "Project name": "Proje adı",
+          "Account ID": "Hesap Kimliği",
+          "API token": "API belirteci",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Cloudflare panosu: adres çubuğunda dash.cloudflare.com/ ifadesinin hemen ardından gelen uzun kimlik."
+        },
+        "th": {
+          "Project name": "ชื่อโปรเจ็กต์",
+          "Account ID": "รหัสบัญชี",
+          "API token": "โทเค็น API",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "แดชบอร์ด Cloudflare: ID ยาวในแถบที่อยู่ ต่อจาก dash.cloudflare.com/ ทันที",
+          "Custom domain": "โดเมนที่กำหนดเอง",
+          "Zone ID": "รหัสโซน",
+          "Existing remote name": "ชื่อระยะไกลที่มีอยู่",
+          "Workers account plan": "แผนบัญชี Workers",
+          "Default Zone ID": "รหัสโซนเริ่มต้น"
+        },
+        "it": {
+          "Project name": "Nome del progetto",
+          "Account ID": "ID account",
+          "API token": "Token API",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Dashboard di Cloudflare: il lungo ID nella barra degli indirizzi, subito dopo dash.cloudflare.com/.",
+          "Custom domain": "Dominio personalizzato",
+          "Zone ID": "ID zona",
+          "Existing remote name": "Nome remoto esistente",
+          "Workers account plan": "Piano dell’account Workers",
+          "Default Zone ID": "ID zona predefinito"
+        },
+        "hi": {
+          "Project name": "प्रोजेक्ट नाम",
+          "Account ID": "खाता ID",
+          "API token": "API टोकन",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Cloudflare डैशबोर्ड: एड्रेस बार में dash.cloudflare.com/ के ठीक बाद वाला लंबा ID।",
+          "Custom domain": "कस्टम डोमेन",
+          "Zone ID": "ज़ोन ID",
+          "Existing remote name": "मौजूदा रिमोट नाम",
+          "Workers account plan": "Workers खाता प्लान",
+          "Default Zone ID": "डिफ़ॉल्ट ज़ोन ID"
+        },
+        "ur": {
+          "Project name": "پروجیکٹ کا نام",
+          "Account ID": "اکاؤنٹ ID",
+          "API token": "API ٹوکن",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Cloudflare ڈیش بورڈ: ایڈریس بار میں dash.cloudflare.com/ کے فوراً بعد والا لمبا ID۔",
+          "Custom domain": "حسب ضرورت ڈومین",
+          "Zone ID": "زون ID",
+          "Existing remote name": "موجودہ ریموٹ نام",
+          "Workers account plan": "Workers اکاؤنٹ پلان",
+          "Default Zone ID": "پہلے سے طے شدہ زون ID"
+        },
+        "bn": {
+          "Project name": "প্রকল্পের নাম",
+          "Account ID": "অ্যাকাউন্ট আইডি",
+          "API token": "API টোকেন",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Cloudflare ড্যাশবোর্ড: ঠিকানা বারে dash.cloudflare.com/-এর ঠিক পরের লম্বা আইডি।",
+          "Custom domain": "কাস্টম ডোমেন",
+          "Zone ID": "জোন আইডি",
+          "Existing remote name": "বিদ্যমান রিমোট নাম",
+          "Workers account plan": "Workers অ্যাকাউন্ট প্ল্যান",
+          "Default Zone ID": "ডিফল্ট জোন আইডি"
+        }
+      },
+      "config": [
+        {
+          "name": "customDomain",
+          "label": "Custom domain",
+          "required": false,
+          "help": "Apex hostname only. Preview inspects apex and www; domain changes require the human confirmation card."
+        },
+        {
+          "name": "zoneId",
+          "label": "Zone ID",
+          "required": false,
+          "help": "Optional zone selection. The account and exact apex hostname must match."
+        },
+        {
+          "name": "resourceName",
+          "label": "Existing remote name",
+          "required": false,
+          "help": "Exact existing project or script name from publish history; leave blank for jini-<project>."
+        },
+        {
+          "name": "assetPlan",
+          "label": "Workers account plan",
+          "required": false,
+          "help": "free (default): 20,000 files; paid: 100,000. Select paid only for an actual Workers Paid account."
+        }
+      ]
+    },
+    {
+      "id": "cloudflare-pages",
+      "label": "Cloudflare Pages",
+      "module": "targets/cloudflare-pages.mjs",
+      "projectName": {
+        "label": "Project name",
+        "help": "Cloudflare Pages finds or creates a project with this name on every publish."
+      },
+      "env": {
+        "tokenVars": [
+          "CLOUDFLARE_TOKEN",
+          "CLOUDFLARE_API_TOKEN"
+        ],
+        "fields": {
+          "accountId": "CLOUDFLARE_ACCOUNT_ID"
+        }
+      },
+      "credential": {
+        "vendorId": "cloudflare",
+        "vendorLabel": "Cloudflare",
+        "help": "Needs an API token with the Cloudflare Pages: Edit permission, plus your Cloudflare account ID. Cloudflare cannot find a project without the account ID.",
+        "tokenPageUrl": "https://dash.cloudflare.com/profile/api-tokens",
+        "fields": [
+          {
+            "name": "token",
+            "label": "API token",
+            "required": true,
+            "secret": true,
+            "help": "Cloudflare: My Profile > API Tokens, with the Cloudflare Pages: Edit permission."
+          },
+          {
+            "name": "accountId",
+            "label": "Account ID",
+            "required": true,
+            "help": "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/."
+          },
+          {
+            "name": "zoneId",
+            "label": "Default Zone ID",
+            "required": false,
+            "help": "Optional default zone; per-publish Zone ID takes precedence."
+          }
+        ]
+      },
+      "i18n": {
+        "es": {
+          "Project name": "Nombre del proyecto",
+          "Cloudflare Pages finds or creates a project with this name on every publish.": "Cloudflare Pages busca o crea un proyecto con este nombre en cada publicación.",
+          "Account ID": "ID de cuenta",
+          "Needs an API token with the Cloudflare Pages: Edit permission, plus your Cloudflare account ID. Cloudflare cannot find a project without the account ID.": "Necesita un token de API con el permiso Cloudflare Pages: Edit, además del ID de tu cuenta de Cloudflare. Cloudflare no puede encontrar un proyecto sin el ID de cuenta.",
+          "API token": "Token de API",
+          "Cloudflare: My Profile > API Tokens, with the Cloudflare Pages: Edit permission.": "Cloudflare: My Profile > API Tokens, con el permiso Cloudflare Pages: Edit.",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Panel de Cloudflare: el ID largo de la barra de direcciones, justo después de dash.cloudflare.com/.",
+          "Custom domain": "Dominio personalizado",
+          "Zone ID": "ID de zona",
+          "Existing remote name": "Nombre remoto existente",
+          "Default Zone ID": "ID de zona predeterminado"
+        },
+        "id": {
+          "Project name": "Nama proyek",
+          "Cloudflare Pages finds or creates a project with this name on every publish.": "Cloudflare Pages menemukan atau membuat proyek dengan nama ini setiap kali menerbitkan.",
+          "Account ID": "ID akun",
+          "Needs an API token with the Cloudflare Pages: Edit permission, plus your Cloudflare account ID. Cloudflare cannot find a project without the account ID.": "Memerlukan token API dengan izin Cloudflare Pages: Edit, serta ID akun Cloudflare Anda. Cloudflare tidak dapat menemukan proyek tanpa ID akun.",
+          "API token": "Token API",
+          "Cloudflare: My Profile > API Tokens, with the Cloudflare Pages: Edit permission.": "Cloudflare: My Profile > API Tokens, dengan izin Cloudflare Pages: Edit.",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Dasbor Cloudflare: ID panjang di bilah alamat, tepat setelah dash.cloudflare.com/.",
+          "Custom domain": "Domain kustom",
+          "Zone ID": "ID zona",
+          "Existing remote name": "Nama jarak jauh yang ada",
+          "Default Zone ID": "ID zona default"
+        },
+        "de": {
+          "Project name": "Projektname",
+          "Cloudflare Pages finds or creates a project with this name on every publish.": "Cloudflare Pages findet oder erstellt bei jeder Veröffentlichung ein Projekt mit diesem Namen.",
+          "Account ID": "Konto-ID",
+          "Needs an API token with the Cloudflare Pages: Edit permission, plus your Cloudflare account ID. Cloudflare cannot find a project without the account ID.": "Benötigt einen API-Token mit der Berechtigung Cloudflare Pages: Edit sowie Ihre Cloudflare-Konto-ID. Ohne die Konto-ID kann Cloudflare kein Projekt finden.",
+          "API token": "API-Token",
+          "Cloudflare: My Profile > API Tokens, with the Cloudflare Pages: Edit permission.": "Cloudflare: My Profile > API Tokens, mit der Berechtigung Cloudflare Pages: Edit.",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Cloudflare-Dashboard: die lange ID in der Adressleiste, direkt nach dash.cloudflare.com/.",
+          "Custom domain": "Eigene Domain",
+          "Zone ID": "Zonen-ID",
+          "Existing remote name": "Vorhandener Remotename",
+          "Default Zone ID": "Standard-Zonen-ID"
+        },
+        "zh-CN": {
+          "Project name": "项目名称",
+          "Cloudflare Pages finds or creates a project with this name on every publish.": "Cloudflare Pages 会在每次发布时查找或创建使用此名称的项目。",
+          "Account ID": "账户 ID",
+          "Needs an API token with the Cloudflare Pages: Edit permission, plus your Cloudflare account ID. Cloudflare cannot find a project without the account ID.": "需要具有 Cloudflare Pages: Edit 权限的 API 令牌，以及您的 Cloudflare 帐户 ID。没有帐户 ID，Cloudflare 无法找到项目。",
+          "API token": "API 令牌",
+          "Cloudflare: My Profile > API Tokens, with the Cloudflare Pages: Edit permission.": "Cloudflare：My Profile > API Tokens，需具有 Cloudflare Pages: Edit 权限。",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Cloudflare 控制面板：地址栏中紧跟在 dash.cloudflare.com/ 之后的那串长 ID。",
+          "Custom domain": "自定义域名",
+          "Zone ID": "区域 ID",
+          "Existing remote name": "现有远程名称",
+          "Default Zone ID": "默认区域 ID"
+        },
+        "zh-TW": {
+          "Project name": "專案名稱",
+          "Cloudflare Pages finds or creates a project with this name on every publish.": "Cloudflare Pages 會在每次發佈時尋找或建立使用此名稱的專案。",
+          "Account ID": "帳戶 ID",
+          "Needs an API token with the Cloudflare Pages: Edit permission, plus your Cloudflare account ID. Cloudflare cannot find a project without the account ID.": "需要具有 Cloudflare Pages: Edit 權限的 API 權杖，以及您的 Cloudflare 帳戶 ID。沒有帳戶 ID，Cloudflare 無法找到專案。",
+          "API token": "API 權杖",
+          "Cloudflare: My Profile > API Tokens, with the Cloudflare Pages: Edit permission.": "Cloudflare：My Profile > API Tokens，需具備 Cloudflare Pages: Edit 權限。",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Cloudflare 控制台：網址列中緊接在 dash.cloudflare.com/ 之後的那串長 ID。",
+          "Custom domain": "自訂網域",
+          "Zone ID": "區域 ID",
+          "Existing remote name": "現有遠端名稱",
+          "Default Zone ID": "預設區域 ID"
+        },
+        "pt-BR": {
+          "Project name": "Nome do projeto",
+          "Cloudflare Pages finds or creates a project with this name on every publish.": "A Cloudflare Pages encontra ou cria um projeto com este nome em cada publicação.",
+          "Account ID": "ID da conta",
+          "Needs an API token with the Cloudflare Pages: Edit permission, plus your Cloudflare account ID. Cloudflare cannot find a project without the account ID.": "Precisa de um token de API com a permissão Cloudflare Pages: Edit, além do ID da sua conta Cloudflare. A Cloudflare não consegue encontrar um projeto sem o ID da conta.",
+          "API token": "Token de API",
+          "Cloudflare: My Profile > API Tokens, with the Cloudflare Pages: Edit permission.": "Cloudflare: My Profile > API Tokens, com a permissão Cloudflare Pages: Edit.",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Painel da Cloudflare: o ID longo na barra de endereço, logo depois de dash.cloudflare.com/.",
+          "Custom domain": "Domínio personalizado",
+          "Zone ID": "ID da zona",
+          "Existing remote name": "Nome remoto existente",
+          "Default Zone ID": "ID de zona padrão"
+        },
+        "ru": {
+          "Project name": "Название проекта",
+          "Cloudflare Pages finds or creates a project with this name on every publish.": "Cloudflare Pages при каждой публикации находит или создаёт проект с этим именем.",
+          "Account ID": "ID учётной записи",
+          "Needs an API token with the Cloudflare Pages: Edit permission, plus your Cloudflare account ID. Cloudflare cannot find a project without the account ID.": "Нужен токен API с разрешением Cloudflare Pages: Edit, а также ID вашей учётной записи Cloudflare. Без ID учётной записи Cloudflare не может найти проект.",
+          "API token": "Токен API",
+          "Cloudflare: My Profile > API Tokens, with the Cloudflare Pages: Edit permission.": "Cloudflare: My Profile > API Tokens, с разрешением Cloudflare Pages: Edit.",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Панель Cloudflare: длинный ID в адресной строке, сразу после dash.cloudflare.com/.",
+          "Custom domain": "Свой домен",
+          "Zone ID": "ID зоны",
+          "Existing remote name": "Существующее удалённое имя",
+          "Default Zone ID": "ID зоны по умолчанию"
+        },
+        "fa": {
+          "Project name": "نام پروژه",
+          "Cloudflare Pages finds or creates a project with this name on every publish.": "Cloudflare Pages در هر انتشار پروژه‌ای با این نام پیدا یا ایجاد می‌کند.",
+          "Account ID": "شناسه حساب",
+          "Needs an API token with the Cloudflare Pages: Edit permission, plus your Cloudflare account ID. Cloudflare cannot find a project without the account ID.": "به یک توکن API با مجوز Cloudflare Pages: Edit و شناسه حساب Cloudflare شما نیاز دارد. Cloudflare بدون شناسه حساب نمی‌تواند پروژه را پیدا کند.",
+          "API token": "توکن API",
+          "Cloudflare: My Profile > API Tokens, with the Cloudflare Pages: Edit permission.": "Cloudflare: My Profile > API Tokens، با مجوز Cloudflare Pages: Edit.",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "داشبورد Cloudflare: شناسه طولانی در نوار آدرس، درست بعد از dash.cloudflare.com/.",
+          "Custom domain": "دامنه سفارشی",
+          "Zone ID": "شناسه ناحیه",
+          "Existing remote name": "نام موجود در سرویس",
+          "Default Zone ID": "شناسه ناحیه پیش‌فرض"
+        },
+        "ar": {
+          "Project name": "اسم المشروع",
+          "Cloudflare Pages finds or creates a project with this name on every publish.": "يعثر Cloudflare Pages على مشروع بهذا الاسم أو ينشئه عند كل نشر.",
+          "Account ID": "معرّف الحساب",
+          "Needs an API token with the Cloudflare Pages: Edit permission, plus your Cloudflare account ID. Cloudflare cannot find a project without the account ID.": "يتطلب رمز API مع إذن Cloudflare Pages: Edit، بالإضافة إلى معرّف حساب Cloudflare الخاص بك. لا يستطيع Cloudflare العثور على مشروع بدون معرّف الحساب.",
+          "API token": "رمز API",
+          "Cloudflare: My Profile > API Tokens, with the Cloudflare Pages: Edit permission.": "Cloudflare: My Profile > API Tokens، مع إذن Cloudflare Pages: Edit.",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "لوحة Cloudflare: المعرّف الطويل في شريط العنوان، مباشرةً بعد dash.cloudflare.com/.",
+          "Custom domain": "نطاق مخصص",
+          "Zone ID": "معرّف المنطقة",
+          "Existing remote name": "الاسم الحالي في الخدمة",
+          "Default Zone ID": "معرّف المنطقة الافتراضي"
+        },
+        "ja": {
+          "Project name": "プロジェクト名",
+          "Cloudflare Pages finds or creates a project with this name on every publish.": "Cloudflare Pages は公開のたびにこの名前のプロジェクトを見つけるか作成します。",
+          "Account ID": "アカウント ID",
+          "Needs an API token with the Cloudflare Pages: Edit permission, plus your Cloudflare account ID. Cloudflare cannot find a project without the account ID.": "Cloudflare Pages: Edit 権限のある API トークンと、Cloudflare のアカウント ID が必要です。アカウント ID がないと Cloudflare はプロジェクトを見つけられません。",
+          "API token": "API トークン",
+          "Cloudflare: My Profile > API Tokens, with the Cloudflare Pages: Edit permission.": "Cloudflare: My Profile > API Tokens。Cloudflare Pages: Edit 権限が必要です。",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Cloudflare ダッシュボード: アドレスバーの dash.cloudflare.com/ の直後にある長い ID。",
+          "Custom domain": "カスタムドメイン",
+          "Zone ID": "ゾーン ID",
+          "Existing remote name": "既存のリモート名",
+          "Default Zone ID": "既定のゾーン ID"
+        },
+        "ko": {
+          "Project name": "프로젝트 이름",
+          "Cloudflare Pages finds or creates a project with this name on every publish.": "Cloudflare Pages는 게시할 때마다 이 이름의 프로젝트를 찾거나 만듭니다.",
+          "Account ID": "계정 ID",
+          "Needs an API token with the Cloudflare Pages: Edit permission, plus your Cloudflare account ID. Cloudflare cannot find a project without the account ID.": "Cloudflare Pages: Edit 권한이 있는 API 토큰과 Cloudflare 계정 ID가 필요합니다. 계정 ID가 없으면 Cloudflare가 프로젝트를 찾을 수 없습니다.",
+          "API token": "API 토큰",
+          "Cloudflare: My Profile > API Tokens, with the Cloudflare Pages: Edit permission.": "Cloudflare: My Profile > API Tokens, Cloudflare Pages: Edit 권한 포함.",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Cloudflare 대시보드: 주소 표시줄에서 dash.cloudflare.com/ 바로 뒤에 있는 긴 ID입니다.",
+          "Custom domain": "사용자 지정 도메인",
+          "Zone ID": "영역 ID",
+          "Existing remote name": "기존 원격 이름",
+          "Default Zone ID": "기본 영역 ID"
+        },
+        "pl": {
+          "Project name": "Nazwa projektu",
+          "Cloudflare Pages finds or creates a project with this name on every publish.": "Cloudflare Pages przy każdej publikacji znajduje lub tworzy projekt o tej nazwie.",
+          "Account ID": "Identyfikator konta",
+          "Needs an API token with the Cloudflare Pages: Edit permission, plus your Cloudflare account ID. Cloudflare cannot find a project without the account ID.": "Wymaga tokenu API z uprawnieniem Cloudflare Pages: Edit oraz identyfikatora Twojego konta Cloudflare. Bez identyfikatora konta Cloudflare nie znajdzie projektu.",
+          "API token": "Token API",
+          "Cloudflare: My Profile > API Tokens, with the Cloudflare Pages: Edit permission.": "Cloudflare: My Profile > API Tokens, z uprawnieniem Cloudflare Pages: Edit.",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Panel Cloudflare: długi identyfikator w pasku adresu, zaraz po dash.cloudflare.com/.",
+          "Custom domain": "Własna domena",
+          "Zone ID": "ID strefy",
+          "Existing remote name": "Istniejąca nazwa zdalna",
+          "Default Zone ID": "Domyślny ID strefy"
+        },
+        "hu": {
+          "Project name": "Projekt neve",
+          "Cloudflare Pages finds or creates a project with this name on every publish.": "A Cloudflare Pages minden közzétételkor megkeres vagy létrehoz egy ilyen nevű projektet.",
+          "Account ID": "Fiókazonosító",
+          "Needs an API token with the Cloudflare Pages: Edit permission, plus your Cloudflare account ID. Cloudflare cannot find a project without the account ID.": "Cloudflare Pages: Edit engedélyű API-token és a Cloudflare-fiókazonosítója szükséges. Fiókazonosító nélkül a Cloudflare nem találja meg a projektet.",
+          "API token": "API-token",
+          "Cloudflare: My Profile > API Tokens, with the Cloudflare Pages: Edit permission.": "Cloudflare: My Profile > API Tokens, Cloudflare Pages: Edit engedéllyel.",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Cloudflare-irányítópult: a hosszú azonosító a címsorban, közvetlenül a dash.cloudflare.com/ után.",
+          "Custom domain": "Egyéni domain",
+          "Zone ID": "Zónaazonosító",
+          "Existing remote name": "Meglévő távoli név",
+          "Default Zone ID": "Alapértelmezett zónaazonosító"
+        },
+        "fr": {
+          "Project name": "Nom du projet",
+          "Cloudflare Pages finds or creates a project with this name on every publish.": "Cloudflare Pages trouve ou crée un projet portant ce nom à chaque publication.",
+          "Account ID": "ID de compte",
+          "Needs an API token with the Cloudflare Pages: Edit permission, plus your Cloudflare account ID. Cloudflare cannot find a project without the account ID.": "Nécessite un jeton API avec l’autorisation Cloudflare Pages: Edit, ainsi que l’ID de votre compte Cloudflare. Sans l’ID de compte, Cloudflare ne peut pas trouver le projet.",
+          "API token": "Jeton API",
+          "Cloudflare: My Profile > API Tokens, with the Cloudflare Pages: Edit permission.": "Cloudflare : My Profile > API Tokens, avec l’autorisation Cloudflare Pages: Edit.",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Tableau de bord Cloudflare : le long ID dans la barre d’adresse, juste après dash.cloudflare.com/.",
+          "Custom domain": "Domaine personnalisé",
+          "Zone ID": "ID de zone",
+          "Existing remote name": "Nom distant existant",
+          "Default Zone ID": "ID de zone par défaut"
+        },
+        "uk": {
+          "Project name": "Назва проєкту",
+          "Cloudflare Pages finds or creates a project with this name on every publish.": "Cloudflare Pages під час кожної публікації знаходить або створює проєкт із цією назвою.",
+          "Account ID": "ID облікового запису",
+          "Needs an API token with the Cloudflare Pages: Edit permission, plus your Cloudflare account ID. Cloudflare cannot find a project without the account ID.": "Потрібен токен API з дозволом Cloudflare Pages: Edit, а також ID вашого облікового запису Cloudflare. Без ID облікового запису Cloudflare не може знайти проєкт.",
+          "API token": "Токен API",
+          "Cloudflare: My Profile > API Tokens, with the Cloudflare Pages: Edit permission.": "Cloudflare: My Profile > API Tokens, з дозволом Cloudflare Pages: Edit.",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Панель Cloudflare: довгий ID в адресному рядку, одразу після dash.cloudflare.com/."
+        },
+        "tr": {
+          "Project name": "Proje adı",
+          "Cloudflare Pages finds or creates a project with this name on every publish.": "Cloudflare Pages her yayında bu adla bir proje bulur veya oluşturur.",
+          "Account ID": "Hesap Kimliği",
+          "Needs an API token with the Cloudflare Pages: Edit permission, plus your Cloudflare account ID. Cloudflare cannot find a project without the account ID.": "Cloudflare Pages: Edit iznine sahip bir API belirteci ve Cloudflare hesap kimliğiniz gerekir. Hesap kimliği olmadan Cloudflare projeyi bulamaz.",
+          "API token": "API belirteci",
+          "Cloudflare: My Profile > API Tokens, with the Cloudflare Pages: Edit permission.": "Cloudflare: My Profile > API Tokens, Cloudflare Pages: Edit izniyle.",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Cloudflare panosu: adres çubuğunda dash.cloudflare.com/ ifadesinin hemen ardından gelen uzun kimlik."
+        },
+        "th": {
+          "Project name": "ชื่อโปรเจ็กต์",
+          "Cloudflare Pages finds or creates a project with this name on every publish.": "Cloudflare Pages ค้นหาหรือสร้างโปรเจ็กต์ชื่อนี้ทุกครั้งที่เผยแพร่",
+          "Account ID": "รหัสบัญชี",
+          "Needs an API token with the Cloudflare Pages: Edit permission, plus your Cloudflare account ID. Cloudflare cannot find a project without the account ID.": "ต้องใช้โทเค็น API ที่มีสิทธิ์ Cloudflare Pages: Edit และ ID บัญชี Cloudflare ของคุณ Cloudflare หาโปรเจ็กต์ไม่พบหากไม่มี ID บัญชี",
+          "API token": "โทเค็น API",
+          "Cloudflare: My Profile > API Tokens, with the Cloudflare Pages: Edit permission.": "Cloudflare: My Profile > API Tokens พร้อมสิทธิ์ Cloudflare Pages: Edit",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "แดชบอร์ด Cloudflare: ID ยาวในแถบที่อยู่ ต่อจาก dash.cloudflare.com/ ทันที",
+          "Custom domain": "โดเมนที่กำหนดเอง",
+          "Zone ID": "รหัสโซน",
+          "Existing remote name": "ชื่อระยะไกลที่มีอยู่",
+          "Default Zone ID": "รหัสโซนเริ่มต้น"
+        },
+        "it": {
+          "Project name": "Nome del progetto",
+          "Cloudflare Pages finds or creates a project with this name on every publish.": "Cloudflare Pages trova o crea un progetto con questo nome a ogni pubblicazione.",
+          "Account ID": "ID account",
+          "Needs an API token with the Cloudflare Pages: Edit permission, plus your Cloudflare account ID. Cloudflare cannot find a project without the account ID.": "Richiede un token API con il permesso Cloudflare Pages: Edit, oltre all’ID del tuo account Cloudflare. Senza l’ID account, Cloudflare non riesce a trovare il progetto.",
+          "API token": "Token API",
+          "Cloudflare: My Profile > API Tokens, with the Cloudflare Pages: Edit permission.": "Cloudflare: My Profile > API Tokens, con il permesso Cloudflare Pages: Edit.",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Dashboard di Cloudflare: il lungo ID nella barra degli indirizzi, subito dopo dash.cloudflare.com/.",
+          "Custom domain": "Dominio personalizzato",
+          "Zone ID": "ID zona",
+          "Existing remote name": "Nome remoto esistente",
+          "Default Zone ID": "ID zona predefinito"
+        },
+        "hi": {
+          "Project name": "प्रोजेक्ट नाम",
+          "Cloudflare Pages finds or creates a project with this name on every publish.": "Cloudflare Pages हर प्रकाशन पर इस नाम से प्रोजेक्ट खोजता या बनाता है।",
+          "Account ID": "खाता ID",
+          "Needs an API token with the Cloudflare Pages: Edit permission, plus your Cloudflare account ID. Cloudflare cannot find a project without the account ID.": "Cloudflare Pages: Edit अनुमति वाला API टोकन और आपका Cloudflare खाता ID चाहिए। खाता ID के बिना Cloudflare प्रोजेक्ट नहीं ढूँढ सकता।",
+          "API token": "API टोकन",
+          "Cloudflare: My Profile > API Tokens, with the Cloudflare Pages: Edit permission.": "Cloudflare: My Profile > API Tokens, Cloudflare Pages: Edit अनुमति के साथ।",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Cloudflare डैशबोर्ड: एड्रेस बार में dash.cloudflare.com/ के ठीक बाद वाला लंबा ID।",
+          "Custom domain": "कस्टम डोमेन",
+          "Zone ID": "ज़ोन ID",
+          "Existing remote name": "मौजूदा रिमोट नाम",
+          "Default Zone ID": "डिफ़ॉल्ट ज़ोन ID"
+        },
+        "ur": {
+          "Project name": "پروجیکٹ کا نام",
+          "Cloudflare Pages finds or creates a project with this name on every publish.": "Cloudflare Pages ہر اشاعت پر اس نام کا پروجیکٹ ڈھونڈتا یا بناتا ہے۔",
+          "Account ID": "اکاؤنٹ ID",
+          "Needs an API token with the Cloudflare Pages: Edit permission, plus your Cloudflare account ID. Cloudflare cannot find a project without the account ID.": "Cloudflare Pages: Edit اجازت والا API ٹوکن اور آپ کا Cloudflare اکاؤنٹ ID درکار ہے۔ اکاؤنٹ ID کے بغیر Cloudflare پروجیکٹ نہیں ڈھونڈ سکتا۔",
+          "API token": "API ٹوکن",
+          "Cloudflare: My Profile > API Tokens, with the Cloudflare Pages: Edit permission.": "Cloudflare: My Profile > API Tokens، Cloudflare Pages: Edit اجازت کے ساتھ۔",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Cloudflare ڈیش بورڈ: ایڈریس بار میں dash.cloudflare.com/ کے فوراً بعد والا لمبا ID۔",
+          "Custom domain": "حسب ضرورت ڈومین",
+          "Zone ID": "زون ID",
+          "Existing remote name": "موجودہ ریموٹ نام",
+          "Default Zone ID": "پہلے سے طے شدہ زون ID"
+        },
+        "bn": {
+          "Project name": "প্রকল্পের নাম",
+          "Cloudflare Pages finds or creates a project with this name on every publish.": "Cloudflare Pages প্রতিটি প্রকাশনার সময় এই নামের একটি প্রকল্প খুঁজে বা তৈরি করে।",
+          "Account ID": "অ্যাকাউন্ট আইডি",
+          "Needs an API token with the Cloudflare Pages: Edit permission, plus your Cloudflare account ID. Cloudflare cannot find a project without the account ID.": "Cloudflare Pages: Edit অনুমতিসহ একটি API টোকেন এবং আপনার Cloudflare অ্যাকাউন্ট আইডি প্রয়োজন। অ্যাকাউন্ট আইডি ছাড়া Cloudflare প্রকল্পটি খুঁজে পায় না।",
+          "API token": "API টোকেন",
+          "Cloudflare: My Profile > API Tokens, with the Cloudflare Pages: Edit permission.": "Cloudflare: My Profile > API Tokens, Cloudflare Pages: Edit অনুমতিসহ।",
+          "Cloudflare dashboard: the long ID in the address bar, right after dash.cloudflare.com/.": "Cloudflare ড্যাশবোর্ড: ঠিকানা বারে dash.cloudflare.com/-এর ঠিক পরের লম্বা আইডি।",
+          "Custom domain": "কাস্টম ডোমেন",
+          "Zone ID": "জোন আইডি",
+          "Existing remote name": "বিদ্যমান রিমোট নাম",
+          "Default Zone ID": "ডিফল্ট জোন আইডি"
+        }
+      },
+      "config": [
+        {
+          "name": "customDomain",
+          "label": "Custom domain",
+          "required": false,
+          "help": "Apex hostname only. Preview inspects apex and www; domain changes require the human confirmation card."
+        },
+        {
+          "name": "zoneId",
+          "label": "Zone ID",
+          "required": false,
+          "help": "Optional zone selection. The account and exact apex hostname must match."
+        },
+        {
+          "name": "resourceName",
+          "label": "Existing remote name",
+          "required": false,
+          "help": "Exact existing project or script name from publish history; leave blank for jini-<project>."
+        }
+      ]
+    }
+  ]
+}

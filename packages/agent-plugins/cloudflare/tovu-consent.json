@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 2,
+  "contributions": [
+    { "kind": "region-resolver", "id": "cloudflare", "header": "cf-ipcountry" }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "name": "@jini-ai/plugin-cloudflare",
+  "version": "0.6.17",
+  "description": "Independently installable Cloudflare Workers and Pages publishing, reviewed custom domains and D1 form submissions in the portable Agent Plugins format.",
+  "type": "module",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/AINSEP/Jini.git",
+    "directory": "packages/plugin-cloudflare"
+  },
+  "jini": {
+    "domain": "tooling",
+    "kind": "plugin-packaging",
+    "runtime": "universal",
+    "entries": {
+      "./package.json": "universal",
+      "./plugin.json": "universal",
+      "./cloudflare/*": "universal"
+    }
+  },
+  "exports": {
+    "./package.json": "./package.json",
+    "./plugin.json": "./cloudflare/plugin.json",
+    "./cloudflare/*": "./cloudflare/*"
+  },
+  "files": ["cloudflare", "README.md", "LICENSE", "NOTICE"],
+  "scripts": {
+    "build": "node --import tsx ../../scripts/assemble-agent-plugin-package.ts cloudflare",
+    "prepack": "node --import tsx ../../scripts/assemble-agent-plugin-package.ts cloudflare"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "cloudflare",
+  "version": "0.3.1",
+  "description": "Publishes static exports to Cloudflare Workers or Pages and attaches reviewed custom domains using your saved Cloudflare connection. Workers sites with active forms store submissions in a D1 database in your Cloudflare account for the host to pull. Preview reads current infrastructure; domain changes require human confirmation.",
+  "author": "Tovu",
+  "license": "Apache-2.0",
+  "extensions": {
+    "tovu": {
+      "vendorAliases": ["pages.dev", "workers.dev"],
+      "displayName": "Cloudflare",
+      "summary": "Publish static exports with Workers or Pages and review apex/www domain changes before applying them.",
+      "id": "tovu/cloudflare",
+      "provides": [
+        "deploy-target:cloudflare-workers",
+        "deploy-target:cloudflare-pages",
+        "form-destination:cloudflare-d1"
+      ],
+      "supersedes": {
+        "packages": [
+          "cloudflare-pages"
+        ],
+        "contributions": [
+          {
+            "fromPlugins": [
+              "deploy",
+              "cloudflare-pages"
+            ],
+            "descriptorId": "cloudflare-pages",
+            "label": "deploy target"
+          }
+        ]
+      },
+      "credentialCards": [
+        {
+          "target": "cloudflare-workers",
+          "title": "Connect Cloudflare Workers",
+          "label": "Cloudflare Workers connection",
+          "category": "hosting",
+          "intro": "Connect Cloudflare Workers to publish this site, with optional forms and approved custom-domain changes.",
+          "usedFor": [
+            "Publishes your website on Cloudflare Workers",
+            "Collects your site's form submissions",
+            "Checks your domain and applies domain changes you approve"
+          ],
+          "keyHint": "Scope to the selected account: Account → Workers Scripts → Edit. Forms also need D1 → Edit. Custom domains need Zone, DNS, Workers Routes, Workers Scripts and Cloudflare Pages reads; certificate polling needs SSL and Certificates → Read. Grant DNS or Workers Routes edit only for the corresponding approved changes.",
+          "saveKind": "publish-host",
+          "helpUrl": "https://dash.cloudflare.com/profile/api-tokens",
+          "helpLabel": "Create a token",
+          "baseUrl": "https://api.cloudflare.com"
+        },
+        {
+          "target": "cloudflare-pages",
+          "title": "Connect Cloudflare Pages",
+          "label": "Cloudflare Pages connection",
+          "category": "hosting",
+          "intro": "Connect Cloudflare Pages to publish this site, with optional approved custom-domain changes.",
+          "usedFor": [
+            "Publishes your website on Cloudflare Pages",
+            "Checks your domain and applies domain changes you approve"
+          ],
+          "keyHint": "Scope to the selected account: Account → Cloudflare Pages → Edit. Custom domains need Zone, DNS, Workers Routes and Workers Scripts reads; attaching a domain needs DNS → Edit. Grant Workers Scripts or Workers Routes edit only for corresponding approved transfers.",
+          "saveKind": "publish-host",
+          "helpUrl": "https://dash.cloudflare.com/profile/api-tokens",
+          "helpLabel": "Create a token",
+          "baseUrl": "https://api.cloudflare.com"
+        }
+      ],
+      "publicDnsResolver": {
+        "url": "https://cloudflare-dns.com/dns-query",
+        "format": "dns-json"
+      }
+    }
+  },
+  "keywords": [
+    "cloudflare-pages",
+    "cloudflare",
+    "deploy",
+    "publish",
+    "hosting",
+    "static-site",
+    "static-export",
+    "go-live",
+    "website",
+    "deploy-target:cloudflare-pages",
+    "workers",
+    "deploy-target:cloudflare-workers",
+    "custom-domain",
+    "dns",
+    "pages",
+    "cloudflare-workers",
+    "custom domain",
+    "apex",
+    "www"
+  ]
+}

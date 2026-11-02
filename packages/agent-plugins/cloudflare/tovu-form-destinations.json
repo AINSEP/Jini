@@ -1,0 +1,12 @@
+{
+  "schemaVersion": 1,
+  "destinations": [
+    {
+      "id": "cloudflare-d1",
+      "label": "Cloudflare (D1 in your account)",
+      "module": "form-destinations/cloudflare-d1.mjs",
+      "receive": "co-hosted",
+      "hosts": ["cloudflare-workers"]
+    }
+  ]
+}
