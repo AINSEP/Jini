@@ -173,3 +173,21 @@ test.each(['migration', 'plugin'])('a held %s lock prevents migration completion
     await expect(fs.stat(path.join(temporary, 'staging', 'legacy-quarantine'))).rejects.toMatchObject({ code: 'ENOENT' });
   } finally { await forceRemove(temporary); }
 });
+
+// REGRESSION: fails if migration parses legacy plugin.json under the default identity namespace
+// instead of ports.extensionNamespace — an unrelated malformed `tovu` extension then quarantines it.
+test('migration reads legacy package identity under the host namespace, ignoring unrelated extensions', async () => {
+  const temporary = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), 'jini-migrate-namespace-')));
+  const digest = 'e'.repeat(64);
+  const legacy = path.join(temporary, 'packages', 'sha256', digest);
+  try {
+    await fs.mkdir(legacy, { recursive: true });
+    await fs.writeFile(path.join(legacy, 'plugin.json'), JSON.stringify({ $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json', name: 'example', extensions: { tovu: 'not-an-object' } }));
+    const events: string[] = [];
+    const state = createPersistentStateModule({ ...defaultPorts, onEvent: ({ event }) => events.push(event) });
+    expect(defaultPorts.extensionNamespace).not.toBe('tovu');
+    expect(await state.migrate({ workspaceRoot: temporary })).toEqual({ complete: true, moved: 1 });
+    expect(JSON.parse(await fs.readFile(path.join(temporary, 'example', 'package', 'sha256', digest, 'plugin.json'), 'utf8'))).toMatchObject({ name: 'example' });
+    expect(events).not.toContain('migration-quarantined');
+  } finally { await forceRemove(temporary); }
+});

@@ -93,3 +93,12 @@ test('legacy translation cannot hide malformed grants or a malformed declared ex
   expect(readerCalls).toBe(0);
   expect(invalidExtension.config.servers.remote).toBeUndefined();
 });
+
+// REGRESSION: fails if plugin.json is parsed under the default identity namespace instead of the
+// supplied extensionNamespace — a malformed, unrelated `tovu` extension then hides valid host metadata.
+test('an unrelated malformed identity extension cannot suppress the supplied namespace metadata', () => {
+  const pluginManifest = { $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json', name: 'fixture', extensions: { tovu: 'not-an-object', 'org.example.host': { mcpServers: { remote: { defaultTools: { read: ['inspect'] } } } } } };
+  const parsed = parseAgentPluginMcpConfig({ value, extensionNamespace: 'org.example.host' }, { pluginManifest });
+  if (!parsed.ok) throw new Error(parsed.errors.join('; '));
+  expect((parsed.config.servers.remote as RemoteMcpServerConfig).defaultTools).toEqual({ write: [], read: ['inspect'] });
+});
