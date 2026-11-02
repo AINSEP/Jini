@@ -2,6 +2,7 @@
 
 ## Unreleased (0.6.19)
 
+- Google Workspace: a Sheets `batchUpdate` with more than one request is never replayed after an unknown outcome. Each request was judged replay-safe alone, but Google applies them in order, so a retry of "copy A1 to B1, then set A1" changed B1.
 - Security: reinstalling a plugin whose digest directory already exists compares that directory's bytes with the verified archive before reusing it. A same-build reseed used to keep an operator-edited bundled revision selected as shipped code; a modified copy is now kept aside under a `.modified-*` name (never indexed or selected) and the verified bytes are reinstalled.
 - Railway's deploy-config generator refuses an `env` value containing a newline or control character (C0, DEL, C1) with an error naming the variable. Before, it printed the raw LF or NUL into the copy-paste `railway variables set` command. The error never echoes the value.
 - Add the portable Shopify catalog and checkout skill under `@jini-ai/agent-plugins/shopify`; host collection tools, markup and domain routing stay in the host overlay.

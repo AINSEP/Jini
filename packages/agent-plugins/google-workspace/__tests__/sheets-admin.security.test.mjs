@@ -136,6 +136,29 @@ test('uncertain: a batch holding a non-replayable kind that gets a 5xx is uncert
   assert.equal(fake.requests.filter((request) => request.path === BATCH_PATH).length, 1);
 });
 
+// Each kind below is replay-safe alone, but Google runs a batch's requests in order: replaying
+// "copy A1 to B1, then set A1 = 2" after a lost response copies the new A1 and changes B1.
+test('uncertain: a compound batch of replay-safe kinds is applied once, its response lost, and never sent again', async () => {
+  const sheet = { A1: 1, B1: undefined };
+  let applied = 0;
+  fake.route({ method: 'POST', path: BATCH_PATH }, () => {
+    applied += 1;
+    sheet.B1 = sheet.A1;
+    sheet.A1 = 2;
+    return [503, { error: { code: 503, status: 'UNAVAILABLE' } }];
+  });
+  const a1 = { sheetId: 3, startRowIndex: 0, endRowIndex: 1, startColumnIndex: 0, endColumnIndex: 1 };
+  const b1 = { ...a1, startColumnIndex: 1, endColumnIndex: 2 };
+  const requests = [
+    { copyPaste: { source: a1, destination: b1 } },
+    { updateCells: { range: a1, rows: [{ values: [{ userEnteredValue: { numberValue: 2 } }] }], fields: 'userEnteredValue' } },
+  ];
+  assert.ok(requests.every((request) => REQUEST_KINDS[Object.keys(request)[0]].replay === 'idempotent'));
+  await assert.rejects(run(batchUpdate, { requests }), { code: 'uncertain-outcome', outcome: 'unknown', retryable: false });
+  assert.equal(applied, 1);
+  assert.deepEqual(sheet, { A1: 2, B1: 1 });
+});
+
 // The host executor's schema refusal of the same id (validation before the module runs) is pinned
 // with the host's registrar in its overlay tests; here the declared pattern itself must refuse it.
 test('paths: a spreadsheet id that is not a Google id never reaches a URL, and the declared input schema refuses it too', async () => {

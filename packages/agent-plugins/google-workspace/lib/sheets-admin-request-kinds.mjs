@@ -11,6 +11,9 @@
  * - `replay`: `unsafe` when sending the same request twice can change the sheet twice (adds,
  *   inserts, appends, deletes by index, moves, find/replace, randomize). A batch holding one is a
  *   `write` for the HTTP client, so an unknown outcome is `uncertain-outcome` and never replayed.
+ *   The class judges a request ALONE. Google applies a batch's requests in order, so two safe kinds
+ *   can compose into an unsafe sequence (copy A1 to B1, then set A1: a replay copies the new A1 into
+ *   B1). No sequence is reviewed as safe, so a batch of more than one request is always a `write`.
  * - `requires`: the fields Google needs; an inner array means "at least one of". `fields` (the field
  *   mask) must be explicit: `*` would reset every property the request does not set.
  *
@@ -166,7 +169,7 @@ export function checkRequests(required, _optional = {}) {
     kinds.set(checked.kind, { effect: checked.entry.effect, count: (kinds.get(checked.kind)?.count ?? 0) + 1 });
   });
   if (kinds.size > MAX_DISTINCT_KINDS) throw refuse('limit-exceeded', `at most ${MAX_DISTINCT_KINDS} different request kinds per batch`);
-  return { kind: unsafe ? 'write' : 'idempotent-write', kinds };
+  return { kind: unsafe || required.requests.length > 1 ? 'write' : 'idempotent-write', kinds };
 }
 
 /**
