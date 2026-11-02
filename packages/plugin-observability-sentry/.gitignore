@@ -1,2 +1,4 @@
 /plugins/
 /.provider-build-*/
+/sentry/
+/.agent-package-*/
