@@ -1,0 +1,11 @@
+Jini Resend Agent Plugin
+Copyright 2026 Leona Burime
+
+Portable plugin sources remain at packages/agent-plugins/resend.
+Moved from Tovu's bundled content/agent-plugins/resend (2026-11-02); product words were made
+host-neutral and the host's webhook setup stays with the host as an overlay.
+All skill text and adapter code are original. The adapter talks to Resend's public HTTP API; no
+Resend SDK or other third-party code is included. The MCP declaration points at Resend's hosted
+server and ships none of its code.
+
+See LICENSE for the Apache License, Version 2.0.

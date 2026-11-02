@@ -1,0 +1,13 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "resend": {
+      "type": "streamable-http",
+      "url": "https://mcp.resend.com/mcp",
+      "tovuTokenAuth": {
+        "helpUrl": "https://resend.com/api-keys",
+        "probeUrl": "https://api.resend.com/domains"
+      }
+    }
+  }
+}
