@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { assertPluginBundleIsolation, assertPluginPackageIsolation, type PluginIsolationManifest } from '../check-plugin-isolation.js';
 
 const name = '@jini-ai/plugin-analytics-posthog';
-const pluginIds = ['analytics-posthog', 'observability-sentry', 'payments-stripe', 'ui-ux-design'];
+const pluginIds = ['analytics-posthog', 'observability-sentry', 'payments-stripe', 'slide-design', 'ui-ux-design'];
 const docs = ['package/package.json', 'package/README.md', 'package/LICENSE', 'package/NOTICE'];
 const ownPayload = 'package/plugins/analytics-posthog/0.6.17/server/index.mjs';
 const check = (manifest: PluginIsolationManifest, packedPaths = [...docs, ownPayload]) =>
@@ -83,6 +83,12 @@ describe('plugin package installation isolation', () => {
   it('accepts core lifecycle implementation files without plugin assets', () => {
     expect(() => check({ name: '@jini-ai/agent-plugins' }, [...docs, 'package/dist/lifecycle/install.js'])).not.toThrow();
     expect(() => check({ name: '@jini-ai/plugin-ui-ux-design' }, [...docs, 'package/ui-ux-design/plugin.json'])).not.toThrow();
+    expect(() => check({ name: '@jini-ai/plugin-slide-design' }, [...docs, 'package/slide-design/skills/slide-design/SKILL.md'])).not.toThrow();
+  });
+
+  it('keeps the two agent plugin payloads apart', () => {
+    expect(() => check({ name: '@jini-ai/plugin-slide-design' }, [...docs, 'package/ui-ux-design/plugin.json'])).toThrow("another plugin's payload");
+    expect(() => check({ name: '@jini-ai/plugin-ui-ux-design' }, [...docs, 'package/slide-design/plugin.json'])).toThrow("another plugin's payload");
   });
 
   it('rejects provider assets bundled with the agent plugin', () => {
@@ -116,7 +122,7 @@ describe('plugin bundle input isolation', () => {
     'src/analytics-posthog/../payments-stripe/index.ts', 'src\\payments-stripe\\index.ts', 'src/future-shared.ts',
     'node_modules/@jini-ai/plugin-payments-stripe/plugins/payments-stripe/0.6.17/server/index.mjs',
     '../plugin-payments-stripe/plugins/payments-stripe/0.6.17/server/index.mjs',
-    '../agent-plugins/ui-ux-design/plugin.json'])(
+    '../agent-plugins/ui-ux-design/plugin.json', '../agent-plugins/slide-design/plugin.json'])(
     'rejects a transitive sibling or unreviewed source: %s', input => {
       expect(() => bundle(['src/analytics-posthog/index.ts', input])).toThrow(`forbidden bundled source ${input}`);
     });

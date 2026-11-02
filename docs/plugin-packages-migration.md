@@ -1,7 +1,7 @@
 # Standalone plugin packages — 0.6.17
 
 Each package contains one prebuilt plugin. Sources remain in
-`packages/provider-plugins/src/<id>` and `packages/agent-plugins/ui-ux-design`;
+`packages/provider-plugins/src/<id>` and `packages/agent-plugins/<id>` (ui-ux-design, slide-design);
 the destination package's payload is generated and gitignored. Reviewed manifests,
 README, LICENSE and NOTICE stay tracked. No plugin depends on another plugin, and
 core/lifecycle packages carry no plugin payloads. Provider SDKs are bundled at
@@ -16,6 +16,7 @@ build time, so an installed provider needs no vendor SDK dependency.
 | `payments-stripe` | `@jini-ai/plugin-payments-stripe` |
 | `fixture-provider` (test only) | `@jini-ai/plugin-fixture-provider` |
 | `agent-plugins/ui-ux-design/*` | `@jini-ai/plugin-ui-ux-design` |
+| none (new in 0.6.18) | `@jini-ai/plugin-slide-design` (stage like ui-ux-design) |
 | `provider-plugins/catalog` | `@jini-ai/plugin-catalog/catalog` (optional metadata) |
 
 ## Host migration

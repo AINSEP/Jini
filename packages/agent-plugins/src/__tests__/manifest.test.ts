@@ -83,3 +83,45 @@ describe('ui-ux-design plugin', () => {
     expect(() => JSON.parse(raw)).not.toThrow();
   });
 });
+
+describe('slide-design plugin', () => {
+  const packageRoot = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
+  const pluginRoot = join(packageRoot, 'slide-design');
+  const skillRoot = join(pluginRoot, PLUGIN_SKILLS_DIRNAME, 'slide-design');
+  const skill = readFileSync(join(skillRoot, 'SKILL.md'), 'utf8');
+  const references = readdirSync(join(skillRoot, 'references')).sort();
+
+  it('has a plugin.json that validates as a PluginManifest', () => {
+    const manifest: unknown = JSON.parse(readFileSync(join(pluginRoot, 'plugin.json'), 'utf8'));
+    expect(isPluginManifest(manifest)).toBe(true);
+    expect(manifest).toMatchObject({ name: 'slide-design', version: '0.1.0', license: 'Apache-2.0' });
+  });
+
+  it('bundles exactly one skill whose frontmatter names it', () => {
+    expect(readdirSync(join(pluginRoot, PLUGIN_SKILLS_DIRNAME))).toEqual(['slide-design']);
+    expect(skill).toMatch(/^---\nname: slide-design\n[\s\S]*?\ndescription: Use when \S[^\n]+\n---\n/);
+  });
+
+  it('names every reference file it ships, and ships every reference it names', () => {
+    expect(references).toEqual(['charts-and-exhibits.md', 'html-deck.md', 'layout-and-style.md', 'review.md', 'storyline.md']);
+    const named = [...new Set([...skill.matchAll(/references\/([a-z-]+\.md)/g)].map(match => match[1]))].sort();
+    expect(named).toEqual(references);
+  });
+
+  it('keeps its text consumer-neutral', () => {
+    for (const text of [skill, ...references.map(name => readFileSync(join(skillRoot, 'references', name), 'utf8'))]) {
+      expect(text).not.toMatch(/tovu|\boria\b/i);
+    }
+  });
+
+  it('has an mcp.json that validates as an empty McpManifest', () => {
+    const manifest: unknown = JSON.parse(readFileSync(join(pluginRoot, 'mcp.json'), 'utf8'));
+    expect(isMcpManifest(manifest)).toBe(true);
+    expect((manifest as { mcpServers: Record<string, unknown> }).mcpServers).toEqual({});
+  });
+
+  it('has a client extension directory (§8.2) with valid JSON', () => {
+    const raw = readFileSync(join(pluginRoot, 'com.anthropic.claude-code', 'hooks', 'hooks.json'), 'utf8');
+    expect(() => JSON.parse(raw)).not.toThrow();
+  });
+});

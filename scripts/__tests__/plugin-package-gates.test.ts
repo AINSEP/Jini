@@ -10,7 +10,7 @@ type InspectionInput = { entry: JiniPackageEntry };
 
 const names = ['plugin-ai-trace-langfuse', 'plugin-analytics-posthog', 'plugin-fixture-provider',
   'plugin-observability-opentelemetry', 'plugin-observability-sentry', 'plugin-payments-stripe',
-  'plugin-ui-ux-design', 'plugin-catalog'];
+  'plugin-slide-design', 'plugin-ui-ux-design', 'plugin-catalog'];
 const documents = ['package.json', 'README.md', 'LICENSE', 'NOTICE'];
 let root: string;
 
@@ -30,7 +30,7 @@ beforeEach(() => {
 });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 
-it('registers all seven distribution leaves and the catalog without allowing core imports of them', () => {
+it('registers all eight distribution leaves and the catalog without allowing core imports of them', () => {
   expect(checkPluginPackages({ repoRoot: root })).toEqual([]);
   expect(checkPackageLayers({ repoRoot: root })).toEqual([]);
   manifest({ name: 'core', fields: { dependencies: { '@jini-ai/plugin-fixture-provider': '^0.6.17' } } });

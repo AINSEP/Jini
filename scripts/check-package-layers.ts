@@ -29,7 +29,7 @@ const layers: Readonly<Record<string, number>> = {
   // Standalone distributions remain leaves; a catalog only describes those leaves.
   'plugin-ai-trace-langfuse': 7, 'plugin-analytics-posthog': 7, 'plugin-fixture-provider': 7,
   'plugin-observability-opentelemetry': 7, 'plugin-observability-sentry': 7,
-  'plugin-payments-stripe': 7, 'plugin-ui-ux-design': 7, 'plugin-catalog': 7,
+  'plugin-payments-stripe': 7, 'plugin-slide-design': 7, 'plugin-ui-ux-design': 7, 'plugin-catalog': 7,
 };
 const sameLayerEdges = new Set(['cli→sidecar', 'cms-forms→cms', 'admin→ui']);
 

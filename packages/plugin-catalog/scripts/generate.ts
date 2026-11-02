@@ -12,6 +12,8 @@ interface PluginManifest {
   integrity?: Record<string, string>;
 }
 interface PackageManifest { name: string; version: string; description: string }
+/** Agent plugin packages; every other catalog id is a provider-plugins source. */
+export const agentPluginIds = ['slide-design', 'ui-ux-design'] as const;
 export interface CatalogEntry {
   kind: 'provider' | 'agent'; id: string; publisherIdentity: string;
   packageName: string; version: string; pluginVersion: string; path: string;
@@ -69,7 +71,7 @@ export async function generateCatalog(required: {
   for (const id of [...required.ids].sort()) {
     const root = path.join(packagesRoot, `plugin-${id}`);
     const pkg = await ports.readJson(path.join(root, 'package.json')) as PackageManifest;
-    const agent = id === 'ui-ux-design';
+    const agent = (agentPluginIds as readonly string[]).includes(id);
     const manifestName = agent ? 'plugin.json' : 'jini.plugin.json';
     const source = agent ? `agent-plugins/${id}` : `provider-plugins/src/${id}`;
     const plugin = await ports.readJson(path.join(packagesRoot, source, manifestName)) as PluginManifest;
@@ -108,7 +110,7 @@ async function writeCatalog(): Promise<void> {
   const names = await readdir(path.join(packagesRoot, 'provider-plugins/src'), { withFileTypes: true });
   const ids = names.filter(item => item.isDirectory() && !item.name.startsWith('__')).map(item => item.name);
   const { computePluginIntegrity } = await import('@jini-ai/plugins/host/node');
-  const entries = await generateCatalog({ packagesRoot, ids: [...ids, 'ui-ux-design'], ports: {
+  const entries = await generateCatalog({ packagesRoot, ids: [...ids, ...agentPluginIds], ports: {
     readJson: async file => JSON.parse(await readFile(file, 'utf8')) as unknown,
     integrity: computePluginIntegrity,
   } });

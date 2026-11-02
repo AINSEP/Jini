@@ -19,6 +19,9 @@ export interface PluginIsolationPorts {
 const documentation = new Set(['package.json', 'README.md', 'LICENSE', 'NOTICE', 'CHANGELOG.md']);
 const pluginReference = /@jini-ai\/(?:plugin-[a-z0-9-]+|provider-plugins)(?=$|[^a-z0-9-])/;
 const neutralHelpers = new Set(['attribution.ts', 'telemetry-reporter.ts', 'trim-trailing-slashes.ts']);
+// Agent plugin packages publish their payload under `<id>/`; provider packages under `plugins/<id>/`.
+const agentPluginIds = new Set(['slide-design', 'ui-ux-design']);
+const agentPayloadSource = new RegExp(`(?:^|/)(?:plugin-[a-z0-9-]+|${[...agentPluginIds].join('|')})/`);
 
 /** Reject aliases as well as declared names; unresolved local references fail closed. */
 function assertDependency(
@@ -64,7 +67,7 @@ function assertPayloadPath(required: { owner: string; path: string; ownId: strin
     throw new TypeError(`${owner}: another plugin's payload in ${path}`);
   }
   if (ownId !== undefined) {
-    const prefix = ownId === 'ui-ux-design' ? `${ownId}/` : `plugins/${ownId}/`;
+    const prefix = agentPluginIds.has(ownId) ? `${ownId}/` : `plugins/${ownId}/`;
     if (path.startsWith(prefix)) {
       const providers = [...path.matchAll(/(?:^|\/)plugins\/([^/]+)/g)];
       if (providers.some(match => match[1] !== ownId)) throw new TypeError(`${owner}: another plugin's payload in ${path}`);
@@ -119,7 +122,7 @@ export function assertPluginBundleIsolation(
   const sourceRoot = resolve(required.packageRoot, 'src');
   for (const input of required.inputs) {
     const normalized = input.replaceAll('\\', '/');
-    if (pluginReference.test(normalized) || /(?:^|\/)(?:plugin-[a-z0-9-]+|ui-ux-design)\//.test(normalized)) {
+    if (pluginReference.test(normalized) || agentPayloadSource.test(normalized)) {
       throw new TypeError(`${required.pluginId}: forbidden bundled source ${input}`);
     }
     const path = relative(sourceRoot, resolve(required.packageRoot, normalized)).replaceAll('\\', '/');

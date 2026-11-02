@@ -36,6 +36,13 @@
     "description": "Stripe payments provider", "expectedDigests": null
   },
   {
+    "kind": "agent", "id": "slide-design", "publisherIdentity": "jini/slide-design",
+    "packageName": "@jini-ai/plugin-slide-design", "version": "0.6.17", "pluginVersion": "0.1.0",
+    "path": "slide-design", "contract": { "id": "agent-plugins", "version": "1.0.0" },
+    "description": "Slide and presentation design: storyline, takeaway titles, charts, 16:9 layout, speaker notes, accessibility, review and HTML decks, as one portable Agent Plugin.",
+    "expectedDigests": null
+  },
+  {
     "kind": "agent", "id": "ui-ux-design", "publisherIdentity": "jini/ui-ux-design",
     "packageName": "@jini-ai/plugin-ui-ux-design", "version": "0.6.17", "pluginVersion": "0.4.6",
     "path": "ui-ux-design", "contract": { "id": "agent-plugins", "version": "1.0.0" },

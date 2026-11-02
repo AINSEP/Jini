@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { catalogEntry, generateCatalog, type CatalogEntry } from '../scripts/generate.js';
+import { agentPluginIds, catalogEntry, generateCatalog, type CatalogEntry } from '../scripts/generate.js';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const packagesRoot = path.dirname(root);
@@ -15,10 +15,11 @@ const designPackage = await readJson(path.join(packagesRoot, 'plugin-ui-ux-desig
 const digest = `sha256-${'a'.repeat(64)}`;
 
 describe('standalone plugin catalog', () => {
-  it('lists every provider source exactly once and the shared design agent', async () => {
+  it('lists every provider source exactly once and each agent plugin package', async () => {
     const sources = await readdir(path.join(packagesRoot, 'provider-plugins/src'), { withFileTypes: true });
     const ids = sources.filter(item => item.isDirectory() && !item.name.startsWith('__')).map(item => item.name);
-    expect(entries.map(entry => entry.id)).toEqual([...ids, 'ui-ux-design'].sort());
+    expect(agentPluginIds).toEqual(['slide-design', 'ui-ux-design']);
+    expect(entries.map(entry => entry.id)).toEqual([...ids, ...agentPluginIds].sort());
   });
 
   it.each(entries)('$id matches its real package, publisher, path and contract', async entry => {
@@ -33,9 +34,13 @@ describe('standalone plugin catalog', () => {
     expect(entry.path.split('/')).not.toContain('..');
   });
 
-  it('preserves the agent manifest version independently of the npm release', () => {
-    expect(entries.find(entry => entry.kind === 'agent')).toMatchObject({
-      version: designPackage.version, pluginVersion: '0.4.6', contract: { id: 'agent-plugins', version: '1.0.0' },
+  it('preserves each agent manifest version independently of the npm release', () => {
+    expect(entries.find(entry => entry.id === 'ui-ux-design')).toMatchObject({
+      kind: 'agent', version: designPackage.version, pluginVersion: '0.4.6', contract: { id: 'agent-plugins', version: '1.0.0' },
+    });
+    expect(entries.find(entry => entry.id === 'slide-design')).toMatchObject({
+      kind: 'agent', version: designPackage.version, pluginVersion: '0.1.0', path: 'slide-design',
+      contract: { id: 'agent-plugins', version: '1.0.0' },
     });
   });
 
