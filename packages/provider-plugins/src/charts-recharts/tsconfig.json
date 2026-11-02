@@ -1,0 +1,5 @@
+{
+  // esbuild (the provider builder) and Vite (vitest) read only the nearest tsconfig.json, so this
+  // file hands them the chart sources' JSX setting. `tsc -p tsconfig.charts.json` type-checks them.
+  "extends": "../../tsconfig.charts.json"
+}

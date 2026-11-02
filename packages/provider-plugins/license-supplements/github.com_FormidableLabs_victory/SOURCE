@@ -1,0 +1,1 @@
+Upstream LICENSE.txt of https://github.com/FormidableLabs/victory (main branch, fetched 2026-11-01; the npm package victory-vendor 37.3.6 ships no license file and declares "MIT AND ISC": MIT for Victory, ISC for the d3 packages it re-exports, which are bundled from their own npm packages with their own LICENSE files).

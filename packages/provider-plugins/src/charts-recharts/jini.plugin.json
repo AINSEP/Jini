@@ -1,0 +1,27 @@
+{
+  "id": "charts-recharts",
+  "name": "Recharts",
+  "version": "0.6.19",
+  "sdkRange": "^0.1.0 || ^1.0.0",
+  "engine": 1,
+  "tier": "tier-3",
+  "extensions": {
+    "tovu": {
+      "id": "tovu/charts-recharts"
+    }
+  },
+  "capabilities": [],
+  "hooks": [],
+  "fields": [],
+  "browserProviders": [
+    {
+      "id": "plugin.recharts",
+      "kind": "chart",
+      "contractVersion": 1,
+      "kinds": ["bar", "line", "pie"],
+      "javascript": "client/provider.js",
+      "stylesheet": "client/styles.css"
+    }
+  ],
+  "integrity": {}
+}
