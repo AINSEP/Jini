@@ -26,7 +26,9 @@ describe('Recharts artifact through the neutral UI host and A2UI catalog', () =>
     const entry = snapshot.resolveById({ id: `recharts.${kind}` })!;
     const selected = snapshot.resolveByCapability({ capability: kind })[0]!;
     expect(entry.provider).toBe('plugin.recharts');
-    expect(entry.Component).toBe(selected.Component);
+    // The alias keeps generic selection while the selected provider entry pins its own provider, so they
+    // no longer share one component (d3064f3); both still draw through plugin.recharts here.
+    expect(entry.Component).not.toBe(selected.Component);
     expect(entry.propsSchema).toBe(selected.propsSchema);
     const props = kind === 'pie-chart' ? { data: [{ name: 'Draft', value: 2 }, { name: 'Published', value: 5 }] }
       : { data: [{ status: 'Draft', count: 2 }, { status: 'Published', count: 5 }], categoryKey: 'status', valueKey: 'count' };
