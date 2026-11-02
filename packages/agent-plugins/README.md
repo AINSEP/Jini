@@ -262,6 +262,22 @@ For a host that needs only activation, use `createAgentPluginActivations` with
 ports. Retain one returned object for the process lifetime. See `API.md` for the
 object-shaped reads, filters and optional legacy metadata reader.
 
+### Extension namespaces
+
+`extensions` keys in `plugin.json` are **host keys**. A plugin declares one entry per host it
+supports, for example `"tovu": { "id": "tovu/stock" }` beside `"open-marketing": { "id": "tovu/stock" }`.
+
+- A host reads only its own key, the `extensionNamespace` it passes to the lifecycle.
+- Library code in this package never assumes a host key. The exported parsers and validators
+  keep `tovu` as their default for existing callers; new callers pass the namespace explicitly.
+- Publisher ids stay as declared. There is no alias between keys and no content rewrite.
+- A customized fork (`zipCustomizedAgentPluginFolder`) gets `local/<name>` under every host key
+  that declared an id, and loses every `renamedFrom` and `supersedes` claim, so no host sees the
+  fork answer for, or retire, the package it was copied from.
+- Bundled seeding never prunes other revisions of a plugin, so an operator-edited or uploaded
+  same-name copy survives every boot. The bundled-digests ledger selects the build's revision; the
+  other copies stay installed and unselected. Explicit install, update and replace still prune.
+
 ### Persistent plugin state (Layout B)
 
 `@jini-ai/agent-plugins/persistent-state` is a build-free Node entry with declarations.

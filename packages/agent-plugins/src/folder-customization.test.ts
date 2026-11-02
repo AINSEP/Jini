@@ -55,3 +55,59 @@ test.each(['Uppercase', 'has--double', 'has..double', '-leading', 'trailing.', '
   const input = await fixture();
   await expect(zipCustomizedAgentPluginFolder({ ...input, name })).rejects.toThrow('Choose a valid new Agent Plugin id');
 });
+
+/** Reads one stored (uncompressed) entry by walking the local headers `zipFolderFiles` writes. */
+function storedEntryText(archive: Uint8Array, entryName: string): string {
+  const view = new DataView(archive.buffer, archive.byteOffset, archive.byteLength);
+  for (let offset = 0; view.getUint32(offset, true) === 0x04034b50;) {
+    const size = view.getUint32(offset + 18, true);
+    const nameLength = view.getUint16(offset + 26, true);
+    const dataStart = offset + 30 + nameLength + view.getUint16(offset + 28, true);
+    const name = Buffer.from(archive.subarray(offset + 30, offset + 30 + nameLength)).toString('utf8');
+    if (name === entryName || name.endsWith(`/${entryName}`)) return Buffer.from(archive.subarray(dataStart, dataStart + size)).toString('utf8');
+    offset = dataStart + size;
+  }
+  throw new Error(`${entryName} not found in archive`);
+}
+
+async function forkManifest(extensions: Record<string, unknown> | undefined, identityNamespace: string) {
+  const input = await fixture();
+  await writeFile(path.join(input.path, 'plugin.json'), JSON.stringify({ name: 'stock', version: '1.0.0', ...(extensions ? { extensions } : {}) }));
+  const archive = await zipCustomizedAgentPluginFolder({ ...input, identityNamespace });
+  return { manifest: JSON.parse(storedEntryText(archive, 'plugin.json')), text: Buffer.from(archive).toString('utf8') };
+}
+
+const HISTORY = { renamedFrom: ['tovu/old-stock'], supersedes: { plugins: ['tovu/older'] } };
+
+// Legacy-only: a moved plugin that still declares only the `tovu` host key.
+test.each(['tovu', 'open-marketing'])('a fork of a tovu-only manifest gets a fresh local id when forked by %s', async host => {
+  const { manifest, text } = await forkManifest({ tovu: { id: 'tovu/stock', provides: ['stock-data'], ...HISTORY } }, host);
+  expect(manifest.extensions.tovu).toEqual({ id: 'local/custom', provides: ['stock-data'] });
+  expect(manifest.extensions[host].id).toBe('local/custom');
+  for (const claim of ['tovu/stock', 'tovu/old-stock', 'tovu/older', 'renamedFrom', 'supersedes']) expect(text).not.toContain(claim);
+});
+
+test('a fork of a dual-key manifest keeps no foreign publisher id, alias or supersession claim', async () => {
+  const { manifest, text } = await forkManifest({
+    tovu: { id: 'tovu/stock', ...HISTORY },
+    'open-marketing': { id: 'jini/stock', renamedFrom: ['jini/old-stock'], hostRange: '^1.0.0' },
+    'com.example.client': { theme: 'dark' },
+  }, 'open-marketing');
+  expect(manifest.extensions).toEqual({
+    tovu: { id: 'local/custom' },
+    'open-marketing': { id: 'local/custom', hostRange: '^1.0.0' },
+    'com.example.client': { theme: 'dark' },
+  });
+  for (const claim of ['tovu/stock', 'jini/stock', 'jini/old-stock', 'tovu/old-stock', 'tovu/older']) expect(text).not.toContain(claim);
+});
+
+test('a fork of a manifest with no extensions declares a local id for the requesting host', async () => {
+  const { manifest } = await forkManifest(undefined, 'tovu');
+  expect(manifest.extensions).toEqual({ tovu: { id: 'local/custom' } });
+});
+
+test('refuses a manifest whose extensions value is not an object', async () => {
+  const input = await fixture();
+  await writeFile(path.join(input.path, 'plugin.json'), JSON.stringify({ name: 'stock', extensions: ['tovu'] }));
+  await expect(zipCustomizedAgentPluginFolder(input)).rejects.toThrow('plugin.json extensions must be an object.');
+});

@@ -50,6 +50,9 @@ export interface AgentPluginLifecyclePorts {
   readonly process: AgentPluginProcessPort;
   readonly layout: AgentPluginLayoutPort;
   readonly productName: string;
+  /** This host's own `extensions` key in plugin.json (README "Extension namespaces"). A plugin
+   * declares one entry per host it supports; the lifecycle reads only this key and never assumes
+   * a particular host's. Publisher ids are kept as declared: no alias, no rewrite between keys. */
   readonly extensionNamespace: string;
   /** Host boot policy may migrate every workspace before seeding the requested workspace.
    * A failure refuses all publication; absent uses the owner's single-workspace migration. */

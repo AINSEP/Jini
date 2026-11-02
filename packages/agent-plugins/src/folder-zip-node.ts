@@ -127,19 +127,39 @@ function customizeText({ text, edit }: { text: string; edit: CustomizeAgentPlugi
   return text.slice(0, index) + edit.newString + text.slice(index + edit.oldString.length);
 }
 
-/** A fork must not retain its publisher identity or historical aliases and supersession claims. */
+/** Plugin-level history a fork must not inherit: `renamedFrom` lets a package answer for its old
+ * ids (export ownership, saved references) and `supersedes` lets it retire other packages. */
+const HISTORICAL_IDENTITY_CLAIMS = ['renamedFrom', 'supersedes'] as const;
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/** Every host key, not only the requesting host's: a manifest declares one `extensions` entry per
+ * host, so a fork read later by another host must not keep that host's publisher id or claims. */
+function sanitizeHostIdentities({ extensions, localId }: { extensions: Record<string, unknown>; localId: string }): void {
+  for (const extension of Object.values(extensions)) {
+    if (!isPlainObject(extension)) continue;
+    if ('id' in extension) extension.id = localId;
+    for (const claim of HISTORICAL_IDENTITY_CLAIMS) delete extension[claim];
+  }
+}
+
+/** A fork must not retain its publisher identity or historical aliases and supersession claims.
+ * The requesting host always gets a fresh `local/<name>` id, even when the source declared none. */
 function customizeManifest({ text, name, identityNamespace }: { text: string; name: string; identityNamespace: string }): string {
   const manifest = JSON.parse(text);
   if (!isAgentPluginName({ value: name }) || manifest.name === name) {
     throw new FolderZipError('unreadable', 'Choose a valid new Agent Plugin id different from the source.');
   }
   manifest.name = name;
-  const extension = manifest.extensions?.[identityNamespace];
-  if (extension) {
-    extension.id = `local/${name}`;
-    delete extension.renamedFrom;
-    delete extension.supersedes;
-  }
+  manifest.extensions ??= {};
+  if (!isPlainObject(manifest.extensions)) throw new FolderZipError('unreadable', 'plugin.json extensions must be an object.');
+  const localId = `local/${name}`;
+  manifest.extensions[identityNamespace] ??= {};
+  sanitizeHostIdentities({ extensions: manifest.extensions, localId });
+  const host = manifest.extensions[identityNamespace];
+  if (isPlainObject(host)) host.id = localId;
   return JSON.stringify(manifest, null, 2) + '\n';
 }
 

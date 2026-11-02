@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased (0.6.19)
+
+- Bundled seeding no longer prunes other revisions of a plugin. Reseeding kept deleting an
+  operator-edited, uploaded or older bundled same-name copy; every copy now survives and the
+  bundled-digests ledger selects the build's revision. `installAgentPlugin` takes
+  `{ pruneSupersededRevisions: false }`; explicit install, update and replace keep pruning.
+- `zipCustomizedAgentPluginFolder` gives the fork `local/<name>` under every host key that
+  declared an id (and under the requesting host's key even when none existed), and removes
+  `renamedFrom` and `supersedes` from every key, not only the requesting host's.
+- README documents the extension-namespace policy: one `extensions` key per host.
+
 ## 0.6.17
 
 ### Patch Changes
