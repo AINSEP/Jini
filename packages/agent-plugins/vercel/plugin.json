@@ -1,0 +1,47 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "vercel",
+  "version": "0.1.0",
+  "description": "Publishes the site's static export to Vercel with the workspace's own saved token. Ships the host code itself (a host loads it only because that host chose to ship this plugin) and the know-how an agent needs: where to get a token, the optional team, Deployment Protection, and what each failure means in plain words.",
+  "author": "Tovu",
+  "license": "Apache-2.0",
+  "extensions": {
+    "tovu": {
+      "displayName": "Vercel",
+      "summary": "Puts your website online on Vercel. The assistant shows you a preview first.",
+      "id": "tovu/vercel",
+      "provides": [
+        "deploy-target:vercel"
+      ],
+      "credentialCards": [
+        {
+          "target": "vercel",
+          "title": "Connect Vercel",
+          "label": "Vercel connection",
+          "category": "hosting",
+          "intro": "Connect Vercel to publish this site as a production deployment.",
+          "usedFor": [
+            "Publishes and updates your live website on Vercel",
+            "Optional: shares site exports as download links from your Vercel Blob store"
+          ],
+          "keyHint": "Create an access token for the personal account or team that owns the project, with permission to create projects and production deployments. Select that team as the token scope when publishing to a team. For share links, also add the read-write token of a Vercel Blob store (optional).",
+          "saveKind": "publish-host",
+          "helpUrl": "https://vercel.com/account/tokens",
+          "helpLabel": "Create a token",
+          "baseUrl": "https://api.vercel.com"
+        }
+      ]
+    }
+  },
+  "keywords": [
+    "vercel",
+    "deploy",
+    "publish",
+    "hosting",
+    "static-site",
+    "static-export",
+    "go-live",
+    "website",
+    "deploy-target:vercel"
+  ]
+}

@@ -1,0 +1,219 @@
+{
+  "schemaVersion": 1,
+  "targets": [
+    {
+      "id": "vercel",
+      "label": "Vercel",
+      "module": "targets/vercel.mjs",
+      "projectName": {
+        "label": "Vercel project name",
+        "help": "Vercel finds or creates a project with this name on every publish."
+      },
+      "config": [
+        {
+          "name": "teamId",
+          "label": "Team ID",
+          "help": "Only for a team account. Leave blank for a personal account."
+        }
+      ],
+      "env": {
+        "tokenVars": [
+          "VERCEL_TOKEN",
+          "VERCEL_ACCESS_TOKEN"
+        ]
+      },
+      "credential": {
+        "vendorId": "vercel",
+        "yieldsAccountLabel": true,
+        "help": "An access token from your Vercel account.",
+        "tokenPageUrl": "https://vercel.com/account/tokens",
+        "fields": [
+          {
+            "name": "token",
+            "label": "Access token",
+            "required": true,
+            "secret": true,
+            "help": "Vercel: Account settings > Tokens."
+          },
+          {
+            "name": "blobToken",
+            "label": "Blob read-write token",
+            "secret": true,
+            "help": "Optional, only for site export share links. Vercel: Storage > your Blob store > .env.local, the BLOB_READ_WRITE_TOKEN value. Leave blank to only publish.",
+            "userHelp": "Optional. Only needed to share site exports as a download link. In Vercel, open Storage, pick (or create) a Blob store and copy its BLOB_READ_WRITE_TOKEN."
+          }
+        ]
+      },
+      "i18n": {
+        "es": {
+          "Vercel project name": "Nombre del proyecto de Vercel",
+          "Vercel finds or creates a project with this name on every publish.": "Vercel busca o crea un proyecto con este nombre en cada publicación.",
+          "An access token from your Vercel account.": "Un token de acceso de tu cuenta de Vercel.",
+          "Access token": "Token de acceso",
+          "Team ID": "ID del equipo",
+          "Only for a team account. Leave blank for a personal account.": "Solo para una cuenta de equipo. Déjalo en blanco si es una cuenta personal."
+        },
+        "id": {
+          "Vercel project name": "Nama proyek Vercel",
+          "Vercel finds or creates a project with this name on every publish.": "Vercel menemukan atau membuat proyek dengan nama ini setiap kali menerbitkan.",
+          "An access token from your Vercel account.": "Token akses dari akun Vercel Anda.",
+          "Access token": "Token akses",
+          "Team ID": "ID tim",
+          "Only for a team account. Leave blank for a personal account.": "Hanya untuk akun tim. Kosongkan untuk akun pribadi."
+        },
+        "de": {
+          "Vercel project name": "Vercel-Projektname",
+          "Vercel finds or creates a project with this name on every publish.": "Vercel findet oder erstellt bei jeder Veröffentlichung ein Projekt mit diesem Namen.",
+          "An access token from your Vercel account.": "Ein Zugriffstoken aus Ihrem Vercel-Konto.",
+          "Access token": "Zugriffstoken",
+          "Team ID": "Team-ID",
+          "Only for a team account. Leave blank for a personal account.": "Nur für ein Team-Konto. Bei einem persönlichen Konto leer lassen."
+        },
+        "zh-CN": {
+          "Vercel project name": "Vercel 项目名称",
+          "Vercel finds or creates a project with this name on every publish.": "Vercel 会在每次发布时查找或创建使用此名称的项目。",
+          "An access token from your Vercel account.": "来自您 Vercel 帐户的访问令牌。",
+          "Access token": "访问令牌",
+          "Team ID": "团队 ID",
+          "Only for a team account. Leave blank for a personal account.": "仅适用于团队帐户。个人帐户请留空。"
+        },
+        "zh-TW": {
+          "Vercel project name": "Vercel 專案名稱",
+          "Vercel finds or creates a project with this name on every publish.": "Vercel 會在每次發佈時尋找或建立使用此名稱的專案。",
+          "An access token from your Vercel account.": "您 Vercel 帳戶的存取權杖。",
+          "Access token": "存取權杖",
+          "Team ID": "團隊 ID",
+          "Only for a team account. Leave blank for a personal account.": "僅適用於團隊帳戶。個人帳戶請留空。"
+        },
+        "pt-BR": {
+          "Vercel project name": "Nome do projeto Vercel",
+          "Vercel finds or creates a project with this name on every publish.": "A Vercel encontra ou cria um projeto com este nome em cada publicação.",
+          "An access token from your Vercel account.": "Um token de acesso da sua conta Vercel.",
+          "Access token": "Token de acesso",
+          "Team ID": "ID da equipe",
+          "Only for a team account. Leave blank for a personal account.": "Só para uma conta de equipe. Deixe em branco para uma conta pessoal."
+        },
+        "ru": {
+          "Vercel project name": "Название проекта Vercel",
+          "Vercel finds or creates a project with this name on every publish.": "Vercel при каждой публикации находит или создаёт проект с этим именем.",
+          "An access token from your Vercel account.": "Токен доступа из вашей учётной записи Vercel.",
+          "Access token": "Токен доступа",
+          "Team ID": "ID команды",
+          "Only for a team account. Leave blank for a personal account.": "Только для командной учётной записи. Для личной оставьте пустым."
+        },
+        "fa": {
+          "Vercel project name": "نام پروژه Vercel",
+          "Vercel finds or creates a project with this name on every publish.": "Vercel در هر انتشار پروژه‌ای با این نام پیدا یا ایجاد می‌کند.",
+          "An access token from your Vercel account.": "یک توکن دسترسی از حساب Vercel شما.",
+          "Access token": "توکن دسترسی",
+          "Team ID": "شناسه تیم",
+          "Only for a team account. Leave blank for a personal account.": "فقط برای حساب تیمی. برای حساب شخصی خالی بگذارید."
+        },
+        "ar": {
+          "Vercel project name": "اسم مشروع Vercel",
+          "Vercel finds or creates a project with this name on every publish.": "يعثر Vercel على مشروع بهذا الاسم أو ينشئه عند كل نشر.",
+          "An access token from your Vercel account.": "رمز وصول من حساب Vercel الخاص بك.",
+          "Access token": "رمز الوصول",
+          "Team ID": "معرّف الفريق",
+          "Only for a team account. Leave blank for a personal account.": "لحساب الفريق فقط. اتركه فارغًا للحساب الشخصي."
+        },
+        "ja": {
+          "Vercel project name": "Vercel プロジェクト名",
+          "Vercel finds or creates a project with this name on every publish.": "Vercel は公開のたびにこの名前のプロジェクトを見つけるか作成します。",
+          "An access token from your Vercel account.": "Vercel アカウントのアクセストークン。",
+          "Access token": "アクセストークン",
+          "Team ID": "チーム ID",
+          "Only for a team account. Leave blank for a personal account.": "チームアカウントの場合のみ。個人アカウントなら空欄のままにします。"
+        },
+        "ko": {
+          "Vercel project name": "Vercel 프로젝트 이름",
+          "Vercel finds or creates a project with this name on every publish.": "Vercel은 게시할 때마다 이 이름의 프로젝트를 찾거나 만듭니다.",
+          "An access token from your Vercel account.": "Vercel 계정의 액세스 토큰입니다.",
+          "Access token": "액세스 토큰",
+          "Team ID": "팀 ID",
+          "Only for a team account. Leave blank for a personal account.": "팀 계정인 경우에만 입력합니다. 개인 계정이면 비워 두세요."
+        },
+        "pl": {
+          "Vercel project name": "Nazwa projektu Vercel",
+          "Vercel finds or creates a project with this name on every publish.": "Vercel przy każdej publikacji znajduje lub tworzy projekt o tej nazwie.",
+          "An access token from your Vercel account.": "Token dostępu z Twojego konta Vercel.",
+          "Access token": "Token dostępu",
+          "Team ID": "ID zespołu",
+          "Only for a team account. Leave blank for a personal account.": "Tylko dla konta zespołowego. W przypadku konta osobistego zostaw puste."
+        },
+        "hu": {
+          "Vercel project name": "Vercel-projektnév",
+          "Vercel finds or creates a project with this name on every publish.": "A Vercel minden közzétételkor megkeres vagy létrehoz egy ilyen nevű projektet.",
+          "An access token from your Vercel account.": "Hozzáférési token a Vercel-fiókjából.",
+          "Access token": "Hozzáférési token",
+          "Team ID": "Csapatazonosító",
+          "Only for a team account. Leave blank for a personal account.": "Csak csapatfiókhoz. Személyes fióknál hagyja üresen."
+        },
+        "fr": {
+          "Vercel project name": "Nom du projet Vercel",
+          "Vercel finds or creates a project with this name on every publish.": "Vercel trouve ou crée un projet portant ce nom à chaque publication.",
+          "An access token from your Vercel account.": "Un jeton d’accès de votre compte Vercel.",
+          "Access token": "Jeton d'accès",
+          "Team ID": "ID d’équipe",
+          "Only for a team account. Leave blank for a personal account.": "Uniquement pour un compte d’équipe. Laissez vide pour un compte personnel."
+        },
+        "uk": {
+          "Vercel project name": "Назва проєкту Vercel",
+          "Vercel finds or creates a project with this name on every publish.": "Vercel під час кожної публікації знаходить або створює проєкт із цією назвою.",
+          "An access token from your Vercel account.": "Токен доступу з вашого облікового запису Vercel.",
+          "Access token": "Токен доступу",
+          "Team ID": "ID команди",
+          "Only for a team account. Leave blank for a personal account.": "Лише для командного облікового запису. Для особистого залиште порожнім."
+        },
+        "tr": {
+          "Vercel project name": "Vercel proje adı",
+          "Vercel finds or creates a project with this name on every publish.": "Vercel her yayında bu adla bir proje bulur veya oluşturur.",
+          "An access token from your Vercel account.": "Vercel hesabınızdan bir erişim belirteci.",
+          "Access token": "Erişim jetonu",
+          "Team ID": "Takım Kimliği",
+          "Only for a team account. Leave blank for a personal account.": "Yalnızca takım hesabı için. Kişisel hesapta boş bırakın."
+        },
+        "th": {
+          "Vercel project name": "ชื่อโปรเจ็กต์ Vercel",
+          "Vercel finds or creates a project with this name on every publish.": "Vercel ค้นหาหรือสร้างโปรเจ็กต์ชื่อนี้ทุกครั้งที่เผยแพร่",
+          "An access token from your Vercel account.": "โทเค็นการเข้าถึงจากบัญชี Vercel ของคุณ",
+          "Access token": "โทเคนการเข้าถึง",
+          "Team ID": "ID ทีม",
+          "Only for a team account. Leave blank for a personal account.": "สำหรับบัญชีทีมเท่านั้น เว้นว่างไว้หากเป็นบัญชีส่วนตัว"
+        },
+        "it": {
+          "Vercel project name": "Nome del progetto Vercel",
+          "Vercel finds or creates a project with this name on every publish.": "Vercel trova o crea un progetto con questo nome a ogni pubblicazione.",
+          "An access token from your Vercel account.": "Un token di accesso dal tuo account Vercel.",
+          "Access token": "Token di accesso",
+          "Team ID": "ID del team",
+          "Only for a team account. Leave blank for a personal account.": "Solo per un account team. Lascia vuoto per un account personale."
+        },
+        "hi": {
+          "Vercel project name": "Vercel प्रोजेक्ट नाम",
+          "Vercel finds or creates a project with this name on every publish.": "Vercel हर प्रकाशन पर इस नाम से प्रोजेक्ट खोजता या बनाता है।",
+          "An access token from your Vercel account.": "आपके Vercel खाते का एक्सेस टोकन।",
+          "Access token": "एक्सेस टोकन",
+          "Team ID": "टीम ID",
+          "Only for a team account. Leave blank for a personal account.": "केवल टीम खाते के लिए। व्यक्तिगत खाते के लिए खाली छोड़ें।"
+        },
+        "ur": {
+          "Vercel project name": "Vercel پروجیکٹ کا نام",
+          "Vercel finds or creates a project with this name on every publish.": "Vercel ہر اشاعت پر اس نام کا پروجیکٹ ڈھونڈتا یا بناتا ہے۔",
+          "An access token from your Vercel account.": "آپ کے Vercel اکاؤنٹ کا رسائی ٹوکن۔",
+          "Access token": "رسائی ٹوکن",
+          "Team ID": "ٹیم ID",
+          "Only for a team account. Leave blank for a personal account.": "صرف ٹیم اکاؤنٹ کے لیے۔ ذاتی اکاؤنٹ کے لیے خالی چھوڑ دیں۔"
+        },
+        "bn": {
+          "Vercel project name": "Vercel প্রকল্পের নাম",
+          "Vercel finds or creates a project with this name on every publish.": "Vercel প্রতিটি প্রকাশনার সময় এই নামের একটি প্রকল্প খুঁজে বা তৈরি করে।",
+          "An access token from your Vercel account.": "আপনার Vercel অ্যাকাউন্টের একটি অ্যাক্সেস টোকেন।",
+          "Access token": "অ্যাক্সেস টোকেন",
+          "Team ID": "টিম আইডি",
+          "Only for a team account. Leave blank for a personal account.": "শুধু টিম অ্যাকাউন্টের জন্য। ব্যক্তিগত অ্যাকাউন্টে ফাঁকা রাখুন।"
+        }
+      }
+    }
+  ]
+}
