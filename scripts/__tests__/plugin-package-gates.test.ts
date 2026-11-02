@@ -5,15 +5,17 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { checkPluginPackages, inspectPluginPackageTarball } from '../check-plugin-packages.js';
 import { checkPackageLayers } from '../check-package-layers.js';
 import type { JiniPackageEntry } from '../lib/pack-jini-packages.js';
-import { agentPluginPackageRoot, agentPluginPackages } from '../lib/agent-plugin-packages.js';
+import { agentPluginExports, agentPluginPackages, legacyAgentPluginPackages } from '../lib/agent-plugin-packages.js';
 
 type InspectionInput = { entry: JiniPackageEntry };
 
-// Provider distributions; agent plugin packages come from the layout table, so a new row needs no edit here.
+// Provider distributions; agent plugins ship as agent-plugins subpaths (rows from the layout table), plus
+// the legacy standalone package(s) published before subpaths.
 const providerPackages = ['plugin-ai-trace-langfuse', 'plugin-analytics-posthog', 'plugin-fixture-provider',
   'plugin-observability-opentelemetry', 'plugin-observability-sentry', 'plugin-payments-stripe'];
-const agentPackages = agentPluginPackages.map(row => agentPluginPackageRoot(row).slice('packages/'.length));
-const names = [...new Set([...providerPackages, ...agentPackages]), 'plugin-catalog'];
+const legacyPackages = Object.values(legacyAgentPluginPackages).map(name => name.slice('@jini-ai/'.length));
+const names = [...providerPackages, ...legacyPackages, 'plugin-catalog'];
+const subpathExports = Object.assign({}, ...agentPluginPackages.map(row => agentPluginExports(row)));
 const documents = ['package.json', 'README.md', 'LICENSE', 'NOTICE'];
 let root: string;
 
@@ -29,7 +31,8 @@ function manifest({ name, fields = {} }: { name: string; fields?: Record<string,
 beforeEach(() => {
   root = mkdtempSync(join(tmpdir(), 'jini-plugin-gate-test-'));
   write({ file: 'pnpm-workspace.yaml', content: 'packages:\n  - packages/*\n' });
-  for (const name of [...names, 'core', 'agent-plugins']) manifest({ name });
+  for (const name of [...names, 'core']) manifest({ name });
+  manifest({ name: 'agent-plugins', fields: { exports: subpathExports } });
 });
 afterEach(() => rmSync(root, { recursive: true, force: true }));
 
@@ -50,7 +53,7 @@ it('treats a new plugin package as a leaf by rule, while an unlisted core packag
     rule: 'L0-unlisted-package', file: 'packages/brand-new-core/package.json', reason: 'package missing from the approved layer table',
   }]);
   rmSync(join(root, 'packages/brand-new-core'), { recursive: true });
-  manifest({ name: 'agent-plugins', fields: { dependencies: { '@jini-ai/plugin-brand-new': '^0.6.19' } } });
+  manifest({ name: 'agent-plugins', fields: { exports: subpathExports, dependencies: { '@jini-ai/plugin-brand-new': '^0.6.19' } } });
   expect(checkPackageLayers({ repoRoot: root })).toContainEqual({
     rule: 'L1-layer-edge', file: 'packages/agent-plugins/package.json',
     reason: 'agent-plugins → @jini-ai/plugin-brand-new: L4 cannot depend on L7',
@@ -79,7 +82,9 @@ it('rejects a dependency hidden by a clean packed manifest before any inspector 
 
 it.each([
   ['plugin-catalog', 'dist/index.js', 'catalog must be metadata-only'],
-  ['agent-plugins', 'ui-ux-design/plugin.json', "another plugin's payload"],
+  ['agent-plugins', 'ui-ux-design/__tests__/bundled-package.test.mjs', 'unpublished file'],
+  ['agent-plugins', 'vercel/netlify/plugin.json', "another plugin's payload"],
+  ['agent-plugins', 'dist/content/future-agent/plugin.json', 'core package publishes plugin payload'],
   ['core', 'dist/content/future-plugin/plugin.json', 'core package publishes plugin payload'],
 ])('rejects %s packed payload contamination', (name, payload, reason) => {
   const violations = checkPluginPackages({ repoRoot: root }, { inspectPackage: ({ entry }) => ({
@@ -87,6 +92,14 @@ it.each([
   }) });
   expect(violations).toHaveLength(1);
   expect(violations[0]).toMatchObject({ file: `packages/${name}/package.json`, reason: expect.stringContaining(reason) });
+});
+
+it('the source guard refuses an agent-plugins export that reaches into a sibling plugin folder', () => {
+  manifest({ name: 'agent-plugins', fields: { exports: { ...subpathExports, './hosting/*': './vercel/*' } } });
+  expect(checkPluginPackages({ repoRoot: root })).toEqual([{
+    rule: 'P1-plugin-isolation', file: 'packages/agent-plugins/package.json',
+    reason: '@jini-ai/agent-plugins: export ./hosting/* reaches into vercel/',
+  }]);
 });
 
 it('fails closed on archive inspection errors and continues inspecting the release set', () => {

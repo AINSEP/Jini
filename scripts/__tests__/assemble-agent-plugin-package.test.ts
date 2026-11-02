@@ -6,12 +6,16 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { afterEach, expect, test } from 'vitest';
 import { assembleAgentPluginPackage } from '../assemble-agent-plugin-package.js';
 import {
-  agentPluginPackageName, agentPluginPackageRoot, agentPluginPackages, defineAgentPluginPackages,
+  AGENT_PLUGINS_PACKAGE, agentPluginExports, agentPluginPackages, agentPluginSubpath, defineAgentPluginPackages,
+  isPublishedAgentPluginFile, legacyAgentPluginPackages,
 } from '../lib/agent-plugin-packages.js';
 
 const workspace = fileURLToPath(new URL('../../', import.meta.url));
 const temporary: string[] = [];
 afterEach(async () => { for (const root of temporary.splice(0)) await fs.rm(root, { recursive: true, force: true }); });
+
+// slide-design never had a published package; its rows here only exercise the assembler on a second payload.
+const legacyPackages = { ...legacyAgentPluginPackages, 'slide-design': '@jini-ai/plugin-slide-design' };
 
 async function fixture(id = 'ui-ux-design') {
   const root = await fs.mkdtemp(path.join(tmpdir(), 'agent-package-assembly-'));
@@ -19,13 +23,18 @@ async function fixture(id = 'ui-ux-design') {
   const sourceDir = path.join(root, 'source');
   const packageRoot = path.join(root, 'destination');
   await fs.mkdir(packageRoot);
-  await fs.copyFile(path.join(workspace, `packages/plugin-${id}/package.json`), path.join(packageRoot, 'package.json'));
+  await fs.writeFile(path.join(packageRoot, 'package.json'), JSON.stringify({ name: legacyPackages[id as keyof typeof legacyPackages] }));
   await fs.cp(path.join(workspace, `packages/agent-plugins/${id}`), sourceDir, { recursive: true });
   return { root, sourceDir, packageRoot };
 }
 
 /** The file list the pre-table assembler shipped: four fixed roots, each filtered the same way. */
 const legacyRoots = ['plugin.json', 'mcp.json', 'skills', 'com.anthropic.claude-code'];
+
+/** Source files the tarball carries (tests stay in the checkout). */
+async function publishedFiles(root: string): Promise<string[]> {
+  return (await files(root)).filter(name => isPublishedAgentPluginFile({ path: name }));
+}
 
 async function files(root: string): Promise<string[]> {
   const result: string[] = [];
@@ -38,12 +47,12 @@ async function files(root: string): Promise<string[]> {
 
 test('assembles exactly the authored runtime files, preserving manifests, references, examples and executable helpers', async () => {
   const input = await fixture();
-  const before = await files(input.sourceDir);
+  const before = await publishedFiles(input.sourceDir);
   const { payloadRoot } = await assembleAgentPluginPackage(input);
   expect(await files(payloadRoot)).toEqual(before);
-  expect(before).toHaveLength(46);
+  expect(before).toHaveLength(50);
   for (const name of before) expect(await fs.readFile(path.join(payloadRoot, name))).toEqual(await fs.readFile(path.join(input.sourceDir, name)));
-  expect(JSON.parse(await fs.readFile(path.join(payloadRoot, 'plugin.json'), 'utf8')).version).toBe('0.4.6');
+  expect(JSON.parse(await fs.readFile(path.join(payloadRoot, 'plugin.json'), 'utf8')).version).toBe('0.6.1');
   expect((await fs.stat(path.join(payloadRoot, 'skills/shadcn-ui/scripts/verify-setup.sh'))).mode & 0o777)
     .toBe((await fs.stat(path.join(input.sourceDir, 'skills/shadcn-ui/scripts/verify-setup.sh'))).mode & 0o777);
 });
@@ -51,7 +60,7 @@ test('assembles exactly the authored runtime files, preserving manifests, refere
 test('assembles the slide-design payload byte for byte under its own name', async () => {
   const input = await fixture('slide-design');
   const before = await files(input.sourceDir);
-  const { payloadRoot } = await assembleAgentPluginPackage(input);
+  const { payloadRoot } = await assembleAgentPluginPackage(input, { legacyPackages });
   expect(path.basename(payloadRoot)).toBe('slide-design');
   expect(await files(payloadRoot)).toEqual(before);
   expect(before).toEqual([
@@ -66,7 +75,7 @@ test('assembles the slide-design payload byte for byte under its own name', asyn
 
 test.each(['ui-ux-design', 'slide-design'])('whole-folder assembly of %s is byte-identical to the old fixed-root selection', async (id) => {
   const input = await fixture(id);
-  const { payloadRoot } = await assembleAgentPluginPackage(input);
+  const { payloadRoot } = await assembleAgentPluginPackage(input, { legacyPackages });
   const legacy: string[] = [];
   for (const name of await fs.readdir(input.sourceDir)) {
     if (!legacyRoots.includes(name)) continue;
@@ -74,38 +83,39 @@ test.each(['ui-ux-design', 'slide-design'])('whole-folder assembly of %s is byte
     legacy.push(...(stat.isDirectory() ? (await files(path.join(input.sourceDir, name))).map(child => `${name}/${child}`) : [name]));
   }
   // The authored folders hold only the old roots, so packaging output for both plugins is unchanged.
-  expect((await fs.readdir(input.sourceDir)).filter(name => !legacyRoots.includes(name))).toEqual([]);
+  expect((await fs.readdir(input.sourceDir)).filter(name => !legacyRoots.includes(name) && name !== '__tests__')).toEqual([]);
   expect(await files(payloadRoot)).toEqual(legacy.sort());
   for (const name of legacy) expect(await fs.readFile(path.join(payloadRoot, name))).toEqual(await fs.readFile(path.join(input.sourceDir, name)));
 });
 
-test('every table entry pairs a real source with its own package and build script', async () => {
-  expect(agentPluginPackages.map(entry => entry.name)).toEqual(['slide-design', 'ui-ux-design']);
+test('every table row is a real plugin folder published as its own subpath of the agent-plugins package', async () => {
+  const pkg = JSON.parse(await fs.readFile(path.join(workspace, 'packages/agent-plugins/package.json'), 'utf8'));
+  expect(pkg.name).toBe(AGENT_PLUGINS_PACKAGE);
   for (const entry of agentPluginPackages) {
     const manifest = JSON.parse(await fs.readFile(path.join(workspace, entry.sourceDir, 'plugin.json'), 'utf8'));
-    const pkg = JSON.parse(await fs.readFile(path.join(workspace, agentPluginPackageRoot(entry), 'package.json'), 'utf8'));
     expect(manifest.name).toBe(entry.name);
-    expect(pkg.name).toBe(agentPluginPackageName(entry));
-    // The build argument is the package id: one invocation assembles every row the package ships.
-    expect(pkg.scripts.build).toBe(`node --import tsx ../../scripts/assemble-agent-plugin-package.ts ${pkg.name.slice('@jini-ai/plugin-'.length)}`);
-    expect(pkg.scripts.prepack).toBe(pkg.scripts.build);
+    expect(agentPluginSubpath(entry)).toBe(`@jini-ai/agent-plugins/${entry.name}`);
+    for (const [key, target] of Object.entries(agentPluginExports(entry))) {
+      expect(pkg.exports[key]).toBe(target);
+      expect(pkg.jini.entries[key]).toBe('universal');
+    }
+    expect(pkg.files).toContain(entry.name);
   }
+  expect(pkg.files).toContain('!**/__tests__/**');
+  // Every folder with a plugin.json is in the table, so no plugin ships without a reviewed row.
+  const folders = [];
+  for (const name of await fs.readdir(path.join(workspace, 'packages/agent-plugins'))) {
+    if (await fs.stat(path.join(workspace, 'packages/agent-plugins', name, 'plugin.json')).then(() => true, () => false)) folders.push(name);
+  }
+  expect(agentPluginPackages.map(entry => entry.name)).toEqual(folders.sort());
 });
 
-test('a combined package assembles its face under the face name next to a provider payload', async () => {
-  const input = await fixture('slide-design');
-  const rows = defineAgentPluginPackages({ rows: [
-    { name: 'slide-design', sourceDir: 'packages/agent-plugins/slide-design', packageId: 'charts-fixture' },
-  ] });
-  const provider = path.join(input.packageRoot, 'plugins/charts-fixture/0.6.19/client/provider.js');
-  await fs.mkdir(path.dirname(provider), { recursive: true });
-  await fs.writeFile(provider, 'export {};');
-  await expect(assembleAgentPluginPackage(input, { rows })).rejects.toThrow('identities must agree');
-  await fs.writeFile(path.join(input.packageRoot, 'package.json'), '{"name":"@jini-ai/plugin-charts-fixture"}');
-  const { payloadRoot } = await assembleAgentPluginPackage(input, { rows });
-  expect(path.relative(input.packageRoot, payloadRoot)).toBe('slide-design');
-  expect(await fs.readFile(provider, 'utf8')).toBe('export {};');
-  expect((await fs.readdir(input.packageRoot)).sort()).toEqual(['package.json', 'plugins', 'slide-design']);
+test('the legacy standalone package still builds its payload from the same source folder', async () => {
+  expect(Object.keys(legacyAgentPluginPackages)).toEqual(['ui-ux-design']);
+  const pkg = JSON.parse(await fs.readFile(path.join(workspace, 'packages/plugin-ui-ux-design/package.json'), 'utf8'));
+  expect(pkg.name).toBe(legacyAgentPluginPackages['ui-ux-design']);
+  expect(pkg.scripts.build).toBe('node --import tsx ../../scripts/assemble-agent-plugin-package.ts ui-ux-design');
+  expect(pkg.scripts.prepack).toBe(pkg.scripts.build);
 });
 
 test('only plugin.json is required: a plugin without mcp.json or a client extension root assembles', async () => {
@@ -115,7 +125,7 @@ test('only plugin.json is required: a plugin without mcp.json or a client extens
   await fs.writeFile(path.join(input.sourceDir, 'README.md'), 'authored');
   await fs.mkdir(path.join(input.sourceDir, 'lib'));
   await fs.writeFile(path.join(input.sourceDir, 'lib/helper.mjs'), 'export const ok = true;');
-  const { payloadRoot } = await assembleAgentPluginPackage(input);
+  const { payloadRoot } = await assembleAgentPluginPackage(input, { legacyPackages });
   expect(await files(payloadRoot)).toEqual(await files(input.sourceDir));
   expect(await files(payloadRoot)).toContain('lib/helper.mjs');
 });
@@ -124,15 +134,27 @@ test('the layout table refuses malformed and duplicate rows', () => {
   const row = { name: 'fixture', sourceDir: 'packages/agent-plugins/fixture' };
   expect(() => defineAgentPluginPackages({ rows: [row, row] })).toThrow('listed twice');
   expect(() => defineAgentPluginPackages({ rows: [{ ...row, sourceDir: 'packages/agent-plugins/other' }] })).toThrow('must live in');
-  expect(() => defineAgentPluginPackages({ rows: [{ name: 'plugins', sourceDir: 'packages/agent-plugins/plugins' }] })).toThrow('Invalid agent plugin name');
-  expect(() => defineAgentPluginPackages({ rows: [{ ...row, packageId: '../core' }] })).toThrow('Invalid package id');
-  expect(agentPluginPackageName({ ...row, packageId: 'charts-fixture' })).toBe('@jini-ai/plugin-charts-fixture');
+  for (const name of ['plugins', 'src', 'dist', 'core', 'docs']) {
+    expect(() => defineAgentPluginPackages({ rows: [{ name, sourceDir: `packages/agent-plugins/${name}` }] })).toThrow('Invalid agent plugin name');
+  }
   expect(Object.isFrozen(agentPluginPackages[0])).toBe(true);
+  expect(agentPluginExports(row)).toEqual({ './fixture': './fixture/plugin.json', './fixture/*': './fixture/*' });
+});
+
+test('published payload files exclude tests, dependency trees, caches and compiled-test artefacts', () => {
+  for (const path of ['plugin.json', 'lib/helper.mjs', 'skills/a/SKILL.md', 'docs/spec-notes.md']) expect(isPublishedAgentPluginFile({ path })).toBe(true);
+  for (const path of ['__tests__/a.test.mjs', 'lib/__tests__/fixture.json', 'lib/helper.test.mjs', 'skills/x.spec.ts',
+    'node_modules/v/index.js', 'skills/.cache/blob', 'coverage/lcov.info', 'dist/old.js', 'build.tsbuildinfo', 'a\\__tests__\\b.mjs']) {
+    expect(isPublishedAgentPluginFile({ path })).toBe(false);
+  }
 });
 
 test('refuses a package that does not match the plugin it is given', async () => {
   const input = await fixture('slide-design');
   await fs.copyFile(path.join(workspace, 'packages/plugin-ui-ux-design/package.json'), path.join(input.packageRoot, 'package.json'));
+  await expect(assembleAgentPluginPackage(input, { legacyPackages })).rejects.toThrow('identities must agree');
+  // slide-design has no legacy package by default: the subpath is its only publication.
+  await fs.writeFile(path.join(input.packageRoot, 'package.json'), '{"name":"@jini-ai/plugin-slide-design"}');
   await expect(assembleAgentPluginPackage(input)).rejects.toThrow('identities must agree');
   expect((await fs.readdir(input.packageRoot)).sort()).toEqual(['package.json']);
 });
@@ -212,7 +234,7 @@ test.each(['canonical', 'symlink'] as const)('the build CLI assembles a payload 
   const built = run();
   expect(built.status, built.stderr).toBe(0);
   const payloadRoot = path.join(packageRoot, 'ui-ux-design');
-  expect(await files(payloadRoot)).toEqual(await files(sourceDir));
+  expect(await files(payloadRoot)).toEqual(await publishedFiles(sourceDir));
   const completedManifest = await fs.readFile(path.join(payloadRoot, 'plugin.json'));
   await fs.unlink(path.join(sourceDir, 'plugin.json'));
   const failed = run();
@@ -222,7 +244,10 @@ test.each(['canonical', 'symlink'] as const)('the build CLI assembles a payload 
   await fs.writeFile(path.join(sourceDir, 'plugin.json'), completedManifest);
   const unknown = spawnSync(process.execPath, ['--import', 'tsx', invokedScript, 'no-such-plugin'], { cwd: workspace, encoding: 'utf8' });
   expect(unknown.status).toBe(1);
-  expect(unknown.stderr).toContain('Unknown agent plugin package: no-such-plugin');
+  expect(unknown.stderr).toContain('Not a legacy agent plugin package: no-such-plugin');
+  const subpathOnly = spawnSync(process.execPath, ['--import', 'tsx', invokedScript, 'slide-design'], { cwd: workspace, encoding: 'utf8' });
+  expect(subpathOnly.status).toBe(1);
+  expect(subpathOnly.stderr).toContain('Not a legacy agent plugin package: slide-design');
 });
 
 test('the assembler remains importable from stdin without running its CLI', () => {

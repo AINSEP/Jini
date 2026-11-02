@@ -8,8 +8,9 @@ package and use the existing Jini installers and loaders.
 Each entry records its kind, local id, publisher-qualified identity, npm package name and
 version, artifact directory relative to that package, contract id/version, description,
 and expected file digests. `version` is the npm version; `pluginVersion` preserves the
-inner manifest version. The design agent remains `0.4.6` inside the `0.6.17` npm package.
-Provider artifacts use the npm version. Contracts retain their manifest identifiers
+inner manifest version. Agent entries name `@jini-ai/agent-plugins` with `path` = the plugin id,
+so a host imports `@jini-ai/agent-plugins/<id>`. Provider artifacts use the npm version; a provider
+without its own `@jini-ai/plugin-<id>` package names `@jini-ai/provider-plugins`. Contracts retain their manifest identifiers
 (`ai_trace`, `product_analytics`, `observability`, `payments`, `fixture`); the agent contract
 identifies the Agent Plugins schema version.
 

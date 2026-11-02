@@ -1,10 +1,16 @@
 /** Packaging policy only: callers supply real tarball inventories and esbuild inputs.
  * Packing, integrity, installation and loading remain with their existing owners.
+ * Agent plugins ship as `@jini-ai/agent-plugins/<name>` subpaths: this gate proves each subpath
+ * export reaches only its own folder and each folder publishes no tests and no sibling's payload;
+ * `check-agent-plugin-content.ts` proves no folder's code imports a sibling folder.
  */
 import { existsSync } from 'node:fs';
 import { relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { agentPluginPackageId, agentPluginPackages, type AgentPluginPackageRow } from './lib/agent-plugin-packages.js';
+import {
+  AGENT_PLUGINS_PACKAGE, agentPluginExports, agentPluginPackages, isPublishedAgentPluginFile, legacyAgentPluginPackages,
+  type AgentPluginPackageRow,
+} from './lib/agent-plugin-packages.js';
 
 const dependencyFields = ['dependencies', 'optionalDependencies', 'peerDependencies', 'devDependencies'] as const;
 type DependencyField = typeof dependencyFields[number];
@@ -12,6 +18,8 @@ export type PluginIsolationManifest = {
   readonly name: string;
   readonly bundledDependencies?: readonly string[] | boolean;
   readonly bundleDependencies?: readonly string[] | boolean;
+  readonly exports?: unknown;
+  readonly files?: readonly string[];
 } & Partial<Record<DependencyField, Readonly<Record<string, string>>>>;
 type Dependency = { name: string; specifier: string };
 export interface PluginIsolationPorts {
@@ -19,6 +27,8 @@ export interface PluginIsolationPorts {
   readonly resolveLocalDependency?: (input: Dependency) => string | undefined;
   /** Agent payload layout; defaults to the reviewed table. */
   readonly agentPluginPackages?: readonly AgentPluginPackageRow[];
+  /** Legacy standalone packages (plugin name → npm name); defaults to the reviewed map. */
+  readonly legacyAgentPluginPackages?: Readonly<Record<string, string>>;
   /** Whether `provider-plugins/src/<id>` exists; defaults to this checkout's sources. */
   readonly providerSourceExists?: (input: { id: string }) => boolean;
 }
@@ -26,7 +36,7 @@ export interface PluginIsolationPorts {
 const documentation = new Set(['package.json', 'README.md', 'LICENSE', 'NOTICE', 'CHANGELOG.md']);
 const pluginReference = /@jini-ai\/(?:plugin-[a-z0-9-]+|provider-plugins)(?=$|[^a-z0-9-])/;
 const neutralHelpers = new Set(['attribution.ts', 'telemetry-reporter.ts', 'trim-trailing-slashes.ts']);
-// Agent payloads publish under `<name>/` (layout table); provider payloads under `plugins/<id>/`.
+// Agent payloads publish under `<name>/` of the agent-plugins package; provider payloads under `plugins/<id>/`.
 const agentPayloadSource = new RegExp(`(?:^|/)(?:plugin-[a-z0-9-]+|agent-plugins/(?:${agentPluginPackages.map(row => row.name).join('|')}))/`);
 const providerSources = fileURLToPath(new URL('../packages/provider-plugins/src/', import.meta.url));
 const checkoutProviderSourceExists = ({ id }: { id: string }) => existsSync(resolve(providerSources, id));
@@ -70,18 +80,19 @@ function packedPath(required: { path: string }): string {
 
 interface PayloadPolicy { ownId: string | undefined; ownNames: ReadonlySet<string>; roots: readonly string[]; pluginIds: ReadonlySet<string> }
 
-/** Allowed payload roots for one package: each agent row it ships (`<name>/`), plus `plugins/<id>/`
- * when it has a provider source. A package with no agent rows keeps the provider-only layout. */
+/** Allowed payload roots for one `@jini-ai/plugin-*` package: `plugins/<id>/` when it has a provider
+ * source, plus `<name>/` for a legacy standalone agent package. */
 function payloadPolicy(
-  required: { ownId: string | undefined; pluginIds: readonly string[] },
+  required: { packageName: string; ownId: string | undefined; pluginIds: readonly string[] },
   optional: PluginIsolationPorts,
 ): PayloadPolicy {
   const rows = optional.agentPluginPackages ?? agentPluginPackages;
-  const own = required.ownId === undefined ? [] : rows.filter(row => agentPluginPackageId(row) === required.ownId);
+  const legacy = optional.legacyAgentPluginPackages ?? legacyAgentPluginPackages;
+  const own = rows.filter(row => legacy[row.name] === required.packageName);
   const roots = own.map(row => `${row.name}/`);
   const providerSourceExists = optional.providerSourceExists ?? checkoutProviderSourceExists;
   if (required.ownId !== undefined && (own.length === 0 || providerSourceExists({ id: required.ownId }))) roots.push(`plugins/${required.ownId}/`);
-  // Agent payload names count as plugin ids, so a package cannot carry another package's face.
+  // Agent payload names count as plugin ids, so a provider package cannot carry an agent face.
   const pluginIds = new Set([...required.pluginIds, ...rows.map(row => row.name)]);
   return { ownId: required.ownId, ownNames: new Set([required.ownId ?? '', ...own.map(row => row.name)]), roots, pluginIds };
 }
@@ -100,10 +111,67 @@ function assertPayloadPath(required: { owner: string; path: string; policy: Payl
     }
     throw new TypeError(`${owner}: unexpected packed file ${path}`);
   }
-  // Manifest markers also catch payloads for plugin IDs not yet present in the workspace inventory.
-  if (/(?:^|\/)(?:jini\.plugin\.json|plugin\.json)$/.test(path)
-    || /(?:^|\/)plugins\/[^/]+\/\d[^/]*\//.test(path)) {
-    throw new TypeError(`${owner}: core package publishes plugin payload ${path}`);
+  assertNoPayloadMarker({ owner, path });
+}
+
+/** Manifest markers also catch payloads for plugin IDs not yet present in the workspace inventory. */
+function assertNoPayloadMarker(required: { owner: string; path: string }): void {
+  if (/(?:^|\/)(?:jini\.plugin\.json|plugin\.json)$/.test(required.path)
+    || /(?:^|\/)plugins\/[^/]+\/\d[^/]*\//.test(required.path)) {
+    throw new TypeError(`${required.owner}: core package publishes plugin payload ${required.path}`);
+  }
+}
+
+/** A packed file of `@jini-ai/agent-plugins`: inside a row's folder it must be published content naming
+ * no other plugin; outside every folder it is library code and may carry no plugin payload. */
+function assertSubpathPayloadPath(required: { path: string; names: ReadonlySet<string>; pluginIds: ReadonlySet<string> }): void {
+  const { path, names, pluginIds } = required;
+  const [folder = '', ...rest] = path.split('/');
+  if (!names.has(folder)) return assertNoPayloadMarker({ owner: AGENT_PLUGINS_PACKAGE, path });
+  if (!isPublishedAgentPluginFile({ path: rest.join('/') })) throw new TypeError(`${AGENT_PLUGINS_PACKAGE}: unpublished file in ${path}`);
+  if (rest.some(segment => pluginIds.has(segment) && segment !== folder)) {
+    throw new TypeError(`${AGENT_PLUGINS_PACKAGE}: another plugin's payload in ${path}`);
+  }
+}
+
+/** Each row's exports are exactly its own two subpaths, and no other export reaches into a plugin folder,
+ * so resolving one subpath can never load another plugin's files. Runs on the source manifest (npm pack
+ * copies `exports` unchanged).
+ * @param required The `@jini-ai/agent-plugins` manifest.
+ * @param optional Layout rows (default: the reviewed table).
+ * @throws TypeError naming the first missing, altered or cross-folder export.
+ * @complexity O(r + e) for r rows and e export keys. */
+export function assertAgentPluginSubpathExports(
+  required: { manifest: PluginIsolationManifest },
+  optional: Pick<PluginIsolationPorts, 'agentPluginPackages'> = {},
+): void {
+  const rows = optional.agentPluginPackages ?? agentPluginPackages;
+  const exports = (required.manifest.exports ?? {}) as Record<string, unknown>;
+  const owners = new Set(rows.map(row => row.name));
+  const expected: Record<string, unknown> = Object.assign({}, ...rows.map(row => agentPluginExports(row)));
+  for (const row of rows) {
+    for (const [key, target] of Object.entries(agentPluginExports(row))) {
+      if (exports[key] !== target) throw new TypeError(`${AGENT_PLUGINS_PACKAGE}: export ${key} must be ${target}`);
+    }
+  }
+  for (const [key, target] of Object.entries(exports)) {
+    const folder = typeof target === 'string' ? target.split('/')[1] ?? '' : '';
+    if (owners.has(folder) && expected[key] !== target) throw new TypeError(`${AGENT_PLUGINS_PACKAGE}: export ${key} reaches into ${folder}/`);
+  }
+}
+
+/** Every packed path of the agent-plugins package. */
+function assertAgentPluginsPackage(
+  required: { packedPaths: readonly string[]; pluginIds: readonly string[] },
+  optional: PluginIsolationPorts,
+): void {
+  const rows = optional.agentPluginPackages ?? agentPluginPackages;
+  const names = new Set(rows.map(row => row.name));
+  const pluginIds = new Set([...required.pluginIds, ...names]);
+  for (const input of required.packedPaths) {
+    if (!input || input.endsWith('/')) continue;
+    const path = packedPath({ path: input });
+    if (!documentation.has(path)) assertSubpathPayloadPath({ path, names, pluginIds });
   }
 }
 
@@ -119,11 +187,12 @@ export function assertPluginPackageIsolation(
   optional: PluginIsolationPorts = {},
 ): void {
   const { manifest, packedPaths, pluginIds } = required;
+  if (manifest.name === AGENT_PLUGINS_PACKAGE) return assertAgentPluginsPackage(required, optional);
   const catalog = manifest.name === '@jini-ai/plugin-catalog';
   let ownId: string | undefined;
   if (!catalog && manifest.name.startsWith('@jini-ai/plugin-')) ownId = manifest.name.slice('@jini-ai/plugin-'.length);
   assertDependencies({ manifest }, optional);
-  const policy = payloadPolicy({ ownId, pluginIds }, optional);
+  const policy = payloadPolicy({ packageName: manifest.name, ownId, pluginIds }, optional);
   for (const input of packedPaths) {
     if (!input || input.endsWith('/')) continue;
     const path = packedPath({ path: input });

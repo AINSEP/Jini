@@ -4,7 +4,8 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { assertPluginPackageIsolation, type PluginIsolationManifest } from './check-plugin-isolation.js';
+import { assertAgentPluginSubpathExports, assertPluginPackageIsolation, type PluginIsolationManifest } from './check-plugin-isolation.js';
+import { AGENT_PLUGINS_PACKAGE } from './lib/agent-plugin-packages.js';
 import { discoverJiniPackages, type JiniPackageEntry } from './lib/pack-jini-packages.js';
 import { parseNpmPackJson } from './lib/npm-pack-json.js';
 import { assertPackedExports } from './lib/packed-exports.js';
@@ -69,6 +70,8 @@ export function checkPluginPackages(
     try {
       const ports = { resolveLocalDependency: ({ specifier }: { specifier: string }) => localDependency({ entry, specifier }) };
       assertPluginPackageIsolation({ manifest: entry.pkg as PluginIsolationManifest, packedPaths: [], pluginIds }, ports);
+      // Agent plugin subpaths: each export reaches only its own folder (the packed manifest copies these exports).
+      if (entry.pkg.name === AGENT_PLUGINS_PACKAGE) assertAgentPluginSubpathExports({ manifest: entry.pkg as PluginIsolationManifest });
       if (entry.pkg.private === true || !optional.inspectPackage) continue;
       const inventory = optional.inspectPackage({ entry });
       assertPluginPackageIsolation({ ...inventory, pluginIds }, ports);

@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { assertPluginBundleIsolation, assertPluginPackageIsolation, type PluginIsolationManifest } from '../check-plugin-isolation.js';
+import {
+  assertAgentPluginSubpathExports, assertPluginBundleIsolation, assertPluginPackageIsolation, type PluginIsolationManifest,
+} from '../check-plugin-isolation.js';
 
 const name = '@jini-ai/plugin-analytics-posthog';
 const pluginIds = ['analytics-posthog', 'observability-sentry', 'payments-stripe', 'slide-design', 'ui-ux-design'];
@@ -77,71 +79,77 @@ describe('plugin package installation isolation', () => {
     'dist/vendor/future-plugin/jini.plugin.json', 'dist/content/future-agent/plugin.json',
     'plugins/future-plugin/1.0.0/server/index.mjs'])(
     'rejects plugin payloads published by a core package: %s', path => {
-      expect(() => check({ name: '@jini-ai/agent-plugins' }, [...docs, `package/${path}`])).toThrow(path);
+      expect(() => check({ name: '@jini-ai/core' }, [...docs, `package/${path}`])).toThrow(path);
     });
 
-  it('accepts core lifecycle implementation files without plugin assets', () => {
-    expect(() => check({ name: '@jini-ai/agent-plugins' }, [...docs, 'package/dist/lifecycle/install.js'])).not.toThrow();
+  it('the legacy ui-ux-design package ships only its own payload; a subpath-only plugin has no package', () => {
     expect(() => check({ name: '@jini-ai/plugin-ui-ux-design' }, [...docs, 'package/ui-ux-design/plugin.json'])).not.toThrow();
-    expect(() => check({ name: '@jini-ai/plugin-slide-design' }, [...docs, 'package/slide-design/skills/slide-design/SKILL.md'])).not.toThrow();
-  });
-
-  it('keeps the two agent plugin payloads apart', () => {
-    expect(() => check({ name: '@jini-ai/plugin-slide-design' }, [...docs, 'package/ui-ux-design/plugin.json'])).toThrow("another plugin's payload");
     expect(() => check({ name: '@jini-ai/plugin-ui-ux-design' }, [...docs, 'package/slide-design/plugin.json'])).toThrow("another plugin's payload");
+    expect(() => check({ name: '@jini-ai/plugin-slide-design' }, [...docs, 'package/slide-design/skills/slide-design/SKILL.md']))
+      .toThrow("another plugin's payload");
   });
 
   it('rejects provider assets bundled with the agent plugin', () => {
     expect(() => check({ name: '@jini-ai/plugin-ui-ux-design' }, [...docs, ownPayload])).toThrow("another plugin's payload");
   });
 
-  describe('payload roots come from the layout table', () => {
+  describe('agent plugins ship as subpaths of @jini-ai/agent-plugins', () => {
     const rows = [
-      { name: 'posthog', sourceDir: 'packages/agent-plugins/posthog', packageId: 'analytics-posthog' },
-      { name: 'charts-fixture', sourceDir: 'packages/agent-plugins/charts-fixture' },
-      { name: 'sentry', sourceDir: 'packages/agent-plugins/sentry', packageId: 'observability-sentry' },
-      { name: 'ui-ux-design', sourceDir: 'packages/agent-plugins/ui-ux-design' },
+      { name: 'posthog', sourceDir: 'packages/agent-plugins/posthog' },
+      { name: 'vercel', sourceDir: 'packages/agent-plugins/vercel' },
+      { name: 'netlify', sourceDir: 'packages/agent-plugins/netlify' },
     ];
-    const providers = new Set(['analytics-posthog', 'charts-fixture', 'observability-sentry']);
-    const ports = { agentPluginPackages: rows, providerSourceExists: ({ id }: { id: string }) => providers.has(id) };
-    const combined = (packageName: string, paths: readonly string[]) => assertPluginPackageIsolation({
-      manifest: { name: packageName }, packedPaths: [...docs, ...paths.map(file => `package/${file}`)],
-      pluginIds: [...pluginIds, 'charts-fixture'],
-    }, ports);
+    const exports = {
+      '.': './dist/index.js', './lifecycle': './dist/lifecycle/index.js',
+      './posthog': './posthog/plugin.json', './posthog/*': './posthog/*',
+      './vercel': './vercel/plugin.json', './vercel/*': './vercel/*',
+      './netlify': './netlify/plugin.json', './netlify/*': './netlify/*',
+    };
+    const library = ['dist/index.js', 'dist/lifecycle/install.js', 'core/persistent-state.js', 'persistent-state.js'];
+    const subpaths = (paths: readonly string[]) => assertPluginPackageIsolation({
+      manifest: { name: '@jini-ai/agent-plugins', exports },
+      packedPaths: [...docs, ...[...library, ...paths].map(file => `package/${file}`)], pluginIds,
+    }, { agentPluginPackages: rows });
+    const subpathExports = (manifestExports: Record<string, unknown>) => assertAgentPluginSubpathExports(
+      { manifest: { name: '@jini-ai/agent-plugins', exports: manifestExports } }, { agentPluginPackages: rows });
 
-    it('a combined provider package ships its provider payload and its face under a different name', () => {
-      expect(() => combined(name, ['plugins/analytics-posthog/0.6.19/server/index.mjs', 'posthog/plugin.json',
-        'posthog/skills/posthog/SKILL.md'])).not.toThrow();
+    it('accepts every row folder next to the library files, including a face named like its provider family', () => {
+      expect(() => subpaths(['posthog/plugin.json', 'posthog/skills/posthog/SKILL.md', 'vercel/plugin.json',
+        'vercel/targets/vercel.mjs', 'netlify/plugin.json', 'netlify/mcp.json'])).not.toThrow();
     });
 
-    it('a provider and its face may share one local id', () => {
-      expect(() => combined('@jini-ai/plugin-charts-fixture', ['plugins/charts-fixture/0.6.19/client/provider.js',
-        'charts-fixture/plugin.json'])).not.toThrow();
+    it.each(['vercel/__tests__/vercel.test.mjs', 'vercel/targets/__tests__/fixture.mjs', 'vercel/lib/helper.test.mjs',
+      'vercel/node_modules/x/index.js'])('refuses an unpublished file inside a subpath folder: %s', path => {
+      expect(() => subpaths(['vercel/plugin.json', path])).toThrow(`unpublished file in ${path}`);
     });
 
-    it.each(['sentry/plugin.json', 'ui-ux-design/plugin.json', 'plugins/analytics-posthog/0.6.19/sentry/plugin.json',
-      'posthog/plugins/observability-sentry/0.6.19/server/index.mjs'])(
-      'a combined package still rejects another package\'s payload: %s', path => {
-        expect(() => combined(name, ['posthog/plugin.json', path])).toThrow("another plugin's payload");
+    it.each(['vercel/netlify/plugin.json', 'vercel/plugins/payments-stripe/0.6.17/server/index.mjs', 'posthog/ui-ux-design/SKILL.md'])(
+      'refuses a sibling plugin\'s payload nested in a subpath folder: %s', path => {
+        expect(() => subpaths([path])).toThrow("another plugin's payload");
       });
 
-    it('a combined package rejects a third, unlisted root', () => {
-      expect(() => combined(name, ['posthog/plugin.json', 'analytics-posthog/plugin.json'])).toThrow('unexpected packed file analytics-posthog/plugin.json');
-      expect(() => combined(name, ['extra/plugin.json'])).toThrow('unexpected packed file extra/plugin.json');
+    it.each(['dist/content/future-agent/plugin.json', 'extra/plugin.json', 'plugins/payments-stripe/0.6.17/server/index.mjs'])(
+      'refuses a plugin payload outside every subpath folder: %s', path => {
+        expect(() => subpaths([path])).toThrow(`core package publishes plugin payload ${path}`);
+      });
+
+    it('requires both exports of every row', () => {
+      expect(() => subpathExports(exports)).not.toThrow();
+      const partial: Record<string, unknown> = { ...exports };
+      delete partial['./netlify/*'];
+      expect(() => subpathExports(partial)).toThrow('export ./netlify/* must be ./netlify/*');
+      expect(() => subpathExports({ ...exports, './vercel': './vercel/skills/vercel/SKILL.md' })).toThrow('export ./vercel must be ./vercel/plugin.json');
+      expect(() => subpathExports({})).toThrow('export ./posthog must be ./posthog/plugin.json');
     });
 
-    it('an agent-only package gets no provider root', () => {
-      expect(() => combined('@jini-ai/plugin-ui-ux-design', ['plugins/ui-ux-design/0.6.19/server/index.mjs']))
-        .toThrow('unexpected packed file plugins/ui-ux-design/0.6.19/server/index.mjs');
+    it('refuses an export that reaches into another plugin\'s folder', () => {
+      expect(() => subpathExports({ ...exports, './deploy/*': './vercel/*' })).toThrow('export ./deploy/* reaches into vercel/');
+      expect(() => subpathExports({ ...exports, './posthog-extra': './netlify/plugin.json' })).toThrow('reaches into netlify/');
     });
 
-    it('a core package may not publish a face named only in the table', () => {
-      expect(() => combined('@jini-ai/agent-plugins', ['posthog/skills/posthog/SKILL.md'])).toThrow("another plugin's payload");
-    });
-
-    it('the default provider-source port reads this checkout', () => {
-      expect(() => assertPluginPackageIsolation({ manifest: { name }, packedPaths: [ownPayload, 'package/posthog/plugin.json'], pluginIds },
-        { agentPluginPackages: rows })).not.toThrow();
+    it('a provider package may not carry an agent face', () => {
+      expect(() => assertPluginPackageIsolation({ manifest: { name }, packedPaths: [...docs, ownPayload, 'package/posthog/plugin.json'], pluginIds },
+        { agentPluginPackages: rows })).toThrow("another plugin's payload in posthog/plugin.json");
     });
   });
 

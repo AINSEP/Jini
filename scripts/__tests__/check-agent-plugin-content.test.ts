@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { checkAgentPluginContent, moduleSpecifiers } from '../check-agent-plugin-content.js';
+import { checkAgentPluginContent, moduleSpecifiers, refusedSpecifier } from '../check-agent-plugin-content.js';
 
 let root: string;
 function write(required: { file: string; content: string }): void {
@@ -45,11 +45,29 @@ describe('agent plugin content imports', () => {
     ["const x = require('fs');", 'imports a module that is neither node:*, @jini-ai/* nor relative: fs'],
     ["/** @param {import('../../fixture-other/types.mjs').T} value */\nexport const f = value => value;", 'imports a path outside its own plugin folder: ../../fixture-other/types.mjs'],
     ["export const f = 1;\n// @typedef {import('@jini-ai/plugin-render').X} X", 'imports another plugin: @jini-ai/plugin-render'],
+    ["import x from '@jini-ai/agent-plugins/fixture-other/lib/x.mjs';", 'imports another plugin: @jini-ai/agent-plugins/fixture-other/lib/x.mjs'],
+    ["const manifest = await import('@jini-ai/agent-plugins/fixture-other');", 'imports another plugin: @jini-ai/agent-plugins/fixture-other'],
   ])('refuses %s', (content, reason) => {
     write({ file: 'packages/agent-plugins/fixture-host/lib/deploy.mjs', content });
     expect(checkAgentPluginContent({ repoRoot: root })).toEqual([
       { rule: 'P2-agent-plugin-content', file: 'packages/agent-plugins/fixture-host/lib/deploy.mjs', reason },
     ]);
+  });
+
+  it('a sibling subpath is refused even when the sibling is not in the reviewed table; its own subpath and library entries are not', () => {
+    write({ file: 'packages/agent-plugins/fixture-host/lib/deploy.mjs', content: [
+      "import { parse } from '@jini-ai/agent-plugins/admin-surfaces';",
+      "import own from '@jini-ai/agent-plugins/fixture-host/lib/helper.mjs';",
+    ].join('\n') });
+    expect(checkAgentPluginContent({ repoRoot: root })).toEqual([]);
+    expect(refusedSpecifier({ specifier: '@jini-ai/agent-plugins/vercel/targets/vercel.mjs', file: '/r/packages/agent-plugins/netlify/a.mjs',
+      pluginRoot: '/r/packages/agent-plugins/netlify' })).toBe('imports another plugin');
+  });
+
+  it('skips unpublished __tests__ folders at any depth', () => {
+    write({ file: 'packages/agent-plugins/fixture-host/__tests__/frame.test.mjs', content: "import { JSDOM } from 'jsdom';" });
+    write({ file: 'packages/agent-plugins/fixture-host/lib/__tests__/prop.test.mjs', content: "import fc from 'fast-check';" });
+    expect(checkAgentPluginContent({ repoRoot: root })).toEqual([]);
   });
 
   it('scans nested skill helpers but not dependency trees, and ignores folders without a plugin.json', () => {
