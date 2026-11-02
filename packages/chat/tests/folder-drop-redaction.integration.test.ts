@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import { redactUserText } from '../src/core/user-text-redaction.js';
 // Keep cross-package source integration outside src so it does not expand the package build's rootDir.
-import { formatDroppedFolderPaths } from '../../ui/src/features/folder-path-drop/rules.js';
+import { formatDroppedFolderPaths } from '@jini-ai/ui/core';
 
 it.each([
   '/Users/la/Client Work/CustomerPortal2026ProductionSourceFilesAndDocuments',
