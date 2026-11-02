@@ -4,6 +4,7 @@ import { paymentsProviderContract, type PaymentProvider, type ProviderContext } 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { mkdtemp, mkdir, readdir, readFile, rm, copyFile, realpath } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -69,12 +70,16 @@ const discoveryRecord = (manifest: PluginManifest, source: 'built-in' | 'site') 
   ({ id: manifest.id, name: manifest.name, version: manifest.version, source, status: 'valid' as const, errors: [] });
 
 let root: string;
+/** The package folder that ships `id`: its own `plugin-<id>` package, else this distribution (the chart providers). */
+const distributionDir = (id: string) => (existsSync(path.join(packageRoot, '..', `plugin-${id}`)) ? `plugin-${id}` : 'provider-plugins');
+// Ids with their own package; the isolation gate refuses those inside the provider distribution.
+const standaloneIds = () => [...Object.keys(SPECS).filter(id => distributionDir(id) !== 'provider-plugins'), 'ui-ux-design'];
 const artifacts = new Map<string, { artifact: string; installedPackage: string; packedPaths: string[] }>();
 beforeAll(async () => {
   // Node resolution canonicalizes symlinks, including macOS /var → /private/var.
   root = await realpath(await mkdtemp(path.join(tmpdir(), 'provider-artifact-')));
   for (const id of Object.keys(SPECS).sort()) {
-    const destinationPackageRoot = path.join(packageRoot, '..', `plugin-${id}`);
+    const destinationPackageRoot = path.join(packageRoot, '..', distributionDir(id));
     const outputRoot = path.join(root, id, 'distribution');
     const entry = await buildProviderPlugin({ packageRoot, id, destinationPackageRoot }, { outputRoot });
     // Pack the exact publish file list, then install from extracted bytes. Build already ran above;
@@ -83,17 +88,17 @@ beforeAll(async () => {
     const packed = await exec('npm', ['pack', '--offline', '--ignore-scripts', '--json', '--cache', path.join(root, 'npm-cache')], { cwd: outputRoot });
     const packedFile = parseNpmPackJson({ stdout: packed.stdout });
     const hostRoot = path.join(root, id, 'host');
-    const installedPackage = path.join(hostRoot, 'node_modules/@jini-ai', `plugin-${id}`);
+    const installedPackage = path.join(hostRoot, 'node_modules/@jini-ai', distributionDir(id));
     await mkdir(installedPackage, { recursive: true });
     await exec('tar', ['-xzf', path.join(outputRoot, packedFile.filename), '-C', installedPackage, '--strip-components', '1']);
     const resolve = createRequire(path.join(hostRoot, 'host.cjs')).resolve;
-    expect(resolve(`@jini-ai/plugin-${id}/package.json`)).toBe(path.join(installedPackage, 'package.json'));
+    expect(resolve(`@jini-ai/${distributionDir(id)}/package.json`)).toBe(path.join(installedPackage, 'package.json'));
     artifacts.set(id, { artifact: path.join(installedPackage, entry.path), installedPackage, packedPaths: packedFile.files!.map(file => file.path) });
   }
 }, 120_000);
 afterAll(async () => { await rm(root, { recursive: true, force: true }); });
 
-it('packs every provider source in its own package, each with a spec here', async () => {
+it('packs every provider source in its own package (charts: the provider-plugins distribution), each with a spec here', async () => {
   const sources = (await readdir(path.join(packageRoot, 'src'), { withFileTypes: true }))
     .filter(entry => entry.isDirectory() && !entry.name.startsWith('__')).map(entry => entry.name).sort();
   expect([...artifacts.keys()]).toEqual(sources);
@@ -119,11 +124,11 @@ it('packs the provider NOTICE and integrity-pins its retained copy in the Stripe
 async function assertPackedAlone(required: { pluginId: string; installedPackage: string; packedPaths: string[] }): Promise<{ readonly version: string }> {
   const { pluginId, installedPackage, packedPaths } = required;
   const packageManifest = JSON.parse(await readFile(path.join(installedPackage, 'package.json'), 'utf8'));
-  expect(packageManifest.name).toBe(`@jini-ai/plugin-${pluginId}`);
-  expect(() => assertPluginPackageIsolation({ manifest: packageManifest, packedPaths, pluginIds: [...Object.keys(SPECS), 'ui-ux-design'] })).not.toThrow();
+  expect(packageManifest.name).toBe(`@jini-ai/${distributionDir(pluginId)}`);
+  expect(() => assertPluginPackageIsolation({ manifest: packageManifest, packedPaths, pluginIds: standaloneIds() })).not.toThrow();
   expect(packedPaths).toEqual(expect.arrayContaining(['package.json', 'README.md', 'LICENSE', 'NOTICE']));
   expect(await readdir(path.join(installedPackage, 'plugins'))).toEqual([pluginId]);
-  expect(await readdir(path.dirname(installedPackage))).toEqual([`plugin-${pluginId}`]);
+  expect(await readdir(path.dirname(installedPackage))).toEqual([distributionDir(pluginId)]);
   for (const field of ['dependencies', 'optionalDependencies', 'peerDependencies']) expect(Object.keys(packageManifest[field] ?? {})).toEqual([]);
   return packageManifest;
 }
@@ -256,7 +261,7 @@ it.each(BROWSER_IDS)('%s: packs, installs, loads and admits identical browser-on
     import { createRequire } from 'node:module';
     import { readdirSync } from 'node:fs';
     const resolve = createRequire(${JSON.stringify(pathToFileURL(path.join(installedPackage, 'package.json')).href)}).resolve;
-    if (readdirSync(${JSON.stringify(path.dirname(installedPackage))}).join() !== ${JSON.stringify(`plugin-${pluginId}`)}) throw new Error('sibling plugin available');
+    if (readdirSync(${JSON.stringify(path.dirname(installedPackage))}).join() !== ${JSON.stringify(distributionDir(pluginId))}) throw new Error('sibling plugin available');
     for (const name of ['recharts', 'react', 'react-dom', 'echarts', 'zrender']) {
       let available = false;
       try { resolve(name); available = true; } catch (error) { if (error.code !== 'MODULE_NOT_FOUND') throw error; }

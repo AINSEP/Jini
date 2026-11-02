@@ -175,6 +175,38 @@ function assertAgentPluginsPackage(
   }
 }
 
+/** The provider distribution that ships providers without their own `@jini-ai/plugin-<id>` package
+ * (the browser chart providers), each as its own `plugins/<id>/` folder and `./<id>/*` subpath. */
+export const PROVIDER_PLUGINS_PACKAGE = '@jini-ai/provider-plugins';
+
+/** One packed path of the provider distribution: `catalog.json`, or a `plugins/<id>/` payload of a
+ * reviewed provider source that has no package of its own and names no other plugin inside it. */
+function assertProviderDistributionPath(required: {
+  path: string; pluginIds: ReadonlySet<string>; standaloneIds: ReadonlySet<string>; providerSourceExists: (input: { id: string }) => boolean;
+}): void {
+  const { path, pluginIds } = required;
+  if (documentation.has(path) || path === 'catalog.json') return;
+  const [root, id = '', ...rest] = path.split('/');
+  if (root !== 'plugins' || required.standaloneIds.has(id) || !required.providerSourceExists({ id })) throw new TypeError(`${PROVIDER_PLUGINS_PACKAGE}: unexpected packed file ${path}`);
+  if (rest.some(segment => segment === 'plugins' || (pluginIds.has(segment) && segment !== id))) {
+    throw new TypeError(`${PROVIDER_PLUGINS_PACKAGE}: another plugin's payload in ${path}`);
+  }
+}
+
+/** Every packed path of the provider distribution; agent plugin names count as plugin ids, so no face rides along. */
+function assertProviderPluginsPackage(
+  required: { packedPaths: readonly string[]; pluginIds: readonly string[] },
+  optional: PluginIsolationPorts,
+): void {
+  const providerSourceExists = optional.providerSourceExists ?? checkoutProviderSourceExists;
+  // Ids with their own `@jini-ai/plugin-<id>` package ship there, never here.
+  const standaloneIds = new Set(required.pluginIds);
+  const pluginIds = new Set([...standaloneIds, ...(optional.agentPluginPackages ?? agentPluginPackages).map(row => row.name)]);
+  for (const input of required.packedPaths) {
+    if (input && !input.endsWith('/')) assertProviderDistributionPath({ path: packedPath({ path: input }), pluginIds, standaloneIds, providerSourceExists });
+  }
+}
+
 /** Enforce installation isolation using the packed manifest and actual tarball file list.
  * @param required Package manifest, tarball paths, and all standalone plugin IDs from workspace discovery.
  * @param optional Local-reference resolver, layout rows and provider-source ports; resolution errors propagate,
@@ -188,6 +220,7 @@ export function assertPluginPackageIsolation(
 ): void {
   const { manifest, packedPaths, pluginIds } = required;
   if (manifest.name === AGENT_PLUGINS_PACKAGE) return assertAgentPluginsPackage(required, optional);
+  if (manifest.name === PROVIDER_PLUGINS_PACKAGE) return assertProviderPluginsPackage(required, optional);
   const catalog = manifest.name === '@jini-ai/plugin-catalog';
   let ownId: string | undefined;
   if (!catalog && manifest.name.startsWith('@jini-ai/plugin-')) ownId = manifest.name.slice('@jini-ai/plugin-'.length);

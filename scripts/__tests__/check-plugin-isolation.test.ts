@@ -153,6 +153,36 @@ describe('plugin package installation isolation', () => {
     });
   });
 
+  describe('@jini-ai/provider-plugins ships chart providers that have no package of their own', () => {
+    const distribution = { name: '@jini-ai/provider-plugins' };
+    const providerSourceExists = ({ id }: { id: string }) => ['charts-recharts', 'charts-echarts', 'analytics-posthog'].includes(id);
+    const agentPluginPackages = [{ name: 'charts-recharts', sourceDir: 'packages/agent-plugins/charts-recharts' }];
+    const pack = (paths: string[]) => () => assertPluginPackageIsolation({ manifest: distribution, packedPaths: [...docs, 'package/CHANGELOG.md', ...paths], pluginIds },
+      { providerSourceExists, agentPluginPackages });
+
+    it('accepts both chart payloads, their retained licenses and the catalog', () => {
+      expect(pack(['package/catalog.json', 'package/plugins/charts-recharts/0.6.19/jini.plugin.json',
+        'package/plugins/charts-recharts/0.6.19/client/provider.js', 'package/plugins/charts-recharts/0.6.19/licenses/recharts/LICENSE',
+        'package/plugins/charts-echarts/0.6.19/client/provider.js'])).not.toThrow();
+    });
+
+    it.each(['scripts/build.ts', 'src/charts-recharts/index.ts', 'plugins/unknown-provider/1.0.0/server/index.mjs'])(
+      'refuses anything but reviewed provider payloads: %s', path => {
+        expect(pack([`package/${path}`])).toThrow(`@jini-ai/provider-plugins: unexpected packed file ${path}`);
+      });
+
+    it('refuses a provider that ships from its own @jini-ai/plugin-<id> package', () => {
+      expect(pack(['package/plugins/analytics-posthog/0.6.19/server/index.mjs']))
+        .toThrow('@jini-ai/provider-plugins: unexpected packed file plugins/analytics-posthog/0.6.19/server/index.mjs');
+    });
+
+    it.each(['plugins/charts-echarts/0.6.19/charts-recharts/plugin.json', 'plugins/charts-echarts/0.6.19/ui-ux-design/SKILL.md',
+      'plugins/charts-echarts/0.6.19/server/plugins/future-plugin/1.0.0/server/index.mjs'])(
+      'refuses another plugin (agent face included) inside a payload: %s', path => {
+        expect(pack([`package/${path}`])).toThrow(`@jini-ai/provider-plugins: another plugin's payload in ${path}`);
+      });
+  });
+
   it('keeps the catalog metadata-only and forbids even aliased plugin dependencies', () => {
     const catalog = { name: '@jini-ai/plugin-catalog' };
     expect(() => check(catalog, [...docs, 'package/catalog.json'])).not.toThrow();

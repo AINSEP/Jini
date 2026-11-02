@@ -1,8 +1,7 @@
 {
   "name": "@jini-ai/provider-plugins",
-  "private": true,
   "version": "0.6.13",
-  "description": "Self-contained server provider plugin artifacts for the existing Jini plugin host.",
+  "description": "Browser chart provider plugins (charts-recharts, charts-echarts) as prebuilt artifacts, one subpath each; other provider sources ship from their own @jini-ai/plugin-<id> packages.",
   "type": "module",
   "license": "Apache-2.0",
   "repository": {
@@ -15,26 +14,31 @@
     "kind": "plugin-packaging",
     "runtime": "node",
     "entries": {
-      "./build": "node",
+      "./package.json": "node",
       "./catalog": "node",
+      "./charts-echarts/*": "node",
+      "./charts-recharts/*": "node",
       "./plugins/*": "node"
     }
   },
   "exports": {
-    "./build": "./scripts/build.ts",
+    "./package.json": "./package.json",
     "./catalog": "./catalog.json",
+    "./charts-echarts/*": "./plugins/charts-echarts/*",
+    "./charts-recharts/*": "./plugins/charts-recharts/*",
     "./plugins/*": "./plugins/*"
   },
   "files": [
     "catalog.json",
-    "plugins",
+    "plugins/charts-echarts",
+    "plugins/charts-recharts",
     "README.md",
     "CHANGELOG.md",
     "LICENSE",
     "NOTICE"
   ],
   "scripts": {
-    "build": "pnpm run typecheck",
+    "build": "pnpm run typecheck && node --import tsx scripts/build.ts charts-recharts . && node --import tsx scripts/build.ts charts-echarts .",
     "prepack": "pnpm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.charts.json --noEmit",
     "test": "vitest run",
