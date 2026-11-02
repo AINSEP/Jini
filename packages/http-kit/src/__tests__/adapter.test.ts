@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import express from 'express';
 import { createApiError } from '@jini-ai/protocol';
 import { ClientFacingError, defineJsonRoute, mountJsonRoute } from '../adapter.js';
 import { err, ok } from '../types.js';
@@ -9,28 +10,23 @@ vi.mock('@jini-ai/core', async (importOriginal) => ({
   isLocalSameOrigin: vi.fn(() => true),
 }));
 
-interface MockApp {
-  get: (path: string, handler: any) => void;
-  post: (path: string, handler: any) => void;
-  put: (path: string, handler: any) => void;
-  delete: (path: string, handler: any) => void;
-  patch: (path: string, handler: any) => void;
-  handlers: Record<string, (req: any, res: any) => Promise<void> | void>;
-}
+type RecordedHandler = (req: any, res: any) => Promise<void> | void;
 
-function makeApp(): MockApp {
-  const handlers: MockApp['handlers'] = {};
-  const make = (method: string) => (path: string, handler: any) => {
+/** A real `express()` app whose route methods record each handler instead of routing it. Typed as
+ * `Express` through `Object.assign` (no cast), so an incompatible fake fails type-checking. */
+function makeApp() {
+  const handlers: Record<string, RecordedHandler> = {};
+  const make = (method: string) => (path: string, handler: RecordedHandler) => {
     handlers[`${method.toUpperCase()} ${path}`] = handler;
   };
-  return {
+  return Object.assign(express(), {
     get: make('get'),
     post: make('post'),
     put: make('put'),
     delete: make('delete'),
     patch: make('patch'),
     handlers,
-  };
+  });
 }
 
 function makeRes() {
@@ -87,7 +83,7 @@ describe('http adapter', () => {
     const app = makeApp();
     const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     try {
-      mountJsonRoute({ app: app as any, spec: route, deps: {}, adapter });
+      mountJsonRoute({ app, spec: route, deps: {}, adapter });
       const res = makeRes();
       await app.handlers['GET /quoted-credentials']!({ body: {}, query: {}, params: {} }, res);
       const body = res.json.mock.calls[0]![0] as { error: { requestId: string } };
@@ -112,7 +108,7 @@ describe('http adapter', () => {
     const app = makeApp();
     const log = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     try {
-      mountJsonRoute({ app: app as any, spec: route, deps: {}, adapter });
+      mountJsonRoute({ app, spec: route, deps: {}, adapter });
       const res = makeRes();
       await app.handlers['GET /log-redaction']!({ body: {}, query: {}, params: {} }, res);
       const body = res.json.mock.calls[0]![0] as { error: { requestId: string; code: string } };
@@ -130,7 +126,7 @@ describe('http adapter', () => {
   it('parses input and returns the success payload', async () => {
     const route = defineJsonRoute<{ value: string }, { echoed: string }, unknown>({ method: 'post', path: '/echo', parse: (raw) => ok({ value: { value: String((raw.body as any).value) } }), handle: ({ input }) => ok({ value: { echoed: input.value } }) });
     const app = makeApp();
-    mountJsonRoute({ app: app as any, spec: route, deps: {}, adapter });
+    mountJsonRoute({ app, spec: route, deps: {}, adapter });
     const res = makeRes();
     await app.handlers['POST /echo']!({ body: { value: 'hi' }, query: {}, params: {} }, res);
     expect(res.status).toHaveBeenCalledWith(200);
@@ -140,7 +136,7 @@ describe('http adapter', () => {
   it('returns 400 when parse fails', async () => {
     const route = defineJsonRoute<{ value: string }, unknown, unknown>({ method: 'post', path: '/missing', parse: () => err({ error: createApiError({ code: 'BAD_REQUEST', message: 'required' }) }), handle: () => ok({ value: {} }) });
     const app = makeApp();
-    mountJsonRoute({ app: app as any, spec: route, deps: {}, adapter });
+    mountJsonRoute({ app, spec: route, deps: {}, adapter });
     const res = makeRes();
     await app.handlers['POST /missing']!({ body: {}, query: {}, params: {} }, res);
     expect(res.status).toHaveBeenCalledWith(400);
@@ -150,7 +146,7 @@ describe('http adapter', () => {
   it('maps a NOT_FOUND domain error to 404', async () => {
     const route = defineJsonRoute<void, unknown, unknown>({ method: 'get', path: '/missing', parse: () => ok({ value: undefined }), handle: () => err({ error: createApiError({ code: 'NOT_FOUND', message: 'gone' }) }) });
     const app = makeApp();
-    mountJsonRoute({ app: app as any, spec: route, deps: {}, adapter });
+    mountJsonRoute({ app, spec: route, deps: {}, adapter });
     const res = makeRes();
     await app.handlers['GET /missing']!({ body: {}, query: {}, params: {} }, res);
     expect(res.status).toHaveBeenCalledWith(404);
@@ -161,7 +157,7 @@ describe('http adapter', () => {
     vi.mocked(isLocalSameOrigin).mockReturnValue(true);
     const route = defineJsonRoute<void, { secret: number }, unknown>({ method: 'get', path: '/secret', parse: () => ok({ value: undefined }), handle: () => ok({ value: { secret: 42 } }) }, { requireSameOrigin: true });
     const app = makeApp();
-    mountJsonRoute({ app: app as any, spec: route, deps: {}, adapter });
+    mountJsonRoute({ app, spec: route, deps: {}, adapter });
     const res = makeRes();
     await app.handlers['GET /secret']!({ body: {}, query: {}, params: {} }, res);
     expect(res.status).toHaveBeenCalledWith(200);
@@ -172,7 +168,7 @@ describe('http adapter', () => {
     vi.mocked(isLocalSameOrigin).mockReturnValue(false);
     const route = defineJsonRoute<void, { secret: number }, unknown>({ method: 'get', path: '/secret', parse: () => ok({ value: undefined }), handle: () => ok({ value: { secret: 42 } }) }, { requireSameOrigin: true });
     const app = makeApp();
-    mountJsonRoute({ app: app as any, spec: route, deps: {}, adapter });
+    mountJsonRoute({ app, spec: route, deps: {}, adapter });
     const res = makeRes();
     await app.handlers['GET /secret']!({ body: {}, query: {}, params: {} }, res);
     expect(res.status).toHaveBeenCalledWith(403);
@@ -195,7 +191,7 @@ describe('http adapter', () => {
     });
     const app = makeApp();
     const onInternalError = vi.fn();
-    mountJsonRoute({ app: app as any, spec: route, deps: {}, adapter: { ...adapter, onInternalError } });
+    mountJsonRoute({ app, spec: route, deps: {}, adapter: { ...adapter, onInternalError } });
     const res = makeRes();
     await app.handlers['GET /boom']!({ body: {}, query: {}, params: {} }, res);
 
@@ -222,7 +218,7 @@ describe('http adapter', () => {
     });
     const app = makeApp();
     const onInternalError = vi.fn();
-    mountJsonRoute({ app: app as any, spec: route, deps: {}, adapter: { ...adapter, onInternalError } });
+    mountJsonRoute({ app, spec: route, deps: {}, adapter: { ...adapter, onInternalError } });
     const res = makeRes();
     await app.handlers['GET /boom-string']!({ body: {}, query: {}, params: {} }, res);
 
@@ -241,7 +237,7 @@ describe('http adapter', () => {
     const app = makeApp();
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     try {
-      mountJsonRoute({ app: app as any, spec: route, deps: {}, adapter });
+      mountJsonRoute({ app, spec: route, deps: {}, adapter });
       const res = makeRes();
       await app.handlers['GET /boom-nosink']!({ body: {}, query: {}, params: {} }, res);
       expect(JSON.stringify(res.json.mock.calls[0]![0])).not.toContain('/srv/secret/data.db');
@@ -267,7 +263,7 @@ describe('http adapter', () => {
     });
     const app = makeApp();
     const onInternalError = vi.fn();
-    mountJsonRoute({ app: app as any, spec: route, deps: {}, adapter: { ...adapter, onInternalError } });
+    mountJsonRoute({ app, spec: route, deps: {}, adapter: { ...adapter, onInternalError } });
     const res = makeRes();
     await app.handlers['POST /conflict']!({ body: {}, query: {}, params: {} }, res);
 
@@ -286,7 +282,7 @@ describe('http adapter', () => {
     }
     const route = defineJsonRoute<void, { tag: string }, Deps>({ method: 'get', path: '/deps', parse: () => ok({ value: undefined }), handle: ({ input: _input, deps }) => ok({ value: { tag: deps.tag } }) });
     const app = makeApp();
-    mountJsonRoute({ app: app as any, spec: route, deps: { tag: 'injected' }, adapter });
+    mountJsonRoute({ app, spec: route, deps: { tag: 'injected' }, adapter });
     const res = makeRes();
     await app.handlers['GET /deps']!({ body: {}, query: {}, params: {} }, res);
     expect(res.json).toHaveBeenCalledWith({ tag: 'injected' });
@@ -305,7 +301,7 @@ describe('http adapter', () => {
       }
     });
     const app = makeApp();
-    mountJsonRoute({ app: app as any, spec: route, deps: {}, adapter });
+    mountJsonRoute({ app, spec: route, deps: {}, adapter });
     const req = { body: {}, query: {}, params: {} };
     const res = makeClosableRes();
     const handled = app.handlers['GET /slow']!(req, res);
@@ -325,7 +321,7 @@ describe('http adapter', () => {
   it('does not misfire on a close observed only after the response has already been sent', async () => {
     const route = defineJsonRoute<void, { ok: boolean }, unknown>({ method: 'get', path: '/fast', parse: () => ok({ value: undefined }), handle: () => ok({ value: { ok: true } }) });
     const app = makeApp();
-    mountJsonRoute({ app: app as any, spec: route, deps: {}, adapter });
+    mountJsonRoute({ app, spec: route, deps: {}, adapter });
     const req = { body: {}, query: {}, params: {} };
     const res = makeClosableRes();
     await app.handlers['GET /fast']!(req, res);
@@ -344,7 +340,7 @@ describe('http adapter', () => {
       }
     });
     const app = makeApp();
-    mountJsonRoute({ app: app as any, spec: route, deps: {}, adapter });
+    mountJsonRoute({ app, spec: route, deps: {}, adapter });
     const req = { body: {}, query: {}, params: {} };
     const res = makeClosableRes();
     await app.handlers['GET /boom-cleanup']!(req, res);
