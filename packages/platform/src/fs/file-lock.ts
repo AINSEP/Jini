@@ -11,7 +11,7 @@
  * torn content. Proven live owners are never age-evicted; staleMs: Infinity also disables age
  * recovery for owners whose liveness is unknown.
  */
-import { fromEarlierBoot, readBootIdentity, type BootIdentity } from "./boot-identity.js";
+import { fromEarlierBoot, fromThisBoot, readBootIdentity, type BootIdentity } from "./boot-identity.js";
 import fs from "node:fs";
 import * as asyncFs from "node:fs/promises";
 import { randomUUID } from "node:crypto";
@@ -21,6 +21,8 @@ import { createSystemClock, type Clock } from "@jini-ai/core/primitives";
 import { defaultPlatformMessages, type PlatformMessages } from "../messages.js";
 import { errorCodeOf, fallbackIf } from "./errno.js";
 
+/** Re-exported so a host's own process port can record the boot its locks were taken in. */
+export { readBootIdentity, type BootIdentity } from "./boot-identity.js";
 export const DEFAULT_LOCK_TIMEOUT_MS = 15_000;
 export const DEFAULT_LOCK_STALE_AFTER_MS = 10_000;
 export interface FileLockHolder { readonly pid: number; readonly hostname: string; readonly token: string; readonly acquiredAt: string; readonly bootId?: string; }
@@ -130,8 +132,20 @@ function ownership(s: Settings, options: FileLockOptions): string {
   if (options.format === "token") return `${s.processPort.pid}:${s.token}${s.boot ? ":" + s.boot.id : ""}`;
   return JSON.stringify({ pid: s.processPort.pid, hostname: s.hostname, token: s.token, acquiredAt: new Date(s.clock.nowMs()).toISOString(), ...(s.boot ? { bootId: s.boot.id } : {}) });
 }
+/** The first DNS label, case-folded: macOS reports one machine as `name.lan`, `name.local` or `name`
+ * as its network changes. O(n) in the hostname length. */
+function shortHostname(hostname: string): string { return hostname.split(".", 1)[0]!.toLowerCase(); }
+/** Whether `holder` was written on this machine, so a local PID probe can speak for it. The exact
+ * hostname, or the same first label in this same kernel boot: a lock a killed process left under one
+ * hostname spelling would otherwise read as foreign under the next and, with `staleMs: Infinity`,
+ * wedge every later acquisition (demo practice run, 2026-11-02: an Agent Plugin stayed off on every
+ * boot). Another machine with the same first label would also need this exact boot to be mistaken. */
+function sameMachine(holder: FileLockHolder, s: Settings): boolean {
+  if (holder.hostname === s.hostname) return true;
+  return shortHostname(holder.hostname) === shortHostname(s.hostname) && fromThisBoot({ boot: s.boot, bootId: holder.bootId });
+}
 function holderAlive(holder: FileLockHolder, s: Settings): boolean | undefined {
-  if (holder.hostname !== s.hostname) return undefined;
+  if (!sameMachine(holder, s)) return undefined;
   // A recorded boot id decides; without one, only an acquisition before this boot proves a restart.
   if (fromEarlierBoot({ boot: s.boot, bootId: holder.bootId, atMs: Date.parse(holder.acquiredAt) })) return false;
   return s.processPort.isAlive({ pid: holder.pid });

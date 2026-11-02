@@ -56,3 +56,13 @@ export function fromEarlierBoot({ boot, bootId, atMs }: { boot: BootIdentity | u
   const recordedAtMs = recordedBootTimeMs({ bootId, atMs });
   return recordedAtMs === undefined ? bootId !== boot.id : recordedAtMs < boot.startedAtMs - BOOT_CLOCK_TOLERANCE_MS;
 }
+
+/** True only when a recorded holder provably ran in THIS boot: a Linux boot_id compared exactly, or two
+ * time-derived (numeric) ids within {@link BOOT_CLOCK_TOLERANCE_MS}, since Darwin/Windows re-derive them
+ * from a wall clock the OS may step. No boot, or no recorded id, is never proof. @complexity O(1).
+ */
+export function fromThisBoot({ boot, bootId }: { boot: BootIdentity | undefined; bootId: string | undefined }, _options = {}): boolean {
+  if (!boot || bootId === undefined) return false;
+  if (bootId === boot.id) return true;
+  return /^\d+$/.test(bootId) && /^\d+$/.test(boot.id) && Math.abs(Number(bootId) - Number(boot.id)) <= BOOT_CLOCK_TOLERANCE_MS;
+}
