@@ -18,7 +18,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AgentEvent, ChatAttachment, ChatMessage, ChatRunStatus } from '../../core/index.js';
 import { assistantContentFromEvents, isTerminalRunStatus } from '../../core/index.js';
 import type { ChatTransport, RunContext } from '../../core/index.js';
-import { useRunStream } from './useRunStream.js';
+import { useRunStream, type StartRunOptions } from './useRunStream.js';
 
 export interface UseConversationOptions extends UserTextRedactionOptions {
   transport: ChatTransport;
@@ -91,6 +91,35 @@ function pendingUserMessage(
   ...(sendOptions.folders ? { folders: sendOptions.folders } : {}),
   ...(sendOptions.attachments ? { attachments: sendOptions.attachments } : {}),
 } }, options).message;
+}
+
+/** The queued assistant bubble a send opens; the run's events fill it in. */
+function pendingAssistantMessage({ id }: { id: string }, { agentId }: { agentId?: string | undefined } = {}): ChatMessage {
+  return {
+    id,
+    role: 'assistant',
+    content: '',
+    ...(agentId !== undefined ? { agentId } : {}),
+    runStatus: 'queued',
+    createdAt: Date.now(),
+    startedAt: Date.now(),
+  };
+}
+
+/** What `run.start` receives for one send: only the options the caller actually set. */
+function runStartInput(
+  { assistantMessageId, history, conversationId, sendOptions }: { assistantMessageId: string; history: ChatMessage[]; conversationId: string | null; sendOptions: SendMessageOptions },
+  { agentId }: { agentId?: string | undefined } = {},
+): StartRunOptions {
+  return {
+    assistantMessageId,
+    history,
+    ...(agentId !== undefined ? { agentId } : {}),
+    conversationId,
+    ...(sendOptions.folders !== undefined ? { folders: sendOptions.folders } : {}),
+    ...(sendOptions.attachments !== undefined ? { attachments: sendOptions.attachments } : {}),
+    ...(sendOptions.context !== undefined ? { context: sendOptions.context } : {}),
+  };
 }
 
 export function useConversation(options: UseConversationOptions): UseConversationResult {
@@ -236,15 +265,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
     async (content: string, sendOptions: SendMessageOptions = {}) => {
       const userMessage = pendingUserMessage({ content, sendOptions, createMessageId }, options);
       const resolvedAgentId = sendOptions.agentId ?? agentId;
-      const assistantMessage: ChatMessage = {
-        id: createMessageId(),
-        role: 'assistant',
-        content: '',
-        ...(resolvedAgentId !== undefined ? { agentId: resolvedAgentId } : {}),
-        runStatus: 'queued',
-        createdAt: Date.now(),
-        startedAt: Date.now(),
-      };
+      const assistantMessage = pendingAssistantMessage({ id: createMessageId() }, { agentId: resolvedAgentId });
       activeAssistantIdRef.current = assistantMessage.id;
       setSendRefused(false);
       const history = redactUserHistory({ history: [...messagesRef.current, userMessage] }, options);
@@ -256,15 +277,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
       // (host stuck-chat investigation, 2026-09-27).
       setMessagesState((prev) => [...prev, userMessage, assistantMessage]);
       setScrollIntent(true);
-      const accepted = await run.start({
-        assistantMessageId: assistantMessage.id,
-        history,
-        ...(resolvedAgentId !== undefined ? { agentId: resolvedAgentId } : {}),
-        conversationId,
-        ...(sendOptions.folders !== undefined ? { folders: sendOptions.folders } : {}),
-        ...(sendOptions.attachments !== undefined ? { attachments: sendOptions.attachments } : {}),
-        ...(sendOptions.context !== undefined ? { context: sendOptions.context } : {}),
-      });
+      const accepted = await run.start(runStartInput({ assistantMessageId: assistantMessage.id, history, conversationId, sendOptions }, { agentId: resolvedAgentId }));
       if (!accepted) {
         // The bubbles go, but the reason must not: it was rendered only on the assistant bubble.
         setMessagesState(prev => prev.filter(message => message.id !== userMessage.id && message.id !== assistantMessage.id));
