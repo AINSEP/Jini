@@ -85,7 +85,7 @@ async function workspaceFixture() {
     return digests.preferBundledAgentPluginDigests(installed, ledger).map(item => item.archiveDigest);
   }
 
-  return { seed, upload, operatorEdit, revisions, ledgerDigest, selected };
+  return { seed, upload, operatorEdit, revisions, ledgerDigest, selected, packagesDir };
 }
 
 describe('bundled reseeding preserves every same-name revision', () => {
@@ -107,6 +107,25 @@ describe('bundled reseeding preserves every same-name revision', () => {
     expect(await fs.readFile(edited, 'utf8')).toBe('# Keeper, operator-tuned\n');
     expect(await ws.ledgerDigest()).toBe(current);
     expect(await ws.selected()).toEqual([current]);
+  });
+
+  test('a same-build reseed reinstalls pristine bytes and keeps the edited copy aside, unselected', async () => {
+    const ws = await workspaceFixture();
+    const source = await bundledSource('1.0.0');
+    const bundled = await ws.seed(source);
+    // Same build, same digest directory: its name alone no longer proves the shipped bytes.
+    const edited = await ws.operatorEdit(bundled, '# Keeper, operator-tuned\n');
+
+    expect(await ws.seed(source)).toBe(bundled);
+
+    expect(await fs.readFile(edited, 'utf8')).toBe('# Keeper 1.0.0\n');
+    const entries = await ws.revisions();
+    const aside = entries.filter(name => name !== bundled);
+    expect(entries).toContain(bundled);
+    expect(aside).toHaveLength(1);
+    expect(aside[0]).not.toMatch(/^[a-f0-9]{64}$/);
+    expect(await fs.readFile(path.join(ws.packagesDir, aside[0]!, 'skills', PLUGIN, 'SKILL.md'), 'utf8')).toBe('# Keeper, operator-tuned\n');
+    expect(await ws.selected()).toEqual([bundled]);
   });
 
   test('an upload installed after seeding survives the next reseed and stays unselected', async () => {

@@ -65,7 +65,7 @@ import { readPluginIdentity, assertPluginIdentityAvailable } from "@jini-ai/core
 import { createPersistentStateModule } from "./persistent-state.js";
 import { createAgentPluginUpdateStore, settleAgentPluginUpdateJournal } from "./update-store.js";
 /** Extracted from the host plugin lifecycle. Effects are supplied per host context. */
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { constants } from "node:fs";
 import path from "node:path";
 import type { AgentPluginLayout } from "./layout.js";
@@ -327,7 +327,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
           await persistentState.assertOwnedPath({ workspaceRoot: workspaceLayout.root, entryPath: path.relative(workspaceLayout.root, directory) });
           await mkdir(directory, { recursive: true, mode: 0o700 });
         }
-        if (await isRealDirectory(finalRoot)) {
+        if (await reuseOrSetAsideExisting({ packagesDir, finalRoot, extractionRoot, pluginId })) {
           publishedPlugin = await indexInstalledRoot(finalRoot, digest);
           return publishedPlugin;
         }
@@ -357,6 +357,47 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
 
       await rm(transactionRoot, { recursive: true, force: true });
     }
+  }
+
+  /**
+   * Whether `finalRoot` already holds exactly the verified bytes in `extractionRoot`, so the install
+   * can deduplicate. A digest directory's NAME is only a claim: an operator with shell access can
+   * edit it in place ({@link freezeTree} is not a security boundary), and the ledger and the
+   * contribution trust gate check digest identity only — so reuse without comparing bytes would
+   * keep edited executable modules selected as shipped code. A mismatched copy is renamed aside
+   * under a non-digest name (kept for the operator, never indexed or selected) and `false` tells the
+   * caller to publish the pristine bytes in its place.
+   * @complexity O(f + b) in the file count and bytes of the two trees.
+   */
+  async function reuseOrSetAsideExisting(
+    { packagesDir, finalRoot, extractionRoot, pluginId }: { packagesDir: string; finalRoot: string; extractionRoot: string; pluginId: string },
+  ): Promise<boolean> {
+    if (!(await isRealDirectory(finalRoot))) return false;
+    if (await sameTree(finalRoot, extractionRoot)) return true;
+    const aside = path.join(packagesDir, `.modified-${path.basename(finalRoot).slice(0, 12)}-${randomUUID()}`);
+    await createUninstallModule(ports).stageForRemoval(packagesDir, finalRoot, { quarantined: aside });
+    ports.onEvent?.({ event: 'agent-plugin-modified-revision-preserved', message: `Plugin '${pluginId}': an installed revision no longer matched its digest; it was kept at '${aside}' and the verified bytes were reinstalled.` });
+    return false;
+  }
+
+  /** Same entry names, kinds and file bytes, recursively. @complexity O(f + b). */
+  async function sameTree(left: string, right: string): Promise<boolean> {
+    const [leftEntries, rightEntries] = await Promise.all([readdir(left, { withFileTypes: true }), readdir(right, { withFileTypes: true })]);
+    if (leftEntries.length !== rightEntries.length) return false;
+    const rightByName = new Map(rightEntries.map(entry => [entry.name, entry]));
+    for (const entry of leftEntries) {
+      const other = rightByName.get(entry.name);
+      if (!other || entry.isDirectory() !== other.isDirectory() || entry.isFile() !== other.isFile()) return false;
+      const [leftPath, rightPath] = [path.join(left, entry.name), path.join(right, entry.name)];
+      if (!(await (entry.isDirectory() ? sameTree(leftPath, rightPath) : sameFile(leftPath, rightPath)))) return false;
+    }
+    return true;
+  }
+
+  /** Size first, so a grown file is rejected without reading it. */
+  async function sameFile(left: string, right: string): Promise<boolean> {
+    if ((await stat(left)).size !== (await stat(right)).size) return false;
+    return Buffer.from(await readFile(left)).equals(Buffer.from(await readFile(right)));
   }
 
   /** The `(target '...')` suffix on the symlink-rejection message, or nothing when the entry carries
