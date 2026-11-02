@@ -150,6 +150,28 @@ describe('recharts BarChart', () => {
       expect(Array.from(container.querySelectorAll('.recharts-xAxis-tick-labels title')).map((el) => el.textContent)).toEqual(labels);
     });
 
+    // 2026-11-01 (Tovu 47b4199e0): at dock widths "Pages · Published" wrapped as "Pages / · / Publ…",
+    // a separator alone on its own line. It must stay attached to a word at every width.
+    it.each([180, 240, 375])('never leaves a middle-dot separator alone on a line at %ipx', (width) => {
+      layout(width);
+      const labels = ['Pages · Published', 'Posts · Drafts', 'Media · Active'];
+      const { container } = render(<BarChart data={labels.map((status) => ({ status, count: 1 }))} categoryKey="status" valueKey="count" />);
+      const lines = tickValues(container).flatMap(tickLines).map((line) => line.trim());
+      expect(lines.length).toBeGreaterThan(0);
+      expect(lines.filter((line) => /^[·\s…]*$/.test(line))).toEqual([]);
+      expect(Array.from(container.querySelectorAll('.recharts-xAxis-tick-labels title')).map((el) => el.textContent)).toEqual(labels);
+    });
+
+    // The separator binds to the word before it, as a comma would. Binding it to the next word (the
+    // shape of Tovu's bundle patch) lengthens the second line and re-truncates "Published" at the
+    // ~300px dock width that the three-line fix (2026-10-31) made whole.
+    it('keeps the separator at the end of the first line and the next word whole at ~300px', () => {
+      layout(300);
+      const labels = ['Pages · Published', 'Posts · Drafts', 'Media · Active'];
+      const { container } = render(<BarChart data={labels.map((status) => ({ status, count: 1 }))} categoryKey="status" valueKey="count" />);
+      expect(tickValues(container).map(tickLines)).toEqual([['Pages ·', 'Published'], ['Posts ·', 'Drafts'], ['Media ·', 'Active']]);
+    });
+
     it('still shows every label when a few categories fit', () => {
       const quarters = ['Q1', 'Q2', 'Q3', 'Q4'].map((quarter, i) => ({ quarter, value: i }));
       const { container } = render(<BarChart data={quarters} categoryKey="quarter" valueKey="value" />);
