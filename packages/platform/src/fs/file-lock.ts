@@ -8,7 +8,8 @@
  * Stale removal rechecks inode, bytes and mtime immediately before unlink. There is still a residual
  * check-to-unlink race on filesystems without conditional unlink; rename/restore chains create wider
  * multi-process races and are deliberately avoided. Atomic file replacement independently prevents
- * torn content. Hosts whose operations can legitimately exceed the stale budget use staleMs: Infinity.
+ * torn content. Proven live owners are never age-evicted; staleMs: Infinity also disables age
+ * recovery for owners whose liveness is unknown.
  */
 import { fromEarlierBoot, readBootIdentity, type BootIdentity } from "./boot-identity.js";
 import fs from "node:fs";
@@ -30,7 +31,7 @@ export type FileLockAsyncFilesystem = Pick<typeof asyncFs, "mkdir" | "open" | "s
 export interface FileLockOptions {
   /** Infinity follows an operation with its own deadline; dead local owners remain reclaimable. */
   timeoutMs?: number;
-  /** Infinity disables age stealing; dead local owners remain reclaimable. */
+  /** Age threshold for unknown owners. Proven live owners are never evicted; Infinity disables age recovery. */
   staleMs?: number;
   pollMs?: number;
   clock?: Clock;
@@ -94,8 +95,13 @@ function parseHolder(raw: string): FileLockHolder | undefined {
 interface LockSnapshot { raw: string; holder: FileLockHolder | undefined; mtimeMs: number; ino: number; dev: number; }
 interface FileIdentity { ino: number; dev: number; }
 /** One pure stale decision serves both I/O adapters. Invalid/foreign pids have unknown liveness,
- * never false liveness; otherwise kill(0/negative, 0) would address a process group. */
-export function isLockStale(required: { nowMs: number; mtimeMs: number; staleMs: number; ownerAlive: boolean | undefined; observedInode: number; currentInode: number; observedDevice: number; currentDevice: number }): boolean {
+ * never false liveness; otherwise kill(0/negative, 0) would address a process group.
+ * @returns Whether a dead or aged unknown owner may be reclaimed on the unchanged identity.
+ * @complexity O(1) time and space; no I/O.
+ */
+export function isLockStale(required: { nowMs: number; mtimeMs: number; staleMs: number; ownerAlive: boolean | undefined; observedInode: number; currentInode: number; observedDevice: number; currentDevice: number }, _options: Record<string, never> = {}): boolean {
+  // A slow live operation still owns its critical section; elapsed age cannot prove death.
+  if (required.ownerAlive === true) return false;
   return (required.ownerAlive === false || required.nowMs - required.mtimeMs > required.staleMs) && required.observedInode === required.currentInode && required.observedDevice === required.currentDevice;
 }
 function intervalsValid({ timeoutMs, staleMs, pollMs }: { timeoutMs: number; staleMs: number; pollMs: number }): boolean {
@@ -139,8 +145,21 @@ function legacyOwnerAlive(snapshot: LockSnapshot, s: Settings): boolean | undefi
   if (fromEarlierBoot({ boot: s.boot, bootId: parts[2] || undefined, atMs: snapshot.mtimeMs })) return false;
   return s.processPort.isAlive({ pid });
 }
+/** Incomplete JSON may still prove a local owner's death. Display/release metadata is not
+ * required for a PID probe; absent/invalid PIDs and foreign hosts remain unknown, never dead.
+ * This prevents an incomplete dead holder from wedging Infinity-staleness stores forever.
+ * @complexity O(n) parsing for n lock bytes, one local process probe.
+ */
+function incompleteOwnerAlive({ raw, s }: { raw: string; s: Settings }, _options = {}): boolean | undefined {
+  let value: unknown;
+  try { value = JSON.parse(raw); } catch { return undefined; }
+  if (typeof value !== "object" || value === null) return undefined;
+  const row = value as Record<string, unknown>;
+  if (!validPid(row.pid) || row.hostname !== s.hostname) return undefined;
+  return s.processPort.isAlive({ pid: row.pid });
+}
 function ownerAlive(snapshot: LockSnapshot, s: Settings): boolean | undefined {
-  return snapshot.holder ? holderAlive(snapshot.holder, s) : legacyOwnerAlive(snapshot, s);
+  return snapshot.holder ? holderAlive(snapshot.holder, s) : legacyOwnerAlive(snapshot, s) ?? incompleteOwnerAlive({ raw: snapshot.raw, s });
 }
 function sameFile(a: FileIdentity, b: FileIdentity): boolean { return a.ino === b.ino && a.dev === b.dev; }
 function sameStat(a: FileIdentity & { mtimeMs: number }, b: FileIdentity & { mtimeMs: number }): boolean { return sameFile(a, b) && a.mtimeMs === b.mtimeMs; }

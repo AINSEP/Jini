@@ -3,14 +3,14 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { writeFileSync } from "node:fs";
-import { mkdtemp, readFile, utimes, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, stat, utimes, writeFile } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { test } from "vitest";
 
 import { rm } from "node:fs/promises";
 const forceRemove = (target: string) => rm(target, { recursive: true, force: true });
-import { DEFAULT_LOCK_STALE_AFTER_MS, FileLockLostError, FileLockTimeoutError, type FileLockHolder, type FileLockOptions, withFileLock, isContendedLockError } from "../file-lock.js";
+import { DEFAULT_LOCK_STALE_AFTER_MS, FileLockLostError, FileLockTimeoutError, type FileLockHolder, type FileLockOptions, withFileLock, withFileLockSync, isContendedLockError } from "../file-lock.js";
 
 /**
  * @file U1-U14 — the shared async file lock's own contract, exercised against a REAL filesystem
@@ -149,17 +149,32 @@ test("U5: a live holder (our own pid, fresh) times out; run() is never called an
   }
 });
 
-// PARITY: copied async lifecycle lock contract against the canonical implementation.
-test("U6: a live holder whose mtime is 60s old is acquired via the age rule, and onStaleLockRemoved fires", async () => {
+// REGRESSION: a finite stale budget must never override proven liveness in either adapter.
+test.each(["sync", "async"] as const)("U6: %s times out on an aged live holder and leaves its lock unchanged", async adapter => {
   const root = await freshRoot();
   try {
     const lockPath = lockPathIn(root);
     await plantLock(lockPath, { pid: process.pid, hostname: os.hostname(), token: "old", acquiredAt: new Date().toISOString() }, 60_000);
+    const before = await readFile(lockPath);
+    const identity = await stat(lockPath);
 
     const removed: (FileLockHolder | undefined)[] = [];
-    await runLocked(lockPath, async () => undefined, { onStaleLockRemoved: ({ holder }) => removed.push(holder) });
-    assert.equal(removed.length, 1);
-    assert.equal(removed[0]?.token, "old");
+    let elapsed = 0, ran = false;
+    const required = { lockPath, run: () => { ran = true; } };
+    const options: FileLockOptions & { sleep: () => void } = {
+      timeoutMs: 10, staleMs: DEFAULT_LOCK_STALE_AFTER_MS, pollMs: 1,
+      monotonicMs: () => elapsed, sleep: () => { elapsed++; },
+      onStaleLockRemoved: ({ holder }) => { removed.push(holder); },
+    };
+    if (adapter === "sync") assert.throws(() => withFileLockSync(required, options), FileLockTimeoutError);
+    else await assert.rejects(withFileLock(required, options), FileLockTimeoutError);
+    assert.equal(ran, false, "a contender must not enter a live holder's critical section");
+    assert.equal(removed.length, 0, "a live holder must not trigger stale removal");
+    assert.equal(elapsed, 10);
+    assert.deepEqual(await readFile(lockPath), before);
+    const after = await stat(lockPath);
+    assert.deepEqual({ ino: after.ino, dev: after.dev, mtimeMs: after.mtimeMs },
+      { ino: identity.ino, dev: identity.dev, mtimeMs: identity.mtimeMs });
   } finally {
     await forceRemove(root);
   }

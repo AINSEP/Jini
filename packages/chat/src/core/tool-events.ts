@@ -95,8 +95,9 @@ function wrapperCall({ event }: { event: ToolUseEvent }, _options: Record<string
  * Antigravity buffers CLI receipts: its adapter-described wrappers match equal inner inputs
  * anywhere in this assistant turn, in appearance order among equal keys. Pass only one turn's events;
  * no state is retained across calls. Wrapper and bridge rows are each claimed at most once.
- * A failed receipt requires a failed canonical result: an identical successful call cannot
- * account for a refusal before the bridge, regardless of buffered receipt ordering.
+ * Receipt and canonical failure states must match: a success cannot consume a failed row,
+ * and an identical successful or pending call cannot account for a refusal before the bridge,
+ * regardless of buffered receipt ordering.
  * A legacy gateway folds onto the first LATER canonical `tool_use` whose name equals its `input.toolId`.
  * A direct call folds onto the first LATER `X` row with structurally equal JSON input that arrives
  * before the CLI's own result for it. No canonical row is claimed twice, and a folded wrapper's
@@ -149,8 +150,8 @@ function findCanonicalRow({ events, wrapper, wrapperIndex, call, claimed, failed
   for (let j = start; j < end; j += 1) {
     const other = events[j]!;
     if (claimed.has(j) || other.kind !== 'tool_use' || other.name !== call.name) continue;
-    // Never hide a transport refusal behind a separate success (or a still-pending call).
-    if (failedResults.has(wrapper.id) && !failedResults.has(other.id)) continue;
+    // Outcome parity keeps successes from consuming failed rows and duplicating later refusals.
+    if (failedResults.has(wrapper.id) !== failedResults.has(other.id)) continue;
     if (inputKey === undefined || canonicalJson({ value: { input: other.input } }) === inputKey) return j;
   }
   return -1;

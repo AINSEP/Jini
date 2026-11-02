@@ -37,15 +37,34 @@ test("an unlimited waiter still reclaims a dead local builder and finite waiters
     monotonicMs: () => elapsed, sleep: () => { elapsed += 75_000; } })).rejects.toBeInstanceOf(FileLockTimeoutError);
   expect(fs.readFileSync(lockPath, "utf8")).toBe(`${process.pid}:live-builder`);
 });
-// REGRESSION: fails if the inode equality term is removed from isLockStale.
-test("dead or aged locks are stealable only on the same inode and device", () => {
-  const base = { nowMs: 1000, mtimeMs: 0, staleMs: 100, ownerAlive: true, observedInode: 1, currentInode: 1, observedDevice: 3, currentDevice: 3 };
+// REGRESSION: proven liveness vetoes age; identity still gates dead and unknown owners.
+test("dead or aged unidentified locks are stealable only on the same inode and device", () => {
+  const base = { nowMs: 1000, mtimeMs: 0, staleMs: 100, ownerAlive: undefined, observedInode: 1, currentInode: 1, observedDevice: 3, currentDevice: 3 };
   expect(isLockStale({ ...base })).toBe(true);
+  expect(isLockStale({ ...base, ownerAlive: true })).toBe(false);
   expect(isLockStale({ ...base, currentInode: 2 })).toBe(false);
   expect(isLockStale({ ...base, currentDevice: 4 })).toBe(false);
   expect(isLockStale({ ...base, mtimeMs: 1000, ownerAlive: false })).toBe(true);
+  expect(isLockStale({ ...base, ownerAlive: false, currentInode: 2 })).toBe(false);
+  expect(isLockStale({ ...base, ownerAlive: false, currentDevice: 4 })).toBe(false);
   expect(isLockStale({ ...base, mtimeMs: 1000 })).toBe(false);
   expect(isLockStale({ ...base, staleMs: Infinity })).toBe(false);
+});
+
+for (const adapter of ["sync", "async"] as const) test(`${adapter} leaves an aged live legacy holder untouched with finite staleness`, async () => {
+  const lockPath = target(), raw = `${process.pid}:live-legacy`;
+  fs.writeFileSync(lockPath, raw);
+  const old = new Date(Date.now() - 60_000); fs.utimesSync(lockPath, old, old);
+  const before = fs.statSync(lockPath), run = vi.fn(), isAlive = vi.fn(() => true);
+  const options = { timeoutMs: 0, staleMs: 100, process: { pid: process.pid, isAlive } };
+  if (adapter === "sync") expect(() => withFileLockSync({ lockPath, run }, options)).toThrow(FileLockTimeoutError);
+  else await expect(withFileLock({ lockPath, run }, options)).rejects.toThrow(FileLockTimeoutError);
+  expect(isAlive).toHaveBeenCalledWith({ pid: process.pid });
+  expect(run).not.toHaveBeenCalled();
+  expect(fs.readFileSync(lockPath, "utf8")).toBe(raw);
+  const after = fs.statSync(lockPath);
+  expect({ ino: after.ino, dev: after.dev, mtimeMs: after.mtimeMs })
+    .toEqual({ ino: before.ino, dev: before.dev, mtimeMs: before.mtimeMs });
 });
 // REGRESSION: fails if the final inode check before sync stale removal is removed.
 test("sync contender leaves a freshly replaced stale lock untouched", () => {
@@ -58,7 +77,7 @@ test("sync contender leaves a freshly replaced stale lock untouched", () => {
     try { fs.rmSync(lockPath); fs.writeFileSync(lockPath, `${process.pid}:replacement`); return realStat(lockPath); }
     finally { fs.closeSync(held); }
   });
-  expect(() => withFileLockSync({ lockPath, run: () => { throw new Error("must not run"); } }, { timeoutMs: 0, staleMs: 100 })).toThrow(FileLockTimeoutError);
+  expect(() => withFileLockSync({ lockPath, run: () => { throw new Error("must not run"); } }, { timeoutMs: 0, staleMs: 100, process: { pid: process.pid, isAlive: () => false } })).toThrow(FileLockTimeoutError);
   expect(fs.readFileSync(lockPath, "utf8")).toBe(`${process.pid}:replacement`);
 });
 // PARITY: sync and async entries parse legacy pid:token holders consistently.
@@ -91,7 +110,7 @@ test("async contender leaves a replacement made during its final descriptor insp
     }
     return handle;
   } };
-  await expect(withFileLock({ lockPath, run: () => { throw new Error("must not run"); } }, { filesystem, timeoutMs: 0, staleMs: 100 })).rejects.toThrow(FileLockTimeoutError);
+  await expect(withFileLock({ lockPath, run: () => { throw new Error("must not run"); } }, { filesystem, timeoutMs: 0, staleMs: 100, process: { pid: process.pid, isAlive: () => false } })).rejects.toThrow(FileLockTimeoutError);
   expect(fs.readFileSync(lockPath, "utf8")).toBe(`${process.pid}:replacement`);
 });
 
@@ -111,18 +130,19 @@ test("monotonicMs times the wait while clock.nowMs alone ages the holder", async
   expect(() => withFileLockSync({ lockPath, run: () => { throw new Error("must not run"); } }, { ...options({ n: 0 }), sleep: () => {} }))
     .toThrow(expect.objectContaining({ name: "FileLockTimeoutError", waitedMs: 15_000 }));
   expect(fs.readFileSync(lockPath, "utf8")).toBe(`${process.pid}:live`);
-  // The same holder, aged past staleMs by the wall clock alone, is reclaimed even though no
-  // monotonic time passes.
+  // An unidentified holder, aged past staleMs by the wall clock alone, is reclaimed even though
+  // no monotonic time passes. Proven live holders are now exempt from age eviction.
+  fs.writeFileSync(lockPath, "unidentified-holder");
   const reclaimed = await withFileLock({ lockPath, run: () => "ran" }, { ...options({ n: 0 }), clock: { nowMs: () => wallMs + 60_000 }, monotonicMs: () => 0 });
   expect(reclaimed).toBe("ran");
 });
 
-// REGRESSION: fails if stale() drops its unchanged(observed, current) term. A live holder whose lock
+// REGRESSION: fails if stale() drops its unchanged(observed, current) term. A foreign holder whose lock
 // was 60s old at the first inspection refreshes it (same inode, new mtime) before the second
 // inspection: the age seen first must not authorize deleting the refreshed lock.
 test("async contender leaves a lock its holder refreshed between the two stale inspections untouched", async () => {
   const lockPath = target();
-  const holderBytes = JSON.stringify({ pid: process.pid, hostname: os.hostname(), token: "live-holder", acquiredAt: new Date(Date.now() - 60_000).toISOString() });
+  const holderBytes = JSON.stringify({ pid: process.pid, hostname: "foreign-host", token: "foreign-holder", acquiredAt: new Date(Date.now() - 60_000).toISOString() });
   fs.writeFileSync(lockPath, holderBytes);
   const old = new Date(Date.now() - 60_000); fs.utimesSync(lockPath, old, old);
   const inodeBefore = fs.statSync(lockPath).ino;
@@ -135,7 +155,7 @@ test("async contender leaves a lock its holder refreshed between the two stale i
     }
     return asyncFs.open(file, flags, mode);
   } };
-  await expect(withFileLock({ lockPath, run: () => { throw new Error("must not run"); } }, { filesystem, timeoutMs: 0, staleMs: 10_000 })).rejects.toThrow(FileLockTimeoutError);
+  await expect(withFileLock({ lockPath, run: () => { throw new Error("must not run"); } }, { filesystem, timeoutMs: 0, staleMs: 10_000, hostname: () => "local-host" })).rejects.toThrow(FileLockTimeoutError);
   expect(fs.existsSync(lockPath)).toBe(true);
   expect(fs.readFileSync(lockPath, "utf8")).toBe(holderBytes);
   expect(fs.statSync(lockPath).ino).toBe(inodeBefore);

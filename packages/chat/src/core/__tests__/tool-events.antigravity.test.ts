@@ -15,6 +15,23 @@ function result(id: string): AgentEvent {
 }
 
 describe('Antigravity wrapper folding safety', () => {
+  it.each([AGY_DIRECT, AGY_GATEWAY])('pairs mixed-outcome buffered receipts with exactly two canonical rows in either receipt order: $id', wrapper => {
+    const failed = bridge(wrapper, 'failed-bridge');
+    const succeeded = bridge(wrapper, 'successful-bridge');
+    const failedResult: AgentEvent = { kind: 'tool_result', toolUseId: failed.id, content: 'tool failed', isError: true };
+    const successfulReceipt = { ...wrapper, id: 'successful-receipt' };
+    const failedReceiptResult: AgentEvent = { kind: 'tool_result', toolUseId: wrapper.id, content: 'tool failed', isError: true };
+    const failedReceipt = [wrapper, failedReceiptResult];
+    const successReceipt = [successfulReceipt, result(successfulReceipt.id)];
+    const canonicalEvents = [failed, failedResult, succeeded, result(succeeded.id)];
+    // Success arriving first used to consume the failed bridge, leaving a duplicate failed row.
+    for (const receipts of [[...successReceipt, ...failedReceipt], [...failedReceipt, ...successReceipt]]) {
+      for (const events of [[...canonicalEvents, ...receipts], [...receipts, ...canonicalEvents]]) {
+        expect(foldDelegatedWrapperCalls({ events })).toEqual(canonicalEvents);
+      }
+    }
+  });
+
   it.each([AGY_DIRECT, AGY_GATEWAY])('keeps a refused receipt separate from an identical successful call in either order: $id', wrapper => {
     const canonical = bridge(wrapper);
     const refused: AgentEvent = { kind: 'tool_result', toolUseId: wrapper.id, content: '403: refused before bridge', isError: true };
