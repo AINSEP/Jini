@@ -3,7 +3,7 @@ import { execFileSync, spawnSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, sep } from 'node:path';
-import { createRequire, isBuiltin } from 'node:module';
+import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { parseNpmPackJson } from '../lib/npm-pack-json.js';
 export const packages = fileURLToPath(new URL('../../packages/', import.meta.url));
@@ -20,12 +20,12 @@ export function copyPackage(dir: string, name: string, source: string): void {
   const dest = join(dir, 'node_modules', name), root = realpathSync(source); mkdirSync(dirname(dest), { recursive: true });
   cpSync(root, dest, { recursive: true, filter: path => !relative(root, path).split(sep).includes('node_modules') });
 }
-function runtimeDependencyRoot(dependency: string, req: ReturnType<typeof createRequire>): string | undefined {
+function runtimeDependencyRoot(dependency: string, req: ReturnType<typeof createRequire>): string {
   // paths() is null for a builtin name, yet npm ships packages that share one (readable-stream loads the npm
-  // string_decoder as 'string_decoder/'); the directory form looks it up, and only an uninstalled builtin is skipped.
+  // string_decoder as 'string_decoder/'). Declared dependencies must resolve to packages, never silent builtin skips.
   const candidate = (req.resolve.paths(`${dependency}/`) ?? []).map(path => join(path, dependency)).find(path => existsSync(join(path, 'package.json')));
-  if (!candidate && isBuiltin(dependency)) return undefined;
-  let parent = candidate ? realpathSync(candidate) : dirname(realpathSync(req.resolve(dependency)));
+  if (!candidate) throw new Error(`Cannot locate declared dependency ${dependency}`);
+  let parent = realpathSync(candidate);
   while (!existsSync(join(parent, 'package.json')) || JSON.parse(readFileSync(join(parent, 'package.json'), 'utf8')).name !== dependency) {
     const next = dirname(parent); if (next === parent) throw new Error(`Cannot locate ${dependency}`); parent = next;
   }
@@ -37,7 +37,7 @@ export function copyRuntimeTree(dir: string, name: string, source: string, seen 
   for (const dependency of Object.keys(manifest.dependencies ?? {})) {
     if (dependency.startsWith('@jini-ai/')) { copyRuntimeTree(dir, dependency, join(packages, dependency.slice('@jini-ai/'.length)), seen); continue; }
     const parent = runtimeDependencyRoot(dependency, req);
-    if (parent) copyRuntimeTree(dir, dependency, parent, seen);
+    copyRuntimeTree(dir, dependency, parent, seen);
   }
 }
 export function run(dir: string, source: string) { return spawnSync(process.execPath, ['--input-type=module', '-e', source], { cwd: dir, encoding: 'utf8' }); }
