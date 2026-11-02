@@ -1,5 +1,6 @@
 ## Unreleased (0.6.18)
 
+- A reply's "Done · time" runs from the person's send to the run's end for every CLI; the CLI's own reported duration, which leaves out its start-up wait, is only the fallback.
 - Keep failed tool receipts visible unless a matching canonical call also failed, including buffered CLI receipts.
 - Remove an obsolete hook lint directive for an uninstalled rule.
 - Document the two 0.6.x fetch fallback exceptions, inject fetch in repo hosts, and redact expiry/React callback exception logs.
