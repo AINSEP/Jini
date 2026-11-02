@@ -29,7 +29,7 @@ decides its own install mechanism, permission model, and sandboxing.
 
 ## What a plugin looks like on disk
 
-A plugin is a directory. Example (`@jini-ai/plugin-ui-ux-design` publishes this payload):
+A plugin is a directory. Example (this package publishes it as `@jini-ai/agent-plugins/ui-ux-design`):
 
 ```
 ui-ux-design/
@@ -150,19 +150,22 @@ package supports. Do not confuse the two — "agent plugins" (this package, a
 public spec) and "Jini plugins" (`@jini-ai/plugins`'s `./host`, Jini's own unbuilt format) share
 the word "plugin" and nothing else.
 
-## Independently packaged plugins
+## Plugins as subpaths
 
-Starting with the breaking 0.6.17 release, this library ships manifest and lifecycle code only.
-Install `@jini-ai/plugin-ui-ux-design` explicitly for the design payload. Resolve
-`@jini-ai/plugin-ui-ux-design/plugin.json`; its containing directory holds the portable assets.
-Stage that directory beneath the host's bundled-source root, then call the existing
+Every Jini agent plugin ships inside this package as its own folder and subpath:
+`@jini-ai/agent-plugins/<id>` resolves to `<id>/plugin.json`, and `@jini-ai/agent-plugins/<id>/*`
+reaches any file in that folder. Resolve the manifest (`require.resolve` or
+`import.meta.resolve('@jini-ai/agent-plugins/vercel')`); its containing directory holds the
+portable assets. Stage that directory beneath the host's bundled-source root, then call the existing
 `seedBundledAgentPlugins({ layout, workspaceId, sourceRoot })`. Read contributions through trusted
 installed-package readers. Seeding preserves digest selection and operator activation decisions.
 
-The editable design source remains at `ui-ux-design/` here, outside `src/`: its `.tsx` examples
-are illustrative skill content and must not enter the TypeScript compile root. Assembly generates
-only the standalone package's payload. The old `@jini-ai/agent-plugins/ui-ux-design/*` export is
-removed; product-specific assets remain owned by their product.
+A plugin folder imports nothing from a sibling plugin folder (`scripts/check-agent-plugin-content.ts`
+and the packed-isolation gate refuse it), so resolving one subpath never loads another plugin's
+files. Plugin folders sit outside `src/`: their `.tsx` examples are illustrative skill content and
+must not enter the TypeScript compile root. `__tests__/` folders are not published. Provider
+runtime code (charts, analytics, observability, payments) is not here; it ships as provider
+plugins (`@jini-ai/provider-plugins`, `@jini-ai/plugin-<provider>`).
 
 ## Scripts
 
@@ -177,10 +180,11 @@ translated to Vitest registration, preserving per-test timeouts and platform ski
 
 ## Adding another plugin
 
-Create a separate `@jini-ai/plugin-<id>` workspace package with its own reviewed manifest,
-README, LICENSE and NOTICE. Generate only that plugin's payload; do not add plugin assets or
-plugin dependencies to this lifecycle library. Keep skill trees outside TypeScript compile roots,
-validate the plugin manifest and test installation through this package's existing lifecycle.
+Create `packages/agent-plugins/<id>/` with its `plugin.json` (name `<id>`), add its row to
+`scripts/lib/agent-plugin-packages.ts`, and add `./<id>`, `./<id>/*` (exports and `jini.entries`)
+and `<id>` (`files`) here. Shipped `.mjs` may import only `node:*`, same-folder files and
+`@jini-ai/*` contracts; tests live in `<id>/**/__tests__/*.test.mjs` (node:test). Validate the
+manifest and test installation through this package's existing lifecycle.
 
 ## Lifecycle API and ports
 

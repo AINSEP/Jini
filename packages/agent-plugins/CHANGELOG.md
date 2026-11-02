@@ -2,6 +2,11 @@
 
 ## Unreleased (0.6.19)
 
+- Every Jini agent plugin now ships in this package as a subpath: `@jini-ai/agent-plugins/<id>`
+  resolves to `<id>/plugin.json` and `@jini-ai/agent-plugins/<id>/*` to its files (ui-ux-design,
+  slide-design, the hosting, mail, search, login, workspace, media and chart faces, and the
+  posthog/sentry/opentelemetry setup faces). There are no per-plugin `@jini-ai/plugin-*` packages
+  for agent plugins; `__tests__/` folders are not published.
 - Bundled seeding no longer prunes other revisions of a plugin. Reseeding kept deleting an
   operator-edited, uploaded or older bundled same-name copy; every copy now survives and the
   bundled-digests ledger selects the build's revision. `installAgentPlugin` takes
