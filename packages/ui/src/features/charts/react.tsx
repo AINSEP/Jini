@@ -4,9 +4,9 @@ import { InteractiveUiRegistry, type InteractiveComponentEntry } from '../intera
 import type { InteractiveComponentManifest } from '../interactive-ui/types.js';
 import { chartSpecSchema, DEFAULT_CHART_THEME, type ChartSpec, type ChartTheme } from './contract.js';
 import { mountChart, type MountedChart, type MountChartOptions } from './browser.js';
-import { chartCatalogManifests } from './catalog-manifests.js';
+import { CHART_SPEC_COMPONENT_ID, chartCatalogManifests } from './catalog-manifests.js';
 import { chartCapability, type ChartProviderRegistry } from './registry.js';
-import { legacyChartSpec, withSeriesLabels } from './wire.js';
+import { chartWireManifests, legacyChartSpec, withSeriesLabels } from './wire.js';
 
 export interface ChartHostProps {
   readonly spec: ChartSpec;
@@ -45,15 +45,24 @@ type ChartHostOptions = { siteProvider?: string | undefined; theme?: ChartTheme 
 
 /** Known wire kinds use the established shapes. Every other entry, `chart.spec` included, takes
  * `{ spec }`, so providers add kinds without adding fields or kinds to the core grammar.
+ * A `<provider>.<kind>-chart` entry passes its `provider`, so it draws with the provider it
+ * advertises rather than the site default; wire aliases and `chart.spec` keep generic selection.
  */
 function chartComponent(
-  { legacyKind, providers }: { legacyKind: LegacyChartKind | undefined; providers: ChartProviderRegistry },
+  { legacyKind, providers, provider }: { legacyKind: LegacyChartKind | undefined; providers: ChartProviderRegistry; provider: string | undefined },
   options: ChartHostOptions,
 ): ComponentType<Record<string, unknown>> {
   return function RegisteredChart(props: Record<string, unknown>): ReactElement {
-    const spec = withSeriesLabels({ spec: legacyKind ? legacyChartSpec({ kind: legacyKind, props }) : chartSpecSchema.parse(props.spec) });
+    const parsed = legacyKind ? legacyChartSpec({ kind: legacyKind, props }) : chartSpecSchema.parse(props.spec);
+    const spec = withSeriesLabels({ spec: provider ? { ...parsed, provider } : parsed });
     return <ChartHost spec={spec} registry={providers} {...options} />;
   };
+}
+
+/** The provider a provider-specific entry draws with; undefined for wire aliases and `chart.spec`. */
+function explicitProviderOf({ manifest }: { manifest: InteractiveComponentManifest }, _options: Record<string, never> = {}): string | undefined {
+  const generic = manifest.id === CHART_SPEC_COMPONENT_ID || chartWireManifests.some(({ id }) => id === manifest.id);
+  return generic ? undefined : manifest.provider;
 }
 
 /** The legacy kind an entry draws, read from its specific `<kind>-chart` capability. */
@@ -63,8 +72,8 @@ function legacyKindOf({ manifest }: { manifest: InteractiveComponentManifest }, 
 }
 
 /** Create a snapshot for validation AND rendering. The entries are exactly the headless catalog
- * manifests (same ids, schemas and providers), each with a component; entries of one legacy kind
- * share one component, so a wire alias and its selected provider entry render identically.
+ * manifests (same ids, schemas and providers), each with a component; components are shared per
+ * (legacy kind, explicit provider), so a provider entry never draws with another provider.
  * This closure is built once per host snapshot.
  * @example createChartInteractiveRegistry({ registry: base, providers }, { siteProvider: 'plugin.recharts' })
  */
@@ -74,13 +83,16 @@ export function createChartInteractiveRegistry(
 ): InteractiveUiRegistry {
   const admitted = providers.list().filter(({ enabled }) => enabled).map(({ id, kinds }) => ({ id, kinds }));
   const manifests = chartCatalogManifests({ providers: admitted }, { siteProvider: options.siteProvider });
-  const components = new Map<LegacyChartKind | undefined, ComponentType<Record<string, unknown>>>();
-  const componentFor = (legacyKind: LegacyChartKind | undefined): ComponentType<Record<string, unknown>> => {
-    const component = components.get(legacyKind) ?? chartComponent({ legacyKind, providers }, options);
-    components.set(legacyKind, component);
+  const components = new Map<string, ComponentType<Record<string, unknown>>>();
+  const componentFor = (manifest: InteractiveComponentManifest): ComponentType<Record<string, unknown>> => {
+    const legacyKind = legacyKindOf({ manifest });
+    const provider = explicitProviderOf({ manifest });
+    const key = JSON.stringify([legacyKind ?? null, provider ?? null]);
+    const component = components.get(key) ?? chartComponent({ legacyKind, providers, provider }, options);
+    components.set(key, component);
     return component;
   };
-  const entries: InteractiveComponentEntry[] = manifests.map((manifest) => ({ ...manifest, Component: componentFor(legacyKindOf({ manifest })) }));
+  const entries: InteractiveComponentEntry[] = manifests.map((manifest) => ({ ...manifest, Component: componentFor(manifest) }));
   const existing = registry.list().filter(({ capabilities }) => !capabilities.includes('chart'));
   return new InteractiveUiRegistry({ entries: [...entries, ...existing] });
 }

@@ -61,6 +61,21 @@ describe('createChartInteractiveRegistry attaches components to the catalog mani
     await waitFor(() => expect(view.container.textContent).toContain('drawn by plugin.second'));
   });
 
+  it('draws a provider entry with its own provider while the other enabled provider is the site default', async () => {
+    const mounted: { provider: string; spec: ChartSpec }[] = [];
+    const providers = createChartProviderRegistry({ providers: [recorder('plugin.default', ['bar', 'calendar'], mounted), recorder('plugin.other', ['bar', 'calendar'], mounted)] });
+    const registry = createChartInteractiveRegistry({ registry: empty, providers }, { siteProvider: 'plugin.default' });
+    const bar = registry.resolveById({ id: 'plugin.other.bar-chart' })!;
+    const calendar = registry.resolveById({ id: 'plugin.other.calendar-chart' })!;
+    const legacy = registry.resolveById({ id: 'recharts.bar-chart' })!;
+    const barProps = { data: [{ month: 'Sep', revenue: 4 }], categoryKey: 'month', valueKey: 'revenue' };
+    render(<bar.Component {...barProps} />);
+    render(<calendar.Component spec={{ ...multiSeries, kind: 'calendar' }} />);
+    render(<legacy.Component {...barProps} />);
+    await waitFor(() => expect(mounted).toHaveLength(3));
+    expect(mounted.map(({ provider, spec }) => [spec.kind, provider]).sort()).toEqual([['bar', 'plugin.default'], ['bar', 'plugin.other'], ['calendar', 'plugin.other']]);
+  });
+
   it('falls back to the table when no provider draws the spec kind', async () => {
     const mounted: { provider: string; spec: ChartSpec }[] = [];
     const providers = createChartProviderRegistry({ providers: [recorder('plugin.bars', ['bar'], mounted)] });

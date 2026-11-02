@@ -28,7 +28,9 @@ describe('single React chart host', () => {
     const selected = registry.resolveByCapability({ capability: 'line-chart' })[0]!;
     expect(alias.provider).toBe('echarts');
     expect(alias.propsSchema).toBe(selected.propsSchema);
-    expect(alias.Component).toBe(selected.Component);
+    // The alias keeps generic selection (and a `provider` its props name); the provider entry pins
+    // its own provider, so they no longer share one component (catalog-registry.test.tsx draws both).
+    expect(alias.Component).not.toBe(selected.Component);
     expect(registry.resolveById({ id: 'echarts.calendar-chart' })?.capabilities).toContain('calendar-chart');
   });
 });
