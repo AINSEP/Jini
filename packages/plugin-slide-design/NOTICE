@@ -1,0 +1,10 @@
+Jini Slide Design Agent Plugin
+Copyright 2026 Leona Burime
+
+Portable skill sources remain at packages/agent-plugins/slide-design.
+All skill text is original, written from widely published presentation methods
+(answer-first structure, context-tension-question-answer openings, grouping without
+overlaps or gaps, data-ink reduction and Gestalt grouping). No third-party text is included.
+
+This distribution contains no executable code, provider plugin or vendor SDK.
+See LICENSE for the Apache License, Version 2.0.

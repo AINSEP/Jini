@@ -1062,6 +1062,12 @@ importers:
         specifier: ^4.19.0
         version: 4.23.1
 
+  packages/plugin-slide-design:
+    devDependencies:
+      tsx:
+        specifier: ^4.19.0
+        version: 4.23.1
+
   packages/plugin-ui-ux-design:
     devDependencies:
       tsx:

@@ -1,0 +1,26 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "slide-design",
+  "version": "0.1.0",
+  "description": "Slide and presentation design: storyline, takeaway titles, charts, 16:9 layout, speaker notes, accessibility, review and HTML decks, as one portable Agent Plugin.",
+  "license": "Apache-2.0",
+  "extensions": {
+    "tovu": {
+      "id": "jini/slide-design",
+      "provides": [
+        "slide-design"
+      ],
+      "displayName": "Slide Design"
+    }
+  },
+  "keywords": [
+    "slides",
+    "deck",
+    "presentation",
+    "pitch",
+    "talk",
+    "chart",
+    "storyline",
+    "keynote"
+  ]
+}
