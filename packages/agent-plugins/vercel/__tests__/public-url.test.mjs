@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { bindVercel } from "../targets/vercel.mjs";
-import { createFakeDeployHostKit } from "./fake-deploy-host-kit.mjs";
+import { createFakeDeployHostKit } from "../../__tests__/fake-deploy-host-kit.mjs";
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status });
 

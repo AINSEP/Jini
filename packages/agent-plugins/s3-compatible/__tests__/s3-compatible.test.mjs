@@ -1,5 +1,5 @@
 // Moved from Tovu's apps/website/src/features/agent-plugins/__tests__/unit/bundled-deploy-s3-compatible.unit.test.ts (types stripped), then with the plugin into Jini
-// (2026-11-02): the host kit is now `./fake-deploy-host-kit.mjs`, a test double over the same devops helpers.
+// (2026-11-02): the host kit is now `../../__tests__/fake-deploy-host-kit.mjs`, a test double over the same devops helpers.
 import assert from "node:assert/strict";
 import test from "node:test";
 
@@ -8,9 +8,9 @@ import { DeployError } from "@jini-ai/devops/deploy";
 import path from "node:path";
 import { pathToFileURL } from "node:url";
 
-import { createFakeDeployHostKit } from "./fake-deploy-host-kit.mjs";
+import { createFakeDeployHostKit } from "../../__tests__/fake-deploy-host-kit.mjs";
 
-import { installNetworkGuard } from "./vitest-compat.mjs";
+import { installNetworkGuard } from "../../__tests__/vitest-compat.mjs";
 
 /**
  * @file The bundled `s3-compatible` plugin's module
@@ -23,7 +23,7 @@ import { installNetworkGuard } from "./vitest-compat.mjs";
  * the faked global `fetch` with one signed `Request`). The network guard fails the file if any call
  * reaches an unfaked `fetch`. The cases at the end are new: the module contract.
  *
- * In Jini (2026-11-02) the kit is `./fake-deploy-host-kit.mjs`: its SigV4 client keeps the first
+ * In Jini (2026-11-02) the kit is `../../__tests__/fake-deploy-host-kit.mjs`: its SigV4 client keeps the first
  * host's `aws4fetch` call shape (one signed `Request`, SigV4-shaped `Authorization` with the real
  * credential scope) but has no built-in retries and a placeholder signature. The `aws4fetch` notes
  * below explain status choices made against the real signer; they stay valid without its retries.

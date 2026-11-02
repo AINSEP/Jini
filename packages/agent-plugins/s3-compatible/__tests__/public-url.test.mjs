@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import s3 from "../targets/s3-compatible.mjs";
-import { createFakeDeployHostKit } from "./fake-deploy-host-kit.mjs";
+import { createFakeDeployHostKit } from "../../__tests__/fake-deploy-host-kit.mjs";
 
 // Split out of Tovu's content/agent-plugins/__tests__/hosting-public-urls.test.mjs (2026-11-02), which
 // imported five plugins at once; the host kit is now the fake one.

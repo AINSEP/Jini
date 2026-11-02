@@ -1,5 +1,5 @@
 // Moved from Tovu's apps/website/src/features/agent-plugins/__tests__/unit/bundled-deploy-netlify.unit.test.ts (types stripped), then with the plugin into Jini
-// (2026-11-02): the host kit is now `./fake-deploy-host-kit.mjs`, a test double over the same devops helpers.
+// (2026-11-02): the host kit is now `../../__tests__/fake-deploy-host-kit.mjs`, a test double over the same devops helpers.
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import path from "node:path";
@@ -8,7 +8,7 @@ import test, { } from "node:test";
 
 import { DeployError } from "@jini-ai/devops/deploy";
 
-import { createFakeDeployHostKit } from "./fake-deploy-host-kit.mjs";
+import { createFakeDeployHostKit } from "../../__tests__/fake-deploy-host-kit.mjs";
 
 /**
  * @file The bundled `netlify` plugin's module (`targets/netlify.mjs`).

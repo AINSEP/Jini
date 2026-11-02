@@ -2,6 +2,7 @@
 
 ## Unreleased (0.6.19)
 
+- Tests: the hosting plugins' identical `vitest-compat.mjs` (3 copies) and `fake-deploy-host-kit.mjs` (4 copies) are one shared test-only copy each under `packages/agent-plugins/__tests__/` (never published). Cloudflare's doubled DNS-marker and Pages-config comments are merged.
 - Google Workspace: a Sheets `batchUpdate` with more than one request is never replayed after an unknown outcome. Each request was judged replay-safe alone, but Google applies them in order, so a retry of "copy A1 to B1, then set A1" changed B1.
 - Security: reinstalling a plugin whose digest directory already exists compares that directory's bytes with the verified archive before reusing it. A same-build reseed used to keep an operator-edited bundled revision selected as shipped code; a modified copy is now kept aside under a `.modified-*` name (never indexed or selected) and the verified bytes are reinstalled.
 - Railway's deploy-config generator refuses an `env` value containing a newline or control character (C0, DEL, C1) with an error naming the variable. Before, it printed the raw LF or NUL into the copy-paste `railway variables set` command. The error never echoes the value.

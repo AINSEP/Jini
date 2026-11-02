@@ -23,7 +23,7 @@ import {
  *   signature verifies: that is the host signer's own test.
  *
  * Every send reads `globalThis.fetch` at call time, so a test that stubs the global after building
- * a kit is still the one called. This file is identical in every hosting plugin that uses it.
+ * a kit is still the one called. One shared copy for every hosting plugin's tests; `__tests__/` is never published.
  */
 
 /** The host's timeout classes (QUICK/DEPLOY/UPLOAD), same values as the first host's kit. */

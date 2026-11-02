@@ -1,14 +1,14 @@
 // Moved from Tovu's apps/website/src/features/agent-plugins/__tests__/unit/bundled-deploy-github-pages.unit.test.ts (types stripped), then with the plugin into Jini
-// (2026-11-02): the host kit is now `./fake-deploy-host-kit.mjs`, a test double over the same devops helpers.
+// (2026-11-02): the host kit is now `../../__tests__/fake-deploy-host-kit.mjs`, a test double over the same devops helpers.
 import path from "node:path";
 import { describe, it, afterEach } from "node:test";
 import { pathToFileURL } from "node:url";
 
 import { DeployError } from "@jini-ai/devops/deploy";
 
-import { createFakeDeployHostKit } from "./fake-deploy-host-kit.mjs";
+import { createFakeDeployHostKit } from "../../__tests__/fake-deploy-host-kit.mjs";
 
-import { expect, installNetworkGuard, vi } from "./vitest-compat.mjs";
+import { expect, installNetworkGuard, vi } from "../../__tests__/vitest-compat.mjs";
 
 /**
  * @file The bundled `github-pages` plugin's module
@@ -16,7 +16,7 @@ import { expect, installNetworkGuard, vi } from "./vitest-compat.mjs";
  *
  * PORTED, not re-authored, from `@jini-ai/devops` `src/deploy/__tests__/github-pages.test.ts` at Jini
  * commit 28f67f9a (vitest): every original case below the "Ported" marker is unchanged, running on
- * node:test through `./vitest-compat.mjs` with the module bound to the fake host kit (whose
+ * node:test through `../../__tests__/vitest-compat.mjs` with the module bound to the fake host kit (whose
  * `fetch` calls the stubbed global `fetch` at call time). The network guard fails the file if any
  * call reaches an unstubbed `fetch`. The cases above the marker are new: the module contract, the
  * `.nojekyll` marker, the base path and config validation that used to live in Tovu core.

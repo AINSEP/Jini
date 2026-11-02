@@ -3,13 +3,7 @@ import { segment } from './api.mjs';
 
 /** A stable identifier stamped as a Cloudflare DNS record comment so a later publish can recognize
  * (and safely patch) a CNAME record it created itself, versus one an operator manages by hand.
- * Genericized from the OD origin's od:cfp: marker prefix. Keep existing Pages markers byte-identical. */
-/**
-   * A stable identifier stamped as a Cloudflare DNS record comment so a later
-   * publish can recognize (and safely patch) a CNAME record it created
-   * itself, versus one an operator manages by hand. Genericized from the OD
-   * origin's `od:cfp:` marker prefix.
-   */
+ * Genericized from the OD origin's `od:cfp:` marker prefix. Keep existing Pages markers byte-identical. */
 export function dnsMarker({ resourceName, targetHost }, _options = {}) {
   const short = ({ value }, _options = {}) => createHash('sha256').update(value).digest('hex').slice(0, 12);
   return `jini-deploy:${short({ value: resourceName })}:${short({ value: targetHost })}`;

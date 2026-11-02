@@ -6,7 +6,7 @@ import { after, mock } from "node:test";
  * @file The small slice of vitest's `expect` / `vi` API the ported devops deploy-target suites use,
  * over `node:assert` and `node:test`, so those suites run on `node --test` unchanged ("port them,
  * don't re-author"). Moved with the plugin from its first host's test fixtures (types stripped).
- * This file is identical in every hosting plugin that uses it.
+ * One shared copy for every hosting plugin's tests; `__tests__/` is never published.
  *
  * Covered, and nothing else: `toBe`, `toEqual`, `toMatchObject`, `toThrow`, `toBeInstanceOf`,
  * `toBeUndefined`, `toBeNull`, `toBeDefined`, `toHaveLength`, `toMatch`, `toContain`,

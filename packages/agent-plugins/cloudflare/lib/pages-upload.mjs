@@ -5,15 +5,11 @@ import { chunkUploads } from './assets.mjs';
 export function pagesAddress({ resourceName }, _options = {}) { return `https://${resourceName}.pages.dev`; }
 
 /** Retains project names, upload tokens, hash dedup/upsert and config-file form fields.
- * Root _headers/_redirects must be deployment fields: uploading them as assets serves them publicly
- * and never applies their rules (the Wrangler Pages deploy protocol does the same split).
+ * Root `_headers`/`_redirects` are their own deployment form fields, not assets (wrangler's
+ * `pages deploy` does the same and keeps them out of the manifest): uploaded as an asset, `_headers`
+ * would be served as a public file and its rules never applied. Only the root copy is config; a
+ * nested `_headers` stays an ordinary asset.
  * @complexity O(unique assets + bytes) and bounded batches (100 files / 75 MiB encoded). */
-/**
-   * Root-level Pages config files that the direct-upload API takes as their own deployment form
-   * fields rather than as assets (wrangler's `pages deploy` does the same and keeps them out of the
-   * manifest). Uploaded as an asset instead, `_headers` would be served as a public file and its
-   * rules never applied. Only the root copy is config; a nested `_headers` stays an ordinary asset.
-   */
 export async function uploadPages({ api, kit, resourceName, prepared }, _options = {}) {
   const path = `${api.accountPath}/pages/projects/${segment({ value: resourceName })}`;
   await ensureProject({ api, path, resourceName });
