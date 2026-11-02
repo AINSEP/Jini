@@ -6,15 +6,21 @@ wants a file. It works in any browser, presents full screen, and prints to PDF.
 ## Structure
 
 - One document. One `<section class="slide">` per slide, in presenting order.
-- Each slide has one heading: `<h1>` on the title slide, `<h2>` on the rest. Unique wording.
-- Speaker notes go in `<aside class="notes">` as the slide's last child. Hidden on screen.
+- One unique heading per slide (`<h1>` on the title slide, `<h2>` after) in an `<hgroup>` with an
+  optional kicker. The `<hgroup>` is a fixed-height header zone, so bodies never shift.
+- Speaker notes go in `<aside class="notes">` as the slide's last child. Hidden when presenting.
 - Use real elements: lists, `<figure>` and `<figcaption>`, `<img alt>`, `<table>` with `<th>`.
 - Source order is the reading order: title, then content in speaking order, then source.
 - No script is needed. Scroll snap steps through slides with arrow and Page Down keys.
-- All sizes are written in design pixels at 1920×1080 (`layout-and-style.md`) and scaled with one
-  unit, `--u`, so the slide looks the same on any screen and on paper.
+- **Presentation copy:** design pixels at 1920×1080 (`layout-and-style.md`) scaled by one unit,
+  `--u`, so a slide fills the screen and prints as one page. Browser zoom can't enlarge it.
+- **Reading copy:** `class="reading"` on `<html>`. `rem` text that zoom enlarges, slides that
+  grow, no clipping, one column on narrow screens, notes shown. It doubles as the speaker copy.
+  Publish or send it alongside the presentation copy.
 
 ## Template
+
+The figures in this template are illustrative.
 
 ```html
 <!doctype html>
@@ -42,7 +48,9 @@ wants a file. It works in any browser, presents full screen, and prints to PDF.
     background: var(--deck-bg); color: var(--deck-text);
     font-size: calc(40 * var(--u)); line-height: 1.35;
   }
-  .slide h1, .slide h2 { margin: 0 0 calc(48 * var(--u)); line-height: 1.15; max-width: calc(1500 * var(--u)); }
+  /* Header zone: kicker + two 72px title lines, the same height on every slide. */
+  .slide hgroup { min-height: calc(220 * var(--u)); margin: 0 0 calc(32 * var(--u)); }
+  .slide h1, .slide h2 { margin: 0; line-height: 1.15; max-width: calc(1500 * var(--u)); }
   .slide h1 { font-size: calc(104 * var(--u)); }
   .slide h2 { font-size: calc(72 * var(--u)); }
   .kicker { margin: 0 0 calc(16 * var(--u)); font-size: calc(28 * var(--u)); color: var(--deck-muted);
@@ -59,23 +67,35 @@ wants a file. It works in any browser, presents full screen, and prints to PDF.
   .source { left: calc(96 * var(--u)); }
   .slide-number { right: calc(96 * var(--u)); }
   .notes { display: none; }
-  /* Speaker copy: add class="show-notes" to <body>; slides grow to fit their notes. */
-  body.show-notes .slide { height: auto; min-height: calc(1080 * var(--u)); padding-bottom: calc(112 * var(--u)); }
-  body.show-notes .notes { display: block; margin-top: calc(48 * var(--u)); padding-top: calc(24 * var(--u));
-    border-top: 1px solid var(--deck-line); font-size: calc(28 * var(--u)); color: var(--deck-muted); }
+  /* Reading and speaker copy: <html class="reading">. */
+  html.reading { scroll-snap-type: none; } .reading body { background: var(--deck-bg); }
+  .reading .slide { width: auto; max-width: 64rem; height: auto; overflow: visible; margin: 0 auto;
+    padding: 2rem 1.5rem; font-size: 1.25rem; border-bottom: 1px solid var(--deck-line); }
+  .reading .slide hgroup { min-height: 0; margin-bottom: 1rem; }
+  .reading .slide h1 { font-size: 2.5rem; } .reading .slide h2 { font-size: 1.75rem; }
+  .reading .kicker, .reading .source, .reading .slide-number { font-size: 1rem; }
+  .reading .source, .reading .slide-number { position: static; margin-top: 1rem; }
+  .reading .big-number { font-size: 4rem; } .reading .grid { column-gap: 1.5rem; row-gap: 1rem; }
+  .reading .notes { display: block; margin-top: 1.5rem; padding-top: 1rem;
+    border-top: 1px solid var(--deck-line); font-size: 1.125rem; color: var(--deck-muted); }
+  @media (max-width: 48rem) { .reading .grid { grid-template-columns: 1fr; } .reading .grid > * { grid-column: 1 / -1; } }
   @page { size: 13.333in 7.5in; margin: 0; }
+  @page reading { size: auto; margin: 0.6in; }
   @media print {
     :root { --u: calc(13.333in / 1920); }
     html { scroll-snap-type: none; }
     body { background: none; }
     .slide { margin: 0; break-after: page; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    /* The reading copy flows across ordinary pages; long notes may span a page break. */
+    .reading main { page: reading; }
+    .reading .slide { break-after: auto; padding: 0 0 1.5rem; }
   }
 </style>
 </head>
 <body>
 <main>
   <section class="slide" aria-labelledby="s1">
-    <h1 id="s1">Onboarding v2 cut churn by a third</h1>
+    <hgroup><h1 id="s1">Onboarding v2: three months of results</h1></hgroup>
     <p>Product review · Ana Silva · 3 Nov 2026</p>
     <aside class="notes">One-line point of the talk, then what you'll cover.</aside>
   </section>
@@ -83,21 +103,22 @@ wants a file. It works in any browser, presents full screen, and prints to PDF.
   <section class="slide" aria-labelledby="s2">
     <hgroup>
       <p class="kicker">Retention</p>
-      <h2 id="s2">Churn fell by a third after the new onboarding shipped</h2>
+      <h2 id="s2">Churn fell by a third after the onboarding rollout</h2>
     </hgroup>
     <div class="grid">
       <figure class="span-8">
-        <img src="churn.png" alt="Line chart: churn fell from 8.1% to 5.4% after the March launch.">
+        <img src="churn.png" alt="Line chart: churn fell from 8.1% to 5.4% after the March rollout.">
       </figure>
       <p class="span-4">The biggest drop came in a customer's <strong class="accent">first 30 days</strong>.</p>
     </div>
-    <p class="source">Source: billing data, Jan–Dec 2026</p>
+    <p class="source">Source: billing data, Jan–Oct 2026</p>
     <p class="slide-number">2</p>
-    <aside class="notes">The point: onboarding fixed early churn. Look at March...</aside>
+    <aside class="notes">The point: churn declined after rollout; attribution needs further
+      evidence, such as a cohort comparison. Look at March...</aside>
   </section>
 
   <section class="slide" aria-labelledby="s3">
-    <h2 id="s3">Roll the new onboarding out to every plan by January</h2>
+    <hgroup><h2 id="s3">Roll the new onboarding out to every plan by January</h2></hgroup>
     <p>Ask: approve two engineers for six weeks.</p>
     <p>Questions: ana@example.com</p>
     <aside class="notes">Restate the ask, then take questions with this slide up.</aside>
@@ -136,9 +157,10 @@ Adapt, don't copy blindly: change the variables, keep the unit, add slide types 
 
 - Present: open the page, go full screen (F11, or the browser's full-screen command), and use the
   arrow or Page Down keys.
-- PDF: print, choose "Save as PDF". The `@page` rule gives one 16:9 page per slide. Turn on
-  background graphics if the browser asks.
-- Speaker copy: add `class="show-notes"` to `<body>` and print, or list the notes in chat.
+- PDF: print, choose "Save as PDF". The presentation copy prints one 16:9 page per slide. Turn
+  on background graphics if the browser asks.
+- Speaker or reading copy: add `class="reading"` to `<html>` and print; it flows across ordinary
+  pages, notes included. Or list the notes in chat.
 - PowerPoint, Keynote or Google Slides: out of scope here. Hand over the slide specs, or use a
   host export tool if one exists.
 
@@ -146,6 +168,8 @@ Adapt, don't copy blindly: change the variables, keep the unit, add slide types 
 
 - Screenshot each slide at a 1920×1080 viewport. Text must not run past the margins; overflow is
   hidden, so look.
-- Print preview shows one slide per page, nothing cut off.
+- Print preview of the presentation copy shows one slide per page, nothing cut off.
+- Reading copy at 200% browser zoom and at a phone width: text grows, nothing is clipped, the grid
+  is one column, notes show.
 - Contrast passes; every image has alt text; headings are unique and in order.
 - The page still makes sense with CSS off: headings, then content, in speaking order.
