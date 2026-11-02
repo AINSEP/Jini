@@ -1,0 +1,170 @@
+/* Shared styles of the Google Workspace admin panels. The CSP allows only this file ('self'), no inline style.
+   Colours, type, radius and spacing come from the admin: the host sends its design tokens and the surface
+   client sets them as `--jini-*` custom properties on <html> (plus `data-jini-scheme`), so these panels
+   match the admin and follow its light/dark switch. The `--fb-*` values are only for a host that sends none. */
+:root {
+  color-scheme: light dark;
+  --fb-bg: #ffffff; --fb-raised: #f5f6f8; --fb-text: #1f2430; --fb-muted: #626a78; --fb-line: #e4e7eb; --fb-line-strong: #cfd4db;
+  --fb-accent: #2f6fde; --fb-accent-ink: #ffffff; --fb-danger: #b42318; --fb-ok: #18763b; --fb-warn: #845800;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-jini-scheme="light"]) {
+    --fb-bg: #17191e; --fb-raised: #1f2228; --fb-text: #eceef2; --fb-muted: #9aa1ad; --fb-line: #30343c; --fb-line-strong: #434852;
+    --fb-accent: #7aa7f5; --fb-accent-ink: #111318; --fb-danger: #f2877d; --fb-ok: #79d69b; --fb-warn: #ebc36b;
+  }
+}
+:root {
+  --bg: var(--jini-bg, var(--fb-bg));
+  --raised: var(--jini-surface, var(--fb-raised));
+  --text: var(--jini-text, var(--fb-text));
+  --muted: var(--jini-text-muted, var(--fb-muted));
+  --line: var(--jini-border, var(--fb-line));
+  --line-strong: var(--jini-border-strong, var(--fb-line-strong));
+  --accent: var(--jini-primary, var(--fb-accent));
+  --accent-ink: var(--jini-primary-ink, var(--fb-accent-ink));
+  --danger: var(--jini-danger, var(--fb-danger));
+  --ok: var(--jini-success, var(--fb-ok));
+  --warn: var(--jini-warning, var(--fb-warn));
+  --danger-bg: var(--jini-danger-bg, color-mix(in oklab, var(--danger) 9%, var(--bg)));
+  --ok-bg: var(--jini-success-bg, color-mix(in oklab, var(--ok) 10%, var(--bg)));
+  --warn-bg: var(--jini-warning-bg, color-mix(in oklab, var(--warn) 11%, var(--bg)));
+  --info-bg: color-mix(in oklab, var(--accent) 8%, var(--bg));
+  --radius-sm: var(--jini-radius-sm, 7px);
+  --radius-md: var(--jini-radius-md, 11px);
+  --space-1: var(--jini-space-1, .25rem); --space-2: var(--jini-space-2, .5rem); --space-3: var(--jini-space-3, .75rem); --space-4: var(--jini-space-4, 1rem);
+  --fs-xs: var(--jini-font-size-xs, .75rem); --fs-sm: var(--jini-font-size-sm, .8125rem);
+  --fs-base: var(--jini-font-size-base, .875rem); --fs-md: var(--jini-font-size-md, .95rem);
+  --focus: 0 0 0 3px color-mix(in oklab, var(--accent) 24%, transparent);
+  --measure: 40rem;
+}
+* { box-sizing: border-box; }
+/* The type is set on body, not :root, so `rem` stays the browser's 16px like the admin's. */
+body {
+  margin: 0; padding: var(--space-1) var(--space-1) var(--space-4); color: var(--text); background: var(--bg);
+  font: var(--fs-base)/1.5 var(--jini-font-ui, system-ui, -apple-system, "Segoe UI", sans-serif); -webkit-font-smoothing: antialiased;
+}
+main { max-width: var(--measure); display: grid; gap: var(--space-3); }
+#app { display: grid; gap: var(--space-3); }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+h2 { font-size: var(--fs-md); font-weight: 600; line-height: 1.3; margin: 0; }
+p { margin: 0; }
+.muted { color: var(--muted); font-size: var(--fs-sm); }
+
+/* A section: one bordered panel per job, header row first. */
+.card { border: 1px solid var(--line); border-radius: var(--radius-md); background: var(--bg); padding: var(--space-3) var(--space-4); display: grid; gap: var(--space-3); }
+.head { display: flex; align-items: center; gap: var(--space-2); position: relative; min-width: 0; }
+.head h2 { overflow-wrap: anywhere; }
+
+/* Connection status dot beside the heading; the heading's words carry the meaning. */
+.dot { flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--line-strong); }
+.dot.ok { background: var(--ok); box-shadow: 0 0 0 3px var(--ok-bg); }
+.dot.warn { background: var(--warn); box-shadow: 0 0 0 3px var(--warn-bg); }
+.dot.info { background: var(--accent); box-shadow: 0 0 0 3px var(--info-bg); }
+
+/* Buttons: the admin's sizes and weights. */
+.actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+button {
+  font: inherit; font-size: .85rem; font-weight: 600; line-height: 1.2; padding: .5rem .95rem; min-height: 2.125rem;
+  border-radius: var(--radius-sm); border: 1px solid var(--line-strong); background: var(--bg); color: var(--text); cursor: pointer;
+}
+button:hover:not(:disabled) { background: var(--raised); }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+button.primary:hover:not(:disabled) { background: color-mix(in oklab, var(--accent) 88%, var(--text)); }
+button.danger { background: var(--danger); border-color: var(--danger); color: var(--bg); }
+button.danger:hover:not(:disabled) { background: color-mix(in oklab, var(--danger) 88%, var(--text)); }
+button.danger-quiet { margin-left: auto; border-color: transparent; background: transparent; color: var(--danger); }
+button.danger-quiet:hover:not(:disabled) { background: var(--danger-bg); }
+button.small { padding: .3rem .7rem; min-height: 1.75rem; font-size: var(--fs-sm); }
+button:disabled { opacity: .55; cursor: default; }
+button:focus-visible, select:focus-visible, input:focus-visible, .tip-icon:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px; box-shadow: none;
+}
+
+/* Product rows: name + state, then explanation, grant, switch, all on one line. */
+ul.rows { list-style: none; margin: 0; padding: 0; display: grid; }
+ul.rows > li { display: flex; align-items: center; gap: var(--space-2); padding: var(--space-2) 0; border-top: 1px solid var(--line); position: relative; }
+ul.rows > li:first-child { border-top: 0; padding-top: 0; }
+ul.rows > li:last-child { padding-bottom: 0; }
+.product-name { display: grid; min-width: 0; }
+.product-name strong { font-weight: 600; }
+.state { color: var(--muted); font-size: var(--fs-sm); }
+.state.warn { color: var(--warn); }
+.product-name { margin-right: auto; }
+.name-line { display: inline-flex; align-items: center; gap: var(--space-2); }
+
+/* The product switch: the admin's 38×22 pill. `aria-pressed` is the state. */
+button.switch { position: relative; flex: none; width: 38px; height: 22px; min-height: 0; padding: 0; border-radius: 999px; border: 1px solid var(--line-strong); background: var(--line-strong); }
+button.switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgb(0 0 0 / .25); transition: transform .15s ease; }
+button.switch[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); }
+button.switch[aria-pressed="true"]::after { transform: translateX(16px); }
+button.switch:hover:not(:disabled) { background: color-mix(in oklab, var(--line-strong) 80%, var(--text)); }
+button.switch[aria-pressed="true"]:hover:not(:disabled) { background: color-mix(in oklab, var(--accent) 88%, var(--text)); }
+
+/* "i" toggletip: hover, focus or tap shows the explanation under its row. */
+.tip { display: inline-flex; flex: none; }
+.tip-icon {
+  display: inline-grid; place-items: center; width: 1.05rem; height: 1.05rem; border-radius: 50%;
+  border: 1px solid var(--line-strong); color: var(--muted); font: 600 .7rem/1 Georgia, "Times New Roman", serif; font-style: italic;
+  cursor: help; user-select: none;
+}
+.tip-icon:hover, .tip.open .tip-icon { color: var(--text); border-color: var(--muted); }
+.tip-body {
+  display: none; position: absolute; z-index: 10; left: 0; top: calc(100% + 6px); width: max-content; max-width: min(24rem, calc(100vw - 2rem));
+  padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm); font-size: var(--fs-sm); line-height: 1.45; font-weight: 400;
+  background: var(--jini-overlay-tooltip-bg, var(--bg)); color: var(--jini-overlay-tooltip-text, var(--text));
+  border: 1px solid var(--jini-overlay-tooltip-border, var(--line)); box-shadow: 0 6px 20px rgb(0 0 0 / .14);
+}
+.tip:hover .tip-body, .tip-icon:focus-visible + .tip-body, .tip.open .tip-body { display: block; }
+
+/* Compact inline notices; tone by class. Plain `notice` is a failure. */
+.notice, .notice-group {
+  justify-self: start; max-width: 100%; font-size: var(--fs-sm); line-height: 1.45;
+  padding: var(--space-2) var(--space-3); border-radius: var(--radius-sm);
+  border: 1px solid color-mix(in oklab, var(--danger) 28%, var(--bg)); background: var(--danger-bg); color: var(--text);
+}
+.notice.ok, .notice-group.ok { border-color: color-mix(in oklab, var(--ok) 30%, var(--bg)); background: var(--ok-bg); }
+.notice.warn, .notice-group.warn { border-color: color-mix(in oklab, var(--warn) 30%, var(--bg)); background: var(--warn-bg); }
+.notice.info, .notice-group.info { border-color: color-mix(in oklab, var(--accent) 22%, var(--bg)); background: var(--info-bg); }
+.notice-group { display: flex; align-items: center; gap: var(--space-3); }
+.notice-group > .notice { padding: 0; border: 0; background: none; flex: 1; }
+.notice-group > button { flex: none; }
+
+/* Disconnect confirmation: inline, danger-tinted, inside the account card. */
+.confirm { border: 1px solid color-mix(in oklab, var(--danger) 28%, var(--bg)); background: var(--danger-bg); border-radius: var(--radius-sm); padding: var(--space-3); display: grid; gap: var(--space-2); font-size: var(--fs-sm); }
+.account-link { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); font-size: var(--fs-sm); color: var(--muted); }
+
+/* Form controls: labels above, widths sized to content. */
+label { display: grid; gap: var(--space-1); font-size: var(--fs-sm); font-weight: 600; justify-self: start; }
+input, select {
+  font: inherit; font-size: var(--fs-base); font-weight: 400; padding: .45rem .6rem; min-height: 2.125rem;
+  border-radius: var(--radius-sm); border: 1px solid var(--line-strong); background: var(--jini-control-bg, var(--bg)); color: var(--text);
+}
+/* min() rather than a fixed width + max-width: a fixed rem width is the field's min-content size, which
+   widened the whole grid past a 375px frame. */
+input[type="text"] { width: min(20rem, 100%); }
+select { width: min(28rem, 100%); }
+label { max-width: 100%; min-width: 0; }
+/* A field's label spans the row so the percentage above has a width to resolve against. */
+label:has(> input[type="text"], > select) { justify-self: stretch; }
+.field-stack { display: grid; gap: var(--space-2); justify-items: start; }
+.head > .actions.end { margin-left: auto; }
+.check { display: flex; gap: var(--space-2); align-items: flex-start; font-weight: 400; color: var(--muted); max-width: 32rem; }
+.check input { min-height: 0; margin: .2rem 0 0; accent-color: var(--accent); }
+fieldset.list { border: 0; margin: 0; padding: 0; display: grid; gap: var(--space-2); }
+fieldset.list legend { padding: 0; margin-bottom: var(--space-1); font-size: var(--fs-sm); font-weight: 600; }
+.reassign .check { color: var(--text); }
+
+/* Chosen spreadsheets and saved destinations. */
+li.sheet { flex-wrap: wrap; column-gap: var(--space-3); }
+li.card.destination { border: 0; border-top: 1px solid var(--line); border-radius: 0; padding: var(--space-2) 0; display: grid; grid-template-columns: 1fr auto; gap: var(--space-2); align-items: center; }
+li.card.destination:first-child { border-top: 0; padding-top: 0; }
+li.card.destination > .notice { grid-column: 1 / -1; grid-row: 2; }
+li.card.destination > .actions { grid-column: 2; grid-row: 1; }
+.empty { padding: var(--space-1) 0; }
+code, .url { font-family: var(--jini-font-mono, ui-monospace, SFMono-Regular, Menlo, monospace); font-size: var(--fs-xs); color: var(--muted); overflow-wrap: anywhere; user-select: all; }
+
+@media (max-width: 480px) {
+  .card { padding: var(--space-3); }
+  button.danger-quiet { margin-left: 0; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
