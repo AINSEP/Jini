@@ -264,7 +264,7 @@ export function createDelegatedToolBridge(requiredArgs: Pick<CreateDelegatedTool
     const call: DelegatedCall = { lifecycle, runId, toolUseId, ...(options.delegatedResultCorrelation ? { delegatedResultCorrelation: options.delegatedResultCorrelation } : {}) };
     await lifecycle.emit({ runId: runId, input: {
       event: 'agent',
-      data: { type: 'tool_use', id: toolUseId, name: toolId, input },
+      data: { type: 'tool_use', id: toolUseId, name: toolId, input, ...{ toolOrigin: 'bridge' as const } },
     } });
 
     const cancellation = linkCancellation(call, invocation);

@@ -105,6 +105,9 @@ function translateToolUseEvent(rawEvent: Record<string, unknown>): AgentRuntimeE
       id: asString(rawEvent.id),
       name: asString(rawEvent.name),
       input: rawEvent.input ?? null,
+      ...(isRecord(rawEvent.bridgeCall) && typeof rawEvent.bridgeCall.name === 'string'
+        ? { bridgeCall: { name: rawEvent.bridgeCall.name, input: rawEvent.bridgeCall.input,
+          ...(rawEvent.bridgeCall.buffered === true ? { buffered: true } : {}) } } : {}),
     },
   };
 }

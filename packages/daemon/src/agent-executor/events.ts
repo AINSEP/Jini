@@ -71,6 +71,7 @@ import type {
    ClassifyFailure,
    FailBeforeSpawn,
 } from './contracts.js';
+import { createCliToolCallReceiver } from './tool-call-receipts.js';
 import {
   translateAgentRuntimeEvent,
   translateAcpError,
@@ -121,7 +122,7 @@ function createStreamHandlerForDef(
     case 'qoder-stream-json':
       return createQoderStreamHandler({ onEvent: onEvent });
     case 'json-event-stream':
-      return createJsonEventStreamHandler({ kind: def.eventParser ?? '', onEvent: onEvent });
+      return createJsonEventStreamHandler({ kind: def.eventParser ?? '', onEvent: createCliToolCallReceiver({ kind: def.eventParser ?? '', onEvent }) });
     default: {
       // Unreachable: every stream format has a case above, and a new one fails typecheck here.
       const unknownFormat: never = streamFormat;

@@ -43,10 +43,16 @@ export interface DaemonSupervisorRequired {
 export interface DaemonSupervisorOptions {
   onDemandCooldownMs?: number;
   quietRoutineLifecycle?: boolean;
+  /** Normal exit codes that park until demand or manual restart, without charging the retry budget. */
+  parkedExitCodes?: readonly number[];
   formatGiveUp?: (input: { decision: Extract<RespawnDecision, { action: "give-up" }>; lastReason: string }) => string;
 }
 export interface DaemonSupervisorActionResult { ok: boolean; reason?: string }
+/** Lifecycle inspection; running describes a child, not discovery readiness. */
+export type DaemonSupervisorState = "stopped" | "running" | "parked" | "shutting-down";
 export interface DaemonSupervisor {
+  /** Inspect lifecycle synchronously without starting a child or changing retry policy. */
+  getState(): DaemonSupervisorState;
   start(): void;
   restart(): DaemonSupervisorActionResult;
   ensureStarted(): DaemonSupervisorActionResult;
@@ -72,8 +78,8 @@ function giveUpReason({ decision, lastReason }: { decision: Extract<RespawnDecis
 /**
  * Wire a caller-owned process lifecycle to retry decisions without global handlers or host defaults.
  * @param deps Required process, policy, clock, scheduler, readiness and observability ports.
- * @param options On-demand cooldown, routine-event suppression and give-up message formatter.
- * @returns Idempotent start, manual replacement, cooldown-limited recovery and terminal shutdown.
+ * @param options On-demand cooldown, park exit codes, routine-event suppression and give-up formatter.
+ * @returns Inspectable lifecycle with idempotent start, demand wake, manual replacement and terminal shutdown.
  * @throws RangeError for a negative or non-finite cooldown.
  * @complexity O(1) state/work per event, excluding injected ports and policy window pruning.
  */
@@ -81,6 +87,8 @@ export function createDaemonSupervisor(deps: DaemonSupervisorRequired, options: 
   const cooldown = options.onDemandCooldownMs ?? 30000;
   if (!Number.isFinite(cooldown) || cooldown < 0) throw new RangeError("onDemandCooldownMs must be finite and non-negative");
   const formatGiveUp = options.formatGiveUp ?? giveUpReason;
+  const parkedExitCodes = new Set(options.parkedExitCodes);
+  let parked = false;
   let current: ChildState | undefined;
   let cancelRetry: (() => void) | undefined;
   // Terminal shutdown is a one-way latch, unlike a tripped retry cap. A restart racing
@@ -91,7 +99,7 @@ export function createDaemonSupervisor(deps: DaemonSupervisorRequired, options: 
   let readyChild: ChildState | undefined;
   let readyWork: Promise<void> | undefined;
   let discoveryWork: Promise<void> | undefined;
-  let cancelReadiness: (() => void) | undefined;
+  let cancelReadiness: ((error?: Error) => void) | undefined;
 
   function isCurrentLive({ candidate }: { candidate: ChildState | undefined }): boolean {
     return candidate !== undefined && current === candidate && !terminating && !candidate.exited && !candidate.stopping;
@@ -107,7 +115,7 @@ export function createDaemonSupervisor(deps: DaemonSupervisorRequired, options: 
     return new Promise<void>((resolve, reject) => {
       let settled = false;
       let cancelPoll: (() => void) | undefined;
-      cancelReadiness = () => finish(new Error("shutting down"));
+      cancelReadiness = (error = new Error("shutting down")) => finish(error);
       function finish(error?: Error): void {
         if (settled) return;
         settled = true; cancelPoll?.(); cancelReadiness = undefined;
@@ -140,9 +148,14 @@ export function createDaemonSupervisor(deps: DaemonSupervisorRequired, options: 
       const start = supervisor.ensureStarted();
       if (!start.ok) return Promise.reject(new Error(start.reason));
       // A slow healthy child must keep being discovered after an HTTP caller gives up.
-      // Share the monitor across subsequent demands; only shutdown cancels background polling.
-      discoveryWork ??= waitForReady().finally(() => { discoveryWork = undefined; });
-      readyWork = readinessDeadline({ work: discoveryWork, scheduler: deps.scheduler }).finally(() => { readyWork = undefined; });
+      // Share the monitor across subsequent demands; shutdown or parking cancels polling.
+      // A parked waiter's cleanup must not clear a fresh wake's discovery or request work.
+      if (!discoveryWork) {
+        const discovery = waitForReady().finally(() => { if (discoveryWork === discovery) discoveryWork = undefined; });
+        discoveryWork = discovery;
+      }
+      const ready = readinessDeadline({ work: discoveryWork, scheduler: deps.scheduler }).finally(() => { if (readyWork === ready) readyWork = undefined; });
+      readyWork = ready;
     }
     return signal ? awaitForCaller({ work: readyWork, signal }) : readyWork;
   }
@@ -177,6 +190,12 @@ export function createDaemonSupervisor(deps: DaemonSupervisorRequired, options: 
   }
 
   function handleUnexpectedExit(code: number | null, signal: NodeJS.Signals | null): void {
+    // Recognize the host's normal park code before classification can charge a crash or bind failure.
+    if (code !== null && parkedExitCodes.has(code)) {
+      parked = true; cancelPendingRetry(); cancelReadiness?.(new Error("daemon parked"));
+      readyChild = undefined; readyWork = undefined; discoveryWork = undefined;
+      return;
+    }
     const classification = deps.classifyExit({ code, signal });
     reportFailure(classification.reason);
     const decision = deps.policy.recordFailure({ isPortConflict: classification.isPortConflict });
@@ -188,7 +207,7 @@ export function createDaemonSupervisor(deps: DaemonSupervisorRequired, options: 
   }
 
   function attemptSpawn(): void {
-    if (terminating || (current !== undefined && (!current.exited || current.stopping))) return;
+    if (terminating || parked || (current !== undefined && (!current.exited || current.stopping))) return;
     // A new attempt must not inherit a stale readiness failure from an earlier child.
     deps.failureReporter.clear();
     let child: SpawnedDaemonProcess;
@@ -232,6 +251,7 @@ export function createDaemonSupervisor(deps: DaemonSupervisorRequired, options: 
   // Wait for a still-live child to exit before replacement: spawning alongside it would
   // collide on its listening port and manufacture the bind failure we are recovering from.
   function forceFreshSpawn(): void {
+    parked = false;
     if (current?.stopping) { current.replaceAfterExit = true; return; }
     if (current !== undefined && !current.exited) {
       if (current.replaceAfterExit) return;
@@ -245,6 +265,11 @@ export function createDaemonSupervisor(deps: DaemonSupervisorRequired, options: 
 
   const supervisor: DaemonSupervisor = {
     isReady, ensureReady,
+    getState() {
+      if (terminating) return "shutting-down";
+      if (parked) return "parked";
+      return current !== undefined && !current.exited ? "running" : "stopped";
+    },
     start() { if (cancelRetry === undefined) attemptSpawn(); },
     restart() {
       if (terminating) return { ok: false, reason: "shutting down" };
@@ -255,6 +280,11 @@ export function createDaemonSupervisor(deps: DaemonSupervisorRequired, options: 
       if (terminating) return { ok: false, reason: "shutting down" };
       // A scheduled retry keeps its own backoff; request traffic must not accelerate it.
       if ((current !== undefined && (!current.exited || current.stopping)) || cancelRetry !== undefined) return { ok: true };
+      // Parking is healthy idleness: wake immediately, retaining all earlier crash history.
+      if (parked) {
+        lastOnDemandAttemptAt = deps.now(); forceFreshSpawn();
+        return { ok: true };
+      }
       // Single-flight alone cannot stop a storm against a durably broken launch. The 30s
       // default floor matches the standard backoff ceiling, bounding traffic-driven retries
       // to the same worst-case rate as timer-driven recovery after a cap or spawn failure.

@@ -54,7 +54,7 @@ function substitute({ line, placeholders }) {
 
 /** A block's text as lines; the file's own trailing newline is not an extra empty line. */
 function blockLines(text) {
-  return text.replace(/\n$/, "").split("\n");
+  return text === "" ? [] : text.replace(/\r\n/g, "\n").replace(/\n$/, "").split("\n");
 }
 
 /**
@@ -77,7 +77,7 @@ export function renderDeployWorkflow({ template, placeholders }, { blocks = {} }
   const out = [];
   const seen = new Set();
   let region = null;
-  template.split("\n").forEach((line, index) => {
+  template.replace(/\r\n/g, "\n").split("\n").forEach((line, index) => {
     const lineNumber = index + 1;
     const open = OPEN.exec(line)?.[1] ?? null;
     const close = open ? null : CLOSE.exec(line)?.[1] ?? null;

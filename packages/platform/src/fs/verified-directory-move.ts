@@ -20,7 +20,7 @@ export function directoryFingerprint({ dir }: { dir: string }, { excluded = [], 
       digest.update(JSON.stringify([name, kind, stat.mode & 0o777]));
       if (kind === "directory") visit(name);
       else if (kind === "link") digest.update(JSON.stringify(filesystem.readlinkSync(absolute)));
-      else digest.update(fileDigest({ absolute, filesystem }));
+      else digest.update(fileDigest({ path: absolute }, { filesystem }));
     }
   }
   visit(""); return digest.digest("hex");
@@ -30,7 +30,12 @@ function entryKind(stat: fs.Stats): "link" | "directory" | "file" | "unsupported
   if (stat.isDirectory()) return "directory";
   return stat.isFile() ? "file" : "unsupported";
 }
-function fileDigest({ absolute, filesystem }: { absolute: string; filesystem: typeof fs }): Buffer {
+/** SHA-256 of one file through the same bounded reader used by directory verification.
+ * @param required.path - File path already authorized/contained by the host.
+ * @param optional.filesystem - Injectable native read/close operations.
+ * @returns Raw digest bytes; read/open errors propagate and the descriptor always closes.
+ * @complexity O(file bytes) time, O(64 KiB) space. */
+export function fileDigest({ path: absolute }: { path: string }, { filesystem = fs }: { filesystem?: Pick<typeof fs, 'openSync' | 'readSync' | 'closeSync'> } = {}): Buffer {
   const digest = createHash("sha256"), buffer = Buffer.allocUnsafe(64 * 1024);
   const descriptor = filesystem.openSync(absolute, "r");
   try {

@@ -638,7 +638,6 @@ function codexMcpToolName(item: JsonObject): string {
   // A Jini call is named `mcp__jini__X` exactly as Claude Code names it: the daemon bridge also
   // reports a direct call as its own `X` row, and @jini-ai/chat folds the pair into one row only
   // when the CLI row carries the MCP prefix (a bare `X` drew every Codex direct call twice).
-  if (item.server === 'jini') return tool ? `mcp__jini__${tool}` : 'mcp_tool_call';
   const server = typeof item.server === 'string' ? item.server : 'external';
   return `mcp__${server}__${tool ?? 'call'}`;
 }

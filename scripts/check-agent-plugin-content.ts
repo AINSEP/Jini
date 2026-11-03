@@ -83,7 +83,8 @@ export function refusedSpecifier(
   required: { specifier: string; file: string; pluginRoot: string },
   optional: { pluginNames?: ReadonlySet<string> } = {},
 ): string | undefined {
-  const { specifier, file, pluginRoot } = required;
+  const { specifier, file } = required;
+  const pluginRoot = resolve(required.pluginRoot);
   if (specifier.startsWith('node:')) return undefined;
   const pluginNames = optional.pluginNames ?? new Set(agentPluginPackages.map(row => row.name));
   if (otherPlugin.test(specifier) || siblingSubpath({ specifier, pluginRoot, pluginNames })) return 'imports another plugin';

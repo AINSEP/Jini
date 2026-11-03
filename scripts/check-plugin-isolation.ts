@@ -5,7 +5,7 @@
  * `check-agent-plugin-content.ts` proves no folder's code imports a sibling folder.
  */
 import { existsSync } from 'node:fs';
-import { relative, resolve } from 'node:path';
+import { posix, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   AGENT_PLUGINS_PACKAGE, agentPluginExports, agentPluginPackages, isPublishedAgentPluginFile, legacyAgentPluginPackages,
@@ -58,7 +58,7 @@ function assertDependency(
 
 function assertDependencies(required: { manifest: PluginIsolationManifest }, optional: PluginIsolationPorts): void {
   const { manifest } = required;
-  if (!manifest.name.startsWith('@jini-ai/plugin-')) return;
+  if (!manifest.name.startsWith('@jini-ai/plugin-') && manifest.name !== AGENT_PLUGINS_PACKAGE && manifest.name !== PROVIDER_PLUGINS_PACKAGE) return;
   for (const field of dependencyFields) {
     for (const [name, specifier] of Object.entries(manifest[field] ?? {})) {
       assertDependency({ owner: manifest.name, name, specifier }, optional);
@@ -155,9 +155,18 @@ export function assertAgentPluginSubpathExports(
     }
   }
   for (const [key, target] of Object.entries(exports)) {
-    const folder = typeof target === 'string' ? target.split('/')[1] ?? '' : '';
-    if (owners.has(folder) && expected[key] !== target) throw new TypeError(`${AGENT_PLUGINS_PACKAGE}: export ${key} reaches into ${folder}/`);
+    for (const leaf of exportTargets({ target })) {
+      const folder = posix.normalize(decodeURIComponent(leaf).replaceAll('\\', '/')).split('/')[0] ?? '';
+      if (owners.has(folder) && expected[key] !== target) throw new TypeError(`${AGENT_PLUGINS_PACKAGE}: export ${key} reaches into ${folder}/`);
+    }
   }
+}
+
+/** Conditional exports and fallback arrays carry the same folder boundary as direct targets. */
+function exportTargets({ target }: { target: unknown }, _optional: Record<string, never> = {}): string[] {
+  if (typeof target === 'string') return [target];
+  if (!target || typeof target !== 'object') return [];
+  return Object.values(target).flatMap(value => exportTargets({ target: value }));
 }
 
 /** Every packed path of the agent-plugins package. */
@@ -219,12 +228,12 @@ export function assertPluginPackageIsolation(
   optional: PluginIsolationPorts = {},
 ): void {
   const { manifest, packedPaths, pluginIds } = required;
+  assertDependencies({ manifest }, optional);
   if (manifest.name === AGENT_PLUGINS_PACKAGE) return assertAgentPluginsPackage(required, optional);
   if (manifest.name === PROVIDER_PLUGINS_PACKAGE) return assertProviderPluginsPackage(required, optional);
   const catalog = manifest.name === '@jini-ai/plugin-catalog';
   let ownId: string | undefined;
   if (!catalog && manifest.name.startsWith('@jini-ai/plugin-')) ownId = manifest.name.slice('@jini-ai/plugin-'.length);
-  assertDependencies({ manifest }, optional);
   const policy = payloadPolicy({ packageName: manifest.name, ownId, pluginIds }, optional);
   for (const input of packedPaths) {
     if (!input || input.endsWith('/')) continue;

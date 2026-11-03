@@ -47,6 +47,17 @@ export interface RunProtocolEventWire {
   readonly payload: unknown;
 }
 
+/** Retain executor-decoded display correlation through both live and saved chat reduction.
+ * Only the delegated bridge marks canonical rows; malformed optional metadata is ignored. O(1). */
+function toolCallCorrelation({ payload }: { payload: RunAgentPayload }): Pick<Extract<AgentEvent, { kind: 'tool_use' }>, 'bridgeCall' | 'toolOrigin'> {
+  const call = payload.bridgeCall;
+  return {
+    ...(payload.toolOrigin === 'bridge' ? { toolOrigin: 'bridge' as const } : {}),
+    ...(isRecord(call) && typeof call.name === 'string' ? { bridgeCall: { name: call.name, input: call.input,
+      ...(call.buffered === true ? { buffered: true } : {}) } } : {}),
+  };
+}
+
 function wireString(v: unknown): string {
   if (typeof v === "string") return v;
   return v == null ? "" : JSON.stringify(v);
@@ -126,7 +137,8 @@ export function translateRunAgentPayload({ payload }: { payload: RunAgentPayload
     case "thinking_delta":
       return { kind: "thinking", text: wireString(payload.delta) };
     case "tool_use":
-      return { kind: "tool_use", id: wireString(payload.id), name: wireString(payload.name), input: payload.input };
+      return { kind: "tool_use", id: wireString(payload.id), name: wireString(payload.name), input: payload.input,
+        ...toolCallCorrelation({ payload }) };
     case "tool_result":
       return toolResultEvent(payload);
     case "usage":

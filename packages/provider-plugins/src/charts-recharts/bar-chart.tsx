@@ -41,7 +41,7 @@ function CategoryTick({ x, y, width, index, visibleTicksCount, payload, classNam
   const band = Number(width) / Math.max(1, visibleTicksCount);
   const step = Math.ceil(MIN_TICK_WIDTH / band);
   const last = visibleTicksCount - 1;
-  if (index !== last && (index % step !== 0 || last - index < step)) return null;
+  if (index !== 0 && index !== last && (index % step !== 0 || last - index < step)) return null;
   const label = String(payload.value);
   return (
     <g>

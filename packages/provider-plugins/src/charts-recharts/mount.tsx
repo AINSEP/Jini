@@ -15,8 +15,11 @@ export class UnsupportedChartSpecError extends Error {
 /** Catch render/commit errors inside this provider's root and report through the vanilla ABI.
  * Core owns the data table and recovery chain; the provider must not invent another fallback.
  */
-class ProviderBoundary extends Component<{ children: ReactNode; onError: (error: unknown) => void }, { failed: boolean }> {
-  state = { failed: false };
+class ProviderBoundary extends Component<{ children: ReactNode; onError: (error: unknown) => void; revision: object }, { failed: boolean; revision: object }> {
+  state = { failed: false, revision: this.props.revision };
+  static getDerivedStateFromProps(props: { revision: object }, state: { revision: object }): { failed: boolean; revision: object } | null {
+    return props.revision === state.revision ? null : { failed: false, revision: props.revision };
+  }
   static getDerivedStateFromError(): { failed: boolean } { return { failed: true }; }
   componentDidCatch(error: Error): void { this.props.onError(error); }
   render(): ReactNode { return this.state.failed ? null : this.props.children; }
@@ -56,7 +59,7 @@ export function mount(
     pending?.resolve(); applyChartTheme({ element, theme: next.theme });
     return new Promise((resolve, reject) => {
       const task = { resolve, reject }; pending = task;
-      root.render(<ProviderBoundary onError={reportError}>
+      root.render(<ProviderBoundary onError={reportError} revision={task}>
         <ProviderChart {...next} onReady={() => { if (pending === task) pending = undefined; resolve(); }} />
       </ProviderBoundary>);
     });

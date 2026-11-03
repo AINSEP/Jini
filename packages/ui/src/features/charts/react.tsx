@@ -6,7 +6,7 @@ import { chartSpecSchema, DEFAULT_CHART_THEME, type ChartSpec, type ChartTheme }
 import { mountChart, type MountedChart, type MountChartOptions } from './browser.js';
 import { CHART_SPEC_COMPONENT_ID, chartCatalogManifests } from './catalog-manifests.js';
 import { chartCapability, type ChartProviderRegistry } from './registry.js';
-import { chartWireManifests, legacyChartSpec, withSeriesLabels } from './wire.js';
+import { chartSpecPropsSchema, chartWireManifests, legacyChartSpec, withSeriesLabels } from './wire.js';
 
 export interface ChartHostProps {
   readonly spec: ChartSpec;
@@ -53,7 +53,9 @@ function chartComponent(
   options: ChartHostOptions,
 ): ComponentType<Record<string, unknown>> {
   return function RegisteredChart(props: Record<string, unknown>): ReactElement {
-    const parsed = legacyKind ? legacyChartSpec({ kind: legacyKind, props }) : chartSpecSchema.parse(props.spec);
+    // chart.spec has stricter row/series rules; provider-only kinds retain their own contract.
+    const parsed = legacyKind ? legacyChartSpec({ kind: legacyKind, props })
+      : provider ? chartSpecSchema.parse(props.spec) : chartSpecPropsSchema.parse(props).spec;
     const spec = withSeriesLabels({ spec: provider ? { ...parsed, provider } : parsed });
     return <ChartHost spec={spec} registry={providers} {...options} />;
   };

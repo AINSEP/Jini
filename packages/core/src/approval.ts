@@ -157,7 +157,7 @@ export function createBatchApprovalHandler<TPrepared, TDescription>(
       const plans: ApprovalPlan<TDescription>[] = [];
       for (const entry of prepared.entries) plans.push(await steps.describe(entry, options));
       if (!prepared.batch) return plans[0]!;
-      return { ask: true, description: combineDescriptions({ descriptions: plans.map(plan => plan.description) }) };
+      return { ask: plans.some(plan => plan.ask), description: combineDescriptions({ descriptions: plans.map(plan => plan.description) }) };
     },
     askHuman: steps.askHuman,
     run: async ({ prepared, confirmer, choice }, options) => {

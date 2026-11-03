@@ -285,6 +285,12 @@ async function attachOneFederatedConnection(params: {
     );
     logFederatedAdmissionReport(connectionId, report, logger);
 
+    // An empty grant has no callable handler retaining this session. Release its child/socket
+    // before a later operator grant re-admits the row with a new session.
+    if (connection.config.allowedToolNames.length === 0) {
+      await session.close({});
+      return { registeredToolIds, session: null, report };
+    }
     return { registeredToolIds, session, report };
   } catch (error) {
     logger.warn({ message: `mcp-federation: '${connectionId}' failed, continuing without its tools — ${redactSecrets({ input: inspect(error) }, { redactPii: false })}` });

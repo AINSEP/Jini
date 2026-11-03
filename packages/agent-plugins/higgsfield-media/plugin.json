@@ -70,7 +70,10 @@
             ],
             "read": [
               "models_explore",
-              "job_status"
+              "job_status",
+              "jobs_wait",
+              "show_generations",
+              "show_generation_by_ids"
             ]
           }
         }

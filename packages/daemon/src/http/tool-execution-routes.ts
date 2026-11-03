@@ -59,6 +59,8 @@ export interface ToolExecutionRoutesOptional {
   /** Defaults to {@link DEFAULT_TOOL_EXEC_MAX_BODY_BYTES}. */
   readonly maxBodyBytes?: number;
   readonly runWithContext?: RunWithToolContext;
+  /** Host-owned live-run/identity gate, after parsing and before either route dispatches. */
+  readonly authorizeRun?: RequestHandler;
 }
 
 function refusalFor({ req, expected, tokenEnvVar }: { readonly req: Request; readonly expected: string | undefined; readonly tokenEnvVar: string }): ApiError | null {
@@ -210,11 +212,12 @@ function catalogHandler({ listToolsFor }: Pick<ToolExecutionRoutesRequired, 'lis
  */
 export function registerToolExecutionRoutes(
   { app, executor, listToolsFor }: ToolExecutionRoutesRequired,
-  { tokenEnvVar, env, maxBodyBytes = DEFAULT_TOOL_EXEC_MAX_BODY_BYTES, runWithContext }: ToolExecutionRoutesOptional = {},
+  { tokenEnvVar, env, maxBodyBytes = DEFAULT_TOOL_EXEC_MAX_BODY_BYTES, runWithContext, authorizeRun }: ToolExecutionRoutesOptional = {},
 ): void {
   const gate = requireToolExecutionCaller({}, { ...(tokenEnvVar === undefined ? {} : { tokenEnvVar }), ...(env === undefined ? {} : { env }) });
   const parser = express.json({ limit: maxBodyBytes });
-  app.post(TOOL_EXECUTIONS_ROUTE_PATH, gate, parser, executionHandler({ executor }, runWithContext === undefined ? {} : { runWithContext }), bodyParserFailure);
-  app.get(TOOL_CATALOG_ROUTE_PATH, gate, catalogHandler({ listToolsFor }));
+  const runGate = authorizeRun ? [authorizeRun] : [];
+  app.post(TOOL_EXECUTIONS_ROUTE_PATH, gate, parser, ...runGate, executionHandler({ executor }, runWithContext === undefined ? {} : { runWithContext }), bodyParserFailure);
+  app.get(TOOL_CATALOG_ROUTE_PATH, gate, ...runGate, catalogHandler({ listToolsFor }));
 }
 

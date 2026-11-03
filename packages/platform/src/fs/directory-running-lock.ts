@@ -12,6 +12,8 @@ export interface DirectoryRunningLock {
   release(required: { token: string }, options?: {}): void;
 }
 
+type RunningOwner = Omit<DirectoryRunningRecord, "port" | "scheme"> & { port?: unknown; scheme?: unknown };
+
 /** A process lease is distinct from the brief file lock protecting its read/modify/write.
  * Only proven process death permits stale cleanup. Release/update require the unique claim token.
  * A zero port means boot is in progress and must still prevent a second database owner.
@@ -22,20 +24,31 @@ export function createDirectoryRunningLock(
     file: DurableJsonFile; isAlive: (required: { pid: number }) => boolean; remove: () => void;
   }, { bootIdentity }: { bootIdentity?: () => BootIdentity | undefined } = {},
 ): DirectoryRunningLock {
-  /** Validate before any mutation; corrupt or unreadable records fail closed. O(1) JSON I/O. */
-  function readRecord(): DirectoryRunningRecord | null {
+  /** Validate the holder before probing liveness; unreadable/unknown identities fail closed.
+   * A malformed address is recoverable only after proving this holder cannot own the DB. O(1).
+   */
+  function readOwner(): RunningOwner | null {
     const result = file.read({});
     if (result.state === "missing") return null;
     if (result.state !== "ok") throw new Error("The running lock is unreadable; refusing to open this directory's database.");
-    const record = result.value as DirectoryRunningRecord | null;
-    if (!validRunningRecord(record)) throw new Error("The running lock is invalid; refusing to open this directory's database.");
+    const record = result.value;
+    if (!validRunningOwner(record)) throw new Error("The running lock is invalid; refusing to open this directory's database.");
+    return record;
+  }
+  /** Release still requires a complete valid record and its token, even for a dead holder. O(1). */
+  function readRecord(): DirectoryRunningRecord | null {
+    const record = readOwner();
+    if (record && !validRunningRecord(record)) throw new Error("The running lock is invalid; refusing to open this directory's database.");
     return record;
   }
   function readLive(cleanup = true): DirectoryRunningRecord | null {
-    const record = readRecord();
+    const record = readOwner();
     if (!record) return null;
     const earlierBoot = fromEarlierBoot({ boot: bootIdentity?.(), bootId: record.bootId, atMs: Date.parse(record.started) });
-    if (!earlierBoot && isAlive({ pid: record.pid })) return record;
+    if (!earlierBoot && isAlive({ pid: record.pid })) {
+      if (!validRunningRecord(record)) throw new Error("The running lock is invalid; refusing to open this directory's database.");
+      return record;
+    }
     if (cleanup) remove();
     return null;
   }
@@ -69,14 +82,20 @@ export function createDirectoryRunningLock(
 }
 
 function validRunningRecord(value: unknown): value is DirectoryRunningRecord {
+  if (!validRunningOwner(value)) return false;
+  const validPort = Number.isInteger(value.port) && typeof value.port === "number" && value.port >= 0 && value.port <= 65535;
+  return validPort && (value.scheme === "http" || value.scheme === "https");
+}
+
+/** Address corruption must not prevent dead-holder recovery, but never guess a holder. O(1). */
+function validRunningOwner(value: unknown): value is RunningOwner {
   if (!value || typeof value !== "object") return false;
   const record = value as DirectoryRunningRecord;
   const validPid = Number.isSafeInteger(record.pid) && record.pid > 0;
-  const validPort = Number.isInteger(record.port) && record.port >= 0 && record.port <= 65535;
-  return validPid && validPort && validRunningIdentity({ record }) && ["http", "https"].includes(record.scheme);
+  return validPid && validRunningIdentity({ record });
 }
 
-function validRunningIdentity({ record }: { record: DirectoryRunningRecord }, _options = {}): boolean {
+function validRunningIdentity({ record }: { record: Omit<DirectoryRunningRecord, "port" | "scheme"> }, _options = {}): boolean {
   const validBootId = record.bootId === undefined || typeof record.bootId === "string";
   const validStarted = typeof record.started === "string" && Number.isFinite(Date.parse(record.started));
   return isNonEmptyString(record.app) && isNonEmptyString(record.token) && validBootId && validStarted;

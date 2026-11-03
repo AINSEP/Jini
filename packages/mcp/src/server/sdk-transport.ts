@@ -1,10 +1,18 @@
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import type { McpTransportLike } from './ports.js';
 
+// SDK HTTP classes explicitly permit undefined optional callbacks while Transport omits it.
+// Normalize that upstream declaration mismatch here, keeping casts out of embeddings.
+type SdkTransportInput = Pick<Transport, 'start' | 'send' | 'close'> & {
+  onmessage?: Transport['onmessage'];
+  onclose?: Transport['onclose'];
+  onerror?: Transport['onerror'];
+};
+
 const sdkTransports = new WeakMap<McpTransportLike, Transport>();
 
 /** Internal boundary adapter; SDK callbacks keep their native signature behind the port. */
-export function adaptSdkTransport({ transport: sdk }: { transport: Transport }): McpTransportLike {
+export function adaptSdkTransport({ transport: sdk }: { transport: SdkTransportInput }): McpTransportLike {
   const transport: McpTransportLike = {
     get onmessage(): McpTransportLike['onmessage'] {
       const handler = sdk.onmessage;
@@ -21,7 +29,7 @@ export function adaptSdkTransport({ transport: sdk }: { transport: Transport }):
     },
     close: (_required) => sdk.close(),
   };
-  sdkTransports.set(transport, sdk);
+  sdkTransports.set(transport, sdk as Transport);
   return transport;
 }
 

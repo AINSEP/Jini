@@ -48,7 +48,8 @@ export type AgentEvent =
     }
   | { kind: 'text'; text: string }
   | { kind: 'thinking'; text: string }
-  | { kind: 'tool_use'; id: string; name: string; input: unknown }
+  | { kind: 'tool_use'; id: string; name: string; input: unknown;
+      bridgeCall?: { name: string; input: unknown; buffered?: boolean }; toolOrigin?: 'bridge' }
   | {
       kind: 'tool_result';
       toolUseId: string;

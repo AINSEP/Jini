@@ -147,7 +147,7 @@ function isPassthroughContentBlock(block: unknown): boolean {
  * convention `@jini-ai/daemon`'s `tool-result-media.ts`/`tool-result-surfaces.ts` already apply to
  * this identical envelope shape one layer up, kept consistent here rather than reinvented.
  */
-function isMcpContentEnvelope(payload: unknown): payload is { content: readonly unknown[] } {
+function isMcpContentEnvelope(payload: unknown): payload is { content: readonly unknown[]; structuredContent?: unknown } {
   if (!isRecord(payload)) return false;
   const content = payload['content'];
   return Array.isArray(content) && content.every(isPassthroughContentBlock);
@@ -171,7 +171,9 @@ export function okResult({ payload }: { payload: unknown }): CallToolResult {
   const flaggedError = typeof payload === 'object' && payload !== null && 'isError' in payload && payload.isError === true;
   const isError = flaggedError || outcome === 'partial_failure' || outcome === 'error';
   if (isMcpContentEnvelope(payload)) {
-    return { content: payload.content as CallToolResult['content'], ...(isError ? { isError: true } : {}) };
+    return { content: payload.content as CallToolResult['content'],
+      ...(isRecord(payload.structuredContent) ? { structuredContent: payload.structuredContent } : {}),
+      ...(isError ? { isError: true } : {}) };
   }
   // Compact on the wire: indentation made nested results ~2.5x larger for the model to read. A view
   // that shows a result to a person re-indents it at render time (`@jini-ai/chat`'s

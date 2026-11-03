@@ -10,7 +10,21 @@ import { fetchWithTimeout } from "./fetch-with-timeout.js";
 
 export type HttpWaitOptions = {
   timeoutMs?: number;
+  /** Optional transport policy (for example, a pinned loopback TLS probe). False retries; throwing
+   * records the diagnostic and retries. Each call receives the remaining overall time budget.
+   */
+  probe?: ((required: { url: string; timeoutMs: number }) => Promise<boolean>) | undefined;
 };
+
+/** Use the injected transport policy or the existing bounded fetch, retaining HTTP diagnostics.
+ * @returns Whether this attempt is ready. @complexity One network request, bounded by timeoutMs.
+ */
+async function requestHttpOk({ url, timeoutMs }: { url: string; timeoutMs: number }, { probe }: Pick<HttpWaitOptions, "probe"> = {}): Promise<boolean> {
+  if (probe) return probe({ url, timeoutMs });
+  const response = await fetchWithTimeout(url, { cache: "no-store" }, { timeoutMs });
+  if (!response.ok) throw new Error(`HTTP ${response.status} from ${url}`);
+  return true;
+}
 
 /** @internal Extract a human-readable message from an unknown thrown value. */
 function errorMessage(error: unknown): string {
@@ -26,7 +40,7 @@ function errorMessage(error: unknown): string {
  * @returns `true` once an OK response is received.
  * @throws When the timeout elapses without an OK response (message includes the last error).
  */
-export async function waitForHttpOk(url: string, { timeoutMs = 20000 }: HttpWaitOptions = {}): Promise<true> {
+export async function waitForHttpOk(url: string, { timeoutMs = 20000, probe }: HttpWaitOptions = {}): Promise<true> {
   const startedAt = Date.now();
   let lastError: Error | null = null;
   while (Date.now() - startedAt < timeoutMs) {
@@ -39,9 +53,8 @@ export async function waitForHttpOk(url: string, { timeoutMs = 20000 }: HttpWait
       // clock once `await fetch(...)` itself returns, so an unbounded fetch call defeats the loop's
       // own deadline exactly like Finding 2 of the 2026-08-16 audit describes.
       const remaining = timeoutMs - (Date.now() - startedAt);
-      const response = await fetchWithTimeout(url, { cache: "no-store" }, { timeoutMs: Math.max(1, remaining) });
-      if (response.ok) return true;
-      lastError = new Error(`HTTP ${response.status} from ${url}`);
+      if (await requestHttpOk({ url, timeoutMs: Math.max(1, remaining) }, { probe })) return true;
+      lastError = new Error(`Readiness probe refused ${url}`);
     } catch (error) {
       lastError = new Error(errorMessage(error));
     }

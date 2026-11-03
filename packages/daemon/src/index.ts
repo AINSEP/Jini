@@ -79,6 +79,7 @@
  */
 export * from './event-log.js';
 export * from './close-status.js';
+export * from './idle-monitor.js';
 export * from './run-lifecycle.js';
 export * from './ai-trace-lifecycle.js';
 export * from './tool-executor.js';

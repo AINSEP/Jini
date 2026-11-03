@@ -39,7 +39,9 @@ function resolveDependency(required: { from: string; name: string; fs: Packaging
 interface ClosurePlan {
   outDir: string; excluded: ReadonlySet<string>; fs: PackagingFilesystemPort; resolver: PackageResolverPort;
   /** Planned copies keyed by staged destination; one source may be planned at several destinations. */
-  staged: Map<string, PlannedPackage>; roots: ReadonlySet<string>; queue: QueuedPackage[];
+  staged: Map<string, PlannedPackage>;
+  /** Empty slots on earlier dependents' lookup paths must not acquire a conflicting version. */
+  bindings: Map<string, PlannedPackage>; roots: ReadonlySet<string>; queue: QueuedPackage[];
 }
 /** Staged package directories from `destination` up to (excluding) the modules root, nearest first. */
 function stagedAncestors(required: { outDir: string; destination: string | undefined }): string[] {
@@ -94,13 +96,27 @@ function placeDependency(plan: ClosurePlan, required: { from: QueuedPackage; nam
   const candidates = resolutionPath({ outDir: plan.outDir, name, destination: from.destination });
   const index = candidates.findIndex(candidate => occupantAt(plan, { destination: candidate }));
   const occupant = index < 0 ? undefined : occupantAt(plan, { destination: candidates[index]! });
-  if (occupant && compatible({ occupant, planned })) return plan.staged.has(candidates[index]!) ? undefined : candidates[index];
+  if (occupant && compatible({ occupant, planned })) {
+    bindResolution(plan, { candidates, destination: candidates[index]!, planned });
+    return plan.staged.has(candidates[index]!) ? undefined : candidates[index];
+  }
   // Only positions nearer than the occupant are seen by Node; with no occupant, hoist like npm does.
-  const open = index < 0 ? candidates : candidates.slice(0, index);
+  const open = (index < 0 ? candidates : candidates.slice(0, index)).filter(candidate => {
+    const binding = plan.bindings.get(candidate);
+    return !binding || compatible({ occupant: binding, planned });
+  });
   const position = openPosition({ open, layout: sourceLayoutPosition(plan, { from, directory: planned.directory }), hoist: index < 0 });
   // A source already staged above the chosen spot means conflicting versions alternate down a cycle.
   if (!position || stagedAncestors({ outDir: plan.outDir, destination: path.dirname(position) }).some(ancestor => plan.staged.get(ancestor)?.directory === planned.directory)) throw conflictError({ name, planned, from });
+  bindResolution(plan, { candidates, destination: position, planned });
   return position;
+}
+/** Record the resolved edge before later siblings can fill an empty ancestor and shadow it. */
+function bindResolution(plan: ClosurePlan, required: { candidates: readonly string[]; destination: string; planned: PlannedPackage }): void {
+  for (const candidate of required.candidates) {
+    plan.bindings.set(candidate, required.planned);
+    if (candidate === required.destination) break;
+  }
 }
 /** npm's position when Node can see it from the dependent; otherwise the top level (`hoist`) or the dependent's own node_modules. */
 function openPosition(required: { open: readonly string[]; layout: string | undefined; hoist: boolean }): string | undefined {
@@ -125,7 +141,7 @@ function planDependency(plan: ClosurePlan, required: { from: QueuedPackage; name
  * Supplied roots are already owned by the caller and are never copied through a back edge.
  * A version that conflicts with the hoisted copy is staged nested under its dependent, so every
  * staged package still resolves its declared dependencies from where it sits.
- * @complexity O(packages × nesting depth + edges × ancestor depth) filesystem reads, O(packages) plan memory.
+ * @complexity O(packages × nesting depth + edges × ancestor depth) filesystem reads, O(packages + edges × ancestor depth) plan memory.
  * @example stageTransitiveDependencies({ roots, outDir, excluded, fs, resolver });
  */
 export function stageTransitiveDependencies(required: {
@@ -133,7 +149,7 @@ export function stageTransitiveDependencies(required: {
 }, optional: DependencyOptions = {}): number {
   const { roots, fs } = required;
   const rootDirectories = new Set(roots.map(root => fs.realpath({ path: root })));
-  const plan: ClosurePlan = { ...required, staged: new Map(), roots: rootDirectories, queue: [...rootDirectories].map(directory => ({ directory })) };
+  const plan: ClosurePlan = { ...required, staged: new Map(), bindings: new Map(), roots: rootDirectories, queue: [...rootDirectories].map(directory => ({ directory })) };
   for (let index = 0; index < plan.queue.length; index++) {
     const from = plan.queue[index]!;
     for (const name of (optional.dependencies ?? declaredDependencies)({ packageDir: from.directory, fs })) planDependency(plan, { from, name });

@@ -60,22 +60,29 @@ function directMcpToolName({ name }: { name: string }): string | undefined {
   return separator === -1 ? undefined : name.slice(separator + 2);
 }
 
-type WrapperCall = { name: string; input: unknown; matchInput: boolean; buffered: boolean };
+type WrapperCall = { name: string; input: unknown; matchInput: boolean; buffered: boolean; bridgeOnly: boolean };
 
 /** Resolve the generic wrapper contract or an MCP gateway/direct name. Pure; O(n) in the name.
  * Legacy gateways retain name-only matching for malformed-input bridge errors;
  * Antigravity's adapter-described wrappers require equal inner inputs but may arrive buffered.
  */
 function wrapperCall({ event }: { event: ToolUseEvent }, _options: Record<string, never> = {}): WrapperCall | undefined {
-  const wrapper = toolPresentation(event).wrapper;
+  const wrapper = event.bridgeCall ?? toolPresentation(event).wrapper;
+  const bridgeOnly = event.bridgeCall !== undefined;
+  const buffered = bridgeOnly ? event.bridgeCall?.buffered === true : wrapper !== undefined;
   const call = wrapper ?? event;
   if (!isDelegatedWrapperToolName({ name: call.name })) {
     const name = wrapper ? wrapper.name : directMcpToolName({ name: call.name });
-    return name ? { name, input: call.input, matchInput: true, buffered: wrapper !== undefined } : undefined;
+    return name ? { name, input: call.input, matchInput: true, buffered, bridgeOnly } : undefined;
   }
-  const args = call.input !== null && typeof call.input === 'object' ? call.input as Record<string, unknown> : {};
-  const name = args.toolId;
-  return typeof name === 'string' && name ? { name, input: args.input, matchInput: wrapper !== undefined, buffered: wrapper !== undefined } : undefined;
+  const inner = delegatedCall({ input: call.input });
+  return inner ? { ...inner, matchInput: wrapper !== undefined, buffered, bridgeOnly } : undefined;
+}
+
+/** The shared delegated gateway contract, independent of the CLI's envelope. Pure, O(1). */
+function delegatedCall({ input }: { input: unknown }, _options: Record<string, never> = {}): { name: string; input: unknown } | undefined {
+  const args = input !== null && typeof input === 'object' ? input as Record<string, unknown> : {};
+  return typeof args.toolId === 'string' && args.toolId ? { name: args.toolId, input: args.input } : undefined;
 }
 
 /**
@@ -149,12 +156,20 @@ function findCanonicalRow({ events, wrapper, wrapperIndex, call, claimed, failed
   const [start, end] = canonicalSearchWindow({ events, wrapper, wrapperIndex, call });
   for (let j = start; j < end; j += 1) {
     const other = events[j]!;
-    if (claimed.has(j) || other.kind !== 'tool_use' || other.name !== call.name) continue;
-    // Outcome parity keeps successes from consuming failed rows and duplicating later refusals.
-    if (failedResults.has(wrapper.id) !== failedResults.has(other.id)) continue;
+    if (claimed.has(j) || other.kind !== 'tool_use') continue;
+    if (!matchesCanonicalCall({ other, call, wrapperId: wrapper.id, failedResults })) continue;
     if (inputKey === undefined || canonicalJson({ value: { input: other.input } }) === inputKey) return j;
   }
   return -1;
+}
+
+/** Bare/native names are ambiguous: adapters only propose matches, never invent executions.
+ * Outcome parity keeps successes from consuming failed rows and duplicating later refusals. O(1). */
+function matchesCanonicalCall({ other, call, wrapperId, failedResults }: {
+  other: ToolUseEvent; call: WrapperCall; wrapperId: string; failedResults: ReadonlySet<string>;
+}, _options: Record<string, never> = {}): boolean {
+  return other.name === call.name && (!call.bridgeOnly || other.toolOrigin === 'bridge')
+    && failedResults.has(wrapperId) === failedResults.has(other.id);
 }
 
 /** Pure matching bounds within one turn; O(n) time, O(1) space for n events.

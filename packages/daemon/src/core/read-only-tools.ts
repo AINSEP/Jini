@@ -117,11 +117,13 @@ export function filterReadOnlyToolCatalog(
         .filter(hit => allowed.has(hit.id)).slice(0, limit)
         .map(hit => ({ ...hit, ...toolDiscoveryMetadata({ descriptor: allowed.get(hit.id) }) }));
     },
-    describe(input) {
+    describe(input, options = {}) {
       const allowed = allowedTools();
       const descriptor = allowed.get(input.id);
-      if (!descriptor) return readOnlyGuidance({ entry: required.catalog.describe(input, { visibleToolIds: new Set(allowed.keys()) }), allowed });
-      const entry = required.catalog.describe(input);
+      // A caller may further narrow discovery; read-only attenuation must never widen that set.
+      const visible = new Map([...allowed].filter(([id]) => !options.visibleToolIds || options.visibleToolIds.has(id)));
+      if (!descriptor) return readOnlyGuidance({ entry: required.catalog.describe(input, { visibleToolIds: new Set(visible.keys()) }), allowed: visible });
+      const entry = required.catalog.describe(input, options);
       return entry ? { ...entry, ...toolDiscoveryMetadata({ descriptor }) } : null;
     },
   };

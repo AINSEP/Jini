@@ -8,6 +8,8 @@ import { canonicalizeToolInputKeys, normalizeToolInput, withNormalizationNotes }
  *  smaller window per item that the caller may still raise. */
 export interface BatchableTool {
   readonly toolId: string;
+  /** A domain that owns a combined approval plan receives the whole normalized batch once. */
+  readonly mode?: 'items' | 'plan';
   readonly maxItems?: number;
   readonly itemDefaults?: Readonly<Record<string, unknown>>;
   /** Host-specific result constraints, checked on the normalized item before its handler runs. */
@@ -263,7 +265,7 @@ function summarizeBatchResults({ results }: { results: BatchItemResult[] }, _opt
  */
 export function withBatchInput(
   { registration, tool }: { registration: ToolRegistration; tool: BatchableTool },
-  { mode = 'items' }: { mode?: 'items' | 'plan' } = {},
+  { mode = tool.mode ?? 'items' }: { mode?: 'items' | 'plan' } = {},
 ): ToolRegistration {
   const toolId = registration.descriptor.id;
   const maxItems = tool.maxItems ?? DEFAULT_MAX_BATCH_ITEMS;

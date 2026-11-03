@@ -13,7 +13,7 @@ import { buildEChartsOption, chartTitle } from './option.js';
 use([BarChart, LineChart, PieChart, ScatterChart, AriaComponent, GridComponent, LegendComponent, TitleComponent, TooltipComponent, SVGRenderer]);
 
 /** Every update replaces these whole, so a kind change (bar → pie) or a dropped series leaves nothing behind. */
-const REPLACED_COMPONENTS = ['series', 'xAxis', 'yAxis', 'grid'];
+const REPLACED_COMPONENTS = ['series', 'xAxis', 'yAxis', 'grid', 'tooltip'];
 /** The same plot height as the Recharts provider; width follows the host frame. */
 const CHART_HEIGHT_PX = 300;
 let describedBySequence = 0;

@@ -94,7 +94,11 @@ export type RunAgentPayload =
   | { type: 'text_delta'; delta: string }
   | { type: 'thinking_start' }
   | { type: 'thinking_delta'; delta: string }
-  | { type: 'tool_use'; id: string; name: string; input: unknown }
+  | { type: 'tool_use'; id: string; name: string; input: unknown;
+      /** Display correlation only; never authorizes a call. CLI dialects are decoded by the executor. */
+      bridgeCall?: { name: string; input: unknown; buffered?: boolean };
+      /** Only the daemon's delegated bridge stamps a canonical execution. */
+      toolOrigin?: 'bridge' }
   | { type: 'tool_input_delta'; id: string; name: string; delta: string }
   /**
    * `media`: typed content blocks a tool result carries ALONGSIDE `content`, for a UI to render

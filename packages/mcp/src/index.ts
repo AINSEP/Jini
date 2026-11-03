@@ -54,6 +54,8 @@ export {
 export {
   cancelRunTool,
   createMcpToolServer,
+  startMcpHttpToolServer,
+  createMcpHttpToolServerRuntime,
   daemonCallOptions,
   errorResult,
   getActiveContextTool,
@@ -76,6 +78,9 @@ export type {
   McpToolContext,
   McpToolDef,
   McpToolServerHandle,
+  McpHttpToolServerHandle,
+  McpHttpToolServerRuntime,
+  McpHttpToolServerOptions,
   McpToolServerOptions,
   McpTransportLike,
 } from './server/index.js';

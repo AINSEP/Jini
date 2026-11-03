@@ -15,7 +15,7 @@ import type { FederationDeps } from "./registrations.js";
  *
  * `trust.ts` R5 freezes an ALREADY-ADMITTED connection's tool set at connect, forever, for this
  * process's lifetime — the rug-pull protection that file's own header explains. This module never
- * re-lists, re-classifies, or re-admits a connectionId that has already gone through
+ * re-lists, re-classifies, or re-admits a connectionId with admitted tools that has gone through
  * {@link attachFederatedMcpTools} once, whether that pass ran at boot or at an earlier reload
  * ({@link selectUnadmittedConnections} is the whole enforcement mechanism: a connectionId already in
  * `admittedConnectionIds` is filtered out before `attach` is ever called on it again). It only ever
@@ -23,6 +23,9 @@ import type { FederationDeps } from "./registrations.js";
  * is the same guarantee a fresh boot already gives, just applied to a connection that did not exist
  * yet when this process started. `ToolRegistry` (`@jini-ai/core`) is deliberately append-only with no
  * unregister, so this module still has no way to revise or drop an admitted tool even if it wanted to.
+ * A roster row admitted with an empty allowlist and no tools can wait for its first operator grant.
+ * Retrying that row replaces no tool or classification; after its first nonempty admission it freezes
+ * just like every other connection. An unchanged empty grant never triggers another handshake.
  *
  * That admission freeze no longer means an operator's edit is inert until restart, though —
  * `external-mcp-revocation.ts`'s per-call gate (`mcp-federation/registrations.ts`'s
@@ -111,9 +114,11 @@ export interface FederationReloadCoordinator {
  * @complexity `reload()` is O(c · t) in the unadmitted connection count and their advertised tools
  * (the underlying `attachFederatedMcpTools` cost); `admittedConnectionIds()` is O(1).
  */
-export function createFederationReloadCoordinator({ coordDeps, initiallyAdmitted }: { coordDeps: FederationReloadCoordinatorDeps; initiallyAdmitted: Iterable<string> }
+export function createFederationReloadCoordinator({ coordDeps, initiallyAdmitted }: { coordDeps: FederationReloadCoordinatorDeps; initiallyAdmitted: Iterable<string> },
+  { initiallyAwaitingGrants = [] }: { initiallyAwaitingGrants?: Iterable<string> } = {}
 ): FederationReloadCoordinator {
   const admitted = new Set(initiallyAdmitted);
+  const awaitingGrants = new Set(initiallyAwaitingGrants);
   const attach = coordDeps.attach ?? attachFederatedMcpTools;
 
   let inFlight: Promise<FederationReloadResult> | null = null;
@@ -121,7 +126,11 @@ export function createFederationReloadCoordinator({ coordDeps, initiallyAdmitted
 
   async function runOnePass(): Promise<FederationReloadResult> {
     const allConnections = await coordDeps.resolveConnections();
-    const unadmitted = selectUnadmittedConnections({ allConnections: allConnections, admittedConnectionIds: admitted });
+    const eligibleIds = new Set(admitted);
+    for (const connection of allConnections) {
+      if (awaitingGrants.has(connection.config.connectionId) && connection.config.allowedToolNames.length > 0) eligibleIds.delete(connection.config.connectionId);
+    }
+    const unadmitted = selectUnadmittedConnections({ allConnections, admittedConnectionIds: eligibleIds });
     if (unadmitted.length === 0) return { newlyAdmittedConnectionIds: [], reports: [], connectFailures: [] };
 
     // Empty, not omitted: omission resolves presets from the environment again, even though the
@@ -129,12 +138,24 @@ export function createFederationReloadCoordinator({ coordDeps, initiallyAdmitted
     // environment presets cannot change without a real restart.
     const attached = await attach({ registry: coordDeps.registry, deps: coordDeps.deps, connect: coordDeps.connect }, { connections: [], extraConnections: unadmitted, ...(coordDeps.logger ? { logger: coordDeps.logger } : {}) });
 
-    for (const entry of attached.reports) admitted.add(entry.connectionId);
+    const attemptedConnections = new Map(unadmitted.map(connection => [connection.config.connectionId, connection]));
+    for (const entry of attached.reports) {
+      rememberAdmission({ entry, connection: attemptedConnections.get(entry.connectionId) });
+    }
     return {
       newlyAdmittedConnectionIds: attached.reports.map((entry) => entry.connectionId),
       reports: attached.reports,
       connectFailures: attached.connectFailures,
     };
+  }
+
+  /** Only a successful empty-grant admission remains eligible for its first operator grant. O(1). */
+  function rememberAdmission({ entry, connection }: {
+    entry: AttachFederatedToolsResult['reports'][number]; connection: ResolvedFederatedConnection | undefined;
+  }, _options: Record<string, never> = {}): void {
+    admitted.add(entry.connectionId);
+    if (connection?.config.allowedToolNames.length === 0 && entry.report.admitted.length === 0) awaitingGrants.add(entry.connectionId);
+    else awaitingGrants.delete(entry.connectionId);
   }
 
   function reload(_required: Record<string, never>): Promise<FederationReloadResult> {

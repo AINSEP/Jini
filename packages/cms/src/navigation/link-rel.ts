@@ -28,7 +28,7 @@ export function normalizeMenuRel(
   { rel }: { rel: string | undefined },
   { openInNewTab }: { openInNewTab?: boolean | undefined } = {},
 ): string | undefined {
-  const authored = typeof rel === "string" ? rel.toLowerCase().split(/[^a-z]+/) : [];
+  const authored = typeof rel === "string" ? rel.toLowerCase().split(/[ \t\n\r\f]+/) : [];
   const tokens = new Set(authored.filter((token) => MENU_REL_TOKENS.has(token)));
   if (openInNewTab === true) {
     tokens.add("noopener");
