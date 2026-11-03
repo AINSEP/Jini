@@ -1,4 +1,5 @@
 import type { Clock, IdGenerator } from "@jini-ai/core/primitives";
+import type { BootIdentity } from "@jini-ai/platform/fs/file-lock";
 import type { AgentPluginServerMetadataReader } from './manifest.js';
 import type { AgentPluginLayoutPort } from './layout.js';
 import type { AgentPluginDeliveryMode, InstalledAgentPlugin } from './types.js';
@@ -19,6 +20,10 @@ export interface AgentPluginProcessPort {
   readonly platform: NodeJS.Platform;
   hostname(required: Record<string, never>): string;
   isAlive(required: { readonly pid: number }): boolean;
+  /** The kernel boot this process runs in, recorded in every lock it takes. Without it a lock left by
+   * a killed process is never provably this machine's once the hostname's spelling changes (macOS
+   * `name.lan`/`name.local`), and a never-ageing plugin state lock then wedges every boot. */
+  bootIdentity?(): BootIdentity | undefined;
 }
 /** The host implements federation in its own composition layer. No MCP dependency is required. */
 export interface AgentPluginMcpProvisioningPort {

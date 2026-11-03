@@ -94,13 +94,7 @@ class NetlifyDeployTarget {
    */
   async publish(input) {
     const { kit } = this;
-    if (!this.config.token) throw new kit.DeployError("Netlify token is required.", 400);
-    const siteName = deriveNetlifySiteName(kit, input.projectName);
-    if (!siteName) throw new kit.DeployError("Netlify site name could not be generated.", 400);
-
-    const site = this.resolvedSite ?? await ensureNetlifySite(this, siteName);
-    const siteId = typeof site.id === "string" ? site.id : "";
-    if (!siteId) throw new kit.DeployError("Netlify site response did not include an id.", 502, site);
+    const { site, siteId, siteName } = await resolvePublishSite({ target: this, projectName: input.projectName });
 
     const { created, byHash } = await createNetlifyDeploy(this, siteId, withHeadersFile(input.files, input.responseHeaders));
     const deployId = typeof created.id === "string" ? created.id : "";
@@ -113,15 +107,7 @@ class NetlifyDeployTarget {
     const candidates = netlifyUrlCandidates(kit, finalState, site);
     const link = await kit.waitForReachableDeploymentUrl(candidates, { providerLabel: "Netlify" });
 
-    return {
-      targetId: this.id,
-      url: link.url || candidates[0] || "",
-      deploymentId: deployId,
-      status: link.status,
-      statusMessage: link.statusMessage,
-      ...(link.reachableAt !== undefined ? { reachableAt: link.reachableAt } : {}),
-      providerMetadata: { siteId, siteName },
-    };
+    return publishResult({ target: this, link, candidates, deployId, siteId, siteName });
   }
 
   /** Probes `url` with the shared checker; Netlify has no documented auth wall to detect.
@@ -129,6 +115,33 @@ class NetlifyDeployTarget {
   async checkReachability(url) {
     return this.kit.checkDeploymentUrl(url);
   }
+}
+
+/** The site this publish deploys to: the already-resolved one, or the named site (created on first use).
+ *  @param {{ target: NetlifyDeployTarget, projectName: string | undefined }} required
+ *  @throws {DeployError} Missing token, an ungeneratable name, or a site response without an id. */
+async function resolvePublishSite({ target, projectName }, _options = {}) {
+  const { kit } = target;
+  if (!target.config.token) throw new kit.DeployError("Netlify token is required.", 400);
+  const siteName = deriveNetlifySiteName(kit, projectName);
+  if (!siteName) throw new kit.DeployError("Netlify site name could not be generated.", 400);
+  const site = target.resolvedSite ?? await ensureNetlifySite(target, siteName);
+  const siteId = typeof site.id === "string" ? site.id : "";
+  if (!siteId) throw new kit.DeployError("Netlify site response did not include an id.", 502, site);
+  return { site, siteId, siteName };
+}
+
+/** @param {{ target: NetlifyDeployTarget, link: { url?: string, status: unknown, statusMessage?: unknown, reachableAt?: unknown }, candidates: string[], deployId: string, siteId: string, siteName: string }} required */
+function publishResult({ target, link, candidates, deployId, siteId, siteName }, _options = {}) {
+  return {
+    targetId: target.id,
+    url: link.url || candidates[0] || "",
+    deploymentId: deployId,
+    status: link.status,
+    statusMessage: link.statusMessage,
+    ...(link.reachableAt !== undefined ? { reachableAt: link.reachableAt } : {}),
+    providerMetadata: { siteId, siteName },
+  };
 }
 
 /** @param {{ target: NetlifyDeployTarget, deployId: string, created: JsonObject, byHash: Map<string, DeployFile> }} required */

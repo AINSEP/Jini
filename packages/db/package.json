@@ -33,6 +33,7 @@
         "src/kernel/store-copy.ts",
         "src/kernel/turn-lock.ts",
         "src/kernel/typegen.ts",
+        "src/sqlite/backup-policy.ts",
         "src/sqlite/checked-state.ts"
       ]
     },

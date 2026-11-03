@@ -97,10 +97,18 @@ function payloadPolicy(
   return { ownId: required.ownId, ownNames: new Set([required.ownId ?? '', ...own.map(row => row.name)]), roots, pluginIds };
 }
 
+/** The path segments that would name a plugin payload. A plugin package is checked on every segment; a
+ * core package only where a payload lives (its root folder or a `plugins/<id>` folder), so a library
+ * folder such as `dist/render/` is not mistaken for the `render` plugin. */
+function payloadSegments(required: { path: string; policy: PayloadPolicy }): string[] {
+  const segments = required.path.split('/');
+  if (required.policy.ownId !== undefined) return segments;
+  return [segments[0] ?? '', ...[...required.path.matchAll(/(?:^|\/)plugins\/([^/]+)/g)].map(match => match[1] ?? '')];
+}
+
 function assertPayloadPath(required: { owner: string; path: string; policy: PayloadPolicy }): void {
   const { owner, path, policy } = required;
-  const segments = path.split('/');
-  if (segments.some(segment => policy.pluginIds.has(segment) && !policy.ownNames.has(segment))) {
+  if (payloadSegments({ path, policy }).some(segment => policy.pluginIds.has(segment) && !policy.ownNames.has(segment))) {
     throw new TypeError(`${owner}: another plugin's payload in ${path}`);
   }
   if (policy.ownId !== undefined) {

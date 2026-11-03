@@ -170,7 +170,8 @@ async function installAndLoad(required: { pluginId: string; artifact: string; ma
   if (optional.reviewedBrowserProvider) {
     expect(loaded).toEqual({ loaded: true, browserProviders: expect.any(Array) });
     if (!loaded.loaded) throw new Error(`Browser provider refused: ${loaded.reason}`);
-    expect(loaded.browserProviders?.map(provider => provider.declaration)).toEqual(manifest.browserProviders);
+    expect(loaded.browserProviders?.map(({ pluginId: id, version, declaration }) => ({ id, version, declaration })))
+      .toEqual(manifest.browserProviders!.map(declaration => ({ id: manifest.id, version: manifest.version, declaration })));
   } else expect(loaded).toEqual({ loaded: true });
   return { registry, installedRoot };
 }

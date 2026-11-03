@@ -91,11 +91,7 @@ export function createRateLimiter(
   // from accumulating forever. Work is O(tracked keys) only once per window; per-request full
   // scans would replace a memory-exhaustion risk with linear request latency. Active key volume
   // still determines memory use, and separate in-memory processes each retain their own budget.
-  async function consume(key: string): Promise<RateLimitResult> {
-    // Resolve inside the serialized check: a settings change must not reset consumed counters
-    // or create independent queues over the same store. Resolver failures fail closed.
-    const effectiveMax = await budgetFor(key);
-    const nowMs = clock.nowMs();
+  async function sweepExpired(nowMs: number): Promise<void> {
     if (lastSweepMs === null) {
       lastSweepMs = nowMs;
     } else if (nowMs - lastSweepMs >= windowMs) {
@@ -108,6 +104,14 @@ export function createRateLimiter(
     } else {
       // The active window needs no expiry sweep.
     }
+  }
+
+  async function consume(key: string): Promise<RateLimitResult> {
+    // Resolve inside the serialized check: a settings change must not reset consumed counters
+    // or create independent queues over the same store. Resolver failures fail closed.
+    const effectiveMax = await budgetFor(key);
+    const nowMs = clock.nowMs();
+    await sweepExpired(nowMs);
 
     const existing = await store.get({ key });
     if (!existing || nowMs - existing.windowStartMs >= windowMs) {

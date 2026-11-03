@@ -70,6 +70,52 @@ describe('foldDelegatedWrapperCalls — direct MCP transport calls', () => {
     expect(foldDelegatedWrapperCalls({ events })).toEqual([events[1], events[2], events[5], events[6]]);
   });
 
+  // Demo practice run (2026-11-02): every tool row showed twice, `mcp__jini__X` and `X`. The MCP
+  // server normalizes arguments before the bridge sees them (an integer string read as the integer,
+  // an alias renamed), so the bridge row's input is not the CLI row's and the equal-input match missed.
+  // A CLI call's own result only returns after the bridge row it caused, so between the two a
+  // same-name bridge row is that call, whatever the server prefix and whichever CLI named it.
+  it.each([
+    ['an integer string read as the integer', { limit: '10' }, { limit: 10 }],
+    ['an alias renamed to its canonical key', { max_results: 5 }, { limit: 5 }],
+  ])('folds a direct call whose bridge input was normalized: %s', (_case, cliInput, bridgeInput) => {
+    for (const server of ['jini', 'my_host']) {
+      const events: AgentEvent[] = [
+        { kind: 'tool_use', id: 'toolu_1', name: `mcp__${server}__content_list`, input: cliInput },
+        { kind: 'tool_use', id: 'bridge-1', name: 'content_list', input: bridgeInput },
+        { kind: 'tool_result', toolUseId: 'bridge-1', content: '{"items":[]}', isError: false },
+        { kind: 'tool_result', toolUseId: 'toolu_1', content: '{"status":"completed"}', isError: false },
+      ];
+      expect(foldDelegatedWrapperCalls({ events })).toEqual([events[1], events[2]]);
+    }
+  });
+
+  it('pairs parallel normalized calls in order, one row per call', () => {
+    const events: AgentEvent[] = [
+      { kind: 'tool_use', id: 'w1', name: 'mcp__jini__content_list', input: { limit: '1' } },
+      { kind: 'tool_use', id: 'w2', name: 'mcp__jini__content_list', input: { limit: '2' } },
+      { kind: 'tool_use', id: 'c1', name: 'content_list', input: { limit: 1 } },
+      { kind: 'tool_use', id: 'c2', name: 'content_list', input: { limit: 2 } },
+      { kind: 'tool_result', toolUseId: 'c1', content: 'one', isError: false },
+      { kind: 'tool_result', toolUseId: 'c2', content: 'two', isError: false },
+      { kind: 'tool_result', toolUseId: 'w1', content: 'done', isError: false },
+      { kind: 'tool_result', toolUseId: 'w2', content: 'done', isError: false },
+    ];
+    expect(toolUseIds(foldDelegatedWrapperCalls({ events }))).toEqual(['c1', 'c2']);
+  });
+
+  it('keeps a call refused before the bridge visible beside a parallel call that reached it', () => {
+    const events: AgentEvent[] = [
+      { kind: 'tool_use', id: 'w1', name: 'mcp__jini__content_list', input: { limit: 'many' } },
+      { kind: 'tool_use', id: 'w2', name: 'mcp__jini__content_list', input: { limit: '2' } },
+      { kind: 'tool_use', id: 'c2', name: 'content_list', input: { limit: 2 } },
+      { kind: 'tool_result', toolUseId: 'w1', content: 'limit must be an integer', isError: true },
+      { kind: 'tool_result', toolUseId: 'c2', content: 'two', isError: false },
+      { kind: 'tool_result', toolUseId: 'w2', content: 'done', isError: false },
+    ];
+    expect(toolUseIds(foldDelegatedWrapperCalls({ events }))).toEqual(['w1', 'c2']);
+  });
+
   it('claims a bridge row once across parallel calls and replayed CLI events', () => {
     const wrapper: AgentEvent = { kind: 'tool_use', id: 'w1', name: 'mcp__jini__render_ui', input: {} };
     const events: AgentEvent[] = [wrapper, wrapper,

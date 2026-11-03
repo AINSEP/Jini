@@ -75,6 +75,12 @@ describe('plugin package installation isolation', () => {
     }
   });
 
+  it.each(['dist/render/banner.js', 'dist/vercel/index.js'])(
+    'a core package library folder that shares a plugin id is not a payload: %s', path => {
+      expect(() => assertPluginPackageIsolation({ manifest: { name: '@jini-ai/cookie-consent' }, packedPaths: [...docs, `package/${path}`],
+        pluginIds: [...pluginIds, 'render', 'vercel'] })).not.toThrow();
+    });
+
   it.each(['ui-ux-design/skills/design/SKILL.md', 'plugins/payments-stripe/0.6.17/server/index.mjs',
     'dist/vendor/future-plugin/jini.plugin.json', 'dist/content/future-agent/plugin.json',
     'plugins/future-plugin/1.0.0/server/index.mjs'])(
@@ -85,8 +91,9 @@ describe('plugin package installation isolation', () => {
   it('the legacy ui-ux-design package ships only its own payload; a subpath-only plugin has no package', () => {
     expect(() => check({ name: '@jini-ai/plugin-ui-ux-design' }, [...docs, 'package/ui-ux-design/plugin.json'])).not.toThrow();
     expect(() => check({ name: '@jini-ai/plugin-ui-ux-design' }, [...docs, 'package/slide-design/plugin.json'])).toThrow("another plugin's payload");
+    // slide-design ships only as an @jini-ai/agent-plugins subpath, so a package under its old name owns no payload root.
     expect(() => check({ name: '@jini-ai/plugin-slide-design' }, [...docs, 'package/slide-design/skills/slide-design/SKILL.md']))
-      .toThrow('unexpected packed file slide-design/skills/slide-design/SKILL.md');
+      .toThrow('@jini-ai/plugin-slide-design: unexpected packed file slide-design/skills/slide-design/SKILL.md');
   });
 
   it('rejects provider assets bundled with the agent plugin', () => {

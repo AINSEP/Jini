@@ -44,6 +44,16 @@ describe('ECharts vanilla lifecycle', () => {
     instance.destroy({});
   });
 
+  it('gives two charts on one page distinct description ids', () => {
+    const first = host(); const second = host();
+    const a = mount({ element: first, spec: { ...SPECS.bar!, description: 'First' }, theme: { mode: 'light' } });
+    const b = mount({ element: second, spec: { ...SPECS.bar!, description: 'Second' }, theme: { mode: 'light' } });
+    const ids = [first, second].map((element) => element.querySelector('figure')!.getAttribute('aria-describedby'));
+    expect(new Set(ids).size).toBe(2);
+    expect(ids.map((id) => document.getElementById(id!)?.textContent)).toEqual(['First', 'Second']);
+    a.destroy({}); b.destroy({});
+  });
+
   it('puts the title and description in the hidden caption as text, never as markup', () => {
     const element = host();
     const instance = mount({ element, spec: { ...SPECS.bar!, title: '<img src=x onerror=alert(1)>', description: 'Monthly revenue' }, theme: { mode: 'light' } });

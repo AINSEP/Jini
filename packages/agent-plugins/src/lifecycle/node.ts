@@ -3,6 +3,7 @@ import { randomInt, randomUUID } from 'node:crypto';
 import os from 'node:os';
 import { performance } from 'node:perf_hooks';
 import { setTimeout } from 'node:timers/promises';
+import { readBootIdentity } from '@jini-ai/platform/fs/file-lock';
 import type { AgentPluginClockPort, AgentPluginIdsPort, AgentPluginProcessPort, FilesystemPort } from './ports.js';
 
 /** Granularity of the uniform [0, 1) value: crypto.randomInt's largest exclusive bound (2^48 - 1). */
@@ -27,6 +28,7 @@ export function createNodeAgentPluginEffects(_required: Record<string, never>, o
       pid: process.pid,
       platform: process.platform,
       hostname: () => os.hostname(),
+      bootIdentity: () => readBootIdentity({}),
       isAlive: ({ pid }) => {
         if (!Number.isSafeInteger(pid) || pid <= 0) return false;
         try { process.kill(pid, 0); return true; }
