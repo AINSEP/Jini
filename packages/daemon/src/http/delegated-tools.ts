@@ -103,7 +103,7 @@ export interface DelegatedToolsHttpDeps {
    * call it cannot verify is refused outright (the configured refusal message), never
    * waived. Unconstrained calls behave identically with or without it.
    */
-  readonly toolRegistry?: ToolRegistry;
+  readonly toolRegistry?: Pick<ToolRegistry, 'list'>;
   /**
    * Host opt-in: returns `true` for a `failed` result whose `error` text the HOST has already made
    * safe to show the model — secret values blanked, an error id minted — so this route answers it
