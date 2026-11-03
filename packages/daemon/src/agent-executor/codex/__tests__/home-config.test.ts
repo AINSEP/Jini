@@ -1,3 +1,4 @@
+import { parse } from 'smol-toml';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -114,4 +115,15 @@ describe('resolveSourceCodexHomeDir', () => {
   it('treats a blank/whitespace-only CODEX_HOME the same as unset', () => {
     expect(resolveSourceCodexHomeDir({ hostEnv: { CODEX_HOME: '   ' } })).toBe(path.join(os.homedir(), '.codex'));
   });
+});
+
+
+it('HTTP table replaces stale stdio fields and preserves timeout', () => {
+  const result = buildCodexHomeConfigToml({ existingRaw: '[mcp_servers.jini]\ncommand = "serve.js"\nargs = ["old"]\n[mcp_servers.jini.env]\nJINI_DAEMON_TOKEN = "callback"\n',
+    entry: { url: 'http://127.0.0.1:1234/mcp', token: 'listener"\\' } });
+  expect(result).toContain('url = "http://127.0.0.1:1234/mcp"');
+  expect(result).toContain('tool_timeout_sec = 400');
+  expect(result).toContain('[mcp_servers.jini.http_headers]');
+  expect(parse(result).mcp_servers).toEqual({ jini: { url: 'http://127.0.0.1:1234/mcp', tool_timeout_sec: 400, http_headers: { Authorization: 'Bearer listener"\\' } } });
+  expect(result).not.toMatch(/command|args|JINI_DAEMON_TOKEN|bearer_token_env_var/);
 });
