@@ -4,8 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { createRemoteAttachmentLookup } from '../../remote-attachment-lookup.js';
 import { AttachmentRejectedError } from '../attachments.js';
 
-function transport({ status = 200, chunks = [], failure }: {
-  status?: number | null; chunks?: string[]; failure?: 'request' | 'response';
+function transport({ status = 200, chunks = [], failure, pathPrefix }: {
+  status?: number | null; chunks?: string[]; failure?: 'request' | 'response'; pathPrefix?: string;
 }) {
   const calls: { url: string; options: RequestOptions; payload: unknown }[] = [];
   const error = new Error('transport disconnected');
@@ -22,11 +22,19 @@ function transport({ status = 200, chunks = [], failure }: {
     } });
   };
   const lookup = createRemoteAttachmentLookup({ baseUrl: 'http://127.0.0.1:4567/ignored', token: 'test-token' },
-    { request: request as unknown as typeof httpRequest });
+    { request: request as unknown as typeof httpRequest, ...(pathPrefix === undefined ? {} : { pathPrefix }) });
   return { lookup, calls, error };
 }
 
 describe('remote attachment lookup transport boundary', () => {
+  it('scoped attachment lookup stays under its authenticated site mount', async () => {
+    const f = transport({ chunks: ['{"value":[]}'], pathPrefix: '/s/site-a' });
+    const baseline = transport({ chunks: ['{"value":[]}'] });
+    await expect(f.lookup.listPendingForOwner({ ownerId: 'same-owner' })).resolves.toEqual([]);
+    await expect(baseline.lookup.listPendingForOwner({ ownerId: 'same-owner' })).resolves.toEqual([]);
+    expect(f.calls[0]!.url).toBe('http://127.0.0.1:4567/s/site-a/internal/attachment-lookup');
+    expect(baseline.calls[0]!.url).toBe('http://127.0.0.1:4567/internal/attachment-lookup');
+  });
   it('sends the exact operation, authorization and UTF-8 byte length, then joins response chunks', async () => {
     const f = transport({ chunks: ['{"value":', '{"name":"café.txt"}}'] });
     await expect(f.lookup.resolveForRun({ ref: 'attachment:café', runId: 'r' })).resolves.toEqual({ name: 'café.txt' });
