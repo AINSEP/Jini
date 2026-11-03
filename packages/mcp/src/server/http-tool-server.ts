@@ -136,6 +136,9 @@ export async function startMcpHttpToolServer(required: McpToolServerRequiredArgs
 export interface McpHttpToolServerRuntime {
   /** Best-effort startup: absent until a listener binds; failures repair in the background. */
   capability(required: Record<string, never>, optional?: Record<string, never>): Promise<Pick<McpHttpToolServerHandle, 'url' | 'token'> | undefined>;
+  /** Deliver a capability after binding, including initial recovery. Failed handoffs retry;
+   * unsubscribe cancels pending deliveries. This must never be used to replay tool calls. */
+  subscribe(required: { listener: (capability: Pick<McpHttpToolServerHandle, 'url' | 'token'>) => void | Promise<void> }, optional?: Record<string, never>): () => void;
   close(required: Record<string, never>, optional?: Record<string, never>): Promise<void>;
 }
 
@@ -152,6 +155,8 @@ export function createMcpHttpToolServerRuntime(required: McpToolServerRequiredAr
   let retry: ReturnType<typeof setTimeout> | undefined;
   let stopped = false;
   let closing: Promise<void> | undefined;
+  const listeners = new Set<(capability: Pick<McpHttpToolServerHandle, 'url' | 'token'>) => void>();
+  const subscriptions = new Set<() => void>();
 
   /** Single-flight bind; errors expose no capability or native error text. O(1) beyond bind. */
   function ensureListener(): Promise<McpHttpToolServerHandle | undefined> {
@@ -161,6 +166,7 @@ export function createMcpHttpToolServerRuntime(required: McpToolServerRequiredAr
     starting = start(required, options).then(async handle => {
       if (stopped) { await handle.close({}); return undefined; }
       host = handle;
+      for (const listener of listeners) listener({ url: handle.url, token: handle.token });
       return handle;
     }).catch(() => {
       if (!stopped) {
@@ -174,12 +180,39 @@ export function createMcpHttpToolServerRuntime(required: McpToolServerRequiredAr
   }
 
   return {
+    subscribe({ listener }, _optional = {}) {
+      if (stopped) return () => {};
+      let cancelled = false;
+      let deliveryRetry: ReturnType<typeof setTimeout> | undefined;
+      const unsubscribe = () => {
+        cancelled = true;
+        clearTimeout(deliveryRetry);
+        listeners.delete(deliver);
+        subscriptions.delete(unsubscribe);
+      };
+      /** Retry only capability delivery. A subscriber's error never changes the bound host. O(1). */
+      function deliver(capability: Pick<McpHttpToolServerHandle, 'url' | 'token'>): void {
+        void Promise.resolve().then(() => { if (!cancelled) return listener(capability); }).catch(() => {
+          if (cancelled) return;
+          options.warn?.('MCP HTTP capability delivery unavailable; retrying automatically');
+          deliveryRetry = setTimeout(() => deliver(capability), 1000);
+          deliveryRetry.unref();
+        });
+      }
+      listeners.add(deliver);
+      subscriptions.add(unsubscribe);
+      if (host) deliver({ url: host.url, token: host.token });
+      void ensureListener();
+      return unsubscribe;
+    },
     async capability(_required, _optional = {}) {
       const handle = await ensureListener();
       return handle ? { url: handle.url, token: handle.token } : undefined;
     },
     close(_required, _optional = {}) {
       stopped = true;
+      for (const unsubscribe of subscriptions) unsubscribe();
+      listeners.clear();
       clearTimeout(retry);
       closing ??= (async () => { await starting; await host?.close({}); host = undefined; })();
       return closing;

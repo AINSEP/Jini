@@ -129,3 +129,5 @@ export function buildNodeToolchainEnv({ toolchainDir, npmRoot, toolchainEnvName,
   }
   return { [toolchainEnvName]: toolchainDir, [npmRootEnvName]: npmRoot };
 }
+
+export { isReadOnlyVolumeRoot, isTransientAppPath, launcherNamesDurableInstall } from "./install-location.js";
