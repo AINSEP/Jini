@@ -27,4 +27,11 @@ await session.teardown();
 
 Worker harness dependencies are required: `workerEntry`, `input`, `errorLabel`, `defaultTimeoutMs`, `defaultResourceLimits`, `workerFactory` and `scheduler`. The generic runner additionally requires `decodeResult({ message })`. Caller options override timeout/resource limits. The render helper preserves the `{ ok, html/error }` reply shape. First reply, error, timeout or exit settles the operation and terminates the worker. Event registration failure also terminates it.
 
+Hosts may share `capacity: createWorkerCapacity({ maxConcurrent: 2 }, {})` across harness calls.
+The optional `WorkerCapacity` port refuses excess work with `WorkerCapacityError` before spawning;
+it does not queue payloads. Slots remain occupied until worker exit or successful termination,
+including after the render result settles. Spawn failures release their slot immediately;
+failed termination retains it until exit. Lease release is idempotent. The factory rejects
+non-positive or non-safe-integer limits with `RangeError`.
+
 Custom worker ports use `once({ event, listener })`: listener payloads are `{ message }`, `{ error }` or `{ code }`. `spawn({ workerEntry, payload, resourceLimits })` owns execution, and the scheduler must defer work until after `schedule` returns. Supply JS entry paths or URLs. For TypeScript entries, explicitly supply `typescriptBootstrap: { registerModulePath }` and an absolute entry path. No application layout or environment name is selected by the harness.

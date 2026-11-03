@@ -76,7 +76,14 @@ export interface SharpInstance {
   flatten(options: { background: string }): SharpInstance;
   toBuffer(): Promise<Buffer>;
 }
-export type SharpFactory = (input: Buffer, options?: { animated?: boolean }) => SharpInstance;
+export type SharpFactory = ((input: Buffer, options?: { animated?: boolean }) => SharpInstance) & {
+  /** Native runtime controls; optional only for existing pipeline-only injected test doubles. */
+  cache?: (enabled: boolean) => unknown;
+  concurrency?: (threads: number) => unknown;
+};
+
+// Node shares one native runtime across adapters. Weak keys avoid retaining injected factories.
+const configuredSharpFactories = new WeakSet<SharpFactory>();
 
 /** Options for {@link SharpImageTransformer}; every field defaults at this composition edge. */
 export interface SharpImageTransformerOptional {
@@ -103,11 +110,21 @@ const ANIMATION_CAPABLE_FORMATS: ReadonlySet<TransformFormat> = new Set(["webp",
  * deferred, untyped `require()` (via `createRequire`) rather than a
  * top-level `import`.
  *
- * @complexity O(1) — a single `require` call, cached by Node's module system
- * on subsequent calls.
+ * Disable libvips' process-wide operation cache and bound native threads before the first
+ * pipeline, once per loaded runtime across both renditions and codec operations. Loading and
+ * configuration failures retain the optional-dependency error contract and can be retried.
+ * @complexity O(1) lookup/configuration; weak bookkeeping does not retain unused factories.
  */
 function loadSharpFactory(loadSharp: () => SharpFactory): SharpFactory {
-  return loadOptionalPeer({ feature: 'Image transformations', dependency: 'sharp', load: loadSharp }, {
+  return loadOptionalPeer({ feature: 'Image transformations', dependency: 'sharp', load: () => {
+    const factory = loadSharp();
+    if (!configuredSharpFactories.has(factory)) {
+      factory.cache?.(false);
+      factory.concurrency?.(1);
+      configuredSharpFactories.add(factory);
+    }
+    return factory;
+  } }, {
     createError: ({ message, cause }) => new ImageTransformUnavailableError({ message }, { cause }),
   });
 }

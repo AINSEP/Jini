@@ -24,6 +24,43 @@ export interface WorkerFactory {
 export interface WorkerScheduler {
   schedule(input: { delayMs: number; run: () => void }): () => void;
 }
+/** Shared admission policy. A lease is held until the worker exits or termination completes. */
+export interface WorkerCapacity {
+  acquire(input: Record<string, never>, options?: Record<string, never>): () => void;
+}
+
+/** Capacity exhaustion is a controlled refusal, allowing hosts to render their fallback. */
+export class WorkerCapacityError extends Error {
+  constructor() {
+    super("Worker capacity is busy; retry shortly");
+    this.name = "WorkerCapacityError";
+  }
+}
+
+/**
+ * Bound active disposable workers without queuing caller payloads or keeping idle workers alive.
+ * @param required Positive maximum number of active workers shared by callers.
+ * @returns Admission port with idempotent lease release; acquire throws WorkerCapacityError at the cap.
+ * @throws RangeError for an invalid maximum.
+ * @complexity O(1) time and state per acquisition/release; no waiting queue.
+ */
+export function createWorkerCapacity({ maxConcurrent }: { maxConcurrent: number }, _options = {}): WorkerCapacity {
+  if (!Number.isSafeInteger(maxConcurrent) || maxConcurrent < 1) throw new RangeError("maxConcurrent must be a positive safe integer");
+  let active = 0;
+  return {
+    acquire() {
+      if (active >= maxConcurrent) throw new WorkerCapacityError();
+      active++;
+      let released = false;
+      return () => {
+        if (released) return;
+        released = true;
+        active--;
+      };
+    },
+  };
+}
+
 export interface WorkerSandboxRequired<TPayload> {
   workerEntry: string | URL;
   input: TPayload;
@@ -32,6 +69,8 @@ export interface WorkerSandboxRequired<TPayload> {
   defaultResourceLimits: ResourceLimits;
   workerFactory: WorkerFactory;
   scheduler: WorkerScheduler;
+  /** Host-owned shared limit; omitted for hosts retaining their existing admission policy. */
+  capacity?: WorkerCapacity;
 }
 export interface WorkerSandboxOptions { timeoutMs?: number; resourceLimits?: ResourceLimits }
 export type SandboxRenderResult = { ok: true; html: string } | { ok: false; error: string };
@@ -59,7 +98,7 @@ export function resolveDefaultTimeoutMs({ rawValue, defaultTimeoutMs, maxTimeout
  * Run structured-cloneable payloads in a fresh bounded worker using a caller-owned result codec.
  * @param required Entry, payload, budgets and worker/timer/decoder ports.
  * @param options Per-invocation timeout and resource limits.
- * @returns Decoded first reply; rejects on timeout, error, exit-without-reply or codec failure.
+ * @returns Decoded first reply; rejects on capacity exhaustion, timeout, error, exit-without-reply or codec failure.
  * @throws RangeError (as a rejected promise) for an invalid timeout.
  * @complexity O(1) harness work, excluding structured clone, worker execution and decoding.
  */
@@ -72,12 +111,22 @@ export function runInWorkerSandbox<TPayload, TResult>(
     return Promise.reject(new RangeError("timeoutMs must be a positive integer within the Node timer range"));
   }
   return new Promise<TResult>((resolve, reject) => {
-    const worker = required.workerFactory.spawn({ workerEntry: required.workerEntry, payload: required.input, resourceLimits: options.resourceLimits ?? required.defaultResourceLimits });
+    const release = required.capacity?.acquire({});
+    let worker: WorkerHandle;
+    try {
+      worker = required.workerFactory.spawn({ workerEntry: required.workerEntry, payload: required.input, resourceLimits: options.resourceLimits ?? required.defaultResourceLimits });
+    } catch (error) {
+      release?.();
+      reject(error);
+      return;
+    }
     let settled = false;
     let cancelTimer: (() => void) | undefined;
     function terminate(): void {
       // Teardown must never create a second rejection after the result has already settled.
-      try { void worker.terminate().catch(() => {}); } catch { /* best effort */ }
+      // A reply/timeout is not proof the native worker is gone. Retain its slot until teardown
+      // completes or an exit arrives; failed termination must not admit more live workers.
+      try { void worker.terminate().then(release, () => {}); } catch { /* best effort */ }
     }
     function finish(run: () => void): void {
       if (settled) return;
@@ -88,7 +137,10 @@ export function runInWorkerSandbox<TPayload, TResult>(
     try {
       worker.once({ event: "message", listener: ({ message }) => finish(() => resolve(required.decodeResult({ message }))) });
       worker.once({ event: "error", listener: ({ error }) => finish(() => reject(error)) });
-      worker.once({ event: "exit", listener: ({ code }) => finish(() => reject(new Error(`${required.errorLabel} worker exited with code ${code}`))) });
+      worker.once({ event: "exit", listener: ({ code }) => {
+        release?.();
+        finish(() => reject(new Error(`${required.errorLabel} worker exited with code ${code}`)));
+      } });
       cancelTimer = required.scheduler.schedule({ delayMs: timeoutMs, run: () => finish(() => reject(new Error(`${required.errorLabel} exceeded ${timeoutMs}ms timeout`))) });
     } catch (error) { finish(() => reject(error)); }
   });
