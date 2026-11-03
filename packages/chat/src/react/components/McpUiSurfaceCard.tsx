@@ -79,6 +79,7 @@ import { useT } from '../hooks/context.js';
 import { useSurfaceExpiry, type SurfaceExpiryClock } from '../hooks/useSurfaceExpiry.js';
 import { closedSurfaceLabel, reportDeliveredAnswer } from './mcp-ui-surface-state.js';
 import { surfaceQuestionInput } from './mcp-ui-question-input.js';
+import { useSurfaceRecovery } from '../hooks/useSurfaceRecovery.js';
 
 /** The `kind: 'ext'` event name this renderer claims. */
 export const MCP_UI_EXT_EVENT_NAME = 'mcp-ui';
@@ -213,21 +214,27 @@ function surfaceInteraction(
 /** Registered against `ext-event-renderer-registry.ts`'s `'mcp-ui'` name — see module doc. */
 export function McpUiSurfaceCard({ events, sandboxProxyUrl, onToolCall, onOpenLink, maxHeight, call, runStreaming, expiryClock, answered, onAnswered, onAnswerText, answerText, answerRecorded }: McpUiSurfaceCardProps) {
   const t = useT();
-  const resources = useMemo(() => latestResourcesByUri(events), [events]);
+  const originalResources = useMemo(() => latestResourcesByUri(events), [events]);
+  const recovery = useSurfaceRecovery({ resource: originalResources.length === 1 ? originalResources[0] : undefined,
+    call, runStreaming, onToolCall });
+  const resources = recovery.restored && recovery.resource ? [recovery.resource] : originalResources;
   // One card per slot is the registered shape (`mcpUiSurfaceSlotKey`), so `call` belongs to exactly
   // that card. A group holding several URIs has no single call to judge them by, and stays live.
   const single = resources.length === 1 ? resources[0] : undefined;
-  const { displayCall, input, standalone } = useSurfaceQuestionCall({ events, call });
-  const { expiresAtMs, toolCall } = surfaceInteraction({ resource: single, answered, onToolCall, onAnswered, onAnswerText, call: displayCall });
+  const currentEvents = recovery.restored && recovery.resource ? [recovery.resource] : events;
+  const currentCall = recovery.restored ? undefined : call;
+  const { displayCall, input, standalone } = useSurfaceQuestionCall({ events: currentEvents, call: currentCall });
+  const { expiresAtMs, toolCall } = surfaceInteraction({ resource: single, answered, onToolCall: recovery.onToolCall, onAnswered, onAnswerText, call: displayCall });
   const expiry = useSurfaceExpiry(
     { expiresAtMs },
     expiryClock === undefined ? {} : { clock: expiryClock },
   );
   const closed = single === undefined
     ? undefined
-    : closedSurfaceLabel({ t, call, runStreaming, documentsForUri: events.length, expired: expiry?.expired === true });
+    : closedSurfaceLabel({ t, call: currentCall, runStreaming: recovery.live || runStreaming,
+      documentsForUri: currentEvents.length, expired: expiry?.expired === true });
   // A completed call answered the original document; a replacement outcome or retry owns its view.
-  const answer = (events.length === 1 ? questionAnswerFromResult({ result: call?.result, input }) : undefined) ?? answerText;
+  const answer = (currentEvents.length === 1 ? questionAnswerFromResult({ result: currentCall?.result, input }) : undefined) ?? answerText;
   return <SurfaceCardContent resources={resources} single={single} answerRecorded={answerRecorded}
     answer={answer} closed={closed} call={displayCall} standalone={standalone} t={t} sandboxProxyUrl={sandboxProxyUrl}
     toolCall={toolCall} onOpenLink={onOpenLink} maxHeight={maxHeight} expiry={expiry} />;

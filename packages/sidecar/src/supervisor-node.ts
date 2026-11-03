@@ -4,6 +4,7 @@ import type { ChildProcess, SpawnOptions } from "node:child_process";
 import type { Serializable } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { createCommandInvocation } from "@jini-ai/platform/command";
+import { omitEnvironmentKeys } from "@jini-ai/platform/child-environment";
 import { collectProcessTreePids, listProcessSnapshots, stopProcesses, waitForProcessExit } from "@jini-ai/platform/process";
 import { readLiveDaemonRegistryRecord, removeDaemonRegistryRecordIfCurrent, writeDaemonRegistryRecord } from "./daemon-registry.js";
 import type { LocalDaemonRegistryRecord } from "./daemon-registry.js";
@@ -40,6 +41,8 @@ export interface NodeDaemonProcessRequired {
 export interface NodeDaemonProcessOptions {
   /** Inherit a separate native control channel; stdin remains the Windows EOF shutdown pipe. */
   ipc?: boolean;
+  /** Delivered once over native IPC, removed case-insensitively from the OS environment. */
+  startupSecrets?: Readonly<Record<string, string>>;
   stdout?: Writable; stderr?: Writable; platform?: NodeJS.Platform;
   /** Native spawn effect port; the adapter still constructs argv, environment and process options. */
   spawn?: (input: { command: string; args: string[]; options: SpawnOptions }, optional?: Record<string, never>) => ChildProcess;
@@ -82,6 +85,32 @@ async function stopWindowsProcess(
   }
 }
 
+/** Build an OS environment, reserving IPC for capabilities while stdin remains the stop pipe.
+ * @returns A detached launch environment. @complexity O(e + k) for env entries and secret keys.
+ */
+function daemonLaunchEnvironment(required: NodeDaemonProcessRequired, options: NodeDaemonProcessOptions = {}): NodeJS.ProcessEnv {
+  if (options.startupSecrets === undefined) return required.env;
+  return { ...splitNodeStartupSecrets({ env: required.env, keys: Object.keys(options.startupSecrets) }).env,
+    [STARTUP_SECRETS_ENV]: '1' };
+}
+
+/** Resolve command quoting and native descriptors without creating a process.
+ * Detached groups enable tree stopping; parent output pipes cannot strand inherited descriptors.
+ * @returns The command invocation, Windows mode and native spawn options. @complexity O(e) env copy.
+ */
+function daemonLaunchPlan(required: NodeDaemonProcessRequired, options: NodeDaemonProcessOptions = {}) {
+  const win32 = (options.platform ?? process.platform) === 'win32';
+  const env = daemonLaunchEnvironment(required, options);
+  const invocation = createCommandInvocation({ command: required.command, args: [...required.args], env });
+  const ipc = options.ipc || options.startupSecrets !== undefined;
+  const spawnOptions: SpawnOptions = {
+    cwd: required.cwd, env: { ...env, ...(win32 ? { JINI_STOP_ON_STDIN_EOF: '1' } : {}) }, detached: true, windowsHide: true,
+    stdio: [win32 ? 'pipe' : 'ignore', 'pipe', 'pipe', ...(ipc ? ['ipc' as const] : [])],
+    ...(invocation.windowsVerbatimArguments === undefined ? {} : { windowsVerbatimArguments: invocation.windowsVerbatimArguments }),
+  };
+  return { invocation, spawnOptions, win32 };
+}
+
 /**
  * Node launch/tree-stop adapter using platform command quoting, snapshots and signal escalation.
  * @param required Complete host launch settings and the shared sidecar registry port.
@@ -93,22 +122,20 @@ export function createNodeDaemonProcessAdapter(required: NodeDaemonProcessRequir
   spawnDaemonProcess(): SpawnedDaemonProcess;
   terminateProcess(input: { child: SpawnedDaemonProcess }): Promise<void>;
 } {
+  // Validate/snapshot before spawning: a launch must not orphan a child when delivery is refused.
+  const startupSecrets = options.startupSecrets === undefined ? undefined : startupSecretRecord(options.startupSecrets);
+  const launchOptions = startupSecrets === undefined ? options : { ...options, startupSecrets };
   return {
     spawnDaemonProcess() {
-      const win32 = (options.platform ?? process.platform) === "win32";
-      const invocation = createCommandInvocation({ command: required.command, args: [...required.args], env: required.env });
-      // detached creates a POSIX process group so teardown reaches the daemon below a
-      // launcher hop; windowsHide avoids an otherwise visible detached Windows console.
-      // Pipe output through the parent instead of inheriting its descriptors: an orphan
-      // retaining those descriptors previously kept parent/test teardown waiting forever.
-      const spawnOptions: SpawnOptions = {
-        cwd: required.cwd, env: { ...required.env, ...(win32 ? { JINI_STOP_ON_STDIN_EOF: "1" } : {}) }, detached: true, windowsHide: true,
-        stdio: [win32 ? "pipe" : "ignore", "pipe", "pipe", ...(options.ipc ? ["ipc" as const] : [])],
-        ...(invocation.windowsVerbatimArguments === undefined ? {} : { windowsVerbatimArguments: invocation.windowsVerbatimArguments }),
-      };
+      const { invocation, spawnOptions, win32 } = daemonLaunchPlan(required, launchOptions);
       const child = options.spawn
         ? options.spawn({ command: invocation.command, args: invocation.args, options: spawnOptions }, {})
         : spawn(invocation.command, invocation.args, spawnOptions);
+      if (startupSecrets !== undefined) {
+        const delivery = provideNodeStartupSecrets({ peer: child, secrets: startupSecrets });
+        child.once('exit', () => delivery.dispose({}));
+        child.once('error', () => delivery.dispose({}));
+      }
       relayProcessOutput({ stream: child.stdout, sink: options.stdout });
       relayProcessOutput({ stream: child.stderr, sink: options.stderr });
       return {
@@ -163,7 +190,7 @@ export interface NodeIpcPeer {
 }
 
 /** Native deserialization supplies plain objects; accept only this channel's envelope. O(1). */
-function isIpcEnvelope(message: unknown): message is { id: string; kind: unknown; payload?: unknown; ok?: unknown } {
+function isIpcEnvelope(message: unknown): message is { id: string; kind: unknown; payload?: unknown; ok?: unknown; channel?: unknown } {
   if (typeof message !== "object" || message === null) return false;
   return "jiniIpc" in message && message.jiniIpc === 1 && "id" in message && typeof message.id === "string" && "kind" in message;
 }
@@ -176,21 +203,22 @@ function isIpcEnvelope(message: unknown): message is { id: string; kind: unknown
  * @complexity O(payload bytes) per send, O(p) disconnect for at most maxPending requests.
  */
 export function createNodeIpcChannel({ peer }: { peer: NodeIpcPeer }, {
-  handle, timeoutMs = 30_000, maxPending = 64,
-}: { handle?: (payload: unknown) => Promise<Serializable>; timeoutMs?: number; maxPending?: number } = {}) {
+  handle, timeoutMs = 30_000, maxPending = 64, channel,
+}: { handle?: (payload: unknown) => Promise<Serializable>; timeoutMs?: number; maxPending?: number; channel?: string } = {}) {
   const pending = new Map<string, { finish(error: Error | null, payload?: unknown): void }>();
   let disposed = false;
   let handling = 0;
-  function send(message: Serializable): void {
+  function send(envelope: Record<string, Serializable>): void {
+    const message = channel === undefined ? envelope : { ...envelope, channel };
     if (disposed || !peer.connected || !peer.send) throw new Error("IPC disconnected");
     if (Buffer.byteLength(JSON.stringify(message)) > 1024 * 1024) throw new Error("IPC envelope too large");
     peer.send(message, error => { if (error) dispose({}); });
   }
-  function reply(message: Serializable): void {
+  function reply(message: Record<string, Serializable>): void {
     try { send(message); } catch { dispose({}); } // A departing peer cannot receive a refusal.
   }
   function receive(message: unknown): void {
-    if (disposed || !isIpcEnvelope(message)) return;
+    if (disposed || !isIpcEnvelope(message) || message.channel !== channel) return;
     const { id } = message;
     if (message.kind === "reply") {
       pending.get(id)?.finish(message.ok === true ? null : new Error("IPC request refused"), message.payload);
@@ -227,4 +255,66 @@ export function createNodeIpcChannel({ peer }: { peer: NodeIpcPeer }, {
     },
     dispose,
   };
+}
+
+/** Non-secret launch marker; the payload itself never enters argv or process.env. */
+export const STARTUP_SECRETS_ENV = 'JINI_STARTUP_SECRETS_IPC';
+
+/** Separate host-selected capabilities from a launch environment without mutating it.
+ * Windows case variants map to the canonical host key; absent values create no credential.
+ * @returns Independent environment and capability records; throws beyond the 64 KiB/256-key limit.
+ * @complexity O(e + k) time/space.
+ * @example splitNodeStartupSecrets({ env, keys: ['HOST_TOKEN'] });
+ */
+export function splitNodeStartupSecrets({ env, keys }: {
+  env: Readonly<NodeJS.ProcessEnv>; keys: readonly string[];
+}, _optional: Record<string, never> = {}): { env: NodeJS.ProcessEnv; secrets: Record<string, string> } {
+  const names = new Map(keys.map(key => [key.toUpperCase(), key]));
+  const secrets = Object.fromEntries(Object.entries(env).flatMap(([key, value]) => {
+    const name = names.get(key.toUpperCase());
+    return name !== undefined && value !== undefined ? [[name, value]] : [];
+  }));
+  return { env: omitEnvironmentKeys({ env, keys }, { caseInsensitive: true }).env, secrets: startupSecretRecord(secrets) };
+}
+
+/** Validate the small startup record without echoing values into diagnostics. O(bytes), capped at 64 KiB. */
+function startupSecretRecord(value: unknown): Record<string, string> {
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) throw new Error('Invalid startup credentials');
+  const entries = Object.entries(value);
+  if (entries.length > 256 || entries.some(([, secret]) => typeof secret !== 'string')) throw new Error('Invalid startup credentials');
+  if (Buffer.byteLength(JSON.stringify(value)) > 65536) throw new Error('Startup credentials exceed limit');
+  return Object.fromEntries(entries) as Record<string, string>;
+}
+
+/** Offer credentials to this native child once, sharing IPC with the existing control owner.
+ * @returns A disposer for child exit/error; disconnect also clears the channel.
+ * @throws For an invalid/oversized record. Refusals never contain credentials.
+ * @complexity O(bytes) bounded copy; one in-memory record until the child's first read.
+ * @example provideNodeStartupSecrets({ peer: child, secrets: { HOST_TOKEN: token } });
+ */
+export function provideNodeStartupSecrets({ peer, secrets }: {
+  peer: NodeIpcPeer; secrets: Readonly<Record<string, string>>;
+}, _optional: Record<string, never> = {}) {
+  let remaining: Record<string, string> | undefined = startupSecretRecord(secrets);
+  const channel = createNodeIpcChannel({ peer }, { channel: 'startup-secrets', handle: async payload => {
+    if (payload !== 'read' || remaining === undefined) throw new Error('Startup credentials already consumed');
+    const result = remaining;
+    remaining = undefined;
+    return result;
+  } });
+  return { dispose(_required: Record<string, never> = {}, _options: Record<string, never> = {}) { remaining = undefined; channel.dispose({}); } };
+}
+
+/** Read credentials over inherited IPC and release the receiver even on timeout/disconnect.
+ * The caller retains the returned record in memory; it must never assign it to process.env.
+ * @throws On unavailable IPC, refusal, timeout or malformed credentials.
+ * @complexity O(bytes) bounded validation; one request with a 30s default deadline.
+ * @example const secrets = await receiveNodeStartupSecrets({ peer: process });
+ */
+export async function receiveNodeStartupSecrets({ peer }: { peer: NodeIpcPeer }, {
+  timeoutMs = 30_000,
+}: { timeoutMs?: number } = {}): Promise<Record<string, string>> {
+  const channel = createNodeIpcChannel({ peer }, { channel: 'startup-secrets', timeoutMs });
+  try { return startupSecretRecord(await channel.request({ payload: 'read' }, {})); }
+  finally { channel.dispose({}); }
 }

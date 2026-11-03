@@ -35,6 +35,19 @@
  * allow-list would suggest a protection that is not real.
  */
 import type { McpUiToolCall, McpUiToolCallHandler } from '@jini-ai/ui/mcp-ui';
+import type { SurfaceEmission } from '@jini-ai/core';
+import type { SurfaceRecoveryInfo } from '../../../core/surface-recovery.js';
+import { readSurfaceRecoveryStream } from './surface-recovery-stream.js';
+
+export interface SurfaceRecoveryCallbacks {
+  readonly onSurface: (emission: SurfaceEmission) => void;
+  readonly signal: AbortSignal;
+}
+/** Callable as before; lifecycle controllers can also restore without replaying browser input. */
+export type RecoverableMcpUiToolCaller = McpUiToolCallHandler & {
+  restore(required: SurfaceRecoveryInfo & SurfaceRecoveryCallbacks, options?: Record<string, never>): Promise<unknown>;
+  answer(required: { call: McpUiToolCall } & SurfaceRecoveryCallbacks, options?: Record<string, never>): Promise<unknown>;
+};
 
 export interface CreateMcpUiToolCallerOptions {
   /**
@@ -95,9 +108,11 @@ function timeoutAware(error: unknown, timeoutMs: number): unknown {
 
 /** One POST of a confirmed action and its parsed answer; a non-2xx response rejects via {@link errorFrom}. */
 async function postToolCall(
-  { call, endpoint, headers, signal, fetch }: {
+  { call, endpoint, headers, signal, fetch, onSurface, exchangeId, restore }: {
     call: McpUiToolCall; endpoint: string; headers: CreateMcpUiToolCallerOptions['headers'];
     signal: AbortSignal; fetch: typeof globalThis.fetch;
+    onSurface?: ((emission: SurfaceEmission) => void) | undefined;
+    exchangeId?: string; restore?: true;
   },
 ): Promise<unknown> {
   // `{name, arguments}` on the MCP-UI side becomes `{toolName, params}` on the wire: `arguments`
@@ -112,10 +127,13 @@ async function postToolCall(
     // Same-origin cookie session is the usual authenticator for the human's second step.
     credentials: 'same-origin',
     headers: { ...headers, 'content-type': 'application/json' },
-    body: JSON.stringify(request),
+    body: JSON.stringify({ ...request, ...(restore ? { exchangeId, restore } : {}) }),
     signal,
   });
 
+  if (response.ok && response.headers.get('content-type')?.includes('application/x-ndjson')) {
+    return readSurfaceRecoveryStream({ response, onSurface });
+  }
   const raw = await response.text();
   let parsed: unknown = raw;
   if (raw.length > 0) {
@@ -145,16 +163,28 @@ async function postToolCall(
  * @complexity O(1) — one request per call.
  */
 export function createMcpUiToolCaller({ baseUrl, fetch }: { baseUrl: string; fetch: typeof globalThis.fetch }, options: CreateMcpUiToolCallerOptions = {}
-): McpUiToolCallHandler {
+): RecoverableMcpUiToolCaller {
   const path = options.path ?? DEFAULT_PATH;
   const timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   const endpoint = `${baseUrl.replace(/\/$/u, '')}${path}`;
 
-  return async (call: McpUiToolCall): Promise<unknown> => {
+  const answer: McpUiToolCallHandler = async (call: McpUiToolCall): Promise<unknown> => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), timeoutMs);
     return postToolCall({ call, endpoint, headers: options.headers, signal: controller.signal, fetch })
       .catch((error: unknown) => { throw timeoutAware(error, timeoutMs); })
       .finally(() => clearTimeout(timer));
   };
+  return Object.assign(answer, {
+    // Recovery streams deliberately have no reading-time deadline. The controller cancels on
+    // unmount; the server's executing-call lease handles run cancellation independently.
+    restore: (required: SurfaceRecoveryInfo & SurfaceRecoveryCallbacks) => postToolCall({
+      call: { name: required.toolId, arguments: {} }, endpoint, headers: options.headers, fetch,
+      signal: required.signal, onSurface: required.onSurface, exchangeId: required.exchangeId, restore: true,
+    }),
+    answer: (required: { call: McpUiToolCall } & SurfaceRecoveryCallbacks) => postToolCall({
+      call: required.call, endpoint, headers: options.headers, fetch,
+      signal: required.signal, onSurface: required.onSurface,
+    }),
+  });
 }

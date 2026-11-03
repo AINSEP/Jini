@@ -156,7 +156,17 @@ export interface SurfaceEmission {
  * headless or synthetic execution) omits it, and a handler that finds it absent must fall back to
  * returning its surface rather than parking — see the `@jini-ai/daemon` bridge for the supplying end.
  */
-export type SurfaceEmitter = (emission: SurfaceEmission) => Promise<void>;
+export type SurfaceEmitter = ((emission: SurfaceEmission) => Promise<void>) & {
+  /** Executor-owned lifetime, never supplied by a rendered card. A retry uses the original public
+   * tool input and re-enters the complete authorization/audit stack with a fresh human emitter. */
+  readonly exchangeLifetime?: {
+    readonly signal: AbortSignal;
+    readonly runId: string;
+    readonly toolId: string;
+    readonly principalId: string;
+    readonly retry: (required: { emit: SurfaceEmitter; signal: AbortSignal }, optional?: Record<string, never>) => Promise<void>;
+  };
+};
 
 /** What a `ToolHandler` receives — everything it needs and nothing it could use to bypass the gate (no registry access, no other tools' state). */
 export interface ToolExecutionContext {

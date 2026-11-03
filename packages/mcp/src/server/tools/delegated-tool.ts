@@ -82,7 +82,10 @@ function unwrapMcpContentEnvelope(result: unknown): unknown {
 }
 
 /**
- * Request deadline for one delegated tool call, overriding `daemon-client.ts`'s 15 s default.
+ * Superseded 2026-11-03: human reading time is bounded by the run, not a wall-clock budget.
+ * The historical reasoning below explains the former paired deadlines; it is not current policy.
+ *
+ * Historical rationale for the former bounded deadline, overriding `daemon-client.ts`'s 15 s default.
  *
  * That default is sized for "a slow tool call" — a tool doing work. It is the wrong shape for this
  * route, which is the one path in the system where a registered handler may legitimately be waiting
@@ -108,7 +111,7 @@ function unwrapMcpContentEnvelope(result: unknown): unknown {
  * than fifteen seconds. The daemon-side alternative does not exist to lean on — `ToolDescriptor.timeoutMs`
  * is unset on every registration today, so `ToolExecutor` arms no timer of its own.
  */
-export const DEFAULT_DELEGATED_TOOL_TIMEOUT_MS = 6 * 60 * 1000;
+export const DEFAULT_DELEGATED_TOOL_TIMEOUT_MS = null;
 
 export interface CreateExecuteDelegatedToolToolRequiredArgs {
   /** The one run this MCP server process — and therefore this tool instance — is scoped to. */
@@ -120,14 +123,12 @@ export interface CreateExecuteDelegatedToolToolOptions {
   /** Generates each call's `toolUseId`. @default node:crypto randomUUID */
   readonly generateToolUseId?: (required: Record<string, never>) => string;
   /**
-   * Request deadline for one delegated tool call, in milliseconds. Set this to match the host's
-   * own exchange total-lifetime ceiling plus headroom, so the exchange — not this request — is
-   * what ends a call the human never answers.
+   * Optional finite request deadline in milliseconds. Omit for a run-lifetime human wait.
    *
    * Must be a finite number greater than zero; anything else falls back to the default rather
    * than arming a nonsensical (or immediately-firing) timer.
    *
-   * @default DEFAULT_DELEGATED_TOOL_TIMEOUT_MS (6 min)
+   * @default DEFAULT_DELEGATED_TOOL_TIMEOUT_MS (no wall-clock deadline)
    */
   readonly delegatedToolTimeoutMs?: number;
   /** Emit v1 metadata only when the host has enabled daemon/runtime echo correlation. Default off. */

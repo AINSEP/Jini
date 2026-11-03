@@ -49,6 +49,7 @@ import { withReadOnlyToolConstraint } from "../core/read-only-tools.js";
 import { withToolAttemptAudit } from "../core/tool-audit.js";
 import { withToolFailureRecovery, type ToolFailureRecoveryDeps } from "./recovery.js";
 import { withRedactedToolFailures, readToolErrorId, type RedactedToolFailuresDeps } from "./redaction.js";
+import { withSurfaceExchangeLifetime } from './surface-lifetime.js';
 
 export interface AssistantToolExecutorDeps extends Omit<ToolFailureRecoveryDeps, "registry"> {
   readonly registry: ToolRegistry;
@@ -76,5 +77,5 @@ export function createAssistantToolExecutor(deps: AssistantToolExecutorDeps, _op
   const audited = deps.toolAttemptAudit
     ? withToolAttemptAudit({ inner: redacted, ...deps.toolAttemptAudit, readErrorId: readToolErrorId }, auditOptions(deps.toolAttemptAudit))
     : redacted;
-  return withToolFailureRecovery({ ...deps, inner: audited }, {});
+  return withSurfaceExchangeLifetime({ inner: withToolFailureRecovery({ ...deps, inner: audited }, {}) });
 }

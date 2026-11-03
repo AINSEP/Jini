@@ -5,3 +5,4 @@ export * from "./stack.js";
 export * from "./federated-refusal.js";
 export * from "./observability.js";
 export * from "./analytics.js";
+export * from './surface-lifetime.js';

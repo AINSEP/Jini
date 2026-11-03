@@ -44,8 +44,8 @@ export interface DaemonRequestOptions {
   /** Defaults to the global `fetch`; inject for tests. */
   fetchImpl?: typeof fetch;
   headers?: Record<string, string>;
-  /** Request deadline in ms. Defaults to {@link DEFAULT_TIMEOUT_MS}. */
-  timeoutMs?: number;
+  /** Request deadline in ms. Null delegates lifetime to caller/run cancellation; omission uses DEFAULT_TIMEOUT_MS. */
+  timeoutMs?: number | null;
   /** Maximum daemon response size in bytes before the read is aborted. Defaults to {@link DEFAULT_MAX_RESPONSE_BYTES}. */
   maxResponseBytes?: number;
   /** Caller-supplied cancellation signal; combined with the internal timeout signal, so either one aborts the request. */
@@ -182,8 +182,10 @@ interface DaemonRequestInit {
  * Arms the request deadline and combines it with the caller's signal, so either one aborts the
  * request. `clear` must run once the request settles.
  */
-function startDeadline({ route, timeoutMs }: { route: string; timeoutMs: number }, { signal }: { signal?: AbortSignal | undefined }): { signal: AbortSignal; clear: () => void } {
+function startDeadline({ route, timeoutMs }: { route: string; timeoutMs: number | null }, { signal }: { signal?: AbortSignal | undefined }): { signal: AbortSignal; clear: () => void } {
   const timeoutController = new AbortController();
+  // An interactive delegated call is bounded by its run/caller cancellation, not human reading time.
+  if (timeoutMs === null) return { signal: signal ?? timeoutController.signal, clear: () => {} };
   const timeoutHandle = setTimeout(() => {
     timeoutController.abort(new Error(`request to ${route} timed out after ${timeoutMs}ms`));
   }, timeoutMs);
@@ -227,7 +229,7 @@ async function requestDaemonJson(
 ): Promise<unknown> {
   const fetchImpl = options.fetchImpl ?? fetch;
   const url = `${baseUrl}${route}`;
-  const deadline = startDeadline({ route, timeoutMs: options.timeoutMs ?? DEFAULT_TIMEOUT_MS }, { signal: options.signal });
+  const deadline = startDeadline({ route, timeoutMs: options.timeoutMs === undefined ? DEFAULT_TIMEOUT_MS : options.timeoutMs }, { signal: options.signal });
 
   try {
     let resp: Response;

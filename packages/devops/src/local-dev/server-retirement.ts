@@ -1,5 +1,5 @@
 /** Fence local dev-server intake before asking an async activity owner whether eviction is safe.
- * Unobservable background work remains protected for this process lifetime. Failed/timed-out
+ * The activity owner reports outstanding work at retirement time. Failed/timed-out
  * probes reopen intake; a successful retirement remains fenced until stop or explicit cancel.
  * @returns Intake accounting and a cancellable retirement decision; releases are idempotent.
  * @throws When begin is called after intake has been fenced.
@@ -9,7 +9,6 @@ export function createDevServerRetirement({ hasWork }: { hasWork: () => Promise<
   { activityTimeoutMs = 1000 } = {}) {
   let fenced = false;
   let active = 0;
-  let background = false;
   let generation = 0;
   return {
     accepting(_required = {}, _options = {}) { return !fenced; },
@@ -18,13 +17,15 @@ export function createDevServerRetirement({ hasWork }: { hasWork: () => Promise<
       if (fenced) throw new Error('Dev server intake is fenced');
       active++;
       let released = false;
-      return ({ background: accepted = false }: { background?: boolean }, _options = {}) => {
+      // Retain the old response hint as an input compatibility shim. A response's status cannot
+      // prove a job still runs: hasWork owns completion, including operations returning 202.
+      return (_required: { background?: boolean } = {}, _options = {}) => {
         if (released) return;
-        released = true; active--; background ||= accepted;
+        released = true; active--;
       };
     },
     async retire(_required = {}, _options = {}): Promise<boolean> {
-      if (fenced || active > 0 || background) return false;
+      if (fenced || active > 0) return false;
       fenced = true;
       const attempt = ++generation;
       let timer: ReturnType<typeof setTimeout> | undefined;

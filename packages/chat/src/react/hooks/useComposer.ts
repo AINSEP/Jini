@@ -266,10 +266,13 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
   const deferredWrite = useDeferredDraftWrite(options.pageLifecycle, () => {
     if (pendingUploadsRef.current > 0) return false;
     // Retry even after the debounce: the cache's memory tier cannot survive guest destruction.
-    const textSaved = draft.trim() === '' || writeCachedDraft({ conversationId, draft });
-    const foldersSaved = folders.length === 0 || writeCachedFolders({ conversationId, folders });
+    // Empty values are durable deletions too. A failed remove must not resurrect a cleared draft
+    // after this guest is destroyed and storage becomes readable again.
+    const textSaved = conversationId ? writeCachedDraft({ conversationId, draft }) : draft.trim() === '';
+    const foldersSaved = conversationId ? writeCachedFolders({ conversationId, folders }) : folders.length === 0;
     // Without the host's liveness validator, a remount deliberately does not restore files.
-    const filesSaved = attachments.length === 0 || (validateAttachments !== undefined && writeCachedAttachments({ conversationId, attachments }));
+    const filesSaved = canReleaseAttachments({ conversationId, attachments, validateAttachments,
+      hydratedFor: attachmentsHydratedForRef.current });
     return textSaved && foldersSaved && filesSaved;
   });
   const commitDraft = useCallback(
@@ -509,4 +512,19 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
     }),
     [draft, history, setDraft, folders, addFolders, removeFolder, attachments, addAttachments, addAttachment, removeAttachment, clearAttachments, agent, mention, openMention, closeMention, selectMention, canSubmit, reset, deferredWrite.flush],
   );
+}
+
+/** Never erase a pending restore; once settled, confirm persistence of empty lists as well.
+ * Unkeyed empty composers have no stored entry to delete. O(staged files), bounded by the cache.
+ */
+function canReleaseAttachments({ conversationId, attachments, validateAttachments, hydratedFor }: {
+  conversationId: string | null | undefined;
+  attachments: readonly ChatAttachment[];
+  validateAttachments: UseComposerOptions['validateAttachments'];
+  hydratedFor: string | null | undefined;
+}, _options = {}): boolean {
+  if (!conversationId) return attachments.length === 0;
+  if (hydratedFor !== conversationId) return false;
+  if (attachments.length > 0 && !validateAttachments) return false;
+  return writeCachedAttachments({ conversationId, attachments });
 }

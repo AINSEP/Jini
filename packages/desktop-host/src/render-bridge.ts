@@ -1,5 +1,5 @@
-/** Private native-render transport. The capability travels in the launcher environment, never
- * a renderer/preload bridge or a boot-token log. Descendant daemons can use the same endpoint.
+/** Private native-render transport. Deliver its configuration over private startup IPC, never
+ * a child OS environment, renderer/preload bridge or boot-token log.
  */
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
@@ -41,7 +41,7 @@ export interface RenderBridgeTimers {
 }
 
 /** Start one per launched server. No public bind, browser credentials, redirects or cookies.
- * @example const bridge = await startRenderBridge({ capture }); // pass bridge.env to the child
+ * @example const bridge = await startRenderBridge({ capture }); // deliver bridge.env over startup IPC
  * @complexity O(bytes) per capture; one active render, at most 16 MiB of PNG output.
  */
 export async function startRenderBridge({ capture }: { capture: UrlCapturePort },
@@ -118,7 +118,7 @@ async function readCaptureResponse({ response }: { response: Response }, _option
 
 /** Detect a complete private bridge contract; a partial/invalid contract fails closed.
  * No bridge returns null so hosts retain their current browser fallback.
- * @example const capture = renderBridgeFromEnv({ env: process.env });
+ * @example const capture = renderBridgeFromEnv({ env: privateStartupConfiguration });
  * @complexity O(1), plus bounded request/PNG bytes per capture.
  */
 export function renderBridgeFromEnv(

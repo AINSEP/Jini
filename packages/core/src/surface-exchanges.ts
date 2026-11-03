@@ -110,6 +110,7 @@ export interface SurfaceExchange {
    * When the exchange expires if nothing more happens, in epoch ms: the earlier of the idle and
    * lifetime deadlines. Activity moves the idle one, so read it right before rendering a deadline
    * for the human; a card drawn just before its `send()` shows a deadline a few ms early, never late.
+   * Positive infinity denotes a run-lifetime lease; renderers omit a countdown for nonfinite dates.
    */
   expiresAtMs(): number;
 }
@@ -138,6 +139,13 @@ export interface SurfaceDeliverySpec {
   exchangeId: string; params: Record<string, unknown>; principalId: string; toolId?: string; channel?: SurfaceAnswerChannel;
 }
 export interface SurfaceExchangeStore {
+  /** Restore an unanswered call through its original executor, or observe its still-live card.
+   * Streams human-only emissions until the exchange settles. A late answer is delivered once to
+   * the replacement exchange; it is never retained, logged or used as model input. Optional for
+   * compatibility with host-supplied stores that do not support restoration. */
+  restore?(required: { exchangeId: string; principalId: string; emit: SurfaceEmitter }, optional?: {
+    toolId?: string; channel?: SurfaceAnswerChannel; params?: Record<string, unknown>; signal?: AbortSignal;
+  }): Promise<DeliverResult>;
   /**
    * Opens an exchange bound to one in-flight tool call.
    *

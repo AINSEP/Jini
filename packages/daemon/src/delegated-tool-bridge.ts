@@ -116,6 +116,13 @@ interface DelegatedCall {
 function linkCancellation({ lifecycle, runId }: Pick<DelegatedCall, 'lifecycle' | 'runId'>, { signal }: { readonly signal?: AbortSignal }): { controller: AbortController; dispose: () => void } {
   const controller = new AbortController();
   const unsubscribeCancel = lifecycle.onCancelRequested({ runId: runId, listener: () => controller.abort() });
+  const terminalWatch = new AbortController();
+  // A CLI can time out/exit without requesting cancellation. Its unanswered cards must stop
+  // holding the daemon busy, while the exchange owner retains their safe restoration handle.
+  void lifecycle.waitForTerminal({ runId }, { signal: terminalWatch.signal }).then(
+    () => controller.abort(),
+    () => { /* Disposal cancels only this observation; transport cancellation is wired below. */ },
+  );
   const abortFromTransport = () => controller.abort();
   if (signal?.aborted) controller.abort();
   else signal?.addEventListener('abort', abortFromTransport, { once: true });
@@ -123,6 +130,7 @@ function linkCancellation({ lifecycle, runId }: Pick<DelegatedCall, 'lifecycle' 
     controller,
     dispose: () => {
       unsubscribeCancel();
+      terminalWatch.abort();
       signal?.removeEventListener('abort', abortFromTransport);
     },
   };

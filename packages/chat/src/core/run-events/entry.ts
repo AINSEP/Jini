@@ -6,6 +6,7 @@
 
 import { decodeSseFrames, parseSseRecord, type DecodedSseFrame } from "@jini-ai/core/primitives";
 import { assistantContentFromEvents } from "../assistant-content.js";
+import { recoverableSurfaceResource } from '../surface-recovery.js';
 import { mergeAdjacentTextEvents } from "../compact-events.js";
 import { dedupeToolUsesById } from "../tool-events.js";
 import type { AgentEvent, ToolResultMediaBlock } from "../events.js";
@@ -182,7 +183,8 @@ function translateEnvelopePayload(payload: RunAgentPayload): AgentEvent | null {
     // worst possible failure for a confirmation dialog. Unwrapping here is what makes the two ends
     // meet. `name` must stay `"mcp-ui"` to match `MCP_UI_EXT_EVENT_NAME`.
     case "mcp-ui":
-      return { kind: "ext", name: "mcp-ui", data: payload.resource };
+      return { kind: "ext", name: "mcp-ui", data: recoverableSurfaceResource({ resource: payload.resource,
+        exchange: 'surfaceExchange' in payload ? payload.surfaceExchange : undefined }) };
     // A2UI's own agent->renderer envelope (`@jini-ai/core`'s `SurfaceEmission` with
     // `channel: "a2ui"`, injected by `@jini-ai/daemon`'s `delegated-tool-bridge.ts` as
     // `{type: "a2ui", message: <AgentToRendererMessage>}`). Unwrapped to the bare `.message` here,
