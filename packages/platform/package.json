@@ -21,6 +21,7 @@
       "./secrets/credential-sets/contracts": "universal",
       "./secrets/testing": "node",
       "./http/guarded": "node",
+      "./http/multipart": "node",
       "./mail": "node",
       "./mail/senders": "universal",
       "./mail/smtp": "node",
@@ -103,6 +104,11 @@
       "types": "./dist/secrets/testing.d.ts",
       "import": "./dist/secrets/testing.js",
       "default": "./dist/secrets/testing.js"
+    },
+    "./http/multipart": {
+      "types": "./dist/http/multipart.adapter.d.ts",
+      "import": "./dist/http/multipart.adapter.js",
+      "default": "./dist/http/multipart.adapter.js"
     },
     "./http/guarded": {
       "types": "./dist/http/guarded/index.d.ts",
