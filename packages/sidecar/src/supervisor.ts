@@ -53,6 +53,8 @@ export type DaemonSupervisorState = "stopped" | "running" | "parked" | "shutting
 export interface DaemonSupervisor {
   /** Inspect lifecycle synchronously without starting a child or changing retry policy. */
   getState(): DaemonSupervisorState;
+  /** Child refused intake before its normal park exit. Demand waits for exit before replacing it. */
+  markParking(requiredArgs: { pid: number }, optionalArgs?: Record<string, never>): void;
   start(): void;
   restart(): DaemonSupervisorActionResult;
   ensureStarted(): DaemonSupervisorActionResult;
@@ -68,6 +70,7 @@ interface ChildState {
   deliberate: boolean;
   replaceAfterExit: boolean;
   stopping: boolean;
+  parking: boolean;
 }
 
 function giveUpReason({ decision, lastReason }: { decision: Extract<RespawnDecision, { action: "give-up" }>; lastReason: string }): string {
@@ -102,11 +105,16 @@ export function createDaemonSupervisor(deps: DaemonSupervisorRequired, options: 
   let cancelReadiness: ((error?: Error) => void) | undefined;
 
   function isCurrentLive({ candidate }: { candidate: ChildState | undefined }): boolean {
-    return candidate !== undefined && current === candidate && !terminating && !candidate.exited && !candidate.stopping;
+    return candidate !== undefined && current === candidate && !terminating && !candidate.exited && !candidate.stopping && !candidate.parking;
   }
 
   function isReady(): boolean {
     return readyChild !== undefined && isCurrentLive({ candidate: readyChild });
+  }
+
+  /** An exited child can still own unfinished termination work. O(1), no process effects. */
+  function hasUnreapedChild(): boolean {
+    return current !== undefined && (!current.exited || current.stopping);
   }
 
   /** Discovery outlives individual request deadlines; never re-enter the demand cooldown.
@@ -144,6 +152,9 @@ export function createDaemonSupervisor(deps: DaemonSupervisorRequired, options: 
     if (terminating) return Promise.reject(new Error("shutting down"));
     if (isReady()) return Promise.resolve();
     if (!deps.readiness) return Promise.reject(new Error("readiness port is not configured"));
+    // A shared discovery may already exist; this demand still has to request replacement after
+    // the retiring child exits. Reuse that discovery rather than canceling its current waiters.
+    if (current?.parking) supervisor.ensureStarted();
     if (!readyWork) {
       const start = supervisor.ensureStarted();
       if (!start.ok) return Promise.reject(new Error(start.reason));
@@ -207,13 +218,13 @@ export function createDaemonSupervisor(deps: DaemonSupervisorRequired, options: 
   }
 
   function attemptSpawn(): void {
-    if (terminating || parked || (current !== undefined && (!current.exited || current.stopping))) return;
+    if (terminating || parked || hasUnreapedChild()) return;
     // A new attempt must not inherit a stale readiness failure from an earlier child.
     deps.failureReporter.clear();
     let child: SpawnedDaemonProcess;
     try { child = deps.spawnDaemonProcess(); }
     catch (error) { reportFailure(`failed to start daemon: ${error instanceof Error ? error.message : String(error)}`); return; }
-    const state: ChildState = { child, exited: false, deliberate: false, replaceAfterExit: false, stopping: false };
+    const state: ChildState = { child, exited: false, deliberate: false, replaceAfterExit: false, stopping: false, parking: false };
     // Assign synchronously: run-to-completion makes request-driven recovery single-flight
     // without a lock or an await between checking the current child and publishing it.
     current = state;
@@ -265,6 +276,11 @@ export function createDaemonSupervisor(deps: DaemonSupervisorRequired, options: 
 
   const supervisor: DaemonSupervisor = {
     isReady, ensureReady,
+    markParking({ pid }, _optional = {}) {
+      if (!current || current.child.pid !== pid || current.exited || terminating) return;
+      current.parking = true;
+      readyChild = undefined;
+    },
     getState() {
       if (terminating) return "shutting-down";
       if (parked) return "parked";
@@ -278,8 +294,12 @@ export function createDaemonSupervisor(deps: DaemonSupervisorRequired, options: 
     },
     ensureStarted() {
       if (terminating) return { ok: false, reason: "shutting down" };
+      if (current?.parking && !current.exited) {
+        current.replaceAfterExit = true;
+        return { ok: true };
+      }
       // A scheduled retry keeps its own backoff; request traffic must not accelerate it.
-      if ((current !== undefined && (!current.exited || current.stopping)) || cancelRetry !== undefined) return { ok: true };
+      if (hasUnreapedChild() || cancelRetry !== undefined) return { ok: true };
       // Parking is healthy idleness: wake immediately, retaining all earlier crash history.
       if (parked) {
         lastOnDemandAttemptAt = deps.now(); forceFreshSpawn();

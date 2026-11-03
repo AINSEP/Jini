@@ -5,12 +5,14 @@ import type { SchedulerPort } from './scheduler.js';
 export interface IdleMonitor {
   /** Idempotent; callbacks queued before cancellation become harmless. */
   stop(): void;
+  /** Hold busy state through asynchronous work. Null means intake is fenced; releases are idempotent. */
+  acquire(required: Record<string, never>, optional?: Record<string, never>): (() => void) | null;
 }
 
 /**
  * Observe host busy state immediately, scheduling polls at most 1s ahead; fire once after a full
  * observed idle interval. Busy observations discard idle credit; the next idle
- * observation starts a new interval. Activity between observations is not tracked.
+ * observation starts a new interval. acquire() also records activity between observations.
  * @param input Injected synchronous busy predicate, finite positive idleMs, clock and scheduler.
  * @param options onIdle runs synchronously after the monitor has stopped; its errors propagate.
  * @returns A permanent, idempotent stop handle. Owns at most one scheduled callback.
@@ -31,6 +33,7 @@ export function createIdleMonitor(
     throw new RangeError('idleMs must be finite and positive');
   }
   let stopped = false;
+  let active = 0;
   let idleSince: number | undefined;
   let cancelPending: (() => void) | undefined;
 
@@ -44,7 +47,7 @@ export function createIdleMonitor(
   const observe = (): void => {
     if (stopped) return;
     const now = clock.nowMs();
-    if (isBusy()) idleSince = undefined;
+    if (active > 0 || isBusy()) idleSince = undefined;
     else idleSince ??= now;
     const remainingMs = idleSince === undefined ? idleMs : idleMs - (now - idleSince);
     if (remainingMs <= 0) {
@@ -56,5 +59,21 @@ export function createIdleMonitor(
   };
 
   observe();
-  return { stop };
+  return {
+    stop,
+    acquire(_required, _optional = {}) {
+      if (stopped) return null;
+      active++;
+      idleSince = undefined;
+      let released = false;
+      return () => {
+        if (released) return;
+        released = true;
+        active--;
+        // A sub-poll request is still activity. Start its idle credit at completion, not at
+        // the previous observation, so frequent short calls cannot trigger a premature park.
+        if (active === 0) idleSince = clock.nowMs();
+      };
+    },
+  };
 }

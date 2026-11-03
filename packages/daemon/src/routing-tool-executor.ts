@@ -23,11 +23,22 @@ export interface RoutingToolExecutorRequired {
 
 /**
  * Creates the routing executor.
+ * @param required Local/remote executors and the owning registry's routing predicate.
+ * @param optional.acquireActivity Host busy lease, released on success or failure after real work.
+ * @returns One executor preserving the selected route's result/error and cancellation policy.
  * @complexity O(1) plus `isLocal`'s own cost per call.
  */
-export function createRoutingToolExecutor({ local, remote, isLocal }: RoutingToolExecutorRequired, _optional: Record<string, never> = {}): ToolExecutor {
+export function createRoutingToolExecutor({ local, remote, isLocal }: RoutingToolExecutorRequired,
+  { acquireActivity }: { readonly acquireActivity?: () => () => void } = {},
+): ToolExecutor {
   return {
-    execute: (args, optional) => (isLocal({ toolId: args.toolId }) ? local : remote).execute(args, optional),
+    async execute(args, optional) {
+      // HTTP disconnects/cancel requests may precede actual completion. The embedding's busy
+      // lease follows the real executor promise, including its approval wait and cleanup.
+      const release = acquireActivity?.();
+      try { return await (isLocal({ toolId: args.toolId }) ? local : remote).execute(args, optional); }
+      finally { release?.(); }
+    },
     resumeConfirmation: (args) => local.resumeConfirmation(args),
     cancel: (args) => {
       local.cancel(args);

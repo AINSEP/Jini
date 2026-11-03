@@ -1377,6 +1377,8 @@ export interface AttachmentsInternalErrorContext {
 
 export interface AttachmentsHttpDeps {
   readonly store: AttachmentStore;
+  /** Host busy lease follows handler completion, including cleanup after an aborted response. */
+  readonly acquireActivity?: () => () => void;
   /**
    * Uploads accepted at once before further requests are rate-limited. Bounds concurrent
    * filesystem work, which matters because each in-flight upload holds an open handle and may be
@@ -1616,7 +1618,9 @@ export function registerAttachmentRoutes({ app, deps, adapter }: { readonly app:
   // second host) must not share one upload budget.
   const state = { activeUploads: 0 };
   app.post(ATTACHMENTS_ROUTE_PATH, async (req, res) => {
+    let release: (() => void) | undefined;
     try {
+      release = deps.acquireActivity?.();
       if (!passesOriginGuard(req, res, deps, adapter)) return;
       await handleAttachmentUpload({ req, res, deps, state });
     } catch (error) {
@@ -1628,14 +1632,20 @@ export function registerAttachmentRoutes({ app, deps, adapter }: { readonly app:
       // stood between that throw and an unhandled rejection with no process-level guard anywhere
       // in this package's path.
       if (!res.headersSent) respondToUploadFailure(res, deps, error, null, 'attachment-upload');
+    } finally {
+      release?.();
     }
   });
   app.delete(ATTACHMENTS_ROUTE_PATH, async (req, res) => {
+    let release: (() => void) | undefined;
     try {
+      release = deps.acquireActivity?.();
       if (!passesOriginGuard(req, res, deps, adapter)) return;
       await handleAttachmentCleanup({ req, res, deps });
     } catch (error) {
       if (!res.headersSent) sendApiError({ res, status: 500, error: reportInternalError(deps, 'attachment-cleanup', error, null) });
+    } finally {
+      release?.();
     }
   });
 }

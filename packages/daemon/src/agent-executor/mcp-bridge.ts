@@ -103,7 +103,7 @@ export function buildMcpJsonServerEntry({ runId, options }: { readonly runId: st
  * @complexity O(1) plus `JSON.parse`/`JSON.stringify`'s own cost on a small config file.
  * @overallScore 100/100
  */
-export function mergeMcpJsonContent({ existingRaw, serverEntry }: { readonly existingRaw: string | undefined; readonly serverEntry: McpJsonServerEntry }): string {
+export function mergeMcpJsonContent({ existingRaw, serverEntry }: { readonly existingRaw: string | undefined; readonly serverEntry: McpJsonServerEntry | { readonly type: 'http'; readonly url: string; readonly headers: Readonly<Record<string, string>> } }): string {
   let doc: Record<string, unknown> = {};
   if (existingRaw !== undefined) {
     try {
@@ -189,7 +189,7 @@ const ENV_CONTENT_VAR_BY_STRATEGY: Readonly<Record<'opencode-env-content' | 'mim
  * @complexity O(1) plus `JSON.parse`/`JSON.stringify` over a small config document.
  * @overallScore 100/100
  */
-export function mergeEnvContentMcpConfig({ existingRaw, entry }: { readonly existingRaw: string | undefined; readonly entry: McpJsonServerEntry }): string {
+export function mergeEnvContentMcpConfig({ existingRaw, entry }: { readonly existingRaw: string | undefined; readonly entry: McpJsonServerEntry | { readonly type: 'remote'; readonly url: string; readonly headers: Readonly<Record<string, string>> } }): string {
   let doc: Record<string, unknown> = {};
   if (existingRaw !== undefined && existingRaw.length > 0) {
     try {
@@ -202,12 +202,12 @@ export function mergeEnvContentMcpConfig({ existingRaw, entry }: { readonly exis
   const existingMcp = isRecord(doc.mcp) ? doc.mcp : {};
   const mcp = {
     ...existingMcp,
-    [JINI_MCP_SERVER_KEY]: {
+    [JINI_MCP_SERVER_KEY]: 'command' in entry ? {
       type: 'local',
       command: [entry.command, ...entry.args],
       environment: { ...entry.env },
       enabled: true,
-    },
+    } : entry,
   };
   return JSON.stringify({ ...doc, mcp });
 }

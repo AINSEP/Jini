@@ -138,3 +138,6 @@ export type { McpIdleTimerPort } from './client/client.js';
 export type { McpToolServerRequiredArgs } from './server/tool-server.js';
 export type { CreateExecuteDelegatedToolToolRequiredArgs } from './server/tools/delegated-tool.js';
 export { DaemonHttpError } from './server/daemon-client.js';
+
+export { assembleRunToolHost } from './server/run-tool-host.js';
+export type { RunToolHostInput, RunToolHostOptions, RunToolHost } from './server/run-tool-host.js';
