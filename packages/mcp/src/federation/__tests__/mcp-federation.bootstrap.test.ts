@@ -224,3 +224,33 @@ test("a connect timeout produces a human-readable connectFailures entry with no 
   assert.deepEqual(result.reports, []);
   assert.deepEqual(result.connectFailures, [{ connectionId: "namecom", reason: timeoutMessage }]);
 });
+
+test.each(['connect', 'listTools'])(
+  'connection failure details keep credentials private after %s fails', async (failureStage) => {
+    const { attachFederatedMcpTools } = await import("../bootstrap.js");
+    const { messages, logger } = collectingLogger();
+    const failure = new Error('request to https://operator:url-password@example.invalid/mcp?token=query-secret failed password=short-secret');
+    let closed = 0;
+    const result = await attachFederatedMcpTools({
+      registry: fakeRegistry(),
+      deps: { messages: federationMessages, errorCode: 'EXTERNAL_MCP', scope: WORKSPACE_ID,
+        permissionGate: testPermissionGate({ authorize: async () => ({ allowed: true, reason: 'matched' }), scope: WORKSPACE_ID }) },
+      connect: async () => {
+        if (failureStage === 'connect') throw failure;
+        return { ...fakeSession(), listTools: async () => { throw failure; }, close: async () => { closed++; } };
+      },
+    }, { connections: [HTTP_CONNECTION], logger, env: {} });
+    assert.equal(result.connectFailures.length, 1);
+    const reason = result.connectFailures[0]!.reason;
+    for (const secret of ['operator', 'url-password', 'query-secret', 'short-secret']) {
+      assert.ok(!reason.includes(secret), `caller-visible reason leaked ${secret}`);
+      assert.ok(messages.every(message => !message.includes(secret)), `log leaked ${secret}`);
+    }
+    assert.match(reason, /example\.invalid/);
+    assert.match(reason, /failed/);
+    assert.match(reason, /\[REDACTED:/);
+    assert.deepEqual(result.reports, []);
+    assert.deepEqual(result.registeredToolIds, []);
+    assert.equal(closed, failureStage === 'listTools' ? 1 : 0);
+  },
+);

@@ -36,6 +36,20 @@ describe('recharts BarChart', () => {
     expect(container.querySelectorAll('.recharts-bar-rectangle')).toHaveLength(2);
   });
 
+  it('keeps a zero-count category and its keyboard tooltip without inventing a positive bar', async () => {
+    const rows = [{ status: 'Draft', count: 1 }, { status: 'Published', count: 0 }];
+    const { container } = render(<BarChart data={rows} categoryKey="status" valueKey="count" />);
+    expect(container.querySelectorAll('.recharts-bar-rectangle')).toHaveLength(1);
+    expect(Array.from(container.querySelectorAll('.recharts-xAxis-tick-labels .recharts-cartesian-axis-tick-value'), tick => tick.textContent)).toEqual(['Draft', 'Published']);
+    const chart = screen.getByRole('application');
+    fireEvent.focus(chart);
+    await waitFor(() => expect(within(screen.getByRole('tooltip')).getByText('1')).toBeInTheDocument());
+    fireEvent.keyDown(chart, { key: 'ArrowRight' });
+    await waitFor(() => expect(within(screen.getByRole('tooltip')).getByText('0')).toBeInTheDocument());
+    expect(within(screen.getByRole('tooltip')).getByText('Published')).toBeInTheDocument();
+    expect(rows[1]?.count).toBe(0);
+  });
+
   it('renders the category axis ticks from categoryKey', () => {
     // Scoped to the real tick-value elements, not a document-wide text query — recharts also
     // renders an invisible `#recharts_measurement_span` with the same text (used to size ticks),

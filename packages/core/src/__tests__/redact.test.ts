@@ -3,6 +3,46 @@ import { describe, expect, it } from 'vitest';
 import { redactSecrets, redactSecretsWithCounts } from '../redact.js';
 
 describe('@jini-ai/core — redact — redactSecrets', () => {
+  it.each(['password', 'client_secret', 'token', 'api key'])(
+    "keeps the next field's secret private after an empty credential hint: %s", (key) => {
+      for (const quote of ['"', "'"]) {
+        for (const keyQuote of [quote, '']) {
+          for (const hint of ['password=', 'x-api-key=']) {
+            const input = `{${quote}hint${quote}: ${quote}${hint}${quote}, ${keyQuote}${key}${keyQuote}: ${quote}secret123${quote}}`;
+            const redacted = redactSecrets({ input }, { redactPii: false });
+            expect(redacted).not.toContain('secret123');
+            expect(redacted).toContain(`${keyQuote}${key}${keyQuote}: ${quote}[REDACTED:labeled_secret]${quote}`);
+            expect(redacted).toContain(`${quote}hint${quote}: ${quote}[REDACTED:labeled_secret]${quote}`);
+            expect(redactSecretsWithCounts({ input: redacted }, { redactPii: false }))
+              .toEqual({ redacted, counts: {} });
+          }
+        }
+      }
+    },
+  );
+
+  it('keeps truncated quoted credentials private', () => {
+    for (const quote of ['"', "'"]) {
+      expect(redactSecrets({ input: `password=${quote}secret123` }, { redactPii: false }))
+        .toBe(`password=${quote}[REDACTED:labeled_secret]${quote}`);
+    }
+  });
+
+  it('keeps quoted credentials private before diagnostic punctuation', () => {
+    for (const punctuation of ['.', '!', ')', ']', '}', ',', ';']) {
+      expect(redactSecrets({ input: `password="secret123"${punctuation}` }, { redactPii: false }))
+        .toBe(`password="[REDACTED:labeled_secret]"${punctuation}`);
+    }
+  });
+
+  it('keeps quoted secrets starting with punctuation private', () => {
+    for (const value of [', secret123', '; secret123', '} secret123', 'secret123', '']) {
+      const input = JSON.stringify({ password: value, code: 'UPSTREAM_FAILED' });
+      const redacted = redactSecrets({ input }, { redactPii: false });
+      expect(redacted).toBe('{"password":"[REDACTED:labeled_secret]","code":"UPSTREAM_FAILED"}');
+    }
+  });
+
   it.each([',', ';', '&', '}', '"', "'"])(
     'retains complete unquoted credential masking when a value contains %s', (separator) => {
       expect(redactSecrets({ input: `password=first${separator}second` }, { redactPii: false }))

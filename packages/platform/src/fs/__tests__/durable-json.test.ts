@@ -83,17 +83,33 @@ test("a lock held by a live process is waited for, then refused out loud — nev
     });
     assert.equal(fs.readFileSync(lockPath, "utf8"), `${process.pid}:someoneelse`, "the live holder's lock is left exactly as it was");
 });
-test("a lock whose owner is gone, or that is older than any synchronous write could be, is taken over", () => {
+test("a lock whose owner is gone is taken over without waiting for it to age", () => {
     const abandoned = tempFile();
     fs.writeFileSync(`${abandoned}.lock`, `${deadPid()}:crashed`);
     assert.equal(runStoreLock(abandoned, () => "taken", { waitMs: 50 }), "taken");
     assert.equal(fs.existsSync(`${abandoned}.lock`), false);
+});
+test("an old lock with an unknown owner is taken over", () => {
+    const stale = tempFile();
+    const stalePath = `${stale}.lock`;
+    fs.writeFileSync(stalePath, "incomplete-owner");
+    const longAgo = new Date(Date.now() - 60000);
+    fs.utimesSync(stalePath, longAgo, longAgo);
+    assert.equal(runStoreLock(stale, () => "taken", { waitMs: 50 }), "taken");
+    assert.equal(fs.existsSync(stalePath), false);
+});
+test("a live owner keeps its old lock and its data even after the stale threshold", () => {
     const stale = tempFile();
     const stalePath = `${stale}.lock`;
     fs.writeFileSync(stalePath, `${process.pid}:wedged`);
     const longAgo = new Date(Date.now() - 60000);
     fs.utimesSync(stalePath, longAgo, longAgo);
-    assert.equal(runStoreLock(stale, () => "taken", { waitMs: 50 }), "taken");
+    let ran = false;
+    assert.throws(() => runStoreLock(stale, () => { ran = true; }, { waitMs: 50 }), {
+        message: `fixture desktop: ${stalePath} is still held by another Fixture process after 50ms, so this change was not saved. Nothing was written over. Try again, or quit the other Fixture window.`,
+    });
+    assert.equal(ran, false);
+    assert.equal(fs.readFileSync(stalePath, "utf8"), `${process.pid}:wedged`);
 });
 test("releasing does not delete a lock that now belongs to someone else", () => {
     const filePath = tempFile();

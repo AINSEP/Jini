@@ -102,6 +102,25 @@ it('a dynamically advertised operation keeps the daemon run scope and read-only 
   } finally { await h.close(); }
 }, 10_000);
 
+it('prefixed direct and delegated tool names use the same published handler and validation', async () => {
+  const h = await host();
+  try {
+    await h.call('describe_tool', { id: 'fixture_read' });
+    for (const name of ['mcp__jini__fixture_read', 'execute_delegated_tool', 'execute_readonly_delegated_tool']) {
+      const input = { query: 'hello' };
+      const result = await h.call(name, name.startsWith('mcp__') ? input : { toolId: 'mcp__jini__fixture_read', input });
+      expect(result).toEqual({ content: [{ type: 'text', text: 'found {"query":"hello"}' }] });
+      expect(h.requests.filter(request => request.url.endsWith('/api/delegated-tool-calls')).at(-1)?.body)
+        .toMatchObject({ runId: 'run-a', toolId: 'fixture_read', requireReadOnly: true, input });
+    }
+    h.requests.length = 0;
+    const malformed = await h.call('execute_delegated_tool', { toolId: 'mcp__jini__fixture_read', input: {} });
+    expect(malformed.isError).toBe(true);
+    expect(JSON.stringify(malformed)).toContain('query');
+    expect(h.requests.some(request => request.url.endsWith('/api/delegated-tool-calls'))).toBe(false);
+  } finally { await h.close(); }
+}, 10_000);
+
 it('both delegated gateways poll check_messages once with the run credential and cancellation signal', async () => {
   const h = await host();
   try {
@@ -188,3 +207,61 @@ it('search returns compact signatures without publishing; describe publishes, an
     }
   } finally { await h.close(); }
 }, 10_000);
+
+it('an oversized tool result is read through the advertised local tool and either gateway without HTTP file access', async () => {
+  const h = await host();
+  try {
+    const query = 'saved result line\n'.repeat(1200);
+    await h.call('describe_tool', { id: 'fixture_read' });
+    const original = await h.call('fixture_read', { query });
+    const block = original.content[0];
+    if (block?.type !== 'text') throw new Error('Expected saved result pointer');
+    expect(block.text.length).toBeLessThan(12000);
+    const match = /"resultId":"([^"]+)"/.exec(block.text);
+    expect(match).not.toBeNull();
+    const resultId = match![1]!;
+    expect((await h.list()).tools.map(tool => tool.name)).toContain('read_tool_result');
+    h.requests.length = 0;
+    const first = await h.call('read_tool_result', { resultId });
+    for (const gateway of ['execute_delegated_tool', 'execute_readonly_delegated_tool']) {
+      const viaGateway = await h.call(gateway, { toolId: 'read_tool_result', input: { resultId } });
+      expect(viaGateway).toEqual(first);
+    }
+    let recovered = '';
+    let offset: number | null = 0;
+    while (offset !== null) {
+      const page = await h.call('read_tool_result', { resultId, offset });
+      const textBlock = page.content[0];
+      if (textBlock?.type !== 'text') throw new Error('Expected saved result page');
+      const split = textBlock.text.indexOf('\n');
+      const cursor = JSON.parse(textBlock.text.slice(0, split)) as { nextOffset: number | null };
+      recovered += textBlock.text.slice(split + 1);
+      offset = cursor.nextOffset;
+    }
+    expect(recovered).toBe(`found ${JSON.stringify({ query })}`);
+    expect(h.requests.every(request => request.url.endsWith('/messages/claim'))).toBe(true);
+  } finally { await h.close(); }
+});
+
+it('a generation poll can pause through either delegated gateway without shell sleep or a delegated HTTP call', async () => {
+  const h = await host();
+  try {
+    expect((await h.list()).tools.map(tool => tool.name)).toContain('wait_for');
+    for (const gateway of ['execute_delegated_tool', 'execute_readonly_delegated_tool']) {
+      const result = await h.call(gateway, { toolId: 'wait_for', input: { seconds: 0 } });
+      expect(result).toEqual({ content: [{ type: 'text', text: '{"waitedSeconds":0}' }] });
+    }
+    expect(h.requests.every(request => request.url.endsWith('/messages/claim'))).toBe(true);
+  } finally { await h.close(); }
+});
+
+it('a long user follow-up keeps its trusted relay notice inline rather than becoming a saved tool result', async () => {
+  const h = await host();
+  try {
+    const message = 'Continue with this detail. '.repeat(700);
+    h.pending.push({ id: 'user-long', seq: 1, text: message });
+    const result = await h.call('check_messages');
+    expect(JSON.stringify(result)).toContain(message);
+    expect(JSON.stringify(result)).not.toContain('read_tool_result');
+  } finally { await h.close(); }
+});

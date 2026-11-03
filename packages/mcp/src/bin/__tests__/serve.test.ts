@@ -153,6 +153,7 @@ describe('serve() — wiring, with a fully-injected fake createMcpToolServer', (
       // Hosted alongside, never instead of: a client that auto-denies any tool lacking
       // `readOnlyHint: true` gets a reachable read half, and every other client still sees both.
       'execute_readonly_delegated_tool',
+      'wait_for',
     ]);
     const readonlyGateway = seenOptions?.tools.find((t) => t.name === 'execute_readonly_delegated_tool');
     expect(readonlyGateway?.annotations).toMatchObject({ readOnlyHint: true });
@@ -811,4 +812,18 @@ it('resolves startup descriptors over the global fetch when no fetchImpl is inje
   expect(requested).toHaveLength(1);
   expect(requested[0]).toMatch(/^GET \S*content\.read/);
   expect(initialTools).toEqual([expect.objectContaining({ id: 'content.read', description: 'Read content' })]);
+});
+
+it('every CLI bootstrap advertises a working wait and paged reads instead of shell sleep and spill files', async () => {
+  let seen: McpToolServerOptions | undefined;
+  let names: readonly string[] = [];
+  await serve({}, makeDeps({ createMcpToolServer: (required, options) => {
+    seen = options; names = required.tools.map(tool => tool.name);
+    return { run: async () => {} };
+  } }));
+  expect(names).toContain('wait_for');
+  expect(seen?.resultPaging).toBe(true);
+  expect(seen?.instructions).toContain('wait_for({seconds:');
+  expect(seen?.instructions).toContain('read_tool_result');
+  expect(seen?.instructions).toContain('Never use Bash');
 });

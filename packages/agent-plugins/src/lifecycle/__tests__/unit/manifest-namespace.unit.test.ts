@@ -4,8 +4,7 @@ import { validatePluginManifest } from '../../../manifest.js';
 
 /**
  * @file Host-key policy (README "Extension namespaces"): one `extensions` entry per host, each
- * host reads only its own key. The parsers keep their compatible `tovu` default for existing
- * callers that pass no namespace.
+ * host reads only its own key. Callers without a namespace use `jini`, with a legacy-key fallback.
  */
 
 const dualKey = {
@@ -33,7 +32,7 @@ describe('extension namespace per host', () => {
     expect(parsedIdentity('another-host')).toEqual({ id: 'unknown/stock', provides: [] });
   });
 
-  test('omitting the namespace keeps the compatible tovu default', () => {
+  test('omitting the namespace falls back to the legacy key when jini is absent', () => {
     expect(parsedIdentity()).toEqual(parsedIdentity('tovu'));
   });
 

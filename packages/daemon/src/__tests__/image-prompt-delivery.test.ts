@@ -11,7 +11,7 @@ describe('augmentPromptWithImageAttachments', () => {
     expect(result).toBe(
       'describe this\n\n---\n' +
         'The user attached the following image file to this message. ' +
-        'It is a real file on disk — read it directly (e.g. with your file-reading tool) before responding:\n' +
+        'It is a real file on disk — read it with the host attachment/image tool first, or your native Read/image tool for this supplied path. Never use Bash, a shell command or a script to inspect attachments:\n' +
         '1. /tmp/screenshot.png',
     );
   });
@@ -21,7 +21,7 @@ describe('augmentPromptWithImageAttachments', () => {
     expect(result).toBe(
       'compare these\n\n---\n' +
         'The user attached the following image files to this message. ' +
-        'These are real files on disk — read each one directly (e.g. with your file-reading tool) before responding:\n' +
+        'These are real files on disk — read each one with the host attachment/image tool first, or your native Read/image tool for this supplied path. Never use Bash, a shell command or a script to inspect attachments:\n' +
         '1. /tmp/a.png\n2. /tmp/b.png',
     );
   });
@@ -94,4 +94,13 @@ describe('applyImagePromptDelivery', () => {
     expect(result.prompt).toBe(prompt);
     expect(result.extraAllowedDirs).toBeUndefined();
   });
+});
+
+it('an attached picture directs the first read to an image tool without a failed Bash attempt', () => {
+  const result = applyImagePromptDelivery({ imageDelivery: 'prompt-path', prompt: 'Use this as the hero',
+    imagePaths: ['/site/uploads/hero.png'], extraAllowedDirs: undefined });
+  expect(result.prompt).toContain('host attachment/image tool first');
+  expect(result.prompt).toContain('native Read/image tool for this supplied path');
+  expect(result.prompt).toContain('Never use Bash, a shell command or a script to inspect attachments');
+  expect(result.extraAllowedDirs).toEqual(['/site/uploads']);
 });

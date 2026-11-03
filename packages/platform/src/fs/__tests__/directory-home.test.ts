@@ -53,16 +53,16 @@ describe("operator-visible directory home", () => {
   });
   it.each([false, true])("never dies on two live folders with one name: picks a configured root, then the newest open, warning with paths and IDs (reverse=%s)", (reverse) => {
     // A scratch copy of a site (another agent's sandbox) stays registered and initialized beside the real one.
-    const real = { id: "real-id", name: "Site", path: "/docs/Tovu/fake-test-site", createdBy: "Web", lastOpened: "2026-11-01T00:00:00.000Z" };
+    const real = { id: "real-id", name: "Site", path: "/docs/Workspace/fake-test-site", createdBy: "Web", lastOpened: "2026-11-01T00:00:00.000Z" };
     const scratch = { id: "scratch-id", name: "Site", path: "/users/owner/.agent/scratchpad/fake-test-site", createdBy: "Web", lastOpened: "2026-11-02T00:00:00.000Z" };
     const entries = reverse ? [scratch, real] : [real, scratch];
     const report = vi.fn();
-    const input = { home: "/docs/Tovu/sites", roots: ["/docs/Tovu/sites", "/docs/Tovu"], fallback: "/repo/sites/dev", selected: "fake-test-site", entries,
+    const input = { home: "/docs/Workspace/sites", roots: ["/docs/Workspace/sites", "/docs/Workspace"], fallback: "/repo/sites/dev", selected: "fake-test-site", entries,
       listDirectories: () => [], isInitialized: ({ path }: { path: string }) => path === real.path || path === scratch.path };
     expect(selectWorkspaceDirectory(input, { report })).toBe(real.path);
     const message = String(report.mock.calls[0]?.[0]?.message);
     for (const text of [real.path, scratch.path, "real-id", "scratch-id"]) expect(message).toContain(text);
     // Neither inside a configured root: the most recently opened one wins, independent of row order.
-    expect(selectWorkspaceDirectory({ ...input, roots: ["/docs/Tovu/sites"] }, { report })).toBe(scratch.path);
+    expect(selectWorkspaceDirectory({ ...input, roots: ["/docs/Workspace/sites"] }, { report })).toBe(scratch.path);
   });
 });

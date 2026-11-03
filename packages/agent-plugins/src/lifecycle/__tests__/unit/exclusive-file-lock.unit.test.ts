@@ -137,16 +137,22 @@ test("U5: a live holder (our own pid, fresh) times out; run() is never called an
   }
 });
 
-test("U6: a live holder whose mtime is 60s old is acquired via the age rule, and onStaleLockRemoved fires", async () => {
+test("U6: a live holder whose mtime is 60s old is never evicted, and its lock bytes stay unchanged", async () => {
   const root = await freshRoot();
   try {
     const lockPath = lockPathIn(root);
     await plantLock(lockPath, { pid: process.pid, hostname: os.hostname(), token: "old", acquiredAt: new Date().toISOString() }, 60_000);
+    const before = await readFile(lockPath, "utf8");
 
     const removed: (FileLockHolder | undefined)[] = [];
-    await withFileLock({ lockPath: lockPath, run: async () => undefined }, { timeoutMs: 15_000, staleMs: 10_000, onStaleLockRemoved: ({ holder }) => removed.push(holder) });
-    assert.equal(removed.length, 1);
-    assert.equal(removed[0]?.token, "old");
+    let ran = false;
+    await assert.rejects(
+      withFileLock({ lockPath, run: async () => { ran = true; } }, { timeoutMs: 50, staleMs: 10_000, onStaleLockRemoved: ({ holder }) => removed.push(holder) }),
+      FileLockTimeoutError,
+    );
+    assert.equal(ran, false);
+    assert.deepEqual(removed, []);
+    assert.equal(await readFile(lockPath, "utf8"), before);
   } finally {
     await forceRemove(root);
   }

@@ -294,8 +294,17 @@ it('charts-recharts: the built client bundle mounts and draws a bar chart with w
     const { element, destroy } = await dom.draw({ spec });
     await vi.waitFor(() => expect(element.querySelectorAll('.recharts-yAxis-tick-labels .recharts-cartesian-axis-tick-value').length).toBeGreaterThan(0));
     expect(element.querySelector('figure')?.getAttribute('data-chart-provider')).toBe('plugin.recharts');
-    expect(element.querySelectorAll('.recharts-bar-rectangle')).toHaveLength(2);
+    // A zero-height rectangle has no SVG shape; the category and its value must still survive.
+    expect(element.querySelectorAll('.recharts-bar-rectangle')).toHaveLength(1);
+    expect(Array.from(element.querySelectorAll('.recharts-xAxis-tick-labels .recharts-cartesian-axis-tick-value'), tick => tick.textContent)).toEqual(['Draft', 'Published']);
     expect(Array.from(element.querySelectorAll('.recharts-yAxis-tick-labels .recharts-cartesian-axis-tick-value')).map(tick => tick.textContent)).toEqual(['0', '1']);
+    const application = element.querySelector('[role="application"]')!;
+    expect(application).not.toBeNull();
+    application.dispatchEvent(new window.FocusEvent('focusin', { bubbles: true }));
+    await vi.waitFor(() => expect(element.querySelector('.jini-chart-tooltip-value')?.textContent).toBe('1'));
+    application.dispatchEvent(new window.KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true }));
+    await vi.waitFor(() => expect(element.querySelector('.jini-chart-tooltip-value')?.textContent).toBe('0'));
+    expect(element.querySelector('[role="tooltip"]')?.textContent).toContain('Published');
     destroy();
     expect(element.children).toHaveLength(0);
   } finally { dom.close(); }

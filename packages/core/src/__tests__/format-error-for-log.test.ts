@@ -53,3 +53,37 @@ describe('formatErrorForLog', () => {
     expect(diagnostic).not.toContain('structured-secret');
   });
 });
+
+describe('nested diagnostic credential privacy', () => {
+  it.each(['password', 'x-api-key'])(
+    'keeps %s in nested cause messages and stacks private before JSON escaping', (key) => {
+      const cause = new Error(`request failed {"${key}": "secret123"}`);
+      cause.stack = `Error: {"${key}": "stack-secret"}\n    at send (/app/provider.ts:7:3)`;
+      const error = new Error('provider unavailable', { cause });
+      const diagnostic = formatErrorForLog({ error });
+      expect(diagnostic).not.toContain('secret123');
+      expect(diagnostic).not.toContain('stack-secret');
+      expect(diagnostic).toContain('provider unavailable');
+      expect(diagnostic).toContain('/app/provider.ts:7:3');
+      expect(diagnostic).toContain('[REDACTED:');
+    },
+  );
+
+  it('keeps credentials private in nested non-Error diagnostic strings and honors caller rules', () => {
+    const error = { details: [{ message: '{"password": "secret123", "x-api-key": "header-secret"}',
+      hint: 'exact-quote"secret', code: 'EXTRA_SECRET' }] };
+    const diagnostic = formatErrorForLog({ error }, { exactSecrets: ['exact-quote"secret'],
+      extraPatterns: [{ name: 'host', regex: /EXTRA_SECRET/g }] });
+    for (const secret of ['secret123', 'header-secret', 'exact-quote', 'EXTRA_SECRET']) {
+      expect(diagnostic).not.toContain(secret);
+    }
+    expect(diagnostic).toContain('[REDACTED:host]');
+  });
+});
+
+it('keeps exact-only diagnostics literal without rescanning a supplied marker', () => {
+  const diagnostic = formatErrorForLog({ error: { details: 'password=visible known-secret' } }, {
+    policy: 'exact-only', exactSecrets: ['known-secret'], marker: '[known-secret hidden]',
+  });
+  expect(diagnostic).toBe('{"details":"password=visible [known-secret hidden]"}');
+});
