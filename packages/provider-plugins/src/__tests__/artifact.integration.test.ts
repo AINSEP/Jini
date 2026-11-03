@@ -142,7 +142,8 @@ async function assertDigestsMatchBytes(required: { artifact: string; manifest: P
 
 /** Preview, install and load the artifact through the real host installer and loader under one namespace.
  * The loaded plugin's contributions land in the returned registry; the loader itself must succeed. */
-async function installAndLoad(required: { pluginId: string; artifact: string; manifest: PluginManifest; namespace: string; runtimeSdkVersion: string }) {
+async function installAndLoad(required: { pluginId: string; artifact: string; manifest: PluginManifest; namespace: string; runtimeSdkVersion: string },
+  optional: { reviewedBrowserProvider?: boolean } = {}) {
   const { pluginId, artifact, manifest, namespace, runtimeSdkVersion } = required;
   const deps = { ...host, identityNamespace: namespace, tierPolicy, installDir: path.join(root, pluginId, namespace, 'installed'), builtInIds: [],
     repo: { listAll: async () => [] }, conflicts: async () => [], archiveReader: async () => new Map<string, Uint8Array>(),
@@ -151,7 +152,12 @@ async function installAndLoad(required: { pluginId: string; artifact: string; ma
   await installSitePlugin({ sourceDir: artifact, expectedDigest: preview.digest, deps });
   const installedRoot = path.join(deps.installDir, manifest.id, manifest.version);
   const registry = createPluginContributionRegistry({});
-  const loaded = await loadPlugin({ manifest, record: discoveryRecord(manifest, 'site'),
+  // Site installation proves byte retention, not browser execution trust. The fixture host
+  // explicitly reviews its bundled charts, just as the real host must before loading them.
+  const browserProviderApprovals = optional.reviewedBrowserProvider ? [{ pluginId: manifest.id, version: manifest.version,
+    browserProviders: manifest.browserProviders!, integrity: manifest.integrity }] : [];
+  const loaded = await loadPlugin({ manifest, record: discoveryRecord(manifest, optional.reviewedBrowserProvider ? 'built-in' : 'site'),
+    browserProviderApprovals,
     entryPath: path.join(installedRoot, 'server/index.mjs'), pluginSdkBinding: { ...binding, runtimeSdkVersion }, tierPolicy,
     verifyDigest: async ({ absoluteFilePath }) => `sha256-${createHash('sha256').update(await readFile(absoluteFilePath)).digest('hex')}`,
     importModule: async () => {
@@ -161,7 +167,11 @@ async function installAndLoad(required: { pluginId: string; artifact: string; ma
     providerContributions: { registry, isSelected: () => true },
     coreDeps: { getCurrentEntry() { throw new Error('unused'); }, writeExtField() { throw new Error('unused'); }, attachFilter() { throw new Error('unused'); } },
   });
-  expect(loaded).toEqual({ loaded: true });
+  if (optional.reviewedBrowserProvider) {
+    expect(loaded).toEqual({ loaded: true, browserProviders: expect.any(Array) });
+    if (!loaded.loaded) throw new Error(`Browser provider refused: ${loaded.reason}`);
+    expect(loaded.browserProviders?.map(provider => provider.declaration)).toEqual(manifest.browserProviders);
+  } else expect(loaded).toEqual({ loaded: true });
   return { registry, installedRoot };
 }
 
@@ -272,7 +282,7 @@ it.each(BROWSER_IDS)('%s: packs, installs, loads and admits identical browser-on
   `], { cwd: root, env: { ...process.env, NODE_PATH: '' } });
   expect(standalone.stderr).toBe('');
   for (const [namespace, runtimeSdkVersion] of [['tovu', '0.1.0'], ['com.example.host', '1.0.0']] as const) {
-    const { registry, installedRoot } = await installAndLoad({ pluginId, artifact, manifest, namespace, runtimeSdkVersion });
+    const { registry, installedRoot } = await installAndLoad({ pluginId, artifact, manifest, namespace, runtimeSdkVersion }, { reviewedBrowserProvider: true });
     expect(registry.list({}).flatMap(row => row.providers ?? [])).toEqual([]);
     // Host admission of the retained bytes, with an approval pinning the packaged declaration and full integrity map.
     const admission = await admitBrowserProviderAssets({ record: discoveryRecord(manifest, 'built-in'), manifest, pluginRoot: installedRoot,

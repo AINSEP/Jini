@@ -462,10 +462,10 @@ describe('useTooltipLayer', () => {
     const trigger = mountTrigger({ title: 'native' });
     const originalMatches = trigger.matches.bind(trigger);
     // Only :focus-visible throws (unsupported); other selectors (used by closest) still work.
-    trigger.matches = (selector: string) => {
+    vi.spyOn(trigger, 'matches').mockImplementation((selector: string) => {
       if (selector === ':focus-visible') throw new Error('unsupported pseudo-class');
       return originalMatches(selector);
-    };
+    });
     renderHook(() => useTooltipLayer());
     act(() => document.body.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }))); // pointer modality
     act(() => trigger.dispatchEvent(new FocusEvent('focusin', { bubbles: true })));

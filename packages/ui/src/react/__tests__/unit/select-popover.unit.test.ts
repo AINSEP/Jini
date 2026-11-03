@@ -34,7 +34,7 @@ function openDialog({ modal }: { modal: boolean }): HTMLDialogElement {
   const dialog = document.createElement('dialog');
   dialog.setAttribute('open', '');
   const nativeMatches = dialog.matches.bind(dialog);
-  dialog.matches = (selector: string) => (selector === ':modal' ? modal : nativeMatches(selector));
+  vi.spyOn(dialog, 'matches').mockImplementation((selector: string) => (selector === ':modal' ? modal : nativeMatches(selector)));
   document.body.appendChild(dialog);
   return dialog;
 }

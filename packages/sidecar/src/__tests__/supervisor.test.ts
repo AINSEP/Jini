@@ -324,7 +324,14 @@ function readyHarness({ probe, parkedExitCodes }: { probe?: (input: { pid: numbe
     readiness: { isReady: async ({ pid }) => probe ? probe({ pid }) : pid === readyPid },
   }, { ...(parkedExitCodes === undefined ? {} : { parkedExitCodes }) });
   return { supervisor, children, tasks, ready: (pid: number) => { readyPid = pid; },
-    async tick(ms = 250) { now += ms; for (const [run, due] of [...tasks]) { if (due <= now) { tasks.delete(run); run(); } } await Promise.resolve(); await Promise.resolve(); },
+    async tick(ms = 250) {
+      // Drain readiness continuations before moving the fake clock, as the real event loop
+      // does between timer turns. Otherwise the initial poll is scheduled after this tick.
+      await Promise.resolve(); await Promise.resolve();
+      now += ms;
+      for (const [run, due] of [...tasks]) { if (due <= now) { tasks.delete(run); run(); } }
+      await Promise.resolve(); await Promise.resolve();
+    },
   };
 }
 

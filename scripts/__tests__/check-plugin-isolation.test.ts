@@ -86,7 +86,7 @@ describe('plugin package installation isolation', () => {
     expect(() => check({ name: '@jini-ai/plugin-ui-ux-design' }, [...docs, 'package/ui-ux-design/plugin.json'])).not.toThrow();
     expect(() => check({ name: '@jini-ai/plugin-ui-ux-design' }, [...docs, 'package/slide-design/plugin.json'])).toThrow("another plugin's payload");
     expect(() => check({ name: '@jini-ai/plugin-slide-design' }, [...docs, 'package/slide-design/skills/slide-design/SKILL.md']))
-      .toThrow("another plugin's payload");
+      .toThrow('unexpected packed file slide-design/skills/slide-design/SKILL.md');
   });
 
   it('rejects provider assets bundled with the agent plugin', () => {

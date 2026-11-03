@@ -60,7 +60,13 @@ export class UnsupportedCapabilityError extends Error {
   }
 }
 
+declare const storageKernelSchema: unique symbol;
+
 export interface StorageKernel<DB> {
+  /** Type-only schema witness: retain DB independently of Kysely's structural method
+   * signatures so stores reject kernels missing required tables.
+   * Optional so existing host implementations need no runtime property. */
+  readonly [storageKernelSchema]?: DB;
   readonly dialect: StorageDialect;
   readonly transport: StorageTransport;
   readonly capabilities: StorageCapabilities;

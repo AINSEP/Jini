@@ -1,10 +1,12 @@
 import { expectTypeOf, it } from 'vitest';
-import type { EventLog, EventLogAppendInput, EventLogAppendOptions, EventLogReplayResult } from '../index.js';
+import type { EventLog, EventLogAppendInput, EventLogAppendOptions, EventLogEntry, EventLogReplayResult } from '../index.js';
 
 it('separates producer dedupe options and keeps replay results unchanged', () => {
-  expectTypeOf<Parameters<EventLog['append']>>().toEqualTypeOf<[
-    input: EventLogAppendInput<unknown>, options?: EventLogAppendOptions,
-  ]>();
+  // Assert the generic method itself so the two-object boundary and the payload's
+  // input/output relationship are both part of the contract.
+  expectTypeOf<EventLog['append']>().toEqualTypeOf<
+    <Payload>(input: EventLogAppendInput<Payload>, options?: EventLogAppendOptions) => Promise<EventLogEntry<Payload>>
+  >();
   expectTypeOf<Parameters<EventLog['replay']>>().toEqualTypeOf<[
     input: { readonly runId: string; readonly afterCursor: string | null },
   ]>();

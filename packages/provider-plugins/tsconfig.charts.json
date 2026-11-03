@@ -1,6 +1,6 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": { "jsx": "react-jsx", "lib": ["ES2023", "DOM", "DOM.Iterable"] },
-  "include": ["src/charts-*"],
+  "include": ["src/charts-*/**/*.ts", "src/charts-*/**/*.tsx"],
   "exclude": []
 }

@@ -2,6 +2,7 @@
 import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse, type Server as HttpServer } from 'node:http';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
+import { CancelledNotificationSchema } from '@modelcontextprotocol/sdk/types.js';
 import { adaptSdkTransport } from './sdk-transport.js';
 import { createMcpToolServer, type McpToolServerRequiredArgs, type McpToolServerOptions } from './tool-server.js';
 
@@ -58,7 +59,7 @@ export async function startMcpHttpToolServer(required: McpToolServerRequiredArgs
   const token = randomBytes(32).toString('hex');
   const pending = new Set<Promise<void>>();
   const sessionTransport = options.sessionMode
-    ? new StreamableHTTPServerTransport({ enableJsonResponse: true, sessionIdGenerator: randomUUID }) : undefined;
+    ? new StreamableHTTPServerTransport({ sessionIdGenerator: randomUUID }) : undefined;
   let sessionConnection: Promise<void> | undefined;
   let closing: Promise<void> | undefined;
   let stopped = false;
@@ -105,7 +106,18 @@ export async function startMcpHttpToolServer(required: McpToolServerRequiredArgs
       body = input.body;
     }
     if (sessionTransport) {
-      sessionConnection ??= host.run({ transport: adaptSdkTransport({ transport: sessionTransport }) });
+      sessionConnection ??= host.run({ transport: adaptSdkTransport({ transport: sessionTransport }) }).then(() => {
+        const onmessage = sessionTransport.onmessage;
+        sessionTransport.onmessage = (message, extra) => {
+          onmessage?.(message, extra);
+          // The SDK aborts the handler and suppresses its reply on cancellation. Use its
+          // cancellable SSE response stream so the original POST can also finish draining.
+          const cancellation = CancelledNotificationSchema.safeParse(message);
+          if (cancellation.success && cancellation.data.params.requestId !== undefined) {
+            sessionTransport.closeSSEStream(cancellation.data.params.requestId);
+          }
+        };
+      });
       await sessionConnection;
       if (request.method === 'GET' && stopped) { response.writeHead(503).end(); return; }
       await sessionTransport.handleRequest(request, response, body);
@@ -146,7 +158,7 @@ export async function startMcpHttpToolServer(required: McpToolServerRequiredArgs
       clearTimeout(retry);
       closing ??= (async () => {
         // End passive SSE first; otherwise server.close() would wait for the client forever.
-        // JSON-response POSTs retain the accepted work until their handlers finish.
+        // Active POST streams retain accepted work until completion or client cancellation.
         sessionTransport?.closeStandaloneSSEStream();
         const listenerClosed = new Promise<void>((resolve, reject) => {
           server.close(error => error && (error as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING' ? reject(error) : resolve());

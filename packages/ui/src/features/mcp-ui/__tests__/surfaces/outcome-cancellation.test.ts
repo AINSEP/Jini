@@ -11,7 +11,8 @@ const spec = {
 
 it('Skip releases a waiting sign-in card through its exchange without opening the sign-in link', async () => {
   const surface = mountSurface(renderOutcomeDocument(spec));
-  expect(surface.button('cancel')).toHaveTextContent('Skip');
+  // DOMParser documents have no defaultView; jest-dom's realm check rejects their nodes.
+  expect(surface.button('cancel').textContent).toBe('Skip');
   surface.trustedClick('open-link');
   expect(surface.api.openLink).toHaveBeenCalledWith(spec.openLinkUrl);
   expect(surface.api.callTool).not.toHaveBeenCalled();

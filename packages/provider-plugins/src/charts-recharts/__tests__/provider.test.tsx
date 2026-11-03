@@ -26,7 +26,10 @@ describe('Recharts artifact through the neutral UI host and A2UI catalog', () =>
     const entry = snapshot.resolveById({ id: `recharts.${kind}` })!;
     const selected = snapshot.resolveByCapability({ capability: kind })[0]!;
     expect(entry.provider).toBe('plugin.recharts');
-    expect(entry.Component).toBe(selected.Component);
+    // The wire alias follows generic selection; the provider entry pins plugin.recharts.
+    // They share a prop contract, but intentionally use distinct rendering closures.
+    expect(selected.id).toBe(`plugin.recharts.${kind}`);
+    expect(entry.Component).not.toBe(selected.Component);
     expect(entry.propsSchema).toBe(selected.propsSchema);
     const props = kind === 'pie-chart' ? { data: [{ name: 'Draft', value: 2 }, { name: 'Published', value: 5 }] }
       : { data: [{ status: 'Draft', count: 2 }, { status: 'Published', count: 5 }], categoryKey: 'status', valueKey: 'count' };
