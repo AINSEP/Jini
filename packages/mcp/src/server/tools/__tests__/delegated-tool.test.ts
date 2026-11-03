@@ -81,21 +81,20 @@ describe('createExecuteDelegatedToolTool', () => {
     const tool = createExecuteDelegatedToolTool(...splitGatewayFixture({ runId: 'run-1', generateToolUseId: () => 'tu-1' }));
     const result = await tool.handler({ args: { toolId: 'weather.get', input: { city: 'nyc' } }, ctx: ctx });
     expect(postDaemonJson).toHaveBeenCalledWith(
-      { baseUrl: 'http://d.example', route: '/api/delegated-tool-calls', body: { runId: 'run-1', toolUseId: 'tu-1', toolId: 'weather.get', input: { city: 'nyc' } } }, { fetchImpl: ctx.fetchImpl, timeoutMs: 6 * 60 * 1000 },
+      { baseUrl: 'http://d.example', route: '/api/delegated-tool-calls', body: { runId: 'run-1', toolUseId: 'tu-1', toolId: 'weather.get', input: { city: 'nyc' } } }, { fetchImpl: ctx.fetchImpl, timeoutMs: null },
     );
     expect(result).toEqual({ executionId: 'e1', status: 'completed', output: 'ok' });
   });
 
   it('overrides the daemon client 15s default so a handler parked on a human is not cut off', async () => {
-    // A handler waiting for a human needs a deadline longer than the client's short default,
-    // so a deliberate timeout cannot disappear during an argument-object refactor.
+    // A handler waiting for a human formerly needed a deadline longer than the client's short default.
+    // The owner now keeps that wait alive for the run, so the explicit null must survive refactors.
     // See docs/decisions/DR-004-parked-human-exchange-deadlines.md.
     postDaemonJson.mockResolvedValueOnce({ result: { executionId: 'e1', status: 'completed' } });
     const tool = createExecuteDelegatedToolTool(...splitGatewayFixture({ runId: 'run-1' }));
     await tool.handler({ args: { toolId: 't1' }, ctx: ctx });
-    const options = (postDaemonJson.mock.calls[0] as unknown[])[1] as { timeoutMs?: number };
-    expect(options.timeoutMs).toBe(6 * 60 * 1000);
-    expect(options.timeoutMs).toBeGreaterThan(15_000);
+    const options = (postDaemonJson.mock.calls[0] as unknown[])[1] as { timeoutMs?: number | null };
+    expect(options.timeoutMs).toBeNull();
   });
 
   it('forwards the MCP request cancel signal, so an abandoned call drops the daemon request and expires its dialog', async () => {
@@ -204,11 +203,11 @@ describe('createExecuteDelegatedToolTool', () => {
 });
 
 describe('delegatedToolTimeoutMs (REF-002: the deadline is host policy, not engine policy)', () => {
-  const timeoutOf = (): number | undefined =>
-    ((postDaemonJson.mock.calls[0] as unknown[])[1] as { timeoutMs?: number }).timeoutMs;
+  const timeoutOf = (): number | null | undefined =>
+    ((postDaemonJson.mock.calls[0] as unknown[])[1] as { timeoutMs?: number | null }).timeoutMs;
 
-  it('exports the default as the same six minutes the route shipped with, so hoisting it changed no behaviour', () => {
-    expect(DEFAULT_DELEGATED_TOOL_TIMEOUT_MS).toBe(6 * 60 * 1000);
+  it('exports a run-lifetime default while preserving explicit host deadlines', () => {
+    expect(DEFAULT_DELEGATED_TOOL_TIMEOUT_MS).toBeNull();
   });
 
   it('applies a host-supplied deadline instead of the default', async () => {
@@ -298,7 +297,7 @@ describe('createExecuteReadonlyDelegatedToolTool', () => {
     await expect(tool.handler({ args: {}, ctx: ctx })).rejects.toThrow('toolId is required (string).');
     postDaemonJson.mockResolvedValueOnce({ result: { executionId: 'e1', status: 'completed' } });
     await tool.handler({ args: { toolId: 't1' }, ctx: ctx });
-    const options = (postDaemonJson.mock.calls[0] as unknown[])[1] as { timeoutMs?: number };
+    const options = (postDaemonJson.mock.calls[0] as unknown[])[1] as { timeoutMs?: number | null };
     expect(options.timeoutMs).toBe(1234);
   });
 

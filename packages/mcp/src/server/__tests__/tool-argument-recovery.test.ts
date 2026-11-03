@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { buildToolIndex, handleToolCall, type McpToolContext, type McpToolDef } from '../tool-protocol.js';
 import { createExecuteDelegatedToolTool, createExecuteReadonlyDelegatedToolTool, createTypedDelegatedToolTool } from '../tools/delegated-tool.js';
+import { createMcpToolServer } from '../tool-server.js';
+import { createToolServerCapture } from './tool-server-capture.fixture.js';
 
 /** Real MCP dispatch and validation; only the authenticated daemon HTTP hop is replaced. */
 function harness({ id, inputSchema, readOnly = false }: {
@@ -19,14 +21,14 @@ function harness({ id, inputSchema, readOnly = false }: {
     createExecuteDelegatedToolTool({ runId: 'trusted-run' }),
     createExecuteReadonlyDelegatedToolTool({ runId: 'trusted-run' }),
   ] });
-  const context: McpToolContext = { ...ctx, callLocalTool: async ({ name, input, requireReadOnly }) => {
-    const tool = tools.get(name);
-    if (!tool) return undefined;
-    if (requireReadOnly && tool.annotations?.readOnlyHint !== true) throw new Error('not read-only');
-    return handleToolCall({ name, tools, ctx }, { rawArgs: input });
+  const capture = createToolServerCapture();
+  const initialized = createMcpToolServer({ name: 'recovery', version: '0', tools: [...tools.values()], resolveBaseUrl: () => ctx.baseUrl }, {
+    fetchImpl: ctx.fetchImpl, createServer: () => capture.server,
+  }).run({ transport: { close: async () => {} } });
+  return { calls, tools, ctx, call: async (name: string, rawArgs: Record<string, unknown>) => {
+    await initialized;
+    return capture.call(name, rawArgs);
   } };
-  return { calls, tools, ctx: context, call: (name: string, rawArgs: Record<string, unknown>) =>
-    handleToolCall({ name, tools, ctx: context }, { rawArgs }) };
 }
 
 const pluginSchema: McpToolDef['inputSchema'] = {

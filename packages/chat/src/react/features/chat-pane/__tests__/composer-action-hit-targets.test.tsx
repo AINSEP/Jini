@@ -7,7 +7,8 @@ import { CHAT_PANE_STYLES } from '../styles.js';
 
 afterEach(cleanup);
 
-it.each([['Send', false], ['Stop run', true]] as const)('%s remains clickable beside the effort selector at dock width', (_label, running) => {
+// Real browser geometry and coordinate clicks: examples/reference-web/e2e/composer-hit-targets.test.mjs.
+it.each([['Send', false], ['Stop run', true]] as const)('%s retains footer sizing and its click handler beside the effort selector', (_label, running) => {
   const send = vi.fn();
   const stop = vi.fn();
   function Harness() {

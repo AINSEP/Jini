@@ -1,12 +1,15 @@
 import { expect, test } from 'vitest';
 import { createDevServerRetirement } from '../server-retirement.js';
 
-test('an eviction cannot stop a server with active or accepted background work', async () => {
-  const guard = createDevServerRetirement({ hasWork: async () => false });
+test('a completed background operation releases its server for automatic eviction', async () => {
+  let working = true;
+  const guard = createDevServerRetirement({ hasWork: async () => working });
   const release = guard.begin({});
   expect(await guard.retire({})).toBe(false);
   release({ background: true });
   expect(await guard.retire({})).toBe(false);
+  working = false;
+  expect(await guard.retire({})).toBe(true);
 });
 
 test('canceling a pending eviction invalidates its late idle answer', async () => {

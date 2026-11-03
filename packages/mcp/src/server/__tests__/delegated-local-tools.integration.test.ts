@@ -1,10 +1,10 @@
 import { EventEmitter } from 'node:events';
 import type { Readable } from 'node:stream';
-import { CallToolRequestSchema, ListToolsRequestSchema, type CallToolResult, type ListToolsResult } from '@modelcontextprotocol/sdk/types.js';
 import { expect, it } from 'vitest';
 import { serve } from '../../bin/serve.js';
-import { createMcpToolServer, type McpServerLike, type McpTransportLike } from '../tool-server.js';
+import { createMcpToolServer, type McpTransportLike } from '../tool-server.js';
 import { ASK_CHOICE_INPUT_SCHEMA } from '../../tools/ask-choice/schema.js';
+import { createToolServerCapture } from './tool-server-capture.fixture.js';
 
 const discovered = [
   { id: 'theme_list_files', readOnly: true, inputSchema: { type: 'object', required: ['themeId'],
@@ -16,18 +16,10 @@ const discovered = [
 
 /** Exercise the production serve tool list and dispatch handlers without opening a listener. */
 async function host() {
-  const handlers = new Map<unknown, (...args: any[]) => Promise<any>>();
+  const capture = createToolServerCapture();
   const requests: Array<{ url: string; body: Record<string, unknown>; headers: Headers }> = [];
   const pending: Array<{ id: string; seq: number; text: string }> = [];
-  let ready!: () => void;
-  const connected = new Promise<void>(resolve => { ready = resolve; });
   const transport: McpTransportLike = { close: async () => { transport.onclose?.(); } };
-  const server: McpServerLike = {
-    setRequestHandler: (({ schema, handler }: { schema: unknown; handler: (...args: any[]) => Promise<any> }) => {
-      handlers.set(schema, handler);
-    }) as McpServerLike['setRequestHandler'],
-    connect: async () => { ready(); }, sendToolListChanged: async () => {},
-  };
   const running = serve({}, {
     env: { JINI_RUN_ID: 'run-a', JINI_DAEMON_URL: 'http://127.0.0.1', JINI_DAEMON_TOKEN: 'run-token',
       JINI_MESSAGE_RELAY: '1', JINI_MESSAGE_RELAY_NONCE: 'a'.repeat(48) },
@@ -53,16 +45,15 @@ async function host() {
       return Response.json({ runs: [], tools: [], components: [] });
     },
     createMcpToolServer: (required, options) => createMcpToolServer(required, {
-      ...options, createServer: () => server, createTransport: () => transport,
+      ...options, createServer: () => capture.server, createTransport: () => transport,
     }),
   });
-  await connected;
+  await capture.ready;
   return {
     requests,
     pending,
-    list: () => handlers.get(ListToolsRequestSchema)!() as Promise<ListToolsResult>,
-    call: (name: string, args: Record<string, unknown> = {}, signal?: AbortSignal) =>
-      handlers.get(CallToolRequestSchema)!({ request: { params: { name, arguments: args } } }, { extra: { signal } }) as Promise<CallToolResult>,
+    list: capture.list,
+    call: capture.call,
     close: async () => { await transport.close({}); await running; },
   };
 }
