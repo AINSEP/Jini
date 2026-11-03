@@ -92,9 +92,9 @@ micro-interaction recipes. It does not restate what siblings own:
   idea; long pins read as broken scroll.
 - Clear fixed headers once with `--kui-pin-offset` on `:root`, not per pin.
 - Animate inside a pin with `timeline:pin`; a `view` timeline stalls while pinned.
-- Pins, `horizontal-scroll`, and `stacking-cards` fight touch scrolling on phones: gate
-  them with `above:md` and give the narrow layout a stacked fallback. Check short
-  viewports with `chrome-mobile-test-matrix.md`.
+- Size pinned and stacked content to the visible viewport, fixed bars included. Verify
+  phones and short viewports with the touch-scroll check in `ui-loop.md` (section 7) and
+  `chrome-mobile-test-matrix.md`.
 
 ### Reduced Motion
 
@@ -170,5 +170,4 @@ Recipe rules:
 - A spinner that flashes for operations under ~300ms, or a spinner as the only loading
   signal under reduced motion.
 - Counters without tabular numerals, so the width jitters while counting.
-- Scroll-jacking: replacing native scroll speed, or pins and horizontal tracks on phones
-  without a stacked fallback.
+- Scroll-jacking: replacing native scroll speed.

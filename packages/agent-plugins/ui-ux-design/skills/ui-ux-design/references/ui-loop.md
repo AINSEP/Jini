@@ -149,6 +149,11 @@ Rendered checks:
   wrapping, or interaction that depends on hover.
 - Wider screens keep intentional content widths and whitespace instead of becoming
   stretched, sparse, or disconnected.
+- At phone sizes, scroll by touch through every pin, `stacking-cards`, and
+  `horizontal-scroll` section: scroll does not stall or trap, pins are not overlong, a
+  horizontal track does not hijack vertical swipes, and pinned content fits the visible
+  viewport including fixed bars. Only if a section really fights scrolling, fix it or
+  give that section a phone treatment, and record why.
 - Where applicable, default, hover, focus, active, disabled, loading, empty, error,
   and success states are coherent and visually distinguishable.
 
