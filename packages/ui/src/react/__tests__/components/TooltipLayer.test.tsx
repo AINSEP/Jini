@@ -88,6 +88,86 @@ describe('TooltipLayer', () => {
   });
 });
 
+// Touch screens have no hover: a tap fires pointerover → pointerdown →
+// pointerup → pointerout → click on the trigger, all with pointerType "touch".
+// jsdom's PointerEvent may lack pointerType, so stamp it on explicitly.
+function pointer(type: string, pointerType: 'touch' | 'mouse'): Event {
+  const event = new PointerEvent(type, { bubbles: true });
+  Object.defineProperty(event, 'pointerType', { value: pointerType });
+  return event;
+}
+
+function tap(el: Element, pointerType: 'touch' | 'mouse' = 'touch') {
+  act(() => {
+    el.dispatchEvent(pointer('pointerover', pointerType));
+    el.dispatchEvent(pointer('pointerdown', pointerType));
+    el.dispatchEvent(pointer('pointerup', pointerType));
+    el.dispatchEvent(pointer('pointerout', pointerType));
+    el.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+  });
+}
+
+describe('TooltipLayer on touch', () => {
+  function setup() {
+    render(
+      <>
+        <Trigger />
+        <button data-testid="elsewhere">Elsewhere</button>
+        <TooltipLayer />
+      </>,
+    );
+    return { trigger: screen.getByTestId('trigger'), elsewhere: screen.getByTestId('elsewhere') };
+  }
+
+  it('a touch tap on a trigger opens its tooltip and keeps it open', () => {
+    const { trigger } = setup();
+    tap(trigger);
+    expect(screen.getByRole('tooltip').textContent).toBe('Hello there');
+  });
+
+  it('a second touch tap on the same trigger closes the tooltip', () => {
+    const { trigger } = setup();
+    tap(trigger);
+    tap(trigger);
+    expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+
+  it('a touch tap outside the trigger closes the tooltip', () => {
+    const { trigger, elsewhere } = setup();
+    tap(trigger);
+    tap(elsewhere);
+    expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+
+  it('Escape closes a tooltip opened by touch', () => {
+    const { trigger } = setup();
+    tap(trigger);
+    fireEvent.keyDown(document, { key: 'Escape' });
+    expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+
+  it('a touch scroll (pointercancel) after touchdown does not open the tooltip on a later click', () => {
+    const { trigger } = setup();
+    act(() => {
+      trigger.dispatchEvent(pointer('pointerdown', 'touch'));
+      trigger.dispatchEvent(pointer('pointercancel', 'touch'));
+    });
+    act(() => { trigger.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
+    expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+
+  it('a mouse click on a trigger still hides the hover tooltip (unchanged)', () => {
+    const { trigger } = setup();
+    act(() => { trigger.dispatchEvent(pointer('pointerover', 'mouse')); });
+    expect(screen.getByRole('tooltip')).toBeTruthy();
+    act(() => {
+      trigger.dispatchEvent(pointer('pointerdown', 'mouse'));
+      trigger.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+    });
+    expect(screen.queryByRole('tooltip')).toBeNull();
+  });
+});
+
 // The exported pure helpers — now directly unit-testable without rendering.
 describe('tooltip helpers', () => {
   it('clamp keeps a value within [min, max]', () => {
