@@ -43,6 +43,8 @@ import {
   isProcessAlive,
   listProcessSnapshots,
   listProcessUsage,
+  parseProcessFootprint,
+  sampleProcessPrivateMemory,
   matchesProcessStamp,
   matchesStampedProcess,
   readFlagValue,
@@ -429,6 +431,19 @@ describe('@jini-ai/platform — process — listProcessSnapshots (POSIX)', () =>
 });
 
 describe('@jini-ai/platform — process — listProcessSnapshots (Windows)', () => {
+  it('read-only desktop enumeration retains live identities without command lines or usage metrics', async () => {
+    const run = vi.fn(async () => ({ code: undefined, error: null, ok: true, stderr: '', stdout: JSON.stringify([
+      { ProcessId: 101, ParentProcessId: 1, Name: 'node.exe', CommandLine: 'must-never-be-returned' },
+      { ProcessId: 102, ParentProcessId: 101, Name: null },
+    ]) }));
+    await expect(listProcessSnapshots({ platform: 'win32', run }, { commandLines: false, timeoutMs: 250 })).resolves.toEqual([
+      { pid: 101, ppid: 1, command: 'node.exe' }, { pid: 102, ppid: 101, command: '' },
+    ]);
+    expect(run).toHaveBeenCalledWith(expect.stringMatching(POWERSHELL_PATH), expect.arrayContaining([
+      "$ErrorActionPreference = 'Stop'; Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId, Name | ConvertTo-Json -Compress",
+    ]), expect.objectContaining({ timeout: 250 }));
+  });
+
   it('wraps a single (non-array) Get-CimInstance JSON object into a one-element list', async () => {
     mockState.execFileImpl = (_command, _args, _options, callback) => {
       callback(null, JSON.stringify({ CommandLine: 'C:\\node.exe app.js', ParentProcessId: 1, ProcessId: 100 }), '');
@@ -571,6 +586,75 @@ describe('@jini-ai/platform — process — listProcessUsage', () => {
       callback(null, '', '');
     };
     await expect(listProcessUsage()).resolves.toEqual([]);
+  });
+});
+
+describe('@jini-ai/platform — process — sampleProcessPrivateMemory', () => {
+  it.each([['12 B', 12], ['2 KB', 2048], ['1.5 MB', 1572864], ['1 GB', 1073741824]] as const)(
+    'preserves the existing footprint parser units: %s', (reading, bytes) => {
+      expect(parseProcessFootprint({ text: `Footprint: ${reading}` })).toBe(bytes);
+    },
+  );
+
+  it.each(['unreadable', 'Footprint: ... MB'])('invalid footprint output stays null: %s', (text) => {
+    expect(parseProcessFootprint({ text })).toBeNull();
+  });
+
+  it('Windows private working set joins on PID rather than instance name', async () => {
+    const run = vi.fn(async () => ({ code: undefined, error: null, ok: true, stderr: '', stdout: JSON.stringify([
+      { IDProcess: 102, Name: 'node', WorkingSetPrivate: '4096', WorkingSet: 999999, PrivateBytes: 888888 },
+      { IDProcess: 101, Name: 'node#1', WorkingSetPrivate: '2048', WorkingSet: 999999, PrivateBytes: 888888 },
+      { IDProcess: 0, Name: '_Total', WorkingSetPrivate: 777777 },
+    ]) }));
+    await expect(sampleProcessPrivateMemory({ pids: [101, 102, 101, 103], platform: 'win32', run }, { timeoutMs: 250 })).resolves.toEqual({
+      metric: 'private-working-set', readings: [{ pid: 101, bytes: 2048 }, { pid: 102, bytes: 4096 }, { pid: 103, bytes: null }],
+    });
+    expect(run).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledWith(expect.stringMatching(POWERSHELL_PATH), ['-NoProfile', '-NonInteractive', '-Command',
+      "$ErrorActionPreference = 'Stop'; Get-CimInstance Win32_PerfFormattedData_PerfProc_Process | Select-Object IDProcess, WorkingSetPrivate | ConvertTo-Json -Compress"], {
+      encoding: 'utf8', timeout: 250, maxBuffer: 8 * 1024 * 1024, windowsHide: true,
+    });
+  });
+
+  it('macOS samples footprint once per PID and keeps unreadable results null', async () => {
+    const run = vi.fn(async (_command: string, args: readonly string[]) => ({
+      code: undefined, error: null, ok: true, stderr: '', stdout: args[1] === '101' ? 'Footprint: 1.5 MB' : 'no reading',
+    }));
+    await expect(sampleProcessPrivateMemory({ pids: [101, 102, 101], platform: 'darwin', run })).resolves.toEqual({
+      metric: 'physical-footprint', readings: [{ pid: 101, bytes: 1572864 }, { pid: 102, bytes: null }],
+    });
+    expect(run).toHaveBeenCalledTimes(2);
+    expect(run).toHaveBeenCalledWith('footprint', ['-p', '101'], expect.objectContaining({ timeout: 5000, maxBuffer: 8 * 1024 * 1024 }));
+  });
+
+  it.each(['null', '{broken', '{}', '[{"IDProcess":101,"WorkingSetPrivate":null}]', '[{"IDProcess":101,"WorkingSetPrivate":-1}]'])('missing Windows counters stay unavailable: %s', async (stdout) => {
+    const run = vi.fn(async () => ({ code: undefined, error: null, ok: true, stderr: '', stdout }));
+    await expect(sampleProcessPrivateMemory({ pids: [101], platform: 'win32', run })).resolves.toEqual({
+      metric: 'private-working-set', readings: [{ pid: 101, bytes: null }],
+    });
+  });
+
+  it.each(['darwin', 'win32'] as const)('failed or rejected %s probes never use partial output', async (platform) => {
+    const run = vi.fn(async () => ({ code: 1, error: new Error('timeout'), ok: false, stderr: '', stdout: 'Footprint: 1 MB' }));
+    const expected = { metric: platform === 'darwin' ? 'physical-footprint' : 'private-working-set', readings: [{ pid: 101, bytes: null }] };
+    await expect(sampleProcessPrivateMemory({ pids: [101], platform, run })).resolves.toEqual(expected);
+    run.mockImplementation(async () => { throw new Error('unavailable'); });
+    await expect(sampleProcessPrivateMemory({ pids: [101], platform, run })).resolves.toEqual(expected);
+  });
+
+  it('unsupported hosts report unavailable without executing commands', async () => {
+    const run = vi.fn();
+    await expect(sampleProcessPrivateMemory({ pids: [101], platform: 'linux', run })).resolves.toEqual({
+      metric: 'unavailable', readings: [{ pid: 101, bytes: null }],
+    });
+    expect(run).not.toHaveBeenCalled();
+  });
+
+  it('rejects invalid PIDs and oversized samples before executing probes', async () => {
+    const run = vi.fn();
+    await expect(sampleProcessPrivateMemory({ pids: [0], run })).rejects.toThrow(/PID/);
+    await expect(sampleProcessPrivateMemory({ pids: [1, 2], run }, { maxPids: 1 })).rejects.toThrow(/limit/);
+    expect(run).not.toHaveBeenCalled();
   });
 });
 
