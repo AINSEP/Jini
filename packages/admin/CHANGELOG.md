@@ -151,7 +151,7 @@
 - Shell copy is host-neutral and public APIs use object argument contracts; theme/process handoffs are archived.
 - Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
 
-## Unreleased
+## 0.6.19
 
 - Add portable Forms admin screens, HTTP/memory adapters and core-port conformance under ./forms\*.
 - Add composable comments admin queue/settings module with HTTP and memory adapters and API conformance.

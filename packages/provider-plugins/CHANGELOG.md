@@ -1,6 +1,6 @@
 # @jini-ai/provider-plugins
 
-## Unreleased (0.6.19)
+## 0.6.19
 
 - ECharts pie and donut specs now draw every series as an equally wide concentric ring, preserving the donut hole, category palette, shared legend and series/category/value tooltips. Single-series options are unchanged; missing/null shares, negative shares and all-zero rings retain the core table fallback.
 - Publishable again, for the providers with no package of their own: the browser chart providers. Exports `./charts-recharts/*` and `./charts-echarts/*` (each its own `plugins/<id>/` folder), `./package.json`, `./catalog` and `./plugins/*`; `files` lists only the two chart payloads. `build`/`prepack` type-check, then build both charts. Removed: the `./build` export (workspace tooling; pack tests import the builder from source). Recharts, React, ECharts, zrender and tslib are bundled into the artifacts and stay development dependencies. `catalog.json` lists only the two chart artifacts.

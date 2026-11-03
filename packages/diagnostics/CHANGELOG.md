@@ -109,7 +109,7 @@
 - Observability clocks and conservative secret patterns come from core; evidence copy is neutral and adapters remain isolated.
 - Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
 
-## Unreleased
+## 0.6.19
 
 - The OTel adapter's `trackRequest` now honors `{ requestId }`: the id is recorded as the `http.request.id` span attribute and returned on the tracker. It was previously dropped.
 - **BREAKING:** Remove local `ClockPort`/`DiagnosticsClockPort`; all clocks use `Clock.nowMs()` from `@jini-ai/core/primitives`. Add core as a package dependency.

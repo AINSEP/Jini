@@ -1,4 +1,4 @@
-## Unreleased (0.6.18)
+## 0.6.19
 
 - Redact PostgreSQL idle-pool failure diagnostics without changing pool recovery.
 

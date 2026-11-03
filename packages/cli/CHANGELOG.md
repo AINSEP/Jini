@@ -57,7 +57,7 @@
 - Shared sanitization now comes from core/text and loopback policy from platform/net. Public helpers use required/optional argument objects.
 - Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
 
-## Unreleased
+## 0.6.19
 
 - Fix command and discovery test calls to match required/optional argument objects, and create the command-registry token with core's `{ id }` argument.
 

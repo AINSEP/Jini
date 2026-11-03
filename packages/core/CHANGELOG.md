@@ -1,6 +1,6 @@
 # @jini-ai/core
 
-## Unreleased (0.6.18)
+## 0.6.19
 
 - Preserve detached, frozen batch schema symbol metadata in tool exposure snapshots and single-call required-field guidance in plan-mode descriptions.
 - Redact complete quoted credential keys and values in inspected and JSON diagnostics, including API keys, cookies, tokens and private keys, while preserving diagnostic context.

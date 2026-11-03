@@ -1,6 +1,6 @@
 # @jini-ai/http-kit
 
-## Unreleased (0.6.18)
+## 0.6.19
 
 - Tests: the route adapter's app fixture is a real `express()` app typed as `Express`, replacing the `app as any` casts.
 - Extend the exception-log class guard to core, CMS, agent runtime, MCP, DB, chat, plugins and UI, including JSX and structured logs; reject caught values aliased to `message`.

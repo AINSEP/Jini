@@ -1,4 +1,4 @@
-## Unreleased (0.6.18)
+## 0.6.19
 
 - Redact comment/form handler diagnostics, background form exceptions and unsuccessful mail-result messages before logging; keep form diagnostics universal and safe for recovery.
 - Menu tool schemas now state the `rel` policy: the allowed link-type tokens, that other tokens are dropped, and that new-tab links always get `noopener noreferrer`.

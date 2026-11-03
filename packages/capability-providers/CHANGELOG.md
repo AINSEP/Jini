@@ -67,7 +67,7 @@
 - Published capability helpers use required/optional argument objects and retain isolated provider entries.
 - Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
 
-## Unreleased
+## 0.6.19
 
 ### Fixed
 

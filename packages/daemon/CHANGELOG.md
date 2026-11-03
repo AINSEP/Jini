@@ -1,5 +1,6 @@
-## Unreleased (0.6.18)
+## 0.6.19
 
+- `DelegatedToolsHttpDeps.toolRegistry` takes a list-only registry view (`Pick<ToolRegistry, 'list'>`): the route only reads descriptors, and hosts pass descriptor-only facades.
 - Redact exception logs with the shared core redactor while preserving correlation IDs and error codes.
 - Redact host-supplied paths and payload names in the default migration logger; preserve bind-error callback object assertions.
 

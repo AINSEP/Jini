@@ -38,7 +38,7 @@
 - Legacy compatibility ports converge into core; the deprecated facade stays publishable for one release.
 - Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
 
-## Unreleased
+## 0.6.19
 
 - Adopt shared kernel contracts and preserve the module rationale in neutral documentation.
 - BREAKING: replace package-local clock contracts with core Clock.nowMs().

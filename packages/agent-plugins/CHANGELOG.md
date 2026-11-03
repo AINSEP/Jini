@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased (0.6.19)
+## 0.6.19
 
 - A plugin's state lock left by a killed boot no longer keeps that plugin off on every later boot after the machine's hostname spelling changed (macOS `.lan`/`.local`): the node process port records the kernel boot (`bootIdentity`), so the platform lock can prove the holder was this machine's and reclaim it once its pid is dead.
 - Tests: the hosting plugins' identical `vitest-compat.mjs` (3 copies) and `fake-deploy-host-kit.mjs` (4 copies) are one shared test-only copy each under `packages/agent-plugins/__tests__/` (never published). Cloudflare's doubled DNS-marker and Pages-config comments are merged.

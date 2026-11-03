@@ -56,7 +56,7 @@
 - Import primitive JSON/time types from core/primitives; the protocol no longer redeclares or re-exports its old JSON vocabulary.
 - Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
 
-## Unreleased
+## 0.6.19
 
 - Depend on `@jini-ai/core` for canonical JSON primitives. Wire payloads and all Zod schemas
   remain unchanged; error-details and run-context callers now import the shared types directly.

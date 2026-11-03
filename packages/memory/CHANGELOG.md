@@ -34,7 +34,7 @@
 - Published helpers use required/optional argument objects and retain the isolated memory surface.
 - Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
 
-## Unreleased
+## 0.6.19
 
 ### Fixes
 

@@ -42,7 +42,7 @@ describe('standalone plugin catalog', () => {
 
   it('preserves each agent manifest version independently of the npm release', () => {
     expect(entries.find(entry => entry.id === 'ui-ux-design')).toMatchObject({
-      kind: 'agent', packageName: AGENT_PLUGINS_PACKAGE, version: agentPluginsPackage.version, pluginVersion: '0.6.1', path: 'ui-ux-design',
+      kind: 'agent', packageName: AGENT_PLUGINS_PACKAGE, version: agentPluginsPackage.version, pluginVersion: '0.6.2', path: 'ui-ux-design',
       contract: { id: 'agent-plugins', version: '1.0.0' },
     });
     expect(entries.find(entry => entry.id === 'slide-design')).toMatchObject({
@@ -244,7 +244,7 @@ describe('release catalog generation', () => {
       readJson: async file => file.endsWith('package.json') ? pkg : plugin,
       integrity: async () => ({ 'plugin.json': digest, 'skills/ui-ux-design/SKILL.md': digest, '__tests__/bundled-package.test.mjs': digest }),
     } });
-    expect(result[0]).toMatchObject({ kind: 'agent', pluginVersion: '0.6.1', version: pkg.version, packageName: AGENT_PLUGINS_PACKAGE,
+    expect(result[0]).toMatchObject({ kind: 'agent', pluginVersion: (plugin as { version: string }).version, version: pkg.version, packageName: AGENT_PLUGINS_PACKAGE,
       contract: { id: 'agent-plugins', version: '1.0.0' },
       expectedDigests: { 'plugin.json': digest, 'skills/ui-ux-design/SKILL.md': digest } });
   });

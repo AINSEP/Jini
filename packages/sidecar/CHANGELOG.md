@@ -65,7 +65,7 @@
 - Atomic filesystem handling is canonical in platform and Node supervisor defaults are isolated in ./supervisor/node.
 - Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
 
-## Unreleased
+## 0.6.19
 
 - Fix supervisor test compilation by checking event-array emptiness without narrowing later lifecycle events to `never`.
 

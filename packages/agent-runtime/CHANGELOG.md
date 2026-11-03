@@ -1,4 +1,4 @@
-## Unreleased (0.6.18)
+## 0.6.19
 
 - Redact OAuth callback, token parsing and file-permission failure diagnostics.
 - Codex names a Jini MCP call `mcp__jini__X`, as Claude Code does, so the chat folds it with the daemon bridge's `X` row and a direct call shows once, not twice.

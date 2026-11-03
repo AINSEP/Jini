@@ -1,6 +1,6 @@
 # @jini-ai/platform
 
-## Unreleased
+## 0.6.19
 
 - File locks: a dead holder recorded on this machine under another hostname spelling (macOS `name.lan` / `name.local` / `name`) is reclaimed when it was taken in this same kernel boot (its recorded boot id, or for a record without one, an `acquiredAt` after this boot began), so a never-ageing (`staleMs: Infinity`) lock a killed process left no longer wedges every later acquisition. Other hosts, unrecorded boots and live owners are still never evicted. `@jini-ai/platform/fs/file-lock` re-exports `readBootIdentity` and `BootIdentity` for host process ports.
 

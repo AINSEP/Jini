@@ -1,4 +1,4 @@
-## Unreleased (0.6.18)
+## 0.6.19
 
 - Redact exception logs with the shared core redactor while preserving correlation IDs and error codes.
 

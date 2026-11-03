@@ -1,6 +1,6 @@
 # @jini-ai/ui
 
-## Unreleased (0.6.19)
+## 0.6.19
 
 - A `<provider>.<kind>-chart` entry from `createChartInteractiveRegistry` now draws with the provider it advertises. Components were cached by chart kind only, so with another enabled provider as the site default, `plugin.echarts.bar-chart` could render through that default. The legacy `recharts.*` aliases and `chart.spec` keep generic selection.
 - `@jini-ai/ui/charts` adds `chartCatalogManifests({ providers }, { siteProvider })`, the one headless owner of chart catalog entries: per-provider `<provider>.<kind>-chart` entries (now described), the legacy `recharts.*` entries with unchanged ids, schemas and descriptions, and a stable `chart.spec` entry (`{ spec }`, any kind, one or more series; `chartSpecPropsSchema` rejects empty series or data, rows missing a series or category, and non-numeric series values). `chart.spec` is listed with zero providers and then renders the data table.

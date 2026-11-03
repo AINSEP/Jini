@@ -1,6 +1,6 @@
 # @jini-ai/plugins
 
-## Unreleased (0.6.18)
+## 0.6.19
 
 - Redact failed widget diagnostics in the universal host without Node-only imports.
 

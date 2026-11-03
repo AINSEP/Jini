@@ -6,7 +6,7 @@
 
 - Handle npm 12 pack JSON through the shared parser in packaging tests.
 
-## Unreleased — Phase 1 (2026-10-29)
+## 0.6.19
 
 - Compose one-time orders with the payment kernel through a reserved-before-dispatch association,
   scoped price references and evidence-verified, idempotent paid projection. Hosts must migrate

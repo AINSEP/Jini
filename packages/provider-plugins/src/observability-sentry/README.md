@@ -19,7 +19,7 @@ has no browser consent adapter.
 
 Sources remain in `packages/provider-plugins/src/observability-sentry`.
 Both `build` and `prepack` call the existing single-plugin builder, using this package's
-version for the generated artifact. The npm release is **0.6.17** in Jini's fixed
+version for the generated artifact. The npm release is **0.6.19** in Jini's fixed
 Changesets release group. Build output under `plugins/` is generated and uncommitted.
 Reviewed LICENSE and NOTICE files belong to this distribution; the builder retains them
 and bundled dependency licenses inside the artifact before computing its integrity.

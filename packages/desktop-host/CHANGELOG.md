@@ -62,7 +62,7 @@
 - Desktop clocks/logging adopt core ports; native updater/navigation ABIs replace custom wrappers. Native macOS speech source remains an explicit runtime export.
 - Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
 
-## Unreleased
+## 0.6.19
 
 - Compile the macOS speech helper through the asynchronous `execFileAsync` port, and await it in availability/transcription. Concurrent first-use calls share compilation so Electron's main thread stays responsive while Swift builds the helper.
 - **BREAKING:** `ensureHelperCompiled` now returns `Promise<CompileResult>` and requires `execFileAsync`. Its optional legacy `spawnSync` dependency is accepted for source compatibility but never invoked.

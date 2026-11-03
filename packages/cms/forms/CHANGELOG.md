@@ -74,7 +74,7 @@
 - Logging uses the canonical core Logger; public calls retain separate required and optional argument objects. The package remains private.
 - Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
 
-## Unreleased
+## 0.6.19
 
 - Deprecated in favour of `@jini-ai/cms/forms`; retain the current version and workspace links until the consumer forms switch.
 

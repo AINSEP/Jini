@@ -1,6 +1,6 @@
 # @jini-ai/agentic
 
-## Unreleased
+## 0.6.19
 
 - Export `@jini-ai/agentic/core/handle` so render workers can use the existing handle helpers without loading the core barrel.
 

@@ -88,7 +88,7 @@
 - Canonical package replaces the retired identity surface; user tools live in ./server, primitive ports come from core, and session lifetime and tenancy are configurable.
 - Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
 
-## Unreleased
+## 0.6.19
 
 ### The built-in admin role holds role.manage
 

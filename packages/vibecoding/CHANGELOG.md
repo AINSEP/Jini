@@ -60,7 +60,7 @@
   - @jini-ai/core@0.6.11
   - @jini-ai/platform@0.6.11
 
-## Unreleased
+## 0.6.19
 
 ### Added
 

@@ -58,7 +58,7 @@
 - Provider primitives were consolidated into the main OAuth API; messages and clock contracts use neutral defaults and core ports.
 - Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
 
-## Unreleased
+## 0.6.19
 
 ### Changed — OAuth adapter trim
 

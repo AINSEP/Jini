@@ -1,5 +1,9 @@
 # @jini-ai/ui-kit
 
+## 0.6.19
+
+- Released with the fixed `@jini-ai/*` group; no changes of its own.
+
 ## 0.6.17
 
 ### Patch Changes

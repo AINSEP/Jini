@@ -31,7 +31,7 @@
 - Published sandbox helpers use required/optional argument objects and injected host policies; process migration documents are archived.
 - Distribution includes runtime output, release documentation and required assets only. Process records and per-job neutrality checks are no longer part of the package surface.
 
-## Unreleased
+## 0.6.19
 
 - Fix E2B command adapter overload compatibility by declaring the implementation's port result union; runtime behavior and overload contracts are unchanged.
 - **BREAKING:** Error constructors, E2B helpers, sandbox sessions/providers and worker event ports now take required and optional argument objects. E2B output callbacks receive `{ data }`; Node and SDK arguments are translated inside adapters. See `API.md` for migration.

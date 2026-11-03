@@ -135,7 +135,7 @@
 - Updated dependencies
   - @jini-ai/protocol@0.1.1
 
-## Unreleased — C2 tool catalog ownership
+## 0.6.19
 
 - Adopt shared kernel contracts and preserve the module rationale in neutral documentation.
 - Add ./tool-catalog-builder and its isolated SQLite store factory; convert public registry APIs to required/optional argument objects with injected clock, database and HTTP ports. Preserve SQL, FTS5/BM25 ranking, dry-run outcomes and canonical signing bytes. Reject invalid trust/backend modes.
