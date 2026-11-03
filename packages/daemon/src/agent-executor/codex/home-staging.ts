@@ -12,6 +12,7 @@ import { errorMessage } from '../values.js';
 import type {
   McpJsonInjectionOptions,
   McpJsonServerEntry,
+  McpHttpEndpoint,
   McpBridgeDelivery,
   PreparedCodexHome,
   FailBeforeSpawn,
@@ -105,7 +106,7 @@ function resolveCodexHomeSeams(options: McpJsonInjectionOptions): CodexHomeSeams
  * @throws {@link CodexMcpIsolationError} when the run can't be isolated.
  */
 function buildStagedCodexConfig({ existingRaw, entry, inheritUserConfig, inheritUserMcp, sourceHome }: {
-  existingRaw: string | undefined; entry: McpJsonServerEntry; inheritUserConfig: boolean; inheritUserMcp: boolean; sourceHome: string;
+  existingRaw: string | undefined; entry: McpJsonServerEntry | Pick<McpHttpEndpoint, 'url' | 'token'>; inheritUserConfig: boolean; inheritUserMcp: boolean; sourceHome: string;
 }): string {
   const build = () => buildCodexHomeConfigToml({ existingRaw, entry, inheritUserMcp, inheritUserSettings: inheritUserConfig });
   if (inheritUserMcp) return build();
@@ -148,7 +149,7 @@ function buildStagedCodexConfig({ existingRaw, entry, inheritUserConfig, inherit
  */
 async function prepareCodexHomeForRun(
   runId: string,
-  entry: McpJsonServerEntry,
+  entry: McpJsonServerEntry | Pick<McpHttpEndpoint, 'url' | 'token'>,
   sourceCodexHomeDir: string,
   seams: CodexHomeSeams,
   inheritUserConfig = true,
@@ -204,19 +205,21 @@ export function codexInheritance(input: { readonly nativeToolAccess?: boolean | 
  * returning the prepared handle `cleanupStagedFiles` should later release (`null` for every other
  * mechanism, or for an unconfigured host — matching {@link writeMcpJsonIfNeeded}'s identical gate).
  * @param input.def - Only used for its `id`, in the failure message.
- * @param input.mcpBridge - This run's resolved bridge delivery — a no-op unless its `kind` is `'codex-toml'`.
+ * @param input.mcpBridge - Existing stdio delivery; HTTP uses the optional `httpEndpoint` instead.
+ * @param input.httpEndpoint - Explicit run listener, using the same isolation, state links and cleanup as stdio.
  * @param deps.hostEnv - The daemon's own environment, threaded through to {@link resolveSourceCodexHomeDir} rather than read from a module-level `process.env` so this phase stays testable with an injected env.
  * @complexity O(1) plus {@link prepareCodexHomeForRun}'s own cost.
  * @overallScore 100/100
  */
-export async function prepareCodexHomeIfNeeded({ input, deps }: { readonly input: { readonly runId: string; readonly nativeToolAccess?: boolean | undefined; readonly nativeCapabilities?: Partial<import('@jini-ai/agent-runtime').NativeCapabilities>; readonly def: RuntimeAgentDef; readonly mcpBridge: McpBridgeDelivery | null }; readonly deps: {
+export async function prepareCodexHomeIfNeeded({ input, deps }: { readonly input: { readonly runId: string; readonly nativeToolAccess?: boolean | undefined; readonly nativeCapabilities?: Partial<import('@jini-ai/agent-runtime').NativeCapabilities>; readonly def: RuntimeAgentDef; readonly mcpBridge: McpBridgeDelivery | null; readonly httpEndpoint?: McpHttpEndpoint }; readonly deps: {
     readonly mcpJsonInjection: McpJsonInjectionOptions | undefined;
     readonly hostEnv: NodeJS.ProcessEnv;
     readonly releaseStagedResources: () => Promise<void>;
     readonly failBeforeSpawn: FailBeforeSpawn;
   } }
 ): Promise<PreparedCodexHome | null> {
-  if (input.mcpBridge?.kind !== 'codex-toml' || deps.mcpJsonInjection === undefined) {
+  const entry = input.httpEndpoint ?? (input.mcpBridge?.kind === 'codex-toml' ? input.mcpBridge.serverEntry : undefined);
+  if (entry === undefined || deps.mcpJsonInjection === undefined) {
     if (codexTurnsOffPersonalConfig(input)) {
       await deps.releaseStagedResources();
       return deps.failBeforeSpawn({ runId: input.runId, code: 'NATIVE_TOOL_POLICY_UNSUPPORTED',
@@ -228,7 +231,7 @@ export async function prepareCodexHomeIfNeeded({ input, deps }: { readonly input
   try {
     return await prepareCodexHomeForRun(
       input.runId,
-      input.mcpBridge.serverEntry,
+      entry,
       resolveSourceCodexHomeDir({ hostEnv: deps.hostEnv }),
       resolveCodexHomeSeams(deps.mcpJsonInjection),
       inherit.settings,

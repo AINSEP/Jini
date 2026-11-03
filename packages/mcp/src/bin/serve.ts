@@ -39,18 +39,10 @@
 import { existsSync, realpathSync } from 'node:fs';
 import type { Readable, Writable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
-import { createCheckMessagesTool, messageRelayInstructions, type McpMessageRelay } from '../server/message-relay.js';
 import { isLoopbackHostname } from '@jini-ai/platform/net';
-import type { ToolDescriptor } from '@jini-ai/core';
-import { createMcpToolServer as createMcpToolServerDefault, type McpToolServerRequiredArgs, type McpToolServerOptions } from '../server/tool-server.js';
-import type { McpToolDef } from '../server/tool-protocol.js';
-import { waitTool } from '../server/tools/wait.js';
-import { RUN_TOOLS } from '../server/tools/run-tools.js';
-import { describeToolTool, TOOL_CATALOG_TOOLS } from '../server/tools/tool-catalog-tools.js';
-import { COMPONENT_CATALOG_TOOLS } from '../server/tools/component-catalog-tools.js';
-import { createExecuteDelegatedToolTool, createExecuteReadonlyDelegatedToolTool } from '../server/tools/delegated-tool.js';
-import { KERNEL_RESOURCES } from '../server/resources/active-resource.js';
-import { createSiteGuideResource } from '../server/resources/site-guide-resource.js';
+import { createMcpToolServer as createMcpToolServerDefault } from '../server/tool-server.js';
+import { assembleRunToolHost } from '../server/run-tool-host.js';
+import type { McpMessageRelay } from '../server/message-relay.js';
 
 /** The one run this process is scoped to for its entire lifetime. Set by the spawning daemon, never by the MCP client. */
 export const RUN_ID_ENV_VAR = 'JINI_RUN_ID';
@@ -85,23 +77,6 @@ export const DELEGATED_TOOL_TIMEOUT_ENV_VAR = 'JINI_DELEGATED_TOOL_TIMEOUT_MS';
 export const STARTUP_TOOL_IDS_ENV_VAR = 'JINI_STARTUP_TOOL_IDS';
 
 const SERVER_NAME = 'jini-mcp';
-const SERVER_VERSION = '0.0.0';
-const INSTRUCTIONS =
-  'Tools proxying this host\'s Jini daemon over loopback HTTP, scoped to the run that spawned this MCP server process. ' +
-  'Use execute_delegated_tool to invoke a Jini-registered tool (never an agent-vendor-specific tool name) against that run — ' +
-  'Registered operation calls use the daemon\'s deny-by-default ToolExecutor gate; ' +
-  'MCP-local names use their existing validated handlers. ' +
-  'Concrete operation tools accept their own arguments directly. describe_tool publishes a concrete definition; ' +
-  'refresh tools/list when supported, or use the delegated gateways as the compatibility fallback. ' +
-  'When the host provides site_guide, consult jini://site-guide or call site_guide with operation overview ' +
-  'through execute_readonly_delegated_tool; follow with explain for the relevant topic ids. ' +
-  'If the host does not provide site_guide, report that availability gap. ' +
-  'Use host tools first. For saved oversized tool results, call read_tool_result with the resultId and follow nextOffset. ' +
-  'For attachments, use the host attachment/image tool first or a native Read/image tool on the supplied path. ' +
-  'Never use Bash, shell commands or scripts to inspect attachments or saved tool results. ' +
-  'Between background job polls, honor poll_after_seconds with wait_for({seconds: <interval up to 60>}); repeat for longer intervals. ' +
-  'Never use Bash or shell sleep between polls. A provider wait tool is optional: describe its live schema before calling it.';
-
 export interface ServeDeps {
   /** @default process.env */
   readonly env?: NodeJS.ProcessEnv;
@@ -188,23 +163,20 @@ export async function serve(_requiredArgs: Record<string, never>, deps: ServeDep
 
   const delegatedGatewayOptions = buildDelegatedGatewayOptions({ env }, deps);
   const messageRelay = resolveMessageRelay({ env, runId, writeErr, exit });
-  const requiredArgs: McpToolServerRequiredArgs = {
-    name: SERVER_NAME,
-    version: SERVER_VERSION,
-    tools: [...buildTools({ runId, delegatedGatewayOptions }), ...(messageRelay ? [createCheckMessagesTool(messageRelay)] : [])],
-    resolveBaseUrl,
-  };
-  const serverOptions = buildServerOptions({ env, runId, delegatedGatewayOptions }, deps);
-  if (messageRelay) Object.assign(serverOptions, { messageRelay, instructions: `${INSTRUCTIONS} ${messageRelayInstructions(messageRelay)}` });
-
   try {
     const diagnosticToolIds = parseLaunchToolIds({ env, key: 'JINI_DIAGNOSTIC_TOOL_IDS' });
-    if (diagnosticToolIds.length) Object.assign(serverOptions, { diagnosticToolIds });
-    const initialTools = await resolveStartupTools({
-      toolIds: parseLaunchToolIds({ env, key: STARTUP_TOOL_IDS_ENV_VAR }), resolveBaseUrl, serverOptions,
+    // Absent credential => no `authHeaders` at all => byte-identical request headers to before this
+    // env var existed. See DAEMON_TOKEN_ENV_VAR's doc for why an unset value is not a startup failure.
+    const assembled = await assembleRunToolHost({ runId, resolveBaseUrl }, {
+      ...delegatedGatewayOptions,
+      ...definedOnly({ credential: env[DAEMON_TOKEN_ENV_VAR], fetchImpl: deps.fetchImpl,
+        messageRelayNonce: messageRelay?.nonce }),
+      startupToolIds: parseLaunchToolIds({ env, key: STARTUP_TOOL_IDS_ENV_VAR }),
+      ...(diagnosticToolIds.length ? { diagnosticToolIds } : {}),
     });
-    Object.assign(serverOptions, { delegatedTools: { runId, ...delegatedGatewayOptions, initialTools } });
-    await createMcpToolServerFn(requiredArgs, serverOptions).run({});
+    await createMcpToolServerFn(assembled.required, { ...assembled.options,
+      ...definedOnly({ stdin: deps.stdin, stdout: deps.stdout }),
+    }).run({});
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     writeErr({ text: `${SERVER_NAME}: ${message}\n` });
@@ -260,40 +232,6 @@ function buildDelegatedGatewayOptions({ env }: { env: NodeJS.ProcessEnv }, deps:
   });
 }
 
-function buildTools({ runId, delegatedGatewayOptions }: { runId: string; delegatedGatewayOptions: DelegatedGatewayOptions }): readonly McpToolDef[] {
-  return [
-    ...RUN_TOOLS,
-    ...TOOL_CATALOG_TOOLS,
-    ...COMPONENT_CATALOG_TOOLS,
-    createExecuteDelegatedToolTool({ runId }, delegatedGatewayOptions),
-    // Hosted ALONGSIDE the unconstrained gateway, never instead of it. A client that gates on
-    // `readOnlyHint: true` can now reach the read half of the catalog at all; every other client
-    // sees both and picks by what its call actually does.
-    createExecuteReadonlyDelegatedToolTool({ runId }, delegatedGatewayOptions),
-    waitTool,
-  ];
-}
-
-function buildServerOptions(
-  { env, runId, delegatedGatewayOptions }: { env: NodeJS.ProcessEnv; runId: string; delegatedGatewayOptions: DelegatedGatewayOptions },
-  deps: ServeDeps,
-): McpToolServerOptions {
-  // Absent credential => no `authHeaders` at all => byte-identical request headers to before this
-  // env var existed. See DAEMON_TOKEN_ENV_VAR's doc for why an unset value is not a startup failure.
-  const credential = env[DAEMON_TOKEN_ENV_VAR];
-  return {
-    resources: [...KERNEL_RESOURCES, createSiteGuideResource({ runId }, delegatedGatewayOptions)],
-    instructions: INSTRUCTIONS,
-    resultPaging: true,
-    ...definedOnly({
-      authHeaders: credential ? { Authorization: `Bearer ${credential}` } : undefined,
-      fetchImpl: deps.fetchImpl,
-      stdin: deps.stdin,
-      stdout: deps.stdout,
-    }),
-  };
-}
-
 // Only the spawning host supplies registration metadata. Never learn exceptions from an
 // error body or model arguments: either would turn a secret into its own redaction exemption.
 function parseLaunchToolIds({ env, key }: { env: NodeJS.ProcessEnv; key: string }): string[] {
@@ -302,29 +240,6 @@ function parseLaunchToolIds({ env, key }: { env: NodeJS.ProcessEnv; key: string 
     throw new Error(`${key} must be a JSON array of registered tool IDs`);
   }
   return toolIds;
-}
-
-/**
- * Resolve each unique startup ID through the existing authenticated describe/publication owner.
- * The temporary descriptor list seeds M1's bounded exposure; it is not an execution catalog.
- * Failure aborts startup before any partially resolved list can reach the client.
- * @returns Authoritative descriptors; no daemon I/O when startup IDs are absent.
- * @throws The existing descriptor/daemon errors, reported by serve's stderr/exit boundary.
- * @complexity O(n + s) space/time plus n sequential bounded GETs for n unique IDs and s schema bytes.
- */
-async function resolveStartupTools({ toolIds, resolveBaseUrl, serverOptions }: {
-  toolIds: readonly string[]; resolveBaseUrl: () => Promise<string>; serverOptions: McpToolServerOptions;
-}): Promise<readonly ToolDescriptor[]> {
-  if (toolIds.length === 0) return [];
-  const descriptors: ToolDescriptor[] = [];
-  const ctx = {
-    baseUrl: await resolveBaseUrl(),
-    fetchImpl: serverOptions.fetchImpl ?? fetch,
-    ...definedOnly({ authHeaders: serverOptions.authHeaders, diagnosticToolIds: serverOptions.diagnosticToolIds }),
-    publishTool: async ({ descriptor }: { descriptor: ToolDescriptor }) => { descriptors.push(descriptor); },
-  };
-  for (const id of new Set(toolIds)) await describeToolTool.handler({ args: { id }, ctx });
-  return descriptors;
 }
 
 // Only run for real when this module is the actual process entrypoint (`node dist/bin/serve.js`,

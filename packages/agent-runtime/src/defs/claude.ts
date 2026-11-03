@@ -290,6 +290,7 @@ export const claudeAgentDef = {
     // Claude Code auto-loads `.mcp.json` from the project cwd at spawn,
     // so the daemon writes the user's external MCP servers there before
     // launching (server.ts handles the cwd guard).
+    mcpHttp: true,
     externalMcpInjection: 'claude-mcp-json',
     // Load MCP tools up front instead of deferring them behind the CLI's ToolSearch tool.
     // Deferral cost every run one extra model round (a `select:` ToolSearch call, ~3 s) before its

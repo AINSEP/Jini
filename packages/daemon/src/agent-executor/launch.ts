@@ -1,3 +1,5 @@
+import { prepareHttpMcpForRun, type PreparedHttpMcp } from './http-mcp.js';
+import { mergeOpenCodeHttpMcpConfig } from './opencode/mcp-config.js';
 import { buildAgentEnv } from './agent-env.js';
 import { randomUUID } from 'node:crypto';
 import { supportsMessageRelay, type RunMessageRelay } from './message-relay.js';
@@ -558,10 +560,10 @@ function settingsBuildOptions({ input }: { input: AgentBuildInput }, _options = 
 }
 
 /** A relay needs both a delivered bridge and a runtime that understands it. Pure, O(1). */
-function canRegisterRunMessageRelay({ def, mcpBridge }: {
-  def: RuntimeAgentDef; mcpBridge: McpBridgeDelivery | null;
+function canRegisterRunMessageRelay({ def, mcpBridge, httpMcp }: {
+  def: RuntimeAgentDef; mcpBridge: McpBridgeDelivery | null; httpMcp?: boolean;
 }, _options = {}): boolean {
-  return mcpBridge !== null && supportsMessageRelay({ def });
+  return (mcpBridge !== null || httpMcp === true) && supportsMessageRelay({ def });
 }
 
 /** Phase 9a: the def's `buildArgs` 4th argument. Historically omitted when every override was absent;
@@ -864,6 +866,17 @@ export function spawnAgentChildProcess({ input, deps }: { readonly input: {
     };
   } catch (error) {
     return { kind: 'error', error };
+  }
+}
+
+/** Command preparation is part of pre-spawn staging, so failures must release all owned resources. */
+async function prepareRunCommand({ command, args, env, runId }: { command: string; args: string[]; env: NodeJS.ProcessEnv; runId: string }, {
+  createInvocation, release, failBeforeSpawn,
+}: { createInvocation: typeof createCommandInvocation; release: () => Promise<void>; failBeforeSpawn: FailBeforeSpawn }): Promise<ReturnType<typeof createCommandInvocation>> {
+  try { return createInvocation({ command, args, env }); }
+  catch {
+    await release();
+    return failBeforeSpawn({ runId, code: 'AGENT_SPAWN_FAILED', message: 'AgentExecutor: could not prepare agent command' });
   }
 }
 
@@ -1202,15 +1215,15 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
       : undefined;
   }
 
-  function wireRunInput({ input, def, streamFormat, child, modelCatalog, cleanupStagedFiles, writtenMcpJsonPath, mcpBridge }: {
+  function wireRunInput({ input, def, streamFormat, child, modelCatalog, cleanupStagedFiles, writtenMcpJsonPath, mcpBridge, httpMcp }: {
     input: AgentExecutorRunInput; def: RuntimeAgentDef; streamFormat: SupportedStreamFormat; child: ChildProcess;
     modelCatalog: ModelCatalogSnapshot | undefined; cleanupStagedFiles: () => Promise<void>;
-    writtenMcpJsonPath: string | undefined; mcpBridge: McpBridgeDelivery | null;
+    writtenMcpJsonPath: string | undefined; mcpBridge: McpBridgeDelivery | null; httpMcp?: boolean;
   }, _options = {}) {
     const formatForStdin = { streamFormat };
     const stdinHandle = isStdinDrivenFormat(formatForStdin)
       ? wireChildLifecycle({
-          ...(canRegisterRunMessageRelay({ def, mcpBridge }) ? { registerMessageRelay: (relay: RunMessageRelay) => liveRunRelays.set(input.runId, relay) } : {}),
+          ...(canRegisterRunMessageRelay({ def, mcpBridge, ...(httpMcp === undefined ? {} : { httpMcp }) }) ? { registerMessageRelay: (relay: RunMessageRelay) => liveRunRelays.set(input.runId, relay) } : {}),
           ...childLifecycleOptions({ input, modelCatalog }),
           runId: input.runId,
           def,
@@ -1226,7 +1239,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
           continuation,
           classifyFailure,
           bufferedStdoutMaxBytes,
-          expectsJiniBridge: writtenMcpJsonPath !== undefined,
+          expectsJiniBridge: writtenMcpJsonPath !== undefined || httpMcp === true,
           bridgeProbeEntry: bridgeProbeEntryForRun({ mcpBridge }, {}),
           probeMcpBridge: options.probeMcpBridge ?? probeMcpBridge,
         })
@@ -1413,6 +1426,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
      * `'claude-mcp-json'` mechanism stages a file at all — `'acp-merge'` and `'env-content'` leave
      * nothing on disk, so this stays `undefined` for those.
      */
+    let preparedHttpMcp: PreparedHttpMcp | null = null;
     let writtenMcpJsonPath: string | undefined;
     const removeMcpJsonFileFn = mcpJsonInjection?.removeFile ?? defaultRemoveMcpJsonFile;
     /**
@@ -1438,6 +1452,11 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
      */
     let preparedSystemPromptOverlayFile: PreparedSystemPromptOverlayFile | null = null;
     const cleanupStagedFiles: () => Promise<void> = async () => {
+      if (preparedHttpMcp) {
+        const http = preparedHttpMcp;
+        preparedHttpMcp = null;
+        await http.cleanup();
+      }
       await cleanupFilesystemTemp({ runId: input.runId }, {});
       if (preparedPromptFile) await preparedPromptFile.cleanup();
       if (preparedLogFile) await preparedLogFile.cleanup();
@@ -1467,11 +1486,19 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // resolving here means the per-run bearer credential is minted exactly once no matter which of
     // the five mechanisms ends up carrying it. `null` for an unconfigured host or a def declaring
     // no strategy — see `buildMcpBridgeDelivery`'s doc.
-    const mcpBridge = await resolveMcpBridgeForRun({ input: { runId: input.runId, cwd: input.cwd, def }, deps: { mcpJsonInjection, cleanupStagedFiles, failBeforeSpawn } }
+    try {
+      preparedHttpMcp = await prepareHttpMcpForRun({ runId: input.runId, cwd: input.cwd, def, lifecycle,
+        injection: mcpJsonInjection, inheritUserMcp: input.nativeToolAccess !== false && input.nativeCapabilities?.userMcp !== false });
+    } catch {
+      await cleanupStagedFiles();
+      return failBeforeSpawn({ runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: 'AgentExecutor: could not stage private HTTP MCP configuration' });
+    }
+    const mcpBridge = preparedHttpMcp ? null : await resolveMcpBridgeForRun({ input: { runId: input.runId, cwd: input.cwd, def }, deps: { mcpJsonInjection, cleanupStagedFiles, failBeforeSpawn } }
     );
 
-    const runtimeContext = computeRuntimeContext({ preparedPromptFile: preparedPromptFile, preparedLogFile: preparedLogFile, mcpBridge: mcpBridge }, sessionRuntimeContext(input, {})
-    );
+    const baseRuntimeContext = computeRuntimeContext({ preparedPromptFile, preparedLogFile, mcpBridge }, sessionRuntimeContext(input, {}));
+    const runtimeContext = preparedHttpMcp?.mcpJsonPath
+      ? { ...baseRuntimeContext, mcpJsonPath: preparedHttpMcp.mcpJsonPath } : baseRuntimeContext;
 
     // A `runtimeLock` def's buildArgs mutates process-global state its own CLI reads back at
     // startup, so the mutex must be held from before buildArgs until the spawned child has
@@ -1520,7 +1547,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // `codex.ts`'s `buildArgs` needs no argv change for this (CODEX_HOME is an env var, not a flag),
     // so — unlike the `.mcp.json` staging above — this can run after `buildArgs` with no ordering
     // constraint of its own; it is placed here only to keep the two staging steps adjacent.
-    preparedCodexHome = await prepareCodexHomeIfNeeded({ input: { runId: input.runId, nativeToolAccess: input.nativeToolAccess, ...nativeCapabilityInput({ input }, {}), def, mcpBridge }, deps: { mcpJsonInjection, hostEnv: input.cliParity ? spawnEnv : hostEnv, releaseStagedResources, failBeforeSpawn } }
+    preparedCodexHome = await prepareCodexHomeIfNeeded({ input: { runId: input.runId, nativeToolAccess: input.nativeToolAccess, ...nativeCapabilityInput({ input }, {}), def, mcpBridge, ...(def.id === 'codex' && preparedHttpMcp ? { httpEndpoint: preparedHttpMcp.endpoint } : {}) }, deps: { mcpJsonInjection, hostEnv: input.cliParity ? spawnEnv : hostEnv, releaseStagedResources, failBeforeSpawn } }
     );
     // Finding 1 of SEC-assistant-env-isolation-2026-09-07's one effect — stage this run's scratch
     // `CLAUDE_CONFIG_DIR` directory. Unconditional for a `claude`-id run (unlike CODEX_HOME above,
@@ -1549,7 +1576,9 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // `McpBridgeDelivery`'s `'codex-toml'` variant doc for why it cannot be pre-computed the way
     // `'claude-mcp-json'`'s deterministic path is). Nothing between the old, earlier call site and
     // here ever read `childEnv`, so moving the call cost nothing.
-    const childEnv = computeChildEnv({ spawnEnv, mcpBridge }, stagedChildEnvOptions({
+    const httpSpawnEnv = def.id === 'opencode' && preparedHttpMcp
+      ? { ...spawnEnv, OPENCODE_CONFIG_CONTENT: mergeOpenCodeHttpMcpConfig({ existingRaw: spawnEnv.OPENCODE_CONFIG_CONTENT, endpoint: preparedHttpMcp.endpoint }) } : spawnEnv;
+    const childEnv = computeChildEnv({ spawnEnv: httpSpawnEnv, mcpBridge }, stagedChildEnvOptions({
       def, preparedCodexHome, preparedClaudeConfigDir, preparedSystemPromptOverlayFile, systemPromptEnvOverrides,
     }, {}));
 
@@ -1560,7 +1589,9 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     await guardWindowsCommandLineBudget({ input: { runId: input.runId, def, launchPath: launch.launchPath, args }, deps: { releaseStagedResources, failBeforeSpawn } }
     );
 
-    const invocation = createCommandInvocationFn({ command: launch.launchPath, args, env: childEnv });
+    const invocation = await prepareRunCommand({ command: launch.launchPath, args, env: childEnv, runId: input.runId }, {
+      createInvocation: createCommandInvocationFn, release: releaseStagedResources, failBeforeSpawn,
+    });
 
     // Kept a synchronous call (no `await`) on purpose — see `spawnAgentChildProcess`'s own doc for
     // the microtask-timing race this avoids. The error branch's own cleanup/failBeforeSpawn calls are
@@ -1583,7 +1614,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // all emits no `'exit'`, and is covered instead by `releaseStagedResources` on the reject path.
     child.once('exit', releaseRuntimeLock);
 
-    const stdinHandle = wireRunInput({ input, def, streamFormat, child, modelCatalog, cleanupStagedFiles, writtenMcpJsonPath, mcpBridge }, {});
+    const stdinHandle = wireRunInput({ input, def, streamFormat, child, modelCatalog, cleanupStagedFiles, writtenMcpJsonPath, mcpBridge, httpMcp: preparedHttpMcp !== null }, {});
     const runId = input.runId;
 
     try {

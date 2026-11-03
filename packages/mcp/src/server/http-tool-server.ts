@@ -1,11 +1,13 @@
 /** SDK Streamable HTTP adapter for the existing tool host. Capabilities remain in host memory. */
-import { randomBytes, timingSafeEqual } from 'node:crypto';
+import { randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
 import { createServer, type IncomingMessage, type ServerResponse, type Server as HttpServer } from 'node:http';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { adaptSdkTransport } from './sdk-transport.js';
 import { createMcpToolServer, type McpToolServerRequiredArgs, type McpToolServerOptions } from './tool-server.js';
 
-export interface McpHttpToolServerOptions extends Pick<McpToolServerOptions, 'resources' | 'instructions' | 'fetchImpl' | 'authHeaders'> {
+export interface McpHttpToolServerOptions extends Pick<McpToolServerOptions, 'resources' | 'instructions' | 'fetchImpl' | 'authHeaders' | 'delegatedTools' | 'resultPaging' | 'diagnosticToolIds' | 'messageRelay'> {
+  /** One SDK session per run listener; desktop remains stateless by default. */
+  readonly sessionMode?: boolean;
   /** Value-free diagnostics. Never receives headers, bodies, tool arguments or credentials. */
   readonly warn?: (message: string) => void;
   /** Native listener seam for embeddings and wire-level lifecycle tests. */
@@ -17,6 +19,8 @@ export interface McpHttpToolServerHandle {
   /** Stop admission and drain accepted work; no idle timer interrupts handlers. */
   close(required: Record<string, never>, optional?: Record<string, never>): Promise<void>;
 }
+/** Embeddings must gate CLI HTTP on retained-session support rather than a protocol probe. */
+export const MCP_HTTP_SESSION_MODE_SUPPORTED = true;
 const MAX_BODY_BYTES = 1_000_000;
 const MAX_REQUESTS = 16;
 
@@ -43,8 +47,8 @@ async function readBody({ request }: { request: IncomingMessage }, _options = {}
   catch { return { status: 400 }; }
 }
 
-/** Bind a private loopback listener. Each HTTP request gets a fresh stateless SDK transport and
- * the same host-owned dispatch contract. Auth precedes body parsing; browsers are always refused.
+/** Bind a private loopback listener. Desktop requests use fresh stateless SDK transports;
+ * run listeners opt into one retained SDK session and the same host-owned dispatch contract. Auth precedes body parsing; browsers are always refused.
  * @example const host = await startMcpHttpToolServer({ name, version, tools, resolveBaseUrl });
  * @throws Listen/configuration errors; the embedding owns degraded startup and retries.
  * @complexity O(body bytes + dispatched handler), with 16 requests and 1 MB per body maximum.
@@ -53,6 +57,9 @@ export async function startMcpHttpToolServer(required: McpToolServerRequiredArgs
   const host = createMcpToolServer(required, options);
   const token = randomBytes(32).toString('hex');
   const pending = new Set<Promise<void>>();
+  const sessionTransport = options.sessionMode
+    ? new StreamableHTTPServerTransport({ enableJsonResponse: true, sessionIdGenerator: randomUUID }) : undefined;
+  let sessionConnection: Promise<void> | undefined;
   let closing: Promise<void> | undefined;
   let stopped = false;
   let retry: ReturnType<typeof setTimeout> | undefined;
@@ -76,7 +83,8 @@ export async function startMcpHttpToolServer(required: McpToolServerRequiredArgs
       response.writeHead(403, { Connection: 'close' }).end(); return;
     }
     if (request.url !== '/mcp') { response.writeHead(404).end(); return; }
-    if (request.method !== 'POST') { response.writeHead(405, { Allow: 'POST' }).end(); return; }
+    const allowed = options.sessionMode ? ['POST', 'GET', 'DELETE'] : ['POST'];
+    if (!allowed.includes(request.method ?? '')) { response.writeHead(405, { Allow: allowed.join(', ') }).end(); return; }
     if (stopped || pending.size >= MAX_REQUESTS) { response.writeHead(503).end(); return; }
     await dispatch(request, response);
   }
@@ -85,18 +93,29 @@ export async function startMcpHttpToolServer(required: McpToolServerRequiredArgs
    * The SDK owns initialize, notifications, validation, list and call; no handwritten dispatch.
    */
   async function dispatch(request: IncomingMessage, response: ServerResponse): Promise<void> {
-    // Bound slow authenticated senders too. This timer never limits tool execution.
-    const deadline = setTimeout(() => request.destroy(), 15_000);
-    deadline.unref();
-    let input: Awaited<ReturnType<typeof readBody>>;
-    try { input = await readBody({ request }); }
-    finally { clearTimeout(deadline); }
-    if ('status' in input) { response.writeHead(input.status, { Connection: 'close' }).end(); return; }
+    let body: unknown;
+    if (request.method === 'POST') {
+      // Bound slow authenticated senders too. This timer never limits tool execution.
+      const deadline = setTimeout(() => request.destroy(), 15_000);
+      deadline.unref();
+      let input: Awaited<ReturnType<typeof readBody>>;
+      try { input = await readBody({ request }); }
+      finally { clearTimeout(deadline); }
+      if ('status' in input) { response.writeHead(input.status, { Connection: 'close' }).end(); return; }
+      body = input.body;
+    }
+    if (sessionTransport) {
+      sessionConnection ??= host.run({ transport: adaptSdkTransport({ transport: sessionTransport }) });
+      await sessionConnection;
+      if (request.method === 'GET' && stopped) { response.writeHead(503).end(); return; }
+      await sessionTransport.handleRequest(request, response, body);
+      return;
+    }
     // No sessionIdGenerator means stateless mode in the pinned SDK.
     const transport = new StreamableHTTPServerTransport({ enableJsonResponse: true });
     try {
       await host.run({ transport: adaptSdkTransport({ transport }) });
-      await transport.handleRequest(request, response, input.body);
+      await transport.handleRequest(request, response, body);
     } finally { await transport.close(); }
   }
 
@@ -125,9 +144,19 @@ export async function startMcpHttpToolServer(required: McpToolServerRequiredArgs
     close(_required, _optional = {}) {
       stopped = true;
       clearTimeout(retry);
-      closing ??= new Promise<void>((resolve, reject) => {
-        server.close(error => error && (error as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING' ? reject(error) : resolve());
-      }).then(async () => { await Promise.all(pending); });
+      closing ??= (async () => {
+        // End passive SSE first; otherwise server.close() would wait for the client forever.
+        // JSON-response POSTs retain the accepted work until their handlers finish.
+        sessionTransport?.closeStandaloneSSEStream();
+        const listenerClosed = new Promise<void>((resolve, reject) => {
+          server.close(error => error && (error as NodeJS.ErrnoException).code !== 'ERR_SERVER_NOT_RUNNING' ? reject(error) : resolve());
+        });
+        await Promise.all(pending);
+        await sessionConnection?.catch(() => {});
+        await sessionTransport?.close();
+        server.closeIdleConnections();
+        await listenerClosed;
+      })();
       return closing;
     },
   };

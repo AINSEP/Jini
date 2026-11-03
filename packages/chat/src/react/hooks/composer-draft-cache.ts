@@ -243,32 +243,34 @@ function storedTimestamp(store: Storage, { key }: { key: string }): number {
  * @complexity Time O(n) in the envelope's size, plus a prune (see {@link pruneStored}) only
  * when this introduces a new key at the cap. Space O(n) in the envelope's size.
  */
-function writeStoredEnvelope(prefix: string, { conversationId, envelope }: { conversationId: string; envelope: StoredDraft | StoredAttachments | StoredFolders | null }): void {
+function writeStoredEnvelope(prefix: string, { conversationId, envelope }: { conversationId: string; envelope: StoredDraft | StoredAttachments | StoredFolders | null }): boolean {
   const store = storage();
-  if (!store) return;
+  if (!store) return false;
   const key = `${prefix}${conversationId}`;
   try {
     if (envelope === null) {
       store.removeItem(key);
-      return;
+      return true;
     }
     if (store.getItem(key) === null) pruneStored(prefix, MAX_CACHED_CONVERSATION_DRAFTS - 1);
     store.setItem(key, JSON.stringify(envelope));
+    return true;
   } catch {
     /* blocked, full, or unusable storage — memory-only is the documented degraded mode */
     /* (on a removal: blocked storage; the in-memory tier is already correct) */
+    return false;
   }
 }
 
 /**
- * Writes or removes the stored copy for `conversationId`.
+ * Writes or removes the stored copy for `conversationId`; returns false on storage failure.
  *
  * @param draft A blank draft removes the entry; see {@link writeStoredEnvelope}.
  * @complexity Time O(n) in the draft's length; see {@link writeStoredEnvelope}.
  */
-function writeStoredDraft(conversationId: string, draft: string): void {
+function writeStoredDraft(conversationId: string, draft: string): boolean {
   const envelope: StoredDraft | null = draft === '' ? null : { v: 1, t: Date.now(), d: draft };
-  writeStoredEnvelope(COMPOSER_DRAFT_STORAGE_PREFIX, { conversationId, envelope });
+  return writeStoredEnvelope(COMPOSER_DRAFT_STORAGE_PREFIX, { conversationId, envelope });
 }
 
 /**
@@ -302,7 +304,7 @@ export function readCachedDraft({ conversationId }: { conversationId: string | n
 }
 
 /**
- * Stores `draft` for `conversationId` in both tiers.
+ * Stores `draft` for `conversationId` in both tiers. Returns whether durable storage accepted it.
  *
  * @param conversationId No-ops when absent (`null`/`undefined`) — there is nothing to key on yet.
  * `useComposer` covers that window by adopting the typed text once an id arrives; see its own doc.
@@ -311,10 +313,10 @@ export function readCachedDraft({ conversationId }: { conversationId: string | n
  * writes `''` here.
  * @complexity Time/space: O(n) in the draft's length; see {@link writeStoredDraft}.
  */
-export function writeCachedDraft({ conversationId, draft }: { conversationId: string | null | undefined; draft: string }): void {
-  if (!conversationId) return;
+export function writeCachedDraft({ conversationId, draft }: { conversationId: string | null | undefined; draft: string }, _options = {}): boolean {
+  if (!conversationId) return false;
   rememberCachedDraft({ conversationId: conversationId, draft: draft });
-  writeStoredDraft(conversationId, draft.trim() === '' ? '' : draft);
+  return writeStoredDraft(conversationId, draft.trim() === '' ? '' : draft);
 }
 
 /**
@@ -463,26 +465,25 @@ export function writeCachedAttachmentBatchId({ conversationId, batchId }: { conv
 }
 
 /**
- * Stores `attachments` for `conversationId` in both tiers.
+ * Stores `attachments` for `conversationId` in both tiers. Returns whether storage accepted it.
  *
  * @param attachments An empty list deletes the entry, so a sent or cleared turn leaves nothing to
  * restore — the same rule the draft text follows.
  * @complexity Time/space: O(n) in the number of references.
  */
-export function writeCachedAttachments({ conversationId, attachments }: { conversationId: string | null | undefined; attachments: readonly ChatAttachment[] }
-): void {
-  if (!conversationId) return;
+export function writeCachedAttachments({ conversationId, attachments }: { conversationId: string | null | undefined; attachments: readonly ChatAttachment[] }, _options = {}
+): boolean {
+  if (!conversationId) return false;
   if (attachments.length === 0) {
     stagedAttachments.delete(conversationId);
     // A sent or cleared turn's batch is spent; the next upload starts a fresh one.
     stagedBatchIds.delete(conversationId);
-    writeStoredEnvelope(COMPOSER_ATTACHMENTS_STORAGE_PREFIX, { conversationId, envelope: null });
-    return;
+    return writeStoredEnvelope(COMPOSER_ATTACHMENTS_STORAGE_PREFIX, { conversationId, envelope: null });
   }
   setBounded(stagedAttachments, { key: conversationId, value: attachments });
   const batchId = stagedBatchIds.get(conversationId);
   const envelope: StoredAttachments = { v: 1, t: Date.now(), a: attachments, ...(batchId === undefined ? {} : { b: batchId }) };
-  writeStoredEnvelope(COMPOSER_ATTACHMENTS_STORAGE_PREFIX, { conversationId, envelope });
+  return writeStoredEnvelope(COMPOSER_ATTACHMENTS_STORAGE_PREFIX, { conversationId, envelope });
 }
 
 /**
@@ -516,9 +517,9 @@ export function readCachedFolders({ conversationId }: { conversationId: string |
   return stored ?? [];
 }
 
-/** Persist exact strings independently of text and attachment validation. */
-export function writeCachedFolders({ conversationId, folders }: { conversationId: string | null | undefined; folders: readonly string[] }, _options = {}): void {
-  if (!conversationId) return;
+/** Persist exact strings independently of text and attachment validation; report storage failure. */
+export function writeCachedFolders({ conversationId, folders }: { conversationId: string | null | undefined; folders: readonly string[] }, _options = {}): boolean {
+  if (!conversationId) return false;
   setBounded(folderDrafts, { key: conversationId, value: [...folders] });
-  writeStoredEnvelope(COMPOSER_FOLDERS_STORAGE_PREFIX, { conversationId, envelope: folders.length ? { v: 1, t: Date.now(), folders } : null });
+  return writeStoredEnvelope(COMPOSER_FOLDERS_STORAGE_PREFIX, { conversationId, envelope: folders.length ? { v: 1, t: Date.now(), folders } : null });
 }

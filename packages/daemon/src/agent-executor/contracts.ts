@@ -388,7 +388,17 @@ export interface ContinuationOptions {
  * loopback URL this package could assume on a caller's behalf (matching every other seam on this
  * interface that defaults to *nothing* rather than a real implementation).
  */
+/** A private per-run listener; its token authorizes this endpoint, never daemon callbacks. */
+export interface McpHttpEndpoint {
+  readonly url: string;
+  readonly token: string;
+  close(required: Record<string, never>, optional?: Record<string, never>): Promise<void>;
+}
+
 export interface McpJsonInjectionOptions {
+  /** Optional transport port. Reject before CLI launch when HTTP cannot be prepared.
+   * The host keeps callback credentials in memory; only this endpoint capability reaches the CLI. */
+  readonly prepareHttp?: (required: { readonly runId: string }, optional?: { readonly messageRelayNonce?: string; readonly startupToolIds?: readonly string[]; readonly diagnosticToolIds?: readonly string[] }) => Promise<McpHttpEndpoint>;
   /** Read current host-registered tool IDs at launch, outside model-controlled input. */
   readonly diagnosticToolIds?: () => readonly string[];
   /**

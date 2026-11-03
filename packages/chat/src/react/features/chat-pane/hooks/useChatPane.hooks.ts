@@ -485,6 +485,18 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     queued, next: { text: input.text, secretRedacted: input.secretRedaction?.secretRedacted ?? false,
       count: input.secretRedaction?.count ?? 0 },
   }), null), [queuedInputs]);
+  const releaseStateRef = useRef({ streaming: conversation.isStreaming, queued: queuedInputs.length > 0 });
+  releaseStateRef.current = { streaming: conversation.isStreaming, queued: queuedInputs.length > 0 };
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const onReleaseCheck = (event: Event) => {
+      const { streaming, queued } = releaseStateRef.current;
+      // Read mutable operation locks at dispatch time, including the gap before React renders.
+      if (streaming || queued || activeUploadsRef.current.size > 0 || startingPromptRef.current || deliveringTypedAnswerRef.current) event.preventDefault();
+    };
+    window.addEventListener('jini:release-check', onReleaseCheck);
+    return () => window.removeEventListener('jini:release-check', onReleaseCheck);
+  }, []);
   // Release consumed text/files locally as well as hiding them; next-turn fallback uses this same projection.
   useEffect(() => {
     if (queuedInputs.length !== storedQueuedInputs.length) setQueuedInputs(queuedInputs);

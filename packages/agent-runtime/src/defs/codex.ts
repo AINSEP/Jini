@@ -433,5 +433,6 @@ export const codexAgentDef = {
     // prompt. Missing credentials fail observably through turn.failed instead of blocking a run.
     // The staged shape includes command, args and a nested env table. Staging and cleanup belong
     // to daemon's prepareCodexHomeForRun/buildCodexHomeConfigToml.
+    mcpHttp: true,
     externalMcpInjection: 'codex-toml',
 } satisfies RuntimeAgentDef;

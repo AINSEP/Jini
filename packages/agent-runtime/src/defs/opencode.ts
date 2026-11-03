@@ -93,6 +93,7 @@ export const opencodeAgentDef = {
     // user-configured external MCP servers to a single `opencode run`
     // invocation without polluting the user's saved config files. See
     // <https://opencode.ai/docs/config> and issue #2142.
+    mcpHttp: true,
     externalMcpInjection: 'opencode-env-content',
     // `instructions` (an array of file paths or remote URLs — confirmed live an inline string is
     // silently ignored, never honored) is OpenCode's real, native system-prompt-append mechanism.

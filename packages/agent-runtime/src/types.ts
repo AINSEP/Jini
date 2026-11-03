@@ -541,6 +541,9 @@ export type RuntimeAgentDef = Partial<AgentModelDiscoveryPort> & {
     | 'mimo-env-content'
     | 'codex-toml'
     | 'env-passthrough';
+  /** CLI explicitly supports authenticated Streamable HTTP MCP; independent of stdio delivery. */
+  mcpHttp?: boolean;
+
   // How a caller-supplied `RuntimeBuildOptions.systemPromptOverlay` reaches this def's CLI — same
   // "declare a strategy, dispatched centrally" shape as `externalMcpInjection` above, keyed off
   // this field by `@jini-ai/daemon`'s `resolveSystemPromptOverlayDelivery` (the single dispatch

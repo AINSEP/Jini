@@ -1,4 +1,4 @@
-import type { McpJsonServerEntry } from '../contracts.js';
+import type { McpHttpEndpoint, McpJsonServerEntry } from '../contracts.js';
 import { JINI_MCP_SERVER_KEY } from '../mcp-bridge.js';
 
 /**
@@ -50,18 +50,20 @@ const CODEX_TOOL_TIMEOUT_SEC = 6 * 60 + 40;
 /**
  * Mechanism 5 of 5 — `'codex-toml'`'s serialization step. Builds the `[mcp_servers.jini]` TOML
  * table (plus, when the entry carries any env vars, a separate `[mcp_servers.jini.env]` table)
- * Codex's own config schema expects.
+ * Codex's own config schema expects. An explicit HTTP endpoint instead writes `url` and
+ * literal `http_headers` through the same table replacement and escaping owners.
  *
  * Confirmed against a real installed Codex CLI (0.151.0), not assumed from docs: round-tripping
  * `codex mcp add <name> --env K=V -- <cmd> <args>` against a scratch `CODEX_HOME` and reading back
  * `config.toml` produced exactly this shape (`command`/`args` as TOML strings/array in the main
  * table, env vars in a nested `.env` table) — see `archived provenance ledger` for the transcript.
- * @param entry - The shared bridge entry from {@link buildMcpJsonServerEntry}.
+ * @param entry - A stdio bridge entry or an explicit run HTTP endpoint.
  * @returns A TOML fragment with no leading/trailing blank-line padding — {@link buildCodexHomeConfigToml} owns spacing when combining it with existing content.
  * @complexity O(n) in the number of argv/env entries.
  * @overallScore 100/100
  */
-export function buildCodexMcpServerToml({ entry }: { readonly entry: McpJsonServerEntry }): string {
+export function buildCodexMcpServerToml({ entry }: { readonly entry: McpJsonServerEntry | Pick<McpHttpEndpoint, 'url' | 'token'> }, _options = {}): string {
+  if ('url' in entry) return buildCodexHttpMcpServerToml({ endpoint: entry });
   const argsLiteral = entry.args.map(tomlString).join(', ');
   const serverTable =
     `[mcp_servers.${JINI_MCP_SERVER_KEY}]\ncommand = ${tomlString(entry.command)}\nargs = [${argsLiteral}]\n` +
@@ -71,6 +73,16 @@ export function buildCodexMcpServerToml({ entry }: { readonly entry: McpJsonServ
     .map(([key, value]) => `${tomlKey(key)} = ${tomlString(value)}`);
   if (envLines.length === 0) return serverTable;
   return `${serverTable}\n[mcp_servers.${JINI_MCP_SERVER_KEY}.env]\n${envLines.join('\n')}\n`;
+}
+
+/** Literal headers keep the run token out of argv and bearer environment variables.
+ * @returns One HTTP table using the existing timeout and TOML escaping owner.
+ * @complexity O(endpoint bytes), without I/O.
+ */
+function buildCodexHttpMcpServerToml({ endpoint }: { endpoint: Pick<McpHttpEndpoint, 'url' | 'token'> }, _options = {}): string {
+  return `[mcp_servers.${JINI_MCP_SERVER_KEY}]\nurl = ${tomlString(endpoint.url)}\n` +
+    `tool_timeout_sec = ${CODEX_TOOL_TIMEOUT_SEC}\n\n[mcp_servers.${JINI_MCP_SERVER_KEY}.http_headers]\n` +
+    `Authorization = ${tomlString(`Bearer ${endpoint.token}`)}\n`;
 }
 
 /**
@@ -207,7 +219,7 @@ function stripExistingJiniMcpServerTable(existingRaw: string, optional: { allSer
  * @complexity O(n) in the existing config's length.
  */
 export function buildCodexHomeConfigToml({ existingRaw, entry, inheritUserMcp = true, inheritUserSettings = true }: {
-  readonly existingRaw: string | undefined; readonly entry: McpJsonServerEntry;
+  readonly existingRaw: string | undefined; readonly entry: McpJsonServerEntry | Pick<McpHttpEndpoint, 'url' | 'token'>;
   readonly inheritUserMcp?: boolean; readonly inheritUserSettings?: boolean;
 }, _optional: Record<string, never> = {}): string {
   const base = stripExistingJiniMcpServerTable(existingRaw ?? '', { allServers: !inheritUserMcp, mcpOnly: !inheritUserSettings });

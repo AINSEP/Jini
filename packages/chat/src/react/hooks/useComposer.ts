@@ -169,16 +169,19 @@ interface DeferredDraftWrite {
 }
 
 /**
- * One pending durable draft write at a time, trailing-edge debounced. Flushes on unmount and when
+ * One pending durable draft write at a time, trailing-edge debounced. Release checks flush and
+ * consult the draft owner without adding a browser reload prompt. Flushes on unmount and when
  * the page is hidden (`pagehide`, or `visibilitychange` to hidden — the last event a mobile browser
  * reliably delivers before discarding the tab).
  * @param pageLifecycle The page-exit event sources, captured at mount; `undefined` resolves the
  *   browser's own, `null` subscribes to nothing (unmount still flushes).
  * @complexity Time/space: O(1) per call.
  */
-function useDeferredDraftWrite(pageLifecycle: ComposerPageLifecycle | null | undefined): DeferredDraftWrite {
+function useDeferredDraftWrite(pageLifecycle: ComposerPageLifecycle | null | undefined, canRelease: () => boolean): DeferredDraftWrite {
   const [lifecycle] = useState(() => (pageLifecycle === undefined ? browserPageLifecycle() : pageLifecycle));
   const pendingRef = useRef<{ timer: ReturnType<typeof setTimeout>; write: () => void } | null>(null);
+  const canReleaseRef = useRef(canRelease);
+  canReleaseRef.current = canRelease;
 
   const cancel = useCallback(() => {
     const pending = pendingRef.current;
@@ -210,10 +213,21 @@ function useDeferredDraftWrite(pageLifecycle: ComposerPageLifecycle | null | und
     const onVisibilityChange = () => {
       if (doc.visibilityState === 'hidden') flush();
     };
+    const onReleaseCheck = (event: Event) => {
+      try {
+        flush();
+        if (!canReleaseRef.current()) event.preventDefault();
+      } catch {
+        // Host persistence may throw; a release must never discard the only surviving copy.
+        event.preventDefault();
+      }
+    };
     page.addEventListener('pagehide', flush);
+    page.addEventListener('jini:release-check', onReleaseCheck);
     doc.addEventListener('visibilitychange', onVisibilityChange);
     return () => {
       page.removeEventListener('pagehide', flush);
+      page.removeEventListener('jini:release-check', onReleaseCheck);
       doc.removeEventListener('visibilitychange', onVisibilityChange);
       flush();
     };
@@ -248,7 +262,16 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
   const [agent, setAgent] = useState<AgentSelection | undefined>(options.initialAgent);
   const [mention, setMention] = useState<MentionPopoverState>(EMPTY_MENTION);
 
-  const deferredWrite = useDeferredDraftWrite(options.pageLifecycle);
+  const pendingUploadsRef = useRef(0);
+  const deferredWrite = useDeferredDraftWrite(options.pageLifecycle, () => {
+    if (pendingUploadsRef.current > 0) return false;
+    // Retry even after the debounce: the cache's memory tier cannot survive guest destruction.
+    const textSaved = draft.trim() === '' || writeCachedDraft({ conversationId, draft });
+    const foldersSaved = folders.length === 0 || writeCachedFolders({ conversationId, folders });
+    // Without the host's liveness validator, a remount deliberately does not restore files.
+    const filesSaved = attachments.length === 0 || (validateAttachments !== undefined && writeCachedAttachments({ conversationId, attachments }));
+    return textSaved && foldersSaved && filesSaved;
+  });
   const commitDraft = useCallback(
     (next: string) => {
       setDraftState(next);
@@ -393,7 +416,10 @@ export function useComposer(options: UseComposerOptions = {}): UseComposerResult
       if (!project?.uploadFiles) {
         throw new Error('addAttachments requires ProjectContextValue.uploadFiles to be wired by the host');
       }
-      const uploaded = await project.uploadFiles(files);
+      pendingUploadsRef.current++;
+      let uploaded: ChatAttachment[];
+      try { uploaded = await project.uploadFiles(files); }
+      finally { pendingUploadsRef.current--; }
       setAttachments((prev) => [...prev, ...uploaded]);
       // `uploadFiles` resolves 1:1 with `files`, in order, on success (see
       // `create-daemon-attachment-uploader.ts`'s "preserved order" doc) - any failure rejects the
