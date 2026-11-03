@@ -48,6 +48,14 @@ export async function openBuiltChart({ javascript }: { javascript: string }, _op
       await instance.ready;
       return { element, destroy: () => { instance.destroy({}); element.remove(); } };
     },
-    close() { vi.unstubAllGlobals(); window.close(); },
+    close() {
+      vi.unstubAllGlobals();
+      window.close();
+      // A bundled Recharts timer still pending after unmount calls `cancelAnimationFrame` once it fires;
+      // Node has no frame globals, so that late call was an uncaught ReferenceError failing the run
+      // (and the publish workflow's `test:plugins:artifacts` step). Inert stubs outlive the window.
+      vi.stubGlobal('requestAnimationFrame', () => 0);
+      vi.stubGlobal('cancelAnimationFrame', () => {});
+    },
   };
 }
