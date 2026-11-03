@@ -190,6 +190,14 @@ function assertAgentPluginsPackage(
 /** Every provider runtime ships here, each with its own `plugins/<id>/` folder and subpath. */
 export const PROVIDER_PLUGINS_PACKAGE = '@jini-ai/provider-plugins';
 
+/** Whether `<version>/licenses/<npm-package>/<file>` is a license record retained by the provider build
+ * (license/notice/copying text, `LICENSE-SOURCE`, a supplement's `SOURCE` note, `package-license.json`). O(1). */
+function isRetainedLicenseRecord(required: { rest: readonly string[] }): boolean {
+  const { rest } = required;
+  return rest.length === 4 && rest[1] === 'licenses'
+    && /^(?:(?:licen[sc]e|copying|notice)(?:$|[.-][^/]*)|SOURCE|package-license\.json)$/i.test(rest[3] ?? '');
+}
+
 /** One packed path of the provider distribution: `catalog.json`, or a `plugins/<id>/` payload of a
  * reviewed provider source that has no package of its own and names no other plugin inside it. */
 function assertProviderDistributionPath(required: {
@@ -199,7 +207,11 @@ function assertProviderDistributionPath(required: {
   if (documentation.has(path) || path === 'catalog.json') return;
   const [root, id = '', ...rest] = path.split('/');
   if (root !== 'plugins' || !required.providerSourceExists({ id })) throw new TypeError(`${PROVIDER_PLUGINS_PACKAGE}: unexpected packed file ${path}`);
-  if (rest.some(segment => segment === 'plugins' || (pluginIds.has(segment) && segment !== id))) {
+  // `<version>/licenses/<npm-package>/<record>`: the folder is named after a bundled npm package
+  // (`licenses/langfuse/`), which may equal an agent plugin name; only that segment is exempt, and
+  // only for the license records build.ts writes there.
+  const named = isRetainedLicenseRecord({ rest }) ? rest.filter((_, index) => index !== 2) : rest;
+  if (named.some(segment => segment === 'plugins' || (pluginIds.has(segment) && segment !== id))) {
     throw new TypeError(`${PROVIDER_PLUGINS_PACKAGE}: another plugin's payload in ${path}`);
   }
 }

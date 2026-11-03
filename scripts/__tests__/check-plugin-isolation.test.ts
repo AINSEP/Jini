@@ -178,6 +178,20 @@ describe('plugin package installation isolation', () => {
         expect(pack([`package/${path}`])).toThrow(`@jini-ai/provider-plugins: unexpected packed file ${path}`);
       });
 
+    // A bundled npm dependency's license folder is named after that npm package (`licenses/langfuse/`),
+    // which can equal an agent plugin name (`@jini-ai/agent-plugins/langfuse`). Its license records are
+    // attribution, not a payload; anything else under that folder is still another plugin's payload.
+    it.each(['LICENSE', 'NOTICE', 'LICENSE.md', 'LICENSE-SOURCE', 'SOURCE', 'package-license.json'])(
+      'accepts a retained license record whose npm package shares an agent plugin name: %s', file => {
+        expect(pack([`package/plugins/charts-echarts/0.6.19/licenses/charts-recharts/${file}`])).not.toThrow();
+      });
+
+    it.each(['plugins/charts-echarts/0.6.19/licenses/charts-recharts/plugin.json',
+      'plugins/charts-echarts/0.6.19/licenses/charts-recharts/skills/SKILL.md'])(
+      'still refuses a plugin payload hidden under a license folder: %s', path => {
+        expect(pack([`package/${path}`])).toThrow(`@jini-ai/provider-plugins: another plugin's payload in ${path}`);
+      });
+
     it('accepts a provider formerly shipped as a standalone wrapper', () => {
       expect(pack(['package/plugins/analytics-posthog/0.6.19/server/index.mjs'])).not.toThrow();
     });
