@@ -1,6 +1,6 @@
 /** The one reviewed layout table: every agent plugin `@jini-ai/agent-plugins` ships as a subpath.
  * A host imports `@jini-ai/agent-plugins/<name>` (its `plugin.json`) or `@jini-ai/agent-plugins/<name>/*`.
- * The isolation gate, the catalog generator and the legacy assembler read these rows, so adding an
+ * The isolation gate and catalog generator read these rows, so adding an
  * agent plugin edits this table and the package's exports/files, nothing else.
  * Build-time tooling only; nothing here is published or imported by a host.
  */
@@ -71,13 +71,7 @@ const sourceRow = (name: string): AgentPluginPackageRow => ({ name, sourceDir: `
  * and its exports/files entries in packages/agent-plugins/package.json. */
 export const agentPluginPackages = defineAgentPluginPackages({ rows: [
   'charts-echarts', 'charts-recharts', 'cloudflare', 'composio', 'fly', 'github', 'github-pages', 'google-login',
-  'google-workspace', 'higgsfield-media', 'jev', 'meilisearch', 'netlify', 'opentelemetry', 'posthog', 'railway',
-  'render', 'resend', 's3-compatible', 'sentry', 'shopify', 'site-compliance', 'site-import', 'slide-design', 'supabase',
+  'google-workspace', 'higgsfield-media', 'jev', 'langfuse', 'meilisearch', 'netlify', 'opentelemetry', 'posthog', 'railway',
+  'render', 'resend', 's3-compatible', 'sentry', 'shopify', 'site-compliance', 'site-import', 'slide-design', 'stripe', 'supabase',
   'ui-ux-design', 'vercel', 'wordpress',
 ].map(sourceRow) });
-
-/** Published before subpaths existed (0.6.17) and still built from the same source folder until the
- * owner deprecates it in favour of `@jini-ai/agent-plugins/<name>`. Never add a row here. */
-export const legacyAgentPluginPackages: Readonly<Record<string, string>> = Object.freeze({
-  'ui-ux-design': '@jini-ai/plugin-ui-ux-design',
-});

@@ -165,7 +165,7 @@ and the packed-isolation gate refuse it), so resolving one subpath never loads a
 files. Plugin folders sit outside `src/`: their `.tsx` examples are illustrative skill content and
 must not enter the TypeScript compile root. `__tests__/` folders are not published. Provider
 runtime code (charts, analytics, observability, payments) is not here; it ships as provider
-plugins (`@jini-ai/provider-plugins`, `@jini-ai/plugin-<provider>`).
+plugins (`@jini-ai/provider-plugins/<provider>/*`).
 
 ## Scripts
 

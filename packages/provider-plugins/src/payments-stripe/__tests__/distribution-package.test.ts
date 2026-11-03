@@ -1,5 +1,5 @@
-/** Standalone publication contract: inspect the tarball built from the real selected source. */
-import { parseNpmPackJson } from '../../../scripts/lib/npm-pack-json.js';
+/** Shared distribution publication contract: inspect the tarball built from the real selected source. */
+import { parseNpmPackJson } from '../../../../../scripts/lib/npm-pack-json.js';
 import { afterEach, expect, it } from 'vitest';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
@@ -8,26 +8,26 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { computePluginIntegrity } from '@jini-ai/plugins/host/node';
-import { buildProviderPlugin } from '../../../scripts/testing/provider-plugin.js';
+import { buildProviderPlugin } from '../../../../../scripts/testing/provider-plugin.js';
 
 const id = 'payments-stripe';
-const packageRoot = fileURLToPath(new URL('..', import.meta.url));
-const sourceRoot = fileURLToPath(new URL('../../provider-plugins', import.meta.url));
+const packageRoot = fileURLToPath(new URL('../../../', import.meta.url));
+const sourceRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const exec = promisify(execFile);
 const roots: string[] = [];
 afterEach(async () => {
   for (const root of roots.splice(0)) await rm(root, { recursive: true, force: true });
 });
 
-it('declares only its artifact exports, build-time contracts, and publication hooks', async () => {
+it('exports its provider subpaths from the shared distribution with build-only vendor dependencies', async () => {
   const pkg = JSON.parse(await readFile(path.join(packageRoot, 'package.json'), 'utf8'));
-  expect(pkg.name).toBe(`@jini-ai/plugin-${id}`);
-  expect(pkg.version).toBe('0.6.17');
-  expect(pkg.exports).toEqual({ './package.json': './package.json', './plugins/*': './plugins/*' });
-  expect(pkg.files).toEqual(['plugins', 'README.md', 'LICENSE', 'NOTICE']);
-  expect(pkg.scripts).toEqual({ build: `node --import tsx ../provider-plugins/scripts/build.ts ${id} .`,
-    prepack: `node --import tsx ../provider-plugins/scripts/build.ts ${id} .`, test: 'vitest run' });
-  expect(pkg.devDependencies).toEqual({ '@jini-ai/commerce': 'workspace:^', '@jini-ai/cookie-consent': 'workspace:^', '@jini-ai/plugins': 'workspace:^', 'tsx': '^4.19.0' });
+  expect(pkg.name).toBe('@jini-ai/provider-plugins');
+  expect(pkg.exports[`./${id}`]).toBe(`./plugins/${id}/${pkg.version}/jini.plugin.json`);
+  expect(pkg.exports[`./${id}/*`]).toBe(`./plugins/${id}/*`);
+  expect(pkg.files).toContain(`plugins/${id}`);
+  expect(pkg.scripts.build).toContain(`node --import tsx scripts/build.ts ${id} .`);
+  expect(pkg.scripts.prepack).toBe('pnpm run build');
+  expect(pkg.devDependencies['@jini-ai/plugins']).toBe('workspace:^');
   for (const field of ['dependencies', 'optionalDependencies', 'peerDependencies']) expect(pkg[field] ?? {}).toEqual({});
   expect(pkg.bundledDependencies ?? []).toEqual([]);
   expect(pkg.bundleDependencies ?? []).toEqual([]);
@@ -41,7 +41,7 @@ it('packs exactly the selected versioned payload with verified integrity and ret
   expect(await readdir(path.join(root, 'plugins'))).toEqual([id]);
   for (const name of ['package.json', 'README.md', 'LICENSE', 'NOTICE']) await copyFile(path.join(packageRoot, name), path.join(root, name));
   // Include the real tests in staging so the publication allowlist must actively exclude them.
-  await cp(path.join(packageRoot, '__tests__'), path.join(root, '__tests__'), { recursive: true });
+  await cp(path.join(sourceRoot, 'src', id, '__tests__'), path.join(root, '__tests__'), { recursive: true });
   const packed = await exec('npm', ['pack', '--ignore-scripts', '--json', '--cache', path.join(root, 'npm-cache')], { cwd: root });
   const tarball = parseNpmPackJson({ stdout: packed.stdout });
   const archive = path.join(root, tarball.filename);

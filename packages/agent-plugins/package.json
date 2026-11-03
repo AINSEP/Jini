@@ -79,7 +79,11 @@
       "./vercel": "universal",
       "./vercel/*": "universal",
       "./wordpress": "universal",
-      "./wordpress/*": "universal"
+      "./wordpress/*": "universal",
+      "./langfuse": "universal",
+      "./langfuse/*": "universal",
+      "./stripe": "universal",
+      "./stripe/*": "universal"
     },
     "isolation": {
       "entries": {
@@ -94,10 +98,10 @@
       ]
     },
     "optionalPeers": {
-      "yauzl": "opt-in: plugin zip import — Plugin ZIP import could not load yauzl. Install yauzl to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/platform": "opt-in: platform-backed adapters; import @jini-ai/agent-plugins/lifecycle — Platform-backed adapters could not load @jini-ai/platform. Install @jini-ai/platform to enable this feature, or check its installed version and native binaries.",
-      "@cfworker/json-schema": "opt-in: json schema validation; import @jini-ai/agent-plugins/lifecycle/tools — JSON Schema validation could not load @cfworker/json-schema. Install @cfworker/json-schema to enable this feature, or check its installed version and native binaries.",
-      "semver": "opt-in: plugin version compatibility; import @jini-ai/agent-plugins/lifecycle — Plugin version compatibility could not load semver. Install semver to enable this feature, or check its installed version and native binaries."
+      "yauzl": "opt-in: plugin zip import \u2014 Plugin ZIP import could not load yauzl. Install yauzl to enable this feature, or check its installed version and native binaries.",
+      "@jini-ai/platform": "opt-in: platform-backed adapters; import @jini-ai/agent-plugins/lifecycle \u2014 Platform-backed adapters could not load @jini-ai/platform. Install @jini-ai/platform to enable this feature, or check its installed version and native binaries.",
+      "@cfworker/json-schema": "opt-in: json schema validation; import @jini-ai/agent-plugins/lifecycle/tools \u2014 JSON Schema validation could not load @cfworker/json-schema. Install @cfworker/json-schema to enable this feature, or check its installed version and native binaries.",
+      "semver": "opt-in: plugin version compatibility; import @jini-ai/agent-plugins/lifecycle \u2014 Plugin version compatibility could not load semver. Install semver to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",
@@ -213,13 +217,18 @@
     "./vercel": "./vercel/plugin.json",
     "./vercel/*": "./vercel/*",
     "./wordpress": "./wordpress/plugin.json",
-    "./wordpress/*": "./wordpress/*"
+    "./wordpress/*": "./wordpress/*",
+    "./langfuse": "./langfuse/plugin.json",
+    "./langfuse/*": "./langfuse/*",
+    "./stripe": "./stripe/plugin.json",
+    "./stripe/*": "./stripe/*"
   },
   "files": [
     "dist",
     "README.md",
     "CHANGELOG.md",
     "LICENSE",
+    "NOTICE",
     "!dist/**/*.test.js",
     "!dist/**/*.test.d.ts",
     "!dist/**/*.test.js.map",
@@ -256,6 +265,8 @@
     "ui-ux-design",
     "vercel",
     "wordpress",
+    "langfuse",
+    "stripe",
     "!**/__tests__/**"
   ],
   "publishConfig": {

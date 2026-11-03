@@ -17,7 +17,7 @@ const workspace = fileURLToPath(new URL('../../', import.meta.url));
 const packageRoot = path.join(workspace, 'packages/agent-plugins');
 /** Pinned payloads for the two long-lived design plugins; every other row is checked against its own source folder. */
 const pinned: Readonly<Record<string, { fileCount: number; skills: string[] }>> = {
-  'ui-ux-design': { fileCount: 50, skills: ['frontend-accessibility', 'gstack-design', 'interface-design', 'shadcn-ui', 'ui-ux-design', 'vercel-web-design-guidelines', 'web-compliance'] },
+  'ui-ux-design': { fileCount: 54, skills: ['frontend-accessibility', 'gstack-design', 'interface-design', 'shadcn-ui', 'ui-ux-design', 'vercel-web-design-guidelines', 'web-compliance'] },
   'slide-design': { fileCount: 9, skills: ['slide-design'] },
 };
 

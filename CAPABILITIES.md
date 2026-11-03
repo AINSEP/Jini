@@ -580,6 +580,10 @@ protocol-client · [README](packages/oauth/README.md)
 
 plugin-packaging · [README](packages/agent-plugins/README.md)
 
+All agent plugins ship as `@jini-ai/agent-plugins/<id>` and `/<id>/*` subpaths, including
+langfuse, stripe and ui-ux-design. Provider runtime artifacts belong to
+`@jini-ai/provider-plugins/<provider-id>/*`. Standalone plugin wrappers are retired.
+
 | Entry point | What it does | Key exports / assets | Runtime | Used by |
 |---|---|---|---|---|
 | `@jini-ai/agent-plugins` | Validate portable Agent Plugins manifests and expose standard path/schema constants. | `isMcpManifest`, `isPluginManifest`, `validatePluginManifest` | universal | none yet |

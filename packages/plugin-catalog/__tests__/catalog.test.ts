@@ -1,4 +1,4 @@
-/** Catalog metadata must correspond to real standalone packages without shipping their bytes. */
+/** Catalog metadata must correspond to real distribution subpaths without shipping their bytes. */
 import { execFileSync } from 'node:child_process';
 import { mkdtemp, readFile, readdir, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
@@ -13,7 +13,6 @@ const packagesRoot = path.dirname(root);
 const readJson = async (file: string) => JSON.parse(await readFile(file, 'utf8'));
 const entries = await readJson(path.join(root, 'catalog.json')) as CatalogEntry[];
 const agentPluginsPackage = await readJson(path.join(packagesRoot, 'agent-plugins/package.json'));
-const workspacePackages = new Set(await readdir(packagesRoot));
 const digest = `sha256-${'a'.repeat(64)}`;
 
 describe('standalone plugin catalog', () => {
@@ -27,9 +26,7 @@ describe('standalone plugin catalog', () => {
 
   it.each(entries)('$kind $id matches its real package, publisher, path and contract', async entry => {
     const row = entry.kind === 'agent' ? agentPluginPackages.find(item => item.name === entry.id)! : undefined;
-    // Agents are agent-plugins subpaths; a provider ships from plugin-<id> when that package exists, else provider-plugins.
-    const standalone = !row && workspacePackages.has(`plugin-${entry.id}`);
-    const packageDir = row ? 'agent-plugins' : standalone ? `plugin-${entry.id}` : 'provider-plugins';
+    const packageDir = row ? 'agent-plugins' : 'provider-plugins';
     const packageManifest = await readJson(path.join(packagesRoot, packageDir, 'package.json'));
     const source = row ? path.join(path.dirname(packagesRoot), row.sourceDir, 'plugin.json')
       : path.join(packagesRoot, `provider-plugins/src/${entry.id}/jini.plugin.json`);
@@ -39,7 +36,6 @@ describe('standalone plugin catalog', () => {
     if (row) expect(`${entry.packageName}/${entry.path}`).toBe(`${AGENT_PLUGINS_PACKAGE}/${entry.id}`);
     // Jini's own plugins say jini/<id> (a chart face jini/<id>-agent); plugins moved from Tovu keep tovu/<id>.
     expect(entry.publisherIdentity).toMatch(new RegExp(`^(?:jini/${entry.id}(?:-agent)?|tovu/${entry.id})$`));
-    if (standalone) expect(packageManifest.version).toBe('0.6.17');
     expect(entry.path.startsWith('/')).toBe(false);
     expect(entry.path.split('/')).not.toContain('..');
   });
@@ -83,7 +79,7 @@ function fixture() {
   const pluginManifest = { id: 'fixture-provider', name: 'Fixture', version: '0.6.12',
     extensions: { tovu: { id: 'jini/fixture-provider' } },
     contributes: { providers: [{ contract: 'fixture', contractVersion: 1 }] }, integrity: {} };
-  const packageManifest = { name: '@jini-ai/plugin-fixture-provider', version: '0.6.17', description: 'Fixture' };
+  const packageManifest = { name: '@jini-ai/provider-plugins', version: '0.6.17', description: 'Fixture' };
   const artifact = { ...pluginManifest, version: '0.6.17', integrity: { 'server/index.mjs': digest } };
   const ports = {
     readJson: async (file: string) => {
@@ -129,7 +125,7 @@ function combinedFixture() {
     integrity: async ({ sourceDir }: { sourceDir: string }) => digests[sourceDir] ?? {},
   };
   const generate = () => generateCatalog({ packagesRoot: '/packages', providerIds: ['charts-fixture'],
-    agentPlugins: [{ name: 'charts-fixture', sourceDir: 'packages/agent-plugins/charts-fixture' }], ports }, { standaloneProviderIds: [] });
+    agentPlugins: [{ name: 'charts-fixture', sourceDir: 'packages/agent-plugins/charts-fixture' }], ports });
   return { files, digests, provider, providerArtifact, face, generate };
 }
 
@@ -181,18 +177,16 @@ describe('agent subpaths, provider-plugins providers and browser-only providers'
     const packageManifest = { name: AGENT_PLUGINS_PACKAGE, version: '0.6.19', description: '' };
     expect(catalogEntry({ id: 'posthog', packageManifest, pluginManifest }, { kind: 'agent', packageName: AGENT_PLUGINS_PACKAGE }))
       .toMatchObject({ kind: 'agent', path: 'posthog', packageName: AGENT_PLUGINS_PACKAGE, publisherIdentity: 'tovu/posthog' });
-    expect(() => catalogEntry({ id: 'posthog', packageManifest, pluginManifest }, { kind: 'agent' })).toThrow('identity disagree');
+    expect(catalogEntry({ id: 'posthog', packageManifest, pluginManifest }, { kind: 'agent' }).packageName).toBe(AGENT_PLUGINS_PACKAGE);
   });
 
-  it('a provider with its own package is catalogued from it by default', async () => {
+  it('always catalogues providers from their shared owner even if a retired wrapper exists', async () => {
     const input = combinedFixture();
-    input.files['/packages/plugin-charts-fixture/package.json'] = { name: '@jini-ai/plugin-charts-fixture', version: '0.6.19', description: 'x' };
-    input.files['/packages/plugin-charts-fixture/plugins/charts-fixture/0.6.19/jini.plugin.json'] = input.providerArtifact;
-    input.digests['/packages/plugin-charts-fixture/plugins/charts-fixture/0.6.19'] = { 'client/provider.js': digest };
+    input.files['/packages/plugin-charts-fixture/package.json'] = { name: '@jini-ai/plugin-charts-fixture', version: '0.6.19', description: 'retired' };
     const result = await generateCatalog({ packagesRoot: '/packages', providerIds: ['charts-fixture'], agentPlugins: [], ports: {
       readJson: async file => input.files[file], integrity: async ({ sourceDir }) => input.digests[sourceDir] ?? {},
     } });
-    expect(result.map(entry => [entry.kind, entry.packageName])).toEqual([['provider', '@jini-ai/plugin-charts-fixture']]);
+    expect(result.map(entry => [entry.kind, entry.packageName])).toEqual([['provider', '@jini-ai/provider-plugins']]);
   });
 });
 

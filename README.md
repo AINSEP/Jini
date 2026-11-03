@@ -56,3 +56,6 @@ already running. The disposable workspaces live in
 ## License
 
 Apache-2.0. See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
+
+Agent plugins are independently importable subpaths of `@jini-ai/agent-plugins`; provider runtimes
+ship from `@jini-ai/provider-plugins`. See [plugin subpaths](docs/plugin-packages-migration.md).

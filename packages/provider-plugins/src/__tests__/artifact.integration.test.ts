@@ -4,7 +4,6 @@ import { paymentsProviderContract, type PaymentProvider, type ProviderContext } 
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { mkdtemp, mkdir, readdir, readFile, rm, copyFile, realpath } from 'node:fs/promises';
-import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -70,10 +69,9 @@ const discoveryRecord = (manifest: PluginManifest, source: 'built-in' | 'site') 
   ({ id: manifest.id, name: manifest.name, version: manifest.version, source, status: 'valid' as const, errors: [] });
 
 let root: string;
-/** The package folder that ships `id`: its own `plugin-<id>` package, else this distribution (the chart providers). */
-const distributionDir = (id: string) => (existsSync(path.join(packageRoot, '..', `plugin-${id}`)) ? `plugin-${id}` : 'provider-plugins');
-// Ids with their own package; the isolation gate refuses those inside the provider distribution.
-const standaloneIds = () => [...Object.keys(SPECS).filter(id => distributionDir(id) !== 'provider-plugins'), 'ui-ux-design'];
+/** Every provider is independently addressed within this one runtime distribution. */
+const distributionDir = (_id: string) => 'provider-plugins';
+const providerIds = () => Object.keys(SPECS);
 const artifacts = new Map<string, { artifact: string; installedPackage: string; packedPaths: string[] }>();
 beforeAll(async () => {
   // Node resolution canonicalizes symlinks, including macOS /var → /private/var.
@@ -98,7 +96,7 @@ beforeAll(async () => {
 }, 120_000);
 afterAll(async () => { await rm(root, { recursive: true, force: true }); });
 
-it('packs every provider source in its own package (charts: the provider-plugins distribution), each with a spec here', async () => {
+it('packs every provider source as an independently loadable distribution payload, each with a spec here', async () => {
   const sources = (await readdir(path.join(packageRoot, 'src'), { withFileTypes: true }))
     .filter(entry => entry.isDirectory() && !entry.name.startsWith('__')).map(entry => entry.name).sort();
   expect([...artifacts.keys()]).toEqual(sources);
@@ -109,7 +107,7 @@ it('packs the provider NOTICE and integrity-pins its retained copy in the Stripe
   const { artifact, installedPackage } = artifacts.get('payments-stripe')!;
   const manifest = JSON.parse(await readFile(path.join(artifact, 'jini.plugin.json'), 'utf8')) as PluginManifest;
   // retainLicenses sanitizes the package name, including its leading @, to underscores.
-  const noticePath = 'licenses/_jini-ai_plugin-payments-stripe/NOTICE';
+  const noticePath = 'licenses/_jini-ai_provider-plugins/NOTICE';
   const notice = await readFile(path.join(artifact, noticePath), 'utf8');
   expect(manifest.integrity[noticePath]).toBe(`sha256-${createHash('sha256').update(notice).digest('hex')}`);
   expect(notice).toContain('Open SaaS');
@@ -125,7 +123,7 @@ async function assertPackedAlone(required: { pluginId: string; installedPackage:
   const { pluginId, installedPackage, packedPaths } = required;
   const packageManifest = JSON.parse(await readFile(path.join(installedPackage, 'package.json'), 'utf8'));
   expect(packageManifest.name).toBe(`@jini-ai/${distributionDir(pluginId)}`);
-  expect(() => assertPluginPackageIsolation({ manifest: packageManifest, packedPaths, pluginIds: standaloneIds() })).not.toThrow();
+  expect(() => assertPluginPackageIsolation({ manifest: packageManifest, packedPaths, pluginIds: providerIds() })).not.toThrow();
   expect(packedPaths).toEqual(expect.arrayContaining(['package.json', 'README.md', 'LICENSE', 'NOTICE']));
   expect(await readdir(path.join(installedPackage, 'plugins'))).toEqual([pluginId]);
   expect(await readdir(path.dirname(installedPackage))).toEqual([distributionDir(pluginId)]);
@@ -194,7 +192,7 @@ it.each(SERVER_IDS)('%s: packs, installs and loads identical standalone bytes wi
     import { createRequire } from 'node:module';
     import { readdirSync } from 'node:fs';
     const resolve = createRequire(${JSON.stringify(pathToFileURL(path.join(installedPackage, 'package.json')).href)}).resolve;
-    if (readdirSync(${JSON.stringify(path.dirname(installedPackage))}).join() !== ${JSON.stringify(`plugin-${pluginId}`)}) throw new Error('sibling plugin available');
+    if (readdirSync(${JSON.stringify(path.dirname(installedPackage))}).join() !== ${JSON.stringify(distributionDir(pluginId))}) throw new Error('sibling plugin available');
     for (const name of ['posthog-node', 'posthog-js', '@sentry/node', 'langfuse', '@opentelemetry/api', '@opentelemetry/sdk-trace-node']) {
       let available = false;
       try { resolve(name); available = true; } catch (error) { if (error.code !== 'MODULE_NOT_FOUND') throw error; }

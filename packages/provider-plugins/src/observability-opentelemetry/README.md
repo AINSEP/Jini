@@ -1,4 +1,4 @@
-# @jini-ai/plugin-observability-opentelemetry
+# @jini-ai/provider-plugins/observability-opentelemetry
 
 Independently installable OpenTelemetry provider for Jini's existing plugin host.
 This package ships only `observability-opentelemetry`; vendor SDKs are bundled at build time.
@@ -7,7 +7,7 @@ Installing the npm package does not activate the plugin.
 Its agent setup face (skill and credential card) is not here: it ships as
 `@jini-ai/agent-plugins/opentelemetry`.
 
-Resolve `@jini-ai/plugin-observability-opentelemetry/package.json` with Node's package resolver.
+Resolve `@jini-ai/provider-plugins/package.json` with Node's package resolver.
 Discover `plugins/observability-opentelemetry/<package-version>/jini.plugin.json` beneath that root,
 then use the existing preview/install/enable/configure flow and provider artifact loader.
 The `./plugins/*` export exposes the same artifact files; no new loader is required.

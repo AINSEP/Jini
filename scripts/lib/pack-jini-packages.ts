@@ -29,6 +29,23 @@ export interface JiniPackageEntry {
   readonly pkg: PackageJson;
 }
 
+/** Refuse retired per-plugin packages before any pack, build, registry or publish effects.
+ * The metadata-only catalog is a library, not a plugin payload package.
+ * @param required Package identity from its manifest.
+ * @returns Nothing when the package is an allowed library or distribution.
+ * @throws TypeError for a standalone plugin wrapper.
+ * @example assertJiniPackagePublicationAllowed({ name: '@jini-ai/agent-plugins' });
+ * @complexity O(n) in the package name; no effects.
+ * @overallScore 100
+ */
+export function assertJiniPackagePublicationAllowed(
+  required: { name: string }, _options: Record<string, never> = {},
+): void {
+  if (required.name.startsWith('@jini-ai/plugin-') && required.name !== '@jini-ai/plugin-catalog') {
+    throw new TypeError(`${required.name}: standalone plugin packages are retired; use @jini-ai/agent-plugins or @jini-ai/provider-plugins subpaths`);
+  }
+}
+
 export function readPackageJson(dir: string): PackageJson {
   return JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as PackageJson;
 }
@@ -96,6 +113,7 @@ export function discoverJiniPackages(workspaceRoot: string): Map<string, JiniPac
   for (const dir of dirs) {
     if (!existsSync(join(dir, 'package.json'))) continue;
     const pkg = readPackageJson(dir);
+    if (pkg.name && pkg.private !== true) assertJiniPackagePublicationAllowed({ name: pkg.name });
     if (pkg.name?.startsWith('@jini-ai/')) registry.set(pkg.name, { dir, pkg });
   }
   return registry;
@@ -141,6 +159,8 @@ export function packAndRewrite(
   destDir: string,
   tarballPathByName: ReadonlyMap<string, string>,
 ): string {
+  assertJiniPackagePublicationAllowed({ name });
+  assertJiniPackagePublicationAllowed({ name: readPackageJson(dir).name ?? name });
   const raw = execFileSync('pnpm', ['pack', '--json', '--pack-destination', destDir], {
     cwd: dir,
     encoding: 'utf8',

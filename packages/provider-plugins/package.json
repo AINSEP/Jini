@@ -1,7 +1,7 @@
 {
   "name": "@jini-ai/provider-plugins",
   "version": "0.6.13",
-  "description": "Browser chart provider plugins (charts-recharts, charts-echarts) as prebuilt artifacts, one subpath each; other provider sources ship from their own @jini-ai/plugin-<id> packages.",
+  "description": "Provider runtime artifacts, independently addressable as subpaths of @jini-ai/provider-plugins. Agent-facing plugins live in @jini-ai/agent-plugins.",
   "type": "module",
   "license": "Apache-2.0",
   "repository": {
@@ -18,7 +18,18 @@
       "./catalog": "node",
       "./charts-echarts/*": "node",
       "./charts-recharts/*": "node",
-      "./plugins/*": "node"
+      "./plugins/*": "node",
+      "./ai-trace-langfuse": "node",
+      "./ai-trace-langfuse/*": "node",
+      "./analytics-posthog": "node",
+      "./analytics-posthog/*": "node",
+      "./observability-opentelemetry": "node",
+      "./observability-opentelemetry/*": "node",
+      "./observability-sentry": "node",
+      "./observability-sentry/*": "node",
+      "./payments-stripe": "node",
+      "./payments-stripe/*": "node",
+      "./fixture-provider/*": "node"
     }
   },
   "exports": {
@@ -26,19 +37,36 @@
     "./catalog": "./catalog.json",
     "./charts-echarts/*": "./plugins/charts-echarts/*",
     "./charts-recharts/*": "./plugins/charts-recharts/*",
-    "./plugins/*": "./plugins/*"
+    "./plugins/*": "./plugins/*",
+    "./ai-trace-langfuse": "./plugins/ai-trace-langfuse/0.6.13/jini.plugin.json",
+    "./ai-trace-langfuse/*": "./plugins/ai-trace-langfuse/*",
+    "./analytics-posthog": "./plugins/analytics-posthog/0.6.13/jini.plugin.json",
+    "./analytics-posthog/*": "./plugins/analytics-posthog/*",
+    "./observability-opentelemetry": "./plugins/observability-opentelemetry/0.6.13/jini.plugin.json",
+    "./observability-opentelemetry/*": "./plugins/observability-opentelemetry/*",
+    "./observability-sentry": "./plugins/observability-sentry/0.6.13/jini.plugin.json",
+    "./observability-sentry/*": "./plugins/observability-sentry/*",
+    "./payments-stripe": "./plugins/payments-stripe/0.6.13/jini.plugin.json",
+    "./payments-stripe/*": "./plugins/payments-stripe/*",
+    "./fixture-provider/*": "./plugins/fixture-provider/*"
   },
   "files": [
-    "catalog.json",
+    "plugins/ai-trace-langfuse",
+    "plugins/analytics-posthog",
     "plugins/charts-echarts",
     "plugins/charts-recharts",
+    "plugins/fixture-provider",
+    "plugins/observability-opentelemetry",
+    "plugins/observability-sentry",
+    "plugins/payments-stripe",
+    "catalog.json",
     "README.md",
     "CHANGELOG.md",
     "LICENSE",
     "NOTICE"
   ],
   "scripts": {
-    "build": "pnpm run typecheck && node --import tsx scripts/build.ts charts-recharts . && node --import tsx scripts/build.ts charts-echarts .",
+    "build": "pnpm run typecheck && node --import tsx scripts/build.ts charts-recharts . && node --import tsx scripts/build.ts charts-echarts . && node --import tsx scripts/build.ts ai-trace-langfuse . && node --import tsx scripts/build.ts analytics-posthog . && node --import tsx scripts/build.ts observability-opentelemetry . && node --import tsx scripts/build.ts observability-sentry . && node --import tsx scripts/build.ts payments-stripe . && node --import tsx scripts/build.ts fixture-provider .",
     "prepack": "pnpm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.charts.json --noEmit",
     "test": "vitest run",

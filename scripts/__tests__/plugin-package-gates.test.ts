@@ -5,16 +5,11 @@ import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { checkPluginPackages, inspectPluginPackageTarball } from '../check-plugin-packages.js';
 import { checkPackageLayers } from '../check-package-layers.js';
 import type { JiniPackageEntry } from '../lib/pack-jini-packages.js';
-import { agentPluginExports, agentPluginPackages, legacyAgentPluginPackages } from '../lib/agent-plugin-packages.js';
+import { agentPluginExports, agentPluginPackages } from '../lib/agent-plugin-packages.js';
 
 type InspectionInput = { entry: JiniPackageEntry };
 
-// Provider distributions; agent plugins ship as agent-plugins subpaths (rows from the layout table), plus
-// the legacy standalone package(s) published before subpaths.
-const providerPackages = ['plugin-ai-trace-langfuse', 'plugin-analytics-posthog', 'plugin-fixture-provider',
-  'plugin-observability-opentelemetry', 'plugin-observability-sentry', 'plugin-payments-stripe'];
-const legacyPackages = Object.values(legacyAgentPluginPackages).map(name => name.slice('@jini-ai/'.length));
-const names = [...providerPackages, ...legacyPackages, 'plugin-catalog'];
+const names = ['provider-plugins', 'plugin-catalog'];
 const subpathExports = Object.assign({}, ...agentPluginPackages.map(row => agentPluginExports(row)));
 const documents = ['package.json', 'README.md', 'LICENSE', 'NOTICE'];
 let root: string;
@@ -39,10 +34,10 @@ afterEach(() => rmSync(root, { recursive: true, force: true }));
 it('registers every distribution leaf and the catalog without allowing core imports of them', () => {
   expect(checkPluginPackages({ repoRoot: root })).toEqual([]);
   expect(checkPackageLayers({ repoRoot: root })).toEqual([]);
-  manifest({ name: 'core', fields: { dependencies: { '@jini-ai/plugin-fixture-provider': '^0.6.17' } } });
+  manifest({ name: 'core', fields: { dependencies: { '@jini-ai/provider-plugins': '^0.6.17' } } });
   expect(checkPackageLayers({ repoRoot: root })).toEqual([{
     rule: 'L1-layer-edge', file: 'packages/core/package.json',
-    reason: 'core → @jini-ai/plugin-fixture-provider: L0 cannot depend on L7',
+    reason: 'core → @jini-ai/provider-plugins: L0 cannot depend on L7',
   }]);
 });
 
@@ -63,21 +58,21 @@ it('treats a new plugin package as a leaf by rule, while an unlisted core packag
 });
 
 it('checks workspace dependency aliases and resolves local targets by their manifest identity', () => {
-  manifest({ name: 'plugin-fixture-provider', fields: { devDependencies: { innocent: 'file:../../aliases/innocent' } } });
+  manifest({ name: 'provider-plugins', fields: { devDependencies: { innocent: 'file:../../aliases/innocent' } } });
   write({ file: 'aliases/innocent/package.json', content: '{"name":"@jini-ai/plugin-payments-stripe"}' });
   expect(checkPluginPackages({ repoRoot: root })).toEqual([{
-    rule: 'P1-plugin-isolation', file: 'packages/plugin-fixture-provider/package.json',
-    reason: '@jini-ai/plugin-fixture-provider: forbidden local plugin dependency innocent: @jini-ai/plugin-payments-stripe',
+    rule: 'P1-plugin-isolation', file: 'packages/provider-plugins/package.json',
+    reason: '@jini-ai/provider-plugins: forbidden local plugin dependency innocent: @jini-ai/plugin-payments-stripe',
   }]);
 });
 
 it('rejects a dependency hidden by a clean packed manifest before any inspector runs', () => {
-  manifest({ name: 'plugin-fixture-provider', fields: { optionalDependencies: { alias: 'npm:@jini-ai/plugin-payments-stripe@0.6.17' } } });
+  manifest({ name: 'provider-plugins', fields: { optionalDependencies: { alias: 'npm:@jini-ai/plugin-payments-stripe@0.6.17' } } });
   const inspectPackage = vi.fn(({ entry }: InspectionInput) => ({ manifest: { name: entry.pkg.name! }, packedPaths: documents }));
   const violations = checkPluginPackages({ repoRoot: root }, { inspectPackage });
   expect(violations).toHaveLength(1);
   expect(violations[0]!.reason).toContain('forbidden plugin dependency alias');
-  expect(inspectPackage.mock.calls.some(([{ entry }]) => entry.pkg.name === '@jini-ai/plugin-fixture-provider')).toBe(false);
+  expect(inspectPackage.mock.calls.some(([{ entry }]) => entry.pkg.name === '@jini-ai/provider-plugins')).toBe(false);
 });
 
 it.each([
@@ -114,29 +109,27 @@ it('fails closed on archive inspection errors and continues inspecting the relea
 });
 
 it('omits private development tooling from tarball inspection without exempting its dependencies', () => {
-  manifest({ name: 'provider-plugins', fields: { private: true } });
-  manifest({ name: 'plugin-fixture-provider', fields: { private: true, dependencies: { '@jini-ai/plugin-payments-stripe': '^0.6.17' } } });
+  manifest({ name: 'provider-plugins', fields: { private: true, dependencies: { '@jini-ai/plugin-payments-stripe': '^0.6.17' } } });
   const inspectPackage = vi.fn(({ entry }: InspectionInput) => ({ manifest: { name: entry.pkg.name! }, packedPaths: documents }));
   const violations = checkPluginPackages({ repoRoot: root }, { inspectPackage });
   expect(violations).toHaveLength(1);
   expect(violations[0]!.reason).toContain('forbidden plugin dependency @jini-ai/plugin-payments-stripe');
   expect(inspectPackage.mock.calls.map(([{ entry }]) => entry.pkg.name)).not.toContain('@jini-ai/provider-plugins');
-  expect(inspectPackage.mock.calls.map(([{ entry }]) => entry.pkg.name)).not.toContain('@jini-ai/plugin-fixture-provider');
 });
 
 it('rejects missing published exports and attribution even when isolation alone accepts the archive', () => {
   const violations = checkPluginPackages({ repoRoot: root }, { inspectPackage: ({ entry }) => ({
-    manifest: { name: entry.pkg.name!, ...(entry.pkg.name === '@jini-ai/plugin-fixture-provider' ? { exports: { './plugins/*': './plugins/*' } } : {}) },
+    manifest: { name: entry.pkg.name!, ...(entry.pkg.name === '@jini-ai/provider-plugins' ? { exports: { './plugins/*': './plugins/*' } } : {}) },
     packedPaths: entry.pkg.name === '@jini-ai/plugin-catalog' ? documents.filter(file => file !== 'NOTICE') : documents,
   }) });
   expect(violations.map(value => value.reason).sort()).toEqual([
     '@jini-ai/plugin-catalog: missing packed NOTICE',
-    '@jini-ai/plugin-fixture-provider: exported paths missing from tarball: ./plugins/*',
+    '@jini-ai/provider-plugins: exported paths missing from tarball: ./plugins/*',
   ]);
 });
 
 it('inspects actual tar bytes without executing package lifecycle hooks', () => {
-  const name = 'plugin-fixture-provider';
+  const name = 'provider-plugins';
   manifest({ name, fields: { files: ['plugins', ...documents.slice(1)], exports: { './plugins/*': './plugins/*' },
     scripts: { prepack: 'node -e "throw new Error(\'prepack must not run\')"' } } });
   for (const file of documents.slice(1)) write({ file: `packages/${name}/${file}`, content: file });
@@ -145,6 +138,6 @@ it('inspects actual tar bytes without executing package lifecycle hooks', () => 
   write({ file: `packages/${name}/src/private.ts`, content: 'unpublished source' });
   const entry = { dir: join(root, 'packages', name), pkg: JSON.parse(readFileSync(join(root, 'packages', name, 'package.json'), 'utf8')) };
   const packed = inspectPluginPackageTarball({ entry });
-  expect(packed.manifest.name).toBe('@jini-ai/plugin-fixture-provider');
+  expect(packed.manifest.name).toBe('@jini-ai/provider-plugins');
   expect([...packed.packedPaths].sort()).toEqual([...documents, payload].map(file => `package/${file}`).sort());
 }, 30_000);

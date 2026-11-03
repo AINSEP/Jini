@@ -69,7 +69,7 @@ jobs:
       # Catalog generation validates completed manifests and integrity without loading vendor code.
       - run: pnpm guard:plugins
       - run: pnpm guard:plugins:catalog
-      - run: pnpm exec vitest run scripts/__tests__/check-plugin-isolation.test.ts scripts/__tests__/plugin-package-gates.test.ts scripts/__tests__/standalone-agent-plugin.integration.test.ts
+      - run: pnpm exec vitest run scripts/__tests__/check-plugin-isolation.test.ts scripts/__tests__/plugin-package-gates.test.ts scripts/__tests__/agent-plugin-subpaths.test.ts scripts/__tests__/retired-plugin-packages.test.ts scripts/__tests__/standalone-agent-plugin.integration.test.ts
       - run: pnpm test:plugins:artifacts
       # Plugin-folder node:test suites; no vitest config collects them (see ci.yml).
       - run: pnpm test:agent-plugins:content

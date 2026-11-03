@@ -1,10 +1,8 @@
 # @jini-ai/provider-plugins
 
-The source workspace of every Jini provider plugin, and the published package of the providers that
-have no package of their own: the browser chart providers. `@jini-ai/provider-plugins/charts-recharts/*`
+The source workspace and published distribution of every Jini provider runtime. `@jini-ai/provider-plugins/charts-recharts/*`
 and `@jini-ai/provider-plugins/charts-echarts/*` reach `plugins/<id>/<version>/` (resolve
-`@jini-ai/provider-plugins/package.json` for the version); each folder installs on its own. The other
-providers publish as `@jini-ai/plugin-<id>` (see `docs/plugin-packages-migration.md`). There are no
+`@jini-ai/provider-plugins/package.json` for the version); each folder installs on its own. All other providers use the same subpath layout (see `docs/plugin-packages-migration.md`). There are no
 callable adapter exports: hosts install and load the artifacts. Vendor SDKs (Recharts, React, ECharts
 and its zrender/tslib) are bundled into each artifact at build time and stay development dependencies,
 never dependencies or peers of a core `@jini-ai/*` package.
@@ -47,10 +45,10 @@ providers fan out through diagnostics' existing fan-out. Inputs come from the ho
 settings; never from manifests, browser assets or agent instructions.
 
 `pnpm --filter @jini-ai/provider-plugins build` type-checks, then runs `scripts/build.ts <id> .` for
-charts-recharts and charts-echarts, producing
+every provider id, producing
 `plugins/<id>/<version>/{jini.plugin.json,server/index.mjs,client/**,licenses/**}`; building one id
 leaves the others' folders in place. `pnpm pack` builds these assets through `prepack`. `catalog.json`
-lists the two shipped artifacts; its versions follow the package version, set by hand at release like
+lists the shipped artifacts; its versions follow the package version, set by hand at release like
 the manifest versions (the full catalog is `@jini-ai/plugin-catalog/catalog`). esbuild bundles runtime dependencies, permits only Node builtins as
 external imports, retains bundled packages' license/notice files, and the existing installer
 integrity helper hashes every packaged file except the manifest. SDK packages are build-time

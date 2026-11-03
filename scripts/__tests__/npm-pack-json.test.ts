@@ -3,7 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { expect, it } from 'vitest';
 import { parseNpmPackJson } from '../lib/npm-pack-json.js';
 
-const entry = { name: '@jini-ai/plugin-x', version: '0.6.16', filename: 'jini-ai-plugin-x-0.6.16.tgz', files: [{ path: 'package.json' }] };
+const entry = { name: '@jini-ai/provider-plugins', version: '0.6.16', filename: 'jini-ai-provider-plugins-0.6.16.tgz', files: [{ path: 'package.json' }] };
 
 it('reads the npm 11 shape: an array of entries', () => {
   expect(parseNpmPackJson({ stdout: JSON.stringify([entry]) })).toEqual(entry);

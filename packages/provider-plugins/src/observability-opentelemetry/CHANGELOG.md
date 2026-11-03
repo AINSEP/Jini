@@ -1,4 +1,4 @@
-# @jini-ai/plugin-observability-sentry
+# @jini-ai/provider-plugins/observability-opentelemetry
 
 ## 0.6.17
 

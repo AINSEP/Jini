@@ -88,12 +88,12 @@ describe('plugin package installation isolation', () => {
       expect(() => check({ name: '@jini-ai/core' }, [...docs, `package/${path}`])).toThrow(path);
     });
 
-  it('the legacy ui-ux-design package ships only its own payload; a subpath-only plugin has no package', () => {
-    expect(() => check({ name: '@jini-ai/plugin-ui-ux-design' }, [...docs, 'package/ui-ux-design/plugin.json'])).not.toThrow();
+  it('retired agent wrappers own no agent payload roots', () => {
+    expect(() => check({ name: '@jini-ai/plugin-ui-ux-design' }, [...docs, 'package/ui-ux-design/plugin.json'])).toThrow('unexpected packed file');
     expect(() => check({ name: '@jini-ai/plugin-ui-ux-design' }, [...docs, 'package/slide-design/plugin.json'])).toThrow("another plugin's payload");
     // slide-design ships only as an @jini-ai/agent-plugins subpath, so a package under its old name owns no payload root.
     expect(() => check({ name: '@jini-ai/plugin-slide-design' }, [...docs, 'package/slide-design/skills/slide-design/SKILL.md']))
-      .toThrow('@jini-ai/plugin-slide-design: unexpected packed file slide-design/skills/slide-design/SKILL.md');
+      .toThrow('unexpected packed file');
   });
 
   it('rejects provider assets bundled with the agent plugin', () => {
@@ -160,7 +160,7 @@ describe('plugin package installation isolation', () => {
     });
   });
 
-  describe('@jini-ai/provider-plugins ships chart providers that have no package of their own', () => {
+  describe('@jini-ai/provider-plugins ships all provider runtimes', () => {
     const distribution = { name: '@jini-ai/provider-plugins' };
     const providerSourceExists = ({ id }: { id: string }) => ['charts-recharts', 'charts-echarts', 'analytics-posthog'].includes(id);
     const agentPluginPackages = [{ name: 'charts-recharts', sourceDir: 'packages/agent-plugins/charts-recharts' }];
@@ -178,9 +178,8 @@ describe('plugin package installation isolation', () => {
         expect(pack([`package/${path}`])).toThrow(`@jini-ai/provider-plugins: unexpected packed file ${path}`);
       });
 
-    it('refuses a provider that ships from its own @jini-ai/plugin-<id> package', () => {
-      expect(pack(['package/plugins/analytics-posthog/0.6.19/server/index.mjs']))
-        .toThrow('@jini-ai/provider-plugins: unexpected packed file plugins/analytics-posthog/0.6.19/server/index.mjs');
+    it('accepts a provider formerly shipped as a standalone wrapper', () => {
+      expect(pack(['package/plugins/analytics-posthog/0.6.19/server/index.mjs'])).not.toThrow();
     });
 
     it.each(['plugins/charts-echarts/0.6.19/charts-recharts/plugin.json', 'plugins/charts-echarts/0.6.19/ui-ux-design/SKILL.md',

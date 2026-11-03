@@ -1,0 +1,14 @@
+Jini UI/UX Design Agent Plugin
+Copyright 2026 Leona Burime
+
+Portable skill sources remain at packages/agent-plugins/ui-ux-design.
+Originally assembled from AI-Dev-Shop's Web Design skill trees; the ADS-specific
+agent persona and routing implementation are not included.
+
+Source notes and attribution are retained in the generated skills tree, including
+skills/interface-design/ORIGINAL.md (Dammyjay93/interface-design) and
+skills/gstack-design/references/upstream-notes.md (garrytan/gstack).
+The skill references retain their original source links and attribution.
+
+This distribution does not include the provider-plugin aggregate or its Open SaaS
+Stripe adaptations. See LICENSE for the Apache License, Version 2.0.

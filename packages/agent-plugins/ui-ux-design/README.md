@@ -1,14 +1,12 @@
-# `@jini-ai/plugin-ui-ux-design`
+# `@jini-ai/agent-plugins/ui-ux-design`
 
-> **Superseded** by `@jini-ai/agent-plugins/ui-ux-design` (the same plugin; every Jini agent plugin is
-> now a subpath of `@jini-ai/agent-plugins`). This package keeps publishing the same payload until the
-> owner deprecates it on npm (see `docs/plugin-packages-migration.md`).
+This plugin ships only as a subpath of `@jini-ai/agent-plugins`.
 
 Portable Agent Plugins payload containing seven design skills: UI/UX design, interface design,
 gstack design, frontend accessibility, Vercel web guidelines, shadcn/ui, and web compliance.
-Installing this package downloads only this plugin; it has no runtime or plugin dependencies.
+Resolving this subpath reads only this plugin; it has no runtime or plugin dependencies.
 
-Resolve `@jini-ai/plugin-ui-ux-design/plugin.json` with the host's package resolver. Its containing
+Resolve `@jini-ai/agent-plugins/ui-ux-design` with the host's package resolver. Its containing
 directory holds the payload. Copy that selected directory beneath the host's bundled-source root,
 then use `@jini-ai/agent-plugins/lifecycle` to seed it. That existing path packs the directory,
 verifies its digest, installs atomically, records activation and selects the bundled digest.
@@ -19,10 +17,9 @@ The npm version follows Jini's fixed release group. The inner `plugin.json` vers
 orders the plugin's own content releases; hosts refuse a lower one over an installed copy.
 The `./ui-ux-design/*` export exposes its raw assets for host staging.
 
-Sources remain in `packages/agent-plugins/ui-ux-design`. The build and prepack script generates only
-`ui-ux-design/` here, selecting `plugin.json`, `mcp.json`, the complete skills tree (including
-references, examples and scripts), and the existing `com.anthropic.claude-code` extension.
-Tests, build output and caches are excluded; selected symlinks refuse assembly. LICENSE and NOTICE retain provenance;
+Sources ship in place from `packages/agent-plugins/ui-ux-design`: `plugin.json`, `mcp.json`, the
+complete skills tree (including references, examples and scripts), and the existing
+`com.anthropic.claude-code` extension. Tests, build output and caches are excluded. LICENSE and NOTICE retain provenance;
 no provider plugin or vendor SDK is included.
 
 ## Host-neutral wording

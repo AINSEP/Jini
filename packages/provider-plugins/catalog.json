@@ -1,5 +1,15 @@
 [
   {
+    "id": "ai-trace-langfuse",
+    "version": "0.6.13",
+    "path": "plugins/ai-trace-langfuse/0.6.13"
+  },
+  {
+    "id": "analytics-posthog",
+    "version": "0.6.13",
+    "path": "plugins/analytics-posthog/0.6.13"
+  },
+  {
     "id": "charts-echarts",
     "version": "0.6.13",
     "path": "plugins/charts-echarts/0.6.13"
@@ -8,5 +18,25 @@
     "id": "charts-recharts",
     "version": "0.6.13",
     "path": "plugins/charts-recharts/0.6.13"
+  },
+  {
+    "id": "fixture-provider",
+    "version": "0.6.13",
+    "path": "plugins/fixture-provider/0.6.13"
+  },
+  {
+    "id": "observability-opentelemetry",
+    "version": "0.6.13",
+    "path": "plugins/observability-opentelemetry/0.6.13"
+  },
+  {
+    "id": "observability-sentry",
+    "version": "0.6.13",
+    "path": "plugins/observability-sentry/0.6.13"
+  },
+  {
+    "id": "payments-stripe",
+    "version": "0.6.13",
+    "path": "plugins/payments-stripe/0.6.13"
   }
 ]

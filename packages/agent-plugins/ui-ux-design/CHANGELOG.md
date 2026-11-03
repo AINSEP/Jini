@@ -1,8 +1,8 @@
-# @jini-ai/plugin-ui-ux-design
+# @jini-ai/agent-plugins/ui-ux-design
 
 ## Unreleased
 
-- Superseded by `@jini-ai/agent-plugins/ui-ux-design` (same payload). The owner deprecates this name on npm after hosts move; the command is in `docs/plugin-packages-migration.md`.
+- Publishes in place as the `@jini-ai/agent-plugins/ui-ux-design` subpath; the wrapper and assembler are retired.
 - One shared copy with Tovu: the skills carry Tovu's newer AI-Dev-Shop sync (c10abee: UI loop,
   Chrome mobile matrix, animation and kUInetic references), Tovu's card summary and Jini's search
   keywords. Host chat rules are replaced by host-neutral tool-use wording; hosts add their own at
@@ -20,7 +20,7 @@
 
 - Breaking package-surface change for the fixed 0.6.15 release: remove the bundled
   ui-ux-design files and wildcard export from @jini-ai/agent-plugins. Hosts must
-  explicitly install @jini-ai/plugin-ui-ux-design and resolve its ./plugin.json
+  explicitly install @jini-ai/agent-plugins/ui-ux-design and resolve its ./plugin.json
   export, stage that payload and seed through the existing Agent Plugin lifecycle.
   The lifecycle implementation remains in @jini-ai/agent-plugins. Inner plugin
   version 0.4.6, deterministic packing, digest selection and operator activation

@@ -19,7 +19,7 @@
 import { execFileSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { computeClosure, discoverJiniPackages } from './lib/pack-jini-packages.js';
+import { assertJiniPackagePublicationAllowed, computeClosure, discoverJiniPackages } from './lib/pack-jini-packages.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(__dirname, '..');
@@ -63,6 +63,7 @@ async function main(): Promise<void> {
 
   // `pnpm publish` refuses a private package outright, so one in the closure would end the run.
   const closure = computeClosure(registry, rootNames).filter((name) => registry.get(name)!.pkg.private !== true);
+  for (const name of closure) assertJiniPackagePublicationAllowed({ name });
 
   try {
     execFileSync('npm', ['whoami'], { stdio: 'pipe' });

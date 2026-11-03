@@ -1,6 +1,6 @@
 /** Workspace/publish wiring for the isolation policy; never builds or loads plugin code. */
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -45,7 +45,7 @@ function localDependency(required: { entry: JiniPackageEntry; specifier: string 
 
 /** Require reviewable attribution even if a package accidentally narrows its publish file list. */
 function requirePluginDocuments({ inventory }: { inventory: PackageInventory }, _optional: Record<string, never> = {}): void {
-  if (!inventory.manifest.name.startsWith('@jini-ai/plugin-')) return;
+  if (!inventory.manifest.name.startsWith('@jini-ai/plugin-') && !['@jini-ai/agent-plugins', '@jini-ai/provider-plugins'].includes(inventory.manifest.name)) return;
   const files = new Set(inventory.packedPaths.map(file => file.replace(/^(?:\.\/)?package\//, '')));
   for (const file of ['package.json', 'README.md', 'LICENSE', 'NOTICE']) {
     if (!files.has(file)) throw new TypeError(`${inventory.manifest.name}: missing packed ${file}`);
@@ -62,9 +62,11 @@ export function checkPluginPackages(
   required: { repoRoot: string }, optional: PluginPackageCheckPorts = {},
 ): PluginPackageViolation[] {
   const packages = [...discoverJiniPackages(required.repoRoot).values()];
-  const pluginIds = packages.map(entry => entry.pkg.name!)
+  const sourceRoot = join(required.repoRoot, 'packages/provider-plugins/src');
+  const providerIds = existsSync(sourceRoot) ? readdirSync(sourceRoot, { withFileTypes: true }).filter(entry => entry.isDirectory() && !entry.name.startsWith('__')).map(entry => entry.name) : [];
+  const pluginIds = [...providerIds, ...packages.map(entry => entry.pkg.name!)
     .filter(name => name.startsWith('@jini-ai/plugin-') && name !== '@jini-ai/plugin-catalog')
-    .map(name => name.slice('@jini-ai/plugin-'.length));
+    .map(name => name.slice('@jini-ai/plugin-'.length))];
   const violations: PluginPackageViolation[] = [];
   for (const entry of packages) {
     try {

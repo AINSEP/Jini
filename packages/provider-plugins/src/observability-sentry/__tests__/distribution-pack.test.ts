@@ -1,4 +1,4 @@
-import { parseNpmPackJson } from '../../../scripts/lib/npm-pack-json.js';
+import { parseNpmPackJson } from '../../../../../scripts/lib/npm-pack-json.js';
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { execFile } from 'node:child_process';
 import { copyFile, mkdir, mkdtemp, readFile, readdir, realpath, rm } from 'node:fs/promises';
@@ -9,14 +9,14 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
 import { computePluginIntegrity } from '@jini-ai/plugins/host/node';
 import type { PluginManifest } from '@jini-ai/plugins/host';
-import { buildProviderPlugin } from '../../../scripts/testing/provider-plugin.js';
-import { assertPluginPackageIsolation } from '../../../scripts/check-plugin-isolation.js';
+import { buildProviderPlugin } from '../../../../../scripts/testing/provider-plugin.js';
+import { assertPluginPackageIsolation } from '../../../../../scripts/check-plugin-isolation.js';
 
 const exec = promisify(execFile);
-const packageRoot = fileURLToPath(new URL('../', import.meta.url));
-const sourceRoot = fileURLToPath(new URL('../../provider-plugins/', import.meta.url));
+const packageRoot = fileURLToPath(new URL('../../../', import.meta.url));
+const sourceRoot = fileURLToPath(new URL('../../../', import.meta.url));
 const id = 'observability-sentry';
-const packageName = '@jini-ai/plugin-observability-sentry';
+const packageName = '@jini-ai/provider-plugins';
 const documents = ['package.json', 'README.md', 'LICENSE', 'NOTICE'];
 let root: string;
 let installed: string;
@@ -56,9 +56,8 @@ it('packs exactly its own sealed artifact and provenance without sibling code or
   expect(packedFiles.filter(file => /(?:^|\/)(?:src|tests|__tests__|node_modules|coverage|\.cache)(?:\/|$)|\.(?:map|ts|tsx|tsbuildinfo)$/.test(file))).toEqual([]);
   for (const field of ['dependencies', 'optionalDependencies', 'peerDependencies', 'bundledDependencies', 'bundleDependencies']) expect(pkg[field]).toBeUndefined();
   for (const hook of ['preinstall', 'install', 'postinstall', 'prepare']) expect(pkg.scripts[hook]).toBeUndefined();
-  const command = `node --import tsx ../provider-plugins/scripts/build.ts ${id} .`;
-  expect(pkg.scripts.build).toBe(command);
-  expect(pkg.scripts.prepack).toBe(command);
+  expect(pkg.scripts.build).toContain(`node --import tsx scripts/build.ts ${id} .`);
+  expect(pkg.scripts.prepack).toBe('pnpm run build');
 });
 
 it('preserves the source contract and retains only this distribution attribution under verified integrity', async () => {
@@ -71,7 +70,7 @@ it('preserves the source contract and retains only this distribution attribution
   for (const name of ['LICENSE', 'NOTICE']) {
     expect(await readFile(path.join(artifact, owner, name), 'utf8')).toBe(await readFile(path.join(packageRoot, name), 'utf8'));
   }
-  expect(await readFile(path.join(installed, 'NOTICE'), 'utf8')).not.toContain('Open SaaS');
+  expect(await readFile(path.join(artifact, 'NOTICE'), 'utf8')).toBe(await readFile(path.join(sourceRoot, 'src', id, 'NOTICE'), 'utf8'));
 });
 
 it('resolves the package manifest and artifact export outside the workspace with no sibling plugin installed', async () => {
@@ -79,7 +78,7 @@ it('resolves the package manifest and artifact export outside the workspace with
   // Node resolves symlinks; macOS's /var scratch path aliases /private/var.
   expect(await realpath(resolve(`${packageName}/package.json`))).toBe(await realpath(path.join(installed, 'package.json')));
   expect(await realpath(resolve(`${packageName}/${artifactPath}/server/index.mjs`))).toBe(await realpath(path.join(artifact, 'server/index.mjs')));
-  expect(await readdir(path.join(root, 'node_modules/@jini-ai'))).toEqual([`plugin-${id}`]);
+  expect(await readdir(path.join(root, 'node_modules/@jini-ai'))).toEqual(['provider-plugins']);
 });
 
 

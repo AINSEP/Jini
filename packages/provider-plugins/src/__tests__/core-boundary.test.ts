@@ -146,7 +146,7 @@ it.each(['@opentelemetry/api', '@sentry/node', 'posthog-node', 'posthog-js', 'la
   expect(VENDOR.test(specifier)).toBe(true);
 });
 
-it.each(['@jini-ai/diagnostics', 'stripe-like', 'posthog', 'node:fs', '@jini-ai/ui/charts', '@jini-ai/plugin-charts-recharts'])('the scan ignores %s', (specifier) => {
+it.each(['@jini-ai/diagnostics', 'stripe-like', 'posthog', 'node:fs', '@jini-ai/ui/charts', '@jini-ai/provider-plugins/charts-recharts'])('the scan ignores %s', (specifier) => {
   expect(VENDOR.test(specifier)).toBe(false);
 });
 

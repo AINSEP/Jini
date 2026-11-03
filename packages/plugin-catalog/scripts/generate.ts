@@ -18,7 +18,7 @@ interface PluginManifest {
 }
 interface PackageManifest { name: string; version: string; description: string }
 type CatalogKind = 'provider' | 'agent';
-/** Providers without their own `@jini-ai/plugin-<id>` package ship from this distribution's `plugins/*`. */
+/** All provider runtimes ship from this distribution's independently addressable subpaths. */
 const PROVIDER_DISTRIBUTION = '@jini-ai/provider-plugins';
 /** The catalog currently describes the Tovu host's identity (`extensions.tovu`). A per-host catalog
  * waits until a second host (Open Marketing) consumes it. */
@@ -38,7 +38,7 @@ interface CatalogPorts {
 
 /** Project existing manifests into display metadata; no activation or loading authority.
  * @param required Local id (provider id or agent plugin name) and both manifests.
- * @param optional `kind` (default: by manifest format) and the shipping npm package (default: `@jini-ai/plugin-<id>`).
+ * @param optional `kind` (default: by manifest format) and the shipping npm package (default: by plugin kind).
  * @returns One entry with an explicit pending-digests marker, preserving the agent version.
  * @throws TypeError for a package/id mismatch, malformed identity, or missing contract.
  * @example catalogEntry({ id: 'fixture-provider', packageManifest, pluginManifest })
@@ -47,10 +47,11 @@ export function catalogEntry(required: {
   id: string; packageManifest: PackageManifest; pluginManifest: PluginManifest;
 }, optional: { kind?: CatalogKind; packageName?: string } = {}): CatalogEntry {
   const { id, packageManifest: pkg, pluginManifest: plugin } = required;
-  if (pkg.name !== (optional.packageName ?? `@jini-ai/plugin-${id}`) || (plugin.id ?? plugin.name) !== id) {
+  const kind = optional.kind ?? (plugin.$schema === undefined ? 'provider' : 'agent');
+  const packageName = kind === 'agent' ? AGENT_PLUGINS_PACKAGE : PROVIDER_DISTRIBUTION;
+  if (pkg.name !== packageName || (optional.packageName !== undefined && optional.packageName !== packageName) || (plugin.id ?? plugin.name) !== id) {
     throw new TypeError(`Package and plugin identity disagree: ${id}`);
   }
-  const kind = optional.kind ?? (plugin.$schema === undefined ? 'provider' : 'agent');
   return {
     ...(kind === 'agent' ? agentMetadata(required) : providerMetadata(required)), id,
     publisherIdentity: readPluginIdentity({ manifest: { ...plugin }, namespace: CATALOG_HOST_NAMESPACE, name: id }).id,
@@ -86,18 +87,13 @@ function providerMetadata({ id, packageManifest: pkg, pluginManifest: plugin }: 
  * `packageDir` is the shipping package's folder under the packages root. */
 interface CatalogSource { kind: CatalogKind; id: string; packageName: string; packageDir: string; sourceDir: string; manifestName: string }
 
-/** Provider sources live in `provider-plugins/src/<id>` and ship from `plugin-<id>` when that package exists,
- * else from provider-plugins itself; agent sources come from the layout table and ship as agent-plugins subpaths. */
+/** Provider sources ship from provider-plugins; agent sources ship as agent-plugins subpaths. */
 function catalogSources(required: {
   packagesRoot: string; providerIds: readonly string[]; agentPlugins: readonly AgentPluginPackageRow[];
-  standaloneProviderIds: ReadonlySet<string>;
 }): CatalogSource[] {
-  const providers = required.providerIds.map(id => {
-    const standalone = required.standaloneProviderIds.has(id);
-    return { kind: 'provider' as const, id, packageName: standalone ? `@jini-ai/plugin-${id}` : PROVIDER_DISTRIBUTION,
-      packageDir: standalone ? `plugin-${id}` : 'provider-plugins',
-      sourceDir: path.join(required.packagesRoot, 'provider-plugins/src', id), manifestName: 'jini.plugin.json' };
-  });
+  const providers = required.providerIds.map(id => ({ kind: 'provider' as const, id,
+    packageName: PROVIDER_DISTRIBUTION, packageDir: 'provider-plugins',
+    sourceDir: path.join(required.packagesRoot, 'provider-plugins/src', id), manifestName: 'jini.plugin.json' }));
   // Row source paths are repository-relative; the packages root sits directly under the repository root.
   const agents = required.agentPlugins.map(row => ({ kind: 'agent' as const, id: row.name, packageName: AGENT_PLUGINS_PACKAGE,
     packageDir: path.basename(AGENT_PLUGINS_ROOT), sourceDir: path.join(path.dirname(required.packagesRoot), row.sourceDir),
@@ -126,19 +122,17 @@ function assertDistinctEntries(required: { entries: readonly CatalogEntry[] }): 
 /** Generate a release catalog from reviewed packages and completed payloads via injected I/O.
  * No builder runs here: missing or stale payloads fail before a catalog is published.
  * @param required Packages root, provider source ids and agent layout rows (`agentPluginPackages`).
- * @param optional `standaloneProviderIds`: providers with their own `plugin-<id>` package (default: every
- *   provider id); the rest ship from `@jini-ai/provider-plugins`.
+ * @param optional Reserved build-tool options.
  * @returns Entries in stable (id, kind) order with the integrity owner's exact file digests.
  * @throws On I/O failure, manifest drift, absent executable integrity, digest mismatch or an identity clash.
  * @example await generateCatalog({ packagesRoot, providerIds, agentPlugins: agentPluginPackages, ports })
  * @complexity O(n log n + b) for n packages and b payload bytes; no network or plugin imports. */
 export async function generateCatalog(required: {
   packagesRoot: string; providerIds: readonly string[]; agentPlugins: readonly AgentPluginPackageRow[]; ports: CatalogPorts;
-}, optional: { standaloneProviderIds?: readonly string[] } = {}): Promise<CatalogEntry[]> {
+}, _optional: Record<string, never> = {}): Promise<CatalogEntry[]> {
   const { packagesRoot, ports } = required;
-  const standaloneProviderIds = new Set(optional.standaloneProviderIds ?? required.providerIds);
   const entries: CatalogEntry[] = [];
-  for (const source of catalogSources({ ...required, standaloneProviderIds })) {
+  for (const source of catalogSources(required)) {
     const root = path.join(packagesRoot, source.packageDir);
     const pkg = await ports.readJson(path.join(root, 'package.json')) as PackageManifest;
     const plugin = await ports.readJson(path.join(source.sourceDir, source.manifestName)) as PluginManifest;
@@ -192,12 +186,11 @@ async function writeCatalog(): Promise<void> {
   const packagesRoot = path.dirname(root);
   const names = await readdir(path.join(packagesRoot, 'provider-plugins/src'), { withFileTypes: true });
   const ids = names.filter(item => item.isDirectory() && !item.name.startsWith('__')).map(item => item.name);
-  const packages = new Set(await readdir(packagesRoot));
   const { computePluginIntegrity } = await import('@jini-ai/plugins/host/node');
   const entries = await generateCatalog({ packagesRoot, providerIds: ids, agentPlugins: agentPluginPackages, ports: {
     readJson: async file => JSON.parse(await readFile(file, 'utf8')) as unknown,
     integrity: computePluginIntegrity,
-  } }, { standaloneProviderIds: ids.filter(id => packages.has(`plugin-${id}`)) });
+  } });
   const temporary = path.join(root, `.catalog-${process.pid}.json`);
   await writeFile(temporary, JSON.stringify(entries, null, 2) + '\n');
   await rename(temporary, path.join(root, 'catalog.json'));

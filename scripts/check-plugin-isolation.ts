@@ -8,7 +8,7 @@ import { existsSync } from 'node:fs';
 import { posix, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  AGENT_PLUGINS_PACKAGE, agentPluginExports, agentPluginPackages, isPublishedAgentPluginFile, legacyAgentPluginPackages,
+  AGENT_PLUGINS_PACKAGE, agentPluginExports, agentPluginPackages, isPublishedAgentPluginFile,
   type AgentPluginPackageRow,
 } from './lib/agent-plugin-packages.js';
 
@@ -27,8 +27,6 @@ export interface PluginIsolationPorts {
   readonly resolveLocalDependency?: (input: Dependency) => string | undefined;
   /** Agent payload layout; defaults to the reviewed table. */
   readonly agentPluginPackages?: readonly AgentPluginPackageRow[];
-  /** Legacy standalone packages (plugin name → npm name); defaults to the reviewed map. */
-  readonly legacyAgentPluginPackages?: Readonly<Record<string, string>>;
   /** Whether `provider-plugins/src/<id>` exists; defaults to this checkout's sources. */
   readonly providerSourceExists?: (input: { id: string }) => boolean;
 }
@@ -80,21 +78,18 @@ function packedPath(required: { path: string }): string {
 
 interface PayloadPolicy { ownId: string | undefined; ownNames: ReadonlySet<string>; roots: readonly string[]; pluginIds: ReadonlySet<string> }
 
-/** Allowed payload roots for one `@jini-ai/plugin-*` package: `plugins/<id>/` when it has a provider
- * source, plus `<name>/` for a legacy standalone agent package. */
+/** Payload policy for core libraries and private provider conformance fixtures. */
 function payloadPolicy(
   required: { packageName: string; ownId: string | undefined; pluginIds: readonly string[] },
   optional: PluginIsolationPorts,
 ): PayloadPolicy {
   const rows = optional.agentPluginPackages ?? agentPluginPackages;
-  const legacy = optional.legacyAgentPluginPackages ?? legacyAgentPluginPackages;
-  const own = rows.filter(row => legacy[row.name] === required.packageName);
-  const roots = own.map(row => `${row.name}/`);
+  const roots: string[] = [];
   const providerSourceExists = optional.providerSourceExists ?? checkoutProviderSourceExists;
-  if (required.ownId !== undefined && (own.length === 0 || providerSourceExists({ id: required.ownId }))) roots.push(`plugins/${required.ownId}/`);
+  if (required.ownId !== undefined && providerSourceExists({ id: required.ownId })) roots.push(`plugins/${required.ownId}/`);
   // Agent payload names count as plugin ids, so a provider package cannot carry an agent face.
   const pluginIds = new Set([...required.pluginIds, ...rows.map(row => row.name)]);
-  return { ownId: required.ownId, ownNames: new Set([required.ownId ?? '', ...own.map(row => row.name)]), roots, pluginIds };
+  return { ownId: required.ownId, ownNames: new Set([required.ownId ?? '']), roots, pluginIds };
 }
 
 /** The path segments that would name a plugin payload. A plugin package is checked on every segment; a
@@ -192,19 +187,18 @@ function assertAgentPluginsPackage(
   }
 }
 
-/** The provider distribution that ships providers without their own `@jini-ai/plugin-<id>` package
- * (the browser chart providers), each as its own `plugins/<id>/` folder and `./<id>/*` subpath. */
+/** Every provider runtime ships here, each with its own `plugins/<id>/` folder and subpath. */
 export const PROVIDER_PLUGINS_PACKAGE = '@jini-ai/provider-plugins';
 
 /** One packed path of the provider distribution: `catalog.json`, or a `plugins/<id>/` payload of a
  * reviewed provider source that has no package of its own and names no other plugin inside it. */
 function assertProviderDistributionPath(required: {
-  path: string; pluginIds: ReadonlySet<string>; standaloneIds: ReadonlySet<string>; providerSourceExists: (input: { id: string }) => boolean;
+  path: string; pluginIds: ReadonlySet<string>; providerSourceExists: (input: { id: string }) => boolean;
 }): void {
   const { path, pluginIds } = required;
   if (documentation.has(path) || path === 'catalog.json') return;
   const [root, id = '', ...rest] = path.split('/');
-  if (root !== 'plugins' || required.standaloneIds.has(id) || !required.providerSourceExists({ id })) throw new TypeError(`${PROVIDER_PLUGINS_PACKAGE}: unexpected packed file ${path}`);
+  if (root !== 'plugins' || !required.providerSourceExists({ id })) throw new TypeError(`${PROVIDER_PLUGINS_PACKAGE}: unexpected packed file ${path}`);
   if (rest.some(segment => segment === 'plugins' || (pluginIds.has(segment) && segment !== id))) {
     throw new TypeError(`${PROVIDER_PLUGINS_PACKAGE}: another plugin's payload in ${path}`);
   }
@@ -216,11 +210,9 @@ function assertProviderPluginsPackage(
   optional: PluginIsolationPorts,
 ): void {
   const providerSourceExists = optional.providerSourceExists ?? checkoutProviderSourceExists;
-  // Ids with their own `@jini-ai/plugin-<id>` package ship there, never here.
-  const standaloneIds = new Set(required.pluginIds);
-  const pluginIds = new Set([...standaloneIds, ...(optional.agentPluginPackages ?? agentPluginPackages).map(row => row.name)]);
+  const pluginIds = new Set([...required.pluginIds, ...(optional.agentPluginPackages ?? agentPluginPackages).map(row => row.name)]);
   for (const input of required.packedPaths) {
-    if (input && !input.endsWith('/')) assertProviderDistributionPath({ path: packedPath({ path: input }), pluginIds, standaloneIds, providerSourceExists });
+    if (input && !input.endsWith('/')) assertProviderDistributionPath({ path: packedPath({ path: input }), pluginIds, providerSourceExists });
   }
 }
 

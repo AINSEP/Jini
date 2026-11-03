@@ -1,0 +1,22 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "langfuse",
+  "version": "0.1.0",
+  "description": "Connects the site to Langfuse through the ai-trace-langfuse provider in @jini-ai/provider-plugins. Installation alone does not enable or configure the provider.",
+  "author": "Jini",
+  "license": "Apache-2.0",
+  "extensions": {
+    "tovu": {
+      "id": "jini/langfuse",
+      "displayName": "Langfuse",
+      "providerPlugin": "ai-trace-langfuse",
+      "provides": [
+        "ai-tracing"
+      ]
+    }
+  },
+  "keywords": [
+    "langfuse",
+    "ai-trace-langfuse"
+  ]
+}

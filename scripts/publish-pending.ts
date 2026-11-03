@@ -23,7 +23,7 @@ import { appendFileSync, mkdtempSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { computeClosure, discoverJiniPackages, type JiniPackageEntry } from './lib/pack-jini-packages.js';
+import { assertJiniPackagePublicationAllowed, computeClosure, discoverJiniPackages, type JiniPackageEntry } from './lib/pack-jini-packages.js';
 import { assertPackedExports } from './lib/packed-exports.js';
 import { assertCompatiblePeerRanges } from './lib/peer-range-compatibility.js';
 
@@ -76,6 +76,8 @@ function publishOrder(registry: ReadonlyMap<string, JiniPackageEntry>, names: re
 }
 
 function packAndCheck(name: string, entry: JiniPackageEntry): string {
+  assertJiniPackagePublicationAllowed({ name });
+  assertJiniPackagePublicationAllowed({ name: entry.pkg.name ?? name });
   const outDir = mkdtempSync(join(tmpdir(), 'jini-publish-'));
   execFileSync('pnpm', ['pack', '--pack-destination', outDir], { cwd: entry.dir, stdio: 'inherit' });
   const tarball = join(outDir, readdirSync(outDir).find((file) => file.endsWith('.tgz'))!);

@@ -168,6 +168,11 @@ async function buildArtifact(required: { packageRoot: string; destinationPackage
   if (required.id === 'analytics-posthog') await addPostHogBrowserFiles({ ...required, artifactRoot });
   const browserInputs = await addBrowserProviderFiles({ ...required, source, artifactRoot, declarations: manifest.browserProviders ?? [] });
   await retainLicenses({ ...required, artifactRoot, inputs: [...Object.keys(result.metafile.inputs), ...browserInputs] });
+  // Preserve each provider's own provenance alongside bundled dependency licenses.
+  for (const name of ['README.md', 'LICENSE', 'NOTICE', 'CHANGELOG.md']) {
+    try { await copyFile(path.join(source, name), path.join(artifactRoot, name)); }
+    catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error; }
+  }
   // The existing installer owns exact-file hashing, including retained license files and client assets.
   manifest.integrity = await computePluginIntegrity({ sourceDir: artifactRoot });
   // Fail the build, not the host's later admission, when a declaration or its digest coverage is wrong.

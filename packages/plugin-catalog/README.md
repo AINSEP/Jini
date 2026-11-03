@@ -9,14 +9,14 @@ Each entry records its kind, local id, publisher-qualified identity, npm package
 version, artifact directory relative to that package, contract id/version, description,
 and expected file digests. `version` is the npm version; `pluginVersion` preserves the
 inner manifest version. Agent entries name `@jini-ai/agent-plugins` with `path` = the plugin id,
-so a host imports `@jini-ai/agent-plugins/<id>`. Provider artifacts use the npm version; a provider
-without its own `@jini-ai/plugin-<id>` package names `@jini-ai/provider-plugins`. Contracts retain their manifest identifiers
+so a host imports `@jini-ai/agent-plugins/<id>`. Provider artifacts use the npm version; every provider
+names `@jini-ai/provider-plugins`. Contracts retain their manifest identifiers
 (`ai_trace`, `product_analytics`, `observability`, `payments`, `fixture`); the agent contract
 identifies the Agent Plugins schema version.
 
 The reviewed source catalog uses `expectedDigests: null` until payloads are built.
 These entries are discovery metadata, not verified artifacts. For release, build the
-standalone packages first, then run `pnpm --filter @jini-ai/plugin-catalog generate`.
+provider distribution first, then run `pnpm --filter @jini-ai/plugin-catalog generate`.
 `prepack` repeats generation and refuses missing/stale artifacts or provider integrity
 mismatches. Generation only reads manifests and hashes files: it never builds or imports
 plugin code. Unpublished tooling reuses `computePluginIntegrity`, including for the agent's

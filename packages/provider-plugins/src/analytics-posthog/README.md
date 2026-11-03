@@ -1,4 +1,4 @@
-# @jini-ai/plugin-analytics-posthog
+# @jini-ai/provider-plugins/analytics-posthog
 
 Independently installable PostHog provider for Jini's existing plugin host.
 This package ships only `analytics-posthog`; vendor SDKs are bundled at build time.
@@ -7,7 +7,7 @@ Installing the npm package does not activate the plugin.
 Its agent setup face (skill and credential card) is not here: it ships as
 `@jini-ai/agent-plugins/posthog`.
 
-Resolve `@jini-ai/plugin-analytics-posthog/package.json` with Node's package resolver.
+Resolve `@jini-ai/provider-plugins/package.json` with Node's package resolver.
 Discover `plugins/analytics-posthog/<package-version>/jini.plugin.json` beneath that root,
 then use the existing preview/install/enable/configure flow and provider artifact loader.
 The `./plugins/*` export exposes the same artifact files; no new loader is required.
