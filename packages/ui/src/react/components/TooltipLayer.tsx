@@ -118,6 +118,12 @@ export function useTooltipLayer(): UseTooltipLayerResult {
   const rafRef = useRef<number | null>(null);
   const lastInputRef = useRef<InputModality>('pointer');
   const suppressedTitleRef = useRef<{ target: HTMLElement; title: string } | null>(null);
+  // Touch has no hover, and a tap's own pointerdown/click would hide the tip
+  // the instant it appeared — so a touch tap on a trigger TOGGLES the tip
+  // instead. `touchTapRef` remembers the trigger under the touch pointerdown
+  // (and whether its tip was already open) until the matching click.
+  const touchTapRef = useRef<{ target: HTMLElement | null; wasOpen: boolean } | null>(null);
+  const openTargetRef = useRef<HTMLElement | null>(null);
   const [state, setState] = useState<TooltipState | null>(null);
 
   const restoreNativeTitle = useCallback(() => {
@@ -214,6 +220,7 @@ export function useTooltipLayer(): UseTooltipLayerResult {
   }, [updatePosition]);
 
   useLayoutEffect(() => {
+    openTargetRef.current = state?.target ?? null;
     if (!state) return;
     updatePosition();
   }, [state?.target, state?.text, state?.placement, updatePosition]);
@@ -251,10 +258,12 @@ export function useTooltipLayer(): UseTooltipLayerResult {
     };
     const onPointerOver = (event: PointerEvent) => {
       lastInputRef.current = 'pointer';
+      if (event.pointerType === 'touch') return;
       const target = readTooltipTarget(event.target);
       if (target) showTooltip(target);
     };
     const onTargetExit = (event: PointerEvent | FocusEvent) => {
+      if ('pointerType' in event && event.pointerType === 'touch') return;
       const target = readTooltipTarget(event.target);
       if (!target) return;
       const next = event.relatedTarget;
@@ -263,14 +272,28 @@ export function useTooltipLayer(): UseTooltipLayerResult {
     };
     const onPointerDown = (event: PointerEvent) => {
       lastInputRef.current = 'pointer';
-      hideTooltipForActivation(readTooltipTarget(event.target));
+      const target = readTooltipTarget(event.target);
+      touchTapRef.current = null;
+      if (event.pointerType === 'touch' && target) {
+        touchTapRef.current = { target, wasOpen: openTargetRef.current === target };
+        return;
+      }
+      hideTooltipForActivation(target);
     };
     const onPointerCancel = () => {
       lastInputRef.current = 'pointer';
+      touchTapRef.current = null;
       hideTooltip();
     };
     const onClick = (event: MouseEvent) => {
-      hideTooltipForActivation(readTooltipTarget(event.target));
+      const target = readTooltipTarget(event.target);
+      const touchTap = touchTapRef.current;
+      touchTapRef.current = null;
+      if (target && touchTap?.target === target && !touchTap.wasOpen) {
+        showTooltip(target);
+        return;
+      }
+      hideTooltipForActivation(target);
     };
     const onFocusIn = (event: FocusEvent) => {
       const target = readTooltipTarget(event.target);
