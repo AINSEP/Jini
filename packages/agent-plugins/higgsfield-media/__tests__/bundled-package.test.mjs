@@ -45,7 +45,7 @@ test('browser sign-in and operator read trust are declared without a token', asy
   assert.deepEqual(config.mcpServers.higgsfield, { type: 'streamable-http', url: 'https://mcp.higgsfield.ai/mcp' });
   const metadata = (await readJson('plugin.json')).extensions.tovu.mcpServers.higgsfield;
   assert.equal(metadata.tovuAuthMode, 'oauth');
-  assert.deepEqual(metadata.tovuDefaultTools.read, ['models_explore', 'job_status']);
+  assert.deepEqual(metadata.tovuDefaultTools.read, ['models_explore', 'job_status', 'jobs_wait', 'show_generations', 'show_generation_by_ids']);
   assert.deepEqual(metadata.tovuDefaultTools.allow, DECLARED_TOOLS, 'the sign-in grants the tools the skill documents');
   assert.deepEqual(metadata.tovuDefaultTools.write, DECLARED_WRITE_TOOLS, 'the generators that write get their may-write grant at sign-in');
   const skill = await readText('SKILL.md');
@@ -89,4 +89,13 @@ test('the shipped text is host-neutral', async () => {
     assert.doesNotMatch(await readText(name), hostOnly, name);
   }
   assert.match(await readText('SKILL.md'), /host guidance/);
+});
+
+test('polling and generation history remain available to read-only assistants after sign-in', async () => {
+  const defaults = (await readJson('plugin.json')).extensions.tovu.mcpServers.higgsfield.tovuDefaultTools;
+  for (const tool of ['jobs_wait', 'show_generations', 'show_generation_by_ids']) {
+    assert.ok(defaults.allow.includes(tool), tool);
+    assert.ok(defaults.read.includes(tool), `${tool} must be classified as read-only`);
+    assert.ok(!defaults.write.includes(tool), `${tool} must not need a write grant`);
+  }
 });

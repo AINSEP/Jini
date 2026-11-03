@@ -29,7 +29,7 @@ test("the allowlist is exactly the decided standard link-type tokens", () => {
 
 test("normalizeMenuRel keeps allowed tokens, drops unknown ones, lowercases and dedupes", () => {
   assert.equal(normalizeMenuRel({ rel: "NoFollow  ugc nofollow" }, {}), "nofollow ugc");
-  assert.equal(normalizeMenuRel({ rel: 'nofollow" onmouseover="x' }, {}), "nofollow");
+  assert.equal(normalizeMenuRel({ rel: 'nofollow" onmouseover="x' }, {}), undefined);
   assert.equal(normalizeMenuRel({ rel: "stylesheet preload opener" }, {}), undefined);
   assert.equal(normalizeMenuRel({ rel: "" }, {}), undefined);
   assert.equal(normalizeMenuRel({ rel: undefined }, {}), undefined);
@@ -72,4 +72,12 @@ test("rows written before the policy are cleaned when resolved for rendering", a
   assert.equal(item!.attrs!.rel, "nofollow noopener noreferrer");
   assert.equal(item!.attrs!.openInNewTab, true);
   assert.equal(item!.children[0]!.attrs!.rel, "me");
+});
+
+test("menu links drop malformed rel tokens whole instead of turning fragments into trusted link types", () => {
+  for (const rel of ["x-nofollow", "ugc123", "nofollow,external", "me/author", "tag\u00a0help"]) {
+    assert.equal(normalizeMenuRel({ rel }), undefined, rel);
+  }
+  assert.equal(normalizeMenuRel({ rel: "NoFollow\tugc\nexternal\rhelp\fauthor" }), "nofollow ugc external help author");
+  assert.equal(normalizeMenuRel({ rel: "invalid-noopener noreferrer2", }, { openInNewTab: true }), "noopener noreferrer");
 });

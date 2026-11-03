@@ -135,4 +135,31 @@ describe('standalone Recharts vanilla lifecycle', () => {
     expect(element.children).toHaveLength(0);
     element.remove();
   });
+
+  it.each([[-1, 2], [0, 0]])('keeps pie data with invalid shares in the host fallback rather than drawing it: %j', (...values) => {
+    const pie: ChartSpec = { kind: 'pie', categoryKey: 'name', series: [{ key: 'value' }], data: values.map((value, index) => ({ name: String(index), value })) };
+    expect(supportsRechartsSpec({ spec: pie })).toBe(false);
+    expect(() => mount({ element: document.createElement('div'), spec: pie, theme: { mode: 'light' } })).toThrow('Unsupported Recharts chart specification.');
+    expect(supportsRechartsSpec({ spec: { ...pie, data: [{ name: 'zero', value: 0 }, { name: 'positive', value: 2 }] } })).toBe(true);
+    expect(supportsRechartsSpec({ spec: { ...pie, kind: 'bar' } })).toBe(true);
+  });
+
+  it('draws a healthy update and settles its acknowledgement after a caught render error', async () => {
+    const element = document.createElement('div'); document.body.append(element);
+    const errors: unknown[] = [];
+    const bad: ChartSpec = { kind: 'pie', categoryKey: 'name', series: [{ key: 'value' }], data: [{ get name(): string { throw new Error('category read failed'); }, value: 1 }] };
+    let instance!: ChartInstance;
+    act(() => { instance = mount({ element, spec: bad, theme: { mode: 'light' } }, { onError: error => errors.push(error) }); });
+    await expect(instance.ready).rejects.toThrow('category read failed');
+    let settled = false;
+    let update: void | Promise<void> = undefined;
+    try {
+      act(() => { update = instance.update({ spec, theme: { mode: 'light' } }); });
+      void Promise.resolve(update).then(() => { settled = true; });
+      await waitFor(() => expect(settled).toBe(true));
+      expect(element.querySelector('svg.recharts-surface')).not.toBeNull();
+      expect(errors).toHaveLength(1);
+    } finally { act(() => instance.destroy({})); element.remove(); }
+  });
+
 });

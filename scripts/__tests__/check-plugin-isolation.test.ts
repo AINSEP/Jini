@@ -215,3 +215,33 @@ describe('plugin bundle input isolation', () => {
       expect(() => bundle(['src/analytics-posthog/index.ts', input])).toThrow(`forbidden bundled source ${input}`);
     });
 });
+
+describe('distribution packages retain dependency isolation', () => {
+  for (const owner of ['@jini-ai/agent-plugins', '@jini-ai/provider-plugins']) {
+    it.each(['dependencies', 'optionalDependencies', 'peerDependencies', 'devDependencies', 'bundledDependencies', 'bundleDependencies'])(
+      `${owner} refuses a sibling in %s`, field => {
+        const value = field.includes('Dependencies') && field.startsWith('bundle')
+          ? ['@jini-ai/plugin-payments-stripe'] : { '@jini-ai/plugin-payments-stripe': '^0.6.17' };
+        expect(() => assertPluginPackageIsolation({ manifest: { name: owner, [field]: value }, packedPaths: [], pluginIds }))
+          .toThrow('forbidden plugin dependency');
+      });
+    it(`${owner} refuses a local alias resolving to a sibling`, () => {
+      expect(() => assertPluginPackageIsolation({ manifest: { name: owner, dependencies: { innocent: 'file:../innocent' } }, packedPaths: [], pluginIds },
+        { resolveLocalDependency: () => '@jini-ai/plugin-payments-stripe' })).toThrow('forbidden local plugin dependency');
+    });
+  }
+});
+
+it.each([
+  { import: './vercel/plugin.json' },
+  { node: { import: './vercel/plugin.json', default: './dist/index.js' } },
+  ['./dist/index.js', './vercel/plugin.json'],
+  './dist/../vercel/plugin.json',
+  './%76ercel/plugin.json',
+  './vercel\\plugin.json',
+])('refuses a library export hiding plugin content in conditional or normalized targets: %j', target => {
+  const rows = [{ name: 'vercel', sourceDir: 'packages/agent-plugins/vercel' }];
+  const exports = { './vercel': './vercel/plugin.json', './vercel/*': './vercel/*', './library': target };
+  expect(() => assertAgentPluginSubpathExports({ manifest: { name: '@jini-ai/agent-plugins', exports } }, { agentPluginPackages: rows }))
+    .toThrow('export ./library reaches into vercel/');
+});

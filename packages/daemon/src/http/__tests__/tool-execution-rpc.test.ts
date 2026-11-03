@@ -98,6 +98,28 @@ function deferred<T = void>(): { promise: Promise<T>; resolve: (value: T) => voi
 const tick = (ms = 20) => new Promise((done) => setTimeout(done, ms));
 
 describe('remote tool RPC — results', () => {
+  it('refuses execution and discovery before dispatch when the host rejects the run', async () => {
+    const execute = vi.fn(async () => 'must not run');
+    const listToolsFor = vi.fn(() => []);
+    const admitted: string[] = [];
+    const { baseUrl } = await serve({ executor: executorWith(tool('probe', execute)), listToolsFor }, {
+      authorizeRun: (req, res) => {
+        admitted.push(req.method === 'POST' ? String(req.body.run.id) : String(req.query.runId));
+        res.status(403).json({ error: { code: 'FORBIDDEN', message: 'run refused' } });
+      },
+    });
+    const headers = { authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json' };
+    const execution = await fetch(`${baseUrl}/internal/tool-executions`, { method: 'POST', headers,
+      body: JSON.stringify({ executionId: 'request', principal, run, toolId: 'probe', input: {} }) });
+    const catalog = await fetch(`${baseUrl}/internal/tool-catalog?runId=run-1&principalId=user-1`, { headers });
+    expect([execution.status, catalog.status]).toEqual([403, 403]);
+    expect(admitted).toEqual(['run-1', 'run-1']);
+    expect(execute).not.toHaveBeenCalled();
+    expect(listToolsFor).not.toHaveBeenCalled();
+    await fetch(`${baseUrl}/internal/tool-catalog?runId=run-1&principalId=user-1`);
+    expect(admitted).toHaveLength(2);
+  });
+
   it('returns the same result an in-process executor returns', async () => {
     const executor = executorWith(tool('echo', async ({ input }) => ({ echoed: input })));
     const { baseUrl } = await serve({ executor });

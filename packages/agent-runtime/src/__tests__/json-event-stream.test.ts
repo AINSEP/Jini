@@ -1595,7 +1595,7 @@ describe('pinned behaviour before the complexity refactor', () => {
       { type: 'item.started', item: { id: 'd', type: 'mcp_tool_call', server: 'chrome' } },
     ]);
     expect(events).toEqual([
-      { type: 'tool_use', id: 'a', name: 'mcp_tool_call', input: {} },
+      { type: 'tool_use', id: 'a', name: 'mcp__jini__call', input: {} },
       { type: 'tool_use', id: 'b', name: 'mcp__jini__search_tools', input: { q: 1 } },
       { type: 'tool_use', id: 'e', name: 'mcp__jini__theme_read_file', input: { path: 'theme.css' } },
       { type: 'tool_use', id: 'c', name: 'mcp__external__x', input: {} },

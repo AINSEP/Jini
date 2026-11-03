@@ -41,10 +41,12 @@ const invalid: readonly [string, unknown][] = [
 ];
 
 for (const [label, value] of invalid) {
-  test(`stored ${label} fails closed before any liveness or mutation effect`, () => {
+  test(`stored ${label} fails closed without mutation while its owner may be alive`, () => {
     const { lock, effects } = fixture({ stored: { state: "ok", value } });
     expect(() => lock.peek({})).toThrow("The running lock is invalid; refusing to open this directory's database.");
-    expect(effects).toEqual([]);
+    // A recognizable holder with only address corruption is probed so a dead holder can recover.
+    const invalidAddress = label.includes("port") || label.includes("scheme");
+    expect(effects).toEqual(invalidAddress ? ["probe"] : []);
   });
 
   test(`claim with ${label} fails before acquiring the file lock`, () => {

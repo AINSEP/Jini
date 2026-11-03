@@ -122,7 +122,7 @@ describe('attachment', () => {
   });
 
   it('replaces the bind token on every reattach, because a stale one binds nothing', async () => {
-    // EventSource reconnects by itself. A host that captured `ready`'s token would keep sending
+    // Each attachment replaces the token. A host that captured `ready`'s token would keep sending
     // the pre-reconnect one, and every later run would fail to bind with nothing to see in the UI.
     const bridge = createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
@@ -159,12 +159,15 @@ describe('attachment', () => {
     await expect(bridge.bridgeAccess.respondSuccess('i1', {})).rejects.toThrow(/not attached yet/);
   });
 
-  it('picks the new token up when the connection comes back', () => {
+  it('picks the new token up when the host rebinds after a failure', async () => {
     const bridge = createFrontendSessionBridge({ baseUrl: '', openStream: ({ url }) => new EventSource(url), fetch: globalThis.fetch });
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's1', bindToken: 't1' });
     FakeEventSource.last?.fail();
+    const waiting = bridge.rebind({}, {});
     FakeEventSource.last?.emit({ type: 'attached', sessionId: 's2', bindToken: 't2' });
+    await waiting;
     expect(bridge.bindToken()).toBe('t2');
+    bridge.close();
   });
 
   it('surrenders its bind token when closed, so a torn-down surface cannot strand a run', () => {

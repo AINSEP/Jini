@@ -93,3 +93,15 @@ test("the CLI refuses a missing --values or --repo-root, writes the render, and 
   assert.equal(main({ ...io, argv: [...argv, "--check"] }, options), 1);
   assert.match(logs.at(-1), /wf\.yml differs from its render/);
 });
+
+test('an empty replacement block removes the region without adding a blank workflow line', () => {
+  const template = 'before\n#>> x\ndefault\n#<< x\nafter';
+  assert.equal(renderDeployWorkflow({ template, placeholders: {} }, { blocks: { x: '' } }), 'before\nafter');
+});
+
+test('Windows workflow checkouts recognize regions and normalize template and block line endings', () => {
+  const template = 'before\r\n#>> x\r\ndefault\r\n#<< x\r\nafter\r\n';
+  assert.equal(renderDeployWorkflow({ template, placeholders: {} }), 'before\ndefault\nafter\n');
+  assert.equal(renderDeployWorkflow({ template, placeholders: {} }, { blocks: { x: 'host 1\r\nhost 2\r\n' } }), 'before\nhost 1\nhost 2\nafter\n');
+  assert.throws(() => renderDeployWorkflow({ template: '#>> x\r\n#<< y\r\n', placeholders: {} }), /does not close/);
+});

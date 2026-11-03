@@ -407,3 +407,39 @@ test('stripping follows a symlinked staged package and deletes outside the stage
     assert.equal(nodeFs.existsSync(path.join(outside, 'coverage')), false);
   } finally { nodeFs.rmSync(root, { recursive: true, force: true }); }
 });
+
+test('packaged siblings keep the dependency version they resolved before a later sibling is staged', () => {
+  const fs = memoryFs({ files: {
+    '/app/package.json': manifestOf('app', '1', { b: '1', shared: '1' }),
+    '/store/shared/package.json': manifestOf('shared', '1'),
+    '/store/b/package.json': manifestOf('b', '1', { inner: '1', a: '1', c: '1' }),
+    // Force b's children to stay nested, as in an ordinary npm tree with version conflicts.
+    '/out/node_modules/inner/package.json': manifestOf('inner', '2'),
+    '/out/node_modules/a/package.json': manifestOf('a', '2'),
+    '/out/node_modules/c/package.json': manifestOf('c', '2'),
+    '/store/b/node_modules/inner/package.json': manifestOf('inner', '1', { shared: '1' }),
+    '/store/b/node_modules/a/package.json': manifestOf('a', '1', { shared: '1' }),
+    '/store/b/node_modules/c/package.json': manifestOf('c', '1', { shared: '2' }),
+    '/store/b/node_modules/shared/package.json': manifestOf('shared', '2'),
+  } });
+  const resolver = resolverOf({
+    '/store/b -> inner': '/store/b/node_modules/inner',
+    '/store/b -> a': '/store/b/node_modules/a',
+    '/store/b -> c': '/store/b/node_modules/c',
+    '/store/b/node_modules/inner -> shared': '/store/shared',
+    '/store/b/node_modules/a -> shared': '/store/shared',
+    '/store/b/node_modules/c -> shared': '/store/b/node_modules/shared',
+  });
+  stageTransitiveDependencies({ roots: ['/app'], outDir: '/out', excluded: new Set(), fs, resolver });
+  // Resolve the shipped tree by Node's ancestor rule, not just its planned copy inventory.
+  const versionSeenFrom = (directory: string): string | undefined => {
+    for (let current = directory; current.startsWith('/out'); current = path.dirname(current)) {
+      const file = path.join(current, 'node_modules/shared/package.json');
+      if (fs.exists({ path: file })) return (JSON.parse(Buffer.from(fs.read({ path: file })).toString('utf8')) as { version: string }).version;
+    }
+    return undefined;
+  };
+  assert.equal(versionSeenFrom('/out/node_modules/b/node_modules/inner'), '1');
+  assert.equal(versionSeenFrom('/out/node_modules/b/node_modules/a'), '1');
+  assert.equal(versionSeenFrom('/out/node_modules/b/node_modules/c'), '2');
+});

@@ -160,3 +160,22 @@ describe('ECharts vanilla lifecycle', () => {
     expect(() => observers[0]!.callback([], {} as ResizeObserver)).not.toThrow();
   });
 });
+
+it('updates a formatted bar to plain line and pie without retaining tooltip formatting or its shadow cursor', () => {
+  const element = host();
+  const instance = mount({ element, spec: { ...SPECS.bar!, format: { locale: 'de-DE' } }, theme: { mode: 'light' } });
+  const options = () => getInstanceByDom(surfaceOf(element))!.getOption() as unknown as {
+    tooltip: { valueFormatter?: unknown; axisPointer?: { type?: string }; trigger: string }[];
+    xAxis?: unknown[]; yAxis?: unknown[]; grid?: unknown[];
+  };
+  expect(typeof options().tooltip[0]!.valueFormatter).toBe('function');
+  expect(options().tooltip[0]!.axisPointer?.type).toBe('shadow');
+  try {
+    instance.update({ spec: SPECS.line!, theme: { mode: 'light' } });
+    expect(options().tooltip[0]!.valueFormatter).toBeFalsy();
+    expect(options().tooltip[0]!.axisPointer?.type).not.toBe('shadow');
+    instance.update({ spec: SPECS.pie!, theme: { mode: 'light' } });
+    expect(options().tooltip[0]!.trigger).toBe('item');
+    for (const axes of [options().xAxis, options().yAxis, options().grid]) expect(axes ?? []).toEqual([]);
+  } finally { instance.destroy({}); }
+});

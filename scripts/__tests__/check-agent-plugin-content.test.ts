@@ -86,3 +86,12 @@ describe('agent plugin content imports', () => {
     expect(checkAgentPluginContent({ repoRoot: fileURLToPath(new URL('../../', import.meta.url)) })).toEqual([]);
   });
 });
+
+it('accepts a plugin’s own relative imports with relative or trailing-slash roots', () => {
+  for (const pluginRoot of ['packages/agent-plugins/fly', 'packages/agent-plugins/fly/', './packages/agent-plugins/fly/']) {
+    expect(refusedSpecifier({ pluginRoot, file: `${pluginRoot}/scripts/deploy.mjs`, specifier: './helper.mjs' })).toBeUndefined();
+    expect(refusedSpecifier({ pluginRoot, file: `${pluginRoot}/scripts/deploy.mjs`, specifier: '../../other/helper.mjs' })).toBe('imports a path outside its own plugin folder');
+  }
+  write({ file: 'packages/agent-plugins/fixture-host/lib/deploy.mjs', content: "import './helper.mjs';" });
+  expect(checkAgentPluginContent({ repoRoot: root + '/' })).toEqual([]);
+});

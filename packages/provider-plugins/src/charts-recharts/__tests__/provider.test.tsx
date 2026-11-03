@@ -47,4 +47,18 @@ describe('Recharts artifact through the neutral UI host and A2UI catalog', () =>
     expect(catalog.functions).toBe(base.functions);
     expect(snapshot.resolveByCapability({ capability: 'data-table' })).toEqual(DEFAULT_INTERACTIVE_UI_REGISTRY.resolveByCapability({ capability: 'data-table' }));
   });
+
+  it.each([[-1, 2], [0, 0]])('shows the data table for pie shares that cannot be drawn faithfully: %j', async (...values) => {
+    const load = vi.fn(async () => ({ mount }));
+    const providers = createChartProviderRegistry({ providers: [{ id: RECHARTS_PROVIDER_ID, kinds: RECHARTS_KINDS, enabled: true, supports: supportsRechartsSpec, load }] });
+    const entry = createChartInteractiveRegistry({ registry: DEFAULT_INTERACTIVE_UI_REGISTRY, providers }).resolveById({ id: 'recharts.pie-chart' })!;
+    const { container } = render(<entry.Component data={values.map((value, index) => ({ name: `Slice ${index}`, value }))} />);
+    await waitFor(() => expect(container.querySelector('table')).not.toBeNull());
+    expect(load).not.toHaveBeenCalled();
+    expect(container.querySelector('table')).toBeVisible();
+    expect(container.querySelector('svg.recharts-surface')).toBeNull();
+    expect(container.querySelectorAll('tbody tr')).toHaveLength(values.length);
+    expect(Array.from(container.querySelectorAll('tbody td'), cell => cell.textContent))
+      .toEqual(values.flatMap((value, index) => [`Slice ${index}`, String(value)]));
+  });
 });

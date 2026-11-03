@@ -85,3 +85,27 @@ describe('createChartInteractiveRegistry attaches components to the catalog mani
     expect(mounted).toEqual([]);
   });
 });
+
+it.each([
+  { ...multiSeries, data: [] },
+  { ...multiSeries, series: [] },
+  { ...multiSeries, data: [{ month: 'Sep', revenue: 'invalid', cost: 2 }] },
+  { ...multiSeries, data: [{ month: 'Sep', revenue: 2 }] },
+  { ...multiSeries, series: [{ key: 'revenue' }, { key: 'revenue' }] },
+])('direct chart.spec rendering refuses invalid rows or series just like its catalog schema: %j', spec => {
+  const providers = createChartProviderRegistry({ providers: [] });
+  const { Component, propsSchema } = createChartInteractiveRegistry({ registry: empty, providers }).resolveById({ id: 'chart.spec' })!;
+  expect(propsSchema.safeParse({ spec }).success).toBe(false);
+  expect(() => render(<Component spec={spec} />)).toThrow(z.ZodError);
+});
+
+it('preserves a provider-only kind’s catalog contract when rendering it directly', async () => {
+  const mounted: { provider: string; spec: ChartSpec }[] = [];
+  const providers = createChartProviderRegistry({ providers: [recorder('plugin.calendar', ['calendar'], mounted)] });
+  const { Component, propsSchema } = createChartInteractiveRegistry({ registry: empty, providers }).resolveById({ id: 'plugin.calendar.calendar-chart' })!;
+  const spec: ChartSpec = { kind: 'calendar', categoryKey: 'day', data: [{ day: 'Monday', event: 'Meeting' }], series: [{ key: 'event' }] };
+  expect(propsSchema.safeParse({ spec }).success).toBe(true);
+  render(<Component spec={spec} />);
+  await waitFor(() => expect(mounted).toHaveLength(1));
+  expect(mounted[0]!.spec.data).toEqual(spec.data);
+});

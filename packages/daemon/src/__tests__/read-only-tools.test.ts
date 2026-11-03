@@ -358,3 +358,22 @@ test('a read-only caller gets a namespace overview built from read-only members 
   };
   assert.equal(filterReadOnlyToolCatalog({ principal: READ_ONLY, registry, catalog: careless }).describe({ id: 'family' }), null);
 });
+
+test('a read-only namespace overview honors the caller’s narrower visible-tool set', () => {
+  const { registry } = harness();
+  const catalog: ToolCatalogQuery = {
+    search: () => [],
+    describe: ({ id }, { visibleToolIds } = {}) => {
+      if (id !== 'family') return null;
+      const targetToolIds = ['verify', 'pick', 'set'].filter(id => visibleToolIds?.has(id));
+      return { id, source: 'test', description: targetToolIds.join(', '), targetToolIds };
+    },
+  };
+  const view = filterReadOnlyToolCatalog({ principal: READ_ONLY, registry, catalog });
+  const visibleToolIds = new Set(['pick', 'set']);
+  assert.deepEqual(view.describe({ id: 'family' }, { visibleToolIds })?.targetToolIds, ['pick']);
+  assert.equal(view.describe({ id: 'family' }, { visibleToolIds: new Set() }), null);
+  assert.deepEqual([...visibleToolIds], ['pick', 'set']);
+  const careless: ToolCatalogQuery = { search: () => [], describe: () => ({ id: 'family', source: 'test', description: 'verify', targetToolIds: ['verify'] }) };
+  assert.equal(filterReadOnlyToolCatalog({ principal: READ_ONLY, registry, catalog: careless }).describe({ id: 'family' }, { visibleToolIds }), null);
+});

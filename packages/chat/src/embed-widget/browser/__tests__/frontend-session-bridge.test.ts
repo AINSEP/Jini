@@ -4,6 +4,193 @@ import type { PageDriver } from '@jini-ai/agentic';
 
 afterEach(() => { vi.unstubAllGlobals(); });
 
+function bridgeHarness() {
+  const sources: Array<EventTarget & { close: ReturnType<typeof vi.fn> }> = [];
+  const bridge = createFrontendSessionBridge({ baseUrl: '', fetch: vi.fn() as typeof fetch,
+    openStream: () => {
+      const source = Object.assign(new EventTarget(), { close: vi.fn() });
+      sources.push(source);
+      return { addEventListener: source.addEventListener.bind(source) as EventSource['addEventListener'], close: source.close };
+    },
+  });
+  const frame = (index: number, data: unknown) => sources[index]!.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(data) }));
+  return { bridge, sources, frame };
+}
+
+it('park closes the stream and clears the token', async () => {
+  vi.useFakeTimers();
+  const { bridge, sources, frame } = bridgeHarness();
+  try {
+    frame(0, { type: 'attached', sessionId: 'old', bindToken: 'old-token' });
+    await bridge.ready;
+    sources[0]!.dispatchEvent(new MessageEvent('parked', { data: '{}' }));
+    expect(sources[0]!.close).toHaveBeenCalledOnce();
+    expect(bridge.bindToken()).toBeUndefined();
+    // A delayed frame from the closed transport cannot restore a revoked token.
+    frame(0, { type: 'attached', sessionId: 'late', bindToken: 'stale-token' });
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(bridge.bindToken()).toBeUndefined();
+    expect(sources).toHaveLength(1);
+  } finally { bridge.close(); vi.useRealTimers(); }
+});
+
+it('rebind waits for a fresh attached frame after prior readiness', async () => {
+  const { bridge, sources, frame } = bridgeHarness();
+  try {
+    frame(0, { type: 'attached', sessionId: 'old', bindToken: 'old-token' });
+    await bridge.ready;
+    sources[0]!.dispatchEvent(new Event('error'));
+    const waiting = bridge.rebind({}, {});
+    let settled = false;
+    void waiting.then(() => { settled = true; });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+    expect(sources[0]!.close).toHaveBeenCalledOnce();
+    expect(sources).toHaveLength(2);
+    frame(0, { type: 'attached', sessionId: 'late', bindToken: 'stale-token' });
+    expect(bridge.bindToken()).toBeUndefined();
+    frame(1, { type: 'attached', sessionId: 'new', bindToken: 'new-token' });
+    await expect(waiting).resolves.toEqual({ sessionId: 'new', bindToken: 'new-token' });
+    expect(bridge.bindToken()).toBe('new-token');
+    await expect(bridge.ready).resolves.toEqual({ sessionId: 'old', bindToken: 'old-token' });
+  } finally { bridge.close(); }
+});
+
+it('concurrent rebinds share one stream and Stop cancels only its own wait', async () => {
+  const { bridge, sources, frame } = bridgeHarness();
+  const stop = new AbortController();
+  const stopped = bridge.rebind({ signal: stop.signal }, {});
+  const rejected = expect(stopped).rejects.toThrow('stopped');
+  const waiting = bridge.rebind({}, {});
+  stop.abort(new Error('stopped'));
+  await rejected;
+  expect(sources).toHaveLength(1);
+  frame(0, { type: 'attached', sessionId: 'new', bindToken: 'live' });
+  await expect(waiting).resolves.toMatchObject({ bindToken: 'live' });
+  await expect(bridge.rebind({}, {})).resolves.toMatchObject({ bindToken: 'live' });
+  bridge.close();
+  await expect(bridge.rebind({}, {})).rejects.toThrow(/closed/);
+  expect(sources).toHaveLength(1);
+});
+
+it('a visibility suspension invalidates the token and retains transport ownership', async () => {
+  const { bridge, sources, frame } = bridgeHarness();
+  frame(0, { type: 'attached', sessionId: 'old', bindToken: 'old-token' });
+  await bridge.ready;
+  sources[0]!.dispatchEvent(new Event('suspended'));
+  expect(bridge.bindToken()).toBeUndefined();
+  expect(sources[0]!.close).not.toHaveBeenCalled();
+  const waiting = bridge.rebind({}, {});
+  expect(sources).toHaveLength(1);
+  frame(0, { type: 'attached', sessionId: 'visible', bindToken: 'visible-token' });
+  await expect(waiting).resolves.toMatchObject({ bindToken: 'visible-token' });
+  bridge.close();
+});
+
+it('park aborts page work before a fresh attachment can execute it', async () => {
+  const events: EventTarget[] = [];
+  let approve!: (value: { confirmed: true }) => void;
+  let approvalSignal: AbortSignal | undefined;
+  const click = vi.fn(async () => {});
+  const send = vi.fn(async () => new Response('{"settled":true}'));
+  const bridge = createFrontendSessionBridge({ baseUrl: '', fetch: send as typeof fetch,
+    openStream: () => {
+      const source = new EventTarget(); events.push(source);
+      return { addEventListener: source.addEventListener.bind(source) as EventSource['addEventListener'], close() {} };
+    },
+  }, { pageDriver: { click } as unknown as PageDriver, pageApproval: {
+    isDirect: () => false,
+    request: ({ signal }) => { approvalSignal = signal; return new Promise(resolve => { approve = resolve; }); },
+  } });
+  const frame = (index: number, data: unknown) => events[index]!.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(data) }));
+  frame(0, { type: 'attached', sessionId: 'old', bindToken: 'old-token' });
+  await bridge.ready;
+  frame(0, { type: 'invocation', invocationId: 'pending', capabilityId: 'page.click', input: { handle: 'save' } });
+  await vi.waitFor(() => expect(approvalSignal).toBeDefined());
+  events[0]!.dispatchEvent(new Event('parked'));
+  expect(approvalSignal!.aborted).toBe(true);
+  const waiting = bridge.rebind({}, {});
+  frame(1, { type: 'attached', sessionId: 'fresh', bindToken: 'fresh-token' });
+  await waiting;
+  approve({ confirmed: true });
+  await vi.waitFor(() => expect(send).toHaveBeenCalledTimes(1));
+  // Drain the abandoned invocation's continuations; neither a click nor an answer may cross binds.
+  await new Promise(resolve => setTimeout(resolve, 0));
+  expect(click).not.toHaveBeenCalled();
+  expect(send).toHaveBeenCalledTimes(1);
+  bridge.close();
+});
+
+it('park cannot acknowledge an old result into a fresh session', async () => {
+  const events: EventTarget[] = [];
+  let finish!: () => void;
+  const preparing = vi.fn(() => new Promise<void>(resolve => { finish = resolve; }));
+  const send = vi.fn(async () => new Response('{"settled":true}'));
+  const bridge = createFrontendSessionBridge({ baseUrl: '', fetch: send as typeof fetch,
+    openStream: () => {
+      const source = new EventTarget(); events.push(source);
+      return { addEventListener: source.addEventListener.bind(source) as EventSource['addEventListener'], close() {} };
+    },
+  }, { executors: { 'fixture.': async () => 'old-result' }, onBeforeResponse: preparing });
+  const frame = (index: number, data: unknown) => events[index]!.dispatchEvent(new MessageEvent('message', { data: JSON.stringify(data) }));
+  frame(0, { type: 'attached', sessionId: 'old', bindToken: 'old-token' });
+  await bridge.ready;
+  frame(0, { type: 'invocation', invocationId: 'pending', capabilityId: 'fixture.read', input: {} });
+  await vi.waitFor(() => expect(preparing).toHaveBeenCalledOnce());
+  events[0]!.dispatchEvent(new Event('parked'));
+  const waiting = bridge.rebind({}, {});
+  frame(1, { type: 'attached', sessionId: 'fresh', bindToken: 'fresh-token' });
+  await waiting;
+  finish();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  expect(send).not.toHaveBeenCalled();
+  bridge.close();
+});
+
+it.each(['parked', 'error', 'close'])('%s rejects a pending current attachment wait', async kind => {
+  const { bridge, sources } = bridgeHarness();
+  // This surface never attached; observe ready only to prevent a refusal becoming unhandled.
+  const waiting = bridge.rebind({}, {});
+  const rejected = expect(waiting).rejects.toThrow();
+  if (kind === 'close') bridge.close();
+  else sources[0]!.dispatchEvent(new Event(kind));
+  await rejected;
+  expect(bridge.bindToken()).toBeUndefined();
+  bridge.close();
+});
+
+it('a parked fetch stream stays closed without scheduling native reconnect', async () => {
+  vi.useFakeTimers();
+  let streamSignal: AbortSignal | undefined;
+  const send = vi.fn<typeof fetch>(async (_url, init) => {
+    streamSignal = init?.signal ?? undefined;
+    return new Response(new ReadableStream<Uint8Array>({ start(controller) {
+      controller.enqueue(new TextEncoder().encode('data: {"type":"attached","sessionId":"s","bindToken":"old"}\n\nevent: parked\ndata: {}\n\n'));
+      // Keep the server stream open: only delivery of parked may end this connection.
+      streamSignal?.addEventListener('abort', () => controller.close(), { once: true });
+    } }));
+  });
+  const bridge = createFrontendSessionBridge({ baseUrl: '', fetch: send as typeof fetch,
+    openStream: ({ url }) => openFetchFrontendStream({ url, headers: () => ({}) }, { fetch: send as typeof fetch }),
+  });
+  try {
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(streamSignal?.aborted).toBe(true);
+    expect(send).toHaveBeenCalledOnce();
+    expect(bridge.bindToken()).toBeUndefined();
+  } finally { bridge.close(); vi.useRealTimers(); }
+});
+
+it('fetch transport retains existing named application frames as messages', async () => {
+  const send = vi.fn(async () => new Response('event: attached\ndata: {"type":"attached","sessionId":"s","bindToken":"live"}\n\n'));
+  const stream = openFetchFrontendStream({ url: '/stream', headers: () => ({}) }, { fetch: send as typeof fetch });
+  const frames: string[] = [];
+  stream.addEventListener('message', event => frames.push((event as MessageEvent<string>).data));
+  try {
+    await vi.waitFor(() => expect(frames).toEqual(['{"type":"attached","sessionId":"s","bindToken":"live"}']));
+  } finally { stream.close(); }
+});
+
 it('retains the published stream fetch default for hosts upgrading within 0.6.x', async () => {
   const send = vi.fn<typeof fetch>(async () => new Response('', { status: 429 }));
   vi.stubGlobal('fetch', send);

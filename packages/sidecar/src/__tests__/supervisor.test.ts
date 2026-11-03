@@ -6,8 +6,9 @@ import { createDaemonSupervisor } from "../supervisor.js";
 import type { SpawnedDaemonProcess, SupervisorEvent } from "../supervisor.js";
 
 // Generalized from the original supervisor tests: in-memory readiness and deterministic timers.
-function harness({ maxFailures = 5, quiet = false, terminate, launchFailures = [], cooldownMs = 30 }: {
+function harness({ maxFailures = 5, quiet = false, terminate, launchFailures = [], cooldownMs = 30, parkedExitCodes }: {
   maxFailures?: number; quiet?: boolean; cooldownMs?: number;
+  parkedExitCodes?: readonly number[];
   terminate?: (input: { child: SpawnedDaemonProcess }) => void | Promise<void>;
   /** Values the next launches throw, in order, before launches start succeeding. */
   launchFailures?: unknown[];
@@ -36,10 +37,83 @@ function harness({ maxFailures = 5, quiet = false, terminate, launchFailures = [
     classifyExit: ({ code, signal }) => ({ isPortConflict: code === 9, reason: `exit ${code}/${signal ?? "none"}` }),
     failureReporter: { clear: () => { failure = undefined; }, record: ({ reason }) => { failure = reason; } },
     logger: { emit: (event) => { events.push(event); } },
-  }, { onDemandCooldownMs: cooldownMs, quietRoutineLifecycle: quiet });
+  }, { onDemandCooldownMs: cooldownMs, quietRoutineLifecycle: quiet, ...(parkedExitCodes === undefined ? {} : { parkedExitCodes }) });
   return { supervisor, children, tasks, events, advance: (ms: number) => { time += ms; }, failure: () => failure,
     retry: () => { for (const run of [...tasks]) { tasks.delete(run); run(); } } };
 }
+
+test("park exit records parked without respawn or failure", () => {
+  const h = harness({ parkedExitCodes: [42, 9] });
+  assert.equal(h.supervisor.getState(), "stopped");
+  h.supervisor.start();
+  assert.equal(h.supervisor.getState(), "running");
+  h.children[0]!.emitter.emit("exit", 9, null);
+  assert.equal(h.supervisor.getState(), "parked", "park recognition precedes port-conflict classification");
+  assert.equal(h.failure(), undefined);
+  assert.equal(h.events.filter(event => event.type === "failure").length, 0);
+  assert.equal(h.tasks.size, 0);
+  h.retry(); h.supervisor.start();
+  assert.equal(h.children.length, 1, "routine start cannot undo an intentional park");
+});
+
+test("ensureStarted wakes parked immediately inside the crash cooldown", () => {
+  const h = harness({ parkedExitCodes: [42] });
+  assert.deepEqual(h.supervisor.ensureStarted(), { ok: true });
+  h.children[0]!.emitter.emit("exit", 42, null);
+  assert.equal(h.supervisor.getState(), "parked");
+  assert.deepEqual(h.supervisor.ensureStarted(), { ok: true });
+  assert.equal(h.children.length, 2, "demand wakes without advancing the clock");
+  assert.equal(h.supervisor.getState(), "running");
+});
+
+test("concurrent wake requests spawn once", async () => {
+  const h = harness({ parkedExitCodes: [42] });
+  h.supervisor.ensureStarted(); h.children[0]!.emitter.emit("exit", 42, null);
+  const outcomes = await Promise.all(Array.from({ length: 10 }, () => Promise.resolve().then(() => h.supervisor.ensureStarted())));
+  assert.deepEqual(outcomes, Array.from({ length: 10 }, () => ({ ok: true })));
+  assert.equal(h.children.length, 2);
+  assert.equal(h.tasks.size, 0);
+});
+
+test("crash after wake still follows the existing retry policy", () => {
+  const h = harness({ maxFailures: 3, parkedExitCodes: [42] });
+  h.supervisor.ensureStarted(); h.children[0]!.emitter.emit("exit", 1, null); h.retry();
+  h.children[1]!.emitter.emit("exit", 42, null);
+  h.supervisor.ensureStarted();
+  h.children[2]!.emitter.emit("exit", 1, null);
+  assert.equal(h.tasks.size, 1, "a post-wake crash still schedules backoff");
+  h.supervisor.ensureStarted();
+  assert.equal(h.children.length, 3, "demand cannot accelerate crash backoff");
+  h.retry(); h.children[3]!.emitter.emit("exit", 1, null);
+  assert.equal(h.tasks.size, 0);
+  assert.equal(h.failure(), "gave up after 3 attempts in 60s: exit 1/none", "parking and waking neither charge nor reset the failure budget");
+  assert.deepEqual(h.supervisor.ensureStarted(), { ok: false, reason: "cooling down before trying again" });
+});
+
+test("shutdown racing park cannot resurrect a child", () => {
+  for (const parkFirst of [true, false]) {
+    const h = harness({ parkedExitCodes: [42] });
+    h.supervisor.ensureStarted();
+    if (parkFirst) h.children[0]!.emitter.emit("exit", 42, null);
+    h.supervisor.shutdown();
+    if (!parkFirst) h.children[0]!.emitter.emit("exit", 42, null);
+    h.retry(); h.supervisor.start();
+    assert.deepEqual(h.supervisor.ensureStarted(), { ok: false, reason: "shutting down" });
+    assert.deepEqual(h.supervisor.restart(), { ok: false, reason: "shutting down" });
+    assert.equal(h.supervisor.getState(), "shutting-down");
+    assert.equal(h.children.length, 1);
+    assert.equal(h.tasks.size, 0);
+  }
+});
+
+test("unconfigured park codes and signal-only exits retain crash recovery", () => {
+  const unconfigured = harness(); unconfigured.supervisor.start();
+  unconfigured.children[0]!.emitter.emit("exit", 42, null);
+  assert.equal(unconfigured.tasks.size, 1);
+  const signalled = harness({ parkedExitCodes: [42] }); signalled.supervisor.start();
+  signalled.children[0]!.emitter.emit("exit", null, "SIGTERM");
+  assert.equal(signalled.tasks.size, 1, "signals alone cannot indicate a park on any platform");
+});
 
 test("unexpected exits retry, deliberate shutdown cancels retries and refuses rearming", () => {
   const h = harness();
@@ -228,7 +302,7 @@ test("restart or shutdown while a crash retry is scheduled cancels that retry", 
   assert.equal(s.children.length, 1);
 });
 
-function readyHarness({ probe }: { probe?: (input: { pid: number }) => Promise<boolean> } = {}) {
+function readyHarness({ probe, parkedExitCodes }: { probe?: (input: { pid: number }) => Promise<boolean>; parkedExitCodes?: readonly number[] } = {}) {
   let now = 0;
   let readyPid: number | undefined;
   const tasks = new Map<() => void, number>();
@@ -241,18 +315,55 @@ function readyHarness({ probe }: { probe?: (input: { pid: number }) => Promise<b
       const child = { pid: children.length + 100, events: new EventEmitter() };
       children.push(child);
       return { pid: child.pid, kill: () => true, on(input) {
-        if (input.event === "exit") child.events.on("exit", () => input.listener({ code: 1, signal: null }));
+        if (input.event === "exit") child.events.on("exit", (code = 1) => input.listener({ code, signal: null }));
       } };
     },
     terminateProcess: () => undefined,
     classifyExit: () => ({ isPortConflict: false, reason: "crashed" }),
     failureReporter: { clear() {}, record() {} }, logger: { emit() {} },
     readiness: { isReady: async ({ pid }) => probe ? probe({ pid }) : pid === readyPid },
-  });
-  return { supervisor, children, ready: (pid: number) => { readyPid = pid; },
+  }, { ...(parkedExitCodes === undefined ? {} : { parkedExitCodes }) });
+  return { supervisor, children, tasks, ready: (pid: number) => { readyPid = pid; },
     async tick(ms = 250) { now += ms; for (const [run, due] of [...tasks]) { if (due <= now) { tasks.delete(run); run(); } } await Promise.resolve(); await Promise.resolve(); },
   };
 }
+
+test("park cancels readiness polling until fresh demand", async () => {
+  let reads = 0;
+  const h = readyHarness({ parkedExitCodes: [42], probe: async () => { reads += 1; return false; } });
+  const pending = h.supervisor.ensureReady({}, {});
+  const rejected = assert.rejects(pending, /daemon parked/);
+  await Promise.resolve();
+  h.children[0]!.events.emit("exit", 42);
+  await rejected;
+  assert.equal(h.supervisor.getState(), "parked");
+  assert.equal(h.tasks.size, 0, "both discovery polling and the request deadline are withdrawn");
+  const before = reads; await h.tick(60_000);
+  assert.equal(reads, before);
+  assert.equal(h.children.length, 1);
+  assert.equal(h.supervisor.isReady(), false);
+});
+
+test("a fresh wake owns readiness even when parked discovery completes late", async () => {
+  let complete!: (ready: boolean) => void;
+  const oldRead = new Promise<boolean>(resolve => { complete = resolve; });
+  let replacementReady = false;
+  const h = readyHarness({ parkedExitCodes: [42], probe: ({ pid }) => pid === 100 ? oldRead : Promise.resolve(replacementReady) });
+  try {
+    const first = h.supervisor.ensureReady({}, {});
+    const rejected = assert.rejects(first, /daemon parked/);
+    h.children[0]!.events.emit("exit", 42);
+    const second = h.supervisor.ensureReady({}, {});
+    assert.notEqual(second, first, "a new demand must not inherit the cancelled parked waiter");
+    await rejected;
+    assert.equal(h.supervisor.ensureReady({}, {}), second, "old promise cleanup cannot clear the new single flight");
+    complete(true); await h.tick();
+    assert.equal(h.supervisor.isReady(), false, "the parked child's discovery cannot ready its replacement");
+    replacementReady = true; await h.tick(); await second;
+    assert.equal(h.supervisor.isReady(), true);
+    assert.equal(h.children.length, 2);
+  } finally { h.supervisor.shutdown(); }
+});
 
 test("ensureReady: concurrent cold demands spawn once and wait for current-child discovery", async () => {
   const h = readyHarness();

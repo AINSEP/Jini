@@ -187,6 +187,12 @@ describe('recharts BarChart', () => {
       expect(tickValues(container).map(tickLines)).toEqual([['Pages ·', 'Published'], ['Posts ·', 'Drafts'], ['Media ·', 'Active']]);
     });
 
+    it('keeps the first and last category when the frame is narrower than two label slots', () => {
+      layout(100);
+      const { container } = render(<BarChart data={data} categoryKey="month" valueKey="revenue" />);
+      expect(Array.from(container.querySelectorAll('.recharts-xAxis-tick-labels title'), title => title.textContent)).toEqual(['Jan', 'Feb']);
+    });
+
     it('still shows every label when a few categories fit', () => {
       const quarters = ['Q1', 'Q2', 'Q3', 'Q4'].map((quarter, i) => ({ quarter, value: i }));
       const { container } = render(<BarChart data={quarters} categoryKey="quarter" valueKey="value" />);

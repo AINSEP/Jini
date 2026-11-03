@@ -56,9 +56,9 @@ describe('DelegatedToolBridge', () => {
       .filter((event) => event.kind === 'agent')
       .map((event) => event.payload as RunAgentPayload);
     expect(agentEvents).toEqual([
-      { type: 'tool_use', id: 'call-allow', name: 'echo', input: { greeting: 'hello' } },
+      { type: 'tool_use', id: 'call-allow', name: 'echo', input: { greeting: 'hello' }, toolOrigin: 'bridge' },
       { type: 'tool_result', toolUseId: 'call-allow', content: '{"echoed":{"greeting":"hello"}}' },
-      { type: 'tool_use', id: 'call-deny', name: 'blocked', input: { destructive: true } },
+      { type: 'tool_use', id: 'call-deny', name: 'blocked', input: { destructive: true }, toolOrigin: 'bridge' },
       {
         type: 'tool_result',
         toolUseId: 'call-deny',
@@ -99,7 +99,7 @@ describe('DelegatedToolBridge', () => {
       .filter((event) => event.kind === 'agent')
       .map((event) => event.payload as RunAgentPayload);
     expect(agentEvents).toEqual([
-      { type: 'tool_use', id: 'call-missing', name: 'missing', input: {} },
+      { type: 'tool_use', id: 'call-missing', name: 'missing', input: {}, toolOrigin: 'bridge' },
       {
         type: 'tool_result',
         toolUseId: 'call-missing',
@@ -128,7 +128,7 @@ describe('DelegatedToolBridge', () => {
       .filter((event) => event.kind === 'agent')
       .map((event) => event.payload as RunAgentPayload);
     expect(agentEvents).toEqual([
-      { type: 'tool_use', id: 'call-1', name: 'confirm-me', input: {} },
+      { type: 'tool_use', id: 'call-1', name: 'confirm-me', input: {}, toolOrigin: 'bridge' },
       {
         type: 'tool_result',
         toolUseId: 'call-1',
