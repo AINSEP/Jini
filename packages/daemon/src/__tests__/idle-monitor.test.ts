@@ -32,6 +32,35 @@ function createFakeTime() {
 }
 
 describe('createIdleMonitor', () => {
+  it('brief activity between observations restarts the full idle interval', () => {
+    const time = createFakeTime();
+    const onIdle = vi.fn();
+    const monitor = createIdleMonitor({ ...time, isBusy: () => false, idleMs: 3_000 }, { onIdle });
+    time.advance({ ms: 2_500 });
+    const release = monitor.acquire({}, {});
+    expect(release).not.toBeNull();
+    release!(); release!();
+    time.advance({ ms: 2_999 });
+    expect(onIdle).not.toHaveBeenCalled();
+    time.advance({ ms: 1 });
+    expect(onIdle).toHaveBeenCalledTimes(1);
+    expect(monitor.acquire({}, {})).toBeNull();
+  });
+
+  it('overlapping work stays busy until the last idempotent release', () => {
+    const time = createFakeTime();
+    const onIdle = vi.fn();
+    const monitor = createIdleMonitor({ ...time, isBusy: () => false, idleMs: 3_000 }, { onIdle });
+    const first = monitor.acquire({}, {})!;
+    const second = monitor.acquire({}, {})!;
+    first(); first();
+    time.advance({ ms: 20_000 });
+    expect(onIdle).not.toHaveBeenCalled();
+    second();
+    time.advance({ ms: 3_000 });
+    expect(onIdle).toHaveBeenCalledTimes(1);
+    expect(monitor.acquire({}, {})).toBeNull();
+  });
   it.each([0, -1, NaN, Infinity])('rejects invalid idle interval %s before scheduling', (idleMs) => {
     const time = createFakeTime();
     expect(() => createIdleMonitor({ ...time, isBusy: () => false, idleMs }, { onIdle: vi.fn() }))

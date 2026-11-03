@@ -344,6 +344,44 @@ test("park cancels readiness polling until fresh demand", async () => {
   assert.equal(h.supervisor.isReady(), false);
 });
 
+test("demand racing a parking child waits for exit and starts one replacement", async () => {
+  const h = readyHarness({ parkedExitCodes: [42] });
+  h.ready(100);
+  await h.supervisor.ensureReady({}, {});
+  h.supervisor.markParking({ pid: 100 }, {});
+  assert.equal(h.supervisor.isReady(), false);
+  const first = h.supervisor.ensureReady({}, {});
+  assert.equal(h.supervisor.ensureReady({}, {}), first);
+  assert.equal(h.children.length, 1, "the retiring child's socket is still owned");
+  h.children[0]!.events.emit("exit", 42);
+  assert.equal(h.children.length, 2);
+  h.ready(101); await h.tick(); await first;
+  assert.equal(h.supervisor.isReady(), true);
+  h.supervisor.shutdown();
+});
+
+test("a delayed park refusal from the previous child cannot fence its replacement", async () => {
+  const h = readyHarness({ parkedExitCodes: [42] });
+  h.ready(100); await h.supervisor.ensureReady({}, {});
+  h.children[0]!.events.emit("exit", 42);
+  h.ready(101); await h.supervisor.ensureReady({}, {});
+  h.supervisor.markParking({ pid: 100 }, {});
+  assert.equal(h.supervisor.isReady(), true);
+  assert.equal(h.children.length, 2);
+  h.supervisor.shutdown();
+});
+
+test("demand already discovering a parking child carries over to its replacement", async () => {
+  const h = readyHarness({ parkedExitCodes: [42] });
+  const first = h.supervisor.ensureReady({}, {});
+  h.supervisor.markParking({ pid: 100 }, {});
+  const second = h.supervisor.ensureReady({}, {});
+  h.children[0]!.events.emit("exit", 42);
+  assert.equal(h.children.length, 2);
+  h.ready(101); await h.tick(); await Promise.all([first, second]);
+  h.supervisor.shutdown();
+});
+
 test("a fresh wake owns readiness even when parked discovery completes late", async () => {
   let complete!: (ready: boolean) => void;
   const oldRead = new Promise<boolean>(resolve => { complete = resolve; });

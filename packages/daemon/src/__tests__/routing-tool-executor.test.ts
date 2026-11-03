@@ -26,6 +26,22 @@ function setup() {
 }
 
 describe('createRoutingToolExecutor', () => {
+  it('holds routed work until completion even when its caller disconnects or cancels', async () => {
+    let done!: () => void;
+    const completion = new Promise<void>(resolve => { done = resolve; });
+    const remote = fakeRemote();
+    remote.execute.mockImplementation(async () => { await completion; return { executionId: 'remote-1', status: 'completed', output: 'remote' }; });
+    const release = vi.fn();
+    const routing = createRoutingToolExecutor({ local: remote, remote, isLocal: () => false }, { acquireActivity: () => release });
+    const pending = routing.execute({ principal, run, toolId: 'site.publish', input: {} });
+    routing.cancel({ executionId: 'remote-1' });
+    expect(release).not.toHaveBeenCalled();
+    done(); await pending;
+    expect(release).toHaveBeenCalledTimes(1);
+    remote.execute.mockRejectedValueOnce(new Error('failed'));
+    await expect(routing.execute({ principal, run, toolId: 'site.publish', input: {} })).rejects.toThrow('failed');
+    expect(release).toHaveBeenCalledTimes(2);
+  });
   it('runs a locally registered id locally', async () => {
     const { remote, routing, localHandler } = setup();
     await expect(routing.execute({ principal, run, toolId: 'page.read', input: {} })).resolves.toMatchObject({ status: 'completed', output: 'local' });
