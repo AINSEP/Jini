@@ -21,6 +21,8 @@ export interface RemoteAttachmentLookupRequired {
 }
 
 export interface RemoteAttachmentLookupOptional {
+  /** Explicit authenticated mount prefix. Omitted preserves the historical origin-root route. */
+  readonly pathPrefix?: string;
   /** Injectable `node:http.request`. */
   readonly request?: typeof http.request;
 }
@@ -80,9 +82,9 @@ function unwrap({ status, body }: LookupResponse): unknown {
  */
 export function createRemoteAttachmentLookup(
   { baseUrl, token }: RemoteAttachmentLookupRequired,
-  { request = http.request }: RemoteAttachmentLookupOptional = {},
+  { request = http.request, pathPrefix = '' }: RemoteAttachmentLookupOptional = {},
 ): AttachmentLookup {
-  const url = new URL(ATTACHMENT_LOOKUP_ROUTE_PATH, baseUrl);
+  const url = new URL(`${pathPrefix.replace(/\/$/, '')}${ATTACHMENT_LOOKUP_ROUTE_PATH}`, baseUrl);
   const call = async (payload: AttachmentLookupRequest): Promise<unknown> => unwrap(await postJson({ url, token, payload }, { request }));
   return {
     resolveForRun: async ({ ref, runId }) => ((await call({ op: 'resolveForRun', ref, runId })) ?? undefined) as Awaited<ReturnType<AttachmentLookup['resolveForRun']>>,

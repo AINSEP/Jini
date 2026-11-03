@@ -1,6 +1,8 @@
 import { execFileSync, spawn } from "node:child_process";
 import type { Readable, Writable } from "node:stream";
 import type { ChildProcess, SpawnOptions } from "node:child_process";
+import type { Serializable } from "node:child_process";
+import { randomUUID } from "node:crypto";
 import { createCommandInvocation } from "@jini-ai/platform/command";
 import { collectProcessTreePids, listProcessSnapshots, stopProcesses, waitForProcessExit } from "@jini-ai/platform/process";
 import { readLiveDaemonRegistryRecord, removeDaemonRegistryRecordIfCurrent, writeDaemonRegistryRecord } from "./daemon-registry.js";
@@ -36,6 +38,8 @@ export interface NodeDaemonProcessRequired {
   registry: SupervisorRegistry;
 }
 export interface NodeDaemonProcessOptions {
+  /** Inherit a separate native control channel; stdin remains the Windows EOF shutdown pipe. */
+  ipc?: boolean;
   stdout?: Writable; stderr?: Writable; platform?: NodeJS.Platform;
   /** Native spawn effect port; the adapter still constructs argv, environment and process options. */
   spawn?: (input: { command: string; args: string[]; options: SpawnOptions }, optional?: Record<string, never>) => ChildProcess;
@@ -99,7 +103,7 @@ export function createNodeDaemonProcessAdapter(required: NodeDaemonProcessRequir
       // retaining those descriptors previously kept parent/test teardown waiting forever.
       const spawnOptions: SpawnOptions = {
         cwd: required.cwd, env: { ...required.env, ...(win32 ? { JINI_STOP_ON_STDIN_EOF: "1" } : {}) }, detached: true, windowsHide: true,
-        stdio: [win32 ? "pipe" : "ignore", "pipe", "pipe"],
+        stdio: [win32 ? "pipe" : "ignore", "pipe", "pipe", ...(options.ipc ? ["ipc" as const] : [])],
         ...(invocation.windowsVerbatimArguments === undefined ? {} : { windowsVerbatimArguments: invocation.windowsVerbatimArguments }),
       };
       const child = options.spawn
@@ -148,4 +152,79 @@ export function createNodeDaemonProcessAdapter(required: NodeDaemonProcessRequir
  */
 export function createNodeSupervisorScheduler(_required: Record<string, never>): SupervisorScheduler {
   return { schedule: ({ delayMs, run }) => { const timer = setTimeout(run, delayMs); return () => clearTimeout(timer); } };
+}
+
+/** A channel bound to one native child (or its process end), never an address supplied by a caller. */
+export interface NodeIpcPeer {
+  readonly connected?: boolean;
+  send?: (message: Serializable, callback: (error: Error | null) => void) => boolean;
+  on(event: "message" | "disconnect", listener: (message: unknown) => void): unknown;
+  removeListener(event: "message" | "disconnect", listener: (message: unknown) => void): unknown;
+}
+
+/** Native deserialization supplies plain objects; accept only this channel's envelope. O(1). */
+function isIpcEnvelope(message: unknown): message is { id: string; kind: unknown; payload?: unknown; ok?: unknown } {
+  if (typeof message !== "object" || message === null) return false;
+  return "jiniIpc" in message && message.jiniIpc === 1 && "id" in message && typeof message.id === "string" && "kind" in message;
+}
+
+/** Native request/reply with bounded pending work. Errors never echo a request, payload or handler error.
+ * @param required The actual spawned child or inherited process channel.
+ * @param optional Handler, deadline and pending-request cap; construction starts no requests.
+ * @returns Request and idempotent disposal; disconnect rejects and clears every pending request.
+ * @throws On disconnected IPC, timeout, refusal, >1 MiB envelope or capacity overflow.
+ * @complexity O(payload bytes) per send, O(p) disconnect for at most maxPending requests.
+ */
+export function createNodeIpcChannel({ peer }: { peer: NodeIpcPeer }, {
+  handle, timeoutMs = 30_000, maxPending = 64,
+}: { handle?: (payload: unknown) => Promise<Serializable>; timeoutMs?: number; maxPending?: number } = {}) {
+  const pending = new Map<string, { finish(error: Error | null, payload?: unknown): void }>();
+  let disposed = false;
+  let handling = 0;
+  function send(message: Serializable): void {
+    if (disposed || !peer.connected || !peer.send) throw new Error("IPC disconnected");
+    if (Buffer.byteLength(JSON.stringify(message)) > 1024 * 1024) throw new Error("IPC envelope too large");
+    peer.send(message, error => { if (error) dispose({}); });
+  }
+  function reply(message: Serializable): void {
+    try { send(message); } catch { dispose({}); } // A departing peer cannot receive a refusal.
+  }
+  function receive(message: unknown): void {
+    if (disposed || !isIpcEnvelope(message)) return;
+    const { id } = message;
+    if (message.kind === "reply") {
+      pending.get(id)?.finish(message.ok === true ? null : new Error("IPC request refused"), message.payload);
+    } else if (message.kind === "request" && handle) {
+      if (handling >= maxPending) { reply({ jiniIpc: 1, kind: "reply", id, ok: false }); return; }
+      handling++;
+      void Promise.resolve().then(() => handle(message.payload)).then(
+        payload => reply({ jiniIpc: 1, kind: "reply", id, ok: true, payload }),
+        () => reply({ jiniIpc: 1, kind: "reply", id, ok: false }),
+      ).catch(() => {}).finally(() => { handling--; }); // A disconnected peer cannot receive its reply.
+    }
+  }
+  function dispose(_required: Record<string, never>, _optional = {}): void {
+    disposed = true;
+    peer.removeListener("message", receive); peer.removeListener("disconnect", disconnect);
+    for (const request of pending.values()) request.finish(new Error("IPC disconnected"));
+  }
+  const disconnect = () => dispose({});
+  peer.on("message", receive); peer.on("disconnect", disconnect);
+  return {
+    request({ payload }: { payload: Serializable }, _optional = {}): Promise<unknown> {
+      if (disposed || !peer.connected) return Promise.reject(new Error("IPC disconnected"));
+      if (pending.size >= maxPending) return Promise.reject(new Error("IPC capacity exceeded"));
+      const id = randomUUID();
+      return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => pending.get(id)?.finish(new Error("IPC request timed out")), timeoutMs);
+        pending.set(id, { finish(error, value) { clearTimeout(timer); pending.delete(id); if (error) reject(error); else resolve(value); } });
+        try { send({ jiniIpc: 1, kind: "request", id, payload }); }
+        catch (error) {
+          const reason = error instanceof Error && error.message === "IPC envelope too large" ? error.message : "IPC send failed";
+          pending.get(id)?.finish(new Error(reason));
+        }
+      });
+    },
+    dispose,
+  };
 }
