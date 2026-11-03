@@ -44,12 +44,12 @@
  * responsibility ( Decision 4), not this generic wrapper's.
  * See docs/decisions/DR-002-protocol-resource-boundary.md.
  */
-import { batchOutcomeFor, type ToolDescriptor } from '@jini-ai/core';
+import { batchOutcomeFor, normalizeToolInput, withNormalizationNotes, type ToolDescriptor } from '@jini-ai/core';
 import { sanitizeUntrustedText } from '@jini-ai/core/text';
 import { Validator, type Schema } from '@cfworker/json-schema';
 import { ContentBlockSchema } from '@modelcontextprotocol/sdk/types.js';
 import type { CallToolResult, Tool } from '@modelcontextprotocol/sdk/types.js';
-import { argumentShapeMessage, isRecord, normalizeToolArguments, type McpToolArgumentContract } from './tool-arguments.js';
+import { argumentShapeMessage, isRecord, normalizeToolArguments, resolveMcpToolName, withArgumentContract, type McpToolArgumentContract } from './tool-arguments.js';
 import { safeDiagnostic, type DaemonRequestOptions } from './daemon-client.js';
 import { scopeNestedSchemaRefs } from './schema-ref-scope.js';
 
@@ -241,6 +241,38 @@ function validatorForTool(tool: McpToolDef): Validator {
   return validator;
 }
 
+/** Normalize registry-tool input through its existing owner before strict transport validation.
+ * MCP-local wrapper tools retain their own alias/folding contract. Domain hooks and permission
+ * checks remain in the daemon; this pass reads only the published schema.
+ * @returns A detached argument object and value-free normalization notes.
+ * @throws Input errors before any handler or daemon request.
+ * @complexity Core's bounded schema walks plus O(k) wrapper keys; no I/O.
+ */
+async function normalizeCallArguments(
+  { tool, rawArgs }: { tool: McpToolDef; rawArgs: unknown }, _options: Record<string, never> = {},
+): Promise<{ args: Record<string, unknown>; notes: readonly string[] }> {
+  const args = normalizeToolArguments({ tool, rawArgs });
+  if (!tool.argumentNormalization?.schemaInput) return { args, notes: [] };
+  const normalized = await normalizeToolInput({ input: args, registration: { descriptor: { id: tool.name, inputSchema: tool.inputSchema } } });
+  if (!isRecord(normalized.input)) throw new Error('normalization must produce one input object');
+  return { args: normalized.input, notes: normalized.notes };
+}
+
+/** Format a refused normalization with the same bounded contract used by schema validation.
+ * Registry tools need the full contract to repair aliases; MCP-local wrapper diagnostics keep
+ * their established messages. No supplied argument values are added to the diagnostic.
+ * @returns An MCP error result; never executes a handler.
+ * @complexity O(s) for s schema bytes plus bounded text sanitization.
+ */
+function normalizationErrorResult(
+  { tool, error, diagnosticToolIds }: { tool: McpToolDef; error: unknown; diagnosticToolIds: readonly string[] },
+  _options: Record<string, never> = {},
+): CallToolResult {
+  const message = error instanceof Error ? error.message : String(error);
+  const diagnostic = tool.argumentNormalization?.schemaInput ? withArgumentContract({ message, inputSchema: wireInputSchema(tool) }) : message;
+  return errorResult({ message: `invalid arguments for ${tool.name}: ${sanitizeUntrustedText({ text: diagnostic }, { diagnosticToolIds, maxLength: 4608 })}` });
+}
+
 /**
  * `tools/call` dispatch: looks up `name` in `tools`, normalizes aliases/wrapper input, then
  * validates the canonical arguments against the tool's
@@ -261,31 +293,32 @@ export async function handleToolCall(
 ): Promise<CallToolResult> {
   const diagnosticToolIds = [...tools.keys(), ...(ctx.diagnosticToolIds ?? [])];
   ctx = { ...ctx, diagnosticToolIds };
-  const tool = tools.get(name);
+  const tool = tools.get(resolveMcpToolName({ name }, { isRegistered: candidate => tools.has(candidate) }));
   if (tool === undefined) {
     return errorResult({ message: `unknown tool: ${name}` });
   }
   // Normalization and schema validation share an error boundary; handlers run only afterward.
   // See docs/decisions/DR-005-proxy-argument-shapes.md.
   let validatedArgs: Record<string, unknown>;
+  let normalizationNotes: readonly string[];
   try {
-    const args = normalizeToolArguments({ tool, rawArgs: rawArgs ?? {} });
+    const { args, notes } = await normalizeCallArguments({ tool, rawArgs: rawArgs ?? {} });
     const validation = validatorForTool(tool).validate(args);
     if (!validation.valid) {
-      return errorResult({ message: `invalid arguments for ${tool.name}: ${sanitizeUntrustedText({ text: argumentShapeMessage({ errors: validation.errors, inputSchema: wireInputSchema(tool) }) }, {
+      return errorResult({ message: `invalid arguments for ${tool.name}: ${sanitizeUntrustedText({ text: argumentShapeMessage({ errors: validation.errors, inputSchema: wireInputSchema(tool) }, { includeContract: tool.argumentNormalization?.schemaInput === true }) }, {
         diagnosticToolIds,
         // A complete bounded contract must survive the default 500-character diagnostic cap.
         maxLength: 4608,
       })}` });
     }
     validatedArgs = args;
+    normalizationNotes = notes;
   } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    return errorResult({ message: `invalid arguments for ${tool.name}: ${sanitizeUntrustedText({ text: message }, { diagnosticToolIds })}` });
+    return normalizationErrorResult({ tool, error: err, diagnosticToolIds });
   }
   try {
     const result = await tool.handler({ args: validatedArgs, ctx: ctx });
-    return okResult({ payload: result });
+    return okResult({ payload: withNormalizationNotes({ output: result, notes: normalizationNotes }) });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return errorResult({ message: safeDiagnostic({ text: message }, daemonCallOptions({ ctx })) });

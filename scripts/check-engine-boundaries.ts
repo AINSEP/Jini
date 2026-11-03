@@ -457,7 +457,7 @@ export async function checkEngineBoundaries(
   const root = options.repoRoot ?? REPO_ROOT;
   const violations: Violation[] = [];
   const packagesDir = options.packagesDir ?? join(root, 'packages');
-  const files = listSourceFiles(packagesDir);
+  const files = listSourceFiles(packagesDir, { includeJson: true });
   const packageRecords = loadPackageRecords(root, packagesDir, violations);
   const publicEntries = new Map(sourcePackages({ packagesDir }).map(pkg => [pkg.manifest.name,
   Object.keys(pkg.manifest.exports ?? {}).filter(key => key.startsWith('./'))]));
@@ -529,9 +529,11 @@ export async function checkEngineBoundaries(
     // Comment-stripped so module-doc provenance citations (e.g. "the OD_DATA_DIR env var name
     // ... was removed") don't get flagged as a live violation — see stripComments's doc.
     const rawContent = readFileSync(absFile, 'utf8');
-    const content = stripComments(rawContent);
+    const content = absFile.endsWith('.json') ? rawContent : stripComments(rawContent);
 
     checkProductIdentity(content, file);
+    // JSON manifests carry live metadata too, but cannot import engine implementation code.
+    if (absFile.endsWith('.json')) return;
 
     for (const ref of extractImports(absFile)) {
       const spec = ref.specifier;

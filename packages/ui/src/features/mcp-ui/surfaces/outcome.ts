@@ -33,7 +33,7 @@
  * every call site into "sometimes required, sometimes not" — worse than a small, purpose-built
  * sibling that carries only what a result needs.
  *
- * ## The one interactive element this DOES carry
+ * ## The external link and optional cancellation
  *
  * `openLinkUrl` renders a single button wired to the bridge's existing `openLink` (`ui/open-link`) —
  * no new bridge plumbing: a `<a href>` is dead inside this package's sandboxed `srcdoc` frame (no
@@ -41,10 +41,14 @@
  * all (`bridge.ts`'s own header). The URL is ALSO always rendered as a plain detail row regardless —
  * copyable/selectable text that needs no script to be useful, matching this package's general
  * "the document should say something true even if a caller never runs its script" posture.
+ * A partial outcome may also describe external work still waiting on the person. Its optional
+ * cancel action answers the caller's existing exchange without confirming an operation or
+ * navigating. Ordinary completed outcomes retain their read-only contract.
  */
 import { createUIResource, type UIResource, type UIResourceUri } from '../resource.js';
 import { escapeHtml, escapeJsValue } from '../escape.js';
 import {
+  DEFAULT_SURFACE_STATUS_TEXT,
   renderActions,
   renderDetailList,
   renderSurfaceDocument,
@@ -52,7 +56,9 @@ import {
   SURFACE_SCRIPT_PRELUDE,
   SURFACE_STATUS_ELEMENT_ID,
   type SurfaceDetail,
+  type SurfaceAction,
 } from './document.js';
+import type { ConfirmationToolAction } from './confirmation.js';
 import type { BridgeScriptSpec } from './bridge.js';
 import type { SurfaceTokenName } from './tokens.js';
 
@@ -84,6 +90,8 @@ export interface SurfaceOutcomeSpec {
    *  Only meaningful alongside `state: 'success'` — a caller should not supply this for a failure. */
   readonly openLinkUrl?: string;
   readonly openLinkLabel?: string;
+  /** A pending external action may be skipped through its existing surface exchange. */
+  readonly cancel?: ConfirmationToolAction;
   /** Identity reported to the Host in `ui/initialize`. Defaults to a generic one. */
   readonly app?: BridgeScriptSpec;
   readonly lang?: string;
@@ -100,10 +108,44 @@ function statusStateOf(state: SurfaceOutcomeSpec['state']): 'done' | 'partial' |
   return state === 'partial' ? 'partial' : 'failed';
 }
 
-/** The open-link button, or nothing without a link. @complexity O(n) in the label length. */
+/** One action list for the frame and its host mirror. @complexity O(n) in the label length. */
+function outcomeActions(spec: SurfaceOutcomeSpec): SurfaceAction[] {
+  const actions: SurfaceAction[] = [];
+  if (spec.openLinkUrl !== undefined) actions.push({ id: OPEN_LINK_ACTION_ID, label: spec.openLinkLabel ?? DEFAULT_OPEN_LINK_LABEL, variant: spec.state === 'success' ? 'primary' : 'neutral' });
+  if (spec.cancel) actions.push({ id: 'cancel', label: spec.cancel.label, variant: 'neutral' });
+  return actions;
+}
+
 function renderOpenLinkActions(spec: SurfaceOutcomeSpec): string {
-  if (spec.openLinkUrl === undefined) return '';
-  return renderActions([{ id: OPEN_LINK_ACTION_ID, label: spec.openLinkLabel ?? DEFAULT_OPEN_LINK_LABEL, variant: spec.state === 'success' ? 'primary' : 'neutral' }]);
+  const actions = outcomeActions(spec);
+  return actions.length === 0 ? '' : renderActions(actions);
+}
+
+/** Pending external work keeps its outbound link and answers cancellation through the same bridge.
+ * Existing read-only outcomes retain their script and need no exchange. @complexity O(n) rendered bytes. */
+function cancellableOutcomeScript(spec: SurfaceOutcomeSpec): string {
+  if (!spec.cancel) return outcomeScript(spec.openLinkUrl);
+  return `(function () {
+  "use strict";
+${SURFACE_SCRIPT_PRELUDE}
+  var TEXT = ${escapeJsValue(DEFAULT_SURFACE_STATUS_TEXT)};
+  var CANCEL = ${escapeJsValue(spec.cancel)};
+  var OPEN_URL = ${escapeJsValue(spec.openLinkUrl ?? null)};
+  var locked = false;
+  function onClick(event) {
+    if (event.isTrusted !== true || locked) return;
+    if (event.currentTarget.getAttribute("data-mcpui-action") === "open-link") {
+      api.openLink(OPEN_URL);
+      return;
+    }
+    locked = true;
+    setBusy(true);
+    api.callTool(CANCEL.toolName, CANCEL.params).then(function () {
+      setStatus(TEXT.dismissed, "dismissed");
+    }, function (error) { locked = !reportCallFailure(error); });
+  }
+  for (var i = 0; i < actionButtons.length; i++) actionButtons[i].addEventListener("click", onClick);
+}());`;
 }
 
 /** The inline script: wires the open-link button, or nothing at all. @complexity O(n) in the URL length. */
@@ -147,7 +189,7 @@ export function renderOutcomeDocument(spec: SurfaceOutcomeSpec): string {
   return renderSurfaceDocument({
     title: spec.title,
     bodyHtml,
-    script: outcomeScript(spec.openLinkUrl),
+    script: cancellableOutcomeScript(spec),
     app: spec.app ?? DEFAULT_APP,
     ...(spec.lang === undefined ? {} : { lang: spec.lang }),
     ...(spec.tokens === undefined ? {} : { tokens: spec.tokens }),
@@ -169,9 +211,11 @@ export function buildOutcomeSurface(spec: SurfaceOutcomeSpec & { uri: UIResource
     uri: spec.uri,
     htmlString: renderOutcomeDocument(spec),
     ...(spec.preferredFrameSize === undefined ? {} : { preferredFrameSize: spec.preferredFrameSize }),
+    ...(spec.cancel ? { actionPlan: { title: spec.title, actions: outcomeActions(spec) } } : {}),
     // No `actionPlan`: unlike a confirmation, this surface has nothing PENDING for
     // `page.find_elements`'s parent-DOM mirror to describe (`McpUiSurfaceCard`'s own
     // `readActionPlan`/`PendingSurfaceMirror` — that mirror exists for a confirmation a human has not
-    // yet answered; a result has already been answered).
+    // yet answered; a result has already been answered). A cancellable external wait above is
+    // pending, so its mirror uses the same actions its frame renders, with no routing params.
   });
 }

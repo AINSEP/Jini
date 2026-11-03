@@ -18,7 +18,23 @@ export interface McpToolArgumentContract {
   readonly argumentNormalization?: {
     readonly aliases?: Readonly<Record<string, string>>;
     readonly foldIntoInput?: true;
+    /** Concrete registry tools reuse the core schema normalizer before MCP validation. */
+    readonly schemaInput?: true;
   };
+}
+
+/** Resolve this host's CLI decoration, preserving exact registered names and other servers.
+ * @param required - Model-visible name, possibly prefixed by the Jini MCP client.
+ * @param options - Exact-name lookup when a local tool index is available.
+ * @returns The exact name when registered, otherwise the undecorated Jini name.
+ * @complexity O(n) for n name characters; pure, no execution authority.
+ */
+export function resolveMcpToolName(
+  { name }: { name: string },
+  { isRegistered }: { isRegistered?: (name: string) => boolean } = {},
+): string {
+  if (isRegistered?.(name)) return name;
+  return name.startsWith('mcp__jini__') ? name.slice('mcp__jini__'.length) : name;
 }
 
 /** True for a plain JSON object (not `null`, not an array). */
@@ -152,25 +168,35 @@ function boundedToolInputSchema(
   return { inputSchema };
 }
 
+/** Attach the complete bounded contract to a repair instruction without echoing input values.
+ * @returns The instruction plus schema, or a describe_tool instruction for a large schema.
+ * @complexity O(s) serialization time/space for s schema bytes; pure.
+ */
+export function withArgumentContract(
+  { message, inputSchema }: { message: string; inputSchema?: unknown }, _options: Record<string, never> = {},
+): string {
+  const hint = boundedToolInputSchema({ inputSchema });
+  const contract = hint.inputSchema === undefined ? hint.schemaNotice : `Input schema: ${JSON.stringify(hint.inputSchema)}`;
+  return contract ? `${message}; ${contract}` : message;
+}
+
 /**
  * Formats structured validation errors as field-specific recovery instructions.
  * @param requiredArgs - Validator errors and, when available, the tool's complete wire input schema.
- * @param _options - Reserved formatting options.
- * @returns A field instruction plus a bounded contract for missing fields or malformed array items.
+ * @param options.includeContract - Include the contract for every registry-tool shape error.
+ * @returns A field instruction plus a bounded contract when requested or needed for missing fields/items.
  * @complexity O(e + p + s) for e errors, p path characters and s serialized schema bytes.
  */
 export function argumentShapeMessage(
   { errors, inputSchema }: { errors: readonly OutputUnit[]; inputSchema?: unknown },
-  _options: Record<string, never> = {},
+  { includeContract = false }: { includeContract?: boolean } = {},
 ): string {
   // Keep the additionalProperties diagnostic ahead of its generic false-schema child.
   const error = errors.find((entry) => entry.keyword === 'required' || entry.keyword === 'additionalProperties' || entry.instanceLocation !== '#') ?? errors[0];
   if (error === undefined) return 'supply arguments matching the declared input schema';
   const path = pointerToFieldPath({ instanceLocation: error.instanceLocation });
   const message = namedFieldMessage({ error, path }) ?? `change \`${path || 'arguments'}\`: ${error.error}`;
-  // Missing fields and generic array-item errors otherwise force one guess per retry.
-  if (!errors.some(entry => ['required', 'items'].includes(entry.keyword))) return message;
-  const hint = boundedToolInputSchema({ inputSchema });
-  const contract = hint.inputSchema === undefined ? hint.schemaNotice : `Input schema: ${JSON.stringify(hint.inputSchema)}`;
-  return contract ? `${message}; ${contract}` : message;
+  // Wrong keys also need the accepted names and units, not a sequence of remove/retry guesses.
+  if (!includeContract && !errors.some(entry => ['required', 'items'].includes(entry.keyword))) return message;
+  return withArgumentContract({ message, inputSchema });
 }

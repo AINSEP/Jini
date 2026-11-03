@@ -36,11 +36,10 @@
 }
 
 /* Lets a long agent name inside (e.g. an AgentRuntimePicker trigger) shrink and ellipsis instead
-   of forcing the row wider — flex items default to min-width:auto, which blocks shrinking below
-   content size unless every ancestor in the chain opts out. Docked into a narrow sidebar (< 400px)
-   is exactly where this stops being cosmetic. */
+   of forcing the row wider, while retaining the fixed controls' intrinsic minimum. A zero floor
+   let the effort selector overflow this wrapper across the Send/Stop hit targets in a dock. */
 .jini-composer-footer-accessories {
-  min-width: 0;
+  min-width: min-content;
 }
 
 /* The picker, plus menu and send share this <div>; flex keeps them on one line, and it wraps
@@ -48,7 +47,7 @@
 .jini-composer-footer-trailing {
   display: flex;
   align-items: center;
-  min-width: 0;
+  min-width: min-content;
   margin-left: auto;
 }
 

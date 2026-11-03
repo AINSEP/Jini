@@ -88,10 +88,9 @@ export interface AttachFederatedToolsResult {
    * connection was simply invisible everywhere an operator could look — `GET
    * /api/federation/admissions` showed no row for it and `configFailures` (a SEPARATE, boot-time
    * config-resolution channel — see `external-mcp-connection-source.ts`) has no way to know about a
-   * failure that happens deeper, inside `connect()` itself. `reason` is `messageOf(error)` — the
-   * same text `logger.warn` already prints for this exact failure, so this field discloses nothing
-   * that was not already reaching this process's own stderr; it is never a raw env value or secret,
-   * since nothing in this file's `connect`/`spawn` error paths ever formats one into a message.
+   * failure that happens deeper, inside `connect()` itself. The message is redacted before it
+   * reaches this caller-visible field: remote failures can echo tokens and credentialed URLs,
+   * and the log's separate redaction does not protect the returned value.
    */
   readonly connectFailures: readonly { readonly connectionId: string; readonly reason: string }[];
 }
@@ -291,7 +290,7 @@ async function attachOneFederatedConnection(params: {
     logger.warn({ message: `mcp-federation: '${connectionId}' failed, continuing without its tools — ${redactSecrets({ input: inspect(error) }, { redactPii: false })}` });
     // A session that connected but failed during listing/admission still owns a child process.
     await session?.close({}).catch(() => undefined);
-    return { registeredToolIds: [], session: null, report: null, connectFailureReason: messageOf(error) };
+    return { registeredToolIds: [], session: null, report: null, connectFailureReason: redactSecrets({ input: messageOf(error) }, { redactPii: false }) };
   }
 }
 

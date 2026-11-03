@@ -39,6 +39,7 @@ import { parseMcpToolInputSchema } from '../adapters/protocol.js';
 import { randomUUID } from 'node:crypto';
 import { postDaemonJson } from '../daemon-client.js';
 import { daemonCallOptions, requireString, type McpToolDef } from '../tool-protocol.js';
+import { resolveMcpToolName } from '../tool-arguments.js';
 
 /** Response shape `POST /api/delegated-tool-calls` (`packages/http-kit/src/delegated-tools.ts`) returns. */
 interface DelegatedToolExecuteResponse {
@@ -218,7 +219,7 @@ function createDelegatedGateway(
       const body: Record<string, unknown> = {
         runId,
         toolUseId,
-        toolId: toolId,
+        toolId: resolveMcpToolName({ name: toolId }, { isRegistered: candidate => ctx.diagnosticToolIds?.includes(candidate) ?? false }),
         // The schema tells the model to omit `input` for a tool that takes none, but most tool
         // handlers refuse an absent input ("input must be an object"). Sending `{}` makes the
         // schema's promise true instead of costing a red failed call and a retry.
@@ -332,6 +333,7 @@ export function createTypedDelegatedToolTool(
     description: `${descriptor.description ?? descriptor.id} ${APPROVAL_GUIDANCE}`,
     // Parse to check the MCP boundary, but publish the original schema, including extensions.
     inputSchema: descriptor.inputSchema as typeof inputSchema,
+    argumentNormalization: { schemaInput: true },
     annotations: { ...gateway.annotations, title: descriptor.id },
     handler: ({ args, ctx }) => gateway.handler({ args: { toolId: descriptor.id, input: args }, ctx }),
   };

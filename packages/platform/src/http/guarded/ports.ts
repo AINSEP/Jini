@@ -19,6 +19,11 @@ export interface EgressPolicy {
 
   /** Explicit development capability; IPv6 literals use their bracket-free hostname (e.g. fd00::1). */
   readonly devHostAllowlist: readonly string[];
+  /** Trusted host configuration only: exact normalized scheme+host+port origins on localhost
+   * or loopback IP literals whose loopback peers may be dialed. Public DNS names cannot rebind
+   * to loopback through this exception. Other private classes remain denied, including mixed answers.
+   * Rechecked on every redirect; this never grants other ports or hostname aliases. */
+  readonly loopbackOriginAllowlist?: readonly string[];
   readonly maxRedirects: number;
   /** Historical name: ceiling on each socket's idle timeout, not total transfer time. */
   readonly connectTimeoutMs: number;

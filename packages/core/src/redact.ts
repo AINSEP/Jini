@@ -251,6 +251,7 @@ export interface SecretRedactionOptions {
 const SECRET_LABELS = 'authorization|bearer|api[-_]?key|access[-_]?token|refresh[-_]?token|client[-_]?secret|password|secret|cookie';
 // Keep historical URL categories and the bounded sanitizer's vocabulary stable.
 const SERIALIZED_SECRET_LABELS = `${SECRET_LABELS}|x[-_](?:goog[-_])?api[-_]?key|api key|token|set[-_]cookie|private[-_]?key`;
+const EMPTY_QUOTED_ASSIGNMENT_RE = new RegExp(`\\b(?:${SERIALIZED_SECRET_LABELS})\\s*[:=]\\s*$`, 'i');
 export const LABELED_SECRET_RE = new RegExp(`\\b(${SECRET_LABELS})\\b\\s*[:=]\\s*\\S+`, 'gi');
 export const OPAQUE_TOKEN_RE = /[A-Za-z0-9_-]{20,}/g;
 // Pattern parts, only ever used inside the anchored NON_SECRET_TOKEN_RE.
@@ -334,9 +335,9 @@ export function formatErrorForLog(
       if (!text.includes(message)) text += `\n${message}`;
       const fields = Object.fromEntries(Object.getOwnPropertyNames(error)
         .filter(key => !['name', 'message', 'stack'].includes(key)).map(key => [key, Reflect.get(error, key)]));
-      if (Object.keys(fields).length) text += `\n${diagnosticJson(fields)}`;
+      if (Object.keys(fields).length) text += `\n${diagnosticJson({ error: fields }, options)}`;
     } else {
-      text = error !== null && typeof error === 'object' ? diagnosticJson(error) : String(error);
+      text = error !== null && typeof error === 'object' ? diagnosticJson({ error }, options) : String(error);
     }
     return redactSecrets({ input: text }, { redactPii: false, ...options });
   } catch {
@@ -346,13 +347,18 @@ export function formatErrorForLog(
 
 /** JSON preserves structured fields without coercing objects; track cycles and native Error fields.
  * Property access remains inside formatErrorForLog's recovery boundary. O(n) visited fields. */
-function diagnosticJson(error: unknown): string {
+function diagnosticJson({ error }: { error: unknown }, options: SecretRedactionOptions = {}): string {
   const seen = new WeakSet<object>();
   return JSON.stringify(error, (_key, value: unknown) => {
     if (value !== null && typeof value === 'object') {
       if (seen.has(value)) return '[Circular]';
       seen.add(value);
       if (value instanceof Error) return Object.fromEntries(Object.getOwnPropertyNames(value).map(key => [key, Reflect.get(value, key)]));
+    }
+    // Scrub string contents before JSON escapes their credential labels. Exact-only is kept
+    // for the final pass so a caller's literal marker is never reprocessed as a supplied secret.
+    if (typeof value === 'string' && options.policy !== 'exact-only') {
+      return redactSecrets({ input: value }, { redactPii: false, ...options });
     }
     return typeof value === 'bigint' ? String(value) : value;
   }) ?? String(error);
@@ -505,9 +511,24 @@ function redactUrlCredentials({ text, marker }: RedactionPass): string {
     );
 }
 
+/** Mask quoted hints ending in an empty credential assignment before scanning labels. Otherwise
+ * their closing quote is mistaken for a value's opening quote and consumes the next field's key,
+ * leaving that field's secret unrecognized. Only the hint token is replaced; neighboring labels
+ * remain available to the existing matchers, including inspect's unquoted keys.
+ * @complexity O(n) scanning the diagnostic's quoted tokens; no I/O or input mutation.
+ */
+function redactEmptyQuotedAssignments({ text, marker }: RedactionPass, _options = {}): string {
+  return text.replace(new RegExp(QUOTED_SECRET_VALUE, 'g'), (quoted) => {
+    if (!EMPTY_QUOTED_ASSIGNMENT_RE.test(quoted.slice(1, -1))) return quoted;
+    const quote = quoted.charAt(0);
+    return `${quote}${marker('labeled_secret')}${quote}`;
+  });
+}
+
 /** Values named by a header, query parameter, bearer prefix or credential label. */
 function redactKeyedCredentials({ text, marker }: RedactionPass): string {
-  let out = text.replace(API_KEY_HEADER, (_match, prefix: string, quote: string, name: string, separator: string, value: string) => {
+  let out = redactEmptyQuotedAssignments({ text, marker });
+  out = out.replace(API_KEY_HEADER, (_match, prefix: string, quote: string, name: string, separator: string, value: string) => {
     // Already masked values are not new credentials and should not inflate the audit count.
     if (isMaskedValue(value)) return `${prefix}${quote}${name}${quote}${separator}${value}`;
     marker('api_key_header');

@@ -272,8 +272,9 @@ object-shaped reads, filters and optional legacy metadata reader.
 supports, for example `"tovu": { "id": "tovu/stock" }` beside `"open-marketing": { "id": "tovu/stock" }`.
 
 - A host reads only its own key, the `extensionNamespace` it passes to the lifecycle.
-- Library code in this package never assumes a host key. The exported parsers and validators
-  keep `tovu` as their default for existing callers; new callers pass the namespace explicitly.
+- Without a host namespace, exported parsers and validators read `jini`, falling back to the legacy
+  `tovu` key only when `jini` is absent. A present malformed `jini` entry is refused, never bypassed.
+  Passing a namespace explicitly reads only that key, with no fallback to another host.
 - Publisher ids stay as declared. There is no alias between keys and no content rewrite.
 - A customized fork (`zipCustomizedAgentPluginFolder`) gets `local/<name>` under every host key
   that declared an id, and loses every `renamedFrom` and `supersedes` claim, so no host sees the

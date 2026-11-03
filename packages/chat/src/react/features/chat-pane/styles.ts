@@ -958,7 +958,9 @@ export const CHAT_PANE_STYLES = `
    bar needs the room for the model label. */
 .jini-chat-pane .jini-composer-footer-accessories {
   display: flex;
-  min-width: 0;
+  /* Preserve the picker's fixed icon/effort controls. A zero minimum let them overflow this
+     wrapper onto Send/Stop; min-content still lets the model label truncate at its own floor. */
+  min-width: min-content;
   margin-left: auto;
 }
 /* Basis 0: the hint takes only the room the runtime row leaves and wraps into it, instead of

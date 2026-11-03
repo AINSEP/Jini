@@ -53,14 +53,15 @@ export interface ImagePromptDelivery {
  * @complexity O(n) in the number of images — one line rendered per path, no I/O.
  * @overallScore 100
  */
-export function augmentPromptWithImageAttachments({ prompt, imagePaths }: { readonly prompt: string; readonly imagePaths: readonly string[] }): string {
+export function augmentPromptWithImageAttachments({ prompt, imagePaths }: { readonly prompt: string; readonly imagePaths: readonly string[] }, _optional: Record<string, never> = {}): string {
   const list = imagePaths.map((imagePath, index) => `${index + 1}. ${imagePath}`).join('\n');
   const plural = imagePaths.length === 1;
   return (
     `${prompt}\n\n---\n` +
     `The user attached the following image ${plural ? 'file' : 'files'} to this message. ` +
-    `${plural ? 'It is a' : 'These are'} real file${plural ? '' : 's'} on disk — read ${plural ? 'it' : 'each one'} directly ` +
-    `(e.g. with your file-reading tool) before responding:\n${list}`
+    `${plural ? 'It is a' : 'These are'} real file${plural ? '' : 's'} on disk — read ${plural ? 'it' : 'each one'} ` +
+    `with the host attachment/image tool first, or your native Read/image tool for this supplied path. ` +
+    `Never use Bash, a shell command or a script to inspect attachments:\n${list}`
   );
 }
 

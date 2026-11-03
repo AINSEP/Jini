@@ -31,9 +31,9 @@ function isSourceEntry(entry: string, includeJavaScript = false): boolean {
 }
 
 /** Recursively lists TS source under `dir`, skipping declarations and generated/dependency trees.
- * Runtime-closure analysis also opts into build-free JavaScript source.
+ * Runtime-closure analysis also opts into build-free JavaScript source; neutrality checks opt into JSON.
  */
-export function listSourceFiles(dir: string, options: { includeJavaScript?: boolean } = {}): string[] {
+export function listSourceFiles(dir: string, options: { includeJavaScript?: boolean; includeJson?: boolean } = {}): string[] {
   const out: string[] = [];
   let entries: string[];
   try {
@@ -47,7 +47,7 @@ export function listSourceFiles(dir: string, options: { includeJavaScript?: bool
     const st = statSync(full);
     if (st.isDirectory()) {
       out.push(...listSourceFiles(full, options));
-    } else if (isSourceEntry(entry, options.includeJavaScript)) {
+    } else if ((options.includeJson && entry.endsWith('.json')) || isSourceEntry(entry, options.includeJavaScript)) {
       out.push(full);
     }
   }

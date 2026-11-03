@@ -1,6 +1,6 @@
 // Policy refusals use EgressRefusedError; DNS, connection and transport failures retain their
 // own errors because they are operational failures, not decisions that a different URL fixes.
-import { classifyIpAddress } from "../../net/address.js";
+import { classifyIpAddress, isLoopbackHostname } from "../../net/address.js";
 import { effectivePort } from "../../core/effective-port.js";
 import { FetchTimeoutError } from "../../fetch-with-timeout.js";
 import { isIP } from "node:net";
@@ -55,10 +55,17 @@ async function resolveHostAddresses(hostname: string, dns: DnsResolver): Promise
   return [...await dns.resolve({ hostname })];
 }
 
-// Keep the resolved IP in internal diagnostics only; the caller-safe refusal must not disclose it.
-function assertNoPrivateAddress(hostname: string, addresses: readonly string[]): void {
+/** Validate every resolved peer, allowing loopback only for an explicitly configured origin.
+ * Keep the resolved IP in internal diagnostics only; the caller-safe refusal must not disclose it.
+ * @throws EgressRefusedError before any connection for a denied or mixed DNS answer.
+ * @complexity O(a + o) time for a addresses and o configured origins, O(1) space.
+ */
+function assertNoPrivateAddress({ url, addresses, policy }: { url: URL; addresses: readonly string[]; policy: EgressPolicy }, _options = {}): void {
+  const hostname = url.hostname;
+  const allowLoopback = isLoopbackHostname({ hostname }) && (policy.loopbackOriginAllowlist?.includes(url.origin) ?? false);
   for (const address of addresses) {
     const addressClass = classifyAddress({ ip: address });
+    if (allowLoopback && addressClass === "loopback") continue;
     if (addressClass !== "public") {
       throw new EgressRefusedError({ message: `egress to '${hostname}' (${address}) rejected: resolved address is ${addressClass}` }, {
         callerSafeMessage: `egress to '${hostname}' rejected: resolved address is ${addressClass}`,
@@ -81,7 +88,7 @@ async function resolvePinnedPeer(url: URL, policy: EgressPolicy, dns: DnsResolve
   }
 
   if (policy.denyPrivateAddresses && !isDevAllowlisted) {
-    assertNoPrivateAddress(url.hostname, addresses);
+    assertNoPrivateAddress({ url, addresses, policy });
   }
 
   return {

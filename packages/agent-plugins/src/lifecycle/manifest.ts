@@ -55,6 +55,7 @@
  * caller that reads the file and hands the parsed value here.
  */
 import { isAgentPluginName, MAX_NAME_LENGTH } from '../core/plugin-name.js';
+import { resolveAgentPluginIdentityNamespace } from '../core/identity-namespace.js';
 export { isAgentPluginName } from '../core/plugin-name.js';
 import { readAgentPluginCompatibilityMetadata } from "./compatibility-metadata.js";
 import { parseAgentPluginExports, type AgentPluginExportMetadata } from './exports.js';
@@ -216,17 +217,18 @@ function collectManifestProblems(
 
 /**
  * Validates an already-`JSON.parse`d `plugin.json` value against the 1.0.0/1.1.0 grammar.
- * Hosts inject identityNamespace; the default retains the existing plugin extension format.
+ * Hosts inject identityNamespace; the default is `jini`, with a legacy-key fallback.
  *
  * @throws Nothing — every failure is reported via the returned `errors`, matching this codebase's
  * own convention for expected validation outcomes (`plugin-runtime/manifest.ts`,
  * `plugin-runtime/discovery.ts`).
  * @complexity O(k + n) time and space in the input keys and keyword entries.
  */
-export function parseAgentPluginManifest({ value }: { readonly value: unknown }, { identityNamespace = "tovu" }: { readonly identityNamespace?: string } = {}): ParseAgentPluginManifestResult {
+export function parseAgentPluginManifest({ value }: { readonly value: unknown }, optional: { readonly identityNamespace?: string } = {}): ParseAgentPluginManifestResult {
   if (!isJsonObject(value)) return { ok: false, errors: ["plugin.json must be a JSON object"] };
 
   const raw = value;
+  const identityNamespace = resolveAgentPluginIdentityNamespace({ value }, optional);
   const nameResult = resolveManifestName(raw);
   const { errors, warnings } = collectManifestProblems({ raw, identityNamespace }, { nameError: nameResult.error });
   if (errors.length > 0) return { ok: false, errors };

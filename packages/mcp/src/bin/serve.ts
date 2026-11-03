@@ -44,6 +44,7 @@ import { isLoopbackHostname } from '@jini-ai/platform/net';
 import type { ToolDescriptor } from '@jini-ai/core';
 import { createMcpToolServer as createMcpToolServerDefault, type McpToolServerRequiredArgs, type McpToolServerOptions } from '../server/tool-server.js';
 import type { McpToolDef } from '../server/tool-protocol.js';
+import { waitTool } from '../server/tools/wait.js';
 import { RUN_TOOLS } from '../server/tools/run-tools.js';
 import { describeToolTool, TOOL_CATALOG_TOOLS } from '../server/tools/tool-catalog-tools.js';
 import { COMPONENT_CATALOG_TOOLS } from '../server/tools/component-catalog-tools.js';
@@ -94,7 +95,12 @@ const INSTRUCTIONS =
   'refresh tools/list when supported, or use the delegated gateways as the compatibility fallback. ' +
   'When the host provides site_guide, consult jini://site-guide or call site_guide with operation overview ' +
   'through execute_readonly_delegated_tool; follow with explain for the relevant topic ids. ' +
-  'If the host does not provide site_guide, report that availability gap.';
+  'If the host does not provide site_guide, report that availability gap. ' +
+  'Use host tools first. For saved oversized tool results, call read_tool_result with the resultId and follow nextOffset. ' +
+  'For attachments, use the host attachment/image tool first or a native Read/image tool on the supplied path. ' +
+  'Never use Bash, shell commands or scripts to inspect attachments or saved tool results. ' +
+  'Between background job polls, honor poll_after_seconds with wait_for({seconds: <interval up to 60>}); repeat for longer intervals. ' +
+  'Never use Bash or shell sleep between polls. A provider wait tool is optional: describe its live schema before calling it.';
 
 export interface ServeDeps {
   /** @default process.env */
@@ -264,6 +270,7 @@ function buildTools({ runId, delegatedGatewayOptions }: { runId: string; delegat
     // `readOnlyHint: true` can now reach the read half of the catalog at all; every other client
     // sees both and picks by what its call actually does.
     createExecuteReadonlyDelegatedToolTool({ runId }, delegatedGatewayOptions),
+    waitTool,
   ];
 }
 
@@ -277,6 +284,7 @@ function buildServerOptions(
   return {
     resources: [...KERNEL_RESOURCES, createSiteGuideResource({ runId }, delegatedGatewayOptions)],
     instructions: INSTRUCTIONS,
+    resultPaging: true,
     ...definedOnly({
       authHeaders: credential ? { Authorization: `Bearer ${credential}` } : undefined,
       fetchImpl: deps.fetchImpl,

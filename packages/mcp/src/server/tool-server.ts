@@ -31,6 +31,8 @@ import { createMcpIdleExitController } from '../client/client.js';
 import { buildResourceIndex, handleResourceRead, resourcesToList, type McpResourceDef } from './resource-protocol.js';
 import { buildToolIndex, handleToolCall, toolsToList, type McpToolContext, type McpToolDef } from './tool-protocol.js';
 import { createTypedDelegatedToolTool, type CreateExecuteDelegatedToolToolOptions } from './tools/delegated-tool.js';
+import { resolveMcpToolName } from './tool-arguments.js';
+import { createToolResultPages } from './tool-result-pages.js';
 import { prependRunUserMessages, type McpMessageRelay } from './message-relay.js';
 import { createStdioHosting, validateFrameLimit, wantsStdioHosting, type StdioHosting, type StdioHostingOptions } from './stdio-hosting.js';
 
@@ -74,6 +76,8 @@ export interface McpToolServerRequiredArgs {
 export interface McpToolServerOptions extends StdioHostingOptions {
   /** Set only by relay-enabled spawns; native input engines incur no extra request or tool. */
   readonly messageRelay?: McpMessageRelay;
+  /** Keep oversized text in this run and advertise read_tool_result instead of CLI spill files. */
+  readonly resultPaging?: boolean;
   /** Opt in to bounded, per-run typed publication after describe_tool. */
   readonly delegatedTools?: McpDelegatedToolsOptions;
   /** Trusted daemon registration IDs carried into every error sanitizer. */
@@ -289,7 +293,8 @@ export function createMcpToolServer(requiredArgs: McpToolServerRequiredArgs, opt
 
   return {
     async run(_required: Record<string, never>): Promise<void> {
-      const toolIndex = buildToolIndex({ tools: requiredArgs.tools });
+      const resultPages = options.resultPaging ? createToolResultPages({}) : undefined;
+      const toolIndex = buildToolIndex({ tools: [...requiredArgs.tools, ...(resultPages ? [resultPages.tool] : [])] });
       let ctx = buildToolContext({ resolvedBaseUrl: await requiredArgs.resolveBaseUrl() }, options);
 
       const server = createServer({
@@ -320,22 +325,23 @@ export function createMcpToolServer(requiredArgs: McpToolServerRequiredArgs, opt
         schema: CallToolRequestSchema,
         handler: withActivity(async ({ request }: { request: { params: { name: string; arguments?: Record<string, unknown> } } }, { extra }: { extra?: { signal?: AbortSignal } } = {}) => {
           const callContext = extra?.signal !== undefined ? { ...ctx, signal: extra.signal } : ctx;
-          let checkedMessages = request.params.name === 'check_messages';
+          let checkedMessages = resolveMcpToolName({ name: request.params.name }, { isRegistered: candidate => toolIndex.has(candidate) }) === 'check_messages';
           const callLocalTool: NonNullable<McpToolContext['callLocalTool']> = async ({ name, input, requireReadOnly }, _optional = {}) => {
-            const tool = toolIndex.get(name);
+            const tool = toolIndex.get(resolveMcpToolName({ name }, { isRegistered: candidate => toolIndex.has(candidate) }));
             if (!tool) return undefined;
             if (requireReadOnly && tool.annotations?.readOnlyHint !== true) {
               throw new Error(`Tool "${name}" is not declared read-only; use execute_delegated_tool.`);
             }
-            checkedMessages = name === 'check_messages';
+            checkedMessages = tool.name === 'check_messages';
             // Keep nesting bounded: a local gateway's own handler receives the base context.
             return handleToolCall({ name, tools: toolIndex, ctx: callContext }, { rawArgs: input });
           };
           const result = await handleToolCall({ name: request.params.name, tools: toolIndex,
             ctx: { ...callContext, callLocalTool } }, { rawArgs: request.params.arguments });
           // A delegated check must keep its trusted nonce and claim only once, just like a direct check.
-          if (!options.messageRelay || checkedMessages) return result;
-          return prependRunUserMessages({ result, relay: options.messageRelay, ctx: callContext });
+          const readableResult = checkedMessages ? result : (resultPages?.project({ result }) ?? result);
+          if (!options.messageRelay || checkedMessages) return readableResult;
+          return prependRunUserMessages({ result: readableResult, relay: options.messageRelay, ctx: callContext });
         }),
       });
 
@@ -369,6 +375,7 @@ export function createMcpToolServer(requiredArgs: McpToolServerRequiredArgs, opt
 
         await waitForTransportClose({ transport, idleExit, hosting, stdin: options.stdin ?? process.stdin });
       } finally {
+        resultPages?.clear({});
         idleExit.dispose({});
         if (hosting) void hosting.dispose();
         closeTransportForIdle = null;
