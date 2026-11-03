@@ -5,10 +5,51 @@ import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { startMcpHttpToolServer } from '../http-tool-server.js';
+import { createMcpHttpToolServerRuntime } from '../http-tool-server.js';
 import type { McpToolDef } from '../tool-protocol.js';
 
 const cleanup: Array<() => Promise<void>> = [];
 afterEach(async () => { for (const close of cleanup.splice(0).reverse()) await close(); });
+
+it('an embedding waiting during initial bind failure receives the recovered capability', async () => {
+  vi.useFakeTimers();
+  let attempts = 0;
+  const delivered: string[] = [];
+  const runtime = createMcpHttpToolServerRuntime({ name: 'host', version: '1', tools: [], resolveBaseUrl: () => '' }, {
+    start: async () => {
+      if (++attempts === 1) throw new Error('bind failed');
+      return { url: 'http://127.0.0.1:49001/mcp', token: 'private', close: async () => {} };
+    },
+  });
+  try {
+    const stop = runtime.subscribe({ listener: capability => { delivered.push(capability.url); } });
+    expect(await runtime.capability({})).toBeUndefined();
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(delivered).toEqual(['http://127.0.0.1:49001/mcp']);
+    stop();
+    const unsubscribe = runtime.subscribe({ listener: capability => { delivered.push(capability.url); } });
+    await Promise.resolve();
+    unsubscribe();
+    expect(delivered).toHaveLength(2);
+  } finally { await runtime.close({}); vi.useRealTimers(); }
+});
+
+it('capability delivery retries failures and unsubscribe cancels further delivery', async () => {
+  vi.useFakeTimers();
+  const listener = vi.fn().mockRejectedValueOnce(new Error('site not ready')).mockResolvedValue(undefined);
+  const runtime = createMcpHttpToolServerRuntime({ name: 'host', version: '1', tools: [], resolveBaseUrl: () => '' }, {
+    start: async () => ({ url: 'http://127.0.0.1:49001/mcp', token: 'private', close: async () => {} }),
+  });
+  try {
+    const stop = runtime.subscribe({ listener });
+    await runtime.capability({});
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(listener).toHaveBeenCalledTimes(2);
+    stop();
+    await vi.advanceTimersByTimeAsync(2000);
+    expect(listener).toHaveBeenCalledTimes(2);
+  } finally { await runtime.close({}); vi.useRealTimers(); }
+});
 
 async function host(tools: readonly McpToolDef[]) {
   const server = await startMcpHttpToolServer({ name: 'wire-host', version: '1', tools, resolveBaseUrl: () => '' });
