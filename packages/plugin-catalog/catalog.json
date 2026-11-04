@@ -1043,10 +1043,10 @@
     "version": "0.6.19",
     "description": "UI/UX design, interface-design-system, accessibility, and shadcn/ui component skills bundled as one portable Agent Plugin.",
     "expectedDigests": {
-      "CHANGELOG.md": "sha256-5e03f1851dd5ab010ef43e9b44e69b08960021d773a01063fac33e8a0b592b31",
+      "CHANGELOG.md": "sha256-528725b71038155ed05669b602c537aa3371985b1ead55472c315a3a015b8892",
       "LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
       "NOTICE": "sha256-d37b6b3352ffb7fdb8e79b66944004d3833bacdc84e415186a7d55218e6653a6",
-      "README.md": "sha256-4ac155fa6337c1ebe4d40374f3b170c4cab19e1662405485795f84f959eff77e",
+      "README.md": "sha256-a0b9dbc10386e0c1f540a0df8c357bf6fa3ccc73f6a8945c29d7d4bcf350ba75",
       "com.anthropic.claude-code/hooks/hooks.json": "sha256-370d1cfc65d33ac55e9cf35ac945d3d6127dbfe0ef827e010d0ff6ead62184f8",
       "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
       "plugin.json": "sha256-a9e9f5c73d1d239149ce3f263dce4c2650f2d9e4597f9e426980ceac9def085f",

@@ -45,7 +45,7 @@ test('the manifest keeps the card summary and the search keywords of both former
   } });
   assert.deepEqual(manifest.keywords, ['design', 'ui', 'ux', 'ui-design', 'theme', 'page', 'website', 'layout']);
   // Hosts seeded Tovu's 0.6.0; an equal or lower version over different bytes is refused or flagged.
-  assert.equal(manifest.version, '0.6.1');
+  assert.equal(manifest.version, '0.6.2');
 });
 
 test('the design skill carries the shared tool-use wording, not one host\'s chat rules', async () => {

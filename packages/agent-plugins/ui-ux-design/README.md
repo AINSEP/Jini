@@ -13,7 +13,7 @@ verifies its digest, installs atomically, records activation and selects the bun
 Use the lifecycle's trusted installed-file readers for contributions. Host policy controls activation;
 installing this npm package grants no permission and preserves operator disablement on later boots.
 
-The npm version follows Jini's fixed release group. The inner `plugin.json` version (**0.6.1**)
+The npm version follows Jini's fixed release group. The inner `plugin.json` version (**0.6.2**)
 orders the plugin's own content releases; hosts refuse a lower one over an installed copy.
 The `./ui-ux-design/*` export exposes its raw assets for host staging.
 
@@ -27,8 +27,7 @@ no provider plugin or vendor SDK is included.
 This is the one shared copy for every host. Its text names no host tools: it tells the agent to
 discover the host's tools, follow the host's permissions and explain a missing capability. The
 `shadcn-ui` frontmatter keeps `Bash` for coding hosts. A host that forbids shell use adds its own
-chat rules and strips that entry when it delivers the guidance (Tovu does both from
-`content/agent-plugin-overlays/ui-ux-design/`).
+chat rules and strips that entry when it delivers the guidance, from its own overlay folder.
 
 ## Upstream
 
