@@ -25,3 +25,14 @@ test('runtime discovery tries the desktop workspace after the root installation'
   expect(seen).toEqual(['/root', '/desktop']);
   expect(result.command).toBe('/desktop');
 });
+
+// desktop 0.1.27: the packaged site server imports @jini-ai/devops/local-dev (listenServer,
+// createDevServerRetirement), so the staged-closure audit reached node-runtime's require('electron')
+// and refused the build. electron is an opt-in peer of this dev-only runtime picker; the manifest
+// must say so in the contract the audit reads.
+test('the package manifest declares electron as a classified opt-in peer for runtime selection', async () => {
+  const { readFile } = await import('node:fs/promises');
+  const { optionalPeerClassification } = await import('../../packaging/electron/optional-peers.js');
+  const manifest = JSON.parse(await readFile(new URL('../../../package.json', import.meta.url), 'utf8'));
+  expect(optionalPeerClassification({ manifest, name: 'electron' })).toMatch(/^opt-in: desktop runtime selection/);
+});

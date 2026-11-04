@@ -799,6 +799,9 @@ importers:
       '@jini-ai/core':
         specifier: workspace:^
         version: link:../core
+      electron:
+        specifier: '>=30.0.0'
+        version: 43.2.0
       typescript:
         specifier: ^5.6.0
         version: 5.9.3

@@ -1,5 +1,9 @@
 # @jini-ai/devops
 
+## 0.6.20
+
+- `electron` is a classified opt-in peer (`jini.optionalPeers`): only `@jini-ai/devops/local-dev`'s `selectNodeRuntime` loads it. A host that packages a server importing `local-dev` (listen/retirement helpers) no longer fails its staged-closure audit on that dev-only runtime picker (Tovu desktop 0.1.27).
+
 ## 0.6.19
 
 - Staged-closure audit: a nameless `package.json` (a dual build's `dist/cjs/package.json` = `{"type":"commonjs"}`) no longer hides the owning package's `jini.optionalPeers` opt-in, so a CommonJS entry's optional peer is classified the same as its ESM twin (`@jini-ai/sandbox/dist/cjs/e2b/provider.js` -> `@e2b/code-interpreter`).
