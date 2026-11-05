@@ -53,3 +53,5 @@ export function contributePaymentsTools(
 ): { domain: string; build: typeof buildPaymentsToolRegistrations; risk: DerivedRiskByToolId } {
   return { domain: PAYMENTS_TOOLS_DOMAIN, build: buildPaymentsToolRegistrations, risk: paymentsToolsDerivedRisk };
 }
+
+export { buildCommerceResolutionRegistrations, type CommerceResolutionToolsRequired } from './resolve-unknown.js';

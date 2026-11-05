@@ -57,3 +57,14 @@ describe("site-bound payment credentials", () => {
     expect(await w.resolve()).toEqual(refused(true));
   });
 });
+
+it('refreshes plugin bindings after credentials attach without recreating the context port', async () => {
+  const w = world();
+  let bindings: Record<string, string> = {};
+  const contexts = createProviderContexts({ ...w.required, bindings: () => bindings });
+  expect((await contexts.resolve({ scope, provider })).ok).toBe(false);
+  bindings = { lipay: 'payments-lipay' };
+  expect((await contexts.resolve({ scope, provider })).ok).toBe(true);
+  bindings = {};
+  expect((await contexts.resolve({ scope, provider })).ok).toBe(false);
+});

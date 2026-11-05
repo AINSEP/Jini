@@ -54,7 +54,9 @@ function eligible({ attempt, now, windowMs }: { attempt: AttemptRecord | null; n
   if (!attempt?.dispatchJson || attempt.recoveryAttempts >= 3) return false;
   if (attempt.outcome !== "unknown" && attempt.outcome !== "dispatched") return false;
   if (attempt.recoveryClaimUntil !== null && attempt.recoveryClaimUntil > now) return false;
-  return now >= attempt.createdAt && now - attempt.createdAt < windowMs;
+  // Persisted attempt count places retries across the retention window, surviving restarts.
+  const nextReplayAt = attempt.createdAt + attempt.recoveryAttempts * windowMs / 3;
+  return now >= nextReplayAt && now - attempt.createdAt < windowMs;
 }
 
 /** Replays only the original key during the provider's promised retention window.

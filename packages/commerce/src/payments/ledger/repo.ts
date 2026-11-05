@@ -74,7 +74,7 @@ export interface ProviderRefScope extends LedgerKeyScope {
 
 export interface LedgerTx {
   /** Oldest unfinished intent in this workspace; optional scope narrows endpoint resolution. */
-  findOpenPayment(required: { workspaceId: string }, optional?: { providerId?: string; mode?: PaymentMode }): Promise<PaymentRecord | null>;
+  findOpenPayment(required: { workspaceId: string }, optional?: { providerId?: string; mode?: PaymentMode; siteId?: string; excludeRequiresAction?: boolean }): Promise<PaymentRecord | null>;
   hasOpenPayment(required: { workspaceId: string }, optional?: Record<string, never>): Promise<boolean>;
   // Payments ------------------------------------------------------------------------------------
   /** Inserts at `version` 1 and returns the stored record. */
@@ -187,8 +187,10 @@ export interface LedgerTx {
    * recently updated first (ties by id), at most `limit`. `scope` narrows to one workspace + mode;
    * without it the scan spans every workspace (the reconciler is a host-level job) and each record
    * carries its own scope. `after` resumes past a {@link ScanCursor}.
+   * `unconfirmedBefore` additionally includes pending/requires-action intents older than that
+   * cutoff, so missed webhooks are recovered through the same bounded cursor scan.
    */
-  listUnknownPayments(required: { updatedBefore: number; limit: number }, optional?: ScanOptions): Promise<PaymentRecord[]>;
+  listUnknownPayments(required: { updatedBefore: number; limit: number; unconfirmedBefore?: number }, optional?: ScanOptions): Promise<PaymentRecord[]>;
   /** Refunds still holding money (`UNSETTLED_REFUND_STATUSES`), same cutoff, order, limit, scope and cursor rules. */
   listUnsettledRefunds(required: { updatedBefore: number; limit: number }, optional?: ScanOptions): Promise<RefundRecord[]>;
   /**

@@ -412,9 +412,14 @@ class MemoryLedgerTx implements LedgerTx {
     return this.t.quarantine.update({ id, set: () => set });
   }
 
-  async findOpenPayment({ workspaceId }: { workspaceId: string }, optional: { providerId?: string; mode?: PaymentMode } = {}): Promise<PaymentRecord | null> {
-    const rows = this.t.payments.list(r => r.workspaceId === workspaceId && OPEN_INTENT_STATUSES.includes(r.intentStatus)
-      && (optional.providerId === undefined || r.providerId === optional.providerId) && (optional.mode === undefined || r.mode === optional.mode), r => r.createdAt);
+  async findOpenPayment({ workspaceId }: { workspaceId: string }, optional: { providerId?: string; mode?: PaymentMode; siteId?: string; excludeRequiresAction?: boolean } = {}): Promise<PaymentRecord | null> {
+    const rows = this.t.payments.list(r => {
+      if (r.workspaceId !== workspaceId || !OPEN_INTENT_STATUSES.includes(r.intentStatus)) return false;
+      if (optional.siteId && r.siteId !== optional.siteId) return false;
+      if (optional.excludeRequiresAction && r.intentStatus === "requires_action") return false;
+      if (optional.providerId && r.providerId !== optional.providerId) return false;
+      return optional.mode === undefined || r.mode === optional.mode;
+    }, r => r.createdAt);
     rows.sort((a,b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
     return rows[0] ?? null;
   }
@@ -422,9 +427,12 @@ class MemoryLedgerTx implements LedgerTx {
 
   // Reconciliation scans ------------------------------------------------------------------------
 
-  async listUnknownPayments({ updatedBefore, limit }: { updatedBefore: number; limit: number }, optional: ScanOptions = {}): Promise<PaymentRecord[]> {
+  async listUnknownPayments({ updatedBefore, limit, unconfirmedBefore }: { updatedBefore: number; limit: number; unconfirmedBefore?: number }, optional: ScanOptions = {}): Promise<PaymentRecord[]> {
     const due = scanMatch({ updatedBefore, options: optional });
-    return this.t.payments.list((r) => r.intentStatus === "unknown" && due(r), (r) => r.updatedAt).slice(0, limit);
+    return this.t.payments.list((r) => {
+      const unconfirmed = (r.intentStatus === "requires_action" || r.intentStatus === "pending") && r.updatedAt < (unconfirmedBefore ?? Number.MIN_SAFE_INTEGER);
+      return (r.intentStatus === "unknown" || unconfirmed) && due(r);
+    }, (r) => r.updatedAt).slice(0, limit);
   }
 
   async listUnsettledRefunds({ updatedBefore, limit }: { updatedBefore: number; limit: number }, optional: ScanOptions = {}): Promise<RefundRecord[]> {

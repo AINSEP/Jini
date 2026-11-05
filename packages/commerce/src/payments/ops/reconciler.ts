@@ -36,7 +36,7 @@ import { applySnapshot, leave, retrieveSnapshot, type Verdict } from "./reconcil
 
 export interface ReconcileCounts {
   readonly scanned: number;
-  /** Moved out of `unknown`/unsettled by provider evidence (an attempt: closed `ok`). */
+  /** Provider evidence accepted by the writer (a snapshot may still await payer action); an attempt closed `ok`. */
   readonly settled: number;
   /** Refunds marked `failed` by the owner rule; capture/void attempts closed `rejected` (always 0 for payments). */
   readonly failed: number;
@@ -139,6 +139,7 @@ function scanOptions({ scope, after }: { scope: LedgerKeyScope | undefined; afte
 
 /**
  * One reconcile pass over rows last updated more than `olderThanMs` ago, at most `limit` payments,
+ * including pending/requires-action intents after at least fifteen minutes,
  * `limit` refunds and `limit` capture/void attempts, least recently updated first after the cursor.
  * @param optional.scope - Narrow to one workspace + mode; default: every workspace.
  * @param optional.cursor - A previous pass's `cursor`; default: start from the oldest rows.
@@ -148,9 +149,11 @@ export async function reconcileUnknown(
   optional: ReconcileOptions = {}
 ): Promise<ReconcileReport> {
   const updatedBefore = deps.now() - olderThanMs;
+  // Customer action can take minutes; query stale sessions only after a missed-webhook grace.
+  const unconfirmedBefore = deps.now() - Math.max(olderThanMs, 15 * 60_000);
   const { scope, cursor } = optional;
   const { payments, refunds, attempts } = await deps.ledger.transaction({ fn: async (tx) => ({
-    payments: await tx.listUnknownPayments({ updatedBefore, limit }, scanOptions({ scope, after: cursor?.payments })),
+    payments: await tx.listUnknownPayments({ updatedBefore, unconfirmedBefore, limit }, scanOptions({ scope, after: cursor?.payments })),
     refunds: await tx.listUnsettledRefunds({ updatedBefore, limit }, scanOptions({ scope, after: cursor?.refunds })),
     attempts: await tx.listOpenAttempts({ ops: RECONCILED_ATTEMPT_OPS, updatedBefore, limit }, scanOptions({ scope, after: cursor?.attempts })),
   }) });

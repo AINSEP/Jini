@@ -11,7 +11,7 @@ export function commerceConfigurationKey({ config }: { config: CommerceConfigura
  * @complexity At most one result row and one original intent snapshot; no provider I/O. */
 export async function readCommerceDrain({ ledger, workspaceId }: { ledger: PaymentsLedger; workspaceId: string }, _optional = {}): Promise<RecordedCommerce | null> {
   return ledger.transaction({ fn: async tx => {
-    const payment = await tx.findOpenPayment({ workspaceId });
+    const payment = await tx.findOpenPayment({ workspaceId }, { excludeRequiresAction: true });
     if (!payment) return null;
     const attempt = await tx.findAttemptByOperationKey({ workspaceId, mode: payment.mode, operationKey: `intent:${payment.idempotencyKey}` });
     return { provider_id: payment.providerId, provider_account_id: payment.providerAccountId, mode: payment.mode, dispatch_json: attempt?.dispatchJson ?? null };

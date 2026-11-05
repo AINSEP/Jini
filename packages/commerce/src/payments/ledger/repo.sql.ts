@@ -363,9 +363,11 @@ class SqlLedgerTx implements LedgerTx {
     return this.updateById({ table: LEDGER_TABLES.quarantine, id, set: encodeColumns({ resolved_at: resolvedAt }) });
   }
 
-  async findOpenPayment({ workspaceId }: { workspaceId: string }, optional: { providerId?: string; mode?: PaymentMode } = {}): Promise<PaymentRecord | null> {
+  async findOpenPayment({ workspaceId }: { workspaceId: string }, optional: { providerId?: string; mode?: PaymentMode; siteId?: string; excludeRequiresAction?: boolean } = {}): Promise<PaymentRecord | null> {
     const row = await this.read(db => {
       let query = db.selectFrom("commerce_payments").selectAll().where("workspace_id", "=", workspaceId).where("intent_status", "in", [...OPEN_INTENT_STATUSES]);
+      if (optional.siteId) query = query.where("site_id", "=", optional.siteId);
+      if (optional.excludeRequiresAction) query = query.where("intent_status", "!=", "requires_action");
       if (optional.providerId) query = query.where("provider_id", "=", optional.providerId);
       if (optional.mode) query = query.where("mode", "=", optional.mode);
       return query.orderBy("created_at").orderBy("id").limit(1).executeTakeFirst();
@@ -376,9 +378,12 @@ class SqlLedgerTx implements LedgerTx {
 
   // Reconciliation scans ------------------------------------------------------------------------
 
-  async listUnknownPayments({ updatedBefore, limit }: { updatedBefore: number; limit: number }, optional: ScanOptions = {}): Promise<PaymentRecord[]> {
+  async listUnknownPayments({ updatedBefore, limit, unconfirmedBefore }: { updatedBefore: number; limit: number; unconfirmedBefore?: number }, optional: ScanOptions = {}): Promise<PaymentRecord[]> {
     const rows = await this.read((db) =>
-      db.selectFrom("commerce_payments").selectAll().where("intent_status", "=", "unknown").where("updated_at", "<", updatedBefore)
+      db.selectFrom("commerce_payments").selectAll().where(eb => eb.or([
+        eb.and([eb("intent_status", "=", "unknown"), eb("updated_at", "<", updatedBefore)]),
+        eb.and([eb("intent_status", "in", ["requires_action", "pending"]), eb("updated_at", "<", unconfirmedBefore ?? Number.MIN_SAFE_INTEGER)]),
+      ]))
         .where(inScanScope(optional)).where(afterCursor(optional)).orderBy("updated_at").orderBy("id").limit(limit).execute()
     );
     return rows.map((row) => paymentFromRow(row));

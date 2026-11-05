@@ -89,16 +89,52 @@ for (const ledgerKind of kinds) describe(`intent recovery ${ledgerKind}`, () => 
     expect(replay).toHaveBeenCalledTimes(1);
   });
 
-  test("stops after three recovery attempts and keeps unknown money unresolved", async () => {
+  test("stops after three spaced recovery attempts and keeps unknown money unresolved", async () => {
     const { w, payment } = await unknown(ledgerKind);
     w.scripted.queue("createIntent", timedOut(), timedOut(), timedOut(), timedOut());
     for (let i = 0; i < 5; i++) {
       await w.operator.reconcileUnknown({ olderThanMs: AGE, limit: 10 });
-      w.tick(AGE * 2);
+      w.tick(23 * 60 * AGE / 3);
     }
     expect(w.scripted.calls.filter(call => call.op === "createIntent")).toHaveLength(4);
     expect((await w.read(payment.id)).attempts[0]).toMatchObject({ recoveryAttempts: 3, outcome: "unknown" });
     expect((await w.read(payment.id)).payment).toMatchObject({ status: "unknown", providerRef: null });
+  });
+
+  test("does not spend the recovery budget in minutes; retries span the provider retention window", async () => {
+    const { w, payment } = await unknown(ledgerKind);
+    const windowMs = 23 * 60 * AGE;
+    w.scripted.queue("createIntent", timedOut(), timedOut(), timedOut());
+    await w.operator.reconcileUnknown({ olderThanMs: AGE, limit: 10 });
+    for (let minute = 0; minute < 5; minute++) {
+      w.tick(AGE * 2);
+      await createPaymentsOperator(w.deps).reconcileUnknown({ olderThanMs: AGE, limit: 10 });
+    }
+    expect(w.scripted.calls.filter(call => call.op === "createIntent")).toHaveLength(2);
+    expect((await w.read(payment.id)).attempts[0]?.recoveryAttempts).toBe(1);
+    w.tick(windowMs / 3);
+    await w.operator.reconcileUnknown({ olderThanMs: AGE, limit: 10 });
+    expect((await w.read(payment.id)).attempts[0]?.recoveryAttempts).toBe(2);
+    w.tick(windowMs / 3);
+    await createPaymentsOperator(w.deps).reconcileUnknown({ olderThanMs: AGE, limit: 10 });
+    expect((await w.read(payment.id)).attempts[0]?.recoveryAttempts).toBe(3);
+    w.tick(windowMs / 3);
+    await w.operator.reconcileUnknown({ olderThanMs: AGE, limit: 10 });
+    expect(w.scripted.calls.filter(call => call.op === "createIntent")).toHaveLength(4);
+    expect((await w.read(payment.id)).payment).toMatchObject({ intentStatus: "unknown", providerRef: null, capturedMinor: 0 });
+  });
+
+  test("expired reference-less ambiguity stays unknown until an audited owner resolution", async () => {
+    const { w, payment } = await unknown(ledgerKind);
+    w.tick(24 * 60 * AGE);
+    await w.operator.reconcileUnknown({ olderThanMs: AGE, limit: 10 });
+    expect((await w.read(payment.id)).payment?.intentStatus).toBe("unknown");
+    expect(await w.operator.resolveUnknown({ scope: SCRIPTED, paymentId: payment.id, outcome: "failed", actor: "owner", reason: "Verified provider dashboard: no completed payment" }))
+      .toMatchObject({ ok: true, payment: { status: "failed" } });
+    const after = await w.read(payment.id);
+    expect(after.actions).toEqual([expect.objectContaining({ actor: "owner", outcome: "failed", reason: "Verified provider dashboard: no completed payment" })]);
+    expect(await w.ledger.transaction({ fn: tx => tx.hasOpenPayment({ workspaceId: SCRIPTED.workspaceId }) })).toBe(false);
+    expect(w.scripted.calls.filter(call => call.op === "createIntent")).toHaveLength(1);
   });
 
   test("changed amount conflicts before recovery and expired provider keys are never replayed", async () => {
@@ -130,7 +166,7 @@ for (const ledgerKind of kinds) describe(`intent recovery ${ledgerKind}`, () => 
     const interrupted = await w.read(first.payment.id);
     expect(interrupted.payment).toMatchObject({ status: "unknown", providerRef: null });
     expect(interrupted.attempts[0]).toMatchObject({ outcome: "unknown", recoveryAttempts: 1 });
-    failWriter = false; w.tick(AGE * 2);
+    failWriter = false; w.tick(23 * 60 * AGE / 3);
     expect((await createPaymentsOperator(w.deps).reconcileUnknown({ olderThanMs: AGE, limit: 10 })).payments.settled).toBe(1);
     expect((await w.read(first.payment.id)).payment).toMatchObject({ status: "succeeded" });
     const calls = w.scripted.calls.filter(call => call.op === "createIntent");
