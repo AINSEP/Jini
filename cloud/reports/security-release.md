@@ -26,3 +26,5 @@ Exact packages to publish at `0.6.23`:
 - `@jini-ai/ui-kit`
 - `@jini-ai/plugin-catalog`
 - `@jini-ai/provider-plugins`
+
+Checkpoint: range secret scan PASS with no leaks. Final builds and compiler checks continue. Scoped reruns are pending for load-sensitive fixture timeouts. Narrow Tovu compiler corrections preserve the credential write contract and page translation. Assertions, rules and thresholds remain intact.
