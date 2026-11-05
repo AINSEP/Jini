@@ -28,3 +28,5 @@ Exact packages to publish at `0.6.23`:
 - `@jini-ai/provider-plugins`
 
 Checkpoint: range secret scan PASS with no leaks. Final builds and compiler checks continue. Scoped reruns are pending for load-sensitive fixture timeouts. Narrow Tovu compiler corrections preserve the credential write contract and page translation. Assertions, rules and thresholds remain intact.
+
+Checkpoint: final Jini recursive build and complete typecheck PASS. Tovu root, admin and site-chat typechecks PASS; desktop recheck is pending. Exact packed-catalog proof PASS: 38 entries, 538 file digests, 12 publish versions and matching Tovu floors. Daemon transport rerun PASS (33 tests). One admin test timed out twice; stopped retrying under the job rule and retained every assertion and timeout. Lockfile synchronization remains deferred until publication.
