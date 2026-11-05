@@ -167,6 +167,30 @@ describe("canonicalNodeDirectory", () => {
 });
 
 describe("opt-in registry recovery", () => {
+  it("bugs 164/106: restart prunes missing scratch entries while preserving live independent sites", () => {
+    const root = tempRoot(), homeDir = path.join(root, "home"), scratch = path.join(root, "scratch");
+    const liveScratch = path.join(scratch, "live"), independent = path.join(root, "independent");
+    fs.mkdirSync(homeDir); fs.mkdirSync(liveScratch, { recursive: true }); fs.mkdirSync(independent);
+    const notices: string[] = [];
+    const ports = { ...createNodeDurableJsonPorts({}), report: { error: ({ message }: { message: string }) => { notices.push(message); } } };
+    const open = () => createNodeDirectoryWorkspace({ homeDir, defaultFolder: "Sites", envName: "SITES_HOME",
+      settingsFile: path.join(homeDir, "setting.json"), registryName: "sites.json", runningName: "running.json",
+      registryRecovery: { fixtureIdPattern: /^fixture-\d+$/g, temporaryRoots: [scratch] },
+    }, { env: {}, ports });
+    const kept = [record("live-scratch", liveScratch), record("independent", independent),
+      record("unavailable-user-site", path.join(root, "offline")), record("home-site", path.join(homeDir, "offline"))];
+    open().registry({}).merge({ entries: [...kept, record("missing-scratch", path.join(scratch, "gone")),
+      record("fixture-1", path.join(root, "missing-fixture"))] });
+    expect(open().registry({}).list({})).toEqual(kept);
+    expect(open().registry({}).list({})).toEqual(kept);
+    expect(notices).toEqual(["Directory workspace: removed 2 test/temporary catalog entries: missing-scratch, fixture-1"]);
+    const moved = path.join(root, "moved-independent");
+    fs.renameSync(independent, moved);
+    open().registry({}).relocate({ from: independent, to: moved });
+    expect(open().registry({}).list({}).filter(entry => entry.id === "independent"))
+      .toEqual([record("independent", moved)]);
+  });
+
   it("defaults the temporary roots to the OS temp directory and keeps live and protected entries", () => {
     const root = tempRoot(), homeDir = path.join(root, "home"), live = path.join(root, "live"), notices: string[] = [];
     fs.mkdirSync(homeDir); fs.mkdirSync(live);
