@@ -204,7 +204,12 @@ describe('adapter characterization before complexity refactor', () => {
       expect(onInternalError.mock.calls).toEqual([[{ method: 'post', path: '/pin', correlationId: body.error.requestId, error }]]);
       expect(consoleError).not.toHaveBeenCalled();
     } else {
-      expect(consoleError.mock.calls).toEqual([[`[@jini-ai/http-kit] internal error (POST /pin, correlationId=${body.error.requestId})`, error]]);
+      // The shared redaction design also covers stderr; the old raw-secret pin was unsafe.
+      expect(consoleError.mock.calls).toEqual([[
+        `[@jini-ai/http-kit] internal error (POST /pin, correlationId=${body.error.requestId})`,
+        expect.stringMatching(/^'?secret=\[REDACTED:labeled_secret\]'?$/),
+      ]]);
+      expect(JSON.stringify(consoleError.mock.calls)).not.toContain('/private/database');
     }
     expect(f.events.listenerCount('close')).toBe(0);
   });

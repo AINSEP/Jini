@@ -342,7 +342,10 @@ function AssistantMessageRow({
   const extGroups = useExtEventGroups({ events: message.events }, { slotOf: (name, data) => registry.slot({ name, data }) });
   const answeredCards = useAnsweredCards({ slotOf: registry.slot, events: message.events ?? [], groups: extGroups, runStreaming, runStatus: message.runStatus });
 
-  const terminalNotice = terminalMessageNotice({ message }, {});
+  // A validated extension may already show the explanation. Keep the generic fallback when its
+  // renderer is absent or refuses the payload, so malformed history never hides a failed turn.
+  const extensionExplainsFailure = !runStreaming && !runSucceeded && extGroups.some(group => registry.hasTerminalNotice(group));
+  const terminalNotice = extensionExplainsFailure ? null : terminalMessageNotice({ message }, {});
   const visibleContent = stripArtifact({ content: message.content });
 
   const displayBlocks = messageBlocks({ message, rows: timeline.rows, registry }, { toolCallDisplay, includeThinking: showThinking });

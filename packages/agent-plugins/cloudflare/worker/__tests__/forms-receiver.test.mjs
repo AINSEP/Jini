@@ -126,7 +126,10 @@ test('stale rate windows are pruned in the same batch', async () => {
   const s = setup();
   s.d1.sqlite.exec("INSERT INTO rate_windows (key, window_start, count) VALUES ('old', 1, 3)");
   await s.call(post(valid));
-  assert.deepEqual(s.d1.rows('SELECT key FROM rate_windows').map(row => row.key), [createHash('sha256').update('waitlist:203.0.113.9').digest('hex')]);
+  // Receiver-secret salting prevents offline IPv4 enumeration; pruning retains exactly that key.
+  assert.deepEqual(s.d1.rows('SELECT key FROM rate_windows').map(row => row.key), [
+    createHash('sha256').update(JSON.stringify([SECRET, 'waitlist', '203.0.113.9'])).digest('hex'),
+  ]);
 });
 
 test('storage failure answers 503 without logging answers', async () => {

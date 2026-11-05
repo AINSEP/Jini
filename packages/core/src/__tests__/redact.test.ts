@@ -331,6 +331,24 @@ describe('@jini-ai/core — redact — redactSecrets', () => {
       .toBe('failed "https://example.com/?token=[REDACTED:url_secret_param]" next');
   });
 
+  it.each([
+    ['?token', 'url_secret_param'], ['&password', 'labeled_secret'],
+    ['#client_secret', 'labeled_secret'],
+  ])('preserves the enclosing URL quote after %s and still masks a following credential', (parameter, category) => {
+    const input = `failed "https://example.com/${parameter}=short#private" next password=another`;
+    const redacted = `failed "https://example.com/${parameter}=[REDACTED:${category}]" next password=[REDACTED:labeled_secret]`;
+    expect(redactSecretsWithCounts({ input })).toEqual({
+      redacted,
+      counts: category === 'labeled_secret' ? { labeled_secret: 2 } : { url_secret_param: 1, labeled_secret: 1 },
+    });
+    expect(redactSecrets({ input: redacted })).toBe(redacted);
+  });
+
+  it('still masks a quoted label value in a URL when it has no unquoted URL value', () => {
+    const input = 'https://example.com/?token="private value"';
+    expect(redactSecrets({ input })).toBe('https://example.com/?token="[REDACTED:labeled_secret]"');
+  });
+
   it('redacts a Luhn-valid credit card number and leaves an invalid one unchanged', () => {
     expect(redactSecrets({ input: 'card 5500 0000 0000 0004 on file' })).toBe('card [REDACTED:credit_card] on file');
     expect(redactSecrets({ input: 'card 5500 0000 0000 0005 on file' })).toBe('card 5500 0000 0000 0005 on file');

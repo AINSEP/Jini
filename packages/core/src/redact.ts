@@ -721,8 +721,16 @@ function collectLabeledSecrets({ text, add }: SpanPass, earlier: readonly Span[]
   const extentOf = labelValueExtents(text);
   const regex = new RegExp(MASK_AWARE_LABELED_SECRET_RE.source, MASK_AWARE_LABELED_SECRET_RE.flags);
   const chained = new RegExp(CHAINED_LABEL_RE.source, CHAINED_LABEL_RE.flags);
+  const urlField = new RegExp(URL_SECRET_PARAM_RE.source, 'iy');
   for (let match = regex.exec(text); match; match = regex.exec(text)) {
     if (hints.has(match.index)) continue;
+    // The URL collector owns complete unquoted parameter values, including quote boundaries.
+    // A generic unquoted label would consume the URL's enclosing quote as a secret byte.
+    urlField.lastIndex = Math.max(0, match.index - 1);
+    if (urlField.exec(text)) {
+      regex.lastIndex = urlField.lastIndex;
+      continue;
+    }
     const start = match.index + match[0].length - 1;
     chained.lastIndex = start;
     if (chained.test(text)) {

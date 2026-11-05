@@ -324,6 +324,7 @@ test("AC-16 / AC-17 / U-001-B3: a recomputed plan hash mismatch rejects with PLA
     execute({ deps, principalId: "u-1", principalKind: "user", hooks, confirmationToken: record.confirmationToken }),
     (err: unknown) => {
       assert.ok(err instanceof PlanStaleError);
+      assert.equal(err.code, "PLAN_STALE", "consumers must identify a stale review without matching its text");
       return true;
     }
   );

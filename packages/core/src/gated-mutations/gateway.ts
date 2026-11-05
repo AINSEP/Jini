@@ -66,6 +66,8 @@ export class ForbiddenError extends Error {
 }
 
 export class PlanStaleError extends Error {
+  readonly code = "PLAN_STALE";
+
   constructor(required: { message: string }, optional: ErrorOptions = {}) {
     super(required.message, optional);
   }

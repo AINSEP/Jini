@@ -98,11 +98,14 @@ export type ExtEventSlotKey = (required: { data: unknown }) => string | undefine
 export interface ExtEventRendererOptions {
   /** See {@link ExtEventSlotKey}. Omit for one shared slot per `name`. */
   slotKey?: ExtEventSlotKey;
+  /** True only when the renderer will show the terminal explanation for these validated events. */
+  terminalNotice?: (required: { events: readonly unknown[] }) => boolean;
 }
 
 interface RegisteredExtEventRenderer {
   readonly renderer: ExtEventRenderer;
   readonly slotKey: ExtEventSlotKey | undefined;
+  readonly terminalNotice: ExtEventRendererOptions['terminalNotice'];
 }
 
 /** Owned renderer and slot-key state for one chat tree. */
@@ -110,6 +113,7 @@ export interface ExtEventRendererRegistry {
   register(required: { name: string; renderer: ExtEventRenderer }, options?: ExtEventRendererOptions): () => void;
   get(required: { name: string }): ExtEventRenderer | undefined;
   slot(required: { name: string; data: unknown }): string;
+  hasTerminalNotice(required: { name: string; events: readonly unknown[] }): boolean;
   clear(): void;
 }
 
@@ -127,7 +131,7 @@ export function createExtEventRendererRegistry(_required: Record<string, never> 
     { name, renderer }: { name: string; renderer: ExtEventRenderer },
     options: ExtEventRendererOptions = {},
   ): () => void {
-    const entry: RegisteredExtEventRenderer = { renderer, slotKey: options.slotKey };
+    const entry: RegisteredExtEventRenderer = { renderer, slotKey: options.slotKey, terminalNotice: options.terminalNotice };
     renderers.set(name, entry);
     return () => {
       if (renderers.get(name) === entry) renderers.delete(name);
@@ -136,6 +140,14 @@ export function createExtEventRendererRegistry(_required: Record<string, never> 
 
   function get({ name }: { name: string }): ExtEventRenderer | undefined {
     return renderers.get(name)?.renderer;
+  }
+
+  /** Let a registered, validated explanation own the terminal surface; failures retain the fallback.
+   * @complexity O(1) registry lookup plus the host's validation; no effects.
+   */
+  function hasTerminalNotice({ name, events }: { name: string; events: readonly unknown[] }): boolean {
+    try { return renderers.get(name)?.terminalNotice?.({ events }) === true; }
+    catch { return false; }
   }
 
   /**
@@ -160,7 +172,7 @@ export function createExtEventRendererRegistry(_required: Record<string, never> 
 
   /** Visible mainly for tests. */
   function clear(): void { renderers.clear(); }
-  return { register, get, slot, clear };
+  return { register, get, slot, hasTerminalNotice, clear };
 }
 
 /** Compatibility default for hosts that have not supplied owned state. */
