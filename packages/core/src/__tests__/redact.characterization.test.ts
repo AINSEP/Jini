@@ -10,9 +10,9 @@ const npmToken = (): string => ['np', 'm_'].join('') + 'n'.repeat(36);
 const githubToken = (): string => ['gh', 'p_'].join('') + 'g'.repeat(36);
 
 describe('@jini-ai/core — redact — characterization pins', () => {
-  it('masks a provider api-key header the core header rule cannot anchor, normalizing its separator', () => {
+  it('masks a provider api-key header the core header rule also matches, preserving its separator', () => {
     expect(redactSecretsWithCounts({ input: 'my-x-api-key=abc123 tail' })).toEqual({
-      redacted: 'my-x-api-key: [REDACTED:api_key_header] tail',
+      redacted: 'my-x-api-key=[REDACTED:api_key_header] tail',
       counts: { api_key_header: 1 },
     });
   });
@@ -108,14 +108,14 @@ describe('@jini-ai/core — redact — characterization pins', () => {
     expect(redactSecrets({ input: 'abcdefghijklmnopqrstuvwxyz' })).toBe('abcdefghijklmnopqrstuvwxyz');
   });
 
-  it('masks a short labeled value but not one already masked by an earlier rule', () => {
+  it('masks short labeled values including unrecognized marker-like credentials', () => {
     expect(redactSecretsWithCounts({ input: 'password=hunter' })).toEqual({
       redacted: 'password=[REDACTED:labeled_secret]',
       counts: { labeled_secret: 1 },
     });
     expect(redactSecretsWithCounts({ input: 'password=[REDACTED:x]' })).toEqual({
-      redacted: 'password=[REDACTED:x]',
-      counts: {},
+      redacted: 'password=[REDACTED:labeled_secret]',
+      counts: { labeled_secret: 1 },
     });
   });
 });

@@ -174,7 +174,7 @@ export function createDirectoryUserConfig(
   function databasePath({ dir, id, filename, placement }: { dir: string; id: string; filename: string; placement?: DirectoryUserConfig["databases"] }, _options = {}): string {
     assertDatabaseFilename(filename);
     const inSite = path.join(dir, "data.nosync", filename), legacy = path.join(dir, filename);
-    if (!SAFE_SITE_ID.test(id)) return unsafeIdentityPath(legacy, placement);
+    if (typeof id !== "string" || !SAFE_SITE_ID.test(id)) return unsafeIdentityPath(legacy, placement);
     const appData = path.join(directories.appData, "databases", id, filename);
     if (placement) return placement === "inSite" ? inSite : appData;
     const candidates = [legacy, inSite, appData];

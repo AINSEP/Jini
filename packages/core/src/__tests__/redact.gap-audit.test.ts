@@ -105,3 +105,33 @@ it('email scanning does not rescan a long dotted local-part prefix at every word
   expect(redactSecrets({ input })).toBe(input);
   expect(performance.now() - start).toBeLessThan(1000);
 });
+
+it('preserves field boundaries while merging an exact secret that crosses a credential label', () => {
+  const input = 'note password=hunter2;api-key=short;token="last" next';
+  expect(redactSecrets({ input }, { exactSecrets: ['note password='] })).toBe(
+    '[REDACTED:exact_secret];api-key=[REDACTED:api_key_header];token="[REDACTED:labeled_secret]" next');
+});
+
+
+it.each(['&', ';', '"', "'"])('masks the complete unquoted credential around %s', separator => {
+  for (const label of ['password', 'secret']) {
+    const input = `${label}=ab${separator}cd`;
+    const redacted = redactSecrets({ input }, { redactPii: false });
+    expect(redacted).toBe(`${label}=[REDACTED:labeled_secret]`);
+    expect(redacted).not.toContain('cd');
+    expect(redactSecrets({ input: redacted }, { redactPii: false })).toBe(redacted);
+  }
+});
+
+it.each(['&', ';'])('preserves %s only before an explicit next label', separator => {
+  expect(redactSecrets({ input: `password=ab${separator}page=2` }, { redactPii: false }))
+    .toBe(`password=[REDACTED:labeled_secret]${separator}page=2`);
+});
+
+
+it.each(['&', ';', '"', "'"])('an earlier provider span cannot hide the unmasked suffix after %s', separator => {
+  const prefix = ['sk', '-'].join('') + 'x'.repeat(28);
+  const redacted = redactSecrets({ input: `password=${prefix}${separator}TAIL_CANARY` }, { redactPii: false });
+  expect(redacted).not.toContain('TAIL_CANARY');
+  expect(redacted).not.toContain(prefix);
+});

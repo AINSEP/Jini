@@ -175,10 +175,7 @@ export function bindVercel(kit) {
               const link = await publicVercelLink({ name, ready, created, initialUrl, publicUrl: this.resolvedPublicUrl });
               return publishedResult({ link, ready, initialUrl, deploymentId });
           } catch (error) {
-              // An existing deployment remains a real provider fact even if polling/reachability fails.
-              if (progress.deploymentCreated === true && progress.providerStatus !== 'ERROR') return unfinishedDeployment({ progress, name, error, token: this.config.token });
-              const detail = safeFailureMessage({ error, token: this.config.token });
-              throw new DeployError(`${detail} ${publishFacts({ progress })} ${retryGuidance({ progress, name })}`, error?.status ?? 502);
+              return publishFailure({ progress, name, error, token: this.config.token });
           }
       }
       /** Probes `url`, recognizing Vercel's own Deployment Protection auth wall. */
@@ -188,6 +185,15 @@ export function bindVercel(kit) {
               protectedMessage: VERCEL_PROTECTED_MESSAGE,
           });
       }
+  }
+  /** Preserve accepted deployment facts on verification failures; known build errors still reject.
+   * @complexity O(message bytes), no I/O; reuses the confirmed progress snapshot.
+   */
+  function publishFailure({ progress, name, error, token }, _options = {}) {
+      // An existing deployment remains a real provider fact even if polling/reachability fails.
+      if (progress.deploymentCreated === true && progress.providerStatus !== 'ERROR') return unfinishedDeployment({ progress, name, error, token });
+      const detail = safeFailureMessage({ error, token });
+      throw new DeployError(`${detail} ${publishFacts({ progress })} ${retryGuidance({ progress, name })}`, error?.status ?? 502);
   }
   /** Map a verified public link without changing the provider's deployment identity. */
   function publishedResult({ link, ready, initialUrl, deploymentId }, _options = {}) {
@@ -292,15 +298,16 @@ export function bindVercel(kit) {
    * an old production alias. Known provider errors remain failed rather than becoming a timeout.
    */
   function unfinishedDeployment({ progress, name, error, token }, _options = {}) {
-      const detail = error ? safeFailureMessage({ error, token }) : 'Vercel has not confirmed this deployment is ready yet.';
+      const fallback = progress.providerStatus === 'ERROR' ? 'Vercel deployment failed.' : 'Vercel has not confirmed this deployment is ready yet.';
+      const detail = error ? safeFailureMessage({ error, token }) : fallback;
       return { targetId: VERCEL_TARGET_ID, url: progress.url || '', deploymentId: progress.deploymentId,
-          status: 'link-delayed',
+          status: progress.providerStatus === 'ERROR' ? 'failed' : 'link-delayed',
           statusMessage: `${detail} ${publishFacts({ progress })} ${retryGuidance({ progress, name })}` };
   }
   async function readyVercelDeployment({ config, deploymentId, created, report }, _options = {}) {
       const ready = deploymentId ? await pollVercelDeployment(config, deploymentId, report) : created;
       if (ready?.readyState === 'ERROR') {
-          const readyError = ready?.error;
+          const readyError = ready.error;
           // `ready ?? undefined` — the `undefined` side is unreachable: this line
           // only runs when `ready?.readyState === 'ERROR'` just matched, which
           // requires `ready` itself to already be a real object (optional

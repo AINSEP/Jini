@@ -204,5 +204,6 @@ function sendRouteException<Deps, Context>({ res, spec, adapter, error: e }: {
   const correlationId = randomUUID();
   const sink = adapter?.onInternalError ?? defaultInternalErrorSink;
   sink({ method: spec.method, path: spec.path, correlationId, error: e });
-  sendApiError({ res, status: 500, error: createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId }) });
+  sendApiError({ res, status: 500, error: createApiError({ code: 'INTERNAL_ERROR', message: 'The server could not finish this request. Check whether your change was saved, then copy the request ID and report this problem.' },
+    { requestId: correlationId }) });
 }

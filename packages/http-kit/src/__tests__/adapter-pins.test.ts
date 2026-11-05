@@ -197,7 +197,7 @@ describe('adapter characterization before complexity refactor', () => {
     await f.run();
     expect(f.status.mock.calls).toEqual([[500]]);
     expect(f.json.mock.calls).toEqual([[{ error: {
-      code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.stringMatching(/^[0-9a-f-]{36}$/),
+      code: 'INTERNAL_ERROR', message: 'The server could not finish this request. Check whether your change was saved, then copy the request ID and report this problem.', requestId: expect.stringMatching(/^[0-9a-f-]{36}$/),
     } }]]);
     const body = f.json.mock.calls[0]![0] as { error: { requestId: string } };
     if (injectedSink) {

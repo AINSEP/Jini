@@ -93,6 +93,10 @@ describe("database placement", () => {
     expect(() => w.config.databasePath({ dir: SITE, id: "a b", filename: "content.db", placement: "inSite" })).toThrow("safe, stable site identity");
     expect(() => world().config.databasePath({ dir: SITE, id: "a b", filename: "content.db" })).toThrow("safe, stable site identity");
   });
+  it("missing identities never reach path.join or select an app-data database", () => {
+    const input = { dir: SITE, id: undefined as unknown as string, filename: "content.db" };
+    expect(() => world().config.databasePath(input)).toThrow("safe, stable site identity");
+  });
   it("an explicit placement picks the location without probing", () => {
     const w = world(); w.present.add(P(`${SITE}/content.db`));
     expect(w.config.databasePath({ dir: SITE, id: "a", filename: "content.db", placement: "inSite" })).toBe(P(`${SITE}/data.nosync/content.db`));

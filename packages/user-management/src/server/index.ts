@@ -24,3 +24,5 @@ export * from "./auth-challenge.js";
 export { buildIdentityRegistrations, identityDerivedRisk, type IdentityToolDeps } from "./agent-tool-registrations.js";
 
 export { defaultUserManagementMessages, type UserManagementMessages } from "./messages.js";
+export { resolveOwnerResetTarget, issueRecoveryCodes, recoverOwner, resetOwnerPassword, type RecoveryCodeStore, type OwnerRecoveryDeps } from './recovery-codes.js';
+export { readHiddenPassword, ownerResetPassword } from './owner-reset-input.js';

@@ -198,7 +198,8 @@ describe('http adapter', () => {
     expect(res.status).toHaveBeenCalledWith(500);
     const body = res.json.mock.calls[0]![0] as { error: { code: string; message: string; requestId?: string } };
     expect(body.error.code).toBe('INTERNAL_ERROR');
-    expect(body.error.message).toBe('an internal error occurred');
+    expect(body.error.message).toBe('The server could not finish this request. Check whether your change was saved, then copy the request ID and report this problem.');
+    expect(body.error).not.toHaveProperty('details');
     expect(JSON.stringify(body)).not.toContain('/srv/secret/data.db');
     expect(JSON.stringify(body)).not.toContain('hunter2');
 

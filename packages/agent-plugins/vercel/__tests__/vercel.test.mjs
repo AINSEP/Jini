@@ -552,10 +552,12 @@ describe('VercelDeployTarget.publish', () => {
       }),
     );
     const target = new VercelDeployTarget({ token: 'tok' });
-    const result = await target.publish({ files: [{ file: 'index.html', data: 'x' }], projectName: 'demo' });
-    expect(result).toMatchObject({ status: 'failed', deploymentId: 'dpl_noerr', url: 'https://demo.vercel.app' });
-    expect(result.statusMessage).toContain('Vercel deployment failed.');
-    expect(result.statusMessage).toContain('provider status: ERROR');
+    const error = await target.publish({ files: [{ file: 'index.html', data: 'x' }], projectName: 'demo' }).catch(error => error);
+    expect(error).toBeInstanceOf(DeployError);
+    expect(error.message).toContain('Vercel deployment failed.');
+    expect(error.message).toContain('dpl_noerr');
+    expect(error.message).toContain('https://demo.vercel.app');
+    expect(error.message).toContain('provider status: ERROR');
   });
 
   it('retains the deployment and reports incomplete verification when the status poll receives a non-ok response', async () => {

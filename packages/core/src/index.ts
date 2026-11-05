@@ -10,6 +10,7 @@ export { createDaemon } from './daemon.js';
 export type { PackDisposalFailure } from './pack-lifecycle.js';
 export { disposePacks, registerPackTools } from './pack-lifecycle.js';
 export * from './redact.js';
+export * from './user-facing-error.js';
 export * from './api-token-auth.js';
 export * from './origin-validation.js';
 export * from './principal.js';

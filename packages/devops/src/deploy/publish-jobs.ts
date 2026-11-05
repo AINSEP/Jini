@@ -92,6 +92,14 @@ export function publishJobRecoveryMessage<T>({ job, statusToolId }: { job?: Publ
   if (!job) return `Publish job status could not be confirmed for this call. Deployment: unknown; uploaded files: unknown; URL/status: unknown. Call ${statusToolId} with {} and check the hosting dashboard before retrying.`;
   const progress = job.progress;
   const uploaded = progress.totalFiles === undefined ? 'unknown' : progress.uploadedFiles ?? 'unknown';
-  const created = progress.deploymentCreated === true ? 'created' : progress.deploymentCreated === false ? 'not created' : 'unknown';
+  const created = deploymentCreationLabel({ created: progress.deploymentCreated });
   return `Publish job ${job.jobId}: ${job.status}, phase ${progress.phase}. Deployment: ${created}; uploaded files: ${uploaded} of ${progress.totalFiles ?? 'unknown'} distinct files; already stored: ${progress.reusedFiles ?? 'unknown'}. Deployment ID: ${progress.deploymentId ?? 'unknown'}; URL: ${progress.url || 'unknown'}; provider status: ${progress.providerStatus ?? 'unknown'}. Call ${statusToolId} with {"jobId":"${job.jobId}"} for the final result before retrying. The publish can continue after the tool call times out; an old site's 200 does not confirm this deployment.`;
+}
+
+/** Translate the provider fact without interpreting a missing response as a refusal.
+ * @complexity O(1) time/space, no I/O or errors.
+ */
+function deploymentCreationLabel({ created }: { created: boolean | "unknown" | undefined }, _options = {}): string {
+  if (created === true) return 'created';
+  return created === false ? 'not created' : 'unknown';
 }

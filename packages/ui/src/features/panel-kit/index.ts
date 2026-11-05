@@ -1,4 +1,6 @@
 export * from './fetch-query/index.js';
+export { ErrorNotice } from './ErrorNotice.js';
+export type { ErrorNoticeProps } from './ErrorNotice.js';
 export { useFocusTrap } from './hooks/use-focus-trap.hooks.js';
 export { useDirtyGuard } from './hooks/use-dirty-guard.hooks.js';
 export type { DirtyGuard } from './hooks/use-dirty-guard.hooks.js';

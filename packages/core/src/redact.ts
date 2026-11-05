@@ -282,7 +282,7 @@ const CARD_CANDIDATE = /\b(?:\d[ -]?){12,18}\d\b/g;
 // Inspect/JSON credentials can contain spaces and escaped quotes; consume the entire value.
 const QUOTED_SECRET_VALUE = String.raw`"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'`;
 const API_KEY_HEADER =
-  new RegExp(`(^|[^?&\\w-])(["']?)(x-api-key|api-key|x-goog-api-key)\\2(\\s*[:=]\\s*)(${QUOTED_SECRET_VALUE}|[^\\s,;"'#}]+)`, 'gi');
+  new RegExp(`(^|[^?&\\w])(["']?)(x-api-key|api-key|x-goog-api-key)\\2(\\s*[:=]\\s*)(${QUOTED_SECRET_VALUE}|[^\\s,;"'#}]+)`, 'gi');
 const API_KEY_QUERY = /([?&](?:key|api_key|api-key)=)[^&#\s,;"']+/gi;
 
 // The length guard and the per-digit `d < 0 || d > 9` guard from the origin
@@ -365,8 +365,7 @@ const SHORT_BEARER_RE = new RegExp(`Bearer\\s+["']?(?!${GENERATED_MARKER}(?=$|[\
 const BASIC_AUTH_RE = /\bauthorization["']?\s*[:=]\s*["']?(Basic\s+[^\s"',;}]+)/gi;
 // Cookie pairs belong to one header value, including pairs after a semicolon and a space.
 const COOKIE_HEADER_RE = /\bcookie\s*:\s*([^\r\n]+)/gi;
-const PROVIDER_API_KEY_HEADER = /(x-api-key|api-key|x-goog-api-key)\s*[:=]\s*([^\s,;"']+)/gi;
-const PROVIDER_API_KEY_QUERY = /([?&]key=)([^&\s]+)/gi;
+const PROVIDER_API_KEY_QUERY = /([?&]key=)([^&\s"']+)/gi;
 // URL userinfo and signed query values have explicit credential context; unlike opaque runs,
 // they are safe to recognize in the conservative policy. Keep scheme/host and query names
 // readable for debugging without exposing credentials that authorize access to the resource.
@@ -382,11 +381,11 @@ const SIGNED_QUERY_RE = /([?&](?:signature|sig|x-amz-signature|x-goog-signature|
 // authtoken, X-Amz-Signature and custom.Token-value are masked, while author, keyword, design,
 // signup and page stay readable. Names that merely end in a secret word (zipcode, error_code,
 // monkey) are masked too; over-masking a URL value is the cheaper failure. Empty values stay.
-// Match through a trailing fragment; only '&', quotes, parentheses or whitespace end the value.
+// Match through a trailing fragment; field separators (&/;), quotes, parentheses or whitespace end it.
 // Both name runs are bounded so a long separator-free run costs linear time, not quadratic.
 const URL_SECRET_WORDS = 'token|key|secret|signature|sig|code|password|passwd|pwd|auth|authorization|credential';
 const URL_SECRET_PARAM_RE = new RegExp(
-  `[?&#;]([\\w.-]{0,128}?(?:${URL_SECRET_WORDS})s?(?=[._=-])[\\w.-]{0,128})=[^&\\s"'<>()]+`,
+  `[?&#;]([\\w.-]{0,128}?(?:${URL_SECRET_WORDS})s?(?=[._=-])[\\w.-]{0,128})=[^&;\\s"'<>()]+`,
   'gi',
 );
 // A parameter the labeled rule already names (password, client_secret, ...) keeps that category.
@@ -402,8 +401,8 @@ function isMaskedValue(value: string): boolean {
 /**
  * Returns `input` with every recognised secret / PII pattern replaced by a
  * `[REDACTED:<kind>]` marker. Under the default policies, idempotent — re-running on already redacted
- * text only matches new tokens. Explicit exact secrets also mask their occurrences inside labels
- * or input marker text; all value rules still see the original context. Defaults to conservative; `{ policy: 'aggressive' }`
+ * text only matches new tokens. Exact occurrences wholly within credential labels or generated markers preserve that syntax;
+ * crossing occurrences still mask their complete range; all value rules still see the original context. Defaults to conservative; `{ policy: 'aggressive' }`
  * additionally masks bare 20+ character opaque runs. Exact secrets and extra patterns
  * are honored under either heuristic policy.
  * Exact-only replaces only supplied secrets in one pass,
@@ -527,6 +526,7 @@ function collectSpans({ text }: { text: string }, options: SecretRedactionOption
     collectExactSecrets({ text, add, secrets: options.exactSecrets ?? [] }, { literalOnly: true });
     return spans;
   }
+  collectExactSecrets({ text, add, secrets: options.exactSecrets ?? [] });
   // Whole PEM blocks use the existing shared vocabulary; every rule sees their original delimiters.
   collectEmptyQuotedAssignments({ text, add });
   collectUrlCredentials({ text, add });
@@ -535,7 +535,6 @@ function collectSpans({ text }: { text: string }, options: SecretRedactionOption
   collectLabeledSecrets({ text, add }, spans);
   if (options.policy === 'aggressive') collectOpaqueTokens({ text, add }, new Set(options.diagnosticToolIds));
   if (options.redactPii !== false) collectPii({ text, add }, spans);
-  collectExactSecrets({ text, add, secrets: options.exactSecrets ?? [] });
   return spans;
 }
 
@@ -547,8 +546,8 @@ interface MergedSpan extends Span {
 /** Orders spans and merges overlapping or adjacent ones; masking whole merged runs means no rule's
  * leftover can expose part of another rule's value.
  * Category rule: the longest constituent span names the merged span; on a tie the earlier rule in
- * {@link collectSpans} wins, so a lexical rule labels a known secret it matches exactly
- * (`Bearer <secret>` stays `bearer_token`) and the exact-secret category marks what only it covers.
+ * {@link collectSpans} wins, so an exact rule labels a known secret it matches exactly
+ * (`t=<known-token>` stays `exact_secret`) and the exact-secret category marks what only it covers.
  * @complexity O(k) time and space for k spans (string offsets fit in unsigned 32 bits). */
 function mergeSpans(spans: readonly Span[], { keepAdjacent = false } = {}): Span[] {
   const merged: MergedSpan[] = [];
@@ -667,14 +666,7 @@ function collectUrlCredentials(pass: SpanPass): void {
  * text, so overlapping rules (the provider query rule includes a fragment the core rule stops
  * before) merge into one span instead of one leaving a credential suffix beside the other's marker. */
 function collectKeyedCredentials(pass: SpanPass): void {
-  collectMatches(pass, API_KEY_HEADER, (match, index) => {
-    const value = match[5] ?? '';
-    if (isMaskedValue(value)) return undefined;
-    const end = index + match[0].length;
-    // A quoted value keeps its quotes around the marker.
-    const quoted = /^["']/.test(value) ? 1 : 0;
-    return { start: end - value.length + quoted, end: end - quoted, category: CATEGORY.apiKeyHeader };
-  });
+  collectApiKeyHeaders(pass);
   collectMatches(pass, PROVIDER_API_KEY_QUERY, trailingValue(CATEGORY.apiKeyQuery, 2));
   collectMatches(pass, API_KEY_QUERY, (match, index) => {
     const start = index + (match[1] ?? '').length;
@@ -687,8 +679,23 @@ function collectKeyedCredentials(pass: SpanPass): void {
   });
   collectMatches(pass, BASIC_AUTH_RE, trailingValue(CATEGORY.labeledSecret, 1));
   collectMatches(pass, COOKIE_HEADER_RE, trailingValue(CATEGORY.labeledSecret, 1));
-  collectMatches(pass, PROVIDER_API_KEY_HEADER, trailingValue(CATEGORY.apiKeyHeader, 2));
   collectUrlSecretParams(pass);
+}
+
+/** Header values stop at their quotes; an empty quoted hint cannot borrow the next field.
+ * @complexity O(n) over input characters, no I/O. */
+function collectApiKeyHeaders(pass: SpanPass): void {
+  const hints = emptyAssignmentRanges(pass.text);
+  collectMatches(pass, API_KEY_HEADER, (match, index) => {
+    const labelStart = index + (match[1] ?? '').length;
+    if (hints.has(labelStart)) return undefined;
+    const value = match[5] ?? '';
+    if (isMaskedValue(value)) return undefined;
+    const end = index + match[0].length;
+    // A quoted value keeps its quotes around the marker.
+    const quoted = /^["']/.test(value) ? 1 : 0;
+    return { start: end - value.length + quoted, end: end - quoted, category: CATEGORY.apiKeyHeader };
+  });
 }
 
 /** Secret-named URL query/fragment values; values already masked keep their category. */
@@ -709,7 +716,7 @@ function collectUrlSecretParams(pass: SpanPass): void {
  * @complexity O(n + k) for n chars and k earlier spans; each skip resumes past the label and value
  * ends come from forward-only finders, so no run is rescanned. */
 function collectLabeledSecrets({ text, add }: SpanPass, earlier: readonly Span[]): void {
-  const covered = coveredLabelFields({ text, earlier });
+  const covered = coveredLabelFields({ earlier });
   const hints = emptyAssignmentRanges(text);
   const extentOf = labelValueExtents(text);
   const regex = new RegExp(MASK_AWARE_LABELED_SECRET_RE.source, MASK_AWARE_LABELED_SECRET_RE.flags);
@@ -741,18 +748,16 @@ function addLabelValue({ text, add, start, value }: SpanPass & { start: number; 
 
 /** Index earlier spans once so each label's coverage check takes O(1), including dense headers.
  * No I/O; O(k) time/space for k earlier spans. */
-function coveredLabelFields({ text, earlier }: { text: string; earlier: readonly Span[] }): (start: number, value: LabelValue) => boolean {
-  // Per earlier span start: the furthest end, and whether some span from it ends on a `;`/`&`
-  // (scalars rather than per-start end lists: dense fields yield millions of spans).
+function coveredLabelFields({ earlier }: { earlier: readonly Span[] }): (start: number, value: LabelValue) => boolean {
+  // Per earlier span start: the furthest end (scalars rather than per-start end lists:
+  // dense fields yield millions of spans). A separator proves coverage only at the full value end.
   const furthest = new Map<number, number>();
-  const separatorEnds = new Set<number>();
   for (const { start, end } of earlier) {
     furthest.set(start, Math.max(furthest.get(start) ?? end, end));
-    if (text[end] === ';' || text[end] === '&') separatorEnds.add(start);
   }
   return (start, value) => {
     const at = !value.quoted || furthest.has(start) ? start : start + 1;
-    return isCoveredField(furthest.get(at), separatorEnds.has(at), value);
+    return isCoveredField(furthest.get(at), value);
   };
 }
 
@@ -764,23 +769,24 @@ interface LabelValue {
 }
 
 /** True when an earlier span starting at the label value (inside its opening quote, for a quoted
- * value) masks it: `reach` is the furthest such span end and `separator` says one ends on `;`/`&`.
+ * value) masks it: `reach` is the furthest such span end.
  * Inside quotes only the closing quote ends the value (`;` and `&` are value text:
- * `password="sk-...;hunter2"` once left `hunter2`); an unquoted value is covered through its end or
- * up to a `;`/`&` field separator. */
-function isCoveredField(reach: number | undefined, separator: boolean, { end, closingQuote, quoted }: LabelValue): boolean {
+ * `password="sk-...;hunter2"` once left `hunter2`); unquoted values also need complete coverage
+ * so a provider-prefix rule ending at `;`/`&` cannot leave the rest of a secret visible. */
+function isCoveredField(reach: number | undefined, { end, closingQuote }: LabelValue): boolean {
   const target = closingQuote === end - 1 ? closingQuote : end;
-  return (reach ?? -1) >= target || (!quoted && separator);
+  return (reach ?? -1) >= target;
 }
 
 /** Extent finder for label values whose starts increase between calls. An unquoted value runs to
- * whitespace. A quoted value runs through its closing quote (a backslash-escaped quote does not
+ * whitespace or a `;`/`&` followed by a new label (or end of text). Quotes inside an unquoted
+ * secret are secret bytes, not terminators. A quoted value runs through its closing quote (a backslash-escaped quote does not
  * close it) and any text glued after it up to whitespace, `;`, `&` or `,` (`"abc def"hunter2` once
  * left `hunter2`), or to the line end when the quote never closes, so spaces, `;` and `&` inside
  * quotes stay in the value. Structured field delimiters after a closing quote stay readable.
  * @complexity Amortized O(1) per call; all calls together scan the text once per finder. */
 function labelValueExtents(text: string): (start: number) => LabelValue {
-  const runEnd = forwardFinder(text, /\s/);
+  const runEnd = forwardFinder(text, /\s|[;&](?=$|[\w.-]+\s*[:=])/);
   const gluedEnd = forwardFinder(text, /[\s;&,}\]]/);
   const lineEnd = forwardFinder(text, /[\r\n]/);
   const closers = new Map([['"', unescapedQuoteFinder(text, /"/)], ["'", unescapedQuoteFinder(text, /'/)]]);
@@ -871,18 +877,22 @@ function exactNeedles(secrets: ReadonlyArray<string | undefined | null>, literal
 }
 
 /** Caller-supplied secrets as plain substrings at any length and every occurrence, overlapping
- * ones included (a secret glued into other text stays masked). Matching the original text means
- * a short secret can no longer break a label or prefix before that rule sees it; it can only split
- * a label word visually, which is accepted because every value is still covered. Occurrences arrive
+ * ones included (a secret glued into other text stays masked). Matching the original text retains every value rule
+ * while wholly contained syntax occurrences preserve labels, markers and URL prefixes. Occurrences arrive
  * in start order and each one either extends the current run or starts the next, so the runs are
  * exactly the union of all occurrences.
  * @complexity O(e·n + s) for e needles, n text chars and s needle chars; consecutive overlapping
  * hits of one needle share a span. */
 function collectExactSecrets({ text, add, secrets }: SpanPass & { secrets: ReadonlyArray<string | undefined | null> }, options: { literalOnly?: boolean } = {}): void {
-  for (const needle of exactNeedles(secrets, options.literalOnly)) {
+  const needles = exactNeedles(secrets, options.literalOnly);
+  if (needles.size === 0) return;
+  const protectedSyntax = options.literalOnly ? [] : exactSyntaxRanges({ text });
+  for (const needle of needles) {
+    const insideSyntax = syntaxContainment({ ranges: protectedSyntax });
     let runStart = -1;
     let runEnd = -1;
     forEachOccurrence(text, needle, (at) => {
+      if (insideSyntax(at, at + needle.length)) return;
       if (beginsSecretRun({ at, runEnd, literalOnly: options.literalOnly === true })) {
         add(runStart, runEnd, CATEGORY.exactSecret);
         runStart = at;
@@ -891,6 +901,32 @@ function collectExactSecrets({ text, add, secrets }: SpanPass & { secrets: Reado
     });
     add(runStart, runEnd, CATEGORY.exactSecret);
   }
+}
+
+/** Preserve diagnostic syntax only when an exact occurrence fits wholly inside it.
+ * Crossing a label/marker boundary still masks the complete secret, retaining span-union safety.
+ * @complexity O(n + k) time/space over n characters and k syntax ranges; no I/O. */
+function exactSyntaxRanges({ text }: { text: string }, _options = {}): Span[] {
+  const ranges: Span[] = [];
+  const add: AddSpan = (start, end) => { ranges.push({ start, end, category: 'syntax' }); };
+  const pass = { text, add };
+  collectMatches(pass, new RegExp(`${GENERATED_MARKER}|\\[redacted\\]`, 'gi'), (m, at) => ({ start: at, end: at + m[0].length, category: 'syntax' }));
+  collectMatches(pass, MASK_AWARE_LABELED_SECRET_RE, (m, at) => ({ start: at, end: at + m[0].length - 1, category: 'syntax' }));
+  collectMatches(pass, /\bBearer\s+|\bhttps?:\/\/|(?:x-api-key|api-key|x-goog-api-key)\s*[:=]\s*/gi,
+    (m, at) => ({ start: at, end: at + m[0].length, category: 'syntax' }));
+  collectMatches(pass, URL_SECRET_PARAM_RE, (m, at) => ({ start: at, end: at + m[0].indexOf('=') + 1, category: 'syntax' }));
+  return mergeSpans(ranges);
+}
+
+/** Increasing occurrence starts let each needle visit every protected range at most once.
+ * @complexity O(k + hits) across calls, O(1) retained state; no I/O. */
+function syntaxContainment({ ranges }: { ranges: readonly Span[] }, _options = {}): (start: number, end: number) => boolean {
+  let cursor = 0;
+  return (start, end) => {
+    while (cursor < ranges.length && ranges[cursor]!.end <= start) cursor++;
+    const range = ranges[cursor];
+    return range !== undefined && range.start <= start && range.end >= end;
+  };
 }
 
 /** Heuristic union joins adjacent hits; exact-only retains one marker for each adjacent occurrence. */
