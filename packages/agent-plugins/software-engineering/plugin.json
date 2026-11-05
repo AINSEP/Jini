@@ -1,0 +1,24 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "software-engineering",
+  "version": "0.1.0",
+  "description": "Routes coding, architecture, debugging and inspection tasks to portable engineering guidance.",
+  "license": "Apache-2.0",
+  "extensions": {
+    "tovu": {
+      "id": "jini/software-engineering",
+      "displayName": "Tovu Software Engineering",
+      "summary": "Helps write maintainable, secure, test-ready software with honest verification.",
+      "provides": [
+        "software-engineering"
+      ]
+    }
+  },
+  "keywords": [
+    "coding",
+    "software-engineering",
+    "architecture",
+    "debugging",
+    "quality"
+  ]
+}

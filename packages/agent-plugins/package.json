@@ -85,7 +85,9 @@
       "./stripe": "universal",
       "./stripe/*": "universal",
       "./formspree": "universal",
-      "./formspree/*": "universal"
+      "./formspree/*": "universal",
+      "./software-engineering": "universal",
+      "./software-engineering/*": "universal"
     },
     "isolation": {
       "entries": {
@@ -225,7 +227,9 @@
     "./stripe": "./stripe/plugin.json",
     "./stripe/*": "./stripe/*",
     "./formspree": "./formspree/plugin.json",
-    "./formspree/*": "./formspree/*"
+    "./formspree/*": "./formspree/*",
+    "./software-engineering": "./software-engineering/plugin.json",
+    "./software-engineering/*": "./software-engineering/*"
   },
   "files": [
     "formspree",
@@ -266,6 +270,7 @@
     "site-compliance",
     "site-import",
     "slide-design",
+    "software-engineering",
     "supabase",
     "ui-ux-design",
     "vercel",
