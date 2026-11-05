@@ -67,7 +67,7 @@ export interface CommerceStatus {
     readonly providerDiscovery: CommerceCapabilityAvailability;
     readonly checkout: CommerceCapabilityAvailability;
     readonly subscriptions: "unavailable";
-    readonly webhookReconciliation: "unavailable";
+    readonly webhookReconciliation: CommerceCapabilityAvailability;
     readonly revenue: "unavailable";
   };
 }

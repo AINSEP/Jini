@@ -17,6 +17,7 @@ export interface CommerceCatalogToolsDeps {
   idGen: IdGenerator;
 }
 const permission = "admin.integrations.manage";
+const STOREFRONT_LIMIT_WARNING = "The storefront grid shows at most 24 priced products. This catalog has more than 24 active products; use each product’s direct /products/<slug> link for products beyond the grid.";
 export const commerceCatalogToolCatalog: AgentToolDefinition[] = [{
   name: "commerce_create_product", description: "Creates one active catalog product. Add a one-time price with commerce_create_price before offering checkout. Does not move money.",
   sideEffects: "mutates-durable-state", authorization: { permission },
@@ -24,7 +25,7 @@ export const commerceCatalogToolCatalog: AgentToolDefinition[] = [{
     name: { type: "string", minLength: 1, maxLength: 200 }, slug: { type: "string", minLength: 1, maxLength: 100, pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
   } },
 }, {
-  name: "commerce_create_price", description: "Creates one immutable one-time price for an active product. amount is integer minor units and an uppercase ISO currency (JPY has no decimal units). Does not move money or alter existing order prices.",
+  name: "commerce_create_price", description: "Creates one one-time price for an active product and archives its older active prices. amount is integer minor units and an uppercase ISO currency (JPY has no decimal units). Does not move money or alter existing order prices.",
   sideEffects: "mutates-durable-state", authorization: { permission },
   inputSchema: { type: "object", additionalProperties: false, required: ["productId", "amount"], properties: {
     productId: { type: "string", minLength: 1, maxLength: 200 }, amount: { type: "object", additionalProperties: false, required: ["minorUnits", "currency"], properties: {
@@ -44,9 +45,19 @@ async function requireSetup({ deps, principalId }: { deps: CommerceCatalogToolsD
   if (!status.ready) throw new CommerceUnavailableError(status.reason ?? "Commerce catalog is temporarily unavailable.");
 }
 
+/** Bounded setup-time warning: no per-product price queries or pagination is introduced. */
+async function storefrontWarnings({ products, workspaceId }: Pick<CommerceCatalogToolsDeps, 'products' | 'workspaceId'>): Promise<{ warnings?: string[] }> {
+  try {
+    const active = await products.listActive({ workspaceId, limit: 25 });
+    return active.length > 24 ? { warnings: [STOREFRONT_LIMIT_WARNING] } : {};
+  } catch {
+    return { warnings: ['The catalog record was saved. The storefront size could not be checked; the grid shows at most 24 priced products, and direct product links remain available.'] };
+  }
+}
+
 /**
  * Setup tools create new records; prices are never updated underneath purchase-time snapshots.
- * @complexity O(1): one product write, or one scoped product read and one price write per invocation.
+ * @complexity O(1): scoped record work plus one bounded read of at most 25 active products.
  */
 export function buildCommerceCatalogRegistrations(deps: CommerceCatalogToolsDeps, _optional: Record<string, never> = {}): ToolRegistration[] {
   return buildDomainRegistrations({ domain: "commerce-catalog", catalogModule: "commerce/catalog-tools.ts",
@@ -61,7 +72,7 @@ export function buildCommerceCatalogRegistrations(deps: CommerceCatalogToolsDeps
         const at = nowIso({ clock: deps.clock });
         const product = { id: deps.idGen.newId(), workspaceId: deps.workspaceId, name, slug, kind: "one_time" as const, status: "active" as const, createdAt: at, updatedAt: at, version: 1 };
         await deps.products.save(product);
-        return { product };
+        return { product, ...await storefrontWarnings(deps) };
       },
       commerce_create_price: async ctx => {
         await requireSetup({ deps, principalId: ctx.principal.id });
@@ -72,15 +83,8 @@ export function buildCommerceCatalogRegistrations(deps: CommerceCatalogToolsDeps
         if (!product || product.workspaceId !== deps.workspaceId || product.status !== "active") throw new CommerceProductNotFoundError("Active product was not found in this workspace.");
         const price = { id: deps.idGen.newId(), workspaceId: deps.workspaceId, productId, unitAmount, status: "active" as const, createdAt: nowIso({ clock: deps.clock }), version: 1 };
         await deps.prices.save(price);
-        return { price };
+        return { price, ...await storefrontWarnings(deps) };
       },
     },
   });
-}
-
-/** Install setup alongside the existing read-only commerce status domain. */
-export function contributeCommerceCatalogTools(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): {
-  domain: string; build: typeof buildCommerceCatalogRegistrations; risk: DerivedRiskByToolId;
-} {
-  return { domain: "commerce-catalog", build: buildCommerceCatalogRegistrations, risk: commerceCatalogDerivedRisk };
 }

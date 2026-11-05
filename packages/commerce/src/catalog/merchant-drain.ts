@@ -9,9 +9,16 @@ export function commerceConfigurationKey({ config }: { config: CommerceConfigura
 
 /** Read one durable unfinished intent, only at activation/configuration transitions.
  * @complexity At most one result row and one original intent snapshot; no provider I/O. */
-export async function readCommerceDrain({ ledger, workspaceId }: { ledger: PaymentsLedger; workspaceId: string }, _optional = {}): Promise<RecordedCommerce | null> {
+export async function readCommerceDrain({ ledger, workspaceId }: { ledger: PaymentsLedger; workspaceId: string }, optional: { configured?: CommerceConfiguration | null } = {}): Promise<RecordedCommerce | null> {
   return ledger.transaction({ fn: async tx => {
-    const payment = await tx.findOpenPayment({ workspaceId }, { excludeRequiresAction: true });
+    let payment = await tx.findOpenPayment({ workspaceId }, { excludeRequiresAction: true });
+    if (!payment && !optional.configured) payment = await tx.findOpenPayment({ workspaceId });
+    if (!payment && optional.configured) {
+      const configured = optional.configured;
+      const candidate = await tx.findOpenPayment({ workspaceId }, { providerId: configured.providerId, mode: configured.mode });
+      // One endpoint cannot distinguish two accounts in the same provider/mode.
+      if (candidate && candidate.providerAccountId !== configured.accountId) payment = candidate;
+    }
     if (!payment) return null;
     const attempt = await tx.findAttemptByOperationKey({ workspaceId, mode: payment.mode, operationKey: `intent:${payment.idempotencyKey}` });
     return { provider_id: payment.providerId, provider_account_id: payment.providerAccountId, mode: payment.mode, dispatch_json: attempt?.dispatchJson ?? null };

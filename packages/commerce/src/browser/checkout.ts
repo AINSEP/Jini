@@ -25,13 +25,7 @@ export function installCommerceCheckout(required: CommerceCheckoutBrowserRequire
     const button = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
     const status = form.querySelector<HTMLElement>("[data-checkout-status]")!;
     const link = form.querySelector<HTMLAnchorElement>("[data-checkout-order]")!;
-    const recoveryButton = form.querySelector<HTMLButtonElement>("[data-checkout-new-order]");
-    const newOrder = recoveryButton ?? required.document.createElement("button");
-    // Cached host HTML can predate this recovery control while the shared script is already newer.
-    if (!recoveryButton) {
-      newOrder.type = "button"; newOrder.dataset.checkoutNewOrder = ""; newOrder.hidden = true;
-      newOrder.textContent = "Start a new order"; newOrder.className = button.className; form.append(newOrder);
-    }
+    const newOrder = form.querySelector<HTMLButtonElement>("[data-checkout-new-order]")!;
     let orderId: string | null = null;
     let busy = false;
     let newOrderAllowed = false;

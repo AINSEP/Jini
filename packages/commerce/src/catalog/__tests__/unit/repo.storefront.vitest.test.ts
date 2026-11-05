@@ -48,3 +48,35 @@ it("an empty catalog does not issue a price query; recurring-only products are o
   await w.kernel.run(db => db.updateTable("commerce_prices").set({ billing_interval: "month" }).execute());
   expect(await w.catalog.listProducts()).toEqual([]);
 });
+
+it('point lookup reaches priced products beyond the grid by id or slug in one read', async () => {
+  const w = await world();
+  for (let i = 0; i < 30; i++) await add(w, { id: `product-${String(i).padStart(2, '0')}` });
+  await w.kernel.run(db => db.updateTable('commerce_products').set({ slug: 'last-product' }).where('id', '=', 'product-29').execute());
+  expect(await w.catalog.listProducts()).toHaveLength(24);
+  const before = w.reads();
+  expect(await w.catalog.findProduct({ idOrSlug: 'product-29' })).toMatchObject({ id: 'product-29', priceId: 'product-29-price' });
+  expect(w.reads() - before).toBe(1);
+  expect(await w.catalog.findProduct({ idOrSlug: 'last-product' })).toMatchObject({ id: 'product-29' });
+  expect(await w.catalog.findProduct({ idOrSlug: 'missing' })).toBeNull();
+});
+
+it('priceless products do not consume the 24 priced product slots', async () => {
+  const w = await world();
+  for (let i = 0; i < 30; i++) await add(w, { id: `product-${String(i).padStart(2, '0')}` });
+  await w.kernel.run(db => db.updateTable('commerce_prices').set({ status: 'archived' }).where('product_id', 'in', ['product-00', 'product-01', 'product-02', 'product-03', 'product-04']).execute());
+  const products = await w.catalog.listProducts();
+  expect(products).toHaveLength(24);
+  expect(products[0]?.id).toBe('product-05');
+  expect(await w.catalog.findProduct({ idOrSlug: 'product-00' })).toBeNull();
+});
+
+it('point lookup is workspace scoped, active only, and resolves id before a conflicting slug', async () => {
+  const w = await world();
+  await add(w, { id: 'identity' }); await add(w, { id: 'slug-owner' });
+  await add(w, { id: 'foreign', workspace: 'other' }); await add(w, { id: 'archived', status: 'archived' });
+  await w.kernel.run(db => db.updateTable('commerce_products').set({ slug: 'identity' }).where('id', '=', 'slug-owner').execute());
+  expect(await w.catalog.findProduct({ idOrSlug: 'identity' })).toMatchObject({ id: 'identity' });
+  expect(await w.catalog.findProduct({ idOrSlug: 'foreign' })).toBeNull();
+  expect(await w.catalog.findProduct({ idOrSlug: 'archived' })).toBeNull();
+});

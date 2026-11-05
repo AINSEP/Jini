@@ -5,7 +5,7 @@ const scope = { workspaceId: "ws", siteId: "site", providerId: "stripe", provide
 const context = { executionId: "exec", principal: { id: "owner" }, run: { id: "run" }, signal: new AbortController().signal };
 function fixture() {
   const product = { id: "product", workspaceId: "ws", name: "Notebook", slug: "notebook", kind: "one_time" as const, status: "active" as const, createdAt: "2026-11-05T00:00:00.000Z", updatedAt: "2026-11-05T00:00:00.000Z", version: 1 };
-  const products = { findById: vi.fn(async () => product), findBySlug: vi.fn(), listActive: vi.fn(), save: vi.fn() };
+  const products = { findById: vi.fn(async () => product), findBySlug: vi.fn(), listActive: vi.fn(async () => []), save: vi.fn() };
   const prices = { findById: vi.fn(), listByProduct: vi.fn(), save: vi.fn() };
   const activate = vi.fn(async () => ({ active: true, ready: true, reason: null as string | null, scope }));
   const deps: CommerceCatalogToolsDeps = { workspaceId: "ws", authorize: vi.fn(async () => ({ allowed: true, reason: "matched" })),
@@ -71,4 +71,21 @@ it("reports the host's configured public webhook URL without reading provider se
   const [registration] = buildRegistrations({ workspaceId: "ws", authorize: async () => ({ allowed: true, reason: "matched" }),
     commerce: { status: async () => ({ active: true, ready: true, reason: null, scope, webhookUrl }) } });
   expect(await registration!.handler({ ...context, input: {} })).toMatchObject({ checkout: { webhookUrl } });
+});
+
+it('warns after creating catalog records when more than 24 active products exist', async () => {
+  const f = fixture();
+  f.products.listActive.mockResolvedValue(Array.from({ length: 25 }, (_, i) => ({ ...f.product, id: `product-${i}` })) as never);
+  const productResult = await f.createProduct({ name: 'Notebook', slug: 'notebook' });
+  expect(productResult).toMatchObject({ warnings: [expect.stringContaining('24')] });
+  const priceResult = await f.createPrice({ productId: 'product', amount: { minorUnits: 123, currency: 'JPY' } });
+  expect(priceResult).toMatchObject({ warnings: [expect.stringContaining('24')] });
+  expect(f.products.listActive).toHaveBeenCalledWith({ workspaceId: 'ws', limit: 25 });
+});
+
+it('reports a saved record honestly if the bounded storefront warning read is unavailable', async () => {
+  const f = fixture(); f.products.listActive.mockRejectedValue(new Error('storage read unavailable'));
+  expect(await f.createProduct({ name: 'Notebook', slug: 'notebook' }))
+    .toMatchObject({ product: { id: 'new-id' }, warnings: [expect.stringContaining('saved')] });
+  expect(f.products.save).toHaveBeenCalledTimes(1);
 });

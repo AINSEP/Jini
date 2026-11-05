@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import { openPostgresKernel } from '../kernel/postgres/driver.js';
 import { scopeToSchema, withKernelSessionLock } from '../kernel/index.js';
 
-function database() {
+function database({ max = 10 } = {}) {
   const locks = new Set<string>();
   const statements: string[] = [];
   class Pool {
@@ -23,7 +23,7 @@ function database() {
     }; }
     async end() {}
   }
-  const kernel = openPostgresKernel({ pg: { Pool, types: { getTypeParser: () => (value: string) => value } } as never, connectionString: 'postgres://test-only' });
+  const kernel = openPostgresKernel({ pg: { Pool, types: { getTypeParser: () => (value: string) => value } } as never, connectionString: 'postgres://test-only' }, { max });
   return { kernel, locks, statements };
 }
 
@@ -54,5 +54,30 @@ it('schema-scoped kernels share ownership and a failed cycle always releases the
   await expect(withKernelSessionLock({ kernel: scoped, key: 'commerce', run: async () => { throw new Error('projection failed'); } })).rejects.toThrow('projection failed');
   expect(locks.size).toBe(0);
   expect(await withKernelSessionLock({ kernel, key: 'commerce', run: async () => 'retry' })).toEqual({ acquired: true, value: 'retry' });
+  await kernel.close();
+});
+
+it('a one-connection pool rejects background session ownership before reserving its only connection', async () => {
+  const { kernel, statements } = database({ max: 1 });
+  let ran = false;
+  await expect(withKernelSessionLock({ kernel, key: 'commerce', run: async () => { ran = true; } })).rejects.toThrow(/pool.*at least 2|pool.*max.*2/i);
+  expect(ran).toBe(false);
+  expect(statements.some(statement => statement.includes('pg_try_advisory_lock'))).toBe(false);
+  await kernel.transaction(async () => {});
+  expect(statements.some(statement => statement.toLowerCase().startsWith('commit'))).toBe(true);
+  const scoped = scopeToSchema(kernel, 'site_a');
+  await expect(withKernelSessionLock({ kernel: scoped, key: 'commerce', run: async () => {} })).rejects.toThrow(/pool.*at least 2|pool.*max.*2/i);
+  await kernel.close();
+});
+
+it('distinct site keys can hold ownership concurrently in the same database', async () => {
+  const { kernel, locks } = database();
+  const first = 'commerce:settlement-worker:["workspace","site-a"]';
+  const second = 'commerce:settlement-worker:["workspace","site-b"]';
+  await withKernelSessionLock({ kernel, key: first, run: async () => {
+    expect(await withKernelSessionLock({ kernel, key: second, run: async () => 'site-b' })).toEqual({ acquired: true, value: 'site-b' });
+    expect(locks.has(first)).toBe(true);
+  } });
+  expect(locks.size).toBe(0);
   await kernel.close();
 });

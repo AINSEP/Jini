@@ -54,6 +54,7 @@ export function openPostgresKernel<DB>(
     ready: Promise.resolve(),
     base,
     oneConnection: false,
+    poolMax: optional.max ?? 10,
     begin: (body) => base.transaction().execute((tx) => body(tx)),
     lockKey: postgresLockKey,
     close: () => base.destroy(),

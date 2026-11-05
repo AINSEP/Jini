@@ -127,14 +127,6 @@ it("a missing-provider-configuration intent error is specific and retains the sa
   expect(w.dom.window.sessionStorage.getItem(`commerce:${orders}:price`)).toBe("order-1");
 });
 
-it("new recovery behavior also works with previously cached host markup", async () => {
-  const w = page(); w.form.querySelector("[data-checkout-new-order]")!.remove();
-  w.dom.window.sessionStorage.setItem(`commerce:${orders}:price`, "previous-order");
-  const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(response({ code: "COMMERCE_NOT_FOUND" }, 404));
-  installCommerceCheckout({ document: w.dom.window.document, fetch, storage: w.dom.window.sessionStorage, navigate: vi.fn() }); await submit(w);
-  const recovery = w.form.querySelector<HTMLButtonElement>("[data-checkout-new-order]")!;
-  expect(recovery).not.toBeNull(); expect(recovery.hidden).toBe(false); expect(recovery.textContent).toBe("Start a new order");
-});
 
 it("an unavailable retry removes an earlier fresh-order offer and keeps the original order", async () => {
   const w = page();

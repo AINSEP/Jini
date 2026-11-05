@@ -56,3 +56,35 @@ it('a terminated owner session fails its liveness probe before another settlemen
     expect(await withKernelSessionLock({ kernel: second, key, run: async () => 'replacement' })).toEqual({ acquired: true, value: 'replacement' });
   } finally { await Promise.all([first.close(), second.close()]); }
 });
+
+it('a one-connection native pool remains usable while refusing a background session owner', async () => {
+  const kernel = openPostgresKernel({ pg, connectionString }, { max: 1 });
+  try {
+    await expect(withKernelSessionLock({ kernel, key: `commerce-small-pool:${randomUUID()}`, run: async () => {
+      throw new Error('a session must not be acquired');
+    } })).rejects.toThrow(/pool.*at least 2/i);
+    expect(await kernel.query<{ value: number }>(sql`SELECT 1::integer AS value`)).toEqual([{ value: 1 }]);
+  } finally { await kernel.close(); }
+});
+
+it('independent site schemas acquire distinct settlement keys concurrently', async () => {
+  const admin = openPostgresKernel({ pg, connectionString });
+  const schemas = [`commerce_site_a_${randomUUID().replaceAll('-', '')}`, `commerce_site_b_${randomUUID().replaceAll('-', '')}`];
+  const kernels: ReturnType<typeof openPostgresKernel>[] = [];
+  try {
+    for (const schema of schemas) {
+      await admin.execute(sql`CREATE SCHEMA ${sql.id(schema)}`);
+      const scoped = new URL(connectionString); scoped.searchParams.set('options', `-c search_path=${schema}`);
+      kernels.push(openPostgresKernel({ pg, connectionString: scoped.href }, { max: 2 }));
+    }
+    const key = (siteId: string) => `commerce:settlement-worker:${JSON.stringify(['workspace', siteId])}`;
+    await withKernelSessionLock({ kernel: kernels[0]!, key: key(schemas[0]!), run: async () => {
+      expect(await withKernelSessionLock({ kernel: kernels[1]!, key: key(schemas[1]!), run: async () => 'second site' })).toEqual({ acquired: true, value: 'second site' });
+      expect(await withKernelSessionLock({ kernel: kernels[1]!, key: key(schemas[0]!), run: async () => 'duplicate' })).toEqual({ acquired: false });
+    } });
+  } finally {
+    await Promise.all(kernels.map(kernel => kernel.close()));
+    for (const schema of schemas) await admin.execute(sql`DROP SCHEMA IF EXISTS ${sql.id(schema)} CASCADE`);
+    await admin.close();
+  }
+});

@@ -7,7 +7,7 @@ import type { PaymentScope } from "./payments/contract/scope.js";
 export * from "./catalog-tools.js";
 
 /** Narrow provider-discovery port; no payment, refund or credential operations. */
-export interface Deps { workspaceId: string; authorize: AuthorizeFn; lipay?: (CommercePaymentRuntimePort) | undefined;
+export interface Deps { workspaceId: string; authorize: AuthorizeFn; paymentRuntime?: (CommercePaymentRuntimePort) | undefined;
   commerce?: { status(): Promise<CommerceCheckoutReadiness & { readonly scope?: PaymentScope }> }; }
 
 /** Catalog for the admin service exposed through this standalone contributor. */
@@ -20,7 +20,7 @@ export const catalog: AgentToolDefinition[] = [{
 }];
 /** Independently derived from the service calls below. */
 export const derivedRisk: DerivedRiskByToolId = new Map([
-  // readCommerceStatus -> lipay.listProviders: reads the runtime provider catalog only.
+  // readCommerceStatus -> paymentRuntime.listProviders: reads the runtime provider catalog only.
   // commerce.status reads operational readiness; hosts must not run activation/migrations here.
   ["commerce_get_status", "none"],
 ]);
@@ -39,7 +39,7 @@ export function buildRegistrations(deps: Deps, _optional: Record<string, never> 
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: deps.authorize }), workspaceId: deps.workspaceId, principalId: ctx.principal.id, permission: "admin.integrations.manage" }, { entityType: "integration" });
       const checkout = await deps.commerce?.status();
       if (checkout?.scope && checkout.scope.workspaceId !== deps.workspaceId) throw new CommerceUnavailableError("Commerce status belongs to another workspace.");
-      return readCommerceStatus({ workspaceId: deps.workspaceId, resolvePaymentRuntime: () => deps.lipay ?? null,
+      return readCommerceStatus({ workspaceId: deps.workspaceId, resolvePaymentRuntime: () => deps.paymentRuntime ?? null,
         ...(checkout ? { checkout: { active: checkout.active, ready: checkout.ready, reason: checkout.reason,
           ...(checkout.webhookUrl === undefined ? {} : { webhookUrl: checkout.webhookUrl }) } } : {}) });
     } },
