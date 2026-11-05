@@ -51,7 +51,7 @@
     "./payments-stripe": "./plugins/payments-stripe/0.6.23/jini.plugin.json",
     "./payments-stripe/*": "./plugins/payments-stripe/*",
     "./fixture-provider/*": "./plugins/fixture-provider/*",
-    "./formspree": "./plugins/formspree/0.6.22/jini.plugin.json",
+    "./formspree": "./plugins/formspree/0.6.23/jini.plugin.json",
     "./formspree/*": "./plugins/formspree/*"
   },
   "files": [
