@@ -4,8 +4,8 @@ import { afterEach, expect, it, vi } from 'vitest';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
-import { startMcpHttpToolServer } from '../http-tool-server.js';
-import { createMcpHttpToolServerRuntime } from '../http-tool-server.js';
+import { startMcpHttpToolServer } from '../http-tool-server.adapter.js';
+import { createMcpHttpToolServerRuntime } from '../http-tool-server.adapter.js';
 import type { McpToolDef } from '../tool-protocol.js';
 
 const cleanup: Array<() => Promise<void>> = [];
@@ -151,7 +151,7 @@ it('closing the listener drains accepted tool work without cutting it off', asyn
 });
 
 it('initial listener failure repairs without a manual reconnect', async () => {
-  const { createMcpHttpToolServerRuntime } = await import('../http-tool-server.js');
+  const { createMcpHttpToolServerRuntime } = await import('../http-tool-server.adapter.js');
   const close = vi.fn(async () => {});
   const warn = vi.fn();
   const start = vi.fn().mockRejectedValueOnce(new Error('private native detail')).mockResolvedValue({
