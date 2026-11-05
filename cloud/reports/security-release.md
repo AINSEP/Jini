@@ -1,6 +1,6 @@
 # security-release — 2026-11-05
 
-Status: PREPARED WITH VERIFICATION EXCEPTIONS. No publication performed.
+Status: in progress — approved follow-up integration and validation. No publication performed.
 
 ## Branches and integration
 
@@ -342,3 +342,7 @@ Tovu:
 - `74bbd2d6c3b7542c9202faa3c66813b12681b544`
 - `10e7e344cf4aa5c71c20946a350df7dda048b366`
 - `98bf795152a0981494e27f761b99e518698a6417`
+
+## Approved follow-up — in progress
+
+Merged the requested om-chat and night branches. Resolved two conflicts while preserving existing behavior and assertions. Jini changes are confined to agent-plugins and daemon; both already belong to the 12-package 0.6.23 set. Rebuild, catalog regeneration and focused verification are in progress.
