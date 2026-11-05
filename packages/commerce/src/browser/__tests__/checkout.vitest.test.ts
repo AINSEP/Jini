@@ -4,7 +4,7 @@ import { COMMERCE_CHECKOUT_SCRIPT, installCommerceCheckout } from "../checkout.j
 
 const orders = "/api/commerce/v1/workspaces/site/orders";
 function page() {
-  const dom = new JSDOM(`<form data-commerce-checkout data-orders-url="${orders}" data-price-id="price"><button type="submit">Buy now</button><p data-checkout-status role="status"></p><a data-checkout-order hidden>View order</a></form>`, { url: "https://shop.test/products/book", runScripts: "outside-only" });
+  const dom = new JSDOM(`<form data-commerce-checkout data-orders-url="${orders}" data-price-id="price"><button type="submit">Buy now</button><button type="button" data-checkout-new-order hidden>Start a new order</button><p data-checkout-status role="status"></p><a data-checkout-order hidden>View order</a></form>`, { url: "https://shop.test/products/book", runScripts: "outside-only" });
   return { dom, form: dom.window.document.querySelector("form")!, status: dom.window.document.querySelector("[data-checkout-status]")!, link: dom.window.document.querySelector("a")! };
 }
 function response(body: unknown, status = 200): Response { return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } }); }
@@ -33,6 +33,7 @@ it("after a lost pay response and browser reload, retries the same saved order w
   installCommerceCheckout({ document: first.dom.window.document, fetch, storage: first.dom.window.sessionStorage, navigate: vi.fn() });
   await submit(first);
   expect(first.status.textContent).toContain("order-1");
+  expect(first.form.querySelector<HTMLButtonElement>("[data-checkout-new-order]")!.hidden).toBe(true);
   const reloaded = page(); const retry = vi.fn<typeof globalThis.fetch>().mockResolvedValue(response({ order: { id: "order-1", status: "pending" }, payment: { next: null } }));
   installCommerceCheckout({ document: reloaded.dom.window.document, fetch: retry, storage: first.dom.window.sessionStorage, navigate: vi.fn() });
   await submit(reloaded);
@@ -81,4 +82,66 @@ it("repeated asset initialization does not attach another money submission handl
   installCommerceCheckout(ports); installCommerceCheckout(ports);
   await submit(w);
   expect(fetch).toHaveBeenCalledTimes(2);
+});
+
+it("a changed member can explicitly start a new order after owned-order404 without exposing the previous order", async () => {
+  const w = page(); w.dom.window.sessionStorage.setItem(`commerce:${orders}:price`, "previous-member-order");
+  const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValueOnce(response({ code: "COMMERCE_NOT_FOUND", error: "Unavailable for this account." }, 404)).mockResolvedValueOnce(response({ order: { id: "new-member-order" } }, 201)).mockResolvedValueOnce(response({ order: { id: "new-member-order", status: "pending" }, payment: { next: null } }));
+  installCommerceCheckout({ document: w.dom.window.document, fetch, storage: w.dom.window.sessionStorage, navigate: vi.fn() });
+  await submit(w);
+  const recovery = w.form.querySelector<HTMLButtonElement>("[data-checkout-new-order]")!;
+  expect(recovery.hidden).toBe(false); expect(fetch).toHaveBeenCalledTimes(1);
+  expect(w.status.textContent).toContain("original account"); expect(w.status.textContent).not.toContain("previous-member-order");
+  expect(w.dom.window.sessionStorage.getItem(`commerce:${orders}:price`)).toBe("previous-member-order");
+  recovery.click(); await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(3));
+  expect(fetch.mock.calls.map(([url]) => url)).toEqual([`${orders}/previous-member-order/pay`, orders, `${orders}/new-member-order/pay`]);
+  expect(w.dom.window.sessionStorage.getItem(`commerce:${orders}:price`)).toBe("new-member-order");
+});
+it.each([500, 503])("an HTTP%i response cannot offer a fresh payment or clear the saved order", async status => {
+  const w = page(); w.dom.window.sessionStorage.setItem(`commerce:${orders}:price`, "order-1");
+  const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(response({ code: "COMMERCE_NOT_FOUND", error: "Temporary service interruption." }, status));
+  installCommerceCheckout({ document: w.dom.window.document, fetch, storage: w.dom.window.sessionStorage, navigate: vi.fn() }); await submit(w);
+  const recovery = w.form.querySelector<HTMLButtonElement>("[data-checkout-new-order]")!;
+  expect(recovery.hidden).toBe(true); recovery.click(); expect(fetch).toHaveBeenCalledTimes(1);
+  expect(w.dom.window.sessionStorage.getItem(`commerce:${orders}:price`)).toBe("order-1");
+});
+it.each(["failed", "canceled"])("a definitive %s payment shows its intent error and permits only an explicit new order", async status => {
+  const w = page();
+  const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValueOnce(response({ order: { id: "order-1" } })).mockResolvedValueOnce(response({ order: { id: "order-1", status: "pending" }, payment: { status, next: null }, intent: { ok: false, error: { code: "DECLINED", message: "Your card was declined <script>unsafe</script>." } } })).mockResolvedValueOnce(response({ order: { id: "order-2" } })).mockResolvedValueOnce(response({ order: { id: "order-2", status: "pending" }, payment: { next: null } }));
+  installCommerceCheckout({ document: w.dom.window.document, fetch, storage: w.dom.window.sessionStorage, navigate: vi.fn() }); await submit(w);
+  expect(w.status.textContent).toContain("Your card was declined"); expect(w.status.querySelector("script")).toBeNull();
+  expect(w.form.querySelector<HTMLButtonElement>("[data-checkout-new-order]")!.hidden).toBe(false);
+  expect(w.dom.window.sessionStorage.getItem(`commerce:${orders}:price`)).toBe("order-1");
+  expect(fetch).toHaveBeenCalledTimes(2);
+  w.form.querySelector<HTMLButtonElement>("[data-checkout-new-order]")!.click();
+  await vi.waitFor(() => expect(fetch).toHaveBeenCalledTimes(4));
+  expect(fetch.mock.calls[2]![0]).toBe(orders);
+  expect(fetch.mock.calls[3]![0]).toBe(`${orders}/order-2/pay`);
+});
+it("a missing-provider-configuration intent error is specific and retains the same pending order", async () => {
+  const w = page();
+  const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValueOnce(response({ order: { id: "order-1" } })).mockResolvedValueOnce(response({ order: { id: "order-1", status: "pending" }, payment: null, intent: { ok: false, error: { code: "NO_CREDENTIALS_CONFIGURED", message: "The shop's payment credentials are not configured." } } }));
+  installCommerceCheckout({ document: w.dom.window.document, fetch, storage: w.dom.window.sessionStorage, navigate: vi.fn() }); await submit(w);
+  expect(w.status.textContent).toContain("payment credentials are not configured");
+  expect(w.form.querySelector<HTMLButtonElement>("[data-checkout-new-order]")!.hidden).toBe(true);
+  expect(w.dom.window.sessionStorage.getItem(`commerce:${orders}:price`)).toBe("order-1");
+});
+
+it("new recovery behavior also works with previously cached host markup", async () => {
+  const w = page(); w.form.querySelector("[data-checkout-new-order]")!.remove();
+  w.dom.window.sessionStorage.setItem(`commerce:${orders}:price`, "previous-order");
+  const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValue(response({ code: "COMMERCE_NOT_FOUND" }, 404));
+  installCommerceCheckout({ document: w.dom.window.document, fetch, storage: w.dom.window.sessionStorage, navigate: vi.fn() }); await submit(w);
+  const recovery = w.form.querySelector<HTMLButtonElement>("[data-checkout-new-order]")!;
+  expect(recovery).not.toBeNull(); expect(recovery.hidden).toBe(false); expect(recovery.textContent).toBe("Start a new order");
+});
+
+it("an unavailable retry removes an earlier fresh-order offer and keeps the original order", async () => {
+  const w = page();
+  const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValueOnce(response({ order: { id: "order-1" } })).mockResolvedValueOnce(response({ order: { id: "order-1", status: "pending" }, payment: { status: "failed", next: null } })).mockResolvedValueOnce(response({ error: "Temporary shop interruption." }, 503));
+  installCommerceCheckout({ document: w.dom.window.document, fetch, storage: w.dom.window.sessionStorage, navigate: vi.fn() });
+  await submit(w); expect(w.form.querySelector<HTMLButtonElement>("[data-checkout-new-order]")!.hidden).toBe(false);
+  await submit(w); expect(w.form.querySelector<HTMLButtonElement>("[data-checkout-new-order]")!.hidden).toBe(true);
+  w.form.querySelector<HTMLButtonElement>("[data-checkout-new-order]")!.click(); expect(fetch).toHaveBeenCalledTimes(3);
+  expect(w.dom.window.sessionStorage.getItem(`commerce:${orders}:price`)).toBe("order-1");
 });
