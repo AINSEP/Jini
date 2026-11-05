@@ -137,7 +137,7 @@ export interface StoredFormSubmission extends FormSubmissionRecord {
 }
 
 function cloneSubmission(row: StoredFormSubmission): StoredFormSubmission {
-  return { ...row, data: structuredClone(row.data) };
+  return { ...row, data: structuredClone(row.data), ...(row.evidence ? { evidence: structuredClone(row.evidence) } : {}) };
 }
 
 /** The port's view of a stored row: the Trash columns stay inside this adapter. */

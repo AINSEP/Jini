@@ -4,7 +4,7 @@ import { prepareAssets } from './assets.mjs';
 import { previewDomains, assertDomainApproval, applyDomains } from './domains.mjs';
 import { normalizeDomain } from './zones.mjs';
 import { pagesAddress } from './pages-upload.mjs';
-import { formPageRoutes, formsWorkerParts, normalizeForms, previewForms, provisionForms } from './forms.mjs';
+import { databaseName, findDatabase, formPageRoutes, formsWorkerParts, normalizeForms, previewForms, provisionForms } from './forms.mjs';
 
 const WORKERS_TARGET_ID = 'cloudflare-workers';
 
@@ -104,9 +104,19 @@ async function prepareForms({ api, kit, targetId, resourceName, formDestination,
   if (targetId !== WORKERS_TARGET_ID) return undefined;
   const normalized = normalizeForms({ formDestination, kit });
   if (!normalized) return undefined;
-  const database = await provisionForms({ api, kit, resourceName });
+  const database = normalized.forms.length
+    ? await provisionForms({ api, kit, resourceName })
+    : await retainedFormsDatabase({ api, kit, resourceName });
+  if (!database) return undefined;
   const parts = await formsWorkerParts({ manifest: normalized, secret: normalized.secret, databaseId: database.databaseId }, { pageRoutes: formPageRoutes({ files }) });
   return { parts, summary: { forms: normalized.forms.length, databaseId: database.databaseId, databaseName: database.databaseName } };
+}
+
+/** Rebind an existing receiver only: switching providers never discards uncollected answers. */
+async function retainedFormsDatabase({ api, kit, resourceName }, _options = {}) {
+  const name = databaseName({ resourceName });
+  const existing = await findDatabase({ api, kit, name });
+  return existing ? { databaseId: existing.uuid, databaseName: name } : undefined;
 }
 
 function preparePublish({ input, kit, config, plan, targetId }, _options = {}) {

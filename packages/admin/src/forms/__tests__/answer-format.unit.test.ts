@@ -188,3 +188,11 @@ describe("formatFormAnswer scalars", () => {
     expect(formatFormAnswer({ value: "date", type: "text" })).toBe("date");
   });
 });
+
+describe('captured historical evidence',()=>{
+  it('detail labels and option meanings stay original after current descriptors change',()=>{
+    const evidence={version:1 as const,fields:[{id:'choice',label:'Original question',type:'select' as const,required:false,options:[{value:'a',label:'Original answer'}]}],consent:[],schemaHash:'a'.repeat(64),capturedAt:'now',source:'native' as const};
+    const answerColumns=formAnswerColumns({fields:[{id:'choice',label:'Changed question',type:'select',required:false,options:[{value:'a',label:'Changed meaning'}]}]});
+    expect(formSubmissionRows({data:{choice:'a'},answerColumns,evidence})).toEqual([{key:'choice',label:'Original question',value:'Original answer',file:null}]);
+  });
+});

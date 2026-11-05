@@ -10,8 +10,8 @@ export function createFormspreeProvider(_required: Record<string, never>, _optio
       return { kind: 'unavailable', code: 'invalid_configuration', message: 'This form needs a valid public Formspree endpoint (https://formspree.io/f/form-id) before it can send answers.' };
     }
     return { kind: 'post', action: endpoint, external: true, capabilities: {
-      answers: 'Answers are sent directly to Formspree and are managed in your Formspree account; they are not copied into this site.',
-      validation: 'Browser field checks and Formspree validation apply; this site does not perform server validation.',
+      answers: 'Answers are sent directly to Formspree and are managed in your Formspree account; they are not copied into the form host.',
+      validation: 'Browser field checks and Formspree validation apply; the form host does not perform server validation.',
       spamProtection: 'Formspree provides spam protection according to your Formspree account settings.',
     } };
   } };

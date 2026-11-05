@@ -1,4 +1,4 @@
-import type { AdminFormsPort } from "../../../core/ports/forms.js";
+import type { AdminFormProviderSelection, AdminFormsPort } from "../../../core/ports/forms.js";
 import { formView } from "../../models.js";
 import { useFormsPorts, useFormsOptions } from "./FormsPorts.hooks.js";
 import { useController } from "../../../core/react/use-controller.js";
@@ -72,6 +72,8 @@ export interface FormEditorController {
   /** `null` until the initial load settles (or always, for `isNew`) — the caller renders a loading
    *  state or the empty create form accordingly. */
   form: AdminFormDefinition | null;
+  provider: AdminFormProviderSelection;
+  setProvider: (value: AdminFormProviderSelection) => void;
   name: string;
   setName: (value: string) => void;
   slug: string;
@@ -130,7 +132,8 @@ export function useFormEditor(
   const isNew = props.formId === "new";
   const { controller: stateController, snapshot: stateSnapshot } = useController({ create: () => createFormEditorController({}), dependencies: [] });
   const state = stateSnapshot ?? initialFormEditorState({});
-  const { form, mode, html, copyFeedback, name, slug, fields, notify } = state;
+  const { form, mode, html, copyFeedback, name, slug, fields, notify, provider } = state;
+  const setProvider = (value: AdminFormProviderSelection) => stateController?.update({ key: "provider", value });
   const setForm = (value: FormEditorStateValue<"form">) => stateController?.update({ key: "form", value });
   const setHtml = (value: FormEditorStateValue<"html">) => stateController?.update({ key: "html", value });
   const setCopyFeedback = (value: FormEditorStateValue<"copyFeedback">) => stateController?.update({ key: "copyFeedback", value });
@@ -173,7 +176,7 @@ export function useFormEditor(
   // `use-collection-entry-editor.hooks.ts`'s `save()`/`toggleLifecycle()` document for why THEIR
   // `invalidates` names only the sibling `KEYS.entries(...)`, never their own `KEYS.entry(...)`.
   const updateMutation = useFetchMutation({
-    run: ({ input }: { input: { name: string; fields: AdminFormField[]; notify: AdminFormNotify; mode?: "builder" | "html"; html?: string | undefined } }) =>
+    run: ({ input }: { input: { name: string; fields: AdminFormField[]; notify: AdminFormNotify; provider?: AdminFormProviderSelection; mode?: "builder" | "html"; html?: string | undefined } }) =>
       // Targets the loaded record's real id, never `props.formId` directly — the admin URL now
       // carries the form's slug when one resolves (ui-fixes-backlog.md #8), so `props.formId` may
       // itself BE that slug. `form.id` is always the real id regardless of which one the URL held,
@@ -187,8 +190,8 @@ export function useFormEditor(
     invalidates: [KEYS.list],
   });
   const createMutation = useFetchMutation({
-    run: ({ input }: { input: { name: string; slug: string; fields: AdminFormField[]; notify: AdminFormNotify; mode?: "builder" | "html"; html?: string | undefined } }) =>
-      port.createFormDefinition({ name: input.name, slug: input.slug, fields: input.fields, ...(input.mode ? { mode: input.mode, html: input.html } : {}) }, { notify: input.notify }),
+    run: ({ input }: { input: { name: string; slug: string; fields: AdminFormField[]; notify: AdminFormNotify; provider?: AdminFormProviderSelection; mode?: "builder" | "html"; html?: string | undefined } }) =>
+      port.createFormDefinition({ name: input.name, slug: input.slug, fields: input.fields, ...(input.provider ? { provider: input.provider } : {}), ...(input.mode ? { mode: input.mode, html: input.html } : {}) }, { notify: input.notify }),
   }, {
     invalidates: [KEYS.list],
   });
@@ -212,7 +215,7 @@ export function useFormEditor(
 
   async function handleSave() {
     // Ordinary Builder saves keep their existing endpoint/permissions. A mode change is explicit.
-    const authoring = authoringPatch({ mode, html, savedMode: form?.mode });
+    const authoring = { ...authoringPatch({ mode, html, savedMode: form?.mode }), ...(provider.id !== "builtin" || form?.provider ? { provider } : {}) };
     try {
       if (isNew) {
         // `notify` here is always this hook's own blank default — a new form has no earlier value
@@ -253,7 +256,7 @@ export function useFormEditor(
 
   // Same guard as the post and widget editors (reload/close prompt included); the in-app Back
   // gets the admin's confirm modal rather than `confirmLeave`'s `window.confirm`.
-  const { isDirty } = useDirtyGuard({ current: formEditorDraft({ name, slug, fields, mode, html }), original: formEditorBaseline({ form, isNew }) });
+  const { isDirty } = useDirtyGuard({ current: formEditorDraft({ name, slug, fields, mode, html, provider }), original: formEditorBaseline({ form, isNew }) });
   const [leaveConfirmOpen, setLeaveConfirmOpen] = useState(false);
   const leave = {
     confirmOpen: leaveConfirmOpen,
@@ -299,7 +302,7 @@ export function useFormEditor(
 
   return {
     isNew,
-    form,
+    form, provider, setProvider,
     mode, onModeChange, html, setHtml, copyEmbed, copyFeedback,
     answerColumns: formAnswerColumns({ fields: form?.fields ?? [] }, { yes: t("Yes"), no: t("No") }),
     name,

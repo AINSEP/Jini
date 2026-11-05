@@ -24,3 +24,21 @@ test('static receiver uses the live UTF-16 string length and rejects repeated sc
   assert.ok(check({ type: 'number' }, ['1', '2']).error);
   assert.ok(check({ type: 'multi-select', options: ['yes'] }, ['yes', 'yes']).error);
 });
+
+
+test('receiver stores original schema/consent evidence and pull preserves it separately from answers', async () => {
+  const { fakeD1 } = await import('../../lib/__tests__/d1-fake.mjs');
+  const { handleRequest, listPending } = await import('../forms-receiver.mjs');
+  const d1 = fakeD1();
+  const evidence = { version: 1, fields: [{ id: 'consent', label: 'I agree to the original terms', type: 'checkbox', required: true }],
+    consent: [{ fieldId: 'consent', wording: 'I agree to the original terms' }], schemaHash: 'a'.repeat(64) };
+  const manifest = { forms: [{ slug: 'contact', fields: [{ name: 'consent', type: 'checkbox', required: true }], evidence }] };
+  const env = { TOVU_FORMS: d1.binding, TOVU_FORMS_SECRET: 's'.repeat(43) };
+  const now = () => Date.parse('2026-11-05T18:00:00.000Z');
+  const response = await handleRequest({ request: new Request('https://site.example/forms/contact/submit', { method: 'POST', body: 'consent=on', headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }), env, manifest }, { now, randomId: () => 'new' });
+  assert.equal(response.status, 303);
+  const page = await (await listPending({ env, url: new URL('https://site.example/_tovu/forms/pending') })).json();
+  assert.deepEqual(page.items[0].answers, { consent: true });
+  assert.deepEqual(page.items[0].evidence, { ...evidence, capturedAt: '2026-11-05T18:00:00.000Z', source: 'cloudflare' });
+  assert.equal('evidence' in page.items[0].answers, false);
+});

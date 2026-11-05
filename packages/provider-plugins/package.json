@@ -29,7 +29,9 @@
       "./observability-sentry/*": "node",
       "./payments-stripe": "node",
       "./payments-stripe/*": "node",
-      "./fixture-provider/*": "node"
+      "./fixture-provider/*": "node",
+      "./formspree": "node",
+      "./formspree/*": "node"
     }
   },
   "exports": {
@@ -48,13 +50,16 @@
     "./observability-sentry/*": "./plugins/observability-sentry/*",
     "./payments-stripe": "./plugins/payments-stripe/0.6.22/jini.plugin.json",
     "./payments-stripe/*": "./plugins/payments-stripe/*",
-    "./fixture-provider/*": "./plugins/fixture-provider/*"
+    "./fixture-provider/*": "./plugins/fixture-provider/*",
+    "./formspree": "./plugins/formspree/0.6.22/jini.plugin.json",
+    "./formspree/*": "./plugins/formspree/*"
   },
   "files": [
     "plugins/ai-trace-langfuse",
     "plugins/analytics-posthog",
     "plugins/charts-echarts",
     "plugins/charts-recharts",
+    "plugins/formspree",
     "plugins/fixture-provider",
     "plugins/observability-opentelemetry",
     "plugins/observability-sentry",
@@ -66,7 +71,7 @@
     "NOTICE"
   ],
   "scripts": {
-    "build": "pnpm run typecheck && node --import tsx scripts/build.ts charts-recharts . && node --import tsx scripts/build.ts charts-echarts . && node --import tsx scripts/build.ts ai-trace-langfuse . && node --import tsx scripts/build.ts analytics-posthog . && node --import tsx scripts/build.ts observability-opentelemetry . && node --import tsx scripts/build.ts observability-sentry . && node --import tsx scripts/build.ts payments-stripe . && node --import tsx scripts/build.ts fixture-provider .",
+    "build": "pnpm run typecheck && node --import tsx scripts/build.ts charts-recharts . && node --import tsx scripts/build.ts charts-echarts . && node --import tsx scripts/build.ts ai-trace-langfuse . && node --import tsx scripts/build.ts analytics-posthog . && node --import tsx scripts/build.ts observability-opentelemetry . && node --import tsx scripts/build.ts observability-sentry . && node --import tsx scripts/build.ts payments-stripe . && node --import tsx scripts/build.ts fixture-provider . && node --import tsx scripts/build.ts formspree .",
     "prepack": "pnpm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.charts.json --noEmit",
     "test": "vitest run",
@@ -109,6 +114,7 @@
     "react-dom": "19.2.7",
     "recharts": "3.10.1",
     "tsx": "^4.19.0",
-    "typescript": "^5.9.3"
+    "typescript": "^5.9.3",
+    "@jini-ai/cms": "workspace:^"
   }
 }

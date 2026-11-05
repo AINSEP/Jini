@@ -56,6 +56,10 @@ export function FormSubmissionDetail({
         {t("Email notification failed. The submission is saved here. Check the email provider settings before sending a new notification.")}
         <p>{t("Details: FORM_NOTIFICATION_FAILED")} ({submission.notificationDelivery.failed})</p>
       </div> : null}
+      {!submission.evidence ? <div className="notice">{t("original schema/consent unavailable")}{!submission.validation ? <p>{t("validation unknown")}</p> : null}</div> : <div className="notice">
+        <p>{t("Schema hash")}: <code>{submission.evidence.schemaHash}</code></p>
+        {submission.evidence.consent.map(consent => <p key={consent.fieldId}>{consent.wording}{consent.helpText ? ` — ${consent.helpText}` : ""}</p>)}
+      </div>}
       {submission.validation?.status === "invalid" ? <div className="notice error" role="alert">
         <p>{t("Imported for review: this submission did not pass the form checks.")}</p>
         <ul>{submission.validation.fieldErrors.map(({ field, reason }, index) => <li key={`${field}-${index}`}>{field}: {reason}</li>)}</ul>
@@ -71,7 +75,7 @@ export function FormSubmissionDetail({
               <th>{t("Source IP")}</th>
               <td>{submission.sourceIp}</td>
             </tr>
-            {formSubmissionRows({ data: submission.data, answerColumns }, { unknownFieldLabel: t("Unknown field") }).map(({ key, label, value, file }) => {
+            {formSubmissionRows({ data: submission.data, answerColumns, evidence: submission.evidence }, { unknownFieldLabel: t("Unknown field") }).map(({ key, label, value, file }) => {
               const href = file ? fileUrl(file) : null;
               return (
                 <tr key={key}>

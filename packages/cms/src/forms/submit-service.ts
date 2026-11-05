@@ -24,6 +24,7 @@ import { formatErrorForLog } from '@jini-ai/core';
  * mistake for a finished submission.
  */
 import type { SubmitFormInput } from "./types.js";
+import type { HtmlFormDefinitionRecord } from "./fields-json.js";
 export type { SubmitFormInput } from "./types.js";
 import type { Logger } from "@jini-ai/core/primitives";
 import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
@@ -58,6 +59,7 @@ export interface SubmitFormDeps {
   files?: FormFileStoragePort;
   /** Local upload disk only; undefined skips admission for remote stores. */
   readUploadFreeBytes?: (required: Record<string, never>, optional?: Record<string, never>) => Promise<number | undefined>;
+  uploadSpaceMessage?: string;
   /** Omitted: the two writes run back to back with no rollback between them. */
   transaction?: SubmissionTransactionPort;
 }
@@ -90,7 +92,7 @@ export interface SubmitFormRequired {
 export async function submitForm(required: SubmitFormRequired, optional: SubmitFormOptional = {}): Promise<{ status: "accepted" }> {
   const { deps } = required;
   const { input, attemptToken } = splitAttemptToken({ input: required.input }, optional);
-  const definition = await resolveActiveDefinition({ deps, input }, optional);
+  const { definition, originalDefinition } = await resolveActiveDefinition({ deps, input }, optional);
 
   // Discard before validation, rate limiting or writes; a bot sees the same accepted response
   // without consuming capacity or creating a submission/event.
@@ -102,7 +104,7 @@ export async function submitForm(required: SubmitFormRequired, optional: SubmitF
   assertSubmissionTiming({ deps, input, attemptToken }, optional);
   await assertWithinRateLimit({ deps, input, definition });
 
-  const records = await buildSubmissionRecords({ deps, input, definition, data: validation.data });
+  const records = await buildSubmissionRecords({ deps, input, definition: originalDefinition, data: validation.data });
   const persist = () => persistSubmission({ deps, input, ...records, files: validation.files ?? {} });
   if (optional.attempts) {
     // The attempt is claimed only where persistence begins, after validation and rate limiting.
@@ -149,15 +151,20 @@ function splitAttemptToken(
 async function resolveActiveDefinition(
   { deps, input }: { deps: SubmitFormDeps; input: SubmitFormInput },
   { definitionView, validateEmails }: Pick<SubmitFormOptional, "definitionView" | "validateEmails"> = {},
-): Promise<FormDefinitionRecord> {
+): Promise<{ definition: FormDefinitionRecord; originalDefinition: FormDefinitionRecord }> {
   // Missing and disabled slugs are deliberately indistinguishable to public callers.
   const stored = await deps.definitionRepo.findBySlug({ workspaceId: input.workspaceId, slug: input.slug });
   const definition = stored && definitionView ? definitionView({ definition: stored, body: input.body }) : stored;
-  if (!definition || definition.status !== "active") {
+  if (!definition || definition.status !== "active" || !usesBuiltinCollection({ definition })) {
     throw new FormDefinitionNotFoundError({ message: `form '${input.slug}' was not found` });
   }
   if (validateEmails) assertSubmissionEmails({ definition, body: input.body });
-  return definition;
+  // Validation views can widen code-unit limits for emoji answers; they are not the authored schema.
+  return { definition, originalDefinition: stored! };
+}
+
+function usesBuiltinCollection({ definition }: { definition: FormDefinitionRecord }): boolean {
+  return ((definition as HtmlFormDefinitionRecord).provider?.id ?? "builtin") === "builtin";
 }
 
 function assertValidSubmission(
@@ -253,7 +260,7 @@ async function assertUploadSpace({ deps, files, answers }: { deps: SubmitFormDep
   let free: number | undefined;
   try { free = await deps.readUploadFreeBytes({}, {}); }
   catch { try { deps.logger.warn({ message: "form upload free-disk check unavailable; allowing attachments" }); } catch { /* Logging cannot refuse an upload. */ } return; }
-  if (free !== undefined && free - incomingBytes < 512 * 1024 ** 2) throw new FormAttachmentSpaceError({ answers });
+  if (free !== undefined && free - incomingBytes < 512 * 1024 ** 2) throw new FormAttachmentSpaceError({ answers, ...(deps.uploadSpaceMessage ? { message: deps.uploadSpaceMessage } : {}) });
 }
 
 async function discardUploads(

@@ -25,7 +25,7 @@ export function createFormCollectionRegistry(_required: Record<string, never>, _
     validate: ({ provider }) => provider && typeof provider.plan === 'function' ? undefined : 'missing collection plan',
     seed: [{ id: 'builtin', label: 'Built-in', provider: { plan: ({ slug }) => ({
       kind: 'post', action: `/forms/${encodeURIComponent(slug)}/submit`, external: false,
-      capabilities: { answers: 'Answers are stored on this site.', validation: 'This site validates the declared form fields.', spamProtection: 'Hidden-field, timing, duplicate and rate-limit protection apply on the live server.' },
+      capabilities: { answers: 'Answers are stored on the form host.', validation: 'The form host validates the declared form fields.', spamProtection: 'Hidden-field, timing, duplicate and rate-limit protection apply on the live server.' },
     }) } }],
   });
 }
@@ -49,9 +49,15 @@ export function resolveFormCollectionPlan({ definition, providers }: {
  * @throws Error for malformed, oversized or secret-like configuration.
  * @complexity O(c) bounded configuration bytes, no I/O. */
 export function validateFormProviderSelection({ selection }: { selection: FormProviderSelection }, _optional: Record<string, never> = {}): void {
-  if (!selection || !/^[a-z][a-z0-9_]{0,63}$/.test(selection.id) || !selection.config || Array.isArray(selection.config) || typeof selection.config !== 'object') throw new Error('Form provider must have an id and public configuration object.');
+  if (!selection || typeof selection.id !== 'string' || !/^[a-z][a-z0-9_]{0,63}$/.test(selection.id)) throw new Error('Form provider must have a valid provider id.');
+  assertPublicConfiguration({ config: selection.config });
   if (JSON.stringify(selection).length > 2048) throw new Error('Form provider configuration must not exceed 2 KiB.');
-  for (const [key, value] of Object.entries(selection.config)) {
+}
+
+/** Reject secret names and malformed values before public configuration can enter an export. */
+function assertPublicConfiguration({ config }: { config: unknown }): void {
+  if (!config || Array.isArray(config) || typeof config !== 'object') throw new Error('Form provider needs a public configuration object.');
+  for (const [key, value] of Object.entries(config)) {
     if (typeof value !== 'string' || /secret|token|password|api.?key/i.test(key)) throw new Error('Form provider configuration contains a secret or a non-text value. Store only public form configuration.');
   }
 }

@@ -6,6 +6,7 @@ import { createRateLimiter } from "./eventing.fixture.js";
 import { FormDefinitionNotFoundError, FormRateLimitExceededError, FormSubmissionValidationError } from "../errors.js";
 
 import { InMemoryFormDefinitionRepo, InMemoryFormSubmissionRepo } from "./repo.fixture.js";
+import { InMemoryFormSubmissionRepo as ProductionSubmissionRepo } from "../repo.memory.js";
 import { submitForm } from "../submit-service.js";
 import type { FormDefinitionRecord } from "../types.js";
 
@@ -264,4 +265,34 @@ test("submitForm: a failed enqueue rejects through the transaction and dispatche
 
   assert.equal(rolledBack.length, 1);
   assert.equal(dispatched, 0);
+});
+
+test("external collection definitions cannot accept submissions through the built-in receiver", async () => {
+  const deps = makeDeps(); await deps.definitionRepo.create({ ...makeDefinition(), provider: { id: "formspree", config: { formId: "abc" } } } as FormDefinitionRecord);
+  await assert.rejects(submitForm({ deps, input: { workspaceId: WORKSPACE_ID, slug: "contact", sourceIp: "127.0.0.1", body: { name: "Ada", email: "ada@example.com" } } }), FormDefinitionNotFoundError);
+  assert.equal((await deps.submissionRepo.listByDefinition({ workspaceId: WORKSPACE_ID, formDefinitionId: "def-1", limit: 10 })).items.length, 0);
+});
+
+
+test("native submissions capture original descriptors independently of later edits", async () => {
+  const deps={...makeDeps(),submissionRepo:new ProductionSubmissionRepo()};
+  const definition=makeDefinition();
+  await deps.definitionRepo.create(definition);
+  await submitForm({deps,input:{workspaceId:WORKSPACE_ID,slug:"contact",body:{name:"Ada",email:"ada@example.com"},sourceIp:"1.1.1.1"}});
+  const saved=(await deps.submissionRepo.listByDefinition({workspaceId:WORKSPACE_ID,formDefinitionId:definition.id,limit:10})).items[0]!;
+  assert.equal(saved.evidence?.source,"native");
+  assert.deepEqual(saved.evidence?.fields,definition.fields);
+  assert.match(saved.evidence!.schemaHash,/^[a-f0-9]{64}$/);
+  saved.evidence!.fields[0]!.label="Mutated display";
+  assert.equal((await deps.submissionRepo.findById({workspaceId:WORKSPACE_ID,id:saved.id}))!.evidence!.fields[0]!.label,"Name");
+});
+
+test('evidence captures authored schema before answer-dependent validation views',async()=>{
+  const deps={...makeDeps(),submissionRepo:new ProductionSubmissionRepo()};
+  const definition=makeDefinition();
+  await deps.definitionRepo.create(definition);
+  const definitionView=({definition:stored}:{definition:FormDefinitionRecord})=>({...stored,fields:stored.fields.map(field=>({...field,label:'Validation-only label',maxLength:101}))});
+  await submitForm({deps,input:{workspaceId:WORKSPACE_ID,slug:'contact',body:{name:'😀',email:'ada@example.com'},sourceIp:'1.1.1.1'}},{definitionView});
+  const saved=(await deps.submissionRepo.listByDefinition({workspaceId:WORKSPACE_ID,formDefinitionId:definition.id,limit:10})).items[0]!;
+  assert.deepEqual(saved.evidence!.fields,definition.fields);
 });

@@ -1,0 +1,7 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "formspree", "version": "0.1.0", "author": "Jini", "license": "Apache-2.0",
+  "description": "Connects native forms to Formspree. Visitors POST directly to Formspree; this site keeps its existing form definitions and historical answers. Installation alone never switches a form.",
+  "extensions": { "tovu": { "id": "jini/formspree", "displayName": "Formspree", "providerPlugin": "formspree", "provides": ["forms"] } },
+  "keywords": ["formspree", "forms", "form collection"]
+}

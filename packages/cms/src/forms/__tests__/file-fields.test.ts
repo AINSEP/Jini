@@ -111,13 +111,13 @@ test("file: a throwing logger during cleanup cannot replace the original submiss
 });
 
 test("disk floor: refuse the entire batch before storage, allow exact floor and unreadable probes", async () => {
-  for (const free of [512 * 1024 ** 2 + 8, 512 * 1024 ** 2 + 9, undefined, new Error("statfs unavailable")]) {
-    const f = fixture(); await f.deps.definitionRepo.create(definition()); let probes = 0; let warnings = 0;
+  for (const free of [512 * 1024 ** 2 + 17, 512 * 1024 ** 2 + 18, undefined, new Error("statfs unavailable")]) {
+    const f = fixture(); await f.deps.definitionRepo.create(definition([field, { ...field, id: "second" }])); const input = { ...f.input, body: { attachment: file, second: file } }; let probes = 0; let warnings = 0;
     const deps = { ...f.deps, logger: { warn() { warnings++; } }, readUploadFreeBytes: async () => { probes++; if (free instanceof Error) throw free; return free; } };
-    if (typeof free === "number" && free % 2 === 0) {
-      await assert.rejects(submitForm({ deps, input: f.input }), (error: any) => error.code === "FORMS_ATTACHMENT_SPACE" && /no room/.test(error.message));
+    if (typeof free === "number" && free % 2 === 1) {
+      await assert.rejects(submitForm({ deps, input }), (error: any) => error.code === "FORMS_ATTACHMENT_SPACE" && /no room/.test(error.message));
       assert.equal(f.stored.length, 0); assert.equal(f.events(), 0);
-    } else { await submitForm({ deps, input: f.input }); assert.equal(f.stored.length, 1); }
+    } else { await submitForm({ deps, input }); assert.equal(f.stored.length, 2); }
     assert.equal(probes, 1); assert.equal(warnings, free instanceof Error ? 1 : 0);
   }
 });

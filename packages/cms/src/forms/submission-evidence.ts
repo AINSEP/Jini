@@ -50,8 +50,9 @@ function assertEvidenceSize({ value }: { value: unknown }): void {
 function isField(value: unknown): value is FieldDescriptor {
   if (!isNonArrayRecord({ value })) return false;
   const field = value as Record<string, unknown>;
-  return typeof field.id === 'string' && typeof field.label === 'string' && typeof field.type === 'string'
-    && typeof field.required === 'boolean' && (field.options === undefined || Array.isArray(field.options) && field.options.every(isOption));
+  const identity = typeof field.id === 'string' && typeof field.label === 'string' && typeof field.type === 'string' && typeof field.required === 'boolean';
+  const choices = field.options === undefined || Array.isArray(field.options) && field.options.every(isOption);
+  return identity && choices;
 }
 function isOption(value: unknown): boolean {
   return isNonArrayRecord({ value }) && typeof (value as Record<string, unknown>).value === 'string' && typeof (value as Record<string, unknown>).label === 'string';
@@ -80,9 +81,9 @@ export function readSubmissionEvidence({ value }: { value: unknown }, _optional:
 }
 
 function assertEvidenceHeader({ evidence }: { evidence: Record<string, unknown> }): void {
-  if (evidence.version !== 1 || typeof evidence.schemaHash !== 'string' || !/^[a-f0-9]{64}$/.test(evidence.schemaHash)
-    || typeof evidence.capturedAt !== 'string' || !['native', 'cloudflare'].includes(String(evidence.source))
-    || evidence.html !== undefined && typeof evidence.html !== 'string') throw new TypeError('Invalid form submission evidence header.');
+  if (evidence.version !== 1 || typeof evidence.schemaHash !== 'string' || !/^[a-f0-9]{64}$/.test(evidence.schemaHash)) throw new TypeError('Invalid form submission evidence hash.');
+  if (typeof evidence.capturedAt !== 'string' || !['native', 'cloudflare'].includes(String(evidence.source))) throw new TypeError('Invalid form submission evidence provenance.');
+  if (evidence.html !== undefined && typeof evidence.html !== 'string') throw new TypeError('Invalid form submission evidence HTML.');
 }
 
 /** Uses captured descriptors for delayed formatting; legacy callers keep their existing definition.

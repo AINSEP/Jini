@@ -33,7 +33,7 @@ const MIGRATIONS_TABLE = 'CREATE TABLE IF NOT EXISTS schema_migrations (version 
 export function normalizeForms({ formDestination, kit }, { requireSecret = true } = {}) {
   const forms = formDestination?.forms ?? [];
   if (!Array.isArray(forms) || forms.length > MAX_FORMS) throw formsRefusal({ kit, message: `Expected at most ${MAX_FORMS} forms in the form manifest. Disable unused forms in the site admin, then publish again.` });
-  if (forms.length === 0) return null;
+  if (forms.length === 0 && !formDestination?.secret) return null;
   const secret = formDestination.secret;
   if (requireSecret) checkReceiverSecret({ secret, kit });
   return { forms: forms.map(form => normalizeForm({ form, kit })), secret };
@@ -121,9 +121,10 @@ export async function findDatabase({ api, kit, name }, _options = {}) {
  * @complexity One bounded D1 inventory read. */
 export async function previewForms({ api, kit, resourceName, targetId, formDestination }, _options = {}) {
   const normalized = normalizeForms({ formDestination, kit }, { requireSecret: false });
-  if (!normalized) return undefined;
-  const count = normalized.forms.length;
+  if (!normalized && !formDestination) return undefined;
+  const count = normalized?.forms.length ?? 0;
   if (targetId !== 'cloudflare-workers') {
+    if (!count) return undefined;
     return { status: 'unsupported', forms: count, changes: [], message: `This site has ${count} active form(s), but Cloudflare Pages publishing cannot receive submissions yet. Publish to Cloudflare Workers to accept form submissions; on Pages the forms will not submit.` };
   }
   const name = databaseName({ resourceName });
@@ -133,10 +134,23 @@ export async function previewForms({ api, kit, resourceName, targetId, formDesti
     if (error.code !== 'CLOUDFLARE_D1_PERMISSION_REQUIRED') throw error;
     return { status: 'permission-required', forms: count, changes: [], message: error.message.replace(/^CLOUDFLARE_D1_PERMISSION_REQUIRED: /, '') };
   }
-  return { status: 'on', forms: count,
+  if (!normalized && !existing) return undefined;
+  const pendingCount = existing ? await pendingAnswers({ api, databaseId: existing.uuid }) : 0;
+  return { status: 'on', forms: count, pendingCount,
     changes: [{ action: existing ? 'reuse' : 'create', resource: 'd1-database', name, ...(existing ? { databaseId: existing.uuid } : {}) },
       { action: 'bind', resource: 'worker', resourceName, routes: FORMS_WORKER_ROUTES }],
-    message: `Form submissions: on (${count} form${count === 1 ? '' : 's'}). Submissions are stored in D1 database ${name} (${existing ? 'reused' : 'created'}) in this Cloudflare account and pulled into the site admin on demand. ${FREE_PLAN_NOTE} Uncollected answers never expire automatically.` };
+    message: `Form submissions: on (${count} form${count === 1 ? '' : 's'}). Submissions are stored in D1 database ${name} (${existing ? 'reused' : 'created'}) in this Cloudflare account and pulled into the site admin on demand. ${FREE_PLAN_NOTE} Pending answers: ${pendingCount ?? 'count unavailable'}. Uncollected answers never expire automatically.` };
+}
+
+/** One indexed scalar read per preview; no answer payloads and no polling or expiry work. */
+async function pendingAnswers({ api, databaseId }, _options = {}) {
+  try {
+    const rows = await query({ api, databaseId, sql: 'SELECT COUNT(*) AS count FROM submissions WHERE pulled_at IS NULL' });
+    return Number.isSafeInteger(Number(rows[0]?.count)) ? Number(rows[0].count) : null;
+  } catch {
+    console.warn('CLOUDFLARE_FORMS_PENDING_COUNT_UNAVAILABLE');
+    return null;
+  }
 }
 
 /** Find-or-create the database, then apply pending migrations. Never drops or recreates anything.
@@ -228,7 +242,7 @@ export async function formsWorkerParts({ manifest, secret, databaseId }, { pageR
       { name: 'forms-manifest.mjs', source: `export default ${JSON.stringify({ forms: manifest.forms })};\n` },
     ],
     bindings: [{ type: 'd1', name: FORMS_BINDING, id: databaseId }, { type: 'secret_text', name: FORMS_SECRET_BINDING, text: secret }],
-    runWorkerFirst: [...FORMS_WORKER_ROUTES, ...pageRoutes],
+    runWorkerFirst: manifest.forms.length ? [...FORMS_WORKER_ROUTES, ...pageRoutes] : ['/_tovu/*'],
   };
 }
 

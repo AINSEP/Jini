@@ -7,6 +7,6 @@ import type { FormSubmissionRecord } from './types.js';
  * @complexity O(JSON bytes), pure. */
 export function decodeSubmissionJson({ json }: { json: string }, _optional = {}): Pick<FormSubmissionRecord, 'data' | 'validation' | 'evidence'> {
   const stored = JSON.parse(json);
-  if (Array.isArray(stored) && stored[0] === '@jini/form-submission/v1') return { data: stored[1], validation: stored[2] ?? undefined, ...(stored[3] ? { evidence: readSubmissionEvidence({ value: stored[3] }) } : {}) };
+  if (Array.isArray(stored) && stored[0] === '@jini/form-submission/v1') return { data: stored[1], validation: stored[2] ?? undefined, ...(stored[3] ? { evidence: readSubmissionEvidence({ value: stored[3] })! } : {}) };
   return { data: stored };
 }

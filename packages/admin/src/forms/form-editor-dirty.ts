@@ -1,3 +1,4 @@
+import type { AdminFormProviderSelection } from "../core/ports/forms.js";
 import type { AdminFormDefinition, AdminFormField } from "./models.js";
 import { blankField } from "./rules.js";
 
@@ -11,6 +12,7 @@ import { blankField } from "./rules.js";
 
 /** The parts of the editor a Save writes. `notify` has no UI here, so it is never a pending edit. */
 export interface FormEditorDraft {
+  provider?: AdminFormProviderSelection;
   name: string;
   slug: string;
   fields: AdminFormField[];
@@ -25,8 +27,8 @@ export interface FormEditorDraft {
  * @returns The comparable draft.
  * @complexity O(1).
  */
-export function formEditorDraft(input: { name: string; slug: string; fields: AdminFormField[]; mode: "builder" | "html"; html: string }): FormEditorDraft {
-  return { name: input.name, slug: input.slug, fields: input.fields, mode: input.mode, html: input.mode === "html" ? input.html : "" };
+export function formEditorDraft(input: { name: string; slug: string; fields: AdminFormField[]; mode: "builder" | "html"; html: string; provider?: AdminFormProviderSelection }): FormEditorDraft {
+  return { ...(input.provider && input.provider.id !== "builtin" ? { provider: input.provider } : {}), name: input.name, slug: input.slug, fields: input.fields, mode: input.mode, html: input.mode === "html" ? input.html : "" };
 }
 
 /**
@@ -40,5 +42,5 @@ export function formEditorBaseline(input: { form: AdminFormDefinition | null; is
   if (input.isNew) return formEditorDraft({ name: "", slug: "", fields: [blankField()], mode: "builder", html: "" });
   if (!input.form) return null;
   const mode = input.form.mode ?? "builder";
-  return formEditorDraft({ name: input.form.name, slug: input.form.slug, fields: input.form.fields, mode, html: input.form.html ?? "" });
+  return formEditorDraft({ name: input.form.name, slug: input.form.slug, fields: input.form.fields, mode, html: input.form.html ?? "", ...(input.form.provider ? { provider: input.form.provider } : {}) });
 }

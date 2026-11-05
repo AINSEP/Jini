@@ -16,7 +16,10 @@ export type FormAnswerDisplay = { yes?: string; no?: string; locale?: string };
 export function formAnswerColumns({ fields }: { fields: readonly AdminFormField[] }, display: FormAnswerDisplay = {}): FormAnswerColumn[] {
   return fields.map((field) => {
     const format = (value: unknown) => formatFormAnswer({ value, options: field.options, type: field.type }, display);
-    return { key: `answer:${field.id}`, header: field.label, cell: (submission) => format(submission.data[field.id]), format };
+    return { key: `answer:${field.id}`, header: field.label, cell: (submission) => {
+      const captured = submission.evidence?.fields.find(original => original.id === field.id);
+      return captured ? formatFormAnswer({ value: submission.data[field.id], options: captured.options, type: captured.type }, display) : format(submission.data[field.id]);
+    }, format };
   });
 }
 
@@ -95,10 +98,10 @@ function formatByteSize({ bytes }: { bytes: number }): string {
  * @complexity O(c + a) time and space for c columns and a submitted answers; no I/O.
  */
 export function formSubmissionRows(
-  { data, answerColumns }: { data: AdminFormSubmission['data']; answerColumns: readonly FormAnswerColumn[] },
+  { data, answerColumns, evidence }: { data: AdminFormSubmission['data']; answerColumns: readonly FormAnswerColumn[]; evidence?: AdminFormSubmission['evidence'] },
   { unknownFieldLabel = "Unknown field" }: { unknownFieldLabel?: string } = {},
 ): Array<{ key: string; label: string; value: string; file: FormAnswerFile | null }> {
-  const columns = new Map(answerColumns.map(column => [column.key, column]));
+  const columns = new Map((evidence ? formAnswerColumns({ fields: evidence.fields }) : answerColumns).map(column => [column.key, column]));
   return Object.entries(data).map(([key, value]) => {
     const column = columns.get(`answer:${key}`);
     const formatted = column?.format ? column.format(value) : formatFormAnswer({ value });

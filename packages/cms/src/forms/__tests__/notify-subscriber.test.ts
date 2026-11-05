@@ -206,3 +206,14 @@ test("registerFormNotifySubscriber: unsubscribe stops later sends while sibling 
 });
 
 function registerFormNotifySubscriber(required: Omit<import("../notify-subscriber.js").RegisterFormNotifySubscriberDeps, "sender" | "logger">) { return registerSubscriber({ ...required, sender: { email: "no-reply@forms.local", name: "Forms" }, logger: { warn() {} } }); }
+
+test('delayed notifications use captured original labels and choice meanings', async () => {
+  const bus = new InMemoryEventBus(), definitionRepo = new InMemoryFormDefinitionRepo(), submissionRepo = new InMemoryFormSubmissionRepo(), mailer = new RecordingMailer();
+  await definitionRepo.create(makeDefinition({fields:[{id:'choice',label:'Changed question',type:'select',required:false,options:[{value:'a',label:'Changed meaning'}]}],notify:{enabled:true,recipients:['ops@example.com']}}));
+  await submissionRepo.create(makeSubmission({data:{choice:'a'},evidence:{version:1,fields:[{id:'choice',label:'Original question',type:'select',required:false,options:[{value:'a',label:'Original meaning'}]}],consent:[],schemaHash:'a'.repeat(64),capturedAt:NOW,source:'native'}}));
+  await registerFormNotifySubscriber({bus,mailer,formDefinitionRepo:definitionRepo,formSubmissionRepo:submissionRepo});
+  await publishSubmissionEvent(bus,'sub-1');
+  assert.match(mailer.calls[0]!.message.text!,/Original question/);
+  assert.match(mailer.calls[0]!.message.text!,/Original meaning/);
+  assert.doesNotMatch(mailer.calls[0]!.message.text!,/Changed/);
+});
