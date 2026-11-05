@@ -65,6 +65,19 @@ test('an uncertain notification is terminal even when the provider also says ret
     return true;
   });
 });
+
+test('a typed notification failure thrown by the host retains its outcome and retry hint', async () => {
+  const refusal = new FormNotificationError({ submissionId: 's', retryable: false, retryAfterMs: 90_000, outcome: 'unknown' });
+  const f = await fixture({ send: async () => { throw refusal; } });
+  await f.bus.publish(f.source);
+  await assert.rejects(f.bus.publish(f.queued[0]!), error => {
+    assert.strictEqual(error, refusal);
+    assert.equal(error.retryable, false);
+    assert.equal(error.retryAfterMs, 90_000);
+    assert.equal(error.outcome, 'unknown');
+    return true;
+  });
+});
 for (const kind of ['retry', 'permanent', 'throw'] as const) test(`${kind} mail failures reach the durable job with safe details`, async () => {
   const f = await fixture(); await f.bus.publish(f.source); f.fail(kind);
   await assert.rejects(f.bus.publish(f.queued[0]!), error => {

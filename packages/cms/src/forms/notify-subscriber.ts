@@ -49,7 +49,7 @@ export const FORM_NOTIFY_DELIVERY_EVENT = "form.notification.deliver";
  * @complexity O(1) time and space; no I/O. */
 export class FormNotificationError extends FormDeliveryError {
   constructor({ submissionId, retryable, retryAfterMs, outcome }: {
-    submissionId: string; retryable: boolean; retryAfterMs?: number; outcome?: "not-applied" | "unknown";
+    submissionId: string; retryable: boolean; retryAfterMs?: number | undefined; outcome?: "not-applied" | "unknown";
   }, _optional = {}) {
     const unknown = outcome === "unknown";
     super({ code: unknown ? "outcome-unknown" : "delivery-failed", retryable: unknown ? false : retryable,
@@ -166,7 +166,7 @@ async function sendNotification({ deps, definition, submission, recipient, paylo
   }
   if (result.ok) return;
   if (durable) throw new FormNotificationError({ submissionId, retryable: result.retryable,
-    ...(result.retryAfterMs === undefined ? {} : { retryAfterMs: result.retryAfterMs }),
+    retryAfterMs: result.retryAfterMs,
     outcome: result.unknown ? "unknown" : "not-applied" });
   warn(deps.logger,
     `[forms:notify] mail send failed for submission '${submissionId}' recipient '${recipient}': ${result.errorCode} (${result.message})`
