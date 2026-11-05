@@ -14,7 +14,7 @@ export type { ApiConnectionStatusView } from './status.js';
 export type { ApiConnectionDisconnectResult, ApiConnectionRemoteRevocation, ApiConnectionSwitchResult } from './account-actions.js';
 export { disconnectApiConnection, type ApiConnectionDisconnectDeps } from './account-actions.js';
 export type { ApiConnectionAccessTokens } from './access-token.js';
-export { createSharedOAuthConsumer } from './shared.js';
+export { assertSharedOAuthCompatibility, createSharedOAuthConsumer } from './shared.js';
 export type { SharedOAuthConnection, SharedOAuthConsumer, SharedOAuthConsumerDeps, SharedOAuthConsumerTarget, SharedOAuthIdentity } from './shared.js';
 export type {
   ApiConnectionAccount, ApiConnectionAttempt, ApiConnectionBoundedField, ApiConnectionDescriptor,

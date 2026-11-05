@@ -67,8 +67,15 @@ function denied(): ApiConnectionError {
     message: 'Permission to use the selected shared connection was removed. Choose it again in the connection settings to request access.' });
 }
 
-/** Compare exact issuing identity; similar hosts or a different audience do not establish reuse. */
-function assertCompatible(connection: SharedOAuthConnection, target: SharedOAuthConsumerTarget): void {
+/**
+ * Validates public owner metadata before a user-approved grant is written. It does not authorize
+ * consumption: every token request must still use the consumer's live binding/grant checks.
+ * @complexity O(g + r) for granted/requested scopes; no storage or token I/O.
+ */
+export function assertSharedOAuthCompatibility(
+  { connection, target }: { readonly connection: SharedOAuthConnection; readonly target: SharedOAuthConsumerTarget },
+  _optionalArgs: Record<string, never> = {},
+): void {
   const fields = ['pluginId', 'connectionId', 'tokenEndpoint', 'authorizationEndpoint', 'issuer', 'resource'] as const;
   if (fields.some(field => connection.identity[field] !== target.identity[field])) throw unavailable();
   if (target.identity.clientId !== undefined && connection.identity.clientId !== target.identity.clientId) throw unavailable();
@@ -124,7 +131,7 @@ export function createSharedOAuthConsumer(
     if (!await deps.grants.isGranted({ ...consumer, credentialId: binding.credentialId })) throw denied();
     const connection = await deps.connections.read({ credentialId: binding.credentialId });
     if (connection === null || connection.credentialId !== binding.credentialId) throw unavailable();
-    assertCompatible(connection, target);
+    assertSharedOAuthCompatibility({ connection, target });
     return publicConnection(connection);
   }
 
