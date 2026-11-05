@@ -2,9 +2,11 @@ import { buildDomainRegistrations, indexCatalogById, type DerivedRiskByToolId, t
 import { adaptLegacyAuthorize, requireToolPermission, type AuthorizeFn } from "@jini-ai/cms/core";
 import { readCommerceStatus } from "./catalog/status.js";
 import type { CommercePaymentRuntimePort } from "./catalog/contracts.js";
+import type { CommerceServer } from "./catalog/plugin-server.js";
+export * from "./catalog-tools.js";
 
 /** Narrow provider-discovery port; no payment, refund or credential operations. */
-export interface Deps { workspaceId: string; authorize: AuthorizeFn; lipay?: (CommercePaymentRuntimePort) | undefined; }
+export interface Deps { workspaceId: string; authorize: AuthorizeFn; lipay?: (CommercePaymentRuntimePort) | undefined; commerce?: Pick<CommerceServer, "status">; }
 
 /** Catalog for the admin service exposed through this standalone contributor. */
 export const catalog: AgentToolDefinition[] = [{
@@ -32,6 +34,7 @@ export function buildRegistrations(deps: Deps, _optional: Record<string, never> 
     catalog: indexCatalogById({ catalog }), derivedRisk,
     handlers: { commerce_get_status: async ctx => {
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: deps.authorize }), workspaceId: deps.workspaceId, principalId: ctx.principal.id, permission: "admin.integrations.manage" }, { entityType: "integration" });
+      if (deps.commerce) return deps.commerce.status();
       return readCommerceStatus({ workspaceId: deps.workspaceId, resolvePaymentRuntime: () => deps.lipay ?? null });
     } },
   });

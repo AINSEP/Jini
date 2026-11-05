@@ -3,7 +3,7 @@ import { CommerceCheckoutValidationError, CommerceOrderNotFoundError } from "./e
 import { payOrder, type PayOrderDeps, type PayOrderResult } from "./pay-order.js";
 import type { CommerceOrderRecord } from "./types.js";
 import type { PaymentView } from "../payments/contract/payments-port.js";
-import { scopeProblem, type PaymentScope } from "../payments/contract/scope.js";
+import { sameScope, scopeProblem, type PaymentScope } from "../payments/contract/scope.js";
 
 export interface CommerceServerRequired {
   readonly scope: PaymentScope;
@@ -70,9 +70,13 @@ export function createCommerceServer(required: CommerceServerRequired, _optional
     return { active, ready: active && prepared && configuration === null,
       reason: active ? reason : "Commerce is disabled. Existing payment settlement continues separately.", scope };
   };
+  const warnUnavailable = (message: string): void => {
+    if (reason !== message) required.warn(message);
+    reason = message;
+  };
   const activate = async (): Promise<CommerceServerStatus> => {
     if (!await required.isActive()) return status();
-    if (configuration) { reason = configuration; required.warn(reason); return status(); }
+    if (configuration) { warnUnavailable(configuration); return status(); }
     try {
       if (!prepared) {
         preparing ??= required.ensureSchema();
@@ -81,8 +85,7 @@ export function createCommerceServer(required: CommerceServerRequired, _optional
       }
       reason = null;
     } catch {
-      reason = "Commerce storage could not be prepared. Checkout is temporarily unavailable.";
-      required.warn(reason);
+      warnUnavailable("Commerce storage could not be prepared. Checkout is temporarily unavailable.");
     } finally { preparing = null; }
     return status();
   };
@@ -92,7 +95,8 @@ export function createCommerceServer(required: CommerceServerRequired, _optional
   };
   const ownedOrder = async ({ memberId, orderId }: { memberId: string; orderId: string }): Promise<CommerceOrderRecord> => {
     const order = await required.checkoutDeps.orders.findById({ workspaceId: scope.workspaceId, id: orderId });
-    if (!memberId || !order || order.workspaceId !== scope.workspaceId || order.memberId !== memberId || order.id !== orderId) {
+    if (!memberId || !order) throw new CommerceOrderNotFoundError("Order was not found for this signed-in member.");
+    if (order.workspaceId !== scope.workspaceId || order.memberId !== memberId || order.id !== orderId) {
       throw new CommerceOrderNotFoundError("Order was not found for this signed-in member.");
     }
     return order;
@@ -101,9 +105,11 @@ export function createCommerceServer(required: CommerceServerRequired, _optional
     const order = await ownedOrder(input);
     const deps = await depsForOrder(order.id);
     const association = await deps.orderPayments.findByOrder({ workspaceId: scope.workspaceId, orderId: order.id });
-    const payment = association?.paymentId
-      ? await deps.payments.getPayment({ scope, paymentId: association.paymentId }) : null;
-    return { order, payment, intent: null };
+    if (!association?.paymentId || !sameScope({ a: association, b: scope })) return { order, payment: null, intent: null };
+    const candidate = await deps.payments.getPayment({ scope, paymentId: association.paymentId });
+    if (!candidate || !sameScope({ a: candidate.scope, b: scope })) return { order, payment: null, intent: null };
+    const belongsToOrder = candidate.reference === order.id && candidate.id === association.paymentId;
+    return { order, payment: belongsToOrder ? candidate : null, intent: null };
   };
   return {
     activate, status, readOrder,

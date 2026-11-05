@@ -13,15 +13,15 @@ function fixture() {
   const orders = { findById: vi.fn(async () => state.order), listItems: vi.fn(async () => [{ id: "item", workspaceId: "ws", orderId: "order", priceId: "price", productId: "product", description: "Notebook", unitAmount: price.unitAmount, quantity: 1, createdAt: at }]), placeOrder: vi.fn(async ({ order }) => { state.order = order; }), markPaid: vi.fn() };
   const payment = { id: "payment", scope, status: "pending" as const, amount: price.unitAmount, captured: { minorUnits: 0, currency: "JPY" }, refunded: { minorUnits: 0, currency: "JPY" }, refundHeld: { minorUnits: 0, currency: "JPY" }, disputed: { minorUnits: 0, currency: "JPY" }, reference: "order", next: { kind: "redirect" as const, url: "https://checkout.example/session" } };
   const payments = { createIntent: vi.fn(async () => ({ ok: true as const, payment, replayed: false, risk: { verdict: "allow" as const, reasons: [], fallback: false } })), getPayment: vi.fn(async () => payment), listProviders: vi.fn(), refund: vi.fn(), capture: vi.fn(), void: vi.fn() };
-  const orderPayments = { reserve: vi.fn(async () => "reserved" as const), bind: vi.fn(async ({ paymentId }) => { state.association = { paymentId }; return "bound" as const; }), findByOrder: vi.fn(async () => state.association) } as unknown as PayOrderDeps["orderPayments"];
+  const orderPayments = { reserve: vi.fn(async () => "reserved" as const), bind: vi.fn(async ({ paymentId }) => { state.association = { ...scope, paymentId }; return "bound" as const; }), findByOrder: vi.fn(async () => state.association) } as unknown as PayOrderDeps["orderPayments"];
   const clock = { nowMs: () => Date.parse(at) };
   const ensureSchema = vi.fn(async () => {}), warn = vi.fn();
-  const deps = { scope, publicOrigin: "https://shop.example", isActive: () => state.active, ensureSchema, warn,
+  const deps = { scope: { ...scope }, publicOrigin: "https://shop.example", isActive: () => state.active, ensureSchema, warn,
     checkoutDeps: { products, prices, orders, clock, idGen: { newId: () => "order" } },
     payOrderDeps: { prices, orders, payments, orderPayments, priceRefs: { find: vi.fn(async () => null), save: vi.fn() }, settle: { orders, orderPayments, payments, clock, alerts: { raise: vi.fn() } } } };
   const server = createCommerceServer(deps);
   const create = () => server.createOrder({ memberId: "member", priceId: "price" });
-  return { state, server, create, ensureSchema, warn, payments, deps, orders };
+  return { state, server, create, ensureSchema, warn, payments, payment, deps, orders, prices };
 }
 it("is dormant by default, without schema writes or payment dispatch", async () => {
   const f = fixture();
@@ -66,4 +66,24 @@ it("repeated clicks on a paid order return ledger truth without redispatch", asy
   f.state.order!.status = "paid"; f.payments.createIntent.mockClear();
   expect(await f.server.pay({ memberId: "member", orderId: "order" })).toMatchObject({ order: { status: "paid" }, intent: null });
   expect(f.payments.createIntent).not.toHaveBeenCalled();
+});
+it("uses an async activation reader and binds callback configuration only to the owned order id", async () => {
+  const f = fixture(); f.state.active = true;
+  const depsForOrder = vi.fn(async () => f.deps.payOrderDeps);
+  const server = createCommerceServer({ ...f.deps, isActive: async () => f.state.active, payOrderDeps: depsForOrder });
+  f.deps.scope.providerAccountId = "changed-after-composition";
+  await server.createOrder({ memberId: "member", priceId: "price" });
+  await server.pay({ memberId: "member", orderId: "order" });
+  expect(depsForOrder).toHaveBeenCalledWith({ orderId: "order" });
+  expect(f.payments.createIntent.mock.calls[0]![0].scope).toEqual(scope);
+});
+it("never exposes a different merchant account's payment returned by an adapter", async () => {
+  const f = fixture(); f.state.active = true; await f.create(); await f.server.pay({ memberId: "member", orderId: "order" });
+  f.payments.getPayment.mockResolvedValue({ ...f.payment, scope: { ...scope, providerAccountId: "foreign" } });
+  expect(await f.server.readOrder({ memberId: "member", orderId: "order" })).toMatchObject({ payment: null });
+});
+it("refuses recurring prices before creating a pending order", async () => {
+  const f = fixture(); f.state.active = true;
+  f.prices.findById.mockResolvedValue({ ...await f.prices.findById(), billingInterval: "month" } as never);
+  await expect(f.create()).rejects.toThrow("one-time prices only"); expect(f.orders.placeOrder).not.toHaveBeenCalled();
 });
