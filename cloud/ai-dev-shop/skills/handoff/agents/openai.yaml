@@ -1,0 +1,4 @@
+interface:
+  display_name: "Handoff"
+  short_description: "Create a compact cross-agent continuation handoff."
+  default_prompt: "Create a handoff for continuing this work in another agent or session."

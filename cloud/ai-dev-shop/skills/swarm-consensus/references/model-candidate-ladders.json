@@ -1,0 +1,58 @@
+{
+  "claude": {
+    "default_family_order": [
+      "opus",
+      "sonnet",
+      "haiku"
+    ],
+    "families": {
+      "opus": [
+        "claude-opus-4-7",
+        "claude-opus-4-6",
+        "claude-opus-4-5",
+        "opus"
+      ],
+      "sonnet": [
+        "claude-sonnet-4-6",
+        "claude-sonnet-4-5",
+        "claude-sonnet-4",
+        "sonnet"
+      ],
+      "haiku": [
+        "claude-haiku-4-5",
+        "claude-haiku-4",
+        "haiku"
+      ]
+    }
+  },
+  "gemini": {
+    "default_family_order": [
+      "pro",
+      "flash"
+    ],
+    "families": {
+      "pro": [
+        "gemini-3.1-pro-preview",
+        "gemini-2.5-pro",
+        "gemini-2.0-pro-exp"
+      ],
+      "flash": [
+        "gemini-2.5-flash",
+        "gemini-2.0-flash"
+      ]
+    }
+  },
+  "codex": {
+    "default_family_order": [
+      "gpt5"
+    ],
+    "families": {
+      "gpt5": [
+        "gpt-5.5",
+        "gpt-5.4",
+        "gpt-5.3-codex",
+        "gpt-5.2-codex"
+      ]
+    }
+  }
+}

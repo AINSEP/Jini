@@ -1,0 +1,2 @@
+# Job tovu-deps: Tovu consumes Jini 0.6.22
+Bump @jini-ai/* floors in package.json, apps/admin, apps/desktop, apps/site-chat to the published 0.6.22 versions (npm view each; only 19 packages moved, the rest stay at their latest) and refresh lockfiles with real metadata; never hand-edit integrity. Check for anything hardcoding plugins/<id>/0.6.19. Confirm the two release land gates (release-land-gates in cloud/night-1105/cloud-rerun-3.sh) pass. Only this.

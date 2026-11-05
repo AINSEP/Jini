@@ -1,0 +1,2 @@
+# Job bugs: bugs needing a real run
+cloud/plans/U-unknown-bugs-plan-result.md. Only rows you can run here without customer themes or videos: bug 44 media publish hashing, 104 PID membership (logic only), 110 r24 leftovers, 164 + 106 registry recovery, 467 receipts writing outside fixtures, 469 hardwiring counts, 450/499 migrated DB on a disposable copy. Reproduce with a failing test, then fix the smallest cause. Skip desktop-GUI and vendor-account rows and list them. Group A (coverage ratchet) is out: full coverage runs at the end.
