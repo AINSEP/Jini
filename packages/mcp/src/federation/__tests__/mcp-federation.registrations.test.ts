@@ -1107,3 +1107,15 @@ test("bootstrap resolves the injected host registry and an independent host boot
   assert.deepEqual(empty.registeredToolIds, []);
   assert.deepEqual(empty.reports, []);
 });
+
+test("public source metadata strips URL credentials, paths and headers and hides stdio commands", async () => {
+  for (const launch of [{ url: 'https://SENTINEL_USER:SENTINEL_PASSWORD@tools.example.test/private/SENTINEL_PATH?key=SENTINEL_QUERY', headers: { Authorization: 'SENTINEL_HEADER' } },
+    { command: 'SENTINEL_COMMAND', args: ['SENTINEL_ARGS'], env: { key: 'SENTINEL_ENV' } }]) {
+    const registry = fakeRegistry();
+    await attachFederatedMcpTools({ registry, deps: fakeDeps().deps, connect: async () => sessionFor() }, { logger: collectingLogger().logger,
+      connections: [{ config: CONFIG, launch }] });
+    const metadata = registry.registered.map(entry => entry.descriptor.metadata?.mcpSource);
+    assert.deepEqual(metadata, Array.from({ length: 2 }, () => ({ id: 'supabase', host: 'url' in launch ? 'tools.example.test' : 'local command' })));
+    assert.equal(JSON.stringify(metadata).includes('SENTINEL'), false);
+  }
+});

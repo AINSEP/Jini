@@ -27,7 +27,8 @@
       "./surface-exchanges": "universal",
       "./session-coordination": "universal",
       "./run-credentials": "node",
-      "./tool-recovery": "node"
+      "./tool-recovery": "node",
+      "./chat-settings": "node"
     },
     "isolation": {
       "shared": [
@@ -37,10 +38,10 @@
       ]
     },
     "optionalPeers": {
-      "node-pty": "opt-in: import @jini-ai/daemon/terminal — Interactive terminals could not load node-pty. Install node-pty to enable this feature, or check its installed version and native binaries.",
-      "better-sqlite3": "opt-in: sqlite storage — SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
-      "@electric-sql/pglite": "opt-in: embedded postgresql storage — Embedded PostgreSQL storage could not load @electric-sql/pglite. Install @electric-sql/pglite to enable this feature, or check its installed version and native binaries.",
-      "pg": "opt-in: postgresql storage — PostgreSQL storage could not load pg. Install pg to enable this feature, or check its installed version and native binaries."
+      "node-pty": "opt-in: import @jini-ai/daemon/terminal \u2014 Interactive terminals could not load node-pty. Install node-pty to enable this feature, or check its installed version and native binaries.",
+      "better-sqlite3": "opt-in: sqlite storage \u2014 SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
+      "@electric-sql/pglite": "opt-in: embedded postgresql storage \u2014 Embedded PostgreSQL storage could not load @electric-sql/pglite. Install @electric-sql/pglite to enable this feature, or check its installed version and native binaries.",
+      "pg": "opt-in: postgresql storage \u2014 PostgreSQL storage could not load pg. Install pg to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",
@@ -122,6 +123,11 @@
       "types": "./dist/tool-recovery/index.d.ts",
       "import": "./dist/tool-recovery/index.js",
       "default": "./dist/tool-recovery/index.js"
+    },
+    "./chat-settings": {
+      "types": "./dist/chat-settings.d.ts",
+      "import": "./dist/chat-settings.js",
+      "default": "./dist/chat-settings.js"
     }
   },
   "files": [

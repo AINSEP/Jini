@@ -101,3 +101,6 @@ export * from './attachment-content.js';
 
 export * from './delegated-result-correlation.js';
 export type { StdoutJournalBlobPort } from './tool-result-diagnostics.js';
+export * from './tool-access-lowering.js';
+
+export * from './run-tool-consent.js';

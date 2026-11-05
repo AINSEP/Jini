@@ -1,5 +1,5 @@
-import { constants, promises as fs } from 'node:fs';
-import { withFileLock, writeFileAtomicAsync } from '@jini-ai/platform/fs';
+import { promises as fs } from 'node:fs';
+import { backupOriginalOnce, withFileLock, writeFileAtomicAsync } from '@jini-ai/platform/fs';
 import { isRecord } from './values.js';
 
 /** Read the current settings text; a missing file is undefined, every other failure rejects. */
@@ -31,12 +31,6 @@ function grantedAllowList(allow: readonly unknown[], rule: string): unknown[] | 
   return deduped.length === allow.length ? null : deduped;
 }
 
-async function backupOriginalOnce(settingsPath: string): Promise<void> {
-  // Never replace the first backup, including on subsequent launches after operator edits.
-  await fs.copyFile(settingsPath, `${settingsPath}.jini-backup`, constants.COPYFILE_EXCL)
-    .catch((error: NodeJS.ErrnoException) => { if (error.code !== 'EEXIST') throw error; });
-}
-
 /**
  * Persist one server's MCP grant for agy, which has no run-scoped settings override.
  * Reuses the platform lock and atomic writer; keeps the first existing file as a backup.
@@ -54,7 +48,7 @@ export async function ensureAntigravityMcpPermission(
     const { settings, permissions, allow } = parseSettings(raw);
     const nextAllow = grantedAllowList(allow, rule);
     if (nextAllow === null) return;
-    if (raw !== undefined) await backupOriginalOnce(settingsPath);
+    if (raw !== undefined) await backupOriginalOnce({ filePath: settingsPath });
     await writeFileAtomicAsync({ filePath: settingsPath, content: `${JSON.stringify({
       ...settings, permissions: { ...permissions, allow: nextAllow },
     }, null, 2)}\n` }, { refuseSymlink: true });

@@ -33,6 +33,7 @@
 // against fixed launch specs + a fake home dir; the executor performs the IO.
 
 import path from 'node:path';
+import { isDeepStrictEqual } from 'node:util';
 
 /**
  * Exhaustive tuple of all agent slugs recognized by `mcp install`.
@@ -345,7 +346,7 @@ function assertSafeJsonInstallPlan(plan: JsonInstallPlan): void {
 
 /**
  * Merge one server entry into existing config text without disturbing the
- * rest. Missing intermediate objects are created. Returns pretty JSON with
+ * rest. Missing intermediate objects are created; foreign named entries and non-object paths are refused. Returns pretty JSON with
  * a trailing newline. Throws if existing text is non-empty but unparseable
  * (caller decides whether to bail or back up), or if `plan.keyPath` /
  * `plan.serverKey` contains a dangerous object-path segment (CR-007).
@@ -356,10 +357,14 @@ export function applyJsonInstall({ existingText, plan }: { existingText: string 
   let cursor: Record<string, unknown> = root;
   for (const key of plan.keyPath) {
     const next = cursor[key];
-    if (next == null || typeof next !== 'object' || Array.isArray(next)) {
-      cursor[key] = {};
+    if (next !== undefined && (next === null || typeof next !== 'object' || Array.isArray(next))) {
+      throw new Error('Existing MCP config path is not an object');
     }
+    if (next === undefined) cursor[key] = {};
     cursor = cursor[key] as Record<string, unknown>;
+  }
+  if (Object.hasOwn(cursor, plan.serverKey) && !isDeepStrictEqual(cursor[plan.serverKey], plan.entry)) {
+    throw new Error(`A different ${plan.serverKey} entry exists; choose another agent to keep these settings.`);
   }
   cursor[plan.serverKey] = plan.entry;
   return `${JSON.stringify(root, null, 2)}\n`;
@@ -393,9 +398,9 @@ function parseJsonObject(text: string | null, where: string): Record<string, unk
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
-  } catch (err) {
-    // JSON.parse only ever throws a SyntaxError, so `err` is always an Error.
-    throw new Error(`existing config at ${where} is not valid JSON: ${(err as Error).message}`);
+  } catch {
+    // JSON.parse only throws SyntaxError; its message may quote private configuration bytes.
+    throw new Error(`existing config at ${where} is not valid JSON`);
   }
   if (parsed == null || typeof parsed !== 'object' || Array.isArray(parsed)) {
     throw new Error(`existing config at ${where} is not a JSON object`);

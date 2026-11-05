@@ -15,3 +15,5 @@ export { DirectoryUserConfigRefusal, validateDirectoryUserConfig } from "./direc
 export * from "./workspace-directory.js";
 export * from "./verified-directory-move.js";
 export * from "./reviewed-file.js";
+
+export { backupOriginalOnce } from './backup-once.js';

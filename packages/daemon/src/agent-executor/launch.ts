@@ -20,7 +20,7 @@ import {
 } from 'node:path';
 import {
   agentCapabilities,
-  assessNativeToolPolicy,
+  planRun,
   resolveNativeToolPolicy,
   createClaudeFilesystemSupportProbe,
   claudeFilesystemRuntimePaths,
@@ -1063,9 +1063,14 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // Never silently ignore a host's locked native-tool policy on another CLI.
     // Parity cannot override an explicit lock or a restricted run.
     input.cliParity = input.cliParity === true && input.permissionMode === 'bypass' && input.nativeToolAccess !== false;
-    const refusal = assessNativeToolPolicy({ def, policy: input });
-    if (refusal !== null) {
-      await failBeforeSpawn({ runId: input.runId, code: 'NATIVE_TOOL_POLICY_UNSUPPORTED', message: refusal });
+    // Hosts show ASK as an owner card before calling the executor. This backstop must
+    // run before HTTP preparation or environment inheritance can mint/expose a run token.
+    if (input.nativeToolAccess === undefined && input.nativeCapabilities === undefined) return;
+    const plan = planRun({ def, policy: input });
+    if (plan.verdict !== 'RUN') {
+      const keys = plan.verdict === 'ASK' ? plan.keys.join(', ') : plan.reason;
+      await failBeforeSpawn({ runId: input.runId, code: 'NATIVE_TOOL_POLICY_UNSUPPORTED',
+        message: `${def.name} needs your approval before it can use these tools: ${keys}. Allow access for this agent or choose another installed agent.` });
     }
   }
 
@@ -1493,7 +1498,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
       await cleanupStagedFiles();
       return failBeforeSpawn({ runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: 'AgentExecutor: could not stage private HTTP MCP configuration' });
     }
-    const mcpBridge = preparedHttpMcp ? null : await resolveMcpBridgeForRun({ input: { runId: input.runId, cwd: input.cwd, def }, deps: { mcpJsonInjection, cleanupStagedFiles, failBeforeSpawn } }
+    const mcpBridge = preparedHttpMcp ? null : await resolveMcpBridgeForRun({ input: { runId: input.runId, cwd: input.cwd, def, ...nativeCapabilityInput({ input }, {}) }, deps: { mcpJsonInjection, cleanupStagedFiles, failBeforeSpawn } }
     );
 
     const baseRuntimeContext = computeRuntimeContext({ preparedPromptFile, preparedLogFile, mcpBridge }, sessionRuntimeContext(input, {}));

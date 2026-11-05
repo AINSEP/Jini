@@ -57,16 +57,13 @@ export interface NativeToolPolicyInput {
   permissionMode?: 'bypass' | 'restricted';
 }
 
-/** Full-access-only runtimes always get full access, independently of workspace switches.
- * Hosts still authorize assistant use; other runtime policies stay intact. Pure, O(1).
+/** Resolve without granting authority: runtimes requiring full access need explicit host consent.
+ * Pure O(1); a definition is never an authorization decision.
  */
-export function resolveNativeToolPolicy({ def, policy }: {
+export function resolveNativeToolPolicy({ policy }: {
   def: { name?: string; fullCliAccessOnly?: boolean }; policy: NativeToolPolicyInput;
 }, _options: Record<string, never> = {}): NativeToolPolicyInput {
-  if (!def.fullCliAccessOnly) return policy;
-  return { ...policy, nativeToolAccess: true, cliParity: true, permissionMode: 'bypass',
-    nativeCapabilities: { shell: true, fileWrite: true, userMcp: true, subagents: true,
-      userSettings: true, web: true, workflows: true, loginEnvironment: true } };
+  return policy;
 }
 
 /** Switch names a person sees for each native capability (the host's settings use the same words). */
@@ -95,7 +92,6 @@ export function assessNativeToolPolicy({ def, policy }: {
   def: { name: string; supportsNativeToolAccess?: boolean; fullCliAccessOnly?: boolean };
   policy: NativeToolPolicyInput;
 }, _options: Record<string, never> = {}): string | null {
-  if (def.fullCliAccessOnly) return null;
   if (def.supportsNativeToolAccess === true) return null;
   const parity = policy.cliParity === true && policy.permissionMode === 'bypass' && policy.nativeToolAccess !== false;
   const offSwitches = Object.entries(policy.nativeCapabilities ?? {}).filter(([, value]) => value === false).map(([key]) => key);
@@ -104,3 +100,59 @@ export function assessNativeToolPolicy({ def, policy }: {
   }
   return null;
 }
+
+/** Consent keys are the existing master switch and independently stored native capabilities. */
+export type RunConsentKey = 'enabled' | keyof NativeCapabilities;
+export type RunPlan =
+  | { verdict: 'RUN'; loadsOwn: boolean; bridged: boolean }
+  | { verdict: 'ASK'; keys: RunConsentKey[]; why?: 'isolation_blocked' }
+  | { verdict: 'SETUP'; reason: 'not_installed' | 'not_signed_in' | 'host_locked'; keys?: RunConsentKey[]; lock?: string };
+
+type PlanningDef = { name: string; supportsNativeToolAccess?: boolean; mcpIsolation?: 'none' | 'no-client' | { readonly perRun: string }; externalMcpInjection?: string; mcpHttp?: boolean };
+export interface RunPlanHost {
+  installed?: boolean;
+  auth?: 'ok' | 'missing' | 'unknown';
+  locked?: string;
+  isolationBlocked?: boolean;
+}
+
+function loadsOwnSources(def: PlanningDef, policy: NativeToolPolicyInput, blocked: boolean): boolean {
+  const isolation = blocked ? 'none' : def.mcpIsolation;
+  if (isolation === 'no-client') return false;
+  if (typeof isolation === 'object' && typeof isolation.perRun === 'string' && isolation.perRun.length > 0) {
+    return policy.nativeCapabilities?.userMcp === true;
+  }
+  return true;
+}
+
+function consentKeys(def: PlanningDef, policy: NativeToolPolicyInput, loadsOwn: boolean): RunConsentKey[] {
+  const keys: RunConsentKey[] = def.supportsNativeToolAccess === true ? [] :
+    Object.entries(policy.nativeCapabilities ?? {}).filter(([key, value]) => key !== 'userMcp' && value === false).map(([key]) => key as RunConsentKey);
+  if (def.supportsNativeToolAccess !== true && policy.nativeToolAccess === false) keys.unshift('enabled');
+  if (loadsOwn && policy.nativeCapabilities?.userMcp !== true) keys.push('userMcp');
+  return keys;
+}
+
+/** Pure launch decision, before credentials, config repair or spawn. Unknown auth proceeds;
+ * unknown isolation requires consent. Fixed capability work, no filesystem or credential reads.
+ */
+export function planRun({ def, policy, host = {} }: {
+  def: PlanningDef; policy: NativeToolPolicyInput; host?: RunPlanHost;
+}, _optional: Record<string, never> = {}): RunPlan {
+  if (host.installed === false) return { verdict: 'SETUP', reason: 'not_installed' };
+  if (host.auth === 'missing') return { verdict: 'SETUP', reason: 'not_signed_in' };
+  const loadsOwn = loadsOwnSources(def, policy, host.isolationBlocked === true);
+  const keys = consentKeys(def, policy, loadsOwn);
+  if (keys.length > 0 && host.locked) return { verdict: 'SETUP', reason: 'host_locked', keys, lock: host.locked };
+  if (keys.length > 0) return { verdict: 'ASK', keys, ...(host.isolationBlocked ? { why: 'isolation_blocked' as const } : {}) };
+  return { verdict: 'RUN', loadsOwn, bridged: Boolean(def.externalMcpInjection || def.mcpHttp) };
+}
+
+/** Shared consumer contract for a fresh local owner: provided tools stay available;
+ * the agent's personal MCP sources require an explicit grant. No persisted settings or I/O.
+ */
+export const LOCAL_HOST_DEFAULT_PERMISSIONS = Object.freeze({
+  enabled: true,
+  capabilities: Object.freeze({ shell: true, fileWrite: true, userMcp: false, subagents: true,
+    userSettings: true, web: true, workflows: true, loginEnvironment: true }),
+});

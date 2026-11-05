@@ -26,16 +26,11 @@ it('never lets parity override the master lock, a restricted run, or an unknown 
   ]) expect(assessNativeToolPolicy({ def: { name: 'Another CLI' }, policy })).toMatch(/can't run/);
 });
 
-it('projects full access for a definition requiring it without owner eligibility', () => {
+it('preserves explicit host limits even for a definition requiring full access', () => {
   const limits = { nativeToolAccess: false, permissionMode: 'restricted' as const,
     nativeCapabilities: { shell: false, userMcp: false } };
-  for (const policy of [limits, {}]) {
-    const full = resolveNativeToolPolicy({ def: antigravityAgentDef, policy });
-    expect(full).toMatchObject({ nativeToolAccess: true, cliParity: true, permissionMode: 'bypass' });
-    expect(Object.values(full.nativeCapabilities!)).toEqual(Array(8).fill(true));
-    expect(assessNativeToolPolicy({ def: antigravityAgentDef, policy })).toBeNull();
-  }
-  expect(limits.nativeCapabilities).toEqual({ shell: false, userMcp: false });
+  expect(resolveNativeToolPolicy({ def: antigravityAgentDef, policy: limits })).toBe(limits);
+  expect(assessNativeToolPolicy({ def: antigravityAgentDef, policy: limits })).toMatch(/can't run/);
   for (const def of [claudeAgentDef, codexAgentDef]) {
     expect(resolveNativeToolPolicy({ def, policy: limits })).toBe(limits);
     expect(assessNativeToolPolicy({ def, policy: limits })).toBeNull();

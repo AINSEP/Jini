@@ -112,6 +112,10 @@ export interface FederatedMcpConnectionConfig {
   /** Operator-chosen, stable, `[a-z0-9-]`. Becomes part of every federated tool id, so renaming it
    * renames every tool the model sees — pick once. */
   readonly connectionId: string;
+  /** Public hostname only, stamped from the already-resolved launch at admission; no credentials or URL path. */
+  readonly sourceHost?: string;
+  /** Provisioning plugin identity from host-owned configuration, used for admission revocation. */
+  readonly provisionedByPluginId?: string;
   /** Human-readable, shown to the model as provenance on every federated tool description. */
   readonly label: string;
   /** DEFAULT-DENY allowlist of REMOTE tool names (pre-namespacing). */

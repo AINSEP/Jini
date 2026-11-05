@@ -232,10 +232,20 @@ describe('applyJsonInstall', () => {
     expect(out).toEqual({ mcp: { servers: { other: { command: 'x' }, jini: { command: 'node' } }, foo: 1 }, top: true });
   });
 
-  it('replaces a non-object node encountered along the key path', () => {
+  it('refuses a foreign named entry without changing it', () => {
+    const existing = JSON.stringify({ mcp: { servers: { jini: { command: 'foreign' } } } });
+    expect(() => applyJsonInstall({ existingText: existing, plan })).toThrow(/different.*entry/i);
+  });
+
+  it('accepts an identical owned entry regardless of object-key order', () => {
+    const entry = { command: 'node', env: { A: 'a', B: 'b' } };
+    const existing = JSON.stringify({ mcp: { servers: { jini: { env: { B: 'b', A: 'a' }, command: 'node' } } } });
+    expect(JSON.parse(applyJsonInstall({ existingText: existing, plan: { ...plan, entry } })).mcp.servers.jini).toEqual(entry);
+  });
+
+  it('refuses a non-object node rather than removing foreign config', () => {
     const existing = JSON.stringify({ mcp: [1, 2, 3] });
-    const out = JSON.parse(applyJsonInstall({ existingText: existing, plan }));
-    expect(out.mcp.servers.jini).toEqual({ command: 'node' });
+    expect(() => applyJsonInstall({ existingText: existing, plan })).toThrow(/not an object/);
   });
 
   it('throws on non-JSON existing text', () => {
@@ -476,16 +486,13 @@ describe('antigravity install against a temp HOME', () => {
     expect(JSON.parse((await readOrNull(configFile(home))) ?? 'null')).toEqual({ mcpServers: { jini: entry } });
   });
 
-  it("keeps the user's other servers and top-level keys in config/", async () => {
+  it("refuses a stale foreign jini entry and keeps all user data in config/", async () => {
     const home = await tempHome();
     const existing = { theme: 'dark', mcpServers: { other: { command: 'other', args: ['x'] }, jini: { command: 'stale' } } };
     await mkdir(path.dirname(configFile(home)), { recursive: true });
     await writeFile(configFile(home), JSON.stringify(existing));
-    await installInto(home);
-    expect(JSON.parse((await readOrNull(configFile(home))) ?? 'null')).toEqual({
-      theme: 'dark',
-      mcpServers: { other: { command: 'other', args: ['x'] }, jini: entry },
-    });
+    await expect(installInto(home)).rejects.toThrow(/different jini entry/);
+    expect(JSON.parse((await readOrNull(configFile(home))) ?? 'null')).toEqual(existing);
   });
 });
 

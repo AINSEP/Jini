@@ -25,7 +25,7 @@ async function fixture(raw?: string) {
 /** Exercise the existing launch seam so the old resolver reaches the regression assertions. */
 function prepare() {
   return resolveMcpBridgeForRun({
-    input: { runId: 'run', cwd: '/isolated', def: { id: 'antigravity', externalMcpInjection: 'env-passthrough' } as RuntimeAgentDef },
+    input: { nativeCapabilities: { userMcp: true }, runId: 'run', cwd: '/isolated', def: { id: 'antigravity', externalMcpInjection: 'env-passthrough' } as RuntimeAgentDef },
     deps: {
       mcpJsonInjection: { command: 'jini-mcp', daemonUrl: 'http://localhost:4317' },
       cleanupStagedFiles: async () => {},
@@ -77,7 +77,7 @@ it('launch preparation authorizes the Jini bridge before returning delivery, and
   const authorize = vi.fn(async () => { await gate; });
   const cleanupStagedFiles = vi.fn(async () => {});
   const failBeforeSpawn = vi.fn(async (input: { message: string }): Promise<never> => { throw new Error(input.message); });
-  const input = { runId: 'run', cwd: '/isolated', def: { id: 'antigravity', externalMcpInjection: 'env-passthrough' } as RuntimeAgentDef };
+  const input = { nativeCapabilities: { userMcp: true }, runId: 'run', cwd: '/isolated', def: { id: 'antigravity', externalMcpInjection: 'env-passthrough' } as RuntimeAgentDef };
   const deps = { mcpJsonInjection: { command: 'jini-mcp', daemonUrl: 'http://localhost:4317' }, cleanupStagedFiles, failBeforeSpawn, ensureAntigravityMcpPermission: authorize };
   let ready = false;
   const pending = resolveMcpBridgeForRun({ input, deps }).then(value => { ready = true; return value; });
@@ -93,5 +93,17 @@ it('launch preparation authorizes the Jini bridge before returning delivery, and
   authorize.mockClear();
   await resolveMcpBridgeForRun({ input, deps: { ...deps, mcpJsonInjection: undefined } });
   await resolveMcpBridgeForRun({ input: { ...input, def: { ...input.def, id: 'another-agent' } }, deps });
+  expect(authorize).not.toHaveBeenCalled();
+});
+
+it('mints no credential and writes no personal permission without explicit consent', async () => {
+  const credential = vi.fn(() => 'sentinel');
+  const authorize = vi.fn(async () => {});
+  const input = { runId: 'unapproved', cwd: '/site', def: { id: 'antigravity', externalMcpInjection: 'env-passthrough' } as RuntimeAgentDef };
+  const deps = { mcpJsonInjection: { command: 'bridge', daemonUrl: 'http://localhost', credential },
+    cleanupStagedFiles: async () => {}, ensureAntigravityMcpPermission: authorize,
+    failBeforeSpawn: async ({ message }: { message: string }): Promise<never> => { throw new Error(message); } };
+  await expect(resolveMcpBridgeForRun({ input, deps })).rejects.toThrow(/approval/);
+  expect(credential).not.toHaveBeenCalled();
   expect(authorize).not.toHaveBeenCalled();
 });

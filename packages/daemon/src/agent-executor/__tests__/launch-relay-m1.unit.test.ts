@@ -57,7 +57,7 @@ it('names an unknown disabled capability in the refusal before any model probe o
   await expect(executor.run({ runId: run.id, agentId: definition.id, cwd: '/fixture', prompt: 'Hello' }, {
     nativeCapabilities: JSON.parse('{"futureSwitch":false}'),
   })).rejects.toMatchObject({ code: 'NATIVE_TOOL_POLICY_UNSUPPORTED',
-    message: "Fixture CLI can't run with 'futureSwitch' off. Turn it on in the assistant settings, or choose Claude or Codex." });
+    message: expect.stringContaining('futureSwitch') });
   expect(spawn).not.toHaveBeenCalled();
   expect(resolveModelForLaunch).not.toHaveBeenCalled();
 });
