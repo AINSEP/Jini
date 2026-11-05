@@ -37,4 +37,4 @@ Injected scheduler/classifier/logger/reporter/cancellation failures are not gene
 
 The client decorates remote failure with optional `code` and `requestId`, preserving generic `Error`; it does not expose an HTTP status or response envelope. Response JSON/schema handling is not a validated codec. Non-JSON-serializable payloads and malformed peer replies require host containment; serialization/parsing occur inside socket callbacks.
 
-Sources: [IPC](../../src/json-ipc.ts), [paths](../../src/paths.ts), [port](../../src/port.ts), [policy](../../src/respawn-policy.ts), [supervisor](../../src/supervisor.ts).
+Sources: [IPC](../../src/json-ipc.ts), [paths](../../src/paths.ts), [port](../../src/port.ts), [policy](../../src/supervision/respawn-policy.ts), [supervisor](../../src/supervision/supervisor.ts).

@@ -1,3 +1,4 @@
+import { decodeSubmissionJson } from "../submission-json.js";
 import { decodeFormFields, encodeFormFields } from "../fields-json.js";
 import { upgradeLegacyUrlControls } from "../html/html-authoring.js";
 import type { Insertable, Selectable } from "kysely";
@@ -70,7 +71,7 @@ export function toSubmissionRecord(row: FormSubmissionRow, _optional: Record<str
     id: row.id,
     workspaceId: row.workspace_id,
     formDefinitionId: row.form_definition_id,
-    data: JSON.parse(row.data_json) as FormSubmissionRecord["data"],
+    ...decodeSubmissionJson({ json: row.data_json }),
     // cms-forms <0.2.2 required a string (0.2.2 allows null). Since nullable migration 0006, an
     // expired IP has an empty display value until the host adopts the nullable package DTO.
     sourceIp: row.source_ip ?? "",
@@ -84,7 +85,7 @@ export function toSubmissionRow(record: FormSubmissionRecord, _optional: Record<
     id: record.id,
     workspace_id: record.workspaceId,
     form_definition_id: record.formDefinitionId,
-    data_json: JSON.stringify(record.data),
+    data_json: JSON.stringify(record.validation ? ["@jini/form-submission/v1", record.data, record.validation] : record.data),
     source_ip: record.sourceIp,
     submitted_at: record.submittedAt,
   };

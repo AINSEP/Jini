@@ -1,7 +1,8 @@
 /**
  * Form submissions receiver, uploaded as `receiver.mjs` beside the site's static assets.
  * Runs inside the Cloudflare Workers runtime: no imports, no Node APIs, Web platform only.
- * Forms, their fields and full validation belong to the host; this module only receives and stores.
+ * Forms and full validation belong to the host; this receiver enforces its published supported
+ * subset and rejects unsupported fields at publish time.
  * Never log answers, IPs or the management secret: only fixed reason codes.
  */
 export const LIMITS = Object.freeze({ maxBodyBytes: 64 * 1024, maxFields: 100, maxValueLength: 5000, ratePerWindow: 5, windowSeconds: 60, maxPage: 100 });
@@ -18,7 +19,7 @@ export async function handleRequest({ request, env, manifest }, options = {}) {
   const url = new URL(request.url);
   const submit = SUBMIT_PATH.exec(url.pathname);
   if (submit) return request.method === 'POST' ? handleSubmit({ request, env, manifest, slug: submit[1] }, options) : errorPage({ status: 405, message: 'This address only accepts form submissions.' });
-  if (url.pathname === '/_tovu/forms/pending') return request.method === 'GET' ? guarded({ request, env, work: () => listPending({ env, url }) }) : json({ status: 405, body: { error: 'METHOD_NOT_ALLOWED' } });
+  if (url.pathname === '/_tovu/forms/pending') return request.method === 'GET' ? guarded({ request, env, work: () => listPending({ env, url }, options) }) : json({ status: 405, body: { error: 'METHOD_NOT_ALLOWED' } });
   if (url.pathname === '/_tovu/forms/ack') return request.method === 'POST' ? guarded({ request, env, work: () => acknowledge({ request, env }, options) }) : json({ status: 405, body: { error: 'METHOD_NOT_ALLOWED' } });
   const slug = sentFormSlug({ request, url, manifest });
   return slug ? withSentNotice({ request, env, slug }, options) : env.ASSETS.fetch(request);
@@ -72,16 +73,16 @@ export async function handleSubmit({ request, env, manifest, slug }, { now = () 
   if ((parsed.fields.get(HONEYPOT) ?? []).some(value => value.trim() !== '')) return successRedirect({ request, form });
   const checked = checkFields({ form, fields: parsed.fields });
   if (checked.error) return errorPage({ status: 400, message: checked.error, back });
-  const refused = await storeSubmission({ db: env.TOVU_FORMS, slug, answers: checked.answers, ip: request.headers.get('CF-Connecting-IP'), back }, { now, randomId });
+  const refused = await storeSubmission({ db: env.TOVU_FORMS, slug, answers: checked.answers, ip: request.headers.get('CF-Connecting-IP'), secret: env.TOVU_FORMS_SECRET, back }, { now, randomId });
   return refused ?? successRedirect({ request, form });
 }
 
 /** Rate window, then insert. Returns the error page to send, or null once the row is stored. */
-async function storeSubmission({ db, slug, answers, ip, back }, { now, randomId }) {
+async function storeSubmission({ db, slug, answers, ip, secret, back }, { now, randomId }) {
   try {
-    if (!await withinRate({ db, key: `${slug}:${ip ?? 'unknown'}`, nowMs: now() })) return errorPage({ status: 429, message: 'Too many submissions. Wait a minute, then try again.', back });
+    if (!await withinRate({ db, key: await rateKey({ slug, ip, secret }), nowMs: now() })) return errorPage({ status: 429, message: 'Too many submissions. Wait a minute, then try again.', back });
     await db.prepare('INSERT INTO submissions (id, form_slug, answers_json, submitted_at, ip) VALUES (?, ?, ?, ?, ?)')
-      .bind(randomId(), slug, JSON.stringify(answers), new Date(now()).toISOString(), ip).run();
+      .bind(randomId(), slug, JSON.stringify(answers), new Date(now()).toISOString(), null).run();
     return null;
   } catch {
     console.error('FORMS_STORE_FAILED');
@@ -149,11 +150,46 @@ export function checkFields({ form, fields }, _options = {}) {
   return { answers };
 }
 
+/** Only the published supported subset is accepted. Deployment refuses richer validation rather
+ * than showing success for answers the live form would reject. O(values + option count). */
 function fieldProblem({ field, values }, _options = {}) {
-  if (field.required && !values.some(value => value.trim() !== '')) return `"${field.name}" is required.`;
+  if (field.validationUnsupported || field.type === 'file') return `"${field.name}" cannot be received here. Contact the site owner.`;
   if (!field.multiple && values.length > 1) return `"${field.name}" was sent more than once.`;
+  if (values.length === 0) return field.required ? `"${field.name}" is required.` : null;
+  if (field.type === 'checkbox' || field.type === 'toggle') return checkboxProblem({ field, values });
+  return textFieldProblem({ field, values });
+}
+
+/** Text and choice checks run only after presence/multiplicity and checkbox admission. */
+function textFieldProblem({ field, values }, _options = {}) {
+  if (field.required && !values.some(value => value.trim() !== '')) return `"${field.name}" is required.`;
   const max = field.maxLength ?? LIMITS.maxValueLength;
-  return values.some(value => value.length > max) ? `"${field.name}" is longer than ${max} characters.` : null;
+  if (values.some(value => [...value].length > max)) return `"${field.name}" is longer than ${max} characters.`;
+  if (values.some(value => value !== '' && value.length < (field.minLength ?? 0))) return `"${field.name}" is too short.`;
+  return typedFieldProblem({ field, values });
+}
+
+function checkboxProblem({ field, values }, _options = {}) {
+  const expected = field.checkboxValue ?? 'on';
+  return values[0] === expected ? null : `"${field.name}" must be checked with its declared value.`;
+}
+
+// Native email syntax, equivalent to the live CMS field adapter. Full-match checks refuse a final newline.
+const EMAIL_PATTERN = /^[a-zA-Z0-9.!#$%&'*+\/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*$/;
+function typedFieldProblem({ field, values }, _options = {}) {
+  if (field.type === 'email' && values.some(value => value !== '' && EMAIL_PATTERN.exec(value)?.[0] !== value)) return `"${field.name}" must be an email address.`;
+  if (!field.options) return null;
+  if (!field.multiple && !field.required && values[0] === '') return null;
+  const allowed = new Set(field.options);
+  if (new Set(values).size !== values.length || values.some(value => !allowed.has(value))) return `"${field.name}" contains an unavailable choice.`;
+  return null;
+}
+
+/** Secret-salted short-lived pseudonyms prevent offline IPv4 enumeration; no raw IP persists. */
+async function rateKey({ slug, ip, secret }, _options = {}) {
+  if (typeof secret !== 'string' || secret.length < 32) throw new Error('FORMS_RECEIVER_SECRET_MISSING');
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify([secret, slug, ip ?? 'unknown'])));
+  return [...new Uint8Array(digest)].map(byte => byte.toString(16).padStart(2, '0')).join('');
 }
 
 /** Fixed-window counter in D1 (shared by every isolate). Counts only valid submissions.
@@ -228,8 +264,8 @@ async function guarded({ request, env, work }, _options = {}) {
 export async function listPending({ env, url }, _options = {}) {
   const after = Math.max(0, Number.parseInt(url.searchParams.get('after') ?? '0', 10) || 0);
   const limit = Math.min(LIMITS.maxPage, Math.max(1, Number.parseInt(url.searchParams.get('limit') ?? '50', 10) || 50));
-  const { results = [] } = await env.TOVU_FORMS.prepare('SELECT seq, id, form_slug, answers_json, submitted_at, ip FROM submissions WHERE pulled_at IS NULL AND seq > ? ORDER BY seq LIMIT ?').bind(after, limit).all();
-  const items = results.map(row => ({ seq: row.seq, id: row.id, formSlug: row.form_slug, answers: JSON.parse(row.answers_json), submittedAt: row.submitted_at, ip: row.ip ?? null }));
+  const { results = [] } = await env.TOVU_FORMS.prepare('SELECT seq, id, form_slug, answers_json, submitted_at FROM submissions WHERE pulled_at IS NULL AND seq > ? ORDER BY seq LIMIT ?').bind(after, limit).all();
+  const items = results.map(row => ({ seq: row.seq, id: row.id, formSlug: row.form_slug, answers: JSON.parse(row.answers_json), submittedAt: row.submitted_at, ip: null }));
   return json({ body: { items, nextAfter: items.length ? items[items.length - 1].seq : after, hasMore: items.length === limit } });
 }
 
@@ -237,13 +273,13 @@ function validIds({ ids }, _options = {}) {
   return Array.isArray(ids) && ids.length > 0 && ids.length <= LIMITS.maxPage && ids.every(id => typeof id === 'string' && id.length > 0 && id.length <= 64);
 }
 
-/** Marks committed rows as pulled. Unknown or already-pulled ids are ignored. */
+/** Delete committed remote copies. The durable local receipt makes repeat acknowledgements safe. */
 export async function acknowledge({ request, env }, { now = () => Date.now() } = {}) {
   let body;
   try { body = await request.json(); } catch { body = null; }
   const ids = body?.ids;
   if (!validIds({ ids })) return json({ status: 400, body: { error: 'INVALID_IDS' } });
-  const result = await env.TOVU_FORMS.prepare(`UPDATE submissions SET pulled_at = ? WHERE pulled_at IS NULL AND id IN (${ids.map(() => '?').join(', ')})`)
-    .bind(new Date(now()).toISOString(), ...ids).run();
+  const result = await env.TOVU_FORMS.prepare(`DELETE FROM submissions WHERE id IN (${ids.map(() => '?').join(', ')})`)
+    .bind(...ids).run();
   return json({ body: { acknowledged: Number(result.meta?.changes ?? 0) } });
 }

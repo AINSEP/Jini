@@ -52,6 +52,14 @@ export function FormSubmissionDetail({
         &larr; {t("Back")}
       </button>
       {error ? <div className="notice error">{error}</div> : null}
+      {submission.notificationDelivery && submission.notificationDelivery.failed > 0 ? <div className="notice error" role="alert">
+        {t("Email notification failed. The submission is saved here. Check the email provider settings before sending a new notification.")}
+        <p>{t("Details: FORM_NOTIFICATION_FAILED")} ({submission.notificationDelivery.failed})</p>
+      </div> : null}
+      {submission.validation?.status === "invalid" ? <div className="notice error" role="alert">
+        <p>{t("Imported for review: this submission did not pass the form checks.")}</p>
+        <ul>{submission.validation.fieldErrors.map(({ field, reason }, index) => <li key={`${field}-${index}`}>{field}: {reason}</li>)}</ul>
+      </div> : null}
       <div className="table-scroll">
         <table className="list-table">
           <tbody>

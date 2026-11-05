@@ -30,19 +30,19 @@
       "default": "./dist/index.js"
     },
     "./respawn-policy": {
-      "types": "./dist/respawn-policy.d.ts",
-      "import": "./dist/respawn-policy.js",
-      "default": "./dist/respawn-policy.js"
+      "types": "./dist/supervision/respawn-policy.d.ts",
+      "import": "./dist/supervision/respawn-policy.js",
+      "default": "./dist/supervision/respawn-policy.js"
     },
     "./supervisor": {
-      "types": "./dist/supervisor.d.ts",
-      "import": "./dist/supervisor.js",
-      "default": "./dist/supervisor.js"
+      "types": "./dist/supervision/supervisor.d.ts",
+      "import": "./dist/supervision/supervisor.js",
+      "default": "./dist/supervision/supervisor.js"
     },
     "./supervisor/node": {
-      "types": "./dist/supervisor-node.d.ts",
-      "import": "./dist/supervisor-node.js",
-      "default": "./dist/supervisor-node.js"
+      "types": "./dist/supervision/supervisor-node.d.ts",
+      "import": "./dist/supervision/supervisor-node.js",
+      "default": "./dist/supervision/supervisor-node.js"
     }
   },
   "files": [

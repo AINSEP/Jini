@@ -316,3 +316,9 @@ test("resolveMediaRendition: a stored rendition whose bytes are SVG is re-saniti
   assert.doesNotMatch(served, /onload|<script/);
   assert.match(served, /<path d="M0 0h1v1z"/);
 });
+
+test('private media never serves even an already-created original rendition by id or slug', async () => {
+  const { deps } = makeDeps();
+  const { media } = await uploadMedia({ deps, input: { workspaceId: WORKSPACE_ID, bytes: bytesFrom('private'), filename: 'visitor.png', contentType: 'image/png', createdByPrincipal: 'system', access: 'private' } });
+  for (const assetId of [media.id, media.slug]) assert.deepEqual(await resolveMediaRendition({ deps, input: { workspaceId: WORKSPACE_ID, assetId, transformName: 'original', version: 1 } }), { outcome: 'not-found' });
+});

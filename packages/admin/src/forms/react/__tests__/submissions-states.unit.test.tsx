@@ -32,6 +32,20 @@ describe("FormSubmissionDetail rendering", () => {
     requestDelete: vi.fn(), cancelDelete: vi.fn(), confirmDelete: vi.fn(async () => {}), fileUrl: () => null, ...overrides });
   const props = { formId: "f1", submissionId: "s1", onBack: vi.fn(), onDeleted: vi.fn(), t };
 
+  it('permanent mail failure is visible on submission detail with an actionable message', () => {
+    const failed = { ...submission, notificationDelivery: { failed: 1, pending: 0 } };
+    render(<FormSubmissionDetail {...props} useFormSubmissionDetailHook={hook({ submission: failed })} />);
+    expect(screen.getByRole('alert').textContent).toContain('Email notification failed');
+    expect(screen.getByRole('alert').textContent).toContain('email provider settings');
+  });
+
+  it("shows the stored invalid classification and field errors on a later detail read", () => {
+    const invalid = { ...submission, validation: { status: "invalid" as const, fieldErrors: [{ field: "email", reason: "required" }] } };
+    render(<FormSubmissionDetail {...props} useFormSubmissionDetailHook={hook({ submission: invalid })} />);
+    expect(screen.getByRole("alert")).toHaveTextContent("Imported for review");
+    expect(screen.getByRole("alert")).toHaveTextContent("email: required");
+  });
+
   it("shows only the load error while there is no submission", () => {
     render(<FormSubmissionDetail {...props} useFormSubmissionDetailHook={hook({ error: "failed to load submission" })} />);
     expect(screen.getByText("failed to load submission")).toHaveClass("notice", "error");

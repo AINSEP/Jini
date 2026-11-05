@@ -722,9 +722,9 @@
     "packages/sidecar": {
       "entry": [
         "src/index.ts",
-        "src/respawn-policy.ts",
-        "src/supervisor.ts",
-        "src/supervisor-node.ts",
+        "src/supervision/respawn-policy.ts",
+        "src/supervision/supervisor.ts",
+        "src/supervision/supervisor-node.ts",
         "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
         "tests/**/*.types.ts"
       ],

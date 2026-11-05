@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest';
-import { createDaemonSupervisor } from '../supervisor.js';
-import { createRespawnPolicy } from '../respawn-policy.js';
+import { createDaemonSupervisor } from '../supervision/supervisor.js';
+import { createRespawnPolicy } from '../supervision/respawn-policy.js';
 
 // REGRESSION: fails if supervisor.ts re-exports supervisor-node.ts.
 vi.mock('@jini-ai/platform', () => { throw new Error('Node platform adapter must remain optional'); });

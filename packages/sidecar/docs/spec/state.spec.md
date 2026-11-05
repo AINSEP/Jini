@@ -38,4 +38,4 @@ Daemon registry defaults to `<dataDir>/daemon.json`; it survives process death. 
 
 Each IPC connection retains one frame and a deadline; the server handle owns a listener and Unix socket file. Closing waits for native server close and then removes the Unix path. It has no forced client cancellation or shutdown deadline. A module-wide trace counter supplies correlation IDs and resets on process restart.
 
-Sources: [supervisor](../../src/supervisor.ts), [policy](../../src/respawn-policy.ts), [JSON files](../../src/json-file.ts), [registry](../../src/daemon-registry.ts), [IPC](../../src/json-ipc.ts).
+Sources: [supervisor](../../src/supervision/supervisor.ts), [policy](../../src/supervision/respawn-policy.ts), [JSON files](../../src/json-file.ts), [registry](../../src/daemon-registry.ts), [IPC](../../src/json-ipc.ts).

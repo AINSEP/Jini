@@ -998,3 +998,14 @@ test("rollbackUploadedMedia without an injected clock still tombstones the blob,
   const stamped = Date.parse(blob!.tombstonedAt!);
   assert.ok(stamped >= before && stamped <= after, `tombstonedAt ${blob!.tombstonedAt} within the call`);
 });
+
+test('private uploads preserve privacy on their asset and retained blob through dedup and purge', async () => {
+  const { deps } = makeDeps();
+  const input = { workspaceId: WORKSPACE_ID, bytes: bytesFrom('private photo'), filename: 'visitor.png', contentType: 'image/png', createdByPrincipal: 'system', access: 'private' as const };
+  const { media } = await uploadMedia({ deps, input });
+  assert.equal(media.source.private, true);
+  assert.equal((await deps.blobRepo.findByHash({ workspaceId: WORKSPACE_ID, sha256: media.source.sha256 }))!.documentOwned, true);
+  await trashMedia({ deps, input: { workspaceId: WORKSPACE_ID, id: media.id } });
+  await purgeMedia({ deps, input: { workspaceId: WORKSPACE_ID, id: media.id } });
+  assert.equal((await deps.blobRepo.findByHash({ workspaceId: WORKSPACE_ID, sha256: media.source.sha256 }))!.documentOwned, true);
+});

@@ -39,3 +39,15 @@ export async function sweepExpiredSubmissionIps(
   } while (cleared === batchSize);
   return total;
 }
+
+/** Do not revive already-expired IP metadata when importing an old remote submission.
+ * @returns The IP within retention, otherwise null. Invalid timestamps fail closed.
+ * @complexity O(1), no I/O. */
+export function retainedSubmissionIp(
+  { sourceIp, submittedAt, now }: { sourceIp: string | null; submittedAt: string; now: number },
+  _optional = {},
+): string | null {
+  const submitted = Date.parse(submittedAt);
+  if (!Number.isFinite(submitted) || !Number.isFinite(now)) return null;
+  return submitted <= now - SUBMISSION_IP_RETENTION_DAYS * 86400000 ? null : sourceIp;
+}

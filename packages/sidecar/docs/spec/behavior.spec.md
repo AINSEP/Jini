@@ -55,4 +55,4 @@ The package does not provide command schemas, capability negotiation, IPC authen
 
 Malformed request JSON receives the actual parse diagnostic via the object-argument error helper ([json-ipc.ts](../../src/json-ipc.ts)). JSON writers use unique UUID temporary names. Daemon registry cleanup detaches a file, verifies the captured owner and restores a foreign record without overwriting newer publication ([json-file.ts](../../src/json-file.ts), [daemon-registry.ts](../../src/daemon-registry.ts)). Generic namespace-pointer removal remains read-then-remove and requires external serialization.
 
-Evidence: [IPC/path/I/O characterization](../../src/__tests__/index.test.ts), [policy](../../src/__tests__/respawn-policy.test.ts), [supervisor](../../src/__tests__/supervisor.test.ts), [registry](../../src/__tests__/daemon-registry.test.ts). Tests were read, not executed.
+Evidence: [IPC/path/I/O characterization](../../src/__tests__/index.test.ts), [policy](../../src/supervision/__tests__/respawn-policy.test.ts), [supervisor](../../src/supervision/__tests__/supervisor.test.ts), [registry](../../src/__tests__/daemon-registry.test.ts). Tests were read, not executed.

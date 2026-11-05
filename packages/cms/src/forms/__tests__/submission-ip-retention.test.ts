@@ -56,3 +56,11 @@ test("repo failures propagate to the host timer", async () => {
   const repo: SubmissionIpRetentionPort = { async clearExpiredIps() { throw error; } };
   await expect(sweepExpiredSubmissionIps({ now: NOW, repo })).rejects.toBe(error);
 });
+
+test('retainedSubmissionIp clears late imports at the exact retention cutoff', async () => {
+  const { retainedSubmissionIp } = await import('../submission-ip-retention.js');
+  const now = Date.parse('2026-11-04T00:00:00Z');
+  const cutoff = now - 90 * 86400000;
+  expect(retainedSubmissionIp({ sourceIp: '203.0.113.1', submittedAt: new Date(cutoff).toISOString(), now })).toBe(null);
+  expect(retainedSubmissionIp({ sourceIp: '203.0.113.1', submittedAt: new Date(cutoff + 1).toISOString(), now })).toBe('203.0.113.1');
+});

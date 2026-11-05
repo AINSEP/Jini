@@ -81,7 +81,7 @@ test('provision creates the database once, applies migrations once, and reruns a
   const again = await provisionForms({ api: p.api, kit: p.f.kit, resourceName: 'jini-demo' });
   assert.deepEqual(again.applied, []);
   assert.deepEqual(p.created, ['tovu-forms-jini-demo']);
-  assert.equal(p.f.calls.some(call => /DROP|DELETE/i.test(String(call.init.body))), false);
+  assert.equal(p.f.calls.some(call => /DROP/i.test(String(call.init.body))), false, "provision preserves the schema while cleaning acknowledged payloads");
 });
 
 test('provision recovers a concurrent create race and refuses a database without an id', async () => {
@@ -159,4 +159,15 @@ test('pull failures name the cause and the next step without echoing the key', a
   await assert.rejects(pullFormSubmissions({ kit: f.kit, destination: { url: 'http://insecure.example', secret: SECRET } }), /CLOUDFLARE_FORMS_ADDRESS/);
   await assert.rejects(pullFormSubmissions({ kit: f.kit, destination: { url: 'not a url', secret: SECRET } }), /CLOUDFLARE_FORMS_ADDRESS/);
   await assert.rejects(pullFormSubmissions({ kit: f.kit, destination: { url: destination.url, secret: 'short' } }), /CLOUDFLARE_FORMS_KEY_REQUIRED/);
+});
+
+test('republish removes old acknowledged PII and raw IPs from earlier receivers before upload', async () => {
+  const d1 = fakeD1();
+  await d1.binding.prepare('INSERT INTO submissions (id,form_slug,answers_json,submitted_at,ip,pulled_at) VALUES (?,?,?,?,?,?)').bind('acked','contact','{"private":"answer"}','2026-01-01','203.0.113.9','2026-01-02').run();
+  await d1.binding.prepare('INSERT INTO submissions (id,form_slug,answers_json,submitted_at,ip) VALUES (?,?,?,?,?)').bind('pending','contact','{}','2026-11-04','203.0.113.9').run();
+  await d1.binding.prepare('INSERT INTO rate_windows (key,window_start,count) VALUES (?,?,?)').bind('contact:203.0.113.9', 1, 1).run();
+  const p = provisionFixture({ d1, list: () => json([{ name: 'tovu-forms-jini-demo', uuid: 'db-1' }]), create: () => assert.fail('already exists') });
+  await provisionForms({ api: p.api, kit: p.f.kit, resourceName: 'jini-demo' });
+  assert.deepEqual(d1.rows('SELECT id,ip FROM submissions'), [{ id: 'pending', ip: null }]);
+  assert.deepEqual(d1.rows('SELECT * FROM rate_windows'), []);
 });

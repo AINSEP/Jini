@@ -113,6 +113,9 @@ export interface AdminFormDefinition {
 }
 
 export interface AdminFormSubmission {
+  /** Optional host notification summary, with no recipient/provider details. */
+  readonly notificationDelivery?: { readonly failed: number; readonly pending: number };
+  readonly validation?: { readonly status: "invalid"; readonly fieldErrors: readonly { readonly field: string; readonly reason: string }[] };
   readonly id: string;
   readonly formDefinitionId: string;
   /** Keyed by the definition's field ids at submission time. */

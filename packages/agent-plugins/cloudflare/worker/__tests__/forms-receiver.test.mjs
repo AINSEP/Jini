@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { handleRequest, LIMITS } from '../forms-receiver.mjs';
@@ -32,7 +33,7 @@ test('stores a valid submission with repeated checkbox values as an array and 30
   const [row] = s.d1.rows('SELECT * FROM submissions');
   assert.deepEqual(JSON.parse(row.answers_json), { email: 'a@b.co', interests: ['attending', 'hosting'] });
   assert.equal(row.form_slug, 'waitlist');
-  assert.equal(row.ip, '203.0.113.9');
+  assert.equal(row.ip, null, 'the receiver no longer retains raw IPs');
   assert.equal(row.id, 'id-1');
   assert.equal(row.pulled_at, null);
 });
@@ -125,7 +126,7 @@ test('stale rate windows are pruned in the same batch', async () => {
   const s = setup();
   s.d1.sqlite.exec("INSERT INTO rate_windows (key, window_start, count) VALUES ('old', 1, 3)");
   await s.call(post(valid));
-  assert.deepEqual(s.d1.rows('SELECT key FROM rate_windows').map(row => row.key), ['waitlist:203.0.113.9']);
+  assert.deepEqual(s.d1.rows('SELECT key FROM rate_windows').map(row => row.key), [createHash('sha256').update('waitlist:203.0.113.9').digest('hex')]);
 });
 
 test('storage failure answers 503 without logging answers', async () => {
@@ -197,7 +198,7 @@ test('default clock and id ports are the platform ones', async () => {
   assert.match(row.id, /^[0-9a-f-]{36}$/);
   const ack = await handleRequest({ request: new Request('https://site.example/_tovu/forms/ack', { method: 'POST', body: JSON.stringify({ ids: [row.id] }), headers: { Authorization: `Bearer ${SECRET}` } }), env, manifest });
   assert.equal((await ack.json()).acknowledged, 1);
-  assert.ok(Date.parse(s.d1.rows('SELECT pulled_at FROM submissions')[0].pulled_at) > 0);
+  assert.deepEqual(s.d1.rows('SELECT * FROM submissions'), [], 'ack removes the remote copy');
 });
 
 /** Records handlers and replays them over a scripted element list, like HTMLRewriter's document order. */

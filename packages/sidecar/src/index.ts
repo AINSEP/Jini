@@ -64,5 +64,6 @@ export {
   writeDaemonRegistryRecord,
 } from "./daemon-registry.js";
 
-export * from "./respawn-policy.js";
-export * from "./supervisor.js";
+// Preserve published entries with one implementation in supervision; Node adapters stay isolated.
+export * from "./supervision/respawn-policy.js";
+export * from "./supervision/supervisor.js";

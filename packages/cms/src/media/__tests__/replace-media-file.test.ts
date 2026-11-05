@@ -1,9 +1,11 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { test } from 'vitest';
 import { replaceMediaFile, type MediaFileReplacementRepoPort } from '../replace-media-file.js';
 import { uploadMedia } from '../media-service.js';
 import { InMemoryMediaRepo, InMemoryAssetBlobRepo, InMemoryAssetRenditionRepo } from '../repo.memory.js';
 import { InMemoryBlobStore } from '../blob-store.memory.js';
+import { sanitizeSvg } from '../sanitize-svg.js';
 
 async function fixture() {
   let ids = 0;
@@ -107,4 +109,93 @@ test('an SVG that grows past the cap during sanitizing is refused after sanitizi
   );
   assert.equal((await f.deps.assetBlobRepo.list({ workspaceId: f.deps.workspaceId })).length, 1);
   assert.deepEqual(f.switches, []);
+});
+
+test('published metadata reaches the same atomic switch and preserves destination identity', async () => {
+  const f = await fixture();
+  const metadata = {
+    title: 'Published title', slug: 'published-slug', alt: 'Published alt', caption: 'Published caption',
+    credit: 'Published credit', width: 320, height: 240, cssClass: 'published-image',
+    htmlAttributes: 'loading="lazy"', status: 'active' as const,
+  };
+  const saved = await replaceMediaFile({ deps: f.deps, media: f.media, bytes: new Uint8Array([2]),
+    contentType: 'image/png', principalId: 'publisher', metadata });
+  assert.ok(saved);
+  assert.deepEqual(saved, { ...f.media, ...metadata, source: saved.source,
+    updatedAt: f.media.updatedAt, version: f.media.version + 1 });
+  assert.deepEqual((f.switches[0] as { metadata: unknown }).metadata, metadata);
+  assert.equal(saved.id, f.media.id);
+  assert.equal(saved.workspaceId, f.media.workspaceId);
+  assert.equal(saved.createdBy, f.media.createdBy);
+  assert.equal(saved.createdAt, f.media.createdAt);
+  assert.equal(f.switches.length, 1);
+});
+
+test('missing atomic replacement capability refuses before staging bytes or blob records', async () => {
+  const f = await fixture();
+  delete f.deps.mediaRepo.replaceFileIfVersion;
+  f.deps.blobStore.put = async () => assert.fail('unsupported replacement must not stage bytes');
+  f.deps.assetBlobRepo.save = async () => assert.fail('unsupported replacement must not stage blob records');
+  await assert.rejects(replaceMediaFile({ deps: f.deps, media: f.media, bytes: new Uint8Array([2]),
+    contentType: 'image/png', principalId: 'publisher' }), /replacement.*unavailable|atomic.*replacement/i);
+  assert.equal((await f.deps.assetBlobRepo.list({ workspaceId: f.deps.workspaceId })).length, 1);
+  assert.deepEqual(f.switches, []);
+});
+
+test('expected source hash is checked after SVG sanitizing and before staging', async () => {
+  const f = await fixture();
+  const bytes = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><rect width="10" height="10"/></svg>');
+  const expectedSha256 = createHash('sha256').update(bytes).digest('hex');
+  f.deps.blobStore.put = async () => assert.fail('a sanitized hash mismatch must not stage bytes');
+  f.deps.assetBlobRepo.save = async () => assert.fail('a sanitized hash mismatch must not stage blob records');
+  await assert.rejects(replaceMediaFile({ deps: f.deps, media: f.media, bytes,
+    contentType: 'image/svg+xml', principalId: 'publisher', expectedSha256 }), /hash|sha256/i);
+  assert.equal((await f.deps.assetBlobRepo.list({ workspaceId: f.deps.workspaceId })).length, 1);
+  assert.deepEqual(f.switches, []);
+});
+
+test('expected sanitized hash authorizes the exact bytes passed to the atomic switch', async () => {
+  const f = await fixture();
+  const bytes = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><rect width="10" height="10"/></svg>');
+  const sanitized = await sanitizeSvg({ bytes });
+  const expectedSha256 = createHash('sha256').update(sanitized).digest('hex');
+  const saved = await replaceMediaFile({ deps: f.deps, media: f.media, bytes,
+    contentType: 'image/svg+xml', principalId: 'publisher', expectedSha256 });
+  assert.ok(saved);
+  assert.equal(saved.source.sha256, expectedSha256);
+  assert.equal((f.switches[0] as { sha256: string }).sha256, expectedSha256);
+  const blob = await f.deps.assetBlobRepo.findByHash({ workspaceId: f.deps.workspaceId, sha256: expectedSha256 });
+  assert.ok(blob);
+  assert.deepEqual(await f.deps.blobStore.get({ storageKey: blob.storageKey }), sanitized);
+});
+
+for (const conflict of [false, true]) {
+  test(`content type belongs to the atomic replacement adapter when CAS ${conflict ? 'refuses' : 'applies'}`, async () => {
+    const f = await fixture();
+    if (conflict) f.conflict();
+    f.deps.mediaContentTypeStore.set = async () => assert.fail('replacement must not write content type outside its atomic switch');
+    const saved = await replaceMediaFile({ deps: f.deps, media: f.media, bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xd9]),
+      contentType: 'image/png', principalId: 'publisher' });
+    assert.equal(saved === null, conflict);
+    assert.equal((f.switches[0] as { contentType: string }).contentType, 'image/jpeg');
+    assert.equal(f.switches.length, 1);
+  });
+}
+
+test('private submitted files cannot be replaced through the public media lifecycle', async () => {
+  const f = await fixture();
+  await assert.rejects(replaceMediaFile({ deps: f.deps, media: { ...f.media, source: { ...f.media.source, private: true } }, bytes: Uint8Array.of(2), contentType: 'image/png', principalId: 'owner' }), /private.*replacement/i);
+  assert.deepEqual(f.switches, []);
+});
+
+test('publishing already-sanitized SVG bytes preserves the reviewed hash after a second sanitize', async () => {
+  const f = await fixture();
+  const bytes = new TextEncoder().encode('<svg xmlns="http://www.w3.org/2000/svg" onload="alert(1)"><style>.a{fill:red}</style><text class="a">a &amp; b &gt;</text></svg>');
+  const sanitized = await sanitizeSvg({ bytes });
+  const expectedSha256 = createHash('sha256').update(sanitized).digest('hex');
+  const saved = await replaceMediaFile({ deps: f.deps, media: f.media, bytes: sanitized,
+    contentType: 'image/svg+xml', principalId: 'publisher', expectedSha256 });
+  assert.equal(saved!.source.sha256, expectedSha256);
+  const blob = (await f.deps.assetBlobRepo.findByHash({ workspaceId: f.deps.workspaceId, sha256: expectedSha256 }))!;
+  assert.deepEqual(await f.deps.blobStore.get({ storageKey: blob.storageKey }), sanitized);
 });

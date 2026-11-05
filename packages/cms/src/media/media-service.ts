@@ -157,8 +157,9 @@ export const DEFAULT_ALLOWED_MIME_TYPES: ReadonlySet<string> = new Set([
  * `updateMediaMetadata` can't trigger the rejection branch even by accident.
  * Kept as an explicit, directly-testable invariant (see
  * `__tests__/media-service.test.ts`) rather than an implicit one enforced only
- * by "the type doesn't have the field" — and it's the seam any future
- * "replace source" operation would have to go through.
+ * by "the type doesn't have the field". Ordinary imports use this strict guard;
+ * explicit replacements use `replaceMediaFile` and its atomic replacement port instead,
+ * because switching bytes also requires type/provenance stamping and rendition invalidation.
  *
  * @complexity O(1).
  * @overallScore 100
@@ -265,6 +266,8 @@ async function deriveUniqueMediaSlug(mediaRepo: MediaRepoPort, workspaceId: UUID
 // ---------------------------------------------------------------------------
 
 export interface UploadMediaInput {
+  /** Keeps media validation/sniffing while denying anonymous asset and retained-blob access. */
+  access?: "private";
   /** Safe per-item origin; omitted uploads are recorded as upload, legacy rows remain unknown. */
   provenance?: import('./types.js').MediaProvenance | undefined;
   kind?: MediaKind | undefined;
@@ -363,10 +366,11 @@ async function storedUploadBytes({ input, kind }: { input: UploadMediaRequired["
 async function claimUploadBlob(
   { deps, input, kind, sha256, bytes, nowIso }: { deps: UploadMediaRequired["deps"]; input: UploadMediaRequired["input"]; kind: UploadKind; sha256: string; bytes: Uint8Array; nowIso: string },
 ): Promise<string> {
-  const documentOwnership = kind === "document" ? { documentOwned: true } : {};
+  const privateUpload = kind === "document" || input.access === "private";
+  const documentOwnership = privateUpload ? { documentOwned: true } : {};
   const existingBlob = await deps.blobRepo.findByHash({ workspaceId: input.workspaceId, sha256 });
   if (existingBlob) {
-    if (existingBlob.status === "tombstoned" || (kind === "document" && !existingBlob.documentOwned)) {
+    if (existingBlob.status === "tombstoned" || (privateUpload && !existingBlob.documentOwned)) {
       // Record ownership before saving the editorial row: purge must never declassify bytes.
       // Resurrect: cancel the pending GC in the same locked section rather
       // than writing a duplicate blob ( dedup rule). See docs/decisions/DR-004-journaled-blob-gc.md.
@@ -425,6 +429,7 @@ export async function uploadMedia(
     ...uploadText(input),
     source: {
       ...resolveWriteOnceSource({ existing: undefined, requestedSha256: sha256 }),
+      ...(input.access === "private" ? { private: true as const } : {}),
       contentType: kind === 'document' ? documentContentType({ filename: input.filename }) : sniffContentType({ bytes }), provenance
     },
     status: "active",
@@ -477,7 +482,7 @@ export async function listMedia(
   _optional: Record<string, never> = {}
 ): Promise<{ media: MediaRecord[] }> {
   const media = await required.deps.mediaRepo.list({ workspaceId: required.input.workspaceId });
-  return { media: media.filter(row => (row.kind ?? "media") === (required.input.kind ?? "media")) };
+  return { media: media.filter(row => (row.kind === "document" || row.source.private !== true) && (row.kind ?? "media") === (required.input.kind ?? "media")) };
 }
 
 export interface GetMediaByIdRequired {

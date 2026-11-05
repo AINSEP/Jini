@@ -4,6 +4,7 @@ export type { UpdateAgentPluginRequired, UpdateAgentPluginResult } from './updat
 import { createUpdateModule } from './update.js';
 export * from './compatibility.js';
 export * from './automatic-use.js';
+export * from './bundled-file-policy.js';
 import { createPersistentStateModule } from "./persistent-state.js";
 import { fetchAgentPluginArchive, maxAgentPluginArchiveBytes } from './fetch-archive.js';
 import type { FetchAgentPluginArchiveOptional } from './fetch-archive.js';

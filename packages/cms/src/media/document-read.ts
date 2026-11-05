@@ -18,8 +18,8 @@ export async function isDocumentOnlyBlob(required: {
   let document = false;
   for (const row of rows) {
     if (row.source.sha256 !== required.input.sha256) continue;
-    if (row.kind !== 'document' && row.status === 'active') return false;
-    if (row.kind === 'document') document = true;
+    if (row.kind !== 'document' && !row.source.private && row.status === 'active') return false;
+    if (row.kind === 'document' || row.source.private) document = true;
   }
   return document || (await required.deps.blobRepo.findByHash(required.input))?.documentOwned === true;
 }

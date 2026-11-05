@@ -48,10 +48,10 @@ const LABELED_SECRET_LABELS =
 // longer backtrack against each other across long whitespace.
 const AUTH_HEADER_NAMES = "(?:proxy-)?authorization|x-api-key|api-key|x-goog-api-key|x-auth-token";
 const AUTH_SCHEMES = "Bearer|Basic|Token|Digest|ApiKey";
-const AUTH_VALUE = String.raw`(?!\[REDACTED)[^\s"'),;]+`;
+const AUTH_VALUE = String.raw`(?!\[REDACTED)(?:(?!\x60(?=[\s"'.,);]|$))[^\s"'),;])+`;
 const AUTH_HEADER_VALUE_RE = new RegExp(
   String.raw`(?<![a-z0-9-])(${AUTH_HEADER_NAMES})(\s*(?:["']\s*)?[:=]\s*["']?)` +
-    String.raw`(?:((?:${AUTH_SCHEMES})\s+)${AUTH_VALUE}|(?!(?:${AUTH_SCHEMES})\s)${AUTH_VALUE})`,
+    String.raw`(?:((?:${AUTH_SCHEMES})\s+)${AUTH_VALUE}|(?!(?:${AUTH_SCHEMES})(?:\s|["'\x60),;]|$))${AUTH_VALUE})`,
   "gi",
 );
 
@@ -82,9 +82,11 @@ const REDACTION_RULES: readonly RedactionRule[] = [
     // already-redacted text (`Authorization: Bearer [REDACTED:auth_header]`) would fail the
     // `(?!\[REDACTED)` lookahead on the "with scheme" attempt, backtrack the optional group away,
     // and then match the bare word "Bearer" itself as the "value" — corrupting already-redacted
-    // text. The second alternative's own `(?!(?:Bearer|...)\s)` explicitly refuses to start on a
-    // scheme keyword, so when the first alternative's lookahead fails there is no fallback left to
+    // text. The second alternative explicitly refuses a scheme keyword followed by whitespace
+    // or a value terminator, so when the first alternative's lookahead fails there is no fallback left to
     // backtrack into, and the whole rule correctly finds no match on a second pass.
+    // Scheme names without a following value (including Markdown's `Authorization: Bearer`)
+    // describe a header; they are not themselves credentials.
     pattern:
       AUTH_HEADER_VALUE_RE,
     replacement: ({ match: m }) => `${m[1]}${m[2]}${m[3] ?? ""}[REDACTED:auth_header]`,
@@ -172,6 +174,15 @@ const REDACTION_RULES: readonly RedactionRule[] = [
   },
   {
     kind: "labeled_secret",
+    // Multi-word quoted keys can hold credentials too; translated phrases with spaces stay prose.
+    pattern: new RegExp(
+      String.raw`(["'])((?:[A-Za-z0-9_-]{1,32}[ \t]+){1,6}(?:${LABELED_SECRET_LABELS}))\1(\s*:\s*)(["'])(?!\[REDACTED)[^\s"'\\]{12,}\4`,
+      "gi",
+    ),
+    replacement: ({ match: m }) => `${m[1]}${m[2]}${m[1]}${m[3]}${m[4]}[REDACTED:labeled_secret]${m[4]}`,
+  },
+  {
+    kind: "labeled_secret",
     // Colon form: `api_key: <value>`, `{ api_key: 'value' }`, `\"api_key\":\"value\"` (2026-09-16
     // security review). The `=` and double-quoted-JSON rules above miss every one of these, and they
     // are the shapes a real failure arrives in most often — `util.inspect` of a request config, a
@@ -182,11 +193,12 @@ const REDACTION_RULES: readonly RedactionRule[] = [
     // always taken, an unquoted one only when it is a single ≥12-character token. That is what keeps
     // this file's Must NOT change list intact — `password: must be at least 8 characters` stops at
     // the 4-character `must`, and `token expired at ...` has no colon at all.
+    // Match the whole key; multi-word labels above additionally require an opaque value.
     pattern: new RegExp(
-      `(?<![A-Za-z0-9])(${LABELED_SECRET_LABELS})(\\\\?["']?\\s*:\\s*)(?:(\\\\?["'])(?!\\[REDACTED)[^"'\\\\\\r\\n]+\\3|(?!\\[REDACTED)[^\\s"',;}]{12,})`,
+      `(?<![A-Za-z0-9])((?:\\\\?["'])?)((?:[A-Za-z0-9]{1,32}[_-]){0,6}(?:${LABELED_SECRET_LABELS}))\\1(\\s*:\\s*)(?:(\\\\?["'])(?!\\[REDACTED)[^"'\\\\\\r\\n]+\\4|(?!\\[REDACTED)[^\\s"',;}]{12,})`,
       "gi",
     ),
-    replacement: ({ match: m }) => `${m[1]}${m[2]}${m[3] ?? ""}[REDACTED:labeled_secret]${m[3] ?? ""}`,
+    replacement: ({ match: m }) => `${m[1]}${m[2]}${m[1]}${m[3]}${m[4] ?? ""}[REDACTED:labeled_secret]${m[4] ?? ""}`,
   },
   {
     kind: "labeled_secret",

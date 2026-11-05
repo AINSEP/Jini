@@ -43,3 +43,19 @@ test.each([{ cursor: 42 }, { query: 'a'.repeat(1001) }, { limit: NaN }, { limit:
   await expect(listMediaPage({ mediaRepo, workspaceId: 'site', library: false, input })).rejects.toThrow();
   expect(read).not.toHaveBeenCalled();
 });
+
+test('private form attachments never appear in public media inventory or consume page slots', async () => {
+  const mediaRepo = new InMemoryMediaRepo({});
+  await mediaRepo.save(row({ id: 'a-private' }, { source: { sha256: 'private', private: true } }));
+  await mediaRepo.save(row({ id: 'b-public' }));
+  const page = await listMediaPage({ mediaRepo, workspaceId: 'site', library: false, input: { limit: 1 } });
+  expect(page.media.map(item => item.id)).toEqual(['b-public']); expect(page.nextCursor).toBeNull();
+});
+
+test('legacy media lists hide private submission uploads too', async () => {
+  const { listMedia } = await import('../media-service.js');
+  const mediaRepo = new InMemoryMediaRepo({});
+  await mediaRepo.save(row({ id: 'private' }, { source: { sha256: 'private', private: true } }));
+  await mediaRepo.save(row({ id: 'public' }));
+  expect((await listMedia({ deps: { mediaRepo }, input: { workspaceId: 'site' } })).media.map(item => item.id)).toEqual(['public']);
+});

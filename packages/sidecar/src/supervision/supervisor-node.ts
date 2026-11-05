@@ -6,8 +6,8 @@ import { randomUUID } from "node:crypto";
 import { createCommandInvocation } from "@jini-ai/platform/command";
 import { omitEnvironmentKeys } from "@jini-ai/platform/child-environment";
 import { collectProcessTreePids, listProcessSnapshots, stopProcesses, waitForProcessExit } from "@jini-ai/platform/process";
-import { readLiveDaemonRegistryRecord, removeDaemonRegistryRecordIfCurrent, writeDaemonRegistryRecord } from "./daemon-registry.js";
-import type { LocalDaemonRegistryRecord } from "./daemon-registry.js";
+import { readLiveDaemonRegistryRecord, removeDaemonRegistryRecordIfCurrent, writeDaemonRegistryRecord } from "../daemon-registry.js";
+import type { LocalDaemonRegistryRecord } from "../daemon-registry.js";
 import type { SpawnedDaemonProcess, SupervisorScheduler } from "./supervisor.js";
 
 export interface SupervisorRegistry {

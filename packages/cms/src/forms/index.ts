@@ -18,3 +18,8 @@ export * from "./field-registry.js";
 
 export * from "./delivery/index.js";
 // The optional platform peer is required only by the dedicated /forms/email-sender entry.
+
+export * from "./attachment-purge.js";
+export * from "./submission-json.js";
+export * from './attachment-cleanup.js';
+export * from './request-admission.js';

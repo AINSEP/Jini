@@ -61,9 +61,28 @@ function checkSuccessPath({ form, successPath, kit }, _options = {}) {
 
 function normalizeField({ field, kit, slug }, _options = {}) {
   if (!FIELD_NAME.test(field?.name ?? '')) throw formsRefusal({ kit, message: `Form ${slug} has a field name that cannot be served here. Rename the field in the site admin, then publish again.` });
+  field = { ...field, ...(field.options ? { options: field.options.filter(value => value !== '') } : {}) };
+  assertReceiverField({ field, kit, slug });
   const max = field.maxLength;
   checkMaxLength({ max, kit, slug, name: field.name });
-  return { name: field.name, required: field.required === true, ...(Number.isInteger(max) ? { maxLength: max } : {}), ...(field.multiple === true ? { multiple: true } : {}) };
+  return { name: field.name, required: field.required === true, ...receiverConstraints({ field }), ...(Number.isInteger(max) ? { maxLength: max } : {}), ...(field.multiple === true ? { multiple: true } : {}) };
+}
+
+function receiverConstraints({ field }, _options = {}) {
+  return {
+    ...(field.type ? { type: field.type } : {}),
+    ...(field.options ? { options: field.options } : {}),
+    ...(field.minLength !== undefined ? { minLength: field.minLength } : {}),
+    ...(field.checkboxValue !== undefined ? { checkboxValue: field.checkboxValue } : {}),
+  };
+}
+
+/** Refuse richer validation before provisioning a receiver that could report false success. */
+function assertReceiverField({ field, kit, slug }, _options = {}) {
+  const supported = ['text', 'textarea', 'hidden', 'email', 'tel', 'phone', 'url', 'number', 'range', 'date', 'time', 'datetime', 'datetime-local', 'color', 'password', 'checkbox', 'toggle', 'select', 'radio', 'multi-select', 'checkbox-group'];
+  if (field.type === 'file') throw formsRefusal({ kit, message: `Form ${slug} field ${field.name} accepts files, but this receiver cannot store files. Remove the file field or choose a live server before publishing.` });
+  const unrepresentableChoice = field.options?.some(value => typeof value !== 'string' || value.trim() === '');
+  if (field.validationUnsupported || unrepresentableChoice || (field.type && !supported.includes(field.type))) throw formsRefusal({ kit, message: `Form ${slug} field ${field.name} needs validation this receiver cannot enforce. Publish to a live server or simplify this field, then publish again.` });
 }
 
 function checkMaxLength({ max, kit, slug, name }, _options = {}) {
@@ -122,6 +141,11 @@ export async function provisionForms({ api, kit, resourceName }, _options = {}) 
   const database = await findDatabase({ api, kit, name }) ?? await createDatabase({ api, kit, name });
   if (typeof database?.uuid !== 'string' || !database.uuid) throw formsRefusal({ kit, code: 'CLOUDFLARE_D1_INVALID', status: 502, message: `D1 database ${name} returned no id. Check it in the Cloudflare dashboard, then publish again.` });
   const applied = await migrate({ api, kit, databaseId: database.uuid });
+  // Older receivers retained raw IPs and acknowledged answers indefinitely. This cold publish
+  // upgrade performs three writes with no payload reads, before the new receiver can be uploaded.
+  await query({ api, databaseId: database.uuid, sql: 'DELETE FROM submissions WHERE pulled_at IS NOT NULL' });
+  await query({ api, databaseId: database.uuid, sql: 'UPDATE submissions SET ip = NULL WHERE ip IS NOT NULL' });
+  await query({ api, databaseId: database.uuid, sql: "DELETE FROM rate_windows WHERE key LIKE '%:%'" });
   return { databaseId: database.uuid, databaseName: name, applied };
 }
 

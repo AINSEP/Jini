@@ -39,6 +39,8 @@ export type MediaKind = "media" | "document";
  * `media-service.ts`) as the enforced invariant for any future write path.
  */
 export interface MediaSource {
+  /** Private ingress such as submitted files; never exposed by public media routes. */
+  private?: true;
   sha256: string;
   /** Sniffed media MIME (document policy MIME for private documents); absent for legacy rows. */
   contentType?: string | undefined;
@@ -141,7 +143,7 @@ export interface AssetBlobRecord {
   status: AssetBlobStatus;
   /** Set only while `status === "tombstoned"`; cleared (undefined) on resurrect. */
   tombstonedAt?: ISODateTime | undefined;
-  /** Sticky ownership until blob GC: purge deletes editorial rows before deleting bytes.
+  /** Sticky private/document ownership until blob GC: purge deletes editorial rows before deleting bytes.
    * Absent/false means no recorded document owner; saves must never clear a true value. */
   documentOwned?: boolean | undefined;
 }
