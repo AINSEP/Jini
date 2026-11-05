@@ -1,3 +1,4 @@
+import type { McpBearerTokenSupplier } from "./adapter.http.js";
 import type { FederatedMcpConnectionConfig, McpLaunchSpec } from "./ports.js";
 
 /**
@@ -36,6 +37,8 @@ import type { FederatedMcpConnectionConfig, McpLaunchSpec } from "./ports.js";
 export interface ResolvedFederatedConnection {
   readonly config: FederatedMcpConnectionConfig;
   readonly launch: McpLaunchSpec;
+  /** Live, connection-bound HTTP credential resolver; omitted connections keep their configured headers. */
+  readonly bearerToken?: McpBearerTokenSupplier;
 }
 
 /**
