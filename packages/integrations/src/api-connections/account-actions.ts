@@ -16,6 +16,12 @@ import { loadOwnedRecord, writeRecord, type OwnedRecordArgs } from './records.js
 import { toStatusView, type ApiConnectionStatusView } from './status.js';
 import type { ApiConnectionRecord, ApiConnectionRevocationFailure } from './types.js';
 
+/** Only the lifecycle ports needed to stop use and revoke an already-issued credential. */
+export type ApiConnectionDisconnectDeps = Pick<ApiConnectionServiceDeps, 'descriptor' | 'records' | 'clock'> & {
+  readonly tokens: Pick<ApiConnectionServiceDeps['tokens'], 'loadForRevocation' | 'delete'>;
+  readonly hooks: Pick<ApiConnectionServiceDeps['hooks'], 'revoke'>;
+};
+
 /**
  * `not-needed` when no credential existed locally, so nothing could be revoked. `pending` with
  * status `revocation-pending` means the disabled credential is kept and disconnecting again
@@ -70,7 +76,7 @@ function stagedSwitchUsable(record: ApiConnectionRecord, actorId: string, nowMs:
  * hook returned. The read ignores the generation fence: a disconnect has already disabled the
  * credential, and these tokens go to the revoke hook only.
  */
-async function revokeStoredCredential(deps: ApiConnectionServiceDeps, key: string): Promise<RevocationResult> {
+async function revokeStoredCredential(deps: Pick<ApiConnectionDisconnectDeps, 'tokens' | 'hooks'>, key: string): Promise<RevocationResult> {
   const tokens = await deps.tokens.loadForRevocation({ key }).catch((error: unknown) => {
     if (isUnreadableTokenRecord(error)) return 'unreadable' as const;
     throw error;
@@ -138,7 +144,7 @@ export async function cancelSwitchAccount(
 
 /** Disconnect and revoke the live and any staged credential; call again to retry a `pending` revocation. */
 export async function disconnectApiConnection(
-  deps: ApiConnectionServiceDeps,
+  deps: ApiConnectionDisconnectDeps,
   requiredArgs: OwnedRecordArgs,
 ): Promise<ApiConnectionDisconnectResult> {
   const record = await loadOwnedRecord(deps, requiredArgs);

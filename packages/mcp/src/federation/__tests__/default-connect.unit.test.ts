@@ -56,3 +56,32 @@ it('a resolver without a warning logs nothing and leaves no timer behind after a
     vi.useRealTimers();
   }
 });
+
+it('keeps fresh bearer suppliers bound to their connection, even at one URL', async () => {
+  const requests: string[] = [];
+  const fetchImpl = vi.fn(async (_url: unknown, init?: RequestInit) => {
+    requests.push(new Headers(init?.headers).get('authorization') ?? '');
+    const body = JSON.parse(String(init?.body));
+    if (body.id === undefined) return new Response(null, { status: 202 });
+    const result = body.method === 'initialize'
+      ? { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'example', version: '1' } }
+      : { tools: [] };
+    return new Response(JSON.stringify({ jsonrpc: '2.0', id: body.id, result }), { headers: { 'content-type': 'application/json' } });
+  }) as typeof fetch;
+  const connect = createDefaultConnect({ resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages,
+    bearerToken: () => 'unrelated-runtime-token' }, { fetch: fetchImpl });
+  let tokenA = 'owner-a';
+  let allowed = true;
+  const a = await connect({ connection: { config, launch: { url: 'https://same.example/mcp', headers: {} },
+    bearerToken: () => { if (!allowed) throw new Error('shared grant removed'); return tokenA; } } });
+  const b = await connect({ connection: { config: { ...config, connectionId: 'other' }, launch: { url: 'https://same.example/mcp', headers: {} },
+    bearerToken: () => 'owner-b' } });
+  requests.length = 0;
+  tokenA = 'owner-a-rotated';
+  await a.listTools();
+  await b.listTools();
+  expect(requests).toEqual(['Bearer owner-a-rotated', 'Bearer owner-b']);
+  allowed = false;
+  await expect(a.listTools()).rejects.toThrow('shared grant removed');
+  expect(requests).toHaveLength(2);
+});

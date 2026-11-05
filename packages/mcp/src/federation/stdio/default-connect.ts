@@ -50,7 +50,7 @@ export function createDefaultConnect(
         // here — that much of the old comment stands, only the bound it fed was wrong.
         requestTimeoutMs: connection.config.callTimeoutMs,
         clientInfo,
-        bearerToken,
+        bearerToken: connection.bearerToken ?? bearerToken,
       }, { onAuthenticationChallenge, logger });
     }
     return connectMcpStdioSessionWithSpawnTimeout(connection, connection.launch, loggedResolver, spawnChannel, clientInfo, messages);
