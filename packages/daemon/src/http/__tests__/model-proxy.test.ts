@@ -424,9 +424,10 @@ describe('POST /api/proxy/anthropic/stream', () => {
 
     const events = writtenEvents(res);
     const errorEvent = events.find((e) => e.kind === 'error')!;
-    expect((errorEvent.data as { message: string }).message).toBe('an internal error occurred');
+    expect((errorEvent.data as { message: string }).message).toBe('The assistant response stopped. Review any completed actions before starting another turn. Copy the request ID and report this problem.');
     expect((errorEvent.data as { code: string }).code).toBe(context.correlationId);
     expect(events.filter((e) => e.kind === 'end')).toHaveLength(1);
+    expect(JSON.stringify(events)).not.toContain('secret-token-xyz');
     expect(res.end).toHaveBeenCalledOnce();
   });
 
@@ -680,7 +681,7 @@ describe('POST /api/proxy/azure/stream', () => {
     expect(onInternalError).toHaveBeenCalledTimes(1);
     expect(onInternalError.mock.calls[0]![0].provider).toBe('azure');
     const errorEvent = writtenEvents(res).find((e) => e.kind === 'error')!;
-    expect((errorEvent.data as { message: string }).message).toBe('an internal error occurred');
+    expect((errorEvent.data as { message: string }).message).toBe('The assistant response stopped. Review any completed actions before starting another turn. Copy the request ID and report this problem.');
     expect(JSON.stringify(writtenEvents(res))).not.toContain('key-abc');
   });
 });
@@ -1466,7 +1467,7 @@ describe('model-proxy pins — catch-block fallbacks once headers are already co
     await mount({ onInternalError }).handlers['POST /api/proxy/google/stream']!(makeReq(validGoogleBody), res);
     expect(res.status).toHaveBeenCalledWith(500);
     const { correlationId } = onInternalError.mock.calls[0]![0];
-    expect(res.json).toHaveBeenCalledWith({ error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: correlationId } });
+    expect(res.json).toHaveBeenCalledWith({ error: { code: 'INTERNAL_ERROR', message: 'The assistant response stopped. Review any completed actions before starting another turn. Copy the request ID and report this problem.', requestId: correlationId } });
   });
 
   it('catch-all: logs an unrecognized provider via console.error, never via the typed sink', async () => {
@@ -1488,7 +1489,7 @@ describe('model-proxy pins — catch-block fallbacks once headers are already co
     await mount({ onInternalError: vi.fn() }).handlers['POST /api/proxy/:provider/stream']!(makeParamReq({}, validOpenAiBody), res);
     expect(String(consoleErrorSpy.mock.calls[0]![0])).toContain('model-proxy/unknown,');
     expect(res.status).toHaveBeenCalledWith(500);
-    expect(res.json.mock.calls[0]![0].error).toMatchObject({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' });
+    expect(res.json.mock.calls[0]![0].error).toMatchObject({ code: 'INTERNAL_ERROR', message: 'The assistant response stopped. Review any completed actions before starting another turn. Copy the request ID and report this problem.' });
   });
 
   it('catch-all: ends a response whose headers were already sent instead of writing JSON', async () => {

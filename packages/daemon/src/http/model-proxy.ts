@@ -379,7 +379,7 @@ function respondInternalError(res: Response, correlationId: string): void {
     if (!res.writableEnded) res.end();
     return;
   }
-  sendApiError({ res, status: 500, error: createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId }) });
+  sendApiError({ res, status: 500, error: createApiError({ code: 'INTERNAL_ERROR', message: 'The assistant response stopped. Review any completed actions before starting another turn. Copy the request ID and report this problem.' }, { requestId: correlationId }) });
 }
 
 type ProxyProvider = ModelProxyInternalErrorContext['provider'];
@@ -462,7 +462,7 @@ async function runProxyStream({ req, res, adapter, provider, onInternalError, en
     // here (an exception escaping `run` — e.g. a caller-supplied `executeTool` throwing — means
     // no `'end'` event was ever emitted for this connection), and the synthetic `'end'`-kind
     // event's own `isEndEvent` match closes the channel via the same path as a real one.
-    channel.enqueue({ event: toStreamEvent(nextSeq(), { type: 'error', message: 'an internal error occurred', code: correlationId } as AnyProxyTurnEvent) });
+    channel.enqueue({ event: toStreamEvent(nextSeq(), { type: 'error', message: 'The assistant response stopped. Review any completed actions before starting another turn. Copy the request ID and report this problem.', code: correlationId } as AnyProxyTurnEvent) });
     channel.enqueue({ event: toStreamEvent(nextSeq(), { type: 'end', reason: 'error' } as AnyProxyTurnEvent) });
   }
 }

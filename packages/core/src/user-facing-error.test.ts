@@ -65,3 +65,33 @@ describe('formatUserFacingError', () => {
     expect(formatUserFacingError({ ...input, cause: hostile }).cause).toBe('[Unformattable error]');
   });
 });
+
+it('keeps a public correlation UUID intact when its numeric groups happen to pass Luhn', () => {
+  const errorId = '40000000-0000-4004-a56f-ac5430152e23';
+  const failure = formatUserFacingError(input, { errorId });
+  expect(failure.errorId).toBe(errorId);
+  expect(failure.copyText).toContain(`Error ID: ${errorId}`);
+});
+
+it('keeps PII and explicit secrets redacted while preserving public correlation metadata', () => {
+  const errorId = '40000000-0000-4004-a56f-ac5430152e23';
+  const sensitive = { message: 'Card 4111111111111111', action: 'Email person@example.test', step: 'Address 192.0.2.1', cause: 'Card 4111111111111111 at 192.0.2.1' };
+  const failure = formatUserFacingError(sensitive, { errorId });
+  expect(failure.errorId).toBe(errorId);
+  for (const value of [failure.message, failure.action, failure.step, failure.cause, failure.copyText]) {
+    expect(value).not.toMatch(/4111111111111111|person@example\.test|192\.0\.2\.1/);
+  }
+  const secret = formatUserFacingError(input, { errorId, exactSecrets: [errorId] });
+  expect(secret.errorId).not.toContain(errorId);
+  expect(secret.copyText).not.toContain(errorId);
+  const card = formatUserFacingError(input, { errorId: '4111111111111111' });
+  expect(card.errorId).toContain('[REDACTED:credit_card]');
+  expect(card.copyText).not.toContain('4111111111111111');
+});
+
+it('does not turn an untrusted cause containing a card-shaped ERR token into a public identifier', () => {
+  const forgedId = 'ERR-4000-0000-0000-4004';
+  const failure = formatUserFacingError({ ...input, cause: `Card ${forgedId}` });
+  expect(failure.errorId).not.toContain(forgedId);
+  expect(failure.copyText).not.toContain(forgedId);
+});

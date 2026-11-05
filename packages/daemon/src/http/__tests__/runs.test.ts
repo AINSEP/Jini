@@ -370,7 +370,7 @@ describe('runStartRoute.handle', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.code).toBe('INTERNAL_ERROR');
-      expect(result.error.message).toBe('an internal error occurred');
+      expect(result.error.message).toBe('The agent could not be started. Check the run status before starting another task. Copy the request ID and report this problem.');
       expect(result.error.message).not.toContain('/secret/executable/path');
       expect(JSON.stringify(result.error)).not.toContain('/secret/executable/path');
       expect(result.error.requestId).toEqual(expect.any(String));
@@ -394,7 +394,7 @@ describe('runStartRoute.handle', () => {
     const result = await runStartRoute.handle({ input: { contextRef: 'ctx-1' }, deps });
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error).toEqual({ code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) });
+      expect(result.error).toEqual({ code: 'INTERNAL_ERROR', message: 'The agent could not be started. Check the run status before starting another task. Copy the request ID and report this problem.', requestId: expect.any(String) });
     }
     expect(onInternalError).toHaveBeenCalledTimes(1);
   });
@@ -411,7 +411,7 @@ describe('runStartRoute.handle', () => {
     const result = await runStartRoute.handle({ input: { contextRef: 'ctx-1' }, deps });
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error).toEqual({ code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) });
+      expect(result.error).toEqual({ code: 'INTERNAL_ERROR', message: 'The agent could not be started. Check the run status before starting another task. Copy the request ID and report this problem.', requestId: expect.any(String) });
     }
     expect(onInternalError.mock.calls[0]![0].error).toBe('raw string failure with a secret token abc123');
   });
@@ -660,7 +660,7 @@ describe('registerRunEventStream', () => {
     expect(res.statusCode).toBe(500);
     const body = jsonEndBody(res) as { error: { code: string; message: string; requestId: string } };
     expect(body.error.code).toBe('INTERNAL_ERROR');
-    expect(body.error.message).toBe('an internal error occurred');
+    expect(body.error.message).toBe('The connection to run updates could not be opened. Check the run status before starting another task. Copy the request ID and report this problem.');
     expect(JSON.stringify(body)).not.toContain('/internal/secret/path');
     expect(body.error.requestId).toEqual(expect.any(String));
 
@@ -686,7 +686,7 @@ describe('registerRunEventStream', () => {
     const res = makeSseRes();
     await handler(makeSseReq({ runId: 'run-1' }), res);
     const body = jsonEndBody(res) as { error: unknown };
-    expect(body.error).toEqual({ code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) });
+    expect(body.error).toEqual({ code: 'INTERNAL_ERROR', message: 'The connection to run updates could not be opened. Check the run status before starting another task. Copy the request ID and report this problem.', requestId: expect.any(String) });
     expect(onInternalError.mock.calls[0]![0].error).toBe('raw stream failure');
   });
 
