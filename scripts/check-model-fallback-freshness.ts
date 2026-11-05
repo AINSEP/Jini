@@ -128,8 +128,8 @@ const GUARDED_DEFS: readonly GuardedDef[] = [
   },
   {
     agentId: 'antigravity',
-    file: 'packages/agent-runtime/src/defs/antigravity.ts',
-    modulePath: join(REPO_ROOT, 'packages/agent-runtime/src/defs/antigravity.ts'),
+    file: 'packages/agent-runtime/src/defs/antigravity/index.ts',
+    modulePath: join(REPO_ROOT, 'packages/agent-runtime/src/defs/antigravity/index.ts'),
     exportName: 'antigravityAgentDef',
     liveSource: 'antigravity-catalog',
   },

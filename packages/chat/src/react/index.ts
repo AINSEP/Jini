@@ -397,3 +397,6 @@ export type { AgentPluginUsage, AgentPluginUsage as Usage } from '../core/agent-
 export { acceptedInputEvent, acceptedInputUserEvent, projectAcceptedInputEvents } from '../core/accepted-input.js';
 export type { AcceptedChatInput } from '../core/accepted-input.js';
 export { isAwaitingAnswer } from '../core/run-activity.js';
+
+// Consumers can name the recovery metadata accepted by the shared tool caller.
+export type { SurfaceRecoveryInfo } from '../core/surface-recovery.js';

@@ -9,6 +9,7 @@ it('guards Antigravity against newly reported models missing from its fallback',
       : { kind: 'skipped', reason: 'Unrelated fixture' },
     report: () => {},
   });
-  expect(violations.some(violation => violation.file.endsWith('/antigravity.ts')
+  expect(violations.some(violation => violation.reason.includes('could not load the def module'))).toBe(false);
+  expect(violations.some(violation => violation.file.endsWith('/antigravity/index.ts')
     && violation.reason.includes('gemini-next-argon-high'))).toBe(true);
 });
