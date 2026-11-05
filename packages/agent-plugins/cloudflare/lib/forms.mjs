@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { readSubmissionEvidence } from '@jini-ai/cms/forms';
 import { refusal, segment } from './api.mjs';
 
 /** Form submissions destination: one D1 database per site Worker plus the bundled receiver.
@@ -47,7 +48,8 @@ function normalizeForm({ form, kit }, _options = {}) {
   checkFieldCount({ form, kit });
   const successPath = form.successPath;
   checkSuccessPath({ form, successPath, kit });
-  return { slug: form.slug, fields: form.fields.map(field => normalizeField({ field, kit, slug: form.slug })), ...(successPath ? { successPath } : {}) };
+  const evidence = form.evidence === undefined ? undefined : readSubmissionEvidence({ value: { ...form.evidence, capturedAt: 'published', source: 'cloudflare' } });
+  return { slug: form.slug, ...(evidence ? { evidence } : {}), fields: form.fields.map(field => normalizeField({ field, kit, slug: form.slug })), ...(successPath ? { successPath } : {}) };
 }
 
 function checkFieldCount({ form, kit }, _options = {}) {
@@ -74,6 +76,9 @@ function receiverConstraints({ field }, _options = {}) {
     ...(field.options ? { options: field.options } : {}),
     ...(field.minLength !== undefined ? { minLength: field.minLength } : {}),
     ...(field.checkboxValue !== undefined ? { checkboxValue: field.checkboxValue } : {}),
+    ...(field.min !== undefined ? { min: field.min } : {}),
+    ...(field.max !== undefined ? { max: field.max } : {}),
+    ...(field.step !== undefined ? { step: field.step } : {}),
   };
 }
 
@@ -131,7 +136,7 @@ export async function previewForms({ api, kit, resourceName, targetId, formDesti
   return { status: 'on', forms: count,
     changes: [{ action: existing ? 'reuse' : 'create', resource: 'd1-database', name, ...(existing ? { databaseId: existing.uuid } : {}) },
       { action: 'bind', resource: 'worker', resourceName, routes: FORMS_WORKER_ROUTES }],
-    message: `Form submissions: on (${count} form${count === 1 ? '' : 's'}). Submissions are stored in D1 database ${name} (${existing ? 'reused' : 'created'}) in this Cloudflare account and pulled into the site admin on demand. ${FREE_PLAN_NOTE}` };
+    message: `Form submissions: on (${count} form${count === 1 ? '' : 's'}). Submissions are stored in D1 database ${name} (${existing ? 'reused' : 'created'}) in this Cloudflare account and pulled into the site admin on demand. ${FREE_PLAN_NOTE} Uncollected answers never expire automatically.` };
 }
 
 /** Find-or-create the database, then apply pending migrations. Never drops or recreates anything.
@@ -182,7 +187,7 @@ export async function migrate({ api, kit, databaseId }, _options = {}) {
 let receiverSource;
 /** The receiver module text, read once from this plugin's own folder (path-separator safe). */
 export async function receiverModule(_required = {}, _options = {}) {
-  receiverSource ??= await readFile(new URL('../worker/forms-receiver.mjs', import.meta.url), 'utf8');
+  receiverSource ??= (await readFile(new URL('../worker/forms-receiver.mjs', import.meta.url), 'utf8')).replace('@jini-ai/cms/forms/portable-validation', './portable-validation.mjs');
   return receiverSource;
 }
 
@@ -219,6 +224,7 @@ export async function formsWorkerParts({ manifest, secret, databaseId }, { pageR
     modules: [
       { name: 'index.mjs', source: main },
       { name: 'receiver.mjs', source: await receiverModule() },
+      { name: 'portable-validation.mjs', source: await readFile(new URL(import.meta.resolve('@jini-ai/cms/forms/portable-validation')), 'utf8') },
       { name: 'forms-manifest.mjs', source: `export default ${JSON.stringify({ forms: manifest.forms })};\n` },
     ],
     bindings: [{ type: 'd1', name: FORMS_BINDING, id: databaseId }, { type: 'secret_text', name: FORMS_SECRET_BINDING, text: secret }],
