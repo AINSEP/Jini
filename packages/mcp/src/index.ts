@@ -117,6 +117,7 @@ export {
   isAgentSlug,
   planAgentInstall,
   verifyJsonAgentInstall,
+  installOwnedJsonAgent,
   applyJsonInstall,
   removeJsonInstall,
 } from './agent-install/index.js';
