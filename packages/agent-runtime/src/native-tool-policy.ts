@@ -147,3 +147,12 @@ export function planRun({ def, policy, host = {} }: {
   if (keys.length > 0) return { verdict: 'ASK', keys, ...(host.isolationBlocked ? { why: 'isolation_blocked' as const } : {}) };
   return { verdict: 'RUN', loadsOwn, bridged: Boolean(def.externalMcpInjection || def.mcpHttp) };
 }
+
+/** Shared consumer contract for a fresh local owner: provided tools stay available;
+ * the agent's personal MCP sources require an explicit grant. No persisted settings or I/O.
+ */
+export const LOCAL_HOST_DEFAULT_PERMISSIONS = Object.freeze({
+  enabled: true,
+  capabilities: Object.freeze({ shell: true, fileWrite: true, userMcp: false, subagents: true,
+    userSettings: true, web: true, workflows: true, loginEnvironment: true }),
+});

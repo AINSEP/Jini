@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { planRun, resolveNativeToolPolicy } from '../native-tool-policy.js';
+import { LOCAL_HOST_DEFAULT_PERMISSIONS, planRun, resolveNativeToolPolicy } from '../native-tool-policy.js';
 import { AGENT_DEFS } from '../registry.js';
 import { antigravityAgentDef } from '../defs/antigravity/index.js';
 const policy = { nativeToolAccess: true, cliParity: true, permissionMode: 'bypass' as const,
@@ -47,5 +47,14 @@ it('keeps own-list and host-lock invariants across every definition and capabili
         if (key !== 'userMcp' && !nativeCapabilities[key]) expect(result.keys).toContain(key);
       }
     }
+  }
+});
+
+it('host-defaults.fixture.contract plans every CLI against the exported consumer defaults', () => {
+  const { enabled, capabilities } = LOCAL_HOST_DEFAULT_PERMISSIONS;
+  for (const def of AGENT_DEFS) {
+    const result = planRun({ def, policy: { nativeToolAccess: enabled, nativeCapabilities: capabilities } });
+    expect(['RUN', 'ASK', 'SETUP']).toContain(result.verdict);
+    if (result.verdict === 'RUN') expect(result.loadsOwn).toBe(false);
   }
 });
