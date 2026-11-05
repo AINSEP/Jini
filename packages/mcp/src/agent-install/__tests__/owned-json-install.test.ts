@@ -61,3 +61,11 @@ test('new config contains only the static launch entry and defaults to owner-onl
   expect(JSON.parse(await readFile(file, 'utf8'))).toEqual({ mcpServers: { jini: required.spec } });
   expect((await stat(file)).mode & 0o777).toBe(0o600);
 });
+
+test('malformed config errors do not disclose its contents', async () => {
+  const { required, file } = await fixture(); await mkdir(dirname(file), { recursive: true });
+  await writeFile(file, 'PRIVATE_SENTINEL');
+  await expect(installOwnedJsonAgent(required)).rejects.toThrow(/not valid JSON/);
+  try { await installOwnedJsonAgent(required); } catch (error) { expect(String(error)).not.toContain('PRIVATE_SENTINEL'); }
+  expect(await readFile(file, 'utf8')).toBe('PRIVATE_SENTINEL');
+});

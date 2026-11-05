@@ -398,9 +398,9 @@ function parseJsonObject(text: string | null, where: string): Record<string, unk
   let parsed: unknown;
   try {
     parsed = JSON.parse(text);
-  } catch (err) {
-    // JSON.parse only ever throws a SyntaxError, so `err` is always an Error.
-    throw new Error(`existing config at ${where} is not valid JSON: ${(err as Error).message}`);
+  } catch {
+    // JSON.parse only throws SyntaxError; its message may quote private configuration bytes.
+    throw new Error(`existing config at ${where} is not valid JSON`);
   }
   if (parsed == null || typeof parsed !== 'object' || Array.isArray(parsed)) {
     throw new Error(`existing config at ${where} is not a JSON object`);
