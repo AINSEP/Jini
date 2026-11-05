@@ -78,10 +78,10 @@ it('keeps fresh bearer suppliers bound to their connection, even at one URL', as
     bearerToken: () => 'owner-b' } });
   requests.length = 0;
   tokenA = 'owner-a-rotated';
-  await a.listTools({});
-  await b.listTools({});
+  await a.listTools();
+  await b.listTools();
   expect(requests).toEqual(['Bearer owner-a-rotated', 'Bearer owner-b']);
   allowed = false;
-  await expect(a.listTools({})).rejects.toThrow('shared grant removed');
+  await expect(a.listTools()).rejects.toThrow('shared grant removed');
   expect(requests).toHaveLength(2);
 });
