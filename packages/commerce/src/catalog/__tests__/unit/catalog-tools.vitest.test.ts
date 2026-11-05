@@ -66,3 +66,9 @@ it("preserves the status envelope and reports checkout only from operational rea
     paymentRuntime: { status: "unavailable" }, configuration: { status: "unavailable" }, checkout: { active: true, ready: true, reason: null },
     capabilities: { checkout: "available", subscriptions: "unavailable", revenue: "unavailable" } });
 });
+it("reports the host's configured public webhook URL without reading provider secrets", async () => {
+  const webhookUrl = "https://shop.example/api/payments/webhooks/site/stripe/test";
+  const [registration] = buildRegistrations({ workspaceId: "ws", authorize: async () => ({ allowed: true, reason: "matched" }),
+    commerce: { status: async () => ({ active: true, ready: true, reason: null, scope, webhookUrl }) } });
+  expect(await registration!.handler({ ...context, input: {} })).toMatchObject({ checkout: { webhookUrl } });
+});

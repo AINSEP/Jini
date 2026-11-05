@@ -45,6 +45,8 @@ export interface CommerceCheckoutReadiness {
   readonly active: boolean;
   readonly ready: boolean;
   readonly reason: string | null;
+  /** Public callback address from trusted host configuration; never contains signing secrets. */
+  readonly webhookUrl?: string | null;
 }
 
 export interface CommerceStatus {

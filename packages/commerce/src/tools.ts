@@ -40,7 +40,8 @@ export function buildRegistrations(deps: Deps, _optional: Record<string, never> 
       const checkout = await deps.commerce?.status();
       if (checkout?.scope && checkout.scope.workspaceId !== deps.workspaceId) throw new CommerceUnavailableError("Commerce status belongs to another workspace.");
       return readCommerceStatus({ workspaceId: deps.workspaceId, resolvePaymentRuntime: () => deps.lipay ?? null,
-        ...(checkout ? { checkout: { active: checkout.active, ready: checkout.ready, reason: checkout.reason } } : {}) });
+        ...(checkout ? { checkout: { active: checkout.active, ready: checkout.ready, reason: checkout.reason,
+          ...(checkout.webhookUrl === undefined ? {} : { webhookUrl: checkout.webhookUrl }) } } : {}) });
     } },
   });
 }
