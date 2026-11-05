@@ -1,5 +1,9 @@
 # @jini-ai/core
 
+## 0.6.21
+
+- `createPreparedBatchHandler`: prepares a complete direct batch before any effect, reusing the approval handler's input snapshot, cap, duplicate detection and cancellation lifecycle, with no review card.
+
 ## 0.6.19
 
 - Preserve detached, frozen batch schema symbol metadata in tool exposure snapshots and single-call required-field guidance in plan-mode descriptions.

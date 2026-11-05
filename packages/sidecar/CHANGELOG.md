@@ -1,5 +1,9 @@
 # @jini-ai/sidecar
 
+## 0.6.21
+
+- Native IPC carries a handler's explicit public `refusalReason` (1–1024 characters) back to the caller instead of a generic "IPC request refused"; raw handler errors still never cross the channel.
+
 ## 0.6.17
 
 ### Patch Changes

@@ -1,3 +1,9 @@
+## 0.6.21
+
+- Per-chat memory churn stopped: run checkpoints are size-scaled (`checkpointIntervalMs({ bytes })`: 1 s, 3 s from 1 MB, 10 s from 5 MB) and written as guarded SQL deltas (append or text-tail splice under a length+tail receipt), falling back to a full checkpoint on mismatch. A completed checkpoint is never retried unchanged.
+- Leaner reads: message-scoped run heads, lean transcripts for acceptance and recovery, a conditional history read keyed on the connection-wide version, and `hasActiveRuns()` as a single-row probe.
+- Mid-run sends are deduplicated by accepted-input id (two sends with equal text are both kept); Cmd/Ctrl+Enter sends instead of cancelling; "Sending…" clears once the send is accepted; the queued label uses the status pill.
+
 ## 0.6.19
 
 - A direct MCP call (`mcp__<server>__X`, any CLI) shows as one row even when the MCP server normalized its arguments before the bridge saw them: once the CLI's own result has arrived, the call pairs by name with the bridge's `X` row between the two. Equal-input pairing still runs first across the turn; refusals and open calls never pair by name.
