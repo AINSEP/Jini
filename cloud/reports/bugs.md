@@ -2,7 +2,7 @@
 
 Bases: Tovu `e327c07c8`, Jini `6f507852d`. Both work branches are `cloud/bugs`.
 Started 2026-11-05 18:50 UTC; cap 20:50 UTC. Instructions read from Jini `origin/cloud-plans-1105` using git show.
-Pushed commits: Tovu `794134094` (baseline report), `380c8c9f2` (media/copy tests and receipt guard); Jini `632a69da8` (registry restart test/report). Final report commit SHAs are in the job completion message. Only `cloud/bugs` was pushed.
+Pushed commits: Tovu `794134094` (baseline report), `380c8c9f2` (media/copy tests and receipt guard), `fd82d639b` (diagnostic evidence); Jini `632a69da8` (registry restart test/report), `b7b74cfa7` (cross-repository report). Final report commit SHAs are in the job completion message. Only `cloud/bugs` was pushed.
 
 ## Changes and dispositions
 
@@ -11,7 +11,7 @@ Three persistent verification cases were added, without deleting/skipping/weaken
 
 - Bug 44: source and destination are separate disposable SQLite files. Publish a video and its poster, with source attribution and MIME/provenance, then immediately re-plan: both unchanged, no writes, published references verified.
 - Bugs 164/106: fresh workspace instances reload the on-disk registry, remove proven-missing scratch/fixture entries once, retain live scratch and independent sites and unavailable user paths, and retain one relocated independent-site entry after restart.
-- Bugs 450/499: copy a fully migrated disposable SQLite DB, record all 41 ledger entries through 0039, reject a truncated older history without changing ledger/content, reopen using current history, and verify idempotence/data preservation. This verifies the migration boundary, not an Electron/admin reconnect or an actual old release boot.
+- Bugs 450/499: copy a fully migrated disposable SQLite DB, record all 41 ledger entries through 0039, reject a truncated older history without changing ledger/content, reopen through production `openSiteContentDb`, and verify ledger/content preservation plus the prepared write watermark. This covers recovery/migrate/prepare/repair in the actual current content-DB boot owner; Electron/admin reconnect and an actual old release boot remain unverified.
 
 Bug 104: existing PID membership logic 40/40 passed; GUI/OS memory comparison remains unverified.
 Bug 110: telemetry cadence/disposal 7/7, named Cloudflare domain-edge suite 8/8, media URL resolver 18/18 and real HTTP replacement/cache/ETag tests 3/3 passed. Current migration-head checks passed. The audit's unnamed original two domain edges remain unidentified.
@@ -73,8 +73,12 @@ Function-quality review: tests reuse production publish/migration/registry owner
 
 Tovu production typecheck: `node_modules/.bin/tsc -p tsconfig.json --noEmit`: exit 2, one pre-existing diagnostic at features/deployments/publish-credentials/store.ts:410 (same diagnostic also present in the test typecheck). No production files were changed.
 
-Focused runtime totals: **313 passed** across the eight non-overlapping groups above; no skipped tests. The expected failing negative control is recorded separately. Strict lint passes for the new migration case, new registry case and receipt guard; the pre-existing complexity-13 case remains disclosed.
+Focused runtime totals: **317 passed** across the groups above and the four existing production-opener cases below; no skipped tests. The expected failing negative control is recorded separately. Strict lint passes for the new migration case, new registry case and receipt guard; the pre-existing complexity-13 case remains disclosed.
 
 Workspace note: Jini packages/plugin-ui-ux-design contains pre-existing untracked material after selecting the pinned base; it was left untouched and excluded from every commit.
 
-Final setup verification: repeated Jini `node /home/agent/.cache/node/corepack/v1/pnpm/10.33.2/bin/pnpm.cjs -r build` after adding the registry test, then Tovu `JINI_PACKAGES_DIR=/workspace/Jini/packages npm run link:jini`: both passed. Production source is unchanged in both repos. Work completed 2026-11-05 19:10 UTC, within the two-hour cap.
+Final setup verification: repeated Jini `node /home/agent/.cache/node/corepack/v1/pnpm/10.33.2/bin/pnpm.cjs -r build` after adding the registry test, then Tovu `JINI_PACKAGES_DIR=/workspace/Jini/packages npm run link:jini`: both passed. Production source is unchanged in both repos. Final production-opener follow-up completed 2026-11-05 19:12 UTC, within the two-hour cap.
+
+Final copied-DB boot verification: `node --import tsx --test apps/website/src/platform/db/migrations/__tests__/migrated-copy.test.ts apps/website/src/server/runtime/composition/__tests__/open-site-content-db.integration.test.ts`: **5 passed** (the new copied-DB case already counted above, plus 4 existing production-opener recovery/fresh-boot/backup/failed-boot cases). Only synthetic disposable files were used; the adjacent real-sites/owner-data suite was not run. Strict lint on migrated-copy.test.ts passed after this change.
+
+Post-opener test typecheck: `NODE_OPTIONS=--max-old-space-size=6144 node_modules/.bin/tsc -p tsconfig.tests.json --noEmit`: exit 2; the same 50 diagnostic lines as the preceding final check, zero diagnostics in changed tests. No further retries or unrelated repairs.
