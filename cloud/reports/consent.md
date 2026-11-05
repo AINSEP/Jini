@@ -9,7 +9,7 @@ Stopped at the prerequisite assessment, as directed by the job's “report the p
 - Jini delivery branch: `cloud/consent`, created from the exact prescribed base `6f507852d50cc5b22914917ad3a80f1168feccee`.
 - Tovu inspected at the exact prescribed base `e327c07c8fc220fa8612ba1eb60c81c28b8a900f`; no changes or push.
 - Fetched branch tips had advanced to Jini `a9b1d949ffb0363ddaa3df2278e8a3fcf034add5` and Tovu `ce99e7eba807b91d12926fe5889a9958032bc398`. Assessment uses the pinned commits above, not those moving tips.
-- Pushed report SHA: recorded below after delivery.
+- Pushed report SHA: `016b9ee6e` on Jini `cloud/consent` (push confirmed). This delivery-note follow-up is identified in the final response.
 
 ## Plan problems / evidence at the pinned bases
 
@@ -46,3 +46,7 @@ BUG (existing, not fixed): ordinary authored optional scripts/iframes are not ma
 SETUP (not fixed): `/workspace/shared/dev-env.sh` and `/workspace/shared/start-postgres.sh` are missing.
 
 Unrelated local artifact: switching Jini to the prescribed base exposed an untracked `packages/plugin-ui-ux-design/` directory. It was not edited, staged, deleted, or included in delivery.
+
+## Delivery notes
+
+Initial `git pull --rebase origin cloud/consent` found no remote branch (also confirmed by `git ls-remote --heads origin cloud/consent`); the first normal push created it successfully. Subsequent delivery uses pull/rebase before a normal push. `git show --check 016b9ee6e` and the follow-up diff check passed. Only `cloud/reports/consent.md` is staged/committed.
