@@ -73,6 +73,11 @@ export async function beginOwnerLogin(required: Required<{ workspaceId: string; 
   });
 }
 
+/** Pure eligibility check shared by proof consumption; expired/exhausted/wrong-purpose proofs grant nothing. */
+function usableProof(proof: MfaPending | null, purpose: MfaPending['purpose'], nowMs: number): proof is MfaPending {
+  return proof !== null && proof.purpose === purpose && proof.expiresAt > nowMs && proof.attempts < 5;
+}
+
 /** Spend failed attempts without throwing inside the transaction (throwing would refund them).
  * O(1), one proof read/write and one factor/library verification. Session writes share rollback.
  */
@@ -80,7 +85,7 @@ async function useProof<T>(required: Required<{ workspaceId: string; pendingToke
   const { deps, input } = required;
   const result = await transaction(deps, input.workspaceId, async () => {
     const proof = await deps.store.pending({ workspaceId: input.workspaceId, tokenHash: deps.auth.tokens.hashToken({ rawToken: input.pendingToken }) });
-    if (!proof || proof.purpose !== purpose || proof.expiresAt <= deps.auth.clock.nowMs() || proof.attempts >= 5) return { ok: false as const };
+    if (!usableProof(proof, purpose, deps.auth.clock.nowMs())) return { ok: false as const };
     await deps.store.savePending({ ...proof, attempts: proof.attempts + 1 });
     await owner(deps, proof);
     const factor = purpose === 'login' ? await deps.store.factor(proof) : null;

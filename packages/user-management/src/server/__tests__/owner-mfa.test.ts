@@ -5,7 +5,7 @@ import { seedIdentity } from '../seed.js';
 import { NodeSessionTokens } from '../session-tokens.js';
 import { createTransactionalInMemoryIdentityRepos } from '../repo.memory-transactions.js';
 import * as memory from '../repo.memory.js';
-import type { AuthServiceDeps } from '../auth-service.js';
+import { login as legacyLogin, type AuthServiceDeps } from '../auth-service.js';
 import type { MfaFactor, MfaPending, OwnerMfaDeps } from '../mfa/ports.js';
 import { beginOwnerLogin, completeOwnerLogin, beginOwnerEnrollment, confirmOwnerEnrollment, removeOwnerFactor } from '../mfa/service.js';
 
@@ -128,4 +128,31 @@ test('recovery kit rotation needs the existing factor, and explicit host recover
   expect(kit.codes).toHaveLength(10);
   await resetOwnerPassword({deps,input:{...f.scope,password:'new'}});
   expect(await f.deps.store.factor(f.scope)).toBeNull(); expect(f.pending()).toHaveLength(0); expect(hashes).toEqual([]);
+});
+
+
+test('legacy password login cannot create a surviving session after concurrent first-factor activation', async () => {
+  const f = await fixture();
+  const enrollment = await beginOwnerEnrollment({ deps: f.deps,
+    input: { ...f.scope, password: 'old', label: 'Owner', issuer: 'Test' } });
+  let captured!: () => void, release!: () => void;
+  const factorRead = new Promise<void>(resolve => { captured = resolve; });
+  const resumeLogin = new Promise<void>(resolve => { release = resolve; });
+  const factor = f.deps.store.factor;
+  let firstRead = true;
+  f.deps.store.factor = async scope => {
+    const snapshot = await factor(scope);
+    if (firstRead) { firstRead = false; captured(); await resumeLogin; }
+    return snapshot;
+  };
+  const login = legacyLogin({ deps: f.deps.auth, input: { workspaceId: 'a', username: 'owner', password: 'old' } });
+  await factorRead;
+  // Activation queues before the paused login can persist its session. With a single identity
+  // transaction, activation instead waits for that login and revokes its session before returning.
+  const activation = confirmOwnerEnrollment({ deps: f.deps,
+    input: { ...f.scope, pendingToken: enrollment.pendingToken, code: '123456' } });
+  release();
+  await Promise.all([login, activation]);
+  expect(await f.deps.store.factor(f.scope)).not.toBeNull();
+  expect((await f.sessions()).filter(session => !session.revokedAt)).toHaveLength(0);
 });

@@ -1,3 +1,4 @@
+import { inIdentityTransaction } from "./identity-transaction.js";
 import { defaultUserManagementMessages, type UserManagementMessages } from "./messages.js";
 import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 import type { SessionTokenPort, UsernameChangePort } from "../core/runtime-ports.js";
@@ -102,7 +103,7 @@ export async function verifyCredentials(required: {
   deps: AuthServiceDeps;
   input: { workspaceId: UUID; username: string; password: string };
   invalidCredentialsMessage: string;
-}): Promise<{ userRow: UserRecord; principal: PrincipalRecord }> {
+}, _options: Record<string, never> = {}): Promise<{ userRow: UserRecord; principal: PrincipalRecord }> {
   const { deps, input, invalidCredentialsMessage } = required;
   const refuse = (): AuthInvalidCredentialsError => new AuthInvalidCredentialsError({ message: invalidCredentialsMessage });
   const username = normalizeUsername({ raw: input.username });
@@ -138,19 +139,25 @@ export async function login(required: {
   input: { workspaceId: UUID; username: string; password: string; };
 }, optional: { ip?: string; userAgent?: string; sessionTtlMs?: number; messages?: UserManagementMessages } = {}): Promise<{ principal: PrincipalRecord; session: SessionRecord; rawToken: string }> {
   const { deps } = required;
-  const input = { ...required.input, ...optional };
-  const invalidCredentialsMessage = (optional.messages ?? defaultUserManagementMessages).invalidCredentials;
-  const { userRow, principal } = await verifyCredentials({ deps, input, invalidCredentialsMessage });
-  if (await deps.mfaStore?.factor({ workspaceId: input.workspaceId, principalId: principal.id })) {
-    throw new IdentityValidationError({ message: "This owner requires an authenticator code. Use the two-step sign-in flow to continue." });
-  }
+  const execute = async () => {
+    const input = { ...required.input, ...optional };
+    const invalidCredentialsMessage = (optional.messages ?? defaultUserManagementMessages).invalidCredentials;
+    const { userRow, principal } = await verifyCredentials({ deps, input, invalidCredentialsMessage });
+    if (await deps.mfaStore?.factor({ workspaceId: input.workspaceId, principalId: principal.id })) {
+      throw new IdentityValidationError({ message: "This owner requires an authenticator code. Use the two-step sign-in flow to continue." });
+    }
 
-  const { session, rawToken } = await createSessionForPrincipal({ deps, input: { workspaceId: input.workspaceId, principalId: principal.id } }, { ip: input.ip, userAgent: input.userAgent, sessionTtlMs: optional.sessionTtlMs, messages: optional.messages });
-  // Reuses the session's own `createdAt` rather than a second `kernelNowIso({ clock: clock })` call — both are
-  // meant to be the same instant, and reading one avoids two clock reads ever disagreeing.
-  await deps.repos.users.save({ ...userRow, lastLoginAt: session.createdAt });
+    const { session, rawToken } = await createSessionForPrincipal({ deps, input: { workspaceId: input.workspaceId, principalId: principal.id } }, { ip: input.ip, userAgent: input.userAgent, sessionTtlMs: optional.sessionTtlMs, messages: optional.messages });
+    // Reuses the session's own `createdAt` rather than a second `kernelNowIso({ clock: clock })` call — both are
+    // meant to be the same instant, and reading one avoids two clock reads ever disagreeing.
+    await deps.repos.users.save({ ...userRow, lastLoginAt: session.createdAt });
 
-  return { principal, session, rawToken };
+    return { principal, session, rawToken };
+  };
+  // MFA guard and mint must serialize with activation, which revokes all earlier sessions.
+  return deps.mfaStore
+    ? inIdentityTransaction({ transactions: deps.repos.transactions, workspaceId: required.input.workspaceId, execute })
+    : execute();
 }
 
 /**

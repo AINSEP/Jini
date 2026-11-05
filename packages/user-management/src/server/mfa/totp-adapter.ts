@@ -9,7 +9,7 @@ export function createOtplibTotp(_required: Record<string, never>, _options: Rec
     generate: () => generateSecret(),
     uri: input => generateURI({ ...input, algorithm: 'sha1', digits: 6, period: 30 }),
     async verify(input) {
-      if (!/^[0-9]{6}$/.test(input.code)) return null;
+      if (!/^\d{6}$/.test(input.code)) return null;
       const result = await verify({ secret: input.secret, token: input.code, epoch: Math.floor(input.nowMs / 1000),
         algorithm: 'sha1', digits: 6, period: 30, epochTolerance: 30 });
       return result.valid && 'timeStep' in result ? result.timeStep : null;

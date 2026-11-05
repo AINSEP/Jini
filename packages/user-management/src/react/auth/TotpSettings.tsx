@@ -65,7 +65,7 @@ function TotpSettingsForm({ port, enrolled: initialEnrolled, t }: { port: TotpSe
     </form> : <form onSubmit={enroll}>
       <label htmlFor={passwordId}>{t('Current owner password')}</label>
       <SecretInput id={passwordId} label={t('Current owner password')} autoComplete="current-password" data-agent-private="" value={password} onChange={event => setPassword(event.target.value)} />
-      {enrolled ? <CodeInput code={code} setCode={setCode} t={t} /> : null}
+      <CodeInput code={code} setCode={setCode} t={t} visible={enrolled} />
       <button disabled={busy || !password}>{t(enrolled ? 'Replace authenticator' : 'Set up authenticator')}</button>
       {enrolled ? <button type="button" disabled={busy || !password || !code} onClick={remove}>{t('Remove authenticator')}</button> : null}
     </form>}
@@ -74,6 +74,7 @@ function TotpSettingsForm({ port, enrolled: initialEnrolled, t }: { port: TotpSe
   </section>;
 }
 
-function CodeInput({ code, setCode, t }: { code: string; setCode: (code: string) => void; t: Translate }) {
+function CodeInput({ code, setCode, t, visible = true }: { code: string; setCode: (code: string) => void; t: Translate; visible?: boolean }) {
+  if (!visible) return null;
   return <label>{t('Authenticator code')}<input autoComplete="one-time-code" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} data-agent-private="" value={code} onChange={event => setCode(event.target.value)} /></label>;
 }
