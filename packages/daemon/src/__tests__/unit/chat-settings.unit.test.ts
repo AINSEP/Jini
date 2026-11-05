@@ -12,6 +12,7 @@ describe('run-bound chat settings', () => {
     expect(snapshot.source).toBe('provided');
     expect(snapshot.servers).toEqual([{ id: 'external', host: 'tools.example.test' }, { id: 'local', host: 'local command' }]);
     expect(snapshot.toolIds).toEqual(['site_read', 'plugin_action']);
+    expect(snapshot.truncated).toBe(false);
     expect(JSON.stringify(snapshot)).not.toContain('SENTINEL');
     permissions.capabilities.shell = false;
     expect(snapshot.capabilities.shell).toBe(true);
@@ -29,8 +30,25 @@ describe('run-bound chat settings', () => {
   });
   it('keeps escaped scalar values within the hard byte cap without inventory', () => {
     const escaped = '\u0001'.repeat(1000);
-    const snapshot = createChatSettingsSnapshot({ ...input, agentId: escaped, model: escaped, effort: escaped, toolIds: [], servers: [], sourceByKey: Object.fromEntries(['enabled', ...Object.keys(permissions.capabilities)].map(key => [key, 'host_locked' as const])), plan: { verdict: 'SETUP', reason: 'isolation_blocked', keys: ['enabled', ...Object.keys(permissions.capabilities)] } }, {});
-    expect(Buffer.byteLength(JSON.stringify(snapshot))).toBeLessThanOrEqual(2048);
+    const keys = ['enabled', ...Object.keys(permissions.capabilities)];
+    for (const source of ['site', 'byAgent', 'default', 'host_locked'] as const) {
+      for (const isolation of ['none', 'no-client', 'perRun'] as const) {
+        for (const loadsOwn of [false, true]) {
+          for (const verdict of ['RUN', 'ASK', 'SETUP'] as const) {
+            const snapshot = createChatSettingsSnapshot({ ...input, agentId: escaped, model: escaped, effort: escaped,
+              permissions: { enabled: false, capabilities: {} }, toolIds: [], servers: [], isolation,
+              sourceByKey: Object.fromEntries(keys.map(key => [key, source])),
+              plan: { verdict, loadsOwn, reason: 'isolation_blocked', keys } }, {});
+            expect(Buffer.byteLength(JSON.stringify(snapshot)), `${source}/${isolation}/${loadsOwn}/${verdict}`).toBeLessThanOrEqual(2048);
+          }
+        }
+      }
+    }
+  });
+  it('labels truncation of any launch scalar explicitly', () => {
+    for (const fields of [{ agentId: 'x'.repeat(1000) }, { model: 'x'.repeat(1000) }, { effort: 'x'.repeat(1000) }]) {
+      expect(createChatSettingsSnapshot({ ...input, ...fields }, {}).truncated).toBe(true);
+    }
   });
   it('projects host-locked and per-agent origins without accepting arbitrary plan details', () => {
     const snapshot = createChatSettingsSnapshot({ ...input, sourceByKey: { enabled: 'host_locked', userMcp: 'byAgent' }, plan: { verdict: 'SETUP', reason: 'host_locked', keys: ['userMcp'] } }, {});

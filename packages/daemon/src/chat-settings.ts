@@ -3,6 +3,8 @@ import type { NativeCapabilities } from '@jini-ai/agent-runtime/native-tool-poli
 
 const CAPABILITY_KEYS = ['shell', 'fileWrite', 'userMcp', 'subagents', 'userSettings', 'web', 'workflows', 'loginEnvironment'] as const;
 const SETTING_KEYS = ['enabled', ...CAPABILITY_KEYS] as const;
+// JSON escaping can require six bytes per character; these bounds leave room for all fixed facts.
+const SCALAR_LIMITS = { agentId: 96, model: 80, effort: 32 } as const;
 type SettingKey = typeof SETTING_KEYS[number];
 type SettingSource = 'site' | 'byAgent' | 'default' | 'host_locked';
 export interface ChatSettingsSnapshot {
@@ -39,6 +41,12 @@ function appendWithinBound<T>(snapshot: ChatSettingsSnapshot, list: T[], item: T
   list.pop(); snapshot.truncated = true; return false;
 }
 
+/** Detect bounded launch text so the public flag describes scalar and inventory truncation.
+ * @complexity O(1), three fixed scalar fields. @overallScore 100 */
+function launchScalarsTruncated(required: ChatSettingsSnapshotInput, _optional: Record<string, never> = {}): boolean {
+  return (Object.keys(SCALAR_LIMITS) as (keyof typeof SCALAR_LIMITS)[]).some(key => (required[key]?.length ?? 0) > SCALAR_LIMITS[key]);
+}
+
 /** Explicit projection of one launch's facts; never accepts configs, credentials or personal lists.
  * Identifiers are bounded, URLs become hostnames, inventory overflow is labelled. No I/O.
  * @param required The host-gated permissions and planner decision used for this launch.
@@ -49,13 +57,13 @@ function appendWithinBound<T>(snapshot: ChatSettingsSnapshot, list: T[], item: T
  */
 export function createChatSettingsSnapshot(required: ChatSettingsSnapshotInput, _optional: Record<string, never> = {}): ChatSettingsSnapshot {
   const snapshot: ChatSettingsSnapshot = {
-    agent: required.agentId.slice(0, 96), model: required.model?.slice(0, 96) ?? null, effort: required.effort?.slice(0, 32) ?? null,
+    agent: required.agentId.slice(0, SCALAR_LIMITS.agentId), model: required.model?.slice(0, SCALAR_LIMITS.model) ?? null, effort: required.effort?.slice(0, SCALAR_LIMITS.effort) ?? null,
     enabled: required.permissions.enabled,
     capabilities: Object.fromEntries(CAPABILITY_KEYS.map(key => [key, required.permissions.capabilities[key] === true])) as unknown as NativeCapabilities,
     sources: Object.fromEntries(SETTING_KEYS.map(key => [key, required.sourceByKey?.[key] ?? 'default'])) as Record<SettingKey, SettingSource>,
     source: required.plan.loadsOwn === true ? 'provided+personal' : 'provided', isolation: required.isolation,
     verdict: required.plan.verdict, keys: SETTING_KEYS.filter(key => required.plan.keys?.includes(key)),
-    toolIds: [], servers: [], truncated: false,
+    toolIds: [], servers: [], truncated: launchScalarsTruncated(required),
   };
   const reason = required.plan.reason;
   if (reason && ['not_installed', 'not_signed_in', 'host_locked', 'isolation_blocked'].includes(reason)) snapshot.reason = reason;
