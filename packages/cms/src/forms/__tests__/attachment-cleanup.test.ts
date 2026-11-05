@@ -3,24 +3,49 @@ import { test } from 'vitest';
 import { registerFormAttachmentCleanup, scheduleFormAttachmentCleanup } from '../attachment-cleanup.js';
 import { InMemoryEventBus } from './eventing.fixture.js';
 import { DEFAULT_GC_GRACE_MS } from '../../media/blob-gc.js';
+import { withSha256Lock } from '../../media/blob-gc-lock.js';
 
 test('file cleanup is durable, delayed by the existing GC grace, and keeps shared bytes', async () => {
   const events: any[] = [], removed: string[] = []; let shared = true;
   const now = Date.parse('2026-11-04T00:00:00Z');
-  await scheduleFormAttachmentCleanup({ outbox: { enqueue: async e => { events.push(e); } }, workspaceId: 'w', mediaId: 'm', sha256: 'sha', now });
+  await scheduleFormAttachmentCleanup({ outbox: { enqueue: async e => { events.push(e); } }, workspaceId: 'w', mediaId: 'm', sha256: 'sha', graceMs: DEFAULT_GC_GRACE_MS, now });
   assert.equal(Date.parse(events[0].occurredAt), now + DEFAULT_GC_GRACE_MS);
   const bus = new InMemoryEventBus();
-  await registerFormAttachmentCleanup({ bus, findBlob: async () => ({ storageKey: 'blob', status: 'tombstoned' }), hasOwners: async () => shared,
+  await registerFormAttachmentCleanup({ bus, withHashLock: withSha256Lock, findBlob: async () => ({ storageKey: 'blob', status: 'tombstoned' }), hasOwners: async () => shared,
     deleteBytes: async ({ storageKey }) => { removed.push(storageKey); }, removeBlob: async () => { removed.push('row'); } });
   await bus.publish(events[0]); assert.deepEqual(removed, []);
   shared = false; await bus.publish(events[0]); assert.deepEqual(removed, ['blob', 'row']);
 });
 test('blob deletion failure reaches the outbox for retry; missing and active blobs are preserved', async () => {
   const bus = new InMemoryEventBus(); let status = 'tombstoned';
-  await registerFormAttachmentCleanup({ bus, findBlob: async () => status === 'missing' ? null : { storageKey: 'blob', status }, hasOwners: async () => false,
+  await registerFormAttachmentCleanup({ bus, withHashLock: withSha256Lock, findBlob: async () => status === 'missing' ? null : { storageKey: 'blob', status }, hasOwners: async () => false,
     deleteBytes: async () => { throw new Error('provider token=secret'); }, removeBlob: async () => assert.fail('bytes must delete first') });
   const events: any[] = [];
-  await scheduleFormAttachmentCleanup({ outbox: { enqueue: async e => { events.push(e); } }, workspaceId: 'w', mediaId: 'm', sha256: 'sha', now: 0 });
+  await scheduleFormAttachmentCleanup({ outbox: { enqueue: async e => { events.push(e); } }, workspaceId: 'w', mediaId: 'm', sha256: 'sha', graceMs: DEFAULT_GC_GRACE_MS, now: 0 });
   await assert.rejects(bus.publish(events[0]), error => { assert.equal((error as Error).message.includes('secret'), false); return true; });
   status = 'active'; await bus.publish(events[0]); status = 'missing'; await bus.publish(events[0]);
+});
+
+
+test('the host controls the cleanup grace and locks ownership checks with deletion', async () => {
+  const events: any[] = [], removed: string[] = [];
+  await scheduleFormAttachmentCleanup({ outbox: { enqueue: async e => { events.push(e); } }, workspaceId: 'w', mediaId: 'm', sha256: 'sha', now: 1000, graceMs: 321 });
+  assert.equal(Date.parse(events[0].occurredAt), 1321);
+  const bus = new InMemoryEventBus();
+  let insideLock = false;
+  const lockKeys: string[] = [];
+  await registerFormAttachmentCleanup({ bus,
+    withHashLock: async ({ key, criticalSection }) => {
+      lockKeys.push(key);
+      insideLock = true;
+      try { await criticalSection(); } finally { insideLock = false; }
+    },
+    findBlob: async () => { assert.equal(insideLock, true); return { storageKey: 'blob', status: 'tombstoned' }; },
+    hasOwners: async () => { assert.equal(insideLock, true); return false; },
+    deleteBytes: async ({ storageKey }) => { assert.equal(insideLock, true); removed.push(storageKey); },
+    removeBlob: async () => { assert.equal(insideLock, true); removed.push('row'); },
+  });
+  await bus.publish(events[0]);
+  assert.deepEqual(lockKeys, ['sha']);
+  assert.deepEqual(removed, ['blob', 'row']);
 });
