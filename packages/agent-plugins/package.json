@@ -278,8 +278,8 @@
     "wordpress",
     "langfuse",
     "stripe",
-    "!**/__tests__/**",
-    "commerce"
+    "commerce",
+    "!**/__tests__/**"
   ],
   "publishConfig": {
     "access": "public",
