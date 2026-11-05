@@ -1,4 +1,5 @@
 import { createElement as h, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { render, fireEvent, screen, cleanup } from '@testing-library/react';
 import { afterEach, beforeAll, it, expect, vi } from 'vitest';
 import { TextField } from '../facade.js';
@@ -68,10 +69,10 @@ function expectPrivateControl(element: Element) {
   expect(element.getAttributeNames().filter(name => name.startsWith('data-agent-'))).toEqual(['data-agent-private']);
 }
 
-it('secret inputs suppress caller addressing on both field and reveal button through reveal and rerender', () => {
+it('portalled secret inputs suppress caller addressing on field and toggle through reveal and rerender', () => {
   const props = { ...publishedSecret, label: 'Token', 'aria-label': 'Token', value: 'fixture-token', readOnly: true,
     toggleAttrs: { ...publishedSecret, 'data-testid': 'secret-toggle' } };
-  const { rerender } = render(h(SecretInput, props));
+  const { rerender } = render(createPortal(h(SecretInput, props), document.body));
   const input = screen.getByLabelText('Token');
   const toggle = screen.getByRole('button', { name: 'Show Token' });
   expectPrivateControl(input);
@@ -82,7 +83,7 @@ it('secret inputs suppress caller addressing on both field and reveal button thr
   expect((input as HTMLInputElement).type).toBe('text');
   expectPrivateControl(input);
   expectPrivateControl(toggle);
-  rerender(h(SecretInput, { ...props, value: 'changed-token' }));
+  rerender(createPortal(h(SecretInput, { ...props, value: 'changed-token' }), document.body));
   expectPrivateControl(input);
   expectPrivateControl(toggle);
 });

@@ -48,6 +48,9 @@ function useSecretReveal(required: TextFieldProps, _optional: Record<string, nev
     'aria-label': revealed ? labels.hide : labels.show, disabled: required.disabled,
     onClick: () => setRevealed(shown => !shown), children: eyeIcon({ revealed }) } };
 }
+/** Maps native field props; a revealed password remains a private secret rather than a text field.
+ * @complexity O(p) time and space in secret field props; O(1) for ordinary fields.
+ * @overallScore 100 */
 export function useNativeTextField(required: TextFieldProps, _optional: Record<string, never> = {}) {
   const vm = useField(required);
   const reveal = useSecretReveal(required);

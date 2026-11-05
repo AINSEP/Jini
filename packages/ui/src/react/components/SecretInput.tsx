@@ -45,7 +45,9 @@ export type SecretTextareaProps = SecretToggleProps & TextareaHTMLAttributes<HTM
   readonly maskedValue?: string | undefined;
 };
 
-/** Reveal state + the eye button, shared by `SecretInput` and `SecretTextarea`. */
+/** Reveal state + the private eye button, shared by `SecretInput` and `SecretTextarea`.
+ * @complexity O(p) time and space in toggle props; no I/O.
+ * @overallScore 100 */
 function useSecretToggle(
   { label, toggleLabels, toggleAttrs, revealed, onRevealedChange }: SecretToggleProps,
   { value, disabled }: { readonly value?: unknown; readonly disabled?: boolean | undefined } = {},

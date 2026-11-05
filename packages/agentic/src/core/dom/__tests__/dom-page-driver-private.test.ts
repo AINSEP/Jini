@@ -97,3 +97,12 @@ it('does not promote DOM comments into visible labels or state text', async () =
   expect((await makeDriver().findElements({}))[0]!.label).toBe('Public words');
   expect((await makeDriver().describeState!({ handle: 'panel' }))!.text).toBe('Public words');
 });
+
+it('does not read a hidden label-associated control through its visible wrapper', async () => {
+  root.innerHTML = `<section data-agent-element="panel"><label><input hidden name="plain" value="${SECRET}">Visible label</label></section>`;
+  const driver = makeDriver();
+  expect(await driver.describeField({ handle: 'panel' })).toBeNull();
+  const state = await driver.describeState!({ handle: 'panel' });
+  expect(state).not.toHaveProperty('value');
+  expect(JSON.stringify(state)).not.toContain(SECRET);
+});

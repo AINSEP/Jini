@@ -549,7 +549,8 @@ export function createDomPageDriver({ root, pages }: DomPageDriverRequired, opti
     // handle was clicked — the false success this whole suite exists to catch.
     if (element instanceof HTMLDetailsElement) return element.querySelector(':scope > summary') ?? element;
     if (element.matches('input, textarea, select, button, a, summary')) return element;
-    const candidates = labelledControls({ element, root });
+    const candidates = labelledControls({ element, root })
+      .filter(control => action !== 'read' || publicElement({ element: control }));
     if (candidates.length === 1) return candidates[0]!;
     if (action === 'read') return element;
     if (candidates.length > 1) throw new Error('The labelled control is ambiguous; use its own handle');
