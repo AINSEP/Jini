@@ -29,7 +29,7 @@ function dirHintArgs({ extraAllowedDirs }: { extraAllowedDirs: readonly string[]
 export const piAgentDef = {
   ...createAgentModelDiscovery('pi', { fallbackModels: (): readonly RuntimeModelOption[] => piAgentDef.fallbackModels }),
     mcpIsolation: 'no-client',
-  id: 'pi',
+    id: 'pi',
     name: 'Pi',
     bin: 'pi',
     versionArgs: ['--version'],
