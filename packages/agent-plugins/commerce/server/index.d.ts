@@ -1,2 +1,2 @@
-export { createCommerceServer, CommerceUnavailableError } from "@jini-ai/commerce";
-export type { CommerceServer, CommerceServerRequired, CommerceServerStatus, CommerceOrderView } from "@jini-ai/commerce";
+export { createCommerceServer, readOwnedCommerceOrder, CommerceUnavailableError } from "@jini-ai/commerce";
+export type { CommerceServer, CommerceServerRequired, CommerceServerStatus, CommerceOrderView, CommerceOrderReadDeps } from "@jini-ai/commerce";

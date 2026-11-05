@@ -2,7 +2,8 @@ import { checkout, type CheckoutDeps, type CheckoutResult } from "./checkout.js"
 import { CommerceCheckoutValidationError, CommerceOrderNotFoundError } from "./errors.js";
 import { payOrder, type PayOrderDeps, type PayOrderResult } from "./pay-order.js";
 import type { CommerceOrderRecord } from "./types.js";
-import type { PaymentView } from "../payments/contract/payments-port.js";
+import type { PaymentsPort, PaymentView } from "../payments/contract/payments-port.js";
+import type { CommerceOrderPaymentRecord, CommerceOrderPaymentRepoPort, CommerceOrderRepoPort } from "./ports.js";
 import { sameScope, scopeProblem, type PaymentScope } from "../payments/contract/scope.js";
 
 export interface CommerceServerRequired {
@@ -26,6 +27,14 @@ export interface CommerceOrderView {
   readonly payment: PaymentView | null;
   readonly intent: PayOrderResult | null;
 }
+export interface CommerceOrderReadDeps {
+  readonly workspaceId: string;
+  readonly siteId: string;
+  readonly orders: Pick<CommerceOrderRepoPort, "findById">;
+  readonly orderPayments: Pick<CommerceOrderPaymentRepoPort, "findByOrder">;
+  readonly payments: Pick<PaymentsPort, "getPayment">;
+}
+interface OwnedOrderInput { memberId: string; orderId: string }
 export interface CommerceServer {
   activate(required?: Record<string, never>, optional?: Record<string, never>): Promise<CommerceServerStatus>;
   status(required?: Record<string, never>, optional?: Record<string, never>): Promise<CommerceServerStatus>;
@@ -39,6 +48,40 @@ export class CommerceUnavailableError extends Error {
   readonly code = "COMMERCE_UNAVAILABLE";
   readonly status = 503;
 }
+const HTTPS_ORIGIN_REQUIRED = "Commerce requires the deployed site's HTTPS origin before checkout can accept payments.";
+
+async function findOwnedOrder({ workspaceId, orders, input }: Pick<CommerceOrderReadDeps, "workspaceId" | "orders"> & { input: OwnedOrderInput }): Promise<CommerceOrderRecord> {
+  const order = await orders.findById({ workspaceId, id: input.orderId });
+  if (!input.memberId || !order) throw new CommerceOrderNotFoundError("Order was not found for this signed-in member.");
+  if (order.workspaceId !== workspaceId || order.memberId !== input.memberId || order.id !== input.orderId) {
+    throw new CommerceOrderNotFoundError("Order was not found for this signed-in member.");
+  }
+  return order;
+}
+function associationBelongs({ association, deps, order }: { association: CommerceOrderPaymentRecord; deps: CommerceOrderReadDeps; order: CommerceOrderRecord }): boolean {
+  return association.workspaceId === deps.workspaceId && association.siteId === deps.siteId && association.orderId === order.id;
+}
+async function readOrderPayment({ deps, order }: { deps: CommerceOrderReadDeps; order: CommerceOrderRecord }): Promise<CommerceOrderView> {
+  const empty = { order, payment: null, intent: null };
+  const association = await deps.orderPayments.findByOrder({ workspaceId: deps.workspaceId, orderId: order.id });
+  if (!association?.paymentId || !associationBelongs({ association, deps, order })) return empty;
+  const originalScope: PaymentScope = { workspaceId: association.workspaceId, siteId: association.siteId,
+    providerId: association.providerId, providerAccountId: association.providerAccountId, mode: association.mode };
+  const candidate = await deps.payments.getPayment({ scope: originalScope, paymentId: association.paymentId });
+  if (!candidate || !sameScope({ a: candidate.scope, b: originalScope })) return empty;
+  const belongsToOrder = candidate.reference === order.id && candidate.id === association.paymentId;
+  return { order, payment: belongsToOrder ? candidate : null, intent: null };
+}
+
+/**
+ * Read an authenticated member's stored order and original payment scope without merchant settings.
+ * This boundary never activates commerce, creates provider contexts, dispatches or settles money.
+ * @complexity O(1): one owned order read, one association read and at most one ledger payment read.
+ */
+export async function readOwnedCommerceOrder({ deps, input }: { deps: CommerceOrderReadDeps; input: OwnedOrderInput }, _optional: Record<string, never> = {}): Promise<CommerceOrderView> {
+  const order = await findOwnedOrder({ ...deps, input });
+  return readOrderPayment({ deps, order });
+}
 
 /** Credentials, browser URL parameters and request bodies cannot select a merchant scope. */
 function configurationProblem({ scope, publicOrigin }: Pick<CommerceServerRequired, "scope" | "publicOrigin">): string | null {
@@ -46,9 +89,11 @@ function configurationProblem({ scope, publicOrigin }: Pick<CommerceServerRequir
   if (problem) return `Commerce merchant configuration is incomplete: ${problem}.`;
   try {
     const url = new URL(publicOrigin);
-    if (url.protocol === "https:" && url.origin === publicOrigin && !url.username && !url.password) return null;
+    if (url.protocol !== "https:" || url.username || url.password) return HTTPS_ORIGIN_REQUIRED;
+    if (url.pathname !== "/" || url.search || url.hash) return HTTPS_ORIGIN_REQUIRED;
+    return null;
   } catch { /* An invalid URL has the same recoverable configuration outcome. */ }
-  return "Commerce requires the deployed site's HTTPS origin before checkout can accept payments.";
+  return HTTPS_ORIGIN_REQUIRED;
 }
 
 /**
@@ -93,23 +138,12 @@ export function createCommerceServer(required: CommerceServerRequired, _optional
     const current = await activate();
     if (!current.ready) throw new CommerceUnavailableError(current.reason ?? "Commerce checkout is temporarily unavailable.");
   };
-  const ownedOrder = async ({ memberId, orderId }: { memberId: string; orderId: string }): Promise<CommerceOrderRecord> => {
-    const order = await required.checkoutDeps.orders.findById({ workspaceId: scope.workspaceId, id: orderId });
-    if (!memberId || !order) throw new CommerceOrderNotFoundError("Order was not found for this signed-in member.");
-    if (order.workspaceId !== scope.workspaceId || order.memberId !== memberId || order.id !== orderId) {
-      throw new CommerceOrderNotFoundError("Order was not found for this signed-in member.");
-    }
-    return order;
-  };
+  const ownedOrder = (input: OwnedOrderInput): Promise<CommerceOrderRecord> => findOwnedOrder({ workspaceId: scope.workspaceId, orders: required.checkoutDeps.orders, input });
   const readOrder = async (input: { memberId: string; orderId: string }): Promise<CommerceOrderView> => {
     const order = await ownedOrder(input);
     const deps = await depsForOrder(order.id);
-    const association = await deps.orderPayments.findByOrder({ workspaceId: scope.workspaceId, orderId: order.id });
-    if (!association?.paymentId || !sameScope({ a: association, b: scope })) return { order, payment: null, intent: null };
-    const candidate = await deps.payments.getPayment({ scope, paymentId: association.paymentId });
-    if (!candidate || !sameScope({ a: candidate.scope, b: scope })) return { order, payment: null, intent: null };
-    const belongsToOrder = candidate.reference === order.id && candidate.id === association.paymentId;
-    return { order, payment: belongsToOrder ? candidate : null, intent: null };
+    return readOrderPayment({ deps: { workspaceId: scope.workspaceId, siteId: scope.siteId, orders: required.checkoutDeps.orders,
+      orderPayments: deps.orderPayments, payments: deps.payments }, order });
   };
   return {
     activate, status, readOrder,
