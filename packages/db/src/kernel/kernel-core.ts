@@ -1,3 +1,4 @@
+import { registerKernelSessionDatabase } from "./session-lock.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 
 import type { Kysely } from "kysely";
@@ -166,5 +167,6 @@ export function buildKernel<DB>(driver: KernelDriver<DB>): StorageKernel<DB> {
     assertAvailable: assertOwnedAvailable,
     transaction: (work, optional = {}) => transaction(work, optional),
   } });
+  registerKernelSessionDatabase({ kernel: kernel as StorageKernel<unknown>, database: driver.base as Kysely<unknown> });
   return kernel;
 }

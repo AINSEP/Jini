@@ -44,3 +44,5 @@ export {
   verifyLedgerReadBack,
 } from "./ops.js";
 export { postgresLockKey } from "./postgres-lock.js";
+
+export { withKernelSessionLock } from "./session-lock.js";
