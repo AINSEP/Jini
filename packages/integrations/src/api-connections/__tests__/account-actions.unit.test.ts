@@ -90,6 +90,16 @@ describe('cancelSwitchAccount', () => {
 });
 
 describe('disconnectApiConnection', () => {
+  it('disconnects with only lifecycle ports and no sign-in or HTTP wiring', async () => {
+    const deps = unitDeps();
+    await seedRecord(deps, connectedRecord());
+    const { descriptor, records, tokens, hooks, clock } = deps;
+    const result = await disconnectApiConnection({ descriptor, records, tokens, hooks, clock }, owned);
+    expect(result.status).toBe('disconnected');
+    expect(result.remoteRevocation).toBe('not-needed');
+    expect((await records.read({ key: KEY }))?.generation).toBe(2);
+  });
+
   it('reports not-needed and ends disconnected when no credential is stored', async () => {
     const deps = unitDeps();
     await seedRecord(deps, connectedRecord());

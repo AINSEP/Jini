@@ -70,7 +70,7 @@ function stagedSwitchUsable(record: ApiConnectionRecord, actorId: string, nowMs:
  * hook returned. The read ignores the generation fence: a disconnect has already disabled the
  * credential, and these tokens go to the revoke hook only.
  */
-async function revokeStoredCredential(deps: ApiConnectionServiceDeps, key: string): Promise<RevocationResult> {
+async function revokeStoredCredential(deps: Pick<ApiConnectionServiceDeps, 'tokens' | 'hooks'>, key: string): Promise<RevocationResult> {
   const tokens = await deps.tokens.loadForRevocation({ key }).catch((error: unknown) => {
     if (isUnreadableTokenRecord(error)) return 'unreadable' as const;
     throw error;
@@ -137,8 +137,10 @@ export async function cancelSwitchAccount(
 }
 
 /** Disconnect and revoke the live and any staged credential; call again to retry a `pending` revocation. */
+export type ApiConnectionDisconnectDeps = Pick<ApiConnectionServiceDeps, 'descriptor' | 'records' | 'tokens' | 'hooks' | 'clock'>;
+
 export async function disconnectApiConnection(
-  deps: ApiConnectionServiceDeps,
+  deps: ApiConnectionDisconnectDeps,
   requiredArgs: OwnedRecordArgs,
 ): Promise<ApiConnectionDisconnectResult> {
   const record = await loadOwnedRecord(deps, requiredArgs);
