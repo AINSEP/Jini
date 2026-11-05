@@ -43,6 +43,8 @@ export function runPublishHygieneSelfTest(_required: Record<string, never> = {},
     write('packages/core/src/site-copy.ts', 'export const value = "this site";');
     write('packages/core/src/site-copy.css', 'a { content: "this site"; }');
     write('packages/core/src/site-copy.tsx', 'export const view = <p>this site</p>;');
+    // HTTP security header casing is unrelated to uppercase specification IDs.
+    write('packages/core/src/headers.ts', 'export const names = ["sec-gpc", "Sec-GPC", "sec-fetch-site"];');
     const neutrality = checkSourceNeutrality({ repoRoot: root });
     const has = (file: string, rule?: string) => neutrality.some(v => v.file.endsWith(file) && (!rule || v.rule === rule));
     expect(has('identity.mts', 'N1-consumer-identity'), 'identity comments must fail case-insensitively');
@@ -50,6 +52,7 @@ export function runPublishHygieneSelfTest(_required: Record<string, never> = {},
     for (let index = 0;index < forbidden.length;index++) expect(has(`literal-${index}.ts`), `literal ${forbidden[index]} must fail`);
     for (const file of ['template.ts', 'css.css', 'jsx.tsx', 'after-regex.ts', 'escaped.ts']) expect(has(file), `${file} must fail`);
     for (const file of ['site-copy.ts', 'site-copy.css', 'site-copy.tsx']) expect(!has(file), `${file} generic site wording must pass`);
+    expect(!has('headers.ts'), 'HTTP sec- headers must not match uppercase specification IDs');
     expect(!has('ok.ts'), 'neutral URLs/regexes and rationale comments must pass');
     expect(!has('fixture.ts') && !has('fixture.test.ts'), 'both test exclusions must work');
     write('scripts/source-neutrality-allowlist.json', JSON.stringify([{ file: 'packages/core/src/identity.mts', rule: 'N1-consumer-identity', reason: '' }]));

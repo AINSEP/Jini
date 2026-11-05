@@ -21,6 +21,6 @@ export * from './tools/component-catalog-tools.js';
 export * from './resources/active-resource.js';
 export * from './resources/site-guide-resource.js';
 
-export * from './http-tool-server.js';
+export * from './http-tool-server.adapter.js';
 
 export * from './run-tool-host.js';

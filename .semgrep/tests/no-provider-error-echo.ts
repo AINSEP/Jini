@@ -49,3 +49,41 @@ async function redactedLog() {
     logger.warn(redactSecrets({ input: error.message }));
   }
 }
+
+async function rejectedAlias() {
+  return provider.request().catch(failure => {
+    const detail = failure.response.data;
+    // ruleid: no-provider-error-echo
+    return { message: detail };
+  });
+}
+async function rejectedBodyText() {
+  return provider.request().catch(failure => {
+    // ruleid: no-provider-error-echo
+    return failure.bodyText;
+  });
+}
+async function rejectedString() {
+  return provider.request().catch(failure => {
+    // ruleid: no-provider-error-echo
+    return String(failure);
+  });
+}
+async function safeRejection() {
+  return provider.request().catch(failure => {
+    // ok: no-provider-error-echo
+    return { message: 'Provider request failed', status: failure.status };
+  });
+}
+async function redactedRejection() {
+  return provider.request().catch(failure => {
+    // ok: no-provider-error-echo
+    return redactSecrets({ input: failure.message });
+  });
+}
+async function successfulResponse() {
+  return provider.request().then(response => {
+    // ok: no-provider-error-echo
+    return response.message;
+  });
+}

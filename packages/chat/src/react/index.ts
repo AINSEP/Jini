@@ -400,3 +400,6 @@ export type { AcceptedChatInput } from '../core/accepted-input.js';
 export { isAwaitingAnswer } from '../core/run-activity.js';
 export { createFrontendRequestCaller } from './features/chat-pane/create-frontend-request-caller.js';
 export type { FrontendRequestCallerRequired, FrontendRequestInput } from './features/chat-pane/create-frontend-request-caller.js';
+
+// Consumers can name the recovery metadata accepted by the shared tool caller.
+export type { SurfaceRecoveryInfo } from '../core/surface-recovery.js';

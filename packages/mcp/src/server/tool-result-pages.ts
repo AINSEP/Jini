@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js';
+import type { CallToolResult } from './adapters/protocol.js';
 import type { McpToolDef } from './tool-protocol.js';
 
 const INLINE_CHARS = 12000;

@@ -3,7 +3,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import type { Transport } from '@modelcontextprotocol/sdk/shared/transport.js';
 import { assembleRunToolHost } from '../run-tool-host.js';
-import { startMcpHttpToolServer, type McpHttpToolServerHandle } from '../http-tool-server.js';
+import { startMcpHttpToolServer, type McpHttpToolServerHandle } from '../http-tool-server.adapter.js';
 import type { McpToolDef } from '../tool-protocol.js';
 
 const cleanup: Array<() => Promise<void>> = [];
