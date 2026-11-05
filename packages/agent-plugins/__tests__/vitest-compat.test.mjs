@@ -28,7 +28,7 @@ for (const brokenCleanup of [false, true]) {
         });
         test('clean following test', () => {});
       `);
-      const run = spawnSync(process.execPath, ['--import', 'tsx', '--test', '--test-timeout=60000', '--test-concurrency=2', child], { env, encoding: 'utf8', timeout: 60_000 });
+      const run = spawnSync(process.execPath, ['--import', 'tsx', '--test', '--test-reporter=tap', '--test-timeout=60000', '--test-concurrency=2', child], { env, encoding: 'utf8', timeout: 60_000 });
       assert.ifError(run.error);
       assert.equal(run.status, 1);
       if (brokenCleanup) {
