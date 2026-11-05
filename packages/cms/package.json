@@ -65,7 +65,8 @@
       "./consent/node": "node",
       "./listing": "universal",
       "./media/plugins/document-text/unpdf": "node",
-      "./media/plugins/document-text/mammoth": "node"
+      "./media/plugins/document-text/mammoth": "node",
+      "./forms/portable-validation": "universal"
     },
     "isolation": {
       "domains": {
@@ -422,6 +423,11 @@
       "types": "./dist/media/plugins/document-text/mammoth.d.ts",
       "import": "./dist/media/plugins/document-text/mammoth.js",
       "default": "./dist/media/plugins/document-text/mammoth.js"
+    },
+    "./forms/portable-validation": {
+      "types": "./dist/forms/portable-validation.d.ts",
+      "import": "./dist/forms/portable-validation.js",
+      "default": "./dist/forms/portable-validation.js"
     }
   },
   "files": [

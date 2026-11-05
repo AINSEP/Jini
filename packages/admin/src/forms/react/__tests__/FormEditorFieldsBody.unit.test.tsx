@@ -124,3 +124,25 @@ describe("FormEditorFieldsBody actions", () => {
     expect((screen.getByRole("button", { name: "Save" }) as HTMLButtonElement).disabled).toBe(true);
   });
 });
+
+describe('collection provider controls', () => {
+  it('switches collection without replacing native fields or HTML', () => {
+    const onProviderChange = vi.fn();
+    const p = props({ onProviderChange });
+    render(<FormEditorFieldsBody {...p} />);
+    fireEvent.change(screen.getByLabelText('Where answers go'), { target: { value: 'formspree' } });
+    expect(onProviderChange).toHaveBeenCalledWith({ id: 'formspree', config: {} });
+    expect(p.onFieldsChange).not.toHaveBeenCalled();
+    expect(p.onHtmlChange).not.toHaveBeenCalled();
+  });
+  it('shows the public destination and vendor guarantees without claiming built-in spam protection', () => {
+    const onProviderChange = vi.fn();
+    render(<FormEditorFieldsBody {...props({ provider: { id: 'formspree', config: { endpoint: 'https://formspree.io/f/old' } }, onProviderChange })} />);
+    expect((screen.getByLabelText('Public form endpoint') as HTMLInputElement).value).toBe('https://formspree.io/f/old');
+    fireEvent.change(screen.getByLabelText('Public form endpoint'), { target: { value: 'https://formspree.io/f/new' } });
+    expect(onProviderChange).toHaveBeenCalledWith({ id: 'formspree', config: { endpoint: 'https://formspree.io/f/new' } });
+    expect(screen.getByText(/Answers go directly to your Formspree account/)).not.toBeNull();
+    expect(screen.getByText(/Republish every static page/)).not.toBeNull();
+    expect(screen.queryByText('Basic spam protection is on.')).toBeNull();
+  });
+});

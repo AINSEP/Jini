@@ -109,3 +109,22 @@ test("file: a throwing logger during cleanup cannot replace the original submiss
   await f.deps.definitionRepo.create(definition());
   await assert.rejects(submitForm({ deps, input: f.input }), /outbox failed/);
 });
+
+test("disk floor: refuse the entire batch before storage, allow exact floor and unreadable probes", async () => {
+  for (const free of [512 * 1024 ** 2 + 17, 512 * 1024 ** 2 + 18, undefined, new Error("statfs unavailable")]) {
+    const f = fixture(); await f.deps.definitionRepo.create(definition([field, { ...field, id: "second" }])); const input = { ...f.input, body: { attachment: file, second: file } }; let probes = 0; let warnings = 0;
+    const deps = { ...f.deps, logger: { warn() { warnings++; } }, readUploadFreeBytes: async () => { probes++; if (free instanceof Error) throw free; return free; } };
+    if (typeof free === "number" && free % 2 === 1) {
+      await assert.rejects(submitForm({ deps, input }), (error: any) => error.code === "FORMS_ATTACHMENT_SPACE" && /no room/.test(error.message));
+      assert.equal(f.stored.length, 0); assert.equal(f.events(), 0);
+    } else { await submitForm({ deps, input }); assert.equal(f.stored.length, 2); }
+    assert.equal(probes, 1); assert.equal(warnings, free instanceof Error ? 1 : 0);
+  }
+});
+test("disk probe runs once per attachment batch and never for a duplicate or text-only submission", async () => {
+  const f = fixture(); await f.deps.definitionRepo.create(definition()); let probes = 0;
+  const deps = { ...f.deps, readUploadFreeBytes: async () => { probes++; return 1024 ** 3; } }; const attempts = createSubmissionAttempts({ hash: value => value });
+  await Promise.all([submitForm({ deps, input: f.input }, { attempts }), submitForm({ deps, input: f.input }, { attempts })]); assert.equal(probes, 1);
+  const g = fixture(); await g.deps.definitionRepo.create(definition([{ id: "name", label: "Name", type: "text", required: true }]));
+  await submitForm({ deps: { ...g.deps, readUploadFreeBytes: deps.readUploadFreeBytes }, input: { ...g.input, body: { name: "Ada" } } }); assert.equal(probes, 1);
+});

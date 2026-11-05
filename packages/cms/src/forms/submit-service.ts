@@ -1,3 +1,4 @@
+import { captureSubmissionEvidence } from "./submission-evidence.js";
 import { formatErrorForLog } from '@jini-ai/core';
 /**
  * @file `submit-service.ts` — the sole public submission write path (SPEC-010 REQ-05..09/16,
@@ -23,6 +24,7 @@ import { formatErrorForLog } from '@jini-ai/core';
  * mistake for a finished submission.
  */
 import type { SubmitFormInput } from "./types.js";
+import type { HtmlFormDefinitionRecord } from "./fields-json.js";
 export type { SubmitFormInput } from "./types.js";
 import type { Logger } from "@jini-ai/core/primitives";
 import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
@@ -35,6 +37,7 @@ import {
   FormRateLimitExceededError,
   FormSubmissionValidationError,
   FormSubmissionTooFastError,
+  FormAttachmentSpaceError,
 } from "./errors.js";
 import { HONEYPOT_KEY, isHoneypotTripped, validateSubmissionPayload, type SubmissionValidationResult } from "./forms.js";
 import type { FormDefinitionRepoPort, FormSubmissionRepoPort } from "./ports.js";
@@ -54,6 +57,9 @@ export interface SubmitFormDeps {
   rateLimiter: RateLimiterPort;
   /** Anonymous uploads go through the host media owner only after validation/rate/dedupe. */
   files?: FormFileStoragePort;
+  /** Local upload disk only; undefined skips admission for remote stores. */
+  readUploadFreeBytes?: (required: Record<string, never>, optional?: Record<string, never>) => Promise<number | undefined>;
+  uploadSpaceMessage?: string;
   /** Omitted: the two writes run back to back with no rollback between them. */
   transaction?: SubmissionTransactionPort;
 }
@@ -86,7 +92,7 @@ export interface SubmitFormRequired {
 export async function submitForm(required: SubmitFormRequired, optional: SubmitFormOptional = {}): Promise<{ status: "accepted" }> {
   const { deps } = required;
   const { input, attemptToken } = splitAttemptToken({ input: required.input }, optional);
-  const definition = await resolveActiveDefinition({ deps, input }, optional);
+  const { definition, originalDefinition } = await resolveActiveDefinition({ deps, input }, optional);
 
   // Discard before validation, rate limiting or writes; a bot sees the same accepted response
   // without consuming capacity or creating a submission/event.
@@ -98,7 +104,7 @@ export async function submitForm(required: SubmitFormRequired, optional: SubmitF
   assertSubmissionTiming({ deps, input, attemptToken }, optional);
   await assertWithinRateLimit({ deps, input, definition });
 
-  const records = buildSubmissionRecords({ deps, input, definition, data: validation.data });
+  const records = await buildSubmissionRecords({ deps, input, definition: originalDefinition, data: validation.data });
   const persist = () => persistSubmission({ deps, input, ...records, files: validation.files ?? {} });
   if (optional.attempts) {
     // The attempt is claimed only where persistence begins, after validation and rate limiting.
@@ -145,15 +151,21 @@ function splitAttemptToken(
 async function resolveActiveDefinition(
   { deps, input }: { deps: SubmitFormDeps; input: SubmitFormInput },
   { definitionView, validateEmails }: Pick<SubmitFormOptional, "definitionView" | "validateEmails"> = {},
-): Promise<FormDefinitionRecord> {
+): Promise<{ definition: FormDefinitionRecord; originalDefinition: FormDefinitionRecord }> {
   // Missing and disabled slugs are deliberately indistinguishable to public callers.
   const stored = await deps.definitionRepo.findBySlug({ workspaceId: input.workspaceId, slug: input.slug });
   const definition = stored && definitionView ? definitionView({ definition: stored, body: input.body }) : stored;
-  if (!definition || definition.status !== "active") {
+  // Collection ownership comes from storage; legacy validation views may omit provider metadata.
+  if (!definition || definition.status !== "active" || !usesBuiltinCollection({ definition: stored! })) {
     throw new FormDefinitionNotFoundError({ message: `form '${input.slug}' was not found` });
   }
   if (validateEmails) assertSubmissionEmails({ definition, body: input.body });
-  return definition;
+  // Validation views can widen code-unit limits for emoji answers; they are not the authored schema.
+  return { definition, originalDefinition: stored! };
+}
+
+function usesBuiltinCollection({ definition }: { definition: FormDefinitionRecord }): boolean {
+  return ((definition as HtmlFormDefinitionRecord).provider?.id ?? "builtin") === "builtin";
 }
 
 function assertValidSubmission(
@@ -187,10 +199,10 @@ async function assertWithinRateLimit(
 
 type SubmissionEvent = Parameters<FormOutboxPort["enqueue"]>[0];
 
-function buildSubmissionRecords(
+async function buildSubmissionRecords(
   { deps, input, definition, data }: { deps: SubmitFormDeps; input: SubmitFormInput; definition: FormDefinitionRecord; data: AcceptedSubmission["data"] },
   _optional: Record<string, never> = {},
-): { submission: FormSubmissionRecord; event: SubmissionEvent } {
+): Promise<{ submission: FormSubmissionRecord; event: SubmissionEvent }> {
   const now = kernelNowIso({ clock: deps.clock });
   const submissionId = deps.idGen.newId();
   const submission: FormSubmissionRecord = {
@@ -198,6 +210,7 @@ function buildSubmissionRecords(
     workspaceId: input.workspaceId,
     formDefinitionId: definition.id,
     data,
+    evidence: await captureSubmissionEvidence({ definition, capturedAt: now, source: "native" }),
     sourceIp: input.sourceIp,
     submittedAt: now,
   };
@@ -223,6 +236,7 @@ async function persistSubmission(
   // then compensate only this attempt's new media assets when any upload/row/event write fails.
   // Byte buffers never reach data_json, notifications or the outbox payload.
   const uploaded: FormFileReference[] = [];
+  await assertUploadSpace({ deps, files, submission });
   try {
     for (const [fieldId, file] of Object.entries(files)) {
       const reference = await deps.files!.store({ workspaceId: input.workspaceId, submissionId: submission.id, fieldId, file });
@@ -237,6 +251,17 @@ async function persistSubmission(
     await discardUploads({ deps, input, uploaded });
     throw error;
   }
+}
+
+/** One metadata probe per batch inside dedupe; native records already carry captured schema. Unreadable probes warn and allow.
+ * @complexity O(files), no inventory scan. @overallScore 95: concurrent writers can consume space. */
+async function assertUploadSpace({ deps, files, submission }: { deps: SubmitFormDeps; files: Record<string, FormFileInput>; submission: FormSubmissionRecord }, _optional = {}): Promise<void> {
+  const incomingBytes = Object.values(files).reduce((sum, file) => sum + file.bytes.byteLength, 0);
+  if (!incomingBytes || !deps.readUploadFreeBytes) return;
+  let free: number | undefined;
+  try { free = await deps.readUploadFreeBytes({}, {}); }
+  catch { try { deps.logger.warn({ message: "form upload free-disk check unavailable; allowing attachments" }); } catch { /* Logging cannot refuse an upload. */ } return; }
+  if (free !== undefined && free - incomingBytes < 512 * 1024 ** 2) throw new FormAttachmentSpaceError({ answers: submission.data, fields: submission.evidence!.fields, ...(deps.uploadSpaceMessage ? { message: deps.uploadSpaceMessage } : {}) });
 }
 
 async function discardUploads(

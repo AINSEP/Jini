@@ -151,3 +151,24 @@ describe("useFormEditor — injected port + navigate + t", () => {
     expect(navigate).not.toHaveBeenCalled();
   });
 });
+
+it.each(['builder', 'html'] as const)('saves collection choice and switches back without changing the %s form body', async mode => {
+  const source = formFixture({ mode, html: '<label>Email<input name="email" type="email"></label>', notify: { enabled: true, recipients: ['owner@example.test'] } });
+  const port = createFakeFormsPort({ forms: [source] });
+  const { result } = renderHook(() => useFormEditor({ formId: 'f1', tab: 'fields' }, { port, navigate: vi.fn(), t: key => key }), { wrapper });
+  await waitFor(() => expect(result.current.form).not.toBeNull());
+  const originalFields = result.current.fields;
+  const originalHtml = result.current.html;
+  const selection = { id: 'formspree', config: { endpoint: 'https://formspree.io/f/abc123' } };
+  act(() => result.current.setProvider(selection));
+  await act(async () => { await result.current.handleSave(); });
+  expect(result.current.form?.provider).toEqual(selection);
+  expect(result.current.form?.fields).toEqual(originalFields);
+  expect(result.current.html).toEqual(originalHtml);
+  expect(result.current.form?.notify).toEqual(source.notify);
+  act(() => result.current.setProvider({ id: 'builtin', config: {} }));
+  await act(async () => { await result.current.handleSave(); });
+  expect(result.current.form?.provider).toEqual({ id: 'builtin', config: {} });
+  expect(result.current.form?.fields).toEqual(originalFields);
+  expect(result.current.html).toEqual(originalHtml);
+});

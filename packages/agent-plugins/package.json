@@ -83,7 +83,9 @@
       "./langfuse": "universal",
       "./langfuse/*": "universal",
       "./stripe": "universal",
-      "./stripe/*": "universal"
+      "./stripe/*": "universal",
+      "./formspree": "universal",
+      "./formspree/*": "universal"
     },
     "isolation": {
       "entries": {
@@ -221,9 +223,12 @@
     "./langfuse": "./langfuse/plugin.json",
     "./langfuse/*": "./langfuse/*",
     "./stripe": "./stripe/plugin.json",
-    "./stripe/*": "./stripe/*"
+    "./stripe/*": "./stripe/*",
+    "./formspree": "./formspree/plugin.json",
+    "./formspree/*": "./formspree/*"
   },
   "files": [
+    "formspree",
     "dist",
     "README.md",
     "CHANGELOG.md",
@@ -290,14 +295,16 @@
     "semver": "^7.6.2",
     "@jini-ai/oauth": "workspace:^",
     "fast-check": "4.3.0",
-    "jsdom": "^25.0.1"
+    "jsdom": "^25.0.1",
+    "@jini-ai/cms": "workspace:^"
   },
   "peerDependencies": {
     "yauzl": "^3.4.0",
     "@jini-ai/core": "^0.6.10",
     "@jini-ai/platform": "^0.6.10",
     "@cfworker/json-schema": "^4.1.1",
-    "semver": "^7.6.2"
+    "semver": "^7.6.2",
+    "@jini-ai/cms": "^0.6.22"
   },
   "peerDependenciesMeta": {
     "yauzl": {
@@ -310,6 +317,9 @@
       "optional": true
     },
     "semver": {
+      "optional": true
+    },
+    "@jini-ai/cms": {
       "optional": true
     }
   }

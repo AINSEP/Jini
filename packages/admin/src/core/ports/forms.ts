@@ -98,6 +98,9 @@ export interface AdminFormNotifyConfig {
   readonly recipients: readonly string[];
 }
 
+/** Public collection choice; omitted means built-in collection. No secrets belong in this object. */
+export interface AdminFormProviderSelection { readonly id: string; readonly config: Readonly<Record<string, string>>; }
+
 export interface AdminFormDefinition {
   readonly id: string;
   readonly name: string;
@@ -110,9 +113,12 @@ export interface AdminFormDefinition {
   /** HTML authoring is explicit; absent mode means the existing Builder contract. */
   readonly mode?: AdminFormMode | undefined;
   readonly html?: string | undefined;
+  readonly provider?: AdminFormProviderSelection | undefined;
 }
 
 export interface AdminFormSubmission {
+  readonly evidence?: import("@jini-ai/cms/forms").FormSubmissionEvidence;
+  readonly schemaHash?: string;
   /** Optional host notification summary, with no recipient/provider details. */
   readonly notificationDelivery?: { readonly failed: number; readonly pending: number };
   readonly validation?: { readonly status: "invalid"; readonly fieldErrors: readonly { readonly field: string; readonly reason: string }[] };
@@ -138,6 +144,7 @@ export interface AdminFormCreateInput {
   readonly fields: readonly AdminFormField[];
   readonly mode?: AdminFormMode | undefined;
   readonly html?: string | undefined;
+  readonly provider?: AdminFormProviderSelection | undefined;
   readonly notify?: AdminFormNotifyConfig;
 }
 
@@ -147,6 +154,7 @@ export interface AdminFormUpdatePatch {
   /** A mode/body patch uses the authoring route; an ordinary patch keeps the CRUD route. */
   readonly mode?: AdminFormMode | undefined;
   readonly html?: string | undefined;
+  readonly provider?: AdminFormProviderSelection | undefined;
   /** Whole-array replace with an add/edit-only constraint — see file header. */
   readonly fields?: readonly AdminFormField[];
   readonly notify?: AdminFormNotifyConfig;

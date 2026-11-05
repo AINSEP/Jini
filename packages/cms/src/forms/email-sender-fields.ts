@@ -1,3 +1,4 @@
+import { submissionEvidenceDefinition } from "./submission-evidence.js";
 import { redactSecrets } from "@jini-ai/core";
 import type { EmailSourceField } from "@jini-ai/platform/mail/senders";
 import { resolveFormField } from "./field-registry.js";
@@ -52,7 +53,7 @@ export function resolveFormEmailValues(
   _optional: Record<string, never> = {},
 ): Readonly<Record<string, string>> {
   const entries: [string, string][] = [];
-  for (const field of emailAnswerFields(required)) {
+  for (const field of emailAnswerFields({ definition: submissionEvidenceDefinition({ definition: required.definition, evidence: required.submission.evidence }) })) {
     if (!Object.hasOwn(required.submission.data, field.id)) continue;
     const text = answerText({ field, value: required.submission.data[field.id] });
     if (text !== undefined) entries.push([formEmailFieldToken({ field }), text]);

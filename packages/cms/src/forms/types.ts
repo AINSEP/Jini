@@ -71,6 +71,8 @@ export interface FormSubmissionRecord {
   workspaceId: UUID;
   formDefinitionId: UUID;
   data: Record<string, FormAnswer>;
+  /** Captured schema/consent, absent for historical rows whose original context is unavailable. */
+  evidence?: import("./submission-evidence.js").FormSubmissionEvidence;
   /** Import-time classification, persisted separately from visitor answers in the JSON envelope. */
   validation?: { status: "invalid"; fieldErrors: import("./forms.js").FieldError[] };
   /** Cleared by metadata retention; answers and the submission itself remain. */

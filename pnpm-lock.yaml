@@ -276,6 +276,9 @@ importers:
       '@cfworker/json-schema':
         specifier: ^4.1.1
         version: 4.1.1
+      '@jini-ai/cms':
+        specifier: workspace:^
+        version: link:../cms
       '@jini-ai/core':
         specifier: ^0.6.13
         version: link:../core
@@ -1042,6 +1045,9 @@ importers:
       '@jini-ai/capability-providers':
         specifier: workspace:^
         version: link:../capability-providers
+      '@jini-ai/cms':
+        specifier: workspace:^
+        version: link:../cms
       '@jini-ai/commerce':
         specifier: workspace:^
         version: link:../commerce

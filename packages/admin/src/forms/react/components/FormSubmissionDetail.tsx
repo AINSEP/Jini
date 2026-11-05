@@ -51,15 +51,7 @@ export function FormSubmissionDetail({
       >
         &larr; {t("Back")}
       </button>
-      {error ? <div className="notice error">{error}</div> : null}
-      {submission.notificationDelivery && submission.notificationDelivery.failed > 0 ? <div className="notice error" role="alert">
-        {t("Email notification failed. The submission is saved here. Check the email provider settings before sending a new notification.")}
-        <p>{t("Details: FORM_NOTIFICATION_FAILED")} ({submission.notificationDelivery.failed})</p>
-      </div> : null}
-      {submission.validation?.status === "invalid" ? <div className="notice error" role="alert">
-        <p>{t("Imported for review: this submission did not pass the form checks.")}</p>
-        <ul>{submission.validation.fieldErrors.map(({ field, reason }, index) => <li key={`${field}-${index}`}>{field}: {reason}</li>)}</ul>
-      </div> : null}
+      <SubmissionStatusNotices submission={submission} error={error} t={t} />
       <div className="table-scroll">
         <table className="list-table">
           <tbody>
@@ -71,7 +63,7 @@ export function FormSubmissionDetail({
               <th>{t("Source IP")}</th>
               <td>{submission.sourceIp}</td>
             </tr>
-            {formSubmissionRows({ data: submission.data, answerColumns }, { unknownFieldLabel: t("Unknown field") }).map(({ key, label, value, file }) => {
+            {formSubmissionRows({ data: submission.data, answerColumns, evidence: submission.evidence }, { unknownFieldLabel: t("Unknown field") }).map(({ key, label, value, file }) => {
               const href = file ? fileUrl(file) : null;
               return (
                 <tr key={key}>
@@ -108,4 +100,31 @@ export function FormSubmissionDetail({
       />
     </div>
   );
+}
+
+/** Historical context is displayed as plain text; authored HTML is never executed here. */
+function SubmissionEvidenceNotice({ submission, t }: {
+  submission: import('../../models.js').AdminFormSubmission; t: (key: string) => string;
+}) {
+  return !submission.evidence ? <div className="notice">{t("original schema/consent unavailable")}{!submission.validation ? <p>{t("validation unknown")}</p> : null}</div> : <div className="notice">
+        <p>{t("Schema hash")}: <code>{submission.evidence.schemaHash}</code></p>
+        {submission.evidence.consent.map(consent => <p key={consent.fieldId}>{consent.wording}{consent.helpText ? ` — ${consent.helpText}` : ""}</p>)}
+      </div>;
+}
+
+function SubmissionStatusNotices({ submission, error, t }: {
+  submission: import('../../models.js').AdminFormSubmission; error: string | null; t: (key: string) => string;
+}) {
+  return <>
+      {error ? <div className="notice error">{error}</div> : null}
+      {submission.notificationDelivery && submission.notificationDelivery.failed > 0 ? <div className="notice error" role="alert">
+        {t("Email notification failed. The submission is saved here. Check the email provider settings before sending a new notification.")}
+        <p>{t("Details: FORM_NOTIFICATION_FAILED")} ({submission.notificationDelivery.failed})</p>
+      </div> : null}
+      <SubmissionEvidenceNotice submission={submission} t={t} />
+      {submission.validation?.status === "invalid" ? <div className="notice error" role="alert">
+        <p>{t("Imported for review: this submission did not pass the form checks.")}</p>
+        <ul>{submission.validation.fieldErrors.map(({ field, reason }, index) => <li key={`${field}-${index}`}>{field}: {reason}</li>)}</ul>
+      </div> : null}
+  </>;
 }

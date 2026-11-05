@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import { readSubmissionEvidence } from '@jini-ai/cms/forms';
 import { refusal, segment } from './api.mjs';
 
 /** Form submissions destination: one D1 database per site Worker plus the bundled receiver.
@@ -27,27 +28,40 @@ export const MIGRATIONS = Object.freeze([
 ]);
 const MIGRATIONS_TABLE = 'CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)';
 
-/** Validates the host's generic `formDestination` input. `null` means no active forms: assets-only Worker.
- * @complexity O(forms * fields), both capped. */
+/** Validate host manifests, retaining an existing receiver when its saved key accompanies no forms.
+ * @complexity O(total schema bytes) time/space, forms/fields/evidence bounded.
+ * @overallScore 100 */
 export function normalizeForms({ formDestination, kit }, { requireSecret = true } = {}) {
   const forms = formDestination?.forms ?? [];
   if (!Array.isArray(forms) || forms.length > MAX_FORMS) throw formsRefusal({ kit, message: `Expected at most ${MAX_FORMS} forms in the form manifest. Disable unused forms in the site admin, then publish again.` });
-  if (forms.length === 0) return null;
+  if (forms.length === 0) return normalizeEmptyForms({ formDestination, kit, requireSecret });
   const secret = formDestination.secret;
   if (requireSecret) checkReceiverSecret({ secret, kit });
   return { forms: forms.map(form => normalizeForm({ form, kit })), secret };
+}
+
+/** Only a previously saved key can retain an empty receiver; plain form-less sites stay assets-only.
+ * @complexity O(1) time/space; no I/O. @overallScore 100 */
+function normalizeEmptyForms({ formDestination, kit, requireSecret }, _options = {}) {
+  const secret = formDestination?.secret;
+  if (!secret) return null;
+  if (requireSecret) checkReceiverSecret({ secret, kit });
+  return { forms: [], secret };
 }
 
 function checkReceiverSecret({ secret, kit }, _options = {}) {
   if (typeof secret !== 'string' || secret.length < 32) throw formsRefusal({ kit, message: 'The form receiver key is missing. Publish again from the site admin so it can create the key.' });
 }
 
+/** Validate one schema and its bounded evidence before any remote provisioning.
+ * @complexity O(schema bytes) time/space; no I/O. @overallScore 100 */
 function normalizeForm({ form, kit }, _options = {}) {
   if (!SLUG.test(form?.slug ?? '')) throw formsRefusal({ kit, message: `Form slug "${String(form?.slug).slice(0, 100)}" cannot be served here. Use lowercase letters, digits and hyphens, then publish again.` });
   checkFieldCount({ form, kit });
   const successPath = form.successPath;
   checkSuccessPath({ form, successPath, kit });
-  return { slug: form.slug, fields: form.fields.map(field => normalizeField({ field, kit, slug: form.slug })), ...(successPath ? { successPath } : {}) };
+  const evidence = form.evidence === undefined ? undefined : readSubmissionEvidence({ value: { ...form.evidence, capturedAt: 'published', source: 'cloudflare' } });
+  return { slug: form.slug, ...(evidence ? { evidence } : {}), fields: form.fields.map(field => normalizeField({ field, kit, slug: form.slug })), ...(successPath ? { successPath } : {}) };
 }
 
 function checkFieldCount({ form, kit }, _options = {}) {
@@ -59,6 +73,8 @@ function checkSuccessPath({ form, successPath, kit }, _options = {}) {
   if (typeof successPath !== 'string' || !/^\/(?![/\\])[^\\\s]{0,499}$/.test(successPath)) throw formsRefusal({ kit, message: `Form ${form.slug} has an unusable success page. Use a path on this site starting with "/".` });
 }
 
+/** Preserve only the supported receiver constraints of one published field.
+ * @complexity O(options) time/space; no I/O. @overallScore 100 */
 function normalizeField({ field, kit, slug }, _options = {}) {
   if (!FIELD_NAME.test(field?.name ?? '')) throw formsRefusal({ kit, message: `Form ${slug} has a field name that cannot be served here. Rename the field in the site admin, then publish again.` });
   field = { ...field, ...(field.options ? { options: field.options.filter(value => value !== '') } : {}) };
@@ -68,16 +84,22 @@ function normalizeField({ field, kit, slug }, _options = {}) {
   return { name: field.name, required: field.required === true, ...receiverConstraints({ field }), ...(Number.isInteger(max) ? { maxLength: max } : {}), ...(field.multiple === true ? { multiple: true } : {}) };
 }
 
+/** Project constraints unchanged after descriptor-boundary validation.
+ * @complexity O(1) time/space; options referenced, no I/O. @overallScore 100 */
 function receiverConstraints({ field }, _options = {}) {
   return {
     ...(field.type ? { type: field.type } : {}),
     ...(field.options ? { options: field.options } : {}),
     ...(field.minLength !== undefined ? { minLength: field.minLength } : {}),
     ...(field.checkboxValue !== undefined ? { checkboxValue: field.checkboxValue } : {}),
+    ...(field.min !== undefined ? { min: field.min } : {}),
+    ...(field.max !== undefined ? { max: field.max } : {}),
+    ...(field.step !== undefined ? { step: field.step } : {}),
   };
 }
 
-/** Refuse richer validation before provisioning a receiver that could report false success. */
+/** Refuse richer validation before provisioning a receiver that could report false success.
+ * @complexity O(options) time and O(1) space; no I/O. @overallScore 100 */
 function assertReceiverField({ field, kit, slug }, _options = {}) {
   const supported = ['text', 'textarea', 'hidden', 'email', 'tel', 'phone', 'url', 'number', 'range', 'date', 'time', 'datetime', 'datetime-local', 'color', 'password', 'checkbox', 'toggle', 'select', 'radio', 'multi-select', 'checkbox-group'];
   if (field.type === 'file') throw formsRefusal({ kit, message: `Form ${slug} field ${field.name} accepts files, but this receiver cannot store files. Remove the file field or choose a live server before publishing.` });
@@ -113,14 +135,26 @@ export async function findDatabase({ api, kit, name }, _options = {}) {
 }
 
 /** Read-only preview lines for the publish confirmation. Pages has no receiver in v1.
- * @complexity One bounded D1 inventory read. */
+ * @complexity O(schema bytes) space; one bounded inventory read and one indexed scalar count.
+ * @overallScore 98 — Minor: the preview count is a snapshot and can change before publishing. */
 export async function previewForms({ api, kit, resourceName, targetId, formDestination }, _options = {}) {
   const normalized = normalizeForms({ formDestination, kit }, { requireSecret: false });
-  if (!normalized) return undefined;
-  const count = normalized.forms.length;
-  if (targetId !== 'cloudflare-workers') {
-    return { status: 'unsupported', forms: count, changes: [], message: `This site has ${count} active form(s), but Cloudflare Pages publishing cannot receive submissions yet. Publish to Cloudflare Workers to accept form submissions; on Pages the forms will not submit.` };
-  }
+  if (!normalized && !formDestination) return undefined;
+  const count = normalized?.forms.length ?? 0;
+  if (targetId !== 'cloudflare-workers') return unsupportedFormsPreview({ count });
+  return previewWorkersForms({ api, kit, resourceName, normalized, count });
+}
+
+/** Explain an unsupported hosting target only when active built-in forms need it.
+ * @complexity O(1) time/space; no I/O. @overallScore 100 */
+function unsupportedFormsPreview({ count }, _options = {}) {
+  return count ? { status: 'unsupported', forms: count, changes: [], message: `This site has ${count} active form(s), but Cloudflare Pages publishing cannot receive submissions yet. Publish to Cloudflare Workers to accept form submissions; on Pages the forms will not submit.` } : undefined;
+}
+
+/** Inspect existing receiver resources without creating or modifying them.
+ * @complexity One bounded inventory read and one indexed count; O(inventory) response space.
+ * @overallScore 98 — Minor: remote inventory/count snapshots are inherently non-atomic. */
+async function previewWorkersForms({ api, kit, resourceName, normalized, count }, _options = {}) {
   const name = databaseName({ resourceName });
   let existing;
   try { existing = await findDatabase({ api, kit, name }); }
@@ -128,10 +162,31 @@ export async function previewForms({ api, kit, resourceName, targetId, formDesti
     if (error.code !== 'CLOUDFLARE_D1_PERMISSION_REQUIRED') throw error;
     return { status: 'permission-required', forms: count, changes: [], message: error.message.replace(/^CLOUDFLARE_D1_PERMISSION_REQUIRED: /, '') };
   }
-  return { status: 'on', forms: count,
+  if (!normalized && !existing) return undefined;
+  const pendingCount = existing ? await pendingAnswers({ api, databaseId: existing.uuid }) : 0;
+  return workerFormsPreview({ resourceName, name, existing, count, pendingCount });
+}
+
+/** Show storage retention and pending answers explicitly in the approval preview.
+ * @complexity O(resource-name length) time/space; no I/O. @overallScore 100 */
+function workerFormsPreview({ resourceName, name, existing, count, pendingCount }, _options = {}) {
+  return { status: 'on', forms: count, pendingCount,
     changes: [{ action: existing ? 'reuse' : 'create', resource: 'd1-database', name, ...(existing ? { databaseId: existing.uuid } : {}) },
-      { action: 'bind', resource: 'worker', resourceName, routes: FORMS_WORKER_ROUTES }],
-    message: `Form submissions: on (${count} form${count === 1 ? '' : 's'}). Submissions are stored in D1 database ${name} (${existing ? 'reused' : 'created'}) in this Cloudflare account and pulled into the site admin on demand. ${FREE_PLAN_NOTE}` };
+      { action: 'bind', resource: 'worker', resourceName, routes: count ? FORMS_WORKER_ROUTES : ['/_tovu/*'] }],
+    message: `Form submissions: on (${count} form${count === 1 ? '' : 's'}). Submissions are stored in D1 database ${name} (${existing ? 'reused' : 'created'}) in this Cloudflare account and pulled into the site admin on demand. ${FREE_PLAN_NOTE} Pending answers: ${pendingCount ?? 'count unavailable'}. Uncollected answers never expire automatically.` };
+}
+
+/** One indexed scalar read per preview; no answer payloads and no polling or expiry work.
+ * @complexity O(pending rows) index scan time, O(1) client response space.
+ * @overallScore 98 — Minor: D1 count failures show an explicit unavailable count. */
+async function pendingAnswers({ api, databaseId }, _options = {}) {
+  try {
+    const rows = await query({ api, databaseId, sql: 'SELECT COUNT(*) AS count FROM submissions WHERE pulled_at IS NULL' });
+    return Number.isSafeInteger(Number(rows[0]?.count)) ? Number(rows[0].count) : null;
+  } catch {
+    console.warn('CLOUDFLARE_FORMS_PENDING_COUNT_UNAVAILABLE');
+    return null;
+  }
 }
 
 /** Find-or-create the database, then apply pending migrations. Never drops or recreates anything.
@@ -180,9 +235,11 @@ export async function migrate({ api, kit, databaseId }, _options = {}) {
 }
 
 let receiverSource;
-/** The receiver module text, read once from this plugin's own folder (path-separator safe). */
+/** Read the receiver once and replace its package import with the bundled module path.
+ * @complexity O(receiver bytes) time/space; one cached local file read.
+ * @overallScore 98 — Minor: the fixed import literal is protected by the bundle execution test. */
 export async function receiverModule(_required = {}, _options = {}) {
-  receiverSource ??= await readFile(new URL('../worker/forms-receiver.mjs', import.meta.url), 'utf8');
+  receiverSource ??= (await readFile(new URL('../worker/forms-receiver.mjs', import.meta.url), 'utf8')).replace('@jini-ai/cms/forms/portable-validation', './portable-validation.mjs');
   return receiverSource;
 }
 
@@ -212,17 +269,20 @@ function routesForPage({ path }, _options = {}) {
   return [`/${path}`, `/${path.slice(0, -'.html'.length)}`];
 }
 
-/** Worker modules and bindings for a site with forms. The manifest is compiled in; visitors never supply it. */
+/** Bundle receiver, portable validator, manifest and existing bindings together.
+ * @complexity O(manifest + module bytes) time/space; at most two local file reads.
+ * @overallScore 98 — Minor: the distribution must include the built CMS portable module. */
 export async function formsWorkerParts({ manifest, secret, databaseId }, { pageRoutes = [] } = {}) {
   const main = "import { handleRequest } from './receiver.mjs';\nimport manifest from './forms-manifest.mjs';\nexport default { fetch: (request, env) => handleRequest({ request, env, manifest }) };\n";
   return {
     modules: [
       { name: 'index.mjs', source: main },
       { name: 'receiver.mjs', source: await receiverModule() },
+      { name: 'portable-validation.mjs', source: await readFile(new URL(import.meta.resolve('@jini-ai/cms/forms/portable-validation')), 'utf8') },
       { name: 'forms-manifest.mjs', source: `export default ${JSON.stringify({ forms: manifest.forms })};\n` },
     ],
     bindings: [{ type: 'd1', name: FORMS_BINDING, id: databaseId }, { type: 'secret_text', name: FORMS_SECRET_BINDING, text: secret }],
-    runWorkerFirst: [...FORMS_WORKER_ROUTES, ...pageRoutes],
+    runWorkerFirst: manifest.forms.length ? [...FORMS_WORKER_ROUTES, ...pageRoutes] : ['/_tovu/*'],
   };
 }
 

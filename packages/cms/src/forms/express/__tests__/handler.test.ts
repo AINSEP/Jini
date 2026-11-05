@@ -30,6 +30,8 @@ const DEFINITION: FormDefinitionRecord = {
 };
 
 interface Sent {
+  headers?: Record<string, string>;
+  html?: string;
   status?: number;
   json?: unknown;
   redirect?: { status: number; location: string };
@@ -77,6 +79,7 @@ function request(options: { slug?: string; body?: unknown; headers?: Record<stri
 async function send(deps: CreateFormSubmitHandlerRequired, req: Request): Promise<Sent> {
   const sent: Sent = { cookies: [] };
   const res = {
+    set(name: string, value: string) { (sent.headers ??= {})[name] = value; return this; }, type() { return this; }, send(html: string) { sent.html = html; return this; },
     status(code: number) { sent.status = code; return this; },
     json(payload: unknown) { sent.json = payload; return this; },
     redirect(status: number, location: string) { sent.redirect = { status, location }; },
@@ -263,4 +266,12 @@ test("a failing definition lookup is logged and the validation redirect still ha
   assert.deepEqual(logged, [["[site/forms-submit] failed to set validation flash cookie (slug=contact)", lookupError]]);
   assert.deepEqual(sent.cookies, []);
   assert.deepEqual(sent.redirect, { status: 303, location: "/?form_result=validation&form_slug=contact" });
+});
+
+test("disk refusal keeps all validated answers without a cookie, escapes HTML, and never echoes files or control tokens", async () => {
+  const { FormAttachmentSpaceError } = await import("../../errors.js"); const message = "This site has no room for another attachment. Your answers are kept below. Your form has not been sent."; const answers = { name: '<script>alert(1)</script>', message: "x".repeat(6000), consent: true };
+  const { deps } = harness({ definitionRepo: { findBySlug: async () => { throw new Error("retry lookup unavailable"); } }, submit: async () => { throw new FormAttachmentSpaceError({ answers, fields: [...DEFINITION.fields, { id: "attachment", label: "Attachment", type: "file", required: false }], message }); } });
+  const json = await send(deps, request({ slug: "contact" })); assert.equal(json.status, 507); assert.deepEqual((json.json as any).answers, answers); assert.equal((json.json as any).error, message);
+  const html = await send(deps, request({ slug: "contact", headers: HTML_HEADERS })); assert.equal(html.status, 507); assert.equal(html.cookies.length, 0); assert.equal(html.headers?.["Cache-Control"], "no-store"); assert.equal(json.headers?.["Cache-Control"], "no-store");
+  assert.match(html.html!, /&lt;script&gt;/); assert.ok(html.html!.includes("x".repeat(6000))); assert.match(html.html!, /checked/); assert.doesNotMatch(html.html!, /<script>/); assert.doesNotMatch(html.html!.match(/<input type="file"[^>]*>/)![0], /value=/);
 });

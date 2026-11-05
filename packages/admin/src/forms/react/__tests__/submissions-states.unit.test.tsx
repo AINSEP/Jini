@@ -46,6 +46,21 @@ describe("FormSubmissionDetail rendering", () => {
     expect(screen.getByRole("alert")).toHaveTextContent("email: required");
   });
 
+  it("marks unavailable historical schema and consent explicitly", () => {
+    render(<FormSubmissionDetail {...props} useFormSubmissionDetailHook={hook({submission})} />);
+    expect(screen.getByText("original schema/consent unavailable")).toBeVisible();
+    expect(screen.getByText("validation unknown")).toBeVisible();
+  });
+
+  it("shows original consent and schema hash while formatting captured answers", () => {
+    const evidence={version:1 as const,fields:[{id:'name',label:'Original name',type:'text' as const,required:false}],consent:[{fieldId:'accept',wording:'Exact consent',helpText:'Original help'}],schemaHash:'a'.repeat(64),capturedAt:'now',source:'native' as const};
+    render(<FormSubmissionDetail {...props} useFormSubmissionDetailHook={hook({submission:{...submission,evidence}})} />);
+    expect(screen.getByText('Original name')).toBeVisible();
+    expect(screen.getByText('Exact consent — Original help')).toBeVisible();
+    expect(screen.getByText('a'.repeat(64))).toBeVisible();
+    expect(screen.queryByText('original schema/consent unavailable')).toBeNull();
+  });
+
   it("shows only the load error while there is no submission", () => {
     render(<FormSubmissionDetail {...props} useFormSubmissionDetailHook={hook({ error: "failed to load submission" })} />);
     expect(screen.getByText("failed to load submission")).toHaveClass("notice", "error");

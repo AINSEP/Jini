@@ -75,3 +75,17 @@ test('preview reports form submissions on Workers and the Pages limitation', asy
   const onPages = await pages.preview({ credential, config: {}, kit: p.kit, projectName: 'demo', formDestination: { forms: formDestination.forms } });
   assert.equal(onPages.formSubmissions.status, 'unsupported');
 });
+
+test('switching every form away preserves pending receiver storage and authenticated pull routes', async () => {
+  const d1 = fakeD1();
+  d1.sqlite.exec("INSERT INTO submissions (id, form_slug, answers_json, submitted_at) VALUES ('pending','waitlist','{\"message\":\"original\"}','2026-11-01T00:00:00Z')");
+  const scripts = [];
+  const f = fixture({ respond: workersHosting({ d1, scripts }) });
+  const result = await workers.create({ credential, config: {}, kit: f.kit }).publish({ files: [{ file: 'index.html', data: '<form action="https://formspree.io/f/abcd"></form>' }], projectName: 'demo', metadata: { formDestination: { forms: [], secret: SECRET } } });
+  const metadata = JSON.parse(scripts[0].get('metadata'));
+  assert.ok(metadata.bindings.some(binding => binding.type === 'd1' && binding.id === 'db-1'));
+  assert.deepEqual(metadata.assets.config.run_worker_first, ['/_tovu/*']);
+  assert.equal(result.providerMetadata.formSubmissions.forms, 0);
+  assert.equal(d1.rows('SELECT * FROM submissions').length, 1);
+  assert.equal(await scripts[0].get('forms-manifest.mjs').text(), 'export default {"forms":[]};\n');
+});

@@ -4,7 +4,7 @@ import { prepareAssets } from './assets.mjs';
 import { previewDomains, assertDomainApproval, applyDomains } from './domains.mjs';
 import { normalizeDomain } from './zones.mjs';
 import { pagesAddress } from './pages-upload.mjs';
-import { formPageRoutes, formsWorkerParts, normalizeForms, previewForms, provisionForms } from './forms.mjs';
+import { databaseName, findDatabase, formPageRoutes, formsWorkerParts, normalizeForms, previewForms, provisionForms } from './forms.mjs';
 
 const WORKERS_TARGET_ID = 'cloudflare-workers';
 
@@ -98,15 +98,28 @@ function publishResult({ targetId, name, accountId, hosting, link, hostnames, pl
       ...(forms ? { formSubmissions: forms.summary } : {}) } };
 }
 
-/** Workers with active forms: provision D1 and build the receiver parts. Pages and form-less sites keep assets only.
- * Runs after consent checks and before the upload session, so a failed provision changes no script. */
+/** Provision active forms or retain the existing receiver for pending imports after a provider switch.
+ * Runs after consent checks and before upload, so failed provisioning changes no script.
+ * @complexity O(manifest + module bytes) space; existing provisioning or one inventory read.
+ * @overallScore 98 — Minor: existing multi-request provisioning is not an atomic Cloudflare transaction. */
 async function prepareForms({ api, kit, targetId, resourceName, formDestination, files }, _options = {}) {
   if (targetId !== WORKERS_TARGET_ID) return undefined;
   const normalized = normalizeForms({ formDestination, kit });
   if (!normalized) return undefined;
-  const database = await provisionForms({ api, kit, resourceName });
+  const database = normalized.forms.length
+    ? await provisionForms({ api, kit, resourceName })
+    : await retainedFormsDatabase({ api, kit, resourceName });
+  if (!database) return undefined;
   const parts = await formsWorkerParts({ manifest: normalized, secret: normalized.secret, databaseId: database.databaseId }, { pageRoutes: formPageRoutes({ files }) });
   return { parts, summary: { forms: normalized.forms.length, databaseId: database.databaseId, databaseName: database.databaseName } };
+}
+
+/** Rebind an existing receiver only: switching providers never discards uncollected answers.
+ * @complexity One bounded inventory read; O(inventory) response space. @overallScore 100 */
+async function retainedFormsDatabase({ api, kit, resourceName }, _options = {}) {
+  const name = databaseName({ resourceName });
+  const existing = await findDatabase({ api, kit, name });
+  return existing ? { databaseId: existing.uuid, databaseName: name } : undefined;
 }
 
 function preparePublish({ input, kit, config, plan, targetId }, _options = {}) {

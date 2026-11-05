@@ -2,7 +2,7 @@ import type { AdminFormsPort, AdminFormDefinition, AdminFormSubmission, AdminFor
 import { AdminApiError } from '../../core/transport/errors.js';
 import type { FormsTrashPort } from '../ports.js';
 // The contract excludes slug; runtime callers cannot smuggle it through a cast either.
-const PATCHABLE_KEYS = ['name', 'fields', 'notify', 'status', 'mode', 'html'] as const;
+const PATCHABLE_KEYS = ['name', 'fields', 'notify', 'status', 'mode', 'html', 'provider'] as const;
 /** The allowlisted patch keys the caller actually supplied (an explicit `undefined` is not a value). */
 function suppliedPatch(patch: AdminFormUpdatePatch): AdminFormUpdatePatch {
   return Object.fromEntries(PATCHABLE_KEYS.filter(key => patch[key] !== undefined).map(key => [key, patch[key]]));

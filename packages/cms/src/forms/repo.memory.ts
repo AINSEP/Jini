@@ -137,7 +137,7 @@ export interface StoredFormSubmission extends FormSubmissionRecord {
 }
 
 function cloneSubmission(row: StoredFormSubmission): StoredFormSubmission {
-  return { ...row, data: structuredClone(row.data) };
+  return { ...row, data: structuredClone(row.data), ...(row.evidence ? { evidence: structuredClone(row.evidence) } : {}) };
 }
 
 /** The port's view of a stored row: the Trash columns stay inside this adapter. */
@@ -145,7 +145,7 @@ function toSubmissionRecord(row: StoredFormSubmission): FormSubmissionRecord {
   const record = { ...row };
   Reflect.deleteProperty(record, "deletedAt");
   Reflect.deleteProperty(record, "version");
-  return { ...record, data: structuredClone(record.data) };
+  return { ...record, data: structuredClone(record.data), ...(record.evidence ? { evidence: structuredClone(record.evidence) } : {}) };
 }
 
 export class InMemoryFormSubmissionRepo implements FormSubmissionRepoPort {
@@ -160,7 +160,7 @@ export class InMemoryFormSubmissionRepo implements FormSubmissionRepoPort {
   }
 
   async create(record: FormSubmissionRecord): Promise<void> {
-    this.rows.set(record.id, { ...record, data: structuredClone(record.data), deletedAt: null, version: 1 });
+    this.rows.set(record.id, { ...record, data: structuredClone(record.data), ...(record.evidence ? { evidence: structuredClone(record.evidence) } : {}), deletedAt: null, version: 1 });
   }
 
   /** Rolls this repo's rows back when `work` throws, as the SQL adapter's transaction does. Calls

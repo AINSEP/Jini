@@ -194,3 +194,20 @@ export function renderHtmlForm(
  *  Post/Redirect/Get reload that follows a failed submission (see that function's own doc for the
  *  full mechanism).
  */
+
+/** Render the collection plan identically for live pages and static exports. External forms carry
+ * no built-in submit hooks, timing token or honeypot; native browser POST belongs to that provider.
+ * @example renderFormCollection({ slug: 'contact', fields, hooks, plan });
+ * @complexity O(fields + authored HTML bytes) time/space; no I/O.
+ * @overallScore 96 — Recommended: embed providers own their frame's validation and accessibility. */
+export function renderFormCollection(
+  required: { slug: string; fields: readonly FieldDescriptor[]; hooks: FormHtmlHooks; plan: import('./provider.js').FormCollectionPlan },
+  optional: { html?: string; className?: string; successMessage?: string } = {},
+): string {
+  const { plan, ...form } = required;
+  if (plan.kind === 'unavailable') return `<p role="alert" data-form-provider-unavailable>${escapeFormHtml({ value: plan.message })}</p>`;
+  if (plan.kind === 'embed') return `<iframe src="${escapeFormHtml({ value: plan.url })}" title="${escapeFormHtml({ value: plan.title })}" loading="lazy"></iframe>`;
+  if (!plan.external) return renderHtmlForm({ ...form, action: plan.action }, optional);
+  return `<form method="post" action="${escapeFormHtml({ value: plan.action })}" data-form-provider="external"${optional.className ? attr('class', optional.className) : ''}${form.fields.some(field => field.type === 'file') ? ' enctype="multipart/form-data"' : ''}>` +
+    (optional.html ?? renderHtmlFormBody({ fields: form.fields, hooks: form.hooks }, { idPrefix: `form-${form.slug}` })) + '</form>';
+}

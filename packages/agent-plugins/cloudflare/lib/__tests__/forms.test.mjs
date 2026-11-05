@@ -100,10 +100,10 @@ test('provision recovers a concurrent create race and refuses a database without
 
 test('worker parts compile the manifest in and bind D1 plus the receiver key', async () => {
   const parts = await formsWorkerParts({ manifest: { forms, secret: SECRET }, secret: SECRET, databaseId: 'db-1' });
-  assert.deepEqual(parts.modules.map(module => module.name), ['index.mjs', 'receiver.mjs', 'forms-manifest.mjs']);
+  assert.deepEqual(parts.modules.map(module => module.name), ['index.mjs', 'receiver.mjs', 'portable-validation.mjs', 'forms-manifest.mjs']);
   assert.equal(parts.modules[1].source, await receiverModule());
   assert.match(parts.modules[1].source, /export async function handleRequest/);
-  assert.equal(parts.modules[2].source.includes(SECRET), false, 'the key never enters module source');
+  assert.equal(parts.modules[3].source.includes(SECRET), false, 'the key never enters module source');
   assert.deepEqual(parts.bindings, [{ type: 'd1', name: 'TOVU_FORMS', id: 'db-1' }, { type: 'secret_text', name: 'TOVU_FORMS_SECRET', text: SECRET }]);
   assert.deepEqual(parts.runWorkerFirst, ['/forms/*', '/_tovu/*']);
   const withPages = await formsWorkerParts({ manifest: { forms, secret: SECRET }, secret: SECRET, databaseId: 'db-1' }, { pageRoutes: ['/', '/join/', '/join'] });
@@ -170,4 +170,33 @@ test('republish removes old acknowledged PII and raw IPs from earlier receivers 
   await provisionForms({ api: p.api, kit: p.f.kit, resourceName: 'jini-demo' });
   assert.deepEqual(d1.rows('SELECT id,ip FROM submissions'), [{ id: 'pending', ip: null }]);
   assert.deepEqual(d1.rows('SELECT * FROM rate_windows'), []);
+});
+
+
+test('preview shows uncollected counts and discloses indefinite retention without reading answers', async () => {
+  const f = fixture({ respond: routes([
+    ['/d1/database', 'GET', () => json([{ name: 'tovu-forms-jini-demo', uuid: 'db-1' }])],
+    ['/d1/database/db-1/query', 'POST', ({init}) => {
+      assert.equal(JSON.parse(init.body).sql, 'SELECT COUNT(*) AS count FROM submissions WHERE pulled_at IS NULL');
+      return json([{ results: [{ count: 7 }] }]);
+    }],
+  ]) });
+  const result = await previewForms({ api: createApi({ credential, kit: f.kit }), kit: f.kit, resourceName: 'jini-demo', targetId: 'cloudflare-workers', formDestination: { forms } });
+  assert.equal(result.pendingCount, 7);
+  assert.match(result.message, /Pending answers: 7/);
+  assert.match(result.message, /never expire automatically/);
+  assert.equal(f.calls.length, 2);
+});
+
+
+test('published portable validator module is self-contained and executes the same rules', async () => {
+  const parts = await formsWorkerParts({ manifest: { forms }, secret: SECRET, databaseId: 'db-1' });
+  const portable = parts.modules.find(module => module.name === 'portable-validation.mjs');
+  assert.doesNotMatch(portable.source, /^import /m);
+  const uri = source => `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
+  const bundled = parts.modules.find(module => module.name === 'receiver.mjs').source.replace('./portable-validation.mjs', uri(portable.source));
+  const { checkFields } = await import(uri(bundled));
+  const form = { fields: [{ name: 'count', type: 'number', min: 2, max: 8, step: 2 }] };
+  assert.deepEqual(checkFields({ form, fields: new Map([['count', ['4']]]) }), { answers: { count: 4 } });
+  assert.match(checkFields({ form, fields: new Map([['count', ['3']]]) }).error, /step mismatch/);
 });

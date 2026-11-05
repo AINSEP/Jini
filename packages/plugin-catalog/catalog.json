@@ -341,6 +341,44 @@
   },
   {
     "kind": "agent",
+    "path": "formspree",
+    "pluginVersion": "0.1.0",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "formspree",
+    "publisherIdentity": "jini/formspree-agent",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.22",
+    "description": "Connects native forms to Formspree. Visitors POST directly to Formspree; this site keeps its existing form definitions and historical answers. Installation alone never switches a form.",
+    "expectedDigests": {
+      "plugin.json": "sha256-7f033cfb65fb35b4894b87ff99b78228fc35f31a4c8c4864d59688d449a033de",
+      "skills/formspree/SKILL.md": "sha256-1d8c7eba4986a30ca6f78f0918582b1e236b993a63864032c99343b132ecc713"
+    }
+  },
+  {
+    "kind": "provider",
+    "path": "plugins/formspree/0.6.22",
+    "pluginVersion": "0.6.22",
+    "contract": {
+      "id": "form_collection",
+      "version": 1
+    },
+    "id": "formspree",
+    "publisherIdentity": "jini/formspree",
+    "packageName": "@jini-ai/provider-plugins",
+    "version": "0.6.22",
+    "description": "Formspree form collection",
+    "expectedDigests": {
+      "licenses/_jini-ai_provider-plugins/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
+      "licenses/_jini-ai_provider-plugins/NOTICE": "sha256-41f25c5b9af4c8e8e98e2a7c658b3922253c760686e17e0ef7fa003fae83cb95",
+      "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-5d6c02d7fde1faa0b51250bea11f1b64eaefddf7749e5853b263eb74cd1348a1",
+      "server/index.mjs": "sha256-f2aa51ea184bb415e1810ad477ce584add20780f9c08624dbdae545b6adce4bd"
+    }
+  },
+  {
+    "kind": "agent",
     "path": "github",
     "pluginVersion": "1.1.0",
     "contract": {

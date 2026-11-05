@@ -29,6 +29,7 @@ export interface FormDeliveryField {
   readonly maxLength?: number;
   readonly multiple?: true;
   readonly label?: string;
+  readonly options?: readonly { readonly value: string; readonly label: string }[];
   readonly type?: string;
 }
 export interface FormDeliveryForm {
