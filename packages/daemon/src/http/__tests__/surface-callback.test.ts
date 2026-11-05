@@ -1,9 +1,12 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Response } from 'express';
 import { createSurfaceExchangeStore } from '../../surface-exchanges.js';
 import { createTimeoutScheduler } from '../../scheduler.js';
 import { createRandomUuidGenerator, createSystemClock } from '@jini-ai/core/primitives';
 import { deliverSurfaceCallback, isSurfaceCallbackPermitted } from '../surface-callback.js';
+import * as restoration from '../surface-restoration.js';
+
+afterEach(() => vi.restoreAllMocks());
 
 function response() {
   const res = { status: vi.fn(), json: vi.fn() };
@@ -59,5 +62,31 @@ describe('terminal surface callback delivery', () => {
     await deliverSurfaceCallback({ res: res as unknown as Response, store: makeStore(), exchangeId: 'unknown', principalId: 'reader', toolId: 'neutral_connect', params: {}, admit: () => true });
     expect(res.status).toHaveBeenCalledWith(409);
     expect(res.json).toHaveBeenCalledWith({ error: 'that dialog is no longer waiting for an answer', code: 'SURFACE_NOT_PENDING', reason: 'unknown-or-closed' });
+  });
+
+  it('restores an explicit request without delivering its parameters', async () => {
+    const restore = vi.spyOn(restoration, 'tryRestoreSurface').mockResolvedValue(true);
+    const store = makeStore(); const deliver = vi.spyOn(store, 'deliver'); const res = response();
+    await deliverSurfaceCallback({ res: res as unknown as Response, store, exchangeId: 'old', principalId: 'reader', toolId: 'neutral_connect', params: { value: 'human-only' }, admit: () => true }, { restoreOnly: true });
+    expect(restore).toHaveBeenCalledTimes(1);
+    expect(restore.mock.calls[0]).toHaveLength(1);
+    expect(deliver).not.toHaveBeenCalled();
+    expect(res.json).not.toHaveBeenCalled();
+  });
+
+  it('keeps the explicit restore miss response unchanged', async () => {
+    vi.spyOn(restoration, 'tryRestoreSurface').mockResolvedValue(false);
+    const res = response();
+    await deliverSurfaceCallback({ res: res as unknown as Response, store: makeStore(), exchangeId: 'old', principalId: 'reader', toolId: 'neutral_connect', params: {}, admit: () => true }, { restoreOnly: true });
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({ code: 'SURFACE_NOT_PENDING' });
+  });
+
+  it.each([true, false])('passes a late answer only through restoration (restored=%s)', async restored => {
+    const restore = vi.spyOn(restoration, 'tryRestoreSurface').mockResolvedValue(restored);
+    const res = response(); const params = { value: 'human-only' };
+    await deliverSurfaceCallback({ res: res as unknown as Response, store: makeStore(), exchangeId: 'old', principalId: 'reader', toolId: 'neutral_connect', params, admit: () => true }, { restoreOnMiss: true });
+    expect(restore.mock.calls[0]?.[1]).toEqual({ params });
+    expect(res.json).toHaveBeenCalledTimes(restored ? 0 : 1);
   });
 });

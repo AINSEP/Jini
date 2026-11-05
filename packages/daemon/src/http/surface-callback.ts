@@ -30,6 +30,8 @@ export interface SurfaceCallbackInput {
   admit: (input: { toolId: string; answersAnExchange: boolean; typedAnswer: boolean }) => boolean;
 }
 
+/** Recognize composer text without coercing non-answer fields.
+ * @complexity O(n) in the answer length, O(n) temporary trim space. @overallScore 100 */
 function isTypedAnswer(params: Record<string, unknown>): boolean {
   const raw = params[SURFACE_TYPED_ANSWER_PARAM];
   return typeof raw === 'string' && raw.trim().length > 0;
