@@ -126,6 +126,7 @@ export function newAttempt(
     providerAccountId: payment.providerAccountId, mode: payment.mode, op, operationKey, refundId: optional.refundId ?? null,
     outcome: "dispatched", errorCode: null, errorMessage: null, createdAt: at, updatedAt: at,
     currency: optional.amount?.currency ?? null, amountMinor: optional.amount?.minorUnits ?? null,
+    dispatchJson: null, recoveryAttempts: 0, recoveryClaimUntil: null,
   };
 }
 

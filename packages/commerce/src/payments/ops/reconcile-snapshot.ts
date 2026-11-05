@@ -9,6 +9,7 @@ import type { PaymentRecord } from "../ledger/rows.js";
 import { applyPaymentEvidence } from "../accounting/apply-evidence.js";
 import { dispatch, noteApplied, raiseAlert, resolveContext } from "./common.js";
 import type { OpsDeps } from "./deps.js";
+import { recoverIntentSnapshot } from "./intent-recovery.js";
 import { scopeOf } from "./view.js";
 
 /** What reconciling one row decided; each is a counter of `ReconcileCounts`. */
@@ -20,12 +21,12 @@ export type Snapshot = { readonly ok: true; readonly evidence: PaymentEvidence; 
 export async function retrieveSnapshot({ deps, payment }: { deps: OpsDeps; payment: PaymentRecord }, _optional: Record<string, never> = {}): Promise<Snapshot> {
   const provider = deps.providers.get({ id: payment.providerId })?.provider;
   if (!provider) return { ok: false, why: `provider '${payment.providerId}' is not registered` };
+  const resolved = await resolveContext({ deps, scope: scopeOf(payment), provider });
+  if (!resolved.ok) return { ok: false, why: resolved.error.message };
+  if (payment.providerRef === null) return recoverIntentSnapshot({ deps, payment, provider, ctx: resolved.ctx });
   const retrieve = provider.retrieve;
   if (provider.capabilities.retrieve === "none" || typeof retrieve !== "function") return { ok: false, why: `provider '${provider.id}' cannot retrieve` };
   const providerRef = payment.providerRef;
-  if (providerRef === null) return { ok: false, why: "no provider reference (the provider never answered)" };
-  const resolved = await resolveContext({ deps, scope: scopeOf(payment), provider });
-  if (!resolved.ok) return { ok: false, why: resolved.error.message };
   const outcome = await dispatch({ call: () => retrieve.call(provider, { providerRef, ctx: resolved.ctx }) });
   return outcome.kind === "ok" ? { ok: true, evidence: outcome.value, provider } : { ok: false, why: outcome.error.message };
 }

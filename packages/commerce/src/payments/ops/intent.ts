@@ -13,7 +13,7 @@
 import { moneyProblem, type Money } from "../../money/money.js";
 import type { PaymentEvidence, NextAction } from "../contract/evidence.js";
 import type { IntentResult } from "../contract/payments-port.js";
-import type { IntentLine, Outcome, PaymentProvider } from "../contract/provider.js";
+import type { IntentLine, IntentRequest, Outcome, PaymentProvider, ProviderContext } from "../contract/provider.js";
 import { assessPreChargeRisk, type RiskDecision } from "../contract/risk.js";
 import { sameScope, type PaymentScope } from "../contract/scope.js";
 import { applyPaymentEvidence, recordIntentDispatchOutcome } from "../accounting/apply-evidence.js";
@@ -23,6 +23,7 @@ import {
   readPayment, rejectedReplay, resolveContext, type Failure,
 } from "./common.js";
 import type { OpsDeps } from "./deps.js";
+import { intentDispatchSnapshot } from "./intent-recovery.js";
 import { paymentView, scopeOf } from "./view.js";
 
 export interface IntentRequired {
@@ -126,17 +127,23 @@ function newPaymentRecord(
   };
 }
 
-type Opened = { readonly kind: "opened"; readonly payment: PaymentRecord; readonly attempt: AttemptRecord } | { readonly kind: "done"; readonly result: IntentResult };
+type Opened = { readonly kind: "opened"; readonly payment: PaymentRecord; readonly attempt: AttemptRecord; readonly req: IntentRequest } | { readonly kind: "done"; readonly result: IntentResult };
 
 /** Tx1. A concurrent call with the same key that inserted first turns this into its replay/conflict. */
 function openIntent(
-  { deps, required, optional, paymentId }: { deps: OpsDeps; required: IntentRequired; optional: IntentOptional; paymentId: string }
+  { deps, required, optional, paymentId, provider, ctx, captureMode }: { deps: OpsDeps; required: IntentRequired; optional: IntentOptional; paymentId: string; provider: PaymentProvider; ctx: ProviderContext; captureMode: CaptureMode }
 ): Promise<Opened> {
   const open = () => deps.ledger.transaction({ fn: async (tx): Promise<Opened> => {
     const payment = await tx.insertPayment({ payment: newPaymentRecord({ deps, required, optional, paymentId }) });
     const attempt = newAttempt({ deps, payment, op: "intent", operationKey: `intent:${required.idempotencyKey}` });
-    await tx.insertAttempt({ attempt });
-    return { kind: "opened", payment, attempt };
+    const req: IntentRequest = {
+      amount: required.amount, idempotencyKey: attempt.id, correlationId: paymentId, captureMode,
+      ...(optional.partyId === undefined ? {} : { partyId: optional.partyId }),
+      ...(optional.providerOptions === undefined ? {} : { providerOptions: optional.providerOptions }),
+      ...(optional.line === undefined ? {} : { line: optional.line }),
+    };
+    await tx.insertAttempt({ attempt: { ...attempt, dispatchJson: intentDispatchSnapshot({ req, ctx, provider }) } });
+    return { kind: "opened", payment, attempt, req };
   } });
   const lookup = async (): Promise<Opened | null> => {
     const result = await lookupIntent({ deps, required });
@@ -187,14 +194,8 @@ export async function createIntent(
   if (!gate.ok) return gate;
   const resolved = await resolveContext({ deps, scope: required.scope, provider });
   if (!resolved.ok) return resolved;
-  const opened = await openIntent({ deps, required, optional, paymentId });
+  const opened = await openIntent({ deps, required, optional, paymentId, provider, ctx: resolved.ctx, captureMode: gate.captureMode });
   if (opened.kind === "done") return opened.result;
-  const req = {
-    amount: required.amount, idempotencyKey: opened.attempt.id, correlationId: paymentId, captureMode: gate.captureMode,
-    ...(optional.partyId === undefined ? {} : { partyId: optional.partyId }),
-    ...(optional.providerOptions === undefined ? {} : { providerOptions: optional.providerOptions }),
-    ...(optional.line === undefined ? {} : { line: optional.line }),
-  };
-  const outcome = await dispatch({ call: () => provider.createIntent({ req, ctx: resolved.ctx }) });
+  const outcome = await dispatch({ call: () => provider.createIntent({ req: opened.req, ctx: resolved.ctx }) });
   return settleIntent({ deps, opened, outcome, risk: gate.risk });
 }
