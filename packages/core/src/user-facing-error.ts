@@ -97,7 +97,7 @@ export function describeRequestFailure(
   { method, route, operation, vocabulary }: { method?: string; route?: string; operation?: string; vocabulary: RequestFailureVocabulary },
   _optionalArgs: Record<string, never> = {},
 ): RequestFailureDescription {
-  const tokens = (route || operation || '').split(/[?#]/, 1)[0]!.slice(0, 2048).split('/').slice(0, 64);
+  const tokens = (route || operation || '').slice(0, 2048).split(/[?#]/, 1)[0]!.split('/').slice(0, 64);
   const override = Object.entries(vocabulary.operations ?? {}).find(([suffix]) => matchesRequestSuffix(tokens, suffix, method?.toUpperCase()));
   if (override) return { ...override[1] };
   const nounKey = tokens.slice().reverse().find(token => Object.hasOwn(vocabulary.nouns, token));
