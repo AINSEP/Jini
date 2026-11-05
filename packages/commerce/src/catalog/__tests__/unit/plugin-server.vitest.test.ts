@@ -1,5 +1,5 @@
 import { expect, it, vi } from "vitest";
-import { createCommerceServer, readOwnedCommerceOrder } from "../../plugin-server.js";
+import { createCommerceServer, normalizedCommerceOrigin, readOwnedCommerceOrder } from "../../plugin-server.js";
 import type { CommerceOrderRecord } from "../../types.js";
 import type { CommerceOrderPaymentRecord } from "../../ports.js";
 import type { PayOrderDeps } from "../../pay-order.js";
@@ -44,6 +44,13 @@ it("requires a deployed HTTPS origin before preparing storage", async () => {
 it.each(["https://shop.example/", "https://shop.example:443"])("accepts an equivalent deployed HTTPS origin %s", async publicOrigin => {
   const f = fixture(); f.state.active = true;
   expect(await createCommerceServer({ ...f.deps, publicOrigin }).activate()).toMatchObject({ ready: true });
+});
+it.each([
+  ["https://shop.example/", "https://shop.example"], ["https://shop.example:443", "https://shop.example"],
+  ["http://shop.example", null], ["https://user:password@shop.example", null],
+  ["https://shop.example/other", null], ["https://shop.example?", null], ["https://shop.example#", null], ["invalid", null],
+])("normalizes only an HTTPS origin shape %s", (publicOrigin, normalized) => {
+  expect(normalizedCommerceOrigin({ publicOrigin: publicOrigin! })).toBe(normalized);
 });
 it.each(["https://user:password@shop.example", "https://shop.example/other", "https://shop.example?orderId=forged"])("refuses unsafe origin configuration %s without storage writes", async publicOrigin => {
   const f = fixture(); f.state.active = true;

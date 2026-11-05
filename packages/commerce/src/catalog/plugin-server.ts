@@ -83,17 +83,21 @@ export async function readOwnedCommerceOrder({ deps, input }: { deps: CommerceOr
   return readOrderPayment({ deps, order });
 }
 
+/** Normalize HTTPS origin syntax only; deployment reachability and hostname policy belong to the host. */
+export function normalizedCommerceOrigin({ publicOrigin }: { publicOrigin: string }, _optional: Record<string, never> = {}): string | null {
+  try {
+    const url = new URL(publicOrigin);
+    if (url.protocol !== "https:" || url.username || url.password) return null;
+    return url.href === `${url.origin}/` ? url.origin : null;
+  } catch { /* An invalid URL has the same recoverable configuration outcome. */ }
+  return null;
+}
+
 /** Credentials, browser URL parameters and request bodies cannot select a merchant scope. */
 function configurationProblem({ scope, publicOrigin }: Pick<CommerceServerRequired, "scope" | "publicOrigin">): string | null {
   const problem = scopeProblem({ scope });
   if (problem) return `Commerce merchant configuration is incomplete: ${problem}.`;
-  try {
-    const url = new URL(publicOrigin);
-    if (url.protocol !== "https:" || url.username || url.password) return HTTPS_ORIGIN_REQUIRED;
-    if (url.pathname !== "/" || url.search || url.hash) return HTTPS_ORIGIN_REQUIRED;
-    return null;
-  } catch { /* An invalid URL has the same recoverable configuration outcome. */ }
-  return HTTPS_ORIGIN_REQUIRED;
+  return normalizedCommerceOrigin({ publicOrigin }) === null ? HTTPS_ORIGIN_REQUIRED : null;
 }
 
 /**
