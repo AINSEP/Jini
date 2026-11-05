@@ -60,14 +60,13 @@ export function formatUserFacingError(
   return { ...fields, copyText };
 }
 
-/** Boundary-owned correlation IDs are public identifiers, while explicit secret rules still win.
+/** Boundary-owned UUIDs are public identifiers, while explicit secret rules still win.
  * Other metadata retains the usual PII policy; arbitrary numeric error IDs remain redactable.
- * @complexity O(n) for redaction of one metadata field; correlation-shape matching is bounded.
+ * @complexity O(n) for redaction of one metadata field; UUID-shape matching is bounded.
  * @overallScore 98 — the boundary owns whether an identifier is a public correlation reference.
  */
 function safeMetadataField({ key, text }: { key: string; text: string }, options: SecretRedactionOptions): string {
-  const correlationId = /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(text)
-    || /^ERR-[a-f0-9]{4}(?:-[a-f0-9]{4}){3}$/i.test(text);
+  const correlationId = /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(text);
   if (key === 'errorId' && correlationId) return safeField({ text }, { ...options, redactPii: false });
   return safeField({ text }, options);
 }

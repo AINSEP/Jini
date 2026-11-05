@@ -88,3 +88,10 @@ it('keeps PII and explicit secrets redacted while preserving public correlation 
   expect(card.errorId).toContain('[REDACTED:credit_card]');
   expect(card.copyText).not.toContain('4111111111111111');
 });
+
+it('does not turn an untrusted cause containing a card-shaped ERR token into a public identifier', () => {
+  const forgedId = 'ERR-4000-0000-0000-4004';
+  const failure = formatUserFacingError({ ...input, cause: `Card ${forgedId}` });
+  expect(failure.errorId).not.toContain(forgedId);
+  expect(failure.copyText).not.toContain(forgedId);
+});
