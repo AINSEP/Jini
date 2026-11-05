@@ -133,7 +133,17 @@ export function createTokenRefresher(deps: OAuthRequiredArgs<TokenRefresherDeps>
         if (!acquired)
             return awaitLeaseHolder({ key });
         try {
-            return await performRefresh(key, current);
+            // Another holder may have rotated or cleared the token after our initial load.
+            const reloaded = await deps.port.load({ key });
+            if (reloaded === null)
+                throw needsReauthError("this connection holds no token");
+            if (!isTokenDueForRefresh({
+                tokens: reloaded,
+                nowIso: readNowIso({ clock: deps.clock }),
+                skewMs: skewMs
+            }))
+                return reloaded.accessToken;
+            return await performRefresh(key, reloaded);
         }
         finally {
             await deps.port.releaseRefreshLease?.({

@@ -464,6 +464,80 @@ test("a delayed lease acquirer uses the rotation published after its initial loa
     assert.equal(delayed.inFlightCount({}), 0);
 });
 
+test("a lease winner refreshes the latest stored token if it is still due", async () => {
+    const clock = createTestClock("2026-08-25T12:04:00.000Z");
+    const double = makePort();
+    const refresher = createTokenRefresher({ clock, sleep: fixtureSleep, port: {
+        ...double.port,
+        async tryAcquireRefreshLease(args) {
+            double.stored = tokens({ refreshToken: "rt-latest" });
+            return double.port.tryAcquireRefreshLease!(args);
+        },
+    } });
+    assert.equal(await refresher.getAccessToken({ key: KEY }), "at-rotated");
+    assert.deepEqual(double.refreshInputs, [{ key: KEY, refreshToken: "rt-latest" }]);
+    assert.equal(double.stored?.refreshToken, "rt-rotated");
+    assert.deepEqual(double.leaseReleases, [KEY]);
+});
+
+test("a lease winner rechecks a newly installed token with no expiry", async () => {
+    const clock = createTestClock("2026-08-25T12:04:00.000Z");
+    const double = makePort();
+    const refresher = createTokenRefresher({ clock, sleep: fixtureSleep, port: {
+        ...double.port,
+        async tryAcquireRefreshLease(args) {
+            double.stored = tokens({ accessToken: "at-installed", expiresAt: null });
+            return double.port.tryAcquireRefreshLease!(args);
+        },
+    } });
+    assert.equal(await refresher.getAccessToken({ key: KEY }), "at-installed");
+    assert.equal(double.refreshCalls, 0);
+    assert.deepEqual(double.persisted, []);
+    assert.deepEqual(double.leaseReleases, [KEY]);
+});
+
+test("a lease winner does not redeem a token removed after its initial load", async () => {
+    const clock = createTestClock("2026-08-25T12:04:00.000Z");
+    const double = makePort();
+    const refresher = createTokenRefresher({ clock, sleep: fixtureSleep, port: {
+        ...double.port,
+        async tryAcquireRefreshLease(args) {
+            double.stored = null;
+            return double.port.tryAcquireRefreshLease!(args);
+        },
+    } });
+    await assertOAuthRejects(() => refresher.getAccessToken({ key: KEY }), "OAUTH_INVALID_GRANT");
+    assert.equal(double.refreshCalls, 0);
+    assert.deepEqual(double.persisted, []);
+    assert.equal(double.stored, null);
+    assert.deepEqual(double.leaseReleases, [KEY]);
+    assert.equal(refresher.inFlightCount({}), 0);
+});
+
+test("a failed post-lease reload releases the lease and permits a later retry", async () => {
+    const clock = createTestClock("2026-08-25T12:04:00.000Z");
+    const double = makePort();
+    const failure = new Error("fixture-reload-failure");
+    let loads = 0;
+    const refresher = createTokenRefresher({ clock, sleep: fixtureSleep, port: {
+        ...double.port,
+        async load(args) {
+            loads += 1;
+            if (loads === 2) throw failure;
+            return double.port.load(args);
+        },
+    } });
+    await assert.rejects(() => refresher.getAccessToken({ key: KEY }), error => error === failure);
+    assert.equal(double.refreshCalls, 0);
+    assert.deepEqual(double.persisted, []);
+    assert.equal(double.leaseHeld, false);
+    assert.deepEqual(double.leaseReleases, [KEY]);
+    assert.equal(refresher.inFlightCount({}), 0);
+    assert.equal(await refresher.getAccessToken({ key: KEY }), "at-rotated");
+    assert.equal(double.refreshCalls, 1);
+    assert.deepEqual(double.leaseReleases, [KEY, KEY]);
+});
+
 test("a lease holder that never publishes leaves the loser on its still-valid token rather than racing", async () => {
     const clock = createTestClock("2026-08-25T12:04:00.000Z");
     const double = makePort({ leaseGranted: false });
