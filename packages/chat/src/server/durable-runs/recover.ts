@@ -168,7 +168,7 @@ export function createDurableRecovery(ports: RecoveryPorts, { logger = console }
     const nextRunId = ports.mintRunId();
     const events = recoveredRunEvents({ saved: savedWork({ run }) }, { notice: missingResume ? 'silent' : 'visible' });
     if (!await ports.store.advance({ run, nextRunId, now: ports.now(), events }, {})) return "superseded";
-    const next = await ports.store.load({ messageId: run.messageId }, {});
+    const next = await ports.store.load({ messageId: run.messageId }, { includeTranscriptEvents: false });
     // Cancel/deletion can win while the old attempt is being fenced. Re-read after CAS and do
     // not launch against a removed binding or a newer generation.
     if (!next || next.runId !== nextRunId) return "superseded";
@@ -236,7 +236,7 @@ export function createDurableRecovery(ports: RecoveryPorts, { logger = console }
 
   /** The saved row after an await, or the outcome that ends this decision. O(1) store reads. */
   async function reload(run: DurableRun): Promise<DurableRun | RecoveryResult> {
-    const current = await ports.store.load({ messageId: run.messageId }, {});
+    const current = await ports.store.load({ messageId: run.messageId }, { includeTranscriptEvents: false });
     if (!current) return "gone";
     // A probe only speaks about the generation it inspected. Never apply its dead result to
     // a newer attempt committed by another caller while this one was awaiting storage/HTTP.
@@ -261,7 +261,7 @@ export function createDurableRecovery(ports: RecoveryPorts, { logger = console }
 
   return {
     async recover({ messageId, trigger, expectedRunId }, options) {
-      const run = await ports.store.load({ messageId }, {});
+      const run = await ports.store.load({ messageId }, { includeTranscriptEvents: false });
       if (!run) return "gone";
       if (run.message.runStatus !== "queued" && run.message.runStatus !== "running") return "terminal";
       if (expectedRunId && expectedRunId !== run.runId) return "superseded";

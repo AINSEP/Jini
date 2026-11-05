@@ -23,25 +23,66 @@ export interface AcceptedChatInput {
 
 /** Display queue constituents using their accepted identities; storage and delivery retain one turn.
  * MOVE: Receipts travel in events_json, so separate bubbles survive a history reload without another store.
- * @complexity O(m + e + i) time/space for m messages, e receipt events and i accepted queue inputs.
+ * The earlier in-run receipt owns the bubble when an unconsumed fallback also became a user row.
+ * @param messages The already loaded transcript; never fetched or mutated here.
+ * @returns Display rows with queued fallback copies removed by accepted id and aliases, never text.
+ * @complexity O(m + e + i + a) time/space for messages, receipt events, inputs and aliases; no I/O.
+ * @example projectAcceptedInputMessages({ messages });
  */
 export function projectAcceptedInputMessages({ messages }: { messages: readonly ChatMessage[] }, _options = {}): ChatMessage[] {
+  const seen = new Set<string>();
   return messages.flatMap(message => {
-    if (message.role !== 'user') return [message];
-    const inputs = (message.events ?? []).flatMap(event => {
-      const input = acceptedInputEvent({ event });
-      return input ? [input.data] : [];
-    });
-    if (inputs.length === 0) return [message];
-    const turn = { ...message };
-    delete turn.attachments;
-    delete turn.folders;
-    delete turn.secretRedaction;
-    // MOVE: Older receipts have no per-input files; retain those legacy files on the final bubble.
-    return inputs.map((input, index) => ({ ...turn, id: input.id, content: input.text,
-      folders: input.folders ?? (index === inputs.length - 1 ? message.folders ?? [] : []),
-      attachments: input.attachments ?? (index === inputs.length - 1 ? message.attachments ?? [] : []), ...(input.secretRedaction ? { secretRedaction: input.secretRedaction } : {}) }));
+    if (message.role !== 'user') {
+      for (const input of inputsFromMessage({ message })) claimAcceptedInput({ input, seen });
+      return [message];
+    }
+    return expandUserInputMessage({ message, seen });
   });
+}
+
+/** Keep the original row fields and per-input files when splitting a batched fallback.
+ * @complexity O(e + i) time/space for the row's events and accepted inputs; no effects.
+ */
+function expandUserInputMessage({ message, seen }: { message: ChatMessage; seen: Set<string> }, _options = {}): ChatMessage[] {
+  const inputs = inputsFromMessage({ message: { ...message, inputPending: false } });
+  // Ordinary user rows have no receipt metadata to split.
+  if (!(message.events ?? []).some(event => acceptedInputEvent({ event }))) {
+    return claimAcceptedInput({ input: inputs[0]!, seen }) ? [message] : [];
+  }
+  return inputs.flatMap((input, index) => {
+    if (!claimAcceptedInput({ input, seen })) return [];
+    // MOVE: Older receipts have no per-input files; retain those legacy files on the final bubble.
+    const legacyFiles = index === inputs.length - 1 ? message : {};
+    return [userInputRow({ message, input, legacyFiles })];
+  });
+}
+
+/** Expand one accepted input without copying another input's files or redaction metadata.
+ * @returns A display-only row; stored messages and their receipt events remain unchanged.
+ * @complexity O(1) time/space, retaining attachment and folder arrays by reference.
+ */
+function userInputRow({ message, input, legacyFiles }: {
+  message: ChatMessage; input: AcceptedChatInput; legacyFiles: Pick<ChatMessage, 'attachments' | 'folders'>;
+}, _options = {}): ChatMessage {
+  const turn = { ...message };
+  delete turn.attachments;
+  delete turn.folders;
+  delete turn.secretRedaction;
+  return { ...turn, id: input.id, content: input.text,
+    folders: input.folders ?? legacyFiles.folders ?? [],
+    attachments: input.attachments ?? legacyFiles.attachments ?? [],
+    ...(input.secretRedaction ? { secretRedaction: input.secretRedaction } : {}) };
+}
+
+/** Claim the stable identity and all aliases even on a duplicate, so later aliases stay deduplicated.
+ * @returns Whether this is the first occurrence; mutates only the projection's local identity set.
+ * @complexity O(a) time/space for one input's aliases.
+ */
+function claimAcceptedInput({ input, seen }: { input: AcceptedChatInput; seen: Set<string> }, _options = {}): boolean {
+  const ids = [input.id, ...(input.aliases ?? [])];
+  const duplicate = ids.some(id => seen.has(id));
+  for (const id of ids) seen.add(id);
+  return !duplicate;
 }
 
 type UserMessageEvent = Extract<AgentEvent, { kind: 'ext' }> & {
@@ -277,26 +318,43 @@ function projectEvents(
   return projected;
 }
 
-/** The sole transcript-to-recall projection. A merged queued turn retains its original inputs. */
+/** The sole transcript-to-recall projection. A merged queued turn retains its original inputs.
+ * @returns Accepted inputs once by id/alias, in send order; pending input is excluded.
+ * @complexity O(m + e + i + a) time/space for messages, events, inputs and aliases; no I/O.
+ * @example acceptedInputsFromMessages({ messages });
+ */
 export function acceptedInputsFromMessages(
   { messages }: { messages: readonly ChatMessage[] }, _options = {},
 ): AcceptedChatInput[] {
-  return messages.flatMap(message => {
-    if (message.role === 'user') {
-      if (message.inputPending) return [];
-      // Queue constituents travel in events_json, already preserved by the existing chat store.
-      const receipts = (message.events ?? []).flatMap(event => {
-        const input = acceptedInputEvent({ event });
-        return input ? [input.data] : [];
-      });
-      return receipts.length > 0 ? receipts : [{ id: message.id, text: message.content, ...(message.folders ? { folders: message.folders } : {}) }];
-    }
-    return projectAcceptedInputEvents({ events: message.events ?? [] }).flatMap(event => {
-      const input = acceptedInputEvent({ event });
-      if (!input) return [];
-      return input.data.inputs?.map((receipt, index) => index === 0 ? { ...receipt, aliases: input.data.aliases ?? [] } : receipt) ?? [input.data];
-    });
+  const seen = new Set<string>();
+  return messages.flatMap(message => inputsFromMessage({ message }))
+    .filter(input => claimAcceptedInput({ input, seen }));
+}
+
+/** Read one message's accepted identities, retaining queue constituents and wire aliases.
+ * @complexity O(e + i) time/space for the message's events and expanded inputs; no effects.
+ */
+function inputsFromMessage({ message }: { message: ChatMessage }, _options = {}): AcceptedChatInput[] {
+  if (message.inputPending) return [];
+  // Queue constituents travel in events_json, already preserved by the existing chat store.
+  const receipts = projectAcceptedInputEvents({ events: message.events ?? [] }).flatMap(event => {
+    const input = acceptedInputEvent({ event });
+    if (!input) return [];
+    return receiptInputs({ receipt: input });
   });
+  if (message.role !== 'user' || receipts.length > 0) return receipts;
+  return [{ id: message.id, text: message.content, ...(message.folders ? { folders: message.folders } : {}) }];
+}
+
+/** Expand a batched receipt while retaining the first input's local and transport aliases.
+ * @returns The accepted constituents, or the single receipt; does not mutate either.
+ * @complexity O(i + a) time/space for constituents and first-input aliases.
+ */
+function receiptInputs({ receipt }: { receipt: UserMessageEvent }, _options = {}): AcceptedChatInput[] {
+  if (!receipt.data.inputs) return [receipt.data];
+  return receipt.data.inputs.map((input, index) => index === 0 ? {
+    ...input, aliases: [...(input.aliases ?? []), ...(receipt.data.aliases ?? [])],
+  } : input);
 }
 
 /** Preserve folder metadata through existing event JSON storage; no attachment lifecycle or schema.

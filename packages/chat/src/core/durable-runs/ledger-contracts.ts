@@ -20,8 +20,36 @@ export interface ChatRunRecoveryOptions {
   readonly recover?: (input: InterruptedChatTurn) => Promise<boolean>;
 }
 
+/** Watch-owned receipt for the last exact incoming projection. SQL lengths count characters,
+ * not UTF-16 code units. A saved-only tool barrier invalidates this receipt. */
+export interface CheckpointState {
+  /** Native row/connection version guards equal-length changes outside the bounded suffix. */
+  readonly version: string;
+  readonly length: number;
+  /** SQL character count, avoiding a second full content parameter in CAS. */
+  readonly contentLength: number;
+  /** SQL characters in the complete last serialized event plus closing array bracket. */
+  readonly tailLength: number;
+  readonly content: string;
+  readonly events: readonly import("../events.js").AgentEvent[];
+  /** At most 256 UTF-16 units of the saved suffix; never the whole last tool result. */
+  readonly tail: string;
+}
+
+export interface CheckpointOptions {
+  readonly expected?: number | undefined;
+  readonly previous?: CheckpointState | undefined;
+  /** Undefined means the authoritative merge retained saved-only events: use the full path next. */
+  readonly onPersisted?: (state: CheckpointState | undefined) => void;
+}
+
 export interface ChatRunLedger {
   readonly durable?: DurableRunStore;
+  /** Read-only existence probe across all owners. Only queued/running assistant rows block idle
+   * shutdown; no transcript payloads, recovery or writes. Rejects on storage failure (host stays busy).
+   * @example if (await ledger.hasActiveRuns({}, {})) return;
+   */
+  hasActiveRuns(required?: {}, optional?: {}): Promise<boolean>;
   /**
    * Runs `write` only while `run`'s row holds no terminal status (an unknown row, another run id, or
    * a row still `queued`/`running` all count as unsettled), with no settle able to land in between.
@@ -40,7 +68,7 @@ export interface ChatRunLedger {
    * A no-op once the row is terminal or belongs to another run. Resolves `true` when it wrote, or
    * when the row already held exactly this checkpoint (accepted without rewriting the row).
    */
-  checkpoint(progress: RunProgress, optional?: {}): Promise<boolean>;
+  checkpoint(progress: RunProgress, optional?: CheckpointOptions): Promise<boolean>;
   /** Serving-only discovery of unfinished rows. The injected recovery coordinator owns adopted
    * runs; rows it cannot adopt are canceled, preserving saved work. Returns handled rows.
    * Export apps must not invoke discovery while a serving daemon is still alive. */

@@ -156,10 +156,11 @@ export interface UseChatPaneResult extends UseChatPaneWorkingDirectoryResult {
    */
   sendAsNewMessage: () => Promise<void>;
   /**
-   * Cancels the run in flight and sends the composer draft as soon as it stops — the modifier-key
-   * counterpart to {@link send}, which queues behind the run instead of ending it. Implemented as
-   * queue-then-cancel rather than cancel-then-send so both paths share one flush, and so a cancel
-   * that never lands cannot strand the prompt.
+   * @deprecated Use send and let Composer apply sendDisabled to keyboard shortcuts.
+   * Legacy name for the modifier-key send shortcut; uses {@link send} and keeps the run going.
+   * Previously queue-then-cancel rather than cancel-then-send kept both paths on one flush so a
+   * cancel that never landed could not strand the prompt. Sharing send now also preserves that
+   * queue ownership, while a capable run reads the input after its current step.
    */
   interruptSend: () => void;
   reset: () => void;
@@ -1002,14 +1003,9 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     await sendOrdinaryTurn(prompt);
   }, [composer, guard.clearNotice, sendOrdinaryTurn]);
 
-  const interruptSend = useCallback(() => {
-    const prompt = composerPrompt(composer);
-    if (!prompt || composerDeliveryBlocked({ delivering: deliveringTypedAnswerRef.current, starting: startingPromptRef.current, composer, submitted: submittedComposerRef.current })) return;
-    guard.clearNotice();
-    enqueueTurn({ turn: guard.redact({ text: prompt }, {}) });
-    composer.setDraft('');
-    conversation.cancel();
-  }, [composer, conversation, enqueueTurn, guard.clearNotice, guard.redact]);
+  // A send shortcut must honor the same mid-run delivery contract as the Send button.
+  // Unsupported agents wait behind the current reply; only the explicit Stop action cancels it.
+  const interruptSend = useCallback(() => { void send(); }, [send]);
 
   /** Abort only uploads owned by the removed inputs; late completions must not refill the composer. */
   const discardQueuedUploads = useCallback(({ id }: { id?: string }, _options = {}) => {

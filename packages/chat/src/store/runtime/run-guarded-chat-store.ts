@@ -4,6 +4,11 @@ import type { ChatRunLedger } from "../../core/durable-runs/ledger-contracts.js"
 
 /** Bind the server-owned run write fence to an already owner-scoped transcript. */
 export function createRunGuardedChatStore({ store, ledger, isDaemonRunId }: { store: ChatHistoryStore; ledger: ChatRunLedger; isDaemonRunId: RunIdPolicy }, _optional = {}): ChatHistoryStore {
+  async function savedMessage({ conversationId, messageId }: { conversationId: string; messageId: string }, _optional = {}) {
+    if (store.message) return store.message({ conversationId, messageId }, {});
+    // Compatibility for hosts/fakes without the indexed read capability.
+    return (await store.messages({ conversationId })).find(message => message.id === messageId) ?? null;
+  }
   return {
     ...store,
     /*
@@ -28,7 +33,7 @@ export function createRunGuardedChatStore({ store, ledger, isDaemonRunId }: { st
           // attempt id or a transport-only failure; returning the stored row fences both without
           // matching presentation text. BYOK/AG-UI remain request-bound.
           if (isDaemonRunId({ runId })) {
-            const saved = (await store.messages({ conversationId })).find((m) => m.id === message.id);
+            const saved = await savedMessage({ conversationId, messageId: message.id });
             if (saved) return saved;
             if (message.runStatus !== "queued" && message.runStatus !== "running") return null;
           }
@@ -36,8 +41,7 @@ export function createRunGuardedChatStore({ store, ledger, isDaemonRunId }: { st
         } }, {}
       );
       if (outcome.written) return outcome.value;
-      const saved = await store.messages({ conversationId });
-      return saved.find((m) => m.id === message.id) ?? null;
+      return savedMessage({ conversationId, messageId: message.id });
     },
   };
 }

@@ -1,3 +1,4 @@
+import { sqliteReadVersion } from '../sql/read-version.js';
 import { acceptedInputEvent, acceptedInputUserEvent } from "../../core/accepted-input.js";
 import { redactUserMessage } from "../../core/user-text-redaction.js";
 import type { RunIdPolicy } from "../../core/durable-runs/ports.js";
@@ -13,7 +14,8 @@ import type { ChatStore } from "../ports.js";
 import { createChatHistoryStore } from "./chat-history-store.js";
 import { runLockKey } from "../../core/durable-runs/run-lock.js";
 import { runContentFromEvents } from "../../core/run-events/entry.js";
-import { toMessage } from "../sql/store.js";
+import { appendedEventsJson } from "./events-json.js";
+import { toMessage, validatedEventsJson } from "../sql/store.js";
 
 export const RUN_SLOT_BUSY = "Another answer in this chat is still running. This turn is queued in your browser.";
 export class RunSlotBusyError extends Error { constructor() { super(RUN_SLOT_BUSY); } }
@@ -22,7 +24,7 @@ type RunRow = Selectable<ChatDatabase["ai_chat_messages"]> & { owner_id: string;
 /** Where a run read finds its message row: by its id, or by the attempt id it currently holds. */
 type RunMatch = { column: "ai_chat_messages.id" | "ai_chat_messages.run_id"; value: string };
 /** `events`: parse the run's own saved events. `transcript`: also read every message of its conversation. */
-type ReadOptions = { events?: boolean; transcript?: boolean };
+type ReadOptions = { events?: boolean; transcript?: boolean; includeTranscriptEvents?: boolean };
 /** A run read: its head, and the transcript only when that read loaded one. */
 type RunRead = { head: DurableRunHead; transcript: readonly ChatMessage[] };
 type Metadata = ChatDatabase["assistant_run_attempts"] | undefined;
@@ -169,16 +171,6 @@ function continuationEvents(
   return runContentFromEvents({ events: incoming }).length >= current.message.content.length ? incoming : saved;
 }
 
-/** `events_json` with one more event, built in SQL: no dialect parses or re-serializes the saved
- * array in JS. Writers store `JSON.stringify` output (no whitespace), so a non-empty array is
- * `[...]` and gains `,event`; `[]`, NULL and anything not array-shaped (a truncated legacy value,
- * which the old JS read also treated as no events) become `[event]`. Plain `substr`/`length`/`||`
- * run unchanged on SQLite and PostgreSQL. */
-function appendedEventsJson({ event }: { event: AgentEvent }, _optional = {}) {
-  const item = sql<string>`cast(${JSON.stringify(event)} as text)`;
-  return sql<string>`case when events_json like '[_%]' then substr(events_json, 1, length(events_json) - 1) || ',' || ${item} || ']' else '[' || ${item} || ']' end`;
-}
-
 function sameOwner(
   { run, required }: { run: DurableRunHead; required: { principalId: string; conversationId: string } }, _optional = {},
 ): boolean {
@@ -200,10 +192,29 @@ export function createDurableRunStore<DB extends ChatDatabase>({ kernel: hostKer
       .where(match.column, "=", match.value).where("role", "=", "assistant").executeTakeFirst());
   }
 
-  /** Every message of the run's conversation; only `load` and legacy rows without attempt metadata pay this. */
-  async function conversationTranscript({ row }: { row: RunRow }, _options = {}): Promise<ChatMessage[]> {
+  /** Conversation projection: callers can omit assistant event payloads; legacy heads need only content. */
+  async function conversationTranscript({ row }: { row: RunRow }, { includeEvents = true }: { includeEvents?: boolean | "user" } = {}): Promise<ChatMessage[]> {
     const history = createChatHistoryStore({ kernel, isDaemonRunId, scope: { scopeId: row.scope_id, ownerKind: row.owner_kind as "user" | "guest", ownerId: row.owner_id } }, {});
-    return history.messages({ conversationId: row.conversation_id });
+    return history.messages({ conversationId: row.conversation_id }, { includeEvents });
+  }
+
+  /** Legacy accepted requests and recovery reconstruction consume prior text only. */
+  async function readTranscript({ row, metadata }: { row: RunRow; metadata: Metadata }, options: ReadOptions = {}): Promise<ChatMessage[]> {
+    if (!options.transcript && metadata) return [];
+    const includeEvents = transcriptEventProjection(options);
+    return conversationTranscript({ row }, { includeEvents });
+  }
+
+  /** Accepted user receipts split queued inputs and hold folder references. Keep that small
+   * public metadata even when recovery omits prior assistant event payloads. */
+  function transcriptEventProjection(options: ReadOptions): boolean | "user" {
+    if (options.includeTranscriptEvents === false && options.transcript) return 'user';
+    return options.includeTranscriptEvents ?? options.transcript === true;
+  }
+
+  function currentMessage({ row, transcript }: { row: RunRow; transcript: readonly ChatMessage[] }, options: ReadOptions = {}): ChatMessage | undefined {
+    return options.transcript && options.includeTranscriptEvents !== false
+      ? transcript.find(item => item.id === row.id) : toMessage(row);
   }
 
   /** One run's head, plus its transcript when that was read (`[]` otherwise). */
@@ -213,10 +224,11 @@ export function createDurableRunStore<DB extends ChatDatabase>({ kernel: hostKer
     const messageId = row.id;
     const metadata = await kernel.run((db) => db.selectFrom("assistant_run_attempts").selectAll().where("message_id", "=", messageId).executeTakeFirst());
     // A legacy row's accepted request is derived from its transcript, so only it reads one here.
-    const transcript = options.transcript || !metadata ? await conversationTranscript({ row }) : [];
-    const message = options.transcript ? transcript.find((item) => item.id === messageId) : toMessage(row);
+    const transcript = await readTranscript({ row, metadata }, options);
+    const message = currentMessage({ row, transcript }, options);
     if (!message) return null; // Deletion may have cascaded between the two reads.
-    return { head: runHead({ row, runId: row.run_id, metadata, message, transcript }, { isDaemonRunId }), transcript };
+    return { head: runHead({ row, runId: row.run_id, metadata, message, transcript }, { isDaemonRunId }),
+      transcript: transcript.map(item => item.id === messageId ? message : item) };
   }
 
   /** Locked read of one message; `transcript` decides whether it is a whole run or only its head. */
@@ -231,13 +243,70 @@ export function createDurableRunStore<DB extends ChatDatabase>({ kernel: hostKer
     });
   }
 
-  async function load({ messageId }: { messageId: string }, _options = {}): Promise<DurableRun | null> {
+  async function load({ messageId }: { messageId: string }, { includeTranscriptEvents = true }: { includeTranscriptEvents?: boolean } = {}): Promise<DurableRun | null> {
     const binding = await kernel.run((db) => db.selectFrom("ai_chat_messages").select("conversation_id")
       .where("id", "=", messageId).executeTakeFirst());
     if (!binding) return null;
-    // The message comes from the transcript, so its row's events are not selected twice.
-    const read = await lockedRead({ messageId, conversationId: binding.conversation_id }, { transcript: true });
+    // Full reads take the message from the transcript. Lean reads select its own events once,
+    // omitting prior assistant payloads while retaining accepted user receipts.
+    const read = await lockedRead({ messageId, conversationId: binding.conversation_id },
+      { transcript: true, includeTranscriptEvents, events: !includeTranscriptEvents });
     return read && { ...read.head, transcript: read.transcript };
+  }
+
+  /** Single-message read; message identity survives continuation while run_id changes.
+   * Legacy request reconstruction needs only transcript content, never its old event columns. */
+  async function head({ messageId }: { messageId: string }, { events = true }: { events?: boolean } = {}): Promise<DurableRunHead | null> {
+    const binding = await kernel.run((db) => db.selectFrom("ai_chat_messages").select("conversation_id")
+      .where("id", "=", messageId).executeTakeFirst());
+    if (!binding) return null;
+    return (await lockedRead({ messageId, conversationId: binding.conversation_id }, { events }))?.head ?? null;
+  }
+
+  /** Read only one owned projection, without a run lock or accepted-request reconstruction.
+   * Native database versions follow checkpoint growth, replacements, attempts and settlement. SQL omits
+   * content/events on a hit; only changed rows cross into JS as raw JSON, never parsed events.
+   * @complexity One indexed row read; O(1) unchanged payload and JS space; changed payload is O(current message bytes).
+   */
+  async function poll(
+    { messageId, principalId, workspaceId }: { messageId: string; principalId: string; workspaceId: string },
+    { cursor }: { cursor?: string } = {},
+  ) {
+    // SQLite has no per-row version: combine this connection's writes with the external-commit
+    // generation. Unrelated writes may invalidate the cursor, but equal-length rewrites cannot
+    // hide. PostgreSQL supplies the row's own MVCC version. Neither reads the event column.
+    const version = kernel.dialect === 'sqlite'
+      ? sqliteReadVersion({ kernel })
+      : sql<string>`cast(ai_chat_messages.xmin as text)`;
+    const changed = sql<boolean>`${version} <> ${cursor ?? ''}`;
+    // Run writers persist compact JSON arrays on both engines. SQLite also tolerates malformed
+    // legacy rows through its native validator; PG14 has no safe try-cast (do not parse in JS).
+    const valid = kernel.dialect === 'sqlite' ? sql<number>`json_valid(events_json)` : sql<number>`1`;
+    const row = await kernel.run(db => db.selectFrom('ai_chat_messages')
+      .innerJoin('ai_chats', 'ai_chats.id', 'ai_chat_messages.conversation_id')
+      .select(['ai_chat_messages.id', 'conversation_id', 'role'])
+      .select([
+        sql<string | null>`case when ${changed} then run_id else null end`.as('run_id'),
+        sql<string | null>`case when ${changed} then run_status else null end`.as('run_status'),
+        sql<string | null>`case when ${changed} then agent_id else null end`.as('agent_id'),
+        sql<string | null>`case when ${changed} then agent_name else null end`.as('agent_name'),
+        sql<string | null>`case when ${changed} then attachments_json else null end`.as('attachments_json'),
+        sql<number>`case when ${changed} then ai_chat_messages.created_at else 0 end`.as('created_at'),
+        sql<number | null>`case when ${changed} then started_at else null end`.as('started_at'),
+        sql<number | null>`case when ${changed} then ended_at else null end`.as('ended_at')])
+      .select([version.as('cursor'),
+        sql<string>`case when ${changed} then content else '' end`.as('content'),
+        sql<string | null>`case when ${changed} then events_json else null end`.as('events_json'),
+        sql<number | null>`case when ${changed} then ${valid} else null end`.as('events_json_valid')])
+      .where('ai_chat_messages.id', '=', messageId).where('role', '=', 'assistant')
+      .where('owner_kind', '=', 'user').where('owner_id', '=', principalId).where('scope_id', '=', workspaceId)
+      .executeTakeFirst());
+    if (!row) return null;
+    if (row.cursor === cursor) return { cursor: row.cursor };
+    const metadata = JSON.stringify(toMessage({ ...row, events_json: null }));
+    const events = validatedEventsJson({ row });
+    const messageJson = events === undefined ? metadata : metadata.slice(0, -1) + ',"events":' + events + '}';
+    return { cursor: row.cursor, conversationId: row.conversation_id, messageJson };
   }
 
   /** Unlocked probe: the message and conversation an attempt id currently names. */
@@ -299,7 +368,7 @@ export function createDurableRunStore<DB extends ChatDatabase>({ kernel: hostKer
     return kernel.transaction(async () => {
       const history = await lockOwnedConversation({ required });
       if (!history) return null;
-      const existing = await load({ messageId: required.messageId }, {});
+      const existing = await load({ messageId: required.messageId }, { includeTranscriptEvents: false });
       if (existing) return sameOwner({ run: existing, required }) ? existing : null;
       await assertSlotFree({ conversationId: required.conversationId });
       const userMessage = acceptedUserMessage({ request: required.request, now: required.now }, {});
@@ -311,7 +380,7 @@ export function createDurableRunStore<DB extends ChatDatabase>({ kernel: hostKer
         recovery_elapsed_ms: 0, attempt_started_at: required.now,
         session_id: null, session_confirmed: 0, child_pid: null, child_started_at: null, attempt_base_json: "[]",
       }).execute());
-      return load({ messageId: required.messageId }, {});
+      return load({ messageId: required.messageId }, { includeTranscriptEvents: false });
     });
   }
 
@@ -372,16 +441,16 @@ export function createDurableRunStore<DB extends ChatDatabase>({ kernel: hostKer
     return kernel.transaction(async () => {
       const history = await lockOwnedConversation({ required });
       if (!history) return null;
-      const existing = await load({ messageId: required.messageId }, {});
+      const existing = await load({ messageId: required.messageId }, { includeTranscriptEvents: false });
       if (existing) {
         if (!sameOwner({ run: existing, required })) return null;
-        await cancel({ runId: existing.runId, reason: "user-stop" }, {}); return load({ messageId: existing.messageId }, {});
+        await cancel({ runId: existing.runId, reason: "user-stop" }, {}); return load({ messageId: existing.messageId }, { includeTranscriptEvents: false });
       }
       // Stop may beat acceptance or its response. A terminal tombstone for the same logical
       // identity makes any later duplicate acceptance a no-op, without reserving the chat slot.
       await history.appendMessage({ conversationId: required.conversationId, message: { id: required.messageId, role: "assistant", content: "",
         events: [{ kind: "status", label: "Stopped." }], runId: required.runId, runStatus: "canceled", createdAt: required.now, endedAt: required.now } });
-      return load({ messageId: required.messageId }, {});
+      return load({ messageId: required.messageId }, { includeTranscriptEvents: false });
     });
   }
 
@@ -457,5 +526,5 @@ export function createDurableRunStore<DB extends ChatDatabase>({ kernel: hostKer
     });
   }
 
-  return { load, find, accept, advance, cancel, cancelPending, captureSession, clearSession, guardTool, completeTool, recoveryClock };
+  return { load, head, poll, find, accept, advance, cancel, cancelPending, captureSession, clearSession, guardTool, completeTool, recoveryClock };
 }

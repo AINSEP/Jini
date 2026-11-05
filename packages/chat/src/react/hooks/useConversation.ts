@@ -93,6 +93,17 @@ function pendingUserMessage(
 } }, options).message;
 }
 
+/** A checkpoint's run id proves acceptance even if the original start request is still pending.
+ * @returns A copy with pending state cleared only for this run's preceding user row; no I/O.
+ * @complexity O(1) time/space, called in the existing transcript reconciliation pass.
+ */
+function acceptPendingUserMessage({ message, reply, assistantId, runId }: {
+  message: ChatMessage; reply: ChatMessage | undefined; assistantId: string; runId: string | null;
+}, _options = {}): ChatMessage {
+  if (!message.inputPending || reply?.id !== assistantId || runId === null) return message;
+  return { ...message, inputPending: false };
+}
+
 /** The queued assistant bubble a send opens; the run's events fill it in. */
 function pendingAssistantMessage({ id }: { id: string }, { agentId }: { agentId?: string | undefined } = {}): ChatMessage {
   return {
@@ -218,8 +229,10 @@ export function useConversation(options: UseConversationOptions): UseConversatio
     const assistantId = activeAssistantIdRef.current;
     if (!assistantId) return;
     setMessagesState((prev) =>
-      prev.map((m) => {
-        if (m.id !== assistantId) return m;
+      prev.map((m, index) => {
+        if (m.id !== assistantId) return acceptPendingUserMessage({
+          message: m, reply: prev[index + 1], assistantId, runId: run.runId,
+        });
         // A plain if/else chain (not a nested ternary) — deliberately, so
         // each of the four mapped statuses is its own independently
         // trackable branch under coverage instrumentation. The fallback

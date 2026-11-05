@@ -98,14 +98,19 @@ export function followDurableRun(
     stopTimer?.();
     stopTimer = undefined;
     const recover = recoveryPending;
+    let retryRecovery = recover;
     // Consume only when a read starts: faults during its await latch one follow-up recovery.
     recoveryPending = false;
     try {
       const message = await ports.read({ runId, ...(messageId ? { messageId } : {}) }, { recover });
       if (stopped || !message) return;
+      retryRecovery = false;
       if (message === "gone") { stop(); handlers.onDone([]); return; }
       applySavedMessage(message);
     } finally {
+      // Recovery must return a body before conditional polls resume: a failed recovery followed
+      // by unchanged (304) polls would otherwise leave a quiet run's dropped stream closed.
+      if (retryRecovery) recoveryPending = true;
       reading = false;
       if (!stopped) {
         // Always schedule: an error arriving during read must not create a tight recovery loop.

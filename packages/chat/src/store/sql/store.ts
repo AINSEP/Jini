@@ -1,3 +1,4 @@
+import { sqliteReadVersion } from './read-version.js';
 import { withFolderReceipt, foldersFromReceipts } from '../../core/accepted-input.js';
 import type { OnConflictBuilder } from 'kysely';
 const MESSAGE_POSITION = 'm.position';
@@ -131,6 +132,58 @@ function jsonFields(row: MessageRow): Pick<ChatMessage, 'events' | 'attachments'
   };
 }
 
+/** Project metadata without retaining assistant event trees. User folder receipts still hydrate
+ * through the existing mapper; unusual assistant receipts with folders need the same projection. */
+function rawMessageMetadata({ row }: { row: MessageRow }, _optional = {}): ChatMessage {
+  const hasFolderReceipt = row.events_json?.includes(`"name":"${MID_RUN_USER_MESSAGE_EVENT_NAME}"`) && row.events_json.includes('"folders"');
+  const needsReceipts = row.role === 'user' || hasFolderReceipt;
+  const message = toMessage({ ...row, events_json: needsReceipts ? row.events_json : null });
+  delete message.events;
+  return message;
+}
+
+type RawMessageRow = MessageRow & { events_json_valid: number | null };
+
+/** Keep malformed-column tolerance without reserializing event trees. SQLite validates in SQL;
+ * PostgreSQL 14 lacks a safe built-in JSON try-cast, so validate and discard one row's parsed value.
+ * @complexity O(row JSON size) time; PG14 temporarily allocates one event tree, SQLite none. */
+export function validatedEventsJson({ row }: { row: Pick<RawMessageRow, "events_json" | "events_json_valid"> }, _optional = {}): string | undefined {
+  if (!row.events_json) return undefined;
+  if (row.events_json_valid !== null) return Number(row.events_json_valid) === 1 ? row.events_json : undefined;
+  try { JSON.parse(row.events_json); return row.events_json; }
+  catch { return undefined; }
+}
+
+/** Emit metadata and opaque event JSON separately, so neither an aggregate response string nor
+ * all parsed assistant events coexist. The borrowed query still holds O(total stored JSON) strings.
+ * @complexity O(total JSON bytes) time/retained raw strings; PG validation peaks at one event tree. */
+async function* messageJsonChunks(
+  { rows }: { rows: RawMessageRow[] },
+  { orderMessages = messages => messages }: { orderMessages?: (messages: ChatMessage[]) => ChatMessage[] } = {},
+): AsyncIterable<string> {
+  const byId = new Map(rows.map(row => [row.id, row]));
+  const messages = orderMessages(rows.map(row => rawMessageMetadata({ row })));
+  yield '{"messages":[';
+  for (let index = 0; index < messages.length; index++) {
+    const message = messages[index]!;
+    const eventsJson = validatedEventsJson({ row: byId.get(message.id)! });
+    if (index > 0) yield ',';
+    const metadataJson = JSON.stringify(message);
+    if (eventsJson === undefined) { yield metadataJson; continue; }
+    yield metadataJson.slice(0, -1) + ',"events":';
+    yield eventsJson;
+    yield '}';
+  }
+  yield ']}';
+}
+
+/** Receipt-bearing user rows retain their public metadata while large assistant histories stay
+ * outside recovery/acceptance projections. Both dialects evaluate the same CASE expression. */
+function messageEventsColumn({ includeEvents }: { includeEvents: boolean | "user" }, _options = {}) {
+  if (includeEvents === 'user') return sql<string | null>`case when m.role = 'user' then m.events_json else null end`;
+  return includeEvents ? sql<string | null>`m.events_json` : sql<string | null>`null`;
+}
+
 /** Empty run columns are omitted. */
 function runFields(row: MessageRow): Pick<ChatMessage, 'runId' | 'runStatus'> {
   return {
@@ -224,7 +277,7 @@ export function createSqlChatStore<DB extends ChatDatabase>(
   }
 
   /** One scoped projection for all message reads, including the row returned by an upsert. */
-  function ownedMessages(db: Kysely<ChatDatabase>, conversationId: string) {
+  function ownedMessages(db: Kysely<ChatDatabase>, conversationId: string, { includeEvents = true }: { includeEvents?: boolean | "user" } = {}) {
     return db
         .selectFrom("ai_chat_messages as m")
         .innerJoin("ai_chats as c", "c.id", "m.conversation_id")
@@ -234,7 +287,6 @@ export function createSqlChatStore<DB extends ChatDatabase>(
           "m.content",
           "m.agent_id",
           "m.agent_name",
-          "m.events_json",
           "m.attachments_json",
           "m.run_id",
           "m.run_status",
@@ -242,6 +294,7 @@ export function createSqlChatStore<DB extends ChatDatabase>(
           "m.started_at",
           "m.ended_at",
         ])
+        .select(messageEventsColumn({ includeEvents }).as('events_json'))
         .where("m.conversation_id", "=", conversationId)
         .where("c.scope_id", "=", scopeId)
         .where("c.owner_kind", "=", ownerKind)
@@ -249,8 +302,8 @@ export function createSqlChatStore<DB extends ChatDatabase>(
   }
 
   /** Read owned messages in persisted position order; foreign IDs produce no rows. */
-  async function messages({ conversationId }: ChatMessagePageInput, _optional: Record<string, never> = {}): Promise<ChatMessage[]> {
-    const rows = await run(db => ownedMessages(db, conversationId).orderBy(MESSAGE_POSITION).execute());
+  async function messages({ conversationId }: ChatMessagePageInput, { includeEvents = true }: { includeEvents?: boolean | "user" } = {}): Promise<ChatMessage[]> {
+    const rows = await run(db => ownedMessages(db, conversationId, { includeEvents }).orderBy(MESSAGE_POSITION).execute());
     return rows.map(toMessage);
   }
 
@@ -452,6 +505,35 @@ export function createSqlChatStore<DB extends ChatDatabase>(
 
     messages,
 
+    /** One indexed, owner-scoped row; browser save fences do not need the conversation's history. */
+    async message({ conversationId, messageId }, _optional = {}) {
+      const row = await run(db => ownedMessages(db, conversationId).where('m.id', '=', messageId).executeTakeFirst());
+      return row ? toMessage(row) : null;
+    },
+
+    /** SQLite's connection/external-commit counters avoid reading message rows at all. PG uses
+     * MVCC versions from only this conversation's indexed metadata, never large event columns.
+     * @complexity O(1) SQLite; O(n) PG message metadata for n messages; O(1) returned bytes.
+     */
+    async messagesVersion({ conversationId }, _optional = {}) {
+      const row = await run(db => db.selectFrom('ai_chats as c').select(eb => {
+        const version = kernel.dialect === 'sqlite' ? sqliteReadVersion({ kernel })
+          : sql<string>`md5(coalesce(${eb.selectFrom('ai_chat_messages as m')
+            .select(sql<string>`string_agg(m.id || ':' || cast(m.xmin as text), ',' order by m.position)`.as('versions'))
+            .whereRef('m.conversation_id', '=', 'c.id')}, ''))`;
+        return version.as('version');
+      })
+        .where('c.id', '=', conversationId).where('c.scope_id', '=', scopeId)
+        .where('c.owner_kind', '=', ownerKind).where('c.owner_id', '=', ownerId).executeTakeFirst());
+      return row?.version ?? null;
+    },
+
+    async messagesJson({ conversationId }, optional = {}) {
+      const valid = kernel.dialect === 'sqlite' ? sql<number | null>`json_valid(m.events_json)` : sql<number | null>`null`;
+      const rows = await run(db => ownedMessages(db, conversationId).select(valid.as('events_json_valid')).orderBy(MESSAGE_POSITION).execute());
+      return messageJsonChunks({ rows }, optional);
+    },
+
     async appendMessage({ conversationId, message }: { readonly conversationId: string; readonly message: ChatMessage }, _optional: Record<string, never> = {}) {
       const prepared = redactUserMessage({ message }, { ...(redactionOptions.redactUserText ? { redactUserText: redactionOptions.redactUserText } : {}) });
       const saved = await writeMessage(conversationId, prepared.message);
@@ -511,6 +593,9 @@ export function createSqlChatStore<DB extends ChatDatabase>(
     touch: (required, optional = {}) => atStoreBoundary({ operation: () => store.touch(required, optional) }),
     delete: (required, optional = {}) => atStoreBoundary({ operation: () => store.delete(required, optional) }),
     messages: (required, optional = {}) => atStoreBoundary({ operation: () => store.messages(required, optional) }),
+    message: (required, optional = {}) => atStoreBoundary({ operation: () => store.message!(required, optional) }),
+    messagesVersion: (required, optional = {}) => atStoreBoundary({ operation: () => store.messagesVersion!(required, optional) }),
+    messagesJson: (required, optional = {}) => atStoreBoundary({ operation: () => store.messagesJson!(required, optional) }),
     appendMessage: (required, optional = {}) => atStoreBoundary({ operation: () => store.appendMessage(required, optional) }),
     pageConversations: (required, optional = {}) => atStoreBoundary({ operation: () => store.pageConversations(required, optional) }),
     pageMessages: (required, optional = {}) => atStoreBoundary({ operation: () => store.pageMessages(required, optional) }),

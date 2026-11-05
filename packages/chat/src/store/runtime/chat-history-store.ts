@@ -62,6 +62,12 @@ export function createChatHistoryStore<DB extends ChatDatabase>(
     async messages(required, optional = {}) {
       return repairLegacyTurnOrder({ messages: await store.messages(required, optional), isDaemonRunId }, {});
     },
+    // Raw history must apply the same repair before emitting chunks; ordering never needs events.
+    async messagesJson(required, optional = {}) {
+      return store.messagesJson!(required, { ...optional,
+        orderMessages: messages => repairLegacyTurnOrder({ messages, isDaemonRunId }, {}),
+      });
+    },
   };
 }
 

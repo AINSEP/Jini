@@ -105,8 +105,18 @@ export interface ChatStore {
   touch(required: { readonly id: string }, optional?: { readonly expiresAt?: number }): Promise<void>;
   /** Cascades messages; unknown/other-owned IDs are no-ops. */
   delete(required: { readonly id: string }, optional?: Record<string, never>): Promise<void>;
-  /** Compatibility read: all messages in stored position order; unauthorized returns []. */
-  messages(required: ChatMessagePageInput, optional?: Record<string, never>): Promise<ChatMessage[]>;
+  /** Compatibility read in stored order; unauthorized returns []. `false` omits event columns;
+   * `user` keeps input receipts/folders without reading prior assistant payloads. */
+  messages(required: ChatMessagePageInput, optional?: { readonly includeEvents?: boolean | "user" }): Promise<ChatMessage[]>;
+  /** Optional indexed compatibility read; unknown and other-owned rows both return null. */
+  message?(required: ChatMessagePageInput & { readonly messageId: string }, optional?: Record<string, never>): Promise<ChatMessage | null>;
+  /** Cheap owner-scoped history validator; reads metadata, never message/event payloads. */
+  messagesVersion?(required: ChatMessagePageInput, optional?: Record<string, never>): Promise<string | null>;
+  /** JSON response chunks, preserving stored event JSON instead of serializing event object trees.
+   * The optional ordering policy sees message metadata and receipt-derived folders, without events. */
+  messagesJson?(required: ChatMessagePageInput, optional?: {
+    readonly orderMessages?: (messages: ChatMessage[]) => ChatMessage[];
+  }): Promise<AsyncIterable<string>>;
   /** Idempotent update by message ID within its original conversation; unauthorized: null. */
   appendMessage(
     required: { readonly conversationId: string; readonly message: ChatMessage },
@@ -124,7 +134,7 @@ export interface ChatStore {
 export type ChatHistoryStore = Pick<
   ChatStore,
   | 'list' | 'get' | 'create' | 'rename' | 'touch' | 'delete'
-  | 'messages' | 'appendMessage' | 'history'
+  | 'messages' | 'message' | 'messagesJson' | 'messagesVersion' | 'appendMessage' | 'history'
 >;
 
 /** Internal persistence projections. Model-facing tools redact and cap these before returning. */

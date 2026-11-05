@@ -50,3 +50,5 @@ export { formatUsageCost } from './usage-format.js';
 
 export * from './accepted-input.js';
 export * from './question-answer.js';
+
+export { checkpointIntervalMs, checkpointProgress } from './checkpoint-interval.js';

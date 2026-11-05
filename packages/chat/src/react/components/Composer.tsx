@@ -73,9 +73,9 @@ export interface ComposerProps {
   /** Cancels the in-flight run. Required when `running` is true; ignored otherwise. */
   onCancel?: () => void;
   /**
-   * Cmd/Ctrl+Enter: end the run in flight and send this draft next. Optional — without it the
-   * modifier falls through to the ordinary Enter path, so a host that has not opted in keeps
-   * exactly its previous behavior.
+   * Cmd/Ctrl+Enter: optional host send shortcut. ChatPane shares the ordinary mid-run delivery
+   * path so sending keeps the current run going. Without this callback the modifier falls
+   * through to ordinary Enter, so a host that has not opted in keeps its previous behavior.
    */
   onInterrupt?: () => void;
   /**
@@ -385,9 +385,9 @@ export function Composer({
 
   function submitFromEnter(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (disabled || !composer.canSubmit) return;
-    // Cmd/Ctrl+Enter ends the current run and sends this next; plain Enter queues behind it.
-    // `sendDisabled` is deliberately NOT consulted on the interrupt path — while a run streams it
-    // is set precisely BECAUSE of that run, which is the one case this modifier exists to act on.
+    // Cmd/Ctrl+Enter uses the host shortcut; ChatPane routes it through the ordinary send guards.
+    // `sendDisabled` is deliberately NOT consulted here: hosts can offer a shortcut while a run
+    // itself blocks ordinary sends. ChatPane queues or delivers live without cancelling the run.
     if ((event.metaKey || event.ctrlKey) && onInterrupt) {
       onInterrupt();
       return;

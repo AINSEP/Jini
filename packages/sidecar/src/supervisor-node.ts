@@ -190,12 +190,24 @@ export interface NodeIpcPeer {
 }
 
 /** Native deserialization supplies plain objects; accept only this channel's envelope. O(1). */
-function isIpcEnvelope(message: unknown): message is { id: string; kind: unknown; payload?: unknown; ok?: unknown; channel?: unknown } {
+function isIpcEnvelope(message: unknown): message is { id: string; kind: unknown; payload?: unknown; ok?: unknown; channel?: unknown; refusalReason?: unknown } {
   if (typeof message !== "object" || message === null) return false;
   return "jiniIpc" in message && message.jiniIpc === 1 && "id" in message && typeof message.id === "string" && "kind" in message;
 }
 
-/** Native request/reply with bounded pending work. Errors never echo a request, payload or handler error.
+/** Only explicitly public, bounded refusal text may cross IPC. Raw handler messages stay private.
+ * @complexity O(1); the caller owns choosing a reason that contains no private data.
+ */
+export function ipcRefusalReason({ value }: { value: unknown }, _optional = {}): string | undefined {
+  if (typeof value !== "object" || value === null || !("refusalReason" in value)) return undefined;
+  const reason = value.refusalReason;
+  if (typeof reason !== "string") return undefined;
+  return reason.length > 0 && reason.length <= 1024 ? reason : undefined;
+}
+
+/** Native request/reply with bounded pending work. Errors never echo a request, payload or raw handler error.
+ * Handlers may opt into public diagnostics by throwing an error with a `refusalReason` string
+ * (1–1024 characters), e.g. `Object.assign(new Error(), { refusalReason: "This session ended." })`.
  * @param required The actual spawned child or inherited process channel.
  * @param optional Handler, deadline and pending-request cap; construction starts no requests.
  * @returns Request and idempotent disposal; disconnect rejects and clears every pending request.
@@ -217,17 +229,27 @@ export function createNodeIpcChannel({ peer }: { peer: NodeIpcPeer }, {
   function reply(message: Record<string, Serializable>): void {
     try { send(message); } catch { dispose({}); } // A departing peer cannot receive a refusal.
   }
+  /** Complete only a matching request, preserving explicit public refusals. O(1) lookup. */
+  function receiveReply({ message }: { message: { id: string; ok?: unknown; payload?: unknown } }, _optional = {}): void {
+    const refusalReason = ipcRefusalReason({ value: message });
+    const error = message.ok === true ? null : Object.assign(new Error(refusalReason ?? "IPC request refused"),
+      refusalReason === undefined ? {} : { refusalReason });
+    pending.get(message.id)?.finish(error, message.payload);
+  }
   function receive(message: unknown): void {
     if (disposed || !isIpcEnvelope(message) || message.channel !== channel) return;
     const { id } = message;
     if (message.kind === "reply") {
-      pending.get(id)?.finish(message.ok === true ? null : new Error("IPC request refused"), message.payload);
+      receiveReply({ message });
     } else if (message.kind === "request" && handle) {
       if (handling >= maxPending) { reply({ jiniIpc: 1, kind: "reply", id, ok: false }); return; }
       handling++;
       void Promise.resolve().then(() => handle(message.payload)).then(
         payload => reply({ jiniIpc: 1, kind: "reply", id, ok: true, payload }),
-        () => reply({ jiniIpc: 1, kind: "reply", id, ok: false }),
+        error => {
+          const refusalReason = ipcRefusalReason({ value: error });
+          reply({ jiniIpc: 1, kind: "reply", id, ok: false, ...(refusalReason ? { refusalReason } : {}) });
+        },
       ).catch(() => {}).finally(() => { handling--; }); // A disconnected peer cannot receive its reply.
     }
   }

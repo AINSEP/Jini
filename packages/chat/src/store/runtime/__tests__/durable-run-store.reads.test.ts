@@ -7,6 +7,7 @@ import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { sql } from 'kysely';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { scopeToSchema } from '@jini-ai/db/kernel';
 import { openPgliteKernel } from '@jini-ai/db/kernel/pglite';
 import type { ChatDatabase } from '../kernel.js';
 import type { DurableRunStore } from '../../../core/durable-runs/ports.js';
@@ -126,6 +127,82 @@ describe('the SQL event append on PostgreSQL (PGlite)', () => {
       expect(await saved()).toBe(JSON.stringify([use]));
       await store.completeTool({ runId: 'daemon-1', toolUseId: 't1', content: 'ok' }, {});
       expect(await saved()).toBe(JSON.stringify([use, { kind: 'tool_result', toolUseId: 't1', content: 'ok', isError: false }]));
+      await kernel.execute(sql`CREATE SCHEMA owned_chat`);
+      for (const table of ['ai_chats', 'ai_chat_messages', 'assistant_agent_sessions', 'assistant_run_attempts']) {
+        await kernel.execute(sql`ALTER TABLE ${sql.table(table)} SET SCHEMA owned_chat`);
+      }
+      const scoped = scopeToSchema(kernel, 'owned_chat');
+      const scopedHistory = createChatHistoryStore({ kernel: scoped, scope, isDaemonRunId });
+      const version = await scopedHistory.messagesVersion!({ conversationId: 'c' }, {});
+      expect(version).toBeTruthy();
+      expect(await scopedHistory.messagesVersion!({ conversationId: 'c' }, {})).toBe(version);
+      const scopedStore = createDurableRunStore({ kernel: scoped, isDaemonRunId });
+      const input = { messageId: 'a1', principalId: 'alice', workspaceId: 'ws' };
+      const first = await scopedStore.poll!(input, {});
+      expect(first?.messageJson).toContain('"events":');
+      expect(await scopedStore.poll!(input, { cursor: first!.cursor })).toEqual({ cursor: first!.cursor });
+
     } finally { await kernel.close(); }
+  });
+});
+
+describe('message-scoped heads and content-only recovery transcripts', () => {
+  it('head follows the message id across attempts without reading prior events', async () => {
+    const store = await conversation({ turns: 3 });
+    f.sql("UPDATE ai_chat_messages SET run_id = 'daemon-next', events_json = ? WHERE id = 'a1'", '[{"kind":"text","text":"current"}]');
+    const parse = vi.spyOn(JSON, 'parse');
+    const head = await store.head!({ messageId: 'a1' }, {});
+    expect(head?.runId).toBe('daemon-next');
+    expect(head?.message.events).toEqual([{ kind: 'text', text: 'current' }]);
+    expect(head).not.toHaveProperty('transcript');
+    expect(parse.mock.calls.filter(([json]) => json === '[{"kind":"text","text":"r"}]')).toHaveLength(0);
+  });
+
+  it('recovery can omit every prior message events column and retain the current projection', async () => {
+    const store = await conversation({ turns: 3 });
+    f.sql("UPDATE ai_chat_messages SET events_json = ? WHERE id = 'a1'", '[{"kind":"text","text":"current"}]');
+    const parse = vi.spyOn(JSON, 'parse');
+    const run = await store.load({ messageId: 'a1' }, { includeTranscriptEvents: false });
+    expect(run?.message.events).toEqual([{ kind: 'text', text: 'current' }]);
+    expect(run?.transcript.find(message => message.id === 'a1')).toEqual(run?.message);
+    expect(run?.transcript.find(message => message.id === 'r0')).not.toHaveProperty('events');
+    expect(parse.mock.calls.filter(([json]) => json === '[{"kind":"text","text":"r"}]')).toHaveLength(0);
+  });
+});
+
+
+describe('conditional progress polling', () => {
+  it('unchanged polls do no JSON parse, lock or transaction and return a tiny result', async () => {
+    const store = await conversation({ turns: 3 });
+    const raw = JSON.stringify([{ kind: 'text', text: 'x'.repeat(1_000_000) }]);
+    f.sql("UPDATE ai_chat_messages SET content = ?, events_json = ? WHERE id = 'a1'", 'x'.repeat(1_000_000), raw);
+    const input = { messageId: 'a1', principalId: 'alice', workspaceId: 'ws' };
+    const first = await store.poll!(input, {});
+    expect(first?.messageJson).toContain(raw);
+    const parse = vi.spyOn(JSON, 'parse');
+    const lock = vi.spyOn(f.kernel, 'lockKey');
+    const transaction = vi.spyOn(f.kernel, 'transaction');
+    const unchanged = await store.poll!(input, { cursor: first!.cursor });
+    expect(unchanged).toEqual({ cursor: first!.cursor });
+    expect(JSON.stringify(unchanged).length).toBeLessThan(1500);
+    expect(parse).not.toHaveBeenCalled();
+    expect(lock).not.toHaveBeenCalled();
+    expect(transaction).not.toHaveBeenCalled();
+    expect(await store.poll!({ ...input, principalId: 'bob' }, {})).toBeNull();
+    expect(await store.poll!({ ...input, workspaceId: 'other' }, {})).toBeNull();
+  });
+
+  it('returns raw changes for growth, an equal-length tail replacement, continuation and settlement', async () => {
+    const store = await conversation({ turns: 0 });
+    const input = { messageId: 'a1', principalId: 'alice', workspaceId: 'ws' };
+    let previous = await store.poll!(input, {});
+    for (const [runId, status, text] of [['daemon-1', 'running', 'é😀' + 'x'.repeat(500)], ['daemon-1', 'running', 'é😎' + 'x'.repeat(500)], ['daemon-2', 'running', 'é😎'], ['daemon-2', 'succeeded', 'é😎']]) {
+      const raw = JSON.stringify([{ kind: 'text', text }]);
+      f.sql("UPDATE ai_chat_messages SET run_id = ?, run_status = ?, content = ?, events_json = ? WHERE id = 'a1'", runId, status, text, raw);
+      const next = await store.poll!(input, { cursor: previous!.cursor });
+      expect(next?.cursor).not.toBe(previous?.cursor);
+      expect(next?.messageJson).toContain(raw);
+      previous = next;
+    }
   });
 });

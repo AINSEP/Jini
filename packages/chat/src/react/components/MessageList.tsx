@@ -108,7 +108,8 @@ export const MessageList = memo(function MessageList({
         message,
         isLast: message.id === messages[messages.length - 1]?.id,
         // A reply's start is accepted together with its user turn (`inputPending` clears then).
-        sending: messages[index - 1]?.inputPending === true,
+        // A run id also proves acceptance after reload, when a legacy pending flag can survive.
+        sending: message.runId === undefined && messages[index - 1]?.inputPending === true,
         isStreaming,
         usageSummary: usageByMessage.get(message.id),
       }, rowProps))}

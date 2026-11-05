@@ -551,3 +551,27 @@ it('keeps_an_accepted_attachment_until_consumed_or_next_turn', async () => {
   await waitFor(() => expect(transport.calls).toHaveLength(2));
   expect(transport.calls[1]!.input.history.at(-1)?.attachments).toEqual([image]);
 });
+
+it.each(['send', 'interruptSend'] as const)('%s delivers mid-run without cancelling, consumes a terminal receipt before flushing', async action => {
+  const deliver = vi.fn(async (): Promise<MidRunMessageDelivery> => ({ delivery: 'delivered', id: 'wire-publish' }));
+  const { result, transport } = await startStreamingRun(deliver);
+  await act(async () => { await result.current[action](); });
+  await waitFor(() => expect(deliver).toHaveBeenCalledOnce());
+  expect(transport.stoppedRunIds).toEqual([]);
+  expect(transport.calls).toHaveLength(1);
+  expect(result.current.conversation.isStreaming).toBe(true);
+  const queued = { kind: 'ext' as const, name: 'user_message', data: {
+    id: 'wire-publish', text: 'also fix the footer', deliveryState: 'queued',
+  } };
+  // A durable checkpoint can deliver consumption and completion together after disconnect.
+  await act(async () => {
+    transport.calls[0]!.handlers.onCheckpoint?.({ id: result.current.conversation.messages.at(-1)!.id,
+      role: 'assistant', content: 'Done.', runId: 'run-1', runStatus: 'succeeded', events: [
+        queued, { ...queued, data: { ...queued.data, deliveryState: 'consumed' } }, { kind: 'text', text: 'Done.' },
+      ],
+    });
+  });
+  expect(result.current.queuedPrompt).toBeNull();
+  expect(transport.calls).toHaveLength(1);
+  expect(transport.stoppedRunIds).toEqual([]);
+});

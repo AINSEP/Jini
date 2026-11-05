@@ -28,8 +28,21 @@ export interface DurableRun extends RunRef {
  * still carries the run's own saved events; only `load`/`accept`/`cancelPending` read every message. */
 export type DurableRunHead = Omit<DurableRun, "transcript">;
 
+/** Raw current-message projection. An absent messageJson means the cursor is unchanged. */
+export interface DurableRunPoll {
+  readonly cursor: string;
+  readonly conversationId?: string;
+  readonly messageJson?: string;
+}
+
 export interface DurableRunStore {
-  load(required: { messageId: string }, optional: {}): Promise<DurableRun | null>;
+  /** Owner-scoped, unlocked poll. No transcript read or event parse; unchanged omits payloads. */
+  poll?(required: { messageId: string; principalId: string; workspaceId: string }, optional: { cursor?: string }): Promise<DurableRunPoll | null>;
+  /** `includeTranscriptEvents:false` omits prior assistant payloads, keeping current-run events
+   * and user receipts that preserve queued inputs and folder references. Defaults to a full read. */
+  load(required: { messageId: string }, optional: { includeTranscriptEvents?: boolean }): Promise<DurableRun | null>;
+  /** Follow the current attempt by message id without loading its conversation. */
+  head?(required: { messageId: string }, optional: { events?: boolean }): Promise<DurableRunHead | null>;
   /** Reads only this run's message and attempt rows; `load` when the transcript is needed. */
   find(required: { runId: string; principalId?: string }, optional: {}): Promise<DurableRunHead | null>;
   accept(required: RunRef & { principalId: string; workspaceId: string; request: AcceptedRunRequest; now: number }, optional: {}): Promise<DurableRun | null>;

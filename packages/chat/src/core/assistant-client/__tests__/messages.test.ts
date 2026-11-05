@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { activeRunStub, messageWriteKey, persistableMessages } from "../entry.js";
+import { activeRunStub, messageWriteKey, persistableMessages, createConditionalHistoryRead } from "../entry.js";
 import type { ChatMessage } from "../../messages.js";
 
 const user = (id: string, extra: Partial<ChatMessage> = {}): ChatMessage => ({ id, role: "user", content: id, ...extra });
@@ -39,4 +39,34 @@ describe("activeRunStub", () => {
     expect(activeRunStub({ messages: [assistant("a1", { runId: "r1", runStatus: "running" }), user("u2")] })).toBeNull();
     expect(activeRunStub({ messages: [assistant("a1", { runStatus: "running" })] })).toBeNull();
   });
+});
+
+it('conditional history keeps one snapshot by reference and checks the server on every refresh', async () => {
+  const messages = [{ id: 'u1', role: 'user' as const, content: 'saved' }];
+  const versions: (string | undefined)[] = [];
+  let calls = 0;
+  const load = createConditionalHistoryRead({ read: async (_input, { version }) => {
+    versions.push(version);
+    return ++calls === 1 ? { messages, version: 'v1' } : { unchanged: true };
+  } });
+  expect(await load({ conversationId: 'c' })).toBe(messages);
+  expect(await load({ conversationId: 'c' })).toBe(messages);
+  expect(versions).toEqual([undefined, 'v1']);
+});
+
+it('conditional history discards another conversation snapshot and clears failed reads', async () => {
+  const versions: (string | undefined)[] = [];
+  let fail = false;
+  const load = createConditionalHistoryRead({ read: async ({ conversationId }, { version }) => {
+    versions.push(version);
+    if (fail) throw new Error('history read refused');
+    return { messages: [{ id: conversationId, role: 'user', content: 'saved' }], version: 'v1' };
+  } });
+  await load({ conversationId: 'a' });
+  await load({ conversationId: 'b' });
+  fail = true;
+  await expect(load({ conversationId: 'b' })).rejects.toThrow('history read refused');
+  fail = false;
+  await load({ conversationId: 'b' });
+  expect(versions).toEqual([undefined, undefined, 'v1', undefined]);
 });

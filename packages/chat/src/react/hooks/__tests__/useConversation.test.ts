@@ -438,3 +438,23 @@ describe('useConversation', () => {
     });
   });
 });
+
+it('clears pending input when an accepted checkpoint arrives before the start promise resolves', async () => {
+  const transport = createFakeChatTransport();
+  const startRun = transport.startRun;
+  let release!: () => void;
+  transport.startRun = async (input, handlers) => {
+    const accepted = await startRun(input, handlers);
+    await new Promise<void>(resolve => { release = resolve; });
+    return accepted;
+  };
+  const { result } = renderHook(() => useConversation({ transport }));
+  let sending!: Promise<void>;
+  await act(async () => { sending = result.current.sendMessage('Publish first'); });
+  expect(result.current.messages[0]!.inputPending).toBe(true);
+  act(() => transport.calls[0]!.handlers.onCheckpoint?.({
+    id: result.current.messages[1]!.id, role: 'assistant', content: '', runId: 'run-1', runStatus: 'running', events: [],
+  }));
+  expect(result.current.messages[0]!.inputPending).toBe(false);
+  await act(async () => { release(); await sending; });
+});

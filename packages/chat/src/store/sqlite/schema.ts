@@ -1,7 +1,7 @@
 /**
  * @module store/sqlite/schema
  *
- * Canonical unchanged DDL for ai_chats and ai_chat_messages. Hosts own their database,
+ * Canonical DDL for ai_chats and ai_chat_messages. Hosts own their database,
  * migration ledger and connection configuration. A host with migrations retains its frozen
  * migration statements; a fresh fixture or host without a migrator may call the explicit helper.
  * Store construction never invokes it, chooses a file, or sets connection-wide pragmas.
@@ -74,6 +74,10 @@ CREATE TABLE IF NOT EXISTS ai_chat_messages (
 
 CREATE INDEX IF NOT EXISTS idx_ai_chat_messages_order
   ON ai_chat_messages(conversation_id, position);
+
+-- Idle probes read only this covering index, never the overflowing event rows.
+CREATE INDEX IF NOT EXISTS idx_ai_chat_messages_active
+  ON ai_chat_messages(role, run_status, id) WHERE run_status IN ('queued', 'running');
 `;
 
 /**

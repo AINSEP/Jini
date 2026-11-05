@@ -82,3 +82,12 @@ it('threads a changing host sendingLabel from the public ChatPane to its pending
   expect(screen.getByText('Thinking… 0 s')).toBeVisible();
   act(() => transport.finish([]));
 });
+
+it('does not retain Sending after reloading an accepted run beside a stale pending input', () => {
+  render(<MessageList messages={[
+    { id: 'user', role: 'user', content: 'Publish first', inputPending: true },
+    { ...assistant, runId: 'accepted-run', runStatus: 'running' },
+  ]} isStreaming />);
+  expect(screen.queryByText('Sending…')).not.toBeInTheDocument();
+  expect(screen.getByText('Thinking… 0 s')).toBeVisible();
+});

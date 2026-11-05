@@ -16,6 +16,33 @@ class Peer extends EventEmitter {
 }
 
 describe("native inherited IPC", () => {
+  it("preserves an explicitly public refusal reason without echoing private handler details", async () => {
+    const parent = new Peer(); const child = new Peer(); parent.other = child; child.other = parent;
+    const reason = "An older server still owns this scope. Restart the site.";
+    const client = createNodeIpcChannel({ peer: parent });
+    const server = createNodeIpcChannel({ peer: child }, { handle: async () => {
+      throw Object.assign(new Error("private-credential"), { refusalReason: reason });
+    } });
+    try {
+      await expect(client.request({ payload: "register" })).rejects.toMatchObject({ message: reason, refusalReason: reason });
+      expect(JSON.stringify(child.sent)).not.toContain("private-credential");
+    } finally { client.dispose({}); server.dispose({}); }
+  });
+
+  it("ignores malformed or unbounded public refusal reasons", async () => {
+    const parent = new Peer(); const child = new Peer(); parent.other = child; child.other = parent;
+    const client = createNodeIpcChannel({ peer: parent });
+    const server = createNodeIpcChannel({ peer: child }, { handle: async payload => {
+      throw Object.assign(new Error("private-credential"), { refusalReason: payload });
+    } });
+    try {
+      for (const reason of ["", 42, "x".repeat(1025)]) {
+        await expect(client.request({ payload: reason })).rejects.toThrow("IPC request refused");
+      }
+      expect(JSON.stringify(child.sent)).not.toContain("private-credential");
+    } finally { client.dispose({}); server.dispose({}); }
+  });
+
   it("requests are bound to their child and reject stale replies", async () => {
     const a = new Peer(); const b = new Peer();
     const first = createNodeIpcChannel({ peer: a });

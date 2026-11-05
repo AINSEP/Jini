@@ -17,7 +17,9 @@ import { toolPresentation } from './tool-presentation.js';
  *   `k` is the number of distinct `tool_use` ids seen — one linear pass with
  *   a `Set` membership check.
  */
-export function dedupeToolUsesById({ events }: { events: AgentEvent[] | undefined }): AgentEvent[] {
+export function dedupeToolUsesById(required: { events: AgentEvent[] | undefined }, optional?: {}): AgentEvent[];
+export function dedupeToolUsesById(required: { events: readonly AgentEvent[] | undefined }, optional?: {}): readonly AgentEvent[];
+export function dedupeToolUsesById({ events }: { events: readonly AgentEvent[] | undefined }, _optional?: {}): readonly AgentEvent[] {
   if (!events || events.length === 0) return [];
 
   const seen = new Set<string>();

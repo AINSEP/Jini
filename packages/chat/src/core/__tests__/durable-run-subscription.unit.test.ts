@@ -85,3 +85,52 @@ test("repeated_stream_failures_back_off_and_abort_clears_retry", async () => {
     expect(closed).toHaveBeenCalled();
   } finally { stop(); vi.useRealTimers(); }
 });
+
+for (const failure of ["null", "throw"] as const) {
+  test(`a dropped quiet stream retries a ${failure} recovery before conditional polling resumes`, async () => {
+    const methods: boolean[] = [];
+    const streams: Parameters<DurableSubscriptionPorts["stream"]>[0][] = [];
+    const timers = new Map<object, { work: () => void; delayMs: number }>();
+    const checkpoints: ChatMessage[] = [];
+    const message: ChatMessage = { id: "answer", role: "assistant", content: "saved", runId: "run", runStatus: "running" };
+    const ports: DurableSubscriptionPorts = {
+      read: async (_input, { recover = true }) => {
+        methods.push(recover);
+        if (methods.length === 1) return message;
+        if (methods.length === 2) {
+          if (failure === "throw") throw new Error("recovery unavailable");
+          return null;
+        }
+        // An unchanged conditional response cannot reopen a stream; recovery returns a body.
+        return recover ? message : null;
+      },
+      stream: input => { streams.push(input); return () => {}; },
+      schedule: timer => { const key = {}; timers.set(key, timer); return () => { timers.delete(key); }; },
+    };
+    const stop = followDurableRun({ runId: "run", ports, bindings: new Map(), notices: {
+      toolStepLimit: { kind: "status", label: "Limit" }, interrupted: { kind: "status", label: "Interrupted" },
+      neverStarted: { kind: "status", label: "Never started" }, canceledLabel: "Canceled", failedLabel: "Failed", terminalDetail: () => "Ended",
+    }, handlers: { onEvent: () => {}, onDone: () => {}, onError: () => {}, onCheckpoint: value => { checkpoints.push(value); } } }, { logger: { info: () => {} } });
+    const tick = async () => {
+      expect(timers.size).toBe(1);
+      const [key, timer] = [...timers][0]!;
+      expect(timer.delayMs).toBe(1_000);
+      timers.delete(key); timer.work();
+      await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    };
+    try {
+      await tick(); // Initial recovery succeeds and establishes the saved projection.
+      streams[0]!.dropped();
+      await tick(); // Recovery fails while the row stays unchanged.
+      expect(streams).toHaveLength(1);
+      expect(timers.size, "failure retains a single backed-off timer").toBe(1);
+      await tick();
+      expect(methods).toEqual([true, true, true]);
+      expect(streams).toHaveLength(2);
+      expect(checkpoints).toEqual([message, message]);
+      await tick();
+      expect(methods).toEqual([true, true, true, false]);
+    } finally { stop(); }
+    expect(timers.size).toBe(0);
+  });
+}

@@ -54,3 +54,17 @@ it('keeps folder ownership per receipt through projection and recall, including 
   const empty = { ...messages[0]!, events: [acceptedInputUserEvent({ input: { ...inputs[0]!, folders: [] } }, { receipt: 'accepted' })] };
   expect(projectAcceptedInputMessages({ messages: [empty] })[0]?.folders).toEqual([]);
 });
+
+// Identity, never equal text, decides whether a queued fallback duplicates a mid-run receipt.
+it('keeps distinct equal-text sends and deduplicates aliases and partial fallback batches in display and recall', () => {
+  const messages: ChatMessage[] = [
+    { id: 'run', role: 'assistant', content: '', events: [acceptedInputUserEvent({ input: {
+      id: 'wire', text: 'same', aliases: ['local'], deliveryState: 'consumed',
+    } }, { receipt: 'accepted' })] },
+    { id: 'fallback', role: 'user', content: 'same\n\nsame', events: [accepted('local', 'same'), accepted('second', 'same')] },
+    { id: 'ordinary', role: 'user', content: 'same' },
+  ];
+  expect(projectAcceptedInputMessages({ messages }).map(message => message.id)).toEqual(['run', 'second', 'ordinary']);
+  expect(acceptedInputsFromMessages({ messages }).map(input => input.id)).toEqual(['wire', 'second', 'ordinary']);
+  expect(messages[1]!.events).toHaveLength(2);
+});

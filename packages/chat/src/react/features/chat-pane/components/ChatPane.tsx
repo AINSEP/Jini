@@ -530,7 +530,6 @@ function ChatPaneComposerArea({
         {...definedProps({ source: { sendDisabledReason, sendDisabledReasonId: sendDisabledReason ? sendDisabledReasonId : undefined } })}
         running={pane.conversation.isStreaming}
         onCancel={pane.conversation.cancel}
-        onInterrupt={pane.interruptSend}
         {...definedProps({ source: { placeholder } })}
         slots={{ ...slots, footerAccessories: <>
           {sendDisabledReason ? <small id={sendDisabledReasonId} className="jini-composer-send-blocker">{sendDisabledReason}</small> : null}

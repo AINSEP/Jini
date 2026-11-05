@@ -117,6 +117,24 @@ export function createApprovalHandler<TPrepared, TDescription>(
   });
 }
 
+/** Prepare a complete direct batch before effects, reusing the approval owner's input snapshot,
+ * cap, duplicate detection and cancellation lifecycle. No review description or transport exists.
+ * @returns A handler preserving scalar results and ordered batch results.
+ * @throws ToolInputError on cancellation or invalid batches; preparation/effect failures propagate.
+ * @complexity Same bounds as createBatchApprovalHandler: O(input bytes) plus bounded port effects.
+ * @example createPreparedBatchHandler({ prepare, run });
+ */
+export function createPreparedBatchHandler<TPrepared>(
+  steps: Pick<ApprovalSteps<TPrepared, undefined>, 'prepare' | 'run'>,
+  options: { maxItems?: number } = {},
+): ToolHandler {
+  return createBatchApprovalHandler({ steps: { ...steps,
+    describe: () => ({ ask: false, description: undefined }),
+    askHuman: async () => { throw new Error('Direct batches have no approval transport'); },
+    notConfirmed: ({ reason }) => { throw new ToolInputError({ message: `This tool call was ${reason} before the next change. Retry the remaining changes when ready.` }); },
+  }, combineDescriptions: () => undefined }, options);
+}
+
 /** Prepare every item before asking once for the complete batch. Reuses the single-call approval
  * lifecycle, including its detached inputs, authenticated confirmer and abort checks.
  * Single inputs preserve their result shape. Batch effects run in order and stop on the first

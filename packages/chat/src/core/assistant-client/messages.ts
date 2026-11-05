@@ -83,3 +83,35 @@ export function activeRunStub({ messages }: { messages: ChatMessage[] }, _option
   if (!last || last.role !== "assistant" || last.runId === undefined) return null;
   return isTerminalRunStatus({ status: last.runStatus }) ? null : last;
 }
+
+
+/** Retain only the last history response by reference, while reauthorizing every refresh at the
+ * server. An unchanged reply reuses it without reading/parsing the whole conversation again.
+ * @param required.read Host HTTP adapter; version is opaque and scoped to one conversation.
+ * @returns An async history reader. Port failures clear its snapshot and propagate.
+ * @throws If an adapter returns unchanged without an earlier snapshot (a port contract violation).
+ * @complexity O(1) local work; one retained snapshot reference, with no message/event copies.
+ * @example const load = createConditionalHistoryRead({ read }); await load({ conversationId });
+ */
+export function createConditionalHistoryRead({ read }: {
+  read: (required: { conversationId: string }, optional: { version?: string | undefined }) => Promise<{
+    messages?: ChatMessage[]; version?: string | undefined; unchanged?: boolean;
+  }>;
+}, _options = {}) {
+  let saved: { conversationId: string; messages: ChatMessage[]; version?: string | undefined } | undefined;
+  return async ({ conversationId }: { conversationId: string }, _optional = {}): Promise<ChatMessage[]> => {
+    const previous = saved?.conversationId === conversationId ? saved : undefined;
+    try {
+      const result = await read({ conversationId }, { version: previous?.version });
+      if (result.unchanged) {
+        if (!previous) throw new Error('Unchanged history requires an earlier snapshot');
+        return previous.messages;
+      }
+      // Same coercion/reason as a conversation list: initialMessages must never be undefined.
+      // A successful transport guarantees JSON syntax, not the response object's field shape.
+      const messages = Array.isArray(result.messages) ? result.messages : [];
+      saved = { conversationId, messages, version: result.version };
+      return messages;
+    } catch (error) { saved = undefined; throw error; }
+  };
+}

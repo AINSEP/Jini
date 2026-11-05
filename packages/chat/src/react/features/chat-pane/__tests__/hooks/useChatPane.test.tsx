@@ -459,7 +459,7 @@ describe('useChatPane', () => {
     expect(messages[3]?.runStatus).toBe('running');
   });
 
-  it('marks the interrupted turn canceled, not running, when interruptSend flushes the next prompt', async () => {
+  it('waits for completion before the send shortcut flushes a turn without live delivery', async () => {
     const transport = createFakeChatTransport();
     const { result } = renderHook(() => useChatPane({ transport, agents, selection: { agentId: 'codex' }, initialDraft: 'first turn' }));
 
@@ -469,16 +469,20 @@ describe('useChatPane', () => {
       transport.emit({ kind: 'text', text: 'partial' });
     });
     act(() => result.current.composer.setDraft('next turn'));
-    act(() => result.current.interruptSend());
+    await act(async () => { result.current.interruptSend(); });
+    expect(transport.stoppedRunIds).toEqual([]);
+    expect(transport.calls).toHaveLength(1);
+    expect(result.current.conversation.isStreaming).toBe(true);
+    act(() => transport.finish());
     await waitFor(() => expect(transport.calls).toHaveLength(2));
 
     const messages = result.current.conversation.messages;
     expect(messages.map((m) => m.role)).toEqual(['user', 'assistant', 'user', 'assistant']);
-    expect(messages[1]?.runStatus).toBe('canceled');
+    expect(messages[1]?.runStatus).toBe('succeeded');
     expect(messages[1]?.content).toBe('partial');
   });
 
-  it('interruptSend cancels the in-flight run and queues the draft — held behind any remaining blocker exactly like a plain queued send', async () => {
+  it('the send shortcut queues the draft behind uploads and the active run without cancelling', async () => {
     let resolveUpload!: (attachments: Array<{ path: string; name: string; kind: 'file' }>) => void;
     const uploadAttachments = vi.fn(() => new Promise<Array<{ path: string; name: string; kind: 'file' }>>((resolve) => {
       resolveUpload = resolve;
@@ -502,10 +506,10 @@ describe('useChatPane', () => {
       void result.current.addAttachments([new File(['b'], 'b.txt')]);
     });
     act(() => result.current.composer.setDraft('next turn'));
-    act(() => result.current.interruptSend());
+    await act(async () => { result.current.interruptSend(); });
 
-    expect(transport.stoppedRunIds).toContain('run-1');
-    expect(result.current.conversation.isStreaming).toBe(false);
+    expect(transport.stoppedRunIds).toEqual([]);
+    expect(result.current.conversation.isStreaming).toBe(true);
     expect(result.current.queuedPrompt).toBe('next turn');
     expect(result.current.composer.draft).toBe('');
     expect(transport.calls).toHaveLength(1);
@@ -513,6 +517,8 @@ describe('useChatPane', () => {
     await act(async () => {
       resolveUpload([{ path: '/tmp/b', name: 'b.txt', kind: 'file' }]);
     });
+    expect(transport.calls).toHaveLength(1);
+    act(() => transport.finish());
     await waitFor(() => expect(transport.calls).toHaveLength(2));
     expect(transport.calls[1]?.input.history.at(-1)?.content).toBe('next turn');
   });

@@ -4,7 +4,7 @@ export type { AssistantTransportPorts, AssistantTransportOptions, AssistantTrans
 export type { AgUiClient, AgUiClientPorts, AgUiRunClient, AgUiEventContext } from "./ag-ui-transport.js";
 export { followDurableRun } from "./durable-run-subscription.js";
 export type { DurableRunBinding, DurableSubscriptionPorts } from "./durable-run-subscription.js";
-export { activeRunStub, messageWriteKey, persistableMessages } from "./messages.js";
+export { activeRunStub, messageWriteKey, persistableMessages, createConditionalHistoryRead } from "./messages.js";
 export type { AssistantConversation } from "./messages.js";
 
 export { createChatAttachmentValidator } from "./attachment-liveness.js";
