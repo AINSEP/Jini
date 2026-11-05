@@ -64,7 +64,13 @@ export interface MailerSendOptions {
   purpose: "transactional";
   lane: "notification";
 }
-export type MailerSendResult = { ok: true; providerMessageId: string; acceptedAt: string } | { ok: false; retryable: boolean; errorCode: string; message: string };
+export type MailerSendResult = { ok: true; providerMessageId: string; acceptedAt: string } | {
+  ok: false; retryable: boolean; errorCode: string; message: string;
+  /** Provider acceptance is uncertain: retain the evidence and stop automatic resend. */
+  unknown?: boolean;
+  /** A provider delay; FormDeliveryError validates and bounds it before outbox scheduling. */
+  retryAfterMs?: number;
+};
 export interface MailerPort { send(required: { message: OutboundEmail; options: MailerSendOptions }): Promise<MailerSendResult>; }
 
 /** Generic audited mutation contract supplied by the host composition root. */

@@ -44,11 +44,17 @@ export interface RegisterFormNotifySubscriberDeps {
 
 export const FORM_NOTIFY_DELIVERY_EVENT = "form.notification.deliver";
 
-/** Safe outbox failure: provider messages can contain secrets or submitted answers. */
+/** Safe outbox failure: provider messages can contain secrets or submitted answers.
+ * Unknown acceptance stops automatic resend; definitive failures retain the bounded retry hint.
+ * @complexity O(1) time and space; no I/O. */
 export class FormNotificationError extends FormDeliveryError {
-  constructor({ submissionId, retryable }: { submissionId: string; retryable: boolean }, _optional = {}) {
-    super({ code: "delivery-failed", retryable });
+  constructor({ submissionId, retryable, retryAfterMs, unknown }: {
+    submissionId: string; retryable: boolean; retryAfterMs?: number; unknown?: boolean;
+  }, _optional = {}) {
+    super({ code: unknown ? "outcome-unknown" : "delivery-failed", retryable: unknown ? false : retryable,
+      retryAfterMs, outcome: unknown ? "unknown" : "not-applied" });
     this.message = `Form notification failed for submission ${submissionId}. Check the email delivery log and provider settings, then retry the notification.`;
+    if (unknown) this.message = `Form notification outcome is unknown for submission ${submissionId}. Check the email delivery log before sending another notification.`;
     this.name = "FormNotificationError";
   }
 }
@@ -146,7 +152,8 @@ async function sendNotification({ deps, definition, submission, recipient, paylo
       }
     });
     if (!result.ok) {
-      if (durable) throw new FormNotificationError({ submissionId, retryable: result.retryable });
+      if (durable) throw new FormNotificationError({ submissionId, retryable: result.retryable,
+        retryAfterMs: result.retryAfterMs, unknown: result.unknown });
       warn(deps.logger,
         `[forms:notify] mail send failed for submission '${submissionId}' recipient '${recipient}': ${result.errorCode} (${result.message})`
       );
