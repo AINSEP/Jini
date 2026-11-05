@@ -1,7 +1,8 @@
 import { inspect } from 'node:util';
 import { redactSecrets } from '@jini-ai/core';
 import type { Request, Response } from "express";
-import { FormDefinitionNotFoundError, FormRateLimitExceededError, FormSubmissionValidationError, FormSubmissionTooFastError } from "../errors.js";
+import { FormDefinitionNotFoundError, FormRateLimitExceededError, FormSubmissionValidationError, FormSubmissionTooFastError, FormAttachmentSpaceError } from "../errors.js";
+import { renderHtmlForm, escapeFormHtml } from "../html-render.js";
 import type { FieldDescriptor } from "../types.js";
 import type { FormDefinitionRepoPort } from "../ports.js";
 import type { SubmitFormInput } from "../submit-service.js";
@@ -266,6 +267,7 @@ export function createFormSubmitHandler(
       });
       sendFormSubmitOutcome(req, res, outcomeForSuccess(slug, result), deps);
     } catch (err) {
+      if (err instanceof FormAttachmentSpaceError) { await sendAttachmentRetry({ req, res, deps, slug, error: err }); return; }
       if (isFlashableFailure({ error: err }) && wantsHtmlResponse(req)) {
         try {
           await setFormFlashCookieForValidationFailure(req, res, deps, slug, body);
@@ -282,4 +284,15 @@ export function createFormSubmitHandler(
  * @complexity O(1). */
 function isFlashableFailure({ error }: { error: unknown }, _optional: Record<string, never> = {}): boolean {
   return error instanceof FormSubmissionValidationError || error instanceof FormSubmissionTooFastError;
+}
+
+/** A direct uncached page keeps every validated non-file answer, bypassing cookie limits.
+ * @complexity O(fields + answer bytes); one definition read on HTML refusal only. @overallScore 98: files require reselection. */
+async function sendAttachmentRetry({ req, res, deps, slug, error }: { req: Request; res: Response; deps: CreateFormSubmitHandlerRequired; slug: string; error: FormAttachmentSpaceError }, _optional = {}): Promise<void> {
+  res.set("Cache-Control", "no-store");
+  if (!wantsHtmlResponse(req)) { res.status(507).json({ code: error.code, error: error.message, answers: error.answers }); return; }
+  const definition = await deps.definitionRepo.findBySlug({ workspaceId: deps.workspaceId, slug });
+  const fields = (definition?.fields ?? []).map(field => ({ ...field, default: field.type === "file" ? undefined : error.answers[field.id] })) as FieldDescriptor[];
+  const form = renderHtmlForm({ slug, fields, action: `/forms/${encodeURIComponent(slug)}/submit`, hooks: { field: "data-field", form: "data-form", success: "data-success", error: "data-error" } });
+  res.status(507).type("html").send(`<!doctype html><meta charset="utf-8"><title>Attachment needs more room</title><p role="alert">${escapeFormHtml({ value: error.message })}</p><p>Select your files again before retrying.</p>${form}`);
 }

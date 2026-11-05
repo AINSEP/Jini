@@ -31,6 +31,7 @@ import type {
   NotifyConfig,
 } from "./types.js";
 
+import { validateFormProviderSelection } from "./provider.js";
 import type { FormAuthoring, HtmlFormDefinitionRecord } from "./fields-json.js";
 
 export interface FormWriteServiceDeps {
@@ -152,6 +153,7 @@ export async function createFormDefinition(
   validateNameAndSlug(input.name, input.slug, deps.reservedSlugs);
   assertValidFields(input.fields);
   const notify = validateNotify(optional.notify);
+  assertProvider(input.provider);
 
   const definitionId = deps.idGen.newId();
 
@@ -177,12 +179,13 @@ export async function createFormDefinition(
       captureInverse: async () => null,
       execute: async () => {
         const now = kernelNowIso({ clock: deps.clock });
-        const definition: FormDefinitionRecord = {
+        const definition: HtmlFormDefinitionRecord = {
           id: definitionId,
           workspaceId: input.workspaceId,
           name: input.name,
           slug: input.slug,
           fields: input.fields,
+          ...(input.provider ? { provider: input.provider } : {}),
           notify,
           status: "active",
           createdAt: now,
@@ -267,11 +270,13 @@ export async function updateFormDefinition(
         }
 
         const notify = input.patch.notify !== undefined ? validateNotify(input.patch.notify) : existing.notify;
+        assertProvider(input.patch.provider);
 
-        const definition: FormDefinitionRecord = {
+        const definition: HtmlFormDefinitionRecord = {
           ...existing,
           name,
           fields,
+          ...(input.patch.provider ? { provider: input.patch.provider } : {}),
           notify,
           slug: existing.slug,
           updatedAt: kernelNowIso({ clock: deps.clock }),
@@ -327,7 +332,7 @@ export async function setFormDefinitionStatus(
         if (!existing) {
           throw new FormDefinitionNotFoundError({ message: `form definition '${input.formId}' was not found` });
         }
-        const definition: FormDefinitionRecord = {
+        const definition: HtmlFormDefinitionRecord = {
           ...existing,
           status: input.status,
           updatedAt: kernelNowIso({ clock: deps.clock }),
@@ -384,4 +389,11 @@ async function updateAuthoredFormDefinition(
   return updateFormDefinition({
     deps: boundDeps, input: { ...input, patch: { ...builderPatch, ...(authored?.fields ? { fields: authored.fields } : {}) } },
   }, writeOptions);
+}
+
+/** Convert configuration faults into the existing field-error contract, before persistence. */
+function assertProvider(provider: FormAuthoring["provider"]): void {
+  if (provider === undefined) return;
+  try { validateFormProviderSelection({ selection: provider }); }
+  catch (error) { throw new FormFieldValidationError({ message: error instanceof Error ? error.message : "Invalid form provider", fieldErrors: [{ field: "provider", reason: "must contain only public form configuration" }] }); }
 }

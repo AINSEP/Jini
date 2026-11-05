@@ -85,7 +85,7 @@ export function toSubmissionRow(record: FormSubmissionRecord, _optional: Record<
     id: record.id,
     workspace_id: record.workspaceId,
     form_definition_id: record.formDefinitionId,
-    data_json: JSON.stringify(record.validation ? ["@jini/form-submission/v1", record.data, record.validation] : record.data),
+    data_json: JSON.stringify(record.validation || record.evidence ? ["@jini/form-submission/v1", record.data, record.validation ?? null, record.evidence] : record.data),
     source_ip: record.sourceIp,
     submitted_at: record.submittedAt,
   };

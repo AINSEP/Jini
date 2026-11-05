@@ -1,3 +1,4 @@
+import { captureSubmissionEvidence } from "./submission-evidence.js";
 import { formatErrorForLog } from '@jini-ai/core';
 /**
  * @file `submit-service.ts` — the sole public submission write path (SPEC-010 REQ-05..09/16,
@@ -35,6 +36,7 @@ import {
   FormRateLimitExceededError,
   FormSubmissionValidationError,
   FormSubmissionTooFastError,
+  FormAttachmentSpaceError,
 } from "./errors.js";
 import { HONEYPOT_KEY, isHoneypotTripped, validateSubmissionPayload, type SubmissionValidationResult } from "./forms.js";
 import type { FormDefinitionRepoPort, FormSubmissionRepoPort } from "./ports.js";
@@ -54,6 +56,8 @@ export interface SubmitFormDeps {
   rateLimiter: RateLimiterPort;
   /** Anonymous uploads go through the host media owner only after validation/rate/dedupe. */
   files?: FormFileStoragePort;
+  /** Local upload disk only; undefined skips admission for remote stores. */
+  readUploadFreeBytes?: (required: Record<string, never>, optional?: Record<string, never>) => Promise<number | undefined>;
   /** Omitted: the two writes run back to back with no rollback between them. */
   transaction?: SubmissionTransactionPort;
 }
@@ -98,7 +102,7 @@ export async function submitForm(required: SubmitFormRequired, optional: SubmitF
   assertSubmissionTiming({ deps, input, attemptToken }, optional);
   await assertWithinRateLimit({ deps, input, definition });
 
-  const records = buildSubmissionRecords({ deps, input, definition, data: validation.data });
+  const records = await buildSubmissionRecords({ deps, input, definition, data: validation.data });
   const persist = () => persistSubmission({ deps, input, ...records, files: validation.files ?? {} });
   if (optional.attempts) {
     // The attempt is claimed only where persistence begins, after validation and rate limiting.
@@ -187,10 +191,10 @@ async function assertWithinRateLimit(
 
 type SubmissionEvent = Parameters<FormOutboxPort["enqueue"]>[0];
 
-function buildSubmissionRecords(
+async function buildSubmissionRecords(
   { deps, input, definition, data }: { deps: SubmitFormDeps; input: SubmitFormInput; definition: FormDefinitionRecord; data: AcceptedSubmission["data"] },
   _optional: Record<string, never> = {},
-): { submission: FormSubmissionRecord; event: SubmissionEvent } {
+): Promise<{ submission: FormSubmissionRecord; event: SubmissionEvent }> {
   const now = kernelNowIso({ clock: deps.clock });
   const submissionId = deps.idGen.newId();
   const submission: FormSubmissionRecord = {
@@ -198,6 +202,7 @@ function buildSubmissionRecords(
     workspaceId: input.workspaceId,
     formDefinitionId: definition.id,
     data,
+    evidence: await captureSubmissionEvidence({ definition, capturedAt: now, source: "native" }),
     sourceIp: input.sourceIp,
     submittedAt: now,
   };
@@ -223,6 +228,7 @@ async function persistSubmission(
   // then compensate only this attempt's new media assets when any upload/row/event write fails.
   // Byte buffers never reach data_json, notifications or the outbox payload.
   const uploaded: FormFileReference[] = [];
+  await assertUploadSpace({ deps, files, answers: submission.data });
   try {
     for (const [fieldId, file] of Object.entries(files)) {
       const reference = await deps.files!.store({ workspaceId: input.workspaceId, submissionId: submission.id, fieldId, file });
@@ -237,6 +243,17 @@ async function persistSubmission(
     await discardUploads({ deps, input, uploaded });
     throw error;
   }
+}
+
+/** One metadata probe per attachment batch inside dedupe; unreadable storage warns and allows.
+ * @complexity O(files), no inventory scan. @overallScore 95: concurrent writers can consume space. */
+async function assertUploadSpace({ deps, files, answers }: { deps: SubmitFormDeps; files: Record<string, FormFileInput>; answers: Record<string, unknown> }, _optional = {}): Promise<void> {
+  const incomingBytes = Object.values(files).reduce((sum, file) => sum + file.bytes.byteLength, 0);
+  if (!incomingBytes || !deps.readUploadFreeBytes) return;
+  let free: number | undefined;
+  try { free = await deps.readUploadFreeBytes({}, {}); }
+  catch { try { deps.logger.warn({ message: "form upload free-disk check unavailable; allowing attachments" }); } catch { /* Logging cannot refuse an upload. */ } return; }
+  if (free !== undefined && free - incomingBytes < 512 * 1024 ** 2) throw new FormAttachmentSpaceError({ answers });
 }
 
 async function discardUploads(
