@@ -1,5 +1,6 @@
 import { isNonArrayRecord } from './records.js';
 import { ToolInputError, ToolInputNormalizationError } from './tool-input-errors.js';
+import { unwrapToolInputEnvelope } from './tool-input-envelope.js';
 export { ToolInputNormalizationError } from './tool-input-errors.js';
 
 /** A value-free account of canonicalization; domain hooks use the same contract as the gate. */
@@ -246,6 +247,7 @@ async function normalizeWithinGate(
   { input, registration }: { input: unknown; registration: NormalizationRegistration },
 ): Promise<NormalizedToolInput> {
   const schema = registration.invocationSchema ?? registration.descriptor.inputSchema;
+  input = unwrapToolInputEnvelope({ input, schema });
   if (isObjectTool(schema) && !object(input)) throw new ToolInputError({ message: `${registration.descriptor.id}: send one input object containing the tool's fields.` });
   const notes: string[] = [];
   let normalized = walkRoot({ input, schema, notes, validateClosed: false, keysOnly: false });

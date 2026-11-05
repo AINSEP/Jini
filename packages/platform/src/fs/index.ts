@@ -14,3 +14,4 @@ export * from "./directory-workspace.js";
 export { DirectoryUserConfigRefusal, validateDirectoryUserConfig } from "./directory-user-config.js";
 export * from "./workspace-directory.js";
 export * from "./verified-directory-move.js";
+export * from "./reviewed-file.js";

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createJsonEventStreamHandler } from '../json-event-stream.js';
-import { antigravityAgentDef, redactAntigravityAuthUrls } from '../defs/antigravity.js';
+import { antigravityAgentDef, redactAntigravityAuthUrls } from '../defs/antigravity/index.js';
 
 /** Published agy step_update/tool_info wire shape, not Gemini CLI's legacy stream. */
 function toolFrame(name: string, parameters: Record<string, unknown>, index = 4, state = 'DONE') {

@@ -59,8 +59,24 @@ export interface DeployPublishInput {
   projectName: string;
 }
 
+/** Confirmed provider facts only: unknown creation/remote file counts stay explicit.
+ * Uploaded/reused counts refer to distinct content hashes, not duplicate paths.
+ */
+export interface DeployPublishProgress {
+  readonly phase: 'exporting' | 'uploading' | 'creating' | 'polling' | 'checking';
+  readonly deploymentCreated?: boolean | 'unknown';
+  readonly totalFiles?: number;
+  readonly uploadedFiles?: number;
+  readonly reusedFiles?: number;
+  readonly deploymentId?: string;
+  readonly url?: string;
+  readonly providerStatus?: string;
+}
+
 /** Optional publish settings, passed separately from the file set and project name. */
 export interface DeployPublishOptions {
+  /** Synchronous credential-free snapshots; the caller owns storage/transport frequency. */
+  onProgress?: (progress: DeployPublishProgress) => void;
   metadata?: UnknownRecord;
   responseHeaders?: ResponseHeaderSet;
 }

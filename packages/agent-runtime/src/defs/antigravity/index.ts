@@ -1,7 +1,7 @@
-import { createAgentModelDiscovery } from '../model-discovery-native.js';
+import { createAgentModelDiscovery } from '../../model-discovery-native.js';
 import { redactOAuthUrls } from '@jini-ai/oauth';
-import { DEFAULT_MODEL_OPTION } from './shared.js';
-import type { RuntimeAgentDef, RuntimeBuildOptions, RuntimeContext, RuntimeModelOption } from '../types.js';
+import { DEFAULT_MODEL_OPTION } from '../shared.js';
+import type { RuntimeAgentDef, RuntimeBuildOptions, RuntimeContext, RuntimeModelOption } from '../../types.js';
 
 // `agy` v1.1.24 has a real `--model <id>` flag (`agy --help`: "Model for the current CLI
 // session") plus a machine-readable `agy models` subcommand that lists every selectable model as
@@ -41,7 +41,7 @@ import type { RuntimeAgentDef, RuntimeBuildOptions, RuntimeContext, RuntimeModel
 //   - it is also useless to click: `-p` print mode has no field to paste the
 //     resulting auth code back into (see `auth.ts`'s
 //     `antigravityAuthGuidance`), so the only outcome is a leaked URL.
-// Hence `stdoutPolicy: {buffering: 'until-close'}` plus this redactor.
+// Complete stdout lines must be redacted before delivery, including a URL split across chunks.
 //
 // The shape being matched is real, not guessed — it is the same text this
 // package's own `isAntigravityAuthFailureText` already classifies, captured
@@ -86,6 +86,20 @@ const OAUTH_URL_PLACEHOLDER = '[redacted sign-in URL]';
  */
 export function redactAntigravityAuthUrls({ fullText }: { fullText: string }): string {
   return redactOAuthUrls({ text: fullText, pattern: OAUTH_URL_PATTERN, replacement: OAUTH_URL_PLACEHOLDER });
+}
+
+/** Redact JSON string values before parsing/delivery, preserving escaped quotes and line framing.
+ * Plain auth prompts use the same URL redactor; no raw sign-in URL reaches the event stream.
+ * @returns A sanitized complete wire line; never throws for malformed CLI output.
+ * @complexity O(n) time/space for n line characters; no I/O or retained state.
+ * @example sanitizeAntigravityWireLine({ fullText: '{"event":"init"}\n' });
+ */
+export function sanitizeAntigravityWireLine({ fullText }: { fullText: string }, _options: Record<string, never> = {}): string {
+  let frame: unknown;
+  try { frame = JSON.parse(fullText); }
+  catch { return redactAntigravityAuthUrls({ fullText }); }
+  const safe = JSON.stringify(frame, (_key, value: unknown) => typeof value === 'string' ? redactAntigravityAuthUrls({ fullText: value }) : value);
+  return safe + (fullText.endsWith('\n') ? '\n' : '');
 }
 
 /**
@@ -270,13 +284,13 @@ export const antigravityAgentDef = {
   // only way to tell those two apart — see server.ts's empty-output guard
   // for the consumer.
   needsAgentLogFile: true,
-  // The one adapter in this package that must not stream live — see
+  // Sanitize each complete wire line before live parsing/diagnostics — see
   // `redactAntigravityAuthUrls`'s comment for the OAuth-URL-on-stdout-plus-
-  // exit-0 behavior that forces it. Every other `streamFormat: 'plain'`
+  // exit-0 behavior that requires redaction. Every other `streamFormat: 'plain'`
   // adapter (grok-build, aider, deepseek, qwen) leaves `stdoutPolicy` unset
   // and keeps streaming per chunk; aider's and deepseek's own comments call
   // that live cadence out as deliberate.
-  stdoutPolicy: { buffering: 'until-close', sanitize: redactAntigravityAuthUrls },
+  stdoutPolicy: { buffering: 'line', sanitize: sanitizeAntigravityWireLine },
   installUrl: 'https://antigravity.google/cli',
   docsUrl: 'https://antigravity.google/docs/cli-overview',
   // `externalMcpInjection: 'env-passthrough'` — the prior verdict here ("no safe, run-scoped

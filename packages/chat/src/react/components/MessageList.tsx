@@ -49,10 +49,11 @@ export interface MessageListProps extends Pick<MessageRowProps, 'projectFileName
 }
 
 function renderMessageRow(
-  { message, isLast, isStreaming, usageSummary, sending }: {
+  { message, isLast, isStreaming, usageSummary, sending, showAccessNotice }: {
     message: ChatMessage;
     isLast: boolean;
     sending: boolean;
+    showAccessNotice: boolean;
     isStreaming: boolean;
     usageSummary: ChatUsageSummary | undefined;
   },
@@ -65,6 +66,7 @@ function renderMessageRow(
       message={message}
       // MessageRow owns the display defaults; forward host overrides without duplicating them here.
       {...rowProps}
+      showAccessNotice={showAccessNotice}
       {...(usageSummary === undefined ? {} : { usageSummary })}
       runStreaming={runStreaming}
       runSending={sending}
@@ -93,6 +95,9 @@ export const MessageList = memo(function MessageList({
 }: MessageListProps) {
   const messages = useMemo(() => projectAcceptedInputMessages({ messages: sourceMessages }), [sourceMessages]);
   const usageByMessage = useConversationUsage({ messages });
+  // Derive from the conversation's saved events, so replay/remount does not repeat the notice.
+  const accessNoticeId = useMemo(() => messages.find(message => message.role === 'assistant'
+    && message.events?.some(event => event.kind === 'status' && event.label === 'full_cli_access' && event.detail))?.id, [messages]);
   const { containerRef, onScroll, awayFromLatest, jumpToLatest } = useMessageListAutoScroll({ messages, scrollIntent }, onScrolled !== undefined ? { onScrolled } : {});
 
   return (
@@ -106,6 +111,7 @@ export const MessageList = memo(function MessageList({
     >
       {messages.map((message, index) => renderMessageRow({
         message,
+        showAccessNotice: message.id === accessNoticeId,
         isLast: message.id === messages[messages.length - 1]?.id,
         // A reply's start is accepted together with its user turn (`inputPending` clears then).
         // A run id also proves acceptance after reload, when a legacy pending flag can survive.

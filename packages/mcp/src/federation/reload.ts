@@ -2,6 +2,7 @@ import type { Logger } from "@jini-ai/core/primitives";
 import { attachFederatedMcpTools, type AttachFederatedMcpToolsParams, type AttachFederatedToolsResult } from "./bootstrap.js";
 import type { ResolvedFederatedConnection } from "./config.js";
 import type { FederationDeps } from "./registrations.js";
+import { refreshFrozenFederationGrants } from './frozen-grants.js';
 
 /**
  * @file Hot re-admission of federated MCP connections — the piece that lets an owner who finishes an
@@ -13,16 +14,17 @@ import type { FederationDeps } from "./registrations.js";
  *
  * ## What this does NOT do, on purpose
  *
- * `trust.ts` R5 freezes an ALREADY-ADMITTED connection's tool set at connect, forever, for this
+ * `trust.ts` R5 freezes an ALREADY-ADMITTED connection's remote definitions at connect, forever, for this
  * process's lifetime — the rug-pull protection that file's own header explains. This module never
- * re-lists, re-classifies, or re-admits a connectionId with admitted tools that has gone through
+ * re-lists or replaces the remote definitions of a connectionId with admitted tools that has gone through
  * {@link attachFederatedMcpTools} once, whether that pass ran at boot or at an earlier reload
  * ({@link selectUnadmittedConnections} is the whole enforcement mechanism: a connectionId already in
  * `admittedConnectionIds` is filtered out before `attach` is ever called on it again). It only ever
  * widens the set of connections that have been admitted AT ALL — new rows, never revised ones — which
  * is the same guarantee a fresh boot already gives, just applied to a connection that did not exist
  * yet when this process started. `ToolRegistry` (`@jini-ai/core`) is deliberately append-only with no
- * unregister, so this module still has no way to revise or drop an admitted tool even if it wanted to.
+ * unregister. The existing core registration scope now withdraws/restores a roster source and
+ * replays owner grant changes against its original definitions, without a new handshake or listing.
  * A roster row admitted with an empty allowlist and no tools can wait for its first operator grant.
  * Retrying that row replaces no tool or classification; after its first nonempty admission it freezes
  * just like every other connection. An unchanged empty grant never triggers another handshake.
@@ -32,8 +34,9 @@ import type { FederationDeps } from "./registrations.js";
  * `FederationDeps.assertConnectionUsable`) re-reads the connection's row on every call, independent of
  * this reload path. Turning a connection off, deleting it, disconnecting its OAuth, or narrowing its
  * allowlist or write list all take effect on the very NEXT call, with no restart and no reload
- * required. Widening the allowlist, or changing the server's address, command, args or sign-in method,
- * still needs a real restart: the new tools are never registered, and the old ones refuse as
+ * required. Widening the allowlist can now admit another originally listed tool through the same
+ * frozen snapshot. Changing the server's address, command, args or sign-in method still needs a
+ * real restart: definitions from a changed source are never registered, and the old ones refuse as
  * `"changed"` (the row's admission revision no longer matches what the tool was admitted under) until
  * the process restarts and re-admits the connection fresh.
  *
@@ -62,7 +65,7 @@ export function selectUnadmittedConnections({ allConnections, admittedConnection
 }
 
 export interface FederationReloadResult {
-  /** Ids newly admitted by THIS reload pass — empty when nothing in the roster was unadmitted. */
+  /** Ids newly admitted or whose owner grants were refreshed by THIS reload pass. */
   readonly newlyAdmittedConnectionIds: readonly string[];
   /** This pass's own admission reports only, in `attachFederatedMcpTools`'s own shape — the caller
    *  (`agent-daemon-server.ts`) merges these into the running, boot-plus-every-reload accounting
@@ -126,12 +129,13 @@ export function createFederationReloadCoordinator({ coordDeps, initiallyAdmitted
 
   async function runOnePass(): Promise<FederationReloadResult> {
     const allConnections = await coordDeps.resolveConnections();
+    const refreshed = refreshFrozenFederationGrants({ registry: coordDeps.registry, connections: allConnections });
     const eligibleIds = new Set(admitted);
     for (const connection of allConnections) {
       if (awaitingGrants.has(connection.config.connectionId) && connection.config.allowedToolNames.length > 0) eligibleIds.delete(connection.config.connectionId);
     }
     const unadmitted = selectUnadmittedConnections({ allConnections, admittedConnectionIds: eligibleIds });
-    if (unadmitted.length === 0) return { newlyAdmittedConnectionIds: [], reports: [], connectFailures: [] };
+    if (unadmitted.length === 0) return { newlyAdmittedConnectionIds: refreshed.map(entry => entry.connectionId), reports: refreshed, connectFailures: [] };
 
     // Empty, not omitted: omission resolves presets from the environment again, even though the
     // boot pass already admitted them. Reload concerns only the operator-editable roster;
@@ -143,8 +147,8 @@ export function createFederationReloadCoordinator({ coordDeps, initiallyAdmitted
       rememberAdmission({ entry, connection: attemptedConnections.get(entry.connectionId) });
     }
     return {
-      newlyAdmittedConnectionIds: attached.reports.map((entry) => entry.connectionId),
-      reports: attached.reports,
+      newlyAdmittedConnectionIds: [...refreshed, ...attached.reports].map((entry) => entry.connectionId),
+      reports: [...refreshed, ...attached.reports],
       connectFailures: attached.connectFailures,
     };
   }

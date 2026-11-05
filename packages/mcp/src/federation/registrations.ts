@@ -9,6 +9,7 @@ import type {
   FederatedMcpConnectionConfig,
   McpSessionPort,
   RemoteToolResult,
+  RemoteToolDescriptor,
 } from "./ports.js";
 import {
   admitRemoteTools,
@@ -160,6 +161,8 @@ export interface FederationDeps {
 
 export interface FederatedRegistrationResult {
   readonly registrations: ToolRegistration[];
+  /** First tools/list snapshot, retained privately by boot for owner grant changes; never re-listed. */
+  readonly frozenTools?: readonly RemoteToolDescriptor[];
   /** The full accounting of what was admitted and refused, for the caller to log. */
   readonly report: FederatedAdmissionReport;
 }
@@ -278,9 +281,10 @@ export async function federateSession(params: {
   config: FederatedMcpConnectionConfig;
   deps: FederationDeps;
   nativeToolIds: ReadonlySet<string>;
+  buildRegistrations?: typeof buildFederatedMcpRegistrations;
 }): Promise<FederatedRegistrationResult> {
   const tools = await params.session.listTools();
-  return buildFederatedMcpRegistrations({ ...params, tools });
+  return { ...(params.buildRegistrations ?? buildFederatedMcpRegistrations)({ ...params, tools }), frozenTools: structuredClone(tools) };
 }
 
 /**

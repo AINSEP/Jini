@@ -9,6 +9,7 @@
  * See docs/decisions/DR-005-proxy-argument-shapes.md.
  */
 import type { OutputUnit } from '@cfworker/json-schema';
+import { decodeToolInputObject, unwrapToolInputEnvelope } from '@jini-ai/core';
 import type { Tool } from './adapters/protocol.js';
 
 /** Argument normalization's input contract, shared with the dispatcher without a reverse import. */
@@ -107,20 +108,33 @@ function assertNoMisplacedInputKey({ args, schema }: { args: Record<string, unkn
 }
 
 /**
- * Copies caller arguments into their canonical wrapper shape before schema validation, reading a
- * canonical integer string as the integer a top-level `integer` property declares.
- * @param requiredArgs - Tool contract and untrusted arguments; neither is mutated.
- * @param _options - Reserved normalization options.
- * @returns Canonical arguments; nested tool input is copied only when fields are folded.
- * @throws Error naming an ambiguous alias, duplicate input key, or invalid wrapper field.
- * @complexity O(k + a + i) time and space for k argument keys, a aliases, and i input keys.
+ * Copy the tool's transport arguments, decoding only schema-directed delegated envelopes.
+ * @returns Detached arguments; declared tool-owned `input` fields retain their meaning.
+ * @throws ToolInputError for JSON strings that do not encode objects.
+ * @complexity O(k + n) time/space for k keys and n JSON characters; no I/O.
+ */
+function argumentSource({ tool, rawArgs }: { tool: McpToolArgumentContract; rawArgs: Record<string, unknown> }): Record<string, unknown> {
+  const source = tool.argumentNormalization?.schemaInput
+    ? unwrapToolInputEnvelope({ input: rawArgs, schema: tool.inputSchema }) : rawArgs;
+  const args = { ...(source as Record<string, unknown>) };
+  // The gateway owns an object-valued `input`; clients sometimes JSON-encode that field.
+  // Decode before folding/validation so every delegated tool receives the same object contract.
+  if (tool.argumentNormalization?.foldIntoInput && Object.hasOwn(args, 'input')) {
+    args.input = decodeToolInputObject({ input: args.input });
+  }
+  return args;
+}
+
+/** Normalize the transport envelope, then existing aliases, integer fields and gateway input.
+ * @returns A detached argument object; malformed or ambiguous input throws a repair instruction.
+ * @complexity O(k + a + i + n) for argument/alias/input keys and encoded JSON characters.
  */
 export function normalizeToolArguments(
   { tool, rawArgs }: { tool: McpToolArgumentContract; rawArgs: unknown },
   _options: Record<string, never> = {},
 ): Record<string, unknown> {
   if (!isRecord(rawArgs)) throw new Error('replace `arguments` with a JSON object');
-  const args = { ...rawArgs };
+  const args = argumentSource({ tool, rawArgs });
   const properties = tool.inputSchema.properties ?? {};
   applyAliases({ args, aliases: tool.argumentNormalization?.aliases ?? {} });
   coerceIntegerStrings({ args, properties });

@@ -2,6 +2,7 @@
 import type { AgentPluginSearchCandidate, AgentPluginSearchMatch } from './search.js';
 import type { AgentPluginSkillRequest, ResolveAgentPluginRefsResult } from './resolve-agent-plugin-refs.js';
 import type { AgentPluginLifecyclePorts } from './ports.js';
+import { agentVisiblePluginCandidate } from './search-projection.js';
 
 export type ChatAgentPlugins = 'auto' | 'ask' | 'off';
 export const DEFAULT_CHAT_AGENT_PLUGINS: ChatAgentPlugins = 'auto';
@@ -188,7 +189,8 @@ export function createAutomaticAgentPluginUse(
   async function prepare(input: PrepareInput, _options = {}): Promise<string> {
     if (mode === 'off' || input.signal?.aborted) return '';
     for (const id of input.loaded ?? []) alreadyLoaded.add(id);
-    const candidates = (await ports.list({}, {})).filter(plugin => plugin.enabled && !state.excluded.includes(plugin.pluginId));
+    const catalog = (await ports.list({}, {})).filter(plugin => !state.excluded.includes(plugin.pluginId));
+    const candidates = catalog.filter(plugin => plugin.enabled);
     const ranked = rankCandidates({ candidates, input, ports });
     // Owner decision 2026-10-18: no per-chat plugin count; the relevance threshold and vendor gate decide.
     const relevant = ranked.filter(plugin => !delivered.has(plugin.pluginId) && !alreadyLoaded.has(plugin.pluginId));
@@ -198,7 +200,16 @@ export function createAutomaticAgentPluginUse(
     const result = shouldLoad ? (await resolveGuidance({ matches }, { signal: input.signal })).join('\n\n') : relevantPluginNote({ matches, formatPluginToolPointer: ports.formatPluginToolPointer });
     rememberAutoSelection();
     await publishUsage();
-    return result;
+    // Off packages never enter guidance consent or resolution. A relevant catalog line is the
+    // only disclosure, so the model can offer the existing owner-approved enable flow.
+    const off = offPluginNote({ catalog, input });
+    return [result, off].filter(Boolean).join('\n\n');
+  }
+  /** Rank only catalog-safe fields for off plugins; no capability-triggered disclosure. O(p*t). */
+  function offPluginNote({ catalog, input }: { catalog: readonly AgentPluginSearchCandidate[]; input: PrepareInput }): string {
+    if (!input.query) return '';
+    const candidates = catalog.filter(plugin => !plugin.enabled).map(candidate => agentVisiblePluginCandidate({ candidate }));
+    return ports.rank({ query: input.query, candidates, limit: 10 }, {}).map(plugin => plugin.description ?? '').join('\n');
   }
   /** Admit one explicit id using the same catalog, consent, resolver and delivery state as prepare.
    * No activation writes; unavailable guidance is retryable. O(p) local catalog lookup.

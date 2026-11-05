@@ -8,8 +8,8 @@ export interface PluginSourcePolicyPort {
 }
 
 /** Local authoring runs directly; hosted sideloading retains the host's explicit opt-in.
- * Enabling asks the owner unless the package was sealed on this site AND adds nothing beyond the
- * owner's last approval. Tier-3 code runs in-process with full server authority, so "sealed here"
+ * Enabling always asks the owner, including a version whose capabilities were approved before.
+ * Tier-3 code runs in-process with full server authority, so "sealed here"
  * (possibly by the assistant itself) is never consent on its own (owner, 2026-10-12).
  * @param required Deployment facts supplied by the host.
  * @param _optional Reserved factory options.
@@ -19,7 +19,7 @@ export interface PluginSourcePolicyPort {
 export function createPluginSourcePolicy(required: { hosted: boolean; localInstallOptIn: boolean }, _optional = {}): PluginSourcePolicyPort {
   return {
     localInstallEnabled: (_required = {}, _optional = {}) => !required.hosted || required.localInstallOptIn,
-    confirmEnable: ({ sealedHere, added }, _optional = {}) => !sealedHere || added.length > 0,
+    confirmEnable: (_required, _optional = {}) => true,
   };
 }
 

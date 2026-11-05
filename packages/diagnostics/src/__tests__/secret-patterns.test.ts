@@ -54,12 +54,15 @@ test('Slack recognizes each supported token subtype and rejects an unsupported s
   assert.equal(entry.pattern.exec('xoxz-' + '7'.repeat(12)), null);
 });
 
-test('PEM recognizes untyped, RSA, EC and encrypted private headers while ignoring public keys', () => {
+test('PEM recognizes whole untyped, RSA, EC and encrypted private blocks while ignoring public keys', () => {
   const entry = SECRET_PATTERNS.find((entry) => entry.name === 'PEM private key block');
   assert.ok(entry);
   for (const keyType of ['', 'RSA ', 'EC ', 'ENCRYPTED ']) {
     const header = '-----BEGIN ' + keyType + 'PRIVATE' + ' KEY-----';
-    assert.equal(entry.pattern.exec('before\n' + header + '\nafter')?.[0], header);
+    const footer = '-----END ' + keyType + 'PRIVATE' + ' KEY-----';
+    const block = header + '\nYm9keQ==\n' + footer;
+    assert.equal(entry.pattern.exec('before\n' + block + '\nafter')?.[0], block);
+    assert.equal(entry.pattern.exec('before\n' + header + '\nYm9keQ==')?.[0], header + '\nYm9keQ==');
   }
   assert.equal(entry.pattern.exec('-----BEGIN ' + 'PUBLIC' + ' KEY-----'), null);
 });

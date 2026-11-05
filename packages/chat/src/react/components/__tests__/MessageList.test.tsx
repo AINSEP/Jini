@@ -11,6 +11,21 @@ const messages: ChatMessage[] = [
 ];
 
 describe('MessageList', () => {
+  it('shows a repeated host access status once per conversation, including after replay', () => {
+    const note = 'This agent has full access to this computer.';
+    const turns: ChatMessage[] = ['first', 'second'].map(id => ({ id, role: 'assistant', content: `Reply ${id}`,
+      runStatus: 'succeeded', events: [{ kind: 'status', label: 'full_cli_access', detail: note },
+        { kind: 'text', text: `Reply ${id}` }] }));
+    const view = render(<MessageList messages={turns} />);
+    expect(screen.getAllByText(note)).toHaveLength(1);
+    expect(screen.getByText(note)).toHaveAttribute('role', 'status');
+    expect(screen.getByText('Reply first')).not.toHaveTextContent(note);
+    view.rerender(<MessageList messages={[...turns]} />);
+    expect(screen.getAllByText(note)).toHaveLength(1);
+    view.rerender(<MessageList messages={[{ ...turns[0]!, id: 'other-conversation' }]} />);
+    expect(screen.getAllByText(note)).toHaveLength(1);
+  });
+
   it('shows separately queued user inputs consecutively before their one shared reply', () => {
     const combined: ChatMessage = { id: 'queued', role: 'user', content: 'first\n\nsecond', events: [
       { kind: 'ext', name: 'user_message', data: { id: 'first', text: 'first' } },

@@ -1,7 +1,7 @@
 /** @module json-event-stream
  * Multi-CLI JSON event parsing with per-handler stream state. */
 import { sanitizeUntrustedText } from '@jini-ai/core/text';
-import { handleAntigravityEvent, type AntigravityStreamState } from './defs/antigravity-event-stream.js';
+import { handleAntigravityEvent, type AntigravityStreamState } from './defs/antigravity/event-stream.js';
 
 type JsonObject = Record<string, unknown>;
 type StreamEvent = Record<string, unknown>;

@@ -1,6 +1,7 @@
 /** Extracted from the host plugin lifecycle. Effects are supplied per host context. */
 
 import type { AgentPluginLifecyclePorts } from "./ports.js";
+import { agentVisiblePluginCandidate } from './search-projection.js';
 
 /**
  * @file Pure relevance ranking for `search_agent_plugin_local` — turns one workspace's already-
@@ -118,7 +119,11 @@ function passesDeploymentGate(
  * Mixed-purpose plugins can still match their other capabilities (for example source control).
  */
 function automaticScore({ candidate, terms }: { candidate: AgentPluginSearchCandidate; terms: readonly string[] }, _options = {}): number {
-  if (!candidate.enabled) return 0;
+  if (!candidate.enabled) {
+    const visible = agentVisiblePluginCandidate({ candidate });
+    const catalogTerms = automaticTerms(`${visible.pluginId} ${visible.description ?? ''}`);
+    return terms.reduce((score, term) => score + (catalogTerms.includes(term) ? 5 : 0), 0);
+  }
   const capabilities = candidate.provides ?? [];
   if (!passesDeploymentGate({ candidate, capabilities, terms })) return 0;
   const fields = [
@@ -150,6 +155,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
  *  each weight is what it is. Split out of {@link scoreCandidate} so the field/weight pairing is a
  *  plain, independently-readable list rather than interleaved with the scoring loop itself. */
   function fieldHaystacks(candidate: AgentPluginSearchCandidate): readonly { readonly text: string; readonly weight: number }[] {
+    candidate = agentVisiblePluginCandidate({ candidate });
     return [
       { text: `${candidate.pluginId} ${candidate.id ?? ""} ${candidate.displayName ?? ""}`.toLowerCase(), weight: ID_FIELD_WEIGHT },
       { text: [...candidate.keywords, ...(candidate.provides ?? [])].join(" ").toLowerCase(), weight: KEYWORD_FIELD_WEIGHT },

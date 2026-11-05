@@ -78,6 +78,8 @@ import { applyToolCallDisplay, retriedToolRowIds, toolRowsForDisplay, type ToolC
 
 export interface MessageRowProps {
   message: ChatMessage;
+  /** Conversation hosts show the first access status only; standalone rows retain it by default. */
+  showAccessNotice?: boolean;
   /** Per-turn charge and prefix total derived from the complete conversation's persisted events. */
   usageSummary?: ChatUsageSummary;
   /** Append the chat's running total as of each reply ("· total $3.95") to its Done line. On by default
@@ -201,7 +203,7 @@ function RunAccessNotice({ events }: { events: readonly AgentEvent[] | undefined
   const t = useT();
   const notice = events?.find(event => event.kind === 'status' && event.label === 'full_cli_access');
   if (notice?.kind !== 'status' || !notice.detail) return null;
-  return <div className="jini-chat-pane__notice" role="note">{t(notice.detail)}</div>;
+  return <div className="jini-chat-pane__notice" role="status">{t(notice.detail)}</div>;
 }
 
 function ThinkingBlock({ text }: { text: string }) {
@@ -317,6 +319,7 @@ function UserMessageRow({ message, renderAttachment }: Pick<MessageRowProps, 'me
 }
 
 function AssistantMessageRow({
+  showAccessNotice = true,
   message,
   usageSummary,
   showUsageTotal,
@@ -485,14 +488,14 @@ function AssistantMessageRow({
   // in their original receipt order, outside the assistant's actions and usage footer.
   // Keep the same child-array nesting as the interleaved path so React preserves the footer.
   if (blocks === null) return <>
-    <RunAccessNotice events={message.events} />
+    {showAccessNotice && <RunAccessNotice events={message.events} />}
     {[renderAssistantSection({ section: null, key: message.id, footer: true })]}
     {extGroups.filter(group => group.name === MID_RUN_USER_MESSAGE_EXT_EVENT_NAME).map(renderExtGroup)}
   </>;
   // A reply boundary without reported usage renders nothing; it must not create an empty row's gap.
   const visibleBlocks = blocks.filter(block => block.kind !== 'reply-end' || (showUsageLine && usage.replies[block.index] !== undefined));
   const { sections, footerIndex } = transcriptSections({ blocks: visibleBlocks, runInProgress });
-  return <><RunAccessNotice events={message.events} />{sections.map((section, index) => isUserSection({ section })
+  return <>{showAccessNotice && <RunAccessNotice events={message.events} />}{sections.map((section, index) => isUserSection({ section })
     ? <React.Fragment key={section[0]!.key}>{section.map(renderBlock)}</React.Fragment>
     : renderAssistantSection({ section, key: section[0]?.key ?? message.id, footer: index === footerIndex }))}</>;
 }

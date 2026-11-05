@@ -61,6 +61,7 @@ export {
 
 export { evaluateFeatureFlag, type FeatureFlagDecision } from './feature-flags.js';
 export { normalizeToolInput, withNormalizationNotes, ToolInputNormalizationError, type NormalizedToolInput, type ToolInputNormalizer } from './tool-input-normalization.js';
+export { decodeToolInputObject, unwrapToolInputEnvelope } from './tool-input-envelope.js';
 export { applyBatchInputs, BATCH_GUIDANCE_MARKER, withoutBatchGuidance, batchOutcomeFor, batchDescriptorFor, batchItemRequiredFields, batchEligibilityFor, defaultBatchableTools, withBatchInput, DEFAULT_MAX_BATCH_ITEMS, type BatchableTool, type BatchEligibility, type BatchOptOut, type BatchResult, type BatchItemResult } from './batch-tool-inputs.js';
 
 export type { MediaProviderCatalogPolicy, MediaProviderOption, ProviderPreset, ProviderPresetKind } from './provider-catalog.js';

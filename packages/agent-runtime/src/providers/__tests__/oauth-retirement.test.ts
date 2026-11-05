@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test } from 'vitest';
 import { generateCodeVerifier, deriveCodeChallenge } from '../pkce.js';
-import { redactAntigravityAuthUrls } from '../../defs/antigravity.js';
+import { redactAntigravityAuthUrls } from '../../defs/antigravity/index.js';
 
 test('provider adapters retain verifier length and enforce RFC verifier validation', () => {
   expect(generateCodeVerifier()).toHaveLength(86);

@@ -19,11 +19,11 @@ test('byte-bounded pages preserve ordering and full enumeration, including overl
     expect(page.totalMatches).toBe(44);
     expect(page.matches.length).toBeGreaterThan(0);
     for (const match of page.matches) {
-      expect(Object.keys(match).sort()).toEqual(['description', 'enabled', 'id', 'maturity', 'pluginId']);
+      expect(Object.keys(match).sort()).toEqual(match.enabled ? ['description', 'enabled', 'id', 'maturity', 'pluginId'] : ['description', 'enabled', 'id', 'pluginId']);
       expect(match.description).not.toContain('�');
       expect(Buffer.byteLength(match.description)).toBeLessThanOrEqual(240);
       expect(match.enabled).toBe(candidates[ids.length]!.enabled);
-      expect(match.maturity).toBe('untested');
+      expect(match.maturity).toBe(match.enabled ? 'untested' : undefined);
       ids.push(match.pluginId);
     }
     expect(JSON.stringify(page)).not.toMatch(/FULL_METADATA_CANARY|private-config/);
@@ -39,7 +39,7 @@ test('byte-bounded pages preserve ordering and full enumeration, including overl
 test('empty/end pages and metadata fallbacks remain compact and invalid budgets cannot stall paging', () => {
   const minimal = [{ pluginId: 'minimal', enabled: false, keywords: [], skills: [], mcpServerIds: [] }];
   expect(projectAgentPluginSearchPage({ candidates: minimal, offset: 0, limit: 10, totalInstalled: 1 })).toEqual({
-    matches: [{ id: 'minimal', pluginId: 'minimal', enabled: false, description: '' }], totalInstalled: 1, totalMatches: 1, nextOffset: null,
+    matches: [{ id: 'minimal', pluginId: 'minimal', enabled: false, description: 'installed, off: minimal:  — ask to turn on' }], totalInstalled: 1, totalMatches: 1, nextOffset: null,
   });
   expect(projectAgentPluginSearchPage({ candidates: [], offset: 0, limit: 10, totalInstalled: 3 })).toEqual({ matches: [], totalInstalled: 3, totalMatches: 0, nextOffset: null });
   expect(projectAgentPluginSearchPage({ candidates: minimal, offset: 5, limit: 10, totalInstalled: 1 }).matches).toEqual([]);

@@ -6,7 +6,8 @@ import type { ToolRegistration, ToolRegistry } from "@jini-ai/core";
 import type { ResolvedFederatedConnection } from "./config.js";
 import type { McpSessionPort } from "./ports.js";
 import { defaultFederatedMcpPresetRegistry, type FederatedMcpPresetRegistry } from "./presets.js";
-import { federateSession, type FederationDeps } from "./registrations.js";
+import { federateSession, type FederationDeps, type buildFederatedMcpRegistrations } from "./registrations.js";
+import { registerFrozenFederationConnection } from './frozen-grants.js';
 // `registrations.ts` imports this type from `trust.ts` for its own use but does not re-export it,
 // so it has to come from the module that declares it.
 import type { FederatedAdmissionReport } from "./trust.js";
@@ -114,6 +115,8 @@ export interface AttachFederatedToolsResult {
  * @complexity O(c · t) in connections and their advertised tools.
  */
 export interface AttachFederatedMcpToolsParams {
+  /** Host approval adapter, replayed against frozen definitions when the owner's grants change. */
+  readonly buildRegistrations?: typeof buildFederatedMcpRegistrations;
   readonly presetRegistry?: FederatedMcpPresetRegistry;
   registry: ToolRegistry;
   deps: FederationDeps;
@@ -193,7 +196,7 @@ export async function attachFederatedMcpTools(requiredArgs: AttachFederatedMcpTo
   const connectFailures: { connectionId: string; reason: string }[] = [];
 
   for (const { connection, isPreset } of connections) {
-    const attached = await attachOneFederatedConnection({ connection, registry: params.registry, deps: params.deps, connect, logger });
+    const attached = await attachOneFederatedConnection({ connection, registry: params.registry, deps: params.deps, connect, logger, ...(params.buildRegistrations ? { buildRegistrations: params.buildRegistrations } : {}) });
     registeredToolIds.push(...attached.registeredToolIds);
     if (attached.session) sessions.push(attached.session);
     if (attached.report) reports.push({ connectionId: connection.config.connectionId, report: attached.report, isPreset });
@@ -216,6 +219,19 @@ function registerFederatedTools(registry: ToolRegistry, registrations: readonly 
     registeredToolIds.push(registration.descriptor.id);
   }
   return registeredToolIds;
+}
+
+/** R5 freezes definitions, not owner grants. A nonempty roster source uses the core's existing
+ * scope so owner changes can hide/restore it and admit other originally listed tools. Empty
+ * grants still close below; their first grant retains the existing fresh-admission path.
+ * @complexity O(t) in the source's original tool listing; no I/O.
+ */
+function registerConnectedFederatedTools({ registry, session, config, deps, registrations, frozenTools, buildRegistrations }: {
+  registry: ToolRegistry; session: McpSessionPort; config: ResolvedFederatedConnection['config']; deps: FederationDeps; registrations: readonly ToolRegistration[];
+  frozenTools: Parameters<typeof registerFrozenFederationConnection>[0]['tools'] | undefined; buildRegistrations: typeof buildFederatedMcpRegistrations | undefined;
+}): string[] {
+  if (config.origin?.kind !== 'roster' || config.allowedToolNames.length === 0 || !frozenTools) return registerFederatedTools(registry, registrations);
+  return registerFrozenFederationConnection({ registry, session, config, deps, tools: frozenTools, registrations }, buildRegistrations ? { buildRegistrations } : {});
 }
 
 /** Logs one connection's full admission accounting. Refusals are reported, never silent —
@@ -257,6 +273,7 @@ async function attachOneFederatedConnection(params: {
   deps: FederationDeps;
   connect: (request: { connection: ResolvedFederatedConnection }) => Promise<McpSessionPort>;
   logger: Logger;
+  buildRegistrations?: typeof buildFederatedMcpRegistrations;
 }): Promise<{
   readonly registeredToolIds: readonly string[];
   readonly session: McpSessionPort | null;
@@ -277,8 +294,8 @@ async function attachOneFederatedConnection(params: {
     // every native tool AND every tool an earlier connection in this same loop already claimed.
     const nativeToolIds = new Set(registry.list({}).map((descriptor) => descriptor.id));
 
-    const { registrations, report } = await federateSession({ session, config: connection.config, deps, nativeToolIds });
-    const registeredToolIds = registerFederatedTools(registry, registrations);
+    const { registrations, report, frozenTools } = await federateSession({ session, config: connection.config, deps, nativeToolIds, ...(params.buildRegistrations ? { buildRegistrations: params.buildRegistrations } : {}) });
+    const registeredToolIds = registerConnectedFederatedTools({ registry, session, config: connection.config, deps, registrations, frozenTools, buildRegistrations: params.buildRegistrations });
 
     logger.info(
       { message: `mcp-federation: '${connectionId}' registered ${registrations.length} federated tool(s): ${registrations.map((r) => r.descriptor.id).join(", ") || "(none)"}` },

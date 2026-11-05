@@ -71,6 +71,8 @@ export interface DelegatedToolExecuteResponse {
  */
 export interface DelegatedToolsInternalErrorContext {
   readonly source: 'delegated-tool-execute' | 'resolve-principal';
+  /** Optional host-loaded recovery facts; the host describer must redact these as usual. */
+  readonly recoveryMessage?: string;
   readonly runId: string;
   readonly toolId: string;
   readonly correlationId: string;
@@ -85,6 +87,11 @@ export interface DelegatedToolsInternalErrorContext {
 }
 
 export interface DelegatedToolsHttpDeps {
+  /** One bounded read after an interrupted call, for hosts whose jobs live in another process.
+   * Must authorize with the supplied principal, never execute a write/retry, and impose its own
+   * deadline. A throw is contained; absent facts remain unknown. No calls on the success path.
+   */
+  readonly recoverInterruptedTool?: (required: { principal: Principal; runId: string; toolId: string; result: ToolExecutionResult }) => Promise<string | undefined>;
   /** The same negotiated digest store supplied to the run lifecycle and agent executor. */
   readonly delegatedResultCorrelation?: DelegatedResultCorrelation;
   readonly lifecycle: RunLifecycle;
@@ -242,7 +249,7 @@ function parseDelegatedToolExecute(input: RouteInputContext): Result<DelegatedTo
  */
 function toolExecutionResultToApiResult(
   deps: DelegatedToolsHttpDeps,
-  { runId, toolId, result }: { readonly runId: string; readonly toolId: string; readonly result: ToolExecutionResult },
+  { runId, toolId, result, recoveryMessage }: { readonly runId: string; readonly toolId: string; readonly result: ToolExecutionResult; readonly recoveryMessage?: string },
 ): Result<DelegatedToolExecuteResponse> {
   switch (result.status) {
     case 'completed': {
@@ -256,7 +263,7 @@ function toolExecutionResultToApiResult(
       return err({ error: createApiError({ code: 'TOOL_OPERATION_DENIED', message: 'this operation was denied during confirmation' }) });
     case 'timed-out':
     case 'cancelled':
-      return err({ error: reportInternalError(deps, { source: 'delegated-tool-execute', error: result.status, runId, toolId, status: result.status }) });
+      return err({ error: reportInternalError(deps, { source: 'delegated-tool-execute', error: result.status, runId, toolId, ...(recoveryMessage ? { recoveryMessage } : {}), status: result.status }) });
     case 'failed':
       return err({ error: failedResultToApiError(deps, { runId, toolId, result }) });
     default: {
@@ -279,6 +286,22 @@ function failedResultToApiError(
     return createApiError({ code: 'TOOL_EXECUTION_FAILED', message: result.error });
   }
   return reportInternalError(deps, { source: 'delegated-tool-execute', error: result.error ?? result.status, runId, toolId, status: 'failed' });
+}
+
+/** Read host-owned recovery facts once after interruption. The host supplies the deadline and
+ * permission-checked read; a failed read never replaces or retries the original operation.
+ * @complexity One optional bounded read; no extra work on successful executions.
+ */
+async function toolExecutionResultWithRecovery(deps: DelegatedToolsHttpDeps, required: {
+  principal: Principal; runId: string; toolId: string; result: ToolExecutionResult;
+}): Promise<Result<DelegatedToolExecuteResponse>> {
+  const { principal, runId, toolId, result } = required;
+  let recoveryMessage: string | undefined;
+  if (result.status === 'timed-out' || result.status === 'cancelled') {
+    try { recoveryMessage = await deps.recoverInterruptedTool?.({ principal, runId, toolId, result }); }
+    catch { /* Recovery cannot change the interrupted write or expose its own failure. */ }
+  }
+  return toolExecutionResultToApiResult(deps, { runId, toolId, result, ...(recoveryMessage ? { recoveryMessage } : {}) });
 }
 
 /**
@@ -350,7 +373,7 @@ export const delegatedToolExecuteRoute = defineJsonRoute<
         input: input.input,
         ...(signal !== undefined ? { signal } : {}),
       });
-      return toolExecutionResultToApiResult(deps, { runId: input.runId, toolId: input.toolId, result });
+      return toolExecutionResultWithRecovery(deps, { principal, runId: input.runId, toolId: input.toolId, result });
     } catch (error) {
       if (error instanceof ToolInputError) {
         return err({ error: createApiError({ code: 'BAD_REQUEST', message: error.message }) });

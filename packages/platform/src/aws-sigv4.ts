@@ -43,7 +43,7 @@ export interface SignSigV4Input {
   path: string;
   /** Already-stringified canonical query (sorted `key=value` join). Pass `''` when the request has no query. */
   query: string;
-  /** Mutable lower-case header map. The signer adds the four amz headers and the Authorization header. */
+  /** Mutable header map; names are normalized to lower-case before signing. The signer adds the four amz headers and the Authorization header. */
   headers: Record<string, string>;
   /** Raw body bytes; pass an empty Buffer for no-body requests. */
   body: Buffer;
@@ -74,6 +74,11 @@ export function signSigV4(input: SignSigV4Input): SignSigV4Result {
   const dateStamp = amzDate.slice(0, 8);
   const contentSha256 = sha256Hex(input.body);
 
+  // Normalise the outgoing map FIRST so each header has exactly one (lower-case) spelling: a caller's
+  // `X-Amz-Date` left beside the generated `x-amz-date` would let a transport send a value other than
+  // the signed one (FU-B, Codex on F1).
+  normaliseHeaders({ headers: input.headers });
+
   // Add the required amz headers BEFORE composing the canonical request, since they're part of
   // the signed-headers list.
   input.headers['x-amz-date'] = amzDate;
@@ -82,13 +87,14 @@ export function signSigV4(input: SignSigV4Input): SignSigV4Result {
     input.headers['x-amz-security-token'] = input.credentials.sessionToken;
   }
 
-  // Canonical headers: lower-case keys + trim values; sort by key.
-  const headerKeys = Object.keys(input.headers)
-    .map((k) => k.toLowerCase())
-    .sort();
-  const canonicalHeaders = headerKeys
-    .map((k) => `${k}:${trimValue(input.headers[k] ?? input.headers[k.toLowerCase()] ?? '')}\n`)
-    .join('');
+  // Canonical headers: keys are already lower-case (normaliseHeaders) + trim values; sort by key. The
+  // values signed are exactly the values left in the map: looking them up by a lower-cased key once
+  // signed a mixed-case header as empty (F1).
+  const canonicalEntries = Object.entries(input.headers)
+    // Keys are unique after lower-casing, so code-unit order never ties (same order as the old .sort()).
+    .sort(([a], [b]) => (a < b ? -1 : 1));
+  const headerKeys = canonicalEntries.map(([k]) => k);
+  const canonicalHeaders = canonicalEntries.map(([k, v]) => `${k}:${trimValue(v)}\n`).join('');
   const signedHeaders = headerKeys.join(';');
 
   const canonicalRequest = [
@@ -119,6 +125,21 @@ export function signSigV4(input: SignSigV4Input): SignSigV4Result {
   input.headers['authorization'] = authorization;
 
   return { authorization, amzDate, contentSha256 };
+}
+
+/**
+ * Rewrites `headers` in place so every key is lower-case. Spellings that collide after lower-casing are
+ * merged into one comma-separated value in input order (AWS's canonical form for multi-value headers).
+ */
+function normaliseHeaders({ headers }: { headers: Record<string, string> }, _options = {}): void {
+  const merged = new Map<string, string>();
+  for (const [key, value] of Object.entries(headers)) {
+    const lower = key.toLowerCase();
+    const previous = merged.get(lower);
+    merged.set(lower, previous === undefined ? value : `${previous},${value}`);
+    delete headers[key];
+  }
+  for (const [key, value] of merged) headers[key] = value;
 }
 
 function sha256Hex(body: Buffer): string {

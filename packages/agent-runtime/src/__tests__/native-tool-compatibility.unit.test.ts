@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { antigravityAgentDef } from '../defs/antigravity.js';
+import { antigravityAgentDef } from '../defs/antigravity/index.js';
 import { claudeAgentDef } from '../defs/claude.js';
 import { codexAgentDef } from '../defs/codex.js';
 import { resolveNativeToolPolicy, assessNativeToolPolicy } from '../native-tool-policy.js';

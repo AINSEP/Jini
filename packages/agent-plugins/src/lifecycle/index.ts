@@ -140,3 +140,6 @@ export function createAgentPluginLifecycle(required: AgentPluginLifecycleRequire
 }
 
 export { projectAgentPluginSearchPage, type AgentPluginDiscoveryMatch, type AgentPluginDiscoveryPage } from './search-projection.js';
+export { agentVisiblePluginCandidate } from './search-projection.js';
+export { createVersionedPluginActivationReader, type PluginActivationReaderPorts } from './activation-reader.js';
+export { planAgentPluginToolGrant, type AgentPluginToolGrant, type AgentPluginDeclaredTools } from './enable-grants.js';

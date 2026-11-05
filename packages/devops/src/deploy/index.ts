@@ -6,3 +6,4 @@ export * from '../core/redirect-guard.js';
 export * from './host-kit.js';
 export * from './tokens.js';
 export * from './tool.js';
+export * from './publish-jobs.js';

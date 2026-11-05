@@ -3,6 +3,7 @@ import type { DelegatedResultCorrelation } from '../delegated-result-correlation
 import type { StdoutJournalBlobPort } from '../tool-result-diagnostics.js';
 import { appendSerialTask } from "@jini-ai/core/primitives";
 import { createLiveSessionState } from './live-session-state.js';
+import { createSanitizedLineStream } from './sanitized-line-stream.js';
 import { acceptsMidRunUserMessages, createMessageRelay, type RunMessageRelay } from './message-relay.js';
 import { randomUUID } from 'node:crypto';
 import type { probeMcpBridge, McpBridgeProbeResult } from './mcp-bridge-probe.js';
@@ -290,7 +291,7 @@ function receivedJournalEntry(channel: 'stdout' | 'stderr', content: string): Jo
 }
 
 /**
- * Default ceiling on the `'until-close'` stdout accumulator (see `RuntimeStdoutPolicy` in
+ * Default ceiling on the `'until-close'` or per-line stdout accumulator (see `RuntimeStdoutPolicy` in
  * `@jini-ai/agent-runtime`), in bytes of received UTF-8.
  *
  * A buffered def holds its child's entire stdout in one in-memory string until the process closes,
@@ -299,8 +300,8 @@ function receivedJournalEntry(channel: 'stdout' | 'stderr', content: string): Jo
  * nothing obliges it to ever close or to stop emitting. Without a ceiling one run could exhaust the
  * daemon's heap and take every unrelated run in the process down with it.
  *
- * 8 MiB is chosen to sit far above any real buffered-agent transcript (antigravity's print-mode
- * output — the only `'until-close'` def — is a few KiB of auth prompt and result text) while staying
+ * 8 MiB was chosen to sit far above the original buffered print-mode auth prompt and result text
+ * (a few KiB) while staying
  * small enough that a hostile child cannot meaningfully pressure the heap. A host that genuinely
  * needs more passes `CreateAgentExecutorOptions.bufferedStdoutMaxBytes`.
  */
@@ -436,13 +437,15 @@ function createStdoutDiagnostics({ ctx, enqueueEmit }: {
  *
  * *When* those chunks leave is the def's call, via `def.stdoutPolicy`:
  *
- *   - `'live'` (the default, and every def but antigravity) — emit per
+ *   - `'live'` (the default) — emit per
  *     chunk, as it arrives.
  *   - `'until-close'` — accumulate, and emit the whole thing exactly once
  *     from the `close` handler, after `def.stdoutPolicy.sanitize`. For an
  *     adapter that can print a secret to stdout and still exit 0, no
  *     per-chunk decision is safe: the pattern to redact can straddle two
  *     `'data'` events.
+ *   - `'line'` — sanitize each bounded complete wire line before both raw delivery and parsing;
+ *     retain only its partial tail. Secrets split across chunks stay private without waiting for exit.
  *
  * The buffered path holds back the raw `'stdout'` echo too, not just the
  * `'agent'`/`text_delta`, and sanitizes both. Emitting an unsanitized raw
@@ -514,12 +517,23 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
   let bridgeChecked = !ctx.expectsJiniBridge;
   let bridgeUnavailable = false;
   // `def.stdoutPolicy` read once, up front, so the per-chunk handler below is a single boolean
-  // test rather than a repeated union narrowing. `undefined` (every def but antigravity) means
+  // test rather than a repeated union narrowing. `undefined` means
   // live — see this function's own doc.
   const stdoutPolicy = def.stdoutPolicy;
   const bufferStdoutUntilClose = stdoutPolicy?.buffering === 'until-close';
   const sanitizeBufferedStdout = stdoutPolicy?.buffering === 'until-close' ? stdoutPolicy.sanitize : undefined;
-  // Accumulator for the `'until-close'` path. Stays `''` for every live def, and the flush below
+  const lineStdout = stdoutPolicy?.buffering === 'line' ? createSanitizedLineStream({
+    maxBytes: ctx.bufferedStdoutMaxBytes, sanitize: stdoutPolicy.sanitize,
+    emit: ({ text }) => {
+      stdoutDiagnostics.feed({ text });
+      if (streamFormat === 'plain') enqueueEmit(() => lifecycle.emit({ runId, input: { event: 'agent', data: { type: 'text_delta', delta: text } } }));
+      else streamHandler?.feed({ chunk: text });
+    },
+    onOverflow: ({ bytes }) => enqueueEmit(() => lifecycle.emit({ runId, input: { event: 'error', data: {
+      message: bufferedStdoutTruncationNotice(bytes, ctx.bufferedStdoutMaxBytes),
+    } } })),
+  }) : undefined;
+  // Accumulator for the `'until-close'` path. Stays `''` for live and line policies, and the flush below
   // is then a no-op that emits nothing. Bounded by `ctx.bufferedStdoutMaxBytes` — see
   // {@link DEFAULT_BUFFERED_STDOUT_MAX_BYTES} for why an unbounded accumulator was a
   // denial-of-service surface rather than merely untidy.
@@ -791,6 +805,7 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
   child.stdout?.on('data', (chunk: Buffer | string) => {
     const text = chunk.toString('utf8');
     stdoutDiagnostics.record({ chunk, text });
+    if (lineStdout) { lineStdout.feed({ chunk: text }); return; }
     if (streamFormat === 'plain' && text.length > 0) userVisibleOutputSeen = true;
     if (bufferStdoutUntilClose) {
       // Nothing is emitted on *either* channel yet — see this function's doc on why holding the
@@ -860,6 +875,7 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
         controlScanBuffer = '';
       }
       flushBufferedStdout();
+      lineStdout?.flush({});
       streamHandler?.flush();
       session.endSession();
       stdoutDiagnostics.flush();

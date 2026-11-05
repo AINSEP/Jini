@@ -37,6 +37,36 @@ const pluginSchema: McpToolDef['inputSchema'] = {
 };
 
 describe('first-call tool argument recovery for every MCP CLI', () => {
+  it('an empty wrapped theme call reports its real missing field rather than an unknown envelope', async () => {
+    const h = harness({ id: 'theme_list_files', inputSchema: { type: 'object', additionalProperties: false,
+      required: ['themeId'], properties: { themeId: { type: 'string' } } } });
+    const result = await h.call('theme_list_files', { input: '{}' });
+    expect(result.isError).toBe(true);
+    expect(JSON.stringify(result)).toContain('themeId');
+    expect(JSON.stringify(result)).not.toContain("Unknown input 'input'");
+    expect(h.calls).toEqual([]);
+  });
+
+  it('repairs delegated envelopes for arbitrary concrete tools before strict validation', async () => {
+    const h = harness({ id: 'example_read', readOnly: true, inputSchema: { type: 'object',
+      additionalProperties: false, properties: { count: { type: 'integer' } } } });
+    for (const fields of [{}, { count: '2' }]) {
+      for (const input of [fields, JSON.stringify(fields)]) {
+        const result = await h.call('example_read', { input });
+        expect(result.isError).not.toBe(true);
+        expect(h.calls.at(-1)?.input).toEqual('count' in fields ? { count: 2 } : {});
+      }
+    }
+    expect(h.calls).toHaveLength(4);
+  });
+
+  it.each(['execute_delegated_tool', 'execute_readonly_delegated_tool'])('decodes the JSON input field of %s at the gateway', async name => {
+    const h = harness({ id: 'example_read', readOnly: true, inputSchema: { type: 'object', properties: {} } });
+    expect((await h.call(name, { toolId: 'example_read', input: '{}' })).isError).not.toBe(true);
+    expect(h.calls).toHaveLength(1);
+    expect(h.calls[0]?.input).toEqual({});
+  });
+
   it('turning on a plugin accepts an agreeing extra id before strict MCP validation', async () => {
     const h = harness({ id: 'plugins_set_enabled', inputSchema: pluginSchema });
     const input = { family: 'agent-plugin', pluginId: 'charts', id: 'charts', enabled: true };

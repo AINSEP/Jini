@@ -144,14 +144,14 @@ export function bindVercel(kit) {
           return this.resolvedPublicUrl;
       }
       /**
-       * Publishes `input.files` as a new Vercel deployment and waits for the
-       * resulting URL to be reachable.
+       * Publishes `input.files`, asking Vercel for missing hashes before uploading. The optional
+       * synchronous `input.onProgress` receives credential-free counts and deployment facts.
        *
-       * @param input - File set plus a caller-chosen project name label.
-       * @returns The published deployment's URL/status once Vercel has a
-       *   terminal `readyState` (or the poll budget is exhausted).
-       * @throws {DeployError} If `config.token` is missing, or Vercel's API
-       *   rejects the deployment request or reports `readyState: 'ERROR'`.
+       * @param input - File set, project name, optional security headers and progress observer.
+       * @returns The verified URL/status, or a partial result retaining the accepted deployment's
+       *   ID/URL and next steps when readiness cannot be confirmed.
+       * @throws {DeployError} For a failed build or before a deployment is known to exist; includes confirmed
+       *   upload counts, whether creation is false/unknown, and how to safely continue.
        * @complexity O(files) to hash and upload them, plus a bounded poll loop
        *   (`pollVercelDeployment`) and the reachability wait's own bound.
        * @overallScore 100/100
@@ -161,22 +161,25 @@ export function bindVercel(kit) {
               throw new DeployError('Vercel token is required.', 400);
           }
           const { refs, blobs } = vercelFileManifest(withVercelConfigFile(input.files, input.responseHeaders));
-          await uploadVercelFiles(this.config, blobs, [...blobs.keys()]);
           const name = this.resolvedProjectName ?? safeVercelProjectName(input.projectName);
-          const created = await createUploadedVercelDeployment({ config: this.config, name, refs, blobs });
-          const fallbackId = typeof created.uid === 'string' ? created.uid : undefined;
-          const deploymentId = typeof created.id === 'string' ? created.id : fallbackId;
-          const initialUrl = deploymentUrl(created);
-          const ready = await readyVercelDeployment({ config: this.config, deploymentId, created });
-          const link = await publicVercelLink({ name, ready, created, initialUrl, publicUrl: this.resolvedPublicUrl });
-          return {
-              targetId: this.id,
-              url: link.url || deploymentUrl(ready) || initialUrl,
-              ...(deploymentId ? { deploymentId } : {}),
-              status: link.status,
-              statusMessage: link.statusMessage,
-              ...(link.reachableAt !== undefined ? { reachableAt: link.reachableAt } : {}),
-          };
+          const progress = { phase: 'creating', totalFiles: blobs.size, uploadedFiles: 0, reusedFiles: 0, deploymentCreated: false };
+          const report = patch => { Object.assign(progress, patch); input.onProgress?.({ ...progress }); };
+          try {
+              const created = await createUploadedVercelDeployment({ config: this.config, name, refs, blobs, report });
+              const deploymentId = typeof created.id === 'string' ? created.id : created.uid;
+              const initialUrl = deploymentUrl(created);
+              report({ phase: 'polling', deploymentCreated: true, deploymentId, url: initialUrl, providerStatus: created.readyState ?? 'unknown' });
+              const ready = await readyVercelDeployment({ config: this.config, deploymentId, created, report });
+              if (ready?.readyState !== 'READY') return unfinishedDeployment({ progress, name });
+              report({ phase: 'checking', providerStatus: 'READY' });
+              const link = await publicVercelLink({ name, ready, created, initialUrl, publicUrl: this.resolvedPublicUrl });
+              return publishedResult({ link, ready, initialUrl, deploymentId });
+          } catch (error) {
+              // An existing deployment remains a real provider fact even if polling/reachability fails.
+              if (progress.deploymentCreated === true && progress.providerStatus !== 'ERROR') return unfinishedDeployment({ progress, name, error, token: this.config.token });
+              const detail = safeFailureMessage({ error, token: this.config.token });
+              throw new DeployError(`${detail} ${publishFacts({ progress })} ${retryGuidance({ progress, name })}`, error?.status ?? 502);
+          }
       }
       /** Probes `url`, recognizing Vercel's own Deployment Protection auth wall. */
       async checkReachability(url) {
@@ -185,6 +188,12 @@ export function bindVercel(kit) {
               protectedMessage: VERCEL_PROTECTED_MESSAGE,
           });
       }
+  }
+  /** Map a verified public link without changing the provider's deployment identity. */
+  function publishedResult({ link, ready, initialUrl, deploymentId }, _options = {}) {
+      return { targetId: VERCEL_TARGET_ID, url: link.url || deploymentUrl(ready) || initialUrl,
+          ...(deploymentId ? { deploymentId } : {}), status: link.status, statusMessage: link.statusMessage,
+          ...(link.reachableAt !== undefined ? { reachableAt: link.reachableAt } : {}) };
   }
   /** Read the provider's production-only, verified, nonredirecting domains. Refuse a partial
    * inventory rather than select a different canonical URL on different pages of the result.
@@ -233,27 +242,63 @@ export function bindVercel(kit) {
       if (!domain) throw new DeployError('Vercel did not report a verified public domain for this project.', 400);
       return `https://${domain.name}`;
   }
-  async function createUploadedVercelDeployment({ config, name, refs, blobs }, _options = {}) {
+  /** Let the provider's content store select missing hashes before sending bytes. A retry on
+   * another target/process reuses provider acknowledgements, including a prior partial upload.
+   * @complexity At most two O(file references) create requests plus one upload per missing hash.
+   */
+  async function createUploadedVercelDeployment({ config, name, refs, blobs, report }, _options = {}) {
       // `target: "production"`: without it Vercel makes a preview deployment, and only a project's
       // FIRST deployment takes the production alias, so every later publish never reached the
       // public address (2026-10-11). A publish is meant to update the live site.
       const body = JSON.stringify({ name, files: refs, target: 'production', projectSettings: { framework: null } });
+      report({ phase: 'creating', deploymentCreated: 'unknown' });
       let createResp = await createVercelDeployment(config, body);
       let created = await readVercelJson(createResp);
       const missing = created?.error?.code === 'missing_files' ? created.error.missing : undefined;
       if (!createResp.ok && Array.isArray(missing)) {
+          const shas = [...new Set(missing.filter(sha => blobs.has(sha)))];
+          report({ phase: 'uploading', deploymentCreated: false, reusedFiles: blobs.size - shas.length });
           // Vercel did not keep (or never got) some uploads: send exactly what it names, then create
           // once more. A second `missing_files` is reported like any other create failure.
-          await uploadVercelFiles(config, blobs, missing.filter((sha) => blobs.has(sha)));
+          let uploadedFiles = 0;
+          await uploadVercelFiles(config, blobs, shas, () => report({ uploadedFiles: ++uploadedFiles }));
+          report({ phase: 'creating', deploymentCreated: 'unknown' });
           createResp = await createVercelDeployment(config, body);
           created = await readVercelJson(createResp);
+      } else if (createResp.ok) {
+          report({ reusedFiles: blobs.size });
       }
-      if (!createResp.ok)
+      if (!createResp.ok) {
+          report({ deploymentCreated: false });
           throw vercelError(created, createResp.status);
+      }
       return created;
   }
-  async function readyVercelDeployment({ config, deploymentId, created }, _options = {}) {
-      const ready = deploymentId ? await pollVercelDeployment(config, deploymentId) : created;
+  /** Only confirmed, value-free facts cross the failure boundary; no raw upstream body.
+   * @complexity O(1) formatting, independent of export bytes.
+   */
+  function publishFacts({ progress }, _options = {}) {
+      const created = progress.deploymentCreated === true ? 'created' : progress.deploymentCreated === false ? 'not created' : 'unknown';
+      return `Deployment: ${created}. ${progress.uploadedFiles} of ${progress.totalFiles} distinct files uploaded this attempt; ${progress.reusedFiles} already stored. Deployment ID: ${progress.deploymentId ?? 'unknown'}; URL: ${progress.url || 'unknown'}; provider status: ${progress.providerStatus ?? 'unknown'}.`;
+  }
+  function retryGuidance({ progress, name }, _options = {}) {
+      if (progress.deploymentCreated !== false) return `Check deployment ${progress.deploymentId ?? ''} in the Vercel dashboard for project '${name}' before publishing again. A public site's 200 can belong to the previous deployment.`;
+      return 'Retry the publish to upload only missing hashes; acknowledged files are reused.';
+  }
+  function safeFailureMessage({ error, token }, _options = {}) {
+      return String(error?.message ?? 'Vercel did not finish the request.').split(token).join('[redacted]');
+  }
+  /** Accepted deployment with incomplete verification: retain its own URL, never prove it with
+   * an old production alias. Known provider errors remain failed rather than becoming a timeout.
+   */
+  function unfinishedDeployment({ progress, name, error, token }, _options = {}) {
+      const detail = error ? safeFailureMessage({ error, token }) : 'Vercel has not confirmed this deployment is ready yet.';
+      return { targetId: VERCEL_TARGET_ID, url: progress.url || '', deploymentId: progress.deploymentId,
+          status: 'link-delayed',
+          statusMessage: `${detail} ${publishFacts({ progress })} ${retryGuidance({ progress, name })}` };
+  }
+  async function readyVercelDeployment({ config, deploymentId, created, report }, _options = {}) {
+      const ready = deploymentId ? await pollVercelDeployment(config, deploymentId, report) : created;
       if (ready?.readyState === 'ERROR') {
           const readyError = ready?.error;
           // `ready ?? undefined` — the `undefined` side is unreachable: this line
@@ -316,25 +361,30 @@ export function bindVercel(kit) {
   }
   /**
    * Uploads `shas` (keys of `blobs`) to `POST /v2/files`, {@link VERCEL_UPLOAD_CONCURRENCY} at a
-   * time. The first failure stops the remaining queue and rejects.
+   * time. The first failure stops the remaining queue; active sends drain before rejection.
    *
    * @complexity O(n) requests, plus at most `VERCEL_UPLOAD_ATTEMPTS - 1` retries each.
    */
-  async function uploadVercelFiles(config, blobs, shas) {
-      const queue = [...shas];
+  async function uploadVercelFiles(config, blobs, shas, onUploaded) {
+      let cursor = 0;
+      let stopped = false;
       const worker = async () => {
-          while (queue.length) {
-              const sha = queue.shift();
+          while (!stopped && cursor < shas.length) {
+              const sha = shas[cursor++];
               try {
                   await uploadVercelFile(config, sha, blobs.get(sha));
-              }
-              catch (err) {
-                  queue.length = 0;
+                  onUploaded();
+              } catch (err) {
+                  stopped = true;
                   throw err;
               }
           }
       };
-      await Promise.all(Array.from({ length: Math.min(VERCEL_UPLOAD_CONCURRENCY, queue.length) }, worker));
+      // Drain already-started sends before reporting a failure, so acknowledged counts are final
+      // and no upload from this attempt can race a retry and charge the same bytes twice.
+      const results = await Promise.allSettled(Array.from({ length: Math.min(VERCEL_UPLOAD_CONCURRENCY, shas.length) }, worker));
+      const failure = results.find(result => result.status === 'rejected');
+      if (failure) throw failure.reason;
   }
   function vercelUploadTransportError({ err }, _options = {}) {
       // Node's fetch reports every transport failure as a bare "fetch failed"; the cause (a
@@ -405,7 +455,7 @@ export function bindVercel(kit) {
    *   `publish` has no caller-facing timeout knob yet either; flagged as a
    *   minor extensibility gap rather than a correctness issue.
    */
-  async function pollVercelDeployment(config, id) {
+  async function pollVercelDeployment(config, id, report) {
       let last = null;
       for (let i = 0; i < 30; i += 1) {
           await sleep(i < 5 ? 1000 : 2000);
@@ -423,6 +473,7 @@ export function bindVercel(kit) {
           if (!resp.ok)
               throw vercelError(json, resp.status);
           last = json;
+          report({ providerStatus: json.readyState ?? 'unknown' });
           if (json.readyState === 'READY' || json.readyState === 'ERROR')
               return json;
       }

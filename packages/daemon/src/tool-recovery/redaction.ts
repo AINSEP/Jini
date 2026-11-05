@@ -87,6 +87,7 @@ export function isRedactedToolFailure({ result }: { result: ToolExecutionResult 
  * compiles against a published http-kit that predates `status`.
  */
 export interface DelegatedInternalErrorContext {
+  readonly recoveryMessage?: string;
   readonly source: string;
   readonly runId: string;
   readonly toolId: string;
@@ -126,7 +127,9 @@ function delegatedInternalErrorReason(context: DelegatedInternalErrorContext): s
  * @complexity O(reason length) for the redaction pass.
  */
 export function describeDelegatedInternalError({ context, ...deps }: RedactedToolFailuresDeps & { context: DelegatedInternalErrorContext }, _optional = {}): string {
-  const { text, redactions } = deps.redactSecretShapes({ text: delegatedInternalErrorReason(context) });
+  let reason = delegatedInternalErrorReason(context);
+  if ((context.status === "timed-out" || context.status === "cancelled") && context.recoveryMessage) reason = context.recoveryMessage;
+  const { text, redactions } = deps.redactSecretShapes({ text: reason });
   const errorId = deps.mintErrorId();
   safeOnFailure(deps.onFailure, {
     errorId,

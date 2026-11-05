@@ -924,8 +924,8 @@ test("ingestHit does not exclude an IP against an excludedIpRanges CIDR entry wi
   assert.equal(sink.all({}).length, 1);
 });
 
-test("C47: empty and out-of-range CIDR prefixes do not exclude unrelated IPv4 hits", async () => {
-  for (const range of ["10.0.0.1/", "10.0.0.1/33"]) {
+test("C47: malformed CIDRs do not exclude unrelated IPv4 hits", async () => {
+  for (const range of ["10.0.0.1/", "10.0.0.1/33", "10.0.0.0/0/24", "10.0.0.0/0/", "10.0.0.0//24"]) {
     const { deps, sink } = makeDeps({ config: makeConfigPort(makeConfig({ excludedIpRanges: [range] })) });
 
     const result = await ingestHit({ input: { beacon: makeBeacon(), context: makeContext({ ip: "10.1.0.2" }) }, deps });

@@ -123,3 +123,14 @@ test("delegatedToolErrorDisclosure exposes the model-safe check and the internal
   expect(disclosure.describeInternalError({ source: "s", runId: "r", toolId: "t", correlationId: "c", error: "boom" })).toBe("Error ERR-0001-0000-0000-0000: boom");
   expect(records).toHaveLength(1);
 });
+
+test('delegated timeout carries host recovery facts through the same redaction and error-id boundary', () => {
+  const records: ToolFailureRecord[] = [];
+  const disclosure = delegatedToolErrorDisclosure(deps(records));
+  const message = disclosure.describeInternalError({ source: 'delegated-tool-execute', runId: 'run-1', toolId: 'publish', correlationId: 'corr', error: 'timed-out', status: 'timed-out', recoveryMessage: `Publish job job-1 is still running. Deployment: created; uploaded: 4/5; URL: https://new.test; status: BUILDING. Read job-1 before retrying. ${credential()}` });
+  expect(message).toContain('Deployment: created; uploaded: 4/5');
+  expect(message).toContain('Read job-1 before retrying');
+  expect(message).toContain('ERR-0001-0000-0000-0000');
+  expect(message).not.toContain(credential());
+  expect(records).toHaveLength(1);
+});

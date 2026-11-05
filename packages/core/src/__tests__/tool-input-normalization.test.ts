@@ -14,7 +14,35 @@ const schema = {
   },
 };
 const registration = { descriptor: { id: 'example', inputSchema: schema } };
-const normalize = (input: unknown, definition = registration) => normalizeToolInput({ input, registration: definition });
+const normalize = (input: unknown, definition: Parameters<typeof normalizeToolInput>[0]['registration'] = registration) => normalizeToolInput({ input, registration: definition });
+
+describe('delegated argument envelopes', () => {
+  it('also unwraps a no-argument schema that omits properties', async () => {
+    const definition = { descriptor: { id: 'no_arguments', inputSchema: { type: 'object', additionalProperties: false } } };
+    expect((await normalize({ input: '{}' }, definition)).input).toEqual({});
+  });
+
+  it.each([{}, { expectedVersion: '2' }])('unwraps object and JSON envelopes before field validation: %j', async fields => {
+    for (const input of [{ input: fields }, { input: JSON.stringify(fields) }]) {
+      const before = structuredClone(input);
+      const result = await normalize(input);
+      expect(result.input).toEqual('expectedVersion' in fields ? { expectedVersion: 2 } : {});
+      expect(input).toEqual(before);
+    }
+  });
+
+  it('preserves a tool-owned input property and mixed fields', async () => {
+    const definition = { descriptor: { id: 'owns_input', inputSchema: {
+      type: 'object', additionalProperties: false, properties: { input: { type: 'string' } },
+    } } };
+    expect((await normalize({ input: '{}' }, definition)).input).toEqual({ input: '{}' });
+    await expect(normalize({ input: '{}', expectedVersion: 1 })).rejects.toThrow("Unknown input 'input'");
+  });
+
+  it.each(['[]', 'null', '4', '{broken'])('refuses invalid envelopes without disclosing values: %s', async input => {
+    await expect(normalize({ input })).rejects.toThrow();
+  });
+});
 
 describe('declared property aliases', () => {
   const inputSchema = { type: 'object', additionalProperties: false, properties: {

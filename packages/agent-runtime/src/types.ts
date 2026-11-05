@@ -236,6 +236,8 @@ export type RuntimeStdoutPolicy =
    * what a streaming CLI's own output cadence implies.
    */
   | { readonly buffering: 'live' }
+  /** Sanitize complete stdout lines before live delivery; partial lines remain bounded by the host. */
+  | { readonly buffering: 'line'; readonly sanitize: (requiredArgs: { fullText: string }) => string }
   /**
    * Accumulate every stdout chunk and forward the whole thing exactly once,
    * after the child process closes. For adapters that can print a secret
@@ -686,8 +688,8 @@ export type RuntimeAgentDef = Partial<AgentModelDiscoveryPort> & {
   // which is what every adapter did before this field existed.
   //
   // Previously consulted only for plain output: parsed protocols were assumed to need no
-  // byte buffering. Antigravity's structured errors can also contain sign-in URLs, so child
-  // stdout now honors this before parsing. ACP/pi-rpc still own their transport framing.
+  // byte buffering. Structured errors can also contain sign-in URLs, so child stdout honors
+  // this before parsing. ACP/pi-rpc still own their transport framing.
   stdoutPolicy?: RuntimeStdoutPolicy;
   // A mutex the caller must hold across this adapter's `buildArgs` →
   // spawn → CLI-reads-the-side-effect window — see {@link RuntimeLock} for

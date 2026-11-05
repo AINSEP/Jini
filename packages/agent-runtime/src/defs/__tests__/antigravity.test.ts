@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ModelDiscoveryDeps } from '../../model-discovery-types.js';
-import { antigravityAgentDef, parseAgyModels, redactAntigravityAuthUrls } from '../antigravity.js';
+import { antigravityAgentDef, parseAgyModels, redactAntigravityAuthUrls, sanitizeAntigravityWireLine } from '../antigravity/index.js';
 import { cliOutputDiscoveryDeps, discoveryContext, offlineDiscoveryDeps } from './discovery-fakes.js';
 
 describe('antigravityAgentDef shape', () => {
@@ -54,15 +54,23 @@ describe('antigravityAgentDef shape', () => {
   // `runtimeLock` here any more — `--model` (see the `buildArgs` tests
   // below) replaced the settings.json-write-then-poll-the-log mechanism the
   // lock used to serialize.
-  it('opts into a staged log file and buffered+sanitized stdout, and declares no runtimeLock', () => {
+  it('opts into a staged log file and line-sanitized live stdout, and declares no runtimeLock', () => {
     expect(antigravityAgentDef.needsAgentLogFile).toBe(true);
-    expect(antigravityAgentDef.stdoutPolicy.buffering).toBe('until-close');
-    expect(antigravityAgentDef.stdoutPolicy.sanitize).toBe(redactAntigravityAuthUrls);
+    expect(antigravityAgentDef.stdoutPolicy.buffering).toBe('line');
+    expect(antigravityAgentDef.stdoutPolicy.sanitize).toBe(sanitizeAntigravityWireLine);
     expect('runtimeLock' in antigravityAgentDef).toBe(false);
   });
 });
 
 describe('redactAntigravityAuthUrls', () => {
+  it('sanitizes parsed string values without breaking escaped quotes or line framing', () => {
+    const frame = { event: 'result', result: { status: 'FAILED', error: 'Open "https://accounts.google.com/o/oauth2/auth?client_id=private" then retry' } };
+    const safe = sanitizeAntigravityWireLine({ fullText: JSON.stringify(frame) + '\n' });
+    expect(safe.endsWith('\n')).toBe(true);
+    expect(JSON.parse(safe)).toEqual({ event: 'result', result: { status: 'FAILED', error: 'Open "[redacted sign-in URL]" then retry' } });
+    expect(safe).not.toContain('private');
+  });
+
   // The exact stdout agy v1.0.3 prints (and exits 0 on) when its keyring entry
   // is missing — the same text `auth.ts`'s isAntigravityAuthFailureText
   // classifies, and the same fixture OD's own chat-route test used.

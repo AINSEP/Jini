@@ -16,16 +16,34 @@ export interface AgentPluginDiscoveryPage {
 }
 
 /** Retain a short, valid UTF-8 description; encoding work is bounded even for huge source prose. */
-function shortDescription({ text }: { text: string }, _options = {}): string {
-  const bytes = Buffer.from(text.slice(0, 240));
-  if (bytes.length <= 240) return text.slice(0, 240);
-  let end = 240;
+function shortDescription({ text }: { text: string }, { maxBytes = 240 } = {}): string {
+  const bytes = Buffer.from(text.slice(0, maxBytes));
+  if (bytes.length <= maxBytes) return text.slice(0, maxBytes);
+  let end = maxBytes;
   while ((bytes[end]! & 0xc0) === 0x80) end--;
   return bytes.subarray(0, end).toString('utf8');
 }
 
+/** Keep an off plugin discoverable by identity and purpose without disclosing its instructions,
+ * connection method, skills, tool names or capabilities. Admin metadata keeps its original owner.
+ * @returns The original active candidate, or a catalog-only candidate for an off plugin.
+ * @complexity O(1) bounded text work; no I/O or mutation.
+ */
+export function agentVisiblePluginCandidate({ candidate }: { candidate: AgentPluginSearchCandidate }, _options = {}): AgentPluginSearchCandidate {
+  if (candidate.enabled) return candidate;
+  const purpose = shortDescription({ text: (candidate.summary ?? candidate.description ?? '').slice(0, 1024).replace(/\s+/g, ' ').trim() }, { maxBytes: 100 });
+  const label = shortDescription({ text: (candidate.displayName ?? candidate.pluginId).slice(0, 1024).replace(/\s+/g, ' ').trim() }, { maxBytes: 80 });
+  return { pluginId: candidate.pluginId, id: candidate.id ?? candidate.pluginId, enabled: false,
+    description: `installed, off: ${label}: ${purpose} — ask to turn on`,
+    skills: [], keywords: [], provides: [], mcpServerIds: [] };
+}
+
 /** Project one candidate without copying skills, keywords, credentials or host metadata. O(1). */
 function discoveryMatch({ candidate }: { candidate: AgentPluginSearchCandidate & { readonly maturity?: string } }, _options = {}): AgentPluginDiscoveryMatch {
+  if (!candidate.enabled) {
+    const visible = agentVisiblePluginCandidate({ candidate });
+    return { id: visible.id ?? visible.pluginId, pluginId: visible.pluginId, enabled: false, description: visible.description ?? '' };
+  }
   return { id: candidate.id ?? candidate.pluginId, pluginId: candidate.pluginId, enabled: candidate.enabled,
     ...(candidate.maturity ? { maturity: candidate.maturity } : {}),
     description: shortDescription({ text: candidate.description ?? candidate.summary ?? '' }) };

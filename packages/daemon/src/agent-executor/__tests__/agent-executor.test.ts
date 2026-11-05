@@ -2995,6 +2995,56 @@ describe('AgentExecutor — stdoutPolicy: buffer-until-close + sanitize (antigra
     });
   });
 
+  describe('line-sanitized stdout', () => {
+    afterEach(() => vi.useRealTimers());
+    it('streams line-sanitized plain output before exit', async () => {
+      vi.useFakeTimers();
+      const def = createFakeDef({ streamFormat: 'plain', stdoutPolicy: { buffering: 'line',
+        sanitize: ({ fullText }) => fullText.replace('secret', '[redacted]') } });
+      const { lifecycle, executor, child } = createHarness({ def });
+      const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+      const started = executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'x', cwd: '/work' });
+      await vi.advanceTimersByTimeAsync(0); await started;
+      child.stdout.emit('data', 'safe secret\n'); await vi.advanceTimersByTimeAsync(0);
+      const pending = await collectEvents(lifecycle, run.id);
+      expect(agentPayloadTypes(pending)).toContain('text_delta');
+      expect(JSON.stringify(pending)).not.toContain('secret');
+      child.emit('close', 0, null); await lifecycle.waitForTerminal({ runId: run.id });
+    });
+
+    it('streams Antigravity receipts in wire order before exit while redacting split sign-in URLs', async () => {
+      vi.useFakeTimers();
+      const def = createFakeDef({ eventParser: 'antigravity', stdoutPolicy: registryDef('antigravity').stdoutPolicy! });
+      const { lifecycle, executor, child } = createHarness({ def });
+      const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+      const started = executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'x', cwd: '/work' });
+      await vi.advanceTimersByTimeAsync(0); await started;
+      const first = JSON.stringify({ event: 'step_update', step_update: { step_type: 'tool',
+        conversation_id: 'c', step_index: 1, state: 'ACTIVE', tool_info: { name: 'read_file', parameters: { Path: '/a' } } } });
+      child.stdout.emit('data', first + '\n');
+      await vi.advanceTimersByTimeAsync(0);
+      const beforeBridge = await collectEvents(lifecycle, run.id);
+      expect(beforeBridge.some(event => event.kind === 'agent' && event.payload.type === 'tool_use')).toBe(true);
+      await lifecycle.emit({ runId: run.id, input: { event: 'agent', data: { type: 'tool_use', id: 'bridge', name: 'theme_read_file', input: {} } } });
+      const wire = JSON.stringify({ event: 'step_update', step_update: { step_type: 'agent_response',
+        text_delta: 'Sign in https://accounts.google.com/o/oauth2/auth?client_id=private-code' } }) + '\n';
+      const split = wire.indexOf('oauth2');
+      child.stdout.emit('data', wire.slice(0, split));
+      await vi.advanceTimersByTimeAsync(0);
+      expect(JSON.stringify(await collectEvents(lifecycle, run.id))).not.toContain('accounts.google.com');
+      child.stdout.emit('data', wire.slice(split));
+      await vi.advanceTimersByTimeAsync(0);
+      const pending = await collectEvents(lifecycle, run.id);
+      const uses = pending.flatMap(event => event.kind === 'agent' && event.payload.type === 'tool_use' ? [event.payload.id] : []);
+      expect(uses).toEqual(['c:1', 'bridge']);
+      expect(JSON.stringify(pending)).toContain('[redacted sign-in URL]');
+      expect(JSON.stringify(pending)).not.toContain('private-code');
+      child.emit('close', 0, null);
+      await lifecycle.waitForTerminal({ runId: run.id });
+    });
+
+  });
+
   it.each(['codex', 'antigravity'] as const)('sanitizes buffered %s output before structured parsing at close', async eventParser => {
     // Structured errors can contain sign-in URLs too, so the policy now precedes parsing.
     // A secret split across chunks must stay private until the complete wire text is sanitized.
@@ -6444,8 +6494,8 @@ describe('isAgentExecutorSupported / assessAgentExecutorCompatibility', () => {
   it('accepts the real antigravity def, which declares both spawn-orchestration fields it still needs', () => {
     const def = defOf('antigravity');
     expect(def.needsAgentLogFile).toBe(true);
-    expect(def.stdoutPolicy?.buffering).toBe('until-close');
-    expect(def.stdoutPolicy?.buffering === 'until-close' && typeof def.stdoutPolicy.sanitize).toBe('function');
+    expect(def.stdoutPolicy?.buffering).toBe('line');
+    expect(def.stdoutPolicy?.buffering === 'line' && typeof def.stdoutPolicy.sanitize).toBe('function');
     expect(def.runtimeLock).toBeUndefined();
     expect(isAgentExecutorSupported({ def: def })).toBe(true);
   });

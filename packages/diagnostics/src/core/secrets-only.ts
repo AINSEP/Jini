@@ -57,8 +57,8 @@ const AUTH_HEADER_VALUE_RE = new RegExp(
 
 /**
  * Every rule this module applies, in order. Order matters: `private_key` must run before the
- * reused header-only PEM pattern (inside {@link REUSED_CREDENTIAL_RULES}) so a full block is
- * blanked as one unit rather than leaving its header re-matched separately; `auth_header` must run
+ * reused PEM pattern (inside {@link REUSED_CREDENTIAL_RULES}) so a full block keeps this
+ * policy's private_key marker rather than the generic credential marker; `auth_header` must run
  * before the bare `bearer_token` rule so a header's own scheme+token is not ALSO caught by the
  * looser bare-token rule.
  */

@@ -124,11 +124,16 @@ describe('redaction union', () => {
     expect(redactSecretsWithCounts({ input: redacted })).toEqual({ redacted, counts: {} });
   });
 
-  // PARITY: diagnostics patterns stay byte-identical.
-  it('pins the eleven diagnostics regex sources, flags, names and credential coverage', () => {
+  // PARITY: vendor patterns stay byte-identical; PEM now consumes bodies as well as headers.
+  it('pins diagnostics vendor patterns and whole-block PEM credential coverage', () => {
     expect(SECRET_SHAPE_PATTERNS).toHaveLength(11);
-    expect(SECRET_SHAPE_PATTERNS.map(({ name, pattern }) => [name, pattern.source, pattern.flags]))
-      .toEqual(LEGACY_SECRET_SHAPE_PATTERNS.map(({ name, pattern }) => [name, pattern.source, pattern.flags]));
+    const unchanged = (patterns: typeof SECRET_SHAPE_PATTERNS) => patterns.filter(({ name }) => name !== 'PEM private key block')
+      .map(({ name, pattern }) => [name, pattern.source, pattern.flags]);
+    expect(unchanged(SECRET_SHAPE_PATTERNS)).toEqual(unchanged(LEGACY_SECRET_SHAPE_PATTERNS));
+    const pem = SECRET_SHAPE_PATTERNS.find(({ name }) => name === 'PEM private key block')!;
+    const block = '-----BEGIN RSA PRIVATE KEY-----\nYm9keQ==\n-----END RSA PRIVATE KEY-----';
+    expect(pem.pattern.exec(`before\n${block}\nafter`)?.[0]).toBe(block);
+    expect(redactSecrets({ input: `before\n${block}\nafter` })).toBe('before\n[REDACTED:credential]\nafter');
     const vendorValues = [
       'AIza' + 'a'.repeat(35), 'sk-ant-' + 'a'.repeat(100), 'sk-' + 'a'.repeat(40),
       'ghp_' + 'a'.repeat(36), 'gho_' + 'a'.repeat(36), 'github_pat_' + 'a'.repeat(80),

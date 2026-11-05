@@ -434,6 +434,55 @@ test("ensureReady rides through scheduled backoff without tripping the on-demand
   assert.equal(h.supervisor.isReady(), true);
 });
 
+test("automatic replacement resumes readiness discovery without another demand", async () => {
+  const reads: number[] = [];
+  const h = readyHarness({ probe: async ({ pid }) => { reads.push(pid); return true; } });
+  try {
+    assert.equal(h.children.length, 0, "construction remains cold");
+    await h.supervisor.ensureReady({}, {});
+    h.children[0]!.events.emit("exit");
+    await h.tick(5);
+    await h.tick(0);
+    assert.equal(h.children.length, 2);
+    assert.ok(reads.includes(101), "the replacement is monitored without caller traffic");
+    assert.equal(h.supervisor.isReady(), true);
+  } finally { h.supervisor.shutdown(); }
+});
+
+test("an unready replacement polls once per interval and shutdown cancels its monitor", async () => {
+  const reads: number[] = [];
+  const h = readyHarness({ probe: async ({ pid }) => { reads.push(pid); return pid === 100; } });
+  try {
+    await h.supervisor.ensureReady({}, {});
+    h.children[0]!.events.emit("exit");
+    await h.tick(5);
+    assert.deepEqual(reads, [100, 101], "replacement discovery starts immediately");
+    assert.equal(h.supervisor.isReady(), false);
+    await h.tick(249);
+    assert.deepEqual(reads, [100, 101]);
+    await h.tick(1);
+    assert.deepEqual(reads, [100, 101, 101]);
+    h.supervisor.shutdown();
+    await h.tick(60_000);
+    assert.deepEqual(reads, [100, 101, 101], "shutdown stops background I/O");
+    assert.equal(h.tasks.size, 0);
+  } finally { h.supervisor.shutdown(); }
+});
+
+test("a replacement can become ready later without another demand, then park without polling", async () => {
+  const h = readyHarness({ parkedExitCodes: [42] });
+  try {
+    h.ready(100); await h.supervisor.ensureReady({}, {});
+    h.children[0]!.events.emit("exit"); await h.tick(5);
+    assert.equal(h.supervisor.isReady(), false);
+    h.ready(101); await h.tick();
+    assert.equal(h.supervisor.isReady(), true);
+    h.children[1]!.events.emit("exit", 42); await h.tick(60_000);
+    assert.equal(h.children.length, 2);
+    assert.equal(h.tasks.size, 0);
+  } finally { h.supervisor.shutdown(); }
+});
+
 test("ensureReady times out at 30 seconds while discovery remains unready", async () => {
   const h = readyHarness();
   const pending = h.supervisor.ensureReady({}, {});

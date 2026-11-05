@@ -1,8 +1,64 @@
 import { describe, expect, it } from 'vitest';
 
-import { redactSecrets, redactSecretsWithCounts } from '../redact.js';
+import { createPrivateKeyLineRedactor, redactSecrets, redactSecretsWithCounts } from '../redact.js';
+
+describe('private-key line redaction', () => {
+  it('suppresses an open block, ignores a mismatched footer, and preserves following prose', () => {
+    const redactor = createPrivateKeyLineRedactor({}, {});
+    const output = [
+      'before -----BEGIN RSA PRIVATE KEY-----', 'Ym9keS1vbmU=',
+      '-----END EC PRIVATE KEY-----', 'Ym9keS10d28=',
+      '-----END RSA PRIVATE KEY----- after',
+    ].map(text => redactor.redact({ text }, {})).join('\n');
+    expect(output).toContain('before');
+    expect(output).toContain('after');
+    expect(output).not.toMatch(/Ym9keS|PRIVATE KEY/);
+  });
+
+  it('keeps stream state independent and resets an unterminated block at EOF', () => {
+    const first = createPrivateKeyLineRedactor({}, {});
+    const second = createPrivateKeyLineRedactor({}, {});
+    first.redact({ text: '-----BEGIN PRIVATE KEY-----' }, {});
+    expect(first.redact({ text: 'Ym9keS1vbmU=' }, {})).toBe('');
+    expect(second.redact({ text: 'other stream' }, {})).toBe('other stream');
+    first.reset({}, {});
+    expect(first.redact({ text: 'next child' }, {})).toBe('next child');
+  });
+
+  it('masks multiple blocks on one line while preserving public keys', () => {
+    const redactor = createPrivateKeyLineRedactor({}, {});
+    const block = '-----BEGIN EC PRIVATE KEY-----body-----END EC PRIVATE KEY-----';
+    expect(redactor.redact({ text: `before ${block} between ${block} after` }, {}))
+      .toBe('before [REDACTED:credential] between [REDACTED:credential] after');
+    const publicKey = '-----BEGIN PUBLIC KEY----- public -----END PUBLIC KEY-----';
+    expect(redactor.redact({ text: publicKey }, {})).toBe(publicKey);
+  });
+});
 
 describe('@jini-ai/core — redact — redactSecrets', () => {
+
+  it.each(['', 'RSA ', 'EC ', 'ENCRYPTED '])('masks the complete %sprivate-key block before header masking', prefix => {
+    const input = `before\n-----BEGIN ${prefix}PRIVATE KEY-----\nYm9keS1vbmU=\nYm9keS10d28=\n-----END ${prefix}PRIVATE KEY-----\nafter`;
+    const redacted = redactSecrets({ input }, { redactPii: false });
+    expect(redacted).not.toMatch(/Ym9keS|PRIVATE KEY/);
+    expect(redacted).toContain('before');
+    expect(redacted).toContain('after');
+  });
+
+  it('masks an unterminated private key through the end of input', () => {
+    const redacted = redactSecrets({ input: 'failure\n-----BEGIN PRIVATE KEY-----\nYm9keS1vbmU=\nYm9keS10d28=' }, { redactPii: false });
+    expect(redacted).not.toMatch(/Ym9keS|PRIVATE KEY/);
+    expect(redacted).toContain('failure');
+  });
+
+  it('masks PEM before another credential rule can split its header or footer', () => {
+    const input = 'before -----BEGIN RSA PRIVATE KEY-----\npassword=short\n-----END RSA PRIVATE KEY----- after';
+    const result = redactSecretsWithCounts({ input }, { exactSecrets: ['RSA'], redactPii: false });
+    expect(result).toEqual({ redacted: 'before [REDACTED:credential] after', counts: { credential: 1 } });
+    expect(redactSecretsWithCounts({ input: result.redacted }, { redactPii: false }))
+      .toEqual({ redacted: result.redacted, counts: {} });
+  });
+
   it.each(['password', 'client_secret', 'token', 'api key'])(
     "keeps the next field's secret private after an empty credential hint: %s", (key) => {
       for (const quote of ['"', "'"]) {
@@ -50,15 +106,16 @@ describe('@jini-ai/core — redact — redactSecrets', () => {
     },
   );
 
-  it('protects quoted credential labels from exact-secret replacement and scans successive values', () => {
+  it('preserves quoted credential labels and scans successive values', () => {
     const input = `{"apiKey":"opaque two words","x-api-key":"another value","private_key":"last value","code":"UPSTREAM_FAILED"}`;
-    const redacted = redactSecrets({ input }, { exactSecrets: ['a', 'key'], redactPii: false });
+    const redacted = redactSecrets({ input }, { redactPii: false });
     for (const word of ['opaque', 'two words', 'another', 'last value']) expect(redacted).not.toContain(word);
     for (const key of ['apiKey', 'x-api-key', 'private_key']) expect(redacted).toContain(`"${key}"`);
     expect(redacted).toContain('"code":"UPSTREAM_FAILED"');
-    expect(redactSecretsWithCounts({ input: redacted }, { exactSecrets: ['a', 'key'], redactPii: false }))
+    expect(redactSecretsWithCounts({ input: redacted }, { redactPii: false }))
       .toEqual({ redacted, counts: {} });
   });
+
 
   it.each([
     "'x-api-key': 'synthetic-opaque-value'",

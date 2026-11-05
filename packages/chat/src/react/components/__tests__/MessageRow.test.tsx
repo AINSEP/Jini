@@ -22,11 +22,11 @@ describe('MessageRow', () => {
     ] };
     const view = render(<I18nContext.Provider value={{ t: key => `translated: ${key}`, locale: 'test' }}>
       <MessageRow message={message} /></I18nContext.Provider>);
-    expect(screen.getAllByRole('note')).toHaveLength(1);
-    expect(screen.getByRole('note')).toHaveTextContent(`translated: ${note}`);
-    expect(screen.getByRole('note').compareDocumentPosition(screen.getByText('Result')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(screen.getAllByRole('status')).toHaveLength(1);
+    expect(screen.getByRole('status')).toHaveTextContent(`translated: ${note}`);
+    expect(screen.getByRole('status').compareDocumentPosition(screen.getByText('Result')) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
     view.rerender(<MessageRow message={{ ...message, events: [{ kind: 'text', text: 'Result' }] }} />);
-    expect(screen.queryByRole('note')).not.toBeInTheDocument();
+    expect(screen.queryByRole('status')).not.toBeInTheDocument();
   });
 
   it('renders a user message with its content and attachments', () => {

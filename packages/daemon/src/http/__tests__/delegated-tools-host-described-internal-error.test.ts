@@ -162,3 +162,21 @@ describe('delegated tool route: describeInternalError (host-supplied model-safe 
     expect(JSON.stringify(result)).not.toContain('executor unavailable');
   });
 });
+
+it('loads bounded host recovery facts once after interruption and hands them to the redacted describer', async () => {
+  const recoverInterruptedTool = vi.fn(async (_required: Parameters<NonNullable<DelegatedToolsHttpDeps['recoverInterruptedTool']>>[0]) => 'Deployment: created; files: 4/5; read job-1 before retrying.');
+  const describeInternalError = vi.fn((context: DelegatedToolsInternalErrorContext) => context.recoveryMessage ?? 'unknown');
+  const { result } = await callRoute(settlingExecutor({ executionId: 'x', status: 'timed-out' }), { recoverInterruptedTool, describeInternalError }, 'publish');
+  expect(recoverInterruptedTool).toHaveBeenCalledTimes(1);
+  expect(recoverInterruptedTool.mock.calls[0]![0]).toMatchObject({ principal: PRINCIPAL, toolId: 'publish', result: { executionId: 'x', status: 'timed-out' } });
+  expect(result).toMatchObject({ ok: false, error: { message: 'Deployment: created; files: 4/5; read job-1 before retrying.' } });
+});
+
+it('recovery lookup failure preserves the interruption response and never leaks the thrown value', async () => {
+  const { result } = await callRoute(settlingExecutor({ executionId: 'x', status: 'timed-out' }), {
+    recoverInterruptedTool: async () => { throw new Error('secret-canary'); },
+    describeInternalError: context => `interrupted: ${context.status}`,
+  }, 'publish');
+  expect(result).toMatchObject({ ok: false, error: { message: 'interrupted: timed-out' } });
+  expect(JSON.stringify(result)).not.toContain('secret-canary');
+});

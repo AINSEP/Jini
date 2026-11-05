@@ -3,7 +3,7 @@ import { AGENT_DEFS } from '../registry.js';
 import { createAgentModelDiscovery, MODEL_CATALOG_TTL_MS, MODEL_NEGATIVE_TTL_MS, modelDiscoveryForDef, resolveModelForLaunch, withModelProbeTimeout } from '../model-discovery-native.js';
 import { parseClaudeInitializeMetadata, parsePiRpcMetadata } from '../model-discovery-adapters.js';
 import { parseCodexDebugModels } from '../defs/codex.js';
-import { antigravityAgentDef, parseAgyModels } from '../defs/antigravity.js';
+import { antigravityAgentDef, parseAgyModels } from '../defs/antigravity/index.js';
 import { parseGrokBuildModels } from '../defs/grok-build.js';
 import { parseLineSeparatedModels } from '../defs/shared.js';
 import { parsePiModels } from '../pi-models.js';

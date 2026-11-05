@@ -346,7 +346,11 @@ function ipMatchesRange({ ip, range }: { ip: string; range: string }, _optional:
   if (mapped) ip = mapped[1]!;
   if (!range.includes("/")) return ip === range;
 
-  const [rangeIp = "", prefixRaw = ""] = range.split("/");
+  const fields = range.split("/");
+  // Exactly two fields: an extra slash must never turn a malformed range into /0.
+  if (fields.length !== 2) return false;
+  const rangeIp = fields[0]!;
+  const prefixRaw = fields[1]!;
   const prefix = Number(prefixRaw);
   if (!isIpv4Cidr({ ip, rangeIp, prefixRaw, prefix })) return false;
 

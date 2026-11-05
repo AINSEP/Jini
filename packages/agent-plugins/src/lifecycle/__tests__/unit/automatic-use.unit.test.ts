@@ -12,10 +12,20 @@ function fixture(mode: 'auto' | 'ask' | 'off' = 'auto', state?: ChatAgentPluginS
   const list = vi.fn(async () => [plugin('synthetic'), plugin('inactive', false)]);
   const ports: AutomaticAgentPluginPorts = { list,
     formatPluginToolPointer: input => `host_read_plugin(${JSON.stringify(input)})`,
-    rank: ({ candidates }) => candidates.map(candidate => ({ ...candidate, score: 4 })), resolve, ask, saveAuto, publish };
+    rank: ({ candidates, query }) => candidates.filter(candidate => candidate.enabled || query.includes(candidate.pluginId)).map(candidate => ({ ...candidate, score: 4 })), resolve, ask, saveAuto, publish };
   return { controller: createAutomaticAgentPluginUse({ mode, state, ports }), publish, ask, resolve, saveAuto, ports, list };
 }
 describe('automatic installed plugin use', () => {
+  it('suggests an off plugin only as a catalog line and never resolves or asks to use its guidance', async () => {
+    const f = fixture();
+    f.list.mockResolvedValue([{ ...plugin('inactive', false), summary: 'Create images', description: 'PRIVATE_GUIDANCE' }]);
+    const note = await f.controller.prepare({ query: 'inactive' });
+    expect(note).toContain('installed, off: inactive: Create images — ask to turn on');
+    expect(note).not.toContain('PRIVATE_GUIDANCE');
+    expect(await f.controller.load({ pluginId: 'inactive', file: 'SKILL.md' })).toEqual({ status: 'installed-but-inactive', guidance: '' });
+    expect(f.resolve).not.toHaveBeenCalled();
+    expect(f.ask).not.toHaveBeenCalled();
+  });
   it.each([{ skill: 'synthetic' }, { file: 'missing.md' }])('retains the reader reason for explicit content requests %j', async request => {
     const f = fixture();
     const reason = 'File request refused. Valid supporting files: references/permissions.md.';

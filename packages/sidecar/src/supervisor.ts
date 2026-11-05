@@ -147,6 +147,18 @@ export function createDaemonSupervisor(deps: DaemonSupervisorRequired, options: 
     });
   }
 
+  /** One monitor spans demand and replacement; background shutdown rejection is observed.
+   * @complexity O(1) state; one PID probe immediately, then at most once per 250ms until ready.
+   */
+  function discoverReadiness(): Promise<void> {
+    if (!discoveryWork) {
+      const discovery = waitForReady().finally(() => { if (discoveryWork === discovery) discoveryWork = undefined; });
+      discoveryWork = discovery;
+      void discovery.catch(() => { /* Parking or shutdown also ends caller-free discovery. */ });
+    }
+    return discoveryWork;
+  }
+
   function ensureReady(_required: Record<string, never>, { signal }: { signal?: AbortSignal } = {}): Promise<void> {
     if (signal?.aborted) return Promise.reject(signal.reason);
     if (terminating) return Promise.reject(new Error("shutting down"));
@@ -161,11 +173,7 @@ export function createDaemonSupervisor(deps: DaemonSupervisorRequired, options: 
       // A slow healthy child must keep being discovered after an HTTP caller gives up.
       // Share the monitor across subsequent demands; shutdown or parking cancels polling.
       // A parked waiter's cleanup must not clear a fresh wake's discovery or request work.
-      if (!discoveryWork) {
-        const discovery = waitForReady().finally(() => { if (discoveryWork === discovery) discoveryWork = undefined; });
-        discoveryWork = discovery;
-      }
-      const ready = readinessDeadline({ work: discoveryWork, scheduler: deps.scheduler }).finally(() => { if (readyWork === ready) readyWork = undefined; });
+      const ready = readinessDeadline({ work: discoverReadiness(), scheduler: deps.scheduler }).finally(() => { if (readyWork === ready) readyWork = undefined; });
       readyWork = ready;
     }
     return signal ? awaitForCaller({ work: readyWork, signal }) : readyWork;
@@ -257,6 +265,9 @@ export function createDaemonSupervisor(deps: DaemonSupervisorRequired, options: 
       }
       if (!state.deliberate) handleUnexpectedExit(code, signal);
     } });
+    // Cold construction and an idle park do no discovery. A replacement must still publish
+    // readiness when no caller is waiting; reuse the current monitor if startup is ongoing.
+    if (spawnAttempts > 1 && deps.readiness) void discoverReadiness();
   }
 
   // Wait for a still-live child to exit before replacement: spawning alongside it would

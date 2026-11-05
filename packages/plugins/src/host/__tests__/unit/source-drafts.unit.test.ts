@@ -370,12 +370,12 @@ test('retention refuses unsafe ids, concurrent installs and malformed slots befo
   assert.equal(await readFile(path.join(f.installDir, id, '0.1.0/server/index.mjs'), 'utf8'), entry);
 });
 
-test('policy always confirms unsealed plugins; a package sealed here enables directly only when it adds nothing beyond the last approval', () => {
+test('policy always confirms unsealed plugins; a package sealed here still requires owner consent only when it adds nothing beyond the last approval', () => {
   const policy = createPluginSourcePolicy({ hosted: false, localInstallOptIn: false });
   assert.equal(policy.localInstallEnabled(), true);
   // Consent gap (2026-10-12): sealed here with no prior approval must still ask.
   assert.equal(policy.confirmEnable({ sealedHere: true, added: addedPluginCapabilities({ approved: undefined, next: ['tier:tier-3'] }) }), true);
-  assert.equal(policy.confirmEnable({ sealedHere: true, added: [] }), false);
+  assert.equal(policy.confirmEnable({ sealedHere: true, added: [] }), true);
   assert.equal(policy.confirmEnable({ sealedHere: true, added: ['route:GET /x'] }), true);
   assert.equal(policy.confirmEnable({ sealedHere: false, added: [] }), true);
   assert.equal(createPluginSourcePolicy({ hosted: true, localInstallOptIn: false }).localInstallEnabled(), false);
