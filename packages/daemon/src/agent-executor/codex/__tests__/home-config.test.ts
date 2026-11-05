@@ -5,6 +5,27 @@ import { describe, expect, it } from 'vitest';
 import { buildCodexHomeConfigToml, buildCodexMcpServerToml } from '../home-config.js';
 import { resolveSourceCodexHomeDir } from '../home-staging.js';
 
+describe('host-owned bridge approval', () => {
+  const entries = [
+    { command: 'jini-mcp', args: [], env: { JINI_RUN_ID: 'run', JINI_DAEMON_URL: 'http://daemon' } },
+    { url: 'http://127.0.0.1:1234/mcp', token: 'run-token' },
+  ];
+  it.each(entries)('opts in only the jini server, before nested tables: %j', entry => {
+    const existingRaw = '[mcp_servers.other]\ncommand = "other"\ndefault_tools_approval_mode = "prompt"\n';
+    const config = parse(buildCodexHomeConfigToml({ existingRaw, entry, toolApprovalOwner: 'host' }));
+    expect(config.mcp_servers).toMatchObject({
+      jini: { default_tools_approval_mode: 'approve' },
+      other: { command: 'other', default_tools_approval_mode: 'prompt' },
+    });
+    expect(config.default_tools_approval_mode).toBeUndefined();
+    const servers = config.mcp_servers as Record<string, Record<string, unknown>>;
+    expect(servers.jini!.env ?? servers.jini!.http_headers).not.toHaveProperty('default_tools_approval_mode');
+  });
+  it.each(entries)('leaves existing default behavior when omitted: %j', entry => {
+    expect(buildCodexHomeConfigToml({ existingRaw: undefined, entry })).not.toContain('default_tools_approval_mode');
+  });
+});
+
 describe('buildCodexMcpServerToml', () => {
   const entry = { command: 'jini-mcp', args: ['--quiet'], env: { JINI_RUN_ID: 'run-1', JINI_DAEMON_URL: 'http://d' } };
 

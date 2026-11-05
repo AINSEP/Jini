@@ -6,6 +6,32 @@ import { getAgentDef } from '@jini-ai/agent-runtime';
 import { expect, it } from 'vitest';
 import { prepareCodexHomeIfNeeded } from '../home-staging.js';
 
+it.each(['stdio', 'http'] as const)('host-owned %s bridge staging keeps locked native capabilities and cleans up', async transport => {
+  let content = '';
+  let removed = false;
+  const input = {
+    runId: 'locked', def: getAgentDef({ id: 'codex' })!, nativeToolAccess: false,
+    nativeCapabilities: { userMcp: false, userSettings: false },
+    mcpBridge: transport === 'stdio' ? { kind: 'codex-toml' as const, serverEntry: { command: 'node', args: ['bridge'], env: { JINI_RUN_ID: 'locked', JINI_DAEMON_URL: 'http://daemon' } } } : null,
+    ...(transport === 'http' ? { httpEndpoint: { url: 'http://127.0.0.1:1234/mcp', token: 'fixture', close: async () => {} } } : {}),
+  };
+  const staged = await prepareCodexHomeIfNeeded({ input, deps: {
+    hostEnv: {}, releaseStagedResources: async () => {}, failBeforeSpawn: async error => { throw error; },
+    mcpJsonInjection: {
+      command: 'node', daemonUrl: 'http://daemon', toolApprovalOwner: 'host',
+      mkdtemp: async () => '/fixture-locked-home', readFile: async () => { throw new Error('locked runs must not read personal config'); },
+      writeFile: async value => { content = value.content; }, linkSessionStore: async (_required, optional) => { expect(optional?.inheritUserConfig).toBe(false); },
+      removeDir: async () => { removed = true; },
+    },
+  } });
+  expect(parse(content).mcp_servers).toMatchObject({ jini: { default_tools_approval_mode: 'approve' } });
+  expect(Object.keys(parse(content).mcp_servers as object)).toEqual(['jini']);
+  expect(input.nativeToolAccess).toBe(false);
+  expect(input.nativeCapabilities).toEqual({ userMcp: false, userSettings: false });
+  await staged!.cleanup();
+  expect(removed).toBe(true);
+});
+
 it('HTTP configuration preserves MCP isolation and native state links', async () => {
   const source = await mkdtemp(join(tmpdir(), 'codex-source-'));
   await mkdir(join(source, 'sessions'));

@@ -1,4 +1,4 @@
-import type { McpHttpEndpoint, McpJsonServerEntry } from '../contracts.js';
+import type { McpHttpEndpoint, McpJsonServerEntry, McpJsonInjectionOptions } from '../contracts.js';
 import { JINI_MCP_SERVER_KEY } from '../mcp-bridge.js';
 
 /**
@@ -62,12 +62,13 @@ const CODEX_TOOL_TIMEOUT_SEC = 6 * 60 + 40;
  * @complexity O(n) in the number of argv/env entries.
  * @overallScore 100/100
  */
-export function buildCodexMcpServerToml({ entry }: { readonly entry: McpJsonServerEntry | Pick<McpHttpEndpoint, 'url' | 'token'> }, _options = {}): string {
-  if ('url' in entry) return buildCodexHttpMcpServerToml({ endpoint: entry });
+export function buildCodexMcpServerToml({ entry, toolApprovalOwner }: { readonly entry: McpJsonServerEntry | Pick<McpHttpEndpoint, 'url' | 'token'>; readonly toolApprovalOwner?: McpJsonInjectionOptions['toolApprovalOwner'] }, _options = {}): string {
+  const approval = toolApprovalOwner === 'host' ? 'default_tools_approval_mode = "approve"\n' : '';
+  if ('url' in entry) return buildCodexHttpMcpServerToml({ endpoint: entry }, { approval });
   const argsLiteral = entry.args.map(tomlString).join(', ');
   const serverTable =
     `[mcp_servers.${JINI_MCP_SERVER_KEY}]\ncommand = ${tomlString(entry.command)}\nargs = [${argsLiteral}]\n` +
-    `tool_timeout_sec = ${CODEX_TOOL_TIMEOUT_SEC}\n`;
+    `tool_timeout_sec = ${CODEX_TOOL_TIMEOUT_SEC}\n${approval}`;
   const envLines = Object.entries(entry.env)
     .filter((pair): pair is [string, string] => typeof pair[1] === 'string')
     .map(([key, value]) => `${tomlKey(key)} = ${tomlString(value)}`);
@@ -79,9 +80,9 @@ export function buildCodexMcpServerToml({ entry }: { readonly entry: McpJsonServ
  * @returns One HTTP table using the existing timeout and TOML escaping owner.
  * @complexity O(endpoint bytes), without I/O.
  */
-function buildCodexHttpMcpServerToml({ endpoint }: { endpoint: Pick<McpHttpEndpoint, 'url' | 'token'> }, _options = {}): string {
+function buildCodexHttpMcpServerToml({ endpoint }: { endpoint: Pick<McpHttpEndpoint, 'url' | 'token'> }, { approval = '' }: { approval?: string } = {}): string {
   return `[mcp_servers.${JINI_MCP_SERVER_KEY}]\nurl = ${tomlString(endpoint.url)}\n` +
-    `tool_timeout_sec = ${CODEX_TOOL_TIMEOUT_SEC}\n\n[mcp_servers.${JINI_MCP_SERVER_KEY}.http_headers]\n` +
+    `tool_timeout_sec = ${CODEX_TOOL_TIMEOUT_SEC}\n${approval}\n[mcp_servers.${JINI_MCP_SERVER_KEY}.http_headers]\n` +
     `Authorization = ${tomlString(`Bearer ${endpoint.token}`)}\n`;
 }
 
@@ -218,12 +219,13 @@ function stripExistingJiniMcpServerTable(existingRaw: string, optional: { allSer
  * @returns The full text to write to the scratch `CODEX_HOME`'s `config.toml`.
  * @complexity O(n) in the existing config's length.
  */
-export function buildCodexHomeConfigToml({ existingRaw, entry, inheritUserMcp = true, inheritUserSettings = true }: {
+export function buildCodexHomeConfigToml({ existingRaw, entry, inheritUserMcp = true, inheritUserSettings = true, toolApprovalOwner }: {
   readonly existingRaw: string | undefined; readonly entry: McpJsonServerEntry | Pick<McpHttpEndpoint, 'url' | 'token'>;
   readonly inheritUserMcp?: boolean; readonly inheritUserSettings?: boolean;
+  readonly toolApprovalOwner?: McpJsonInjectionOptions['toolApprovalOwner'];
 }, _optional: Record<string, never> = {}): string {
   const base = stripExistingJiniMcpServerTable(existingRaw ?? '', { allServers: !inheritUserMcp, mcpOnly: !inheritUserSettings });
   const blockBreak = base.endsWith('\n') ? '\n' : '\n\n';
   const separator = base.length === 0 ? '' : blockBreak;
-  return `${base}${separator}${buildCodexMcpServerToml({ entry: entry })}`;
+  return `${base}${separator}${buildCodexMcpServerToml({ entry, toolApprovalOwner })}`;
 }
