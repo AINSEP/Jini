@@ -12,7 +12,8 @@ export type { StartApiConnectionResult } from './authorization.js';
 export type { CompletedAuthorization } from './finish-authorization.js';
 export type { ApiConnectionStatusView } from './status.js';
 export type { ApiConnectionDisconnectResult, ApiConnectionRemoteRevocation, ApiConnectionSwitchResult } from './account-actions.js';
-export { disconnectApiConnection, type ApiConnectionDisconnectDeps } from './account-actions.js';
+import { disconnectApiConnection as runDisconnect, type ApiConnectionDisconnectDeps } from './account-actions.js';
+export type { ApiConnectionDisconnectDeps } from './account-actions.js';
 export type { ApiConnectionAccessTokens } from './access-token.js';
 export { assertSharedOAuthCompatibility, createSharedOAuthConsumer } from './shared.js';
 export type { SharedOAuthConnection, SharedOAuthConsumer, SharedOAuthConsumerDeps, SharedOAuthConsumerTarget, SharedOAuthIdentity } from './shared.js';
@@ -25,3 +26,13 @@ export {
   type VaultOAuthTokenStore, type VaultOAuthTokenStoreDeps, type OAuthTokenVaultPort, type ReadConnectionGeneration,
   type OAuthConnectionOwner, type OAuthConnectionStatus, type OAuthTokenStoreErrorCode,
 } from './token-store/index.js';
+
+/** Stops an issued connection using lifecycle ports only; no sign-in client or HTTP wiring.
+ * @complexity Selected record/token operations plus the existing bounded provider revocation.
+ */
+export function disconnectApiConnection(
+  { deps, ...connection }: { readonly deps: ApiConnectionDisconnectDeps; readonly connectionRef: string; readonly workspaceId: string },
+  _optional: Record<string, never> = {},
+) {
+  return runDisconnect(deps, connection);
+}

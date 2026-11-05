@@ -5,6 +5,7 @@
  */
 import { describe, expect, it } from 'vitest';
 import { cancelSwitchAccount, confirmSwitchAccount, disconnectApiConnection } from '../account-actions.js';
+import { disconnectApiConnection as publicDisconnect } from '../index.js';
 import { stagedTokenKey } from '../keys.js';
 import { OAuthTokenStoreError } from '../token-store/errors.js';
 import { getApiConnectionStatus } from '../status.js';
@@ -94,8 +95,8 @@ describe('disconnectApiConnection', () => {
     const deps = unitDeps();
     await seedRecord(deps, connectedRecord());
     const { descriptor, records, tokens, hooks, clock } = deps;
-    const result = await disconnectApiConnection({ descriptor, records, clock,
-      tokens: { loadForRevocation: tokens.loadForRevocation, delete: tokens.delete }, hooks: { revoke: hooks.revoke } }, owned);
+    const result = await publicDisconnect({ ...owned, deps: { descriptor, records, clock,
+      tokens: { loadForRevocation: tokens.loadForRevocation, delete: tokens.delete }, hooks: { revoke: hooks.revoke } } });
     expect(result.status).toBe('disconnected');
     expect(result.remoteRevocation).toBe('not-needed');
     expect((await records.read({ key: KEY }))?.generation).toBe(2);
