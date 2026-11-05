@@ -53,7 +53,7 @@ export class FormNotificationError extends FormDeliveryError {
   }, _optional = {}) {
     const unknown = outcome === "unknown";
     super({ code: unknown ? "outcome-unknown" : "delivery-failed", retryable: unknown ? false : retryable,
-      retryAfterMs, outcome });
+      ...(retryAfterMs === undefined ? {} : { retryAfterMs }), ...(outcome === undefined ? {} : { outcome }) });
     this.message = `Form notification failed for submission ${submissionId}. Check the email delivery log and provider settings, then retry the notification.`;
     if (unknown) this.message = `Form notification outcome is unknown for submission ${submissionId}. Check the email delivery log before sending another notification.`;
     this.name = "FormNotificationError";
@@ -154,7 +154,8 @@ async function sendNotification({ deps, definition, submission, recipient, paylo
     });
     if (!result.ok) {
       if (durable) throw new FormNotificationError({ submissionId, retryable: result.retryable,
-        retryAfterMs: result.retryAfterMs, outcome: result.unknown ? "unknown" : "not-applied" });
+        ...(result.retryAfterMs === undefined ? {} : { retryAfterMs: result.retryAfterMs }),
+        outcome: result.unknown ? "unknown" : "not-applied" });
       warn(deps.logger,
         `[forms:notify] mail send failed for submission '${submissionId}' recipient '${recipient}': ${result.errorCode} (${result.message})`
       );
