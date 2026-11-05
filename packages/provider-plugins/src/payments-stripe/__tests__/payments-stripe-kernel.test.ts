@@ -180,29 +180,38 @@ it.each([{ amount: { minorUnits: 370, currency: "USD" } }, { siteId: "other-site
     expect(w.alerts.raise).toHaveBeenCalledWith({ alert: expect.objectContaining({ kind: "fulfillment-blocked", workspaceId: "ws", paymentId: first.payment!.id }) });
     expect([w.order.status, w.order.version]).toEqual(["pending", 1]); expect(w.orders.markPaid).not.toHaveBeenCalled();
   });
-it("leaves a lost response unknown without redispatch, alerts when aged, then settles a late signed webhook", async () => {
+it("recovers a lost Stripe response under the same key, then settles a late signed webhook", async () => {
   const w = await fixture({}), dispatch = w.send.getMockImplementation()!;
   w.send.mockImplementationOnce(async args => { await dispatch(args); throw new Error("session created; response lost"); });
   const first = await w.run();
   expect(first).toMatchObject({ ok: false, error: { code: "TRANSPORT_ERROR", retryable: true }, payment: { status: "unknown", next: null } });
   expect(await w.run()).toMatchObject({ ok: true, replayed: true, payment: first.payment });
+  const resolve = w.kernel.contexts.resolve;
+  vi.spyOn(w.kernel.contexts, "resolve").mockImplementation(async args => {
+    const current = await resolve(args);
+    return current.ok ? { ok: true, ctx: { ...current.ctx, returnUrl: "https://shop.test/changed-return",
+      cancelUrl: "https://shop.test/changed-cancel", webhookUrl: "https://shop.test/changed-hook" } } : current;
+  });
   w.state.now += 120_000;
-  expect((await w.operator.reconcileUnknown({ olderThanMs: 60_000, limit: 10 })).payments).toEqual({ scanned: 1, settled: 0, failed: 0, left: 1, errors: 0 });
-  expect(w.alerts.raise).toHaveBeenCalledTimes(1);
-  expect(w.alerts.raise).toHaveBeenCalledWith({ alert: { kind: "unknown-aged", workspaceId: "ws", mode: "test", paymentId: first.payment!.id,
-    detail: `payment ${first.payment!.id} is unknown: no provider reference (the provider never answered)` } });
-  expect(await w.run()).toMatchObject({ ok: true, replayed: true, payment: { id: first.payment!.id, status: "unknown", next: null } });
+  expect((await w.operator.reconcileUnknown({ olderThanMs: 60_000, limit: 10 })).payments).toEqual({ scanned: 1, settled: 1, failed: 0, left: 0, errors: 0 });
+  expect(w.alerts.raise).not.toHaveBeenCalled();
+  expect(await w.run()).toMatchObject({ ok: true, replayed: true, payment: { id: first.payment!.id, status: "requires_action", next: { kind: "redirect", url: w.state.session.url } } });
   const row = await w.kernel.ledger.transaction({ fn: tx => tx.getPayment({ workspaceId: "ws", mode: "test", id: first.payment!.id }) });
-  expect(row).toMatchObject({ status: "unknown", intentStatus: "unknown", providerRef: null, capturedMinor: 0 });
+  expect(row).toMatchObject({ status: "requires_action", intentStatus: "requires_action", providerRef: "cs_1", capturedMinor: 0 });
   expect(await w.relay.runOnce({ limit: 10 })).toEqual({ published: 0, stopped: false }); expect(w.order.status).toBe("pending");
-  expect(w.send).toHaveBeenCalledTimes(1); expect(w.inner.retrieve).not.toHaveBeenCalled();
+  expect(w.send).toHaveBeenCalledTimes(2); expect(w.inner.retrieve).not.toHaveBeenCalled();
+  const requests = w.send.mock.calls.map(call => call[0].request);
+  expect(requests[1]!.body).toBe(requests[0]!.body);
+  expect(requests[1]!.headers!["Idempotency-Key"]).toBe(requests[0]!.headers!["Idempotency-Key"]);
+  const attempt = await w.kernel.ledger.transaction({ fn: tx => tx.findAttemptByOperationKey({ workspaceId: "ws", mode: "test", operationKey: "intent:order:order" }) });
+  expect(attempt!.dispatchJson).not.toContain("sk_test_fixture"); expect(attempt!.dispatchJson).not.toContain("whsec_fixture");
   const delivery = w.signed({});
   expect(await w.receiver.receive({ ...delivery, rawBody: Buffer.concat([delivery.rawBody, Buffer.from(" ")]) })).toMatchObject({ status: 400, body: { code: "SIGNATURE_INVALID" } });
   expect(await w.receiver.receive(delivery)).toEqual({ status: 200, body: { received: 1, duplicates: 0, ignored: false } });
   expect(await w.worker.runOnce({ limit: 10 })).toEqual({ seen: 1, applied: 1, parked: 0, dead: 0, quarantined: 0 });
   expect(await w.relay.runOnce({ limit: 10 })).toEqual({ published: 1, stopped: false });
   expect(await w.payments.getPayment({ scope, paymentId: first.payment!.id })).toMatchObject({ status: "succeeded", captured: total });
-  expect([w.order.status, w.order.version]).toEqual(["paid", 2]); expect(w.send).toHaveBeenCalledTimes(1); expect(w.inner.retrieve).not.toHaveBeenCalled();
+  expect([w.order.status, w.order.version]).toEqual(["paid", 2]); expect(w.send).toHaveBeenCalledTimes(2); expect(w.inner.retrieve).not.toHaveBeenCalled();
 });
 it("settles through a reserved but unbound association after a crash between dispatch and bind", async () => {
   const w = await fixture({}), fault = new Error("association store unavailable");
@@ -237,4 +246,19 @@ it("refuses a different mode reservation before any second provider dispatch", a
   await expect(payOrder({ deps: w.deps, input: { workspaceId: "ws", orderId: "order", scope: { ...scope, mode: "live" } } }))
     .rejects.toThrow("order already reserved for another scope");
   expect(w.send).toHaveBeenCalledTimes(1); expect(w.state.association!.mode).toBe("test"); expect(w.order.status).toBe("pending");
+});
+
+it("recovers a transport failure before Stripe accepts without changing payment parameters", async () => {
+  const w = await fixture({});
+  w.send.mockRejectedValueOnce(new Error("connection dropped before acceptance"));
+  const first = await w.run();
+  expect(first).toMatchObject({ ok: false, payment: { status: "unknown" } });
+  expect(w.state.session.metadata.jini_payment_id).toBe("");
+  w.state.now += 120_000;
+  expect((await createPaymentsOperator(w.kernel).reconcileUnknown({ olderThanMs: 60_000, limit: 10 })).payments)
+    .toEqual({ scanned: 1, settled: 1, failed: 0, left: 0, errors: 0 });
+  expect(w.send).toHaveBeenCalledTimes(2);
+  expect(w.send.mock.calls[1]![0].request).toEqual(w.send.mock.calls[0]![0].request);
+  expect(w.state.session.metadata.jini_payment_id).toBe(first.payment!.id);
+  expect(w.order.status).toBe("pending");
 });

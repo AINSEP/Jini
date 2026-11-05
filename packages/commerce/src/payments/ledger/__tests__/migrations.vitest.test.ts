@@ -110,6 +110,7 @@ describe("payments ledger migrations", () => {
           outcome: "unknown", errorCode: null, errorMessage: null, createdAt: 101, updatedAt: 203, currency: null, amountMinor: null,
         });
         await tx.insertAttempt({ attempt: {
+          dispatchJson: null, recoveryAttempts: 0, recoveryClaimUntil: null,
           id: "new-attempt", paymentId: "pay-1", workspaceId: "ws-1", siteId: "site-1", providerId: "stripe",
           providerAccountId: "acct-1", mode: "live", op: "capture", operationKey: "new-op", refundId: null,
           outcome: "dispatched", errorCode: null, errorMessage: null, createdAt: 409, updatedAt: 503, currency: "JPY", amountMinor: 601,

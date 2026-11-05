@@ -1,4 +1,11 @@
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import Database from "better-sqlite3";
+import { openSqliteFileKernel } from "@jini-ai/db/kernel/sqlite";
+import { migrateCommercePayments, sqlPaymentsLedger } from "../../ledger/sql.js";
 import { describe, expect, test, vi } from "vitest";
+import type { LedgerTx, PaymentsLedger } from "../../ledger/repo.js";
 import { createPaymentsOperator } from "../service.js";
 import { SCRIPTED, USD, timedOut, world } from "./harness.js";
 
@@ -76,6 +83,45 @@ for (const ledgerKind of ["memory", "sqlite"] as const) describe(`intent recover
     expect(w.scripted.calls.filter(call => call.op === "createIntent")).toHaveLength(1);
   });
 
+  test("a crash after replay response cannot close the attempt before evidence commits", async () => {
+    let failWriter = false;
+    const w = await world({ ledgerKind, wrapLedger: (ledger): PaymentsLedger => ({
+      transaction: ({ fn }) => ledger.transaction({ fn: tx => fn(new Proxy(tx, {
+        get(target, name) {
+          if (failWriter && name === "updatePayment") return async () => { throw new Error("crash before evidence commit"); };
+          return Reflect.get(target, name).bind(target);
+        },
+      }) as LedgerTx) }),
+    }) });
+    Object.assign(w.scripted.provider, { intentReplayWindowMs: 23 * 60 * 60 * 1_000 });
+    w.scripted.queue("createIntent", timedOut());
+    const first = await w.service.createIntent(request, { line });
+    if (first.ok || !first.payment) throw new Error("expected unknown");
+    w.tick(AGE * 2); failWriter = true;
+    expect((await w.operator.reconcileUnknown({ olderThanMs: AGE, limit: 10 })).payments.errors).toBe(1);
+    const interrupted = await w.read(first.payment.id);
+    expect(interrupted.payment).toMatchObject({ status: "unknown", providerRef: null });
+    expect(interrupted.attempts[0]).toMatchObject({ outcome: "unknown", recoveryAttempts: 1 });
+    failWriter = false; w.tick(AGE * 2);
+    expect((await createPaymentsOperator(w.deps).reconcileUnknown({ olderThanMs: AGE, limit: 10 })).payments.settled).toBe(1);
+    expect((await w.read(first.payment.id)).payment).toMatchObject({ status: "succeeded" });
+    const calls = w.scripted.calls.filter(call => call.op === "createIntent");
+    expect(calls).toHaveLength(3); expect(calls[2]!.req).toEqual(calls[0]!.req);
+  });
+
+  test("provider-specific extras are never persisted or automatically replayed", async () => {
+    const w = await world({ ledgerKind });
+    Object.assign(w.scripted.provider, { intentReplayWindowMs: 60 * AGE });
+    w.scripted.queue("createIntent", timedOut());
+    const first = await w.service.createIntent(request, { line, providerOptions: { secret: "test-private-extra" } });
+    if (first.ok || !first.payment) throw new Error("expected unknown");
+    const attempt = (await w.read(first.payment.id)).attempts[0]!;
+    expect(attempt.dispatchJson).toBeNull();
+    w.tick(AGE * 2);
+    expect((await w.operator.reconcileUnknown({ olderThanMs: AGE, limit: 10 })).payments.left).toBe(1);
+    expect(w.scripted.calls.filter(call => call.op === "createIntent")).toHaveLength(1);
+  });
+
   test("legacy unknown rows without a dispatch snapshot remain unresolved", async () => {
     const { w, payment } = await unknown(ledgerKind);
     const attempt = (await w.read(payment.id)).attempts[0]!;
@@ -83,4 +129,28 @@ for (const ledgerKind of ["memory", "sqlite"] as const) describe(`intent recover
     expect((await w.operator.reconcileUnknown({ olderThanMs: AGE, limit: 10 })).payments.left).toBe(1);
     expect(w.scripted.calls.filter(call => call.op === "createIntent")).toHaveLength(1);
   });
+});
+
+test("a closed and reopened SQLite database retains enough state for same-key recovery", async () => {
+  const directory = await mkdtemp(join(tmpdir(), "jini-intent-recovery-"));
+  const open = () => openSqliteFileKernel<unknown>({ filePath: join(directory, "ledger.sqlite"), open: (file, options) => new Database(file, options) });
+  let kernel = open();
+  try {
+    await migrateCommercePayments({ kernel });
+    const ledger = sqlPaymentsLedger({ kernel });
+    const initial = await world({ wrapLedger: () => ledger });
+    Object.assign(initial.scripted.provider, { intentReplayWindowMs: 23 * 60 * AGE });
+    initial.scripted.queue("createIntent", timedOut());
+    const first = await initial.service.createIntent(request, { line });
+    if (first.ok || !first.payment) throw new Error("expected unknown");
+    const original = initial.scripted.calls[0]!.req;
+    await kernel.close(); kernel = open();
+    expect((await migrateCommercePayments({ kernel })).applied).toEqual([]);
+    const restarted = await world({ wrapLedger: () => sqlPaymentsLedger({ kernel }) });
+    Object.assign(restarted.scripted.provider, { intentReplayWindowMs: 23 * 60 * AGE });
+    restarted.tick(AGE * 2);
+    expect((await restarted.operator.reconcileUnknown({ olderThanMs: AGE, limit: 10 })).payments.settled).toBe(1);
+    expect(restarted.scripted.calls[0]!.req).toEqual(original);
+    expect((await restarted.read(first.payment.id)).payment).toMatchObject({ status: "succeeded" });
+  } finally { await kernel.close(); await rm(directory, { recursive: true, force: true }); }
 });

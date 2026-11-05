@@ -66,7 +66,7 @@ export async function reconcileAttempt({ deps, attempt }: { deps: OpsDeps; attem
   const label = `${op} attempt ${attempt.id} of payment ${payment.id} is ${attempt.outcome}`;
   const snapshot = await retrieveSnapshot({ deps, payment });
   if (!snapshot.ok) return leave({ deps, payment, detail: `${label}: ${snapshot.why}` });
-  if (!(await applySnapshot({ deps, payment, evidence: snapshot.evidence }))) return leave({ deps, payment, detail: `${label}: its snapshot was quarantined` });
+  if (!(await applySnapshot({ deps, payment, ...snapshot }))) return leave({ deps, payment, detail: `${label}: its snapshot was quarantined` });
   const after = await readPaymentOf({ deps, attempt });
   return close({ deps, attempt, outcome: judge({ op, status: after.intentStatus }) ?? "rejected", status: after.intentStatus });
 }

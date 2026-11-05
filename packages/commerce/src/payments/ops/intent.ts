@@ -34,7 +34,7 @@ export interface IntentRequired {
 }
 
 export interface IntentOptional {
-  /** Forwarded display snapshot only: never persisted or compared when replaying. */
+  /** Display snapshot, retained for eligible same-key recovery; ordinary caller replay uses stored truth. */
   readonly line?: IntentLine;
   readonly captureMode?: "auto" | "manual";
   readonly partyId?: string;

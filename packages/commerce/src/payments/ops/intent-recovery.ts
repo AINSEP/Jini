@@ -31,7 +31,8 @@ export function intentDispatchSnapshot(
       ...(req.partyId === undefined ? {} : { partyId: req.partyId }), ...line },
     webhookUrl: ctx.webhookUrl, returnUrl: ctx.returnUrl, cancelUrl: ctx.cancelUrl,
   };
-  return JSON.stringify(snapshot);
+  const json = JSON.stringify(snapshot);
+  return new TextEncoder().encode(json).length <= 16_384 ? json : null;
 }
 
 /** A claim is durable before network I/O. The payment lock serializes processes, not just timers.
@@ -71,14 +72,17 @@ export async function recoverIntentSnapshot(
   const outcome = await dispatch({ call: () => provider.createIntent({
     req: snapshot.req, ctx: { ...ctx, webhookUrl: snapshot.webhookUrl, returnUrl: snapshot.returnUrl, cancelUrl: snapshot.cancelUrl },
   }) });
-  // A later refusal cannot prove the first ambiguous dispatch moved no money. Keep it unknown.
-  const recorded = outcome.kind === "rejected" ? { ...outcome, kind: "unknown" as const } : outcome;
-  await deps.ledger.transaction({ fn: async tx => {
-    await tx.lockPayment({ ...scopeOf(payment), id: payment.id });
-    await markAttempt({ tx, deps, attemptId: attempt.id, outcome: recorded });
-    await tx.updateAttempt({ id: attempt.id, patch: { recoveryClaimUntil: null, updatedAt: deps.now() } });
-  } });
-  if (outcome.kind !== "ok") return { ok: false, why: outcome.error.message };
+  if (outcome.kind !== "ok") {
+    // A later refusal cannot prove the first ambiguous dispatch moved no money. Keep it unknown.
+    const recorded = { ...outcome, kind: "unknown" as const };
+    await deps.ledger.transaction({ fn: async tx => {
+      await tx.lockPayment({ ...scopeOf(payment), id: payment.id });
+      await markAttempt({ tx, deps, attemptId: attempt.id, outcome: recorded });
+      await tx.updateAttempt({ id: attempt.id, patch: { recoveryClaimUntil: null, updatedAt: deps.now() } });
+    } });
+    return { ok: false, why: outcome.error.message };
+  }
+  // The writer closes the attempt atomically with evidence. A crash here leaves a replayable claim.
   const evidence = outcome.value.evidence.next ? outcome.value.evidence : { ...outcome.value.evidence, next: outcome.value.next };
-  return { ok: true, evidence, provider };
+  return { ok: true, evidence, provider, recoveryAttemptId: attempt.id };
 }

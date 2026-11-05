@@ -83,3 +83,11 @@ describe("payments provider contract and lease", () => {
     expect(item.module.capabilities.currencies).toBe("any");
   });
 });
+
+it("retains the validated provider replay window in its frozen lease metadata", () => {
+  const provider = { ...createLipayFake({ now: () => 0 }).provider, intentReplayWindowMs: 60_000 };
+  const h = wrap(provider);
+  provider.intentReplayWindowMs = 1;
+  expect(h.item.module.intentReplayWindowMs).toBe(60_000);
+  expect(Object.isFrozen(h.item.module)).toBe(true);
+});

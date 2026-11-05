@@ -51,6 +51,7 @@ export function leasedProviderItem(
     id: provider.id, displayName: provider.displayName, credentialKeys: Object.freeze([...provider.credentialKeys]),
     capabilities: Object.freeze({ ...provider.capabilities, confirmation: Object.freeze([...provider.capabilities.confirmation]),
       currencies: provider.capabilities.currencies === "any" ? "any" : Object.freeze([...provider.capabilities.currencies]) }),
+    ...(provider.intentReplayWindowMs === undefined ? {} : { intentReplayWindowMs: provider.intentReplayWindowMs }),
     createIntent: guardedMethod({ provider, method: "createIntent", lease }),
     verifyWebhook: guardedMethod({ provider, method: "verifyWebhook", lease }),
   };

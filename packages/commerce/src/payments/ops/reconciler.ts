@@ -71,7 +71,7 @@ export interface ReconcileOptions {
 async function reconcilePayment({ deps, payment }: { deps: OpsDeps; payment: PaymentRecord }): Promise<Verdict> {
   const snapshot = await retrieveSnapshot({ deps, payment });
   if (!snapshot.ok) return leave({ deps, payment, detail: `payment ${payment.id} is unknown: ${snapshot.why}` });
-  if (await applySnapshot({ deps, payment, evidence: snapshot.evidence })) return "settled";
+  if (await applySnapshot({ deps, payment, ...snapshot })) return "settled";
   return leave({ deps, payment, detail: `payment ${payment.id} is unknown: its snapshot was quarantined` });
 }
 
@@ -113,7 +113,7 @@ async function reconcileRefund({ deps, refund }: { deps: OpsDeps; refund: Refund
   const snapshot = await retrieveSnapshot({ deps, payment });
   if (!snapshot.ok) return leave({ deps, payment, detail: `refund ${refund.id} is unsettled: ${snapshot.why}` });
   // A snapshot the writer refused is not evidence of anything: its empty refund list must not fail ours.
-  if (!(await applySnapshot({ deps, payment, evidence: snapshot.evidence }))) return leave({ deps, payment, detail: `refund ${refund.id} is unsettled: its snapshot was quarantined` });
+  if (!(await applySnapshot({ deps, payment, ...snapshot }))) return leave({ deps, payment, detail: `refund ${refund.id} is unsettled: its snapshot was quarantined` });
   return judgeRefund({ deps, payment, refundId: refund.id, snapshot });
 }
 
