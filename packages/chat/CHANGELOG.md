@@ -1,3 +1,7 @@
+## 0.6.23
+
+- Security hardening.
+
 ## 0.6.22
 
 - The full CLI access notice shows once per conversation, also after replay or remount.

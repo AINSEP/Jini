@@ -1,3 +1,7 @@
+## 0.6.23
+
+- Security hardening.
+
 # @jini-ai/provider-plugins
 
 ## 0.6.22

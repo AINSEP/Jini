@@ -1,3 +1,7 @@
+## 0.6.23
+
+- Security hardening.
+
 ## 0.6.22
 
 - Regenerated for @jini-ai/agent-plugins and @jini-ai/provider-plugins 0.6.22.

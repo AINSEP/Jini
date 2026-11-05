@@ -318,6 +318,23 @@ function UserMessageRow({ message, renderAttachment }: Pick<MessageRowProps, 'me
   );
 }
 
+// A validated extension may already show the explanation. Keep the generic fallback when its
+// renderer is absent or refuses the payload, so malformed history never hides a failed turn.
+function assistantTerminalNotice({ message, runStreaming, runSucceeded, extGroups, registry }: {
+  message: ChatMessage; runStreaming?: boolean; runSucceeded?: boolean;
+  extGroups: readonly ExtEventGroup[]; registry: ExtEventRendererRegistry;
+}, _options = {}) {
+  const extensionExplainsFailure = !runStreaming && !runSucceeded && extGroups.some(group => registry.hasTerminalNotice(group));
+  return extensionExplainsFailure ? null : terminalMessageNotice({ message }, {});
+}
+
+/** Only a completed reply without footer usage can own the final inline usage label. */
+function lastFinishedReplyIndex({ runInProgress, usage }: {
+  runInProgress: boolean; usage: ReturnType<typeof usageLayout>;
+}, _options = {}) {
+  return !runInProgress && !usage.footer ? usage.replies.findLastIndex(value => value !== undefined) : -1;
+}
+
 function AssistantMessageRow({
   showAccessNotice = true,
   message,
@@ -342,10 +359,7 @@ function AssistantMessageRow({
   const extGroups = useExtEventGroups({ events: message.events }, { slotOf: (name, data) => registry.slot({ name, data }) });
   const answeredCards = useAnsweredCards({ slotOf: registry.slot, events: message.events ?? [], groups: extGroups, runStreaming, runStatus: message.runStatus });
 
-  // A validated extension may already show the explanation. Keep the generic fallback when its
-  // renderer is absent or refuses the payload, so malformed history never hides a failed turn.
-  const extensionExplainsFailure = !runStreaming && !runSucceeded && extGroups.some(group => registry.hasTerminalNotice(group));
-  const terminalNotice = extensionExplainsFailure ? null : terminalMessageNotice({ message }, {});
+  const terminalNotice = assistantTerminalNotice({ message, runStreaming, runSucceeded, extGroups, registry });
   const visibleContent = stripArtifact({ content: message.content });
 
   const displayBlocks = messageBlocks({ message, rows: timeline.rows, registry }, { toolCallDisplay, includeThinking: showThinking });
@@ -359,7 +373,7 @@ function AssistantMessageRow({
     runStreaming: runStreaming && !isTerminalRunStatus({ status: message.runStatus }),
   });
   const footerUsage = showUsageLine ? usage.footer : undefined;
-  const lastFinishedReply = !runInProgress && !usage.footer ? usage.replies.findLastIndex(value => value !== undefined) : -1;
+  const lastFinishedReply = lastFinishedReplyIndex({ runInProgress, usage });
 
   const retriedRows = retriedToolRowIds({ rows: timeline.rows });
   const renderToolCard = (row: ToolTimelineRow) => (

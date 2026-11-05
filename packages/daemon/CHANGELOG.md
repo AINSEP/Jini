@@ -1,3 +1,7 @@
+## 0.6.23
+
+- Security hardening.
+
 ## 0.6.22
 
 - Child stdout can be framed and sanitized line by line before parsing. A timed-out or cancelled delegated tool can report host-loaded recovery facts through `recoverInterruptedTool`, with no retry.

@@ -1,3 +1,7 @@
+## 0.6.23
+
+- Security hardening.
+
 ## 0.6.22
 
 - Antigravity moved to its own `defs/antigravity/` folder, with card order and streaming fixes. A runtime can ask for complete stdout lines to be sanitized before live delivery.

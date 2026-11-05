@@ -1,3 +1,7 @@
+## 0.6.23
+
+- Security hardening.
+
 # @jini-ai/ui-kit
 
 ## 0.6.19

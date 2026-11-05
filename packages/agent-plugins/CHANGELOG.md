@@ -1,3 +1,7 @@
+## 0.6.23
+
+- Security hardening.
+
 # Changelog
 
 ## 0.6.22

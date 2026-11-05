@@ -19,7 +19,7 @@ the applicable consent choice; its adapter and SDK stay within this plugin's art
 
 Sources remain in `packages/provider-plugins/src/analytics-posthog`.
 Both `build` and `prepack` call the existing single-plugin builder, using this package's
-version for the generated artifact. The npm release is **0.6.22** in Jini's fixed
+version for the generated artifact. The npm release is **0.6.23** in Jini's fixed
 Changesets release group. Build output under `plugins/` is generated and uncommitted.
 Reviewed LICENSE and NOTICE files belong to this distribution; the builder retains them
 and bundled dependency licenses inside the artifact before computing its integrity.

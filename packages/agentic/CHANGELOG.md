@@ -1,3 +1,7 @@
+## 0.6.23
+
+- Security hardening.
+
 # @jini-ai/agentic
 
 ## 0.6.19
