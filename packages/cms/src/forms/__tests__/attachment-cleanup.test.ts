@@ -49,3 +49,24 @@ test('the host controls the cleanup grace and locks ownership checks with deleti
   assert.deepEqual(lockKeys, ['sha']);
   assert.deepEqual(removed, ['blob', 'row']);
 });
+
+test('cleanup shares the host lock with an upload that restores blob ownership', async () => {
+  const bus = new InMemoryEventBus();
+  let releaseUpload!: () => void;
+  const uploadGate = new Promise<void>(resolve => { releaseUpload = resolve; });
+  let shared = false, lookedUp = false;
+  const upload = withSha256Lock({ key: 'racing-sha', criticalSection: async () => { await uploadGate; shared = true; } });
+  await registerFormAttachmentCleanup({ bus, withHashLock: withSha256Lock,
+    findBlob: async () => { lookedUp = true; return { storageKey: 'blob', status: 'tombstoned' }; },
+    hasOwners: async () => shared,
+    deleteBytes: async () => assert.fail('a concurrent upload still owns these bytes'),
+    removeBlob: async () => assert.fail('a concurrent upload still owns this row'),
+  });
+  const cleanup = bus.publish({ id: 'race', name: 'form.attachment.cleanup', workspaceId: 'w', aggregateId: 'm',
+    occurredAt: new Date(0).toISOString(), payload: { workspaceId: 'w', sha256: 'racing-sha' } });
+  await new Promise<void>(resolve => setImmediate(resolve));
+  assert.equal(lookedUp, false, 'ownership must be checked after the upload releases the shared lock');
+  releaseUpload();
+  await Promise.all([upload, cleanup]);
+  assert.equal(lookedUp, true);
+});
