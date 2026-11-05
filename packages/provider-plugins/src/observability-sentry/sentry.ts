@@ -111,6 +111,7 @@ export function createSentryObservabilityAdapter({ config }: { config: SentryCon
   const transport: NonNullable<NodeOptions["transport"]> = (input) => {
     const inner = (options.transport ?? makeNodeTransport)(input);
     return { ...inner, async send(envelope) {
+      if (options.signal?.aborted) return { statusCode: 200 };
       try {
         const result = await inner.send(envelope);
         const statusCode = result.statusCode;

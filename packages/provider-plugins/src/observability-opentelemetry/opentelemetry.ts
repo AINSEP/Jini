@@ -93,10 +93,11 @@ type SignalExporter<T> = Pick<OTLPExporterBase<T>, "export" | "shutdown" | "forc
  * @complexity O(1) around an export, independent of the batch size.
  */
 export function createReportingExporter<T>(
-  { exporter, reporter }: { exporter: SignalExporter<T>; reporter: ReturnType<typeof createProviderTelemetryReporter> }, _options = {},
+  { exporter, reporter }: { exporter: SignalExporter<T>; reporter: ReturnType<typeof createProviderTelemetryReporter> }, options: Pick<ProviderTelemetryOptions, 'signal'> = {},
 ): SignalExporter<T> {
   return {
     export(signal, callback) {
+      if (options.signal?.aborted) { callback({ code: 0 }); return; }
       let completed = false;
       try {
         exporter.export(signal, (result) => {
@@ -184,7 +185,7 @@ export function createOtelFactories(_required: Record<string, never>, options: O
         if (options.exportEnabled !== true || options.spanProcessors !== undefined) return undefined;
         const exporter = createInjectedOtlpTraceExporter({ url: endpoint }, options);
         exporterPipelines.set(exporter, createReportingExporter({ exporter,
-          reporter: createProviderTelemetryReporter({ endpoint }, options) }));
+          reporter: createProviderTelemetryReporter({ endpoint }, options) }, options));
         return exporter;
       },
     },
@@ -236,7 +237,7 @@ function createMetricProvider({ config }: { config: ObservabilityConfigEnabled }
         url: endpoint, serializer: JsonMetricsSerializer, component: "otlp_http_metric_exporter", helper: MetricsExporterMetricsHelper,
       }, options),
       reporter: createProviderTelemetryReporter({ endpoint }, options),
-    }),
+    }, options),
     exportIntervalMillis: 60_000, exportTimeoutMillis: 30_000,
   })];
   return new MeterProvider({ resource: resourceFromAttributes({ ...options.resourceAttributes, [ATTR_SERVICE_NAME]: config.serviceName }), readers });

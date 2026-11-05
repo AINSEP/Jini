@@ -113,6 +113,9 @@ export interface LangfuseSinkConfig {
 }
 
 /** Builds the SDK client (no network until the first flush) and its sink. */
-export function createLangfuseClient({ publicKey, secretKey, baseUrl, environment, release }: LangfuseSinkConfig): LangfuseClientPort {
-  return new Langfuse({ publicKey, secretKey, ...(baseUrl ? { baseUrl } : {}), ...(environment ? { environment } : {}), ...(release ? { release } : {}) });
+export function createLangfuseClient({ publicKey, secretKey, baseUrl, environment, release }: LangfuseSinkConfig, { signal }: { signal?: AbortSignal | undefined } = {}): LangfuseClientPort {
+  const client = new Langfuse({ publicKey, secretKey, ...(baseUrl ? { baseUrl } : {}), ...(environment ? { environment } : {}), ...(release ? { release } : {}) });
+  const send = client.fetch.bind(client);
+  client.fetch = async (url, options) => signal?.aborted ? new Response('{}', { status: 200 }) : send(url, options);
+  return client;
 }

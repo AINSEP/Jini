@@ -21,7 +21,7 @@ export function createLangfuseProvider(required: Readonly<Record<string, unknown
   const extras = Object.fromEntries((['baseUrl', 'environment', 'release'] as const)
     .map((name) => [name, textOf(required[name], name, { required: false })] as const).filter(([, value]) => value !== undefined));
   const borrowed = optional.client as LangfuseClientPort | undefined;
-  const client = borrowed ? borrowedView({ client: borrowed }) : createLangfuseClient({ ...config, ...extras });
+  const client = borrowed ? borrowedView({ client: borrowed }) : createLangfuseClient({ ...config, ...extras }, { signal: optional.signal as AbortSignal | undefined });
   const port = createLangfuseAiTraceSink({ client, attribution: attributionOf(required.attribution) });
   return { port, dispose: async (_required: Record<string, never>, _optional: Record<string, never> = {}) => { await client.shutdownAsync(); } };
 }

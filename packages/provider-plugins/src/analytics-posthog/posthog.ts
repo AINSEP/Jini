@@ -54,6 +54,7 @@ export function createPostHogProductAnalyticsAdapter({ config }: { config: PostH
   // Reuse the SDK's fetch owner so its Node transport and any supplied fetch keep their semantics.
   const send = client.fetch.bind(client);
   client.fetch = async (url, init) => {
+    if (options.signal?.aborted) return { status: 200, text: async () => "", json: async () => ({}) };
     try {
       const response = await send(url, init);
       reporter.result({ phase: "export", outcome: response.status >= 200 && response.status < 300 ? "ok" : "failed", error: { status: response.status } });
