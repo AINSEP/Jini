@@ -1,3 +1,5 @@
+import { requireOwnerFactor } from './mfa/service.js';
+import type { OwnerMfaDeps } from './mfa/ports.js';
 import type { AuthServiceDeps } from './auth-service.js';
 import { resetUserPassword } from './admin-crud-service.js';
 import { inIdentityTransaction } from './identity-transaction.js';
@@ -13,6 +15,7 @@ export interface RecoveryCodeStore {
 }
 
 export interface OwnerRecoveryDeps {
+  mfa?: OwnerMfaDeps;
   auth: AuthServiceDeps;
   codes: RecoveryCodeStore;
   seededOwnerPrincipalId: string;
@@ -47,12 +50,16 @@ function codeHash({ deps, input }: Required<OwnerScope & { code: string }>): str
  * @throws OwnerRequiredError or IdentityValidationError; storage errors roll back the rotation.
  * @complexity O(1): ten entropy/digest operations and one bounded replacement per explicit rotation.
  */
-export async function issueRecoveryCodes(required: Required<OwnerScope & { password: string }>, _options: Options = {}): Promise<{ codes: string[] }> {
+export async function issueRecoveryCodes(required: Required<OwnerScope & { password: string; code?: string }>, _options: Options = {}): Promise<{ codes: string[] }> {
   const { deps, input } = required;
   return inIdentityTransaction({ transactions: deps.auth.repos.transactions, workspaceId: input.workspaceId, execute: async () => {
     const user = await requireOwner(required);
     if (!input.password || !await deps.auth.hasher.verify({ hash: user.passwordHash, password: input.password })) {
       throw new IdentityValidationError({ message: 'The current password was not accepted. Enter your current owner password and try again.' });
+    }
+    if (await deps.auth.mfaStore?.factor(input)) {
+      if (!deps.mfa) throw new IdentityValidationError({ message: 'Authenticator verification is unavailable. Reopen the owner security settings and try again.' });
+      await requireOwnerFactor({ deps: deps.mfa, input }, {});
     }
     const codes = Array.from({ length: 10 }, () => deps.auth.tokens.newToken({}));
     if (new Set(codes).size !== 10 || codes.some(code => !/^[a-f0-9]{64}$/.test(code))) {
@@ -77,6 +84,7 @@ export async function resetOwnerPassword(required: Required<OwnerScope & { passw
     if (!fresh || !await deps.auth.hasher.verify({ hash: fresh.passwordHash, password: input.password })) {
       throw new Error('The new owner password could not be verified. No recovery changes were saved. Ask the host operator to check password hashing. Details: owner-reset-verification');
     }
+    await deps.auth.mfaStore?.clear({ workspaceId: input.workspaceId, principalId: input.principalId });
     await deps.codes.clear({ workspaceId: input.workspaceId, principalId: input.principalId });
   } });
 }

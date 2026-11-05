@@ -376,6 +376,8 @@ export async function resetUserPassword(required: {
       const passwordHash = await deps.hasher.hash({ password: input.password });
       const updated: UserRecord = { ...target, passwordHash };
       await deps.repos.users.save(updated);
+      // Password changes invalidate old first-factor proofs while preserving the enrolled factor.
+      await deps.mfaStore?.clearPending({ workspaceId: input.workspaceId, principalId: input.principalId });
 
       const sessions = await deps.repos.sessions.listByPrincipalId({
         workspaceId: input.workspaceId,
