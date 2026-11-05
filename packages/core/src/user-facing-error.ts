@@ -44,18 +44,28 @@ export function formatUserFacingError(
     message: safeField({ text: requiredArgs.message }, optionalArgs),
     action: safeField({ text: requiredArgs.action }, optionalArgs),
     step: safeField({ text: requiredArgs.step }, optionalArgs),
-    cause: bound({ text: diagnostic, limit: 4096 }),
+    cause: bound({ text: redactSecrets({ input: diagnostic }, optionalArgs), limit: 4096 }),
     ...Object.fromEntries(Object.entries(metadata).filter((entry): entry is [string, string] => entry[1] !== undefined)
-      .map(([key, text]) => [key, safeField({ text }, optionalArgs)])),
+      .map(([key, text]) => [key, safeMetadataField({ key, text }, optionalArgs)])),
   };
   const labels: readonly [string, string | undefined][] = [
     ['Message', fields.message], ['Next action', fields.action], ['Error ID', fields.errorId],
     ['Step', fields.step], ['Cause', fields.cause], ['App version', fields.appVersion],
     ['Jini version', fields.jiniVersion], ['Time', fields.time],
   ];
-  // Exact secrets can span a fixed label and a field; scrub the assembled block as well.
-  const copyText = bound({ text: redactSecrets({ input: labels.map(([label, value]) => `${label}: ${value ?? 'Unavailable'}`).join('\n') }, optionalArgs), limit: 8192 });
+  // Each field is already PII-scrubbed. Repeat credential/exact redaction across labels,
+  // without letting a numeric group in a public correlation ID be mistaken for a card.
+  const copyText = bound({ text: redactSecrets({ input: labels.map(([label, value]) => `${label}: ${value ?? 'Unavailable'}`).join('\n') }, { ...optionalArgs, redactPii: false }), limit: 8192 });
   return { ...fields, copyText };
+}
+
+/** Boundary-owned correlation IDs are public identifiers, while explicit secret rules still win.
+ * Other metadata retains the usual PII policy; arbitrary numeric error IDs remain redactable.
+ */
+function safeMetadataField({ key, text }: { key: string; text: string }, options: SecretRedactionOptions): string {
+  const correlationId = /^(?:[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}|ERR-[a-f0-9]{4}(?:-[a-f0-9]{4}){3})$/i;
+  if (key === 'errorId' && correlationId.test(text)) return safeField({ text }, { ...options, redactPii: false });
+  return safeField({ text }, options);
 }
 
 /** Redact the complete value so a credential crossing the display bound cannot leak its prefix. */
