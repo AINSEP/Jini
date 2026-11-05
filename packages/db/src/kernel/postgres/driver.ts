@@ -34,6 +34,18 @@ export function openPostgresKernel<DB>(
   // idle cut) is evicted by the pool and reopened on next use; without a listener it would crash the
   // process.
   pool.on("error", (err) => console.warn('[postgres] idle pool connection dropped:', redactSecrets({ input: inspect(err) }, { redactPii: false })));
+  // Pool error listeners cover idle clients only. Session-owned workers hold a client for
+  // longer, so absorb its error event while the next query rejects and stops that owner.
+  const connected = new WeakSet<object>();
+  const connect = pool.connect.bind(pool);
+  pool.connect = async () => {
+    const client = await connect();
+    if (!connected.has(client)) {
+      connected.add(client);
+      client.on?.("error", () => console.warn('[postgres] active pool connection dropped; its operation will stop.'));
+    }
+    return client;
+  };
   const base = new Kysely<DB>({ dialect: new PostgresDialect({ pool }) });
   return buildKernel<DB>({
     dialect: "postgres",

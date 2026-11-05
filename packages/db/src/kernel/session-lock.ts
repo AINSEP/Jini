@@ -25,7 +25,7 @@ export function inheritKernelSessionDatabase({ from, to }: {
  * @complexity Two O(1) lock queries and one reserved pool connection for the callback lifetime.
  */
 export async function withKernelSessionLock<T>({ kernel, key, run }: {
-  kernel: StorageKernel<unknown>; key: string; run: () => Promise<T>;
+  kernel: StorageKernel<unknown>; key: string; run: (lease: { assertOwned(): Promise<void> }) => Promise<T>;
 }, _optional: Record<string, never> = {}): Promise<{ acquired: false } | { acquired: true; value: T }> {
   if (kernel.transport !== 'node-postgres') throw new Error('A database session lock requires the pooled PostgreSQL transport.');
   if (kernel.inTransaction()) throw new Error('A database session owner cannot start inside a transaction.');
@@ -35,7 +35,7 @@ export async function withKernelSessionLock<T>({ kernel, key, run }: {
   return database.connection().execute(async connection => {
     const result = await sql<{ locked: boolean }>`SELECT pg_try_advisory_lock(hashtextextended(${key}, 0)) AS locked`.execute(connection);
     if (result.rows[0]?.locked !== true) return { acquired: false as const };
-    try { return { acquired: true as const, value: await run() }; }
+    try { return { acquired: true as const, value: await run({ assertOwned: async () => { await sql`SELECT 1`.execute(connection); } }) }; }
     finally { await sql`SELECT pg_advisory_unlock(hashtextextended(${key}, 0))`.execute(connection); }
   });
 }
