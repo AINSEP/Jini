@@ -20,7 +20,7 @@ import type { FormDefinitionRecord, FormSubmissionRecord } from "./types.js";
 import type { Logger } from "@jini-ai/core/primitives";
 /** Notification subscriber with host sender, mail and logging ports. Each recipient receives a stable per-submission dedup key; delivery and repository failures never block sibling subscribers. */
 import type { DomainEvent, EventBusPort } from "../core/index.js";
-import type { MailerPort, EmailAddress } from "./ports.js";
+import type { MailerPort, MailerSendResult, EmailAddress } from "./ports.js";
 import type { FormDefinitionRepoPort, FormSubmissionRepoPort } from "./ports.js";
 import { FormDeliveryError } from "./delivery/errors.js";
 import { FORM_SUBMISSION_RECEIVED_EVENT } from "./types.js";
@@ -124,7 +124,8 @@ function warn(logger: Pick<Logger, 'warn'>, message: string, error?: unknown): v
   try { logger.warn({ message: formatErrorForLog({ error: message }) }, error === undefined ? {} : { error: formatErrorForLog({ error }) }); } catch { /* Host logging failure is terminal. */ }
 }
 
-/** Legacy delivery isolates recipients; durable jobs propagate a safe typed failure to the outbox. */
+/** Legacy delivery isolates recipients; durable jobs propagate a safe typed failure to the outbox.
+ * @complexity O(submission size) time and space to serialize answers; one provider call per attempt. */
 async function sendNotification({ deps, definition, submission, recipient, payload: { workspaceId, formDefinitionId, submissionId } }: {
   deps: RegisterFormNotifySubscriberDeps;
   definition: FormDefinitionRecord;
@@ -132,8 +133,9 @@ async function sendNotification({ deps, definition, submission, recipient, paylo
   recipient: string;
   payload: FormSubmissionReceivedPayload;
 }, { durable = false } = {}): Promise<void> {
+  let result: MailerSendResult;
   try {
-    const result = await deps.mailer.send({
+    result = await deps.mailer.send({
       message: {
         workspaceId,
         to: { email: recipient },
@@ -152,14 +154,6 @@ async function sendNotification({ deps, definition, submission, recipient, paylo
         lane: "notification",
       }
     });
-    if (!result.ok) {
-      if (durable) throw new FormNotificationError({ submissionId, retryable: result.retryable,
-        ...(result.retryAfterMs === undefined ? {} : { retryAfterMs: result.retryAfterMs }),
-        outcome: result.unknown ? "unknown" : "not-applied" });
-      warn(deps.logger,
-        `[forms:notify] mail send failed for submission '${submissionId}' recipient '${recipient}': ${result.errorCode} (${result.message})`
-      );
-    }
   } catch (err) {
     if (durable) throw err instanceof FormNotificationError ? err : new FormNotificationError({ submissionId, retryable: true });
     // A send failure is terminal for this delivery: log, never retry inline or alter
@@ -168,5 +162,13 @@ async function sendNotification({ deps, definition, submission, recipient, paylo
       `[forms:notify] mail send threw for submission '${submissionId}' recipient '${recipient}':`,
       err
     );
+    return;
   }
+  if (result.ok) return;
+  if (durable) throw new FormNotificationError({ submissionId, retryable: result.retryable,
+    ...(result.retryAfterMs === undefined ? {} : { retryAfterMs: result.retryAfterMs }),
+    outcome: result.unknown ? "unknown" : "not-applied" });
+  warn(deps.logger,
+    `[forms:notify] mail send failed for submission '${submissionId}' recipient '${recipient}': ${result.errorCode} (${result.message})`
+  );
 }
