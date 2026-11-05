@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { createSharedOAuthConsumer, type SharedOAuthConnection, type SharedOAuthConsumerDeps, type SharedOAuthConsumerTarget } from '../shared.js';
 
 const identity = { pluginId: 'calendar', connectionId: 'account', tokenEndpoint: 'https://issuer.test/token',
+  authorizationEndpoint: 'https://issuer.test/authorize',
   issuer: 'https://issuer.test', resource: 'https://calendar.test', clientId: 'issuing-client' };
 const target: SharedOAuthConsumerTarget = { siteId: 'site-a-uuid', consumerId: 'workspace-local/calendar', identity,
   requiredScopes: ['calendar.read'] };
@@ -56,7 +57,7 @@ describe('shared OAuth consumption', () => {
     expect(f.calls()).toBe(0);
   });
 
-  it.each(['pluginId', 'connectionId', 'issuer', 'resource', 'tokenEndpoint', 'clientId'] as const)(
+  it.each(['pluginId', 'connectionId', 'issuer', 'resource', 'tokenEndpoint', 'authorizationEndpoint', 'clientId'] as const)(
     'refuses a different issuing %s', async (field) => {
       const f = fixture();
       await expect(f.consumer.getAccessToken({ ...target, identity: { ...identity, [field]: 'different' } }))

@@ -11,6 +11,7 @@ export interface SharedOAuthIdentity {
   readonly pluginId: string;
   readonly connectionId: string;
   readonly tokenEndpoint: string;
+  readonly authorizationEndpoint?: string;
   readonly issuer?: string;
   readonly resource?: string;
   /** Optional pin to the saved client; omit when the consumer has a different local client. */
@@ -68,7 +69,7 @@ function denied(): ApiConnectionError {
 
 /** Compare exact issuing identity; similar hosts or a different audience do not establish reuse. */
 function assertCompatible(connection: SharedOAuthConnection, target: SharedOAuthConsumerTarget): void {
-  const fields = ['pluginId', 'connectionId', 'tokenEndpoint', 'issuer', 'resource'] as const;
+  const fields = ['pluginId', 'connectionId', 'tokenEndpoint', 'authorizationEndpoint', 'issuer', 'resource'] as const;
   if (fields.some(field => connection.identity[field] !== target.identity[field])) throw unavailable();
   if (target.identity.clientId !== undefined && connection.identity.clientId !== target.identity.clientId) throw unavailable();
   const granted = new Set(connection.grantedScopes);
@@ -99,6 +100,7 @@ function publicConnection(connection: SharedOAuthConnection): SharedOAuthConnect
   return { credentialId: connection.credentialId, generation: connection.generation, status: connection.status,
     identity: { pluginId: identity.pluginId, connectionId: identity.connectionId, tokenEndpoint: identity.tokenEndpoint,
       clientId: identity.clientId, ...(identity.issuer === undefined ? {} : { issuer: identity.issuer }),
+      ...(identity.authorizationEndpoint === undefined ? {} : { authorizationEndpoint: identity.authorizationEndpoint }),
       ...(identity.resource === undefined ? {} : { resource: identity.resource }) },
     account: connection.account === null ? null : { accountId: connection.account.accountId, displayName: connection.account.displayName },
     grantedScopes: [...connection.grantedScopes] };
