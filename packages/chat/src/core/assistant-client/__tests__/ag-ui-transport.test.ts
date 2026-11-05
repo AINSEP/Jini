@@ -148,9 +148,18 @@ describe("createAgUiRunClient", () => {
 
 it("forwards the current originating tab token without client tool definitions", async () => {
   const { client, agents, handlers } = setup();
-  const started = client.startAgUiRun({ input: { history, context: { frontendBindToken: "tab-B-current" }, signal: new AbortController().signal }, handlers });
-  expect(agents[0]!.inputs[0]!.forwardedProps).toMatchObject({ frontendBindToken: "tab-B-current" });
+  const started = client.startAgUiRun({ input: { history, context: { frontendBindToken: "tab-B-current", frontendTabId: "tab-B" }, signal: new AbortController().signal }, handlers });
+  expect(agents[0]!.inputs[0]!.forwardedProps).toMatchObject({ frontendBindToken: "tab-B-current", frontendTabId: "tab-B" });
   expect(agents[0]!.inputs[0]!.tools).toEqual([]);
+  agents[0]!.observer!.complete();
+  await started;
+});
+
+it.each([undefined, "", 17])("omits an absent or malformed originating tab id (%s)", async frontendTabId => {
+  const { client, agents, handlers } = setup();
+  const started = client.startAgUiRun({ input: { history, context: { frontendBindToken: "token", frontendTabId }, signal: new AbortController().signal }, handlers });
+  expect(agents[0]!.inputs[0]!.forwardedProps).toMatchObject({ frontendBindToken: "token" });
+  expect(agents[0]!.inputs[0]!.forwardedProps).not.toHaveProperty("frontendTabId");
   agents[0]!.observer!.complete();
   await started;
 });

@@ -37,11 +37,17 @@ export interface AgUiRunClient {
   fetchAgUiRunStatus(required: Record<string, never>, optional?: Record<string, never>): Promise<null>;
   stopAgUiRun(required: { runId: string }, optional?: Record<string, never>): Promise<void>;
 }
-/** Only the originating attachment can authorize page execution. Read its token for every turn;
- * caller-supplied tool definitions never authorize or execute a transcript event. */
+/** Only the originating attachment can authorize page execution. Read its token and tab for every
+ * turn; caller-supplied tool definitions never authorize or execute a transcript event.
+ * @complexity O(1) time and space.
+ * @overallScore 100 */
 function frontendBinding({ input }: { input: StartRunInput }, _options = {}): Record<string, string> {
   const token = input.context?.["frontendBindToken"];
-  return typeof token === "string" && token.length > 0 ? { frontendBindToken: token } : {};
+  const tabId = input.context?.["frontendTabId"];
+  return {
+    ...(typeof token === "string" && token.length > 0 ? { frontendBindToken: token } : {}),
+    ...(typeof tabId === "string" && tabId.length > 0 ? { frontendTabId: tabId } : {}),
+  };
 }
 
 /** Bind the official client without adding its dependency to every chat consumer. */

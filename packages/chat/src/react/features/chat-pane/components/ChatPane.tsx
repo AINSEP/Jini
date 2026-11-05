@@ -772,6 +772,7 @@ export function ChatPane(props: ChatPaneProps) {
     uploadAttachments: p.uploadAttachments,
     onActivityChange: p.onActivityChange,
     onMessagesChange: p.onMessagesChange,
+    subscribeToSurfaces: p.subscribeToSurfaces,
     redactUserText: p.redactUserText,
     onSecretRedacted: p.onSecretRedacted,
     workingDirectory: p.workingDirectory,

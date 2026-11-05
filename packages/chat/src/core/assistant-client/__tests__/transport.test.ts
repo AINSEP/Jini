@@ -141,12 +141,12 @@ describe('buildLocalCliContextRef', () => {
       input: input([user('q')], {
         assistantMessageId: 'am',
         attachments: [{ path: 'attachment:1', name: 'f', kind: 'file' }],
-        context: { frontendBindToken: 'tok', model: 'opus', reasoning: 'high', pluginRefIds: ['p1', '', 3], agentPluginState: 's', userPrompt: 'q', conversationId: 'c1', pageContext: { path: '/x' } },
+        context: { frontendBindToken: 'tok', frontendTabId: 'tab-1', model: 'opus', reasoning: 'high', pluginRefIds: ['p1', '', 3], agentPluginState: 's', userPrompt: 'q', conversationId: 'c1', pageContext: { path: '/x' } },
       }),
       prompt: 'q',
     }, {});
     expect(ref).toEqual({
-      prompt: 'q', coldStartContext: '## user\nq', assistantMessageId: 'am', frontendBindToken: 'tok', model: 'opus', reasoning: 'high',
+      prompt: 'q', coldStartContext: '## user\nq', assistantMessageId: 'am', frontendBindToken: 'tok', frontendTabId: 'tab-1', model: 'opus', reasoning: 'high',
       attachmentIds: ['attachment:1'], pluginRefIds: ['p1'], agentPluginState: 's', userPrompt: 'q', conversationId: 'c1', pageContext: { path: '/x' },
     });
   });
@@ -154,7 +154,7 @@ describe('buildLocalCliContextRef', () => {
   it('omits every optional field that is empty or malformed', () => {
     const { client } = harness();
     const ref = client.buildLocalCliContextRef({
-      input: input([user('q')], { attachments: [], context: { frontendBindToken: '', model: '', reasoning: 7, pluginRefIds: [''], conversationId: '', pageContext: ['x'] } }),
+      input: input([user('q')], { attachments: [], context: { frontendBindToken: '', frontendTabId: 17, model: '', reasoning: 7, pluginRefIds: [''], conversationId: '', pageContext: ['x'] } }),
       prompt: 'q',
     }, {});
     expect(Object.keys(ref).sort()).toEqual(['agentPluginState', 'assistantMessageId', 'coldStartContext', 'prompt', 'userPrompt']);

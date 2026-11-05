@@ -132,10 +132,11 @@ function wireError(error: unknown): ToolExecutionWireError {
  * Streams one execution as NDJSON. Headers go out first; surfaces are written as they are emitted
  * and are dropped once the call settled; exactly one terminal line follows.
  */
-async function streamExecution(
-  { req, res, call, executor }: { readonly req: Request; readonly res: Response; readonly call: ToolExecutionWireRequest; readonly executor: ToolExecutor },
-  { runWithContext }: Pick<ToolExecutionRoutesOptional, 'runWithContext'>,
+export async function streamToolExecution(
+  { req, res, call, executor }: { readonly req: Request; readonly res: Response; readonly call: ToolExecutionWireRequest; readonly executor: Pick<ToolExecutor, 'execute'> },
+  { runWithContext, keepalive = false }: Pick<ToolExecutionRoutesOptional, 'runWithContext'> & { keepalive?: boolean },
 ): Promise<void> {
+  if (res.destroyed) return;
   const controller = new AbortController();
   // `res` 'close' (not `req` 'close', which fires as soon as a completed body was read) means the
   // caller went away; after a normal end `writableFinished` is already true and nothing aborts.
@@ -147,8 +148,11 @@ async function streamExecution(
   res.setHeader('cache-control', 'no-store');
   res.flushHeaders();
   let settled = false;
-  const writeLine = (line: ToolExecutionWireLine): void => { if (!res.writableEnded) res.write(`${JSON.stringify(line)}\n`); };
+  const writeLine = (line: ToolExecutionWireLine | { type: 'keepalive' }): void => { if (!res.writableEnded) res.write(`${JSON.stringify(line)}\n`); };
   const emitSurface: SurfaceEmitter = async (emission) => { if (!settled) writeLine({ type: 'surface', emission }); };
+  // Human confirmation may outlive the proxy's idle-body timeout; never poll for an answer.
+  const heartbeat = keepalive ? setInterval(() => writeLine({ type: 'keepalive' }), 15_000) : undefined;
+  heartbeat?.unref();
   const run = (): Promise<ToolExecutionResult> => executor.execute(
     { principal: call.principal, run: call.run, toolId: call.toolId, input: call.input },
     { signal: controller.signal, emitSurface },
@@ -161,6 +165,7 @@ async function streamExecution(
     writeLine({ type: 'throw', error: wireError(error) });
   } finally {
     settled = true;
+    if (heartbeat) clearInterval(heartbeat);
     res.off('close', onClose);
     req.off('error', onRequestError);
     res.end();
@@ -178,7 +183,7 @@ function executionHandler(
       sendApiError({ res, status: 400, error });
       return;
     }
-    void streamExecution({ req, res, call, executor }, optional);
+    void streamToolExecution({ req, res, call, executor }, optional);
   };
 }
 
