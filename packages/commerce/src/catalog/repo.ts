@@ -1,3 +1,4 @@
+export { commerceStorefrontFor, STOREFRONT_PRODUCT_LIMIT } from "./repo.storefront.js";
 import type { StorageKernel } from "@jini-ai/db/kernel";
 export type { CommerceKernel, CommerceDatabase } from "./database.js";
 export { commercePriceProviderRefRepoFor } from "./repo.price-refs.js";

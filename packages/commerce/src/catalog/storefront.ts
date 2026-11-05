@@ -62,6 +62,8 @@ export interface StorefrontSiteProduct {
    *  already follow. */
   slug: string;
   title: string;
+  /** The exact one-time price displayed; purchase requests retain this identifier. */
+  priceId?: string;
   /** Integer minor units of `currency` (never assumed to be /100 — see `exponentOf`). */
   price: number;
   /** Integer minor units of `currency`. `undefined` = not on sale. */
@@ -106,6 +108,7 @@ export function toSiteProduct(input: {
     id: input.product.id,
     slug: input.product.slug,
     title: input.product.name,
+    priceId: input.price.id,
     price: input.price.unitAmount.minorUnits,
     compareAtPrice: input.price.compareAtAmount?.minorUnits,
     currency: input.price.unitAmount.currency,

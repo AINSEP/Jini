@@ -91,3 +91,11 @@ export function toMajorString({ money: value }: { money: Money }, _optional: Rec
   const padded = digits.padStart(exponent + 1, "0");
   return `${sign}${padded.slice(0, -exponent)}.${padded.slice(-exponent)}`;
 }
+
+/** Display integer minor units using the currency's own precision rather than assuming cents.
+ * @complexity O(1) time and space; no I/O. */
+export function formatMoney({ money: value }: { money: Money }, _optional: Record<string, never> = {}): string {
+  const exponent = exponentOf({ currency: value.currency });
+  return new Intl.NumberFormat("en-US", { style: "currency", currency: value.currency,
+    minimumFractionDigits: exponent, maximumFractionDigits: exponent }).format(Number(toMajorString({ money: value })));
+}
