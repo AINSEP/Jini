@@ -30,7 +30,7 @@
       "licenses/langfuse-core/package-license.json": "sha256-ddcfec5e1d2d66f0fa8747045c7318fadec83d68721520abfd8c9f45f3a545f5",
       "licenses/mustache/LICENSE": "sha256-e60b280838180a70cbb4b934f825c8119cdcf8912259ff4c6da20b284231c832",
       "licenses/mustache/package-license.json": "sha256-288d7af593a0809e08ead527831b7bd2dff0bd84fef7a5bbb61b0b9c812720ab",
-      "server/index.mjs": "sha256-78793710ec44af8b230b8ac0e33c93766cc1b9395de7bc814e1de6817a73ebde"
+      "server/index.mjs": "sha256-9527c9007b0f00b5391f205279f3d0449c28ab563df7f5995d17eabfe8d93ca2"
     }
   },
   {
@@ -71,7 +71,7 @@
       "licenses/posthog-node/LICENSE": "sha256-d3fb92ac01f0bef4078f89aac9f20f76da3383ad45becf6204abdf5495f43f8f",
       "licenses/posthog-node/package-license.json": "sha256-477479010682b08537c8ad318f1f71dc25b0e88a9b0f9f6b4cc90c168624c6be",
       "server/consent-adapter.mjs": "sha256-a37d6ad7073b5d5149572a4bf8a95c71d24337f4b6358ab98676481e2d663035",
-      "server/index.mjs": "sha256-61e2500f0e5b81506b805da5cbd3e903a84fa133d41d057f0db9d58e74c06a10",
+      "server/index.mjs": "sha256-f38f04b0ccc7eba365ea6487bd1b5477f08b85440d474bfbe449ae80578c40ea",
       "server/posthog-browser.js": "sha256-42c78610e8c1a1ff3258259c13becb34699668a81f091af2e80146b3a006be2a"
     }
   },
@@ -252,9 +252,9 @@
       "lib/domain-inventory.mjs": "sha256-f6ac6106be2224a89fb59a3046f4a89979bc6d5358641bf0c96a8fd2accc0579",
       "lib/domain-status.mjs": "sha256-19f6427e4d9d0b75e9b20f41b1b3a9c7530e99d6a434f3985e56c1f2b741ccc9",
       "lib/domains.mjs": "sha256-175f56995dce4866019696b29879ff5402ca7ccd87022463ffd8b4591fa6c80a",
-      "lib/forms.mjs": "sha256-1b1589ffc67cf720b8152a78380d6f7449b411265b5fca1faa062dc4802e4eef",
+      "lib/forms.mjs": "sha256-a99a5edb6ee7a88057513b2b4a48821a64e269607d309d1cc0f7e83865fa85bc",
       "lib/pages-upload.mjs": "sha256-7712c6fd855a2edc4d92e9fbdbbdb47368d2f45b965d481c3d499f36088dc1f2",
-      "lib/target.mjs": "sha256-e6332c7ce1711f46b93e97fd50519c06b2798185da2e912eb4d0455d2ba4f98c",
+      "lib/target.mjs": "sha256-85bb36d553045c4badfaaf5387f001125e252f08b230febf022ce29b264d8d87",
       "lib/workers-upload.mjs": "sha256-544ad8b3398c74a1374411635f7bc3d126b9081cc1d71aef09ee25c9256ab468",
       "lib/zones.mjs": "sha256-53c3815db92dd7ede2255457f7af9ae3c1a1e3558e0cb723739bf1ea505d0988",
       "mcp.json": "sha256-1788697eb2d3aa1caa8da59a62331a92529e24885f0e7151418f915000fbf7fd",
@@ -270,7 +270,7 @@
       "tovu-consent.json": "sha256-293658ce9c99d9d42708454b3cd57101c0e8de5d78fe308dc16dec43a5906a50",
       "tovu-deploy-targets.json": "sha256-fc4d27bb08a19db61c1b1684b6da6a09d075e42ec154f60385214415f326ce9c",
       "tovu-form-destinations.json": "sha256-f0ce2bb4ffe864b09185ab95b6ec910f32da2db909e485691bc4527afd484c1e",
-      "worker/forms-receiver.mjs": "sha256-1c6aaba8c46a1edad13c633c5a66762839e6feafb7fe2ac7d556802af7bad237"
+      "worker/forms-receiver.mjs": "sha256-8a72a38ec188407a49572746b28efd00115a7a37dc7fb8e87e2e78ab8c60bc58"
     }
   },
   {
@@ -350,7 +350,7 @@
     "id": "formspree",
     "publisherIdentity": "jini/formspree-agent",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.6.22",
+    "version": "0.6.23",
     "description": "Connects native forms to Formspree. Visitors POST directly to Formspree; this site keeps its existing form definitions and historical answers. Installation alone never switches a form.",
     "expectedDigests": {
       "plugin.json": "sha256-7f033cfb65fb35b4894b87ff99b78228fc35f31a4c8c4864d59688d449a033de",
@@ -359,8 +359,8 @@
   },
   {
     "kind": "provider",
-    "path": "plugins/formspree/0.6.22",
-    "pluginVersion": "0.6.22",
+    "path": "plugins/formspree/0.6.23",
+    "pluginVersion": "0.6.23",
     "contract": {
       "id": "form_collection",
       "version": 1
@@ -368,12 +368,12 @@
     "id": "formspree",
     "publisherIdentity": "jini/formspree",
     "packageName": "@jini-ai/provider-plugins",
-    "version": "0.6.22",
+    "version": "0.6.23",
     "description": "Formspree form collection",
     "expectedDigests": {
       "licenses/_jini-ai_provider-plugins/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
       "licenses/_jini-ai_provider-plugins/NOTICE": "sha256-41f25c5b9af4c8e8e98e2a7c658b3922253c760686e17e0ef7fa003fae83cb95",
-      "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-5d6c02d7fde1faa0b51250bea11f1b64eaefddf7749e5853b263eb74cd1348a1",
+      "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-487cadce25dd2d3d08bb47f1305dc3e6a9b04d28b7463e4a3b15239c6ccb7485",
       "server/index.mjs": "sha256-f2aa51ea184bb415e1810ad477ce584add20780f9c08624dbdae545b6adce4bd"
     }
   },
@@ -708,7 +708,7 @@
       "licenses/js-tokens/package-license.json": "sha256-337c203b235cd5b3626735f17d6ec6b41c509df27ef0a494ce4d673937f7082b",
       "licenses/semver/LICENSE": "sha256-4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b",
       "licenses/semver/package-license.json": "sha256-850ac2ae774f31fc6da3760c39cb2f489f31e35278b1489d09ce63adb98d89ef",
-      "server/index.mjs": "sha256-650cfb8672b52259142e05052739c8fa5fbfee22d7cb3e9f3872e6d17f71c03d"
+      "server/index.mjs": "sha256-414cc561456ca6b997e3a623890d956e4c99cb43d9538e57ab2f06aa6007ac8d"
     }
   },
   {
@@ -754,7 +754,7 @@
       "licenses/_sentry_server-utils/package-license.json": "sha256-fc86dcf64159ae72833f6c8655f0841c714aed8b67a241e76ca00a2bfb0bd9b7",
       "licenses/js-tokens/LICENSE": "sha256-33038d552d766f4501d8da25b66053ed217c61274ffce1c6bee413bb037c259c",
       "licenses/js-tokens/package-license.json": "sha256-337c203b235cd5b3626735f17d6ec6b41c509df27ef0a494ce4d673937f7082b",
-      "server/index.mjs": "sha256-8194f31cb3709f85e93799b95b9beaaaf04b1b03baa8b101806e3985645246d8"
+      "server/index.mjs": "sha256-b0dfe3dd0adfc20a9b55d63f653241f5cf26ef79313110cc90bf61d80c21c208"
     }
   },
   {
@@ -1028,6 +1028,31 @@
       "skills/slide-design/references/layout-and-style.md": "sha256-a3061cde434f95956d0d883a7dd32918afa0df450a2cfa3bbef51f2154edd145",
       "skills/slide-design/references/review.md": "sha256-98aaab2253c2eaa03d8454d96fc1be937251b8c532bbf866074eb80bb4e89193",
       "skills/slide-design/references/storyline.md": "sha256-7ee8c37f4f8341f77a97e492fc8efd2686f671f1c420dbe6a18e205fa995ac76"
+    }
+  },
+  {
+    "kind": "agent",
+    "path": "software-engineering",
+    "pluginVersion": "0.1.0",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "software-engineering",
+    "publisherIdentity": "jini/software-engineering",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.23",
+    "description": "Routes coding, architecture, debugging and inspection tasks to portable engineering guidance.",
+    "expectedDigests": {
+      "LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
+      "NOTICE": "sha256-f74fb63e85c64ccda602b9cf09b6185d573b0f4a3b669784715199838b64ac9a",
+      "README.md": "sha256-dc6b7e2dbe2ae620cac63135d2d105839737dea93034553d41073d1b1f87dd12",
+      "plugin.json": "sha256-04f6c545b33e8f3810a69a017b5abd8f14fa015f1daa34ce69bcd8f5ba47b635",
+      "skills/software-engineering/SKILL.md": "sha256-13b7cbdd756a7ba3488d9130dc02aa05eb43eadc7da9b4890e5dc269ecb7c8e0",
+      "skills/software-engineering/references/debugging.md": "sha256-141eaa6c313a31077abded478af1b82c9011dfddef463976dc41d96f67eb0f91",
+      "skills/software-engineering/references/implementation.md": "sha256-28c79b58fafe5f14ce5a16229c7391d66cd6007c6d91ad3af5bde62f8da2ccf1",
+      "skills/software-engineering/references/planning.md": "sha256-919df0c8257aa163aa3355e6066723b602580ba28c32d33be96efe2fdaad6649",
+      "skills/software-engineering/references/verification.md": "sha256-71784ccddd0f3aad32268f7cc2b680384264cda5c53bd41ea7039d28421da977"
     }
   },
   {
