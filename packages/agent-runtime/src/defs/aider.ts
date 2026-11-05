@@ -5,7 +5,8 @@ import type { RuntimeAgentDef } from '../types.js';
 export const aiderAgentDef = {
   // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
   ...createAgentModelDiscovery('aider', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => aiderAgentDef.fallbackModels }),
-    id: 'aider',
+    mcpIsolation: 'no-client',
+  id: 'aider',
     name: 'Aider',
     bin: 'aider',
     versionArgs: ['--version'],

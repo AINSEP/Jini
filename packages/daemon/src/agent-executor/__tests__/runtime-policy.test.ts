@@ -30,7 +30,8 @@ async function startFixture(
   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
   const child = new FakeChild();
   const calls: { args: readonly string[]; env: NodeJS.ProcessEnv | undefined }[] = [];
-  const def: RuntimeAgentDef = { ...getAgentDef({ id: agentId })!, ...fixtureModelDiscovery };
+  const def: RuntimeAgentDef = { ...getAgentDef({ id: agentId })!, ...fixtureModelDiscovery,
+    ...(['claude', 'codex'].includes(agentId) ? { mcpIsolation: { perRun: 'fixture@2026-11-05' } } : {}) };
   const executor = createAgentExecutor({ lifecycle }, {
     ...policies, hostEnv, ...(ownRuntimeState ? { runtimeState: createAgentRuntimeState({}) } : {}),
     getAgentDef: () => def,
@@ -58,8 +59,14 @@ it('carries the native-tool grant through real executor composition to Codex cre
   } finally { granted.child.emit('close', 0, null); locked.child.emit('close', 0, null); }
 });
 
-it.each([true, false])('fails before spawn when an adapter cannot enforce/audit nativeToolAccess=%s', async nativeToolAccess => {
+it.each([false])('fails before spawn when an adapter cannot enforce/audit nativeToolAccess=%s', async nativeToolAccess => {
   await expect(startFixture({ agentId: 'pi', hostEnv: {} }, {}, { nativeToolAccess })).rejects.toMatchObject({ code: 'NATIVE_TOOL_POLICY_UNSUPPORTED' });
+});
+
+it('runs an unsupported native adapter once the requested switches are allowed', async () => {
+  const run = await startFixture({ agentId: 'pi', hostEnv: {} }, {}, { nativeToolAccess: true });
+  try { expect(run.calls).toHaveLength(1); }
+  finally { run.child.emit('close', 0, null); }
 });
 
 it('threads individual permissions through the real executor to CLI argv', async () => {
@@ -85,30 +92,29 @@ it('refuses to ignore individual restrictions on an unsupported CLI even in pari
 // switch, and what to do.
 // The interim 2026-10-27 refusal is superseded by the owner’s 2026-10-29 decision:
 // agy cannot enforce run-scoped limits, so every assistant user gets an unrestricted run.
+// Superseded 2026-11-05: no silent full-access grant; obtain owner consent before launch.
 const hostDefaultCapabilities = { shell: true, fileWrite: true, userMcp: false, subagents: true,
   userSettings: true, web: true, workflows: true, loginEnvironment: true };
 const parityRun = { nativeToolAccess: true, cliParity: true, permissionMode: 'bypass' } as const;
 
 it.each(['shell', 'fileWrite', 'userMcp', 'subagents', 'userSettings', 'web', 'workflows', 'loginEnvironment'] as const)(
-  'starts Antigravity with full access without owner eligibility despite the %s limit', async key => {
-    const run = await startFixture({ agentId: 'antigravity', hostEnv: {} }, {}, {
+  'requires consent instead of overriding the %s limit', async key => {
+    await expect(startFixture({ agentId: 'antigravity', hostEnv: {} }, {}, {
       nativeToolAccess: false, cliParity: false, permissionMode: 'restricted',
       nativeCapabilities: { ...hostDefaultCapabilities, [key]: false },
-    });
-    try { expect(run.calls[0]!.args).toContain('--dangerously-skip-permissions'); }
-    finally { run.child.emit('close', 0, null); }
+    })).rejects.toMatchObject({ code: 'NATIVE_TOOL_POLICY_UNSUPPORTED', message: expect.stringContaining(key) });
   });
 
-it('starts Antigravity with full access when no host policy is provided', async () => {
+it('keeps restricted standalone Antigravity access when no host policy is provided', async () => {
   const run = await startFixture({ agentId: 'antigravity', hostEnv: {} });
-  try { expect(run.calls[0]!.args).toContain('--dangerously-skip-permissions'); }
+  try { expect(run.calls[0]!.args).not.toContain('--dangerously-skip-permissions'); }
   finally { run.child.emit('close', 0, null); }
 });
 
 it('keeps the existing refusal for other unsupported CLIs', async () => {
   await expect(startFixture({ agentId: 'opencode', hostEnv: {} }, {}, { ...parityRun, nativeCapabilities: hostDefaultCapabilities }))
     .rejects.toMatchObject({ code: 'NATIVE_TOOL_POLICY_UNSUPPORTED',
-      message: "OpenCode can't run with 'Your MCP servers' off. Turn it on in the assistant settings, or choose Claude or Codex." });
+      message: expect.stringContaining('userMcp') });
 });
 
 /** The host's MCP bridge staging with every effect faked: Codex can only turn personal MCP off by
@@ -136,7 +142,7 @@ it('runs Codex with personal MCP OFF as a single exec on the staged home', async
   } finally { run.child.emit('close', 0, null); }
 });
 
-it('runs Antigravity without an owner grant', async () => {
+it('runs Antigravity after explicit personal MCP consent', async () => {
   const run = await startFixture({ agentId: 'antigravity', hostEnv: {} }, {}, { ...parityRun,
     nativeCapabilities: { ...hostDefaultCapabilities, userMcp: true } });
   try {
@@ -166,7 +172,7 @@ it('publishes Antigravity native shell receipts through the real executor lifecy
 });
 
 it('redacts buffered Antigravity JSON sign-in errors before any lifecycle event', async () => {
-  const run = await startFixture({ agentId: 'antigravity', hostEnv: {} }, {}, parityRun);
+  const run = await startFixture({ agentId: 'antigravity', hostEnv: {} }, {}, { ...parityRun, nativeCapabilities: { userMcp: true } });
   const events: unknown[] = [];
   await run.lifecycle.stream({ runId: run.runId, onEvent: event => events.push(event) });
   const wire = JSON.stringify({ event: 'result', result: { status: 'ERROR', error:
@@ -182,7 +188,7 @@ it('redacts buffered Antigravity JSON sign-in errors before any lifecycle event'
 });
 
 it('fails closed when buffered structured audit output is truncated', async () => {
-  const run = await startFixture({ agentId: 'antigravity', hostEnv: {} }, { bufferedStdoutMaxBytes: 100 }, parityRun);
+  const run = await startFixture({ agentId: 'antigravity', hostEnv: {} }, { bufferedStdoutMaxBytes: 100 }, { ...parityRun, nativeCapabilities: { userMcp: true } });
   run.child.stdout.write(JSON.stringify({ event: 'result', result: { status: 'SUCCESS', response: 'Done' } }) + '\n');
   run.child.stdout.write('x'.repeat(101));
   run.child.emit('close', 0, null);

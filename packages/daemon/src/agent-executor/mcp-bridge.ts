@@ -524,15 +524,24 @@ async function prepareClaudeConfigDirForRun(
   };
 }
 
+/** Inherited credentials and persistent settings require explicit approval, including standalone hosts. */
+function needsInheritedMcpConsent(input: { def: RuntimeAgentDef; nativeCapabilities?: Partial<import('@jini-ai/agent-runtime').NativeCapabilities> }, injection: McpJsonInjectionOptions | undefined): boolean {
+  return input.def.externalMcpInjection === 'env-passthrough' && injection !== undefined && input.nativeCapabilities?.userMcp !== true;
+}
+
 /** Phase 5: resolve credentials and delivery, then await agy's scoped MCP permission setup.
  * Setup errors release staged files and fail before spawn. @complexity O(settings bytes) for agy. */
-export async function resolveMcpBridgeForRun({ input, deps }: { readonly input: { readonly runId: string; readonly cwd: string; readonly def: RuntimeAgentDef }; readonly deps: {
+export async function resolveMcpBridgeForRun({ input, deps }: { readonly input: { readonly runId: string; readonly cwd: string; readonly def: RuntimeAgentDef; readonly nativeCapabilities?: Partial<import('@jini-ai/agent-runtime').NativeCapabilities> }; readonly deps: {
     readonly mcpJsonInjection: McpJsonInjectionOptions | undefined;
     readonly cleanupStagedFiles: () => Promise<void>;
     readonly failBeforeSpawn: FailBeforeSpawn;
     readonly ensureAntigravityMcpPermission?: typeof ensureAntigravityMcpPermission;
   } }
 ): Promise<McpBridgeDelivery | null> {
+  if (needsInheritedMcpConsent(input, deps.mcpJsonInjection)) {
+    return deps.failBeforeSpawn({ runId: input.runId, code: 'NATIVE_TOOL_POLICY_UNSUPPORTED',
+      message: `${input.def.name} needs your approval before loading personal MCP settings and receiving this chat's run key.` });
+  }
   try {
     // Awaited here rather than inside `buildMcpBridgeDelivery` so that function stays pure and
     // synchronous. `undefined` when the host supplied no resolver, which omits the token entirely.
