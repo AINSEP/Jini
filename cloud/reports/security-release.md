@@ -348,3 +348,5 @@ Tovu:
 Merged the requested om-chat and night branches. Resolved two conflicts while preserving existing behavior and assertions. Jini changes are confined to agent-plugins and daemon; both already belong to the 12-package 0.6.23 set. Rebuild, catalog regeneration and focused verification are in progress.
 
 Follow-up checkpoint: full rebuild/relink, 197 focused tests, changed-path strict lint and expanded range secret scans PASS. Typechecks and final artifact guards remain in progress. The final package list remains the same 12 at 0.6.23.
+
+Follow-up checkpoint: all five typechecks PASS after one incoming test-query typing correction; the corrected test file adds 45 passing tests, for 242 focused tests total. All assertions retain exact matching. Packed artifact guard and final catalog verification remain in progress. No additional packages were bumped.
