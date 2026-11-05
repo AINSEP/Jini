@@ -23,7 +23,8 @@
       "./payments/client": "universal",
       "./payments/ledger/sql": "node",
       "./payments/tools": "universal",
-      "./money": "universal"
+      "./money": "universal",
+      "./checkout-browser": "universal"
     },
     "optionalPeers": {
       "@jini-ai/db": "opt-in: database-backed adapters; import @jini-ai/commerce/payments/ledger/sql \u2014 Database-backed adapters could not load @jini-ai/db. Install @jini-ai/db to enable this feature, or check its installed version and native binaries.",
@@ -92,6 +93,11 @@
       "types": "./dist/money/money.d.ts",
       "import": "./dist/money/money.js",
       "default": "./dist/money/money.js"
+    },
+    "./checkout-browser": {
+      "types": "./dist/browser/checkout.d.ts",
+      "import": "./dist/browser/checkout.js",
+      "default": "./dist/browser/checkout.js"
     }
   },
   "files": [
