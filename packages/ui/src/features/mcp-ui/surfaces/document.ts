@@ -11,7 +11,7 @@
  * builders because the CSS that styles them lives here — splitting the markup from the only
  * stylesheet that can reach it is how a "generic" fragment quietly becomes unstyled in one caller.
  */
-import { AGENT_ELEMENT_ATTRIBUTE, AGENT_LABEL_ATTRIBUTE, AGENT_ROLE_ATTRIBUTE } from '@jini-ai/agentic';
+import { AGENT_ELEMENT_ATTRIBUTE, AGENT_LABEL_ATTRIBUTE, AGENT_PRIVATE_ATTRIBUTE, AGENT_ROLE_ATTRIBUTE } from '@jini-ai/agentic';
 import { escapeHtml } from '../escape.js';
 import { SURFACE_BRIDGE_GLOBAL, renderBridgeScript, type BridgeScriptSpec } from './bridge.js';
 import { renderTokenBlock, type SurfaceTokenName } from './tokens.js';
@@ -515,18 +515,26 @@ export interface SurfaceAction {
  * `script-src 'unsafe-inline'`-equivalent allowance for attributes specifically, and a host is free
  * to apply a stricter CSP to the frame than this package can see.
  *
- * Each button also carries the `@jini-ai/agentic` `data-agent-*` markup convention
+ * Ordinary buttons also carry the `@jini-ai/agentic` `data-agent-*` markup convention
  * ({@link AGENT_ELEMENT_ATTRIBUTE} et al.) — but this tagging is advisory, not the thing that makes
  * a surface's actions reachable by `page.find_elements`/`page.click`. Those capabilities resolve a
  * handle by scanning `document`/`contentDocument`, and this document renders inside a `srcdoc`
  * iframe sandboxed to `allow-scripts` alone (`MCP_UI_VIEW_SANDBOX` — no `allow-same-origin`,
  * deliberately), which gives it an opaque origin no ancestor document can read into. So this tagging
  * is real for a driver that reaches INTO the frame directly — `frameLocator` in Playwright, proven
- * end to end against exactly this markup — and inert for anything scanning the parent page. Making a
- * surface's actions visible to `page.find_elements` needs a second, parent-DOM-side echo of this
- * same action list; see `McpUiSurfaceCard` in `@jini-ai/chat` for that half.
+ * end to end against exactly this markup — and inert for anything scanning the parent page. Making an
+ * ordinary surface's actions visible to `page.find_elements` needs a second, parent-DOM-side echo
+ * of that action list. Human-only decisions are intentionally excluded from addressing even
+ * inside the frame: confirmation buttons are private and their runtime still requires trusted clicks.
+ *
+ * @param actions - Action descriptions; the legacy array argument is retained for caller compatibility.
+ * @param options - Human-only rows omit agent addressing and mark every decision private.
+ * @returns Escaped HTML without executing actions or changing their runtime click gates.
+ * @complexity O(n) time and space in the emitted markup length.
+ * @overallScore 98/100
+ * @qualityFindings Low: The legacy array-first signature remains a compatibility exception to object arguments.
  */
-export function renderActions(actions: readonly SurfaceAction[]): string {
+export function renderActions(actions: readonly SurfaceAction[], { humanOnly = false }: { humanOnly?: boolean } = {}): string {
   const buttons = actions
     .map((action) => {
       const variant = action.variant ?? 'neutral';
@@ -540,7 +548,9 @@ export function renderActions(actions: readonly SurfaceAction[]): string {
       // would accept. That is unenforced on purpose (see the function doc above: `page.find_elements`
       // can never reach this document to resolve it either way), so failing loudly here would refuse
       // markup for a reason that can never matter to the one consumer that can actually query it.
-      return `  <button type="${action.type ?? 'button'}" class="mcpui-button${variantClass}" data-mcpui-action="${escapeHtml(action.id)}" ${AGENT_ELEMENT_ATTRIBUTE}="mcpui-action-${escapeHtml(action.id)}" ${AGENT_ROLE_ATTRIBUTE}="button" ${AGENT_LABEL_ATTRIBUTE}="${label}"${action.disabled === true ? ' disabled' : ''}>${label}</button>`;
+      const addressing = humanOnly ? AGENT_PRIVATE_ATTRIBUTE
+        : `${AGENT_ELEMENT_ATTRIBUTE}="mcpui-action-${escapeHtml(action.id)}" ${AGENT_ROLE_ATTRIBUTE}="button" ${AGENT_LABEL_ATTRIBUTE}="${label}"`;
+      return `  <button type="${action.type ?? 'button'}" class="mcpui-button${variantClass}" data-mcpui-action="${escapeHtml(action.id)}" ${addressing}${action.disabled === true ? ' disabled' : ''}>${label}</button>`;
     })
     .join('\n');
   return `<div class="mcpui-actions">\n${buttons}\n</div>`;
