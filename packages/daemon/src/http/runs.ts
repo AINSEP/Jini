@@ -78,11 +78,12 @@ export interface RunHttpDeps {
 }
 
 /**
- * Logs the real failure server-side and returns the generic, correlation-id-bearing public error
+ * Logs the real failure server-side and returns a stage-specific, correlation-id-bearing public error
  * (SEC-005: never the raw exception). `runId` is mandatory — both real call sites (`run-start`,
  * after a durably-created run's id is already known; `run-stream`, against an already-parsed path
  * parameter) always have one in hand, so an optional field with an unreachable "no runId" branch
  * was speculative flexibility no caller ever exercised.
+ * @complexity O(1) time and space besides the injected diagnostic sink.
  */
 function reportInternalError(
   deps: RunHttpDeps,
@@ -93,7 +94,10 @@ function reportInternalError(
   const correlationId = randomUUID();
   const sink = deps.onInternalError ?? defaultInternalErrorSink;
   sink({ source, runId, correlationId, error });
-  return createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId });
+  const message = source === 'run-start'
+    ? 'The agent could not be started. Check the run status before starting another task. Copy the request ID and report this problem.'
+    : 'The connection to run updates could not be opened. Check the run status before starting another task. Copy the request ID and report this problem.';
+  return createApiError({ code: 'INTERNAL_ERROR', message }, { requestId: correlationId });
 }
 
 export interface RunStartResponse {
