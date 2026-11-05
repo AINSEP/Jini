@@ -18,7 +18,7 @@ Identify the intended outcome, affected workspace and acceptance criteria. Inspe
 - Bug or unexpected behavior: load [debugging](references/debugging.md), then implementation for the fix.
 - Tests, code inspection or completion: load [verification](references/verification.md). Also use it before claiming any task complete.
 
-Load individual references as needed, not the whole catalog. UI work also needs the host's discovered design/accessibility guidance. Keep behavior, state and contracts here; let the discovered design capability own visual direction and browser checks. Do not import or copy another plugin's files. If the host provides a memory-discipline skill, discover and load that guidance through the host reader; its policy remains authoritative rather than being duplicated here. Its absence does not block portable engineering work.
+Load individual references as needed, not the whole catalog. UI work also needs the host's discovered design/accessibility guidance. Keep behavior, state and contracts here; let the discovered design capability own visual direction and browser checks. Do not import or copy another plugin's files. Discover and load the host’s `memory-performance-discipline` guidance when available; keep its policy there. Its absence does not block this skill.
 
 ## Keep changes understandable
 

@@ -40,7 +40,7 @@ watcher, cache, schema, background task or new persistent state is added.
 
 | Path | Hash |
 | --- | --- |
-| `skills/software-engineering/SKILL.md` | `81cde8df1cf463de5a80f5e68055bd7e27a1e2ae4258fdf2fd42a1676a7bb608` |
+| `skills/software-engineering/SKILL.md` | `13b7cbdd756a7ba3488d9130dc02aa05eb43eadc7da9b4890e5dc269ecb7c8e0` |
 | `skills/software-engineering/references/debugging.md` | `141eaa6c313a31077abded478af1b82c9011dfddef463976dc41d96f67eb0f91` |
 | `skills/software-engineering/references/implementation.md` | `28c79b58fafe5f14ce5a16229c7391d66cd6007c6d91ad3af5bde62f8da2ccf1` |
 | `skills/software-engineering/references/planning.md` | `919df0c8257aa163aa3355e6066723b602580ba28c32d33be96efe2fdaad6649` |
