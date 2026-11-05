@@ -74,3 +74,11 @@ it("does not send money when the pending order could not be persisted", async ()
   installCommerceCheckout({ document: w.dom.window.document, fetch, storage: { getItem: () => null, setItem: () => { throw new Error("storage unavailable"); }, removeItem: vi.fn() }, navigate: vi.fn() });
   await submit(w); expect(fetch).toHaveBeenCalledTimes(1); expect(w.status.textContent).toContain("Payment has not been requested"); expect(w.status.textContent).toContain("order-1");
 });
+it("repeated asset initialization does not attach another money submission handler", async () => {
+  const w = page();
+  const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValueOnce(response({ order: { id: "order-1" } })).mockResolvedValue(response({ order: { id: "order-1", status: "pending" }, payment: { next: null } }));
+  const ports = { document: w.dom.window.document, fetch, storage: w.dom.window.sessionStorage, navigate: vi.fn() };
+  installCommerceCheckout(ports); installCommerceCheckout(ports);
+  await submit(w);
+  expect(fetch).toHaveBeenCalledTimes(2);
+});

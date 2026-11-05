@@ -15,6 +15,9 @@ interface CheckoutResponse { order?: { id?: unknown; status?: unknown }; payment
  */
 export function installCommerceCheckout(required: CommerceCheckoutBrowserRequired, _optional: Record<string, never> = {}): void {
   required.document.querySelectorAll<HTMLFormElement>("form[data-commerce-checkout]").forEach(form => {
+    // Asset deduplication belongs to the form too: repeated script tags cannot create two charges.
+    if (form.dataset.commerceCheckoutBound === "true") return;
+    form.dataset.commerceCheckoutBound = "true";
     const orders = form.dataset.ordersUrl!;
     const priceId = form.dataset.priceId!;
     const key = `commerce:${orders}:${priceId}`;
