@@ -25,3 +25,5 @@ export { useStandingDraftAutosave } from './hooks/use-standing-draft-autosave.ho
 export type { StandingDraftAutosavePort, StandingDraftAutosaveInput, StandingDraftAutosaveSnapshot, StandingDraftAutosaveController, StandingDraftStaleBasis, StandingDraftAutosaveOptions } from './hooks/use-standing-draft-autosave.hooks.js';
 export { createStandingDraftLocalBackup, LOCAL_BACKUP_PRINCIPAL_ID } from './helpers/standing-draft-local-backup.js';
 export { standingDraftRecoveryMessage } from './helpers/standing-draft-recovery-message.js';
+export { createFailureChannel } from './failure-channel.js';
+export type { FailureChannel } from './failure-channel.js';

@@ -66,3 +66,73 @@ function safeField({ text }: { text: string }, options: SecretRedactionOptions):
 function bound({ text, limit }: { text: string; limit: number }): string {
   return text.length > limit ? text.slice(0, limit - 1) + '…' : text;
 }
+
+/** Approved host vocabulary only. Keys are static route segments or slash-delimited operation suffixes. */
+export interface RequestFailureVocabulary {
+  readonly nouns: Readonly<Record<string, { readonly singular: string; readonly plural: string }>>;
+  readonly operations?: Readonly<Record<string, RequestFailureDescription>>;
+}
+export interface RequestFailureDescription {
+  readonly message: string;
+  readonly action: string;
+  readonly step: string;
+}
+
+const REPORT_REQUEST_FAILURE = 'Copy details and report this problem.';
+const REQUEST_ACTIONS: Readonly<Record<string, string>> = {
+  publish: 'publishing', unpublish: 'unpublishing', import: 'import', export: 'export',
+  upload: 'upload', download: 'download', restore: 'restore', send: 'send', undo: 'undo',
+  pull: 'pull', push: 'push', plan: 'preparation', confirm: 'confirmation', execute: 'execution',
+  update: 'save', save: 'save', create: 'creation', delete: 'removal',
+};
+
+/**
+ * Describe a failed request using only host-approved words; path values and query strings never render.
+ * A registered template is preferred; operation identifiers are the fallback for non-HTTP mappers.
+ * This is pure and does not infer a cause, retry a write or assume POST means creation.
+ * @complexity O(n + k*n) time for n bounded route tokens and k host override suffixes; O(n) space.
+ */
+export function describeRequestFailure(
+  { method, route, operation, vocabulary }: { method?: string; route?: string; operation?: string; vocabulary: RequestFailureVocabulary },
+  _optionalArgs: Record<string, never> = {},
+): RequestFailureDescription {
+  const tokens = (route || operation || '').split(/[?#]/, 1)[0]!.slice(0, 2048).split('/').slice(0, 64);
+  const override = Object.entries(vocabulary.operations ?? {}).find(([suffix]) => matchesRequestSuffix(tokens, suffix));
+  if (override) return { ...override[1] };
+  const nounKey = tokens.slice().reverse().find(token => Object.hasOwn(vocabulary.nouns, token));
+  const noun = nounKey === undefined ? undefined : vocabulary.nouns[nounKey];
+  const actionToken = tokens[tokens.length - 1] ?? '';
+  const action = Object.hasOwn(REQUEST_ACTIONS, actionToken) ? REQUEST_ACTIONS[actionToken] : undefined;
+  return requestFailureDescription({ method: method?.toUpperCase(), noun, action });
+}
+
+function matchesRequestSuffix(tokens: string[], suffix: string): boolean {
+  const expected = suffix.split('/');
+  return expected.every((token, index) => token === tokens[tokens.length - expected.length + index]);
+}
+
+/** Keep uncertain writes explicit: users check the result before repeating an operation. */
+function requestFailureDescription({ method, noun, action }: {
+  method: string | undefined; noun: { singular: string; plural: string } | undefined; action: string | undefined;
+}): RequestFailureDescription {
+  if (method === 'GET' || method === 'HEAD') return {
+    message: `The ${noun?.plural ?? 'requested information'} could not be loaded.`,
+    action: `Try loading them again. If it still fails, ${REPORT_REQUEST_FAILURE.charAt(0).toLowerCase() + REPORT_REQUEST_FAILURE.slice(1)}`,
+    step: `Load ${noun?.plural ?? 'information'}`,
+  };
+  if (method === 'PUT' || method === 'PATCH' || action === 'save') return {
+    message: `The ${noun?.singular ?? 'requested'} save could not be completed.`,
+    action: `Check whether your changes were saved before repeating the save. ${REPORT_REQUEST_FAILURE}`,
+    step: `Save ${noun?.singular ?? 'changes'}`,
+  };
+  if (method === 'DELETE' || action === 'removal') return {
+    message: `The ${noun?.singular ?? 'item'} removal could not be confirmed.`,
+    action: `Check the list before repeating the removal. ${REPORT_REQUEST_FAILURE}`,
+    step: `Remove ${noun?.singular ?? 'item'}`,
+  };
+  return {
+    message: noun ? `The ${noun.singular} ${action ?? 'operation'} could not be completed.` : 'The request could not be completed.',
+    action: `Check the result before repeating this operation. ${REPORT_REQUEST_FAILURE}`,
+    step: noun ? `${noun.singular} ${action ?? 'operation'}` : 'Request',
+  };
+}
