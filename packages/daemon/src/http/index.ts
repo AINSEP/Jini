@@ -391,3 +391,4 @@ export { createFrontendGuestScope } from './frontend-guest-scope.js';
 export { tryRestoreSurface } from './surface-restoration.js';
 export { registerFrontendRequestRoute } from './frontend-request-route.js';
 export type { FrontendRequestRouteRequired } from './frontend-request-route.js';
+export { deliverSurfaceCallback, isSurfaceCallbackPermitted, SURFACE_TYPED_ANSWER_REFUSAL, type SurfaceCallbackInput } from './surface-callback.js';

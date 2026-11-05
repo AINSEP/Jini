@@ -5,6 +5,7 @@
 export { parseApiConnectionDescriptor } from './descriptor.js';
 export { createApiConnectionService, type ApiConnectionService } from './service.js';
 export { deriveApiConnectionKey, createApiConnectionGenerationReader } from './keys.js';
+export { waitForHostedSignIn, createSignInHandoffs, type SignInHandoffs } from './hosted-sign-in.js';
 export { ApiConnectionError, type ApiConnectionErrorCode } from './errors.js';
 export type { ApiConnectionClientKind, ApiConnectionServiceDeps } from './deps.js';
 export type { ApiConnectionHooks, ApiConnectionRecordStore, ApiConnectionTokenStore } from './ports.js';
