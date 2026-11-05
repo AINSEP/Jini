@@ -112,10 +112,15 @@ export interface LangfuseSinkConfig {
   readonly release?: string;
 }
 
-/** Builds the SDK client (no network until the first flush) and its sink. */
+/** Builds the SDK client (no network until the first flush); host retirement drops queued exports.
+ * @complexity O(1) per send around the SDK's bounded queue.
+ */
 export function createLangfuseClient({ publicKey, secretKey, baseUrl, environment, release }: LangfuseSinkConfig, { signal }: { signal?: AbortSignal | undefined } = {}): LangfuseClientPort {
   const client = new Langfuse({ publicKey, secretKey, ...(baseUrl ? { baseUrl } : {}), ...(environment ? { environment } : {}), ...(release ? { release } : {}) });
   const send = client.fetch.bind(client);
-  client.fetch = async (url, options) => signal?.aborted ? new Response('{}', { status: 200 }) : send(url, options);
+  client.fetch = async (url, options) => {
+    if (signal?.aborted) return new Response('{}', { status: 200 });
+    return send(url, options);
+  };
   return client;
 }

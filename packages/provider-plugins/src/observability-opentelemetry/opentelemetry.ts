@@ -89,6 +89,7 @@ export function createInjectedOtlpTraceExporter({ url }: { url: string }, option
 
 type SignalExporter<T> = Pick<OTLPExporterBase<T>, "export" | "shutdown" | "forceFlush">;
 /** Observe the real trace/metric export callback before the SDK consumes failures for diagnostics.
+ * Host retirement completes pending batches locally so shutdown cannot send a revoked credential.
  * @returns The same SDK exporter protocol; credentials and raw errors stay at the adapter edge.
  * @complexity O(1) around an export, independent of the batch size.
  */

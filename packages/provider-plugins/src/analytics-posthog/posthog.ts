@@ -38,7 +38,7 @@ export interface PostHogAdapterOptions extends ProviderTelemetryOptions {
 }
 
 /**
- * @returns `{ port, dispose }`; `dispose` flushes and shuts the client down and never throws.
+ * @returns `{ port, dispose }`; `dispose` flushes (or drops exports after host retirement), shuts the client down and never throws.
  * @complexity O(1) per event; delivery is batched in the background by the SDK.
  */
 export function createPostHogProductAnalyticsAdapter({ config }: { config: PostHogConfigEnabled }, options: PostHogAdapterOptions = {}): ProductAnalyticsAdapter {

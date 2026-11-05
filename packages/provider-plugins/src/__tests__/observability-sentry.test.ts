@@ -37,16 +37,25 @@ function recordingTransport() {
 }
 const flush = () => new Promise((resolve) => setTimeout(resolve, 50));
 
-test('revoked Sentry pending spans and later errors are dropped while a fresh client still sends', async () => {
+test('revoked Sentry pending spans and queued errors are dropped while a fresh client still sends', async () => {
   const { items, transport } = recordingTransport();
   for (const revoked of [true, false]) {
     const retirement = new AbortController();
     const resource = createSentryObservabilityAdapter({ config: CONFIG }, { transport, signal: retirement.signal });
-    const operation = resource.port.trackOperation({ name: revoked ? 'revoked' : 'fresh' });
-    if (revoked) retirement.abort();
-    operation.end({ outcome: 'completed', failed: false });
-    resource.port.reportError({ error: new Error(revoked ? 'revoked' : 'fresh'), context: { operation: 'fixture' } });
-    await resource.dispose();
+    let resume!: () => void;
+    const enrichment = new Promise<void>(resolve => { resume = resolve; });
+    const original = NodeClient.prototype.captureException;
+    // Stall real SDK event processing before transport, rather than trying to recall an in-flight send.
+    const capture = vi.spyOn(NodeClient.prototype, 'captureException').mockImplementation(function (this: NodeClient, ...args) {
+      this.addEventProcessor(async event => { await enrichment; return event; });
+      return original.apply(this, args);
+    });
+    try {
+      const operation = resource.port.trackOperation({ name: revoked ? 'revoked' : 'fresh' });
+      resource.port.reportError({ error: new Error(revoked ? 'revoked' : 'fresh'), context: { operation: 'fixture' } });
+      if (revoked) retirement.abort();
+      operation.end({ outcome: 'completed', failed: false });
+    } finally { resume(); await resource.dispose(); capture.mockRestore(); }
   }
   assert.deepEqual(items.filter(item => item.type === 'event').map(item => item.payload.exception.values[0].value), ['fresh']);
   assert.deepEqual(items.filter(item => item.type === 'transaction').map(item => item.payload.transaction), ['fresh']);
