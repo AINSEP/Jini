@@ -196,3 +196,12 @@ export function isBlockedExternalApiHostname({ hostname }: { hostname: string })
   const addressClass = classifyAddressLiteral({ address: host });
   return addressClass !== null && addressClass !== 'public' && addressClass !== 'loopback';
 }
+
+/** Literal policy for a hostname from a deployed endpoint URL: local names and reserved
+ * addresses are excluded. DNS reachability remains the deployment host's responsibility.
+ * @complexity O(hostname length), no DNS or other I/O. */
+export function isDeployedApiHostname({ hostname }: { hostname: string }, _optional: Record<string, never> = {}): boolean {
+  const host = normalizeBracketedIpv6(hostname);
+  if (isLoopbackApiHost({ hostname: host }) || isBlockedExternalApiHostname({ hostname: host })) return false;
+  return !host.endsWith('.localhost') && !host.endsWith('.local');
+}
