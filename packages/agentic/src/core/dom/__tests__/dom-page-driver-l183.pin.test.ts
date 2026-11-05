@@ -108,9 +108,9 @@ describe('L183 raw state characterization', () => {
     const target = root.querySelector('span')!;
     const checkVisibility = vi.fn((_options?: CheckVisibilityOptions) => visible);
     Object.defineProperty(target, 'checkVisibility', { value: checkVisibility, configurable: true });
-    expect(await driver.describeState!({ handle: 'target' })).toEqual({ text: 'Ready', visible });
+    expect(await driver.describeState!({ handle: 'target' })).toEqual(visible ? { text: 'Ready', visible: true } : null);
     expect(checkVisibility).toHaveBeenCalledWith({ checkOpacity: true, checkVisibilityCSS: true });
-    expect(checkVisibility.mock.contexts).toEqual([target, target]);
+    expect(checkVisibility.mock.contexts).toEqual(visible ? [target, target, target, target] : [target]);
   });
 
   it('returns null for missing and private handles and refuses invalid or ambiguous ones', async () => {

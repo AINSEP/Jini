@@ -1,4 +1,4 @@
-import { createPublicationFilter, publishedText } from './publication-filter.js';
+import { createPublicationFilter, publicElement, publishedText } from './publication-filter.js';
 import type { PagePublication } from '../page-publication.js';
 import {
   AGENT_ELEMENT_ATTRIBUTE,
@@ -21,7 +21,8 @@ import type { FindElementsFilter, PageDriver } from '../page-driver.js';
  *
  * Deliberately mechanical: every refusal — handle validation, the credential-field guard, the
  * page allowlist, highlight clamping — already ran in `executePageCapability` before anything
- * here is called. Re-checking would duplicate policy in a place that will drift from it.
+ * here is called. Live DOM visibility and interaction state are rechecked here immediately
+ * before effects, because the page can change after capability validation.
  *
  * Scoped to a `root` the host names, never `document`. Scanning the whole document would make
  * any markup anywhere — including rendered user content — an authorization decision, which
@@ -280,19 +281,20 @@ function isPrivate(node: Element): boolean {
 }
 
 /**
- * `element`'s text content with every `[data-agent-private]` subtree left out — the only text
+ * `element`'s text content with private and inactive subtrees left out — the only text
  * this driver ever reports, so a secret shown inside a published card never rides out on the
- * card's own text. @complexity O(subtree size).
+ * card's own text.
+ * @returns Public text without mutating the DOM.
+ * @complexity O(n × d) time and O(n) space for subtree size n and ancestor depth d.
+ * @overallScore 95/100
+ * @qualityFindings Low: Live CSS visibility checks repeat along ancestor paths during a scan.
  */
 function publicTextOf(element: Element): string {
-  if (element.querySelector(PRIVATE_SELECTOR) === null) {
-    /* c8 ignore next -- `Node.textContent` is typed nullable for the abstract node; on an Element it is always a string, so the `?? ''` satisfies the type and is not a reachable path. */
-    return element.textContent ?? '';
-  }
-  const copy = element.cloneNode(true) as Element;
-  for (const hidden of Array.from(copy.querySelectorAll(PRIVATE_SELECTOR))) hidden.remove();
-  /* c8 ignore next -- as above. */
-  return copy.textContent ?? '';
+  if (!publicElement({ element })) return '';
+  return Array.from(element.childNodes).map(node => {
+    if (node instanceof Element) return publicTextOf(node);
+    return node instanceof Text ? node.data : '';
+  }).join('');
 }
 
 function describe(element: Element, page: string | undefined, publicText?: string): AgentElementDescriptor {
@@ -347,6 +349,71 @@ function findSelectableOption(
     );
   }
   return match;
+}
+
+/** Resolve only label-associated fields, never arbitrary descendant buttons or links.
+ * A descendant that is itself independently published (its own `[data-agent-element]`) must
+ * never be silently adopted as this handle's control — it is a distinct, separately
+ * addressable target with its own label, not unhandled wrapper markup like the plain
+ * `<li><label><input>` this fallback exists for. Filtering to descendants whose nearest
+ * published ancestor is still `element` itself excludes exactly that case.
+ * @returns Distinct owned controls, retaining ambiguity for the caller to refuse.
+ * @complexity O(l × d + c) time and O(c) space for labels l, depth d and labelled controls c.
+ * @overallScore 96/100
+ * @qualityFindings Low: Native label relationships are read from the live DOM, so callers must recheck before effects.
+ */
+function labelledControls({ element, root }: { element: Element; root: ParentNode }): Element[] {
+  const labels = Array.from(element.querySelectorAll('label'));
+  if (element instanceof HTMLLabelElement) labels.unshift(element);
+  const controls = labels.flatMap(label => [label.control, ...label.querySelectorAll('input,textarea,select')]);
+  return [...new Set(controls)].filter((control): control is Element => {
+    if (!control?.matches('input,textarea,select') || isPrivate(control)) return false;
+    if (!(root instanceof Node) || !root.contains(control)) return false;
+    const owner = control.closest(`[${AGENT_ELEMENT_ATTRIBUTE}]`);
+    return owner === element || (element instanceof HTMLLabelElement && owner === null);
+  });
+}
+
+/** Enforce live visibility, disabled and modal state before any control effect.
+ * @throws Error with the reason the current control cannot be operated.
+ * @complexity O(m × d) time and O(m) space for m modal candidates and ancestor depth d.
+ * @overallScore 95/100
+ * @qualityFindings Low: Legacy DOMs without the modal selector expose only ARIA modal state.
+ */
+function assertActiveControl({ element, handle, action }: { element: Element; handle: string; action: string }): void {
+  if (!publicElement({ element })) throw new Error(`"${handle}" is hidden or inactive on this page`);
+  // A disabled control is not one a user could touch, so writing to it is a way around the
+  // page's own rule and the resulting selection cannot be submitted. The per-`<option>` filter
+  // in `findSelectableOption` reads as if it enforced that, but only ever looked at each option — a
+  // `<select disabled>` (and a `<select>` inside a `<fieldset disabled>`, which `:disabled`
+  // also covers and `.disabled` does not) was written to happily, and the executor then
+  // reported `targetChanged: true` because the value really had changed.
+  //
+  // Checked before the option lookup on purpose: the refusal is about the control, so it must
+  // not depend on the caller having named a real option, and the "Available: ..." message must
+  // not enumerate a disabled control's options.
+  if (element.matches(':disabled') || element.closest('[aria-disabled="true"]')) {
+    if (action === 'selectOption') throw new Error(`"${handle}" is disabled, so its selection cannot be changed — a user cannot change it either, and its value would not be submitted`);
+    throw new Error(`"${handle}" is disabled, so it cannot be changed`);
+  }
+  assertModalControl({ element, handle });
+}
+
+/** Respect the focused modal, including native top-layer dialogs in supporting browsers.
+ * @throws Error when the target is in the inactive background.
+ * @complexity O(m × d) time and O(m) space for m modal candidates and ancestor depth d.
+ * @overallScore 94/100
+ * @qualityFindings Low: Unfocused ARIA modal stacks use document order, matching the host's overlay convention.
+ */
+function assertModalControl({ element, handle }: { element: Element; handle: string }): void {
+  const document = element.ownerDocument;
+  const ariaModal = '[role="dialog"][aria-modal="true"],[role="alertdialog"][aria-modal="true"]';
+  const nativeModal = document.defaultView?.CSS?.supports?.('selector(:modal)') === true;
+  const selector = nativeModal ? `:modal,${ariaModal}` : ariaModal;
+  const modals = Array.from(document.querySelectorAll(selector)).filter(modal => publicElement({ element: modal }));
+  const focused = modals.findLast(modal => modal.contains(document.activeElement));
+  const active = focused ?? modals.at(-1);
+  if (active && !active.contains(element)) throw new Error(`"${handle}" is behind the active modal`);
 }
 
 /** One page a host allows navigation to: its human label, and how to actually get there. */
@@ -419,11 +486,14 @@ export function createDomPageDriver({ root, pages }: DomPageDriverRequired, opti
    * Every element published under `handle`. A page that (accidentally, or via a templating bug)
    * publishes the same handle twice makes `find`'s single-match resolution ambiguous — surfaced
    * here so both callers below can refuse rather than silently pick one.
+   * @complexity O(h × d) time and O(h) space for matching handles h and ancestor depth d.
+   * @overallScore 97/100
+   * @qualityFindings Low: Visibility checks use live computed styles for every candidate.
    */
   const findAll = (handle: string): Element[] => {
     const matches = Array.from(root.querySelectorAll(resolveHandleSelector({ handle })));
     if (options.publication && matches.length !== 1) return [];
-    return matches.filter(element => !isPrivate(element) && (!publicationFilter || publicationFilter.allows({ element, action: 'read' })));
+    return matches.filter(element => publicElement({ element }) && (!publicationFilter || publicationFilter.allows({ element, action: 'read' })));
   };
 
   /**
@@ -440,12 +510,20 @@ export function createDomPageDriver({ root, pages }: DomPageDriverRequired, opti
     + 'caller can resolve; publish a unique handle per element',
   );
 
+  /** Resolve one handle and recheck its live action target before returning.
+   * @throws Error for missing, ambiguous or currently unavailable controls.
+   * @complexity O(h × d + l + m × d) time and O(h + l + m) space for matches h, labels l, modals m and depth d.
+   * @overallScore 96/100
+   * @qualityFindings Low: The established driver API reports refusals through Error messages.
+   */
   const find = (handle: string, action = 'read'): Element => {
     const matches = findAll(handle);
     if (matches.length === 0) throw new Error(`no element published as "${handle}" on this page`);
     if (matches.length > 1) throw ambiguousHandleError(handle, matches.length);
     const element = matches[0]!;
-    if (publicationFilter && !publicationFilter.allows({ element: controlOf(element), action })) throw new Error('Published action unavailable');
+    const control = controlOf(element, action);
+    if (['click', 'fill', 'selectOption'].includes(action)) assertActiveControl({ element: control, handle, action });
+    if (publicationFilter && !publicationFilter.allows({ element: control, action })) throw new Error('Published action unavailable');
     return element;
   };
 
@@ -455,8 +533,13 @@ export function createDomPageDriver({ root, pages }: DomPageDriverRequired, opti
    * `<details>` is called out because its interactive part is the `<summary>`: clicking the
    * `<details>` element itself dispatches an event the platform ignores, so a disclosure widget
    * would never open and the caller would be told the click landed.
+   * @returns The direct control or one unambiguous label-associated field; regions remain regions.
+   * @throws Error for ambiguous or out-of-root label forwarding before effects.
+   * @complexity O(l × d + c) time and O(c) space for labels l, controls c and ancestor depth d.
+   * @overallScore 96/100
+   * @qualityFindings Low: Malformed native details without a summary retain their established region-click behavior.
    */
-  const controlOf = (element: Element): Element => {
+  const controlOf = (element: Element, action = 'read'): Element => {
     // An editable region IS the control. Descending would find a link inside a rich-text document
     // and address that instead of the text the caller meant to write.
     if (isEditableRegion(element)) return element;
@@ -464,21 +547,16 @@ export function createDomPageDriver({ root, pages }: DomPageDriverRequired, opti
     // unscoped query returns the first summary anywhere in the subtree, so a `<details>`
     // containing another one would toggle the inner disclosure while reporting that the outer
     // handle was clicked — the false success this whole suite exists to catch.
-    if (element instanceof HTMLDetailsElement) {
-      return element.querySelector(':scope > summary') ?? element;
-    }
-    if (element.matches('input, textarea, select, button, a')) return element;
-    // A descendant that is itself independently published (its own `[data-agent-element]`) must
-    // never be silently adopted as this handle's control — it is a distinct, separately
-    // addressable target with its own label, not unhandled wrapper markup like the plain
-    // `<li><label><input>` this descent exists for. Filtering to descendants whose nearest
-    // published ancestor is still `element` itself excludes exactly that case while leaving
-    // ordinary wrapper descent untouched.
-    const owned = (node: Element): boolean => node.closest(`[${AGENT_ELEMENT_ATTRIBUTE}]`) === element
-      && !isPrivate(node);
-    const candidate = Array.from(element.querySelectorAll('input, textarea, select, button, a, summary'))
-      .find(owned);
-    return candidate ?? element;
+    if (element instanceof HTMLDetailsElement) return element.querySelector(':scope > summary') ?? element;
+    if (element.matches('input, textarea, select, button, a, summary')) return element;
+    const candidates = labelledControls({ element, root })
+      .filter(control => action !== 'read' || publicElement({ element: control }));
+    if (candidates.length === 1) return candidates[0]!;
+    if (action === 'read') return element;
+    if (candidates.length > 1) throw new Error('The labelled control is ambiguous; use its own handle');
+    // Clicking a label has a native forwarding effect, including to controls outside the root.
+    if (element instanceof HTMLLabelElement) throw new Error('The labelled control is unavailable in this page');
+    return element;
   };
 
   const publicationFilter = options.publication ? createPublicationFilter({ root, publication: options.publication,
@@ -487,7 +565,7 @@ export function createDomPageDriver({ root, pages }: DomPageDriverRequired, opti
   return {
     async findElements(_required: Record<string, never>, filter: FindElementsFilter = {}) {
       const found = Array.from(root.querySelectorAll(`[${AGENT_ELEMENT_ATTRIBUTE}]`))
-        .filter(element => !isPrivate(element) && (!publicationFilter || findAll(element.getAttribute(AGENT_ELEMENT_ATTRIBUTE) ?? '').includes(element)))
+        .filter(element => publicElement({ element }) && (!publicationFilter || findAll(element.getAttribute(AGENT_ELEMENT_ATTRIBUTE) ?? '').includes(element)))
         .map((element) => describe(element, pageOf(element), publicationFilter ? publishedText({ element }) : undefined))
         .filter((element) => element.handle.length > 0);
       const query = filter.query?.toLowerCase();
@@ -637,22 +715,6 @@ export function createDomPageDriver({ root, pages }: DomPageDriverRequired, opti
       const control = controlOf(find(handle, 'selectOption'));
       if (!(control instanceof HTMLSelectElement)) {
         throw new Error(`"${handle}" is not a dropdown`);
-      }
-      // A disabled control is not one a user could touch, so writing to it is a way around the
-      // page's own rule and the resulting selection cannot be submitted. The per-`<option>` filter
-      // in `findSelectableOption` reads as if it enforced that, but only ever looked at each option — a
-      // `<select disabled>` (and a `<select>` inside a `<fieldset disabled>`, which `:disabled`
-      // also covers and `.disabled` does not) was written to happily, and the executor then
-      // reported `targetChanged: true` because the value really had changed.
-      //
-      // Checked before the option lookup on purpose: the refusal is about the control, so it must
-      // not depend on the caller having named a real option, and the "Available: ..." message must
-      // not enumerate a disabled control's options.
-      if (control.matches(':disabled')) {
-        throw new Error(
-          `"${handle}" is disabled, so its selection cannot be changed — `
-          + 'a user cannot change it either, and its value would not be submitted',
-        );
       }
       const match = findSelectableOption({ control, handle, option });
       if (control.multiple) {

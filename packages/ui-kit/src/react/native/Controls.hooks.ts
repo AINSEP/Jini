@@ -1,5 +1,6 @@
 import { createElement, useId, useState } from 'react';
 import type { ChangeEvent } from 'react';
+import { secretControlAttrs } from '../../attrs.js';
 import type { BaseProps, ButtonProps, IconButtonProps, TextFieldProps, TextAreaProps, SelectProps, CheckboxProps, ToastProps, NoticeProps, SpinnerProps, BadgeProps } from '../types.js';
 export function useNativeButton(required: ButtonProps, _optional: Record<string, never> = {}) {
   const readyState = required.disabled ? 'disabled' : 'ready';
@@ -43,14 +44,17 @@ function useSecretReveal(required: TextFieldProps, _optional: Record<string, nev
   if (required.type !== 'password') return { type: required.type ?? 'text', toggle: null };
   // The name flips Show/Hide; no `aria-pressed` on top, or screen readers hear the state twice.
   const labels = required.secretToggleLabels ?? { show: `Show ${required.label}`, hide: `Hide ${required.label}` };
-  return { type: revealed ? 'text' : 'password', toggle: { 'data-jini-part': 'kit.secret-toggle', className: 'jini-secret-toggle', type: 'button' as const,
+  return { type: revealed ? 'text' : 'password', toggle: { 'data-agent-private': '', 'data-jini-part': 'kit.secret-toggle', className: 'jini-secret-toggle', type: 'button' as const,
     'aria-label': revealed ? labels.hide : labels.show, disabled: required.disabled,
     onClick: () => setRevealed(shown => !shown), children: eyeIcon({ revealed }) } };
 }
+/** Maps native field props; a revealed password remains a private secret rather than a text field.
+ * @complexity O(p) time and space in secret field props; O(1) for ordinary fields.
+ * @overallScore 100 */
 export function useNativeTextField(required: TextFieldProps, _optional: Record<string, never> = {}) {
   const vm = useField(required);
   const reveal = useSecretReveal(required);
-  return { ...vm, toggle: reveal.toggle, props: { ...vm.props, id: vm.id, ref: required.ref, type: reveal.type, value: required.value,
+  return { ...vm, toggle: reveal.toggle, props: { ...(reveal.toggle ? secretControlAttrs({ attrs: vm.props }) : vm.props), id: vm.id, ref: required.ref, type: reveal.type, value: required.value,
     // Off on a secret: once revealed as type="text", enhanced spellcheck would send it to a cloud service.
     spellCheck: reveal.toggle ? false : undefined,
     placeholder: required.placeholder, onChange: (event: ChangeEvent<HTMLInputElement>) => {

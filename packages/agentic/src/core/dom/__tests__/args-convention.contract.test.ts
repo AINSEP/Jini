@@ -1,5 +1,7 @@
-import { expect, it } from 'vitest';
+import { afterEach, expect, it } from 'vitest';
 import { getAgentModelContext, createDomPageDriver } from '../index.js';
+
+afterEach(() => document.querySelector('main')?.remove());
 
 it('adapts object arguments to native WebMCP while retaining the native receiver', async () => {
   const calls: unknown[] = [];
@@ -20,6 +22,7 @@ it('adapts object arguments to native WebMCP while retaining the native receiver
 
 it('separates required DOM ports, optional page identity and optional selection state', async () => {
   const root = document.createElement('main');
+  document.body.append(root);
   root.innerHTML = '<select multiple data-agent-element="choices"><option value="one">One</option><option value="two">Two</option></select>';
   const driver = createDomPageDriver({ root, pages: {} }, { currentPage: 'settings' });
   expect((await driver.findElements({}, { query: 'choices' }))[0]?.page).toBe('settings');

@@ -1,6 +1,7 @@
 import { forwardRef, type InputHTMLAttributes } from 'react';
 import { useSecretReveal, type SecretRevealOptional } from './secret-reveal.hooks.js';
 import { eyeIcon } from './native/Controls.hooks.js';
+import { secretControlAttrs } from '../attrs.js';
 
 export interface SecretInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>, SecretRevealOptional {
   readonly label: string;
@@ -18,9 +19,9 @@ export const SecretInput = forwardRef<HTMLInputElement, SecretInputProps>(functi
     { ...(revealed === undefined ? {} : { revealed }), ...(onRevealedChange ? { onRevealedChange } : {}) });
   return <span className="jini-secret">
     {/* spellCheck off: once revealed as type="text", enhanced spellcheck would send the secret out. */}
-    <input {...inputProps} spellCheck={false} ref={ref} type={reveal.inputType}/>
+    <input {...secretControlAttrs({ attrs: inputProps })} spellCheck={false} ref={ref} type={reveal.inputType}/>
     {/* One signal only: the Show/Hide name carries state; aria-pressed would announce it twice. */}
-    <button {...toggleAttrs} type="button" className="jini-secret-toggle" aria-label={reveal.toggleLabel}
+    <button {...secretControlAttrs({ attrs: toggleAttrs ?? {} })} type="button" className="jini-secret-toggle" aria-label={reveal.toggleLabel}
       title={reveal.toggleLabel} disabled={inputProps.disabled} onClick={reveal.toggle}>
       {eyeIcon({ revealed: reveal.revealed })}
     </button>

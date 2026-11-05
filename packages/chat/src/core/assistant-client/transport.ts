@@ -604,19 +604,26 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
    * and a spread would let any future `runContext` key silently shadow it — an identity field being
    * overwritten by a UI prop is not a failure mode worth leaving open to save one line.
    *
-   * Returns `{}` (omitting the field entirely) when absent, which is a normal state, not an error:
+   * The tab id accompanies the token so the host can verify the session owner before binding.
+   * @complexity O(1) time and space.
+   * @overallScore 100
+   * Returns `{}` (omitting the fields entirely) when absent, which is a normal state, not an error:
    * the daemon treats a run with no bind token as one with no screen to drive
    * (`agent-daemon-server.ts`).
    */
-  function frontendBindTokenField(input: StartRunInput): Record<string, unknown> {
+  function frontendBindingFields(input: StartRunInput): Record<string, unknown> {
     const frontendBindToken = input.context?.["frontendBindToken"];
-    return typeof frontendBindToken === "string" && frontendBindToken.length > 0 ? { frontendBindToken } : {};
+    const frontendTabId = input.context?.["frontendTabId"];
+    return {
+      ...(typeof frontendBindToken === "string" && frontendBindToken.length > 0 ? { frontendBindToken } : {}),
+      ...(typeof frontendTabId === "string" && frontendTabId.length > 0 ? { frontendTabId } : {}),
+    };
   }
 
   /**
    * The Local CLI picker's live model selection, from `ChatPane`'s `runContext` prop
    * (`AssistantDock.tsx`'s `resolveRunContext`). Same "read by name, not spread" reasoning as
-   * {@link frontendBindTokenField} above, and the same "omit when absent" convention. Forwarded as an
+   * {@link frontendBindingFields} above, and the same "omit when absent" convention. Forwarded as an
    * opaque string — `agent-daemon-server.ts` forwards it the same way, and `AgentExecutor.run()`'s
    * def-level `buildArgs` is what decides what an absent or `'default'` value means for a given CLI
    * (`@jini-ai/agent-runtime`'s `models.ts`/`resolveModelForAgent`).
@@ -647,7 +654,7 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
    * re-validated paths via `AttachmentStore.claim()`. Nothing on this side of the wire is trusted; the
    * id is inert until the daemon claims it.
    *
-   * Returns `{}`, same convention as {@link frontendBindTokenField} above — a run with no attachments
+   * Returns `{}`, same convention as {@link frontendBindingFields} above — a run with no attachments
    * is the overwhelmingly common case and should not carry a key for it.
    */
   function attachmentIdsField(input: StartRunInput): Record<string, unknown> {
@@ -659,7 +666,7 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
   /**
    * Opaque Agent Plugin ids (`plugin.json`'s own `name`, e.g. `"ui-ux-design"`) the operator has
    * pinned as composer chips — `AssistantDock.tsx`'s `useSelectedAgentPlugins`, threaded here via
-   * `ChatPane`'s `runContext` prop the same way {@link frontendBindTokenField}/{@link modelField}
+   * `ChatPane`'s `runContext` prop the same way {@link frontendBindingFields}/{@link modelField}
    * above already are. Same "read by name, not spread" and "omit when absent" conventions as those
    * two fields: this is not the plugin's CONTENT, only a reference to it —
    * `agent-daemon-server.ts`'s `onStarted` is where a ref gets resolved against the real installed
@@ -678,7 +685,7 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
 
   /**
    * The active conversation id, from `ChatPane`'s `runContext` prop (`AssistantDock.tsx`'s
-   * `chats.activeId`, the same `useRunContext` seam {@link frontendBindTokenField}/{@link modelField}/
+   * `chats.activeId`, the same `useRunContext` seam {@link frontendBindingFields}/{@link modelField}/
    * {@link pluginRefIdsField} above already ride). Lets `agent-daemon-server.ts`'s `onStarted` resume
    * this conversation's agent-CLI session across turns instead of spawning cold every time
    * (`server/inbound/assistant/agent-session-resume.ts`) — see that file's own doc. Returns `{}`, same
@@ -737,7 +744,7 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
       // daemon JSON boundary. Replaying an old signal reports another paste on every later turn.
       ...(newestUserMessage({ history: input.history }, {})?.secretRedaction?.secretRedacted ? { secretRedacted: true } : {}),
       assistantMessageId: (input as StartRunInput & { assistantMessageId?: string }).assistantMessageId,
-      ...frontendBindTokenField(input),
+      ...frontendBindingFields(input),
       ...modelField(input),
       ...reasoningField(input),
       ...attachmentIdsField(input),

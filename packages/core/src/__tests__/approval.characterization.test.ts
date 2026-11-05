@@ -257,6 +257,90 @@ describe('applyApprovalPolicy', () => {
     handler: async (ctx) => ({ handled: ctx.input }),
   });
 
+  it('captures an opaque approval context before asking and prepares the approved effect exactly once', async () => {
+    const events: string[] = [];
+    const applied = applyApprovalPolicy({
+      registration: { ...registration(), handler: async ctx => { events.push('run'); return ctx.input; } },
+      classify: () => 'delete', asks: () => true, describe: async () => 'Delete',
+      askHuman: async () => { events.push('ask'); return { confirmed: true }; },
+      notConfirmed: () => undefined,
+    }, { context: {
+      capture: async ({ ctx }) => { events.push('capture'); return { id: (ctx.input as { id: string }).id }; },
+      prepare: ({ ctx, snapshot }) => { events.push('prepare'); return { ...ctx, input: { ...(ctx.input as object), snapshot } }; },
+    } });
+    expect(await applied.handler(context())).toEqual({ id: 'a', snapshot: { id: 'a' } });
+    expect(events).toEqual(['capture', 'ask', 'prepare', 'run']);
+  });
+
+  it('does not read or prepare an approval context for a direct action', async () => {
+    const capture = vi.fn();
+    const prepare = vi.fn();
+    const applied = applyApprovalPolicy({
+      registration: registration(), classify: () => 'edit', asks: () => false,
+      describe: async () => 'Edit', askHuman: async () => ({ confirmed: true }), notConfirmed: () => undefined,
+    }, { context: { capture, prepare } });
+    expect(await applied.handler(context())).toEqual({ handled: { id: 'a' } });
+    expect(capture).not.toHaveBeenCalled();
+    expect(prepare).not.toHaveBeenCalled();
+  });
+
+  it('refuses before effects if the captured context cannot be read or prepared', async () => {
+    for (const failingPort of ['capture', 'prepare']) {
+      const handler = vi.fn();
+      const applied = applyApprovalPolicy({
+        registration: { ...registration(), handler }, classify: () => 'delete', asks: () => true,
+        describe: async () => 'Delete', askHuman: async () => ({ confirmed: true }), notConfirmed: () => undefined,
+      }, { context: {
+        capture: async () => { if (failingPort === 'capture') throw new Error('context unavailable'); return 1; },
+        prepare: ({ ctx }) => { if (failingPort === 'prepare') throw new Error('context changed'); return ctx; },
+      } });
+      await expect(applied.handler(context())).rejects.toThrow(/context (unavailable|changed)/);
+      expect(handler).not.toHaveBeenCalled();
+    }
+  });
+
+  it('a declined action never prepares its captured context', async () => {
+    const capture = vi.fn(async () => 7);
+    const prepare = vi.fn();
+    const handler = vi.fn();
+    const applied = applyApprovalPolicy({
+      registration: { ...registration(), handler }, classify: () => 'delete', asks: () => true,
+      describe: async () => 'Delete', askHuman: async () => ({ confirmed: false, reason: 'declined' }),
+      notConfirmed: ({ reason, prepared }) => ({ reason, prepared }),
+    }, { context: { capture, prepare } });
+    expect(await applied.handler(context())).toEqual({ reason: 'declined', prepared: 'delete' });
+    expect(capture).toHaveBeenCalledOnce();
+    expect(prepare).not.toHaveBeenCalled();
+    expect(handler).not.toHaveBeenCalled();
+  });
+
+  it('concurrent approvals retain their own captured context when answered in reverse order', async () => {
+    const answers = new Map<string, (answer: ApprovalAnswer) => void>();
+    let ready!: () => void;
+    const bothAsked = new Promise<void>(resolve => { ready = resolve; });
+    const applied = applyApprovalPolicy({
+      registration: registration(), classify: () => 'delete', asks: () => true,
+      describe: async ({ ctx }) => (ctx.input as { id: string }).id,
+      askHuman: ({ description }) => new Promise<ApprovalAnswer>(resolve => {
+        answers.set(description, resolve);
+        if (answers.size === 2) ready();
+      }),
+      notConfirmed: () => undefined,
+    }, { context: {
+      capture: async ({ ctx }) => (ctx.input as { id: string }).id,
+      prepare: ({ ctx, snapshot }) => ({ ...ctx, input: { ...(ctx.input as object), snapshot } }),
+    } });
+    const first = applied.handler(context(undefined, { id: 'first' }));
+    const second = applied.handler(context(undefined, { id: 'second' }));
+    await bothAsked;
+    answers.get('second')!({ confirmed: true });
+    answers.get('first')!({ confirmed: true });
+    expect(await Promise.all([first, second])).toEqual([
+      { handled: { id: 'first', snapshot: 'first' } },
+      { handled: { id: 'second', snapshot: 'second' } },
+    ]);
+  });
+
   const policy = (asks: boolean, answer: ApprovalAnswer = { confirmed: true }, optional = {}) => {
     const seen: unknown[] = [];
     const base = registration();

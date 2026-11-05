@@ -93,3 +93,21 @@ it('payment autocomplete protects dropdown reads and selection as well as text f
   expect(await driver.describeState!({ handle: 'expiry' })).toBeNull();
   await expect(driver.selectOption({ handle: 'expiry', option: 'January' })).rejects.toThrow();
 });
+
+
+it('a publication never authorizes an untagged descendant action through a read region', async () => {
+  const { root, driver } = setup('<section data-agent-element="panel"><button>Reveal</button></section>');
+  const clicked = vi.fn(); root.querySelector('button')!.addEventListener('click', clicked);
+  await expect(driver.click({ handle: 'panel' })).rejects.toThrow();
+  expect(clicked).not.toHaveBeenCalled();
+});
+
+it('published controls still refuse disabled-fieldset and active-modal background effects', async () => {
+  const { root, driver } = setup('<fieldset disabled><button data-agent-element="toggle">Open</button></fieldset>');
+  const clicked = vi.fn(); root.querySelector('button')!.addEventListener('click', clicked);
+  await expect(driver.click({ handle: 'toggle' })).rejects.toThrow(/disabled/);
+  root.querySelector('fieldset')!.removeAttribute('disabled');
+  root.insertAdjacentHTML('beforeend', '<div role="dialog" aria-modal="true">Human modal</div>');
+  await expect(driver.click({ handle: 'toggle' })).rejects.toThrow(/modal/);
+  expect(clicked).not.toHaveBeenCalled();
+});

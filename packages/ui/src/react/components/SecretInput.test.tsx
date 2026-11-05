@@ -78,15 +78,37 @@ describe('SecretInput', () => {
   it('takes a host translator\'s full names, extra toggle attrs, and disables with its input', () => {
     render(
       <SecretInput aria-label="Clave" label="Clave" defaultValue="" disabled
-        toggleLabels={{ show: 'Mostrar clave', hide: 'Ocultar clave' }} toggleAttrs={{ 'data-agent-handle': 'reveal' }} />,
+        toggleLabels={{ show: 'Mostrar clave', hide: 'Ocultar clave' }} toggleAttrs={{ 'data-testid': 'reveal' }} />,
     );
     const toggle = screen.getByRole('button', { name: 'Mostrar clave' });
-    expect(toggle).toHaveAttribute('data-agent-handle', 'reveal');
+    expect(toggle).toHaveAttribute('data-testid', 'reveal');
     expect(toggle).toBeDisabled();
   });
 });
 
 describe('SecretTextarea', () => {
+  it('strips addressing and stays private after reveal, rerender and caller privacy overrides', async () => {
+    const attrs = { 'data-agent-element': 'secret-area', 'data-agent-handle': 'legacy-secret', 'data-agent-role': 'field',
+      'data-agent-label': 'Env', 'data-agent-page': 'settings', 'data-agent-private': false };
+    const props = { ...attrs, 'aria-label': 'Env', label: 'Env', value: 'KEY=fixture', readOnly: true,
+      toggleAttrs: { ...attrs, 'data-testid': 'env-toggle' } };
+    const { rerender } = render(<SecretTextarea {...props} />);
+    const area = screen.getByRole('textbox', { name: 'Env' });
+    const toggle = screen.getByRole('button', { name: 'Show Env' });
+    const assertPrivate = () => {
+      for (const control of [area, toggle]) {
+        expect(control).toHaveAttribute('data-agent-private', '');
+        expect(control.getAttributeNames().filter(name => name.startsWith('data-agent-'))).toEqual(['data-agent-private']);
+      }
+    };
+    assertPrivate();
+    await userEvent.click(toggle);
+    expect((area.style as CSSStyleDeclaration & { WebkitTextSecurity: string }).WebkitTextSecurity).toBe('none');
+    assertPrivate();
+    rerender(<SecretTextarea {...props} value="KEY=changed" />);
+    assertPrivate();
+    expect(toggle).toHaveAttribute('data-testid', 'env-toggle');
+  });
   it('masks with -webkit-text-security until the eye is pressed, keeping a host style', async () => {
     const { container } = render(
       <SecretTextarea aria-label="Service account JSON" label="Service account JSON" defaultValue={'{\n}'} style={{ minHeight: 40 }} />,

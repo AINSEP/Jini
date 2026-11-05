@@ -43,6 +43,12 @@ export interface RememberedApprovalPort {
   has(required: { ctx: ToolExecutionContext; key: string }): Promise<boolean>;
   grant(required: { ctx: ToolExecutionContext; key: string; confirmer: HumanConfirmer }): Promise<void>;
 }
+/** Host-owned view/version snapshot captured before asking, then carried into the approved
+ * effect. The host validates it at the effect boundary; this port grants no authorization. */
+export interface ApprovalContextPort {
+  capture(required: { ctx: ToolExecutionContext }): Promise<unknown>;
+  prepare(required: { ctx: ToolExecutionContext; snapshot: unknown }): ToolExecutionContext;
+}
 export interface ApprovalSteps<TPrepared, TDescription> {
   prepare(required: { ctx: ToolExecutionContext }, optional: ToolExecutionOptions): Promise<TPrepared>;
   describe(required: { ctx: ToolExecutionContext; prepared: TPrepared }, optional: ToolExecutionOptions): Promise<ApprovalPlan<TDescription>> | ApprovalPlan<TDescription>;
@@ -273,7 +279,10 @@ export function createApprovalProposalStore<TDescription>(
 
 /** Apply a host classification through the same handler owner used by domain plans.
  * A host description's string `rememberKey` opts into reusable grants; descriptions remain opaque.
+ * Optional context is captured only for asking actions and prepared only after approval.
  * @returns The registration with one approval handler; authorization policy is preserved.
+ * @complexity O(input bytes) snapshot plus bounded injected ports; no retained cross-call state.
+ * @overallScore 100
  */
 export function applyApprovalPolicy<TDescription>(
   { registration, classify, asks, describe, askHuman, notConfirmed }: {
@@ -284,18 +293,28 @@ export function applyApprovalPolicy<TDescription>(
     askHuman: ApprovalSteps<string, TDescription>['askHuman'];
     notConfirmed: ApprovalSteps<string, TDescription>['notConfirmed'];
   },
-  optional: { remembered?: RememberedApprovalPort } = {},
+  optional: { remembered?: RememberedApprovalPort; context?: ApprovalContextPort } = {},
 ): ToolRegistration {
+  type PreparedPolicy = { actionClass: string; ask: boolean; snapshot?: unknown };
   return { ...registration, handler: createApprovalHandler({
-    prepare: async ({ ctx }) => classify({ input: ctx.input }),
+    prepare: async ({ ctx }): Promise<PreparedPolicy> => {
+      const actionClass = classify({ input: ctx.input });
+      const ask = asks({ class: actionClass });
+      if (!ask || !optional.context) return { actionClass, ask };
+      return { actionClass, ask, snapshot: await optional.context.capture({ ctx }) };
+    },
     describe: async ({ ctx, prepared }) => {
-      const ask = asks({ class: prepared });
-      const description = await describe({ ctx, class: prepared });
+      const description = await describe({ ctx, class: prepared.actionClass });
       const candidate = { value: description };
-      return { ask, description, ...(isNonArrayRecord(candidate) && typeof candidate.value.rememberKey === 'string'
+      return { ask: prepared.ask, description, ...(isNonArrayRecord(candidate) && typeof candidate.value.rememberKey === 'string'
         ? { rememberKey: candidate.value.rememberKey } : {}) };
     },
-    askHuman, notConfirmed,
-    run: ({ ctx }, options) => registration.handler(ctx, options),
+    askHuman,
+    notConfirmed: ({ reason, prepared }) => notConfirmed({ reason, prepared: prepared?.actionClass }),
+    run: ({ ctx, prepared }, options) => {
+      if (!prepared.ask || !optional.context) return registration.handler(ctx, options);
+      const executionContext = optional.context.prepare({ ctx, snapshot: prepared.snapshot });
+      return registration.handler(executionContext, options);
+    },
   }, optional) };
 }

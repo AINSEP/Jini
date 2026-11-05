@@ -4,10 +4,12 @@ import { createDomPageDriver } from '../dom-page-driver.js';
 afterEach(() => {
   vi.useRealTimers();
   vi.unstubAllGlobals();
+  document.querySelector('main')?.remove();
 });
 
 it('uses required root and page ports with live DOM identity or an optional pinned page', async () => {
   const root = document.createElement('main');
+  document.body.append(root);
   root.innerHTML = '<section data-agent-page="overview"><button data-agent-element="save" data-agent-role="button">Save</button></section>';
   const navigate = vi.fn(() => {
     root.querySelector('section')!.setAttribute('data-agent-page', 'settings');

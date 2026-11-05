@@ -165,15 +165,9 @@ describe('findElements', () => {
     expect((await makeDriver().findElements({}, { role: 'button' }))[0]?.page).toBeUndefined();
   });
 
-  it('does not filter out a display:none element -- discovery is independent of visibility', async () => {
-    // Verifies a real concern raised while designing an agent-visible-only mirror for an MCP-UI
-    // surface (a region meant to be discoverable by find_elements but invisible to sighted AND
-    // screen-reader users, since the surface itself already renders visibly elsewhere): does the
-    // guards' documented fail-closed posture (denying a hidden <input type="hidden">, e.g.) also
-    // make a display:none-but-tagged element invisible to findElements itself? It does not --
-    // findElements never calls visibilityOf() to filter its result set, only to annotate `visible`
-    // in per-element STATE when a caller asks for it. This proves that empirically rather than by
-    // reading the implementation.
+  it('excludes a display:none element from discovery', async () => {
+    // TAG-A makes discovery reflect the active view; hidden agent-only mirrors cannot
+    // publish controls that a human cannot see or operate.
     root.querySelector('[data-agent-page]')?.insertAdjacentHTML(
       'beforeend',
       '<div data-agent-element="hidden-region" data-agent-role="status" '
@@ -181,21 +175,18 @@ describe('findElements', () => {
         + 'style="display:none"></div>',
     );
     const found = await makeDriver().findElements({}, { query: 'hidden-region' });
-    expect(found.map((element) => element.handle)).toEqual(['hidden-region']);
+    expect(found).toEqual([]);
   });
 
-  it('does not filter out an aria-hidden="true" element either', async () => {
-    // aria-hidden removes an element from the ACCESSIBILITY tree (what a screen reader announces)
-    // without affecting CSS visibility at all -- a different mechanism from display:none, tested
-    // separately since findElements could in principle treat the two differently even though
-    // neither should exclude an element from being found.
+  it('excludes an aria-hidden="true" element from discovery', async () => {
+    // ARIA-hidden content is inactive to this driver even when CSS still paints it.
     root.querySelector('[data-agent-page]')?.insertAdjacentHTML(
       'beforeend',
       '<div data-agent-element="aria-hidden-region" data-agent-role="status" '
         + 'data-agent-label="Agent-only" aria-hidden="true"></div>',
     );
     const found = await makeDriver().findElements({}, { query: 'aria-hidden-region' });
-    expect(found.map((element) => element.handle)).toEqual(['aria-hidden-region']);
+    expect(found).toEqual([]);
   });
 
   it('attributes each element to its own nearest [data-agent-page] ancestor, not the first one in the document', async () => {
@@ -204,7 +195,7 @@ describe('findElements', () => {
     // happened to be first in the DOM — regressed against by mounting a second section here.
     root.insertAdjacentHTML(
       'beforeend',
-      `<section data-agent-page="settings" style="display:none">
+      `<section data-agent-page="settings">
         <button data-agent-element="settings-btn" data-agent-role="button">Settings</button>
       </section>`,
     );
@@ -214,10 +205,8 @@ describe('findElements', () => {
     expect(byHandle['settings-btn']).toBe('settings');
   });
 
-  it('still finds and reports elements under a page section hidden with display:none — scoping attribution, not gating actions, is the fix', async () => {
-    // Deliberate: which page is "active" is the host's own knowledge, not something this driver
-    // should invent an answer for. A host that wants hidden sections excluded filters on `page`
-    // itself using the (now correct) attribution above.
+  it('excludes controls under a page section hidden with display:none', async () => {
+    // Hosts identify inactive panels with hidden/inert/CSS rather than relying on page names.
     root.insertAdjacentHTML(
       'beforeend',
       `<section data-agent-page="settings" style="display:none">
@@ -225,7 +214,7 @@ describe('findElements', () => {
       </section>`,
     );
     const found = await makeDriver().findElements({}, { query: 'settings' });
-    expect(found.map((element) => element.handle)).toEqual(['settings-btn']);
+    expect(found).toEqual([]);
   });
 });
 
@@ -422,14 +411,13 @@ describe('accessibleLabels', () => {
     expect(await makeDriver().describeField({ handle: 'al-ce-empty' })).toMatchObject({ accessibleLabels: ['Card number'] });
   });
 
-  it('reports no accessible label for a hidden input, whose .labels is null rather than an empty list', async () => {
-    // `HTMLInputElement.labels` is specified to be null — not an empty NodeList — for
-    // `type="hidden"`. Iterating it directly would throw on a field a page can genuinely publish.
+  it('refuses a hidden input before describing its inaccessible labels', async () => {
+    // A hidden input's labels are null, but TAG-A excludes the control before field inspection.
     root.insertAdjacentHTML(
       'beforeend',
       '<input type="hidden" data-agent-element="al-hidden" name="csrf" value="t" />',
     );
-    expect(await makeDriver().describeField({ handle: 'al-hidden' })).toMatchObject({ type: 'hidden', accessibleLabels: [] });
+    await expect(makeDriver().describeField({ handle: 'al-hidden' })).rejects.toThrow('no element published');
   });
 
   // The attack this whole plural shape exists to stop, end to end through the executor rather
@@ -620,7 +608,7 @@ describe('describeState', () => {
     expect(state?.field).toBeUndefined();
   });
 
-  it('reports visibility when the platform can answer, and omits it when it cannot', async () => {
+  it('excludes platform-hidden state and omits visibility when the platform cannot answer', async () => {
     // jsdom implements no layout and no checkVisibility, so the honest answer there is "unknown"
     // rather than a measurement that would call every element invisible.
     expect((await makeDriver().describeState?.({ handle: 'save-button' }))?.visible).toBeUndefined();
@@ -628,7 +616,7 @@ describe('describeState', () => {
     const button = root.querySelector('[data-agent-element="save-button"]') as HTMLElement
       & { checkVisibility?: () => boolean };
     button.checkVisibility = () => false;
-    expect((await makeDriver().describeState?.({ handle: 'save-button' }))?.visible).toBe(false);
+    expect(await makeDriver().describeState?.({ handle: 'save-button' })).toBeNull();
   });
 
   it('asks checkVisibility to also account for visibility:hidden and opacity:0, not just its defaults', async () => {

@@ -242,7 +242,7 @@ function confirmationBodyHtml(spec: ConfirmationSurfaceSpec, required: { affirma
     renderChoices(spec.choices ?? []),
     warning,
     // Confirm starts disabled; the script enables it once the dwell has run out.
-    renderActions(confirmationActions(spec).map((action) => (affirmative.has(action.id) ? { ...action, disabled: true } : action))),
+    renderActions(confirmationActions(spec).map((action) => (affirmative.has(action.id) ? { ...action, disabled: true } : action)), { humanOnly: true }),
     renderStatusRegion(),
   ]
     .filter((fragment) => fragment !== '')

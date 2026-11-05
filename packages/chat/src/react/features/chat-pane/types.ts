@@ -1,3 +1,4 @@
+import type { SurfaceEmission } from '@jini-ai/core';
 import type { UserTextRedactionOptions } from '../../../core/user-text-redaction.js';
 import type { NativeToolPolicyInput } from '@jini-ai/agent-runtime/native-tool-policy';
 import type { CSSProperties, ReactNode, RefObject } from 'react';
@@ -227,6 +228,8 @@ export interface ChatPaneProps extends UserTextRedactionOptions {
   onActivityChange?: (activity: ChatPaneActivity) => void;
   /** Fires with the full message list whenever it changes — the read side of an otherwise write-only pane, for a host that needs to inspect or test what the conversation actually contains. */
   onMessagesChange?: (messages: ChatMessage[]) => void;
+  /** Host-only request surfaces enter the current transcript through its existing sandbox renderer. */
+  subscribeToSurfaces?: (listener: (emission: SurfaceEmission) => void) => () => void;
   onRescanAgents?: () => void;
   scanningAgents?: boolean;
   daemonOnline?: boolean;

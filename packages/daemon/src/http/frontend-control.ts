@@ -89,6 +89,8 @@ export interface CreateFrontendControlOptions {
    * capabilities whose `surface` is `'server'` do not need one.
    */
   readonly resolveBindToken: (requiredArgs: { readonly request: RunCreateRequest }) => string | undefined;
+  /** Authenticated owner of a run's originating surface when session ownership is enabled. */
+  readonly resolveBindOwner?: (required: { readonly request: RunCreateRequest }) => FrontendSessionOwner | undefined;
   /** @default `@jini-ai/daemon`'s `denyAllFrontendCapabilityPolicy` — a host grants access explicitly. */
   readonly policy?: ToolPolicy;
   /** @default `@jini-ai/daemon`'s `DEFAULT_FRONTEND_CAPABILITY_TIMEOUT_MS`. */
@@ -198,7 +200,8 @@ export function createFrontendControl(requiredArgs: Omit<CreateFrontendControlOp
 
     let release: () => void;
     try {
-      release = registry.bindRunByToken({ runId: run.id, bindToken });
+      const owner = options.resolveBindOwner?.({ request });
+      release = registry.bindRunByToken({ runId: run.id, bindToken, ...(owner ? { owner } : {}) });
     } catch (error) {
       reportBindError({ runId: run.id, error });
       return;

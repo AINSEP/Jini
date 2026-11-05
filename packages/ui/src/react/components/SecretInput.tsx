@@ -1,5 +1,6 @@
 import { forwardRef } from 'react';
 import { SecretInput as KitSecretInput } from '@jini-ai/ui-kit/react';
+import { secretControlAttrs } from '@jini-ai/ui-kit';
 import type { CSSProperties, InputHTMLAttributes, TextareaHTMLAttributes } from 'react';
 import { useT } from '../../features/i18n/index.js';
 import { Icon } from './Icon.js';
@@ -7,7 +8,8 @@ import { useSecretReveal } from './SecretInput.hooks.js';
 
 /**
  * @file The shared masked input: a password/token/key `<input>` with an eye toggle inside its right
- * edge. Drop-in for `<input type="password">` — every other input prop passes straight through.
+ * edge. Drop-in for `<input type="password">` — ordinary input props pass through; agent
+ * addressing is excluded and privacy remains enforced after reveal.
  *
  * Same markup and classes as `@jini-ai/ui-kit`'s password `TextField` and the mcp-ui secret fields
  * (`.jini-secret` / `.jini-secret-toggle`), so one host stylesheet styles all of them; hosts own
@@ -28,7 +30,7 @@ interface SecretToggleProps {
    *  `t('Show')`/`t('Hide')` + `label`, from this package's `I18nProvider`. Same contract as
    *  ui-kit `TextField`'s `secretToggleLabels`. */
   readonly toggleLabels?: { readonly show: string; readonly hide: string };
-  /** Extra attributes for the toggle button, e.g. an agent handle. */
+  /** Extra ordinary attributes for the toggle button; agent addressing is always excluded. */
   readonly toggleAttrs?: Readonly<Record<string, string | boolean | undefined>>;
   /** Controlled mode: the host owns the shown/hidden state. */
   readonly revealed?: boolean;
@@ -43,7 +45,9 @@ export type SecretTextareaProps = SecretToggleProps & TextareaHTMLAttributes<HTM
   readonly maskedValue?: string | undefined;
 };
 
-/** Reveal state + the eye button, shared by `SecretInput` and `SecretTextarea`. */
+/** Reveal state + the private eye button, shared by `SecretInput` and `SecretTextarea`.
+ * @complexity O(p) time and space in toggle props; no I/O.
+ * @overallScore 100 */
 function useSecretToggle(
   { label, toggleLabels, toggleAttrs, revealed, onRevealedChange }: SecretToggleProps,
   { value, disabled }: { readonly value?: unknown; readonly disabled?: boolean | undefined } = {},
@@ -57,7 +61,7 @@ function useSecretToggle(
   // readers announce "Hide API key, toggle button, pressed" (Opus UI review 2026-10-26).
   const button = (
     <button
-      {...toggleAttrs}
+      {...secretControlAttrs({ attrs: toggleAttrs ?? {} })}
       type="button"
       className="jini-secret-toggle"
       aria-label={reveal.toggleLabel}
@@ -87,7 +91,7 @@ export const SecretTextarea = forwardRef<HTMLTextAreaElement, SecretTextareaProp
   const masked: CSSProperties = { ...style, ...({ WebkitTextSecurity: reveal.revealed || replacementShown ? 'none' : 'disc' } as CSSProperties), whiteSpace: 'pre-wrap' };
   return (
     <span className="jini-secret jini-secret--multiline">
-      <textarea {...textareaProps} {...(replacementShown ? { value: maskedValue, readOnly: true } : {})} spellCheck={false} ref={ref} style={masked} />
+      <textarea {...secretControlAttrs({ attrs: textareaProps })} {...(replacementShown ? { value: maskedValue, readOnly: true } : {})} spellCheck={false} ref={ref} style={masked} />
       {button}
     </span>
   );

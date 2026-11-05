@@ -1,7 +1,9 @@
 import { createElement as h, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { render, fireEvent, screen, cleanup } from '@testing-library/react';
 import { afterEach, beforeAll, it, expect, vi } from 'vitest';
 import { TextField } from '../facade.js';
+import { SecretInput } from '../SecretInput.js';
 beforeAll(() => { (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true; });
 afterEach(() => cleanup());
 
@@ -54,4 +56,46 @@ it('can be revealed while still empty, so a paste is visible as it lands', () =>
 it('a non-password TextField gets no toggle', () => {
   render(h(TextField, { label: 'Name', value: '', onValueChange: vi.fn() }));
   expect(screen.queryByRole('button')).toBeNull();
+});
+
+const publishedSecret = {
+  'data-agent-element': 'secret', 'data-agent-handle': 'legacy-secret',
+  'data-agent-role': 'field', 'data-agent-label': 'Secret', 'data-agent-page': 'settings',
+  'data-agent-private': false, 'data-testid': 'secret-field',
+};
+
+function expectPrivateControl(element: Element) {
+  expect(element.getAttribute('data-agent-private')).toBe('');
+  expect(element.getAttributeNames().filter(name => name.startsWith('data-agent-'))).toEqual(['data-agent-private']);
+}
+
+it('portalled secret inputs suppress caller addressing on field and toggle through reveal and rerender', () => {
+  const props = { ...publishedSecret, label: 'Token', 'aria-label': 'Token', value: 'fixture-token', readOnly: true,
+    toggleAttrs: { ...publishedSecret, 'data-testid': 'secret-toggle' } };
+  const { rerender } = render(createPortal(h(SecretInput, props), document.body));
+  const input = screen.getByLabelText('Token');
+  const toggle = screen.getByRole('button', { name: 'Show Token' });
+  expectPrivateControl(input);
+  expectPrivateControl(toggle);
+  expect(input.getAttribute('data-testid')).toBe('secret-field');
+  expect(toggle.getAttribute('data-testid')).toBe('secret-toggle');
+  fireEvent.click(toggle);
+  expect((input as HTMLInputElement).type).toBe('text');
+  expectPrivateControl(input);
+  expectPrivateControl(toggle);
+  rerender(createPortal(h(SecretInput, { ...props, value: 'changed-token' }), document.body));
+  expectPrivateControl(input);
+  expectPrivateControl(toggle);
+});
+
+it('password TextFields suppress opaque addressing attrs even while revealed', () => {
+  render(h(TextField, { label: 'API key', type: 'password', value: 'fixture-key', onValueChange: vi.fn(), attrs: publishedSecret }));
+  const input = screen.getByLabelText('API key');
+  const toggle = screen.getByRole('button', { name: 'Show API key' });
+  expectPrivateControl(input);
+  expectPrivateControl(toggle);
+  fireEvent.click(toggle);
+  expect((input as HTMLInputElement).type).toBe('text');
+  expectPrivateControl(input);
+  expectPrivateControl(toggle);
 });

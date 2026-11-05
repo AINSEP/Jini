@@ -209,6 +209,19 @@ describe('renderActions', () => {
     expect(renderActions([{ id: 'a', label: 'A', variant: 'neutral' }])).toBe(renderActions([{ id: 'a', label: 'A' }]));
   });
 
+  it('marks human-only actions private without changing ordinary action defaults', () => {
+    const actions = [{ id: 'save', label: 'Save <draft>', disabled: true }] as const;
+    expect(renderActions(actions, { humanOnly: false })).toBe(renderActions(actions));
+    const button = parse(renderActions(actions, { humanOnly: true })).querySelector('button')!;
+    expect(button.hasAttribute('data-agent-private')).toBe(true);
+    expect(button.hasAttribute('data-agent-element')).toBe(false);
+    expect(button.hasAttribute('data-agent-role')).toBe(false);
+    expect(button.hasAttribute('data-agent-label')).toBe(false);
+    expect(button.getAttribute('data-mcpui-action')).toBe('save');
+    expect(button.textContent).toBe('Save <draft>');
+    expect(button.disabled).toBe(true);
+  });
+
   it('tags each button with the @jini-ai/agentic data-agent-* markup so a driver reaching directly into the frame (frameLocator) can find and label it', () => {
     const html = renderActions([
       { id: 'confirm', label: 'Publish', variant: 'danger' },

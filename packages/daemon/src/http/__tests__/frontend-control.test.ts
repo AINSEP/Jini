@@ -148,6 +148,29 @@ describe('createFrontendControl', () => {
       surface.close();
     });
 
+    it('binds a daemon run to its authenticated session owner', async () => {
+      const owner = { workspaceId: 'workspace', principalId: 'human', tabId: 'tab' };
+      const onBindError = vi.fn();
+      const control = createFrontendControl({ capabilities: [PAGE_CLICK],
+        resolveBindToken: ({ request }) => request.contextRef,
+        resolveBindOwner: () => owner,
+        session: { resolveOwner: async () => owner },
+      }, { policy: ALLOW_ALL, onBindError });
+      const base = await listen(control);
+      const surface = await attachSurface(base, 'page.click');
+      control.bindOnStarted(startContext('scoped-run', surface.bindToken));
+      expect(onBindError).not.toHaveBeenCalled();
+      const pending = control.toolRegistrations[0]!.handler({ executionId: 'e', principal: { id: 'human' },
+        run: { id: 'scoped-run' }, input: { handle: 'save' }, signal: new AbortController().signal } as never);
+      const invocation = await surface.next();
+      await fetch(`${base}/api/frontend-sessions/${surface.sessionId}/responses`, {
+        method: 'POST', headers: { 'content-type': 'application/json', 'x-frontend-bind-token': surface.bindToken },
+        body: JSON.stringify({ invocationId: invocation.invocationId, ok: true, output: { clicked: true } }),
+      });
+      await expect(pending).resolves.toEqual({ clicked: true });
+      surface.close();
+    });
+
     it('binds nothing when the run has no originating surface', () => {
       const onBindError = vi.fn();
       const control = createFrontendControl({ capabilities: [PAGE_CLICK], resolveBindToken: () => undefined }, { onBindError });

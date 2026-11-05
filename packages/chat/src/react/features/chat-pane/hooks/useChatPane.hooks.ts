@@ -1,4 +1,5 @@
 import { acceptedInputEvent, acceptedInputUserEvent, projectAcceptedInputEvents, type AcceptedChatInput } from '../../../../core/accepted-input.js';
+import type { SurfaceEmission } from '@jini-ai/core';
 import type { UserTextRedaction, UserTextRedactionOptions } from '../../../../core/user-text-redaction.js';
 import { useUserTextGuard } from '../../../hooks/useUserTextGuard.js';
 import { isAwaitingAnswer } from '../../../../core/run-activity.js';
@@ -70,6 +71,7 @@ export interface UseChatPaneOptions extends UserTextRedactionOptions {
   ) => Promise<ChatAttachment[]>;
   onActivityChange?: (activity: ChatPaneActivity) => void;
   onMessagesChange?: (messages: ChatMessage[]) => void;
+  subscribeToSurfaces?: (listener: (emission: SurfaceEmission) => void) => () => void;
   workingDirectory?: string | null;
   initialWorkingDirectory?: string | null;
   onChangeWorkingDirectory?: (workingDirectory: string | null) => void;
@@ -468,6 +470,14 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
     // absent), so only the falsy "no agent selected" case should omit the key.
     agentId: selection.agentId || undefined,
   } }));
+  useEffect(() => options.subscribeToSurfaces?.(emission => {
+    // Browser-requested cards are not agent turns and cannot supply run/answer authority.
+    const data = emission.channel === 'mcp-ui' ? emission.payload.resource : emission.payload;
+    conversation.setMessages(messages => [...messages, {
+      id: createChatLocalId({}), role: 'assistant', content: '', createdAt: Date.now(),
+      events: [{ kind: 'ext', name: emission.channel, data }],
+    }]);
+  }), [options.subscribeToSurfaces, conversation.setMessages]);
   const composer = useComposer(definedProps({ source: {
     initialDraft: options.initialDraft,
     historyMessages: conversation.messages,

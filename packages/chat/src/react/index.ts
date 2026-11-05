@@ -365,9 +365,10 @@ export type { JiniChatProviderProps, JiniChatSlots } from './components/JiniChat
  * `createDomPageDriver`/`currentAgentPage` moved to `@jini-ai/agentic/dom` in the 2026-07-26
  * extraction — re-exported here so existing `@jini-ai/chat-react` importers keep working.
  */
-export { createFrontendSessionBridge } from './agent-bridge/frontend-session-bridge.js';
+export { createFrontendSessionBridge, createFrontendNavigationGuard } from './agent-bridge/frontend-session-bridge.js';
 export type {
   FrontendSessionBridge,
+  FrontendNavigationGuard,
   FrontendSessionBridgeArgs,
   FrontendSessionBridgeOptions,
 } from './agent-bridge/frontend-session-bridge.js';
@@ -397,3 +398,5 @@ export type { AgentPluginUsage, AgentPluginUsage as Usage } from '../core/agent-
 export { acceptedInputEvent, acceptedInputUserEvent, projectAcceptedInputEvents } from '../core/accepted-input.js';
 export type { AcceptedChatInput } from '../core/accepted-input.js';
 export { isAwaitingAnswer } from '../core/run-activity.js';
+export { createFrontendRequestCaller } from './features/chat-pane/create-frontend-request-caller.js';
+export type { FrontendRequestCallerRequired, FrontendRequestInput } from './features/chat-pane/create-frontend-request-caller.js';

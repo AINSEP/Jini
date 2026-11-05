@@ -67,6 +67,28 @@ describe('renderConfirmationDocument', () => {
     vi.useRealTimers();
   });
 
+  it('keeps every confirmation decision private before and after the dwell without accepting synthetic clicks', () => {
+    const surface = mountSurface(renderConfirmationDocument({ ...DELETE_POST, alternatives: [
+      { id: 'allow-once', label: 'Allow once', toolName: 'decide', params: { decision: 'once' } },
+      { id: 'allow-always', label: 'Always allow', toolName: 'decide', params: { decision: 'always' } },
+    ] }));
+    const actions = ['confirm', 'allow-once', 'allow-always', 'cancel'];
+    for (const afterDwell of [false, true]) {
+      if (afterDwell) vi.advanceTimersByTime(CONFIRM_DWELL_MS);
+      for (const action of actions) {
+        const button = surface.button(action);
+        expect(button.hasAttribute('data-agent-private')).toBe(true);
+        expect(button.hasAttribute('data-agent-element')).toBe(false);
+        expect(button.hasAttribute('data-agent-role')).toBe(false);
+        expect(button.hasAttribute('data-agent-label')).toBe(false);
+        surface.click(action);
+      }
+      expect(surface.calls).toEqual([]);
+      expect(surface.api.requestTeardown).not.toHaveBeenCalled();
+    }
+    expect(surface.disabledActions()).toEqual([false, false, false, false]);
+  });
+
   it('renders the title, description, every detail, and the warning', () => {
     const { doc } = mountSurface(renderConfirmationDocument(DELETE_POST));
     expect(doc.querySelector('h1')?.textContent).toBe('Delete this post?');
@@ -748,7 +770,7 @@ describe('renderConfirmationDocument choicesParam collisions with alternatives',
   });
 });
 
-// Exact hashes include the intended detail-layout fix (c4c19234); all other emitted bytes stay pinned.
+// Exact hashes include the intended detail-layout fix (c4c19234) and private human-only decision buttons; all other emitted bytes stay pinned.
 describe('renderConfirmationDocument exact output', () => {
   const digest = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex');
   const FULL = {
@@ -759,20 +781,20 @@ describe('renderConfirmationDocument exact output', () => {
     text: { working: 'W' }, app: { appName: 'a', appVersion: '2' }, lang: 'fr', tokens: { '--jini-mcpui-bg': '#000' },
   } as const;
   const cases: ReadonlyArray<readonly [string, Parameters<typeof renderConfirmationDocument>[0], string]> = [
-    ['tool-routed cancel', DELETE_POST, '4591d16997d5566263f0fbc97bcd8dc44c0d96d074066b661fabefd53aa2c93a'],
-    ['minimal with no cancel', { title: 'T', confirm: { label: 'Yes', toolName: 't', params: {} } }, '14d83ea154c844acb54d21bbd19c4b6c11255e27fb6ffbf2f4aa69b75b4d3653'],
-    ['local-only cancel', { title: 'T', confirm: { label: 'Yes', toolName: 't', params: {} }, cancel: { label: 'No' } }, '9c9bcb745651cc883580b560c2d6984700dd9ae28cb637ba94dade037e649b5b'],
-    ['choices, alternatives and every option', FULL, 'aa7133060a53405582b3730179cc8ffa89dcd09d43db7025667ab055c07f97f3'],
+    ['tool-routed cancel', DELETE_POST, '66f3df67426a4ac0102fc5b034701a076bcf1e5a11404fd709113b0a167a7f42'],
+    ['minimal with no cancel', { title: 'T', confirm: { label: 'Yes', toolName: 't', params: {} } }, '50b5ab9e3af38136e6924e92e69af2e64c7233c9bbf22979d319efb0d21ed200'],
+    ['local-only cancel', { title: 'T', confirm: { label: 'Yes', toolName: 't', params: {} }, cancel: { label: 'No' } }, 'b4ed2a3d215ef8a28c0d0986351ac8196a46b296cc528ab99829978bbcaf2fea'],
+    ['choices, alternatives and every option', FULL, 'e7bf9894b612b70531eac0c3fcb655157b0493861d574e7a8400c9ef54f43002'],
   ];
   it.each(cases)('%s', (_name, spec, expected) => {
     expect(digest(renderConfirmationDocument(spec))).toBe(expected);
   });
 
   it('pins the framed, expiring resource wrapper and its action plan', () => {
-    expect(digest(buildConfirmationSurface({ ...FULL, uri: 'ui://h/c/1', preferredFrameSize: ['1px', '2px'], expiresAtMs: 123 }))).toBe('728598cae76f859fdd11561c8faac6c4857d082709fcec45047fe4c18cddf176');
+    expect(digest(buildConfirmationSurface({ ...FULL, uri: 'ui://h/c/1', preferredFrameSize: ['1px', '2px'], expiresAtMs: 123 }))).toBe('8310220235b48645b2855063f00062b186dc7173252de739d4c5ce87ed479f5b');
   });
 
   it('pins the bare resource wrapper', () => {
-    expect(digest(buildConfirmationSurface({ title: 'T', confirm: { label: 'Yes', toolName: 't', params: {} }, uri: 'ui://h/c/2' }))).toBe('c53ab91f44f5976737cb5c3fe253afb32606c860ba3710f2af392ae552ecb207');
+    expect(digest(buildConfirmationSurface({ title: 'T', confirm: { label: 'Yes', toolName: 't', params: {} }, uri: 'ui://h/c/2' }))).toBe('722a5b82c2d0eeedd23ca99610020ca0ab76373bc8700e5b724f6535e1242a5c');
   });
 });
