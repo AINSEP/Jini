@@ -70,6 +70,7 @@ for (const kind of ['retry', 'permanent', 'throw'] as const) test(`${kind} mail 
   await assert.rejects(f.bus.publish(f.queued[0]!), error => {
     assert.ok(error instanceof FormNotificationError);
     assert.equal(error.retryable, kind !== 'permanent');
+    if (kind === 'throw') assert.equal(error.outcome, undefined, 'an unclassified host exception must not claim definitive non-delivery');
     assert.equal(error.message.includes('secret'), false);
     assert.match(error.message, /s/);
     return true;

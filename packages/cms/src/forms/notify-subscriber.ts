@@ -48,11 +48,12 @@ export const FORM_NOTIFY_DELIVERY_EVENT = "form.notification.deliver";
  * Unknown acceptance stops automatic resend; definitive failures retain the bounded retry hint.
  * @complexity O(1) time and space; no I/O. */
 export class FormNotificationError extends FormDeliveryError {
-  constructor({ submissionId, retryable, retryAfterMs, unknown }: {
-    submissionId: string; retryable: boolean; retryAfterMs?: number; unknown?: boolean;
+  constructor({ submissionId, retryable, retryAfterMs, outcome }: {
+    submissionId: string; retryable: boolean; retryAfterMs?: number; outcome?: "not-applied" | "unknown";
   }, _optional = {}) {
+    const unknown = outcome === "unknown";
     super({ code: unknown ? "outcome-unknown" : "delivery-failed", retryable: unknown ? false : retryable,
-      retryAfterMs, outcome: unknown ? "unknown" : "not-applied" });
+      retryAfterMs, outcome });
     this.message = `Form notification failed for submission ${submissionId}. Check the email delivery log and provider settings, then retry the notification.`;
     if (unknown) this.message = `Form notification outcome is unknown for submission ${submissionId}. Check the email delivery log before sending another notification.`;
     this.name = "FormNotificationError";
@@ -153,7 +154,7 @@ async function sendNotification({ deps, definition, submission, recipient, paylo
     });
     if (!result.ok) {
       if (durable) throw new FormNotificationError({ submissionId, retryable: result.retryable,
-        retryAfterMs: result.retryAfterMs, unknown: result.unknown });
+        retryAfterMs: result.retryAfterMs, outcome: result.unknown ? "unknown" : "not-applied" });
       warn(deps.logger,
         `[forms:notify] mail send failed for submission '${submissionId}' recipient '${recipient}': ${result.errorCode} (${result.message})`
       );
