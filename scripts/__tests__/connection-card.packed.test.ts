@@ -1,5 +1,6 @@
 import { rmSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { createRequire } from 'node:module';
 import { describe, expect, it } from 'vitest';
 import { copyRuntimeTree, fixture, pack, packages, run } from '../testing/packed-fixture.js';
 
@@ -11,6 +12,9 @@ describe('packed connection-card consumer', () => {
       for (const name of ['daemon', 'ui', 'integrations', 'oauth']) {
         copyRuntimeTree(dir, `@jini-ai/${name}`, join(packages, name), seen);
       }
+      // The HTTP barrel's declared host peer belongs to the consumer, not daemon's dependencies.
+      const require = createRequire(join(packages, 'daemon', 'package.json'));
+      copyRuntimeTree(dir, 'express', dirname(require.resolve('express/package.json')), seen);
       for (const name of ['daemon', 'ui', 'integrations']) pack(dir, name);
       const result = run(dir, `
         import assert from 'node:assert/strict';
@@ -35,8 +39,14 @@ describe('packed connection-card consumer', () => {
           skippedResult: () => ({ status: 'skipped' }),
           connect: async ({ signal, showSignIn }) => {
             await showSignIn({ signInUrl: 'https://atlas.example.test/authorize' });
+            let deadline;
+            const stopped = new Promise((resolve, reject) => {
+              deadline = setTimeout(() => reject(new Error('Atlas watcher did not stop after Skip')), 1000);
+              signal.addEventListener('abort', resolve, { once: true });
+            });
             await deliverSurfaceCallback({ res, store, exchangeId: 'atlas-exchange', toolId, principalId: 'atlas-owner', params: { __dismissed: true },
               admit: input => isSurfaceCallbackPermitted({ admitted: input.toolId === toolId, answersAnExchange: input.answersAnExchange, exchangeOnly: true }, { typedAnswer: input.typedAnswer }) });
+            await stopped; clearTimeout(deadline);
             assert.equal(signal.aborted, true);
             return { status: 'not-connected' };
           },
