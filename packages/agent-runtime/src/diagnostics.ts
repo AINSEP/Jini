@@ -1,11 +1,55 @@
 /**
  * @module diagnostics
- * Explain three detection failures: unresolved executable, uninvocable executable or missing authentication.
+ * Explain executable/authentication detection failures and preserve safe startup evidence.
  */
 import { agentBinEnvKey, agentSearchDirs, type ExecutableResolutionOptions } from './executables.js';
 import type { AgentLaunchResolution } from './launch.js';
 import type { AgentAuthProbeResult } from './auth.js';
 import type { AgentDiagnostic, AgentFixIntent, RuntimeAgentDef } from './types.js';
+import { formatErrorForLog } from '@jini-ai/core';
+
+/** Pasteable startup evidence, redacted before a UTF-8 byte cap is applied. No stack or input
+ * envelope is copied; deepest causes come first so a long wrapper cannot hide the cause.
+ * @param required Stage owned by the caller and the thrown startup value.
+ * @param options Exact host secrets and caller wording for an unconfirmed start response.
+ * @returns At most 2 KiB of actionable text; hostile diagnostic getters never escape.
+ * @complexity O(n) time/space in the messages read, with at most four causes; no I/O.
+ * @example startupFailureMessage({ stage: 'session binding', error }, {});
+ */
+export function startupFailureMessage({ stage, error }: { stage: string; error: unknown },
+  { exactSecrets = [], notice = 'The assistant could not start. Correct the reported cause, then send again.' }: {
+    exactSecrets?: readonly string[]; notice?: string;
+  } = {},
+): string {
+  let cause: string;
+  try { cause = startupCauseText({ error }); }
+  catch { cause = 'The error details could not be read.'; }
+  const safe = formatErrorForLog({ error: `${notice}\nStartup stage: ${stage}\nCause: ${cause}` }, { exactSecrets });
+  const bytes = new TextEncoder().encode(safe);
+  if (bytes.length <= 2048) return safe;
+  // Streaming decode drops an incomplete trailing code point rather than inserting U+FFFD.
+  return new TextDecoder().decode(bytes.subarray(0, 2045), { stream: true }) + '…';
+}
+
+/** Bound cause traversal (including cycles); copy diagnostic fields only, never environment data. */
+function startupCauseText({ error }: { error: unknown }): string {
+  const parts: string[] = [];
+  const seen = new Set<unknown>();
+  let current = error;
+  while (current != null && !seen.has(current) && parts.length < 4) {
+    seen.add(current);
+    parts.push(startupErrorPart({ error: current }));
+    current = typeof current === 'object' ? (current as { cause?: unknown }).cause : undefined;
+  }
+  return parts.reverse().join('\nCaused by: ') || 'No startup cause was supplied.';
+}
+
+/** Retain plain messages and OS/provider codes without serializing arbitrary object fields. */
+function startupErrorPart({ error }: { error: unknown }): string {
+  if (typeof error !== 'object' || error === null) return String(error);
+  const { message, code } = error as { message?: unknown; code?: unknown };
+  return [code, message].filter(value => typeof value === 'string' || typeof value === 'number').join(': ') || 'Startup error without a message';
+}
 
 // Cap on how many searched dirs we attach to a `not-on-path` diagnostic.
 // The resolver walks PATH + the user-toolchain whitelist, which can run to

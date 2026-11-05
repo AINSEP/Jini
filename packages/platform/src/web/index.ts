@@ -3,3 +3,4 @@
 export * from "./web-page.js";
 export * from "./html-document.js";
 export { htmlToMarkdown } from "./html-to-markdown.js";
+export { stripHtmlPresentation } from "./strip-html-presentation.js";

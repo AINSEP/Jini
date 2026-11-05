@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import { AgentRuntimePicker } from '../../components/AgentRuntimePicker.js';
@@ -60,7 +60,18 @@ it.each(['claude', 'codex'])('keeps %s selectable under the existing tool limits
   expect(screen.getByRole('radio', { name: agentId === 'claude' ? /Claude/ : /Codex/ })).toBeEnabled();
 });
 
-it('retains the fail-closed warning for other unsupported adapters', () => {
+it('discloses unsupported adapter limits through an accessible tip without a toolbar paragraph', async () => {
+  const user = userEvent.setup();
   render(<AgentRuntimePicker agents={agents} value={{ agentId: 'other' }} onChange={vi.fn()} nativeToolPolicy={policy} />);
-  expect(screen.getByRole('alert')).toHaveTextContent("Another CLI can't run");
+  expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  const icon = screen.getByRole('button', { name: 'Agent permissions required' });
+  expect(icon).toHaveAccessibleDescription(/Another CLI can't run/);
+  expect(icon).toHaveAccessibleDescription(/gear → More settings → Agent permissions/);
+  expect(screen.getByText(/Another CLI can't run/).closest('p')).toBeNull();
+  await user.pointer({ keys: '[TouchA]', target: icon });
+  expect(icon).toHaveAttribute('aria-expanded', 'true');
+  await user.pointer({ keys: '[TouchA]', target: icon });
+  act(() => icon.blur());
+  act(() => icon.focus());
+  expect(icon).toHaveAttribute('aria-expanded', 'true');
 });

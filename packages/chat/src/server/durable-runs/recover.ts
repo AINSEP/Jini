@@ -1,5 +1,5 @@
 import { recoveredRunEvents, type AgentEvent } from "../../core/index.js";
-import { classifyAgentServiceFailure } from "@jini-ai/agent-runtime";
+import { classifyAgentServiceFailure, startupFailureMessage } from "@jini-ai/agent-runtime";
 import { continuationRequest } from "../../core/durable-runs/continuation.js";
 import { isAwaitingAnswer } from "../../core/run-activity.js";
 import type { DurableRecovery, DurableRun, RecoveryPorts, RecoveryResult, RecoveryTrigger, RunProbe } from "../../core/durable-runs/ports.js";
@@ -74,6 +74,10 @@ function attemptFailure({ diagnostics }: { diagnostics: string }, _optional = {}
 
 /** Keep the notice bounded and scoped to the same executor diagnostics as failure classification. */
 function lastDiagnosticLine({ diagnostics }: { diagnostics: string }, _optional = {}): string | undefined {
+  // Startup evidence is already bounded, but redact again for older saved events. Keep the
+  // complete stage/cause block; a last-line/300-character tail erased its useful context.
+  const startup = diagnostics.lastIndexOf('Startup stage:');
+  if (startup >= 0) return startupFailureMessage({ stage: 'saved startup failure', error: diagnostics.slice(startup) }, {});
   return diagnostics.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).at(-1)?.slice(0, 300);
 }
 
@@ -134,6 +138,20 @@ interface Decision { readonly decision: RecoveryResult; readonly probe?: RunProb
 /** Recovery coordinator behind explicit host ports. One CAS owns both the attempt and its conversation slot.
  * Each recovery decision logs one `logger.info` line (default console) of run metadata. */
 export function createDurableRecovery(ports: RecoveryPorts, { logger = console }: { logger?: Pick<Console, "info"> } = {}): DurableRecovery {
+  /** Replay starts from attemptBase. Carry this attempt's saved launch notice into it too, so
+   * reconnect/reload cannot replace that evidence with the daemon's shorter replay prefix.
+   * O(e) in saved events; no additional store read, write, or polling. */
+  function attach(run: DurableRun): void {
+    const events = run.message.events ?? [];
+    const noticeIndex = lastIndexWhere({ events, match: event => event.kind === 'status' && event.code === 'run_launch_unconfirmed' });
+    const marker = lastIndexWhere({ events, match: event => event.kind === 'status' && event.code === 'run_recovering' });
+    if (noticeIndex <= marker) { ports.attach(run, {}); return; }
+    const notice = events[noticeIndex]!;
+    const base = [...run.attemptBase];
+    if (!base.includes(notice)) base.push(notice);
+    ports.attach({ ...run, attemptBase: base }, {});
+  }
+
   async function finalize(run: DurableRun, notice: string, { canceled = false, detail }: { canceled?: boolean; detail?: string | undefined } = {}): Promise<RecoveryResult> {
     await ports.cancelAttempt(run, {}).catch(() => undefined);
     // Persist the notice as an event: hook errors are live-only and would leave a reloaded
@@ -149,14 +167,29 @@ export function createDurableRecovery(ports: RecoveryPorts, { logger = console }
     return ports.verifyChildDead(run.child, {}).catch(() => false);
   }
 
-  async function launchNext({ run, next, native }: { run: DurableRun; next: DurableRun; native: boolean }, _optional = {}): Promise<void> {
+  /** Persist rejection evidence but leave liveness and retry decisions to the existing probe. */
+  async function launchNext({ run, next, native }: { run: DurableRun; next: DurableRun; native: boolean }, _optional = {}): Promise<DurableRun> {
+    let stage = 'recovery launch';
     try {
       await ports.launch({ run: next, request: continuationRequest({ run: { ...run, message: next.message, transcript: next.transcript }, native }, {}) }, {});
+      stage = 'recovery clock';
       await ports.store.recoveryClock({ runId: next.runId, now: ports.now(), active: false }, {});
-    } catch {
+    } catch (error) {
       // A rejected/lost start response is uncertain: the daemon may already be executing. The
       // same idempotent attempt is probed by the attached watcher before another CAS is possible.
+      const diagnostic: AgentEvent = { kind: 'status', code: 'run_launch_unconfirmed',
+        label: 'The assistant start response was not confirmed. Checking whether this attempt is running.',
+        detail: startupFailureMessage({ stage, error }, {
+          notice: 'The assistant start response was not confirmed. Wait while this attempt is checked.',
+        }) };
+      const events = [...(next.message.events ?? []), diagnostic];
+      // Preserve the saved answer and all prior events in the existing projection write. The
+      // checkpoint's generation fence rejects a concurrent stop or successor attempt.
+      await ports.checkpoint?.({ conversationId: next.conversationId, messageId: next.messageId,
+        runId: next.runId, content: next.message.content, events }, {}).catch(() => false);
+      return { ...next, message: { ...next.message, events } };
     }
+    return next;
   }
 
   async function continueDead(run: DurableRun): Promise<RecoveryResult> {
@@ -173,8 +206,8 @@ export function createDurableRecovery(ports: RecoveryPorts, { logger = console }
     // not launch against a removed binding or a newer generation.
     if (!next || next.runId !== nextRunId) return "superseded";
     if (next.cancelReason) return finalize(next, STOPPED_NOTICE, { canceled: true });
-    await launchNext({ run, next, native });
-    ports.attach(next, {});
+    const launched = await launchNext({ run, next, native });
+    attach(launched);
     return "continued";
   }
 
@@ -187,7 +220,7 @@ export function createDurableRecovery(ports: RecoveryPorts, { logger = console }
 
   async function reattach(run: DurableRun): Promise<RecoveryResult> {
     await ports.store.recoveryClock({ runId: run.runId, now: ports.now(), active: false }, {});
-    ports.attach(run, {});
+    attach(run);
     return "reattached";
   }
 
@@ -255,7 +288,7 @@ export function createDurableRecovery(ports: RecoveryPorts, { logger = console }
     // A queued attempt may be between durable acceptance and the daemon's start transaction.
     // Give that idempotent launch time to appear before a 404 can advance its generation.
     if (continuesNow({ run, trigger, now: ports.now() })) return continueDead(run);
-    ports.attach(run, {});
+    attach(run);
     return "waiting";
   }
 

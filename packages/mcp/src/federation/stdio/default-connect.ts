@@ -97,7 +97,8 @@ async function connectMcpStdioSessionWithSpawnTimeout(
       if (Date.now() >= deadline) throw timeoutError();
       channel = spawnChannel({ resolved });
       if (Date.now() >= deadline) throw timeoutError();
-      return connectMcpStdioSession({ channel, requestTimeoutMs: connection.config.callTimeoutMs, clientInfo, messages });
+      // Only this connection's credentials, never inherited paths or launch settings, are secrets.
+      return connectMcpStdioSession({ channel, requestTimeoutMs: connection.config.callTimeoutMs, clientInfo, messages, secretValues: Object.values(resolved.env) });
     }),
     // Not `unref()`ed, for the same reason as `adapter.stdio.ts`'s per-request timer: an unref'd
     // timer would let the loop drain and abandon this race unsettled instead of rejecting. The

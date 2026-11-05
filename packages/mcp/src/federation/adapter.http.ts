@@ -1,4 +1,6 @@
 import { loadOptionalPeer } from '@jini-ai/core/optional-peer';
+import { redactSecrets } from '@jini-ai/core';
+import { scrubFederatedResponseValue } from "./result-secrets.js";
 import type { FederationMessages } from "./messages.js";
 import { parseSseRecord } from "@jini-ai/core/primitives";
 import type { TextReadOptions } from "@jini-ai/platform/fetch-with-timeout";
@@ -71,6 +73,20 @@ const SESSION_ID_PATTERN = /^[\x21-\x7e]{1,512}$/;
 
 /** MCP requires a client to accept both response modes on every request, and the server picks. */
 const ACCEPT_BOTH = "application/json, text/event-stream";
+
+interface AuthenticatedMcpResponse {
+  readonly response: McpHttpResponse;
+  readonly secrets: readonly string[];
+}
+
+/** Configured headers carry connection credentials; retain both the full value and auth payload.
+ * @complexity O(h) time/space in configured header bytes; no credential lookup or I/O.
+ */
+function headerSecrets({ headers }: { headers: Readonly<Record<string, string>> }, _options = {}): string[] {
+  return Object.entries(headers).flatMap(([name, value]) => name.toLowerCase() === "authorization"
+    ? [value, value.replace(/^\S+\s+/, "")]
+    : [value]);
+}
 
 /** Wires `controller` to also abort when `callerSignal` does — including firing immediately if
  *  `callerSignal` is already aborted by the time this runs. Returns the listener so the caller can
@@ -162,7 +178,7 @@ class McpHttpSession implements McpSessionPort {
   }
 
   /**
-   * @complexity O(1) beyond the remote's own round-trip.
+   * @complexity O(s*b) beyond the remote round-trip for s credentials and b bounded result bytes.
    */
   async callTool(request: McpToolCallRequiredArgs, options: McpToolCallOptions = {}): Promise<RemoteToolResult> {
     return parseCallToolResult({ result: await this.request("tools/call", { name: request.name, arguments: request.arguments }, options.signal) });
@@ -227,19 +243,20 @@ class McpHttpSession implements McpSessionPort {
     };
   }
 
-  /** POSTs one JSON-RPC frame and returns the raw response, applying the timeout and recording any
-   *  session id the server issues. */
-  private async send(body: string, signal?: AbortSignal | undefined): Promise<McpHttpResponse> {
+  /** POSTs one JSON-RPC frame and keeps its credentials with the raw response, applying the timeout
+   *  and recording any session id the server issues. */
+  private async send(body: string, signal?: AbortSignal | undefined): Promise<AuthenticatedMcpResponse> {
     if (this.closed) throw new McpProtocolError({ message: "mcp-federation: session is closed" });
 
     const headers = this.baseHeaders();
     if (this.sessionId !== null) headers["mcp-session-id"] = this.sessionId;
 
-    const response = await this.postWithTimeout(body, headers, signal);
+    const authenticated = await this.postWithTimeout(body, headers, signal);
+    const { response } = authenticated;
     // A known auth failure must reach assertOkStatus even if the remote supplied a bad session id.
-    if (response.status === 401) return response;
+    if (response.status === 401) return authenticated;
     this.adoptSessionId(response);
-    return response;
+    return authenticated;
   }
 
   /**
@@ -250,27 +267,35 @@ class McpHttpSession implements McpSessionPort {
    * against a hosted server still holds a socket and still delivers its body. Aborting cancels the
    * work as well as the wait.
    */
-  private async postWithTimeout(body: string, headers: Record<string, string>, callerSignal?: AbortSignal | undefined): Promise<McpHttpResponse> {
+  private async postWithTimeout(body: string, headers: Record<string, string>, callerSignal?: AbortSignal | undefined): Promise<AuthenticatedMcpResponse> {
     const controller = new AbortController();
     const onCallerAbort = forwardAbort(controller, callerSignal);
 
     const timer = setTimeout(() => controller.abort(), this.requestTimeoutMs);
     let response: McpHttpResponse;
+    let secrets = headerSecrets({ headers: this.spec.headers });
     try {
-      response = await this.exchange.send({ url: this.spec.url, method: "POST", headers: await this.authenticatedHeaders(headers, controller.signal) }, { body, signal: controller.signal });
+      const authenticated = await this.authenticatedHeaders(headers, controller.signal);
+      // Keep proof with its response, never in a growing session history: parallel calls may
+      // rotate tokens and complete out of order. Only configured credentials and the actual
+      // Authorization header are secrets; protocol headers must remain readable.
+      const authorization = Object.fromEntries(Object.entries(authenticated).filter(([name]) => name.toLowerCase() === "authorization"));
+      secrets = [...secrets, ...headerSecrets({ headers: authorization })];
+      response = await this.exchange.send({ url: this.spec.url, method: "POST", headers: authenticated }, { body, signal: controller.signal });
       if (response.status === 401) await this.notifyAuthenticationChallenge({ response, signal: controller.signal });
     } catch (error) {
-      throw buildPostFailureError({
+      const failure = buildPostFailureError({
         error,
         timedOut: controller.signal.aborted,
         callerAborted: callerSignal?.aborted === true,
         requestTimeoutMs: this.requestTimeoutMs,
       });
+      throw new McpProtocolError({ message: redactSecrets({ input: failure.message }, { exactSecrets: secrets, policy: "exact-only" }) });
     } finally {
       clearTimeout(timer);
       callerSignal?.removeEventListener("abort", onCallerAbort);
     }
-    return response;
+    return { response, secrets };
   }
 
   /** Observes a 401 within the POST's remaining budget, without superseding its typed auth error.
@@ -329,16 +354,17 @@ class McpHttpSession implements McpSessionPort {
   private async request(method: string, params: Record<string, unknown>, signal?: AbortSignal | undefined): Promise<unknown> {
     const id = this.nextId;
     this.nextId += 1;
-    const response = await this.send(JSON.stringify({ jsonrpc: "2.0", id, method, params }), signal);
+    const { response, secrets } = await this.send(JSON.stringify({ jsonrpc: "2.0", id, method, params }), signal);
     assertOkStatus(method, response, this.messages);
 
     const frame = extractJsonRpcFrame({ method, response, id });
     if (frame.error) {
       throw new McpProtocolError(
-        { message: `mcp-federation: remote returned JSON-RPC error ${frame.error.code ?? "?"}: ${frame.error.message ?? "(no message)"}` },
+        { message: redactSecrets({ input: `mcp-federation: remote returned JSON-RPC error ${frame.error.code ?? "?"}: ${frame.error.message ?? "(no message)"}` }, { exactSecrets: secrets, policy: "exact-only" }) },
       );
     }
-    return frame.result;
+    // Negotiation and discovery fields are protocol data; only successful tool results are scrubbed.
+    return method === "tools/call" ? scrubFederatedResponseValue({ value: frame.result, secrets }) : frame.result;
   }
 }
 

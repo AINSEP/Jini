@@ -85,7 +85,7 @@ function nativeToolPolicyRefusal({ cliName, offSwitches }: { cliName: string; of
   const blocked = switches.length > 0 ? `with ${new Intl.ListFormat('en', { type: 'conjunction' }).format(switches)} off` : `with this chat's CLI tool limits`;
   const pronoun = switches.length === 1 ? 'it' : 'them';
   const action = switches.length === 0 ? `Turn on 'Full CLI access'` : `Turn ${pronoun} on`;
-  return `${cliName} can't run ${blocked}. ${action} in the assistant settings, or choose Claude or Codex.`;
+  return `${cliName} can't run ${blocked}. ${action} in gear → More settings → Agent permissions, or choose an available agent that supports these limits.`;
 }
 
 /** The same fail-closed assessment at selection and spawn; no CLI-name allowlist.

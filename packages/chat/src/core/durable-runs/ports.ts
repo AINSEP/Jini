@@ -1,5 +1,5 @@
 import type { AgentEvent, ChatMessage } from "../index.js";
-import type { RunRef, RunSettlement } from "./run-contracts.js";
+import type { RunProgress, RunRef, RunSettlement } from "./run-contracts.js";
 
 export interface AcceptedRunRequest {
   readonly agentId?: string;
@@ -64,6 +64,9 @@ export interface RecoveryPorts {
   readonly probe: (required: DurableRun, optional: {}) => Promise<RunProbe>;
   readonly attach: (required: DurableRun, optional: {}) => void;
   readonly launch: (required: { run: DurableRun; request: AcceptedRunRequest }, optional: {}) => Promise<void>;
+  /** Save a launch-response diagnostic without declaring the uncertain attempt dead. Uses the
+   * host's existing fenced ledger checkpoint; no new storage format or polling is required. */
+  readonly checkpoint?: (required: RunProgress, optional: {}) => Promise<boolean>;
   readonly cancelAttempt: (required: DurableRun, optional: {}) => Promise<void>;
   readonly verifyChildDead: (required: { pid: number; startedAt: string }, optional: {}) => Promise<boolean>;
   readonly supportsNativeResume: (required: { agentId: string }, optional: {}) => boolean;

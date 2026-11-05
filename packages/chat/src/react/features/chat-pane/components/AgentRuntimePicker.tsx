@@ -62,7 +62,8 @@ function NativeToolPolicyWarning({ agent, policy, isApi }: {
   const warning = policy ? assessNativeToolPolicy({ def: agent, policy }) : null;
   return <>
     {agent.fullCliAccessNote ? <FullAccessNoteTip note={agent.fullCliAccessNote} t={t} /> : null}
-    {warning ? <p role="alert">{t(warning)}</p> : null}
+    {warning ? <InfoTip label={t(warning)} triggerLabel={t('Agent permissions required')}
+      placement="top" icon={<RemixIcon name="alert-line" size={16} />} /> : null}
   </>;
 }
 

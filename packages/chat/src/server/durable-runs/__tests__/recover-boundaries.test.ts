@@ -239,6 +239,53 @@ function runFixture(): DurableRun {
 }
 
 describe("durable recovery boundaries: continuation launch", () => {
+  it("saves a redacted launch rejection and probes uncertainty without duplicating execution", async () => {
+    const checkpoints: Parameters<NonNullable<RecoveryPorts['checkpoint']>>[0][] = [];
+    const attachments: DurableRun[] = [];
+    let launches = 0;
+    const h = harness({ ports: {
+      attach: run => { attachments.push(run); },
+      launch: async () => { launches++; throw new Error('connection refused; Bearer private-value'); },
+      checkpoint: async (progress) => {
+        checkpoints.push(progress);
+        const current = h.current()!;
+        h.replace({ ...current, message: { ...current.message, events: [...progress.events] } });
+        return true;
+      },
+    } });
+    expect(await h.recover('attempt-failed')).toBe('continued');
+    expect(checkpoints).toHaveLength(1);
+    const notice = checkpoints[0]!.events.at(-1)!;
+    expect(notice).toMatchObject({ kind: 'status', code: 'run_launch_unconfirmed' });
+    expect(JSON.stringify(notice)).toContain('recovery launch');
+    expect(JSON.stringify(notice)).toContain('connection refused');
+    expect(JSON.stringify(notice)).not.toContain('private-value');
+    expect(checkpoints[0]!.events[0]).toMatchObject({ code: 'run_recovering' });
+    const reloaded = createDurableRecovery({ ...h.ports, probe: async () => 'uncertain' }, { logger: { info() {} } });
+    expect(await reloaded.recover({ messageId: 'answer', trigger: 'browser' }, {})).toBe('waiting');
+    expect(launches).toBe(1);
+    expect(h.settlements).toEqual([]);
+    expect(h.current()!.message.events).toContainEqual(notice);
+    expect(attachments.at(-1)!.attemptBase).toContainEqual(notice);
+  });
+
+  it('attaches for probing even when saving the launch diagnostic fails', async () => {
+    const h = harness({ ports: {
+      launch: async () => { throw new Error('lost start response'); },
+      checkpoint: async () => { throw new Error('store unavailable'); },
+    } });
+    expect(await h.recover('attempt-failed')).toBe('continued');
+    expect(h.attached).toEqual(['next']);
+    expect(h.settlements).toEqual([]);
+  });
+
+  it('retains the full bounded startup cause in the exhausted notice after reload', async () => {
+    const cause = 'Startup stage: session binding\nCause: session store unavailable ' + 'x'.repeat(500);
+    const h = harness({ events: [{ kind: 'status', label: cause }], run: { recoveryCount: 3 } });
+    expect(await h.recover('attempt-failed')).toBe('finalized');
+    expect(h.settlements[0]!.events.at(-1)).toMatchObject({ detail: expect.stringContaining(cause) });
+  });
+
   it("still attaches the new attempt when its launch rejects, without stopping the clock", async () => {
     const h = harness({ ports: { launch: async () => { throw new Error("lost start response"); } } });
     expect(await h.recover("attempt-failed")).toBe("continued");

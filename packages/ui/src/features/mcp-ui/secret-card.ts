@@ -89,7 +89,7 @@ export interface SecretCardTool<Prep, Result> {
 /** Reject ambiguous or protocol-reserved names and runtime attempts to prefill secrets.
  * @complexity O(n) time/space in the field count. Throws fixed ToolInputError text only. */
 function checkedFields(form: SecretCardForm): readonly SecretCardField[] {
-  const names = new Set<string>([SURFACE_EXCHANGE_ID_PARAM, SURFACE_DISMISSED_PARAM, SURFACE_TYPED_ANSWER_PARAM]);
+  const names = new Set<string>([SURFACE_EXCHANGE_ID_PARAM, SURFACE_DISMISSED_PARAM, SURFACE_TYPED_ANSWER_PARAM, 'freeText']);
   for (const field of form.fields) {
     if (!field.name || names.has(field.name)) throw new ToolInputError({ message: 'Secret card field names must be unique and cannot use exchange parameters.' });
     names.add(field.name);
@@ -110,6 +110,8 @@ function answerStep(required: { answer: SurfaceMessage; signal: AbortSignal }): 
   if (signal.aborted) return { run: { status: 'abandoned' } };
   if (answer.status !== 'received') return { run: { status: answer.status } };
   if (answer.params[SURFACE_DISMISSED_PARAM] === true) return { run: { status: 'cancelled' } };
+  // Composer answers are displayed as chat text, never accepted as secret form submissions.
+  if (Object.hasOwn(answer.params, SURFACE_TYPED_ANSWER_PARAM)) return { run: { status: 'cancelled' } };
   return { params: answer.params };
 }
 

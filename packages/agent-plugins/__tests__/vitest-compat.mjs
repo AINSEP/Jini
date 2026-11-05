@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { isDeepStrictEqual } from "node:util";
-import { after, mock } from "node:test";
+import { beforeEach, mock } from "node:test";
+import { onTeardown } from "../../core/src/teardown.ts";
 
 /**
  * @file The small slice of vitest's `expect` / `vi` API the ported devops deploy-target suites use,
@@ -226,9 +227,10 @@ export const vi = {
 };
 
 /**
- * Replaces the global `fetch` with one that throws for the rest of this test file, and fails the file
- * in an `after` hook if anything called it. `vi.unstubAllGlobals` restores to this guard, not to the
- * real `fetch`, because the guard is what was installed when the first stub was taken.
+ * Replaces the global `fetch` with one that throws for the rest of this test file. Verification is
+ * queued per test: ordinary afterEach hooks and every queued resource cleanup run before a caught
+ * forbidden fetch fails that test. A throwing global hook would skip later cleanup. Restoring
+ * stubs returns to this guard, not the real fetch. File-hook fetches still throw at the call.
  */
 export function installNetworkGuard() {
   const reached = [];
@@ -237,5 +239,5 @@ export function installNetworkGuard() {
     reached.push(url);
     throw new Error(`network guard: unstubbed fetch to ${url}`);
   };
-  after(() => assert.deepEqual(reached, [], "no test may reach the real network"));
+  beforeEach(t => onTeardown({ t, step: () => assert.deepEqual(reached.splice(0), [], "no test may reach the real network") }));
 }

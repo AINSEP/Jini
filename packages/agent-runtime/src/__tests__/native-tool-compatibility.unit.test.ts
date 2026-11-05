@@ -7,7 +7,7 @@ import { resolveNativeToolPolicy, assessNativeToolPolicy } from '../native-tool-
 it.each(['OpenCode', 'another CLI'])('names only the unsupported OFF switch for %s', name => {
   expect(assessNativeToolPolicy({ def: { name }, policy: { nativeToolAccess: true, cliParity: true,
     permissionMode: 'bypass', nativeCapabilities: { shell: true, userMcp: false } } })).toBe(
-    `${name} can't run with 'Your MCP servers' off. Turn it on in the assistant settings, or choose Claude or Codex.`);
+    `${name} can't run with 'Your MCP servers' off. Turn it on in gear → More settings → Agent permissions, or choose an available agent that supports these limits.`);
 });
 
 it('does not reject supported adapters, unrestricted parity, or a standalone unspecified policy', () => {

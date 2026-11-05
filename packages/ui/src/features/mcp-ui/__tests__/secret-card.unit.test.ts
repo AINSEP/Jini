@@ -82,6 +82,23 @@ function resourceAt(emissions: readonly SurfaceEmission[], index: number) {
 }
 
 describe('secret-card lifecycle', () => {
+  it.each(['x', '', undefined, 42])('a typed-answer marker never persists submitted secrets (%j)', async typed => {
+    const f = fixture();
+    f.setAnswer({ status: 'received', params: { __typedAnswer: typed, token: CANARY } });
+    expect(await f.run()).toEqual({ saved: false, reason: 'cancelled' });
+    expect(f.save).not.toHaveBeenCalled();
+    expect(f.isClosed()).toBe(true);
+  });
+
+  it.each([true, false])('reserves freeText for secret and non-secret fields (%j)', async secret => {
+    const f = fixture();
+    f.form.fields = [{ kind: 'string', name: 'freeText', label: 'Credential', secret }];
+    await expect(f.run()).rejects.toBeInstanceOf(ToolInputError);
+    expect(f.deps.surfaceExchanges.open).not.toHaveBeenCalled();
+    expect(f.save).not.toHaveBeenCalled();
+    expect(f.emissions).toEqual([]);
+  });
+
   it('fails closed with exact typed text when the transport has no emitter', async () => {
     const f = fixture();
     await expect(defineSecretCardTool(f.spec).handler(f.deps)(f.ctx)).rejects.toEqual(new ToolInputError({ message: 'save_credential: this execution context has no interactive form channel (no emitSurface), so this form cannot be shown here. Nothing was changed.' }));

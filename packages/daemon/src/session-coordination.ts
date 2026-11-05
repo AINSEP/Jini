@@ -1,5 +1,6 @@
 import type { RunProtocolEvent } from '@jini-ai/protocol';
 import type { SchedulerPort } from './scheduler.js';
+import { startupFailureMessage } from '@jini-ai/agent-runtime';
 
 export interface ConversationRun { readonly conversationId: string; readonly runId: string }
 /** In-process occupancy only: durable answer ownership belongs to the unfinished message.
@@ -99,9 +100,15 @@ export interface FailingRunLifecycle {
   finish(input: { runId: string; status: 'failed'; code: null; signal: null; resumable: false }, optional?: Record<string, never>): Promise<unknown>;
 }
 /** Emit the refusal reason on the run stream so the chat can show and save it. Event delivery
- * is best-effort; finishing remains mandatory even when the stream cannot accept the event. */
-export async function failRunBeforeStart({ lifecycle, runId, message }: { lifecycle: FailingRunLifecycle; runId: string; message: string }, _optional: Record<string, never> = {}): Promise<void> {
-  try { await lifecycle.emit({ runId: runId, input: { event: 'error', data: { message } } }); } catch { /* Finishing remains mandatory. */ }
+ * is best-effort; finishing remains mandatory even when the stream cannot accept the event.
+ * Startup exceptions carry redacted stage/cause text through that same saved error event.
+ * @example failRunBeforeStart({ lifecycle, runId, message: 'Could not start.', startup: { stage: 'session binding', error } }, {});
+ */
+export async function failRunBeforeStart({ lifecycle, runId, message, startup }: {
+  lifecycle: FailingRunLifecycle; runId: string; message: string; startup?: { stage: string; error: unknown };
+}, _optional: Record<string, never> = {}): Promise<void> {
+  const reason = startup ? startupFailureMessage(startup, {}) : message;
+  try { await lifecycle.emit({ runId: runId, input: { event: 'error', data: { message: reason } } }); } catch { /* Finishing remains mandatory. */ }
   await lifecycle.finish({ runId, status: 'failed', code: null, signal: null, resumable: false });
 }
 

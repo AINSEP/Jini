@@ -1,4 +1,6 @@
 import type { FederationMessages } from "../messages.js";
+import { redactSecrets as redactExactSecrets } from "@jini-ai/core";
+import { scrubFederatedResponseValue } from "../result-secrets.js";
 import type { McpToolCallRequiredArgs, McpToolCallOptions } from "../ports.js";
 import { spawn } from "node:child_process";
 import os from "node:os";
@@ -182,6 +184,7 @@ class McpStdioSession implements McpSessionPort {
   private readonly pending = new Map<number, { resolve: (value: unknown) => void; reject: (error: Error) => void; timer: NodeJS.Timeout }>();
   private readonly clientInfo: McpClientInfo;
   private readonly messages: FederationMessages;
+  private readonly secretValues: readonly string[];
   private nextId = 1;
   private closedReason: string | null = null;
 
@@ -191,11 +194,12 @@ class McpStdioSession implements McpSessionPort {
    * else it sends — recorded, never acted on. */
   public serverInfo: { name?: string | undefined; version?: string | undefined } = {};
 
-  constructor(deps: { channel: McpStdioChannel; requestTimeoutMs: number; clientInfo: McpClientInfo; messages: FederationMessages }) {
+  constructor(deps: { channel: McpStdioChannel; requestTimeoutMs: number; clientInfo: McpClientInfo; messages: FederationMessages; secretValues?: readonly string[] }) {
     this.channel = deps.channel;
     this.clientInfo = deps.clientInfo;
     this.messages = deps.messages;
     this.requestTimeoutMs = deps.requestTimeoutMs;
+    this.secretValues = [...(deps.secretValues ?? [])];
     this.channel.onMessage({ listener: ({ message: line }) => this.handleMessage(line) });
     this.channel.onClose({ listener: ({ reason }) => this.handleClose(reason) });
   }
@@ -208,10 +212,11 @@ class McpStdioSession implements McpSessionPort {
   }
 
   /**
-   * @complexity O(1) beyond the remote's own round-trip.
+   * @complexity O(s*b) beyond the remote round-trip for s credentials and b bounded result bytes.
    */
   async callTool(request: McpToolCallRequiredArgs, options: McpToolCallOptions = {}): Promise<RemoteToolResult> {
-    return parseCallToolResult({ result: await this.request("tools/call", { name: request.name, arguments: request.arguments }, options.signal) });
+    const result = await this.request("tools/call", { name: request.name, arguments: request.arguments }, options.signal);
+    return parseCallToolResult({ result: scrubFederatedResponseValue({ value: result, secrets: this.secretValues }) });
   }
 
   async close(_required: Record<string, never>): Promise<void> {
@@ -318,7 +323,9 @@ class McpStdioSession implements McpSessionPort {
     clearTimeout(entry.timer);
 
     if (message.error) {
-      entry.reject(new McpProtocolError({ message: `mcp-federation: remote returned JSON-RPC error ${message.error.code ?? "?"}: ${message.error.message ?? "(no message)"}` }));
+      entry.reject(new McpProtocolError({ message: redactExactSecrets({
+        input: `mcp-federation: remote returned JSON-RPC error ${message.error.code ?? "?"}: ${message.error.message ?? "(no message)"}`,
+      }, { exactSecrets: this.secretValues, policy: "exact-only" }) }));
       return;
     }
     entry.resolve(message.result);
@@ -342,10 +349,11 @@ class McpStdioSession implements McpSessionPort {
  * @param deps.channel - The transport seam. `spawnMcpStdioChannel` in production, a scripted
  * double in tests.
  * @param deps.requestTimeoutMs - Per-request ceiling, applied to the handshake too.
+ * @param deps.secretValues - This connection's own credentials; omitted by callers with no secrets.
  * @throws {Error} If `initialize` fails, times out, or the channel dies during it.
  * @complexity O(1) beyond the remote's round-trip.
  */
-export async function connectMcpStdioSession(deps: { channel: McpStdioChannel; requestTimeoutMs: number; clientInfo: McpClientInfo; messages: FederationMessages }): Promise<McpSessionPort> {
+export async function connectMcpStdioSession(deps: { channel: McpStdioChannel; requestTimeoutMs: number; clientInfo: McpClientInfo; messages: FederationMessages; secretValues?: readonly string[] }, _options: Record<string, never> = {}): Promise<McpSessionPort> {
   const session = new McpStdioSession(deps);
   try {
     await session.initialize();
