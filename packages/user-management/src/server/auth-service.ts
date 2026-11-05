@@ -5,7 +5,7 @@ import type { SessionTokenPort, UsernameChangePort } from "../core/runtime-ports
 import type { Clock, IdGenerator, ISODateTime, UUID } from "@jini-ai/core/primitives";
 import { resolveEffectivePermissions } from "./authorize.js";
 import type { IdentityRepos, PasswordHasherPort } from "../core/ports.js";
-import { AuthInvalidCredentialsError, type PrincipalRecord, type SessionRecord, type UserRecord } from "../core/types.js";
+import { AuthInvalidCredentialsError, IdentityValidationError, type PrincipalRecord, type SessionRecord, type UserRecord } from "../core/types.js";
 import { normalizeUsername } from "./username.js";
 
 /**
@@ -35,6 +35,7 @@ import { normalizeUsername } from "./username.js";
 const DEFAULT_SESSION_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 export interface AuthServiceDeps {
+  mfaStore?: import("./mfa/ports.js").MfaStore;
   repos: IdentityRepos;
   hasher: PasswordHasherPort;
   clock: Clock;
@@ -97,7 +98,7 @@ function isActivePrincipal(principal: PrincipalRecord | null): principal is Prin
  * and the (slow) hash verify runs only once a live principal is found. Every refusal throws the same
  * `AuthInvalidCredentialsError` message — no user-enumeration signal.
  */
-async function verifyCredentials(required: {
+export async function verifyCredentials(required: {
   deps: AuthServiceDeps;
   input: { workspaceId: UUID; username: string; password: string };
   invalidCredentialsMessage: string;
@@ -140,6 +141,9 @@ export async function login(required: {
   const input = { ...required.input, ...optional };
   const invalidCredentialsMessage = (optional.messages ?? defaultUserManagementMessages).invalidCredentials;
   const { userRow, principal } = await verifyCredentials({ deps, input, invalidCredentialsMessage });
+  if (await deps.mfaStore?.factor({ workspaceId: input.workspaceId, principalId: principal.id })) {
+    throw new IdentityValidationError({ message: "This owner requires an authenticator code. Use the two-step sign-in flow to continue." });
+  }
 
   const { session, rawToken } = await createSessionForPrincipal({ deps, input: { workspaceId: input.workspaceId, principalId: principal.id } }, { ip: input.ip, userAgent: input.userAgent, sessionTtlMs: optional.sessionTtlMs, messages: optional.messages });
   // Reuses the session's own `createdAt` rather than a second `kernelNowIso({ clock: clock })` call — both are

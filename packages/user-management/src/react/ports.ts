@@ -1,7 +1,8 @@
 import type { AdminUser, AdminIdentityUser, AdminRole, AdminPolicy, AdminPolicyPermission, AdminMember } from "./models.js";
 
 export interface LoginPort {
-  login(credentials: { username: string; password: string }): Promise<{ user: AdminUser }>;
+  login(credentials: { username: string; password: string }): Promise<{ user: AdminUser } | { mfaRequired: true; pendingToken: string }>;
+  completeMfa?(input: { pendingToken: string; code: string }): Promise<{ user: AdminUser }>;
 }
 
 

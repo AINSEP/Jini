@@ -13,6 +13,7 @@ export interface LoginHookProps {
 export interface LoginOptions { initialUsername?: string | undefined }
 
 export interface LoginController {
+  mfa?: { code: string; setCode: (code: string) => void; cancel: () => void };
   username: string;
   setUsername: (username: string) => void;
   password: string;
@@ -28,13 +29,28 @@ export function useLogin({ onLogin, port, translate }: LoginHookProps, { initial
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
+  const [pendingToken, setPendingToken] = useState<string | null>(null);
+  const [code, setCode] = useState("");
+
+  function cancel() { setPendingToken(null); setCode(""); setPassword(""); setError(null); }
+
+  async function authenticate() {
+    if (!pendingToken) return port.login({ username, password });
+    if (!port.completeMfa) throw new Error(translate("Authenticator sign-in is unavailable. Cancel and try again."));
+    return port.completeMfa({ pendingToken, code });
+  }
+
   async function submit(e: React.FormEvent) {
     e.preventDefault();
     setBusy(true);
     setError(null);
     try {
-      const { user } = await port.login({ username, password });
-      onLogin(user);
+      const result = await authenticate();
+      if ("mfaRequired" in result) {
+        setPendingToken(result.pendingToken); setPassword(""); setCode("");
+      } else {
+        cancel(); onLogin(result.user);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : translate("login failed"));
     } finally {
@@ -42,6 +58,7 @@ export function useLogin({ onLogin, port, translate }: LoginHookProps, { initial
     }
   }
 
-  return { username, setUsername, password, setPassword, error, busy, submit };
+  return { username, setUsername, password, setPassword, error, busy, submit,
+    ...(pendingToken ? { mfa: { code, setCode, cancel } } : {}) };
 }
 

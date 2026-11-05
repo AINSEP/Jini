@@ -26,3 +26,6 @@ export { buildIdentityRegistrations, identityDerivedRisk, type IdentityToolDeps 
 export { defaultUserManagementMessages, type UserManagementMessages } from "./messages.js";
 export { resolveOwnerResetTarget, issueRecoveryCodes, recoverOwner, resetOwnerPassword, type RecoveryCodeStore, type OwnerRecoveryDeps } from './recovery-codes.js';
 export { readHiddenPassword, ownerResetPassword } from './owner-reset-input.js';
+export * from './mfa/ports.js';
+export * from './mfa/service.js';
+export * from './mfa/totp-adapter.js';

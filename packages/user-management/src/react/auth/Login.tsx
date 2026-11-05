@@ -11,7 +11,7 @@ export interface LoginProps extends LoginHookProps, LoginOptions {
 }
 
 export function Login({ onLogin, port, translate, productName, initialUsername, useLoginHook = useLogin }: LoginProps) {
-  const { username, setUsername, password, setPassword, error, busy, submit } = useLoginHook({ onLogin, port, translate }, { initialUsername });
+  const { username, setUsername, password, setPassword, error, busy, submit, mfa } = useLoginHook({ onLogin, port, translate }, { initialUsername });
   const t = translate;
   const passwordInputId = useId();
 
@@ -20,6 +20,10 @@ export function Login({ onLogin, port, translate, productName, initialUsername, 
       <form className="login-card" onSubmit={submit}>
         <h1>{productName}</h1>
         <p>{t("Sign in to your workspace")}</p>
+        {mfa ? <label>
+          {t("Authenticator code")}
+          <input autoComplete="one-time-code" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} data-agent-private="" value={mfa.code} onChange={e => mfa.setCode(e.target.value)} autoFocus />
+        </label> : <>
         <label>
           {t("Username")}
           <input autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
@@ -30,8 +34,10 @@ export function Login({ onLogin, port, translate, productName, initialUsername, 
           <SecretInput id={passwordInputId} label={t("Password")} toggleLabels={{ show: t("Show password"), hide: t("Hide password") }}
             autoComplete="current-password" value={password} onChange={(e) => setPassword(e.target.value)} />
         </div>
-        {error ? <div className="login-error">{error}</div> : null}
-        <button disabled={busy}>{busy ? t("Signing in…") : t("Sign in")}</button>
+        </>}
+        {error ? <div className="login-error" role="alert">{error}</div> : null}
+        <button disabled={busy}>{busy ? t("Signing in…") : mfa ? t("Verify code") : t("Sign in")}</button>
+        {mfa ? <button type="button" disabled={busy} onClick={mfa.cancel}>{t("Cancel")}</button> : null}
       </form>
     </div>
   );

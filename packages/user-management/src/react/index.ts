@@ -23,3 +23,5 @@ export { userAccountCapabilities, isOwnerAccount, grantOptionLabel, formatGrantL
 export type { UserAccountCapabilities, UserRowMenuHandlers } from './users/rules.js';
 export { emptyRowState, memberRowMenuItems, describeMembersError } from './members/rules.js';
 export type { RowActionState, MemberRowMenuHandlers } from './members/rules.js';
+export { TotpSettings } from './auth/TotpSettings.js';
+export type { TotpSettingsPort } from './auth/TotpSettings.js';
