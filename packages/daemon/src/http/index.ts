@@ -389,3 +389,4 @@ export { createRemoteAttachmentLookup } from '../remote-attachment-lookup.js';
 export { createTavilyResearchProvider } from './research-tavily.adapter.js';
 export { createFrontendGuestScope } from './frontend-guest-scope.js';
 export { tryRestoreSurface } from './surface-restoration.js';
+export { deliverSurfaceCallback, isSurfaceCallbackPermitted, SURFACE_TYPED_ANSWER_REFUSAL, type SurfaceCallbackInput } from './surface-callback.js';

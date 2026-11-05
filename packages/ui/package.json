@@ -22,6 +22,7 @@
       "./mcp-ui": "browser",
       "./mcp-ui/surfaces": "universal",
       "./mcp-ui/secret-card": "universal",
+      "./mcp-ui/sign-in-card": "universal",
       "./interactive-ui": "browser",
       "./interactive-ui/manifests": "universal",
       "./a2ui": "browser",
@@ -131,6 +132,11 @@
       "types": "./dist/features/mcp-ui/secret-card.d.ts",
       "import": "./dist/features/mcp-ui/secret-card.js",
       "default": "./dist/features/mcp-ui/secret-card.js"
+    },
+    "./mcp-ui/sign-in-card": {
+      "types": "./dist/features/mcp-ui/sign-in-card.d.ts",
+      "import": "./dist/features/mcp-ui/sign-in-card.js",
+      "default": "./dist/features/mcp-ui/sign-in-card.js"
     },
     "./interactive-ui": {
       "types": "./dist/features/interactive-ui/index.d.ts",
