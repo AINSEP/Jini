@@ -37,6 +37,18 @@ function recordingTransport() {
 }
 const flush = () => new Promise((resolve) => setTimeout(resolve, 50));
 
+test('revoked Sentry pending events are dropped before transport while a fresh client still sends', async () => {
+  const { items, transport } = recordingTransport();
+  for (const revoked of [true, false]) {
+    const retirement = new AbortController();
+    const resource = createSentryObservabilityAdapter({ config: CONFIG }, { transport, signal: retirement.signal });
+    resource.port.reportError({ error: new Error(revoked ? 'revoked' : 'fresh'), context: { operation: 'fixture' } });
+    if (revoked) retirement.abort();
+    await resource.dispose();
+  }
+  assert.deepEqual(items.filter(item => item.type === 'event').map(item => item.payload.exception.values[0].value), ['fresh']);
+});
+
 test('a composed tracker correlates Sentry errors to the actual active OTel span only', async () => {
   const { items, transport } = recordingTransport();
   const sentry = createSentryObservabilityAdapter({ config: CONFIG }, { transport });

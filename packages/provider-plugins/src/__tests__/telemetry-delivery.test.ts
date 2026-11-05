@@ -7,6 +7,23 @@ import { createReportingExporter, createOtelObservabilityAdapter } from "../obse
 import { createOpenTelemetryProvider } from "../observability-opentelemetry/index.js";
 import { createSentryProvider } from "../observability-sentry/index.js";
 
+it('retired OTLP trace and metric exports complete without reaching the transport or reporting delivery', () => {
+  const reports: ProviderTelemetryReport[] = [];
+  const retirement = new AbortController();
+  const sent: unknown[] = [], completed: number[] = [];
+  const exporter = createReportingExporter({
+    reporter: createProviderTelemetryReporter({ endpoint: 'https://collector.test' }, { reportTelemetry: report => { reports.push(report); } }),
+    exporter: { export(batch, callback) { sent.push(batch); callback({ code: 0 }); }, forceFlush: async () => {}, shutdown: async () => {} },
+  }, { signal: retirement.signal });
+  exporter.export(['active'], result => { completed.push(result.code); });
+  retirement.abort();
+  exporter.export(['queued-traces'], result => { completed.push(result.code); });
+  exporter.export(['queued-metrics'], result => { completed.push(result.code); });
+  expect(sent).toEqual([['active']]);
+  expect(completed).toEqual([0, 0, 0]);
+  expect(reports).toEqual([{ phase: 'export', outcome: 'ok', host: 'collector.test' }]);
+});
+
 it("reports actual exporter callbacks, sanitizes all failures, and protects the SDK diagnostic path", async () => {
   const reports: ProviderTelemetryReport[] = [];
   const secret = ["private", "diagnostic", "token"].join("-");

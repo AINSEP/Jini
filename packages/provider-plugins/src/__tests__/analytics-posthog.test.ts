@@ -20,6 +20,19 @@ function recordingFetch() {
   return { batches, fetch };
 }
 
+test('revoked PostHog queues are dropped on shutdown while a fresh client still sends', async () => {
+  const { batches, fetch } = recordingFetch();
+  for (const revoked of [true, false]) {
+    const retirement = new AbortController();
+    const resource = createPostHogProvider({ apiKey: 'phc_test_dummy', host: 'https://posthog.invalid' }, { fetch, signal: retirement.signal });
+    resource.port.capture({ name: revoked ? 'revoked' : 'fresh', userId: 'fixture-install' });
+    resource.port.identify({ userId: 'fixture-install', traits: { plan: 'fixture' } });
+    if (revoked) retirement.abort();
+    await resource.dispose({});
+  }
+  expect(batches.flatMap(batch => batch.body.batch).map(event => event.event)).toEqual(['fresh', '$identify']);
+});
+
 test('every product capture is profile-less, including attempts to override the flag', async () => {
   const { batches, fetch } = recordingFetch();
   const resource = createPostHogProvider({ apiKey: 'phc_test_dummy', host: 'https://posthog.invalid' }, { fetch });
