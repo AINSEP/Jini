@@ -427,6 +427,43 @@ test("losing the cross-process lease means re-reading, NOT refreshing behind the
     assert.equal(double.leaseAcquisitions, 1);
     assert.deepEqual(double.leaseReleases, [], "a lease loser must not release another process's lease");
 });
+test("a delayed lease acquirer uses the rotation published after its initial load", async () => {
+    const clock = createTestClock("2026-08-25T12:04:00.000Z");
+    const double = makePort();
+    let signalLoaded!: () => void;
+    const loaded = new Promise<void>(resolve => { signalLoaded = resolve; });
+    let allowAcquire!: () => void;
+    const acquireGate = new Promise<void>(resolve => { allowAcquire = resolve; });
+    const delayed = createTokenRefresher({
+        clock, sleep: fixtureSleep, port: {
+            ...double.port,
+            async tryAcquireRefreshLease(args) {
+                // B has loaded, but A must publish and release before B can acquire.
+                signalLoaded();
+                await acquireGate;
+                return double.port.tryAcquireRefreshLease!(args);
+            },
+        },
+    });
+    const first = createTokenRefresher({ clock, sleep: fixtureSleep, port: double.port });
+    const pending = delayed.getAccessToken({ key: KEY });
+    await loaded;
+    try {
+        assert.equal(await first.getAccessToken({ key: KEY }), "at-rotated");
+        assert.equal(double.leaseHeld, false, "A released its lease before B acquires");
+    } finally {
+        allowAcquire();
+    }
+    assert.equal(await pending, "at-rotated");
+    assert.deepEqual(double.refreshInputs, [{ key: KEY, refreshToken: "rt-current" }]);
+    assert.equal(double.refreshCalls, 1, "the single-use refresh token must not be redeemed twice");
+    assert.equal(double.persisted.length, 1);
+    assert.equal(double.stored?.refreshToken, "rt-rotated");
+    assert.equal(double.leaseAcquisitions, 2);
+    assert.deepEqual(double.leaseReleases, [KEY, KEY]);
+    assert.equal(delayed.inFlightCount({}), 0);
+});
+
 test("a lease holder that never publishes leaves the loser on its still-valid token rather than racing", async () => {
     const clock = createTestClock("2026-08-25T12:04:00.000Z");
     const double = makePort({ leaseGranted: false });
