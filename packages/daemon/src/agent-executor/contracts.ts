@@ -396,6 +396,10 @@ export interface McpHttpEndpoint {
 }
 
 export interface McpJsonInjectionOptions {
+  /** The trusted host owns authorization and human confirmation for bridge calls. Codex may
+   * approve the jini MCP transport without its own prompt; this grants no target-tool permission.
+   * Omission preserves the CLI's default approval behavior. Applies only to the jini bridge. */
+  readonly toolApprovalOwner?: 'host';
   /** Optional transport port. Reject before CLI launch when HTTP cannot be prepared.
    * The host keeps callback credentials in memory; only this endpoint capability reaches the CLI. */
   readonly prepareHttp?: (required: { readonly runId: string }, optional?: { readonly messageRelayNonce?: string; readonly startupToolIds?: readonly string[]; readonly diagnosticToolIds?: readonly string[] }) => Promise<McpHttpEndpoint>;

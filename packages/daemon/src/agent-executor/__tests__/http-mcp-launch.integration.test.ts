@@ -9,10 +9,11 @@ import { createAgentExecutor } from '../index.js';
 import { createRunLifecycle } from '../../run-lifecycle.js';
 import { createInMemoryEventLog } from '../../event-log.js';
 import { fixtureLaunchModel, fixtureModelDiscovery } from './model-discovery-fixture.js';
+import { parse } from 'smol-toml';
 
 /** Runs the real executor and vendor argv/config writers with only process launch replaced.
  * Packaged CLI consumption remains a cloud gate; this fixture makes no version claim. */
-async function launch(vendor: 'claude' | 'codex' | 'opencode', failHttp = false, failure?: 'sync-spawn' | 'async-spawn' | 'invocation') {
+async function launch(vendor: 'claude' | 'codex' | 'opencode', failHttp = false, failure?: 'sync-spawn' | 'async-spawn' | 'invocation', locked?: { resume: boolean }) {
   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
   const child = Object.assign(new EventEmitter(), { stdin: new PassThrough(), stdout: new PassThrough(), stderr: new PassThrough(),
     exitCode: null, signalCode: null, pid: 56789 });
@@ -42,17 +43,42 @@ async function launch(vendor: 'claude' | 'codex' | 'opencode', failHttp = false,
     listProcessSnapshots: async () => [], collectProcessTreePids: () => [],
     stopProcesses: async () => ({ alreadyStopped: false, forcedPids: [], matchedPids: [], remainingPids: [], stoppedPids: [] }),
     mcpJsonInjection: { command: 'node', args: ['serve.js'], daemonUrl: 'http://daemon.invalid', credential: mint, prepareHttp,
+      ...(locked ? { toolApprovalOwner: 'host' as const } : {}),
       readFile: async () => '', writeFile: async ({ content }) => { config = content; },
       mkdtemp: async () => '/fixture-codex-home', removeDir: async () => {}, linkSessionStore: async () => {},
       removeFile: async () => {},
     },
   });
   const { run } = await lifecycle.start({ contextRef: 'http-launch' });
-  const runError: unknown = await executor.run({ runId: run.id, agentId: vendor, cwd: '/fixture', prompt: 'Hello' }, { permissionMode: 'bypass' }).then(() => undefined, error => error);
+  const runError: unknown = await executor.run({ runId: run.id, agentId: vendor, cwd: '/fixture', prompt: 'Hello' }, {
+    permissionMode: 'bypass', ...(locked ? { nativeToolAccess: false, resumeSessionId: locked.resume ? 'session-fixture' : null,
+      nativeCapabilities: { shell: false, fileWrite: false, userMcp: false, subagents: false, userSettings: false, web: false, workflows: false, loginEnvironment: false },
+    } : {}),
+  }).then(() => undefined, error => error);
   if (!failure) expect(runError).toBeUndefined();
   return { runError, child, lifecycle, runId: run.id, prepareHttp, mint, spawn, probe, endpointClose, argv, environment, config,
     finish: async () => { child.emit('close', 1, null); await lifecycle.waitForTerminal({ runId: run.id }); } };
 }
+
+it.each([
+  { stdio: false, resume: false }, { stdio: false, resume: true },
+  { stdio: true, resume: false }, { stdio: true, resume: true },
+])('host approval survives restricted Codex launch: %j', async ({ stdio, resume }) => {
+  const f = await launch('codex', stdio, undefined, { resume });
+  try {
+    const servers = parse(f.config).mcp_servers as Record<string, Record<string, unknown>>;
+    expect(servers.jini!.default_tools_approval_mode).toBe('approve');
+    expect(servers.jini).toHaveProperty(stdio ? 'command' : 'url');
+    expect(f.argv).toContain('sandbox_mode="read-only"');
+    expect(f.argv).toContain('approval_policy="never"');
+    expect(f.argv.includes('resume')).toBe(resume);
+    expect(f.argv).toContain('features.shell_tool=false');
+    expect(f.argv).toContain('features.apply_patch_freeform=false');
+    expect(f.argv).toContain('web_search="disabled"');
+    expect(f.environment.CODEX_HOME).toBe('/fixture-codex-home');
+    expect(f.spawn).toHaveBeenCalledTimes(1);
+  } finally { await f.finish(); }
+});
 
 it.each(['claude', 'codex', 'opencode'] as const)('HTTP %s launch contains no serve child configuration', async vendor => {
   const f = await launch(vendor);

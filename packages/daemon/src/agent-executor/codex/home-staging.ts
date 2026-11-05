@@ -105,10 +105,11 @@ function resolveCodexHomeSeams(options: McpJsonInjectionOptions): CodexHomeSeams
  * {@link prepareCodexHomeIfNeeded} stays the backstop for every blocked case.
  * @throws {@link CodexMcpIsolationError} when the run can't be isolated.
  */
-function buildStagedCodexConfig({ existingRaw, entry, inheritUserConfig, inheritUserMcp, sourceHome }: {
+function buildStagedCodexConfig({ existingRaw, entry, inheritUserConfig, inheritUserMcp, sourceHome, toolApprovalOwner }: {
   existingRaw: string | undefined; entry: McpJsonServerEntry | Pick<McpHttpEndpoint, 'url' | 'token'>; inheritUserConfig: boolean; inheritUserMcp: boolean; sourceHome: string;
+  toolApprovalOwner?: McpJsonInjectionOptions['toolApprovalOwner'];
 }): string {
-  const build = () => buildCodexHomeConfigToml({ existingRaw, entry, inheritUserMcp, inheritUserSettings: inheritUserConfig });
+  const build = () => buildCodexHomeConfigToml({ existingRaw, entry, inheritUserMcp, inheritUserSettings: inheritUserConfig, toolApprovalOwner });
   if (inheritUserMcp) return build();
   const path = join(sourceHome, 'config.toml');
   assertCodexHomeConfigParses({ raw: existingRaw, path });
@@ -154,6 +155,7 @@ async function prepareCodexHomeForRun(
   seams: CodexHomeSeams,
   inheritUserConfig = true,
   inheritUserMcp = true,
+  toolApprovalOwner?: McpJsonInjectionOptions['toolApprovalOwner'],
 ): Promise<PreparedCodexHome> {
   // Stricter than `@jini-ai/agent-runtime`'s `prepareAgentLogFile`/`preparePromptFileForAgent`
   // labels (which keep dots): this prefix stages a directory that ends up holding a copied Codex
@@ -171,7 +173,7 @@ async function prepareCodexHomeForRun(
       // matching writeMcpJsonForRun's identical "missing file" handling.
       existingConfigRaw = undefined;
     }
-    const content = buildStagedCodexConfig({ existingRaw: existingConfigRaw, entry, inheritUserConfig, inheritUserMcp, sourceHome: sourceCodexHomeDir });
+    const content = buildStagedCodexConfig({ existingRaw: existingConfigRaw, entry, inheritUserConfig, inheritUserMcp, sourceHome: sourceCodexHomeDir, toolApprovalOwner });
     await seams.writeFile({ path: join(dir, 'config.toml'), content });
     await seams.linkSessionStore({ runHome: dir, sourceHome: sourceCodexHomeDir }, { inheritUserConfig });
   } catch (err) {
@@ -236,6 +238,7 @@ export async function prepareCodexHomeIfNeeded({ input, deps }: { readonly input
       resolveCodexHomeSeams(deps.mcpJsonInjection),
       inherit.settings,
       inherit.mcp,
+      deps.mcpJsonInjection.toolApprovalOwner,
     );
   } catch (err) {
     await deps.releaseStagedResources();
