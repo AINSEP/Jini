@@ -1,20 +1,47 @@
+import { randomUUID } from "node:crypto";
+import { createRequire } from "node:module";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Database from "better-sqlite3";
+import { sql } from "kysely";
+import { openPostgresKernel } from "@jini-ai/db/kernel/postgres";
 import { openSqliteFileKernel } from "@jini-ai/db/kernel/sqlite";
 import { migrateCommercePayments, sqlPaymentsLedger } from "../../ledger/sql.js";
-import { describe, expect, test, vi } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import type { LedgerTx, PaymentsLedger } from "../../ledger/repo.js";
 import { createPaymentsOperator } from "../service.js";
-import { SCRIPTED, USD, timedOut, world } from "./harness.js";
+import { SCRIPTED, USD, timedOut, world, type WorldOptions } from "./harness.js";
 
 const AGE = 60_000;
 const request = { scope: SCRIPTED, amount: USD(10_000), idempotencyKey: "recover-order", reference: "order-1" };
 const line = { description: "One item", quantity: 2, unitAmount: USD(5_000) };
 
-async function unknown(ledgerKind: "memory" | "sqlite") {
-  const w = await world({ ledgerKind });
+type RecoveryKind = "memory" | "sqlite" | "postgres";
+const pgCleanups: Array<() => Promise<void>> = [];
+afterEach(async () => { for (const cleanup of pgCleanups.splice(0)) await cleanup(); });
+
+/** PostgreSQL fixtures own isolated schemas and never drop another test's ledger. */
+async function recoveryWorld(ledgerKind: RecoveryKind, options: Pick<WorldOptions, "wrapLedger"> = {}) {
+  if (ledgerKind !== "postgres") return world({ ledgerKind, ...options });
+  const pg = createRequire(new URL("../../../../node_modules/@jini-ai/db/package.json", import.meta.url))("pg");
+  const connectionString = process.env.COMMERCE_PG_URL!;
+  const admin = openPostgresKernel<unknown>({ pg, connectionString });
+  const schema = `commerce_recovery_${randomUUID().replaceAll("-", "")}`;
+  await admin.execute(sql`CREATE SCHEMA ${sql.id(schema)}`);
+  const url = new URL(connectionString); url.searchParams.set("options", `-csearch_path=${schema}`);
+  const kernel = openPostgresKernel<unknown>({ pg, connectionString: url.toString() });
+  pgCleanups.push(async () => {
+    await kernel.close();
+    try { await admin.execute(sql`DROP SCHEMA ${sql.id(schema)} CASCADE`); } finally { await admin.close(); }
+  });
+  await migrateCommercePayments({ kernel });
+  const ledger = sqlPaymentsLedger({ kernel });
+  return world({ wrapLedger: () => options.wrapLedger ? options.wrapLedger(ledger) : ledger });
+}
+
+async function unknown(ledgerKind: RecoveryKind) {
+  const w = await recoveryWorld(ledgerKind);
   Object.assign(w.scripted.provider, { intentReplayWindowMs: 23 * 60 * 60 * 1_000 });
   w.scripted.queue("createIntent", timedOut());
   const first = await w.service.createIntent(request, { line });
@@ -23,7 +50,8 @@ async function unknown(ledgerKind: "memory" | "sqlite") {
   return { w, payment: first.payment };
 }
 
-for (const ledgerKind of ["memory", "sqlite"] as const) describe(`intent recovery ${ledgerKind}`, () => {
+const kinds: RecoveryKind[] = process.env.COMMERCE_PG_URL ? ["memory", "sqlite", "postgres"] : ["memory", "sqlite"];
+for (const ledgerKind of kinds) describe(`intent recovery ${ledgerKind}`, () => {
   test("restart recovers the durable original request with the same charge key", async () => {
     const { w, payment } = await unknown(ledgerKind);
     const before = await w.read(payment.id);
@@ -85,7 +113,7 @@ for (const ledgerKind of ["memory", "sqlite"] as const) describe(`intent recover
 
   test("a crash after replay response cannot close the attempt before evidence commits", async () => {
     let failWriter = false;
-    const w = await world({ ledgerKind, wrapLedger: (ledger): PaymentsLedger => ({
+    const w = await recoveryWorld(ledgerKind, { wrapLedger: (ledger): PaymentsLedger => ({
       transaction: ({ fn }) => ledger.transaction({ fn: tx => fn(new Proxy(tx, {
         get(target, name) {
           if (failWriter && name === "updatePayment") return async () => { throw new Error("crash before evidence commit"); };
@@ -110,7 +138,7 @@ for (const ledgerKind of ["memory", "sqlite"] as const) describe(`intent recover
   });
 
   test("provider-specific extras are never persisted or automatically replayed", async () => {
-    const w = await world({ ledgerKind });
+    const w = await recoveryWorld(ledgerKind);
     Object.assign(w.scripted.provider, { intentReplayWindowMs: 60 * AGE });
     w.scripted.queue("createIntent", timedOut());
     const first = await w.service.createIntent(request, { line, providerOptions: { secret: "test-private-extra" } });
