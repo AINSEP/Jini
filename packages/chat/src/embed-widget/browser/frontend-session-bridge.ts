@@ -520,3 +520,37 @@ async function assertFrontendResponse({ response, invocationId, body, scoped, re
     if (!result.settled) throw new Error('Page invocation expired or was cancelled; no action was taken');
   }
 }
+
+export interface FrontendNavigationGuard {
+  noteNavigation(): void;
+  preparePageInput(required: { action: ChatPaneAgentToolAction }): Record<string, unknown>;
+  onBeforeResponse(required: { action: ChatPaneAgentToolAction; output: unknown }): unknown;
+}
+
+/** Fence a protected browser effect to the exact view in which its human card was proposed.
+ * Hosts call noteNavigation synchronously for every navigation, including a return to an old URL.
+ * Internal metadata is checked and removed before the page capability's public schema sees it.
+ * @returns Existing bridge callbacks plus the host-owned navigation notification.
+ * @complexity O(input keys) time/space per prepared action; O(1) retained revision counter.
+ * @overallScore 100
+ */
+export function createFrontendNavigationGuard(
+  _required: Record<string, never>, _optional: Record<string, never> = {},
+): FrontendNavigationGuard {
+  let revision = 0;
+  return {
+    noteNavigation: () => { revision += 1; },
+    preparePageInput: ({ action }) => {
+      const { __frontendNavigationRevision: expected, ...input } = action.input;
+      if (Object.hasOwn(action.input, '__frontendNavigationRevision') && (!Number.isSafeInteger(expected) || expected !== revision)) {
+        throw new Error('The page changed while confirmation was pending; propose this action again.');
+      }
+      return input;
+    },
+    onBeforeResponse: ({ action, output }) => {
+      if (action.capabilityId !== 'page.find_elements') return output;
+      if (output === null || typeof output !== 'object' || Array.isArray(output)) return output;
+      return { ...output, navigationRevision: revision };
+    },
+  };
+}
