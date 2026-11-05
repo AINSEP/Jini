@@ -2,7 +2,7 @@ import { IdentityValidationError, OwnerRequiredError } from '../../core/types.js
 import { createSessionForPrincipal, verifyCredentials } from '../auth-service.js';
 import { defaultUserManagementMessages } from '../messages.js';
 import { inIdentityTransaction } from '../identity-transaction.js';
-import type { MfaPending, MfaScope, OwnerMfaDeps } from './ports.js';
+import type { MfaFactor, MfaPending, MfaScope, OwnerMfaDeps } from './ports.js';
 
 type Required<T> = { deps: OwnerMfaDeps; input: T };
 type Options = Record<string, never>;
@@ -81,20 +81,20 @@ function usableProof(proof: MfaPending | null, purpose: MfaPending['purpose'], n
 /** Spend failed attempts without throwing inside the transaction (throwing would refund them).
  * O(1), one proof read/write and one factor/library verification. Session writes share rollback.
  */
-async function useProof<T>(required: Required<{ workspaceId: string; pendingToken: string; code: string }>, purpose: MfaPending['purpose'], complete: (proof: MfaPending, step: number) => Promise<T>): Promise<T> {
+async function useProof<T>(required: Required<{ workspaceId: string; pendingToken: string; code: string }>, purpose: MfaPending['purpose'], complete: (proof: MfaPending, step: number, verified: Awaited<ReturnType<typeof owner>> & { factor: MfaFactor | null }) => Promise<T>): Promise<T> {
   const { deps, input } = required;
   const result = await transaction(deps, input.workspaceId, async () => {
     const proof = await deps.store.pending({ workspaceId: input.workspaceId, tokenHash: deps.auth.tokens.hashToken({ rawToken: input.pendingToken }) });
     if (!usableProof(proof, purpose, deps.auth.clock.nowMs())) return { ok: false as const };
     await deps.store.savePending({ ...proof, attempts: proof.attempts + 1 });
-    await owner(deps, proof);
+    const identity = await owner(deps, proof);
     const factor = purpose === 'login' ? await deps.store.factor(proof) : null;
     const sealedSecret = factor?.sealedSecret ?? proof.sealedSecret;
     if (!sealedSecret) return { ok: false as const };
     const secret = await deps.secrets.open({ ...proof, sealedSecret });
     const step = await deps.totp.verify({ secret, code: input.code, nowMs: deps.auth.clock.nowMs() });
     if (step === null || (factor !== null && step <= factor.lastStep)) return { ok: false as const };
-    return { ok: true as const, value: await complete(proof, step) };
+    return { ok: true as const, value: await complete(proof, step, { ...identity, factor }) };
   });
   if (!result.ok) throw refused();
   return result.value;
@@ -103,12 +103,10 @@ async function useProof<T>(required: Required<{ workspaceId: string; pendingToke
 /** Atomically advance timestep, consume proofs and mint the only authorized session. O(1). */
 export async function completeOwnerLogin(required: Required<{ workspaceId: string; pendingToken: string; code: string }>, options: SessionOptions = {}) {
   const { deps } = required;
-  return useProof(required, 'login', async (proof, step) => {
-    const factor = await deps.store.factor(proof);
+  return useProof(required, 'login', async (proof, step, { factor, principal, user }) => {
     if (!factor) throw refused();
     await deps.store.saveFactor({ ...factor, lastStep: step });
     await deps.store.clearPending(proof);
-    const { principal, user } = await owner(deps, proof);
     const result = await createSessionForPrincipal({ deps: deps.auth, input: proof }, options);
     await deps.auth.repos.users.save({ ...user, lastLoginAt: result.session.createdAt });
     return { principal, ...result };
