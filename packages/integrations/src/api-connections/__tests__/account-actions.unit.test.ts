@@ -94,7 +94,8 @@ describe('disconnectApiConnection', () => {
     const deps = unitDeps();
     await seedRecord(deps, connectedRecord());
     const { descriptor, records, tokens, hooks, clock } = deps;
-    const result = await disconnectApiConnection({ descriptor, records, tokens, hooks, clock }, owned);
+    const result = await disconnectApiConnection({ descriptor, records, clock,
+      tokens: { loadForRevocation: tokens.loadForRevocation, delete: tokens.delete }, hooks: { revoke: hooks.revoke } }, owned);
     expect(result.status).toBe('disconnected');
     expect(result.remoteRevocation).toBe('not-needed');
     expect((await records.read({ key: KEY }))?.generation).toBe(2);
