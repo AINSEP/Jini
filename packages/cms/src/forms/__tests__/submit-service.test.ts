@@ -270,6 +270,7 @@ test("submitForm: a failed enqueue rejects through the transaction and dispatche
 test("external collection definitions cannot accept submissions through the built-in receiver", async () => {
   const deps = makeDeps(); await deps.definitionRepo.create({ ...makeDefinition(), provider: { id: "formspree", config: { formId: "abc" } } } as FormDefinitionRecord);
   await assert.rejects(submitForm({ deps, input: { workspaceId: WORKSPACE_ID, slug: "contact", sourceIp: "127.0.0.1", body: { name: "Ada", email: "ada@example.com" } } }), FormDefinitionNotFoundError);
+  await assert.rejects(submitForm({ deps, input: { workspaceId: WORKSPACE_ID, slug: "contact", sourceIp: "127.0.0.1", body: { name: "Ada", email: "ada@example.com" } } }, { definitionView: ({ definition }) => ({ ...definition, provider: undefined }) }), FormDefinitionNotFoundError);
   assert.equal((await deps.submissionRepo.listByDefinition({ workspaceId: WORKSPACE_ID, formDefinitionId: "def-1", limit: 10 })).items.length, 0);
 });
 

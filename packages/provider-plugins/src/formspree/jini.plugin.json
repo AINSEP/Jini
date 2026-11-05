@@ -1,7 +1,7 @@
 {
   "id": "formspree", "name": "Formspree form collection", "version": "0.6.22",
   "sdkRange": "^0.1.0 || ^1.0.0", "engine": 1, "tier": "tier-3",
-  "extensions": { "tovu": { "id": "jini/forms-formspree" } },
+  "extensions": { "tovu": { "id": "jini/formspree" } },
   "capabilities": ["providers.register"],
   "contributes": { "providers": [{ "contract": "form_collection", "id": "formspree", "contractVersion": 1 }] },
   "hooks": [], "fields": [], "integrity": {}

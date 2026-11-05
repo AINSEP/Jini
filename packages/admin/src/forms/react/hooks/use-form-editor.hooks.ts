@@ -123,6 +123,9 @@ function authoringPatch({ mode, html, savedMode }: { mode: "builder" | "html"; h
   if (mode === "html") return { mode, html };
   return savedMode === "html" ? { mode } : {};
 }
+/** Load and save the editor through its injected port, preserving authoring and collection metadata.
+ * @complexity O(f + b) draft state for fields/HTML bytes; one definition request per save, no provider I/O.
+ * @overallScore 95 — Low: the existing screen lifecycle remains one hook with independently tested callbacks. */
 export function useFormEditor(
   props: { formId: string; tab: "fields" | "submissions"; port: AdminFormsPort; navigate: (path: string) => void; t: (key: string) => string },
   { clipboard }: { clipboard?: { writeText: (text: string) => Promise<void> } } = {},

@@ -28,6 +28,9 @@ export interface FormEditorFieldsBodyProps {
   copyFeedback: string | null;
 }
 
+/** Edit the existing form body and explicit collection destination without crossing their state boundaries.
+ * @complexity O(f) render time/space for fields; event callbacks perform no direct I/O.
+ * @overallScore 94 — Low: the approved two-provider selector needs another option for future providers. */
 export function FormEditorFieldsBody(props: FormEditorFieldsBodyProps) {
   const handlers = useFormFieldsBodyView(props);
   const { name, slug, isNew, t } = props;

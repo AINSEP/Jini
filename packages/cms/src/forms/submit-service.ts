@@ -155,7 +155,8 @@ async function resolveActiveDefinition(
   // Missing and disabled slugs are deliberately indistinguishable to public callers.
   const stored = await deps.definitionRepo.findBySlug({ workspaceId: input.workspaceId, slug: input.slug });
   const definition = stored && definitionView ? definitionView({ definition: stored, body: input.body }) : stored;
-  if (!definition || definition.status !== "active" || !usesBuiltinCollection({ definition })) {
+  // Collection ownership comes from storage; legacy validation views may omit provider metadata.
+  if (!definition || definition.status !== "active" || !usesBuiltinCollection({ definition: stored! })) {
     throw new FormDefinitionNotFoundError({ message: `form '${input.slug}' was not found` });
   }
   if (validateEmails) assertSubmissionEmails({ definition, body: input.body });

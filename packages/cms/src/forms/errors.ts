@@ -1,5 +1,7 @@
 /** Stable domain error types; callers map them to their own transport errors. */
 import type { FieldDescriptor } from "./types.js";
+/** Retry refusal carries validated answers and captured controls, never file bytes.
+ * @complexity O(1), no I/O. @overallScore 98: references stay local to the rejected attempt. */
 export class FormAttachmentSpaceError extends Error {
   readonly code = "FORMS_ATTACHMENT_SPACE";
   readonly answers: Record<string, unknown>;
