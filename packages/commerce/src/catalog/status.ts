@@ -2,6 +2,7 @@ import type {
   CommercePaymentProvider,
   CommercePaymentRuntimePort,
   CommerceStatus,
+  CommerceCheckoutReadiness,
 } from "./contracts.js";
 
 const CONFIGURATION_UNAVAILABLE = {
@@ -44,6 +45,7 @@ function copyProvider(provider: CommercePaymentProvider): CommercePaymentProvide
 export function readCommerceStatus(input: {
   readonly workspaceId: string;
   readonly resolvePaymentRuntime: () => CommercePaymentRuntimePort | null;
+  readonly checkout?: CommerceCheckoutReadiness;
 }, _optional: Record<string, never> = {}): CommerceStatus {
   const paymentRuntime = input.resolvePaymentRuntime();
   const available = paymentRuntime !== null;
@@ -56,10 +58,11 @@ export function readCommerceStatus(input: {
       reason: available ? null : "No payment runtime is composed for this workspace.",
     },
     providers: paymentRuntime?.listProviders().map(copyProvider) ?? [],
+    ...(input.checkout === undefined ? {} : { checkout: { ...input.checkout } }),
     configuration: { ...CONFIGURATION_UNAVAILABLE },
     capabilities: {
       providerDiscovery: available ? "available" : "unavailable",
-      checkout: "unavailable",
+      checkout: input.checkout?.ready ? "available" : "unavailable",
       subscriptions: "unavailable",
       webhookReconciliation: "unavailable",
       revenue: "unavailable",

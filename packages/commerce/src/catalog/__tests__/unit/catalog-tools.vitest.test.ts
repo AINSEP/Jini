@@ -51,10 +51,18 @@ it("refuses a foreign product returned by an adapter", async () => {
 it("status delegates to the current server after permission without reading any credentials", async () => {
   const status = vi.fn(async () => ({ active: false, ready: false, reason: "Commerce is disabled.", scope }));
   const [registration] = buildRegistrations({ workspaceId: "ws", authorize: async () => ({ allowed: true, reason: "matched" }), commerce: { status } });
-  expect(await registration!.handler({ ...context, input: {} })).toMatchObject({ ready: false }); expect(status).toHaveBeenCalledTimes(1);
+  expect(await registration!.handler({ ...context, input: {} })).toMatchObject({ contractVersion: 1, workspaceId: "ws", checkout: { active: false, ready: false, reason: "Commerce is disabled." }, capabilities: { checkout: "unavailable" } });
+  expect(status).toHaveBeenCalledTimes(1);
 });
 it("refuses setup when a host injects a server for another workspace", async () => {
   const f = fixture(); f.activate.mockResolvedValue({ active: true, ready: true, reason: null, scope: { ...scope, workspaceId: "foreign" } });
   await expect(f.createProduct({ name: "Notebook", slug: "notebook" })).rejects.toThrow("configured for another workspace");
   expect(f.products.save).not.toHaveBeenCalled();
+});
+it("preserves the status envelope and reports checkout only from operational readiness", async () => {
+  const [registration] = buildRegistrations({ workspaceId: "ws", authorize: async () => ({ allowed: true, reason: "matched" }),
+    commerce: { status: async () => ({ active: true, ready: true, reason: null, scope }) } });
+  expect(await registration!.handler({ ...context, input: {} })).toMatchObject({ contractVersion: 1, workspaceId: "ws", providers: [],
+    paymentRuntime: { status: "unavailable" }, configuration: { status: "unavailable" }, checkout: { active: true, ready: true, reason: null },
+    capabilities: { checkout: "available", subscriptions: "unavailable", revenue: "unavailable" } });
 });

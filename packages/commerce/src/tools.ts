@@ -1,12 +1,14 @@
 import { buildDomainRegistrations, indexCatalogById, type DerivedRiskByToolId, type ToolRegistration, type AgentToolDefinition } from "@jini-ai/core";
 import { adaptLegacyAuthorize, requireToolPermission, type AuthorizeFn } from "@jini-ai/cms/core";
 import { readCommerceStatus } from "./catalog/status.js";
-import type { CommercePaymentRuntimePort } from "./catalog/contracts.js";
-import type { CommerceServer } from "./catalog/plugin-server.js";
+import type { CommerceCheckoutReadiness, CommercePaymentRuntimePort } from "./catalog/contracts.js";
+import { CommerceUnavailableError } from "./catalog/plugin-server.js";
+import type { PaymentScope } from "./payments/contract/scope.js";
 export * from "./catalog-tools.js";
 
 /** Narrow provider-discovery port; no payment, refund or credential operations. */
-export interface Deps { workspaceId: string; authorize: AuthorizeFn; lipay?: (CommercePaymentRuntimePort) | undefined; commerce?: Pick<CommerceServer, "status">; }
+export interface Deps { workspaceId: string; authorize: AuthorizeFn; lipay?: (CommercePaymentRuntimePort) | undefined;
+  commerce?: { status(): Promise<CommerceCheckoutReadiness & { readonly scope?: PaymentScope }> }; }
 
 /** Catalog for the admin service exposed through this standalone contributor. */
 export const catalog: AgentToolDefinition[] = [{
@@ -34,8 +36,10 @@ export function buildRegistrations(deps: Deps, _optional: Record<string, never> 
     catalog: indexCatalogById({ catalog }), derivedRisk,
     handlers: { commerce_get_status: async ctx => {
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: deps.authorize }), workspaceId: deps.workspaceId, principalId: ctx.principal.id, permission: "admin.integrations.manage" }, { entityType: "integration" });
-      if (deps.commerce) return deps.commerce.status();
-      return readCommerceStatus({ workspaceId: deps.workspaceId, resolvePaymentRuntime: () => deps.lipay ?? null });
+      const checkout = await deps.commerce?.status();
+      if (checkout?.scope && checkout.scope.workspaceId !== deps.workspaceId) throw new CommerceUnavailableError("Commerce status belongs to another workspace.");
+      return readCommerceStatus({ workspaceId: deps.workspaceId, resolvePaymentRuntime: () => deps.lipay ?? null,
+        ...(checkout ? { checkout: { active: checkout.active, ready: checkout.ready, reason: checkout.reason } } : {}) });
     } },
   });
 }
