@@ -11,6 +11,32 @@ import { createOpenTelemetryProvider as openTelemetryProvider } from "../observa
 const createOpenTelemetryProvider: typeof openTelemetryProvider = (required, optional = {}) => openTelemetryProvider(required, { exportEnabled: true, ...optional });
 const CONFIG = { serviceName: "metric-test", tracerName: "metric-scope", endpoint: "https://collector.test/otlp", auth: "none" };
 
+test('revocation drops queued OTLP traces and metrics; a fresh factory still flushes both', async () => {
+  const requests: { path: string | undefined; body: string }[] = [];
+  const server = createServer(async (req, res) => {
+    let body = '';
+    for await (const chunk of req) body += chunk.toString();
+    requests.push({ path: req.url, body });
+    res.writeHead(200, { 'content-type': 'application/json' }); res.end('{}');
+  });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  const address = server.address();
+  assert.ok(address && typeof address !== 'string');
+  try {
+    for (const revoked of [true, false]) {
+      const retirement = new AbortController();
+      const resource = createOpenTelemetryProvider({ ...CONFIG, serviceName: revoked ? 'revoked' : 'fresh', endpoint: `http://127.0.0.1:${address.port}` }, { signal: retirement.signal });
+      resource.port.trackOperation({ name: 'queued' }).end({ outcome: 'completed', failed: false });
+      resource.port.metric({ name: 'queued', value: 2 }, { kind: 'counter' });
+      if (revoked) retirement.abort();
+      await resource.dispose({});
+      if (revoked) assert.deepEqual(requests, []);
+    }
+    assert.deepEqual(requests.map(request => request.path).sort(), ['/v1/metrics', '/v1/traces']);
+    for (const request of requests) { assert.match(request.body, /fresh/); assert.doesNotMatch(request.body, /revoked/); }
+  } finally { await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve())); }
+});
+
 test("the SDK aggregates counter increments, defaults to last-value gauge, and exports histogram units and safe attributes", async () => {
   const exporter = new InMemoryMetricExporter(AggregationTemporality.CUMULATIVE);
   const reader = new PeriodicExportingMetricReader({ exporter, exportIntervalMillis: 60_000, exportTimeoutMillis: 5000 });

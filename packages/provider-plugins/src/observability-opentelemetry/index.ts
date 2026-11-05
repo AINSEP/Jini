@@ -122,6 +122,7 @@ export function createOpenTelemetryProvider(required: Readonly<Record<string, un
   // General endpoint is the shared collector base; signal overrides select only their own route.
   const resourceAttributes = attributionOf(required.attribution).attributes;
   const options: OtelAdapterOptions = { exportEnabled: optional.exportEnabled === true, endpoint, metricReaders, ...(headers ? { headers } : {}), ...(spanProcessors ? { spanProcessors } : {}), resourceAttributes,
+    signal: optional.signal as AbortSignal | undefined,
     reportTelemetry: optional.reportTelemetry as OtelAdapterOptions['reportTelemetry'], info: optional.info as OtelAdapterOptions['info'] };
   const { port, dispose } = startOpenTelemetryAdapter({ config }, options);
   return { port, dispose: (_required: Record<string, never>, _optional: Record<string, never> = {}) => dispose() };

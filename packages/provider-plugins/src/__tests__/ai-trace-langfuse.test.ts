@@ -1,9 +1,25 @@
 /** The Langfuse provider plugin: event mapping through the real agent-runtime recorder, and the factory (recording client, no network). Moved from `@jini-ai/agent-runtime`. */
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+import { Langfuse } from 'langfuse';
 import { createAiTraceRecorder, createFanOutAiTraceSink, createRecordingAiTraceSink, noopAiTraceSink, type AiTraceSink } from '@jini-ai/agent-runtime/ai-trace';
 import { createLangfuseAiTraceSink, createLangfuseClient, toLangfuseCall, type LangfuseCall, type LangfuseClientPort } from '../ai-trace-langfuse/langfuse.js';
 import plugin, { createLangfuseProvider } from '../ai-trace-langfuse/index.js';
 import { SCENARIO_EVENTS, steppingClock } from './ai-trace-scenario.js';
+
+it('revoked Langfuse queued traces are dropped on shutdown while a fresh client still sends', async () => {
+  const send = vi.spyOn(Langfuse.prototype, 'fetch').mockResolvedValue({ status: 200, text: async () => '{}', json: async () => ({}), arrayBuffer: async () => new ArrayBuffer(0) });
+  try {
+    for (const revoked of [true, false]) {
+      const retirement = new AbortController();
+      const client = createLangfuseClient({ publicKey: 'pk-fixture', secretKey: 'sk-fixture', baseUrl: 'https://langfuse.invalid' }, { signal: retirement.signal });
+      client.trace({ id: revoked ? 'revoked' : 'fresh' });
+      if (revoked) retirement.abort();
+      await client.shutdownAsync();
+      expect(send).toHaveBeenCalledTimes(revoked ? 0 : 1);
+    }
+    expect(JSON.parse(String(send.mock.calls[0]![1].body)).batch[0].body.id).toBe('fresh');
+  } finally { send.mockRestore(); }
+});
 
 function fakeLangfuseClient(): LangfuseClientPort & { calls: LangfuseCall[]; flushed: number } {
   const calls: LangfuseCall[] = [];

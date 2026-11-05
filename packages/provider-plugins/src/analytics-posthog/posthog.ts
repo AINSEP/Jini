@@ -38,7 +38,7 @@ export interface PostHogAdapterOptions extends ProviderTelemetryOptions {
 }
 
 /**
- * @returns `{ port, dispose }`; `dispose` flushes and shuts the client down and never throws.
+ * @returns `{ port, dispose }`; `dispose` flushes (or drops exports after host retirement), shuts the client down and never throws.
  * @complexity O(1) per event; delivery is batched in the background by the SDK.
  */
 export function createPostHogProductAnalyticsAdapter({ config }: { config: PostHogConfigEnabled }, options: PostHogAdapterOptions = {}): ProductAnalyticsAdapter {
@@ -54,6 +54,7 @@ export function createPostHogProductAnalyticsAdapter({ config }: { config: PostH
   // Reuse the SDK's fetch owner so its Node transport and any supplied fetch keep their semantics.
   const send = client.fetch.bind(client);
   client.fetch = async (url, init) => {
+    if (options.signal?.aborted) return { status: 200, text: async () => "", json: async () => ({}) };
     try {
       const response = await send(url, init);
       reporter.result({ phase: "export", outcome: response.status >= 200 && response.status < 300 ? "ok" : "failed", error: { status: response.status } });

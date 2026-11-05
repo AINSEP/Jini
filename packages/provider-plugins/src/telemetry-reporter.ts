@@ -1,6 +1,8 @@
 import { describeTelemetryFailure, type ProviderTelemetryReport } from "@jini-ai/diagnostics/observability";
 
 export interface ProviderTelemetryOptions {
+  /** Host retirement drops queued exports before SDK shutdown flushes a revoked credential. */
+  signal?: AbortSignal | undefined;
   reportTelemetry?: ((report: ProviderTelemetryReport) => void) | undefined;
   info?: ((message: string) => void) | undefined;
 }
