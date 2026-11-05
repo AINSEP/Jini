@@ -42,11 +42,35 @@ describe('owner authenticator UI', () => {
     await user.type(await screen.findByLabelText('Current owner password'), 'password');
     await user.click(screen.getByRole('button', { name: 'Set up authenticator' }));
     expect(await screen.findByText('SETUPSECRET')).toBeInTheDocument();
-    expect(screen.queryByText('Authenticator enabled.')).not.toBeInTheDocument();
+    expect(screen.queryByText('Authenticator enabled. Sign in again with the next code from your app.')).not.toBeInTheDocument();
     await user.type(screen.getByLabelText('Authenticator code'), '123456');
     await user.click(screen.getByRole('button', { name: 'Confirm authenticator' }));
     await waitFor(() => expect(port.confirm).toHaveBeenCalledWith({ pendingToken: 'enroll', code: '123456' }));
-    expect(await screen.findByText('Authenticator enabled.')).toBeInTheDocument();
+    expect(await screen.findByText('Authenticator enabled. Sign in again with the next code from your app.')).toBeInTheDocument();
     expect(screen.queryByText('SETUPSECRET')).not.toBeInTheDocument();
   });
+});
+
+it('does not offer owner enrollment to staff', async () => {
+  const port = { status: vi.fn().mockResolvedValue({ isOwner: false, available: true, enrolled: false }),
+    enroll: vi.fn(), confirm: vi.fn(), remove: vi.fn() };
+  render(<TotpSettings port={port} translate={translate} />);
+  await waitFor(() => expect(port.status).toHaveBeenCalledOnce());
+  expect(screen.queryByRole('button', { name: 'Set up authenticator' })).not.toBeInTheDocument();
+  expect(port.enroll).not.toHaveBeenCalled();
+});
+
+it('requires the current password and factor when removing an enrolled authenticator', async () => {
+  const user = userEvent.setup();
+  const port = { status: vi.fn().mockResolvedValue({ isOwner: true, available: true, enrolled: true }),
+    enroll: vi.fn(), confirm: vi.fn(), remove: vi.fn().mockResolvedValue(undefined) };
+  render(<TotpSettings port={port} translate={translate} />);
+  await user.type(await screen.findByLabelText('Current owner password'), 'owner-password');
+  const remove = screen.getByRole('button', { name: 'Remove authenticator' });
+  expect(remove).toBeDisabled();
+  await user.type(screen.getByLabelText('Authenticator code'), '234567');
+  await user.click(remove);
+  expect(port.remove).toHaveBeenCalledWith({ password: 'owner-password', code: '234567' });
+  expect(await screen.findByText('Authenticator removed. Sign in again.')).toBeInTheDocument();
+  expect(screen.getByLabelText('Current owner password')).toHaveValue('');
 });

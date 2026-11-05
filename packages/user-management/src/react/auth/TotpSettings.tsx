@@ -43,7 +43,7 @@ function TotpSettingsForm({ port, enrolled: initialEnrolled, t }: { port: TotpSe
   async function confirm(event: FormEvent) {
     event.preventDefault(); if (!setup) return;
     setBusy(true); setError('');
-    try { await port.confirm({ pendingToken: setup.pendingToken, code }); clear(); setEnrolled(true); setMessage(t('Authenticator enabled.')); }
+    try { await port.confirm({ pendingToken: setup.pendingToken, code }); clear(); setEnrolled(true); setMessage(t('Authenticator enabled. Sign in again with the next code from your app.')); }
     catch (error) { setError(error instanceof Error ? error.message : t('The code was not accepted. Enter a fresh authenticator code.')); }
     finally { setBusy(false); }
   }
@@ -64,7 +64,7 @@ function TotpSettingsForm({ port, enrolled: initialEnrolled, t }: { port: TotpSe
       <button type="button" disabled={busy} onClick={clear}>{t('Cancel')}</button>
     </form> : <form onSubmit={enroll}>
       <label htmlFor={passwordId}>{t('Current owner password')}</label>
-      <SecretInput id={passwordId} label={t('Current owner password')} autoComplete="current-password" value={password} onChange={event => setPassword(event.target.value)} />
+      <SecretInput id={passwordId} label={t('Current owner password')} autoComplete="current-password" data-agent-private="" value={password} onChange={event => setPassword(event.target.value)} />
       {enrolled ? <CodeInput code={code} setCode={setCode} t={t} /> : null}
       <button disabled={busy || !password}>{t(enrolled ? 'Replace authenticator' : 'Set up authenticator')}</button>
       {enrolled ? <button type="button" disabled={busy || !password || !code} onClick={remove}>{t('Remove authenticator')}</button> : null}

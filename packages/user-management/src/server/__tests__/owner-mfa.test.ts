@@ -1,3 +1,5 @@
+import { resetUserPassword } from '../admin-crud-service.js';
+import { issueRecoveryCodes, resetOwnerPassword } from '../recovery-codes.js';
 import { expect, test } from 'vitest';
 import { seedIdentity } from '../seed.js';
 import { NodeSessionTokens } from '../session-tokens.js';
@@ -41,6 +43,7 @@ async function fixture() {
     } },
     totp: { generate: () => 'secret', uri: () => 'otpauth://test', verify: async ({code,nowMs}) => code === '123456' ? Math.floor(nowMs / 30000) : null },
   };
+  auth.mfaStore = deps.store;
   const scope = { workspaceId: 'a', principalId: owner.ownerPrincipalId };
   const login = () => beginOwnerLogin({ deps, input: { workspaceId: 'a', username: 'owner', password: 'old' } });
   const enroll = async () => {
@@ -102,4 +105,27 @@ test('replacement/removal require current password and factor; staff cannot enro
   await expect(beginOwnerEnrollment({deps:f.deps,input:{...f.scope,principalId:'staff',password:'old',label:'S',issuer:'T'}})).rejects.toThrow();
   await removeOwnerFactor({deps:f.deps,input:{...f.scope,password:'old',code:'123456'}});
   expect(await f.deps.store.factor(f.scope)).toBeNull();
+});
+
+
+test('ordinary password reset preserves factor and invalidates pending proofs made with the old password', async () => {
+  const f = await fixture(); await f.enroll(); const r = await f.login(); if (!('pendingToken' in r)) throw Error('missing');
+  await resetUserPassword({deps:f.deps.auth,input:{...f.scope,password:'new',callerPrincipalId:f.scope.principalId,seededOwnerPrincipalId:f.scope.principalId}});
+  expect(await f.deps.store.factor(f.scope)).not.toBeNull();
+  await expect(completeOwnerLogin({deps:f.deps,input:{workspaceId:'a',pendingToken:r.pendingToken,code:'123456'}})).rejects.toThrow();
+  expect(await f.sessions()).toHaveLength(0);
+});
+
+test('recovery kit rotation needs the existing factor, and explicit host recovery clears factors/proofs', async () => {
+  const f = await fixture(); await f.enroll(); await f.login();
+  let hashes: string[] = [];
+  const deps = {auth:f.deps.auth,mfa:f.deps,seededOwnerPrincipalId:f.scope.principalId,codes:{
+    replace: async (s:{hashes:string[]}) => { hashes=s.hashes; }, clear:async()=>{hashes=[];}, contains:async()=>false,
+  }};
+  await expect(issueRecoveryCodes({deps,input:{...f.scope,password:'old'}})).rejects.toThrow();
+  expect(hashes).toEqual([]);
+  const kit = await issueRecoveryCodes({deps,input:{...f.scope,password:'old',code:'123456'}});
+  expect(kit.codes).toHaveLength(10);
+  await resetOwnerPassword({deps,input:{...f.scope,password:'new'}});
+  expect(await f.deps.store.factor(f.scope)).toBeNull(); expect(f.pending()).toHaveLength(0); expect(hashes).toEqual([]);
 });

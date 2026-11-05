@@ -29,3 +29,4 @@ export { readHiddenPassword, ownerResetPassword } from './owner-reset-input.js';
 export * from './mfa/ports.js';
 export * from './mfa/service.js';
 export * from './mfa/totp-adapter.js';
+export * from './mfa/secret-adapter.js';

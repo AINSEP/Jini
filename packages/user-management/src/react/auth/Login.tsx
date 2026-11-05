@@ -15,15 +15,20 @@ export function Login({ onLogin, port, translate, productName, initialUsername, 
   const t = translate;
   const passwordInputId = useId();
 
+  const readyLabel = mfa ? t("Verify code") : t("Sign in");
+  const submitLabel = busy ? t("Signing in…") : readyLabel;
+
   return (
     <div className="login-screen">
       <form className="login-card" onSubmit={submit}>
         <h1>{productName}</h1>
         <p>{t("Sign in to your workspace")}</p>
-        {mfa ? <label>
+        {mfa ? <>
+        <p>{t("Enter a fresh code from your authenticator app. After setup, wait for the next code.")}</p>
+        <label>
           {t("Authenticator code")}
           <input autoComplete="one-time-code" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} data-agent-private="" value={mfa.code} onChange={e => mfa.setCode(e.target.value)} autoFocus />
-        </label> : <>
+        </label></> : <>
         <label>
           {t("Username")}
           <input autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} autoFocus />
@@ -36,7 +41,7 @@ export function Login({ onLogin, port, translate, productName, initialUsername, 
         </div>
         </>}
         {error ? <div className="login-error" role="alert">{error}</div> : null}
-        <button disabled={busy}>{busy ? t("Signing in…") : mfa ? t("Verify code") : t("Sign in")}</button>
+        <button disabled={busy}>{submitLabel}</button>
         {mfa ? <button type="button" disabled={busy} onClick={mfa.cancel}>{t("Cancel")}</button> : null}
       </form>
     </div>
