@@ -1,5 +1,9 @@
 # @jini-ai/mcp
 
+## 0.6.22
+
+- Owner grant changes reuse the connection's original tool snapshot (`federation/frozen-grants`). Delegated tool input envelopes are decoded only where the tool's schema calls for it.
+
 ## 0.6.19
 
 - Redact config/token parsing and federation bootstrap exception diagnostics.

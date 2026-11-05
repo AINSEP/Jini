@@ -1,3 +1,7 @@
+## 0.6.22
+
+- Child stdout can be framed and sanitized line by line before parsing. A timed-out or cancelled delegated tool can report host-loaded recovery facts through `recoverInterruptedTool`, with no retry.
+
 ## 0.6.19
 
 - `DelegatedToolsHttpDeps.toolRegistry` takes a list-only registry view (`Pick<ToolRegistry, 'list'>`): the route only reads descriptors, and hosts pass descriptor-only facades.

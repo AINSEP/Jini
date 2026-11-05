@@ -1,5 +1,9 @@
 # @jini-ai/devops
 
+## 0.6.22
+
+- Static publish runs as a background job with progress (`deploy/publish-jobs`); a failed provider build is reported as failed and timeouts report what is known.
+
 ## 0.6.20
 
 - `electron` is a classified opt-in peer (`jini.optionalPeers`): only `@jini-ai/devops/local-dev`'s `selectNodeRuntime` loads it. A host that packages a server importing `local-dev` (listen/retirement helpers) no longer fails its staged-closure audit on that dev-only runtime picker (Tovu desktop 0.1.27).

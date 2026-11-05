@@ -1,5 +1,9 @@
 # @jini-ai/ui
 
+## 0.6.22
+
+- `ErrorNotice` in panel-kit: plain words plus Copy details.
+
 ## 0.6.19
 
 - A `<provider>.<kind>-chart` entry from `createChartInteractiveRegistry` now draws with the provider it advertises. Components were cached by chart kind only, so with another enabled provider as the site default, `plugin.echarts.bar-chart` could render through that default. The legacy `recharts.*` aliases and `chart.spec` keep generic selection.

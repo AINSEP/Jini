@@ -1,3 +1,8 @@
+## 0.6.22
+
+- Exports `mediaReplacementMetadata` and `mediaFileReplacementRecord`; confirmed media overwrite replaces the bytes atomically and the write-once guard stays strict otherwise.
+- Forms: notification retries with a terminal status, paged attachment purge and cleanup, early request admission limits, invalid imports keep their classification, submission JSON helpers and IP retention.
+
 ## 0.6.19
 
 - Redact comment/form handler diagnostics, background form exceptions and unsuccessful mail-result messages before logging; keep form diagnostics universal and safe for recovery.

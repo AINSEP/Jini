@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.22
+
+- Owner recovery: hashed single-use recovery codes, atomic reset and revoke, rate limited (`issueRecoveryCodes`, `recoverOwner`, `resetOwnerPassword`), and hidden password input for the reset command.
+
 ## 0.6.17
 
 ### Patch Changes

@@ -1,5 +1,9 @@
 # @jini-ai/diagnostics
 
+## 0.6.22
+
+- Secret scrubbing: scheme names with no value are no longer treated as credentials; multi-word and prefixed labels are covered, Markdown code boundaries are kept.
+
 ## 0.6.17
 
 ### Patch Changes

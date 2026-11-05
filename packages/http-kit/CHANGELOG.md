@@ -1,5 +1,9 @@
 # @jini-ai/http-kit
 
+## 0.6.22
+
+- The internal error response says in plain words what happened instead of "an internal error occurred".
+
 ## 0.6.19
 
 - Tests: the route adapter's app fixture is a real `express()` app typed as `Express`, replacing the `app as any` casts.

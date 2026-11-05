@@ -1,5 +1,11 @@
 # @jini-ai/core
 
+## 0.6.22
+
+- `UserFacingError` and `formatUserFacingError`; `decodeToolInputObject` and `unwrapToolInputEnvelope` for delegated tool input.
+- Redaction: whole PEM blocks, merged spans, desktop id and path masking; an unquoted URL secret parameter keeps its enclosing quote.
+- `PlanStaleError` carries `code: "PLAN_STALE"`.
+
 ## 0.6.21
 
 - `createPreparedBatchHandler`: prepares a complete direct batch before any effect, reusing the approval handler's input snapshot, cap, duplicate detection and cancellation lifecycle, with no review card.

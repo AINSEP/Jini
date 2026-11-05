@@ -1,3 +1,8 @@
+## 0.6.22
+
+- The full CLI access notice shows once per conversation, also after replay or remount.
+- A validated extension renderer can declare that it shows a failed turn's explanation (`terminalNotice`); the generic notice stays when the renderer is absent or refuses the payload.
+
 ## 0.6.21
 
 - Per-chat memory churn stopped: run checkpoints are size-scaled (`checkpointIntervalMs({ bytes })`: 1 s, 3 s from 1 MB, 10 s from 5 MB) and written as guarded SQL deltas (append or text-tail splice under a length+tail receipt), falling back to a full checkpoint on mismatch. A completed checkpoint is never retried unchanged.

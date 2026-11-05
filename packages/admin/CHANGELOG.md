@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.22
+
+- Form submission detail shows a failed email notification and the field errors of an imported submission that did not pass the form checks. `FormSubmission` gains optional `notificationDelivery` and `validation`.
+
 ## 0.6.17
 
 ### Patch Changes

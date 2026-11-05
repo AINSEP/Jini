@@ -1,3 +1,7 @@
+## 0.6.22
+
+- Regenerated for @jini-ai/agent-plugins and @jini-ai/provider-plugins 0.6.22.
+
 ## 0.6.19
 
 - Agent entries point at `@jini-ai/agent-plugins/<id>` (packageName `@jini-ai/agent-plugins`, path `<id>`); their digests leave out `__tests__/`. A provider with no `plugin-<id>` package is catalogued from `@jini-ai/provider-plugins`.

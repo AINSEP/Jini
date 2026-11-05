@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.22
+
+- A malformed CIDR range with an extra slash no longer matches as `/0`.
+
 ## 0.6.17
 
 ### Patch Changes

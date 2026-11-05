@@ -1,5 +1,9 @@
 # @jini-ai/provider-plugins
 
+## 0.6.22
+
+- Rebuilt with core, diagnostics, plugins and ui 0.6.22: the Sentry and OpenTelemetry server bundles carry the current redaction, and bundled license records are current.
+
 ## 0.6.19
 
 - ECharts pie and donut specs now draw every series as an equally wide concentric ring, preserving the donut hole, category palette, shared legend and series/category/value tooltips. Single-series options are unchanged; missing/null shares, negative shares and all-zero rings retain the core table fallback.

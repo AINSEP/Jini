@@ -1,5 +1,9 @@
 # @jini-ai/plugins
 
+## 0.6.22
+
+- Enabling a tier-3 plugin always asks the owner, including a version approved before.
+
 ## 0.6.19
 
 - Redact failed widget diagnostics in the universal host without Node-only imports.

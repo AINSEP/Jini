@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.6.22
+
+- Lifecycle exports `classifyBundledPluginFile` (byte-identical bundled files skip the scan; plugin dev files stay out of exports), `agentVisiblePluginCandidate`, `createVersionedPluginActivationReader` and `planAgentPluginToolGrant`: off plugins show agents one catalog line, and one approval turns on the plugin with its declared tools.
+- Cloudflare forms receiver validates submissions and handles personal data more strictly. The Vercel target reports a failed deployment as failed.
+
 ## 0.6.19
 
 - A plugin's state lock left by a killed boot no longer keeps that plugin off on every later boot after the machine's hostname spelling changed (macOS `.lan`/`.local`): the node process port records the kernel boot (`bootIdentity`), so the platform lock can prove the holder was this machine's and reclaim it once its pid is dead.
