@@ -1,3 +1,5 @@
+import { OPEN_INTENT_STATUSES } from "../state/status.js";
+import type { PaymentMode } from "../contract/scope.js";
 import { type Kysely, type RawBuilder, type Selectable, sql } from "kysely";
 
 import type { StorageKernel } from "@jini-ai/db/kernel";
@@ -360,6 +362,17 @@ class SqlLedgerTx implements LedgerTx {
   resolveQuarantine({ id, resolvedAt }: { id: string; resolvedAt: number }): Promise<boolean> {
     return this.updateById({ table: LEDGER_TABLES.quarantine, id, set: encodeColumns({ resolved_at: resolvedAt }) });
   }
+
+  async findOpenPayment({ workspaceId }: { workspaceId: string }, optional: { providerId?: string; mode?: PaymentMode } = {}): Promise<PaymentRecord | null> {
+    const row = await this.read(db => {
+      let query = db.selectFrom("commerce_payments").selectAll().where("workspace_id", "=", workspaceId).where("intent_status", "in", [...OPEN_INTENT_STATUSES]);
+      if (optional.providerId) query = query.where("provider_id", "=", optional.providerId);
+      if (optional.mode) query = query.where("mode", "=", optional.mode);
+      return query.orderBy("created_at").orderBy("id").limit(1).executeTakeFirst();
+    });
+    return row ? paymentFromRow(row) : null;
+  }
+  async hasOpenPayment(required: { workspaceId: string }): Promise<boolean> { return (await this.findOpenPayment(required)) !== null; }
 
   // Reconciliation scans ------------------------------------------------------------------------
 

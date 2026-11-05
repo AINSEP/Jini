@@ -348,3 +348,5 @@ export function commerceOrderRepoFor<DB>({ kernel }: { kernel: StorageKernel<DB>
 export function commerceWebhookEventRepoFor<DB>({ kernel }: { kernel: StorageKernel<DB> }, _optional: Record<string, never> = {}): SqlCommerceWebhookEventRepo {
   return new SqlCommerceWebhookEventRepo({ kernel: kernel as unknown as ContentKernel });
 }
+
+export * from "./merchant-drain.js";

@@ -73,6 +73,9 @@ export interface ProviderRefScope extends LedgerKeyScope {
 }
 
 export interface LedgerTx {
+  /** Oldest unfinished intent in this workspace; optional scope narrows endpoint resolution. */
+  findOpenPayment(required: { workspaceId: string }, optional?: { providerId?: string; mode?: PaymentMode }): Promise<PaymentRecord | null>;
+  hasOpenPayment(required: { workspaceId: string }, optional?: Record<string, never>): Promise<boolean>;
   // Payments ------------------------------------------------------------------------------------
   /** Inserts at `version` 1 and returns the stored record. */
   insertPayment(required: { payment: NewPayment }, optional?: Record<string, never>): Promise<PaymentRecord>;

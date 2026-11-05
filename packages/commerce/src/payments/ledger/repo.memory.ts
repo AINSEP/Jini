@@ -1,3 +1,5 @@
+import { OPEN_INTENT_STATUSES } from "../state/status.js";
+import type { PaymentMode } from "../contract/scope.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 
 import {
@@ -409,6 +411,14 @@ class MemoryLedgerTx implements LedgerTx {
     const set = encodeColumns({ resolved_at: resolvedAt });
     return this.t.quarantine.update({ id, set: () => set });
   }
+
+  async findOpenPayment({ workspaceId }: { workspaceId: string }, optional: { providerId?: string; mode?: PaymentMode } = {}): Promise<PaymentRecord | null> {
+    const rows = this.t.payments.list(r => r.workspaceId === workspaceId && OPEN_INTENT_STATUSES.includes(r.intentStatus)
+      && (optional.providerId === undefined || r.providerId === optional.providerId) && (optional.mode === undefined || r.mode === optional.mode), r => r.createdAt);
+    rows.sort((a,b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
+    return rows[0] ?? null;
+  }
+  async hasOpenPayment(required: { workspaceId: string }): Promise<boolean> { return (await this.findOpenPayment(required)) !== null; }
 
   // Reconciliation scans ------------------------------------------------------------------------
 
