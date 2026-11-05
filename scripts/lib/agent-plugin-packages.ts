@@ -72,6 +72,6 @@ const sourceRow = (name: string): AgentPluginPackageRow => ({ name, sourceDir: `
 export const agentPluginPackages = defineAgentPluginPackages({ rows: [
   'charts-echarts', 'charts-recharts', 'cloudflare', 'composio', 'fly', 'github', 'github-pages', 'google-login',
   'google-workspace', 'higgsfield-media', 'jev', 'langfuse', 'meilisearch', 'netlify', 'opentelemetry', 'posthog', 'railway',
-  'render', 'resend', 's3-compatible', 'sentry', 'shopify', 'site-compliance', 'site-import', 'slide-design', 'stripe', 'supabase',
+  'render', 'resend', 's3-compatible', 'sentry', 'shopify', 'site-compliance', 'site-import', 'slide-design', 'software-engineering', 'stripe', 'supabase',
   'ui-ux-design', 'vercel', 'wordpress',
 ].map(sourceRow) });

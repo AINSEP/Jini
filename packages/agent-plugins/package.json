@@ -83,7 +83,9 @@
       "./langfuse": "universal",
       "./langfuse/*": "universal",
       "./stripe": "universal",
-      "./stripe/*": "universal"
+      "./stripe/*": "universal",
+      "./software-engineering": "universal",
+      "./software-engineering/*": "universal"
     },
     "isolation": {
       "entries": {
@@ -221,7 +223,9 @@
     "./langfuse": "./langfuse/plugin.json",
     "./langfuse/*": "./langfuse/*",
     "./stripe": "./stripe/plugin.json",
-    "./stripe/*": "./stripe/*"
+    "./stripe/*": "./stripe/*",
+    "./software-engineering": "./software-engineering/plugin.json",
+    "./software-engineering/*": "./software-engineering/*"
   },
   "files": [
     "dist",
@@ -261,6 +265,7 @@
     "site-compliance",
     "site-import",
     "slide-design",
+    "software-engineering",
     "supabase",
     "ui-ux-design",
     "vercel",
