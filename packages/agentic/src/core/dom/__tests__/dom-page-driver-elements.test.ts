@@ -382,3 +382,99 @@ describe('fill on a contenteditable: driving it via execCommand where the platfo
     expect(target.textContent).toBe('hello');
   });
 });
+
+describe('TAG-A: handles do not adopt unrelated descendant actions', () => {
+  it.each([
+    '<button>Reveal</button>',
+    '<a href="#secret">Secret</a>',
+    '<details><summary>Reveal</summary>Secret</details>',
+  ])('clicking a region does not activate %s', async (child) => {
+    mount(`<section data-agent-element="target">${child}</section>`);
+    const descendant = root.querySelector('button,a,summary')!;
+    const clicked = vi.fn(); descendant.addEventListener('click', clicked);
+    await makeDriver().click({ handle: 'target' });
+    expect(clicked).not.toHaveBeenCalled();
+  });
+
+  it('refuses ambiguous label-associated fields instead of choosing the first one', async () => {
+    mount('<section data-agent-element="target"><label><input type="checkbox">One</label><label><input type="checkbox">Two</label></section>');
+    await expect(makeDriver().click({ handle: 'target' })).rejects.toThrow(/ambiguous/i);
+    expect(Array.from(root.querySelectorAll('input')).map(input => input.checked)).toEqual([false, false]);
+    expect(await makeDriver().describeState!({ handle: 'target' })).not.toHaveProperty('checked');
+  });
+
+  it('refuses to fill an unlabelled input through a generic region', async () => {
+    mount('<section data-agent-element="target"><input value="original"></section>');
+    await expect(makeDriver().fill({ handle: 'target', text: 'changed' })).rejects.toThrow(/not a fillable field/);
+    expect(root.querySelector('input')!.value).toBe('original');
+  });
+
+  it('follows a for-associated label only to a control inside the allowed root', async () => {
+    mount('<label data-agent-element="target" for="choice">Choice</label><input id="choice" type="checkbox">');
+    await makeDriver().click({ handle: 'target' });
+    expect(root.querySelector('input')!.checked).toBe(true);
+    const outside = document.createElement('input'); outside.id = 'outside'; outside.type = 'checkbox'; document.body.append(outside);
+    try {
+      root.querySelector('label')!.htmlFor = 'outside';
+      await expect(makeDriver().click({ handle: 'target' })).rejects.toThrow();
+      expect(outside.checked).toBe(false);
+    } finally { outside.remove(); }
+  });
+});
+
+describe('TAG-A: inactive or disabled controls never receive effects', () => {
+  it.each([
+    '<div hidden><button data-agent-element="target">Go</button></div>',
+    '<div inert><button data-agent-element="target">Go</button></div>',
+    '<div aria-hidden="true"><button data-agent-element="target">Go</button></div>',
+    '<div style="display:none"><button data-agent-element="target">Go</button></div>',
+    '<div style="visibility:hidden"><button data-agent-element="target">Go</button></div>',
+    '<div style="opacity:0"><button data-agent-element="target">Go</button></div>',
+    '<dialog><button data-agent-element="target">Go</button></dialog>',
+    '<details><summary>More</summary><button data-agent-element="target">Go</button></details>',
+  ])('hides and refuses an inactive target: %s', async (markup) => {
+    mount(markup);
+    const effect = vi.fn(); root.querySelector('button')!.addEventListener('click', effect);
+    expect(await makeDriver().findElements({})).toEqual([]);
+    expect(await makeDriver().describeState!({ handle: 'target' })).toBeNull();
+    await expect(makeDriver().click({ handle: 'target' })).rejects.toThrow();
+    expect(effect).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    '<input data-agent-element="target" value="original" disabled>',
+    '<fieldset disabled><input data-agent-element="target" value="original"></fieldset>',
+    '<div aria-disabled="true"><input data-agent-element="target" value="original"></div>',
+  ])('rejects disabled fill before mutation or events: %s', async (markup) => {
+    mount(markup);
+    const effect = vi.fn(); root.querySelector('input')!.addEventListener('input', effect);
+    await expect(makeDriver().fill({ handle: 'target', text: 'changed' })).rejects.toThrow(/disabled/);
+    expect(root.querySelector('input')!.value).toBe('original'); expect(effect).not.toHaveBeenCalled();
+  });
+
+  it('rechecks an adopted label control instead of trusting its visible wrapper', async () => {
+    mount('<li data-agent-element="target"><label><input type="checkbox" hidden>Choice</label></li>');
+    await expect(makeDriver().click({ handle: 'target' })).rejects.toThrow();
+    expect(root.querySelector('input')!.checked).toBe(false);
+  });
+
+  it('rejects background effects while an active modal is open and allows the modal control', async () => {
+    mount('<button data-agent-element="background">Background</button><div role="dialog" aria-modal="true"><button data-agent-element="modal">Confirm</button></div>');
+    const background = vi.fn(); const modal = vi.fn();
+    root.querySelector('[data-agent-element="background"]')!.addEventListener('click', background);
+    root.querySelector('[data-agent-element="modal"]')!.addEventListener('click', modal);
+    await expect(makeDriver().click({ handle: 'background' })).rejects.toThrow(/modal/i);
+    await makeDriver().click({ handle: 'modal' });
+    expect(background).not.toHaveBeenCalled(); expect(modal).toHaveBeenCalledOnce();
+    root.querySelector('[role="dialog"]')!.setAttribute('hidden', '');
+    await makeDriver().click({ handle: 'background' }); expect(background).toHaveBeenCalledOnce();
+  });
+
+  it('rechecks eligibility immediately before an effect when a target becomes inactive', async () => {
+    mount('<input data-agent-element="target" value="original">');
+    const driver = makeDriver(); expect(await driver.describeField({ handle: 'target' })).toMatchObject({ type: 'text' });
+    root.querySelector('input')!.setAttribute('inert', '');
+    await expect(driver.fill({ handle: 'target', text: 'changed' })).rejects.toThrow();
+    expect(root.querySelector('input')!.value).toBe('original');
+  });
+});

@@ -84,3 +84,16 @@ describe('data-agent-private', () => {
     expect(JSON.stringify(state)).not.toContain(SECRET);
   });
 });
+
+
+it('omits inactive descendant text from ordinary admin discovery and state', async () => {
+  root.innerHTML = '<section data-agent-element="panel">Public<span hidden>Hidden secret</span><span style="display:none">CSS secret</span><span inert>Inactive</span><dialog>Closed dialog secret</dialog></section>';
+  expect(await makeDriver().findElements({})).toEqual([{ handle: 'panel', role: undefined, label: 'Public', labelTruncated: false, page: undefined }]);
+  expect(await makeDriver().describeState!({ handle: 'panel' })).toEqual({ text: 'Public' });
+});
+
+it('does not promote DOM comments into visible labels or state text', async () => {
+  root.innerHTML = '<section data-agent-element="panel">Public<!-- concealed implementation text --><span> words</span></section>';
+  expect((await makeDriver().findElements({}))[0]!.label).toBe('Public words');
+  expect((await makeDriver().describeState!({ handle: 'panel' }))!.text).toBe('Public words');
+});
