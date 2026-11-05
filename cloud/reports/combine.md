@@ -41,3 +41,16 @@ Initial build/typecheck overlapped integration edits and is NOT a green baseline
 ## Open findings
 
 No full-suite claim. Full test suites belong to the next job. No deployment or publication.
+
+## Validation checkpoint — in progress
+
+- Stable combined `cd /workspace/Jini && pnpm -r build`: PASS (all workspace/example builds).
+- Jini focused conflict tests: 71 PASS; Tovu focused admin/server/restored-desktop tests: 49 + 42 + 30 PASS; zero failures/skips.
+- `pnpm --filter @jini-ai/plugin-catalog run generate`: PASS; regenerated catalog committed at `e340ca617`. Catalog tests: 61 PASS.
+- `pnpm guard:plugins`: PASS. Final packed guard and all requested typechecks remain running.
+- Tovu manifests/registry lockfiles remain unchanged from security-release.
+- Range secret scan: Tovu zero findings; Jini 11 merge-history detections of the same public RFC 6238 test vector in a TOTP regression. Reviewed as synthetic, not an operational credential; no allowlist or rule changed.
+
+Integration repair: Formspree's merged export retained the older artifact directory. A direct version/path assertion failed before the one-line correction to the existing 0.6.23 release directory (`e0b40b281`). Package versions were not bumped. Catalog generation incorporates both merged plugin entries and fresh artifact hashes.
+
+Complexity finding: combined `composeSiteRouteDeps` measures 18 cyclomatic / 18 cognitive; security-release measures 14 / 11 under the same strict lint. The composition imports/wiring from the requested source branches were preserved. No refactor is made in this merge-only job.
