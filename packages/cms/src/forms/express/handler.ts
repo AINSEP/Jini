@@ -287,12 +287,11 @@ function isFlashableFailure({ error }: { error: unknown }, _optional: Record<str
 }
 
 /** A direct uncached page keeps every validated non-file answer, bypassing cookie limits.
- * @complexity O(fields + answer bytes); one definition read on HTML refusal only. @overallScore 98: files require reselection. */
+ * @complexity O(fields + answer bytes), no extra reads. @overallScore 98: files require reselection. */
 async function sendAttachmentRetry({ req, res, deps, slug, error }: { req: Request; res: Response; deps: CreateFormSubmitHandlerRequired; slug: string; error: FormAttachmentSpaceError }, _optional = {}): Promise<void> {
   res.set("Cache-Control", "no-store");
   if (!wantsHtmlResponse(req)) { res.status(507).json({ code: error.code, error: error.message, answers: error.answers }); return; }
-  const definition = await deps.definitionRepo.findBySlug({ workspaceId: deps.workspaceId, slug });
-  const fields = (definition?.fields ?? []).map(field => ({ ...field, default: field.type === "file" ? undefined : error.answers[field.id] })) as FieldDescriptor[];
+  const fields = error.fields.map(field => ({ ...field, default: field.type === "file" ? undefined : error.answers[field.id] })) as FieldDescriptor[];
   const form = renderHtmlForm({ slug, fields, action: `/forms/${encodeURIComponent(slug)}/submit`, hooks: { field: "data-field", form: "data-form", success: "data-success", error: "data-error" } });
   res.status(507).type("html").send(`<!doctype html><meta charset="utf-8"><title>Attachment needs more room</title><p role="alert">${escapeFormHtml({ value: error.message })}</p><p>Select your files again before retrying.</p>${form}`);
 }

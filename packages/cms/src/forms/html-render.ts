@@ -197,7 +197,9 @@ export function renderHtmlForm(
 
 /** Render the collection plan identically for live pages and static exports. External forms carry
  * no built-in submit hooks, timing token or honeypot; native browser POST belongs to that provider.
- * @complexity O(fields + authored HTML bytes); no I/O. */
+ * @example renderFormCollection({ slug: 'contact', fields, hooks, plan });
+ * @complexity O(fields + authored HTML bytes) time/space; no I/O.
+ * @overallScore 96 — Recommended: embed providers own their frame's validation and accessibility. */
 export function renderFormCollection(
   required: { slug: string; fields: readonly FieldDescriptor[]; hooks: FormHtmlHooks; plan: import('./provider.js').FormCollectionPlan },
   optional: { html?: string; className?: string; successMessage?: string } = {},

@@ -304,7 +304,7 @@
     "@jini-ai/platform": "^0.6.10",
     "@cfworker/json-schema": "^4.1.1",
     "semver": "^7.6.2",
-    "@jini-ai/cms": "^0.6.19"
+    "@jini-ai/cms": "^0.6.22"
   },
   "peerDependenciesMeta": {
     "yauzl": {

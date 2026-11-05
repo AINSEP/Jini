@@ -1,8 +1,10 @@
 /** Stable domain error types; callers map them to their own transport errors. */
+import type { FieldDescriptor } from "./types.js";
 export class FormAttachmentSpaceError extends Error {
   readonly code = "FORMS_ATTACHMENT_SPACE";
   readonly answers: Record<string, unknown>;
-  constructor({ answers, message = "There is no room for another attachment. Your answers are kept below. Your form has not been sent." }: { answers: Record<string, unknown>; message?: string }, _optional = {}) { super(message); this.answers = answers; }
+  readonly fields: FieldDescriptor[];
+  constructor({ answers, fields, message = "There is no room for another attachment. Your answers are kept below. Your form has not been sent." }: { answers: Record<string, unknown>; fields: FieldDescriptor[]; message?: string }, _optional = {}) { super(message); this.answers = answers; this.fields = fields; }
 }
 export const FORM_SUBMISSION_TOO_FAST_MESSAGE = "Please wait a moment, then submit again.";
 

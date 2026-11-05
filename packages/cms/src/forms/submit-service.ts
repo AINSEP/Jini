@@ -235,7 +235,7 @@ async function persistSubmission(
   // then compensate only this attempt's new media assets when any upload/row/event write fails.
   // Byte buffers never reach data_json, notifications or the outbox payload.
   const uploaded: FormFileReference[] = [];
-  await assertUploadSpace({ deps, files, answers: submission.data });
+  await assertUploadSpace({ deps, files, submission });
   try {
     for (const [fieldId, file] of Object.entries(files)) {
       const reference = await deps.files!.store({ workspaceId: input.workspaceId, submissionId: submission.id, fieldId, file });
@@ -252,15 +252,15 @@ async function persistSubmission(
   }
 }
 
-/** One metadata probe per attachment batch inside dedupe; unreadable storage warns and allows.
+/** One metadata probe per batch inside dedupe; native records already carry captured schema. Unreadable probes warn and allow.
  * @complexity O(files), no inventory scan. @overallScore 95: concurrent writers can consume space. */
-async function assertUploadSpace({ deps, files, answers }: { deps: SubmitFormDeps; files: Record<string, FormFileInput>; answers: Record<string, unknown> }, _optional = {}): Promise<void> {
+async function assertUploadSpace({ deps, files, submission }: { deps: SubmitFormDeps; files: Record<string, FormFileInput>; submission: FormSubmissionRecord }, _optional = {}): Promise<void> {
   const incomingBytes = Object.values(files).reduce((sum, file) => sum + file.bytes.byteLength, 0);
   if (!incomingBytes || !deps.readUploadFreeBytes) return;
   let free: number | undefined;
   try { free = await deps.readUploadFreeBytes({}, {}); }
   catch { try { deps.logger.warn({ message: "form upload free-disk check unavailable; allowing attachments" }); } catch { /* Logging cannot refuse an upload. */ } return; }
-  if (free !== undefined && free - incomingBytes < 512 * 1024 ** 2) throw new FormAttachmentSpaceError({ answers, ...(deps.uploadSpaceMessage ? { message: deps.uploadSpaceMessage } : {}) });
+  if (free !== undefined && free - incomingBytes < 512 * 1024 ** 2) throw new FormAttachmentSpaceError({ answers: submission.data, fields: submission.evidence!.fields, ...(deps.uploadSpaceMessage ? { message: deps.uploadSpaceMessage } : {}) });
 }
 
 async function discardUploads(

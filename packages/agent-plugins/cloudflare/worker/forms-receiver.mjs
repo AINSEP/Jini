@@ -2,7 +2,7 @@ import { resolvePortableFormField } from "@jini-ai/cms/forms/portable-validation
 
 /**
  * Form submissions receiver, uploaded as `receiver.mjs` beside the site's static assets.
- * Runs inside the Cloudflare Workers runtime: no imports, no Node APIs, Web platform only.
+ * Runs inside Cloudflare Workers with the bundled portable validator and Web platform APIs only.
  * Forms and full validation belong to the host; this receiver enforces its published supported
  * subset and rejects unsupported fields at publish time.
  * Never log answers, IPs or the management secret: only fixed reason codes.
@@ -79,7 +79,9 @@ export async function handleSubmit({ request, env, manifest, slug }, { now = () 
   return refused ?? successRedirect({ request, form });
 }
 
-/** Rate window, then insert. Returns the error page to send, or null once the row is stored. */
+/** Rate window, then insert. Returns the error page to send, or null once the row is stored.
+ * @complexity O(answer + evidence bytes) time/space; one rate batch and one insert.
+ * @overallScore 98 — Minor: a failed insert still consumes its existing rate-window attempt. */
 async function storeSubmission({ db, slug, answers, evidence, ip, secret, back }, { now, randomId }) {
   try {
     if (!await withinRate({ db, key: await rateKey({ slug, ip, secret }), nowMs: now() })) return errorPage({ status: 429, message: 'Too many submissions. Wait a minute, then try again.', back });
@@ -137,7 +139,8 @@ async function multipartEntries({ bytes, type }, _options = {}) {
 }
 
 /** Use the portable live validation owner; published rules and accepted normalization stay identical.
- * @complexity O(fields * (value bytes + options)), bounded by request/manifest limits. */
+ * @complexity O(fields * (value bytes + options)) time/space, bounded by request/manifest limits.
+ * @overallScore 100 */
 export function checkFields({ form, fields }, _options = {}) {
   const known = new Map(form.fields.map(field => [field.name, field]));
   const unknown = [...fields.keys()].find(name => !RESERVED.has(name) && !known.has(name));
@@ -151,29 +154,48 @@ export function checkFields({ form, fields }, _options = {}) {
   return { answers };
 }
 
-/** Published v1 manifests with no explicit type retain their text/multiple behavior. */
+/** Published v1 manifests with no explicit type retain their text/multiple behavior.
+ * @complexity O(value bytes + options) time/space; no I/O. @overallScore 100 */
 function receiveField({ field, values }, _options = {}) {
-  if (field.validationUnsupported || field.type === 'file') return { error: `"${field.name}" cannot be received here. Contact the site owner.` };
-  if (!field.multiple && values?.length > 1) return { error: `"${field.name}" was sent more than once.` };
+  const error = receiveFieldProblem({ field, values });
+  if (error) return { error };
   if (!field.type && field.multiple) return receiveLegacyMultiple({ field, values });
-  const type = field.type ?? 'text';
-  const descriptor = { ...field, type, id: field.name, label: field.label ?? field.name,
-    ...(field.options ? { options: field.options.map(value => ({ value, label: value })) } : {}) };
   const value = field.multiple ? values : values?.[0];
-  const resolved = resolvePortableFormField({ field: descriptor, value });
+  const resolved = resolvePortableFormField({ field: receiverDescriptor({ field, value }), value });
   return resolved.kind === 'rejected' ? { error: fieldError({ field, reason: resolved.reason }) } : resolved;
 }
 
-/** Preserve old untyped manifests without inventing a choice allowlist. */
+/** Reject unsupported rules and repeated scalars before resolving a value.
+ * @complexity O(1) time/space; no I/O. @overallScore 100 */
+function receiveFieldProblem({ field, values }, _options = {}) {
+  if (field.validationUnsupported || field.type === 'file') return `"${field.name}" cannot be received here. Contact the site owner.`;
+  if (!field.multiple && values?.length > 1) return `"${field.name}" was sent more than once.`;
+  return null;
+}
+
+/** Adapt published code-point caps to the native validator's UTF-16 units.
+ * @complexity O(value bytes + options) time/space; no I/O. @overallScore 100 */
+function receiverDescriptor({ field, value }, _options = {}) {
+  // Published text caps count Unicode code points. The shared validator counts UTF-16 units,
+  // so express the same cap in its units without changing or truncating the submitted answer.
+  const maxLength = (field.maxLength ?? LIMITS.maxValueLength) + (typeof value === 'string' ? value.length - [...value].length : 0);
+  return { ...field, maxLength, type: field.type ?? 'text', id: field.name, label: field.label ?? field.name,
+    ...(field.options ? { options: field.options.map(value => ({ value, label: value })) } : {}) };
+}
+
+/** Preserve old untyped manifests without inventing a choice allowlist.
+ * @complexity O(total value bytes) time/space; no I/O. @overallScore 100 */
 function receiveLegacyMultiple({ field, values }, _options = {}) {
   if (!values?.length) return field.required ? { error: fieldError({ field, reason: 'required' }) } : { kind: 'absent' };
   for (const value of values) {
-    const result = resolvePortableFormField({ field: { ...field, type: 'text' }, value });
+    const result = resolvePortableFormField({ field: receiverDescriptor({ field: { ...field, type: 'text' }, value }), value });
     if (result.kind === 'rejected') return { error: fieldError({ field, reason: result.reason }) };
   }
   return { kind: 'accepted', value: values };
 }
 
+/** Map bounded validator reasons to the receiver's visitor-facing error vocabulary.
+ * @complexity O(reason length) time/space; no I/O. @overallScore 100 */
 function fieldError({ field, reason }, _options = {}) {
   const descriptions = { required: 'is required', too_long: `is longer than ${field.maxLength ?? LIMITS.maxValueLength} characters`,
     too_short: 'is too short', invalid_option: 'contains an unavailable choice', invalid_email: 'must be an email address' };
@@ -264,7 +286,8 @@ export async function listPending({ env, url }, _options = {}) {
   return json({ body: { items, nextAfter: items.length ? items[items.length - 1].seq : after, hasMore: items.length === limit } });
 }
 
-/** Backward-compatible answer JSON; new rows carry captured evidence outside visitor answers. */
+/** Backward-compatible answer JSON; new rows carry captured evidence outside visitor answers.
+ * @complexity O(stored JSON bytes) time/space; no I/O. @overallScore 100 */
 function pendingRow({ row }, _options = {}) {
   const stored = JSON.parse(row.answers_json);
   const envelope = Array.isArray(stored) && stored[0] === '@jini/form-submission/v1';

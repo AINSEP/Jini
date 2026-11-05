@@ -189,7 +189,8 @@ export const portableFieldValidators = {
 } satisfies Record<string, FieldValidator>;
 
 /** Resolve one published field with the same validation and normalization as native submissions.
- * @complexity O(value bytes + option count), no I/O. */
+ * @complexity O(value bytes + option count) time/space, no I/O.
+ * @overallScore 98 — Minor: descriptor validity and request bounds belong to the publishing/submit boundary. */
 export function resolvePortableFormField({ field, value }: { field: FieldDescriptor; value: unknown }, _optional = {}): FieldResolution {
  if (value === undefined || value === null) return blank(field);
  const validator = Object.hasOwn(portableFieldValidators, field.type) ? portableFieldValidators[field.type as keyof typeof portableFieldValidators] : undefined;

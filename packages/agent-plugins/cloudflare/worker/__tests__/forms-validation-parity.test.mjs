@@ -19,8 +19,9 @@ test('static receiver normalizes numeric and checkbox answers and optional missi
   assert.deepEqual(check({ type: 'checkbox' }), { answers: {} });
   assert.deepEqual(check({ type: 'number' }, ['']), { answers: {} });
 });
-test('static receiver uses the live UTF-16 string length and rejects repeated scalar values', () => {
-  assert.ok(check({ type: 'text', maxLength: 1 }, ['😀']).error);
+test('static receiver preserves published code-point caps and rejects repeated scalar values', () => {
+  assert.deepEqual(check({ type: 'text', maxLength: 1 }, ['😀']), { answers: { answer: '😀' } });
+  assert.ok(check({ type: 'text', maxLength: 1 }, ['😀😀']).error);
   assert.ok(check({ type: 'number' }, ['1', '2']).error);
   assert.ok(check({ type: 'multi-select', options: ['yes'] }, ['yes', 'yes']).error);
 });

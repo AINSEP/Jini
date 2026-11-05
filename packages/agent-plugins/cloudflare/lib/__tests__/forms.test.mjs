@@ -187,3 +187,16 @@ test('preview shows uncollected counts and discloses indefinite retention withou
   assert.match(result.message, /never expire automatically/);
   assert.equal(f.calls.length, 2);
 });
+
+
+test('published portable validator module is self-contained and executes the same rules', async () => {
+  const parts = await formsWorkerParts({ manifest: { forms }, secret: SECRET, databaseId: 'db-1' });
+  const portable = parts.modules.find(module => module.name === 'portable-validation.mjs');
+  assert.doesNotMatch(portable.source, /^import /m);
+  const uri = source => `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
+  const bundled = parts.modules.find(module => module.name === 'receiver.mjs').source.replace('./portable-validation.mjs', uri(portable.source));
+  const { checkFields } = await import(uri(bundled));
+  const form = { fields: [{ name: 'count', type: 'number', min: 2, max: 8, step: 2 }] };
+  assert.deepEqual(checkFields({ form, fields: new Map([['count', ['4']]]) }), { answers: { count: 4 } });
+  assert.match(checkFields({ form, fields: new Map([['count', ['3']]]) }).error, /step mismatch/);
+});

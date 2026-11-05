@@ -20,6 +20,7 @@ test('provider registry isolates instances, handles absent plugin, and switches 
   expect(resolveFormCollectionPlan({ definition, providers: createFormCollectionRegistry({}) })).toMatchObject({ kind: 'unavailable' });
 });
 
+import { FormFieldValidationError } from '../errors.js';
 import { renderFormCollection } from '../html-render.js';
 import { createFormDefinition, updateFormDefinition, setFormDefinitionStatus } from '../write-service.js';
 import { executeCommand } from '../../core/index.js';
@@ -46,7 +47,7 @@ test('audited create, old-client field update, authoring/status and SQL envelope
   const { definition: renamed } = await updateFormDefinition({ deps, input: { workspaceId: 'ws', actor, formId: created.id, patch: { name: 'Renamed' } } });
   const { definition: disabled } = await setFormDefinitionStatus({ deps, input: { workspaceId: 'ws', actor, formId: created.id, status: 'disabled' } });
   for (const stored of [created, renamed, disabled]) expect(decodeFormFields({ json: encodeFormFields({ definition: stored }) }).provider).toEqual(definition.provider);
-  await expect(updateFormDefinition({ deps, input: { workspaceId: 'ws', actor, formId: created.id, patch: { provider: { id: 'formspree', config: { apiKey: 'never-store-this' } } } } })).rejects.toMatchObject({ name: 'FormFieldValidationError' });
+  await expect(updateFormDefinition({ deps, input: { workspaceId: 'ws', actor, formId: created.id, patch: { provider: { id: 'formspree', config: { apiKey: 'never-store-this' } } } } })).rejects.toBeInstanceOf(FormFieldValidationError);
 });
 test('widget resolves the plan from the host registry and reports inactive providers visibly', async () => {
   const record = { id: 'contact', status: 'active', ...definition };

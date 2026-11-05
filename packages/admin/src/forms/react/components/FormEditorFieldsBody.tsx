@@ -68,7 +68,7 @@ export function FormEditorFieldsBody(props: FormEditorFieldsBodyProps) {
       <div className="field-group">
         <label htmlFor="form-provider">{t("Where answers go")}</label>
         <select id="form-provider" value={props.provider?.id ?? "builtin"} onChange={event => props.onProviderChange?.({ id: event.target.value, config: {} })}>
-          <option value="builtin">{t("Built-in — the form host")}</option>
+          <option value="builtin">{t("Built-in inbox")}</option>
           <option value="formspree">Formspree</option>
           {props.provider && !["builtin", "formspree"].includes(props.provider.id) ? <option value={props.provider.id}>{props.provider.id}</option> : null}
         </select>
@@ -77,7 +77,7 @@ export function FormEditorFieldsBody(props: FormEditorFieldsBodyProps) {
           <input id="form-provider-endpoint" type="url" value={props.provider.config.endpoint ?? ""} placeholder="https://formspree.io/f/form-id" onChange={event => props.onProviderChange?.({ id: "formspree", config: { endpoint: event.target.value } })} />
           <p>{t("Answers go directly to your Formspree account. Browser and Formspree validation apply. Formspree supplies spam protection according to your account settings.")}</p>
           <p>{t("Enable the Formspree plugin before using this form. Republish every static page containing this form after switching providers.")}</p>
-        </> : <p>{t("Answers stay on the form host. Switching providers preserves your existing definitions and submission history.")}</p>}
+        </> : <p>{t("Answers stay in the built-in inbox. Switching providers preserves your existing definitions and submission history.")}</p>}
       </div>
 
       <div className="field-group">

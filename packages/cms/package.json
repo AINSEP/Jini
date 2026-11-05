@@ -143,15 +143,15 @@
       }
     },
     "optionalPeers": {
-      "sharp": "opt-in: image transformations; import @jini-ai/cms/media/node \u2014 Image transformations could not load sharp. Install sharp to enable this feature, or check its installed version and native binaries.",
-      "kysely": "opt-in: sql storage adapters; import @jini-ai/cms/forms/sql \u2014 SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/db": "opt-in: database-backed adapters; import @jini-ai/cms/forms/sql \u2014 Database-backed adapters could not load @jini-ai/db. Install @jini-ai/db to enable this feature, or check its installed version and native binaries.",
-      "parse5": "opt-in: html parsing; import @jini-ai/cms/widgets/html/html-embeds \u2014 HTML parsing could not load parse5. Install parse5 to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/http-kit": "opt-in: http route adapters; import @jini-ai/cms/redirects \u2014 HTTP route adapters could not load @jini-ai/http-kit. Install @jini-ai/http-kit to enable this feature, or check its installed version and native binaries.",
-      "dompurify": "opt-in: svg sanitization; import @jini-ai/cms/media \u2014 SVG sanitization could not load dompurify. Install dompurify to enable this feature, or check its installed version and native binaries.",
-      "jsdom": "opt-in: server-side html and svg processing; import @jini-ai/cms/media \u2014 Server-side HTML and SVG processing could not load jsdom. Install jsdom to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/platform": "opt-in: platform-backed adapters; import @jini-ai/cms/forms/email-sender \u2014 Platform-backed adapters could not load @jini-ai/platform. Install @jini-ai/platform to enable this feature, or check its installed version and native binaries.",
-      "express": "opt-in: express route adapters; import @jini-ai/cms/consent/express \u2014 Express route adapters could not load express. Install express to enable this feature, or check its installed version."
+      "sharp": "opt-in: image transformations; import @jini-ai/cms/media/node — Image transformations could not load sharp. Install sharp to enable this feature, or check its installed version and native binaries.",
+      "kysely": "opt-in: sql storage adapters; import @jini-ai/cms/forms/sql — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries.",
+      "@jini-ai/db": "opt-in: database-backed adapters; import @jini-ai/cms/forms/sql — Database-backed adapters could not load @jini-ai/db. Install @jini-ai/db to enable this feature, or check its installed version and native binaries.",
+      "parse5": "opt-in: html parsing; import @jini-ai/cms/widgets/html/html-embeds — HTML parsing could not load parse5. Install parse5 to enable this feature, or check its installed version and native binaries.",
+      "@jini-ai/http-kit": "opt-in: http route adapters; import @jini-ai/cms/redirects — HTTP route adapters could not load @jini-ai/http-kit. Install @jini-ai/http-kit to enable this feature, or check its installed version and native binaries.",
+      "dompurify": "opt-in: svg sanitization; import @jini-ai/cms/media — SVG sanitization could not load dompurify. Install dompurify to enable this feature, or check its installed version and native binaries.",
+      "jsdom": "opt-in: server-side html and svg processing; import @jini-ai/cms/media — Server-side HTML and SVG processing could not load jsdom. Install jsdom to enable this feature, or check its installed version and native binaries.",
+      "@jini-ai/platform": "opt-in: platform-backed adapters; import @jini-ai/cms/forms/email-sender — Platform-backed adapters could not load @jini-ai/platform. Install @jini-ai/platform to enable this feature, or check its installed version and native binaries.",
+      "express": "opt-in: express route adapters; import @jini-ai/cms/consent/express — Express route adapters could not load express. Install express to enable this feature, or check its installed version."
     }
   },
   "type": "module",
