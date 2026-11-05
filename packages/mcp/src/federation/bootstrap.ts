@@ -262,6 +262,13 @@ function logFederatedAdmissionReport(connectionId: string, report: FederatedAdmi
   }
 }
 
+/** One public address label from the resolved transport; never exposes userinfo, path, headers or commands.
+ * @complexity O(u) for URL length, with no I/O. @overallScore 100 */
+function publicConnectionHost({ connection }: { connection: ResolvedFederatedConnection }): string {
+  if (!("url" in connection.launch)) return "local command";
+  try { return new URL(connection.launch.url).hostname; } catch { return "unknown"; }
+}
+
 /** One iteration of {@link attachFederatedMcpTools}'s original inline loop body — connect, list,
  *  admit, register, log — extracted purely to keep that function's complexity under the shop
  *  ceiling. Fail-open per connection: any failure (connect, list, or admission) is logged and
@@ -287,6 +294,7 @@ async function attachOneFederatedConnection(params: {
 }> {
   const { connection, registry, deps, connect, logger } = params;
   const { connectionId } = connection.config;
+  const config = { ...connection.config, sourceHost: publicConnectionHost({ connection }) };
   let session: McpSessionPort | undefined;
   try {
     session = await connect({ connection });
@@ -294,8 +302,8 @@ async function attachOneFederatedConnection(params: {
     // every native tool AND every tool an earlier connection in this same loop already claimed.
     const nativeToolIds = new Set(registry.list({}).map((descriptor) => descriptor.id));
 
-    const { registrations, report, frozenTools } = await federateSession({ session, config: connection.config, deps, nativeToolIds, ...(params.buildRegistrations ? { buildRegistrations: params.buildRegistrations } : {}) });
-    const registeredToolIds = registerConnectedFederatedTools({ registry, session, config: connection.config, deps, registrations, frozenTools, buildRegistrations: params.buildRegistrations });
+    const { registrations, report, frozenTools } = await federateSession({ session, config, deps, nativeToolIds, ...(params.buildRegistrations ? { buildRegistrations: params.buildRegistrations } : {}) });
+    const registeredToolIds = registerConnectedFederatedTools({ registry, session, config, deps, registrations, frozenTools, buildRegistrations: params.buildRegistrations });
 
     logger.info(
       { message: `mcp-federation: '${connectionId}' registered ${registrations.length} federated tool(s): ${registrations.map((r) => r.descriptor.id).join(", ") || "(none)"}` },
