@@ -1,42 +1,42 @@
 [
   {
     "id": "ai-trace-langfuse",
-    "version": "0.6.22",
-    "path": "plugins/ai-trace-langfuse/0.6.22"
+    "version": "0.6.23",
+    "path": "plugins/ai-trace-langfuse/0.6.23"
   },
   {
     "id": "analytics-posthog",
-    "version": "0.6.22",
-    "path": "plugins/analytics-posthog/0.6.22"
+    "version": "0.6.23",
+    "path": "plugins/analytics-posthog/0.6.23"
   },
   {
     "id": "charts-echarts",
-    "version": "0.6.22",
-    "path": "plugins/charts-echarts/0.6.22"
+    "version": "0.6.23",
+    "path": "plugins/charts-echarts/0.6.23"
   },
   {
     "id": "charts-recharts",
-    "version": "0.6.22",
-    "path": "plugins/charts-recharts/0.6.22"
+    "version": "0.6.23",
+    "path": "plugins/charts-recharts/0.6.23"
   },
   {
     "id": "fixture-provider",
-    "version": "0.6.22",
-    "path": "plugins/fixture-provider/0.6.22"
+    "version": "0.6.23",
+    "path": "plugins/fixture-provider/0.6.23"
   },
   {
     "id": "observability-opentelemetry",
-    "version": "0.6.22",
-    "path": "plugins/observability-opentelemetry/0.6.22"
+    "version": "0.6.23",
+    "path": "plugins/observability-opentelemetry/0.6.23"
   },
   {
     "id": "observability-sentry",
-    "version": "0.6.22",
-    "path": "plugins/observability-sentry/0.6.22"
+    "version": "0.6.23",
+    "path": "plugins/observability-sentry/0.6.23"
   },
   {
     "id": "payments-stripe",
-    "version": "0.6.22",
-    "path": "plugins/payments-stripe/0.6.22"
+    "version": "0.6.23",
+    "path": "plugins/payments-stripe/0.6.23"
   }
 ]
