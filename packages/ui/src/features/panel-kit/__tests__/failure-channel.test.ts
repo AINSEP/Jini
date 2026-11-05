@@ -35,3 +35,15 @@ it('allows hosts to inject publication effects without retaining a history', () 
   channel.publish({ failure });
   expect(onPublish).toHaveBeenCalledWith({ failure });
 });
+it('isolates failed subscribers and publication effects from transport and reset', () => {
+  const channel = createFailureChannel({}, { onPublish: () => { throw new Error('effect failed'); } });
+  channel.subscribe(() => { throw new Error('subscriber failed'); });
+  const listener = vi.fn();
+  channel.subscribe(listener);
+  expect(() => channel.publish({ failure })).not.toThrow();
+  expect(channel.getSnapshot()).toBe(failure);
+  expect(listener).toHaveBeenCalledTimes(1);
+  expect(() => channel.reset()).not.toThrow();
+  expect(channel.getSnapshot()).toBeNull();
+  expect(listener).toHaveBeenCalledTimes(2);
+});
