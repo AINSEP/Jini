@@ -13,7 +13,7 @@ export interface Deps { workspaceId: string; authorize: AuthorizeFn; lipay?: (Co
 /** Catalog for the admin service exposed through this standalone contributor. */
 export const catalog: AgentToolDefinition[] = [{
   name: "commerce_get_status",
-  description: "Checks store and commerce setup status and available payment providers. Call to ask whether checkout, subscriptions, webhooks or revenue reporting are supported yet. Returns {contractVersion, workspaceId, paymentRuntime, providers, configuration, capabilities}, with unavailable capabilities explicitly marked. Read-only: no payments or credentials are read or changed. Provider discovery alone does not mean checkout is configured.",
+  description: "Checks store and commerce setup status and available payment providers. Call to ask whether checkout, subscriptions, webhooks or revenue reporting are supported yet. Returns {contractVersion, workspaceId, paymentRuntime, providers, configuration, capabilities}, with unavailable capabilities explicitly marked. The optional checkout field reports activated checkout readiness. Read-only: no money is moved, credentials returned, or configuration changed. Provider discovery alone does not mean checkout is configured.",
   sideEffects: "none",
   authorization: { permission: "admin.integrations.manage" },
   inputSchema: { type: "object", additionalProperties: false, properties: {} },
@@ -21,6 +21,7 @@ export const catalog: AgentToolDefinition[] = [{
 /** Independently derived from the service calls below. */
 export const derivedRisk: DerivedRiskByToolId = new Map([
   // readCommerceStatus -> lipay.listProviders: reads the runtime provider catalog only.
+  // commerce.status reads operational readiness; hosts must not run activation/migrations here.
   ["commerce_get_status", "none"],
 ]);
 /**
