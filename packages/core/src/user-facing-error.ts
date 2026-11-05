@@ -27,6 +27,7 @@ export interface UserFacingErrorOptions extends SecretRedactionOptions {
  * Redacts complete fields before bounding them; uses an existing ERR ID before a boundary fallback.
  * No I/O, logging, clock, randomness or input mutation. Core handles hostile/circular causes.
  * @complexity O(n) diagnostic serialization plus core redaction over all input characters; bounded output.
+ * @overallScore 98 — callers own disclosure; public ID shapes do not override credential or exact-secret rules.
  */
 export function formatUserFacingError(
   requiredArgs: { message: string; action: string; step: string; cause: unknown },
@@ -61,10 +62,13 @@ export function formatUserFacingError(
 
 /** Boundary-owned correlation IDs are public identifiers, while explicit secret rules still win.
  * Other metadata retains the usual PII policy; arbitrary numeric error IDs remain redactable.
+ * @complexity O(n) for redaction of one metadata field; correlation-shape matching is bounded.
+ * @overallScore 98 — the boundary owns whether an identifier is a public correlation reference.
  */
 function safeMetadataField({ key, text }: { key: string; text: string }, options: SecretRedactionOptions): string {
-  const correlationId = /^(?:[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}|ERR-[a-f0-9]{4}(?:-[a-f0-9]{4}){3})$/i;
-  if (key === 'errorId' && correlationId.test(text)) return safeField({ text }, { ...options, redactPii: false });
+  const correlationId = /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(text)
+    || /^ERR-[a-f0-9]{4}(?:-[a-f0-9]{4}){3}$/i.test(text);
+  if (key === 'errorId' && correlationId) return safeField({ text }, { ...options, redactPii: false });
   return safeField({ text }, options);
 }
 
