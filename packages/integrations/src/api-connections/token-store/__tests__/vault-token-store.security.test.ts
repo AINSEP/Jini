@@ -2,6 +2,7 @@
  * durable lease + CAS, generation and holder fencing, reconnect-required, delete, and
  * secret-free errors/status. */
 import { describe, expect, it } from "vitest";
+import { createTokenRefresher, type TokenRefreshPort } from "@jini-ai/oauth";
 import { VaultError } from "@jini-ai/platform/secrets/credential-sets";
 import { OAuthTokenStoreError, parseOAuthTokenVaultMeta, type OAuthTokenStoreErrorCode } from "../index.js";
 import { buildRecordMeta, buildTokenPayload } from "../record.js";
@@ -114,6 +115,45 @@ describe("rows a host can no longer open (changed OAuth client, malformed payloa
 });
 
 describe("durable refresh lease (CAS)", () => {
+  it("does not redeem a stale refresh token after another store rotates and releases", async () => {
+    const f = createFixture();
+    const [firstStore, delayedStore] = [f.store(), f.store()];
+    const expired = tokenSet({ label: "expired" }, { expiresAt: new Date(f.state.nowMs).toISOString() });
+    const rotated = tokenSet({ label: "rotated" });
+    await seed({ store: firstStore, tokens: expired });
+    const redeemed: string[] = [];
+    const refresh: TokenRefreshPort["refresh"] = async ({ refreshToken }) => {
+      redeemed.push(refreshToken);
+      return rotated;
+    };
+    let signalLoaded!: () => void;
+    const loaded = new Promise<void>(resolve => { signalLoaded = resolve; });
+    let allowAcquire!: () => void;
+    const acquireGate = new Promise<void>(resolve => { allowAcquire = resolve; });
+    const sleep = async () => { throw new Error("fixture must not poll: both stores acquire sequentially"); };
+    const delayed = createTokenRefresher({ clock: f.clock, sleep, port: {
+      ...delayedStore, refresh,
+      async tryAcquireRefreshLease(args) {
+        signalLoaded();
+        await acquireGate;
+        return delayedStore.tryAcquireRefreshLease(args);
+      },
+    } });
+    const first = createTokenRefresher({ clock: f.clock, sleep, port: { ...firstStore, refresh } });
+    const pending = delayed.getAccessToken({ key: KEY });
+    await loaded;
+    try {
+      expect(await first.getAccessToken({ key: KEY })).toBe(rotated.accessToken);
+      expect((await f.repo.find({ workspaceId: SCOPE.workspaceId, id: KEY }))?.meta.leaseHolder).toBeNull();
+    } finally {
+      allowAcquire();
+    }
+    expect(await pending).toBe(rotated.accessToken);
+    expect(redeemed).toEqual([expired.refreshToken]);
+    expect(await f.store().load({ key: KEY })).toEqual(rotated);
+    expect((await f.repo.find({ workspaceId: SCOPE.workspaceId, id: KEY }))?.meta.leaseHolder).toBeNull();
+  });
+
   it("lets only one of two processes hold the lease until it is released", async () => {
     const f = createFixture();
     const [first, second] = [f.store(), f.store()];
@@ -132,6 +172,40 @@ describe("durable refresh lease (CAS)", () => {
 });
 
 describe("fencing", () => {
+  it("returns no refreshed token when disconnect wins during the provider request", async () => {
+    const f = createFixture();
+    const [store, disconnect] = [f.store(), f.store()];
+    await seed({ store, tokens: tokenSet({ label: "expired" }, { expiresAt: new Date(f.state.nowMs).toISOString() }) });
+    let signalRefresh!: () => void;
+    const refreshing = new Promise<void>(resolve => { signalRefresh = resolve; });
+    let finishRefresh!: () => void;
+    const providerGate = new Promise<void>(resolve => { finishRefresh = resolve; });
+    let redemptions = 0;
+    const refresher = createTokenRefresher({ clock: f.clock, sleep: async () => {}, port: {
+      ...store,
+      async refresh() {
+        redemptions += 1;
+        signalRefresh();
+        await providerGate;
+        return tokenSet({ label: "late" });
+      },
+    } });
+    const pending = refresher.getAccessToken({ key: KEY });
+    await refreshing;
+    try {
+      f.state.generation = 2;
+      await disconnect.delete({ key: KEY });
+    } finally {
+      finishRefresh();
+    }
+    await expect(pending).rejects.toMatchObject({ code: "stale-generation" });
+    await expect(refresher.getAccessToken({ key: KEY })).rejects.toMatchObject({ code: "OAUTH_INVALID_GRANT" });
+    expect(redemptions).toBe(1);
+    expect(await f.store().load({ key: KEY })).toBeNull();
+    expect(await f.repo.find({ workspaceId: SCOPE.workspaceId, id: KEY })).toBeNull();
+    expect(refresher.inFlightCount({})).toBe(0);
+  });
+
   it("discards a refresh that completes after a newer attempt took the expired lease", async () => {
     const f = createFixture();
     const [slow, newer] = [f.store(), f.store()];
