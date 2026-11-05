@@ -6,12 +6,12 @@ const databases = new WeakMap<StorageKernel<unknown>, Kysely<unknown>>();
 /** Private driver registration, kept separate from run() so the callback owns no transaction scope. */
 export function registerKernelSessionDatabase({ kernel, database }: {
   kernel: StorageKernel<unknown>; database: Kysely<unknown>;
-}): void { databases.set(kernel, database); }
+}, _optional: Record<string, never> = {}): void { databases.set(kernel, database); }
 
 /** A schema wrapper uses the same pool and therefore the same database ownership scope. */
 export function inheritKernelSessionDatabase({ from, to }: {
   from: StorageKernel<unknown>; to: StorageKernel<unknown>;
-}): void {
+}, _optional: Record<string, never> = {}): void {
   const database = databases.get(from);
   if (database) databases.set(to, database);
 }
@@ -21,6 +21,8 @@ export function inheritKernelSessionDatabase({ from, to }: {
  * A competing owner returns acquired:false. The callback uses normal kernel transactions:
  * a durable dispatch snapshot commits before provider HTTP, unlike a transaction advisory lock.
  * The session is always unlocked/released after callback success or failure.
+ * The pool needs a spare connection (max >= 2) for callback transactions.
+ * assertOwned probes the held session before the next background cycle.
  * @throws For non-pooled kernels, unknown wrappers, or an existing transaction scope.
  * @complexity Two O(1) lock queries and one reserved pool connection for the callback lifetime.
  */
