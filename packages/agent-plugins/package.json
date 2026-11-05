@@ -83,7 +83,10 @@
       "./langfuse": "universal",
       "./langfuse/*": "universal",
       "./stripe": "universal",
-      "./stripe/*": "universal"
+      "./stripe/*": "universal",
+      "./commerce": "universal",
+      "./commerce/*": "universal",
+      "./commerce/server": "node"
     },
     "isolation": {
       "entries": {
@@ -101,7 +104,8 @@
       "yauzl": "opt-in: plugin zip import \u2014 Plugin ZIP import could not load yauzl. Install yauzl to enable this feature, or check its installed version and native binaries.",
       "@jini-ai/platform": "opt-in: platform-backed adapters; import @jini-ai/agent-plugins/lifecycle \u2014 Platform-backed adapters could not load @jini-ai/platform. Install @jini-ai/platform to enable this feature, or check its installed version and native binaries.",
       "@cfworker/json-schema": "opt-in: json schema validation; import @jini-ai/agent-plugins/lifecycle/tools \u2014 JSON Schema validation could not load @cfworker/json-schema. Install @cfworker/json-schema to enable this feature, or check its installed version and native binaries.",
-      "semver": "opt-in: plugin version compatibility; import @jini-ai/agent-plugins/lifecycle \u2014 Plugin version compatibility could not load semver. Install semver to enable this feature, or check its installed version and native binaries."
+      "semver": "opt-in: plugin version compatibility; import @jini-ai/agent-plugins/lifecycle \u2014 Plugin version compatibility could not load semver. Install semver to enable this feature, or check its installed version and native binaries.",
+      "@jini-ai/commerce": "opt-in: commerce server; import @jini-ai/agent-plugins/commerce/server \u2014 Commerce checkout requires the host commerce kernel."
     }
   },
   "type": "module",
@@ -221,7 +225,14 @@
     "./langfuse": "./langfuse/plugin.json",
     "./langfuse/*": "./langfuse/*",
     "./stripe": "./stripe/plugin.json",
-    "./stripe/*": "./stripe/*"
+    "./stripe/*": "./stripe/*",
+    "./commerce": "./commerce/plugin.json",
+    "./commerce/server": {
+      "types": "./commerce/server/index.d.ts",
+      "import": "./commerce/server/index.mjs",
+      "default": "./commerce/server/index.mjs"
+    },
+    "./commerce/*": "./commerce/*"
   },
   "files": [
     "dist",
@@ -267,7 +278,8 @@
     "wordpress",
     "langfuse",
     "stripe",
-    "!**/__tests__/**"
+    "!**/__tests__/**",
+    "commerce"
   ],
   "publishConfig": {
     "access": "public",
@@ -297,7 +309,8 @@
     "@jini-ai/core": "^0.6.10",
     "@jini-ai/platform": "^0.6.10",
     "@cfworker/json-schema": "^4.1.1",
-    "semver": "^7.6.2"
+    "semver": "^7.6.2",
+    "@jini-ai/commerce": "^0.6.19"
   },
   "peerDependenciesMeta": {
     "yauzl": {
@@ -310,6 +323,9 @@
       "optional": true
     },
     "semver": {
+      "optional": true
+    },
+    "@jini-ai/commerce": {
       "optional": true
     }
   }
