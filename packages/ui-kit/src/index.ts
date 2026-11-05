@@ -1,6 +1,7 @@
 export { KIT_CONTRACT, kitSpec, kitParts, implementedComponents } from './kit-contract.js';
 export type { KitComponentName, ImplementedComponentName, KitPart } from './kit-contract.js';
 export type { KitAttrs, AgentSpec, AgentAttrsPort } from './attrs.js';
+export { secretControlAttrs } from './attrs.js';
 export { needs, assertKitContract, KitConfigError } from './needs.js';
 export type { KitNeeds } from './needs.js';
 export { planConfirm, createConfirmController } from './confirm.js';
