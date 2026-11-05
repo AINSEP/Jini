@@ -71,9 +71,9 @@ test("a reviewed read with a query input runs without a card, while a contradict
 });
 
 
-test("published federation source metadata contains only the server id and parsed hostname", async () => {
+test("published federation source metadata contains only the server id, parsed hostname and provisioning plugin id", async () => {
   const loaded = await federateSession({ session: new InMemoryMcpSession({ tools: [{ name: "job_status", inputSchema: schema }] }),
-    config: { ...config, sourceHost: "tools.example.test" }, nativeToolIds: new Set(),
+    config: { ...config, sourceHost: "tools.example.test", provisionedByPluginId: "plugin-a" }, nativeToolIds: new Set(),
     deps: { messages: federationMessages, errorCode: "EXTERNAL_MCP", permissionGate: async () => {} } });
-  assert.deepEqual(loaded.registrations[0]!.descriptor.metadata?.mcpSource, { id: "higgsfield", host: "tools.example.test" });
+  assert.deepEqual(loaded.registrations[0]!.descriptor.metadata?.mcpSource, { id: "higgsfield", host: "tools.example.test", pluginId: "plugin-a" });
 });

@@ -11,7 +11,7 @@ export interface ToolMetadata<A extends ToolApprovalMetadata = ToolApprovalMetad
   /** Human-facing action name and optional button verb; presentation only, never authority. */
   readonly title?: string;
   /** Public federation provenance only; credentials, complete URLs and command arguments are excluded. */
-  readonly mcpSource?: { readonly id: string; readonly host: string };
+  readonly mcpSource?: { readonly id: string; readonly host: string; readonly pluginId?: string };
   /** Plain-language consequence shown before approval; never used to classify or authorize. */
   readonly summary?: string;
   readonly actionVerb?: string;

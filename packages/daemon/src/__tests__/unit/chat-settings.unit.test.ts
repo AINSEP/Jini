@@ -17,10 +17,20 @@ describe('run-bound chat settings', () => {
     expect(snapshot.capabilities.shell).toBe(true);
     permissions.capabilities.shell = true;
   });
+  it('reads pre-redacted source metadata and handles unknown addresses without exposing raw values', () => {
+    const snapshot = createChatSettingsSnapshot({ ...input, servers: [{ id: 'known', transport: 'metadata', host: 'tools.example.test' }, { id: 'local', transport: 'metadata', host: 'local command' }, { id: 'malformed', transport: 'http', url: 'SENTINEL_NOT_URL' }] }, {});
+    expect(snapshot.servers).toEqual([{ id: 'known', host: 'tools.example.test' }, { id: 'local', host: 'local command' }, { id: 'malformed', host: 'unknown' }]);
+    expect(JSON.stringify(snapshot)).not.toContain('SENTINEL');
+  });
   it('bounds UTF-8 output to 2 KiB and explicitly marks a truncated inventory', () => {
     const snapshot = createChatSettingsSnapshot({ ...input, toolIds: Array.from({ length: 1000 }, (_, i) => `tool_${i}_${'x'.repeat(100)}`), servers: Array.from({ length: 100 }, (_, i) => ({ id: `server-${i}`, transport: 'http', url: 'https://tools.example.test/secret' })) }, {});
     expect(Buffer.byteLength(JSON.stringify(snapshot))).toBeLessThanOrEqual(2048);
     expect(snapshot.truncated).toBe(true);
+  });
+  it('keeps escaped scalar values within the hard byte cap without inventory', () => {
+    const escaped = '\u0001'.repeat(1000);
+    const snapshot = createChatSettingsSnapshot({ ...input, agentId: escaped, model: escaped, effort: escaped, toolIds: [], servers: [], sourceByKey: Object.fromEntries(['enabled', ...Object.keys(permissions.capabilities)].map(key => [key, 'host_locked' as const])), plan: { verdict: 'SETUP', reason: 'isolation_blocked', keys: ['enabled', ...Object.keys(permissions.capabilities)] } }, {});
+    expect(Buffer.byteLength(JSON.stringify(snapshot))).toBeLessThanOrEqual(2048);
   });
   it('projects host-locked and per-agent origins without accepting arbitrary plan details', () => {
     const snapshot = createChatSettingsSnapshot({ ...input, sourceByKey: { enabled: 'host_locked', userMcp: 'byAgent' }, plan: { verdict: 'SETUP', reason: 'host_locked', keys: ['userMcp'] } }, {});
@@ -36,6 +46,7 @@ describe('run-bound chat settings', () => {
     const ctx = { executionId: 'call', principal: { id: 'owner' }, run: { id: 'own' }, input: {}, signal: new AbortController().signal } as Parameters<typeof tool.handler>[0];
     expect(await tool.handler(ctx)).toEqual(snapshot);
     expect(seen).toEqual([{ runId: 'own', principalId: 'owner' }]);
+    expect(await tool.handler({ ...ctx, input: undefined })).toEqual(snapshot);
     for (const input of [{ runId: 'foreign' }, { site: 'other' }, { principalId: 'other' }, null, []]) {
       await expect(tool.handler({ ...ctx, input })).rejects.toThrow('takes no arguments');
     }

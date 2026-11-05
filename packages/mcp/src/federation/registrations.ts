@@ -252,7 +252,7 @@ export function buildFederatedMcpRegistrations(params: {
     return {
       descriptor: {
         id: tool.toolId,
-        metadata: { mcpSource: { id: config.connectionId, host: config.sourceHost ?? "unknown" } },
+        metadata: { mcpSource: { id: config.connectionId, host: config.sourceHost ?? "unknown", ...(config.provisionedByPluginId ? { pluginId: config.provisionedByPluginId } : {}) } },
         description: tool.description,
         inputSchema: tool.inputSchema,
         ...(isOperatorDeclaredReadOnly({ remoteName: tool.remoteName, annotations: tool.declaredAnnotations, readList: config.readOnlyRemoteNames }) ? { readOnly: true } : {}),

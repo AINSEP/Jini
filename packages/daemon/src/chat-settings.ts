@@ -87,7 +87,7 @@ export function createChatSettingsGetRegistration(required: {
       inputSchema: { type: 'object', properties: {}, additionalProperties: false }, readOnly: true, sideEffects: 'none', requiresConfirmation: false, maxOutputBytes: 2048 },
     policy: { authorize: ({ run, principal }) => required.readSnapshot({ runId: run.id, principalId: principal.id }) ? 'allow' : 'deny' },
     handler: async ctx => {
-      if (!ctx.input || typeof ctx.input !== 'object' || Array.isArray(ctx.input) || Object.keys(ctx.input).length !== 0) throw new ToolInputError({ message: 'chat_settings_get takes no arguments.' });
+      if (ctx.input !== undefined && (!ctx.input || typeof ctx.input !== 'object' || Array.isArray(ctx.input) || Object.keys(ctx.input).length !== 0)) throw new ToolInputError({ message: 'chat_settings_get takes no arguments.' });
       const snapshot = required.readSnapshot({ runId: ctx.run.id, principalId: ctx.principal.id });
       if (!snapshot) throw new ToolInputError({ message: 'Chat settings are unavailable for this run.' });
       return snapshot;
