@@ -47,3 +47,16 @@ Exact commands after sourcing `/workspace/.tovu-build/env.sh`:
 
 BUG: The agent-plugin distribution declared bundled CMS code as a runtime dependency, violating the existing package layer gate. Fixed.
 BUG: Reference-web's default Vitest command collects browser suites authored for node:test. Under investigation.
+
+## Fix 2 — Reference-web test runners
+
+The browser E2E files use node:test; passing them to Vitest caused two collection failures. The default command now runs every src Vitest test and then every E2E file with its owning Node runner: `vitest run src && node --test e2e/*.test.mjs`. No tests removed, skipped or weakened; no assertion changed. Existing Playwright was linked into ignored node_modules for the browser-host setup.
+
+- RED: `VITEST_MAX_THREADS=2 VITEST_MIN_THREADS=1 VITEST_MAX_FORKS=2 VITEST_MIN_FORKS=1 npm --prefix examples/reference-web run test` — 54 passed, 2 collection failures.
+- After repair: `CHROMIUM_PATH=/usr/bin/chromium VITEST_MAX_THREADS=2 VITEST_MIN_THREADS=1 VITEST_MAX_FORKS=2 VITEST_MIN_FORKS=1 npm --prefix examples/reference-web run test` — 54 Vitest tests and 2 real browser tests passed; 1 browser test failed because its default Playwright Chromium binary is absent. That test is unchanged and unskipped.
+- `pnpm --filter @jini-app/reference-web run typecheck` — passed.
+- Stable-tree `pnpm complexity` — passed, 0 errors and 211 warnings.
+- `pnpm quality:knip` — exit 0, report-only findings retained; `pnpm quality:depcruise` — exit 0, report-only observations retained.
+- `pnpm quality:sonar` — 111 warnings and 4 errors, including one parser/configuration issue; diagnosis pending.
+
+BUG: Reference-web's default test command sent node:test browser suites to Vitest. Fixed by invoking both runners.
