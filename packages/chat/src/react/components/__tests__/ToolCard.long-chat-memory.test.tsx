@@ -70,6 +70,10 @@ describe('tool-card memory in a restored chat', () => {
       driver, capabilityId: 'page.find_elements', input: { query: 'tool-call-reader', withState: true },
     }) as FindElementsResult;
 
+    const reader = container.querySelector('.op-card-reader-text')!;
+    expect(reader).not.toHaveAttribute('hidden');
+    expect(reader).toHaveClass('op-sr-prefix');
+    expect(reader.closest('.accordion-collapsible')).toBeNull();
     const pending = await read();
     expect(pending.elements).toHaveLength(1);
     expect(pending.elements[0]!.state?.text).toContain('name-input');

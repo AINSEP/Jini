@@ -68,3 +68,12 @@ it('keeps distinct equal-text sends and deduplicates aliases and partial fallbac
   expect(acceptedInputsFromMessages({ messages }).map(input => input.id)).toEqual(['wire', 'second', 'ordinary']);
   expect(messages[1]!.events).toHaveLength(2);
 });
+
+
+it('recalls confirmed queue receipts while their carrier awaits run acceptance, excluding pending drafts', () => {
+  const pending: ChatMessage = { id: 'carrier', role: 'user', content: 'batched carrier', inputPending: true,
+    events: [unrelated, accepted('queued', 'accepted queue'), acceptedInputUserEvent({ input: { id: 'draft', text: 'unaccepted draft' } })] };
+  const messages: ChatMessage[] = [pending, { id: 'raw-pending', role: 'user', content: 'not accepted', inputPending: true }];
+  expect(acceptedInputsFromMessages({ messages })).toEqual([{ id: 'queued', text: 'accepted queue' }]);
+  expect(pending.inputPending).toBe(true);
+});
