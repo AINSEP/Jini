@@ -70,8 +70,8 @@
       "licenses/posthog-js/package-license.json": "sha256-15156f5af3c1699358c4857b0c155fa444c21527b295aecff8edcdcdbbc349f6",
       "licenses/posthog-node/LICENSE": "sha256-d3fb92ac01f0bef4078f89aac9f20f76da3383ad45becf6204abdf5495f43f8f",
       "licenses/posthog-node/package-license.json": "sha256-477479010682b08537c8ad318f1f71dc25b0e88a9b0f9f6b4cc90c168624c6be",
-      "server/consent-adapter.mjs": "sha256-a37d6ad7073b5d5149572a4bf8a95c71d24337f4b6358ab98676481e2d663035",
-      "server/index.mjs": "sha256-f38f04b0ccc7eba365ea6487bd1b5477f08b85440d474bfbe449ae80578c40ea",
+      "server/consent-adapter.mjs": "sha256-7957d2477897886da887d037379309655f783614760b31d7eb0bbe2bfae03270",
+      "server/index.mjs": "sha256-737a41b0539de174144e2d9c4b789c3074e302e96c468261c7d2ffcc492bd3a5",
       "server/posthog-browser.js": "sha256-42c78610e8c1a1ff3258259c13becb34699668a81f091af2e80146b3a006be2a"
     }
   },
@@ -392,7 +392,7 @@
       "licenses/_jini-ai_provider-plugins/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
       "licenses/_jini-ai_provider-plugins/NOTICE": "sha256-41f25c5b9af4c8e8e98e2a7c658b3922253c760686e17e0ef7fa003fae83cb95",
       "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-487cadce25dd2d3d08bb47f1305dc3e6a9b04d28b7463e4a3b15239c6ccb7485",
-      "server/index.mjs": "sha256-f2aa51ea184bb415e1810ad477ce584add20780f9c08624dbdae545b6adce4bd"
+      "server/index.mjs": "sha256-26b9e32337e867a5fa69096c4f52d9f5ecda2ca952c098808fe0bfb2e0bf5808"
     }
   },
   {
@@ -447,6 +447,44 @@
       "skills/github-pages/SKILL.md": "sha256-631648c51633ea4cf9eabcb27906b5927eb79ccb43ecca3928204fd2de8b50eb",
       "targets/github-pages.mjs": "sha256-fc22ad950ad3b5675f329d25fa71f6cd6de85176996e7812681d6cd1bac650c9",
       "tovu-deploy-targets.json": "sha256-cbec20a48ab811c2b3dc9beb9aeb5cdf69037037c1e3fa2dccc04f1c07c5792e"
+    }
+  },
+  {
+    "kind": "agent",
+    "path": "google-forms",
+    "pluginVersion": "0.1.0",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "google-forms",
+    "publisherIdentity": "jini/google-forms-agent",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.23",
+    "description": "Select a published public Google Form as a form collection provider. Questions and answers stay in Google; switching preserves local definitions and historical answers. Installation alone never switches a form.",
+    "expectedDigests": {
+      "plugin.json": "sha256-8eb1280e6de53cd237a1101d030a20573d995cd4d3fbf28afa2d26e69f9e3982",
+      "skills/google-forms/SKILL.md": "sha256-73549f53e573d7ca24eac3e3ce227b768f0c43878ef1b9214b8246eacccaf0cf"
+    }
+  },
+  {
+    "kind": "provider",
+    "path": "plugins/google-forms/0.6.23",
+    "pluginVersion": "0.6.23",
+    "contract": {
+      "id": "form_collection",
+      "version": 1
+    },
+    "id": "google-forms",
+    "publisherIdentity": "jini/google-forms",
+    "packageName": "@jini-ai/provider-plugins",
+    "version": "0.6.23",
+    "description": "Google Forms collection",
+    "expectedDigests": {
+      "licenses/_jini-ai_provider-plugins/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
+      "licenses/_jini-ai_provider-plugins/NOTICE": "sha256-41f25c5b9af4c8e8e98e2a7c658b3922253c760686e17e0ef7fa003fae83cb95",
+      "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-487cadce25dd2d3d08bb47f1305dc3e6a9b04d28b7463e4a3b15239c6ccb7485",
+      "server/index.mjs": "sha256-6be5284d7d4ff2c4cfed6add2b88cd065d67aec90058be0f07ff1f1b40f61c17"
     }
   },
   {
@@ -726,7 +764,7 @@
       "licenses/js-tokens/package-license.json": "sha256-337c203b235cd5b3626735f17d6ec6b41c509df27ef0a494ce4d673937f7082b",
       "licenses/semver/LICENSE": "sha256-4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b",
       "licenses/semver/package-license.json": "sha256-850ac2ae774f31fc6da3760c39cb2f489f31e35278b1489d09ce63adb98d89ef",
-      "server/index.mjs": "sha256-414cc561456ca6b997e3a623890d956e4c99cb43d9538e57ab2f06aa6007ac8d"
+      "server/index.mjs": "sha256-ff796e2f2b3444806ac610e88d04a1a153571c9e27c91cdf86c45c34e28c5987"
     }
   },
   {
@@ -772,7 +810,7 @@
       "licenses/_sentry_server-utils/package-license.json": "sha256-fc86dcf64159ae72833f6c8655f0841c714aed8b67a241e76ca00a2bfb0bd9b7",
       "licenses/js-tokens/LICENSE": "sha256-33038d552d766f4501d8da25b66053ed217c61274ffce1c6bee413bb037c259c",
       "licenses/js-tokens/package-license.json": "sha256-337c203b235cd5b3626735f17d6ec6b41c509df27ef0a494ce4d673937f7082b",
-      "server/index.mjs": "sha256-b0dfe3dd0adfc20a9b55d63f653241f5cf26ef79313110cc90bf61d80c21c208"
+      "server/index.mjs": "sha256-5de93c97badc8806f0e4721ebdac42e0d0ad566380799f961de8b91df312de01"
     }
   },
   {
