@@ -1,6 +1,5 @@
 /** Fixed access disclosures share the confirmation surface's trusted, single-use click gates. */
 import { snapshotAccessApproval, type AccessApprovalDescription } from '@jini-ai/core';
-import { buildConfirmationSurface } from './confirmation.js';
 import type { SurfaceDetail } from './document.js';
 
 /** Format the exact resource, scope, revision and before/after values without editable grants.
@@ -16,16 +15,4 @@ export function accessApprovalDetails(
     { label: 'Resource', value: { id: resource.id, name: resource.label, ...resource.scope, revision: resource.revision } },
     { label: resource.label, previous: resource.previous, value: resource.proposed },
   ]);
-}
-
-/** Build one fixed access card with the existing dwell, trusted-click and discovery protections.
- * Action params remain in the private frame script, never in the agent discovery mirror.
- * @throws ToolInputError for an oversized or empty access proposal.
- * @complexity O(n) in rendered disclosure bytes; no I/O or permission effects.
- */
-export function buildAccessApprovalSurface(
-  { access, ...spec }: Omit<Parameters<typeof buildConfirmationSurface>[0], 'details' | 'choices' | 'choicesParam'> & { access: AccessApprovalDescription },
-  _options = {},
-): ReturnType<typeof buildConfirmationSurface> {
-  return buildConfirmationSurface({ ...spec, details: accessApprovalDetails({ access }) });
 }

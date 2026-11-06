@@ -289,7 +289,7 @@ describe('codexAgentDef.buildArgs', () => {
     expect(codexAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: '' } })).not.toContain('--model');
   });
 
-  it('adds a -c model_reasoning_effort override for a concrete reasoning selection (clamped via clampCodexReasoning)', () => {
+  it('adds a -c model_reasoning_effort override for a concrete reasoning selection', () => {
     setPlatform('darwin');
     const args = codexAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'gpt-5', reasoning: 'high' } });
     expect(args).toContain('model_reasoning_effort="high"');

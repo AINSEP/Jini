@@ -689,3 +689,10 @@ it('validates effort against a freshly resolved default absent from the visible 
     expect((await resolveModelForLaunch({ def, context: { ...context, model: 'custom-concrete-v3' }, effort, deps: hostDeps() })).model).toBe('custom-concrete-v3');
   }
 });
+
+it('keeps configured and custom models launchable with stored effort when discovery returns no rows', async () => {
+  const def = { id: 'fixture', fallbackModels: [], defaultModelEnvVar: 'FIXTURE_MODEL', reasoningOptions: [{ id: 'high', label: 'High' }] };
+  const configuredContext = { ...context, env: { ...context.env, FIXTURE_MODEL: 'configured-v2' } };
+  expect((await resolveModelForLaunch({ def, context: configuredContext, effort: 'high', deps: hostDeps() })).model).toBe('configured-v2');
+  expect((await resolveModelForLaunch({ def, context: { ...configuredContext, model: 'custom-v3' }, effort: 'high', deps: hostDeps() })).model).toBe('custom-v3');
+});

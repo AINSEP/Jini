@@ -147,6 +147,23 @@ it.each(['default', 'native-routing-alias'])('trusted parity leaves default or e
   expect(selections).toBe(0); expect(args).toEqual([model === 'default' ? [] : ['--model', model]]);
 });
 
+it('checks an explicit effort before a trusted parity launch sends a prompt', async () => {
+  const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+  const agent = def(); let spawned = false;
+  agent.discoverModels = async ({ context }) => ({ ...(await fixtureModelDiscovery.discoverModels({ context })),
+    models: [{ id: 'cli-pinned', label: 'Pinned', identityKind: 'concrete', reasoning: [{ id: 'high', label: 'High' }] }] });
+  const executor = createAgentExecutor({ lifecycle }, {
+    getAgentDef: () => agent, resolveAgentLaunch: () => launch,
+    ensureAgentCapabilities: async () => {}, applyAgentLaunchEnv: ({ env }) => env,
+    spawn: (() => { spawned = true; throw new Error('Must not spawn'); }) as unknown as typeof nodeSpawn,
+  });
+  const { run } = await lifecycle.start({ contextRef: 'parity-effort' });
+  await expect(executor.run({ runId: run.id, agentId: agent.id, cwd: '/workspace', prompt: 'hello' },
+    { cliParity: true, nativeToolAccess: true, nativeCapabilities: { userMcp: true }, permissionMode: 'bypass', model: 'cli-pinned', reasoning: 'minimal' }))
+    .rejects.toMatchObject({ code: 'AGENT_MODEL_UNRESOLVED', message: "AgentExecutor: Unknown effort 'minimal' for 'fixture'. Available effort levels: high (empty means Default)." });
+  expect(spawned).toBe(false);
+});
+
 it.each([false, true])('W5 forwards launch-scoped discovery context and declared env (parity %s)', async cliParity => {
   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
   const agent = def();

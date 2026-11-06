@@ -26,7 +26,7 @@ for (const [name, create] of parsers) {
       const parser = create(event => events.push(event));
       parser.feed({ chunk: `${'x'.repeat(LIMIT + 1)}\nrecovered\n` });
       expect(events).toEqual([
-        expect.objectContaining({ type: 'error', message: `Agent output line exceeded ${LIMIT} characters.` }),
+        expect.objectContaining({ type: 'error', message: 'Agent output is too large to read: one line exceeds 8,388,608 characters. Try a smaller attachment or a new chat.' }),
         { type: 'raw', line: 'recovered' },
       ]);
     });
@@ -48,7 +48,7 @@ for (const [name, create] of parsers) {
       const parser = create(event => events.push(event));
       parser.feed({ chunk: 'x'.repeat(LIMIT + 1) });
       parser.flush(); parser.flush();
-      expect(events).toEqual([expect.objectContaining({ type: 'error', message: `Agent output line exceeded ${LIMIT} characters.` })]);
+      expect(events).toEqual([expect.objectContaining({ type: 'error', message: 'Agent output is too large to read: one line exceeds 8,388,608 characters. Try a smaller attachment or a new chat.' })]);
     });
   });
 }

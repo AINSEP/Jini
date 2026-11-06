@@ -1,6 +1,6 @@
 /** Maximum retained physical stdout line, measured in JavaScript UTF-16 code units. */
 export const MAX_STREAM_LINE_CHARS = 8 * 1024 * 1024;
-export const STREAM_LINE_LIMIT_MESSAGE = `Agent output line exceeded ${MAX_STREAM_LINE_CHARS} characters.`;
+export const STREAM_LINE_LIMIT_MESSAGE = 'Agent output is too large to read: one line exceeds 8,388,608 characters. Try a smaller attachment or a new chat.';
 
 /** Frame bounded physical lines without ever parsing an oversized line's suffix.
  * Overflow is reported once, immediately, then discarded through newline. Flush clears a final tail.

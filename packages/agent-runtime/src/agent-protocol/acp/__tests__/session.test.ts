@@ -108,7 +108,7 @@ describe('attachAcpSession', () => {
     expect(session.hasFatalError()).toBe(true);
     expect(child.killed).toBe(true);
     expect(send.mock.calls.filter(([event]) => event.event === 'error')).toHaveLength(1);
-    expect(send).toHaveBeenCalledWith({ event: 'error', payload: expect.objectContaining({ message: 'Agent output line exceeded 8388608 characters.' }) });
+    expect(send).toHaveBeenCalledWith({ event: 'error', payload: expect.objectContaining({ message: 'Agent output is too large to read: one line exceeds 8,388,608 characters. Try a smaller attachment or a new chat.' }) });
     child.stdout!.emit('data', 'discarded suffix\n');
     child.emit('close', 1, null);
     expect(send.mock.calls.filter(([event]) => event.event === 'error')).toHaveLength(1);

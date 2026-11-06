@@ -129,18 +129,10 @@ export async function preparePluginRelease(required: {
   return tarballs;
 }
 
-async function main(): Promise<void> {
-  const argv = process.argv.slice(2);
-  const planOnly = argv.includes('--plan');
-  const registry = discoverJiniPackages(repoRoot);
-  // Check the full public release set, including already-published and optional peer declarations.
-  assertCompatiblePeerRanges({ packages: [...registry.values()].map(entry => entry.pkg) });
-  const publicNames = publishOrder(registry, computeClosure(registry, [...registry.keys()])).filter(
-    (name) => registry.get(name)!.pkg.private !== true,
-  );
-  const only = parseOnly(argv, new Set(publicNames));
-  const order = only ? publicNames.filter((name) => only.has(name)) : publicNames;
-
+/** Read one registry state per selected package and retain its plan/skip outcome.
+ * @returns Pending package names and rows for the final step summary.
+ * @complexity O(p) registry commands and O(p) retained names/rows for p selected packages. */
+function publicationStates({ registry, order }: { registry: ReadonlyMap<string, JiniPackageEntry>; order: readonly string[] }): { rows: Array<[string, string]>; pending: string[] } {
   const rows: Array<[string, string]> = [];
   const pending: string[] = [];
   for (const name of order) {
@@ -154,16 +146,40 @@ async function main(): Promise<void> {
       rows.push([`${name}@${version}`, 'skipped: never published (no trusted publisher possible yet)']);
     }
   }
-  console.log(`\n${pending.length} of ${order.length} package(s) to publish.`);
-  if (planOnly) return;
-  const tarballs = await preparePluginRelease({ repoRoot, registry, pending });
+  return { rows, pending };
+}
 
+/** Execute the selected release or read-only plan and retain its step summary.
+ * @throws Registry, package validation or publication failures after recording a stopped result.
+ * @complexity O(p + e) package planning plus one pack/publication per pending package. */
+export async function main(): Promise<void> {
+  const argv = process.argv.slice(2);
+  const planOnly = argv.includes('--plan');
+  const registry = discoverJiniPackages(repoRoot);
+  // Check the full public release set, including already-published and optional peer declarations.
+  assertCompatiblePeerRanges({ packages: [...registry.values()].map(entry => entry.pkg) });
+  const publicNames = publishOrder(registry, computeClosure(registry, [...registry.keys()])).filter(
+    (name) => registry.get(name)!.pkg.private !== true,
+  );
+  const only = parseOnly(argv, new Set(publicNames));
+  const order = only ? publicNames.filter((name) => only.has(name)) : publicNames;
+
+  const { rows, pending } = publicationStates({ registry, order });
+  console.log(`\n${pending.length} of ${order.length} package(s) to publish.`);
   try {
+    if (planOnly) {
+      for (const name of pending) rows.push([`${name}@${registry.get(name)!.pkg.version}`, 'planned: pending publication']);
+      return;
+    }
+    const tarballs = await preparePluginRelease({ repoRoot, registry, pending });
     for (const name of pending) {
       const tarball = tarballs.get(name)!;
       execFileSync('npm', ['publish', tarball, '--access', 'public', '--provenance'], { stdio: 'inherit' });
       rows.push([`${name}@${registry.get(name)!.pkg.version}`, 'published']);
     }
+  } catch (error) {
+    rows.push(['Release', 'stopped before completion; see the step log']);
+    throw error;
   } finally {
     writeSummary(rows);
   }

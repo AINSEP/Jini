@@ -1,12 +1,12 @@
 import { afterEach, expect, it, vi } from 'vitest';
-import { accessApprovalDetails, buildAccessApprovalSurface } from '../../surfaces/access-approval.js';
-import { CONFIRM_DWELL_MS } from '../../surfaces/confirmation.js';
+import { accessApprovalDetails } from '../../surfaces/access-approval.js';
+import { buildConfirmationSurface, CONFIRM_DWELL_MS } from '../../surfaces/confirmation.js';
 import { MCP_UI_ACTION_PLAN_META_KEY } from '../../resource.js';
 import { mountSurface } from './mount-surface.js';
 
 const access = () => ({ resources: [{ id: 'mail', label: 'Mail <tools>', scope: { personId: 'person', siteId: 'site', chatId: 'chat' }, previous: { allow: [] }, proposed: { allow: ['read'], write: [] }, revision: 'v1' }] });
-const card = () => buildAccessApprovalSurface({
-  access: access(), uri: 'ui://test/access', title: 'Allow this access?',
+const card = () => buildConfirmationSurface({
+  details: accessApprovalDetails({ access: access() }), uri: 'ui://test/access', title: 'Allow this access?',
   confirm: { label: 'Allow', toolName: 'decide', params: { exchangeId: 'private-exchange', decision: 'confirm' } },
   cancel: { label: 'Cancel', toolName: 'decide', params: { exchangeId: 'private-exchange', decision: 'cancel' } },
 });

@@ -1205,10 +1205,10 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
 
   async function selectRunModel({ input, def, launch, spawnEnv }: { input: MutableRunInput; def: RuntimeAgentDef; launch: ConfirmedAgentLaunchResolution; spawnEnv: NodeJS.ProcessEnv }, _options = {}) {
     // Locked runs pin the picker's concrete ID before any prompt is sent. Trusted parity keeps
-    // the CLI's own configured default and effort, without requiring discovery to succeed.
+    // the CLI's configured default unless an explicit effort needs the same advertised-choice check.
     if (input.cliParity && input.model === 'default') delete input.model;
     let modelCatalog: ModelCatalogSnapshot | undefined;
-    if (!input.cliParity) {
+    if (!input.cliParity || input.reasoning) {
       try {
         const selectModel = options.resolveModelForLaunch ?? ((input: Parameters<typeof resolveModelForLaunch>[0]) => resolveModelForLaunch(input, options.runtimeState ? { deps: getRuntimeModelDiscoveryDeps({ state: options.runtimeState }) } : {}));
         const selection = await selectModel({ def, context: launchModelContext({ input, launch, spawnEnv }, {}), effort: input.reasoning });

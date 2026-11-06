@@ -2,7 +2,7 @@
 import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { createRequire } from 'node:module';
+import * as semver from 'semver';
 import { isDeepStrictEqual } from 'node:util';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -93,9 +93,6 @@ export function checkPluginPackages(
 
 type ReleasePorts = { publishedPackage(input: { name: string; version: string }): Promise<string | undefined> };
 type PluginManifest = Parameters<typeof catalogEntry>[0]['pluginManifest'];
-const semver = createRequire(new URL('../packages/plugins/package.json', import.meta.url))('semver') as {
-  valid(version: string): string | null; gt(left: string, right: string): boolean;
-};
 
 /** Read immutable registry tarballs, never lifecycle hooks. Only an explicit registry 404 is absent.
  * The caller owns scratch cleanup and caches packages shared by catalog records. */

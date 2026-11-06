@@ -938,6 +938,14 @@ describe('multiline aggregate budgets apply before successful JSON parsing', () 
 });
 
 describe('physical JSON-RPC line bounds', () => {
+  it('reports an attachment-sized frame in plain words without delivering any of it', () => {
+    const onMessage = vi.fn(); const onError = vi.fn();
+    const stream = createJsonLineStream({ onMessage, onError });
+    stream.feed({ chunk: JSON.stringify({ content: [{ type: 'image', data: 'x'.repeat(8 * 1024 * 1024) }] }) + '\n' });
+    expect(onMessage).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledOnce();
+    expect(onError.mock.calls[0]?.[0].message).toBe('Agent output is too large to read: one line exceeds 8,388,608 characters. Try a smaller attachment or a new chat.');
+  });
   it('retries a complete frame after an abandoned multiline candidate reaches its budget', () => {
     const messages: unknown[] = [];
     const errors: RangeError[] = [];
@@ -961,7 +969,7 @@ describe('physical JSON-RPC line bounds', () => {
   });
   it('throws a visible RangeError if the host omitted its error sink', () => {
     const stream = createJsonLineStream({ onMessage: () => { throw new Error('oversized frame was delivered'); } });
-    expect(() => stream.feed({ chunk: 'x'.repeat(limit + 1) })).toThrowError(new RangeError(`Agent output line exceeded ${limit} characters.`));
+    expect(() => stream.feed({ chunk: 'x'.repeat(limit + 1) })).toThrowError(new RangeError('Agent output is too large to read: one line exceeds 8,388,608 characters. Try a smaller attachment or a new chat.'));
     expect(() => stream.flush()).not.toThrow();
   });
   it('reports a split oversized line once, discards its suffix, and resumes with the next frame', () => {
@@ -971,7 +979,7 @@ describe('physical JSON-RPC line bounds', () => {
     stream.feed({ chunk: 'y' });
     stream.feed({ chunk: '{"forged":true}\n{"fresh":true}\n' });
     stream.flush(); stream.flush();
-    expect(errors.map(error => error.message)).toEqual([`Agent output line exceeded ${limit} characters.`]);
+    expect(errors.map(error => error.message)).toEqual(['Agent output is too large to read: one line exceeds 8,388,608 characters. Try a smaller attachment or a new chat.']);
     expect(messages).toEqual([{ fresh: true }]);
   });
   it('clears a partial multiline candidate when its next physical line overflows', () => {
