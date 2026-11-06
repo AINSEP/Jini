@@ -3,16 +3,17 @@ import type { FormOutboxPort } from './ports.js';
 import { FormDeliveryError } from './delivery/errors.js';
 
 export const FORM_ATTACHMENT_CLEANUP_EVENT = 'form.attachment.cleanup';
-type Payload = { workspaceId: string; sha256: string };
-/** Use the host-provided media grace and existing outbox as the durable GC work queue; jobs contain only a hash and workspace.
+type Payload = { workspaceId: string; sha256: string; storageKeys?: readonly string[] };
+type KeyOwnership = (required: { workspaceId: string; sha256: string; storageKey: string }) => Promise<boolean>;
+/** Use the host-provided media grace and existing outbox as the durable GC work queue; jobs retain the hash, workspace and exact rendition keys, never file bytes.
  * @returns Once cleanup is queued; callers bind this inside the submission purge transaction.
  * @complexity One small job write per purged file, no bytes read or deleted before commit. */
 export async function scheduleFormAttachmentCleanup(
-  { outbox, workspaceId, mediaId, sha256, now, graceMs }: { outbox: FormOutboxPort; workspaceId: string; mediaId: string; sha256: string; now: number; graceMs: number },
+  { outbox, workspaceId, mediaId, sha256, now, graceMs, storageKeys }: { outbox: FormOutboxPort; workspaceId: string; mediaId: string; sha256: string; now: number; graceMs: number; storageKeys?: readonly string[] },
   _optional = {},
 ): Promise<void> {
   await outbox.enqueue({ id: `forms:file:cleanup:${workspaceId}:${mediaId}`, name: FORM_ATTACHMENT_CLEANUP_EVENT, workspaceId,
-    aggregateId: mediaId, occurredAt: new Date(now + graceMs).toISOString(), payload: { workspaceId, sha256 } });
+    aggregateId: mediaId, occurredAt: new Date(now + graceMs).toISOString(), payload: { workspaceId, sha256, ...(storageKeys === undefined ? {} : { storageKeys: [...new Set(storageKeys)] }) } });
 }
 
 /** After grace, recheck ownership under the host's shared hash lock, then remove bytes and metadata. The
@@ -21,11 +22,13 @@ export async function scheduleFormAttachmentCleanup(
  * @returns Subscriber teardown. Storage failures throw a redacted retryable error.
  * @complexity One blob lookup and one host ownership probe per job; no periodic collection poll. */
 export function registerFormAttachmentCleanup(
-  { bus, findBlob, hasOwners, deleteBytes, removeBlob, withHashLock }: {
+  { bus, findBlob, hasOwners, hasStorageKeyOwners, deleteBytes, removeBlob, withHashLock }: {
     bus: EventBusPort;
     withHashLock: (required: { key: string; criticalSection: () => Promise<void> }) => Promise<void>;
     findBlob: (required: Payload) => Promise<{ storageKey: string; status: string } | null>;
     hasOwners: (required: Payload) => Promise<boolean>;
+    /** Required for captured keys; unavailable proof leaves the durable job retryable. */
+    hasStorageKeyOwners?: KeyOwnership;
     deleteBytes: (required: { storageKey: string }) => Promise<void>;
     removeBlob: (required: Payload) => Promise<void>;
   },
@@ -35,10 +38,27 @@ export function registerFormAttachmentCleanup(
     try {
       await withHashLock({ key: payload.sha256, criticalSection: async () => {
         const blob = await findBlob(payload);
+        await deleteCapturedKeys({ payload, originalKey: blob?.storageKey, hasStorageKeyOwners, deleteBytes });
         if (!blob || blob.status !== 'tombstoned' || await hasOwners(payload)) return;
+        if (hasStorageKeyOwners && await hasStorageKeyOwners({ ...payload, storageKey: blob.storageKey })) return;
         await deleteBytes({ storageKey: blob.storageKey });
         await removeBlob(payload);
       } });
     } catch { throw new FormDeliveryError({ code: 'delivery-failed', retryable: true }); }
   } });
+}
+
+/** Captured rendition keys outlive the original row. Recheck each exact key before idempotent
+ * storage removal; a partial failure leaves this same outbox job available for retry.
+ * @complexity O(keys) ownership probes/deletes, bounded by this asset's saved rendition rows. */
+async function deleteCapturedKeys({ payload, originalKey, hasStorageKeyOwners, deleteBytes }: {
+  payload: Payload; originalKey: string | undefined; hasStorageKeyOwners: KeyOwnership | undefined;
+  deleteBytes: (required: { storageKey: string }) => Promise<void>;
+}): Promise<void> {
+  for (const storageKey of new Set(payload.storageKeys ?? [])) {
+    if (storageKey === originalKey) continue;
+    if (!hasStorageKeyOwners) throw new FormDeliveryError({ code: 'delivery-failed', retryable: true });
+    if (await hasStorageKeyOwners({ ...payload, storageKey })) continue;
+    await deleteBytes({ storageKey });
+  }
 }

@@ -70,3 +70,37 @@ test('cleanup shares the host lock with an upload that restores blob ownership',
   await Promise.all([upload, cleanup]);
   assert.equal(lookedUp, true);
 });
+
+test('captured rendition keys survive a missing original and preserve exact-key owners', async () => {
+  const events: any[] = [], removed: string[] = [];
+  await scheduleFormAttachmentCleanup({ outbox: { enqueue: async e => { events.push(e); } }, workspaceId: 'w', mediaId: 'm', sha256: 'sha', now: 0, graceMs: 1,
+    storageKeys: ['thumb', 'shared', 'thumb'] });
+  assert.deepEqual(events[0].payload.storageKeys, ['thumb', 'shared']);
+  const bus = new InMemoryEventBus();
+  await registerFormAttachmentCleanup({ bus, withHashLock: withSha256Lock,
+    findBlob: async () => null, hasOwners: async () => false,
+    hasStorageKeyOwners: async ({ storageKey }) => storageKey === 'shared',
+    deleteBytes: async ({ storageKey }) => { removed.push(storageKey); },
+    removeBlob: async () => assert.fail('the original row no longer exists'),
+  });
+  await bus.publish(events[0]);
+  assert.deepEqual(removed, ['thumb']);
+});
+
+test('partial rendition deletion remains retryable and ownership checks fail closed', async () => {
+  const bus = new InMemoryEventBus();
+  const bytes = new Set(['one', 'two']); let fail = true, lookupFails = false;
+  await registerFormAttachmentCleanup({ bus, withHashLock: withSha256Lock,
+    findBlob: async () => null, hasOwners: async () => false,
+    hasStorageKeyOwners: async () => { if (lookupFails) throw new Error('private lookup'); return false; },
+    deleteBytes: async ({ storageKey }) => { if (storageKey === 'two' && fail) throw new Error('private provider'); bytes.delete(storageKey); },
+    removeBlob: async () => assert.fail('the original row no longer exists'),
+  });
+  const event = { id: 'partial', name: 'form.attachment.cleanup', workspaceId: 'w', aggregateId: 'm', occurredAt: new Date(0).toISOString(),
+    payload: { workspaceId: 'w', sha256: 'sha', storageKeys: ['one', 'two'] } };
+  await assert.rejects(bus.publish(event), error => { assert.equal((error as Error).message.includes('private'), false); return true; });
+  assert.deepEqual([...bytes], ['two']);
+  lookupFails = true; fail = false;
+  await assert.rejects(bus.publish(event)); assert.deepEqual([...bytes], ['two']);
+  lookupFails = false; await bus.publish(event); assert.deepEqual([...bytes], []);
+});

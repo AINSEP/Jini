@@ -1009,3 +1009,40 @@ test('private uploads preserve privacy on their asset and retained blob through 
   await purgeMedia({ deps, input: { workspaceId: WORKSPACE_ID, id: media.id } });
   assert.equal((await deps.blobRepo.findByHash({ workspaceId: WORKSPACE_ID, sha256: media.source.sha256 }))!.documentOwned, true);
 });
+
+test('purge and upload compensation journal exact rendition keys before removing their rows', async () => {
+  for (const operation of ['purge', 'rollback'] as const) {
+    const { deps } = makeDeps();
+    const { media } = await uploadMedia({ deps, input: { workspaceId: WORKSPACE_ID, bytes: bytesFrom(operation), filename: 'photo.png', contentType: 'image/png', createdByPrincipal: 'owner' } });
+    await deps.renditionRepo.save({ id: 'thumb', workspaceId: WORKSPACE_ID, assetId: media.id, transformName: 'thumb', version: 1, storageKey: 'exact-thumb', createdAt: 'now' });
+    const original = (await deps.renditionRepo.listByAsset({ workspaceId: WORKSPACE_ID, assetId: media.id }))[0]!.storageKey;
+    let journaled = false, inTransaction = false;
+    const cleanupDeps = { ...deps,
+      cleanupTransaction: async ({ work }: { work: () => Promise<void> }) => { inTransaction = true; try { await work(); } finally { inTransaction = false; } },
+      cleanupJournal: async (input: { workspaceId: string; mediaId: string; sha256: string; storageKeys: readonly string[] }) => {
+        assert.equal(inTransaction, true);
+        assert.deepEqual(input, { workspaceId: WORKSPACE_ID, mediaId: media.id, sha256: media.source.sha256, storageKeys: [original, 'exact-thumb'] });
+        assert.equal((await deps.renditionRepo.listByAsset({ workspaceId: WORKSPACE_ID, assetId: media.id })).length, 2);
+        assert.ok(await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: media.id }));
+        journaled = true;
+      },
+    };
+    if (operation === 'purge') {
+      await trashMedia({ deps, input: { workspaceId: WORKSPACE_ID, id: media.id } });
+      await purgeMedia({ deps: cleanupDeps, input: { workspaceId: WORKSPACE_ID, id: media.id } });
+    } else await rollbackUploadedMedia({ deps: cleanupDeps, input: { workspaceId: WORKSPACE_ID, media } });
+    assert.equal(journaled, true);
+    assert.equal(await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: media.id }), null);
+    assert.deepEqual(await deps.renditionRepo.listByAsset({ workspaceId: WORKSPACE_ID, assetId: media.id }), []);
+  }
+});
+
+test('a failed cleanup journal preserves media and rendition identities for retry', async () => {
+  const { deps } = makeDeps();
+  const { media } = await uploadMedia({ deps, input: { workspaceId: WORKSPACE_ID, bytes: bytesFrom('journal-failure'), filename: 'photo.png', contentType: 'image/png', createdByPrincipal: 'owner' } });
+  await trashMedia({ deps, input: { workspaceId: WORKSPACE_ID, id: media.id } });
+  await assert.rejects(purgeMedia({ deps: { ...deps, cleanupJournal: async () => { throw new Error('journal unavailable'); } }, input: { workspaceId: WORKSPACE_ID, id: media.id } }), /journal unavailable/);
+  assert.equal((await deps.mediaRepo.findById({ workspaceId: WORKSPACE_ID, id: media.id }))!.status, 'trashed');
+  assert.equal((await deps.renditionRepo.listByAsset({ workspaceId: WORKSPACE_ID, assetId: media.id })).length, 1);
+  assert.equal((await deps.blobRepo.findByHash({ workspaceId: WORKSPACE_ID, sha256: media.source.sha256 }))!.status, 'active');
+});
