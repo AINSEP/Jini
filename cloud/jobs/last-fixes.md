@@ -1,5 +1,5 @@
 # Job last-fixes (owner-approved 11-06): last code round before the full test run
-Base in both repos: origin/cloud/combine (Tovu 75aaefa8c, Jini 01ff07e89). Create cloud/last-fixes from it in each repo you change. Owner approved --no-verify for that branch in Tovu. Hard cap 2 hours. General wording in commits and reports: these repos are public. Commerce and vibe coding are on hold. List every bug you notice under "Bugs found".
+Base in both repos: origin/cloud/combine (Tovu 542635a0e, Jini 01ff07e89). Create cloud/last-fixes from it in each repo you change. Owner approved --no-verify for that branch in Tovu. Hard cap 2 hours. General wording in commits and reports: these repos are public. Commerce and vibe coding are on hold. List every bug you notice under "Bugs found".
 
 Check each item first. If one is wrong or already fixed, say so and leave it. Failing test first for real bugs. Never weaken a test. Smallest change. T = Tovu apps/website/src. Line numbers are at the base commit.
 
@@ -25,6 +25,16 @@ Check each item first. If one is wrong or already fixed, say so and leave it. Fa
 17. Excess code: publish-agent-tools.ts:870-882 staticPublishConfirmation duplicates assistant/tool-approval-policy.ts:57-73; media-rendition.ts:288 eviction line and its "256 workspace indexes" comments now that the key is one workspace.
 18. T/server/inbound/public-http/http/shared/post.ts:73: add to the contract comment that bodyHtml is trusted author HTML with unresolved embed markers.
 19. mcp-ui-tool-calls-route.static-publish.integration.test.ts:86-90: the fixture re-adds the retired authored tag. Point it at the shipped server-added path.
+
+## Found in a Chrome look, also must fix
+21. Old copies of a bundled plugin stay on a site after an upgrade, and every export is then refused: "Plugin 'google-workspace' has multiple installed digests" (archive-extensions.ts:90). Users never fix things by hand: the upgrade or the export must resolve it, keeping any copy the person changed.
+22. Consent off but the page has the loader: on a local dev site, after disabling consent and publishing, /_consent/context said enabled:false while every page including a 404 still had the data-jini-consent-loader tag; it was also there before any publish. The server path looks right (staticDocumentAssets adds nothing when the banner mode is off), so find the cause: a site's own older theme copy with the retired tag, or a mismatch between siteBannerMode and the context route. If it is an older copy, say so and do not rewrite pages; the tag must stay harmless there. If it is a real mismatch, fix it, failing test first.
+23. Approval cards show internal ids to the person: a person UUID, the site id and "Revision 0" (Jini packages/ui/src/features/mcp-ui/surfaces/access-approval.ts). Show names people recognise, and keep ids behind the existing details disclosure only if they help. The card must still bind to the exact approved target; only the words change. The look gets checked in Chrome afterwards.
+24. Cancelling an approval card shows a red "Run canceled exit code none, signal none, resumable no..." error. A person cancelling is not a failure: show plain words.
+25. The error notice shows "Error ID: Unavailable" and "App version: Unavailable". Show the real values, or leave out a line with no value.
+26. Second queued label: Jini packages/chat/src/react/components/MessageList.tsx:165 renders "Queued — sends when this reply finishes" as plain text. Owner chose the boxed status look on 11-04, as MidRunUserMessage.tsx:58 already has with jini-chat-pane__status. Give this one the same look, and say whether two labels are needed at all. The look gets checked in Chrome afterwards.
+27. Jini chat fails to build until @jini-ai/ui-kit is linked into chat/node_modules: declare the dependency properly.
+28. Expanding an export row's file list makes the table columns jump, and Revoke wraps under Download (Tovu apps/admin SiteExportTab). The look gets checked in Chrome afterwards.
 
 ## Separate commit, so it can be reverted alone (owner asked, answer pending)
 20. Static themes with consent off: declared scripts from theme.manifest.scripts and plugin declarations do not load, because the loader was their only route, while managed themes still get them (T/server/inbound/public-http/middleware/site-cookie-consent.ts:253-260). Owner's rule: no consent field means the script runs. With consent off, emit plain script tags for declared scripts, with no loader and no consent code on the page. A theme declaring nothing gets a page with nothing added. Also: siteConsentExportAssets with consent off copies local declared assets no page references; line it up with this.
