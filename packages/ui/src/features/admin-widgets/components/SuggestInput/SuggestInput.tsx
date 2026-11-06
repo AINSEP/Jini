@@ -1,3 +1,4 @@
+import { useAgentHandle } from '../../../../react/hooks/useAgentHandle.js';
 import { useId, useRef, type KeyboardEvent } from 'react';
 import { agentHandle } from '@jini-ai/agentic';
 import { useScrollHighlightedIntoView, useSuggestInput } from './SuggestInput.hooks.js';
@@ -28,14 +29,15 @@ export interface SuggestInputProps {
   className?: string | undefined;
   /** Cap on listed matches; omit to list them all. */
   limit?: number | undefined;
-  agentHandle?: string | undefined;
+  agentHandle?: string | false | undefined;
   agentLabel?: string | undefined;
   useSuggest?: typeof useSuggestInput | undefined;
   /** Injectable for tests; defaults to `scrollIntoView({ block: 'nearest' })`. */
   scrollOptionIntoView?: ((option: Element) => void) | undefined;
 }
 
-export function SuggestInput({ value, onValueChange, suggestions, onPick, onKeyDown, placeholder, disabled, className, limit, agentHandle: handle, agentLabel, useSuggest = useSuggestInput, scrollOptionIntoView, ...rest }: SuggestInputProps) {
+export function SuggestInput({ value, onValueChange, suggestions, onPick, onKeyDown, placeholder, disabled, className, limit, agentHandle: suppliedHandle, agentLabel, useSuggest = useSuggestInput, scrollOptionIntoView, ...rest }: SuggestInputProps) {
+  const handle = useAgentHandle({ agentHandle: suppliedHandle });
   const vm = useSuggest({ value, suggestions }, { limit });
   const listRef = useRef<HTMLUListElement>(null);
   useScrollHighlightedIntoView({ listRef, scrollTarget: vm.scrollTarget }, { scrollIntoView: scrollOptionIntoView });

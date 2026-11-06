@@ -7,6 +7,7 @@ import { assertKitContract, KitConfigError } from '../needs.js';
 import { kitSpec, type ImplementedComponentName } from '../kit-contract.js';
 import type { KitContextValue, KitProviderProps, ReactKitProps, ToastProps } from './types.js';
 import { createToastService } from '../toast.js';
+import { useControlAttrs } from './agent-attrs.hooks.js';
 let defaultValue: KitContextValue | undefined;
 function getDefault() {
   defaultValue ??= { kit: createKit({}), agent: undefined, overlayContainer: null, toast: undefined, cancelLabel: 'Cancel', guard: 'fallback' };
@@ -39,7 +40,7 @@ export function useKitProvider(required: KitProviderProps, _optional: Record<str
     cancelLabel: required.cancelLabel ?? 'Cancel', guard: required.guard ?? kit.guard }),
   [kit, overlayContainer, toast, required.agent, required.cancelLabel, required.guard]);
 }
-function useOverlayRoot(required: { supplied: HTMLElement | undefined }) {
+function useOverlayRoot(required: { supplied: HTMLElement | null | undefined }) {
   const [root, setRoot] = useState<HTMLElement | null>(required.supplied ?? null);
   useEffect(() => {
     if (required.supplied) { setRoot(required.supplied); return undefined; }
@@ -59,9 +60,18 @@ export function useKitComponent<K extends ImplementedComponentName>(required: { 
   const context = useKit({});
   return context.kit.components[required.name];
 }
+const facadeRoles = new Map<string, 'button' | 'field' | 'select'>([
+  ['Button', 'button'], ['IconButton', 'button'], ['TextField', 'field'], ['TextArea', 'field'],
+  ['Select', 'field'],
+]);
 export function useFacade<K extends Exclude<ImplementedComponentName, 'ConfirmDialog'>>(required: { name: K; props: ReactKitProps[K] }, _optional: Record<string, never> = {}) {
   const Component = useKitComponent({ name: required.name });
-  const attrs = { 'data-jini-part': required.name === 'Tabs' ? 'kit.tab' : kitSpec[required.name].parts[0], ...required.props.attrs };
+  const part = required.name === 'Tabs' ? 'kit.tab' : kitSpec[required.name].parts[0];
+  const role = facadeRoles.get(required.name);
+  const attrs = { 'data-jini-part': part, ...useControlAttrs(required.props, { part: required.name.toLowerCase(), role,
+    enabled: role !== undefined || ['Menu', 'Checkbox', 'Switch'].includes(required.name),
+    secret: required.name === 'TextField' && 'type' in required.props && required.props.type === 'password',
+    label: 'label' in required.props ? required.props.label : undefined }) };
   return { Component, props: { ...required.props, attrs } };
 }
 export function useToast(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {

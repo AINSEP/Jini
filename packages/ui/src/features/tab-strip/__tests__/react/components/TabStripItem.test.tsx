@@ -265,3 +265,21 @@ describe('TabStripItem', () => {
     expect(screen.getByRole('button', { name: 'Fermer l’onglet' })).toBeTruthy();
   });
 });
+
+
+describe('TabStripItem agent handles', () => {
+  it('tags the tab and close action independently and respects opt-out', () => {
+    const props = { tab: tab({ id: 'one' }), active: false, dragging: false, dragOverEdge: null,
+      dragProps: dragProps(), onActivate: vi.fn(), onClose: vi.fn() };
+    const { rerender } = render(<TabStripItem {...props} />);
+    const first = screen.getByRole('tab').getAttribute('data-agent-element');
+    expect(first).toMatch(/^ui-/);
+    expect(screen.getByRole('button')).toHaveAttribute('data-agent-element', `${first}-close`);
+    rerender(<TabStripItem {...props} agentHandle="my-tab" />);
+    expect(screen.getByRole('tab')).toHaveAttribute('data-agent-element', 'my-tab');
+    expect(screen.getByRole('button')).toHaveAttribute('data-agent-element', 'my-tab-close');
+    rerender(<TabStripItem {...props} agentHandle={false} />);
+    expect(screen.getByRole('tab')).not.toHaveAttribute('data-agent-element');
+    expect(screen.getByRole('button')).not.toHaveAttribute('data-agent-element');
+  });
+});

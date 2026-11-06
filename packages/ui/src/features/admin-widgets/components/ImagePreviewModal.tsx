@@ -1,3 +1,4 @@
+import { useAgentHandle } from '../../../react/hooks/useAgentHandle.js';
 import { agentHandle } from "@jini-ai/agentic";
 
 import { Lightbox } from "./Lightbox/Lightbox.js";
@@ -10,8 +11,8 @@ export interface ImagePreviewModalProps {
   onClose: () => void;
   /** A fake controller can exercise rendering without a real native-dialog lifecycle. */
   useModal?: typeof useLightbox | undefined;
-  /** Optional tagging preserves existing untagged renders when no agent handle is supplied. */
-  agentHandle?: string | undefined;
+  /** Explicit names override automatic addressing; false excludes the close control. */
+  agentHandle?: string | false | undefined;
   /** No locale is owned here; a translated caller must pass its own accessible close label. */
   closeLabel?: string | undefined;
 }
@@ -24,9 +25,10 @@ export function ImagePreviewModal({
   alt,
   onClose,
   useModal,
-  agentHandle: handle,
+  agentHandle: suppliedHandle,
   closeLabel = "Close preview",
 }: ImagePreviewModalProps) {
+  const handle = useAgentHandle({ agentHandle: suppliedHandle });
   return (
     <Lightbox
       open={open}

@@ -1,9 +1,27 @@
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { AttachmentTray, formatAttachmentSize } from '../AttachmentTray.js';
 
 describe('AttachmentTray', () => {
+  it('keeps attachment action identity across reordering and suppresses both leaves on opt-out', () => {
+    const attachments = [
+      { path: '/first.txt', name: 'Same label', kind: 'file' as const },
+      { path: '/second.txt', name: 'Same label', kind: 'file' as const },
+    ];
+    const onRemove = vi.fn();
+    const { container, rerender } = render(<AttachmentTray agentHandle="draft" attachments={attachments} onRemove={onRemove} />);
+    const handles = screen.getAllByRole('button', { name: 'Remove Same label' }).map(button => button.getAttribute('data-agent-element'));
+    expect(handles[0]).toMatch(/^draft-remove-[a-z0-9-]+$/);
+    expect(handles[0]).not.toBe(handles[1]);
+    rerender(<AttachmentTray agentHandle="draft" attachments={[...attachments].reverse()} onRemove={onRemove} />);
+    expect(screen.getAllByRole('button', { name: 'Remove Same label' }).map(button => button.getAttribute('data-agent-element'))).toEqual([...handles].reverse());
+    fireEvent.click(screen.getAllByRole('button', { name: 'Remove Same label' })[0]!);
+    expect(onRemove).toHaveBeenCalledWith('/second.txt');
+    rerender(<AttachmentTray agentHandle={false} attachments={attachments} onRemove={onRemove} />);
+    expect(container.querySelector('[data-agent-element]')).toBeNull();
+  });
+
   it('renders nothing for an empty attachment list', () => {
     const { container } = render(<AttachmentTray attachments={[]} onRemove={() => {}} />);
     expect(container).toBeEmptyDOMElement();

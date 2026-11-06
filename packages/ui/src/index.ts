@@ -99,6 +99,7 @@ export * from './utils/design-md.js';
 // assertion now that it's an external package rather than living inside `ui`.
 export * from './utils/file-system-errors.js';
 
+export { useAgentHandle, type AgentControlProps } from './react/hooks/useAgentHandle.js';
 export * from './react/hooks/useInView.js';
 export * from './react/hooks/useCoalescedCallback.js';
 export * from './react/hooks/useStableHandler.js';
@@ -148,3 +149,6 @@ export * from './react/components/EditorIcon.js';
 export * from './react/components/TokenChip.js';
 export * from './react/components/ValueChip.js';
 export * from './react/components/ComponentKitPreview.js';
+
+// Share the existing kit overlay context with consumers of these React primitives.
+export { useOverlayContainer } from '@jini-ai/ui-kit/react';

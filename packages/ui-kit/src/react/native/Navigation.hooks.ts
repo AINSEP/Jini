@@ -1,7 +1,9 @@
 import { createElement, useId, useRef, useState, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type { KeyboardEvent } from 'react';
-import type { TabsProps, MenuProps, TooltipProps } from '../types.js';
+import type { TabItem, TabsProps, MenuProps, TooltipProps } from '../types.js';
+import { childControlAttrs, useControlAttrs } from '../agent-attrs.hooks.js';
+import { useOverlayContainer } from '../Kit.hooks.js';
 function navigationIndex(required: { key: string; current: number; count: number; forward: string; backward: string }, _optional: Record<string, never> = {}): number | undefined {
   switch (required.key) {
     case 'Home': return 0;
@@ -11,8 +13,14 @@ function navigationIndex(required: { key: string; current: number; count: number
     default: return undefined;
   }
 }
+function legacyActiveTabAttrs({ parent, item, active }: { parent: TabsProps; item: TabItem; active: boolean }) {
+  if (!active || parent.agentHandle !== undefined) return {};
+  if (parent.attrs?.['data-agent-private'] !== undefined || item.attrs?.['data-agent-private'] !== undefined) return {};
+  return Object.fromEntries(Object.entries(parent.attrs ?? {}).filter(([, value]) => value !== undefined));
+}
 export function useNativeTabs(required: TabsProps, _optional: Record<string, never> = {}) {
   const prefix = useId(), root = useRef<HTMLDivElement>(null);
+  const attrs = useControlAttrs(required, { part: 'tabs' });
   const enabled = required.items.filter(item => !item.disabled);
   const active = enabled.find(item => item.id === required.value) ?? enabled[0];
   function onKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
@@ -24,7 +32,9 @@ export function useNativeTabs(required: TabsProps, _optional: Record<string, nev
   }
   const tabs = required.items.map((item, index) => createElement('button', {
     key: item.id, type: 'button', role: 'tab', id: `${prefix}-tab-${index}`, 'data-jini-part': 'kit.tab', className: 'jini-tab-bar-item',
-    ...item.attrs, ...(item.id === active?.id ? required.attrs : {}),
+    ...childControlAttrs({ parent: required, attrs, action: item.id }, { attrs: item.attrs, label: item.label }),
+    // A caller's legacy base was attached to the active tab; keep that explicit name.
+    ...legacyActiveTabAttrs({ parent: required, item, active: item.id === active?.id }),
     'data-tab-id': item.id, 'aria-controls': `${prefix}-panel-${index}`, 'aria-selected': item.id === active?.id,
     disabled: item.disabled, tabIndex: item.id === active?.id ? 0 : -1,
     onClick: () => { if (!item.disabled) required.onValueChange({ value: item.id }); }, onKeyDown,
@@ -36,6 +46,8 @@ export function useNativeTabs(required: TabsProps, _optional: Record<string, nev
 export function useNativeMenu(required: MenuProps, _optional: Record<string, never> = {}) {
   const [open, setOpen] = useState(false), trigger = useRef<HTMLButtonElement>(null), menu = useRef<HTMLDivElement>(null), id = useId();
   const [position, setPosition] = useState({ top: 0, left: 0 });
+  const container = useOverlayContainer({});
+  const attrs = useControlAttrs(required, { part: 'menu', role: 'button', label: required.label });
   useLayoutEffect(() => {
     if (!open || !trigger.current || !menu.current) return undefined;
     // Portals escape the preview card's overflow clipping. Follow the anchor on scroll/resize.
@@ -68,11 +80,11 @@ export function useNativeMenu(required: MenuProps, _optional: Record<string, nev
     if (next !== undefined) { event.preventDefault(); focus(next); }
   }
   const items = required.items.map(item => createElement('button', { key: item.id, role: 'menuitem', type: 'button', tabIndex: -1,
-    'data-jini-part': 'kit.menu-item', ...item.attrs, className: `jini-row-menu-item ${item.attrs?.['data-jini-variant'] === 'danger' ? 'jini-btn-danger' : ''}`.trim(), disabled: item.disabled,
+    'data-jini-part': 'kit.menu-item', ...childControlAttrs({ parent: required, attrs, action: item.id }, { attrs: item.attrs, label: item.label }), className: `jini-row-menu-item ${item.attrs?.['data-jini-variant'] === 'danger' ? 'jini-btn-danger' : ''}`.trim(), disabled: item.disabled,
     onClick: () => { if (!item.disabled) { close(); item.onPress({}); } }, onKeyDown: (event: KeyboardEvent<HTMLElement>) => onKeyDown(event, enabled.indexOf(item)) }, item.label));
   const menuProps = { ref: menu, id, role: 'menu', 'aria-label': required.label, hidden: !open, className: 'jini-row-menu-popup', 'data-jini-part': 'kit.menu', style: { position: 'fixed' as const, ...position } };
-  return { label: '⋮', items, popup: open ? createPortal(createElement('div', menuProps, items), document.body) : null,
-    triggerProps: { 'data-jini-part': 'kit.menu-trigger', ...required.attrs, ref: trigger, type: 'button' as const,
+  return { label: '⋮', items, popup: open && container ? createPortal(createElement('div', menuProps, items), container) : null,
+    triggerProps: { 'data-jini-part': 'kit.menu-trigger', ...attrs, ref: trigger, type: 'button' as const,
       className: `jini-row-menu-trigger ${required.className ?? ''}`.trim(), disabled: required.disabled, 'aria-label': required.label, 'aria-haspopup': 'menu' as const, 'aria-expanded': open, 'aria-controls': id,
       onClick: () => { if (!required.disabled) setOpen(!open); }, onKeyDown: (event: KeyboardEvent<HTMLButtonElement>) => {
         if (!required.disabled && ['ArrowDown', 'ArrowUp'].includes(event.key)) { event.preventDefault(); setOpen(true); }

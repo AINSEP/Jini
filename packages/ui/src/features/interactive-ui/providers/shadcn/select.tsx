@@ -1,10 +1,11 @@
 /**
  * Ported from shadcn's `new-york` style registry (`ui.shadcn.com/r/styles/new-york/select.json`,
- * 2026-08-18). Only the `cn` import path changed, same as `table.tsx`; every class name and
- * `data-*` attribute below is unmodified CLI output.
+ * 2026-08-18). The host adapts the `cn` import and portal destination; every class name and
+ * existing `data-*` attribute below remains the registry's output.
  * Unused private group, label, and separator primitives are omitted.
  */
 import * as React from 'react';
+import { useOverlayContainer } from '@jini-ai/ui-kit/react';
 import * as SelectPrimitive from '@radix-ui/react-select';
 
 import { Check, ChevronDown, ChevronUp } from './icons.js';
@@ -60,9 +61,12 @@ SelectScrollDownButton.displayName = SelectPrimitive.ScrollDownButton.displayNam
 
 const SelectContent = React.forwardRef<
   React.ElementRef<typeof SelectPrimitive.Content>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content>
->(({ className, children, position = 'popper', ...props }, ref) => (
-  <SelectPrimitive.Portal>
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Content> & { portalContainer?: Element | DocumentFragment | null | undefined }
+>(({ className, children, position = 'popper', portalContainer, ...props }, ref) => {
+  const overlayContainer = useOverlayContainer({});
+  const container = portalContainer ?? overlayContainer;
+  return (
+  <SelectPrimitive.Portal {...(container === null ? {} : { container })}>
     <SelectPrimitive.Content
       ref={ref}
       className={cn(
@@ -86,7 +90,8 @@ const SelectContent = React.forwardRef<
       <SelectScrollDownButton />
     </SelectPrimitive.Content>
   </SelectPrimitive.Portal>
-));
+  );
+});
 SelectContent.displayName = SelectPrimitive.Content.displayName;
 
 const SelectItem = React.forwardRef<

@@ -265,3 +265,12 @@ describe("resolveSeeMoreView", () => {
     expect(expanded.toggleLabel).toBe("Hide details");
   });
 });
+
+
+it('defaults the expand control handle and preserves opt-out', () => {
+  const useClamp: typeof useSeeMoreClamp = () => ({ expanded: false, setExpanded: () => {}, overflows: true, textRef: { current: null }, regionId: 'r', lineCount: 2 });
+  const { rerender } = render(<SeeMore useClamp={useClamp}>Long text</SeeMore>);
+  expect(screen.getByRole('button')).toHaveAttribute('data-agent-element');
+  rerender(<SeeMore useClamp={useClamp} agentHandle={false}>Long text</SeeMore>);
+  expect(screen.getByRole('button')).not.toHaveAttribute('data-agent-element');
+});

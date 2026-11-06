@@ -1,10 +1,13 @@
 import type { ReactNode } from 'react';
+import { agentHandleProps } from '@jini-ai/agentic';
+import { useAgentHandle } from '@jini-ai/ui';
 import { Select } from '@jini-ai/ui/admin-widgets';
 import type { AdminEntityField, AdminEntityRelationField } from '../../core/ports/entities.js';
 import { selectTranslate, type EntityTranslate } from './types.js';
 import { fromDatetimeLocalValue, toDatetimeLocalValue, type RelationIndex } from './rules.js';
 
 interface EntityFieldProps {
+  readonly agentHandle?: string | false | undefined;
   readonly inputId: string;
   readonly field: AdminEntityField;
   readonly value: unknown;
@@ -19,14 +22,15 @@ interface EntityFieldProps {
 
 const fieldLabel = ({ field, translate }: Pick<EntityFieldProps, 'field' | 'translate'>): string => translate({ key: field.label ?? field.name });
 const blankToUndefined = (raw: string): string | undefined => (raw === '' ? undefined : raw);
-const commonProps = ({ inputId, disabled, invalid }: EntityFieldProps) => ({ id: inputId, disabled, 'aria-invalid': invalid });
+const commonProps = (props: EntityFieldProps) => ({ id: props.inputId, disabled: props.disabled, 'aria-invalid': props.invalid,
+  ...agentHandleProps({}, { base: props.agentHandle || undefined, role: 'field', label: fieldLabel(props) }) });
 
 function RelationInput(props: EntityFieldProps & { readonly field: AdminEntityRelationField }): ReactNode {
   const { inputId, field, value, translate, disabled, onChange } = props;
   const options = props.relations[field.target]?.options ?? [];
   const selectedId = typeof value === 'string' ? value : '';
   const missing = selectedId !== '' && !options.some((option) => option.id === selectedId);
-  return <Select id={inputId} disabled={disabled} value={selectedId} translate={selectTranslate({ translate })}
+  return <Select id={inputId} agentHandle={props.agentHandle} disabled={disabled} value={selectedId} translate={selectTranslate({ translate })}
     aria-label={fieldLabel(props)}
     options={[
       { value: '', label: translate({ key: 'No value' }) },
@@ -43,7 +47,7 @@ function booleanSelectValue(value: unknown): string {
 function BooleanInput(props: EntityFieldProps): ReactNode {
   const { inputId, field, value, translate, disabled, onChange } = props;
   if (field.required) return <input {...commonProps(props)} type="checkbox" checked={value === true} onChange={(e) => onChange({ value: e.target.checked })} />;
-  return <Select id={inputId} disabled={disabled} value={booleanSelectValue(value)} translate={selectTranslate({ translate })}
+  return <Select id={inputId} agentHandle={props.agentHandle} disabled={disabled} value={booleanSelectValue(value)} translate={selectTranslate({ translate })}
     aria-label={fieldLabel(props)} options={[
       { value: '', label: translate({ key: 'No value' }) }, { value: 'true', label: translate({ key: 'Yes' }) }, { value: 'false', label: translate({ key: 'No' }) },
     ]} onChange={(selected) => onChange({ value: selected === '' ? undefined : selected === 'true' })} />;
@@ -55,7 +59,9 @@ function NumberInput(props: EntityFieldProps): ReactNode {
     onChange={(e) => onChange({ value: e.target.value === '' ? undefined : Number(e.target.value) })} />;
 }
 
-export function EntityField(props: EntityFieldProps): ReactNode {
+export function EntityField(required: EntityFieldProps): ReactNode {
+  const base = useAgentHandle({ agentHandle: required.agentHandle });
+  const props: EntityFieldProps = { ...required, agentHandle: base ?? false };
   const { field, value, onChange } = props;
   switch (field.kind) {
     case 'json': return <textarea {...commonProps(props)} value={props.text} onChange={(e) => props.onTextChange({ text: e.target.value })} />;

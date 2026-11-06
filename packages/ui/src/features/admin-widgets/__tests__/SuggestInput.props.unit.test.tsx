@@ -23,8 +23,10 @@ describe("SuggestInput host props", () => {
     expect(screen.getByRole("combobox")).toHaveAttribute("data-agent-label", "Text with suggestions");
   });
 
-  it("publishes no agent markup without a handle", () => {
-    render(<SuggestInput value="" onValueChange={vi.fn()} suggestions={SUGGESTIONS} onPick={vi.fn()} />);
+  it("defaults the input handle and permits an explicit opt-out", () => {
+    const { rerender } = render(<SuggestInput value="" onValueChange={vi.fn()} suggestions={SUGGESTIONS} onPick={vi.fn()} />);
+    expect(screen.getByRole("combobox")).toHaveAttribute("data-agent-element");
+    rerender(<SuggestInput value="" onValueChange={vi.fn()} suggestions={SUGGESTIONS} onPick={vi.fn()} agentHandle={false} />);
     expect(screen.getByRole("combobox")).not.toHaveAttribute("data-agent-element");
   });
 });

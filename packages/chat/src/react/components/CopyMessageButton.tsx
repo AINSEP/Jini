@@ -2,8 +2,11 @@
 import { useT } from '../hooks/context.js';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard.js';
 import { Icon } from './Icon.js';
+import { agentHandleProps } from '@jini-ai/agentic';
 
 interface CopyMessageButtonProps {
+  /** Inherited control identity; ordinary message-copy buttons remain opt-in. */
+  agentHandle?: string | false | undefined;
   /** The raw markdown source to place on the clipboard — never rendered/flattened text. */
   text: string;
   /** Accessible name while idle; swaps to a "Copied" label once the copy lands. */
@@ -22,12 +25,13 @@ interface CopyMessageButtonProps {
  * @param props.title - Optional hover tooltip (already translated); swaps to "Copied" like the label.
  * @complexity O(1) — one child hook call, no branching beyond the copied-state read.
  */
-export function CopyMessageButton({ text, label, title }: CopyMessageButtonProps) {
+export function CopyMessageButton({ agentHandle, text, label, title }: CopyMessageButtonProps) {
   const t = useT();
   const { copied, copy } = useCopyToClipboard();
   return (
     <>
       <button
+        {...agentHandleProps({}, { base: agentHandle || undefined, role: 'button', label })}
         type="button"
         className="jini-message-action-btn"
         aria-label={copied ? t('Copied') : label}

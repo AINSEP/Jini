@@ -1,7 +1,9 @@
-import { resolveSelectPortalContainer } from '../../../../react/components/select-popover.js';
+import { useOverlayContainer } from '@jini-ai/ui-kit/react';
+import { useAgentHandle } from '../../../../react/hooks/useAgentHandle.js';
+import { resolveSelectPortalContainer, resolveSelectOriginPage } from '../../../../react/components/select-popover.js';
 import { createPortal } from "react-dom";
 import { agentHandle } from "@jini-ai/agentic";
-import { buildAgentListHandles } from "@jini-ai/agentic";
+import { agentHandleSegment } from "@jini-ai/agentic";
 import type { Translate } from "../../../i18n/dictionary-translator.js";
 import { Fragment } from "react";
 import { useSelectDropdown, groupHeadingAt, type PanelPosition, type SelectOption } from "./Select.hooks.js";
@@ -28,8 +30,8 @@ export interface SelectProps {
   disabled?: boolean | undefined;
   /** Injectable state/effect seam; rendering tests need not drive portal positioning or listeners. */
   useDropdown?: typeof useSelectDropdown | undefined;
-  agentHandle?: string | undefined;
-  /** Host-owned portal destination. Defaults to the trigger's nearest dialog, then document.body.
+  agentHandle?: string | false | undefined;
+  /** Host-owned portal destination. Defaults to the nearest dialog, kit overlay, then document.body.
    * Within a modal dialog, supply a descendant of that dialog so the panel remains interactive.
    * Keep this container outside scrolling/clipping regions and free of transforms that establish
    * a fixed-position containing block; panel coordinates are viewport-relative.
@@ -61,7 +63,7 @@ function SelectOptionRow({
   setOptionRef: (index: number, el: HTMLLIElement | null) => void;
   onHighlight: (index: number) => void;
   onSelect: (option: SelectOption) => void;
-  agentHandle?: string | undefined;
+  agentHandle?: string | false | undefined;
 }) {
   return (
     <li
@@ -88,6 +90,7 @@ function SelectOptionRow({
 
 function SelectPanel({
   panelRef,
+  page,
   position,
   showSearch,
   searchInputRef,
@@ -107,6 +110,7 @@ function SelectPanel({
   t,
 }: {
   panelRef: React.RefObject<HTMLDivElement | null>;
+  page?: string | undefined;
   position: PanelPosition;
   showSearch: boolean;
   searchInputRef: React.RefObject<HTMLInputElement | null>;
@@ -129,6 +133,7 @@ function SelectPanel({
   return (
     <div
       ref={panelRef}
+      data-agent-page={page}
       className="select-panel"
       style={{ left: position.left, width: position.width, top: position.top, bottom: position.bottom, maxHeight: position.maxHeight }}
       tabIndex={-1}
@@ -200,7 +205,9 @@ function resolveSelectTriggerHandleProps(
 
 /** Controlled searchable listbox with viewport positioning, dialog-local portals and keyboard navigation. */
 export function Select(props: SelectProps, _optional: Record<string, never> = {}) {
-  const { value, onChange, options, placeholder, id, disabled, useDropdown = useSelectDropdown, agentHandle: base, translate, t = translate ?? ((key: string) => key) } = props;
+  const { value, onChange, options, placeholder, id, disabled, useDropdown = useSelectDropdown, agentHandle: suppliedBase, translate, t = translate ?? ((key: string) => key) } = props;
+  const base = useAgentHandle({ agentHandle: suppliedBase });
+  const overlayContainer = useOverlayContainer({});
   const ariaLabel = props["aria-label"];
   const ariaLabelledBy = props["aria-labelledby"];
 
@@ -237,8 +244,8 @@ export function Select(props: SelectProps, _optional: Record<string, never> = {}
   // One handle per FILTERED option, recomputed as the search query narrows the list — an option
   // dropped by the current query has no rendered row to attach a handle to, so it is simply absent
   // this render rather than holding a handle nothing resolves to. `undefined` (not an empty array)
-  // when `base` itself is unset, so `SelectPanel` can tell "opted out" apart from "no options match".
-  const optionHandles = base ? buildAgentListHandles({ prefix: `${base}-option`, ids: filtered.map((option) => option.value) }) : undefined;
+  // when `base` is explicitly opted out, so `SelectPanel` can tell "opted out" apart from "no options match".
+  const optionHandles = base ? filtered.map((option) => `${base}-option-${agentHandleSegment({ value: option.value })}`) : undefined;
 
   return (
     <>
@@ -267,6 +274,7 @@ export function Select(props: SelectProps, _optional: Record<string, never> = {}
         ? createPortal(
             <SelectPanel
               panelRef={panelRef}
+              page={resolveSelectOriginPage({ trigger: triggerRef.current })}
               position={position}
               showSearch={showSearch}
               searchInputRef={searchInputRef}
@@ -285,7 +293,7 @@ export function Select(props: SelectProps, _optional: Record<string, never> = {}
               optionHandles={optionHandles}
               t={t}
             />,
-            resolveSelectPortalContainer({ trigger: triggerRef.current }, { container: props.portalContainer })
+            resolveSelectPortalContainer({ trigger: triggerRef.current }, { container: props.portalContainer, fallbackContainer: overlayContainer })
           )
         : null}
     </>

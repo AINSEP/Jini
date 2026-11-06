@@ -25,7 +25,8 @@ import {
   type ReactNode,
   type RefObject,
 } from 'react';
-import { RemixIcon } from '@jini-ai/ui';
+import { RemixIcon, useAgentHandle } from '@jini-ai/ui';
+import { agentHandleProps, agentHandleSegment } from '@jini-ai/agentic';
 import { useT } from '../hooks/context.js';
 import { useComposerHistoryKeys } from '../hooks/useComposerHistoryKeys.hooks.js';
 import { AttachmentTray } from './AttachmentTray.js';
@@ -44,6 +45,8 @@ import {
 } from './composer-discovery.js';
 
 export interface ComposerProps {
+  /** Stable automation base; false suppresses every package-owned control handle. */
+  agentHandle?: string | false | undefined;
   composer: UseComposerResult;
   onSend: () => void;
   disabled?: boolean;
@@ -161,6 +164,7 @@ function runComposerHostEffect(
  * @overallScore 100/100
  */
 export function Composer({
+  agentHandle,
   composer,
   onSend,
   disabled = false,
@@ -177,6 +181,7 @@ export function Composer({
   onChangeWorkingDirectory,
   onPickWorkingDirectory,
 }: ComposerProps) {
+  const base = useAgentHandle({ agentHandle });
   const t = useT();
   const attachmentInputRef = useRef<HTMLInputElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -435,10 +440,11 @@ export function Composer({
     <div className="jini-composer">
       <AccessorySlot className="jini-composer-leading">{leadingAccessories}</AccessorySlot>
       <div className="jini-composer-attachments">
-        <AttachmentTray attachments={composer.attachments} onRemove={composer.removeAttachment} />
-        <FolderChips folders={composer.folders} onRemove={composer.removeFolder} />
+        <AttachmentTray agentHandle={base} attachments={composer.attachments} onRemove={composer.removeAttachment} />
+        <FolderChips agentHandle={base} folders={composer.folders} onRemove={composer.removeFolder} />
       </div>
       <textarea
+        {...agentHandleProps({}, { base, action: 'draft', role: 'field', label: t('Message draft') })}
         ref={textareaRef}
         className="jini-composer-input"
         value={composer.draft}
@@ -459,6 +465,7 @@ export function Composer({
       />
       {slashOpen ? (
         <ComposerSlashMenu
+          base={base}
           matches={slash.matches}
           activeIndex={slashActiveOption}
           onSelect={selectSlashItem}
@@ -468,8 +475,9 @@ export function Composer({
         />
       ) : null}
       <div className="jini-composer-footer">
-        <ComposerAttachButton attachmentPicker={attachmentPicker} hidden={hasDiscoveryItems} disabled={disabled} inputRef={attachmentInputRef} onChange={handleAttachmentChange} t={t} />
+        <ComposerAttachButton base={base} attachmentPicker={attachmentPicker} hidden={hasDiscoveryItems} disabled={disabled} inputRef={attachmentInputRef} onChange={handleAttachmentChange} t={t} />
         <ComposerDiscoveryMenu
+          base={base}
           groups={discoveryGroups}
           open={discoveryMenuOpen}
           disabled={disabled}
@@ -484,6 +492,7 @@ export function Composer({
         />
         <AccessorySlot className="jini-composer-footer-leading">{footerLeadingAccessory}</AccessorySlot>
         <ComposerWorkdirControl
+          base={base}
           workingDirectory={workingDirectory}
           onChangeWorkingDirectory={onChangeWorkingDirectory}
           onPickWorkingDirectory={onPickWorkingDirectory}
@@ -501,8 +510,9 @@ export function Composer({
             line together instead of leaving send alone on it (see the styles' footer rules). */}
         <div className="jini-composer-footer-trailing">
           <AccessorySlot className="jini-composer-footer-accessories">{footerAccessories}</AccessorySlot>
-          <ComposerPlusMenu items={plusMenuItems} t={t} />
+          <ComposerPlusMenu base={base} items={plusMenuItems} t={t} />
           <ComposerSendGroup
+            base={base}
             running={running}
             disabled={disabled}
             sendDisabled={sendDisabled}
@@ -566,7 +576,8 @@ function AccessorySlot({ className, children }: { className: string; children: R
 }
 
 /** The plain paperclip, shown only when there is no "+" discovery menu to carry attaching instead. */
-function ComposerAttachButton({ attachmentPicker, hidden, disabled, inputRef, onChange, t }: {
+function ComposerAttachButton({ base, attachmentPicker, hidden, disabled, inputRef, onChange, t }: {
+  base: string | undefined;
   attachmentPicker: ComposerProps['attachmentPicker'];
   hidden: boolean;
   disabled: boolean;
@@ -592,6 +603,7 @@ function ComposerAttachButton({ attachmentPicker, hidden, disabled, inputRef, on
       />
       <button
         type="button"
+        {...agentHandleProps({}, { base, action: 'attach', role: 'button', label })}
         className="jini-composer-attach"
         disabled={disabled || uploading}
         onClick={() => inputRef.current?.click()}
@@ -608,7 +620,8 @@ function ComposerAttachButton({ attachmentPicker, hidden, disabled, inputRef, on
   );
 }
 
-function ComposerWorkdirControl({ workingDirectory, onChangeWorkingDirectory, onPickWorkingDirectory, disabled, open, draft, position, onToggle, onDraftChange, onConfirm, onClose, t }: {
+function ComposerWorkdirControl({ base, workingDirectory, onChangeWorkingDirectory, onPickWorkingDirectory, disabled, open, draft, position, onToggle, onDraftChange, onConfirm, onClose, t }: {
+  base: string | undefined;
   workingDirectory: string | null | undefined;
   onChangeWorkingDirectory: ComposerProps['onChangeWorkingDirectory'];
   onPickWorkingDirectory: ComposerProps['onPickWorkingDirectory'];
@@ -628,6 +641,7 @@ function ComposerWorkdirControl({ workingDirectory, onChangeWorkingDirectory, on
       <button
         type="button"
         className="jini-composer-attach"
+        {...agentHandleProps({}, { base, action: 'workdir', role: 'button', label: t('Set working directory') })}
         data-testid="composer-workdir-trigger"
         disabled={disabled}
         onClick={onPickWorkingDirectory ? () => onPickWorkingDirectory() : onToggle}
@@ -652,6 +666,7 @@ function ComposerWorkdirControl({ workingDirectory, onChangeWorkingDirectory, on
           <input
             type="text"
             className="jini-composer-workdir-input"
+            {...agentHandleProps({}, { base, action: 'workdir-path', role: 'field', label: t('Working directory path') })}
             data-testid="composer-workdir-input"
             value={draft}
             onChange={(e) => onDraftChange(e.target.value)}
@@ -673,6 +688,7 @@ function ComposerWorkdirControl({ workingDirectory, onChangeWorkingDirectory, on
           <button
             type="button"
             className="jini-composer-workdir-confirm"
+            {...agentHandleProps({}, { base, action: 'workdir-set', role: 'button', label: t('Set working directory') })}
             data-testid="composer-workdir-confirm"
             onClick={onConfirm}
           >
@@ -684,7 +700,7 @@ function ComposerWorkdirControl({ workingDirectory, onChangeWorkingDirectory, on
   );
 }
 
-function ComposerPlusMenu({ items, t }: { items: readonly ComposerPlusItem[] | undefined; t: Translate }) {
+function ComposerPlusMenu({ base, items, t }: { base: string | undefined; items: readonly ComposerPlusItem[] | undefined; t: Translate }) {
   if (!items || items.length === 0) return null;
   return (
     <div className="jini-composer-plus-menu">
@@ -692,6 +708,7 @@ function ComposerPlusMenu({ items, t }: { items: readonly ComposerPlusItem[] | u
         <button
           key={item.id}
           type="button"
+          {...agentHandleProps({}, { base, action: `extra-${agentHandleSegment({ value: item.id })}`, role: 'button', label: t(item.label) })}
           className="jini-composer-plus-item"
           onClick={() => runComposerHostEffect('plusMenuItems.onSelect', () => item.onSelect())}
           title={t(item.label)}
@@ -704,7 +721,8 @@ function ComposerPlusMenu({ items, t }: { items: readonly ComposerPlusItem[] | u
   );
 }
 
-function ComposerSendGroup({ running, disabled, sendDisabled, canSubmit, onSend, onCancel, sendDisabledReason, sendDisabledReasonId, t }: {
+function ComposerSendGroup({ base, running, disabled, sendDisabled, canSubmit, onSend, onCancel, sendDisabledReason, sendDisabledReasonId, t }: {
+  base: string | undefined;
   running: boolean;
   disabled: boolean;
   sendDisabled: boolean;
@@ -722,12 +740,12 @@ function ComposerSendGroup({ running, disabled, sendDisabled, canSubmit, onSend,
     // the footer's space-between keeps the two together at the trailing edge.
     <span className="jini-composer-send-group">
       {!running || canSend ? (
-        <button type="button" className="jini-composer-send" disabled={!canSend} onClick={onSend} title={sendDisabledReason ?? t('Send')} aria-label={t('Send')} aria-describedby={sendDisabledReasonId}>
+        <button {...agentHandleProps({}, { base, action: 'send', role: 'button', label: t('Send') })} type="button" className="jini-composer-send" disabled={!canSend} onClick={onSend} title={sendDisabledReason ?? t('Send')} aria-label={t('Send')} aria-describedby={sendDisabledReasonId}>
           <RemixIcon name="send-plane-2-line" size={16} />
         </button>
       ) : null}
       {running ? (
-        <button type="button" className="jini-composer-send jini-composer-send--stop" onClick={onCancel} title={t('Stop run')} aria-label={t('Stop run')}>
+        <button {...agentHandleProps({}, { base, action: 'stop', role: 'button', label: t('Stop run') })} type="button" className="jini-composer-send jini-composer-send--stop" onClick={onCancel} title={t('Stop run')} aria-label={t('Stop run')}>
           <RemixIcon name="stop-fill" size={14} />
         </button>
       ) : null}

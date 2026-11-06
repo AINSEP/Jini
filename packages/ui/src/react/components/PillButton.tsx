@@ -1,7 +1,9 @@
 import type { ReactNode } from 'react';
+import { agentHandleProps } from '@jini-ai/agentic';
+import { useAgentHandle, type AgentControlProps } from '../hooks/useAgentHandle.js';
 import { withClassName } from '../../utils/class-names.js';
 
-export interface PillButtonProps {
+export interface PillButtonProps extends AgentControlProps {
   /** Rendered before the label. Any host-supplied icon element. */
   icon?: ReactNode;
   /** Pill label. Usually plain text, but accepts a node so a caller can
@@ -42,10 +44,18 @@ export function PillButton({
   disabled = false,
   className,
   children,
+  agentHandle,
+  'data-agent-element': suppliedHandle,
+  'data-agent-private': privateControl,
+  'data-agent-page': page,
 }: PillButtonProps) {
+  const base = useAgentHandle({ agentHandle, 'data-agent-element': suppliedHandle, 'data-agent-private': privateControl });
   return (
     <div className={withClassName('jini-pill-wrap', className)}>
       <button
+        {...agentHandleProps({}, { base, role: 'button', label: ariaLabel ?? (typeof label === 'string' ? label : 'Action') })}
+        data-agent-private={privateControl}
+        data-agent-page={page}
         type="button"
         className={`jini-pill${active ? ' is-active' : ''}`}
         aria-label={ariaLabel}

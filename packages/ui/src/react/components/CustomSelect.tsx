@@ -11,8 +11,11 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent, MutableRefObject, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { useSelectPopover, isSelectEventInside, openSelectOnKey, applySelectNavigationKey, resolveSelectPortalContainer } from './select-popover.js';
+import { useOverlayContainer } from '@jini-ai/ui-kit/react';
+import { useSelectPopover, isSelectEventInside, openSelectOnKey, applySelectNavigationKey, resolveSelectPortalContainer, resolveSelectOriginPage } from './select-popover.js';
 import { Icon } from './Icon.js';
+import { agentHandleProps, agentHandleSegment } from '@jini-ai/agentic';
+import { useAgentHandle, type AgentControlProps } from '../hooks/useAgentHandle.js';
 
 export interface CustomSelectOption {
   value: string;
@@ -27,7 +30,7 @@ export interface CustomSelectGroup {
 
 export type CustomSelectItem = CustomSelectOption | CustomSelectGroup;
 
-export interface CustomSelectProps {
+export interface CustomSelectProps extends AgentControlProps {
   value: string;
   options: CustomSelectItem[];
   onChange: (value: string) => void;
@@ -453,13 +456,14 @@ function customSelectMenuStyle({ portal, position }: {
 /** Where an open menu renders: inline, or portalled only after its first measurement. */
 function mountCustomSelectMenu({ menu, portal, position, trigger }: {
   menu: ReactNode; portal: boolean; position: CustomSelectMenuPosition | null; trigger: HTMLElement | null;
-}, { container }: { container?: Element | DocumentFragment | null | undefined } = {}): ReactNode {
+}, { container, fallbackContainer }: { container?: Element | DocumentFragment | null | undefined; fallbackContainer?: Element | DocumentFragment | null | undefined } = {}): ReactNode {
   if (!portal) return menu;
-  return position ? createPortal(menu, resolveSelectPortalContainer({ trigger }, { container })) : null;
+  return position ? createPortal(menu, resolveSelectPortalContainer({ trigger }, { container, fallbackContainer })) : null;
 }
 
 /** The listbox rows: groups render a labelled block of option buttons, flat options render directly. */
-function CustomSelectMenuOptions({ options, value, activeValue, optionIdByValue, onChoose, onActive }: {
+function CustomSelectMenuOptions({ options, value, activeValue, optionIdByValue, onChoose, onActive, base }: {
+  base: string | undefined;
   options: CustomSelectProps['options'];
   value: string;
   activeValue: string;
@@ -471,6 +475,7 @@ function CustomSelectMenuOptions({ options, value, activeValue, optionIdByValue,
     <CustomSelectOptionButton
       key={option.value}
       option={option}
+      agentHandle={base ? `${base}-option-${agentHandleSegment({ value: option.value })}` : false}
       selected={option.value === value}
       active={option.value === activeValue}
       id={optionIdByValue.get(option.value)}
@@ -514,6 +519,7 @@ export function CustomSelect({
   menuHeader,
   onOpenChange,
   useCustomSelect: useCustomSelectHook = useCustomSelect,
+  ...agentProps
 }: CustomSelectProps) {
   const {
     idBase,
@@ -532,6 +538,9 @@ export function CustomSelect({
     onMenuKeyDown,
   } = useCustomSelectHook({ value, options, onChange, portal, placeholder, onOpenChange });
 
+  const base = useAgentHandle(agentProps);
+  const overlayContainer = useOverlayContainer({});
+  const originPage = agentProps['data-agent-page'] ?? resolveSelectOriginPage({ trigger: buttonRef.current });
   const originTheme = useCustomSelectOriginTheme({ buttonRef, open, portal });
 
   const menu = (
@@ -540,6 +549,8 @@ export function CustomSelect({
       id={`${idBase}-menu`}
       onKeyDown={onMenuKeyDown}
       {...originTheme}
+      data-agent-page={originPage}
+      data-agent-private={agentProps['data-agent-private']}
       className={[
         'jini-select-menu',
         portal ? 'portal' : 'inline',
@@ -551,6 +562,7 @@ export function CustomSelect({
     >
       {menuHeader}
       <CustomSelectMenuOptions
+        base={base}
         options={options}
         value={value}
         activeValue={activeValue}
@@ -565,6 +577,9 @@ export function CustomSelect({
     <div className={['jini-select', className].filter(Boolean).join(' ')}>
       <button
         ref={buttonRef}
+        {...agentHandleProps({}, { base, role: 'field', label: ariaLabel })}
+        data-agent-private={agentProps['data-agent-private']}
+        data-agent-page={agentProps['data-agent-page']}
         type="button"
         className={['jini-select-trigger', triggerClassName].filter(Boolean).join(' ')}
         role="combobox"
@@ -586,7 +601,7 @@ export function CustomSelect({
         </span>
         <Icon name="chevron-down" size={14} />
       </button>
-      {open ? mountCustomSelectMenu({ menu, portal, position, trigger: buttonRef.current }, { container: portalContainer }) : null}
+      {open ? mountCustomSelectMenu({ menu, portal, position, trigger: buttonRef.current }, { container: portalContainer, fallbackContainer: overlayContainer }) : null}
     </div>
   );
 }
@@ -600,7 +615,9 @@ export function CustomSelectOptionButton({
   id,
   onChoose,
   onActive,
+  agentHandle,
 }: {
+  agentHandle?: string | false | undefined;
   option: CustomSelectOption;
   selected: boolean;
   active: boolean;
@@ -608,8 +625,10 @@ export function CustomSelectOptionButton({
   onChoose: (value: string) => void;
   onActive: (value: string) => void;
 }) {
+  const base = useAgentHandle({ agentHandle });
   return (
     <button
+      {...agentHandleProps({}, { base, role: 'button', label: option.label })}
       id={id}
       type="button"
       className={[

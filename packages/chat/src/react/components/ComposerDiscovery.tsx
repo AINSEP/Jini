@@ -1,5 +1,6 @@
 import type { ChangeEvent, CSSProperties, RefObject } from 'react';
 import { RemixIcon } from '@jini-ai/ui';
+import { agentHandleProps, agentHandleSegment } from '@jini-ai/agentic';
 import type { ComposerDiscoveryGroup, ComposerDiscoveryItem } from '../slots.js';
 import type { ComposerDiscoveryMatch } from './composer-discovery.js';
 
@@ -10,6 +11,7 @@ interface AttachmentPicker {
 }
 
 export interface ComposerDiscoveryMenuProps {
+  base?: string | undefined;
   groups: readonly ComposerDiscoveryGroup[];
   open: boolean;
   disabled: boolean;
@@ -57,6 +59,7 @@ export function ComposerDiscoveryMenu(props: ComposerDiscoveryMenuProps) {
       ) : null}
       <button
         type="button"
+        {...agentHandleProps({}, { base: props.base, action: 'discovery', role: 'button', label: props.t('Add context') })}
         className="jini-composer-attach"
         disabled={props.disabled}
         onClick={props.onToggle}
@@ -75,6 +78,7 @@ export function ComposerDiscoveryMenu(props: ComposerDiscoveryMenuProps) {
               <button
                 type="button"
                 role="menuitem"
+                {...agentHandleProps({}, { base: props.base, action: 'attach', role: 'button', label: props.t('Attach files') })}
                 className="jini-composer-discovery-item"
                 disabled={props.disabled || props.attachmentPicker.uploading}
                 onClick={() => {
@@ -98,6 +102,7 @@ export function ComposerDiscoveryMenu(props: ComposerDiscoveryMenuProps) {
                       key={item.id}
                       type="button"
                       role="menuitem"
+                      {...agentHandleProps({}, { base: props.base, action: `discover-${agentHandleSegment({ value: group.id })}-${agentHandleSegment({ value: item.id })}`, role: 'button', label: props.t(item.label) })}
                       className="jini-composer-discovery-item"
                       aria-describedby={descriptionId}
                       onClick={() => props.onSelect(item)}
@@ -126,6 +131,7 @@ export function ComposerDiscoveryMenu(props: ComposerDiscoveryMenuProps) {
 }
 
 export interface ComposerSlashMenuProps {
+  base?: string | undefined;
   matches: readonly ComposerDiscoveryMatch[];
   activeIndex: number;
   onSelect: (item: ComposerDiscoveryItem) => void;
@@ -169,6 +175,7 @@ export function ComposerSlashMenu(props: ComposerSlashMenuProps) {
           <button
             key={`${match.groupId}:${match.item.id}`}
             id={`jini-composer-slash-option-${index}`}
+            {...agentHandleProps({}, { base: props.base, action: `command-${agentHandleSegment({ value: match.groupId })}-${agentHandleSegment({ value: match.item.id })}`, role: 'button', label: props.t(match.item.label) })}
             type="button"
             role="option"
             aria-selected={index === props.activeIndex}

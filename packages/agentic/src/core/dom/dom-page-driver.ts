@@ -504,11 +504,13 @@ export function createDomPageDriver({ root, pages }: DomPageDriverRequired, opti
    * single handle to act on refuses instead of silently taking the first DOM match and leaving the
    * others permanently unreachable with no signal that they were ever unreachable at all.
    */
-  const ambiguousHandleError = (handle: string, count: number): Error => new Error(
-    `"${handle}" is published on ${count} elements on this page, so which one it addresses is `
-    + 'ambiguous — this is a page-authoring bug (duplicate data-agent-element), not something a '
-    + 'caller can resolve; publish a unique handle per element',
-  );
+  const ambiguousHandleError = (handle: string, count: number): Error => {
+    const message = `"${handle}" is published on ${count} elements on this page, so which one it addresses is `
+      + 'ambiguous — this is a page-authoring bug (duplicate data-agent-element), not something a '
+      + 'caller can resolve; publish a unique handle per element';
+    console.warn(message);
+    return new Error(message);
+  };
 
   /** Resolve one handle and recheck its live action target before returning.
    * @throws Error for missing, ambiguous or currently unavailable controls.

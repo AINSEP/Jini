@@ -6,10 +6,30 @@ import { isDevelopment } from '../context.js';
 import { nativeKit } from '../native/index.js';
 import { inspectConfirm } from './guard.js';
 import type { ConfirmController, ConfirmDialogProps } from '../types.js';
+import { useControlAttrs } from '../agent-attrs.hooks.js';
+function actionHandle({ spec }: { spec: AgentSpec | undefined }): string | false { return spec?.handle ?? false; }
+function reactConfirmationPlan({ props, attrs, cancelLabel, pending }: { props: ConfirmDialogProps; attrs: KitAttrs; cancelLabel: string; pending: boolean }) {
+  const handle = attrs['data-agent-element'];
+  return planConfirm({ ...props, agentHandle: typeof handle === 'string' ? handle : false, cancelLabel, pending });
+}
+function confirmationFrameAttrs({ props, attrs }: { props: ConfirmDialogProps; attrs: KitAttrs }) {
+  return props.agentHandle === false || props.attrs?.['data-agent-private'] !== undefined ? attrs : props.attrs;
+}
+function actionMetadata({ spec, agent, page }: { spec: AgentSpec | undefined; agent: AgentAttrsPort | undefined; page: KitAttrs['data-agent-page'] }): KitAttrs {
+  if (!spec) return {};
+  const attrs = agent ? agent({ handle: spec.handle }, { role: spec.role, label: spec.label }) : {};
+  return { ...attrs, ...(page === undefined ? {} : { 'data-agent-page': page }) };
+}
+function actionLabel({ label, spec, fallback, explicit }: { label: string | undefined; spec: AgentSpec | undefined; fallback: string; explicit: boolean }) {
+  if (label !== undefined) return label;
+  if (!explicit) return fallback;
+  return spec?.label ?? fallback;
+}
 /** Shared confirmation policy and execution; adapters may supply their existing agent-attribute port.
  * @example useConfirmController({ open, title, confirmLabel, onConfirm, onCancel }, { agent: agentAttrs })
  */
 export function useConfirmController(required: ConfirmDialogProps, optional: { agent?: AgentAttrsPort } = {}): ConfirmController {
+  const baseAttrs = useControlAttrs(required, { part: 'confirm', enabled: required.agentMayConfirm !== false });
   const context = useKit({}), titleId = useId(), frameId = useId(), consequenceId = useId(), cancelRef = useRef<HTMLButtonElement>(null);
   const boundaryRef = useRef<HTMLSpanElement>(null), latest = useRef(required), mounted = useRef(false);
   const [executing, setExecuting] = useState(false), [error, setError] = useState(false);
@@ -18,13 +38,13 @@ export function useConfirmController(required: ConfirmDialogProps, optional: { a
   const model = useMemo(() => createConfirmController({ read: () => latest.current,
     onCancel: () => latest.current.onCancel({}), onConfirm: () => latest.current.onConfirm({}) }), []);
   const pending = !!required.pending || executing;
-  const plan = planConfirm({ ...required, cancelLabel: required.cancelLabel ?? context.cancelLabel, pending });
+  const plan = reactConfirmationPlan({ props: required, attrs: baseAttrs, cancelLabel: required.cancelLabel ?? context.cancelLabel, pending });
   const actionState = pending ? 'pending' : 'ready';
   function actionAttrs(input: { part: string; spec: AgentSpec | undefined; label: string | undefined; fallbackLabel: string }, _optional: Record<string, never> = {}): KitAttrs {
     const { part, spec } = input;
-    const label = input.label ?? spec?.label ?? input.fallbackLabel;
+    const label = actionLabel({ label: input.label, spec, fallback: input.fallbackLabel, explicit: typeof required.agentHandle === 'string' });
     const agent = optional.agent ?? context.agent;
-    const attrs = spec && agent ? agent({ handle: spec.handle }, { role: spec.role, label: spec.label }) : {};
+    const attrs = actionMetadata({ spec, agent, page: baseAttrs['data-agent-page'] });
     return Object.freeze({ ...attrs, 'data-jini-part': part, 'aria-label': label,
       ...(required.actionAccessibleNames && plan.consequence ? { 'aria-describedby': consequenceId } : {}),
       'aria-busy': pending, 'data-jini-state': actionState });
@@ -38,14 +58,14 @@ export function useConfirmController(required: ConfirmDialogProps, optional: { a
   }
   return { className: required.className, open: required.open, pending, title: required.title, body: required.body, consequence: plan.consequence,
     error: error ? createElement('p', { className: 'jini-notice jini-notice-error', role: 'alert' }, required.errorLabel ?? 'The action failed. Please try again.') : null,
-    frameAttrs: Object.freeze({ ...required.attrs, id: frameId, 'data-jini-part': 'confirm.dialog', role: 'alertdialog' as const,
+    frameAttrs: Object.freeze({ ...confirmationFrameAttrs({ props: required, attrs: baseAttrs }), id: frameId, 'data-jini-part': 'confirm.dialog', role: 'alertdialog' as const,
       'aria-labelledby': titleId, 'aria-modal': true, 'aria-busy': pending }),
     titleAttrs: { id: titleId, 'data-jini-part': 'confirm.title' } as ConfirmController['titleAttrs'],
     consequenceAttrs: { id: consequenceId, 'data-jini-part': 'confirm.consequence' } as NonNullable<ConfirmController['consequenceAttrs']>,
-    cancel: Object.freeze({ attrs: actionAttrs({ part: 'confirm.cancel', spec: plan.cancel, label: required.actionAccessibleNames?.cancel, fallbackLabel: `${plan.cancelLabel} — no action taken` }),
+    cancel: Object.freeze({ agentHandle: actionHandle({ spec: plan.cancel }), attrs: actionAttrs({ part: 'confirm.cancel', spec: plan.cancel, label: required.actionAccessibleNames?.cancel, fallbackLabel: `${plan.cancelLabel} — no action taken` }),
       ref: cancelRef, disabled: pending, variant: 'secondary' as const, children: plan.cancelLabel,
       onPress: () => { model.requestDismiss({ reason: 'cancel-button' }); } }),
-    confirm: Object.freeze({ attrs: actionAttrs({ part: 'confirm.confirm', spec: plan.confirm, label: required.actionAccessibleNames?.confirm, fallbackLabel: plan.confirmLabel }), disabled: pending, pending,
+    confirm: Object.freeze({ agentHandle: actionHandle({ spec: plan.confirm }), attrs: actionAttrs({ part: 'confirm.confirm', spec: plan.confirm, label: required.actionAccessibleNames?.confirm, fallbackLabel: plan.confirmLabel }), disabled: pending, pending,
       variant: plan.confirmVariant, children: required.confirmLabel, onPress }),
     boundaryRef, overlayContainer: useOverlayContainer({}), agentMayConfirm: required.agentMayConfirm !== false,
     requestDismiss: model.requestDismiss,
