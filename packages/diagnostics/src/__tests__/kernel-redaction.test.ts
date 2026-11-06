@@ -3,7 +3,7 @@ import { SECRET_SHAPE_PATTERNS } from '@jini-ai/core';
 import { SECRET_PATTERNS, redactSecretShapes } from '../redaction/secrets-only.js';
 import { redactText, redactJsonValue, redactJsonText } from '../redaction.js';
 
-// PARITY: literal sources captured from diagnostics before kernel adoption.
+// PARITY: reviewed credential sources; PEM consumes complete or truncated bodies, not only headers.
 it('pins all eleven credential regex sources byte for byte', () => {
   const expected = [
   "(?<![A-Za-z0-9_-])AIza[0-9A-Za-z_-]{35}(?![A-Za-z0-9_-])",
@@ -16,7 +16,7 @@ it('pins all eleven credential regex sources byte for byte', () => {
   "(?<![A-Za-z0-9-])xox[baprs]-[A-Za-z0-9-]{12,}",
   "(?<![0-9A-Z])AKIA[0-9A-Z]{16}(?![0-9A-Z])",
   "(?<![A-Za-z0-9+/=])fm2_[A-Za-z0-9+/=]{20,}",
-  "-----BEGIN [A-Z ]*PRIVATE KEY-----"
+  "-----BEGIN ([A-Z ]*)PRIVATE KEY-----[\\s\\S]*?(?:-----END \\1PRIVATE KEY-----|$)"
 ];
   expect(SECRET_SHAPE_PATTERNS.map(({ pattern }) => pattern.source)).toEqual(expected);
   expect(SECRET_PATTERNS.map(({ pattern }) => pattern.source)).toEqual(expected);
@@ -48,4 +48,13 @@ it('uses credential shapes throughout the text and JSON bundle policies', () => 
   expect(redactText({ text: 'credential ' + secret })).toBe('credential [REDACTED]');
   expect(redactJsonValue({ value: { context: secret } })).toEqual({ context: '[REDACTED]' });
   expect(JSON.parse(redactJsonText({ text: JSON.stringify({ context: secret }) }))).toEqual({ context: '[REDACTED]' });
+});
+
+it.each([
+  '-----BEGIN RSA PRIVATE KEY-----\nYm9keQ==\n-----END RSA PRIVATE KEY-----',
+  '-----BEGIN RSA PRIVATE KEY-----\nYm9keQ==',
+])('suppresses the entire private key body in text and JSON bundles: %s', block => {
+  expect(redactText({ text: block })).toBe('[REDACTED]');
+  expect(redactJsonValue({ value: { context: block } })).toEqual({ context: '[REDACTED]' });
+  expect(JSON.parse(redactJsonText({ text: JSON.stringify({ context: block }) }))).toEqual({ context: '[REDACTED]' });
 });
