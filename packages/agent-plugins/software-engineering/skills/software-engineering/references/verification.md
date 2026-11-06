@@ -1,23 +1,53 @@
-# Verification and inspection gates
+# Verification and code review
 
-Discover the affected workspace's existing lint, typecheck, build and test commands. Run required checks and relevant existing tests; a new feature does not require new tests. Bug fixes start with a failing regression test. Use observable behavior and meaningful negative cases, not private helper names, echoed inputs or mock call counts alone. Never weaken, skip or delete a test, rule, assertion or measured scope to manufacture a pass.
+Run the affected workspace's existing typecheck, lint, build and relevant tests. New feature tests are optional unless required by the task or repository. Bugs start with a failing regression. Never disable, skip, weaken or delete a test, rule or measured scope to manufacture green. Preserve validation, supported behavior and recovery paths.
 
-## Structure
+## Writing Good Assertions
 
-For every new or materially changed logic-bearing function, require cognitive complexity ≤10 and cyclomatic complexity ≤10; in apps/desktop both are ≤9. Preserve stricter repository rules. Require nesting ≤3. Include handlers, callbacks, transformations and embedded business logic; exclude only genuinely generated/vendor code and declarative markup, not logic hidden in it. Report size without inventing a line-count gate.
+**Behavior-level, not implementation-level**
+Bad: `expect(invoiceService._calculateTotal).toHaveBeenCalled()`
+Good: `expect(invoice.total).toBe(150.00)`
 
-Use available parser-backed checkers: for JS/TS, repository ESLint complexity, SonarJS cognitive complexity and max-depth rules can supply these measurements. Record tool versions, exact command, scope, exclusions and raw diagnostics. A cyclomatic-only tool cannot prove cognitive complexity. Unsupported language, unavailable checker, setup failure or incomplete attribution means UNVERIFIED for that measurement, never PASS. Handle permitted setup yourself; do not make the user repair tooling by hand or refuse application boot.
+**Clear failure messages**
+Bad: `expect(result).toBe(true)`
+Good: `expect(result.status).toBe('422'), 'Expected 422 when customer does not exist'`
 
-Fix a breach by flattening nesting, separating real responsibilities and reusing existing owners; rerun affected checks. Do not fragment functions merely to lower a number. An unresolved breach remains incomplete.
+**Deterministic**
+No timing-dependent assertions (`setTimeout`, `Date.now()` without mocking). No assertions that depend on ordering of unordered collections. No assertions that depend on external network calls without mocking.
 
-### Exhaustive-switch exception
+**Grouped by requirement**
+```
+describe('REQ-02: Invalid customer ID', () => {
+  it('returns 422 when customer does not exist', ...)
+  it('includes CUSTOMER_NOT_FOUND error code in response body', ...)
+  it('does not create a partial invoice record on failure', ...)
+})
+```
 
-A narrow cyclomatic-only exception is allowed for a compile-time exhaustive switch whose arms only delegate. Keep the raw measurement, typed exhaustiveness evidence and explicit rationale in the result. Non-exhaustive switches, mixed logic in arms and ordinary branching still obey the threshold; cognitive and nesting limits still apply. A typed total handler table is acceptable when it preserves payload typing and readability. No blanket switch exclusion and no measurement gaming.
+### 1. Spec Alignment
+- Does the implementation match the requirements in the active spec?
+- Does every acceptance criterion have a corresponding implementation path?
+- Are invariants enforced in code (not just in tests)?
+- Are edge cases handled as the spec defines?
+- Is any out-of-scope behavior implemented? (Scope creep)
 
-## Added tests and mutation
+### 2. Architecture Adherence
+- Does code respect the architecture boundaries defined by the approved design?
+- Are dependencies pointing in the right direction (no core logic importing from infrastructure)?
+- Are modules only accessed through their public API?
+- Are repository/port interfaces used for external dependencies?
+- Does folder structure match the chosen architecture pattern?
 
-When adding tests, mutate the implementation those tests cover using a supported, scoped adapter (for example StrykerJS in a configured JS/TS project). Use real runner output, not a predicted score. Review meaningful surviving mutants and strengthen the behavioral assertions or explain a genuinely equivalent mutant with evidence. Never delete production behavior to kill a survivor. Unsupported mutation stacks, missing tooling or a failed run are UNVERIFIED; report the exact missing capability and next executable step. Content-only guidance has no executable implementation to mutate; say so instead of claiming mutation PASS.
+### 6. Non-Functional Characteristics
+- Are there unbounded queries (SELECT * with no LIMIT on a growing table)?
+- Is there per-item I/O or query fan-out hidden inside loops or collection transforms?
+- Are expensive operations cached where appropriate?
+- Are external calls timeout-protected?
+- Are error paths logged with enough context to diagnose production failures?
+- Are there missing database indexes for new query patterns?
 
-## Completion evidence
+Review the actual consumer, error and permission paths as well as green tests. Check input mutation, stale data, races, misleading names and duplicated rule owners. Include an adversarial aggregate case for batch or reconciliation logic: repeated keys, combined totals, ordering, retry duplication or partial failures.
 
-Inspect the final diff for requirement alignment, architecture and trust boundaries, type safety, resource bounds and useful errors. Separate introduced defects from unchanged debt. Report exact commands, exit results, test counts and any limits or unexecuted checks. Tie evidence to the current source state; rerun only after relevant edits or unresolved failures. Do not claim a checker enforces these policies merely because this guidance states them. This plugin installs no executable gate, hook, watcher or background task.
+For new or materially changed logic, require cognitive and cyclomatic complexity ≤10 and nesting ≤3; preserve stricter host rules. Measure with parser-backed tools, recording versions, scope, exclusions and diagnostics. Size is context, not a gate. A compile-time exhaustive switch with delegation-only arms may justify a cyclomatic-only exception with raw metrics and typed evidence; cognitive and nesting limits still apply. Do not fragment dispatch or weaken rules to game metrics.
+
+Added executable tests require a supported scoped mutation runner. Review surviving mutants; report real output, never predicted scores. Missing tools or incomplete measurements mean UNVERIFIED, never PASS. Content-only guidance has no executable implementation to mutate. Report exact commands, results, counts, changed behavior and remaining risks; no executable gate is installed by this guidance.

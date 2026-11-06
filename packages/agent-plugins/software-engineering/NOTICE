@@ -1,7 +1,9 @@
 Jini Software Engineering Agent Plugin
 Copyright 2026 Leona Burime
 
-Adapted from AI-Dev-Shop engineering guidance: Programmer, Software Architect,
-TDD and Code Inspection (named Code Review in the vendored Jini source).
-See README.md for source revisions, adaptations and skill content hashes.
-Distributed under the Apache License, Version 2.0; see LICENSE.
+Adapted from AI-Dev-Shop engineering guidance: coding foundations, implementation
+guardrails, architecture decisions, systematic debugging, test design, code
+inspection, security review, secure input handling and vibe coding.
+See README.md for the exact source revision, selected sections and content hashes.
+The upstream snapshot has no root LICENSE or NOTICE. This payload retains its
+existing Apache License, Version 2.0 terms; see LICENSE.

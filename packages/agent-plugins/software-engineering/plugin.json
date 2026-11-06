@@ -1,8 +1,8 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "software-engineering",
-  "version": "0.1.0",
-  "description": "Routes coding, architecture, debugging and inspection tasks to portable engineering guidance.",
+  "version": "0.2.0",
+  "description": "Routes implementation, architecture, debugging, testing, code review, security and prototyping to portable engineering guidance.",
   "license": "Apache-2.0",
   "extensions": {
     "tovu": {

@@ -9,7 +9,7 @@ import { validatePluginManifest } from '../../dist/index.js';
 const root = path.resolve(import.meta.dirname, '..');
 const read = file => readFile(path.join(root, file), 'utf8');
 const skill = 'skills/software-engineering/SKILL.md';
-const references = ['debugging', 'implementation', 'planning', 'verification'].map(name => `skills/software-engineering/references/${name}.md`);
+const references = ['debugging', 'implementation', 'planning', 'prototyping', 'security', 'verification'].map(name => `skills/software-engineering/references/${name}.md`);
 
 async function payloadFiles() {
   const entries = await readdir(root, { recursive: true, withFileTypes: true });
@@ -35,7 +35,7 @@ test('the standard manifest resolves as an isolated package subpath with host me
   assert.equal(resolve(`@jini-ai/agent-plugins/software-engineering/${skill}`), path.join(root, skill));
 });
 
-test('one router and exactly four references ship, and every relative Markdown link resolves inside this skill', async () => {
+test('one router and exactly six references ship, and every relative Markdown link resolves inside this skill', async () => {
   const files = await payloadFiles();
   assert.deepEqual(files.filter(file => file.startsWith('skills/')), [skill, ...references].sort());
   assert.match(await read(skill), /^---\nname: software-engineering\ndescription: .+\n---/);
@@ -50,7 +50,7 @@ test('one router and exactly four references ship, and every relative Markdown l
 
 test('portable skill text is self-contained and has no host tooling, pipeline paths or provenance', async () => {
   for (const file of [skill, ...references]) {
-    assert.doesNotMatch(await read(file), /Tovu|AINSEP|AI-Dev-Shop|ADS_MEMORY_ROOT|\/Users\/|\/workspace\/|<<PEER|session names|agent_plugin_|search_tools|describe_tool|@jini-ai\/|\.\.\//, file);
+    assert.doesNotMatch(await read(file), /apps\/desktop|Tovu|AINSEP|AI-Dev-Shop|ADS_MEMORY_ROOT|\/Users\/|\/workspace\/|<<PEER|session names|agent_plugin_|search_tools|describe_tool|@jini-ai\/|\.\.\//, file);
   }
   assert.deepEqual((await payloadFiles()).filter(file => !file.startsWith('skills/')), ['LICENSE', 'NOTICE', 'README.md', 'plugin.json']);
 });
