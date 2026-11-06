@@ -207,7 +207,7 @@ async function confirmProtectedWrite(deps: SettingsToolDeps, request: WriteReque
   const { definition, layer, previous, rule } = prepared;
   const isSet = toolId === "settings_set_value";
   if (!deps.confirmWrite) throw new ToolInputError({ message: `${toolId}: '${rule.namespace}.${rule.key}' requires a human confirmation card: ${rule.reason}. The owner can change it in Settings.` });
-  const confirmed = await deps.confirmWrite({ ctx, toolId, namespace: definition.namespace, key: definition.key, scope: target.scope, previous: structuredClone(previous), expectedRevisionSeq: layer?.seq ?? 0, ...(isSet ? { value: structuredClone(target.value!) } : {}), reason: rule.reason }, options);
+  const confirmed = await deps.confirmWrite({ ctx, toolId, namespace: definition.namespace, key: definition.key, scope: target.scope, previous: structuredClone(previous), expectedRevisionSeq: layer === null ? 0 : layer.seq, ...(isSet ? { value: structuredClone(target.value!) } : {}), reason: rule.reason }, options);
   if (confirmed !== true) throw new ToolInputError({ message: `${toolId}: the human did not confirm the change. Nothing was changed.` });
   const current = await resolveTarget(deps, target, isSet);
   const currentLayer = await readLayer(deps, target, current.settingId, ctx.principal.id);
