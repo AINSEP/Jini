@@ -59,6 +59,23 @@ describe('DataTable structure', () => {
     expect(screen.getByRole('columnheader')).toHaveAccessibleName('Title');
   });
 
+  it('puts rowDetail on its own full-width row under its record, and draws no row for null', () => {
+    render(
+      <DataTable
+        rows={posts}
+        rowKey={(p) => p.id}
+        columns={columns}
+        rowDetail={(p, index) => (p.id === 'a' ? <p>{`Detail of ${p.title} at ${index}`}</p> : null)}
+      />,
+    );
+    const rows = screen.getAllByRole('row').slice(1);
+    expect(rows.map((row) => row.className)).toEqual(['', 'list-table-detail', '']);
+    const detailCell = within(rows[1]!).getByRole('cell');
+    expect(detailCell).toHaveAttribute('colspan', String(columns.length));
+    expect(detailCell).toHaveTextContent('Detail of First at 0');
+    expect(rows[2]).toHaveTextContent('Second');
+  });
+
   it('renders one row per record with cells in column order', () => {
     renderTable();
     const rows = screen.getAllByRole('row').slice(1); // drop the header row
