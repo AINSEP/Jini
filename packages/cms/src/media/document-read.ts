@@ -97,7 +97,7 @@ export interface DocumentTextPage {
  * @throws DocumentTextExtractionError when extraction is unavailable or a parser fails. */
 export const readDocumentText = createDocumentTextReader({});
 
-/** Create one admission owner for a host's document reads. The default export above is shared
+/** Create one admission owner for a host's document reads. The default reader above is shared
  * process-wide by existing callers, retaining the two-read / 100 MiB source allocation bound.
  * @complexity O(1) admission state per reader; source work is delegated to the bounded page reader. */
 export function createDocumentTextReader(_required: Record<string, never>, _optional: Record<string, never> = {}) {
