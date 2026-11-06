@@ -512,10 +512,10 @@ describe('choices', () => {
   });
 
   it('renders the shared grouped-choice layout with escaped labels and ids', () => {
-    const choices = [{ id: 'a"<', label: 'Item <A>', checked: true }, { id: 'b', label: 'B' }];
+    const choices = [{ id: 'a"<', label: 'Item <A>', hint: 'Why <this>', checked: true }, { id: 'b', label: 'B' }];
     const html = renderConfirmationDocument({ ...DELETE_POST, choices, choicesLabel: 'Matching <plugins>' });
     expect(html).toContain(renderChoiceGroup({ name: 'confirmation-choices', label: 'Matching <plugins>', selection: 'multiple',
-      options: choices.map(choice => ({ value: choice.id, label: choice.label })), value: ['a"<'] }));
+      options: choices.map(choice => ({ value: choice.id, label: choice.hint === undefined ? choice.label : `${choice.label} — ${choice.hint}` })), value: ['a"<'] }));
     const surface = mountSurface(html);
     expect(surface.doc.querySelector('legend')?.textContent).toBe('Matching <plugins>');
     expect(surface.doc.querySelector('legend plugins')).toBeNull();

@@ -178,7 +178,7 @@ function renderChoices(choices: readonly ConfirmationChoice[], label?: string): 
     seen.add(choice.id);
   }
   if (label !== undefined) return renderChoiceGroup({ name: 'confirmation-choices', label, selection: 'multiple',
-    options: choices.map(choice => ({ value: choice.id, label: choice.label })), value: choices.filter(choice => choice.checked === true).map(choice => choice.id) });
+    options: choices.map(choice => ({ value: choice.id, label: choice.hint === undefined ? choice.label : `${choice.label} — ${choice.hint}` })), value: choices.filter(choice => choice.checked === true).map(choice => choice.id) });
   const boxes = choices
     .map((choice, index) =>
       renderCheckbox({
