@@ -82,3 +82,16 @@ it('agy keeps stdio and Aider creates no MCP host', async () => {
     await f.lifecycle.finish({ runId: f.runId, status: 'succeeded', code: 0, signal: null, resumable: false });
   }
 });
+
+
+it.each(['missing preparation', 'unsupported runtime', 'listener failure'])('required HTTP refuses stdio fallback: %s', async scenario => {
+  const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+  const { run } = await lifecycle.start({ contextRef: 'required-http' });
+  const prepare = vi.fn(async () => { throw new Error('private listener details'); });
+  await expect(prepareHttpMcpForRun({ runId: run.id, cwd: '/fixture', def: scenario === 'unsupported runtime' ? { ...def, mcpHttp: false } : def,
+    lifecycle, injection: { command: 'stdio', daemonUrl: 'http://daemon.invalid', httpPolicy: 'required',
+      ...(scenario === 'missing preparation' ? {} : { prepareHttp: prepare }) } })).rejects.toThrow(/HTTP.*required/i);
+  expect(warn.mock.calls.flat().join(' ')).not.toContain('private');
+  expect(prepare).toHaveBeenCalledTimes(scenario === 'listener failure' ? 1 : 0);
+  await lifecycle.finish({ runId: run.id, status: 'failed', code: 1, signal: null, resumable: false });
+});

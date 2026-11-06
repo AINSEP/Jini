@@ -120,13 +120,15 @@ describe('createDefaultRunStartHandler — optional executor passthroughs', () =
   // A host that adopts the default handler and needs any of them — an attached screenshot, a second
   // readable directory, a pi-rpc upload root — silently got a run without them: the agent simply
   // cannot see the image it was asked about, with nothing anywhere saying why.
-  it('forwards imagePaths, extraAllowedDirs, and uploadRoot', async () => {
+  it('forwards image paths, pixels and read-only folders without widening writable access', async () => {
     const { executor, calls } = fakeExecutor();
     const handler = createDefaultRunStartHandler({
       agentExecutor: executor,
       resolveRunInput: () => ({
         ...base,
         imagePaths: ['/uploads/run-1/shot.png'],
+        imageContents: [{ mimeType: 'image/png', data: 'cGl4ZWxz' }],
+        readOnlyExtraDirs: ['/reference'],
         extraAllowedDirs: ['/work/vendor', '/work/docs'],
         uploadRoot: '/uploads/run-1',
       }),
@@ -136,6 +138,8 @@ describe('createDefaultRunStartHandler — optional executor passthroughs', () =
 
     expect(calls[0]).toMatchObject({
       imagePaths: ['/uploads/run-1/shot.png'],
+        imageContents: [{ mimeType: 'image/png', data: 'cGl4ZWxz' }],
+        readOnlyExtraDirs: ['/reference'],
       extraAllowedDirs: ['/work/vendor', '/work/docs'],
       uploadRoot: '/uploads/run-1',
     });
