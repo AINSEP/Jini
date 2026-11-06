@@ -1,0 +1,12 @@
+# Job ui-fixes (owner-approved 11-05)
+Codex writes these UI fixes; a Claude agent checks each in a real browser afterward, so state what to look at. Use the existing design tokens and components. Literal, narrow changes. Generic UI belongs in Jini. Never use Tovu Starter's CSS. Do not add options beyond the list. Check 390 px width.
+1. Export list: replace the big notice "No domain was given, so sitemap.xml and feed.xml were left out." with a small YELLOW warning icon next to the Active status, with the message in a tooltip: hover on desktop, tap on mobile, reachable by keyboard. Use the existing touch-tooltip mechanism. Same for every export and import notice, in the row and the page banner. The notice text comes from apps/website/src/features/site-backup/share-backend.ts.
+2. Export and Themes: move the "Show files" list out of the narrow Status column so it is not thousands of pixels tall; rows must not shift under the pointer after Revoke or after activating a theme, so a double-click cannot activate a second theme.
+3. Tap targets under 44 px at 390 px, including "Include saved keys" and "New site".
+4. Websites page: default sort most recently created first; a "Sort by" dropdown with Most recent, Oldest, A-Z, remembered per person; pin on cards with Recent + Pinned by default and "All sites (n)" for the rest; "Hide from list" in the menu with a "Hidden (n)" filter, sites stay on disk. No groups, list view or search.
+5. Sites cards: one shared Jini card used by the localhost Sites page and the desktop app, matching the desktop look.
+6. Desktop: closing a site's tab asks "Stop site too?". Closing the last window asks "Quit Tovu and stop N running sites?" with a third choice "Keep running in background". Check whether earlier work on this exists in the desktop code first and reuse it.
+7. Copy keys card (tool credential_copy_from_project): also offer the desktop's Shared Keys as a source, with clear wording; the dropdown must not open on a dash.
+8. Queued chat label: Jini MidRunUserMessage.tsx around line 58, tidy the label's look.
+If one item turns out large, finish the others and report it.
+Base: origin/cloud/combine in both repos, at its current tip. Branch cloud/ui-fixes from it. Do not push to cloud/combine. Tests only for what you change; full suites run later. No skipping or weakening tests or rules. No publish, tag or main. Report at cloud/reports/ui-fixes.md and in your final message: shas, exact files, tests with commands, anything open. General wording in commits and notes.
