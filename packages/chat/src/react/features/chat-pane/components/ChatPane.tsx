@@ -3,7 +3,7 @@ type WorkingDirectoryControlPlacement = 'below' | 'composer' | 'none';
 import { AgentPluginUsage } from './AgentPluginUsage.js';
 import { SECRET_REDACTED_NOTICE } from '../../../../core/user-text-redaction.js';
 import { useEffect, useId, useMemo, useRef, type ReactNode } from 'react';
-import { WorkingDirPicker } from '@jini-ai/ui';
+import { WorkingDirPicker, useAgentHandle } from '@jini-ai/ui';
 
 import { Composer } from '../../../components/Composer.js';
 import { appendComposerDiscovery } from '../../../components/composer-discovery.js';
@@ -468,6 +468,7 @@ function resolveComposerWorkingDirectory(
 }
 
 interface ChatPaneComposerAreaProps {
+  agentHandle: string | false;
   fileDrop: UseChatPaneFileDropResult;
   uploadAttachments: ChatPaneProps['uploadAttachments'];
   pane: UseChatPaneResult;
@@ -491,6 +492,7 @@ interface ChatPaneComposerAreaProps {
  * renders inside `<MessageList>` itself, as the newest transcript entry — see that component's
  * `pendingPrompts` prop and this component's own call site below. */
 function ChatPaneComposerArea({
+  agentHandle,
   fileDrop,
   uploadAttachments,
   pane,
@@ -520,6 +522,7 @@ function ChatPaneComposerArea({
         </span>
       ) : null}
       <Composer
+        agentHandle={agentHandle}
         composer={pane.composer}
         onSend={() => void pane.send()}
         // Streaming no longer locks the textarea: `pane.send()` queues a turn typed during a run
@@ -725,6 +728,7 @@ function showsControlsSuggestions(embed: boolean, messageCount: number, emptySta
  */
 export function ChatPane(props: ChatPaneProps) {
   const p = applyChatPaneDefaults(props);
+  const base = useAgentHandle({ agentHandle: p.agentHandle });
   const t = useT();
   const surface = useChatPaneSurface({
     variant: p.variant,
@@ -806,6 +810,7 @@ export function ChatPane(props: ChatPaneProps) {
     embed: surface.embed,
     renderRuntimePicker: () => (
       <AgentRuntimePicker
+        agentHandle={base ? `${base}-runtime` : false}
         agents={runtimeView.agents}
         value={pane.selection}
         onChange={pane.setSelection}
@@ -889,6 +894,7 @@ export function ChatPane(props: ChatPaneProps) {
             t={t}
           />
           <ChatPaneComposerArea
+            agentHandle={base ? `${base}-composer` : false}
             fileDrop={fileDrop}
             uploadAttachments={surface.uploadAttachments}
             pane={pane}

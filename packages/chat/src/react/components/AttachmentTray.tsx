@@ -11,6 +11,8 @@
  * sent message's thumbnail reads) and opens the shared `AttachmentPreviewModal`, with previous/next
  * across the staged images - before sending, the operator can check which screenshots are going.
  */
+import { useAgentHandle } from '@jini-ai/ui';
+import { agentHandleProps, agentHandleSegment } from '@jini-ai/agentic';
 import type { ChatAttachment } from '../../core/index.js';
 import { useT } from '../hooks/context.js';
 import { Icon } from './Icon.js';
@@ -25,11 +27,13 @@ import { formatAttachmentSize } from './attachment-size.js';
 export { formatAttachmentSize };
 
 export type AttachmentTrayProps = AttachmentTraySlot & {
+  agentHandle?: string | false | undefined;
   /** Blob-URL port for chip thumbnails; defaults to the platform's (see `SentAttachment.hooks.ts`). */
   objectUrls?: ObjectUrlPort | undefined;
 };
 
-export function AttachmentTray({ attachments, onRemove, renderItem, objectUrls }: AttachmentTrayProps) {
+export function AttachmentTray({ agentHandle, attachments, onRemove, renderItem, objectUrls }: AttachmentTrayProps) {
+  const base = useAgentHandle({ agentHandle });
   const t = useT();
   const gallery = useAttachmentGallery({ attachments });
   if (attachments.length === 0) return null;
@@ -43,8 +47,8 @@ export function AttachmentTray({ attachments, onRemove, renderItem, objectUrls }
           data-attachment-kind={a.kind}
           data-attachment-name={a.name}
         >
-          {renderItem ? renderItem(a) : <DefaultAttachmentChip attachment={a} onOpen={gallery.open} objectUrls={objectUrls} />}
-          <button type="button" className="jini-attachment-remove" onClick={() => onRemove(a.path)} title={t('Remove {name}', { name: a.name })} aria-label={t('Remove {name}', { name: a.name })}>
+          {renderItem ? renderItem(a) : <DefaultAttachmentChip base={base} attachment={a} onOpen={gallery.open} objectUrls={objectUrls} />}
+          <button {...agentHandleProps({}, { base, action: `remove-${agentHandleSegment({ value: a.path })}`, role: 'button', label: t('Remove {name}', { name: a.name }) })} type="button" className="jini-attachment-remove" onClick={() => onRemove(a.path)} title={t('Remove {name}', { name: a.name })} aria-label={t('Remove {name}', { name: a.name })}>
             <Icon name="close" size={12} />
           </button>
         </div>
@@ -56,7 +60,8 @@ export function AttachmentTray({ attachments, onRemove, renderItem, objectUrls }
   );
 }
 
-function DefaultAttachmentChip({ attachment, onOpen, objectUrls }: {
+function DefaultAttachmentChip({ base, attachment, onOpen, objectUrls }: {
+  base: string | undefined;
   attachment: ChatAttachment;
   onOpen: (attachment: ChatAttachment) => void;
   objectUrls: ObjectUrlPort | undefined;
@@ -71,6 +76,7 @@ function DefaultAttachmentChip({ attachment, onOpen, objectUrls }: {
   return (
     <button
       type="button"
+      {...agentHandleProps({}, { base, action: `open-${agentHandleSegment({ value: attachment.path })}`, role: 'button', label: t('Open {name}', { name: attachment.name }) })}
       className="jini-attachment-chip-body"
       onClick={() => onOpen(attachment)}
       title={t('Open {name}', { name: attachment.name })}
