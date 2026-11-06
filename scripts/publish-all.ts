@@ -19,6 +19,7 @@
 import { execFileSync } from 'node:child_process';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { preparePluginRelease } from './publish-pending.js';
 import { assertJiniPackagePublicationAllowed, computeClosure, discoverJiniPackages } from './lib/pack-jini-packages.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -43,8 +44,9 @@ function isVersionAlreadyPublished(name: string, version: string): boolean {
   try {
     const out = execFileSync('npm', ['view', `${name}@${version}`, 'version'], { stdio: 'pipe' }).toString().trim();
     return out === version;
-  } catch {
-    return false;
+  } catch (error) {
+    if (/\bE404\b/.test(String((error as { stderr?: unknown }).stderr))) return false;
+    throw error;
   }
 }
 
@@ -73,6 +75,7 @@ async function main(): Promise<void> {
 
   console.log(`${dryRun ? '[dry-run] ' : ''}Publishing ${closure.length} package(s) in dependency order:\n  ${closure.join('\n  ')}\n`);
 
+  const pending: string[] = [];
   for (const name of closure) {
     const entry = registry.get(name)!;
     const localVersion = entry.pkg.version;
@@ -80,11 +83,16 @@ async function main(): Promise<void> {
       console.log(`\n--- skipping ${name}@${localVersion} (already published) ---`);
       continue;
     }
+    pending.push(name);
     console.log(`\n--- building ${name} ---`);
     execFileSync('pnpm', ['--filter', name, 'run', 'build'], { cwd: repoRoot, stdio: 'inherit' });
 
+  }
+  const tarballs = await preparePluginRelease({ repoRoot, registry, pending });
+  for (const name of pending) {
+    const entry = registry.get(name)!;
     console.log(`--- publishing ${name} ---`);
-    const args = ['publish', '--no-git-checks'];
+    const args = ['publish', tarballs.get(name)!, '--no-git-checks'];
     if (dryRun) args.push('--dry-run');
     execFileSync('pnpm', args, { cwd: entry.dir, stdio: 'inherit' });
   }
