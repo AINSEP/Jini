@@ -275,9 +275,6 @@ importers:
 
   packages/agent-plugins:
     dependencies:
-      '@jini-ai/cms':
-        specifier: workspace:^
-        version: link:../cms
       '@jini-ai/commerce':
         specifier: ^0.6.19
         version: link:../commerce
@@ -288,6 +285,9 @@ importers:
       '@cfworker/json-schema':
         specifier: ^4.1.1
         version: 4.1.1
+      '@jini-ai/cms':
+        specifier: workspace:^
+        version: link:../cms
       '@jini-ai/core':
         specifier: ^0.6.13
         version: link:../core
