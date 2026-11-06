@@ -160,6 +160,7 @@ Branch: `cloud/commerce`; final implementation HEAD: `e25e8f6591fe3e880056b28e01
 - `8d7f5c2f8` test(commerce): require pinned API version on payment retrieval
 - `f27a3816c` fix(commerce): expose bounded settlement attention status
 - `e25e8f659` fix(commerce): retry unsuccessful checkout reconciliation
+- `5f1903e2a` docs(commerce): record final review fixes and verification
 
 ### Tovu
 
@@ -170,4 +171,4 @@ Branch: `cloud/commerce`; final implementation HEAD: `752d876c3cc2d9141b785c1900
 - `ae1691994` fix(commerce): retain settlement failures and require human resolution
 - `ae800a3bd` test(commerce): verify recovery and settlement retry boundaries
 - `752d876c3` fix(commerce): discover quarantined orders without payment rows
-
+- `51ee760f7` docs(commerce): record final review fixes and verification
