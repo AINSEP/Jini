@@ -60,3 +60,25 @@ The browser E2E files use node:test; passing them to Vitest caused two collectio
 - `pnpm quality:sonar` — 111 warnings and 4 errors, including one parser/configuration issue; diagnosis pending.
 
 BUG: Reference-web's default test command sent node:test browser suites to Vitest. Fixed by invoking both runners.
+
+## Fix 3 — Standalone Sonar policy ownership
+
+Copied inline lint directives in generated provider payloads activated unavailable TypeScript rules, producing four configuration errors. Authored inline suppressions could also hide enabled Sonar findings. Added global `noInlineConfig: true` to the standalone entrypoint. Rules, severities, thresholds, source targets and ignores are unchanged; source findings can no longer be hidden with inline suppressions. No runtime code changed.
+
+Two public-ESLint-API regressions verify that generated payloads remain unignored and copied directives cannot produce unknown-rule errors, and that authored inline suppression cannot hide an identical-expression finding.
+
+- RED against original config: `VITEST_MAX_THREADS=2 VITEST_MIN_THREADS=1 VITEST_MAX_FORKS=2 VITEST_MIN_FORKS=1 pnpm exec vitest run scripts/__tests__/sonar-standalone-config.test.ts --maxWorkers=2 --minWorkers=1` — 0 passed, 2 failed.
+- GREEN with policy fix: same command — 2 passed, 0 failed, 0 skipped.
+- `pnpm exec eslint development/quality/eslint.sonar.config.mjs scripts/__tests__/sonar-standalone-config.test.ts` — passed.
+- `pnpm exec tsc --noEmit --module ESNext --moduleResolution Bundler --target ES2022 --strict --noUncheckedIndexedAccess --exactOptionalPropertyTypes --skipLibCheck scripts/__tests__/sonar-standalone-config.test.ts` — passed.
+- Full `pnpm quality:sonar` rerun in progress.
+
+BUG: Copied inline lint directives in generated payloads could make standalone Sonar activate unavailable rules. Fixed.
+BUG: Authored inline suppressions could hide findings enabled by the standalone Sonar policy. Fixed.
+
+## Checkpoint 2
+
+- `pnpm guard:drift` now passes: zero new or total violations, no baseline additions.
+- Agent-runtime initial run: 4285 passed, 5 failed only because the sandbox did not allow `/var/tmp`. Focused retry with temporary-directory write access: `VITEST_MAX_THREADS=2 VITEST_MIN_THREADS=1 VITEST_MAX_FORKS=2 VITEST_MIN_FORKS=1 pnpm --filter @jini-ai/agent-runtime exec vitest run src/__tests__/integration/claude-temp-realpath.integration.test.ts` — 6 passed, 0 failed. No test changed.
+- Chat: 4227 passed, 0 failed, 1 existing skipped private-transcript benchmark (`JINI_CHAT_LONG_TRANSCRIPT` unavailable; no owner data used).
+- CMS: 3968 passed, 0 failed. Forms compatibility suite passed. Commerce running.

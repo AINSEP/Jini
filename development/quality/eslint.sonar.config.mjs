@@ -4,6 +4,8 @@ import { sonarjsConfig, sonarSourceFiles, sonarTestFiles, sonarParser, sonarType
 
 export default [
   { ignores: ['**/node_modules/**', '**/dist/**', '**/build/**', '**/coverage/**', ...sonarTestFiles] },
+  // Copied upstream directives must not activate absent rules or suppress this report's policy.
+  { linterOptions: { noInlineConfig: true } },
   {
     ...sonarjsConfig,
     files: sonarSourceFiles,
