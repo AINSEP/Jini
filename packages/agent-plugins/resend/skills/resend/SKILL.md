@@ -24,10 +24,10 @@ This plugin does two separate jobs. Keep them apart.
 **The host's own mail tools are the source of truth for the site's email.** Use them for anything about
 how this site sends:
 
-- `system_get_mail_status`: is mail set up, which provider, is the domain ready.
-- `mail_set_provider`: switch the site between Resend, SMTP and none.
-- `mail_send_test`: prove the site's mail works end to end.
-- `dns_*`: add or check the DNS records on the site's own domain.
+- `mail delivery status`: is mail set up, which provider, is the domain ready.
+- `select the mail provider`: switch the site between Resend, SMTP and none.
+- `send a test email`: prove the site's mail works end to end.
+- `DNS operations`: add or check the DNS records on the site's own domain.
 
 Never use `mcp__resend__send-email` to test or stand in for the site's mail: it skips the host's outbox,
 retries, suppression list and logs, so a pass there proves nothing about the site.
@@ -35,7 +35,7 @@ retries, suppression list and logs, so a pass there proves nothing about the sit
 **Use the `mcp__resend__*` tools for work on the Resend account itself**, when the person asks for it:
 
 - **Domains**: `list-domains`, `get-domain`, `create-domain`, `update-domain`, `verify-domain`, and
-  the domain-claim tools. `create-domain` returns the DNS records; add them with the host's `dns_*`
+  the domain-claim tools. `create-domain` returns the DNS records; add them with the host's `DNS operations`
   tools when the site's DNS is managed by the host, otherwise show them to the person. Then call
   `verify-domain`.
 - **Broadcasts**: draft, update, compose and cancel. Sending a broadcast is not switched on by
@@ -84,11 +84,11 @@ Never ask for the key in chat, and never put it in any tool argument.
    Never ask for the key in chat. If a sending key is already saved, reuse it. Only open a replacement
    card if the person explicitly asks to replace that key; explain that it REPLACES the saved key.
 3. **Verify the sending domain.** Until it is verified, Resend only sends to the account's own
-   address. Check with `system_get_mail_status`; add records with `dns_*` (or, when the account is
+   address. Check with `mail delivery status`; add records with `DNS operations` (or, when the account is
    connected, `mcp__resend__create-domain` then `mcp__resend__verify-domain`).
-4. **Select Resend** with `mail_set_provider { providerId: "resend" }`. The change and saved key
+4. **Select Resend** with `select the mail provider { providerId: "resend" }`. The change and saved key
    take effect on the next email. Never ask the person to restart the host.
-5. Prove it with `mail_send_test`.
+5. Prove it with `send a test email`.
 
 ## What a failure means
 

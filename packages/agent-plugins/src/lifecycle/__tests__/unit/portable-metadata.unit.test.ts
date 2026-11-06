@@ -7,7 +7,7 @@ const mcp = (server = {}) => ({ $schema: `${schema}mcp.schema.json`, mcpServers:
 
 describe('portable manifest metadata', () => {
   test('normalizes presentation and signals without a host namespace', () => {
-    const metadata = { displayName: 'Portable', summary: 'Useful capability', vendorAliases: ['vendor'], toolKeywords: { discover: 'vendor' }, hostSignals: [{ env: 'HOSTED', facts: { hosted: true } }], deploymentAdvice: 'Use a host.' };
+    const metadata = { displayName: 'Portable', summary: 'Useful capability', vendorAliases: ['vendor'], toolKeywords: { discover: 'vendor' }, card: { title: 'Connect account' }, hostSignals: [{ env: 'HOSTED', facts: { hosted: true } }], deploymentAdvice: 'Use a host.' };
     expect(parseAgentPluginManifest({ value: plugin(metadata) })).toMatchObject({ ok: true, manifest: metadata });
     expect(readAgentPluginMetadata({ value: plugin(metadata) })).toEqual({ metadata, warnings: [] });
   });
@@ -18,7 +18,7 @@ describe('portable manifest metadata', () => {
     expect(legacy).toMatchObject({ ok: true, manifest: { summary: 'old' }, warnings: [expect.stringContaining('2027-05-06')] });
   });
   test('invalid advisory metadata is omitted with warnings; malformed advice drops signal declaration', () => {
-    const result = readAgentPluginMetadata({ value: plugin({ summary: 3, vendorAliases: ['good', 4], toolKeywords: { discover: 7 }, hostSignals: [{ env: 'HOSTED', facts: { hosted: true } }], deploymentAdvice: 'bad\ncopy' }) });
+    const result = readAgentPluginMetadata({ value: plugin({ summary: 3, vendorAliases: ['good', 4], toolKeywords: { discover: 7 }, card: { title: 7 }, hostSignals: [{ env: 'HOSTED', facts: { hosted: true } }], deploymentAdvice: 'bad\ncopy' }) });
     expect(result.metadata).toEqual({});
     expect(result.warnings.length).toBeGreaterThan(0);
   });

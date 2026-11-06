@@ -32,10 +32,10 @@ test('the face links to the ECharts provider by local id and never reuses its pu
   assert.equal(manifest.$schema, 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json');
   assert.equal(manifest.name, 'charts-echarts');
   assert.equal(manifest.extensions.jini.id, 'jini/charts-echarts-agent');
-  assert.equal(provider.extensions.jini.id, 'jini/charts-echarts');
+  assert.equal(provider.extensions.tovu.id, 'jini/charts-echarts');
   assert.equal(manifest.extensions.jini.providerPlugin, provider.id);
-  assert.notEqual(manifest.extensions.jini.id, provider.extensions.jini.id);
-  assert.deepEqual(Object.keys(manifest.extensions), ['tovu']);
+  assert.notEqual(manifest.extensions.jini.id, provider.extensions.tovu.id);
+  assert.deepEqual(Object.keys(manifest.extensions), ['jini']);
 });
 
 // Capability lookup and automatic-use ranking read `provides`; the name is the chart kind the

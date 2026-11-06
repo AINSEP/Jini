@@ -38,8 +38,8 @@ broken links. [Setup and limits](https://wordpress.com/support/domains/site-redi
    flow. Use the real public URL; verify trusted HTTPS and identifiable content.
 2. Review the chosen destination and old page paths with the owner. Leave the
    purchase to the owner; no WordPress credential is needed here.
-3. After setup, use `web_fetch_page` on the old homepage and a representative old
-   page. Check final URLs and expected content; use `domain_tls_status` on the
+3. After setup, use `read the fetched web page` on the old homepage and a representative old
+   page. Check final URLs and expected content; use `check domain HTTPS status` on the
    destination hostname. Check the destination's HTTP-to-HTTPS behavior too.
 4. Report redirect, HTTPS and content separately. Unchecked or unfinished results
    are **pending**. DNS change is **not applicable** for the free address. If host

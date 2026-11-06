@@ -3,10 +3,10 @@
 The host has a second, narrower pair of GitHub tools. They are easy to reach for by mistake, because
 their names sound general and they are not.
 
-- `source_control_get_capabilities` — read-only. Which providers have a saved connection.
-- `source_control_execute_commit` — commits the site's **rendered static export** to a repository.
+- `inspect source-control capabilities` — read-only. Which providers have a saved connection.
+- `commit through source control` — commits the site's **rendered static export** to a repository.
 
-Neither is a way to put a file in a repository. That is `custom_credential_write_files`.
+Neither is a way to put a file in a repository. That is `write named repository files with confirmation`.
 
 ---
 
@@ -14,7 +14,7 @@ Neither is a way to put a file in a repository. That is `custom_credential_write
 
 **App source is not a rendered export.**
 
-| | `custom_credential_write_files` | `source_control_execute_commit` |
+| | `write named repository files with confirmation` | `commit through source control` |
 |---|---|---|
 | What it commits | Exactly the files you name, verbatim | A **fresh static copy of the active theme** — generated HTML and assets — that it runs itself |
 | Where the content comes from | You | The host's exporter. You do not supply file content at all |
@@ -28,11 +28,11 @@ A rendered export is the *output* of running that code, and a build handed one e
 worse, succeeds and ships a static site where a server was expected.
 
 So when a task says "push the app to a repo so CI can build it", that is **not**
-`source_control_execute_commit`. It is either app source the human already has in a repository, or
-specific files you write with `custom_credential_write_files`. Conflating the two wastes a whole
+`commit through source control`. It is either app source the human already has in a repository, or
+specific files you write with `write named repository files with confirmation`. Conflating the two wastes a whole
 build cycle before anyone notices what was actually committed.
 
-`source_control_execute_commit` is for one job: **publishing the site's rendered output** into a
+`commit through source control` is for one job: **publishing the site's rendered output** into a
 repository as a portable static copy. Hosting this layout requires configuration; use the static-publish flow for hosted deployment.
 
 ---
@@ -41,23 +41,23 @@ repository as a portable static copy. Hosting this layout requires configuration
 
 This surprises people and is worth stating flatly.
 
-- `custom_credential_*` reads the **Access Tokens** page's *Add custom provider* table. That is
+- `saved-credential operations` reads the **Access Tokens** page's *Add custom provider* table. That is
   where a credential labelled `github` lives.
-- `source_control_*` reads a **separate** table, connected through the secure connection card.
+- `source-control operations` reads a **separate** table, connected through the secure connection card.
 
-An explicit Source Control connection takes priority. If none exists, `source_control_execute_commit`
+An explicit Source Control connection takes priority. If none exists, `commit through source control`
 can use the saved `github` API key; capabilities identify this as `credentialSource:"saved-api-key"`.
-A connected Source Control provider does not give `custom_credential_make_request` a label to use.
+A connected Source Control provider does not give `authenticated GitHub request` a label to use.
 
-So: call `source_control_get_capabilities` before you promise a human anything about committing an
+So: call `inspect source-control capabilities` before you promise a human anything about committing an
 export. And never ask a human to paste a token into chat to bridge the gap — open the plugin’s source-control card, which saves it encrypted through that owner.
 
 ---
 
-## Using `source_control_execute_commit`
+## Using `commit through source control`
 
 ```
-source_control_execute_commit({
+commit through source control({
   provider: "github",
   owner: "<owner>",
   repo: "<repo>",
@@ -83,7 +83,7 @@ destination, preserving the previous root export and sibling folders. A folder c
 the root manifest as a fallback.
 
 Only `provider: "github"` is accepted. A gitlab or bitbucket credential can be **saved** and is
-reported honestly by `source_control_get_capabilities` with `commitSupported: false` — committing
+reported honestly by `inspect source-control capabilities` with `commitSupported: false` — committing
 to either is not implemented. Say that plainly rather than letting a human discover it from a
 failed attempt.
 
@@ -108,7 +108,7 @@ which is the opposite of what a non-empty `divergedPaths` means.
 
 | Code | What it means | The right next move |
 |---|---|---|
-| `no-credential` | No Source Control credential is connected. Returned **without raising a dialog** | Point them at the admin's Source Control page. Call `source_control_get_capabilities` first next time |
+| `no-credential` | No Source Control credential is connected. Returned **without raising a dialog** | Point them at the admin's Source Control page. Call `inspect source-control capabilities` first next time |
 | `REPOSITORY_NOT_FOUND` | The token cannot see that `owner/repo` | Confirm the identifiers, then the token's access. Not necessarily a bad token |
 | `NO_CHANGES` | Nothing changed since the branch's last commit | **Not a failure.** Say nothing needed to commit |
 | `DIVERGED_BRANCH` | Someone else pushed since this call started; the commit was refused rather than overwriting history | The human resolves it, exactly as with any rejected non-fast-forward push |

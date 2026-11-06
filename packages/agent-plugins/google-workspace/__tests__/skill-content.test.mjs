@@ -58,11 +58,13 @@ test('the skill and references name no host tool, admin path, route or product',
   assert.match(skill(), /\*\*Follow the host guidance first\.\*\*/);
 });
 
-test('frozen identifiers survive the neutral wording', () => {
+test('portable references describe capabilities while the contribution keeps frozen identifiers', () => {
   const delivery = read('skills/google-workspace/references/form-delivery.md');
   const connection = read('skills/google-workspace/references/connection.md');
-  assert.match(delivery, /`_tovu_submission_id`, `_tovu_submitted_at`/);
-  assert.match(connection, /`TOVU_GOOGLE_PICKER_BROWSER_KEY`, `TOVU_GOOGLE_PICKER_APP_ID`/);
+  assert.match(delivery, /reserved submission-id column, the reserved submission-time column/);
+  assert.doesNotMatch(delivery, /tovu/i);
+  assert.match(connection, /browser API key and application ID/);
+  assert.doesNotMatch(connection, /tovu/i);
   for (const text of [skill(), connection]) assert.match(text, /google-workspace-oauth-client/);
   const connectionContract = readJson('tovu-connections.json').connections[0];
   assert.equal(connectionContract.clients.web.clientIdEnv, 'TOVU_GOOGLE_WORKSPACE_OAUTH_WEB_CLIENT_ID');

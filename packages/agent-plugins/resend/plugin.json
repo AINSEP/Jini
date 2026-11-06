@@ -2,7 +2,7 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "resend",
   "version": "0.2.2",
-  "description": "Sends the site's email (sign-in links, form notifications, newsletters) through Resend's hosted email API, and connects the assistant to Resend's own hosted MCP server for work on the Resend account itself: domains and their DNS verification, broadcasts, contacts, segments, topics, templates, logs and usage. Ships the mail adapter (a host loads it only when the host shipped it) and the know-how to set both up: a sending key saved through credential_save for site mail, and a separate Full access key saved through the secure account card for the account tools.",
+  "description": "Sends the site's email (sign-in links, form notifications, newsletters) through Resend's hosted email API, and connects the assistant to Resend's own hosted MCP server for work on the Resend account itself: domains and their DNS verification, broadcasts, contacts, segments, topics, templates, logs and usage. Ships the mail adapter (a host loads it only when the host shipped it) and the know-how to set both up: a sending key saved through the secure site-mail connection card, and a separate Full access key saved through the secure account card for the account tools.",
   "author": "Tovu",
   "license": "Apache-2.0",
   "extensions": {

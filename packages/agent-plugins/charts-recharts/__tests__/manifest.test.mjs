@@ -32,8 +32,8 @@ test('the face links to the Recharts provider by local id and never reuses its p
   assert.equal(manifest.name, 'charts-recharts');
   assert.equal(manifest.extensions.jini.id, 'jini/charts-recharts-agent');
   assert.equal(manifest.extensions.jini.providerPlugin, provider.id);
-  assert.notEqual(manifest.extensions.jini.id, provider.extensions.jini.id);
-  assert.deepEqual(Object.keys(manifest.extensions), ['tovu']);
+  assert.notEqual(manifest.extensions.jini.id, provider.extensions.tovu.id);
+  assert.deepEqual(Object.keys(manifest.extensions), ['jini']);
 });
 
 // Capability lookup and automatic-use ranking read `provides`; the name is the chart kind the

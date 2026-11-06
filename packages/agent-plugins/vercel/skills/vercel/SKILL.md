@@ -12,8 +12,8 @@ task. Never offer a replacement unless the person asks.
 
 Open the plugin’s **Connect Vercel** card through the host. It links to token creation and explains account/team access. The hosting save flow verifies and seals the token.
 
-The steps are the same for every host: `deployment_get_static_publish_capabilities` shows whether a
-token is saved, `deployment_preview_static_publish` comes first, and `deployment_execute_static_publish`
+The workflow applies to any host: `inspect static-publishing capabilities` shows whether a
+token is saved, `preview static publishing` comes first, and `publish the static site with confirmation`
 publishes once the person confirms. `ok: "partial"` means not reachable yet: never call it failed or live.
 This file is what is particular to Vercel.
 

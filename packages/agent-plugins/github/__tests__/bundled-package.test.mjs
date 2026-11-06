@@ -38,7 +38,8 @@ test('the plugin adds no tool and no MCP server; it drives the host-served tools
 
 test('the deploy workflow protocol is the host guidance, not the portable skill', async () => {
   const skill = await readText('skills/github/SKILL.md');
-  assert.match(skill, /`deployment_ops_deploy`/);
+  assert.match(skill, /`start a deployment`/);
+  assert.doesNotMatch(skill, /deployment_ops_deploy|custom_credential_|source_control_/);
   assert.match(skill, /platform\s+`github-actions`/);
   assert.match(skill, /the host guidance describes that workflow's own inputs and\s+refusals/);
   for (const file of (await shippedFiles()).filter(name => name.endsWith('.md'))) {

@@ -22,7 +22,7 @@ than the `risk` one. That is expected and correct.
 
 ## EU-1 — Non-essential cookies or tags before consent
 
-**Observe with:** `site_collect_page_evidence`, first with no `consentAcceptSelector` (everything
+**Observe with:** `collect rendered-page evidence`, first with no `consentAcceptSelector` (everything
 returns phase `before`), then again with one.
 
 **Supports `risk`:** a cookie or request observed in the `before` phase that is plainly

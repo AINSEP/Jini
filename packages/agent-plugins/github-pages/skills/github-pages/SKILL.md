@@ -12,8 +12,8 @@ task. Never offer a replacement unless the person asks.
 
 Open the plugin’s **Connect GitHub Pages** card through the host. Select only the destination repository and grant Contents and Pages **Read and write**. The card links to token creation; the hosting owner verifies and seals it.
 
-The steps are the same for every host: `deployment_get_static_publish_capabilities` shows whether a
-credential is saved, `deployment_preview_static_publish` comes first, and `deployment_execute_static_publish`
+The workflow applies to any host: `inspect static-publishing capabilities` shows whether a
+credential is saved, `preview static publishing` comes first, and `publish the static site with confirmation`
 publishes once the person confirms. `ok: "partial"` means not reachable yet: never call it failed or live.
 This file is what is particular to GitHub Pages.
 

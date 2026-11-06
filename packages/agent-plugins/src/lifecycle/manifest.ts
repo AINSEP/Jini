@@ -35,9 +35,10 @@
  *   credential-reference fields. Authorization discovery, user interaction, and credential storage
  *   are client-managed." A plugin therefore cannot declare "this server needs OAuth" using any
  *   spec-defined field — the host is the client the spec defers that decision to. This module accepts
- *   the host-specific metadata in `plugin.json`'s `extensions.<host-namespace>.mcpServers[serverId]`, keeping
- *   `mcp.json` transport entries closed per §7.2.1. Hosts may translate legacy auth and sign-in defaults in MCP
- *   entries through readServerMetadata for existing packages, but those cannot supply operator read trust.
+ *   portable metadata in `plugin.json`'s `extensions.jini.mcpServers[serverId]`, with an explicit
+ *   namespace option for custom clients. Legacy auth and sign-in defaults in MCP entries remain
+ *   readable automatically, but those cannot supply operator read trust. Custom clients can use
+ *   readServerMetadata to translate their own fields before the same validators run.
  *   `authMode: "oauth" | "none"` selects client auth; absent defaults to "none".
  *   `defaultTools: { allow?, write?, read? }` names sign-in grants and reviewed read tools.
  *   `write` requires `allow` and must be its subset; `read` must be a subset when `allow` is

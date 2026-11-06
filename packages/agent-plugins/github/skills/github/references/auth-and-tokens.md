@@ -13,7 +13,7 @@ each credential's label, category, base URL, and additional hosts — never a to
 saved username. An empty list is the signal to ask a human to save one, not to look for another
 way in.
 
-Two headers you must never set on `custom_credential_make_request`: `Authorization` and `Cookie`
+Two headers you must never set on `authenticated GitHub request`: `Authorization` and `Cookie`
 (also `Host` and `Proxy-Authorization`). The server injects the real one, and a call trying to set
 any of these is refused.
 
@@ -101,20 +101,20 @@ path and fails only for `.github/workflows/…` is a scope problem, not a path p
 
 ## Reading `authDiagnostic`
 
-A 401 or 403 response from `custom_credential_make_request` carries an `authDiagnostic` object
+A 401 or 403 response from `authenticated GitHub request` carries an `authDiagnostic` object
 alongside GitHub's untouched `bodyText`. **Read it before reporting a bare failure.**
 
 - On a **401** where the scheme sent was `Bearer` and no username is stored, `hint` names the one
   narrow guess the system is willing to make: this provider may need HTTP Basic with a saved
   username. Treat it as a hypothesis. Ask the human for the username, save it with
-  `custom_credential_set_username`, retry **once**. Never invent a username, and never loop past
+  `update the saved credential username`, retry **once**. Never invent a username, and never loop past
   one retry.
 - When a username is already stored, there is no hint — the cause is something else and unguessable.
 - On a **403 there is no hint at all**, deliberately. 403 covers scopes, org policy, rate limits,
   and missing headers; a Basic-auth guess there would be a false lead rather than a hedge. Report
   the failure and GitHub's own message plainly.
 
-If you suspect the credential itself, `custom_credential_verify` checks one saved credential
+If you suspect the credential itself, `verify the saved credential` checks one saved credential
 against its own API, live, and reports `valid` / `invalid` / `unreachable`. **`unreachable` does
 not mean the credential is bad** — it is a network failure. Do not tell a human to replace a token
 over a DNS error.

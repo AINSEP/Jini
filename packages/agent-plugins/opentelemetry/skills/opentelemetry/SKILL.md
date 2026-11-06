@@ -12,11 +12,11 @@ It is part of `observability-opentelemetry` and turns on and off with it: there 
 
 ## Set it up
 
-1. Check status: `provider_status {pluginId:"observability-opentelemetry"}`.
+1. Check status: `provider status {pluginId:"observability-opentelemetry"}`.
    - Not listed: the provider plugin is not installed. Say so in one line; inspect the installed plugin list to see what is.
    - `enabled: false`: offer to enable the plugin with confirmation.
    - `usedByThisSite: false` with a `keyId`: ask "Use the saved OpenTelemetry key for <site>?".
-     Yes → `project_key_use {keyId, use:true}`. To use a different key, open the card;
+     Yes → `apply the saved project key to this site {keyId, use:true}`. To use a different key, open the card;
      it saves for this site only when other sites use the project key.
    - `configured: true`: say it is already connected. Open the card again only if they ask to change it.
 2. Say in one sentence what the card is for, then open it:
@@ -29,8 +29,8 @@ It is part of `observability-opentelemetry` and turns on and off with it: there 
      `x-honeycomb-team=<ingest API key>` (Honeycomb reads its key from that header).
    - **Anything else:** its OTLP/HTTP base URL; traces go to `/v1/traces` under it.
 4. After it saves: the key is saved to your project; no site uses it yet. Ask the result's
-   `ask` ("Apply this OpenTelemetry key to <site>?"). Yes → `project_key_use {keyId, use:true}`;
-   it applies now. If the result says `appliesAt: "restart"`, offer `site_restart`.
+   `ask` ("Apply this OpenTelemetry key to <site>?"). Yes → `apply the saved project key to this site {keyId, use:true}`;
+   it applies now. If the result says `appliesAt: "restart"`, offer `restart the site`.
    No → it stays saved for later. An already-attached or site-only save applies now.
 
 ## Rules

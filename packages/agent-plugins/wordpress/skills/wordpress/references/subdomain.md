@@ -22,16 +22,16 @@ owned subdomain at an external host. A free WordPress.com address uses the
 4. Copy the exact required record from that project's domain settings. Include
    any ownership-verification record. Never derive a destination from the owner's
    name, copy a documentation example, or guess a shared CNAME.
-5. Pass the actual hostname and provider records as `requirements` to `dns_plan`,
-   then `dns_instructions`. Requirements use `purpose: "site"`, or `"tls"` for
+5. Pass the actual hostname and provider records as `requirements` to `preview DNS changes`,
+   then `DNS setup instructions`. Requirements use `purpose: "site"`, or `"tls"` for
    certificate requirements, with `records` containing `type`, full `name`, `value`
    and the supplied `ttl` when present. Resolve blockers before entry. Show each
    row's type, full name, registrar Host/Name, value and TTL. These tools plan;
    the owner enters the records. Preserve root-domain, mail and unrelated records.
-6. Once entered, call `dns_verify` with the same hostname and requirements. It
+6. Once entered, call `verify DNS records` with the same hostname and requirements. It
    saves propagation tracking and checks authoritative nameservers; it never
-   edits DNS. Call `domain_tls_status` with the subdomain as `domain`, then
-   `web_fetch_page` with its HTTPS URL. Check the final URL and distinctive phrase,
+   edits DNS. Call `check domain HTTPS status` with the subdomain as `domain`, then
+   `read the fetched web page` with its HTTPS URL. Check the final URL and distinctive phrase,
    plus a representative page and stylesheet asset. A generic 200 or shared host IP is
    insufficient. If a tool is unavailable, leave its check pending.
 7. Report **DNS**, **HTTPS** and **content** separately, each with observed

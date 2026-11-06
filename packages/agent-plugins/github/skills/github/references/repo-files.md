@@ -1,8 +1,8 @@
 # Writing and updating files in a repository
 
-`custom_credential_write_files` is the only way to put a file in a GitHub repository from here.
+`write named repository files with confirmation` is the only way to put a file in a GitHub repository from here.
 Never shell out to `git`, and never hand-roll the Contents API through
-`custom_credential_make_request` — this tool exists so you do not have to, and it carries a human
+`authenticated GitHub request` — this tool exists so you do not have to, and it carries a human
 confirmation the raw API call would skip.
 
 ---
@@ -10,7 +10,7 @@ confirmation the raw API call would skip.
 ## The call
 
 ```
-custom_credential_write_files({
+write named repository files with confirmation({
   label: "github",
   owner: "<owner>",
   repo: "<repo>",
@@ -69,12 +69,12 @@ transient error to retry.
 This is where the damage happens. Read `Rule 4` in `SKILL.md` first; this is the procedure it
 requires.
 
-**`custom_credential_write_files` replaces a file's entire content. It does not patch.** Whatever
+**`write named repository files with confirmation` replaces a file's entire content. It does not patch.** Whatever
 you do not carry forward is gone.
 
 1. **Read what is actually there.**
    ```
-   custom_credential_make_request({
+   authenticated GitHub request({
      label: "github",
      method: "GET",
      url: "https://api.github.com/repos/<owner>/<repo>/contents/<path>?ref=<branch>"

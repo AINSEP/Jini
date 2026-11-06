@@ -34,13 +34,13 @@ Decide this first; the two jobs use different tools.
 - **Source control and backup** — write files into a repository, commit the site's rendered export,
   back up the site, or start and follow any other workflow: the tools in the rest of this document.
 - **Deploying the host's server with GitHub Actions** — use the deployment tools with platform
-  `github-actions`, never a hand-built dispatch. Call `deployment_ops_deploy` with target
+  `github-actions`, never a hand-built dispatch. Call `start a deployment` with target
   `owner/repo` and the branch or tag. It resolves the ref to a full SHA and dispatches the host's
   deploy workflow pinned to that commit; the host guidance describes that workflow's own inputs and
   refusals. Say which commit will build. A started deploy is queued, never deployed: follow it with
-  `deployment_ops_wait` (pass the returned runId) until `finished`, then check the live site. Use
-  `deployment_ops_status` and `deployment_ops_logs` to find a failed job and step. Never retry a
-  deploy whose connection dropped before checking `deployment_ops_status`. The saved
+  `wait for deployment completion` (pass the returned runId) until `finished`, then check the live site. Use
+  `deployment status` and `read deployment logs` to find a failed job and step. Never retry a
+  deploy whose connection dropped before checking `deployment status`. The saved
   `api.github.com` credential needs Actions write. Setting up the server host itself (its config,
   volume and secrets) is the host plugin's job, not this one's.
 
@@ -49,19 +49,19 @@ Decide this first; the two jobs use different tools.
 ## What you are allowed to use, and what does not exist here
 
 Two native host tools do everything below. **This plugin ships no MCP server and adds no tool.**
-Its deploy half is only the `github-actions` platform behind the core `deployment_ops_*` tools.
+Its deploy half is only the `github-actions` platform behind the core `deployment operations` tools.
 
 | Tool | What it is |
 |---|---|
-| `custom_credential_make_request` | One authenticated `GET`/`POST`/`PUT`/`PATCH`/`DELETE` to GitHub's REST API through a saved credential. You pass a `label` and a **full absolute URL**; the server injects the real `Authorization` header. |
-| `custom_credential_write_files` | A human-confirmed, atomic write of 1–25 named files onto an **existing** branch (blob → tree → commit → non-force ref update). |
+| `authenticated GitHub request` | One authenticated `GET`/`POST`/`PUT`/`PATCH`/`DELETE` to GitHub's REST API through a saved credential. You pass a `label` and a **full absolute URL**; the server injects the real `Authorization` header. |
+| `write named repository files with confirmation` | A human-confirmed, atomic write of 1–25 named files onto an **existing** branch (blob → tree → commit → non-force ref update). |
 
-Two more exist for a narrower job — `source_control_get_capabilities` and
-`source_control_execute_commit` — and they are **not** general-purpose repo writes. See
+Two more exist for a narrower job — `inspect source-control capabilities` and
+`commit through source control` — and they are **not** general-purpose repo writes. See
 `references/source-control.md` before you reach for either; the distinction between them and
-`custom_credential_write_files` is the single easiest thing to get wrong in this document.
+`write named repository files with confirmation` is the single easiest thing to get wrong in this document.
 
-And two back up the site itself — `site_backup_plan`, then `site_backup_push` — into a private
+And two back up the site itself — `preview a site backup`, then `publish the site backup` — into a private
 repository. See `references/site-backup.md`.
 
 There is no `git`, no `gh`, and no shell path. **Never shell out to `curl`, `wget`, or `git` to
@@ -71,7 +71,7 @@ the store exists to prevent.
 
 ### You do not choose the host
 
-`custom_credential_make_request` refuses any URL whose host is not on that credential's own saved
+`authenticated GitHub request` refuses any URL whose host is not on that credential's own saved
 allowlist (its base URL plus any saved additional hosts), **before any request is sent**. This is
 not a limitation to route around. It is the property that makes an agent-held credential safe at
 all: the human decided, once, at save time, which origins this token may ever reach.
@@ -154,7 +154,7 @@ review that looked at which files were **added** and which were **deleted** saw 
 the file was neither. It was modified, and the modification quietly removed two load-bearing lines.
 Two deploys failed before anyone connected the two facts.
 
-`custom_credential_write_files` replaces a file's **entire content**; it does not patch. So when
+`write named repository files with confirmation` replaces a file's **entire content**; it does not patch. So when
 you are updating a file that already exists:
 
 1. Read the current content first (`GET /repos/{owner}/{repo}/contents/{path}?ref={branch}`,
@@ -204,14 +204,14 @@ Answer one question first: **is this app source, or is it the site's rendered ou
 
 | You want to… | Use |
 |---|---|
-| Add or update named files — a config file, a workflow, a script, a Dockerfile | `custom_credential_write_files` |
-| Read anything at all from GitHub | `custom_credential_make_request` (`GET`) |
-| Deploy the host's server through its deploy workflow | `deployment_ops_deploy` with platform `github-actions` — see "Which job is this?" above |
-| Start any other workflow, or follow a run | `custom_credential_make_request` — see `references/actions.md` |
-| Back up the **site itself** (database, media, themes, plugins, settings) into a private repo | `site_backup_plan`, then `site_backup_push` — see `references/site-backup.md` |
-| Publish the **site's rendered static export** into a repo | `source_control_execute_commit` — see `references/source-control.md` |
+| Add or update named files — a config file, a workflow, a script, a Dockerfile | `write named repository files with confirmation` |
+| Read anything at all from GitHub | `authenticated GitHub request` (`GET`) |
+| Deploy the host's server through its deploy workflow | `start a deployment` with platform `github-actions` — see "Which job is this?" above |
+| Start any other workflow, or follow a run | `authenticated GitHub request` — see `references/actions.md` |
+| Back up the **site itself** (database, media, themes, plugins, settings) into a private repo | `preview a site backup`, then `publish the site backup` — see `references/site-backup.md` |
+| Publish the **site's rendered static export** into a repo | `commit through source control` — see `references/source-control.md` |
 
-Conflating the last row with the rest wastes real work. `source_control_execute_commit` runs a
+Conflating the last row with the rest wastes real work. `commit through source control` runs a
 fresh static export of the site and commits the resulting HTML and assets, and it **deletes** paths
 it previously wrote that the export no longer produces. It is a publishing target, not a way to put
 a file in a repository. A container build needs app source, and a rendered export is not app
@@ -241,8 +241,8 @@ either tool for the first time in a task.
   and telling the distinct failure signatures apart.
 - `references/auth-and-tokens.md` — what a saved GitHub credential can and cannot do, scopes,
   `authDiagnostic`, rate limits, and why repository secrets are the human's step.
-- `references/source-control.md` — `source_control_execute_commit` versus
-  `custom_credential_write_files`: two different credential stores, two different jobs, and the
+- `references/source-control.md` — `commit through source control` versus
+  `write named repository files with confirmation`: two different credential stores, two different jobs, and the
   app-source-versus-rendered-export distinction.
 - `references/site-backup.md` — backing up the site itself: plan then push, private repositories
   only, what the dialog shows, the limits, every code and what to tell the human, and why a refused

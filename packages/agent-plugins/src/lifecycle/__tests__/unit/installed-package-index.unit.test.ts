@@ -50,6 +50,11 @@ describe('indexInstalledRoot refusals', () => {
 });
 
 describe('indexInstalledRoot results', () => {
+  it('retains an explicit custom namespace before the legacy compatibility namespace', async () => {
+    const extensions = { tovu: { id: 'legacy/my-plugin', provides: ['legacy-data'] }, [ports.extensionNamespace]: { id: 'custom/my-plugin', provides: ['custom-data'] } };
+    const indexed = await index(await packageRoot({ 'plugin.json': manifest({ extensions }) }));
+    expect(indexed).toMatchObject({ id: 'custom/my-plugin', provides: ['custom-data'] });
+  });
   it('loads a portable identity in another host and warns visibly for an installed legacy copy', async () => {
     const events: string[] = [];
     const host = { ...ports, extensionNamespace: 'another-studio', onEvent: ({ message }: { message: string }) => events.push(message) };

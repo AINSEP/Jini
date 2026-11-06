@@ -50,14 +50,17 @@ export function readAgentPluginCompatibilityWarnings(
 }
 
 /** Lifecycle host names identify effects and packaging; portable metadata remains portable.
- * Custom-only legacy packages retain the host's namespace when no portable key was declared. */
+ * A declared canonical key wins; explicit custom metadata keeps its isolation from legacy keys.
+ * A valid legacy object remains the fallback for hosts without their own declaration. */
 export function resolveAgentPluginLifecycleNamespace(
   { value, extensionNamespace }: { readonly value: unknown; readonly extensionNamespace: string },
   _optional = {},
 ): string {
-  const portable = resolveAgentPluginIdentityNamespace({ value });
   if (!isObject(value) || !isObject(value.extensions)) return extensionNamespace;
-  return Object.hasOwn(value.extensions, portable) ? portable : extensionNamespace;
+  const extensions = value.extensions;
+  if (Object.hasOwn(extensions, 'jini')) return 'jini';
+  if (!isPortableAgentPluginNamespace({ namespace: extensionNamespace }) && (Object.hasOwn(extensions, extensionNamespace) || !isObject(extensions.tovu))) return extensionNamespace;
+  return Object.hasOwn(extensions, 'tovu') ? 'tovu' : extensionNamespace;
 }
 
 /** Translate installed legacy MCP entries without granting read trust from transport data.

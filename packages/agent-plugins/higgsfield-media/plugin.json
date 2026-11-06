@@ -2,7 +2,7 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "higgsfield-media",
   "version": "1.1.1",
-  "description": "Generates images or video through Higgsfield's hosted MCP server, follows asynchronous jobs, then imports the returned asset into this site's Media library. Connect with agent_plugin_connect and the person's browser sign-in, never an API key. Discover this account's current tools, schemas and model entitlements; the worked model and plan examples are historical, not guarantees. Covers operator write grants, polling without sync:true, connection recovery and media_import_from_url.",
+  "description": "Generates images or video through Higgsfield's hosted MCP server, follows asynchronous jobs, then imports the returned asset into this site's Media library. Connect the account through the person's browser sign-in, never an API key. Discover this account's current tools, schemas and model entitlements; the worked model and plan examples are historical, not guarantees. Covers operator write grants, polling without sync:true, connection recovery and importing media from its URL.",
   "author": "Tovu",
   "license": "Apache-2.0",
   "keywords": [

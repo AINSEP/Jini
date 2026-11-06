@@ -19,7 +19,7 @@
         { "env": "FLY_MACHINE_ID", "facts": { "nativeToolsRestricted": true } },
         { "env": "FLY_ALLOC_ID", "facts": { "nativeToolsRestricted": true } }
       ],
-      "deploymentAdvice": "Use the production runtime settings supplied by the deployment target.",
+      "deploymentAdvice": "Set TOVU_RUNTIME_MODE=production (fly.toml and docker-compose.yml already do).",
       "id": "tovu/fly",
       "provides": [
         "deploy-ops:fly",

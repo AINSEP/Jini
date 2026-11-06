@@ -1,6 +1,6 @@
 # GitHub Actions: dispatch, follow, diagnose
 
-Everything here goes through `custom_credential_make_request` against the saved GitHub credential.
+Everything here goes through `authenticated GitHub request` against the saved GitHub credential.
 Nothing here needs a new tool, and nothing here needs a shell.
 
 ---
@@ -20,7 +20,7 @@ Three facts, none of which you may guess:
 And one check worth its single call: confirm the workflow is actually registered.
 
 ```
-custom_credential_make_request({
+authenticated GitHub request({
   label: "github",
   method: "GET",
   url: "https://api.github.com/repos/<owner>/<repo>/actions/workflows"
@@ -43,7 +43,7 @@ and on a day it is a month behind — the name cannot tell those two apart, and 
 unless you tell them. One GET turns the name into a fact:
 
 ```
-custom_credential_make_request({
+authenticated GitHub request({
   label: "github",
   method: "GET",
   url: "https://api.github.com/repos/<owner>/<repo>/branches/<ref>"
@@ -75,7 +75,7 @@ out is the human's call, and they can only make it if you have said what it is.
 The runs list you will poll *after* the dispatch also answers a question worth asking *before* it:
 
 ```
-custom_credential_make_request({
+authenticated GitHub request({
   label: "github",
   method: "GET",
   url: "https://api.github.com/repos/<owner>/<repo>/actions/workflows/<file.yml>/runs?per_page=1"
@@ -99,7 +99,7 @@ than the conversation you are having, say the date out loud and let them draw th
 ## Dispatch
 
 ```
-custom_credential_make_request({
+authenticated GitHub request({
   label: "github",
   method: "POST",
   url: "https://api.github.com/repos/<owner>/<repo>/actions/workflows/<file.yml>/dispatches",
@@ -128,7 +128,7 @@ Never retry a 422 with a different guess. Fix the actual cause.
 There is no callback and no webhook here. You poll.
 
 ```
-custom_credential_make_request({
+authenticated GitHub request({
   label: "github",
   method: "GET",
   url: "https://api.github.com/repos/<owner>/<repo>/actions/workflows/<file.yml>/runs?per_page=1"
@@ -164,7 +164,7 @@ honest "still in progress after N checks, here is the link" is a better answer t
 Do not report "the workflow failed" and stop. Find the step.
 
 ```
-custom_credential_make_request({
+authenticated GitHub request({
   label: "github",
   method: "GET",
   url: "https://api.github.com/repos/<owner>/<repo>/actions/runs/<run_id>/jobs"
@@ -183,7 +183,7 @@ Report: the job name, the step name and number, and the run's `html_url`.
 `GET /repos/{owner}/{repo}/actions/jobs/{job_id}/logs` does not return logs. It returns a **302**
 whose `Location` points at an object-store host.
 
-`custom_credential_make_request` follows **zero** redirects, and that object-store host is not on
+`authenticated GitHub request` follows **zero** redirects, and that object-store host is not on
 the credential's saved allowlist, so you cannot follow it either. You will see the 302 and its
 `Location` header, and that is where it ends. This is not a bug to work around — following an
 arbitrary redirect target with a credential attached is exactly the egress hazard the single-hop

@@ -12,12 +12,12 @@ It is part of `analytics-posthog` and turns on and off with it: there is no sepa
 
 ## Set it up
 
-1. Check status: `provider_status {pluginId:"analytics-posthog"}`.
+1. Check status: `provider status {pluginId:"analytics-posthog"}`.
    - Not listed: the provider plugin is not installed. Say so in one line; inspect the installed plugin list to see what is.
    - `enabled: false`: offer to turn it on with
      enable the plugin with confirmation (the person confirms).
    - `usedByThisSite: false` with a `keyId`: ask "Use the saved PostHog key for <site>?".
-     Yes → `project_key_use {keyId, use:true}`. To use a different key, open the card;
+     Yes → `apply the saved project key to this site {keyId, use:true}`. To use a different key, open the card;
      it saves for this site only when other sites use the project key.
    - `configured: true`: say it is already connected. Open the card again only if they ask to change it.
 2. Say in one sentence what the card is for, then open it:
@@ -25,8 +25,8 @@ It is part of `analytics-posthog` and turns on and off with it: there is no sepa
    The card asks for the region (US Cloud is the default, EU Cloud, or Custom for a self-hosted
    URL) and the Project API key (PostHog → Project settings → Project API key, starts with `phc_`).
 3. After it saves: the key is saved to your project; no site uses it yet. Ask the result's
-   `ask` ("Apply this PostHog key to <site>?"). Yes → `project_key_use {keyId, use:true}`;
-   it applies now. If the result says `appliesAt: "restart"`, offer `site_restart`.
+   `ask` ("Apply this PostHog key to <site>?"). Yes → `apply the saved project key to this site {keyId, use:true}`;
+   it applies now. If the result says `appliesAt: "restart"`, offer `restart the site`.
    No → it stays saved for later. An already-attached or site-only save applies now.
 
 ## Rules

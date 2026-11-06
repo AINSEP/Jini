@@ -133,7 +133,7 @@ not silently pick a jurisdiction.
 
 ### Step 1 — configuration truth
 
-Call `site_get_profile` for the sections you need — typically `pages`, `settings`, `theme`,
+Call `read the site profile` for the sections you need — typically `pages`, `settings`, `theme`,
 `plugins`, `contentTypes`. Prefer a narrow `sections` list; a full profile is mostly context
 you will not cite.
 
@@ -150,14 +150,14 @@ either confirm it against rendered evidence in Step 2 or downgrade it to
 If a profile section comes back `forbidden`, that is a `cannot-determine` for everything that
 depended on it — say which section and that access was denied.
 
-If `site_get_profile` is not available in this deployment at all, say so plainly and continue with
+If `read the site profile` is not available in this deployment at all, say so plainly and continue with
 Step 2 alone. Rendered evidence without configuration context is still real evidence; what you lose
 is the ability to cross-check a configuration claim against it, and that loss belongs in the "What
 was NOT inspected" section.
 
 ### Step 2 — rendered truth
 
-Call `site_collect_page_evidence` for each in-scope page path. It loads **this site's own**
+Call `collect rendered-page evidence` for each in-scope page path. It loads **this site's own**
 published pages in a real browser and returns what was actually observed. It refuses
 off-origin URLs, caps how many pages and how long it will run, never submits a form, and
 never persists what it captured.

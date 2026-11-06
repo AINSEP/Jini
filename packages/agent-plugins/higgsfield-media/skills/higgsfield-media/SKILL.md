@@ -116,7 +116,7 @@ inspect saved external connections first and see what actually exists.
 **Step A — the plugin itself must be enabled, and only the operator can approve it.**
 `higgsfield-media` may ship bundled but **disabled**. Plugin search *will* still find it while
 disabled — that is deliberate, and it is how you got here. But a disabled plugin gets no
-`agent_plugin_higgsfield_media` tool. So:
+`read the plugin guidance` tool. So:
 
 > Offer to turn it on. Once the operator agrees, enable the plugin with confirmation with
 > `family: "agent-plugin"`, `pluginId: "higgsfield-media"`, `enabled: true` — it opens a
@@ -182,9 +182,8 @@ be in **both** lists. Granting only the first one produces a refusal, and only a
    withheld tool and a nonexistent tool look identical.
 
 2. **Therefore: never explain an absent `mcp__higgsfield__*` tool by guessing.** This is the
-   specific failure this plugin exists to prevent — asked why it could not generate an image, the
-   assistant can invent a plausible, wrong cause; instead inspect the evidence before anyone
-   read the log. **Report what the host's admissions and refusal notices say** (the host guidance
+   failure this plugin exists to prevent. An absent tool alone does not establish the cause;
+   inspect the host evidence before offering a diagnosis. **Report what the host's admissions and refusal notices say** (the host guidance
    names where they appear). **If you have nothing, say you have nothing and send the operator to
    the host's connection settings.**
 
