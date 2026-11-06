@@ -9,6 +9,8 @@ import {
   FormDefinitionNotFoundError,
 } from "../errors.js";
 import { InMemoryFormDefinitionRepo } from "./repo.fixture.js";
+import { createFormCollectionRegistry } from "../provider.js";
+import type { HtmlFormDefinitionRecord } from "../fields-json.js";
 import type { NotifyConfig } from "../types.js";
 import {
   createFormDefinition as createFormDefinitionCore,
@@ -452,3 +454,21 @@ function updateFormDefinition({ deps, input: { idempotencyKey, ...input } }: Leg
 function setFormDefinitionStatus({ deps, input: { idempotencyKey, ...input } }: LegacyStatus) {
   return setFormDefinitionStatusCore({ deps, input }, idempotencyKey === undefined ? {} : { idempotencyKey });
 }
+
+
+test('provider configuration is checked before create or update persists it', async () => {
+  const deps = makeDeps();
+  const providers = createFormCollectionRegistry({});
+  providers.contribute({ pluginId: 'fixture', definition: { id: 'remote', provider: {
+    plan: ({ config }) => config.url === 'https://forms.example.test/accepted'
+      ? { kind: 'embed', url: config.url, title: 'Remote', capabilities: { answers: 'Remote', validation: 'Remote', spamProtection: 'Remote' } }
+      : { kind: 'unavailable', code: 'invalid_configuration', message: 'Enter the public form link supplied by your form provider.' },
+  } } });
+  const input = { workspaceId: WORKSPACE_ID, actor: ACTOR, name: 'Contact', slug: 'contact', fields: [{ id: 'name', label: 'Name', type: 'text' as const, required: true }] };
+  const writeDeps = { ...deps, formCollectionProviders: () => providers };
+  await assert.rejects(createFormDefinitionCore({ deps: writeDeps, input: { ...input, provider: { id: 'remote', config: { url: 'invalid' } } } }), /Enter the public form link/);
+  assert.deepEqual(await deps.repo.list({ workspaceId: WORKSPACE_ID }), []);
+  const { definition } = await createFormDefinitionCore({ deps: writeDeps, input: { ...input, provider: { id: 'remote', config: { url: 'https://forms.example.test/accepted' } } } });
+  await assert.rejects(updateFormDefinitionCore({ deps: writeDeps, input: { workspaceId: WORKSPACE_ID, actor: ACTOR, formId: definition.id, patch: { provider: { id: 'remote', config: { url: 'invalid' } } } } }), /Enter the public form link/);
+  assert.deepEqual((await deps.repo.findById({ workspaceId: WORKSPACE_ID, id: definition.id }) as HtmlFormDefinitionRecord)?.provider, { id: 'remote', config: { url: 'https://forms.example.test/accepted' } });
+});
