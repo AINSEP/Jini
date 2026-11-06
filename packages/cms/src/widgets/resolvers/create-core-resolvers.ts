@@ -48,6 +48,6 @@ export function createCoreResolvers(deps: CoreResolverDeps, _optional: Record<st
     gallery: createGalleryWidgetResolver({ resolveMedia: deps.galleryMedia ?? (async () => new Map()) }),
     "recent-entries": createRecentEntriesResolver({ collectionList: deps.collectionList, entryList: deps.entryList, contentTypes: deps.contentTypes, ...(deps.siteTimeZone === undefined ? {} : { siteTimeZone: deps.siteTimeZone }) }),
     menu: createMenuResolver({ menus: deps.menus, navMenuReadModel: deps.navMenuReadModel, ...(deps.resolveMenuTargetHref === undefined ? {} : { resolveTargetHref: deps.resolveMenuTargetHref }), publicOnly: true }),
-    "contact-form": createContactFormResolver({ formDefinitionRepo: deps.formDefinitionRepo, formEmbedConsentOff: deps.formEmbedConsentOff, ...(deps.formCollectionProviders ? { formCollectionProviders: deps.formCollectionProviders } : {}) }),
+    "contact-form": createContactFormResolver({ formDefinitionRepo: deps.formDefinitionRepo, ...(deps.formEmbedConsentOff ? { formEmbedConsentOff: deps.formEmbedConsentOff } : {}), ...(deps.formCollectionProviders ? { formCollectionProviders: deps.formCollectionProviders } : {}) }),
   };
 }
