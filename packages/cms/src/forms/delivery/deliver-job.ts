@@ -7,7 +7,7 @@ import type { FormDeliveryJob, FormDeliveryQueuedJob, FormDeliveryResult, FormDe
 
 /** Legacy payloads remain readable. Referenced jobs resolve the scoped source before any provider
  * call; a missing source is terminal. One indexed source read per attempt, no retained copy. */
-async function hydrate(required: { job: FormDeliveryQueuedJob; workspaceId?: string; readSubmission?: FormDeliverySubmissionReader }): Promise<FormDeliveryJob> {
+async function hydrate(required: { job: FormDeliveryQueuedJob; workspaceId?: string; readSubmission?: FormDeliverySubmissionReader | undefined }): Promise<FormDeliveryJob> {
   const { job, workspaceId, readSubmission } = required;
   if (!("submissionRef" in job)) return job;
   if (!workspaceId || !readSubmission) throw new FormDeliveryError({ code: "configuration-invalid", retryable: false });
@@ -31,13 +31,16 @@ function failureFromResult(result: FormDeliveryResult | void): FormDeliveryError
 
 /**
  * Delivers one job. One attempt only: the outbox worker owns retries, so the same job (and the
- * same `idempotencyKey`) is simply delivered again.
+ * same `idempotencyKey`) is simply delivered again. Reference payloads read the source afresh;
+ * missing sources stop permanently, while source read errors retry without leaking their text.
  * @throws {FormDeliveryError} on any failure; a thrown non-delivery error becomes retryable
  *   `delivery-failed` and is deliberately NOT kept as `cause`, since its text may hold secrets.
+ * @complexity One source lookup per referenced attempt, O(answer bytes) transient adapter payload;
+ *   legacy payloads perform no source lookup. No answer copy is written to the job.
  * @example await deliverFormJob({ job: event.payload, deliver: job => adapter.deliver(job) });
  */
 export async function deliverFormJob(
-  required: { job: FormDeliveryQueuedJob; workspaceId?: string; readSubmission?: FormDeliverySubmissionReader;
+  required: { job: FormDeliveryQueuedJob; workspaceId?: string; readSubmission?: FormDeliverySubmissionReader | undefined;
     deliver: (job: FormDeliveryJob) => Promise<FormDeliveryResult | void> },
   _optional: Record<string, never> = {},
 ): Promise<void> {

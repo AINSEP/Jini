@@ -20,7 +20,7 @@ async function failureOf(result: unknown): Promise<unknown> {
 describe("success", () => {
   test("hands the frozen job to deliver unchanged", async () => {
     const seen: FormDeliveryJob[] = [];
-    await deliverFormJob({ job, deliver: async input => { seen.push(input); } });
+    await deliverFormJob({ job, readSubmission: async () => { throw new Error("legacy jobs must not read a source"); }, deliver: async input => { seen.push(input); } });
     expect(seen).toEqual([job]);
     expect(seen[0]).toBe(job);
   });
@@ -56,6 +56,21 @@ describe("referenced sources", () => {
   test("a purged source stops delivery permanently", async () => {
     let calls = 0;
     await expect(deliverFormJob({ job: referenced, workspaceId: "w-1", readSubmission: async () => null,
+      deliver: async () => { calls++; } })).rejects.toMatchObject({ code: "delivery-failed", retryable: false });
+    expect(calls).toBe(0);
+  });
+
+  test("missing source wiring fails permanently before reaching the adapter", async () => {
+    let calls = 0;
+    await expect(deliverFormJob({ job: referenced, deliver: async () => { calls++; } }))
+      .rejects.toMatchObject({ code: "configuration-invalid", retryable: false });
+    expect(calls).toBe(0);
+  });
+
+  test("a reader returning another submission stops delivery", async () => {
+    let calls = 0;
+    await expect(deliverFormJob({ job: referenced, workspaceId: "w-1",
+      readSubmission: async () => ({ ...job.snapshot.submission, id: "another-submission" }),
       deliver: async () => { calls++; } })).rejects.toMatchObject({ code: "delivery-failed", retryable: false });
     expect(calls).toBe(0);
   });
