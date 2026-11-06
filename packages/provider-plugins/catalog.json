@@ -25,6 +25,11 @@
     "path": "plugins/fixture-provider/0.6.24"
   },
   {
+    "id": "formspree",
+    "version": "0.6.24",
+    "path": "plugins/formspree/0.6.24"
+  },
+  {
     "id": "google-forms",
     "version": "0.6.24",
     "path": "plugins/google-forms/0.6.24"

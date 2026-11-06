@@ -5,7 +5,7 @@ import { expect, it } from 'vitest';
 
 const packageRoot = new URL('../../', import.meta.url);
 const read = async (file: string) => JSON.parse(await readFile(new URL(file, packageRoot), 'utf8')) as unknown;
-const PROVIDERS = ['ai-trace-langfuse', 'analytics-posthog', 'charts-echarts', 'charts-recharts', 'fixture-provider', 'observability-opentelemetry', 'observability-sentry', 'payments-stripe'];
+const PROVIDERS = ['ai-trace-langfuse', 'analytics-posthog', 'charts-echarts', 'charts-recharts', 'fixture-provider', 'formspree', 'google-forms', 'observability-opentelemetry', 'observability-sentry', 'payments-stripe'];
 
 it('files, exports and the build name each provider runtime exactly once', async () => {
   const manifest = await read('package.json') as { private?: boolean; files: string[]; exports: Record<string, string>; scripts: Record<string, string> };

@@ -29,6 +29,11 @@ export interface FormCollectionProvider {
 }
 export type FormCollectionRegistry = ProviderRegistry<FormCollectionProvider>;
 export const FORM_COLLECTION_CONTRACT = 'form_collection';
+const BUILTIN_CAPABILITIES: FormCollectionCapabilities = {
+  answers: 'Answers are stored in the built-in inbox.',
+  validation: 'The built-in receiver validates the declared form fields.',
+  spamProtection: 'Hidden-field, timing, duplicate and rate-limit protection apply on the live server.',
+};
 
 /** Each host owns an independent registry. Plugin failures become refusals, never boot refusals.
  * @example createFormCollectionRegistry({}).get({ id: 'builtin' });
@@ -38,9 +43,9 @@ export function createFormCollectionRegistry(_required: Record<string, never>, _
   return createProviderRegistry<FormCollectionProvider>({ contract: FORM_COLLECTION_CONTRACT }, {
     defaultProviderId: 'builtin',
     validate: ({ provider }) => provider && typeof provider.plan === 'function' ? undefined : 'missing collection plan',
-    seed: [{ id: 'builtin', label: 'Built-in', provider: { describe: () => ({ label: 'Built-in', fields: [], answers: 'Answers are stored in the built-in inbox.', validation: 'The built-in receiver validates the declared form fields.', frameOrigins: [] }), plan: ({ slug }) => ({
+    seed: [{ id: 'builtin', label: 'Built-in', provider: { describe: () => ({ label: 'Built-in', fields: [], answers: BUILTIN_CAPABILITIES.answers, validation: BUILTIN_CAPABILITIES.validation, frameOrigins: [] }), plan: ({ slug }) => ({
       kind: 'post', action: `/forms/${encodeURIComponent(slug)}/submit`, external: false,
-      capabilities: { answers: 'Answers are stored in the built-in inbox.', validation: 'The built-in receiver validates the declared form fields.', spamProtection: 'Hidden-field, timing, duplicate and rate-limit protection apply on the live server.' },
+      capabilities: { ...BUILTIN_CAPABILITIES },
     }) } }],
   });
 }
@@ -50,7 +55,7 @@ export function createFormCollectionRegistry(_required: Record<string, never>, _
  * @complexity O(p × d) time/space for p providers and description bytes; no I/O. */
 export function describeFormCollectionProviders({ providers }: { readonly providers: FormCollectionRegistry }, _optional: Record<string, never> = {}): readonly FormProviderDescription[] {
   return providers.list().map(({ id, label, provider }) => {
-    const unavailable: FormProviderDescription = { id, label: label ?? id, available: false, fields: [], answers: '', validation: '', frameOrigins: [], message: 'This form provider’s settings are unavailable. Your saved selection has been kept.' };
+    const unavailable: FormProviderDescription = { id, label: label ?? id, available: false, fields: [], answers: '', validation: '', frameOrigins: [], message: 'This form provider’s settings are unavailable because its plugin is disabled or unavailable. Enable it in Plugins, or choose another form provider. Your saved selection has been kept.' };
     try {
       const description = provider.describe?.();
       if (!description || !validDescription(description)) return unavailable;

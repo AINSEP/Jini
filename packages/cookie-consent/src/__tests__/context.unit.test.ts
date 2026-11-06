@@ -4,7 +4,7 @@ import { bootWithContext, type ClientPorts } from '../client/index.js';
 
 const config = { contract: 1, policy: 'snapshot', regionMode: 'opt-in', banner: 'headless', context: '/_consent/context', scripts: [{ src: '/stats.js', consent: ['analytics'] }] };
 const ports = () => ({ doc: document, fetch: vi.fn(), now: Date.now, gpc: () => false, reload: vi.fn(), importModule: vi.fn() }) as ClientPorts & { fetch: ReturnType<typeof vi.fn> };
-beforeEach(() => { delete window.jiniConsent; delete window.jiniConsentQueue; document.body.innerHTML = `<script id="jini-consent-config" type="application/json">${JSON.stringify(config)}</script>`; });
+beforeEach(() => { sessionStorage.clear(); delete window.jiniConsent; delete window.jiniConsentQueue; document.body.innerHTML = `<script id="jini-consent-config" type="application/json">${JSON.stringify(config)}</script>`; });
 afterEach(() => { vi.restoreAllMocks(); });
 
 test('disabled or missing config makes no request and never reads consent storage', async () => {
@@ -63,4 +63,19 @@ test('stale banner copy cannot collect consent: reload first, then boot the matc
   expect(api!.get().policy).toBe('published');
   expect(api!.get().allowed.analytics).toBe(false);
   expect(document.querySelector('script[src]')).toBeNull();
+});
+
+
+test('a cached page reloads once for its policy across repeated document boots', async () => {
+  const supplied = ports();
+  supplied.fetch.mockResolvedValue({ ok: true, json: async () => ({ enabled: true, policy: 'published', regionMode: 'auto' }) });
+  expect(await bootWithContext({ win: window }, { ports: supplied })).toBeUndefined();
+  // A shared cache can return the identical stale page after the first reload.
+  document.body.innerHTML = `<script id="jini-consent-config" type="application/json">${JSON.stringify(config)}</script>`;
+  expect(await bootWithContext({ win: window }, { ports: supplied })).toBeUndefined();
+  expect(supplied.reload).toHaveBeenCalledOnce();
+  expect(window.jiniConsent).toBeUndefined();
+  document.getElementById('jini-consent-config')!.textContent = JSON.stringify({ ...config, policy: 'another-snapshot' });
+  await bootWithContext({ win: window }, { ports: supplied });
+  expect(supplied.reload).toHaveBeenCalledTimes(2);
 });

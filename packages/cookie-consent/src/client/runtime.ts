@@ -229,9 +229,20 @@ export async function bootWithContext({ win }: { win: Window & typeof globalThis
     const context = await fetchContext({ ports, url: page.context });
     if (!validContext(context)) return undefined;
     // Cached copy/CSS must describe the policy being accepted; revalidation fetches the current document.
-    if (context.policy !== page.policy) { ports.reload(); return undefined; }
+    if (context.policy !== page.policy) { reloadStalePage({ win, policy: page.policy, reload: ports.reload }); return undefined; }
     return installPage(win, { ...page, regionMode: context.regionMode }, { ...options, ports });
   } catch { return undefined; }
+}
+
+/** A shared cache can return the same stale page after reload. Persist the guard before navigating;
+ * blocked session storage leaves optional code withheld instead of risking a reload loop. O(1). */
+function reloadStalePage({ win, policy, reload }: { win: Window; policy: string; reload: () => void }): void {
+  try {
+    const key = `jini-consent-reload:${policy}`;
+    if (win.sessionStorage.getItem(key)) return;
+    win.sessionStorage.setItem(key, '1');
+    reload();
+  } catch { /* Storage unavailable: keep this stale policy inert. */ }
 }
 
 async function fetchContext({ ports, url }: { ports: ClientPorts; url: string }): Promise<unknown> {
