@@ -61,6 +61,11 @@ export type BatchItemResult =
   | { readonly index: number; readonly ok: true; readonly result: unknown }
   | { readonly index: number; readonly ok: false; readonly error: string; readonly result?: unknown };
 
+interface BatchPreviewImage {
+  readonly type: 'image'; readonly mimeType: string; readonly data: string;
+  readonly title?: string; readonly href?: string;
+}
+
 /** What a batch call returns. A failed item never stops the ones after it. */
 export interface BatchResult {
   readonly batch: true;
@@ -70,6 +75,8 @@ export interface BatchResult {
   readonly succeeded: number;
   readonly failed: number;
   readonly results: readonly BatchItemResult[];
+  /** Bounded previews outside item JSON, with a text summary for MCP consumers. */
+  readonly content?: readonly ({ readonly type: 'text'; readonly text: string } | BatchPreviewImage)[];
 }
 
 /** Classify a batch result, including legacy envelopes, without dropping per-item evidence.
@@ -219,12 +226,36 @@ function schemaTypeLabel(property: unknown): string {
 }
 
 /** A batch result is one JSON value, so an item's MCP `image` block would reach the model and the
- * chat as base64 text (a 20-item import batch, 20 previews). Drop images from item envelopes; the
- * item's text blocks still carry its result. Anything that is not an envelope is returned as is. */
+ * chat as base64 text (a 20-item import batch, 20 previews). Keep images outside item JSON; a
+ * bounded top-level envelope carries previews, while each item's text retains its saved result. */
 function withoutItemImages(output: unknown): unknown {
   if (!isPlainObject(output) || !Array.isArray(output.content)) return output;
   const content = output.content.filter((block: unknown) => !isPlainObject(block) || block.type !== 'image');
   return content.length === output.content.length ? output : { ...output, content };
+}
+
+/** Collect at most four previews and two million serialized image characters per batch. Saved-media
+ * text stays in every item even when a preview exceeds this delivery budget.
+ * @complexity O(b) content blocks per item, O(1) retained preview count and bounded byte space. */
+function collectBatchImages({ output, images }: { output: unknown; images: BatchPreviewImage[] }): void {
+  if (!isPlainObject(output) || !Array.isArray(output.content) || images.length >= 4) return;
+  let bytes = images.reduce((sum, image) => sum + JSON.stringify(image).length, 0);
+  for (const block of output.content) {
+    const image = batchPreviewImage(block);
+    const imageBytes = image ? JSON.stringify(image).length : 0;
+    if (!image || bytes + imageBytes > 2_000_000) continue;
+    images.push(image);
+    bytes += imageBytes;
+    if (images.length >= 4) return;
+  }
+}
+
+/** Retain only the existing image-delivery fields, never arbitrary nested plugin properties. */
+function batchPreviewImage(block: unknown): BatchPreviewImage | undefined {
+  if (!isPlainObject(block) || block.type !== 'image' || typeof block.mimeType !== 'string' || typeof block.data !== 'string') return undefined;
+  return { type: 'image', mimeType: block.mimeType, data: block.data,
+    ...(typeof block.title === 'string' ? { title: block.title } : {}),
+    ...(typeof block.href === 'string' ? { href: block.href } : {}) };
 }
 
 /** Classify one returned output without dropping error payloads or normalization notes.
@@ -241,10 +272,11 @@ function batchItemResult({ index, output, notes }: { index: number; output: unkn
 /** Summarize all item outcomes, retaining their order and evidence.
  * @complexity O(n) time and space for n results; no effects.
  */
-function summarizeBatchResults({ results }: { results: BatchItemResult[] }, _options = {}): BatchResult {
+function summarizeBatchResults({ results, images }: { results: BatchItemResult[]; images: BatchPreviewImage[] }, _options = {}): BatchResult {
   const succeeded = results.filter((result) => result.ok).length;
   const outcome = outcomeFor({ failed: results.length - succeeded, total: results.length });
-  return { batch: true, outcome, ...(succeeded === 0 ? { isError: true as const } : {}), total: results.length, succeeded, failed: results.length - succeeded, results };
+  const summary: BatchResult = { batch: true, outcome, ...(succeeded === 0 ? { isError: true as const } : {}), total: results.length, succeeded, failed: results.length - succeeded, results };
+  return images.length ? { ...summary, content: [{ type: 'text', text: JSON.stringify(summary) }, ...images] } : summary;
 }
 
 /**
@@ -297,6 +329,7 @@ export function withBatchInput(
     const { items: rawItems, ...shared } = ctx.input;
     const items = readItems({ items: rawItems, toolId, maxItems });
     const results: BatchItemResult[] = [];
+    const images: BatchPreviewImage[] = [];
     for (const [index, item] of items.entries()) {
       ctx.signal.throwIfAborted();
       let notes: readonly string[] = [];
@@ -306,12 +339,14 @@ export function withBatchInput(
         tool.validateItem?.({ input: normalized.input });
         if (!options?.invokeTool) throw new Error(`${toolId}: batch items require the gated ToolExecutor invocation port`);
         const output = await options.invokeTool({ toolId, input: normalized.input }, { registry: itemRegistry });
-        results.push(batchItemResult({ index, output: withoutItemImages(output), notes: normalized.notes }));
+        const result = batchItemResult({ index, output: withoutItemImages(output), notes: normalized.notes });
+        results.push(result);
+        if (result.ok) collectBatchImages({ output, images });
       } catch (error) {
         results.push({ index, ok: false, error: withNormalizationNotes({ output: itemErrorMessage({ error, toolId }), notes }) as string });
       }
     }
-    return summarizeBatchResults({ results });
+    return summarizeBatchResults({ results, images });
   };
   return { ...registration, descriptor, handler,
     // Domain normalization belongs to each merged item, not the incomplete shared layer.
