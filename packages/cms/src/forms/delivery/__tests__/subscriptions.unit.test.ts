@@ -98,6 +98,19 @@ const job: FormDeliveryJob = {
 };
 
 describe("handlers", () => {
+  test("hydrates referenced jobs with the event workspace before delivery", async () => {
+    const bus = new HandlerBus();
+    const reads: unknown[] = [];
+    const delivered: unknown[] = [];
+    await createFormDeliverySubscriptions({ bus, plan: async () => undefined,
+      readSubmission: async input => { reads.push(input); return job.snapshot.submission; },
+      deliver: async input => { delivered.push(input); } }).start();
+    await bus.emit(FORM_DELIVERY_EVENT, { binding: job.binding, form: job.snapshot.form,
+      submissionRef: { submissionId: "s-1", formId: "f-1" }, idempotencyKey: job.idempotencyKey });
+    expect(reads).toEqual([{ workspaceId: "w-1", submissionId: "s-1", formId: "f-1" }]);
+    expect(delivered).toEqual([{ workspaceId: "w-1", job }]);
+  });
+
   test("a received submission is planned with its workspace, submission and form ids", async () => {
     const bus = new HandlerBus();
     const plans: Array<{ workspaceId: string; submissionId: string; formId: string }> = [];

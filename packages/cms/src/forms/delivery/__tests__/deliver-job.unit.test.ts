@@ -34,6 +34,40 @@ describe("success", () => {
   });
 });
 
+describe("referenced sources", () => {
+  const referenced = { binding: job.binding, form: job.snapshot.form,
+    submissionRef: { submissionId: "s-1", formId: "f-1" }, idempotencyKey: job.idempotencyKey };
+
+  test("reads current answers on every attempt and retains frozen form and binding metadata", async () => {
+    const delivered: FormDeliveryJob[] = [];
+    const reads: unknown[] = [];
+    let source = job.snapshot.submission;
+    const attempt = () => deliverFormJob({ job: referenced, workspaceId: "w-1",
+      readSubmission: async input => { reads.push(input); return source; },
+      deliver: async input => { delivered.push(input); } });
+    await attempt();
+    source = { ...source, answers: { email: "updated@example.test" } };
+    await attempt();
+    expect(reads).toEqual(Array(2).fill({ workspaceId: "w-1", submissionId: "s-1", formId: "f-1" }));
+    expect(delivered).toEqual([job, { ...job, snapshot: { ...job.snapshot, submission: source } }]);
+    expect(JSON.stringify(referenced)).not.toContain("answers");
+  });
+
+  test("a purged source stops delivery permanently", async () => {
+    let calls = 0;
+    await expect(deliverFormJob({ job: referenced, workspaceId: "w-1", readSubmission: async () => null,
+      deliver: async () => { calls++; } })).rejects.toMatchObject({ code: "delivery-failed", retryable: false });
+    expect(calls).toBe(0);
+  });
+
+  test("a failed source read retries with no provider call or private error text", async () => {
+    let calls = 0;
+    await expect(deliverFormJob({ job: referenced, workspaceId: "w-1", readSubmission: async () => { throw new Error("private data"); },
+      deliver: async () => { calls++; } })).rejects.toMatchObject({ message: "delivery-failed", retryable: true });
+    expect(calls).toBe(0);
+  });
+});
+
 describe("failure from a result", () => {
   test("{ ok: false } with an allowlisted terminal code throws that code as non-retryable", async () => {
     const error = await failureOf({ ok: false, error: { code: "authorization-required", retryable: false } });
