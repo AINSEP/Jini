@@ -1,6 +1,6 @@
-# ci-errors — in progress
+# ci-errors — completed
 
-Started 2026-11-06 16:41 UTC. Deadline 18:41 UTC. Work is on `cloud/ci-errors` in both repositories. No main/force pushes, deployment or package publishing.
+Started 2026-11-06 16:41 UTC. Completed 2026-11-06 17:22 UTC, within the two-hour cap (deadline 18:41 UTC). Work is on `cloud/ci-errors` in both repositories. No main/force pushes, deployment or package publishing.
 
 ## Bases and existing work
 
@@ -69,7 +69,7 @@ npm --prefix apps/admin run test -- __tests__/vitest-coverage-config.unit.test.t
 npx eslint --no-inline-config --rule '{"complexity":["error",10],"sonarjs/cognitive-complexity":["error",10]}' apps/admin/vitest.config.ts apps/admin/__tests__/vitest-coverage-config.unit.test.ts
 npm --prefix apps/admin run test:cov -- __tests__/vitest-coverage-config.unit.test.ts --coverage.reportsDirectory=/workspace/work/ci-errors/admin-scope-coverage --coverage.reporter=json-summary --coverage.reporter=lcov
 ```
-Config test and lint PASS; the scope probe has expected exit1 (1/1 test passes, all four 98% floors reject0%). It retained886 runtime files:19,724 lines/23,907 statements/8,591 functions/16,204 branches. Full-suite attainment remains unmeasured.
+Config test and lint PASS; the scope probe has expected exit 1 (1/1 test passes, all four 98% floors reject0%). It retained886 runtime files:19,724 lines/23,907 statements/8,591 functions/16,204 branches. Full-suite attainment remains unmeasured.
 
 Current result: 138 affected Jini coverage tests pass; devops typecheck and strict complexity <=10 pass. lcov.ts statements/lines/functions: 100%; branches: 96.66%, above unchanged package floors. The only uncovered branches belong to unchanged path/source classification helpers.
 
@@ -86,7 +86,7 @@ SEMGREP_LOG_FILE=/workspace/work/ci-errors-local-scan-user.log SEMGREP_SETTINGS_
 ```
 PASS: all six rule suites; local differential scan 6 rules/19 files, 0 findings, 0 analysis errors. Initial source/option experiments did not repair the callback issue; they were discarded. The successful fix addressed sink ownership and retained every fixture.
 
-`pnpm quality:semgrep --baseline-commit f07ae3d6ff55cf4da480acac44cc6f4b7686966b`: BLOCKED/exit2 because this environment rejects `semgrep.dev/c/p/typescript` with proxy 403. No network policy was bypassed; local rules and blocking fixture checks were verified separately. Remote [run 42257276294](https://github.com/AINSEP/Jini/actions/runs/42257276294) at source `1342a24c8` has passed build, guard, full typecheck, agent-plugin content tests and complexity; its Semgrep job is successful, including the blocking custom rule regression step. The application scan remains under the existing report-only policy and has an exit1 annotation despite the step/job being marked success. Quality-gates is finishing its existing report-only stages; final status will be recorded at completion. All blocking check steps are green as of 17:07 UTC. A report checkpoint starts a new workflow; the source changes after `1342a24c8` are only a reader-lifetime comment and these reports.
+`pnpm quality:semgrep --baseline-commit f07ae3d6ff55cf4da480acac44cc6f4b7686966b`: BLOCKED/exit 2 because this environment rejects `semgrep.dev/c/p/typescript` with proxy 403. No network policy was bypassed; local rules and blocking fixture checks were verified separately. Final source checkpoint `a8ad8686d645d6f888c895a46618ab8c7d03d253` passed [GitHub run 42259553378](https://github.com/AINSEP/Jini/actions/runs/42259553378): quality-gates SUCCESS at 17:21:16 UTC and Semgrep SUCCESS at 17:16:05 UTC. Build, guard, full typecheck, plugin-content tests, complexity and the blocking Semgrep regressions all passed. Existing report-only SonarJS and application-scan exit 1 annotations remain; no scan policy was relaxed. The report closeout after this checkpoint changes only these Markdown reports, so no additional source validation run is claimed for that documentation-only commit.
 
 ### Remaining CI fixes: exact commands
 
@@ -126,12 +126,15 @@ All commands run from /workspace/Jini after `source /workspace/.tovu-build/env.s
 - FIXED: New source guard violations in imports, mutable lookup declarations, fallback kit state, document-read ownership and commerce/package metadata.
 - FIXED DURING VALIDATION: Missing chat test dependency and over-ceiling reader/peer-helper complexity; all final checks pass.
 - OPEN/MINOR: Existing 320px login/recovery cards cause 352px document width; the shared notice itself fits 320px. Listed, not fixed.
-- OPEN/CI: GitHub Semgrep application scan has an exit1 annotation under its existing report-only policy; the blocking rule tests and overall Semgrep job pass. No scan policy was relaxed.
+- OPEN/MINOR: The pre-existing awaited callback form `return await promise.catch(error => { throw new Error(error.message); })` is missed by the scanner before and after this repair. A pinned direct probe reproduced both versions missing it; no runtime leak was observed. Listed rather than expanded into another rule repair, as the job instructs for minor findings.
+- OPEN/CI: GitHub report-only SonarJS and Semgrep application scan have exit 1 annotations under their existing policy; blocking checks and both overall jobs pass. No scan policy was relaxed. Existing warning/deprecation annotations remain informational.
 - OPEN/MINOR: Three existing super-linear-regex warnings in coverage classifiers, four existing api.ts Sonar warnings, and one existing catalog duplicate-string warning. Root complexity reports216 warnings/0 errors. Listed, not fixed.
 
 ## Architecture, scope and cost
 
 Generic runtime/tooling logic remains in Jini; Tovu contains request wiring and coverage configuration only. Shared ErrorNotice and existing ports are reused. Existing inline notices, anonymous disclosure limits, response contracts, retry counts and process-wide document admission are retained. No schema, dependency framework, scheduled task, deployment or publishing was added. No tests/rules were disabled, skipped, deleted or weakened; no coverage floor was lowered. Existing obsolete characterization expectations were replaced only where the required union behavior superseded report selection, with explicit negative evidence for ambiguous inputs.
+
+Changed-unit review: request method resolution, LCOV entry parsing/union, kit ownership, reader admission and payload-peer predicates have direct positive/negative evidence. Aggregate probes cover complementary/repeated reports, altered layouts, function order/ambiguity, two pending readers plus third refusal and failure recovery, kit-consumer isolation, and optional payload declarations alongside forbidden upward imports. The receiver-focused Semgrep repair was independently reviewed with chained throws, String conversion and alias/object callbacks. No further introduced regression was found; the pre-existing awaited-callback gap is listed above. Architecture audit: PASS.
 
 Added production network/database reads, writes and polls: 0. Error method resolution is O(1); offline LCOV unions retain O(entries) maps. Runtime state is owned by kit consumers/reader instances; the existing default reader retains its process lifetime and two-read limit.
 
@@ -154,6 +157,9 @@ All commits below belong only to `cloud/ci-errors`. The final report commit is i
 - `a94c6ba813ab86cab73536ffe6f9c9a958f02ac8` — fix: validate function declaration identities before coverage union
 - `1342a24c8df120202a7d06528c393e004a1ab61e` — fix: bound source complexity and retain reader failure recovery
 - `ed6ce2efae278f0d1ddd9fe5059be936ea54e81d` — docs: clarify shared document reader lifetime
+- `8dfb336cbf1c0d7c4f4ae95df149c914f7c9a4c9` — docs: record verified CI and error checks
+- `34cbff54eb12a19733543d8fd90f918f86358acc` — fix(semgrep): retain tainted fulfilled promise returns
+- `a8ad8686d645d6f888c895a46618ab8c7d03d253` — docs: record fulfilled promise regression coverage
 
 ### Tovu
 
@@ -162,3 +168,5 @@ All commits below belong only to `cloud/ci-errors`. The final report commit is i
 - `9eef40716ef7a4099d4aa3e0ba2c010512bc9d02` — refactor(admin): resolve the request method at its HTTP boundary
 - `afc6e0e723de294a0c8fb51e74837a671981168d` — refactor(admin): reuse the resolved HTTP method
 - `8853ca970eed691c4e82424bcea7d891326b5818` — test: define admin coverage scope and minimums
+- `0234aab3e41078a39eb22266bf6f9e56c6bd6122` — docs: record verified CI and error checks
+- `9100feb0b28c3ec597dc517ad3f21548834064e5` — docs: record fulfilled promise regression coverage
