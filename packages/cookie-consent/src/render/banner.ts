@@ -1,3 +1,4 @@
+import { declaredScriptDelivery } from './scripts.js';
 /** @file Pure strings: no DOM, no Node. The same output feeds live pages, the static export and the admin
  * preview iframe, so preview and live cannot drift. The markup is identical for every visitor: region and GPC
  * variants are toggled by CSS from <html> attributes the client sets, so pages stay cacheable. */
@@ -68,8 +69,10 @@ export function resolveCopy(input: BannerCopyInput = {}): BannerCopy {
 export function renderBanner({ mode, client, copy }: RenderBannerConfig, options: RenderBannerOptions = {}): RenderedBanner {
   if (!BANNER_MODES.includes(mode)) return EMPTY;
   const evidence = options.evidence ?? { mode: 'local' };
+  const delivery = declaredScriptDelivery({ scripts: client.scripts ?? [] });
+  const pageClient = client.scripts ? { ...client, scripts: delivery.scripts } : client;
   const n = options.nonce ? ` nonce="${esc(options.nonce)}"` : '';
-  const head = `<script type="application/json" id="${CONFIG_ID}">${json({ ...client, banner: mode, evidence })}</script>${clientScript(options, n)}`;
+  const head = (options.preview ? '' : delivery.head) + `<script type="application/json" id="${CONFIG_ID}">${json({ ...pageClient, banner: mode, evidence })}</script>${clientScript(options, n)}`;
   const htmlAttrs = previewAttrs(options.preview);
   if (mode !== 'jini') return { head, body: '', htmlAttrs, problems: [] };
   const compiled = compileConsentCss({ css: options.customCss ?? '', tokens: options.appearance ?? {} });
@@ -79,7 +82,9 @@ export function renderBanner({ mode, client, copy }: RenderBannerConfig, options
 
 /** A preview is scriptless: the admin iframe shows the markup, never runs the client. */
 function clientScript({ preview, clientSrc, extensionSrc }: RenderBannerOptions, nonceAttr: string): string {
-  return preview || !clientSrc ? '' : `<script src="${esc(clientSrc)}" defer${nonceAttr}></script>` + (extensionSrc ? `<script src="${esc(extensionSrc)}" defer${nonceAttr}></script>` : '');
+  if (preview || !clientSrc) return '';
+  const core = `<script src="${esc(clientSrc)}" defer${nonceAttr}></script>`;
+  return core + (extensionSrc ? `<script src="${esc(extensionSrc)}" defer${nonceAttr}></script>` : '');
 }
 
 /** Attributes for the preview iframe's <html>, standing in for what the client sets on a live page. */
