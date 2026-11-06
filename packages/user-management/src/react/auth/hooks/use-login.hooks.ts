@@ -13,7 +13,7 @@ export interface LoginHookProps {
 export interface LoginOptions { initialUsername?: string | undefined }
 
 export interface LoginController {
-  mfa?: { code: string; setCode: (code: string) => void; cancel: () => void };
+  mfa?: { pendingToken: string; code: string; setCode: (code: string) => void; cancel: () => void };
   username: string;
   setUsername: (username: string) => void;
   password: string;
@@ -59,6 +59,6 @@ export function useLogin({ onLogin, port, translate }: LoginHookProps, { initial
   }
 
   return { username, setUsername, password, setPassword, error, busy, submit,
-    ...(pendingToken ? { mfa: { code, setCode, cancel } } : {}) };
+    ...(pendingToken ? { mfa: { pendingToken, code, setCode, cancel } } : {}) };
 }
 
