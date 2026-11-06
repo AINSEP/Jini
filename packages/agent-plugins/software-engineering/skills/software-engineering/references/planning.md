@@ -1,12 +1,27 @@
 # Planning and architecture
 
-1. Restate the requested behavior and acceptance criteria. Separate observed facts from assumptions. Resolve only ambiguity that changes correctness, permissions, data loss or an irreversible action; continue independent safe work while clarification is pending.
-2. Inspect the current owner, callers, contracts and relevant architecture decisions. Reuse the established extension point and local style. Search before creating a second owner or parallel execution path.
-3. Choose the smallest reversible slice. Compare alternatives only where a real boundary or tradeoff needs a decision. Record the chosen owner, dependency direction, observable contract, important failure modes and why this choice meets the requirement. Avoid imposing a new architectural pattern on an existing system.
-4. Keep reusable decisions independent of products, transports and vendors. Put I/O in adapters behind explicit dependencies; keep host-specific wiring in the host. Do not introduce a container, framework, schema table or configuration option just to organize a small change.
-5. Define invariants and compatibility: input/output shapes, authorization, ordering, idempotency, cancellation, retry and partial-failure behavior where relevant. Identify concrete evidence that could disprove the design. Do not add speculative recovery branches.
-6. For persisted data, use the repository's registered migration mechanism. Plan backward compatibility, bounded backfills, lock impact and a recoverable rollout. Never edit an already-applied migration or assume a destructive rollback restores data.
-7. State resource costs as frequency × payload for added reads, writes and polls, including fan-out and worst-case collection sizes. Prefer no new timer or background scan. Measure a performance claim when it matters.
-8. Give implementation an explicit file/owner map and a short verification plan. Record only decisions that help the next maintainer; no mandatory spec package, council, approval pipeline or report hierarchy.
+Identify the requested outcome, acceptance criteria, existing owner, callers and constraints. Choose the smallest reversible slice and record its files, observable contracts, failure modes and verification plan. Preserve the current architecture unless the requirement needs a boundary change.
 
-For UI work, discover the host's design capability before choosing visual direction. Preserve the chosen stack's native composition and state ownership. Keep URL, client and server state distinct; define cleanup, races and invalidation where the change touches them.
+## Default Architecture Heuristic
+
+Use this as the default starting position before evaluating exceptions:
+
+1. For most long-lived products, start with a **modular monolith** at the macro level.
+2. Organize delivery around **vertical slices** or strongly owned modules rather than broad shared technical layers.
+3. Apply **hexagonal boundaries** inside the slices or modules that have meaningful external I/O, provider-swappability needs, or business-critical logic that must stay framework-independent.
+4. For Python services, workers, APIs, and other domain-heavy backend code, hexagonal architecture is a strong default boundary discipline.
+5. For frontend applications, discover available frontend architecture and design guidance for the affected stack.
+6. For trivial CRUD, scripts, and short-lived work, do not add ports-and-adapters unless the complexity justifies it.
+
+This is a default, not a mandate. Override it only when the system drivers clearly justify a different macro shape.
+
+## Principles That Always Apply
+
+1. **Modular and reversible first.** Keep every part fixable, replaceable, and updatable as requirements change. This outranks elegance and performance; hard requirements remain binding. Treat reversal cost as a first-class criterion. Put one narrow seam at each coupling that already exists: "if this changes, how many places do I edit?" The answer must be one. Prefer additive changes beside published surfaces, then retire the old path; prefer movable configuration data over hardcoded policy where it keeps change local. Reuse proven migration mechanisms and settle shared surface shapes before concurrent work begins. Do not invent speculative extension points: replaceable does not require pluggable.
+2. **Dependencies point inward.** Core business logic must not depend on databases, frameworks, or external services.
+3. **Depend on interfaces, not implementations.** Every external dependency should be behind an interface so it can be swapped, mocked in tests, or replaced without touching core code.
+4. **Start simple, extract when needed.** Modular monolith before microservices. CRUD before CQRS. Add complexity only when the problem actually demands it.
+5. **Match pattern to problem.** Event sourcing for audit trails. CQRS for asymmetric read/write. Vertical slices for large feature teams. One pattern is not universally better.
+6. **Enforce boundaries.** Module A must not import internals from Module B. Enforce this with linting, import rules, or package structure — not by trusting developers to remember.
+
+Keep URL, client and server state ownership distinct. Define cleanup, stale response handling and cache invalidation where affected. Use established migrations; plan bounded backfills, lock impact and compatibility. Record frequency × payload and fan-out for added I/O. Resolve ambiguity that changes correctness or irreversible effects; continue independent authorized work.

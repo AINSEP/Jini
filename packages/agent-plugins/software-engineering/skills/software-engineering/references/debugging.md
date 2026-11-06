@@ -1,11 +1,54 @@
 # Debugging
 
-Start with observed behavior, expected behavior and a minimal reproducible case. Read the error and relevant logs without exposing secrets or private data. Trace the concrete input through the owning module and its effect boundary; do not patch a downstream symptom while leaving the upstream error intact.
+Start with observed behavior, expected behavior and a minimal reproduction. Trace the concrete input through its owner and effect boundary. Redact secrets from evidence. Fix the root cause rather than a downstream symptom.
 
-For a bug fix, first write and run a failing regression test that asserts the broken observable behavior. Confirm it fails for the intended reason, not a missing import or broken setup. If a required reproduction capability is absent, name it as UNVERIFIED and state what remains unproven; never fabricate a red or green run.
+### Phase 1: Root Cause Investigation
 
-Form one hypothesis supported by evidence. Probe the dependency in isolation when it could be setup, authentication or tooling. Change one variable at a time. For an external tool's unexplained failure, inspect its current documentation or issue tracker using permitted tools before guessing flags or replacing it.
+**BEFORE attempting ANY fix:**
 
-Do not rerun a byte-identical failed invocation hoping for a different result, except a clearly transient rate-limit or capacity signal. If the same failure occurs twice without progress, stop that loop and report the evidence, current hypothesis and missing capability. Continue independent authorized work.
+1. **Read Error Messages Carefully**
+   - Don't skip past errors or warnings
+   - They often contain the exact solution
+   - Read stack traces completely
+   - Note line numbers, file paths, error codes
 
-Implement the smallest correction at the owning boundary. Keep validation, recovery, permissions and supported formats intact. Run the regression and only affected existing checks, inspect the diff, and report before/after evidence. New tests also trigger the scoped mutation procedure in [verification](verification.md). Do not conceal an unresolved failure with a skip, weaker assertion, exclusion or fallback that silently changes behavior.
+2. **Reproduce Consistently**
+   - Can you trigger it reliably?
+   - What are the exact steps?
+   - Does it happen every time?
+   - If not reproducible → gather more data, don't guess
+
+3. **Check Recent Changes**
+   - What changed that could cause this?
+   - Git diff, recent commits
+   - New dependencies, config changes
+   - Environmental differences
+
+### Phase 3: Hypothesis and Testing
+
+**Scientific method:**
+
+1. **Form Single Hypothesis**
+   - State clearly: "I think X is the root cause because Y"
+   - Write it down
+   - Be specific, not vague
+
+2. **Test Minimally**
+   - Make the SMALLEST possible change to test hypothesis
+   - One variable at a time
+   - Don't fix multiple things at once
+
+3. **Verify Before Continuing**
+   - Did it work? Yes → implement the proven correction
+   - Didn't work? Form NEW hypothesis
+   - DON'T add more fixes on top
+
+4. **When You Don't Know**
+   - Say "I don't understand X"
+   - Don't pretend to know
+   - Ask for help
+   - Research more
+
+For a bug, write and run a failing regression test before the fix. Confirm failure comes from the behavior, not setup. Probe external dependencies in isolation and consult current upstream documentation or issues before guessing flags. Never repeat a byte-identical failed invocation except for an evidenced transient capacity signal. The same failure twice without progress ends that loop: report the evidence, hypothesis and missing capability, then continue independent work.
+
+Implement the smallest correction at the owner, preserving validation, permissions, recovery and supported formats. Run the regression and affected existing checks, inspect the diff and report before/after evidence. Missing reproduction tools mean UNVERIFIED. Never hide a failure with a skip, weakened assertion or silent fallback.

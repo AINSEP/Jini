@@ -1089,7 +1089,7 @@
   {
     "kind": "agent",
     "path": "software-engineering",
-    "pluginVersion": "0.1.0",
+    "pluginVersion": "0.2.0",
     "contract": {
       "id": "agent-plugins",
       "version": "1.0.0"
@@ -1098,17 +1098,19 @@
     "publisherIdentity": "jini/software-engineering",
     "packageName": "@jini-ai/agent-plugins",
     "version": "0.6.24",
-    "description": "Routes coding, architecture, debugging and inspection tasks to portable engineering guidance.",
+    "description": "Routes implementation, architecture, debugging, testing, code review, security and prototyping to portable engineering guidance.",
     "expectedDigests": {
       "LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
-      "NOTICE": "sha256-f74fb63e85c64ccda602b9cf09b6185d573b0f4a3b669784715199838b64ac9a",
-      "README.md": "sha256-dc6b7e2dbe2ae620cac63135d2d105839737dea93034553d41073d1b1f87dd12",
-      "plugin.json": "sha256-04f6c545b33e8f3810a69a017b5abd8f14fa015f1daa34ce69bcd8f5ba47b635",
-      "skills/software-engineering/SKILL.md": "sha256-13b7cbdd756a7ba3488d9130dc02aa05eb43eadc7da9b4890e5dc269ecb7c8e0",
-      "skills/software-engineering/references/debugging.md": "sha256-141eaa6c313a31077abded478af1b82c9011dfddef463976dc41d96f67eb0f91",
-      "skills/software-engineering/references/implementation.md": "sha256-28c79b58fafe5f14ce5a16229c7391d66cd6007c6d91ad3af5bde62f8da2ccf1",
-      "skills/software-engineering/references/planning.md": "sha256-919df0c8257aa163aa3355e6066723b602580ba28c32d33be96efe2fdaad6649",
-      "skills/software-engineering/references/verification.md": "sha256-71784ccddd0f3aad32268f7cc2b680384264cda5c53bd41ea7039d28421da977"
+      "NOTICE": "sha256-2c7b9fe197f9254dac61c5d407c15ca8b2e446c9e9b7fbca1f423c5dc246f8b1",
+      "README.md": "sha256-f6ddb21d093d101e7eb522a2c39f09e107f08a7ad1e677e1375c51105e6f8587",
+      "plugin.json": "sha256-212ec206fefa8d6d8d3c9e24cb4ba03ebcc6b64b1f8271fb0d80ece9e7fe6940",
+      "skills/software-engineering/SKILL.md": "sha256-c2d1080438d23bcad9559fc684506f6c277b54ab23fb12b00f11c2c6a328fa2e",
+      "skills/software-engineering/references/debugging.md": "sha256-8ba84994837106d02ecf6e28926bccb044ecfa61fed551def04c0ab172031085",
+      "skills/software-engineering/references/implementation.md": "sha256-51399d0d3086da41ea7c7b6fe2bd5216752ecd7ba3c42edf2e760b8bfabb2dff",
+      "skills/software-engineering/references/planning.md": "sha256-ce4b8a4e4c1ccdb59fa96e22429354664b32e9deb5fd40316d0fb7c7dbced3a1",
+      "skills/software-engineering/references/prototyping.md": "sha256-ac802999f8e66c7b857e53055b04e16c2c36dc7f405e730d640210af0b7f011e",
+      "skills/software-engineering/references/security.md": "sha256-ad501b2e130b7b1c64f75b790b48f59af6b32751a8e7d3d51ad5268b3815126e",
+      "skills/software-engineering/references/verification.md": "sha256-8ac6b41e7203fa6a16e0e4a0d980ed530418e9e0da6426502dc798dcf9fce1b6"
     }
   },
   {
