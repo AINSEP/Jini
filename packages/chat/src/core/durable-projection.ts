@@ -91,8 +91,8 @@ export function terminalMessageNotice({ message }: { message: ChatMessage }, _op
 /** Cancellation is an ordinary decision; saved process diagnostics remain available to the host.
  * Keep meaningful stop/recovery explanations while hiding CLI exit metadata. O(n) notice text. */
 function terminalStatusText({ notice, canceled }: { notice: Extract<AgentEvent, { kind: 'status' }>; canceled: boolean }): string {
-  const label = canceled && /cancell?ed/i.test(notice.label) ? 'Canceled.' : notice.label;
-  const detail = canceled && /exit code|resumable|signal none/i.test(notice.detail ?? '') ? undefined : notice.detail;
+  const label = canceled && /^(?:Run )?cancell?ed[.!]?$/i.test(notice.label) ? 'Canceled.' : notice.label;
+  const detail = canceled && /^exit code (?:none|-?\d+), signal (?:none|SIG[A-Z0-9]+), resumable (?:yes|no)(?:[., ]|$)/i.test(notice.detail ?? '') ? undefined : notice.detail;
   return [label, detail].filter(Boolean).join(' ').replace(/Send your message again to retry\.?/gi, '').trim();
 }
 

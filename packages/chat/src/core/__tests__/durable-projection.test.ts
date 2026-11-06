@@ -217,3 +217,16 @@ it('does not show process diagnostics for a canceled run with a custom terminal 
     events: [{ kind: 'status', code: 'run_terminal', label: 'Run stopped', detail: 'exit code none, signal none, resumable no' }] };
   expect(terminalMessageNotice({ message })).toBe('Run stopped');
 });
+
+it('retains meaningful cancellation labels and recovery explanations', () => {
+  const message: ChatMessage = { id: 'saved-stop', role: 'assistant', content: '', runStatus: 'canceled',
+    events: [{ kind: 'status', code: 'run_terminal', label: 'Run canceled — saved work is above.',
+      detail: 'This session is resumable; saved work is above.' }] };
+  expect(terminalMessageNotice({ message })).toBe('Run canceled — saved work is above. This session is resumable; saved work is above.');
+});
+
+it('retains a meaningful explanation mentioning an exit code outside the diagnostic format', () => {
+  const message: ChatMessage = { id: 'explained-stop', role: 'assistant', content: '', runStatus: 'canceled',
+    events: [{ kind: 'status', code: 'run_terminal', label: 'Stopped.', detail: 'The previous exit code does not affect your saved work.' }] };
+  expect(terminalMessageNotice({ message })).toBe('Stopped. The previous exit code does not affect your saved work.');
+});
