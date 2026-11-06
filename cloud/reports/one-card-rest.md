@@ -1,52 +1,159 @@
-# one-card-rest — in progress
+# one-card-rest — completed with known baseline test failures
 
-Started 2026-11-06 16:41 UTC; hard stop 18:41 UTC. Branch in both repositories: `cloud/one-card-rest`.
+Started November 6, 2026 at 08:41 PST and finished at 09:07 PST, within the two-hour cap. Both repositories use `cloud/one-card-rest`; pushes to that branch succeeded. No main push, force push, deployment or publication occurred.
 
-Bases: Jini `f07ae3d6ff55cf4da480acac44cc6f4b7686966b`; Tovu `74fedc1320d31431ab4a13d1e38af03a402ca28b`.
+## Branches and commits
 
-Authority: fetched `origin/cloud-plans-1105`, read `cloud/jobs/COMMON.md`, `cloud/jobs/one-card-rest.md`, and `cloud/reports/one-card.md`. Loaded software-architect, programmer, TDD personas from `/workspace/cloud/ai-dev-shop`.
+- Jini base: `f07ae3d6ff55cf4da480acac44cc6f4b7686966b`; code head: `58bf6aca3`.
+- Tovu base: `74fedc1320d31431ab4a13d1e38af03a402ca28b`; code head: `6bac338de`.
+- The final report-only commit follows the code heads. These are every earlier pushed commit, including progress reports.
 
-## Work in progress
+Jini:
 
-Pushed checkpoints: Tovu `3f090e309`, `27038dbe7`, `9a0e716b4`, `a14163e6c`; Jini `af68beb82`, `3e17c2ad2`. Final checks and independent review are still in progress.
+- `af68beb825cebaafae2503200264e8621308ffd7` — docs: record one-card-rest scope and progress
+- `3e17c2ad2ce27d78e9407c520d6259d62ed2a7c0` — fix: retain plugin consent only after Auto persistence succeeds
+- `03851b0cd31cbb9ea27cb0eecb1476f3ff8a4d37` — docs: record code-derived approval inventory and verification progress
+- `8eaa431382deab27a402331cfeba87987dbf8391` — feat: preserve checked plugin choices in shared approval cards
+- `58bf6aca3bcbe40950110342987e5a6077a79182` — fix: preserve hints in grouped approval choices
 
-- Convert automatic plugin choice and mail provider cards through the existing common access lifecycle; preserve presentation and existing effect owners.
-- Correct secret-setting writability in discovery listings.
-- Check the provider catalog for Formspree; add only if absent.
-- Inventory approval tools from current source with plain reasons.
-- Leave consent cards and historical form answer copies unchanged.
+Tovu:
 
-## Verification
+- `3f090e309d7cf09df3ed30d7fa65b07903a4cf93` — fix: bind mail provider approval to its displayed revision
+- `27038dbe70f24181ea421343a8cf3ba3569ae1f5` — fix: guard approved personal Auto preference writes
+- `9a0e716b46f803baf9e35477669cd4483d169816` — fix: route automatic plugin choices through fresh access approval
+- `a14163e6cf7d13b2aaf23891f2843bffb24fb19e` — fix: return a mail selection conflict without a server error
+- `6bac338de3030333a05f7b3b5155370568f09a43` — fix: use private confirmation controls for plugin access choices
 
-Dependency refresh, full Jini base build, rebuilt Tovu contracts, and Jini relink succeeded. Jini agent-plugin typecheck and strict complexity lint passed. Tovu root `npx tsc -p tsconfig.json --noEmit` and strict lint pass (three unchanged nesting warnings in composition/deps.ts).
+## Each requested item
 
-Focused verification so far: settings listings 57 passed; Formspree/distribution 12 passed; mail/settings 60 passed; personal preference snapshot 4 passed; automatic choice 4 passed; automatic access 4 passed; automatic plugin integration 31 passed; recovery bounds 9 passed; common human lifecycle 18 passed; preflight RPC 2 passed; BYOK surfaces 3 passed; ordinary ask-choice 28 passed; common access transport 6 passed; Jini automatic-use/cancellation 54 passed.
+1. **Two remaining cards converted.** Mail provider selection now uses the existing typed access lifecycle, current active-person checks and exact lane/revision disclosure. The approved revision reaches the existing transactional settings writer; concurrent selection changes return a specific HTTP 409. The original title, warning, buttons and split-lane context remain. Automatic plugin selection now uses the same Jini approval lifecycle and common confirmation renderer, with private controls, visible dwell, trusted clicks, one-call locking and a fixed access disclosure. Its checked multi-select layout, Use / Skip / Don't ask again actions and transcript receipts remain. Necessary additions are the collapsed Access details disclosure and wording explaining personal Auto for this site. Personal Auto uses the existing settings revision guard; stale preferences and failed writes grant no retained controller consent. Jini's common renderer gained only checked defaults and the shared group label needed to retain this layout. Existing confirmations without those options have byte-identical HTML/resources to the base.
+2. **Secret listing truthfulness verified on the base.** `packages/core/src/settings/tool-registrations.ts` already excludes direct and aliased secret definitions through `isAgentWritable`. Tovu calls this shared builder; no competing projection was found. The direct/alias regressions pass, so no redundant production change was made.
+3. **Formspree already present.** `packages/provider-plugins/catalog.json` and `packages/plugin-catalog/catalog.json` already contain its provider entry (`form_collection` v1, provider-plugins 0.6.24). Tovu's bundled agent catalog contains its agent face too. Provider/distribution tests pass; no duplicate entry was added.
+4. **Approval inventory delivered below.** It lists 39 native tools, 17 bundled executable Google Workspace tools and 18 bundled admin action tools with a plain reason each, plus conditional cases and runtime external-tool rules. Derived from current code, not memory; installation-specific remote names cannot be enumerated without live account data.
+5. **Consent cards and old form answers left alone.** No consent feature file was changed, no old-answer compaction was added, and legacy confirmation output compatibility was directly verified.
 
-The mail route file has 8 passed / 1 unchanged failure. Its existing project-key mail save returns 500 instead of 200; reproduced independently on archived `origin/cloud/combine`. The new conflict route regression passes. Full commands and final results follow at closeout.
+Authority: fetched `origin/cloud-plans-1105` and read `cloud/jobs/COMMON.md`, `cloud/jobs/one-card-rest.md`, `cloud/reports/one-card.md`, `cloud/plans/OC-one-card-plan.md` and `cloud/plans/TRIM.md`. Loaded software-architect, programmer and TDD personas from `/workspace/cloud/ai-dev-shop`. Independent source review found the retained-choice-form security gap and Auto failure-state leak; both were fixed and re-reviewed without a remaining production blocker.
+
+## Verification commands and results
+
+Run commands from the named repository after `source /workspace/.tovu-build/env.sh`. Only touched/affected tests ran; no full repository test suite ran. No test, rule, assertion or hash expectation was disabled, weakened or deleted. Temporary test-name filters were used for targeted regression reproduction, not to claim a whole file passed.
+
+### Setup and types
+
+- Jini: `CI=true pnpm install --frozen-lockfile --store-dir /workspace/.tovu-build/pnpm-store --cache-dir /workspace/.tovu-build/pnpm-cache` — passed. Initial builds exposed stale dependency links (missing provider jsdom/CMS imports); dependency refresh resolved them.
+- Jini: `pnpm -r build` — passed on the requested base after dependency refresh.
+- Jini after changes: `npm --prefix packages/agent-plugins run build` and `npm --prefix packages/ui run build` — passed.
+- Jini: `npm --prefix packages/agent-plugins run typecheck` and `npm --prefix packages/ui run typecheck` — passed.
+- Tovu: `npm --prefix packages/contracts run build` — passed.
+- Tovu after Jini rebuilds: `JINI_PACKAGES_DIR=/workspace/Jini/packages npm run link:jini` — passed.
+- Tovu: `npx tsc -p tsconfig.json --noEmit` — passed on final source. Earlier missing-export diagnostics cleared after rebuilding/relinking the base; the new missing mail conflict mapping was fixed.
+- Both repositories: `git diff --check` — passed.
+
+### Jini focused tests
+
+| Exact command from Jini | Result |
+| --- | --- |
+| `npm --prefix packages/core run test -- src/settings/__tests__/tool-registrations.set-value.test.ts src/settings/__tests__/tool-registrations.reads.test.ts` | 57 passed; includes direct/alias secret writability |
+| `npm --prefix packages/provider-plugins run test -- src/formspree/__tests__/provider.test.ts src/__tests__/distribution-manifest.test.ts` | 12 passed |
+| `npm --prefix packages/agent-plugins run test -- src/lifecycle/__tests__/unit/automatic-use.unit.test.ts src/lifecycle/__tests__/unit/automatic-cancellation-m1.unit.test.ts` | 54 passed |
+| `npm --prefix packages/ui run test -- src/features/mcp-ui/__tests__/surfaces/confirmation.test.ts src/features/mcp-ui/__tests__/surfaces/access-approval.test.ts` | 69 passed / 6 unchanged baseline hash-pin failures |
+| `node --import tsx /workspace/work/one-card-rest/check-confirmation-compat.mjs` | Workspace differential probe: 3 legacy specs and full resource wrappers byte-identical to requested-base renderer |
+
+The new UI cases execute the real emitted script: host-checked defaults, trusted uncheck/recheck, Use/Auto, untrusted reversals, arbitrary IDs, single-call locking, escaped labels/hints and shared grouped layout. The harness selector was extended to exercise trusted events on grouped inputs; product click protections were not bypassed.
+
+### Tovu focused tests
+
+Exact prefixes used from Tovu; append the FILE in the table. Each file was run directly, so named Node assertions and counts were observed. RPC/HTTP listeners ran with localhost network access enabled after the sandbox initially refused `listen`.
+
+```sh
+# A
+node --import tsx FILE
+# B
+node --import tsx --import ./development/test-support/composed-bundle-env.ts FILE
+# C
+node --import tsx --import ./development/test-support/composed-bundle-env.ts --experimental-test-module-mocks FILE
+```
+
+| Prefix | FILE | Result |
+| --- | --- | --- |
+| A | `apps/website/src/assistant/__tests__/automatic-agent-plugin-choice.test.ts` | 4 passed |
+| A | `apps/website/src/assistant/__tests__/automatic-plugin-access.test.ts` | 4 passed |
+| B | `apps/website/src/assistant/__tests__/automatic-agent-plugins.integration.test.ts` | 32 passed; includes real active-principal revocation, late/retried answers, stale personal Off and real CAS-failure retry |
+| B | `apps/website/src/server/runtime/composition/__tests__/agent-plugin-preferences.unit.test.ts` | 4 passed |
+| B | `apps/website/src/features/mail-status/__tests__/mail-status-tool.test.ts` | 15 passed |
+| B | `apps/website/src/features/mail-status/__tests__/provider-tools.unit.test.ts` | 10 passed |
+| B | `apps/website/src/features/mail-status/__tests__/provider-operations.unit.test.ts` | 11 passed |
+| B | `apps/website/src/server/runtime/composition/__tests__/site-mailer.unit.test.ts` | 17 passed; real card to transactional CAS refusal |
+| B | `apps/website/src/features/settings/__tests__/mail-provider.unit.test.ts` | 7 passed; absence/set/cleared-row snapshots |
+| C | `apps/website/src/server/__tests__/routes/mail-providers-route.test.ts` | 8 passed / 1 unchanged baseline failure; new 409 conflict regression passes |
+| B | `apps/website/src/server/__tests__/assistant-chat-recovery-bounds.unit.test.ts` | 9 passed |
+| A | `apps/website/src/contracts/core/__tests__/human-confirm.lifecycle.test.ts` | 18 passed |
+| C | `apps/website/src/server/runtime/composition/modules/__tests__/assistant-agent-plugin-preflight.integration.test.ts` | 2 passed |
+| B | `apps/website/src/server/runtime/composition/modules/__tests__/assistant-byok.history-and-surfaces.unit.test.ts` | 3 passed |
+| C | `apps/website/src/assistant/__tests__/byok-tool-surface.test.ts` | 85 passed |
+| A | `apps/website/src/assistant/__tests__/ask-choice-tool.test.ts` | 28 passed |
+| A | `apps/website/src/assistant/__tests__/access-approval.integration.test.ts` | 6 passed |
+
+RED evidence preceded the bug fixes: absent active-person verification/common disclosure limits; stale mail revision; personal Auto overwrite; Auto-save failure retaining local consent through prepare/load; missing HTTP409 mapping; and grouped defaults/hint preservation. No assertions were weakened to reach GREEN.
+
+### Complexity lint
+
+Every changed production file was checked with the repository ESLint config plus the strict ceiling:
+
+```sh
+# Jini
+pnpm exec eslint packages/agent-plugins/src/lifecycle/automatic-use.ts packages/ui/src/features/mcp-ui/surfaces/confirmation.ts --no-inline-config --rule '{"complexity":["error",10],"sonarjs/cognitive-complexity":["error",10]}'
+
+# Tovu
+npx eslint apps/website/src/assistant/ask-choice-tool.ts apps/website/src/contracts/core/human-confirm.ts apps/website/src/features/agent-plugins/automatic-agent-plugins.ts apps/website/src/assistant/tool-registrations.ts apps/website/src/server/runtime/composition/modules/assistant-byok.ts apps/website/src/server/runtime/composition/agent-plugin-service-ports.ts apps/website/src/features/agent-plugins/service-ports.ts apps/website/src/features/mail-status/provider-operations.ts apps/website/src/features/mail-status/tool-registrations.ts apps/website/src/features/settings/mail-provider.ts apps/website/src/platform/mail/mail-status.ts apps/website/src/server/runtime/composition/deps.ts apps/website/src/server/runtime/composition/site-mailer.ts apps/website/src/server/inbound/admin-http/routes/system/mail-providers.ts --no-inline-config --rule '{"complexity":["error",10],"sonarjs/cognitive-complexity":["error",10]}'
+```
+
+Passed with zero errors. Tovu retains three unchanged `sonarjs/no-nested-functions` warnings in composition/deps.ts. No suppression was added. All materially changed logic stays within the job's complexity ceiling.
+
+### Validation limits
+
+- Chrome visual review was not performed: no configured browser automation tool or installed Chromium was available. Common renderer DOM/runtime tests and compatibility probes passed; the owner-requested Chrome look check remains external follow-up.
+- No external provider account, live owner data, deployment or published-package adoption was exercised. Tovu consumes the paired rebuilt Jini branch locally for these checks.
+- Local dependency setup left untracked `packages/plugin-ui-ux-design/` material; it was not included in any commit.
+- Workspace logs and the temporary base renderer/probe are under `/workspace/work/one-card-rest`, not committed as artifacts.
+
+## State cost and ownership
+
+- Mail: per displayed access card, one canonical-definition lookup plus one addressed workspace-row read; up to two active-person projections per accepted card. Its accepted write adds one addressed-row comparison inside the existing transaction. Existing credential/provider checks remain unchanged; no email is sent by selection.
+- Automatic choices: per actual card, one personal snapshot before display and one after an accepted answer; each snapshot uses a definition lookup, addressed user row and existing effective-settings read. Up to two active-person projections. Accepted Auto adds the existing writer's one revision comparison. The pre-existing initial mode read remains. Decline writes no preference.
+- The card payload is bounded by the existing 128 KiB access-plan cap. Its two typed resources cover chat selections and the optional personal Auto choice. Rendering/selection storage scales with displayed matches; no per-plugin query was added.
+- Failed Auto persistence now retains neither a decision nor exclusions/mode. There is no extra durable state, schema migration, table, poll, worker or network request. Existing transcript receipts remain; no historical answer compaction was added.
+- Generic lifecycle and renderer behavior stays in Jini behind existing ports; Tovu supplies site/person/chat scope, wording, reads and existing writers. New UI options are additive and old output compatibility is verified.
 
 ## Bugs found
 
-ALREADY FIXED ON BASE: Secret definitions and aliases are excluded from agent-writable listings; direct/alias regressions pass. No new fix needed.
+ALREADY FIXED ON BASE: Secret definitions and aliases are excluded from agent-writable listings. Focused tests prove it; no redundant fix.
 
-FIXED: Mail provider approval could overwrite a selection changed while the card was open; the displayed revision now reaches the existing transactional writer.
+FIXED: A stale mail-provider card could overwrite a newer provider selection; exact snapshot revision now reaches transactional CAS.
 
-FIXED: Mail provider action cards did not perform fresh active-person access checks.
+FIXED: Mail-provider action cards did not perform fresh active-person access checks.
 
-FIXED: Automatic plugin choice could return an access grant without the common active-person checks; the original form now runs through the common fresh-access lifecycle.
+FIXED: Automatic plugin choices lacked the shared access lifecycle, active-person checks and common private/dwell confirmation controls.
 
-FIXED: Automatic Auto choice could overwrite a personal Off/Ask preference changed while the card was open.
+FIXED: Personal Auto could overwrite a preference changed while the card was open; snapshot/recheck/CAS now prevent it.
 
-FIXED: Failed Auto persistence left a retained controller decision, allowing a retry to use the rejected grant; the Jini owner now commits local consent only after persistence succeeds.
+FIXED: Failed Auto persistence left selected consent in a retained controller; retry can no longer use that rejected decision.
 
-FIXED: The new mail stale-selection error initially lacked an HTTP status mapping; it now returns a specific 409 conflict with a regression test.
+FIXED: New mail conflict errors initially lacked an HTTP status mapping; the route now returns a specific 409 conflict, with a red-first regression.
 
-OPEN MINOR: Mail plugin-disable cleanup reads lanes and writes without a revision guard, so it can overwrite a simultaneous provider selection. Outside these two card conversions.
+FIXED: The new grouped confirmation layout initially dropped existing per-choice hints; hints now remain visible and escaped.
 
-BASELINE TEST FAILURE: Existing project-key mail credential save returns HTTP 500 instead of 200, from attachedOnlyVault refusal; reproduced on archived `origin/cloud/combine`.
+BASELINE TEST FAILURE: Six existing Jini confirmation exact-output hashes disagree with the requested base. They failed before implementation, and their Received hashes remain identical on the compatibility-preserving final source. Expectations were not updated.
 
-OPEN MINOR (static trace): Custom-domain static publishing appears to ask twice: generic publish policy then domain-publish confirmation. No changes in this job.
+BASELINE TEST FAILURE: Existing project-key mail credential save returns HTTP500 instead of 200 from the attached-only vault refusal. Reproduced against archived `origin/cloud/combine` source with the same installed dependencies. Exact archive command: `node --import tsx --import ./development/test-support/composed-bundle-env.ts --experimental-test-module-mocks --test-name-pattern='mail card saves attach the project key immediately' apps/website/src/server/__tests__/routes/mail-providers-route.test.ts`. No unrelated fix.
 
-OPEN MINOR: Google Workspace admin status/list actions omit effect declarations and inherit conservative write approval. No changes in this job.
+OPEN MINOR: Mail plugin-disable cleanup reads lanes then writes without a revision guard, so it can overwrite a simultaneous provider selection. Outside these two card conversions.
+
+OPEN MINOR (static trace): Custom-domain static publish appears to ask twice: generic publish-policy approval followed by domain-publish confirmation. Runtime not exercised; no changes in this job.
+
+OPEN MINOR: Google Workspace admin status/list actions omit effects and inherit conservative write approval; no declaration was changed.
+
+OPEN MINOR: Existing standalone unchecked confirmation choices use a plain-object ID map and can mishandle the arbitrary ID `__proto__`. The new grouped/default path uses a null-prototype map; old output remains unchanged per the consent-card exclusion.
 
 ## Tools that always require approval
 
@@ -178,9 +285,3 @@ External names come from connected servers' runtime catalogs, so repository sour
 ### Inventory method and limits
 
 Searched production `Tovu/apps` for the common approval functions, domain handler constructors, policy metadata, surface exchange openers, and requiresConfirmation; traced central metadata projection and registration wrapping, Jini search/transfer/commerce owners, dynamic executable tools, and bundled declarations. No usable Tovu graph index was present; used freshness-sensitive rg and direct source reads. This was a static read-only inventory, not a live-site/plugin-account test. Consent code was inspected only.
-
-### Bugs found during inventory
-
-OPEN: A custom-domain `deployment_execute_static_publish` appears to ask twice: its publish/policy metadata first invokes the generic approval wrapper, then `T/features/deployments/publish-agent-tools.ts` calls `domainPublishTool`, whose `humanConfirmedToolHandler` in `T/features/deployments/static-publish/domain-publish-tool.ts` asks again. Static trace verified; runtime not exercised; left outside this job.
-
-OPEN MINOR: All 18 Google Workspace admin action declarations omit effect, so status/list operations inherit write approval. The generic default is deliberately conservative; no declaration was changed by this job.
