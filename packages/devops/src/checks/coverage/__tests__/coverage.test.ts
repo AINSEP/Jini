@@ -99,6 +99,12 @@ test('branchless functionless records union their line hits without inventing ot
     .toMatchObject({ lf: 2, lh: 2, brf: 0, brh: 0, fnf: 0, fnh: 0 });
 });
 
+test('unions LCOV function declarations with an optional end line', () => {
+  const text = `SF:${rec().file}\nDA:1,1\nFN:1,2,task\nFNDA:1,task\nLF:1\nLH:1\nFNF:1\nFNH:1\nend_of_record\n`;
+  const report = parseLcov({ text, repoRoot: '/repo' });
+  expect(mergeCoverage({ reports: [report, report], isMeasurable: measurable }).get(rec().file)).toMatchObject({ lf: 1, lh: 1, fnf: 1, fnh: 1 });
+});
+
 test.each<[FileCoverage | undefined, FileCoverage | undefined, boolean, number, number]>([
   [undefined, undefined, false, 0, 0],
   [rec({ brf: 0, brh: 0 }), undefined, true, 100, 100],

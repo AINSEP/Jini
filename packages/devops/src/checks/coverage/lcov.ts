@@ -60,7 +60,7 @@ function readEntries(record: string): CoverageEntries | undefined {
   for (const match of record.matchAll(/^DA:(\d+),(\d+)/gm)) line.set(match[1]!, Number(match[2]));
   for (const match of record.matchAll(/^BRDA:(\d+,[^,\n]+,[^,\n]+),(\d+|-)$/gm)) branch.set(match[1]!, Number(match[2]) || 0);
   const declared = new Map<string, number>();
-  for (const match of record.matchAll(/^FN:\d+,(.+)$/gm)) funcs.set(functionKey(declared, match[1]!), 0);
+  for (const match of record.matchAll(/^FN:\d+,(?:\d+,)?(.+)$/gm)) funcs.set(functionKey(declared, match[1]!), 0);
   const counted = new Map<string, number>();
   for (const match of record.matchAll(/^FNDA:(\d+),(.+)$/gm)) funcs.set(functionKey(counted, match[2]!), Number(match[1]));
   return { line, branch, funcs };
