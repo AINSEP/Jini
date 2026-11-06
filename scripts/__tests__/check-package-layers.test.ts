@@ -227,3 +227,45 @@ describe('user-management optional admin integration layer exception', () => {
     expect(checkPackageLayers({ repoRoot: root })).toEqual([]);
   });
 });
+
+describe('packaged payload peers keep the runtime source boundary', () => {
+  let root: string;
+  function manifest(optional = true, dependency = false): void {
+    const peers = { '@jini-ai/cms': '*', '@jini-ai/commerce': '*' };
+    writeFileSync(join(root, 'packages/agent-plugins/package.json'), JSON.stringify({
+      name: '@jini-ai/agent-plugins',
+      jini: { kind: 'plugin-packaging', optionalPeers: {
+        '@jini-ai/cms': 'opt-in: Cloudflare form evidence adapter',
+        '@jini-ai/commerce': 'opt-in: commerce server entry',
+      } },
+      ...(dependency ? { dependencies: peers } : { peerDependencies: peers }),
+      peerDependenciesMeta: { '@jini-ai/cms': { optional }, '@jini-ai/commerce': { optional } },
+    }));
+  }
+  beforeEach(() => {
+    root = mkdtempSync(join(tmpdir(), 'jini-payload-peer-test-'));
+    for (const name of ['agent-plugins', 'cms', 'commerce']) {
+      mkdirSync(join(root, `packages/${name}/src`), { recursive: true });
+      writeFileSync(join(root, `packages/${name}/package.json`), JSON.stringify({ name: `@jini-ai/${name}` }));
+    }
+    manifest();
+  });
+  afterEach(() => rmSync(root, { recursive: true, force: true }));
+
+  it('permits only the documented optional payload peer declarations', () => {
+    expect(checkPackageLayers({ repoRoot: root })).toEqual([]);
+  });
+  it.each(['@jini-ai/cms', '@jini-ai/cms/forms', '@jini-ai/commerce', '@jini-ai/commerce/payments/kernel'])
+    ('still rejects an upward runtime source import of %s', spec => {
+      writeFileSync(join(root, 'packages/agent-plugins/src/index.ts'), `import { X } from '${spec}';`);
+      expect(checkPackageLayers({ repoRoot: root }).map(finding => finding.file)).toEqual(['packages/agent-plugins/src/index.ts']);
+    });
+  it('keeps direct dependencies blocked', () => {
+    manifest(true, true);
+    expect(checkPackageLayers({ repoRoot: root })).toHaveLength(2);
+  });
+  it('keeps required peer declarations blocked', () => {
+    manifest(false);
+    expect(checkPackageLayers({ repoRoot: root })).toHaveLength(2);
+  });
+});

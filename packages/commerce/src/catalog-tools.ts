@@ -4,7 +4,7 @@ import { adaptLegacyAuthorize, requireToolPermission, type AuthorizeFn } from "@
 import { CommerceProductNotFoundError } from "./catalog/errors.js";
 import { CommerceUnavailableError, type CommerceServer } from "./catalog/plugin-server.js";
 import type { CommercePriceRepoPort, CommerceProductRepoPort } from "./catalog/ports.js";
-import { readAmount, requiredText, strictInput } from "./payments/tools/input.js";
+import { readAmount, requiredText, strictInput } from "./core/tool-input.js";
 import { ToolInputError } from "@jini-ai/core";
 
 export interface CommerceCatalogToolsDeps {

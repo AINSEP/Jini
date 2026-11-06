@@ -26,6 +26,9 @@
       "./money": "universal",
       "./checkout-browser": "universal"
     },
+    "isolation": {
+      "shared": ["src/money"]
+    },
     "optionalPeers": {
       "@jini-ai/db": "opt-in: database-backed adapters; import @jini-ai/commerce/payments/ledger/sql \u2014 Database-backed adapters could not load @jini-ai/db. Install @jini-ai/db to enable this feature, or check its installed version and native binaries.",
       "kysely": "opt-in: sql storage adapters; import @jini-ai/commerce/payments/ledger/sql \u2014 SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries.",
