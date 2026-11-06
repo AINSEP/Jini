@@ -456,6 +456,25 @@ function setFormDefinitionStatus({ deps, input: { idempotencyKey, ...input } }: 
 }
 
 
+test('an unrelated edit saves while the stored provider is off or failing; a changed selection is still checked', async () => {
+  const deps = makeDeps();
+  let providers = createFormCollectionRegistry({});
+  providers.contribute({ pluginId: 'fixture', definition: { id: 'remote', provider: {
+    plan: ({ config }) => ({ kind: 'embed', url: config.url!, title: 'Remote', capabilities: { answers: 'Remote', validation: 'Remote', spamProtection: 'Remote' } }),
+  } } });
+  const writeDeps = { ...deps, formCollectionProviders: () => providers };
+  const stored = { id: 'remote', config: { url: 'https://forms.example.test/accepted', title: 'Contact' } };
+  const { definition } = await createFormDefinitionCore({ deps: writeDeps, input: { workspaceId: WORKSPACE_ID, actor: ACTOR, name: 'Contact', slug: 'contact', fields: [{ id: 'name', label: 'Name', type: 'text' as const, required: true }], provider: stored } });
+  providers = createFormCollectionRegistry({});
+  const update = (patch: Parameters<typeof updateFormDefinitionCore>[0]['input']['patch']) => updateFormDefinitionCore({ deps: writeDeps, input: { workspaceId: WORKSPACE_ID, actor: ACTOR, formId: definition.id, patch } });
+  const renamed = await update({ name: 'Renamed', provider: { id: 'remote', config: { title: 'Contact', url: 'https://forms.example.test/accepted' } } });
+  assert.equal(renamed.definition.name, 'Renamed');
+  assert.deepEqual((renamed.definition as HtmlFormDefinitionRecord).provider, stored);
+  await assert.rejects(update({ provider: { id: 'remote', config: { url: 'https://forms.example.test/other', title: 'Contact' } } }), /unavailable/);
+  await assert.rejects(update({ provider: { id: 'other', config: {} } }), /unavailable/);
+  assert.deepEqual((await deps.repo.findById({ workspaceId: WORKSPACE_ID, id: definition.id }) as HtmlFormDefinitionRecord).provider, stored);
+});
+
 test('provider configuration is checked before create or update persists it', async () => {
   const deps = makeDeps();
   const providers = createFormCollectionRegistry({});

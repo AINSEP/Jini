@@ -171,11 +171,18 @@ it('preserves an unavailable stored choice and shows a plain settings message', 
   expect(onProviderChange).not.toHaveBeenCalled();
 });
 
+const STORED_PROVIDER_OFF = "This form can't collect answers because its form provider is off or failing. Enable its plugin in Plugins, or choose another form provider. Your saved selection is kept, and other changes still save.";
+
+it('says plainly that a stored provider which is off stops answers, and how to fix it', () => {
+  render(<FormEditorFieldsBody {...props({ providers, provider: { id: 'retired_plugin', config: {} } })} />);
+  expect(screen.getByText(STORED_PROVIDER_OFF)).not.toBeNull();
+});
+
 it('shows provider loading until discovery settles without exposing a stored identifier or failure', () => {
   const p = props({ providers: undefined, provider: { id: 'google_forms', config: { url: 'kept' } } });
   const { rerender } = render(<FormEditorFieldsBody {...p} />);
   expect(screen.getByRole('status').textContent).toBe('Loading form providers…');
-  expect(screen.queryByText('Settings for this form provider are unavailable.')).toBeNull();
+  expect(screen.queryByText(STORED_PROVIDER_OFF)).toBeNull();
   expect(screen.queryByRole('option', { name: 'google_forms' })).toBeNull();
   rerender(<FormEditorFieldsBody {...p} providers={[{ ...providers[0]!, id: 'google_forms', label: 'Google Forms' }]} />);
   expect(screen.queryByText('Loading form providers…')).toBeNull();

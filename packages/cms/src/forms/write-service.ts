@@ -272,7 +272,7 @@ export async function updateFormDefinition(
         }
 
         const notify = input.patch.notify !== undefined ? validateNotify(input.patch.notify) : existing.notify;
-        assertProvider({ provider: input.patch.provider, slug: existing.slug, providers: deps.formCollectionProviders?.() });
+        assertProvider({ provider: input.patch.provider, stored: (existing as HtmlFormDefinitionRecord).provider, slug: existing.slug, providers: deps.formCollectionProviders?.() });
 
         const definition: HtmlFormDefinitionRecord = {
           ...existing,
@@ -393,13 +393,23 @@ async function updateAuthoredFormDefinition(
   }, writeOptions);
 }
 
+/** Same provider and public settings, whatever order a client lists them in.
+ * @complexity O(c log c) for c bounded configuration keys. */
+function sameProviderSelection(left: NonNullable<FormAuthoring["provider"]>, right: FormAuthoring["provider"]): boolean {
+  if (!right || left.id !== right.id) return false;
+  const settings = (config: Record<string, string>) => JSON.stringify(Object.entries(config).sort(([a], [b]) => a.localeCompare(b)));
+  return settings(left.config) === settings(right.config);
+}
+
 /** Convert public settings and provider-plan faults into the field-error contract before persistence.
- * @complexity O(c) for bounded configuration bytes plus the provider's pure plan; no I/O. */
-function assertProvider({ provider, slug, providers }: { provider: FormAuthoring["provider"]; slug: string; providers: FormCollectionRegistry | undefined }): void {
+ * The plan is asked only for a new or changed selection: an unrelated edit must save while the stored
+ * provider is off or failing, and the editor and the public form each say so.
+ * @complexity O(c log c) for bounded configuration bytes plus the provider's pure plan; no I/O. */
+function assertProvider({ provider, stored, slug, providers }: { provider: FormAuthoring["provider"]; stored?: FormAuthoring["provider"]; slug: string; providers: FormCollectionRegistry | undefined }): void {
   if (provider === undefined) return;
   try { validateFormProviderSelection({ selection: provider }); }
   catch (error) { throw new FormFieldValidationError({ message: error instanceof Error ? error.message : "Invalid form provider", fieldErrors: [{ field: "provider", reason: "must contain only public form configuration" }] }); }
-  if (!providers) return;
+  if (!providers || sameProviderSelection(provider, stored)) return;
   const plan = resolveFormCollectionPlan({ definition: { slug, provider }, providers });
   if (plan.kind === 'unavailable') throw new FormFieldValidationError({ message: plan.message, fieldErrors: [{ field: "provider", reason: plan.message }] });
 }

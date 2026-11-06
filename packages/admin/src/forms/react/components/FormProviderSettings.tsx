@@ -31,7 +31,8 @@ export function FormProviderSettings({ provider = { id: 'builtin', config: {} },
 /** Keep discovery failure separate from editable configuration without replacing either value. */
 function unavailableSettings({ selected, providersError, t }: { selected: FormProviderDescription | undefined; providersError: string | null | undefined; t: (key: string) => string }): string | null {
   if (providersError) return providersError;
-  if (!selected) return t('Settings for this form provider are unavailable.');
+  const storedProviderOff = t("This form can't collect answers because its form provider is off or failing. Enable its plugin in Plugins, or choose another form provider. Your saved selection is kept, and other changes still save.");
+  if (!selected) return storedProviderOff;
   if (selected.available) return null;
-  return selected.message ?? t('Settings for this form provider are unavailable.');
+  return selected.message ?? storedProviderOff;
 }
