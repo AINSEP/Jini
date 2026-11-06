@@ -1,4 +1,4 @@
-import { concreteModelOptions } from './core/model-discovery-shared.js';
+import { concreteModelOptions, modelReasoningOptions } from './core/model-discovery-shared.js';
 import { defaultRuntimeState, type AgentRuntimeState } from './runtime-state.js';
 /**
  * @module models
@@ -36,7 +36,7 @@ function modelAndEffortRefusal({ agent, agentId, modelId, effort }: SelectionReq
   // Default must resolve before checking model-specific effort; agent-wide levels can differ.
   if (!model) return `Default model for '${agentId}' is unresolved. Pick a concrete model before choosing effort.`;
   // Suffix-based runtimes own effort in the model id; a second effort setting would disagree.
-  const levels = agent.reasoningInModelId ? [] : model.reasoning ?? agent.reasoningOptions ?? [];
+  const levels = modelReasoningOptions({ agent, model });
   if (!levels.some(candidate => candidate.id === effort)) return `Unknown effort '${effort}' for '${agentId}'. Available effort levels: ${levels.map(candidate => candidate.id).join(', ')} (empty means Default).`;
   return null;
 }

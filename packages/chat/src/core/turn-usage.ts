@@ -120,7 +120,7 @@ function addUsage({ total, usage }: { total: UsageEvent | undefined; usage: Usag
 }
 
 /** Derive per-turn charges and prefix totals from persisted events_json, for live and reloaded
- * chats alike. A single reply's duration is the message's elapsed run time, from send to finish.
+ * chats alike. A single reply keeps its reported duration; elapsed run time fills a missing one.
  * A message with mid-run replies also gets per-reply `segments`. O(e + m) for e events
  * and m messages; no per-row transcript scans or I/O.
  * @example conversationUsage({ messages: savedMessages }).get('assistant-2') */
@@ -174,11 +174,10 @@ function messageUsage(
   return { usage, segments, totalCostUsd: prefixTotal };
 }
 
-/** Time one reply from the person's send (`startedAt`) to the run's end, the same way for every CLI.
- * A CLI's own reported duration leaves out its start-up wait (Claude Code said 42 s for a turn that took
- * 46.5 s from send to finish), so it is only the fallback when the timestamps are missing or invalid. */
+/** Fill a single reply's missing duration from send/end timestamps. Reported CLI duration wins,
+ * including zero: it measures the runtime's work rather than the host's startup wait. */
 function fillRunDuration({ usage, message }: { usage: UsageEvent; message: ChatMessage }, _optional = {}): void {
-  if (message.startedAt === undefined || message.endedAt === undefined) return;
+  if (usage.durationMs !== undefined || message.startedAt === undefined || message.endedAt === undefined) return;
   const durationMs = message.endedAt - message.startedAt;
   if (Number.isFinite(durationMs) && durationMs >= 0) usage.durationMs = durationMs;
 }

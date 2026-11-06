@@ -874,3 +874,15 @@ describe('L039a agent diagnostic projection pins', () => {
     expect(summary).not.toHaveProperty('diagnostics');
   });
 });
+
+it('preserves model reasoning metadata and suffix ownership in client-safe agent summaries', () => {
+  const high = { id: 'high', label: 'High' };
+  const agent: DetectedAgent = {
+    ...getAgentDef({ id: 'codex' })!, available: true, modelsSource: 'live',
+    models: [{ id: 'gpt-a', label: 'A', reasoning: [high] }, { id: 'gpt-b', label: 'B', reasoning: [] }],
+    reasoningInModelId: { levels: [high] },
+  };
+  const summary = projectDetectedAgent(agent);
+  expect(summary.models).toEqual(agent.models);
+  expect(summary).toHaveProperty('reasoningInModelId', { levels: [high] });
+});

@@ -567,3 +567,28 @@ describe('describeChatPaneSendBlocker', () => {
     ]);
   });
 });
+
+
+describe('model-specific reasoning selection', () => {
+  const high = { id: 'high', label: 'High' };
+  const low = { id: 'low', label: 'Low' };
+  const agent: ChatPaneAgent = { id: 'codex', name: 'Codex',
+    models: [{ id: 'gpt-a', label: 'A', reasoning: [high] }, { id: 'gpt-b', label: 'B', reasoning: [low] },
+      { id: 'gpt-empty', label: 'Empty', reasoning: [] }],
+    reasoningOptions: [{ id: 'default', label: 'Default' }, low, high],
+  };
+  it('preserves Default and model-supported choices but drops unsupported explicit effort', () => {
+    for (const reasoning of ['default', 'high']) {
+      expect(resolveChatPaneSelection({ agents: [agent], requested: { agentId: agent.id, model: 'gpt-a', reasoning } })).toEqual({ agentId: agent.id, model: 'gpt-a', reasoning });
+    }
+    expect(resolveChatPaneSelection({ agents: [agent], requested: { agentId: agent.id, model: 'gpt-b', reasoning: 'high' } })).toEqual({ agentId: agent.id, model: 'gpt-b', reasoning: 'default' });
+  });
+  it('chooses a model-supported fallback when no Default is advertised', () => {
+    const noDefault = { ...agent, reasoningOptions: [high, low] };
+    expect(resolveChatPaneSelection({ agents: [noDefault], requested: { agentId: agent.id, model: 'gpt-b', reasoning: 'high' } })).toEqual({ agentId: agent.id, model: 'gpt-b', reasoning: 'low' });
+    expect(resolveChatPaneSelection({ agents: [noDefault], requested: { agentId: agent.id, model: 'gpt-empty', reasoning: 'high' } })).toEqual({ agentId: agent.id, model: 'gpt-empty' });
+  });
+  it('does not create separate reasoning for a suffix runtime', () => {
+    expect(defaultChatPaneSelection({ agent: { ...agent, reasoningInModelId: { levels: [high] } } })).toEqual({ agentId: agent.id, model: 'gpt-a' });
+  });
+});

@@ -258,3 +258,11 @@ uses the same fetch for upload and partial-upload cleanup; omission uses
 inherit the failed upload's cancellation. Upload quotas and its 30-second batch
 deadline are unchanged. Browser timeout reasons remain native; platform is no
 longer a dependency of this package.
+
+## Optional chat settings presentation
+
+React hosts can import `@jini-ai/chat/react/styles/chat-settings.css` for
+`ChatSettingsDialog` and `ChatSettingsSegmented`. The stylesheet includes standalone
+colors, controls, keyboard focus, and bounded scrolling. Bind its
+`--jini-chat-settings-*` custom properties to the host theme when needed; no
+reference or host stylesheet is required for the settings presentation.

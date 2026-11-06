@@ -38,7 +38,8 @@
       "./vanilla": "browser",
       "./browser/lazy-loader": "browser",
       "./vanilla/style.css": "browser",
-      "./browser/frontend-session-bridge": "browser"
+      "./browser/frontend-session-bridge": "browser",
+      "./react/styles/chat-settings.css": "browser"
     },
     "neutralEntries": [
       "src/store/contracts"
@@ -192,7 +193,8 @@
       "types": "./dist/embed-widget/browser/frontend-session-bridge.d.ts",
       "import": "./dist/embed-widget/browser/frontend-session-bridge.js",
       "default": "./dist/embed-widget/browser/frontend-session-bridge.js"
-    }
+    },
+    "./react/styles/chat-settings.css": "./dist/react/styles/chat-settings.css"
   },
   "files": [
     "dist",
@@ -213,7 +215,7 @@
     "registry": "https://registry.npmjs.org"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json && mkdir -p dist/react/styles && cp src/react/styles/reference.css dist/react/styles/ && mkdir -p dist/embed-widget/vanilla && node --input-type=module -e \"import {writeFileSync,readFileSync} from 'node:fs'; import {CHAT_BUBBLE_STYLE} from './dist/embed-widget/browser/lazy-loader.js'; writeFileSync('dist/embed-widget/vanilla/style.css',CHAT_BUBBLE_STYLE+'\\n'+readFileSync('src/embed-widget/vanilla/style.css','utf8'));\"",
+    "build": "tsc -p tsconfig.json && mkdir -p dist/react/styles && cp src/react/styles/*.css dist/react/styles/ && mkdir -p dist/embed-widget/vanilla && node --input-type=module -e \"import {writeFileSync,readFileSync} from 'node:fs'; import {CHAT_BUBBLE_STYLE} from './dist/embed-widget/browser/lazy-loader.js'; writeFileSync('dist/embed-widget/vanilla/style.css',CHAT_BUBBLE_STYLE+'\\n'+readFileSync('src/embed-widget/vanilla/style.css','utf8'));\"",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",

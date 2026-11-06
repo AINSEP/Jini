@@ -24,6 +24,8 @@ export interface AgentModelSummary {
   readonly label: string;
   readonly identityKind?: ModelIdentityKind;
   readonly resolvedId?: string;
+  /** Per-model vocabulary, including an explicitly empty list. */
+  readonly reasoning?: readonly AgentModelSummary[];
 }
 
 /**
@@ -39,6 +41,7 @@ export interface AgentSummary {
   readonly authStatus?: 'ok' | 'missing' | 'unknown';
   readonly models?: readonly AgentModelSummary[];
   readonly reasoningOptions?: readonly AgentModelSummary[];
+  readonly reasoningInModelId?: { readonly levels: readonly AgentModelSummary[] };
   readonly modelsSource?: 'live' | 'fallback';
   readonly modelCatalog?: ModelCatalogSnapshot;
   readonly defaultModelResolution?: DefaultModelResolution;

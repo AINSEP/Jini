@@ -1,3 +1,4 @@
+import { modelReasoningOptions } from '@jini-ai/agent-runtime/model-selection';
 import { friendlyModelLabel, pickerModelValue, pickerCatalogNote, pickerModelOptions, shortModelLabel } from '../model-options.js';
 import { useId, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
@@ -8,7 +9,7 @@ import { assessNativeToolPolicy, type NativeToolPolicyInput } from '@jini-ai/age
 import { useT } from '../../../hooks/context.js';
 import { definedProps } from '../../../util/defined-props.js';
 import { RuntimeDropUp } from './RuntimeDropUp.js';
-import { defaultChatPaneSelection } from '../rules.js';
+import { defaultChatPaneSelection, resolveChatPaneSelection } from '../rules.js';
 import {
   runtimeOptionLabel,
   runtimePopoverPosition,
@@ -226,7 +227,8 @@ function RuntimeBarMenus({ selectedAgent, value, onChange, modelLabel, t }: Runt
   if (!selectedAgent) return null;
   // Raw catalog ids (an offline fallback list's rows) read as friendly names in the bar and its list.
   const models = pickerModelOptions(selectedAgent).map((row) => ({ ...row, label: friendlyModelLabel({ label: row.label }) }));
-  const efforts = selectedAgent.reasoningOptions ?? [];
+  const selectedModelId = pickerModelValue(selectedAgent, value.model);
+  const efforts = modelReasoningOptions({ agent: selectedAgent, model: models.find(option => option.id === selectedModelId) });
   const modelName = friendlyModelLabel({ label: modelLabel });
   return (
     <>
@@ -240,11 +242,9 @@ function RuntimeBarMenus({ selectedAgent, value, onChange, modelLabel, t }: Runt
           options={models}
           note={pickerCatalogNote(selectedAgent, t)}
           width={260}
-          onSelect={(model) => onChange({
-            agentId: value.agentId,
-            model,
-            ...(value.reasoning ? { reasoning: value.reasoning } : {}),
-          })}
+          onSelect={(model) => onChange(value.reasoning ? resolveChatPaneSelection({
+            agents: [selectedAgent], requested: { ...value, model },
+          }) : { agentId: value.agentId, model })}
         />
       ) : null}
       {efforts.length > 0 ? (

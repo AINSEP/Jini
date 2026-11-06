@@ -1,3 +1,4 @@
+import { modelReasoningOptions } from '@jini-ai/agent-runtime/model-selection';
 import { configuredPickerModel, pickerModelOptions, isConcretePickerModel } from './model-options.js';
 import type { ChatMessage } from '@jini-ai/chat';
 import { isTerminalRunStatus } from '../../../core/messages.js';
@@ -55,7 +56,7 @@ export function defaultChatPaneSelection({ agent }: { agent: ChatPaneAgent }): C
   // Use that fallback for unresolved native defaults too: an off-list alias must not strand
   // a usable catalog. The picker still excludes aliases without concrete model evidence.
   const model = configuredPickerModel(agent) || pickerModelOptions(agent)[0]?.id;
-  const reasoning = preferredOptionId(agent.reasoningOptions);
+  const reasoning = preferredOptionId(modelReasoningOptions({ agent, model: pickerModelOptions(agent).find(option => option.id === model) }));
   return selectionOf({ agentId: agent.id, model, reasoning });
 }
 
@@ -69,11 +70,8 @@ export function resolveChatPaneSelection({ agents, requested }: { agents: readon
   const defaults = defaultChatPaneSelection({ agent: agent });
   if (agent !== requestedAgent) return defaults;
   const model = resolveRequestedModel({ agent, requested: requested.model, fallback: defaults.model });
-  const reasoning = validatedOptionId(
-    agent.reasoningOptions,
-    requested.reasoning,
-    defaults.reasoning,
-  );
+  const efforts = modelReasoningOptions({ agent, model: pickerModelOptions(agent).find(option => option.id === model) });
+  const reasoning = validatedOptionId(efforts, requested.reasoning, preferredOptionId(efforts));
   return selectionOf({ agentId: agent.id, model, reasoning });
 }
 

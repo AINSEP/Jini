@@ -9,6 +9,7 @@ import {
   sanitizeCustomModel,
   validateRuntimeSelection,
 } from '../models.js';
+import { modelReasoningOptions } from '../model-discovery-shared.js';
 import type { RuntimeAgentDef } from '../types.js';
 
 describe('validateRuntimeSelection', () => {
@@ -302,5 +303,41 @@ describe('resolveModelForAgent characterization (pinned before the complexity re
     rememberLiveModels({ agentId: 'agent-empty-live', models: [{ id: '', label: 'x' }, { id: 'live-2', label: 'y' }] });
     const def = makeDef({ id: 'agent-empty-live', fallbackModels: [{ id: 'fb-1', label: 'x' }] });
     expect(resolveModelForAgent({ def, resolved: null }, { env: {} })).toBe('fb-1');
+  });
+});
+
+
+describe('modelReasoningOptions shared projection', () => {
+  const fallback = [{ id: 'default', label: 'CLI default' }, { id: 'ultra', label: 'Ultra' }];
+  const high = { id: 'high', label: 'High' };
+  it('keeps the advertised default while narrowing to the selected model, without mutation', () => {
+    const model = { reasoning: [high] };
+    expect(modelReasoningOptions({ agent: { reasoningOptions: fallback }, model })).toEqual([fallback[0], high]);
+    expect(model.reasoning).toEqual([high]);
+    expect(fallback).toHaveLength(2);
+  });
+  it('deduplicates repeated ids and keeps the registry default label', () => {
+    expect(modelReasoningOptions({ agent: { reasoningOptions: fallback }, model: { reasoning: [
+      { id: 'default', label: 'Model default' }, high, high,
+    ] } })).toEqual([fallback[0], high]);
+  });
+  it('does not invent a default when none is advertised', () => {
+    expect(modelReasoningOptions({ agent: { reasoningOptions: [high] }, model: { reasoning: [high] } })).toEqual([high]);
+    expect(modelReasoningOptions({ agent: {}, model: {} })).toEqual([]);
+  });
+  it('falls back for absent model levels, but honors an explicitly empty vocabulary', () => {
+    expect(modelReasoningOptions({ agent: { reasoningOptions: fallback }, model: {} })).toEqual(fallback);
+    expect(modelReasoningOptions({ agent: { reasoningOptions: fallback }, model: { reasoning: [] } })).toEqual([fallback[0]]);
+    expect(modelReasoningOptions({ agent: { reasoningOptions: [high] }, model: { reasoning: [] } })).toEqual([]);
+    expect(modelReasoningOptions({ agent: { reasoningOptions: fallback } })).toEqual(fallback);
+  });
+  it('never offers a second effort flag for suffix-based runtimes', () => {
+    expect(modelReasoningOptions({ agent: { reasoningOptions: fallback, reasoningInModelId: { levels: [high] } }, model: { reasoning: [high] } })).toEqual([]);
+  });
+  it('validates the same default and model-specific vocabulary the picker offers', () => {
+    const agent = { id: 'codex', available: true, authStatus: 'ok' as const, modelsSource: 'live' as const,
+      reasoningOptions: fallback, models: [{ id: 'gpt-6-astra', label: 'Astra', reasoning: [high] }] };
+    for (const effort of ['default', 'high']) expect(validateRuntimeSelection({ agents: [agent], agentId: agent.id, modelId: 'gpt-6-astra', effort })).toBeNull();
+    expect(validateRuntimeSelection({ agents: [agent], agentId: agent.id, modelId: 'gpt-6-astra', effort: 'ultra' })).toContain('Unknown effort');
   });
 });
