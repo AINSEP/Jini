@@ -18,7 +18,7 @@ describe("forms HTTP adapter", () => {
     const calls: Array<{ path: string; method: string }> = [];
     const transport: FormsTransportPort = { async request<T>(required: { path: string; method: string }) { calls.push(required); return { data: providers } as T; }, url: ({ path }) => path };
     expect(await createHttpFormsApi({ transport, basePath: '/workspaces/w/forms/' }).listFormProviders!({})).toEqual(providers);
-    expect(calls).toEqual([{ path: '/workspaces/w/forms/providers', method: 'GET' }]);
+    expect(calls).toEqual([{ path: '/workspaces/w/forms/_providers', method: 'GET' }]);
   });
 
   it("routes a submission delete to the encoded submission path (the server moves it to Trash)", async () => {

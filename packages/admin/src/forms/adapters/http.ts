@@ -21,7 +21,7 @@ export function createHttpFormsApi(
       submissionFileUrl: ({ mediaId }: { mediaId: string }, _optional: Record<string, never> = {}) => transport.url({ path: `${mediaBase}/${encodeURIComponent(mediaId)}/original` }),
     }),
     async listFormProviders(_required, _optional = {}) {
-      return (await transport.request<{ data: import('@jini-ai/cms/forms').FormProviderDescription[] }>({ path: `${base}/providers`, method: 'GET' })).data;
+      return (await transport.request<{ data: import('@jini-ai/cms/forms').FormProviderDescription[] }>({ path: `${base}/_providers`, method: 'GET' })).data;
     },
     async listFormDefinitions(_required, _optional = {}) {
       return (await transport.request<{ data: AdminFormDefinition[] }>({ path: base, method: 'GET' })).data;
