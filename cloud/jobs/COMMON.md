@@ -10,3 +10,5 @@ Report last, in your final message and in cloud/reports/<job>.md on your branch;
 
 Owner 11-05 on testing: do the code work first. Test only the code you change, to catch bugs you introduced, then fix them. Full suites run at the very end, not in your job. No cheating: never disable, skip, weaken or delete a test, rule or check to make something pass. No eslint-disable. If something can't be fixed honestly, report it.
 Use AI-Dev-Shop at /workspace/cloud/ai-dev-shop: agents/<role>/skills.md, skills/*/SKILL.md, AGENTS.md. Tovu's AGENTS.md points at AI-Dev-Shop/AGENTS.md; use this copy for it.
+
+Owner 11-05 on the Tovu desktop pre-push hook: it runs heavy desktop tests that this job does not need. Owner approved `git push --no-verify` for your own cloud/<job> branch in Tovu. GitHub's Desktop Gates still run on the branch and the full suites run last. Do not stop to ask about this.
