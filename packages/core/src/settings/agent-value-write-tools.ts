@@ -2,7 +2,7 @@ import { adaptLegacyAuthorize, ForbiddenError as PermissionDeniedError, requireT
 import { ToolInputError, type ToolExecutionContext, type ToolExecutionOptions, type ToolHandler } from "../tool-registry.js";
 import type { JsonValue } from "../primitives/index.js";
 import { AGENT_WRITE_CONFIRMATION_SETTINGS, AGENT_WRITE_DENIED_SETTINGS, findAgentWriteRule, type AgentSettingWriteRule } from "./agent-write-denylist.js";
-import { DefinitionNotFoundError, DefinitionTombstonedError, ForbiddenError, ScopeNotAllowedError, ValueValidationFailedError } from "./errors.js";
+import { DefinitionNotFoundError, DefinitionTombstonedError, ForbiddenError, ScopeNotAllowedError, SettingsRevisionConflictError, ValueValidationFailedError } from "./errors.js";
 import { getEffective, resolveDefinitionRaw, validateValueAgainstSchema } from "./settings.js";
 import type { SettingsToolDeps } from "./tool-registrations.js";
 import { SCOPE_BIT, type SettingDefinitionRecord, type SettingValueRecord } from "./types.js";
@@ -11,7 +11,7 @@ import { clear, deriveRequiredPermission, set, type SettingsWriteServiceDeps } f
 export type SettingsValueWriteToolId = "settings_set_value" | "settings_clear_value";
 
 /** Host-only port. This request is never an agent input and only the host's authenticated
- * human transport or a persisted human identity grant may answer it. Model input never authorizes it. */
+ * human transport may answer it. Model input and remembered grants never authorize access changes. */
 export interface SettingsWriteConfirmation {
   ctx: ToolExecutionContext;
   toolId: SettingsValueWriteToolId;
@@ -19,6 +19,8 @@ export interface SettingsWriteConfirmation {
   key: string;
   scope: "workspace" | "user";
   previous: JsonValue | null;
+  /** The addressed override's revision, fixed before asking; 0 means no stored row. */
+  expectedRevisionSeq: number;
   value?: JsonValue;
   reason: string;
 }
@@ -136,6 +138,7 @@ function writePolicy(deps: SettingsToolDeps, toolId: SettingsValueWriteToolId, t
 
 /** Maps expected caller-fixable errors; infrastructure failures remain untouched. O(1). */
 function rethrowWriteError(error: unknown, toolId: SettingsValueWriteToolId, target: WriteTarget, permission: string): never {
+  if (error instanceof SettingsRevisionConflictError) throw new ToolInputError({ message: `${toolId}: this setting changed before the approved change could be saved. Read it again and request a new confirmation. Nothing was changed by this call.` }, { cause: error });
   if (error instanceof DefinitionNotFoundError || error instanceof DefinitionTombstonedError) throw new ToolInputError({ message: `${toolId}: ${error.message}. Call settings_list_definitions to see valid keys.` }, { cause: error });
   if (error instanceof ScopeNotAllowedError) throw new ToolInputError({ message: `${toolId}: '${target.namespace}.${target.key}' can't be set ${target.scope === "user" ? "per-user" : "at workspace scope"}. Call settings_list_definitions to see allowed scopes.` }, { cause: error });
   if (error instanceof ValueValidationFailedError) throw new ToolInputError({ message: `${toolId}: ${error.message}. Call settings_list_definitions and use a value matching the setting's schema.` }, { cause: error });
@@ -204,7 +207,7 @@ async function confirmProtectedWrite(deps: SettingsToolDeps, request: WriteReque
   const { definition, layer, previous, rule } = prepared;
   const isSet = toolId === "settings_set_value";
   if (!deps.confirmWrite) throw new ToolInputError({ message: `${toolId}: '${rule.namespace}.${rule.key}' requires a human confirmation card: ${rule.reason}. The owner can change it in Settings.` });
-  const confirmed = await deps.confirmWrite({ ctx, toolId, namespace: rule.namespace, key: rule.key, scope: target.scope, previous: structuredClone(previous), ...(isSet ? { value: structuredClone(target.value!) } : {}), reason: rule.reason }, options);
+  const confirmed = await deps.confirmWrite({ ctx, toolId, namespace: definition.namespace, key: definition.key, scope: target.scope, previous: structuredClone(previous), expectedRevisionSeq: layer?.seq ?? 0, ...(isSet ? { value: structuredClone(target.value!) } : {}), reason: rule.reason }, options);
   if (confirmed !== true) throw new ToolInputError({ message: `${toolId}: the human did not confirm the change. Nothing was changed.` });
   const current = await resolveTarget(deps, target, isSet);
   const currentLayer = await readLayer(deps, target, current.settingId, ctx.principal.id);
@@ -219,11 +222,14 @@ async function applyWrite(deps: SettingsToolDeps, request: WriteRequest, prepare
   // Resolved coordinates preserve host validators even when the request named an alias.
   const input = { namespace: definition.namespace, key: definition.key, scope: target.scope, workspaceId: deps.workspaceId, callerPrincipalId: ctx.principal.id, authWorkspaceId: deps.workspaceId };
   const key = `${target.namespace}.${target.key}`;
+  // The post-card read gives a readable stale-card refusal; this transactional guard also closes
+  // the race while a host validator awaits between that read and the ledger write.
+  const options = prepared.rule ? { expectedRevisionSeq: prepared.layer?.seq ?? 0 } : {};
   if (toolId === "settings_set_value") {
-    const result = await (deps.setValue ?? set)({ deps: writeDeps, input: { ...input, value: target.value! } });
+    const result = await (deps.setValue ?? set)({ deps: writeDeps, input: { ...input, value: target.value! } }, options);
     return { key, scope: target.scope, previous, value: result.value, revisionSeq: result.revisionSeq };
   }
-  await clear({ deps: writeDeps, input });
+  await clear({ deps: writeDeps, input }, options);
   const effective = await getEffective({ repo: deps.settingsRepo }, { namespace: definition.namespace, key: definition.key, scopeContext: { workspaceId: deps.workspaceId, principalId: ctx.principal.id } });
   return { key, scope: target.scope, previous, effective: effective?.value ?? null };
 }
