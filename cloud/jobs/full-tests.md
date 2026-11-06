@@ -17,3 +17,5 @@ A failure that only happens because the container lacks something (Electron, a d
 Push every 10 minutes. Report at cloud/reports/full-tests.md and in your final message: final shas, per-suite pass and fail counts with exact commands, each fix and its cause, what is still failing and why. General wording in commits and notes.
 
 Also fix one known finding: composeSiteRouteDeps in Tovu is over the complexity limit (18 against 10). Split it with the smallest change; no debt-list entry.
+
+Also fix: createRouteDeps and createApp over the limit at 11, composeSiteRouteDeps now 21; rendition generation returning 500 in route tests because the in-memory versioned adapter lacks saveRenditionIfSource; the 'L3 isolated guard: secret-sentinel' failure. Confirm whether the rendition failure is test setup or a real site problem.
