@@ -2,11 +2,12 @@
  * receipts. Denial is applied before any network; a durable grant runs only once its receipt exists; a
  * response never sets a cookie, so a slow Accept can't overwrite a newer Reject. No polling, and no reload
  * unless something already ran that cannot be stopped (a raw inert script, or an adapter that can't revoke). */
-import { ADAPTER_KIND, CONFIG_ID, CONSENT_COOKIE, OPEN_EVENT, OPTIONAL, READY_EVENT, REGION_COOKIE, STATE_EVENT,
+import { BRIDGE_KIND, ADAPTER_KIND, CONFIG_ID, CONSENT_COOKIE, OPEN_EVENT, OPTIONAL, READY_EVENT, REGION_COOKIE, STATE_EVENT,
   type AdapterContribution, type ClientConfig, type ConsentAction, type ConsentAdapter, type ConsentState, type Contribution,
   type Evidence, type Flags, type JiniConsentApi, type LazyAdapter, type Optional, type PageConfig, type PluginRegistry,
   type RawContribution, type Revoker, type StoragePrefixes, type StoredChoice } from '../contract.js';
 import { choicesFor, DAY_MS, effective, parseStored, RECEIPT_ID, regionFrom } from '../contracts/policy.js';
+import { bindBridges } from './bridges.js';
 import { allows } from '../contracts/scripts.js';
 import { declaredScripts } from './scripts.js';
 import { ADAPTER_SLOT, createPluginRegistry } from '../contracts/plugins.js';
@@ -208,7 +209,8 @@ export function boot(win: Window & typeof globalThis = window, { ports = browser
   win.jiniConsentQueue = { push: (...items) => items.forEach(item => api.plugins.registerPlugin(item, { source: 'queue' })) };
   win.jiniConsentQueue.push(...queued);
   installOpeners({ api, doc });
-  if (page.banner === 'jini') bindBanner?.({ api, doc });
+  bindBridges({ api, doc });
+  if (page.banner === 'jini' && bindBanner) api.plugins.registerPlugin({ id: 'jini-banner', kind: BRIDGE_KIND, mount: bindBanner });
   doc.dispatchEvent(new CustomEvent(READY_EVENT, { detail: api }));
   return api;
 }

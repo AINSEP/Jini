@@ -111,6 +111,12 @@ export interface RegionResolver extends Contribution<typeof REGION_KIND> {
 /** Data-only form for a plugin manifest; the region slot turns it into a RegionResolver. */
 export interface HeaderRegion extends Contribution<typeof REGION_KIND> { header: string; usValues?: readonly string[] }
 
+export const BRIDGE_KIND = 'consent-bridge';
+export interface ConsentBridge extends Contribution<typeof BRIDGE_KIND> {
+  src?: string;
+  mount?(required: { api: JiniConsentApi; doc: Document }, optional?: object): void | (() => void);
+}
+
 export interface DeclaredScript { src: string; consent?: readonly Category[] }
 
 // ---- Browser API ----
