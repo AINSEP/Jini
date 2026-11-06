@@ -47,6 +47,8 @@ export interface CommerceCheckoutReadiness {
   readonly reason: string | null;
   /** Public callback address from trusted host configuration; never contains signing secrets. */
   readonly webhookUrl?: string | null;
+  /** At most ten shop-owned order ids needing operator attention. */
+  readonly needsAttention?: readonly string[];
 }
 
 export interface CommerceStatus {

@@ -178,7 +178,7 @@ export interface LedgerTx {
   // Quarantine ----------------------------------------------------------------------------------
   insertQuarantine(required: { entry: NewQuarantine }, optional?: Record<string, never>): Promise<void>;
   /** Oldest first; `unresolvedOnly` hides resolved entries. */
-  listQuarantine(required: LedgerKeyScope, optional?: { unresolvedOnly?: boolean }): Promise<QuarantineRecord[]>;
+  listQuarantine(required: LedgerKeyScope, optional?: { unresolvedOnly?: boolean; limit?: number }): Promise<QuarantineRecord[]>;
   resolveQuarantine(required: { id: string; resolvedAt: number }, optional?: Record<string, never>): Promise<boolean>;
 
   // Reconciliation scans (L4) ---------------------------------------------------------------------

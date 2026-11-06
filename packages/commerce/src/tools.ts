@@ -41,7 +41,8 @@ export function buildRegistrations(deps: Deps, _optional: Record<string, never> 
       if (checkout?.scope && checkout.scope.workspaceId !== deps.workspaceId) throw new CommerceUnavailableError("Commerce status belongs to another workspace.");
       return readCommerceStatus({ workspaceId: deps.workspaceId, resolvePaymentRuntime: () => deps.paymentRuntime ?? null,
         ...(checkout ? { checkout: { active: checkout.active, ready: checkout.ready, reason: checkout.reason,
-          ...(checkout.webhookUrl === undefined ? {} : { webhookUrl: checkout.webhookUrl }) } } : {}) });
+          ...(checkout.webhookUrl === undefined ? {} : { webhookUrl: checkout.webhookUrl }),
+          ...(checkout.needsAttention === undefined ? {} : { needsAttention: checkout.needsAttention.slice(0, 10) }) } } : {}) });
     } },
   });
 }

@@ -350,10 +350,11 @@ class SqlLedgerTx implements LedgerTx {
     await this.write({ table: LEDGER_TABLES.quarantine, fn: (db) => db.insertInto("commerce_quarantine").values(row).execute() });
   }
 
-  async listQuarantine({ workspaceId, mode }: LedgerKeyScope, optional: { unresolvedOnly?: boolean } = {}): Promise<QuarantineRecord[]> {
+  async listQuarantine({ workspaceId, mode }: LedgerKeyScope, optional: { unresolvedOnly?: boolean; limit?: number } = {}): Promise<QuarantineRecord[]> {
     const rows = await this.read((db) => {
       let query = db.selectFrom("commerce_quarantine").selectAll().where("workspace_id", "=", workspaceId).where("mode", "=", mode);
       if (optional.unresolvedOnly === true) query = query.where("resolved_at", "is", null);
+      if (optional.limit !== undefined) query = query.limit(optional.limit);
       return query.orderBy("created_at").orderBy("id").execute();
     });
     return rows.map((row) => quarantineFromRow(row));

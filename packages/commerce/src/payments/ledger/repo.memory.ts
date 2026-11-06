@@ -401,10 +401,10 @@ class MemoryLedgerTx implements LedgerTx {
     this.insert({ table: this.t.quarantine, record: { ...entry, resolvedAt: null } });
   }
 
-  async listQuarantine(required: LedgerKeyScope, optional: { unresolvedOnly?: boolean } = {}): Promise<QuarantineRecord[]> {
+  async listQuarantine(required: LedgerKeyScope, optional: { unresolvedOnly?: boolean; limit?: number } = {}): Promise<QuarantineRecord[]> {
     const scoped = inScope(required);
     const visible = (r: QuarantineRecord) => scoped(r) && (optional.unresolvedOnly !== true || r.resolvedAt === null);
-    return this.t.quarantine.list(visible, (r) => r.createdAt);
+    return this.t.quarantine.list(visible, (r) => r.createdAt).slice(0, optional.limit);
   }
 
   async resolveQuarantine({ id, resolvedAt }: { id: string; resolvedAt: number }): Promise<boolean> {

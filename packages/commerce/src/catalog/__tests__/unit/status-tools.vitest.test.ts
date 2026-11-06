@@ -145,3 +145,13 @@ test('paused checkout leaves webhook reconciliation unavailable while provider d
     checkout: { active: false, ready: false, reason: 'Commerce is disabled.' } });
   expect(status.capabilities).toMatchObject({ providerDiscovery: 'available', checkout: 'unavailable', webhookReconciliation: 'unavailable' });
 });
+
+test('status exposes only ten detached order ids needing attention', async () => {
+  const needsAttention = Array.from({ length: 12 }, (_, index) => `order-${index}`);
+  const [registration] = buildRegistrations({ workspaceId: 'ws-a', authorize: async () => ({ allowed: true, reason: 'matched' }),
+    commerce: { status: async () => ({ active: false, ready: false, reason: 'Commerce is disabled.', needsAttention }) } });
+  const result = await registration!.handler(context) as { checkout: { needsAttention: string[] } };
+  expect(result.checkout.needsAttention).toEqual(needsAttention.slice(0, 10));
+  result.checkout.needsAttention.push('changed');
+  expect(needsAttention).toHaveLength(12);
+});
