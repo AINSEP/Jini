@@ -14,8 +14,8 @@ Software Architect, Programmer and TDD instructions loaded from the plans branch
 | cloud/om-chat-3 | 5d6edfc3442feda8edfd41b54c08e221ceea1577 | Merged: report says complete; real merge commit. |
 | cloud/forms-left | e0dab177afd45fccca44fef82b0a36b37b1c87f5 | Merged: report says complete; real merge commit. |
 | cloud/consent-declare | 8ff6006f92e7f157c47c74ab6255652cec3b395c | Merged: report says complete; real merge commit. |
-| cloud/forms-privacy | a6d5d1dae07cf246326e8ac4dd3f902ac9e9611d | Not ready: report still says in progress; left out. |
-| cloud/one-card | 15018e0d7e3865b5b91f070a4d2b78738f50bcfc | Not ready: report still says in progress; left out. |
+| cloud/forms-privacy | 4bde048688bcba568782929632fb2c4b81c71a72 | Merged after refreshed report declared implementation complete; no textual conflicts. |
+| cloud/one-card | bab3e359f2d5dc80f11e5ac14b344db2c41540b9 | Not ready: refreshed report still says in progress; left out. |
 
 No textual merge conflicts. All branch reports retained. No conflict-targeted tests apply so far; full suites are not run.
 
@@ -65,3 +65,7 @@ BUG (source-job report, unchanged): provider-plugins/catalog.json omits formspre
 No source tests were run: there were no conflicted files. Full suites are explicitly deferred by the job. Source review confirmed forms cleanup/schema-hash wiring and consent declarations both survived automatic merges in app.ts, deps.ts and render.ts. Commerce-off fallthrough and ordinary consent-off script rendering remain intact.
 
 Final typecheck/packed results, final commit-range scan and completion report pending.
+
+## Refreshed completion reports
+
+forms-privacy became implementation-complete during verification and was merged next in both repositories. Its report records a reproduced baseline commerce approval-classification startup bug; focused validation passed. one-card remains in progress. A second fresh no-dist checkout is building the seven-branch result; working CMS/admin are rebuilding and final validation will be refreshed. The first Tovu final typecheck attempts exposed stale local @tovu/contracts output; contracts/SDK are rebuilding using the existing scripts before rerunning checks. No compiler or source workaround was added.
