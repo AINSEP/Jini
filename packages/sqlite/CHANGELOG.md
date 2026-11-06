@@ -1,3 +1,7 @@
+## 0.6.23
+
+- Align the compatibility package version with the Jini release lockstep; the frozen API is unchanged.
+
 ## 0.6.19
 
 - Keep the compatibility API frozen while testing the package version against the Jini release lockstep.

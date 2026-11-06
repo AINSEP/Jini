@@ -483,7 +483,8 @@ describe("form embed resolution", () => {
     findById: async ({ id }) => definitions.find((d) => d.id === id) ?? null,
     findBySlug: async ({ slug }) => definitions.find((d) => d.slug === slug) ?? null,
   };
-  const formIr = { componentId: "contact-form", props: { formDefinitionId: "form-1", slug: "contact", fields: [], successMessage: null } };
+  // Native forms carry the empty field schema's stable digest for stale-submission checks.
+  const formIr = { componentId: "contact-form", props: { formDefinitionId: "form-1", schemaHash: "bfeb2da8e38c8c677855967b6f7a10e4ad36b23d8ef2ef19c4704863e5e1e837", slug: "contact", fields: [], successMessage: null } };
   beforeEach(() => { registerCoreResolver({ typeKey: "contact-form", resolver: createContactFormResolver({ formDefinitionRepo: formRepo }) }); });
 
   it("resolves an id and a slug reference to the same contact form, keyed as authored", async () => {

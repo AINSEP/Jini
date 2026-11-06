@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.6.19
+
+### Patch Changes
+
+- Keep the compatibility package in the public 0.6.19 release set with its updated CMS and core dependencies. New consumers should use `@jini-ai/cms/forms`.
+
 ## 0.6.17
 
 ### Patch Changes

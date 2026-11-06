@@ -128,7 +128,8 @@ test("an idle pool connection the server drops is logged, not fatal, and the nex
     assert.deepEqual(await pooled.query(sql`SELECT 1 AS n`), [{ n: 1 }]);
     await server.close(); // drops the pool's idle connection
     await vi.waitFor(() => {
-      assert.ok(warn.mock.calls.some(([line]) => String(line).startsWith("[postgres] idle pool connection dropped: ")));
+      assert.ok(warn.mock.calls.some(([line, detail]) => line === "[postgres] idle pool connection dropped:"
+        && typeof detail === "string" && detail.trim().length > 0));
     });
     server = await startPgliteOwner({ ...OWNER, dataDir: restartDir }, { socketDir: restartSocketDir });
     assert.deepEqual(await pooled.query(sql`SELECT 2 AS n`), [{ n: 2 }]);

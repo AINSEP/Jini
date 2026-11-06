@@ -1,4 +1,6 @@
 import type { MfaScope, OwnerMfaDeps } from './ports.js';
+import type { PasskeyOptions } from '../../core/types.js';
+export type { PasskeyOptions } from '../../core/types.js';
 
 export type PasskeyCredential = MfaScope & {
   id: string; publicKey: string; counter: number; rpId: string;
@@ -11,7 +13,6 @@ export interface PasskeyStore {
   clear(scope: MfaScope): Promise<void>;
 }
 export type PasskeySite = { origin: string; rpId: string; name: string };
-export type PasskeyOptions = { challenge: string; [key: string]: unknown };
 /** Protocol verification belongs to a maintained WebAuthn implementation, never the service. */
 export interface PasskeyPort {
   registration(input: { site: PasskeySite; scope: MfaScope; credentials: PasskeyCredential[] }): Promise<PasskeyOptions>;

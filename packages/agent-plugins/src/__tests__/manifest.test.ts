@@ -47,7 +47,7 @@ describe('ui-ux-design plugin', () => {
     const manifest: unknown = JSON.parse(readFileSync(join(pluginRoot, 'plugin.json'), 'utf8'));
     expect(isPluginManifest(manifest)).toBe(true);
     expect((manifest as { name: string }).name).toBe('ui-ux-design');
-    expect((manifest as { version: string }).version).toBe('0.6.1');
+    expect((manifest as { version: string }).version).toBe('0.6.2');
   });
 
   it('bundles a skill directory per Web-Design-owned AI-Dev-Shop skill', () => {

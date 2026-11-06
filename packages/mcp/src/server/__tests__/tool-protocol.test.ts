@@ -489,9 +489,9 @@ describe('argument normalization and diagnostics (characterization)', () => {
     expect(await callEcho({ inputSchema: wrapper, argumentNormalization: { foldIntoInput: true } }, { input: { a: 1 }, q: 2 })).toEqual({ isError: false, text: '{"input":{"a":1,"q":2}}' });
   });
 
-  it('refuses folding into a non-object input', async () => {
+  it('refuses malformed encoded input before folding', async () => {
     expect(await callEcho({ inputSchema: wrapper, argumentNormalization: { foldIntoInput: true } }, { input: 'x', q: 1 })).toEqual({
-      isError: true, text: "invalid arguments for echo: put the tool's own arguments inside `input`; replace `input` with a JSON object",
+      isError: true, text: "invalid arguments for echo: The delegated input is not valid JSON. Send one JSON object containing the tool fields.",
     });
   });
 

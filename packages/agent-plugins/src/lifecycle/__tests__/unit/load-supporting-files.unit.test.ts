@@ -46,8 +46,9 @@ test('enable, load and supporting reads share admission after loading, including
     await filesystem.symlink(path.join(root, 'outside.md'), path.join(skillRoot, 'escape.md'));
     const controller = makeController();
     const request = { pluginId, skill: pluginId, file: 'references/permissions.md' };
-    expect(await controller.load(request)).toEqual({ status: 'installed-but-inactive', guidance: '' });
-    expect(resolve).not.toHaveBeenCalled();
+    // Explicit reads now reach the host; this fixture's strict run-pin resolver still requires activation.
+    expect(await controller.load(request)).toEqual({ status: 'unavailable', guidance: "Agent Plugin 'synthetic' is installed in this workspace but is not enabled — it ships with the host and stays inactive until an operator turns it on. Enable it before pinning it to a run." });
+    expect(resolve).toHaveBeenCalledTimes(1);
     // Models the existing approved-enable owner changing activation; loading never writes activation.
     enabled = true; active = true;
     const loaded = await controller.load({ pluginId });
@@ -75,6 +76,7 @@ test('enable, load and supporting reads share admission after loading, including
     const inactive = await controller.load(request);
     expect(inactive.status).toBe('unavailable');
     expect(inactive.guidance).toContain('is installed in this workspace but is not enabled');
+    expect(inactive.guidance).not.toContain('Exact permissions reference.');
     expect(inactive.guidance).not.toContain(root);
     active = true; trusted = false;
     const untrusted = await controller.load(request);

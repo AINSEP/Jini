@@ -1146,7 +1146,8 @@ describe('ToolCard', () => {
     it('keeps the input and capped output readable through the tagged region\'s textContent', () => {
       const { container } = render(<ToolCard use={{ kind: 'tool_use', id: 'lz2', name: 'page.fill', input: { element: 'name-input' } }} result={{ kind: 'tool_result', toolUseId: 'lz2', content: longOutput, isError: false }} runSucceeded />);
       const reader = container.querySelector('.op-card-reader-text');
-      expect(reader).toHaveAttribute('hidden');
+      expect(reader).not.toHaveAttribute('hidden');
+      expect(reader).toHaveClass('op-sr-prefix');
       expect(reader?.textContent).toBe(`${JSON.stringify({ element: 'name-input' }, null, 2)}\n${'x'.repeat(399)}…`);
       expect(container.querySelector('[data-agent-element="tool-call-lz2"]')?.textContent).toContain('name-input');
     });

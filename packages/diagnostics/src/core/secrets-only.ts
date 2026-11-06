@@ -103,8 +103,11 @@ const REDACTION_RULES: readonly RedactionRule[] = [
     // review): a password that was never percent-encoded — `postgres://u:p@ss4@host/db` — otherwise
     // matched only up to its FIRST `@`, leaving the tail (`ss4`) of the password in the output.
     // `?` is excluded so a query string's own `@` cannot drag the match past the authority.
-    pattern: /\b([a-z][a-z0-9+.-]*:\/\/)(?!\[REDACTED)[^\s/@:]+:[^\s/?]+@/gi,
-    replacement: ({ match: m }) => `${m[1]}[REDACTED:url_credentials]@`,
+    // Find the delimiter before checking the original scheme grammar. Starting at each word
+    // boundary rescans long dashed runs quadratically; delimiter-first checks disjoint runs once.
+    // The scheme stays outside the replacement, including suffixes after malformed prefixes.
+    pattern: /:\/\/(?<=\b[a-z][a-z0-9+.-]*:\/\/)(?!\[REDACTED)[^\s/@:]+:[^\s/?]+@/gi,
+    replacement: () => "://[REDACTED:url_credentials]@",
   },
   ...REUSED_CREDENTIAL_RULES,
   {

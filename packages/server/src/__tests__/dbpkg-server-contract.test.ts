@@ -80,10 +80,13 @@ describe('retained host and capability policy', () => {
       listener('SIGTERM');
       await vi.advanceTimersByTimeAsync(25);
       expect(exit).toHaveBeenCalledWith(1);
-      const lateFailure = new Error('database close failed');
+      const secret = 'ghp_' + 'x'.repeat(36);
+      const lateFailure = new Error(`database close failed ${secret}`);
       rejectStop(lateFailure);
       await vi.advanceTimersByTimeAsync(0);
-      expect(logger.error).toHaveBeenLastCalledWith('[@jini-ai/server] graceful shutdown failed after SIGTERM', lateFailure);
+      expect(logger.error).toHaveBeenLastCalledWith('[@jini-ai/server] graceful shutdown failed after SIGTERM',
+        expect.stringMatching(/^Error: database close failed \[REDACTED:github_token\]\n/));
+      expect(logger.error.mock.lastCall?.[1]).not.toContain(secret);
       expect(exit).toHaveBeenCalledTimes(1);
       expect(clearTimeoutPort).not.toHaveBeenCalled();
     } finally { handle.uninstall(); vi.useRealTimers(); }

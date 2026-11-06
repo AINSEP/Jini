@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { inspect } from "node:util";
 import { createHash } from "node:crypto";
 import type { Request, Response } from "express";
 import { afterEach, test, vi } from "vitest";
@@ -91,7 +92,7 @@ test("an ingress failure answers a generic 500 and logs the cause", async () => 
   const out = await send(deps, { entryId: "entry-1" });
   assert.equal(out.status, 500);
   assert.deepEqual(out.payload, { error: "internal error", code: "INTERNAL_ERROR" });
-  assert.deepEqual(log.mock.calls, [["[site/comments-submit] unexpected error", cause]]);
+  assert.deepEqual(log.mock.calls, [["[site/comments-submit] unexpected error", inspect(cause)]]);
 });
 
 test("a rate-limiter failure answers a generic 500", async () => {

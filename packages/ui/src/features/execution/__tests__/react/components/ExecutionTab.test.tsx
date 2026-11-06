@@ -505,7 +505,11 @@ describe('ExecutionTab — agentHandle', () => {
     expect(screen.getByRole('tab', { name: /Anthropic/ })).toHaveAttribute(AGENT_ELEMENT_ATTRIBUTE, 'settings-execution-protocol-anthropic');
     // The BYOK card is a distinct nested component with its own sub-handle namespace
     // (`settings-execution-byok-*`) — proving the chain wires through, not just the top level.
-    expect(screen.getByDisplayValue(SYNTHETIC_API_KEY)).toHaveAttribute(AGENT_ELEMENT_ATTRIBUTE, 'settings-execution-byok-api-key');
+    expect(screen.getByRole('textbox', { name: /^Base URL/ })).toHaveAttribute(AGENT_ELEMENT_ATTRIBUTE, 'settings-execution-byok-base-url');
+    for (const secretControl of [screen.getByDisplayValue(SYNTHETIC_API_KEY), screen.getByRole('button', { name: 'Show API key' })]) {
+      expect(secretControl).toHaveAttribute('data-agent-private', '');
+      expect(secretControl.getAttributeNames().filter(name => name.startsWith('data-agent-'))).toEqual(['data-agent-private']);
+    }
   });
 });
 

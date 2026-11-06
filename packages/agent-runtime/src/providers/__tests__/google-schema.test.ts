@@ -194,9 +194,9 @@ test("googleParametersOf substitutes an empty closed object schema for a tool th
 });
 
 test("sanitizeGoogleSchema infers a const's type from the literal when no type is declared", () => {
-  assert.deepEqual(sanitizeGoogleSchema({ schema: { const: true } }), { enum: [true], type: "boolean" });
-  assert.deepEqual(sanitizeGoogleSchema({ schema: { const: 3 } }), { enum: [3], type: "integer" });
-  assert.deepEqual(sanitizeGoogleSchema({ schema: { const: 1.5 } }), { enum: [1.5], type: "number" });
+  assert.deepEqual(sanitizeGoogleSchema({ schema: { const: true } }), { description: "Allowed values: true.", type: "boolean" });
+  assert.deepEqual(sanitizeGoogleSchema({ schema: { const: 3 } }), { description: "Allowed values: 3.", type: "integer" });
+  assert.deepEqual(sanitizeGoogleSchema({ schema: { const: 1.5 } }), { description: "Allowed values: 1.5.", type: "number" });
   assert.deepEqual(sanitizeGoogleSchema({ schema: { const: "x" } }), { enum: ["x"], type: "string" });
 });
 
@@ -251,4 +251,17 @@ test("coerceNumericEnumStringsToNumbers leaves the input untouched when a path h
   const coerced = coerceNumericEnumStringsToNumbers({ input, paths: ["other.statusCode"] });
   assert.deepEqual(coerced, { target: "flat", other: { statusCode: 7 } });
   assert.deepEqual(input, frozen);
+});
+
+
+test("sanitizeGoogleSchema describes unsupported boolean literals without emitting invalid Gemini enums", () => {
+  const schema = { type: "object", properties: {
+    use: { type: "boolean", const: false, description: "Stop using this key." },
+    enabled: { type: "boolean", enum: [true] },
+  } };
+  assert.deepEqual(sanitizeGoogleSchema({ schema }), { type: "object", properties: {
+    use: { type: "boolean", description: "Stop using this key. Allowed values: false." },
+    enabled: { type: "boolean", description: "Allowed values: true." },
+  } });
+  assert.deepEqual(schema.properties.use, { type: "boolean", const: false, description: "Stop using this key." });
 });

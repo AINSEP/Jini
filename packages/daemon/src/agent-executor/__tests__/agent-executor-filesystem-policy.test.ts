@@ -11,6 +11,8 @@ import { createRunLifecycle } from '../../run-lifecycle.js';
 import { createAgentExecutor } from '../index.js';
 import { fixtureLaunchModel } from './model-discovery-fixture.js';
 
+// Only the simulated Claude adapter attests per-run MCP isolation; no real CLI capability is claimed.
+// Codex grants personal MCP independently because this filesystem fixture stages no isolated home.
 describe('executor filesystem policy (owner 2026-10-23)', () => {
   it.each(['outside-image', 'outside-directory', 'wrong-cwd', 'invalid-settings', 'unsupported-claude', 'codex', 'unknown-version', 'valid', 'configured-temp', 'long-configured-temp'] as const)('enforces %s through the real executor before spawn', async scenario => {
     const base = mkdtempSync(join(tmpdir(), 'executor-filesystem-'));
@@ -31,7 +33,7 @@ describe('executor filesystem policy (owner 2026-10-23)', () => {
       let runtimeTempMode: number | undefined;
       let runtimeTempRealpath: string | undefined;
       let capturedEnv: NodeJS.ProcessEnv | undefined;
-      const def: RuntimeAgentDef = { ...actualDef, buildArgs: (required, optional) => {
+      const def: RuntimeAgentDef = { ...actualDef, ...(scenario === 'codex' ? {} : { mcpIsolation: { perRun: 'fixture@2026-11-05' } }), buildArgs: (required, optional) => {
         buildOptions = optional?.options;
         return actualDef.buildArgs(required, optional);
       } };
@@ -58,7 +60,7 @@ describe('executor filesystem policy (owner 2026-10-23)', () => {
       });
       const { run } = await lifecycle.start({ contextRef: 'filesystem-test' });
       const result = executor.run({ runId: run.id, agentId: def.id, cwd: scenario === 'wrong-cwd' ? base : site, prompt: 'hello' }, {
-        filesystemRoot: site, nativeToolAccess: true, permissionMode: 'bypass', cliParity: true,
+        filesystemRoot: site, nativeToolAccess: true, nativeCapabilities: { userMcp: scenario === 'codex' }, permissionMode: 'bypass', cliParity: true,
         ...(scenario === 'invalid-settings' ? { settings: 'not JSON' } : {}),
         ...(scenario === 'outside-image' ? { imagePaths: [image] } : {}),
         ...(scenario === 'outside-directory' ? { extraAllowedDirs: [base] } : {}),
@@ -202,7 +204,7 @@ function scratchHarness({ failSecondSpawn = false }: { failSecondSpawn?: boolean
   });
   const executor = createAgentExecutor({ lifecycle }, {
     hostEnv: { PATH: '/bin', HOME: base, CLAUDE_CODE_TMPDIR: '/tmp/operator-session' },
-    getAgentDef: () => claudeAgentDef, resolveModelForLaunch: fixtureLaunchModel,
+    getAgentDef: () => ({ ...claudeAgentDef, mcpIsolation: { perRun: 'fixture@2026-11-05' } }), resolveModelForLaunch: fixtureLaunchModel,
     resolveAgentLaunch: () => ({ selectedPath: executable, pathResolvedPath: executable, configuredOverridePath: null,
       launchPath: executable, launchKind: 'selected', childPathPrepend: [], diagnostic: null }) as AgentLaunchResolution,
     applyAgentLaunchEnv: ({ env }) => env, ensureAgentCapabilities: async () => {},
@@ -228,7 +230,7 @@ function scratchHarness({ failSecondSpawn = false }: { failSecondSpawn?: boolean
     start: async (_input = {}, _options = {}) => {
       const { run } = await lifecycle.start({ contextRef: 'scratch-isolation' });
       await executor.run({ runId: run.id, agentId: 'claude', cwd: site, prompt: 'hello' }, {
-        filesystemRoot: site, nativeToolAccess: true, permissionMode: 'bypass', cliParity: true,
+        filesystemRoot: site, nativeToolAccess: true, nativeCapabilities: { userMcp: false }, permissionMode: 'bypass', cliParity: true,
         env: { CLAUDE_CODE_TMPDIR: '/tmp/caller-session' },
       });
       return run;

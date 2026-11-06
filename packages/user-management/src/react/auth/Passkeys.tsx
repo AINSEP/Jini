@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import type { Translate } from '@jini-ai/ui/panel-kit';
-import type { PasskeyOptions } from '../../server/mfa/passkey-ports.js';
+import type { PasskeyOptions } from '../../core/types.js';
 import { runPasskeyCeremony } from './passkey-browser.js';
 
 type Started = { pendingToken: string; options: PasskeyOptions };

@@ -19,7 +19,7 @@ function storedDraft(conversationId: string): string | null {
 }
 
 /** A hand-written page: two plain event targets and a settable visibility state. */
-function fakePage(): ComposerPageLifecycle & { hide: () => void; show: () => void; leave: () => void; listenerCount: () => number } {
+function fakePage(): ComposerPageLifecycle & { hide: () => void; show: () => void; leave: () => void; release: () => boolean; listenerCount: () => number } {
   const page = new EventTarget();
   const doc = Object.assign(new EventTarget(), { visibilityState: 'visible' as DocumentVisibilityState });
   let listeners = 0;
@@ -36,6 +36,7 @@ function fakePage(): ComposerPageLifecycle & { hide: () => void; show: () => voi
     hide: () => { doc.visibilityState = 'hidden'; doc.dispatchEvent(new Event('visibilitychange')); },
     show: () => { doc.visibilityState = 'visible'; doc.dispatchEvent(new Event('visibilitychange')); },
     leave: () => { page.dispatchEvent(new Event('pagehide')); },
+    release: () => page.dispatchEvent(new Event('jini:release-check', { cancelable: true })),
     listenerCount: () => listeners,
   };
 }
@@ -64,10 +65,13 @@ describe('useComposer page-exit flush', () => {
   it('flushes on the injected page\'s pagehide and unsubscribes on unmount', () => {
     const page = fakePage();
     const { result, unmount } = renderHook(() => useComposer({ conversationId: 'c1', pageLifecycle: page }));
-    expect(page.listenerCount()).toBe(2);
+    expect(page.listenerCount()).toBe(3);
     act(() => result.current.setDraft('leaving'));
     act(() => page.leave());
     expect(storedDraft('c1')).toBe('leaving');
+    act(() => result.current.setDraft('release-check'));
+    act(() => expect(page.release()).toBe(true));
+    expect(storedDraft('c1')).toBe('release-check');
     unmount();
     expect(page.listenerCount()).toBe(0);
   });

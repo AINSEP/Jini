@@ -174,6 +174,17 @@ function applyGoogleNumericEnumStringification(schema: Record<string, unknown>, 
   result.enum = (schema.enum as unknown[]).map((member) => String(member));
   result.type = "string";
 }
+/** Gemini accepts string enums only. Keep native scalar types and describe unsupported literal
+ * constraints; the original host schema still validates the returned input.
+ * @complexity O(e) time and space for the existing enum's e serialized values. */
+function applyGoogleLiteralGuidance(result: Record<string, unknown>): void {
+  const values = result.enum;
+  if (!Array.isArray(values) || values.every(member => typeof member === "string")) return;
+  const description = typeof result.description === "string" ? `${result.description} ` : "";
+  result.description = `${description}Allowed values: ${values.map(member => JSON.stringify(member)).join(", ")}.`;
+  delete result.enum;
+}
+
 function applyGoogleConstTypeInference(result: Record<string, unknown>, hasConst: boolean, constValue: unknown): void {
   if (!hasConst || result.type !== undefined)
     return;
@@ -192,6 +203,7 @@ function sanitizeGoogleSchemaValue(schema: unknown, defs: Readonly<Record<string
     result.nullable = true;
   applyGoogleConstTypeInference(result, hasConst, constValue);
   applyGoogleNumericEnumStringification(schema, result);
+  applyGoogleLiteralGuidance(result);
   return result;
 }
 function sanitizeGoogleSubschema(value: unknown, defs: Readonly<Record<string, unknown>>, depth: number): unknown {

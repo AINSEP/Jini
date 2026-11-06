@@ -31,6 +31,9 @@ export type PrincipalKind = "user" | "agent" | "api_key" | "system" | "member";
 /** Disable-only lifecycle — there is no hard-delete state. See docs/decisions/DR-001-identity-and-session-boundary.md. */
 export type PrincipalStatus = "active" | "disabled";
 
+/** WebAuthn ceremony JSON shared by server issuance and browser execution. */
+export type PasskeyOptions = { challenge: string; [key: string]: unknown };
+
 /**
  * Root identity row for every actor. `change_set.actorId` references
  * a principal by composite `(workspaceId, id)`.

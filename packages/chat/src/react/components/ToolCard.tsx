@@ -515,9 +515,9 @@ function GenericCard({ name, input, result, runStreaming, runSucceeded }: CardPr
  * The one row shell every card shares: a real `<button>` head (Enter/Space toggle it) that reports
  * `aria-expanded` and points `aria-controls` at its panel. The panel's `children` mount only while
  * open: a long chat mounts hundreds of collapsed rows, and keeping every full detail mounted made a
- * 38-message chat carry ~13k DOM nodes and 3.45 MB of hidden text. Collapsed, the panel holds one
- * hidden node with the call's capped gist instead, so a `page.*` DOM reader still sees what was
- * called and what came back through `textContent` without anyone clicking.
+ * 38-message chat carry ~13k DOM nodes and 3.45 MB of hidden text. Collapsed, the card holds one
+ * screen-reader node outside the collapsed panel with the call's capped gist instead, so a
+ * `page.*` DOM reader can inspect the same public text without anyone clicking.
  * `after` renders outside the panel, for content that must stay visible collapsed (an error, media).
  */
 function ExpandableCard({ className, head, after, call, children }: { className: string; head: ReactNode; after?: ReactNode; call: CardProps; children: ReactNode }) {
@@ -532,8 +532,9 @@ function ExpandableCard({ className, head, after, call, children }: { className:
         </span>
       </button>
       <div id={panelId} className={`accordion-collapsible${open ? ' open' : ''}`}>
-        {open ? <div className="accordion-collapsible-inner">{children}</div> : <CollapsedReaderText call={call} />}
+        {open ? <div className="accordion-collapsible-inner">{children}</div> : null}
       </div>
+      {open ? null : <CollapsedReaderText call={call} />}
       {after}
     </div>
   );
@@ -552,7 +553,7 @@ function CollapsedReaderText({ call }: { call: CardProps }) {
     { input, result: resultContent === undefined ? undefined : { content: resultContent, isError: resultIsError } },
     { runStreaming, runSucceeded },
   ), [input, resultContent, resultIsError, runStreaming, runSucceeded]);
-  return <span className="op-card-reader-text" hidden>{text}</span>;
+  return <span className="op-card-reader-text op-sr-prefix">{text}</span>;
 }
 
 /** The call's input, its result (or why there is none), and any extra `children` — see `describeToolCallDetail` for the redaction and formatting rules. */

@@ -59,6 +59,29 @@ test('long dashed non-credential runs finish without changing their bytes', () =
   expect(redactSecretShapes({ text, policy: {} })).toEqual({ text, redactions: 0 });
 });
 
+test.each([
+  ['notes_http-custom', true],
+  ['notes_9-http+v2', true],
+  ['9-http', true],
+  ['git+ssh.v2-custom', true],
+  ['notes_http', false],
+  ['9http', false],
+])('keeps URL scheme boundary behavior for %s', (scheme, redacts) => {
+  const text = `${scheme}://u:p@ss4@host:5432/db?mail=user@example.test`;
+  const expected = redacts ? `${scheme}://[REDACTED:url_credentials]@host:5432/db?mail=user@example.test` : text;
+  const result = redactSecretShapes({ text, policy: {} });
+  expect(result).toEqual({ text: expected, redactions: redacts ? 1 : 0 });
+  expect(redactSecretShapes({ text: result.text, policy: {} })).toEqual({ text: expected, redactions: 0 });
+});
+
+test('redacts credentials after a long dashed scheme without truncating the scheme', () => {
+  const scheme = 'a-'.repeat(512 * 1024) + 'postgres';
+  const text = `${scheme}://u:p@ss4@host/db`;
+  const expected = `${scheme}://[REDACTED:url_credentials]@host/db`;
+  expect(redactSecretShapes({ text, policy: {} })).toEqual({ text: expected, redactions: 1 });
+  expect(redactSecretShapes({ text: expected, policy: {} })).toEqual({ text: expected, redactions: 0 });
+});
+
 test('backticks inside an authorization value do not leak its suffix', () => {
   const result = redactSecretShapes({ text: 'Authorization: Bearer abcdefgh`secret-suffix', policy: {} });
   expect(result.text).toBe('Authorization: Bearer [REDACTED:auth_header]');

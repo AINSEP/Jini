@@ -22,7 +22,10 @@ describe('RootKeyTab', () => {
   it('offers generation only when allowed', () => { show({ canGenerate: true }); expect(screen.getByRole('button', { name: 'Create root key' })).toBeTruthy(); });
   it('offers unlock and start fresh for a locked key with a private password field', () => {
     show({ locked: true }); expect(screen.getByLabelText('Old root key').getAttribute('type')).toBe('password');
-    expect(screen.getByLabelText('Old root key').getAttribute('data-agent-private')).toBe('true');
+    for (const element of [screen.getByLabelText('Old root key'), screen.getByRole('button', { name: 'Show Old root key' })]) {
+      expect(element.getAttribute('data-agent-private')).toBe('');
+      expect(element.getAttributeNames().filter(name => name.startsWith('data-agent-'))).toEqual(['data-agent-private']);
+    }
     expect(screen.getByRole('button', { name: 'Unlock saved credentials' })).toBeTruthy(); expect(screen.getByRole('button', { name: 'Start fresh' })).toBeTruthy();
   });
   it('shows the start-fresh dialog with preview detail and affected receivers', () => {

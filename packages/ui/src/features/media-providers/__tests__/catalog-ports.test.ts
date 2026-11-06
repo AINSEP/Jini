@@ -130,7 +130,11 @@ it('uses the same policy for rendered catalog IDs, pinned IDs and credential sta
     pinnedProviderIds: ['nano-banana'], agentHandle: 'media',
   }));
   await screen.findByText('Saved (••••4321)');
-  expect(screen.getByLabelText('Banana API key').getAttribute('data-agent-element')).toBe('media-nanobanana-api-key');
+  for (const secretControl of [screen.getByLabelText('Banana API key'), screen.getByRole('button', { name: 'Show Banana API key' })]) {
+    expect(secretControl).toHaveAttribute('data-agent-private', '');
+    expect(secretControl.getAttributeNames().filter(name => name.startsWith('data-agent-'))).toEqual(['data-agent-private']);
+  }
+  expect(screen.getByLabelText('Banana Base URL')).toHaveAttribute('data-agent-element', 'media-nanobanana-base-url');
   const headings = screen.getAllByText(/^(Banana|A Host Extension)$/).map(element => element.textContent);
   expect(headings).toEqual(['Banana', 'A Host Extension']);
 });

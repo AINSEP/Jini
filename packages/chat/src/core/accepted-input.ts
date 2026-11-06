@@ -319,7 +319,7 @@ function projectEvents(
 }
 
 /** The sole transcript-to-recall projection. A merged queued turn retains its original inputs.
- * @returns Accepted inputs once by id/alias, in send order; pending input is excluded.
+ * @returns Accepted inputs once by id/alias, in send order; unaccepted pending input is excluded.
  * @complexity O(m + e + i + a) time/space for messages, events, inputs and aliases; no I/O.
  * @example acceptedInputsFromMessages({ messages });
  */
@@ -335,13 +335,14 @@ export function acceptedInputsFromMessages(
  * @complexity O(e + i) time/space for the message's events and expanded inputs; no effects.
  */
 function inputsFromMessage({ message }: { message: ChatMessage }, _options = {}): AcceptedChatInput[] {
-  if (message.inputPending) return [];
   // Queue constituents travel in events_json, already preserved by the existing chat store.
+  // A confirmed queue receipt predates its later run start: that carrier may still be pending.
   const receipts = projectAcceptedInputEvents({ events: message.events ?? [] }).flatMap(event => {
     const input = acceptedInputEvent({ event });
-    if (!input) return [];
+    if (!input || (message.inputPending && input.data.optimistic)) return [];
     return receiptInputs({ receipt: input });
   });
+  if (message.inputPending && receipts.length === 0) return [];
   if (message.role !== 'user' || receipts.length > 0) return receipts;
   return [{ id: message.id, text: message.content, ...(message.folders ? { folders: message.folders } : {}) }];
 }

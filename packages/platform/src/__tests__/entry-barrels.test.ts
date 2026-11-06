@@ -9,6 +9,7 @@ import * as web from '../web/index.js';
 import * as webPage from '../web/web-page.js';
 import * as htmlDocument from '../web/html-document.js';
 import { htmlToMarkdown } from '../web/html-to-markdown.js';
+import { stripHtmlPresentation } from '../web/strip-html-presentation.js';
 import * as secretsTesting from '../secrets/testing.js';
 import { InMemoryKeyring } from '../secrets/keyring.memory.js';
 import { FixedRootKeyKeyring } from '../secrets/keyring.env.js';
@@ -21,8 +22,8 @@ test('./net publishes the address classifiers and the loopback probe by identity
   expect(net.isPrivateAddress({ address: '203.0.113.1' })).toBe(false);
 });
 
-test('./web publishes the page reader, the document projections and only the markdown converter', () => {
-  const expected = { ...webPage, ...htmlDocument, htmlToMarkdown };
+test('./web publishes the page reader, document projections, markdown converter and presentation stripper', () => {
+  const expected = { ...webPage, ...htmlDocument, htmlToMarkdown, stripHtmlPresentation };
   expect(Object.keys(web).sort()).toEqual(Object.keys(expected).sort());
   for (const [name, binding] of Object.entries(expected)) expect(web[name as keyof typeof web]).toBe(binding);
 });

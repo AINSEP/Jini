@@ -271,7 +271,8 @@ describe("@jini-ai/db in an install with no database driver present", () => {
         expect(packages.length).toBeGreaterThan(0);
         for (const url of packages) expect(url, `tools loaded an optional peer other than core`).toMatch(/\/node_modules\/@jini-ai\/core\//);
       } else if (!SUBPATHS[subpath]!.kernel) expect(packages).toEqual([]);
-      else if (subpath === "migrate") {
+      // Migration checks and PostgreSQL error redaction use the required, driver-free core package.
+      else if (subpath === "migrate" || subpath === "kernel/postgres") {
         for (const url of packages) expect(url, `${subpath} loaded a package other than kysely/core`).toMatch(/\/node_modules\/(?:kysely|@jini-ai\/core)\//);
       }
       else if (subpath === "secrets-vault") {

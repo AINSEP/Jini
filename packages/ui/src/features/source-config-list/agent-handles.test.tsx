@@ -42,6 +42,12 @@ function handlesIn(root: ParentNode): string[] {
   );
 }
 
+/** Secret fields and their reveal controls stay private even when callers supply handles. */
+function expectPrivateControl(control: Element) {
+  expect(control).toHaveAttribute('data-agent-private', '');
+  expect(control.getAttributeNames().filter(name => name.startsWith('data-agent-'))).toEqual(['data-agent-private']);
+}
+
 function addFormProps(overrides: Partial<Parameters<typeof SourceConfigAddForm>[0]> = {}) {
   return {
     fieldSpecs: [URL_FIELD],
@@ -185,37 +191,46 @@ describe('handle derivation', () => {
 });
 
 describe('SourceConfigField markup', () => {
-  it('tags the control and derives the show-hide toggle from the same base', () => {
+  it('keeps the secret control and show-hide toggle private despite a supplied base', () => {
     const { container } = render(
       <SourceConfigField spec={SECRET_FIELD} value="" agentHandle="mcp-add-field-secret" onChange={vi.fn()} />,
     );
-    expect(handlesIn(container)).toEqual(['mcp-add-field-secret', 'mcp-add-field-secret-reveal']);
-    expect(screen.getByDisplayValue('')).toHaveAttribute('data-agent-role', 'field');
-    expect(screen.getByRole('button')).toHaveAttribute('data-agent-role', 'button');
+    expect(handlesIn(container)).toEqual([]);
+    expectPrivateControl(screen.getByLabelText('Client secret'));
+    expectPrivateControl(screen.getByRole('button', { name: 'Show Client secret' }));
   });
 
-  it('keeps the agent label stable while the accessible name identifies the reveal action and field', async () => {
+  it('keeps secret controls private while the accessible name identifies the reveal action and field', async () => {
     render(<SourceConfigField spec={SECRET_FIELD} value="" agentHandle="mcp-add-field-secret" onChange={vi.fn()} />);
     const toggle = screen.getByRole('button', { name: 'Show Client secret' });
-    const before = toggle.getAttribute('data-agent-label');
-    expect(before).toBe('Show or hide Client secret');
+    const input = screen.getByLabelText('Client secret');
+    expectPrivateControl(input);
+    expectPrivateControl(toggle);
     expect(toggle).toHaveAttribute('title', 'Show Client secret');
     await userEvent.click(toggle);
-    expect(toggle).toHaveAttribute('data-agent-label', before ?? '');
+    expectPrivateControl(input);
+    expectPrivateControl(toggle);
     expect(toggle).toHaveAccessibleName('Hide Client secret');
     expect(toggle).toHaveAttribute('title', 'Hide Client secret');
     expect(toggle).not.toHaveAttribute('aria-pressed');
     await userEvent.click(toggle);
     expect(toggle).toHaveAccessibleName('Show Client secret');
-    expect(toggle).toHaveAttribute('data-agent-label', before ?? '');
+    expectPrivateControl(input);
+    expectPrivateControl(toggle);
   });
 
   it.each<SourceFieldSpec['kind']>(['text', 'url', 'password', 'select', 'textarea', 'secret-textarea'])(
-    'tags the primary control for a %s-kind field',
+    'publishes ordinary controls and keeps secret controls private for a %s-kind field',
     (kind) => {
       const spec: SourceFieldSpec = { key: 'f', label: 'F', kind, options: [{ value: 'a', label: 'A' }] };
       const { container } = render(<SourceConfigField spec={spec} value="" agentHandle="mcp-f" onChange={vi.fn()} />);
-      expect(handlesIn(container)[0]).toBe('mcp-f');
+      if (kind === 'password' || kind === 'secret-textarea') {
+        expect(handlesIn(container)).toEqual([]);
+        expectPrivateControl(screen.getByLabelText('F'));
+        expectPrivateControl(screen.getByRole('button', { name: 'Show F' }));
+      } else {
+        expect(handlesIn(container)[0]).toBe('mcp-f');
+      }
     },
   );
 
@@ -249,7 +264,7 @@ describe('SourceConfigTestControl markup', () => {
 });
 
 describe('SourceConfigAddForm markup', () => {
-  it('publishes the form, every field, the trust selector, the test control and submit', () => {
+  it('publishes the form, ordinary fields, trust, test and submit while keeping secrets private', () => {
     const { container } = render(
       <SourceConfigAddForm
         {...addFormProps({
@@ -265,23 +280,25 @@ describe('SourceConfigAddForm markup', () => {
     expect(handlesIn(container)).toEqual([
       'mcp-add',
       'mcp-add-field-url',
-      'mcp-add-field-oauth-client-secret',
-      'mcp-add-field-oauth-client-secret-reveal',
       'mcp-add-trust',
       'mcp-add-test-status',
       'mcp-add-test',
       'mcp-add-submit',
     ]);
+    expectPrivateControl(screen.getByLabelText('Client secret'));
+    expectPrivateControl(screen.getByRole('button', { name: 'Show Client secret' }));
   });
 
-  it('publishes a field the moment it appears in fieldSpecs, so a reactive host stays addressable', () => {
+  it('keeps a newly added secret field private while ordinary fields remain addressable', () => {
     const { container, rerender } = render(<SourceConfigAddForm {...addFormProps({ agentHandle: 'mcp-add' })} />);
     expect(handlesIn(container)).not.toContain('mcp-add-field-oauth-client-secret');
 
     rerender(
       <SourceConfigAddForm {...addFormProps({ fieldSpecs: [URL_FIELD, SECRET_FIELD], agentHandle: 'mcp-add' })} />,
     );
-    expect(handlesIn(container)).toContain('mcp-add-field-oauth-client-secret');
+    expect(handlesIn(container)).toEqual(['mcp-add', 'mcp-add-field-url', 'mcp-add-submit']);
+    expectPrivateControl(screen.getByLabelText('Client secret'));
+    expectPrivateControl(screen.getByRole('button', { name: 'Show Client secret' }));
   });
 
   it('emits no data-agent-* markup at all when agentHandle is omitted', () => {

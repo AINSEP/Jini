@@ -13,7 +13,7 @@ vi.mock('../../mention-node.js', async (importOriginal) => {
   return {
     ...actual,
     $createMentionNode: () => {
-      throw new Error('boom');
+      throw new Error('boom password=synthetic-log-secret');
     },
   };
 });
@@ -48,7 +48,12 @@ describe('RichTextInput onError', () => {
     act(() => {
       ref.current!.insertMention({ token: '@Slack', entity: slack });
     });
-    expect(errorSpy).toHaveBeenCalledWith('[rich-text-input]', expect.any(Error));
+    expect(errorSpy).toHaveBeenCalledTimes(1);
+    expect(errorSpy).toHaveBeenCalledWith('[rich-text-input]', expect.stringMatching(/^Error: boom /));
+    const diagnostic = errorSpy.mock.calls[0]![1] as string;
+    expect(diagnostic).toContain('RichTextInput.onError.test.tsx');
+    expect(diagnostic).toContain('[REDACTED:');
+    expect(diagnostic).not.toContain('synthetic-log-secret');
   });
 
   it('does not log to console.error in production', () => {
