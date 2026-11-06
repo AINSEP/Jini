@@ -129,8 +129,9 @@ function retainDocumentText({ cache, identity, value }: { cache: DocumentTextCac
 export const readDocumentText = createDocumentTextReader({});
 
 /** Create one admission owner for a host's document reads. The default reader above is shared
- * process-wide by existing callers, retaining the two-read / 100 MiB source allocation bound
- * plus the explicitly bounded prepared-text cache.
+ * process-wide by existing callers: two admitted reads budget at most 100 MiB of source, plus
+ * the bounded prepared-text cache. Detached SDK work must cooperate with cancellation to release
+ * its allocation; the admission budget cannot preempt synchronous or non-cooperative parsers.
  * @complexity O(1) admission state per reader; source work is delegated to the bounded page reader. */
 export function createDocumentTextReader(_required: Record<string, never>, _optional: Record<string, never> = {}) {
   let activeDocumentReads = 0;
