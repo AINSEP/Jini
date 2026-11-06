@@ -46,3 +46,9 @@ it('distinguishes generic theme reads with the full path and offset', () => {
   render(<ToolCard use={{ kind: 'tool_use', id: 'theme-read', name: 'theme_read_file', input: { path: 'templates/index.html', offset: 42 } }} runSucceeded />);
   expect(screen.getByRole('button').textContent).toContain('templates/index.html (offset 42)');
 });
+
+
+it('keeps an opaque-looking file basename visible in specialized read cards', () => {
+  render(<ToolCard use={{ kind: 'tool_use', id: 'hash-file', name: 'Read', input: { file_path: '/site/0123456789abcdef', offset: 10 } }} runSucceeded />);
+  expect(screen.getByRole('button').textContent).toContain('0123456789abcdef (offset 10)');
+});

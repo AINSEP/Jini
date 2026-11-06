@@ -95,7 +95,7 @@ export function toolRowTarget({ input, resultContent }: { input: unknown; result
 
 
 /** Preserve absent/invalid offsets; explicit zero still distinguishes a first-page read. */
-function targetAtOffset({ target, offset }: { target: string | undefined; offset: unknown }): string | undefined {
+export function targetAtOffset({ target, offset }: { target: string | undefined; offset: unknown }, _options = {}): string | undefined {
   if (!target || typeof offset !== 'number') return target;
   return Number.isSafeInteger(offset) && offset >= 0 ? `${target} (offset ${offset})` : target;
 }

@@ -38,3 +38,12 @@ Part2 focused checks: C15 scanner boundaries87; C21 staged-closure8; C26 file-lo
 C30 confirmed in Tovu: six individual producers each return a preview; every actual two-item production batch drops images under core/batch-tool-inputs.ts's explicit policy. Stopped: a bounded top-level image envelope requires a shared batch/MCP/chat contract change beyond a small ten-minute fix.
 
 - C30: batch media production removes inline preview blocks while preserving saved-media results.
+
+Final O03 review caught and fixed a regression before completion: specialized Read cards must preserve a hex-looking filename even though generic record summaries suppress opaque ids. Both render paths now share only offset formatting. Regression test failed before the correction; final chat tests155, tsc and lint pass.
+
+- O03 verification regression: opaque-looking filenames vanished from specialized Read cards; fixed.
+
+C21 stopped for the actual packaged graph: current checkout has preload/contracts outputs but no app.asar or staged production payload. Synthetic scanner8 and caller-root5 pass; inspecting a real packaged dependency graph still requires producing that artifact and running verify-staged-closure.ts.
+C25 confirmed open: real fresh bundle has33 plugin manifests, but both Cloudflare deploy-target modules fail discovery because cloudflare/lib/forms.mjs imports @jini-ai/cms/forms from a copied root with no CMS dependency closure. Existing registry content test reproduces it (44 pass,1 fail). Stopped after the same missing-module boundary was observed in direct discovery and the existing fixture. Requires staging/bundling the shared CMS evidence/portable-validation dependency; a manifest-only tweak cannot repair lexical module resolution in installed copied payloads.
+
+- C25: freshly copied Cloudflare plugin cannot resolve its CMS dependency, hiding both deploy targets.
