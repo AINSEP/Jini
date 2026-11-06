@@ -1,7 +1,7 @@
 /** Owner grant changes reuse the connection's original untrusted tool snapshot (R5). */
 import { createToolRegistrationScope, type ToolRegistry, type ToolRegistration } from '@jini-ai/core';
 import type { ResolvedFederatedConnection } from './config.js';
-import type { McpSessionPort, RemoteToolDescriptor, FederatedMcpConnectionConfig } from './ports.js';
+import type { McpSessionPort, RemoteToolDescriptor, FederatedMcpConnectionConfig, FederatedConnectionOrigin } from './ports.js';
 import type { FederatedAdmissionReport } from './trust.js';
 import { buildFederatedMcpRegistrations, type FederationDeps } from './registrations.js';
 
@@ -17,6 +17,22 @@ interface FrozenConnection {
   visible: boolean;
 }
 const connectionsByRegistry = new WeakMap<ToolRegistry, Map<string, FrozenConnection>>();
+
+/** Read only the original connection listing for the exact admitted source identity.
+ * Unavailable or replaced sources return null; querying never connects or lists remote tools.
+ * @returns Detached advertised names, including tools not yet granted by the owner.
+ * @complexity O(t) time/space for t names in the existing bounded listing; no I/O.
+ */
+export function readFrozenFederationToolNames(
+  { registry, connectionId, origin }: { registry: ToolRegistry; connectionId: string; origin: FederatedConnectionOrigin },
+  _options = {},
+): readonly string[] | null {
+  const frozen = connectionsByRegistry.get(registry)?.get(connectionId);
+  const admittedOrigin = frozen?.config.origin;
+  if (!frozen || !admittedOrigin || admittedOrigin.kind !== origin.kind) return null;
+  if (origin.kind === 'roster' && admittedOrigin.kind === 'roster' && origin.admissionRevision !== admittedOrigin.admissionRevision) return null;
+  return frozen.tools.map(tool => tool.name);
+}
 
 /** Compare only owner grants; remote definitions, endpoint identity and read trust remain frozen. */
 function grantsKey({ config }: { config: FederatedMcpConnectionConfig }, _options = {}): string {

@@ -11,3 +11,4 @@ export * from "./reload.js";
 export * from "./tool-approvals.js";
 export * from "./approvals/index.js";
 export * from "./messages.js";
+export { readFrozenFederationToolNames } from "./frozen-grants.js";
