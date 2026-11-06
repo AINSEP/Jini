@@ -1,5 +1,5 @@
 import { readFile } from 'node:fs/promises';
-import { readSubmissionEvidence } from '@jini-ai/cms/forms';
+import { readSubmissionEvidence } from './cms-forms.mjs';
 import { refusal, segment } from './api.mjs';
 
 /** Form submissions destination: one D1 database per site Worker plus the bundled receiver.
@@ -235,11 +235,11 @@ export async function migrate({ api, kit, databaseId }, _options = {}) {
 }
 
 let receiverSource;
-/** Read the receiver once and replace its package import with the bundled module path.
+/** Read the receiver once; its portable validation helper is emitted beside it during build.
  * @complexity O(receiver bytes) time/space; one cached local file read.
- * @overallScore 98 — Minor: the fixed import literal is protected by the bundle execution test. */
+ * @overallScore 98 — Minor: the emitted helper must accompany the receiver; the bundle execution test checks both. */
 export async function receiverModule(_required = {}, _options = {}) {
-  receiverSource ??= (await readFile(new URL('../worker/forms-receiver.mjs', import.meta.url), 'utf8')).replace('@jini-ai/cms/forms/portable-validation', './portable-validation.mjs');
+  receiverSource ??= (await readFile(new URL('../worker/forms-receiver.mjs', import.meta.url), 'utf8'));
   return receiverSource;
 }
 
@@ -278,7 +278,7 @@ export async function formsWorkerParts({ manifest, secret, databaseId }, { pageR
     modules: [
       { name: 'index.mjs', source: main },
       { name: 'receiver.mjs', source: await receiverModule() },
-      { name: 'portable-validation.mjs', source: await readFile(new URL(import.meta.resolve('@jini-ai/cms/forms/portable-validation')), 'utf8') },
+      { name: 'portable-validation.mjs', source: await readFile(new URL('../worker/portable-validation.mjs', import.meta.url), 'utf8') },
       { name: 'forms-manifest.mjs', source: `export default ${JSON.stringify({ forms: manifest.forms })};\n` },
     ],
     bindings: [{ type: 'd1', name: FORMS_BINDING, id: databaseId }, { type: 'secret_text', name: FORMS_SECRET_BINDING, text: secret }],
