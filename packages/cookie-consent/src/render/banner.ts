@@ -69,10 +69,9 @@ export function resolveCopy(input: BannerCopyInput = {}): BannerCopy {
 export function renderBanner({ mode, client, copy }: RenderBannerConfig, options: RenderBannerOptions = {}): RenderedBanner {
   if (!BANNER_MODES.includes(mode)) return EMPTY;
   const evidence = options.evidence ?? { mode: 'local' };
-  const delivery = declaredScriptDelivery({ scripts: client.scripts ?? [] });
-  const pageClient = client.scripts ? { ...client, scripts: delivery.scripts } : client;
+  const delivery = clientAssets({ client, preview: Boolean(options.preview) });
   const n = options.nonce ? ` nonce="${esc(options.nonce)}"` : '';
-  const head = (options.preview ? '' : delivery.head) + `<script type="application/json" id="${CONFIG_ID}">${json({ ...pageClient, banner: mode, evidence })}</script>${clientScript(options, n)}`;
+  const head = delivery.head + `<script type="application/json" id="${CONFIG_ID}">${json({ ...delivery.client, banner: mode, evidence })}</script>${clientScript(options, n)}`;
   const htmlAttrs = previewAttrs(options.preview);
   if (mode !== 'jini') return { head, body: '', htmlAttrs, problems: [] };
   const compiled = compileConsentCss({ css: options.customCss ?? '', tokens: options.appearance ?? {} });
@@ -118,4 +117,9 @@ ${b('do-not-sell', copy.doNotSellLabel, ' class="jini-consent-link" data-consent
 <details${options.preview?.panel ? ' open' : ''}><summary>${esc(copy.preferencesLabel)}</summary><fieldset><legend>${esc(copy.categoriesLegend)}</legend>${categories(copy)}</fieldset>
 <div class="jini-consent-actions">${b('save', copy.saveLabel)}${b('reject', copy.rejectLabel)}</div></details>
 </section>${options.preview ? '' : reopen}`;
+}
+
+function clientAssets({ client, preview }: { client: RenderBannerConfig['client']; preview: boolean }) {
+  const delivery = declaredScriptDelivery({ scripts: client.scripts ?? [] });
+  return { head: preview ? '' : delivery.head, client: client.scripts ? { ...client, scripts: delivery.scripts } : client };
 }
