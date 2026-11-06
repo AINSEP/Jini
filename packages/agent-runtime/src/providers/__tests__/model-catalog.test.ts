@@ -87,6 +87,37 @@ describe('listProviderModels', () => {
     });
   }
 
+  it.each(['', '   '])('rejects a missing required key %j before DNS or HTTP can mask it', async (apiKey) => {
+    const dnsLookup = vi.fn(async () => { throw new Error('DNS must not run without a key'); });
+    const fetchFn = vi.fn(async () => { throw new Error('HTTP must not run without a key'); });
+    for (const protocol of ['openai', 'senseaudio', 'anthropic', 'google'] as const) {
+      const result = await listProviderModels({ protocol, baseUrl: 'https://provider.example/v1', apiKey }, { dnsLookup, fetchFn });
+      expect(result).toMatchObject({ ok: false, kind: 'auth_failed', detail: 'No API key saved. Save one to load models.' });
+    }
+    expect(dnsLookup).not.toHaveBeenCalled();
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it.each([['google', 'key'], ['aihubmix', '']] as const)('keeps DNS-resolved private-address protection for %s', async (protocol, apiKey) => {
+    const dnsLookup = vi.fn(async () => [{ address: '10.0.0.5', family: 4 }]);
+    const fetchFn = vi.fn(async () => { throw new Error('blocked addresses must not be fetched'); });
+    const result = await listProviderModels({ protocol, baseUrl: 'https://provider.example/v1', apiKey }, { dnsLookup, fetchFn });
+    expect(result).toMatchObject({ ok: false, kind: 'forbidden' });
+    expect(dnsLookup).toHaveBeenCalledWith({ hostname: 'provider.example' });
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it('preserves synchronous URL refusals before a missing-key response without DNS or HTTP', async () => {
+    const dnsLookup = vi.fn(async () => { throw new Error('invalid addresses must not resolve'); });
+    const fetchFn = vi.fn(async () => { throw new Error('invalid addresses must not be fetched'); });
+    for (const [baseUrl, kind] of [['not a url', 'invalid_base_url'], ['http://10.0.0.5/v1', 'forbidden']] as const) {
+      const result = await listProviderModels({ protocol: 'google', baseUrl, apiKey: '' }, { dnsLookup, fetchFn });
+      expect(result).toMatchObject({ ok: false, kind });
+    }
+    expect(dnsLookup).not.toHaveBeenCalled();
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
   // AIHubMix's catalogue is public — `providerModelsHeaders` already omits
   // auth for a blank key, so the guard must not block it (a real regression
   // here would be silently converting "public catalog, no key needed" into
