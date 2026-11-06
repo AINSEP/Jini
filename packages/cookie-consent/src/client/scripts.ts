@@ -16,7 +16,10 @@ export function declaredScripts({ doc, scripts, reload }: { doc: Document; scrip
     entry.node = loading = node;
     node.async = false;
     node.src = entry.script.src;
-    const complete = () => { if (loading === node) loading = null; advance(); };
+    const complete = () => {
+      if (loading === node) loading = null;
+      advance();
+    };
     node.onload = complete;
     node.onerror = complete;
     doc.head.append(node);

@@ -52,6 +52,9 @@ export interface ExportSiteArgs {
   assetSource: AssetSourcePort;
   themeLayout: ThemeLayoutPort;
   assetUrlPrefixes: readonly string[];
+  /** Explicit site-relative assets from declarations (including JSON), fetched through the same app.
+   * A deferred list runs once after app.open, allowing the host to expose its mounted runtime assets. */
+  assetUrls?: readonly string[] | (() => Promise<readonly string[]>);
   requestHeaders: Readonly<Record<string, string>>;
   security: { transformHtml(required: { html: string }): string };
   errorPage: { outputFile: string; acceptStatus(required: { status: number }): boolean; rejectionReason?(required: { status: number }): string };

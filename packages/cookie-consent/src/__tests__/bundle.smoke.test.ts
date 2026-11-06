@@ -7,9 +7,10 @@ import { describe, expect, test, vi } from 'vitest';
 import { renderBanner } from '../render/index.js';
 
 const BUNDLE = new URL('../../dist/client.min.js', import.meta.url);
+const EXTENSIONS = new URL('../../dist/extensions.min.js', import.meta.url);
 
 /** A page as a host would serve it: rendered head/body, one inert analytics tag, one queued live adapter. */
-function page() {
+function page({ extensionsFirst = false }: { extensionsFirst?: boolean } = {}) {
   const { head, body } = renderBanner({ mode: 'jini', client: { contract: 1, policy: 'p1', regionMode: 'opt-in' }, copy: {} }, { evidence: { mode: 'local' } });
   const html = `<!doctype html><html><head>${head}</head><body>${body}
 <script type="text/plain" data-consent-category="analytics">window.inertRan = (window.inertRan || 0) + 1;</script>
@@ -26,7 +27,9 @@ function page() {
   win.fetch = (() => Promise.reject(new Error('no network in the smoke test'))) as typeof fetch;
   const ready = vi.fn();
   win.document.addEventListener('jini:consent-ready', ready);
+  if (extensionsFirst) win.eval(readFileSync(EXTENSIONS, 'utf8'));
   win.eval(readFileSync(BUNDLE, 'utf8'));
+  if (!extensionsFirst) win.eval(readFileSync(EXTENSIONS, 'utf8'));
   return Object.assign(win, { ready });
 }
 const click = (win: Window, selector: string) => (win.document.querySelector(selector) as HTMLElement).click();
@@ -41,6 +44,11 @@ describe('dist/client.min.js', () => {
     expect(4608 - size, `client.min.js is ${size} B gzipped; keep at least 32 B headroom under the 4608 B budget`).toBeGreaterThanOrEqual(32);
   });
 
+  test('optional features stay within the same asset budget', () => {
+    expect(existsSync(EXTENSIONS)).toBe(true);
+    expect(gzipSync(readFileSync(EXTENSIONS), { level: 9 }).length).toBeLessThanOrEqual(4608);
+  });
+
   test('boots from the page config, shows the banner and drains the queue without granting', () => {
     const win = page();
     expect(win.jiniConsent?.get().status).toBe('pending');
@@ -52,6 +60,16 @@ describe('dist/client.min.js', () => {
     expect(win.inertRan).toBeUndefined();
     expect(win.ready).toHaveBeenCalledTimes(1);
     expect((win.ready.mock.calls[0]![0] as CustomEvent).detail).toBe(win.jiniConsent);
+  });
+
+  test('extensions arriving before the core bind the same banner once READY fires', async () => {
+    const win = page({ extensionsFirst: true });
+    click(win, '#jini-consent [data-consent-action="accept"]');
+    await settle();
+    expect(win.jiniConsent?.get().allowed.analytics).toBe(true);
+    expect(win.grants).toEqual(['grant']);
+    expect(win.inertRan).toBe(1);
+    expect((win.document.getElementById('jini-consent') as HTMLElement).hidden).toBe(true);
   });
 
   test('Accept grants the adapter, runs the inert tag, writes the cookie and closes the banner', async () => {

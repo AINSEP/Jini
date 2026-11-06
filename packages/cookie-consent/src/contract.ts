@@ -128,7 +128,7 @@ export interface ClientConfig {
   maxAgeDays?: number; cookieDomain?: string;
 }
 /** What #jini-consent-config holds: the config plus the evidence mode the host chose. */
-export type PageConfig = ClientConfig & { evidence?: Evidence };
+export type PageConfig = ClientConfig & { evidence?: Evidence; context?: string };
 export interface JiniConsentApi {
   readonly contract: 1;
   readonly plugins: PluginRegistry;

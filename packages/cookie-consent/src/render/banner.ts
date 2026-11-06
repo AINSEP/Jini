@@ -32,7 +32,7 @@ export interface RenderBannerOptions {
   evidence?: Evidence; placement?: ConsentPlacement; reopen?: 'corner' | 'link';
   appearance?: ConsentAppearanceTokens; customCss?: string;
   /** URL of dist/client.min.js as the host serves it. Omitted in a preview. */
-  clientSrc?: string; nonce?: string;
+  clientSrc?: string; extensionSrc?: string; nonce?: string;
   /** Scriptless admin preview: the banner renders open for the given region; htmlAttrs go on the iframe's <html>. */
   preview?: { region: RegionMode; panel?: boolean };
 }
@@ -78,8 +78,8 @@ export function renderBanner({ mode, client, copy }: RenderBannerConfig, options
 }
 
 /** A preview is scriptless: the admin iframe shows the markup, never runs the client. */
-function clientScript({ preview, clientSrc }: RenderBannerOptions, nonceAttr: string): string {
-  return preview || !clientSrc ? '' : `<script src="${esc(clientSrc)}" defer${nonceAttr}></script>`;
+function clientScript({ preview, clientSrc, extensionSrc }: RenderBannerOptions, nonceAttr: string): string {
+  return preview || !clientSrc ? '' : `<script src="${esc(clientSrc)}" defer${nonceAttr}></script>` + (extensionSrc ? `<script src="${esc(extensionSrc)}" defer${nonceAttr}></script>` : '');
 }
 
 /** Attributes for the preview iframe's <html>, standing in for what the client sets on a live page. */
