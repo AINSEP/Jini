@@ -14,6 +14,8 @@ export interface ChatPaneAgentOption {
   label: string;
   identityKind?: 'concrete' | 'alias' | 'routing-mode';
   resolvedId?: string;
+  /** Model-specific levels; absent inherits the runtime vocabulary, empty narrows it to Default. */
+  reasoning?: readonly ChatPaneAgentOption[];
 }
 
 /**
@@ -42,6 +44,8 @@ export interface ChatPaneAgent {
     | { status: 'resolved'; id: string; selectionId?: string; source: string; resolvedAt: string; launchFingerprint: string }
     | { status: 'unresolved'; selectionId?: string; reason: string };
   reasoningOptions?: readonly ChatPaneAgentOption[];
+  /** Effort lives in model IDs for these runtimes, so no independent control is offered. */
+  reasoningInModelId?: { levels: readonly ChatPaneAgentOption[] };
   supportsCustomModel?: boolean;
   supportsConcreteModelSelection?: boolean;
   diagnostic?: string;

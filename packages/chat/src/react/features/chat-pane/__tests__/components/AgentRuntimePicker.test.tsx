@@ -851,3 +851,25 @@ describe('AgentRuntimePicker model names before the live list', () => {
     expect(menu).not.toHaveTextContent('Offline fallback');
   });
 });
+
+
+it('offers the selected model effort levels with the advertised Default and normalizes model changes', async () => {
+  const onChange = vi.fn();
+  const agent: ChatPaneAgent = { id: 'codex', name: 'Codex', available: true,
+    reasoningOptions: [{ id: 'default', label: 'Default' }, { id: 'low', label: 'Low' }, { id: 'high', label: 'High' }],
+    models: [{ id: 'gpt-a', label: 'Model A', reasoning: [{ id: 'high', label: 'High' }] },
+      { id: 'gpt-b', label: 'Model B', reasoning: [{ id: 'low', label: 'Low' }] }],
+  };
+  const { rerender } = render(<AgentRuntimePicker agents={[agent]} value={{ agentId: 'codex', model: 'gpt-a', reasoning: 'high' }} onChange={onChange} />);
+  await userEvent.click(screen.getByRole('button', { name: /^Reasoning:/ }));
+  expect(screen.getByRole('menuitemradio', { name: 'Default' })).toBeInTheDocument();
+  expect(screen.getByRole('menuitemradio', { name: 'High' })).toBeInTheDocument();
+  expect(screen.queryByRole('menuitemradio', { name: 'Low' })).not.toBeInTheDocument();
+  await userEvent.click(screen.getByRole('menuitemradio', { name: 'Default' }));
+  expect(onChange).toHaveBeenLastCalledWith({ agentId: 'codex', model: 'gpt-a', reasoning: 'default' });
+  await userEvent.click(screen.getByRole('button', { name: /^Model:/ }));
+  await userEvent.click(screen.getByRole('menuitemradio', { name: 'Model B' }));
+  expect(onChange).toHaveBeenLastCalledWith({ agentId: 'codex', model: 'gpt-b', reasoning: 'default' });
+  rerender(<AgentRuntimePicker agents={[{ ...agent, reasoningInModelId: { levels: [{ id: 'high', label: 'High' }] } }]} value={{ agentId: 'codex', model: 'gpt-a' }} onChange={onChange} />);
+  expect(screen.queryByRole('button', { name: /^Reasoning:/ })).not.toBeInTheDocument();
+});

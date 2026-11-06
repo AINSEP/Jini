@@ -1,5 +1,5 @@
 /** Shared discovery normalization and timeout/error contracts; no native adapters. */
-import type { RuntimeModelOption } from '../types.js';
+import type { RuntimeModelOption, RuntimeReasoningOption } from '../types.js';
 import type { DiscoveredModel, ModelCatalogSnapshot } from '../model-discovery-types.js';
 
 export function modelIdentityKind(id: string): DiscoveredModel['identityKind'] {
@@ -62,6 +62,24 @@ export function concreteModelOptions({ models = [], supportsConcreteModelSelecti
   const hiddenDefaultId = missingResolvedDefaultId({ choices }, { resolution: defaultModelResolution });
   if (hiddenDefaultId) options.unshift({ id: hiddenDefaultId, label: hiddenDefaultId, identityKind: 'concrete' });
   return options;
+}
+/** Effort choices for one model, shared by launch validation and browser pickers.
+ * The runtime's advertised Default survives model narrowing; an explicit empty list stays empty
+ * apart from that Default. Suffix-based runtimes carry effort in the model ID instead.
+ * Pure; O(n) time and space in the offered levels, preserving first labels and ordering.
+ */
+export function modelReasoningOptions({ agent, model }: {
+  agent: { reasoningOptions?: readonly RuntimeReasoningOption[]; reasoningInModelId?: { levels: readonly RuntimeReasoningOption[] } };
+  model?: Pick<RuntimeModelOption, 'reasoning'> | undefined;
+}, _options = {}): RuntimeReasoningOption[] {
+  if (agent.reasoningInModelId) return [];
+  const advertised = agent.reasoningOptions ?? [];
+  const defaultOption = advertised.find(option => option.id === 'default');
+  const levels = model?.reasoning ?? advertised;
+  const choices = new Map<string, RuntimeReasoningOption>();
+  if (defaultOption) choices.set(defaultOption.id, defaultOption);
+  for (const level of levels) if (!choices.has(level.id)) choices.set(level.id, level);
+  return [...choices.values()];
 }
 export class ProbeTimeout extends Error {}
 /** Cancellation always reaches the effect port. A broken port cannot hold callers indefinitely. */
