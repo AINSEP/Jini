@@ -14,7 +14,7 @@ Started 2026-11-06 16:41 UTC. Deadline 18:41 UTC. Work is on `cloud/ci-errors` i
 - Corrected remaining guard failures: readonly lookup contracts, public/extensionful test imports, an explicit chat test dependency, isolated fallback kit state, and instance-owned document-read admission. The default reader still admits two concurrent reads process-wide and releases admission after failure.
 - Reused the existing shared commerce Money owner; moved existing strict input readers into commerce core with the old path retained as a re-export. Documented the two optional packaged-payload peers without permitting upward imports from agent-plugins TypeScript runtime. Added negative boundary regressions. Removed an obsolete debt entry; no guard floor/baseline was broadened.
 - Corrected ESLint's generated-report exclusion so authored devops coverage tooling is checked.
-- Fixed Semgrep's callback blind spot. The enclosing promise return competed with the callback's return/throw as the selected sink; the OSS engine does not propagate callback return taint into that promise. Callback sinks now own those findings. All original unsafe/safe fixtures remain; added concise-callback and logging checks. Fixture cases increased from 8 unsafe/6 safe to 10 unsafe/7 safe.
+- Fixed Semgrep's callback blind spot. The enclosing promise return competed with the callback's return/throw as the selected sink; the OSS engine does not propagate callback return taint into that promise. Callback sinks now own those findings. All original unsafe/safe fixtures remain; added concise-callback and logging checks. Fixture cases increased from 8 unsafe/6 safe to 13 unsafe/8 safe. Final review also found that the first repair missed tainted fulfilled promise receivers. Two new fixtures reproduced that regression; a separate receiver-focused sink restored detection while retaining callback and chained-callback detection. A sanitized fulfilled-value negative also passes.
 - Replaced higher-hit whole-report selection with LCOV line/branch/function entry unions. Duplicate artifacts are idempotent; input is not mutated. Function declaration identity includes spans/names and supports optional end lines and reordered unique FNDA entries. Summary-only or ambiguous/incompatible duplicate artifacts fail explicitly instead of inventing a union.
 - Added whole-admin runtime coverage scope and 98% floors on all four axes, following the current test-design policy. No existing floor was lowered and no runtime source was excluded.
 - Fixed the one remaining shared-error gap: default GET requests (for example `api.listPages()`) now receive read wording rather than uncertain-mutation wording. The new regression first failed with 12 existing cases passing; the final direct file has 13 passing cases.
@@ -69,7 +69,7 @@ npm --prefix apps/admin run test -- __tests__/vitest-coverage-config.unit.test.t
 npx eslint --no-inline-config --rule '{"complexity":["error",10],"sonarjs/cognitive-complexity":["error",10]}' apps/admin/vitest.config.ts apps/admin/__tests__/vitest-coverage-config.unit.test.ts
 npm --prefix apps/admin run test:cov -- __tests__/vitest-coverage-config.unit.test.ts --coverage.reportsDirectory=/workspace/work/ci-errors/admin-scope-coverage --coverage.reporter=json-summary --coverage.reporter=lcov
 ```
-Config test and lint PASS; the scope probe has expected exit1 (1/1 test passes, all four98%floors reject0%). It retained886runtimefiles:19,724lines/23,907statements/8,591functions/16,204branches. Full-suite attainment remains unmeasured.
+Config test and lint PASS; the scope probe has expected exit1 (1/1 test passes, all four 98% floors reject0%). It retained886 runtime files:19,724 lines/23,907 statements/8,591 functions/16,204 branches. Full-suite attainment remains unmeasured.
 
 Current result: 138 affected Jini coverage tests pass; devops typecheck and strict complexity <=10 pass. lcov.ts statements/lines/functions: 100%; branches: 96.66%, above unchanged package floors. The only uncovered branches belong to unchanged path/source classification helpers.
 
@@ -86,28 +86,28 @@ SEMGREP_LOG_FILE=/workspace/work/ci-errors-local-scan-user.log SEMGREP_SETTINGS_
 ```
 PASS: all six rule suites; local differential scan 6 rules/19 files, 0 findings, 0 analysis errors. Initial source/option experiments did not repair the callback issue; they were discarded. The successful fix addressed sink ownership and retained every fixture.
 
-`pnpm quality:semgrep --baseline-commit f07ae3d6ff55cf4da480acac44cc6f4b7686966b`: BLOCKED/exit2 because this environment rejects `semgrep.dev/c/p/typescript` with proxy 403. No network policy was bypassed; local rules and blocking fixture checks were verified separately. Remote [run42257276294](https://github.com/AINSEP/Jini/actions/runs/42257276294) at source`1342a24c8` has passed build, guard, full typecheck, agent-plugin content tests and complexity; its Semgrep job is successful, including the blocking custom rule regression step. The application scan remains under the existing report-only policy and has an exit1 annotation despite the step/job being marked success. Quality-gates is finishing its existing report-only stages; final status will be recorded at completion. All blocking check steps are green as of17:07UTC. A report checkpoint starts a new workflow; the source changes after`1342a24c8` are only a reader-lifetime comment and these reports.
+`pnpm quality:semgrep --baseline-commit f07ae3d6ff55cf4da480acac44cc6f4b7686966b`: BLOCKED/exit2 because this environment rejects `semgrep.dev/c/p/typescript` with proxy 403. No network policy was bypassed; local rules and blocking fixture checks were verified separately. Remote [run 42257276294](https://github.com/AINSEP/Jini/actions/runs/42257276294) at source `1342a24c8` has passed build, guard, full typecheck, agent-plugin content tests and complexity; its Semgrep job is successful, including the blocking custom rule regression step. The application scan remains under the existing report-only policy and has an exit1 annotation despite the step/job being marked success. Quality-gates is finishing its existing report-only stages; final status will be recorded at completion. All blocking check steps are green as of 17:07 UTC. A report checkpoint starts a new workflow; the source changes after `1342a24c8` are only a reader-lifetime comment and these reports.
 
 ### Remaining CI fixes: exact commands
 
-`node --test --test-isolation=none packages/agent-plugins/cloudflare/worker/__tests__/forms-receiver.test.mjs`: PASS18/18 on the unchanged base receiver; no historical Cloudflare repair remains.
+`node --test --test-isolation=none packages/agent-plugins/cloudflare/worker/__tests__/forms-receiver.test.mjs`: PASS: 18/18 on the unchanged base receiver; no historical Cloudflare repair remains.
 
 All commands run from /workspace/Jini after `source /workspace/.tovu-build/env.sh`.
 
-- `pnpm --filter @jini-ai/ui exec vitest run src/features/site-card/__tests__ --maxWorkers=1 --minWorkers=1`: PASS31 tests.
-- `pnpm --filter @jini-ai/chat exec vitest run src/react/features/chat-pane/__tests__/components/AgentRuntimePicker.agent-handles.test.tsx --maxWorkers=1 --minWorkers=1`: PASS5. Initial public-import run exposed missing ui-kit dependency; declared/linked it and the final run passes.
-- `pnpm --filter @jini-ai/ui-kit exec vitest run src/react/__tests__/provider-edges.test.ts src/react/__tests__/confirm.test.ts --maxWorkers=1 --minWorkers=1`: PASS24. New isolation test RED before fix; provider suite10->11, confirm13 unchanged.
-- `pnpm --filter @jini-ai/cms exec vitest run src/media/__tests__/unit/document-text.unit.test.ts src/media/__tests__/documents.test.ts --maxWorkers=1 --minWorkers=1`: PASS19. Factory regression RED before implementation. Text suite5->7, documents12 unchanged. Covers fixed cap, independent explicit instance, success and failure slot release.
-- `pnpm --filter @jini-ai/commerce exec vitest run -c vitest.kernel.config.ts src/payments/tools/__tests__ src/catalog/__tests__/unit/catalog-tools.vitest.test.ts src/money/__tests__ --maxWorkers=1 --minWorkers=1`: PASS176 across9 files, no tests deleted.
-- `pnpm exec vitest run scripts/__tests__/check-package-layers.test.ts --maxWorkers=1 --minWorkers=1`: PASS73 (66->73). New peer tests RED before fix; upward src imports, direct dependencies and required peers remain forbidden.
-- `pnpm exec vitest run scripts/__tests__/coupling-isolation.test.ts -t 'commerce shared value and input owners' --maxWorkers=1 --minWorkers=1`: PASS1 affected regression. Other20 tests intentionally not selected. Two initial entire-file attempts stalled in unrelated live checks and were terminated, with no full-file pass claim.
-- `pnpm exec vitest run development/quality/eslint-uninstalled-rules.test.mts --maxWorkers=1 --minWorkers=1`: PASS3 (2->3), new authored-coverage scope test RED before fix.
+- `pnpm --filter @jini-ai/ui exec vitest run src/features/site-card/__tests__ --maxWorkers=1 --minWorkers=1`: PASS: 31 tests.
+- `pnpm --filter @jini-ai/chat exec vitest run src/react/features/chat-pane/__tests__/components/AgentRuntimePicker.agent-handles.test.tsx --maxWorkers=1 --minWorkers=1`: PASS: 5. Initial public-import run exposed missing ui-kit dependency; declared/linked it and the final run passes.
+- `pnpm --filter @jini-ai/ui-kit exec vitest run src/react/__tests__/provider-edges.test.ts src/react/__tests__/confirm.test.ts --maxWorkers=1 --minWorkers=1`: PASS: 24. New isolation test RED before fix; provider suite10->11, confirm13 unchanged.
+- `pnpm --filter @jini-ai/cms exec vitest run src/media/__tests__/unit/document-text.unit.test.ts src/media/__tests__/documents.test.ts --maxWorkers=1 --minWorkers=1`: PASS: 19. Factory regression RED before implementation. Text suite5->7, documents12 unchanged. Covers fixed cap, independent explicit instance, success and failure slot release.
+- `pnpm --filter @jini-ai/commerce exec vitest run -c vitest.kernel.config.ts src/payments/tools/__tests__ src/catalog/__tests__/unit/catalog-tools.vitest.test.ts src/money/__tests__ --maxWorkers=1 --minWorkers=1`: PASS: 176 across9 files, no tests deleted.
+- `pnpm exec vitest run scripts/__tests__/check-package-layers.test.ts --maxWorkers=1 --minWorkers=1`: PASS: 73 (66->73). New peer tests RED before fix; upward src imports, direct dependencies and required peers remain forbidden.
+- `pnpm exec vitest run scripts/__tests__/coupling-isolation.test.ts -t 'commerce shared value and input owners' --maxWorkers=1 --minWorkers=1`: PASS: 1 affected regression. Other20 tests intentionally not selected. Two initial entire-file attempts stalled in unrelated live checks and were terminated, with no full-file pass claim.
+- `pnpm exec vitest run development/quality/eslint-uninstalled-rules.test.mts --maxWorkers=1 --minWorkers=1`: PASS: 3 (2->3), new authored-coverage scope test RED before fix.
 - `pnpm --filter @jini-ai/cms --filter @jini-ai/commerce --filter @jini-ai/ui-kit run build`: PASS.
 - `pnpm exec tsc -p scripts/tsconfig.json --noEmit --pretty false`: PASS after final source changes.
-- `pnpm guard:drift` (network-enabled execution permits tsx IPC/live model discovery): PASS0 new violations,0total. Default sandbox attempt failed on tsx IPC EPERM; execution permissions, no code change, fixed that setup issue.
-- `pnpm exec eslint scripts/check-package-layers.ts packages/cms/src/forms/stale-form.ts packages/cms/src/media/document-read.ts packages/commerce/src/catalog-tools.ts packages/commerce/src/core/tool-input.ts packages/commerce/src/payments/tools/input.ts packages/commerce/src/payments/tools/catalog.ts packages/commerce/src/payments/tools/resolve-unknown.ts packages/ui-kit/src/react/Kit.hooks.ts --rule '{"complexity":["error",10],"sonarjs/cognitive-complexity":["error",10]}'`: PASS0errors,1 existing duplicate-string warning in payments tool catalog. Initial strict check found complexity11 in existing isDocumentOnlyBlob and new payload-peer helper; pure predicates extracted without changing decisions.
+- `pnpm guard:drift` (network-enabled execution permits tsx IPC/live model discovery): PASS: 0 new violations,0total. Default sandbox attempt failed on tsx IPC EPERM; execution permissions, no code change, fixed that setup issue.
+- `pnpm exec eslint scripts/check-package-layers.ts packages/cms/src/forms/stale-form.ts packages/cms/src/media/document-read.ts packages/commerce/src/catalog-tools.ts packages/commerce/src/core/tool-input.ts packages/commerce/src/payments/tools/input.ts packages/commerce/src/payments/tools/catalog.ts packages/commerce/src/payments/tools/resolve-unknown.ts packages/ui-kit/src/react/Kit.hooks.ts --rule '{"complexity":["error",10],"sonarjs/cognitive-complexity":["error",10]}'`: PASS: 0 errors,1 existing duplicate-string warning in payments tool catalog. Initial strict check found complexity11 in existing isDocumentOnlyBlob and new payload-peer helper; pure predicates extracted without changing decisions.
 - `pnpm --filter @jini-ai/cms --filter @jini-ai/commerce --filter @jini-ai/ui-kit --filter @jini-ai/ui --filter @jini-ai/chat run typecheck`: PASS all five.
-- `pnpm complexity`: PASS exit0,0errors/216warnings. No rule disabled or threshold lowered.
+- `pnpm complexity`: PASS exit0,0 errors/216 warnings. No rule disabled or threshold lowered.
 
 
 ### Chromium
@@ -118,6 +118,7 @@ All commands run from /workspace/Jini after `source /workspace/.tovu-build/env.s
 
 - FIXED: Default GET admin failures used mutation-style fallback wording.
 - FIXED: Semgrep missed unsafe rejection-callback constructor, alias/object and String echoes.
+- FIXED DURING REVIEW: The first Semgrep repair missed tainted fulfilled promise receiver values. Receiver-focused return detection now covers direct and aliased values, and preserves sanitized/chained callback cases.
 - FIXED: LCOV higher-hit selection discarded complementary coverage.
 - FIXED: Admin coverage lacked explicit runtime scope and floors.
 - FIXED: Optional FN end-line and declaration/order ambiguity were discovered while implementing the union and now have regressions.
@@ -126,7 +127,7 @@ All commands run from /workspace/Jini after `source /workspace/.tovu-build/env.s
 - FIXED DURING VALIDATION: Missing chat test dependency and over-ceiling reader/peer-helper complexity; all final checks pass.
 - OPEN/MINOR: Existing 320px login/recovery cards cause 352px document width; the shared notice itself fits 320px. Listed, not fixed.
 - OPEN/CI: GitHub Semgrep application scan has an exit1 annotation under its existing report-only policy; the blocking rule tests and overall Semgrep job pass. No scan policy was relaxed.
-- OPEN/MINOR: Three existing super-linear-regex warnings in coverage classifiers, four existing api.ts Sonar warnings, and one existing catalog duplicate-string warning. Root complexity reports216warnings/0errors. Listed, not fixed.
+- OPEN/MINOR: Three existing super-linear-regex warnings in coverage classifiers, four existing api.ts Sonar warnings, and one existing catalog duplicate-string warning. Root complexity reports216 warnings/0 errors. Listed, not fixed.
 
 ## Architecture, scope and cost
 
