@@ -100,7 +100,7 @@ export type LedgerTableName = (typeof LEDGER_TABLES)[keyof typeof LEDGER_TABLES]
 export const LEDGER_INTEGER_COLUMNS: ReadonlySet<string> = new Set([
   "amount_minor", "captured_minor", "refunded_minor", "refund_held_minor", "disputed_minor", "fee_minor", "net_minor",
   "settlement_minor", "version", "created_at", "updated_at", "due_by", "recorded_at", "attempts", "next_attempt_at",
-  "received_at", "applied_at", "purged_at", "published_at", "resolved_at", "seq",
+  "received_at", "applied_at", "purged_at", "published_at", "resolved_at", "seq", "recovery_attempts", "recovery_claim_until",
 ]);
 
 /**
@@ -138,7 +138,7 @@ export const LEDGER_TABLE_RULES: Readonly<Record<LedgerTableName, LedgerTableRul
     nonNegative: ["amount_minor", "captured_minor", "refunded_minor", "refund_held_minor", "disputed_minor"],
   },
   // `currency` / `amount_minor` added by 0004 (a capture's requested amount).
-  commerce_payment_attempts: { nullable: ["refund_id", "error_code", "error_message", "currency", "amount_minor"], nonNegative: [] },
+  commerce_payment_attempts: { nullable: ["refund_id", "error_code", "error_message", "currency", "amount_minor", "dispatch_json", "recovery_claim_until"], nonNegative: ["recovery_attempts"] },
   commerce_refunds: { nullable: ["idempotency_key", "provider_refund_ref", "reason"], nonNegative: ["amount_minor"] },
   commerce_disputes: { nullable: ["due_by"], nonNegative: ["amount_minor"] },
   commerce_payment_evidence: { nullable: ["currency", "amount_minor", "inbox_id"], nonNegative: [] },
@@ -184,6 +184,9 @@ export interface PaymentsTable {
 }
 
 export interface AttemptsTable {
+  dispatch_json: string | null;
+  recovery_attempts: Int;
+  recovery_claim_until: NullableInt;
   id: string;
   payment_id: string;
   workspace_id: string;
@@ -396,6 +399,10 @@ export interface PaymentRecord {
 export type NewPayment = Omit<PaymentRecord, "version">;
 
 export interface AttemptRecord {
+  /** Credential-free original intent request; NULL on historical/ineligible attempts. */
+  readonly dispatchJson: string | null;
+  readonly recoveryAttempts: number;
+  readonly recoveryClaimUntil: number | null;
   readonly id: string;
   readonly paymentId: string;
   readonly workspaceId: string;
@@ -561,7 +568,7 @@ export type PaymentPatch = Partial<
   >
 > & { readonly updatedAt: number };
 
-export type AttemptPatch = Partial<Pick<AttemptRecord, "outcome" | "errorCode" | "errorMessage">> & { readonly updatedAt: number };
+export type AttemptPatch = Partial<Pick<AttemptRecord, "outcome" | "errorCode" | "errorMessage" | "dispatchJson" | "recoveryAttempts" | "recoveryClaimUntil">> & { readonly updatedAt: number };
 export type RefundPatch = Partial<Pick<RefundRecord, "status" | "providerRefundRef" | "reason">> & { readonly updatedAt: number };
 export type DisputePatch = Partial<Pick<DisputeRecord, "status" | "amountMinor" | "dueBy">> & { readonly updatedAt: number };
 
@@ -585,6 +592,9 @@ export const PAYMENT_PATCH_COLUMNS: Readonly<Record<keyof PaymentPatch, keyof Pa
 };
 
 export const ATTEMPT_PATCH_COLUMNS: Readonly<Record<keyof AttemptPatch, keyof AttemptsTable>> = {
+  dispatchJson: "dispatch_json",
+  recoveryAttempts: "recovery_attempts",
+  recoveryClaimUntil: "recovery_claim_until",
   outcome: "outcome",
   errorCode: "error_code",
   errorMessage: "error_message",
@@ -661,6 +671,9 @@ export function paymentFromRow(row: Selectable<PaymentsTable>, _optional: Record
 
 export function attemptFromRow(row: Selectable<AttemptsTable>, _optional: Record<string, never> = {}): AttemptRecord {
   return {
+    dispatchJson: row.dispatch_json,
+    recoveryAttempts: decodeMinor({ value: row.recovery_attempts }),
+    recoveryClaimUntil: decodeNullableMinor({ value: row.recovery_claim_until }),
     id: row.id,
     paymentId: row.payment_id,
     workspaceId: row.workspace_id,
@@ -809,6 +822,7 @@ export function paymentToRow(r: PaymentRecord, _optional: Record<string, never> 
 
 export function attemptToRow(r: AttemptRecord, _optional: Record<string, never> = {}): StoredRow<AttemptsTable> {
   return encodeColumns({
+    dispatch_json: r.dispatchJson, recovery_attempts: r.recoveryAttempts, recovery_claim_until: r.recoveryClaimUntil,
     id: r.id, payment_id: r.paymentId, workspace_id: r.workspaceId, site_id: r.siteId, provider_id: r.providerId,
     provider_account_id: r.providerAccountId, mode: r.mode, op: r.op, operation_key: r.operationKey, refund_id: r.refundId,
     outcome: r.outcome, error_code: r.errorCode, error_message: r.errorMessage, created_at: r.createdAt, updated_at: r.updatedAt,

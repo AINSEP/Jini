@@ -61,6 +61,8 @@ export interface PgCursor<Row> {
 
 /** A checked-out pool connection, described structurally rather than through Kysely. */
 export interface PgPoolClient {
+  /** Held session owners also need an error listener while checked out of the pool. */
+  on?(event: "error", listener: (err: Error) => void): unknown;
   processID?: number;
   query<Row>(sql: string, parameters: ReadonlyArray<unknown>): Promise<PgQueryResult<Row>>;
   query<Row>(cursor: PgCursor<Row>): PgCursor<Row>;

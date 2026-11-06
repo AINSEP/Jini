@@ -1,3 +1,5 @@
+import { OPEN_INTENT_STATUSES } from "../state/status.js";
+import type { PaymentMode } from "../contract/scope.js";
 import { type Kysely, type RawBuilder, type Selectable, sql } from "kysely";
 
 import type { StorageKernel } from "@jini-ai/db/kernel";
@@ -348,10 +350,11 @@ class SqlLedgerTx implements LedgerTx {
     await this.write({ table: LEDGER_TABLES.quarantine, fn: (db) => db.insertInto("commerce_quarantine").values(row).execute() });
   }
 
-  async listQuarantine({ workspaceId, mode }: LedgerKeyScope, optional: { unresolvedOnly?: boolean } = {}): Promise<QuarantineRecord[]> {
+  async listQuarantine({ workspaceId, mode }: LedgerKeyScope, optional: { unresolvedOnly?: boolean; limit?: number } = {}): Promise<QuarantineRecord[]> {
     const rows = await this.read((db) => {
       let query = db.selectFrom("commerce_quarantine").selectAll().where("workspace_id", "=", workspaceId).where("mode", "=", mode);
       if (optional.unresolvedOnly === true) query = query.where("resolved_at", "is", null);
+      if (optional.limit !== undefined) query = query.limit(optional.limit);
       return query.orderBy("created_at").orderBy("id").execute();
     });
     return rows.map((row) => quarantineFromRow(row));
@@ -361,11 +364,27 @@ class SqlLedgerTx implements LedgerTx {
     return this.updateById({ table: LEDGER_TABLES.quarantine, id, set: encodeColumns({ resolved_at: resolvedAt }) });
   }
 
+  async findOpenPayment({ workspaceId }: { workspaceId: string }, optional: { providerId?: string; mode?: PaymentMode; siteId?: string; excludeRequiresAction?: boolean } = {}): Promise<PaymentRecord | null> {
+    const row = await this.read(db => {
+      let query = db.selectFrom("commerce_payments").selectAll().where("workspace_id", "=", workspaceId).where("intent_status", "in", [...OPEN_INTENT_STATUSES]);
+      if (optional.siteId) query = query.where("site_id", "=", optional.siteId);
+      if (optional.excludeRequiresAction) query = query.where("intent_status", "!=", "requires_action");
+      if (optional.providerId) query = query.where("provider_id", "=", optional.providerId);
+      if (optional.mode) query = query.where("mode", "=", optional.mode);
+      return query.orderBy("created_at").orderBy("id").limit(1).executeTakeFirst();
+    });
+    return row ? paymentFromRow(row) : null;
+  }
+  async hasOpenPayment(required: { workspaceId: string }): Promise<boolean> { return (await this.findOpenPayment(required)) !== null; }
+
   // Reconciliation scans ------------------------------------------------------------------------
 
-  async listUnknownPayments({ updatedBefore, limit }: { updatedBefore: number; limit: number }, optional: ScanOptions = {}): Promise<PaymentRecord[]> {
+  async listUnknownPayments({ updatedBefore, limit, unconfirmedBefore }: { updatedBefore: number; limit: number; unconfirmedBefore?: number }, optional: ScanOptions = {}): Promise<PaymentRecord[]> {
     const rows = await this.read((db) =>
-      db.selectFrom("commerce_payments").selectAll().where("intent_status", "=", "unknown").where("updated_at", "<", updatedBefore)
+      db.selectFrom("commerce_payments").selectAll().where(eb => eb.or([
+        eb.and([eb("intent_status", "=", "unknown"), eb("updated_at", "<", updatedBefore)]),
+        eb.and([eb("intent_status", "in", ["requires_action", "pending"]), eb("updated_at", "<", unconfirmedBefore ?? Number.MIN_SAFE_INTEGER)]),
+      ]))
         .where(inScanScope(optional)).where(afterCursor(optional)).orderBy("updated_at").orderBy("id").limit(limit).execute()
     );
     return rows.map((row) => paymentFromRow(row));

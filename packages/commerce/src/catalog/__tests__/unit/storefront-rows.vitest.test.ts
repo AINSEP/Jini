@@ -41,14 +41,14 @@ describe("storefront price selection", () => {
     const specs = [{ label: "Material", value: "<b>Linen</b>" }, { label: "Size", value: "A5" }];
     const source = { ...product, description: "<script>alert(1)</script>", specs };
     expect(toSiteProduct({ product: source, price: { ...price, compareAtAmount: { minorUnits: 3701, currency: "KWD" } } })).toEqual({
-      id: "product-a", slug: "linen-notebook", title: "Notebook", price: 2701, compareAtPrice: 3701, currency: "KWD", specs,
+      id: "product-a", slug: "linen-notebook", title: "Notebook", priceId: "price-a", price: 2701, compareAtPrice: 3701, currency: "KWD", specs,
     });
     expect(toSiteProducts({ items: [
       { product: { ...source, id: "unpriced" }, prices: [] }, { product: source, prices: [price] },
       { product: { ...product, id: "free", slug: "free" }, prices: [{ ...price, unitAmount: { minorUnits: 0, currency: "JPY" } }] },
     ] })).toEqual([
-      { id: "product-a", slug: "linen-notebook", title: "Notebook", price: 2701, compareAtPrice: undefined, currency: "KWD", specs },
-      { id: "free", slug: "free", title: "Notebook", price: 0, compareAtPrice: undefined, currency: "JPY", specs: undefined },
+      { id: "product-a", slug: "linen-notebook", title: "Notebook", priceId: "price-a", price: 2701, compareAtPrice: undefined, currency: "KWD", specs },
+      { id: "free", slug: "free", title: "Notebook", priceId: "price-a", price: 0, compareAtPrice: undefined, currency: "JPY", specs: undefined },
     ]);
   });
 });

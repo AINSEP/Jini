@@ -38,3 +38,5 @@ export { createPaymentsService, createPaymentsOperator, type PaymentsOperatorPor
 export type { PaymentsServiceOptional, PaymentsServiceRequired } from "./ops/deps.js";
 export type { ReconcileCounts, ReconcileReport } from "./ops/reconciler.js";
 export type { ResolveUnknownRequired, ResolveUnknownResult } from "./ops/operator.js";
+
+export * from "./ingest/settlement-worker.js";

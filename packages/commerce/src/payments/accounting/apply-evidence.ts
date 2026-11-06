@@ -6,8 +6,8 @@
  *
  * Every function runs INSIDE the caller's ledger transaction and starts with `lockPayment`, so two
  * concurrent applies (a webhook racing the synchronous response, two refunds at once) serialize
- * on the payment. Each apply appends the observation to the evidence log (append-only), merges it
- * through the pure planner (`plan-evidence.ts`), writes what changed, re-derives the caches from
+ * on the payment. Each new observation is appended to the evidence log (unchanged retrieve facts
+ * are skipped), merged through the pure planner (`plan-evidence.ts`), writes what changed, re-derives the caches from
  * the rows and enqueues outbox events. Evidence the planner refuses is quarantined with the
  * observation kept, never dropped and never capped.
  *
@@ -225,6 +225,13 @@ function failuresFirst(refunds: readonly RefundEvidence[]): RefundEvidence[] {
   return [...refunds.filter((r) => r.status === "failed"), ...refunds.filter((r) => r.status !== "failed")];
 }
 
+/** Repeated retrieve observations with no new facts need neither history nor a version bump. */
+function unchangedRetrieve(ctx: Ctx, evidence: PaymentEvidence, intent: Partial<PaymentRecord>): boolean {
+  if (ctx.source !== "retrieve" || ctx.payment.version === 1) return false;
+  if (evidence.refunds.length > 0 || evidence.disputes.length > 0) return false;
+  return Object.entries(intent).every(([field, value]) => ctx.payment[field as keyof PaymentRecord] === value);
+}
+
 /**
  * Apply a full payment observation: the intent first (a quarantined intent stops the whole
  * observation — its refunds cannot be trusted to belong to this payment), then each refund and
@@ -237,9 +244,9 @@ export async function applyPaymentEvidence(
   const ctx = await open(required, optional.inboxId ?? null);
   if (!ctx) return { kind: "missing" };
   const { evidence } = required;
-  await appendEvidence(ctx, { subject: "payment", subjectRef: evidence.providerRef, status: evidence.status, ...(evidence.amount ? { amount: evidence.amount } : {}) });
   const plan = planIntentEvidence({ payment: stateOf(ctx.payment), evidence });
   if (plan.kind === "quarantined") {
+    await appendEvidence(ctx, { subject: "payment", subjectRef: evidence.providerRef, status: evidence.status, ...(evidence.amount ? { amount: evidence.amount } : {}) });
     await quarantine(ctx, "payment", plan, evidence);
     return { kind: "quarantined", reason: plan.reason };
   }
@@ -248,6 +255,8 @@ export async function applyPaymentEvidence(
     ...nextActionPatch({ evidence, intentStatus: plan.payment.intentStatus }),
     ...settlementPatch(evidence),
   };
+  if (unchangedRetrieve(ctx, evidence, intent)) return { kind: "applied", quarantined: [], outbox: [], deferred: 0 };
+  await appendEvidence(ctx, { subject: "payment", subjectRef: evidence.providerRef, status: evidence.status, ...(evidence.amount ? { amount: evidence.amount } : {}) });
   ctx.payment = { ...ctx.payment, ...intent } as PaymentRecord;
   // The intent's topics first: consumers must see payment.succeeded before any refund of it.
   await enqueue(ctx, plan.outbox, { reference: ctx.payment.reference, amountMinor: ctx.payment.capturedMinor, currency: ctx.payment.currency });
@@ -392,10 +401,18 @@ export async function settleUnknownRefund(
   return { kind: "settled", outbox: ctx.outbox };
 }
 
+/** Unknown outcomes or abandoned, unconfirmed sessions past their 25-hour lifetime. */
+function resolvableIntent({ payment, now }: { payment: PaymentRecord; now: number }): boolean {
+  if (payment.intentStatus === "unknown") return true;
+  const unconfirmed = payment.intentStatus === "requires_action" || payment.intentStatus === "pending";
+  return unconfirmed && now - payment.createdAt > 25 * 60 * 60_000;
+}
+
 /**
  * Settle an `unknown` payment intent from an operator's audited resolution (source `operator`):
  * `succeeded` captures the full amount and emits `payment.succeeded`; `failed` moves no money. Only
- * from `unknown`; anything else already has provider evidence.
+ * from `unknown` or pending/requires-action sessions older than 25 hours. Final provider evidence
+ * still outranks a person's assertion.
  */
 export async function settleUnknownIntent(
   required: WriterInput & { status: "succeeded" | "failed" },
@@ -404,7 +421,7 @@ export async function settleUnknownIntent(
   const ctx = await open(required, null);
   if (!ctx) return { kind: "missing" };
   const p = ctx.payment;
-  if (p.intentStatus !== "unknown") return { kind: "not-unknown", status: p.intentStatus };
+  if (!resolvableIntent({ payment: p, now: ctx.deps.now() })) return { kind: "not-unknown", status: p.intentStatus };
   const amount = { minorUnits: p.amountMinor, currency: p.currency };
   await appendEvidence(ctx, { subject: "payment", subjectRef: p.providerRef ?? p.id, status: required.status, amount });
   const succeeded = required.status === "succeeded";

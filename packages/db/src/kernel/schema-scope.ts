@@ -1,3 +1,4 @@
+import { inheritKernelSessionDatabase } from "./session-lock.js";
 import type { StorageKernel } from "./port.js";
 import { inheritOwnedTransaction } from "./owned-transaction.js";
 
@@ -19,5 +20,6 @@ export function scopeToSchema<DB>(kernel: StorageKernel<DB>, schema: string): St
     run: (fn) => kernel.run((db) => fn(db.withSchema(schema))),
   };
   inheritOwnedTransaction({ from: kernel as StorageKernel<unknown>, to: scoped as StorageKernel<unknown> });
+  inheritKernelSessionDatabase({ from: kernel as StorageKernel<unknown>, to: scoped as StorageKernel<unknown> });
   return scoped;
 }

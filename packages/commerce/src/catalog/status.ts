@@ -2,13 +2,9 @@ import type {
   CommercePaymentProvider,
   CommercePaymentRuntimePort,
   CommerceStatus,
+  CommerceCheckoutReadiness,
 } from "./contracts.js";
 
-const CONFIGURATION_UNAVAILABLE = {
-  status: "unavailable",
-  schema: null,
-  reason: "The payment runtime does not expose a provider configuration contract.",
-} as const;
 
 /** Copy adapter-owned arrays so callers cannot mutate provider registry state through the read model. */
 function copyProvider(provider: CommercePaymentProvider): CommercePaymentProvider {
@@ -44,9 +40,11 @@ function copyProvider(provider: CommercePaymentProvider): CommercePaymentProvide
 export function readCommerceStatus(input: {
   readonly workspaceId: string;
   readonly resolvePaymentRuntime: () => CommercePaymentRuntimePort | null;
+  readonly checkout?: CommerceCheckoutReadiness;
 }, _optional: Record<string, never> = {}): CommerceStatus {
   const paymentRuntime = input.resolvePaymentRuntime();
   const available = paymentRuntime !== null;
+  const checkoutAvailability = input.checkout?.ready ? "available" : "unavailable";
 
   return {
     contractVersion: 1,
@@ -56,12 +54,16 @@ export function readCommerceStatus(input: {
       reason: available ? null : "No payment runtime is composed for this workspace.",
     },
     providers: paymentRuntime?.listProviders().map(copyProvider) ?? [],
-    configuration: { ...CONFIGURATION_UNAVAILABLE },
+    ...(input.checkout === undefined ? {} : { checkout: { ...input.checkout } }),
+    configuration: {
+      status: "unavailable", schema: null,
+      reason: "The payment runtime does not expose a provider configuration contract.",
+    },
     capabilities: {
       providerDiscovery: available ? "available" : "unavailable",
-      checkout: "unavailable",
+      checkout: checkoutAvailability,
       subscriptions: "unavailable",
-      webhookReconciliation: "unavailable",
+      webhookReconciliation: checkoutAvailability,
       revenue: "unavailable",
     },
   };

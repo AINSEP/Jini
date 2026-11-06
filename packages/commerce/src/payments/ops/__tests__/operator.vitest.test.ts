@@ -1,5 +1,8 @@
 import { describe, expect, test } from "vitest";
 
+import { newPayment } from "../../accounting/__tests__/harness.js";
+import { createKernelProviderRegistry } from "../../provider-registry.js";
+import { resolveUnknown } from "../operator.js";
 import { LIPAY, USD, paidLipay, world, type World } from "./harness.js";
 
 /**
@@ -38,6 +41,42 @@ for (const ledgerKind of ["memory", "sqlite"] as const) {
       })]);
     });
 
+    test("resolution still works after the original provider is unregistered", async () => {
+      const w = await world({ ledgerKind });
+      const id = await lostCharge(w);
+      const before = await w.read(id);
+      const result = await resolveUnknown({ deps: { ...w.deps, providers: createKernelProviderRegistry({ items: [] }) }, required: {
+        scope: LIPAY, paymentId: id, outcome: "failed", ...who,
+      } });
+      expect(result).toMatchObject({ ok: true, payment: { status: "failed" } });
+      const after = await w.read(id);
+      expect(after.evidence).toHaveLength(before.evidence.length + 1);
+      expect(after.actions).toEqual([expect.objectContaining({ outcome: "failed", actor: who.actor })]);
+    });
+
+    test.each(["requires_action", "pending"] as const)("an expired %s can be resolved without provider access", async intentStatus => {
+      const w = await world({ ledgerKind });
+      await w.ledger.transaction({ fn: tx => tx.insertPayment({ payment: newPayment({ intentStatus, status: intentStatus }) }) });
+      w.tick(25 * 60 * 60_000 + 1);
+      w.failContextFor("lipay");
+      expect(await w.operator.resolveUnknown({ scope: LIPAY, paymentId: "pay_1", outcome: "succeeded", ...who }))
+        .toMatchObject({ ok: true, payment: { status: "succeeded", captured: USD(10_000) } });
+      const after = await w.read("pay_1");
+      expect(after.actions).toEqual([expect.objectContaining({ outcome: "succeeded", reason: who.reason })]);
+      expect(after.evidence).toEqual([expect.objectContaining({ source: "operator", observedStatus: "succeeded" })]);
+      expect(after.outbox).toEqual(["payment.succeeded"]);
+    });
+
+    test.each(["requires_action", "pending"] as const)("a %s within the session lifetime cannot be resolved", async intentStatus => {
+      const w = await world({ ledgerKind });
+      await w.ledger.transaction({ fn: tx => tx.insertPayment({ payment: newPayment({ intentStatus, status: intentStatus }) }) });
+      w.tick(25 * 60 * 60_000);
+      const before = await w.read("pay_1");
+      expect(await w.operator.resolveUnknown({ scope: LIPAY, paymentId: "pay_1", outcome: "failed", ...who }))
+        .toMatchObject({ ok: false, error: { code: "INVALID_REQUEST" } });
+      expect(await w.read("pay_1")).toEqual(before);
+    });
+
     test("an unknown refund resolved failed releases the hold and returns the refund view", async () => {
       const w = await world({ ledgerKind });
       const { paymentId, refundId } = await lostRefund(w);
@@ -49,11 +88,11 @@ for (const ledgerKind of ["memory", "sqlite"] as const) {
 }
 
 describe("resolveUnknown refusals (nothing is written or audited)", () => {
-  test("only an unknown outcome can be resolved", async () => {
+  test("final outcomes cannot be resolved", async () => {
     const w = await world();
     const paid = await paidLipay(w);
     expect(await w.operator.resolveUnknown({ scope: LIPAY, paymentId: paid.id, outcome: "failed", ...who })).toEqual({
-      ok: false, error: { code: "INVALID_REQUEST", message: `payment ${paid.id} is succeeded; only an unknown outcome can be resolved`, retryable: false },
+      ok: false, error: { code: "INVALID_REQUEST", message: `payment ${paid.id} is succeeded; only an unknown outcome or an unconfirmed session older than 25 hours can be resolved`, retryable: false },
     });
     expect((await w.read(paid.id)).actions).toEqual([]);
     const w2 = await world();
@@ -82,9 +121,9 @@ describe("resolveUnknown refusals (nothing is written or audited)", () => {
     expect((await w.read(id)).actions).toEqual([]);
   });
 
-  test("an unregistered provider", async () => {
+  test("an unregistered provider does not bypass payment ownership", async () => {
     const w = await world();
     expect(await w.operator.resolveUnknown({ scope: { ...LIPAY, providerId: "gone" }, paymentId: "p", outcome: "failed", ...who }))
-      .toMatchObject({ ok: false, error: { code: "PROVIDER_NOT_REGISTERED" } });
+      .toEqual({ ok: false, error: { code: "INVALID_REQUEST", message: "payment p not found in this scope", retryable: false } });
   });
 });

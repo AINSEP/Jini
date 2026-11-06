@@ -1,3 +1,4 @@
+export { commerceStorefrontFor, STOREFRONT_PRODUCT_LIMIT } from "./repo.storefront.js";
 import type { StorageKernel } from "@jini-ai/db/kernel";
 export type { CommerceKernel, CommerceDatabase } from "./database.js";
 export { commercePriceProviderRefRepoFor } from "./repo.price-refs.js";
@@ -193,16 +194,24 @@ export class SqlCommercePriceRepo implements CommercePriceRepoPort {
     return rows.map((row) => toPriceRecord(row));
   }
 
+  /** A newly created active price replaces the product's prior active prices atomically.
+   * Existing order/item snapshots keep their original totals; archived IDs reject new checkout.
+   * @complexity One scoped lock, point lookup, bounded-by-product archive write and price upsert. */
   async save(record: CommercePriceRecord, _optional: Record<string, never> = {}): Promise<void> {
     const row = toPriceRow(record);
-    await this.kernel.run((db) =>
-      db
-        .insertInto("commerce_prices")
-        .values(row)
-        .onConflict((oc) => oc.column("id").doUpdateSet(row))
-        .execute()
-    );
+    await this.kernel.transaction(async () => {
+      await this.kernel.lockKey(`commerce:prices:${record.workspaceId}:${record.productId}`);
+      const existing = await this.findById({ workspaceId: record.workspaceId, id: record.id });
+      if (!existing && record.status === "active") {
+        await this.kernel.run(db => db.updateTable("commerce_prices").set({ status: "archived" })
+          .where("workspace_id", "=", record.workspaceId).where("product_id", "=", record.productId)
+          .where("status", "=", "active").execute());
+      }
+      await this.kernel.run(db => db.insertInto("commerce_prices").values(row)
+        .onConflict(oc => oc.column("id").doUpdateSet(row)).execute());
+    });
   }
+
 }
 
 export class SqlCommerceOrderRepo implements CommerceOrderRepoPort {
@@ -347,3 +356,5 @@ export function commerceOrderRepoFor<DB>({ kernel }: { kernel: StorageKernel<DB>
 export function commerceWebhookEventRepoFor<DB>({ kernel }: { kernel: StorageKernel<DB> }, _optional: Record<string, never> = {}): SqlCommerceWebhookEventRepo {
   return new SqlCommerceWebhookEventRepo({ kernel: kernel as unknown as ContentKernel });
 }
+
+export * from "./merchant-drain.js";

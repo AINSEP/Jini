@@ -89,12 +89,12 @@ describe("record codecs preserve independent monetary and time fields", () => {
     const record = {
       ...scope, id: "att", paymentId: "pay", op: "capture" as const, operationKey: "operation", refundId: "refund",
       outcome: "unknown" as const, errorCode: "TIMEOUT", errorMessage: "reply lost", createdAt: 101, updatedAt: 203,
-      currency: "JPY", amountMinor: 307,
+      currency: "JPY", amountMinor: 307, dispatchJson: "{\"req\":{}}", recoveryAttempts: 2, recoveryClaimUntil: 409,
     };
     const row = {
       ...rowScope, id: "att", payment_id: "pay", op: "capture", operation_key: "operation", refund_id: "refund",
       outcome: "unknown", error_code: "TIMEOUT", error_message: "reply lost", created_at: 101, updated_at: 203,
-      currency: "JPY", amount_minor: 307,
+      currency: "JPY", amount_minor: 307, dispatch_json: "{\"req\":{}}", recovery_attempts: 2, recovery_claim_until: 409,
     };
     expect(attemptToRow(record, {})).toEqual(row);
     expect(attemptFromRow({ ...row, created_at: "101", updated_at: 203n, amount_minor: "307" }, {})).toEqual(record);

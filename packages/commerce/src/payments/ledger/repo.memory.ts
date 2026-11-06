@@ -1,3 +1,5 @@
+import { OPEN_INTENT_STATUSES } from "../state/status.js";
+import type { PaymentMode } from "../contract/scope.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 
 import {
@@ -399,10 +401,10 @@ class MemoryLedgerTx implements LedgerTx {
     this.insert({ table: this.t.quarantine, record: { ...entry, resolvedAt: null } });
   }
 
-  async listQuarantine(required: LedgerKeyScope, optional: { unresolvedOnly?: boolean } = {}): Promise<QuarantineRecord[]> {
+  async listQuarantine(required: LedgerKeyScope, optional: { unresolvedOnly?: boolean; limit?: number } = {}): Promise<QuarantineRecord[]> {
     const scoped = inScope(required);
     const visible = (r: QuarantineRecord) => scoped(r) && (optional.unresolvedOnly !== true || r.resolvedAt === null);
-    return this.t.quarantine.list(visible, (r) => r.createdAt);
+    return this.t.quarantine.list(visible, (r) => r.createdAt).slice(0, optional.limit);
   }
 
   async resolveQuarantine({ id, resolvedAt }: { id: string; resolvedAt: number }): Promise<boolean> {
@@ -410,11 +412,28 @@ class MemoryLedgerTx implements LedgerTx {
     return this.t.quarantine.update({ id, set: () => set });
   }
 
+  async findOpenPayment({ workspaceId }: { workspaceId: string }, optional: { providerId?: string; mode?: PaymentMode; siteId?: string; excludeRequiresAction?: boolean } = {}): Promise<PaymentRecord | null> {
+    const rows = this.t.payments.list(r => {
+      if (r.workspaceId !== workspaceId || !OPEN_INTENT_STATUSES.includes(r.intentStatus)) return false;
+      if (optional.siteId && r.siteId !== optional.siteId) return false;
+      if (optional.excludeRequiresAction && r.intentStatus === "requires_action") return false;
+      if (optional.providerId && r.providerId !== optional.providerId) return false;
+      return optional.mode === undefined || r.mode === optional.mode;
+    }, r => r.createdAt);
+    rows.sort((a,b) => a.createdAt - b.createdAt || a.id.localeCompare(b.id));
+    return rows[0] ?? null;
+  }
+  async hasOpenPayment(required: { workspaceId: string }): Promise<boolean> { return (await this.findOpenPayment(required)) !== null; }
+
   // Reconciliation scans ------------------------------------------------------------------------
 
-  async listUnknownPayments({ updatedBefore, limit }: { updatedBefore: number; limit: number }, optional: ScanOptions = {}): Promise<PaymentRecord[]> {
-    const due = scanMatch({ updatedBefore, options: optional });
-    return this.t.payments.list((r) => r.intentStatus === "unknown" && due(r), (r) => r.updatedAt).slice(0, limit);
+  async listUnknownPayments({ updatedBefore, limit, unconfirmedBefore }: { updatedBefore: number; limit: number; unconfirmedBefore?: number }, optional: ScanOptions = {}): Promise<PaymentRecord[]> {
+    const due = scanMatch({ updatedBefore: Math.max(updatedBefore, unconfirmedBefore ?? updatedBefore), options: optional });
+    return this.t.payments.list((r) => {
+      const unknown = r.intentStatus === "unknown" && r.updatedAt < updatedBefore;
+      const unconfirmed = (r.intentStatus === "requires_action" || r.intentStatus === "pending") && r.updatedAt < (unconfirmedBefore ?? Number.MIN_SAFE_INTEGER);
+      return (unknown || unconfirmed) && due(r);
+    }, (r) => r.updatedAt).slice(0, limit);
   }
 
   async listUnsettledRefunds({ updatedBefore, limit }: { updatedBefore: number; limit: number }, optional: ScanOptions = {}): Promise<RefundRecord[]> {

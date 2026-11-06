@@ -12,7 +12,7 @@ export interface PaymentProviderConfigReader {
   } | null>;
 }
 export interface ProviderContextsRequired {
-  readonly bindings: Readonly<Record<string, string>>;
+  readonly bindings: Readonly<Record<string, string>> | (() => Readonly<Record<string, string>>);
   readonly configFor: (required: { siteId: string }) => PaymentProviderConfigReader;
   readonly urlsFor: (required: { scope: PaymentScope }) => Pick<ProviderContext, "webhookUrl" | "returnUrl" | "cancelUrl"> | null;
   readonly httpClient: HttpClientPort;
@@ -46,8 +46,9 @@ function credentialsFor({ keys, secrets, mode }: { keys: readonly string[]; secr
  */
 export function createProviderContexts(required: ProviderContextsRequired, _optional: Record<string, never> = {}): ProviderContextPort {
   return { resolve: async ({ scope, provider }) => {
-    if (provider.id !== scope.providerId || !Object.hasOwn(required.bindings, scope.providerId)) return refusal();
-    const pluginId = required.bindings[scope.providerId]!;
+    const bindings = typeof required.bindings === "function" ? required.bindings() : required.bindings;
+    if (provider.id !== scope.providerId || !Object.hasOwn(bindings, scope.providerId)) return refusal();
+    const pluginId = bindings[scope.providerId]!;
     let saved: Awaited<ReturnType<PaymentProviderConfigReader["read"]>>;
     try { saved = await required.configFor({ siteId: scope.siteId }).read({ pluginId }); }
     // Unreadable encrypted rows and storage errors both require redelivery, never a leaked secret.

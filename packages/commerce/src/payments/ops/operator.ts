@@ -6,15 +6,16 @@
  *
  * Audited: the state change (through the single writer, evidence source `operator`) and an
  * append-only `commerce_operator_actions` row are written in ONE transaction, so there is never a
- * resolution without its audit or an audit without its resolution. Only an `unknown` record may be
- * resolved; anything else already has provider evidence, which outranks a person's assertion.
+ * resolution without its audit or an audit without its resolution. Unknown intents and unconfirmed
+ * sessions older than 25 hours may be resolved. Final provider evidence still outranks a person's
+ * assertion; refunds remain unknown-only.
  */
 import type { PaymentView, RefundView } from "../contract/payments-port.js";
-import type { PaymentScope } from "../contract/scope.js";
+import { scopeProblem, type PaymentScope } from "../contract/scope.js";
 import { settleUnknownIntent, settleUnknownRefund, type SettleResult } from "../accounting/apply-evidence.js";
 import type { LedgerTx } from "../ledger/repo.js";
 import type { PaymentRecord, RefundRecord } from "../ledger/rows.js";
-import { checkProvider, checkText, fail, readPayment, type Failure } from "./common.js";
+import { checkText, fail, readPayment, type Failure } from "./common.js";
 import type { OpsDeps } from "./deps.js";
 import { paymentView, refundView } from "./view.js";
 
@@ -34,9 +35,10 @@ export type ResolveUnknownResult =
   | { readonly ok: true; readonly payment: PaymentView; readonly refund: RefundView | null }
   | Failure;
 
-function checkResolve({ deps, required }: { deps: OpsDeps; required: ResolveUnknownRequired }): Failure | null {
-  const checked = checkProvider({ deps, scope: required.scope });
-  if (!checked.ok) return checked;
+function checkResolve({ required }: { required: ResolveUnknownRequired }): Failure | null {
+  // Manual resolution is ledger-only, including when the provider or its credentials are gone.
+  const problem = scopeProblem({ scope: required.scope });
+  if (problem) return fail({ code: "INVALID_REQUEST", message: problem });
   const blank = checkText({ fields: { paymentId: required.paymentId, actor: required.actor, reason: required.reason, ...(required.refundId === undefined ? {} : { refundId: required.refundId }) } });
   if (blank) return blank;
   return required.outcome === "succeeded" || required.outcome === "failed" ? null : fail({ code: "INVALID_REQUEST", message: 'outcome must be "succeeded" or "failed"' });
@@ -51,7 +53,8 @@ function settle({ tx, deps, required }: { tx: LedgerTx; deps: OpsDeps; required:
 
 function refused(required: ResolveUnknownRequired, settled: Exclude<SettleResult, { kind: "settled" }>): Failure {
   const subject = required.refundId === undefined ? `payment ${required.paymentId}` : `refund ${required.refundId}`;
-  const why = "status" in settled ? `is ${settled.status}; only an unknown outcome can be resolved` : "not found";
+  const eligible = required.refundId === undefined ? "an unknown outcome or an unconfirmed session older than 25 hours" : "an unknown outcome";
+  const why = "status" in settled ? `is ${settled.status}; only ${eligible} can be resolved` : "not found";
   return fail({ code: "INVALID_REQUEST", message: `${subject} ${why}` });
 }
 
@@ -80,7 +83,7 @@ export async function resolveUnknown(
   { deps, required }: { deps: OpsDeps; required: ResolveUnknownRequired },
   _optional: Record<string, never> = {}
 ): Promise<ResolveUnknownResult> {
-  const problem = checkResolve({ deps, required });
+  const problem = checkResolve({ required });
   if (problem) return problem;
   const resolved = await deps.ledger.transaction({ fn: (tx) => resolveInTx({ tx, deps, required }) });
   if ("ok" in resolved) return resolved;

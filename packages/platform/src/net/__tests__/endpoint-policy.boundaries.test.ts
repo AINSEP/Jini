@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isBlockedExternalApiHostname, isLoopbackApiHost } from '../endpoint-policy.js';
+import { isBlockedExternalApiHostname, isLoopbackApiHost, isDeployedApiHostname } from '../endpoint-policy.js';
 
 // Pins edges of the browser-safe literal policy not already covered by the
 // contract table, retaining dc606bf5's canonical-byte classification.
@@ -36,4 +36,11 @@ describe('endpoint-policy boundary pins', () => {
       expect(isBlockedExternalApiHostname({ hostname })).toBe(true);
     },
   );
+});
+
+it.each([
+  ['shop.example', true], ['8.8.8.8', true], ['LOCALHOST.', false], ['shop.localhost.', false], ['shop.LOCAL', false],
+  ['127.0.0.1', false], ['10.0.0.1', false], ['169.254.169.254', false], ['[::1]', false], ['[::ffff:127.0.0.1]', false],
+] as const)('deployed endpoint hostname %s is allowed=%s', (hostname, expected) => {
+  expect(isDeployedApiHostname({ hostname })).toBe(expected);
 });

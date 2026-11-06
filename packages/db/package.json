@@ -29,6 +29,7 @@
         "src/kernel/port.ts",
         "src/kernel/postgres-lock.ts",
         "src/kernel/schema-scope.ts",
+        "src/kernel/session-lock.ts",
         "src/kernel/schema-shape.ts",
         "src/kernel/store-copy.ts",
         "src/kernel/turn-lock.ts",

@@ -51,3 +51,13 @@ describe("capability values and promised methods are checked at load", () => {
       .toBe('capabilities.capture must be "auto" | "manual"');
   });
 });
+
+for (const value of [0, -1, NaN, Infinity, 1.2, "1000", null]) {
+  test(`refuses unsafe intent replay window ${String(value)}`, () => {
+    expect(paymentProviderModuleProblem(provider({}, { intentReplayWindowMs: value })))
+      .toBe("intentReplayWindowMs must be a positive safe integer when present");
+  });
+}
+test("accepts a provider's finite opt-in replay retention window", () => {
+  expect(paymentProviderModuleProblem(provider({}, { intentReplayWindowMs: 60_000 }))).toBeUndefined();
+});

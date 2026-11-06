@@ -44,9 +44,8 @@ import type { CommercePriceRecord, CommerceProductRecord, CommerceProductSpec } 
  *  - `specs` — passed straight through from `CommerceProductRecord.specs`; already structured
  *    `{label, value}` display data, not a data-availability or safety gap.
  *  - `currency` — the chosen price's `unitAmount.currency`, UPPERCASE ISO-4217 (e.g. `"USD"`;
- *    commerce design §6 Money). `priceFormatted`'s `$`-prefix is still hardcoded regardless of
- *    this value (see `render.ts`'s `formatCents` doc) — a cosmetic mismatch for a future
- *    currency-formatting pass, not a blocker for wiring the raw value.
+ *    commerce design §6 Money). Display adapters use the shared money formatter so both the
+ *    currency symbol and minor-unit precision agree with this value.
  *
  * `price`/`compareAtPrice` stay flat integers under their existing names on purpose: this is the
  * template-facing render row (Liquid themes read `product.price`), so it carries Money flattened
@@ -62,6 +61,8 @@ export interface StorefrontSiteProduct {
    *  already follow. */
   slug: string;
   title: string;
+  /** The exact one-time price displayed; purchase requests retain this identifier. */
+  priceId?: string;
   /** Integer minor units of `currency` (never assumed to be /100 — see `exponentOf`). */
   price: number;
   /** Integer minor units of `currency`. `undefined` = not on sale. */
@@ -106,6 +107,7 @@ export function toSiteProduct(input: {
     id: input.product.id,
     slug: input.product.slug,
     title: input.product.name,
+    priceId: input.price.id,
     price: input.price.unitAmount.minorUnits,
     compareAtPrice: input.price.compareAtAmount?.minorUnits,
     currency: input.price.unitAmount.currency,

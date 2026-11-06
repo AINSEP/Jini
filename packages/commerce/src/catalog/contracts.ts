@@ -40,6 +40,17 @@ export interface CommercePaymentRuntimePort {
 
 export type CommerceCapabilityAvailability = "available" | "unavailable";
 
+/** Operational checkout state supplied by the activated host, separate from provider discovery. */
+export interface CommerceCheckoutReadiness {
+  readonly active: boolean;
+  readonly ready: boolean;
+  readonly reason: string | null;
+  /** Public callback address from trusted host configuration; never contains signing secrets. */
+  readonly webhookUrl?: string | null;
+  /** At most ten shop-owned order ids needing operator attention. */
+  readonly needsAttention?: readonly string[];
+}
+
 export interface CommerceStatus {
   readonly contractVersion: 1;
   readonly workspaceId: string;
@@ -48,6 +59,7 @@ export interface CommerceStatus {
     readonly reason: string | null;
   };
   readonly providers: readonly CommercePaymentProvider[];
+  readonly checkout?: CommerceCheckoutReadiness;
   readonly configuration: {
     readonly status: "unavailable";
     readonly schema: null;
@@ -55,9 +67,9 @@ export interface CommerceStatus {
   };
   readonly capabilities: {
     readonly providerDiscovery: CommerceCapabilityAvailability;
-    readonly checkout: "unavailable";
+    readonly checkout: CommerceCapabilityAvailability;
     readonly subscriptions: "unavailable";
-    readonly webhookReconciliation: "unavailable";
+    readonly webhookReconciliation: CommerceCapabilityAvailability;
     readonly revenue: "unavailable";
   };
 }

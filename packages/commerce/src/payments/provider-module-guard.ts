@@ -56,6 +56,8 @@ const CHECKS: ReadonlyArray<readonly [(candidate: Candidate) => boolean, string]
   [(c) => typeof c.displayName === "string", "displayName must be a string"],
   [(c) => isRecord(c.capabilities), "capabilities must be an object"],
   [(c) => isStringArray(c.credentialKeys), "credentialKeys must be an array of strings"],
+  [(c) => c.intentReplayWindowMs === undefined || (Number.isSafeInteger(c.intentReplayWindowMs) && (c.intentReplayWindowMs as number) > 0),
+    "intentReplayWindowMs must be a positive safe integer when present"],
   [(c) => isFunction(c.createIntent), "createIntent must be a function"],
   [(c) => isFunction(c.verifyWebhook), "verifyWebhook must be a function"],
   ...OPTIONAL_PROVIDER_METHODS.map(

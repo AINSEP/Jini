@@ -46,5 +46,7 @@ export function createStripePaymentProvider(
   _required: Record<string, never>, _optional: Record<string, never> = {}
 ): PaymentProvider {
   return { id: "stripe", displayName: "Stripe", credentialKeys: ["secretKey", "webhookSecret"], capabilities: STRIPE_CAPABILITIES,
+    // Stripe retains keys for at least 24 hours; stop an hour before pruning can create a new charge.
+    intentReplayWindowMs: 23 * 60 * 60 * 1_000,
     createIntent: (required, _optional = {}) => createCheckoutSession(required), retrieve, verifyWebhook };
 }

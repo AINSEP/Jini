@@ -15,6 +15,8 @@ import type { ProviderDisputeStatus, ProviderPaymentStatus } from "../contract/e
 
 /** A payment intent's own status. `unknown` is ours: a dispatched call whose outcome we could not tell. */
 export type IntentStatus = ProviderPaymentStatus | "unknown";
+/** The single typed definition shared by drain selection and worker ownership. */
+export const OPEN_INTENT_STATUSES: readonly IntentStatus[] = ["unknown", "requires_action", "pending", "authorized"];
 
 /** `reserved` = held by us before dispatch; `unknown` = dispatched, outcome not known. Both still hold money. */
 export type RefundStatus = "reserved" | "unknown" | "pending" | "succeeded" | "failed";

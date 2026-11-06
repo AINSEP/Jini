@@ -116,6 +116,9 @@ export interface PaymentProvider {
   readonly capabilities: ProviderCapabilities;
   /** Credential slot names (`secretKey`, `webhookSecret`); the kernel resolves them before any call. */
   readonly credentialKeys: readonly string[];
+  /** Opt-in: replaying the identical intent key/request is safe for this many milliseconds.
+   * Must be shorter than the provider's idempotency retention. Absent = never redispatch. */
+  readonly intentReplayWindowMs?: number;
   createIntent(
     required: { req: IntentRequest; ctx: ProviderContext },
     optional?: { signal?: AbortSignal }

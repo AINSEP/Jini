@@ -70,6 +70,7 @@ test("toSiteProduct: maps name -> title, unitAmount.minorUnits -> price, compare
     id: "product-1",
     slug: "classic-boxy-tee",
     title: "Classic Boxy Tee",
+    priceId: "price-1",
     price: 3500,
     compareAtPrice: 4500,
     currency: "USD",
@@ -125,7 +126,7 @@ test("recurring-only products use the cheapest active price across billing inter
   const archived = price({ id: "archived-monthly", billingInterval: "month", unitAmount: usd(100), status: "archived" });
   assert.deepEqual(pickDisplayPrice({ prices: [annual, archived, monthly] }), monthly);
   assert.deepEqual(toSiteProducts({ items: [{ product: product({ kind: "membership" }), prices: [annual, archived, monthly] }] }), [{
-    id: "product-1", slug: "classic-boxy-tee", title: "Classic Boxy Tee", price: 1200,
+    id: "product-1", slug: "classic-boxy-tee", title: "Classic Boxy Tee", priceId: "monthly", price: 1200,
     currency: "USD", compareAtPrice: undefined, specs: undefined,
   }]);
 });

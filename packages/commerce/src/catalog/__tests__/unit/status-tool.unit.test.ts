@@ -25,7 +25,7 @@ test("commerce status tool remains read-only", () => {
 });
 test("commerce status tool refuses before entering provider code", async () => {
   const a = auth(false);
-  const r = buildRegistrations({ ...a.deps, lipay: { listProviders: () => { assert.fail("denied reads must not enter the provider"); } } })[0]!;
+  const r = buildRegistrations({ ...a.deps, paymentRuntime: { listProviders: () => { assert.fail("denied reads must not enter the provider"); } } })[0]!;
   await assert.rejects(call(r), error => {
     assert.ok(error instanceof ForbiddenError);
     assert.equal(error.message, "principal 'operator' is not authorized for 'admin.integrations.manage' (insufficient_permission)");
@@ -40,7 +40,7 @@ test("commerce status: truthful absence; available runtime only enables provider
   assert.deepEqual(Object.keys(result).sort(), ["capabilities", "configuration", "contractVersion", "paymentRuntime", "providers", "workspaceId"]);
   assert.deepEqual(result.paymentRuntime, { status: "unavailable", reason: "No payment runtime is composed for this workspace." });
   assert.deepEqual(result.providers, []);
-  deps.lipay = { listProviders: () => [] };
+  deps.paymentRuntime = { listProviders: () => [] };
   const available = await call(r) as any;
   assert.deepEqual(available.paymentRuntime, { status: "available", reason: null });
   assert.deepEqual(available.capabilities, { providerDiscovery: "available", checkout: "unavailable", subscriptions: "unavailable", webhookReconciliation: "unavailable", revenue: "unavailable" });

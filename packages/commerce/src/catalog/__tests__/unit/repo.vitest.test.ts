@@ -266,3 +266,13 @@ describe("webhook event repo against a driver that omits the affected-row count"
     expect(runs).toEqual(["run"]);
   });
 });
+
+ test("a corrected new price supersedes the old price without changing saved order totals", async () => {
+  const w = await world(); await w.products.save(product()); await w.prices.save(price({ unitAmount: { minorUnits: 100, currency: "USD" } }));
+  await w.orders.placeOrder({ order: order(), items: [item()] }); 
+  await w.prices.save(price({ id: "corrected-price", unitAmount: { minorUnits: 1000, currency: "USD" }, createdAt: LATER }));
+  expect((await w.prices.findById({ workspaceId: "ws-a", id: "price-a" }))?.status).toBe("archived");
+  expect((await w.prices.findById({ workspaceId: "ws-a", id: "corrected-price" }))?.status).toBe("active");
+  expect((await w.orders.findById({ workspaceId: "ws-a", id: "order-a" }))?.totalAmount.minorUnits).toBe(5402);
+  await expect(checkout({ deps: { products: w.products, prices: w.prices, orders: w.orders, clock: { nowMs: () => Date.parse(AT) }, idGen: { newId: () => "new-order" } }, input: { workspaceId: "ws-a", memberId: "buyer", priceId: "price-a", provider: "regional-pay" } })).rejects.toThrow();
+ });

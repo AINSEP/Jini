@@ -1,3 +1,4 @@
+import { registerKernelSessionDatabase } from "./session-lock.js";
 import { AsyncLocalStorage } from "node:async_hooks";
 
 import type { Kysely } from "kysely";
@@ -37,6 +38,8 @@ export interface KernelDriver<DB> {
   lockKey(tx: Kysely<DB>, key: string): Promise<void>;
   /** Share one connection between all callers: take turns (see `turn-lock.ts`). */
   oneConnection: boolean;
+  /** Native pooled drivers advertise capacity so session owners cannot consume the only connection. */
+  poolMax?: number;
   /**
    * The turn lock to take turns on, when several connections in this process open the SAME
    * database (two better-sqlite3 handles on one file): they must take turns as one, or one
@@ -166,5 +169,6 @@ export function buildKernel<DB>(driver: KernelDriver<DB>): StorageKernel<DB> {
     assertAvailable: assertOwnedAvailable,
     transaction: (work, optional = {}) => transaction(work, optional),
   } });
+  registerKernelSessionDatabase({ kernel: kernel as StorageKernel<unknown>, database: driver.base as Kysely<unknown>, ...(driver.poolMax === undefined ? {} : { poolMax: driver.poolMax }) });
   return kernel;
 }

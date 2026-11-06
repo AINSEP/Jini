@@ -22,16 +22,18 @@
       "./payments/kernel": "node",
       "./payments/client": "universal",
       "./payments/ledger/sql": "node",
-      "./payments/tools": "universal"
+      "./payments/tools": "universal",
+      "./money": "universal",
+      "./checkout-browser": "universal"
     },
     "optionalPeers": {
-      "@jini-ai/db": "opt-in: database-backed adapters; import @jini-ai/commerce/payments/ledger/sql — Database-backed adapters could not load @jini-ai/db. Install @jini-ai/db to enable this feature, or check its installed version and native binaries.",
-      "kysely": "opt-in: sql storage adapters; import @jini-ai/commerce/payments/ledger/sql — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/agentic": "opt-in: agent-aware ui and protocols; import @jini-ai/commerce/react — Agent-aware UI and protocols could not load @jini-ai/agentic. Install @jini-ai/agentic to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/ui": "opt-in: ui integrations; import @jini-ai/commerce/react — UI integrations could not load @jini-ai/ui. Install @jini-ai/ui to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/cms": "opt-in: cms integrations; import @jini-ai/commerce/tools — CMS integrations could not load @jini-ai/cms. Install @jini-ai/cms to enable this feature, or check its installed version and native binaries.",
-      "express": "opt-in: express commerce routes; import @jini-ai/commerce/http — Express commerce routes could not load express. Install express to enable this feature, or check its installed version.",
-      "react": "opt-in: react commerce ui; import @jini-ai/commerce/react — React commerce UI could not load react. Install react to enable this feature, or check its installed version."
+      "@jini-ai/db": "opt-in: database-backed adapters; import @jini-ai/commerce/payments/ledger/sql \u2014 Database-backed adapters could not load @jini-ai/db. Install @jini-ai/db to enable this feature, or check its installed version and native binaries.",
+      "kysely": "opt-in: sql storage adapters; import @jini-ai/commerce/payments/ledger/sql \u2014 SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries.",
+      "@jini-ai/agentic": "opt-in: agent-aware ui and protocols; import @jini-ai/commerce/react \u2014 Agent-aware UI and protocols could not load @jini-ai/agentic. Install @jini-ai/agentic to enable this feature, or check its installed version and native binaries.",
+      "@jini-ai/ui": "opt-in: ui integrations; import @jini-ai/commerce/react \u2014 UI integrations could not load @jini-ai/ui. Install @jini-ai/ui to enable this feature, or check its installed version and native binaries.",
+      "@jini-ai/cms": "opt-in: cms integrations; import @jini-ai/commerce/tools \u2014 CMS integrations could not load @jini-ai/cms. Install @jini-ai/cms to enable this feature, or check its installed version and native binaries.",
+      "express": "opt-in: express commerce routes; import @jini-ai/commerce/http \u2014 Express commerce routes could not load express. Install express to enable this feature, or check its installed version.",
+      "react": "opt-in: react commerce ui; import @jini-ai/commerce/react \u2014 React commerce UI could not load react. Install react to enable this feature, or check its installed version."
     }
   },
   "type": "module",
@@ -86,6 +88,16 @@
       "types": "./dist/payments/tools/index.d.ts",
       "import": "./dist/payments/tools/index.js",
       "default": "./dist/payments/tools/index.js"
+    },
+    "./money": {
+      "types": "./dist/money/money.d.ts",
+      "import": "./dist/money/money.js",
+      "default": "./dist/money/money.js"
+    },
+    "./checkout-browser": {
+      "types": "./dist/browser/checkout.d.ts",
+      "import": "./dist/browser/checkout.js",
+      "default": "./dist/browser/checkout.js"
     }
   },
   "files": [

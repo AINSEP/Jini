@@ -36,7 +36,7 @@ import { applySnapshot, leave, retrieveSnapshot, type Verdict } from "./reconcil
 
 export interface ReconcileCounts {
   readonly scanned: number;
-  /** Moved out of `unknown`/unsettled by provider evidence (an attempt: closed `ok`). */
+  /** Provider evidence accepted by the writer (a snapshot may still await payer action); an attempt closed `ok`. */
   readonly settled: number;
   /** Refunds marked `failed` by the owner rule; capture/void attempts closed `rejected` (always 0 for payments). */
   readonly failed: number;
@@ -51,6 +51,8 @@ export interface ReconcileCursor {
   readonly payments: ScanCursor | null;
   readonly refunds: ScanCursor | null;
   readonly attempts: ScanCursor | null;
+  /** Independent progress through abandoned sessions; absent when that scan starts over. */
+  readonly unconfirmed?: ScanCursor;
 }
 
 export interface ReconcileReport {
@@ -68,11 +70,18 @@ export interface ReconcileOptions {
   readonly cursor?: ReconcileCursor;
 }
 
-async function reconcilePayment({ deps, payment }: { deps: OpsDeps; payment: PaymentRecord }): Promise<Verdict> {
-  const snapshot = await retrieveSnapshot({ deps, payment });
-  if (!snapshot.ok) return leave({ deps, payment, detail: `payment ${payment.id} is unknown: ${snapshot.why}` });
-  if (await applySnapshot({ deps, payment, evidence: snapshot.evidence })) return "settled";
-  return leave({ deps, payment, detail: `payment ${payment.id} is unknown: its snapshot was quarantined` });
+async function reconcilePayment({ deps, payment, checked }: { deps: OpsDeps; payment: PaymentRecord; checked: Map<string, number> | undefined }): Promise<Verdict> {
+  let accepted = false;
+  try {
+    const snapshot = await retrieveSnapshot({ deps, payment });
+    if (!snapshot.ok) return leave({ deps, payment, detail: `payment ${payment.id} is unknown: ${snapshot.why}` });
+    accepted = await applySnapshot({ deps, payment, ...snapshot });
+    if (accepted) return "settled";
+    return leave({ deps, payment, detail: `payment ${payment.id} is unknown: its snapshot was quarantined` });
+  } finally {
+    // Only accepted observations spend a milestone; provider/storage faults keep the existing retry.
+    if (!accepted) checked?.delete(JSON.stringify([payment.workspaceId, payment.mode, payment.id]));
+  }
 }
 
 /** Could `candidate` (a snapshot refund) be our refund `row`? By our id, its ref, or — when it is bound to no row — anything. */
@@ -113,7 +122,7 @@ async function reconcileRefund({ deps, refund }: { deps: OpsDeps; refund: Refund
   const snapshot = await retrieveSnapshot({ deps, payment });
   if (!snapshot.ok) return leave({ deps, payment, detail: `refund ${refund.id} is unsettled: ${snapshot.why}` });
   // A snapshot the writer refused is not evidence of anything: its empty refund list must not fail ours.
-  if (!(await applySnapshot({ deps, payment, evidence: snapshot.evidence }))) return leave({ deps, payment, detail: `refund ${refund.id} is unsettled: its snapshot was quarantined` });
+  if (!(await applySnapshot({ deps, payment, ...snapshot }))) return leave({ deps, payment, detail: `refund ${refund.id} is unsettled: its snapshot was quarantined` });
   return judgeRefund({ deps, payment, refundId: refund.id, snapshot });
 }
 
@@ -137,31 +146,64 @@ function scanOptions({ scope, after }: { scope: LedgerKeyScope | undefined; afte
   return { ...(scope === undefined ? {} : { scope }), ...(after ? { after } : {}) };
 }
 
+/** Three age milestones, remembered only by the operator; eviction/restart may repeat a check. */
+function sessionDue({ payment, now, checked }: { payment: PaymentRecord; now: number; checked: Map<string, number> | undefined }): boolean {
+  const age = now - payment.createdAt;
+  const milestone = [15 * 60_000, 60 * 60_000, 25 * 60 * 60_000].filter(at => age >= at).length;
+  if (milestone === 0) return false;
+  if (!checked) return true;
+  const key = JSON.stringify([payment.workspaceId, payment.mode, payment.id]);
+  if (checked.get(key) === milestone) return false;
+  // At most 1,000 tiny entries per operator, with no per-poll durable write.
+  if (!checked.has(key) && checked.size >= 1_000) checked.delete(checked.keys().next().value!);
+  checked.set(key, milestone);
+  return true;
+}
+
 /**
- * One reconcile pass over rows last updated more than `olderThanMs` ago, at most `limit` payments,
+ * One reconcile pass over rows last updated more than `olderThanMs` ago, at most `limit` unknown
+ * payments plus an independent `limit` pending/requires-action scan after at least fifteen minutes,
  * `limit` refunds and `limit` capture/void attempts, least recently updated first after the cursor.
  * @param optional.scope - Narrow to one workspace + mode; default: every workspace.
  * @param optional.cursor - A previous pass's `cursor`; default: start from the oldest rows.
  */
-export async function reconcileUnknown(
-  { deps, olderThanMs, limit }: { deps: OpsDeps; olderThanMs: number; limit: number },
+async function reconcilePass(
+  { deps, olderThanMs, limit, checked }: { deps: OpsDeps; olderThanMs: number; limit: number; checked?: Map<string, number> },
   optional: ReconcileOptions = {}
 ): Promise<ReconcileReport> {
   const updatedBefore = deps.now() - olderThanMs;
+  // Customer action can take minutes; query stale sessions only after a missed-webhook grace.
+  const unconfirmedBefore = deps.now() - Math.max(olderThanMs, 15 * 60_000);
   const { scope, cursor } = optional;
-  const { payments, refunds, attempts } = await deps.ledger.transaction({ fn: async (tx) => ({
+  const { payments, unconfirmed, refunds, attempts } = await deps.ledger.transaction({ fn: async (tx) => ({
     payments: await tx.listUnknownPayments({ updatedBefore, limit }, scanOptions({ scope, after: cursor?.payments })),
+    unconfirmed: await tx.listUnknownPayments({ updatedBefore: Number.MIN_SAFE_INTEGER, unconfirmedBefore, limit }, scanOptions({ scope, after: cursor?.unconfirmed })),
     refunds: await tx.listUnsettledRefunds({ updatedBefore, limit }, scanOptions({ scope, after: cursor?.refunds })),
     attempts: await tx.listOpenAttempts({ ops: RECONCILED_ATTEMPT_OPS, updatedBefore, limit }, scanOptions({ scope, after: cursor?.attempts })),
   }) });
+  const due = unconfirmed.filter(payment => sessionDue({ payment, now: deps.now(), checked }));
+  const unconfirmedCursor = nextCursor({ rows: unconfirmed, limit });
   return {
-    payments: await tally({ rows: payments, judge: (payment) => reconcilePayment({ deps, payment }) }),
+    payments: await tally({ rows: [...payments, ...due], judge: (payment) => reconcilePayment({ deps, payment, checked }) }),
     refunds: await tally({ rows: refunds, judge: (refund) => reconcileRefund({ deps, refund }) }),
     attempts: await tally({ rows: attempts, judge: (attempt) => reconcileAttempt({ deps, attempt }) }),
     cursor: {
       payments: nextCursor({ rows: payments, limit }), refunds: nextCursor({ rows: refunds, limit }), attempts: nextCursor({ rows: attempts, limit }),
+      ...(unconfirmedCursor ? { unconfirmed: unconfirmedCursor } : {}),
     },
   };
+}
+
+/**
+ * Runs one bounded pass without remembering session polling milestones. Scheduled hosts should use
+ * createPaymentsOperator/createCursorReconciler so unchanged sessions are checked at most once per
+ * 15-minute, one-hour and 25-hour milestone, apart from a restart or bounded-memory eviction.
+ */
+export async function reconcileUnknown(
+  required: { deps: OpsDeps; olderThanMs: number; limit: number },
+  optional: ReconcileOptions = {}
+): Promise<ReconcileReport> {
+  return reconcilePass(required, optional);
 }
 
 /**
@@ -175,10 +217,11 @@ export function createCursorReconciler(
   _optional: Record<string, never> = {}
 ): (required: { olderThanMs: number; limit: number }, optional?: ReconcileOptions) => Promise<ReconcileReport> {
   const cursors = new Map<string, ReconcileCursor>();
+  const checked = new Map<string, number>();
   return async ({ olderThanMs, limit }, optional = {}) => {
     const key = optional.scope === undefined ? "*" : `${optional.scope.workspaceId}:${optional.scope.mode}`;
     const cursor = optional.cursor ?? cursors.get(key);
-    const report = await reconcileUnknown({ deps, olderThanMs, limit }, { ...optional, ...(cursor ? { cursor } : {}) });
+    const report = await reconcilePass({ deps, olderThanMs, limit, checked }, { ...optional, ...(cursor ? { cursor } : {}) });
     cursors.set(key, report.cursor);
     return report;
   };
