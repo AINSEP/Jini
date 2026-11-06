@@ -59,40 +59,48 @@ From `/workspace/Jini`:
 
 ### Tovu focused tests
 
-From `/workspace/Tovu`, each table row used this exact prefix followed by its FILE:
+From `/workspace/Tovu`, the command prefixes actually used are below; append the FILE in the table. Source `/workspace/.tovu-build/env.sh` first. Output redirection is omitted.
 
 ```sh
+# A
+node --import tsx FILE
+# B
+node --import tsx --import ./development/test-support/composed-bundle-env.ts --experimental-test-module-mocks FILE
+# C
+node --import tsx --import ./development/test-support/composed-bundle-env.ts FILE
+# D
+TSX_TSCONFIG_PATH=apps/site-chat/tsconfig.json node --import tsx --experimental-test-module-mocks FILE
+# E
 TSX_TSCONFIG_PATH=apps/site-chat/tsconfig.json node --import tsx --import ./development/test-support/composed-bundle-env.ts --experimental-test-module-mocks FILE
 ```
 
-FILE paths are relative to the repository root.
+FILE paths are relative to the repository root. Browser/RPC tests used network-enabled sandbox access for localhost listeners.
 
-| FILE | Result |
-| --- | --- |
-| `apps/website/src/assistant/__tests__/access-approval.integration.test.ts` | 6 passed |
-| `apps/website/src/contracts/core/__tests__/human-confirm.lifecycle.test.ts` | 18 passed |
-| `apps/website/src/server/__tests__/admin-mcp-ui-tool-calls-route.test.ts` | 18 passed |
-| `apps/website/src/assistant/__tests__/byok-tool-surface.test.ts` | 85 passed, including five real BYOK access outcomes |
-| `apps/website/src/features/settings/__tests__/settings-write-tools.test.ts` | 94 passed |
-| `apps/website/src/features/external-mcp/__tests__/access-grants.contract.test.ts` | 30 passed across memory, SQLite and PGlite |
-| `apps/website/src/features/external-mcp/__tests__/access-save.integration.test.ts` | 10 passed |
-| `apps/website/src/features/external-mcp/__tests__/unit/save-form.unit.test.ts` | 38 passed |
-| `apps/website/src/assistant/__tests__/tool-registrations.external-mcp.test.ts` | 39 passed |
-| `apps/website/src/features/agent-plugins/__tests__/unit/connect-tool.unit.test.ts` | 54 passed |
-| `apps/website/src/features/agent-plugins/__tests__/unit/enable-access.regression.test.ts` | 19 passed |
-| `apps/website/src/features/agent-plugins/__tests__/unit/apply-connect-defaults.unit.test.ts` | 15 passed |
-| `apps/website/src/assistant/__tests__/tool-registrations.plugins-set-enabled-families.test.ts` | 28 passed |
-| `apps/website/src/features/plugin-runtime/__tests__/unit/plugins-tool-registrations.unit.test.ts` | 23 passed |
-| `apps/website/src/features/plugin-runtime/__tests__/unit/plugins-set-enabled-consent.unit.test.ts` | 31 passed |
-| `apps/website/src/features/plugin-runtime/__tests__/unit/set-enabled-confirmation-ui.unit.test.ts` | 3 passed |
-| `apps/website/src/features/plugin-runtime/__tests__/unit/plugin-enable-access.regression.test.ts` | 2 passed |
-| `apps/website/src/features/plugin-runtime/__tests__/unit/sealed-plugin-consent.regression.test.ts` | 1 passed |
-| `apps/website/src/features/plugin-runtime/__tests__/unit/plugin-enable-reload-result.unit.test.ts` | 1 passed |
-| `apps/website/src/features/settings/__tests__/visitor-tools-registrations.unit.test.ts` | 10 passed |
-| `apps/website/src/features/comments/__tests__/provider-tools.test.ts` | 5 passed |
-| `apps/website/src/server/inbound/assistant/__tests__/assistant-tool-consent.unit.test.ts` | 8 passed |
-| `apps/website/src/server/runtime/composition/modules/__tests__/agent-daemon-consent-rpc.integration.test.ts` | 10 passed |
-
+| Prefix | FILE | Result |
+| --- | --- | --- |
+| A | `apps/website/src/assistant/__tests__/access-approval.integration.test.ts` | 6 passed |
+| A | `apps/website/src/contracts/core/__tests__/human-confirm.lifecycle.test.ts` | 18 passed |
+| B | `apps/website/src/server/__tests__/admin-mcp-ui-tool-calls-route.test.ts` | 18 passed |
+| B | `apps/website/src/assistant/__tests__/byok-tool-surface.test.ts` | 85 passed, including five real BYOK access outcomes |
+| C | `apps/website/src/features/settings/__tests__/settings-write-tools.test.ts` | 94 passed |
+| A | `apps/website/src/features/external-mcp/__tests__/access-grants.contract.test.ts` | 30 passed across memory, SQLite and PGlite |
+| A | `apps/website/src/features/external-mcp/__tests__/access-save.integration.test.ts` | 10 passed |
+| A | `apps/website/src/features/external-mcp/__tests__/unit/save-form.unit.test.ts` | 38 passed |
+| B | `apps/website/src/assistant/__tests__/tool-registrations.external-mcp.test.ts` | 39 passed |
+| D | `apps/website/src/features/agent-plugins/__tests__/unit/connect-tool.unit.test.ts` | 54 passed |
+| D | `apps/website/src/features/agent-plugins/__tests__/unit/enable-access.regression.test.ts` | 19 passed |
+| D | `apps/website/src/features/agent-plugins/__tests__/unit/apply-connect-defaults.unit.test.ts` | 15 passed |
+| D | `apps/website/src/assistant/__tests__/tool-registrations.plugins-set-enabled-families.test.ts` | 28 passed |
+| D | `apps/website/src/features/plugin-runtime/__tests__/unit/plugins-tool-registrations.unit.test.ts` | 23 passed |
+| D | `apps/website/src/features/plugin-runtime/__tests__/unit/plugins-set-enabled-consent.unit.test.ts` | 31 passed |
+| D | `apps/website/src/features/plugin-runtime/__tests__/unit/set-enabled-confirmation-ui.unit.test.ts` | 3 passed |
+| D | `apps/website/src/features/plugin-runtime/__tests__/unit/plugin-enable-access.regression.test.ts` | 2 passed |
+| D | `apps/website/src/features/plugin-runtime/__tests__/unit/sealed-plugin-consent.regression.test.ts` | 1 passed |
+| D | `apps/website/src/features/plugin-runtime/__tests__/unit/plugin-enable-reload-result.unit.test.ts` | 1 passed |
+| E | `apps/website/src/features/settings/__tests__/visitor-tools-registrations.unit.test.ts` | 10 passed |
+| E | `apps/website/src/features/comments/__tests__/provider-tools.test.ts` | 5 passed |
+| E | `apps/website/src/server/inbound/assistant/__tests__/assistant-tool-consent.unit.test.ts` | 8 passed |
+| E | `apps/website/src/server/runtime/composition/modules/__tests__/agent-daemon-consent-rpc.integration.test.ts` | 10 passed |
 No full repository test suite was run. Tests/rules were not disabled, skipped, deleted, or weakened. Earlier expectations of silent grants/editable permission fields were replaced with stronger fixed-card, before-click, and persisted-result assertions.
 
 ### Packed compiled consumption
@@ -136,9 +144,9 @@ FIXED: Arbitrary absent tool names could be persisted as future preauthorization
 
 OPEN MINOR: Definition listings can still advertise secret definitions as agent-writable even though execution now refuses them.
 
-BASELINE TEST FAILURE: `apps/website/src/assistant/__tests__/mcp-ui-allowlist-completeness.test.ts` — 8/9 pass; parser treats `site-sealer.ts:54` and `owner-mfa-deps.ts:28` sealer `.open(input)` as unresolved exchange openers. Reproduced on an archived `origin/cloud/small-fixes` source tree with the same exact command.
+BASELINE TEST FAILURE: `apps/website/src/assistant/__tests__/mcp-ui-allowlist-completeness.test.ts` — 8/9 pass; parser treats `site-sealer.ts:54` and `owner-mfa-deps.ts:28` sealer `.open(input)` as unresolved exchange openers. Reproduced with direct Node invocation on an archived `origin/cloud/small-fixes` source tree; the failing assertion and paths are identical.
 
-BASELINE TEST FAILURE: `apps/website/src/assistant/__tests__/approval-single-path.test.ts` — 0/1 pass; pre-existing `requireHumanConfirm` in `server/runtime/composition/tool-catalog-manifest.ts` is missing from the test's reviewed-host list. Reproduced on the archived base with the same exact command.
+BASELINE TEST FAILURE: `apps/website/src/assistant/__tests__/approval-single-path.test.ts` — 0/1 pass; pre-existing `requireHumanConfirm` in `server/runtime/composition/tool-catalog-manifest.ts` is missing from the test's reviewed-host list. Reproduced with direct Node invocation on the archived base; the same reviewed-host assertion fails.
 
 BASELINE TEST FAILURE: `apps/website/src/server/runtime/composition/__tests__/plugin-host.integration.test.ts` — 23/24 pass; publisher expectation is `tovu/commerce`, base manifest/identity returns `jini/commerce`. The unchanged base identity implementation and manifest reproduce the mismatch. New snapshot tests pass. No assertion was relaxed.
 
