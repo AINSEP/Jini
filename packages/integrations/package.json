@@ -133,7 +133,6 @@
     "@jini-ai/core": "workspace:*",
     "@jini-ai/platform": "workspace:*",
     "@jini-ai/oauth": "workspace:*",
-    "@jini-ai/agent-plugins": "workspace:*",
     "@cfworker/json-schema": "^4.1.1"
   },
   "peerDependenciesMeta": {

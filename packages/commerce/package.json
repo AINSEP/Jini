@@ -151,8 +151,7 @@
     "vitest": "^2.1.9",
     "@jini-ai/cms": "workspace:*",
     "@jini-ai/core": "workspace:^",
-    "@vitest/coverage-v8": "^2.1.9",
-    "@jini-ai/agent-plugins": "workspace:*"
+    "@vitest/coverage-v8": "^2.1.9"
   },
   "peerDependenciesMeta": {
     "@jini-ai/db": {
