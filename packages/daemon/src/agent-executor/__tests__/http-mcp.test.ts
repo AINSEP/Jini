@@ -11,11 +11,11 @@ const def: RuntimeAgentDef & { mcpHttp?: boolean } = { id: 'opencode', name: 'Fi
 const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
 afterEach(() => warn.mockClear());
 
-async function fixture(prepareHttp: NonNullable<import('../contracts.js').McpJsonInjectionOptions['prepareHttp']>, runtime = def) {
+async function fixture(prepareHttp: NonNullable<import('../contracts.js').McpJsonInjectionOptions['prepareHttp']>, runtime = def, httpPolicy?: 'required') {
   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
   const { run } = await lifecycle.start({ contextRef: 'http' });
   const prepared = await prepareHttpMcpForRun({ runId: run.id, cwd: '/fixture', def: runtime, lifecycle,
-    injection: { command: 'stdio-fallback', daemonUrl: 'http://daemon.invalid', prepareHttp } });
+    injection: { command: 'stdio-fallback', daemonUrl: 'http://daemon.invalid', prepareHttp, ...(httpPolicy ? { httpPolicy } : {}) } });
   return { prepared, lifecycle, runId: run.id };
 }
 
@@ -81,4 +81,27 @@ it('agy keeps stdio and Aider creates no MCP host', async () => {
     expect(delivery?.kind ?? null).toBe(id === 'antigravity' ? 'env-passthrough' : null);
     await f.lifecycle.finish({ runId: f.runId, status: 'succeeded', code: 0, signal: null, resumable: false });
   }
+});
+
+
+it.each(['missing preparation', 'unsupported runtime', 'listener failure'])('required HTTP refuses stdio fallback: %s', async scenario => {
+  const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+  const { run } = await lifecycle.start({ contextRef: 'required-http' });
+  const prepare = vi.fn(async () => { throw new Error('private listener details'); });
+  await expect(prepareHttpMcpForRun({ runId: run.id, cwd: '/fixture', def: scenario === 'unsupported runtime' ? { ...def, mcpHttp: false } : def,
+    lifecycle, injection: { command: 'stdio', daemonUrl: 'http://daemon.invalid', httpPolicy: 'required',
+      ...(scenario === 'missing preparation' ? {} : { prepareHttp: prepare }) } })).rejects.toThrow(/HTTP.*required/i);
+  expect(warn.mock.calls.flat().join(' ')).not.toContain('private');
+  expect(prepare).toHaveBeenCalledTimes(scenario === 'listener failure' ? 1 : 0);
+  await lifecycle.finish({ runId: run.id, status: 'failed', code: 1, signal: null, resumable: false });
+});
+
+
+it('required HTTP launches with its endpoint and retains terminal cleanup', async () => {
+  const close = vi.fn(async () => {});
+  const f = await fixture(async () => ({ url: 'http://127.0.0.1:1234/mcp', token: 'capability', close }), def, 'required');
+  expect(f.prepared?.endpoint.url).toBe('http://127.0.0.1:1234/mcp');
+  await f.lifecycle.finish({ runId: f.runId, status: 'succeeded', code: 0, signal: null, resumable: false });
+  await f.prepared?.cleanup();
+  expect(close).toHaveBeenCalledOnce();
 });

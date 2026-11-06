@@ -497,6 +497,18 @@ describe('attachPiRpcSession', () => {
     expect(session.hasFatalError()).toBe(false);
   });
 
+  it('fails an oversized stdout frame through the existing session error path once', () => {
+    const child = new FakeChild();
+    const send = vi.fn();
+    const session = attachPiRpcSession({ child: child as any, prompt: 'hi', send });
+    expect(() => child.stdout!.emit('data', 'x'.repeat(8 * 1024 * 1024 + 1))).not.toThrow();
+    expect(session.hasFatalError()).toBe(true);
+    expect(send).toHaveBeenCalledWith({ event: 'error', payload: { message: 'parser: Agent output line exceeded 8388608 characters.' } });
+    child.stdout!.emit('data', 'discarded suffix\n');
+    child.stdout!.emit('close');
+    expect(send.mock.calls.filter(([event]) => event.event === 'error')).toHaveLength(1);
+  });
+
   it('fails the run when parser.feed()/toString() throws on a malformed chunk', () => {
     const child = new FakeChild();
     const send = vi.fn();

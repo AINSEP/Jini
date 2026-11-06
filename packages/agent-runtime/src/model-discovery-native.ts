@@ -28,7 +28,7 @@ export function modelDiscoveryForDef(def: ModelDiscoveryDefinition): AgentModelD
 }
 
 export function resolveModelForLaunch(
-  required: { def: ModelDiscoveryDefinition; context: ModelDiscoveryContext },
+  required: { def: ModelDiscoveryDefinition; context: ModelDiscoveryContext; effort?: string | undefined },
   { deps = defaultModelDiscoveryDeps, ...optional }: { deps?: ModelDiscoveryDeps; signal?: AbortSignal } = {},
 ): ReturnType<typeof resolvePolicyModelForLaunch> {
   return resolvePolicyModelForLaunch({ ...required, deps }, optional);

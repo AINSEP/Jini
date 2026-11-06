@@ -1476,7 +1476,7 @@ export function attachAcpSession(requiredArgs: Pick<AttachAcpSessionOptions, "ch
     envFormat,
   };
 
-  const parser = createJsonLineStream({ onMessage: ({ message: raw, rawLine }) => {
+  const parser = createJsonLineStream({ onError: error => fail(error.message), onMessage: ({ message: raw, rawLine }) => {
     if (aborted || finished) return;
     resetStageTimer('response');
     const obj = asObject(raw);

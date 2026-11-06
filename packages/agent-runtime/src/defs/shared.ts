@@ -78,6 +78,7 @@ function isGpt5LateFamily(id: string): boolean {
   return id === '' || id === 'default' || GPT5_LATE_FAMILY_PREFIXES.some((prefix) => id.startsWith(prefix));
 }
 
+/** Legacy compatibility helper. Launches now validate explicit effort and forward it unchanged. */
 export function clampCodexReasoning(modelId: string | null | undefined, effort: string | null | undefined) {
   if (!effort) return effort;
   const raw = String(modelId ?? '').trim();

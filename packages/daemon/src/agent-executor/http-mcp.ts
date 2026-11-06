@@ -59,7 +59,13 @@ async function stageHttpConfig({ cwd, def, injection, endpoint, inheritUserMcp }
   return { mcpJsonPath: config.path, cleanupConfig: config.cleanup };
 }
 
-/** Prepare HTTP before launch; only missing support or listener failure selects stdio.
+/** Refuse a host-required transport without exposing listener errors or credentials. */
+function stdioFallback(injection: McpJsonInjectionOptions | undefined, reason: string): null {
+  if (injection?.httpPolicy === 'required') throw new Error(`MCP HTTP is required for this chat, but ${reason}. The assistant could not start its tools; try again or choose an agent supporting HTTP MCP.`);
+  return null;
+}
+
+/** Prepare HTTP before launch; optional HTTP falls back only before work is dispatched.
  * @returns Null for stdio, otherwise a run-owned endpoint and optional private Claude config.
  * @throws Configuration staging errors after closing the endpoint; never retries dispatched work.
  * @complexity O(config bytes) for Claude; O(1) otherwise, plus the injected host preparation.
@@ -68,18 +74,20 @@ export async function prepareHttpMcpForRun({ runId, cwd, def, lifecycle, injecti
   runId: string; cwd: string; def: RuntimeAgentDef; lifecycle: RunLifecycle;
   injection: McpJsonInjectionOptions | undefined; inheritUserMcp?: boolean;
 }, _options = {}): Promise<PreparedHttpMcp | null> {
-  if (!injection?.prepareHttp || !def.externalMcpInjection) return null;
-  if (!('mcpHttp' in def) || def.mcpHttp !== true) {
+  if (!injection?.prepareHttp || !def.externalMcpInjection) return stdioFallback(injection, 'HTTP preparation is unavailable');
+  if (def.mcpHttp !== true) {
+    const fallback = stdioFallback(injection, `${def.name} does not support HTTP MCP`);
     console.warn('[agent-executor] MCP HTTP unsupported for this agent; using stdio');
-    return null;
+    return fallback;
   }
   const launchOptions = httpLaunchOptions({ def, runId, injection });
   let endpoint: McpHttpEndpoint;
   try {
     endpoint = await injection.prepareHttp({ runId }, launchOptions);
   } catch {
+    const fallback = stdioFallback(injection, 'the HTTP listener could not start');
     console.warn('[agent-executor] MCP HTTP listener unavailable; using stdio');
-    return null;
+    return fallback;
   }
   try {
     const config = await stageHttpConfig({ cwd, def, injection, endpoint, inheritUserMcp });

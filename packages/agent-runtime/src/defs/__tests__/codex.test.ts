@@ -551,3 +551,11 @@ describe('codexAgentDef.discoverModels', () => {
     expect(catalog.models).toEqual([expect.objectContaining({ id: 'gpt-x', label: 'GPT X' })]);
   });
 });
+
+
+it('forwards an explicit effort byte-exact rather than silently clamping it by model name', () => {
+  for (const [model, reasoning] of [['gpt-5.5', 'minimal'], ['gpt-5.1', 'xhigh'], ['gpt-5.1-codex-mini', 'low']] as const) {
+    const args = codexAgentDef.buildArgs({ prompt: 'hello', imagePaths: [] }, { options: { model, reasoning } });
+    expect(args).toContain(`model_reasoning_effort="${reasoning}"`);
+  }
+});

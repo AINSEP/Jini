@@ -1,7 +1,7 @@
 import { createAgentModelDiscovery } from '../model-discovery-native.js';
 /** CODEX_SANDBOX_MODE remains an adapter-scoped operator override; plugin policy is supplied
  * explicitly by the host, whose native composition resolves CODEX_DISABLE_PLUGINS. */
-import { DEFAULT_MODEL_OPTION, clampCodexReasoning } from './shared.js';
+import { DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeModelOption, RuntimeReasoningOption } from '../types.js';
 import type { RuntimeAgentDef, RuntimeBuildOptions, RuntimeContext } from '../types.js';
 import type { NativeCapabilities } from '../native-tool-policy.js';
@@ -299,7 +299,9 @@ function codexCreateOnlyArgs({ extraAllowedDirs, runtimeContext }: { extraAllowe
 function codexModelArgs(options: RuntimeBuildOptions): string[] {
   const args = options.model && options.model !== 'default' ? ['--model', options.model] : [];
   if (options.reasoning && options.reasoning !== 'default') {
-    const effort = clampCodexReasoning(options.model, options.reasoning);
+    // The shared selection validator checks advertised effort before launch. Keep the explicit
+    // choice exact here; model-name heuristics must never substitute another effort.
+    const effort = options.reasoning;
     // Codex accepts `-c key=value` config overrides; reasoning effort
     // is exposed as `model_reasoning_effort`.
     args.push('-c', `model_reasoning_effort="${effort}"`);
@@ -366,8 +368,8 @@ export const codexAgentDef = {
     // derived from that catalog instead (see `deriveReasoningOptions` below), which is what makes
     // `max` and `ultra` reachable. This list is deliberately NOT widened to match: it is what a build
     // too old to have a catalog gets, and `none`/`minimal` — which no model in the current catalog
-    // supports — are exactly the levels such a build did accept. `clampCodexReasoning` still maps
-    // `minimal` to `low` for the late GPT-5 families.
+    // supports — are exactly the levels such a build did accept. Launch validation uses the
+    // selected model's advertised levels; argv never silently substitutes another effort.
     reasoningOptions: [
       { id: 'default', label: 'Default' },
       { id: 'none', label: 'None' },
