@@ -19,13 +19,16 @@
  *   tsx scripts/publish-pending.ts --plan [--only ...]    # read-only: print what would happen
  */
 import { execFileSync, spawnSync } from 'node:child_process';
-import { appendFileSync, mkdtempSync, readdirSync } from 'node:fs';
+import { appendFileSync, mkdtempSync, readFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assertJiniPackagePublicationAllowed, computeClosure, discoverJiniPackages, type JiniPackageEntry } from './lib/pack-jini-packages.js';
 import { assertPackedExports } from './lib/packed-exports.js';
 import { assertCompatiblePeerRanges } from './lib/peer-range-compatibility.js';
+import { checkPluginReleaseConsistency } from './check-plugin-packages.js';
+import { isMainModule } from './lib/is-main-module.js';
+import type { CatalogEntry } from '../packages/plugin-catalog/scripts/generate.js';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -100,7 +103,33 @@ function writeSummary(rows: ReadonlyArray<readonly [string, string]>): void {
   appendFileSync(file, `${lines.join('\n')}\n`);
 }
 
-function main(): void {
+/** Pack before checking: lifecycle hooks finish before the catalog is compared with the exact
+ * selected archives and skipped registry versions. No uploads occur here.
+ * @returns Prepared package archives to upload without running lifecycle hooks again.
+ * @throws Packing, metadata, digest and registry errors before any upload.
+ * @complexity O(B + E) payload work, plus one pack per selected pending package. */
+export async function preparePluginRelease(required: {
+  repoRoot: string; registry: ReadonlyMap<string, JiniPackageEntry>; pending: readonly string[];
+}, _optional: Record<string, never> = {}): Promise<Map<string, string>> {
+  // Prepare every tarball before validation: prepack may rebuild providers or regenerate the catalog.
+  // Upload these exact archives only after the complete plugin release set agrees.
+  const { repoRoot, registry, pending } = required;
+  const tarballs = new Map(pending.map(name => [name, packAndCheck(name, registry.get(name)!)]));
+  const pendingPackages = new Map<string, string>();
+  for (const name of ['@jini-ai/provider-plugins', '@jini-ai/agent-plugins']) {
+    const archive = tarballs.get(name);
+    if (!archive) continue;
+    execFileSync('tar', ['-xzf', archive, '-C', dirname(archive)]);
+    pendingPackages.set(`${name}@${registry.get(name)!.pkg.version}`, join(dirname(archive), 'package'));
+  }
+  const catalogArchive = tarballs.get('@jini-ai/plugin-catalog');
+  const catalog = catalogArchive ? execFileSync('tar', ['-xzOf', catalogArchive, 'package/catalog.json'], { encoding: 'utf8' })
+    : readFileSync(join(repoRoot, 'packages/plugin-catalog/catalog.json'), 'utf8');
+  await checkPluginReleaseConsistency({ entries: JSON.parse(catalog) as CatalogEntry[], pendingPackages });
+  return tarballs;
+}
+
+async function main(): Promise<void> {
   const argv = process.argv.slice(2);
   const planOnly = argv.includes('--plan');
   const registry = discoverJiniPackages(repoRoot);
@@ -126,10 +155,12 @@ function main(): void {
     }
   }
   console.log(`\n${pending.length} of ${order.length} package(s) to publish.`);
+  if (planOnly) return;
+  const tarballs = await preparePluginRelease({ repoRoot, registry, pending });
 
   try {
-    for (const name of planOnly ? [] : pending) {
-      const tarball = packAndCheck(name, registry.get(name)!);
+    for (const name of pending) {
+      const tarball = tarballs.get(name)!;
       execFileSync('npm', ['publish', tarball, '--access', 'public', '--provenance'], { stdio: 'inherit' });
       rows.push([`${name}@${registry.get(name)!.pkg.version}`, 'published']);
     }
@@ -138,4 +169,6 @@ function main(): void {
   }
 }
 
-main();
+if (isMainModule({ moduleUrl: import.meta.url, entryPath: process.argv[1] })) {
+  main().catch(error => { console.error(error); process.exitCode = 1; });
+}

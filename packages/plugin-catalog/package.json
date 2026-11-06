@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/plugin-catalog",
-  "version": "0.6.23",
+  "version": "0.6.24",
   "description": "Metadata for independently installed Jini plugins; contains no plugin payloads.",
   "type": "module",
   "license": "Apache-2.0",
