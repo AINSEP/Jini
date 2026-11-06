@@ -90,7 +90,9 @@
       "./software-engineering/*": "universal",
       "./commerce": "universal",
       "./commerce/*": "universal",
-      "./commerce/server": "node"
+      "./commerce/server": "node",
+      "./google-forms": "universal",
+      "./google-forms/*": "universal"
     },
     "isolation": {
       "entries": {
@@ -240,10 +242,13 @@
       "import": "./core/commerce-server.mjs",
       "default": "./core/commerce-server.mjs"
     },
-    "./commerce/*": "./commerce/*"
+    "./commerce/*": "./commerce/*",
+    "./google-forms": "./google-forms/plugin.json",
+    "./google-forms/*": "./google-forms/*"
   },
   "files": [
     "formspree",
+    "google-forms",
     "dist",
     "README.md",
     "CHANGELOG.md",
