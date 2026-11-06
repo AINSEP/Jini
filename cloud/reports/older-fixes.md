@@ -27,3 +27,9 @@ O03 complexity fixed by separating offset formatting; chat tsc passes.
 Setup: locked pnpm install in a writable workspace store completed; the complete build now succeeds. No manifest or lockfile edits.
 
 - O06: stalled document reads have no deadline; PDF operations lacked cancellation cleanup.
+
+O07 fixed: subsequent byte-offset pages reuse prepared text under a repository/adapter/workspace/id/hash identity. Every page still checks active document ownership. Fresh first pages force refresh; changed hashes/hosts cannot reuse old bytes. Cache: ≤2 entries, ≤50 MiB combined, 60-second expiry; binary source buffers are not retained after extraction.
+State cost O07 before: P page reads × up to 50 MiB source I/O plus P extractions; after: one source read/extraction per cached document followed by P × ≤64 KiB output, plus P small metadata lookups. After expiry/eviction the next page rebuilds once. Memory changes from ≤100 MiB admitted source to ≤100 MiB admitted source + ≤50 MiB cache (adapter workspace excluded in both).
+Tests: `pnpm --filter @jini-ai/cms exec vitest run src/media/__tests__/unit/document-read-paging.unit.test.ts` — 7 pass after two source/extraction-count regressions failed. Existing document tests remain green; CMS tsc and document-read ESLint pass.
+
+- O07: following byte offsets reloads/re-extracts the complete source.
