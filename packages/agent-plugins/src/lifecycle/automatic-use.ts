@@ -131,6 +131,7 @@ export function createAutomaticAgentPluginUse(
       const result = await ports.resolve({ pluginId: plugin.pluginId, ...request }, {});
       if (!result.ok) return { status: result.code ?? 'unavailable', guidance: request.skill !== undefined || request.file !== undefined ? result.reason : '' };
       if (!result.promptPrefix.trim()) return { status: 'unavailable', guidance: '' };
+      if (!plugin.enabled) return { status: 'installed-but-inactive', guidance: `Plugin '${plugin.pluginId}' is off; its tools are unavailable.\n\n${result.promptPrefix}` };
       return { status: 'loaded', guidance: result.promptPrefix };
     } catch {
       // Automatic guidance is advisory; unavailable plugins must not block the run.
@@ -221,11 +222,6 @@ export function createAutomaticAgentPluginUse(
     if (state.excluded.includes(pluginId)) return { status: 'excluded', guidance: '' };
     const plugin = (await ports.list({}, {})).find(candidate => candidate.pluginId === pluginId);
     if (!plugin) return { status: 'missing', guidance: '' };
-    if (!plugin.enabled) {
-      const result = await resolveOneGuidance({ plugin, ...request }, { signal });
-      if (result.status !== 'loaded') return result;
-      return { status: 'installed-but-inactive', guidance: `Plugin '${pluginId}' is off; its tools are unavailable.\n\n${result.guidance}` };
-    }
     return loadPermitted({ plugin, ...request }, { signal });
   }
   /** The plugin's own SKILL.md, whether defaulted or named explicitly. O(1). */

@@ -154,7 +154,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
 
       const activation = await resolveAgentPluginActivation(workspaceLayout.root, pluginRefId);
       const inactiveRead = allowInactiveGuidance && activation.verdict === 'inactive';
-      const refusal = inactiveRead ? undefined : activationRefusal(pluginRefId, activation);
+      const refusal = activationRefusal(pluginRefId, activation, { allowInactiveGuidance });
       if (refusal !== undefined) return { ok: false, reason: refusal };
 
       const resolved = await resolveOnePluginRef({ pluginRefId, packagesDir: workspaceLayout.root, deliveryMode, bundledDigests }, request);
@@ -171,8 +171,10 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
 // ARE here and the fix is to enable the plugin, not to install it. Telling them to install
 // something already present is the kind of wrong-but-plausible error message that costs an
 // afternoon.
-  function activationRefusal(pluginRefId: string, verdict: AgentPluginActivationVerdict): string | undefined {
+  function activationRefusal(pluginRefId: string, verdict: AgentPluginActivationVerdict,
+    { allowInactiveGuidance = false }: { allowInactiveGuidance?: boolean } = {}): string | undefined {
     if (verdict.verdict === "active") return undefined;
+    if (allowInactiveGuidance && verdict.verdict === 'inactive') return undefined;
     if (verdict.verdict === "undetermined") {
       // Native activation-read diagnostics can name the host path; the model needs only the remedy.
       return (

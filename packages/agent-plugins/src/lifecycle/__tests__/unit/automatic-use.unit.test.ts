@@ -28,6 +28,19 @@ describe('automatic installed plugin use', () => {
     expect(f.publish).not.toHaveBeenCalled();
     expect(await f.controller.prepare({ capabilities: ['theme-authoring'] })).not.toContain('Guidance for inactive');
   });
+  it('off-plugin guidance still respects Ask consent and never publishes the plugin as in use', async () => {
+    const f = fixture('ask');
+    f.ask.mockResolvedValueOnce({ action: 'use', selected: ['inactive'] });
+    const result = await f.controller.load({ pluginId: 'inactive' });
+    expect(result.status).toBe('installed-but-inactive');
+    expect(result.guidance).toContain('Guidance for inactive');
+    expect(f.ask).toHaveBeenCalledTimes(1);
+    expect(f.publish.mock.calls.at(-1)?.[0].plugins).toEqual([]);
+    const denied = fixture('ask');
+    denied.ask.mockResolvedValueOnce({ action: 'skip', selected: [] });
+    expect(await denied.controller.load({ pluginId: 'inactive' })).toEqual({ status: 'excluded', guidance: '' });
+    expect(denied.resolve).not.toHaveBeenCalled();
+  });
   it('suggests an off plugin without implicitly resolving or asking to use its guidance', async () => {
     const f = fixture();
     f.list.mockResolvedValue([{ ...plugin('inactive', false), summary: 'Create images', description: 'PRIVATE_GUIDANCE' }]);
