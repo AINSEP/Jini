@@ -1,10 +1,10 @@
-# merge-round-2 — in progress
+# merge-round-2 — complete
 
 Branch: cloud/combine in both repositories. No other push destination.
 
 Original Jini base: b0cc1371b5e739f9cd1b26f14aa5a21a82416b60.
-Validated Jini source/checkpoint head before this report: d428a3551ffa5cd568d9b8ceeac287a01180e9fc.
-Validated Tovu source/checkpoint head before this report: 79d72b4ca92fa1c041c253dd04c349244e2431b0.
+Validated Jini source/checkpoint head before this report: d939dd0a125d8d04786be4a1f956b5e6367459d6.
+Validated Tovu source/checkpoint head before this report: 7318a262f797c1d12a59ebc798ce6cefc313e367.
 The final report-only commit is identified by the branch tip and final response, avoiding a self-referential hash.
 
 ## Authority and result
@@ -46,17 +46,17 @@ The fresh clone contains no existing dist before installation. Only dependency d
 | /workspace | test -z "$(find /workspace/work/merge-round-2/complete-clean/Jini -type d -name dist -print -quit)" | PASS before install/build |
 | complete-clean/Jini | CI=true npm_config_cache=/workspace/work/merge-round-2/npm-cache pnpm install --frozen-lockfile --store-dir /workspace/work/merge-round-2/pnpm-store | PASS |
 | /workspace/Jini and complete-clean/Jini | npm_config_cache=/workspace/work/merge-round-2/npm-cache pnpm -r build | PASS, final eight branches |
-| /workspace/Jini | pnpm typecheck | IN PROGRESS, all workspace packages and scripts |
+| /workspace/Jini | pnpm typecheck | PASS, all workspace packages and scripts |
 | complete-clean/Jini | pnpm --filter @jini-ai/plugin-catalog run generate | PASS; cmp against /workspace/Jini/packages/plugin-catalog/catalog.json also PASS |
 | complete-clean/Jini | pnpm guard:plugins | PASS |
-| complete-clean/Jini | npm_config_cache=/workspace/work/merge-round-2/npm-cache pnpm guard:plugins:packed | IN PROGRESS, actual tarballs |
+| complete-clean/Jini | npm_config_cache=/workspace/work/merge-round-2/npm-cache pnpm guard:plugins:packed | PASS, actual tarballs |
 | /workspace/Tovu | npm --prefix packages/contracts run build | PASS |
 | /workspace/Tovu | npm --prefix packages/sdk run build | PASS |
 | /workspace/Tovu | JINI_PACKAGES_DIR=/workspace/Jini/packages npm run link:jini | PASS |
-| /workspace/Tovu | npm run typecheck | IN PROGRESS, root plus E2E typecheck |
-| /workspace/Tovu | npm --prefix apps/admin run typecheck | IN PROGRESS |
-| /workspace/Tovu | npm --prefix apps/desktop run typecheck | IN PROGRESS, all four projects |
-| /workspace/Tovu | npm --prefix apps/site-chat run typecheck | IN PROGRESS |
+| /workspace/Tovu | npm run typecheck | PASS, root plus E2E typecheck |
+| /workspace/Tovu | npm --prefix apps/admin run typecheck | PASS |
+| /workspace/Tovu | npm --prefix apps/desktop run typecheck | PASS, all four projects |
+| /workspace/Tovu | npm --prefix apps/site-chat run typecheck | PASS |
 | both repositories | git diff --check <original-base>..HEAD | PASS |
 
 Tracked Tovu manifests/registry lockfiles are unchanged by linking, and no link state was committed. The initial baseline Jini rebuild failed in user-management without emitted compiler diagnostics; no green starting baseline is claimed. Frozen dependency installation and subsequent independent/full builds resolved setup. Early Tovu checks encountered stale Jini/contracts declarations; existing builds and relinking resolved them without source workarounds. The final commands above replace those early attempts.
@@ -94,7 +94,7 @@ BUG (existing): Tovu resolveExternalMcpAccessToken complexity 11.
 Gitleaks 8.28.0 scanned the complete commit range in each repository with no leaks. From each repository root, using its original base from the header:
 
 ~~~sh
-/workspace/work/merge-round-2/gitleaks git . --config .gitleaks.toml --log-opts="<original-base>..HEAD --full-history -m" --redact --report-format json --report-path /workspace/work/merge-round-2/<repo>-complete-secrets.json
+/workspace/work/merge-round-2/gitleaks git . --config .gitleaks.toml --log-opts="b0cc1371b5e739f9cd1b26f14aa5a21a82416b60..HEAD --full-history -m" --redact --report-format json --report-path /workspace/work/merge-round-2/jini-complete-secrets.json
 ~~~
 
 The final report-only commit is scanned again before the last push. No secret values or live/owner data were used.
@@ -129,8 +129,7 @@ b2ccd02c80051bf1a2e05b1bfaaa2545b4d2f878 docs: record refreshed branch readiness
 023082bccc53450c2d49a2c1eda0e238f2bd6ff3 docs: record final branch readiness
 934d69275c8278dbc15e018bc84a8076fa8d430d merge: integrate completed access approval updates
 d428a3551ffa5cd568d9b8ceeac287a01180e9fc docs: record complete branch integration
+d939dd0a125d8d04786be4a1f956b5e6367459d6 docs: record final build evidence and open checks
 ~~~
 
 Each source head was verified as an ancestor of the delivered branch. The final response records the final report-commit SHA after successful push.
-
-Final eight-branch typecheck and packed-guard completion are still in progress; this is not a completion claim.
