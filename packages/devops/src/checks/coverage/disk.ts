@@ -1,6 +1,6 @@
 // evaluateArea and formatArea in the preserved rationale below are now evaluateDiskArea and
 // formatDiskArea; scripts/check-coverage.ts and coverage-floors.json are host-owned consumers.
-import { pct } from './lcov.js';
+import { pct, withoutTrailingSlashes } from './lcov.js';
 
 export interface LcovCounters {
   lf: number;
@@ -60,7 +60,7 @@ export function isMeasurableSource({ file: relPath }: { file: string }): boolean
  *  @complexity O(d) in excluded directories. */
 export function isInExcludedDir({ file: relPath, excludeDirs }: { file: string; excludeDirs: readonly string[] }): boolean {
   return excludeDirs.some((dir) => {
-    const base = dir.replace(/\/+$/, "");
+    const base = withoutTrailingSlashes({ path: dir });
     return relPath === base || relPath.startsWith(`${base}/`);
   });
 }

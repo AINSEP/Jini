@@ -1,4 +1,4 @@
-import { pct } from './lcov.js';
+import { pct, withoutTrailingSlashes } from './lcov.js';
 import type { FileCoverage, SourceClassifier } from './lcov.js';
 
 export interface CoverageFloor { line: number; branch: number; funcs: number }
@@ -21,7 +21,7 @@ export function evaluateFloor({ files, floors }: { files: readonly FileCoverage[
 export function evaluateArea({ area, all, isMeasurable }: {
   area: AreaFloor; all: readonly FileCoverage[]; isMeasurable: SourceClassifier;
 }): AreaFloorResult {
-  const prefix = `${area.prefix.replace(/\/+$/, '')}/`;
+  const prefix = `${withoutTrailingSlashes({ path: area.prefix })}/`;
   const files = all.filter((record) => record.file.startsWith(prefix) && isMeasurable({ file: record.file }));
   return { area, ...evaluateFloor({ files, floors: { line: area.line, branch: area.branch, funcs: area.funcs } }) };
 }

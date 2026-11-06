@@ -19,10 +19,18 @@ export type SourceClassifier = (args: { file: string }) => boolean;
 // evaluateArea is the disk inventory owner, now evaluateDiskArea in ./disk.ts.
 export function pct({ hit, found }: { hit: number; found: number }): number { return found === 0 ? 100 : 100 * hit / found; }
 
+/** Strip a path's trailing separators in one backward pass, including all-separator paths.
+ * @complexity O(path length) time, O(path length) for the returned slice. */
+export function withoutTrailingSlashes({ path }: { path: string }, _options: Record<string, never> = {}): string {
+  let end = path.length;
+  while (end > 0 && path[end - 1] === '/') end--;
+  return path.slice(0, end);
+}
+
 /** Normalize paths with a directory boundary check, including Windows paths on non-Windows hosts. */
 export function toRepoRelative({ sourceFile, repoRoot }: { sourceFile: string; repoRoot: string }): string {
   const file = sourceFile.trim().replace(/\\/g, '/');
-  const root = repoRoot.replace(/\\/g, '/').replace(/\/+$/, '');
+  const root = withoutTrailingSlashes({ path: repoRoot.replace(/\\/g, '/') });
   if (file === root) return '';
   if (file.startsWith(`${root}/`)) return file.slice(root.length + 1);
   return file;
@@ -33,13 +41,13 @@ export function isIntegrationTestFile({ file, suffixes, directories }: {
   file: string; suffixes: readonly string[]; directories: readonly string[];
 }): boolean {
   const normalized = file.replace(/\\/g, '/');
-  return suffixes.some((suffix) => normalized.endsWith(suffix)) || directories.some((dir) => `/${normalized}`.includes(`/${dir.replace(/^\/+|\/+$/g, '')}/`));
+  return suffixes.some((suffix) => normalized.endsWith(suffix)) || directories.some((dir) => `/${normalized}`.includes(`/${withoutTrailingSlashes({ path: dir.replace(/^\/+/, '') })}/`));
 }
 
 /** Match source roots on directory boundaries and apply host-defined exclusions. */
 export function isMeasurableSourceFile({ file, rules }: { file: string; rules: SourceClassificationRules }): boolean {
   const normalized = file.replace(/\\/g, '/');
-  if (!rules.prefixes.some((prefix) => normalized.startsWith(`${prefix.replace(/\/+$/, '')}/`))) return false;
+  if (!rules.prefixes.some((prefix) => normalized.startsWith(`${withoutTrailingSlashes({ path: prefix })}/`))) return false;
   if (!rules.sourceExtensions.some((extension) => normalized.endsWith(extension))) return false;
   const parts = normalized.split('/');
   if (parts.some((part) => rules.excludedDirectories.includes(part))) return false;

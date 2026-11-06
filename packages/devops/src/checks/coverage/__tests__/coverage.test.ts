@@ -272,3 +272,13 @@ test('a changed file reported twice by the diff is evaluated once', async () => 
   expect(result.ok).toBe(true);
   expect(result.files.map((f) => f.file)).toEqual([rec().file]);
 });
+
+
+test('classifiers strip long separator runs without changing directory boundaries', () => {
+  const slashes = '/'.repeat(100_000);
+  expect(toRepoRelative({ sourceFile: '/repo/services/api/routes/page.ts', repoRoot: `/repo${slashes}` })).toBe('services/api/routes/page.ts');
+  expect(toRepoRelative({ sourceFile: '/repo-other/page.ts', repoRoot: `/repo${slashes}` })).toBe('/repo-other/page.ts');
+  expect(isIntegrationTestFile({ file: 'src/integration/plain.test.ts', suffixes: [], directories: [`${slashes}integration${slashes}`] })).toBe(true);
+  expect(isMeasurableSourceFile({ file: 'services/api/routes/page.ts', rules: { ...rules, prefixes: [`services/api/routes${slashes}`] } })).toBe(true);
+  expect(isMeasurableSourceFile({ file: 'services/api/routes-other/page.ts', rules: { ...rules, prefixes: [`services/api/routes${slashes}`] } })).toBe(false);
+});

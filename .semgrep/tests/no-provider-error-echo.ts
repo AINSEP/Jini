@@ -131,3 +131,16 @@ async function chainedRejection() {
     return { message: detail };
   }).catch(() => 'Provider request failed');
 }
+
+async function awaitedRejection() {
+  return await provider.request().catch(error => {
+    // ruleid: no-provider-error-echo
+    throw new Error(error.message);
+  });
+}
+async function awaitedSafeRejection() {
+  return await provider.request().catch(error => {
+    // ok: no-provider-error-echo
+    throw new Error('Provider request failed');
+  });
+}

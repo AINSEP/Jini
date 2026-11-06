@@ -29,12 +29,15 @@ rules:
           # OSS does not propagate callback return taint to that promise; let the callback
           # own its sinks instead of selecting the outer return as the best match.
           - pattern-not: return $PROMISE.catch(...);
+          - pattern-not: return await $PROMISE.catch(...);
           - focus-metavariable: $TEXT
         exact: true
       # A rejection callback leaves a fulfilled receiver's value unchanged. Focus only
       # on that receiver so its callback can still own independent return/throw sinks.
       - patterns:
-          - pattern: return $PROMISE.catch(...);
+          - pattern-either:
+              - pattern: return $PROMISE.catch(...);
+              - pattern: return await $PROMISE.catch(...);
           - focus-metavariable: $PROMISE
         exact: true
       - patterns:
