@@ -104,3 +104,23 @@ describe("toggleListed", () => {
     expect(toggleListed({ list: ["a", "b"], id: "a" })).toEqual(["b"]);
   });
 });
+
+describe("siteListView running sites (owner 2026-11-06: a running site is never out of sight)", () => {
+  const items: SiteListItem[] = [
+    ...Array.from({ length: SITE_LIST_RECENT_COUNT }, (_, i) => site(`new${i}`, 20 - i)),
+    { ...site("old", 1), running: true },
+    { ...site("hid", 2), running: true },
+  ];
+
+  it("shows a running site in the default view even when it is not among the newest", () => {
+    expect(ids(view(items, {}, "pinned-recent").visible)).toContain("old");
+  });
+
+  it("shows a running hidden site in every view but 'Hidden', and counts it as shown", () => {
+    const prefs = { hidden: ["hid"] };
+    expect(ids(view(items, prefs, "all").visible)).toContain("hid");
+    expect(ids(view(items, prefs, "pinned-recent").visible)).toContain("hid");
+    expect(ids(view(items, prefs, "hidden").visible)).not.toContain("hid");
+    expect(view(items, prefs, "hidden").hiddenCount).toBe(0);
+  });
+});

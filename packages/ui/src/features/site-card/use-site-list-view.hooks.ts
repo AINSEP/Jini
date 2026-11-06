@@ -24,7 +24,7 @@ export function useSiteListView<Item extends SiteListItem>(
   _options = {},
 ): SiteListController<Item> {
   const [chosenFilter, setFilter] = useState<SiteListFilter>("pinned-recent");
-  const hiddenLeft = items.some((item) => prefs.hidden.includes(item.id));
+  const hiddenLeft = items.some((item) => prefs.hidden.includes(item.id) && !item.running);
   const filter = chosenFilter === "hidden" && !hiddenLeft ? "pinned-recent" : chosenFilter;
   return {
     ...siteListView({ items, prefs, filter }),
