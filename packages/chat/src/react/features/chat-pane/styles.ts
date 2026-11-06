@@ -28,6 +28,7 @@ export const CHAT_PANE_STYLES = `
   position: relative;
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-columns: minmax(0, 1fr);
   min-width: 0;
   min-height: 0;
   height: 100%;
