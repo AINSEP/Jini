@@ -802,7 +802,7 @@
       "licenses/_jini-ai_provider-plugins/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
       "licenses/_jini-ai_provider-plugins/NOTICE": "sha256-41f25c5b9af4c8e8e98e2a7c658b3922253c760686e17e0ef7fa003fae83cb95",
       "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-487cadce25dd2d3d08bb47f1305dc3e6a9b04d28b7463e4a3b15239c6ccb7485",
-      "server/index.mjs": "sha256-4d722d9ec7b5cdaf46e74cbef0af3649ccd9a035d163f440c3a0e9abdc7d0ab3"
+      "server/index.mjs": "sha256-de8a1d613d69c3fec857befea9a5b6fdd4c820adfad71b7343e6158d2e49ff13"
     }
   },
   {
