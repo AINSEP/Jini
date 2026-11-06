@@ -31,6 +31,12 @@ rules:
           - pattern-not: return $PROMISE.catch(...);
           - focus-metavariable: $TEXT
         exact: true
+      # A rejection callback leaves a fulfilled receiver's value unchanged. Focus only
+      # on that receiver so its callback can still own independent return/throw sinks.
+      - patterns:
+          - pattern: return $PROMISE.catch(...);
+          - focus-metavariable: $PROMISE
+        exact: true
       - patterns:
           - pattern: $LOGGER.$METHOD(..., $TEXT, ...)
           - metavariable-regex:

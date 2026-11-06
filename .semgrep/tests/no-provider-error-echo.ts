@@ -103,3 +103,31 @@ async function callbackLog() {
     return { code: 'FAILED' };
   });
 }
+
+async function fulfilledErrorText() {
+  try { await provider.request(); } catch (error) {
+    // A rejection handler does not replace the fulfilled value.
+    // ruleid: no-provider-error-echo
+    return Promise.resolve(error.message).catch(() => 'Provider request failed');
+  }
+}
+async function fulfilledErrorAlias() {
+  try { await provider.request(); } catch (error) {
+    const promise = Promise.resolve(error.body);
+    // ruleid: no-provider-error-echo
+    return promise.catch(() => 'Provider request failed');
+  }
+}
+async function sanitizedFulfilledError() {
+  try { await provider.request(); } catch (error) {
+    // ok: no-provider-error-echo
+    return Promise.resolve(redactSecrets({ input: error.message })).catch(() => 'Provider request failed');
+  }
+}
+async function chainedRejection() {
+  return provider.request().catch(failure => {
+    const detail = failure.message;
+    // ruleid: no-provider-error-echo
+    return { message: detail };
+  }).catch(() => 'Provider request failed');
+}
