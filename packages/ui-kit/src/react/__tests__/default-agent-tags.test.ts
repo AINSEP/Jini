@@ -177,3 +177,12 @@ it('keeps opted-out approval actions untagged and forwards page identity to ordi
   view.rerender(h(ConfirmDialog, { open: true, title: 'Approval', confirmLabel: 'Allow', attrs: { 'data-agent-page': 'editor' }, onConfirm: noop, onCancel: noop }));
   for (const button of screen.getAllByRole('button')) expect(button.getAttribute('data-agent-page')).toBe('editor');
 });
+
+it('keeps composite semantic privacy ahead of opt-outs and undefined child overrides', () => {
+  render(h(Menu, { label: 'Private actions', agentHandle: false, attrs: { 'data-agent-private': '' }, items:
+    [{ id: 'copy', label: 'Copy', attrs: { 'data-agent-private': undefined, 'data-agent-element': 'must-remove' }, onPress: noop }] }));
+  fireEvent.click(screen.getByRole('button', { name: 'Private actions' }));
+  const item = screen.getByRole('menuitem');
+  expect(handle(item)).toBeNull();
+  expect(item.getAttribute('data-agent-private')).toBe('');
+});

@@ -46,8 +46,8 @@ export function useControlAttrs(required: BaseProps, optional: {
  * @complexity O(p + a) in attribute count and action id length, without I/O. */
 export function childControlAttrs(required: { parent: BaseProps; attrs: KitAttrs; action: string }, optional: { attrs?: KitAttrs | undefined; label?: string | undefined; role?: AgentSpec['role'] | undefined } = {}): KitAttrs {
   const combined = { ...required.attrs, ...optional.attrs };
+  if (required.attrs['data-agent-private'] !== undefined || optional.attrs?.['data-agent-private'] !== undefined) return secretControlAttrs({ attrs: combined });
   if (required.parent.agentHandle === false) return ordinaryAttrs({ attrs: combined });
-  if (combined['data-agent-private'] !== undefined) return secretControlAttrs({ attrs: combined });
   const base = required.attrs['data-agent-element'];
   if (typeof base !== 'string') return optional.attrs ?? {};
   const root = base.length > 80 ? handleSegment({ value: base }) : base;
