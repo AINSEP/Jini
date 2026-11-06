@@ -1,23 +1,17 @@
 /*
- * The shared site card and the list controls above it. Every token falls back to the host's own
- * name, since the desktop shell defines no --jini-* outside its dialogs.
+ * The shared site card and the list controls above it. The host's own token comes first: the admin's
+ * --jini-* palette is a flat grey behind its --surface and --border, and the desktop shell defines no
+ * --jini-* outside its dialogs. The --jini-* name is the fallback for any other host.
  */
-.jini-site-card-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(min(214px, 100%), 1fr));
-  gap: 1rem;
-  align-content: start;
-}
-
 .jini-site-card {
   min-width: 0;
   position: relative;
   display: flex;
   flex-direction: column;
-  border: 1px solid var(--jini-border, var(--border));
-  border-radius: var(--jini-radius-md, var(--r-md));
-  background: var(--jini-bg-panel, var(--surface));
-  color: var(--jini-text, var(--fg));
+  border: 1px solid var(--border, var(--jini-border));
+  border-radius: var(--r-md, var(--jini-radius-md));
+  background: var(--surface, var(--jini-bg-panel));
+  color: var(--fg, var(--jini-text));
   overflow: hidden;
   text-align: left;
   box-shadow: var(--shadow-sm);
@@ -30,7 +24,7 @@
   place-items: center;
   aspect-ratio: 16 / 10;
   background: var(--sunken, var(--surface-2));
-  border-bottom: 1px solid var(--jini-border, var(--border));
+  border-bottom: 1px solid var(--border, var(--jini-border));
 }
 .jini-site-card__placeholder { width: 3rem; height: auto; color: var(--faint); opacity: 0.6; }
 .jini-site-card__preview { width: 100%; height: 100%; object-fit: cover; object-position: top; }
@@ -51,7 +45,7 @@
   row-gap: 0.3125rem;
   align-items: center;
 }
-/* Anything beyond the head's four cells spans both columns. */
+/* Anything beyond the head's four cells spans both columns, below row 2. */
 .jini-site-card__head > :nth-child(n + 5) { grid-column: 1 / -1; }
 
 .jini-site-card__namewrap { min-width: 0; }
@@ -69,12 +63,22 @@
 .jini-site-card__details { margin: 0; min-width: 0; color: var(--faint); font-family: var(--font-mono); font-size: 0.6875rem; }
 .jini-site-card__meta { margin: 0; justify-self: end; display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; }
 
+/* The row of buttons under the text: no `margin-top: auto`, it sits directly under the last line. */
+.jini-site-card__actions { display: flex; flex-direction: row; align-items: center; gap: 0.375rem; }
+.jini-site-card__actions:empty { display: none; }
+
 .jini-site-card__status { display: inline-flex; align-items: center; gap: 0.375rem; color: var(--faint); }
 .jini-site-card__status-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 .jini-site-card__status--running { color: var(--primary); }
 .jini-site-card__status--running .jini-site-card__status-dot { box-shadow: 0 0 0 3px var(--primary-ring, var(--primary-dim)); }
 .jini-site-card__status--busy, .jini-site-card__status--warning { color: var(--warning); }
 .jini-site-card__status--danger { color: var(--danger); }
+/* Both transitions, not only the boot: a stop takes as long as its drain does. */
+.jini-site-card__status--busy .jini-site-card__status-dot { animation: jini-site-card-pulse 1.4s ease-in-out infinite; }
+@keyframes jini-site-card-pulse { 50% { opacity: 0.3; } }
+@media (prefers-reduced-motion: reduce) {
+  .jini-site-card__status--busy .jini-site-card__status-dot { animation: none; }
+}
 
 /* List controls: the view chips on the left, "Sort by" on the right; they wrap at phone width. */
 .jini-site-list-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem; margin-block-end: 1rem; }
@@ -82,7 +86,7 @@
 .jini-site-list-toolbar__view {
   min-height: 2rem;
   padding: 0 0.75rem;
-  border: 1px solid var(--jini-border, var(--border));
+  border: 1px solid var(--border, var(--jini-border));
   border-radius: 999px;
   background: transparent;
   color: var(--muted);
@@ -90,8 +94,8 @@
   font-size: 0.8125rem;
   cursor: pointer;
 }
-.jini-site-list-toolbar__view:hover { background: var(--surface-2); color: var(--jini-text, var(--fg)); }
-.jini-site-list-toolbar__view[aria-pressed="true"] { background: var(--surface-2); color: var(--jini-text, var(--fg)); border-color: var(--border-strong); font-weight: 500; }
+.jini-site-list-toolbar__view:hover { background: var(--surface-2); color: var(--fg, var(--jini-text)); }
+.jini-site-list-toolbar__view[aria-pressed="true"] { background: var(--surface-2); color: var(--fg, var(--jini-text)); border-color: var(--border-strong); font-weight: 500; }
 .jini-site-list-toolbar__view:focus-visible,
 .jini-site-list-toolbar__sort select:focus-visible,
 .jini-site-card__pin:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
@@ -99,11 +103,12 @@
 .jini-site-list-toolbar__sort select {
   min-height: 2rem;
   width: auto;
-  padding: 0 0.5rem;
-  border: 1px solid var(--jini-border, var(--border));
-  border-radius: var(--jini-radius-sm, var(--r-sm));
-  background: var(--jini-bg-panel, var(--surface));
-  color: var(--jini-text, var(--fg));
+  /* Room for the host's chevron; `background-color`, since the shorthand would erase that chevron. */
+  padding: 0 1.75rem 0 0.5rem;
+  border: 1px solid var(--border, var(--jini-border));
+  border-radius: var(--r-sm, var(--jini-radius-sm));
+  background-color: var(--surface, var(--jini-bg-panel));
+  color: var(--fg, var(--jini-text));
   font: inherit;
 }
 
@@ -115,12 +120,12 @@
   height: 26px;
   padding: 0;
   border: 0;
-  border-radius: var(--jini-radius-sm, var(--r-sm));
+  border-radius: var(--r-sm, var(--jini-radius-sm));
   background: transparent;
   color: var(--faint);
   cursor: pointer;
 }
-.jini-site-card__pin:hover { background: var(--surface-2); color: var(--jini-text, var(--fg)); }
+.jini-site-card__pin:hover { background: var(--surface-2); color: var(--fg, var(--jini-text)); }
 .jini-site-card__pin[aria-pressed="true"] { color: var(--primary); }
 .jini-site-card__pin svg { width: 14px; height: 14px; }
 

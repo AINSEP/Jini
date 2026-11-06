@@ -19,7 +19,7 @@ export interface SiteCardProps extends Omit<HTMLAttributes<HTMLElement>, "childr
   onPreviewError?: (() => void) | undefined;
   /** Beside the name, before the menu. */
   nameExtra?: ReactNode;
-  /** Top-right, level with the name. */
+  /** Top-right, level with the name: the pin and the menu. */
   menu?: ReactNode;
   /** Muted line under the name. */
   details?: ReactNode;
@@ -27,7 +27,7 @@ export interface SiteCardProps extends Omit<HTMLAttributes<HTMLElement>, "childr
   status?: ReactNode;
   /** Anything else the card says, on full-width lines below the head. */
   notes?: ReactNode;
-  /** The row of buttons under the text. Hidden when empty. */
+  /** The row of buttons under the text; give its element the class `jini-site-card__actions`. */
   actions?: ReactNode;
   /** A panel covering the card, e.g. a confirmation. */
   overlay?: ReactNode;

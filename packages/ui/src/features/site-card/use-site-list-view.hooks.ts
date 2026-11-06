@@ -1,11 +1,5 @@
-import { useCallback, useState } from "react";
-import { parseSiteListPrefs, siteListView, toggleListed, type SiteListFilter, type SiteListItem, type SiteListPrefs, type SiteListSort, type SiteListView } from "./site-list-view.js";
-
-/** Where the choices live. The host decides the key, which is what makes them per person. */
-export interface SiteListStorage {
-  read(): string | null;
-  write(value: string): void;
-}
+import { useState } from "react";
+import { siteListView, toggleListed, type SiteListFilter, type SiteListItem, type SiteListPrefs, type SiteListSort, type SiteListView } from "./site-list-view.js";
 
 export interface SiteListController<Item> extends SiteListView<Item> {
   filter: SiteListFilter;
@@ -18,41 +12,29 @@ export interface SiteListController<Item> extends SiteListView<Item> {
   toggleHidden(id: string): void;
 }
 
-/** `window.localStorage` under one key; a denied store only means the choices are not remembered. */
-export function localSiteListStorage({ key }: { key: string }, _options = {}): SiteListStorage {
-  return {
-    read() {
-      try { return window.localStorage.getItem(key); } catch { return null; }
-    },
-    write(value) {
-      try { window.localStorage.setItem(key, value); } catch { /* Not remembered; the list still works. */ }
-    },
-  };
-}
-
 /**
- * Sort, pins and hidden sites for one list, written through at each change.
- * @returns The current view and its actions. @complexity O(n log n) per render in `items`.
+ * The list's current view and its actions. The host owns storing `prefs`, which is what makes them
+ * per person; the open filter lasts as long as the page. A "Hidden" filter with nothing left to show
+ * falls back to the default view, so showing the last hidden site never strands the person on an
+ * empty list.
+ * @returns The view and its actions. @complexity O(n log n) per render in `items`.
  */
-export function useSiteListView<Item extends SiteListItem>({ items, storage }: { items: readonly Item[]; storage: SiteListStorage }, _options = {}): SiteListController<Item> {
-  const [prefs, setPrefs] = useState<SiteListPrefs>(() => parseSiteListPrefs({ stored: storage.read() }));
-  const [filter, setFilterState] = useState<SiteListFilter>("pinned-recent");
-  const [orderPins, setOrderPins] = useState<readonly string[]>(prefs.pinned);
-
-  const update = useCallback((next: SiteListPrefs) => {
-    setPrefs(next);
-    storage.write(JSON.stringify(next));
-  }, [storage]);
-
+export function useSiteListView<Item extends SiteListItem>(
+  { items, prefs, onPrefsChange }: { items: readonly Item[]; prefs: SiteListPrefs; onPrefsChange: (next: SiteListPrefs) => void },
+  _options = {},
+): SiteListController<Item> {
+  const [chosenFilter, setFilter] = useState<SiteListFilter>("pinned-recent");
+  const hiddenLeft = items.some((item) => prefs.hidden.includes(item.id));
+  const filter = chosenFilter === "hidden" && !hiddenLeft ? "pinned-recent" : chosenFilter;
   return {
-    ...siteListView({ items, prefs, filter }, { orderPins }),
+    ...siteListView({ items, prefs, filter }),
     filter,
-    setFilter(next) { setFilterState(next); setOrderPins(prefs.pinned); },
+    setFilter,
     sort: prefs.sort,
-    setSort(sort) { update({ ...prefs, sort }); setOrderPins(prefs.pinned); },
+    setSort: (sort) => onPrefsChange({ ...prefs, sort }),
     isPinned: (id) => prefs.pinned.includes(id),
-    togglePin: (id) => update({ ...prefs, pinned: toggleListed({ list: prefs.pinned, id }) }),
+    togglePin: (id) => onPrefsChange({ ...prefs, pinned: toggleListed({ list: prefs.pinned, id }) }),
     isHidden: (id) => prefs.hidden.includes(id),
-    toggleHidden: (id) => update({ ...prefs, hidden: toggleListed({ list: prefs.hidden, id }) }),
+    toggleHidden: (id) => onPrefsChange({ ...prefs, hidden: toggleListed({ list: prefs.hidden, id }) }),
   };
 }

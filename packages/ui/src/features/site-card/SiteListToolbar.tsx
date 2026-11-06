@@ -17,12 +17,12 @@ export interface SiteListToolbarCopy {
 
 type ToolbarController = Pick<SiteListController<unknown>, "filter" | "setFilter" | "sort" | "setSort" | "hiddenCount">;
 
-/** View chips and the "Sort by" dropdown. "Hidden" appears only once something is hidden, or while open. @complexity O(1). */
+/** View chips and the "Sort by" dropdown. "Hidden" appears only once something is hidden. @complexity O(1). */
 export function SiteListToolbar({ list, copy }: { list: ToolbarController; copy: SiteListToolbarCopy }) {
   const views: readonly { id: SiteListFilter; label: string }[] = [
     { id: "pinned-recent", label: copy.pinnedRecent },
     { id: "all", label: copy.all },
-    ...(list.hiddenCount > 0 || list.filter === "hidden" ? [{ id: "hidden" as const, label: copy.hidden }] : []),
+    ...(list.hiddenCount > 0 ? [{ id: "hidden" as const, label: copy.hidden }] : []),
   ];
   return (
     <div className="jini-site-list-toolbar">
