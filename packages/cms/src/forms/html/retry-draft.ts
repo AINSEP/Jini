@@ -59,6 +59,7 @@ export function repopulateFormRetryHtml(
     if (element.tagName === 'input') restoreInput(element, field);
     else if (element.tagName === 'select') restoreSelect(element, field);
     else if (element.tagName === 'textarea') element.childNodes = [{ nodeName: '#text', value: String(field.default ?? ''), parentNode: element }];
+    else { /* Named authored non-controls have no value to restore. */ }
   }
   return serialize(fragment);
 }

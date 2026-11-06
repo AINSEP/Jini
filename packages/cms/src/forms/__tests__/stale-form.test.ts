@@ -40,7 +40,7 @@ test('matching page hash is stripped from answers and shares the evidence digest
 });
 
 test('changed, malformed and repeated page hashes refuse before validation, rate, IDs or acceptance', async () => {
-  for (const hash of ['a'.repeat(64), '', 'not-a-hash', ['a'.repeat(64), 'a'.repeat(64)], null]) {
+  for (const hash of ['a'.repeat(64), '', 'not-a-hash', ['a'.repeat(64), 'a'.repeat(64)], [], null, undefined]) {
     const { deps, input, effects } = await setup();
     input.body = { email: 'bad email', consent: 'on', _schemaHash: hash };
     await assert.rejects(submitForm({ deps, input }, { validateEmails: true }), (error: unknown) => {
@@ -71,7 +71,7 @@ test('retry drafts exclude metadata and files, preserve dangerous text names saf
   assert.deepEqual(Object.keys(draft.answers).sort(), ['__proto__', 'constructor', 'removed']);
   const oversized = boundedFormRetryDraft({ body: Object.fromEntries(Array.from({ length: 100 }, (_, index) => [String(index), '😀'.repeat(4000)])) });
   assert.equal(oversized.truncated, true);
-  assert.ok(new TextEncoder().encode(JSON.stringify(oversized.answers)).byteLength <= 64 * 1024);
+  assert.ok(new TextEncoder().encode(JSON.stringify(oversized)).byteLength <= 64 * 1024);
 });
 
 test('retry repopulates only current valid answers and keeps changed/removed answers for copying', async () => {
@@ -85,4 +85,13 @@ test('retry repopulates only current valid answers and keeps changed/removed ans
   assert.equal(retry.fields[3]!.default, undefined);
   assert.deepEqual(retry.retained, { consent: 'on', choice: 'old', removed: '<script>alert(1)</script>' });
   assert.equal(fields[2]!.default, 'new', 'does not mutate the current definition');
+});
+
+test('shortened oversized drafts stay copy-only instead of being mistaken for compatible answers', async () => {
+  const { boundedFormRetryDraft, formRetryFields } = await import('../stale-form.js');
+  const draft = boundedFormRetryDraft({ body: { email: 'a'.repeat(6000) } });
+  const retry = formRetryFields({ fields: [{ id: 'email', label: 'Message', type: 'text', required: false, maxLength: 5000 }], answers: draft.answers }, draft);
+  assert.equal(retry.fields[0]!.default, undefined);
+  assert.equal(draft.truncated, true);
+  assert.equal(retry.retained.email, 'a'.repeat(5000));
 });

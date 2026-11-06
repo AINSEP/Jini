@@ -74,11 +74,15 @@ export async function handleSubmit({ request, env, manifest, slug }, { now = () 
   if (parsed.error) return errorPage({ ...parsed.error, back });
   const stale = schemaRetryResponse({ form, fields: parsed.fields, back });
   if (stale) return stale;
-  if ((parsed.fields.get(HONEYPOT) ?? []).some(value => value.trim() !== '')) return successRedirect({ request, form });
+  if (hasHoneypotValue({ fields: parsed.fields })) return successRedirect({ request, form });
   const checked = checkFields({ form, fields: parsed.fields });
   if (checked.error) return errorPage({ status: 400, message: checked.error, back });
   const refused = await storeSubmission({ db: env.TOVU_FORMS, slug, answers: checked.answers, evidence: form.evidence, ip: request.headers.get('CF-Connecting-IP'), secret: env.TOVU_FORMS_SECRET, back }, { now, randomId });
   return refused ?? successRedirect({ request, form });
+}
+
+function hasHoneypotValue({ fields }, _options = {}) {
+  return (fields.get(HONEYPOT) ?? []).some(value => value.trim() !== '');
 }
 
 /** Refuse stale metadata before any field validation or storage; legacy pages stay compatible.
@@ -123,7 +127,7 @@ export async function readFields({ request }, _options = {}) {
 function entriesError({ entries }, _options = {}) {
   if (!entries) return { status: 400, message: 'The submission could not be read.' };
   if (entries.length > LIMITS.maxFields) return { status: 413, message: 'The submission has too many fields.' };
-  if (entries.some(([, value]) => typeof value !== 'string')) return { status: 400, message: 'File uploads are not accepted by this form.' };
+  if (entries.some(([name, value]) => name !== FORM_SCHEMA_HASH_FIELD && typeof value !== 'string')) return { status: 400, message: 'File uploads are not accepted by this form.' };
   return null;
 }
 

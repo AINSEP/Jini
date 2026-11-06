@@ -319,7 +319,7 @@ test('authored retry retains current consent prose and resets mixed-case consent
 
 test('stale JSON requests get 409 with bounded non-file answers and no redirect', async () => {
   const { FormSchemaChangedError } = await import('../../errors.js');
-  const error = new FormSchemaChangedError({ fields: DEFINITION.fields, schemaHash: 'a'.repeat(64), draft: { answers: { name: 'Ada' }, truncated: false } });
+  const error = new FormSchemaChangedError({ fields: DEFINITION.fields, schemaHash: 'a'.repeat(64), draft: { answers: { name: 'Ada' }, truncated: false, truncatedFields: [] } });
   const { deps } = harness({ submit: async () => { throw error; } });
   const sent = await send(deps, request({ slug: 'contact' }));
   assert.equal(sent.status, 409);

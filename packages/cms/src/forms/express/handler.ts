@@ -303,7 +303,7 @@ async function sendAttachmentRetry({ req, res, deps, slug, error }: { req: Reque
 function sendSchemaRetry({ req, res, slug, error }: { req: Request; res: Response; slug: string; error: FormSchemaChangedError }): void {
   res.set("Cache-Control", "no-store");
   if (!wantsHtmlResponse(req)) { res.status(409).json({ code: error.code, error: error.message, answers: error.draft.answers, truncated: error.draft.truncated }); return; }
-  const retry = formRetryFields({ fields: error.fields, answers: error.draft.answers });
+  const retry = formRetryFields({ fields: error.fields, answers: error.draft.answers }, error.draft);
   const html = error.html === undefined ? {} : { html: repopulateFormRetryHtml({ html: error.html, fields: retry.fields }) };
   const form = renderHtmlForm({ slug, fields: retry.fields, action: `/forms/${encodeURIComponent(slug)}/submit`, hooks: { field: "data-field", form: "data-form", success: "data-success", error: "data-error" } }, { ...html, schemaHash: error.schemaHash });
   const retained = Object.entries(retry.retained).map(([name, value]) => `<dt>${escapeFormHtml({ value: name })}</dt><dd><pre>${escapeFormHtml({ value: typeof value === "string" ? value : JSON.stringify(value) })}</pre></dd>`).join("");

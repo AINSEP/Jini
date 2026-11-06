@@ -75,3 +75,12 @@ test('legacy missing hash and matching hash both accept, but schema metadata nev
   assert.equal(page.items.length, 2);
   assert.deepEqual(page.items.map(item => item.answers), [{ email: 'ada@example.com' }, { email: 'ada@example.com' }]);
 });
+
+test('a multipart non-text schema hash is malformed metadata and refuses with 409', async () => {
+  const { handleRequest } = await import('../forms-receiver.mjs');
+  const body = new FormData(); body.set('_schemaHash', new Blob(['not a hash']), 'metadata.txt'); body.set('email', 'ada@example.com');
+  const request = new Request('https://site.example/forms/contact/submit', { method: 'POST', body });
+  const env = { TOVU_FORMS: { prepare() { throw new Error('must not reach D1'); } } };
+  const response = await handleRequest({ request, env, manifest: { forms: [{ slug: 'contact', fields: [], evidence: { schemaHash: 'a'.repeat(64) } }] } });
+  assert.equal(response.status, 409);
+});

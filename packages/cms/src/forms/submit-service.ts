@@ -95,7 +95,8 @@ export async function submitForm(required: SubmitFormRequired, optional: SubmitF
   const { deps } = required;
   const { input: pageInput, attemptToken } = splitAttemptToken({ input: required.input }, optional);
   const { definition, originalDefinition } = await resolveActiveDefinition({ deps, input: pageInput }, optional);
-  const { [FORM_SCHEMA_HASH_FIELD]: _schemaHash, ...body } = pageInput.body;
+  const body = { ...pageInput.body };
+  delete body[FORM_SCHEMA_HASH_FIELD];
   const input = { ...pageInput, body };
 
   // Discard before validation, rate limiting or writes; a bot sees the same accepted response

@@ -76,7 +76,8 @@ async function findDefinition(
   return repo.findBySlug({ workspaceId, slug: slugFallback });
 }
 
-/** The render component's props for an active definition. */
+/** The render component's current schema digest and props, derived from the already-loaded definition.
+ * @complexity O(schema bytes + canonical key sorting) time/space; one local digest, no I/O. */
 async function contactFormProps({ definition, successMessage, providers }: { definition: FormDefinitionView; successMessage: string | null; providers: FormCollectionRegistry | undefined }): Promise<JsonObject> {
   const schema = submissionEvidenceSchema({ definition: { fields: definition.fields as FieldDescriptor[], ...(typeof definition.html === "string" ? { html: definition.html } : {}) } });
   const schemaHash = await canonicalArgumentDigest({ args: schema });

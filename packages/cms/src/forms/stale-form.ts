@@ -5,9 +5,10 @@ import { submissionEvidenceSchema } from './submission-evidence.js';
 import type { FieldDescriptor, FormDefinitionRecord } from './types.js';
 
 export type FormRetryAnswer = string | boolean | number | string[];
-export interface FormRetryDraft { answers: Record<string, FormRetryAnswer>; truncated: boolean }
+export interface FormRetryDraft { answers: Record<string, FormRetryAnswer>; truncated: boolean; truncatedFields: string[] }
 const RESERVED = new Set([FORM_SCHEMA_HASH_FIELD, '_hp', '_attempt']);
-const MAX_DRAFT_BYTES = 64 * 1024;
+// Leave room for names repeated in the copy-only list; the entire draft stays below 64 KiB.
+const MAX_DRAFT_BYTES = 30 * 1024;
 const utf8Bytes = (value: string): number => new TextEncoder().encode(value).byteLength;
 
 /** Keep only bounded non-file answers in this response; unknown control names remain copyable.
@@ -15,21 +16,30 @@ const utf8Bytes = (value: string): number => new TextEncoder().encode(value).byt
 export function boundedFormRetryDraft({ body }: { body: Record<string, unknown> }, _optional = {}): FormRetryDraft {
   const answers: Record<string, FormRetryAnswer> = Object.create(null);
   let remaining = MAX_DRAFT_BYTES;
-  let truncated = false;
   const entries = Object.entries(body).filter(([key]) => !RESERVED.has(key));
+  let truncated = entries.length > 100;
+  const truncatedFields: string[] = [];
   for (const [name, value] of entries.slice(0, 100)) {
-    if (!isDraftAnswer(value)) continue;
-    const encoded = JSON.stringify(value);
-    const fits = encoded.length <= 5000;
-    const kept = fits ? value : encoded.slice(0, 5000);
-    const key = name.slice(0, 200);
-    const cost = utf8Bytes(JSON.stringify([key, kept]));
-    if (cost > remaining) { truncated = true; continue; }
-    answers[key] = kept;
-    remaining -= cost;
-    truncated ||= !fits || name.length > 200;
+    const entry = prepareRetryAnswer({ name, value });
+    if (!entry) continue;
+    if (entry.cost <= remaining) {
+      answers[entry.key] = entry.value;
+      remaining -= entry.cost;
+      if (entry.truncated) { truncated = true; truncatedFields.push(entry.key); }
+    } else { truncated = true; }
   }
-  return { answers, truncated: truncated || entries.length > 100 };
+  return { answers, truncated, truncatedFields };
+}
+function prepareRetryAnswer({ name, value }: { name: string; value: unknown }): { key: string; value: FormRetryAnswer; cost: number; truncated: boolean } | undefined {
+  if (!isDraftAnswer(value)) return undefined;
+  const encoded = JSON.stringify(value);
+  const fits = encoded.length <= 5000;
+  const kept = fits ? value : shortenedDraftValue({ value, encoded });
+  const key = name.slice(0, 200);
+  return { key, value: kept, cost: utf8Bytes(JSON.stringify([key, kept])), truncated: !fits || name.length > 200 };
+}
+function shortenedDraftValue({ value, encoded }: { value: FormRetryAnswer; encoded: string }): string {
+  return (typeof value === 'string' ? value : encoded).slice(0, 5000);
 }
 function isDraftAnswer(value: unknown): value is FormRetryAnswer {
   if (typeof value === 'string' || typeof value === 'boolean') return true;
@@ -40,7 +50,7 @@ function isDraftAnswer(value: unknown): value is FormRetryAnswer {
 /** Compare the already loaded authored schema before field checks, uploads, rate or acceptance.
  * Missing metadata preserves published legacy pages; duplicate/malformed hashes require review.
  * @throws FormSchemaChangedError with bounded text and current controls, never file bytes.
- * @complexity O(schema + request bytes) time and bounded draft space; one local digest, no I/O. */
+ * @complexity O(schema bytes + canonical key sorting + request bytes) time; bounded draft space, one local digest, no I/O. */
 export async function assertCurrentFormSchema(
   { original, definition, body }: { original: FormDefinitionRecord & { html?: string }; definition: FormDefinitionRecord; body: Record<string, unknown> },
   _optional = {},
@@ -56,12 +66,14 @@ export async function assertCurrentFormSchema(
  * @complexity O(fields + answer bytes + choices) time/space, pure and bounded by the draft. */
 export function formRetryFields(
   { fields, answers }: { fields: readonly FieldDescriptor[]; answers: Readonly<Record<string, FormRetryAnswer>> },
-  _optional = {},
+  { truncatedFields = [] }: { truncatedFields?: readonly string[] } = {},
 ): { fields: FieldDescriptor[]; retained: Record<string, FormRetryAnswer> } {
   const retained = { ...answers };
+  const copyOnly = new Set(truncatedFields);
   const current = fields.map(field => {
-    const { default: _default, ...empty } = field;
-    if (['file', 'checkbox', 'toggle'].includes(field.type)) return empty;
+    const empty = { ...field };
+    delete empty.default;
+    if (copyOnly.has(field.id) || ['file', 'checkbox', 'toggle'].includes(field.type)) return empty;
     const value = answers[field.id];
     const resolved = resolvePortableFormField({ field, value });
     if (resolved.kind !== 'accepted' || !isDraftAnswer(resolved.value)) return empty;
