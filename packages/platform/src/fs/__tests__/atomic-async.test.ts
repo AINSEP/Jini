@@ -22,6 +22,8 @@ test("sync writer supplies a default temp token and still creates 0600", () => {
 // REGRESSION: fails if the async writer does not sync file before rename and supported directory after rename.
 test("async replacement syncs both descriptors in order and preserves existing mode", async () => {
   const filePath = target(); fs.writeFileSync(filePath, "old", { mode: 0o640 });
+  // Creation modes are masked by the host umask; establish the mode being preserved explicitly.
+  fs.chmodSync(filePath, 0o640);
   const events: string[] = [];
   const realOpen = asyncFs.open, realRename = asyncFs.rename;
   const filesystem = {

@@ -239,6 +239,8 @@ test("async refuseSymlink writes an absent destination", async () => {
 });
 test("async refuseSymlink preserves a regular destination's mode", async () => {
   const filePath = target(); fs.writeFileSync(filePath, "old", { mode: 0o644 });
+  // Creation modes are masked by the host umask; establish the mode being preserved explicitly.
+  fs.chmodSync(filePath, 0o644);
   await writeFileAtomicAsync({ filePath, content: "new" }, { refuseSymlink: true });
   expect(fs.statSync(filePath).mode & 0o777).toBe(0o644);
   expect(fs.readFileSync(filePath, "utf8")).toBe("new");

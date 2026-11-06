@@ -27,6 +27,8 @@ test("fingerprint covers symlink targets without following them", () => {
 });
 test("fingerprint covers permission bits", () => {
   const { from } = fixture();
+  // Establish a distinct initial mode even when the host creates files owner-only.
+  fs.chmodSync(path.join(from, "content.db"), 0o644);
   const before = directoryFingerprint({ dir: from });
   fs.chmodSync(path.join(from, "content.db"), 0o600);
   expect(directoryFingerprint({ dir: from })).not.toBe(before);
