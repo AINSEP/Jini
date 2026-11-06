@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import { Fragment, type ReactNode } from 'react';
 
 import type { DataTableSortDirection, DataTableSortState } from '../../core/data-table/types.js';
 
@@ -133,6 +133,11 @@ export interface DataTableProps<Row> {
   loadingContent?: ReactNode;
   /** `<tfoot>` content. Rendered as-is: supply your own `<tr>`/`<td>`. */
   footer?: ReactNode;
+  /**
+   * Full-width content on its own row (`tr.list-table-detail`) under a row, for what no narrow
+   * column can hold. `null` renders no extra row.
+   */
+  rowDetail?: (row: Row, index: number) => ReactNode;
   /** Accessible name for the table itself. Worth setting when a screen has more than one. */
   label?: string;
   /** `<caption>`. Visible unless the host's CSS hides it; prefer {@link label} for a name that
@@ -280,15 +285,25 @@ export function DataTable<Row>(props: DataTableProps<Row>) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((row, index) => (
-            <tr key={props.rowKey(row, index)} className={props.rowClassName?.(row, index)}>
-              {props.columns.map((column) => (
-                <td key={column.key} className={resolveCellClassName(column, row, index)}>
-                  {column.cell(row, index)}
-                </td>
-              ))}
-            </tr>
-          ))}
+          {rows.map((row, index) => {
+            const detail = props.rowDetail?.(row, index) ?? null;
+            return (
+              <Fragment key={props.rowKey(row, index)}>
+                <tr className={props.rowClassName?.(row, index)}>
+                  {props.columns.map((column) => (
+                    <td key={column.key} className={resolveCellClassName(column, row, index)}>
+                      {column.cell(row, index)}
+                    </td>
+                  ))}
+                </tr>
+                {detail === null ? null : (
+                  <tr className="list-table-detail">
+                    <td colSpan={props.columns.length}>{detail}</td>
+                  </tr>
+                )}
+              </Fragment>
+            );
+          })}
         </tbody>
         {props.footer === undefined ? null : <tfoot>{props.footer}</tfoot>}
       </table>

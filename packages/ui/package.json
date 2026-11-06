@@ -37,6 +37,8 @@
       "./fetch-query": "browser",
       "./fetch-query/tanstack": "browser",
       "./tab-strip": "browser",
+      "./site-card": "browser",
+      "./site-card.css": "browser",
       "./admin-widgets.css": "browser",
       "./theme": "browser",
       "./styles/*": "browser",
@@ -192,6 +194,12 @@
       "import": "./dist/features/panel-kit/fetch-query/tanstack.js",
       "default": "./dist/features/panel-kit/fetch-query/tanstack.js"
     },
+    "./site-card": {
+      "types": "./dist/features/site-card/index.d.ts",
+      "import": "./dist/features/site-card/index.js",
+      "default": "./dist/features/site-card/index.js"
+    },
+    "./site-card.css": "./dist/features/site-card/site-card.css",
     "./tab-strip": {
       "types": "./dist/features/tab-strip/index.d.ts",
       "import": "./dist/features/tab-strip/index.js",
@@ -238,7 +246,7 @@
     "registry": "https://registry.npmjs.org"
   },
   "scripts": {
-    "build": "node scripts/generate-agent-icon-data-uris.mjs && tsc -p tsconfig.json && mkdir -p dist/react/components/remixicon-font dist/features/settings/dialog/styles dist/features/tabbed-dialog/styles && cp src/react/components/remixicon-font/remixicon.css src/react/components/remixicon-font/remixicon.woff2 dist/react/components/remixicon-font/ && cp src/features/settings/dialog/styles/settings-dialog.css dist/features/settings/dialog/styles/ && cp src/features/tabbed-dialog/styles/tabbed-dialog.css dist/features/tabbed-dialog/styles/ && npx @tailwindcss/cli -i src/features/interactive-ui/styles.css -o dist/features/interactive-ui/interactive-ui.css --minify && mkdir -p dist/features/admin-widgets/styles && cp src/features/admin-widgets/styles/admin-widgets.css dist/features/admin-widgets/styles/ && mkdir -p dist/styles && cp src/styles/*.css dist/styles/",
+    "build": "node scripts/generate-agent-icon-data-uris.mjs && tsc -p tsconfig.json && mkdir -p dist/react/components/remixicon-font dist/features/settings/dialog/styles dist/features/tabbed-dialog/styles && cp src/react/components/remixicon-font/remixicon.css src/react/components/remixicon-font/remixicon.woff2 dist/react/components/remixicon-font/ && cp src/features/settings/dialog/styles/settings-dialog.css dist/features/settings/dialog/styles/ && cp src/features/tabbed-dialog/styles/tabbed-dialog.css dist/features/tabbed-dialog/styles/ && npx @tailwindcss/cli -i src/features/interactive-ui/styles.css -o dist/features/interactive-ui/interactive-ui.css --minify && mkdir -p dist/features/admin-widgets/styles && cp src/features/admin-widgets/styles/admin-widgets.css dist/features/admin-widgets/styles/ && mkdir -p dist/styles && cp src/styles/*.css dist/styles/ && mkdir -p dist/features/site-card && cp src/features/site-card/site-card.css dist/features/site-card/",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
