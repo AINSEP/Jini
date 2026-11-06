@@ -1,5 +1,6 @@
 /** @file DOM helpers for the browser client: cookies, storage purge, inert tags and the Jini banner binding.
  * The Jini banner is a client of the public API, exactly like an owner's own ("My own") banner. */
+import { allows } from '../contracts/scripts.js';
 import { OPEN_EVENT, OPTIONAL, type Choices, type ConsentAction, type ConsentState, type Flags, type JiniConsentApi, type Optional, type StoragePrefixes } from '../contract.js';
 
 const SKIP: readonly string[] = ['type', 'data-src', 'data-type', 'data-consent-category'];
@@ -120,4 +121,38 @@ export function bindBanner({ api, doc }: { api: JiniConsentApi; doc: Document })
   api.subscribe({ listener: s => { syncInputs(root, s); if (alert && !alert.hidden && !waiting(s)) settle(s); } });
   syncInputs(root, api.get());
   show(api.get().status === 'pending');
+}
+
+/** Declared frame purposes share the script permission check. Withdrawal unloads first, then reloads.
+ * Only renderer-owned declarations are consumed; arbitrary authored frames are untouched.
+ * @complexity O(frames × declared purposes) per consent update; no polling or server reads. */
+export function declaredFrames({ doc, reload }: { doc: Document; reload: () => void }, _optional = {}): (state: ConsentState) => void {
+  const entries = [...doc.querySelectorAll<HTMLIFrameElement>('iframe[data-src][data-jini-consent]')]
+    .map(node => ({ node, consent: frameConsent(node), started: false }));
+  let withdrawn = false;
+  return state => {
+    if (withdrawn) return;
+    const revoked = entries.filter(entry => entry.started && !allows({ state, consent: entry.consent }));
+    if (revoked.length) {
+      withdrawn = true;
+      revoked.forEach(entry => entry.node.removeAttribute('src'));
+      // The remote document may already have executed scripts; removing the frame is not full cleanup.
+      reload();
+      return;
+    }
+    entries.forEach(entry => {
+      if (entry.started || !allows({ state, consent: entry.consent })) return;
+      entry.started = true;
+      entry.node.setAttribute('src', entry.node.dataset.src!);
+    });
+  };
+}
+
+/** Malformed purpose data fails closed through the same unknown-purpose check. */
+function frameConsent(node: HTMLIFrameElement): readonly import('../contract.js').Category[] {
+  try {
+    const consent = JSON.parse(node.dataset.jiniConsent!);
+    if (Array.isArray(consent)) return consent;
+  } catch { /* Invalid declarations stay inert. */ }
+  return ['invalid' as import('../contract.js').Category];
 }
