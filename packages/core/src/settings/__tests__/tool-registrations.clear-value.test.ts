@@ -49,3 +49,25 @@ test("clear honors a denied alias target before changing either layer", async ()
   await assert.rejects(() => f.call("settings_clear_value", target), { name: "ToolInputError", message: "settings_clear_value: 'core.host.locked' can't be changed by the assistant: Host restriction. The owner can change it in Settings." });
   assert.deepEqual(await f.settingsRepo.listRevisions({ settingId: "setting-1" }), []);
 });
+
+for (const scope of ['workspace', 'user'] as const) test(`approved clear preserves a ${scope} edit arriving after the card recheck`, async () => {
+  const { set } = await import('../write-service.js');
+  const def = definition({ namespace: 'core.instructions', key: 'custom' });
+  const f = fixture([def], { confirmWrite: async () => true });
+  const transaction = f.settingsRepo.transaction.bind(f.settingsRepo);
+  let injectEdit = true;
+  f.settingsRepo.transaction = async callback => {
+    if (injectEdit) {
+      injectEdit = false;
+      await set({ deps: { repo: f.settingsRepo, authorize: f.deps.authorize, principals: f.deps.principalRepo, clock: f.deps.clock, ids: f.deps.idGen },
+        input: { namespace: def.namespace, key: def.key, scope, value: 'concurrent edit', workspaceId: 'ws-1', authWorkspaceId: 'ws-1', callerPrincipalId: 'caller' } });
+    }
+    return transaction(callback);
+  };
+  await assert.rejects(f.call('settings_clear_value', { namespace: def.namespace, key: def.key, scope }), /revision|changed/i);
+  const row = scope === 'user'
+    ? await f.settingsRepo.getUserValue({ workspaceId: 'ws-1', settingId: def.settingId, principalId: 'caller' })
+    : await f.settingsRepo.getWorkspaceValue({ workspaceId: 'ws-1', settingId: def.settingId });
+  assert.equal(row?.valueJson, 'concurrent edit'); assert.equal(row?.state, 'set');
+  assert.equal((await f.settingsRepo.listRevisions({ settingId: def.settingId })).length, 1);
+});

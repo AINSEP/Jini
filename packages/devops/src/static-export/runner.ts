@@ -278,7 +278,8 @@ export async function exportSite(required: ExportSiteArgs, optional: ExportSiteO
   try {
     const ctx: RunContext = { args: required, baseUrl: sessionOrigin({ baseUrl: session.baseUrl }), basePath, timeoutMs };
     const routes = await writeRoutes(ctx, manifest.routes);
-    const assets = await writeAssets(ctx, [...routes.assets]);
+    const explicitAssets = typeof required.assetUrls === 'function' ? await required.assetUrls() : required.assetUrls ?? [];
+    const assets = await writeAssets(ctx, [...routes.assets, ...explicitAssets]);
     return { outputDir: required.outputDir, routes: { succeeded: routes.succeeded, failed: routes.failed }, assets, skippedManifestEntries: [...manifest.skipped, ...routes.skipped],
       droppedReferences: droppedReferences({ routes: routes.succeeded, assets: assets.succeeded, basePath, baseUrl: ctx.baseUrl }),
       unreferencedThemeFiles: await unreferenced(ctx, manifest, assets.succeeded), ...(basePath ? { basePath, basePathRewriteWarning: BASE_PATH_REWRITE_WARNING } : {}) };

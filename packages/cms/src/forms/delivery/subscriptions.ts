@@ -6,7 +6,7 @@
 import type { EventBusPort } from "../../core/index.js";
 import { deliverFormJob } from "./deliver-job.js";
 import { FORM_SUBMISSION_RECEIVED_EVENT } from "../types.js";
-import { FORM_DELIVERY_EVENT, type FormDeliveryJob, type FormDeliveryResult } from "./types.js";
+import { FORM_DELIVERY_EVENT, type FormDeliveryJob, type FormDeliveryQueuedJob, type FormDeliverySubmissionReader, type FormDeliveryResult } from "./types.js";
 
 interface FormSubmissionReceivedPayload { submissionId: string; formDefinitionId: string }
 
@@ -21,6 +21,7 @@ export function createFormDeliverySubscriptions(
     bus: EventBusPort;
     plan: (required: { workspaceId: string; submissionId: string; formId: string }) => Promise<unknown>;
     deliver: (required: { workspaceId: string; job: FormDeliveryJob }) => Promise<FormDeliveryResult | void>;
+    readSubmission?: FormDeliverySubmissionReader;
   },
   _optional: Record<string, never> = {},
 ): { start(required?: Record<string, never>, optional?: Record<string, never>): Promise<void> } {
@@ -31,8 +32,9 @@ export function createFormDeliverySubscriptions(
       installed.push(await required.bus.subscribe<FormSubmissionReceivedPayload>({ eventName: FORM_SUBMISSION_RECEIVED_EVENT, handler: async event => {
         await required.plan({ workspaceId: event.workspaceId, submissionId: event.payload.submissionId, formId: event.payload.formDefinitionId });
       } }));
-      installed.push(await required.bus.subscribe<FormDeliveryJob>({ eventName: FORM_DELIVERY_EVENT, handler: event =>
-        deliverFormJob({ job: event.payload, deliver: job => required.deliver({ workspaceId: event.workspaceId, job }) }) }));
+      installed.push(await required.bus.subscribe<FormDeliveryQueuedJob>({ eventName: FORM_DELIVERY_EVENT, handler: event =>
+        deliverFormJob({ job: event.payload, workspaceId: event.workspaceId, readSubmission: required.readSubmission,
+          deliver: job => required.deliver({ workspaceId: event.workspaceId, job }) }) }));
     } catch (error) {
       // Undo a half install so the retry below cannot leave the planner subscribed twice.
       await Promise.allSettled(installed.map(unsubscribe => unsubscribe()));

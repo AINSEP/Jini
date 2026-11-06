@@ -5,7 +5,7 @@ import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, delimiter, dirname, join } from 'node:path';
 import { afterAll, describe, expect, it, vi } from 'vitest';
-import { createAgentRuntimeState, type AgentLaunchResolution, type RuntimeAgentDef } from '@jini-ai/agent-runtime';
+import { RuntimeSelectionError, getAgentDef, createAgentRuntimeState, type AgentLaunchResolution, type RuntimeAgentDef } from '@jini-ai/agent-runtime';
 import { createInMemoryEventLog } from '../../event-log.js';
 import { createRunLifecycle } from '../../run-lifecycle.js';
 import { createAgentExecutor } from '../../index.js';
@@ -198,4 +198,48 @@ describe('prepareSystemPromptOverlayFileIfNeeded', () => {
       'AGENT_SPAWN_FAILED: AgentExecutor: could not stage a system-prompt overlay file for agent "jini-fake-agent": ENOSPC: no space left on device',
     ]);
   });
+});
+
+
+describe('launch selection refuses before dispatch', () => {
+  it.each([false, true])('shows validated selection refusals only (validated=%s)', async validated => {
+    const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+    const def = createDef();
+    const error = validated ? new RuntimeSelectionError("Unknown effort 'ultra'. Available effort levels: high.") : new Error('private provider detail');
+    const select = vi.fn(async () => { throw error; });
+    const spawn = vi.fn();
+    const executor = createAgentExecutor({ lifecycle }, { getAgentDef: () => def, resolveAgentLaunch: fixedLaunch,
+      ensureAgentCapabilities: async () => {}, resolveModelForLaunch: select, spawn,
+    });
+    const { run } = await lifecycle.start({ contextRef: 'selection' });
+    const result = executor.run({ runId: run.id, agentId: def.id, cwd: scratch, prompt: 'hello' }, { reasoning: 'ultra' });
+    await expect(result).rejects.toThrow(validated ? 'Available effort levels: high' : 'choose a concrete model and supported effort');
+    expect(select).toHaveBeenCalledWith(expect.objectContaining({ effort: 'ultra' }));
+    expect(spawn).not.toHaveBeenCalled();
+    expect((await lifecycle.get({ runId: run.id }))?.state).toBe('failed');
+    const events: unknown[] = [];
+    const subscription = await lifecycle.stream({ runId: run.id, onEvent: event => { events.push(event); } });
+    if (subscription.kind === 'ok') subscription.unsubscribe();
+    expect(JSON.stringify(events)).not.toContain('private provider detail');
+  });
+});
+
+
+it('required HTTP failure reports the transport policy and never falls back or mints a stdio credential', async () => {
+  const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+  const def = createDef({ ...getAgentDef({ id: 'opencode' })!, ...fixtureModelDiscovery });
+  const spawn = vi.fn();
+  const credential = vi.fn(() => 'private-stdio-token');
+  const prepareHttp = vi.fn(async () => { throw new Error('private listener failure'); });
+  const executor = createAgentExecutor({ lifecycle }, { getAgentDef: () => def, resolveAgentLaunch: fixedLaunch,
+    resolveModelForLaunch: fixtureLaunchModel, ensureAgentCapabilities: async () => {}, spawn,
+    mcpJsonInjection: { command: 'stdio-bridge', daemonUrl: 'http://daemon.invalid', credential, prepareHttp, httpPolicy: 'required' },
+  });
+  const { run } = await lifecycle.start({ contextRef: 'required-http' });
+  await expect(executor.run({ runId: run.id, agentId: def.id, cwd: scratch, prompt: 'hello' }, { permissionMode: 'bypass' }))
+    .rejects.toThrow('requires an HTTP tool connection');
+  expect(spawn).not.toHaveBeenCalled();
+  expect(credential).not.toHaveBeenCalled();
+  expect(prepareHttp).toHaveBeenCalledOnce();
+  expect((await lifecycle.get({ runId: run.id }))?.state).toBe('failed');
 });

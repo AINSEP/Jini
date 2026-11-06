@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/provider-plugins",
-  "version": "0.6.23",
+  "version": "0.6.24",
   "description": "Provider runtime artifacts, independently addressable as subpaths of @jini-ai/provider-plugins. Agent-facing plugins live in @jini-ai/agent-plugins.",
   "type": "module",
   "license": "Apache-2.0",
@@ -31,7 +31,9 @@
       "./payments-stripe/*": "node",
       "./fixture-provider/*": "node",
       "./formspree": "node",
-      "./formspree/*": "node"
+      "./formspree/*": "node",
+      "./google-forms": "node",
+      "./google-forms/*": "node"
     }
   },
   "exports": {
@@ -40,27 +42,30 @@
     "./charts-echarts/*": "./plugins/charts-echarts/*",
     "./charts-recharts/*": "./plugins/charts-recharts/*",
     "./plugins/*": "./plugins/*",
-    "./ai-trace-langfuse": "./plugins/ai-trace-langfuse/0.6.23/jini.plugin.json",
+    "./ai-trace-langfuse": "./plugins/ai-trace-langfuse/0.6.24/jini.plugin.json",
     "./ai-trace-langfuse/*": "./plugins/ai-trace-langfuse/*",
-    "./analytics-posthog": "./plugins/analytics-posthog/0.6.23/jini.plugin.json",
+    "./analytics-posthog": "./plugins/analytics-posthog/0.6.24/jini.plugin.json",
     "./analytics-posthog/*": "./plugins/analytics-posthog/*",
-    "./observability-opentelemetry": "./plugins/observability-opentelemetry/0.6.23/jini.plugin.json",
+    "./observability-opentelemetry": "./plugins/observability-opentelemetry/0.6.24/jini.plugin.json",
     "./observability-opentelemetry/*": "./plugins/observability-opentelemetry/*",
-    "./observability-sentry": "./plugins/observability-sentry/0.6.23/jini.plugin.json",
+    "./observability-sentry": "./plugins/observability-sentry/0.6.24/jini.plugin.json",
     "./observability-sentry/*": "./plugins/observability-sentry/*",
-    "./payments-stripe": "./plugins/payments-stripe/0.6.23/jini.plugin.json",
+    "./payments-stripe": "./plugins/payments-stripe/0.6.24/jini.plugin.json",
     "./payments-stripe/*": "./plugins/payments-stripe/*",
     "./fixture-provider/*": "./plugins/fixture-provider/*",
-    "./formspree": "./plugins/formspree/0.6.23/jini.plugin.json",
-    "./formspree/*": "./plugins/formspree/*"
+    "./formspree": "./plugins/formspree/0.6.24/jini.plugin.json",
+    "./formspree/*": "./plugins/formspree/*",
+    "./google-forms": "./plugins/google-forms/0.6.24/jini.plugin.json",
+    "./google-forms/*": "./plugins/google-forms/*"
   },
   "files": [
     "plugins/ai-trace-langfuse",
     "plugins/analytics-posthog",
     "plugins/charts-echarts",
     "plugins/charts-recharts",
-    "plugins/formspree",
     "plugins/fixture-provider",
+    "plugins/formspree",
+    "plugins/google-forms",
     "plugins/observability-opentelemetry",
     "plugins/observability-sentry",
     "plugins/payments-stripe",
@@ -71,7 +76,7 @@
     "NOTICE"
   ],
   "scripts": {
-    "build": "pnpm run typecheck && node --import tsx scripts/build.ts charts-recharts . && node --import tsx scripts/build.ts charts-echarts . && node --import tsx scripts/build.ts ai-trace-langfuse . && node --import tsx scripts/build.ts analytics-posthog . && node --import tsx scripts/build.ts observability-opentelemetry . && node --import tsx scripts/build.ts observability-sentry . && node --import tsx scripts/build.ts payments-stripe . && node --import tsx scripts/build.ts fixture-provider . && node --import tsx scripts/build.ts formspree .",
+    "build": "pnpm run typecheck && node --import tsx scripts/build.ts charts-recharts . && node --import tsx scripts/build.ts charts-echarts . && node --import tsx scripts/build.ts ai-trace-langfuse . && node --import tsx scripts/build.ts analytics-posthog . && node --import tsx scripts/build.ts observability-opentelemetry . && node --import tsx scripts/build.ts observability-sentry . && node --import tsx scripts/build.ts payments-stripe . && node --import tsx scripts/build.ts fixture-provider . && node --import tsx scripts/build.ts formspree . && node --import tsx scripts/build.ts google-forms .",
     "prepack": "pnpm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.charts.json --noEmit",
     "test": "vitest run",
@@ -85,6 +90,7 @@
     "@jini-ai/agent-runtime": "workspace:^",
     "@jini-ai/analytics": "workspace:^",
     "@jini-ai/capability-providers": "workspace:^",
+    "@jini-ai/cms": "workspace:^",
     "@jini-ai/commerce": "workspace:^",
     "@jini-ai/cookie-consent": "workspace:^",
     "@jini-ai/diagnostics": "workspace:^",
@@ -114,7 +120,6 @@
     "react-dom": "19.2.7",
     "recharts": "3.10.1",
     "tsx": "^4.19.0",
-    "typescript": "^5.9.3",
-    "@jini-ai/cms": "workspace:^"
+    "typescript": "^5.9.3"
   }
 }

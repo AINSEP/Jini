@@ -1,4 +1,6 @@
+import { parseFragment, type DefaultTreeAdapterMap } from "parse5";
 import assert from "node:assert/strict";
+import { inspect } from "node:util";
 import type { Request, Response } from "express";
 import { afterEach, test, vi } from "vitest";
 import { FormDefinitionNotFoundError, FormRateLimitExceededError, FormSubmissionValidationError, FormSubmissionTooFastError } from "../../errors.js";
@@ -263,7 +265,7 @@ test("a failing definition lookup is logged and the validation redirect still ha
     definitionRepo: { findBySlug: async () => { throw lookupError; } },
   });
   const sent = await send(deps, request({ slug: "contact", body: { name: "Ada" }, headers: HTML_HEADERS }));
-  assert.deepEqual(logged, [["[site/forms-submit] failed to set validation flash cookie (slug=contact)", lookupError]]);
+  assert.deepEqual(logged, [["[site/forms-submit] failed to set validation flash cookie (slug=contact)", inspect(lookupError)]]);
   assert.deepEqual(sent.cookies, []);
   assert.deepEqual(sent.redirect, { status: 303, location: "/?form_result=validation&form_slug=contact" });
 });
@@ -274,4 +276,99 @@ test("disk refusal keeps all validated answers without a cookie, escapes HTML, a
   const json = await send(deps, request({ slug: "contact" })); assert.equal(json.status, 507); assert.deepEqual((json.json as any).answers, answers); assert.equal((json.json as any).error, message);
   const html = await send(deps, request({ slug: "contact", headers: HTML_HEADERS })); assert.equal(html.status, 507); assert.equal(html.cookies.length, 0); assert.equal(html.headers?.["Cache-Control"], "no-store"); assert.equal(json.headers?.["Cache-Control"], "no-store");
   assert.match(html.html!, /&lt;script&gt;/); assert.ok(html.html!.includes("x".repeat(6000))); assert.match(html.html!, /checked/); assert.doesNotMatch(html.html!, /<script>/); assert.doesNotMatch(html.html!.match(/<input type="file"[^>]*>/)![0], /value=/);
+});
+
+test('stale browser retry preserves current controls, escaped copy text and current schema without cookies or rereads', async () => {
+  const { FormSchemaChangedError } = await import('../../errors.js');
+  const { boundedFormRetryDraft } = await import('../../stale-form.js');
+  const body = { name: '<script>alert(1)</script>', email: 'ada@example.com', consent: 'on', removed: '<img src=x onerror=alert(1)>', _schemaHash: 'old', _attempt: 'secret-token', file: { bytes: new Uint8Array([1]) } };
+  const error = new FormSchemaChangedError({ fields: [...DEFINITION.fields, { id: 'file', type: 'file', label: 'File', required: false }], schemaHash: 'a'.repeat(64), draft: boundedFormRetryDraft({ body }) });
+  const { deps, calls } = harness({ submit: async () => { throw error; } });
+  const sent = await send(deps, request({ slug: 'contact', headers: HTML_HEADERS, body }));
+  assert.equal(sent.status, 409);
+  assert.equal(sent.headers?.['Cache-Control'], 'no-store');
+  assert.deepEqual([calls.lookups, calls.flashPayloads, sent.cookies], [[], [], []]);
+  assert.match(sent.html!, /name="name"[^>]*value="&lt;script&gt;alert\(1\)&lt;\/script&gt;"/);
+  assert.match(sent.html!, /name="_schemaHash" value="a{64}"/);
+  assert.match(sent.html!, /&lt;img src=x onerror=alert\(1\)&gt;/);
+  assert.doesNotMatch(sent.html!, /<script>|<img |secret-token|type="file"[^>]*value=|name="consent"[^>]* checked/);
+});
+
+test('authored retry retains current consent prose and resets mixed-case consent/file controls', async () => {
+  const { FormSchemaChangedError } = await import('../../errors.js');
+  const { boundedFormRetryDraft } = await import('../../stale-form.js');
+  const body = { name: '<b>Ada</b>" autofocus onfocus="alert(1)', consent: 'on', removed: 'previous' };
+  const error = new FormSchemaChangedError({ fields: [...DEFINITION.fields, { id: 'file', type: 'file', label: 'File', required: false }], schemaHash: 'a'.repeat(64), draft: boundedFormRetryDraft({ body }),
+    html: '<p>Current privacy wording</p><input name="name" value="old"><input type="CHECKBOX" name="consent" checked><input type="FILE" name="file" value="old-file"><textarea name="message">old message</textarea><button>Send</button>' });
+  const { deps } = harness({ submit: async () => { throw error; } });
+  const sent = await send(deps, request({ slug: 'contact', headers: HTML_HEADERS, body }));
+  assert.equal(sent.status, 409);
+  assert.match(sent.html!, /Current privacy wording/);
+  const stack = [...parseFragment(sent.html!).childNodes];
+  const controls: DefaultTreeAdapterMap["element"][] = [];
+  while (stack.length) {
+    const node = stack.pop()!;
+    if (!("tagName" in node)) continue;
+    controls.push(node); stack.push(...node.childNodes);
+  }
+  const name = controls.find(node => node.attrs.some(attr => attr.name === "name" && attr.value === "name"))!;
+  assert.equal(name.attrs.find(attr => attr.name === "value")?.value, body.name);
+  assert.equal(name.attrs.some(attr => ["autofocus", "onfocus"].includes(attr.name)), false);
+  assert.equal(controls.some(node => node.tagName === "b" || node.tagName === "script"), false);
+  assert.doesNotMatch(sent.html!, / checked|old-file|old message/);
+});
+
+test('stale JSON requests get 409 with bounded non-file answers and no redirect', async () => {
+  const { FormSchemaChangedError } = await import('../../errors.js');
+  const error = new FormSchemaChangedError({ fields: DEFINITION.fields, schemaHash: 'a'.repeat(64), draft: { answers: { name: 'Ada' }, truncated: false, truncatedFields: [] } });
+  const { deps } = harness({ submit: async () => { throw error; } });
+  const sent = await send(deps, request({ slug: 'contact' }));
+  assert.equal(sent.status, 409);
+  assert.equal(sent.redirect, undefined);
+  assert.deepEqual(sent.json, { code: error.code, error: error.message, answers: { name: 'Ada' }, truncated: false });
+});
+
+
+test('direct retries carry a fresh per-response attempt token for double clicks', async () => {
+  const { FormSchemaChangedError, FormAttachmentSpaceError } = await import('../../errors.js');
+  for (const error of [
+    new FormSchemaChangedError({ fields: DEFINITION.fields, schemaHash: 'a'.repeat(64), draft: { answers: {}, truncated: false, truncatedFields: [] } }),
+    new FormAttachmentSpaceError({ fields: DEFINITION.fields, answers: {}, message: 'Choose a smaller file.' }),
+  ]) {
+    const { deps } = harness({ submit: async () => { throw error; } });
+    const first = await send(deps, request({ slug: 'contact', headers: HTML_HEADERS, body: { _attempt: 'old-attempt' } }));
+    const second = await send(deps, request({ slug: 'contact', headers: HTML_HEADERS }));
+    const token = (html: string) => html.match(/name="_attempt" value="([a-f0-9-]{36})"/)?.[1];
+    assert.ok(token(first.html!));
+    assert.ok(token(second.html!));
+    assert.notEqual(token(first.html!), token(second.html!));
+    assert.doesNotMatch(first.html!, /old-attempt/);
+  }
+});
+
+
+test('double clicking the form on a schema retry stores one submission', async () => {
+  const { InMemoryFormDefinitionRepo, InMemoryFormSubmissionRepo } = await import('../../repo.memory.js');
+  const { createSubmissionAttempts } = await import('../../submission-attempts.js');
+  const { submitForm } = await import('../../submit-service.js');
+  const definitionRepo = new InMemoryFormDefinitionRepo();
+  const submissionRepo = new InMemoryFormSubmissionRepo();
+  await definitionRepo.create(DEFINITION);
+  let id = 0;
+  const attempts = createSubmissionAttempts({ hash: value => value });
+  const service = { definitionRepo, submissionRepo, clock: { nowMs: () => 0 }, idGen: { newId: () => String(++id) },
+    outbox: { enqueue: async () => {} }, dispatcher: { dispatch: async () => {} }, logger: { warn: () => {} },
+    rateLimiter: { check: async () => ({ allowed: true as const }) } };
+  const { deps } = harness({ definitionRepo, submit: ({ input }) => submitForm({ deps: service, input }, { attempts }) });
+  const original = { name: 'Ada', email: 'ada@example.com', _schemaHash: 'old' };
+  const retry = await send(deps, request({ slug: 'contact', body: original, headers: HTML_HEADERS }));
+  assert.equal(retry.status, 409);
+  const _attempt = retry.html!.match(/name="_attempt" value="([^"]+)"/)?.[1];
+  const _schemaHash = retry.html!.match(/name="_schemaHash" value="([^"]+)"/)?.[1];
+  assert.ok(_attempt);
+  assert.ok(_schemaHash);
+  const body = { ...original, _schemaHash, _attempt };
+  const results = await Promise.all([send(deps, request({ slug: 'contact', body })), send(deps, request({ slug: 'contact', body }))]);
+  assert.deepEqual(results.map(result => result.json), [{ status: 'accepted' }, { status: 'accepted' }]);
+  assert.equal((await submissionRepo.listByDefinition({ workspaceId: 'ws-1', formDefinitionId: 'form-1', limit: 10 })).items.length, 1);
 });

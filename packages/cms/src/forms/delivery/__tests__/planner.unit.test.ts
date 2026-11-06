@@ -112,10 +112,11 @@ describe("frozen jobs", () => {
     expect(calls.now).toBe(1);
   });
 
-  test("each payload carries its binding, the snapshot and a key built from (submissionId, bindingId)", async () => {
+  test("each payload carries its binding, frozen form, source reference and stable key, without answers", async () => {
     const { plan } = setup([binding("a"), binding("b")]);
     const [first, second] = (await plan()).jobs;
-    expect(first!.payload).toEqual({ binding: binding("a"), snapshot, idempotencyKey: '["s-1","a"]' });
+    expect(first!.payload).toEqual({ binding: binding("a"), form: snapshot.form, submissionRef: { submissionId: "s-1", formId: "f-1" }, idempotencyKey: '["s-1","a"]' });
+    expect(JSON.stringify((await plan()).jobs)).not.toContain("a@example.test");
     expect(second!.payload.idempotencyKey).toBe('["s-1","b"]');
   });
 
@@ -140,7 +141,7 @@ describe("frozen jobs", () => {
       extra: "unexpected",
     } as FormDeliverySnapshot;
     const { plan } = setup([binding("a")], wide);
-    expect((await plan()).jobs[0]!.payload.snapshot).toEqual(snapshot);
+    expect((await plan()).jobs[0]!.payload).toEqual({ binding: binding("a"), form: snapshot.form, submissionRef: { submissionId: "s-1", formId: "f-1" }, idempotencyKey: '["s-1","a"]' });
   });
 });
 

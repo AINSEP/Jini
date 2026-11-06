@@ -9,10 +9,9 @@
  * (`injectFormAttemptTokens`, `http/site/form-render.ts`), so a double click repeats one token while
  * two visitors, or the same visitor after a reload, send different ones. Ids are random again.
  *
- * What still shares a token: a static export (the server cannot vary a file per visitor, so it
- * ships none) and a page a shared HTTP cache served to several visitors. Those, and API callers that
- * send no token, fall back to the old IP + body comparison for the same window. Only identical
- * answers from one IP within the window collapse, as before.
+ * A static export ships no token because the server cannot vary a file per visitor. Tokenless
+ * callers, including APIs, are never deduplicated: IP + body cannot distinguish legitimate
+ * identical answers behind a shared address. A shared HTTP cache must not share live tokens.
  *
  * Why process memory, not a table: the claim must be atomic, short-lived and never persisted (it is
  * an IP-derived hash). One Node process makes check-then-claim atomic with no await between them;
@@ -99,7 +98,7 @@ export function submissionAttemptKey(
     const { bytes, ...metadata } = value;
     return [key, { ...metadata, byteLength: bytes.byteLength, bytesHash: hash(JSON.stringify(digests)) }] as const;
   }).sort(([a], [b]) => (a < b ? -1 : 1));
-  return hash(JSON.stringify([input.workspaceId, input.slug, input.sourceIp, attemptToken ?? null, body]));
+  return hash(JSON.stringify([input.workspaceId, input.slug, input.sourceIp, attemptToken, body]));
 }
 
 /**
@@ -113,7 +112,7 @@ export function createSubmissionAttempts(
 ): SubmissionAttempts {
   const attempts = new Map<string, Attempt>();
   // Rendering never claims a submission. Keeping issuance separate preserves the accepted window
-  // and failure-release behavior, including the static/NAT fallback described above.
+  // and failure-release behavior. Tokenless callers bypass claims in submitForm.
   const issued = new Map<string, IssuedAttempt>();
 
   const pruneIssued = ({ nowMs }: { nowMs: number }, _optional: Record<string, never> = {}): void => {

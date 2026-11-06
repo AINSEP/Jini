@@ -5,6 +5,8 @@ import { decodeDocumentUtf8, documentContentType, DOCUMENT_CONTENT_TYPES, MAX_DO
 import { DOCUMENT_EXTRACTION_LIMITS, DocumentTextExtractionError, type DocumentTextExtractorPort } from './document-text.js';
 
 export const DOCUMENT_TEXT_PAGE_BYTES = 64 * 1024;
+const MAX_CONCURRENT_DOCUMENT_READS = 2;
+let activeDocumentReads = 0;
 
 /** A hash may have several editorial owners. Private-only bytes cannot be exposed by a caller
  * inventing a new media id; a live ordinary-media owner makes those same bytes publishable.
@@ -52,9 +54,9 @@ async function loadDocumentBytes(deps: DocumentReadDeps, { workspaceId, sha256 }
   const blob = await deps.blobRepo.findByHash({ workspaceId, sha256 });
   if (!blob) throw new Error('document source blob is missing');
   const size = await deps.blobStore.sizeOf?.({ storageKey: blob.storageKey });
-  if (size != null && size > MAX_DOCUMENT_BYTES) throw new MediaValidationError({ message: 'document exceeds the 10 MiB limit' });
+  if (size != null && size > MAX_DOCUMENT_BYTES) throw new MediaValidationError({ message: `document exceeds the ${MAX_DOCUMENT_BYTES / (1024 * 1024)} MiB limit` });
   const bytes = await deps.blobStore.get({ storageKey: blob.storageKey });
-  if (bytes.byteLength > MAX_DOCUMENT_BYTES) throw new MediaValidationError({ message: 'document exceeds the 10 MiB limit' });
+  if (bytes.byteLength > MAX_DOCUMENT_BYTES) throw new MediaValidationError({ message: `document exceeds the ${MAX_DOCUMENT_BYTES / (1024 * 1024)} MiB limit` });
   return bytes;
 }
 
@@ -85,13 +87,25 @@ export interface DocumentTextPage {
 
 /** Read source as untrusted data, never instructions. Authorize at the host boundary before calling.
  * Byte offsets and UTF-8 boundaries guarantee bounded pages without losing/replacing characters.
- * BlobStorePort has no range read: at most 10 MiB is loaded; the returned page is at most 64 KiB.
+ * BlobStorePort has no range read: at most 50 MiB is loaded per read, with two reads in flight
+ * per process (100 MiB of source bytes); the returned page is at most 64 KiB.
+ * Extraction adds at most 1M UTF-16 units plus their UTF-8 bytes, excluding adapter workspace.
  * Extracted documents are capped by DOCUMENT_EXTRACTION_LIMITS and re-extracted per offset.
  * @throws DocumentTextExtractionError when extraction is unavailable or a parser fails. */
 export async function readDocumentText(required: {
   deps: DocumentReadDeps;
   input: { workspaceId: string; id: string; offset?: number | undefined };
 }, _optional: Record<string, never> = {}): Promise<DocumentTextPage> {
+  if (activeDocumentReads >= MAX_CONCURRENT_DOCUMENT_READS) {
+    throw new MediaValidationError({ message: 'Two documents are already reading. Please try again when one finishes.' });
+  }
+  activeDocumentReads++;
+  try { return await readDocumentTextPage(required); }
+  finally { activeDocumentReads--; }
+}
+
+/** Keep the source and extraction allocations inside the in-process read admission boundary. */
+async function readDocumentTextPage(required: { deps: DocumentReadDeps; input: { workspaceId: string; id: string; offset?: number | undefined } }): Promise<DocumentTextPage> {
   const { deps, input } = required;
   const offset = input.offset ?? 0;
   if (!Number.isSafeInteger(offset) || offset < 0) throw new MediaValidationError({ message: 'offset must be a non-negative byte offset' });

@@ -19,6 +19,7 @@ import {
   join,
 } from 'node:path';
 import {
+  RuntimeSelectionError,
   agentCapabilities,
   planRun,
   resolveNativeToolPolicy,
@@ -939,6 +940,13 @@ function stagedChildEnvOptions({ def, preparedCodexHome, preparedClaudeConfigDir
   };
 }
 
+/** A required transport refusal is actionable without exposing listener/configuration details. */
+function httpMcpPreparationMessage(injection: CreateAgentExecutorOptions['mcpJsonInjection']): string {
+  return injection?.httpPolicy === 'required'
+    ? 'AgentExecutor: this chat requires an HTTP tool connection, but it could not be prepared for this agent. Try again or choose an agent supporting HTTP MCP.'
+    : 'AgentExecutor: could not stage private HTTP MCP configuration';
+}
+
 /**
  * Creates the `AgentExecutor` reference implementation: an in-process
  * `RunLifecycle` driver over real (by default) `@jini-ai/agent-runtime`
@@ -1197,17 +1205,17 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
 
   async function selectRunModel({ input, def, launch, spawnEnv }: { input: MutableRunInput; def: RuntimeAgentDef; launch: ConfirmedAgentLaunchResolution; spawnEnv: NodeJS.ProcessEnv }, _options = {}) {
     // Locked runs pin the picker's concrete ID before any prompt is sent. Trusted parity keeps
-    // the CLI's own configured default and effort, without requiring discovery to succeed.
+    // the CLI's configured default unless an explicit effort needs the same advertised-choice check.
     if (input.cliParity && input.model === 'default') delete input.model;
     let modelCatalog: ModelCatalogSnapshot | undefined;
-    if (!input.cliParity) {
+    if (!input.cliParity || input.reasoning) {
       try {
         const selectModel = options.resolveModelForLaunch ?? ((input: Parameters<typeof resolveModelForLaunch>[0]) => resolveModelForLaunch(input, options.runtimeState ? { deps: getRuntimeModelDiscoveryDeps({ state: options.runtimeState }) } : {}));
-        const selection = await selectModel({ def, context: launchModelContext({ input, launch, spawnEnv }, {}) });
+        const selection = await selectModel({ def, context: launchModelContext({ input, launch, spawnEnv }, {}), effort: input.reasoning });
         input.model = selection.model;
         modelCatalog = selection.catalog;
-      } catch {
-        return failBeforeSpawn({ runId: input.runId, code: 'AGENT_MODEL_UNRESOLVED', message: 'AgentExecutor: pick a concrete model; the starting model could not be resolved for this launch.' });
+      } catch (error) {
+        return failBeforeSpawn({ runId: input.runId, code: 'AGENT_MODEL_UNRESOLVED', message: error instanceof RuntimeSelectionError ? `AgentExecutor: ${error.message}` : 'AgentExecutor: choose a concrete model and supported effort from this agent’s model list; the selection could not be resolved for this launch.' });
       }
     }
     return modelCatalog;
@@ -1496,7 +1504,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
         injection: mcpJsonInjection, inheritUserMcp: input.nativeToolAccess !== false && input.nativeCapabilities?.userMcp !== false });
     } catch {
       await cleanupStagedFiles();
-      return failBeforeSpawn({ runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: 'AgentExecutor: could not stage private HTTP MCP configuration' });
+      return failBeforeSpawn({ runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: httpMcpPreparationMessage(mcpJsonInjection) });
     }
     const mcpBridge = preparedHttpMcp ? null : await resolveMcpBridgeForRun({ input: { runId: input.runId, cwd: input.cwd, def, ...nativeCapabilityInput({ input }, {}) }, deps: { mcpJsonInjection, cleanupStagedFiles, failBeforeSpawn } }
     );

@@ -99,6 +99,7 @@ export function createAutomaticAgentPluginUse(
 ) {
   let state = readChatAgentPluginState({ value: initialState });
   const delivered = new Map<string, string>();
+  const inactiveDelivered = new Set<string>();
   const alreadyLoaded = new Set<string>();
   let publishedSize: number | undefined;
   let queue: Promise<unknown> = Promise.resolve();
@@ -200,16 +201,17 @@ export function createAutomaticAgentPluginUse(
     const result = shouldLoad ? (await resolveGuidance({ matches }, { signal: input.signal })).join('\n\n') : relevantPluginNote({ matches, formatPluginToolPointer: ports.formatPluginToolPointer });
     rememberAutoSelection();
     await publishUsage();
-    // Off packages never enter guidance consent or resolution. A relevant catalog line is the
-    // only disclosure, so the model can offer the existing owner-approved enable flow.
+    // Preflight never resolves off packages implicitly. A catalog line offers an explicit read;
+    // its setup guidance may explain whether enabling or credentials are needed.
     const off = offPluginNote({ catalog, input });
     return [result, off].filter(Boolean).join('\n\n');
   }
-  /** Rank only catalog-safe fields for off plugins; no capability-triggered disclosure. O(p*t). */
+  /** Rank readable metadata for off plugins; never load their tools or guidance implicitly. O(p*t). */
   function offPluginNote({ catalog, input }: { catalog: readonly AgentPluginSearchCandidate[]; input: PrepareInput }): string {
     if (!input.query) return '';
     const candidates = catalog.filter(plugin => !plugin.enabled).map(candidate => agentVisiblePluginCandidate({ candidate }));
-    return ports.rank({ query: input.query, candidates, limit: 10 }, {}).map(plugin => plugin.description ?? '').join('\n');
+    return ports.rank({ query: input.query, candidates, limit: 10 }, {}).map(plugin => [plugin.description,
+      ports.formatPluginToolPointer?.({ pluginId: plugin.pluginId, file: 'SKILL.md' })].filter(Boolean).join(' ')).join('\n');
   }
   /** Admit one explicit id using the same catalog, consent, resolver and delivery state as prepare.
    * No activation writes; unavailable guidance is retryable. O(p) local catalog lookup.
@@ -220,25 +222,32 @@ export function createAutomaticAgentPluginUse(
     if (state.excluded.includes(pluginId)) return { status: 'excluded', guidance: '' };
     const plugin = (await ports.list({}, {})).find(candidate => candidate.pluginId === pluginId);
     if (!plugin) return { status: 'missing', guidance: '' };
-    if (!plugin.enabled) return { status: 'installed-but-inactive', guidance: '' };
     return loadPermitted({ plugin, ...request }, { signal });
   }
   /** The plugin's own SKILL.md, whether defaulted or named explicitly. O(1). */
   function isPrimaryInstructions({ pluginId, skill, file }: { pluginId: string } & AgentPluginSkillRequest, _options = {}): boolean {
     return (skill === undefined || skill === pluginId) && (file === undefined || file === 'SKILL.md');
   }
+  /** Explicit content reads remain repeatable; inactive guidance is not an active-use grant. O(1). */
+  function guidanceAlreadyDelivered({ plugin, ...request }: { plugin: AgentPluginSearchCandidate } & AgentPluginSkillRequest): boolean {
+    if (request.skill !== undefined || request.file !== undefined) return false;
+    return delivered.has(plugin.pluginId) || alreadyLoaded.has(plugin.pluginId) || (!plugin.enabled && inactiveDelivered.has(plugin.pluginId));
+  }
   /** Requested content bypasses only deduplication, never consent or the resolver's trust checks.
    * Only the primary SKILL.md records full plugin delivery. O(p) consent filtering plus one read.
    */
   async function loadPermitted({ plugin, ...request }: { plugin: AgentPluginSearchCandidate } & AgentPluginSkillRequest, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<AutomaticAgentPluginLoadResult> {
-    const requestedContent = request.skill !== undefined || request.file !== undefined;
-    if (!requestedContent && (delivered.has(plugin.pluginId) || alreadyLoaded.has(plugin.pluginId))) return { status: 'already-loaded', guidance: '' };
+    if (guidanceAlreadyDelivered({ plugin, ...request })) return { status: 'already-loaded', guidance: '' };
     const matches = await applyConsent({ matches: [{ ...plugin, score: 4 }] }, { signal });
     if (!matches.length) {
       await publishUsage();
       return { status: 'excluded', guidance: '' };
     }
-    const result = await resolveOneGuidance({ plugin, ...request }, { signal });
+    let result = await resolveOneGuidance({ plugin, ...request }, { signal });
+    if (!plugin.enabled && result.status === 'loaded') {
+      if (isPrimaryInstructions({ pluginId: plugin.pluginId, ...request })) inactiveDelivered.add(plugin.pluginId);
+      result = { status: 'installed-but-inactive', guidance: `Plugin '${plugin.pluginId}' is off; its tools are unavailable.\n\n${result.guidance}` };
+    }
     if (isPrimaryInstructions({ pluginId: plugin.pluginId, ...request })) recordDelivery({ plugin, result });
     rememberAutoSelection();
     await publishUsage();

@@ -59,10 +59,6 @@
       "./widgets/html": "node",
       "./widgets/resolvers": "universal",
       "./widgets/sql": "node",
-      "./consent": "universal",
-      "./consent/html": "node",
-      "./consent/express": "node",
-      "./consent/node": "node",
       "./listing": "universal",
       "./media/plugins/document-text/unpdf": "node",
       "./media/plugins/document-text/mammoth": "node",
@@ -118,9 +114,6 @@
         "widgets": [
           "src/widgets"
         ],
-        "consent": [
-          "src/consent"
-        ],
         "listing": [
           "src/listing"
         ]
@@ -151,7 +144,7 @@
       "dompurify": "opt-in: svg sanitization; import @jini-ai/cms/media — SVG sanitization could not load dompurify. Install dompurify to enable this feature, or check its installed version and native binaries.",
       "jsdom": "opt-in: server-side html and svg processing; import @jini-ai/cms/media — Server-side HTML and SVG processing could not load jsdom. Install jsdom to enable this feature, or check its installed version and native binaries.",
       "@jini-ai/platform": "opt-in: platform-backed adapters; import @jini-ai/cms/forms/email-sender — Platform-backed adapters could not load @jini-ai/platform. Install @jini-ai/platform to enable this feature, or check its installed version and native binaries.",
-      "express": "opt-in: express route adapters; import @jini-ai/cms/consent/express — Express route adapters could not load express. Install express to enable this feature, or check its installed version."
+      "express": "opt-in: express route adapters; import @jini-ai/cms/forms/express — Express route adapters could not load express. Install express to enable this feature, or check its installed version."
     }
   },
   "type": "module",
@@ -388,26 +381,6 @@
       "types": "./dist/widgets/sql/index.d.ts",
       "import": "./dist/widgets/sql/index.js",
       "default": "./dist/widgets/sql/index.js"
-    },
-    "./consent": {
-      "types": "./dist/consent/index.d.ts",
-      "import": "./dist/consent/index.js",
-      "default": "./dist/consent/index.js"
-    },
-    "./consent/html": {
-      "types": "./dist/consent/html/index.d.ts",
-      "import": "./dist/consent/html/index.js",
-      "default": "./dist/consent/html/index.js"
-    },
-    "./consent/express": {
-      "types": "./dist/consent/express/index.d.ts",
-      "import": "./dist/consent/express/index.js",
-      "default": "./dist/consent/express/index.js"
-    },
-    "./consent/node": {
-      "types": "./dist/consent/node/index.d.ts",
-      "import": "./dist/consent/node/index.js",
-      "default": "./dist/consent/node/index.js"
     },
     "./listing": {
       "types": "./dist/listing/index.d.ts",

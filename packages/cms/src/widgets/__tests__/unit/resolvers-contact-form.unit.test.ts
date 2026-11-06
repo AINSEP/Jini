@@ -1,3 +1,4 @@
+import { captureSubmissionEvidence } from "../../../forms/submission-evidence.js";
 import assert from "node:assert/strict";
 import test from "../support/test-runner.js";
 
@@ -157,7 +158,7 @@ test("REQ-38: a formDefinitionRef alone is tried as an id first, then as the aut
   assert.deepEqual(repo.calls, ["id:ws-1:contact", "slug:ws-1:contact"]);
   assert.deepEqual(results.get("w-1"), {
     ok: true,
-    ir: { componentId: "contact-form", props: { formDefinitionId: "form-9", slug: "contact", fields: [], successMessage: null } },
+    ir: { componentId: "contact-form", props: { formDefinitionId: "form-9", schemaHash: (await captureSubmissionEvidence({ definition: definition(), capturedAt: "now", source: "native" })).schemaHash, slug: "contact", fields: [], successMessage: null } },
     dependencyKeys: ["form-9"],
   });
 });
@@ -181,7 +182,7 @@ test("REQ-38: with both keys, formDefinitionId is looked up by id and formDefini
   assert.deepEqual(repo.calls, ["id:ws-1:gone", "slug:ws-1:contact"]);
   assert.deepEqual(results.get("w-1"), {
     ok: true,
-    ir: { componentId: "contact-form", props: { formDefinitionId: "form-2", slug: "contact", fields: [], successMessage: null } },
+    ir: { componentId: "contact-form", props: { formDefinitionId: "form-2", schemaHash: (await captureSubmissionEvidence({ definition: definition(), capturedAt: "now", source: "native" })).schemaHash, slug: "contact", fields: [], successMessage: null } },
     dependencyKeys: ["form-2"],
   });
 });
@@ -240,7 +241,7 @@ test("REQ-37: an html-mode definition adds mode and its html to the props", asyn
   const result = results.get("w-1");
   assert.ok(result?.ok);
   if (!result.ok) return;
-  assert.deepEqual(result.ir.props, { formDefinitionId: "form-1", slug: "contact", fields: [], mode: "html", html: "<form></form>", successMessage: null });
+  assert.deepEqual(result.ir.props, { formDefinitionId: "form-1", schemaHash: (await captureSubmissionEvidence({ definition: { ...definition(), html: "<form></form>" }, capturedAt: "now", source: "native" })).schemaHash, slug: "contact", fields: [], mode: "html", html: "<form></form>", successMessage: null });
 });
 
 test("REQ-37: an html-mode definition with null html renders an empty html string", async () => {
@@ -262,7 +263,7 @@ test("REQ-37: a non-html mode definition carries neither mode nor html in the pr
   const result = results.get("w-1");
   assert.ok(result?.ok);
   if (!result.ok) return;
-  assert.deepEqual(Object.keys(result.ir.props), ["formDefinitionId", "slug", "fields", "successMessage"]);
+  assert.deepEqual(Object.keys(result.ir.props), ["formDefinitionId", "schemaHash", "slug", "fields", "successMessage"]);
 });
 
 test("REQ-37: a non-string successMessage config resolves successMessage: null", async () => {
@@ -300,4 +301,28 @@ test("REQ-38: an empty batch resolves an empty map without touching the repo", a
 
   assert.equal(results.size, 0);
   assert.deepEqual(repo.calls, []);
+});
+
+
+test("embed consent-off comes only from the host snapshot and is read once per resolution batch", async () => {
+  const repo = recordingRepo({ byId: [{ ...view(), provider: { id: "external", config: {} } }] });
+  const widgets = [instance({ id: 'one', config: { formDefinitionId: 'form-1', collectionConsentOff: true } }), instance({ id: 'two', config: { formDefinitionId: 'form-1' } })];
+  for (const value of [undefined, false, true]) {
+    let reads = 0;
+    const resolver = createContactFormResolver({ formDefinitionRepo: repo, ...(value === undefined ? {} : { formEmbedConsentOff: () => { reads++; return value; } }) });
+    const results = await resolver.resolveMany(widgets, CTX);
+    for (const result of results.values()) {
+      assert.ok(result.ok);
+      assert.equal(result.ir.props.collectionConsentOff, value === true ? true : undefined);
+    }
+    assert.equal(reads, value === undefined ? 0 : 1);
+  }
+});
+
+
+test("built-in forms carry no external collection consent-off flag", async () => {
+  const resolver = createContactFormResolver({ formDefinitionRepo: recordingRepo({ byId: [view()] }), formEmbedConsentOff: () => true });
+  const result = (await resolver.resolveMany([instance({ id: 'builtin', config: { formDefinitionId: 'form-1' } })], CTX)).get('builtin')!;
+  assert.ok(result.ok);
+  assert.equal(result.ir.props.collectionConsentOff, undefined);
 });

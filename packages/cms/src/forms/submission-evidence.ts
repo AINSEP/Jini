@@ -19,7 +19,7 @@ const MAX_EVIDENCE_BYTES = 1024 * 1024;
  * @complexity O(schema bytes) time and space, pure.
  * @overallScore 98 — full HTML preserves otherwise unstructured consent prose at bounded storage cost. */
 export function submissionEvidenceSchema(
-  { definition }: { definition: FormDefinitionRecord & { html?: string | undefined } },
+  { definition }: { definition: Pick<FormDefinitionRecord, 'fields'> & { html?: string | undefined } },
   _optional: Record<string, never> = {},
 ): Pick<FormSubmissionEvidence, 'fields' | 'consent' | 'html'> {
   const fields = structuredClone(definition.fields);

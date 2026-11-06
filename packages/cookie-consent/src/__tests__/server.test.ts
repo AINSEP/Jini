@@ -163,6 +163,29 @@ describe('region resolvers', () => {
     expect(headerResolver({ id: 'h', header: 'x-c' }, { usValues: ['pr'] }).resolve({ request: request({ 'x-c': 'PR' }) })).toBe('us');
   });
 
+  test('trusted country headers include US subdivisions with valid ISO-style syntax', () => {
+    const resolver = headerResolver({ id: 'h', header: 'x-country' });
+    for (const value of ['US', 'us-ca', 'Us-Ny', 'uS-dC', ' US-XX ', 'US-1', 'US-123']) {
+      expect(resolver.resolve({ request: request({ 'x-country': value }) }), value).toBe('us');
+    }
+    for (const value of ['US-evil', 'US-', 'US--CA', 'US_CA', 'US-CA-extra', 'US-CA!', 'DE-BE']) {
+      expect(resolver.resolve({ request: request({ 'x-country': value }) }), value).toBe('strict');
+    }
+    expect(resolver.resolve({ request: request({ 'other-country': 'US-CA' }) })).toBeNull();
+  });
+
+  test('custom header values retain their own country and exact subdivision permissions', () => {
+    const resolver = headerResolver({ id: 'h', header: 'x-country' }, { usValues: ['pr', 'us-ca'] });
+    for (const value of ['PR', 'pr-123', 'Us-Ca']) {
+      expect(resolver.resolve({ request: request({ 'x-country': value }) }), value).toBe('us');
+    }
+    for (const value of ['US', 'US-NY', 'US-DC', 'PR-evil']) {
+      expect(resolver.resolve({ request: request({ 'x-country': value }) }), value).toBe('strict');
+    }
+    const malformed = headerResolver({ id: 'h', header: 'x-country' }, { usValues: ['US-evil'] });
+    expect(malformed.resolve({ request: request({ 'x-country': 'US-evil' }) })).toBe('strict');
+  });
+
   test('REGION_SLOT accepts live resolvers and the data form; refuses anything else', () => {
     const resolver = live(() => 'us');
     expect(REGION_SLOT.accept({ contribution: resolver as never })).toBe(resolver);

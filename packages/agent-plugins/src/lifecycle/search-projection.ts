@@ -24,18 +24,16 @@ function shortDescription({ text }: { text: string }, { maxBytes = 240 } = {}): 
   return bytes.subarray(0, end).toString('utf8');
 }
 
-/** Keep an off plugin discoverable by identity and purpose without disclosing its instructions,
- * connection method, skills, tool names or capabilities. Admin metadata keeps its original owner.
- * @returns The original active candidate, or a catalog-only candidate for an off plugin.
- * @complexity O(1) bounded text work; no I/O or mutation.
+/** Keep readable discovery metadata for off plugins; activation still owns tool availability.
+ * @returns The active candidate, or the same searchable metadata clearly marked off.
+ * @complexity O(1) bounded text work and shallow copy; no I/O or mutation.
  */
 export function agentVisiblePluginCandidate({ candidate }: { candidate: AgentPluginSearchCandidate }, _options = {}): AgentPluginSearchCandidate {
   if (candidate.enabled) return candidate;
   const purpose = shortDescription({ text: (candidate.summary ?? candidate.description ?? '').slice(0, 1024).replace(/\s+/g, ' ').trim() }, { maxBytes: 100 });
   const label = shortDescription({ text: (candidate.displayName ?? candidate.pluginId).slice(0, 1024).replace(/\s+/g, ' ').trim() }, { maxBytes: 80 });
-  return { pluginId: candidate.pluginId, id: candidate.id ?? candidate.pluginId, enabled: false,
-    description: `installed, off: ${label}: ${purpose} — ask to turn on`,
-    skills: [], keywords: [], provides: [], mcpServerIds: [] };
+  return { ...candidate, id: candidate.id ?? candidate.pluginId, enabled: false,
+    description: `installed, off: ${label}: ${purpose} — read guidance; tools unavailable` };
 }
 
 /** Project one candidate without copying skills, keywords, credentials or host metadata. O(1). */

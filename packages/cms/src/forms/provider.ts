@@ -7,15 +7,33 @@ export interface FormCollectionCapabilities {
   readonly validation: string;
   readonly spamProtection: string;
 }
+/** Public settings only; secrets and provider credentials never belong in form definitions. */
+export interface FormProviderDescription {
+  readonly id: string;
+  readonly label: string;
+  readonly fields: readonly { readonly key: string; readonly label: string; readonly type: 'text' | 'url'; readonly helpText?: string }[];
+  readonly helpText?: string;
+  readonly answers: string;
+  readonly validation: string;
+  readonly frameOrigins: readonly string[];
+  readonly available: boolean;
+  readonly message?: string;
+}
 export type FormCollectionPlan =
   | { readonly kind: 'post'; readonly action: string; readonly external: boolean; readonly capabilities: FormCollectionCapabilities }
-  | { readonly kind: 'embed'; readonly url: string; readonly title: string; readonly capabilities: FormCollectionCapabilities }
+  | { readonly kind: 'embed'; readonly url: string; readonly title: string; readonly capabilities: FormCollectionCapabilities; readonly consent?: readonly ('necessary' | 'functional' | 'analytics' | 'marketing')[]; readonly publicUrl?: string; readonly fallbackMessage?: string }
   | { readonly kind: 'unavailable'; readonly code: 'provider_unavailable' | 'invalid_configuration'; readonly message: string };
 export interface FormCollectionProvider {
+  describe?(): Omit<FormProviderDescription, 'id' | 'available'>;
   plan(required: { readonly slug: string; readonly config: Readonly<Record<string, string>> }, optional?: Record<string, never>): FormCollectionPlan;
 }
 export type FormCollectionRegistry = ProviderRegistry<FormCollectionProvider>;
 export const FORM_COLLECTION_CONTRACT = 'form_collection';
+const BUILTIN_CAPABILITIES: FormCollectionCapabilities = {
+  answers: 'Answers are stored in the built-in inbox.',
+  validation: 'The built-in receiver validates the declared form fields.',
+  spamProtection: 'Hidden-field, timing, duplicate and rate-limit protection apply on the live server.',
+};
 
 /** Each host owns an independent registry. Plugin failures become refusals, never boot refusals.
  * @example createFormCollectionRegistry({}).get({ id: 'builtin' });
@@ -25,11 +43,37 @@ export function createFormCollectionRegistry(_required: Record<string, never>, _
   return createProviderRegistry<FormCollectionProvider>({ contract: FORM_COLLECTION_CONTRACT }, {
     defaultProviderId: 'builtin',
     validate: ({ provider }) => provider && typeof provider.plan === 'function' ? undefined : 'missing collection plan',
-    seed: [{ id: 'builtin', label: 'Built-in', provider: { plan: ({ slug }) => ({
+    seed: [{ id: 'builtin', label: 'Built-in', provider: { describe: () => ({ label: 'Built-in', fields: [], answers: BUILTIN_CAPABILITIES.answers, validation: BUILTIN_CAPABILITIES.validation, frameOrigins: [] }), plan: ({ slug }) => ({
       kind: 'post', action: `/forms/${encodeURIComponent(slug)}/submit`, external: false,
-      capabilities: { answers: 'Answers are stored in the built-in inbox.', validation: 'The built-in receiver validates the declared form fields.', spamProtection: 'Hidden-field, timing, duplicate and rate-limit protection apply on the live server.' },
+      capabilities: { ...BUILTIN_CAPABILITIES },
     }) } }],
   });
+}
+
+/** Project the registry once for every editor and assistant; unavailable settings retain their ID.
+ * A description failure affects only that provider's settings, never server startup or stored choices.
+ * @complexity O(p × d) time/space for p providers and description bytes; no I/O. */
+export function describeFormCollectionProviders({ providers }: { readonly providers: FormCollectionRegistry }, _optional: Record<string, never> = {}): readonly FormProviderDescription[] {
+  return providers.list().map(({ id, label, provider }) => {
+    const unavailable: FormProviderDescription = { id, label: label ?? id, available: false, fields: [], answers: '', validation: '', frameOrigins: [], message: 'This form provider’s settings are unavailable because its plugin is disabled or unavailable. Enable it in Plugins, or choose another form provider. Your saved selection has been kept.' };
+    try {
+      const description = provider.describe?.();
+      if (!description || !validDescription(description)) return unavailable;
+      return { ...description, id, available: true };
+    } catch { return unavailable; }
+  });
+}
+
+/** Trusted plugins can still supply broken metadata; keep malformed settings out of clients. */
+function validDescription(description: Omit<FormProviderDescription, 'id' | 'available'>): boolean {
+  if (typeof description.label !== 'string' || typeof description.answers !== 'string' || typeof description.validation !== 'string') return false;
+  if (!optionalText(description.helpText) || !Array.isArray(description.frameOrigins) || !Array.isArray(description.fields)) return false;
+  return description.frameOrigins.every(origin => typeof origin === 'string') && description.fields.every(validDescriptionField);
+}
+function optionalText(value: unknown): boolean { return value === undefined || typeof value === 'string'; }
+function validDescriptionField(field: FormProviderDescription['fields'][number]): boolean {
+  if (!field || typeof field.key !== 'string' || typeof field.label !== 'string') return false;
+  return (field.type === 'text' || field.type === 'url') && optionalText(field.helpText);
 }
 
 /** Resolve the selected provider without falling back and silently changing where answers go.

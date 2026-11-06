@@ -51,6 +51,15 @@ describe('standalone plugin catalog', () => {
     });
   });
 
+  it('ships both hosted form faces through independent shared-package subpaths with real integrity', () => {
+    const provider = entries.find(entry => entry.id === 'google-forms' && entry.kind === 'provider');
+    const agent = entries.find(entry => entry.id === 'google-forms' && entry.kind === 'agent');
+    expect(provider).toMatchObject({ packageName: '@jini-ai/provider-plugins', publisherIdentity: 'jini/google-forms', contract: { id: 'form_collection', version: 1 } });
+    expect(agent).toMatchObject({ packageName: AGENT_PLUGINS_PACKAGE, path: 'google-forms', publisherIdentity: 'jini/google-forms-agent' });
+    expect(provider?.expectedDigests?.['server/index.mjs']).toMatch(/^sha256-[a-f0-9]{64}$/);
+    expect(agent?.expectedDigests?.['skills/google-forms/SKILL.md']).toMatch(/^sha256-[a-f0-9]{64}$/);
+  });
+
   it('has no dependencies, executable exports or install hooks', async () => {
     const pkg = await readJson(path.join(root, 'package.json'));
     for (const key of ['dependencies', 'optionalDependencies', 'peerDependencies', 'devDependencies', 'bundledDependencies', 'bundleDependencies']) {

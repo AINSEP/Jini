@@ -19,13 +19,16 @@
  *   tsx scripts/publish-pending.ts --plan [--only ...]    # read-only: print what would happen
  */
 import { execFileSync, spawnSync } from 'node:child_process';
-import { appendFileSync, mkdtempSync, readdirSync } from 'node:fs';
+import { appendFileSync, mkdtempSync, readFileSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { assertJiniPackagePublicationAllowed, computeClosure, discoverJiniPackages, type JiniPackageEntry } from './lib/pack-jini-packages.js';
 import { assertPackedExports } from './lib/packed-exports.js';
 import { assertCompatiblePeerRanges } from './lib/peer-range-compatibility.js';
+import { checkPluginReleaseConsistency } from './check-plugin-packages.js';
+import { isMainModule } from './lib/is-main-module.js';
+import type { CatalogEntry } from '../packages/plugin-catalog/scripts/generate.js';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -100,18 +103,36 @@ function writeSummary(rows: ReadonlyArray<readonly [string, string]>): void {
   appendFileSync(file, `${lines.join('\n')}\n`);
 }
 
-function main(): void {
-  const argv = process.argv.slice(2);
-  const planOnly = argv.includes('--plan');
-  const registry = discoverJiniPackages(repoRoot);
-  // Check the full public release set, including already-published and optional peer declarations.
-  assertCompatiblePeerRanges({ packages: [...registry.values()].map(entry => entry.pkg) });
-  const publicNames = publishOrder(registry, computeClosure(registry, [...registry.keys()])).filter(
-    (name) => registry.get(name)!.pkg.private !== true,
-  );
-  const only = parseOnly(argv, new Set(publicNames));
-  const order = only ? publicNames.filter((name) => only.has(name)) : publicNames;
+/** Pack before checking: lifecycle hooks finish before the catalog is compared with the exact
+ * selected archives and skipped registry versions. No uploads occur here.
+ * @returns Prepared package archives to upload without running lifecycle hooks again.
+ * @throws Packing, metadata, digest and registry errors before any upload.
+ * @complexity O(B + E) payload work, plus one pack per selected pending package. */
+export async function preparePluginRelease(required: {
+  repoRoot: string; registry: ReadonlyMap<string, JiniPackageEntry>; pending: readonly string[];
+}, _optional: Record<string, never> = {}): Promise<Map<string, string>> {
+  // Prepare every tarball before validation: prepack may rebuild providers or regenerate the catalog.
+  // Upload these exact archives only after the complete plugin release set agrees.
+  const { repoRoot, registry, pending } = required;
+  const tarballs = new Map(pending.map(name => [name, packAndCheck(name, registry.get(name)!)]));
+  const pendingPackages = new Map<string, string>();
+  for (const name of ['@jini-ai/provider-plugins', '@jini-ai/agent-plugins']) {
+    const archive = tarballs.get(name);
+    if (!archive) continue;
+    execFileSync('tar', ['-xzf', archive, '-C', dirname(archive)]);
+    pendingPackages.set(`${name}@${registry.get(name)!.pkg.version}`, join(dirname(archive), 'package'));
+  }
+  const catalogArchive = tarballs.get('@jini-ai/plugin-catalog');
+  const catalog = catalogArchive ? execFileSync('tar', ['-xzOf', catalogArchive, 'package/catalog.json'], { encoding: 'utf8' })
+    : readFileSync(join(repoRoot, 'packages/plugin-catalog/catalog.json'), 'utf8');
+  await checkPluginReleaseConsistency({ entries: JSON.parse(catalog) as CatalogEntry[], pendingPackages });
+  return tarballs;
+}
 
+/** Read one registry state per selected package and retain its plan/skip outcome.
+ * @returns Pending package names and rows for the final step summary.
+ * @complexity O(p) registry commands and O(p) retained names/rows for p selected packages. */
+function publicationStates({ registry, order }: { registry: ReadonlyMap<string, JiniPackageEntry>; order: readonly string[] }): { rows: Array<[string, string]>; pending: string[] } {
   const rows: Array<[string, string]> = [];
   const pending: string[] = [];
   for (const name of order) {
@@ -125,17 +146,45 @@ function main(): void {
       rows.push([`${name}@${version}`, 'skipped: never published (no trusted publisher possible yet)']);
     }
   }
-  console.log(`\n${pending.length} of ${order.length} package(s) to publish.`);
+  return { rows, pending };
+}
 
+/** Execute the selected release or read-only plan and retain its step summary.
+ * @throws Registry, package validation or publication failures after recording a stopped result.
+ * @complexity O(p + e) package planning plus one pack/publication per pending package. */
+export async function main(): Promise<void> {
+  const argv = process.argv.slice(2);
+  const planOnly = argv.includes('--plan');
+  const registry = discoverJiniPackages(repoRoot);
+  // Check the full public release set, including already-published and optional peer declarations.
+  assertCompatiblePeerRanges({ packages: [...registry.values()].map(entry => entry.pkg) });
+  const publicNames = publishOrder(registry, computeClosure(registry, [...registry.keys()])).filter(
+    (name) => registry.get(name)!.pkg.private !== true,
+  );
+  const only = parseOnly(argv, new Set(publicNames));
+  const order = only ? publicNames.filter((name) => only.has(name)) : publicNames;
+
+  const { rows, pending } = publicationStates({ registry, order });
+  console.log(`\n${pending.length} of ${order.length} package(s) to publish.`);
   try {
-    for (const name of planOnly ? [] : pending) {
-      const tarball = packAndCheck(name, registry.get(name)!);
+    if (planOnly) {
+      for (const name of pending) rows.push([`${name}@${registry.get(name)!.pkg.version}`, 'planned: pending publication']);
+      return;
+    }
+    const tarballs = await preparePluginRelease({ repoRoot, registry, pending });
+    for (const name of pending) {
+      const tarball = tarballs.get(name)!;
       execFileSync('npm', ['publish', tarball, '--access', 'public', '--provenance'], { stdio: 'inherit' });
       rows.push([`${name}@${registry.get(name)!.pkg.version}`, 'published']);
     }
+  } catch (error) {
+    rows.push(['Release', 'stopped before completion; see the step log']);
+    throw error;
   } finally {
     writeSummary(rows);
   }
 }
 
-main();
+if (isMainModule({ moduleUrl: import.meta.url, entryPath: process.argv[1] })) {
+  main().catch(error => { console.error(error); process.exitCode = 1; });
+}

@@ -172,3 +172,28 @@ it.each(['builder', 'html'] as const)('saves collection choice and switches back
   expect(result.current.form?.fields).toEqual(originalFields);
   expect(result.current.html).toEqual(originalHtml);
 });
+
+
+it('discovers current choices without replacing an edited draft when discovery fails', async () => {
+  const { createMemoryFormsApi } = await import('../../adapters/memory.js');
+  const { useFormEditor: useCoreEditor } = await import('../hooks/use-form-editor.hooks.js');
+  let rejectDiscovery!: (reason: Error) => void;
+  const port = { ...createMemoryFormsApi({}, { forms: [formFixture()] }), listFormProviders: () => new Promise<never>((_resolve, reject) => { rejectDiscovery = reject; }) };
+  const { result } = renderHook(() => useCoreEditor({ formId: 'f1', tab: 'fields', port, navigate: vi.fn(), t: key => key }), { wrapper });
+  await waitFor(() => expect(result.current.form).not.toBeNull());
+  const selection = { id: 'fourth', config: { destination: 'kept' } };
+  act(() => { result.current.setName('Unsaved name'); result.current.setProvider(selection); });
+  await act(async () => { rejectDiscovery(new Error('offline')); });
+  await waitFor(() => expect(result.current.providersError).toBe('Could not load form providers: offline'));
+  expect(result.current.name).toBe('Unsaved name');
+  expect(result.current.provider).toEqual(selection);
+});
+it('loads arbitrary provider descriptions through its port', async () => {
+  const { createMemoryFormsApi } = await import('../../adapters/memory.js');
+  const { useFormEditor: useCoreEditor } = await import('../hooks/use-form-editor.hooks.js');
+  const providers = [{ id: 'fourth', label: 'Fourth', fields: [], answers: 'Fourth answers', validation: 'Fourth checks', frameOrigins: [], available: true }];
+  const port = createMemoryFormsApi({}, { providers });
+  const { result } = renderHook(() => useCoreEditor({ formId: 'new', tab: 'fields', port, navigate: vi.fn(), t: key => key }), { wrapper });
+  await waitFor(() => expect(result.current.providers).toEqual(providers));
+  expect(result.current.provider).toEqual({ id: 'builtin', config: {} });
+});

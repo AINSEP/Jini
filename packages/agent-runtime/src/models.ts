@@ -1,4 +1,4 @@
-import { concreteModelOptions, modelReasoningOptions } from './core/model-discovery-shared.js';
+import { validateRuntimeModelSelection } from './core/model-discovery-shared.js';
 import { defaultRuntimeState, type AgentRuntimeState } from './runtime-state.js';
 /**
  * @module models
@@ -19,28 +19,6 @@ function agentReadinessRefusal({ agent, agentId, modelId, effort }: SelectionReq
   return null;
 }
 
-/** The concrete id a pick launches: the explicit model, else the resolved default (if any). */
-function selectedModelId({ agent, modelId }: { agent: SelectableAgent; modelId?: string | undefined }): string | undefined {
-  if (modelId && modelId !== 'default') return modelId;
-  const resolution = agent.defaultModelResolution;
-  return resolution?.status === 'resolved' ? resolution.id : undefined;
-}
-
-/** Refusal for an unknown model, or an effort the selected model does not offer. */
-function modelAndEffortRefusal({ agent, agentId, modelId, effort }: SelectionRequest): string | null {
-  const choices = concreteModelOptions(agent);
-  const resolvedId = selectedModelId({ agent, modelId });
-  const model = choices.find(candidate => candidate.id === resolvedId);
-  if (modelId && modelId !== 'default' && !model) return `Unknown model '${modelId}' for '${agentId}'. Available models: ${choices.map(candidate => candidate.id).join(', ')}.`;
-  if (!effort) return null;
-  // Default must resolve before checking model-specific effort; agent-wide levels can differ.
-  if (!model) return `Default model for '${agentId}' is unresolved. Pick a concrete model before choosing effort.`;
-  // Suffix-based runtimes own effort in the model id; a second effort setting would disagree.
-  const levels = modelReasoningOptions({ agent, model });
-  if (!levels.some(candidate => candidate.id === effort)) return `Unknown effort '${effort}' for '${agentId}'. Available effort levels: ${levels.map(candidate => candidate.id).join(', ')} (empty means Default).`;
-  return null;
-}
-
 /** Validate an explicit selection against the same discovered inventory the picker displays.
  * Empty model/effort means the runtime default. Refusals include the current choices rather
  * than silently substituting a different model. Pure; O(agents + models + effort options).
@@ -55,7 +33,7 @@ export function validateRuntimeSelection({ agents, agentId, modelId, effort }: {
   const agent = agents.find(candidate => candidate.id === agentId && candidate.available);
   if (!agent) return `Unknown or unavailable agent '${agentId}'. Available agents: ${agents.filter(candidate => candidate.available).map(candidate => candidate.id).join(', ')}.`;
   const request = { agent, agentId, modelId, effort };
-  return agentReadinessRefusal(request) ?? modelAndEffortRefusal(request);
+  return agentReadinessRefusal(request) ?? validateRuntimeModelSelection(request);
 }
 
 export const DEFAULT_MODEL_OPTION: RuntimeModelOption = {

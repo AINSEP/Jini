@@ -27,3 +27,5 @@ export { InMemoryPresentationSettingsRepo } from "./repo.memory.js";
  * There is no SQLite adapter export here, deliberately — same reasoning as `workspace/index.ts`:
  * a concrete adapter names a host's schema, so hosts compose their own against the port above.
  */
+
+export type { DocumentAssets } from './document-assets.js';

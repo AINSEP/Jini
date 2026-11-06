@@ -78,7 +78,7 @@ describe('starting-model launch agreement', () => {
     const executor = createAgentExecutor({ lifecycle }, { getAgentDef: () => agent, resolveAgentLaunch: () => launch, ensureAgentCapabilities: async () => {}, applyAgentLaunchEnv: ({ env }) => env,
       spawn: (() => { spawned = true; throw new Error('Must not spawn'); }) as unknown as typeof nodeSpawn });
     const { run } = await lifecycle.start({ contextRef: 'fixture' });
-    await expect(executor.run({ runId: run.id, agentId: 'fixture', cwd: '/workspace', prompt: 'hello' })).rejects.toEqual(new AgentExecutorError({ code: 'AGENT_MODEL_UNRESOLVED', message: 'AgentExecutor: pick a concrete model; the starting model could not be resolved for this launch.' }));
+    await expect(executor.run({ runId: run.id, agentId: 'fixture', cwd: '/workspace', prompt: 'hello' })).rejects.toEqual(new AgentExecutorError({ code: 'AGENT_MODEL_UNRESOLVED', message: 'AgentExecutor: choose a concrete model and supported effort from this agent’s model list; the selection could not be resolved for this launch.' }));
     expect(spawned).toBe(false);
   });
 });
@@ -143,8 +143,25 @@ it.each(['default', 'native-routing-alias'])('trusted parity leaves default or e
   });
   const { run } = await lifecycle.start({ contextRef: 'parity' });
   await expect(executor.run({ runId: run.id, agentId: agent.id, cwd: '/workspace', prompt: 'hello' },
-    { cliParity: true, nativeToolAccess: true, permissionMode: 'bypass', model })).rejects.toMatchObject({ code: 'AGENT_SPAWN_FAILED' });
+    { cliParity: true, nativeToolAccess: true, nativeCapabilities: { userMcp: true }, permissionMode: 'bypass', model })).rejects.toMatchObject({ code: 'AGENT_SPAWN_FAILED' });
   expect(selections).toBe(0); expect(args).toEqual([model === 'default' ? [] : ['--model', model]]);
+});
+
+it('checks an explicit effort before a trusted parity launch sends a prompt', async () => {
+  const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+  const agent = def(); let spawned = false;
+  agent.discoverModels = async ({ context }) => ({ ...(await fixtureModelDiscovery.discoverModels({ context })),
+    models: [{ id: 'cli-pinned', label: 'Pinned', identityKind: 'concrete', reasoning: [{ id: 'high', label: 'High' }] }] });
+  const executor = createAgentExecutor({ lifecycle }, {
+    getAgentDef: () => agent, resolveAgentLaunch: () => launch,
+    ensureAgentCapabilities: async () => {}, applyAgentLaunchEnv: ({ env }) => env,
+    spawn: (() => { spawned = true; throw new Error('Must not spawn'); }) as unknown as typeof nodeSpawn,
+  });
+  const { run } = await lifecycle.start({ contextRef: 'parity-effort' });
+  await expect(executor.run({ runId: run.id, agentId: agent.id, cwd: '/workspace', prompt: 'hello' },
+    { cliParity: true, nativeToolAccess: true, nativeCapabilities: { userMcp: true }, permissionMode: 'bypass', model: 'cli-pinned', reasoning: 'minimal' }))
+    .rejects.toMatchObject({ code: 'AGENT_MODEL_UNRESOLVED', message: "AgentExecutor: Unknown effort 'minimal' for 'fixture'. Available effort levels: high (empty means Default)." });
+  expect(spawned).toBe(false);
 });
 
 it.each([false, true])('W5 forwards launch-scoped discovery context and declared env (parity %s)', async cliParity => {

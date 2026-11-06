@@ -27,3 +27,5 @@ export * from './request-admission.js';
 export * from "./provider.js";
 
 export * from "./submission-evidence.js";
+
+export * from "./reconcile-attachments.js";

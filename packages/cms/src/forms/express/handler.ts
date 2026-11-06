@@ -1,8 +1,12 @@
+import { formRetryFields } from "../stale-form.js";
+import { repopulateFormRetryHtml } from "../html/retry-draft.js";
+import { randomUUID } from "node:crypto";
 import { inspect } from 'node:util';
 import { redactSecrets } from '@jini-ai/core';
 import type { Request, Response } from "express";
-import { FormDefinitionNotFoundError, FormRateLimitExceededError, FormSubmissionValidationError, FormSubmissionTooFastError, FormAttachmentSpaceError } from "../errors.js";
+import { FormDefinitionNotFoundError, FormRateLimitExceededError, FormSubmissionValidationError, FormSubmissionTooFastError, FormAttachmentSpaceError, FormSchemaChangedError } from "../errors.js";
 import { renderHtmlForm, escapeFormHtml } from "../html-render.js";
+import { FORM_ATTEMPT_FIELD } from "../submission-attempts.js";
 import type { FieldDescriptor } from "../types.js";
 import type { FormDefinitionRepoPort } from "../ports.js";
 import type { SubmitFormInput } from "../submit-service.js";
@@ -267,7 +271,7 @@ export function createFormSubmitHandler(
       });
       sendFormSubmitOutcome(req, res, outcomeForSuccess(slug, result), deps);
     } catch (err) {
-      if (err instanceof FormAttachmentSpaceError) { await sendAttachmentRetry({ req, res, deps, slug, error: err }); return; }
+      if (await sendDirectRetry({ req, res, deps, slug, error: err })) return;
       if (isFlashableFailure({ error: err }) && wantsHtmlResponse(req)) {
         try {
           await setFormFlashCookieForValidationFailure(req, res, deps, slug, body);
@@ -292,6 +296,36 @@ async function sendAttachmentRetry({ req, res, deps, slug, error }: { req: Reque
   res.set("Cache-Control", "no-store");
   if (!wantsHtmlResponse(req)) { res.status(507).json({ code: error.code, error: error.message, answers: error.answers }); return; }
   const fields = error.fields.map(field => ({ ...field, default: field.type === "file" ? undefined : error.answers[field.id] })) as FieldDescriptor[];
-  const form = renderHtmlForm({ slug, fields, action: `/forms/${encodeURIComponent(slug)}/submit`, hooks: { field: "data-field", form: "data-form", success: "data-success", error: "data-error" } });
+  const form = retryAttemptToken(renderHtmlForm({ slug, fields, action: `/forms/${encodeURIComponent(slug)}/submit`, hooks: { field: "data-field", form: "data-form", success: "data-success", error: "data-error" } }));
   res.status(507).type("html").send(`<!doctype html><meta charset="utf-8"><title>Attachment needs more room</title><p role="alert">${escapeFormHtml({ value: error.message })}</p><p>Select your files again before retrying.</p>${form}`);
+}
+
+/** A stale attempt renders directly, avoiding answer-bearing cookies, redirects or persistence.
+ * @complexity O(current HTML + bounded draft bytes) time/space; no extra reads or writes. */
+function sendSchemaRetry({ req, res, slug, error }: { req: Request; res: Response; slug: string; error: FormSchemaChangedError }): void {
+  res.set("Cache-Control", "no-store");
+  if (!wantsHtmlResponse(req)) { res.status(409).json({ code: error.code, error: error.message, answers: error.draft.answers, truncated: error.draft.truncated }); return; }
+  const retry = formRetryFields({ fields: error.fields, answers: error.draft.answers }, error.draft);
+  const html = error.html === undefined ? {} : { html: repopulateFormRetryHtml({ html: error.html, fields: retry.fields }) };
+  const form = retryAttemptToken(renderHtmlForm({ slug, fields: retry.fields, action: `/forms/${encodeURIComponent(slug)}/submit`, hooks: { field: "data-field", form: "data-form", success: "data-success", error: "data-error" } }, { ...html, schemaHash: error.schemaHash }));
+  const retained = Object.entries(retry.retained).map(([name, value]) => `<dt>${escapeFormHtml({ value: name })}</dt><dd><pre>${escapeFormHtml({ value: typeof value === "string" ? value : JSON.stringify(value) })}</pre></dd>`).join("");
+  const retainedMarkup = retained ? `<h2>Previous answers to copy</h2><dl>${retained}</dl>` : "";
+  const limitNotice = error.draft.truncated ? '<p>Some answers exceeded the safe review limit and were shortened or omitted.</p>' : '';
+  res.status(409).type("html").send(`<!doctype html><meta charset="utf-8"><title>Review updated form</title><main><h1>Review updated form</h1><p role="alert">${escapeFormHtml({ value: error.message })}</p><p>Give consent again and select your files again before sending.</p>${form}${retainedMarkup}${limitNotice}</main>`);
+}
+
+/** Retries that retain answers directly never redirect or write flash cookies.
+ * @complexity O(1) dispatch, with bounded rendering owned by each retry response. */
+async function sendDirectRetry({ req, res, deps, slug, error }: { req: Request; res: Response; deps: CreateFormSubmitHandlerRequired; slug: string; error: unknown }): Promise<boolean> {
+  if (error instanceof FormSchemaChangedError) { sendSchemaRetry({ req, res, slug, error }); return true; }
+  if (error instanceof FormAttachmentSpaceError) { await sendAttachmentRetry({ req, res, deps, slug, error }); return true; }
+  return false;
+}
+
+
+/** Retry pages are fresh responses: one token deduplicates their repeated submissions without
+ * retaining the failed token or adding visitor answers to state. Timing evidence remains unknown.
+ * @complexity O(form HTML bytes) time/space; one random identifier, no persistence. */
+function retryAttemptToken(form: string): string {
+  return form.replace(/<\/form>$/, `<input type="hidden" name="${FORM_ATTEMPT_FIELD}" value="${randomUUID()}"></form>`);
 }

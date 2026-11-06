@@ -1,9 +1,9 @@
 import { createHash } from 'node:crypto';
-import type { RuntimeModelOption } from './types.js';
+import type { RuntimeModelOption, RuntimeReasoningOption, RuntimeAgentDef } from './types.js';
 import type { AgentModelDiscoveryPort, AgentDiscoveryConfiguration, DefaultModelResolution, DiscoveredModel, ModelCacheEntry, ModelCatalogSnapshot, ModelDiscoveryContext, ModelDiscoveryDeps, ModelDiscoveryProbes, ModelProbeResult } from './model-discovery-types.js';
 import { readModelConfiguration } from './model-discovery-config.js';
-import { ModelProbeError, ProbeTimeout, modelIdentityKind, normalizeDiscoveredModels, withModelProbeTimeout } from './core/model-discovery-shared.js';
-export { ModelProbeError, modelIdentityKind, normalizeDiscoveredModels, withModelProbeTimeout } from './core/model-discovery-shared.js';
+import { ModelProbeError, ProbeTimeout, RuntimeSelectionError, validateRuntimeModelSelection, modelIdentityKind, normalizeDiscoveredModels, withModelProbeTimeout } from './core/model-discovery-shared.js';
+export { RuntimeSelectionError, ModelProbeError, modelIdentityKind, normalizeDiscoveredModels, withModelProbeTimeout } from './core/model-discovery-shared.js';
 export type * from './model-discovery-types.js';
 export const MODEL_CATALOG_TTL_MS = 15 * 60_000;
 export const MODEL_NEGATIVE_TTL_MS = 30_000;
@@ -246,6 +246,8 @@ export type ModelDiscoveryDefinition = Partial<AgentModelDiscoveryPort> & {
   defaultModelEnvVar?: string;
   supportsCustomModel?: boolean;
   supportsConcreteModelSelection?: boolean;
+  reasoningOptions?: RuntimeReasoningOption[];
+  reasoningInModelId?: NonNullable<RuntimeAgentDef['reasoningInModelId']>;
 };
 /** The definition's declared env default, trimmed; undefined when unset or blank. */
 function configuredDefault(def: ModelDiscoveryDefinition, context: ModelDiscoveryContext): string | undefined {
@@ -279,7 +281,7 @@ export function modelDiscoveryForDef(
   };
 }
 /** Resolve against the actual launch scope, pinning the same ID shown by the picker. */
-export async function resolveModelForLaunch({ def, context, deps }: { def: ModelDiscoveryDefinition; context: ModelDiscoveryContext; deps: ModelDiscoveryDeps }, optional: { signal?: AbortSignal } = {}): Promise<{ model: string; catalog: ModelCatalogSnapshot; resolution: DefaultModelResolution }> {
+export async function resolveModelForLaunch({ def, context, deps, effort }: { def: ModelDiscoveryDefinition; context: ModelDiscoveryContext; deps: ModelDiscoveryDeps; effort?: string | undefined }, optional: { signal?: AbortSignal } = {}): Promise<{ model: string; catalog: ModelCatalogSnapshot; resolution: DefaultModelResolution }> {
   if (def.supportsConcreteModelSelection === false) throw new Error('This CLI cannot pin a concrete starting model.');
   const discovery = modelDiscoveryForDef({ def, deps });
   const catalog = await discovery.discoverModels({ context }, { ...optional, deps, staleWhileRevalidate: true });
@@ -289,5 +291,9 @@ export async function resolveModelForLaunch({ def, context, deps }: { def: Model
     ? { status: 'resolved', id: context.model, selectionId: context.model, source: 'config-file', resolvedAt: new Date(deps.clock.now()).toISOString(), launchFingerprint: catalog.launchFingerprint }
     : await discovery.resolveDefaultModel({ context, catalog }, { ...optional, deps });
   if (resolution.status !== 'resolved') throw new Error(resolution.reason);
+  if (effort) {
+    const refusal = validateRuntimeModelSelection({ agent: { ...def, models: catalog.models, defaultModelResolution: resolution }, agentId: def.id ?? 'runtime', modelId: resolution.id, effort });
+    if (refusal) throw new RuntimeSelectionError(refusal);
+  }
   return { model: resolution.id, catalog, resolution };
 }

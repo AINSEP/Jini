@@ -17,3 +17,6 @@ packages:
 # Resolve plain semver ranges on @jini-ai/* to the local workspace package (pnpm 10 defaults this to false,
 # which sent "^0.5.0" to the registry, where only 0.3.0 is published). Added 2026-10-02 by tovu-jini.
 linkWorkspacePackages: true
+
+# A cycle lets recursive builds run consumers before their dependencies on a clean checkout.
+disallowWorkspaceCycles: true

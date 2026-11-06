@@ -124,7 +124,8 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
  *   (`resolveAgentPluginLayout().forWorkspace(workspaceId)`), never a shared/instance-level one —
  *   see `layout.ts`'s own tenant-isolation header for why a workspace's installed packages must
  *   never be resolved against another workspace's tree.
- * @param options - Delivery mode and optional declared skill/file selection; reads stay bounded to the skill folder.
+ * @param options - Delivery mode, declared skill/file selection, and explicit read-only off-plugin discovery.
+ *   Reads stay bounded to the skill folder; off-plugin discovery grants no tool execution.
  * @returns `{ ok: true, promptPrefix }` once every ref resolves, or the FIRST `{ ok: false, reason }`
  *   encountered — a run pinning two refs where the second is ambiguous still fails clearly, rather
  *   than partially augmenting the prompt with only the first ref's content.
@@ -137,12 +138,12 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
 // ambiguity below, never create one.
 // See activation.ts for the shared activation rule. One small file read per pinned ref; the
 // fail-CLOSED `resolveAgentPluginActivation` (the same reader the per-call tool gate uses)
-// refuses on a corrupt/unreadable file instead of reading it as "nothing recorded" — injecting a
-// plugin's guidance SPENDS it exactly like a tool call, so this surface must refuse rather than
-// read a fault as consent.
+// refuses on a corrupt/unreadable file instead of reading it as "nothing recorded". Run pinning
+// still requires activation; explicit read-only discovery can inspect an off plugin's guidance
+// without granting its tools. An unreadable activation record never becomes consent.
   async function resolveAgentPluginSelection(
     { pluginRefIds, workspaceLayout }: { pluginRefIds: readonly string[]; workspaceLayout: Pick<AgentPluginWorkspaceLayout, "packages" | "root"> },
-    { deliveryMode = resolveAgentPluginDeliveryMode(), ...request }: AgentPluginSkillRequest & { deliveryMode?: AgentPluginDeliveryMode } = {},
+    { deliveryMode = resolveAgentPluginDeliveryMode(), allowInactiveGuidance = false, ...request }: AgentPluginSkillRequest & { deliveryMode?: AgentPluginDeliveryMode; allowInactiveGuidance?: boolean } = {},
   ): Promise<ResolveAgentPluginRefsResult> {
     if (pluginRefIds.length === 0) return { ok: true, promptPrefix: "" };
 
@@ -151,12 +152,15 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
     const sections: string[] = [];
     for (const pluginRefId of pluginRefIds) {
 
-      const refusal = activationRefusal(pluginRefId, await resolveAgentPluginActivation(workspaceLayout.root, pluginRefId));
+      const activation = await resolveAgentPluginActivation(workspaceLayout.root, pluginRefId);
+      const inactiveRead = allowInactiveGuidance && activation.verdict === 'inactive';
+      const refusal = activationRefusal(pluginRefId, activation, { allowInactiveGuidance });
       if (refusal !== undefined) return { ok: false, reason: refusal };
 
       const resolved = await resolveOnePluginRef({ pluginRefId, packagesDir: workspaceLayout.root, deliveryMode, bundledDigests }, request);
       if (!resolved.ok) return resolved;
-      sections.push(resolved.section);
+      const note = inactiveRead ? `Agent Plugin '${pluginRefId}' is installed, off. Read-only guidance follows; its tools are unavailable until enabled through the existing approval flow.\n\n` : '';
+      sections.push(note + resolved.section);
     }
     return { ok: true, promptPrefix: sections.join("\n\n") };
   }
@@ -167,8 +171,10 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
 // ARE here and the fix is to enable the plugin, not to install it. Telling them to install
 // something already present is the kind of wrong-but-plausible error message that costs an
 // afternoon.
-  function activationRefusal(pluginRefId: string, verdict: AgentPluginActivationVerdict): string | undefined {
+  function activationRefusal(pluginRefId: string, verdict: AgentPluginActivationVerdict,
+    { allowInactiveGuidance = false }: { allowInactiveGuidance?: boolean } = {}): string | undefined {
     if (verdict.verdict === "active") return undefined;
+    if (allowInactiveGuidance && verdict.verdict === 'inactive') return undefined;
     if (verdict.verdict === "undetermined") {
       // Native activation-read diagnostics can name the host path; the model needs only the remedy.
       return (

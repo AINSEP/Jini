@@ -1,3 +1,4 @@
+import { MediaValidationError } from '../../types.js';
 import { DOCUMENT_CONTENT_TYPES, MAX_DOCUMENT_BYTES } from '../../document-ingress.js';
 import { boundDocumentText, DocumentTextExtractionError, type DocumentTextExtraction, type DocumentTextExtractorPort } from '../../document-text.js';
 import { loadDocumentTextModule } from './optional-module.js';
@@ -47,9 +48,9 @@ async function readPages({ pdf, limits }: { pdf: PdfDocument; limits: { maxPages
 export function createUnpdfDocumentTextExtractor(_required: Record<string, never>,
   { loadModule }: { loadModule?: () => Promise<UnpdfModule> } = {}): DocumentTextExtractorPort {
   return { contentType: DOCUMENT_CONTENT_TYPES.pdf, async extract({ bytes, limits }, _optional: Record<string, never> = {}) {
+    if (bytes.byteLength > MAX_DOCUMENT_BYTES) throw new MediaValidationError({ message: `document exceeds the ${MAX_DOCUMENT_BYTES / (1024 * 1024)} MiB limit` });
     const sdk = await loadDocumentTextModule<UnpdfModule>({ name: 'unpdf', ...(loadModule ? { load: loadModule } : {}) });
     try {
-      if (bytes.byteLength > MAX_DOCUMENT_BYTES) throw new RangeError('document exceeds the 10 MiB limit');
       // Copy: PDF.js can transfer/detach its input. Disable eval and external font/wasm fetches.
       const pdf = await sdk.getDocumentProxy(Uint8Array.from(bytes), { isEvalSupported: false,
         useSystemFonts: false, disableFontFace: true, useWorkerFetch: false, useWasm: false, maxImageSize: 0 });

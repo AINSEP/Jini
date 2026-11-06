@@ -97,6 +97,21 @@ describe('auth guidance de-branding', () => {
 });
 
 describe('auth failure text classifiers', () => {
+  it.each([
+    'DEEPSEEK_API_KEY',
+    'Using DEEPSEEK_API_KEY from the environment',
+    'DEEPSEEK_API_KEY loaded; HTTP 429 rate limit exceeded',
+    'DEEPSEEK_API_KEY loaded; HTTP 503 service unavailable',
+  ])('does not classify a DeepSeek key mention as missing authentication: %s', text => {
+    expect(isDeepSeekAuthFailureText({ text })).toBe(false);
+    expect(classifyAgentAuthFailure({ agentId: 'deepseek', text })).toBeNull();
+  });
+
+  it.each(['missing', 'not set', 'required', 'unauthorized', 'invalid', 'authentication failed'])(
+    'recognizes an actual DeepSeek key problem: %s', problem => {
+      expect(isDeepSeekAuthFailureText({ text: `DEEPSEEK_API_KEY ${problem}` })).toBe(true);
+    },
+  );
   it('isCursorAuthFailureText matches common not-authenticated phrasing', () => {
     expect(isCursorAuthFailureText({ text: 'Error: not authenticated. Run cursor-agent login.' })).toBe(true);
     expect(isCursorAuthFailureText({ text: 'some unrelated stdout' })).toBe(false);

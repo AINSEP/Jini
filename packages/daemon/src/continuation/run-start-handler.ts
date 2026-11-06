@@ -26,7 +26,7 @@
  * passed by a host wiring this handler in as `RunHttpDeps.onStarted` —
  * satisfies it without either package needing to import the other's types.
  */
-import type { AgentExecutor } from '../agent-executor.js';
+import type { AgentExecutor, AgentExecutorRunInput } from '../agent-executor.js';
 
 export interface ResolveRunInputContext {
   readonly runId: string;
@@ -65,6 +65,10 @@ export interface ResolvedRunInput {
    * attached screenshot got a run whose agent could not see it, with nothing reporting why.
    */
   readonly imagePaths?: readonly string[];
+  /** Host-prepared pixels; structured stdin delivery must receive the same images as path delivery. */
+  readonly imageContents?: AgentExecutorRunInput['imageContents'];
+  /** Host-validated read-only folders; never promoted to writable extraAllowedDirs. */
+  readonly readOnlyExtraDirs?: readonly string[];
   /** Forwarded verbatim to `AgentExecutorRunInput.extraAllowedDirs` — additional host-validated directories the runtime may read. */
   readonly extraAllowedDirs?: readonly string[];
   /** Forwarded verbatim to `AgentExecutorRunInput.uploadRoot` — the trusted root pi-rpc image paths must resolve inside. */
@@ -117,6 +121,17 @@ export function createDefaultRunStartHandler(
     // Each optional field is spread only when present, never passed as an explicit `undefined`:
     // Keep absent optional fields absent on the runtime port; permission mode now defaults restricted,
     // where absent now selects the daemon's fail-closed restricted default.
-    await options.agentExecutor.run({ runId: context.run.id, agentId: resolved.agentId, prompt: resolved.prompt, cwd: resolved.cwd }, { ...(resolved.env !== undefined ? { env: resolved.env } : {}), ...(resolved.permissionMode !== undefined ? { permissionMode: resolved.permissionMode } : {}), ...(resolved.model !== undefined ? { model: resolved.model } : {}), ...(resolved.reasoning !== undefined ? { reasoning: resolved.reasoning } : {}), ...(resolved.credentialEnv !== undefined ? { credentialEnv: resolved.credentialEnv } : {}), ...(resolved.imagePaths !== undefined ? { imagePaths: resolved.imagePaths } : {}), ...(resolved.extraAllowedDirs !== undefined ? { extraAllowedDirs: resolved.extraAllowedDirs } : {}), ...(resolved.uploadRoot !== undefined ? { uploadRoot: resolved.uploadRoot } : {}) });
+    await options.agentExecutor.run({ runId: context.run.id, agentId: resolved.agentId, prompt: resolved.prompt, cwd: resolved.cwd }, { ...(resolved.env !== undefined ? { env: resolved.env } : {}), ...(resolved.permissionMode !== undefined ? { permissionMode: resolved.permissionMode } : {}), ...(resolved.model !== undefined ? { model: resolved.model } : {}), ...(resolved.reasoning !== undefined ? { reasoning: resolved.reasoning } : {}), ...(resolved.credentialEnv !== undefined ? { credentialEnv: resolved.credentialEnv } : {}), ...attachmentRunOptions(resolved) });
+  };
+}
+
+/** Preserve absent fields and forward trusted attachment delivery without changing grants. */
+function attachmentRunOptions(resolved: ResolvedRunInput): Pick<AgentExecutorRunInput, 'imagePaths' | 'imageContents' | 'readOnlyExtraDirs' | 'extraAllowedDirs' | 'uploadRoot'> {
+  return {
+    ...(resolved.imagePaths !== undefined ? { imagePaths: resolved.imagePaths } : {}),
+    ...(resolved.imageContents !== undefined ? { imageContents: resolved.imageContents } : {}),
+    ...(resolved.readOnlyExtraDirs !== undefined ? { readOnlyExtraDirs: resolved.readOnlyExtraDirs } : {}),
+    ...(resolved.extraAllowedDirs !== undefined ? { extraAllowedDirs: resolved.extraAllowedDirs } : {}),
+    ...(resolved.uploadRoot !== undefined ? { uploadRoot: resolved.uploadRoot } : {}),
   };
 }

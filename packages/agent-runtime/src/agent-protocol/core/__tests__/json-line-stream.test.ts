@@ -290,7 +290,8 @@ describe('createJsonLineStream', () => {
 
   it('abandons a multiline candidate that exceeds 256 lines and retries the current line fresh', () => {
     const messages: unknown[] = [];
-    const stream = createJsonLineStream({ onMessage: ({ message: msg }) => messages.push(msg) });
+    const errors: RangeError[] = [];
+    const stream = createJsonLineStream({ onError: error => errors.push(error), onMessage: ({ message: msg }) => messages.push(msg) });
     // Open an object that never legally closes within the line budget.
     stream.feed({ chunk: '{\n' });
     for (let i = 0; i < 260; i += 1) {
@@ -298,17 +299,20 @@ describe('createJsonLineStream', () => {
     }
     // A fresh valid line should still parse after the pending candidate is abandoned.
     stream.feed({ chunk: '{"fresh":true}\n' });
+    expect(errors.map(error => error.message)).toEqual(['Agent output multiline JSON exceeded 128000 characters or 256 lines.']);
     expect(messages).toContainEqual({ fresh: true });
   });
 
   it('abandons a multiline candidate that exceeds the byte budget and retries the current line fresh', () => {
     const messages: unknown[] = [];
-    const stream = createJsonLineStream({ onMessage: ({ message: msg }) => messages.push(msg) });
+    const errors: RangeError[] = [];
+    const stream = createJsonLineStream({ onError: error => errors.push(error), onMessage: ({ message: msg }) => messages.push(msg) });
     stream.feed({ chunk: '{\n' });
     // A single huge line pushes the candidate over 128_000 chars immediately.
     const hugeLine = `"pad": "${'x'.repeat(129_000)}"\n`;
     stream.feed({ chunk: hugeLine });
     stream.feed({ chunk: '{"fresh":true}\n' });
+    expect(errors.map(error => error.message)).toEqual(['Agent output multiline JSON exceeded 128000 characters or 256 lines.']);
     expect(messages).toContainEqual({ fresh: true });
   });
 
@@ -909,5 +913,83 @@ describe('handleJsonLine', () => {
     handleJsonLine(state, '{"a":1', onMessage);
     expect(onMessage).not.toHaveBeenCalled();
     expect(state.pendingJson).toBe('{"a":1');
+  });
+});
+
+describe('multiline aggregate budgets apply before successful JSON parsing', () => {
+  it('does not emit a valid aggregate exceeding 128000 characters', () => {
+    const messages: unknown[] = [];
+    const errors: RangeError[] = [];
+    const stream = createJsonLineStream({ onError: error => errors.push(error), onMessage: ({ message }) => messages.push(message) });
+    stream.feed({ chunk: '{\n"pad":"' + 'x'.repeat(128000) + '"}\n' });
+    stream.feed({ chunk: '{"fresh":true}\n' });
+    expect(errors.map(error => error.message)).toEqual(['Agent output multiline JSON exceeded 128000 characters or 256 lines.']);
+    expect(messages).toEqual([{ fresh: true }]);
+  });
+  it('does not emit a valid aggregate whose closing line exceeds 256 lines', () => {
+    const messages: unknown[] = [];
+    const errors: RangeError[] = [];
+    const stream = createJsonLineStream({ onError: error => errors.push(error), onMessage: ({ message }) => messages.push(message) });
+    stream.feed({ chunk: '[\n' + '0,\n'.repeat(255) + '0]\n' });
+    stream.feed({ chunk: '{"fresh":true}\n' });
+    expect(errors.map(error => error.message)).toEqual(['Agent output multiline JSON exceeded 128000 characters or 256 lines.']);
+    expect(messages).toEqual([{ fresh: true }]);
+  });
+});
+
+describe('physical JSON-RPC line bounds', () => {
+  it('reports an attachment-sized frame in plain words without delivering any of it', () => {
+    const onMessage = vi.fn(); const onError = vi.fn();
+    const stream = createJsonLineStream({ onMessage, onError });
+    stream.feed({ chunk: JSON.stringify({ content: [{ type: 'image', data: 'x'.repeat(8 * 1024 * 1024) }] }) + '\n' });
+    expect(onMessage).not.toHaveBeenCalled();
+    expect(onError).toHaveBeenCalledOnce();
+    expect(onError.mock.calls[0]?.[0].message).toBe('Agent output is too large to read: one line exceeds 8,388,608 characters. Try a smaller attachment or a new chat.');
+  });
+  it('retries a complete frame after an abandoned multiline candidate reaches its budget', () => {
+    const messages: unknown[] = [];
+    const errors: RangeError[] = [];
+    const stream = createJsonLineStream({ onError: error => errors.push(error), onMessage: ({ message }) => messages.push(message) });
+    const frame = { text: 'x'.repeat(128000) };
+    stream.feed({ chunk: '{\n' + JSON.stringify(frame) + '\n' });
+    expect(messages).toEqual([frame]);
+    expect(errors.map(error => error.message)).toEqual(['Agent output multiline JSON exceeded 128000 characters or 256 lines.']);
+    stream.feed({ chunk: '[\n' + '0,\n'.repeat(255) + '{"fresh":true}\n' });
+    expect(messages).toEqual([frame, { fresh: true }]);
+    expect(errors.map(error => error.message)).toEqual([
+      'Agent output multiline JSON exceeded 128000 characters or 256 lines.',
+      'Agent output multiline JSON exceeded 128000 characters or 256 lines.',
+    ]);
+  });
+  const limit = 8 * 1024 * 1024;
+  it('preserves single-line JSON messages above the multiline cap and up to the physical limit', () => {
+    const messages: unknown[] = [];
+    const stream = createJsonLineStream({ onMessage: ({ message }) => messages.push(message) });
+    const line = JSON.stringify({ text: 'x'.repeat(limit - 11) });
+    expect(line.length).toBe(limit);
+    stream.feed({ chunk: line }); stream.flush();
+    expect(messages).toEqual([{ text: 'x'.repeat(limit - 11) }]);
+  });
+  it('throws a visible RangeError if the host omitted its error sink', () => {
+    const stream = createJsonLineStream({ onMessage: () => { throw new Error('oversized frame was delivered'); } });
+    expect(() => stream.feed({ chunk: 'x'.repeat(limit + 1) })).toThrowError(new RangeError('Agent output is too large to read: one line exceeds 8,388,608 characters. Try a smaller attachment or a new chat.'));
+    expect(() => stream.flush()).not.toThrow();
+  });
+  it('reports a split oversized line once, discards its suffix, and resumes with the next frame', () => {
+    const messages: unknown[] = []; const errors: RangeError[] = [];
+    const stream = createJsonLineStream({ onMessage: ({ message }) => messages.push(message), onError: error => errors.push(error) });
+    stream.feed({ chunk: 'x'.repeat(limit) });
+    stream.feed({ chunk: 'y' });
+    stream.feed({ chunk: '{"forged":true}\n{"fresh":true}\n' });
+    stream.flush(); stream.flush();
+    expect(errors.map(error => error.message)).toEqual(['Agent output is too large to read: one line exceeds 8,388,608 characters. Try a smaller attachment or a new chat.']);
+    expect(messages).toEqual([{ fresh: true }]);
+  });
+  it('clears a partial multiline candidate when its next physical line overflows', () => {
+    const messages: unknown[] = []; const errors: RangeError[] = [];
+    const stream = createJsonLineStream({ onMessage: ({ message }) => messages.push(message), onError: error => errors.push(error) });
+    stream.feed({ chunk: '{\n' + 'x'.repeat(limit + 1) + '\n{"fresh":true}\n' });
+    expect(errors).toHaveLength(1);
+    expect(messages).toEqual([{ fresh: true }]);
   });
 });

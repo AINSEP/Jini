@@ -1,6 +1,8 @@
 /** @file @jini-ai/cookie-consent contract: the only module a banner, plugin or host feature needs to import.
  * Types and constants only. Every call that injects something takes (required, optional): the first
  * argument is an object of required fields/ports, the second an object of optional ones. */
+import type { ConsentAppearanceTokens } from './render/css.js';
+
 export const CONTRACT = 1 as const;
 /** Separate from the CMS engine's HttpOnly jini_consent: browsers cannot overwrite that cookie. */
 export const CONSENT_COOKIE = 'jini_choices';
@@ -58,6 +60,31 @@ export interface ConsentState {
   receipt: ReceiptStatus;
 }
 
+/** Saved host policy. Existing revisions keep their field names when execution moves to declarations. */
+export interface ConsentConfig {
+  enabled: boolean;
+  /** @deprecated Retained for saved-setting compatibility; declared scripts do not evaluate this flag. */
+  allowUnsafeEval?: boolean;
+  regionMode: 'auto' | RegionMode;
+  policyVersion: string;
+  privacyPolicyUrl: string;
+  title: string;
+  message: string;
+  acceptLabel: string;
+  rejectLabel: string;
+  preferencesLabel: string;
+  placement?: 'bottom-bar' | 'bottom-left' | 'bottom-right' | 'top-bar';
+  reopen?: 'corner' | 'link';
+  secondaryLinkLabel?: string;
+  secondaryLinkUrl?: string;
+  appearance?: ConsentAppearanceTokens;
+  customCss?: string;
+  bannerMode?: BannerMode;
+}
+
+/** Internal delivery evidence; never an analytics property or visitor identity. */
+export interface ConsentAnalyticsProof { receiptId: string; policyVersion: string }
+
 // ---- Plugin slots: an OPEN set. A kind is a string; whoever consumes a kind defines it. ----
 export interface Contribution<K extends string = string> { readonly id: string; readonly kind: K }
 export type RawContribution = Contribution & Record<string, unknown>;
@@ -111,19 +138,29 @@ export interface RegionResolver extends Contribution<typeof REGION_KIND> {
 /** Data-only form for a plugin manifest; the region slot turns it into a RegionResolver. */
 export interface HeaderRegion extends Contribution<typeof REGION_KIND> { header: string; usValues?: readonly string[] }
 
+export const BRIDGE_KIND = 'consent-bridge';
+export interface ConsentBridge extends Contribution<typeof BRIDGE_KIND> {
+  src?: string;
+  mount?(required: { api: JiniConsentApi; doc: Document }, optional?: object): void | (() => void);
+}
+
+export interface DeclaredScript { src: string; consent?: readonly Category[] }
+
 // ---- Browser API ----
 export interface ClientConfig {
   contract: 1; policy: string; regionMode: 'auto' | RegionMode; banner: BannerMode;
   /** LazyAdapter entries and any future browser kinds; unknown kinds wait for their slot. */
   plugins?: readonly RawContribution[];
+  scripts?: readonly DeclaredScript[];
   maxAgeDays?: number; cookieDomain?: string;
 }
 /** What #jini-consent-config holds: the config plus the evidence mode the host chose. */
-export type PageConfig = ClientConfig & { evidence?: Evidence };
+export type PageConfig = ClientConfig & { evidence?: Evidence; context?: string };
 export interface JiniConsentApi {
   readonly contract: 1;
   readonly plugins: PluginRegistry;
   get(): ConsentState;
+  allows(required: { consent?: readonly Category[] }, optional?: object): boolean;
   subscribe(required: { listener: (state: ConsentState) => void }, optional?: object): () => void;
   /** Denial applies before any network; GPC clamps the result and nothing can lift it. */
   set(required: { action: ConsentAction }, optional?: { choices?: Partial<Flags> }): Promise<ConsentState>;

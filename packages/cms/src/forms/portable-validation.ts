@@ -196,3 +196,14 @@ export function resolvePortableFormField({ field, value }: { field: FieldDescrip
  const validator = Object.hasOwn(portableFieldValidators, field.type) ? portableFieldValidators[field.type as keyof typeof portableFieldValidators] : undefined;
  return validator ? validator({ field, value }) : rejected("invalid_type");
 }
+
+/** Reserved page metadata is never an answer. Missing hashes preserve legacy published pages. */
+export const FORM_SCHEMA_HASH_FIELD = "_schemaHash";
+/** A present duplicate/malformed value cannot equal a canonical digest.
+ * @complexity O(digest length) time, O(1) space; no I/O. */
+export function matchesFormSchemaHash(
+  { present, submittedHash, schemaHash }: { present: boolean; submittedHash: unknown; schemaHash: string | undefined },
+  _optional = {},
+): boolean {
+  return !present || typeof submittedHash === "string" && /^[a-f0-9]{64}$/.test(submittedHash) && submittedHash === schemaHash;
+}

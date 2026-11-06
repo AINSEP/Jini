@@ -119,7 +119,7 @@ test('Library PDF: high-bit counterfeit signatures are rejected byte-for-byte', 
   }
 });
 
-test('Library: 10 MiB is inclusive and host media overrides never relax document ingress', async () => {
+test('Library: 50 MiB is inclusive and host media overrides never relax document ingress', async () => {
   const deps = fixture();
   const bytes = Buffer.alloc(MAX_DOCUMENT_BYTES, 65);
   assert.equal((await uploadMedia({ deps, input: { ...input, filename: 'max.txt', bytes } }, { maxUploadBytes: MAX_DOCUMENT_BYTES * 5 })).media.kind, 'document');
@@ -207,7 +207,7 @@ test('readDocumentText refuses unnamed rows, missing blobs and oversized stored 
   const read = () => readDocumentText({ deps, input: { workspaceId: input.workspaceId, id: media.id } });
   const blob = (await deps.blobRepo.findByHash({ workspaceId: input.workspaceId, sha256: media.source.sha256 }))!;
   (deps.blobStore as { sizeOf?: unknown }).sizeOf = async () => MAX_DOCUMENT_BYTES + 1;
-  await assert.rejects(read(), /exceeds the 10 MiB limit/);
+  await assert.rejects(read(), /exceeds the 50 MiB limit/);
   (deps.blobStore as { sizeOf?: unknown }).sizeOf = undefined;
   const findById = deps.mediaRepo.findById.bind(deps.mediaRepo);
   deps.mediaRepo.findById = async () => ({ ...media, originalFilename: null });

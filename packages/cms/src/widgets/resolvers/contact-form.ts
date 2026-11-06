@@ -1,3 +1,6 @@
+import { canonicalArgumentDigest } from "@jini-ai/core/records";
+import { submissionEvidenceSchema } from "../../forms/submission-evidence.js";
+import type { FieldDescriptor } from "../../forms/types.js";
 import { createFormCollectionRegistry, resolveFormCollectionPlan, type FormCollectionRegistry } from "../../forms/provider.js";
 import type { JsonObject } from "@jini-ai/core/primitives";
 import type { FormDefinitionReadPort, FormDefinitionView } from "./ports.js";
@@ -25,15 +28,18 @@ import type { WidgetResolveResult, WidgetResolver } from "../types.js";
 export interface ContactFormResolverDeps {
   formDefinitionRepo: FormDefinitionReadPort;
   formCollectionProviders?: () => FormCollectionRegistry;
+  /** Only explicit host consent-off policy enables immediate external embed delivery. */
+  formEmbedConsentOff?: () => boolean;
 }
 
 export function createContactFormResolver(deps: ContactFormResolverDeps, _optional = {}): WidgetResolver {
   return {
     async resolveMany(instances, context) {
       const results = new Map<string, WidgetResolveResult>();
+      const consentOff = deps.formEmbedConsentOff?.() === true;
       // Sequential: one instance's lookups finish before the next instance's lookups start.
       for (const instance of instances) {
-        results.set(instance.id, await resolveContactForm({ repo: deps.formDefinitionRepo, providers: deps.formCollectionProviders?.(), config: instance.config, workspaceId: context.workspaceId }));
+        results.set(instance.id, await resolveContactForm({ repo: deps.formDefinitionRepo, providers: deps.formCollectionProviders?.(), consentOff, config: instance.config, workspaceId: context.workspaceId }));
       }
       return results;
     },
@@ -47,7 +53,7 @@ function configString({ config, key }: { config: JsonObject; key: string }): str
 }
 
 /** Resolve one instance's config to its IR, or to the failure-isolation placeholder for it. */
-async function resolveContactForm({ repo, config, workspaceId, providers }: { providers: FormCollectionRegistry | undefined; repo: FormDefinitionReadPort; config: JsonObject; workspaceId: string }): Promise<WidgetResolveResult> {
+async function resolveContactForm({ repo, config, workspaceId, providers, consentOff }: { consentOff: boolean; providers: FormCollectionRegistry | undefined; repo: FormDefinitionReadPort; config: JsonObject; workspaceId: string }): Promise<WidgetResolveResult> {
   const formDefinitionId = configString({ config, key: "formDefinitionId" });
   const formDefinitionRef = configString({ config, key: "formDefinitionRef" });
   if (!formDefinitionId && !formDefinitionRef) return { ok: false, reason: "invalid-config" };
@@ -59,7 +65,7 @@ async function resolveContactForm({ repo, config, workspaceId, providers }: { pr
 
   return {
     ok: true,
-    ir: { componentId: "contact-form", props: contactFormProps({ definition, successMessage: configString({ config, key: "successMessage" }) ?? null, providers }) },
+    ir: { componentId: "contact-form", props: await contactFormProps({ definition, successMessage: configString({ config, key: "successMessage" }) ?? null, providers, consentOff }) },
     dependencyKeys: [definition.id],
   };
 }
@@ -73,10 +79,14 @@ async function findDefinition(
   return repo.findBySlug({ workspaceId, slug: slugFallback });
 }
 
-/** The render component's props for an active definition. */
-function contactFormProps({ definition, successMessage, providers }: { definition: FormDefinitionView; successMessage: string | null; providers: FormCollectionRegistry | undefined }): JsonObject {
+/** The render component's current schema digest and props, derived from the already-loaded definition.
+ * @complexity O(schema bytes + canonical key sorting) time/space; one local digest, no I/O. */
+async function contactFormProps({ definition, successMessage, providers, consentOff }: { consentOff: boolean; definition: FormDefinitionView; successMessage: string | null; providers: FormCollectionRegistry | undefined }): Promise<JsonObject> {
+  const schema = submissionEvidenceSchema({ definition: { fields: definition.fields as FieldDescriptor[], ...(typeof definition.html === "string" ? { html: definition.html } : {}) } });
+  const schemaHash = await canonicalArgumentDigest({ args: schema });
   return {
     formDefinitionId: definition.id,
+    ...(!definition.provider || definition.provider.id === "builtin" ? { schemaHash } : {}),
     // Closes this file's own previously-disclosed deferral ("the actual submission still
     // posts to Forms' existing public route unmodified... that is a render-component/route
     // concern, out of this resolver's scope") — the render component built for SPEC-043's
@@ -91,6 +101,7 @@ function contactFormProps({ definition, successMessage, providers }: { definitio
       mode: "html", html: definition.html ?? "",
     } : {}),
     ...(definition.provider && definition.provider.id !== "builtin" ? { collectionPlan: resolveFormCollectionPlan({ definition, providers: providers ?? createFormCollectionRegistry({}) }) as unknown as JsonObject } : {}),
+    ...(consentOff && definition.provider && definition.provider.id !== "builtin" ? { collectionConsentOff: true } : {}),
     successMessage,
   };
 }

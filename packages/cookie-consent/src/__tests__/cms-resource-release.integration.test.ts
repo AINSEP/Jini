@@ -1,20 +1,16 @@
 // @vitest-environment jsdom
-/** Contract between the real CMS resource gate and the browser bundle Tovu serves.
+/** Contract between provider-authored inert resources and the browser assets Tovu serves.
  * CONSENT_CLIENT_SOURCE=1 tests its production source entry when rebuilding is prohibited. */
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { afterEach, beforeEach, expect, test, vi } from 'vitest';
-import { gateConsentHtml } from '@jini-ai/cms/consent/html';
-import type { ConsentConfig } from '@jini-ai/cms/consent';
 import { renderBanner } from '../render/index.js';
-
-const config: ConsentConfig = { enabled: true, regionMode: 'auto', policyVersion: '1', privacyPolicyUrl: '/privacy', title: 'Your cookie choices', message: 'Choose optional cookies.', acceptLabel: 'Accept all', rejectLabel: 'Reject non-essential', preferencesLabel: 'Cookie preferences' };
 
 const SRC = 'https://www.youtube.com/embed/dQw4w9WgXcQ';
 const PAGE = `<!doctype html><html><head><title>Hero</title></head><body><main>
-<iframe id="hero" src="${SRC}" title="Hero video" allow="autoplay" loading="lazy"></iframe>
-<iframe id="second" src="${SRC}?start=30" title="Second video"></iframe>
+<template data-jini-consent-resource data-category="marketing"><iframe id="hero" src="${SRC}" title="Hero video" allow="autoplay" loading="lazy"></iframe></template>
+<template data-jini-consent-resource data-category="marketing"><iframe id="second" src="${SRC}?start=30" title="Second video"></iframe></template>
 </main></body></html>`;
 
 beforeEach(() => {
@@ -28,11 +24,8 @@ afterEach(() => {
 });
 
 async function loadPage({ html = PAGE }: { html?: string } = {}, _options = {}) {
-  const gated = gateConsentHtml({ html, config, record: null, regionMode: 'opt-in', gpc: false, endpoint: '/legacy-consent' });
-  const page = new DOMParser().parseFromString(gated, 'text/html');
-  // Test the gate's resource output with the replacement runtime. Legacy UI/CSP belong to
-  // the old engine and cannot be installed alongside the new banner's config and lifecycle.
-  page.querySelectorAll('#jini-consent, #jini-consent-config, [data-jini-consent-runtime], [data-jini-consent-style], meta[http-equiv="Content-Security-Policy"]').forEach(node => node.remove());
+  // Providers author inert templates themselves. The host never classifies or rewrites page HTML.
+  const page = new DOMParser().parseFromString(html, 'text/html');
   const rendered = renderBanner({ mode: 'jini', client: { contract: 1, policy: '1', regionMode: 'opt-in' }, copy: {} }, { evidence: { mode: 'local' } });
   document.head.innerHTML = page.head.innerHTML + rendered.head;
   document.body.innerHTML = page.body.innerHTML + rendered.body;
@@ -40,10 +33,12 @@ async function loadPage({ html = PAGE }: { html?: string } = {}, _options = {}) 
   delete window.jiniConsentQueue;
   if (process.env.CONSENT_CLIENT_SOURCE !== '1') {
     window.eval(readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../dist/client.min.js'), 'utf8'));
+    window.eval(readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../dist/extensions.min.js'), 'utf8'));
   } else {
     // Re-evaluate the actual published entry for a fresh page; no consent implementation is mocked.
     vi.resetModules();
     await import('../client.min.js');
+    await import('../extensions.min.js');
   }
   return window.jiniConsent!;
 }
@@ -54,7 +49,7 @@ async function click({ action }: { action: 'accept' | 'reject' }, _options = {})
   await vi.waitFor(() => expect(document.getElementById('jini-consent')!.hidden).toBe(true));
 }
 
-test('Accept releases real gate iframe templates immediately, in authored order, once', async () => {
+test('Accept releases provider-authored iframe templates immediately, in authored order, once', async () => {
   const api = await loadPage();
   expect(document.querySelector('iframe')).toBeNull();
   expect(document.querySelectorAll('template[data-jini-consent-resource][data-category="marketing"]')).toHaveLength(2);
@@ -81,7 +76,7 @@ test('Accept releases real gate iframe templates immediately, in authored order,
   } finally { observer.disconnect(); }
 });
 
-test('Reject keeps real gate iframe templates inert', async () => {
+test('Reject keeps provider-authored iframe templates inert', async () => {
   await loadPage();
   await click({ action: 'reject' });
   expect(window.jiniConsent!.get().allowed.marketing).toBe(false);
@@ -101,15 +96,15 @@ test('a returning visitor is released at boot using the cookie written by real A
 });
 
 test('an unknown category stays blocked even after Accept', async () => {
-  await loadPage({ html: PAGE.replace('id="hero"', 'id="hero" data-consent-category="unknown"') });
+  await loadPage({ html: PAGE.replace('data-category="marketing"', 'data-category="unknown"') });
   await click({ action: 'accept' });
   expect(document.querySelector('#hero')).toBeNull();
   expect(document.querySelector<HTMLIFrameElement>('#second')?.getAttribute('src')).toBe(SRC + '?start=30');
-  expect(document.querySelector('template[data-category="blocked"]')).not.toBeNull();
+  expect(document.querySelector('template[data-category="unknown"]')).not.toBeNull();
 });
 
-test('resource subtrees retain the gate strictest-category boundary', async () => {
-  const html = PAGE.replace('<main>', '<main data-consent-category="functional">').replace('id="hero"', 'id="hero" data-consent-category="marketing"');
+test('a provider-authored marketing resource stays denied inside a functional container', async () => {
+  const html = PAGE.replace('<main>', '<main data-consent-category="functional">');
   const api = await loadPage({ html });
   expect(document.querySelector('template[data-category="marketing"]')).not.toBeNull();
   await api.set({ action: 'save' }, { choices: { functional: true, marketing: false } });

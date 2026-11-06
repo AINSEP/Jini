@@ -6,12 +6,51 @@ import { isNonArrayRecord } from './records.js';
 /** Maximum human approval wait for one invocation, independent of execution time. */
 export const APPROVAL_WAIT_TIMEOUT_MS = 120_000;
 
-/** A host describes the action; core owns the decision lifecycle, never the card format. */
-export interface ApprovalPlan<TDescription> {
+/** An exact access change. The host rechecks this revision and authority before applying it. */
+export interface AccessApprovalResource {
+  readonly id: string;
+  readonly label: string;
+  readonly scope: { readonly personId: string; readonly siteId?: string; readonly chatId?: string };
+  readonly previous: unknown;
+  readonly proposed: unknown;
+  readonly revision: string | null;
+}
+export interface AccessApprovalDescription {
+  readonly resources: readonly AccessApprovalResource[];
+}
+
+/** A host describes the action; access changes always require a fresh human decision. */
+export type ApprovalPlan<TDescription> = {
+  readonly kind?: 'action';
   readonly ask: boolean;
   readonly description: TDescription;
   /** Only reusable escalation grants receive a key. Irreversible actions omit it. */
   readonly rememberKey?: string;
+} | {
+  readonly kind: 'access';
+  readonly ask: true;
+  readonly description: TDescription;
+  readonly access: AccessApprovalDescription;
+  readonly rememberKey?: never;
+};
+
+/** Detach the fixed disclosure and enforce its resource and UTF-8 JSON bounds before asking.
+ * No credentials belong in these values. This function grants no authority.
+ * @throws ToolInputError when no resources, over 128 resources or over 128 KiB are proposed.
+ * @complexity O(n) disclosure bytes in time and space; no I/O.
+ */
+export function snapshotAccessApproval(
+  { access }: { access: AccessApprovalDescription },
+  _options = {},
+): AccessApprovalDescription {
+  if (access.resources.length < 1 || access.resources.length > 128) {
+    throw new ToolInputError({ message: 'An access approval must describe between 1 and 128 resources. Request a smaller, explicit change.' });
+  }
+  const serialized = JSON.stringify(access);
+  if (new TextEncoder().encode(serialized).byteLength > 128 * 1024) {
+    throw new ToolInputError({ message: 'This access proposal exceeds 128 KiB. Request a smaller, explicit change.' });
+  }
+  return structuredClone(access);
 }
 export type ApprovalAnswer = { confirmed: true; choice?: string } | { confirmed: false; reason: 'declined' | 'expired' | 'abandoned' };
 
@@ -78,7 +117,7 @@ export function createApprovalHandler<TPrepared, TDescription>(
   const abandoned = (prepared: Prepared): HumanConfirmationAnswer => ({ confirmed: false, result: steps.notConfirmed({ reason: 'abandoned', prepared: prepared.value }) });
   /** A remembered grant applies only when the plan offers a key and the host bound a store. */
   const grantSlot = (plan: ApprovalPlan<TDescription>) =>
-    plan.rememberKey !== undefined && remembered ? { store: remembered, key: plan.rememberKey } : undefined;
+    plan.kind !== 'access' && plan.rememberKey !== undefined && remembered ? { store: remembered, key: plan.rememberKey } : undefined;
 
   /** Ask the host transport; record the choice and any reusable grant only on an explicit yes. */
   const askFresh = async (
@@ -100,13 +139,16 @@ export function createApprovalHandler<TPrepared, TDescription>(
       if (snapshot.signal.aborted) return { ctx: snapshot };
       const value = await steps.prepare({ ctx: snapshot }, options);
       if (snapshot.signal.aborted) return { ctx: snapshot, value };
-      const plan = await steps.describe({ ctx: snapshot, prepared: value }, options);
+      const description = await steps.describe({ ctx: snapshot, prepared: value }, options);
+      const plan = description.kind === 'access'
+        ? { ...structuredClone(description), access: snapshotAccessApproval({ access: description.access }) }
+        : description;
       return { ctx: snapshot, value, plan };
     },
     askHuman: async ({ prepared }, options = {}) => {
       const { ctx, plan } = prepared;
       if (ctx.signal.aborted || !plan) return abandoned(prepared);
-      if (!plan.ask) return confirmed();
+      if (plan.kind !== 'access' && !plan.ask) return confirmed();
       const slot = grantSlot(plan);
       if (slot) {
         const approved = await slot.store.has({ ctx, key: slot.key });
@@ -181,7 +223,11 @@ export function createBatchApprovalHandler<TPrepared, TDescription>(
       const plans: ApprovalPlan<TDescription>[] = [];
       for (const entry of prepared.entries) plans.push(await steps.describe(entry, options));
       if (!prepared.batch) return plans[0]!;
-      return { ask: plans.some(plan => plan.ask), description: combineDescriptions({ descriptions: plans.map(plan => plan.description) }) };
+      const description = combineDescriptions({ descriptions: plans.map(plan => plan.description) });
+      const accessPlans = plans.filter(plan => plan.kind === 'access');
+      if (accessPlans.length > 0) return { kind: 'access', ask: true, description,
+        access: { resources: accessPlans.flatMap(plan => plan.access.resources) } };
+      return { ask: plans.some(plan => plan.ask), description };
     },
     askHuman: steps.askHuman,
     run: async ({ prepared, confirmer, choice }, options) => {

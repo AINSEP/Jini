@@ -16,7 +16,8 @@
       "./rate-limit": "node",
       "./middleware": "node",
       "./verified-origin": "universal",
-      "./observability": "node"
+      "./observability": "node",
+      "./html-response": "node"
     },
     "runtime": "node"
   },
@@ -49,6 +50,11 @@
       "types": "./dist/observability.d.ts",
       "import": "./dist/observability.js",
       "default": "./dist/observability.js"
+    },
+    "./html-response": {
+      "types": "./dist/html-response.d.ts",
+      "import": "./dist/html-response.js",
+      "default": "./dist/html-response.js"
     }
   },
   "files": [

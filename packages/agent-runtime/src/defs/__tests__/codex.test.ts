@@ -289,7 +289,7 @@ describe('codexAgentDef.buildArgs', () => {
     expect(codexAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: '' } })).not.toContain('--model');
   });
 
-  it('adds a -c model_reasoning_effort override for a concrete reasoning selection (clamped via clampCodexReasoning)', () => {
+  it('adds a -c model_reasoning_effort override for a concrete reasoning selection', () => {
     setPlatform('darwin');
     const args = codexAgentDef.buildArgs({ prompt: 'hi', imagePaths: [] }, { extraAllowedDirs: [], options: { model: 'gpt-5', reasoning: 'high' } });
     expect(args).toContain('model_reasoning_effort="high"');
@@ -550,4 +550,12 @@ describe('codexAgentDef.discoverModels', () => {
     expect(catalog.freshness).toBe('fresh');
     expect(catalog.models).toEqual([expect.objectContaining({ id: 'gpt-x', label: 'GPT X' })]);
   });
+});
+
+
+it('forwards an explicit effort byte-exact rather than silently clamping it by model name', () => {
+  for (const [model, reasoning] of [['gpt-5.5', 'minimal'], ['gpt-5.1', 'xhigh'], ['gpt-5.1-codex-mini', 'low']] as const) {
+    const args = codexAgentDef.buildArgs({ prompt: 'hello', imagePaths: [] }, { options: { model, reasoning } });
+    expect(args).toContain(`model_reasoning_effort="${reasoning}"`);
+  }
 });

@@ -1,6 +1,26 @@
 import { expect, test } from 'vitest';
-import { projectAgentPluginSearchPage } from '../../index.js';
+import { agentVisiblePluginCandidate, projectAgentPluginSearchPage } from '../../index.js';
+import { rankInstalledAgentPlugins } from '../test-support.js';
 import type { AgentPluginSearchCandidate } from '../../search.js';
+
+test('off plugin guidance remains discoverable through skills, capabilities and MCP identity without enabling it', () => {
+  const candidate: AgentPluginSearchCandidate = { pluginId: 'provider', enabled: false,
+    description: 'Connect using the built-in account flow; no personal API key is needed.',
+    keywords: ['sendmail'], provides: ['mail-transactional'], mcpServerIds: ['provider-account'],
+    skills: [{ name: 'mail-setup', summary: 'Connect your mailbox with the built-in account flow' }] };
+  const before = structuredClone(candidate);
+  const visible = agentVisiblePluginCandidate({ candidate });
+  expect(visible.enabled).toBe(false);
+  expect(visible.description).toContain('installed, off');
+  expect(visible.skills).toEqual(candidate.skills);
+  expect(visible.provides).toEqual(candidate.provides);
+  expect(visible.mcpServerIds).toEqual(candidate.mcpServerIds);
+  expect(visible.description).toContain('no personal API key is needed');
+  for (const query of ['mailbox', 'sendmail', 'mail-transactional']) {
+    expect(rankInstalledAgentPlugins(query, [candidate], 10).map(match => match.pluginId)).toEqual(['provider']);
+  }
+  expect(candidate).toEqual(before);
+});
 
 const candidates = Array.from({ length: 44 }, (_, i) => ({
   pluginId: `plugin-${i}`, id: `example/plugin-${i}`, enabled: i % 2 === 0, maturity: 'untested',
@@ -39,7 +59,7 @@ test('byte-bounded pages preserve ordering and full enumeration, including overl
 test('empty/end pages and metadata fallbacks remain compact and invalid budgets cannot stall paging', () => {
   const minimal = [{ pluginId: 'minimal', enabled: false, keywords: [], skills: [], mcpServerIds: [] }];
   expect(projectAgentPluginSearchPage({ candidates: minimal, offset: 0, limit: 10, totalInstalled: 1 })).toEqual({
-    matches: [{ id: 'minimal', pluginId: 'minimal', enabled: false, description: 'installed, off: minimal:  — ask to turn on' }], totalInstalled: 1, totalMatches: 1, nextOffset: null,
+    matches: [{ id: 'minimal', pluginId: 'minimal', enabled: false, description: 'installed, off: minimal:  — read guidance; tools unavailable' }], totalInstalled: 1, totalMatches: 1, nextOffset: null,
   });
   expect(projectAgentPluginSearchPage({ candidates: [], offset: 0, limit: 10, totalInstalled: 3 })).toEqual({ matches: [], totalInstalled: 3, totalMatches: 0, nextOffset: null });
   expect(projectAgentPluginSearchPage({ candidates: minimal, offset: 5, limit: 10, totalInstalled: 1 }).matches).toEqual([]);

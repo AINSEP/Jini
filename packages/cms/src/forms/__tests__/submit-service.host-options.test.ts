@@ -324,7 +324,7 @@ test("submitForm: a repeat is suppressed for the window measured from acceptance
   const minute = 60_000;
   const { deps, advance } = makeClockedDeps(1000 * minute + 1000);
   await deps.definitionRepo.create(makeDefinition());
-  const input = { workspaceId: WORKSPACE_ID, slug: "contact", body: ADA, sourceIp: "4.4.4.4" };
+  const input = attempt("tok-window");
 
   await submitForm({ deps, input });
   advance(DUPLICATE_SUBMISSION_WINDOW_MS - 1);
@@ -359,7 +359,7 @@ test("submitForm: concurrent copies straddling a minute boundary still store one
   });
   const fixedClock = { nowMs: () => boundary };
   const clocked = { ...deps, submissionRepo, clock, rateLimiter: createRateLimiter({ profile: FORMS_SUBMIT_PROFILE, clock: fixedClock }) };
-  const input = { workspaceId: WORKSPACE_ID, slug: "contact", body: ADA, sourceIp: "4.4.4.4" };
+  const input = attempt("tok-window");
 
   const results = await Promise.all([submitForm({ deps: clocked, input }), submitForm({ deps: clocked, input })]);
 
@@ -367,7 +367,7 @@ test("submitForm: concurrent copies straddling a minute boundary still store one
   assert.equal((await storedSubmissions(deps)).length, 1);
 });
 
-test("submitForm: without a token, the same body from the same IP collapses; another IP, body or form does not", async () => {
+test("submitForm: without a token, identical answers behind one IP are distinct submissions", async () => {
   const deps = makeDeps();
   await deps.definitionRepo.create(makeDefinition());
   await deps.definitionRepo.create(makeDefinition({ id: "def-2", slug: "other" }));
@@ -379,7 +379,17 @@ test("submitForm: without a token, the same body from the same IP collapses; ano
   await submitForm({ deps, input: { ...input, sourceIp: "5.5.5.5" } });
   await submitForm({ deps, input: { ...input, slug: "other" } });
 
-  assert.equal((await storedSubmissions(deps)).length, 3);
+  assert.equal((await storedSubmissions(deps)).length, 4);
+});
+
+test("submitForm: malformed tokens never deduplicate otherwise valid submissions", async () => {
+  for (const token of [null, "", "   ", 42, ["token"], { token: "value" }]) {
+    const deps = makeDeps();
+    await deps.definitionRepo.create(makeDefinition());
+    const input = { workspaceId: WORKSPACE_ID, slug: "contact", body: { ...ADA, [FORM_ATTEMPT_FIELD]: token }, sourceIp: "4.4.4.4" };
+    await Promise.all([submitForm({ deps, input }), submitForm({ deps, input })]);
+    assert.equal((await storedSubmissions(deps)).length, 2, JSON.stringify(token));
+  }
 });
 
 test("submitForm: a failed enqueue rolls the row back, and the retry of that same attempt stores it with its event", async (t) => {

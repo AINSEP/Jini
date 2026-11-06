@@ -10,6 +10,10 @@ const input = {
 };
 
 describe('readable question answers', () => {
+  it('preserves large multi-selection answers without exceeding the argument stack', () => {
+    const selections = Array.from({ length: 200_000 }, (_, index) => `selection-${index}`);
+    expect(questionAnswerText({ answer: { choice: 'first', selections } })).toBe(['first', ...selections].join(', '));
+  });
   it('maps option ids and label-defaulted values through the same question owner', () => {
     const input = { options: [{ id: 'guide-id', label: 'Site guide' }, { label: 'Continue' }] };
     expect(questionAnswerText({ input, answer: { selections: ['guide-id', 'Continue'] } })).toBe('Site guide, Continue');

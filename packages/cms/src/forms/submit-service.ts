@@ -1,3 +1,5 @@
+import { assertCurrentFormSchema } from "./stale-form.js";
+import { FORM_SCHEMA_HASH_FIELD } from "./portable-validation.js";
 import { captureSubmissionEvidence } from "./submission-evidence.js";
 import { formatErrorForLog } from '@jini-ai/core';
 /**
@@ -19,7 +21,7 @@ import { formatErrorForLog } from '@jini-ai/core';
  *
  * Double submit (2026-10-05): a double-clicked Send posts the same form twice and the rendered form
  * ships no script, so the dedupe is server-side — see `submission-attempts.ts` for the attempt token,
- * its cached/static fallback and why it lives in process memory. Ids are random; the submission row
+ * why tokenless callers remain independent and why it lives in process memory. Ids are random; the submission row
  * and its event are written in one transaction, so a failed enqueue leaves nothing a retry could
  * mistake for a finished submission.
  */
@@ -75,8 +77,8 @@ export interface SubmitFormRequired {
  * Binds the host's outbox delivery to Jini's anonymous submission service. The package awaits the
  * object-shaped limiter check and queues delivery without awaiting notifications.
  *
- * A repeat of an attempt accepted within the window (same token, or for a request without one the
- * same IP and body) is answered exactly like the original — `accepted` — with no row, no event and
+ * A repeat of an attempt accepted within the window (same usable explicit token) is answered
+ * exactly like the original — `accepted` — with no row, no event and
  * no notification. It still passes the slug, honeypot, validation and rate checks first (and so
  * consumes a rate-limit slot, as any request does): the attempt is claimed only where the package
  * opens its persistence transaction, and a copy that must wait for the first copy waits there,
@@ -91,8 +93,11 @@ export interface SubmitFormRequired {
  */
 export async function submitForm(required: SubmitFormRequired, optional: SubmitFormOptional = {}): Promise<{ status: "accepted" }> {
   const { deps } = required;
-  const { input, attemptToken } = splitAttemptToken({ input: required.input }, optional);
-  const { definition, originalDefinition } = await resolveActiveDefinition({ deps, input }, optional);
+  const { input: pageInput, attemptToken } = splitAttemptToken({ input: required.input }, optional);
+  const { definition, originalDefinition } = await resolveActiveDefinition({ deps, input: pageInput }, optional);
+  const body = { ...pageInput.body };
+  delete body[FORM_SCHEMA_HASH_FIELD];
+  const input = { ...pageInput, body };
 
   // Discard before validation, rate limiting or writes; a bot sees the same accepted response
   // without consuming capacity or creating a submission/event.
@@ -100,13 +105,15 @@ export async function submitForm(required: SubmitFormRequired, optional: SubmitF
     return { status: "accepted" };
   }
 
+  await assertCurrentFormSchema({ original: originalDefinition, definition, body: pageInput.body });
+  if (optional.validateEmails) assertSubmissionEmails({ definition, body: input.body });
   const validation = assertValidSubmission({ deps, definition, body: input.body });
   assertSubmissionTiming({ deps, input, attemptToken }, optional);
   await assertWithinRateLimit({ deps, input, definition });
 
   const records = await buildSubmissionRecords({ deps, input, definition: originalDefinition, data: validation.data });
   const persist = () => persistSubmission({ deps, input, ...records, files: validation.files ?? {} });
-  if (optional.attempts) {
+  if (optional.attempts && typeof attemptToken === "string" && attemptToken.trim().length > 0) {
     // The attempt is claimed only where persistence begins, after validation and rate limiting.
     // A copy waits outside the database transaction; failed first copies free the claim for retry.
     const outcome = await optional.attempts.once({
@@ -150,7 +157,7 @@ function splitAttemptToken(
 
 async function resolveActiveDefinition(
   { deps, input }: { deps: SubmitFormDeps; input: SubmitFormInput },
-  { definitionView, validateEmails }: Pick<SubmitFormOptional, "definitionView" | "validateEmails"> = {},
+  { definitionView }: Pick<SubmitFormOptional, "definitionView"> = {},
 ): Promise<{ definition: FormDefinitionRecord; originalDefinition: FormDefinitionRecord }> {
   // Missing and disabled slugs are deliberately indistinguishable to public callers.
   const stored = await deps.definitionRepo.findBySlug({ workspaceId: input.workspaceId, slug: input.slug });
@@ -159,7 +166,6 @@ async function resolveActiveDefinition(
   if (!definition || definition.status !== "active" || !usesBuiltinCollection({ definition: stored! })) {
     throw new FormDefinitionNotFoundError({ message: `form '${input.slug}' was not found` });
   }
-  if (validateEmails) assertSubmissionEmails({ definition, body: input.body });
   // Validation views can widen code-unit limits for emoji answers; they are not the authored schema.
   return { definition, originalDefinition: stored! };
 }

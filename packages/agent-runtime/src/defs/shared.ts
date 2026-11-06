@@ -4,8 +4,8 @@
  * Small helpers shared across the per-CLI def literals: re-exports of
  * `execAgentFile`/`DEFAULT_MODEL_OPTION` for convenience, the injected
  * `detectAcpModels`/`parsePiModels` (see `../acp-model-probe.ts` /
- * `../pi-models.ts` for why these are ports, not direct lifts), and two
- * small generic parsers (`clampCodexReasoning`, `parseLineSeparatedModels`).
+ * `../pi-models.ts` for why these are ports, not direct lifts), and the
+ * small generic parser `parseLineSeparatedModels`.
  *
  */
 import { detectAcpModels } from '../acp-model-probe.js';
@@ -68,27 +68,6 @@ export function buildClaudeMcpConfigArgs(runtimeContext: RuntimeContext, options
 function claudeUserMcpLocked({ options }: { options: ClaudeMcpOptions }, _optional = {}): boolean {
   return options.nativeToolAccess === false || options.nativeCapabilities?.userMcp === false ||
     (options.filesystemRoot !== undefined && options.nativeCapabilities?.userMcp !== true);
-}
-
-/** Model-id prefixes of the late gpt-5.x family, which rejects `minimal` effort. */
-const GPT5_LATE_FAMILY_PREFIXES = ['gpt-5.2', 'gpt-5.3', 'gpt-5.4', 'gpt-5.5'];
-
-/** True for the empty/`default` id (the CLI's own default model) or a late gpt-5.x id. */
-function isGpt5LateFamily(id: string): boolean {
-  return id === '' || id === 'default' || GPT5_LATE_FAMILY_PREFIXES.some((prefix) => id.startsWith(prefix));
-}
-
-export function clampCodexReasoning(modelId: string | null | undefined, effort: string | null | undefined) {
-  if (!effort) return effort;
-  const raw = String(modelId ?? '').trim();
-  // Strip any provider prefix ("openai/gpt-5.2" -> "gpt-5.2"); a trailing "/" leaves "".
-  const id = raw.slice(raw.lastIndexOf('/') + 1);
-  if (isGpt5LateFamily(id) && effort === 'minimal') return 'low';
-  if (id === 'gpt-5.1' && effort === 'xhigh') return 'high';
-  if (id === 'gpt-5.1-codex-mini') {
-    return effort === 'high' || effort === 'xhigh' ? 'high' : 'medium';
-  }
-  return effort;
 }
 
 // Parse one-id-per-line stdout from `<cli> models` and prepend the synthetic

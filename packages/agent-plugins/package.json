@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/agent-plugins",
-  "version": "0.6.23",
+  "version": "0.6.24",
   "description": "Support for Agent Plugins: vendor-neutral manifest types and validators, installation, activation, digests and trusted contribution loading. Every Jini agent plugin ships here as its own subpath (@jini-ai/agent-plugins/<id>); resolving one never loads another plugin's files.",
   "license": "Apache-2.0",
   "repository": {
@@ -90,7 +90,9 @@
       "./software-engineering/*": "universal",
       "./commerce": "universal",
       "./commerce/*": "universal",
-      "./commerce/server": "node"
+      "./commerce/server": "node",
+      "./google-forms": "universal",
+      "./google-forms/*": "universal"
     },
     "isolation": {
       "entries": {
@@ -240,10 +242,13 @@
       "import": "./core/commerce-server.mjs",
       "default": "./core/commerce-server.mjs"
     },
-    "./commerce/*": "./commerce/*"
+    "./commerce/*": "./commerce/*",
+    "./google-forms": "./google-forms/plugin.json",
+    "./google-forms/*": "./google-forms/*"
   },
   "files": [
     "formspree",
+    "google-forms",
     "dist",
     "README.md",
     "CHANGELOG.md",

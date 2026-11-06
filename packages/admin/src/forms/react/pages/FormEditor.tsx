@@ -23,7 +23,7 @@ export interface FormEditorProps {
  * scope — every branch inside it would still count toward `FormEditor`'s own complexity score. */
 export function FormEditor({ formId, tab, useFormEditorHook = useWiredFormEditor }: FormEditorProps, _optional: Record<string, never> = {}) {
   const {
-    answerColumns, provider, setProvider,
+    answerColumns, provider, setProvider, providers, providersError,
     mode, onModeChange, html, setHtml, copyEmbed, copyFeedback,
     isNew,
     form,
@@ -66,7 +66,7 @@ export function FormEditor({ formId, tab, useFormEditorHook = useWiredFormEditor
   const fieldsBody = (
     <FormEditorFieldsBody
       mode={mode} onModeChange={onModeChange} html={html} onHtmlChange={setHtml} onCopyEmbed={copyEmbed} copyFeedback={copyFeedback}
-      provider={provider} onProviderChange={setProvider}
+      provider={provider} onProviderChange={setProvider} providers={providers} providersError={providersError}
       name={name}
       onNameChange={setName}
       slug={slug}

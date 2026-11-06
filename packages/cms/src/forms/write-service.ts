@@ -31,10 +31,12 @@ import type {
   NotifyConfig,
 } from "./types.js";
 
-import { validateFormProviderSelection } from "./provider.js";
+import { resolveFormCollectionPlan, validateFormProviderSelection, type FormCollectionRegistry } from "./provider.js";
 import type { FormAuthoring, HtmlFormDefinitionRecord } from "./fields-json.js";
 
 export interface FormWriteServiceDeps {
+  /** Current host registry; selected providers validate their public settings before a write. */
+  formCollectionProviders?: () => FormCollectionRegistry;
   /** Host-bound audited command gateway; no runtime CMS implementation is imported. */
   executeCommand: FormCommandExecutorPort;
   repo: FormDefinitionRepoPort;
@@ -153,7 +155,7 @@ export async function createFormDefinition(
   validateNameAndSlug(input.name, input.slug, deps.reservedSlugs);
   assertValidFields(input.fields);
   const notify = validateNotify(optional.notify);
-  assertProvider(input.provider);
+  assertProvider({ provider: input.provider, slug: input.slug, providers: deps.formCollectionProviders?.() });
 
   const definitionId = deps.idGen.newId();
 
@@ -270,7 +272,7 @@ export async function updateFormDefinition(
         }
 
         const notify = input.patch.notify !== undefined ? validateNotify(input.patch.notify) : existing.notify;
-        assertProvider(input.patch.provider);
+        assertProvider({ provider: input.patch.provider, slug: existing.slug, providers: deps.formCollectionProviders?.() });
 
         const definition: HtmlFormDefinitionRecord = {
           ...existing,
@@ -391,11 +393,13 @@ async function updateAuthoredFormDefinition(
   }, writeOptions);
 }
 
-/** Convert configuration faults into the existing field-error contract, before persistence.
- * @complexity O(c) time/space for public configuration bytes; no I/O.
- * @overallScore 97 — Recommended: provider-specific validity is resolved by the active collection plan. */
-function assertProvider(provider: FormAuthoring["provider"]): void {
+/** Convert public settings and provider-plan faults into the field-error contract before persistence.
+ * @complexity O(c) for bounded configuration bytes plus the provider's pure plan; no I/O. */
+function assertProvider({ provider, slug, providers }: { provider: FormAuthoring["provider"]; slug: string; providers: FormCollectionRegistry | undefined }): void {
   if (provider === undefined) return;
   try { validateFormProviderSelection({ selection: provider }); }
   catch (error) { throw new FormFieldValidationError({ message: error instanceof Error ? error.message : "Invalid form provider", fieldErrors: [{ field: "provider", reason: "must contain only public form configuration" }] }); }
+  if (!providers) return;
+  const plan = resolveFormCollectionPlan({ definition: { slug, provider }, providers });
+  if (plan.kind === 'unavailable') throw new FormFieldValidationError({ message: plan.message, fieldErrors: [{ field: "provider", reason: plan.message }] });
 }

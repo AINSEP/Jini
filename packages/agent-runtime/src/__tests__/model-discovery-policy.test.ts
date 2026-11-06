@@ -666,3 +666,33 @@ describe('resolveModelForLaunch', () => {
       .rejects.toThrow('The configured selection has no concrete model evidence.');
   });
 });
+
+
+describe('launch effort uses exact selection validation', () => {
+  const def = { id: 'fixture', fallbackModels: [{ id: 'chosen', label: 'Chosen', reasoning: [{ id: 'high', label: 'High' }] }] };
+  it('refuses unsupported explicit effort with current choices instead of substituting', async () => {
+    await expect(resolveModelForLaunch({ def, context: { ...context, model: 'chosen' }, effort: 'minimal', deps: hostDeps() }))
+      .rejects.toThrow('Available effort levels: high');
+  });
+  it('retains the chosen model and advertised effort, leaving omission to the runtime', async () => {
+    expect((await resolveModelForLaunch({ def, context: { ...context, model: 'chosen' }, effort: 'high', deps: hostDeps() })).model).toBe('chosen');
+    expect((await resolveModelForLaunch({ def, context: { ...context, model: 'chosen' }, deps: hostDeps() })).model).toBe('chosen');
+  });
+});
+
+
+it('validates effort against a freshly resolved default absent from the visible catalog', async () => {
+  const def = { id: 'fixture', fallbackModels: [{ id: 'visible', label: 'Visible' }], reasoningOptions: [{ id: 'default', label: 'Default' }, { id: 'high', label: 'High' }],
+    resolveDefaultModel: async () => ({ status: 'resolved' as const, id: 'hidden-concrete-v2', source: 'rpc' as const, resolvedAt: 'now', launchFingerprint: 'scope' }) };
+  for (const effort of ['default', 'high']) {
+    expect((await resolveModelForLaunch({ def, context, effort, deps: hostDeps() })).model).toBe('hidden-concrete-v2');
+    expect((await resolveModelForLaunch({ def, context: { ...context, model: 'custom-concrete-v3' }, effort, deps: hostDeps() })).model).toBe('custom-concrete-v3');
+  }
+});
+
+it('keeps configured and custom models launchable with stored effort when discovery returns no rows', async () => {
+  const def = { id: 'fixture', fallbackModels: [], defaultModelEnvVar: 'FIXTURE_MODEL', reasoningOptions: [{ id: 'high', label: 'High' }] };
+  const configuredContext = { ...context, env: { ...context.env, FIXTURE_MODEL: 'configured-v2' } };
+  expect((await resolveModelForLaunch({ def, context: configuredContext, effort: 'high', deps: hostDeps() })).model).toBe('configured-v2');
+  expect((await resolveModelForLaunch({ def, context: { ...configuredContext, model: 'custom-v3' }, effort: 'high', deps: hostDeps() })).model).toBe('custom-v3');
+});

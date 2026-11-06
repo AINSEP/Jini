@@ -423,7 +423,7 @@ export function attachPiRpcSession(requiredArgs: Pick<PiRpcSessionOptions, "chil
   };
 
   // ---- Inbound: parse stdout events ----
-  const parser = createJsonLineStream({ onMessage: ({ message: raw }: { message: unknown }) => {
+  const parser = createJsonLineStream({ onError: error => fail(`parser: ${error.message}`), onMessage: ({ message: raw }: { message: unknown }) => {
     if (!isRecord(raw)) return;
     // Once finished (agent_end or abort), stop processing — the run is
     // over, so no more agent events should be emitted. We still drain

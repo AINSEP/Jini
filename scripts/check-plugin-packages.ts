@@ -1,14 +1,18 @@
 /** Workspace/publish wiring for the isolation policy; never builds or loads plugin code. */
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import * as semver from 'semver';
+import { isDeepStrictEqual } from 'node:util';
 import { join, relative, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { assertAgentPluginSubpathExports, assertPluginPackageIsolation, type PluginIsolationManifest } from './check-plugin-isolation.js';
-import { AGENT_PLUGINS_PACKAGE } from './lib/agent-plugin-packages.js';
+import { AGENT_PLUGINS_PACKAGE, isPublishedAgentPluginFile } from './lib/agent-plugin-packages.js';
 import { discoverJiniPackages, type JiniPackageEntry } from './lib/pack-jini-packages.js';
 import { parseNpmPackJson } from './lib/npm-pack-json.js';
 import { assertPackedExports } from './lib/packed-exports.js';
+import { catalogEntry, type CatalogEntry } from '../packages/plugin-catalog/scripts/generate.js';
+import { computePluginIntegrity } from '@jini-ai/plugins/host/node';
 
 interface PackageInventory { manifest: PluginIsolationManifest & { exports?: unknown }; packedPaths: readonly string[] }
 export interface PluginPackageCheckPorts {
@@ -85,6 +89,92 @@ export function checkPluginPackages(
     }
   }
   return violations;
+}
+
+type ReleasePorts = { publishedPackage(input: { name: string; version: string }): Promise<string | undefined> };
+type PluginManifest = Parameters<typeof catalogEntry>[0]['pluginManifest'];
+
+/** Read immutable registry tarballs, never lifecycle hooks. Only an explicit registry 404 is absent.
+ * The caller owns scratch cleanup and caches packages shared by catalog records. */
+async function publishedPluginPackage(required: { name: string; version: string; scratch: string }): Promise<string | undefined> {
+  const result = spawnSync('npm', ['pack', `${required.name}@${required.version}`, '--ignore-scripts', '--json',
+    '--cache', join(required.scratch, 'cache'), '--pack-destination', required.scratch], { encoding: 'utf8' });
+  if (result.status !== 0) {
+    if (/\bE404\b/.test(result.stderr)) return undefined;
+    throw new Error(`Registry plugin lookup failed for ${required.name}@${required.version}: ${result.stderr}`);
+  }
+  const archive = join(required.scratch, parseNpmPackJson({ stdout: result.stdout }).filename);
+  const destination = mkdtempSync(join(required.scratch, 'unpacked-'));
+  execFileSync('tar', ['-xzf', archive, '-C', destination]);
+  return join(destination, 'package');
+}
+
+async function pluginDigests(required: { root: string; kind: CatalogEntry['kind'] }): Promise<Record<string, string>> {
+  const digests = await computePluginIntegrity({ sourceDir: required.root });
+  return required.kind === 'provider' ? digests : Object.fromEntries(Object.entries(digests)
+    .filter(([path]) => isPublishedAgentPluginFile({ path })));
+}
+
+/** Compare catalog metadata and hashes with the bytes the chosen release will actually serve. */
+async function assertCatalogArtifact(required: { entry: CatalogEntry; packageRoot: string }): Promise<void> {
+  const { entry, packageRoot } = required;
+  const artifactRoot = join(packageRoot, entry.path);
+  const pkg = JSON.parse(readFileSync(join(packageRoot, 'package.json'), 'utf8')) as Parameters<typeof catalogEntry>[0]['packageManifest'];
+  const plugin = JSON.parse(readFileSync(join(artifactRoot, entry.kind === 'agent' ? 'plugin.json' : 'jini.plugin.json'), 'utf8')) as PluginManifest;
+  const digests = await pluginDigests({ root: artifactRoot, kind: entry.kind });
+  const actual = { ...catalogEntry({ id: entry.id, packageManifest: pkg, pluginManifest: plugin }, { kind: entry.kind }), expectedDigests: digests };
+  if (plugin.version !== entry.pluginVersion || !isDeepStrictEqual(actual, entry)
+    || (entry.kind === 'provider' && !isDeepStrictEqual(plugin.integrity, digests))) {
+    throw new TypeError(`Release catalog mismatch: ${entry.kind}:${entry.id} in ${entry.packageName}@${entry.version}`);
+  }
+}
+
+/** Agent manifests have independent versions: changed published files require a newer inner version.
+ * New plugins and never-published distributions have no previous content to invalidate. */
+async function assertAgentVersion(required: { entry: CatalogEntry; previousRoot: string | undefined }): Promise<void> {
+  const { entry, previousRoot } = required;
+  if (!previousRoot) return;
+  const artifactRoot = join(previousRoot, entry.path);
+  const manifest = join(artifactRoot, 'plugin.json');
+  if (!existsSync(manifest)) return;
+  const previous = JSON.parse(readFileSync(manifest, 'utf8')) as PluginManifest;
+  const digests = await pluginDigests({ root: artifactRoot, kind: 'agent' });
+  if (isDeepStrictEqual(digests, entry.expectedDigests)) return;
+  if (!semver.valid(entry.pluginVersion) || !semver.valid(previous.version) || !semver.gt(entry.pluginVersion, previous.version)) {
+    throw new TypeError(`Agent plugin ${entry.id} changed without advancing ${previous.version}`);
+  }
+}
+
+/** Guard the whole catalog before the first release upload, including filtered releases.
+ * Selected pending versions use prepared tarball bytes; skipped versions must match immutable npm bytes.
+ * @param required Sealed catalog and selected pending package@version → unpacked tarball roots.
+ * @param optional Registry archive port for focused tests; production reads npm without publishing.
+ * @throws On registry failure, absent unselected versions, metadata/digest drift or stale agent versions.
+ * @complexity O(B + E) file hashing for payload bytes B and entries E; one archive per package version.
+ */
+export async function checkPluginReleaseConsistency(required: {
+  entries: readonly CatalogEntry[]; pendingPackages: ReadonlyMap<string, string>;
+}, optional: Partial<ReleasePorts> = {}): Promise<void> {
+  const scratch = mkdtempSync(join(tmpdir(), 'jini-plugin-release-'));
+  const packages = new Map<string, Promise<string | undefined>>();
+  const load = (name: string, version: string): Promise<string | undefined> => {
+    const key = `${name}@${version}`;
+    if (!packages.has(key)) packages.set(key, optional.publishedPackage
+      ? optional.publishedPackage({ name, version }) : publishedPluginPackage({ name, version, scratch }));
+    return packages.get(key)!;
+  };
+  try {
+    for (const entry of required.entries) {
+      const identity = `${entry.packageName}@${entry.version}`;
+      const selectedIdentity = [...required.pendingPackages.keys()].find(key => key.startsWith(`${entry.packageName}@`));
+      if (selectedIdentity && selectedIdentity !== identity) throw new TypeError(`Release catalog version mismatch: ${identity} versus ${selectedIdentity}`);
+      const selected = required.pendingPackages.get(identity);
+      const packageRoot = selected ?? await load(entry.packageName, entry.version);
+      if (!packageRoot) throw new TypeError(`${entry.packageName}@${entry.version} is not published or selected for this release`);
+      await assertCatalogArtifact({ entry, packageRoot });
+      if (entry.kind === 'agent' && selected) await assertAgentVersion({ entry, previousRoot: await load(entry.packageName, 'latest') });
+    }
+  } finally { rmSync(scratch, { recursive: true, force: true }); }
 }
 
 if (process.argv[1] && pathToFileURL(resolve(process.argv[1])).href === import.meta.url) {

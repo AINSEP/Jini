@@ -97,7 +97,7 @@ export function upgradeLegacyUrlControls({ html }: { html: string }, _optional: 
 /** Attributes that would let a submit button or a control bypass the server-owned endpoint. */
 const TRANSPORT_OVERRIDES = ["form", "formaction", "formmethod", "formenctype", "formtarget"];
 const CONTROL_TAGS = ["input", "textarea", "select", "button"];
-const RESERVED_NAMES = ["_hp", "__proto__", "constructor", "prototype"];
+const RESERVED_NAMES = ["_hp", "_schemaHash", "__proto__", "constructor", "prototype"];
 const ACTION_INPUT_TYPES = ["submit", "reset", "button", "image"];
 /** Existing field types a repeated control of this input type may join. A Map, not an object
  * literal, so an authored type such as "constructor" cannot reach Object.prototype. */

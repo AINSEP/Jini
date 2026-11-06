@@ -1,3 +1,4 @@
+import { FORM_SCHEMA_HASH_FIELD } from "./portable-validation.js";
 /** Framework-free HTML renderer, kept separate for extraction into @jini-ai/cms/forms.
  * Local prototype authorized 2026-10-04; that original dispatch kept Jini read-only.
  * The host owns the endpoint and the form's styling hook; author markup and CSS refine it. */
@@ -146,7 +147,7 @@ export function renderHtmlFormBody(
  * apply); author CSS stays free to override it. Whitespace-separated, de-duplicated, never replaced. */
 export function renderHtmlForm(
   { slug, fields, action, hooks }: { slug: string; fields: readonly FieldDescriptor[]; action: string; hooks: FormHtmlHooks },
-  { html, successMessage = "Thanks — your message has been sent.", className }: { html?: string; successMessage?: string; className?: string } = {},
+  { html, successMessage = "Thanks — your message has been sent.", className, schemaHash, idPrefix }: { html?: string; successMessage?: string; className?: string; schemaHash?: string; idPrefix?: string } = {},
 ): string {
   const escapedSlug = escapeFormHtml({ value: slug });
   const slugHook = `data-form-slug="${escapedSlug}"`;
@@ -155,7 +156,7 @@ export function renderHtmlForm(
   return `<div ${hooks.success} ${slugHook} role="status" hidden>${escapeFormHtml({ value: successMessage })}</div>` +
     `<form ${classAttr}${hooks.form}="${escapedSlug}" ${slugHook} toolname="form_${escapeFormHtml({ value: slug.replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 123) })}" tooldescription="${escapedSlug}" method="post"${fields.some((field) => field.type === "file") ? ' enctype="multipart/form-data"' : ""} action="${escapeFormHtml({ value: action })}">` +
     `<div ${hooks.error} ${slugHook} role="alert" hidden></div>` +
-    (html ?? renderHtmlFormBody({ fields, hooks }, { idPrefix: `form-${slug}` })) +
+    (html ?? renderHtmlFormBody({ fields, hooks }, { idPrefix: idPrefix ?? `form-${slug}` })) + renderFormSchemaHash({ schemaHash }) +
     // Hidden container requires neither a theme class nor inline CSS; bots still see the input.
     `<div hidden aria-hidden="true"><input type="text" name="_hp" tabindex="-1" autocomplete="off"></div></form>`;
 }
@@ -202,12 +203,34 @@ export function renderHtmlForm(
  * @overallScore 96 — Recommended: embed providers own their frame's validation and accessibility. */
 export function renderFormCollection(
   required: { slug: string; fields: readonly FieldDescriptor[]; hooks: FormHtmlHooks; plan: import('./provider.js').FormCollectionPlan },
-  optional: { html?: string; className?: string; successMessage?: string } = {},
+  optional: { html?: string; className?: string; successMessage?: string; idPrefix?: string; consentOff?: boolean } = {},
 ): string {
   const { plan, ...form } = required;
   if (plan.kind === 'unavailable') return `<p role="alert" data-form-provider-unavailable>${escapeFormHtml({ value: plan.message })}</p>`;
-  if (plan.kind === 'embed') return `<iframe src="${escapeFormHtml({ value: plan.url })}" title="${escapeFormHtml({ value: plan.title })}" loading="lazy"></iframe>`;
+  if (plan.kind === 'embed') return renderCollectionEmbed({ plan, consentOff: optional.consentOff === true });
   if (!plan.external) return renderHtmlForm({ ...form, action: plan.action }, optional);
   return `<form method="post" action="${escapeFormHtml({ value: plan.action })}" data-form-provider="external"${optional.className ? attr('class', optional.className) : ''}${form.fields.some(field => field.type === 'file') ? ' enctype="multipart/form-data"' : ''}>` +
-    (optional.html ?? renderHtmlFormBody({ fields: form.fields, hooks: form.hooks }, { idPrefix: `form-${form.slug}` })) + '</form>';
+    (optional.html ?? renderHtmlFormBody({ fields: form.fields, hooks: form.hooks }, { idPrefix: optional.idPrefix ?? `form-${form.slug}` })) + '</form>';
+}
+
+/** Escaped reserved metadata for built-in forms; external collection remains provider-owned.
+ * @complexity O(digest length), no I/O. */
+export function renderFormSchemaHash({ schemaHash }: { schemaHash?: string | undefined }, _optional = {}): string {
+  return schemaHash === undefined ? "" : `<input type="hidden" name="${FORM_SCHEMA_HASH_FIELD}" value="${escapeFormHtml({ value: schemaHash })}">`;
+}
+
+/** Declared embeds stay inert without permission infrastructure; an explicit off mode delivers normally.
+ * The browser consent client owns the permission decision and withdrawal lifecycle.
+ * @complexity O(url + title + fallback bytes), no I/O. */
+function renderCollectionEmbed({ plan, consentOff }: { plan: Extract<import('./provider.js').FormCollectionPlan, { kind: 'embed' }>; consentOff: boolean }): string {
+  const source = !consentOff && plan.consent?.length
+    ? attr('data-src', plan.url) + attr('data-jini-consent', JSON.stringify(plan.consent))
+    : attr('src', plan.url);
+  const frame = `<iframe${source}${attr('title', plan.title)} width="100%" height="800" loading="lazy"></iframe>`;
+  const placeholder = !consentOff && plan.consent?.length
+    ? '<p class="jini-form-embed-consent">Allow functional cookies to load this form.</p>' : '';
+  const style = '<style>.jini-form-embed iframe{width:100%;height:min(80vh,800px);min-height:480px;border:0}.jini-form-embed iframe[data-src]:not([src]){display:none}.jini-form-embed iframe[src]+.jini-form-embed-consent{display:none}</style>';
+  const fallback = plan.publicUrl && plan.fallbackMessage
+    ? `<p data-form-embed-fallback>${escapeFormHtml({ value: plan.fallbackMessage })} <a${attr('href', plan.publicUrl)} rel="noopener noreferrer">${escapeFormHtml({ value: plan.title })}</a></p>` : '';
+  return style + `<div class="jini-form-embed">${frame}${placeholder}${fallback}</div>`;
 }

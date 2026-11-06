@@ -136,3 +136,24 @@ describe('resolveCopy', () => {
     expect(copy.categoryLabels).toEqual({ ...DEFAULT_COPY.categoryLabels, analytics: 'Stats' });
   });
 });
+
+test('automatic declarations use ordinary assets while optional scripts remain JSON', () => {
+  const { head } = renderBanner({ mode: 'headless', client: { contract: 1, policy: 'p1', regionMode: 'auto', scripts: [
+    { src: '/menu.js' }, { src: 'https://example.com/automatic.js' },
+    { src: '/essential.js', consent: ['necessary'] }, { src: '/stats.js', consent: ['analytics'] },
+  ] }, copy: {} });
+  expect(head).toContain('<script data-jini-declared-script src="/menu.js" defer></script>');
+  expect(head).toContain('<script data-jini-declared-script src="https://example.com/automatic.js" defer></script>');
+  expect(head).toContain('<script data-jini-declared-script src="/essential.js" defer></script>');
+  expect(head).not.toContain('<script src="/stats.js"');
+  const json = head.match(/id="jini-consent-config">([^<]*)<\/script>/)![1]!;
+  expect(JSON.parse(json).scripts).toEqual([{ src: '/stats.js', consent: ['analytics'] }]);
+});
+
+test('banner preview never emits executable declared or runtime assets', () => {
+  const { head, body } = renderBanner({ mode: 'jini', client: { contract: 1, policy: 'preview', regionMode: 'auto', scripts: [{ src: '/menu.js' }] }, copy: {} }, {
+    preview: { region: 'opt-in' }, clientSrc: '/client.min.js', extensionSrc: '/extensions.min.js',
+  });
+  expect(head).not.toMatch(/<script[^>]+src=/);
+  expect(body).toContain('id="jini-consent"');
+});

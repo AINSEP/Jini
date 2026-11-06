@@ -1,4 +1,3 @@
-/** Source of the published IIFE asset; the build bundles this browser entry. */
-import { bindBanner, boot } from './client/index.js';
-
-boot(window, { bindBanner });
+/** The core asset owns effective state and context; optional features arrive separately. */
+import { bootWithContext } from './client/runtime.js';
+void bootWithContext({ win: window });

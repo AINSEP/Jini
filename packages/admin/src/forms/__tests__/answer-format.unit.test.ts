@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import { createHttpFormsApi, type FormsTransportPort } from "../adapters/http.js";
 import { formAnswerColumns, formAnswerFile, formatFormAnswer, formSubmissionRows } from "../html-rules.js";
 import type { AdminFormSubmission } from "../models.js";
+import { submissionView } from "../models.js";
+import type { AdminFormSubmission as PortSubmission } from "../../core/ports/forms.js";
 
 /**
  * @file Submission answers as display text, and the file-answer download URL (2026-10-11).
@@ -15,6 +17,23 @@ const options = [
   { value: "current-event", label: "Current event" },
   { value: "corporate", label: "Corporate events" },
 ];
+
+it("preserves typed number, choice-array and file answers across the admin boundary", () => {
+  const source: PortSubmission = {
+    id: "s-rich", formDefinitionId: "f1", sourceIp: "127.0.0.1", submittedAt: "2026-11-05T00:00:00.000Z",
+    data: { count: 7, choices: ["corporate", "current-event"], upload: file },
+  };
+  const row: AdminFormSubmission = submissionView({ submission: source });
+  const columns = formAnswerColumns({ fields: [
+    { id: "count", label: "Count", type: "number", required: false },
+    { id: "choices", label: "Choices", type: "multi-select", required: false, options },
+    { id: "upload", label: "Upload", type: "file", required: false },
+  ] });
+  expect(columns.map(column => column.cell(row))).toEqual(["7", "Corporate events, Current event", "moodboard.png (157 B)"]);
+  expect(formSubmissionRows({ data: row.data, answerColumns: columns }).map(item => item.value)).toEqual(["7", "Corporate events, Current event", "moodboard.png (157 B)"]);
+  expect(row.data).toEqual(source.data);
+  expect(row.data).not.toBe(source.data);
+});
 
 function submission(data: Record<string, unknown>): AdminFormSubmission {
   return { id: "s1", formDefinitionId: "f1", data: data as AdminFormSubmission["data"], sourceIp: "127.0.0.1", submittedAt: "2026-10-11T00:00:00.000Z" } as unknown as AdminFormSubmission;

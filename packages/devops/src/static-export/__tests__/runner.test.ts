@@ -414,3 +414,45 @@ test('a failed query variant leaves its output available to a later successful v
   assert.deepEqual(report.assets.succeeded.filter(asset => asset.outputFile === 'assets/plain/main.css').map(asset => asset.url), ['/assets/plain/main.css?v=2']);
   assert.equal(String(f.writes.get('assets/plain/main.css')), 'a{src:url(font.bin)}');
 });
+
+
+test('explicit manifest assets invisible in JSON are fetched once with ordinary assets', async () => {
+  const f = fixture();
+  f.args.assetUrls = ['/assets/declared.bin', '/assets/a.bin', '/assets/declared.bin'];
+  const report = await exportSite(f.args);
+  assert.deepEqual(report.assets.failed, []);
+  assert.deepEqual(f.writes.get('assets/declared.bin'), Buffer.from([0,128,255]));
+  assert.equal(f.fetched.filter(url => url === '/assets/declared.bin').length, 1);
+  assert.equal(f.fetched.filter(url => url === '/assets/a.bin').length, 1);
+  assert.equal(report.assets.succeeded.filter(asset => asset.url === '/assets/declared.bin').length, 1);
+});
+
+
+test('explicit asset paths cannot fetch external origins or escape the output directory', async () => {
+  const f = fixture();
+  f.args.assetUrls = ['https://outside.example/tracker.js', '/../private.js'];
+  const report = await exportSite(f.args);
+  assert.equal(report.assets.failed.length, 2);
+  assert.deepEqual(report.assets.failed.map(asset => asset.url), f.args.assetUrls);
+  assert.equal(f.fetched.some(url => url.includes('tracker.js') || url.includes('private.js')), false);
+});
+
+
+test('deferred asset declarations run once after the app opens and before it closes', async () => {
+  const f = fixture();
+  let opened = false;
+  let reads = 0;
+  const open = f.args.app.open;
+  f.args.app.open = async input => { const session = await open(input); opened = true; return session; };
+  f.args.assetUrls = async () => {
+    assert.equal(opened, true);
+    assert.equal(f.closes(), 0);
+    reads++;
+    return ['/assets/declared.bin'];
+  };
+  const report = await exportSite(f.args);
+  assert.deepEqual(report.assets.failed, []);
+  assert.deepEqual(f.writes.get('assets/declared.bin'), Buffer.from([0,128,255]));
+  assert.equal(reads, 1);
+  assert.equal(f.closes(), 1);
+});

@@ -206,3 +206,13 @@ describe('createMemoryFormsApi — trash port', () => {
     expect(error.status).toBe(404);
   });
 });
+
+it('returns shared built-in settings and isolates injected provider descriptions', async () => {
+  expect(await createMemoryFormsApi().listFormProviders!({})).toMatchObject([{ id: 'builtin', available: true, fields: [] }]);
+  const providers = [{ id: 'fourth', label: 'Fourth', fields: [], answers: 'Fourth answers', validation: 'Fourth checks', frameOrigins: [], available: true }];
+  const api = createMemoryFormsApi({}, { providers });
+  providers[0]!.label = 'Mutated';
+  const first = await api.listFormProviders!({});
+  expect(first[0]!.label).toBe('Fourth');
+  expect(await api.listFormProviders!({})).not.toBe(first);
+});

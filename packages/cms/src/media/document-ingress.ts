@@ -1,8 +1,8 @@
 import { loadOptionalPeer } from '@jini-ai/core/optional-peer';
 import { MediaValidationError } from './types.js';
 
-/** Private Library documents have a smaller cap than a host's image/video uploads. */
-export const MAX_DOCUMENT_BYTES = 10 * 1024 * 1024;
+/** Shared 50 MiB document limit for admission, extraction and host upload policy. */
+export const MAX_DOCUMENT_BYTES = 50 * 1024 * 1024;
 export const DOCUMENT_CONTENT_TYPES = {
   md: 'text/markdown', txt: 'text/plain', csv: 'text/csv', json: 'application/json',
   doc: 'application/msword', xls: 'application/vnd.ms-excel', rtf: 'application/rtf',
@@ -222,11 +222,11 @@ function assertDocumentText({ bytes, contentType }: { bytes: Uint8Array; content
 }
 
 /** Extension selects a policy; actual bytes must satisfy it. Client MIME never grants admission.
- * Throws MediaValidationError before persistence; O(bytes) work/space, capped at 10 MiB input
+ * Throws MediaValidationError before persistence; O(bytes) work/space, capped at 50 MiB input
  * and 40 MiB expanded archive data. Legacy OLE/RTF checks identify formats, not malware. */
 export async function validateDocumentIngress(required: { filename: string; bytes: Uint8Array },
   optional: { archiveReader?: DocumentArchiveReaderPort | undefined } = {}): Promise<{ contentType: string }> {
-  if (!required.bytes.byteLength || required.bytes.byteLength > MAX_DOCUMENT_BYTES) invalid('document must be non-empty and at most 10 MiB');
+  if (!required.bytes.byteLength || required.bytes.byteLength > MAX_DOCUMENT_BYTES) invalid(`document must be non-empty and at most ${MAX_DOCUMENT_BYTES / (1024 * 1024)} MiB`);
   const contentType = documentContentType({ filename: required.filename });
   const extension = required.filename.slice(required.filename.lastIndexOf('.') + 1).toLowerCase();
   const signatureCheck = SIGNATURE_CHECKS[extension as keyof typeof DOCUMENT_CONTENT_TYPES];

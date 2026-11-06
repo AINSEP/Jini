@@ -7,6 +7,9 @@
  * returning `not-found`.
  */
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
+import { withSha256Lock } from "../blob-gc-lock.js";
+import { computeBlobStorageKey } from "../blob-key.js";
 import { test } from "vitest";
 
 import { resolveMediaRendition } from "../rendition-service.js";
@@ -321,4 +324,43 @@ test('private media never serves even an already-created original rendition by i
   const { deps } = makeDeps();
   const { media } = await uploadMedia({ deps, input: { workspaceId: WORKSPACE_ID, bytes: bytesFrom('private'), filename: 'visitor.png', contentType: 'image/png', createdByPrincipal: 'system', access: 'private' } });
   for (const assetId of [media.id, media.slug]) assert.deepEqual(await resolveMediaRendition({ deps, input: { workspaceId: WORKSPACE_ID, assetId, transformName: 'original', version: 1 } }), { outcome: 'not-found' });
+});
+
+
+test("rendition writes retain their output bytes when cleanup races the ownership commit", async () => {
+  const { deps } = makeDeps();
+  const { media } = await uploadOne(deps, "output-lock-source");
+  await registerTransform({ deps, input: { workspaceId: WORKSPACE_ID, name: "atomic-thumb", params: { format: "webp" }, owner: "core" } });
+  const outputBytes = bytesFrom("output-lock-rendition");
+  const outputSha256 = createHash("sha256").update(outputBytes).digest("hex");
+  const storageKey = computeBlobStorageKey({ workspaceId: WORKSPACE_ID, sha256: outputSha256 });
+  deps.imageTransformer = { transform: async () => ({ bytes: outputBytes, contentType: "image/webp" }) };
+  let enteredSave!: () => void;
+  let releaseSave!: () => void;
+  const saveEntered = new Promise<void>(resolve => { enteredSave = resolve; });
+  const saveReleased = new Promise<void>(resolve => { releaseSave = resolve; });
+  const save = deps.renditionRepo.save.bind(deps.renditionRepo);
+  deps.renditionRepo.save = async row => { enteredSave(); await saveReleased; await save(row); };
+  const generated = resolveMediaRendition({ deps, input: { workspaceId: WORKSPACE_ID, assetId: media.id, transformName: "atomic-thumb", version: 1 } });
+  await saveEntered;
+  let cleanupEntered = false;
+  let deleted = false;
+  const cleanup = withSha256Lock({ key: outputSha256, criticalSection: async () => {
+    cleanupEntered = true;
+    const owners = await deps.renditionRepo.listByAsset({ workspaceId: WORKSPACE_ID, assetId: media.id });
+    if (!owners.some(row => row.storageKey === storageKey)) {
+      deleted = true;
+      await deps.blobStore.remove({ storageKey });
+    }
+  } });
+  // Drain runnable tasks while the row write is held, without a timing-based sleep.
+  await new Promise<void>(resolve => setImmediate(resolve));
+  const enteredBeforeCommit = cleanupEntered;
+  releaseSave();
+  const outcomes = await Promise.allSettled([generated, cleanup]);
+  assert.equal(enteredBeforeCommit, false, "cleanup must wait until the output ownership row commits");
+  assert.equal(deleted, false);
+  assert.equal(outcomes[0]!.status, "fulfilled");
+  assert.equal(outcomes[1]!.status, "fulfilled");
+  assert.deepEqual(await deps.blobStore.get({ storageKey }), outputBytes);
 });

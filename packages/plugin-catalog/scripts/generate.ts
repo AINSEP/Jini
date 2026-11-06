@@ -166,8 +166,8 @@ async function sealEntry(required: {
   entry: CatalogEntry; plugin: PluginManifest; artifact: PluginManifest; artifactRoot: string; ports: CatalogPorts;
 }): Promise<void> {
   const { entry, plugin, artifact, artifactRoot, ports } = required;
-  const expected = { ...plugin, version: entry.pluginVersion };
-  if (entry.kind === 'provider') expected.integrity = artifact.integrity;
+  const expected = { ...plugin, version: entry.pluginVersion,
+    ...(entry.kind === 'provider' ? { integrity: artifact.integrity } : {}) };
   if (!isDeepStrictEqual(artifact, expected)) throw new TypeError(`Stale plugin metadata: ${entry.id}`);
   const digests = publishedDigests({ kind: entry.kind, digests: await ports.integrity({ sourceDir: artifactRoot }) });
   entry.expectedDigests = digests;
@@ -196,4 +196,6 @@ async function writeCatalog(): Promise<void> {
   await rename(temporary, path.join(root, 'catalog.json'));
 }
 
-if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) await writeCatalog();
+if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
+  writeCatalog().catch(error => { console.error(error); process.exitCode = 1; });
+}

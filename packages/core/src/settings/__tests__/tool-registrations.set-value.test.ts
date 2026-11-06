@@ -108,6 +108,18 @@ test("definition listing publishes schemas and confirmation policy", async () =>
   ]);
 });
 
+test("definition listing follows the writable value boundary for direct and aliased records", async () => {
+  const f = fixture([
+    definition({ settingId: 'credential', key: 'credential', secret: true }),
+    definition({ settingId: 'alias', key: 'credentialAlias', status: 'alias', aliasOfNamespace: target.namespace, aliasOfKey: 'credential' }),
+    definition(),
+  ]);
+  const { data } = await f.call('settings_list_definitions', {}) as { data: Array<{ key: string; agentWritable: boolean }> };
+  assert.equal(data.find(row => row.key === 'credential')?.agentWritable, false);
+  assert.equal(data.find(row => row.key === 'credentialAlias')?.agentWritable, false);
+  assert.equal(data.find(row => row.key === target.key)?.agentWritable, true);
+});
+
 test("definition listing resolves alias schemas, scopes and protected or denied targets", async () => {
   const aliases = [
     definition({ settingId: "alias-private", key: "privacyAlias", status: "alias", aliasOfNamespace: "core.privacy", aliasOfKey: "telemetry.metrics" }),
@@ -236,3 +248,44 @@ test("changing the caller context during consent cannot change the approved user
   assert.equal(await f.settingsRepo.getUserValue({ workspaceId: "ws-1", settingId: "setting-1", principalId: "other" }), null);
   assert.equal(f.authorizeCalls.every(call => (call as { principalId: string }).principalId === "caller"), true);
 });
+
+for (const scope of ['workspace', 'user'] as const) test(`approved ${scope} setting cannot overwrite a change after the card recheck`, async () => {
+  const def = definition({ namespace: 'core.instructions', key: 'custom' });
+  let cardRevision: number | undefined;
+  const f = fixture([def], {
+    confirmWrite: async request => { cardRevision = (request as unknown as { expectedRevisionSeq: number }).expectedRevisionSeq; return true; },
+    setValue: async (required, optional) => {
+      // A host validator may await between the approval owner's recheck and the ledger transaction.
+      await set({ ...required, input: { ...required.input, value: 'concurrent edit' } });
+      return set(required, optional);
+    },
+  });
+  await assert.rejects(f.call('settings_set_value', { namespace: def.namespace, key: def.key, scope, value: 'approved edit' }), /revision|changed/i);
+  assert.equal(cardRevision, 0, 'the card fixes the absent addressed layer revision');
+  const row = scope === 'user'
+    ? await f.settingsRepo.getUserValue({ workspaceId: 'ws-1', settingId: def.settingId, principalId: 'caller' })
+    : await f.settingsRepo.getWorkspaceValue({ workspaceId: 'ws-1', settingId: def.settingId });
+  assert.equal(row?.valueJson, 'concurrent edit');
+  assert.equal((await f.settingsRepo.listRevisions({ settingId: def.settingId })).length, 1, 'the losing transaction must roll back its revision');
+});
+
+for (const toolId of ['settings_set_value', 'settings_clear_value'] as const) {
+  for (const protectedSetting of [false, true]) test(`${toolId} refuses ${protectedSetting ? 'protected' : 'ordinary'} secret settings before reading values or asking`, async () => {
+    const def = definition({ secret: true, ...(protectedSetting ? { namespace: 'core.instructions', key: 'custom' } : {}) });
+    const confirmWrite = vi.fn(async () => true);
+    const f = fixture([def], { confirmWrite });
+    const read = vi.spyOn(f.settingsRepo, 'getWorkspaceValue');
+    await assert.rejects(f.call(toolId, { namespace: def.namespace, key: def.key, ...(toolId === 'settings_set_value' ? { value: 'redacted fixture input' } : {}) }), /secret setting.*dedicated credential-entry or sign-in tool/);
+    assert.equal(confirmWrite.mock.calls.length, 0); assert.equal(read.mock.calls.length, 0);
+    assert.equal(await f.settingsRepo.getWorkspaceValue({ workspaceId: 'ws-1', settingId: def.settingId }), null);
+    assert.deepEqual(await f.settingsRepo.listRevisions({ settingId: def.settingId }), []);
+  });
+  test(`${toolId} cannot reach a secret setting through an ordinary alias`, async () => {
+    const def = definition({ namespace: 'core.instructions', key: 'custom', secret: true });
+    const confirmWrite = vi.fn(async () => true);
+    const f = fixture([definition({ settingId: 'alias', status: 'alias', aliasOfNamespace: def.namespace, aliasOfKey: def.key }), def], { confirmWrite });
+    await assert.rejects(f.call(toolId, { ...target, ...(toolId === 'settings_set_value' ? { value: 'redacted fixture input' } : {}) }), /secret setting.*dedicated credential-entry or sign-in tool/);
+    assert.equal(confirmWrite.mock.calls.length, 0);
+    assert.deepEqual(await f.settingsRepo.listRevisions({ settingId: def.settingId }), []);
+  });
+}

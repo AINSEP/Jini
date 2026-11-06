@@ -1,3 +1,4 @@
+import { createBoundedLineStream } from '../../core/bounded-line-stream.js';
 /** @module agent-protocol/core/json-line-stream
  * Streaming JSON-line parser that reassembles pretty-printed and multiline
  * JSON-RPC messages across chunk boundaries. Shared transport used by both the
@@ -16,6 +17,8 @@
 // Mutable state for the line-accumulation state machine below: the
 // in-progress multiline JSON candidate (empty when not accumulating) and
 // how many lines have been folded into it.
+const MULTILINE_LIMIT_MESSAGE = 'Agent output multiline JSON exceeded 128000 characters or 256 lines.';
+
 export interface JsonLineAccumulatorState {
   pendingJson: string;
   pendingJsonLineCount: number;
@@ -47,7 +50,16 @@ export function continuePendingJsonLine(
   state: JsonLineAccumulatorState,
   trimmed: string,
   onMessage: (requiredArgs: { message: unknown; rawLine: string }) => void,
+  onError?: (error: RangeError) => void,
 ): void {
+  // Enforce aggregate limits before JSON.parse; a complete closing line earns no exemption.
+  if (state.pendingJson.length + 1 + trimmed.length > 128_000 || state.pendingJsonLineCount >= 256) {
+    resetPendingJson(state);
+    onError?.(new RangeError(MULTILINE_LIMIT_MESSAGE));
+    // A complete physical frame may follow a stray opening line; its own line budget still applies.
+    handleJsonLine(state, trimmed, onMessage, onError);
+    return;
+  }
   const nextCandidate = `${state.pendingJson}\n${trimmed}`;
   if (emitJsonLine(nextCandidate, onMessage)) {
     resetPendingJson(state);
@@ -55,80 +67,77 @@ export function continuePendingJsonLine(
   }
   state.pendingJsonLineCount += 1;
   const classification = classifyJsonCandidate(nextCandidate);
-  if (
-    classification === 'incomplete' &&
-    nextCandidate.length <= 128_000 &&
-    state.pendingJsonLineCount <= 256
-  ) {
+  if (classification === 'incomplete') {
     state.pendingJson = nextCandidate;
     return;
   }
   resetPendingJson(state);
-  handleJsonLine(state, trimmed, onMessage);
+  handleJsonLine(state, trimmed, onMessage, onError);
 }
 
 // ACP is line-delimited JSON-RPC, but a few bridges have emitted
 // pretty-printed JSON during startup. Keep a bounded aggregate so an
 // otherwise valid multiline initialize response does not get discarded
 // line-by-line and leave the session stuck in spawn pending.
-export function tryStartPendingJsonLine(state: JsonLineAccumulatorState, trimmed: string): void {
-  if (
-    (trimmed.startsWith('{') || trimmed.startsWith('[')) &&
-    classifyJsonCandidate(trimmed) === 'incomplete'
-  ) {
-    startPendingJson(state, trimmed);
+export function tryStartPendingJsonLine(state: JsonLineAccumulatorState, trimmed: string, onError?: (error: RangeError) => void): void {
+  if (!trimmed.startsWith('{') && !trimmed.startsWith('[')) return;
+  if (trimmed.length > 128_000) {
+    onError?.(new RangeError(MULTILINE_LIMIT_MESSAGE));
+    return;
   }
+  if (classifyJsonCandidate(trimmed) === 'incomplete') startPendingJson(state, trimmed);
 }
 
 export function handleJsonLine(
   state: JsonLineAccumulatorState,
   line: string,
   onMessage: (requiredArgs: { message: unknown; rawLine: string }) => void,
+  onError?: (error: RangeError) => void,
 ): void {
   const trimmed = line.trim();
   if (!trimmed) return;
   if (state.pendingJson) {
-    continuePendingJsonLine(state, trimmed, onMessage);
+    continuePendingJsonLine(state, trimmed, onMessage, onError);
     return;
   }
   if (emitJsonLine(trimmed, onMessage)) return;
-  tryStartPendingJsonLine(state, trimmed);
+  tryStartPendingJsonLine(state, trimmed, onError);
 }
 
 /**
  * Creates a streaming JSON-line parser over a raw byte/string stream.
  * Buffers incoming chunks, splits on newline boundaries, and attempts
  * `JSON.parse` on each line. Accumulates pretty-printed (multiline) JSON across
- * up to 256 lines and 128 kB before abandoning and re-trying the current line
- * as a fresh candidate.
+ * up to 256 lines and 128000 characters. An over-budget candidate is discarded;
+ * its continuation is retried as a fresh frame. A physical line
+ * may contain up to 8 Mi UTF-16 code units, independently of the multiline budget.
  *
  * Used as the shared ACP transport: both the acp/ and pi-rpc/ adapters call
  * this to decode JSON-RPC frames from a subprocess's stdout.
  *
  * @param requiredArgs.onMessage - Called with `{ message, rawLine }` for each
  *   successfully parsed JSON value and its raw reassembled line string.
+ * @param requiredArgs.onError - Reports a physical-line or multiline overflow to the host's failure path.
+ *   When omitted, feed throws RangeError. Oversized content is never delivered.
  * @returns An object with `feed({ chunk })` for incremental input and `flush()` to
  *   drain any residual buffered content at stream end.
  */
-export function createJsonLineStream({ onMessage }: { onMessage: (requiredArgs: { message: unknown; rawLine: string }) => void }) {
-  let buffer = '';
+export function createJsonLineStream({ onMessage, onError = error => { throw error; } }: {
+  onMessage: (requiredArgs: { message: unknown; rawLine: string }) => void;
+  onError?: (error: RangeError) => void;
+}) {
   const state: JsonLineAccumulatorState = { pendingJson: '', pendingJsonLineCount: 0 };
+  const lines = createBoundedLineStream({
+    onLine: line => handleJsonLine(state, line, onMessage, onError),
+    onOverflow: error => { resetPendingJson(state); onError(error); },
+  });
 
   return {
     feed({ chunk }: { chunk: string }) {
-      buffer += chunk;
-      const lines = buffer.split('\n');
-      buffer = lines.pop() || '';
-      for (const line of lines) {
-        handleJsonLine(state, line, onMessage);
-      }
+      lines.feed({ chunk });
     },
     flush() {
-      const trimmed = buffer.trim();
-      buffer = '';
-      if (trimmed) {
-        handleJsonLine(state, trimmed, onMessage);
-      }
+      lines.flush();
       // Any `pendingJson` still set at this point was, by construction, the
       // most recent candidate `classifyJsonCandidate` judged structurally
       // incomplete (an unclosed string/object/array) — the exact same

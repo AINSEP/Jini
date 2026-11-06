@@ -1,6 +1,22 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { renderHtmlForm, renderHtmlFormBody } from "../html-render.js";
+import { renderFormCollection, renderHtmlForm, renderHtmlFormBody } from "../html-render.js";
+
+test("a placement prefix scopes native and external controls, labels, help and errors together", () => {
+  const fields = [{ id: "email", label: "Email", type: "email" as const, required: true, helpText: "Your email" },
+    { id: "choice", label: "Choice", type: "radio" as const, required: true, options: [{ value: "yes", label: "Yes" }] }];
+  const hooks = { field: "data-field", form: "data-form", success: "data-success", error: "data-error" };
+  for (const plan of [{ kind: "post" as const, external: false, action: "/forms/contact/submit" },
+    { kind: "post" as const, external: true, action: "https://forms.example.test/submit" }]) {
+    for (const idPrefix of ["placement-one", "placement-two"]) {
+      const html = renderFormCollection({ slug: "contact", fields, hooks, plan: { ...plan, capabilities: { answers: "inbox", validation: "fields", spamProtection: "rate" } } }, { idPrefix });
+      assert.match(html, new RegExp(`for="${idPrefix}-email"`));
+      for (const suffix of ["email", "email-help", "email-error", "choice", "choice-0", "choice-error"]) assert.ok(html.includes(`id="${idPrefix}-${suffix}"`), suffix);
+      assert.match(html, new RegExp(`aria-describedby="${idPrefix}-email-help ${idPrefix}-email-error"`));
+      assert.ok(html.includes(`for="${idPrefix}-choice-0"`));
+    }
+  }
+});
 
 test("URL controls accept scheme-less typing and keep URL keyboard hints on the input", () => {
   const body = renderHtmlFormBody({ fields: [{ id: "website", label: "Website", type: "url", required: false, default: "aui.la", attributes: { inputmode: "email", autocomplete: "off", spellcheck: "true", "data-hint": "<site>" } }], hooks: { field: "data-tovu-field" } });
