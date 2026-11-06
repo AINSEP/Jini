@@ -374,9 +374,14 @@ describe('ConfirmDialog dialog-hook injection', () => {
 });
 
 describe('ConfirmDialog agent handles', () => {
-  it('emits no data-agent-* markup at all when agentHandle is omitted', () => {
+  it('publishes opaque cancel and confirm handles when agentHandle is omitted', () => {
     renderDialog();
-    expect(handlesIn(document.body)).toEqual([]);
+    expect(handlesIn(document.body)).toEqual([
+      expect.stringMatching(/^kit-h-[a-f0-9]{16}-confirm-cancel$/),
+      expect.stringMatching(/^kit-h-[a-f0-9]{16}-confirm-confirm$/),
+    ]);
+    expect(screen.getByRole('button', { name: 'Cancel' })).toHaveAttribute('data-agent-role', 'button');
+    expect(screen.getByRole('button', { name: 'Delete' })).toHaveAttribute('data-agent-role', 'button');
   });
 
   it('publishes the confirm action by default, with role button', () => {
