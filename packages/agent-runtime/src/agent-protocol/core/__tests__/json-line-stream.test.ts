@@ -953,10 +953,13 @@ describe('physical JSON-RPC line bounds', () => {
     const frame = { text: 'x'.repeat(128000) };
     stream.feed({ chunk: '{\n' + JSON.stringify(frame) + '\n' });
     expect(messages).toEqual([frame]);
-    expect(errors).toHaveLength(0);
+    expect(errors.map(error => error.message)).toEqual(['Agent output multiline JSON exceeded 128000 characters or 256 lines.']);
     stream.feed({ chunk: '[\n' + '0,\n'.repeat(255) + '{"fresh":true}\n' });
     expect(messages).toEqual([frame, { fresh: true }]);
-    expect(errors).toHaveLength(0);
+    expect(errors.map(error => error.message)).toEqual([
+      'Agent output multiline JSON exceeded 128000 characters or 256 lines.',
+      'Agent output multiline JSON exceeded 128000 characters or 256 lines.',
+    ]);
   });
   const limit = 8 * 1024 * 1024;
   it('preserves single-line JSON messages above the multiline cap and up to the physical limit', () => {

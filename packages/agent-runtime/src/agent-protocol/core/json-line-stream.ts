@@ -55,9 +55,8 @@ export function continuePendingJsonLine(
   // Enforce aggregate limits before JSON.parse; a complete closing line earns no exemption.
   if (state.pendingJson.length + 1 + trimmed.length > 128_000 || state.pendingJsonLineCount >= 256) {
     resetPendingJson(state);
-    // A complete physical frame may follow a stray opening line; its own line budget still applies.
-    if (emitJsonLine(trimmed, onMessage)) return;
     onError?.(new RangeError(MULTILINE_LIMIT_MESSAGE));
+    // A complete physical frame may follow a stray opening line; its own line budget still applies.
     handleJsonLine(state, trimmed, onMessage, onError);
     return;
   }
