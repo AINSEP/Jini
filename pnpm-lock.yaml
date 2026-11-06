@@ -275,6 +275,9 @@ importers:
 
   packages/agent-plugins:
     dependencies:
+      '@jini-ai/cms':
+        specifier: workspace:^
+        version: link:../cms
       '@jini-ai/commerce':
         specifier: ^0.6.19
         version: link:../commerce
@@ -285,9 +288,6 @@ importers:
       '@cfworker/json-schema':
         specifier: ^4.1.1
         version: 4.1.1
-      '@jini-ai/cms':
-        specifier: workspace:^
-        version: link:../cms
       '@jini-ai/core':
         specifier: ^0.6.13
         version: link:../core
@@ -306,6 +306,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^2.1.9
         version: 2.1.9(vitest@2.1.9(@types/node@24.13.3)(jsdom@25.0.1)(lightningcss@1.33.0)(sass@1.51.0))
+      esbuild:
+        specifier: ^0.28.1
+        version: 0.28.1
       fast-check:
         specifier: 4.3.0
         version: 4.3.0

@@ -107,7 +107,6 @@
       ]
     },
     "optionalPeers": {
-      "@jini-ai/cms": "opt-in: Cloudflare form evidence and portable validation payloads; import @jini-ai/agent-plugins/cloudflare — Form evidence requires the host CMS package.",
       "yauzl": "opt-in: plugin zip import \u2014 Plugin ZIP import could not load yauzl. Install yauzl to enable this feature, or check its installed version and native binaries.",
       "@jini-ai/platform": "opt-in: platform-backed adapters; import @jini-ai/agent-plugins/lifecycle \u2014 Platform-backed adapters could not load @jini-ai/platform. Install @jini-ai/platform to enable this feature, or check its installed version and native binaries.",
       "@cfworker/json-schema": "opt-in: json schema validation; import @jini-ai/agent-plugins/lifecycle/tools \u2014 JSON Schema validation could not load @cfworker/json-schema. Install @cfworker/json-schema to enable this feature, or check its installed version and native binaries.",
@@ -177,8 +176,8 @@
     "./charts-echarts/*": "./charts-echarts/*",
     "./charts-recharts": "./charts-recharts/plugin.json",
     "./charts-recharts/*": "./charts-recharts/*",
-    "./cloudflare": "./cloudflare/plugin.json",
-    "./cloudflare/*": "./cloudflare/*",
+    "./cloudflare": "./dist/cloudflare/plugin.json",
+    "./cloudflare/*": "./dist/cloudflare/*",
     "./composio": "./composio/plugin.json",
     "./composio/*": "./composio/*",
     "./fly": "./fly/plugin.json",
@@ -302,7 +301,7 @@
     "registry": "https://registry.npmjs.org"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && node scripts/build-cloudflare.mjs",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:coverage": "vitest run --coverage"
@@ -319,7 +318,7 @@
     "@jini-ai/oauth": "workspace:^",
     "fast-check": "4.3.0",
     "jsdom": "^25.0.1",
-    "@jini-ai/cms": "workspace:^"
+    "esbuild": "^0.28.1"
   },
   "peerDependencies": {
     "yauzl": "^3.4.0",
@@ -327,7 +326,6 @@
     "@jini-ai/platform": "^0.6.10",
     "@cfworker/json-schema": "^4.1.1",
     "semver": "^7.6.2",
-    "@jini-ai/cms": "^0.6.22",
     "@jini-ai/commerce": "^0.6.19"
   },
   "peerDependenciesMeta": {
@@ -343,11 +341,11 @@
     "semver": {
       "optional": true
     },
-    "@jini-ai/cms": {
-      "optional": true
-    },
     "@jini-ai/commerce": {
       "optional": true
     }
+  },
+  "dependencies": {
+    "@jini-ai/cms": "workspace:^"
   }
 }
