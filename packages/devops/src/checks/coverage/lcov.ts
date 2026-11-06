@@ -1,6 +1,6 @@
 import type { SourceReaderPort } from '../ports.js';
 
-interface CoverageEntries { line: ReadonlyMap<string, number>; branch: ReadonlyMap<string, number>; funcs: ReadonlyMap<string, number> }
+interface CoverageEntries { line: ReadonlyMap<string, number>; branch: ReadonlyMap<string, number>; funcs: ReadonlyMap<string, number> | undefined }
 export interface FileCoverage { file: string; lf: number; lh: number; brf: number; brh: number; fnf: number; fnh: number; entries?: CoverageEntries }
 export interface SourceClassificationRules {
   prefixes: readonly string[];
@@ -50,26 +50,37 @@ export function isMeasurableSourceFile({ file, rules }: { file: string; rules: S
 
 function field(record: string, name: string): number { return Number(record.match(new RegExp(`^${name}:(\\d+)$`, 'm'))?.[1] ?? 0); }
 
-/** Preserve entry identities for exact unions; duplicate function names retain their occurrence.
+/** Preserve entry identities for exact unions; ambiguous function declarations retain summaries only.
  * @complexity O(n) time and space in record entries. */
 function readEntries(record: string): CoverageEntries | undefined {
   if (!/^(?:DA|BRDA|FNDA|FN):/m.test(record)) return undefined;
   const line = new Map<string, number>();
   const branch = new Map<string, number>();
-  const funcs = new Map<string, number>();
   for (const match of record.matchAll(/^DA:(\d+),(\d+)/gm)) line.set(match[1]!, Number(match[2]));
   for (const match of record.matchAll(/^BRDA:(\d+,[^,\n]+,[^,\n]+),(\d+|-)$/gm)) branch.set(match[1]!, Number(match[2]) || 0);
-  const declared = new Map<string, number>();
-  for (const match of record.matchAll(/^FN:\d+,(?:\d+,)?(.+)$/gm)) funcs.set(functionKey(declared, match[1]!), 0);
-  const counted = new Map<string, number>();
-  for (const match of record.matchAll(/^FNDA:(\d+),(.+)$/gm)) funcs.set(functionKey(counted, match[2]!), Number(match[1]));
-  return { line, branch, funcs };
+  return { line, branch, funcs: readFunctionEntries(record) };
 }
 
-function functionKey(seen: Map<string, number>, name: string): string {
-  const occurrence = (seen.get(name) ?? 0) + 1;
-  seen.set(name, occurrence);
-  return `${name}#${occurrence}`;
+/** Classic FNDA names do not disambiguate duplicate declarations; never infer their hit locations.
+ * @complexity O(n) time and space in function declarations and counts. */
+function readFunctionEntries(record: string): ReadonlyMap<string, number> | undefined {
+  const declared = new Map<string, string>();
+  const entries = new Map<string, number>();
+  for (const match of record.matchAll(/^FN:(\d+),(?:(\d+),)?(.+)$/gm)) {
+    const name = match[3]!;
+    if (declared.has(name)) return undefined;
+    const key = JSON.stringify([Number(match[1]), match[2], name]);
+    declared.set(name, key);
+    entries.set(key, 0);
+  }
+  const counted = new Set<string>();
+  for (const match of record.matchAll(/^FNDA:(\d+),(.+)$/gm)) {
+    const key = declared.get(match[2]!);
+    if (!key || counted.has(key)) return undefined;
+    counted.add(key);
+    entries.set(key, Number(match[1]));
+  }
+  return entries;
 }
 
 /** Parse LCOV summaries without filtering source or accessing a filesystem. */
@@ -99,7 +110,7 @@ export function loadRouteCoverage({ lcovPath, repoRoot, reader, isMeasurable }: 
  * @complexity O(e) time and space in entries. */
 function unionEntries(a: ReadonlyMap<string, number> | undefined, b: ReadonlyMap<string, number> | undefined, found: number, axis: string): Map<string, number> {
   if (found === 0) return new Map();
-  if (!a || !b) throw new Error(`Cannot union ${axis} coverage without LCOV entries`);
+  if (!a || !b) throw new Error(axis === 'function' ? 'Cannot union function coverage without unambiguous LCOV declarations' : `Cannot union ${axis} coverage without LCOV entries`);
   if (a.size !== found || b.size !== found || [...a.keys()].some((key) => !b.has(key))) throw new Error(`Incompatible ${axis} coverage layouts`);
   const merged = new Map(a);
   for (const [key, count] of b) merged.set(key, Math.max(merged.get(key)!, count));
