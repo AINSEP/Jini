@@ -40,10 +40,26 @@ test('context failure never starts optional code or reads a cached choice', asyn
   expect(document.querySelector('script[src]')).toBeNull();
 });
 
-test('published context replaces stale cached policy before effective consent is computed', async () => {
+test('stale banner copy cannot collect consent: reload first, then boot the matching published page', async () => {
+  const cookie = vi.spyOn(document, 'cookie', 'get');
   const supplied = ports();
+  const bridge = vi.fn();
+  window.jiniConsentQueue = [{ id: 'queued-bridge', kind: 'consent-bridge', mount: bridge }] as never;
+  document.getElementById('jini-consent-config')!.textContent = JSON.stringify({ ...config, scripts: [{ src: '/menu.js' }, ...config.scripts] });
   supplied.fetch.mockResolvedValue({ ok: true, json: async () => ({ enabled: true, policy: 'published', regionMode: 'auto' }) });
+  expect(await bootWithContext(window, { ports: supplied })).toBeUndefined();
+  expect(supplied.reload).toHaveBeenCalledOnce();
+  expect(cookie).not.toHaveBeenCalled();
+  expect(window.jiniConsent).toBeUndefined();
+  expect(supplied.importModule).not.toHaveBeenCalled();
+  expect(bridge).not.toHaveBeenCalled();
+  expect(document.querySelector('script[src]')).toBeNull();
+
+  // Model the revalidated document: copy and config now name the same publication as context.
+  document.getElementById('jini-consent-config')!.textContent = JSON.stringify({ ...config, policy: 'published' });
   const api = await bootWithContext(window, { ports: supplied });
+  expect(supplied.reload).toHaveBeenCalledOnce();
+  expect(bridge).toHaveBeenCalledOnce();
   expect(api!.get().policy).toBe('published');
   expect(api!.get().allowed.analytics).toBe(false);
   expect(document.querySelector('script[src]')).toBeNull();

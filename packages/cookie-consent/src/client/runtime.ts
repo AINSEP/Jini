@@ -219,7 +219,7 @@ function installPage(win: Window & typeof globalThis, page: PageConfig, { ports 
 }
 /** One fresh published-context read before cookie access. Shared cached HTML contains no visitor state.
  * Missing/disabled config and failed context install nothing; no polling or storage reads. */
-export async function bootWithContext(win: Window & typeof globalThis = window, options: BootOptions = {}): Promise<JiniConsentApi | undefined> {
+export async function bootWithContext(win: Window & typeof globalThis, options: BootOptions = {}): Promise<JiniConsentApi | undefined> {
   if (win.jiniConsent) return win.jiniConsent;
   const page = readPage(win.document);
   if (!page || page.banner === 'off') return undefined;
@@ -228,7 +228,9 @@ export async function bootWithContext(win: Window & typeof globalThis = window, 
   try {
     const context = await fetchContext({ ports, url: page.context });
     if (!validContext(context)) return undefined;
-    return installPage(win, { ...page, policy: context.policy, regionMode: context.regionMode }, { ...options, ports });
+    // Cached copy/CSS must describe the policy being accepted; revalidation fetches the current document.
+    if (context.policy !== page.policy) { ports.reload(); return undefined; }
+    return installPage(win, { ...page, regionMode: context.regionMode }, { ...options, ports });
   } catch { return undefined; }
 }
 

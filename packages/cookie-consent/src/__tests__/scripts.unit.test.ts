@@ -33,3 +33,14 @@ test('declared scripts start in order once; withdrawal while loading cancels the
   await api.set({ action: 'accept' });
   expect(sources().filter(s => s === '/stats.js')).toHaveLength(0);
 });
+
+test('malformed absolute URLs are refused while HTTP(S) and existing relative paths stay valid', () => {
+  const invalid = ['https://', 'http://', 'https://[broken', 'https://example.com:bad/stats.js'];
+  const rejected = validateScripts({ scripts: invalid.map(src => ({ src })) });
+  expect(rejected.scripts).toEqual([]);
+  expect(rejected.problems).toHaveLength(invalid.length);
+  const valid = ['https://example.com/stats.js', 'http://localhost/menu.js', '/menu.js', './scripts/menu.js', '../scripts/menu.js'];
+  const accepted = validateScripts({ scripts: valid.map(src => ({ src })) });
+  expect(accepted.problems).toEqual([]);
+  expect(accepted.scripts.map(script => script.src)).toEqual(valid);
+});

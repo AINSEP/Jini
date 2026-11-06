@@ -6,11 +6,17 @@ export function allows({ state, consent = [] }: { state: Pick<ConsentState, 'all
   return consent.every(category => CATEGORIES.includes(category) && state.allowed[category as keyof typeof state.allowed] === true);
 }
 
+function validSrc(src: string): boolean {
+  if (!/^(?:https?:\/\/|\/(?!\/)|\.\.?\/)/.test(src)) return false;
+  try { return ['http:', 'https:'].includes(new URL(src, 'https://declared.invalid').protocol); }
+  catch { return false; }
+}
+
 function validScript(value: unknown): value is DeclaredScript {
   if (!value || typeof value !== 'object') return false;
   const { src, consent } = value as DeclaredScript;
   if (typeof src !== 'string' || !src.trim() || /[\s\\]/.test(src)) return false;
-  if (!/^(?:https?:\/\/|\/(?!\/)|\.\.?\/)/.test(src)) return false;
+  if (!validSrc(src)) return false;
   return consent === undefined || Array.isArray(consent) && consent.every(c => CATEGORIES.includes(c));
 }
 
