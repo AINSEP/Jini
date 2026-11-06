@@ -25,3 +25,7 @@ export { emptyRowState, memberRowMenuItems, describeMembersError } from './membe
 export type { RowActionState, MemberRowMenuHandlers } from './members/rules.js';
 export { TotpSettings } from './auth/TotpSettings.js';
 export type { TotpSettingsPort } from './auth/TotpSettings.js';
+
+export { PasskeySignIn, PasskeySettings } from './auth/Passkeys.js';
+export type { PasskeySignInPort, PasskeySettingsPort } from './auth/Passkeys.js';
+export { runPasskeyCeremony } from './auth/passkey-browser.js';

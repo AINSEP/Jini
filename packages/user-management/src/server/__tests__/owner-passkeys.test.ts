@@ -165,3 +165,10 @@ test('five-key cap and fresh-factor removal keep the credential set bounded', as
   await removeOwnerPasskey({ deps: f.deps, input: { ...f.scope, id: 'key-0', password: 'old', code: '123456' } });
   expect(f.credentials()).toHaveLength(4);
 });
+
+test('registration cannot reset the counter of an already registered credential', async () => {
+  const f = await fixture(); await f.enroll(); await f.register();
+  await f.deps.credentials.save({ ...f.credentials()[0]!, counter: 42 });
+  await expect(f.register()).rejects.toThrow();
+  expect(f.credentials()[0]?.counter).toBe(42);
+});

@@ -25,7 +25,8 @@ async function saveChallenge(deps: OwnerPasskeyDeps, scope: MfaScope, purpose: M
 /** Spend once before protocol verification; failed ceremonies stay spent after commit. O(1). */
 async function claim(deps: OwnerPasskeyDeps, input: { workspaceId: string; pendingToken: string }, purpose: MfaPending['purpose']) {
   const proof = await deps.mfa.store.pending({ workspaceId: input.workspaceId, tokenHash: hash(deps, input.pendingToken) });
-  if (!proof || proof.purpose !== purpose || proof.expiresAt <= deps.mfa.auth.clock.nowMs() || proof.attempts !== 0 || !proof.sealedSecret) return null;
+  if (!proof || proof.purpose !== purpose || !proof.sealedSecret) return null;
+  if (proof.expiresAt <= deps.mfa.auth.clock.nowMs() || proof.attempts !== 0) return null;
   await deps.mfa.store.savePending({ ...proof, attempts: 5 });
   const data = JSON.parse(await deps.mfa.secrets.open({ ...proof, sealedSecret: proof.sealedSecret })) as Challenge;
   if (data.origin !== deps.site.origin || data.rpId !== deps.site.rpId) return null;
@@ -55,10 +56,13 @@ export async function confirmOwnerPasskeyEnrollment(required: Required<MfaScope 
     const claimed = await claim(deps, input, 'passkey-enroll');
     if (!claimed || claimed.proof.principalId !== input.principalId) return false;
     if (!await deps.mfa.store.factor(input)) return false;
-    if ((await deps.credentials.list(input)).length >= 5) return false;
+    const credentials = await deps.credentials.list(input);
+    if (credentials.length >= 5) return false;
     let credential;
     try { credential = await deps.webauthn.register({ site: deps.site, response: input.response, challenge: claimed.data.challenge }); }
     catch { return false; }
+    // Exclusion hints are not a server-side ownership/counter guard: refuse re-registration.
+    if (credentials.some(existing => existing.id === credential.id)) return false;
     await deps.credentials.save({ workspaceId: input.workspaceId, principalId: input.principalId, ...credential, rpId: deps.site.rpId });
     return true;
   });
@@ -69,7 +73,8 @@ export async function confirmOwnerPasskeyEnrollment(required: Required<MfaScope 
 async function loginProof(deps: OwnerPasskeyDeps, workspaceId: string, tokenHash: string | undefined) {
   if (!tokenHash) return null;
   const proof = await deps.mfa.store.pending({ workspaceId, tokenHash });
-  if (!proof || proof.purpose !== 'login' || proof.expiresAt <= deps.mfa.auth.clock.nowMs() || proof.attempts >= 5 || proof.principalId !== deps.mfa.seededOwnerPrincipalId) return null;
+  if (!proof || proof.purpose !== 'login' || proof.principalId !== deps.mfa.seededOwnerPrincipalId) return null;
+  if (proof.expiresAt <= deps.mfa.auth.clock.nowMs() || proof.attempts >= 5) return null;
   return proof;
 }
 

@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { generateRegistrationOptions, generateAuthenticationOptions, verifyRegistrationResponse, verifyAuthenticationResponse,
   type RegistrationResponseJSON, type AuthenticationResponseJSON } from '@simplewebauthn/server';
 import type { PasskeyPort } from './passkey-ports.js';
@@ -9,7 +10,7 @@ export function createSimpleWebAuthnPasskeys(_required: Record<string, never>, _
   return {
     registration: async ({ site, scope, credentials }) => ({ ...await generateRegistrationOptions({
       rpName: site.name, rpID: site.rpId, userName: 'Owner',
-      userID: new TextEncoder().encode(JSON.stringify([scope.workspaceId, scope.principalId])),
+      userID: new Uint8Array(createHash('sha256').update(JSON.stringify([scope.workspaceId, scope.principalId])).digest()),
       attestationType: 'none', excludeCredentials: credentials.map(({ id }) => ({ id })),
       authenticatorSelection: { userVerification: 'required', residentKey: 'discouraged' },
     }) }),
