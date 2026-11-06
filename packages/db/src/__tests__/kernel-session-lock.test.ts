@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { openPostgresKernel } from '../kernel/postgres/driver.js';
-import { scopeToSchema, withKernelSessionLock } from '../kernel/index.js';
+import { scopeToSchema, withKernelSessionLock, kernelSessionPoolMax } from '../kernel/index.js';
 
 function database({ max = 10 } = {}) {
   const locks = new Set<string>();
@@ -79,5 +79,14 @@ it('distinct site keys can hold ownership concurrently in the same database', as
     expect(locks.has(first)).toBe(true);
   } });
   expect(locks.size).toBe(0);
+  await kernel.close();
+});
+
+
+it('pool capacity is readable before ownership and survives a schema wrapper', async () => {
+  const { kernel, statements } = database({ max: 1 });
+  expect(kernelSessionPoolMax({ kernel })).toBe(1);
+  expect(kernelSessionPoolMax({ kernel: scopeToSchema(kernel, 'site_a') })).toBe(1);
+  expect(statements).toEqual([]);
   await kernel.close();
 });

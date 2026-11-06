@@ -17,6 +17,11 @@ export function inheritKernelSessionDatabase({ from, to }: {
   if (database) databases.set(to, database);
 }
 
+/** Read the registered pool capacity without reserving a connection; schema wrappers share it. O(1). */
+export function kernelSessionPoolMax({ kernel }: { kernel: StorageKernel<unknown> }, _optional: Record<string, never> = {}): number | undefined {
+  return databases.get(kernel)?.poolMax;
+}
+
 /**
  * Run one background owner under a dedicated PostgreSQL session advisory lock.
  * A competing owner returns acquired:false. The callback uses normal kernel transactions:
