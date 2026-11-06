@@ -50,3 +50,8 @@ Results: 121 pass, 0 fail; all three static/build commands exit 0. The existing 
 ## Additional bug found
 
 - Required missing model API keys performed DNS before returning the local missing-key refusal. Fixed in the existing preflight; actual requests retain resolved SSRF checks. New regressions failed before the fix and pass after it.
+
+
+## Checkpoint at 21:33 UTC (in progress)
+
+Jini source remains the catalog export and missing-key preflight fixes. Tovu full CI has reached about 29,600 entries; its partial 191 failures across 101 files include already repaired fixtures and three interrupted stuck workers. Current root typechecks pass; complexity remains one preserved import violation and 2,807 warnings. Real daemon boot, current VM bindings and additional strict privacy/parity fixtures pass focused checks. The unchanged component-catalog integration still needs a legitimate accepted-run credential fixture. Final counts and remaining causes will be recorded after the run or hard cap. No Jini source changes are pending.
