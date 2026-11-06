@@ -131,7 +131,6 @@ export function createAutomaticAgentPluginUse(
       const result = await ports.resolve({ pluginId: plugin.pluginId, ...request }, {});
       if (!result.ok) return { status: result.code ?? 'unavailable', guidance: request.skill !== undefined || request.file !== undefined ? result.reason : '' };
       if (!result.promptPrefix.trim()) return { status: 'unavailable', guidance: '' };
-      if (!plugin.enabled) return { status: 'installed-but-inactive', guidance: `Plugin '${plugin.pluginId}' is off; its tools are unavailable.\n\n${result.promptPrefix}` };
       return { status: 'loaded', guidance: result.promptPrefix };
     } catch {
       // Automatic guidance is advisory; unavailable plugins must not block the run.
@@ -239,7 +238,10 @@ export function createAutomaticAgentPluginUse(
       await publishUsage();
       return { status: 'excluded', guidance: '' };
     }
-    const result = await resolveOneGuidance({ plugin, ...request }, { signal });
+    let result = await resolveOneGuidance({ plugin, ...request }, { signal });
+    if (!plugin.enabled && result.status === 'loaded') {
+      result = { status: 'installed-but-inactive', guidance: `Plugin '${plugin.pluginId}' is off; its tools are unavailable.\n\n${result.guidance}` };
+    }
     if (isPrimaryInstructions({ pluginId: plugin.pluginId, ...request })) recordDelivery({ plugin, result });
     rememberAutoSelection();
     await publishUsage();
