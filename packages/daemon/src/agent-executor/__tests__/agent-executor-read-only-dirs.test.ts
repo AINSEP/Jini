@@ -9,6 +9,8 @@ import { createRunLifecycle } from '../../run-lifecycle.js';
 import { createAgentExecutor } from '../index.js';
 import { fixtureLaunchModel } from './model-discovery-fixture.js';
 
+// Only simulated Claude attests per-run MCP isolation; Codex grants personal MCP independently.
+// These fixtures make no claim about real CLI isolation capability.
 // Owner 2026-10-27: an owner-picked folder outside the site is readable, never natively writable.
 describe('executor read-only extra directories', () => {
   it.each(['claude', 'codex', 'site-ancestor'] as const)('%s', async scenario => {
@@ -21,7 +23,7 @@ describe('executor read-only extra directories', () => {
       const actualDef = scenario === 'codex' ? getAgentDef({ id: 'codex' })! : claudeAgentDef;
       let buildOptions: RuntimeBuildOptions | undefined;
       let extraDirs: readonly string[] | undefined;
-      const def: RuntimeAgentDef = { ...actualDef, buildArgs: (required, optional) => {
+      const def: RuntimeAgentDef = { ...actualDef, ...(scenario === 'codex' ? {} : { mcpIsolation: { perRun: 'fixture@2026-11-05' } }), buildArgs: (required, optional) => {
         buildOptions = optional?.options; extraDirs = optional?.extraAllowedDirs;
         return actualDef.buildArgs(required, optional);
       } };
@@ -37,7 +39,7 @@ describe('executor read-only extra directories', () => {
       });
       const { run } = await lifecycle.start({ contextRef: 'read-only-test' });
       const result = executor.run({ runId: run.id, agentId: def.id, cwd: site, prompt: 'hello' }, {
-        filesystemRoot: site, nativeToolAccess: true, permissionMode: 'bypass', cliParity: true,
+        filesystemRoot: site, nativeToolAccess: true, nativeCapabilities: { userMcp: scenario === 'codex' }, permissionMode: 'bypass', cliParity: true,
         readOnlyExtraDirs: [scenario === 'site-ancestor' ? join(base, 'sites') : picked],
       });
       if (scenario === 'site-ancestor') {

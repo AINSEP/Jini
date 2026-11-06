@@ -141,7 +141,7 @@ describe('daemonStatusRoute', () => {
     // exceptions and must not forward their text to the caller (see `adapter.test.ts`).
     const body = res.json.mock.calls[0]![0] as { error: { code: string; message: string } };
     expect(body.error.code).toBe('INTERNAL_ERROR');
-    expect(body.error.message).toBe('an internal error occurred');
+    expect(body.error.message).toBe('The server could not finish this request. Check whether your change was saved, then copy the request ID and report this problem.');
   });
 });
 

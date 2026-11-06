@@ -86,9 +86,9 @@ function createHarness(def: RuntimeAgentDef, options: HarnessOptions = {}) {
   return { lifecycle, executor, child, onCleanupFailure };
 }
 
-async function startRun(harness: ReturnType<typeof createHarness>): Promise<string> {
+async function startRun(harness: ReturnType<typeof createHarness>, { userMcp = false }: { userMcp?: boolean } = {}): Promise<string> {
   const { run } = await harness.lifecycle.start({ contextRef: 'ctx' });
-  await harness.executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'first', cwd: '/work' });
+  await harness.executor.run({ runId: run.id, agentId: 'fake-agent', prompt: 'first', cwd: '/work' }, userMcp ? { nativeCapabilities: { userMcp: true } } : {});
   return run.id;
 }
 
@@ -109,7 +109,7 @@ function controlResponse(requestId: string): unknown {
 describe('AgentExecutor.sendUserMessage — a message sent during a run reaches the live agent', () => {
   it('native_engine_never_relays', async () => {
     const harness = createHarness(createDef({ externalMcpInjection: 'env-passthrough' }), { bridge: true });
-    const runId = await startRun(harness);
+    const runId = await startRun(harness, { userMcp: true });
     await expect(harness.executor.sendUserMessage({ runId, id: 'native-id', text: 'native followup' })).resolves.toBe('delivered');
     expect(harness.executor.claimUserMessages({ runId, via: 'tool-result' })).toEqual([]);
     expect(JSON.parse(harness.child.stdin.writes[1]!)).toEqual({ type: 'user', uuid: 'native-id', message: { role: 'user', content: [{ type: 'text', text: 'native followup' }] } });
@@ -119,7 +119,7 @@ describe('AgentExecutor.sendUserMessage — a message sent during a run reaches 
 
   it('run_end_leaves_unclaimed_for_browser_fallback', async () => {
     const harness = createHarness(createDef({ streamFormat: 'json-event-stream', eventParser: 'codex', promptInputFormat: 'text', externalMcpInjection: 'env-passthrough' }), { bridge: true });
-    const runId = await startRun(harness);
+    const runId = await startRun(harness, { userMcp: true });
     await expect(harness.executor.sendUserMessage({ runId, id: 'claimed', text: 'first' })).resolves.toBe('delivered');
     expect(harness.executor.claimUserMessages({ runId, via: 'tool-result' })).toEqual([{ id: 'claimed', seq: 1, text: 'first' }]);
     await expect(harness.executor.sendUserMessage({ runId, id: 'fallback', text: 'next turn' })).resolves.toBe('delivered');
