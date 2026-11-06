@@ -24,13 +24,13 @@
       "./admin/conformance": "universal"
     },
     "optionalPeers": {
-      "argon2": "opt-in: argon2 password hashing; import @jini-ai/user-management/server \u2014 Argon2 password hashing could not load argon2. Install argon2 to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/ui": "opt-in: ui integrations; import @jini-ai/user-management/react \u2014 UI integrations could not load @jini-ai/ui. Install @jini-ai/ui to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/admin": "opt-in: admin modules; import @jini-ai/user-management/react \u2014 Admin modules could not load @jini-ai/admin. Install @jini-ai/admin to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/agentic": "opt-in: agent-aware ui and protocols; import @jini-ai/user-management/react \u2014 Agent-aware UI and protocols could not load @jini-ai/agentic. Install @jini-ai/agentic to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/ui-kit": "opt-in: ui kit integrations; import @jini-ai/user-management/react \u2014 UI kit integrations could not load @jini-ai/ui-kit. Install @jini-ai/ui-kit to enable this feature, or check its installed version and native binaries.",
-      "react": "opt-in: react user-management ui; import @jini-ai/user-management/react \u2014 React user-management UI could not load react. Install react to enable this feature, or check its installed version.",
-      "react-dom": "opt-in: react user-management ui; import @jini-ai/user-management/react \u2014 React user-management UI could not load react-dom. Install react-dom to enable this feature, or check its installed version."
+      "argon2": "opt-in: argon2 password hashing; import @jini-ai/user-management/server — Argon2 password hashing could not load argon2. Install argon2 to enable this feature, or check its installed version and native binaries.",
+      "@jini-ai/ui": "opt-in: ui integrations; import @jini-ai/user-management/react — UI integrations could not load @jini-ai/ui. Install @jini-ai/ui to enable this feature, or check its installed version and native binaries.",
+      "@jini-ai/admin": "opt-in: admin modules; import @jini-ai/user-management/react — Admin modules could not load @jini-ai/admin. Install @jini-ai/admin to enable this feature, or check its installed version and native binaries.",
+      "@jini-ai/agentic": "opt-in: agent-aware ui and protocols; import @jini-ai/user-management/react — Agent-aware UI and protocols could not load @jini-ai/agentic. Install @jini-ai/agentic to enable this feature, or check its installed version and native binaries.",
+      "@jini-ai/ui-kit": "opt-in: ui kit integrations; import @jini-ai/user-management/react — UI kit integrations could not load @jini-ai/ui-kit. Install @jini-ai/ui-kit to enable this feature, or check its installed version and native binaries.",
+      "react": "opt-in: react user-management ui; import @jini-ai/user-management/react — React user-management UI could not load react. Install react to enable this feature, or check its installed version.",
+      "react-dom": "opt-in: react user-management ui; import @jini-ai/user-management/react — React user-management UI could not load react-dom. Install react-dom to enable this feature, or check its installed version."
     }
   },
   "type": "module",
@@ -102,36 +102,38 @@
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^",
+    "@simplewebauthn/browser": "14.0.0",
+    "@simplewebauthn/server": "14.0.3",
     "otplib": "13.6.0"
   },
   "peerDependencies": {
-    "argon2": "^0.44.0",
-    "react": "^18.3.0 || ^19.0.0",
-    "react-dom": "^18.3.0 || ^19.0.0",
-    "@jini-ai/ui": "^0.6.10",
     "@jini-ai/admin": "^0.6.10",
     "@jini-ai/agentic": "^0.6.10",
-    "@jini-ai/ui-kit": "^0.6.10"
+    "@jini-ai/ui": "^0.6.10",
+    "@jini-ai/ui-kit": "^0.6.10",
+    "argon2": "^0.44.0",
+    "react": "^18.3.0 || ^19.0.0",
+    "react-dom": "^18.3.0 || ^19.0.0"
   },
   "devDependencies": {
-    "vitest": "^2.1.0",
-    "typescript": "^5.6.0",
-    "@types/node": "^24.0.0",
-    "argon2": "^0.44.0",
-    "react": "^19.2.0",
-    "react-dom": "^19.2.0",
-    "@types/react": "^19.2.0",
-    "@types/react-dom": "^19.2.0",
-    "@testing-library/react": "^16.3.0",
-    "@testing-library/user-event": "^14.5.0",
-    "@testing-library/jest-dom": "^6.6.3",
-    "jsdom": "^25.0.1",
-    "@jini-ai/ui": "workspace:*",
     "@jini-ai/admin": "workspace:*",
     "@jini-ai/agentic": "workspace:*",
     "@jini-ai/cms": "workspace:*",
     "@jini-ai/core": "workspace:^",
-    "@jini-ai/ui-kit": "workspace:^"
+    "@jini-ai/ui": "workspace:*",
+    "@jini-ai/ui-kit": "workspace:^",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.3.0",
+    "@testing-library/user-event": "^14.5.0",
+    "@types/node": "^24.0.0",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "argon2": "^0.44.0",
+    "jsdom": "^25.0.1",
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
   },
   "peerDependenciesMeta": {
     "argon2": {

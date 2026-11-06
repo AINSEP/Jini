@@ -3,7 +3,7 @@ import type { AuthServiceDeps } from '../auth-service.js';
 export type MfaScope = { workspaceId: string; principalId: string };
 export type MfaFactor = MfaScope & { sealedSecret: string; lastStep: number };
 export type MfaPending = MfaScope & {
-  purpose: 'login' | 'enroll'; tokenHash: string; expiresAt: number; attempts: number;
+  purpose: 'login' | 'enroll' | 'passkey-enroll' | 'passkey-login'; tokenHash: string; expiresAt: number; attempts: number;
   sealedSecret?: string;
 };
 /** All methods join auth.repos.transactions; at most one pending row per scope/purpose.

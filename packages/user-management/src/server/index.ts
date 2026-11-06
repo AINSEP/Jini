@@ -30,3 +30,7 @@ export * from './mfa/ports.js';
 export * from './mfa/service.js';
 export * from './mfa/totp-adapter.js';
 export * from './mfa/secret-adapter.js';
+
+export * from './mfa/passkey-ports.js';
+export * from './mfa/passkey-service.js';
+export * from './mfa/passkey-adapter.js';

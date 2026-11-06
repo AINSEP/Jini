@@ -33,7 +33,7 @@ export async function requireOwnerFactor(required: Required<MfaScope & { code?: 
 }
 
 /** Password is checked afresh for every management action; sessions alone are insufficient. */
-async function recentOwner(required: Required<MfaScope & { password: string; code?: string }>) {
+export async function requireRecentOwnerAuthentication(required: Required<MfaScope & { password: string; code?: string }>) {
   const { user } = await owner(required.deps, required.input);
   if (!required.input.password || !await required.deps.auth.hasher.verify({ hash: user.passwordHash, password: required.input.password })) {
     throw new IdentityValidationError({ message: 'The current owner password was not accepted. Enter your current password and try again.' });
@@ -117,7 +117,7 @@ export async function completeOwnerLogin(required: Required<{ workspaceId: strin
 export async function beginOwnerEnrollment(required: Required<MfaScope & { password: string; code?: string; label: string; issuer: string }>, _options: Options = {}) {
   const { deps, input } = required;
   return transaction(deps, input.workspaceId, async () => {
-    await recentOwner(required);
+    await requireRecentOwnerAuthentication(required);
     const secret = deps.totp.generate();
     const sealedSecret = await deps.secrets.seal({ ...input, secret });
     const result = await pending(deps, input, 'enroll', sealedSecret);
@@ -145,7 +145,7 @@ export async function confirmOwnerEnrollment(required: Required<MfaScope & { pen
 export async function removeOwnerFactor(required: Required<MfaScope & { password: string; code: string }>, _options: Options = {}): Promise<void> {
   const { deps, input } = required;
   await transaction(deps, input.workspaceId, async () => {
-    await recentOwner(required);
+    await requireRecentOwnerAuthentication(required);
     await deps.store.clear(input);
     await revokeSessions(deps, input);
   });
