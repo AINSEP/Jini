@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { test } from 'vitest';
+import { test, expect, vi } from 'vitest';
 import type { ToolExecutionContext } from '@jini-ai/core';
 import { readDocumentText, createDocumentTextReader, DOCUMENT_TEXT_PAGE_BYTES } from '../../document-read.js';
 import { DOCUMENT_EXTRACTION_LIMITS, DocumentTextExtractionError, type DocumentTextExtractorPort } from '../../document-text.js';
@@ -126,4 +126,31 @@ test('reader releases its admission slot when extraction fails', async () => {
   for (let attempt = 0; attempt < 3; attempt++) await assert.rejects(read(f), error => error === failure);
   const ready = await fixture([{ contentType: 'application/pdf', async extract() { return { text: 'ready', truncated: false }; } }]);
   assert.equal((await read(ready)).text, 'ready');
+});
+
+
+test('stalled extraction reaches its deadline, aborts the adapter and releases both admission slots', async () => {
+  const signals: AbortSignal[] = [];
+  const extractor: DocumentTextExtractorPort = { contentType: 'application/pdf', async extract(_input, options) {
+    if (options?.signal) signals.push(options.signal);
+    return new Promise(() => {});
+  } };
+  const f = await fixture([extractor]);
+  const read = createDocumentTextReader({});
+  vi.useFakeTimers();
+  try {
+    const results = Promise.allSettled([read(f), read(f)]);
+    // Also allow the pre-fix adapter to enter without receiving an abort signal.
+    await Promise.resolve(); await Promise.resolve(); await Promise.resolve();
+    await vi.advanceTimersByTimeAsync(30_000);
+    const settled = await Promise.race([results, Promise.resolve('still blocked')]);
+    expect(settled).not.toBe('still blocked');
+    expect(settled).toMatchObject([{ status: 'rejected', reason: { code: 'DOCUMENT_TEXT_FAILED' } },
+      { status: 'rejected', reason: { code: 'DOCUMENT_TEXT_FAILED' } }]);
+    expect(signals).toHaveLength(2);
+    expect(signals.every(signal => signal.aborted)).toBe(true);
+    extractor.extract = async () => ({ text: 'ready', truncated: false });
+    expect((await read(f)).text).toBe('ready');
+    expect(vi.getTimerCount()).toBe(0);
+  } finally { vi.useRealTimers(); }
 });

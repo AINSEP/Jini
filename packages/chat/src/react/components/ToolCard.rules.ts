@@ -90,6 +90,12 @@ export function toolRowTarget({ input, resultContent }: { input: unknown; result
   const args = (input ?? {}) as Record<string, unknown>;
   const named = firstReadable(args, SUMMARY_KEYS) ?? resultName(resultContent);
   const target = named ?? batchTarget(args) ?? firstReadable(args, KIND_KEYS) ?? Object.values(args).find(readable);
-  return target && typeof args.offset === 'number' && Number.isSafeInteger(args.offset) && args.offset >= 0
-    ? `${target} (offset ${args.offset})` : target;
+  return targetAtOffset({ target, offset: args.offset });
+}
+
+
+/** Preserve absent/invalid offsets; explicit zero still distinguishes a first-page read. */
+function targetAtOffset({ target, offset }: { target: string | undefined; offset: unknown }): string | undefined {
+  if (!target || typeof offset !== 'number') return target;
+  return Number.isSafeInteger(offset) && offset >= 0 ? `${target} (offset ${offset})` : target;
 }

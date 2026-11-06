@@ -18,3 +18,12 @@ Baseline `pnpm -r build` fails in provider-plugins (fix-round scope). Build excl
 - O03: collapsed targets omit read offsets.
 
 O03 follow-up: specialized Read cards now call the shared target rule too. `pnpm --filter @jini-ai/chat exec vitest run src/react/components/__tests__/ToolCard.batch-target.test.tsx src/react/components/__tests__/ToolCard.test.tsx` — 154 pass (12 + 142).
+
+O06 fixed: every read has a 30-second deadline and caller cancellation; the tool passes its signal. Expiry releases admission, aborts the extraction port and returns a typed actionable failure. PDF teardown interrupts a pending text operation; DOCX checks cancellation around its non-cancellable SDK call.
+State cost O06: before, up to 2 concurrent reads × 50 MiB source could occupy admission indefinitely; after, up to 2 admitted reads × 50 MiB plus bounded extraction output, each caller wait ≤30 seconds and one timer/listener per read. Cooperative adapters release resources; synchronous/blocking or non-cancellable third-party work cannot be forcibly terminated on this thread (recorded limitation).
+Tests: `pnpm --filter @jini-ai/cms exec vitest run src/media/__tests__/unit/document-text.unit.test.ts src/media/__tests__/document-read-w2g.unit.test.ts src/media/__tests__/unit/document-text-adapters.unit.test.ts src/media/__tests__/unit/unpdf-boundaries.unit.test.ts` — 22 pass after deadline and PDF cancellation red tests.
+Types: `pnpm --filter @jini-ai/cms exec tsc -p tsconfig.json --noEmit --pretty false` — pass after fixing exact optional signal typing. Scoped ESLint — pass.
+O03 complexity fixed by separating offset formatting; chat tsc passes.
+Setup: locked pnpm install in a writable workspace store completed; the complete build now succeeds. No manifest or lockfile edits.
+
+- O06: stalled document reads have no deadline; PDF operations lacked cancellation cleanup.

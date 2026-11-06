@@ -6,6 +6,7 @@ import { DOCUMENT_EXTRACTION_LIMITS, DocumentTextExtractionError, type DocumentT
 
 export const DOCUMENT_TEXT_PAGE_BYTES = 64 * 1024;
 const MAX_CONCURRENT_DOCUMENT_READS = 2;
+const DOCUMENT_READ_TIMEOUT_MS = 30_000;
 
 /** A hash may have several editorial owners. Private-only bytes cannot be exposed by a caller
  * inventing a new media id; a live ordinary-media owner makes those same bytes publishable.
@@ -70,8 +71,9 @@ function assertPageStart(bytes: Uint8Array, offset: number): void {
 }
 
 /** Enforce the shared port's output bounds before allocating UTF-8 bytes for response paging. */
-async function extractDocumentBytes({ extractor, source }: { extractor: DocumentTextExtractorPort; source: Uint8Array }) {
-  const extraction = await extractor.extract({ bytes: source, limits: DOCUMENT_EXTRACTION_LIMITS });
+async function extractDocumentBytes({ extractor, source, signal }: { extractor: DocumentTextExtractorPort; source: Uint8Array; signal: AbortSignal }) {
+  const extraction = await extractor.extract({ bytes: source, limits: DOCUMENT_EXTRACTION_LIMITS }, { signal });
+  signal.throwIfAborted();
   if (extraction.text.length > DOCUMENT_EXTRACTION_LIMITS.maxCharacters ||
       (extraction.pagesRead ?? 0) > DOCUMENT_EXTRACTION_LIMITS.maxPages) {
     throw new MediaValidationError({ message: 'document extractor exceeded its output limits' });
@@ -105,26 +107,51 @@ export function createDocumentTextReader(_required: Record<string, never>, _opti
   return async function read(required: {
     deps: DocumentReadDeps;
     input: { workspaceId: string; id: string; offset?: number | undefined };
-  }, _options: Record<string, never> = {}): Promise<DocumentTextPage> {
+  }, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<DocumentTextPage> {
     if (activeDocumentReads >= MAX_CONCURRENT_DOCUMENT_READS) {
       throw new MediaValidationError({ message: 'Two documents are already reading. Please try again when one finishes.' });
     }
     activeDocumentReads++;
-    try { return await readDocumentTextPage(required); }
+    try { return await readBeforeDeadline(required, { signal }); }
     finally { activeDocumentReads--; }
   };
 }
 
+/** Bound all repository/parser waits and notify cooperative adapters; never retain an admission
+ * slot indefinitely. The timer/listener are removed on success, failure and cancellation.
+ * Adapters must honor cancellation; a synchronous parser cannot be preempted on this thread. */
+async function readBeforeDeadline(required: { deps: DocumentReadDeps; input: { workspaceId: string; id: string; offset?: number | undefined } },
+  { signal }: { signal?: AbortSignal | undefined }) {
+  const deadline = new AbortController();
+  const bounded = signal ? AbortSignal.any([signal, deadline.signal]) : deadline.signal;
+  const timer = setTimeout(() => deadline.abort(new DocumentTextExtractionError({ code: 'DOCUMENT_TEXT_FAILED',
+    message: 'Document text reading exceeded the 30-second limit. Try a smaller document or retry the read.' })), DOCUMENT_READ_TIMEOUT_MS);
+  let rejectAborted!: (reason: unknown) => void;
+  const stopped = new Promise<never>((_resolve, reject) => { rejectAborted = reject; });
+  const abort = () => rejectAborted(bounded.reason);
+  bounded.addEventListener('abort', abort, { once: true });
+  try {
+    bounded.throwIfAborted();
+    return await Promise.race([readDocumentTextPage(required, { signal: bounded }), stopped]);
+  } finally {
+    clearTimeout(timer);
+    bounded.removeEventListener('abort', abort);
+  }
+}
+
 /** Keep the source and extraction allocations inside the in-process read admission boundary. */
-async function readDocumentTextPage(required: { deps: DocumentReadDeps; input: { workspaceId: string; id: string; offset?: number | undefined } }): Promise<DocumentTextPage> {
+async function readDocumentTextPage(required: { deps: DocumentReadDeps; input: { workspaceId: string; id: string; offset?: number | undefined } },
+  { signal }: { signal: AbortSignal }): Promise<DocumentTextPage> {
   const { deps, input } = required;
   const offset = input.offset ?? 0;
   if (!Number.isSafeInteger(offset) || offset < 0) throw new MediaValidationError({ message: 'offset must be a non-negative byte offset' });
   const { media, extractor } = await findTextDocument(deps, input);
+  signal.throwIfAborted();
   const source = await loadDocumentBytes(deps, { workspaceId: input.workspaceId, sha256: media.source.sha256 });
+  signal.throwIfAborted();
   let bytes = source;
   let metadata: Pick<DocumentTextPage, 'extractionTruncated' | 'pagesRead' | 'totalPages'> = {};
-  if (extractor) ({ bytes, metadata } = await extractDocumentBytes({ extractor, source }));
+  if (extractor) ({ bytes, metadata } = await extractDocumentBytes({ extractor, source, signal }));
   assertPageStart(bytes, offset);
   let end = Math.min(bytes.length, offset + DOCUMENT_TEXT_PAGE_BYTES);
   while (end < bytes.length && isUtf8Continuation(bytes[end]!)) end--;
