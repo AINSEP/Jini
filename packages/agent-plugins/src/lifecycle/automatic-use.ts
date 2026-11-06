@@ -228,13 +228,16 @@ export function createAutomaticAgentPluginUse(
   function isPrimaryInstructions({ pluginId, skill, file }: { pluginId: string } & AgentPluginSkillRequest, _options = {}): boolean {
     return (skill === undefined || skill === pluginId) && (file === undefined || file === 'SKILL.md');
   }
+  /** Explicit content reads remain repeatable; inactive guidance is not an active-use grant. O(1). */
+  function guidanceAlreadyDelivered({ plugin, ...request }: { plugin: AgentPluginSearchCandidate } & AgentPluginSkillRequest): boolean {
+    if (request.skill !== undefined || request.file !== undefined) return false;
+    return delivered.has(plugin.pluginId) || alreadyLoaded.has(plugin.pluginId) || (!plugin.enabled && inactiveDelivered.has(plugin.pluginId));
+  }
   /** Requested content bypasses only deduplication, never consent or the resolver's trust checks.
    * Only the primary SKILL.md records full plugin delivery. O(p) consent filtering plus one read.
    */
   async function loadPermitted({ plugin, ...request }: { plugin: AgentPluginSearchCandidate } & AgentPluginSkillRequest, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<AutomaticAgentPluginLoadResult> {
-    const requestedContent = request.skill !== undefined || request.file !== undefined;
-    if (!requestedContent && !plugin.enabled && inactiveDelivered.has(plugin.pluginId)) return { status: 'already-loaded', guidance: '' };
-    if (!requestedContent && (delivered.has(plugin.pluginId) || alreadyLoaded.has(plugin.pluginId))) return { status: 'already-loaded', guidance: '' };
+    if (guidanceAlreadyDelivered({ plugin, ...request })) return { status: 'already-loaded', guidance: '' };
     const matches = await applyConsent({ matches: [{ ...plugin, score: 4 }] }, { signal });
     if (!matches.length) {
       await publishUsage();
