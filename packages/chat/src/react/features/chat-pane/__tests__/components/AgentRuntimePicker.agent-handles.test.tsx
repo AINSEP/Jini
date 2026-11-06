@@ -1,6 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { createDomPageDriver } from '@jini-ai/agentic/dom';
+// Exercise the existing shared overlay context without adding a chat runtime dependency.
 import { KitProvider } from '../../../../../../../ui-kit/dist/react/index.js';
 import { AgentRuntimePicker } from '../../components/AgentRuntimePicker.js';
 import type { ChatPaneAgent } from '../../types.js';
@@ -29,9 +30,29 @@ describe('AgentRuntimePicker agent handles', () => {
       expect(overlay).toContainElement(option);
       const handle = option.getAttribute('data-agent-element')!;
       expect(await driver.findElements({}, { query: handle })).toEqual([expect.objectContaining({ handle, page: 'settings' })]);
+      const outside = createDomPageDriver({ root: document.createElement('main'), pages: {} });
+      await expect(outside.click({ handle })).rejects.toThrow();
+      expect(onChange).not.toHaveBeenCalled();
       await act(async () => { await driver.click({ handle }); });
       expect(onChange).toHaveBeenCalledWith({ agentId: 'runtime-b' });
     } finally { view.unmount(); root.remove(); }
+  });
+
+  it('retains native-dialog portal ownership ahead of a provider overlay outside that dialog', () => {
+    const overlay = document.createElement('div');
+    document.body.append(overlay);
+    const view = render(<KitProvider overlayContainer={overlay}><dialog open data-agent-page="settings">
+      <AgentRuntimePicker agentHandle="dialog-runtime" agents={agents} value={{ agentId: 'runtime/a' }} onChange={vi.fn()} />
+    </dialog></KitProvider>);
+    try {
+      const trigger = screen.getByRole('button', { name: 'Choose AI runtime' });
+      const dialog = trigger.closest('dialog');
+      fireEvent.click(trigger);
+      const row = screen.getByRole('radio', { name: /Second runtime/ });
+      expect(dialog).toContainElement(row);
+      expect(overlay).not.toContainElement(row);
+      expect(row.closest('.jini-runtime-popover')).toHaveAttribute('data-agent-page', 'settings');
+    } finally { view.unmount(); overlay.remove(); }
   });
 
   it('defaults separate picker instances to distinct handles', () => {
