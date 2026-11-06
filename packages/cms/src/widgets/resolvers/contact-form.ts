@@ -1,7 +1,7 @@
 import { canonicalArgumentDigest } from "@jini-ai/core/records";
-import { submissionEvidenceSchema } from "../../forms/submission-evidence.js";
+import { submissionEvidenceSchema } from "../../core/form-schema.js";
 import type { FieldDescriptor } from "../../forms/types.js";
-import { createFormCollectionRegistry, resolveFormCollectionPlan, type FormCollectionRegistry } from "../../forms/provider.js";
+import { createFormCollectionRegistry, resolveFormCollectionPlan, type FormCollectionRegistry } from "../../core/form-collection.js";
 import type { JsonObject } from "@jini-ai/core/primitives";
 import type { FormDefinitionReadPort, FormDefinitionView } from "./ports.js";
 import type { WidgetResolveResult, WidgetResolver } from "../types.js";
@@ -84,9 +84,10 @@ async function findDefinition(
 async function contactFormProps({ definition, successMessage, providers, consentOff }: { consentOff: boolean; definition: FormDefinitionView; successMessage: string | null; providers: FormCollectionRegistry | undefined }): Promise<JsonObject> {
   const schema = submissionEvidenceSchema({ definition: { fields: definition.fields as FieldDescriptor[], ...(typeof definition.html === "string" ? { html: definition.html } : {}) } });
   const schemaHash = await canonicalArgumentDigest({ args: schema });
+  const builtin = !definition.provider || definition.provider.id === "builtin";
   return {
     formDefinitionId: definition.id,
-    ...(!definition.provider || definition.provider.id === "builtin" ? { schemaHash } : {}),
+    ...(builtin ? { schemaHash } : {}),
     // Closes this file's own previously-disclosed deferral ("the actual submission still
     // posts to Forms' existing public route unmodified... that is a render-component/route
     // concern, out of this resolver's scope") — the render component built for SPEC-043's
@@ -100,8 +101,8 @@ async function contactFormProps({ definition, successMessage, providers, consent
     ...(definition.mode === "html" ? {
       mode: "html", html: definition.html ?? "",
     } : {}),
-    ...(definition.provider && definition.provider.id !== "builtin" ? { collectionPlan: resolveFormCollectionPlan({ definition, providers: providers ?? createFormCollectionRegistry({}) }) as unknown as JsonObject } : {}),
-    ...(consentOff && definition.provider && definition.provider.id !== "builtin" ? { collectionConsentOff: true } : {}),
+    ...(!builtin ? { collectionPlan: resolveFormCollectionPlan({ definition, providers: providers ?? createFormCollectionRegistry({}) }) as unknown as JsonObject } : {}),
+    ...(consentOff && !builtin ? { collectionConsentOff: true } : {}),
     successMessage,
   };
 }
