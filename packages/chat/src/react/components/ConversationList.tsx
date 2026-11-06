@@ -103,6 +103,41 @@ function relativeTime(updatedAt: number | undefined, now: number): string {
   return `${Math.round(hours / 24)}d ago`;
 }
 
+/** Only the host-supported actions are rendered; row selection remains independent. */
+function ConversationActions({ itemId, editing, canRename, canDelete, onRename, onDelete, t }: {
+  itemId: string;
+  editing: boolean;
+  canRename: boolean;
+  canDelete: boolean;
+  onRename: () => void;
+  onDelete: () => void;
+  t: (key: string) => string;
+}) {
+  return <>
+    {canRename && !editing ? <button
+      type="button"
+      className="jini-conv-item-rename"
+      aria-label={t('Rename chat')}
+      data-testid={`conversation-rename-button-${itemId}`}
+      onClick={onRename}
+    >
+      <Icon name="pencil" size={12} />
+    </button> : null}
+    {canDelete ? <button
+      type="button"
+      className="jini-conv-item-delete"
+      aria-label={t('Delete conversation')}
+      data-testid={`conversation-delete-${itemId}`}
+      onClick={(event) => {
+        event.stopPropagation();
+        onDelete();
+      }}
+    >
+      <Icon name="close" size={12} />
+    </button> : null}
+  </>;
+}
+
 export function ConversationList({
   conversations: savedConversations,
   activeConversationId,
@@ -359,27 +394,9 @@ export function ConversationList({
                       </span>
                     </button>
                   )}
-                  {onRename && editingId !== item.id ? <button
-                    type="button"
-                    className="jini-conv-item-rename"
-                    aria-label={t('Rename chat')}
-                    data-testid={`conversation-rename-button-${item.id}`}
-                    onClick={() => startRename(item.id)}
-                  >
-                    <Icon name="pencil" size={12} />
-                  </button> : null}
-                  {onDelete ? <button
-                    type="button"
-                    className="jini-conv-item-delete"
-                    aria-label={t('Delete conversation')}
-                    data-testid={`conversation-delete-${item.id}`}
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      requestDelete(item);
-                    }}
-                  >
-                    <Icon name="close" size={12} />
-                  </button> : null}
+                  <ConversationActions itemId={item.id} editing={editingId === item.id}
+                    canRename={Boolean(onRename)} canDelete={Boolean(onDelete)}
+                    onRename={() => startRename(item.id)} onDelete={() => requestDelete(item)} t={t} />
                 </div>
               ))
             )}
