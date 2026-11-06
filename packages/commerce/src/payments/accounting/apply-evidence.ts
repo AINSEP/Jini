@@ -246,7 +246,7 @@ export async function applyPaymentEvidence(
   const { evidence } = required;
   const plan = planIntentEvidence({ payment: stateOf(ctx.payment), evidence });
   if (plan.kind === "quarantined") {
-  await appendEvidence(ctx, { subject: "payment", subjectRef: evidence.providerRef, status: evidence.status, ...(evidence.amount ? { amount: evidence.amount } : {}) });
+    await appendEvidence(ctx, { subject: "payment", subjectRef: evidence.providerRef, status: evidence.status, ...(evidence.amount ? { amount: evidence.amount } : {}) });
     await quarantine(ctx, "payment", plan, evidence);
     return { kind: "quarantined", reason: plan.reason };
   }
