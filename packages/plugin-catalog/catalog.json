@@ -275,6 +275,24 @@
   },
   {
     "kind": "agent",
+    "path": "commerce",
+    "pluginVersion": "0.1.0",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "commerce",
+    "publisherIdentity": "jini/commerce",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.23",
+    "description": "One-time catalog and member checkout using the host's configured payment provider. Disabled until the host activates and configures it.",
+    "expectedDigests": {
+      "plugin.json": "sha256-42d24bdaa42ca5931d47fab07c10911655d40c750664edc78e6e3df857865cb6",
+      "skills/commerce/SKILL.md": "sha256-b8aa80dd61d8104d84cd08b1ceab18acdbb8189ae7004369b85a507cbb98a2fd"
+    }
+  },
+  {
+    "kind": "agent",
     "path": "composio",
     "pluginVersion": "1.0.0",
     "contract": {
