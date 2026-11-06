@@ -63,7 +63,7 @@ describe("attachFederatedMcpTools — operator warnings", () => {
 
     expect(result.connectFailures).toEqual([{ connectionId: "down", reason: "ECONNREFUSED" }]);
     expect(result.reports).toEqual([]);
-    expect(messages).toContain("warn:mcp-federation: 'down' failed, continuing without its tools — ECONNREFUSED");
+    expect(messages).toContain("warn:mcp-federation: 'down' failed, continuing without its tools — 'ECONNREFUSED'");
   });
 });
 
@@ -71,9 +71,11 @@ describe("createFederationReloadCoordinator — default attach", () => {
   it("admits through the real attachFederatedMcpTools when no attach seam is given, logging to the supplied logger", async () => {
     const { messages, logger } = collectingLogger();
     const registry = fakeRegistry();
+    const failure = new Error("handshake refused");
+    failure.stack = "Error: handshake refused\n    at connect fixture";
     const coordinator = createFederationReloadCoordinator({ coordDeps: {
       registry, deps: DEPS, logger,
-      connect: async ({ connection: { config } }) => { if (config.connectionId === "down") throw new Error("handshake refused"); return pingSession(); },
+      connect: async ({ connection: { config } }) => { if (config.connectionId === "down") throw failure; return pingSession(); },
       resolveConnections: async () => [connection("vendor", ["ping"]), connection("down")],
     }, initiallyAdmitted: [] });
 
@@ -82,7 +84,7 @@ describe("createFederationReloadCoordinator — default attach", () => {
     expect(result.newlyAdmittedConnectionIds).toEqual(["vendor"]);
     expect(result.connectFailures).toEqual([{ connectionId: "down", reason: "handshake refused" }]);
     expect(registry.registered.map((registration) => registration.descriptor.id)).toHaveLength(1);
-    expect(messages).toContain("warn:mcp-federation: 'down' failed, continuing without its tools — handshake refused");
+    expect(messages).toContain("warn:mcp-federation: 'down' failed, continuing without its tools — Error: handshake refused\n    at connect fixture");
     expect([...coordinator.admittedConnectionIds()]).toEqual(["vendor"]);
   });
 });

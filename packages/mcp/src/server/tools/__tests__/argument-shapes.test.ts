@@ -114,11 +114,27 @@ describe('proxy argument recovery', () => {
         expect(fetchImpl).not.toHaveBeenCalled();
       });
 
-      it.each([null, [], '{"query":"kui"}'])('rejects malformed input %j with a move instruction', async (input) => {
+      it.each([
+        { input: null, message: "put the tool's own arguments inside `input`; replace `input` with a JSON object" },
+        { input: [], message: "put the tool's own arguments inside `input`; replace `input` with a JSON object" },
+        { input: '{"query":"kui"}', message: "put the tool's own arguments inside `input`" },
+        { input: '{"query":', message: 'The delegated input is not valid JSON. Send one JSON object containing the tool fields.' },
+      ])('rejects malformed or conflicting input $input with a repair instruction', async ({ input, message }) => {
         const result = await call({ tool, args: { toolId: 'search_agent_plugin_local', query: 'kui', input } });
         expect(result.isError).toBe(true);
-        expect(result.content).toEqual([{ type: 'text', text: `invalid arguments for ${tool.name}: put the tool's own arguments inside \`input\`; replace \`input\` with a JSON object` }]);
+        expect(result.content).toEqual([{ type: 'text', text: `invalid arguments for ${tool.name}: ${message}` }]);
         expect(fetchImpl).not.toHaveBeenCalled();
+      });
+
+      it('decodes an object-valued JSON input before executing without mutating the envelope', async () => {
+        const args = { toolId: 'search_agent_plugin_local', input: '{"query":"kui"}' };
+        const result = await call({ tool, args });
+        expect(result).toEqual({ content: [{ type: 'text', text: JSON.stringify(completed) }] });
+        expect(JSON.parse(String(fetchImpl.mock.calls[0]?.[1]?.body))).toEqual({
+          runId: 'run-fixed', toolUseId: 'use-fixed', toolId: 'search_agent_plugin_local', input: { query: 'kui' },
+          ...(tool.name === 'execute_readonly_delegated_tool' ? { requireReadOnly: true } : {}),
+        });
+        expect(args).toEqual({ toolId: 'search_agent_plugin_local', input: '{"query":"kui"}' });
       });
 
       it('never lets a folded runId or read-only flag override the host-owned envelope', async () => {

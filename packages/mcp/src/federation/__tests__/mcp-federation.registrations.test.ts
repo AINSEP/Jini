@@ -866,14 +866,15 @@ test("defaultConnect: a real child writing to stderr does not fail, hang, or lea
 
   const result = await attachFederatedMcpTools({ registry, deps: fakeDeps().deps, connect: createDefaultConnect({ resolver: IDENTITY_STDIO_LAUNCH_RESOLVER, clientInfo, messages: federationMessages, bearerToken: () => undefined }) }, { logger, connections: [
       {
-        config: { ...CONFIG, allowedToolNames: [] },
+        // Keep an admitted fixture tool: empty grants deliberately close their sessions.
+        config: { ...CONFIG, allowedToolNames: ['echo_fixture'] },
         launch: { command: process.execPath, args: ["-e", SERVER_SCRIPT_WITH_STDERR_NOISE], env: {} },
       },
     ] });
 
   try {
-    assert.deepEqual(result.registeredToolIds, []);
-    assert.equal(result.sessions.length, 1, "stderr must drain before the handshake completes");
+    assert.deepEqual(result.registeredToolIds, ['mcp__supabase__echo_fixture']);
+    assert.equal(result.sessions.length, 1, `stderr must drain before the handshake completes; got: ${JSON.stringify(messages)}`);
     const tools = await result.sessions[0]!.listTools();
     assert.deepEqual(tools.map((tool) => tool.name), ["echo_fixture"], "the session remains live after draining diagnostics");
     assert.equal(
