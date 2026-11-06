@@ -2,6 +2,18 @@ import { expect, it, vi } from 'vitest';
 import { createUnpdfDocumentTextExtractor } from '../../plugins/document-text/unpdf.js';
 import { MAX_DOCUMENT_BYTES } from '../../document-ingress.js';
 import { DocumentTextExtractionError } from '../../document-text.js';
+import { MediaValidationError } from '../../types.js';
+
+it('extracts a PDF above the former 10 MiB cap within the shared upload limit', async () => {
+  const getDocumentProxy = vi.fn(async (bytes: Uint8Array) => {
+    expect(bytes.byteLength).toBe(10 * 1024 * 1024 + 1);
+    return { numPages: 0, getPage: vi.fn(), loadingTask: { destroy: vi.fn(async () => {}) } };
+  });
+  const extractor = createUnpdfDocumentTextExtractor({}, { loadModule: async () => ({ getDocumentProxy }) });
+  await expect(extractor.extract({ bytes: new Uint8Array(10 * 1024 * 1024 + 1), limits: { maxPages: 1, maxCharacters: 100 } }))
+    .resolves.toEqual({ text: '', truncated: false, pagesRead: 0, totalPages: 0 });
+  expect(getDocumentProxy).toHaveBeenCalledTimes(1);
+});
 
 it.each([1, 2])('does not report truncation when the character cap exactly fits all %i pages', async numPages => {
   const cleanup = vi.fn();
@@ -34,9 +46,11 @@ it('reports truncation at an exact character boundary if later pages remain, wit
 
 it('rejects an oversized PDF before giving bytes to its parser', async () => {
   const getDocumentProxy = vi.fn();
-  const extractor = createUnpdfDocumentTextExtractor({}, { loadModule: async () => ({ getDocumentProxy }) });
+  const loadModule = vi.fn(async () => ({ getDocumentProxy }));
+  const extractor = createUnpdfDocumentTextExtractor({}, { loadModule });
   await expect(extractor.extract({ bytes: new Uint8Array(MAX_DOCUMENT_BYTES + 1), limits: { maxPages: 1, maxCharacters: 100 } }))
-    .rejects.toMatchObject({ code: 'DOCUMENT_TEXT_FAILED', cause: new RangeError('document exceeds the 10 MiB limit') });
+    .rejects.toMatchObject({ constructor: MediaValidationError, message: 'document exceeds the 50 MiB limit' });
+  expect(loadModule).not.toHaveBeenCalled();
   expect(getDocumentProxy).not.toHaveBeenCalled();
 });
 

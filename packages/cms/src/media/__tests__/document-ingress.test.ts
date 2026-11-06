@@ -1,8 +1,19 @@
 /** Archive and OOXML admission policy for Library documents, driven through a fake archive port. */
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
-import { validateDocumentIngress, documentDisplayFilename, type DocumentArchiveReaderPort } from '../document-ingress.js';
+import { validateDocumentIngress, documentDisplayFilename, MAX_DOCUMENT_BYTES, type DocumentArchiveReaderPort } from '../document-ingress.js';
 import { MediaValidationError } from '../types.js';
+
+test('document admission uses the inclusive 50 MiB upload limit and names it on refusal', async () => {
+  assert.equal(MAX_DOCUMENT_BYTES, 50 * 1024 * 1024);
+  assert.deepEqual(await validateDocumentIngress({ filename: 'large.txt', bytes: Buffer.alloc(50 * 1024 * 1024, 65) }), { contentType: 'text/plain' });
+  await assert.rejects(validateDocumentIngress({ filename: 'large.txt', bytes: Buffer.alloc(50 * 1024 * 1024 + 1, 65) }),
+    (error: unknown) => {
+      assert.ok(error instanceof MediaValidationError);
+      assert.equal(error.message, 'document must be non-empty and at most 50 MiB');
+      return true;
+    });
+});
 
 interface FakeEntry { path: string; kind?: string; data?: string | Uint8Array; declaredSize?: number | undefined; compressedSize?: number | undefined; stream?: boolean }
 const archiveBytes = Buffer.alloc(4096, 1);

@@ -52,9 +52,9 @@ async function loadDocumentBytes(deps: DocumentReadDeps, { workspaceId, sha256 }
   const blob = await deps.blobRepo.findByHash({ workspaceId, sha256 });
   if (!blob) throw new Error('document source blob is missing');
   const size = await deps.blobStore.sizeOf?.({ storageKey: blob.storageKey });
-  if (size != null && size > MAX_DOCUMENT_BYTES) throw new MediaValidationError({ message: 'document exceeds the 10 MiB limit' });
+  if (size != null && size > MAX_DOCUMENT_BYTES) throw new MediaValidationError({ message: `document exceeds the ${MAX_DOCUMENT_BYTES / (1024 * 1024)} MiB limit` });
   const bytes = await deps.blobStore.get({ storageKey: blob.storageKey });
-  if (bytes.byteLength > MAX_DOCUMENT_BYTES) throw new MediaValidationError({ message: 'document exceeds the 10 MiB limit' });
+  if (bytes.byteLength > MAX_DOCUMENT_BYTES) throw new MediaValidationError({ message: `document exceeds the ${MAX_DOCUMENT_BYTES / (1024 * 1024)} MiB limit` });
   return bytes;
 }
 
@@ -85,7 +85,7 @@ export interface DocumentTextPage {
 
 /** Read source as untrusted data, never instructions. Authorize at the host boundary before calling.
  * Byte offsets and UTF-8 boundaries guarantee bounded pages without losing/replacing characters.
- * BlobStorePort has no range read: at most 10 MiB is loaded; the returned page is at most 64 KiB.
+ * BlobStorePort has no range read: at most 50 MiB is loaded; the returned page is at most 64 KiB.
  * Extracted documents are capped by DOCUMENT_EXTRACTION_LIMITS and re-extracted per offset.
  * @throws DocumentTextExtractionError when extraction is unavailable or a parser fails. */
 export async function readDocumentText(required: {
