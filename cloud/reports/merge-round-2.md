@@ -21,7 +21,7 @@ No textual merge conflicts. All branch reports retained. No conflict-targeted te
 
 ## Checks in progress
 
-Jini baseline `pnpm -r build` failed at user-management before merges; clean merged checkout install passed and clean recursive build is running. Working checkout was reinstalled with the merged frozen lockfile and is rebuilding before final Tovu linking/checks. An early Tovu tsc attempt during the baseline rebuild encountered stale declarations and will be replaced by checks after final linking.
+Jini baseline `pnpm -r build` failed at user-management before merges, without emitted compiler diagnostics. No green starting-tree build is claimed. After installing the merged frozen lockfile, its direct package compile and both complete recursive builds passed. The fresh clone had no dist directories before installation/build and used only seeded download caches, not copied node_modules or dist. An early Tovu tsc attempt during the baseline rebuild encountered stale declarations. All four final Tovu checks now run after the successful working-tree Jini build and relink.
 
 Commit-range gitleaks 8.28.0 scans passed for both repositories with no leaks. Strict complexity checks are running on changed production/tooling files.
 
@@ -29,4 +29,39 @@ Commerce mounting remains activation guarded: an inactive store calls next(), pr
 
 No additional features, refactors, version bumps, link-state changes or test/rule weakening introduced by this integration job. No main push, force push, publish, tag or deployment.
 
-Final build/typecheck/packed guards and report pending.
+## Completed build and source checks
+
+Commands source `/workspace/.tovu-build/env.sh`. Logs are under `/workspace/work/merge-round-2/`.
+
+- Fresh checkout: `git clone --no-hardlinks --branch cloud/combine /workspace/Jini /workspace/work/merge-round-2/clean/Jini`, then `test -z "$(find /workspace/work/merge-round-2/clean/Jini -type d -name dist -print -quit)"` — PASS, no pre-existing dist.
+- Both Jini checkouts: `CI=true pnpm install --frozen-lockfile --store-dir /workspace/work/merge-round-2/pnpm-store` — PASS.
+- Both Jini checkouts: `npm_config_cache=/workspace/work/merge-round-2/npm-cache pnpm -r build` — PASS, including all examples.
+- Working Jini: `pnpm guard:plugins` — PASS.
+- Both Jini checkouts: `pnpm --filter @jini-ai/plugin-catalog run generate` — PASS; generated files compare identical. Commit `d5607be9f` changes only three expected digests: PostHog consent-adapter/index and Cloudflare forms-receiver. No integration-authored version bump.
+- Tovu: `JINI_PACKAGES_DIR=/workspace/Jini/packages npm run link:jini` — PASS. No tracked dependency manifest, registry lockfile or link-state change.
+
+## Pending checks
+
+- Clean Jini: `pnpm typecheck` (all workspace packages and scripts).
+- Clean Jini: `npm_config_cache=/workspace/work/merge-round-2/npm-cache pnpm guard:plugins:packed`.
+- Tovu: `npm run typecheck`; `npm --prefix apps/admin run typecheck`; `npm --prefix apps/desktop run typecheck`; `npm --prefix apps/site-chat run typecheck`.
+
+## Strict complexity
+
+Changed existing production/tooling files were selected with `git diff --name-only --diff-filter=ACMR <original-base>..HEAD`, restricted to JS/TS extensions, excluding tests and vendor files. Exact argv arrays are retained in `jini-complexity-other-command.json`, `tovu-complexity-other-command.json`, and `tovu-complexity-desktop-command.json` in the log directory.
+
+Commands: `./node_modules/.bin/eslint --no-error-on-unmatched-pattern --no-inline-config --rule '{"complexity":["error",10],"sonarjs/cognitive-complexity":["error",10]}' <selected-files>`; desktop uses the same command with both limits 9. Jini: 75 files, 5 errors/7 warnings. Tovu non-desktop: 49 files, 5 errors/8 warnings. Desktop: 1 file, PASS. The error functions/values match findings already documented by the merged source jobs. No rule or code was weakened to remove them.
+
+BUG (existing): Jini `isDocumentOnlyBlob` complexity 11.
+BUG (existing): Jini executor `run` complexity 20/cognitive 13.
+BUG (existing): Jini `catalogEntry` complexity 12.
+BUG (existing): Jini `checkPluginPackages` cognitive complexity 11.
+BUG (existing): Tovu `readBundledTemplateFallback` complexity 11.
+BUG (existing): Tovu `createRouteDeps` complexity 11.
+BUG (existing): Tovu `createApp` complexity 11.
+BUG (existing): Tovu `composeSiteRouteDeps` complexity 21/cognitive 21.
+BUG (source-job report, unchanged): provider-plugins/catalog.json omits formspree while the shared catalog includes it.
+
+No source tests were run: there were no conflicted files. Full suites are explicitly deferred by the job. Source review confirmed forms cleanup/schema-hash wiring and consent declarations both survived automatic merges in app.ts, deps.ts and render.ts. Commerce-off fallthrough and ordinary consent-off script rendering remain intact.
+
+Final typecheck/packed results, final commit-range scan and completion report pending.
