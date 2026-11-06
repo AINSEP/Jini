@@ -1,3 +1,5 @@
+import { assertCurrentFormSchema } from "./stale-form.js";
+import { FORM_SCHEMA_HASH_FIELD } from "./portable-validation.js";
 import { captureSubmissionEvidence } from "./submission-evidence.js";
 import { formatErrorForLog } from '@jini-ai/core';
 /**
@@ -91,8 +93,11 @@ export interface SubmitFormRequired {
  */
 export async function submitForm(required: SubmitFormRequired, optional: SubmitFormOptional = {}): Promise<{ status: "accepted" }> {
   const { deps } = required;
-  const { input, attemptToken } = splitAttemptToken({ input: required.input }, optional);
-  const { definition, originalDefinition } = await resolveActiveDefinition({ deps, input }, optional);
+  const { input: pageInput, attemptToken } = splitAttemptToken({ input: required.input }, optional);
+  const { definition, originalDefinition } = await resolveActiveDefinition({ deps, input: pageInput }, optional);
+  const body = { ...pageInput.body };
+  delete body[FORM_SCHEMA_HASH_FIELD];
+  const input = { ...pageInput, body };
 
   // Discard before validation, rate limiting or writes; a bot sees the same accepted response
   // without consuming capacity or creating a submission/event.
@@ -159,6 +164,7 @@ async function resolveActiveDefinition(
   if (!definition || definition.status !== "active" || !usesBuiltinCollection({ definition: stored! })) {
     throw new FormDefinitionNotFoundError({ message: `form '${input.slug}' was not found` });
   }
+  await assertCurrentFormSchema({ original: stored!, definition, body: input.body });
   if (validateEmails) assertSubmissionEmails({ definition, body: input.body });
   // Validation views can widen code-unit limits for emoji answers; they are not the authored schema.
   return { definition, originalDefinition: stored! };

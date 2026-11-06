@@ -1,3 +1,6 @@
+import { canonicalArgumentDigest } from "@jini-ai/core/records";
+import { submissionEvidenceSchema } from "../../forms/submission-evidence.js";
+import type { FieldDescriptor } from "../../forms/types.js";
 import { createFormCollectionRegistry, resolveFormCollectionPlan, type FormCollectionRegistry } from "../../forms/provider.js";
 import type { JsonObject } from "@jini-ai/core/primitives";
 import type { FormDefinitionReadPort, FormDefinitionView } from "./ports.js";
@@ -59,7 +62,7 @@ async function resolveContactForm({ repo, config, workspaceId, providers }: { pr
 
   return {
     ok: true,
-    ir: { componentId: "contact-form", props: contactFormProps({ definition, successMessage: configString({ config, key: "successMessage" }) ?? null, providers }) },
+    ir: { componentId: "contact-form", props: await contactFormProps({ definition, successMessage: configString({ config, key: "successMessage" }) ?? null, providers }) },
     dependencyKeys: [definition.id],
   };
 }
@@ -73,10 +76,14 @@ async function findDefinition(
   return repo.findBySlug({ workspaceId, slug: slugFallback });
 }
 
-/** The render component's props for an active definition. */
-function contactFormProps({ definition, successMessage, providers }: { definition: FormDefinitionView; successMessage: string | null; providers: FormCollectionRegistry | undefined }): JsonObject {
+/** The render component's current schema digest and props, derived from the already-loaded definition.
+ * @complexity O(schema bytes + canonical key sorting) time/space; one local digest, no I/O. */
+async function contactFormProps({ definition, successMessage, providers }: { definition: FormDefinitionView; successMessage: string | null; providers: FormCollectionRegistry | undefined }): Promise<JsonObject> {
+  const schema = submissionEvidenceSchema({ definition: { fields: definition.fields as FieldDescriptor[], ...(typeof definition.html === "string" ? { html: definition.html } : {}) } });
+  const schemaHash = await canonicalArgumentDigest({ args: schema });
   return {
     formDefinitionId: definition.id,
+    ...(!definition.provider || definition.provider.id === "builtin" ? { schemaHash } : {}),
     // Closes this file's own previously-disclosed deferral ("the actual submission still
     // posts to Forms' existing public route unmodified... that is a render-component/route
     // concern, out of this resolver's scope") — the render component built for SPEC-043's

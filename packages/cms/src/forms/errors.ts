@@ -41,3 +41,17 @@ export class FormRateLimitExceededError extends Error {
   readonly retryAfterSeconds: number;
   constructor({ message, retryAfterSeconds }: { message: string; retryAfterSeconds: number }) { super(message); this.retryAfterSeconds = retryAfterSeconds; }
 }
+
+export const FORM_SCHEMA_CHANGED_MESSAGE = "This form changed while you were filling it in. Your form has not been sent. Your previous answers are kept below. Please review the updated form.";
+/** Refuses a stale page before acceptance; carries bounded non-file draft text only. */
+export class FormSchemaChangedError extends Error {
+  readonly code = "FORMS_SCHEMA_CHANGED";
+  readonly fields: FieldDescriptor[];
+  readonly schemaHash: string;
+  readonly draft: import('./stale-form.js').FormRetryDraft;
+  readonly html: string | undefined;
+  constructor({ fields, schemaHash, draft, html }: { fields: FieldDescriptor[]; schemaHash: string; draft: import('./stale-form.js').FormRetryDraft; html?: string }, _optional = {}) {
+    super(FORM_SCHEMA_CHANGED_MESSAGE);
+    this.fields = fields; this.schemaHash = schemaHash; this.draft = draft; this.html = html;
+  }
+}

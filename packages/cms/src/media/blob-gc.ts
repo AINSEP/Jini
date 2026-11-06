@@ -174,6 +174,9 @@ export async function isBlobUnreferenced(required: IsBlobUnreferencedRequired): 
 // ---------------------------------------------------------------------------
 
 export interface TombstoneBlobDeps {
+  /** Host serialization for tombstoning. Defaults to the shared writer hash lock; a host may
+   * replace it only when its active database transaction already serializes all byte owners. */
+  withHashLock?: typeof withSha256Lock;
   mediaRepo: MediaRepoPort;
   blobRepo: AssetBlobRepoPort;
   clock: Clock;
@@ -188,8 +191,8 @@ export interface TombstoneBlobRequired {
 /**
  * Tombstone-pass. Marks an `active` blob row `tombstoned` (starting its
  * `gc_grace` clock) if-and-only-if {@link isBlobUnreferenced} holds, all
- * inside one {@link withSha256Lock} section so a concurrent dedup upload for
- * the same sha256 can't observe a half-updated row. Idempotent: re-tombstoning
+ * inside one {@link withSha256Lock} section (or the host's equivalent transaction protection)
+ * so a concurrent dedup upload for the same sha256 can't observe a half-updated row. Idempotent: re-tombstoning
  * an already-tombstoned row is a no-op success, not an error (mirrors
  * `trashMedia`'s idempotency).
  *
@@ -197,10 +200,12 @@ export interface TombstoneBlobRequired {
  * @overallScore 100
  */
 export async function tombstoneBlobIfUnreferenced(
-  required: TombstoneBlobRequired
+  required: TombstoneBlobRequired,
+  _optional: Record<string, never> = {},
 ): Promise<{ tombstoned: boolean; reason: string }> {
   const { deps, input } = required;
-  return withSha256Lock({ key: input.sha256, criticalSection: async () => {
+  const withLock = deps.withHashLock ?? withSha256Lock;
+  return withLock({ key: input.sha256, criticalSection: async () => {
     const row = await deps.blobRepo.findByHash(input);
     if (!row) return { tombstoned: false, reason: "no-blob-row" };
     if (row.status === "tombstoned") return { tombstoned: true, reason: "already-tombstoned" };
