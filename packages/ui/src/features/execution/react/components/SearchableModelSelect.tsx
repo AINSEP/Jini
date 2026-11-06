@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { agentHandleProps } from '@jini-ai/agentic';
+import { useAgentHandle } from '../../../../react/hooks/useAgentHandle.js';
 import { filterAgentModelOptions } from '../../rules.js';
 import type { AgentModelOption } from '../../types.js';
 import { CustomSelect } from '../../../../react/components/CustomSelect.js';
@@ -31,9 +32,8 @@ export interface SearchableModelSelectProps {
   menuClassName?: string | undefined;
   testId?: string | undefined;
   searchInputTestId?: string | undefined;
-  /** Tags the wrapping element — `CustomSelect` owns the actual trigger/popover markup, so this is
-   *  the addressable unit an agent locates, then drives via its own trigger button inside. */
-  agentHandle?: string | undefined;
+  /** Addresses the actual trigger, options and search field; false excludes every control. */
+  agentHandle?: string | false | undefined;
 }
 
 /**
@@ -66,6 +66,7 @@ export function SearchableModelSelect({
   searchInputTestId,
   agentHandle,
 }: SearchableModelSelectProps) {
+  const base = useAgentHandle({ agentHandle });
   const [query, setQuery] = useState('');
   const searchRef = useRef<HTMLInputElement | null>(null);
 
@@ -95,8 +96,9 @@ export function SearchableModelSelect({
   };
 
   return (
-    <div className="jini-searchable-select" data-testid={testId} {...agentHandleProps({}, { base: agentHandle, ...({ role: 'field', label: ariaLabel }) })}>
+    <div className="jini-searchable-select" data-testid={testId}>
       <CustomSelect
+        agentHandle={base ?? false}
         value={value}
         options={visibleOptions}
         onChange={onChange}
@@ -109,6 +111,7 @@ export function SearchableModelSelect({
             <div className="jini-searchable-select-search-row">
               <input
                 ref={searchRef}
+                {...agentHandleProps({}, { base, action: 'search', role: 'field', label: searchPlaceholder })}
                 type="search"
                 className="jini-input jini-searchable-select-search"
                 value={query}

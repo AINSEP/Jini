@@ -1,6 +1,8 @@
 import type { ReactNode } from 'react';
+import { agentHandleProps } from '@jini-ai/agentic';
+import { useAgentHandle, type AgentControlProps } from '../hooks/useAgentHandle.js';
 
-export interface PopoverItemProps {
+export interface PopoverItemProps extends AgentControlProps {
   selected?: boolean;
   /** Rendered when `selected` — typically a check icon. Omit for a plain
    *  text-only item with no selection affordance. */
@@ -22,9 +24,12 @@ export interface PopoverItemProps {
  * Origin: `PopoverItem` from the vendored schedule/mention god-component
  * (recon r6 §1.19) — generic, no product types.
  */
-export function PopoverItem({ selected = false, selectedIcon, label, hint, onClick, title }: PopoverItemProps) {
+export function PopoverItem({ selected = false, selectedIcon, label, hint, onClick, title, ...agentProps }: PopoverItemProps) {
+  const base = useAgentHandle(agentProps);
   return (
     <button
+      {...agentHandleProps({}, { base, role: 'button', label })}
+      data-agent-private={agentProps['data-agent-private']}
       type="button"
       className={`jini-popover__item${selected ? ' is-selected' : ''}`}
       onClick={onClick}

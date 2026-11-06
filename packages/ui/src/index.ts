@@ -99,6 +99,7 @@ export * from './utils/design-md.js';
 // assertion now that it's an external package rather than living inside `ui`.
 export * from './utils/file-system-errors.js';
 
+export { useAgentHandle, type AgentControlProps } from './react/hooks/useAgentHandle.js';
 export * from './react/hooks/useInView.js';
 export * from './react/hooks/useCoalescedCallback.js';
 export * from './react/hooks/useStableHandler.js';
