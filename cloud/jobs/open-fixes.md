@@ -11,3 +11,11 @@ Check each item first. If one is wrong or already fixed, say so and leave it. Fa
 7. Cloudflare and Vercel plugin manifest versions stayed the same while their payloads changed. Find out whether plugin updates key on the version. If they do, fix it with the smallest change and say what a site would have missed.
 
 Report at cloud/reports/open-fixes.md and in your final message: shas, each item fixed, wrong or stopped and why, tests with exact commands.
+
+## Also: older items from a recheck, some probably fixed since. Check first; fix what is still open and small; list anything that needs a new mechanism.
+8. Large choice answers: unbounded selections spread into push (Jini packages/chat/src/core/question-answer.ts).
+9. DeepSeek auth classification: DEEPSEEK_API_KEY matches the second regex through API_KEY (Jini packages/agent-runtime/src/auth.ts).
+10. Document upload capped at 10 MiB while the host media cap is 50 MiB (Jini packages/cms/src/media/document-ingress.ts). Align them, with plain error words.
+11. Disabled-plugin guidance: off-plugin projection removes skills, capabilities and MCP identities, so the assistant cannot tell the user what to turn on (Jini agent-plugins search-projection.ts).
+12. Media URLs stale after replace: already-cached old URLs can survive a replacement (Tovu media-rendition.ts).
+13. Plugin release consistency: the catalog checks local artifacts, without tying them to the published version (Jini packages/plugin-catalog/scripts/generate).

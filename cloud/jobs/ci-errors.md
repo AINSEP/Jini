@@ -6,3 +6,5 @@ Earlier jobs never finished these. First work out what is already on the base, a
 2. cloud/jobs/errors.md on the plans branch, with its trim. The look of the shared display gets checked in Chrome afterwards.
 
 Report at cloud/reports/ci-errors.md and in your final message: shas, what was already done, what you did, tests with exact commands.
+
+3. Coverage: Jini lcov.ts still selects the higher-hit report instead of a union; admin lacks an explicit coverage scope and floors. Fix with the smallest change. Do not lower any floor.
