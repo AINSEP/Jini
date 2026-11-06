@@ -1,7 +1,7 @@
 # om-chat-3 — Jini implementation complete
 
 Branch: `cloud/om-chat-3`. Base: `origin/cloud/combine` at `b0cc1371b5e739f9cd1b26f14aa5a21a82416b60`.
-Tovu implementation is committed; its push is blocked pending clarification of full desktop pre-push gates versus the job's focused-test-only instruction. No gates were bypassed.
+Tovu is confirmed pushed to `origin/cloud/om-chat-3` at `48f0dbcf698ca678a4e7a586bab574f2c2bab4d8`. The owner explicitly approved `git push --no-verify` for that Tovu branch and instructed that full desktop gates must not run locally. No test, rule, or hook configuration was changed.
 The final report-only commit is identified by branch HEAD; implementation SHAs follow.
 
 ## Implementation commits
@@ -13,7 +13,7 @@ The final report-only commit is identified by branch HEAD; implementation SHAs f
 - `9d6de67911ec0776e55237ec16f1280b46fc4b54` — Preserve resolved selections and explain transport refusals
 - `b89909dccc2d944fec8dd1984bfe6eeaa457ef86` — Correct the HTTP startup helper option type
 
-All implementation commits through 9d6de6791 were confirmed pushed before this report. The final type correction and this report are pushed together as the last checkpoint.
+All implementation commits and the prior report were confirmed pushed at Jini `a9926389ba1dfc8690f4f24c941466e56360e8c8`. This report-only completion update records the final Tovu delivery; its SHA is branch HEAD and appears in the final response.
 
 ## Changes
 
@@ -101,7 +101,7 @@ BUG (base): `agent-executor-read-only-dirs.test.ts` has 3 failed / 0 passed; nat
 FINDING (base): executor `run()` exceeds complexity 10 (20 cyclomatic / 13 cognitive); left unchanged in structure rather than broadening the job.
 FINDING (outside this job): cumulative artifact text and tool-ID deduplication sets are not newly bounded; the parser work bounds physical/multiline JSON framing.
 LIMIT: no real authenticated CLI smoke or release/published-package adoption was performed; verification consumed rebuilt local package links.
-LIMIT: Tovu push remains blocked by the desktop pre-push hook's full tests/coverage requirement, which conflicts with the explicit focused-test-only job rule. User clarification requested; no approval received and no hook/check bypass used.
+DELIVERY: the owner resolved the Tovu hook conflict by explicitly approving `git push --no-verify` only for Tovu `cloud/om-chat-3`. Confirmed pushed SHAs: `ce0e198d75ee023631d7ba3a4a6949b225df72b8`, `a5168690d675cc4de06a5152da954c67f849e4d2`, `b32766a3c039d118e3a2320a85219f33533d8b57`, and final `48f0dbcf698ca678a4e7a586bab574f2c2bab4d8`. Full gates were not run locally. GitHub Desktop Gates and later cloud full suites remain the owner-selected validation path; their outcomes have not been inspected.
 
 No main/combine push, force push, deployment, tag, publication, schema change, staging service, picker lifecycle or additional cache. Open Marketing was not touched. Tests use temporary fixtures, without live/owner data or billed CLI calls.
 
