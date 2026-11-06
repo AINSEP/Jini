@@ -35,6 +35,7 @@ export interface CoreResolverDeps {
   navMenuReadModel: NavMenuReadModel;
   formDefinitionRepo: FormDefinitionReadPort;
   formCollectionProviders?: Parameters<typeof createContactFormResolver>[0]["formCollectionProviders"];
+  formEmbedConsentOff?: Parameters<typeof createContactFormResolver>[0]["formEmbedConsentOff"];
   /** R1 addition — resolves a `collection` config's target content type. See `recent-entries.ts`'s
    * `ContentTypeLookup` for why this is its own narrow port rather than `ContentTypeRepoPort`. */
   contentTypes: ContentTypeLookup;
@@ -47,6 +48,6 @@ export function createCoreResolvers(deps: CoreResolverDeps, _optional: Record<st
     gallery: createGalleryWidgetResolver({ resolveMedia: deps.galleryMedia ?? (async () => new Map()) }),
     "recent-entries": createRecentEntriesResolver({ collectionList: deps.collectionList, entryList: deps.entryList, contentTypes: deps.contentTypes, ...(deps.siteTimeZone === undefined ? {} : { siteTimeZone: deps.siteTimeZone }) }),
     menu: createMenuResolver({ menus: deps.menus, navMenuReadModel: deps.navMenuReadModel, ...(deps.resolveMenuTargetHref === undefined ? {} : { resolveTargetHref: deps.resolveMenuTargetHref }), publicOnly: true }),
-    "contact-form": createContactFormResolver({ formDefinitionRepo: deps.formDefinitionRepo, ...(deps.formCollectionProviders ? { formCollectionProviders: deps.formCollectionProviders } : {}) }),
+    "contact-form": createContactFormResolver({ formDefinitionRepo: deps.formDefinitionRepo, formEmbedConsentOff: deps.formEmbedConsentOff, ...(deps.formCollectionProviders ? { formCollectionProviders: deps.formCollectionProviders } : {}) }),
   };
 }
