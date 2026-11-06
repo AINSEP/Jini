@@ -1,3 +1,4 @@
+import { createFormCollectionRegistry, describeFormCollectionProviders } from '@jini-ai/cms/forms';
 import { useMemo, type ReactNode } from 'react';
 import { FetchQueryProvider } from '@jini-ai/ui/fetch-query';
 import { createHttpTransport } from '../../../core/transport/http.js';
@@ -20,7 +21,7 @@ export function FormsTestProvider({ children, options = {} }: { children: ReactN
       request: ({ path, method, body }, optional = {}) => host.request({ path }, { method, ...(body === undefined ? {} : { body: JSON.stringify(body) }), ...optional }),
       url: ({ path }) => `/api/admin/v1${path}`,
     };
-    return { formsApi: createHttpFormsApi({ transport, basePath: '/workspaces/workspace-local/forms' }), formsTrash: createHttpFormsTrash({ transport, basePath: '/workspaces/workspace-local/trash/items' }), formsNavigation: createAdminShellNavigation({ location: window.location, window, document }) };
+    return { formsApi: { ...createHttpFormsApi({ transport, basePath: '/workspaces/workspace-local/forms' }), listFormProviders: async () => describeFormCollectionProviders({ providers: createFormCollectionRegistry({}) }) }, formsTrash: createHttpFormsTrash({ transport, basePath: '/workspaces/workspace-local/trash/items' }), formsNavigation: createAdminShellNavigation({ location: window.location, window, document }) };
   }, []);
   return <FetchQueryProvider><FormsPortsContext.Provider value={ports}><FormsOptionsContext.Provider value={options}>{children}</FormsOptionsContext.Provider></FormsPortsContext.Provider></FetchQueryProvider>;
 }

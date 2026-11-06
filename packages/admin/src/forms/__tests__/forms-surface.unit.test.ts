@@ -13,6 +13,14 @@ const form = (id: string, updatedAt: string): AdminFormDefinition => ({
 } as AdminFormDefinition);
 
 describe("forms HTTP adapter", () => {
+  it("discovers provider settings from the scoped endpoint", async () => {
+    const providers = [{ id: 'fourth', label: 'Fourth', fields: [], answers: 'Fourth answers', validation: 'Fourth checks', frameOrigins: [], available: true }];
+    const calls: Array<{ path: string; method: string }> = [];
+    const transport: FormsTransportPort = { async request<T>(required: { path: string; method: string }) { calls.push(required); return { data: providers } as T; }, url: ({ path }) => path };
+    expect(await createHttpFormsApi({ transport, basePath: '/workspaces/w/forms/' }).listFormProviders!({})).toEqual(providers);
+    expect(calls).toEqual([{ path: '/workspaces/w/forms/providers', method: 'GET' }]);
+  });
+
   it("routes a submission delete to the encoded submission path (the server moves it to Trash)", async () => {
     const calls: Array<{ path: string; method: string }> = [];
     const transport: FormsTransportPort = { async request<T>(required: { path: string; method: string }) { calls.push(required); return undefined as T; }, url: ({ path }) => path };

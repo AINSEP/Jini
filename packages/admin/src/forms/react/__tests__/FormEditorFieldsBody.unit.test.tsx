@@ -10,6 +10,10 @@ import { FormEditorFieldsBody, type FormEditorFieldsBodyProps } from "../compone
  */
 
 const t = (key: string) => key;
+const providers = [
+  { id: "builtin", label: "Built-in inbox", fields: [], answers: "Answers stay in the built-in inbox.", validation: "Built-in checks apply.", frameOrigins: [], available: true },
+  { id: "formspree", label: "Formspree", fields: [{ key: "endpoint", label: "Public form endpoint", type: "url" as const }], answers: "Answers go directly to your Formspree account.", validation: "Browser and Formspree validation apply.", helpText: "Enable the selected plugin before collecting answers.", frameOrigins: [], available: true },
+];
 
 function savedForm(status: AdminFormDefinition["status"]): AdminFormDefinition {
   return { id: "f1", name: "Contact", slug: "contact", status, fields: [], notify: { enabled: false, recipients: [] }, createdAt: "2026-01-01T00:00:00Z", updatedAt: "2026-01-01T00:00:00Z" };
@@ -20,7 +24,7 @@ function props(overrides: Partial<FormEditorFieldsBodyProps> = {}): FormEditorFi
     name: "Contact", onNameChange: vi.fn(), slug: "contact", onSlugChange: vi.fn(), isNew: false,
     fields: [], existingFieldIds: [], onFieldsChange: vi.fn(), form: savedForm("active"), saving: false,
     onStatusToggle: vi.fn(), onSave: vi.fn(), t, mode: "builder", onModeChange: vi.fn(), html: "<form></form>",
-    onHtmlChange: vi.fn(), onCopyEmbed: vi.fn(), copyFeedback: null, ...overrides,
+    providers, onHtmlChange: vi.fn(), onCopyEmbed: vi.fn(), copyFeedback: null, ...overrides,
   };
 }
 
@@ -145,4 +149,24 @@ describe('collection provider controls', () => {
     expect(screen.getByText(/Republish every static page/)).not.toBeNull();
     expect(screen.queryByText('Basic spam protection is on.')).toBeNull();
   });
+});
+
+it('renders a dummy fourth provider and its configuration from discovery alone', () => {
+  const onProviderChange = vi.fn();
+  const dummy = { id: 'fourth', label: 'Fourth collection', fields: [{ key: 'destination', label: 'Public destination', type: 'text' as const }], answers: 'Answers go to the fourth service.', validation: 'Fourth service checks.', frameOrigins: [], available: true };
+  const p = props({ providers: [...providers, { ...dummy, id: 'third', label: 'Third collection' }, dummy], provider: { id: 'fourth', config: { destination: 'old', retained: 'value' } }, onProviderChange });
+  render(<FormEditorFieldsBody {...p} />);
+  expect(screen.getByRole('option', { name: 'Fourth collection' })).not.toBeNull();
+  expect(screen.getByText(dummy.answers)).not.toBeNull();
+  fireEvent.change(screen.getByLabelText('Public destination'), { target: { value: 'new' } });
+  expect(onProviderChange).toHaveBeenCalledWith({ id: 'fourth', config: { destination: 'new', retained: 'value' } });
+  expect(p.onFieldsChange).not.toHaveBeenCalled();
+  expect(p.onHtmlChange).not.toHaveBeenCalled();
+});
+it('preserves an unavailable stored choice and shows a plain settings message', () => {
+  const onProviderChange = vi.fn();
+  render(<FormEditorFieldsBody {...props({ providers: [], provider: { id: 'missing', config: { url: 'kept' } }, providersError: 'Form provider settings are unavailable. Try opening this editor again.', onProviderChange })} />);
+  expect((screen.getByLabelText('Where answers go') as HTMLSelectElement).value).toBe('missing');
+  expect(screen.getByText('Form provider settings are unavailable. Try opening this editor again.')).not.toBeNull();
+  expect(onProviderChange).not.toHaveBeenCalled();
 });

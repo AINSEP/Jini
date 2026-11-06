@@ -1,3 +1,4 @@
+import { createFormCollectionRegistry, describeFormCollectionProviders, type FormProviderDescription } from '@jini-ai/cms/forms';
 import type { AdminFormsPort, AdminFormDefinition, AdminFormSubmission, AdminFormUpdatePatch } from '../../core/ports/forms.js';
 import { AdminApiError } from '../../core/transport/errors.js';
 import type { FormsTrashPort } from '../ports.js';
@@ -18,8 +19,8 @@ function assertNoFieldRemoved({ current, patch }: { current: AdminFormDefinition
 /** A scoped, deterministic in-memory API with the core contract's add/edit-only invariant. */
 export function createMemoryFormsApi(
   _required: Record<string, never> = {},
-  { forms = [], submissions = [], now = () => new Date(0).toISOString(), nextId }: {
-    forms?: readonly AdminFormDefinition[]; submissions?: readonly AdminFormSubmission[];
+  { forms = [], submissions = [], providers = describeFormCollectionProviders({ providers: createFormCollectionRegistry({}) }), now = () => new Date(0).toISOString(), nextId }: {
+    forms?: readonly AdminFormDefinition[]; submissions?: readonly AdminFormSubmission[]; providers?: readonly FormProviderDescription[];
     now?: () => string; nextId?: () => string;
   } = {},
 ): AdminFormsPort & { readonly forms: AdminFormDefinition[]; readonly submissions: AdminFormSubmission[]; readonly trash: FormsTrashPort } {
@@ -47,6 +48,7 @@ export function createMemoryFormsApi(
   };
   return {
     forms: definitions, submissions: answers,
+    async listFormProviders(_required, _optional = {}) { return structuredClone(providers); },
     async listFormDefinitions(_required, _optional = {}) { return structuredClone(definitions); },
     async getFormDefinition({ id }, _optional = {}) { return structuredClone(find(id)); },
     async createFormDefinition(input, options = {}) {

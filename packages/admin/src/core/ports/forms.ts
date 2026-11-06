@@ -162,6 +162,8 @@ export interface AdminFormUpdatePatch {
 }
 
 export interface AdminFormsPort {
+  /** Current public collection settings. Older hosts may omit discovery; editors preserve their stored selection. */
+  listFormProviders?(requiredArgs: Record<string, never>, optionalArgs?: Record<string, never>): Promise<readonly import("@jini-ai/cms/forms").FormProviderDescription[]>;
   listFormDefinitions(requiredArgs: Record<string, never>): Promise<readonly AdminFormDefinition[]>;
   getFormDefinition(requiredArgs: { id: string }): Promise<AdminFormDefinition>;
   createFormDefinition(requiredArgs: Omit<AdminFormCreateInput, "notify">, optionalArgs?: Pick<AdminFormCreateInput, "notify">): Promise<AdminFormDefinition>;
