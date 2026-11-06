@@ -116,11 +116,15 @@ export async function completeOwnerPasskeyLogin(required: Required<{ workspaceId
     if (!proof || proof.principalId !== claimed.proof.principalId) return null;
     const principal = await deps.mfa.auth.repos.principals.findById({ workspaceId: proof.workspaceId, id: proof.principalId });
     if (principal?.kind !== 'user' || principal.status !== 'active') return null;
+    const user = await deps.mfa.auth.repos.users.findByPrincipalId({ workspaceId: proof.workspaceId, principalId: proof.principalId });
+    if (!user) return null;
     const verified = await verifyAssertion(deps, proof, claimed.data, input.response);
     if (!verified) return null;
     await deps.credentials.save({ ...verified.credential, counter: verified.counter });
     await deps.mfa.store.clearPending(proof);
-    return { principal, ...await createSessionForPrincipal({ deps: deps.mfa.auth, input: proof }, options) };
+    const session = await createSessionForPrincipal({ deps: deps.mfa.auth, input: proof }, options);
+    await deps.mfa.auth.repos.users.save({ ...user, lastLoginAt: session.session.createdAt });
+    return { principal, ...session };
   });
   if (!result) throw refused();
   return result;

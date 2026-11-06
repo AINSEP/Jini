@@ -10,7 +10,7 @@ export async function runPasskeyCeremony({ kind, options }: { kind: 'register' |
     if (kind === 'register') return await browser.startRegistration({ optionsJSON: options as unknown as Parameters<typeof browser.startRegistration>[0]['optionsJSON'] });
     return await browser.startAuthentication({ optionsJSON: options as unknown as Parameters<typeof browser.startAuthentication>[0]['optionsJSON'] });
   } catch (error) {
-    if (error instanceof Error && error.name === 'NotAllowedError') throw new Error('The passkey prompt was cancelled or timed out. Try again, or use your authenticator app.');
+    if ((error as { name?: unknown } | null)?.name === 'NotAllowedError') throw new Error('The passkey prompt was cancelled or timed out. Try again, or use your authenticator app.');
     throw new Error('This browser could not complete the passkey prompt. Try again, or use your authenticator app or recovery code.');
   }
 }

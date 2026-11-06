@@ -172,3 +172,48 @@ test('registration cannot reset the counter of an already registered credential'
   await expect(f.register()).rejects.toThrow();
   expect(f.credentials()[0]?.counter).toBe(42);
 });
+
+test('successful passkey completion records the existing last-login timestamp', async () => {
+  const f = await fixture(); await f.enroll(); await f.register(); const begun = await f.begin();
+  const result = await f.complete(begun.pendingToken);
+  const owner = await f.deps.mfa.auth.repos.users.findByPrincipalId(f.scope);
+  expect(owner?.lastLoginAt).toBe(result.session.createdAt);
+});
+
+test('TOTP and passkey completions compete for the same password proof, with one session total', async () => {
+  const f = await fixture(); await f.enroll(); await f.register();
+  const password = await f.login(); if (!('pendingToken' in password)) throw Error('missing');
+  const passkey = await beginOwnerPasskeyLogin({ deps: f.deps, input: { workspaceId: 'a', pendingToken: password.pendingToken } });
+  const results = await Promise.allSettled([
+    completeOwnerLogin({ deps: f.deps.mfa, input: { workspaceId: 'a', pendingToken: password.pendingToken, code: '123456' } }),
+    f.complete(passkey.pendingToken),
+  ]);
+  expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+  expect(await f.sessions()).toHaveLength(1);
+});
+
+test('purpose substitution, expired registration and replaced password proofs grant nothing', async () => {
+  const f = await fixture(); await f.enroll(); await f.register();
+  const begun = await f.begin();
+  await expect(confirmOwnerPasskeyEnrollment({ deps: f.deps, input: { ...f.scope, pendingToken: begun.pendingToken, response: 'valid' } })).rejects.toThrow();
+  await f.login();
+  await expect(f.complete(begun.pendingToken)).rejects.toThrow();
+  const registration = await beginOwnerPasskeyEnrollment({ deps: f.deps, input: { ...f.scope, password: 'old', code: '123456' } });
+  f.advance(300001);
+  await expect(confirmOwnerPasskeyEnrollment({ deps: f.deps, input: { ...f.scope, pendingToken: registration.pendingToken, response: 'valid' } })).rejects.toThrow();
+  expect(f.credentials()).toHaveLength(1); expect(await f.sessions()).toHaveLength(0);
+});
+
+test('parallel registration confirmation activates once; a suspended owner cannot complete login', async () => {
+  const f = await fixture(); await f.enroll();
+  const registration = await beginOwnerPasskeyEnrollment({ deps: f.deps, input: { ...f.scope, password: 'old', code: '123456' } });
+  const confirm = () => confirmOwnerPasskeyEnrollment({ deps: f.deps, input: { ...f.scope, pendingToken: registration.pendingToken, response: 'valid' } });
+  const results = await Promise.allSettled([confirm(), confirm()]);
+  expect(results.filter(result => result.status === 'fulfilled')).toHaveLength(1);
+  const begun = await f.begin();
+  const principal = await f.deps.mfa.auth.repos.principals.findById({ workspaceId: 'a', id: f.scope.principalId });
+  if (!principal) throw Error('missing principal');
+  await f.deps.mfa.auth.repos.principals.save({ ...principal, status: 'disabled' });
+  await expect(f.complete(begun.pendingToken)).rejects.toThrow();
+  expect(await f.sessions()).toHaveLength(0);
+});
