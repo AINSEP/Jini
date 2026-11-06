@@ -392,10 +392,18 @@ export async function settleUnknownRefund(
   return { kind: "settled", outbox: ctx.outbox };
 }
 
+/** Unknown outcomes or abandoned, unconfirmed sessions past their 25-hour lifetime. */
+function resolvableIntent({ payment, now }: { payment: PaymentRecord; now: number }): boolean {
+  if (payment.intentStatus === "unknown") return true;
+  const unconfirmed = payment.intentStatus === "requires_action" || payment.intentStatus === "pending";
+  return unconfirmed && now - payment.createdAt > 25 * 60 * 60_000;
+}
+
 /**
  * Settle an `unknown` payment intent from an operator's audited resolution (source `operator`):
  * `succeeded` captures the full amount and emits `payment.succeeded`; `failed` moves no money. Only
- * from `unknown`; anything else already has provider evidence.
+ * from `unknown` or pending/requires-action sessions older than 25 hours. Final provider evidence
+ * still outranks a person's assertion.
  */
 export async function settleUnknownIntent(
   required: WriterInput & { status: "succeeded" | "failed" },
@@ -404,7 +412,7 @@ export async function settleUnknownIntent(
   const ctx = await open(required, null);
   if (!ctx) return { kind: "missing" };
   const p = ctx.payment;
-  if (p.intentStatus !== "unknown") return { kind: "not-unknown", status: p.intentStatus };
+  if (!resolvableIntent({ payment: p, now: ctx.deps.now() })) return { kind: "not-unknown", status: p.intentStatus };
   const amount = { minorUnits: p.amountMinor, currency: p.currency };
   await appendEvidence(ctx, { subject: "payment", subjectRef: p.providerRef ?? p.id, status: required.status, amount });
   const succeeded = required.status === "succeeded";
