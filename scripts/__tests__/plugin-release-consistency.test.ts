@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
+import { planAgentPluginUpdate } from '../../packages/agent-plugins/src/lifecycle/update-plan.js';
 import { computePluginIntegrity } from '@jini-ai/plugins/host/node';
 import { catalogEntry, type CatalogEntry } from '../../packages/plugin-catalog/scripts/generate.js';
 import { checkPluginReleaseConsistency } from '../check-plugin-packages.js';
@@ -116,3 +117,46 @@ it('imports the release preparation path in Node without running a release', () 
   expect(result.status, result.stderr).toBe(0);
   expect(result.stdout.trim()).toBe('function');
 });
+
+
+/** Compare packed distributions, so ignored/missing payloads cannot hide behind source hashes. */
+function packFixture(source: string, label: string): string {
+  const output = join(root, label), unpacked = join(output, 'unpacked');
+  mkdirSync(unpacked, { recursive: true });
+  const packed = spawnSync('npm', ['pack', '--ignore-scripts', '--json', '--pack-destination', output], {
+    cwd: source, encoding: 'utf8', timeout: 30_000, env: { ...process.env, npm_config_cache: join(root, 'npm-cache') },
+  });
+  expect(packed.status, packed.stderr).toBe(0);
+  const filename = (JSON.parse(packed.stdout) as { filename: string }[])[0]!.filename;
+  const extracted = spawnSync('tar', ['-xzf', join(output, filename), '-C', unpacked], { encoding: 'utf8', timeout: 30_000 });
+  expect(extracted.status, extracted.stderr).toBe(0);
+  return join(unpacked, 'package');
+}
+
+it('compares two packed release sets and keeps same-version byte changes explicit', async () => {
+  const firstProvider = join(root, 'first/provider'), secondProvider = join(root, 'second/provider');
+  await provider(firstProvider);
+  const changedProvider = await provider(secondProvider, 'export const value = 2;');
+  const packedFirstProvider = packFixture(firstProvider, 'provider-before');
+  const packedSecondProvider = packFixture(secondProvider, 'provider-after');
+  await expect(checkPluginReleaseConsistency({ entries: [changedProvider], pendingPackages: new Map() }, {
+    publishedPackage: async () => packedFirstProvider,
+  })).rejects.toThrow('Release catalog mismatch: provider:fixture');
+  await expect(checkPluginReleaseConsistency({ entries: [changedProvider], pendingPackages: new Map() }, {
+    publishedPackage: async () => packedSecondProvider,
+  })).resolves.toBeUndefined();
+
+  const firstAgent = join(root, 'first/agent'), secondAgent = join(root, 'second/agent');
+  await agent(firstAgent);
+  const changedAgent = await agent(secondAgent, '0.3.1', 'changed packed guidance');
+  const packedFirstAgent = packFixture(firstAgent, 'agent-before');
+  const packedSecondAgent = packFixture(secondAgent, 'agent-after');
+  await expect(checkPluginReleaseConsistency({ entries: [changedAgent],
+    pendingPackages: new Map([['@jini-ai/agent-plugins@1.0.0', packedSecondAgent]]) }, {
+    publishedPackage: async () => packedFirstAgent,
+  })).rejects.toThrow('Agent plugin face changed without advancing 0.3.1');
+  expect(planAgentPluginUpdate({ installed: { pluginId: 'face', version: '0.3.1', archiveDigest: 'old' },
+    candidate: { pluginId: 'face', version: '0.3.1', archiveDigest: 'new' } })).toMatchObject({
+    action: 'update', warnings: ['Same version with different bytes; explicit replacement required.'],
+  });
+}, 30_000);

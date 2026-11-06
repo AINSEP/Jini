@@ -33,3 +33,8 @@ State cost O07 before: P page reads × up to 50 MiB source I/O plus P extraction
 Tests: `pnpm --filter @jini-ai/cms exec vitest run src/media/__tests__/unit/document-read-paging.unit.test.ts` — 7 pass after two source/extraction-count regressions failed. Existing document tests remain green; CMS tsc and document-read ESLint pass.
 
 - O07: following byte offsets reloads/re-extracts the complete source.
+
+Part2 focused checks: C15 scanner boundaries87; C21 staged-closure8; C26 file-lock85; C27 teardown2 all pass. C20 new packed-release-set comparison passes (release-consistency9). C23 secret/alias catalog-to-handler test plus principal/write fixtures43 pass. Detailed cross-repo per-item status will be copied into this report at completion.
+C30 confirmed in Tovu: six individual producers each return a preview; every actual two-item production batch drops images under core/batch-tool-inputs.ts's explicit policy. Stopped: a bounded top-level image envelope requires a shared batch/MCP/chat contract change beyond a small ten-minute fix.
+
+- C30: batch media production removes inline preview blocks while preserving saved-media results.
