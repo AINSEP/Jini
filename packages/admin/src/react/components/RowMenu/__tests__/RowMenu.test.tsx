@@ -109,6 +109,22 @@ describe('RowMenu opening', () => {
     expect(screen.getByRole('menuitem', { name: 'Edit' })).toHaveFocus();
   });
 
+  it('focuses the first item once the menu is visible, since a browser ignores focus on a hidden element', () => {
+    // jsdom would focus a `visibility: hidden` element, Chrome does not, and that left keyboard
+    // users on the trigger with the items out of reach. This stub applies the browser's rule.
+    const realFocus = HTMLElement.prototype.focus;
+    const focus = vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function (this: HTMLElement, options) {
+      if (this.closest<HTMLElement>('[role="menu"]')?.style.visibility !== 'hidden') realFocus.call(this, options);
+    });
+    try {
+      const { trigger } = renderMenu();
+      fireEvent.click(trigger());
+      expect(screen.getByRole('menuitem', { name: 'Edit' })).toHaveFocus();
+    } finally {
+      focus.mockRestore();
+    }
+  });
+
   it('opens on ArrowDown at the first item and ArrowUp at the last', () => {
     const { trigger } = renderMenu();
     fireEvent.keyDown(trigger(), { key: 'ArrowDown' });

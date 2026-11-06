@@ -59,7 +59,7 @@
   white-space: nowrap;
   min-width: 0;
 }
-.jini-site-card__menu { position: relative; z-index: 3; justify-self: end; display: inline-flex; align-items: center; gap: 0.25rem; }
+.jini-site-card__menu { position: relative; z-index: 3; justify-self: end; align-self: start; display: inline-flex; align-items: center; gap: 0.25rem; }
 .jini-site-card__details { margin: 0; min-width: 0; color: var(--faint); font-family: var(--font-mono); font-size: 0.6875rem; }
 .jini-site-card__meta { margin: 0; justify-self: end; display: flex; align-items: center; gap: 0.5rem; font-size: 0.75rem; }
 

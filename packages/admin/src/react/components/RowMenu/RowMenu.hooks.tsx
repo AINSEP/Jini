@@ -155,11 +155,13 @@ export function useRowMenu(
 
   // Keeps real DOM focus on the active item (roving focus via `tabIndex={-1}` on every item except
   // the active one) rather than only tracking `activeIndex` in state — arrow-key navigation needs
-  // to move the browser's actual focus for a screen reader to announce it.
+  // to move the browser's actual focus for a screen reader to announce it. Waits for the first
+  // position: until then the menu is `visibility: hidden`, and a browser ignores focus on that.
+  const visible = open && position !== null;
   useEffect(() => {
-    if (!open) return;
+    if (!visible) return;
     itemRefs.current[activeIndex]?.focus();
-  }, [open, activeIndex]);
+  }, [visible, activeIndex]);
 
   function onTriggerClick() {
     if (open) close(false);

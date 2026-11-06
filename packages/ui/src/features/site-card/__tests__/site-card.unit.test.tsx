@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import { readFileSync } from "node:fs";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { SiteCard, SiteCardStatus } from "../SiteCard";
@@ -12,6 +13,12 @@ describe("SiteCard", () => {
     const { container } = render(<SiteCard name="Atlas" menu={<button>menu</button>} details="SQLite" status={<SiteCardStatus label="Running" tone="running" />} notes={<p>note</p>} />);
     const head = container.querySelector(".jini-site-card__head")!;
     expect([...head.children].map((cell) => cell.textContent)).toEqual(["Atlas", "menu", "SQLite", "Running", "note"]);
+  });
+
+  it("keeps the menu level with the name when a long second line makes that cell taller", () => {
+    // Centred in the row, the menu slid down the card and sat lower than on the cards beside it.
+    const css = readFileSync(`${__dirname}/../site-card.css`, "utf8");
+    expect(css).toMatch(/\.jini-site-card__menu \{[^}]*align-self: start;/);
   });
 
   it("keeps the menu's cell when it has no menu, so the details stay in the first column", () => {
