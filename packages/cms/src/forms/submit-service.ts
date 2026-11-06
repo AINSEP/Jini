@@ -105,6 +105,8 @@ export async function submitForm(required: SubmitFormRequired, optional: SubmitF
     return { status: "accepted" };
   }
 
+  await assertCurrentFormSchema({ original: originalDefinition, definition, body: pageInput.body });
+  if (optional.validateEmails) assertSubmissionEmails({ definition, body: input.body });
   const validation = assertValidSubmission({ deps, definition, body: input.body });
   assertSubmissionTiming({ deps, input, attemptToken }, optional);
   await assertWithinRateLimit({ deps, input, definition });
@@ -155,7 +157,7 @@ function splitAttemptToken(
 
 async function resolveActiveDefinition(
   { deps, input }: { deps: SubmitFormDeps; input: SubmitFormInput },
-  { definitionView, validateEmails }: Pick<SubmitFormOptional, "definitionView" | "validateEmails"> = {},
+  { definitionView }: Pick<SubmitFormOptional, "definitionView"> = {},
 ): Promise<{ definition: FormDefinitionRecord; originalDefinition: FormDefinitionRecord }> {
   // Missing and disabled slugs are deliberately indistinguishable to public callers.
   const stored = await deps.definitionRepo.findBySlug({ workspaceId: input.workspaceId, slug: input.slug });
@@ -164,8 +166,6 @@ async function resolveActiveDefinition(
   if (!definition || definition.status !== "active" || !usesBuiltinCollection({ definition: stored! })) {
     throw new FormDefinitionNotFoundError({ message: `form '${input.slug}' was not found` });
   }
-  await assertCurrentFormSchema({ original: stored!, definition, body: input.body });
-  if (validateEmails) assertSubmissionEmails({ definition, body: input.body });
   // Validation views can widen code-unit limits for emoji answers; they are not the authored schema.
   return { definition, originalDefinition: stored! };
 }

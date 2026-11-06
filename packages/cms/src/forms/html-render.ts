@@ -203,7 +203,7 @@ export function renderHtmlForm(
  * @overallScore 96 — Recommended: embed providers own their frame's validation and accessibility. */
 export function renderFormCollection(
   required: { slug: string; fields: readonly FieldDescriptor[]; hooks: FormHtmlHooks; plan: import('./provider.js').FormCollectionPlan },
-  optional: { html?: string; className?: string; successMessage?: string; schemaHash?: string; idPrefix?: string; consentOff?: boolean } = {},
+  optional: { html?: string; className?: string; successMessage?: string; idPrefix?: string; consentOff?: boolean } = {},
 ): string {
   const { plan, ...form } = required;
   if (plan.kind === 'unavailable') return `<p role="alert" data-form-provider-unavailable>${escapeFormHtml({ value: plan.message })}</p>`;
@@ -226,8 +226,11 @@ function renderCollectionEmbed({ plan, consentOff }: { plan: Extract<import('./p
   const source = !consentOff && plan.consent?.length
     ? attr('data-src', plan.url) + attr('data-jini-consent', JSON.stringify(plan.consent))
     : attr('src', plan.url);
-  const frame = `<iframe${source}${attr('title', plan.title)} loading="lazy"></iframe>`;
+  const frame = `<iframe${source}${attr('title', plan.title)} width="100%" height="800" loading="lazy"></iframe>`;
+  const placeholder = !consentOff && plan.consent?.length
+    ? '<p class="jini-form-embed-consent">Allow functional cookies to load this form.</p>' : '';
+  const style = '<style>.jini-form-embed iframe{width:100%;height:min(80vh,800px);min-height:480px;border:0}.jini-form-embed iframe[data-src]:not([src]){display:none}.jini-form-embed iframe[src]+.jini-form-embed-consent{display:none}</style>';
   const fallback = plan.publicUrl && plan.fallbackMessage
     ? `<p data-form-embed-fallback>${escapeFormHtml({ value: plan.fallbackMessage })} <a${attr('href', plan.publicUrl)} rel="noopener noreferrer">${escapeFormHtml({ value: plan.title })}</a></p>` : '';
-  return frame + fallback;
+  return style + `<div class="jini-form-embed">${frame}${placeholder}${fallback}</div>`;
 }

@@ -95,3 +95,12 @@ test('shortened oversized drafts stay copy-only instead of being mistaken for co
   assert.equal(draft.truncated, true);
   assert.equal(retry.retained.email, 'a'.repeat(5000));
 });
+
+
+test('honeypot submissions ignore stale schema and malformed answers without effects', async () => {
+  const { deps, input, effects } = await setup();
+  input.body = { _hp: 'bot', _schemaHash: 'obsolete', email: 'not-an-email' };
+  assert.deepEqual(await submitForm({ deps, input }, { validateEmails: true }), { status: 'accepted' });
+  assert.deepEqual(effects, []);
+  assert.equal((await deps.submissionRepo.listByDefinition({ workspaceId: 'ws', formDefinitionId: 'form', limit: 10 })).items.length, 0);
+});

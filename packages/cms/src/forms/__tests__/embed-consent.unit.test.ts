@@ -23,3 +23,15 @@ test('explicit consent-off delivery uses an ordinary frame with the same public 
   expect(html).not.toContain('data-src=');
   expect(html).toContain(plan.fallbackMessage);
 });
+
+
+test('embeds have responsive dimensions and a consent message instead of an empty frame', () => {
+  const html = renderFormCollection({ slug: 'contact', fields: [], hooks, plan });
+  expect(html).toContain('width="100%" height="800"');
+  expect(html).toContain('width:100%;height:min(80vh,800px);min-height:480px;border:0');
+  expect(html).toContain('iframe[data-src]:not([src]){display:none}');
+  expect(html).toContain('iframe[src]+.jini-form-embed-consent{display:none}');
+  expect(html).toContain('Allow functional cookies to load this form.');
+  const off = renderFormCollection({ slug: 'contact', fields: [], hooks, plan }, { consentOff: true });
+  expect(off).not.toContain('Allow functional cookies');
+});

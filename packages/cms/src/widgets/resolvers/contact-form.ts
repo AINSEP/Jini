@@ -101,7 +101,7 @@ async function contactFormProps({ definition, successMessage, providers, consent
       mode: "html", html: definition.html ?? "",
     } : {}),
     ...(definition.provider && definition.provider.id !== "builtin" ? { collectionPlan: resolveFormCollectionPlan({ definition, providers: providers ?? createFormCollectionRegistry({}) }) as unknown as JsonObject } : {}),
-    ...(consentOff ? { collectionConsentOff: true } : {}),
+    ...(consentOff && definition.provider && definition.provider.id !== "builtin" ? { collectionConsentOff: true } : {}),
     successMessage,
   };
 }

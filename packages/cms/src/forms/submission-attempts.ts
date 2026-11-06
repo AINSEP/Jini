@@ -98,7 +98,7 @@ export function submissionAttemptKey(
     const { bytes, ...metadata } = value;
     return [key, { ...metadata, byteLength: bytes.byteLength, bytesHash: hash(JSON.stringify(digests)) }] as const;
   }).sort(([a], [b]) => (a < b ? -1 : 1));
-  return hash(JSON.stringify([input.workspaceId, input.slug, input.sourceIp, attemptToken ?? null, body]));
+  return hash(JSON.stringify([input.workspaceId, input.slug, input.sourceIp, attemptToken, body]));
 }
 
 /**

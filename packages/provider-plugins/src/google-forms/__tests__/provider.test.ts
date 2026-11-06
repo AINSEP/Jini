@@ -4,7 +4,7 @@ import { createGoogleFormsProvider } from '../provider.js';
 const publicUrl = 'https://docs.google.com/forms/d/e/FAKE_public-form_123/viewform';
 const provider = createGoogleFormsProvider({});
 
-test.each([publicUrl, `${publicUrl}?embedded=true`])('canonical public URL becomes a functional-consent embed: %s', url => {
+test.each([publicUrl, `${publicUrl}?embedded=true`, `${publicUrl}?usp=sf_link`, `${publicUrl}?usp=sharing`, `${publicUrl}?usp=dialog`, `${publicUrl}?usp=header`])('canonical public URL becomes a functional-consent embed: %s', url => {
   expect(provider.plan({ slug: 'feedback', config: { url } })).toEqual({
     kind: 'embed', url: `${publicUrl}?embedded=true`, publicUrl,
     title: 'Google Forms', consent: ['functional'],

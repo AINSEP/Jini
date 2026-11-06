@@ -18,7 +18,7 @@ export function createGoogleFormsProvider(_required: Record<string, never>, _opt
     }),
     plan({ config }): FormCollectionPlan {
       const url = config.url ?? '';
-      const match = /^https:\/\/docs\.google\.com\/forms\/d\/e\/([A-Za-z0-9_-]+)\/viewform(?:\?embedded=true)?$/.exec(url);
+      const match = /^https:\/\/docs\.google\.com\/forms\/d\/e\/([A-Za-z0-9_-]+)\/viewform(?:\?(?:embedded=true|usp=[A-Za-z0-9_-]+))?$/.exec(url);
       // Comparing the entire match also rejects trailing line breaks accepted by JavaScript's $ anchor.
       if (Object.keys(config).length !== 1 || !match || match[0] !== url) {
         return { kind: 'unavailable', code: 'invalid_configuration', message: 'This form needs a published public Google Forms link (https://docs.google.com/forms/d/e/form-id/viewform) before it can collect answers.' };

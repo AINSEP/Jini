@@ -326,3 +326,48 @@ test('stale JSON requests get 409 with bounded non-file answers and no redirect'
   assert.equal(sent.redirect, undefined);
   assert.deepEqual(sent.json, { code: error.code, error: error.message, answers: { name: 'Ada' }, truncated: false });
 });
+
+
+test('direct retries carry a fresh per-response attempt token for double clicks', async () => {
+  const { FormSchemaChangedError, FormAttachmentSpaceError } = await import('../../errors.js');
+  for (const error of [
+    new FormSchemaChangedError({ fields: DEFINITION.fields, schemaHash: 'a'.repeat(64), draft: { answers: {}, truncated: false, truncatedFields: [] } }),
+    new FormAttachmentSpaceError({ fields: DEFINITION.fields, answers: {}, message: 'Choose a smaller file.' }),
+  ]) {
+    const { deps } = harness({ submit: async () => { throw error; } });
+    const first = await send(deps, request({ slug: 'contact', headers: HTML_HEADERS, body: { _attempt: 'old-attempt' } }));
+    const second = await send(deps, request({ slug: 'contact', headers: HTML_HEADERS }));
+    const token = (html: string) => html.match(/name="_attempt" value="([a-f0-9-]{36})"/)?.[1];
+    assert.ok(token(first.html!));
+    assert.ok(token(second.html!));
+    assert.notEqual(token(first.html!), token(second.html!));
+    assert.doesNotMatch(first.html!, /old-attempt/);
+  }
+});
+
+
+test('double clicking the form on a schema retry stores one submission', async () => {
+  const { InMemoryFormDefinitionRepo, InMemoryFormSubmissionRepo } = await import('../../repo.memory.js');
+  const { createSubmissionAttempts } = await import('../../submission-attempts.js');
+  const { submitForm } = await import('../../submit-service.js');
+  const definitionRepo = new InMemoryFormDefinitionRepo();
+  const submissionRepo = new InMemoryFormSubmissionRepo();
+  await definitionRepo.create(DEFINITION);
+  let id = 0;
+  const attempts = createSubmissionAttempts({ hash: value => value });
+  const service = { definitionRepo, submissionRepo, clock: { nowMs: () => 0 }, idGen: { newId: () => String(++id) },
+    outbox: { enqueue: async () => {} }, dispatcher: { dispatch: async () => {} }, logger: { warn: () => {} },
+    rateLimiter: { check: async () => ({ allowed: true as const }) } };
+  const { deps } = harness({ definitionRepo, submit: ({ input }) => submitForm({ deps: service, input }, { attempts }) });
+  const original = { name: 'Ada', email: 'ada@example.com', _schemaHash: 'old' };
+  const retry = await send(deps, request({ slug: 'contact', body: original, headers: HTML_HEADERS }));
+  assert.equal(retry.status, 409);
+  const _attempt = retry.html!.match(/name="_attempt" value="([^"]+)"/)?.[1];
+  const _schemaHash = retry.html!.match(/name="_schemaHash" value="([^"]+)"/)?.[1];
+  assert.ok(_attempt);
+  assert.ok(_schemaHash);
+  const body = { ...original, _schemaHash, _attempt };
+  const results = await Promise.all([send(deps, request({ slug: 'contact', body })), send(deps, request({ slug: 'contact', body }))]);
+  assert.deepEqual(results.map(result => result.json), [{ status: 'accepted' }, { status: 'accepted' }]);
+  assert.equal((await submissionRepo.listByDefinition({ workspaceId: 'ws-1', formDefinitionId: 'form-1', limit: 10 })).items.length, 1);
+});

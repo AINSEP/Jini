@@ -19,3 +19,33 @@ test('a host without size probing can read an empty text page at EOF with exact 
   });
   await expect(readDocumentText({ deps, input: { workspaceId: 'site', id: media.id, offset: 1 } })).rejects.toThrow('invalid document size or UTF-8 byte offset');
 });
+
+
+test('document text reads limit concurrent byte loads and release capacity after a failure', async () => {
+  const blobStore = new InMemoryBlobStore();
+  const deps = { mediaRepo: new InMemoryMediaRepo({}), blobRepo: new InMemoryAssetBlobRepo({}),
+    renditionRepo: new InMemoryAssetRenditionRepo({}), blobStore,
+    clock: { nowMs: () => 0 }, idGen: { newId: () => 'doc' } };
+  const { media } = await uploadMedia({ deps, input: { workspaceId: 'site', filename: 'guide.md', kind: 'document',
+    contentType: 'text/markdown', bytes: Buffer.from('hello'), createdByPrincipal: 'owner' } });
+  const get = blobStore.get.bind(blobStore);
+  let reads = 0;
+  let release!: () => void;
+  const blocked = new Promise<void>(resolve => { release = resolve; });
+  const slowStore = Object.create(blobStore) as InMemoryBlobStore;
+  slowStore.get = async input => { reads++; await blocked; throw new Error('read failed'); };
+  const read = () => readDocumentText({ deps: { ...deps, blobStore: slowStore }, input: { workspaceId: 'site', id: media.id } });
+  const first = read(), second = read();
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const third = read();
+  // Attach handlers before releasing I/O, so rejected reads cannot become unhandled promises.
+  const outcomes = Promise.allSettled([first, second, third]);
+  await new Promise(resolve => setTimeout(resolve, 0));
+  const concurrentReads = reads;
+  release();
+  const results = await outcomes;
+  expect(concurrentReads).toBe(2);
+  expect(results[2]).toMatchObject({ status: 'rejected', reason: { message: expect.stringMatching(/documents.*reading|document.*busy/i) } });
+  slowStore.get = get;
+  expect((await read()).text).toBe('hello');
+});

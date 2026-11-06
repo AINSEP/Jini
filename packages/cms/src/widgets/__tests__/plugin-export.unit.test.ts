@@ -47,11 +47,11 @@ describe('plugin marker serialization and substitution', () => {
 
   it('keeps author hooks and overwrites all author-typed stamps with canonical values', () => {
     const html = `<section id="signin" class="theme" style="color:red" aria-label="Login" DATA-PLUGIN="wrong" data-component="wrong" data-embed-v="99" data-consent-category="marketing" data-embed-config='${JSON.stringify(config)}'>fallback</section>`;
-    expect(substituteHtmlEmbeds({ html, resolve: () => rendered })).toBe('<section id="signin" class="theme" style="color:red" aria-label="Login" data-plugin="example/login" data-component="button" data-embed-v="1" data-consent-category="necessary">' + rendered.html + '</section>');
+    expect(substituteHtmlEmbeds({ html, resolve: () => rendered })).toBe('<section id="signin" class="theme" style="color:red" aria-label="Login" data-plugin="example/login" data-component="button" data-embed-v="1">' + rendered.html + '</section>');
   });
 
   it('always keeps even a bare wrapper on success', () => {
-    expect(substituteHtmlEmbeds({ html: snippet(), resolve: () => rendered })).toBe('<div data-plugin="example/login" data-component="button" data-embed-v="1" data-consent-category="necessary">' + rendered.html + '</div>');
+    expect(substituteHtmlEmbeds({ html: snippet(), resolve: () => rendered })).toBe('<div data-plugin="example/login" data-component="button" data-embed-v="1">' + rendered.html + '</div>');
   });
 
   it('keeps existing widget, media, and content output byte-identical', () => {
@@ -133,7 +133,7 @@ describe('plugin export occurrence resolution', () => {
       ? { ...definition, template: `<a href="${value}">Refused link</a>` } : definition });
     expect([...result.keys()]).toEqual(['plugin:2']);
     expect(substituteHtmlEmbeds({ html, resolve: ref => result.get(ref.id!)?.props as unknown as PluginExportRender | undefined }))
-      .toBe('<div><b>Author fallback</b></div><div data-plugin="example/login" data-component="button" data-embed-v="1" data-consent-category="necessary">' + rendered.html + '</div>');
+      .toBe('<div><b>Author fallback</b></div><div data-plugin="example/login" data-component="button" data-embed-v="1">' + rendered.html + '</div>');
   });
 
   it('does not require a port and never emits a placeholder IR', async () => {
@@ -177,4 +177,9 @@ describe('plugin export occurrence resolution', () => {
     } });
     expect([...result.keys()]).toEqual(['plugin:2']);
   });
+});
+
+
+it('non-executable plugin fragments do not carry unused consent stamps', () => {
+  expect(substituteHtmlEmbeds({ html: snippet(), resolve: () => rendered })).not.toContain('data-consent-category');
 });

@@ -46,7 +46,7 @@ const SLOT = /{{\s*(props|host)\.([a-zA-Z0-9_.-]+)\s*}}/g;
 const HOST_URL_SLOT = /^{{\s*host\.(?:assets\.)?[A-Za-z][A-Za-z0-9_-]*\s*}}$/;
 // The fragment policy's attribute allowlist rejects every other URL sink (srcset, formaction, style…).
 const URL_ATTRIBUTES: ReadonlySet<string> = new Set(['href', 'src', 'action']);
-const STAMPS: ReadonlySet<string> = new Set(['data-plugin', 'data-component', 'data-embed-v', 'data-consent-category']);
+const STAMPS: ReadonlySet<string> = new Set(['data-plugin', 'data-component', 'data-embed-v']);
 
 /** Resolve own properties only: template names cannot reach prototypes through page JSON.
  * Missing/non-scalar slots refuse the whole export instead of leaking template text.
@@ -164,15 +164,16 @@ export async function resolvePluginExportEmbeds(
 }
 
 /** Plugin markers always retain the author wrapper. Only structured, validated output may stamp
- * canonical identity/consent; a missing result keeps authored fallback and removes the marker.
+ * canonical identity; a missing result keeps authored fallback and removes the marker.
+ * Fragments admit neither scripts nor iframes, so no consent stamp is needed.
  */
 export function substitutePluginExport(
   { marker, resolved }: { marker: EmbedMarker; resolved: string | PluginExportRender | undefined },
   _optional: Record<string, never> = {},
 ): string {
   if (!resolved || typeof resolved === 'string') return withInnerContentFinal({ marker, inner: marker.inner });
-  const attrs = parseMarkerAttributes({ marker }).filter(attr => !STAMPS.has(attr.name));
-  const values = [resolved.plugin, resolved.component, String(resolved.version), resolved.consent];
+  const attrs = parseMarkerAttributes({ marker }).filter(attr => !STAMPS.has(attr.name) && attr.name !== 'data-consent-category');
+  const values = [resolved.plugin, resolved.component, String(resolved.version)];
   const stamps = [...STAMPS].map((name, index) => ({ name, value: escapeHtml({ text: values[index]! }) }));
   return withInnerContentAndAttributes({ marker, attrs: [...attrs, ...stamps], inner: resolved.html });
 }
