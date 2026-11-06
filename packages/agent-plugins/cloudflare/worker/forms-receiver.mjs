@@ -1,4 +1,4 @@
-import { resolvePortableFormField } from "@jini-ai/cms/forms/portable-validation";
+import { FORM_SCHEMA_HASH_FIELD, matchesFormSchemaHash, resolvePortableFormField } from "@jini-ai/cms/forms/portable-validation";
 
 /**
  * Form submissions receiver, uploaded as `receiver.mjs` beside the site's static assets.
@@ -10,7 +10,7 @@ import { resolvePortableFormField } from "@jini-ai/cms/forms/portable-validation
 export const LIMITS = Object.freeze({ maxBodyBytes: 64 * 1024, maxFields: 100, maxValueLength: 5000, ratePerWindow: 5, windowSeconds: 60, maxPage: 100 });
 /** The host's reserved names: the honeypot and the double-submit attempt token. Never stored. */
 const HONEYPOT = '_hp';
-const RESERVED = new Set([HONEYPOT, '_attempt']);
+const RESERVED = new Set([HONEYPOT, '_attempt', FORM_SCHEMA_HASH_FIELD]);
 /** The host's existing result query names (`form`, `form_status`), so a returning page reads one vocabulary. */
 const RESULT_KEYS = ['form', 'form_status', 'form_errors', 'form_retry_after'];
 const SUBMIT_PATH = /^\/forms\/([a-z0-9][a-z0-9-]{0,99})\/submit\/?$/;
@@ -72,11 +72,21 @@ export async function handleSubmit({ request, env, manifest, slug }, { now = () 
   if (!form) return errorPage({ status: 404, message: 'This form is not available.', back });
   const parsed = await readFields({ request });
   if (parsed.error) return errorPage({ ...parsed.error, back });
+  const stale = schemaRetryResponse({ form, fields: parsed.fields, back });
+  if (stale) return stale;
   if ((parsed.fields.get(HONEYPOT) ?? []).some(value => value.trim() !== '')) return successRedirect({ request, form });
   const checked = checkFields({ form, fields: parsed.fields });
   if (checked.error) return errorPage({ status: 400, message: checked.error, back });
   const refused = await storeSubmission({ db: env.TOVU_FORMS, slug, answers: checked.answers, evidence: form.evidence, ip: request.headers.get('CF-Connecting-IP'), secret: env.TOVU_FORMS_SECRET, back }, { now, randomId });
   return refused ?? successRedirect({ request, form });
+}
+
+/** Refuse stale metadata before any field validation or storage; legacy pages stay compatible.
+ * @complexity O(digest length), no I/O or answer retention. */
+function schemaRetryResponse({ form, fields, back }, _options = {}) {
+  const hashes = fields.get(FORM_SCHEMA_HASH_FIELD);
+  const current = matchesFormSchemaHash({ present: fields.has(FORM_SCHEMA_HASH_FIELD), submittedHash: hashes?.length === 1 ? hashes[0] : hashes, schemaHash: form.evidence?.schemaHash });
+  return current ? null : errorPage({ status: 409, message: 'This form changed while you were filling it in. Your form has not been sent. Please return to the updated form and review your answers.', back });
 }
 
 /** Rate window, then insert. Returns the error page to send, or null once the row is stored.

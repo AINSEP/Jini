@@ -18,7 +18,7 @@ async function setup(stored = definition) {
   const deps = { definitionRepo, submissionRepo, clock: { nowMs: () => 0 }, idGen: { newId: () => { effects.push('id'); return String(effects.length); } },
     outbox: { enqueue: async () => { effects.push('enqueue'); } }, dispatcher: { dispatch: async () => { effects.push('dispatch'); } },
     logger: { warn: () => {} }, rateLimiter: { check: async () => { effects.push('rate'); return { allowed: true as const }; } } };
-  const input = { workspaceId: 'ws', slug: 'contact', sourceIp: null, body: { email: 'ada@example.com', consent: 'on' } as Record<string, unknown> };
+  const input = { workspaceId: 'ws', slug: 'contact', sourceIp: '192.0.2.1', body: { email: 'ada@example.com', consent: 'on' } as Record<string, unknown> };
   return { deps, input, effects };
 }
 const hashFor = async (stored = definition) => (await captureSubmissionEvidence({ definition: stored, source: 'native', capturedAt: 'now' })).schemaHash;
@@ -60,4 +60,29 @@ test('a changed consent label or authored HTML invalidates the former page hash'
   input.body._schemaHash = oldHash;
   await assert.rejects(submitForm({ deps, input }), (error: unknown) => (error as { code: string }).code === 'FORMS_SCHEMA_CHANGED');
   assert.deepEqual(effects, []);
+});
+
+test('retry drafts exclude metadata and files, preserve dangerous text names safely, and bound UTF-8 bytes', async () => {
+  const { boundedFormRetryDraft } = await import('../stale-form.js');
+  const raw = JSON.parse('{"__proto__":"copy me","constructor":"also copy","removed":"<script>alert(1)</script>"}');
+  const draft = boundedFormRetryDraft({ body: { ...raw, _schemaHash: 'bad', _attempt: 'private-token', _hp: 'bot', file: { bytes: new Uint8Array([1, 2, 3]) } } });
+  assert.equal(draft.answers.__proto__, 'copy me');
+  assert.equal(draft.answers.constructor, 'also copy');
+  assert.deepEqual(Object.keys(draft.answers).sort(), ['__proto__', 'constructor', 'removed']);
+  const oversized = boundedFormRetryDraft({ body: Object.fromEntries(Array.from({ length: 100 }, (_, index) => [String(index), '😀'.repeat(4000)])) });
+  assert.equal(oversized.truncated, true);
+  assert.ok(new TextEncoder().encode(JSON.stringify(oversized.answers)).byteLength <= 64 * 1024);
+});
+
+test('retry repopulates only current valid answers and keeps changed/removed answers for copying', async () => {
+  const { formRetryFields } = await import('../stale-form.js');
+  const fields = [...definition.fields, { id: 'choice', label: 'Choice', type: 'select' as const, required: true, options: [{ value: 'new', label: 'New' }], default: 'new' }, { id: 'file', label: 'File', type: 'file' as const, required: false }];
+  const answers = { email: 'ada@example.com', consent: 'on', choice: 'old', removed: '<script>alert(1)</script>' };
+  const retry = formRetryFields({ fields, answers });
+  assert.equal(retry.fields[0]!.default, 'ada@example.com');
+  assert.equal(retry.fields[1]!.default, undefined);
+  assert.equal(retry.fields[2]!.default, undefined);
+  assert.equal(retry.fields[3]!.default, undefined);
+  assert.deepEqual(retry.retained, { consent: 'on', choice: 'old', removed: '<script>alert(1)</script>' });
+  assert.equal(fields[2]!.default, 'new', 'does not mutate the current definition');
 });

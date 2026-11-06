@@ -34,7 +34,7 @@ function restoreSelect(element: Element, field: FieldDescriptor): void {
   }
 }
 function restoreInput(element: Element, field: FieldDescriptor): void {
-  const type = attribute(element, 'type');
+  const type = attribute(element, 'type')?.toLowerCase();
   if (type === 'file') { setAttribute(element, 'value'); return; }
   if (type === 'radio' || type === 'checkbox') {
     const values = Array.isArray(field.default) ? field.default : [field.default];

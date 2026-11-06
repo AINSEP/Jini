@@ -43,3 +43,35 @@ test('receiver stores original schema/consent evidence and pull preserves it sep
   assert.deepEqual(page.items[0].evidence, { ...evidence, capturedAt: '2026-11-05T18:00:00.000Z', source: 'cloudflare' });
   assert.equal('evidence' in page.items[0].answers, false);
 });
+
+test('present stale, malformed or duplicate page hashes refuse before validation or D1 writes', async () => {
+  const { handleRequest } = await import('../forms-receiver.mjs');
+  const hash = 'a'.repeat(64);
+  const manifest = { forms: [{ slug: 'contact', evidence: { schemaHash: hash }, fields: [{ name: 'email', type: 'email', required: true }] }] };
+  let calls = 0;
+  const env = { TOVU_FORMS: { prepare() { calls++; throw new Error('must not reach D1'); }, batch() { calls++; throw new Error('must not reach D1'); } }, TOVU_FORMS_SECRET: 's'.repeat(43) };
+  for (const metadata of ['_schemaHash=' + 'b'.repeat(64), '_schemaHash=malformed', '_schemaHash=', '_schemaHash=' + hash + '&_schemaHash=' + hash]) {
+    const request = new Request('https://site.example/forms/contact/submit', { method: 'POST', body: 'email=invalid&' + metadata, headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+    const response = await handleRequest({ request, env, manifest });
+    assert.equal(response.status, 409);
+    assert.equal(response.headers.get('cache-control'), 'no-store');
+    assert.match(await response.text(), /This form changed while you were filling it in/);
+  }
+  assert.equal(calls, 0);
+});
+
+test('legacy missing hash and matching hash both accept, but schema metadata never becomes an answer', async () => {
+  const { fakeD1 } = await import('../../lib/__tests__/d1-fake.mjs');
+  const { handleRequest, listPending } = await import('../forms-receiver.mjs');
+  const hash = 'a'.repeat(64);
+  const manifest = { forms: [{ slug: 'contact', evidence: { schemaHash: hash }, fields: [{ name: 'email', type: 'email', required: true }] }] };
+  const d1 = fakeD1(); const env = { TOVU_FORMS: d1.binding, TOVU_FORMS_SECRET: 's'.repeat(43) };
+  let id = 0;
+  for (const metadata of ['', '&_schemaHash=' + hash]) {
+    const request = new Request('https://site.example/forms/contact/submit', { method: 'POST', body: 'email=ada%40example.com' + metadata, headers: { 'Content-Type': 'application/x-www-form-urlencoded' } });
+    assert.equal((await handleRequest({ request, env, manifest }, { randomId: () => String(++id) })).status, 303);
+  }
+  const page = await (await listPending({ env, url: new URL('https://site.example/_tovu/forms/pending') })).json();
+  assert.equal(page.items.length, 2);
+  assert.deepEqual(page.items.map(item => item.answers), [{ email: 'ada@example.com' }, { email: 'ada@example.com' }]);
+});

@@ -269,8 +269,7 @@ export function createFormSubmitHandler(
       });
       sendFormSubmitOutcome(req, res, outcomeForSuccess(slug, result), deps);
     } catch (err) {
-      if (err instanceof FormSchemaChangedError) { sendSchemaRetry({ req, res, slug, error: err }); return; }
-      if (err instanceof FormAttachmentSpaceError) { await sendAttachmentRetry({ req, res, deps, slug, error: err }); return; }
+      if (await sendDirectRetry({ req, res, deps, slug, error: err })) return;
       if (isFlashableFailure({ error: err }) && wantsHtmlResponse(req)) {
         try {
           await setFormFlashCookieForValidationFailure(req, res, deps, slug, body);
@@ -291,7 +290,7 @@ function isFlashableFailure({ error }: { error: unknown }, _optional: Record<str
 
 /** A direct uncached page keeps every validated non-file answer, bypassing cookie limits.
  * @complexity O(fields + answer bytes), no extra reads. @overallScore 98: files require reselection. */
-async function sendAttachmentRetry({ req, res, deps, slug, error }: { req: Request; res: Response; deps: CreateFormSubmitHandlerRequired; slug: string; error: FormAttachmentSpaceError, FormSchemaChangedError }, _optional = {}): Promise<void> {
+async function sendAttachmentRetry({ req, res, deps, slug, error }: { req: Request; res: Response; deps: CreateFormSubmitHandlerRequired; slug: string; error: FormAttachmentSpaceError }, _optional = {}): Promise<void> {
   res.set("Cache-Control", "no-store");
   if (!wantsHtmlResponse(req)) { res.status(507).json({ code: error.code, error: error.message, answers: error.answers }); return; }
   const fields = error.fields.map(field => ({ ...field, default: field.type === "file" ? undefined : error.answers[field.id] })) as FieldDescriptor[];
@@ -308,6 +307,15 @@ function sendSchemaRetry({ req, res, slug, error }: { req: Request; res: Respons
   const html = error.html === undefined ? {} : { html: repopulateFormRetryHtml({ html: error.html, fields: retry.fields }) };
   const form = renderHtmlForm({ slug, fields: retry.fields, action: `/forms/${encodeURIComponent(slug)}/submit`, hooks: { field: "data-field", form: "data-form", success: "data-success", error: "data-error" } }, { ...html, schemaHash: error.schemaHash });
   const retained = Object.entries(retry.retained).map(([name, value]) => `<dt>${escapeFormHtml({ value: name })}</dt><dd><pre>${escapeFormHtml({ value: typeof value === "string" ? value : JSON.stringify(value) })}</pre></dd>`).join("");
+  const retainedMarkup = retained ? `<h2>Previous answers to copy</h2><dl>${retained}</dl>` : "";
   const limitNotice = error.draft.truncated ? '<p>Some answers exceeded the safe review limit and were shortened or omitted.</p>' : '';
-  res.status(409).type("html").send(`<!doctype html><meta charset="utf-8"><title>Review updated form</title><main><h1>Review updated form</h1><p role="alert">${escapeFormHtml({ value: error.message })}</p><p>Give consent again and select your files again before sending.</p>${form}${retained ? `<h2>Previous answers to copy</h2><dl>${retained}</dl>` : ''}${limitNotice}</main>`);
+  res.status(409).type("html").send(`<!doctype html><meta charset="utf-8"><title>Review updated form</title><main><h1>Review updated form</h1><p role="alert">${escapeFormHtml({ value: error.message })}</p><p>Give consent again and select your files again before sending.</p>${form}${retainedMarkup}${limitNotice}</main>`);
+}
+
+/** Retries that retain answers directly never redirect or write flash cookies.
+ * @complexity O(1) dispatch, with bounded rendering owned by each retry response. */
+async function sendDirectRetry({ req, res, deps, slug, error }: { req: Request; res: Response; deps: CreateFormSubmitHandlerRequired; slug: string; error: unknown }): Promise<boolean> {
+  if (error instanceof FormSchemaChangedError) { sendSchemaRetry({ req, res, slug, error }); return true; }
+  if (error instanceof FormAttachmentSpaceError) { await sendAttachmentRetry({ req, res, deps, slug, error }); return true; }
+  return false;
 }

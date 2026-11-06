@@ -1,3 +1,4 @@
+import { parseFragment, type DefaultTreeAdapterMap } from "parse5";
 import assert from "node:assert/strict";
 import type { Request, Response } from "express";
 import { afterEach, test, vi } from "vitest";
@@ -274,4 +275,54 @@ test("disk refusal keeps all validated answers without a cookie, escapes HTML, a
   const json = await send(deps, request({ slug: "contact" })); assert.equal(json.status, 507); assert.deepEqual((json.json as any).answers, answers); assert.equal((json.json as any).error, message);
   const html = await send(deps, request({ slug: "contact", headers: HTML_HEADERS })); assert.equal(html.status, 507); assert.equal(html.cookies.length, 0); assert.equal(html.headers?.["Cache-Control"], "no-store"); assert.equal(json.headers?.["Cache-Control"], "no-store");
   assert.match(html.html!, /&lt;script&gt;/); assert.ok(html.html!.includes("x".repeat(6000))); assert.match(html.html!, /checked/); assert.doesNotMatch(html.html!, /<script>/); assert.doesNotMatch(html.html!.match(/<input type="file"[^>]*>/)![0], /value=/);
+});
+
+test('stale browser retry preserves current controls, escaped copy text and current schema without cookies or rereads', async () => {
+  const { FormSchemaChangedError } = await import('../../errors.js');
+  const { boundedFormRetryDraft } = await import('../../stale-form.js');
+  const body = { name: '<script>alert(1)</script>', email: 'ada@example.com', consent: 'on', removed: '<img src=x onerror=alert(1)>', _schemaHash: 'old', _attempt: 'secret-token', file: { bytes: new Uint8Array([1]) } };
+  const error = new FormSchemaChangedError({ fields: [...DEFINITION.fields, { id: 'file', type: 'file', label: 'File', required: false }], schemaHash: 'a'.repeat(64), draft: boundedFormRetryDraft({ body }) });
+  const { deps, calls } = harness({ submit: async () => { throw error; } });
+  const sent = await send(deps, request({ slug: 'contact', headers: HTML_HEADERS, body }));
+  assert.equal(sent.status, 409);
+  assert.equal(sent.headers?.['Cache-Control'], 'no-store');
+  assert.deepEqual([calls.lookups, calls.flashPayloads, sent.cookies], [[], [], []]);
+  assert.match(sent.html!, /name="name"[^>]*value="&lt;script&gt;alert\(1\)&lt;\/script&gt;"/);
+  assert.match(sent.html!, /name="_schemaHash" value="a{64}"/);
+  assert.match(sent.html!, /&lt;img src=x onerror=alert\(1\)&gt;/);
+  assert.doesNotMatch(sent.html!, /<script>|<img |secret-token|type="file"[^>]*value=|name="consent"[^>]* checked/);
+});
+
+test('authored retry retains current consent prose and resets mixed-case consent/file controls', async () => {
+  const { FormSchemaChangedError } = await import('../../errors.js');
+  const { boundedFormRetryDraft } = await import('../../stale-form.js');
+  const body = { name: '<b>Ada</b>" autofocus onfocus="alert(1)', consent: 'on', removed: 'previous' };
+  const error = new FormSchemaChangedError({ fields: [...DEFINITION.fields, { id: 'file', type: 'file', label: 'File', required: false }], schemaHash: 'a'.repeat(64), draft: boundedFormRetryDraft({ body }),
+    html: '<p>Current privacy wording</p><input name="name" value="old"><input type="CHECKBOX" name="consent" checked><input type="FILE" name="file" value="old-file"><textarea name="message">old message</textarea><button>Send</button>' });
+  const { deps } = harness({ submit: async () => { throw error; } });
+  const sent = await send(deps, request({ slug: 'contact', headers: HTML_HEADERS, body }));
+  assert.equal(sent.status, 409);
+  assert.match(sent.html!, /Current privacy wording/);
+  const stack = [...parseFragment(sent.html!).childNodes];
+  const controls: DefaultTreeAdapterMap["element"][] = [];
+  while (stack.length) {
+    const node = stack.pop()!;
+    if (!("tagName" in node)) continue;
+    controls.push(node); stack.push(...node.childNodes);
+  }
+  const name = controls.find(node => node.attrs.some(attr => attr.name === "name" && attr.value === "name"))!;
+  assert.equal(name.attrs.find(attr => attr.name === "value")?.value, body.name);
+  assert.equal(name.attrs.some(attr => ["autofocus", "onfocus"].includes(attr.name)), false);
+  assert.equal(controls.some(node => node.tagName === "b" || node.tagName === "script"), false);
+  assert.doesNotMatch(sent.html!, / checked|old-file|old message/);
+});
+
+test('stale JSON requests get 409 with bounded non-file answers and no redirect', async () => {
+  const { FormSchemaChangedError } = await import('../../errors.js');
+  const error = new FormSchemaChangedError({ fields: DEFINITION.fields, schemaHash: 'a'.repeat(64), draft: { answers: { name: 'Ada' }, truncated: false } });
+  const { deps } = harness({ submit: async () => { throw error; } });
+  const sent = await send(deps, request({ slug: 'contact' }));
+  assert.equal(sent.status, 409);
+  assert.equal(sent.redirect, undefined);
+  assert.deepEqual(sent.json, { code: error.code, error: error.message, answers: { name: 'Ada' }, truncated: false });
 });
