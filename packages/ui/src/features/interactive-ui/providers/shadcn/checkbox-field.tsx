@@ -23,7 +23,7 @@ export function CheckboxField({ label, checked, disabled, onCheckedChange, ...ag
       <Checkbox
         id={id}
         {...agentHandleProps({}, { base, role: 'field', ...(label === undefined ? {} : { label }) })}
-        data-agent-private={agentProps['data-agent-private']}
+        data-agent-private={agentProps['data-agent-private']} data-agent-page={agentProps['data-agent-page']}
         {...(checked !== undefined ? { checked } : {})}
         {...(disabled !== undefined ? { disabled } : {})}
         {...(onCheckedChange ? { onCheckedChange: (state: boolean | 'indeterminate') => onCheckedChange(state === true) } : {})}

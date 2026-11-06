@@ -1,3 +1,4 @@
+import { useAgentHandle } from '../../../../react/hooks/useAgentHandle.js';
 import { resolveSelectPortalContainer } from '../../../../react/components/select-popover.js';
 import { createPortal } from "react-dom";
 import { agentHandle } from "@jini-ai/agentic";
@@ -61,7 +62,7 @@ function SelectOptionRow({
   setOptionRef: (index: number, el: HTMLLIElement | null) => void;
   onHighlight: (index: number) => void;
   onSelect: (option: SelectOption) => void;
-  agentHandle?: string | undefined;
+  agentHandle?: string | false | undefined;
 }) {
   return (
     <li
@@ -201,7 +202,7 @@ function resolveSelectTriggerHandleProps(
 /** Controlled searchable listbox with viewport positioning, dialog-local portals and keyboard navigation. */
 export function Select(props: SelectProps, _optional: Record<string, never> = {}) {
   const { value, onChange, options, placeholder, id, disabled, useDropdown = useSelectDropdown, agentHandle: suppliedBase, translate, t = translate ?? ((key: string) => key) } = props;
-  const base = suppliedBase || undefined;
+  const base = useAgentHandle({ agentHandle: suppliedBase });
   const ariaLabel = props["aria-label"];
   const ariaLabelledBy = props["aria-labelledby"];
 

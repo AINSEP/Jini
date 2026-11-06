@@ -1,3 +1,4 @@
+import { useAgentHandle } from '../../../../react/hooks/useAgentHandle.js';
 import { agentHandle } from "@jini-ai/agentic";
 import { useSeeMoreClamp } from "./SeeMore.hooks.js";
 import { withClassName } from "../../../../utils/class-names.js";
@@ -22,7 +23,7 @@ export interface SeeMoreProps {
   /** Supply a fake measurement hook when rendering without real scrollHeight/clientHeight layout. */
   useClamp?: typeof useSeeMoreClamp | undefined;
   /** The handle identifies a rendered toggle only; fitting content has no control to address. */
-  agentHandle?: string | undefined;
+  agentHandle?: string | false | undefined;
 }
 
 const DEFAULT_LINES = 2;
@@ -59,7 +60,8 @@ export function resolveSeeMoreView({
 }
 
 /** Clamps overflowing text and exposes an accessible expand/collapse toggle. Labels are host-owned. */
-export function SeeMore({ useClamp = useSeeMoreClamp, agentHandle: handle, ...props }: SeeMoreProps) {
+export function SeeMore({ useClamp = useSeeMoreClamp, agentHandle: suppliedHandle, ...props }: SeeMoreProps) {
+  const handle = useAgentHandle({ agentHandle: suppliedHandle });
   const { children, lines = DEFAULT_LINES, moreLabel, lessLabel, className, textClassName, toggleClassName, toggleAriaLabel } = props;
 
   const { expanded, setExpanded, overflows, textRef, regionId, lineCount } = useClamp({ lines, children });

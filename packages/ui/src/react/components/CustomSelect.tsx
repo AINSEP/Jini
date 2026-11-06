@@ -546,6 +546,7 @@ export function CustomSelect({
       id={`${idBase}-menu`}
       onKeyDown={onMenuKeyDown}
       {...originTheme}
+      data-agent-page={agentProps['data-agent-page']}
       className={[
         'jini-select-menu',
         portal ? 'portal' : 'inline',
@@ -574,6 +575,7 @@ export function CustomSelect({
         ref={buttonRef}
         {...agentHandleProps({}, { base, role: 'field', label: ariaLabel })}
         data-agent-private={agentProps['data-agent-private']}
+        data-agent-page={agentProps['data-agent-page']}
         type="button"
         className={['jini-select-trigger', triggerClassName].filter(Boolean).join(' ')}
         role="combobox"

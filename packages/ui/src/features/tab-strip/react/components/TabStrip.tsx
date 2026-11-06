@@ -1,3 +1,5 @@
+import { agentHandleSegment } from '@jini-ai/agentic';
+import { useAgentHandle, type AgentControlProps } from '../../../../react/hooks/useAgentHandle.js';
 import type { ReactNode } from 'react';
 import { noopTabStripHaptics } from '../../ports.js';
 import type { TabStripHapticsPort } from '../../ports.js';
@@ -6,7 +8,7 @@ import { useTabStripDragReorder } from '../hooks/useTabStripDragReorder.js';
 import { TabStripItem } from './TabStripItem.js';
 import { TabStripFrame } from './TabStripFrame.js';
 
-export interface TabStripProps {
+export interface TabStripProps extends AgentControlProps {
   tabs: TabStripTab[];
   activeTabId: string | null;
   onActivate: (tabId: string) => void;
@@ -55,7 +57,9 @@ export function TabStrip({
   ariaLabel,
   className,
   useTabStripDragReorder: useTabStripDragReorderHook = useTabStripDragReorder,
+  ...agentProps
 }: TabStripProps) {
+  const base = useAgentHandle(agentProps);
   const { draggingTabId, dragOverTarget, stripRef, stripDragProps, getItemDragProps } = useTabStripDragReorderHook({
     tabs,
     onReorder,
@@ -76,6 +80,8 @@ export function TabStrip({
       {tabs.map((tab) => (
         <TabStripItem
           key={tab.id}
+          agentHandle={base ? `${base}-tab-${agentHandleSegment({ value: tab.id })}` : false}
+          data-agent-page={agentProps['data-agent-page']}
           tab={tab}
           active={tab.id === activeTabId}
           dragging={draggingTabId === tab.id}

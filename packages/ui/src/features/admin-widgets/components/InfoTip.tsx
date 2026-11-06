@@ -1,3 +1,4 @@
+import { useAgentHandle } from '../../../react/hooks/useAgentHandle.js';
 import { useId, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { agentHandle } from "@jini-ai/agentic";
@@ -37,15 +38,16 @@ export interface InfoTipProps {
   placement?: "top" | "bottom" | "inline" | undefined;
   useTip?: typeof useInfoTip | undefined;
   // Agent clicks toggle the tip like a tap, so the handle advertises button semantics.
-  // Omission leaves existing markup untagged.
-  agentHandle?: string | undefined;
+  // Mounted controls are tagged by default; false explicitly excludes this trigger.
+  agentHandle?: string | false | undefined;
   /** What the trigger shows instead of the default ⓘ, e.g. a status icon whose meaning the bubble
    *  explains. Decorative: the trigger is still named by `triggerLabel`/`label`. */
   icon?: ReactNode | undefined;
 }
 
 /** Focus/hover tooltip that portals outside clipping ancestors; Escape dismisses in place. */
-export function InfoTip({ label, triggerLabel, descriptionId, placement: preferredPlacement, useTip = useInfoTip, agentHandle: handle, icon }: InfoTipProps) {
+export function InfoTip({ label, triggerLabel, descriptionId, placement: preferredPlacement, useTip = useInfoTip, agentHandle: suppliedHandle, icon }: InfoTipProps) {
+  const handle = useAgentHandle({ agentHandle: suppliedHandle });
   const inline = preferredPlacement === "inline";
   const { open, placement, coords, iconRef, bubbleRef, show, hide, leave, toggle, pointerDown, handleIconKeyDown } = useTip({}, { placement: inline ? undefined : preferredPlacement });
   const autoId = useId();

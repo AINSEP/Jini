@@ -26,10 +26,10 @@ export function SelectField({ options, value, placeholder, disabled, onValueChan
       {...(disabled !== undefined ? { disabled } : {})}
       {...(onValueChange ? { onValueChange } : {})}
     >
-      <SelectTrigger {...agentHandleProps({}, { base, role: 'field' })} data-agent-private={agentProps['data-agent-private']}>
+      <SelectTrigger {...agentHandleProps({}, { base, role: 'field' })} data-agent-private={agentProps['data-agent-private']} data-agent-page={agentProps['data-agent-page']}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
-      <SelectContent portalContainer={portalContainer}>
+      <SelectContent portalContainer={portalContainer} data-agent-page={agentProps['data-agent-page']}>
         {options.map((option) => (
           <SelectItem key={option.value} value={option.value}
             {...agentHandleProps({}, { base, action: `option-${agentHandleSegment({ value: option.value })}`, role: 'button', label: option.label })}>

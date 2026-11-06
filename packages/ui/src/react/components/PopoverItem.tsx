@@ -29,7 +29,7 @@ export function PopoverItem({ selected = false, selectedIcon, label, hint, onCli
   return (
     <button
       {...agentHandleProps({}, { base, role: 'button', label })}
-      data-agent-private={agentProps['data-agent-private']}
+      data-agent-private={agentProps['data-agent-private']} data-agent-page={agentProps['data-agent-page']}
       type="button"
       className={`jini-popover__item${selected ? ' is-selected' : ''}`}
       onClick={onClick}

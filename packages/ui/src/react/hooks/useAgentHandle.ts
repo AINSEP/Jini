@@ -6,6 +6,7 @@ export interface AgentControlProps {
   readonly agentHandle?: string | false | undefined;
   readonly 'data-agent-element'?: string | undefined;
   readonly 'data-agent-private'?: string | boolean | undefined;
+  readonly 'data-agent-page'?: string | undefined;
 }
 
 /**

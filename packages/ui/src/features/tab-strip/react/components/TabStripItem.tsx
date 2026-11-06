@@ -1,3 +1,5 @@
+import { agentHandleProps } from '@jini-ai/agentic';
+import { useAgentHandle, type AgentControlProps } from '../../../../react/hooks/useAgentHandle.js';
 import type { KeyboardEvent, MouseEvent, ReactNode } from 'react';
 import { useT } from '../../../i18n/index.js';
 import { TAB_STRIP_ITEM_ID_ATTRIBUTE } from '../../constants.js';
@@ -5,7 +7,7 @@ import { isTabClosable } from '../../rules.js';
 import type { TabStripDropEdge, TabStripTab } from '../../types.js';
 import type { TabStripItemDragProps } from '../hooks/useTabStripDragReorder.js';
 
-export interface TabStripItemProps {
+export interface TabStripItemProps extends AgentControlProps {
   tab: TabStripTab;
   active: boolean;
   dragging: boolean;
@@ -41,7 +43,9 @@ export function TabStripItem({
   onClose,
   closeLabel,
   closeIcon,
+  ...agentProps
 }: TabStripItemProps) {
+  const base = useAgentHandle(agentProps);
   const t = useT();
   const resolvedCloseLabel = closeLabel ?? t('Close tab');
   const showClose = isTabClosable(tab, Boolean(onClose));
@@ -77,6 +81,8 @@ export function TabStripItem({
   return (
     <div
       className={className}
+      {...agentHandleProps({}, { base, role: 'button', ...(tab.title === undefined ? {} : { label: tab.title }) })}
+      data-agent-private={agentProps['data-agent-private']} data-agent-page={agentProps['data-agent-page']}
       {...{ [TAB_STRIP_ITEM_ID_ATTRIBUTE]: tab.id }}
       role="tab"
       aria-selected={active}
@@ -91,6 +97,7 @@ export function TabStripItem({
       <div className="jini-tab-strip-item__content">{tab.content}</div>
       {showClose ? (
         <button
+          {...agentHandleProps({}, { base, action: 'close', role: 'button', label: resolvedCloseLabel })}
           type="button"
           className="jini-tab-strip-item__close"
           aria-label={resolvedCloseLabel}

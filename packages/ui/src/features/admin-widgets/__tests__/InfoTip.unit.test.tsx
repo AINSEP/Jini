@@ -313,8 +313,8 @@ describe("InfoTip tip-hook injection", () => {
     );
   });
 
-  it("without an agent handle the icon carries no agent attributes", () => {
-    render(<InfoTip label={LABEL} />);
+  it("with explicit opt-out the icon carries no agent attributes", () => {
+    render(<InfoTip label={LABEL} agentHandle={false} />);
     expect(screen.getByRole("button").getAttributeNames().filter((name) => name.startsWith("data-agent"))).toEqual([]);
   });
 
@@ -347,4 +347,12 @@ describe("InfoTip tip-hook injection", () => {
     expect(document.getElementById("field-help")).toHaveTextContent(LABEL);
     expect(screen.getByRole("button", { name: LABEL })).not.toHaveAttribute("aria-describedby");
   });
+});
+
+
+it('defaults the info trigger handle and preserves opt-out', () => {
+  const { rerender } = render(<InfoTip label="Help" />);
+  expect(screen.getByRole('button')).toHaveAttribute('data-agent-element');
+  rerender(<InfoTip label="Help" agentHandle={false} />);
+  expect(screen.getByRole('button')).not.toHaveAttribute('data-agent-element');
 });

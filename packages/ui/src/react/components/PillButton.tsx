@@ -47,6 +47,7 @@ export function PillButton({
   agentHandle,
   'data-agent-element': suppliedHandle,
   'data-agent-private': privateControl,
+  'data-agent-page': page,
 }: PillButtonProps) {
   const base = useAgentHandle({ agentHandle, 'data-agent-element': suppliedHandle, 'data-agent-private': privateControl });
   return (
@@ -54,6 +55,7 @@ export function PillButton({
       <button
         {...agentHandleProps({}, { base, role: 'button', label: ariaLabel ?? (typeof label === 'string' ? label : 'Action') })}
         data-agent-private={privateControl}
+        data-agent-page={page}
         type="button"
         className={`jini-pill${active ? ' is-active' : ''}`}
         aria-label={ariaLabel}

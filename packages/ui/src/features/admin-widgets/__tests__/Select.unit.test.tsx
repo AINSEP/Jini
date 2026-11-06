@@ -574,13 +574,14 @@ describe("Select dropdown-hook injection", () => {
 });
 
 describe("agentHandle", () => {
-  it("omits data-agent-element on the trigger and search input when agentHandle is not passed", async () => {
+  it("defaults the trigger and search input to related agent handles", async () => {
     const user = userEvent.setup();
     render(<ControlledSelect options={MANY_OPTIONS} />);
-    expect(screen.getByRole("combobox", { name: "Pick one" })).not.toHaveAttribute("data-agent-element");
+    const base = screen.getByRole("combobox", { name: "Pick one" }).getAttribute("data-agent-element");
+    expect(base).toMatch(/^ui-/);
 
     await user.click(screen.getByRole("combobox", { name: "Pick one" }));
-    expect(screen.getByPlaceholderText("Search…")).not.toHaveAttribute("data-agent-element");
+    expect(screen.getByPlaceholderText("Search…")).toHaveAttribute("data-agent-element", `${base}-search`);
   });
 
   it("publishes the trigger and, once open, the search input as agent-addressable off the same base handle", async () => {
@@ -646,4 +647,13 @@ describe("resolveSelectTriggerLabel", () => {
       className: "select-trigger-label is-placeholder",
     });
   });
+});
+
+
+it('preserves explicit opt-out on the widget select trigger, search and rows', async () => {
+  render(<Select value="" onChange={vi.fn()} options={MANY_OPTIONS} aria-label="Pick one" agentHandle={false} />);
+  expect(screen.getByRole('combobox')).not.toHaveAttribute('data-agent-element');
+  await userEvent.click(screen.getByRole('combobox'));
+  expect(screen.getByPlaceholderText('Search…')).not.toHaveAttribute('data-agent-element');
+  for (const row of screen.getAllByRole('option')) expect(row).not.toHaveAttribute('data-agent-element');
 });
