@@ -33,7 +33,7 @@ function selectedAnswerText(
   const labels: string[] = [];
   if (typeof result.choice === 'string') labels.push(optionLabel({ group: question.singleSelect ?? question, value: result.choice }));
   if (Array.isArray(result.selections)) {
-    labels.push(...selectionLabels({ selections: result.selections, question }));
+    for (const label of selectionLabels({ selections: result.selections, question })) labels.push(label);
   }
   if (labels.length > 0) return labels.join(', ');
   return Array.isArray(result.selections) && result.selections.length === 0 ? 'None selected' : undefined;
