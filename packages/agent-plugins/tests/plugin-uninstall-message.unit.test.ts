@@ -5,8 +5,9 @@ import { expect, it, vi } from 'vitest';
 import { createNodeAgentPluginEffects } from '@jini-ai/agent-plugins/lifecycle/node';
 import { createAgentPluginLayout, createAgentPluginLifecycle, AgentPluginNotUninstallableError, type AgentPluginLifecyclePorts } from '@jini-ai/agent-plugins/lifecycle';
 
-// Kept in this package because the fix's edit scope permits only uninstall.ts
-// in the sibling package. Exercise its real preview/uninstall refusals, not source text.
+// Originally placed in integrations because the fix's edit scope permitted only uninstall.ts
+// in this package. Keep it with its owner to avoid a workspace dependency cycle.
+// Exercise its real preview/uninstall refusals, not source text.
 it.each(['"bundled"', '{"enabled":"yes","origin":"operator-installed"}'])('names the supplied product in a malformed-entry refusal (%s), removing nothing', async (entry) => {
   const root = await mkdtemp(path.join(os.tmpdir(), 'jini-uninstall-message-'));
   try {

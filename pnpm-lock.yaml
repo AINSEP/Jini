@@ -604,9 +604,6 @@ importers:
         specifier: workspace:^
         version: link:../core
     devDependencies:
-      '@jini-ai/agent-plugins':
-        specifier: workspace:*
-        version: link:../agent-plugins
       '@jini-ai/agentic':
         specifier: workspace:*
         version: link:../agentic
@@ -891,9 +888,6 @@ importers:
       '@cfworker/json-schema':
         specifier: ^4.1.1
         version: 4.1.1
-      '@jini-ai/agent-plugins':
-        specifier: workspace:*
-        version: link:../agent-plugins
       '@jini-ai/db':
         specifier: workspace:^
         version: link:../db
