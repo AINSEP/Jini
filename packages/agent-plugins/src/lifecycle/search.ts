@@ -121,8 +121,8 @@ function passesDeploymentGate(
 function automaticScore({ candidate, terms }: { candidate: AgentPluginSearchCandidate; terms: readonly string[] }, _options = {}): number {
   if (!candidate.enabled) {
     const visible = agentVisiblePluginCandidate({ candidate });
-    const catalogTerms = automaticTerms(`${visible.pluginId} ${visible.description ?? ''}`);
-    return terms.reduce((score, term) => score + (catalogTerms.includes(term) ? 5 : 0), 0);
+    const catalogTerms = automaticTerms(`${visible.pluginId} ${visible.description ?? ''} ${visible.keywords.join(' ')} ${(visible.provides ?? []).join(' ')} ${visible.skills.map(skill => `${skill.name} ${skill.summary}`).join(' ')}`);
+    return terms.reduce((score, term) => score + (catalogTerms.includes(term) ? 4 : 0), 0);
   }
   const capabilities = candidate.provides ?? [];
   if (!passesDeploymentGate({ candidate, capabilities, terms })) return 0;

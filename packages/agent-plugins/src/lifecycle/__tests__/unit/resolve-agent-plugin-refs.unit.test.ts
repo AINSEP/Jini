@@ -14,6 +14,8 @@ import { resolveAgentPluginLayout } from "../test-support.js";
 import { installAgentPlugin } from "../test-support.js";
 import { type AgentPluginArchiveEntry, type AgentPluginArchiveReaderPort } from "../../install.js";
 import { resolveAgentPluginDeliveryMode, resolveAgentPluginRefs } from "../test-support.js";
+import { ports } from "../test-support.js";
+import { createResolveAgentPluginRefsModule } from "../../resolve-agent-plugin-refs.js";
 
 
 /**
@@ -247,6 +249,10 @@ test("refuses a pinned ref when the activation record cannot be read — and nev
     assert.equal(result.reason, "Agent Plugin 'ui-ux-design' was not loaded: this workspace's activation record could not be read, so whether it is enabled cannot be confirmed. Nothing was injected; repair activations.json and start the run again.");
     assert.equal(result.reason.includes(cwd), false);
     assert.ok(!result.reason.includes("8px spacing grid"), "the refusal must never carry the plugin's own skill content");
+    const readOnly = await createResolveAgentPluginRefsModule(ports).resolveAgentPluginSelection(
+      { pluginRefIds: ['ui-ux-design'], workspaceLayout: layout }, { allowInactiveGuidance: true },
+    );
+    assert.deepEqual(readOnly, result, 'read-only discovery never bypasses an unreadable activation record');
 
   } finally {
     await forceRemove(cwd);
@@ -270,6 +276,25 @@ test("GUARD: a well-formed file with enabled:false still gives the existing 'not
   } finally {
     await forceRemove(cwd);
   }
+});
+
+test('explicit read-only discovery reads real off-plugin guidance without changing its activation', async () => {
+  const { cwd, layout } = await freshLayout();
+  try {
+    await installRealPackage(cwd, 'ui-ux-design', REAL_SKILL_MARKDOWN, 'archive-off-guidance');
+    await setAgentPluginActivation({ workspaceRoot: layout.root, pluginId: 'ui-ux-design', enabled: false, actor: 'op-1' });
+    const before = await readFile(path.join(layout.root, 'activations.json'), 'utf8');
+    const result = await createResolveAgentPluginRefsModule(ports).resolveAgentPluginSelection(
+      { pluginRefIds: ['ui-ux-design'], workspaceLayout: layout }, { allowInactiveGuidance: true },
+    );
+    assert.equal(result.ok, true);
+    if (!result.ok) return;
+    assert.ok(result.promptPrefix.includes(REAL_SKILL_MARKDOWN));
+    assert.match(result.promptPrefix, /installed, off/);
+    assert.match(result.promptPrefix, /tools are unavailable/);
+    assert.equal(await readFile(path.join(layout.root, 'activations.json'), 'utf8'), before);
+    assert.equal((await resolveAgentPluginRefs(['ui-ux-design'], layout)).ok, false, 'run pinning still requires activation');
+  } finally { await forceRemove(cwd); }
 });
 
 test("resolves multiple pluginRefIds and joins their sections in pin order", async () => {
@@ -488,7 +513,7 @@ test("delivery mode defaults to inject, and an unrecognised env value never flip
   assert.equal(resolveAgentPluginDeliveryMode({ PLUGIN_DELIVERY: "pointer" }), "pointer");
 });
 
-test('an active copy under a bundled id at a digest the build did not ship is refused in inject and pointer modes', async () => {
+test('an untrusted bundled-id copy is refused in active modes and off-plugin read-only discovery', async () => {
   const { cwd, layout } = await freshLayout();
   try {
     await installRealPackage(cwd, 'synthetic', '# Untrusted instructions', 'active-untrusted');
@@ -501,5 +526,12 @@ test('an active copy under a bundled id at a digest the build did not ship is re
         assert.match(result.reason, /only plugins shipped with/);
       }
     }
+    await setAgentPluginActivation({ workspaceRoot: layout.root, pluginId: 'synthetic', enabled: false, actor: 'owner' });
+    const offRead = await createResolveAgentPluginRefsModule(ports).resolveAgentPluginSelection(
+      { pluginRefIds: ['synthetic'], workspaceLayout: layout }, { allowInactiveGuidance: true },
+    );
+    assert.equal(offRead.ok, false);
+    if (!offRead.ok) assert.equal(offRead.code, 'untrusted');
+    assert.ok(!JSON.stringify(offRead).includes('Untrusted instructions'));
   } finally { await forceRemove(cwd); }
 });
