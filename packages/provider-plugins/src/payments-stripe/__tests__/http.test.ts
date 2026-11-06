@@ -50,7 +50,7 @@ describe("Stripe HTTP requests", () => {
     expect(send).toHaveBeenCalledTimes(1);
     expect(send).toHaveBeenCalledWith({ request: {
       method: "POST", url: "https://api.stripe.com/v1/checkout/sessions",
-      headers: { Authorization: "Bearer test-secret", "Content-Type": "application/x-www-form-urlencoded", "Idempotency-Key": "order:1" },
+      headers: { Authorization: "Bearer test-secret", "Stripe-Version": "2024-06-20", "Content-Type": "application/x-www-form-urlencoded", "Idempotency-Key": "order:1" },
       body: "line_items%5B0%5D%5Bprice_data%5D%5Bproduct_data%5D%5Bname%5D=Tea+%26+cake&expand%5B%5D=a&expand%5B%5D=b",
       timeoutMs: 30_000, totalDeadlineMs: 30_000,
     } });
@@ -61,7 +61,7 @@ describe("Stripe HTTP requests", () => {
     expect(send).toHaveBeenCalledTimes(1);
     expect(send).toHaveBeenCalledWith({ request: {
       method: "GET", url: "https://api.stripe.com/v1/checkout/sessions/cs_1?expand[]=payment_intent",
-      headers: { Authorization: "Bearer test-secret" }, timeoutMs: 30_000, totalDeadlineMs: 30_000,
+      headers: { Authorization: "Bearer test-secret", "Stripe-Version": "2024-06-20" }, timeoutMs: 30_000, totalDeadlineMs: 30_000,
     } });
   });
   it("keeps an unparseable success unresolved", async () => {
@@ -69,7 +69,7 @@ describe("Stripe HTTP requests", () => {
     expect(await stripeRequest({ ctx: context(send), method: "POST", path: "/v1/checkout/sessions" }, { form: [], idempotencyKey: "" })).toMatchObject({ kind: "unknown", error: { code: "PROVIDER_ERROR", retryable: true } });
     expect(send).toHaveBeenCalledWith({ request: {
       method: "POST", url: "https://api.stripe.com/v1/checkout/sessions", body: "",
-      headers: { Authorization: "Bearer test-secret", "Content-Type": "application/x-www-form-urlencoded", "Idempotency-Key": "" },
+      headers: { Authorization: "Bearer test-secret", "Stripe-Version": "2024-06-20", "Content-Type": "application/x-www-form-urlencoded", "Idempotency-Key": "" },
       timeoutMs: 30_000, totalDeadlineMs: 30_000,
     } });
   });

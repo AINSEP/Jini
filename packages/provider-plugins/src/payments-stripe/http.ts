@@ -38,7 +38,8 @@ export async function stripeRequest(
   { ctx, method, path }: { ctx: ProviderContext; method: "GET" | "POST"; path: string },
   optional: { form?: ReadonlyArray<readonly [string, string]>; idempotencyKey?: string } = {}
 ): Promise<Outcome<Readonly<Record<string, unknown>>>> {
-  const headers: Record<string, string> = { Authorization: `Bearer ${ctx.credentials.secretKey}` };
+  // Keep retrieve responses aligned with the webhook endpoint version documented by setup.
+  const headers: Record<string, string> = { Authorization: `Bearer ${ctx.credentials.secretKey}`, "Stripe-Version": "2024-06-20" };
   if (optional.idempotencyKey !== undefined) headers["Idempotency-Key"] = optional.idempotencyKey;
   const body = optional.form === undefined ? undefined : new URLSearchParams(optional.form.map(([key, value]) => [key, value])).toString();
   if (body !== undefined) headers["Content-Type"] = "application/x-www-form-urlencoded";
