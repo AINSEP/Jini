@@ -151,20 +151,21 @@ describe('buildOutcomeSurface frame size', () => {
   });
 });
 
-// Exact hashes include the intended detail-layout fix (c4c19234); all other emitted bytes stay pinned.
+// Exact hashes include the intended detail-layout fix (c4c19234) and shared coarse-pointer 44px
+// rule (1e4b1d4ba); all other emitted bytes stay pinned.
 describe('renderOutcomeDocument exact output', () => {
   const digest = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex');
   const cases: ReadonlyArray<readonly [string, Parameters<typeof renderOutcomeDocument>[0], string]> = [
-    ['success with link and details', PUBLISH_SUCCESS, 'b4d522a3aa5a59f3851c1c95481a25365904e58bbf79daabcf33ae4b17437122'],
-    ['partial with custom link label, app, lang and tokens', { ...PUBLISH_SUCCESS, state: 'partial', openLinkLabel: 'View', app: { appName: 'a', appVersion: '2' }, lang: 'fr', tokens: { '--jini-mcpui-bg': '#123456' } }, '4ec0eaa385284dff330c179b8b81524843e7caaa52d97f893706ca6476ac5f27'],
-    ['failure with link', { ...PUBLISH_FAILURE, openLinkUrl: 'https://x.test/"</script>' }, '2b2e814146c3ee8933b7543db93babf554ed352ba706d15ec6a7d57489bf71a3'],
-    ['failure without link', PUBLISH_FAILURE, 'bfd2d619d1792a579474e5f668c2b752227ed79d53583ca88e50e89eaa583ca0'],
+    ['success with link and details', PUBLISH_SUCCESS, 'dcc90cd015c88ca124d79b1afd49dcf0b74a6484222b2add49275e410e632bc2'],
+    ['partial with custom link label, app, lang and tokens', { ...PUBLISH_SUCCESS, state: 'partial', openLinkLabel: 'View', app: { appName: 'a', appVersion: '2' }, lang: 'fr', tokens: { '--jini-mcpui-bg': '#123456' } }, '81eb1445fc1fc344182b9f4fd3dc37afe306f32d2e082cc8a79faca0add1643b'],
+    ['failure with link', { ...PUBLISH_FAILURE, openLinkUrl: 'https://x.test/"</script>' }, '92f24c979491fe7f80bb65364b72299ee7a1d0ad8c9cfa400f94ed60a4942fe0'],
+    ['failure without link', PUBLISH_FAILURE, '26090b5a11ff6c4ee7b3c06b90dc2e23f5868b59f40479b143e7d555099842de'],
   ];
   it.each(cases)('%s', (_name, spec, expected) => {
     expect(digest(renderOutcomeDocument(spec))).toBe(expected);
   });
 
   it('pins the framed resource wrapper', () => {
-    expect(digest(buildOutcomeSurface({ ...PUBLISH_SUCCESS, uri: 'ui://h/x/1', preferredFrameSize: ['1px', '2px'] }))).toBe('353b5dc3c7ee93ba844127e22f70cd8ed434ff30f03a7a8fa7d72f6a942b17da');
+    expect(digest(buildOutcomeSurface({ ...PUBLISH_SUCCESS, uri: 'ui://h/x/1', preferredFrameSize: ['1px', '2px'] }))).toBe('512e4aec9ddf6b60f8d9bb75d39267d80beada7c88f1c5e6be78d5623f680c8e');
   });
 });

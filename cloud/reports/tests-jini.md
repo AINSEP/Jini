@@ -100,3 +100,24 @@ OPEN: Infra retirement remains deliberately incomplete: Tovu has 11 infra/outbox
 - Final standalone Sonar rerun: 3458 files, 176 warnings, 0 errors. Directive-no-effect diagnostics are warnings, not parse errors. Rules/targets/ignores unchanged.
 - Daemon initial 4042 passed, 10 failed, 1 existing skipped live-CLI contract. Its two failing temporary-directory files pass unchanged with `/var/tmp` access: 17 passed, 0 failed.
 - Database 735 passed, 0 failed. Commerce default phases: 52 native catalog + 10 React + 1406 kernel passed, 1 existing Postgres placeholder skipped without its URL. Real-Postgres execution pending.
+
+## Fix 5 — Stale exact-output fixtures for touch targets
+
+Approved commit `1e4b1d4ba` added four shared CSS lines giving controls 44px targets for coarse pointers, without refreshing the form/outcome/secret-card exact-output fixtures. Historical scratch proof removed only those exact four CSS lines and made all 137 tests pass with every old hash unchanged. Current renderer/security sources were not changed.
+
+Updated 15 unique expected SHA-256 digests covering 17 failing cases, and retained the existing why comments with the touch-target change documented. Every hash equality, semantic assertion and case remains intact; no snapshot update mode or weakened assertion was used. The existing shared-document touch-target semantics also pass against current source.
+
+Commands from `packages/ui`, after sourcing the setup env:
+
+- RED: the three affected surface files — 120 passed, 17 failed.
+- Historical scratch transform: the same 137 cases — 137 passed using old expected hashes and only the historical CSS addition subtracted in scratch.
+- GREEN: `VITEST_MAX_THREADS=2 VITEST_MIN_THREADS=1 VITEST_MAX_FORKS=2 VITEST_MIN_FORKS=1 pnpm exec vitest run src/features/mcp-ui/__tests__/surfaces/form.test.ts src/features/mcp-ui/__tests__/surfaces/outcome.test.ts src/features/mcp-ui/__tests__/secret-card.unit.test.ts src/features/mcp-ui/__tests__/surfaces/document.test.ts --maxWorkers=2 --minWorkers=1` — 173 passed, 0 failed, 0 skipped.
+- `pnpm run typecheck` — passed; focused ESLint and `git diff --check` passed.
+
+BUG: Exact-output fixtures omitted the approved shared 44px coarse-pointer CSS addition. Fixed with proven same-strength expected-byte updates.
+
+## Workspace run complete; additional checks in progress
+
+All 45 workspace commands finished. Initial evidence: 53204 passed, 33 failed, 4 existing skipped; 40 commands passed and 5 failed. Reference-web additionally had two initial collection failures, rather than failing test cases. The recovered failures and focused retry evidence are documented above; these initial counts do not include retries.
+
+The extra serial checks now cover writable-cache packed-host recovery, root scripts, CI property tests, real Postgres for DB/chat/daemon/commerce, final plugin content, rebuild/relink, touched scripts typecheck, complexity and guard. No new production state, I/O, polling, options, tables or abstractions were added by the job.
