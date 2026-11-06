@@ -1,0 +1,32 @@
+# Job last-fixes (owner-approved 11-06): last code round before the full test run
+Base in both repos: origin/cloud/combine (Tovu 75aaefa8c, Jini 01ff07e89). Create cloud/last-fixes from it in each repo you change. Owner approved --no-verify for that branch in Tovu. Hard cap 2 hours. General wording in commits and reports: these repos are public. Commerce and vibe coding are on hold. List every bug you notice under "Bugs found".
+
+Check each item first. If one is wrong or already fixed, say so and leave it. Failing test first for real bugs. Never weaken a test. Smallest change. T = Tovu apps/website/src. Line numbers are at the base commit.
+
+## Must fix
+1. Fresh composition loses both Cloudflare targets: the copied plugin payload lib/forms.mjs cannot resolve @jini-ai/cms/forms (cloud/reports/older-fixes.md, C25). A missing module means declare the dependency properly; never lazy-import it. Prove it through a fresh composed bundle, and check for the same gap in other plugin payloads.
+2. Deployment Overview shows the admin password as not set on every site since startup secrets leave process.env: T/server/inbound/admin-http/routes/system/deployment-overview.ts:107 reads Boolean(process.env[name]), and TOVU_ADMIN_PASSWORD is in that list (:89). Read it through startupSecretEnvironment. Check the other readers of the moved keys for the same mistake.
+3. Custom-domain publish does not recheck consent after the person answers: T/features/deployments/publish-agent-tools.ts:1114 and static-publish/domain-publish-tool.ts:53-58 check only in the preflight. Add the check at the top of the domain run, before confirm. Regression test for the domain path.
+4. Member pages on static themes have no consent loader: T/server/inbound/public-http/routes/site/member-pages.ts:198 calls serveVirtualPage with raw deps, and only withListingBatch sets documentAssets (pages.ts:2744). In serveVirtualPage build documentAssets from res.locals.siteConsentAssets as withListingBatch does. Test /signin, /forgot-password, /reset-password, /account on a static theme with consent on and off. Check whether managed themes had the same gap.
+5. tool-metadata-projections.test.ts:27 fails: fixtures/tool-metadata.baseline.json:2557-2560 still says deployment_execute_static_publish is policy, while contracts/core/tool-metadata/deployments.ts:18 says plan. Refresh that one value and say why.
+6. Exporter test no longer proves a page carries consent: site-exporter.test.ts:172 assertConstructedConsent evals the loader whatever the page references. Also assert the page itself has the loader tag or managed banner when consent is on. Test only.
+7. A 503 from /_consent/load.js during a download export ships a broken script reference and reports ok: true (Jini devops/src/static-export/runner.ts:116, T export-run.ts:150). Make it visible with the existing failure or warning path. Look at firstExportFailure first.
+8. Keep-running site with no memory cap: T project-ipc path in apps/desktop/src/project-ipc.ts:1705 runs cancel before handleStop. If Stop fails and the person then picks Keep running, :1716 sets the hold but cancelled stays true, so parkSite returns at :1626 and :1603 skips crash restart. Fix so the site keeps its normal restart and memory behaviour.
+9. Admin coverage floors in apps/admin/vitest.config.ts (8853ca970) were set from policy, not measured. A test:cov scoped to changed files now always fails, and development/sonarqube/scan.sh aborts with --with-coverage under the floor. Make floors apply only to a full-suite coverage run, so scoped runs are not judged against them. Keep the floor numbers; the full test run will measure them.
+
+## Also fix if small
+10. Batch results strip inline media previews while keeping saved-media results (cloud/reports/older-fixes.md, C30). Add a bounded top-level image envelope if it fits the shared batch path; otherwise report what it takes.
+11. Test-only type errors: assertAccessApprover fixture fields in mail-status-tool.test.ts:88,185, provider-tools.unit.test.ts:124, site-mailer.unit.test.ts:273, one implicit any; admin agent-plugin-choice-replay.unit.test.ts:16,52 missing fields.
+12. Complexity: exportCredentialDetail at 13; project-ipc.test.ts unused collection and cognitive 15 fixture. Split them, no debt entries.
+13. TOVU_G3_REAL_EXPORT test: its 1000-event-loop-turn wait expires before the exporter finishes and fails later cases. Make it wait for the job's real completion; no bigger timeout.
+14. A stale plugin card fails silently: ask-choice-tool.ts:466 emits the receipt, automatic-agent-plugins.ts:131 throws, :151 swallows it with console.warn. The person should see the plain message. Read the caller of automaticPluginRuns.start first.
+15. composition/site-mailer.ts setPluginEnabled: the plugin write commits, then clearPluginSelection's guarded write can conflict and throw, leaving a lane naming a disabled plugin that a retry cannot clear. Fix.
+16. dev-auth-failures.unit.test.ts: the anonymous boundary text says "Copy details" with nothing but an error id. Make the words true.
+17. Excess code: publish-agent-tools.ts:870-882 staticPublishConfirmation duplicates assistant/tool-approval-policy.ts:57-73; media-rendition.ts:288 eviction line and its "256 workspace indexes" comments now that the key is one workspace.
+18. T/server/inbound/public-http/http/shared/post.ts:73: add to the contract comment that bodyHtml is trusted author HTML with unresolved embed markers.
+19. mcp-ui-tool-calls-route.static-publish.integration.test.ts:86-90: the fixture re-adds the retired authored tag. Point it at the shipped server-added path.
+
+## Separate commit, so it can be reverted alone (owner asked, answer pending)
+20. Static themes with consent off: declared scripts from theme.manifest.scripts and plugin declarations do not load, because the loader was their only route, while managed themes still get them (T/server/inbound/public-http/middleware/site-cookie-consent.ts:253-260). Owner's rule: no consent field means the script runs. With consent off, emit plain script tags for declared scripts, with no loader and no consent code on the page. A theme declaring nothing gets a page with nothing added. Also: siteConsentExportAssets with consent off copies local declared assets no page references; line it up with this.
+
+Report at cloud/reports/last-fixes.md and in your final message: shas, each item fixed, wrong or stopped and why, tests with exact commands, the sha of the item 20 commit.
