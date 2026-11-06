@@ -38,3 +38,19 @@ test('unknown or malformed declarations stay inert and ordinary delivered frames
   expect(document.querySelector('#broken')?.hasAttribute('src')).toBe(false);
   expect(document.querySelector('#off')?.getAttribute('src')).toBe('/off');
 });
+
+test('a mixed script and frame withdrawal finishes cleanup before one shared reload', async () => {
+  document.body.innerHTML = `<iframe data-src="/form" data-jini-consent='["functional"]'></iframe>`;
+  const frame = document.querySelector('iframe')!;
+  const reload = vi.fn(() => {
+    expect(frame.hasAttribute('src')).toBe(false);
+    expect(document.querySelector('script[src="/feature.js"]')).toBeNull();
+  });
+  const api = createCookieConsent({ config: { contract: 1, policy: 'mixed', regionMode: 'opt-in', banner: 'headless', scripts: [{ src: '/feature.js', consent: ['functional'] }] },
+    ports: { doc: document, fetch: vi.fn(), now: Date.now, gpc: () => false, reload, importModule: vi.fn() } });
+  await api.set({ action: 'accept' });
+  expect(frame.getAttribute('src')).toBe('/form');
+  expect(document.querySelector('script[src="/feature.js"]')).not.toBeNull();
+  await api.set({ action: 'reject' });
+  expect(reload).toHaveBeenCalledTimes(1);
+});
