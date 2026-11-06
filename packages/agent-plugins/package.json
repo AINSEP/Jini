@@ -236,9 +236,9 @@
     "./software-engineering/*": "./software-engineering/*",
     "./commerce": "./commerce/plugin.json",
     "./commerce/server": {
-      "types": "./commerce/server/index.d.ts",
-      "import": "./commerce/server/index.mjs",
-      "default": "./commerce/server/index.mjs"
+      "types": "./core/commerce-server.d.ts",
+      "import": "./core/commerce-server.mjs",
+      "default": "./core/commerce-server.mjs"
     },
     "./commerce/*": "./commerce/*"
   },
