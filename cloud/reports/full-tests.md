@@ -78,7 +78,7 @@ Frozen Jini dependencies restored; clean complete recursive build passed. Tovu c
 - Minor listed only: SourceConfigField and ConfirmDialog production JSDoc describe old secret/omitted-handle behavior. Pre-existing untracked Jini packages/plugin-ui-ux-design leftovers remain untouched.
 - Automatic review rejected a restore-class downgrade before execution; final class is unchanged. A stale fresh-card assertion was accepted only after direct existing-policy evidence and now asserts the fresh owner-bound card.
 
-Raw logs and exact focused commands/causes are in `/workspace/work/full-tests/`, including boundaries-handoff.txt, interactions-handoff.md and investigation notes. They are provided in the attached validation archive. Initial per-package counts follow; these are not final green claims.
+Raw logs and exact focused commands/causes are in `/workspace/work/full-tests/`, including boundaries-handoff.txt, interactions-handoff.md and investigation notes. They remain in this execution workspace. Initial per-package counts follow; these are not final green claims.
 
 ## Initial Jini per-package reported results
 
@@ -197,7 +197,7 @@ Final compiler commands: `node_modules/.bin/tsc -p tsconfig.json --noEmit` — e
 
 ## Recorded incomplete-root failures
 
-These remain recorded failures from the interrupted run, including cases subsequently fixed and verified in focused checks. Newly reached failures not covered above are untriaged at the cap. Exact names/locations are in tovu-recorded-failures.json in the validation archive.
+These remain recorded failures from the interrupted run, including cases subsequently fixed and verified in focused checks. Newly reached failures not covered above are untriaged at the cap. Exact names/locations are in tovu-recorded-failures.json in the execution workspace.
 
 - apps/site-chat/src/__tests__/visitor-page-control.recovery.test.ts: 1 recorded not-ok outcomes.
 - apps/website/src/assistant/__tests__/_tmp-full-sweep.test.ts: 1 recorded not-ok outcomes.
