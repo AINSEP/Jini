@@ -1,4 +1,4 @@
-import { buildDomainRegistrations, indexCatalogById, type AgentToolDefinition, type DerivedRiskByToolId, type ToolRegistration } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, type AgentToolDefinition, type AgentToolSideEffect, type ToolRegistration } from "@jini-ai/core";
 import { nowIso, type Clock, type IdGenerator } from "@jini-ai/core/primitives";
 import { adaptLegacyAuthorize, requireToolPermission, type AuthorizeFn } from "@jini-ai/cms/core";
 import { CommerceProductNotFoundError } from "./catalog/errors.js";
@@ -33,7 +33,7 @@ export const commerceCatalogToolCatalog: AgentToolDefinition[] = [{
     } },
   } },
 }];
-export const commerceCatalogDerivedRisk: DerivedRiskByToolId = new Map([
+export const commerceCatalogDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map([
   ["commerce_create_product", "mutates-durable-state"], ["commerce_create_price", "mutates-durable-state"],
 ]);
 

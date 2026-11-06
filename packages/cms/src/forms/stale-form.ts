@@ -6,7 +6,7 @@ import type { FieldDescriptor, FormDefinitionRecord } from './types.js';
 
 export type FormRetryAnswer = string | boolean | number | string[];
 export interface FormRetryDraft { answers: Record<string, FormRetryAnswer>; truncated: boolean; truncatedFields: string[] }
-const RESERVED = new Set([FORM_SCHEMA_HASH_FIELD, '_hp', '_attempt']);
+const RESERVED: ReadonlySet<string> = new Set([FORM_SCHEMA_HASH_FIELD, '_hp', '_attempt']);
 // Leave room for names repeated in the copy-only list; the entire draft stays below 64 KiB.
 const MAX_DRAFT_BYTES = 30 * 1024;
 const utf8Bytes = (value: string): number => new TextEncoder().encode(value).byteLength;

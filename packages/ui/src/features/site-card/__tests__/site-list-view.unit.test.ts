@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_SITE_LIST_PREFS, parseSiteListPrefs, siteListView, SITE_LIST_RECENT_COUNT, toggleListed, type SiteListFilter, type SiteListItem, type SiteListPrefs } from "../site-list-view";
+import { DEFAULT_SITE_LIST_PREFS, parseSiteListPrefs, siteListView, SITE_LIST_RECENT_COUNT, toggleListed, type SiteListFilter, type SiteListItem, type SiteListPrefs } from "../site-list-view.js";
 
 const site = (id: string, day: number, name = id): SiteListItem => ({ id, name, createdAt: `2026-01-${String(day).padStart(2, "0")}T00:00:00.000Z` });
 const ids = (items: readonly SiteListItem[]) => items.map((item) => item.id);

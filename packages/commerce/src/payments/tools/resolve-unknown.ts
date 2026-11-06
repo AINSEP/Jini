@@ -1,5 +1,5 @@
 import { adaptLegacyAuthorize, buildDomainRegistrations, createApprovalHandler, indexCatalogById, requireToolPermission, ToolInputError,
-  type AgentToolDefinition, type ApprovalSteps, type DerivedRiskByToolId, type LegacyToolAuthorizeFn, type ToolExecutionContext, type ToolRegistration } from '@jini-ai/core';
+  type AgentToolDefinition, type ApprovalSteps, type AgentToolSideEffect, type LegacyToolAuthorizeFn, type ToolExecutionContext, type ToolRegistration } from '@jini-ai/core';
 import type { Money } from '../../money/money.js';
 import type { PaymentScope } from '../contract/scope.js';
 import type { PaymentsOperatorPort } from '../ops/service.js';
@@ -34,7 +34,7 @@ const catalog: AgentToolDefinition[] = [{
     reason: { type: 'string', minLength: 1, maxLength: 500 },
   } },
 }];
-const derivedRisk: DerivedRiskByToolId = new Map([[name, 'mutates-durable-state']]);
+const derivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map([[name, 'mutates-durable-state']]);
 const notFound = { ok: false, reason: 'order-payment-not-found', message: 'No payment is recorded for this order in the current shop. Use the buyer’s original order link.' };
 interface Ready { target: ResolutionTarget; description: CommerceResolutionApprovalDescription }
 

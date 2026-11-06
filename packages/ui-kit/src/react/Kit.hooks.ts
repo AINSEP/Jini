@@ -60,7 +60,7 @@ export function useKitComponent<K extends ImplementedComponentName>(required: { 
   const context = useKit({});
   return context.kit.components[required.name];
 }
-const facadeRoles = new Map<string, 'button' | 'field' | 'select'>([
+const facadeRoles: ReadonlyMap<string, 'button' | 'field' | 'select'> = new Map([
   ['Button', 'button'], ['IconButton', 'button'], ['TextField', 'field'], ['TextArea', 'field'],
   ['Select', 'field'],
 ]);
