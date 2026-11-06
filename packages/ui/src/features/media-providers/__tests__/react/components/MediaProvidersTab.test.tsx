@@ -279,7 +279,11 @@ describe('MediaProvidersTab', () => {
     const port = createFakeMediaProvidersPort();
     render(<MediaProvidersTab catalogPolicy={catalogPolicy} port={port} catalog={CATALOG} agentHandle="media" />);
     const alphaKey = await screen.findByLabelText('Alpha Images API key');
-    expect(alphaKey.getAttribute('data-agent-element')).toBe('media-alpha-api-key');
+    for (const secretControl of [alphaKey, screen.getByRole('button', { name: 'Show Alpha Images API key' })]) {
+      expect(secretControl).toHaveAttribute('data-agent-private', '');
+      expect(secretControl.getAttributeNames().filter(name => name.startsWith('data-agent-'))).toEqual(['data-agent-private']);
+    }
+    expect(screen.getByLabelText('Alpha Images Base URL')).toHaveAttribute('data-agent-element', 'media-alpha-base-url');
     expect(screen.getByLabelText('Bravo Video Clear').getAttribute('data-agent-element')).toBe('media-bravo-clear');
     expect(screen.getByRole('button', { name: 'Reload' }).getAttribute('data-agent-element')).toBe('media-reload');
   });
