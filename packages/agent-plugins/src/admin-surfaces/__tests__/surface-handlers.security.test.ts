@@ -4,7 +4,7 @@
  * digest, on-disk containment), it may answer only declared actions, its answers are schema-checked
  * and token-scanned before reaching the frame, and disabling the plugin revokes everything it holds.
  */
-import { mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { chmod, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { describe, expect, test } from 'vitest';
@@ -115,7 +115,12 @@ describe('the handler module loads only through the executable trust gate', () =
         await installPlugin({ workspaceRoot, pluginId: PLUGIN, files: { ...rest, 'server/keep.json': '{}' } });
         const [verdict] = await findTrustedPluginPackages({ workspaceId: WORKSPACE_ID, filename: FILENAME, contribution: 'x', requireActive: true });
         if (!verdict || !('trusted' in verdict)) throw new Error('fixture package was not trusted');
-        await symlink(path.join(outside, 'handlers.mjs'), path.join(verdict.trusted.packageRoot, 'server/handlers.mjs'));
+        const serverDir = path.join(verdict.trusted.packageRoot, 'server');
+        // Published directories are frozen. Inject the attack as their owner, then restore the
+        // installed permissions before exercising the containment gate as an ordinary reader.
+        await chmod(serverDir, 0o755);
+        try { await symlink(path.join(outside, 'handlers.mjs'), path.join(serverDir, 'handlers.mjs')); }
+        finally { await chmod(serverDir, 0o555); }
         expect(await loader.loadPluginContributions({ workspaceId: WORKSPACE_ID, definition })).toEqual({ items: [],
           refusals: ["admin surface handlers for 'settings' from 'fixture-surface' were not loaded: module path 'server/handlers.mjs' escapes the plugin root"] });
       });

@@ -9,14 +9,20 @@ const plugin: AgentPluginSearchCandidate = {
   skills: [{ name: 'private', summary: 'SECRET_SKILL' }], mcpServerIds: ['SECRET_TOOL'],
 };
 
-test('off plugins expose only identity, state and one purpose line to agents', () => {
-  const visible = agentVisiblePluginCandidate({ candidate: plugin });
-  expect(visible.description).toBe('installed, off: Media: Create images. More prose. — ask to turn on');
-  expect(visible.skills).toEqual([]);
-  expect(visible.provides).toEqual([]);
+test('off plugin discovery exposes only identity, state and one purpose line to agents', () => {
+  const candidate = agentVisiblePluginCandidate({ candidate: plugin });
+  expect(candidate.skills).toEqual(plugin.skills);
+  expect(candidate.provides).toEqual(plugin.provides);
+  expect(candidate.keywords).toEqual(plugin.keywords);
+  expect(candidate.mcpServerIds).toEqual(plugin.mcpServerIds);
+  const page = projectAgentPluginSearchPage({ candidates: [candidate], offset: 0, limit: 10, totalInstalled: 1 });
+  const visible = page.matches[0]!;
+  expect(visible.description).toBe('installed, off: Media: Create images. More prose. — read guidance; tools unavailable');
+  expect(visible).not.toHaveProperty('skills');
+  expect(visible).not.toHaveProperty('provides');
+  expect(Object.keys(visible).sort()).toEqual(['description', 'enabled', 'id', 'pluginId']);
   expect(JSON.stringify(visible)).not.toMatch(/SECRET_/);
-  const page = projectAgentPluginSearchPage({ candidates: [plugin], offset: 0, limit: 10, totalInstalled: 1 });
-  expect(page.matches[0]?.description).toBe(visible.description);
+  expect(visible.description).toBe(candidate.description);
   expect(JSON.stringify(page)).not.toMatch(/SECRET_/);
   expect(plugin.skills).toHaveLength(1);
 });
