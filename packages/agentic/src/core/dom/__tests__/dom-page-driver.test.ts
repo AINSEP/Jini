@@ -748,6 +748,18 @@ describe('highlight', () => {
 });
 
 describe('duplicate data-agent-element handles', () => {
+  it('warns and refuses an ambiguous action without affecting either control', async () => {
+    root.insertAdjacentHTML('beforeend', '<button data-agent-element="duplicate">One</button><button data-agent-element="duplicate">Two</button>');
+    const effects = vi.fn();
+    root.querySelectorAll('[data-agent-element="duplicate"]').forEach(element => element.addEventListener('click', effects));
+    const warning = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const driver = makeDriver();
+    expect(await driver.findElements({}, { query: 'duplicate' })).toHaveLength(2);
+    await expect(driver.click({ handle: 'duplicate' })).rejects.toThrow(/ambiguous/);
+    expect(effects).not.toHaveBeenCalled();
+    expect(warning).toHaveBeenCalledWith(expect.stringContaining('duplicate'));
+  });
+
   it('refuses to click a handle published on more than one element, rather than silently acting on the first', async () => {
     // Before this fix, click/fill/etc. resolved via querySelector (first DOM match only) while
     // findElements used querySelectorAll (every match) — so a caller who saw "Second" listed and
