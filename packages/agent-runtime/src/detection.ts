@@ -513,13 +513,10 @@ async function detectOne(def: RuntimeAgentDef, { configuredEnvByAgent, amrProfil
   return agent;
 }
 
-/** Select existing registry entries; an empty list does no work, unknown IDs are refused. */
+/** Select existing registry entries; an empty or unknown-only list does no work. */
 function selectedDefs(agentIds?: readonly string[]): RuntimeAgentDef[] {
   if (!agentIds) return AGENT_DEFS;
   const selected = new Set(agentIds);
-  for (const id of selected) {
-    if (!AGENT_DEFS.some(def => def.id === id)) throw new Error(`Unknown agent '${id}' for discovery.`);
-  }
   return AGENT_DEFS.filter(def => selected.has(def.id));
 }
 

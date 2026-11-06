@@ -28,3 +28,12 @@ Exact launch effort validation now shares the picker's existing pure model/effor
 - Updated runtime, daemon and MCP builds passed after correcting exact-optional-property typing in the new test/API.
 
 Parser bounds: physical JSON lines retain at most 8 Mi UTF-16 code units; overflow is explicit and discards through newline. ACP multiline limits are checked before parse and report errors to transport failure paths. Existing parser/protocol tests plus new overflow cases: 797 passed across 9 files. Strict parser complexity lint passed.
+
+Pushed implementation commits: fabf5b1f7 (exact effort) and 3143219c7 (parser limits), both on cloud/om-chat-3.
+Review follow-up preserves freshly resolved default/custom IDs outside visible catalogs during effort validation. Only structured selection refusals reach the user; arbitrary injected discovery errors retain a fixed actionable message. Required-HTTP startup failures name the transport policy and mint no stdio credential.
+- Hidden/default model regression: red 1 failure, green model/policy tests 133 passed.
+- Final runtime selection/discovery checks: 298 passed across 6 affected files.
+- Final daemon attachment/HTTP/launch checks: 31 passed across 4 affected files.
+- Existing read-only directory tests reproduce 3/3 failures on original cloud/combine source; all are preexisting missing native-grant fixture failures.
+- Existing HTTP launch integration reproduces 4 failures/8 passes on original cloud/combine source.
+- Existing executor run() complexity remains 20 cyclomatic / 13 cognitive on both base and job. All new/changed functions meet ceiling 10. Existing oversized function was not refactored outside the job.

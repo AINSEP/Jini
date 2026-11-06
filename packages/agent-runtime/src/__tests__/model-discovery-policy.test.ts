@@ -679,3 +679,13 @@ describe('launch effort uses exact selection validation', () => {
     expect((await resolveModelForLaunch({ def, context: { ...context, model: 'chosen' }, deps: hostDeps() })).model).toBe('chosen');
   });
 });
+
+
+it('validates effort against a freshly resolved default absent from the visible catalog', async () => {
+  const def = { id: 'fixture', fallbackModels: [{ id: 'visible', label: 'Visible' }], reasoningOptions: [{ id: 'default', label: 'Default' }, { id: 'high', label: 'High' }],
+    resolveDefaultModel: async () => ({ status: 'resolved' as const, id: 'hidden-concrete-v2', source: 'rpc' as const, resolvedAt: 'now', launchFingerprint: 'scope' }) };
+  for (const effort of ['default', 'high']) {
+    expect((await resolveModelForLaunch({ def, context, effort, deps: hostDeps() })).model).toBe('hidden-concrete-v2');
+    expect((await resolveModelForLaunch({ def, context: { ...context, model: 'custom-concrete-v3' }, effort, deps: hostDeps() })).model).toBe('custom-concrete-v3');
+  }
+});

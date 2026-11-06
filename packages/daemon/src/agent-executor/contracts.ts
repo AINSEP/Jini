@@ -400,10 +400,10 @@ export interface McpJsonInjectionOptions {
    * approve the jini MCP transport without its own prompt; this grants no target-tool permission.
    * Omission preserves the CLI's default approval behavior. Applies only to the jini bridge. */
   readonly toolApprovalOwner?: 'host';
-  /** Optional transport port. Reject before CLI launch when HTTP cannot be prepared.
-   * The host keeps callback credentials in memory; only this endpoint capability reaches the CLI. */
   /** Required HTTP refuses launch when unavailable; omission retains prelaunch stdio fallback. */
   readonly httpPolicy?: 'required';
+  /** Optional transport port. A required HTTP policy refuses launch when preparation fails.
+   * The host keeps callback credentials in memory; only this endpoint capability reaches the CLI. */
   readonly prepareHttp?: (required: { readonly runId: string }, optional?: { readonly messageRelayNonce?: string; readonly startupToolIds?: readonly string[]; readonly diagnosticToolIds?: readonly string[] }) => Promise<McpHttpEndpoint>;
   /** Read current host-registered tool IDs at launch, outside model-controlled input. */
   readonly diagnosticToolIds?: () => readonly string[];

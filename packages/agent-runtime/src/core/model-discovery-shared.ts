@@ -121,3 +121,5 @@ export function validateRuntimeModelSelection({ agent, agentId, modelId, effort 
   return null;
 }
 
+/** A refusal assembled by the shared selection validator, safe to show instead of provider errors. */
+export class RuntimeSelectionError extends Error {}

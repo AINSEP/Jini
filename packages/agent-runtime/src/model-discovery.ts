@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 import type { RuntimeModelOption, RuntimeReasoningOption, RuntimeAgentDef } from './types.js';
 import type { AgentModelDiscoveryPort, AgentDiscoveryConfiguration, DefaultModelResolution, DiscoveredModel, ModelCacheEntry, ModelCatalogSnapshot, ModelDiscoveryContext, ModelDiscoveryDeps, ModelDiscoveryProbes, ModelProbeResult } from './model-discovery-types.js';
 import { readModelConfiguration } from './model-discovery-config.js';
-import { ModelProbeError, ProbeTimeout, validateRuntimeModelSelection, modelIdentityKind, normalizeDiscoveredModels, withModelProbeTimeout } from './core/model-discovery-shared.js';
-export { ModelProbeError, modelIdentityKind, normalizeDiscoveredModels, withModelProbeTimeout } from './core/model-discovery-shared.js';
+import { ModelProbeError, ProbeTimeout, RuntimeSelectionError, validateRuntimeModelSelection, modelIdentityKind, normalizeDiscoveredModels, withModelProbeTimeout } from './core/model-discovery-shared.js';
+export { RuntimeSelectionError, ModelProbeError, modelIdentityKind, normalizeDiscoveredModels, withModelProbeTimeout } from './core/model-discovery-shared.js';
 export type * from './model-discovery-types.js';
 export const MODEL_CATALOG_TTL_MS = 15 * 60_000;
 export const MODEL_NEGATIVE_TTL_MS = 30_000;
@@ -292,8 +292,8 @@ export async function resolveModelForLaunch({ def, context, deps, effort }: { de
     : await discovery.resolveDefaultModel({ context, catalog }, { ...optional, deps });
   if (resolution.status !== 'resolved') throw new Error(resolution.reason);
   if (effort) {
-    const refusal = validateRuntimeModelSelection({ agent: { ...def, models: catalog.models }, agentId: def.id ?? 'runtime', modelId: resolution.id, effort });
-    if (refusal) throw new Error(refusal);
+    const refusal = validateRuntimeModelSelection({ agent: { ...def, models: catalog.models, defaultModelResolution: resolution }, agentId: def.id ?? 'runtime', modelId: resolution.id, effort });
+    if (refusal) throw new RuntimeSelectionError(refusal);
   }
   return { model: resolution.id, catalog, resolution };
 }

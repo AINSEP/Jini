@@ -62,7 +62,7 @@ it('selected batches and streams probe only the requested agents, once, in regis
   expect(streamed).toEqual(['codex']);
   expect(calls).toEqual(['claude', 'codex']);
   expect(await detectAgents({ agentIds: [] }, options)).toEqual([]);
-  await expect(detectAgents({ agentIds: ['missing'] }, options)).rejects.toThrow('missing');
+  expect(await detectAgents({ agentIds: ['missing'] }, options)).toEqual([]);
 });
 
 it('cancellation detaches one caller without poisoning the shared probe', async () => {
@@ -85,4 +85,25 @@ it('cancellation detaches one caller without poisoning the shared probe', async 
   expect(calls).toBe(1);
   await expect(detectAgents({ agentIds: ['codex'] }, { ...options, signal: controller.signal })).rejects.toMatchObject({ name: 'AbortError' });
   expect(calls).toBe(1);
+});
+
+
+it('stream cancellation releases its observer while a shared selected probe completes', async () => {
+  const controller = new AbortController();
+  let finish!: () => void;
+  const waiting = new Promise<void>(resolve => { finish = resolve; });
+  const calls: string[] = [];
+  const probeAgent: NonNullable<AgentDetectionModelOptions['probeAgent']> = async ({ def }) => {
+    calls.push(def.id);
+    if (def.id === 'codex') await waiting;
+    return { ...def, available: false, models: [], modelsSource: 'fallback' };
+  };
+  const options = { state: createAgentRuntimeState({}), env: { PATH: '/missing', HOME: '/missing' }, probeAgent };
+  const stream = detectAgentsStream({ agentIds: ['claude', 'codex'] }, { ...options, signal: controller.signal });
+  expect((await stream.next()).value?.id).toBe('claude');
+  controller.abort();
+  await expect(stream.next()).rejects.toMatchObject({ name: 'AbortError' });
+  finish();
+  expect((await detectAgents({ agentIds: ['codex'] }, options)).map(agent => agent.id)).toEqual(['codex']);
+  expect(calls).toEqual(['claude', 'codex']);
 });

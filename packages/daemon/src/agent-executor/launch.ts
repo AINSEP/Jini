@@ -19,6 +19,7 @@ import {
   join,
 } from 'node:path';
 import {
+  RuntimeSelectionError,
   agentCapabilities,
   planRun,
   resolveNativeToolPolicy,
@@ -939,6 +940,13 @@ function stagedChildEnvOptions({ def, preparedCodexHome, preparedClaudeConfigDir
   };
 }
 
+/** A required transport refusal is actionable without exposing listener/configuration details. */
+function httpMcpPreparationMessage(injection: McpJsonInjectionOptions | undefined): string {
+  return injection?.httpPolicy === 'required'
+    ? 'AgentExecutor: this chat requires an HTTP tool connection, but it could not be prepared for this agent. Try again or choose an agent supporting HTTP MCP.'
+    : 'AgentExecutor: could not stage private HTTP MCP configuration';
+}
+
 /**
  * Creates the `AgentExecutor` reference implementation: an in-process
  * `RunLifecycle` driver over real (by default) `@jini-ai/agent-runtime`
@@ -1207,7 +1215,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
         input.model = selection.model;
         modelCatalog = selection.catalog;
       } catch (error) {
-        return failBeforeSpawn({ runId: input.runId, code: 'AGENT_MODEL_UNRESOLVED', message: `AgentExecutor: the selected model or effort could not be used for this launch. ${errorMessage(error)}` });
+        return failBeforeSpawn({ runId: input.runId, code: 'AGENT_MODEL_UNRESOLVED', message: error instanceof RuntimeSelectionError ? `AgentExecutor: ${error.message}` : 'AgentExecutor: choose a concrete model and supported effort from this agent’s model list; the selection could not be resolved for this launch.' });
       }
     }
     return modelCatalog;
@@ -1496,7 +1504,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
         injection: mcpJsonInjection, inheritUserMcp: input.nativeToolAccess !== false && input.nativeCapabilities?.userMcp !== false });
     } catch {
       await cleanupStagedFiles();
-      return failBeforeSpawn({ runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: 'AgentExecutor: could not stage private HTTP MCP configuration' });
+      return failBeforeSpawn({ runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: httpMcpPreparationMessage(mcpJsonInjection) });
     }
     const mcpBridge = preparedHttpMcp ? null : await resolveMcpBridgeForRun({ input: { runId: input.runId, cwd: input.cwd, def, ...nativeCapabilityInput({ input }, {}) }, deps: { mcpJsonInjection, cleanupStagedFiles, failBeforeSpawn } }
     );
