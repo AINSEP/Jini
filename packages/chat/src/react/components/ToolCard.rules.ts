@@ -89,5 +89,7 @@ export function toolRowTarget({ input, resultContent }: { input: unknown; result
   if (input != null && typeof input !== 'object') return String(input);
   const args = (input ?? {}) as Record<string, unknown>;
   const named = firstReadable(args, SUMMARY_KEYS) ?? resultName(resultContent);
-  return named ?? batchTarget(args) ?? firstReadable(args, KIND_KEYS) ?? Object.values(args).find(readable);
+  const target = named ?? batchTarget(args) ?? firstReadable(args, KIND_KEYS) ?? Object.values(args).find(readable);
+  return target && typeof args.offset === 'number' && Number.isSafeInteger(args.offset) && args.offset >= 0
+    ? `${target} (offset ${args.offset})` : target;
 }

@@ -35,3 +35,9 @@ describe('tool targets for batches across CLIs', () => {
     expect(screen.getByRole('button', { name: /Spring Menu$/ })).toBeInTheDocument();
   });
 });
+
+
+it.each([0, 10, 65536])('distinguishes collapsed file reads at offset %s', offset => {
+  render(<ToolCard use={{ kind: 'tool_use', id: `read-${offset}`, name: 'Read', input: { file_path: '/site/index.html', offset } }} runSucceeded />);
+  expect(screen.getByRole('button').textContent).toContain(`/site/index.html (offset ${offset})`);
+});

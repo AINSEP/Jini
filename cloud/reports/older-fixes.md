@@ -10,3 +10,9 @@ Setup: rebuilding Jini from the specified base before relinking Tovu; focused ba
 
 - O01: static options use allocated archive folder names.
 - O02: export history has no type label.
+
+O03 fixed: collapsed targets include an explicitly supplied nonnegative integer offset, including zero. Chrome follow-up: compare two file reads at different offsets in collapsed chat rows.
+Tests: `pnpm --filter @jini-ai/chat exec vitest run src/react/components/__tests__/ToolCard.batch-target.test.tsx` — 11 pass after red (8 pass, 3 fail).
+Baseline `pnpm -r build` fails in provider-plugins (fix-round scope). Build excluding provider-plugins also fails in chat on existing test import of @jini-ai/ui-kit/react.
+
+- O03: collapsed targets omit read offsets.
