@@ -98,6 +98,7 @@ async function resolveTarget(deps: SettingsToolDeps, target: WriteTarget, isSet:
   const name = `${target.namespace}.${target.key}`;
   if (!definition) throw new DefinitionNotFoundError(`setting '${name}' was not found`);
   if (definition.status === "tombstone") throw new DefinitionTombstonedError(`setting '${name}' has been tombstoned`);
+  if (definition.secret) throw new ToolInputError({ message: `${isSet ? "settings_set_value" : "settings_clear_value"}: '${definition.namespace}.${definition.key}' is a secret setting. Use its dedicated credential-entry or sign-in tool. Nothing was changed.` });
   const scopeAllowed = (definition.scopes & SCOPE_BIT[target.scope]) !== 0;
   if (!scopeAllowed) throw new ScopeNotAllowedError(name);
   if (isSet && !validateValueAgainstSchema(definition.schema, target.value!)) throw new ValueValidationFailedError(`value for '${name}' does not match the definition schema`);

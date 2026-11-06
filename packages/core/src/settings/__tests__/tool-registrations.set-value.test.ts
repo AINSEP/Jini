@@ -256,3 +256,24 @@ for (const scope of ['workspace', 'user'] as const) test(`approved ${scope} sett
   assert.equal(row?.valueJson, 'concurrent edit');
   assert.equal((await f.settingsRepo.listRevisions({ settingId: def.settingId })).length, 1, 'the losing transaction must roll back its revision');
 });
+
+for (const toolId of ['settings_set_value', 'settings_clear_value'] as const) {
+  for (const protectedSetting of [false, true]) test(`${toolId} refuses ${protectedSetting ? 'protected' : 'ordinary'} secret settings before reading values or asking`, async () => {
+    const def = definition({ secret: true, ...(protectedSetting ? { namespace: 'core.instructions', key: 'custom' } : {}) });
+    const confirmWrite = vi.fn(async () => true);
+    const f = fixture([def], { confirmWrite });
+    const read = vi.spyOn(f.settingsRepo, 'getWorkspaceValue');
+    await assert.rejects(f.call(toolId, { namespace: def.namespace, key: def.key, ...(toolId === 'settings_set_value' ? { value: 'redacted fixture input' } : {}) }), /secret setting.*dedicated credential-entry or sign-in tool/);
+    assert.equal(confirmWrite.mock.calls.length, 0); assert.equal(read.mock.calls.length, 0);
+    assert.equal(await f.settingsRepo.getWorkspaceValue({ workspaceId: 'ws-1', settingId: def.settingId }), null);
+    assert.deepEqual(await f.settingsRepo.listRevisions({ settingId: def.settingId }), []);
+  });
+  test(`${toolId} cannot reach a secret setting through an ordinary alias`, async () => {
+    const def = definition({ namespace: 'core.instructions', key: 'custom', secret: true });
+    const confirmWrite = vi.fn(async () => true);
+    const f = fixture([definition({ settingId: 'alias', status: 'alias', aliasOfNamespace: def.namespace, aliasOfKey: def.key }), def], { confirmWrite });
+    await assert.rejects(f.call(toolId, { ...target, ...(toolId === 'settings_set_value' ? { value: 'redacted fixture input' } : {}) }), /secret setting.*dedicated credential-entry or sign-in tool/);
+    assert.equal(confirmWrite.mock.calls.length, 0);
+    assert.deepEqual(await f.settingsRepo.listRevisions({ settingId: def.settingId }), []);
+  });
+}
