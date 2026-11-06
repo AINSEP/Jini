@@ -12,13 +12,13 @@ export function commerceConfigurationKey({ config }: { config: CommerceConfigura
 export async function readCommerceDrain({ ledger, workspaceId }: { ledger: PaymentsLedger; workspaceId: string }, optional: { configured?: CommerceConfiguration | null } = {}): Promise<RecordedCommerce | null> {
   return ledger.transaction({ fn: async tx => {
     let payment = await tx.findOpenPayment({ workspaceId }, { excludeRequiresAction: true });
-    if (!payment && !optional.configured) payment = await tx.findOpenPayment({ workspaceId });
-    if (!payment && optional.configured) {
+    if (!payment) {
       const configured = optional.configured;
       const candidate = await tx.findOpenPayment({ workspaceId });
       // One endpoint cannot distinguish two accounts in the same provider/mode.
       // Old sessions can still be paid after a mode change; their merchant credentials must remain available.
-      if (candidate && (candidate.providerId !== configured.providerId || candidate.providerAccountId !== configured.accountId)) payment = candidate;
+      if (!configured) payment = candidate;
+      else if (candidate && (candidate.providerId !== configured.providerId || candidate.providerAccountId !== configured.accountId)) payment = candidate;
     }
     if (!payment) return null;
     const attempt = await tx.findAttemptByOperationKey({ workspaceId, mode: payment.mode, operationKey: `intent:${payment.idempotencyKey}` });
