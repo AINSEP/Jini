@@ -331,6 +331,8 @@ it('an inactive plugin is only marked in use after its existing activation owner
   expect(await f.controller.load({ pluginId: 'inactive' })).toEqual({ status: 'installed-but-inactive', guidance: "Plugin 'inactive' is off; its tools are unavailable.\n\nGuidance for inactive" });
   expect(f.resolve).toHaveBeenCalledTimes(1);
   expect(f.publish).not.toHaveBeenCalled();
+  expect(await f.controller.load({ pluginId: 'inactive' })).toEqual({ status: 'already-loaded', guidance: '' });
+  expect(f.resolve).toHaveBeenCalledTimes(1);
   f.ports.list = async () => [plugin('inactive')];
   expect(await f.controller.load({ pluginId: 'inactive' })).toEqual({ status: 'loaded', guidance: 'Guidance for inactive' });
 });

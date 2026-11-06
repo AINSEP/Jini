@@ -55,7 +55,10 @@ export function continuePendingJsonLine(
   // Enforce aggregate limits before JSON.parse; a complete closing line earns no exemption.
   if (state.pendingJson.length + 1 + trimmed.length > 128_000 || state.pendingJsonLineCount >= 256) {
     resetPendingJson(state);
+    // A complete physical frame may follow a stray opening line; its own line budget still applies.
+    if (emitJsonLine(trimmed, onMessage)) return;
     onError?.(new RangeError(MULTILINE_LIMIT_MESSAGE));
+    handleJsonLine(state, trimmed, onMessage, onError);
     return;
   }
   const nextCandidate = `${state.pendingJson}\n${trimmed}`;
@@ -106,8 +109,8 @@ export function handleJsonLine(
  * Creates a streaming JSON-line parser over a raw byte/string stream.
  * Buffers incoming chunks, splits on newline boundaries, and attempts
  * `JSON.parse` on each line. Accumulates pretty-printed (multiline) JSON across
- * up to 256 lines and 128000 characters. An over-budget continuation is discarded
- * with its candidate; later physical lines can begin a new frame. A physical line
+ * up to 256 lines and 128000 characters. An over-budget candidate is discarded;
+ * its continuation is retried as a fresh frame. A physical line
  * may contain up to 8 Mi UTF-16 code units, independently of the multiline budget.
  *
  * Used as the shared ACP transport: both the acp/ and pi-rpc/ adapters call

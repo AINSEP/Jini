@@ -99,6 +99,7 @@ export function createAutomaticAgentPluginUse(
 ) {
   let state = readChatAgentPluginState({ value: initialState });
   const delivered = new Map<string, string>();
+  const inactiveDelivered = new Set<string>();
   const alreadyLoaded = new Set<string>();
   let publishedSize: number | undefined;
   let queue: Promise<unknown> = Promise.resolve();
@@ -232,6 +233,7 @@ export function createAutomaticAgentPluginUse(
    */
   async function loadPermitted({ plugin, ...request }: { plugin: AgentPluginSearchCandidate } & AgentPluginSkillRequest, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<AutomaticAgentPluginLoadResult> {
     const requestedContent = request.skill !== undefined || request.file !== undefined;
+    if (!requestedContent && !plugin.enabled && inactiveDelivered.has(plugin.pluginId)) return { status: 'already-loaded', guidance: '' };
     if (!requestedContent && (delivered.has(plugin.pluginId) || alreadyLoaded.has(plugin.pluginId))) return { status: 'already-loaded', guidance: '' };
     const matches = await applyConsent({ matches: [{ ...plugin, score: 4 }] }, { signal });
     if (!matches.length) {
@@ -240,6 +242,7 @@ export function createAutomaticAgentPluginUse(
     }
     let result = await resolveOneGuidance({ plugin, ...request }, { signal });
     if (!plugin.enabled && result.status === 'loaded') {
+      if (isPrimaryInstructions({ pluginId: plugin.pluginId, ...request })) inactiveDelivered.add(plugin.pluginId);
       result = { status: 'installed-but-inactive', guidance: `Plugin '${plugin.pluginId}' is off; its tools are unavailable.\n\n${result.guidance}` };
     }
     if (isPrimaryInstructions({ pluginId: plugin.pluginId, ...request })) recordDelivery({ plugin, result });

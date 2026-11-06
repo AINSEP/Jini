@@ -938,6 +938,18 @@ describe('multiline aggregate budgets apply before successful JSON parsing', () 
 });
 
 describe('physical JSON-RPC line bounds', () => {
+  it('retries a complete frame after an abandoned multiline candidate reaches its budget', () => {
+    const messages: unknown[] = [];
+    const errors: RangeError[] = [];
+    const stream = createJsonLineStream({ onError: error => errors.push(error), onMessage: ({ message }) => messages.push(message) });
+    const frame = { text: 'x'.repeat(128000) };
+    stream.feed({ chunk: '{\n' + JSON.stringify(frame) + '\n' });
+    expect(messages).toEqual([frame]);
+    expect(errors).toHaveLength(0);
+    stream.feed({ chunk: '[\n' + '0,\n'.repeat(255) + '{"fresh":true}\n' });
+    expect(messages).toEqual([frame, { fresh: true }]);
+    expect(errors).toHaveLength(0);
+  });
   const limit = 8 * 1024 * 1024;
   it('preserves single-line JSON messages above the multiline cap and up to the physical limit', () => {
     const messages: unknown[] = [];

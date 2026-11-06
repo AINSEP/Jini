@@ -191,7 +191,7 @@ async function describeDefinitionForAgent(
 /** Mirrors the write handler's refusals: live target, not denied, confirmable when protected,
  * and writable at workspace or user scope. O(1). */
 function isAgentWritable(facts: { resolved: SettingDefinitionRecord | null; denied: boolean; confirmationRequired: boolean; canConfirm: boolean; scopes: number }): boolean {
-  if (!facts.resolved || facts.resolved.status === "tombstone" || facts.denied) return false;
+  if (!facts.resolved || facts.resolved.status === "tombstone" || facts.resolved.secret || facts.denied) return false;
   if (facts.confirmationRequired && !facts.canConfirm) return false;
   return (facts.scopes & (SCOPE_BIT.workspace | SCOPE_BIT.user)) !== 0;
 }

@@ -108,6 +108,18 @@ test("definition listing publishes schemas and confirmation policy", async () =>
   ]);
 });
 
+test("definition listing follows the writable value boundary for direct and aliased records", async () => {
+  const f = fixture([
+    definition({ settingId: 'credential', key: 'credential', secret: true }),
+    definition({ settingId: 'alias', key: 'credentialAlias', status: 'alias', aliasOfNamespace: target.namespace, aliasOfKey: 'credential' }),
+    definition(),
+  ]);
+  const { data } = await f.call('settings_list_definitions', {}) as { data: Array<{ key: string; agentWritable: boolean }> };
+  assert.equal(data.find(row => row.key === 'credential')?.agentWritable, false);
+  assert.equal(data.find(row => row.key === 'credentialAlias')?.agentWritable, false);
+  assert.equal(data.find(row => row.key === target.key)?.agentWritable, true);
+});
+
 test("definition listing resolves alias schemas, scopes and protected or denied targets", async () => {
   const aliases = [
     definition({ settingId: "alias-private", key: "privacyAlias", status: "alias", aliasOfNamespace: "core.privacy", aliasOfKey: "telemetry.metrics" }),
