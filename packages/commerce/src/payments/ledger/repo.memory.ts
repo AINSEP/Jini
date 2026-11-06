@@ -428,10 +428,11 @@ class MemoryLedgerTx implements LedgerTx {
   // Reconciliation scans ------------------------------------------------------------------------
 
   async listUnknownPayments({ updatedBefore, limit, unconfirmedBefore }: { updatedBefore: number; limit: number; unconfirmedBefore?: number }, optional: ScanOptions = {}): Promise<PaymentRecord[]> {
-    const due = scanMatch({ updatedBefore, options: optional });
+    const due = scanMatch({ updatedBefore: Math.max(updatedBefore, unconfirmedBefore ?? updatedBefore), options: optional });
     return this.t.payments.list((r) => {
+      const unknown = r.intentStatus === "unknown" && r.updatedAt < updatedBefore;
       const unconfirmed = (r.intentStatus === "requires_action" || r.intentStatus === "pending") && r.updatedAt < (unconfirmedBefore ?? Number.MIN_SAFE_INTEGER);
-      return (r.intentStatus === "unknown" || unconfirmed) && due(r);
+      return (unknown || unconfirmed) && due(r);
     }, (r) => r.updatedAt).slice(0, limit);
   }
 
