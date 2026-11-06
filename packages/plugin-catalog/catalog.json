@@ -70,7 +70,7 @@
       "licenses/posthog-js/package-license.json": "sha256-15156f5af3c1699358c4857b0c155fa444c21527b295aecff8edcdcdbbc349f6",
       "licenses/posthog-node/LICENSE": "sha256-d3fb92ac01f0bef4078f89aac9f20f76da3383ad45becf6204abdf5495f43f8f",
       "licenses/posthog-node/package-license.json": "sha256-477479010682b08537c8ad318f1f71dc25b0e88a9b0f9f6b4cc90c168624c6be",
-      "server/consent-adapter.mjs": "sha256-7957d2477897886da887d037379309655f783614760b31d7eb0bbe2bfae03270",
+      "server/consent-adapter.mjs": "sha256-0f0a0a2a4e7d7ff3dcd3dcf75f3bb00af45f6262d9ca9b936461661db7c0b958",
       "server/index.mjs": "sha256-737a41b0539de174144e2d9c4b789c3074e302e96c468261c7d2ffcc492bd3a5",
       "server/posthog-browser.js": "sha256-42c78610e8c1a1ff3258259c13becb34699668a81f091af2e80146b3a006be2a"
     }
@@ -484,7 +484,7 @@
       "licenses/_jini-ai_provider-plugins/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
       "licenses/_jini-ai_provider-plugins/NOTICE": "sha256-41f25c5b9af4c8e8e98e2a7c658b3922253c760686e17e0ef7fa003fae83cb95",
       "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-3bd29e9b2cbf054cb6331cc4d3073b90944cb71d8fd7d1a371639da92543272f",
-      "server/index.mjs": "sha256-6be5284d7d4ff2c4cfed6add2b88cd065d67aec90058be0f07ff1f1b40f61c17"
+      "server/index.mjs": "sha256-4d2eddc17a0453489dada1936203d1320be1c9b8457707eb46d701defc067c72"
     }
   },
   {
