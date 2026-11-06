@@ -32,9 +32,13 @@ describe('LocalCliAgentSettings characterization', () => {
     render(<LocalCliAgentSettings {...props} />);
     expect(screen.queryByText('Live from CLI') !== null).toBe(enabled);
     expect(screen.queryByText('Host provenance') !== null).toBe(enabled);
-    expect(screen.getByTestId('jini-agent-model-other').getAttribute('data-agent-element'))
-      .toBe(enabled ? 'settings-other-model' : null);
-    fireEvent.click(within(screen.getByTestId('jini-agent-model-other')).getByRole('combobox'));
+    const modelWrapper = screen.getByTestId('jini-agent-model-other');
+    const modelControl = within(modelWrapper).getByRole('combobox');
+    // Shared selects address the actual trigger; their wrapper stays descriptive.
+    expect(modelWrapper).not.toHaveAttribute('data-agent-element');
+    if (enabled) expect(modelControl).toHaveAttribute('data-agent-element', 'settings-other-model');
+    else expect(modelControl.getAttribute('data-agent-element')).toMatch(/^ui-[a-z0-9-]+$/);
+    fireEvent.click(modelControl);
     expect(screen.queryByText('Custom…') !== null).toBe(enabled);
     fireEvent.click(screen.getByRole('option', { name: 'Model M' }));
     expect(props.card.selectModel).toHaveBeenCalledTimes(1);
