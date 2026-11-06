@@ -42,7 +42,7 @@ describe("Stripe commerce provider", () => {
     expect(await provider.retrieve!({ providerRef: "cs_1/?#", ctx }, {})).toEqual({ kind: "ok", value: { ...evidence, providerRef: "cs_1/?#", status } });
     expect(send).toHaveBeenCalledTimes(1);
     expect(send).toHaveBeenCalledWith({ request: { method: "GET", url: "https://api.stripe.com/v1/checkout/sessions/cs_1%2F%3F%23?expand%5B%5D=payment_intent",
-      headers: { Authorization: "Bearer sk_test_only" }, timeoutMs: 30000, totalDeadlineMs: 30000 } });
+      headers: { Authorization: "Bearer sk_test_only", "Stripe-Version": "2024-06-20" }, timeoutMs: 30000, totalDeadlineMs: 30000 } });
   });
   it.each([[404, "rejected", "INVALID_REQUEST"], [503, "unknown", "PROVIDER_ERROR"]])("preserves retrieval HTTP outcome %s", async (status, kind, code) => {
     const { ctx } = context({}, status as number);
