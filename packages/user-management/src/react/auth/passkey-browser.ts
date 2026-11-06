@@ -1,4 +1,4 @@
-import type { PasskeyOptions } from '../../server/mfa/passkey-ports.js';
+import type { PasskeyOptions } from '../../core/types.js';
 
 /** Load the browser protocol adapter only after an explicit passkey action.
  * @complexity O(b), bounded WebAuthn JSON; one browser ceremony, no network or polling.
