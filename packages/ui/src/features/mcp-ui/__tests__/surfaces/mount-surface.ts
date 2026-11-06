@@ -43,7 +43,7 @@ export function mountSurface(html: string, beforeScript?: (doc: Document) => voi
   // a view whose `isTrusted` reads true. The product script is unchanged; only what this harness
   // hands it differs.
   let trustNext = false;
-  for (const node of doc.querySelectorAll<HTMLElement>('[data-mcpui-action], [data-mcpui-choice], form')) {
+  for (const node of doc.querySelectorAll<HTMLElement>('[data-mcpui-action], [data-mcpui-choice], .mcpui-choice-group input, form')) {
     const add = node.addEventListener.bind(node);
     node.addEventListener = ((type: string, listener: EventListener, options?: AddEventListenerOptions) =>
       add(type, (event: Event) => listener(trustNext ? asTrusted(event) : event), options)) as typeof node.addEventListener;

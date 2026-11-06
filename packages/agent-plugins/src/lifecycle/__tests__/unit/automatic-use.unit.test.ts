@@ -116,6 +116,23 @@ describe('automatic installed plugin use', () => {
     await again.controller.prepare({ query: 'synthetic' });
     expect(again.ask).not.toHaveBeenCalled();
   });
+  it.each(['prepare', 'load'] as const)('failed Auto persistence does not retain consent after %s', async entry => {
+    const f = fixture('ask');
+    f.ask.mockResolvedValueOnce({ action: 'auto', selected: ['synthetic'] });
+    f.saveAuto.mockRejectedValueOnce(new Error('Personal mode changed'));
+    const attempt = entry === 'prepare'
+      ? f.controller.prepare({ capabilities: ['theme-authoring'] })
+      : f.controller.load({ pluginId: 'synthetic' });
+    await expect(attempt).rejects.toThrow('Personal mode changed');
+    expect(f.resolve).not.toHaveBeenCalled();
+    expect(f.publish).not.toHaveBeenCalled();
+    f.ask.mockResolvedValueOnce({ action: 'skip', selected: [] });
+    expect(await f.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'excluded', guidance: '' });
+    expect(f.ask).toHaveBeenCalledTimes(2);
+    expect(f.resolve).not.toHaveBeenCalled();
+    expect(f.publish.mock.calls.at(-1)?.[0].state).toEqual({ decision: { selected: [], asked: true }, excluded: ['synthetic'] });
+    expect(f.publish.mock.calls.at(-1)?.[0].plugins).toEqual([]);
+  });
   it('empty matches do not consume the question; unchecked plugins stay excluded', async () => {
     const f = fixture('ask');
     expect(await f.controller.prepare({ capabilities: ['unmatched'] })).toBe('');

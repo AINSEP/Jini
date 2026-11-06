@@ -117,8 +117,9 @@ export function createAutomaticAgentPluginUse(
     const offered = matches.map(plugin => describeMatch({ plugin }));
     const answer = await ports.ask({ matches: offered, ...(signal ? { signal } : {}) }, {});
     const selected = answer.action === 'skip' ? [] : answer.selected.filter(id => matches.some(plugin => plugin.pluginId === id));
-    state = { decision: { selected, asked: true }, excluded: [...new Set([...state.excluded, ...matches.filter(plugin => !selected.includes(plugin.pluginId)).map(plugin => plugin.pluginId)])] };
+    // Failed preference persistence must leave this controller without the rejected consent.
     if (answer.action === 'auto') { await ports.saveAuto({}, {}); mode = 'auto'; }
+    state = { decision: { selected, asked: true }, excluded: [...new Set([...state.excluded, ...matches.filter(plugin => !selected.includes(plugin.pluginId)).map(plugin => plugin.pluginId)])] };
     // Consent changes only this person's preference, never a workspace default.
     return matches.filter(plugin => selected.includes(plugin.pluginId));
   }
