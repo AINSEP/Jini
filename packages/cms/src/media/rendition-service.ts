@@ -35,7 +35,7 @@ import { createHash } from "node:crypto";
 
 import type { Clock, IdGenerator, UUID } from "@jini-ai/core/primitives";
 import type { AssetBlobRepoPort, AssetRenditionRepoPort, BlobStorePort, MediaRepoPort, TransformDefinitionRepoPort } from "./ports.js";
-import type { AssetRenditionRecord } from "./types.js";
+import type { AssetRenditionRecord, MediaRecord } from "./types.js";
 import { findMediaByIdOrSlug } from "./media-service.js";
 import { mimeForTransformFormat } from "./transform-types.js";
 import { isLatestTransformVersion, isReferencedByPublishedContent } from "./transform-registry.js";
@@ -163,16 +163,7 @@ export async function resolveMediaRendition(
 
   if (!(await isGenerationAllowed({ deps, input }))) return { outcome: "not-found" };
 
-  const sourceBlob = await deps.blobRepo.findByHash({ workspaceId: input.workspaceId, sha256: media.source.sha256 });
-  if (!sourceBlob) {
-    // Data-integrity gap, not a normal 404/410: `uploadMedia`'s invariant (bytes written before
-    // the media row) means this should be unreachable. Surfaced as a thrown error (-> caller's
-    // catch-all 500), not silently treated as "not found", so it isn't mistaken for a routine
-    // missing-rendition case.
-    throw new Error(`media '${media.id}': source blob for sha256 '${media.source.sha256}' was not found`);
-  }
-
-  const sourceBytes = await deps.blobStore.get({ storageKey: sourceBlob.storageKey });
+  const sourceBytes = await readRenditionSource({ deps, workspaceId: input.workspaceId, media });
   // SVG remains vector media even when an embed requests a raster transform URL.
   if (sniffContentType({ bytes: sourceBytes }) === "image/svg+xml") {
     return { outcome: "ok", bytes: await sanitizeSvg({ bytes: sourceBytes }), contentType: "image/svg+xml" };
@@ -221,4 +212,25 @@ export async function resolveMediaRendition(
 
   const bytes = await deps.blobStore.get({ storageKey: renditionRow.storageKey });
   return { outcome: "ok", bytes, contentType: mimeForTransformFormat({ format: definition.params.format }) };
+}
+
+/** Read the original bytes and surface missing blob metadata as an integrity failure.
+ * @returns Source bytes, with storage errors propagated before transformation.
+ * @complexity One blob metadata lookup and one source-byte read; O(source bytes) space.
+ */
+async function readRenditionSource({ deps, workspaceId, media }: {
+  deps: Pick<ResolveMediaRenditionDeps, "blobRepo" | "blobStore">;
+  workspaceId: UUID;
+  media: MediaRecord;
+}): Promise<Uint8Array> {
+  const sourceBlob = await deps.blobRepo.findByHash({ workspaceId, sha256: media.source.sha256 });
+  if (!sourceBlob) {
+    // Data-integrity gap, not a normal 404/410: `uploadMedia`'s invariant (bytes written before
+    // the media row) means this should be unreachable. Surfaced as a thrown error (-> caller's
+    // catch-all 500), not silently treated as "not found", so it isn't mistaken for a routine
+    // missing-rendition case.
+    throw new Error(`media '${media.id}': source blob for sha256 '${media.source.sha256}' was not found`);
+  }
+
+  return deps.blobStore.get({ storageKey: sourceBlob.storageKey });
 }
