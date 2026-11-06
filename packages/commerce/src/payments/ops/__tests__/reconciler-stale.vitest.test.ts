@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'vitest';
 import { NOW, SCRIPTED, USD, world } from './harness.js';
 import { newPayment } from '../../accounting/__tests__/harness.js';
+import { createCursorReconciler } from '../reconciler.js';
+import type { PaymentsLedger } from '../../ledger/repo.js';
 
 const MINUTE = 60_000;
 for (const ledgerKind of ['memory', 'sqlite'] as const) describe(`missed payment webhooks ${ledgerKind}`, () => {
@@ -59,6 +61,43 @@ for (const ledgerKind of ['memory', 'sqlite'] as const) describe(`missed payment
     expect((await w.operator.reconcileUnknown({ olderThanMs: MINUTE, limit: 10 })).payments.settled).toBe(1);
     expect(w.scripted.calls.filter(call => call.op === 'retrieve')).toHaveLength(1);
     expect(await w.read(id)).toEqual(before);
+  });
+
+  test('a rolled-back settlement retries its milestone on the next pass', async () => {
+    const { w, id } = await waiting('requires_action');
+    let failWrite = true;
+    const ledger: PaymentsLedger = { transaction: (required, optional) => w.ledger.transaction({ fn: tx => required.fn(new Proxy(tx, {
+      get(target, property) {
+        if (property === 'updatePayment' && failWrite) return () => { failWrite = false; throw new Error('storage unavailable'); };
+        const value = Reflect.get(target, property);
+        return typeof value === 'function' ? value.bind(target) : value;
+      },
+    })) }, optional) };
+    const reconcile = createCursorReconciler({ deps: { ...w.deps, ledger } });
+    const snapshot = { kind: 'ok' as const, value: {
+      providerRef: 'session-requires_action', status: 'succeeded' as const, refunds: [], disputes: [],
+    } };
+    w.scripted.queue('retrieve', snapshot, snapshot);
+    w.tick(16 * MINUTE);
+    expect((await reconcile({ olderThanMs: MINUTE, limit: 10 })).payments.errors).toBe(1);
+    expect((await w.read(id)).payment?.intentStatus).toBe('requires_action');
+    expect((await reconcile({ olderThanMs: MINUTE, limit: 10 })).payments.settled).toBe(1);
+    expect((await w.read(id)).payment?.intentStatus).toBe('succeeded');
+    expect(w.scripted.calls.filter(call => call.op === 'retrieve')).toHaveLength(2);
+  });
+
+  test('a failed retrieve at expiry is retried after the provider recovers', async () => {
+    const { w, id } = await waiting('requires_action');
+    w.scripted.queue('retrieve',
+      { kind: 'unknown', error: { code: 'TRANSPORT_ERROR', message: 'provider unavailable', retryable: true } },
+      { kind: 'ok', value: { providerRef: 'session-requires_action', status: 'succeeded', refunds: [], disputes: [] } },
+    );
+    w.tick(25 * 60 * MINUTE + 1);
+    expect((await w.operator.reconcileUnknown({ olderThanMs: MINUTE, limit: 10 })).payments.left).toBe(1);
+    w.tick(MINUTE);
+    expect((await w.operator.reconcileUnknown({ olderThanMs: MINUTE, limit: 10 })).payments.settled).toBe(1);
+    expect((await w.read(id)).payment?.intentStatus).toBe('succeeded');
+    expect(w.scripted.calls.filter(call => call.op === 'retrieve')).toHaveLength(2);
   });
 
   test('the first same-status observation is retained', async () => {

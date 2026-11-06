@@ -70,11 +70,18 @@ export interface ReconcileOptions {
   readonly cursor?: ReconcileCursor;
 }
 
-async function reconcilePayment({ deps, payment }: { deps: OpsDeps; payment: PaymentRecord }): Promise<Verdict> {
-  const snapshot = await retrieveSnapshot({ deps, payment });
-  if (!snapshot.ok) return leave({ deps, payment, detail: `payment ${payment.id} is unknown: ${snapshot.why}` });
-  if (await applySnapshot({ deps, payment, ...snapshot })) return "settled";
-  return leave({ deps, payment, detail: `payment ${payment.id} is unknown: its snapshot was quarantined` });
+async function reconcilePayment({ deps, payment, checked }: { deps: OpsDeps; payment: PaymentRecord; checked: Map<string, number> | undefined }): Promise<Verdict> {
+  let accepted = false;
+  try {
+    const snapshot = await retrieveSnapshot({ deps, payment });
+    if (!snapshot.ok) return leave({ deps, payment, detail: `payment ${payment.id} is unknown: ${snapshot.why}` });
+    accepted = await applySnapshot({ deps, payment, ...snapshot });
+    if (accepted) return "settled";
+    return leave({ deps, payment, detail: `payment ${payment.id} is unknown: its snapshot was quarantined` });
+  } finally {
+    // Only accepted observations spend a milestone; provider/storage faults keep the existing retry.
+    if (!accepted) checked?.delete(JSON.stringify([payment.workspaceId, payment.mode, payment.id]));
+  }
 }
 
 /** Could `candidate` (a snapshot refund) be our refund `row`? By our id, its ref, or — when it is bound to no row — anything. */
@@ -177,7 +184,7 @@ async function reconcilePass(
   const due = unconfirmed.filter(payment => sessionDue({ payment, now: deps.now(), checked }));
   const unconfirmedCursor = nextCursor({ rows: unconfirmed, limit });
   return {
-    payments: await tally({ rows: [...payments, ...due], judge: (payment) => reconcilePayment({ deps, payment }) }),
+    payments: await tally({ rows: [...payments, ...due], judge: (payment) => reconcilePayment({ deps, payment, checked }) }),
     refunds: await tally({ rows: refunds, judge: (refund) => reconcileRefund({ deps, refund }) }),
     attempts: await tally({ rows: attempts, judge: (attempt) => reconcileAttempt({ deps, attempt }) }),
     cursor: {
