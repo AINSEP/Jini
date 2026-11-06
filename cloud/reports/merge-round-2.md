@@ -15,7 +15,7 @@ Software Architect, Programmer and TDD instructions loaded from the plans branch
 | cloud/forms-left | e0dab177afd45fccca44fef82b0a36b37b1c87f5 | Merged: report says complete; real merge commit. |
 | cloud/consent-declare | 8ff6006f92e7f157c47c74ab6255652cec3b395c | Merged: report says complete; real merge commit. |
 | cloud/forms-privacy | 4bde048688bcba568782929632fb2c4b81c71a72 | Merged after refreshed report declared implementation complete; no textual conflicts. |
-| cloud/one-card | bab3e359f2d5dc80f11e5ac14b344db2c41540b9 | Not ready: refreshed report still says in progress; left out. |
+| cloud/one-card | 71727983f6febd16e46af84bbbf88afd3f0ebee0 | Ready: bounded implementation reported complete with open items; merge follows current check completion. |
 
 No textual merge conflicts. All branch reports retained. No conflict-targeted tests apply so far; full suites are not run.
 
@@ -69,3 +69,9 @@ Final typecheck/packed results, final commit-range scan and completion report pe
 ## Refreshed completion reports
 
 forms-privacy became implementation-complete during verification and was merged next in both repositories. Its report records a reproduced baseline commerce approval-classification startup bug; focused validation passed. one-card remains in progress. A second fresh no-dist checkout is building the seven-branch result; working CMS/admin are rebuilding and final validation will be refreshed. The first Tovu final typecheck attempts exposed stale local @tovu/contracts output; contracts/SDK are rebuilding using the existing scripts before rerunning checks. No compiler or source workaround was added.
+
+## Final readiness refresh
+
+one-card now reports its bounded implementation and focused verification complete. The report preserves deliberate exclusions, two large-card migrations, uncached source limitations, unpublished package adoption and reproduced baseline findings. Tovu merged it cleanly; Jini will merge it after the active seven-branch check completes. The final verification will cover all eight requested branches.
+
+Seven-branch clean no-dist recursive build and all four Tovu typechecks passed. The final-clean catalog regeneration matches the committed catalog exactly. Existing source/packed guards passed on the first six branches; the seven-branch packed guard and Jini typecheck are completing.
