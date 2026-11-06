@@ -124,3 +124,11 @@ test('captured keys use their own writer lock outside the original source lock',
     payload: { workspaceId: 'w', sha256: 'source', storageKeys: ['output-one', 'output-two'] } });
   assert.deepEqual(locks, ['output-one', 'output-two']);
 });
+
+test('captured objects stay retryable when a host cannot prove key ownership or writer locking', async () => {
+  const bus = new InMemoryEventBus();
+  await registerFormAttachmentCleanup({ bus, withHashLock: withSha256Lock, findBlob: async () => null, hasOwners: async () => false,
+    deleteBytes: async () => assert.fail('unknown ownership must never delete bytes'), removeBlob: async () => assert.fail('no blob row') });
+  await assert.rejects(bus.publish({ id: 'unproven', name: 'form.attachment.cleanup', workspaceId: 'w', aggregateId: 'm', occurredAt: new Date(0).toISOString(),
+    payload: { workspaceId: 'w', sha256: 'source', storageKeys: ['unknown-key'] } }));
+});

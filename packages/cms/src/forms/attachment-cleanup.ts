@@ -8,7 +8,7 @@ type KeyLock = (required: { workspaceId: string; storageKey: string; criticalSec
 type KeyOwnership = (required: { workspaceId: string; sha256: string; storageKey: string }) => Promise<boolean>;
 /** Use the host-provided media grace and existing outbox as the durable GC work queue; jobs retain the hash, workspace and exact rendition keys, never file bytes.
  * @returns Once cleanup is queued; callers bind this inside the submission purge transaction.
- * @complexity One small job write per purged file, no bytes read or deleted before commit. */
+ * @complexity O(keys) deduplication and one small job write per purged file; no file bytes read or deleted before commit. */
 export async function scheduleFormAttachmentCleanup(
   { outbox, workspaceId, mediaId, sha256, now, graceMs, storageKeys }: { outbox: FormOutboxPort; workspaceId: string; mediaId: string; sha256: string; now: number; graceMs: number; storageKeys?: readonly string[] },
   _optional = {},

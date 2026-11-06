@@ -779,7 +779,8 @@ export async function trashMedia(
 
 export interface PurgeMediaDeps extends MediaRowCleanupDeps {
   referenceCheck: MediaReferenceCheckPort;
-  blobStore: BlobStorePort;
+  /** Purge only journals/removes rows; the delayed cleanup owner performs storage operations. */
+  blobStore?: BlobStorePort;
   /**
    * Optional — only used to timestamp the blob-GC tombstone-pass this
    * function triggers after the media row is removed (`tombstoneBlobIfUnreferenced`,
@@ -857,6 +858,8 @@ export async function purgeMedia(
  *  `PurgeMediaDeps` that cleanup actually needs (no `blobStore`: neither caller deletes bytes
  *  directly, only tombstones the row via `tombstoneBlobIfUnreferenced`). */
 export interface MediaRowCleanupDeps {
+  /** Override only when the active host transaction already serializes byte ownership changes. */
+  tombstoneLock?: typeof withSha256Lock;
   /** Persist exact rendition identities before their rows disappear. Bound to the same transaction. */
   cleanupJournal?: (required: { workspaceId: UUID; mediaId: UUID; sha256: string; storageKeys: readonly string[] }) => Promise<void>;
   /** Hosts with durable repositories bind their shared transaction; nested calls join outer purge. */
@@ -893,7 +896,7 @@ async function removeMediaRowsAndTombstoneBlob(
 
     const clock = deps.clock ?? createSystemClock();
     await tombstoneBlobIfUnreferenced({
-      deps: { mediaRepo: deps.mediaRepo, blobRepo: deps.blobRepo, clock },
+      deps: { mediaRepo: deps.mediaRepo, blobRepo: deps.blobRepo, clock, withHashLock: deps.tombstoneLock ?? withSha256Lock },
       input: { workspaceId: input.workspaceId, sha256: input.sha256 },
     });
   };
