@@ -20,6 +20,6 @@ export function boot(win: Window & typeof globalThis = window, options: BootOpti
   return features(win, bootCore(win, { ...options, bindBanner: undefined }), options);
 }
 
-export async function bootWithContext(win: Window & typeof globalThis = window, options: BootOptions = {}): Promise<JiniConsentApi | undefined> {
-  return features(win, await bootCoreWithContext(win, { ...options, bindBanner: undefined }), options);
+export async function bootWithContext({ win }: { win: Window & typeof globalThis }, options: BootOptions = {}): Promise<JiniConsentApi | undefined> {
+  return features(win, await bootCoreWithContext({ win }, { ...options, bindBanner: undefined }), options);
 }
