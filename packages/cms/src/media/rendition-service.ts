@@ -40,6 +40,7 @@ import { findMediaByIdOrSlug } from "./media-service.js";
 import { mimeForTransformFormat } from "./transform-types.js";
 import { isLatestTransformVersion, isReferencedByPublishedContent } from "./transform-registry.js";
 import { withRenditionLock } from "./transform-lock.js";
+import { withSha256Lock } from "./blob-gc-lock.js";
 import type { ImageTransformerPort } from "./image-transformer.js";
 
 export interface ResolveMediaRenditionDeps {
@@ -195,23 +196,27 @@ export async function resolveMediaRendition(
       params: definition.params,
     });
     const outputSha256 = createHash("sha256").update(outputBytes).digest("hex");
-    const { storageKey } = await deps.blobStore.put({
-      workspaceId: input.workspaceId,
-      sha256: outputSha256,
-      bytes: outputBytes,
-    });
-
-    const row: AssetRenditionRecord = {
-      id: deps.idGen.newId(),
-      workspaceId: input.workspaceId,
-      assetId,
-      transformName: input.transformName,
-      version: input.version,
-      storageKey,
-      createdAt: kernelNowIso({ clock: deps.clock }),
-    };
-    await deps.renditionRepo.save(row);
-    return row;
+    // Cleanup and uploads address these bytes by their output hash. Keep the ownership row
+    // inside that same lock so cleanup cannot delete a file between its write and row save.
+    return withSha256Lock({ key: outputSha256, criticalSection: async () => {
+      const { storageKey } = await deps.blobStore.put({
+        workspaceId: input.workspaceId,
+        sha256: outputSha256,
+        bytes: outputBytes,
+      });
+  
+      const row: AssetRenditionRecord = {
+        id: deps.idGen.newId(),
+        workspaceId: input.workspaceId,
+        assetId,
+        transformName: input.transformName,
+        version: input.version,
+        storageKey,
+        createdAt: kernelNowIso({ clock: deps.clock }),
+      };
+      await deps.renditionRepo.save(row);
+      return row;
+    } });
   } });
 
   const bytes = await deps.blobStore.get({ storageKey: renditionRow.storageKey });
