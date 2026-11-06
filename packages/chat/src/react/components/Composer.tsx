@@ -441,7 +441,7 @@ export function Composer({
       <AccessorySlot className="jini-composer-leading">{leadingAccessories}</AccessorySlot>
       <div className="jini-composer-attachments">
         <AttachmentTray agentHandle={base} attachments={composer.attachments} onRemove={composer.removeAttachment} />
-        <FolderChips folders={composer.folders} onRemove={composer.removeFolder} />
+        <FolderChips agentHandle={base} folders={composer.folders} onRemove={composer.removeFolder} />
       </div>
       <textarea
         {...agentHandleProps({}, { base, action: 'draft', role: 'field', label: t('Message draft') })}
