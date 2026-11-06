@@ -1,6 +1,6 @@
 # Job forms-privacy (owner-approved 11-05; plan approved with this trim)
 Plan: cloud/plans/FP-forms-privacy-plan.md. This job file overrides it.
-Base: origin/cloud/combine in both repos, at its current tip. It already has forms-left and consent-declare. Branch cloud/forms-privacy.
+Base: origin/cloud/forms-left in both repos, at its current tip, which is on top of the combined code. Branch cloud/forms-privacy. Another running job (cloud/consent-declare) also changes Tovu's render.ts: keep your edits there small.
 Do steps 1 to 4, with these cuts:
 - Step 1: new delivery jobs store a reference, not answers, and a missing or purged source stops delivery. Keep the legacy reader so queued jobs still deliver. CUT compact-legacy.ts and scripts/forms-delivery-maintenance.ts: list what old copies remain in your report instead.
 - Do not add a shared storage quota.
