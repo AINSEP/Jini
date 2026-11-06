@@ -1,5 +1,7 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
+import { createDomPageDriver } from '@jini-ai/agentic/dom';
+import { KitProvider } from '../../../../../../../ui-kit/dist/react/index.js';
 import { AgentRuntimePicker } from '../../components/AgentRuntimePicker.js';
 import type { ChatPaneAgent } from '../../types.js';
 
@@ -9,6 +11,29 @@ const agents: ChatPaneAgent[] = [
 ];
 
 describe('AgentRuntimePicker agent handles', () => {
+  it('keeps portalled runtime rows in the provider overlay and preserves origin page identity for scoped driving', async () => {
+    const root = document.createElement('main');
+    const mount = document.createElement('section');
+    mount.dataset.agentPage = 'settings';
+    const overlay = document.createElement('div');
+    root.append(mount, overlay);
+    document.body.append(root);
+    const onChange = vi.fn();
+    const view = render(<KitProvider overlayContainer={overlay}>
+      <AgentRuntimePicker agentHandle="runtime" agents={agents} value={{ agentId: 'runtime/a' }} onChange={onChange} />
+    </KitProvider>, { container: mount });
+    try {
+      const driver = createDomPageDriver({ root, pages: { settings: { label: 'Settings', navigate: () => {} } } });
+      await act(async () => { await driver.click({ handle: 'runtime-trigger' }); });
+      const option = screen.getByRole('radio', { name: /Second runtime/ });
+      expect(overlay).toContainElement(option);
+      const handle = option.getAttribute('data-agent-element')!;
+      expect(await driver.findElements({}, { query: handle })).toEqual([expect.objectContaining({ handle, page: 'settings' })]);
+      await act(async () => { await driver.click({ handle }); });
+      expect(onChange).toHaveBeenCalledWith({ agentId: 'runtime-b' });
+    } finally { view.unmount(); root.remove(); }
+  });
+
   it('defaults separate picker instances to distinct handles', () => {
     render(<><AgentRuntimePicker agents={agents} value={{ agentId: 'runtime/a' }} onChange={vi.fn()} />
       <AgentRuntimePicker agents={agents} value={{ agentId: 'runtime/a' }} onChange={vi.fn()} /></>);

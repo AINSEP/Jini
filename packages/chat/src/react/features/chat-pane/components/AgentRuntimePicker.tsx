@@ -1,7 +1,7 @@
 import { friendlyModelLabel, pickerModelValue, pickerCatalogNote, pickerModelOptions, shortModelLabel } from '../model-options.js';
 import { useId, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { AgentIcon, RemixIcon, SearchableModelSelect, useAgentHandle } from '@jini-ai/ui';
+import { AgentIcon, RemixIcon, SearchableModelSelect, useAgentHandle, useOverlayContainer } from '@jini-ai/ui';
 import { agentHandleProps, agentHandleSegment } from '@jini-ai/agentic';
 import { InfoTip } from '@jini-ai/ui/admin-widgets';
 import { assessNativeToolPolicy, type NativeToolPolicyInput } from '@jini-ai/agent-runtime/native-tool-policy';
@@ -464,6 +464,14 @@ interface RuntimePopoverProps {
   t: (key: string) => string;
 }
 
+/** Keep native-dialog ownership and the originating page across a host overlay portal. */
+function runtimePortalBinding({ trigger, overlay }: { trigger: HTMLElement | null; overlay: HTMLElement | null }) {
+  return {
+    container: trigger?.closest('dialog') ?? overlay,
+    page: trigger?.closest('[data-agent-page]')?.getAttribute('data-agent-page') ?? undefined,
+  };
+}
+
 function RuntimePopover({
   base,
   picker,
@@ -480,12 +488,15 @@ function RuntimePopover({
   agentIconBasePath,
   t,
 }: RuntimePopoverProps): ReactNode {
-  if (!picker.open || !picker.position) return null;
+  const overlay = useOverlayContainer({});
+  const portal = runtimePortalBinding({ trigger: picker.triggerRef.current, overlay });
+  if (!picker.open || !picker.position || !portal.container) return null;
   const isApi = executionMode === 'api';
   return createPortal(
     <div
       ref={picker.popoverRef}
       className="jini-runtime-popover"
+      data-agent-page={portal.page}
       // Carries the host's theme across the portal — see `originTheme`'s own comment for the
       // dark-on-dark select this exists to prevent.
       {...(picker.originTheme ? { 'data-theme': picker.originTheme } : {})}
@@ -529,7 +540,7 @@ function RuntimePopover({
         </>
       )}
     </div>,
-    document.body,
+    portal.container,
   );
 }
 
