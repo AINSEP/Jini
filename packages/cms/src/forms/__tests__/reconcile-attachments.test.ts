@@ -70,6 +70,7 @@ test('retained JSON detects escaped keys, nested references and URL identities; 
   assert.equal(retainedJsonReferencesAttachment({ json: '{"nested":[{"mediaId":"media-id"}]}', keys }), true);
   assert.equal(retainedJsonReferencesAttachment({ json: '{"bodyHtml":"<img src=\\"/m/old-slug/full/\\">"}', keys }), true);
   assert.equal(retainedJsonReferencesAttachment({ json: '{"mediaId":"media-\\u0069d"}', keys }), true);
+  assert.equal(retainedJsonReferencesAttachment({ json: '{"media-id":{"size":8}}', keys }), true);
   assert.equal(retainedJsonReferencesAttachment({ json: '{"other":[1,null,true,"unrelated"]}', keys }), false);
   assert.throws(() => retainedJsonReferencesAttachment({ json: '{bad', keys }));
 });

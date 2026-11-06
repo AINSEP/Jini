@@ -99,7 +99,7 @@ export function retainedJsonReferencesAttachment(
   while (pending.length) {
     const value = pending.pop();
     if (typeof value === 'string' && keys.some(key => value.includes(key))) return true;
-    if (value && typeof value === 'object') pending.push(...Object.values(value));
+    if (value && typeof value === 'object') for (const [key, child] of Object.entries(value)) { pending.push(key); pending.push(child); }
   }
   return false;
 }
