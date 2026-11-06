@@ -15,3 +15,5 @@ No cheating: never skip, disable, weaken or delete a test, rule or check. No low
 A failure that only happens because the container lacks something (Electron, a display, a real provider): list it as environment, do not change the test. Same failure twice with no progress: stop on it and list it, then carry on with the others. Other than that keep going until suites are green or the cap ends.
 
 Push every 10 minutes. Report at cloud/reports/full-tests.md and in your final message: final shas, per-suite pass and fail counts with exact commands, each fix and its cause, what is still failing and why. General wording in commits and notes.
+
+Also fix one known finding: composeSiteRouteDeps in Tovu is over the complexity limit (18 against 10). Split it with the smallest change; no debt-list entry.
