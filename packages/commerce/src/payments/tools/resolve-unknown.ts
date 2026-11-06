@@ -25,7 +25,8 @@ export interface CommerceResolutionToolsRequired {
 }
 const permission = 'commerce.payments.manage';
 const name = 'commerce_resolve_unknown';
-const catalog: AgentToolDefinition[] = [{
+/** Declared resolution contract for hosts that audit their assembled tool catalogs. */
+export const commerceResolutionToolCatalog: AgentToolDefinition[] = [{
   name, sideEffects: 'mutates-durable-state', authorization: { permission }, actorClassRule: 'confirmer-must-equal-own-delegatedBy',
   description: 'Records a human-verified outcome for a stuck order payment after a confirmation card naming order, amount, mode and outcome. First verify the payment in the provider dashboard or with provider support; never infer failure from an expired replay window. Requires the buyer order ID, succeeded/failed and verification reason. Writes audited ledger evidence only after approval; does not contact the provider or move money.',
   inputSchema: { type: 'object', additionalProperties: false, required: ['orderId', 'outcome', 'reason'], properties: {
@@ -75,5 +76,5 @@ export function buildCommerceResolutionRegistrations(required: CommerceResolutio
     notConfirmed: ({ reason }) => ({ ok: false, reason, message: `Payment resolution was ${reason}. Nothing was changed; wait for a new explicit request before retrying.` }),
   });
   return buildDomainRegistrations({ domain: 'commerce-resolution', catalogModule: 'commerce/payments/tools/resolve-unknown.ts',
-    catalog: indexCatalogById({ catalog }), derivedRisk, handlers: { [name]: handler } });
+    catalog: indexCatalogById({ catalog: commerceResolutionToolCatalog }), derivedRisk, handlers: { [name]: handler } });
 }
