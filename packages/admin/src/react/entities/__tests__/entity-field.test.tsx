@@ -127,3 +127,23 @@ describe('EntityField', () => {
     expect(input).toHaveAttribute('aria-invalid', 'true');
   });
 });
+
+describe('EntityField agent handles', () => {
+  it.each([
+    { name: 'title', kind: 'text' }, { name: 'payload', kind: 'json' },
+    { name: 'amount', kind: 'integer' }, { name: 'at', kind: 'datetime' },
+    { name: 'active', kind: 'boolean', required: true },
+    { name: 'featured', kind: 'boolean' },
+    { name: 'author', kind: 'relation', target: 'authors' },
+  ] satisfies AdminEntityField[])('tags $kind controls and preserves opt-out', (spec) => {
+    const props = { inputId: 'agent-field', field: spec, value: undefined, text: '', relations, translate,
+      disabled: false, invalid: false, onChange: vi.fn(), onTextChange: vi.fn() };
+    const { container, rerender } = render(<EntityField {...props} />);
+    const control = () => container.querySelector('input,textarea,button')!;
+    expect(control()).toHaveAttribute('data-agent-element');
+    rerender(<EntityField {...props} agentHandle="my-field" />);
+    expect(control()).toHaveAttribute('data-agent-element', 'my-field');
+    rerender(<EntityField {...props} agentHandle={false} />);
+    expect(control()).not.toHaveAttribute('data-agent-element');
+  });
+});

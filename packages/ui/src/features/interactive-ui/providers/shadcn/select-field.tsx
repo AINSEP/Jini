@@ -1,3 +1,5 @@
+import { agentHandleProps, agentHandleSegment } from '@jini-ai/agentic';
+import { useAgentHandle, type AgentControlProps } from '../../../../react/hooks/useAgentHandle.js';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select.js';
 
 export interface SelectOption {
@@ -6,7 +8,8 @@ export interface SelectOption {
 }
 
 /** Host-wired `onValueChange`, not part of the agent-facing wire schema — see select-field.manifest.ts. */
-export interface SelectFieldProps {
+export interface SelectFieldProps extends AgentControlProps {
+  readonly portalContainer?: Element | DocumentFragment | null | undefined;
   readonly options: readonly SelectOption[];
   readonly value?: string;
   readonly placeholder?: string;
@@ -14,7 +17,8 @@ export interface SelectFieldProps {
   readonly onValueChange?: (value: string) => void;
 }
 
-export function SelectField({ options, value, placeholder, disabled, onValueChange }: SelectFieldProps) {
+export function SelectField({ options, value, placeholder, disabled, onValueChange, portalContainer, ...agentProps }: SelectFieldProps) {
+  const base = useAgentHandle(agentProps);
   return (
     // Conditional spread for the same `exactOptionalPropertyTypes` reason as checkbox-field.tsx.
     <Select
@@ -22,12 +26,13 @@ export function SelectField({ options, value, placeholder, disabled, onValueChan
       {...(disabled !== undefined ? { disabled } : {})}
       {...(onValueChange ? { onValueChange } : {})}
     >
-      <SelectTrigger>
+      <SelectTrigger {...agentHandleProps({}, { base, role: 'field' })} data-agent-private={agentProps['data-agent-private']}>
         <SelectValue placeholder={placeholder} />
       </SelectTrigger>
-      <SelectContent>
+      <SelectContent portalContainer={portalContainer}>
         {options.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
+          <SelectItem key={option.value} value={option.value}
+            {...agentHandleProps({}, { base, action: `option-${agentHandleSegment({ value: option.value })}`, role: 'button', label: option.label })}>
             {option.label}
           </SelectItem>
         ))}

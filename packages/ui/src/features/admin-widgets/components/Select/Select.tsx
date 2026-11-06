@@ -28,7 +28,7 @@ export interface SelectProps {
   disabled?: boolean | undefined;
   /** Injectable state/effect seam; rendering tests need not drive portal positioning or listeners. */
   useDropdown?: typeof useSelectDropdown | undefined;
-  agentHandle?: string | undefined;
+  agentHandle?: string | false | undefined;
   /** Host-owned portal destination. Defaults to the trigger's nearest dialog, then document.body.
    * Within a modal dialog, supply a descendant of that dialog so the panel remains interactive.
    * Keep this container outside scrolling/clipping regions and free of transforms that establish
@@ -200,7 +200,8 @@ function resolveSelectTriggerHandleProps(
 
 /** Controlled searchable listbox with viewport positioning, dialog-local portals and keyboard navigation. */
 export function Select(props: SelectProps, _optional: Record<string, never> = {}) {
-  const { value, onChange, options, placeholder, id, disabled, useDropdown = useSelectDropdown, agentHandle: base, translate, t = translate ?? ((key: string) => key) } = props;
+  const { value, onChange, options, placeholder, id, disabled, useDropdown = useSelectDropdown, agentHandle: suppliedBase, translate, t = translate ?? ((key: string) => key) } = props;
+  const base = suppliedBase || undefined;
   const ariaLabel = props["aria-label"];
   const ariaLabelledBy = props["aria-labelledby"];
 

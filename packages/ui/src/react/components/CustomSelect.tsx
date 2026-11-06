@@ -572,7 +572,7 @@ export function CustomSelect({
     <div className={['jini-select', className].filter(Boolean).join(' ')}>
       <button
         ref={buttonRef}
-        {...agentHandleProps({}, { base, role: 'select', label: ariaLabel })}
+        {...agentHandleProps({}, { base, role: 'field', label: ariaLabel })}
         data-agent-private={agentProps['data-agent-private']}
         type="button"
         className={['jini-select-trigger', triggerClassName].filter(Boolean).join(' ')}
