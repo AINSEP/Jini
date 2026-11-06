@@ -8,6 +8,7 @@ import {
 import { MCP_UI_ACTION_PLAN_META_KEY, MCP_UI_EXPIRES_AT_META_KEY, MCP_UI_PREFERRED_FRAME_SIZE_META_KEY } from '../../resource.js';
 import { SURFACE_NOT_PENDING_ERROR_CODE } from '../../surfaces/document.js';
 import { mountSurface } from './mount-surface.js';
+import { renderChoiceGroup } from '../../surfaces/choice-group.js';
 
 const TOKEN = 'single-use-secret-token';
 
@@ -467,6 +468,99 @@ describe('choices', () => {
     expect(boxes).toHaveLength(2);
     expect(boxes.map((box) => box.checked)).toEqual([false, false]);
     expect(boxes.map((box) => box.getAttribute('data-mcpui-choice'))).toEqual(['a', 'b']);
+  });
+
+  it.each(['confirm', 'auto'])('sends host-checked grouped choices only after a trusted past-dwell %s click', action => {
+    const surface = mountSurface(renderConfirmationDocument({ ...DELETE_POST,
+      choices: [{ id: 'a', label: 'Item A', checked: true }, { id: 'b', label: 'Item B' }],
+      choicesLabel: 'Matching plugins', choicesParam: 'selections',
+      alternatives: [{ id: 'auto', label: 'Always use', toolName: 'auto_plugin', params: { decision: 'auto' } }],
+    }));
+    expect(surface.choiceInput('a').checked).toBe(true);
+    expect(surface.choiceInput('b').checked).toBe(false);
+    surface.trustedClick(action);
+    expect(surface.api.callTool).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(CONFIRM_DWELL_MS);
+    surface.click(action);
+    expect(surface.api.callTool).not.toHaveBeenCalled();
+    expect(surface.button(action).hasAttribute('data-agent-private')).toBe(true);
+    surface.trustedClick(action);
+    expect(surface.api.callTool).toHaveBeenCalledWith(action === 'confirm' ? 'content_post_delete' : 'auto_plugin',
+      expect.objectContaining({ selections: ['a'] }));
+  });
+
+  it.each(['confirm', 'auto'])('sends the actual trusted grouped selection once through %s', action => {
+    const surface = mountSurface(renderConfirmationDocument({ ...DELETE_POST,
+      choices: [{ id: 'a', label: 'Item A', checked: true }, { id: 'b', label: 'Item B' }],
+      choicesLabel: 'Matching plugins', choicesParam: 'selections',
+      alternatives: [{ id: 'auto', label: 'Always use', toolName: 'auto_plugin', params: { decision: 'auto' } }],
+    }));
+    surface.toggleChoice('a', false);
+    expect(surface.choiceInput('a').checked).toBe(true);
+    surface.trustedToggleChoice('a', false);
+    surface.trustedToggleChoice('b', true);
+    surface.toggleChoice('a', true);
+    expect(surface.choiceInput('a').checked).toBe(false);
+    surface.toggleChoice('b', false);
+    expect(surface.choiceInput('b').checked).toBe(true);
+    humanClick(surface, action);
+    surface.trustedClick(action);
+    expect(surface.api.callTool).toHaveBeenCalledTimes(1);
+    expect(surface.calls[0]?.params.selections).toEqual(['b']);
+    expect(surface.choiceInput('a').disabled).toBe(true);
+    expect(surface.choiceInput('b').disabled).toBe(true);
+  });
+
+  it('renders the shared grouped-choice layout with escaped labels and ids', () => {
+    const choices = [{ id: 'a"<', label: 'Item <A>', checked: true }, { id: 'b', label: 'B' }];
+    const html = renderConfirmationDocument({ ...DELETE_POST, choices, choicesLabel: 'Matching <plugins>' });
+    expect(html).toContain(renderChoiceGroup({ name: 'confirmation-choices', label: 'Matching <plugins>', selection: 'multiple',
+      options: choices.map(choice => ({ value: choice.id, label: choice.label })), value: ['a"<'] }));
+    const surface = mountSurface(html);
+    expect(surface.doc.querySelector('legend')?.textContent).toBe('Matching <plugins>');
+    expect(surface.doc.querySelector('legend plugins')).toBeNull();
+    humanClick(surface, 'confirm');
+    expect(surface.calls[0]?.params.overwrite).toEqual(['a"<']);
+  });
+
+  it('never seeds checked defaults from a spoofed DOM state or accepts unoffered ids', () => {
+    const surface = mountSurface(renderConfirmationDocument({ ...DELETE_POST,
+      choices: [{ id: 'a', label: 'A', checked: true }, { id: 'b', label: 'B' }], choicesLabel: 'Matching plugins',
+    }), doc => { for (const box of doc.querySelectorAll<HTMLInputElement>('input[type="checkbox"]')) box.checked = true; });
+    surface.toggleChoice('b', true);
+    expect(surface.choiceInput('b').checked).toBe(false);
+    const second = surface.choiceInput('b');
+    second.setAttribute('data-mcpui-choice', 'not-offered');
+    second.checked = true;
+    second.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(second.checked).toBe(false);
+    humanClick(surface, 'confirm');
+    expect(surface.calls[0]?.params.overwrite).toEqual(['a']);
+  });
+
+  it('supports host-checked standalone choices without changing the ordinary layout', () => {
+    const surface = mountSurface(renderConfirmationDocument({ ...DELETE_POST, choices: [{ id: 'a', label: 'A', checked: true }] }));
+    expect(surface.doc.querySelector('.mcpui-choice-group')).toBeNull();
+    expect(surface.choiceInput('a').checked).toBe(true);
+    humanClick(surface, 'confirm');
+    expect(surface.calls[0]?.params.overwrite).toEqual(['a']);
+  });
+
+  it('retains arbitrary host-checked ids in displayed order without object-prototype collisions', () => {
+    const surface = mountSurface(renderConfirmationDocument({ ...DELETE_POST,
+      choices: [{ id: '__proto__', label: 'First', checked: true }, { id: '9', label: 'Second', checked: true }, { id: '2', label: 'Third' }],
+      choicesLabel: 'Matching plugins',
+    }), doc => {
+      const group = doc.querySelector('.mcpui-choice-group')!;
+      group.insertBefore(group.children[2]!, group.children[1]!);
+    });
+    humanClick(surface, 'confirm');
+    expect(surface.calls[0]?.params.overwrite).toEqual(['9', '__proto__']);
+  });
+
+  it('preserves duplicate-id refusal for grouped choices', () => {
+    expect(() => renderConfirmationDocument({ ...DELETE_POST, choices: [{ id: 'a', label: 'A', checked: true }, { id: 'a', label: 'B' }],
+      choicesLabel: 'Matching plugins' })).toThrow('Confirmation choices must have unique ids');
   });
 
   it('posts only the ticked ids under "overwrite" when a trusted confirm click lands after the dwell', () => {

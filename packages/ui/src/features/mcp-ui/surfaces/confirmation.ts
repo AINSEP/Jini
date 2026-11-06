@@ -42,6 +42,7 @@ import {
   type SurfaceStatusText,
 } from './document.js';
 import { renderCheckbox } from './checkbox.js';
+import { renderChoiceGroup } from './choice-group.js';
 import type { BridgeScriptSpec } from './bridge.js';
 import type { SurfaceTokenName } from './tokens.js';
 
@@ -77,6 +78,8 @@ export interface ConfirmationChoice {
   readonly id: string;
   readonly label: string;
   readonly hint?: string;
+  /** Initial selection supplied by the host; still requires a trusted affirmative click. */
+  readonly checked?: boolean;
 }
 
 export interface ConfirmationSurfaceSpec {
@@ -87,7 +90,7 @@ export interface ConfirmationSurfaceSpec {
   /** Technical identifiers and input stay available without crowding out the consent wording. */
   readonly detailDisclosure?: { readonly label: string; readonly details: readonly SurfaceDetail[] };
   /**
-   * Optional per-row checkboxes, rendered unchecked between the details and the warning. Ticking one
+   * Optional per-row checkboxes, unchecked by default between the details and the warning. Ticking one
    * never confirms anything by itself — the same property the module doc opens with, extended to a
    * second input: a tick reaches a tool call ONLY by riding along on confirm's own trusted,
    * past-dwell click, merged into {@link ConfirmationToolAction.params} under {@link choicesParam}
@@ -95,6 +98,8 @@ export interface ConfirmationSurfaceSpec {
    * params confirm posts are byte-identical to a spec written before this field existed.
    */
   readonly choices?: readonly ConfirmationChoice[];
+  /** Render the shared checklist layout with this accessible group label. */
+  readonly choicesLabel?: string;
   /**
    * The params key the ticked ids are posted under, merged into (never replacing) `confirm.params`.
    * Defaults to `"overwrite"`.
@@ -154,7 +159,7 @@ function isToolAction(action: ConfirmationSurfaceSpec['cancel']): action is Conf
 }
 
 /**
- * Renders the optional choice checkboxes, one unchecked box per {@link ConfirmationChoice}.
+ * Renders the optional choice checkboxes, one box per {@link ConfirmationChoice}.
  *
  * Named `choice-<index>` in the DOM — never by `choice.id`, which is caller data and may contain
  * characters `fieldElementId`'s `name` validation rejects — with the real id carried on the
@@ -162,7 +167,7 @@ function isToolAction(action: ConfirmationSurfaceSpec['cancel']): action is Conf
  *
  * @returns `''` for an empty list, matching every other optional fragment in this document.
  */
-function renderChoices(choices: readonly ConfirmationChoice[]): string {
+function renderChoices(choices: readonly ConfirmationChoice[], label?: string): string {
   if (choices.length === 0) return '';
   // Ticked state is keyed by id, so two boxes sharing one would tick and report as one.
   const seen = new Set<string>();
@@ -172,11 +177,14 @@ function renderChoices(choices: readonly ConfirmationChoice[]): string {
     }
     seen.add(choice.id);
   }
+  if (label !== undefined) return renderChoiceGroup({ name: 'confirmation-choices', label, selection: 'multiple',
+    options: choices.map(choice => ({ value: choice.id, label: choice.label })), value: choices.filter(choice => choice.checked === true).map(choice => choice.id) });
   const boxes = choices
     .map((choice, index) =>
       renderCheckbox({
         name: `choice-${index}`,
         label: choice.label,
+        ...(choice.checked === undefined ? {} : { value: choice.checked }),
         ...(choice.hint === undefined ? {} : { hint: choice.hint }),
         dataAttribute: { name: 'data-mcpui-choice', value: choice.id },
       }),
@@ -239,7 +247,7 @@ function confirmationBodyHtml(spec: ConfirmationSurfaceSpec, required: { affirma
     ),
     renderDetailList(spec.details ?? []),
     spec.detailDisclosure === undefined ? '' : `<details class="mcpui-detail-disclosure mcpui-technical-details"><summary aria-expanded="false">${escapeHtml(spec.detailDisclosure.label)}</summary>${renderDetailList(spec.detailDisclosure.details)}</details>`,
-    renderChoices(spec.choices ?? []),
+    renderChoices(spec.choices ?? [], spec.choicesLabel),
     warning,
     // Confirm starts disabled; the script enables it once the dwell has run out.
     renderActions(confirmationActions(spec).map((action) => (affirmative.has(action.id) ? { ...action, disabled: true } : action)), { humanOnly: true }),
@@ -271,8 +279,14 @@ function confirmationPlan(spec: ConfirmationSurfaceSpec, required: { alternative
 /** The inline runtime script: dwell, visibility, locking and tool calls. @complexity O(s) in the script length. */
 function confirmationScript(required: {
   plan: ConfirmationPlan; text: SurfaceStatusText; choicesParam: string; affirmative: ReadonlySet<string>;
+  groupedChoices: boolean; initiallyCheckedIds: readonly string[];
 }): string {
-  const { plan, text, choicesParam, affirmative } = required;
+  const { plan, text, choicesParam, affirmative, groupedChoices, initiallyCheckedIds } = required;
+  const checkedSeed = initiallyCheckedIds.length === 0 ? '' : `
+  var initiallyCheckedIds = ${escapeJsValue(initiallyCheckedIds)};
+  for (var d = 0; d < initiallyCheckedIds.length; d++) checkedIds[initiallyCheckedIds[d]] = true;`;
+  const groupedChoiceIdentity = groupedChoices ? `
+    if (!choiceInputs[c].hasAttribute("data-mcpui-choice")) choiceInputs[c].setAttribute("data-mcpui-choice", choiceInputs[c].value);` : '';
   return `(function () {
   "use strict";
 ${SURFACE_SCRIPT_PRELUDE}
@@ -343,9 +357,9 @@ ${SURFACE_SCRIPT_PRELUDE}
   // the buttons, extended to the one other interactive element this document can contain. Keyed by
   // \`data-mcpui-choice\` (the caller's id), not DOM order, so a checkbox reordering upstream could
   // never silently swap which id a tick reports.
-  var choiceInputs = Array.prototype.slice.call(document.querySelectorAll("[data-mcpui-choice]"));
-  var checkedIds = {};
-  for (var c = 0; c < choiceInputs.length; c++) {
+  var choiceInputs = Array.prototype.slice.call(document.querySelectorAll(${escapeJsValue(groupedChoices ? '[data-mcpui-choice], .mcpui-choice-group input' : '[data-mcpui-choice]')}));
+  var checkedIds = ${groupedChoices || initiallyCheckedIds.length > 0 ? 'Object.create(null)' : '{}'};${checkedSeed}
+  for (var c = 0; c < choiceInputs.length; c++) {${groupedChoiceIdentity}
     choiceInputs[c].addEventListener("change", onChoiceChange);
   }
 
@@ -436,7 +450,9 @@ export function renderConfirmationDocument(spec: ConfirmationSurfaceSpec): strin
   return renderSurfaceDocument({
     title: spec.title,
     bodyHtml: confirmationBodyHtml(spec, { affirmative }),
-    script: confirmationScript({ plan: confirmationPlan(spec, { alternatives }), text, choicesParam, affirmative }),
+    script: confirmationScript({ plan: confirmationPlan(spec, { alternatives }), text, choicesParam, affirmative,
+      groupedChoices: spec.choicesLabel !== undefined,
+      initiallyCheckedIds: (spec.choices ?? []).filter(choice => choice.checked === true).map(choice => choice.id) }),
     app: spec.app ?? DEFAULT_APP,
     ...(spec.lang === undefined ? {} : { lang: spec.lang }),
     ...(spec.tokens === undefined ? {} : { tokens: spec.tokens }),
