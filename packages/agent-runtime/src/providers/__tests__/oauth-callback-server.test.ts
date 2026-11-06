@@ -116,14 +116,17 @@ describe('startOAuthCallbackListener', () => {
 
   it('logs and continues when onCallback itself throws', async () => {
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const failure = new Error('handler boom');
+    failure.stack = 'Error: handler boom\n    at callback fixture';
     const listener = await startOAuthCallbackListener({ host: '127.0.0.1', port: 0, path: '/callback', expectedState: 'state-1', onCallback: () => {
-        throw new Error('handler boom');
+        throw failure;
       } });
     const base = `http://${listener.address.host}:${listener.address.port}`;
     const result = await get(`${base}/callback?code=abc&state=state-1`);
     expect(result.status).toBe(200);
     await new Promise((resolve) => setTimeout(resolve, 20));
-    expect(errSpy).toHaveBeenCalledWith('[oauth-callback-server] onCallback failed:', expect.any(Error));
+    expect(errSpy).toHaveBeenCalledTimes(1);
+    expect(errSpy).toHaveBeenCalledWith('[oauth-callback-server] onCallback failed:', 'Error: handler boom\n    at callback fixture');
   });
 
   it('can be stopped early before any callback arrives', async () => {
