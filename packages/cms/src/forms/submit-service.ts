@@ -21,7 +21,7 @@ import { formatErrorForLog } from '@jini-ai/core';
  *
  * Double submit (2026-10-05): a double-clicked Send posts the same form twice and the rendered form
  * ships no script, so the dedupe is server-side — see `submission-attempts.ts` for the attempt token,
- * its cached/static fallback and why it lives in process memory. Ids are random; the submission row
+ * why tokenless callers remain independent and why it lives in process memory. Ids are random; the submission row
  * and its event are written in one transaction, so a failed enqueue leaves nothing a retry could
  * mistake for a finished submission.
  */
@@ -77,8 +77,8 @@ export interface SubmitFormRequired {
  * Binds the host's outbox delivery to Jini's anonymous submission service. The package awaits the
  * object-shaped limiter check and queues delivery without awaiting notifications.
  *
- * A repeat of an attempt accepted within the window (same token, or for a request without one the
- * same IP and body) is answered exactly like the original — `accepted` — with no row, no event and
+ * A repeat of an attempt accepted within the window (same usable explicit token) is answered
+ * exactly like the original — `accepted` — with no row, no event and
  * no notification. It still passes the slug, honeypot, validation and rate checks first (and so
  * consumes a rate-limit slot, as any request does): the attempt is claimed only where the package
  * opens its persistence transaction, and a copy that must wait for the first copy waits there,
@@ -111,7 +111,7 @@ export async function submitForm(required: SubmitFormRequired, optional: SubmitF
 
   const records = await buildSubmissionRecords({ deps, input, definition: originalDefinition, data: validation.data });
   const persist = () => persistSubmission({ deps, input, ...records, files: validation.files ?? {} });
-  if (optional.attempts) {
+  if (optional.attempts && typeof attemptToken === "string" && attemptToken.trim().length > 0) {
     // The attempt is claimed only where persistence begins, after validation and rate limiting.
     // A copy waits outside the database transaction; failed first copies free the claim for retry.
     const outcome = await optional.attempts.once({

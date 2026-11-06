@@ -59,6 +59,8 @@
  * richer form builder needs room to add its own without this contract standing in the way.
  */
 
+import type { FormAnswer } from "@jini-ai/cms/forms";
+
 /** A form field's input kind — open, see file header. */
 export type FormFieldType = "text" | "email" | "textarea" | "checkbox" | (string & {});
 
@@ -125,7 +127,7 @@ export interface AdminFormSubmission {
   readonly id: string;
   readonly formDefinitionId: string;
   /** Keyed by the definition's field ids at submission time. */
-  readonly data: Readonly<Record<string, string | boolean>>;
+  readonly data: Readonly<Record<string, FormAnswer>>;
   readonly sourceIp: string;
   readonly submittedAt: string;
   /** Missing means active for older wire records. Trash preserves the original submission data. */

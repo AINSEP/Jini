@@ -147,7 +147,7 @@ export function renderHtmlFormBody(
  * apply); author CSS stays free to override it. Whitespace-separated, de-duplicated, never replaced. */
 export function renderHtmlForm(
   { slug, fields, action, hooks }: { slug: string; fields: readonly FieldDescriptor[]; action: string; hooks: FormHtmlHooks },
-  { html, successMessage = "Thanks — your message has been sent.", className, schemaHash }: { html?: string; successMessage?: string; className?: string; schemaHash?: string } = {},
+  { html, successMessage = "Thanks — your message has been sent.", className, schemaHash, idPrefix }: { html?: string; successMessage?: string; className?: string; schemaHash?: string; idPrefix?: string } = {},
 ): string {
   const escapedSlug = escapeFormHtml({ value: slug });
   const slugHook = `data-form-slug="${escapedSlug}"`;
@@ -156,7 +156,7 @@ export function renderHtmlForm(
   return `<div ${hooks.success} ${slugHook} role="status" hidden>${escapeFormHtml({ value: successMessage })}</div>` +
     `<form ${classAttr}${hooks.form}="${escapedSlug}" ${slugHook} toolname="form_${escapeFormHtml({ value: slug.replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 123) })}" tooldescription="${escapedSlug}" method="post"${fields.some((field) => field.type === "file") ? ' enctype="multipart/form-data"' : ""} action="${escapeFormHtml({ value: action })}">` +
     `<div ${hooks.error} ${slugHook} role="alert" hidden></div>` +
-    (html ?? renderHtmlFormBody({ fields, hooks }, { idPrefix: `form-${slug}` })) + renderFormSchemaHash({ schemaHash }) +
+    (html ?? renderHtmlFormBody({ fields, hooks }, { idPrefix: idPrefix ?? `form-${slug}` })) + renderFormSchemaHash({ schemaHash }) +
     // Hidden container requires neither a theme class nor inline CSS; bots still see the input.
     `<div hidden aria-hidden="true"><input type="text" name="_hp" tabindex="-1" autocomplete="off"></div></form>`;
 }
@@ -203,14 +203,14 @@ export function renderHtmlForm(
  * @overallScore 96 — Recommended: embed providers own their frame's validation and accessibility. */
 export function renderFormCollection(
   required: { slug: string; fields: readonly FieldDescriptor[]; hooks: FormHtmlHooks; plan: import('./provider.js').FormCollectionPlan },
-  optional: { html?: string; className?: string; successMessage?: string; schemaHash?: string } = {},
+  optional: { html?: string; className?: string; successMessage?: string; schemaHash?: string; idPrefix?: string } = {},
 ): string {
   const { plan, ...form } = required;
   if (plan.kind === 'unavailable') return `<p role="alert" data-form-provider-unavailable>${escapeFormHtml({ value: plan.message })}</p>`;
   if (plan.kind === 'embed') return `<iframe src="${escapeFormHtml({ value: plan.url })}" title="${escapeFormHtml({ value: plan.title })}" loading="lazy"></iframe>`;
   if (!plan.external) return renderHtmlForm({ ...form, action: plan.action }, optional);
   return `<form method="post" action="${escapeFormHtml({ value: plan.action })}" data-form-provider="external"${optional.className ? attr('class', optional.className) : ''}${form.fields.some(field => field.type === 'file') ? ' enctype="multipart/form-data"' : ''}>` +
-    (optional.html ?? renderHtmlFormBody({ fields: form.fields, hooks: form.hooks }, { idPrefix: `form-${form.slug}` })) + '</form>';
+    (optional.html ?? renderHtmlFormBody({ fields: form.fields, hooks: form.hooks }, { idPrefix: optional.idPrefix ?? `form-${form.slug}` })) + '</form>';
 }
 
 /** Escaped reserved metadata for built-in forms; external collection remains provider-owned.

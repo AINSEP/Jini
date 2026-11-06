@@ -47,7 +47,7 @@ export interface FormDeliverySnapshot {
   readonly submission: FormDeliverySubmission;
 }
 
-/** Payload of one child job, frozen at planning: retries and replays never re-read settings or answers. */
+/** Hydrated adapter input; also the legacy stored payload, retained for queued jobs. */
 export interface FormDeliveryJob {
   readonly binding: FormDeliveryBinding;
   readonly snapshot: FormDeliverySnapshot;
@@ -55,13 +55,27 @@ export interface FormDeliveryJob {
   readonly idempotencyKey: string;
 }
 
+/** New child jobs retain metadata and identity only; answers remain owned by the source row. */
+export interface FormDeliveryReferenceJob {
+  readonly binding: FormDeliveryBinding;
+  readonly form: FormDeliveryForm;
+  readonly submissionRef: { readonly submissionId: string; readonly formId: string };
+  readonly idempotencyKey: string;
+}
+export type FormDeliveryQueuedJob = FormDeliveryReferenceJob | FormDeliveryJob;
+
+/** One scoped source lookup per referenced attempt; null means delivery must stop permanently. */
+export type FormDeliverySubmissionReader = (required: {
+  workspaceId: string; submissionId: string; formId: string;
+}) => Promise<FormDeliverySubmission | null>;
+
 /** The one plan recorded per (workspace, submission), even when no binding matched. */
 export interface FormDeliveryPlan {
   readonly workspaceId: string;
   readonly submissionId: string;
   readonly formId: string;
   /** Child outbox events; their ids are generated here and never regenerated. */
-  readonly jobs: readonly DomainEvent<FormDeliveryJob>[];
+  readonly jobs: readonly DomainEvent<FormDeliveryQueuedJob>[];
 }
 
 /** The only error codes that may reach the outbox ledger or a status read. */

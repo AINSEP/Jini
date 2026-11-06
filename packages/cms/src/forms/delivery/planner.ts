@@ -1,9 +1,9 @@
 /**
  * @file Decides, once per submission, which bindings receive it and freezes everything a delivery
- * needs into child outbox jobs. Freezing is what makes retries and replays deterministic: later
- * settings edits, answer edits or deletions never change what an already-planned job sends.
+ * needs into child outbox jobs, except answers: those remain in the source row and are read on
+ * each attempt. Binding and form metadata stay frozen across retries and settings edits.
  */
-import { FORM_DELIVERY_EVENT, type FormDeliveryBinding, type FormDeliveryJob, type FormDeliveryPlan,
+import { FORM_DELIVERY_EVENT, type FormDeliveryBinding, type FormDeliveryReferenceJob, type FormDeliveryPlan,
   type FormDeliveryPlanPort, type FormDeliverySnapshot } from "./types.js";
 
 export interface FormDeliveryPlannerDeps {
@@ -17,16 +17,6 @@ export interface FormDeliveryPlannerDeps {
 
 function selects(binding: FormDeliveryBinding, formId: string): boolean {
   return binding.enabled && (binding.formIds === undefined || binding.formIds.includes(formId));
-}
-
-/** Copies only the delivered fields, so a host reader that returns a whole stored row (with its
- * source IP, notification settings or anything added later) cannot widen what leaves the site. */
-function freeze(snapshot: FormDeliverySnapshot): FormDeliverySnapshot {
-  const { form, submission } = snapshot;
-  return {
-    form: { slug: form.slug, fields: form.fields },
-    submission: { id: submission.id, answers: submission.answers, submittedAt: submission.submittedAt },
-  };
 }
 
 /**
@@ -47,11 +37,12 @@ export function planFormDeliveries(
     if (selected.length === 0) return { workspaceId, submissionId, formId, jobs: [] };
     const source = await deps.snapshot({ workspaceId, submissionId, formId });
     if (!source) throw new Error(`Form delivery planning failed: submission ${submissionId} or form ${formId} was not found; the source event will retry.`);
-    const snapshot = freeze(source);
+    // Select only form metadata; whole host rows must never widen the persisted payload.
+    const form = { slug: source.form.slug, fields: source.form.fields };
     const occurredAt = deps.nowIso();
     const jobs = selected.map(binding => ({
       id: deps.newId(), name: FORM_DELIVERY_EVENT, workspaceId, aggregateId: submissionId, occurredAt,
-      payload: { binding, snapshot, idempotencyKey: JSON.stringify([submissionId, binding.bindingId]) } satisfies FormDeliveryJob,
+      payload: { binding, form, submissionRef: { submissionId, formId }, idempotencyKey: JSON.stringify([submissionId, binding.bindingId]) } satisfies FormDeliveryReferenceJob,
     }));
     return { workspaceId, submissionId, formId, jobs };
   };
