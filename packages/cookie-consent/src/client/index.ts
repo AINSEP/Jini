@@ -7,6 +7,8 @@ import { ADAPTER_KIND, CONFIG_ID, CONSENT_COOKIE, OPEN_EVENT, OPTIONAL, READY_EV
   type Evidence, type Flags, type JiniConsentApi, type LazyAdapter, type Optional, type PageConfig, type PluginRegistry,
   type RawContribution, type Revoker, type StoragePrefixes, type StoredChoice } from '../contract.js';
 import { choicesFor, DAY_MS, effective, parseStored, RECEIPT_ID, regionFrom } from '../contracts/policy.js';
+import { allows } from '../contracts/scripts.js';
+import { declaredScripts } from './scripts.js';
 import { ADAPTER_SLOT, createPluginRegistry } from '../contracts/plugins.js';
 import { activateInert, installOpeners, purge, readCookie, waiting, writeCookie } from './dom.js';
 
@@ -35,6 +37,7 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
   let stored = fromCookie();
   let cookiePersisted = true;
   let state = compute();
+  const reconcileScripts = declaredScripts({ doc, scripts: config.scripts ?? [], reload: ports.reload });
 
   function compute(): ConsentState {
     return effective({ stored, policy: config.policy, region, gpc: ports.gpc(), nowMs: ports.now() }, { maxAgeMs, durable: !!durable, anonymous });
@@ -91,6 +94,7 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
     html.dataset.consent = next.status;
     html.dataset.consentRegion = next.region;
     html.toggleAttribute('data-consent-gpc', next.gpc);
+    reconcileScripts(next);
     reconcile(next);                                                    // stops start before any listener runs
     listeners.forEach(fn => quiet(() => fn(next)));
     doc.dispatchEvent(new CustomEvent(STATE_EVENT, { detail: next }));
@@ -156,6 +160,7 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
   const api: JiniConsentApi = {
     contract: 1, plugins, set,
     get: () => state,
+    allows: ({ consent }) => allows({ state, consent }),
     subscribe: ({ listener }) => { listeners.add(listener); return () => { listeners.delete(listener); }; },
     open: () => { doc.dispatchEvent(new CustomEvent(OPEN_EVENT)); },
     setOpen: ({ open }) => { doc.documentElement.toggleAttribute('data-consent-open', open); },

@@ -111,11 +111,14 @@ export interface RegionResolver extends Contribution<typeof REGION_KIND> {
 /** Data-only form for a plugin manifest; the region slot turns it into a RegionResolver. */
 export interface HeaderRegion extends Contribution<typeof REGION_KIND> { header: string; usValues?: readonly string[] }
 
+export interface DeclaredScript { src: string; consent?: readonly Category[] }
+
 // ---- Browser API ----
 export interface ClientConfig {
   contract: 1; policy: string; regionMode: 'auto' | RegionMode; banner: BannerMode;
   /** LazyAdapter entries and any future browser kinds; unknown kinds wait for their slot. */
   plugins?: readonly RawContribution[];
+  scripts?: readonly DeclaredScript[];
   maxAgeDays?: number; cookieDomain?: string;
 }
 /** What #jini-consent-config holds: the config plus the evidence mode the host chose. */
@@ -124,6 +127,7 @@ export interface JiniConsentApi {
   readonly contract: 1;
   readonly plugins: PluginRegistry;
   get(): ConsentState;
+  allows(required: { consent?: readonly Category[] }, optional?: object): boolean;
   subscribe(required: { listener: (state: ConsentState) => void }, optional?: object): () => void;
   /** Denial applies before any network; GPC clamps the result and nothing can lift it. */
   set(required: { action: ConsentAction }, optional?: { choices?: Partial<Flags> }): Promise<ConsentState>;
