@@ -235,7 +235,7 @@ function AssistantMessageFooter(
   return <>
       {usageEvent ? <UsageSummary usage={usageEvent} showTotal={showUsageTotal} message={message}
         awaitingAnswer={isAwaitingAnswer({ events: message.events }, { isAnsweredCard })} /> : null}
-      {terminalNotice ? <div className="jini-message-error" role="status">{t(terminalNotice)}</div> : null}
+      {terminalNotice ? <div className={message.runStatus === 'canceled' ? 'jini-chat-pane__notice' : 'jini-message-error'} role="status">{t(terminalNotice)}</div> : null}
       {!pending && !runInProgress ? (
         <div className="jini-message-actions jini-message-actions--assistant">
           <CopyMessageButton text={visibleContent} label={t('Copy message')} />

@@ -868,3 +868,11 @@ describe('MessageRow', () => {
     });
   });
 });
+
+it('renders a canceled approval as a neutral status with no process diagnostics', () => {
+  render(<MessageRow message={{ id: 'cancelled-approval', role: 'assistant', content: '', runStatus: 'canceled',
+    events: [{ kind: 'status', label: 'Run canceled', detail: 'exit code none, signal none, resumable no' }] }} />);
+  expect(screen.getByText('Canceled.')).toHaveClass('jini-chat-pane__notice');
+  expect(document.querySelector('.jini-message-error')).toBeNull();
+  expect(document.body.textContent).not.toContain('exit code');
+});

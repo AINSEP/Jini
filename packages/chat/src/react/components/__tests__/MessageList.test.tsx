@@ -307,6 +307,7 @@ describe('MessageList', () => {
       expect(el.lastElementChild).toHaveAttribute('data-testid', 'chat-pane-queued');
       expect(screen.getByText('third turn')).toBeInTheDocument();
       expect(screen.getByText('Queued — sends when this reply finishes')).toBeVisible();
+      expect(screen.getByText('Queued — sends when this reply finishes')).toHaveClass('jini-chat-pane__status');
     });
 
     it('invokes onCancel from the transcript entry\'s own cancel affordance', async () => {

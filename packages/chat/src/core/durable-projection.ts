@@ -84,8 +84,16 @@ export function terminalMessageNotice({ message }: { message: ChatMessage }, _op
   if (message.runStatus !== 'failed' && message.runStatus !== 'canceled') return null;
   const notice = message.events?.filter((event) => event.kind === 'status' &&
     (event.code === 'run_terminal' || /failed|stopped|restarted|could not|not logged in|cancell?ed/i.test(event.label))).at(-1);
-  if (notice?.kind === 'status') return [notice.label, notice.detail].filter(Boolean).join(' ').replace(/Send your message again to retry\.?/gi, '').trim();
+  if (notice?.kind === 'status') return terminalStatusText({ notice, canceled: message.runStatus === 'canceled' });
   return message.runStatus === 'failed' ? 'This turn failed.' : 'Stopped.';
+}
+
+/** Cancellation is an ordinary decision; saved process diagnostics remain available to the host.
+ * Keep meaningful stop/recovery explanations while hiding CLI exit metadata. O(n) notice text. */
+function terminalStatusText({ notice, canceled }: { notice: Extract<AgentEvent, { kind: 'status' }>; canceled: boolean }): string {
+  const label = canceled && /cancell?ed/i.test(notice.label) ? 'Canceled.' : notice.label;
+  const detail = canceled && /exit code|resumable|signal none/i.test(notice.detail ?? '') ? undefined : notice.detail;
+  return [label, detail].filter(Boolean).join(' ').replace(/Send your message again to retry\.?/gi, '').trim();
 }
 
 /** The first answer has no earlier segment to divide, even if startup was retried. Only saved

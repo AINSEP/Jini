@@ -204,3 +204,16 @@ describe('recoveredRunEvents', () => {
     expect(recoveredRunEvents({ saved }, { notice: 'silent' })).toEqual([saved[1], saved[2], { kind: 'status', code: 'run_recovering', label: '' }]);
   });
 });
+
+it('shows plain cancellation words while retaining the saved diagnostic event', () => {
+  const event = { kind: 'status' as const, label: 'Run canceled', detail: 'exit code none, signal none, resumable no' };
+  const message = { id: 'cancelled-approval', role: 'assistant' as const, content: '', runStatus: 'canceled' as const, events: [event] };
+  expect(terminalMessageNotice({ message })).toBe('Canceled.');
+  expect(message.events).toEqual([event]);
+});
+
+it('does not show process diagnostics for a canceled run with a custom terminal label', () => {
+  const message: ChatMessage = { id: 'stopped-approval', role: 'assistant', content: '', runStatus: 'canceled',
+    events: [{ kind: 'status', code: 'run_terminal', label: 'Run stopped', detail: 'exit code none, signal none, resumable no' }] };
+  expect(terminalMessageNotice({ message })).toBe('Run stopped');
+});

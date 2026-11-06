@@ -162,7 +162,7 @@ function QueuedMessage({ prompt, renderAttachment }: {
       data-agent-role="region"
       data-agent-label="A message queued to send once the current run finishes"
     >
-      <div>{t('Queued — sends when this reply finishes')}</div>
+      <div className="jini-chat-pane__status">{t('Queued — sends when this reply finishes')}</div>
       {prompt.folders?.length ? <div className="jini-message-attachments"><FolderChips folders={prompt.folders} /></div> : null}
       <div className="jini-chat-pane__queued-text">{prompt.text}</div>
       {attachments.length > 0 && <div className="jini-message-attachments">
