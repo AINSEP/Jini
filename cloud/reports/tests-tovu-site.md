@@ -26,3 +26,5 @@ pnpm --filter @jini-ai/commerce typecheck
 ```
 
 Results:11 pass/0 fail; build/typecheck exit0. Targeted commerce ESLint exit0. Tovu relinked after build; complete commerce consumer contract test36/36, catalog/audit/site-title group36/36. Tovu root production and test typechecks both passed. Full root/website suite remains running; fixes and remaining findings are recorded in Tovu's matching report. No additional Jini code change is currently needed.
+
+The consumer full run continues beyond the earlier truncated run's test position. Tovu has fixed a separate plain-copy policy gap for four owner authentication tables, with27/27 focused transfer tests. Package/access/renderer, private-redaction, live span and cold-daemon fixtures were aligned to existing owner contracts without changing Jini behavior. Tovu production/test typechecks have passed; aggregate refresh follows remaining fixture fixes. Three existing architectural/lint guards remain explicit, with no allowance or rule changes. This job's only Jini source change remains the existing resolution-catalog export.
