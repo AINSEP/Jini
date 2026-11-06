@@ -70,7 +70,7 @@
       "licenses/posthog-js/package-license.json": "sha256-15156f5af3c1699358c4857b0c155fa444c21527b295aecff8edcdcdbbc349f6",
       "licenses/posthog-node/LICENSE": "sha256-d3fb92ac01f0bef4078f89aac9f20f76da3383ad45becf6204abdf5495f43f8f",
       "licenses/posthog-node/package-license.json": "sha256-477479010682b08537c8ad318f1f71dc25b0e88a9b0f9f6b4cc90c168624c6be",
-      "server/consent-adapter.mjs": "sha256-43948403a9131398fb795fc098add76e8d6df4e4db83f868072ab89655d1f126",
+      "server/consent-adapter.mjs": "sha256-7957d2477897886da887d037379309655f783614760b31d7eb0bbe2bfae03270",
       "server/index.mjs": "sha256-737a41b0539de174144e2d9c4b789c3074e302e96c468261c7d2ffcc492bd3a5",
       "server/posthog-browser.js": "sha256-42c78610e8c1a1ff3258259c13becb34699668a81f091af2e80146b3a006be2a"
     }
@@ -392,7 +392,7 @@
       "licenses/_jini-ai_provider-plugins/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
       "licenses/_jini-ai_provider-plugins/NOTICE": "sha256-41f25c5b9af4c8e8e98e2a7c658b3922253c760686e17e0ef7fa003fae83cb95",
       "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-3bd29e9b2cbf054cb6331cc4d3073b90944cb71d8fd7d1a371639da92543272f",
-      "server/index.mjs": "sha256-f2aa51ea184bb415e1810ad477ce584add20780f9c08624dbdae545b6adce4bd"
+      "server/index.mjs": "sha256-26b9e32337e867a5fa69096c4f52d9f5ecda2ca952c098808fe0bfb2e0bf5808"
     }
   },
   {
@@ -460,7 +460,7 @@
     "id": "google-forms",
     "publisherIdentity": "jini/google-forms-agent",
     "packageName": "@jini-ai/agent-plugins",
-    "version": "0.6.23",
+    "version": "0.6.24",
     "description": "Select a published public Google Form as a form collection provider. Questions and answers stay in Google; switching preserves local definitions and historical answers. Installation alone never switches a form.",
     "expectedDigests": {
       "plugin.json": "sha256-8eb1280e6de53cd237a1101d030a20573d995cd4d3fbf28afa2d26e69f9e3982",
@@ -469,8 +469,8 @@
   },
   {
     "kind": "provider",
-    "path": "plugins/google-forms/0.6.23",
-    "pluginVersion": "0.6.23",
+    "path": "plugins/google-forms/0.6.24",
+    "pluginVersion": "0.6.24",
     "contract": {
       "id": "form_collection",
       "version": 1
@@ -478,12 +478,12 @@
     "id": "google-forms",
     "publisherIdentity": "jini/google-forms",
     "packageName": "@jini-ai/provider-plugins",
-    "version": "0.6.23",
+    "version": "0.6.24",
     "description": "Google Forms collection",
     "expectedDigests": {
       "licenses/_jini-ai_provider-plugins/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
       "licenses/_jini-ai_provider-plugins/NOTICE": "sha256-41f25c5b9af4c8e8e98e2a7c658b3922253c760686e17e0ef7fa003fae83cb95",
-      "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-487cadce25dd2d3d08bb47f1305dc3e6a9b04d28b7463e4a3b15239c6ccb7485",
+      "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-3bd29e9b2cbf054cb6331cc4d3073b90944cb71d8fd7d1a371639da92543272f",
       "server/index.mjs": "sha256-6be5284d7d4ff2c4cfed6add2b88cd065d67aec90058be0f07ff1f1b40f61c17"
     }
   },

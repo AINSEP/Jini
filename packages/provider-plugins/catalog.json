@@ -26,8 +26,8 @@
   },
   {
     "id": "google-forms",
-    "version": "0.6.23",
-    "path": "plugins/google-forms/0.6.23"
+    "version": "0.6.24",
+    "path": "plugins/google-forms/0.6.24"
   },
   {
     "id": "observability-opentelemetry",
