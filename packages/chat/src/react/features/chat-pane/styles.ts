@@ -311,14 +311,18 @@ export const CHAT_PANE_STYLES = `
  * would terminate the string, not just this comment.
  */
 .jini-chat-pane__queued-cancel {
-  padding: 2px 6px;
+  min-height: 32px;
+  padding: 6px 12px;
   color: var(--jini-chat-muted);
   background: none;
   border: 0;
   border-radius: 6px;
-  font-size: 11px;
+  font-size: 13px;
   font-weight: 400;
   cursor: pointer;
+}
+@media (pointer: coarse) {
+  .jini-chat-pane__queued-cancel { min-height: 44px; min-width: 44px; }
 }
 .jini-chat-pane__queued-cancel:hover {
   color: var(--jini-chat-text-strong);

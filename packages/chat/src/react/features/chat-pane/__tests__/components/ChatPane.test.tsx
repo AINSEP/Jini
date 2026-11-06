@@ -1079,6 +1079,11 @@ describe('ChatPane', () => {
       expect(cancelRule).toMatch(/font-size:\s*\S+/);
       expect(cancelRule).toMatch(/font-weight:\s*\S+/);
     });
+
+    it('queued-cancel is big enough to hit: 32px tall, 44px on a touch screen', () => {
+      expect(CHAT_PANE_STYLES.match(/\.jini-chat-pane__queued-cancel \{([^}]*)\}/)?.[1]).toMatch(/min-height:\s*32px/);
+      expect(CHAT_PANE_STYLES).toMatch(/@media \(pointer: coarse\) \{\s*\.jini-chat-pane__queued-cancel \{[^}]*min-height:\s*44px/);
+    });
   });
 
   it('explains a failed typed-answer delivery without offering to send it as a new message', async () => {
