@@ -1,5 +1,6 @@
+import { useOverlayContainer } from '@jini-ai/ui-kit/react';
 import { useAgentHandle } from '../../../../react/hooks/useAgentHandle.js';
-import { resolveSelectPortalContainer } from '../../../../react/components/select-popover.js';
+import { resolveSelectPortalContainer, resolveSelectOriginPage } from '../../../../react/components/select-popover.js';
 import { createPortal } from "react-dom";
 import { agentHandle } from "@jini-ai/agentic";
 import { buildAgentListHandles } from "@jini-ai/agentic";
@@ -89,6 +90,7 @@ function SelectOptionRow({
 
 function SelectPanel({
   panelRef,
+  page,
   position,
   showSearch,
   searchInputRef,
@@ -108,6 +110,7 @@ function SelectPanel({
   t,
 }: {
   panelRef: React.RefObject<HTMLDivElement | null>;
+  page?: string | undefined;
   position: PanelPosition;
   showSearch: boolean;
   searchInputRef: React.RefObject<HTMLInputElement | null>;
@@ -130,6 +133,7 @@ function SelectPanel({
   return (
     <div
       ref={panelRef}
+      data-agent-page={page}
       className="select-panel"
       style={{ left: position.left, width: position.width, top: position.top, bottom: position.bottom, maxHeight: position.maxHeight }}
       tabIndex={-1}
@@ -203,6 +207,7 @@ function resolveSelectTriggerHandleProps(
 export function Select(props: SelectProps, _optional: Record<string, never> = {}) {
   const { value, onChange, options, placeholder, id, disabled, useDropdown = useSelectDropdown, agentHandle: suppliedBase, translate, t = translate ?? ((key: string) => key) } = props;
   const base = useAgentHandle({ agentHandle: suppliedBase });
+  const overlayContainer = useOverlayContainer({});
   const ariaLabel = props["aria-label"];
   const ariaLabelledBy = props["aria-labelledby"];
 
@@ -239,7 +244,7 @@ export function Select(props: SelectProps, _optional: Record<string, never> = {}
   // One handle per FILTERED option, recomputed as the search query narrows the list — an option
   // dropped by the current query has no rendered row to attach a handle to, so it is simply absent
   // this render rather than holding a handle nothing resolves to. `undefined` (not an empty array)
-  // when `base` itself is unset, so `SelectPanel` can tell "opted out" apart from "no options match".
+  // when `base` is explicitly opted out, so `SelectPanel` can tell "opted out" apart from "no options match".
   const optionHandles = base ? buildAgentListHandles({ prefix: `${base}-option`, ids: filtered.map((option) => option.value) }) : undefined;
 
   return (
@@ -269,6 +274,7 @@ export function Select(props: SelectProps, _optional: Record<string, never> = {}
         ? createPortal(
             <SelectPanel
               panelRef={panelRef}
+              page={resolveSelectOriginPage({ trigger: triggerRef.current })}
               position={position}
               showSearch={showSearch}
               searchInputRef={searchInputRef}
@@ -287,7 +293,7 @@ export function Select(props: SelectProps, _optional: Record<string, never> = {}
               optionHandles={optionHandles}
               t={t}
             />,
-            resolveSelectPortalContainer({ trigger: triggerRef.current }, { container: props.portalContainer })
+            resolveSelectPortalContainer({ trigger: triggerRef.current }, { container: props.portalContainer, fallbackContainer: overlayContainer })
           )
         : null}
     </>

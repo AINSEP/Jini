@@ -1,10 +1,10 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
 import { isValidElementHandle } from '@jini-ai/agentic';
-import { useAgentHandle } from '../useAgentHandle.js';
+import { useAgentHandle, type AgentControlProps } from '../useAgentHandle.js';
 
-function Control({ name, agentHandle }: { name: string; agentHandle?: string | false | undefined }) {
-  return <button data-agent-element={useAgentHandle({ agentHandle })}>{name}</button>;
+function Control({ name, ...props }: { name: string } & AgentControlProps) {
+  return <button data-agent-element={useAgentHandle(props)}>{name}</button>;
 }
 
 describe('useAgentHandle', () => {
@@ -28,4 +28,14 @@ describe('useAgentHandle', () => {
     rerender(<Control name="save" agentHandle={false} />);
     expect(screen.getByRole('button')).not.toHaveAttribute('data-agent-element');
   });
+});
+
+
+it('preserves supplied addressing while privacy and opt-out override it', () => {
+  const { rerender } = render(<Control name="control" data-agent-element="supplied" />);
+  expect(screen.getByRole('button')).toHaveAttribute('data-agent-element', 'supplied');
+  rerender(<Control name="control" data-agent-element="supplied" agentHandle={false} />);
+  expect(screen.getByRole('button')).not.toHaveAttribute('data-agent-element');
+  rerender(<Control name="control" data-agent-element="supplied" agentHandle="explicit" data-agent-private="" />);
+  expect(screen.getByRole('button')).not.toHaveAttribute('data-agent-element');
 });

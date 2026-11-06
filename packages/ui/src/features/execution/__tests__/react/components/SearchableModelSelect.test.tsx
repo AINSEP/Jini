@@ -201,3 +201,19 @@ describe('SearchableModelSelect', () => {
     expect(screen.getByTestId('agent-a-model-select')).toBeInTheDocument();
   });
 });
+
+describe('SearchableModelSelect agent handles', () => {
+  it('places supplied handles on the trigger/search/options and removes all on opt-out', async () => {
+    const props = { models: LONG_MODELS, value: '', onChange: vi.fn(), ariaLabel: 'Model', searchPlaceholder: 'Search models' };
+    const { container, rerender } = render(<SearchableModelSelect {...props} agentHandle="model-choice" />);
+    expect(container.querySelector('.jini-searchable-select')).not.toHaveAttribute('data-agent-element');
+    expect(screen.getByRole('combobox')).toHaveAttribute('data-agent-element', 'model-choice');
+    await userEvent.click(screen.getByRole('combobox'));
+    expect(screen.getByRole('searchbox')).toHaveAttribute('data-agent-element', 'model-choice-search');
+    expect(screen.getByRole('option', { name: 'Model 0' })).toHaveAttribute('data-agent-element', 'model-choice-option-model-0');
+    rerender(<SearchableModelSelect {...props} agentHandle={false} />);
+    expect(screen.getByRole('combobox')).not.toHaveAttribute('data-agent-element');
+    expect(screen.getByRole('searchbox')).not.toHaveAttribute('data-agent-element');
+    for (const option of screen.getAllByRole('option')) expect(option).not.toHaveAttribute('data-agent-element');
+  });
+});

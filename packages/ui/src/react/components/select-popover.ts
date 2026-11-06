@@ -33,11 +33,17 @@ export function resolveTabTarget({ panel, trigger, shiftKey }: { panel: HTMLElem
   return nodes[modalDialog ? (nextIndex + nodes.length) % nodes.length : nextIndex] ?? null;
 }
 
-/** Resolve a portal inside the trigger's native dialog so its menu stays above inert page content. */
+/** Explicit destinations win; otherwise keep native-dialog ownership before a host kit overlay. */
 export function resolveSelectPortalContainer({ trigger }: { trigger: HTMLElement | null },
-  { container }: { container?: Element | DocumentFragment | null | undefined } = {},
+  { container, fallbackContainer }: { container?: Element | DocumentFragment | null | undefined; fallbackContainer?: Element | DocumentFragment | null | undefined } = {},
 ): Element | DocumentFragment {
-  return container ?? trigger?.closest('dialog') ?? document.body;
+  return container ?? trigger?.closest('dialog') ?? fallbackContainer ?? document.body;
+}
+
+/** Keep a portalled menu associated with the nearest page that owns its trigger.
+ * @complexity O(d) time and O(1) space in ancestor depth; a DOM read only. */
+export function resolveSelectOriginPage({ trigger }: { trigger: HTMLElement | null }, _optional: Record<string, never> = {}): string | undefined {
+  return trigger?.closest('[data-agent-page]')?.getAttribute('data-agent-page') ?? undefined;
 }
 
 /** Pure containment decision; outside clicks must neither select an option nor steal focus. */

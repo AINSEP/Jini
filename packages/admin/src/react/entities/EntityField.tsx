@@ -61,7 +61,7 @@ function NumberInput(props: EntityFieldProps): ReactNode {
 
 export function EntityField(required: EntityFieldProps): ReactNode {
   const base = useAgentHandle({ agentHandle: required.agentHandle });
-  const props = { ...required, agentHandle: base ?? false };
+  const props: EntityFieldProps = { ...required, agentHandle: base ?? false };
   const { field, value, onChange } = props;
   switch (field.kind) {
     case 'json': return <textarea {...commonProps(props)} value={props.text} onChange={(e) => props.onTextChange({ text: e.target.value })} />;

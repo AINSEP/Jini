@@ -11,7 +11,8 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent, MutableRefObject, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { useSelectPopover, isSelectEventInside, openSelectOnKey, applySelectNavigationKey, resolveSelectPortalContainer } from './select-popover.js';
+import { useOverlayContainer } from '@jini-ai/ui-kit/react';
+import { useSelectPopover, isSelectEventInside, openSelectOnKey, applySelectNavigationKey, resolveSelectPortalContainer, resolveSelectOriginPage } from './select-popover.js';
 import { Icon } from './Icon.js';
 import { agentHandleProps, agentHandleSegment } from '@jini-ai/agentic';
 import { useAgentHandle, type AgentControlProps } from '../hooks/useAgentHandle.js';
@@ -455,9 +456,9 @@ function customSelectMenuStyle({ portal, position }: {
 /** Where an open menu renders: inline, or portalled only after its first measurement. */
 function mountCustomSelectMenu({ menu, portal, position, trigger }: {
   menu: ReactNode; portal: boolean; position: CustomSelectMenuPosition | null; trigger: HTMLElement | null;
-}, { container }: { container?: Element | DocumentFragment | null | undefined } = {}): ReactNode {
+}, { container, fallbackContainer }: { container?: Element | DocumentFragment | null | undefined; fallbackContainer?: Element | DocumentFragment | null | undefined } = {}): ReactNode {
   if (!portal) return menu;
-  return position ? createPortal(menu, resolveSelectPortalContainer({ trigger }, { container })) : null;
+  return position ? createPortal(menu, resolveSelectPortalContainer({ trigger }, { container, fallbackContainer })) : null;
 }
 
 /** The listbox rows: groups render a labelled block of option buttons, flat options render directly. */
@@ -538,6 +539,8 @@ export function CustomSelect({
   } = useCustomSelectHook({ value, options, onChange, portal, placeholder, onOpenChange });
 
   const base = useAgentHandle(agentProps);
+  const overlayContainer = useOverlayContainer({});
+  const originPage = agentProps['data-agent-page'] ?? resolveSelectOriginPage({ trigger: buttonRef.current });
   const originTheme = useCustomSelectOriginTheme({ buttonRef, open, portal });
 
   const menu = (
@@ -546,7 +549,8 @@ export function CustomSelect({
       id={`${idBase}-menu`}
       onKeyDown={onMenuKeyDown}
       {...originTheme}
-      data-agent-page={agentProps['data-agent-page']}
+      data-agent-page={originPage}
+      data-agent-private={agentProps['data-agent-private']}
       className={[
         'jini-select-menu',
         portal ? 'portal' : 'inline',
@@ -597,7 +601,7 @@ export function CustomSelect({
         </span>
         <Icon name="chevron-down" size={14} />
       </button>
-      {open ? mountCustomSelectMenu({ menu, portal, position, trigger: buttonRef.current }, { container: portalContainer }) : null}
+      {open ? mountCustomSelectMenu({ menu, portal, position, trigger: buttonRef.current }, { container: portalContainer, fallbackContainer: overlayContainer }) : null}
     </div>
   );
 }

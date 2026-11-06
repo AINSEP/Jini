@@ -1,6 +1,6 @@
 import { useRef, useState } from 'react';
 import { agentHandleProps } from '@jini-ai/agentic';
-import { useAgentHandle } from '../../../../react/hooks/useAgentHandle.js';
+import { useAgentHandle, type AgentControlProps } from '../../../../react/hooks/useAgentHandle.js';
 import { filterAgentModelOptions } from '../../rules.js';
 import type { AgentModelOption } from '../../types.js';
 import { CustomSelect } from '../../../../react/components/CustomSelect.js';
@@ -11,7 +11,7 @@ export interface SearchableModelSelectAdditionalOption {
   label: string;
 }
 
-export interface SearchableModelSelectProps {
+export interface SearchableModelSelectProps extends AgentControlProps {
   models: readonly AgentModelOption[];
   value: string;
   onChange: (value: string) => void;
@@ -65,8 +65,9 @@ export function SearchableModelSelect({
   testId,
   searchInputTestId,
   agentHandle,
+  ...agentProps
 }: SearchableModelSelectProps) {
-  const base = useAgentHandle({ agentHandle });
+  const base = useAgentHandle({ ...agentProps, agentHandle });
   const [query, setQuery] = useState('');
   const searchRef = useRef<HTMLInputElement | null>(null);
 
@@ -96,9 +97,11 @@ export function SearchableModelSelect({
   };
 
   return (
-    <div className="jini-searchable-select" data-testid={testId}>
+    <div className="jini-searchable-select" data-testid={testId} data-agent-private={agentProps['data-agent-private']} data-agent-page={agentProps['data-agent-page']}>
       <CustomSelect
         agentHandle={base ?? false}
+        data-agent-private={agentProps['data-agent-private']}
+        data-agent-page={agentProps['data-agent-page']}
         value={value}
         options={visibleOptions}
         onChange={onChange}
@@ -111,6 +114,8 @@ export function SearchableModelSelect({
             <div className="jini-searchable-select-search-row">
               <input
                 ref={searchRef}
+                data-agent-private={agentProps['data-agent-private']}
+                data-agent-page={agentProps['data-agent-page']}
                 {...agentHandleProps({}, { base, action: 'search', role: 'field', label: searchPlaceholder })}
                 type="search"
                 className="jini-input jini-searchable-select-search"
