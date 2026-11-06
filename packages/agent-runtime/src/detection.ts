@@ -492,7 +492,7 @@ type DetectAgentsSettings = {
 };
 
 /** Options accepted by {@link detectAgents} and {@link detectAgentsStream}. */
-type DetectAgentsOptions = { state?: AgentRuntimeState; env?: NodeJS.ProcessEnv; configuredEnvByAgent?: Record<string, Record<string, string>>; amrProfileResolver?: AmrProfileResolver; modelContextByAgent?: Record<string, ModelDiscoveryContext>; modelDiscoveryDeps?: ModelDiscoveryDeps; force?: boolean; probeAgent?: AgentDetectionModelOptions['probeAgent'] };
+type DetectAgentsOptions = { signal?: AbortSignal; state?: AgentRuntimeState; env?: NodeJS.ProcessEnv; configuredEnvByAgent?: Record<string, Record<string, string>>; amrProfileResolver?: AmrProfileResolver; modelContextByAgent?: Record<string, ModelDiscoveryContext>; modelDiscoveryDeps?: ModelDiscoveryDeps; force?: boolean; probeAgent?: AgentDetectionModelOptions['probeAgent'] };
 
 function detectionSettings(
   { configuredEnvByAgent = {}, amrProfileResolver = noopAmrProfileResolver, modelContextByAgent = {}, modelDiscoveryDeps, force = false, state = defaultRuntimeState, env = process.env, probeAgent }: DetectAgentsOptions,
@@ -513,10 +513,38 @@ async function detectOne(def: RuntimeAgentDef, { configuredEnvByAgent, amrProfil
   return agent;
 }
 
-export async function detectAgents({  }: {  }, optional: DetectAgentsOptions = {}
+/** Select existing registry entries; an empty list does no work, unknown IDs are refused. */
+function selectedDefs(agentIds?: readonly string[]): RuntimeAgentDef[] {
+  if (!agentIds) return AGENT_DEFS;
+  const selected = new Set(agentIds);
+  for (const id of selected) {
+    if (!AGENT_DEFS.some(def => def.id === id)) throw new Error(`Unknown agent '${id}' for discovery.`);
+  }
+  return AGENT_DEFS.filter(def => selected.has(def.id));
+}
+
+/** Cancellation detaches this observer; a coalesced probe still serves other callers and the cache. */
+async function observeDetection<T>(pending: Promise<T>, signal?: AbortSignal): Promise<T> {
+  if (!signal) return pending;
+  signal.throwIfAborted();
+  let abort!: () => void;
+  const stopped = new Promise<never>((_resolve, reject) => {
+    abort = () => reject(signal.reason);
+    signal.addEventListener('abort', abort, { once: true });
+  });
+  try { return await Promise.race([pending, stopped]); }
+  finally { signal.removeEventListener('abort', abort); }
+}
+
+/** Probe the selected inventory (all agents when omitted), reusing the existing host cache.
+ * Cancellation stops waiting, without cancelling a probe another caller may share.
+ * @complexity O(registered agents + selected probes); no additional cache or polling.
+ */
+export async function detectAgents({ agentIds }: { agentIds?: readonly string[] }, optional: DetectAgentsOptions = {}
 ) {
+  optional.signal?.throwIfAborted();
   const settings = detectionSettings(optional);
-  return Promise.all(AGENT_DEFS.map((def) => detectOne(def, settings)));
+  return observeDetection(Promise.all(selectedDefs(agentIds).map(def => detectOne(def, settings))), optional.signal);
 }
 
 // Streaming variant: yields each agent the moment its probe settles, in
@@ -525,13 +553,14 @@ export async function detectAgents({  }: {  }, optional: DetectAgentsOptions = {
 // validation cache is refreshed per-agent (same effect as the batch path,
 // just incrementally). `detectAgents` keeps the array contract for callers
 // that don't care about incremental delivery.
-export async function* detectAgentsStream({  }: {  }, optional: DetectAgentsOptions = {}
+export async function* detectAgentsStream({ agentIds }: { agentIds?: readonly string[] }, optional: DetectAgentsOptions = {}
 ): AsyncGenerator<DetectedAgent> {
   const settings = detectionSettings(optional);
-  const tagged = AGENT_DEFS.map((def, index) => detectOne(def, settings).then((agent) => ({ index, agent })));
+  optional.signal?.throwIfAborted();
+  const tagged = selectedDefs(agentIds).map((def, index) => detectOne(def, settings).then((agent) => ({ index, agent })));
   const pending = new Set(tagged.keys());
   while (pending.size > 0) {
-    const { index, agent } = await Promise.race(tagged.filter((_, i) => pending.has(i)));
+    const { index, agent } = await observeDetection(Promise.race(tagged.filter((_, i) => pending.has(i))), optional.signal);
     pending.delete(index);
     yield agent;
   }
