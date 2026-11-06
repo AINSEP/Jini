@@ -73,7 +73,7 @@ export interface FormEditorController {
   /** `null` until the initial load settles (or always, for `isNew`) — the caller renders a loading
    *  state or the empty create form accordingly. */
   form: AdminFormDefinition | null;
-  providers?: readonly FormProviderDescription[];
+  providers?: readonly FormProviderDescription[] | undefined;
   providersError?: string | null;
   provider: AdminFormProviderSelection;
   setProvider: (value: AdminFormProviderSelection) => void;

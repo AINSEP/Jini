@@ -24,6 +24,7 @@ export function createMemoryFormsApi(
     now?: () => string; nextId?: () => string;
   } = {},
 ): AdminFormsPort & { readonly forms: AdminFormDefinition[]; readonly submissions: AdminFormSubmission[]; readonly trash: FormsTrashPort } {
+  const descriptions = structuredClone([...providers]);
   const definitions = structuredClone([...forms]);
   const answers = structuredClone([...submissions]);
   let sequence = definitions.length;
@@ -48,7 +49,7 @@ export function createMemoryFormsApi(
   };
   return {
     forms: definitions, submissions: answers,
-    async listFormProviders(_required, _optional = {}) { return structuredClone(providers); },
+    async listFormProviders(_required, _optional = {}) { return structuredClone(descriptions); },
     async listFormDefinitions(_required, _optional = {}) { return structuredClone(definitions); },
     async getFormDefinition({ id }, _optional = {}) { return structuredClone(find(id)); },
     async createFormDefinition(input, options = {}) {
