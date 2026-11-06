@@ -1,0 +1,6 @@
+# Job commerce-rest (owner-approved 11-06): finish the commerce review, then fix
+Base in both repos: origin/cloud/combine (Tovu 74fedc132, Jini f07ae3d6f), which already holds every merged job and the UI fixes. Create cloud/<job> from it in each repo you change. Owner approved --no-verify for that branch in Tovu. Hard cap 2 hours. Your prompt may add items that are not listed here; they count the same. General wording in commits and reports: these repos are public. List every bug you notice under "Bugs found", fixed or not.
+
+The second review did not read these: repo.sql.ts beyond the diff, refund.ts, capture-void.ts, money-tools.ts, reconcile-attempts.ts, the dispute half of plan-evidence.ts. Read them all for money errors: double charge or refund, rounding, currency, idempotency, races, state that can get stuck, webhook replay. Refunds and capture stay off; do not turn them on. Fix high and medium findings with the smallest change, failing test first. List minor ones. Also say what it would take to prove the PostgreSQL settlement worker, and prove it in this container if PostgreSQL makes that possible. No live Stripe.
+
+Put only general wording in cloud/reports/commerce-rest.md. Give any exploitable detail in your final message in this thread, not in commits or the report.
