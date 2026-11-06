@@ -398,3 +398,63 @@ describe('rejected host effects are reported, not left as unhandled rejections',
     }
   });
 });
+
+
+describe('host-supported conversation actions', () => {
+  it.each([
+    { rename: false, remove: false },
+    { rename: true, remove: false },
+    { rename: false, remove: true },
+    { rename: true, remove: true },
+  ])('offers only the provided callbacks: %j', async ({ rename, remove }) => {
+    const onRename = vi.fn();
+    const onDelete = vi.fn();
+    const onSelect = vi.fn();
+    const onCreate = vi.fn();
+    const user = userEvent.setup();
+    render(<ConversationList conversations={ITEMS} activeConversationId="c1"
+      onSelect={onSelect} onCreate={onCreate} confirmDelete={() => true}
+      {...(rename ? { onRename } : {})} {...(remove ? { onDelete } : {})} />);
+    await openMenu(user);
+    expect(screen.queryAllByRole('button', { name: 'Rename chat' })).toHaveLength(rename ? ITEMS.length : 0);
+    expect(screen.queryAllByRole('button', { name: 'Delete conversation' })).toHaveLength(remove ? ITEMS.length : 0);
+    const row = screen.getByTestId('conversation-select-c2');
+    if (rename) {
+      expect(row).toHaveAttribute('title', 'Double-click to rename');
+      screen.getByTestId('conversation-rename-button-c2').focus();
+      await user.keyboard('{Enter}');
+      await user.clear(screen.getByTestId('conversation-rename-c2'));
+      await user.type(screen.getByTestId('conversation-rename-c2'), 'Renamed{Enter}');
+      expect(onRename).toHaveBeenCalledWith('c2', 'Renamed');
+    } else {
+      expect(row).not.toHaveAttribute('title');
+      fireEvent.doubleClick(row);
+      expect(screen.queryByTestId('conversation-rename-c2')).not.toBeInTheDocument();
+      expect(onRename).not.toHaveBeenCalled();
+    }
+    if (remove) {
+      await user.click(screen.getByTestId('conversation-delete-c2'));
+      expect(onDelete).toHaveBeenCalledWith('c2');
+    } else expect(onDelete).not.toHaveBeenCalled();
+    await user.type(screen.getByTestId('conversation-search'), 'Slow');
+    expect(screen.getByTestId('conversation-item-c1')).toBeInTheDocument();
+    expect(screen.queryByTestId('conversation-item-c2')).not.toBeInTheDocument();
+    screen.getByTestId('conversation-select-c1').focus();
+    await user.keyboard('{Enter}');
+    await waitFor(() => expect(onSelect).toHaveBeenCalledWith('c1'));
+    await openMenu(user);
+    await user.click(screen.getByTestId('conversation-new'));
+    expect(onCreate).toHaveBeenCalledOnce();
+  });
+
+  it('closes an editor if the host removes rename support while it is open', async () => {
+    const { user, view, props } = setup();
+    await openMenu(user);
+    await user.click(screen.getByTestId('conversation-rename-button-c1'));
+    expect(screen.getByTestId('conversation-rename-c1')).toBeInTheDocument();
+    const { onRename: _removed, ...readOnlyProps } = props;
+    view.rerender(<ConversationList {...readOnlyProps} />);
+    expect(screen.queryByTestId('conversation-rename-c1')).not.toBeInTheDocument();
+    expect(screen.getByTestId('conversation-select-c1')).toBeInTheDocument();
+  });
+});

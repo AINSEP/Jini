@@ -96,13 +96,21 @@ it('accepts a zero timestamp and a zero elapsed duration', () => {
   });
 });
 
-// Demo practice run (2026-11-02, message 26ec1b0b): Claude Code reported 41 881 ms, which leaves out the
-// CLI's start-up wait, so the chat said "Done · 42s" for a turn stored as 46.5 s from send to finish.
-it.each([0, 7_000, 41_881])('times one reply from send to finish over a reported duration of %i ms', durationMs => {
-  expect(conversationUsage({ messages: [{ id: 'a', role: 'assistant', content: 'Finished',
-    startedAt: 1_000, endedAt: 47_507, events: [{ kind: 'usage', durationMs }] }] }).get('a')).toEqual({
-    kind: 'usage', durationMs: 46_507,
-  });
+// Owner-approved precedence: CLI duration excludes startup; timestamps only fill a missing value.
+it.each([0, 7_000, 41_881])('preserves a reported duration of %i ms over conflicting timestamps, including after reload', durationMs => {
+  const message: ChatMessage = { id: 'a', role: 'assistant', content: 'Finished',
+    startedAt: 1_000, endedAt: 47_507, events: [{ kind: 'usage', durationMs }] };
+  const expected = { kind: 'usage', durationMs };
+  expect(conversationUsage({ messages: [message] }).get('a')).toEqual(expected);
+  expect(conversationUsage({ messages: JSON.parse(JSON.stringify([message])) }).get('a')).toEqual(expected);
+});
+
+it('preserves the sum of reported durations across attempts rather than the whole-run elapsed time', () => {
+  const message: ChatMessage = { id: 'a', role: 'assistant', content: 'Finished',
+    startedAt: 1_000, endedAt: 47_507, events: [
+      { kind: 'usage', durationMs: 7_000 }, { kind: 'usage', durationMs: 3_000 },
+    ] };
+  expect(conversationUsage({ messages: [message] }).get('a')).toEqual({ kind: 'usage', durationMs: 10_000 });
 });
 
 it('keeps the reported duration when the run has no valid timestamps', () => {

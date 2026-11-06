@@ -47,8 +47,10 @@ export interface ConversationListProps {
   activeConversationId: string | null;
   onSelect: (id: string) => void;
   onCreate: () => void | Promise<void>;
-  onDelete: (id: string) => void | Promise<void>;
-  onRename: (id: string, title: string) => void | Promise<void>;
+  /** Omit to hide deletion controls. */
+  onDelete?: (id: string) => void | Promise<void>;
+  /** Omit to hide renaming controls and its double-click shortcut. */
+  onRename?: (id: string, title: string) => void | Promise<void>;
   /**
    * Server-backed search. Omit for the built-in client filter.
    *
@@ -224,18 +226,20 @@ export function ConversationList({
       // No optimistic title update happens here — the row keeps rendering `item.title` from
       // props until the host's own state updates, so a rejection cannot leave the UI showing a
       // title the server didn't accept. Reporting the failure is what closes the remaining gap.
-      runConversationListHostEffect('onRename', () => onRename(id, next));
+      if (onRename) runConversationListHostEffect('onRename', () => onRename(id, next));
     },
     [onRename],
   );
 
   const startRename = (id: string) => {
+    if (!onRename) return;
     cancelPendingSelect();
     setEditingId(id);
   };
 
   const requestDelete = useCallback(
     (item: ConversationListItem) => {
+      if (!onDelete) return;
       const confirmer =
         confirmDelete ??
         // Only ever called from a click handler, so a browser `window` always exists here.
@@ -325,7 +329,7 @@ export function ConversationList({
                   className={`jini-conv-item${item.id === activeConversationId ? ' jini-conv-item-active' : ''}`}
                   data-testid={`conversation-item-${item.id}`}
                 >
-                  {editingId === item.id ? (
+                  {onRename && editingId === item.id ? (
                     <ConversationTitleEditor
                       title={rawTitles.get(item.id) ?? null}
                       data-testid={`conversation-rename-${item.id}`}
@@ -337,7 +341,7 @@ export function ConversationList({
                       type="button"
                       className="jini-conv-item-select"
                       data-testid={`conversation-select-${item.id}`}
-                      title={t('Double-click to rename')}
+                      title={onRename ? t('Double-click to rename') : undefined}
                       onClick={() => {
                         cancelPendingSelect();
                         pendingSelectRef.current = setTimeout(() => {
@@ -346,7 +350,7 @@ export function ConversationList({
                           setOpen(false);
                         }, DOUBLE_CLICK_GRACE_MS);
                       }}
-                      onDoubleClick={() => startRename(item.id)}
+                      onDoubleClick={onRename ? () => startRename(item.id) : undefined}
                     >
                       <span className="jini-conv-item-title">{item.title ?? t('Untitled')}</span>
                       <span className="jini-conv-item-meta">
@@ -355,7 +359,7 @@ export function ConversationList({
                       </span>
                     </button>
                   )}
-                  {editingId !== item.id ? <button
+                  {onRename && editingId !== item.id ? <button
                     type="button"
                     className="jini-conv-item-rename"
                     aria-label={t('Rename chat')}
@@ -364,7 +368,7 @@ export function ConversationList({
                   >
                     <Icon name="pencil" size={12} />
                   </button> : null}
-                  <button
+                  {onDelete ? <button
                     type="button"
                     className="jini-conv-item-delete"
                     aria-label={t('Delete conversation')}
@@ -375,7 +379,7 @@ export function ConversationList({
                     }}
                   >
                     <Icon name="close" size={12} />
-                  </button>
+                  </button> : null}
                 </div>
               ))
             )}
