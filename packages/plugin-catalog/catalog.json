@@ -70,8 +70,8 @@
       "licenses/posthog-js/package-license.json": "sha256-15156f5af3c1699358c4857b0c155fa444c21527b295aecff8edcdcdbbc349f6",
       "licenses/posthog-node/LICENSE": "sha256-d3fb92ac01f0bef4078f89aac9f20f76da3383ad45becf6204abdf5495f43f8f",
       "licenses/posthog-node/package-license.json": "sha256-477479010682b08537c8ad318f1f71dc25b0e88a9b0f9f6b4cc90c168624c6be",
-      "server/consent-adapter.mjs": "sha256-a37d6ad7073b5d5149572a4bf8a95c71d24337f4b6358ab98676481e2d663035",
-      "server/index.mjs": "sha256-f38f04b0ccc7eba365ea6487bd1b5477f08b85440d474bfbe449ae80578c40ea",
+      "server/consent-adapter.mjs": "sha256-43948403a9131398fb795fc098add76e8d6df4e4db83f868072ab89655d1f126",
+      "server/index.mjs": "sha256-737a41b0539de174144e2d9c4b789c3074e302e96c468261c7d2ffcc492bd3a5",
       "server/posthog-browser.js": "sha256-42c78610e8c1a1ff3258259c13becb34699668a81f091af2e80146b3a006be2a"
     }
   },
@@ -270,7 +270,7 @@
       "tovu-consent.json": "sha256-293658ce9c99d9d42708454b3cd57101c0e8de5d78fe308dc16dec43a5906a50",
       "tovu-deploy-targets.json": "sha256-fc4d27bb08a19db61c1b1684b6da6a09d075e42ec154f60385214415f326ce9c",
       "tovu-form-destinations.json": "sha256-f0ce2bb4ffe864b09185ab95b6ec910f32da2db909e485691bc4527afd484c1e",
-      "worker/forms-receiver.mjs": "sha256-8a72a38ec188407a49572746b28efd00115a7a37dc7fb8e87e2e78ab8c60bc58"
+      "worker/forms-receiver.mjs": "sha256-739ab94e114b4f3f36dccb86b9c1177e8472f2fabdadd947acaf2146fcd2c267"
     }
   },
   {
