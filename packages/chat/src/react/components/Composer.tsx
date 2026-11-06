@@ -440,7 +440,7 @@ export function Composer({
     <div className="jini-composer">
       <AccessorySlot className="jini-composer-leading">{leadingAccessories}</AccessorySlot>
       <div className="jini-composer-attachments">
-        <AttachmentTray agentHandle={base ?? false} attachments={composer.attachments} onRemove={composer.removeAttachment} />
+        <AttachmentTray agentHandle={base} attachments={composer.attachments} onRemove={composer.removeAttachment} />
         <FolderChips folders={composer.folders} onRemove={composer.removeFolder} />
       </div>
       <textarea

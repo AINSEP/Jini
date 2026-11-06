@@ -11,7 +11,6 @@
  * sent message's thumbnail reads) and opens the shared `AttachmentPreviewModal`, with previous/next
  * across the staged images - before sending, the operator can check which screenshots are going.
  */
-import { useAgentHandle } from '@jini-ai/ui';
 import { agentHandleProps, agentHandleSegment } from '@jini-ai/agentic';
 import type { ChatAttachment } from '../../core/index.js';
 import { useT } from '../hooks/context.js';
@@ -33,7 +32,7 @@ export type AttachmentTrayProps = AttachmentTraySlot & {
 };
 
 export function AttachmentTray({ agentHandle, attachments, onRemove, renderItem, objectUrls }: AttachmentTrayProps) {
-  const base = useAgentHandle({ agentHandle });
+  const base = agentHandle || undefined;
   const t = useT();
   const gallery = useAttachmentGallery({ attachments });
   if (attachments.length === 0) return null;
