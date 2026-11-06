@@ -184,7 +184,7 @@ it('discovers current choices without replacing an edited draft when discovery f
   const selection = { id: 'fourth', config: { destination: 'kept' } };
   act(() => { result.current.setName('Unsaved name'); result.current.setProvider(selection); });
   await act(async () => { rejectDiscovery(new Error('offline')); });
-  await waitFor(() => expect(result.current.providersError).toBe('Form provider settings are unavailable. Try opening this editor again.'));
+  await waitFor(() => expect(result.current.providersError).toBe('Could not load form providers: offline'));
   expect(result.current.name).toBe('Unsaved name');
   expect(result.current.provider).toEqual(selection);
 });

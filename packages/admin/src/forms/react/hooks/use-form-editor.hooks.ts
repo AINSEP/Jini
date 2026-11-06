@@ -1,6 +1,7 @@
 import type { FormProviderDescription } from "@jini-ai/cms/forms";
 import type { AdminFormProviderSelection, AdminFormsPort } from "../../../core/ports/forms.js";
 import { formView } from "../../models.js";
+import { describeApiError } from "../../../core/transport/errors.js";
 import { useFormsPorts, useFormsOptions } from "./FormsPorts.hooks.js";
 import { useController } from "../../../core/react/use-controller.js";
 import { createFormEditorController, initialFormEditorState, type FormEditorState } from "../../controllers/form-editor.controller.js";
@@ -314,7 +315,7 @@ export function useFormEditor(
     isNew,
     form, provider, setProvider,
     providers: discovery.data?.data,
-    providersError: discovery.error ? t("Form provider settings are unavailable. Try opening this editor again.") : null,
+    providersError: discovery.error ? `${t("Could not load form providers")}: ${describeApiError({ e: discovery.error, fallback: t("The settings service did not respond. Try opening this editor again.") })}` : null,
     mode, onModeChange, html, setHtml, copyEmbed, copyFeedback,
     answerColumns: formAnswerColumns({ fields: form?.fields ?? [] }, { yes: t("Yes"), no: t("No") }),
     name,

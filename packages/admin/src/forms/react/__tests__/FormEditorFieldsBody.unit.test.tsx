@@ -170,3 +170,15 @@ it('preserves an unavailable stored choice and shows a plain settings message', 
   expect(screen.getByText('Form provider settings are unavailable. Try opening this editor again.')).not.toBeNull();
   expect(onProviderChange).not.toHaveBeenCalled();
 });
+
+it('shows provider loading until discovery settles without exposing a stored identifier or failure', () => {
+  const p = props({ providers: undefined, provider: { id: 'google_forms', config: { url: 'kept' } } });
+  const { rerender } = render(<FormEditorFieldsBody {...p} />);
+  expect(screen.getByRole('status').textContent).toBe('Loading form providers…');
+  expect(screen.queryByText('Settings for this form provider are unavailable.')).toBeNull();
+  expect(screen.queryByRole('option', { name: 'google_forms' })).toBeNull();
+  rerender(<FormEditorFieldsBody {...p} providers={[{ ...providers[0]!, id: 'google_forms', label: 'Google Forms' }]} />);
+  expect(screen.queryByText('Loading form providers…')).toBeNull();
+  expect(screen.getByRole('option', { name: 'Google Forms' })).not.toBeNull();
+  expect((screen.getByLabelText('Where answers go') as HTMLSelectElement).value).toBe('google_forms');
+});

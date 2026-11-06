@@ -1,7 +1,9 @@
-import { createFormCollectionRegistry, describeFormCollectionProviders, type FormProviderDescription } from '@jini-ai/cms/forms';
+import type { FormProviderDescription } from '@jini-ai/cms/forms';
 import type { AdminFormsPort, AdminFormDefinition, AdminFormSubmission, AdminFormUpdatePatch } from '../../core/ports/forms.js';
 import { AdminApiError } from '../../core/transport/errors.js';
 import type { FormsTrashPort } from '../ports.js';
+// Keep this disposable browser fixture independent of the CMS runtime.
+const DEFAULT_PROVIDERS: readonly FormProviderDescription[] = [{ id: 'builtin', label: 'Built-in', fields: [], answers: 'Answers are stored in the built-in inbox.', validation: 'The built-in receiver validates the declared form fields.', frameOrigins: [], available: true }];
 // The contract excludes slug; runtime callers cannot smuggle it through a cast either.
 const PATCHABLE_KEYS = ['name', 'fields', 'notify', 'status', 'mode', 'html', 'provider'] as const;
 /** The allowlisted patch keys the caller actually supplied (an explicit `undefined` is not a value). */
@@ -19,7 +21,7 @@ function assertNoFieldRemoved({ current, patch }: { current: AdminFormDefinition
 /** A scoped, deterministic in-memory API with the core contract's add/edit-only invariant. */
 export function createMemoryFormsApi(
   _required: Record<string, never> = {},
-  { forms = [], submissions = [], providers = describeFormCollectionProviders({ providers: createFormCollectionRegistry({}) }), now = () => new Date(0).toISOString(), nextId }: {
+  { forms = [], submissions = [], providers = DEFAULT_PROVIDERS, now = () => new Date(0).toISOString(), nextId }: {
     forms?: readonly AdminFormDefinition[]; submissions?: readonly AdminFormSubmission[]; providers?: readonly FormProviderDescription[];
     now?: () => string; nextId?: () => string;
   } = {},
