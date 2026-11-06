@@ -2,11 +2,11 @@
 import { BRIDGE_KIND, type ClientConfig, type JiniConsentApi } from '../contract.js';
 import { bindBridges } from './bridges.js';
 import { declaredScripts } from './scripts.js';
-const installed = new WeakSet<JiniConsentApi>();
+const installed = Symbol.for('jini-consent:features');
 
 export function installFeatures({ api, doc, config, reload }: { api: JiniConsentApi; doc: Document; config: ClientConfig; reload: () => void }, { bindBanner }: { bindBanner?: ((required: { api: JiniConsentApi; doc: Document }) => void) | undefined } = {}): void {
-  if (installed.has(api)) return;
-  installed.add(api);
+  if (Object.prototype.hasOwnProperty.call(api, installed)) return;
+  Object.defineProperty(api, installed, { value: true });
   const reconcile = declaredScripts({ doc, scripts: config.scripts ?? [], reload });
   api.subscribe({ listener: reconcile });
   reconcile(api.get());

@@ -105,3 +105,18 @@ describe('dist/client.min.js', () => {
     expect(changed.jiniConsent?.get().allowed.analytics).toBe(false);
   });
 });
+
+test('duplicate extensions never start a declared script twice', async () => {
+  const rendered = renderBanner({ mode: 'headless', client: { contract: 1, policy: 'p1', regionMode: 'opt-in', scripts: [{ src: '/stats.js', consent: ['analytics'] }] }, copy: {} });
+  const dom = new JSDOM(`<html><head>${rendered.head}</head><body>${rendered.body}</body></html>`, { url: 'https://site.example/', runScripts: 'outside-only' });
+  try {
+    const win = dom.window as unknown as Window & typeof globalThis;
+    win.fetch = vi.fn() as typeof fetch;
+    win.eval(readFileSync(BUNDLE, 'utf8'));
+    win.eval(readFileSync(EXTENSIONS, 'utf8'));
+    await win.jiniConsent!.set({ action: 'accept' });
+    expect(win.document.querySelectorAll('script[src="/stats.js"]')).toHaveLength(1);
+    win.eval(readFileSync(EXTENSIONS, 'utf8'));
+    expect(win.document.querySelectorAll('script[src="/stats.js"]')).toHaveLength(1);
+  } finally { dom.window.close(); }
+});
