@@ -236,3 +236,23 @@ test("changing the caller context during consent cannot change the approved user
   assert.equal(await f.settingsRepo.getUserValue({ workspaceId: "ws-1", settingId: "setting-1", principalId: "other" }), null);
   assert.equal(f.authorizeCalls.every(call => (call as { principalId: string }).principalId === "caller"), true);
 });
+
+for (const scope of ['workspace', 'user'] as const) test(`approved ${scope} setting cannot overwrite a change after the card recheck`, async () => {
+  const def = definition({ namespace: 'core.instructions', key: 'custom' });
+  let cardRevision: number | undefined;
+  const f = fixture([def], {
+    confirmWrite: async request => { cardRevision = (request as unknown as { expectedRevisionSeq: number }).expectedRevisionSeq; return true; },
+    setValue: async (required, optional) => {
+      // A host validator may await between the approval owner's recheck and the ledger transaction.
+      await set({ ...required, input: { ...required.input, value: 'concurrent edit' } });
+      return set(required, optional);
+    },
+  });
+  await assert.rejects(f.call('settings_set_value', { namespace: def.namespace, key: def.key, scope, value: 'approved edit' }), /revision|changed/i);
+  assert.equal(cardRevision, 0, 'the card fixes the absent addressed layer revision');
+  const row = scope === 'user'
+    ? await f.settingsRepo.getUserValue({ workspaceId: 'ws-1', settingId: def.settingId, principalId: 'caller' })
+    : await f.settingsRepo.getWorkspaceValue({ workspaceId: 'ws-1', settingId: def.settingId });
+  assert.equal(row?.valueJson, 'concurrent edit');
+  assert.equal((await f.settingsRepo.listRevisions({ settingId: def.settingId })).length, 1, 'the losing transaction must roll back its revision');
+});
