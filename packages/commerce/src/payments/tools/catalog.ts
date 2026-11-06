@@ -37,7 +37,8 @@ export const DEFAULT_PAYMENTS_TOOL_PERMISSIONS: PaymentsToolPermissions = {
 };
 
 /** Upper bounds the handlers enforce too (`input.ts`); the schema only advises the model. */
-export const MAX_ID_LENGTH = 200;
+import { MAX_ID_LENGTH } from "../../core/tool-input.js";
+export { MAX_ID_LENGTH } from "../../core/tool-input.js";
 export const MAX_REASON_LENGTH = 500;
 
 const PAYMENT_ID = { type: "string", minLength: 1, maxLength: MAX_ID_LENGTH, description: "The payment id, as commerce_payments_get returns it." } as const;

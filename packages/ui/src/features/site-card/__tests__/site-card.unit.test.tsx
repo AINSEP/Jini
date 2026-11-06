@@ -2,8 +2,8 @@
 import { readFileSync } from "node:fs";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
-import { SiteCard, SiteCardStatus } from "../SiteCard";
-import { SiteCardPin, SiteListToolbar, type SiteListToolbarCopy } from "../SiteListToolbar";
+import { SiteCard, SiteCardStatus } from "../SiteCard.js";
+import { SiteCardPin, SiteListToolbar, type SiteListToolbarCopy } from "../SiteListToolbar.js";
 
 const copy: SiteListToolbarCopy = { views: "Which sites", pinnedRecent: "Recent + Pinned", all: "All sites (3)", hidden: "Hidden (1)", sortBy: "Sort by", recent: "Most recent", oldest: "Oldest", name: "A-Z" };
 const controller = (overrides = {}) => ({ filter: "pinned-recent" as const, setFilter: vi.fn(), sort: "recent" as const, setSort: vi.fn(), hiddenCount: 1, ...overrides });

@@ -118,3 +118,13 @@ describe('re-verify dependency and state regressions', () => {
       .filter(finding => finding.rule === 'HW3-module-state')).toEqual([]);
   });
 });
+
+describe('commerce shared value and input owners', () => {
+  it('shares money and strict tool inputs without crossing catalog/payment domains', () => {
+    expect(audit.findings.filter(finding => finding.package === '@jini-ai/commerce'
+      && finding.rule === 'SI-domain')).toEqual([]);
+    const catalog = audit.closures.find(closure => closure.package === '@jini-ai/commerce' && closure.subpath === './tools');
+    expect(catalog?.files).toContain('packages/commerce/src/core/tool-input.ts');
+    expect(catalog?.files).not.toContain('packages/commerce/src/payments/tools/catalog.ts');
+  });
+});

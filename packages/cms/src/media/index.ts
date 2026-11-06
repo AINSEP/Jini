@@ -182,7 +182,7 @@ export { sanitizeSvg } from "./sanitize-svg.js";
 export { replaceMediaFile, mediaReplacementMetadata, mediaFileReplacementRecord, type ReplaceMediaFileDeps, type MediaFileReplacementRepoPort, type MediaFileReplacementInput, type MediaReplacementMetadata } from './replace-media-file.js';
 
 export { MAX_DOCUMENT_BYTES, DOCUMENT_CONTENT_TYPES, documentContentType, validateDocumentIngress, decodeDocumentUtf8, documentDisplayFilename, type DocumentArchiveReaderPort } from "./document-ingress.js";
-export { DOCUMENT_TEXT_PAGE_BYTES, readDocumentText, isDocumentOnlyBlob } from "./document-read.js";
+export { DOCUMENT_TEXT_PAGE_BYTES, readDocumentText, createDocumentTextReader, isDocumentOnlyBlob } from "./document-read.js";
 
 export type { ImageCodecPort, ImageCodecLimits, ImageMetadata, ImageEncodeInput, ImageGeometry, EncodedImage, ImageTileInput } from "./image-codec.js";
 

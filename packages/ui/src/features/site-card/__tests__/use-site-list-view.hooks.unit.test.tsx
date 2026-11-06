@@ -2,8 +2,8 @@
 import { act, renderHook } from "@testing-library/react";
 import { useState } from "react";
 import { describe, expect, it } from "vitest";
-import { DEFAULT_SITE_LIST_PREFS, type SiteListItem, type SiteListPrefs } from "../site-list-view";
-import { useSiteListView } from "../use-site-list-view.hooks";
+import { DEFAULT_SITE_LIST_PREFS, type SiteListItem, type SiteListPrefs } from "../site-list-view.js";
+import { useSiteListView } from "../use-site-list-view.hooks.js";
 
 const items: SiteListItem[] = [
   { id: "a", name: "a", createdAt: "2026-01-01T00:00:00.000Z" },

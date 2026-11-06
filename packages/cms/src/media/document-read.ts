@@ -1,12 +1,11 @@
 import type { AssetBlobRepoPort, BlobStorePort, MediaRepoPort } from './ports.js';
-import { MediaNotFoundError, MediaValidationError } from './types.js';
+import { MediaNotFoundError, MediaValidationError, type MediaRecord } from './types.js';
 import { decodeDocumentUtf8, documentContentType, DOCUMENT_CONTENT_TYPES, MAX_DOCUMENT_BYTES } from './document-ingress.js';
 
 import { DOCUMENT_EXTRACTION_LIMITS, DocumentTextExtractionError, type DocumentTextExtractorPort } from './document-text.js';
 
 export const DOCUMENT_TEXT_PAGE_BYTES = 64 * 1024;
 const MAX_CONCURRENT_DOCUMENT_READS = 2;
-let activeDocumentReads = 0;
 
 /** A hash may have several editorial owners. Private-only bytes cannot be exposed by a caller
  * inventing a new media id; a live ordinary-media owner makes those same bytes publishable.
@@ -20,10 +19,14 @@ export async function isDocumentOnlyBlob(required: {
   let document = false;
   for (const row of rows) {
     if (row.source.sha256 !== required.input.sha256) continue;
-    if (row.kind !== 'document' && !row.source.private && row.status === 'active') return false;
+    if (liveOrdinaryMedia(row)) return false;
     if (row.kind === 'document' || row.source.private) document = true;
   }
   return document || (await required.deps.blobRepo.findByHash(required.input))?.documentOwned === true;
+}
+
+function liveOrdinaryMedia(row: MediaRecord): boolean {
+  return row.kind !== 'document' && !row.source.private && row.status === 'active';
 }
 
 type DocumentReadDeps = { mediaRepo: MediaRepoPort; blobRepo: AssetBlobRepoPort; blobStore: BlobStorePort; documentTextExtractors?: readonly DocumentTextExtractorPort[] | undefined };
@@ -92,16 +95,24 @@ export interface DocumentTextPage {
  * Extraction adds at most 1M UTF-16 units plus their UTF-8 bytes, excluding adapter workspace.
  * Extracted documents are capped by DOCUMENT_EXTRACTION_LIMITS and re-extracted per offset.
  * @throws DocumentTextExtractionError when extraction is unavailable or a parser fails. */
-export async function readDocumentText(required: {
-  deps: DocumentReadDeps;
-  input: { workspaceId: string; id: string; offset?: number | undefined };
-}, _optional: Record<string, never> = {}): Promise<DocumentTextPage> {
-  if (activeDocumentReads >= MAX_CONCURRENT_DOCUMENT_READS) {
-    throw new MediaValidationError({ message: 'Two documents are already reading. Please try again when one finishes.' });
-  }
-  activeDocumentReads++;
-  try { return await readDocumentTextPage(required); }
-  finally { activeDocumentReads--; }
+export const readDocumentText = createDocumentTextReader({});
+
+/** Create one admission owner for a host's document reads. The default reader above is shared
+ * process-wide by existing callers, retaining the two-read / 100 MiB source allocation bound.
+ * @complexity O(1) admission state per reader; source work is delegated to the bounded page reader. */
+export function createDocumentTextReader(_required: Record<string, never>, _optional: Record<string, never> = {}) {
+  let activeDocumentReads = 0;
+  return async function read(required: {
+    deps: DocumentReadDeps;
+    input: { workspaceId: string; id: string; offset?: number | undefined };
+  }, _options: Record<string, never> = {}): Promise<DocumentTextPage> {
+    if (activeDocumentReads >= MAX_CONCURRENT_DOCUMENT_READS) {
+      throw new MediaValidationError({ message: 'Two documents are already reading. Please try again when one finishes.' });
+    }
+    activeDocumentReads++;
+    try { return await readDocumentTextPage(required); }
+    finally { activeDocumentReads--; }
+  };
 }
 
 /** Keep the source and extraction allocations inside the in-process read admission boundary. */

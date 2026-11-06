@@ -30,6 +30,16 @@ describe('KitProvider needs', () => {
 });
 
 describe('hook preconditions', () => {
+  it('keeps fallback kits stable per consumer without sharing failed component state', () => {
+    const first = renderHook(() => publicApi.useKit({}));
+    const second = renderHook(() => publicApi.useKit({}));
+    const kit = first.result.current.kit;
+    kit.failed.add('Button');
+    first.rerender();
+    expect(first.result.current.kit).toBe(kit);
+    expect(second.result.current.kit.failed.has('Button')).toBe(false);
+  });
+
   it('useToast and a service-less ToastRegion require a provider or an injected service', () => {
     expect(() => renderHook(() => useToast())).toThrow('useToast requires a KitProvider or an injected toast service');
     expect(() => renderHook(() => useToastRegion({}))).toThrow('ToastRegion requires a KitProvider or a service');

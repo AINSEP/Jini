@@ -441,6 +441,9 @@ importers:
       '@jini-ai/ui':
         specifier: workspace:^
         version: link:../ui
+      '@jini-ai/ui-kit':
+        specifier: workspace:^
+        version: link:../ui-kit
       '@mcp-ui/client':
         specifier: 7.1.1
         version: 7.1.1(@cfworker/json-schema@4.1.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)

@@ -8,13 +8,13 @@ import { kitSpec, type ImplementedComponentName } from '../kit-contract.js';
 import type { KitContextValue, KitProviderProps, ReactKitProps, ToastProps } from './types.js';
 import { createToastService } from '../toast.js';
 import { useControlAttrs } from './agent-attrs.hooks.js';
-let defaultValue: KitContextValue | undefined;
-function getDefault() {
-  defaultValue ??= { kit: createKit({}), agent: undefined, overlayContainer: null, toast: undefined, cancelLabel: 'Cancel', guard: 'fallback' };
-  return defaultValue;
-}
+/** Keep fallback guard failures local to this mounted consumer, like provider-owned kits. */
 export function useKit(_required: Record<string, never> = {}, _optional: Record<string, never> = {}): KitContextValue {
-  return useKitContext({}) ?? getDefault();
+  const context = useKitContext({});
+  const fallback = useRef<KitContextValue | undefined>(undefined);
+  if (context) return context;
+  fallback.current ??= { kit: createKit({}), agent: undefined, overlayContainer: null, toast: undefined, cancelLabel: 'Cancel', guard: 'fallback' };
+  return fallback.current;
 }
 export function useKitProvider(required: KitProviderProps, _optional: Record<string, never> = {}) {
   const fallback = useMemo(() => createKit({}), []);
@@ -60,7 +60,7 @@ export function useKitComponent<K extends ImplementedComponentName>(required: { 
   const context = useKit({});
   return context.kit.components[required.name];
 }
-const facadeRoles = new Map<string, 'button' | 'field' | 'select'>([
+const facadeRoles: ReadonlyMap<string, 'button' | 'field' | 'select'> = new Map([
   ['Button', 'button'], ['IconButton', 'button'], ['TextField', 'field'], ['TextArea', 'field'],
   ['Select', 'field'],
 ]);

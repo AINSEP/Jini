@@ -28,3 +28,9 @@ it('ignores generated provider payloads while keeping authored provider source c
   });
   expect(result.messages.some(message => message.ruleId?.startsWith('sonarjs/'))).toBe(true);
 });
+
+it('lints authored coverage tooling while excluding generated coverage reports', async () => {
+  const eslint = new ESLint({ cwd: fileURLToPath(new URL('../../', import.meta.url)) });
+  expect(await eslint.isPathIgnored('packages/devops/src/checks/coverage/lcov.ts')).toBe(false);
+  expect(await eslint.isPathIgnored('packages/devops/coverage/report.ts')).toBe(true);
+});

@@ -47,12 +47,94 @@ test('parses CRLF LCOV, ignores header-only blocks, and defaults absent counters
   expect(pct({ hit: 0, found: 0 })).toBe(100);
 });
 
-test('coverage image merge keeps the best full image rather than adding hit counts', () => {
+test('summary-only duplicates are refused because overlapping hits cannot be reconstructed', () => {
   const first = rec({ lh: 4, brh: 30 });
   const second = rec({ lh: 9, brh: 50 });
   const reports = [[first, rec({ file: 'external/ignored.ts' })], [second]];
-  expect([...mergeCoverage({ reports, isMeasurable: measurable }).values()]).toEqual([second]);
+  expect(() => mergeCoverage({ reports, isMeasurable: measurable })).toThrow(/without LCOV entries/);
+  expect([...mergeCoverage({ reports: [reports[0]!], isMeasurable: measurable }).values()]).toEqual([first]);
   expect(first.lh).toBe(4);
+});
+
+function detailedReport(lineHits: readonly number[], branchHits: readonly string[], functionHits: readonly number[]): FileCoverage[] {
+  const text = [
+    'SF:services/api/routes/example.ts',
+    ...lineHits.map((hit, index) => `DA:${index + 1},${hit}`),
+    ...branchHits.map((hit, index) => `BRDA:5,0,${index},${hit}`),
+    'FN:1,first', 'FN:2,second',
+    ...functionHits.map((hit, index) => `FNDA:${hit},${index === 0 ? 'first' : 'second'}`),
+    `LF:${lineHits.length}`, `LH:${lineHits.filter((hit) => hit > 0).length}`,
+    `BRF:${branchHits.length}`, `BRH:${branchHits.filter((hit) => Number(hit) > 0).length}`,
+    'FNF:2', `FNH:${functionHits.filter((hit) => hit > 0).length}`, 'end_of_record',
+  ].join('\n');
+  return parseLcov({ text, repoRoot: '/repo' });
+}
+
+test('unions complementary hits by identity across all axes without double counting duplicate reports', () => {
+  const first = detailedReport([1, 0, 0], ['1', '-'], [1, 0]);
+  const second = detailedReport([0, 2, 1], ['0', '2'], [0, 2]);
+  const merged = mergeCoverage({ reports: [first, second, first], isMeasurable: measurable });
+  expect(merged.get(rec().file)).toMatchObject({ lf: 3, lh: 3, brf: 2, brh: 2, fnf: 2, fnh: 2 });
+  expect([...mergeCoverage({ reports: [second, first], isMeasurable: measurable }).values()]).toEqual([...merged.values()]);
+  expect(first[0]).toMatchObject({ lh: 1, brh: 1, fnh: 1 });
+});
+
+test('refuses incompatible instrumentation instead of merging different source layouts', () => {
+  const first = detailedReport([1, 0], ['1', '0'], [1, 0]);
+  const second = detailedReport([0, 1, 1], ['0', '1'], [0, 1]);
+  expect(() => mergeCoverage({ reports: [first, second], isMeasurable: measurable })).toThrow(/incompatible.*line/i);
+});
+
+test('refuses changed branch identities even when summary totals match', () => {
+  const first = detailedReport([1, 0], ['1', '0'], [1, 0]);
+  const second = detailedReport([0, 1], ['0', '1'], [0, 1]);
+  const text = 'SF:services/api/routes/example.ts\nDA:1,0\nDA:2,1\nBRDA:5,0,0,0\nBRDA:5,1,1,1\nFN:1,repeated\nFN:2,repeated\nFNDA:0,repeated\nFNDA:1,repeated\nLF:2\nLH:1\nBRF:2\nBRH:1\nFNF:2\nFNH:1\nend_of_record\n';
+  expect(() => mergeCoverage({ reports: [first, parseLcov({ text, repoRoot: '/repo' })], isMeasurable: measurable })).toThrow(/incompatible branch/i);
+  expect(mergeCoverage({ reports: [first, second], isMeasurable: measurable }).get(rec().file)).toMatchObject({ lh: 2, brh: 2, fnh: 2 });
+});
+
+test('branchless functionless records union their line hits without inventing other entries', () => {
+  const parse = (hits: string) => parseLcov({ text: `SF:${rec().file}\n${hits}\nLF:2\nLH:1\nend_of_record\n`, repoRoot: '/repo' });
+  expect(mergeCoverage({ reports: [parse('DA:1,1\nDA:2,0'), parse('DA:1,0\nDA:2,1')], isMeasurable: measurable }).get(rec().file))
+    .toMatchObject({ lf: 2, lh: 2, brf: 0, brh: 0, fnf: 0, fnh: 0 });
+});
+
+test('unions LCOV function declarations with an optional end line', () => {
+  const text = `SF:${rec().file}\nDA:1,1\nFN:1,2,task\nFNDA:1,task\nLF:1\nLH:1\nFNF:1\nFNH:1\nend_of_record\n`;
+  const report = parseLcov({ text, repoRoot: '/repo' });
+  expect(mergeCoverage({ reports: [report, report], isMeasurable: measurable }).get(rec().file)).toMatchObject({ lf: 1, lh: 1, fnf: 1, fnh: 1 });
+});
+
+function functionReport(declarations: readonly string[], hits: readonly string[]): FileCoverage[] {
+  return parseLcov({ text: [`SF:${rec().file}`, 'DA:1,1', ...declarations, ...hits, 'LF:1', 'LH:1', 'FNF:2', 'FNH:1', 'end_of_record'].join('\n'), repoRoot: '/repo' });
+}
+
+test.each(['FN:5,6,second', 'FN:3,5,second'])('refuses different declaration spans with the same function names and totals: %s', (declaration) => {
+  const first = functionReport(['FN:1,2,first', 'FN:3,4,second'], ['FNDA:1,first', 'FNDA:0,second']);
+  const second = functionReport(['FN:1,2,first', declaration], ['FNDA:0,first', 'FNDA:1,second']);
+  expect(() => mergeCoverage({ reports: [first, second], isMeasurable: measurable })).toThrow(/incompatible function/i);
+});
+
+test('refuses ambiguous duplicate names whose FNDA counts cannot identify declaration locations', () => {
+  const first = functionReport(['FN:1,repeated', 'FN:2,repeated'], ['FNDA:1,repeated', 'FNDA:0,repeated']);
+  const second = functionReport(['FN:1,repeated', 'FN:3,repeated'], ['FNDA:0,repeated', 'FNDA:1,repeated']);
+  expect(() => mergeCoverage({ reports: [first, second], isMeasurable: measurable })).toThrow(/unambiguous.*declarations/i);
+  expect(first[0]).toMatchObject({ fnf: 2, fnh: 1 });
+});
+
+test('matches named declaration spans independently of FN and FNDA ordering', () => {
+  const first = functionReport(['FN:1,2,first', 'FN:3,4,second'], ['FNDA:1,first', 'FNDA:0,second']);
+  const second = functionReport(['FN:3,4,second', 'FN:1,2,first'], ['FNDA:1,second', 'FNDA:0,first']);
+  expect(mergeCoverage({ reports: [first, second], isMeasurable: measurable }).get(rec().file)).toMatchObject({ fnf: 2, fnh: 2 });
+});
+
+test.each([
+  ['FNDA:1,unknown'],
+  ['FNDA:1,first', 'FNDA:0,first'],
+])('retains summaries but refuses counts without an unambiguous declaration match: %j', (...hits) => {
+  const report = functionReport(['FN:1,first', 'FN:2,second'], hits);
+  expect(report[0]).toMatchObject({ fnf: 2, fnh: 1 });
+  expect(() => mergeCoverage({ reports: [report, report], isMeasurable: measurable })).toThrow(/unambiguous.*declarations/i);
 });
 
 test.each<[FileCoverage | undefined, FileCoverage | undefined, boolean, number, number]>([

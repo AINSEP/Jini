@@ -9,6 +9,8 @@ export default [
       '**/dist/**',
       '**/build/**',
       '**/coverage/**',
+      // Coverage parsers/checkers are authored source; only report output is generated.
+      '!packages/devops/src/checks/coverage/**',
       'foundry/**',
       'AI-Dev-Shop/**',
       // Generated plugin payloads carry upstream directives; authored src stays checked.

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
 import type { ToolExecutionContext } from '@jini-ai/core';
-import { readDocumentText, DOCUMENT_TEXT_PAGE_BYTES } from '../../document-read.js';
+import { readDocumentText, createDocumentTextReader, DOCUMENT_TEXT_PAGE_BYTES } from '../../document-read.js';
 import { DOCUMENT_EXTRACTION_LIMITS, DocumentTextExtractionError, type DocumentTextExtractorPort } from '../../document-text.js';
 import { buildMediaRegistrations } from '../../tool-registrations.js';
 import { uploadMedia } from '../../media-service.js';
@@ -100,4 +100,30 @@ test('PDF needs a configured adapter and actual source size is checked before ex
   f.deps.blobStore.get = async () => new Uint8Array(MAX_DOCUMENT_BYTES + 1);
   await assert.rejects(readDocumentText(f), MediaValidationError);
   assert.equal(calls, 0);
+});
+
+
+test('reader admission is instance-owned while the default reader retains its two-read cap', async () => {
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const extractor = { contentType: 'application/pdf', async extract() { await held; return { text: 'ready', truncated: false }; } };
+  const f = await fixture([extractor]);
+  const readIndependent = createDocumentTextReader({});
+  const first = readDocumentText(f);
+  const second = readDocumentText(f);
+  const independent = readIndependent(f);
+  try {
+    await assert.rejects(readDocumentText(f), /Two documents are already reading/);
+  } finally { release(); }
+  assert.deepEqual((await Promise.all([first, second, independent])).map(page => page.text), ['ready', 'ready', 'ready']);
+  assert.equal((await readDocumentText(f)).text, 'ready');
+});
+
+test('reader releases its admission slot when extraction fails', async () => {
+  const read = createDocumentTextReader({});
+  const failure = new Error('extraction failed');
+  const f = await fixture([{ contentType: 'application/pdf', async extract() { throw failure; } }]);
+  for (let attempt = 0; attempt < 3; attempt++) await assert.rejects(read(f), error => error === failure);
+  const ready = await fixture([{ contentType: 'application/pdf', async extract() { return { text: 'ready', truncated: false }; } }]);
+  assert.equal((await read(ready)).text, 'ready');
 });

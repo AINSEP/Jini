@@ -2,7 +2,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { createDomPageDriver } from '@jini-ai/agentic/dom';
 // Exercise the existing shared overlay context without adding a chat runtime dependency.
-import { KitProvider } from '../../../../../../../ui-kit/dist/react/index.js';
+import { KitProvider } from '@jini-ai/ui-kit/react';
 import { AgentRuntimePicker } from '../../components/AgentRuntimePicker.js';
 import type { ChatPaneAgent } from '../../types.js';
 
