@@ -33,4 +33,15 @@ describe('portable manifest metadata', () => {
     const parsed = parseAgentPluginMcpConfig({ value: mcp({ tovuAuthMode: 'oauth', tovuDefaultTools: { allow: ['inspect'], read: ['inspect'] } }) });
     expect(parsed).toMatchObject({ ok: true, config: { servers: { remote: { authMode: 'oauth', defaultTools: { allow: ['inspect'], read: [], write: [] } } } }, warnings: [expect.stringContaining('2027-05-06')] });
   });
+  test('null legacy aliases preserve inline sign-in fallback while canonical null remains invalid', () => {
+    const tokenAuth = { helpUrl: 'https://example.test/token', probeUrl: 'https://example.test/probe' };
+    const renamedTools = { old_inspect: 'inspect' };
+    const value = mcp({ tovuAuthMode: 'oauth', tovuDefaultTools: { allow: ['inspect'], read: ['inspect'] }, tovuTokenAuth: tokenAuth, tovuRenamedTools: renamedTools });
+    const legacy = parseAgentPluginMcpConfig({ value }, { pluginManifest: plugin({ mcpServers: { remote: { tovuAuthMode: null, tovuDefaultTools: null } } }, 'tovu') });
+    expect(legacy).toMatchObject({ ok: true, config: { servers: { remote: { authMode: 'oauth', defaultTools: { allow: ['inspect'], read: [], write: [] }, tokenAuth, renamedTools } } } });
+    for (const field of ['authMode', 'defaultTools']) {
+      const canonical = parseAgentPluginMcpConfig({ value }, { pluginManifest: plugin({ mcpServers: { remote: { [field]: null } } }) });
+      expect(canonical).toMatchObject({ ok: true, config: { servers: {} } });
+    }
+  });
 });

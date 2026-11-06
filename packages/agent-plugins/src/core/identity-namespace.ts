@@ -72,7 +72,8 @@ export function readCompatibleAgentPluginServerMetadata(
 ): Readonly<Record<string, unknown>> {
   return Object.fromEntries(['authMode', 'defaultTools', 'tokenAuth', 'renamedTools'].map(key => {
     const legacyKey = `tovu${key[0]!.toUpperCase()}${key.slice(1)}`;
-    const declared = value[key] !== undefined ? value[key] : value[legacyKey];
+    // Legacy adapters treated null aliases as absent; canonical null stays malformed.
+    const declared = value[key] !== undefined ? value[key] : value[legacyKey] ?? undefined;
     const inline = server[key] !== undefined ? server[key] : server[legacyKey];
     return [key, declared !== undefined ? declared : inlineMetadata({ key, value: inline })];
   }));
