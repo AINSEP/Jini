@@ -435,14 +435,6 @@ export const CHAT_PANE_STYLES = `
   gap: 10px;
 }
 .jini-chat-pane__status--dismissible > button { flex: none; }
-.jini-message-user__queued {
-  width: fit-content;
-  max-width: 88%;
-  margin: 0 0 4px auto;
-  color: var(--jini-chat-muted);
-  font-size: 12px;
-  text-align: right;
-}
 .jini-chat-pane__drop-target {
   position: relative;
   margin: -8px -8px -8px;

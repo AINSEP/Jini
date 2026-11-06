@@ -55,8 +55,8 @@ function MidRunInput({ input, queued, transcriptRow }: { input: AcceptedChatInpu
   const gallery = useAttachmentGallery({ attachments });
   return (
     <div className={`jini-message jini-message-user${transcriptRow ? '' : ' jini-message-user--mid-run'}`} data-agent-role="region" data-agent-label="A message from the user, sent while the agent was working">
-      {/* Was the boxed slow-run status pill (owner 11-04). It is a note on this bubble, so it now sits quietly over it. */}
-      {queued && <div className="jini-message-user__queued" role="status">{t('Queued — read after the current step')}</div>}
+      {/* Same notice pill as the slow-run "Still working" status (owner 11-04), so system notes read alike. */}
+      {queued && <div className="jini-chat-pane__status jini-message-user__queued" role="status">{t('Queued — read after the current step')}</div>}
       {input.folders?.length ? <div className="jini-message-attachments"><FolderChips folders={input.folders} /></div> : null}
       <div className="jini-message-content">{input.text}</div>
       {attachments.length > 0 && <div className="jini-message-attachments">

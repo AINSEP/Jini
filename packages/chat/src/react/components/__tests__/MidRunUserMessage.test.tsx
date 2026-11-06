@@ -2,7 +2,6 @@ import { fireEvent, render, screen, within } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { ChatMessage } from '../../../core/index.js';
 import { assistantContentFromEvents } from '../../../core/index.js';
-import { CHAT_PANE_STYLES } from '../../features/chat-pane/styles.js';
 import { clearExtEventRenderers } from '../../ext-event-renderer-registry.js';
 import { MessageRow } from '../MessageRow.js';
 import { MID_RUN_USER_MESSAGE_EXT_EVENT_NAME, registerMidRunUserMessageRenderer } from '../MidRunUserMessage.js';
@@ -74,19 +73,6 @@ describe('registerMidRunUserMessageRenderer', () => {
       expect(bubble.parentElement?.closest('.jini-message-assistant')).toBeNull();
       expect(within(bubble).getByRole('button', { name: 'Copy message' })).toBeInTheDocument();
     }
-  });
-
-  it('gives the queued label its own quiet style, right-aligned over the bubble, not the status box', () => {
-    const message: ChatMessage = { id: 'a', role: 'assistant', content: '', runStatus: 'running', events: [
-      { kind: 'ext', name: 'user_message', data: { id: 'relay', text: 'follow up', deliveryState: 'queued' } },
-    ] };
-    render(<MessageRow message={message} runStreaming />);
-    const label = screen.getByText('Queued — read after the current step');
-    expect(label).toHaveClass('jini-message-user__queued');
-    expect(label).not.toHaveClass('jini-chat-pane__status');
-    const rule = CHAT_PANE_STYLES.match(/\.jini-message-user__queued \{([^}]*)\}/)?.[1] ?? '';
-    expect(rule).toContain('color: var(--jini-chat-muted)');
-    expect(rule).toContain('margin: 0 0 4px auto');
   });
 
   it.each([false, true])('labels queued relay inputs until their consumption receipt, with renderer registered: %s', registered => {
