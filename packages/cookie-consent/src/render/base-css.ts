@@ -29,6 +29,7 @@ export const BASE_CSS = `
 #jini-consent:where([data-placement="top-bar"]){inset:1rem 1rem auto}
 .jini-consent-reopen{display:none;position:fixed;left:1rem;bottom:1rem;z-index:2147483646;padding:.5rem 1rem;border:1px solid var(--jini-border,#0002);border-radius:999px;background:var(--jini-surface,Canvas);color:var(--jini-text,CanvasText);font-size:12.5px;box-shadow:0 1px 2px #0000000f,0 8px 20px #0000001f}
 html[data-consent="set"]:not([data-consent-open]) .jini-consent-reopen{display:inline-flex}
+.jini-consent-settings{display:inline-block;margin:1rem;padding:.5rem .75rem;color:var(--jini-text,var(--fg,CanvasText));background:var(--jini-surface,var(--bg,Canvas));border:1px solid var(--jini-border,var(--border,currentColor));border-radius:var(--jini-radius,.5rem);font:inherit;text-decoration:underline}.jini-consent-settings:focus-visible{outline:2px solid currentColor;outline-offset:2px}
 @media(max-width:640px){.jini-consent{inset:auto 0 0;padding:12px 16px calc(12px + env(safe-area-inset-bottom,0px));border-radius:var(--consent-radius) var(--consent-radius) 0 0}}
 @media(prefers-reduced-motion:reduce){.jini-consent,.jini-consent *{transition:none!important;animation:none!important}}
 `;
