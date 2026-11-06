@@ -41,3 +41,7 @@ FINDING: composition lint remains above the ceiling: createRouteDeps11 and creat
 FINDING: checkpoint secret scans flag only the public RFC6238 synthetic TOTP vector: Jini1 detection and Tovu3 historical detections. No allowlist/rule changes. Final range scan pending final report.
 
 No full suites, publication, tags, deployment or main push. The test-created Tovu form-protection marker was removed; pre-existing Jini plugin payload leftovers remain untouched.
+
+## Final-check checkpoint — in progress
+
+All Jini and Tovu typechecks PASS. Catalog retry PASS61/61, including the unchanged five-second tarball assertion in683ms, using offline npm and one worker after compiler load subsided. Together with inventory14 and selected conflict/integration69, there are144 distinct passing tests. The original timeout is retained in the log; no timeout, rule or assertion changed. Source plugin guard PASS. Only the serial packed plugin guard remains active. Source-range secret scans still report only the same public RFC synthetic vector (Jini1, Tovu3 historical detections), unsuppressed.
