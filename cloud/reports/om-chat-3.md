@@ -20,3 +20,11 @@ HTTP injection supports an explicit required policy; absence retains the prior p
 BUG: existing http-mcp-launch.integration.test.ts has 4 failures due to personal-MCP native access policy in its fixture; baseline comparison pending.
 - Existing runtime `detection.test.ts`: 47 passed; runtime typecheck and detection complexity passed.
 Initial full build overlapped newly authored tests, so it is not valid unchanged-tree baseline evidence. Focused builds/checks replace that evidence.
+
+Checkpoint: 2fb58885920c14a1c049fa40f41b3eb21cf5f696 pushed to Jini cloud/om-chat-3.
+Exact launch effort validation now shares the picker's existing pure model/effort rules. Codex argv forwards explicit effort without historical model-prefix clamping; the legacy helper remains available for API compatibility.
+- `pnpm exec vitest run src/defs/__tests__/codex.test.ts src/__tests__/model-discovery-policy.test.ts` (packages/agent-runtime): red 2 failures.
+- `pnpm exec vitest run src/defs/__tests__/codex.test.ts src/defs/__tests__/shared.test.ts src/__tests__/models.test.ts src/__tests__/model-discovery-policy.test.ts` (packages/agent-runtime): 228 passed.
+- Updated runtime, daemon and MCP builds passed after correcting exact-optional-property typing in the new test/API.
+
+Parser bounds: physical JSON lines retain at most 8 Mi UTF-16 code units; overflow is explicit and discards through newline. ACP multiline limits are checked before parse and report errors to transport failure paths. Existing parser/protocol tests plus new overflow cases: 797 passed across 9 files. Strict parser complexity lint passed.

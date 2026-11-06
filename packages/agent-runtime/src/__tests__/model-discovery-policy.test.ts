@@ -666,3 +666,16 @@ describe('resolveModelForLaunch', () => {
       .rejects.toThrow('The configured selection has no concrete model evidence.');
   });
 });
+
+
+describe('launch effort uses exact selection validation', () => {
+  const def = { id: 'fixture', fallbackModels: [{ id: 'chosen', label: 'Chosen', reasoning: [{ id: 'high', label: 'High' }] }] };
+  it('refuses unsupported explicit effort with current choices instead of substituting', async () => {
+    await expect(resolveModelForLaunch({ def, context: { ...context, model: 'chosen' }, effort: 'minimal', deps: hostDeps() }))
+      .rejects.toThrow('Available effort levels: high');
+  });
+  it('retains the chosen model and advertised effort, leaving omission to the runtime', async () => {
+    expect((await resolveModelForLaunch({ def, context: { ...context, model: 'chosen' }, effort: 'high', deps: hostDeps() })).model).toBe('chosen');
+    expect((await resolveModelForLaunch({ def, context: { ...context, model: 'chosen' }, deps: hostDeps() })).model).toBe('chosen');
+  });
+});

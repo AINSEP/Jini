@@ -1203,11 +1203,11 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     if (!input.cliParity) {
       try {
         const selectModel = options.resolveModelForLaunch ?? ((input: Parameters<typeof resolveModelForLaunch>[0]) => resolveModelForLaunch(input, options.runtimeState ? { deps: getRuntimeModelDiscoveryDeps({ state: options.runtimeState }) } : {}));
-        const selection = await selectModel({ def, context: launchModelContext({ input, launch, spawnEnv }, {}) });
+        const selection = await selectModel({ def, context: launchModelContext({ input, launch, spawnEnv }, {}), effort: input.reasoning });
         input.model = selection.model;
         modelCatalog = selection.catalog;
-      } catch {
-        return failBeforeSpawn({ runId: input.runId, code: 'AGENT_MODEL_UNRESOLVED', message: 'AgentExecutor: pick a concrete model; the starting model could not be resolved for this launch.' });
+      } catch (error) {
+        return failBeforeSpawn({ runId: input.runId, code: 'AGENT_MODEL_UNRESOLVED', message: `AgentExecutor: the selected model or effort could not be used for this launch. ${errorMessage(error)}` });
       }
     }
     return modelCatalog;

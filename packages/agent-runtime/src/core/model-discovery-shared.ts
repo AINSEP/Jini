@@ -1,5 +1,5 @@
 /** Shared discovery normalization and timeout/error contracts; no native adapters. */
-import type { RuntimeModelOption, RuntimeReasoningOption } from '../types.js';
+import type { DetectedAgent, RuntimeModelOption, RuntimeReasoningOption } from '../types.js';
 import type { DiscoveredModel, ModelCatalogSnapshot } from '../model-discovery-types.js';
 
 export function modelIdentityKind(id: string): DiscoveredModel['identityKind'] {
@@ -98,3 +98,26 @@ export async function withModelProbeTimeout<T>(work: (signal: AbortSignal) => Pr
 export class ModelProbeError extends Error {
   constructor(readonly code: ModelCatalogSnapshot['diagnostics'][number]['code']) { super(code); }
 }
+
+/** The concrete id a pick launches: the explicit model, else the resolved default (if any). */
+function selectedModelId({ agent, modelId }: { agent: Pick<DetectedAgent, 'models' | 'reasoningOptions' | 'reasoningInModelId' | 'defaultModelResolution'>; modelId?: string | undefined }): string | undefined {
+  if (modelId && modelId !== 'default') return modelId;
+  const resolution = agent.defaultModelResolution;
+  return resolution?.status === 'resolved' ? resolution.id : undefined;
+}
+
+/** Refusal for an unknown model, or an effort the selected model does not offer. */
+export function validateRuntimeModelSelection({ agent, agentId, modelId, effort }: { agent: Pick<DetectedAgent, 'models' | 'reasoningOptions' | 'reasoningInModelId' | 'defaultModelResolution'>; agentId: string; modelId?: string | undefined; effort?: string | undefined }, _options = {}): string | null {
+  const choices = concreteModelOptions(agent);
+  const resolvedId = selectedModelId({ agent, modelId });
+  const model = choices.find(candidate => candidate.id === resolvedId);
+  if (modelId && modelId !== 'default' && !model) return `Unknown model '${modelId}' for '${agentId}'. Available models: ${choices.map(candidate => candidate.id).join(', ')}.`;
+  if (!effort) return null;
+  // Default must resolve before checking model-specific effort; agent-wide levels can differ.
+  if (!model) return `Default model for '${agentId}' is unresolved. Pick a concrete model before choosing effort.`;
+  // Suffix-based runtimes own effort in the model id; a second effort setting would disagree.
+  const levels = modelReasoningOptions({ agent, model });
+  if (!levels.some(candidate => candidate.id === effort)) return `Unknown effort '${effort}' for '${agentId}'. Available effort levels: ${levels.map(candidate => candidate.id).join(', ')} (empty means Default).`;
+  return null;
+}
+
