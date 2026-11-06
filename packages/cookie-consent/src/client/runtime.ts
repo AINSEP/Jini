@@ -20,15 +20,12 @@ type Run = { ctl: AbortController; result: Promise<Revoker | null> };
 type Slot = { entry: AdapterContribution; generation: number; adapter?: ConsentAdapter | undefined; run?: Run | undefined };
 const within = (p: Promise<unknown>, ms: number) => Promise.race([p, new Promise(r => setTimeout(r, ms))]);
 const quiet = (fn: () => void) => { try { fn(); } catch { /* a broken plugin or listener never blocks consent */ } };
-const durableEvidence = (evidence?: Evidence) => evidence?.mode === 'durable' ? evidence : null;
-const sameChoice = ({ latest, stored }: { latest: StoredChoice | null; stored: StoredChoice | null }) =>
-  (['t', 'a', 'r'] as const).every(key => latest?.[key] === stored?.[key]);
 
 /** @example createCookieConsent({ config, ports: browserPorts(window) }, { evidence: { mode: 'local' } }) */
 export function createCookieConsent({ config, ports }: { config: ClientConfig; ports: ClientPorts }, options: ClientOptions = {}): JiniConsentApi {
   const { doc } = ports;
   const plugins = options.plugins ?? createPluginRegistry({}, { slots: [ADAPTER_SLOT] });
-  const durable = durableEvidence(options.evidence);
+  const durable = options.evidence?.mode === 'durable' ? options.evidence : null;
   const slots = new Map<string, Slot>();
   const listeners = new Set<(s: ConsentState) => void>();
   const ran = new Set<Optional>();                                    // categories whose raw inert tags executed
@@ -151,7 +148,7 @@ export function createCookieConsent({ config, ports }: { config: ClientConfig; p
     const latest = fromCookie();
     // A refused cookie write leaves only this tab's choice; absence cannot supersede it.
     if (!latest && !cookiePersisted) return false;
-    if (sameChoice({ latest, stored })) return false;
+    if ((['t', 'a', 'r'] as const).every(key => latest?.[key] === stored?.[key])) return false;
     stored = latest;
     apply();
     return true;
@@ -226,7 +223,8 @@ export async function bootWithContext({ win }: { win: Window & typeof globalThis
   if (!page.context) return boot(win, options);
   const ports = options.ports ?? browserPorts(win);
   try {
-    const context = await fetchContext({ ports, url: page.context });
+    const response = await ports.fetch(page.context, { credentials: 'same-origin', cache: 'no-store' });
+    const context: unknown = response.ok ? await response.json() : null;
     if (!validContext(context)) return undefined;
     // Cached copy/CSS must describe the policy being accepted; revalidation fetches the current document.
     if (context.policy !== page.policy) { reloadStalePage({ win, policy: page.policy, reload: ports.reload }); return undefined; }
@@ -243,11 +241,6 @@ function reloadStalePage({ win, policy, reload }: { win: Window; policy: string;
     win.sessionStorage.setItem(key, '1');
     reload();
   } catch { /* Storage unavailable: keep this stale policy inert. */ }
-}
-
-async function fetchContext({ ports, url }: { ports: ClientPorts; url: string }): Promise<unknown> {
-  const response = await ports.fetch(url, { credentials: 'same-origin', cache: 'no-store' });
-  return response.ok ? response.json() : null;
 }
 
 function validContext(value: unknown): value is { enabled: true; policy: string; regionMode: 'auto' | 'opt-in' | 'opt-out' } {
