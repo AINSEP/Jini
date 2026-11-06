@@ -1486,13 +1486,6 @@
       "fingerprint": "ee655aa989214a6ab5dcc458233efaf5ab3faee9ea7d5fb849a4c5deeaabf702"
     },
     {
-      "rule": "HW3-module-state",
-      "file": "packages/ui-kit/src/react/Kit.hooks.ts",
-      "line": 11,
-      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
-      "fingerprint": "b5bd866e65a9f2fc2d6a398642b8c5b6cf14df5df507ba60b65646235cf2750f"
-    },
-    {
       "rule": "HW1-env-default",
       "file": "packages/ui-kit/src/react/context.ts",
       "line": 8,

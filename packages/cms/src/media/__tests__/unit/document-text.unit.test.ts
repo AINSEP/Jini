@@ -118,3 +118,12 @@ test('reader admission is instance-owned while the default reader retains its tw
   assert.deepEqual((await Promise.all([first, second, independent])).map(page => page.text), ['ready', 'ready', 'ready']);
   assert.equal((await readDocumentText(f)).text, 'ready');
 });
+
+test('reader releases its admission slot when extraction fails', async () => {
+  const read = createDocumentTextReader({});
+  const failure = new Error('extraction failed');
+  const f = await fixture([{ contentType: 'application/pdf', async extract() { throw failure; } }]);
+  for (let attempt = 0; attempt < 3; attempt++) await assert.rejects(read(f), error => error === failure);
+  const ready = await fixture([{ contentType: 'application/pdf', async extract() { return { text: 'ready', truncated: false }; } }]);
+  assert.equal((await read(ready)).text, 'ready');
+});

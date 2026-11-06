@@ -1,5 +1,5 @@
 import type { AssetBlobRepoPort, BlobStorePort, MediaRepoPort } from './ports.js';
-import { MediaNotFoundError, MediaValidationError } from './types.js';
+import { MediaNotFoundError, MediaValidationError, type MediaRecord } from './types.js';
 import { decodeDocumentUtf8, documentContentType, DOCUMENT_CONTENT_TYPES, MAX_DOCUMENT_BYTES } from './document-ingress.js';
 
 import { DOCUMENT_EXTRACTION_LIMITS, DocumentTextExtractionError, type DocumentTextExtractorPort } from './document-text.js';
@@ -19,10 +19,14 @@ export async function isDocumentOnlyBlob(required: {
   let document = false;
   for (const row of rows) {
     if (row.source.sha256 !== required.input.sha256) continue;
-    if (row.kind !== 'document' && !row.source.private && row.status === 'active') return false;
+    if (liveOrdinaryMedia(row)) return false;
     if (row.kind === 'document' || row.source.private) document = true;
   }
   return document || (await required.deps.blobRepo.findByHash(required.input))?.documentOwned === true;
+}
+
+function liveOrdinaryMedia(row: MediaRecord): boolean {
+  return row.kind !== 'document' && !row.source.private && row.status === 'active';
 }
 
 type DocumentReadDeps = { mediaRepo: MediaRepoPort; blobRepo: AssetBlobRepoPort; blobStore: BlobStorePort; documentTextExtractors?: readonly DocumentTextExtractorPort[] | undefined };

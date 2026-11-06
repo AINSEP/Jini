@@ -119,6 +119,10 @@ function isReviewedLeaf({ owner, target, sourcePath, spec }: LayerEdge): boolean
       : spec === edge.spec && sourcePath === edge.sourcePath));
 }
 
+function optionalPeer(pkg: SourcePackage, name: string): boolean {
+  return pkg.manifest.peerDependenciesMeta?.[name]?.optional === true;
+}
+
 /** These peer declarations serve packaged .mjs leaves, never the L4 TypeScript runtime:
  * Cloudflare forms reads CMS evidence; core/commerce-server re-exports its opt-in host owner.
  * Keep direct dependencies and all upward src imports subject to the normal layer rule. */
@@ -127,7 +131,7 @@ function isPayloadPeerDeclaration({ pkg, owner, target, sourcePath, declaredPeer
   if (!['cms', 'commerce'].includes(target)) return false;
   const manifest = pkg.manifest as { jini?: { kind?: string; optionalPeers?: Record<string, string> }; peerDependenciesMeta?: Record<string, { optional?: boolean }> };
   const name = `@jini-ai/${target}`;
-  return manifest.jini?.kind === 'plugin-packaging' && manifest.peerDependenciesMeta?.[name]?.optional === true
+  return manifest.jini?.kind === 'plugin-packaging' && optionalPeer(pkg, name)
     && Boolean(manifest.jini.optionalPeers?.[name]);
 }
 
