@@ -1,5 +1,5 @@
 import { test, expect } from 'vitest';
-import { createFormCollectionRegistry, resolveFormCollectionPlan } from '../provider.js';
+import { createFormCollectionRegistry, resolveFormCollectionPlan, describeFormCollectionProviders } from '../provider.js';
 import { encodeFormFields, decodeFormFields } from '../fields-json.js';
 
 
@@ -60,4 +60,30 @@ test('widget resolves the plan from the host registry and reports inactive provi
   expect(result).toMatchObject({ ok: true, ir: { props: { collectionPlan: external } } });
   const absent = (await createContactFormResolver(deps).resolveMany([instance], context)).get('widget');
   expect(absent).toMatchObject({ ok: true, ir: { props: { collectionPlan: { kind: 'unavailable' } } } });
+});
+
+
+test('provider descriptions discover arbitrary registrations and isolate registries', () => {
+  const providers = createFormCollectionRegistry({});
+  const description = { label: 'Fourth collector', fields: [{ key: 'publicUrl', label: 'Public address', type: 'url' as const }], answers: 'Remote inbox', validation: 'Remote validation', frameOrigins: ['https://collector.example'] };
+  for (const id of ['second', 'third', 'fourth']) {
+    providers.contribute({ pluginId: id, definition: { id, provider: { describe: () => description, plan: () => external } } });
+  }
+  const descriptions = describeFormCollectionProviders({ providers });
+  expect(descriptions.map(item => item.id)).toEqual(['builtin', 'second', 'third', 'fourth']);
+  expect(descriptions[0]).toMatchObject({ id: 'builtin', label: 'Built-in', fields: [], available: true });
+  expect(descriptions[3]).toEqual({ ...description, id: 'fourth', available: true });
+  expect(describeFormCollectionProviders({ providers: createFormCollectionRegistry({}) })).toHaveLength(1);
+});
+
+test('missing, throwing and malformed settings stay unavailable without changing the selected destination', () => {
+  const providers = createFormCollectionRegistry({});
+  for (const [id, describe] of [
+    ['missing', undefined], ['throwing', () => { throw new Error('plugin failed'); }],
+    ['malformed', () => ({ label: 'Broken', fields: null })],
+  ] as const) {
+    providers.contribute({ pluginId: id, definition: { id, label: id, provider: { plan: () => external, ...(describe ? { describe: describe as never } : {}) } } });
+  }
+  expect(describeFormCollectionProviders({ providers }).slice(1)).toEqual(['missing', 'throwing', 'malformed'].map(id => expect.objectContaining({ id, label: id, available: false, fields: [], message: expect.stringContaining('settings are unavailable') })));
+  expect(resolveFormCollectionPlan({ definition: { slug: 'contact', provider: { id: 'missing', config: {} } }, providers })).toEqual(external);
 });

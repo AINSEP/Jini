@@ -5,7 +5,12 @@ import type { FormCollectionProvider, FormCollectionPlan } from '@jini-ai/cms/fo
  * @complexity O(1) construction and space; each plan takes O(endpoint bytes + configuration keys), no I/O.
  * @overallScore 97 — Recommended: only public hosted Formspree endpoints are supported. */
 export function createFormspreeProvider(_required: Record<string, never>, _optional: Record<string, never> = {}): FormCollectionProvider {
-  return { plan({ config }): FormCollectionPlan {
+  return { describe: () => ({
+    label: 'Formspree', fields: [{ key: 'endpoint', label: 'Public form endpoint', type: 'url', helpText: 'Use https://formspree.io/f/form-id from your Formspree form.' }],
+    helpText: 'Send answers directly to your hosted Formspree form.',
+    answers: 'Answers are managed in your Formspree account; they are not copied into the built-in inbox.',
+    validation: 'Browser field checks and Formspree validation apply.', frameOrigins: [],
+  }), plan({ config }): FormCollectionPlan {
     const endpoint = config.endpoint ?? '';
     // Exact allowlist prevents credentials, queries, fragments, alternate ports and path normalization.
     if (Object.keys(config).length !== 1 || !/^https:\/\/formspree\.io\/f\/[A-Za-z0-9]+$/.test(endpoint)) {
