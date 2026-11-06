@@ -4,7 +4,7 @@ export type DismissReason = 'cancel-button' | 'escape' | 'backdrop' | 'close';
 export interface ConfirmInput {
   readonly open: boolean; readonly title: string; readonly confirmLabel: string;
   readonly cancelLabel?: string; readonly tone?: ConfirmTone; readonly pending?: boolean;
-  readonly consequence?: string; readonly agentHandle?: string; readonly agentMayConfirm?: boolean;
+  readonly consequence?: string; readonly agentHandle?: string | false; readonly agentMayConfirm?: boolean;
 }
 const defaultConsequences: ReadonlyMap<ConfirmTone, string> = new Map<ConfirmTone, string>([
   ['warning', 'changes access, but is reversible'], ['danger', 'cannot be undone'],
@@ -15,7 +15,7 @@ export function planConfirm(required: ConfirmInput, _optional: Record<string, ne
   const consequenceLabel = consequence ? '; ' + consequence : '';
   const confirmLabel = `${required.confirmLabel} — ${required.title}${consequenceLabel}`;
   const cancelLabel = required.cancelLabel ?? 'Cancel';
-  const agent = (action: string, label: string): AgentSpec | undefined => required.agentHandle === undefined ? undefined :
+  const agent = (action: string, label: string): AgentSpec | undefined => typeof required.agentHandle !== 'string' ? undefined :
     { handle: `${required.agentHandle}-${action}`, role: 'button', label };
   return Object.freeze({ initialFocus: 'cancel' as const, pending, dismissible: required.open && !pending,
     cancelDisabled: pending, confirmDisabled: pending, cancelLabel, confirmLabel, consequence,

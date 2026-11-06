@@ -4,7 +4,11 @@ import type { ConfirmInput, DismissReason } from '../confirm.js';
 import type { ImplementedComponentName } from '../kit-contract.js';
 import type { KitNeeds } from '../needs.js';
 import type { ToastMessage, ToastService } from '../toast.js';
-export interface BaseProps { readonly attrs?: KitAttrs; readonly className?: string }
+export interface BaseProps {
+  readonly attrs?: KitAttrs; readonly className?: string;
+  /** Defaults to a mounted-instance handle. Set false to suppress all addressing on this control. */
+  readonly agentHandle?: string | false;
+}
 export type ActionPort = (required: Record<string, never>, optional?: Record<string, never>) => void;
 export type ValuePort<T> = (required: { value: T }, optional?: Record<string, never>) => void;
 export interface ButtonProps extends BaseProps {

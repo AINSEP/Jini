@@ -1,25 +1,28 @@
 import { createElement, useId, useState } from 'react';
 import type { ChangeEvent } from 'react';
 import { secretControlAttrs } from '../../attrs.js';
+import { childControlAttrs, useControlAttrs } from '../agent-attrs.hooks.js';
 import type { BaseProps, ButtonProps, IconButtonProps, TextFieldProps, TextAreaProps, SelectProps, CheckboxProps, ToastProps, NoticeProps, SpinnerProps, BadgeProps } from '../types.js';
 export function useNativeButton(required: ButtonProps, _optional: Record<string, never> = {}) {
   const readyState = required.disabled ? 'disabled' : 'ready';
+  const attrs = useControlAttrs(required, { part: 'button', role: 'button' });
   return { children: required.children, props: { 'data-jini-part': 'kit.button', ref: required.ref, className: `jini-btn jini-btn-${required.variant ?? 'primary'} ${required.className ?? ''}`.trim(),
     type: required.type ?? 'button', disabled: !!required.disabled || !!required.pending,
     'aria-busy': required.pending, 'data-jini-variant': required.variant ?? 'primary',
     'data-jini-state': required.pending ? 'pending' : readyState,
     onClick: () => { if (!required.disabled && !required.pending) required.onPress?.({}); },
     // Opaque metadata wins over generated metadata; behavioral props cannot be supplied through attrs.
-    ...required.attrs } };
+    ...attrs } };
 }
 export function useNativeIconButton(required: IconButtonProps, _optional: Record<string, never> = {}) {
   const vm = useNativeButton(required);
-  return { ...vm, props: { ...vm.props, 'data-jini-part': 'kit.icon-button', 'aria-label': required.label, ...required.attrs } };
+  return { ...vm, props: { ...vm.props, 'data-jini-part': 'kit.icon-button', 'aria-label': required.label } };
 }
-function useField(required: BaseProps & { label: string; disabled?: boolean; required?: boolean }) {
+function useField(required: BaseProps & { label: string; disabled?: boolean; required?: boolean }, role: 'field' | 'select' = 'field') {
   const generated = useId();
+  const attrs = useControlAttrs(required, { part: 'field', role, label: required.label });
   return { id: required.attrs?.id ?? generated, label: required.label, labelAttrs: { 'data-jini-part': 'kit.field-label', className: 'jini-field' },
-    props: { ...required.attrs, className: `jini-input ${required.className ?? ''}`.trim(), disabled: required.disabled, required: required.required } };
+    props: { ...attrs, className: `jini-input ${required.className ?? ''}`.trim(), disabled: required.disabled, required: required.required } };
 }
 /** Eye / eye-off glyphs, decorative: the button's aria-label carries the meaning. */
 const EYE_PATHS = ['M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z', 'M12 9a3 3 0 1 0 0 6 3 3 0 1 0 0-6z'];
@@ -69,7 +72,7 @@ export function useNativeTextArea(required: TextAreaProps, _optional: Record<str
     } } };
 }
 export function useNativeSelect(required: SelectProps, _optional: Record<string, never> = {}) {
-  const vm = useField(required);
+  const vm = useField(required, 'select');
   // Keep a real HTMLSelectElement: the host agent driver can set an option without library-specific knowledge.
   const options = required.options.map(option => createElement('option', { className: 'jini-select-option', key: option.value, value: option.value, disabled: option.disabled }, option.label));
   return { ...vm, options, props: { ...vm.props, className: `jini-select ${required.className ?? ''}`.trim(), id: vm.id, ref: required.ref, value: required.value,
@@ -77,15 +80,18 @@ export function useNativeSelect(required: SelectProps, _optional: Record<string,
 }
 export function useNativeCheckbox(required: CheckboxProps, optional: { role?: 'switch' } = {}) {
   const generated = useId();
+  const attrs = useControlAttrs(required, { part: optional.role ?? 'checkbox', role: 'field', label: required.label });
   return { label: required.label, id: required.attrs?.id ?? generated,
-    props: { ...required.attrs, id: required.attrs?.id ?? generated, ref: required.ref, className: `jini-checkbox ${required.className ?? ''}`.trim(),
+    props: { ...attrs, id: required.attrs?.id ?? generated, ref: required.ref, className: `jini-checkbox ${required.className ?? ''}`.trim(),
       type: 'checkbox', role: optional.role, checked: required.checked, disabled: required.disabled,
       onChange: (event: ChangeEvent<HTMLInputElement>) => { if (!required.disabled) required.onCheckedChange({ checked: event.currentTarget.checked }); } } };
 }
 export function useNativeToast(required: ToastProps, _optional: Record<string, never> = {}) {
+  const attrs = useControlAttrs(required, { part: 'toast' });
   return { props: { 'data-jini-part': 'kit.toast', ...required.attrs, className: `jini-toast ${required.className ?? ''}`.trim(),
     role: required.tone === 'danger' ? 'alert' : 'status', tabIndex: -1, 'data-jini-variant': required.tone ?? 'info' },
     message: required.message, dismiss: required.onDismiss ? createElement('button', { type: 'button', className: 'jini-btn jini-btn-ghost jini-toast-dismiss', 'data-jini-part': 'kit.toast-dismiss',
+      ...childControlAttrs({ parent: required, attrs, action: 'dismiss' }, { label: required.dismissLabel ?? 'Dismiss notification' }),
       'aria-label': required.dismissLabel ?? 'Dismiss notification', onClick: () => required.onDismiss?.({}) }, '×') : null };
 }
 export function useNativeNotice(required: NoticeProps, _optional: Record<string, never> = {}) {

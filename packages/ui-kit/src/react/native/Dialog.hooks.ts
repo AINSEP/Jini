@@ -2,6 +2,7 @@ import { useId, useImperativeHandle, useLayoutEffect, useRef } from 'react';
 import type { MouseEvent, SyntheticEvent } from 'react';
 import type { DialogProps, ConfirmViewProps, ReactKit } from '../types.js';
 import { NativeButton } from './Controls.js';
+import { childControlAttrs, useControlAttrs } from '../agent-attrs.hooks.js';
 /** Native modal lifecycle shared by kit views and compatibility adapters; DOM effects are O(1).
  * The document port preserves hosts' focus injection seam without introducing another lifecycle.
  * @example useNativeDialog({ open, title, onClose }, { initialFocus: () => cancelRef.current?.focus() })
@@ -11,6 +12,8 @@ export function useNativeDialog(required: DialogProps, optional: {
   document?: Pick<Document, 'activeElement'>;
 } = {}) {
   const dialogRef = useRef<HTMLDialogElement>(null), opener = useRef<Element | null>(null), titleId = useId();
+  const attrs = useControlAttrs(required, { part: 'dialog' });
+  const closeAttrs = childControlAttrs({ parent: required, attrs, action: 'close' }, { label: required.closeLabel ?? 'Close' });
   useImperativeHandle(required.ref, () => dialogRef.current!, []);
   useLayoutEffect(() => {
     const dialog = dialogRef.current;
@@ -33,7 +36,7 @@ export function useNativeDialog(required: DialogProps, optional: {
     // Open is the transition boundary: editing content must not recapture the original trigger.
   }, [required.open]);
   return { title: required.title, children: required.children, titleId, closeLabel: required.closeLabel ?? 'Close',
-    closeProps: { className: 'jini-dialog-close', variant: 'secondary' as const, attrs: { 'data-jini-part': 'kit.dialog-close' }, disabled: !!required.pending, onPress: () => { if (!required.pending) required.onClose({}); } },
+    closeProps: { ...(required.agentHandle === false ? { agentHandle: false as const } : {}), className: 'jini-dialog-close', variant: 'secondary' as const, attrs: { ...closeAttrs, 'data-jini-part': 'kit.dialog-close' }, disabled: !!required.pending, onPress: () => { if (!required.pending) required.onClose({}); } },
     props: { 'aria-labelledby': titleId, 'data-jini-part': 'kit.dialog', ...required.attrs, className: `jini-dialog ${required.className ?? ''}`.trim(), ref: dialogRef, tabIndex: -1,
       'aria-busy': required.pending,
       onCancel: (event: SyntheticEvent<HTMLDialogElement>) => { event.preventDefault(); if (!required.pending) required.onClose({}); },
@@ -62,7 +65,7 @@ function isOutsideBox(event: MouseEvent<HTMLDialogElement>): boolean {
  */
 export function useNativeConfirm(required: ConfirmViewProps, { Button = NativeButton }: { Button?: ReactKit['Button'] } = {}) {
   const c = required.controller;
-  const vm = useNativeDialog({ open: c.open, title: c.title, pending: c.pending, onClose: () => c.requestDismiss({ reason: 'close' }) },
+  const vm = useNativeDialog({ open: c.open, title: c.title, pending: c.pending, agentHandle: false, onClose: () => c.requestDismiss({ reason: 'close' }) },
     { initialFocus: () => c.focusInitial({}) });
   return { ...vm, controller: c, Button: c.nativeActions ? NativeButton : Button,
     props: { ...vm.props, ...c.frameAttrs, className: `jini-dialog jini-confirm-dialog ${c.className ?? ''}`.trim(), role: 'alertdialog' } };
