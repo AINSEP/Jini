@@ -204,7 +204,7 @@ export async function resolveMediaRendition(
         sha256: outputSha256,
         bytes: outputBytes,
       });
-  
+
       const row: AssetRenditionRecord = {
         id: deps.idGen.newId(),
         workspaceId: input.workspaceId,

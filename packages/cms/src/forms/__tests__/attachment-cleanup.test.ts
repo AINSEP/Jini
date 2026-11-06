@@ -79,6 +79,7 @@ test('captured rendition keys survive a missing original and preserve exact-key 
   const bus = new InMemoryEventBus();
   await registerFormAttachmentCleanup({ bus, withHashLock: withSha256Lock,
     findBlob: async () => null, hasOwners: async () => false,
+    withStorageKeyLock: ({ criticalSection }) => criticalSection(),
     hasStorageKeyOwners: async ({ storageKey }) => storageKey === 'shared',
     deleteBytes: async ({ storageKey }) => { removed.push(storageKey); },
     removeBlob: async () => assert.fail('the original row no longer exists'),
@@ -92,6 +93,7 @@ test('partial rendition deletion remains retryable and ownership checks fail clo
   const bytes = new Set(['one', 'two']); let fail = true, lookupFails = false;
   await registerFormAttachmentCleanup({ bus, withHashLock: withSha256Lock,
     findBlob: async () => null, hasOwners: async () => false,
+    withStorageKeyLock: ({ criticalSection }) => criticalSection(),
     hasStorageKeyOwners: async () => { if (lookupFails) throw new Error('private lookup'); return false; },
     deleteBytes: async ({ storageKey }) => { if (storageKey === 'two' && fail) throw new Error('private provider'); bytes.delete(storageKey); },
     removeBlob: async () => assert.fail('the original row no longer exists'),
@@ -103,4 +105,22 @@ test('partial rendition deletion remains retryable and ownership checks fail clo
   lookupFails = true; fail = false;
   await assert.rejects(bus.publish(event)); assert.deepEqual([...bytes], ['two']);
   lookupFails = false; await bus.publish(event); assert.deepEqual([...bytes], []);
+});
+
+test('captured keys use their own writer lock outside the original source lock', async () => {
+  const bus = new InMemoryEventBus(); const locks: string[] = []; let lockedKey: string | undefined, sourceLocked = false;
+  await registerFormAttachmentCleanup({ bus,
+    withHashLock: async ({ criticalSection }) => { sourceLocked = true; try { await criticalSection(); } finally { sourceLocked = false; } },
+    withStorageKeyLock: async ({ storageKey, criticalSection }) => {
+      assert.equal(sourceLocked, false, 'source and output hashes must never nest and deadlock');
+      locks.push(storageKey); lockedKey = storageKey; try { await criticalSection(); } finally { lockedKey = undefined; }
+    },
+    findBlob: async () => null, hasOwners: async () => false,
+    hasStorageKeyOwners: async ({ storageKey }) => { assert.equal(lockedKey, storageKey); return false; },
+    deleteBytes: async ({ storageKey }) => { assert.equal(lockedKey, storageKey); },
+    removeBlob: async () => assert.fail('no original row'),
+  });
+  await bus.publish({ id: 'locks', name: 'form.attachment.cleanup', workspaceId: 'w', aggregateId: 'm', occurredAt: new Date(0).toISOString(),
+    payload: { workspaceId: 'w', sha256: 'source', storageKeys: ['output-one', 'output-two'] } });
+  assert.deepEqual(locks, ['output-one', 'output-two']);
 });
