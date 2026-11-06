@@ -104,3 +104,27 @@ it('tags every tab using item identity and keeps hidden panel descendants inacti
   expect(screen.getAllByRole('tab').map(tab => [tab.getAttribute('data-tab-id'), handle(tab)]).reverse()).toEqual(initial);
   expect(screen.getByText('Hidden action').closest('[role="tabpanel"]')?.hasAttribute('hidden')).toBe(true);
 });
+
+it('propagates an explicit composite opt-out through item attrs and nested close buttons', () => {
+  const children = h('div', null,
+    h(Menu, { agentHandle: false, label: 'Private menu', attrs: { 'data-agent-element': 'menu-must-go' }, items: [{ id: 'copy', label: 'Copy', attrs: { 'data-agent-element': 'item-must-go' }, onPress: noop }] }),
+    h(Tabs, { agentHandle: false, label: 'Private tabs', attrs: { 'data-agent-element': 'tabs-must-go' }, value: 'one', onValueChange: noop, items: [{ id: 'one', label: 'One', content: 'Panel', attrs: { 'data-agent-element': 'tab-must-go' } }] }),
+    h(Dialog, { agentHandle: false, open: true, title: 'Private dialog', attrs: { 'data-agent-element': 'dialog-must-go' }, onClose: noop }));
+  render(h(KitProvider, { children }));
+  fireEvent.click(screen.getByRole('button', { name: 'Private menu' }));
+  for (const element of [screen.getByRole('button', { name: 'Private menu' }), screen.getByRole('menuitem'), screen.getByRole('tab'), screen.getByRole('button', { name: 'Close' })]) expect(handle(element)).toBeNull();
+});
+
+it('withholds explicit handles on private text areas and secret fields before and after reveal', () => {
+  render(h('div', null,
+    h(TextArea, { agentHandle: 'secret-area', label: 'Private text', value: 'secret', onValueChange: noop, attrs: { 'data-agent-private': '', 'data-agent-element': 'explicit-area' } }),
+    h(TextField, { agentHandle: 'secret-password', label: 'Password', type: 'password', value: 'secret', onValueChange: noop, attrs: { 'data-agent-element': 'explicit-password' } })));
+  const area = screen.getByLabelText('Private text'), password = screen.getByLabelText('Password'), toggle = screen.getByRole('button', { name: 'Show Password' });
+  for (const element of [area, password, toggle]) {
+    expect(handle(element)).toBeNull();
+    expect(element.getAttribute('data-agent-private')).toBe('');
+  }
+  fireEvent.click(toggle);
+  expect((password as HTMLInputElement).type).toBe('text');
+  expect(handle(password)).toBeNull(); expect(handle(toggle)).toBeNull();
+});

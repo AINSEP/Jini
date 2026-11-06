@@ -6,6 +6,7 @@ import { isDevelopment } from '../context.js';
 import { nativeKit } from '../native/index.js';
 import { inspectConfirm } from './guard.js';
 import type { ConfirmController, ConfirmDialogProps } from '../types.js';
+function actionHandle({ spec }: { spec: AgentSpec | undefined }): string | false { return spec?.handle ?? false; }
 /** Shared confirmation policy and execution; adapters may supply their existing agent-attribute port.
  * @example useConfirmController({ open, title, confirmLabel, onConfirm, onCancel }, { agent: agentAttrs })
  */
@@ -42,10 +43,10 @@ export function useConfirmController(required: ConfirmDialogProps, optional: { a
       'aria-labelledby': titleId, 'aria-modal': true, 'aria-busy': pending }),
     titleAttrs: { id: titleId, 'data-jini-part': 'confirm.title' } as ConfirmController['titleAttrs'],
     consequenceAttrs: { id: consequenceId, 'data-jini-part': 'confirm.consequence' } as NonNullable<ConfirmController['consequenceAttrs']>,
-    cancel: Object.freeze({ agentHandle: plan.cancel ? plan.cancel.handle : false, attrs: actionAttrs({ part: 'confirm.cancel', spec: plan.cancel, label: required.actionAccessibleNames?.cancel, fallbackLabel: `${plan.cancelLabel} — no action taken` }),
+    cancel: Object.freeze({ agentHandle: actionHandle({ spec: plan.cancel }), attrs: actionAttrs({ part: 'confirm.cancel', spec: plan.cancel, label: required.actionAccessibleNames?.cancel, fallbackLabel: `${plan.cancelLabel} — no action taken` }),
       ref: cancelRef, disabled: pending, variant: 'secondary' as const, children: plan.cancelLabel,
       onPress: () => { model.requestDismiss({ reason: 'cancel-button' }); } }),
-    confirm: Object.freeze({ agentHandle: plan.confirm ? plan.confirm.handle : false, attrs: actionAttrs({ part: 'confirm.confirm', spec: plan.confirm, label: required.actionAccessibleNames?.confirm, fallbackLabel: plan.confirmLabel }), disabled: pending, pending,
+    confirm: Object.freeze({ agentHandle: actionHandle({ spec: plan.confirm }), attrs: actionAttrs({ part: 'confirm.confirm', spec: plan.confirm, label: required.actionAccessibleNames?.confirm, fallbackLabel: plan.confirmLabel }), disabled: pending, pending,
       variant: plan.confirmVariant, children: required.confirmLabel, onPress }),
     boundaryRef, overlayContainer: useOverlayContainer({}), agentMayConfirm: required.agentMayConfirm !== false,
     requestDismiss: model.requestDismiss,

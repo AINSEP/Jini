@@ -16,9 +16,9 @@ export function useNativeButton(required: ButtonProps, _optional: Record<string,
 }
 export function useNativeIconButton(required: IconButtonProps, _optional: Record<string, never> = {}) {
   const vm = useNativeButton(required);
-  return { ...vm, props: { ...vm.props, 'data-jini-part': 'kit.icon-button', 'aria-label': required.label } };
+  return { ...vm, props: { ...vm.props, 'data-jini-part': required.attrs?.['data-jini-part'] ?? 'kit.icon-button', 'aria-label': required.label } };
 }
-function useField(required: BaseProps & { label: string; disabled?: boolean; required?: boolean }, role: 'field' | 'select' = 'field') {
+function useField(required: BaseProps & { label: string; disabled?: boolean; required?: boolean }, role: 'field' = 'field') {
   const generated = useId();
   const attrs = useControlAttrs(required, { part: 'field', role, label: required.label });
   return { id: required.attrs?.id ?? generated, label: required.label, labelAttrs: { 'data-jini-part': 'kit.field-label', className: 'jini-field' },
@@ -72,7 +72,7 @@ export function useNativeTextArea(required: TextAreaProps, _optional: Record<str
     } } };
 }
 export function useNativeSelect(required: SelectProps, _optional: Record<string, never> = {}) {
-  const vm = useField(required, 'select');
+  const vm = useField(required);
   // Keep a real HTMLSelectElement: the host agent driver can set an option without library-specific knowledge.
   const options = required.options.map(option => createElement('option', { className: 'jini-select-option', key: option.value, value: option.value, disabled: option.disabled }, option.label));
   return { ...vm, options, props: { ...vm.props, className: `jini-select ${required.className ?? ''}`.trim(), id: vm.id, ref: required.ref, value: required.value,
@@ -80,7 +80,7 @@ export function useNativeSelect(required: SelectProps, _optional: Record<string,
 }
 export function useNativeCheckbox(required: CheckboxProps, optional: { role?: 'switch' } = {}) {
   const generated = useId();
-  const attrs = useControlAttrs(required, { part: optional.role ?? 'checkbox', role: 'field', label: required.label });
+  const attrs = useControlAttrs(required, { part: optional.role ?? 'checkbox', label: required.label });
   return { label: required.label, id: required.attrs?.id ?? generated,
     props: { ...attrs, id: required.attrs?.id ?? generated, ref: required.ref, className: `jini-checkbox ${required.className ?? ''}`.trim(),
       type: 'checkbox', role: optional.role, checked: required.checked, disabled: required.disabled,

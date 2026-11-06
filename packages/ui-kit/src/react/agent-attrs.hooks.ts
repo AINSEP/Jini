@@ -19,6 +19,12 @@ function ordinaryAttrs({ attrs = {} }: { attrs?: KitAttrs | undefined }): KitAtt
 function publishedAttrs({ handle, agent, role, label }: { handle: string; agent?: AgentAttrsPort | undefined; role?: AgentSpec['role'] | undefined; label?: string | undefined }): KitAttrs {
   return agent ? agent({ handle }, { ...(role === undefined ? {} : { role }), ...(label === undefined ? {} : { label }) }) : { 'data-agent-element': handle, 'data-agent-role': role, 'data-agent-label': label };
 }
+function controlHandle({ props, id, options }: { props: BaseProps; id: string; options: { enabled?: boolean; part: string } }): string | undefined {
+  const supplied = props.attrs?.['data-agent-element'];
+  if (typeof supplied === 'string') return supplied;
+  if (typeof props.agentHandle === 'string') return props.agentHandle;
+  return options.enabled === false ? undefined : `kit-${handleSegment({ value: id })}-${options.part}`;
+}
 /** Resolves one mounted control's metadata. Privacy and opt-out override caller addressing;
  * supplied handles are preserved, while defaults use React instance identity rather than labels.
  * @complexity O(p + i) in attribute count and React id length; no I/O or persistent state. */
@@ -28,9 +34,8 @@ export function useControlAttrs(required: BaseProps, optional: {
   const id = useId(), context = useKitContext({});
   if (optional.secret || required.attrs?.['data-agent-private'] !== undefined) return secretControlAttrs({ attrs: required.attrs ?? {} });
   if (required.agentHandle === false) return ordinaryAttrs({ attrs: required.attrs });
-  const supplied = required.attrs?.['data-agent-element'];
-  if (optional.enabled === false && required.agentHandle === undefined && typeof supplied !== 'string') return required.attrs ?? {};
-  const handle = typeof supplied === 'string' ? supplied : required.agentHandle ?? `kit-${handleSegment({ value: id })}-${optional.part}`;
+  const handle = controlHandle({ props: required, id, options: optional });
+  if (handle === undefined) return required.attrs ?? {};
   return { ...publishedAttrs({ handle, agent: context?.agent, role: optional.role, label: optional.label }), ...required.attrs };
 }
 /** Derives one actual control from a composite base and stable item/action id, retaining page metadata.

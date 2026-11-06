@@ -83,7 +83,11 @@ const report = describeKit({ kit: variant });
 
 ## Provider ports and overlays
 
-`KitProvider` accepts `kit`, `agent`, `overlayContainer`, `toast`, `cancelLabel`, `guard`, `needs`, and `children`. It creates an overlay element under `document.body` when none is supplied and removes that element on unmount. Dialog and confirmation facades portal there. `Overlay` also accepts an explicit `container`.
+`KitProvider` accepts `kit`, `agent`, `overlayContainer`, `toast`, `cancelLabel`, `guard`, `needs`, and `children`. It creates an overlay element under `document.body` when none is supplied and removes that element on unmount. Dialog, confirmation and native menu overlays portal there. `Overlay` also accepts an explicit `container`.
+
+Ordinary interactive facades and native controls publish a handle by default. `agentHandle="save-record"` supplies a durable name; `agentHandle={false}` suppresses addressing, including caller-supplied `data-agent-*` attributes. Existing handles in `attrs` keep their names. Automatic handles use mounted React identity, so they survive rerenders and keyed reordering but may change after remount or reload. Give independently server-rendered React roots different `identifierPrefix` values, as for accessible React IDs. Menu and tab leaves derive their names from item IDs, and dialog close buttons use the component base plus `-close`. Portalled leaves retain their page metadata. Tags do not grant permission to operate a control.
+
+Secret fields and reveal controls remain private before and after reveal. Human-only confirmation controls carry an explicit opt-out so nested facades cannot recreate withheld handles.
 
 The agent port is `agent({ handle }, { role, label }) => KitAttrs`. The host owns validation and runtime wiring; ui-kit has no dependency on an agent runtime. Components forward metadata to the declared focus target. Select keeps an `HTMLSelectElement`, visible or synchronized in custom implementations.
 

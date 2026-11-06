@@ -14,6 +14,7 @@ export function useNativeDialog(required: DialogProps, optional: {
   const dialogRef = useRef<HTMLDialogElement>(null), opener = useRef<Element | null>(null), titleId = useId();
   const attrs = useControlAttrs(required, { part: 'dialog' });
   const closeAttrs = childControlAttrs({ parent: required, attrs, action: 'close' }, { label: required.closeLabel ?? 'Close' });
+  const frameAttrs = required.agentHandle === false || required.attrs?.['data-agent-private'] !== undefined ? attrs : required.attrs;
   useImperativeHandle(required.ref, () => dialogRef.current!, []);
   useLayoutEffect(() => {
     const dialog = dialogRef.current;
@@ -37,7 +38,7 @@ export function useNativeDialog(required: DialogProps, optional: {
   }, [required.open]);
   return { title: required.title, children: required.children, titleId, closeLabel: required.closeLabel ?? 'Close',
     closeProps: { ...(required.agentHandle === false ? { agentHandle: false as const } : {}), className: 'jini-dialog-close', variant: 'secondary' as const, attrs: { ...closeAttrs, 'data-jini-part': 'kit.dialog-close' }, disabled: !!required.pending, onPress: () => { if (!required.pending) required.onClose({}); } },
-    props: { 'aria-labelledby': titleId, 'data-jini-part': 'kit.dialog', ...required.attrs, className: `jini-dialog ${required.className ?? ''}`.trim(), ref: dialogRef, tabIndex: -1,
+    props: { 'aria-labelledby': titleId, 'data-jini-part': 'kit.dialog', ...frameAttrs, className: `jini-dialog ${required.className ?? ''}`.trim(), ref: dialogRef, tabIndex: -1,
       'aria-busy': required.pending,
       onCancel: (event: SyntheticEvent<HTMLDialogElement>) => { event.preventDefault(); if (!required.pending) required.onClose({}); },
       // A click whose target is the <dialog> itself is not always the backdrop: the dialog's own

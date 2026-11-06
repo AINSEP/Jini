@@ -75,7 +75,7 @@ export interface ResolvedKit {
 }
 export interface KitProviderProps {
   readonly kit?: ResolvedKit; readonly children: ReactNode; readonly agent?: AgentAttrsPort;
-  readonly overlayContainer?: HTMLElement; readonly needs?: readonly KitNeeds[];
+  readonly overlayContainer?: HTMLElement | null; readonly needs?: readonly KitNeeds[];
   readonly toast?: ToastService; readonly cancelLabel?: string; readonly guard?: GuardMode;
 }
 export interface KitContextValue {
