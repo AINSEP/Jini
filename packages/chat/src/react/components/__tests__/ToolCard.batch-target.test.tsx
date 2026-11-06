@@ -52,3 +52,9 @@ it('keeps an opaque-looking file basename visible in specialized read cards', ()
   render(<ToolCard use={{ kind: 'tool_use', id: 'hash-file', name: 'Read', input: { file_path: '/site/0123456789abcdef', offset: 10 } }} runSucceeded />);
   expect(screen.getByRole('button').textContent).toContain('0123456789abcdef (offset 10)');
 });
+
+
+it.each([NaN, -1, 1.5, Infinity, '10', null])('ignores invalid read offset %s in the collapsed target', offset => {
+  render(<ToolCard use={{ kind: 'tool_use', id: 'invalid-offset', name: 'Read', input: { file_path: '/site/index.html', offset } }} runSucceeded />);
+  expect(screen.getByRole('button').textContent).toBe('Readindex.html');
+});

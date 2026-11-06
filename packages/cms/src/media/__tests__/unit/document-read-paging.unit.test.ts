@@ -88,3 +88,43 @@ test('same ids and hashes in another host never share cached bytes', async () =>
   await read({ ...secondHost, input: { ...secondHost.input, offset: first.nextOffset! } });
   expect(secondHost.get).toHaveBeenCalledOnce();
 });
+
+
+test('a third prepared document evicts the oldest of the two cached entries', async () => {
+  const a = await fixture(), b = await fixture(), c = await fixture(), read = createDocumentTextReader({});
+  const first = await read(a);
+  await read(b);
+  await read(c);
+  await read({ ...a, input: { ...a.input, offset: first.nextOffset! } });
+  expect(a.get).toHaveBeenCalledTimes(2);
+});
+
+test('the combined prepared-text budget evicts before retaining more than 50 MiB', async () => {
+  const a = await fixture(), b = await fixture(), read = createDocumentTextReader({});
+  const largeText = () => new Uint8Array(26 * 1024 * 1024).fill(97);
+  a.get.mockImplementation(async () => largeText());
+  b.get.mockImplementation(async () => largeText());
+  const first = await read(a);
+  await read(b);
+  await read({ ...a, input: { ...a.input, offset: first.nextOffset! } });
+  expect(a.get).toHaveBeenCalledTimes(2);
+});
+
+test('an expired extraction cannot populate the cache when it completes late', async () => {
+  let release!: () => void;
+  const held = new Promise<void>(resolve => { release = resolve; });
+  const extractor = { contentType: 'application/pdf', async extract() { await held; return { text: 'x'.repeat(80_000), truncated: false }; } };
+  const f = await fixture(extractor), read = createDocumentTextReader({});
+  vi.useFakeTimers();
+  try {
+    const result = read(f).catch(error => error);
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(await result).toMatchObject({ code: 'DOCUMENT_TEXT_FAILED' });
+    release();
+    await vi.advanceTimersByTimeAsync(0);
+    extractor.extract = async () => ({ text: 'y'.repeat(80_000), truncated: false });
+    const page = await read({ ...f, input: { ...f.input, offset: 65_536 } });
+    expect(page.text).toBe('y'.repeat(80_000 - 65_536));
+    expect(f.get).toHaveBeenCalledTimes(2);
+  } finally { vi.useRealTimers(); }
+});
