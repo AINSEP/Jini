@@ -54,4 +54,4 @@ export function contributePaymentsTools(
   return { domain: PAYMENTS_TOOLS_DOMAIN, build: buildPaymentsToolRegistrations, risk: paymentsToolsDerivedRisk };
 }
 
-export { buildCommerceResolutionRegistrations, type CommerceResolutionToolsRequired } from './resolve-unknown.js';
+export { buildCommerceResolutionRegistrations, type CommerceResolutionToolsRequired, type CommerceResolutionApprovalDescription } from './resolve-unknown.js';
