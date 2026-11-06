@@ -82,3 +82,21 @@ BUG: Authored inline suppressions could hide findings enabled by the standalone 
 - Agent-runtime initial run: 4285 passed, 5 failed only because the sandbox did not allow `/var/tmp`. Focused retry with temporary-directory write access: `VITEST_MAX_THREADS=2 VITEST_MIN_THREADS=1 VITEST_MAX_FORKS=2 VITEST_MIN_FORKS=1 pnpm --filter @jini-ai/agent-runtime exec vitest run src/__tests__/integration/claude-temp-realpath.integration.test.ts` — 6 passed, 0 failed. No test changed.
 - Chat: 4227 passed, 0 failed, 1 existing skipped private-transcript benchmark (`JINI_CHAT_LONG_TRANSCRIPT` unavailable; no owner data used).
 - CMS: 3968 passed, 0 failed. Forms compatibility suite passed. Commerce running.
+
+## Fix 4 — Root scripts test runner
+
+The sync-software-engineering suite uses node:test but was collected by Vitest. Added that exact file to the existing `test:scripts:node` command and routed it out of Vitest to that owning runner. Every assertion is retained and executed; no suite is skipped. The other two native suites retain their ownership.
+
+- RED: isolated Vitest execution of `scripts/__tests__/sync-software-engineering.test.mjs` fails with `No test suite found` although its Node assertion passes.
+- `pnpm test:scripts:node` — 7 passed, 3 failed, 0 skipped. Subsets: hardwiring 3/0; infra retirement 3/3; sync 1/0.
+- Focused Vitest discovery confirms this native file is routed out; script inventory confirms all three native suites occur in the Node command.
+- `pnpm exec eslint vitest.config.ts` and focused strict TypeScript config check — passed.
+
+BUG: The root scripts command sent the node:test sync suite to Vitest instead of its owning runner. Fixed.
+OPEN: Infra retirement remains deliberately incomplete: Tovu has 11 infra/outbox import reaches, its manifest still depends on infra, and the infra workspace still exists. The existing test explicitly requires retaining infra until its shim-release and outbox-ownership gates are resolved. All three failing assertions remain intact; no package deletion or publish was attempted.
+
+## Checkpoint 3
+
+- Final standalone Sonar rerun: 3458 files, 176 warnings, 0 errors. Directive-no-effect diagnostics are warnings, not parse errors. Rules/targets/ignores unchanged.
+- Daemon initial 4042 passed, 10 failed, 1 existing skipped live-CLI contract. Its two failing temporary-directory files pass unchanged with `/var/tmp` access: 17 passed, 0 failed.
+- Database 735 passed, 0 failed. Commerce default phases: 52 native catalog + 10 React + 1406 kernel passed, 1 existing Postgres placeholder skipped without its URL. Real-Postgres execution pending.
