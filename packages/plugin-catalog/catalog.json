@@ -764,7 +764,7 @@
       "licenses/js-tokens/package-license.json": "sha256-337c203b235cd5b3626735f17d6ec6b41c509df27ef0a494ce4d673937f7082b",
       "licenses/semver/LICENSE": "sha256-4ec3d4c66cd87f5c8d8ad911b10f99bf27cb00cdfcff82621956e379186b016b",
       "licenses/semver/package-license.json": "sha256-850ac2ae774f31fc6da3760c39cb2f489f31e35278b1489d09ce63adb98d89ef",
-      "server/index.mjs": "sha256-ff796e2f2b3444806ac610e88d04a1a153571c9e27c91cdf86c45c34e28c5987"
+      "server/index.mjs": "sha256-414cc561456ca6b997e3a623890d956e4c99cb43d9538e57ab2f06aa6007ac8d"
     }
   },
   {
@@ -810,7 +810,7 @@
       "licenses/_sentry_server-utils/package-license.json": "sha256-fc86dcf64159ae72833f6c8655f0841c714aed8b67a241e76ca00a2bfb0bd9b7",
       "licenses/js-tokens/LICENSE": "sha256-33038d552d766f4501d8da25b66053ed217c61274ffce1c6bee413bb037c259c",
       "licenses/js-tokens/package-license.json": "sha256-337c203b235cd5b3626735f17d6ec6b41c509df27ef0a494ce4d673937f7082b",
-      "server/index.mjs": "sha256-5de93c97badc8806f0e4721ebdac42e0d0ad566380799f961de8b91df312de01"
+      "server/index.mjs": "sha256-b0dfe3dd0adfc20a9b55d63f653241f5cf26ef79313110cc90bf61d80c21c208"
     }
   },
   {
