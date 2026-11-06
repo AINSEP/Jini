@@ -7,6 +7,7 @@
  * fields, so keep this parser separate from Claude/Codex-compatible streams.
  */
 
+import { createBoundedLineStream } from './core/bounded-line-stream.js';
 import { Buffer } from 'node:buffer';
 
 type JsonRecord = Record<string, unknown>;
@@ -111,7 +112,10 @@ function usageEvent(obj: JsonRecord): QoderEvent {
 }
 
 export function createQoderStreamHandler({ onEvent }: { onEvent: QoderEventSink }) {
-  let buffer = '';
+  const lines = createBoundedLineStream({
+    onLine: line => { const trimmed = line.trim(); if (trimmed) handleLine(trimmed); },
+    onOverflow: error => onEvent({ type: 'error', message: error.message, raw: '' }),
+  });
   let emittedThinkingStart = false;
 
   function emitThinking(thinking: string) {
@@ -186,21 +190,11 @@ export function createQoderStreamHandler({ onEvent }: { onEvent: QoderEventSink 
   }
 
   function feed({ chunk }: { chunk: unknown }) {
-    buffer += stringifyContent(chunk);
-    let nl;
-    while ((nl = buffer.indexOf('\n')) !== -1) {
-      const line = buffer.slice(0, nl).trim();
-      buffer = buffer.slice(nl + 1);
-      if (!line) continue;
-      handleLine(line);
-    }
+    lines.feed({ chunk: stringifyContent(chunk) });
   }
 
   function flush() {
-    const rem = buffer.trim();
-    buffer = '';
-    if (!rem) return;
-    handleLine(rem);
+    lines.flush();
   }
 
   return { feed, flush };

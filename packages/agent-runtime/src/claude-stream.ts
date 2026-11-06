@@ -37,6 +37,7 @@
  * exercised only through `feed`/`flush` in the test suite.
  */
 
+import { createBoundedLineStream } from './core/bounded-line-stream.js';
 import { readDelegatedResult } from '@jini-ai/protocol';
 import { createRoleMarkerGuard, type RoleMarkerGuard, type RoleMarkerWarningEvent } from './role-marker-guard.js';
 import { createClaudeSegmentUsage } from './claude-segment-usage.js';
@@ -470,7 +471,10 @@ interface ClaudeStreamHandlerOptions {
 
 export function createClaudeStreamHandler({ onEvent }: { onEvent: EventSink }, options: ClaudeStreamHandlerOptions = {}
 ) {
-  let buffer = '';
+  const lines = createBoundedLineStream({
+    onLine: line => { const trimmed = line.trim(); if (trimmed) feedLine(trimmed); },
+    onOverflow: error => onEvent({ type: 'error', message: error.message, code: 'STREAM_LINE_TOO_LARGE' }),
+  });
   const segmentUsage = createClaudeSegmentUsage({}, {
     ...(options.nowMs === undefined ? {} : { nowMs: options.nowMs }),
     ...(options.costBasis === undefined ? {} : { costBasis: options.costBasis }),
@@ -684,13 +688,7 @@ export function createClaudeStreamHandler({ onEvent }: { onEvent: EventSink }, o
   }
 
   function feed({ chunk }: { chunk: string }) {
-    buffer += chunk;
-    let nl;
-    while ((nl = buffer.indexOf('\n')) !== -1) {
-      const line = buffer.slice(0, nl).trim();
-      buffer = buffer.slice(nl + 1);
-      if (line) feedLine(line);
-    }
+    lines.feed({ chunk: chunk });
   }
 
   /** One complete, non-blank line: a JSON object is handled, anything else passes through raw. */
@@ -706,15 +704,7 @@ export function createClaudeStreamHandler({ onEvent }: { onEvent: EventSink }, o
   }
 
   function flush() {
-    const rem = buffer.trim();
-    buffer = '';
-    if (rem) {
-      try {
-        handleObject(JSON.parse(rem));
-      } catch {
-        onEvent({ type: 'raw', line: rem });
-      }
-    }
+    lines.flush();
     flushPendingArtifactText();
     // A hard cancel has no result frame. Flush only counters actually observed, once.
     if (segmentUsage.hasObserved()) onEvent({ type: 'usage', ...segmentUsage.finish({ result: {}, interrupted: true }), stopReason: null });

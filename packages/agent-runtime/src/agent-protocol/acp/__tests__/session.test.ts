@@ -100,6 +100,31 @@ describe('attachAcpSession', () => {
     );
   });
 
+  it('fails and closes an oversized stdout frame without throwing from the stream listener', () => {
+    const child = new FakeAcpChild();
+    const send = vi.fn();
+    const session = attachAcpSession({ child: child as any, prompt: 'hello', send });
+    expect(() => child.stdout!.emit('data', 'x'.repeat(8 * 1024 * 1024 + 1))).not.toThrow();
+    expect(session.hasFatalError()).toBe(true);
+    expect(child.killed).toBe(true);
+    expect(send.mock.calls.filter(([event]) => event.event === 'error')).toHaveLength(1);
+    expect(send).toHaveBeenCalledWith({ event: 'error', payload: expect.objectContaining({ message: 'Agent output line exceeded 8388608 characters.' }) });
+    child.stdout!.emit('data', 'discarded suffix\n');
+    child.emit('close', 1, null);
+    expect(send.mock.calls.filter(([event]) => event.event === 'error')).toHaveLength(1);
+  });
+
+  it('fails an oversized multiline reply before executing its JSON-RPC result', () => {
+    const child = new FakeAcpChild();
+    const send = vi.fn();
+    const session = attachAcpSession({ child: child as any, prompt: 'hello', send });
+    child.stdout!.emit('data', '{\n"jsonrpc":"2.0","id":1,"result":{"pad":"' + 'x'.repeat(128000) + '"}}\n');
+    expect(session.hasFatalError()).toBe(true);
+    expect(child.killed).toBe(true);
+    expect(writesOf(child)).toHaveLength(1);
+    expect(send).toHaveBeenCalledWith({ event: 'error', payload: expect.objectContaining({ message: 'Agent output multiline JSON exceeded 128000 characters or 256 lines.' }) });
+  });
+
   it('sends an initialize request immediately with the default client info', () => {
     const child = new FakeAcpChild();
     (({ child, prompt, send, ...optionalArgs }: Parameters<typeof attachAcpSession>[0] & NonNullable<Parameters<typeof attachAcpSession>[1]>) => attachAcpSession({ child, prompt, send }, optionalArgs))(baseOptions(child));

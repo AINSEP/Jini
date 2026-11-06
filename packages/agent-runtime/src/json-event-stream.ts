@@ -1,5 +1,6 @@
 /** @module json-event-stream
  * Multi-CLI JSON event parsing with per-handler stream state. */
+import { createBoundedLineStream } from './core/bounded-line-stream.js';
 import { sanitizeUntrustedText } from '@jini-ai/core/text';
 import { handleAntigravityEvent, type AntigravityStreamState } from './defs/antigravity/event-stream.js';
 
@@ -1027,7 +1028,10 @@ const PARSERS_BY_KIND: ReadonlyMap<string, (obj: unknown, onEvent: StreamEventHa
 ]);
 
 export function createJsonEventStreamHandler({ kind, onEvent }: { kind: string; onEvent: StreamEventHandler }) {
-  let buffer = '';
+  const lines = createBoundedLineStream({
+    onLine: line => { const trimmed = line.trim(); if (trimmed) handleLine(trimmed); },
+    onOverflow: error => onEvent({ type: 'error', message: error.message, raw: '' }),
+  });
   const state: ParserState = {
     antigravity: { textEmitted: false, toolUses: new Set<string>(), toolResults: new Set<string>() },
     cursorTextSoFar: '',
@@ -1059,21 +1063,12 @@ export function createJsonEventStreamHandler({ kind, onEvent }: { kind: string; 
     onEvent({ type: 'raw', line });
   }
 
-  function feed({ chunk }: { chunk: string }): void {
-    buffer += chunk;
-    let nl;
-    while ((nl = buffer.indexOf('\n')) !== -1) {
-      const line = buffer.slice(0, nl).trim();
-      buffer = buffer.slice(nl + 1);
-      if (!line) continue;
-      handleLine(line);
-    }
+  function feed({ chunk }: { chunk: string }) {
+    lines.feed({ chunk: chunk });
   }
 
   function flush(): void {
-    const rem = buffer.trim();
-    buffer = '';
-    if (rem) handleLine(rem);
+    lines.flush();
     flushPendingArtifactText(state, onEvent);
   }
 

@@ -326,7 +326,7 @@ export async function detectAcpModels(requiredArgs: Pick<DetectAcpModelsOptions,
       finish(resolve, models);
     };
 
-    const parser = createJsonLineStream({ onMessage: ({ message: raw }) => {
+    const parser = createJsonLineStream({ onError: error => fail(error.message), onMessage: ({ message: raw }) => {
       const obj = asObject(raw);
       const rpcErr = rpcErrorMessage(raw);
       if (rpcErr) {
