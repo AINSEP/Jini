@@ -1,3 +1,4 @@
+import { spawnSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -97,4 +98,21 @@ it('checks every catalog record and permits an agent newly added to the publishe
     pendingPackages: new Map([['@jini-ai/agent-plugins@1.0.0', join(root, 'packages/agent-plugins')]]) }, {
     publishedPackage: async () => join(root, 'published'),
   })).rejects.toThrow('Release catalog mismatch: provider:fixture');
+});
+
+it('rejects a catalog pointing at an old registry version when the distribution release selects a newer version', async () => {
+  const entry = await provider(join(root, 'published'));
+  await expect(checkPluginReleaseConsistency({ entries: [entry],
+    pendingPackages: new Map([['@jini-ai/provider-plugins@1.0.1', join(root, 'pending')]]) }, {
+    publishedPackage: async () => join(root, 'published'),
+  })).rejects.toThrow('Release catalog version mismatch');
+});
+
+it('imports the release preparation path in Node without running a release', () => {
+  const result = spawnSync(process.execPath, ['--import', 'tsx', '--input-type=module', '-'], {
+    cwd: new URL('../../', import.meta.url), encoding: 'utf8', timeout: 30_000,
+    input: "import { preparePluginRelease } from './scripts/publish-pending.ts'; console.log(typeof preparePluginRelease);",
+  });
+  expect(result.status, result.stderr).toBe(0);
+  expect(result.stdout.trim()).toBe('function');
 });

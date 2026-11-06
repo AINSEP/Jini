@@ -50,6 +50,26 @@ function isVersionAlreadyPublished(name: string, version: string): boolean {
   }
 }
 
+/** Build every pending package before any upload, preserving already-published versions. */
+function buildPendingPackages(required: {
+  registry: ReturnType<typeof discoverJiniPackages>; closure: readonly string[];
+}): string[] {
+  const { registry, closure } = required;
+  const pending: string[] = [];
+  for (const name of closure) {
+    const entry = registry.get(name)!;
+    const localVersion = entry.pkg.version;
+    if (localVersion && isVersionAlreadyPublished(name, localVersion)) {
+      console.log(`\n--- skipping ${name}@${localVersion} (already published) ---`);
+      continue;
+    }
+    pending.push(name);
+    console.log(`\n--- building ${name} ---`);
+    execFileSync('pnpm', ['--filter', name, 'run', 'build'], { cwd: repoRoot, stdio: 'inherit' });
+  }
+  return pending;
+}
+
 async function main(): Promise<void> {
   const dryRun = process.argv.includes('--dry-run');
   const registry = discoverJiniPackages(repoRoot);
@@ -75,19 +95,7 @@ async function main(): Promise<void> {
 
   console.log(`${dryRun ? '[dry-run] ' : ''}Publishing ${closure.length} package(s) in dependency order:\n  ${closure.join('\n  ')}\n`);
 
-  const pending: string[] = [];
-  for (const name of closure) {
-    const entry = registry.get(name)!;
-    const localVersion = entry.pkg.version;
-    if (localVersion && isVersionAlreadyPublished(name, localVersion)) {
-      console.log(`\n--- skipping ${name}@${localVersion} (already published) ---`);
-      continue;
-    }
-    pending.push(name);
-    console.log(`\n--- building ${name} ---`);
-    execFileSync('pnpm', ['--filter', name, 'run', 'build'], { cwd: repoRoot, stdio: 'inherit' });
-
-  }
+  const pending = buildPendingPackages({ registry, closure });
   const tarballs = await preparePluginRelease({ repoRoot, registry, pending });
   for (const name of pending) {
     const entry = registry.get(name)!;

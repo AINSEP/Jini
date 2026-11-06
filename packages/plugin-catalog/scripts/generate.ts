@@ -196,4 +196,6 @@ async function writeCatalog(): Promise<void> {
   await rename(temporary, path.join(root, 'catalog.json'));
 }
 
-if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) await writeCatalog();
+if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
+  writeCatalog().catch(error => { console.error(error); process.exitCode = 1; });
+}

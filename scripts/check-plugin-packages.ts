@@ -168,7 +168,10 @@ export async function checkPluginReleaseConsistency(required: {
   };
   try {
     for (const entry of required.entries) {
-      const selected = required.pendingPackages.get(`${entry.packageName}@${entry.version}`);
+      const identity = `${entry.packageName}@${entry.version}`;
+      const selectedIdentity = [...required.pendingPackages.keys()].find(key => key.startsWith(`${entry.packageName}@`));
+      if (selectedIdentity && selectedIdentity !== identity) throw new TypeError(`Release catalog version mismatch: ${identity} versus ${selectedIdentity}`);
+      const selected = required.pendingPackages.get(identity);
       const packageRoot = selected ?? await load(entry.packageName, entry.version);
       if (!packageRoot) throw new TypeError(`${entry.packageName}@${entry.version} is not published or selected for this release`);
       await assertCatalogArtifact({ entry, packageRoot });
