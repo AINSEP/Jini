@@ -1,7 +1,7 @@
 import { createElement, useId, useRef, useState, useEffect, useLayoutEffect } from 'react';
 import { createPortal } from 'react-dom';
 import type { KeyboardEvent } from 'react';
-import type { TabsProps, MenuProps, TooltipProps } from '../types.js';
+import type { TabItem, TabsProps, MenuProps, TooltipProps } from '../types.js';
 import { childControlAttrs, useControlAttrs } from '../agent-attrs.hooks.js';
 import { useOverlayContainer } from '../Kit.hooks.js';
 function navigationIndex(required: { key: string; current: number; count: number; forward: string; backward: string }, _optional: Record<string, never> = {}): number | undefined {
@@ -12,6 +12,11 @@ function navigationIndex(required: { key: string; current: number; count: number
     case required.backward: return (required.current - 1 + required.count) % required.count;
     default: return undefined;
   }
+}
+function legacyActiveTabAttrs({ parent, item, active }: { parent: TabsProps; item: TabItem; active: boolean }) {
+  if (!active || parent.agentHandle !== undefined) return {};
+  if (parent.attrs?.['data-agent-private'] !== undefined || item.attrs?.['data-agent-private'] !== undefined) return {};
+  return parent.attrs ?? {};
 }
 export function useNativeTabs(required: TabsProps, _optional: Record<string, never> = {}) {
   const prefix = useId(), root = useRef<HTMLDivElement>(null);
@@ -29,7 +34,7 @@ export function useNativeTabs(required: TabsProps, _optional: Record<string, nev
     key: item.id, type: 'button', role: 'tab', id: `${prefix}-tab-${index}`, 'data-jini-part': 'kit.tab', className: 'jini-tab-bar-item',
     ...childControlAttrs({ parent: required, attrs, action: item.id }, { attrs: item.attrs, label: item.label }),
     // A caller's legacy base was attached to the active tab; keep that explicit name.
-    ...(item.id === active?.id && required.agentHandle !== false ? required.attrs : {}),
+    ...legacyActiveTabAttrs({ parent: required, item, active: item.id === active?.id }),
     'data-tab-id': item.id, 'aria-controls': `${prefix}-panel-${index}`, 'aria-selected': item.id === active?.id,
     disabled: item.disabled, tabIndex: item.id === active?.id ? 0 : -1,
     onClick: () => { if (!item.disabled) required.onValueChange({ value: item.id }); }, onKeyDown,

@@ -16,6 +16,9 @@ function handleSegment({ value }: { value: string }): string {
 function ordinaryAttrs({ attrs = {} }: { attrs?: KitAttrs | undefined }): KitAttrs {
   return Object.fromEntries(Object.entries(attrs).filter(([key]) => !key.toLowerCase().startsWith('data-agent-')));
 }
+function definedAttrs({ attrs = {} }: { attrs?: KitAttrs | undefined }): KitAttrs {
+  return Object.fromEntries(Object.entries(attrs).filter(([, value]) => value !== undefined));
+}
 function publishedAttrs({ handle, agent, role, label }: { handle: string; agent?: AgentAttrsPort | undefined; role?: AgentSpec['role'] | undefined; label?: string | undefined }): KitAttrs {
   return agent ? agent({ handle }, { ...(role === undefined ? {} : { role }), ...(label === undefined ? {} : { label }) }) : { 'data-agent-element': handle, 'data-agent-role': role, 'data-agent-label': label };
 }
@@ -36,7 +39,7 @@ export function useControlAttrs(required: BaseProps, optional: {
   if (required.agentHandle === false) return ordinaryAttrs({ attrs: required.attrs });
   const handle = controlHandle({ props: required, id, options: optional });
   if (handle === undefined) return required.attrs ?? {};
-  return { ...publishedAttrs({ handle, agent: context?.agent, role: optional.role, label: optional.label }), ...required.attrs };
+  return { ...publishedAttrs({ handle, agent: context?.agent, role: optional.role, label: optional.label }), ...definedAttrs({ attrs: required.attrs }) };
 }
 /** Derives one actual control from a composite base and stable item/action id, retaining page metadata.
  * Explicit item attributes remain authoritative; opt-out removes addressing at every leaf.
@@ -49,5 +52,5 @@ export function childControlAttrs(required: { parent: BaseProps; attrs: KitAttrs
   if (typeof base !== 'string') return optional.attrs ?? {};
   const root = base.length > 80 ? handleSegment({ value: base }) : base;
   return { 'data-agent-element': `${root}-${handleSegment({ value: required.action })}`, 'data-agent-page': required.attrs['data-agent-page'],
-    'data-agent-role': optional.role ?? 'button', 'data-agent-label': optional.label, ...optional.attrs };
+    'data-agent-role': optional.role ?? 'button', 'data-agent-label': optional.label, ...definedAttrs({ attrs: optional.attrs }) };
 }

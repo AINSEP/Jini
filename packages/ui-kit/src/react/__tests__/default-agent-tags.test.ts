@@ -6,6 +6,7 @@ import { Button, Checkbox, Dialog, IconButton, Menu, Select, Switch, Tabs, TextA
 import { ConfirmDialog } from '../confirm/ConfirmDialog.js';
 import { KitProvider } from '../KitProvider.js';
 import { createKit } from '../kit.js';
+import { nativeKit } from '../native/index.js';
 import type { ButtonProps } from '../types.js';
 
 beforeAll(() => { (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true; });
@@ -127,4 +128,32 @@ it('withholds explicit handles on private text areas and secret fields before an
   fireEvent.click(toggle);
   expect((password as HTMLInputElement).type).toBe('text');
   expect(handle(password)).toBeNull(); expect(handle(toggle)).toBeNull();
+});
+
+it('does not let an unset forwarded attribute erase a default handle', () => {
+  render(h('div', null,
+    h(Button, { attrs: { 'data-agent-element': undefined, 'data-agent-role': undefined }, children: 'Save' }),
+    h(Menu, { label: 'Actions', agentHandle: 'actions', items: [{ id: 'copy', label: 'Copy', attrs: { 'data-agent-element': undefined }, onPress: noop }] })));
+  expect(handle(screen.getByRole('button', { name: 'Save' }))).toMatch(/^kit-/);
+  fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
+  expect(handle(screen.getByRole('menuitem', { name: 'Copy' }))).toBe('actions-copy');
+});
+
+
+it('keeps explicit-base tab identities stable when selection changes', () => {
+  const items = [{ id: 'one', label: 'One', content: 'First' }, { id: 'two', label: 'Two', content: 'Second' }];
+  const props = { agentHandle: 'settings', label: 'Sections', value: 'one', items, onValueChange: noop };
+  const view = render(h(Tabs, props));
+  const original = screen.getAllByRole('tab').map(handle);
+  expect(original).toEqual(['settings-one', 'settings-two']);
+  view.rerender(h(Tabs, { ...props, value: 'two' }));
+  expect(screen.getAllByRole('tab').map(handle)).toEqual(original);
+});
+
+it('never restores raw caller addressing onto a private native tab', () => {
+  render(h(nativeKit.Tabs, { label: 'Private tabs', value: 'one', onValueChange: noop,
+    attrs: { 'data-agent-private': '', 'data-agent-element': 'private-parent' },
+    items: [{ id: 'one', label: 'One', content: 'First', attrs: { 'data-agent-element': 'private-child' } }] }));
+  expect(handle(screen.getByRole('tab'))).toBeNull();
+  expect(screen.getByRole('tab').getAttribute('data-agent-private')).toBe('');
 });
