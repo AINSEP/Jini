@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { act, cleanup, render, screen } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
+import userEvent from '@testing-library/user-event';
 import { createDomPageDriver } from '@jini-ai/agentic/dom';
 import type { AgentAttrsPort } from '@jini-ai/ui-kit';
 import { Button, Dialog, KitProvider, Menu, Tabs } from '@jini-ai/ui-kit/react';
@@ -113,4 +114,44 @@ it.each(['custom', 'widget', 'shadcn'] as const)('inherits the kit overlay for t
   expect((await driver.findElements({}, {})).find(item => item.handle === handle)?.page).toBe('profile');
   await act(async () => driver.click({ handle }));
   expect(onChange.mock.calls).toEqual([['b']]);
+});
+
+it.each(['custom', 'shadcn', 'searchable'] as const)('keeps %s select privacy on its portalled content', async (kind) => {
+  const { mount, overlay, driver } = scope();
+  const onChange = vi.fn(), nestedAction = vi.fn();
+  const props = { agentHandle: 'private-choice', 'data-agent-private': 'true', 'data-agent-page': 'profile' };
+  const { SelectField } = await import('../../../features/interactive-ui/providers/shadcn/select-field.js');
+  const { SearchableModelSelect } = await import('../../../features/execution/react/components/SearchableModelSelect.js');
+  render(<KitProvider overlayContainer={overlay}>
+    {kind === 'custom' ? <CustomSelect {...props} value="a" options={[{ value: 'a', label: 'A' }]} onChange={onChange} ariaLabel="Kind"
+      menuHeader={<PillButton agentHandle="nested-action" label="Nested action" onClick={nestedAction} />} /> : kind === 'shadcn' ?
+      <SelectField {...props} value="a" options={[{ value: 'a', label: 'A' }]} onValueChange={onChange} /> :
+      <SearchableModelSelect {...props} value="a" models={[{ id: 'a', label: 'A' }]} minSearchableOptions={1} onChange={onChange} ariaLabel="Kind" searchPlaceholder="Search models" />}
+  </KitProvider>, { container: mount });
+  expect(screen.getByRole('combobox')).not.toHaveAttribute('data-agent-element');
+  await userEvent.click(screen.getByRole('combobox'));
+  const menu = screen.getByRole('listbox');
+  expect(overlay.contains(menu)).toBe(true);
+  expect(menu).toHaveAttribute('data-agent-private', 'true');
+  expect(menu).toHaveAttribute('data-agent-page', 'profile');
+  expect(await driver.findElements({}, {})).toEqual([]);
+  if (kind === 'custom') {
+    await expect(driver.click({ handle: 'nested-action' })).rejects.toThrow();
+    expect(nestedAction).not.toHaveBeenCalled();
+  }
+  if (kind === 'searchable') {
+    expect(screen.getByPlaceholderText('Search models')).toHaveAttribute('data-agent-private', 'true');
+    expect(screen.getByPlaceholderText('Search models')).not.toHaveAttribute('data-agent-element');
+  }
+});
+
+it('keeps a shadcn select inside its native dialog before considering the kit overlay', async () => {
+  const { mount, overlay } = scope();
+  const { SelectField } = await import('../../../features/interactive-ui/providers/shadcn/select-field.js');
+  render(<KitProvider overlayContainer={overlay}><dialog open data-testid="native-dialog">
+    <SelectField value="a" options={[{ value: 'a', label: 'A' }]} />
+  </dialog></KitProvider>, { container: mount });
+  await userEvent.click(screen.getByRole('combobox'));
+  expect(screen.getByTestId('native-dialog').contains(screen.getByRole('listbox'))).toBe(true);
+  expect(overlay.contains(screen.getByRole('listbox'))).toBe(false);
 });

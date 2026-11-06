@@ -657,3 +657,20 @@ it('preserves explicit opt-out on the widget select trigger, search and rows', a
   expect(screen.getByPlaceholderText('Search…')).not.toHaveAttribute('data-agent-element');
   for (const row of screen.getAllByRole('option')) expect(row).not.toHaveAttribute('data-agent-element');
 });
+
+it('keeps punctuation IDs distinct and stable through filtering and reorder', async () => {
+  const user = userEvent.setup();
+  const options = [{ value: 'a/b', label: 'Slash' }, { value: 'a b', label: 'Space' }, ...MANY_OPTIONS];
+  const props = { value: '', onChange: vi.fn(), 'aria-label': 'Pick one', agentHandle: 'choose' };
+  const { rerender } = render(<Select {...props} options={options} />);
+  await user.click(screen.getByRole('combobox'));
+  const slash = screen.getByRole('option', { name: 'Slash' }).getAttribute('data-agent-element');
+  const space = screen.getByRole('option', { name: 'Space' }).getAttribute('data-agent-element');
+  expect(slash).not.toBe(space);
+  await user.type(screen.getByPlaceholderText('Search…'), 'Space');
+  expect(screen.getByRole('option', { name: 'Space' })).toHaveAttribute('data-agent-element', space);
+  await user.clear(screen.getByPlaceholderText('Search…'));
+  rerender(<Select {...props} options={[...options].reverse()} />);
+  expect(screen.getByRole('option', { name: 'Slash' })).toHaveAttribute('data-agent-element', slash);
+  expect(screen.getByRole('option', { name: 'Space' })).toHaveAttribute('data-agent-element', space);
+});

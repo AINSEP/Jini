@@ -3,7 +3,7 @@ import { useAgentHandle } from '../../../../react/hooks/useAgentHandle.js';
 import { resolveSelectPortalContainer, resolveSelectOriginPage } from '../../../../react/components/select-popover.js';
 import { createPortal } from "react-dom";
 import { agentHandle } from "@jini-ai/agentic";
-import { buildAgentListHandles } from "@jini-ai/agentic";
+import { agentHandleSegment } from "@jini-ai/agentic";
 import type { Translate } from "../../../i18n/dictionary-translator.js";
 import { Fragment } from "react";
 import { useSelectDropdown, groupHeadingAt, type PanelPosition, type SelectOption } from "./Select.hooks.js";
@@ -31,7 +31,7 @@ export interface SelectProps {
   /** Injectable state/effect seam; rendering tests need not drive portal positioning or listeners. */
   useDropdown?: typeof useSelectDropdown | undefined;
   agentHandle?: string | false | undefined;
-  /** Host-owned portal destination. Defaults to the trigger's nearest dialog, then document.body.
+  /** Host-owned portal destination. Defaults to the nearest dialog, kit overlay, then document.body.
    * Within a modal dialog, supply a descendant of that dialog so the panel remains interactive.
    * Keep this container outside scrolling/clipping regions and free of transforms that establish
    * a fixed-position containing block; panel coordinates are viewport-relative.
@@ -245,7 +245,7 @@ export function Select(props: SelectProps, _optional: Record<string, never> = {}
   // dropped by the current query has no rendered row to attach a handle to, so it is simply absent
   // this render rather than holding a handle nothing resolves to. `undefined` (not an empty array)
   // when `base` is explicitly opted out, so `SelectPanel` can tell "opted out" apart from "no options match".
-  const optionHandles = base ? buildAgentListHandles({ prefix: `${base}-option`, ids: filtered.map((option) => option.value) }) : undefined;
+  const optionHandles = base ? filtered.map((option) => `${base}-option-${agentHandleSegment({ value: option.value })}`) : undefined;
 
   return (
     <>
