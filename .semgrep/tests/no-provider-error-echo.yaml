@@ -25,6 +25,10 @@ rules:
           - pattern-either:
               - pattern: throw $TEXT;
               - pattern: return $TEXT;
+          # The enclosing promise return overlaps the callback's own return/throw sinks.
+          # OSS does not propagate callback return taint to that promise; let the callback
+          # own its sinks instead of selecting the outer return as the best match.
+          - pattern-not: return $PROMISE.catch(...);
           - focus-metavariable: $TEXT
         exact: true
       - patterns:

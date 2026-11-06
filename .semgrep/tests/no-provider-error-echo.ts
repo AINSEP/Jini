@@ -87,3 +87,19 @@ async function successfulResponse() {
     return response.message;
   });
 }
+
+async function conciseRejection() {
+  // ruleid: no-provider-error-echo
+  return provider.request().catch(failure => failure.message);
+}
+async function conciseRedaction() {
+  // ok: no-provider-error-echo
+  return provider.request().catch(failure => redactSecrets({ input: failure.message }));
+}
+async function callbackLog() {
+  return provider.request().catch(failure => {
+    // ruleid: no-provider-error-echo
+    logger.error({ detail: failure.response.data });
+    return { code: 'FAILED' };
+  });
+}
