@@ -361,10 +361,10 @@ function FileEditCard({ input, result, runStreaming, runSucceeded, ctx }: CardPr
 
 function FileReadCard({ input, result, runStreaming, runSucceeded, ctx }: CardProps & { ctx: FileToolCtx }) {
   const t = useT();
-  const obj = (input ?? {}) as { file_path?: string; filePath?: string; path?: string };
+  const obj = (input ?? {}) as { file_path?: string; filePath?: string; path?: string; offset?: unknown };
   const file = obj.file_path ?? obj.filePath ?? obj.path ?? '(unnamed)';
   // See OpenInTabButton's baseName comment: `.split('/').pop()` is never undefined.
-  const baseName = file.split('/').pop()!;
+  const baseName = toolRowTarget({ input: { path: file.split('/').pop()!, offset: obj.offset } });
   const isRunning = runStreaming && !result;
   return (
     <ExpandableCard
