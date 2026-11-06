@@ -14,3 +14,15 @@ Focused public catalog regression: RED10 pass/1 fail, GREEN11 pass/0 fail. Comme
 
 - Missing public resolution catalog prevented complete consumer contract audits without duplicating private declarations; fixed by exposing the existing catalog.
 - Tovu findings and full-suite progress are maintained in its matching `cloud/reports/tests-tovu-site.md`.
+
+## Verified progress
+
+Jini source commit `e89bf38d4` is pushed to `cloud/tests-tovu-site`. Commands (after sourcing `/workspace/.tovu-build/env.sh`, cwd Jini):
+
+```sh
+pnpm --filter @jini-ai/commerce exec vitest run -c vitest.kernel.config.ts --maxWorkers=2 --minWorkers=1 src/payments/tools/__tests__/resolve-unknown.vitest.test.ts
+pnpm --filter @jini-ai/commerce build
+pnpm --filter @jini-ai/commerce typecheck
+```
+
+Results:11 pass/0 fail; build/typecheck exit0. Targeted commerce ESLint exit0. Tovu relinked after build; complete commerce consumer contract test36/36, catalog/audit/site-title group36/36. Tovu root production and test typechecks both passed. Full root/website suite remains running; fixes and remaining findings are recorded in Tovu's matching report. No additional Jini code change is currently needed.
