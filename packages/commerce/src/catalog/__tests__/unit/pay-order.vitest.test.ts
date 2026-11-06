@@ -49,6 +49,26 @@ it("refuses reservation conflicts before dispatch", async () => {
   await expect(w.run()).rejects.toThrow("order already reserved for another scope");
   expect(w.payments.createIntent).not.toHaveBeenCalled(); expect(w.orderPayments.bind).not.toHaveBeenCalled();
 });
+it("refuses an archived price before the first payment association without reserving or dispatching", async () => {
+  const w = await fixture();
+  const price = await w.deps.prices.findById({ workspaceId: "ws", id: "price" });
+  w.deps.prices.findById = async () => ({ ...price!, status: "archived" });
+  await expect(w.run()).rejects.toThrow("price is no longer active; return to the shop to start a new order");
+  expect(w.state.association).toBeNull();
+  expect(w.orderPayments.reserve).not.toHaveBeenCalled();
+  expect(w.dispatch).not.toHaveBeenCalled();
+  expect(w.order.status).toBe("pending");
+});
+it("an archived price preserves an existing association and replays its unresolved payment", async () => {
+  const w = await fixture(); w.lipay.server.script({ op: "createIntent", behaviours: ["timeout"] });
+  const first = await w.run();
+  const price = await w.deps.prices.findById({ workspaceId: "ws", id: "price" });
+  w.deps.prices.findById = async () => ({ ...price!, status: "archived" });
+  const second = await w.run();
+  expect(second).toMatchObject({ ok: true, replayed: true, payment: first.payment });
+  expect(w.state.association!.paymentId).toBe(first.payment!.id);
+  expect(w.dispatch).toHaveBeenCalledTimes(1);
+});
 it("replays an unresolved payment without a second dispatch and omits an absent provider price ref", async () => {
   const w = await fixture(); w.priceRefs.find.mockResolvedValue(null); w.lipay.server.script({ op: "createIntent", behaviours: ["timeout"] });
   const first = await w.run(), second = await w.run();

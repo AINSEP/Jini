@@ -26,7 +26,7 @@ it("persists the pending order before pay, prevents duplicate clicks and navigat
   resolve(response({ order: { id: "order-1" } }, 201));
   await vi.waitFor(() => expect(navigate).toHaveBeenCalledWith({ url: "https://checkout.provider.test/session" }));
   expect(fetch.mock.calls.map(([url]) => url)).toEqual([orders, `${orders}/order-1/pay`]);
-  expect(w.link.href).toBe(`https://shop.test${orders}/order-1`);
+  expect(w.link.href).toBe("https://shop.test/commerce/return?orderId=order-1");
 });
 it("after a lost pay response and browser reload, retries the same saved order without another create", async () => {
   const first = page(); const fetch = vi.fn<typeof globalThis.fetch>().mockResolvedValueOnce(response({ order: { id: "order-1" } }, 201)).mockRejectedValueOnce(new Error("lost response"));
@@ -39,6 +39,12 @@ it("after a lost pay response and browser reload, retries the same saved order w
   await submit(reloaded);
   expect(retry).toHaveBeenCalledTimes(1); expect(retry.mock.calls[0]![0]).toBe(`${orders}/order-1/pay`);
   expect(reloaded.status.textContent).toContain("still updating");
+});
+it("restores an escaped buyer confirmation link for a saved order", () => {
+  const w = page(); w.dom.window.sessionStorage.setItem(`commerce:${orders}:price`, "order/with?separator");
+  installCommerceCheckout({ document: w.dom.window.document, fetch: vi.fn(), storage: w.dom.window.sessionStorage, navigate: vi.fn() });
+  expect(w.link.href).toBe("https://shop.test/commerce/return?orderId=order%2Fwith%3Fseparator");
+  expect(w.link.hidden).toBe(false);
 });
 it.each(["http://checkout.provider.test/session", "javascript:alert(1)", "https://user:secret@checkout.test/session"])("refuses unsafe provider navigation %s and retains the order", async url => {
   const w = page(), navigate = vi.fn();

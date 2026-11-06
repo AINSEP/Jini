@@ -15,9 +15,10 @@ export async function readCommerceDrain({ ledger, workspaceId }: { ledger: Payme
     if (!payment && !optional.configured) payment = await tx.findOpenPayment({ workspaceId });
     if (!payment && optional.configured) {
       const configured = optional.configured;
-      const candidate = await tx.findOpenPayment({ workspaceId }, { providerId: configured.providerId, mode: configured.mode });
+      const candidate = await tx.findOpenPayment({ workspaceId });
       // One endpoint cannot distinguish two accounts in the same provider/mode.
-      if (candidate && candidate.providerAccountId !== configured.accountId) payment = candidate;
+      // Old sessions can still be paid after a mode change; their merchant credentials must remain available.
+      if (candidate && (candidate.providerId !== configured.providerId || candidate.providerAccountId !== configured.accountId)) payment = candidate;
     }
     if (!payment) return null;
     const attempt = await tx.findAttemptByOperationKey({ workspaceId, mode: payment.mode, operationKey: `intent:${payment.idempotencyKey}` });

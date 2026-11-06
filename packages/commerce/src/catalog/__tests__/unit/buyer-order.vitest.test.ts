@@ -30,9 +30,17 @@ describe("buyer order projection", () => {
   });
   it.each(["paid", "failed", "canceled"] as const)("reports ledger order status %s", status => {
     const internal = internalView(); internal.order.status = status;
+    internal.payment = { ...internal.payment!, status: status === "paid" ? "succeeded" : status };
     expect(commerceBuyerStatus({ view: toCommerceBuyerOrder({ view: internal }) }).title).toBe({
       paid: "Payment confirmed", failed: "Payment unsuccessful", canceled: "Order canceled",
     }[status]);
+  });
+  it.each(["failed", "canceled"] as const)("a pending order with a %s payment directs the buyer back to the shop", status => {
+    const internal = internalView(); internal.payment = { ...internal.payment!, status };
+    const result = commerceBuyerStatus({ view: toCommerceBuyerOrder({ view: internal }) });
+    expect(result.title).toBe(status === "failed" ? "Payment unsuccessful" : "Order canceled");
+    expect(result.message).toContain("Return to the shop");
+    expect(result.message).not.toContain("Check this same order again shortly");
   });
   it("supports an order with no reserved payment", () => {
     const internal = internalView(); internal.payment = null;

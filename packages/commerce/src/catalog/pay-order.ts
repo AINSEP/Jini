@@ -22,7 +22,11 @@ export type PayOrderResult = IntentResult;
 export async function payOrder({ deps, input }: {
   deps: PayOrderDeps; input: { workspaceId: UUID; orderId: UUID; scope: PaymentScope };
 }, _optional: Record<string, never> = {}): Promise<PayOrderResult> {
-  const { order, item } = await loadPayableOrder({ deps, input });
+  const { order, item, price } = await loadPayableOrder({ deps, input });
+  // A corrected price stops new dispatches; an existing reservation must still replay its original payment.
+  if (price.status !== "active" && !await deps.orderPayments.findByOrder({ workspaceId: input.workspaceId, orderId: order.id })) {
+    throw new CommerceCheckoutValidationError({ message: "price is no longer active; return to the shop to start a new order" });
+  }
   const reserved = await deps.orderPayments.reserve({ ...input.scope, orderId: order.id, amount: order.totalAmount,
     createdAt: nowIso({ clock: deps.settle.clock }) });
   if (reserved === "conflict") throw new CommerceCheckoutValidationError({ message: "order already reserved for another scope" });

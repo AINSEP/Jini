@@ -38,7 +38,7 @@ export function installCommerceCheckout(required: CommerceCheckoutBrowserRequire
 
     function showOrder(): void {
       if (!orderId) return;
-      link.href = `${orders}/${encodeURIComponent(orderId)}`;
+      link.href = `/commerce/return?orderId=${encodeURIComponent(orderId)}`;
       link.hidden = false;
       link.textContent = `View order ${orderId}`;
     }
