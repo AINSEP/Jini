@@ -203,11 +203,11 @@ export function renderHtmlForm(
  * @overallScore 96 — Recommended: embed providers own their frame's validation and accessibility. */
 export function renderFormCollection(
   required: { slug: string; fields: readonly FieldDescriptor[]; hooks: FormHtmlHooks; plan: import('./provider.js').FormCollectionPlan },
-  optional: { html?: string; className?: string; successMessage?: string; schemaHash?: string; idPrefix?: string } = {},
+  optional: { html?: string; className?: string; successMessage?: string; schemaHash?: string; idPrefix?: string; consentOff?: boolean } = {},
 ): string {
   const { plan, ...form } = required;
   if (plan.kind === 'unavailable') return `<p role="alert" data-form-provider-unavailable>${escapeFormHtml({ value: plan.message })}</p>`;
-  if (plan.kind === 'embed') return `<iframe src="${escapeFormHtml({ value: plan.url })}" title="${escapeFormHtml({ value: plan.title })}" loading="lazy"></iframe>`;
+  if (plan.kind === 'embed') return renderCollectionEmbed({ plan, consentOff: optional.consentOff === true });
   if (!plan.external) return renderHtmlForm({ ...form, action: plan.action }, optional);
   return `<form method="post" action="${escapeFormHtml({ value: plan.action })}" data-form-provider="external"${optional.className ? attr('class', optional.className) : ''}${form.fields.some(field => field.type === 'file') ? ' enctype="multipart/form-data"' : ''}>` +
     (optional.html ?? renderHtmlFormBody({ fields: form.fields, hooks: form.hooks }, { idPrefix: optional.idPrefix ?? `form-${form.slug}` })) + '</form>';
@@ -217,4 +217,17 @@ export function renderFormCollection(
  * @complexity O(digest length), no I/O. */
 export function renderFormSchemaHash({ schemaHash }: { schemaHash?: string | undefined }, _optional = {}): string {
   return schemaHash === undefined ? "" : `<input type="hidden" name="${FORM_SCHEMA_HASH_FIELD}" value="${escapeFormHtml({ value: schemaHash })}">`;
+}
+
+/** Declared embeds stay inert without permission infrastructure; an explicit off mode delivers normally.
+ * The browser consent client owns the permission decision and withdrawal lifecycle.
+ * @complexity O(url + title + fallback bytes), no I/O. */
+function renderCollectionEmbed({ plan, consentOff }: { plan: Extract<import('./provider.js').FormCollectionPlan, { kind: 'embed' }>; consentOff: boolean }): string {
+  const source = !consentOff && plan.consent?.length
+    ? attr('data-src', plan.url) + attr('data-jini-consent', JSON.stringify(plan.consent))
+    : attr('src', plan.url);
+  const frame = `<iframe${source}${attr('title', plan.title)} loading="lazy"></iframe>`;
+  const fallback = plan.publicUrl && plan.fallbackMessage
+    ? `<p data-form-embed-fallback>${escapeFormHtml({ value: plan.fallbackMessage })} <a${attr('href', plan.publicUrl)} rel="noopener noreferrer">${escapeFormHtml({ value: plan.title })}</a></p>` : '';
+  return frame + fallback;
 }

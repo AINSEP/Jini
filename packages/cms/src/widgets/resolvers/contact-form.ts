@@ -28,15 +28,18 @@ import type { WidgetResolveResult, WidgetResolver } from "../types.js";
 export interface ContactFormResolverDeps {
   formDefinitionRepo: FormDefinitionReadPort;
   formCollectionProviders?: () => FormCollectionRegistry;
+  /** Only explicit host consent-off policy enables immediate external embed delivery. */
+  formEmbedConsentOff?: () => boolean;
 }
 
 export function createContactFormResolver(deps: ContactFormResolverDeps, _optional = {}): WidgetResolver {
   return {
     async resolveMany(instances, context) {
       const results = new Map<string, WidgetResolveResult>();
+      const consentOff = deps.formEmbedConsentOff?.() === true;
       // Sequential: one instance's lookups finish before the next instance's lookups start.
       for (const instance of instances) {
-        results.set(instance.id, await resolveContactForm({ repo: deps.formDefinitionRepo, providers: deps.formCollectionProviders?.(), config: instance.config, workspaceId: context.workspaceId }));
+        results.set(instance.id, await resolveContactForm({ repo: deps.formDefinitionRepo, providers: deps.formCollectionProviders?.(), consentOff, config: instance.config, workspaceId: context.workspaceId }));
       }
       return results;
     },
@@ -50,7 +53,7 @@ function configString({ config, key }: { config: JsonObject; key: string }): str
 }
 
 /** Resolve one instance's config to its IR, or to the failure-isolation placeholder for it. */
-async function resolveContactForm({ repo, config, workspaceId, providers }: { providers: FormCollectionRegistry | undefined; repo: FormDefinitionReadPort; config: JsonObject; workspaceId: string }): Promise<WidgetResolveResult> {
+async function resolveContactForm({ repo, config, workspaceId, providers, consentOff }: { consentOff: boolean; providers: FormCollectionRegistry | undefined; repo: FormDefinitionReadPort; config: JsonObject; workspaceId: string }): Promise<WidgetResolveResult> {
   const formDefinitionId = configString({ config, key: "formDefinitionId" });
   const formDefinitionRef = configString({ config, key: "formDefinitionRef" });
   if (!formDefinitionId && !formDefinitionRef) return { ok: false, reason: "invalid-config" };
@@ -62,7 +65,7 @@ async function resolveContactForm({ repo, config, workspaceId, providers }: { pr
 
   return {
     ok: true,
-    ir: { componentId: "contact-form", props: await contactFormProps({ definition, successMessage: configString({ config, key: "successMessage" }) ?? null, providers }) },
+    ir: { componentId: "contact-form", props: await contactFormProps({ definition, successMessage: configString({ config, key: "successMessage" }) ?? null, providers, consentOff }) },
     dependencyKeys: [definition.id],
   };
 }
@@ -78,7 +81,7 @@ async function findDefinition(
 
 /** The render component's current schema digest and props, derived from the already-loaded definition.
  * @complexity O(schema bytes + canonical key sorting) time/space; one local digest, no I/O. */
-async function contactFormProps({ definition, successMessage, providers }: { definition: FormDefinitionView; successMessage: string | null; providers: FormCollectionRegistry | undefined }): Promise<JsonObject> {
+async function contactFormProps({ definition, successMessage, providers, consentOff }: { consentOff: boolean; definition: FormDefinitionView; successMessage: string | null; providers: FormCollectionRegistry | undefined }): Promise<JsonObject> {
   const schema = submissionEvidenceSchema({ definition: { fields: definition.fields as FieldDescriptor[], ...(typeof definition.html === "string" ? { html: definition.html } : {}) } });
   const schemaHash = await canonicalArgumentDigest({ args: schema });
   return {
@@ -98,6 +101,7 @@ async function contactFormProps({ definition, successMessage, providers }: { def
       mode: "html", html: definition.html ?? "",
     } : {}),
     ...(definition.provider && definition.provider.id !== "builtin" ? { collectionPlan: resolveFormCollectionPlan({ definition, providers: providers ?? createFormCollectionRegistry({}) }) as unknown as JsonObject } : {}),
+    ...(consentOff ? { collectionConsentOff: true } : {}),
     successMessage,
   };
 }

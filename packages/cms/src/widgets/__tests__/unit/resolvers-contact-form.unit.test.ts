@@ -302,3 +302,19 @@ test("REQ-38: an empty batch resolves an empty map without touching the repo", a
   assert.equal(results.size, 0);
   assert.deepEqual(repo.calls, []);
 });
+
+
+test("embed consent-off comes only from the host snapshot and is read once per resolution batch", async () => {
+  const repo = recordingRepo({ byId: [view()] });
+  const widgets = [instance({ id: 'one', config: { formDefinitionId: 'form-1', collectionConsentOff: true } }), instance({ id: 'two', config: { formDefinitionId: 'form-1' } })];
+  for (const value of [undefined, false, true]) {
+    let reads = 0;
+    const resolver = createContactFormResolver({ formDefinitionRepo: repo, ...(value === undefined ? {} : { formEmbedConsentOff: () => { reads++; return value; } }) });
+    const results = await resolver.resolveMany(widgets, CTX);
+    for (const result of results.values()) {
+      assert.ok(result.ok);
+      assert.equal(result.ir.props.collectionConsentOff, value === true ? true : undefined);
+    }
+    assert.equal(reads, value === undefined ? 0 : 1);
+  }
+});

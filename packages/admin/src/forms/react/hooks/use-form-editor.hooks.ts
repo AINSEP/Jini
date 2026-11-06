@@ -1,3 +1,4 @@
+import type { FormProviderDescription } from "@jini-ai/cms/forms";
 import type { AdminFormProviderSelection, AdminFormsPort } from "../../../core/ports/forms.js";
 import { formView } from "../../models.js";
 import { useFormsPorts, useFormsOptions } from "./FormsPorts.hooks.js";
@@ -72,6 +73,8 @@ export interface FormEditorController {
   /** `null` until the initial load settles (or always, for `isNew`) — the caller renders a loading
    *  state or the empty create form accordingly. */
   form: AdminFormDefinition | null;
+  providers?: readonly FormProviderDescription[] | undefined;
+  providersError?: string | null;
   provider: AdminFormProviderSelection;
   setProvider: (value: AdminFormProviderSelection) => void;
   name: string;
@@ -153,6 +156,10 @@ export function useFormEditor(
   // `nextTabIndex`'s doc comment for why the index math itself lives outside the component.
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
+  const discovery = useFetchQuery({ key: ["forms", "providers"], fetch: async () => {
+    if (!port.listFormProviders) throw new Error("Form provider settings are unavailable.");
+    return { data: await port.listFormProviders({}) };
+  } });
   const list = useFetchQuery({ key: KEYS.form(props.formId), fetch: () => port.getFormDefinition({ id: props.formId }).then(form => ({ data: formView({ form }) })) }, { enabled: !isNew });
 
   // Seeds `form`/`name`/`slug`/`fields`/`notify` from `list.data` exactly once per `formId` — see
@@ -306,6 +313,8 @@ export function useFormEditor(
   return {
     isNew,
     form, provider, setProvider,
+    providers: discovery.data?.data,
+    providersError: discovery.error ? t("Form provider settings are unavailable. Try opening this editor again.") : null,
     mode, onModeChange, html, setHtml, copyEmbed, copyFeedback,
     answerColumns: formAnswerColumns({ fields: form?.fields ?? [] }, { yes: t("Yes"), no: t("No") }),
     name,

@@ -1,0 +1,8 @@
+{
+  "id": "google-forms", "name": "Google Forms collection", "version": "0.6.23",
+  "sdkRange": "^0.1.0 || ^1.0.0", "engine": 1, "tier": "tier-3",
+  "extensions": { "tovu": { "id": "jini/google-forms" } },
+  "capabilities": ["providers.register"],
+  "contributes": { "providers": [{ "contract": "form_collection", "id": "google_forms", "contractVersion": 1 }] },
+  "hooks": [], "fields": [], "integrity": {}
+}

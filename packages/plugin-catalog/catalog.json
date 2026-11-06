@@ -451,6 +451,44 @@
   },
   {
     "kind": "agent",
+    "path": "google-forms",
+    "pluginVersion": "0.1.0",
+    "contract": {
+      "id": "agent-plugins",
+      "version": "1.0.0"
+    },
+    "id": "google-forms",
+    "publisherIdentity": "jini/google-forms-agent",
+    "packageName": "@jini-ai/agent-plugins",
+    "version": "0.6.23",
+    "description": "Select a published public Google Form as a form collection provider. Questions and answers stay in Google; switching preserves local definitions and historical answers. Installation alone never switches a form.",
+    "expectedDigests": {
+      "plugin.json": "sha256-8eb1280e6de53cd237a1101d030a20573d995cd4d3fbf28afa2d26e69f9e3982",
+      "skills/google-forms/SKILL.md": "sha256-73549f53e573d7ca24eac3e3ce227b768f0c43878ef1b9214b8246eacccaf0cf"
+    }
+  },
+  {
+    "kind": "provider",
+    "path": "plugins/google-forms/0.6.23",
+    "pluginVersion": "0.6.23",
+    "contract": {
+      "id": "form_collection",
+      "version": 1
+    },
+    "id": "google-forms",
+    "publisherIdentity": "jini/google-forms",
+    "packageName": "@jini-ai/provider-plugins",
+    "version": "0.6.23",
+    "description": "Google Forms collection",
+    "expectedDigests": {
+      "licenses/_jini-ai_provider-plugins/LICENSE": "sha256-9d95806a26532623360eb84bb17d298f394b55ef73fb4c0796d99b4319b2b0da",
+      "licenses/_jini-ai_provider-plugins/NOTICE": "sha256-41f25c5b9af4c8e8e98e2a7c658b3922253c760686e17e0ef7fa003fae83cb95",
+      "licenses/_jini-ai_provider-plugins/package-license.json": "sha256-487cadce25dd2d3d08bb47f1305dc3e6a9b04d28b7463e4a3b15239c6ccb7485",
+      "server/index.mjs": "sha256-6be5284d7d4ff2c4cfed6add2b88cd065d67aec90058be0f07ff1f1b40f61c17"
+    }
+  },
+  {
+    "kind": "agent",
     "path": "google-login",
     "pluginVersion": "0.1.0",
     "contract": {

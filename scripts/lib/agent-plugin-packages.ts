@@ -70,7 +70,7 @@ const sourceRow = (name: string): AgentPluginPackageRow => ({ name, sourceDir: `
 /** Reviewed rows, in name order. INT is the only editor; a row lands with its complete source folder
  * and its exports/files entries in packages/agent-plugins/package.json. */
 export const agentPluginPackages = defineAgentPluginPackages({ rows: [
-  'charts-echarts', 'charts-recharts', 'cloudflare', 'commerce', 'composio', 'fly', 'formspree', 'github', 'github-pages', 'google-login',
+  'charts-echarts', 'charts-recharts', 'cloudflare', 'commerce', 'composio', 'fly', 'formspree', 'github', 'github-pages', 'google-forms', 'google-login',
   'google-workspace', 'higgsfield-media', 'jev', 'langfuse', 'meilisearch', 'netlify', 'opentelemetry', 'posthog', 'railway',
   'render', 'resend', 's3-compatible', 'sentry', 'shopify', 'site-compliance', 'site-import', 'slide-design', 'software-engineering', 'stripe', 'supabase',
   'ui-ux-design', 'vercel', 'wordpress',

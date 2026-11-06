@@ -31,7 +31,9 @@
       "./payments-stripe/*": "node",
       "./fixture-provider/*": "node",
       "./formspree": "node",
-      "./formspree/*": "node"
+      "./formspree/*": "node",
+      "./google-forms": "node",
+      "./google-forms/*": "node"
     }
   },
   "exports": {
@@ -52,7 +54,9 @@
     "./payments-stripe/*": "./plugins/payments-stripe/*",
     "./fixture-provider/*": "./plugins/fixture-provider/*",
     "./formspree": "./plugins/formspree/0.6.24/jini.plugin.json",
-    "./formspree/*": "./plugins/formspree/*"
+    "./formspree/*": "./plugins/formspree/*",
+    "./google-forms": "./plugins/google-forms/0.6.24/jini.plugin.json",
+    "./google-forms/*": "./plugins/google-forms/*"
   },
   "files": [
     "plugins/ai-trace-langfuse",
@@ -60,6 +64,7 @@
     "plugins/charts-echarts",
     "plugins/charts-recharts",
     "plugins/formspree",
+    "plugins/google-forms",
     "plugins/fixture-provider",
     "plugins/observability-opentelemetry",
     "plugins/observability-sentry",
@@ -71,7 +76,7 @@
     "NOTICE"
   ],
   "scripts": {
-    "build": "pnpm run typecheck && node --import tsx scripts/build.ts charts-recharts . && node --import tsx scripts/build.ts charts-echarts . && node --import tsx scripts/build.ts ai-trace-langfuse . && node --import tsx scripts/build.ts analytics-posthog . && node --import tsx scripts/build.ts observability-opentelemetry . && node --import tsx scripts/build.ts observability-sentry . && node --import tsx scripts/build.ts payments-stripe . && node --import tsx scripts/build.ts fixture-provider . && node --import tsx scripts/build.ts formspree .",
+    "build": "pnpm run typecheck && node --import tsx scripts/build.ts charts-recharts . && node --import tsx scripts/build.ts charts-echarts . && node --import tsx scripts/build.ts ai-trace-langfuse . && node --import tsx scripts/build.ts analytics-posthog . && node --import tsx scripts/build.ts observability-opentelemetry . && node --import tsx scripts/build.ts observability-sentry . && node --import tsx scripts/build.ts payments-stripe . && node --import tsx scripts/build.ts fixture-provider . && node --import tsx scripts/build.ts formspree . && node --import tsx scripts/build.ts google-forms .",
     "prepack": "pnpm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.charts.json --noEmit",
     "test": "vitest run",

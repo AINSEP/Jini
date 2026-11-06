@@ -53,6 +53,8 @@ const SPECS: Record<string, ServerSpec | BrowserSpec> = {
     input: () => ({ apiKey: 'phc_unused', host: 'https://posthog.invalid' }) },
   'fixture-provider': { contract: 'fixture', id: 'fixture', validate: port => typeof (port as { read?: unknown })?.read === 'function', input: namespace => ({ value: namespace }),
     probe: port => (port as { read(required: Record<string, never>): unknown }).read({}) },
+  'formspree': { contract: 'form_collection', id: 'formspree', validate: port => typeof (port as { plan?: unknown })?.plan === 'function', input: () => ({}) },
+  'google-forms': { contract: 'form_collection', id: 'google_forms', validate: port => typeof (port as { plan?: unknown })?.plan === 'function', input: () => ({}) },
   'payments-stripe': { contract: 'payments', id: 'stripe', validate: port => paymentsProviderContract.validate({ provider: port }) === undefined,
     input: () => ({}) },
   'observability-opentelemetry': { contract: 'observability', id: 'opentelemetry', validate: port => typeof (port as { trackRequest?: unknown })?.trackRequest === 'function',
