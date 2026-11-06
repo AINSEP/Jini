@@ -8,3 +8,5 @@ Setup: sourced /workspace/.tovu-build/env.sh. Offline install lacked cached depe
 Steps 2–5 remain in progress. No legacy deletion before replacements pass.
 
 Checkpoint: steps 1–3 replacement consumers pass. Pushed Jini da26f3248, b45a3a974, f7c3ee94b to cloud/consent-declare. Full `pnpm -r build` now passes; Tovu relinked. Core/extensions preserve the 4608-byte per-asset ceiling (core4533, extensions1773 gzip; total6306). A stale published-policy context reloads before storage/API/optional execution. Step4 diagnostics and standalone preview in progress. Legacy engine retained until replacement diagnostics pass.
+
+Checkpoint: step5 in progress. Replacement consumers passed before removing the CMS HTML engine. Receipt/privacy/origin/rate checks retained; parse5 retained. Shared region subdivision regression fixed with failing test first. Final rebuild/relink/typechecks and report inventory in progress. No deployment, publish, tag or main push.

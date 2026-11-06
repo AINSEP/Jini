@@ -14,7 +14,8 @@
     "runtime": "universal",
     "isolation": {
       "entries": {
-        "./client.min.js": "client"
+        "./client.min.js": "client",
+        "./extensions.min.js": "client"
       }
     },
     "entries": {
@@ -26,12 +27,14 @@
       "./client.min.js": "browser",
       "./banner.css": "browser",
       "./server": "universal",
-      "./node": "node"
+      "./node": "node",
+      "./extensions.min.js": "browser"
     }
   },
   "type": "module",
   "sideEffects": [
-    "./dist/client.min.js"
+    "./dist/client.min.js",
+    "./dist/extensions.min.js"
   ],
   "main": "./dist/contract.js",
   "types": "./dist/contract.d.ts",
@@ -72,7 +75,8 @@
       "types": "./dist/node/index.d.ts",
       "import": "./dist/node/index.js",
       "default": "./dist/node/index.js"
-    }
+    },
+    "./extensions.min.js": "./dist/extensions.min.js"
   },
   "files": [
     "dist",
@@ -93,7 +97,6 @@
   },
   "dependencies": {},
   "devDependencies": {
-    "@jini-ai/cms": "workspace:^",
     "@types/node": "^24.0.0",
     "@vitest/coverage-v8": "^2.1.9",
     "esbuild": "^0.28.1",

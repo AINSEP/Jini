@@ -314,10 +314,6 @@
         "src/widgets/html/index.ts",
         "src/widgets/resolvers/index.ts",
         "src/widgets/sql/index.ts",
-        "src/consent/index.ts",
-        "src/consent/html/index.ts",
-        "src/consent/express/index.ts",
-        "src/consent/node/index.ts",
         "src/listing/index.ts",
         "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
         "tests/**/*.types.ts"
@@ -515,6 +511,7 @@
         "src/middleware.ts",
         "src/verified-origin.ts",
         "src/observability.ts",
+        "src/html-response.ts",
         "**/*.{test,spec}.{ts,tsx,mts,cts,js,jsx}",
         "tests/**/*.types.ts"
       ],

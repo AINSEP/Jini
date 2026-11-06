@@ -13,6 +13,8 @@ const PORT = Number(process.env.PORT ?? 4321);
 const POLICY = '2026-10-26';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const clientFile = fileURLToPath(import.meta.resolve('@jini-ai/cookie-consent/client.min.js'));
+const extensionFile = fileURLToPath(import.meta.resolve('@jini-ai/cookie-consent/extensions.min.js'));
+const scripts = [{ src: '/fake-vendor.js' }, { src: '/marketing.js', consent: ['marketing'] }];
 /** The fake vendor's script is held back this long, so a visitor can choose before (or after) it arrives. */
 const VENDOR_DELAY_MS = 2000;
 
@@ -31,7 +33,7 @@ const hosts = JSON.parse(await readFile(path.join(here, 'region-plugins.json'), 
 const regions = createPluginRegistry({}, { slots: [REGION_SLOT], onProblem: problem => console.warn('region plugin refused:', problem) });
 if (Object.hasOwn(hosts, process.env.CONSENT_INGRESS ?? '')) regions.registerPlugin(hosts[process.env.CONSENT_INGRESS], { source: 'region-plugins.json' });
 
-/** Set-Cookie for the page response: `us` relaxes to opt-out; anything else clears a stale or forged cookie. */
+/** Set-Cookie for the no-store context response: `us` relaxes to opt-out; anything else clears a stale or forged cookie. */
 async function regionCookie(req) {
   const request = { header: name => req.headers[name.toLowerCase()] ?? null, ip: null };
   const hint = await resolveRegion({ resolvers: regions.list({ kind: 'region-resolver' }), request });
@@ -40,8 +42,8 @@ async function regionCookie(req) {
 
 function page() {
   const { head, body, problems } = renderBanner(
-    { mode: 'jini', client: { contract: 1, policy: POLICY, regionMode: 'auto' }, copy: { privacyPolicyUrl: '/privacy' } },
-    { clientSrc: '/consent/client.min.js', evidence: { mode: 'durable', endpoint: '/_consent' }, customCss: '#jini-consent h2{font-size:18px}' },
+    { mode: 'jini', client: { contract: 1, policy: POLICY, regionMode: 'auto', context: '/_consent/context', scripts }, copy: { privacyPolicyUrl: '/privacy' } },
+    { clientSrc: '/consent/client.min.js', extensionSrc: '/consent/extensions.min.js', evidence: { mode: 'durable', endpoint: '/_consent' }, customCss: '#jini-consent h2{font-size:18px}' },
   );
   if (problems.length) console.warn('banner CSS problems:', problems);
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><title>Cookie consent demo</title>${head}</head>
@@ -49,8 +51,6 @@ function page() {
 <p>Consent: <output id="state">loading</output></p>
 <p>Fake vendor: <output id="vendor">script not loaded yet</output></p>
 <p><a href="#privacy-choices">Privacy choices</a></p>
-<script type="text/plain" data-consent-category="marketing">document.title += ' (marketing tag ran)';</script>
-<script src="/fake-vendor.js" async></script>
 <script>document.addEventListener('jini:consent', e => { document.getElementById('state').value = JSON.stringify(e.detail.allowed) + ' receipt=' + e.detail.receipt; });</script>
 ${body}</body></html>`;
 }
@@ -71,12 +71,15 @@ createServer(async (req, res) => {
   const reply = (type, text, headers = {}) => { res.writeHead(200, { 'content-type': type, ...headers }); res.end(text); };
   try {
     if (req.url === '/_consent') return await send(res, await handleReceipt({ request: await toRequest(req), ports }));
+    if (req.url === '/_consent/context') return reply('application/json', JSON.stringify({ enabled: true, policy: POLICY, regionMode: 'auto' }), { 'cache-control': 'no-store', 'set-cookie': await regionCookie(req) });
     if (req.url === '/consent/client.min.js') return reply('text/javascript', await readFile(clientFile));
+    if (req.url === '/consent/extensions.min.js') return reply('text/javascript', await readFile(extensionFile));
+    if (req.url === '/marketing.js') return reply('text/javascript', "document.title += ' (declared marketing script ran)';");
     if (req.url === '/fake-vendor.js') {
       await new Promise(r => setTimeout(r, VENDOR_DELAY_MS));
       return reply('text/javascript', await readFile(path.join(here, 'fake-vendor.js')));
     }
-    if (req.url === '/' || req.url === '/privacy') return reply('text/html; charset=utf-8', page(), { 'set-cookie': await regionCookie(req) });
+    if (req.url === '/' || req.url === '/privacy') return reply('text/html; charset=utf-8', page());
     res.writeHead(404); res.end();
   } catch (error) {
     console.error(error);

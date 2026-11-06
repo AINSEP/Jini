@@ -3,13 +3,17 @@
  * from anywhere else can be forged by the visitor). Nothing here relaxes on a browser hint. */
 import { REGION_KIND, type HeaderRegion, type RegionHint, type RegionResolver, type RegionRequest, type SlotKind } from '../contract.js';
 
-/** A trusted country header. Unknown (XX) and Tor (T1) defer to the next resolver. @complexity O(1). */
+/** A trusted country/subdivision header. Unknown (XX) and Tor (T1) defer to the next resolver.
+ * Configured countries include valid subdivision codes; exact configured subdivisions stay scoped.
+ * @complexity O(header bytes), with no I/O. */
 export function headerResolver({ id, header }: { id: string; header: string }, { usValues = ['US'] }: { usValues?: readonly string[] | undefined } = {}): RegionResolver {
   const us = new Set(usValues.map(v => v.toUpperCase()));
   return { id, kind: REGION_KIND, resolve: ({ request }) => {
     const value = request.header(header)?.trim().toUpperCase();
     if (!value || value === 'XX' || value === 'T1') return null;
-    return us.has(value) ? 'us' : 'strict';
+    if (!/^[A-Z]{2}(?:-[A-Z0-9]{1,3})?$/.test(value)) return 'strict';
+    const country = value.split('-')[0]!;
+    return us.has(value) || us.has(country) ? 'us' : 'strict';
   } };
 }
 

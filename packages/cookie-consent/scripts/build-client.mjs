@@ -11,7 +11,7 @@ const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
  * ceiling only stops further growth. See README "Size". */
 const BUNDLES = [
   { entry: 'client.min.ts', out: 'client.min.js', budget: 4608 },
-  { entry: 'client.extensions.min.ts', out: 'extensions.min.js', budget: 4608 },
+  { entry: 'extensions.min.ts', out: 'extensions.min.js', budget: 4608 },
 ];
 
 let over = false;
