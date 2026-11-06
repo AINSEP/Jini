@@ -6,6 +6,7 @@ import { DOCUMENT_EXTRACTION_LIMITS, DocumentTextExtractionError, type DocumentT
 
 export const DOCUMENT_TEXT_PAGE_BYTES = 64 * 1024;
 const MAX_CONCURRENT_DOCUMENT_READS = 2;
+const DOCUMENT_READ_TIMEOUT_MS = 30_000;
 
 /** A hash may have several editorial owners. Private-only bytes cannot be exposed by a caller
  * inventing a new media id; a live ordinary-media owner makes those same bytes publishable.
@@ -70,8 +71,9 @@ function assertPageStart(bytes: Uint8Array, offset: number): void {
 }
 
 /** Enforce the shared port's output bounds before allocating UTF-8 bytes for response paging. */
-async function extractDocumentBytes({ extractor, source }: { extractor: DocumentTextExtractorPort; source: Uint8Array }) {
-  const extraction = await extractor.extract({ bytes: source, limits: DOCUMENT_EXTRACTION_LIMITS });
+async function extractDocumentBytes({ extractor, source, signal }: { extractor: DocumentTextExtractorPort; source: Uint8Array; signal: AbortSignal }) {
+  const extraction = await extractor.extract({ bytes: source, limits: DOCUMENT_EXTRACTION_LIMITS }, { signal });
+  signal.throwIfAborted();
   if (extraction.text.length > DOCUMENT_EXTRACTION_LIMITS.maxCharacters ||
       (extraction.pagesRead ?? 0) > DOCUMENT_EXTRACTION_LIMITS.maxPages) {
     throw new MediaValidationError({ message: 'document extractor exceeded its output limits' });
@@ -88,48 +90,114 @@ export interface DocumentTextPage {
   totalPages?: number;
 }
 
+type PreparedDocumentText = { bytes: Uint8Array; metadata: Pick<DocumentTextPage, 'extractionTruncated' | 'pagesRead' | 'totalPages'> };
+type DocumentTextIdentity = { key: string; owners: readonly unknown[] };
+type CachedDocumentText = DocumentTextIdentity & { value: PreparedDocumentText; expiry: ReturnType<typeof setTimeout> };
+type DocumentTextCache = Set<CachedDocumentText>;
+
+/** Repository and adapter identities isolate hosts even when ids/hashes match. O(1), four owners. */
+function sameTextSource(cached: DocumentTextIdentity, identity: DocumentTextIdentity): boolean {
+  return cached.key === identity.key && cached.owners.every((owner, index) => owner === identity.owners[index]);
+}
+
+/** At most two prepared documents, 50 MiB combined, for sixty seconds. Cache only paged text;
+ * never failures, source buffers of binary formats, or caller authorization decisions.
+ * @complexity O(1): scans at most two entries; expiry releases bytes even with no further reads. */
+function retainDocumentText({ cache, identity, value }: { cache: DocumentTextCache; identity: DocumentTextIdentity; value: PreparedDocumentText }): void {
+  for (const entry of cache) {
+    if (sameTextSource(entry, identity)) { clearTimeout(entry.expiry); cache.delete(entry); }
+  }
+  if (value.bytes.length <= DOCUMENT_TEXT_PAGE_BYTES) return;
+  let retainedBytes = [...cache].reduce((total, entry) => total + entry.value.bytes.length, 0);
+  while (cache.size >= 2 || retainedBytes + value.bytes.length > MAX_DOCUMENT_BYTES) {
+    const oldest = cache.values().next().value!;
+    clearTimeout(oldest.expiry);
+    cache.delete(oldest);
+    retainedBytes -= oldest.value.bytes.length;
+  }
+  const entry: CachedDocumentText = { ...identity, value, expiry: setTimeout(() => cache.delete(entry), 60_000) };
+  entry.expiry.unref?.();
+  cache.add(entry);
+}
+
 /** Read source as untrusted data, never instructions. Authorize at the host boundary before calling.
- * Byte offsets and UTF-8 boundaries guarantee bounded pages without losing/replacing characters.
- * BlobStorePort has no range read: at most 50 MiB is loaded per read, with two reads in flight
- * per process (100 MiB of source bytes); the returned page is at most 64 KiB.
+ * Byte offsets and UTF-8 boundaries guarantee pages of at most 64 KiB without character loss.
+ * Two reads may each load 50 MiB; a reader additionally retains at most 50 MiB of prepared text
+ * for sixty seconds, avoiding repeated source loads/extraction when following offsets.
  * Extraction adds at most 1M UTF-16 units plus their UTF-8 bytes, excluding adapter workspace.
- * Extracted documents are capped by DOCUMENT_EXTRACTION_LIMITS and re-extracted per offset.
- * @throws DocumentTextExtractionError when extraction is unavailable or a parser fails. */
+ * @throws DocumentTextExtractionError when extraction is unavailable, fails or exceeds its deadline. */
 export const readDocumentText = createDocumentTextReader({});
 
 /** Create one admission owner for a host's document reads. The default reader above is shared
- * process-wide by existing callers, retaining the two-read / 100 MiB source allocation bound.
+ * process-wide by existing callers: two admitted reads budget at most 100 MiB of source, plus
+ * the bounded prepared-text cache. Detached SDK work must cooperate with cancellation to release
+ * its allocation; the admission budget cannot preempt synchronous or non-cooperative parsers.
  * @complexity O(1) admission state per reader; source work is delegated to the bounded page reader. */
 export function createDocumentTextReader(_required: Record<string, never>, _optional: Record<string, never> = {}) {
   let activeDocumentReads = 0;
+  const cache: DocumentTextCache = new Set();
   return async function read(required: {
     deps: DocumentReadDeps;
     input: { workspaceId: string; id: string; offset?: number | undefined };
-  }, _options: Record<string, never> = {}): Promise<DocumentTextPage> {
+  }, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<DocumentTextPage> {
     if (activeDocumentReads >= MAX_CONCURRENT_DOCUMENT_READS) {
       throw new MediaValidationError({ message: 'Two documents are already reading. Please try again when one finishes.' });
     }
     activeDocumentReads++;
-    try { return await readDocumentTextPage(required); }
+    try { return await readBeforeDeadline({ ...required, cache }, { signal }); }
     finally { activeDocumentReads--; }
   };
 }
 
+/** Bound all repository/parser waits and notify cooperative adapters; never retain an admission
+ * slot indefinitely. The timer/listener are removed on success, failure and cancellation.
+ * Adapters must honor cancellation; a synchronous parser cannot be preempted on this thread. */
+async function readBeforeDeadline(required: { cache: DocumentTextCache; deps: DocumentReadDeps; input: { workspaceId: string; id: string; offset?: number | undefined } },
+  { signal }: { signal?: AbortSignal | undefined }) {
+  const deadline = new AbortController();
+  const bounded = signal ? AbortSignal.any([signal, deadline.signal]) : deadline.signal;
+  const timer = setTimeout(() => deadline.abort(new DocumentTextExtractionError({ code: 'DOCUMENT_TEXT_FAILED',
+    message: 'Document text reading exceeded the 30-second limit. Try a smaller document or retry the read.' })), DOCUMENT_READ_TIMEOUT_MS);
+  let rejectAborted!: (reason: unknown) => void;
+  const stopped = new Promise<never>((_resolve, reject) => { rejectAborted = reject; });
+  const abort = () => rejectAborted(bounded.reason);
+  bounded.addEventListener('abort', abort, { once: true });
+  try {
+    bounded.throwIfAborted();
+    return await Promise.race([readDocumentTextPage(required, { signal: bounded }), stopped]);
+  } finally {
+    clearTimeout(timer);
+    bounded.removeEventListener('abort', abort);
+  }
+}
+
 /** Keep the source and extraction allocations inside the in-process read admission boundary. */
-async function readDocumentTextPage(required: { deps: DocumentReadDeps; input: { workspaceId: string; id: string; offset?: number | undefined } }): Promise<DocumentTextPage> {
+async function readDocumentTextPage(required: { cache: DocumentTextCache; deps: DocumentReadDeps; input: { workspaceId: string; id: string; offset?: number | undefined } },
+  { signal }: { signal: AbortSignal }): Promise<DocumentTextPage> {
   const { deps, input } = required;
   const offset = input.offset ?? 0;
   if (!Number.isSafeInteger(offset) || offset < 0) throw new MediaValidationError({ message: 'offset must be a non-negative byte offset' });
   const { media, extractor } = await findTextDocument(deps, input);
-  const source = await loadDocumentBytes(deps, { workspaceId: input.workspaceId, sha256: media.source.sha256 });
-  let bytes = source;
-  let metadata: Pick<DocumentTextPage, 'extractionTruncated' | 'pagesRead' | 'totalPages'> = {};
-  if (extractor) ({ bytes, metadata } = await extractDocumentBytes({ extractor, source }));
+  signal.throwIfAborted();
+  const identity = { key: JSON.stringify([input.workspaceId, media.id, media.source.sha256]),
+    owners: [deps.mediaRepo, deps.blobRepo, deps.blobStore, extractor] };
+  const prepared = offset > 0 ? [...required.cache].find(entry => sameTextSource(entry, identity))?.value : undefined;
+  const { bytes, metadata } = prepared ?? await prepareDocumentText({ deps, media, extractor, signal });
+  signal.throwIfAborted();
   assertPageStart(bytes, offset);
+  if (!prepared) retainDocumentText({ cache: required.cache, identity, value: { bytes, metadata } });
   let end = Math.min(bytes.length, offset + DOCUMENT_TEXT_PAGE_BYTES);
   while (end < bytes.length && isUtf8Continuation(bytes[end]!)) end--;
   const truncated = end < bytes.length;
   return { id: media.id, text: decodeDocumentUtf8({ bytes: bytes.subarray(offset, end) }), offset,
     nextOffset: truncated ? end : null, totalBytes: bytes.length, truncated, untrusted: true,
     ...metadata };
+}
+
+
+/** Source bytes are discarded after binary extraction; only the bounded text is retained. */
+async function prepareDocumentText({ deps, media, extractor, signal }: { deps: DocumentReadDeps; media: MediaRecord; extractor: DocumentTextExtractorPort | undefined; signal: AbortSignal }): Promise<PreparedDocumentText> {
+  const source = await loadDocumentBytes(deps, { workspaceId: media.workspaceId, sha256: media.source.sha256 });
+  signal.throwIfAborted();
+  return extractor ? extractDocumentBytes({ extractor, source, signal }) : { bytes: source, metadata: {} };
 }

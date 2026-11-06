@@ -255,7 +255,7 @@ export function buildMediaRegistrations(required: Omit<MediaToolDeps, "resolvePu
           try {
             return await readDocumentText({ deps: { mediaRepo: routeDeps.mediaRepo, blobRepo: routeDeps.assetBlobRepo,
               blobStore: routeDeps.blobStore, documentTextExtractors: routeDeps.documentTextExtractors },
-              input: { workspaceId: routeDeps.workspaceId, id, offset: input.offset as number | undefined } });
+              input: { workspaceId: routeDeps.workspaceId, id, offset: input.offset as number | undefined } }, { signal: ctx.signal });
           } catch (error) {
             if (!(error instanceof DocumentTextExtractionError)) throw error;
             return { untrusted: true, error: { code: error.code, message: error.message,

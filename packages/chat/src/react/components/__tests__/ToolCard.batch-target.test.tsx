@@ -35,3 +35,26 @@ describe('tool targets for batches across CLIs', () => {
     expect(screen.getByRole('button', { name: /Spring Menu$/ })).toBeInTheDocument();
   });
 });
+
+
+it.each([0, 10, 65536])('distinguishes collapsed file reads at offset %s', offset => {
+  render(<ToolCard use={{ kind: 'tool_use', id: `read-${offset}`, name: 'Read', input: { file_path: '/site/index.html', offset } }} runSucceeded />);
+  expect(screen.getByRole('button').textContent).toContain(`index.html (offset ${offset})`);
+});
+
+it('distinguishes generic theme reads with the full path and offset', () => {
+  render(<ToolCard use={{ kind: 'tool_use', id: 'theme-read', name: 'theme_read_file', input: { path: 'templates/index.html', offset: 42 } }} runSucceeded />);
+  expect(screen.getByRole('button').textContent).toContain('templates/index.html (offset 42)');
+});
+
+
+it('keeps an opaque-looking file basename visible in specialized read cards', () => {
+  render(<ToolCard use={{ kind: 'tool_use', id: 'hash-file', name: 'Read', input: { file_path: '/site/0123456789abcdef', offset: 10 } }} runSucceeded />);
+  expect(screen.getByRole('button').textContent).toContain('0123456789abcdef (offset 10)');
+});
+
+
+it.each([NaN, -1, 1.5, Infinity, '10', null])('ignores invalid read offset %s in the collapsed target', offset => {
+  render(<ToolCard use={{ kind: 'tool_use', id: 'invalid-offset', name: 'Read', input: { file_path: '/site/index.html', offset } }} runSucceeded />);
+  expect(screen.getByRole('button').textContent).toBe('Readindex.html');
+});

@@ -33,3 +33,17 @@ it('definition creation uses the deterministic fixture ID and clock through the 
   });
   expect(f.authorizeCalls).toEqual([{ principalId: 'caller', permission: 'settings.definitions.manage', workspaceId: 'ws-1', entityType: 'setting-definition' }]);
 });
+
+
+it('secret targets and their aliases are catalogued unwritable and cannot reach a write card', async () => {
+  const target = definition({ secret: true, namespace: 'core.credentials', key: 'token' });
+  const alias = definition({ settingId: 'alias', namespace: 'core.alias', key: 'token', secret: false,
+    status: 'alias', aliasOfNamespace: target.namespace, aliasOfKey: target.key });
+  const f = fixture([target, alias]);
+  const listed = await f.call('settings_list_definitions', {}) as { data: { agentWritable: boolean }[] };
+  expect(listed.data).toHaveLength(2);
+  expect(listed.data.every(row => row.agentWritable === false)).toBe(true);
+  await expect(f.call('settings_set_value', { namespace: alias.namespace, key: alias.key, value: 'fixture secret' }))
+    .rejects.toThrow('secret setting');
+  expect(await f.settingsRepo.listRevisions({ settingId: target.settingId })).toEqual([]);
+});

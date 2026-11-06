@@ -10,13 +10,13 @@ export interface DocumentTextExtraction {
 }
 
 /** Extract validated document bytes as DATA. Never execute scripts or fetch linked resources.
- * Deterministic output is required: library_read re-extracts when following byte offsets.
+ * Deterministic output is required. Honor signal cancellation and release parser resources.
  * @example readDocumentText({ deps: { ...storage, documentTextExtractors: [extractor] }, input })
  */
 export interface DocumentTextExtractorPort {
   readonly contentType: string;
   extract(required: { bytes: Uint8Array; limits: { maxPages: number; maxCharacters: number } },
-    optional?: Record<string, never>): Promise<DocumentTextExtraction>;
+    optional?: { signal?: AbortSignal }): Promise<DocumentTextExtraction>;
 }
 
 /** Typed adapter failure; missing optional peers are recoverable tool results. */

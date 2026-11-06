@@ -30,7 +30,7 @@ import type { ToolRendererRegistry } from '../tool-renderer-registry.js';
 import { Icon } from './Icon.js';
 import { SAFE_LINK_HREF } from './Markdown.js';
 import { TodoCard } from './TodoCard.js';
-import { toolRowTarget } from './ToolCard.rules.js';
+import { targetAtOffset, toolRowTarget } from './ToolCard.rules.js';
 import { toolPresentation, type ToolPresentation } from '../../core/tool-presentation.js';
 
 type ToolUseEvent = Extract<AgentEvent, { kind: 'tool_use' }>;
@@ -361,10 +361,10 @@ function FileEditCard({ input, result, runStreaming, runSucceeded, ctx }: CardPr
 
 function FileReadCard({ input, result, runStreaming, runSucceeded, ctx }: CardProps & { ctx: FileToolCtx }) {
   const t = useT();
-  const obj = (input ?? {}) as { file_path?: string; filePath?: string; path?: string };
+  const obj = (input ?? {}) as { file_path?: string; filePath?: string; path?: string; offset?: unknown };
   const file = obj.file_path ?? obj.filePath ?? obj.path ?? '(unnamed)';
   // See OpenInTabButton's baseName comment: `.split('/').pop()` is never undefined.
-  const baseName = file.split('/').pop()!;
+  const baseName = targetAtOffset({ target: file.split('/').pop()!, offset: obj.offset });
   const isRunning = runStreaming && !result;
   return (
     <ExpandableCard
