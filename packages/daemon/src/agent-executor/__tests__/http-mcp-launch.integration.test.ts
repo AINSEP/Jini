@@ -52,7 +52,9 @@ async function launch(vendor: 'claude' | 'codex' | 'opencode', failHttp = false,
   const { run } = await lifecycle.start({ contextRef: 'http-launch' });
   const runError: unknown = await executor.run({ runId: run.id, agentId: vendor, cwd: '/fixture', prompt: 'Hello' }, {
     permissionMode: 'bypass', ...(locked ? { nativeToolAccess: false, resumeSessionId: locked.resume ? 'session-fixture' : null,
-      nativeCapabilities: { shell: false, fileWrite: false, userMcp: false, subagents: false, userSettings: false, web: false, workflows: false, loginEnvironment: false },
+      // A staged config cannot isolate Codex's plugin/App MCP sources; approve that independent
+      // dimension while keeping the native shell/file policy and host tool approval restricted.
+      nativeCapabilities: { shell: false, fileWrite: false, userMcp: true, subagents: false, userSettings: false, web: false, workflows: false, loginEnvironment: false },
     } : {}),
   }).then(() => undefined, error => error);
   if (!failure) expect(runError).toBeUndefined();
