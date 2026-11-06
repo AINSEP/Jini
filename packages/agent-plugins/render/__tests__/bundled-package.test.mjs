@@ -28,9 +28,9 @@ test("render ships exactly its portable payload and none of the host's files", a
 test("render keeps its publisher id, contributions and frozen contribution file names", async () => {
   const manifest = await readJson("plugin.json");
   assert.equal(manifest.name, "render");
-  assert.equal(manifest.version, "1.0.0");
-  assert.equal(manifest.extensions.tovu.id, "tovu/render");
-  assert.deepEqual(manifest.extensions.tovu.provides, ["deploy-config:render", "deploy-ops:render"]);
+  assert.equal(manifest.version, "1.0.1");
+  assert.equal(manifest.extensions.jini.id, "tovu/render");
+  assert.deepEqual(manifest.extensions.jini.provides, ["deploy-config:render", "deploy-ops:render"]);
   const configs = await readJson("tovu-deploy-configs.json");
   const ops = await readJson("tovu-deploy-ops.json");
   const files = await shippedFiles();

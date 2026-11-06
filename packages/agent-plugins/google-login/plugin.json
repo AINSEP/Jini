@@ -1,12 +1,12 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "google-login",
-  "version": "0.1.0",
-  "description": "Adds Google sign-in for Tovu members using this site's own Google OAuth client. Includes setup guidance for apps using Supabase Auth.",
+  "version": "0.1.1",
+  "description": "Adds Google sign-in for site members using this site's own Google OAuth client. Includes setup guidance for apps using Supabase Auth.",
   "author": "Tovu",
   "license": "Apache-2.0",
   "extensions": {
-    "tovu": {
+    "jini": {
       "maturity": "soon",
       "id": "tovu/google-login",
       "displayName": "Google Login",

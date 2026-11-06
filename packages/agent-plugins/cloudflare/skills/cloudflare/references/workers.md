@@ -21,13 +21,13 @@ and should advance only after release acceptance.
 
 When the site has at least one active form, the same Worker also receives `POST /forms/:slug/submit`
 (the path the host's forms already post to, so exported HTML is unchanged and there is no CORS). Publishing
-finds or creates D1 database `tovu-forms-<script name>`, applies the plugin's forward-only migrations
-(`schema_migrations`), binds it as `TOVU_FORMS`, installs the per-site receiver key as secret
-`TOVU_FORMS_SECRET`, and routes `/forms/*` and `/_tovu/*` to the Worker before static assets. The
+finds or creates the D1 database for that script, applies the plugin's forward-only migrations
+(`schema_migrations`), binds it as the configured form-database binding, installs the per-site receiver key in
+the configured secret binding, and routes `/forms/*` and the host's internal form routes to the Worker before static assets. The
 database is never dropped or recreated. The receiver checks only the compact manifest the host supplies
 (slugs, field names, required, max length), honours the host's `_hp` honeypot and rate-limits to 5 valid
 submissions per IP per form per 60 seconds; the host re-validates on pull. No file uploads. The host pulls
-pending rows through `GET /_tovu/forms/pending` and `POST /_tovu/forms/ack` with the receiver key.
+pending rows through the host's pending-submission endpoint and its acknowledgement endpoint with the receiver key.
 After a submission the visitor returns to the page with `?form=<slug>&form_status=success`. Pages
 that contain a form are also routed to the Worker first (exact paths only; assets and other pages stay
 on the free static path), which hides the form and shows the host's own success message, or one plain

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { readPluginIdentity } from '@jini-ai/core/plugin-directory';
+import { resolveAgentPluginIdentityNamespace } from '../../agent-plugins/src/core/identity-namespace.js';
 import {
   AGENT_PLUGINS_PACKAGE, AGENT_PLUGINS_ROOT, agentPluginPackages, isPublishedAgentPluginFile, type AgentPluginPackageRow,
 } from '../../../scripts/lib/agent-plugin-packages.js';
@@ -20,8 +21,8 @@ interface PackageManifest { name: string; version: string; description: string }
 type CatalogKind = 'provider' | 'agent';
 /** All provider runtimes ship from this distribution's independently addressable subpaths. */
 const PROVIDER_DISTRIBUTION = '@jini-ai/provider-plugins';
-/** The catalog currently describes the Tovu host's identity (`extensions.tovu`). A per-host catalog
- * waits until a second host (Open Marketing) consumes it. */
+/** Legacy provider manifests retain their publisher namespace. Agent metadata resolves through
+ * the portable parser so every host discovers the same bundled publisher identity. */
 export const CATALOG_HOST_NAMESPACE = 'tovu';
 /** One catalog record. An agent entry resolves as `${packageName}/${path}` (`@jini-ai/agent-plugins/<id>`);
  * a provider entry's `path` is its artifact folder inside `packageName`. */
@@ -54,7 +55,7 @@ export function catalogEntry(required: {
   }
   return {
     ...(kind === 'agent' ? agentMetadata(required) : providerMetadata(required)), id,
-    publisherIdentity: readPluginIdentity({ manifest: { ...plugin }, namespace: CATALOG_HOST_NAMESPACE, name: id }).id,
+    publisherIdentity: readPluginIdentity({ manifest: { ...plugin }, namespace: kind === 'agent' ? resolveAgentPluginIdentityNamespace({ value: plugin }) : CATALOG_HOST_NAMESPACE, name: id }).id,
     packageName: pkg.name, version: pkg.version,
     description: plugin.description ?? plugin.name, expectedDigests: null,
   };

@@ -28,7 +28,7 @@ function skillTexts() {
 
 test('the manifest keeps its publisher id, products and credential cards; its prose names no host', () => {
   const manifest = readJson('plugin.json');
-  const host = manifest.extensions.tovu;
+  const host = manifest.extensions.jini;
   assert.equal(manifest.name, 'google-workspace');
   assert.equal(host.id, 'tovu/google-workspace');
   assert.deepEqual(host.provides, ['api-connection:google-workspace', 'form-destination:google-sheets']);
@@ -42,7 +42,7 @@ test('the manifest keeps its publisher id, products and credential cards; its pr
 // Recorded debt (plan v2 §5.1): only Tovu consumes the own-client card, so its callback route stays
 // literal, with no templating. A second host needs its own card under its own extensions key.
 test('the own-client card still names the callback route Tovu serves (recorded debt)', () => {
-  const card = readJson('plugin.json').extensions.tovu.credentialCards[1];
+  const card = readJson('plugin.json').extensions.jini.credentialCards[1];
   assert.match(card.keyHint, /\/api\/agent-plugins\/connections\/oauth\/callback/);
 });
 

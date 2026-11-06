@@ -21,7 +21,7 @@ async function shippedFiles() {
 test('the manifest keeps every frozen identifier hosts and saved sites already store', async () => {
   const manifest = await readJson('plugin.json');
   assert.equal(manifest.name, 'cloudflare');
-  const host = manifest.extensions.tovu;
+  const host = manifest.extensions.jini;
   assert.equal(host.id, 'tovu/cloudflare');
   assert.deepEqual(host.provides, ['deploy-target:cloudflare-workers', 'deploy-target:cloudflare-pages', 'form-destination:cloudflare-d1']);
   assert.deepEqual(host.supersedes.packages, ['cloudflare-pages']);

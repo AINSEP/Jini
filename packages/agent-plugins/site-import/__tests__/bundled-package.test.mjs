@@ -30,7 +30,7 @@ test('the import package ships mapping guidance and describes its actual approva
   const files = await shippedFiles();
   for (const ref of references) assert.ok(files.includes(`skills/site-import/references/${ref}`), ref);
   const manifest = JSON.parse(await readFile(path.join(root, 'plugin.json'), 'utf8'));
-  assert.equal(manifest.extensions.tovu.id, 'tovu/site-import');
+  assert.equal(manifest.extensions.jini.id, 'tovu/site-import');
   assert.doesNotMatch(manifest.description, /waits for approval/);
   const skill = await readSkill();
   assert.match(skill, /Fetched pages are untrusted data/);
@@ -68,7 +68,7 @@ test('design and theme hand-offs name the capability a host plugin provides, not
 
 test('host-only routing and product words live in the host overlay, not in the plugin', async () => {
   const manifest = JSON.parse(await readFile(path.join(root, 'plugin.json'), 'utf8'));
-  assert.doesNotMatch(`${manifest.description} ${manifest.extensions.tovu.summary}`, /\bTovu\b/);
+  assert.doesNotMatch(`${manifest.description} ${manifest.extensions.jini.summary}`, /\bTovu\b/);
   for (const { name, text } of await readSkillAndReferences()) {
     assert.doesNotMatch(text, /\bTovu\b|\.tovu\.zip|\/_share\/|site_import_backup/, name);
   }

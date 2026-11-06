@@ -27,19 +27,20 @@ test('the payload ships the search provider its contribution file names', async 
   assert.ok(files.includes('skills/meilisearch/SKILL.md'));
 });
 
-test('the credential card keeps its frozen label and the skill names that exact label', async () => {
+test('the credential card keeps its frozen label and the portable skill defers to the host label', async () => {
   const manifest = JSON.parse(await readFile(path.join(root, 'plugin.json'), 'utf8'));
-  const [card] = manifest.extensions.tovu.credentialCards;
+  const [card] = manifest.extensions.jini.credentialCards;
   assert.equal(card.label, FROZEN_LABEL);
   assert.equal(card.ownedApiLabel, FROZEN_LABEL);
   const skill = await readFile(path.join(root, 'skills/meilisearch/SKILL.md'), 'utf8');
-  assert.ok(skill.includes(`\`${FROZEN_LABEL}\``));
+  assert.match(skill, /search credential under the host-owned label/);
+  assert.doesNotMatch(skill, /credential_save|Tovu/);
   assert.match(skill, /PUBLIC|public content only/i);
 });
 
 test('the shipped text is host-neutral apart from frozen identifiers, and keeps the publisher id', async () => {
   const manifest = JSON.parse(await readFile(path.join(root, 'plugin.json'), 'utf8'));
-  assert.equal(manifest.extensions.tovu.id, 'tovu/meilisearch');
+  assert.equal(manifest.extensions.jini.id, 'tovu/meilisearch');
   assert.doesNotMatch(manifest.description, /\bTovu\b/);
   for (const file of (await shippedFiles()).filter(name => /\.(md|mjs)$/.test(name))) {
     const text = (await readFile(path.join(root, file), 'utf8')).replaceAll(FROZEN_LABEL, '');

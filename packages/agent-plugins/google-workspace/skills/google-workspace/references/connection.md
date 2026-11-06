@@ -97,6 +97,6 @@ what is wrong (base URL or missing client ID): fix it in the host's saved creden
 the client changes (saved, replaced or removed), `reconnect-required` means "reconnect once".
 
 To go back to the host's own client, delete that saved credential and reconnect. On a hosted site the file
-picker uses the site's Picker settings (`TOVU_GOOGLE_PICKER_BROWSER_KEY`, `TOVU_GOOGLE_PICKER_APP_ID`):
+picker uses the site's Picker settings (browser API key and application ID):
 with your own client the operator sets them to that project's browser key and project number, or the
 picker cannot open the chosen files.

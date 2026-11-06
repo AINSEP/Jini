@@ -79,6 +79,13 @@ async function forkManifest(extensions: Record<string, unknown> | undefined, ide
 
 const HISTORY = { renamedFrom: ['tovu/old-stock'], supersedes: { plugins: ['tovu/older'] } };
 
+test('a portable fork preserves capabilities and presentation from an installed legacy manifest', async () => {
+  const metadata = { id: 'tovu/stock', provides: ['stock-data'], displayName: 'Stock', summary: 'Useful data', ...HISTORY };
+  const { manifest } = await forkManifest({ tovu: metadata }, 'jini');
+  expect(manifest.extensions.jini).toEqual({ id: 'local/custom', provides: ['stock-data'], displayName: 'Stock', summary: 'Useful data' });
+  expect(manifest.extensions.tovu.id).toBe('local/custom');
+});
+
 // Legacy-only: a moved plugin that still declares only the `tovu` host key.
 test.each(['tovu', 'open-marketing'])('a fork of a tovu-only manifest gets a fresh local id when forked by %s', async host => {
   const { manifest, text } = await forkManifest({ tovu: { id: 'tovu/stock', provides: ['stock-data'], ...HISTORY } }, host);

@@ -1,15 +1,15 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "fly",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Deploys the host's server to fly.io: one machine only for volume-backed state, secrets never in fly.toml, deploying ships code, not content. Contributes Fly operations, server config generation and the FlyV1 credential scheme.",
   "author": "Tovu",
   "license": "Apache-2.0",
   "extensions": {
-    "tovu": {
+    "jini": {
       "vendorAliases": ["FLY_", "fly.io", "flyctl", "fly.toml", "machines.dev", "flyv1"],
       "displayName": "Fly.io",
-      "summary": "Puts the Tovu server itself online on Fly.io.",
+      "summary": "Puts the application server itself online on Fly.io.",
       "hostSignals": [
         {
           "env": "FLY_APP_NAME",
@@ -19,7 +19,7 @@
         { "env": "FLY_MACHINE_ID", "facts": { "nativeToolsRestricted": true } },
         { "env": "FLY_ALLOC_ID", "facts": { "nativeToolsRestricted": true } }
       ],
-      "deploymentAdvice": "Set TOVU_RUNTIME_MODE=production (fly.toml and docker-compose.yml already do).",
+      "deploymentAdvice": "Use the production runtime settings supplied by the deployment target.",
       "id": "tovu/fly",
       "provides": [
         "deploy-ops:fly",
@@ -33,9 +33,9 @@
           "label": "fly.io",
           "ownedApiLabel": "fly.io",
           "category": "hosting",
-          "intro": "Connect Fly.io to inspect and deploy the Tovu server and manage its Machines.",
+          "intro": "Connect Fly.io to inspect and deploy the application server and manage its Machines.",
           "usedFor": [
-            "Deploys your Tovu server and checks its status and logs",
+            "Deploys your application server and checks its status and logs",
             "Manages the app's running servers",
             "Creates and manages apps when you grant access to the organization"
           ],

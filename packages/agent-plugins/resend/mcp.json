@@ -4,7 +4,7 @@
     "resend": {
       "type": "streamable-http",
       "url": "https://mcp.resend.com/mcp",
-      "tovuTokenAuth": {
+      "tokenAuth": {
         "helpUrl": "https://resend.com/api-keys",
         "probeUrl": "https://api.resend.com/domains"
       }

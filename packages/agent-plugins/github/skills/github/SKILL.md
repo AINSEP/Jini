@@ -10,7 +10,7 @@ description: Work against a GitHub repository through this workspace's own saved
 Choose the card yourself from its `usedFor` list. Reuse a saved key or working sign-in for that
 task. Never offer a replacement unless the person asks.
 
-Open **Connect GitHub** with `credential_save {kind:"plugin-provider",target:"github"}`; it saves the API credential labelled `github`. For `github-source-control`, use `credential_save {kind:"plugin-provider",target:"github-source-control"}`; it saves through the source-control owner. For Pages hosting use the `github-pages` plugin’s card. These remain distinct save contracts. Each card names the repository permissions and links to fine-grained token creation. Never collect a token in chat.
+Open **Connect GitHub** through the secure connection card; it saves the API credential labelled `github`. For `github-source-control`, open the secure connection card; it saves through the source-control owner. For Pages hosting use the `github-pages` plugin’s card. These remain distinct save contracts. Each card names the repository permissions and links to fine-grained token creation. Never collect a token in chat.
 
 ## Scope
 
@@ -80,7 +80,7 @@ So: build every URL from `https://api.github.com` (or whatever base the credenti
 saved — GitHub Enterprise has its own). If a call is refused, the error names the hosts that
 *are* allowed. Read it and use one; do not try a different host to see what sticks.
 
-To find the label, call `content_read.custom_credential` with `{}`. It returns each saved
+To find the label, list the saved credential labels. It returns each saved
 credential's label, category, base URL and additional hosts — never a token. A workspace with a
 credential labelled `github` is the expected case, but do not assume the label: read it.
 
@@ -88,7 +88,7 @@ credential labelled `github` is the expected case, but do not assume the label: 
 
 ## The rules
 
-These are the reason this plugin exists. Each one has cost a real debugging session.
+These rules prevent credential and repository mistakes.
 
 ### Rule 1 — A repository secret is ALWAYS the human's step. This is not negotiable.
 
@@ -174,13 +174,13 @@ its own resource and still **403 on any call that enumerates an organization or 
 org's repositories, the account's installations, every-app-in-the-org listings.
 
 That 403 looks *exactly* like an expired, revoked, or wrong-scoped credential. It is neither.
-Misreading it once cost a full debugging session and nearly caused a working credential to be
+Misreading it can cause a working credential to be
 replaced.
 
 The rule: **prefer per-resource endpoints over listings.** If you know the `owner/repo`, ask about
 that repository directly. Resolve the identifier from the human, from a file already in the repo,
 or from the conversation — never by listing the org and searching it. If you genuinely have no
-identifier, ask; a question costs one turn, a wrong diagnosis costs a session.
+identifier, ask rather than guess the cause.
 
 If a call does come back 401 or 403, **read the `authDiagnostic` field on the result before
 reporting a bare failure**, follow the remedy it names, and retry at most **once**. There is

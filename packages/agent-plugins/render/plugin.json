@@ -1,12 +1,12 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "render",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Generates render.yaml and deploys existing Render server services through the API, with status, logs and environment variable tools.",
   "author": "Tovu",
   "license": "Apache-2.0",
   "extensions": {
-    "tovu": {
+    "jini": {
       "maturity": "soon",
       "vendorAliases": ["render.com", "render.yaml", "onrender.com", "RENDER_API_KEY"],
       "displayName": "Render",
@@ -23,7 +23,7 @@
           "label": "Render API",
           "ownedApiLabel": "Render API",
           "category": "hosting",
-          "intro": "Save a Render API key for deploying this site from Tovu. Use it to look up existing services, deploy your server, check status and logs, and manage environment variables. Writing the deployment settings file needs no key. Untested: this connection hasn't been tried end to end yet.",
+          "intro": "Save a Render API key for deploying this site from this application. Use it to look up existing services, deploy your server, check status and logs, and manage environment variables. Writing the deployment settings file needs no key. Untested: this connection hasn't been tried end to end yet.",
           "usedFor": [
             "Looks up your Render services",
             "Deploys your server"

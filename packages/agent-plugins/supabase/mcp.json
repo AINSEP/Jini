@@ -4,8 +4,8 @@
     "supabase": {
       "type": "streamable-http",
       "url": "https://mcp.supabase.com/mcp?features=account,database,development,docs,debugging",
-      "tovuAuthMode": "oauth",
-      "tovuTokenAuth": {
+      "authMode": "oauth",
+      "tokenAuth": {
         "helpUrl": "https://supabase.com/dashboard/account/tokens",
         "probeUrl": "https://api.supabase.com/v1/projects",
         "importFromEnv": "TOVU_SUPABASE_MCP_ACCESS_TOKEN",
@@ -13,14 +13,14 @@
                        "TOVU_SUPABASE_MCP_FEATURES", "TOVU_SUPABASE_MCP_PACKAGE", "TOVU_SUPABASE_MCP_CONNECT_TIMEOUT_MS",
                        "TOVU_SUPABASE_MCP_CALL_TIMEOUT_MS", "TOVU_SUPABASE_MCP_MAX_RESULT_BYTES"]
       },
-      "tovuDefaultTools": {
+      "defaultTools": {
         "allow": ["list_organizations", "get_organization", "list_projects", "get_project", "get_cost", "confirm_cost",
                   "create_project", "pause_project", "restore_project", "list_tables", "list_extensions", "list_migrations",
                   "apply_migration", "execute_sql", "get_advisors", "query_logs", "get_project_url", "get_publishable_keys",
                   "generate_typescript_types", "search_docs"],
         "write": ["confirm_cost", "create_project", "pause_project", "restore_project"]
       },
-      "tovuRenamedTools": { "get_logs": "query_logs" }
+      "renamedTools": { "get_logs": "query_logs" }
     }
   }
 }

@@ -2,13 +2,13 @@
 
 ## Where the token lives, and why you never see it
 
-Open `credential_save {kind:"plugin-provider",target:"github"}` for the plugin’s own GitHub card. It saves label `github` and base URL `https://api.github.com`, with the token sealed server-side. Existing rows can still be rotated by their exact saved label.
+Open the secure connection card for the plugin’s own GitHub card. It saves label `github` and base URL `https://api.github.com`, with the token sealed server-side. Existing rows can still be rotated by their exact saved label.
 
 You name the **label**. The server resolves the credential and injects the real `Authorization`
 header itself. The token never appears in a tool's input, in a tool's output, or anywhere in your
 context.
 
-To discover what is saved, call `content_read.custom_credential` with `{}`. It returns
+To discover what is saved, list the saved credential labels. It returns
 each credential's label, category, base URL, and additional hosts — never a token, and never a
 saved username. An empty list is the signal to ask a human to save one, not to look for another
 way in.
@@ -76,7 +76,7 @@ Organization secrets, environment secrets, and Dependabot secrets are all covere
 **A 403 on an org-wide or account-wide listing endpoint is a normal permission boundary for an
 app-scoped or repo-scoped token. It is not a broken credential.**
 
-Misreading this cost a full debugging session once already, and nearly got a perfectly good
+Misreading this can cause a perfectly good
 credential replaced. A token scoped to one repository can fully manage that repository and still
 403 on any call that enumerates an organization or an account.
 

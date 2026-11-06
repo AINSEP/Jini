@@ -43,7 +43,7 @@ This surprises people and is worth stating flatly.
 
 - `custom_credential_*` reads the **Access Tokens** page's *Add custom provider* table. That is
   where a credential labelled `github` lives.
-- `source_control_*` reads a **separate** table, connected with `credential_save {kind:"plugin-provider",target:"github-source-control"}`.
+- `source_control_*` reads a **separate** table, connected through the secure connection card.
 
 An explicit Source Control connection takes priority. If none exists, `source_control_execute_commit`
 can use the saved `github` API key; capabilities identify this as `credentialSource:"saved-api-key"`.
@@ -78,7 +78,7 @@ view the copy. A theme directory needs its sibling `media/`; there is no generat
 Existing GitHub Pages/root-hosting URLs can break with this layout. The host's other static
 publishing and export commands retain their current output.
 
-Ownership is recorded at `<folder>/.tovu/managed-files.json`. Changing folders creates an independent
+Ownership is recorded at the host's managed-files ledger for that folder. Changing folders creates an independent
 destination, preserving the previous root export and sibling folders. A folder commit never reads
 the root manifest as a fallback.
 

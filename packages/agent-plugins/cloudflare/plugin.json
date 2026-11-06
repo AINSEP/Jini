@@ -1,12 +1,12 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "cloudflare",
-  "version": "0.3.2",
+  "version": "0.3.3",
   "description": "Publishes static exports to Cloudflare Workers or Pages and attaches reviewed custom domains using your saved Cloudflare connection. Workers sites with active forms store submissions in a D1 database in your Cloudflare account for the host to pull. Preview reads current infrastructure; domain changes require human confirmation.",
   "author": "Tovu",
   "license": "Apache-2.0",
   "extensions": {
-    "tovu": {
+    "jini": {
       "vendorAliases": ["pages.dev", "workers.dev"],
       "displayName": "Cloudflare",
       "summary": "Publish static exports with Workers or Pages and review apex/www domain changes before applying them.",

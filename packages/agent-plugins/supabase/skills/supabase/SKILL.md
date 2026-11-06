@@ -1,6 +1,6 @@
 ---
 name: supabase
-description: Set up a hosted database (Supabase) for this site from chat. Start with agent_plugin_connect, then find or create the database, handle Supabase's free limit of two active databases (reuse, pause, or paid), and say everything in plain words. Small database changes (make a table, add or change rows) run from chat with execute_sql, after the person confirms each one.
+description: Set up a hosted database (Supabase) for this site from chat. Start by connecting the account, then find or create the database, handle Supabase's free limit of two active databases (reuse, pause, or paid), and say everything in plain words. Small database changes (make a table, add or change rows) run from chat with execute_sql, after the person confirms each one.
 ---
 
 # Supabase database
@@ -10,7 +10,7 @@ description: Set up a hosted database (Supabase) for this site from chat. Start 
 Choose the card yourself from its `usedFor` list. Reuse a saved key or working sign-in for that
 task. Never offer a replacement unless the person asks.
 
-`agent_plugin_connect {pluginId:"supabase"}` shows the plugin’s own **Connect Supabase** sign-in card, including what it connects and the permissions involved. Only if browser sign-in cannot start, open `credential_save {kind:"plugin-provider",target:"supabase"}` for the plugin’s access-token fallback. It links to personal access token creation, explains Management API permissions, probes the token and saves it on the MCP connection; it never saves a project anon or service-role key.
+Connecting the account opens the plugin’s own **Connect Supabase** sign-in card, including what it connects and the permissions involved. Only if browser sign-in cannot start, open the secure connection card for the plugin’s access-token fallback. It links to personal access token creation, explains Management API permissions, probes the token and saves it on the MCP connection; it never saves a project anon or service-role key.
 
 The person wants somewhere to keep data (sign-ups, form entries, app data). Get them a working
 database with as few words and choices as possible. They should never need to learn a new idea.
@@ -30,7 +30,7 @@ Never loop. If a step fails twice, stop and use `references/failure-modes.md`.
 
 ## Step 1. Connect (always first)
 
-Call `agent_plugin_connect { pluginId: "supabase" }` before any Supabase tool, every time, even if
+Connect the account before any Supabase tool, every time, even if
 you think it is already connected (it returns at once when it is).
 
 It shows the person a card with a sign-in button. Before or with it, say:
@@ -51,9 +51,9 @@ their email or password.
 ## Step 2. Find their account and databases
 
 1. Call `mcp__supabase__list_organizations`. Normally there is one; use it. If there are several,
-   ask with `assistant_ask_choice` using their names.
+   offer the choices using their names.
 2. Call `mcp__supabase__list_projects`. Keep the ones in that organization.
-3. If they already have databases, ask with `assistant_ask_choice`:
+3. If they already have databases, offer the choices:
    - **Make a new database** (first option, recommended)
    - **Use "<name>"** for each existing one
 
@@ -72,7 +72,7 @@ see the free limit (it says $0 even when the account is full), so count first:
 Call `mcp__supabase__get_cost { type: "project", organization_id }`.
 
 - $0: say nothing about money.
-- More than $0 (a paid account): ask with `assistant_ask_choice`:
+- More than $0 (a paid account): offer the choices:
   - **Create it ($<amount>/<recurrence>)**, using the exact numbers returned
   - **Cancel**
 
@@ -131,7 +131,7 @@ For a small change the person asks for (make a table, add a column, add, change 
 
 1. Say in one plain sentence what will change, and show the SQL in a code block:
    > I'll make a table called "signups" with an id column. This is the SQL:
-2. Call the tool right away. Do NOT ask first with `assistant_ask_choice` or in words ("Shall I
+2. Call the tool right away. Do NOT offer choices first or in words ("Shall I
    run this?"): the host's own approval card is the confirmation, and asking twice is annoying. The
    person sees the card with the exact SQL and **Allow** / **Allow for this chat** / **Cancel**;
    nothing runs until they allow it. Keep to one change per call. A card marked as able to delete
@@ -149,7 +149,7 @@ say plainly what will be lost in step 1; the approval card is still the only que
 
 ## At the free limit
 
-Ask with `assistant_ask_choice` (one option per active database for the first two):
+Offer the choices (one option per active database for the first two):
 
 - **Use "<name>"**: continue at Step 5 with that database.
 - **Pause "<name>" to free a space**: call `mcp__supabase__pause_project` on it, say

@@ -10,7 +10,7 @@ description: Publish the site's static export to S3-compatible storage (AWS S3, 
 Choose the card yourself from its `usedFor` list. Reuse a saved key or working sign-in for that
 task. Never offer a replacement unless the person asks.
 
-Open the plugin’s **Connect S3-compatible storage** card with `credential_save {kind:"plugin-provider",target:"s3-compatible"}`. It collects the bucket, region, endpoint, access key ID, public URL and masked secret access key, plus optional private-media settings. Scope the key to the selected bucket. Key creation belongs to your storage provider’s console; no single key-creation URL covers all compatible services.
+Open the plugin’s **Connect S3-compatible storage** card through the host. It collects the bucket, region, endpoint, access key ID, public URL and masked secret access key, plus optional private-media settings. Scope the key to the selected bucket. Key creation belongs to your storage provider’s console; no single key-creation URL covers all compatible services.
 
 The steps are the same for every host: `deployment_get_static_publish_capabilities` shows whether a
 credential is saved, `deployment_preview_static_publish` comes first, and `deployment_execute_static_publish`
@@ -35,5 +35,5 @@ This file is what is particular to S3-compatible storage.
 |---|---|---|
 | `Failed to upload '...' to S3-compatible storage: HTTP 403` | The key cannot write to that bucket. | Check the key's bucket permissions, the bucket name and the region. |
 | `Failed to upload '...' ... HTTP 404` | The bucket does not exist at that endpoint. | Check the bucket name, region and endpoint. |
-| `... Tovu-managed object manifest ...` | The host could not read or update its list of published files, so it stopped rather than guess. | Retry once; if it repeats, check the key can read and write the bucket. |
+| `... host-managed object manifest ...` | The host could not read or update its list of published files, so it stopped rather than guess. | Retry once; if it repeats, check the key can read and write the bucket. |
 | `Concurrent publish detected ...` | Another publish changed the bucket at the same time. | Publish again. |

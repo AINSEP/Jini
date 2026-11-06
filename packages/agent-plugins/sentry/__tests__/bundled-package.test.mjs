@@ -23,7 +23,7 @@ async function shippedFiles() {
 const readManifest = async () => JSON.parse(await readFile(path.join(root, 'plugin.json'), 'utf8'));
 
 test(`${face}: one provider-settings card that saves the ${provider} provider plugin through the host`, async () => {
-  const host = (await readManifest()).extensions.tovu;
+  const host = (await readManifest()).extensions.jini;
   assert.equal(host.id, `tovu/${face}`, 'frozen publisher id');
   assert.equal(host.providerPlugin, provider, 'the face follows the provider in its own package');
   assert.equal(host.displayName, 'Sentry');
@@ -41,9 +41,10 @@ test(`${face}: one provider-settings card that saves the ${provider} provider pl
 test(`${face}: the skill opens that card, checks provider_status first, and never takes a DSN in chat`, async () => {
   const skill = await readFile(path.join(root, `skills/${face}/SKILL.md`), 'utf8');
   assert.match(skill, new RegExp(`^---\nname: ${face}\ndescription: .+\n---\n`));
-  assert.ok(skill.includes(`credential_save {kind:"plugin-provider", target:"${face}"}`));
+  assert.match(skill, /secure connection card/);
+  assert.doesNotMatch(skill, /credential_save/);
   assert.ok(skill.includes(`provider_status {pluginId:"${provider}"}`));
-  assert.ok(skill.indexOf('provider_status') < skill.indexOf('credential_save'), 'status is checked before the card opens');
+  assert.ok(skill.indexOf('provider_status') < skill.indexOf('secure connection card'), 'status is checked before the card opens');
   assert.match(skill, /Never ask for (a|the) .+ in chat/);
 });
 

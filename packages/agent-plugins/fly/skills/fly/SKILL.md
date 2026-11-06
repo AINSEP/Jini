@@ -14,7 +14,7 @@ any server on Fly.
 Choose the card yourself from its `usedFor` list. Reuse a saved key or working sign-in for that
 task. Never offer a replacement unless the person asks.
 
-Open **Connect Fly.io** with `credential_save {kind:"plugin-provider",target:"fly"}` for a new key. The card explains app-scoped deploy tokens and saves the `fly.io` credential with both API origins. In the Fly dashboard select the real app or organization, then **Tokens**; there is no universal app token-creation URL to guess. Only if the person explicitly asks to replace the saved key, rotate the existing row through `credential_save {kind:"api",target:"fly.io"}`.
+Open **Connect Fly.io** through the secure connection card for a new key. The card explains app-scoped deploy tokens and saves the `fly.io` credential with both API origins. In the Fly dashboard select the real app or organization, then **Tokens**; there is no universal app token-creation URL to guess. Only if the person explicitly asks to replace the saved key, rotate the existing row through its secure connection card.
 
 ## Scope
 

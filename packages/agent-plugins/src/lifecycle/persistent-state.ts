@@ -1,3 +1,4 @@
+import { resolveAgentPluginLifecycleNamespace } from '../core/identity-namespace.js';
 import { createPluginMemory, migratePluginLayout, assertPluginStatePath, withPluginStateLock } from '../../core/persistent-state.js';
 import path from 'node:path';
 import { withFileLock } from '@jini-ai/platform/fs/file-lock';
@@ -26,7 +27,7 @@ export function createPersistentStateModule(ports: AgentPluginLifecyclePorts, _o
     assertOwnedPath: (required: { workspaceRoot: string; entryPath: string }, optional = {}) => assertPluginStatePath({ ...effects, ...required }, optional),
     migrate: (required: { workspaceRoot: string }, optional = {}) => migratePluginLayout({ ...effects, ...required,
       parsePluginId: ({ value }) => {
-        const parsed = parseAgentPluginManifest({ value }, { identityNamespace: ports.extensionNamespace });
+        const parsed = parseAgentPluginManifest({ value }, { identityNamespace: resolveAgentPluginLifecycleNamespace({ value, extensionNamespace: ports.extensionNamespace }) });
         if (!parsed.ok) throw new Error(parsed.errors.join('; '));
         return parsed.manifest.name;
       }, ...(ports.onEvent ? { onEvent: ports.onEvent } : {}),

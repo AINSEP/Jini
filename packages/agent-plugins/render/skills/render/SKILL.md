@@ -22,9 +22,9 @@ Writing `render.yaml` needs **no key**. Do not open a key card for that task.
 
 Choose the card yourself from its `usedFor` list. Reuse a saved key or working
 sign-in for that task. Never offer a replacement unless the person asks.
-Check `content_read.custom_credential {}` for a saved key first.
+List saved credential labels and check for a saved key first.
 Otherwise open **Connect Render** with
-`credential_save { kind: "plugin-provider", target: "render" }`; it saves as `Render API`.
+open the secure connection card; it saves as `Render API`.
 The person creates the key under Account Settings → API Keys. A deploy hook URL
 is not a key.
 Saving a key deploys nothing. Untested: this connection has not been tried end to end.

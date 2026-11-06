@@ -56,7 +56,7 @@ test('host-specific start commands and the restore promise moved out of the back
 
 test('the shipped prose is host-neutral and the publisher id and managed-files path are unchanged', async () => {
   const manifest = await readJson('plugin.json');
-  assert.equal(manifest.extensions.tovu.id, 'tovu/github');
+  assert.equal(manifest.extensions.jini.id, 'tovu/github');
   assert.doesNotMatch(manifest.description, /\bTovu\b/);
   for (const file of (await shippedFiles()).filter(name => name.endsWith('.md'))) {
     assert.doesNotMatch(await readText(file), /\bTovu\b/, file);

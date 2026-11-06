@@ -23,8 +23,8 @@ test('the standard manifest resolves as an isolated package subpath with host me
   assert.equal(validatePluginManifest({ value: manifest }), true);
   assert.equal(manifest.$schema, 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json');
   assert.equal(manifest.name, 'software-engineering');
-  assert.deepEqual(manifest.extensions.tovu, {
-    id: 'jini/software-engineering', displayName: 'Tovu Software Engineering',
+  assert.deepEqual(manifest.extensions.jini, {
+    id: 'jini/software-engineering', displayName: 'Software Engineering',
     summary: 'Helps write maintainable, secure, test-ready software with honest verification.',
     provides: ['software-engineering'],
   });

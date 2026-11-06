@@ -33,8 +33,8 @@ test("S3-compatible ships exactly its payload, and every module its host contrib
 test("S3-compatible keeps its publisher id and deploy-target capability (no id rewrite on the move)", async () => {
   const manifest = await readJson("plugin.json");
   assert.equal(manifest.name, PLUGIN_ID);
-  assert.equal(manifest.extensions.tovu.id, `tovu/${PLUGIN_ID}`);
-  assert.ok(manifest.extensions.tovu.provides.includes(`deploy-target:${PLUGIN_ID}`));
+  assert.equal(manifest.extensions.jini.id, `tovu/${PLUGIN_ID}`);
+  assert.ok(manifest.extensions.jini.provides.includes(`deploy-target:${PLUGIN_ID}`));
 });
 
 test("S3-compatible's shipped prose is host-neutral; quoted identifiers and messages stay as they are", async () => {

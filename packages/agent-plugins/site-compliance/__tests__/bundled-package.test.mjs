@@ -33,7 +33,7 @@ test('the shipped screening guidance includes every rulepack and preserves evide
 test('the shipped text is host-neutral and keeps the frozen publisher id', async () => {
   const manifest = JSON.parse(await readFile(path.join(root, 'plugin.json'), 'utf8'));
   assert.equal(manifest.name, 'site-compliance');
-  assert.equal(manifest.extensions.tovu.id, 'tovu/site-compliance');
+  assert.equal(manifest.extensions.jini.id, 'tovu/site-compliance');
   assert.doesNotMatch(manifest.description, /\bTovu\b/);
   for (const file of (await shippedFiles()).filter(name => name.endsWith('.md'))) {
     assert.doesNotMatch(await readFile(path.join(root, file), 'utf8'), /\bTovu\b/, file);

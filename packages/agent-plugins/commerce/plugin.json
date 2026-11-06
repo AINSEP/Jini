@@ -1,12 +1,12 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "commerce",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "One-time catalog and member checkout using the host's configured payment provider. Disabled until the host activates and configures it.",
   "author": "Jini",
   "license": "Apache-2.0",
   "extensions": {
-    "tovu": {
+    "jini": {
       "id": "jini/commerce",
       "displayName": "Commerce",
       "summary": "Manage a catalog and accept one-time payments on a deployed HTTPS site.",

@@ -30,8 +30,8 @@ test('the higgsfield-media package ships its skill and both references, each cit
   for (const name of references) assert.ok(skill.includes(`references/${name}`), name);
   const manifest = await readJson('plugin.json');
   assert.equal(manifest.name, 'higgsfield-media');
-  assert.equal(manifest.extensions.tovu.id, 'tovu/higgsfield-media');
-  assert.deepEqual(manifest.extensions.tovu.provides, ['media:image', 'media:video']);
+  assert.equal(manifest.extensions.jini.id, 'tovu/higgsfield-media');
+  assert.deepEqual(manifest.extensions.jini.provides, ['media:image', 'media:video']);
 });
 
 // The tools the skill's own setup table names (Step B). The sign-in grants exactly these, so a
@@ -43,19 +43,21 @@ const DECLARED_WRITE_TOOLS = ['generate_image', 'generate_video', 'reveal_genera
 test('browser sign-in and operator read trust are declared without a token', async () => {
   const config = await readJson('mcp.json');
   assert.deepEqual(config.mcpServers.higgsfield, { type: 'streamable-http', url: 'https://mcp.higgsfield.ai/mcp' });
-  const metadata = (await readJson('plugin.json')).extensions.tovu.mcpServers.higgsfield;
-  assert.equal(metadata.tovuAuthMode, 'oauth');
-  assert.deepEqual(metadata.tovuDefaultTools.read, ['models_explore', 'job_status', 'jobs_wait', 'show_generations', 'show_generation_by_ids']);
-  assert.deepEqual(metadata.tovuDefaultTools.allow, DECLARED_TOOLS, 'the sign-in grants the tools the skill documents');
-  assert.deepEqual(metadata.tovuDefaultTools.write, DECLARED_WRITE_TOOLS, 'the generators that write get their may-write grant at sign-in');
+  const metadata = (await readJson('plugin.json')).extensions.jini.mcpServers.higgsfield;
+  assert.equal(metadata.authMode, 'oauth');
+  assert.deepEqual(metadata.defaultTools.read, ['models_explore', 'job_status', 'jobs_wait', 'show_generations', 'show_generation_by_ids']);
+  assert.deepEqual(metadata.defaultTools.allow, DECLARED_TOOLS, 'the sign-in grants the tools the skill documents');
+  assert.deepEqual(metadata.defaultTools.write, DECLARED_WRITE_TOOLS, 'the generators that write get their may-write grant at sign-in');
   const skill = await readText('SKILL.md');
-  assert.match(skill, /agent_plugin_connect/);
-  assert.match(skill, /media_import_from_url/);
+  assert.match(skill, /[Cc]onnect(?:ing)? the account/);
+  assert.doesNotMatch(skill, /agent_plugin_connect/);
+  assert.match(skill, /import the media from its URL/);
+  assert.doesNotMatch(skill, /media_import_from_url/);
   assert.match(skill, /Never store credentials/);
 });
 
 test('the one connection card is browser sign-in with its task purposes', async () => {
-  const cards = (await readJson('plugin.json')).extensions.tovu.credentialCards;
+  const cards = (await readJson('plugin.json')).extensions.jini.credentialCards;
   assert.equal(cards.length, 1);
   const [card] = cards;
   assert.equal(card.target, 'higgsfield-media');
@@ -73,7 +75,7 @@ test('the one connection card is browser sign-in with its task purposes', async 
 
 test('the skill still teaches the asynchronous job pipeline and forbids sync polling', async () => {
   const skill = await readText('SKILL.md');
-  assert.match(skill, /generate_image[^]*job_status[^]*media_import_from_url/);
+  assert.match(skill, /generate_image[^]*job_status[^]*import the media from its URL/);
   assert.match(skill, /Never pass `sync: true`/);
   assert.match(skill, /writeAllowedToolNames/);
 });
@@ -83,7 +85,7 @@ test('the skill still teaches the asynchronous job pipeline and forbids sync pol
 // (content/agent-plugin-overlays/higgsfield-media/).
 test('the shipped text is host-neutral', async () => {
   const manifest = await readJson('plugin.json');
-  assert.doesNotMatch(`${manifest.description}\n${manifest.extensions.tovu.summary}`, /\bTovu\b/);
+  assert.doesNotMatch(`${manifest.description}\n${manifest.extensions.jini.summary}`, /\bTovu\b/);
   const hostOnly = /\bTovu\b|TOVU_PUBLIC_URL|Settings → External MCP|Restart the assistant|daemon 500|15,?000 ?ms|mcp-federation|\.ts`/;
   for (const name of ['SKILL.md', ...references.map(ref => `references/${ref}`)]) {
     assert.doesNotMatch(await readText(name), hostOnly, name);
@@ -92,7 +94,7 @@ test('the shipped text is host-neutral', async () => {
 });
 
 test('polling and generation history remain available to read-only assistants after sign-in', async () => {
-  const defaults = (await readJson('plugin.json')).extensions.tovu.mcpServers.higgsfield.tovuDefaultTools;
+  const defaults = (await readJson('plugin.json')).extensions.jini.mcpServers.higgsfield.defaultTools;
   for (const tool of ['jobs_wait', 'show_generations', 'show_generation_by_ids']) {
     assert.ok(defaults.allow.includes(tool), tool);
     assert.ok(defaults.read.includes(tool), `${tool} must be classified as read-only`);

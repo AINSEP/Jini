@@ -1,12 +1,12 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "supabase",
-  "version": "1.1.0",
-  "description": "Gives this site a hosted database (Supabase) for sign-ups, forms and app data, set up from chat with no setup steps for the person. Use it whenever someone says they need a database, want to store data, or want sign-ups or form entries saved. Always start with agent_plugin_connect { pluginId: \"supabase\" }: it shows a sign-in card (the person signs in or signs up at Supabase themselves), turns the connection on, and returns once connected. Then follow the supabase skill: find or create the database, handle Supabase's free limit of two active databases, and speak in plain words only.",
+  "version": "1.1.1",
+  "description": "Gives this site a hosted database (Supabase) for sign-ups, forms and app data, set up from chat with no setup steps for the person. Use it whenever someone says they need a database, want to store data, or want sign-ups or form entries saved. Always start by connecting the Supabase account: it shows a sign-in card (the person signs in or signs up at Supabase themselves), turns the connection on, and returns once connected. Then follow the supabase skill: find or create the database, handle Supabase's free limit of two active databases, and speak in plain words only.",
   "author": "Tovu",
   "license": "Apache-2.0",
   "extensions": {
-    "tovu": {
+    "jini": {
       "maturity": "soon",
       "summary": "Gives your site a database for sign-ups and form entries. You sign in to Supabase and the assistant sets up the rest.",
       "id": "tovu/supabase",

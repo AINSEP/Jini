@@ -10,7 +10,7 @@ description: Publish the site's static export to Vercel with the workspace's own
 Choose the card yourself from its `usedFor` list. Reuse a saved key or working sign-in for that
 task. Never offer a replacement unless the person asks.
 
-Open the plugin’s **Connect Vercel** card with `credential_save {kind:"plugin-provider",target:"vercel"}`. It links to token creation and explains account/team access. The hosting save flow verifies and seals the token.
+Open the plugin’s **Connect Vercel** card through the host. It links to token creation and explains account/team access. The hosting save flow verifies and seals the token.
 
 The steps are the same for every host: `deployment_get_static_publish_capabilities` shows whether a
 token is saved, `deployment_preview_static_publish` comes first, and `deployment_execute_static_publish`

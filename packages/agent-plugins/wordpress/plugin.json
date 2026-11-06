@@ -1,12 +1,12 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "wordpress",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Guides publishing a site through an existing host, connecting an owned subdomain, or redirecting a free WordPress.com address. Uses existing hosting, DNS and page-reading tools. Includes WordPress.com dashboard steps and marks unconfirmed redirect pricing and host URL eligibility for dashboard confirmation.",
   "author": "Tovu",
   "license": "Apache-2.0",
   "extensions": {
-    "tovu": {
+    "jini": {
       "maturity": "soon",
       "id": "tovu/wordpress",
       "displayName": "WordPress",

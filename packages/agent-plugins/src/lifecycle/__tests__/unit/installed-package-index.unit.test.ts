@@ -50,6 +50,16 @@ describe('indexInstalledRoot refusals', () => {
 });
 
 describe('indexInstalledRoot results', () => {
+  it('loads a portable identity in another host and warns visibly for an installed legacy copy', async () => {
+    const events: string[] = [];
+    const host = { ...ports, extensionNamespace: 'another-studio', onEvent: ({ message }: { message: string }) => events.push(message) };
+    const metadata = { id: 'publisher/my-plugin', provides: ['data'], displayName: 'Portable' };
+    const portable = await index(await packageRoot({ 'plugin.json': manifest({ extensions: { jini: metadata } }) }), host);
+    expect(portable).toMatchObject(metadata);
+    const legacy = await index(await packageRoot({ 'plugin.json': manifest({ extensions: { tovu: metadata } }) }), host);
+    expect(legacy).toMatchObject(metadata);
+    expect(events).toContainEqual(expect.stringContaining('2027-05-06'));
+  });
   it('indexes every regular file sorted and every skill sorted by name', async () => {
     const root = await packageRoot({ 'plugin.json': manifest(), 'skills/zeta/SKILL.md': '#', 'skills/alpha/SKILL.md': '#', 'skills/alpha/notes.md': '' });
     const indexed = await index(root);

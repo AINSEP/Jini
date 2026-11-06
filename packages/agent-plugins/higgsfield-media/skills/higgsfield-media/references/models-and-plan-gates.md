@@ -81,7 +81,7 @@ Observed on the connected account, 2026-09-09:
 **It is an account gate, not a model gate.** Two different models from two different providers
 returning the *identical* message is the tell. Do not conclude "that model id is wrong" or "the
 Higgsfield connection is broken" — the connection is demonstrably fine, because the preflight on
-the same model in the same session succeeded.
+the same model can succeed through another available tool.
 
 **Do not retry it.** The account's plan does not change between two tool calls.
 
@@ -120,7 +120,7 @@ Note also that `use_unlim` caps `count` to 1 regardless of what you asked for.
 ## What is and is not enabled here
 
 This plugin covers images and video. The workflow's tool list includes `generate_image` and
-`generate_video`, followed by `job_status` polling and `media_import_from_url` for the completed
+`generate_video`, followed by `job_status` polling and import the media from its URL for the completed
 CDN asset. The owner confirmed video coverage on 2026-10-04. Consult the live federated tool list
 for each generator's input schema and the current connection's allowlist/write grants.
 
@@ -131,7 +131,7 @@ grant generation writes. For a video request, `generate_video` must be both allo
 "may write", just as `generate_image` is for images. SKILL.md's setup table includes both.
 
 For video, use the same asynchronous chain: submit `generate_video`, poll `job_status` without
-`sync:true` until completion, then import the video CDN URL using `media_import_from_url`.
+`sync:true` until completion, then import the video CDN URL by importing it from its URL.
 The import tool accepts `video/mp4` and `video/webm`. A job id alone does not mean the video
 exists or has reached the site's Media library. Select a video model using the live model list;
 image-model plan results above do not establish a video model's availability.

@@ -1,7 +1,8 @@
+import { resolveAgentPluginLifecycleNamespace } from '../core/identity-namespace.js';
 /** Read-side owner of installed package metadata; never constructs a mutation lifecycle. */
 import path from "node:path";
 import { AgentPluginInstallError } from "./install-errors.js";
-import { readAgentPluginExtension, parseAgentPluginManifest as parseAgentPluginManifestValue } from "./manifest.js";
+import { parseAgentPluginManifest as parseAgentPluginManifestValue, type AgentPluginManifest } from "./manifest.js";
 import type { AgentPluginLifecyclePorts } from "./ports.js";
 import type { InstalledAgentPlugin, InstalledAgentPluginSkill } from "./types.js";
 
@@ -18,18 +19,14 @@ export function createInstalledPackageIndex(required: { readonly ports: AgentPlu
   const { ports } = required;
   const readFile = ports.filesystem.readFile.bind(ports.filesystem);
   const readdir = ports.filesystem.readdir.bind(ports.filesystem);
-  const parseAgentPluginManifest = (value: unknown) => parseAgentPluginManifestValue({ value }, { identityNamespace: ports.extensionNamespace });
+  const parseAgentPluginManifest = (value: unknown) => parseAgentPluginManifestValue({ value }, { identityNamespace: resolveAgentPluginLifecycleNamespace({ value, extensionNamespace: ports.extensionNamespace }) });
   /** Cosmetic fields are trimmed and capped rather than invalidating the package. The cap stops
    * a hostile package flooding an admin row. Malformed values fall back because these fields are
    * cosmetic: callers title-case the id and show the spec description when these keys are absent.
    * Inner newlines remain paragraph breaks in summaries.
    * @complexity O(n) in the supplied text length; output is capped at maxLength. */
-  function readDisplayText(required: { readonly manifest: Parameters<typeof readAgentPluginExtension>[0]['manifest']; readonly key: 'displayName' | 'summary'; readonly maxLength: number }, _optional = {}): { displayName?: string; summary?: string } {
-    const text = readAgentPluginExtension({ manifest: required.manifest, namespace: ports.extensionNamespace,
-      read: ({ value }) => {
-        const field = value[required.key];
-        return typeof field === 'string' ? field.trim() : undefined;
-      } });
+  function readDisplayText(required: { readonly manifest: AgentPluginManifest; readonly key: 'displayName' | 'summary'; readonly maxLength: number }, _optional = {}): { displayName?: string; summary?: string } {
+    const text = required.manifest[required.key];
     return text ? { [required.key]: text.slice(0, required.maxLength) } : {};
   }
 

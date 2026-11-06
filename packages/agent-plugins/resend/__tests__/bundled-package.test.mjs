@@ -40,17 +40,18 @@ test('the webhook route, suppression rules and rotation labels moved to the host
   assert.doesNotMatch(text, /Email → Provider|Use this provider/);
 });
 
-test('the skill keeps both keys apart and names the frozen sending-key label exactly', async () => {
+test('the portable skill keeps account and sending keys apart through their secure cards', async () => {
   const text = await skill();
-  assert.match(text, /target: "resend" \}/);
-  assert.match(text, /target: "resend-mcp" \}/);
-  assert.ok(text.includes(`"${FROZEN_LABEL}"`));
+  assert.match(text, /Save it through the Connect Resend card/);
+  assert.match(text, /Full access/);
+  assert.match(text, /mail credential label the host reads/);
+  assert.doesNotMatch(text, /credential_save|Tovu/);
   assert.match(text, /Never ask for the key in chat/);
 });
 
 test('the shipped text is host-neutral apart from frozen identifiers, and keeps the publisher id', async () => {
   const manifest = JSON.parse(await readFile(path.join(root, 'plugin.json'), 'utf8'));
-  assert.equal(manifest.extensions.tovu.id, 'tovu/resend');
+  assert.equal(manifest.extensions.jini.id, 'tovu/resend');
   assert.doesNotMatch(manifest.description, /\bTovu\b/);
   for (const file of (await shippedFiles()).filter(name => /\.(md|mjs)$/.test(name))) {
     const text = (await readFile(path.join(root, file), 'utf8')).replaceAll(FROZEN_LABEL, '');

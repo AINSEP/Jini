@@ -29,9 +29,9 @@ test("fly ships exactly its portable payload and none of the host's files", asyn
 test("fly keeps its publisher id, contributions and frozen contribution file names", async () => {
   const manifest = await readJson("plugin.json");
   assert.equal(manifest.name, "fly");
-  assert.equal(manifest.version, "1.0.0");
-  assert.equal(manifest.extensions.tovu.id, "tovu/fly");
-  assert.deepEqual(manifest.extensions.tovu.provides, ["deploy-ops:fly", "deploy-config:fly", "credential-scheme:fly-io"]);
+  assert.equal(manifest.version, "1.0.1");
+  assert.equal(manifest.extensions.jini.id, "tovu/fly");
+  assert.deepEqual(manifest.extensions.jini.provides, ["deploy-ops:fly", "deploy-config:fly", "credential-scheme:fly-io"]);
   const configs = await readJson("tovu-deploy-configs.json");
   const ops = await readJson("tovu-deploy-ops.json");
   const files = await shippedFiles();

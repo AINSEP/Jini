@@ -1,12 +1,12 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "sentry",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Connects the site's error tracking to Sentry through the Sentry provider plugin in the same package (observability-sentry). Ships the know-how and a secure key card: the person pastes the project's DSN and an optional environment name; the host saves it to your project, and you choose which sites use it. No Sentry code here; the provider plugin reports the errors.",
   "author": "Tovu",
   "license": "Apache-2.0",
   "extensions": {
-    "tovu": {
+    "jini": {
       "toolKeywords": { "observability_send_test_error": "Sentry" },
       "displayName": "Sentry",
       "summary": "Sends your site's errors to Sentry. Ask the assistant to add error tracking.",

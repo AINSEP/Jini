@@ -1,12 +1,12 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "netlify",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Publishes the site's static export to Netlify with the workspace's own saved token. Ships the host code itself (a host loads it only because that host chose to ship this plugin) and the know-how an agent needs: where to get a token, how the Netlify site is named, and what each failure means in plain words.",
   "author": "Tovu",
   "license": "Apache-2.0",
   "extensions": {
-    "tovu": {
+    "jini": {
       "maturity": "soon",
       "displayName": "Netlify",
       "summary": "Puts your website online on Netlify. The assistant shows you a preview first.",

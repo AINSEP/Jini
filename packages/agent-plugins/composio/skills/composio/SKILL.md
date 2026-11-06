@@ -10,7 +10,7 @@ description: Use the user's other apps (Gmail, Calendar, Slack, Notion, GitHub, 
 Choose the card yourself from its `usedFor` list. Reuse a saved key or working sign-in for that
 task. Never offer a replacement unless the person asks.
 
-`agent_plugin_connect {pluginId:"composio"}` shows the plugin-declared **Connect Composio** card. Review each app’s sign-in permissions and grant only the requested tools. This hosted connection declares no token fallback; do not request or save a Composio API key.
+Connecting the account opens the plugin-declared **Connect Composio** card. Review each app’s sign-in permissions and grant only the requested tools. This hosted connection declares no token fallback; do not request or save a Composio API key.
 
 Composio Connect is an **external MCP server** at `https://connect.composio.dev/mcp`. It does not
 expose one tool per app. It exposes a handful of meta-tools, and you reach every app through them.
@@ -30,10 +30,10 @@ Its tools arrive in chat as `mcp__composio__<TOOL>`.
 Connect signs the user in by standard MCP OAuth in their browser. The host discovers Composio's
 endpoints and registers its own client, so nobody types a URL, client id or secret.
 
-1. **Turn the plugin on.** It ships disabled. Offer to enable it; on yes call `plugins_set_enabled`
+1. **Turn the plugin on.** It ships disabled. Offer to enable it; on yes enable the plugin with confirmation
    with `family: "agent-plugin"`, `pluginId: "composio"`, `enabled: true` (the user approves a
    dialog), or they use the **Agent Plugins** screen. Enabling creates the `composio` connection row.
-2. **Sign in.** Call `agent_plugin_connect { pluginId: "composio" }`. It provisions the declared
+2. **Sign in.** Connect the account. It provisions the declared
    connection, shows the secure browser sign-in card and waits. On `status: "connected"`, continue;
    on `status: "waiting-for-sign-in"`, wait for the person to return, then call it again once.
    Say: "Sign in to Composio (free account; sign up there if you have none)." If it refuses because
@@ -78,7 +78,7 @@ Report what the tool actually returned. If it failed, say so with its error in o
 
 ## When it stops working
 
-- **"is disconnected: its authorization expired or was revoked"**: call `external_mcp_reauth_prompt`
+- **"is disconnected: its authorization expired or was revoked"**: request renewed browser sign-in
   for `composio`. After the user signs in again, retry the original call once.
 - **An app's own sign-in expired** (the app tool fails with an auth error): run
   `COMPOSIO_MANAGE_CONNECTIONS` for that app again and give the user the new link.

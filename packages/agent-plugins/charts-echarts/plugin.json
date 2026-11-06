@@ -1,11 +1,11 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "charts-echarts",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Teaches the assistant to draw bar, stacked bar, line, area, pie, donut and scatter charts in chat with the Apache ECharts chart provider: finding the chart components with search_components, the data shape each one takes, several series in one chart through the generic chart.spec entry, axis names and number formats, and what falls back to a table. Know-how only: no code, no MCP server; the ECharts provider plugin (charts-echarts) draws the charts and switches this plugin on and off.",
   "license": "Apache-2.0",
   "extensions": {
-    "tovu": {
+    "jini": {
       "id": "jini/charts-echarts-agent",
       "displayName": "ECharts",
       "summary": "Lets the assistant draw bar, stacked bar, line, area, pie, donut and scatter charts in chat, with several series. Ask for a chart of your data.",

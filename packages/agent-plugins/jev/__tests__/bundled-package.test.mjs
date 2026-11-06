@@ -32,7 +32,7 @@ test('the design-only package ships its API references without claiming executab
 test('the shipped text is host-neutral and keeps the frozen publisher id', async () => {
   const manifest = JSON.parse(await readFile(path.join(root, 'plugin.json'), 'utf8'));
   assert.equal(manifest.name, 'jev');
-  assert.equal(manifest.extensions.tovu.id, 'tovu/jev');
+  assert.equal(manifest.extensions.jini.id, 'tovu/jev');
   assert.doesNotMatch(manifest.description, /\bTovu\b/);
   for (const file of (await shippedFiles()).filter(name => name.endsWith('.md'))) {
     assert.doesNotMatch(await readFile(path.join(root, file), 'utf8'), /\bTovu\b/, file);

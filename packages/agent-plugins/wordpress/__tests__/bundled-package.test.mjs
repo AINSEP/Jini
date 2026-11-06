@@ -28,11 +28,11 @@ test('the WordPress package ships both guides without a deploy target or connect
   }
   const manifest = JSON.parse(await readFile(path.join(root, 'plugin.json'), 'utf8'));
   assert.equal(manifest.name, 'wordpress');
-  assert.equal(manifest.extensions.tovu.id, 'tovu/wordpress');
-  assert.equal(manifest.extensions.tovu.credentialCards, undefined);
+  assert.equal(manifest.extensions.jini.id, 'tovu/wordpress');
+  assert.equal(manifest.extensions.jini.credentialCards, undefined);
   assert.ok(!files.includes('tovu-deploy-targets.json'));
   assert.ok(!files.includes('mcp.json'));
-  assert.ok(!manifest.extensions.tovu.provides.some(value => value.startsWith('deploy-target:')));
+  assert.ok(!manifest.extensions.jini.provides.some(value => value.startsWith('deploy-target:')));
 });
 
 test('the shipped text is host-neutral (vendor-free guidance, owner 2026-11-02)', async () => {

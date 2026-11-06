@@ -1,3 +1,4 @@
+import { resolveAgentPluginLifecycleNamespace } from '../core/identity-namespace.js';
 import { listInstalledPackageRoots } from "./installed-package-roots.js";
 import { createUninstallModule } from "./uninstall.js";
 import { AgentPluginInstallError } from "./install-errors.js";
@@ -201,7 +202,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
       let identity: ReturnType<typeof readPluginIdentity>;
       try {
         raw = JSON.parse(await readFile(manifestPath, 'utf8'));
-        identity = readPluginIdentity({ manifest: raw, name: root.localId, namespace: ports.extensionNamespace });
+        identity = readPluginIdentity({ manifest: raw, name: root.localId, namespace: resolveAgentPluginLifecycleNamespace({ value: raw, extensionNamespace: ports.extensionNamespace }) });
       } catch {
         // A damaged unrelated install must not block fresh installs or bundled seeding.
         ports.onEvent?.({ event: 'agent-plugin-identity-warning', message: `Plugin '${root.localId}': installed identity manifest is unreadable or invalid; omitted from identity admission.` });

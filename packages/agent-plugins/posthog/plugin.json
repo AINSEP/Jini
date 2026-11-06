@@ -1,12 +1,12 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "posthog",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Connects the site to PostHog product analytics through the PostHog provider plugin in the same package (analytics-posthog). Ships the know-how and a secure key card: the assistant opens the card, the person picks the region (US by default, EU or a self-hosted URL) and pastes the project API key, and the host saves it to your project, and you choose which sites use it. No PostHog code here; the provider plugin sends the events.",
   "author": "Tovu",
   "license": "Apache-2.0",
   "extensions": {
-    "tovu": {
+    "jini": {
       "displayName": "PostHog",
       "summary": "Sends your site's product analytics to PostHog. Ask the assistant to connect PostHog.",
       "id": "tovu/posthog",

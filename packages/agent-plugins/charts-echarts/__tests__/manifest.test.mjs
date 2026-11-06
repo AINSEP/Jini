@@ -31,10 +31,10 @@ test('the face links to the ECharts provider by local id and never reuses its pu
   const provider = await readJson(providerManifestPath);
   assert.equal(manifest.$schema, 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json');
   assert.equal(manifest.name, 'charts-echarts');
-  assert.equal(manifest.extensions.tovu.id, 'jini/charts-echarts-agent');
-  assert.equal(provider.extensions.tovu.id, 'jini/charts-echarts');
-  assert.equal(manifest.extensions.tovu.providerPlugin, provider.id);
-  assert.notEqual(manifest.extensions.tovu.id, provider.extensions.tovu.id);
+  assert.equal(manifest.extensions.jini.id, 'jini/charts-echarts-agent');
+  assert.equal(provider.extensions.jini.id, 'jini/charts-echarts');
+  assert.equal(manifest.extensions.jini.providerPlugin, provider.id);
+  assert.notEqual(manifest.extensions.jini.id, provider.extensions.jini.id);
   assert.deepEqual(Object.keys(manifest.extensions), ['tovu']);
 });
 
@@ -43,8 +43,8 @@ test('the face links to the ECharts provider by local id and never reuses its pu
 test('the face provides the chart capability its provider draws', async () => {
   const manifest = await readJson(path.join(root, 'plugin.json'));
   const provider = await readJson(providerManifestPath);
-  assert.deepEqual(manifest.extensions.tovu.provides, [provider.browserProviders[0].kind]);
-  assert.deepEqual(manifest.extensions.tovu.provides, ['chart']);
+  assert.deepEqual(manifest.extensions.jini.provides, [provider.browserProviders[0].kind]);
+  assert.deepEqual(manifest.extensions.jini.provides, ['chart']);
 });
 
 test('keywords are nonempty strings that a chart request finds', async () => {
@@ -95,7 +95,7 @@ test('the skill example is a chart.spec the provider admits', async () => {
 
 test('the shipped text is host-neutral', async () => {
   const manifest = await readJson(path.join(root, 'plugin.json'));
-  const texts = [manifest.description, manifest.extensions.tovu.summary, await readSkill()];
+  const texts = [manifest.description, manifest.extensions.jini.summary, await readSkill()];
   for (const text of texts) {
     assert.doesNotMatch(text, /\bTovu\b/);
     assert.doesNotMatch(text, /assistant_render_ui|agent_plugin_/);

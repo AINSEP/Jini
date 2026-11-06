@@ -3,6 +3,7 @@ import { constants } from "node:fs";
 import path from "node:path";
 import { FOLDER_MAX_FILES, FOLDER_UNREADABLE, FolderZipError, zipFolderFiles } from "./folder-zip.js";
 import { isAgentPluginName } from './core/plugin-name.js';
+import { readAgentPluginPortableExtension } from './core/identity-namespace.js';
 
 /** Code-unit order, independent of locale. */
 function compareCodeUnits(a: string, b: string): number {
@@ -156,7 +157,8 @@ function customizeManifest({ text, name, identityNamespace }: { text: string; na
   manifest.extensions ??= {};
   if (!isPlainObject(manifest.extensions)) throw new FolderZipError('unreadable', 'plugin.json extensions must be an object.');
   const localId = `local/${name}`;
-  manifest.extensions[identityNamespace] ??= {};
+  // Creating the portable key must preserve the installed copy's capabilities and display copy.
+  manifest.extensions[identityNamespace] ??= identityNamespace === 'jini' ? { ...readAgentPluginPortableExtension({ value: manifest }) } : {};
   sanitizeHostIdentities({ extensions: manifest.extensions, localId });
   const host = manifest.extensions[identityNamespace];
   if (isPlainObject(host)) host.id = localId;

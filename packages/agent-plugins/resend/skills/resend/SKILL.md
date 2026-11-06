@@ -55,11 +55,11 @@ tool on under Settings for this connection.
 
 The account connection uses a separate **Full access** API key, not browser OAuth. Reuse a saved
 account key; never offer to replace it unless the person asks. Call
-`agent_plugin_connect { pluginId: "resend" }` to check the saved connection or open its secure key card.
+connect the account to check the saved connection or open its secure key card.
 Only say the card is open after the tool emits it. A cancelled or expired card is not a connection.
 
 If opening the account card directly, use
-`credential_save { kind: "plugin-provider", target: "resend-mcp" }`. Explain first:
+open the secure connection card. Explain first:
 "This is a separate Full access key so I can add and verify your domain. It keeps your site's
 existing sending key." Then tell the person:
 1. Sign in at [resend.com/api-keys](https://resend.com/api-keys) and choose **Create API Key**.
@@ -79,8 +79,8 @@ Never ask for the key in chat, and never put it in any tool argument.
 1. **Get a sending key.** The person signs in at [resend.com/api-keys](https://resend.com/api-keys)
    and creates a key with **Sending access** (only sending; the site needs nothing more). This is a
    different key from the Full access one above.
-2. **Save it through the Connect Resend card:** `credential_save { kind: "plugin-provider", target: "resend" }`.
-   The card asks only for the key and saves it under the label the host reads ("Tovu Mail — Resend API").
+2. **Save it through the Connect Resend card:** open the secure connection card.
+   The card asks only for the key and saves it under the mail credential label the host reads.
    Never ask for the key in chat. If a sending key is already saved, reuse it. Only open a replacement
    card if the person explicitly asks to replace that key; explain that it REPLACES the saved key.
 3. **Verify the sending domain.** Until it is verified, Resend only sends to the account's own
@@ -95,7 +95,7 @@ Never ask for the key in chat, and never put it in any tool argument.
 - `validation_error`: a bad address or an unverified sending domain. Fix the address or verify the domain.
 - `missing_api_key`, `invalid_api_key`, `restricted_api_key`: the saved key is wrong or lacks sending
   access. Explain the failure and needed access. Only after an
-  explicit replacement request, use `credential_save { kind: "api", target: "Tovu Mail — Resend API" }`.
+  explicit replacement request, open the secure connection card.
 - `rate_limit_exceeded`, HTTP 5xx, `TRANSPORT_ERROR`: temporary. The host retries these.
 
 ## Bounces and complaints (webhook)

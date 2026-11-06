@@ -1,3 +1,4 @@
+import { resolveAgentPluginLifecycleNamespace } from '../core/identity-namespace.js';
 /** Extracted from the host plugin lifecycle. Effects are supplied per host context. */
 import type { AgentPluginMcpConfig, McpServerConfig } from "./manifest.js";
 import { parseAgentPluginMcpConfig as parseAgentPluginMcpConfigValue } from "./manifest.js";
@@ -10,7 +11,7 @@ import { createSkillFileReader, type SkillFileResult } from "./skill-file-reader
 
 function buildModule(ports: AgentPluginLifecyclePorts) {
   const readFile = ports.filesystem.readFile.bind(ports.filesystem);
-  const parseAgentPluginMcpConfig = (value: unknown, pluginManifest?: unknown) => parseAgentPluginMcpConfigValue({ value, extensionNamespace: ports.extensionNamespace }, { pluginManifest, readServerMetadata: ports.readServerMetadata });
+  const parseAgentPluginMcpConfig = (value: unknown, pluginManifest?: unknown) => parseAgentPluginMcpConfigValue({ value, extensionNamespace: resolveAgentPluginLifecycleNamespace({ value: pluginManifest, extensionNamespace: ports.extensionNamespace }) }, { pluginManifest, readServerMetadata: ports.readServerMetadata });
   const { assertContainedOnDisk } = createPackagePathsModule(ports);
   function classifyAgentPluginMcpServerTrust(server: Pick<McpServerConfig, "type">): "auto-admit" | "requires-confirmation" {
     return server.type === "stdio" ? "requires-confirmation" : "auto-admit";
@@ -59,6 +60,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
 
     }
     const result = parseAgentPluginMcpConfig(parsedJson, manifest);
+    if (result.ok) for (const message of result.warnings ?? []) ports.onEvent?.({ event: 'agent-plugin-metadata-warning', message });
     return result.ok ? result.config : null;
   }
 

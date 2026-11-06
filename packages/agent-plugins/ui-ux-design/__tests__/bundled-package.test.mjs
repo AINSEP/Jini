@@ -37,7 +37,7 @@ test('all seven design skills and the references they name travel in the package
 
 test('the manifest keeps the card summary and the search keywords of both former copies', async () => {
   const manifest = JSON.parse(await read('plugin.json'));
-  assert.deepEqual(manifest.extensions, { tovu: {
+  assert.deepEqual(manifest.extensions, { jini: {
     displayName: 'UI/UX Design',
     summary: 'Helps the assistant design clean, accessible pages and components.',
     id: 'jini/ui-ux-design',
@@ -45,7 +45,7 @@ test('the manifest keeps the card summary and the search keywords of both former
   } });
   assert.deepEqual(manifest.keywords, ['design', 'ui', 'ux', 'ui-design', 'theme', 'page', 'website', 'layout']);
   // Hosts seeded Tovu's 0.6.0; an equal or lower version over different bytes is refused or flagged.
-  assert.equal(manifest.version, '0.6.2');
+  assert.equal(manifest.version, '0.6.3');
 });
 
 test('the design skill carries the shared tool-use wording, not one host\'s chat rules', async () => {

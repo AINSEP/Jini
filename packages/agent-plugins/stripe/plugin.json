@@ -1,12 +1,12 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "stripe",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Connects the site to Stripe through the payments-stripe provider in @jini-ai/provider-plugins. Installation alone does not enable or configure the provider.",
   "author": "Jini",
   "license": "Apache-2.0",
   "extensions": {
-    "tovu": {
+    "jini": {
       "id": "jini/stripe",
       "displayName": "Stripe",
       "providerPlugin": "payments-stripe",

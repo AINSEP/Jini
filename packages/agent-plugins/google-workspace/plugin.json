@@ -1,12 +1,12 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "google-workspace",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Connects one Google account to this site with Google's own sign-in, then works with the Google files the person picks or this site creates (the drive.file permission, never the whole Drive). v1 ships Google Sheets: chat tools for spreadsheets and a form destination that appends submissions as rows. Products are turned on separately; turning one off stops its tools and deliveries without revoking the sign-in.",
   "author": "Tovu",
   "license": "Apache-2.0",
   "extensions": {
-    "tovu": {
+    "jini": {
       "maturity": "soon",
       "vendorAliases": ["google-sheets", "docs.google.com", "sheets.googleapis.com", "drive.googleapis.com", "gmail"],
       "displayName": "Google Workspace",
@@ -27,10 +27,10 @@
             "Reads and updates spreadsheets you choose, and creates new ones",
             "Saves your site's form submissions to a spreadsheet"
           ],
-          "keyHint": "Continue to Google's sign-in page and allow access to the files you use with this app (drive.file). Choose existing spreadsheets in Tovu's Google file picker after signing in.",
+          "keyHint": "Continue to Google's sign-in page and allow access to the files you use with this app (drive.file). Choose existing spreadsheets in the host's Google file picker after signing in.",
           "saveKind": "oauth",
           "saveTarget": "google-workspace",
-          "permissions": "Requests https://www.googleapis.com/auth/drive.file: access only to files you choose or Tovu creates. It does not grant access to your whole Drive, Gmail or Calendar. Google Sheets must also be turned on in the plugin panel.",
+          "permissions": "Requests https://www.googleapis.com/auth/drive.file: access only to files you choose or the application creates. It does not grant access to your whole Drive, Gmail or Calendar. Google Sheets must also be turned on in the plugin panel.",
           "helpUrl": "https://developers.google.com/workspace/drive/api/guides/api-specific-auth#drive_api_scopes",
           "helpLabel": "What Google file access allows",
           "baseUrl": "https://accounts.google.com"
@@ -41,11 +41,11 @@
           "label": "google-workspace/account OAuth client",
           "ownedApiLabel": "google-workspace/account OAuth client",
           "category": "general",
-          "intro": "For a self-hosted site that cannot use Tovu's Google sign-in app, or an organisation using its own Google Cloud project. Save the app's client ID and client secret here, then sign in with Google. This does not replace your account sign-in.",
+          "intro": "For a self-hosted site that cannot use the host's Google sign-in app, or an organisation using its own Google Cloud project. Save the app's client ID and client secret here, then sign in with Google. This does not replace your account sign-in.",
           "usedFor": [
             "Uses your own Google sign-in app to connect this site to Google Workspace"
           ],
-          "keyHint": "In Google Cloud, open Google Auth platform → Clients → Create client. Choose Web application for a hosted site, with this site's address plus /api/agent-plugins/connections/oauth/callback as the redirect URI, or Desktop app for Tovu desktop. Turn on the Sheets, Drive and Picker APIs. Paste the client secret here. Not a service-account key.",
+          "keyHint": "In Google Cloud, open Google Auth platform → Clients → Create client. Choose Web application for a hosted site, with this site's address plus /api/agent-plugins/connections/oauth/callback as the redirect URI, or Desktop app for the desktop application. Turn on the Sheets, Drive and Picker APIs. Paste the client secret here. Not a service-account key.",
           "saveKind": "api",
           "helpUrl": "https://console.cloud.google.com/auth/clients",
           "helpLabel": "Create your Google sign-in app",

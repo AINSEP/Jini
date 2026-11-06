@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "higgsfield-media",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Generates images or video through Higgsfield's hosted MCP server, follows asynchronous jobs, then imports the returned asset into this site's Media library. Connect with agent_plugin_connect and the person's browser sign-in, never an API key. Discover this account's current tools, schemas and model entitlements; the worked model and plan examples are historical, not guarantees. Covers operator write grants, polling without sync:true, connection recovery and media_import_from_url.",
   "author": "Tovu",
   "license": "Apache-2.0",
@@ -46,13 +46,13 @@
     "media:video"
   ],
   "extensions": {
-    "tovu": {
+    "jini": {
       "vendorAliases": ["higgsfield"],
       "summary": "Makes AI images with Higgsfield and saves them to your Media library. You sign in to Higgsfield once in your browser.",
       "mcpServers": {
         "higgsfield": {
-          "tovuAuthMode": "oauth",
-          "tovuDefaultTools": {
+          "authMode": "oauth",
+          "defaultTools": {
             "allow": [
               "generate_image",
               "generate_video",

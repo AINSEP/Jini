@@ -22,24 +22,25 @@ test('the composio package ships its manifest, hosted connection and one skill',
   assert.deepEqual(await shippedFiles(), ['mcp.json', 'plugin.json', 'skills/composio/SKILL.md']);
   const manifest = await readJson('plugin.json');
   assert.equal(manifest.name, 'composio');
-  assert.equal(manifest.extensions.tovu.id, 'tovu/composio');
-  assert.deepEqual(manifest.extensions.tovu.provides, ['app-connectors']);
+  assert.equal(manifest.extensions.jini.id, 'tovu/composio');
+  assert.deepEqual(manifest.extensions.jini.provides, ['app-connectors']);
 });
 
 test('the hosted connection supports browser sign-in without inline credentials', async () => {
   const config = await readJson('mcp.json');
   assert.deepEqual(config.mcpServers.composio, {
-    type: 'streamable-http', url: 'https://connect.composio.dev/mcp', tovuAuthMode: 'oauth',
+    type: 'streamable-http', url: 'https://connect.composio.dev/mcp', authMode: 'oauth',
   });
   const skill = await readSkill();
-  assert.match(skill, /agent_plugin_connect/);
+  assert.match(skill, /[Cc]onnect(?:ing)? the account/);
+  assert.doesNotMatch(skill, /agent_plugin_connect/);
   assert.match(skill, /Do not grant.*COMPOSIO_REMOTE_WORKBENCH/s);
   assert.match(skill, /COMPOSIO_REMOTE_BASH_TOOL/);
   assert.match(skill, /Never ask the user for a Composio API key/);
 });
 
 test('the one connection card is browser sign-in with its task purposes', async () => {
-  const cards = (await readJson('plugin.json')).extensions.tovu.credentialCards;
+  const cards = (await readJson('plugin.json')).extensions.jini.credentialCards;
   assert.equal(cards.length, 1);
   const [card] = cards;
   assert.equal(card.target, 'composio');
@@ -59,7 +60,7 @@ test('the one connection card is browser sign-in with its task purposes', async 
 // they live in Tovu's overlay (content/agent-plugin-overlays/composio/GUIDANCE.md).
 test('the shipped text is host-neutral', async () => {
   const manifest = await readJson('plugin.json');
-  assert.doesNotMatch(`${manifest.description}\n${manifest.extensions.tovu.summary}`, /\bTovu\b/);
+  assert.doesNotMatch(`${manifest.description}\n${manifest.extensions.jini.summary}`, /\bTovu\b/);
   const skill = await readSkill();
   assert.doesNotMatch(skill, /\bTovu\b|TOVU_PUBLIC_URL|Settings\s*>\s*External MCP|Restart the assistant|remote-declares-not-read-only/);
   assert.match(skill, /host guidance/);

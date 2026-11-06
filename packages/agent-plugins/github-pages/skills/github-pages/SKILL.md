@@ -10,7 +10,7 @@ description: Publish the site's static export to GitHub Pages with the workspace
 Choose the card yourself from its `usedFor` list. Reuse a saved key or working sign-in for that
 task. Never offer a replacement unless the person asks.
 
-Open the plugin’s **Connect GitHub Pages** card with `credential_save {kind:"plugin-provider",target:"github-pages"}`. Select only the destination repository and grant Contents and Pages **Read and write**. The card links to token creation; the hosting owner verifies and seals it.
+Open the plugin’s **Connect GitHub Pages** card through the host. Select only the destination repository and grant Contents and Pages **Read and write**. The card links to token creation; the hosting owner verifies and seals it.
 
 The steps are the same for every host: `deployment_get_static_publish_capabilities` shows whether a
 credential is saved, `deployment_preview_static_publish` comes first, and `deployment_execute_static_publish`

@@ -42,11 +42,11 @@ describe('standalone plugin catalog', () => {
 
   it('preserves each agent manifest version independently of the npm release', () => {
     expect(entries.find(entry => entry.id === 'ui-ux-design')).toMatchObject({
-      kind: 'agent', packageName: AGENT_PLUGINS_PACKAGE, version: agentPluginsPackage.version, pluginVersion: '0.6.2', path: 'ui-ux-design',
+      kind: 'agent', packageName: AGENT_PLUGINS_PACKAGE, version: agentPluginsPackage.version, pluginVersion: '0.6.3', path: 'ui-ux-design',
       contract: { id: 'agent-plugins', version: '1.0.0' },
     });
     expect(entries.find(entry => entry.id === 'slide-design')).toMatchObject({
-      kind: 'agent', packageName: AGENT_PLUGINS_PACKAGE, version: agentPluginsPackage.version, pluginVersion: '0.1.0', path: 'slide-design',
+      kind: 'agent', packageName: AGENT_PLUGINS_PACKAGE, version: agentPluginsPackage.version, pluginVersion: '0.1.1', path: 'slide-design',
       contract: { id: 'agent-plugins', version: '1.0.0' },
     });
   });
@@ -113,7 +113,7 @@ function combinedFixture() {
   const integrity: Record<string, string> = { 'client/provider.js': digest };
   const providerArtifact = { ...provider, version: '0.6.19', integrity };
   const face = { $schema: 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json', name: 'charts-fixture', version: '0.1.0',
-    extensions: { tovu: { id: 'jini/charts-fixture-agent' } } };
+    extensions: { jini: { id: 'jini/charts-fixture-agent' } } };
   const files: Record<string, unknown> = {
     '/packages/provider-plugins/package.json': providerPackage,
     '/packages/agent-plugins/package.json': agentPackage,
@@ -153,7 +153,7 @@ describe('agent subpaths, provider-plugins providers and browser-only providers'
 
   it('refuses a face and a provider that claim the same publisher identity instead of merging them', async () => {
     const input = combinedFixture();
-    input.face.extensions.tovu.id = 'jini/charts-fixture';
+    input.face.extensions.jini.id = 'jini/charts-fixture';
     await expect(input.generate()).rejects.toThrow('Catalog publisher identity clash: jini/charts-fixture');
   });
 

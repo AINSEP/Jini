@@ -3,13 +3,13 @@
 Every failure in this file was observed on this integration; the host guidance has the host's
 exact log lines. Match the symptom, then act — do not reason from first principles about what a
 federated failure "probably" means. That habit is what produced an invented explanation and cost
-this project two sessions.
+avoidable diagnosis work.
 
 ---
 
 ## 1. The tool is not there at all
 
-**Symptom:** `search_tools` finds no `mcp__higgsfield__generate_image`; `describe_tool` cannot
+**Symptom:** tool discovery finds no `mcp__higgsfield__generate_image`; schema inspection cannot
 describe it. From inside a run this is indistinguishable from the tool never having existed.
 
 **Three different causes, all invisible from here:**
@@ -36,7 +36,7 @@ connection, not an auth problem.
 are all gated, stop and put the choice to the operator.
 
 **Do not:** retry the same model; conclude the integration is broken; silently switch to
-`media_generate_asset`, which spends money on a *different* vendor's credential.
+Another provider would spend money on a *different* vendor's credential.
 
 Full detail in `models-and-plan-gates.md`.
 
@@ -73,7 +73,7 @@ the actual diagnosis.
 
 **Cause:** the OAuth access token has expired. It is short-lived — on the order of a day.
 
-**Do:** call `external_mcp_reauth_prompt`. It shows the operator a real in-chat notice naming the
+**Do:** request renewed browser sign-in. It shows the operator a real in-chat notice naming the
 server and pointing them at where to sign in again. **You cannot finish an OAuth sign-in
 yourself**, and neither can that tool.
 
@@ -85,7 +85,7 @@ call while the notice is up.
 
 ---
 
-## 6. `media_import_from_url` returns 403 or 404
+## 6. import the media from its URL returns 403 or 404
 
 **Cause:** almost always an expired vendor URL. Higgsfield's CDN links are time-limited.
 
@@ -96,7 +96,7 @@ it — you do not need to hold the bytes, and there is no path for you to do so 
 
 ---
 
-## 7. `media_import_from_url` rejects the file
+## 7. import the media from its URL rejects the file
 
 **Cause:** the format is outside the accepted set. The host checks the **actual bytes**, not the
 served `Content-Type`, and accepts only the image and video formats it supports. A URL that
@@ -110,7 +110,7 @@ not a page URL. Report the refusal as-is — it is the guard working.
 ## 8. Everything succeeded but nothing is in Media
 
 **Cause:** you stopped after `generate_image`, or after `job_status`. Neither one puts anything in
-the Media library. Only `media_import_from_url` does.
+the Media library. Only importing the media from its URL does.
 
 **Do:** run step 4. Then confirm by the returned `media.id` and `media.publicUrl` — not by the
 fact that earlier calls returned 200.

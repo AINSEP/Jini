@@ -10,7 +10,7 @@ description: Publish the site's static export to Netlify with the workspace's ow
 Choose the card yourself from its `usedFor` list. Reuse a saved key or working sign-in for that
 task. Never offer a replacement unless the person asks.
 
-Open the plugin’s **Connect Netlify** card with `credential_save {kind:"plugin-provider",target:"netlify"}`. It links to token creation and explains team SSO access. The hosting save flow verifies and seals the token.
+Open the plugin’s **Connect Netlify** card through the host. It links to token creation and explains team SSO access. The hosting save flow verifies and seals the token.
 
 The steps are the same for every host: `deployment_get_static_publish_capabilities` shows whether a
 token is saved, `deployment_preview_static_publish` comes first, and `deployment_execute_static_publish`

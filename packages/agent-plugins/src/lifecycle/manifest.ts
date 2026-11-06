@@ -55,7 +55,11 @@
  * caller that reads the file and hands the parsed value here.
  */
 import { isAgentPluginName, MAX_NAME_LENGTH } from '../core/plugin-name.js';
-import { resolveAgentPluginIdentityNamespace } from '../core/identity-namespace.js';
+import { resolveAgentPluginIdentityNamespace, readCompatibleAgentPluginServerMetadata, hasLegacyAgentPluginServerMetadata, legacyAgentPluginMetadataWarning, readAgentPluginCompatibilityWarnings, isPortableAgentPluginNamespace } from '../core/identity-namespace.js';
+export { resolveAgentPluginIdentityNamespace, readAgentPluginPortableExtension, readAgentPluginCompatibilityWarnings, legacyAgentPluginMetadataWarning } from '../core/identity-namespace.js';
+import { readAgentPluginMetadata, type AgentPluginMetadata } from './metadata.js';
+export * from './metadata.js';
+export * from './credential-card-metadata.js';
 export { isAgentPluginName } from '../core/plugin-name.js';
 import { readAgentPluginCompatibilityMetadata } from "./compatibility-metadata.js";
 import { parseAgentPluginExports, type AgentPluginExportMetadata } from './exports.js';
@@ -115,7 +119,7 @@ function readSpecVersion(value: unknown, file: "plugin" | "mcp"): SpecVersion {
 }
 
 
-export interface AgentPluginManifest extends AgentPluginExportMetadata {
+export interface AgentPluginManifest extends AgentPluginExportMetadata, AgentPluginMetadata {
   readonly name: string;
   readonly version?: (string) | undefined;
   readonly description?: (string) | undefined;
@@ -240,8 +244,11 @@ export function parseAgentPluginManifest({ value }: { readonly value: unknown },
   const exportsResult = parseAgentPluginExports({ extension, provides: identity.provides });
   if (!exportsResult.ok) return { ok: false, errors: exportsResult.errors };
   warnings.push(...exportsResult.warnings);
+  const portable = readAgentPluginMetadata({ value }, optional);
+  warnings.push(...portable.warnings);
 
   const manifest: AgentPluginManifest = {
+    ...portable.metadata,
     ...compatibility,
     ...exportsResult.metadata,
     name: nameResult.name as string,
@@ -361,7 +368,7 @@ export interface AgentPluginMcpConfig {
  * error for the whole `mcp.json`.
  */
 export type ParseAgentPluginMcpConfigResult =
-  | { readonly ok: true; readonly config: AgentPluginMcpConfig }
+  | { readonly ok: true; readonly config: AgentPluginMcpConfig; readonly warnings?: readonly string[] }
   | { readonly ok: false; readonly errors: readonly string[] };
 
 /**
@@ -569,23 +576,41 @@ function readExtensionServers({ pluginManifest, extensionNamespace }: { readonly
  * @throws Nothing — see {@link parseAgentPluginManifest}.
  * @complexity O(s) in the number of declared servers.
  */
-export function parseAgentPluginMcpConfig({ value, extensionNamespace }: { readonly value: unknown; readonly extensionNamespace: string }, optional: { readonly pluginManifest?: unknown; readonly readServerMetadata?: AgentPluginServerMetadataReader | undefined } = {}): ParseAgentPluginMcpConfigResult {
-  if (!extensionNamespace.trim()) throw new Error("An extension namespace is required");
+export function parseAgentPluginMcpConfig({ value, extensionNamespace }: { readonly value: unknown; readonly extensionNamespace?: string }, optional: { readonly pluginManifest?: unknown; readonly readServerMetadata?: AgentPluginServerMetadataReader | undefined } = {}): ParseAgentPluginMcpConfigResult {
+  if (extensionNamespace !== undefined && !extensionNamespace.trim()) throw new Error("An extension namespace is required");
   if (!isJsonObject(value)) return { ok: false, errors: ["mcp.json must be a JSON object"] };
 
   const errors = collectMcpConfigErrors({ raw: value }, { pluginManifest: optional.pluginManifest });
   if (errors.length > 0) return { ok: false, errors };
 
-  const extensionServers = readExtensionServers({ pluginManifest: optional.pluginManifest, extensionNamespace });
-  const entries = Object.entries(value.mcpServers as Record<string, unknown>);
+  return parseMcpServers({ raw: value, extensionNamespace }, optional);
+}
+
+/** Valid transports are independent siblings; a malformed declaration never hides their ids. */
+function parseMcpServers(
+  { raw, extensionNamespace }: { readonly raw: Readonly<Record<string, unknown>>; readonly extensionNamespace: string | undefined },
+  optional: { readonly pluginManifest?: unknown; readonly readServerMetadata?: AgentPluginServerMetadataReader | undefined },
+): ParseAgentPluginMcpConfigResult {
+  const namespace = resolveAgentPluginIdentityNamespace({ value: optional.pluginManifest }, extensionNamespace === undefined ? {} : { identityNamespace: extensionNamespace });
+  const extensionServers = readExtensionServers({ pluginManifest: optional.pluginManifest, extensionNamespace: namespace });
+  const entries = Object.entries(raw.mcpServers as Record<string, unknown>);
   const servers: Record<string, McpServerConfig> = Object.create(null);
+  const warnings = [...readAgentPluginCompatibilityWarnings({ value: optional.pluginManifest }, { identityNamespace: namespace })];
+  const portable = isPortableAgentPluginNamespace({ namespace: extensionNamespace });
+  const readServerMetadata = optional.readServerMetadata ?? (portable ? readCompatibleAgentPluginServerMetadata : undefined);
   for (const [serverId, rawServer] of entries) {
     const extension = Object.hasOwn(extensionServers, serverId) ? extensionServers[serverId] : undefined;
-    const parsed = parseDeclaredServer({ serverId, rawServer, extension }, { readServerMetadata: optional.readServerMetadata });
+    collectLegacyServerWarning({ rawServer, extension, portable, warnings });
+    const parsed = parseDeclaredServer({ serverId, rawServer, extension }, { readServerMetadata });
     if (parsed) servers[serverId] = parsed;
   }
 
-  return { ok: true, config: { serverIds: entries.map(([serverId]) => serverId), servers } };
+  return { ok: true, config: { serverIds: entries.map(([serverId]) => serverId), servers }, ...(warnings.length ? { warnings: [...new Set(warnings)] } : {}) };
+}
+
+function collectLegacyServerWarning({ rawServer, extension, portable, warnings }: { readonly rawServer: unknown; readonly extension: unknown; readonly portable: boolean; readonly warnings: string[] }): void {
+  if (!portable || !isJsonObject(rawServer)) return;
+  if (hasLegacyAgentPluginServerMetadata({ value: isJsonObject(extension) ? extension : {}, server: rawServer })) warnings.push(legacyAgentPluginMetadataWarning);
 }
 
 /** Typed extension reader: unknown namespaces have no semantics until a host supplies a reader. */

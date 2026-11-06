@@ -14,9 +14,9 @@ Use the deployment tools in chat, never Bash or a Railway CLI.
 Choose the card yourself from its `usedFor` list. Reuse a saved key or working sign-in for that
 task. Never offer a replacement unless the person asks. Saving a token deploys nothing.
 
-First check `content_read.custom_credential {}` for a saved token and reuse it.
+First list saved credential labels and check for a saved token and reuse it.
 Otherwise open **Connect Railway** with
-`credential_save { kind: "plugin-provider", target: "railway" }`; it saves as `Railway API`.
+open the secure connection card; it saves as `Railway API`.
 The person creates the token under Account Settings → Tokens and selects the site's workspace.
 A project token from a project's settings will not work here.
 Never ask for a token in chat. Never offer to replace a working token unless asked.

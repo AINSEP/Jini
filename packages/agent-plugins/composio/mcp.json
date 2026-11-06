@@ -4,7 +4,7 @@
     "composio": {
       "type": "streamable-http",
       "url": "https://connect.composio.dev/mcp",
-      "tovuAuthMode": "oauth"
+      "authMode": "oauth"
     }
   }
 }

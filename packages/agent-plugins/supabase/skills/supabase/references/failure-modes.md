@@ -5,22 +5,22 @@ do. Never paste Supabase's raw error text. Never retry more than once on your ow
 
 ## Sign-in not finished
 
-`agent_plugin_connect` returned `{ status: "waiting-for-sign-in" }` (nobody finished within a few
+The account connection returned `{ status: "waiting-for-sign-in" }` (nobody finished within a few
 minutes, which is normal during a new sign-up).
 
 > Still waiting for you to sign in to Supabase. Use the sign-in button above, then say "done".
 
-On "done" (or "I'm back"), call `agent_plugin_connect { pluginId: "supabase" }` once more. Never call
+On "done" (or "I'm back"), connect the account once more. Never call
 it again on your own.
 
 ## Sign-in won't start
 
-`agent_plugin_connect` failed with an error instead of showing the sign-in card. Say:
+The account connection failed with an error instead of showing the sign-in card. Say:
 
 > Sign-in isn't working right now, so let's use a key instead. [Make a key on Supabase →](https://supabase.com/dashboard/account/tokens)
 > Then paste it in the box below.
 
-Call `credential_save { kind: "plugin-provider", target: "supabase" }` once. It shows the box and waits. On
+Open the secure connection card once. It shows the box and waits. On
 `{ saved: true }` go to Step 2. On `reason: "invalid"`: "That key didn't work. Make a new one and try
 again." Never ask for the key in chat.
 
@@ -77,7 +77,7 @@ again. For a big or risky change, offer the table editor instead:
 A Supabase call says the connection "is disconnected", "expired" or "was revoked", or fails with
 401.
 
-Call `external_mcp_reauth_prompt` for `supabase`, and say:
+Request renewed browser sign-in for `supabase`, and say:
 
 > Your Supabase connection stopped working. Sign in again to keep going.
 

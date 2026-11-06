@@ -24,8 +24,8 @@ test('the supabase package ships its manifest, hosted connection, skill and reco
   ]);
   const manifest = await readJson('plugin.json');
   assert.equal(manifest.name, 'supabase');
-  assert.equal(manifest.extensions.tovu.id, 'tovu/supabase');
-  assert.deepEqual(manifest.extensions.tovu.provides, ['database:supabase']);
+  assert.equal(manifest.extensions.jini.id, 'tovu/supabase');
+  assert.deepEqual(manifest.extensions.jini.provides, ['database:supabase']);
   assert.match(await readText('SKILL.md'), /references\/failure-modes\.md/);
 });
 
@@ -33,26 +33,26 @@ test('OAuth and token fallback target the hosted service without inline secrets'
   const server = (await readJson('mcp.json')).mcpServers.supabase;
   assert.equal(server.type, 'streamable-http');
   assert.equal(new URL(server.url).origin, 'https://mcp.supabase.com');
-  assert.equal(server.tovuAuthMode, 'oauth');
-  assert.equal(server.tovuTokenAuth.helpUrl, 'https://supabase.com/dashboard/account/tokens');
-  assert.equal(server.tovuTokenAuth.probeUrl, 'https://api.supabase.com/v1/projects');
+  assert.equal(server.authMode, 'oauth');
+  assert.equal(server.tokenAuth.helpUrl, 'https://supabase.com/dashboard/account/tokens');
+  assert.equal(server.tokenAuth.probeUrl, 'https://api.supabase.com/v1/projects');
   assert.equal(server.headers, undefined);
   assert.equal(server.env, undefined);
-  assert.match(await readText('SKILL.md'), /agent_plugin_connect/);
+  assert.match(await readText('SKILL.md'), /[Cc]onnect(?:ing)? the account/);
   assert.match(await readText('SKILL.md'), /Never show a key or password/);
-  assert.match(await readText('references/failure-modes.md'), /credential_save/);
+  assert.match(await readText('references/failure-modes.md'), /secure connection card/);
 });
 
 // Plan v2 §5.1: legacy env and auth metadata stay as they were.
 test('the legacy token import and retired env names are kept', async () => {
-  const tokenAuth = (await readJson('mcp.json')).mcpServers.supabase.tovuTokenAuth;
+  const tokenAuth = (await readJson('mcp.json')).mcpServers.supabase.tokenAuth;
   assert.equal(tokenAuth.importFromEnv, 'TOVU_SUPABASE_MCP_ACCESS_TOKEN');
   assert.equal(tokenAuth.retiredEnv.length, 8);
   assert.ok(tokenAuth.retiredEnv.includes('TOVU_SUPABASE_MCP_ENABLED'));
 });
 
 test('the cards are browser sign-in first, then a Management API token fallback', async () => {
-  const cards = (await readJson('plugin.json')).extensions.tovu.credentialCards;
+  const cards = (await readJson('plugin.json')).extensions.jini.credentialCards;
   assert.deepEqual(cards.map(card => [card.target, card.saveKind]), [
     ['supabase-sign-in', 'oauth'], ['supabase', 'agent-plugin-token'],
   ]);
@@ -73,7 +73,7 @@ test('the cards are browser sign-in first, then a Management API token fallback'
 // Plan v2 §5.1: drop the "host opens links in new tabs" assumption; product words are host-neutral.
 test('the shipped text is host-neutral and assumes nothing about how links open', async () => {
   const manifest = await readJson('plugin.json');
-  assert.doesNotMatch(`${manifest.description}\n${manifest.extensions.tovu.summary}`, /\bTovu\b/);
+  assert.doesNotMatch(`${manifest.description}\n${manifest.extensions.jini.summary}`, /\bTovu\b/);
   for (const name of ['SKILL.md', 'references/failure-modes.md']) {
     const text = await readText(name);
     assert.doesNotMatch(text, /\bTovu\b/, name);

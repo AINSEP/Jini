@@ -1,12 +1,12 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "github",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "description": "Everything a host's assistant needs to work against a GitHub repository through the workspace's own saved credentials, with no git, no gh CLI, and no token ever passing through the assistant: writing and updating files in one atomic commit, dispatching and following a GitHub Actions run, reading a failed run's logs, committing the site's rendered static export, backing up the site itself (database, media, themes, plugins, settings) to a private repository, and deploying the host's server through its GitHub Actions deploy workflow (the `github-actions` deployment ops platform). Encodes the rules that generic GitHub knowledge gets wrong here — a 204 dispatch means queued and never deployed, a workflow only fires on the branch its own trigger names, a repository secret is the human's step and never the assistant's, a 403 on an org-wide listing is a normal app-scoped-token boundary rather than a broken credential, and editing an existing file means diffing the MODIFIED files and not only the added and deleted ones.",
   "author": "Tovu",
   "license": "Apache-2.0",
   "extensions": {
-    "tovu": {
+    "jini": {
       "vendorAliases": ["github_pat_"],
       "displayName": "GitHub",
       "summary": "Lets the assistant save your site's files to GitHub, run builds there, and back up your whole site.",

@@ -29,6 +29,19 @@ decides its own install mechanism, permission model, and sandboxing.
 
 ## What a plugin looks like on disk
 
+Portable Jini metadata lives in `plugin.json` under `extensions.jini`. The manifest parser returns
+typed identity and presentation fields; `readAgentPluginMetadata({ value })` also reads advisory
+metadata from partial manifests. `parseAgentPluginMcpConfig({ value }, { pluginManifest })` reads
+`authMode`, `defaultTools`, `tokenAuth`, and `renamedTools` without a product namespace. Reviewed
+`defaultTools.read` declarations must come from `plugin.json`, never an inline transport entry.
+
+Compatibility with installed `extensions.tovu` manifests and prefixed MCP metadata is retained
+through **at least 2027-05-06**. Removal requires an explicit future release decision; the date
+never causes a plugin to stop loading. A present `extensions.jini` wins as a whole, and a present
+new MCP field wins over its legacy alias even when malformed. Parsers return compatibility
+warnings; lifecycle indexing and MCP loading forward them through the host's `onEvent` port.
+Existing publisher ids remain stable during this namespace migration.
+
 A plugin is a directory. Example (this package publishes it as `@jini-ai/agent-plugins/ui-ux-design`):
 
 ```

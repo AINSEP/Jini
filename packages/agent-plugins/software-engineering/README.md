@@ -1,11 +1,11 @@
 # `@jini-ai/agent-plugins/software-engineering`
 
-One portable plugin, displayed as **Tovu Software Engineering** through host metadata.
+One portable plugin, displayed as **Software Engineering** through host metadata.
 Resolve this subpath and stage only its directory through the existing agent-plugin lifecycle.
 It has one small entry router and six on-demand references: implementation, architecture,
 debugging, verification/code review, security, and prototyping. It installs no checker, MCP server,
 hook, analyzer, dependency, watcher or background task. Host activation and permissions apply.
-The inner content version is 0.2.0; the containing npm package version follows the release process.
+The inner content version is 0.2.1; the containing npm package version follows the release process.
 
 ## Repeatable update
 
@@ -21,9 +21,7 @@ applies explicit portable adaptations, validates each reference's size and rejec
 wording before writing. Review the diff when headings or budgets change; never skip those checks.
 The local router and adaptation paragraphs remain maintained here. No upstream code is executed.
 Increment plugin.json's inner version when content changes, regenerate the existing plugin catalog,
-run the checks below, rebuild Jini and relink/stage the selected payload in the host. If maintaining
-Tovu's staging mirror, copy the complete `skills/software-engineering/` tree to
-`cloud/ads-ainsep-skill/software-engineering/` and keep its equality test.
+run the checks below, rebuild Jini and relink/stage the selected payload in the host. Keep any host-owned staging mirror synchronized with the complete skill tree and its equality test.
 
 ```sh
 node --test packages/agent-plugins/software-engineering/__tests__/bundled-package.test.mjs

@@ -1,12 +1,12 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "jev",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Teaches an agent what Jev (TypeSafe's 'System One' model) is and when it belongs in a design: a fast, cheap, non-generative model that takes state plus a typed Choice/Score/Noul question and returns a typed answer with a calibrated probability distribution, for classification, routing, scoring, and confidence-gated automation \u2014 not for writing prose. Covers the three primitives' exact request/response shapes, how to read and threshold confidence, the documented architectural patterns, jev-1.13's known jaggedness (counting, dates, indirection, adversarial content, generation), and both the HTTP API and the JavaScript SDK. This plugin declares no MCP server: Jev has no official MCP integration, so a host's assistant cannot call it directly through chat yet. The skill exists for designing and writing code that calls Jev itself, authenticated with an API key (TYPESAFE_API_KEY, the documented SDK env var) the operator sets outside of chat.",
   "author": "Tovu",
   "license": "Apache-2.0",
   "extensions": {
-    "tovu": {
+    "jini": {
       "summary": "Helps you plan and write software that uses Jev, TypeSafe's fast AI model for sorting and scoring. Needs your own TypeSafe key.",
       "id": "tovu/jev",
       "provides": [

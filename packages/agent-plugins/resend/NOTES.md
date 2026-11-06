@@ -20,8 +20,8 @@ these behaviours generically; the vendor detail lives here.
   `resend-mcp@2.25.0` (2026-10-06) and checked unchanged in 2.27.1, which only adds inbox tools.
 - **Why remote, not `npx resend-mcp`.** Core never auto-wires a plugin's `stdio` server
   (`federate-mcp.ts`), and a remote row is what `agent_plugin_connect` and the token form act on.
-- **Auth (2026-10-25).** The account connection uses `tovuAuthMode: "none"` plus the existing
-  `tovuTokenAuth` declaration. The Full access key arrives through the plugin's secure account card,
+- **Auth (2026-10-25).** The account connection uses `authMode: "none"` plus the existing
+  `tokenAuth` declaration. The Full access key arrives through the plugin's secure account card,
   is sealed on the MCP row and sent as `Authorization: Bearer`. `agent_plugin_connect` reuses a saved
   credential or opens that card; it does not start OAuth for this declaration.
 - **Historical OAuth rationale (superseded 2026-10-25).** Resend's MCP advertises RFC 9728 metadata pointing at `https://api.resend.com`, which

@@ -10,7 +10,7 @@ description: Run the site's visitor search on a Meilisearch server. Covers what 
 Choose the card yourself from its `usedFor` list. Reuse a saved key or working sign-in for that
 task. Never offer a replacement unless the person asks.
 
-Open **Connect Meilisearch** with `credential_save {kind:"plugin-provider",target:"meilisearch"}`. It collects your server’s HTTPS URL and a masked scoped key, and saves the exact label `Tovu Search — Meilisearch`. The card lists index, document, search, settings and task permissions. Create the key in your own instance/Cloud console; there is no universal instance-specific key-creation URL.
+Open **Connect Meilisearch** through the secure connection card. It collects your server’s HTTPS URL and a masked scoped key, and saves the search credential under the host-owned label. The card lists index, document, search, settings and task permissions. Create the key in your own instance/Cloud console; there is no universal instance-specific key-creation URL.
 
 ## Scope
 

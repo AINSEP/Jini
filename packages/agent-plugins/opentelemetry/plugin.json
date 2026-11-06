@@ -1,12 +1,12 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "opentelemetry",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Connects the site's traces to any OpenTelemetry (OTLP/HTTP) backend, such as Grafana Cloud or Honeycomb, through the OpenTelemetry provider plugin in the same package (observability-opentelemetry). Ships the know-how and a secure key card: the person enters the OTLP endpoint, an optional username or instance ID, and the token; the host saves it to your project, and you choose which sites use it. No vendor code here; the provider plugin exports the traces.",
   "author": "Tovu",
   "license": "Apache-2.0",
   "extensions": {
-    "tovu": {
+    "jini": {
       "toolKeywords": { "observability_send_test_error": "OpenTelemetry" },
       "displayName": "OpenTelemetry",
       "summary": "Sends your site's traces to Grafana Cloud, Honeycomb or any OpenTelemetry backend.",
