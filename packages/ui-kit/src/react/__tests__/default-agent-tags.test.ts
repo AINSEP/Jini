@@ -133,8 +133,10 @@ it('withholds explicit handles on private text areas and secret fields before an
 it('does not let an unset forwarded attribute erase a default handle', () => {
   render(h('div', null,
     h(Button, { attrs: { 'data-agent-element': undefined, 'data-agent-role': undefined }, children: 'Save' }),
-    h(Menu, { label: 'Actions', agentHandle: 'actions', items: [{ id: 'copy', label: 'Copy', attrs: { 'data-agent-element': undefined }, onPress: noop }] })));
+    h(Menu, { label: 'Actions', agentHandle: 'actions', items: [{ id: 'copy', label: 'Copy', attrs: { 'data-agent-element': undefined }, onPress: noop }] }),
+    h(Tabs, { label: 'Sections', value: 'one', onValueChange: noop, attrs: { 'data-agent-element': undefined }, items: [{ id: 'one', label: 'One', content: 'Panel' }] })));
   expect(handle(screen.getByRole('button', { name: 'Save' }))).toMatch(/^kit-/);
+  expect(handle(screen.getByRole('tab'))).toMatch(/^kit-.*-tabs-one$/);
   fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
   expect(handle(screen.getByRole('menuitem', { name: 'Copy' }))).toBe('actions-copy');
 });
@@ -156,4 +158,22 @@ it('never restores raw caller addressing onto a private native tab', () => {
     items: [{ id: 'one', label: 'One', content: 'First', attrs: { 'data-agent-element': 'private-child' } }] }));
   expect(handle(screen.getByRole('tab'))).toBeNull();
   expect(screen.getByRole('tab').getAttribute('data-agent-private')).toBe('');
+});
+
+it('defaults ordinary feature confirmations on while keeping human-only decisions unpublished', () => {
+  const view = render(h(ConfirmDialog, { open: true, title: 'Remove item', confirmLabel: 'Remove', onConfirm: noop, onCancel: noop }));
+  const confirm = screen.getByRole('button', { name: /^Remove/ }), cancel = screen.getByRole('button', { name: /^Cancel/ });
+  const before = [handle(cancel), handle(confirm)];
+  expect(before[0]).toMatch(/^kit-.*-confirm-cancel$/);
+  expect(before[1]).toMatch(/^kit-.*-confirm-confirm$/);
+  view.rerender(h(ConfirmDialog, { open: true, title: 'Remove item', confirmLabel: 'Remove', agentMayConfirm: false, onConfirm: noop, onCancel: noop }));
+  expect(handle(screen.getByRole('button', { name: /^Cancel/ }))).toBeNull();
+  expect(handle(screen.getByRole('button', { name: /^Remove/ }))).toBeNull();
+});
+
+it('keeps opted-out approval actions untagged and forwards page identity to ordinary decisions', () => {
+  const view = render(h(ConfirmDialog, { open: true, title: 'Approval', confirmLabel: 'Allow', agentHandle: false, attrs: { 'data-agent-element': 'cannot-restore' }, onConfirm: noop, onCancel: noop }));
+  for (const button of screen.getAllByRole('button')) expect(handle(button)).toBeNull();
+  view.rerender(h(ConfirmDialog, { open: true, title: 'Approval', confirmLabel: 'Allow', attrs: { 'data-agent-page': 'editor' }, onConfirm: noop, onCancel: noop }));
+  for (const button of screen.getAllByRole('button')) expect(button.getAttribute('data-agent-page')).toBe('editor');
 });

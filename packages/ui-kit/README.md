@@ -87,7 +87,7 @@ const report = describeKit({ kit: variant });
 
 Ordinary interactive facades and native controls publish a handle by default. `agentHandle="save-record"` supplies a durable name; `agentHandle={false}` suppresses addressing, including caller-supplied `data-agent-*` attributes. Existing handles in `attrs` keep their names. Automatic handles use mounted React identity, so they survive rerenders and keyed reordering but may change after remount or reload. Give independently server-rendered React roots different `identifierPrefix` values, as for accessible React IDs. Menu and tab leaves derive their names from item IDs, and dialog close buttons use the component base plus `-close`. Portalled leaves retain their page metadata. Tags do not grant permission to operate a control.
 
-Secret fields and reveal controls remain private before and after reveal. Human-only confirmation controls carry an explicit opt-out so nested facades cannot recreate withheld handles.
+Secret fields and reveal controls remain private before and after reveal. Ordinary feature confirmations use a mounted base by default. A human-only confirmation with no supplied base leaves both decisions unpublished; existing explicit-base cancellation semantics remain available. Withheld actions carry an explicit opt-out so nested facades cannot recreate them.
 
 The agent port is `agent({ handle }, { role, label }) => KitAttrs`. The host owns validation and runtime wiring; ui-kit has no dependency on an agent runtime. Components forward metadata to the declared focus target. Select keeps an `HTMLSelectElement`, visible or synchronized in custom implementations.
 

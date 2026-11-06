@@ -16,7 +16,7 @@ function navigationIndex(required: { key: string; current: number; count: number
 function legacyActiveTabAttrs({ parent, item, active }: { parent: TabsProps; item: TabItem; active: boolean }) {
   if (!active || parent.agentHandle !== undefined) return {};
   if (parent.attrs?.['data-agent-private'] !== undefined || item.attrs?.['data-agent-private'] !== undefined) return {};
-  return parent.attrs ?? {};
+  return Object.fromEntries(Object.entries(parent.attrs ?? {}).filter(([, value]) => value !== undefined));
 }
 export function useNativeTabs(required: TabsProps, _optional: Record<string, never> = {}) {
   const prefix = useId(), root = useRef<HTMLDivElement>(null);

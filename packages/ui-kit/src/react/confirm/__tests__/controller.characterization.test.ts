@@ -22,7 +22,8 @@ describe('confirmation action bindings characterization', () => {
     const c = result.current, cancelAttrs = c.cancel.attrs!, confirmAttrs = c.confirm.attrs!, descriptionId = c.consequenceAttrs!.id;
     expect(cancelAttrs['aria-label']).toBe(cancel);
     expect(confirmAttrs['aria-label']).toBe(confirm);
-    expect(confirmAttrs['data-agent-element']).toBe(allowed && handle ? 'record-confirm' : undefined);
+    if (allowed && handle === undefined) expect(confirmAttrs['data-agent-element']).toMatch(/^kit-.*-confirm-confirm$/);
+    else expect(confirmAttrs['data-agent-element']).toBe(allowed && handle ? 'record-confirm' : undefined);
     expect(cancelAttrs['aria-describedby']).toBe(described ? descriptionId : undefined);
     expect(confirmAttrs['aria-describedby']).toBe(described ? descriptionId : undefined);
     expect(cancelAttrs['data-jini-state']).toBe('ready');
