@@ -941,7 +941,7 @@ function stagedChildEnvOptions({ def, preparedCodexHome, preparedClaudeConfigDir
 }
 
 /** A required transport refusal is actionable without exposing listener/configuration details. */
-function httpMcpPreparationMessage(injection: McpJsonInjectionOptions | undefined): string {
+function httpMcpPreparationMessage(injection: CreateAgentExecutorOptions['mcpJsonInjection']): string {
   return injection?.httpPolicy === 'required'
     ? 'AgentExecutor: this chat requires an HTTP tool connection, but it could not be prepared for this agent. Try again or choose an agent supporting HTTP MCP.'
     : 'AgentExecutor: could not stage private HTTP MCP configuration';
