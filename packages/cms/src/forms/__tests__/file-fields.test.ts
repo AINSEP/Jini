@@ -3,7 +3,7 @@ import { test } from "vitest";
 import { validateFieldDescriptors, validateSubmissionPayload } from "../forms.js";
 import { renderHtmlForm } from "../html-render.js";
 import { submitForm, type SubmitFormDeps } from "../submit-service.js";
-import { createSubmissionAttempts, submissionAttemptKey } from "../submission-attempts.js";
+import { createSubmissionAttempts, FORM_ATTEMPT_FIELD, submissionAttemptKey } from "../submission-attempts.js";
 import { InMemoryFormDefinitionRepo, InMemoryFormSubmissionRepo } from "../repo.memory.js";
 import { toSubmissionRecord, toSubmissionRow, toDefinitionRecord, toDefinitionRow } from "../sql/repo.rows.js";
 import type { FieldDescriptor, FormDefinitionRecord, FormFileInput, FormFileReference } from "../types.js";
@@ -54,7 +54,8 @@ test("file: invalid sibling, honeypot, unknown key and rate refusal create no me
 test("file: duplicate attempts upload once; a failed submission transaction compensates that attempt's media", async () => {
   const f = fixture(); await f.deps.definitionRepo.create(definition());
   const attempts = createSubmissionAttempts({ hash: (value) => value });
-  await Promise.all([submitForm({ deps: f.deps, input: f.input }, { attempts }), submitForm({ deps: f.deps, input: f.input }, { attempts })]);
+  const input = { ...f.input, body: { ...f.input.body, [FORM_ATTEMPT_FIELD]: "upload-attempt" } };
+  await Promise.all([submitForm({ deps: f.deps, input }, { attempts }), submitForm({ deps: f.deps, input }, { attempts })]);
   assert.equal(f.stored.length, 1); assert.equal(f.events(), 1);
   const g = fixture(); await g.deps.definitionRepo.create(definition());
   await assert.rejects(submitForm({ deps: { ...g.deps, outbox: { enqueue: async () => { throw new Error("outbox failed"); } } }, input: g.input }), /outbox failed/);
@@ -124,7 +125,20 @@ test("disk floor: refuse the entire batch before storage, allow exact floor and 
 test("disk probe runs once per attachment batch and never for a duplicate or text-only submission", async () => {
   const f = fixture(); await f.deps.definitionRepo.create(definition()); let probes = 0;
   const deps = { ...f.deps, readUploadFreeBytes: async () => { probes++; return 1024 ** 3; } }; const attempts = createSubmissionAttempts({ hash: value => value });
-  await Promise.all([submitForm({ deps, input: f.input }, { attempts }), submitForm({ deps, input: f.input }, { attempts })]); assert.equal(probes, 1);
+  const input = { ...f.input, body: { ...f.input.body, [FORM_ATTEMPT_FIELD]: "upload-attempt" } };
+  await Promise.all([submitForm({ deps, input }, { attempts }), submitForm({ deps, input }, { attempts })]); assert.equal(probes, 1);
   const g = fixture(); await g.deps.definitionRepo.create(definition([{ id: "name", label: "Name", type: "text", required: true }]));
   await submitForm({ deps: { ...g.deps, readUploadFreeBytes: deps.readUploadFreeBytes }, input: { ...g.input, body: { name: "Ada" } } }); assert.equal(probes, 1);
+});
+
+test("tokenless identical uploads behind one IP store independent submissions and probe each batch", async () => {
+  const f = fixture(); await f.deps.definitionRepo.create(definition());
+  let probes = 0;
+  const deps = { ...f.deps, readUploadFreeBytes: async () => { probes++; return 1024 ** 3; } };
+  const attempts = createSubmissionAttempts({ hash: value => value });
+  await Promise.all([submitForm({ deps, input: f.input }, { attempts }), submitForm({ deps, input: f.input }, { attempts })]);
+  assert.equal(probes, 2); assert.equal(f.stored.length, 2); assert.equal(f.events(), 2);
+  const rows = await f.deps.submissionRepo.listByDefinition({ workspaceId: "ws", formDefinitionId: "form", limit: 10 });
+  assert.equal(rows.items.length, 2);
+  assert.notEqual(rows.items[0]!.id, rows.items[1]!.id);
 });
