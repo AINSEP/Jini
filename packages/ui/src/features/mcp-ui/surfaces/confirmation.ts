@@ -358,7 +358,7 @@ ${SURFACE_SCRIPT_PRELUDE}
   // \`data-mcpui-choice\` (the caller's id), not DOM order, so a checkbox reordering upstream could
   // never silently swap which id a tick reports.
   var choiceInputs = Array.prototype.slice.call(document.querySelectorAll(${escapeJsValue(groupedChoices ? '[data-mcpui-choice], .mcpui-choice-group input' : '[data-mcpui-choice]')}));
-  var checkedIds = ${groupedChoices || initiallyCheckedIds.length > 0 ? 'Object.create(null)' : '{}'};${checkedSeed}
+  var checkedIds = Object.create(null);${checkedSeed}
   for (var c = 0; c < choiceInputs.length; c++) {${groupedChoiceIdentity}
     choiceInputs[c].addEventListener("change", onChoiceChange);
   }

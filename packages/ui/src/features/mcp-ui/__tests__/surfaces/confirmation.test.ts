@@ -558,6 +558,17 @@ describe('choices', () => {
     expect(surface.calls[0]?.params.overwrite).toEqual(['9', '__proto__']);
   });
 
+  it.each([undefined, 'Matching plugins'])('records a trusted selection of initially unchecked prototype-named ids with group %s', choicesLabel => {
+    const ids = ['__proto__', 'constructor', 'toString'];
+    const surface = mountSurface(renderConfirmationDocument({ ...DELETE_POST,
+      choices: ids.map(id => ({ id, label: id })), ...(choicesLabel === undefined ? {} : { choicesLabel }),
+    }));
+    expect(ids.map(id => surface.choiceInput(id).checked)).toEqual([false, false, false]);
+    for (const id of ids) surface.trustedToggleChoice(id, true);
+    humanClick(surface, 'confirm');
+    expect(surface.calls[0]?.params.overwrite).toEqual(ids);
+  });
+
   it('preserves duplicate-id refusal for grouped choices', () => {
     expect(() => renderConfirmationDocument({ ...DELETE_POST, choices: [{ id: 'a', label: 'A', checked: true }, { id: 'a', label: 'B' }],
       choicesLabel: 'Matching plugins' })).toThrow('Confirmation choices must have unique ids');
@@ -864,7 +875,8 @@ describe('renderConfirmationDocument choicesParam collisions with alternatives',
   });
 });
 
-// Exact hashes include the intended detail-layout fix (c4c19234) and private human-only decision buttons; all other emitted bytes stay pinned.
+// Pins the intended shared detail layout, private decisions, coarse-pointer 44px targets (1e4b1d4ba),
+// and prototype-safe choice tracking. Behavior tests above independently assert each decision gate.
 describe('renderConfirmationDocument exact output', () => {
   const digest = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex');
   const FULL = {
@@ -875,20 +887,20 @@ describe('renderConfirmationDocument exact output', () => {
     text: { working: 'W' }, app: { appName: 'a', appVersion: '2' }, lang: 'fr', tokens: { '--jini-mcpui-bg': '#000' },
   } as const;
   const cases: ReadonlyArray<readonly [string, Parameters<typeof renderConfirmationDocument>[0], string]> = [
-    ['tool-routed cancel', DELETE_POST, '66f3df67426a4ac0102fc5b034701a076bcf1e5a11404fd709113b0a167a7f42'],
-    ['minimal with no cancel', { title: 'T', confirm: { label: 'Yes', toolName: 't', params: {} } }, '50b5ab9e3af38136e6924e92e69af2e64c7233c9bbf22979d319efb0d21ed200'],
-    ['local-only cancel', { title: 'T', confirm: { label: 'Yes', toolName: 't', params: {} }, cancel: { label: 'No' } }, 'b4ed2a3d215ef8a28c0d0986351ac8196a46b296cc528ab99829978bbcaf2fea'],
-    ['choices, alternatives and every option', FULL, 'e7bf9894b612b70531eac0c3fcb655157b0493861d574e7a8400c9ef54f43002'],
+    ['tool-routed cancel', DELETE_POST, 'ff463de22ca18e4e1b9a722cc31edecc074c6eee1a3a3d19f6ed9de023a8b41b'],
+    ['minimal with no cancel', { title: 'T', confirm: { label: 'Yes', toolName: 't', params: {} } }, 'a9521d080e5867c639a3f43ff13c86623e949beb40e6ca44947983450602971c'],
+    ['local-only cancel', { title: 'T', confirm: { label: 'Yes', toolName: 't', params: {} }, cancel: { label: 'No' } }, '0d4f5a97cd099bb819b1d75fa15ad282e76f4845ae22ad2d326f5734c1e2fe0e'],
+    ['choices, alternatives and every option', FULL, '75a064e000a746ff8bd290a46cac1c4766154a2d50168e8ca2ed4b723b1547dd'],
   ];
   it.each(cases)('%s', (_name, spec, expected) => {
     expect(digest(renderConfirmationDocument(spec))).toBe(expected);
   });
 
   it('pins the framed, expiring resource wrapper and its action plan', () => {
-    expect(digest(buildConfirmationSurface({ ...FULL, uri: 'ui://h/c/1', preferredFrameSize: ['1px', '2px'], expiresAtMs: 123 }))).toBe('8310220235b48645b2855063f00062b186dc7173252de739d4c5ce87ed479f5b');
+    expect(digest(buildConfirmationSurface({ ...FULL, uri: 'ui://h/c/1', preferredFrameSize: ['1px', '2px'], expiresAtMs: 123 }))).toBe('aff1a68f1db691a56bd2d3ea5a7c238ed6614b031fbe7156c7d1e9590a45a9ea');
   });
 
   it('pins the bare resource wrapper', () => {
-    expect(digest(buildConfirmationSurface({ title: 'T', confirm: { label: 'Yes', toolName: 't', params: {} }, uri: 'ui://h/c/2' }))).toBe('722a5b82c2d0eeedd23ca99610020ca0ab76373bc8700e5b724f6535e1242a5c');
+    expect(digest(buildConfirmationSurface({ title: 'T', confirm: { label: 'Yes', toolName: 't', params: {} }, uri: 'ui://h/c/2' }))).toBe('89ea5484b7e94ade6389b853ec102e632283f07a061f9ebdc1cebf60bb690862');
   });
 });

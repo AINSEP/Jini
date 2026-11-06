@@ -32,6 +32,15 @@ test('only the form-destinations surface declares read-only form discovery', asy
   ]);
 });
 
+test('status and list actions declare reads while account, picker and destination changes keep write approval', async () => {
+  const readActions = new Set(['status', 'list-picked', 'list-destinations', 'list-tabs']);
+  for (const surface of await descriptors()) {
+    for (const action of surface.actions) {
+      assert.equal(action.effect, readActions.has(action.name) ? 'read' : 'write', `${surface.id}/${action.name}`);
+    }
+  }
+});
+
 test('surface files: every served file is static (no inline script or style) and holds nothing secret-shaped', async () => {
   const secretShaped = /ya29\.|1\/\/[0-9A-Za-z_-]{20,}|GOCSPX-|AIza[0-9A-Za-z_-]{20,}|-----BEGIN|sk-[A-Za-z0-9]{20,}/;
   for (const surface of await descriptors()) {

@@ -246,34 +246,10 @@ export const CHAT_PANE_STYLES = `
 .jini-chat-pane .jini-message-error { color: var(--danger); font-size: 13px; }
 .jini-chat-pane .jini-message-pending { color: var(--jini-chat-muted); font-size: 13px; font-style: italic; }
 /*
- * The pending-turn strip: a composer-driven turn typed while a run is already streaming, rendered
- * as the newest entry in the transcript (MessageList.tsx's pendingPrompt prop) rather than a
- * banner bolted above the composer — matching Claude Code/ChatGPT's own pending-message UX
- * (previously ChatPane.tsx's ChatPaneQueuedPrompt, which rendered between the drop-target's drag
- * announcement and the composer; that component is gone).
- *
- * Owner's own framing was "why isn't the queue message just put in the chat" — so
- * .jini-chat-pane__queued-text below is deliberately NOT a variant banner shape; it copies
- * .jini-message-user .jini-message-content's bubble geometry line for line (width: fit-content,
- * max-width: 88%, same padding/border-radius) so it reads as the operator's own message, not a
- * system notice. What marks it as NOT YET SENT is two properties a real sent bubble never carries:
- * a dashed border (a sent bubble has none at all) and reduced opacity — chosen over the old boxed
- * strip-plus-label treatment because those two are legible at a glance without adding a second
- * visual language next to the transcript's own. The former "QUEUED" chip label is gone for the same
- * reason: once the bubble itself reads as pending, a label restates it. role="status" plus the
- * aria-label on the row (MessageList.tsx) still carry that meaning to assistive tech that can't see
- * the dashed border. The cancel action is a separate, smaller line below the bubble (mirroring
- * .jini-message-actions--user's own placement under a real message) rather than inline inside it,
- * so it reads as secondary to the bubble, not competing with it.
- *
- * Reuses this theme's own tokens rather than the currentColor/color-mix approach reference.css uses
- * for the same rules — that file is deliberately token-free because it ships unstyled and undocked
- * from any root that defines custom properties, but this stylesheet's .jini-chat-pane root already
- * defines concrete --jini-chat-* values for every other rule here, so matching that (not
- * reference.css's host-agnostic fallback) is the actual local convention.
- * NOTE: this comment avoids backtick quoting on purpose, same as the cancel-button comment below —
- * the whole stylesheet lives inside a JS template literal, so a literal backtick here would
- * terminate the string, not just this comment.
+ * Queue receipts stay in the transcript beside the messages they will follow. The explicit queued
+ * label and the row's status/aria-label distinguish them from sent messages; the text retains the
+ * transcript's bubble geometry and this theme's own tokens. Cancel sits on a separate line so it
+ * remains secondary to the receipt rather than competing with the text.
  */
 .jini-chat-pane__queued {
   display: flex;
