@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import type { KeyboardEvent } from 'react';
 import type { TabItem, TabsProps, MenuProps, TooltipProps } from '../types.js';
 import { childControlAttrs, useControlAttrs } from '../agent-attrs.hooks.js';
-import { useOverlayContainer } from '../Kit.hooks.js';
+import { useKitContext } from '../context.js';
 function navigationIndex(required: { key: string; current: number; count: number; forward: string; backward: string }, _optional: Record<string, never> = {}): number | undefined {
   switch (required.key) {
     case 'Home': return 0;
@@ -46,7 +46,8 @@ export function useNativeTabs(required: TabsProps, _optional: Record<string, nev
 export function useNativeMenu(required: MenuProps, _optional: Record<string, never> = {}) {
   const [open, setOpen] = useState(false), trigger = useRef<HTMLButtonElement>(null), menu = useRef<HTMLDivElement>(null), id = useId();
   const [position, setPosition] = useState({ top: 0, left: 0 });
-  const container = useOverlayContainer({});
+  // Read the binding without loading default-kit hooks, which import this native assembly.
+  const container = useKitContext({})?.overlayContainer ?? (typeof document === 'undefined' ? null : document.body);
   const attrs = useControlAttrs(required, { part: 'menu', role: 'button', label: required.label });
   useLayoutEffect(() => {
     if (!open || !trigger.current || !menu.current) return undefined;

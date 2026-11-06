@@ -15,8 +15,10 @@ function url():string {
  return value;
 }
 async function pair(){
- const a=openPostgresKernel<AgentSessionDatabase>({pg,connectionString:url()}),b=openPostgresKernel<AgentSessionDatabase>({pg,connectionString:url()});
  const name='session_test_'+randomUUID().replaceAll('-','');
+ // Raw fixture DDL and contract queries bypass scopeToSchema; pin every dedicated pool connection too.
+ const connection=new URL(url());connection.searchParams.set('options',`-c search_path=${name}`);
+ const a=openPostgresKernel<AgentSessionDatabase>({pg,connectionString:connection.href}),b=openPostgresKernel<AgentSessionDatabase>({pg,connectionString:connection.href});
  try {
   await a.execute(sql`CREATE SCHEMA ${sql.id(name)}`);
   const ka=scopeToSchema(a,name),kb=scopeToSchema(b,name);await schema(ka);

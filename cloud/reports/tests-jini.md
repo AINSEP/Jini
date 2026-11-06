@@ -121,3 +121,48 @@ BUG: Exact-output fixtures omitted the approved shared 44px coarse-pointer CSS a
 All 45 workspace commands finished. Initial evidence: 53204 passed, 33 failed, 4 existing skipped; 40 commands passed and 5 failed. Reference-web additionally had two initial collection failures, rather than failing test cases. The recovered failures and focused retry evidence are documented above; these initial counts do not include retries.
 
 The extra serial checks now cover writable-cache packed-host recovery, root scripts, CI property tests, real Postgres for DB/chat/daemon/commerce, final plugin content, rebuild/relink, touched scripts typecheck, complexity and guard. No new production state, I/O, polling, options, tables or abstractions were added by the job.
+
+## Fix 6 — Native menu import cycle
+
+NativeMenu imported an overlay hook from Kit.hooks, which loads the default native assembly and led back through NativeMenu. Switched only Navigation.hooks.ts to the existing context-only hook and the same provider/body/server fallback already used by native views. Public Kit hooks, context source, APIs and cycle assertions are unchanged.
+
+- `pnpm exec vitest run scripts/__tests__/leaf-import-closures.test.ts --maxWorkers=2 --minWorkers=1` — 7 passed, 0 failed after the fix (initial full root run had 2 cycle failures).
+- `pnpm --filter @jini-ai/ui-kit run test` — 225 passed, 0 failed.
+- ui-kit typecheck, own-file lint and strict complexity/cognitive ceiling 10 — passed.
+- A broader hook relocation was discarded after timing-sensitive guard conformance failures; the final narrower implementation passes all 225 cases. No guard/test/timeout changed.
+
+BUG: NativeMenu's facade-hook import introduced a runtime cycle in the native kit assembly. Fixed using the existing context leaf.
+
+## Fix 7 — Postgres constraint evidence after safe error redaction
+
+The transfer target deliberately redacts server text (approved change `c5fded4b45c7af5ac4623ec6c50645dfe05753e7`), so its old `/violates/` assertions were obsolete. The test now uses the existing pg driver to assert exact SQLSTATE 23503/23505 and checks all persisted parent/child rows. Transfer helper/privacy behavior and every copy assertion remain unchanged. Temporary fixture-only constraint-removal probes made both new rejection assertions fail, confirming actual enforcement is tested.
+
+- Affected real Postgres tests: 9 passed, 0 failed.
+- Existing helper/privacy contracts: 28 passed, 0 failed.
+- DB typecheck and strict touched-file complexity lint — passed.
+
+BUG: Transfer constraint tests expected server text hidden by the approved safe-error contract. Fixed with stronger exact-code and persisted-row assertions.
+
+## Fix 8 — Daemon Postgres fixture pool schema
+
+Builder-only schema scoping did not cover raw fixture DDL or raw contract queries; tables landed in public while store operations addressed a generated schema. Set the dedicated test pool URLs' startup search_path to that schema, preserving all eight contracts. No production or migration change. Cleanup probes confirm no user tables/generated schemas remain; worker scratch databases were dropped.
+
+- `pnpm --filter @jini-ai/daemon run test:postgres` with a fresh disposable `jini_daemon_test_*` URL — 8 failed before, 8 passed after.
+- Adjacent agent-session tests — 44 passed, 0 failed.
+- Daemon typecheck, focused lint and strict complexity — passed.
+
+BUG: Real-Postgres session fixtures scoped builders but not raw SQL or every pool connection. Fixed at fixture setup.
+
+## Fix 9 — Empty operation scan on Postgres
+
+`listOpenAttempts({ ops: [] })` generated `IN ()`, which SQLite accepts and Postgres rejects. Return the existing empty-result semantics before reading. Nonempty query, cursor ordering, scope and limits are unchanged. The new regression asserts both the empty result and no database read; it failed before the fix. No state/I/O added; empty selections now avoid one query.
+
+- Real Postgres contract: 54 passed/1 failed before; 55 passed/0 failed after.
+- SQLite contract 58/0; memory contract 59/0; new focused regression 1/0 (173 passed total).
+- Commerce typecheck, strict complexity/cognitive ceiling 10 and focused lint — passed.
+
+BUG: Empty operation selections produced invalid Postgres SQL instead of returning no attempts. Fixed with no-read empty selection handling.
+
+## Checkpoint 4
+
+Packed-host writable-cache recovery passed 3/3; CI properties passed 24/24; chat real Postgres passed 53/53; final plugin content passed 1406/1406. Initial root full run had 724 passed/2 cycle failures/32 existing parameter-matrix omissions. Native stage was not reached because of those failures. The 32 omissions deliberately test digest-selection lifecycle on two representative plugins; each other plugin still executes its contents/seeding cases. Final affected reruns, rebuild/relink and gates are pending after the latest fixes.
