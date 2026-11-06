@@ -248,3 +248,10 @@ describe('SURFACE_SCRIPT_PRELUDE', () => {
     expect(Object.values(DEFAULT_SURFACE_STATUS_TEXT).every((value) => value.length > 0)).toBe(true);
   });
 });
+
+describe('touch targets', () => {
+  // Fields measured 35px and buttons 37px with a coarse pointer at phone width (2026-11-05).
+  it('floors fields and buttons at 44px for a finger, without changing a mouse layout', () => {
+    expect(SURFACE_BASE_CSS).toMatch(/@media \(pointer: coarse\) \{\s*\.mcpui-input, \.mcpui-select, \.mcpui-textarea, \.mcpui-button \{ min-height: 44px; \}/);
+  });
+});

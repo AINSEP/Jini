@@ -99,6 +99,10 @@ body {
   .mcpui-outcome-row { flex-direction: column; gap: 2px; }
   .mcpui-outcome-row dd.mcpui-detail-status { max-width: 100%; white-space: normal; overflow-wrap: normal; }
 }
+/* A finger needs 44px; a mouse keeps the compact layout. */
+@media (pointer: coarse) {
+  .mcpui-input, .mcpui-select, .mcpui-textarea, .mcpui-button { min-height: 44px; }
+}
 .mcpui-code {
   margin: 0;
   white-space: pre-wrap;
