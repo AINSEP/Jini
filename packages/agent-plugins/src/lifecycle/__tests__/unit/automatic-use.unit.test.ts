@@ -16,14 +16,39 @@ function fixture(mode: 'auto' | 'ask' | 'off' = 'auto', state?: ChatAgentPluginS
   return { controller: createAutomaticAgentPluginUse({ mode, state, ports }), publish, ask, resolve, saveAuto, ports, list };
 }
 describe('automatic installed plugin use', () => {
-  it('suggests an off plugin only as a catalog line and never resolves or asks to use its guidance', async () => {
+  it('explicitly reads off plugin guidance without activating or publishing it as in use', async () => {
+    const f = fixture();
+    const result = await f.controller.load({ pluginId: 'inactive', file: 'SKILL.md' });
+    expect(result.status).toBe('installed-but-inactive');
+    expect(result.guidance).toContain('Guidance for inactive');
+    expect(result.guidance).toContain('off');
+    expect(result.guidance).toContain('tools are unavailable');
+    expect(f.resolve).toHaveBeenCalledWith({ pluginId: 'inactive', file: 'SKILL.md' }, {});
+    expect(f.ask).not.toHaveBeenCalled();
+    expect(f.publish).not.toHaveBeenCalled();
+    expect(await f.controller.prepare({ capabilities: ['theme-authoring'] })).not.toContain('Guidance for inactive');
+  });
+  it('off-plugin guidance still respects Ask consent and never publishes the plugin as in use', async () => {
+    const f = fixture('ask');
+    f.ask.mockResolvedValueOnce({ action: 'use', selected: ['inactive'] });
+    const result = await f.controller.load({ pluginId: 'inactive' });
+    expect(result.status).toBe('installed-but-inactive');
+    expect(result.guidance).toContain('Guidance for inactive');
+    expect(f.ask).toHaveBeenCalledTimes(1);
+    expect(f.publish.mock.calls.at(-1)?.[0].plugins).toEqual([]);
+    const denied = fixture('ask');
+    denied.ask.mockResolvedValueOnce({ action: 'skip', selected: [] });
+    expect(await denied.controller.load({ pluginId: 'inactive' })).toEqual({ status: 'excluded', guidance: '' });
+    expect(denied.resolve).not.toHaveBeenCalled();
+  });
+  it('suggests an off plugin without implicitly resolving or asking to use its guidance', async () => {
     const f = fixture();
     f.list.mockResolvedValue([{ ...plugin('inactive', false), summary: 'Create images', description: 'PRIVATE_GUIDANCE' }]);
     const note = await f.controller.prepare({ query: 'inactive' });
-    expect(note).toContain('installed, off: inactive: Create images — ask to turn on');
+    expect(note).toContain('installed, off: inactive: Create images — read guidance; tools unavailable');
     expect(note).not.toContain('PRIVATE_GUIDANCE');
-    expect(await f.controller.load({ pluginId: 'inactive', file: 'SKILL.md' })).toEqual({ status: 'installed-but-inactive', guidance: '' });
     expect(f.resolve).not.toHaveBeenCalled();
+    expect(await f.controller.load({ pluginId: 'inactive', file: 'SKILL.md' })).toEqual({ status: 'installed-but-inactive', guidance: "Plugin 'inactive' is off; its tools are unavailable.\n\nGuidance for inactive" });
     expect(f.ask).not.toHaveBeenCalled();
   });
   it.each([{ skill: 'synthetic' }, { file: 'missing.md' }])('retains the reader reason for explicit content requests %j', async request => {
@@ -269,10 +294,11 @@ it('explicit loads respect exclusions, inactive plugins, unknown ids, Off and ca
   expect(await excluded.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'excluded', guidance: '' });
   expect(excluded.resolve).not.toHaveBeenCalled();
   const f = fixture();
-  expect(await f.controller.load({ pluginId: 'inactive' })).toEqual({ status: 'installed-but-inactive', guidance: '' });
+  expect(await f.controller.load({ pluginId: 'inactive' })).toEqual({ status: 'installed-but-inactive', guidance: "Plugin 'inactive' is off; its tools are unavailable.\n\nGuidance for inactive" });
   expect(await f.controller.load({ pluginId: 'unknown' })).toEqual({ status: 'missing', guidance: '' });
   expect(await f.controller.load({ pluginId: 'synthetic', signal: AbortSignal.abort() })).toEqual({ status: 'cancelled', guidance: '' });
-  expect(f.resolve).not.toHaveBeenCalled();
+  expect(f.resolve).toHaveBeenCalledTimes(1);
+  expect(f.resolve.mock.calls[0]?.[0].pluginId).toBe('inactive');
   const off = fixture('off');
   expect(await off.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'off', guidance: '' });
   expect(off.list).not.toHaveBeenCalled();
@@ -300,10 +326,10 @@ it('untrusted and unreadable guidance remain distinct and can be retried without
   expect(await f.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'loaded', guidance: 'Guidance for synthetic' });
 });
 
-it('an inactive plugin is only loaded after its existing activation owner enables it', async () => {
+it('an inactive plugin is only marked in use after its existing activation owner enables it', async () => {
   const f = fixture();
-  expect(await f.controller.load({ pluginId: 'inactive' })).toEqual({ status: 'installed-but-inactive', guidance: '' });
-  expect(f.resolve).not.toHaveBeenCalled();
+  expect(await f.controller.load({ pluginId: 'inactive' })).toEqual({ status: 'installed-but-inactive', guidance: "Plugin 'inactive' is off; its tools are unavailable.\n\nGuidance for inactive" });
+  expect(f.resolve).toHaveBeenCalledTimes(1);
   expect(f.publish).not.toHaveBeenCalled();
   f.ports.list = async () => [plugin('inactive')];
   expect(await f.controller.load({ pluginId: 'inactive' })).toEqual({ status: 'loaded', guidance: 'Guidance for inactive' });

@@ -117,7 +117,7 @@ export function isDeepSeekAuthFailureText({ text }: { text: string }): boolean {
   if (!value.trim()) return false;
   const placeholderKey = /KEY=<your-key>/i.test(value) || /api_key\s*=\s*["']<your-key>["']/i.test(value);
   const configMentionsKey = /~\/\.deepseek\/config\.toml/i.test(value) && /api[_ -]?key|KEY=/i.test(value);
-  const envKeyProblem = /DEEPSEEK_API_KEY/i.test(value) && /auth|api[_ -]?key|missing|not set|required|unauthorized/i.test(value);
+  const envKeyProblem = /DEEPSEEK_API_KEY/i.test(value) && /auth|missing|not set|required|unauthorized|invalid/i.test(value);
   return placeholderKey || configMentionsKey || envKeyProblem;
 }
 

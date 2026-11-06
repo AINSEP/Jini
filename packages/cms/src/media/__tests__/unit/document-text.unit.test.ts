@@ -5,6 +5,7 @@ import { readDocumentText, DOCUMENT_TEXT_PAGE_BYTES } from '../../document-read.
 import { DOCUMENT_EXTRACTION_LIMITS, DocumentTextExtractionError, type DocumentTextExtractorPort } from '../../document-text.js';
 import { buildMediaRegistrations } from '../../tool-registrations.js';
 import { uploadMedia } from '../../media-service.js';
+import { MAX_DOCUMENT_BYTES } from '../../document-ingress.js';
 import { MediaValidationError } from '../../types.js';
 import { InMemoryMediaRepo, InMemoryAssetBlobRepo, InMemoryAssetRenditionRepo } from '../../repo.memory.js';
 import { InMemoryBlobStore } from '../../blob-store.memory.js';
@@ -96,7 +97,7 @@ test('PDF needs a configured adapter and actual source size is checked before ex
   const f = await fixture([{ contentType: 'application/pdf', async extract() { calls++; return { text: '', truncated: false }; } }]);
   // A store can lie about its metadata; raw bytes must still be bounded before a parser sees them.
   f.deps.blobStore.sizeOf = async () => 1;
-  f.deps.blobStore.get = async () => new Uint8Array(10 * 1024 * 1024 + 1);
+  f.deps.blobStore.get = async () => new Uint8Array(MAX_DOCUMENT_BYTES + 1);
   await assert.rejects(readDocumentText(f), MediaValidationError);
   assert.equal(calls, 0);
 });

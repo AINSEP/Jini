@@ -200,16 +200,17 @@ export function createAutomaticAgentPluginUse(
     const result = shouldLoad ? (await resolveGuidance({ matches }, { signal: input.signal })).join('\n\n') : relevantPluginNote({ matches, formatPluginToolPointer: ports.formatPluginToolPointer });
     rememberAutoSelection();
     await publishUsage();
-    // Off packages never enter guidance consent or resolution. A relevant catalog line is the
-    // only disclosure, so the model can offer the existing owner-approved enable flow.
+    // Preflight never resolves off packages implicitly. A catalog line offers an explicit read;
+    // its setup guidance may explain whether enabling or credentials are needed.
     const off = offPluginNote({ catalog, input });
     return [result, off].filter(Boolean).join('\n\n');
   }
-  /** Rank only catalog-safe fields for off plugins; no capability-triggered disclosure. O(p*t). */
+  /** Rank readable metadata for off plugins; never load their tools or guidance implicitly. O(p*t). */
   function offPluginNote({ catalog, input }: { catalog: readonly AgentPluginSearchCandidate[]; input: PrepareInput }): string {
     if (!input.query) return '';
     const candidates = catalog.filter(plugin => !plugin.enabled).map(candidate => agentVisiblePluginCandidate({ candidate }));
-    return ports.rank({ query: input.query, candidates, limit: 10 }, {}).map(plugin => plugin.description ?? '').join('\n');
+    return ports.rank({ query: input.query, candidates, limit: 10 }, {}).map(plugin => [plugin.description,
+      ports.formatPluginToolPointer?.({ pluginId: plugin.pluginId, file: 'SKILL.md' })].filter(Boolean).join(' ')).join('\n');
   }
   /** Admit one explicit id using the same catalog, consent, resolver and delivery state as prepare.
    * No activation writes; unavailable guidance is retryable. O(p) local catalog lookup.
@@ -220,7 +221,6 @@ export function createAutomaticAgentPluginUse(
     if (state.excluded.includes(pluginId)) return { status: 'excluded', guidance: '' };
     const plugin = (await ports.list({}, {})).find(candidate => candidate.pluginId === pluginId);
     if (!plugin) return { status: 'missing', guidance: '' };
-    if (!plugin.enabled) return { status: 'installed-but-inactive', guidance: '' };
     return loadPermitted({ plugin, ...request }, { signal });
   }
   /** The plugin's own SKILL.md, whether defaulted or named explicitly. O(1). */
@@ -238,7 +238,10 @@ export function createAutomaticAgentPluginUse(
       await publishUsage();
       return { status: 'excluded', guidance: '' };
     }
-    const result = await resolveOneGuidance({ plugin, ...request }, { signal });
+    let result = await resolveOneGuidance({ plugin, ...request }, { signal });
+    if (!plugin.enabled && result.status === 'loaded') {
+      result = { status: 'installed-but-inactive', guidance: `Plugin '${plugin.pluginId}' is off; its tools are unavailable.\n\n${result.guidance}` };
+    }
     if (isPrimaryInstructions({ pluginId: plugin.pluginId, ...request })) recordDelivery({ plugin, result });
     rememberAutoSelection();
     await publishUsage();
