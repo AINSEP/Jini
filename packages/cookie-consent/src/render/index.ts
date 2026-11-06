@@ -4,3 +4,4 @@ export type { BannerCopy, BannerCopyInput, ConsentPlacement, RenderBannerConfig,
 export { compileConsentCss, scopedSelector, parityCss, CONSENT_CSS_SCOPE, CONSENT_MAX_CSS_LENGTH } from './css.js';
 export type { ConsentAppearanceTokens, ConsentCssProblem, ConsentCssResult } from './css.js';
 export { BASE_CSS } from './base-css.js';
+export { renderScriptAssets } from './scripts.js';

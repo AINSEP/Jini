@@ -1,3 +1,4 @@
+import { declaredScriptDelivery } from './scripts.js';
 /** @file Pure strings: no DOM, no Node. The same output feeds live pages, the static export and the admin
  * preview iframe, so preview and live cannot drift. The markup is identical for every visitor: region and GPC
  * variants are toggled by CSS from <html> attributes the client sets, so pages stay cacheable. */
@@ -32,7 +33,7 @@ export interface RenderBannerOptions {
   evidence?: Evidence; placement?: ConsentPlacement; reopen?: 'corner' | 'link';
   appearance?: ConsentAppearanceTokens; customCss?: string;
   /** URL of dist/client.min.js as the host serves it. Omitted in a preview. */
-  clientSrc?: string; nonce?: string;
+  clientSrc?: string; extensionSrc?: string; nonce?: string;
   /** Scriptless admin preview: the banner renders open for the given region; htmlAttrs go on the iframe's <html>. */
   preview?: { region: RegionMode; panel?: boolean };
 }
@@ -68,8 +69,9 @@ export function resolveCopy(input: BannerCopyInput = {}): BannerCopy {
 export function renderBanner({ mode, client, copy }: RenderBannerConfig, options: RenderBannerOptions = {}): RenderedBanner {
   if (!BANNER_MODES.includes(mode)) return EMPTY;
   const evidence = options.evidence ?? { mode: 'local' };
+  const delivery = clientAssets({ client, preview: Boolean(options.preview) });
   const n = options.nonce ? ` nonce="${esc(options.nonce)}"` : '';
-  const head = `<script type="application/json" id="${CONFIG_ID}">${json({ ...client, banner: mode, evidence })}</script>${clientScript(options, n)}`;
+  const head = delivery.head + `<script type="application/json" id="${CONFIG_ID}">${json({ ...delivery.client, banner: mode, evidence })}</script>${clientScript(options, n)}`;
   const htmlAttrs = previewAttrs(options.preview);
   if (mode !== 'jini') return { head, body: '', htmlAttrs, problems: [] };
   const compiled = compileConsentCss({ css: options.customCss ?? '', tokens: options.appearance ?? {} });
@@ -78,8 +80,10 @@ export function renderBanner({ mode, client, copy }: RenderBannerConfig, options
 }
 
 /** A preview is scriptless: the admin iframe shows the markup, never runs the client. */
-function clientScript({ preview, clientSrc }: RenderBannerOptions, nonceAttr: string): string {
-  return preview || !clientSrc ? '' : `<script src="${esc(clientSrc)}" defer${nonceAttr}></script>`;
+function clientScript({ preview, clientSrc, extensionSrc }: RenderBannerOptions, nonceAttr: string): string {
+  if (preview || !clientSrc) return '';
+  const core = `<script src="${esc(clientSrc)}" defer${nonceAttr}></script>`;
+  return core + (extensionSrc ? `<script src="${esc(extensionSrc)}" defer${nonceAttr}></script>` : '');
 }
 
 /** Attributes for the preview iframe's <html>, standing in for what the client sets on a live page. */
@@ -113,4 +117,9 @@ ${b('do-not-sell', copy.doNotSellLabel, ' class="jini-consent-link" data-consent
 <details${options.preview?.panel ? ' open' : ''}><summary>${esc(copy.preferencesLabel)}</summary><fieldset><legend>${esc(copy.categoriesLegend)}</legend>${categories(copy)}</fieldset>
 <div class="jini-consent-actions">${b('save', copy.saveLabel)}${b('reject', copy.rejectLabel)}</div></details>
 </section>${options.preview ? '' : reopen}`;
+}
+
+function clientAssets({ client, preview }: { client: RenderBannerConfig['client']; preview: boolean }) {
+  const delivery = declaredScriptDelivery({ scripts: client.scripts ?? [] });
+  return { head: preview ? '' : delivery.head, client: client.scripts ? { ...client, scripts: delivery.scripts } : client };
 }

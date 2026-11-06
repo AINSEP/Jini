@@ -15,7 +15,7 @@ export interface ConsentAppearanceView {
 /** The host's consent configuration. The look fields are optional so older hosts stay valid. */
 export interface ConsentSettingsView {
   enabled: boolean;
-  /** Optional for older hosts; omitted means the dynamic code exception is off. */
+  /** @deprecated Retained for saved-settings compatibility; declared-script consent does not use it. */
   allowUnsafeEval?: boolean;
   /** Optional for older hosts; omitted uses the Jini banner when consent is enabled. */
   bannerMode?: 'jini' | 'headless' | 'off';

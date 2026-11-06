@@ -664,9 +664,6 @@ importers:
 
   packages/cookie-consent:
     devDependencies:
-      '@jini-ai/cms':
-        specifier: workspace:^
-        version: link:../cms
       '@types/node':
         specifier: ^24.0.0
         version: 24.13.3

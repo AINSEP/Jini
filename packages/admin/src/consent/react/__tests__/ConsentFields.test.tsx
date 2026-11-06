@@ -100,51 +100,48 @@ describe('ConsentBannerFields', () => {
 });
 
 describe('ConsentRulesFields', () => {
-  it('lets an older host enable and revoke dynamic code with the keyboard and describes the risk', async () => {
-    const patches = host(ConsentRulesFields as typeof ConsentBannerFields);
-    const user = userEvent.setup();
-    const toggle = screen.getByRole('switch', { name: 'Allow dynamic code (unsafe-eval)' });
-    expect(toggle).toHaveAttribute('aria-checked', 'false');
-    expect(toggle).toHaveAccessibleDescription("Some themes need this. It weakens the site's script protection. Optional scripts still wait for consent.");
-    await user.tab();
-    await user.tab();
-    expect(toggle).toHaveFocus();
-    await user.keyboard(' ');
-    expect(toggle).toHaveAttribute('aria-checked', 'true');
-    await user.keyboard('{Enter}');
-    expect(toggle).toHaveAttribute('aria-checked', 'false');
-    expect(patches).toEqual([{ allowUnsafeEval: true }, { allowUnsafeEval: false }]);
-  });
-
-  it('shows dynamic code help through the shared info-tip without toggling the setting', async () => {
-    const patches = host(ConsentRulesFields as typeof ConsentBannerFields);
-    const user = userEvent.setup();
-    const toggle = screen.getByRole('switch', { name: 'Allow dynamic code (unsafe-eval)' });
-    const help = screen.getByRole('button', { name: 'About dynamic code' });
-    expect(help).toHaveTextContent('ⓘ');
-    expect(toggle).not.toContainElement(help);
-    expect(document.getElementById(toggle.getAttribute('aria-describedby')!)).toHaveAttribute('hidden');
-    await user.click(help);
-    expect(help).toHaveAttribute('aria-expanded', 'true');
-    expect(help).toHaveAccessibleDescription("Some themes need this. It weakens the site's script protection. Optional scripts still wait for consent.");
-    expect(toggle).toHaveAttribute('aria-checked', 'false');
+  it('retires the dynamic code switch and help even when the legacy flag is saved', () => {
+    const patches = host(ConsentRulesFields as typeof ConsentBannerFields, {}, { ...initial, allowUnsafeEval: true });
+    expect(screen.getAllByRole('switch')).toHaveLength(1);
+    expect(screen.getByRole('switch', { name: 'Enable cookie consent on this site' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.queryByRole('switch', { name: 'Allow dynamic code (unsafe-eval)' })).toBeNull();
+    // The retired help trigger was independently focusable outside its switch; neither remains.
+    expect(screen.queryByRole('button', { name: 'About dynamic code' })).toBeNull();
+    expect(screen.queryByText(/weakens the site's script protection/)).toBeNull();
     expect(patches).toEqual([]);
-    await user.keyboard('{Escape}');
-    expect(help).toHaveAttribute('aria-expanded', 'false');
   });
 
-  it('hides the dynamic code switch while consent is off without clearing its saved value', async () => {
-    const patches = host(ConsentRulesFields as typeof ConsentBannerFields, {}, { ...initial, enabled: false, allowUnsafeEval: true });
+  it('preserves a legacy dynamic code value through ordinary region and policy edits', async () => {
+    const before = Object.freeze({ ...initial, allowUnsafeEval: true });
+    let current: ConsentSettingsView = before;
+    const patches: Partial<ConsentSettingsView>[] = [];
+    render(<ConsentRulesFields value={current} onChange={({ patch }) => { patches.push(patch); current = { ...current, ...patch }; }} />);
+    await userEvent.setup().selectOptions(screen.getByLabelText('Region mode'), 'auto');
+    fireEvent.change(screen.getByLabelText('Policy version'), { target: { value: '2' } });
+    expect(patches).toEqual([{ regionMode: 'auto' }, { policyVersion: '2' }]);
+    expect(current).toEqual({ ...initial, regionMode: 'auto', policyVersion: '2', allowUnsafeEval: true });
+    expect(before).toEqual({ ...initial, allowUnsafeEval: true });
+    expect(screen.queryByRole('button', { name: 'About dynamic code' })).toBeNull();
+  });
+
+  it('keeps the retired control absent when enabling consent without clearing the saved value', async () => {
+    const before = { ...initial, enabled: false, allowUnsafeEval: true };
+    const patches = host(ConsentRulesFields as typeof ConsentBannerFields, {}, before);
     expect(screen.queryByRole('switch', { name: 'Allow dynamic code (unsafe-eval)' })).toBeNull();
     await userEvent.setup().click(screen.getByRole('switch', { name: 'Enable cookie consent on this site' }));
-    expect(screen.getByRole('switch', { name: 'Allow dynamic code (unsafe-eval)' })).toHaveAttribute('aria-checked', 'true');
+    expect(screen.queryByRole('switch', { name: 'Allow dynamic code (unsafe-eval)' })).toBeNull();
+    expect(screen.getAllByRole('switch')).toHaveLength(1);
     expect(patches).toEqual([{ enabled: true }]);
+    expect({ ...before, ...patches[0] }).toEqual({ ...initial, allowUnsafeEval: true });
   });
 
-  it('disables dynamic code edits with the other fields while loading', async () => {
+  it('keeps normal controls disabled while loading and never offers retired dynamic code edits', async () => {
     const patches = host(ConsentRulesFields as typeof ConsentBannerFields, { disabled: true });
-    const toggle = screen.getByRole('switch', { name: 'Allow dynamic code (unsafe-eval)' });
+    const toggle = screen.getByRole('switch', { name: 'Enable cookie consent on this site' });
     expect(toggle).toBeDisabled();
+    expect(screen.getByLabelText('Region mode')).toBeDisabled();
+    expect(screen.getByLabelText('Policy version')).toBeDisabled();
+    expect(screen.queryByRole('switch', { name: 'Allow dynamic code (unsafe-eval)' })).toBeNull();
     await userEvent.setup().click(toggle);
     expect(patches).toEqual([]);
   });
