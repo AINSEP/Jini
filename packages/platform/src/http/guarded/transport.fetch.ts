@@ -60,11 +60,12 @@ export class FetchHttpTransportAdapter implements HttpTransportAdapter {
           // Concatenate once: text is a lossy UTF-8 view, while binary consumers retain the same
           // undecoded bytes. Buffer is a Uint8Array, so returning it needs no second byte copy.
           const body = Buffer.concat(chunks);
+          chunks.length = 0;
           resolve({
             status: res.statusCode ?? 0,
             headers: flattenHeaders(res.headers),
             setCookies: res.headers["set-cookie"] ?? [],
-            bodyText: body.toString("utf8"), bodyBytes: body,
+            bodyText: req.bodyAs === "bytes" ? "" : body.toString("utf8"), bodyBytes: body,
             ...(truncated ? { bodyTruncated: true, bodyBytesTruncated: true } : {}),
           });
         };

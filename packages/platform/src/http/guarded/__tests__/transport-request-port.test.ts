@@ -2,7 +2,7 @@ import { EventEmitter } from "node:events";
 import type { ClientRequest, IncomingMessage } from "node:http";
 import type { RequestOptions } from "node:https";
 import { PassThrough } from "node:stream";
-import { expect, test } from "vitest";
+import { expect, test, vi } from "vitest";
 import { FetchHttpTransportAdapter } from "../transport.fetch.js";
 
 /** A response stream whose destroy() is ignored, like a socket that still has buffered bytes in flight. */
@@ -86,4 +86,29 @@ test.each([300 * 1024 * 1024, undefined])("the response uses the explicit byte l
     expect(result.bodyTruncated).toBeUndefined();
     expect(result.bodyBytesTruncated).toBeUndefined();
   }
+});
+
+
+test("byte-only responses preserve non-ASCII data without decoding or re-encoding text", async () => {
+  const { createHttpClient } = await import("../client.js");
+  const payload = Buffer.from([0xff, 0xfe, 0x80, 0, 0xc3, 0x28]);
+  const res = stubbornResponse();
+  const transport = new FetchHttpTransportAdapter({}, { request: ({ onResponse }) => {
+    const request = new EventEmitter() as ClientRequest;
+    request.destroy = () => request;
+    request.end = (() => { queueMicrotask(() => { onResponse(res); res.end(payload); }); return request; }) as ClientRequest["end"];
+    return request;
+  } });
+  const client = createHttpClient({ transport, dns: { resolve: async () => ["93.184.216.34"] },
+    clock: { nowMs: Date.now, timeoutSignal: ({ timeoutMs }) => AbortSignal.timeout(timeoutMs) }, userAgent: "Import test",
+    policy: { allowedSchemes: ["https"], denyPrivateAddresses: true, devHostAllowlist: [], maxRedirects: 0, connectTimeoutMs: 1000, maxResponseBytes: 100, maxDecompressedBytes: 100 },
+  });
+  const from = vi.spyOn(Buffer, "from");
+  try {
+    const response = await client.send({ request: { method: "GET", url: "https://provider.example/archive.zip", headers: {}, timeoutMs: 1000, bodyAs: "bytes" } });
+    expect(response.bodyText).toBe("");
+    expect(response.bodyBytes).toEqual(payload);
+    expect(response.bodyBytesTruncated).toBe(false);
+    expect(from.mock.calls.some(args => typeof args[0] === "string")).toBe(false);
+  } finally { from.mockRestore(); }
 });
