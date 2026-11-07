@@ -178,6 +178,24 @@ describe('useChatPane', () => {
     expect(result.current.workingDirectory).toBe('/work/controlled');
   });
 
+  it('clears a failed-upload error once the user removes an attachment (a "total too large" error stays otherwise)', async () => {
+    const transport = createFakeChatTransport();
+    let fail = false;
+    const uploadAttachments = vi.fn(async (files: File[]) => {
+      if (fail) throw new Error('Attachments for one message must total 100 MB or less.');
+      return files.map((file) => ({ path: `attachment:${file.name}`, name: file.name, kind: 'file' as const }));
+    });
+    const { result } = renderHook(() => useChatPane({ transport, agents, uploadAttachments }));
+
+    await act(() => result.current.addAttachments([new File(['a'], 'a.txt', { type: 'text/plain' })]));
+    fail = true;
+    await act(() => result.current.addAttachments([new File(['b'], 'b.txt', { type: 'text/plain' })]));
+    expect(result.current.attachmentError).not.toBeNull();
+
+    act(() => result.current.composer.removeAttachment('attachment:a.txt'));
+    expect(result.current.attachmentError).toBeNull();
+  });
+
   it('populates the attachment preview cache through the real attach path (drag-drop/file-picker), not just when the cache function is called directly', async () => {
     // Reproduces the owner-reported bug: `AttachmentPreviewModal` always says "a preview is not
     // available" because ChatPane's actual attach path (this hook's own `addAttachments`, which

@@ -585,6 +585,14 @@ export function useChatPane(options: UseChatPaneOptions): UseChatPaneResult {
   const latestAttachmentsRef = useRef(composer.attachments);
   latestAttachmentsRef.current = composer.attachments;
 
+  // Removing an attachment is how the user makes room after a "total too large" failure, so the
+  // failure notice goes with it instead of staying on screen (it still also clears on the next upload).
+  const attachmentCountRef = useRef(composer.attachments.length);
+  useEffect(() => {
+    if (composer.attachments.length < attachmentCountRef.current) setAttachmentError(null);
+    attachmentCountRef.current = composer.attachments.length;
+  }, [composer.attachments.length]);
+
   useEffect(() => {
     const previous = typedAnswerConversationRef.current;
     typedAnswerConversationRef.current = options.conversationId;
