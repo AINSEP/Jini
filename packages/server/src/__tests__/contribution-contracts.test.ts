@@ -13,9 +13,14 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { defineAgentPluginToolContribution } from '@jini-ai/agent-plugins/lifecycle/tools';
 import { defineAdminSurfaceContribution, defineAdminSurfaceHandlerContribution } from '@jini-ai/agent-plugins/admin-surfaces';
+import { defineExecutablePluginContribution } from '@jini-ai/agent-plugins/lifecycle';
 import type { PluginContributionDefinition, TrustedPluginPackage } from '@jini-ai/agent-plugins/lifecycle';
 import { parseCredentialSchemesFile } from '@jini-ai/integrations/credentialed-http';
 import { parseSourceControlProvidersFile, sourceControlProviderModuleError } from '@jini-ai/devops/source-control';
+import {
+  asDeployConfigGeneratorModule, asDeployOpsModule, asDeployTargetModule,
+  parseDeployConfigsFile, parseDeployOpsFile, parseDeployTargetsFile,
+} from '@jini-ai/devops/deploy';
 import { defineSearchProviderContribution } from '@jini-ai/search/contribution';
 
 const PREFIX = 'tovu-';
@@ -83,6 +88,22 @@ const sourceControl: ContractCheck = async file => {
   return { descriptors: parsed.descriptors.length, refusals };
 };
 
+/**
+ * A kind whose parser and module validator are separate exports: the check composes the executable
+ * definition the way a host does, since the capability package cannot import the lifecycle.
+ */
+function viaParserAndValidator<D extends { readonly id: string; readonly module: string }, M>(required: {
+  readonly kind: string;
+  readonly parse: (input: { readonly raw: string }) => { readonly ok: true; readonly descriptors: readonly D[] } | { readonly ok: false; readonly reason: string };
+  readonly validate: (input: { readonly exported: unknown }) => M | string;
+}): ContractCheck {
+  return viaDefinition(defineExecutablePluginContribution<D, M>({
+    filename: `${PREFIX}${required.kind}.json`, contribution: required.kind,
+    parse: ({ raw }) => required.parse({ raw }), modulePath: ({ descriptor }) => descriptor.module,
+    validate: required.validate, refusal: ({ descriptor, reason }) => `${descriptor.id}: ${reason}`,
+  }));
+}
+
 /** JSON only: the kind declares no module. */
 const credentialSchemes: ContractCheck = async file => {
   const parsed = parseCredentialSchemesFile({ raw: file.raw });
@@ -102,9 +123,9 @@ const CONTRACTS: Readonly<Record<string, ContractCheck | undefined>> = {
   'connections': undefined,
   'consent': undefined,
   'credential-schemes': credentialSchemes,
-  'deploy-configs': undefined,
-  'deploy-ops': undefined,
-  'deploy-targets': undefined,
+  'deploy-configs': viaParserAndValidator({ kind: 'deploy-configs', parse: parseDeployConfigsFile, validate: asDeployConfigGeneratorModule }),
+  'deploy-ops': viaParserAndValidator({ kind: 'deploy-ops', parse: parseDeployOpsFile, validate: asDeployOpsModule }),
+  'deploy-targets': viaParserAndValidator({ kind: 'deploy-targets', parse: parseDeployTargetsFile, validate: asDeployTargetModule }),
   'form-destinations': undefined,
   'login-providers': undefined,
   'mail-adapters': undefined,
