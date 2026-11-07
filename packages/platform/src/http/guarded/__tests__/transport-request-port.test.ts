@@ -51,3 +51,39 @@ test("the injected request port dials the pinned peer, and bytes arriving after 
   await new Promise((resolve) => setImmediate(resolve));
   expect(response.bodyText).toBe("abcd");
 });
+
+test.each([300 * 1024 * 1024, undefined])("the response uses the explicit byte limit %s or the 100 MiB default", async maxResponseBytes => {
+  const chunk = Buffer.alloc(1024 * 1024, 120);
+  const res = stubbornResponse();
+  const transport = new FetchHttpTransportAdapter({}, {
+    request: ({ onResponse }) => {
+      const request = new EventEmitter() as ClientRequest;
+      let stopped = false;
+      request.destroy = error => { stopped = true; if (error) request.emit("error", error); return request; };
+      request.end = (() => {
+        queueMicrotask(() => {
+          onResponse(res);
+          for (let i = 0; i < 101 && !stopped; i++) res.write(chunk);
+          res.end();
+        });
+        return request;
+      }) as ClientRequest["end"];
+      return request;
+    },
+  });
+  const response = transport.requestPinned({
+    request: { method: "GET", url: "https://provider.example/archive.zip", headers: {}, timeoutMs: 500,
+      ...(maxResponseBytes === undefined ? {} : { maxResponseBytes }) },
+    peer: { ip: "203.0.113.7", port: 443, authority: "provider.example", tlsServerName: "provider.example" },
+  });
+  if (maxResponseBytes === undefined) {
+    expect(await response.then(() => "completed", (error: Error) => error.message)).toBe("response exceeded the absolute size ceiling");
+  } else {
+    const result = await response;
+    expect(result.bodyBytes?.length).toBe(101 * 1024 * 1024);
+    expect(result.bodyText.length).toBe(101 * 1024 * 1024);
+    expect(result.bodyBytes?.at(-1)).toBe(120);
+    expect(result.bodyTruncated).toBeUndefined();
+    expect(result.bodyBytesTruncated).toBeUndefined();
+  }
+});

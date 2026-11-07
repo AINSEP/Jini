@@ -11,10 +11,10 @@ import type { HttpTransportAdapter } from "./ports.js";
  * could change the destination between validation and connection. Preserve the original Host
  * authority and hostname TLS SNI for virtual hosting and certificate validation.
  * This raw transport belongs behind the guarded client, which validates each redirect hop.
- * Responses are buffered; the absolute ceiling bounds memory even without a caller byte limit.
+ * Responses are buffered; the default ceiling bounds memory when no caller byte limit is given.
  */
-/** Last-resort decoded-byte bound independent of any caller's response policy. */
-const ABSOLUTE_MAX_BYTES = 100 * 1024 * 1024;
+/** Decoded-byte bound when the caller has not supplied its own response policy. */
+const DEFAULT_MAX_BYTES = 100 * 1024 * 1024;
 
 /** Native request effect port; peer pinning and TLS options remain owned by this adapter. */
 export interface NativeHttpTransportOptions {
@@ -68,7 +68,7 @@ export class FetchHttpTransportAdapter implements HttpTransportAdapter {
             ...(truncated ? { bodyTruncated: true, bodyBytesTruncated: true } : {}),
           });
         };
-        const cap = req.maxResponseBytes === undefined ? ABSOLUTE_MAX_BYTES : Math.min(req.maxResponseBytes, ABSOLUTE_MAX_BYTES);
+        const cap = req.maxResponseBytes ?? DEFAULT_MAX_BYTES;
         decoded.on("data", (chunk: Buffer) => {
           if (settled) return;
           const remaining = cap - totalBytes;
