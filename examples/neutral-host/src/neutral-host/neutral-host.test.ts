@@ -14,6 +14,9 @@ import {
   pluginNoteHandler, pluginNoteToolCatalog, pluginNoteRisk, registerInstalledAgentPluginTools, WRITE_PLUGIN_NOTE, type ApplyHostToolApprovalPolicy,
 } from '@jini-ai/agent-plugins/lifecycle/host-tools';
 import { buildDomainRegistrations, indexCatalogById } from '@jini-ai/core';
+import { createRandomUuidGenerator, createSystemClock } from '@jini-ai/core/primitives';
+import { createTimeoutScheduler } from '@jini-ai/daemon/scheduler';
+import { askOnce, createSurfaceExchangeStore } from '@jini-ai/daemon/surface-exchanges';
 import {
   bundledPluginDir, COST_COUNTER_NAMES, countToolCatalog, createNeutralHost, installBundledPlugin, NEUTRAL_PERMISSIONS, NEUTRAL_PRODUCT_NAME,
   scansPerToolCall, SKILLS_ONLY_PLUGIN_IDS, type NeutralHost,
@@ -94,6 +97,53 @@ function registerNoteTool(required: { readonly host: NeutralHost; readonly allow
   return checks;
 }
 
+/** Test-only tools for the dispatcher's human paths, on public exports only (no moved tool yet). */
+const ASK_PERSON = 'studio_test_ask_person';
+const APPROVED_WRITE = 'studio_test_approved_write';
+const EMPTY_INPUT = { type: 'object', additionalProperties: false, properties: {} } as const;
+
+/** Asks the person one question on a card through the public surface-exchange store, then records the
+ *  answer as its only effect. `answer`, when given, is what the person submits once the card is up. */
+function registerAskPersonTool(required: { readonly host: NeutralHost; readonly answer?: Record<string, unknown> }) {
+  const store = createSurfaceExchangeStore({ scheduler: createTimeoutScheduler({}), clock: createSystemClock(), idGenerator: createRandomUuidGenerator(), defaultChannel: 'mcp-ui' });
+  const effects: string[] = [];
+  let settle!: () => void;
+  const settled = new Promise<void>((resolve) => { settle = resolve; });
+  required.host.dispatcher.register({ registration: {
+    descriptor: { id: ASK_PERSON, description: 'Test-only: asks the person one question, then records the answer.', inputSchema: EMPTY_INPUT },
+    policy: { authorize: () => 'allow' },
+    handler: async (ctx, optional = {}) => {
+      try {
+        const emitSurface = optional.emitSurface;
+        if (!emitSurface) throw new Error('this call has no card channel');
+        const exchange = store.open({ binding: { toolId: ASK_PERSON, principalId: ctx.principal.id }, emit: async (emission) => {
+          await emitSurface(emission);
+          const answer = required.answer;
+          if (answer) setImmediate(() => store.deliver({ exchangeId: exchange.id, principalId: ctx.principal.id, params: answer }, { toolId: ASK_PERSON }));
+        } });
+        ctx.signal.addEventListener('abort', () => exchange.close({}), { once: true });
+        const message = await askOnce({ exchange, emission: { channel: 'mcp-ui', payload: { question: 'Go ahead?', exchangeId: exchange.id } } });
+        if (message.status !== 'received' || ctx.signal.aborted) return { answered: false, status: message.status };
+        effects.push(String(message.params.choice));
+        return { answered: true, choice: message.params.choice };
+      } finally { settle(); }
+    },
+  } });
+  return { store, effects, settled };
+}
+
+/** A write tool the descriptor marks for ordinary confirmation; its only effect is recording the text. */
+function registerApprovedWriteTool(required: { readonly host: NeutralHost }) {
+  const effects: string[] = [];
+  required.host.dispatcher.register({ registration: {
+    descriptor: { id: APPROVED_WRITE, description: 'Test-only: writes one line once approved.', requiresConfirmation: true,
+      inputSchema: { type: 'object', additionalProperties: false, required: ['text'], properties: { text: { type: 'string' } } } },
+    policy: { authorize: () => 'allow' },
+    handler: async (ctx) => { effects.push(String((ctx.input as { text: string }).text)); return { written: true }; },
+  } });
+  return effects;
+}
+
 describe('test dispatcher, with moved tools as they arrive', () => {
   it('denies a call before any I/O (no file read, vault listing or envelope open)', async () => {
     await installBundledPlugin({ host, pluginId: 'site-import' });
@@ -142,9 +192,40 @@ describe('test dispatcher, with moved tools as they arrive', () => {
     expect(await host.lifecycle.pluginMemory({ workspaceId: host.workspaceId, pluginId: 'site-import' }).list({ kind: 'notes' })).toEqual([]);
   });
 
-  it.todo('raises exactly one human card for a call that needs a person');
-  it.todo('asks for ordinary write approval for a write tool, and runs it once approved');
-  it.todo('cancels a call waiting on a person, with no effect left behind');
+  it('raises exactly one human card for a call that needs a person', async () => {
+    const tool = registerAskPersonTool({ host, answer: { choice: 'yes' } });
+    const record = await host.dispatcher.dispatch({ toolId: ASK_PERSON, input: {} });
+    expect(record.result.status).toBe('completed');
+    expect(record.result.output).toEqual({ answered: true, choice: 'yes' });
+    expect(record.cards).toHaveLength(1);
+    expect(record.cards[0]!.channel).toBe('mcp-ui');
+    expect(record.confirmations).toBe(0);
+    expect(tool.effects).toEqual(['yes']);
+    expect(tool.store.size()).toBe(0);
+  });
+
+  it('asks for ordinary write approval for a write tool, and runs it once approved', async () => {
+    const effects = registerApprovedWriteTool({ host });
+    const approved = await host.dispatcher.dispatch({ toolId: APPROVED_WRITE, input: { text: 'once' } });
+    expect(approved.result.status).toBe('completed');
+    expect(approved.confirmations).toBe(1);
+    expect(approved.cards).toEqual([]);
+    expect(effects).toEqual(['once']);
+    const declined = await host.dispatcher.dispatch({ toolId: APPROVED_WRITE, input: { text: 'never' } }, { decision: 'deny' });
+    expect(declined.result.status).toBe('confirmation-denied');
+    expect(declined.confirmations).toBe(1);
+    expect(effects).toEqual(['once']);
+  });
+
+  it('cancels a call waiting on a person, with no effect left behind', async () => {
+    const tool = registerAskPersonTool({ host });
+    const record = await host.dispatcher.dispatch({ toolId: ASK_PERSON, input: {} }, { cancelOnPrompt: true });
+    expect(record.result.status).toBe('cancelled');
+    expect(record.cards).toHaveLength(1);
+    await tool.settled;
+    expect(tool.effects).toEqual([]);
+    expect(tool.store.size()).toBe(0);
+  });
 });
 
 describe('moved classes in a neutral host', () => {
