@@ -15,6 +15,11 @@ type Translate = ReturnType<typeof useT>;
 /** Words in a finished call's result that mean nobody answered in time. */
 const UNANSWERED_RESULT = /\b(expired|abandoned|did not respond|run ended)\b/i;
 
+/** A confirmation the person cancelled ends with `{"cancelled":true,...}`; that is not an answer. @complexity O(r). */
+function wasCancelled({ content }: { content: string }, _options = {}): boolean {
+  try { return (JSON.parse(content) as { cancelled?: unknown } | null)?.cancelled === true; } catch { return false; }
+}
+
 /**
  * Why a card can no longer be answered, or `undefined` while it still can.
  *
@@ -37,6 +42,7 @@ function settledLabel(
   // MOVE: Replayed surface documents cannot keep an orphaned question live after its run ends.
   if (call.result === undefined) return runStreaming ? undefined : t('This question expired');
   if (documentsForUri > 1) return undefined;
+  if (wasCancelled(call.result)) return t('Cancelled');
   return UNANSWERED_RESULT.test(call.result.content) ? t('This question expired') : t('Answered');
 }
 
