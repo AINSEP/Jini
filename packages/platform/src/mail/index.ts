@@ -29,3 +29,4 @@ export type { ResolveMailerDeps, ResolveMailerOptions, ResolvedMailer } from "./
 export { createTtlCache, MAIL_STATUS_TTL_MS } from "./mail-status-cache.js";
 export type { TtlCache } from "./mail-status-cache.js";
 export * from "./senders.js";
+export { defaultMailProviderSetup, parseMailProviderSetup, parseMailProviderSetupProperty } from "./provider-setup.js";

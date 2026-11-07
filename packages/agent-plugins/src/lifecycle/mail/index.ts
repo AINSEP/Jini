@@ -7,4 +7,7 @@
  * The entry exists before its contents so the export resolves; each piece arrives with the batch
  * that moves it.
  */
-export {};
+export {
+  asMailAdapterModule, defaultMailCredentialLabel, parseMailAdaptersFile,
+  type MailAdapterDescriptor, type MailAdaptersParseResult, type MailCredentialCard,
+} from "./adapter-descriptors.js";

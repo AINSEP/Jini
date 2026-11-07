@@ -13,7 +13,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { defineAgentPluginToolContribution } from '@jini-ai/agent-plugins/lifecycle/tools';
 import { defineAdminSurfaceContribution, defineAdminSurfaceHandlerContribution } from '@jini-ai/agent-plugins/admin-surfaces';
-import { defineExecutablePluginContribution } from '@jini-ai/agent-plugins/lifecycle';
+import { defineExecutablePluginContribution, defineProviderContribution } from '@jini-ai/agent-plugins/lifecycle';
+import { asMailAdapterModule, parseMailAdaptersFile } from '@jini-ai/agent-plugins/lifecycle/mail';
+import { OBJECT_STORE_CONTRACT, objectStoreProviderFault } from '@jini-ai/core/object-store';
+import { parseObjectStoresFile } from '@jini-ai/platform/object-store';
 import type { PluginContributionDefinition, TrustedPluginPackage } from '@jini-ai/agent-plugins/lifecycle';
 import { parseCredentialSchemesFile } from '@jini-ai/integrations/credentialed-http';
 import { parseSourceControlProvidersFile, sourceControlProviderModuleError } from '@jini-ai/devops/source-control';
@@ -128,8 +131,11 @@ const CONTRACTS: Readonly<Record<string, ContractCheck | undefined>> = {
   'deploy-targets': viaParserAndValidator({ kind: 'deploy-targets', parse: parseDeployTargetsFile, validate: asDeployTargetModule }),
   'form-destinations': undefined,
   'login-providers': undefined,
-  'mail-adapters': undefined,
-  'object-stores': undefined,
+  'mail-adapters': viaParserAndValidator({ kind: 'mail-adapters', parse: ({ raw }) => parseMailAdaptersFile({ raw }), validate: ({ exported }) => asMailAdapterModule({ exported }) }),
+  'object-stores': viaDefinition(defineProviderContribution({
+    contract: OBJECT_STORE_CONTRACT, filename: `${PREFIX}object-stores.json`, parse: ({ raw }) => parseObjectStoresFile({ raw }),
+    validate: ({ exported }) => objectStoreProviderFault({ provider: exported }) ?? exported,
+  })),
   'search-providers': viaDefinition(defineSearchProviderContribution({ filename: `${PREFIX}search-providers.json` })),
   'source-control': sourceControl,
 };
