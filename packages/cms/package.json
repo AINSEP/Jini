@@ -62,7 +62,8 @@
       "./listing": "universal",
       "./media/plugins/document-text/unpdf": "node",
       "./media/plugins/document-text/mammoth": "node",
-      "./forms/portable-validation": "universal"
+      "./forms/portable-validation": "universal",
+      "./core/commands": "universal"
     },
     "isolation": {
       "domains": {
@@ -401,6 +402,11 @@
       "types": "./dist/forms/portable-validation.d.ts",
       "import": "./dist/forms/portable-validation.js",
       "default": "./dist/forms/portable-validation.js"
+    },
+    "./core/commands": {
+      "types": "./dist/core/commands/index.d.ts",
+      "import": "./dist/core/commands/index.js",
+      "default": "./dist/core/commands/index.js"
     }
   },
   "files": [
