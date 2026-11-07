@@ -1,0 +1,14 @@
+{
+  // The neutral-host folder is copied into a packed consumer and run there by Node's own type
+  // stripping, so it imports its siblings by their `.ts` names and resolves packages the way a
+  // consumer does (`nodenext`, public exports only). Type-checked here, never emitted.
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "allowImportingTsExtensions": true,
+    "noEmit": true,
+    "types": ["node"]
+  },
+  "include": ["src/__tests__/neutral-host/**/*.ts"]
+}
