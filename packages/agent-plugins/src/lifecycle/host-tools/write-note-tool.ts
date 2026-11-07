@@ -1,5 +1,5 @@
 import { DEFAULT_PLUGIN_MEMORY_LIMITS } from "../../../core/persistent-state.js";
-import { requireInputRecord, requireString, type AgentToolDefinition, type DerivedRiskByToolId, type ToolHandler } from "@jini-ai/core";
+import { requireInputRecord, requireString, type AgentToolDefinition, type AgentToolSideEffect, type ToolHandler } from "@jini-ai/core";
 import type { AgentPluginHostToolPorts, RequireHostToolPermission } from "./ports.js";
 
 export const WRITE_PLUGIN_NOTE = "agent_plugin_write_note";
@@ -13,7 +13,7 @@ export function pluginNoteToolCatalog(required: { readonly permission: string },
     properties: { pluginId: { type: "string" }, entryPath: { type: "string" }, text: { type: "string", maxLength: 16384 } } },
   }];
 }
-export const pluginNoteRisk: DerivedRiskByToolId = new Map([[WRITE_PLUGIN_NOTE, "mutates-durable-state"]]);
+export const pluginNoteRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([[WRITE_PLUGIN_NOTE, "mutates-durable-state"]]);
 /**
  * The note-saving handler. Notes are context, never a permission grant.
  * @param required.workspaceId The workspace whose plugin state receives the note.

@@ -218,7 +218,7 @@ export async function loadAgentPluginSearchCandidates(ctx: AgentPluginSearchTool
 /** This tool's own risk classification: a pure read of already-installed, already-validated local
  *  content, same as every other read-only tool this domain and its siblings (`plugins_list`,
  *  `search_components`) already declare `"none"` for. */
-export const agentPluginSearchDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToolSideEffect>([
+export const agentPluginSearchDerivedRisk: ReadonlyMap<string, AgentToolSideEffect> = new Map<string, AgentToolSideEffect>([
   [SEARCH_AGENT_PLUGIN_LOCAL_TOOL_ID, "none"],
 ]);
 
