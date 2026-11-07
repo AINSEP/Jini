@@ -53,6 +53,10 @@ Use `pnpm playground:web` for Chrome only, or `pnpm playground:desktop` when the
 already running. The disposable workspaces live in
 [`examples/sample-projects/`](examples/sample-projects/README.md).
 
+## `@agent-note`
+
+`@agent-note` is written for coding agents. It says what fulfills a contract and what the types can't express. Read it before wiring a port.
+
 ## License
 
 Apache-2.0. See [`LICENSE`](LICENSE) and [`NOTICE`](NOTICE).
