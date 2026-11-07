@@ -10,9 +10,11 @@ import type { SurfaceDetail } from './document.js';
  */
 export function accessApprovalDetails(
   { access }: { access: AccessApprovalDescription },
-  _options = {},
+  { omitIds = [] }: { omitIds?: readonly string[] } = {},
 ): readonly SurfaceDetail[] {
-  return snapshotAccessApproval({ access }).resources.flatMap(resource => [
+  // `omitIds` is presentation only: a card that already states a resource's facts in its own details
+  // leaves the repeat out. The snapshot the approval binds to is never filtered.
+  return snapshotAccessApproval({ access }).resources.filter(resource => !omitIds.includes(resource.id)).flatMap(resource => [
     { label: 'Resource', value: resource.label },
     { label: resource.label, previous: resource.previous, value: resource.proposed },
   ]);

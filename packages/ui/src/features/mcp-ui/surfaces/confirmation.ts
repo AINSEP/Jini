@@ -107,6 +107,8 @@ export interface ConfirmationSurfaceSpec {
   readonly choicesParam?: string;
   /** A callout above the buttons — the consequence that is not obvious from the details alone. */
   readonly warning?: string;
+  /** Plain explanatory text above the buttons, in a neutral box; `warning` stays the red callout for real danger. */
+  readonly notice?: string;
   /** Styles the affirmative button as destructive. Affects presentation only; it changes no behavior. */
   readonly danger?: boolean;
   readonly confirm: ConfirmationToolAction;
@@ -241,6 +243,8 @@ function assertChoicesParamFree(spec: ConfirmationSurfaceSpec, required: { choic
 function confirmationBodyHtml(spec: ConfirmationSurfaceSpec, required: { affirmative: ReadonlySet<string> }): string {
   const { affirmative } = required;
   const warning = spec.warning === undefined ? '' : `<p class="mcpui-warning">${escapeHtml(spec.warning)}</p>`;
+  // Styled inline, from the same tokens, so the shared stylesheet (and every pinned card digest) stays as it was.
+  const notice = spec.notice === undefined ? '' : `<p class="mcpui-notice" style="margin:14px 0 0;padding:9px 11px;border:1px solid var(--jini-mcpui-border);border-radius:var(--jini-mcpui-radius-md);background:var(--jini-mcpui-panel);color:var(--jini-mcpui-text)">${escapeHtml(spec.notice)}</p>`;
   return [
     renderSurfaceHeader(
       spec.description === undefined ? { title: spec.title } : { title: spec.title, description: spec.description },
@@ -248,6 +252,7 @@ function confirmationBodyHtml(spec: ConfirmationSurfaceSpec, required: { affirma
     renderDetailList(spec.details ?? []),
     spec.detailDisclosure === undefined ? '' : `<details class="mcpui-detail-disclosure mcpui-technical-details"><summary aria-expanded="false">${escapeHtml(spec.detailDisclosure.label)}</summary>${renderDetailList(spec.detailDisclosure.details)}</details>`,
     renderChoices(spec.choices ?? [], spec.choicesLabel),
+    notice,
     warning,
     // Confirm starts disabled; the script enables it once the dwell has run out.
     renderActions(confirmationActions(spec).map((action) => (affirmative.has(action.id) ? { ...action, disabled: true } : action)), { humanOnly: true }),

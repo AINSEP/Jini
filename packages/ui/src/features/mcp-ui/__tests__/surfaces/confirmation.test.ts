@@ -90,6 +90,12 @@ describe('renderConfirmationDocument', () => {
     expect(surface.disabledActions()).toEqual([false, false, false, false]);
   });
 
+  it('shows a plain notice as neutral text, not as a danger warning', () => {
+    const doc = new DOMParser().parseFromString(renderConfirmationDocument({ title: 'Enable it?', details: [], confirm: DELETE_POST.confirm, notice: 'Only the listed access is turned on.' }), 'text/html');
+    expect(doc.querySelector('.mcpui-notice')?.textContent).toBe('Only the listed access is turned on.');
+    expect(doc.querySelector('.mcpui-warning')).toBeNull();
+  });
+
   it('renders the title, description, every detail, and the warning', () => {
     const { doc } = mountSurface(renderConfirmationDocument(DELETE_POST));
     expect(doc.querySelector('h1')?.textContent).toBe('Delete this post?');
