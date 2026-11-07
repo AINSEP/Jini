@@ -1142,7 +1142,7 @@ describe('useChatPane', () => {
     it('refuses an agent-driven send while a blocker stands, naming the blocker', async () => {
       const transport = createFakeChatTransport();
       const { result } = renderHook(() => useChatPane({ transport, agents: [] }));
-      await expect(result.current.sendPrompt('ship it')).rejects.toThrow('cannot send: no agent is selected');
+      await expect(result.current.sendPrompt('ship it')).rejects.toThrow('cannot send: Choose an agent to send.');
       expect(transport.calls).toHaveLength(0);
     });
 

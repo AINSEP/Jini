@@ -29,13 +29,15 @@ export type AttachmentTrayProps = AttachmentTraySlot & {
   agentHandle?: string | false | undefined;
   /** Blob-URL port for chip thumbnails; defaults to the platform's (see `SentAttachment.hooks.ts`). */
   objectUrls?: ObjectUrlPort | undefined;
+  /** An upload is still running: shows a spinning placeholder chip after the staged ones. */
+  uploading?: boolean | undefined;
 };
 
-export function AttachmentTray({ agentHandle, attachments, onRemove, renderItem, objectUrls }: AttachmentTrayProps) {
+export function AttachmentTray({ agentHandle, attachments, onRemove, renderItem, objectUrls, uploading = false }: AttachmentTrayProps) {
   const base = agentHandle || undefined;
   const t = useT();
   const gallery = useAttachmentGallery({ attachments });
-  if (attachments.length === 0) return null;
+  if (attachments.length === 0 && !uploading) return null;
   return (
     <div className="jini-attachment-tray" data-testid="composer-attachment-tray">
       {attachments.map((a) => (
@@ -52,6 +54,14 @@ export function AttachmentTray({ agentHandle, attachments, onRemove, renderItem,
           </button>
         </div>
       ))}
+      {uploading ? (
+        <div className="jini-attachment-chip is-uploading" data-testid="attachment-uploading-chip">
+          <span className="jini-attachment-chip-icon"><Icon name="spinner" size={15} /></span>
+          <span className="jini-attachment-chip-copy">
+            <span className="jini-attachment-chip-name">{t('Uploading…')}</span>
+          </span>
+        </div>
+      ) : null}
       {gallery.opened ? (
         <AttachmentPreviewModal attachment={gallery.opened} onClose={gallery.close} navigation={gallery.navigation} />
       ) : null}

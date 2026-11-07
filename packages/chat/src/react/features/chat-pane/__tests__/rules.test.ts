@@ -16,6 +16,8 @@ import {
   isChatPaneQueueableBlocker,
   orderChatPaneAgents,
   resolveChatPaneSelection,
+  chatPaneSendBlockerNeedsNotice,
+  describeAttachmentError,
 } from '../rules.js';
 import type { ChatPaneSendability, ChatPaneSendBlocker } from '../rules.js';
 import type { ByokRuntimeSummary, ChatPaneAgent, ChatPaneAgentSelection } from '../types.js';
@@ -556,18 +558,42 @@ describe('describeChatPaneSendBlocker', () => {
       'working-directory-error',
     ];
     expect(blockers.map(describeChatPaneSendBlocker)).toEqual([
-      'no agent is selected',
-      'the selected agent is unavailable',
-      'choose a concrete model before sending',
-      'a run is already streaming — cancel it first',
-      'attachment uploads are still in flight',
-      'the working directory is still being validated',
-      'the working directory is invalid',
-      'the working directory could not be read',
+      'Choose an agent to send.',
+      "The selected agent isn't available.",
+      'Choose a model to send.',
+      'A reply is still running. Stop it first.',
+      'Attachment still uploading.',
+      'Still checking the working directory.',
+      "The working directory isn't valid.",
+      "Couldn't read the working directory.",
     ]);
+
   });
 });
 
+
+describe('chatPaneSendBlockerNeedsNotice', () => {
+  it('shows a notice for blockers with no banner of their own, never twice', () => {
+    const wanted: Array<ChatPaneSendBlocker | null> = ['no-agent-selected', 'agent-unavailable', 'model-unresolved', 'uploads-pending'];
+    const skipped: Array<ChatPaneSendBlocker | null> = [null, 'streaming', 'working-directory-pending', 'working-directory-invalid', 'working-directory-error'];
+    expect(wanted.map((blocker) => chatPaneSendBlockerNeedsNotice({ blocker }))).toEqual([true, true, true, true]);
+    expect(skipped.map((blocker) => chatPaneSendBlockerNeedsNotice({ blocker }))).toEqual([false, false, false, false, false]);
+  });
+});
+
+describe('describeAttachmentError', () => {
+  it('says what failed and what to do, with the redacted reason as pasteable details', () => {
+    const error = new Error('upload to /api/attachments failed with sk-abcdefghijklmnopqrstuvwxyz123456');
+    const { summary, details } = describeAttachmentError({ error });
+    expect(summary).toBe('Attachment upload failed. Remove it and try again.');
+    expect(details).toContain('/api/attachments failed');
+    expect(details).not.toContain('sk-abcdefghijklmnop');
+  });
+
+  it('caps long details so the notice stays short', () => {
+    expect(describeAttachmentError({ error: new Error('x'.repeat(900)) }).details.length).toBeLessThanOrEqual(301);
+  });
+});
 
 describe('model-specific reasoning selection', () => {
   const high = { id: 'high', label: 'High' };

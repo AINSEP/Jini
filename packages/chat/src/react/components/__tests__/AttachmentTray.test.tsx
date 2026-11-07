@@ -22,6 +22,15 @@ describe('AttachmentTray', () => {
     expect(container.querySelector('[data-agent-element]')).toBeNull();
   });
 
+  it('shows a spinning placeholder chip while an upload runs, and drops it when done', () => {
+    const { rerender } = render(<AttachmentTray attachments={[]} onRemove={() => {}} uploading />);
+    const chip = screen.getByTestId('attachment-uploading-chip');
+    expect(chip).toHaveTextContent('Uploading…');
+    expect(chip.querySelector('svg.jini-icon-spin')).not.toBeNull();
+    rerender(<AttachmentTray attachments={[]} onRemove={() => {}} uploading={false} />);
+    expect(screen.queryByTestId('attachment-uploading-chip')).toBeNull();
+  });
+
   it('renders nothing for an empty attachment list', () => {
     const { container } = render(<AttachmentTray attachments={[]} onRemove={() => {}} />);
     expect(container).toBeEmptyDOMElement();
