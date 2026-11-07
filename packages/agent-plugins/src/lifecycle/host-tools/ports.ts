@@ -39,9 +39,27 @@ export interface HostToolPermissions {
   readonly enable: string;
 }
 
-/** Host text. `pluginToolNavigation` ends each plugin tool's description when set. */
+/**
+ * The host's own tools the search tool's description points to, each written as the model should
+ * call it. An absent one drops only its own sentence.
+ * @agent-note Host tool names never live in Jini text; a host passes them here, word for word.
+ */
+export interface HostSearchToolNames {
+  /** Where the full plugin inventory is read: "For the full plugin inventory, use <inventory>." */
+  readonly inventory?: string;
+  /** The call that changes a plugin's enabled status: "<setEnabled> changes enabled status." */
+  readonly setEnabled?: string;
+  /** The call that loads one plugin's guidance: "Once you have the right id, call <loadGuidance> for…" */
+  readonly loadGuidance?: string;
+}
+
+/**
+ * Host text. `pluginToolNavigation` ends each plugin tool's description when set; `searchHostTools`
+ * names the host tools in the search tool's description.
+ */
 export interface HostToolMessages {
   readonly pluginToolNavigation?: string;
+  readonly searchHostTools?: HostSearchToolNames;
 }
 
 /** Every host-tools entry point takes this one bag. */

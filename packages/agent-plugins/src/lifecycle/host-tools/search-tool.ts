@@ -6,7 +6,7 @@ import type { AgentPluginActivations } from "../activation.js";
 import type { InstalledAgentPlugin } from "../types.js";
 import { readInstalledAgentPluginIdentity, type PluginMaturity } from "./identity.js";
 import { summarizeSkillMarkdown, type AgentPluginSkillDetail } from "./skill-tool.js";
-import type { AgentPluginHostToolPorts } from "./ports.js";
+import type { AgentPluginHostToolPorts, HostSearchToolNames, HostToolMessages } from "./ports.js";
 
 /**
  * ===========================================================================================
@@ -95,17 +95,24 @@ export interface AgentPluginSearchToolDeps {
   readonly ports: AgentPluginHostToolPorts;
 }
 
-const SEARCH_AGENT_PLUGIN_LOCAL_DESCRIPTION =
-  "Find an Agent Plugin by the task, capability, skill or MCP server you need. Searches local " +
-  "agent-plugins.org packages (plugin.json, skills and optional mcp.json) in this workspace, including " +
-  "inactive packages. For the full plugin inventory, use content_read.plugin. Empty, omitted or " +
-  "whitespace query returns every local Agent Plugin in plugin-id order, including enabled status. " +
-  "Nonblank queries return ranked matches. " +
-  "Results are byte-bounded: id, pluginId, enabled, maturity when declared, and a short description. " +
-  "plugins_set_enabled with family 'agent-plugin' changes enabled status. " +
-  "An installed, off result is only a catalog entry. Offer its enable card, then read its guidance before connecting or requesting credentials; never guess its sign-in method. " +
-  "Local packages only — never a marketplace or the web. Once you have the right id, call " +
-  "load_agent_plugin({ pluginId }) for that plugin's full guidance. Page with the returned nextOffset as offset, keeping query and limit unchanged.";
+/**
+ * The search tool's description. Host tool names come only from `names` (the host's `messages`);
+ * without them the text stays neutral and drops those sentences.
+ * @complexity O(1).
+ */
+function searchAgentPluginLocalDescription(names: HostSearchToolNames = {}): string {
+  return "Find an Agent Plugin by the task, capability, skill or MCP server you need. Searches local " +
+    "agent-plugins.org packages (plugin.json, skills and optional mcp.json) in this workspace, including " +
+    "inactive packages. " + (names.inventory ? `For the full plugin inventory, use ${names.inventory}. ` : "") + "Empty, omitted or " +
+    "whitespace query returns every local Agent Plugin in plugin-id order, including enabled status. " +
+    "Nonblank queries return ranked matches. " +
+    "Results are byte-bounded: id, pluginId, enabled, maturity when declared, and a short description. " +
+    (names.setEnabled ? `${names.setEnabled} changes enabled status. ` : "") +
+    "An installed, off result is only a catalog entry. Offer its enable card, then read its guidance before connecting or requesting credentials; never guess its sign-in method. " +
+    "Local packages only — never a marketplace or the web. Once you have the right id, " +
+    (names.loadGuidance ? `call ${names.loadGuidance} for that plugin's full guidance. ` : "load that plugin's full guidance. ") +
+    "Page with the returned nextOffset as offset, keeping query and limit unchanged.";
+}
 
 const SEARCH_AGENT_PLUGIN_LOCAL_SCHEMA = {
   type: "object",
@@ -132,11 +139,11 @@ const SEARCH_AGENT_PLUGIN_LOCAL_SCHEMA = {
  *  so `assistant/__tests__/tool-registrations.contracts.test.ts`'s `CATALOGS_BY_DOMAIN` — which
  *  cross-checks every wired domain's published schema/risk/actor-class contract against this SAME
  *  source of truth — can import it the same way it imports every sibling domain's `<domain>AgentToolCatalog`. */
-export function agentPluginSearchToolCatalog(required: { readonly permission: string }, _optional: Record<string, never> = {}): AgentToolDefinition[] {
+export function agentPluginSearchToolCatalog(required: { readonly permission: string }, optional: { readonly messages?: HostToolMessages | undefined } = {}): AgentToolDefinition[] {
   return [
     {
       name: SEARCH_AGENT_PLUGIN_LOCAL_TOOL_ID,
-      description: SEARCH_AGENT_PLUGIN_LOCAL_DESCRIPTION,
+      description: searchAgentPluginLocalDescription(optional.messages?.searchHostTools),
       sideEffects: "none",
       authorization: { permission: required.permission },
       inputSchema: SEARCH_AGENT_PLUGIN_LOCAL_SCHEMA,
@@ -282,7 +289,7 @@ export function buildAgentPluginSearchRegistrations(routeDeps: AgentPluginSearch
   return buildDomainRegistrations({ ...(routeDeps.ports.metadata ? { metadata: routeDeps.ports.metadata } : {}),
     domain: "agent-plugin-search",
     catalogModule: "lifecycle/host-tools/search-tool.ts",
-    catalog: indexCatalogById({ catalog: agentPluginSearchToolCatalog({ permission: routeDeps.ports.permissions.use }) }),
+    catalog: indexCatalogById({ catalog: agentPluginSearchToolCatalog({ permission: routeDeps.ports.permissions.use }, { messages: routeDeps.ports.messages }) }),
     handlers,
     derivedRisk: agentPluginSearchDerivedRisk,
   });
