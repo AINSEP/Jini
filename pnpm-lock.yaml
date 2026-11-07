@@ -163,6 +163,31 @@ importers:
         specifier: ^2.1.9
         version: 2.1.9(@types/node@24.13.3)(jsdom@26.1.0)(lightningcss@1.33.0)(sass@1.51.0)
 
+  examples/notes-app:
+    dependencies:
+      '@jini-ai/cms':
+        specifier: workspace:*
+        version: link:../../packages/cms
+      '@jini-ai/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@jini-ai/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      better-sqlite3:
+        specifier: ^13.0.0
+        version: 13.0.3
+    devDependencies:
+      '@types/better-sqlite3':
+        specifier: ^7.6.13
+        version: 7.6.13
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.13.3
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+
   examples/reference-desktop:
     dependencies:
       '@jini-ai/desktop-host':
