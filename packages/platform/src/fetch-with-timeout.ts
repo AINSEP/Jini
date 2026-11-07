@@ -56,13 +56,12 @@
  * caller-supplied `init.signal` — is what ended the call, so a caller can tell "this took too long"
  * apart from "I cancelled it myself" without string-matching an error message. */
 export class FetchTimeoutError extends Error {
-  readonly url: string;
   readonly timeoutMs: number;
 
   constructor(url: string, timeoutMs: number) {
-    super(`fetch timed out after ${timeoutMs}ms: ${url}`);
+    // Error objects reach logs; the origin is enough to identify the server.
+    super(`fetch timed out after ${timeoutMs}ms: ${URL.canParse(url) ? new URL(url).origin : "the requested server"}`);
     this.name = "FetchTimeoutError";
-    this.url = url;
     this.timeoutMs = timeoutMs;
   }
 }

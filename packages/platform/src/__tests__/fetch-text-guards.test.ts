@@ -103,7 +103,7 @@ describe("fetchTextWithTimeout and injected legacy fetch", () => {
     const fetch = timedFetch(phase);
     const result = fetchTextWithTimeout({ url: "https://example.test", timeoutMs: 100 }, { fetch }).catch(error => error);
     await vi.advanceTimersByTimeAsync(100);
-    expect(await result).toMatchObject({ name: "FetchTimeoutError", url: "https://example.test", timeoutMs: 100 });
+    expect(await result).toMatchObject({ name: "FetchTimeoutError", message: "fetch timed out after 100ms: https://example.test", timeoutMs: 100 });
     expect(await result).toBeInstanceOf(FetchTimeoutError);
   });
 

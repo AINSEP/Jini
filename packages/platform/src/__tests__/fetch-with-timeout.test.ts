@@ -1,3 +1,4 @@
+import { inspect } from 'node:util';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { FETCH_TIMEOUT_MS, FetchTimeoutError, fetchWithTimeout } from '../fetch-with-timeout.js';
@@ -44,10 +45,10 @@ describe('fetchWithTimeout', () => {
 
     const promise = fetchWithTimeout('https://example.test/slow', {}, { timeoutMs: 20 });
     await expect(promise).rejects.toBeInstanceOf(FetchTimeoutError);
-    await expect(promise).rejects.toThrow('fetch timed out after 20ms: https://example.test/slow');
+    await expect(promise).rejects.toThrow('fetch timed out after 20ms: https://example.test');
   });
 
-  it('the thrown FetchTimeoutError carries the url and timeoutMs for a caller to log/branch on', async () => {
+  it('the thrown FetchTimeoutError identifies the origin and wait without retaining the full address', async () => {
     stubHangingFetch();
 
     try {
@@ -56,7 +57,8 @@ describe('fetchWithTimeout', () => {
     } catch (error) {
       expect(error).toBeInstanceOf(FetchTimeoutError);
       const timeoutError = error as FetchTimeoutError;
-      expect(timeoutError.url).toBe('https://example.test/slow');
+      expect(timeoutError.message).toBe('fetch timed out after 15ms: https://example.test');
+      expect(timeoutError).not.toHaveProperty('url');
       expect(timeoutError.timeoutMs).toBe(15);
     }
   });
@@ -130,4 +132,21 @@ describe('FETCH_TIMEOUT_MS', () => {
     expect(FETCH_TIMEOUT_MS.UPLOAD).toBeGreaterThan(FETCH_TIMEOUT_MS.DEPLOY);
     expect(FETCH_TIMEOUT_MS.GENERATE).toBeGreaterThan(FETCH_TIMEOUT_MS.UPLOAD);
   });
+});
+
+
+it.each([
+  ['https://example.test/share/sample-share-code/archive.tovu.zip?download=sample-query#section', 'https://example.test'],
+  ['https://name:sample-password@example.test:8443/private/file?key=sample-query', 'https://example.test:8443'],
+  ['https://[2001:db8::1]:8443/private?key=sample-query', 'https://[2001:db8::1]:8443'],
+  ['/private/file?key=sample-query', 'the requested server'],
+  ['not an address sample-query', 'the requested server'],
+])('timeout diagnostics keep only the origin for %s', (url, origin) => {
+  const error = new FetchTimeoutError(url, 123);
+  expect(error.message).toBe(`fetch timed out after 123ms: ${origin}`);
+  expect(error.timeoutMs).toBe(123);
+  expect(error).not.toHaveProperty('url');
+  for (const text of [String(error), inspect(error), JSON.stringify(error)]) {
+    for (const detail of ['sample-share-code', 'sample-query', 'sample-password', '/private']) expect(text).not.toContain(detail);
+  }
 });
