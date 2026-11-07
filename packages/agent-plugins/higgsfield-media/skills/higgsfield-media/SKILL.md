@@ -182,7 +182,9 @@ be in **both** lists. Granting only the first one produces a refusal, and only a
    withheld tool and a nonexistent tool look identical.
 
 2. **Therefore: never explain an absent `mcp__higgsfield__*` tool by guessing.** This is the
-   failure this plugin exists to prevent. An absent tool alone does not establish the cause;
+   failure this plugin exists to prevent. Asked why it could not generate an image, an assistant
+   once invented a plausible, wrong cause, and two sessions were lost before someone read the
+   log. An absent tool alone does not establish the cause;
    inspect the host evidence before offering a diagnosis. **Report what the host's admissions and refusal notices say** (the host guidance
    names where they appear). **If you have nothing, say you have nothing and send the operator to
    the host's connection settings.**

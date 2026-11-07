@@ -620,7 +620,7 @@
     "expectedDigests": {
       "mcp.json": "sha256-98af9b33fa9274d6a4553c5e7f78dd070142ec35dc5dff69c22a93c757118d5a",
       "plugin.json": "sha256-deefabf2df17c0db58bee19e473086ce5d9f57995a1f0ba4b2ff6cffbecc6899",
-      "skills/higgsfield-media/SKILL.md": "sha256-3e6dc1ed84a0a4e9aee5fae50dbaa08e9d06ad9a933258f8d68405c0031b7771",
+      "skills/higgsfield-media/SKILL.md": "sha256-dfd0d9fc57bb3a64ed5c87c06ce1a63a2a428b7d5b5eea685224d71fe16b1117",
       "skills/higgsfield-media/references/failure-modes.md": "sha256-3e5d603951671091240159c416038972bf007d73df7f8076746434025e2f468d",
       "skills/higgsfield-media/references/models-and-plan-gates.md": "sha256-18466496f09b341d122d1053491c20984934fe5ea1d3dff052dbb51d64fe2adb"
     }
