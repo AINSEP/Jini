@@ -1222,12 +1222,36 @@ importers:
         specifier: workspace:^
         version: link:../sidecar
     devDependencies:
+      '@jini-ai/agent-plugins':
+        specifier: workspace:*
+        version: link:../agent-plugins
       '@jini-ai/chat':
         specifier: workspace:*
         version: link:../chat
+      '@jini-ai/devops':
+        specifier: workspace:*
+        version: link:../devops
+      '@jini-ai/integrations':
+        specifier: workspace:*
+        version: link:../integrations
+      '@jini-ai/mcp':
+        specifier: workspace:*
+        version: link:../mcp
+      '@jini-ai/oauth':
+        specifier: workspace:*
+        version: link:../oauth
       '@jini-ai/platform':
         specifier: workspace:*
         version: link:../platform
+      '@jini-ai/plugins':
+        specifier: workspace:*
+        version: link:../plugins
+      '@jini-ai/search':
+        specifier: workspace:*
+        version: link:../search
+      '@jini-ai/ui':
+        specifier: workspace:*
+        version: link:../ui
       '@types/better-sqlite3':
         specifier: ^7.6.11
         version: 7.6.13
@@ -1451,6 +1475,9 @@ importers:
       '@jini-ai/cms':
         specifier: workspace:*
         version: link:../cms
+      '@jini-ai/oauth':
+        specifier: workspace:*
+        version: link:../oauth
       '@jini-ai/ui':
         specifier: workspace:*
         version: link:../ui

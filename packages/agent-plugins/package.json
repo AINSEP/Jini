@@ -18,6 +18,8 @@
       "./lifecycle/node": "node",
       "./lifecycle/yauzl": "node",
       "./lifecycle/tools": "node",
+      "./lifecycle/host-tools": "node",
+      "./lifecycle/mail": "node",
       "./manifest": "universal",
       "./persistent-state": "node",
       "./folder-zip": "universal",
@@ -141,6 +143,16 @@
       "types": "./dist/lifecycle/tools/index.d.ts",
       "import": "./dist/lifecycle/tools/index.js",
       "default": "./dist/lifecycle/tools/index.js"
+    },
+    "./lifecycle/host-tools": {
+      "types": "./dist/lifecycle/host-tools/index.d.ts",
+      "import": "./dist/lifecycle/host-tools/index.js",
+      "default": "./dist/lifecycle/host-tools/index.js"
+    },
+    "./lifecycle/mail": {
+      "types": "./dist/lifecycle/mail/index.d.ts",
+      "import": "./dist/lifecycle/mail/index.js",
+      "default": "./dist/lifecycle/mail/index.js"
     },
     "./manifest": {
       "types": "./dist/lifecycle/manifest.d.ts",

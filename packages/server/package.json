@@ -21,7 +21,13 @@
       "better-sqlite3": "opt-in: sqlite storage — SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
       "@jini-ai/chat": "opt-in: chat host assembly; import @jini-ai/server/storage/legacy/sqlite — Chat host assembly could not load @jini-ai/chat. Install @jini-ai/chat to enable this feature, or check its installed version and native binaries.",
       "@jini-ai/platform": "opt-in: platform-backed adapters; import @jini-ai/server/owner-store — Platform-backed adapters could not load @jini-ai/platform. Install @jini-ai/platform to enable this feature, or check its installed version and native binaries.",
-      "kysely": "opt-in: sql storage adapters; import @jini-ai/server/owner-store — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries."
+      "kysely": "opt-in: sql storage adapters; import @jini-ai/server/owner-store — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries.",
+      "@jini-ai/agent-plugins": "opt-in: agent plugin host; import @jini-ai/server/agent-plugin-host — Agent plugin host could not load @jini-ai/agent-plugins. Install @jini-ai/agent-plugins to enable this feature, or check its installed version and native binaries.",
+      "@jini-ai/integrations": "opt-in: agent plugin api connections; import @jini-ai/server/agent-plugin-host — Agent plugin API connections could not load @jini-ai/integrations. Install @jini-ai/integrations to enable this feature, or check its installed version and native binaries.",
+      "@jini-ai/mcp": "opt-in: hosted mcp servers; import @jini-ai/server/hosted-mcp — Hosted MCP servers could not load @jini-ai/mcp. Install @jini-ai/mcp to enable this feature, or check its installed version and native binaries.",
+      "@jini-ai/oauth": "opt-in: agent plugin and mcp sign-in; import @jini-ai/server/agent-plugin-host or @jini-ai/server/hosted-mcp — Agent plugin and MCP sign-in could not load @jini-ai/oauth. Install @jini-ai/oauth to enable this feature, or check its installed version and native binaries.",
+      "@jini-ai/plugins": "opt-in: agent plugin executable tools; import @jini-ai/server/agent-plugin-host — Agent plugin executable tools could not load @jini-ai/plugins. Install @jini-ai/plugins to enable this feature, or check its installed version and native binaries.",
+      "@jini-ai/ui": "opt-in: agent plugin cards; import @jini-ai/server/agent-plugin-host — Agent plugin cards could not load @jini-ai/ui. Install @jini-ai/ui to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",
@@ -52,6 +58,16 @@
       "types": "./dist/owner-store/index.d.ts",
       "import": "./dist/owner-store/index.js",
       "default": "./dist/owner-store/index.js"
+    },
+    "./agent-plugin-host": {
+      "types": "./dist/agent-plugin-host/index.d.ts",
+      "import": "./dist/agent-plugin-host/index.js",
+      "default": "./dist/agent-plugin-host/index.js"
+    },
+    "./hosted-mcp": {
+      "types": "./dist/hosted-mcp/index.d.ts",
+      "import": "./dist/hosted-mcp/index.js",
+      "default": "./dist/hosted-mcp/index.js"
     }
   },
   "files": [
@@ -91,7 +107,15 @@
     "@jini-ai/chat": "workspace:*",
     "@jini-ai/registry": "workspace:*",
     "@jini-ai/platform": "workspace:*",
-    "kysely": "^0.29.6"
+    "kysely": "^0.29.6",
+    "@jini-ai/agent-plugins": "workspace:*",
+    "@jini-ai/integrations": "workspace:*",
+    "@jini-ai/mcp": "workspace:*",
+    "@jini-ai/oauth": "workspace:*",
+    "@jini-ai/plugins": "workspace:*",
+    "@jini-ai/ui": "workspace:*",
+    "@jini-ai/search": "workspace:*",
+    "@jini-ai/devops": "workspace:*"
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^",
@@ -107,7 +131,13 @@
     "express": "^4.21.0 || ^5.0.0",
     "@jini-ai/chat": "^0.6.10",
     "@jini-ai/platform": "^0.6.10",
-    "kysely": "^0.29.6"
+    "kysely": "^0.29.6",
+    "@jini-ai/agent-plugins": "^0.6.10",
+    "@jini-ai/integrations": "^0.6.10",
+    "@jini-ai/mcp": "^0.6.10",
+    "@jini-ai/oauth": "^0.6.10",
+    "@jini-ai/plugins": "^0.6.10",
+    "@jini-ai/ui": "^0.6.10"
   },
   "sideEffects": false,
   "peerDependenciesMeta": {
@@ -121,6 +151,24 @@
       "optional": true
     },
     "kysely": {
+      "optional": true
+    },
+    "@jini-ai/agent-plugins": {
+      "optional": true
+    },
+    "@jini-ai/integrations": {
+      "optional": true
+    },
+    "@jini-ai/mcp": {
+      "optional": true
+    },
+    "@jini-ai/oauth": {
+      "optional": true
+    },
+    "@jini-ai/plugins": {
+      "optional": true
+    },
+    "@jini-ai/ui": {
       "optional": true
     }
   }

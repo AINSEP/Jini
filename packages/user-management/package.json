@@ -30,7 +30,8 @@
       "@jini-ai/agentic": "opt-in: agent-aware ui and protocols; import @jini-ai/user-management/react — Agent-aware UI and protocols could not load @jini-ai/agentic. Install @jini-ai/agentic to enable this feature, or check its installed version and native binaries.",
       "@jini-ai/ui-kit": "opt-in: ui kit integrations; import @jini-ai/user-management/react — UI kit integrations could not load @jini-ai/ui-kit. Install @jini-ai/ui-kit to enable this feature, or check its installed version and native binaries.",
       "react": "opt-in: react user-management ui; import @jini-ai/user-management/react — React user-management UI could not load react. Install react to enable this feature, or check its installed version.",
-      "react-dom": "opt-in: react user-management ui; import @jini-ai/user-management/react — React user-management UI could not load react-dom. Install react-dom to enable this feature, or check its installed version."
+      "react-dom": "opt-in: react user-management ui; import @jini-ai/user-management/react — React user-management UI could not load react-dom. Install react-dom to enable this feature, or check its installed version.",
+      "@jini-ai/oauth": "opt-in: member login types; import @jini-ai/user-management/server — Member login could not load @jini-ai/oauth. Install @jini-ai/oauth to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",
@@ -113,7 +114,8 @@
     "@jini-ai/ui-kit": "^0.6.10",
     "argon2": "^0.44.0",
     "react": "^18.3.0 || ^19.0.0",
-    "react-dom": "^18.3.0 || ^19.0.0"
+    "react-dom": "^18.3.0 || ^19.0.0",
+    "@jini-ai/oauth": "^0.6.10"
   },
   "devDependencies": {
     "@jini-ai/admin": "workspace:*",
@@ -133,7 +135,8 @@
     "react": "^19.2.0",
     "react-dom": "^19.2.0",
     "typescript": "^5.6.0",
-    "vitest": "^2.1.0"
+    "vitest": "^2.1.0",
+    "@jini-ai/oauth": "workspace:*"
   },
   "peerDependenciesMeta": {
     "argon2": {
@@ -155,6 +158,9 @@
       "optional": true
     },
     "react-dom": {
+      "optional": true
+    },
+    "@jini-ai/oauth": {
       "optional": true
     }
   }
