@@ -906,6 +906,11 @@ async function finishCommittedMigration(
  * `db` is the storage kernel (or a SQLite connection, bridged to its kernel). `dbPath` names the
  * SQLite file behind it, for the snapshot; it is ignored for a Postgres/PGlite kernel.
  * `checkHeadroom` replaces only disk measurement; the existing disk-headroom adapter is the default.
+ *
+ * @agent-note `dbPath` must name the file behind `db`. `":memory:"`, `""` or a memory URI for a
+ * file-backed database skips the snapshot, journal and headroom check with no error. Another
+ * file's path still snapshots `db`, but beside that file, and sizes headroom from that file.
+ * `decl.provenance` is checked against the stored identity row; see {@link PluginProvenance}.
  */
 export async function declareDataModule(
   required: { db: PluginStore; dbPath: string; decl: DataModuleDecl },

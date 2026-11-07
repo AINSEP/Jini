@@ -37,6 +37,10 @@ const JOURNAL_TABLE = "_plugin_migration_journal";
  *
  * @param required.restoreSnapshots SQLite only: close the connection under `store`, then restore
  *   the entries' snapshots (normally {@link restoreSqliteSnapshots}). `store` is unusable after it.
+ *
+ * @agent-note Run this right after opening the database, before anything else reads or migrates
+ * it. On SQLite, `restoreSnapshots` must close the connection under `store` before it copies any
+ * snapshot, restore over the same file the declares named as `dbPath`, and the caller reopens after.
  */
 export async function recoverIncompleteDataModuleMigrations(required: {
   store: PluginStore;
