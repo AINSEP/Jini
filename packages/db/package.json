@@ -133,6 +133,11 @@
       "types": "./dist/secrets-vault/index.d.ts",
       "import": "./dist/secrets-vault/index.js",
       "default": "./dist/secrets-vault/index.js"
+    },
+    "./data-modules": {
+      "types": "./dist/data-modules/index.d.ts",
+      "import": "./dist/data-modules/index.js",
+      "default": "./dist/data-modules/index.js"
     }
   },
   "typesVersions": {
@@ -190,6 +195,9 @@
       ],
       "secrets-vault": [
         "./dist/secrets-vault/index.d.ts"
+      ],
+      "data-modules": [
+        "./dist/data-modules/index.d.ts"
       ]
     }
   },
