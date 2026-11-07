@@ -42,6 +42,7 @@ export { createContributionRegistry } from './contribution-registry.js';
 export type { ContributionRegistry, ToolContributor, DerivedToolContributor, ToolContributions } from './contribution-registry.js';
 export * from './provider-registry.js';
 export * from './object-store.js';
+export * from './server.js';
 export * from './naming.js';
 
 export type { AgentToolSideEffect, AgentToolActorClassRule, AgentToolDefinition } from './agent-tools.js';
