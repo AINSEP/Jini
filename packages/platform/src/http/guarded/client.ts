@@ -120,7 +120,7 @@ function capBody(bodyText: string, maxBytes: number): string {
 // so a complete binary body can have a decoded text representation that crosses the cap.
 // The byte-specific flag prevents falsely treating that complete file as corrupt; the coarse
 // bodyTruncated flag remains the OR for callers that consume text.
-function capResponse(response: HttpResponse, maxBytes: number, bodyAs: HttpRequest["bodyAs"]): HttpResponse {
+function capResponse({ response, maxBytes, bodyAs }: { response: HttpResponse; maxBytes: number; bodyAs: HttpRequest["bodyAs"] }): HttpResponse {
   const bodyText = bodyAs === "bytes" ? "" : capBody(response.bodyText, maxBytes);
   const bytes = response.bodyBytes;
   const bytesOverCap = bytes !== undefined && bytes.byteLength > maxBytes;
@@ -176,7 +176,7 @@ async function sendOneHop({ hop, request, url }: { hop: HopContext; request: Htt
 
   // Record the normalized URL actually resolved and pinned, not the caller's original spelling.
   // A followed redirect returns the deeper hop's response, including that hop's finalUrl.
-  const cappedResponse: HttpResponse = { ...capResponse(response, effectiveCap, request.bodyAs), finalUrl: url.href };
+  const cappedResponse: HttpResponse = { ...capResponse({ response, maxBytes: effectiveCap, bodyAs: request.bodyAs }), finalUrl: url.href };
 
   // A refused redirect is a policy decision like a refused address, so it carries the same type.
   // The text names no Location target, which may be private, so both messages can share it.
