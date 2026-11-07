@@ -4,7 +4,7 @@ import type { ChatMessage } from '@jini-ai/chat';
 import { isTerminalRunStatus } from '../../../core/messages.js';
 import { acceptedInputEvent } from '../../../core/accepted-input.js';
 import { isAwaitingAnswer } from '../../../core/run-activity.js';
-import type { UserTextRedaction } from '../../../core/user-text-redaction.js';
+import { redactUserText, type UserTextRedaction } from '../../../core/user-text-redaction.js';
 
 import type { ByokRuntimeSummary, ChatPaneAgent, ChatPaneAgentSelection, TypedAnswerNotice } from './types.js';
 
@@ -198,15 +198,41 @@ function findReadinessSendBlocker(state: ChatPaneSendability): ChatPaneSendBlock
 }
 
 const SEND_BLOCKER_MESSAGES: Record<ChatPaneSendBlocker, string> = {
-  'no-agent-selected': 'no agent is selected',
-  'agent-unavailable': 'the selected agent is unavailable',
-  'model-unresolved': 'choose a concrete model before sending',
-  streaming: 'a run is already streaming — cancel it first',
-  'uploads-pending': 'attachment uploads are still in flight',
-  'working-directory-pending': 'the working directory is still being validated',
-  'working-directory-invalid': 'the working directory is invalid',
-  'working-directory-error': 'the working directory could not be read',
+  'no-agent-selected': 'Choose an agent to send.',
+  'agent-unavailable': "The selected agent isn't available.",
+  'model-unresolved': 'Choose a model to send.',
+  streaming: 'A reply is still running. Stop it first.',
+  'uploads-pending': 'Attachment still uploading.',
+  'working-directory-pending': 'Still checking the working directory.',
+  'working-directory-invalid': "The working directory isn't valid.",
+  'working-directory-error': "Couldn't read the working directory.",
 };
+
+/**
+ * Whether a blocker needs its own notice above the composer. `streaming` is handled by Send turning
+ * into Stop, and the working-directory ones already have a banner of their own
+ * (`ChatPaneWorkingDirectoryStatus` and the working-directory error banner), so repeating them would
+ * show the same sentence twice. Their text still reaches Send's tooltip.
+ */
+export function chatPaneSendBlockerNeedsNotice({ blocker }: { blocker: ChatPaneSendBlocker | null }): boolean {
+  return blocker !== null && blocker !== 'streaming' && !blocker.startsWith('working-directory-');
+}
+
+const ATTACHMENT_DETAILS_MAX = 300;
+
+/**
+ * Plain words for a failed attachment upload: what happened and what to do, plus the reason with
+ * credential shapes removed, short enough to paste into a bug report.
+ *
+ * @complexity O(n) in the error message length.
+ */
+export function describeAttachmentError({ error }: { error: Error }): { summary: string; details: string } {
+  const redacted = redactUserText({ text: error.message }).text.trim();
+  return {
+    summary: 'Attachment upload failed. Remove it and try again.',
+    details: redacted.length > ATTACHMENT_DETAILS_MAX ? `${redacted.slice(0, ATTACHMENT_DETAILS_MAX)}…` : redacted,
+  };
+}
 
 /** Human/model-readable reason for a blocker, so a refused agent send explains itself. */
 export function describeChatPaneSendBlocker(blocker: ChatPaneSendBlocker): string {

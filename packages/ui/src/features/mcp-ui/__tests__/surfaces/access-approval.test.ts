@@ -45,3 +45,8 @@ it('names the resource without displaying opaque target ids or revisions', () =>
   const resource = access().resources[0]!;
   expect(resource.scope).toEqual({ personId: 'person', siteId: 'site', chatId: 'chat' });
 });
+
+it('leaves out the rows of a resource the card already states in its own details, and keeps the rest', () => {
+  const two = { resources: [...access().resources, { ...access().resources[0]!, id: 'other', label: 'Other' }] };
+  expect(accessApprovalDetails({ access: two }, { omitIds: ['mail'] }).map(row => row.label)).toEqual(['Resource', 'Other']);
+});

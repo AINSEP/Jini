@@ -44,6 +44,24 @@ describe('composer attachment tray rows', () => {
   });
 });
 
+// Regression: the tray shrank to its content, then the half-tray chip cap cut a lone chip to half its
+// width, squeezing the thumbnail, name and remove button into a sliver.
+describe('composer attachment tray width', () => {
+  it('grows the tray to its row so the chip cap resolves against the real width', () => {
+    render(
+      <div className="jini-chat-pane">
+        <style>{CHAT_PANE_STYLES}</style>
+        <div className="jini-composer-attachments">
+          <AttachmentTray attachments={attachments} onRemove={() => {}} />
+        </div>
+      </div>,
+    );
+    const tray = screen.getByTestId('composer-attachment-tray');
+    expect(getComputedStyle(tray).flexGrow).toBe('1');
+    expect(getComputedStyle(tray).minWidth).toBe('0');
+  });
+});
+
 // Regression: on a phone the staged chip's remove "x" was a 25px target (admin rule: >=44px).
 describe('composer attachment remove tap area', () => {
   /** Declarations of `selector` inside the pane styles' phone/touch media block. */

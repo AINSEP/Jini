@@ -388,6 +388,13 @@ export const CHAT_PANE_STYLES = `
   border-radius: 8px;
   font-size: 12px;
 }
+.jini-chat-pane__error-details {
+  margin-top: 4px;
+  font-size: 11px;
+  opacity: .85;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
 .jini-chat-pane__error-action {
   padding: 0;
   color: inherit;
@@ -415,6 +422,15 @@ export const CHAT_PANE_STYLES = `
   gap: 10px;
 }
 .jini-chat-pane__status--dismissible > button { flex: none; }
+/* Why Send is off (still uploading, no model…). Above the composer with the other notices, not in its
+   footer row, where it crowded the folder and model buttons. The spinner is the same icon the
+   uploading chip uses. */
+.jini-chat-pane__blocker {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+}
 .jini-chat-pane__drop-target {
   position: relative;
   margin: -8px -8px -8px;
@@ -548,6 +564,11 @@ export const CHAT_PANE_STYLES = `
   scrollbar-width: thin;
 }
 .jini-chat-pane .jini-attachment-tray:empty { display: none; }
+/* Why: the tray is a flex item of '.jini-composer-attachments' and sized to its content, but each chip
+   is capped at half the tray (below). Measured at the tray's own content width, that cap cut a lone
+   chip to half its natural width and squeezed the thumbnail, name and remove button together. Growing
+   the tray to the row first makes the cap resolve against the real width. */
+.jini-chat-pane .jini-composer-attachments > .jini-attachment-tray { flex: 1 1 auto; min-width: 0; }
 /*
  * The sanctioned reuse path (see '.jini-composer-leading''s own doc above and 'AttachmentTray''s
  * module doc): a host nesting Jini's own tray/chip classes inside the pinned-context zone to match
@@ -943,15 +964,6 @@ export const CHAT_PANE_STYLES = `
      wrapper onto Send/Stop; min-content still lets the model label truncate at its own floor. */
   min-width: min-content;
   margin-left: auto;
-}
-/* Basis 0: the hint takes only the room the runtime row leaves and wraps into it, instead of
-   claiming its one-line width and squeezing the picker under its icon/effort labels. */
-.jini-chat-pane .jini-composer-send-blocker {
-  flex: 1 1 0;
-  align-self: center;
-  margin-right: 8px;
-  color: var(--jini-chat-muted);
-  font-size: 12px;
 }
 /* Picker, plus menu and send: one group at the trailing edge that wraps as a unit. Basis 0 with an
    automatic minimum, like the leading slot: the line break is decided on the group's min-content

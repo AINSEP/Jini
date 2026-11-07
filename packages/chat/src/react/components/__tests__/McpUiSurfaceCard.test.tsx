@@ -211,6 +211,19 @@ describe('McpUiSurfaceCard', () => {
       expect(getByRole('status').textContent).toBe('Answered');
     });
 
+    it('says "Cancelled" for a card the person cancelled, never "Answered"', () => {
+      const fake = fakeClock(DEADLINE + 5_000);
+      const { getByRole } = render(
+        <McpUiSurfaceCard
+          {...BASE_PROPS}
+          events={approval}
+          call={{ ...approveCall, result: { content: '{"cancelled":true,"note":"The user cancelled. Nothing was changed."}', isError: false } }}
+          expiryClock={fake.clock}
+        />,
+      );
+      expect(getByRole('status').textContent).toBe('Cancelled');
+    });
+
     it('shows no countdown for a card without a deadline', async () => {
       const fake = fakeClock(DEADLINE);
       const { container, queryByRole } = render(

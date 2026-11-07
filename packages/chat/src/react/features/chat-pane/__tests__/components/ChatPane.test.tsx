@@ -54,16 +54,35 @@ describe('ChatPane', () => {
     act(() => transport.finish([]));
   });
 
-  it('exposes the blocker in the Send title and footer when the agent becomes unavailable', () => {
+  it('keeps the blocker in the Send title, not the footer, when the agent becomes unavailable', () => {
     const transport = createFakeChatTransport();
     const { rerender } = render(<ChatPane transport={transport} agents={agents} />);
     fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Keep my draft' } });
     rerender(<ChatPane transport={transport} agents={[{ ...agents[0]!, available: false }]} />);
     expect(screen.getByRole('textbox')).toHaveValue('Keep my draft');
     expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
-    expect(screen.getByRole('button', { name: 'Send' })).toHaveAttribute('title', 'no agent is selected');
-    expect(screen.getByText('no agent is selected').closest('.jini-composer-footer')).not.toBeNull();
+    expect(screen.getByRole('button', { name: 'Send' })).toHaveAttribute('title', 'Choose an agent to send.');
+    // The pane's own "no usable CLI" banner already says it, so there is no second notice and nothing in the footer.
+    expect(screen.getByText('No usable CLI is selected.')).toBeInTheDocument();
+    expect(screen.queryByText('Choose an agent to send.')).toBeNull();
     expect(transport.calls).toHaveLength(0);
+  });
+
+  it('shows an uploading notice and spinning chip, not footer text, until the upload finishes', async () => {
+    const transport = createFakeChatTransport();
+    let finish: (value: Array<{ path: string; name: string; kind: 'file' }>) => void = () => {};
+    const uploadAttachments = vi.fn(() => new Promise<Array<{ path: string; name: string; kind: 'file' }>>((resolve) => { finish = resolve; }));
+    render(<ChatPane transport={transport} agents={agents} uploadAttachments={uploadAttachments} />);
+    fireEvent.change(screen.getByRole('textbox'), { target: { value: 'with a file' } });
+    await userEvent.upload(screen.getByLabelText('Attach files', { selector: 'input' }), new File(['x'], 'a.txt', { type: 'text/plain' }));
+    const notice = await screen.findByText('Attachment still uploading.');
+    expect(notice.closest('.jini-chat-pane__blocker')!.querySelector('svg.jini-icon-spin')).not.toBeNull();
+    expect(notice.closest('.jini-composer-footer')).toBeNull();
+    expect(screen.getByTestId('attachment-uploading-chip')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Send' })).toBeDisabled();
+    await act(async () => finish([{ path: '/a.txt', name: 'a.txt', kind: 'file' }]));
+    await waitFor(() => expect(screen.queryByText('Attachment still uploading.')).toBeNull());
+    expect(screen.queryByTestId('attachment-uploading-chip')).toBeNull();
   });
 
   it('excludes workspace controls on the embed surface while retaining draft and send behavior', async () => {
@@ -441,7 +460,8 @@ describe('ChatPane', () => {
       screen.getByLabelText('Attach files', { selector: 'input' }),
       new File(['content'], 'notes.txt', { type: 'text/plain' }),
     );
-    expect(await screen.findByText('attachment upload unavailable')).toBeInTheDocument();
+    expect(await screen.findByText('Attachment upload failed. Remove it and try again.')).toBeInTheDocument();
+    expect(screen.getByText(/attachment upload unavailable/)).toBeInTheDocument();
 
     await userEvent.click(screen.getByTestId('working-dir-trigger'));
     expect(await screen.findByText('recent folders unavailable')).toBeInTheDocument();

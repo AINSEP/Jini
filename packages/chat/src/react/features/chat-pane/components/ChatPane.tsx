@@ -7,6 +7,7 @@ import { WorkingDirPicker, useAgentHandle } from '@jini-ai/ui';
 
 import { Composer } from '../../../components/Composer.js';
 import { appendComposerDiscovery } from '../../../components/composer-discovery.js';
+import { Icon } from '../../../components/Icon.js';
 import { MessageList } from '../../../components/MessageList.js';
 import { useT } from '../../../hooks/context.js';
 import type { ComposerSlots } from '../../../slots.js';
@@ -19,7 +20,7 @@ import type {
   ChatPaneWorkingDirectoryAccess,
   TypedAnswerNotice,
 } from '../types.js';
-import { describeChatPaneSendBlocker, describeTypedAnswerNotice, isChatPaneApiModeConfigured, isChatPaneFileDropEnabled } from '../rules.js';
+import { chatPaneSendBlockerNeedsNotice, describeAttachmentError, describeChatPaneSendBlocker, describeTypedAnswerNotice, isChatPaneApiModeConfigured, isChatPaneFileDropEnabled } from '../rules.js';
 import { useChatPane, type UseChatPaneResult } from '../hooks/useChatPane.hooks.js';
 import { useChatPaneAgentControl } from '../hooks/useChatPaneAgentControl.hooks.js';
 import { useChatPaneComposerPlaceholder } from '../hooks/useChatPaneComposerPlaceholder.hooks.js';
@@ -275,6 +276,17 @@ function ChatPaneTypedAnswerNotice({
   );
 }
 
+/** A failed upload, in plain words, with redacted details a person can copy into a report. */
+function ChatPaneAttachmentError({ error, t }: { error: Error; t: (key: string) => string }): ReactNode {
+  const { summary, details } = describeAttachmentError({ error });
+  return (
+    <div className="jini-chat-pane__error" role="alert">
+      <div>{t(summary)}</div>
+      {details ? <div className="jini-chat-pane__error-details">{t('Details:')} {details}</div> : null}
+    </div>
+  );
+}
+
 /** A send the server never accepted. Its text went back into the composer if that was still empty;
  * Retry sends it again either way (see `useChatPane`'s `retrySend`). */
 function ChatPaneSendError({ sendError, onRetry, t }: { sendError: Error | null; onRetry: () => void; t: (key: string) => string }): ReactNode {
@@ -320,9 +332,7 @@ function ChatPaneStatusMessages({
       <ChatPaneSendError sendError={sendError} onRetry={onRetrySend} t={t} />
       {/* Run failures render once on their assistant message; pane banners remain for
           attachment, working-directory and other errors that have no message binding. */}
-      {attachmentError ? (
-        <div className="jini-chat-pane__error" role="alert">{attachmentError.message}</div>
-      ) : null}
+      {attachmentError ? <ChatPaneAttachmentError error={attachmentError} t={t} /> : null}
       {dropReadError ? (
         <div className="jini-chat-pane__error" role="alert">{dropReadError}</div>
       ) : null}
@@ -509,6 +519,10 @@ function ChatPaneComposerArea({
   const sendDisabledReason = pane.sendBlocker && pane.sendBlocker !== 'streaming'
     ? t(describeChatPaneSendBlocker(pane.sendBlocker))
     : undefined;
+  // MOVE: the reason used to sit in the composer's footer row beside the folder and model buttons.
+  // It is now a notice above the composer, with the other pane notices; Send's tooltip keeps it.
+  // While the pane is unavailable its own banner (loading, no usable CLI) already says it.
+  const showsNotice = sendDisabledReason !== undefined && !unavailable && chatPaneSendBlockerNeedsNotice({ blocker: pane.sendBlocker });
   return (
     <div
       className={`jini-chat-pane__drop-target${fileDrop.draggingFiles ? ' is-dragging-files' : ''}`}
@@ -521,6 +535,12 @@ function ChatPaneComposerArea({
           {t('Drop files to attach')}
         </span>
       ) : null}
+      {showsNotice ? (
+        <div id={sendDisabledReasonId} className="jini-chat-pane__status jini-chat-pane__blocker" role="status">
+          {pane.sendBlocker === 'uploads-pending' ? <Icon name="spinner" size={13} /> : null}
+          <span>{sendDisabledReason}</span>
+        </div>
+      ) : null}
       <Composer
         agentHandle={agentHandle}
         composer={pane.composer}
@@ -530,14 +550,11 @@ function ChatPaneComposerArea({
         disabled={disabled || unavailable}
         // The one blocker `send()` handles itself. Every other refusal still greys out the button.
         sendDisabled={!pane.canSend && pane.sendBlocker !== 'streaming'}
-        {...definedProps({ source: { sendDisabledReason, sendDisabledReasonId: sendDisabledReason ? sendDisabledReasonId : undefined } })}
+        {...definedProps({ source: { sendDisabledReason, sendDisabledReasonId: showsNotice ? sendDisabledReasonId : undefined } })}
         running={pane.conversation.isStreaming}
         onCancel={pane.conversation.cancel}
         {...definedProps({ source: { placeholder } })}
-        slots={{ ...slots, footerAccessories: <>
-          {sendDisabledReason ? <small id={sendDisabledReasonId} className="jini-composer-send-blocker">{sendDisabledReason}</small> : null}
-          {slots.footerAccessories}
-        </> }}
+        slots={slots}
         {...resolveComposerAttachmentPicker(uploadAttachments, pane, attachmentAccept)}
         {...resolveComposerWorkingDirectory(workingDirectoryAccess, workingDirectoryControlPlacement, pane)}
       />
