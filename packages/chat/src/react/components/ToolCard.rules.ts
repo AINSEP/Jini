@@ -4,7 +4,7 @@
  */
 
 /** Argument keys that name *what* a call acted on, best first: an element handle or page, then a human title/name/slug, then a path or query, then an id. */
-const SUMMARY_KEYS = ['element', 'page', 'handle', 'title', 'name', 'slug', 'file_path', 'path', 'pattern', 'url', 'query', 'command', 'toolId', 'id'];
+const SUMMARY_KEYS = ['element', 'page', 'handle', 'title', 'name', 'slug', 'file_path', 'path', 'pattern', 'url', 'query', 'command', 'toolId', 'pluginId', 'id'];
 
 /** Result fields that name a record for a person — what a write or read returns about its target. */
 const RESULT_NAME_KEYS = ['title', 'name', 'slug'];
