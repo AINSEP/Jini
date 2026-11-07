@@ -55,7 +55,7 @@ describe('createConnectionBudgets', () => {
   it('checks the account budget first and refuses through the host limiter port', async () => {
     const keys: string[] = [];
     const createLimiter: CreateConnectionBudgetLimiter = ({ profile }) => ({
-      check: async ({ key }) => { keys.push(`${profile.max}:${key.split('\u0000')[3]}`); return { allowed: keys.length < 2, retryAfterSeconds: 3 }; },
+      check: async ({ key }) => { keys.push(`${profile.max}:${key.split('\u0000')[3]}`); return keys.length < 2 ? { allowed: true } : { allowed: false, retryAfterSeconds: 3 }; },
     });
     const budgets = createConnectionBudgets({ clock: { now: () => new Date(0) } as never, createLimiter });
     const target = { workspaceId: 'w', pluginId: 'p', connectionId: 'c', connectionRef: 'r', budgets: [{ scope: 'instance' as const, perMinute: 9, burst: 0 }, { scope: 'connection' as const, perMinute: 2, burst: 0 }] };

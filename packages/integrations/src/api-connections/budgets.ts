@@ -92,7 +92,7 @@ export interface ConnectionBudgetLimiterProfile {
 
 /** The host's fixed-window limiter, as much of it as budgets use. `check` evaluates and records one call. */
 export interface ConnectionBudgetLimiter {
-  check(required: { readonly key: string }): Promise<{ readonly allowed: boolean; readonly retryAfterSeconds: number }>;
+  check(required: { readonly key: string }): Promise<{ readonly allowed: true } | { readonly allowed: false; readonly retryAfterSeconds: number }>;
 }
 
 /** Port: builds one in-memory limiter for a profile over the host's clock. */
