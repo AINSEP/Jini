@@ -6,6 +6,7 @@
  */
 import { createAgentPluginLayout, createAgentPluginLifecycle } from '@jini-ai/agent-plugins/lifecycle';
 import { createNodeAgentPluginEffects } from '@jini-ai/agent-plugins/lifecycle/node';
+import type { AgentPluginHostToolPorts } from '@jini-ai/agent-plugins/lifecycle/host-tools';
 import { countFilesystem, createCostCounters, type CostCounters } from './counters.ts';
 import { createMemorySealer, createMemorySettings, createMemoryVault, type MemorySealer, type MemorySettings, type MemoryVault } from './memory-ports.ts';
 import { createTestDispatcher, type TestDispatcher } from './dispatcher.ts';
@@ -16,6 +17,10 @@ export const NEUTRAL_EXTENSION_NAMESPACE = 'jini';
 export const NEUTRAL_WORKSPACE_ID = 'studio-one';
 
 type Lifecycle = ReturnType<typeof createAgentPluginLifecycle>;
+type Layout = ReturnType<typeof createAgentPluginLayout>;
+
+/** The neutral host's own permission names; the moved tools must not assume the original ones. */
+export const NEUTRAL_PERMISSIONS = { use: 'studio.assistant.read', enable: 'studio.plugins.manage' } as const;
 
 export interface NeutralHost {
   readonly productName: string;
@@ -25,6 +30,9 @@ export interface NeutralHost {
   readonly workspaceRoot: string;
   readonly counters: CostCounters;
   readonly lifecycle: Lifecycle;
+  readonly layout: Layout;
+  /** The host-tools ports, bound to this host's counted lifecycle and its own names. */
+  readonly hostTools: AgentPluginHostToolPorts;
   readonly vault: MemoryVault;
   readonly sealer: MemorySealer;
   readonly settings: MemorySettings;
@@ -77,17 +85,47 @@ export function createNeutralHost(required: { readonly root: string }, _optional
       notifyRosterChanged: async () => { provisioning.push({ call: 'notifyRosterChanged' }); },
     },
   });
+  const counted = countLifecycle({ lifecycle, counters });
   return {
     productName: NEUTRAL_PRODUCT_NAME,
     workspaceId: NEUTRAL_WORKSPACE_ID,
     root: required.root,
     workspaceRoot: layout.forWorkspace({ workspaceId: NEUTRAL_WORKSPACE_ID }).root,
     counters,
-    lifecycle: countLifecycle({ lifecycle, counters }),
+    lifecycle: counted,
+    layout,
+    hostTools: createNeutralHostTools({ lifecycle: counted, layout }),
     vault: createMemoryVault({ counters }),
     sealer: createMemorySealer({ counters }),
     settings: createMemorySettings(),
     dispatcher: createTestDispatcher({ counters }),
     provisioning,
+  };
+}
+
+/** A one-line `key: value` reader over a leading `---` frontmatter block; the host's own choice. */
+function readFrontmatterField(required: { readonly markdown: string; readonly key: string }): string | undefined {
+  const block = /^---\r?\n([\s\S]*?)\r?\n---/.exec(required.markdown)?.[1];
+  const line = block?.split(/\r?\n/).find(entry => entry.startsWith(`${required.key}:`));
+  const value = line?.slice(required.key.length + 1).trim().replace(/^['"]|['"]$/g, '');
+  return value ? value : undefined;
+}
+
+/** Binds the host-tools ports to the public lifecycle: same functions, the host's names and text. */
+function createNeutralHostTools(required: { readonly lifecycle: Lifecycle; readonly layout: Layout }): AgentPluginHostToolPorts {
+  const { lifecycle, layout } = required;
+  return {
+    lifecycle,
+    activations: lifecycle,
+    layout,
+    permissions: NEUTRAL_PERMISSIONS,
+    readFrontmatterField,
+    memory: {
+      pluginMemory: ({ workspaceId, pluginId }) => lifecycle.pluginMemory({ workspaceId, pluginId }),
+      appendNotes: async ({ workspaceId, pluginId, guidance }) => {
+        const notes = await lifecycle.pluginMemory({ workspaceId, pluginId }).list({ kind: 'notes' });
+        return notes.length === 0 ? guidance : `${guidance}\n\nStudio notes: ${JSON.stringify(notes)}`;
+      },
+    },
   };
 }

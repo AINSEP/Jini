@@ -4,7 +4,18 @@
  * and provider status). Anything that crosses domains or shows a card lives in
  * `@jini-ai/server/agent-plugin-host` instead.
  *
- * The entry exists before its contents so the export resolves; each tool arrives with the batch that
- * moves it, reaching the host through ports, never an import of a same-layer package.
+ * Each tool reaches the host through ports (`ports.ts`), never an import of a same-layer package.
  */
-export {};
+export * from './ports.js';
+export { readPluginMaturity, readProviderPluginLink, readInstalledAgentPluginIdentity, UNTESTED_PLUGIN_GUIDANCE, type PluginMaturity } from './identity.js';
+export {
+  loadInstalledAgentPluginToolSources, agentPluginToolDerivedRisk, createAgentPluginToolGate, buildAgentPluginToolRegistrations,
+  registerInstalledAgentPluginTools,
+  type AgentPluginSkillDetail, type AgentPluginToolSource, type AgentPluginToolIdentity, type AgentPluginToolGate,
+} from './skill-tool.js';
+export {
+  agentPluginSearchToolCatalog, agentPluginSearchDerivedRisk, loadAgentPluginSearchCandidates, buildAgentPluginSearchRegistrations,
+  type AgentPluginSearchToolDeps as AgentPluginSearchToolInput, type IdentifiedAgentPluginSearchCandidate,
+} from './search-tool.js';
+export { buildPluginMemoryRegistrations } from './memory-tools.js';
+export { WRITE_PLUGIN_NOTE, pluginNoteToolCatalog, pluginNoteRisk, pluginNoteHandler } from './write-note-tool.js';

@@ -7,3 +7,4 @@ export * from './counters.ts';
 export * from './memory-ports.ts';
 export * from './dispatcher.ts';
 export * from './host.ts';
+export * from './plugins.ts';
