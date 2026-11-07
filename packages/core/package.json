@@ -20,6 +20,7 @@
       "./contribution-registry": "universal",
       "./provider-registry": "universal",
       "./object-store": "universal",
+      "./server": "universal",
       "./naming": "universal",
       "./records": "universal",
       "./primitives": "universal",
@@ -117,6 +118,11 @@
       "types": "./dist/object-store.d.ts",
       "import": "./dist/object-store.js",
       "default": "./dist/object-store.js"
+    },
+    "./server": {
+      "types": "./dist/server.d.ts",
+      "import": "./dist/server.js",
+      "default": "./dist/server.js"
     },
     "./naming": {
       "types": "./dist/naming.d.ts",
