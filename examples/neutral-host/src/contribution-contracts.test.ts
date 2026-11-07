@@ -2,9 +2,8 @@
  * Contribution contracts: every `<host>-*.json` file a bundled Agent Plugin ships parses through a
  * public Jini export, and every module it declares passes that kind's public Jini module contract.
  *
- * The walk covers all bundled plugins in `packages/agent-plugins`. A kind whose parser has not moved
- * into Jini yet is a `.todo`; the batch that moves it turns the `.todo` into a real check here. A new
- * kind, or a kind missing from the table, fails the inventory test instead of passing silently.
+ * The walk covers all bundled plugins in `packages/agent-plugins`. Every kind has a real check here. A
+ * new kind, or a kind missing from the table, fails the inventory test instead of passing silently.
  * Modules are imported from the plugin folder itself, the same contained path the lifecycle imports.
  */
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
@@ -26,11 +25,14 @@ import {
   parseDeployConfigsFile, parseDeployOpsFile, parseDeployTargetsFile,
 } from '@jini-ai/devops/deploy';
 import { defineSearchProviderContribution } from '@jini-ai/search/contribution';
+import { parseConsentContributions } from '@jini-ai/cookie-consent/plugins';
+import { asFormDestinationModule, formDestinationMissingMethods, parseFormDestinationsFile } from '@jini-ai/cms/forms';
+import { parseLoginProviders } from '@jini-ai/user-management/server';
 
 const PREFIX = 'tovu-';
 /** The host's client-setting namespace the bundled connection files name: the file prefix, upper-cased. */
 const CLIENT_NAMESPACE = `${PREFIX.slice(0, -1).toUpperCase()}_`;
-const pluginsDir = fileURLToPath(new URL('../../../agent-plugins/', import.meta.url));
+const pluginsDir = fileURLToPath(new URL('../../../packages/agent-plugins/', import.meta.url));
 
 /** One contribution file found on disk. */
 interface ContributionFile { readonly pluginId: string; readonly packageRoot: string; readonly kind: string; readonly raw: string }
@@ -116,11 +118,33 @@ const credentialSchemes: ContractCheck = async file => {
   return parsed.ok ? { descriptors: parsed.rules.length, refusals: [] } : { descriptors: 0, refusals: [parsed.reason] };
 };
 
+/** JSON only: a kind that declares no module, read through its one public parser. */
+function jsonOnly(parse: (input: { readonly raw: string }) => { readonly ok: true; readonly descriptors: readonly unknown[] } | { readonly ok: false; readonly reason: string }): ContractCheck {
+  return async file => {
+    const parsed = parse({ raw: file.raw });
+    return parsed.ok ? { descriptors: parsed.descriptors.length, refusals: [] } : { descriptors: 0, refusals: [parsed.reason] };
+  };
+}
+
 /**
- * Every kind bundled plugins ship today. `undefined` marks a kind whose parser and module contract
- * have no public Jini export yet; its files are `.todo` until the batch that moves it.
+ * Form destinations: the module must be an object, and must also carry the methods its receive mode
+ * needs. Object validation alone would pass a receiver with no `pull()`.
  */
-const CONTRACTS: Readonly<Record<string, ContractCheck | undefined>> = {
+const formDestinations: ContractCheck = async file => {
+  const parsed = parseFormDestinationsFile({ raw: file.raw });
+  if (!parsed.ok) return { descriptors: 0, refusals: [parsed.reason] };
+  const refusals: string[] = [];
+  for (const descriptor of parsed.descriptors) {
+    const { exported } = await importDefault({ plugin: file, modulePath: descriptor.module });
+    const module = asFormDestinationModule({ exported });
+    const reason = typeof module === 'string' ? module : formDestinationMissingMethods({ entry: { descriptor, module } });
+    if (reason !== undefined) refusals.push(`${descriptor.id}: ${reason}`);
+  }
+  return { descriptors: parsed.descriptors.length, refusals };
+};
+
+/** Every kind bundled plugins ship today, each read through its public Jini export. */
+const CONTRACTS: Readonly<Record<string, ContractCheck>> = {
   'admin-surfaces': allOf(
     viaDefinition(defineAdminSurfaceContribution({ filename: `${PREFIX}admin-surfaces.json` })),
     viaDefinition(defineAdminSurfaceHandlerContribution({ filename: `${PREFIX}admin-surfaces.json` })),
@@ -130,13 +154,13 @@ const CONTRACTS: Readonly<Record<string, ContractCheck | undefined>> = {
     kind: 'connections', parse: ({ raw }) => parseApiConnectionsFile({ raw, clientNamespace: CLIENT_NAMESPACE }),
     validate: ({ exported }) => asApiConnectionHooksModule({ exported }),
   }),
-  'consent': undefined,
+  'consent': jsonOnly(parseConsentContributions),
   'credential-schemes': credentialSchemes,
   'deploy-configs': viaParserAndValidator({ kind: 'deploy-configs', parse: parseDeployConfigsFile, validate: asDeployConfigGeneratorModule }),
   'deploy-ops': viaParserAndValidator({ kind: 'deploy-ops', parse: parseDeployOpsFile, validate: asDeployOpsModule }),
   'deploy-targets': viaParserAndValidator({ kind: 'deploy-targets', parse: parseDeployTargetsFile, validate: asDeployTargetModule }),
-  'form-destinations': undefined,
-  'login-providers': undefined,
+  'form-destinations': formDestinations,
+  'login-providers': jsonOnly(parseLoginProviders),
   'mail-adapters': viaParserAndValidator({ kind: 'mail-adapters', parse: ({ raw }) => parseMailAdaptersFile({ raw }), validate: ({ exported }) => asMailAdapterModule({ exported }) }),
   'object-stores': viaDefinition(defineProviderContribution({
     contract: OBJECT_STORE_CONTRACT, filename: `${PREFIX}object-stores.json`, parse: ({ raw }) => parseObjectStoresFile({ raw }),
@@ -155,10 +179,10 @@ describe('contribution contracts', () => {
   });
 
   for (const file of files) {
-    const check = CONTRACTS[file.kind];
     const name = `${file.kind}: ${file.pluginId}`;
-    if (check === undefined) { it.todo(`${name} parses through a public Jini export, and its modules pass that kind's contract`); continue; }
     it(`${name} parses through a public Jini export, and its modules pass that kind's contract`, async () => {
+      const check = CONTRACTS[file.kind];
+      if (check === undefined) throw new Error(`no contract for kind ${file.kind}`);
       const result = await check(file);
       expect(result.refusals).toEqual([]);
       expect(result.descriptors).toBeGreaterThan(0);

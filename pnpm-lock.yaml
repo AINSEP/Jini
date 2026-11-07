@@ -106,6 +106,48 @@ importers:
         specifier: ^7.6.11
         version: 7.6.13
 
+  examples/neutral-host:
+    devDependencies:
+      '@jini-ai/agent-plugins':
+        specifier: workspace:*
+        version: link:../../packages/agent-plugins
+      '@jini-ai/cms':
+        specifier: workspace:*
+        version: link:../../packages/cms
+      '@jini-ai/cookie-consent':
+        specifier: workspace:*
+        version: link:../../packages/cookie-consent
+      '@jini-ai/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+      '@jini-ai/daemon':
+        specifier: workspace:*
+        version: link:../../packages/daemon
+      '@jini-ai/devops':
+        specifier: workspace:*
+        version: link:../../packages/devops
+      '@jini-ai/integrations':
+        specifier: workspace:*
+        version: link:../../packages/integrations
+      '@jini-ai/platform':
+        specifier: workspace:*
+        version: link:../../packages/platform
+      '@jini-ai/search':
+        specifier: workspace:*
+        version: link:../../packages/search
+      '@jini-ai/user-management':
+        specifier: workspace:*
+        version: link:../../packages/user-management
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.13.3
+      typescript:
+        specifier: ^5.6.0
+        version: 5.9.3
+      vitest:
+        specifier: ^2.1.0
+        version: 2.1.9(@types/node@24.13.3)(jsdom@26.1.0)(lightningcss@1.33.0)(sass@1.51.0)
+
   examples/nlweb-demo:
     devDependencies:
       '@vitest/coverage-v8':
@@ -1222,36 +1264,12 @@ importers:
         specifier: workspace:^
         version: link:../sidecar
     devDependencies:
-      '@jini-ai/agent-plugins':
-        specifier: workspace:*
-        version: link:../agent-plugins
       '@jini-ai/chat':
         specifier: workspace:*
         version: link:../chat
-      '@jini-ai/devops':
-        specifier: workspace:*
-        version: link:../devops
-      '@jini-ai/integrations':
-        specifier: workspace:*
-        version: link:../integrations
-      '@jini-ai/mcp':
-        specifier: workspace:*
-        version: link:../mcp
-      '@jini-ai/oauth':
-        specifier: workspace:*
-        version: link:../oauth
       '@jini-ai/platform':
         specifier: workspace:*
         version: link:../platform
-      '@jini-ai/plugins':
-        specifier: workspace:*
-        version: link:../plugins
-      '@jini-ai/search':
-        specifier: workspace:*
-        version: link:../search
-      '@jini-ai/ui':
-        specifier: workspace:*
-        version: link:../ui
       '@types/better-sqlite3':
         specifier: ^7.6.11
         version: 7.6.13

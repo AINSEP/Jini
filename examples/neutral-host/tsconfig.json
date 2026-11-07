@@ -10,5 +10,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["src/__tests__/neutral-host/**/*.ts"]
+  "include": ["src/**/*.ts"]
 }

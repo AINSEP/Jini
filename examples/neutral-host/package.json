@@ -1,0 +1,26 @@
+{
+  "name": "@jini-example/neutral-host",
+  "version": "0.0.0",
+  "private": true,
+  "description": "A host that is not the product a plugin came from: contribution contracts and moved Agent Plugin classes, run against public @jini-ai/* entries only.",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@jini-ai/agent-plugins": "workspace:*",
+    "@jini-ai/cms": "workspace:*",
+    "@jini-ai/cookie-consent": "workspace:*",
+    "@jini-ai/core": "workspace:*",
+    "@jini-ai/daemon": "workspace:*",
+    "@jini-ai/devops": "workspace:*",
+    "@jini-ai/integrations": "workspace:*",
+    "@jini-ai/platform": "workspace:*",
+    "@jini-ai/search": "workspace:*",
+    "@jini-ai/user-management": "workspace:*",
+    "@types/node": "^24.0.0",
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
