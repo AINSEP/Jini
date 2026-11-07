@@ -302,7 +302,7 @@ export async function loadInstalledAgentPluginToolSources(ctx: {
 
 /** This module's own risk classification: every plugin tool is a pure read of already-installed,
  *  already-validated local content — no domain call, no write path. */
-export function agentPluginToolDerivedRisk(sources: readonly AgentPluginToolSource[]): DerivedRiskByToolId {
+export function agentPluginToolDerivedRisk({ sources }: { readonly sources: readonly AgentPluginToolSource[] }, _optional: Record<string, never> = {}): DerivedRiskByToolId {
   return new Map<string, AgentToolSideEffect>(sources.map((source) => [source.id, "none"]));
 }
 
@@ -581,7 +581,7 @@ export function buildAgentPluginToolRegistrations(
     catalogModule: "lifecycle/host-tools/skill-tool.ts",
     catalog: indexCatalogById({ catalog: catalog }),
     handlers,
-    derivedRisk: agentPluginToolDerivedRisk(sources),
+    derivedRisk: agentPluginToolDerivedRisk({ sources }),
   });
 
   return registrations.map((registration) => {
