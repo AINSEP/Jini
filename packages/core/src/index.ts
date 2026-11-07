@@ -16,6 +16,7 @@ export * from './api-token-auth.js';
 export * from './origin-validation.js';
 export * from './principal.js';
 export * from './surface-exchanges.js';
+export type * from './surface-cards.js';
 export type {
   AuthorizationDecision,
   RunRef,
