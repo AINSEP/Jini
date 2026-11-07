@@ -1,6 +1,6 @@
 import { buildDomainRegistrations, indexCatalogById, type AgentToolDefinition, type AgentToolSideEffect, type ToolRegistration } from "@jini-ai/core";
 import { nowIso, type Clock, type IdGenerator } from "@jini-ai/core/primitives";
-import { adaptLegacyAuthorize, requireToolPermission, type AuthorizeFn } from "@jini-ai/cms/core";
+import { adaptLegacyAuthorize, requireToolPermission, type LegacyToolAuthorizeFn as AuthorizeFn } from "@jini-ai/core";
 import { CommerceProductNotFoundError } from "./catalog/errors.js";
 import { CommerceUnavailableError, type CommerceServer } from "./catalog/plugin-server.js";
 import type { CommercePriceRepoPort, CommerceProductRepoPort } from "./catalog/ports.js";

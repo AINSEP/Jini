@@ -1,5 +1,5 @@
 import { buildDomainRegistrations, indexCatalogById, type DerivedRiskByToolId, type ToolRegistration, type AgentToolDefinition } from "@jini-ai/core";
-import { adaptLegacyAuthorize, requireToolPermission, type AuthorizeFn } from "@jini-ai/cms/core";
+import { adaptLegacyAuthorize, requireToolPermission, type LegacyToolAuthorizeFn as AuthorizeFn } from "@jini-ai/core";
 import { readCommerceStatus } from "./catalog/status.js";
 import type { CommerceCheckoutReadiness, CommercePaymentRuntimePort } from "./catalog/contracts.js";
 import { CommerceUnavailableError } from "./catalog/plugin-server.js";

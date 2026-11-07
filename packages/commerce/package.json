@@ -34,7 +34,6 @@
       "kysely": "opt-in: sql storage adapters; import @jini-ai/commerce/payments/ledger/sql \u2014 SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries.",
       "@jini-ai/agentic": "opt-in: agent-aware ui and protocols; import @jini-ai/commerce/react \u2014 Agent-aware UI and protocols could not load @jini-ai/agentic. Install @jini-ai/agentic to enable this feature, or check its installed version and native binaries.",
       "@jini-ai/ui": "opt-in: ui integrations; import @jini-ai/commerce/react \u2014 UI integrations could not load @jini-ai/ui. Install @jini-ai/ui to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/cms": "opt-in: cms integrations; import @jini-ai/commerce/tools \u2014 CMS integrations could not load @jini-ai/cms. Install @jini-ai/cms to enable this feature, or check its installed version and native binaries.",
       "express": "opt-in: express commerce routes; import @jini-ai/commerce/http \u2014 Express commerce routes could not load express. Install express to enable this feature, or check its installed version.",
       "react": "opt-in: react commerce ui; import @jini-ai/commerce/react \u2014 React commerce UI could not load react. Install react to enable this feature, or check its installed version."
     }
@@ -131,8 +130,7 @@
     "express": "^4.21.0 || ^5.0.0",
     "react": "^18.3.0 || ^19.0.0",
     "@jini-ai/agentic": "^0.6.10",
-    "@jini-ai/ui": "^0.6.10",
-    "@jini-ai/cms": "^0.6.10"
+    "@jini-ai/ui": "^0.6.10"
   },
   "devDependencies": {
     "@jini-ai/db": "workspace:*",
@@ -167,9 +165,6 @@
       "optional": true
     },
     "@jini-ai/ui": {
-      "optional": true
-    },
-    "@jini-ai/cms": {
       "optional": true
     },
     "express": {
