@@ -248,11 +248,12 @@
       "form-destinations/cloudflare-d1.mjs": "sha256-bf2cf556fbf39048a5e6bc59092f214e671c2adf91f50a4c5ac6db0d6c3bfeb4",
       "lib/api.mjs": "sha256-9daf1704c087faaf13bcee798f27f60c98beaf9456c409c18de2d01c972beda7",
       "lib/assets.mjs": "sha256-8a65fa11d08405cab204cf56b8049c17914cc297b56a031cb363cb8a310a25f9",
+      "lib/cms-forms.mjs": "sha256-44873b41a169bf56c6486fc20ae02032d3c4e771891e408a3756f4a0b9893df0",
       "lib/dns.mjs": "sha256-eeb2a5d079834c3285a5842d5255f45daf7666d831f35187e1f8acf5d96b6bb1",
       "lib/domain-inventory.mjs": "sha256-f6ac6106be2224a89fb59a3046f4a89979bc6d5358641bf0c96a8fd2accc0579",
       "lib/domain-status.mjs": "sha256-19f6427e4d9d0b75e9b20f41b1b3a9c7530e99d6a434f3985e56c1f2b741ccc9",
       "lib/domains.mjs": "sha256-175f56995dce4866019696b29879ff5402ca7ccd87022463ffd8b4591fa6c80a",
-      "lib/forms.mjs": "sha256-a99a5edb6ee7a88057513b2b4a48821a64e269607d309d1cc0f7e83865fa85bc",
+      "lib/forms.mjs": "sha256-8c114e4cbd4942168f189b8e09cdb91940aa0cbca6853ad5b5ef19d1d8fc6ca8",
       "lib/pages-upload.mjs": "sha256-7712c6fd855a2edc4d92e9fbdbbdb47368d2f45b965d481c3d499f36088dc1f2",
       "lib/target.mjs": "sha256-85bb36d553045c4badfaaf5387f001125e252f08b230febf022ce29b264d8d87",
       "lib/workers-upload.mjs": "sha256-544ad8b3398c74a1374411635f7bc3d126b9081cc1d71aef09ee25c9256ab468",
@@ -270,7 +271,8 @@
       "tovu-consent.json": "sha256-293658ce9c99d9d42708454b3cd57101c0e8de5d78fe308dc16dec43a5906a50",
       "tovu-deploy-targets.json": "sha256-fc4d27bb08a19db61c1b1684b6da6a09d075e42ec154f60385214415f326ce9c",
       "tovu-form-destinations.json": "sha256-f0ce2bb4ffe864b09185ab95b6ec910f32da2db909e485691bc4527afd484c1e",
-      "worker/forms-receiver.mjs": "sha256-739ab94e114b4f3f36dccb86b9c1177e8472f2fabdadd947acaf2146fcd2c267"
+      "worker/forms-receiver.mjs": "sha256-ae1e4591992d2027573ab4b60d0a1bce0c5509cafb0a8513fd3d2763805bf328",
+      "worker/portable-validation.mjs": "sha256-56d782e757bfe97f577bdab798ae54f98a49c16ab55075743954762453fce8ab"
     }
   },
   {
