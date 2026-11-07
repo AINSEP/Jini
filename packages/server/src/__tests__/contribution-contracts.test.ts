@@ -19,6 +19,7 @@ import { OBJECT_STORE_CONTRACT, objectStoreProviderFault } from '@jini-ai/core/o
 import { parseObjectStoresFile } from '@jini-ai/platform/object-store';
 import type { PluginContributionDefinition, TrustedPluginPackage } from '@jini-ai/agent-plugins/lifecycle';
 import { parseCredentialSchemesFile } from '@jini-ai/integrations/credentialed-http';
+import { asApiConnectionHooksModule, parseApiConnectionsFile } from '@jini-ai/integrations/api-connections';
 import { parseSourceControlProvidersFile, sourceControlProviderModuleError } from '@jini-ai/devops/source-control';
 import {
   asDeployConfigGeneratorModule, asDeployOpsModule, asDeployTargetModule,
@@ -27,6 +28,8 @@ import {
 import { defineSearchProviderContribution } from '@jini-ai/search/contribution';
 
 const PREFIX = 'tovu-';
+/** The host's client-setting namespace the bundled connection files name: the file prefix, upper-cased. */
+const CLIENT_NAMESPACE = `${PREFIX.slice(0, -1).toUpperCase()}_`;
 const pluginsDir = fileURLToPath(new URL('../../../agent-plugins/', import.meta.url));
 
 /** One contribution file found on disk. */
@@ -123,7 +126,10 @@ const CONTRACTS: Readonly<Record<string, ContractCheck | undefined>> = {
     viaDefinition(defineAdminSurfaceHandlerContribution({ filename: `${PREFIX}admin-surfaces.json` })),
   ),
   'agent-tools': viaDefinition(defineAgentPluginToolContribution({ filename: `${PREFIX}agent-tools.json` })),
-  'connections': undefined,
+  'connections': viaParserAndValidator({
+    kind: 'connections', parse: ({ raw }) => parseApiConnectionsFile({ raw, clientNamespace: CLIENT_NAMESPACE }),
+    validate: ({ exported }) => asApiConnectionHooksModule({ exported }),
+  }),
   'consent': undefined,
   'credential-schemes': credentialSchemes,
   'deploy-configs': viaParserAndValidator({ kind: 'deploy-configs', parse: parseDeployConfigsFile, validate: asDeployConfigGeneratorModule }),

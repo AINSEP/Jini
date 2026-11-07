@@ -34,3 +34,8 @@ export * from './mfa/secret-adapter.js';
 export * from './mfa/passkey-ports.js';
 export * from './mfa/passkey-service.js';
 export * from './mfa/passkey-adapter.js';
+
+export { parseLoginProviders } from './login-providers.js';
+export {
+  MemberLoginError, type LoginProvider, type LoginProviderPreset, type MemberLoginOutcomeCode, type VerifiedLoginIdentity,
+} from './login-types.js';

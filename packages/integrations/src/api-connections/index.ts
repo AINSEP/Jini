@@ -37,3 +37,12 @@ export function disconnectApiConnection(
 ) {
   return runDisconnect(deps, connection);
 }
+export {
+  asApiConnectionHooksModule, checkApiConnectionClientNamespace, parseApiConnectionsFile,
+  type ApiConnectionClientConfig, type ApiConnectionDeclaration, type ApiConnectionHooksModule,
+} from './declarations.js';
+export {
+  ConnectionBudgetExceededError, createConnectionBudgets, HOST_BUDGET_MAXIMUM, parseConnectionBudgets,
+  type ConnectionBudget, type ConnectionBudgetLimiter, type ConnectionBudgetLimiterProfile, type ConnectionBudgets,
+  type ConnectionBudgetScope, type ConnectionBudgetTarget, type CreateConnectionBudgetLimiter,
+} from './budgets.js';
