@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AgentEvent, ChatMessage } from '../../../core/index.js';
 import { assistantContentFromEvents } from '../../../core/index.js';
+import { translateRunAgentPayload } from '../../../core/run-events/entry.js';
 import { clearExtEventRenderers, registerExtEventRenderer } from '../../ext-event-renderer-registry.js';
 import {
   __resetAttachmentPreviewCacheForTests,
@@ -867,4 +868,24 @@ describe('MessageRow', () => {
       expect(document.querySelector('.jini-run-activity')).toBeNull();
     });
   });
+});
+
+it('renders a canceled approval as a neutral status with no process diagnostics', () => {
+  render(<MessageRow message={{ id: 'cancelled-approval', role: 'assistant', content: '', runStatus: 'canceled',
+    events: [{ kind: 'status', label: 'Run canceled', detail: 'exit code none, signal none, resumable no' }] }} />);
+  expect(screen.getByText('Canceled.')).toHaveClass('jini-chat-pane__notice');
+  expect(document.querySelector('.jini-message-error')).toBeNull();
+  expect(document.body.textContent).not.toContain('exit code');
+});
+
+it('keeps a stale plugin-choice refusal visible after the following reply succeeds', () => {
+  const notice = 'Your Agent Plugins preference changed while this card was open. Nothing was changed by this answer. Start a new request using your current preference.';
+  const refusal = translateRunAgentPayload({ payload: { type: 'text_delta', delta: `\n\n${notice}\n\n` } });
+  const reply: AgentEvent = { kind: 'text', text: '\n\nI can continue with the current preference.' };
+  const events = [...(refusal ? [refusal] : []), reply];
+  render(<MessageRow message={{ id: 'stale-plugin-choice', role: 'assistant', runStatus: 'succeeded',
+    content: assistantContentFromEvents({ events }), events }} runSucceeded />);
+  expect(screen.getByText(notice, { exact: false })).toBeVisible();
+  expect(screen.getByText('I can continue with the current preference.', { exact: false })).toBeVisible();
+  expect(document.querySelector('.jini-message-error')).toBeNull();
 });

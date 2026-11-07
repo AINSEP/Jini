@@ -1,5 +1,6 @@
 /** Real Postgres is required: script-order inspection alone cannot prove that a foreign key validates. */
 import Database from "better-sqlite3";
+import pg from "pg";
 import { afterAll, beforeEach, expect, it } from "vitest";
 import { createPsqlPostgresTarget, introspectedTable, openSqliteSnapshotSource, runCopy, type TransferSource } from "../../transfer/index.js";
 import { connectionFor, dropDatabase, recreateDatabase, sql } from "../../testing/transfer-pg-test-db.js";
@@ -24,8 +25,15 @@ it("copies a child before its parent and leaves the FK validated, reseeds identi
     expect(result).toEqual({ ok: true, tables: [{ name: "child", rows: 1 }, { name: "parent", rows: 1 }], unvalidatedConstraints: [] });
     expect(await sql(name, "SELECT convalidated FROM pg_constraint WHERE conname = 'child_parent_id_fkey'")).toBe("t");
     expect(await sql(name, "INSERT INTO fixture.parent DEFAULT VALUES RETURNING id, label")).toBe("8\tnew");
-    await expect(sql(name, "INSERT INTO fixture.child (parent_id) VALUES (999)")).rejects.toThrow(/violates/);
-    await expect(sql(name, "INSERT INTO fixture.parent (label) VALUES ('old')")).rejects.toThrow(/violates/);
+    // The transfer target deliberately hides server text; inspect SQLSTATE through the test driver.
+    const client = new pg.Client({ connectionString: connectionFor(name) });
+    try {
+      await client.connect();
+      await expect(client.query("INSERT INTO fixture.child (parent_id) VALUES (999)")).rejects.toMatchObject({ code: "23503" });
+      await expect(client.query("INSERT INTO fixture.parent (label) VALUES ('old')")).rejects.toMatchObject({ code: "23505" });
+      expect((await client.query("SELECT id, parent_id FROM fixture.child ORDER BY id")).rows).toEqual([{ id: "3", parent_id: "7" }]);
+      expect((await client.query("SELECT id, label FROM fixture.parent ORDER BY id")).rows).toEqual([{ id: "7", label: "old" }, { id: "8", label: "new" }]);
+    } finally { await client.end(); }
   } finally { source.close(); }
 });
 it("copies both physical sources in one transaction and records both counts in the same marker", async () => {

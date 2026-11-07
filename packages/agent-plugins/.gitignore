@@ -1,0 +1,3 @@
+# Portable helpers emitted from the declared CMS dependency by build-cloudflare.mjs.
+/cloudflare/lib/cms-forms.mjs
+/cloudflare/worker/portable-validation.mjs

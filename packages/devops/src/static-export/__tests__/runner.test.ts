@@ -62,6 +62,23 @@ test('exports real response bytes/content types, route tree, redirect destinatio
   assert.equal(f.initByPath.get('/old')?.redirect, 'manual');
 });
 
+test('a referenced consent loader returning 503 is retained as an export failure', async () => {
+  const f = fixture();
+  const fetch = f.args.fetch;
+  f.args.assetUrlPrefixes = ['/assets/', '/_consent/'];
+  f.args.fetch = async (input, options) => {
+    const pathname = new URL(input.url).pathname;
+    if (pathname === '/') return new Response('<html><head><script src="/_consent/load.js" defer data-jini-consent-loader></script></head><body>Page</body></html>', { headers: { 'content-type': 'text/html' } });
+    if (pathname === '/_consent/load.js') return new Response('Unavailable', { status: 503 });
+    return fetch(input, options);
+  };
+  const report = await exportSite(f.args);
+  assert.deepEqual(report.routes.failed, []);
+  assert.deepEqual(report.assets.failed, [{ url: '/_consent/load.js', reason: 'GET /_consent/load.js -> 503' }]);
+  assert.deepEqual(firstExportFailure({ report }), { kind: 'asset', identifier: '/_consent/load.js', reason: 'GET /_consent/load.js -> 503', count: 1 });
+  assert.equal(f.writes.has('_consent/load.js'), false);
+});
+
 test('exports media referenced only by inline CSS, sitemap XML, a stylesheet or a JSON manifest before applying the base path', async () => {
   const f = fixture();
   const originalFetch = f.args.fetch;

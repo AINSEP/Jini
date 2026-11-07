@@ -1,6 +1,6 @@
 import { assertToolIsWirable, ToolInputError, ToolPermissionDeniedError } from '@jini-ai/core';
 import { expect, test, vi } from 'vitest';
-import { buildCommerceResolutionRegistrations } from '../resolve-unknown.js';
+import { buildCommerceResolutionRegistrations, commerceResolutionToolCatalog } from '../index.js';
 import { SCRIPTED, USD, timedOut, world } from '../../ops/__tests__/harness.js';
 
 const context = { executionId: 'exec', principal: { id: 'owner' }, run: { id: 'run' }, signal: new AbortController().signal };
@@ -14,6 +14,16 @@ function fixture() {
   const call = (value: unknown) => buildCommerceResolutionRegistrations(required)[0]!.handler({ ...context, input: value });
   return { required, call, resolveUnknown, targetFor, authorize, askHuman };
 }
+
+test('the public resolution catalog matches its registration and retains the human-only contract', () => {
+  expect(commerceResolutionToolCatalog).toMatchObject([{ name: 'commerce_resolve_unknown', sideEffects: 'mutates-durable-state',
+    authorization: { permission: 'commerce.payments.manage' }, actorClassRule: 'confirmer-must-equal-own-delegatedBy' }]);
+  expect(commerceResolutionToolCatalog).toHaveLength(1);
+  const [entry] = commerceResolutionToolCatalog;
+  expect(buildCommerceResolutionRegistrations(fixture().required)[0]!.descriptor).toMatchObject({
+    id: entry!.name, description: entry!.description, inputSchema: entry!.inputSchema,
+  });
+});
 
 test('owner resolution uses the original order payment scope and authenticated actor after permission', async () => {
   const f = fixture();

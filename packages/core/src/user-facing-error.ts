@@ -1,6 +1,6 @@
 import { formatErrorForLog, redactSecrets, type SecretRedactionOptions } from './redact.js';
 
-/** Sanitized explanation and copyable evidence. Missing boundary metadata stays explicitly unavailable. */
+/** Sanitized explanation and copyable evidence. Missing boundary metadata is omitted from the copyable evidence. */
 export interface UserFacingError {
   readonly message: string;
   readonly action: string;
@@ -56,7 +56,7 @@ export function formatUserFacingError(
   ];
   // Each field is already PII-scrubbed. Repeat credential/exact redaction across labels,
   // without letting a numeric group in a public correlation ID be mistaken for a card.
-  const copyText = bound({ text: redactSecrets({ input: labels.map(([label, value]) => `${label}: ${value ?? 'Unavailable'}`).join('\n') }, { ...optionalArgs, redactPii: false }), limit: 8192 });
+  const copyText = bound({ text: redactSecrets({ input: labels.filter(([, value]) => value?.trim()).map(([label, value]) => `${label}: ${value}`).join('\n') }, { ...optionalArgs, redactPii: false }), limit: 8192 });
   return { ...fields, copyText };
 }
 

@@ -95,3 +95,11 @@ it('does not turn an untrusted cause containing a card-shaped ERR token into a p
   expect(failure.errorId).not.toContain(forgedId);
   expect(failure.copyText).not.toContain(forgedId);
 });
+
+it('omits missing or blank boundary metadata instead of printing unavailable values', () => {
+  const missing = formatUserFacingError(input);
+  expect(missing.copyText).not.toMatch(/Error ID:|App version:|Jini version:|Time:|Unavailable/);
+  const blank = formatUserFacingError(input, { errorId: '', appVersion: '  ', jiniVersion: '', time: '' });
+  expect(blank.copyText).not.toMatch(/Error ID:|App version:|Jini version:|Time:/);
+  expect(missing.copyText).toContain('Cause: ZIP writer failed');
+});

@@ -398,10 +398,17 @@ class SqlLedgerTx implements LedgerTx {
     return rows.map((row) => refundFromRow(row));
   }
 
+  /**
+   * Open attempts for the selected operations, bounded by time, scope, cursor and limit.
+   * An empty selection returns no rows without a read; driver errors otherwise propagate.
+   * @complexity One bounded query and O(n) decoding time/space for n returned attempts.
+   */
   async listOpenAttempts(
     { ops, updatedBefore, limit }: { ops: readonly AttemptOp[]; updatedBefore: number; limit: number },
     optional: ScanOptions = {}
   ): Promise<AttemptRecord[]> {
+    // PostgreSQL rejects IN (); no operation can match an empty selection.
+    if (ops.length === 0) return [];
     const rows = await this.read((db) =>
       db.selectFrom("commerce_payment_attempts").selectAll().where("op", "in", [...ops]).where("outcome", "in", [...OPEN_ATTEMPT_OUTCOMES])
         .where("updated_at", "<", updatedBefore).where(inScanScope(optional)).where(afterCursor(optional))

@@ -166,16 +166,44 @@ describe('withBatchInput item mode', () => {
     });
   });
 
-  it('drops image blocks from batch item results, so a preview image never lands in the batch JSON as base64 text', async () => {
+  it('moves image blocks outside batch item JSON so previews remain visible without nested base64 text', async () => {
     const invokeTool = vi.fn<Invoke>(async () => ({ content: [{ type: 'text', text: '{"id":"m1"}' }, { type: 'image', mimeType: 'image/webp', data: 'PIXELS' }] }));
     const wrapped = withBatchInput({ registration: registrationWith(), tool: { toolId: 'edit' } });
     const result = await wrapped.handler(context({ items: [{ path: 'a' }] }), { invokeTool });
 
-    expect(result).toEqual({
+    const { content, ...summary } = result as { content: unknown[] };
+    expect(summary).toEqual({
       batch: true, outcome: 'completed', total: 1, succeeded: 1, failed: 0,
       results: [{ index: 0, ok: true, result: { content: [{ type: 'text', text: '{"id":"m1"}' }] } }],
     });
-    expect(JSON.stringify(result)).not.toContain('PIXELS');
+    expect(JSON.stringify(summary)).not.toContain('PIXELS');
+    expect(content).toEqual([{ type: 'text', text: JSON.stringify(summary) }, { type: 'image', mimeType: 'image/webp', data: 'PIXELS' }]);
+  });
+
+  it('returns bounded preview images in the shared top-level envelope while retaining saved item results', async () => {
+    const invokeTool = vi.fn<Invoke>(async ({ input }) => ({
+      content: [{ type: 'text', text: JSON.stringify({ id: (input as { path: string }).path }) },
+        { type: 'image', mimeType: 'image/webp', data: 'PIXELS', title: 'Saved preview' }],
+    }));
+    const wrapped = withBatchInput({ registration: registrationWith(), tool: { toolId: 'edit' } });
+    const output = await wrapped.handler(context({ items: Array.from({ length: 6 }, (_, index) => ({ path: String(index) })) }), { invokeTool }) as { results: unknown[]; content: { type: string; text?: string; data?: string }[] };
+    expect(output.results).toHaveLength(6);
+    expect(JSON.stringify(output.results)).not.toContain('PIXELS');
+    expect(output.content.filter(block => block.type === 'image')).toHaveLength(4);
+    const summary = JSON.parse(output.content[0]!.text!);
+    expect(summary.results).toEqual(output.results);
+    expect(summary).toMatchObject({ batch: true, total: 6, succeeded: 6, failed: 0 });
+  });
+
+  it('bounds preview bytes without dropping saved results or later small previews', async () => {
+    const invokeTool = vi.fn<Invoke>(async ({ input }) => ({ content: [
+      { type: 'text', text: '{"id":"saved"}' },
+      { type: 'image', mimeType: 'image/png', data: (input as { path: string }).path === 'large' ? 'A'.repeat(2_000_001) : 'SMALL' },
+    ] }));
+    const wrapped = withBatchInput({ registration: registrationWith(), tool: { toolId: 'edit' } });
+    const output = await wrapped.handler(context({ items: [{ path: 'large' }, { path: 'small' }] }), { invokeTool }) as { results: unknown[]; content: { type: string; data?: string }[] };
+    expect(output.results).toHaveLength(2);
+    expect(output.content.filter(block => block.type === 'image')).toEqual([{ type: 'image', mimeType: 'image/png', data: 'SMALL' }]);
   });
 
   it('records a validateItem refusal and a thrown non-Error as that item\'s failure while later items still run', async () => {

@@ -16,7 +16,7 @@ import { redactSecrets } from '@jini-ai/core';
  */
 
 import type { DnsLookupFn } from './connection-guard.js';
-import { defaultDnsLookup, validateBaseUrlResolved } from './connection-guard.js';
+import { defaultDnsLookup, validateBaseUrl, validateBaseUrlResolved } from './connection-guard.js';
 import { aihubmixCatalogUrl, aihubmixHeaders, parseAIHubMixCatalog } from './aihubmix.js';
 import { googleProviderModelsUrl, normalizeGoogleModelId } from './google.js';
 import type {
@@ -352,7 +352,7 @@ export async function listProviderModels(requiredArgs: Pick<ProviderModelsInput,
 }
 
 async function modelCatalogPreflight(
-  { input, start }: { input: ProviderModelsInput; start: number }, _options = {},
+  { input, start }: { input: ProviderModelsInput; start: number },
 ): Promise<ProviderModelsResponse | undefined> {
   if (input.protocol === 'azure') {
     return {
@@ -363,7 +363,11 @@ async function modelCatalogPreflight(
     };
   }
 
-  const validated = await validateBaseUrlResolved({ baseUrl: input.baseUrl, lookup: input.dnsLookup ?? defaultDnsLookup });
+  const missingKey = PROTOCOLS_REQUIRING_API_KEY.has(input.protocol) && !input.apiKey.trim();
+  // Preserve syntax/host refusals, but a missing credential needs no DNS lookup that could mask it.
+  // Requests that can proceed, including anonymous public catalogs, retain resolved SSRF checks.
+  const validated = missingKey ? validateBaseUrl({ baseUrl: input.baseUrl })
+    : await validateBaseUrlResolved({ baseUrl: input.baseUrl, lookup: input.dnsLookup ?? defaultDnsLookup });
   if (validated.error || !validated.parsed) {
     return {
       ok: false,
@@ -387,7 +391,7 @@ async function modelCatalogPreflight(
       detail: 'AWS Bedrock uses a static seed until AWS credential-backed discovery is available.',
     };
   }
-  if (PROTOCOLS_REQUIRING_API_KEY.has(input.protocol) && !input.apiKey.trim()) {
+  if (missingKey) {
     return missingApiKeyResponse(start);
   }
 

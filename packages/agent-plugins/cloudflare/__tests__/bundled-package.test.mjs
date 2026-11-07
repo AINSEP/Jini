@@ -45,6 +45,17 @@ test('every contribution file names a module this plugin ships', async () => {
   assert.ok(files.includes('worker/forms-receiver.mjs'));
 });
 
+test('the distribution carries its CMS evidence reader without installing CMS at runtime', async () => {
+  const pkg = JSON.parse(await readFile(path.join(root, '../package.json'), 'utf8'));
+  assert.equal(pkg.dependencies?.['@jini-ai/cms'], undefined);
+  const source = await readFile(path.join(root, 'lib/cms-forms.mjs'), 'utf8');
+  // A data URL has no package ancestry, matching the copied plugin payload.
+  const { readSubmissionEvidence } = await import(`data:text/javascript;base64,${Buffer.from(source).toString('base64')}`);
+  const evidence = { version: 1, schemaHash: 'a'.repeat(64), capturedAt: 'published', source: 'cloudflare', fields: [], consent: [] };
+  assert.deepEqual(readSubmissionEvidence({ value: evidence }), evidence);
+  assert.throws(() => readSubmissionEvidence({ value: { ...evidence, schemaHash: 'invalid' } }), /Invalid form submission evidence hash/);
+});
+
 test('form wire names stay frozen: live Workers and D1 databases already use them', () => {
   assert.equal(FORMS_BINDING, 'TOVU_FORMS');
   assert.equal(FORMS_SECRET_BINDING, 'TOVU_FORMS_SECRET');

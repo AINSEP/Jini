@@ -13,11 +13,11 @@ const card = () => buildConfirmationSurface({
 
 afterEach(() => vi.useRealTimers());
 
-it('discloses the exact identity, scope, revision and fixed before/after grant', () => {
+it('discloses the named resource and detached fixed before/after grant', () => {
   const original = access(); const details = accessApprovalDetails({ access: original });
   original.resources[0]!.proposed.allow.push('write');
   expect(details).toEqual([
-    { label: 'Resource', value: { id: 'mail', name: 'Mail <tools>', personId: 'person', siteId: 'site', chatId: 'chat', revision: 'v1' } },
+    { label: 'Resource', value: 'Mail <tools>' },
     { label: 'Mail <tools>', previous: { allow: [] }, value: { allow: ['read'], write: [] } },
   ]);
   const resource = card();
@@ -36,4 +36,12 @@ it('reuses the dwell and trusted-click gate and sends one decision only', () => 
   surface.trustedClick('confirm'); surface.trustedClick('confirm');
   expect(surface.calls).toHaveLength(1);
   expect(surface.calls[0]).toMatchObject({ tool: 'decide', params: { exchangeId: 'private-exchange', decision: 'confirm' } });
+});
+
+it('names the resource without displaying opaque target ids or revisions', () => {
+  const doc = new DOMParser().parseFromString(card().resource.text, 'text/html');
+  expect(doc.body.textContent).toContain('Mail <tools>');
+  expect(doc.body.textContent).not.toMatch(/Person ID|Site ID|Chat ID|Revision|v1/);
+  const resource = access().resources[0]!;
+  expect(resource.scope).toEqual({ personId: 'person', siteId: 'site', chatId: 'chat' });
 });

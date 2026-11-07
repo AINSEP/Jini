@@ -1,4 +1,4 @@
-import { FORM_SCHEMA_HASH_FIELD, matchesFormSchemaHash, resolvePortableFormField } from "@jini-ai/cms/forms/portable-validation";
+import { FORM_SCHEMA_HASH_FIELD, matchesFormSchemaHash, resolvePortableFormField } from "./portable-validation.mjs";
 
 /**
  * Form submissions receiver, uploaded as `receiver.mjs` beside the site's static assets.
