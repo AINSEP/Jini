@@ -75,9 +75,38 @@ export function countToolCatalog(required: { readonly descriptors: readonly unkn
 }
 
 type ReadFile = (...args: never[]) => Promise<unknown>;
+type Open = (path: never, flags?: never, mode?: never) => Promise<object>;
+interface ReadResult { readonly bytesRead: number }
 
-/** Wraps a filesystem port so every `readFile` counts one read and its bytes. Other calls pass through. */
-export function countFilesystem<F extends { readonly readFile: ReadFile }>(required: { readonly filesystem: F; readonly counters: CostCounters }, _optional: Record<string, never> = {}): F {
+/** Whether `open` flags ask for reading only (`'r'`, absent, or a number without write bits). */
+function isReadOnly(flags: unknown): boolean {
+  if (flags === undefined || flags === 'r') return true;
+  return typeof flags === 'number' && (flags & 3) === 0;
+}
+
+/** Counts one read per read-only handle, and the bytes its `read`/`readFile` calls return. */
+function countHandle(required: { readonly handle: object; readonly counters: CostCounters }): object {
+  const { handle, counters } = required;
+  return new Proxy(handle, { get(target, property) {
+    const value: unknown = Reflect.get(target, property, target);
+    if (typeof value !== 'function') return value;
+    if (property === 'read') return async (...args: unknown[]) => {
+      const result = await (value as (...a: unknown[]) => Promise<ReadResult>).apply(target, args);
+      counters.add({ name: 'fileReadBytes' }, { by: result.bytesRead });
+      return result;
+    };
+    if (property === 'readFile') return async (...args: unknown[]) => {
+      const result: unknown = await (value as (...a: unknown[]) => Promise<unknown>).apply(target, args);
+      counters.add({ name: 'fileReadBytes' }, { by: byteLength({ value: result }) });
+      return result;
+    };
+    return (value as (...a: unknown[]) => unknown).bind(target);
+  } });
+}
+
+/** Wraps a filesystem port so every `readFile`, and every read-only `open`, counts one read and its
+ *  bytes. Other calls pass through. */
+export function countFilesystem<F extends { readonly readFile: ReadFile; readonly open?: Open }>(required: { readonly filesystem: F; readonly counters: CostCounters }, _optional: Record<string, never> = {}): F {
   const { filesystem, counters } = required;
   const readFile = (async (...args: never[]) => {
     const result = await filesystem.readFile(...args);
@@ -85,5 +114,13 @@ export function countFilesystem<F extends { readonly readFile: ReadFile }>(requi
     counters.add({ name: 'fileReadBytes' }, { by: byteLength({ value: result }) });
     return result;
   }) as F['readFile'];
-  return { ...filesystem, readFile };
+  const open = filesystem.open;
+  if (open === undefined) return { ...filesystem, readFile };
+  const countedOpen = (async (path: never, flags?: never, mode?: never) => {
+    const handle = await open(path, flags, mode);
+    if (!isReadOnly(flags)) return handle;
+    counters.add({ name: 'fileReads' });
+    return countHandle({ handle, counters });
+  }) as Open;
+  return { ...filesystem, readFile, open: countedOpen };
 }
