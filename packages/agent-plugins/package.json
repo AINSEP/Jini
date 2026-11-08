@@ -95,13 +95,16 @@
       "./commerce/server": "node",
       "./google-forms": "universal",
       "./google-forms/*": "universal",
-      "./connect": "universal"
+      "./connect": "universal",
+      "./connect/executable": "universal",
+      "./admin-surfaces/connections": "universal"
     },
     "isolation": {
       "entries": {
         "./manifest": "lifecycle",
         "./persistent-state": "core",
-        "./connect": "lifecycle"
+        "./connect": "lifecycle",
+        "./connect/executable": "lifecycle"
       },
       "shared": [
         "core/persistent-state.js",
@@ -263,6 +266,16 @@
       "types": "./dist/connect/index.d.ts",
       "import": "./dist/connect/index.js",
       "default": "./dist/connect/index.js"
+    },
+    "./connect/executable": {
+      "types": "./dist/connect/executable/index.d.ts",
+      "import": "./dist/connect/executable/index.js",
+      "default": "./dist/connect/executable/index.js"
+    },
+    "./admin-surfaces/connections": {
+      "types": "./dist/admin-surfaces/connections/index.d.ts",
+      "import": "./dist/admin-surfaces/connections/index.js",
+      "default": "./dist/admin-surfaces/connections/index.js"
     }
   },
   "files": [

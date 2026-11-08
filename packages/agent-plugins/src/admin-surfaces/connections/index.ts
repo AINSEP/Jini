@@ -1,0 +1,2 @@
+export { createAdminSurfaceConnections, type AdminSurfaceConnectionsDeps, type IssuedSignIn } from './connections.js';
+export type { AdminSurfaceConnectionsHost, AdminSurfaceDeclaredConnection, AdminSurfaceConnectionAccount, AdminSurfaceStagedAccount, AdminSurfaceStatusView, AdminSurfaceConnectionRecord, AdminSurfaceAccountAction, AdminSurfaceDisconnected, AdminSurfaceSignInStart, AdminSurfaceSignInStarted, AdminSurfaceCallbackInbox } from './ports.js';
