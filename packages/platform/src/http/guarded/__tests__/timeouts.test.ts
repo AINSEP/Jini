@@ -56,7 +56,7 @@ test("the legacy timeoutMs also remains a socket idle timeout", async () => {
 test("an explicit total deadline cuts off even a progressing body", async () => {
   const url = await fixture();
   await expect(client().send({ request: { method: "GET", url, headers: {}, idleTimeoutMs: 1000, totalDeadlineMs: 600 } }))
-    .rejects.toMatchObject({ name: "FetchTimeoutError", url, timeoutMs: 600 });
+    .rejects.toMatchObject({ name: "FetchTimeoutError", message: `fetch timed out after 600ms: ${new URL(url).origin}`, timeoutMs: 600 });
 });
 
 test("an idle body keeps the legacy timeout error and message", async () => {

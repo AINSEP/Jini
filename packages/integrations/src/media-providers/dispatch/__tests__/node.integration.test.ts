@@ -105,7 +105,7 @@ describe('media outbound through the native transport request seam', () => {
     const resolve = vi.fn(() => new Promise<readonly string[]>(() => {}));
     const httpClient = createNodeMediaHttpClient({}, { dns: { resolve } });
     await expect(fetchMediaOutbound({ url, timeoutMs: 25 }, { httpClient }))
-      .rejects.toMatchObject({ name: 'FetchTimeoutError', url, timeoutMs: 25 });
+      .rejects.toMatchObject({ name: 'FetchTimeoutError', message: `fetch timed out after 25ms: ${new URL(url).origin}`, timeoutMs: 25 });
     expect(resolve).toHaveBeenCalledTimes(1);
     expect(state.sent).toHaveLength(0);
   });
@@ -114,7 +114,7 @@ describe('media outbound through the native transport request seam', () => {
     const state = fixture({ stall: true });
     const httpClient = createNodeMediaHttpClient({}, { dns: { resolve: async () => ['93.184.216.34'] } });
     await expect(fetchMediaOutbound({ url, timeoutMs: 25 }, { httpClient }))
-      .rejects.toMatchObject({ name: 'FetchTimeoutError', url, timeoutMs: 25 });
+      .rejects.toMatchObject({ name: 'FetchTimeoutError', message: `fetch timed out after 25ms: ${new URL(url).origin}`, timeoutMs: 25 });
     expect(state.destroyed()).toBe(true);
   });
 
