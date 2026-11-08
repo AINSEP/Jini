@@ -148,6 +148,7 @@ function claudeLaunchPolicy({ options, caps, extraAllowedDirs, imagePaths, runti
 export const claudeAgentDef = {
   ...createAgentModelDiscovery('claude', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => claudeAgentDef.fallbackModels }),
     id: 'claude',
+  pluginGuidanceViaSystemOverlay: true,
     supportsNativeToolAccess: true,
     // Native Task/Agent subagent tool (see `native-tool-policy.ts`'s `subagents` dimension).
     supportsSubagents: true,
