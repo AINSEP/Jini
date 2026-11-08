@@ -1,3 +1,5 @@
+import type { IndexableFieldKind, ContentTypeFieldKind, ContentTypeFieldDef, ContentTypeStatus, ContentTypeRecord } from '@jini-ai/core/contracts/content-types';
+export type { IndexableFieldKind, ContentTypeFieldKind, ContentTypeFieldDef, ContentTypeStatus, ContentTypeRecord } from '@jini-ai/core/contracts/content-types';
 /**
  * @file Shared vocabulary for the `content-types` package.
  *
@@ -45,9 +47,7 @@ export const CONTENT_TYPE_SCALAR_KINDS = ["text", "integer", "real", "boolean", 
  * DDL alphabet.
  * See docs/decisions/DR-001-safe-schema-and-index-transitions.md.
  */
-export const INDEXABLE_FIELD_KINDS = [...CONTENT_TYPE_SCALAR_KINDS, "relation"] as const;
-
-export type IndexableFieldKind = (typeof INDEXABLE_FIELD_KINDS)[number];
+export const INDEXABLE_FIELD_KINDS = [...CONTENT_TYPE_SCALAR_KINDS, "relation"] as const satisfies readonly IndexableFieldKind[];
 
 /**
  * Kinds stored verbatim inside `fieldsJson` and NEVER indexed, sorted, or filtered on. A
@@ -74,9 +74,7 @@ export type StorageOnlyFieldKind = (typeof STORAGE_ONLY_FIELD_KINDS)[number];
 export const CONTENT_TYPE_FIELD_KINDS = [
   ...INDEXABLE_FIELD_KINDS,
   ...STORAGE_ONLY_FIELD_KINDS,
-] as const;
-
-export type ContentTypeFieldKind = (typeof CONTENT_TYPE_FIELD_KINDS)[number];
+] as const satisfies readonly ContentTypeFieldKind[];
 
 /**
  * Type guard for {@link ContentTypeFieldKind}. The single gate every kind value must pass before
@@ -109,37 +107,6 @@ export function isContentTypeFieldKind(required: { value: unknown }, _optional: 
 export function isIndexableFieldKind(required: { value: unknown }, _optional: Record<string, never> = {}): required is { value: IndexableFieldKind } {
   const { value } = required;
   return typeof value === "string" && (INDEXABLE_FIELD_KINDS as readonly string[]).includes(value);
-}
-
-export interface ContentTypeFieldDef {
-  name: string;
-  kind: ContentTypeFieldKind;
-  required: boolean;
-  queryable: boolean;
-}
-
-export type ContentTypeStatus = "active" | "deprecated" | "tombstone";
-
-/** Sample schema, expressed as the package's in-memory record shape (repo-agnostic). */
-export interface ContentTypeRecord {
-  workspaceId: string;
-  key: string;
-  label: string;
-  fields: ContentTypeFieldDef[];
-  status: ContentTypeStatus;
-  version: number;
-  tombstonedAt?: string | null;
-  /**
-   * The `fieldsJson.ext.<owner>` namespace every entry of this type is stored under. Absent means
-   * `"site"`, so every type registered before this property existed keeps its envelope unchanged.
-   * It belongs to the TYPE, not to whoever writes an entry: `entries/write-service.ts` reads it off
-   * the owning type, so no caller can validate a payload under the wrong namespace and mint a row
-   * the type's real reader can never parse (found 2026-09-19: the generic entries route passed no
-   * owner and wrote `ext.site` rows into a widget-owned type). Set only by code that registers its
-   * own type (`registerContentType`'s optional `owner`); the agent tool and HTTP surfaces never
-   * pass it.
-   */
-  owner?: string;
 }
 
 /**

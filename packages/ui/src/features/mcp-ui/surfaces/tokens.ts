@@ -1,3 +1,5 @@
+import type { SurfaceTokenName } from '@jini-ai/core/contracts/cards';
+export type { SurfaceTokenName } from '@jini-ai/core/contracts/cards';
 import { defaultAdminTheme } from '../../../core/theme/default.js';
 
 /**
@@ -72,9 +74,6 @@ export const SURFACE_TOKENS = {
     defaultAdminTheme.fonts.body,
   '--jini-mcpui-font-mono': defaultAdminTheme.fonts.mono!,
 } as const;
-
-/** The token names a caller may override. */
-export type SurfaceTokenName = keyof typeof SURFACE_TOKENS;
 
 /**
  * The dark-scheme value for every token in {@link SURFACE_TOKENS}, keyed the same way and typed as

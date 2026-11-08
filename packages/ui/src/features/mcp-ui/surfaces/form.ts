@@ -1,3 +1,5 @@
+import type { FormSurfaceSpec } from '@jini-ai/core/contracts/cards';
+export type { FormSurfaceSpec } from '@jini-ai/core/contracts/cards';
 /**
  * @module features/mcp-ui/surfaces/form
  *
@@ -41,36 +43,6 @@ import { renderFieldControl, toFieldReadSpecs, type SurfaceField } from './field
 import type { BridgeScriptSpec } from './bridge.js';
 import type { SurfaceTokenName } from './tokens.js';
 import { DEFAULT_SECRET_INPUT_TEXT, type SecretInputText } from './text-input.js';
-
-export interface FormSurfaceSpec {
-  readonly title: string;
-  /** Resource framing carried through host form projections; ignored by HTML rendering. */
-  readonly preferredFrameSize?: readonly [string, string];
-  readonly description?: string;
-  /** Read-only context shown above the fields — what the input is *about*. */
-  readonly details?: readonly SurfaceDetail[];
-  readonly fields: readonly SurfaceField[];
-  /** Callout above the buttons. */
-  readonly warning?: string;
-  /** Styles the submit button as destructive. */
-  readonly danger?: boolean;
-  readonly submitLabel: string;
-  /** Alternative submit buttons collect the same fields, with explicit action params. */
-  readonly additionalSubmitActions?: readonly { readonly id: string; readonly label: string; readonly params: Readonly<Record<string, unknown>> }[];
-  /** The tool the collected values are sent to. */
-  readonly toolName: string;
-  /**
-   * Merged UNDER the collected field values, so a field can never be shadowed by a base param it
-   * shares a name with. Where a confirmation token belongs when the form is a confirmation.
-   */
-  readonly baseParams?: Readonly<Record<string, unknown>>;
-  /** Omit for a form with no cancel button. Give it a tool name to notify the server of the dismissal. */
-  readonly cancel?: { readonly label: string; readonly toolName?: string; readonly params?: Readonly<Record<string, unknown>> };
-  readonly text?: Partial<SurfaceStatusText & SecretInputText>;
-  readonly app?: BridgeScriptSpec;
-  readonly lang?: string;
-  readonly tokens?: Partial<Record<SurfaceTokenName, string>>;
-}
 
 const DEFAULT_APP: BridgeScriptSpec = { appName: 'jini-mcp-ui-form', appVersion: '1' };
 

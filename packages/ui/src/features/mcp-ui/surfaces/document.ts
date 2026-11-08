@@ -1,3 +1,5 @@
+import type { SurfaceStatusText } from '@jini-ai/core/contracts/cards';
+export type { SurfaceStatusText } from '@jini-ai/core/contracts/cards';
 /**
  * @module features/mcp-ui/surfaces/document
  *
@@ -370,28 +372,6 @@ export const SURFACE_NOT_PENDING_ERROR_CODE = 'SURFACE_NOT_PENDING';
 
 /** The id {@link renderStatusRegion} emits and {@link SURFACE_SCRIPT_PRELUDE} looks up. */
 export const SURFACE_STATUS_ELEMENT_ID = 'mcpui-status';
-
-/**
- * Every user-visible string a surface's script writes at runtime.
- *
- * Surfaces are HTML strings built outside React, so `features/i18n`'s `useT` cannot reach them — a
- * translated surface is one whose builder was handed translated text. These are the defaults for a
- * caller that has none.
- */
-export interface SurfaceStatusText {
-  /** Shown while a tool call is in flight. */
-  readonly working: string;
-  /** Shown when the call resolves. */
-  readonly done: string;
-  /** Prefixed to the Host's own error message when the call rejects. */
-  readonly failedPrefix: string;
-  /** Shown when the human dismisses a surface that has no cancel tool to call. */
-  readonly dismissed: string;
-  /** Prefixed to the comma-joined labels of unfilled required fields. */
-  readonly missingPrefix: string;
-  /** Shown when the Host says the dialog is no longer pending; the buttons stay disabled. */
-  readonly expired: string;
-}
 
 export const DEFAULT_SURFACE_STATUS_TEXT: SurfaceStatusText = {
   working: 'Working…',

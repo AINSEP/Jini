@@ -1,3 +1,5 @@
+import type { AuthorizationCallbackParams } from '@jini-ai/core/contracts/oauth';
+export type { AuthorizationCallbackParams } from '@jini-ai/core/contracts/oauth';
 import { defaultOAuthMessages, type OAuthMessages } from './messages.js';
 import type { OAuthRequiredArgs, OAuthOptionalArgs } from './args.js';
 import { buildAuthorizationUrl } from 'openid-client';
@@ -131,11 +133,6 @@ export interface CompleteAuthorizationCodeDeps extends TokenRequestDeps {
 export interface CompleteStatelessAuthorizationCodeDeps extends Omit<CompleteAuthorizationCodeDeps, 'pending'> {
     readonly stateless: SealedAuthorizationState;
     readonly redirectUri: string;
-}
-export interface AuthorizationCallbackParams {
-    readonly state: string;
-    readonly code?: string;
-    readonly error?: string;
 }
 export interface CompleteAuthorizationCodeInput {
     readonly ownerKey: string;

@@ -1,3 +1,5 @@
+import type { SecretInputText } from '@jini-ai/core/contracts/cards';
+export type { SecretInputText } from '@jini-ai/core/contracts/cards';
 /**
  * @module features/mcp-ui/surfaces/text-input
  *
@@ -7,12 +9,6 @@
  */
 import { escapeHtml } from '../escape.js';
 import { fieldDescribedBy, fieldElementId, renderFieldLabel } from './document.js';
-
-/** Verbs the host can translate for a secret's reveal toggle; the field label is appended. */
-export interface SecretInputText {
-  readonly showSecret: string;
-  readonly hideSecret: string;
-}
 
 export const DEFAULT_SECRET_INPUT_TEXT: SecretInputText = { showSecret: 'Show', hideSecret: 'Hide' };
 

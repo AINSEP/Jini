@@ -1,3 +1,5 @@
+import type { ConfirmationToolAction } from '@jini-ai/core/contracts/cards';
+export type { ConfirmationToolAction } from '@jini-ai/core/contracts/cards';
 /**
  * @module features/mcp-ui/surfaces/confirmation
  *
@@ -45,14 +47,6 @@ import { renderCheckbox } from './checkbox.js';
 import { renderChoiceGroup } from './choice-group.js';
 import type { BridgeScriptSpec } from './bridge.js';
 import type { SurfaceTokenName } from './tokens.js';
-
-/** A button that calls a tool when clicked. */
-export interface ConfirmationToolAction {
-  readonly label: string;
-  readonly toolName: string;
-  /** Passed verbatim as the tool's `arguments`. The only safe home for a confirmation token. */
-  readonly params: Readonly<Record<string, unknown>>;
-}
 
 /**
  * A further affirmative button beside confirm, such as "Allow for this chat" next to "Allow" — see

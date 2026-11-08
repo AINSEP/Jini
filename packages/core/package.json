@@ -29,7 +29,13 @@
       "./settings/express": "node",
       "./plugin-directory": "universal",
       "./filesystem": "universal",
-      "./optional-peer": "universal"
+      "./optional-peer": "universal",
+      "./contracts/cards": "universal",
+      "./contracts/credentials": "universal",
+      "./contracts/mail": "universal",
+      "./contracts/vault": "universal",
+      "./contracts/oauth": "universal",
+      "./contracts/content-types": "universal"
     },
     "isolation": {
       "entries": {
@@ -167,6 +173,36 @@
       "types": "./dist/optional-peer.d.ts",
       "import": "./dist/optional-peer.js",
       "default": "./dist/optional-peer.js"
+    },
+    "./contracts/cards": {
+      "types": "./dist/contracts/cards.d.ts",
+      "import": "./dist/contracts/cards.js",
+      "default": "./dist/contracts/cards.js"
+    },
+    "./contracts/credentials": {
+      "types": "./dist/contracts/credentials.d.ts",
+      "import": "./dist/contracts/credentials.js",
+      "default": "./dist/contracts/credentials.js"
+    },
+    "./contracts/mail": {
+      "types": "./dist/contracts/mail.d.ts",
+      "import": "./dist/contracts/mail.js",
+      "default": "./dist/contracts/mail.js"
+    },
+    "./contracts/vault": {
+      "types": "./dist/contracts/vault.d.ts",
+      "import": "./dist/contracts/vault.js",
+      "default": "./dist/contracts/vault.js"
+    },
+    "./contracts/oauth": {
+      "types": "./dist/contracts/oauth.d.ts",
+      "import": "./dist/contracts/oauth.js",
+      "default": "./dist/contracts/oauth.js"
+    },
+    "./contracts/content-types": {
+      "types": "./dist/contracts/content-types.d.ts",
+      "import": "./dist/contracts/content-types.js",
+      "default": "./dist/contracts/content-types.js"
     }
   },
   "files": [

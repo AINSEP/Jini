@@ -1,26 +1,7 @@
+import type { MailAdapterCredential, MailAdapterKit, MailAdapterCreateContext, MailAdapterModule } from '@jini-ai/core/contracts/mail';
+export type { MailAdapterCredential, MailAdapterKit, MailAdapterCreateContext, MailAdapterModule } from '@jini-ai/core/contracts/mail';
 import type { HttpClientPort } from "@jini-ai/core/primitives";
 import type { MailerPort } from "./ports.js";
-
-export interface MailAdapterCredential {
-  readonly token: string;
-  readonly baseUrl?: string;
-  readonly username?: string;
-}
-
-export interface MailAdapterKit {
-  
-  /** Provider requests must use the guarded outbound HTTP seam so its egress policy applies. */
-  readonly httpClient: HttpClientPort;
-}
-
-export interface MailAdapterCreateContext {
-  readonly credential: MailAdapterCredential;
-  readonly kit: MailAdapterKit;
-  /** Sample at the point of use. Hosts normalize this to the real clock when omitted. */
-  readonly now?: () => Date;
-  /** Per-install configuration; only the provider module owns its schema and validation. */
-  readonly settings?: unknown;
-}
 
 /**
  * Normalize a host's module context without inspecting settings or replacing its guarded ports.
@@ -37,12 +18,4 @@ export function createMailAdapterContext(
   { now = () => new Date(), settings = {} }: Pick<MailAdapterCreateContext, "now" | "settings"> = {},
 ): Required<MailAdapterCreateContext> {
   return { credential: required.credential, kit: required.kit, now, settings };
-}
-
-/** Provider modules return the ordinary mail port; the shared contract names no vendor. */
-export interface MailAdapterModule {
-  /** Optional host-resolved account connection for domain reads only. The host validates the
-   * HTTPS origin and plugin ownership; this credential must never replace the sending key. */
-  readonly domainReadConnection?: { readonly serverId: string; readonly baseUrl: string };
-  create(context: MailAdapterCreateContext): MailerPort;
 }

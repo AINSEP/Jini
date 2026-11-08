@@ -1,3 +1,5 @@
+import type { BridgeScriptSpec } from '@jini-ai/core/contracts/cards';
+export type { BridgeScriptSpec } from '@jini-ai/core/contracts/cards';
 /**
  * @module features/mcp-ui/surfaces/bridge
  *
@@ -54,15 +56,6 @@ export const SURFACE_BRIDGE_GLOBAL = 'jiniMcpUi';
  * tell "the Host never answered `ui/initialize`" apart from "the surface's own script threw".
  */
 export const SURFACE_HANDSHAKE_FAILED_ATTRIBUTE = 'data-mcpui-handshake-failed';
-
-export interface BridgeScriptSpec {
-  /** Reported to the Host as `appInfo.name` in `ui/initialize`. */
-  readonly appName: string;
-  /** Reported to the Host as `appInfo.version`. */
-  readonly appVersion: string;
-  /** Defaults to {@link MCP_UI_PROTOCOL_VERSION}. */
-  readonly protocolVersion?: string;
-}
 
 /**
  * Renders the View-side protocol bridge as JavaScript source.

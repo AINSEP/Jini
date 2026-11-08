@@ -1,3 +1,5 @@
+import type { SecretCardField, SecretCardForm } from '@jini-ai/core/contracts/cards';
+export type { SecretCardField, SecretCardForm } from '@jini-ai/core/contracts/cards';
 /**
  * One human-only secret-card lifecycle. Keystrokes go directly to the held exchange and save
  * port, never through model input, chat text, or logs. Saved values must stay in the host's
@@ -19,20 +21,6 @@ import type { UIResourceUri } from './resource.js';
 import { buildFormSurface, type FormSurfaceSpec } from './surfaces/form.js';
 import { buildOutcomeSurface, type SurfaceOutcomeSpec } from './surfaces/outcome.js';
 import type { StringField, SurfaceField } from './surfaces/fields.js';
-
-/** Secret fields cannot carry a value, even through a previously declared variable.
- * `allowBlank` permits an empty string for stored-value preservation or public-client auth. */
-export type SecretCardField =
-  | (SurfaceField & { readonly secret?: false })
-  | (Omit<StringField, 'value' | 'secret'> & {
-      readonly secret: true; readonly value?: never; readonly allowBlank?: boolean;
-    });
-
-/** The host controls copy, field construction and display; routing/dismissal belong to the engine. */
-export type SecretCardForm = Omit<FormSurfaceSpec, 'fields' | 'toolName' | 'baseParams' | 'cancel'> & {
-  readonly fields: readonly SecretCardField[];
-  readonly cancelLabel?: string;
-};
 
 export type SecretCardRun<Saved> =
   | { readonly status: 'saved'; readonly saved: Saved }

@@ -1,3 +1,5 @@
+import type { DiscoveredAuthorizationServer, DiscoveredOAuthConfiguration } from '@jini-ai/core/contracts/oauth';
+export type { DiscoveredAuthorizationServer, DiscoveredOAuthConfiguration } from '@jini-ai/core/contracts/oauth';
 import { discovery, None, allowInsecureRequests, customFetch } from 'openid-client';
 import { resourceDiscoveryRequest, processResourceDiscoveryResponse,
     // @ts-expect-error Upstream exports its skip-check sentinel at runtime but omits its public type.
@@ -14,23 +16,6 @@ import type { OAuthHttpPorts, OAuthUrlGuard } from './ports.js';
 
 const DISCOVERY_TIMEOUT_MS = 10000;
 export interface OAuthDiscoveryDeps extends OAuthHttpPorts {}
-export interface DiscoveredAuthorizationServer {
-    readonly issuer: string;
-    readonly authorizationEndpoint: string | null;
-    readonly tokenEndpoint: string;
-    readonly deviceAuthorizationEndpoint: string | null;
-    readonly registrationEndpoint: string | null;
-    readonly scopesSupported: readonly string[];
-    readonly grantTypesSupported: readonly string[];
-    readonly codeChallengeMethodsSupported: readonly string[];
-    readonly tokenEndpointAuthMethodsSupported: readonly string[];
-}
-export interface DiscoveredOAuthConfiguration {
-    readonly server: DiscoveredAuthorizationServer;
-    readonly resourceScopes: readonly string[];
-    /** Pass to grant APIs as the RFC 8707 resource; absent when no resource metadata was found. */
-    readonly resource?: string | undefined;
-}
 export interface DiscoverAuthorizationServerInput {
     readonly resourceUrl: string;
     readonly wwwAuthenticate?: string;

@@ -1,3 +1,5 @@
+import type { SelectOption } from '@jini-ai/core/contracts/cards';
+export type { SelectOption } from '@jini-ai/core/contracts/cards';
 /**
  * @module features/mcp-ui/surfaces/select
  *
@@ -8,14 +10,6 @@
  */
 import { escapeHtml } from '../escape.js';
 import { fieldDescribedBy, fieldElementId, renderFieldLabel } from './document.js';
-
-export interface SelectOption {
-  /** The value posted back. */
-  readonly value: string;
-  /** What the human reads. Defaults to `value`. */
-  readonly label?: string;
-  readonly disabled?: boolean;
-}
 
 export interface SelectProps {
   /** HTML `name`, DOM `id` suffix, and the params key the value is posted under. */

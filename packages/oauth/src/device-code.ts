@@ -1,3 +1,5 @@
+import type { DeviceAuthorization } from '@jini-ai/core/contracts/oauth';
+export type { DeviceAuthorization } from '@jini-ai/core/contracts/oauth';
 import { nowIso as readNowIso, type Clock, type ISODateTime } from '@jini-ai/core/primitives';
 import type { OAuthRequiredArgs, OAuthOptionalArgs } from './args.js';
 import { customFetch, initiateDeviceAuthorization, ResponseBodyError } from 'openid-client';
@@ -12,14 +14,6 @@ const DEFAULT_POLL_INTERVAL_SECONDS = 5;
 const MAX_POLL_INTERVAL_SECONDS = 60;
 const MAX_DEVICE_CODE_LIFETIME_SECONDS = 30 * 60;
 const MAX_RESPONSE_BYTES = 16 * 1024;
-export interface DeviceAuthorization {
-    readonly deviceCode: string;
-    readonly userCode: string;
-    readonly verificationUri: string;
-    readonly verificationUriComplete: string | null;
-    readonly expiresAt: ISODateTime;
-    readonly intervalSeconds: number;
-}
 export interface DeviceAuthorizationDeps extends OAuthHttpPorts {
     readonly provider: OAuthProviderDescriptor;
     readonly clock: Clock;

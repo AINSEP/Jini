@@ -1,3 +1,5 @@
+import type { StringField, NumberField, BooleanField, EnumField, MultiEnumField, SurfaceField } from '@jini-ai/core/contracts/cards';
+export type { StringField, NumberField, BooleanField, EnumField, MultiEnumField, SurfaceField } from '@jini-ai/core/contracts/cards';
 /**
  * @module features/mcp-ui/surfaces/fields
  *
@@ -19,77 +21,6 @@ import { renderCheckbox } from './checkbox.js';
 import { renderChoiceGroup } from './choice-group.js';
 import { renderSelect, type SelectOption } from './select.js';
 import { renderTextInput, type SecretInputText } from './text-input.js';
-
-interface SurfaceFieldBase {
-  /** HTML `name`, DOM `id` suffix, and the params key the value is posted under. */
-  readonly name: string;
-  readonly label: string;
-  /** Help text, wired up with `aria-describedby`. */
-  readonly hint?: string;
-  readonly required?: boolean;
-  /** Waive on an exact choice or an alternative control; headerNames restricts entered headers. Kept secrets are validated by the host. */
-  readonly requiredUnless?: { readonly field: string; readonly equals: string; readonly orPresent?: string; readonly headerNames?: readonly string[] };
-  /** Require only while the controlling public field matches one of these choices. */
-  readonly requiredWhen?: { readonly field: string; readonly in: readonly string[] };
-  readonly disabled?: boolean;
-}
-
-export interface StringField extends SurfaceFieldBase {
-  readonly kind: 'string';
-  /** A sealed saved value satisfies validation while the requirement remains visible. */
-  readonly hasSavedValue?: boolean;
-  readonly value?: string;
-  readonly placeholder?: string;
-  readonly multiline?: boolean;
-  readonly rows?: number;
-  /** Renders as a masked input or multiline textarea; pre-filled values are forbidden.
-   *  See {@link TextInputProps.secret}. */
-  readonly secret?: boolean;
-}
-
-export interface NumberField extends SurfaceFieldBase {
-  readonly kind: 'number';
-  readonly value?: number;
-  readonly placeholder?: string;
-  readonly min?: number;
-  readonly max?: number;
-  readonly step?: number;
-}
-
-export interface BooleanField extends SurfaceFieldBase {
-  readonly kind: 'boolean';
-  readonly value?: boolean;
-}
-
-export interface EnumField extends SurfaceFieldBase {
-  readonly kind: 'enum';
-  readonly value?: string;
-  readonly options: readonly SelectOption[];
-  readonly placeholder?: string;
-  /**
-   * How the same one-of-N value is drawn. `select` (the default) hides the options until opened —
-   * right for a long list; `radio` shows them all at once — right for a short one the human is
-   * meant to compare before choosing. Presentation only: both post one string under `name`, and
-   * both read back through the same `control.value` path, so `kind` stays `'enum'` either way.
-   */
-  readonly presentation?: 'select' | 'radio';
-}
-
-/**
- * A pick-any-number-of-N field.
- *
- * Its own kind rather than a flag on {@link EnumField}, because it is the only field whose value is
- * an **array** — `form.ts`'s `readField` and `isBlank` both branch on that, and no `presentation`
- * discriminator would have told them to.
- */
-export interface MultiEnumField extends SurfaceFieldBase {
-  readonly kind: 'multi-enum';
-  /** Pre-checked values. Unknown entries check nothing rather than erroring. */
-  readonly value?: readonly string[];
-  readonly options: readonly SelectOption[];
-}
-
-export type SurfaceField = StringField | NumberField | BooleanField | EnumField | MultiEnumField;
 
 /** The listed properties that are present on `source`, in listed order.
  * Only the properties present on a given field are forwarded, because `exactOptionalPropertyTypes` makes `{ hint: undefined }` and `{}` different types.

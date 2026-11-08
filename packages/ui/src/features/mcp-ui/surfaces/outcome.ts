@@ -1,3 +1,5 @@
+import type { SurfaceOutcomeSpec } from '@jini-ai/core/contracts/cards';
+export type { SurfaceOutcomeSpec } from '@jini-ai/core/contracts/cards';
 /**
  * @module features/mcp-ui/surfaces/outcome
  *
@@ -61,42 +63,6 @@ import {
 import type { ConfirmationToolAction } from './confirmation.js';
 import type { BridgeScriptSpec } from './bridge.js';
 import type { SurfaceTokenName } from './tokens.js';
-
-export interface SurfaceOutcomeSpec {
-  readonly title: string;
-  /** Resource framing carried through host outcome projections; ignored by HTML rendering. */
-  readonly preferredFrameSize?: readonly [string, string];
-  readonly description?: string;
-  /** The facts of what actually happened — same shape as a confirmation's own `details`, but
-   *  reporting the RESULT (e.g. the real URL, the real status) rather than what was proposed. */
-  readonly details?: readonly SurfaceDetail[];
-  /**
-   * Styles the status line and, when {@link openLinkUrl} is also present, the open-link button.
-   * THREE states, not a boolean — matching this package's own callers, which distinguish a genuine
-   * partial outcome (e.g. a downstream product's static-publish "uploaded, but not yet confirmed reachable") from
-   * both a plain success and a plain failure specifically so neither is misreported: folding
-   * `'partial'` into `'success'` would claim something is live when it may not be reachable yet;
-   * folding it into `'failure'` would hide that the operation itself did NOT fail (nothing needs
-   * retrying, only a separate follow-up step). See `document.ts`'s own `[data-state="partial"]` rule
-   * for why this needs a third visual state as well as a third value here, not merely a third string
-   * that renders identically to one of the other two.
-   */
-  readonly state: 'success' | 'partial' | 'failure';
-  /** The one human-facing sentence explaining the outcome — the actionable message on failure, or a
-   *  short confirmation on success. Never a raw credential or provider response body; that boundary
-   *  is the CALLER's responsibility (this builder only renders what it is given). */
-  readonly message: string;
-  /** When present, renders one button ("Open site" by default) that calls the bridge's `openLink`.
-   *  Only meaningful alongside `state: 'success'` — a caller should not supply this for a failure. */
-  readonly openLinkUrl?: string;
-  readonly openLinkLabel?: string;
-  /** A pending external action may be skipped through its existing surface exchange. */
-  readonly cancel?: ConfirmationToolAction;
-  /** Identity reported to the Host in `ui/initialize`. Defaults to a generic one. */
-  readonly app?: BridgeScriptSpec;
-  readonly lang?: string;
-  readonly tokens?: Partial<Record<SurfaceTokenName, string>>;
-}
 
 const DEFAULT_APP: BridgeScriptSpec = { appName: 'jini-mcp-ui-outcome', appVersion: '1' };
 const DEFAULT_OPEN_LINK_LABEL = 'Open site';

@@ -1,3 +1,5 @@
+import type { OAuthProviderRegistry } from '@jini-ai/core/contracts/oauth';
+export type { OAuthProviderRegistry } from '@jini-ai/core/contracts/oauth';
 import type { OAuthRequiredArgs, OAuthOptionalArgs, OAuthEmptyArgs } from './args.js';
 /** Provider descriptor validation and independent registries. No provider is registered as a module side effect. */
 import { assertSafeProviderEndpoint } from "./endpoint-safety.js";
@@ -75,16 +77,6 @@ export function buildOperatorOAuthProvider(requiredArgs: OAuthRequiredArgs<Opera
         guard: guard
     });
     return descriptor;
-}
-/** A new registry starts empty. Returned snapshots cannot mutate its stored configuration. */
-export interface OAuthProviderRegistry {
-    register(requiredArgs: {
-        readonly descriptor: OAuthProviderDescriptor;
-    }): void;
-    list(requiredArgs: OAuthEmptyArgs): readonly OAuthProviderDescriptor[];
-    get(requiredArgs: {
-        readonly providerId: string;
-    }): OAuthProviderDescriptor;
 }
 export function createOAuthProviderRegistry(deps: {
     readonly guard: OAuthUrlGuard;

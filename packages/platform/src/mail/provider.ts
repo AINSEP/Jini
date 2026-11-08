@@ -1,3 +1,5 @@
+import type { MailRateLimit, MailProviderCapabilities, MailFeedbackParser, MailProviderCallContext, MailDomainState, MailProviderModule, MailProviderRegistry, MailProviderSetting, MailLaneState, MailLaneStatus, MailStatusWarning, MailStatus } from '@jini-ai/core/contracts/mail';
+export type { MailRateLimit, MailProviderCapabilities, MailFeedbackParser, MailProviderCallContext, MailDomainState, MailProviderModule, MailProviderRegistry, MailProviderSetting, MailLaneState, MailLaneStatus, MailStatusWarning, MailStatus } from '@jini-ai/core/contracts/mail';
 /**
  * @file Mail provider contract + keyed registry (email provider contract v1, 2026-10-21).
  *
@@ -19,54 +21,6 @@ import type { MailAdapterCredential, MailAdapterModule } from "./adapter-module.
 import type { MailDeliveryLane } from "./ports.js";
 import type { MailerFeedbackEvent } from "./types.js";
 
-/** Provider token bucket: sustained rate plus burst. Absent = no provider-declared limit. */
-export interface MailRateLimit {
-  readonly perSecond: number;
-  readonly burst: number;
-}
-
-export interface MailProviderCapabilities {
-  /** False for local drivers (console): they never count as real delivery. */
-  readonly hosted: boolean;
-  /** True exactly when the module ships a {@link MailFeedbackParser}. */
-  readonly feedback: boolean;
-  /** True exactly when the module implements domainRequirements + domainStatus. */
-  readonly domainVerification: boolean;
-  readonly rateLimit?: MailRateLimit;
-}
-
-export interface MailFeedbackParser {
-  /** Raw bytes in; never throws. Any of `secrets` may match so a webhook secret can rotate. */
-  verify(required: {
-    rawBody: Uint8Array; headers: Readonly<Record<string, string>>; secrets: readonly string[]; now: number;
-  }): boolean;
-  /** Headers are passed so a parser can key events on a delivery id (e.g. `svix-id`).
-   * Each event must carry eventId + recipient, or the ingest drops it (no dedup key, no suppression key). */
-  parse(required: { rawBody: Uint8Array; workspaceId: string; headers: Readonly<Record<string, string>> }): readonly MailerFeedbackEvent[] | { error: string };
-}
-
-/** Per-call context: who the call acts for plus the host-resolved credential and guarded HTTP. */
-export interface MailProviderCallContext extends ProviderContext {
-  readonly credential: MailAdapterCredential;
-  readonly httpClient: HttpClientPort;
-}
-
-export type MailDomainState = "verified" | "pending" | "failed" | "not_found";
-
-export interface MailProviderModule extends MailAdapterModule {
-  readonly id: string;
-  readonly label: string;
-  /** Credential fields the host must resolve (e.g. `token`, `username`, `baseUrl`). */
-  readonly credentialKeys: readonly string[];
-  /** Separate vault key for the webhook signing secret, so it rotates independently of the API key. */
-  readonly webhookSecretKey?: string;
-  readonly capabilities: MailProviderCapabilities;
-  readonly feedback?: MailFeedbackParser;
-  /** DNS records the provider needs before it will send as `domain`; satisfied through the DNS port. */
-  domainRequirements?(ctx: MailProviderCallContext, required: { domain: string }): Promise<ProviderResult<DomainRequirement>>;
-  domainStatus?(ctx: MailProviderCallContext, required: { domain: string }): Promise<ProviderResult<{ domain: string; state: MailDomainState }>>;
-}
-
 /** Shape check run by the registry for core and plugin registrations. @complexity O(k) keys. */
 export function validateMailProvider({ provider }: { provider: MailProviderModule }): string | undefined {
   if (typeof provider !== "object" || provider === null) return "not an object";
@@ -85,8 +39,6 @@ function hasDomainVerification(provider: MailProviderModule): boolean {
   return typeof provider.domainRequirements === "function" && typeof provider.domainStatus === "function";
 }
 
-export type MailProviderRegistry = ProviderRegistry<MailProviderModule>;
-
 /** Mail registry over the shared keyed registry; built-ins throw on a bad registration, plugins are refused. */
 export function createMailProviderRegistry(
   _required: Record<string, never> = {},
@@ -102,12 +54,6 @@ export function createMailProviderRegistry(
 
 export const MAIL_PROVIDER_SETTING_KEY = "mail.provider";
 
-/** One provider per lane; equal ids today, separable later without a data migration. null = unconfigured. */
-export interface MailProviderSetting {
-  readonly transactional: string | null;
-  readonly bulk: string | null;
-}
-
 /**
  * The value written on first boot: whatever the host was effectively using, so a live site never
  * silently switches provider when selection becomes explicit. A local driver (console) or nothing
@@ -121,23 +67,6 @@ export function initialMailProviderSetting(
   const hosted = id !== null && optional.registry?.get({ id })?.provider.capabilities.hosted === true;
   const value = hosted ? id : null;
   return { transactional: value, bulk: value };
-}
-
-export type MailLaneState = "ready" | "unconfigured" | "unknown_provider" | "missing_credential" | "local_only";
-
-export interface MailLaneStatus {
-  readonly lane: MailDeliveryLane;
-  readonly providerId: string | null;
-  readonly state: MailLaneState;
-}
-
-export type MailStatusWarning = "sender_unverified" | "sender_unknown";
-
-export interface MailStatus {
-  /** `unconfigured` drives the blocking admin banner; owner sign-in must never depend on mail. */
-  readonly state: "ready" | "unconfigured" | "degraded";
-  readonly lanes: readonly MailLaneStatus[];
-  readonly warnings: readonly MailStatusWarning[];
 }
 
 function laneStatus(

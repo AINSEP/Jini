@@ -1,24 +1,7 @@
+import type { SurfaceDetail } from '@jini-ai/core/contracts/cards';
+export type { SurfaceDetail } from '@jini-ai/core/contracts/cards';
 /** Shared value presentation for confirmation, form and outcome details. Never interprets HTML. */
 import { escapeHtml } from '../escape.js';
-
-/** One fact. Values and previous snapshots must be JSON-serializable; strings remain supported. */
-export interface SurfaceDetail {
-  readonly label: string;
-  readonly value: unknown;
-  /** Presence enables a diff, including an explicitly absent previous override. */
-  readonly previous?: unknown;
-  /** Explicit, optionally translated labels keyed by dotted object path. */
-  readonly labels?: Readonly<Record<string, string>>;
-  /** Optional secondary context beneath the label, using the shared muted hint style. */
-  readonly description?: string;
-  /**
-   * `code` discloses a monospace `<pre>` that keeps line breaks and scrolls inside its own box
-   * past a fixed height, so long SQL or JSON remains readable without stretching the dialog past
-   * its frame. `status` reserves one line for a short outcome value. Omitted (or `text`) permits
-   * value-sensitive presentation, preserving plain inline strings for short prose.
-   */
-  readonly format?: 'text' | 'code' | 'status';
-}
 
 type ValueContext = { value: unknown; path: string; labels: Readonly<Record<string, string>>; format?: SurfaceDetail['format'] };
 type DiffContext = ValueContext & { previous: unknown };
