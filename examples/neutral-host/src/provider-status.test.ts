@@ -12,7 +12,7 @@ it('provider status: reports configured providers with no product names, shows t
   const exchanges = createSurfaceExchangeStore({ clock: createSystemClock(), scheduler: createTimeoutScheduler({}), idGenerator: { newId: () => 'settings-1' }, defaultChannel: 'mcp-ui' });
   const settingsCard = { tool: 'credential_save' as const, input: { kind: 'provider-settings' as const, target: 'metrics' } };
   const fields = [{ name: 'apiKey', label: 'API key', secret: true, required: true }];
-  const status = createProviderStatusTools({ metadata: {}, authorization: { permission: 'studio.providers.read' } });
+  const status = createProviderStatusTools({ metadata: {}, authorization: { permission: 'studio.providers.read' }, catalogModule: 'studio/providers.ts', messages: { description: 'Read provider presence in the studio.', pluginIdDescription: 'Studio provider id from studio_plugins.', unknownPlugin: ({ pluginId }) => `Unknown studio provider ${String(pluginId)}; call studio_plugins.`, unexpectedInput: 'Studio provider status accepts only pluginId.' } });
   const rows = (): ProviderStatusRow[] => [{ pluginId: 'metrics', fields, settingsCard,
     enabled: true, configured: memory.has('metrics'), missing: memory.has('metrics') ? [] : ['API key'],
     store: 'site', appliesAt: 'now', usedByThisSite: true, usedBy: ['studio'] }];
@@ -26,7 +26,7 @@ it('provider status: reports configured providers with no product names, shows t
   expect(status.providerStatusAgentToolCatalog[0]?.authorization.permission).toBe('studio.providers.read');
 
   const unused = async (): Promise<never> => { throw new Error('Unexpected credential domain'); };
-  const tools = createCredentialSaveTools({ metadata: {}, toolId: 'credential_save', categories: ['general'], messages: { description: 'Save a provider credential in the studio human card.' } });
+  const tools = createCredentialSaveTools({ metadata: {}, toolId: 'credential_save', categories: ['general'], messages: { description: 'Save a provider credential in the studio human card.', oauthRefusal: 'Use studio_connect for browser sign-in.' }, catalogModule: 'studio/secrets.ts' });
   const save = tools.buildCredentialSaveRegistrations({ adapters: {
     apiCreate: unused, apiRotate: unused, mediaProvider: unused, sourceControl: unused,
     publishHost: unused, agentPluginToken: unused, pluginProvider: unused,

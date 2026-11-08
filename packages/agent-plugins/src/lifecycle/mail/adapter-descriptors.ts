@@ -8,6 +8,7 @@ import path from "node:path";
 
 import { PROVIDER_ID_PATTERN } from "@jini-ai/core/provider-registry";
 import type { MailAdapterModule, MailProviderSetup } from "@jini-ai/core/contracts/mail";
+import { parseMailProviderSetupProperty as parseLegacySetup } from './legacy-mail-setup.js';
 
 /** @agent-note Setup validation is supplied by the host runtime. */
 export type ParseMailSetup = (required: { value: unknown; at: string; credentialKeys: readonly string[] }) => { setup?: MailProviderSetup } | string;
@@ -68,7 +69,7 @@ export function asMailAdapterModule<M extends object = MailAdapterModule>(requir
  * @complexity O(a) in the declared adapter count.
  */
 export function parseMailAdaptersFile(
-  required: { readonly raw: string; readonly parseSetup: ParseMailSetup },
+  required: { readonly raw: string; readonly parseSetup?: ParseMailSetup },
   optional: { readonly defaultCredentialLabel?: (input: { label: string }) => string } = {},
 ): MailAdaptersParseResult {
   let value: unknown;
@@ -79,7 +80,7 @@ export function parseMailAdaptersFile(
   }
   if (!isPlainObject(value) || (value.schemaVersion !== 1 && value.schemaVersion !== 2)) return { ok: false, reason: "schemaVersion must be 1 or 2" };
   if (!Array.isArray(value.adapters)) return { ok: false, reason: "adapters must be an array" };
-  return parseAdapterDescriptors({ parseSetup: required.parseSetup, adapters: value.adapters, version: value.schemaVersion, defaultLabel: optional.defaultCredentialLabel ?? defaultMailCredentialLabel });
+  return parseAdapterDescriptors({ parseSetup: required.parseSetup ?? parseLegacySetup, adapters: value.adapters, version: value.schemaVersion, defaultLabel: optional.defaultCredentialLabel ?? defaultMailCredentialLabel });
 }
 
 function parseAdapterDescriptors({ adapters, version, defaultLabel, parseSetup }: { adapters: unknown[]; version: number; defaultLabel: DefaultLabel; parseSetup: ParseMailSetup }, _options = {}): MailAdaptersParseResult {

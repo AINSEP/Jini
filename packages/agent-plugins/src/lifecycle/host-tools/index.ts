@@ -20,4 +20,4 @@ export {
 export { buildPluginMemoryRegistrations } from './memory-tools.js';
 export { WRITE_PLUGIN_NOTE, pluginNoteToolCatalog, pluginNoteRisk, pluginNoteHandler } from './write-note-tool.js';
 
-export { createProviderStatusTools, PROVIDER_STATUS_TOOL_ID, type ProviderStatusRow, type ProviderStatusPorts, type ProviderSettingFieldProjection } from './provider-status-tool.js';
+export { createProviderStatusTools, PROVIDER_STATUS_TOOL_ID, type ProviderStatusMessages, type ProviderStatusRow, type ProviderStatusPorts, type ProviderSettingFieldProjection } from './provider-status-tool.js';

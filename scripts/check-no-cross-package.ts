@@ -41,24 +41,23 @@ function isLiteralModuleCall(node: ts.Node): node is ts.CallExpression & { argum
 
 function specifiers(required: { file: string; source: string }): Set<string> {
   const specs = new Set<string>();
+  const ast = parseSource(required);
+  for (const directive of ast.typeReferenceDirectives) specs.add(directive.fileName);
   function visit(node: ts.Node): void {
     if (ts.isImportDeclaration(node)) collectImport({ node, specs });
     if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) specs.add(node.moduleSpecifier.text);
     if (isLiteralModuleCall(node)) specs.add(node.arguments[0].text);
     if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument) && ts.isStringLiteral(node.argument.literal)) specs.add(node.argument.literal.text);
+    if (ts.isModuleDeclaration(node) && ts.isStringLiteral(node.name)) specs.add(node.name.text);
     ts.forEachChild(node, visit);
   }
-  visit(parseSource(required));
+  visit(ast);
   return specs;
 }
 
 function collectImport({ node, specs }: { node: ts.ImportDeclaration; specs: Set<string> }): void {
   if (!ts.isStringLiteral(node.moduleSpecifier)) return;
-  if (node.importClause?.isTypeOnly) {
-    specs.add(node.moduleSpecifier.text);
-  } else {
-    specs.add(node.moduleSpecifier.text);
-  }
+  specs.add(node.moduleSpecifier.text);
 }
 
 function forbidden(required: { specifier: string; owner: string }): boolean {
@@ -229,7 +228,7 @@ function checkManifests(required: Context & { packages: SourcePackage[] }): Find
     const file = relative(required.root, join(pkg.directory, 'package.json'));
     const old = git({ root: required.root, args: ['ls-tree', required.base, '--', file] });
     const before = old ? JSON.parse(git({ root: required.root, args: ['show', `${required.base}:${file}`] })) : {};
-    return (['dependencies', 'peerDependencies'] as const).flatMap(section =>
+    return (['dependencies', 'peerDependencies', 'optionalDependencies'] as const).flatMap(section =>
       Object.keys(pkg.manifest[section] ?? {}).filter(specifier => specifier.startsWith('@jini-ai/') && specifier !== '@jini-ai/core' && !before[section]?.[specifier])
         .map(specifier => ({ rule: 'XP5', file, specifier })));
   });

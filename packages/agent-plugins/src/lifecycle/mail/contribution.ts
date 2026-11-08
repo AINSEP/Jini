@@ -37,7 +37,12 @@ import { asMailAdapterModule, parseMailAdaptersFile, type ParseMailSetup, type M
 export interface MailAdapterCreateContext { readonly credential: MailAdapterCredential; readonly kit: { readonly httpClient: PluginMailHttpClient } }
 export interface MailAdapterModule extends Pick<import("@jini-ai/core/contracts/mail").MailAdapterModule, "domainReadConnection"> { create(context: MailAdapterCreateContext): PositionalMailer }
 export interface LoadedMailAdapter { readonly descriptor: MailAdapterDescriptor; readonly pluginId: string; readonly module: MailAdapterModule }
-export interface MailAdapterRegistry { list(): readonly LoadedMailAdapter[]; readonly refusals: readonly string[] }
+export interface MailAdapterRegistry {
+  /** Every loaded adapter, in a stable order (plugin id, then declaration order). */
+  list(): readonly LoadedMailAdapter[];
+  /** Log-safe, one sentence per plugin or adapter that was NOT loaded, and why. */
+  readonly refusals: readonly string[];
+}
 type Loader = ReturnType<typeof createPluginContributionLoader>;
 type LoadPluginContributions = Loader["loadPluginContributions"];
 /** @agent-note The host supplies its filename, setup validator, guarded ABI, and trusted source loader. */

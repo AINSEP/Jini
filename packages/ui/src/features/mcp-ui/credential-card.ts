@@ -1,3 +1,11 @@
+/**
+ * @file A key card an installed plugin declares for its own provider (2026-10-22, starting with mail
+ * providers). The generic "Save an API credential" card asks for a label, base URL, category and
+ * deploy targets the person has no reason to know; a plugin that already knows them declares its own
+ * card copy, and core fills the rest in on the server. The form carries a masked token plus
+ * declared non-secret fields. Fixed labels, origins and categories remain server-owned, so a
+ * submission cannot redirect the key to another row. Instance-specific origins are explicit fields. Core names no vendor: every word on the card comes from the plugin's descriptor.
+ */
 /** @agent-note `app` is the host's own id; it appears in every rendered card. */
 import type { SurfaceCardSecretForm as SecretCardForm, SurfaceCardApp } from '@jini-ai/core/contracts/cards';
 import type { PluginCredentialCard } from '@jini-ai/core/contracts/credentials';

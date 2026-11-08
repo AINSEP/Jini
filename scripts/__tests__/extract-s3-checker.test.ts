@@ -93,3 +93,70 @@ test('F1 writer refuses to overwrite an immutable snapshot', () => {
   expect(f.cli().status).not.toBe(0);
   expect(readFileSync(join(f.baselineDir, 'manifest.json'), 'utf8')).toBe(manifest);
 });
+
+const declarationSyntax = [
+  ['type reference directive', (specifier: string) => `/// <reference types="${specifier}" />\n`],
+  ['ambient module declaration', (specifier: string) => `declare module "${specifier}" { export interface Edge {} }\n`],
+] as const;
+
+for (const [syntax, edge] of declarationSyntax) {
+  test(`F6 XP1/XP3 inspect a new source and declaration ${syntax}`, () => {
+    const f = fixture(); const source = edge('@jini-ai/ui');
+    f.write('packages/platform/src/new.ts', source); f.write('packages/platform/build/types/new.d.ts', source); f.git('add', '--', 'packages/platform/src/new.ts');
+    expect(f.check()).toEqual([
+      { rule: 'XP1', file: 'packages/platform/src/new.ts', specifier: '@jini-ai/ui' },
+      { rule: 'XP3', file: 'packages/platform/src/new.ts', specifier: '@jini-ai/ui' },
+    ]);
+  });
+
+  test(`F6 XP1/XP3 fully inspect a renamed source and declaration ${syntax}`, () => {
+    const source = edge('@jini-ai/ui'); const f = fixture({ source });
+    f.git('mv', 'packages/platform/src/index.ts', 'packages/platform/src/renamed.ts');
+    f.write('packages/platform/build/types/renamed.d.ts', source);
+    expect(f.check().map(finding => finding.rule)).toEqual(['XP1', 'XP3']);
+  });
+
+  test(`F6 XP2/XP3 compare modified ${syntax} against the original source and emits`, () => {
+    const old = edge('@jini-ai/ui/old'), added = edge('@jini-ai/ui/new'); const f = fixture({ source: old });
+    expect(f.cli().status).toBe(0);
+    f.write('packages/platform/src/index.ts', old + '// unchanged edge\n'); expect(f.check()).toEqual([]);
+    f.write('packages/platform/src/index.ts', old + added); f.write('packages/platform/build/types/index.d.ts', old + added);
+    expect(f.check()).toEqual([
+      { rule: 'XP2', file: 'packages/platform/src/index.ts', specifier: '@jini-ai/ui/new' },
+      { rule: 'XP3', file: 'packages/platform/src/index.ts', specifier: '@jini-ai/ui/new' },
+    ]);
+  });
+
+  test(`F6 XP3 detects declaration-only added ${syntax} and preserves an old edge`, () => {
+    const old = edge('@jini-ai/ui/old'), added = edge('@jini-ai/ui/new'); const f = fixture({ declaration: old });
+    expect(f.cli().status).toBe(0);
+    f.write('packages/platform/src/index.ts', 'export interface Changed {}');
+    f.write('packages/platform/build/types/index.d.ts', old + added);
+    expect(f.check()).toEqual([{ rule: 'XP3', file: 'packages/platform/src/index.ts', specifier: '@jini-ai/ui/new' }]);
+    f.write('packages/platform/build/types/index.d.ts', old); expect(f.check()).toEqual([]);
+  });
+
+  test(`F6 ${syntax} allows core/self for a domain and forbids a Jini edge from core`, () => {
+    const f = fixture(); const allowed = edge('@jini-ai/core') + edge('@jini-ai/platform/self');
+    f.write('packages/platform/src/new.ts', allowed); f.write('packages/platform/build/types/new.d.ts', allowed); f.git('add', '--', 'packages/platform/src/new.ts');
+    expect(f.check()).toEqual([]);
+    f.write('packages/core/src/new.ts', edge('@jini-ai/platform')); f.write('packages/core/build/types/new.d.ts', edge('@jini-ai/platform')); f.git('add', '--', 'packages/core/src/new.ts');
+    expect(f.check().map(finding => finding.rule)).toEqual(['XP1', 'XP3']);
+  });
+}
+
+test('F6 XP5 refuses new optionalDependencies edges and permits core', () => {
+  const f = fixture(); const file = 'packages/platform/package.json';
+  const manifest = JSON.parse(readFileSync(join(f.root, file), 'utf8'));
+  manifest.optionalDependencies = { '@jini-ai/ui': '^1' }; f.write(file, JSON.stringify(manifest));
+  expect(f.check()).toEqual([{ rule: 'XP5', file, specifier: '@jini-ai/ui' }]);
+  manifest.optionalDependencies = { '@jini-ai/core': '^1' }; f.write(file, JSON.stringify(manifest)); expect(f.check()).toEqual([]);
+});
+
+test('F6 XP5 preserves an unchanged old optionalDependencies edge', () => {
+  const f = fixture(); const file = 'packages/platform/package.json';
+  const manifest = JSON.parse(readFileSync(join(f.root, file), 'utf8'));
+  manifest.optionalDependencies = { '@jini-ai/ui': '^1' }; f.write(file, JSON.stringify(manifest));
+  f.git('add', '--', file); f.git('commit', '--quiet', '-m', 'old optional dependency');
+  expect(checkNoCrossPackage({ root: f.root, base: f.git('rev-parse', 'HEAD'), baselineDir: f.baselineDir })).toEqual([]);
+});

@@ -21,11 +21,11 @@ export interface CredentialSaveAdapters {
 }
 
 /** @agent-note The host supplies its exact product description, including examples and tool navigation. No default description is selected here. */
-export interface CredentialSaveMessages { readonly description: string }
+export interface CredentialSaveMessages { readonly description: string; readonly oauthRefusal: string }
 
 /** @agent-note The host supplies its reviewed metadata, public tool id and credential categories. Save adapters keep authorization and persistence in that host. */
-export function createCredentialSaveTools({ metadata: toolMetadata, toolId: CREDENTIAL_SAVE_TOOL_ID, categories: CUSTOM_CREDENTIAL_CATEGORIES, messages }: {
-  metadata: ToolMetadataById; toolId: string; categories: readonly string[]; messages: CredentialSaveMessages;
+export function createCredentialSaveTools({ metadata: toolMetadata, toolId: CREDENTIAL_SAVE_TOOL_ID, categories: CUSTOM_CREDENTIAL_CATEGORIES, messages, catalogModule }: {
+  metadata: ToolMetadataById; toolId: string; categories: readonly string[]; messages: CredentialSaveMessages; catalogModule: string;
 }, _optional: Record<string, never> = {}) {
 
 const KINDS = ['api', 'media-provider', 'source-control', 'publish-host', 'agent-plugin-token', 'plugin-provider', 'provider-settings'] as const;
@@ -78,7 +78,7 @@ function selectSave({ input, adapters }: { input: Record<string, unknown>; adapt
   if (validateHere && Object.keys(metadata).some(key => !fields.includes(key))) {
     // Creation previously ignored unknown hints. Refuse them here; other owners already validate
     // their entire input and retain their exact per-kind errors. Never silently drop an extra key.
-    throw new ToolInputError({ message: 'credential_save accepts only non-secret metadata for the selected kind; enter secrets in the human form.' });
+    throw new ToolInputError({ message: `${CREDENTIAL_SAVE_TOOL_ID} accepts only non-secret metadata for the selected kind; enter secrets in the human form.` });
   }
   return routeSave({ selectedKind, metadata, adapters });
 }
@@ -141,7 +141,7 @@ function selectPublishSave({ metadata, adapters }: { metadata: Record<string, un
  */
 function buildCredentialSaveRegistrations({ adapters, loadPluginCredentialCards, authorizePluginProvider, adaptersForCards, savedResult }: { savedResult?: (input: { result: unknown }) => Promise<unknown>; adapters: CredentialSaveAdapters; loadPluginCredentialCards?: () => Promise<readonly PluginCredentialCard[]>; authorizePluginProvider?: (ctx: ToolExecutionContext) => Promise<void>; adaptersForCards?: (required: { cards: readonly PluginCredentialCard[] }) => CredentialSaveAdapters }, _optional = {}): ToolRegistration[] {
   return buildDomainRegistrations({ metadata: toolMetadata,
-    domain: 'credential-save', catalogModule: 'features/custom-credentials/credential-save-tool.ts',
+    domain: 'credential-save', catalogModule,
     catalog: indexCatalogById({ catalog: credentialSaveCatalog }), derivedRisk: credentialSaveDerivedRisk,
     handlers: { [CREDENTIAL_SAVE_TOOL_ID]: async (ctx, optional = {}) => {
       const selected = selectSave({ input: requireInputRecord({ input: ctx.input }), adapters });
@@ -171,7 +171,7 @@ function routePluginCard({ card, selected, adapters }: { card?: PluginCredential
     case 'source-control': return { handler: adapters.sourceControl, input: { provider: target } };
     case 'agent-plugin-token': return { handler: adapters.agentPluginToken, input: { pluginId: target } };
     case 'provider-settings': return selectProviderSettingsSave({ adapters, target });
-    case 'oauth': throw new ToolInputError({ message: 'This plugin connects by browser sign-in. Use agent_plugin_connect with its pluginId.' });
+    case 'oauth': throw new ToolInputError({ message: messages.oauthRefusal });
     default: return selected;
   }
 }
