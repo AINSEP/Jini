@@ -1,6 +1,6 @@
 /** Incremental package boundary check. Pinned declaration snapshots are supplied by the host. */
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import ts from 'typescript';
 import { parseSource, sourcePackages, type SourcePackage } from './lib/package-sources.js';
@@ -36,7 +36,7 @@ function isLiteralModuleCall(node: ts.Node): node is ts.CallExpression & { argum
 function specifiers(required: { file: string; source: string }): Set<string> {
   const specs = new Set<string>();
   function visit(node: ts.Node): void {
-    if (ts.isImportDeclaration(node) && ts.isStringLiteral(node.moduleSpecifier)) specs.add(node.moduleSpecifier.text);
+    if (ts.isImportDeclaration(node)) collectImport({ node, specs });
     if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) specs.add(node.moduleSpecifier.text);
     if (isLiteralModuleCall(node)) specs.add(node.arguments[0].text);
     if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument) && ts.isStringLiteral(node.argument.literal)) specs.add(node.argument.literal.text);
@@ -44,6 +44,15 @@ function specifiers(required: { file: string; source: string }): Set<string> {
   }
   visit(parseSource(required));
   return specs;
+}
+
+function collectImport({ node, specs }: { node: ts.ImportDeclaration; specs: Set<string> }): void {
+  if (!ts.isStringLiteral(node.moduleSpecifier)) return;
+  if (node.importClause?.isTypeOnly) {
+    specs.add(node.moduleSpecifier.text);
+  } else {
+    specs.add(node.moduleSpecifier.text);
+  }
 }
 
 function forbidden(required: { specifier: string; owner: string }): boolean {
@@ -139,7 +148,7 @@ function checkContractJavaScript(required: { root: string; file: string; pkg: So
     for (const declaration of declarations) {
       const js = declaration.replace(/\.d\.(ts|mts|cts)$/, (_, extension: string) => ({ ts: '.js', mts: '.mjs', cts: '.cjs' })[extension]!);
       const ast = parseSource({ file: js, source: readFileSync(js, 'utf8') });
-      const empty = ast.statements.every(node => ts.isExportDeclaration(node) && !node.moduleSpecifier && node.exportClause
+      const empty = ast.statements.length === 1 && ast.statements.every(node => ts.isExportDeclaration(node) && !node.moduleSpecifier && node.exportClause
         && ts.isNamedExports(node.exportClause) && node.exportClause.elements.length === 0);
       if (!empty) throw new Error('contract JavaScript contains runtime statements');
     }
