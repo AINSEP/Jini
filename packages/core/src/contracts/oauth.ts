@@ -138,5 +138,4 @@ export interface ClientRegistrationCache {
     }): Promise<void>;
 }
 
-export type * from './oauth/args.js';
 export type * from './oauth/details.js';

@@ -1,6 +1,5 @@
 import type { ISODateTime } from '../../primitives/index.js';
 import type { OAuthProviderDescriptor } from '../oauth.js';
-import type { OAuthEmptyArgs } from './args.js';
 /** @agent-note Types only. The runtime parts come from the host; this area usually from `@jini-ai/oauth`. */
 
 
@@ -51,3 +50,6 @@ export interface AuthorizationCallbackParams {
     readonly code?: string;
     readonly error?: string;
 }
+
+/** Explicit input for operations without values or dependencies. */
+export type OAuthEmptyArgs = Readonly<Record<string, never>>;
