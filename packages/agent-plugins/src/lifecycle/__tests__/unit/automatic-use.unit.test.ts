@@ -70,7 +70,7 @@ describe('automatic installed plugin use', () => {
     const deferred = await f.controller.prepare({ capabilities: ['theme-authoring'] });
     expect(deferred).toContain(pointer);
     expect(deferred).not.toContain('load_agent_plugin');
-    expect(f.publish.mock.calls.at(-1)?.[0].plugins).toEqual([]);
+    expect(f.publish).not.toHaveBeenCalled();
   });
   it('omits load pointers when the host supplies no pointer formatter', async () => {
     const f = fixture();
@@ -283,7 +283,7 @@ it('50 relevant plugins stay within the note budget, bulk-load nothing, and all 
   expect(shown).toBeGreaterThan(0);
   expect(note).toContain(`+${50 - shown} more relevant: search_agent_plugin_local({ query: <same request>, offset: 0 }); page with nextOffset`);
   expect(f.resolve).not.toHaveBeenCalled();
-  expect(f.publish.mock.calls.at(-1)?.[0].plugins).toEqual([]);
+  expect(f.publish).not.toHaveBeenCalled();
   // The presentation budget must not become an admission limit, even for an omitted plugin.
   for (const p of plugins.toReversed()) expect(await f.controller.load({ pluginId: p.pluginId })).toEqual({ status: 'loaded', guidance: `Guidance for ${p.pluginId}` });
   expect(f.resolve).toHaveBeenCalledTimes(50);
@@ -472,7 +472,7 @@ it('blank guidance is not delivered, so a later load retries it', async () => {
 it('Auto records delivered plugins as selected in the published state, keeping earlier selections', async () => {
   const f = fixture('auto', { decision: { selected: ['earlier'], asked: true }, excluded: [] });
   await f.controller.load({ pluginId: 'synthetic' });
-  expect(f.publish.mock.calls.at(-1)?.[0].state.decision).toEqual({ selected: ['earlier', 'synthetic'], asked: true });
+  expect(f.publish.mock.calls.at(-1)?.[0].state.decision).toEqual({ selected: ['earlier', 'synthetic'], asked: true, delivered: ['synthetic'] });
 });
 
 
@@ -546,42 +546,49 @@ it.each([15709, 16384, 16385, 61309])('automatic primary respects the 16 KiB bou
   expect(await f.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'loaded', guidance });
 });
 
-it('pointer-only turns keep approved identities and explicit reads complete without repeating automatic bodies', async () => {
-  const guidance = 'BEGIN_GUIDANCE\n' + 'theme'.repeat(12000) + '\nEND_GUIDANCE';
-  let state: ChatAgentPluginState | undefined;
-  for (let turn = 0; turn < 2; turn++) {
-    const f = fixture('auto', state);
-    f.resolve.mockResolvedValue({ ok: true, promptPrefix: guidance });
-    const note = await f.controller.prepare({ query: 'synthetic', pointerOnly: true });
-    expect(note).toContain('host_read_plugin');
-    expect(note).not.toContain('BEGIN_GUIDANCE');
-    expect(f.controller.guidanceIds({})).toEqual(['synthetic']);
-    expect(f.resolve).not.toHaveBeenCalled();
-    state = f.publish.mock.calls.at(-1)?.[0].state;
-    expect(state?.decision?.selected).toEqual(['synthetic']);
-    expect(f.publish.mock.calls.at(-1)?.[0].plugins).toEqual([]);
-    expect(await f.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'loaded', guidance });
-  }
-  const later = fixture('auto', state);
-  later.ports.rank = () => [];
-  expect(await later.controller.prepare({ query: 'unrelated', pointerOnly: true })).toBe('');
-  expect(later.controller.guidanceIds({})).toEqual(['synthetic']);
+
+it('only full deliveries reach children; later matching turns use the existing pointer', async () => {
+  const first = fixture();
+  first.list.mockResolvedValue([plugin('synthetic'), plugin('secondary')]);
+  expect(await first.controller.prepare({ query: 'synthetic' })).toContain('Guidance for synthetic');
+  expect(first.controller.guidanceIds({})).toEqual(['synthetic']);
+  expect(first.publish.mock.calls.at(-1)?.[0].state.decision.selected).toEqual(['synthetic']);
+  const saved = JSON.parse(JSON.stringify(first.publish.mock.calls.at(-1)?.[0].state));
+  const next = fixture('auto', saved);
+  next.list.mockResolvedValue([plugin('synthetic'), plugin('secondary')]);
+  const note = await next.controller.prepare({ query: 'synthetic' });
+  expect(note).toContain('host_read_plugin');
+  expect(note).not.toContain('Guidance for synthetic');
+  expect(next.resolve).not.toHaveBeenCalled();
+  expect(next.controller.guidanceIds({})).toEqual(['synthetic']);
+  expect(await next.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'loaded', guidance: 'Guidance for synthetic' });
 });
 
-it('guidance identities retain valid prior and pinned selections, excluding disabled and excluded plugins', async () => {
-  const f = fixture('auto', { decision: { selected: ['prior', 'inactive', 'excluded', 'missing'], asked: false }, excluded: ['excluded'] });
-  f.list.mockResolvedValue([plugin('prior'), plugin('pinned'), plugin('synthetic'), plugin('inactive', false), plugin('excluded')]);
-  await f.controller.prepare({ query: 'synthetic', loaded: ['pinned'] });
-  expect(f.controller.guidanceIds({})).toEqual(['prior', 'pinned', 'synthetic']);
-  await f.controller.load({ pluginId: 'prior' });
-  f.list.mockResolvedValue([plugin('prior', false), plugin('pinned')]);
-  await f.controller.prepare({ query: 'unrelated', pointerOnly: true });
-  expect(f.controller.guidanceIds({})).toEqual(['pinned']);
-  const off = fixture('off');
-  await off.controller.prepare({ query: 'synthetic', loaded: ['synthetic'] });
-  expect(off.controller.guidanceIds({})).toEqual([]);
-  const denied = fixture('ask');
-  denied.ask.mockResolvedValue({ action: 'skip', selected: [] });
-  await denied.controller.prepare({ query: 'synthetic' });
-  expect(denied.controller.guidanceIds({})).toEqual([]);
+it('consent selections and deferred guidance never count as delivered', async () => {
+  const f = fixture('ask');
+  f.list.mockResolvedValue([plugin('synthetic'), plugin('secondary')]);
+  f.ask.mockResolvedValue({ action: 'use', selected: ['synthetic', 'secondary'] });
+  await f.controller.prepare({ query: 'synthetic' });
+  expect(f.controller.guidanceIds({})).toEqual(['synthetic']);
+  const next = fixture('ask', f.publish.mock.calls.at(-1)?.[0].state);
+  next.list.mockResolvedValue([plugin('synthetic'), plugin('secondary')]);
+  expect(await next.controller.prepare({ query: 'synthetic' })).not.toContain('Guidance for synthetic');
+  expect(next.controller.guidanceIds({})).toEqual(['synthetic']);
+  const excluded = fixture('ask', { ...f.publish.mock.calls.at(-1)?.[0].state, excluded: ['synthetic'] });
+  await excluded.controller.prepare({ query: 'synthetic' });
+  expect(excluded.controller.guidanceIds({})).toEqual([]);
+  const large = fixture();
+  large.resolve.mockResolvedValue({ ok: true, promptPrefix: 'x'.repeat(61309) });
+  await large.controller.prepare({ query: 'synthetic' });
+  expect(large.controller.guidanceIds({})).toEqual([]);
+  const selectedOnly = fixture('auto', { decision: { selected: ['synthetic'], asked: false }, excluded: [] });
+  selectedOnly.ports.rank = () => [];
+  await selectedOnly.controller.prepare({ query: 'unrelated' });
+  expect(selectedOnly.controller.guidanceIds({})).toEqual([]);
+});
+
+it('pinned guidance reaches child IDs even with automatic plugins Off', async () => {
+  const f = fixture('off');
+  expect(await f.controller.prepare({ query: 'synthetic', loaded: ['synthetic'] })).toBe('');
+  expect(f.controller.guidanceIds({})).toEqual(['synthetic']);
 });

@@ -10,7 +10,7 @@ const MAX_AUTOMATIC_GUIDANCE_BYTES = 8 * 1024;
 const MAX_PRIMARY_GUIDANCE_BYTES = 16 * 1024;
 /** Browser-owned, per-conversation state. Clearing it deliberately permits a fresh question. */
 export interface ChatAgentPluginState {
-  decision: { selected: readonly string[]; asked?: boolean } | null;
+  decision: { selected: readonly string[]; asked?: boolean; delivered?: readonly string[] } | null;
   excluded: readonly string[];
 }
 export interface AutomaticAgentPluginMatch { id: string; name: string; why: string }
@@ -61,7 +61,7 @@ export interface AutomaticAgentPluginPorts {
   publish(input: { state: ChatAgentPluginState; plugins: readonly { id: string; name: string }[] }, options?: Record<string, never>): Promise<void>;
 }
 
-type PrepareInput = { query?: string; capabilities?: readonly string[]; loaded?: readonly string[]; pointerOnly?: boolean; signal?: AbortSignal };
+type PrepareInput = { query?: string; capabilities?: readonly string[]; loaded?: readonly string[]; signal?: AbortSignal };
 
 /** A guarded capability admits its providers outright; a query is ranked for relevance. */
 function rankCandidates(
@@ -83,9 +83,9 @@ export function readChatAgentPluginState({ value }: { value: unknown }, _options
   const record = value as Record<string, unknown>;
   const ids = (raw: unknown): raw is string[] => Array.isArray(raw) && raw.every(id => typeof id === 'string' && id.length > 0 && id.length <= 160);
   if (!ids(record.excluded)) return empty;
-  const decision = record.decision as { selected?: unknown; asked?: unknown } | null;
+  const decision = record.decision as { selected?: unknown; asked?: unknown; delivered?: unknown } | null;
   if (decision !== null && (!decision || !ids(decision.selected))) return empty;
-  return { decision: decision ? { selected: [...new Set(decision.selected as string[])], ...(typeof decision.asked === 'boolean' ? { asked: decision.asked } : {}) } : null, excluded: [...new Set(record.excluded)] };
+  return { decision: decision ? { selected: [...new Set(decision.selected as string[])], ...(typeof decision.asked === 'boolean' ? { asked: decision.asked } : {}), ...(ids(decision.delivered) ? { delivered: [...new Set(decision.delivered)] } : {}) } : null, excluded: [...new Set(record.excluded)] };
 }
 
 /** Create one run's preparation owner. Calls serialize so parallel tool writes share one question.
@@ -100,8 +100,7 @@ export function createAutomaticAgentPluginUse(
 ) {
   let state = readChatAgentPluginState({ value: initialState });
   const delivered = new Map<string, string>();
-  let preparedIds: string[] = [];
-  const alreadyLoaded = new Set<string>();
+  const alreadyLoaded = new Set(state.decision?.delivered?.filter(id => !state.excluded.includes(id)));
   let publishedSize: number | undefined;
   let queue: Promise<unknown> = Promise.resolve();
 
@@ -142,7 +141,7 @@ export function createAutomaticAgentPluginUse(
   }
   /** Only complete primary guidance updates the loaded set. O(1), no host effects. */
   function recordDelivery({ plugin, result }: { plugin: AgentPluginSearchCandidate; result: AutomaticAgentPluginLoadResult }, _options = {}): void {
-    if (result.status === 'loaded') { delivered.set(plugin.pluginId, plugin.displayName ?? plugin.pluginId); preparedIds = [...new Set([...preparedIds, plugin.pluginId])]; }
+    if (result.status === 'loaded') delivered.set(plugin.pluginId, plugin.displayName ?? plugin.pluginId);
   }
   /** Bound automatic attachments before recording delivery; explicit loads retain complete text.
    * O(p*b) in resolved plugins and guidance bytes; a deferred plugin remains retryable.
@@ -168,11 +167,12 @@ export function createAutomaticAgentPluginUse(
     }
     return guidance;
   }
-  /** Auto mode records everything delivered as selected, keeping any earlier selection and asked flag. */
-  function rememberAutoSelection(): void {
-    if (mode !== 'auto' || !delivered.size) return;
+  /** Persist actual deliveries separately from consent, using the existing chat decision. */
+  function rememberDelivery(): void {
+    if (!alreadyLoaded.size && !delivered.size) return;
     const { decision } = state;
-    state = { ...state, decision: { selected: [...new Set([...(decision?.selected ?? []), ...delivered.keys()])], asked: decision?.asked ?? false } };
+    state = { ...state, decision: { selected: [...new Set([...(decision?.selected ?? []), ...(mode === 'auto' ? delivered.keys() : [])])],
+      asked: decision?.asked ?? false, delivered: [...new Set([...alreadyLoaded, ...delivered.keys()])] } };
   }
   /** Initialize usage after a decision (including Skip), then publish only loaded-set changes.
    * Empty discovery must not consume that initial publication: a later Ask answer must persist.
@@ -190,24 +190,22 @@ export function createAutomaticAgentPluginUse(
    * Effects serialize with loads so a suggestion never consumes a backstop's delivery.
    */
   async function prepare(input: PrepareInput, _options = {}): Promise<string> {
-    if (mode === 'off' || input.signal?.aborted) return '';
     for (const id of input.loaded ?? []) alreadyLoaded.add(id);
+    if (mode === 'off' || input.signal?.aborted) return '';
     const catalog = (await ports.list({}, {})).filter(plugin => !state.excluded.includes(plugin.pluginId));
     const candidates = catalog.filter(plugin => plugin.enabled);
+    for (const id of alreadyLoaded) if (!candidates.some(plugin => plugin.pluginId === id)) alreadyLoaded.delete(id);
     const ranked = rankCandidates({ candidates, input, ports });
     // Owner decision 2026-10-18: no per-chat plugin count; the relevance threshold and vendor gate decide.
-    const relevant = ranked.filter(plugin => !delivered.has(plugin.pluginId) && !alreadyLoaded.has(plugin.pluginId));
+    const relevant = ranked.filter(plugin => !delivered.has(plugin.pluginId) && !input.loaded?.includes(plugin.pluginId) && (!alreadyLoaded.has(plugin.pluginId) || !!input.query));
     const matches = await applyConsent({ matches: relevant }, { signal: input.signal });
-    const selected = new Set([...matches.map(plugin => plugin.pluginId), ...alreadyLoaded, ...delivered.keys(), ...(state.decision?.selected ?? [])]);
-    preparedIds = candidates.filter(plugin => selected.has(plugin.pluginId)).map(plugin => plugin.pluginId);
     const shouldLoad = !!input.capabilities?.length;
-    const primary = input.query && !input.pointerOnly && !input.loaded?.length ? matches.slice(0, 1) : [];
+    const primary = input.query && !input.loaded?.length && !alreadyLoaded.has(matches[0]?.pluginId ?? '') ? matches.slice(0, 1) : [];
     const result = shouldLoad ? (await resolveGuidance({ matches }, { signal: input.signal })).join('\n\n') : [
       ...(await resolveGuidance({ matches: primary, primaryId: primary[0]?.pluginId }, { signal: input.signal })),
       relevantPluginNote({ matches: matches.slice(primary.length), formatPluginToolPointer: ports.formatPluginToolPointer }),
     ].filter(Boolean).join('\n\n');
-    rememberAutoSelection();
-    if (input.query && mode === 'auto' && preparedIds.length) state = { ...state, decision: { selected: preparedIds, asked: state.decision?.asked ?? false } };
+    rememberDelivery();
     await publishUsage();
     // Preflight never resolves off packages implicitly. A catalog line offers an explicit read;
     // its setup guidance may explain whether enabling or credentials are needed.
@@ -250,7 +248,7 @@ export function createAutomaticAgentPluginUse(
       result = { status: 'installed-but-inactive', guidance: `Plugin '${plugin.pluginId}' is off; its tools are unavailable.\n\n${result.guidance}` };
     }
     if (isPrimaryInstructions({ pluginId: plugin.pluginId, ...request })) recordDelivery({ plugin, result });
-    rememberAutoSelection();
+    rememberDelivery();
     await publishUsage();
     return result;
   }
@@ -261,9 +259,9 @@ export function createAutomaticAgentPluginUse(
     return next;
   }
   return {
-    guidanceIds: (_required: Record<string, never>, _options = {}) => [...preparedIds],
+    guidanceIds: (_required: Record<string, never>, _options = {}) => [...new Set([...alreadyLoaded, ...delivered.keys()])].filter(id => !state.excluded.includes(id)),
     /** Suggest relevant metadata for a query; capability calls load only their providers. */
-    prepare: (input: { query?: string; capabilities?: readonly string[]; loaded?: readonly string[]; pointerOnly?: boolean; signal?: AbortSignal }, _options = {}) => enqueue({ operation: () => prepare(input) }),
+    prepare: (input: { query?: string; capabilities?: readonly string[]; loaded?: readonly string[]; signal?: AbortSignal }, _options = {}) => enqueue({ operation: () => prepare(input) }),
     /** Resolve one active, permitted id and publish usage only after real guidance is read.
      * Returns a concrete status and delivered content or a safe explicit-request refusal.
      * @example await controller.load({ pluginId: 'my-plugin' });
