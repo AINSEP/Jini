@@ -308,7 +308,7 @@ describe('ToolExecutor.execute — nested invokeTool port', () => {
     expect(result).toMatchObject({ status: 'failed', errorKind: 'validation', error: 'name is required' });
   });
 
-  it('redacts a nested internal failure and identifies its audit execution', async () => {
+  it('withholds a nested internal failure without host redaction and identifies its audit execution', async () => {
     let nestedExecutionId = '';
     const registry = registryWith(parentInvoking((invoke) => invoke({ toolId: 'child', input: {} })), tool('child', async (ctx) => {
       nestedExecutionId = ctx.executionId;
@@ -320,7 +320,7 @@ describe('ToolExecutor.execute — nested invokeTool port', () => {
     expect(result.error).toBe(`child failed on the server. The cause is withheld because it can contain internal paths; it is in the audit log under execution ${nestedExecutionId}.`);
   });
 
-  it('redacts internal batch item errors, continues to the next item and preserves input errors', async () => {
+  it('withholds internal batch item errors without host redaction, continues and preserves input errors', async () => {
     let nestedExecutionId = '';
     const registration = tool('batch', async (ctx) => {
       const { action } = ctx.input as { action: string };
