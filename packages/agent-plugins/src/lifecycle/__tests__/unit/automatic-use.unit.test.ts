@@ -592,3 +592,37 @@ it('pinned guidance reaches child IDs even with automatic plugins Off', async ()
   expect(await f.controller.prepare({ query: 'synthetic', loaded: ['synthetic'] })).toBe('');
   expect(f.controller.guidanceIds({})).toEqual(['synthetic']);
 });
+
+
+it('an argv-budgeted adapter retains metadata-only automatic preparation', async () => {
+  const f = fixture();
+  const guidance = 'SITE_IMPORT_BEGIN\n' + 'x'.repeat(16250) + '\nSITE_IMPORT_END';
+  f.resolve.mockResolvedValue({ ok: true, promptPrefix: guidance });
+  const note = await f.controller.prepare({ query: 'import my site', maxPromptArgBytes: 30000 });
+  expect(note).toContain('host_read_plugin');
+  expect(note).not.toContain('SITE_IMPORT_BEGIN');
+  expect(f.resolve).not.toHaveBeenCalled();
+  expect(f.controller.guidanceIds({})).toEqual([]);
+  expect(await f.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'loaded', guidance });
+});
+
+it('Off children receive only current pins, not earlier full deliveries', async () => {
+  const f = fixture('off', { decision: { selected: ['prior'], delivered: ['prior'], asked: false }, excluded: [] });
+  await f.controller.prepare({ loaded: ['synthetic'] });
+  expect(f.controller.guidanceIds({})).toEqual(['synthetic']);
+});
+
+it('Off admits full pinned loads while retaining all other admission checks and prior delivery history', async () => {
+  const f = fixture('off', { decision: { selected: ['prior'], delivered: ['prior'], asked: false }, excluded: [] });
+  await f.controller.prepare({ loaded: ['synthetic'] });
+  expect(await f.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'loaded', guidance: 'Guidance for synthetic' });
+  expect(await f.controller.load({ pluginId: 'prior' })).toEqual({ status: 'off', guidance: '' });
+  expect(f.publish.mock.calls.at(-1)?.[0].state.decision.delivered).toEqual(['prior', 'synthetic']);
+  expect(f.controller.guidanceIds({})).toEqual(['synthetic']);
+  f.resolve.mockResolvedValueOnce({ ok: false, code: 'untrusted', reason: 'changed trust' });
+  expect(await f.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'untrusted', guidance: '' });
+  expect(await f.controller.load({ pluginId: 'synthetic', signal: AbortSignal.abort() })).toEqual({ status: 'cancelled', guidance: '' });
+  const excluded = fixture('off', { decision: null, excluded: ['synthetic'] });
+  await excluded.controller.prepare({ loaded: ['synthetic'] });
+  expect(await excluded.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'excluded', guidance: '' });
+});
