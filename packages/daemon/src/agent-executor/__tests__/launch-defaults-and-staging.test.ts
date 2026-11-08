@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { spawn as realSpawn, type ChildProcess, type spawn as nodeSpawn } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, delimiter, dirname, join } from 'node:path';
@@ -244,14 +244,15 @@ it('required HTTP failure reports the transport policy and never falls back or m
   expect((await lifecycle.get({ runId: run.id }))?.state).toBe('failed');
 });
 
-it.each(['complete', 'oversized', 'staging-failure', 'subagents-denied'] as const)('Claude snapshot launch: %s', async scenario => {
+it.each(['complete', 'manifest', 'oversized', 'staging-failure', 'subagents-denied', 'adapter-no-hook', 'unsupported-subagents', 'no-context'] as const)('declared child-hook launch: %s', async scenario => {
   const site = join(scratch, scenario);
   mkdirSync(site);
   const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
   const child = createFakeChild(4399);
   const calls: SpawnRecord[] = [];
-  const snapshot = scenario === 'oversized' ? 'é'.repeat(32 * 1024 + 1) : 'prepared parent rules';
-  const def = createDef({ ...getAgentDef({ id: 'claude' })!, ...fixtureModelDiscovery, mcpIsolation: { perRun: 'fixture@2026-11-05' } });
+  const context = { ids: scenario === 'manifest' ? Array.from({ length: 120 }, (_, i) => `approved-plugin-${i}-${'x'.repeat(32)}`) : ['approved-plugin'], instructions: scenario === 'oversized' ? 'x'.repeat(2000) : 'Call load_agent_plugin for every parent plugin; honor approvals.' };
+  const def = createDef({ ...getAgentDef({ id: 'claude' })!, ...fixtureModelDiscovery, mcpIsolation: { perRun: 'fixture@2026-11-05' },
+    id: scenario === 'adapter-no-hook' ? 'claude' : 'hook-fixture', subagentStartHook: scenario !== 'adapter-no-hook', supportsSubagents: scenario !== 'unsupported-subagents' });
   let directory = '';
   const executor = createAgentExecutor({ lifecycle }, {
     hostEnv: {}, getAgentDef: () => def, resolveAgentLaunch: () => ({ ...fixedLaunch(), launchPath: process.execPath }),
@@ -260,12 +261,13 @@ it.each(['complete', 'oversized', 'staging-failure', 'subagents-denied'] as cons
     promptAugmenter: { contextKinds: () => [], augmentUserRequest: ({ basePrompt }) => basePrompt, systemOverlay: () => {
       directory = join(site, '.agent-runtime', readdirSync(join(site, '.agent-runtime')).find(name => name.startsWith('tmp-'))!);
       if (scenario === 'staging-failure') writeFileSync(join(directory, 'subagent-start.json'), 'reserved');
-      return snapshot;
+      return 'FULL_OVERLAY_AND_SKILL_TEXT';
     } },
   });
   const { run } = await lifecycle.start({ contextRef: scenario });
   const launch = executor.run({ runId: run.id, agentId: def.id, prompt: 'hello', cwd: site }, {
     filesystemRoot: site, nativeToolAccess: true, nativeCapabilities: { subagents: scenario !== 'subagents-denied' }, permissionMode: 'bypass',
+    ...(scenario === 'no-context' ? {} : { subagentStartContext: context }),
     settings: JSON.stringify({ hooks: { Stop: [{ hooks: [{ type: 'command', command: 'stop-hook' }] }] } }),
   });
   try {
@@ -277,8 +279,16 @@ it.each(['complete', 'oversized', 'staging-failure', 'subagents-denied'] as cons
       const args = calls[0]!.args;
       const settings = JSON.parse(args[args.indexOf('--settings') + 1]!);
       expect(settings.hooks.Stop).toEqual([{ hooks: [{ type: 'command', command: 'stop-hook' }] }]);
-      expect(existsSync(join(directory, 'subagent-start.json'))).toBe(scenario === 'complete');
-      if (scenario === 'complete') expect(settings.hooks.SubagentStart).toHaveLength(1);
+      const staged = scenario === 'complete' || scenario === 'manifest';
+      expect(existsSync(join(directory, 'subagent-start.json'))).toBe(staged);
+      if (staged) {
+        expect(settings.hooks.SubagentStart).toHaveLength(1);
+        const output = readFileSync(join(directory, 'subagent-start.json'), 'utf8');
+        expect(output).toContain(context.instructions);
+        if (scenario === 'manifest') expect(JSON.parse(readFileSync(join(directory, 'subagent-plugin-ids.json'), 'utf8'))).toEqual(context.ids);
+        else expect(output).toContain('approved-plugin');
+        expect(output).not.toContain('FULL_OVERLAY_AND_SKILL_TEXT');
+      }
       else expect(settings.hooks.SubagentStart).toBeUndefined();
     }
   } finally {

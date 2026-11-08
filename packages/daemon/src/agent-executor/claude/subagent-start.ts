@@ -1,19 +1,26 @@
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-/** Replay one prepared run snapshot for each Claude child; never truncate guidance. */
-export async function prepareClaudeSubagentStartSettings({ directory, snapshot, settings }: {
-  directory: string; snapshot: string; settings?: string;
-}, _options = {}): Promise<string> {
-  if (Buffer.byteLength(snapshot, 'utf8') > 64 * 1024) throw new Error('Subagent guidance exceeds the 64 KiB snapshot limit.');
+/** Give each child a short load instruction; long approved ID lists remain complete on disk. */
+export async function prepareClaudeSubagentStartSettings({ directory, context, settings }: {
+  directory: string; context: { ids: readonly string[]; instructions: string }; settings?: string;
+}, { platform = process.platform }: { platform?: NodeJS.Platform } = {}): Promise<string> {
   const existing = JSON.parse(settings || '{}') as { hooks?: Record<string, unknown[]> };
+  const ids = JSON.stringify(context.ids);
+  let additionalContext = `Parent plugins: ${ids}.\n${context.instructions}`;
+  if (additionalContext.length >= 2000) {
+    const manifest = join(directory, 'subagent-plugin-ids.json');
+    additionalContext = `Parent plugins: read ${JSON.stringify(manifest)} before continuing. Apply these instructions to every ID in that manifest.\n${context.instructions}`;
+    if (additionalContext.length >= 2000) throw new Error('Subagent startup context must be shorter than 2000 characters.');
+    await writeFile(manifest, ids, { encoding: 'utf8', mode: 0o600, flag: 'wx' });
+  }
   const path = join(directory, 'subagent-start.json');
   await writeFile(path, JSON.stringify({
-    hookSpecificOutput: { hookEventName: 'SubagentStart', additionalContext: snapshot },
+    hookSpecificOutput: { hookEventName: 'SubagentStart', additionalContext },
   }), { encoding: 'utf8', mode: 0o600, flag: 'wx' });
-  // Base64 carries the path without shell metacharacters on Windows, macOS and Linux.
-  const command = `node -e "process.stdout.write(require('node:fs').readFileSync(Buffer.from('${Buffer.from(path).toString('base64')}','base64')))"`;
-  const hook = { hooks: [{ type: 'command', command, timeout: 5 }] };
+  const quoted = platform === 'win32' ? path.replaceAll("'", "''") : path.replaceAll("'", "'\\''");
+  const command = platform === 'win32' ? `Get-Content -Raw -Encoding UTF8 -LiteralPath '${quoted}'` : `cat -- '${quoted}'`;
+  const hook = { hooks: [{ type: 'command', command, timeout: 5, ...(platform === 'win32' ? { shell: 'powershell' } : {}) }] };
   return JSON.stringify({ ...existing, hooks: { ...existing.hooks,
     SubagentStart: [...(existing.hooks?.SubagentStart ?? []), hook],
   } });
