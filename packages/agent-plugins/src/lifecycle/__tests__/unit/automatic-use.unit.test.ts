@@ -326,8 +326,8 @@ it('Auto explicitly loads an active plugin that was never selected or relevant t
   f.ports.rank = () => [];
   expect(await f.controller.prepare({ query: 'unrelated' })).toBe('');
   expect(await f.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'loaded', guidance: 'Guidance for synthetic' });
-  expect(await f.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'already-loaded', guidance: '' });
-  expect(f.resolve).toHaveBeenCalledTimes(1);
+  expect(await f.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'loaded', guidance: 'Guidance for synthetic' });
+  expect(f.resolve).toHaveBeenCalledTimes(2);
   expect(f.ask).not.toHaveBeenCalled();
 });
 
@@ -348,8 +348,8 @@ it('an inactive plugin is only marked in use after its existing activation owner
   expect(await f.controller.load({ pluginId: 'inactive' })).toEqual({ status: 'installed-but-inactive', guidance: "Plugin 'inactive' is off; its tools are unavailable.\n\nGuidance for inactive" });
   expect(f.resolve).toHaveBeenCalledTimes(1);
   expect(f.publish).not.toHaveBeenCalled();
-  expect(await f.controller.load({ pluginId: 'inactive' })).toEqual({ status: 'already-loaded', guidance: '' });
-  expect(f.resolve).toHaveBeenCalledTimes(1);
+  expect(await f.controller.load({ pluginId: 'inactive' })).toEqual({ status: 'installed-but-inactive', guidance: "Plugin 'inactive' is off; its tools are unavailable.\n\nGuidance for inactive" });
+  expect(f.resolve).toHaveBeenCalledTimes(2);
   f.ports.list = async () => [plugin('inactive')];
   expect(await f.controller.load({ pluginId: 'inactive' })).toEqual({ status: 'loaded', guidance: 'Guidance for inactive' });
 });
@@ -365,17 +365,17 @@ it('explicit Ask loads still require consent and publish a skipped decision', as
   expect(f.ask).toHaveBeenCalledTimes(1);
 });
 
-it('simultaneous explicit loads share delivery and a pinned plugin is already loaded', async () => {
+it('simultaneous explicit loads and a pinned plugin each return complete guidance', async () => {
   const f = fixture();
   expect(await Promise.all([f.controller.load({ pluginId: 'synthetic' }), f.controller.load({ pluginId: 'synthetic' })])).toEqual([
-    { status: 'loaded', guidance: 'Guidance for synthetic' }, { status: 'already-loaded', guidance: '' },
+    { status: 'loaded', guidance: 'Guidance for synthetic' }, { status: 'loaded', guidance: 'Guidance for synthetic' },
   ]);
-  expect(f.resolve).toHaveBeenCalledTimes(1);
+  expect(f.resolve).toHaveBeenCalledTimes(2);
   expect(f.publish).toHaveBeenCalledTimes(1);
   const pinned = fixture();
   await pinned.controller.prepare({ loaded: ['synthetic'] });
-  expect(await pinned.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'already-loaded', guidance: '' });
-  expect(pinned.resolve).not.toHaveBeenCalled();
+  expect(await pinned.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'loaded', guidance: 'Guidance for synthetic' });
+  expect(pinned.resolve).toHaveBeenCalledTimes(1);
 });
 
 it('saved consent and exclusions have no 100-plugin limit', () => {
@@ -509,4 +509,16 @@ it('the automatic byte boundary delivers a small peer and defers only oversized 
   const retry = await f.controller.prepare({ capabilities: ['theme-authoring'] });
   expect(retry).not.toContain('é');
   expect(retry).toContain('host_read_plugin');
+});
+
+
+it.each(['pinned', 'explicit'] as const)('a fresh explicit reader gets complete bytes after %s delivery and rechecks trust', async delivery => {
+  const f = fixture();
+  const guidance = 'BEGIN_SENTINEL\n' + 'é'.repeat(5000) + '\nEND_SENTINEL';
+  f.resolve.mockResolvedValue({ ok: true, promptPrefix: guidance });
+  if (delivery === 'pinned') await f.controller.prepare({ loaded: ['synthetic'] });
+  else expect(await f.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'loaded', guidance });
+  expect(await f.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'loaded', guidance });
+  f.resolve.mockResolvedValueOnce({ ok: false, code: 'untrusted', reason: 'changed trust' });
+  expect(await f.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'untrusted', guidance: '' });
 });

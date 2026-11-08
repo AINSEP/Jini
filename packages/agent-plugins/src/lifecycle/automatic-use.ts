@@ -99,7 +99,6 @@ export function createAutomaticAgentPluginUse(
 ) {
   let state = readChatAgentPluginState({ value: initialState });
   const delivered = new Map<string, string>();
-  const inactiveDelivered = new Set<string>();
   const alreadyLoaded = new Set<string>();
   let publishedSize: number | undefined;
   let queue: Promise<unknown> = Promise.resolve();
@@ -229,16 +228,10 @@ export function createAutomaticAgentPluginUse(
   function isPrimaryInstructions({ pluginId, skill, file }: { pluginId: string } & AgentPluginSkillRequest, _options = {}): boolean {
     return (skill === undefined || skill === pluginId) && (file === undefined || file === 'SKILL.md');
   }
-  /** Explicit content reads remain repeatable; inactive guidance is not an active-use grant. O(1). */
-  function guidanceAlreadyDelivered({ plugin, ...request }: { plugin: AgentPluginSearchCandidate } & AgentPluginSkillRequest): boolean {
-    if (request.skill !== undefined || request.file !== undefined) return false;
-    return delivered.has(plugin.pluginId) || alreadyLoaded.has(plugin.pluginId) || (!plugin.enabled && inactiveDelivered.has(plugin.pluginId));
-  }
   /** Requested content bypasses only deduplication, never consent or the resolver's trust checks.
    * Only the primary SKILL.md records full plugin delivery. O(p) consent filtering plus one read.
    */
   async function loadPermitted({ plugin, ...request }: { plugin: AgentPluginSearchCandidate } & AgentPluginSkillRequest, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<AutomaticAgentPluginLoadResult> {
-    if (guidanceAlreadyDelivered({ plugin, ...request })) return { status: 'already-loaded', guidance: '' };
     const matches = await applyConsent({ matches: [{ ...plugin, score: 4 }] }, { signal });
     if (!matches.length) {
       await publishUsage();
@@ -246,7 +239,6 @@ export function createAutomaticAgentPluginUse(
     }
     let result = await resolveOneGuidance({ plugin, ...request }, { signal });
     if (!plugin.enabled && result.status === 'loaded') {
-      if (isPrimaryInstructions({ pluginId: plugin.pluginId, ...request })) inactiveDelivered.add(plugin.pluginId);
       result = { status: 'installed-but-inactive', guidance: `Plugin '${plugin.pluginId}' is off; its tools are unavailable.\n\n${result.guidance}` };
     }
     if (isPrimaryInstructions({ pluginId: plugin.pluginId, ...request })) recordDelivery({ plugin, result });
