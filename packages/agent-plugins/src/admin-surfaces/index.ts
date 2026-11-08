@@ -44,3 +44,4 @@ export { createAdminSurfaceCallbackInbox, type AdminSurfaceCallbackFieldKey } fr
 
 export { buildAdminSurfaceActionTools, type AdminSurfaceToolSource, type AdminSurfaceToolContext } from './action-tools.js';
 export type { AdminSurfacePluginStatePersistence } from './plugin-state-persistence.js';
+export { createAgentPluginStateStore, PLUGIN_STATE_MAX_KEYS, type AgentPluginStateScope, type AgentPluginStateStore, type AgentPluginStateSummary } from './plugin-state.js';

@@ -60,3 +60,5 @@ export type {
   ApiConnectionHostMessages, ApiConnectionRuntimeHostDeps, ApiConnectionRuntimeHostOptions,
   ApiConnectionSignInLink, ApiConnectionConnectMessages,
 } from './host-ports.js';
+export { createApiConnectionHost, type ApiConnectionHost } from './host.js';
+export { startApiConnectionSignIn, runApiConnectionConnect, type ApiConnectionConnectDeps, type ApiConnectionConnectStatus, type ApiConnectionSignInStart } from './connect.js';
