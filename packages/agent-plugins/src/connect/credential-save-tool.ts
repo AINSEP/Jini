@@ -165,7 +165,7 @@ function buildCredentialSaveRegistrations({ adapters, loadPluginCredentialCards,
 }
 
 /** A declared destination reuses the existing permission, validation, probe and sealed-store owner. */
-function routePluginCard({ card, selected, adapters }: { card?: PluginCredentialCard; selected: { handler: ToolHandler; input: Record<string, unknown> }; adapters: CredentialSaveAdapters }, _options = {}): { handler: ToolHandler; input: Record<string, unknown> } {
+function routePluginCard({ card, selected, adapters }: { card?: PluginCredentialCard | undefined; selected: { handler: ToolHandler; input: Record<string, unknown> }; adapters: CredentialSaveAdapters }, _options = {}): { handler: ToolHandler; input: Record<string, unknown> } {
   if (!card) return selected;
   const target = card.saveTarget ?? card.providerId;
   switch (card.saveKind) {
@@ -182,7 +182,7 @@ function routePluginCard({ card, selected, adapters }: { card?: PluginCredential
 /** Domain saves own the human exchange; one shared result hook attaches successful project saves. */
 async function invokeSaveAdapter({ selected, ctx, options, savedResult }: {
   selected: { handler: ToolHandler; input: Record<string, unknown> }; ctx: ToolExecutionContext; options: ToolExecutionOptions;
-  savedResult?: (input: { result: unknown }) => Promise<unknown>;
+  savedResult?: ((input: { result: unknown }) => Promise<unknown>) | undefined;
 }, _optional = {}): Promise<unknown> {
   const result = await selected.handler({ ...ctx, input: selected.input }, options);
   return savedResult ? savedResult({ result }) : result;

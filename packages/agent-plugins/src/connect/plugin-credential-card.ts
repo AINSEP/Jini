@@ -15,7 +15,7 @@ export function createPluginCredentialCardOperations({ cardErrors, assertFreeFie
  * Required public fields and dynamic HTTPS origins are checked before sealing. @complexity O(f).
  */
 function readPluginCredentialValues({ card, values }: { card: PluginCredentialCard; values: Readonly<Record<string, unknown>> }, _options = {}): {
-  label: string; category: string; baseUrl: string; username?: string; token: string; additionalHosts?: readonly string[];
+  label: string; category: string; baseUrl: string; username?: string | undefined; token: string; additionalHosts?: readonly string[];
 } {
   const publicValues = Object.fromEntries((card.fields ?? []).map(field => [field.name, readPublicField({ field, values })]));
   const baseUrl = card.baseUrl || publicValues.baseUrl || '';
@@ -48,7 +48,7 @@ return { readPluginCredentialValues, findPluginCredentialCard, loadPluginCredent
 
 /** Resolve copy only for the matching domain and provider, never a similarly named card. */
 export async function findPluginCredentialCard({ loadCards, workspaceId, saveKind, target }: {
-  loadCards?: LoadPluginCredentialCards; workspaceId: string; saveKind: PluginCredentialCard['saveKind']; target: string;
+  loadCards?: LoadPluginCredentialCards | undefined; workspaceId: string; saveKind: PluginCredentialCard['saveKind']; target: string;
 }, _options = {}): Promise<PluginCredentialCard | undefined> {
   return (await loadPluginCredentialCardsSafely({ loadCards, workspaceId })).find(card => cardMatches({ card, saveKind, target }));
 }
@@ -62,7 +62,7 @@ function cardMatches({ card, saveKind, target }: { card: PluginCredentialCard; s
 /** Optional display data cannot prevent a domain's authorized credential operation. O(cards).
  * Failures report a fixed warning, without reflecting filesystem paths or credential metadata.
  */
-export async function loadPluginCredentialCardsSafely({ loadCards, workspaceId }: { loadCards?: LoadPluginCredentialCards; workspaceId: string }, options: { warn?: (message: string) => void } = {}): Promise<readonly PluginCredentialCard[]> {
+export async function loadPluginCredentialCardsSafely({ loadCards, workspaceId }: { loadCards?: LoadPluginCredentialCards | undefined; workspaceId: string }, options: { warn?: (message: string) => void } = {}): Promise<readonly PluginCredentialCard[]> {
   try { return await loadCards?.(workspaceId) ?? []; }
   catch { (options.warn ?? console.warn)("[plugin-credential-cards] Optional card lookup failed; using the default credential form."); return []; }
 }

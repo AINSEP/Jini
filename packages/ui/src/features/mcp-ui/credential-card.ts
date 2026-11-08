@@ -9,7 +9,7 @@ import type { PluginCredentialCard } from '@jini-ai/core/contracts/credentials';
  *
  * @complexity O(f) declared public fields; mail retains its original one-field form.
  */
-export function buildPluginCredentialForm({ card, app }: { card: PluginCredentialCard; app: SurfaceCardApp }, _optional = {}): SecretCardForm & { preferredFrameSize: readonly [string, string] } {
+export function buildPluginCredentialForm({ card, app }: { card: PluginCredentialCard; app: SurfaceCardApp }, _optional = {}): SecretCardForm & { preferredFrameSize: readonly [string, string]; description: string } {
   return {
     title: card.title,
     description: `${card.intro ? card.intro + " " : ""}The key is sealed on the server the moment you submit — the assistant never sees it.`,
@@ -31,15 +31,15 @@ export function buildPluginCredentialForm({ card, app }: { card: PluginCredentia
 /** Apply plugin copy to an existing domain form, preserving its fields, update and blank-token rules.
  * Domain stores remain authoritative for connection validation. @complexity O(f) form fields.
  */
-export function applyPluginCredentialCard({ card, form, app }: { card?: PluginCredentialCard; form: SecretCardForm; app: SurfaceCardApp }, _options = {}): SecretCardForm {
+export function applyPluginCredentialCard({ card, form, app }: { card?: PluginCredentialCard | undefined; form: SecretCardForm; app: SurfaceCardApp }, _options = {}): SecretCardForm {
   if (!card) return form;
   const pluginForm = buildPluginCredentialForm({ card, app });
   return { ...form, title: pluginForm.title, description: form.description ? `${card.intro ?? ""} ${form.description}`.trim() : pluginForm.description, details: [...(form.details ?? []), ...(pluginForm.details ?? [])],
-    fields: form.fields.map(field => field.kind === "string" && field.name === "token" && field.secret ? { ...field, hint: card.keyHint ?? field.hint } : field) };
+    fields: form.fields.map(field => field.kind === "string" && field.name === "token" && field.secret ? { ...field, ...(card.keyHint === undefined ? {} : { hint: card.keyHint }) } : field) };
 }
 
 /** API rows have a fixed label; domain owners choose their own connection identity. */
-function pluginCardDetails({ card }: { card: PluginCredentialCard }, _options = {}): SecretCardForm['details'] {
+function pluginCardDetails({ card }: { card: PluginCredentialCard }, _options = {}): NonNullable<SecretCardForm['details']> {
   const help = card.helpUrl ? [{ label: card.helpLabel ?? 'Get a key', value: card.helpUrl }] : [];
   const details = [...help, ...(card.usedFor?.length ? [{ label: 'Used for', value: card.usedFor.join('; ') }] : [])];
   return card.saveKind && card.saveKind !== 'api' ? details : [...details, { label: 'Saved as', value: card.label }];

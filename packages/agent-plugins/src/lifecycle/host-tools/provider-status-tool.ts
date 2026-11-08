@@ -1,7 +1,7 @@
 import { buildDomainRegistrations, indexCatalogById, requireInputRecord, ToolInputError, type AgentToolDefinition, type DerivedRiskByToolId, type ToolExecutionContext, type ToolRegistration } from "@jini-ai/core";
 import type { ToolMetadataById } from '@jini-ai/core';
 export const PROVIDER_STATUS_TOOL_ID = "provider_status";
-/** Manifest display metadata only; no stored setting value is accepted. */
+/** @agent-note This projection contains manifest display metadata only. The host must never put saved setting values in it. */
 export interface ProviderSettingFieldProjection {
  readonly name: string; readonly label: string; readonly secret?: boolean; readonly required?: boolean;
  readonly requiredUnless?: { readonly field: string; readonly equals: string; readonly orPresent?: string; readonly headerNames?: readonly string[] };
