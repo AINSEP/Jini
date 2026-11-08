@@ -47,7 +47,7 @@ function specifiers(required: { file: string; source: string }): Set<string> {
     if (ts.isImportDeclaration(node)) collectImport({ node, specs });
     if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) specs.add(node.moduleSpecifier.text);
     if (isLiteralModuleCall(node)) specs.add(node.arguments[0].text);
-    if (ts.isImportTypeNode(node) && ts.isLiteralTypeNode(node.argument) && ts.isStringLiteral(node.argument.literal)) specs.add(node.argument.literal.text);
+    if (ts.isImportTypeNode(node)) collectImportType({ node, specs });
     if (ts.isModuleDeclaration(node) && ts.isStringLiteral(node.name)) specs.add(node.name.text);
     ts.forEachChild(node, visit);
   }
@@ -58,6 +58,10 @@ function specifiers(required: { file: string; source: string }): Set<string> {
 function collectImport({ node, specs }: { node: ts.ImportDeclaration; specs: Set<string> }): void {
   if (!ts.isStringLiteral(node.moduleSpecifier)) return;
   specs.add(node.moduleSpecifier.text);
+}
+
+function collectImportType({ node, specs }: { node: ts.ImportTypeNode; specs: Set<string> }): void {
+  if (ts.isLiteralTypeNode(node.argument) && ts.isStringLiteral(node.argument.literal)) specs.add(node.argument.literal.text);
 }
 
 function forbidden(required: { specifier: string; owner: string }): boolean {

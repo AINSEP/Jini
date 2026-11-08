@@ -17,6 +17,12 @@ export interface PackageManifest {
 }
 export interface SourcePackage { directory: string; manifest: PackageManifest }
 
+function readSourcePackage(required: { manifest: string; directory: string }): SourcePackage | undefined {
+  if (!existsSync(required.manifest)) return undefined;
+  const manifest: PackageManifest = JSON.parse(readFileSync(required.manifest, 'utf8'));
+  return manifest.name?.startsWith('@jini-ai/') ? { directory: required.directory, manifest } : undefined;
+}
+
 export function sourcePackages(required: { packagesDir: string }, _optional: Record<string, never> = {}): SourcePackage[] {
   const packages: SourcePackage[] = [];
   // Every child of the agent-plugins package is its src or plugin content (a plugin folder may ship
@@ -28,10 +34,8 @@ export function sourcePackages(required: { packagesDir: string }, _optional: Rec
       if (!entry.isDirectory() || ['node_modules', 'dist', '.git'].includes(entry.name)) continue;
       const child = join(directory, entry.name);
       const manifest = join(child, 'package.json');
-      if (existsSync(manifest)) {
-        const data: PackageManifest = JSON.parse(readFileSync(manifest, 'utf8'));
-        if (data.name?.startsWith('@jini-ai/')) packages.push({ directory: child, manifest: data });
-      }
+      const pkg = readSourcePackage({ manifest, directory: child });
+      if (pkg) packages.push(pkg);
       // Package roots and their immediate children can contain nested packages (<family>/<domain>).
       // Runtime asset projects inside src are content, not workspace packages.
       if (!['src', 'docs'].includes(entry.name)) visit(child);
