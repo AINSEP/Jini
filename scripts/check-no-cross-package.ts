@@ -97,7 +97,7 @@ function buildConfigs(required: { pkg: SourcePackage }): ts.ParsedCommandLine[] 
 }
 
 function outputFiles(required: { pkg: SourcePackage; file: string }): string[] {
-  return [...new Set(buildConfigs(required).flatMap(parsed => parsed.fileNames.includes(required.file)
+  return [...new Set(buildConfigs(required).flatMap(parsed => !parsed.options.noEmit && parsed.fileNames.includes(required.file)
     ? ts.getOutputFileNames(parsed, required.file, false).filter(file => /\.d\.[cm]?ts$/.test(file)) : []))];
 }
 

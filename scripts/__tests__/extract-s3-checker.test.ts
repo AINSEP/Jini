@@ -12,7 +12,7 @@ const loader = createRequire(import.meta.url).resolve('tsx');
 const temporary: string[] = [];
 afterEach(() => { for (const dir of temporary.splice(0)) rmSync(dir, { recursive: true, force: true }); });
 
-function fixture({ source = 'export interface Existing {}', declaration = source } = {}) {
+function fixture({ source = 'export interface Existing {}', declaration = source, noEmit = false } = {}) {
   const directory = mkdtempSync(join(tmpdir(), 'jini-s3-checker-'));
   temporary.push(directory);
   const root = join(directory, 'repo'), baselineDir = join(directory, 'snapshot');
@@ -23,9 +23,9 @@ function fixture({ source = 'export interface Existing {}', declaration = source
   write('.gitignore', '**/build/\n');
   for (const name of ['core', 'platform', 'ui']) {
     write(`packages/${name}/package.json`, JSON.stringify({ name: `@jini-ai/${name}`, scripts: { build: 'tsc -p tsconfig.types.json' } }));
-    write(`packages/${name}/tsconfig.types.json`, JSON.stringify({ compilerOptions: { declaration: true, rootDir: 'src', outDir: 'build/types', module: 'ESNext' }, include: ['src'] }));
+    write(`packages/${name}/tsconfig.types.json`, JSON.stringify({ compilerOptions: { declaration: true, rootDir: 'src', outDir: 'build/types', module: 'ESNext', noEmit: name === 'platform' && noEmit }, include: ['src'] }));
     write(`packages/${name}/src/index.ts`, name === 'platform' ? source : 'export interface Existing {}');
-    write(`packages/${name}/build/types/index.d.ts`, name === 'platform' ? declaration : 'export interface Existing {}');
+    if (name !== 'platform' || !noEmit) write(`packages/${name}/build/types/index.d.ts`, name === 'platform' ? declaration : 'export interface Existing {}');
   }
   git('init', '--quiet'); git('config', 'user.name', 'Fixture'); git('config', 'user.email', 'fixture@example.test');
   git('add', '--', '.gitignore', 'packages'); git('commit', '--quiet', '-m', 'original pin');
@@ -55,6 +55,13 @@ test('F1 roundtrip preserves unchanged old declaration edges and rejects a newly
   expect(f.check()).toEqual([]);
   f.write('packages/platform/build/types/index.d.ts', old + "\nexport type New = import('@jini-ai/ui/new').New;");
   expect(f.check()).toEqual([{ rule: 'XP3', file: 'packages/platform/src/index.ts', specifier: '@jini-ai/ui/new' }]);
+});
+
+test('F1 actual build mapping excludes noEmit configs without inventing declarations', () => {
+  const f = fixture({ noEmit: true });
+  const result = f.cli(); expect(result.status, result.stderr).toBe(0);
+  const manifest = JSON.parse(readFileSync(join(f.baselineDir, 'manifest.json'), 'utf8'));
+  expect(manifest.outputs['packages/platform/src/index.ts']).toBeUndefined();
 });
 
 test('F1 writer refuses HEAD different from the requested provenance', () => {
