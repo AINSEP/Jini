@@ -39,6 +39,7 @@ it('provider status: reports configured providers with no product names, shows t
           text: '<form aria-label="Provider settings"><label>API key<input name="apiKey" type="password"></label><button>Save</button></form>',
         } } } },
         handle: async answer => {
+          if (answer.status !== 'received') throw new Error('Settings card did not receive an answer');
           expect(typeof answer.params.apiKey).toBe('string');
           memory.set(String((ctx.input as { pluginId: string }).pluginId), String(answer.params.apiKey));
           return { result: { saved: true } };
@@ -46,9 +47,11 @@ it('provider status: reports configured providers with no product names, shows t
       });
     },
   } })[0]!;
-  const shown: unknown[] = [], ready = Promise.withResolvers<void>();
-  const pending = save.handler(context(before.providers[0]!.settingsCard!.input), { emitSurface: async emission => { shown.push(emission); ready.resolve(); } });
-  await Promise.race([ready.promise, pending.then(() => { throw new Error('Settings save did not show a card'); })]);
+  const shown: unknown[] = [];
+  let raised!: () => void;
+  const ready = new Promise<void>(resolve => { raised = resolve; });
+  const pending = save.handler(context(before.providers[0]!.settingsCard!.input), { emitSurface: async emission => { shown.push(emission); raised(); } });
+  await Promise.race([ready, pending.then(() => { throw new Error('Settings save did not show a card'); })]);
   expect(JSON.stringify(shown)).toContain('Provider settings');
   expect(JSON.stringify(shown)).toContain('type=\\"password\\"');
   expect(exchanges.deliver({ exchangeId: 'settings-1', principalId: 'operator', params: { apiKey: secret } }, { toolId: 'credential_save' })).toEqual({ ok: true });
