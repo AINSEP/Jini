@@ -54,12 +54,12 @@ const fixedLaunch = (): AgentLaunchResolution => ({
   launchPath: '/fake/bin', launchKind: 'selected', childPathPrepend: [], diagnostic: null,
 });
 
-interface SpawnRecord { command: string; env: NodeJS.ProcessEnv }
+interface SpawnRecord { command: string; args: readonly string[]; env: NodeJS.ProcessEnv }
 
 /** A spawn that records what it was handed and starts `child` (or throws `throws`). */
 function recordingSpawn(child: FakeChild, calls: SpawnRecord[], throws?: Error): typeof nodeSpawn {
   return ((command: string, _args: readonly string[], options: { env: NodeJS.ProcessEnv }) => {
-    calls.push({ command, env: options.env });
+    calls.push({ command, args: _args, env: options.env });
     if (throws) throw throws;
     queueMicrotask(() => child.emit('spawn'));
     return child as unknown as ChildProcess;
@@ -242,4 +242,48 @@ it('required HTTP failure reports the transport policy and never falls back or m
   expect(credential).not.toHaveBeenCalled();
   expect(prepareHttp).toHaveBeenCalledOnce();
   expect((await lifecycle.get({ runId: run.id }))?.state).toBe('failed');
+});
+
+it.each(['complete', 'oversized', 'staging-failure', 'subagents-denied'] as const)('Claude snapshot launch: %s', async scenario => {
+  const site = join(scratch, scenario);
+  mkdirSync(site);
+  const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+  const child = createFakeChild(4399);
+  const calls: SpawnRecord[] = [];
+  const snapshot = scenario === 'oversized' ? 'é'.repeat(32 * 1024 + 1) : 'prepared parent rules';
+  const def = createDef({ ...getAgentDef({ id: 'claude' })!, ...fixtureModelDiscovery, mcpIsolation: { perRun: 'fixture@2026-11-05' } });
+  let directory = '';
+  const executor = createAgentExecutor({ lifecycle }, {
+    hostEnv: {}, getAgentDef: () => def, resolveAgentLaunch: () => ({ ...fixedLaunch(), launchPath: process.execPath }),
+    resolveModelForLaunch: fixtureLaunchModel, ensureAgentCapabilities: async () => {},
+    assertClaudeFilesystemSupport: async () => true, spawn: recordingSpawn(child, calls),
+    promptAugmenter: { contextKinds: () => [], augmentUserRequest: ({ basePrompt }) => basePrompt, systemOverlay: () => {
+      directory = join(site, '.agent-runtime', readdirSync(join(site, '.agent-runtime')).find(name => name.startsWith('tmp-'))!);
+      if (scenario === 'staging-failure') writeFileSync(join(directory, 'subagent-start.json'), 'reserved');
+      return snapshot;
+    } },
+  });
+  const { run } = await lifecycle.start({ contextRef: scenario });
+  const launch = executor.run({ runId: run.id, agentId: def.id, prompt: 'hello', cwd: site }, {
+    filesystemRoot: site, nativeToolAccess: true, nativeCapabilities: { subagents: scenario !== 'subagents-denied' }, permissionMode: 'bypass',
+    settings: JSON.stringify({ hooks: { Stop: [{ hooks: [{ type: 'command', command: 'stop-hook' }] }] } }),
+  });
+  try {
+    if (scenario === 'oversized' || scenario === 'staging-failure') {
+      await expect(launch).rejects.toMatchObject({ code: 'AGENT_SPAWN_FAILED' });
+      expect(calls).toEqual([]);
+    } else {
+      await launch;
+      const args = calls[0]!.args;
+      const settings = JSON.parse(args[args.indexOf('--settings') + 1]!);
+      expect(settings.hooks.Stop).toEqual([{ hooks: [{ type: 'command', command: 'stop-hook' }] }]);
+      expect(existsSync(join(directory, 'subagent-start.json'))).toBe(scenario === 'complete');
+      if (scenario === 'complete') expect(settings.hooks.SubagentStart).toHaveLength(1);
+      else expect(settings.hooks.SubagentStart).toBeUndefined();
+    }
+  } finally {
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal({ runId: run.id });
+  }
+  await vi.waitFor(() => expect(existsSync(directory)).toBe(false));
 });

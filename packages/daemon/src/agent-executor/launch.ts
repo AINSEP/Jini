@@ -1,5 +1,6 @@
 import { prepareHttpMcpForRun, type PreparedHttpMcp } from './http-mcp.js';
 import { mergeOpenCodeHttpMcpConfig } from './opencode/mcp-config.js';
+import { prepareClaudeSubagentStartSettings } from './claude/subagent-start.js';
 import { buildAgentEnv } from './agent-env.js';
 import { randomUUID } from 'node:crypto';
 import { supportsMessageRelay, type RunMessageRelay } from './message-relay.js';
@@ -742,6 +743,11 @@ export async function buildRunArgs({ input, deps }: { readonly input: {
   try {
     const delivery = input.overlayDelivery;
     const options = buildAgentBuildArgsOptions({ input: input.runInput, systemPromptOverlay: input.systemPromptOverlay });
+    if (input.def.id === 'claude' && input.runInput.nativeCapabilities?.subagents !== false && input.runInput.filesystemTempDir) {
+      options.settings = await prepareClaudeSubagentStartSettings({ directory: input.runInput.filesystemTempDir,
+        snapshot: input.systemPromptOverlay ?? '', ...(options.settings === undefined ? {} : { settings: options.settings }),
+      }, {});
+    }
     const args = input.def.buildArgs(
       { prompt: delivery.prompt, imagePaths: [...(input.imagePaths ?? [])] }, {
         ...(input.imageDelivery.extraAllowedDirs === undefined ? {} : { extraAllowedDirs: [...input.imageDelivery.extraAllowedDirs] }),
