@@ -10,6 +10,7 @@ import { cliOutputDiscoveryDeps, discoveryContext, offlineDiscoveryDeps } from '
 describe('codexAgentDef shape', () => {
   it('declares the expected identity and transport fields', () => {
     expect(codexAgentDef.id).toBe('codex');
+    expect(codexAgentDef.automaticPluginGuidance).toBe('pointer');
     expect(codexAgentDef.bin).toBe('codex');
     expect(codexAgentDef.promptViaStdin).toBe(true);
     expect(codexAgentDef.resumesSessionViaCli).toBe(true);

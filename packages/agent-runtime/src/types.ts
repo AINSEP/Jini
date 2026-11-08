@@ -605,8 +605,9 @@ export type RuntimeAgentDef = Partial<AgentModelDiscoveryPort> & {
     | { readonly strategy: 'append-flag'; readonly flag: string; readonly capabilityKey?: string }
     | { readonly strategy: 'env-var'; readonly varName: string }
     | { readonly strategy: 'config-instructions-file'; readonly varName: string };
-  /** Prepared plugin guidance belongs in the system overlay, including child replay. */
-  pluginGuidanceViaSystemOverlay?: boolean;
+  /** Supports a command hook supplying short child startup context. */
+  subagentStartHook?: boolean;
+  automaticPluginGuidance?: 'pointer';
   installUrl?: string;
   docsUrl?: string;
   // When `false`, a model picker should hide the "Custom (fill below)"

@@ -29,7 +29,7 @@ describe('claudeAgentDef shape', () => {
     expect(claudeAgentDef.bin).toBe('claude');
     expect(claudeAgentDef.fallbackBins).toEqual(['openclaude']);
     expect(claudeAgentDef.promptViaStdin).toBe(true);
-    expect(claudeAgentDef.pluginGuidanceViaSystemOverlay).toBe(true);
+    expect(claudeAgentDef.subagentStartHook).toBe(true);
     expect(claudeAgentDef.promptInputFormat).toBe('stream-json');
     expect(claudeAgentDef.streamFormat).toBe('claude-stream-json');
     expect(claudeAgentDef.externalMcpInjection).toBe('claude-mcp-json');

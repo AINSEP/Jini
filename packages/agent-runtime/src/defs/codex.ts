@@ -317,6 +317,7 @@ function nonEmptyStrings(values: readonly string[] | null | undefined): string[]
 export const codexAgentDef = {
   ...createAgentModelDiscovery('codex', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => codexAgentDef.fallbackModels, args: ['debug', 'models'], parse: parseCodexDebugModels }),
     id: 'codex',
+  automaticPluginGuidance: 'pointer',
     supportsNativeToolAccess: true,
     name: 'Codex CLI',
     bin: 'codex',
