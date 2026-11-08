@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createHash } from 'node:crypto';
 import { buildOutcomeSurface, renderOutcomeDocument } from '../../surfaces/outcome.js';
 import { MCP_UI_ACTION_PLAN_META_KEY, MCP_UI_PREFERRED_FRAME_SIZE_META_KEY } from '../../resource.js';
@@ -121,6 +121,31 @@ describe('renderOutcomeDocument', () => {
     const html = renderOutcomeDocument({ ...PUBLISH_SUCCESS, app: { appName: 'host-publish-outcome', appVersion: '2' }, tokens: { '--jini-mcpui-accent': '#123456' } });
     expect(html).toContain('"host-publish-outcome"');
     expect(html).toContain('--jini-mcpui-accent: #123456;');
+  });
+});
+
+describe('cancellable outcome open-link failures', () => {
+  it.each(['refused', 'rejected'] as const)('displays a %s open request immediately and keeps Retry and Skip usable', async (failure) => {
+    const surface = mountSurface(renderOutcomeDocument({
+      title: 'Connect Example', state: 'partial', message: 'Waiting for sign-in',
+      openLinkUrl: '/api/sign-in', openLinkLabel: 'Retry',
+      cancel: { label: 'Skip', toolName: 'connect', params: { __exchangeId: 'x', __dismissed: true } },
+    }));
+    const reply = failure === 'refused' ? Promise.resolve({ isError: true }) : Promise.reject(new Error('Connection lost'));
+    void reply.catch(() => {});
+    surface.api.openLink.mockReturnValueOnce(reply).mockReturnValue(Promise.resolve({}));
+    surface.trustedClick('open-link');
+    await vi.waitFor(() => expect(surface.statusState()).toBe('failed'));
+    expect(surface.status()).toContain(failure === 'refused' ? 'Could not open the link.' : 'Connection lost');
+    expect(surface.disabledActions()).toEqual([false, false]);
+    expect(surface.api.callTool).not.toHaveBeenCalled();
+    surface.trustedClick('open-link');
+    expect(surface.api.openLink).toHaveBeenCalledTimes(2);
+    expect(surface.api.openLink).toHaveBeenLastCalledWith('/api/sign-in');
+    surface.trustedClick('cancel');
+    expect(surface.api.callTool).toHaveBeenCalledWith('connect', { __exchangeId: 'x', __dismissed: true });
+    await surface.settle('resolve', { delivered: true });
+    expect(surface.statusState()).toBe('dismissed');
   });
 });
 

@@ -135,7 +135,9 @@ ${SURFACE_SCRIPT_PRELUDE}
   function onClick(event) {
     if (event.isTrusted !== true || locked) return;
     if (event.currentTarget.getAttribute("data-mcpui-action") === "open-link") {
-      api.openLink(OPEN_URL);
+      api.openLink(OPEN_URL).then(function (result) {
+        if (result && result.isError) throw new Error("Could not open the link.");
+      }).catch(reportCallFailure);
       return;
     }
     locked = true;
