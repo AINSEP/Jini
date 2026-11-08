@@ -7,6 +7,7 @@ import { agentVisiblePluginCandidate } from './search-projection.js';
 export type ChatAgentPlugins = 'auto' | 'ask' | 'off';
 export const DEFAULT_CHAT_AGENT_PLUGINS: ChatAgentPlugins = 'auto';
 const MAX_AUTOMATIC_GUIDANCE_BYTES = 8 * 1024;
+const MAX_PRIMARY_GUIDANCE_BYTES = 16 * 1024;
 /** Browser-owned, per-conversation state. Clearing it deliberately permits a fresh question. */
 export interface ChatAgentPluginState {
   decision: { selected: readonly string[]; asked?: boolean } | null;
@@ -15,7 +16,7 @@ export interface ChatAgentPluginState {
 export interface AutomaticAgentPluginMatch { id: string; name: string; why: string }
 /** Explicit loads report admission separately from guidance; only real delivery is `loaded`. */
 export interface AutomaticAgentPluginLoadResult {
-  status: 'loaded' | 'installed-but-inactive' | 'excluded' | 'untrusted' | 'missing' | 'already-loaded'
+  status: 'loaded' | 'installed-but-inactive' | 'excluded' | 'untrusted' | 'missing'
     | 'off' | 'cancelled' | 'unavailable';
   /** Delivered content, or the resolver's safe refusal for an explicit skill/file request. */
   guidance: string;
@@ -60,7 +61,7 @@ export interface AutomaticAgentPluginPorts {
   publish(input: { state: ChatAgentPluginState; plugins: readonly { id: string; name: string }[] }, options?: Record<string, never>): Promise<void>;
 }
 
-type PrepareInput = { query?: string; capabilities?: readonly string[]; loaded?: readonly string[]; signal?: AbortSignal };
+type PrepareInput = { query?: string; capabilities?: readonly string[]; loaded?: readonly string[]; pointerOnly?: boolean; signal?: AbortSignal };
 
 /** A guarded capability admits its providers outright; a query is ranked for relevance. */
 function rankCandidates(
@@ -99,6 +100,7 @@ export function createAutomaticAgentPluginUse(
 ) {
   let state = readChatAgentPluginState({ value: initialState });
   const delivered = new Map<string, string>();
+  let preparedIds: string[] = [];
   const alreadyLoaded = new Set<string>();
   let publishedSize: number | undefined;
   let queue: Promise<unknown> = Promise.resolve();
@@ -140,7 +142,7 @@ export function createAutomaticAgentPluginUse(
   }
   /** Only complete primary guidance updates the loaded set. O(1), no host effects. */
   function recordDelivery({ plugin, result }: { plugin: AgentPluginSearchCandidate; result: AutomaticAgentPluginLoadResult }, _options = {}): void {
-    if (result.status === 'loaded') delivered.set(plugin.pluginId, plugin.displayName ?? plugin.pluginId);
+    if (result.status === 'loaded') { delivered.set(plugin.pluginId, plugin.displayName ?? plugin.pluginId); preparedIds = [...new Set([...preparedIds, plugin.pluginId])]; }
   }
   /** Bound automatic attachments before recording delivery; explicit loads retain complete text.
    * O(p*b) in resolved plugins and guidance bytes; a deferred plugin remains retryable.
@@ -151,7 +153,7 @@ export function createAutomaticAgentPluginUse(
     const guidanceFor = async (match: AgentPluginSearchMatch): Promise<string | undefined> => {
       const result = await resolveOneGuidance({ plugin: match }, { signal });
       if (result.status !== 'loaded') return undefined;
-      if (match.pluginId !== primaryId && new TextEncoder().encode(result.guidance).length > MAX_AUTOMATIC_GUIDANCE_BYTES) {
+      if (new TextEncoder().encode(result.guidance).length > (match.pluginId === primaryId ? MAX_PRIMARY_GUIDANCE_BYTES : MAX_AUTOMATIC_GUIDANCE_BYTES)) {
         const pointer = ports.formatPluginToolPointer?.({ pluginId: match.pluginId, skill: match.pluginId, file: 'SKILL.md' });
         const howToLoad = pointer === undefined ? '' : ` Load the full instructions with ${pointer}; use the same call with file '<relative path>' for supporting references.`;
         return `Agent Plugin '${match.pluginId}' guidance is deferred because it exceeds the automatic byte limit.${howToLoad}`;
@@ -196,13 +198,16 @@ export function createAutomaticAgentPluginUse(
     // Owner decision 2026-10-18: no per-chat plugin count; the relevance threshold and vendor gate decide.
     const relevant = ranked.filter(plugin => !delivered.has(plugin.pluginId) && !alreadyLoaded.has(plugin.pluginId));
     const matches = await applyConsent({ matches: relevant }, { signal: input.signal });
+    const selected = new Set([...matches.map(plugin => plugin.pluginId), ...alreadyLoaded, ...delivered.keys(), ...(state.decision?.selected ?? [])]);
+    preparedIds = candidates.filter(plugin => selected.has(plugin.pluginId)).map(plugin => plugin.pluginId);
     const shouldLoad = !!input.capabilities?.length;
-    const primary = input.query && !input.loaded?.length ? matches.slice(0, 1) : [];
+    const primary = input.query && !input.pointerOnly && !input.loaded?.length ? matches.slice(0, 1) : [];
     const result = shouldLoad ? (await resolveGuidance({ matches }, { signal: input.signal })).join('\n\n') : [
       ...(await resolveGuidance({ matches: primary, primaryId: primary[0]?.pluginId }, { signal: input.signal })),
       relevantPluginNote({ matches: matches.slice(primary.length), formatPluginToolPointer: ports.formatPluginToolPointer }),
     ].filter(Boolean).join('\n\n');
     rememberAutoSelection();
+    if (input.query && mode === 'auto' && preparedIds.length) state = { ...state, decision: { selected: preparedIds, asked: state.decision?.asked ?? false } };
     await publishUsage();
     // Preflight never resolves off packages implicitly. A catalog line offers an explicit read;
     // its setup guidance may explain whether enabling or credentials are needed.
@@ -256,8 +261,9 @@ export function createAutomaticAgentPluginUse(
     return next;
   }
   return {
+    guidanceIds: (_required: Record<string, never>, _options = {}) => [...preparedIds],
     /** Suggest relevant metadata for a query; capability calls load only their providers. */
-    prepare: (input: { query?: string; capabilities?: readonly string[]; loaded?: readonly string[]; signal?: AbortSignal }, _options = {}) => enqueue({ operation: () => prepare(input) }),
+    prepare: (input: { query?: string; capabilities?: readonly string[]; loaded?: readonly string[]; pointerOnly?: boolean; signal?: AbortSignal }, _options = {}) => enqueue({ operation: () => prepare(input) }),
     /** Resolve one active, permitted id and publish usage only after real guidance is read.
      * Returns a concrete status and delivered content or a safe explicit-request refusal.
      * @example await controller.load({ pluginId: 'my-plugin' });
