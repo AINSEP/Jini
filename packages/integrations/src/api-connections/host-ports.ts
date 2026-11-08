@@ -1,7 +1,8 @@
+import type { Clock } from '@jini-ai/core/primitives';
 /** @agent-note The host binds its one storage owner, fresh declaration loader, guarded HTTP,
  * credential projection and application identity. These ports never construct a host or store.
  */
-import type { OAuthAppOptions, OAuthClient } from '@jini-ai/core/contracts/oauth';
+import type { OAuthAppOptions, OAuthClient, OAuthHttpPorts } from '@jini-ai/core/contracts/oauth';
 import type { ApiConnectionDeclaration, ApiConnectionHooksModule } from './declarations.js';
 import type { ApiConnectionClientKind } from './deps.js';
 import type { ApiConnectionError } from './errors.js';
@@ -99,4 +100,47 @@ export interface ApiConnectionHostPorts {
   readonly appIdentity: Pick<OAuthAppOptions, 'clientDisplayName' | 'softwareId'>;
   readonly byoCredentials: ApiConnectionByoCredentials;
   readonly createLimiter: CreateConnectionBudgetLimiter;
+}
+
+/** Connection attempt outcomes are projected through a local shape; the host supplies their owner. */
+export interface ApiConnectionSignInAttempt { readonly code: string; readonly nextAction: string }
+export interface ApiConnectionCallbackKey { readonly workspaceId: string; readonly pluginId: string; readonly connectionId: string; readonly attemptId: string }
+export interface ApiConnectionCallbackInbox {
+  deposit(required: ApiConnectionCallbackKey & { readonly fields: Readonly<Record<string, string>> }, optional?: Record<string, never>): void;
+  take(required: ApiConnectionCallbackKey, optional?: Record<string, never>): Readonly<Record<string, string>> | null;
+}
+export type ApiConnectionStartLoopback = (required: Record<string, never>, optional?: {
+  readonly callbackFields?: readonly string[]; readonly timeoutMs?: number; readonly signal?: AbortSignal;
+  readonly timers?: { after(required: { readonly ms: number; readonly run: () => void }): () => void };
+}) => Promise<{ readonly redirectUri: string; receive(required: { readonly expectedState: string }): Promise<{ readonly code: string; readonly fields: Readonly<Record<string, string>> }> }>;
+
+/** Product wording and environment setting names are host inputs, including refusal punctuation. */
+export interface ApiConnectionHostMessages {
+  readonly callbackOriginsEnv: string;
+  notConfigured(required: { label: string; runtime: ApiConnectionRuntime; what: string }): string;
+  missingReturnAddress(required: { label: string }): string;
+  unregisteredOrigin(required: { label: string }): string;
+  noPublicOrigin(required: { label: string }): string;
+}
+/** @agent-note Pass the already-built state store/inbox over the same storage used by the callback route.
+ * State is opaque to this domain; integrations never imports its owner's package. */
+export interface ApiConnectionRuntimeHostDeps<State> extends ApiConnectionHostPorts {
+  readonly workspaceId: string;
+  readonly clock: Clock;
+  readonly oauthHttp: OAuthHttpPorts;
+  readonly pluginHttp: PluginHttp;
+  readonly runtime: ApiConnectionRuntime;
+  readonly env: Readonly<Record<string, string | undefined>>;
+  readonly publicOrigin: () => string | undefined;
+  readonly pluginState: State;
+  readonly callbackInbox: ApiConnectionCallbackInbox;
+  readonly callbackPath: string;
+  readonly startLoopback: ApiConnectionStartLoopback;
+  readonly messages: ApiConnectionHostMessages;
+}
+export interface ApiConnectionRuntimeHostOptions { readonly shared?: ApiConnectionSharedStorage }
+export type ApiConnectionSignInLink = (required: { callbackUrl: string; workspaceId: string; handoffId: string }) => string;
+export interface ApiConnectionConnectMessages {
+  toolError(required: { message: string }): string;
+  readonly sharedUnavailable: string;
 }

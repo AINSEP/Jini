@@ -43,3 +43,4 @@ export { openAdminSurfaceLink, type AdminSurfaceOpenLinkPort, type AdminSurfaceL
 export { createAdminSurfaceCallbackInbox, type AdminSurfaceCallbackFieldKey } from './callback-field-inbox.js';
 
 export { buildAdminSurfaceActionTools, type AdminSurfaceToolSource, type AdminSurfaceToolContext } from './action-tools.js';
+export type { AdminSurfacePluginStatePersistence } from './plugin-state-persistence.js';

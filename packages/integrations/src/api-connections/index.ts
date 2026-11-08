@@ -55,3 +55,8 @@ export type {
 } from './host-ports.js';
 export { byoClientLabel, resolveByoClient, type ByoClient } from './byo-client.js';
 export { createConnectionHookHttp, CONNECTION_HOOK_UNDECLARED_ORIGIN_MESSAGE } from './hook-http.js';
+export type {
+  ApiConnectionSignInAttempt, ApiConnectionCallbackKey, ApiConnectionCallbackInbox, ApiConnectionStartLoopback,
+  ApiConnectionHostMessages, ApiConnectionRuntimeHostDeps, ApiConnectionRuntimeHostOptions,
+  ApiConnectionSignInLink, ApiConnectionConnectMessages,
+} from './host-ports.js';
