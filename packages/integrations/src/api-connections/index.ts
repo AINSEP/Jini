@@ -46,3 +46,12 @@ export {
   type ConnectionBudget, type ConnectionBudgetLimiter, type ConnectionBudgetLimiterProfile, type ConnectionBudgets,
   type ConnectionBudgetScope, type ConnectionBudgetTarget, type CreateConnectionBudgetLimiter,
 } from './budgets.js';
+export type {
+  ApiConnectionRuntime, DeclaredApiConnection, ApiConnectionHttpOptions, PluginHttp,
+  ApiConnectionHostRecordStore, ApiConnectionHostStorage, ApiConnectionByoCredential,
+  ApiConnectionByoRefusal, ApiConnectionByoCredentials, ApiConnectionSharedIssuingContext,
+  ApiConnectionSharedStorage, ApiConnectionPreparedSignIn, ApiConnectionSharedConnections,
+  ApiConnectionSharedFactoryInput, ApiConnectionHostPorts,
+} from './host-ports.js';
+export { byoClientLabel, resolveByoClient, type ByoClient } from './byo-client.js';
+export { createConnectionHookHttp, CONNECTION_HOOK_UNDECLARED_ORIGIN_MESSAGE } from './hook-http.js';
