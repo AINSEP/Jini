@@ -194,6 +194,8 @@ export type PrepareToolGuidance = (required: { principal: Principal; run: RunRef
 
 export interface CreateToolExecutorOptions {
   readonly prepareGuidance?: PrepareToolGuidance;
+  /** Host redaction for nested internal failures only; top-level failures keep their wrapper path. */
+  readonly redactNestedFailure?: (required: { result: ToolExecutionResult; toolId: string; runId: string; principalId: string }) => string | undefined;
   readonly registry: ToolRegistry;
   readonly delegate?: ExecutionDelegate;
   /** Injectable clock for audit timestamps — defaults to `Date.now`. Test-only hook. */
@@ -249,7 +251,7 @@ function truncateOutput(output: unknown, maxOutputBytes: number | undefined): { 
  * @complexity Known-id `execute` adds schema-guided normalization to the handler's cost; unknown ids scan O(n) descriptors for hints. `resumeConfirmation`/`cancel`/`getAuditRecord` are O(1) map lookups.
  * @overallScore 100/100
  */
-export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions, "registry">, optionalArgs: Pick<CreateToolExecutorOptions, "delegate" | "now" | "prepareGuidance" | "maxAuditRecords"> = {}): ToolExecutor {
+export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions, "registry">, optionalArgs: Pick<CreateToolExecutorOptions, "delegate" | "now" | "prepareGuidance" | "redactNestedFailure" | "maxAuditRecords"> = {}): ToolExecutor {
   const options: CreateToolExecutorOptions = { ...requiredArgs, ...optionalArgs };
   const { registry, delegate = {} } = options;
   const now = options.now ?? Date.now;
@@ -559,7 +561,12 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
       if (result.status === 'completed') return result.output;
       // `failed` results always carry `error` (and only they carry `errorKind`); the bare terminal
       // statuses carry none, so they are named by tool id and status instead.
-      const message = result.error ?? `${nestedToolId}: ${result.status}`;
+      // Use the host's secret-only redaction and error id when supplied. Otherwise withhold
+      // internal paths or SQL before a batch copies this message into its results.
+      const message = result.errorKind === 'internal'
+        ? options.redactNestedFailure?.({ result, toolId: nestedToolId, runId: run.id, principalId: principal.id })
+          ?? `${nestedToolId} failed on the server. The cause is withheld because it can contain internal paths; it is in the audit log under execution ${result.executionId}.`
+        : result.error ?? `${nestedToolId}: ${result.status}`;
       throw result.errorKind === 'validation' ? new ToolInputError({ message }) : new Error(message);
     };
   }
