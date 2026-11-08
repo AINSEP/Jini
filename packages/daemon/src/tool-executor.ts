@@ -559,7 +559,11 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
       if (result.status === 'completed') return result.output;
       // `failed` results always carry `error` (and only they carry `errorKind`); the bare terminal
       // statuses carry none, so they are named by tool id and status instead.
-      const message = result.error ?? `${nestedToolId}: ${result.status}`;
+      // An `internal` failure's text can carry paths or SQL. A single call is redacted at the
+      // transport, but a batch copies this into its results, so it must be safe here.
+      const message = result.errorKind === 'internal'
+        ? `${nestedToolId} failed on the server. The cause is withheld because it can contain internal paths; it is in the audit log under execution ${result.executionId}.`
+        : result.error ?? `${nestedToolId}: ${result.status}`;
       throw result.errorKind === 'validation' ? new ToolInputError({ message }) : new Error(message);
     };
   }

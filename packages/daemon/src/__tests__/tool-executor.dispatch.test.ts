@@ -5,7 +5,9 @@
  */
 import {
   createToolRegistry,
+  withBatchInput,
   ToolInputError,
+  type BatchResult,
   type Principal,
   type RunRef,
   type SurfaceEmitter,
@@ -306,9 +308,50 @@ describe('ToolExecutor.execute — nested invokeTool port', () => {
     expect(result).toMatchObject({ status: 'failed', errorKind: 'validation', error: 'name is required' });
   });
 
-  it('rethrows a nested internal failure as an Error carrying the nested message', async () => {
-    const registry = registryWith(parentInvoking((invoke) => invoke({ toolId: 'child', input: {} })), tool('child', async () => { throw new Error('child broke'); }));
-    expect(await createToolExecutor({ registry }).execute({ principal, run, toolId: 'parent', input: {} })).toMatchObject({ status: 'failed', errorKind: 'internal', error: 'child broke' });
+  it('redacts a nested internal failure and identifies its audit execution', async () => {
+    let nestedExecutionId = '';
+    const registry = registryWith(parentInvoking((invoke) => invoke({ toolId: 'child', input: {} })), tool('child', async (ctx) => {
+      nestedExecutionId = ctx.executionId;
+      throw new Error('child broke');
+    }));
+    const result = await createToolExecutor({ registry }).execute({ principal, run, toolId: 'parent', input: {} });
+    expect(result).toMatchObject({ status: 'failed', errorKind: 'internal' });
+    expect(nestedExecutionId).not.toBe('');
+    expect(result.error).toBe(`child failed on the server. The cause is withheld because it can contain internal paths; it is in the audit log under execution ${nestedExecutionId}.`);
+  });
+
+  it('redacts internal batch item errors, continues to the next item and preserves input errors', async () => {
+    let nestedExecutionId = '';
+    const registration = tool('batch', async (ctx) => {
+      const { action } = ctx.input as { action: string };
+      if (action === 'internal') {
+        nestedExecutionId = ctx.executionId;
+        throw new Error('open /secret/abs/path');
+      }
+      if (action === 'validation') throw new ToolInputError({ message: 'name is required' });
+      return { saved: true };
+    }, { inputSchema: { type: 'object', properties: { action: { type: 'string' } } } });
+    const registry = registryWith(withBatchInput({ registration, tool: { toolId: 'batch' } }));
+    const executor = createToolExecutor({ registry });
+
+    const result = await executor.execute({ principal, run, toolId: 'batch', input: {
+      items: [{ action: 'internal' }, { action: 'ok' }, { action: 'validation' }],
+    } });
+
+    expect(result.status).toBe('completed');
+    const batch = result.output as BatchResult;
+    expect(batch).toMatchObject({ total: 3, succeeded: 1, failed: 2 });
+    expect(batch.results.map(item => item.index)).toEqual([0, 1, 2]);
+    const failed = batch.results[0]!;
+    expect(failed.ok).toBe(false);
+    if (failed.ok) throw new Error('expected a failed batch item');
+    expect(failed.error).not.toContain('/secret');
+    expect(nestedExecutionId).not.toBe('');
+    expect(failed.error).toContain(nestedExecutionId);
+    expect(batch.results[1]).toEqual({ index: 1, ok: true, result: { saved: true } });
+    expect(batch.results[2]).toEqual({ index: 2, ok: false, error: 'name is required' });
+    expect(executor.getAuditRecord({ executionId: nestedExecutionId })?.events.at(-1))
+      .toMatchObject({ phase: 'failed', detail: 'open /secret/abs/path' });
   });
 
   it('rethrows a nested denial as an Error naming the nested tool and status', async () => {
