@@ -145,13 +145,13 @@ export function createAutomaticAgentPluginUse(
   /** Bound automatic attachments before recording delivery; explicit loads retain complete text.
    * O(p*b) in resolved plugins and guidance bytes; a deferred plugin remains retryable.
    */
-  async function resolveGuidance({ matches }: { matches: readonly AgentPluginSearchMatch[] }, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<string[]> {
+  async function resolveGuidance({ matches, primaryId }: { matches: readonly AgentPluginSearchMatch[]; primaryId?: string | undefined }, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<string[]> {
     const guidance: string[] = [];
     // Unloaded plugins contribute nothing; oversized guidance becomes a pointer instead of the text.
     const guidanceFor = async (match: AgentPluginSearchMatch): Promise<string | undefined> => {
       const result = await resolveOneGuidance({ plugin: match }, { signal });
       if (result.status !== 'loaded') return undefined;
-      if (new TextEncoder().encode(result.guidance).length > MAX_AUTOMATIC_GUIDANCE_BYTES) {
+      if (match.pluginId !== primaryId && new TextEncoder().encode(result.guidance).length > MAX_AUTOMATIC_GUIDANCE_BYTES) {
         const pointer = ports.formatPluginToolPointer?.({ pluginId: match.pluginId, skill: match.pluginId, file: 'SKILL.md' });
         const howToLoad = pointer === undefined ? '' : ` Load the full instructions with ${pointer}; use the same call with file '<relative path>' for supporting references.`;
         return `Agent Plugin '${match.pluginId}' guidance is deferred because it exceeds the automatic byte limit.${howToLoad}`;
@@ -184,7 +184,7 @@ export function createAutomaticAgentPluginUse(
       // Usage publication is advisory; losing its event must not discard resolved model guidance.
     }
   }
-  /** Query preflight suggests; only a guarded capability resolves guidance here.
+  /** Query preflight delivers one primary; guarded capabilities resolve their providers.
    * Effects serialize with loads so a suggestion never consumes a backstop's delivery.
    */
   async function prepare(input: PrepareInput, _options = {}): Promise<string> {
@@ -196,9 +196,12 @@ export function createAutomaticAgentPluginUse(
     // Owner decision 2026-10-18: no per-chat plugin count; the relevance threshold and vendor gate decide.
     const relevant = ranked.filter(plugin => !delivered.has(plugin.pluginId) && !alreadyLoaded.has(plugin.pluginId));
     const matches = await applyConsent({ matches: relevant }, { signal: input.signal });
-    // Relevance is disclosure, never evidence that the model has read any guidance.
     const shouldLoad = !!input.capabilities?.length;
-    const result = shouldLoad ? (await resolveGuidance({ matches }, { signal: input.signal })).join('\n\n') : relevantPluginNote({ matches, formatPluginToolPointer: ports.formatPluginToolPointer });
+    const primary = input.query && !input.loaded?.length ? matches.slice(0, 1) : [];
+    const result = shouldLoad ? (await resolveGuidance({ matches }, { signal: input.signal })).join('\n\n') : [
+      ...(await resolveGuidance({ matches: primary, primaryId: primary[0]?.pluginId }, { signal: input.signal })),
+      relevantPluginNote({ matches: matches.slice(primary.length), formatPluginToolPointer: ports.formatPluginToolPointer }),
+    ].filter(Boolean).join('\n\n');
     rememberAutoSelection();
     await publishUsage();
     // Preflight never resolves off packages implicitly. A catalog line offers an explicit read;
