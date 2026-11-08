@@ -26,7 +26,7 @@ it('provider status: reports configured providers with no product names, shows t
   expect(status.providerStatusAgentToolCatalog[0]?.authorization.permission).toBe('studio.providers.read');
 
   const unused = async (): Promise<never> => { throw new Error('Unexpected credential domain'); };
-  const tools = createCredentialSaveTools({ metadata: {}, toolId: 'credential_save', categories: ['general'] });
+  const tools = createCredentialSaveTools({ metadata: {}, toolId: 'credential_save', categories: ['general'], messages: { description: 'Save a provider credential in the studio human card.' } });
   const save = tools.buildCredentialSaveRegistrations({ adapters: {
     apiCreate: unused, apiRotate: unused, mediaProvider: unused, sourceControl: unused,
     publishHost: unused, agentPluginToken: unused, pluginProvider: unused,

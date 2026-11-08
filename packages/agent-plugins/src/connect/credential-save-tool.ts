@@ -20,9 +20,12 @@ export interface CredentialSaveAdapters {
   readonly providerSettings?: ToolHandler;
 }
 
+/** @agent-note The host supplies its exact product description, including examples and tool navigation. No default description is selected here. */
+export interface CredentialSaveMessages { readonly description: string }
+
 /** @agent-note The host supplies its reviewed metadata, public tool id and credential categories. Save adapters keep authorization and persistence in that host. */
-export function createCredentialSaveTools({ metadata: toolMetadata, toolId: CREDENTIAL_SAVE_TOOL_ID, categories: CUSTOM_CREDENTIAL_CATEGORIES }: {
-  metadata: ToolMetadataById; toolId: string; categories: readonly string[];
+export function createCredentialSaveTools({ metadata: toolMetadata, toolId: CREDENTIAL_SAVE_TOOL_ID, categories: CUSTOM_CREDENTIAL_CATEGORIES, messages }: {
+  metadata: ToolMetadataById; toolId: string; categories: readonly string[]; messages: CredentialSaveMessages;
 }, _optional: Record<string, never> = {}) {
 
 const KINDS = ['api', 'media-provider', 'source-control', 'publish-host', 'agent-plugin-token', 'plugin-provider', 'provider-settings'] as const;
@@ -35,12 +38,7 @@ type CredentialKind = typeof KINDS[number];
  */
 const credentialSaveCatalog: AgentToolDefinition[] = [{
   name: CREDENTIAL_SAVE_TOOL_ID,
-  description: 'Save, add, connect or rotate a credential through a secure human form. The person types the API key, token or password in a masked card; it is sealed server-side and never enters chat or model input. This one call waits for submit, cancel, expiry or abandonment. ' +
-    'Choose kind: api for any third-party API, such as a payments or email API, DNS registrar or hosting API; media-provider for image/video generation keys; source-control for git repository commit and backup tokens; publish-host for static site hosting or object storage credentials; agent-plugin-token for an installed plugin personal access token fallback after agent_plugin_connect could not start OAuth sign-in; provider-settings to show a provider plugin’s manifest settings card (target is the pluginId from provider_status); plugin-provider for a provider whose installed plugin ships its own key card, which asks for the key and required public connection fields and saves through that domain’s existing owner. Prefer a plugin-declared card whenever one covers the task. ' +
-    'Examples: create an API credential with {kind:"api",label:"payments",baseUrl:"https://api.example.test",category:"general"}; rotate a saved API token with {kind:"api",target:"hosting-prod"} (target is the exact saved label, username is preserved); save an image generation key with {kind:"media-provider",target:"image-provider"}; connect repository backups with {kind:"source-control",target:"<repository provider id>",label:"default"}; save a hosting connection with {kind:"publish-host",target:"<storage provider id>",prefill:{bucket:"my-site",region:"us-east-1"}}; use a plugin token with {kind:"agent-plugin-token",target:"<plugin id>"}; open a plugin’s own key card with {kind:"plugin-provider",target:"<provider id>"}. ' +
-    'Discover targets first with content_read.custom_credential, media_list_providers, source_control_get_capabilities or deployment_get_static_publish_capabilities. Choose the card or saved key whose usedFor covers the task; do not ask the person. usedFor is display text, not permission or verification. API creation accepts optional label/baseUrl/category/worksFor prefill; without target it creates a new row and refuses a duplicate label. Publish prefill accepts only provider-declared non-secret fields. Never supply a secret in any argument. ' +
-    'Before opening any key card, explain which service and purpose it is for. Refuse to open a replacement-token card for a saved working credential unless the person explicitly asked to replace that key. When explicitly asked to show provider settings, open kind provider-settings; opening the card does not save anything until the person submits. Never open secret-entry cards during a read-only request or to answer what a token is. Read saved metadata and answer in words first. Account-management access may require a separate plugin connection; do not overwrite a working sending key to obtain broader access. ' +
-    'Permissions stay per kind: custom-credentials.write, admin.integrations.manage (media/plugin), source-control.credentials.write, deployments.credentials.write, admin.plugins.enable (provider-settings). Results retain each kind’s safe save status and errors; only API creation returns created/credential. Saving a media key does not verify it or add adapter support. External MCP server config, user creation, database destinations and app environment secrets use their own action tools. Saving a project key on a card attaches it to this site. After success retry the original request once.',
+  description: messages.description,
   sideEffects: 'mutates-durable-state',
   authorization: { permission: 'resolved-per-kind' },
   inputSchema: {
