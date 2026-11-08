@@ -7,15 +7,16 @@ import { agentVisiblePluginCandidate } from './search-projection.js';
 export type ChatAgentPlugins = 'auto' | 'ask' | 'off';
 export const DEFAULT_CHAT_AGENT_PLUGINS: ChatAgentPlugins = 'auto';
 const MAX_AUTOMATIC_GUIDANCE_BYTES = 8 * 1024;
+const MAX_PRIMARY_GUIDANCE_BYTES = 16 * 1024;
 /** Browser-owned, per-conversation state. Clearing it deliberately permits a fresh question. */
 export interface ChatAgentPluginState {
-  decision: { selected: readonly string[]; asked?: boolean } | null;
+  decision: { selected: readonly string[]; asked?: boolean; delivered?: readonly string[] } | null;
   excluded: readonly string[];
 }
 export interface AutomaticAgentPluginMatch { id: string; name: string; why: string }
 /** Explicit loads report admission separately from guidance; only real delivery is `loaded`. */
 export interface AutomaticAgentPluginLoadResult {
-  status: 'loaded' | 'installed-but-inactive' | 'excluded' | 'untrusted' | 'missing' | 'already-loaded'
+  status: 'loaded' | 'installed-but-inactive' | 'excluded' | 'untrusted' | 'missing'
     | 'off' | 'cancelled' | 'unavailable';
   /** Delivered content, or the resolver's safe refusal for an explicit skill/file request. */
   guidance: string;
@@ -60,7 +61,7 @@ export interface AutomaticAgentPluginPorts {
   publish(input: { state: ChatAgentPluginState; plugins: readonly { id: string; name: string }[] }, options?: Record<string, never>): Promise<void>;
 }
 
-type PrepareInput = { query?: string; capabilities?: readonly string[]; loaded?: readonly string[]; signal?: AbortSignal };
+type PrepareInput = { maxPromptArgBytes?: number; query?: string; capabilities?: readonly string[]; loaded?: readonly string[]; signal?: AbortSignal };
 
 /** A guarded capability admits its providers outright; a query is ranked for relevance. */
 function rankCandidates(
@@ -82,9 +83,9 @@ export function readChatAgentPluginState({ value }: { value: unknown }, _options
   const record = value as Record<string, unknown>;
   const ids = (raw: unknown): raw is string[] => Array.isArray(raw) && raw.every(id => typeof id === 'string' && id.length > 0 && id.length <= 160);
   if (!ids(record.excluded)) return empty;
-  const decision = record.decision as { selected?: unknown; asked?: unknown } | null;
+  const decision = record.decision as { selected?: unknown; asked?: unknown; delivered?: unknown } | null;
   if (decision !== null && (!decision || !ids(decision.selected))) return empty;
-  return { decision: decision ? { selected: [...new Set(decision.selected as string[])], ...(typeof decision.asked === 'boolean' ? { asked: decision.asked } : {}) } : null, excluded: [...new Set(record.excluded)] };
+  return { decision: decision ? { selected: [...new Set(decision.selected as string[])], ...(typeof decision.asked === 'boolean' ? { asked: decision.asked } : {}), ...(ids(decision.delivered) ? { delivered: [...new Set(decision.delivered)] } : {}) } : null, excluded: [...new Set(record.excluded)] };
 }
 
 /** Create one run's preparation owner. Calls serialize so parallel tool writes share one question.
@@ -99,8 +100,7 @@ export function createAutomaticAgentPluginUse(
 ) {
   let state = readChatAgentPluginState({ value: initialState });
   const delivered = new Map<string, string>();
-  const inactiveDelivered = new Set<string>();
-  const alreadyLoaded = new Set<string>();
+  const alreadyLoaded = new Set(mode === 'off' ? [] : state.decision?.delivered?.filter(id => !state.excluded.includes(id)));
   let publishedSize: number | undefined;
   let queue: Promise<unknown> = Promise.resolve();
 
@@ -146,13 +146,13 @@ export function createAutomaticAgentPluginUse(
   /** Bound automatic attachments before recording delivery; explicit loads retain complete text.
    * O(p*b) in resolved plugins and guidance bytes; a deferred plugin remains retryable.
    */
-  async function resolveGuidance({ matches }: { matches: readonly AgentPluginSearchMatch[] }, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<string[]> {
+  async function resolveGuidance({ matches, primaryId }: { matches: readonly AgentPluginSearchMatch[]; primaryId?: string | undefined }, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<string[]> {
     const guidance: string[] = [];
     // Unloaded plugins contribute nothing; oversized guidance becomes a pointer instead of the text.
     const guidanceFor = async (match: AgentPluginSearchMatch): Promise<string | undefined> => {
       const result = await resolveOneGuidance({ plugin: match }, { signal });
       if (result.status !== 'loaded') return undefined;
-      if (new TextEncoder().encode(result.guidance).length > MAX_AUTOMATIC_GUIDANCE_BYTES) {
+      if (new TextEncoder().encode(result.guidance).length > (match.pluginId === primaryId ? MAX_PRIMARY_GUIDANCE_BYTES : MAX_AUTOMATIC_GUIDANCE_BYTES)) {
         const pointer = ports.formatPluginToolPointer?.({ pluginId: match.pluginId, skill: match.pluginId, file: 'SKILL.md' });
         const howToLoad = pointer === undefined ? '' : ` Load the full instructions with ${pointer}; use the same call with file '<relative path>' for supporting references.`;
         return `Agent Plugin '${match.pluginId}' guidance is deferred because it exceeds the automatic byte limit.${howToLoad}`;
@@ -167,11 +167,12 @@ export function createAutomaticAgentPluginUse(
     }
     return guidance;
   }
-  /** Auto mode records everything delivered as selected, keeping any earlier selection and asked flag. */
-  function rememberAutoSelection(): void {
-    if (mode !== 'auto' || !delivered.size) return;
+  /** Persist actual deliveries separately from consent, using the existing chat decision. */
+  function rememberDelivery(): void {
+    if (!alreadyLoaded.size && !delivered.size) return;
     const { decision } = state;
-    state = { ...state, decision: { selected: [...new Set([...(decision?.selected ?? []), ...delivered.keys()])], asked: decision?.asked ?? false } };
+    state = { ...state, decision: { selected: [...new Set([...(decision?.selected ?? []), ...(mode === 'auto' ? delivered.keys() : [])])],
+      asked: decision?.asked ?? false, delivered: [...new Set([...(decision?.delivered ?? []), ...alreadyLoaded, ...delivered.keys()])] } };
   }
   /** Initialize usage after a decision (including Skip), then publish only loaded-set changes.
    * Empty discovery must not consume that initial publication: a later Ask answer must persist.
@@ -185,22 +186,26 @@ export function createAutomaticAgentPluginUse(
       // Usage publication is advisory; losing its event must not discard resolved model guidance.
     }
   }
-  /** Query preflight suggests; only a guarded capability resolves guidance here.
+  /** Query preflight delivers one primary; guarded capabilities resolve their providers.
    * Effects serialize with loads so a suggestion never consumes a backstop's delivery.
    */
   async function prepare(input: PrepareInput, _options = {}): Promise<string> {
-    if (mode === 'off' || input.signal?.aborted) return '';
     for (const id of input.loaded ?? []) alreadyLoaded.add(id);
+    if (mode === 'off' || input.signal?.aborted) return '';
     const catalog = (await ports.list({}, {})).filter(plugin => !state.excluded.includes(plugin.pluginId));
     const candidates = catalog.filter(plugin => plugin.enabled);
+    for (const id of alreadyLoaded) if (!candidates.some(plugin => plugin.pluginId === id)) alreadyLoaded.delete(id);
     const ranked = rankCandidates({ candidates, input, ports });
     // Owner decision 2026-10-18: no per-chat plugin count; the relevance threshold and vendor gate decide.
-    const relevant = ranked.filter(plugin => !delivered.has(plugin.pluginId) && !alreadyLoaded.has(plugin.pluginId));
+    const relevant = ranked.filter(plugin => !delivered.has(plugin.pluginId) && !input.loaded?.includes(plugin.pluginId) && (!alreadyLoaded.has(plugin.pluginId) || !!input.query));
     const matches = await applyConsent({ matches: relevant }, { signal: input.signal });
-    // Relevance is disclosure, never evidence that the model has read any guidance.
     const shouldLoad = !!input.capabilities?.length;
-    const result = shouldLoad ? (await resolveGuidance({ matches }, { signal: input.signal })).join('\n\n') : relevantPluginNote({ matches, formatPluginToolPointer: ports.formatPluginToolPointer });
-    rememberAutoSelection();
+    const primary = input.maxPromptArgBytes === undefined && input.query && !input.loaded?.length && !alreadyLoaded.has(matches[0]?.pluginId ?? '') ? matches.slice(0, 1) : [];
+    const result = shouldLoad ? (await resolveGuidance({ matches }, { signal: input.signal })).join('\n\n') : [
+      ...(await resolveGuidance({ matches: primary, primaryId: primary[0]?.pluginId }, { signal: input.signal })),
+      relevantPluginNote({ matches: matches.slice(primary.length), formatPluginToolPointer: ports.formatPluginToolPointer }),
+    ].filter(Boolean).join('\n\n');
+    rememberDelivery();
     await publishUsage();
     // Preflight never resolves off packages implicitly. A catalog line offers an explicit read;
     // its setup guidance may explain whether enabling or credentials are needed.
@@ -218,7 +223,7 @@ export function createAutomaticAgentPluginUse(
    * No activation writes; unavailable guidance is retryable. O(p) local catalog lookup.
    */
   async function load({ pluginId, signal, ...request }: { pluginId: string; signal?: AbortSignal } & AgentPluginSkillRequest, _options = {}): Promise<AutomaticAgentPluginLoadResult> {
-    if (mode === 'off') return { status: 'off', guidance: '' };
+    if (mode === 'off' && !alreadyLoaded.has(pluginId)) return { status: 'off', guidance: '' };
     if (signal?.aborted) return { status: 'cancelled', guidance: '' };
     if (state.excluded.includes(pluginId)) return { status: 'excluded', guidance: '' };
     const plugin = (await ports.list({}, {})).find(candidate => candidate.pluginId === pluginId);
@@ -229,16 +234,10 @@ export function createAutomaticAgentPluginUse(
   function isPrimaryInstructions({ pluginId, skill, file }: { pluginId: string } & AgentPluginSkillRequest, _options = {}): boolean {
     return (skill === undefined || skill === pluginId) && (file === undefined || file === 'SKILL.md');
   }
-  /** Explicit content reads remain repeatable; inactive guidance is not an active-use grant. O(1). */
-  function guidanceAlreadyDelivered({ plugin, ...request }: { plugin: AgentPluginSearchCandidate } & AgentPluginSkillRequest): boolean {
-    if (request.skill !== undefined || request.file !== undefined) return false;
-    return delivered.has(plugin.pluginId) || alreadyLoaded.has(plugin.pluginId) || (!plugin.enabled && inactiveDelivered.has(plugin.pluginId));
-  }
   /** Requested content bypasses only deduplication, never consent or the resolver's trust checks.
    * Only the primary SKILL.md records full plugin delivery. O(p) consent filtering plus one read.
    */
   async function loadPermitted({ plugin, ...request }: { plugin: AgentPluginSearchCandidate } & AgentPluginSkillRequest, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<AutomaticAgentPluginLoadResult> {
-    if (guidanceAlreadyDelivered({ plugin, ...request })) return { status: 'already-loaded', guidance: '' };
     const matches = await applyConsent({ matches: [{ ...plugin, score: 4 }] }, { signal });
     if (!matches.length) {
       await publishUsage();
@@ -246,11 +245,10 @@ export function createAutomaticAgentPluginUse(
     }
     let result = await resolveOneGuidance({ plugin, ...request }, { signal });
     if (!plugin.enabled && result.status === 'loaded') {
-      if (isPrimaryInstructions({ pluginId: plugin.pluginId, ...request })) inactiveDelivered.add(plugin.pluginId);
       result = { status: 'installed-but-inactive', guidance: `Plugin '${plugin.pluginId}' is off; its tools are unavailable.\n\n${result.guidance}` };
     }
     if (isPrimaryInstructions({ pluginId: plugin.pluginId, ...request })) recordDelivery({ plugin, result });
-    rememberAutoSelection();
+    rememberDelivery();
     await publishUsage();
     return result;
   }
@@ -261,8 +259,9 @@ export function createAutomaticAgentPluginUse(
     return next;
   }
   return {
+    guidanceIds: (_required: Record<string, never>, _options = {}) => [...new Set([...alreadyLoaded, ...delivered.keys()])].filter(id => !state.excluded.includes(id)),
     /** Suggest relevant metadata for a query; capability calls load only their providers. */
-    prepare: (input: { query?: string; capabilities?: readonly string[]; loaded?: readonly string[]; signal?: AbortSignal }, _options = {}) => enqueue({ operation: () => prepare(input) }),
+    prepare: (input: PrepareInput, _options = {}) => enqueue({ operation: () => prepare(input) }),
     /** Resolve one active, permitted id and publish usage only after real guidance is read.
      * Returns a concrete status and delivered content or a safe explicit-request refusal.
      * @example await controller.load({ pluginId: 'my-plugin' });

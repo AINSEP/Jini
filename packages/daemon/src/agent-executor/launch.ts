@@ -1,5 +1,6 @@
 import { prepareHttpMcpForRun, type PreparedHttpMcp } from './http-mcp.js';
 import { mergeOpenCodeHttpMcpConfig } from './opencode/mcp-config.js';
+import { prepareClaudeSubagentStartSettings } from './claude/subagent-start.js';
 import { buildAgentEnv } from './agent-env.js';
 import { randomUUID } from 'node:crypto';
 import { supportsMessageRelay, type RunMessageRelay } from './message-relay.js';
@@ -733,7 +734,7 @@ export async function buildRunArgs({ input, deps }: { readonly input: {
     readonly def: RuntimeAgentDef;
     readonly imageDelivery: ImagePromptDelivery;
     readonly imagePaths: readonly string[] | undefined;
-    readonly runInput: AgentBuildInput;
+    readonly runInput: AgentBuildInput & Pick<AgentExecutorRunInput, 'subagentStartContext'>;
     readonly systemPromptOverlay: string | null | undefined;
     readonly overlayDelivery: SystemPromptOverlayDelivery;
     readonly runtimeContext: RuntimeContext | undefined;
@@ -742,6 +743,11 @@ export async function buildRunArgs({ input, deps }: { readonly input: {
   try {
     const delivery = input.overlayDelivery;
     const options = buildAgentBuildArgsOptions({ input: input.runInput, systemPromptOverlay: input.systemPromptOverlay });
+    if (input.def.subagentStartHook && input.def.supportsSubagents === true && input.runInput.nativeCapabilities?.subagents !== false && input.runInput.filesystemTempDir && input.runInput.subagentStartContext) {
+      options.settings = await prepareClaudeSubagentStartSettings({ directory: input.runInput.filesystemTempDir,
+        context: input.runInput.subagentStartContext, ...(options.settings === undefined ? {} : { settings: options.settings }),
+      }, {});
+    }
     const args = input.def.buildArgs(
       { prompt: delivery.prompt, imagePaths: [...(input.imagePaths ?? [])] }, {
         ...(input.imageDelivery.extraAllowedDirs === undefined ? {} : { extraAllowedDirs: [...input.imageDelivery.extraAllowedDirs] }),
@@ -1382,7 +1388,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
    * @complexity O(1) setup (registry lookup, launch resolution, one spawn call); steady-state cost thereafter belongs to {@link wireChildLifecycle}.
    * @overallScore 100/100
    */
-  async function run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs: Pick<AgentExecutorRunInput, "filesystemRoot" | "model" | "reasoning" | "nativeToolAccess" | "nativeCapabilities" | "cliParity" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "readOnlyExtraDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings" | "chromeIntegration"> = {}): Promise<void> {
+  async function run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs: Pick<AgentExecutorRunInput, "filesystemRoot" | "model" | "reasoning" | "nativeToolAccess" | "nativeCapabilities" | "cliParity" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "readOnlyExtraDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings" | "chromeIntegration" | "subagentStartContext"> = {}): Promise<void> {
     const { input, def, streamFormat } = await prepareRunContext({ requiredArgs, optionalArgs }, {});
 
     // Computed once, before anything downstream ever looks at "the prompt" or "the allowed
