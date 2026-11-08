@@ -607,7 +607,6 @@ export type RuntimeAgentDef = Partial<AgentModelDiscoveryPort> & {
     | { readonly strategy: 'config-instructions-file'; readonly varName: string };
   /** Supports a command hook supplying short child startup context. */
   subagentStartHook?: boolean;
-  automaticPluginGuidance?: 'pointer';
   installUrl?: string;
   docsUrl?: string;
   // When `false`, a model picker should hide the "Custom (fill below)"
