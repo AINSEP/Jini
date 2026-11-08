@@ -45,7 +45,8 @@
       "./styles/*": "browser",
       "./charts": "universal",
       "./charts/browser": "browser",
-      "./charts/react": "browser"
+      "./charts/react": "browser",
+      "./mcp-ui/credential-card": "universal"
     },
     "isolation": {
       "entries": {
@@ -64,24 +65,24 @@
       ]
     },
     "optionalPeers": {
-      "@tanstack/react-query": "opt-in: cached react queries; import @jini-ai/ui/fetch-query/tanstack — Cached React queries could not load @tanstack/react-query. Install @tanstack/react-query to enable this feature, or check its installed version and native binaries.",
-      "@excalidraw/excalidraw": "opt-in: sketch editor; import @jini-ai/ui/sketch-editor — Sketch editor could not load @excalidraw/excalidraw. Install @excalidraw/excalidraw to enable this feature, or check its installed version and native binaries.",
-      "@lexical/react": "opt-in: rich text editor react bindings; import @jini-ai/ui/lexical-rich-text-editor — Rich text editor React bindings could not load @lexical/react. Install @lexical/react to enable this feature, or check its installed version and native binaries.",
-      "@lexical/utils": "opt-in: rich text editor utilities; import @jini-ai/ui/lexical-rich-text-editor — Rich text editor utilities could not load @lexical/utils. Install @lexical/utils to enable this feature, or check its installed version and native binaries.",
-      "@mcp-ui/client": "opt-in: mcp ui renderer; import @jini-ai/ui/mcp-ui — MCP UI renderer could not load @mcp-ui/client. Install @mcp-ui/client to enable this feature, or check its installed version and native binaries.",
-      "@radix-ui/react-checkbox": "opt-in: interactive ui controls; import @jini-ai/ui/interactive-ui — Interactive UI controls could not load @radix-ui/react-checkbox. Install @radix-ui/react-checkbox to enable this feature, or check its installed version and native binaries.",
-      "@radix-ui/react-label": "opt-in: interactive ui controls; import @jini-ai/ui/interactive-ui — Interactive UI controls could not load @radix-ui/react-label. Install @radix-ui/react-label to enable this feature, or check its installed version and native binaries.",
-      "@radix-ui/react-radio-group": "opt-in: interactive ui controls; import @jini-ai/ui/interactive-ui — Interactive UI controls could not load @radix-ui/react-radio-group. Install @radix-ui/react-radio-group to enable this feature, or check its installed version and native binaries.",
-      "@radix-ui/react-select": "opt-in: interactive ui controls; import @jini-ai/ui/interactive-ui — Interactive UI controls could not load @radix-ui/react-select. Install @radix-ui/react-select to enable this feature, or check its installed version and native binaries.",
-      "@radix-ui/react-slot": "opt-in: interactive ui controls — Interactive UI controls could not load @radix-ui/react-slot. Install @radix-ui/react-slot to enable this feature, or check its installed version and native binaries.",
-      "grapesjs": "opt-in: visual html editor; import @jini-ai/ui/html-editor — Visual HTML editor could not load grapesjs. Install grapesjs to enable this feature, or check its installed version and native binaries.",
-      "lexical": "opt-in: rich text editor; import @jini-ai/ui/lexical-rich-text-editor — Rich text editor could not load lexical. Install lexical to enable this feature, or check its installed version and native binaries.",
-      "class-variance-authority": "opt-in: styled interactive ui components; import @jini-ai/ui/interactive-ui — Styled interactive UI components could not load class-variance-authority. Install class-variance-authority to enable this feature, or check its installed version and native binaries.",
-      "clsx": "opt-in: styled interactive ui components; import @jini-ai/ui/interactive-ui — Styled interactive UI components could not load clsx. Install clsx to enable this feature, or check its installed version and native binaries.",
-      "parse5": "opt-in: html parsing; import @jini-ai/ui/html-editor — HTML parsing could not load parse5. Install parse5 to enable this feature, or check its installed version and native binaries.",
-      "shiki": "opt-in: syntax highlighting; import @jini-ai/ui/renderers — Syntax highlighting could not load shiki. Install shiki to enable this feature, or check its installed version and native binaries.",
-      "tailwind-merge": "opt-in: styled interactive ui components; import @jini-ai/ui/interactive-ui — Styled interactive UI components could not load tailwind-merge. Install tailwind-merge to enable this feature, or check its installed version and native binaries.",
-      "zod": "opt-in: schema-based features; import @jini-ai/ui/interactive-ui — Schema-based features could not load zod. Install zod to enable this feature, or check its installed version and native binaries."
+      "@tanstack/react-query": "opt-in: cached react queries; import @jini-ai/ui/fetch-query/tanstack \u2014 Cached React queries could not load @tanstack/react-query. Install @tanstack/react-query to enable this feature, or check its installed version and native binaries.",
+      "@excalidraw/excalidraw": "opt-in: sketch editor; import @jini-ai/ui/sketch-editor \u2014 Sketch editor could not load @excalidraw/excalidraw. Install @excalidraw/excalidraw to enable this feature, or check its installed version and native binaries.",
+      "@lexical/react": "opt-in: rich text editor react bindings; import @jini-ai/ui/lexical-rich-text-editor \u2014 Rich text editor React bindings could not load @lexical/react. Install @lexical/react to enable this feature, or check its installed version and native binaries.",
+      "@lexical/utils": "opt-in: rich text editor utilities; import @jini-ai/ui/lexical-rich-text-editor \u2014 Rich text editor utilities could not load @lexical/utils. Install @lexical/utils to enable this feature, or check its installed version and native binaries.",
+      "@mcp-ui/client": "opt-in: mcp ui renderer; import @jini-ai/ui/mcp-ui \u2014 MCP UI renderer could not load @mcp-ui/client. Install @mcp-ui/client to enable this feature, or check its installed version and native binaries.",
+      "@radix-ui/react-checkbox": "opt-in: interactive ui controls; import @jini-ai/ui/interactive-ui \u2014 Interactive UI controls could not load @radix-ui/react-checkbox. Install @radix-ui/react-checkbox to enable this feature, or check its installed version and native binaries.",
+      "@radix-ui/react-label": "opt-in: interactive ui controls; import @jini-ai/ui/interactive-ui \u2014 Interactive UI controls could not load @radix-ui/react-label. Install @radix-ui/react-label to enable this feature, or check its installed version and native binaries.",
+      "@radix-ui/react-radio-group": "opt-in: interactive ui controls; import @jini-ai/ui/interactive-ui \u2014 Interactive UI controls could not load @radix-ui/react-radio-group. Install @radix-ui/react-radio-group to enable this feature, or check its installed version and native binaries.",
+      "@radix-ui/react-select": "opt-in: interactive ui controls; import @jini-ai/ui/interactive-ui \u2014 Interactive UI controls could not load @radix-ui/react-select. Install @radix-ui/react-select to enable this feature, or check its installed version and native binaries.",
+      "@radix-ui/react-slot": "opt-in: interactive ui controls \u2014 Interactive UI controls could not load @radix-ui/react-slot. Install @radix-ui/react-slot to enable this feature, or check its installed version and native binaries.",
+      "grapesjs": "opt-in: visual html editor; import @jini-ai/ui/html-editor \u2014 Visual HTML editor could not load grapesjs. Install grapesjs to enable this feature, or check its installed version and native binaries.",
+      "lexical": "opt-in: rich text editor; import @jini-ai/ui/lexical-rich-text-editor \u2014 Rich text editor could not load lexical. Install lexical to enable this feature, or check its installed version and native binaries.",
+      "class-variance-authority": "opt-in: styled interactive ui components; import @jini-ai/ui/interactive-ui \u2014 Styled interactive UI components could not load class-variance-authority. Install class-variance-authority to enable this feature, or check its installed version and native binaries.",
+      "clsx": "opt-in: styled interactive ui components; import @jini-ai/ui/interactive-ui \u2014 Styled interactive UI components could not load clsx. Install clsx to enable this feature, or check its installed version and native binaries.",
+      "parse5": "opt-in: html parsing; import @jini-ai/ui/html-editor \u2014 HTML parsing could not load parse5. Install parse5 to enable this feature, or check its installed version and native binaries.",
+      "shiki": "opt-in: syntax highlighting; import @jini-ai/ui/renderers \u2014 Syntax highlighting could not load shiki. Install shiki to enable this feature, or check its installed version and native binaries.",
+      "tailwind-merge": "opt-in: styled interactive ui components; import @jini-ai/ui/interactive-ui \u2014 Styled interactive UI components could not load tailwind-merge. Install tailwind-merge to enable this feature, or check its installed version and native binaries.",
+      "zod": "opt-in: schema-based features; import @jini-ai/ui/interactive-ui \u2014 Schema-based features could not load zod. Install zod to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",
@@ -232,6 +233,11 @@
       "types": "./dist/features/charts/react.d.ts",
       "import": "./dist/features/charts/react.js",
       "default": "./dist/features/charts/react.js"
+    },
+    "./mcp-ui/credential-card": {
+      "types": "./dist/features/mcp-ui/credential-card.d.ts",
+      "import": "./dist/features/mcp-ui/credential-card.js",
+      "default": "./dist/features/mcp-ui/credential-card.js"
     }
   },
   "files": [

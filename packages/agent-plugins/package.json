@@ -94,12 +94,14 @@
       "./commerce/*": "universal",
       "./commerce/server": "node",
       "./google-forms": "universal",
-      "./google-forms/*": "universal"
+      "./google-forms/*": "universal",
+      "./connect": "universal"
     },
     "isolation": {
       "entries": {
         "./manifest": "lifecycle",
-        "./persistent-state": "core"
+        "./persistent-state": "core",
+        "./connect": "lifecycle"
       },
       "shared": [
         "core/persistent-state.js",
@@ -256,7 +258,12 @@
     },
     "./commerce/*": "./commerce/*",
     "./google-forms": "./google-forms/plugin.json",
-    "./google-forms/*": "./google-forms/*"
+    "./google-forms/*": "./google-forms/*",
+    "./connect": {
+      "types": "./dist/connect/index.d.ts",
+      "import": "./dist/connect/index.js",
+      "default": "./dist/connect/index.js"
+    }
   },
   "files": [
     "formspree",
