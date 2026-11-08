@@ -16,7 +16,7 @@ import type { ApiConnectionRecord } from "./types.js";
 import { createConnectionHookHttp } from "./hook-http.js";
 
 /**
- * @file Composes Jini's api-connections service (G1) with Tovu's vault stores (G2 + 0020) for every
+ * @file Composes Jini's api-connections service (G1) with the host's vault stores (G2 + 0020) for every
  * connection an active plugin declares. One host per workspace; callers ask it for a connection's
  * service, its record store or a fresh access token. Nothing here names a provider.
  *

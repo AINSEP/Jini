@@ -13,7 +13,7 @@ import type { ApiConnectionByoCredentials, DeclaredApiConnection } from "./host-
  * the only place a client secret goes.
  *
  * Why a saved credential that is present but unusable is an error rather than "no BYO": the admin
- * chose their own client, so silently signing in with the Tovu-owned one instead would bind the
+ * chose their own client, so silently signing in with the host-owned one instead would bind the
  * account to a client they did not pick.
  */
 

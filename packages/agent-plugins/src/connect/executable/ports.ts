@@ -28,7 +28,7 @@ export interface AgentPluginArtifactWriter {
   write(required: { readonly workspaceId: string; readonly pluginId: string; readonly name: string; readonly mediaType: string; readonly content: string | Uint8Array }, optional?: Record<string, never>): Promise<{ readonly artifactRef: string }>;
 }
 
-/** The limiter shape of `@jini-ai/http-kit`'s `RateLimiter` (Tovu's `createRateLimiter`). */
+/** The limiter shape of `@jini-ai/http-kit`'s `RateLimiter` (the host's `createRateLimiter`). */
 export interface AgentPluginRateLimiter {
   check(required: { readonly key: string }): Promise<AgentPluginLimitResult>;
 }
