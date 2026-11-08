@@ -1,3 +1,4 @@
+import { parseMailProviderSetupProperty } from '@jini-ai/platform/mail';
 /**
  * Contribution contracts: every `<host>-*.json` file a bundled Agent Plugin ships parses through a
  * public Jini export, and every module it declares passes that kind's public Jini module contract.
@@ -161,7 +162,7 @@ const CONTRACTS: Readonly<Record<string, ContractCheck>> = {
   'deploy-targets': viaParserAndValidator({ kind: 'deploy-targets', parse: parseDeployTargetsFile, validate: asDeployTargetModule }),
   'form-destinations': formDestinations,
   'login-providers': jsonOnly(parseLoginProviders),
-  'mail-adapters': viaParserAndValidator({ kind: 'mail-adapters', parse: ({ raw }) => parseMailAdaptersFile({ raw }), validate: ({ exported }) => asMailAdapterModule({ exported }) }),
+  'mail-adapters': viaParserAndValidator({ kind: 'mail-adapters', parse: ({ raw }) => parseMailAdaptersFile({ raw, parseSetup: parseMailProviderSetupProperty }), validate: ({ exported }) => asMailAdapterModule({ exported }) }),
   'object-stores': viaDefinition(defineProviderContribution({
     contract: OBJECT_STORE_CONTRACT, filename: `${PREFIX}object-stores.json`, parse: ({ raw }) => parseObjectStoresFile({ raw }),
     validate: ({ exported }) => objectStoreProviderFault({ provider: exported }) ?? exported,

@@ -58,7 +58,7 @@ it('a neutral host sends real plugin and SMTP mail, applies policy, rotates keys
   expect((await send('plugin')).ok).toBe(true);
   expect(ledgerCalls).toEqual(['reserve', 'mark']);
   expect((await host.status()).state).toBe('ready');
-  expect(await send('blocked', { ...message, to: { email: 'blocked@example.test' } })).toMatchObject({ ok: false, errorCode: 'MAIL_SUPPRESSED' });
+  expect(await send('blocked', { ...message, to: { email: 'blocked@example.test' } })).toMatchObject({ ok: false, errorCode: 'MAIL_RECIPIENT_SUPPRESSED' });
   expect(ledgerCalls).toEqual(['reserve', 'mark']);
   mode = { mode: 'capture' };
   expect((await send('capture')).ok).toBe(true);
