@@ -7,7 +7,10 @@
 import path from "node:path";
 
 import { PROVIDER_ID_PATTERN } from "@jini-ai/core/provider-registry";
-import { parseMailProviderSetupProperty, type MailAdapterModule, type MailProviderSetup } from "@jini-ai/platform/mail";
+import type { MailAdapterModule, MailProviderSetup } from "@jini-ai/core/contracts/mail";
+
+/** @agent-note Setup validation is supplied by the host runtime. */
+export type ParseMailSetup = (required: { value: unknown; at: string; credentialKeys: readonly string[] }) => { setup?: MailProviderSetup } | string;
 
 import { parseCredentialCardUsedFor } from "../credential-card-metadata.js";
 
@@ -65,7 +68,7 @@ export function asMailAdapterModule<M extends object = MailAdapterModule>(requir
  * @complexity O(a) in the declared adapter count.
  */
 export function parseMailAdaptersFile(
-  required: { readonly raw: string },
+  required: { readonly raw: string; readonly parseSetup: ParseMailSetup },
   optional: { readonly defaultCredentialLabel?: (input: { label: string }) => string } = {},
 ): MailAdaptersParseResult {
   let value: unknown;
@@ -76,13 +79,13 @@ export function parseMailAdaptersFile(
   }
   if (!isPlainObject(value) || (value.schemaVersion !== 1 && value.schemaVersion !== 2)) return { ok: false, reason: "schemaVersion must be 1 or 2" };
   if (!Array.isArray(value.adapters)) return { ok: false, reason: "adapters must be an array" };
-  return parseAdapterDescriptors({ adapters: value.adapters, version: value.schemaVersion, defaultLabel: optional.defaultCredentialLabel ?? defaultMailCredentialLabel });
+  return parseAdapterDescriptors({ parseSetup: required.parseSetup, adapters: value.adapters, version: value.schemaVersion, defaultLabel: optional.defaultCredentialLabel ?? defaultMailCredentialLabel });
 }
 
-function parseAdapterDescriptors({ adapters, version, defaultLabel }: { adapters: unknown[]; version: number; defaultLabel: DefaultLabel }, _options = {}): MailAdaptersParseResult {
+function parseAdapterDescriptors({ adapters, version, defaultLabel, parseSetup }: { adapters: unknown[]; version: number; defaultLabel: DefaultLabel; parseSetup: ParseMailSetup }, _options = {}): MailAdaptersParseResult {
   const descriptors: MailAdapterDescriptor[] = [];
   for (const [index, entry] of adapters.entries()) {
-    const result = version === 1 ? parseDescriptor(entry, `adapters[${index}]`) : parseDescriptorV2({ entry, at: `adapters[${index}]`, defaultLabel });
+    const result = version === 1 ? parseDescriptor(entry, `adapters[${index}]`) : parseDescriptorV2({ entry, at: `adapters[${index}]`, defaultLabel, parseSetup });
     if (typeof result === "string") return { ok: false, reason: result };
     if (descriptors.some((seen) => seen.id === result.id)) return { ok: false, reason: `adapters[${index}].id '${result.id}' is declared twice` };
     descriptors.push(result);
@@ -110,7 +113,7 @@ export function defaultMailCredentialLabel({ label }: { label: string }, _option
 }
 
 /** One v2 entry, or why it is invalid; a bad optional card only adds a note. @complexity O(k + f) credential keys and setup fields. */
-function parseDescriptorV2({ entry, at, defaultLabel }: { entry: unknown; at: string; defaultLabel: DefaultLabel }, _options: Record<string, never> = {}): MailAdapterDescriptor | string {
+function parseDescriptorV2({ entry, at, defaultLabel, parseSetup }: { entry: unknown; at: string; defaultLabel: DefaultLabel; parseSetup: ParseMailSetup }, _options: Record<string, never> = {}): MailAdapterDescriptor | string {
   if (!isPlainObject(entry)) return `${at} must be an object`;
   const { id, label, module, credentialLabel, credentialKeys, feedback, setup } = entry;
   if (typeof id !== "string" || !PROVIDER_ID_PATTERN.test(id)) return `${at}.id must match ${PROVIDER_ID_PATTERN.source}`;
@@ -120,7 +123,7 @@ function parseDescriptorV2({ entry, at, defaultLabel }: { entry: unknown; at: st
   if (typeof feedback !== "boolean") return `${at}.feedback must be true or false`;
   const savedUnder = typeof credentialLabel === "string" ? base.credentialLabel : defaultLabel({ label: base.label });
   const card = parseCredentialCardProperty({ value: entry.credentialCard, at: `${at}.credentialCard` });
-  return withSetup({ descriptor: { schemaVersion: 2, id, label: base.label, module: base.module, credentialLabel: savedUnder, credentialKeys, feedback, ...card }, setup, at });
+  return withSetup({ descriptor: { schemaVersion: 2, id, label: base.label, module: base.module, credentialLabel: savedUnder, credentialKeys, feedback, ...card }, setup, at, parseSetup });
 }
 
 /** Narrow credential keys before passing them to setup validation. @complexity O(k) keys. */
@@ -173,8 +176,8 @@ function isHttpsUrl(value: unknown): value is string {
 }
 
 /** Parse optional setup without losing the card or its refusal note. @complexity O(f) setup fields. */
-function withSetup({ descriptor, setup, at }: { descriptor: MailAdapterDescriptor; setup: unknown; at: string }, _options = {}): MailAdapterDescriptor | string {
-  const declared = parseMailProviderSetupProperty({ value: setup, at, credentialKeys: descriptor.credentialKeys! });
+function withSetup({ descriptor, setup, at, parseSetup }: { descriptor: MailAdapterDescriptor; setup: unknown; at: string; parseSetup: ParseMailSetup }, _options = {}): MailAdapterDescriptor | string {
+  const declared = parseSetup({ value: setup, at, credentialKeys: descriptor.credentialKeys! });
   return typeof declared === "string" ? declared : { ...descriptor, ...declared };
 }
 

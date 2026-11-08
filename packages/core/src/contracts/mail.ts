@@ -124,3 +124,14 @@ export type * from './mail/ports.js';
 export type * from './mail/engine-contracts.js';
 export type * from './mail/adapter-module.js';
 export type * from './mail/provider.js';
+
+/** Plugin modules keep a positional ABI; hosts adapt their guarded ports explicitly. */
+export interface PositionalMailer {
+  capabilities(): MailerCapabilities;
+  send(message: OutboundEmail, options: MailerSendOptions): Promise<MailerSendResult>;
+  sendBatch(messages: readonly OutboundEmail[], options: MailerSendOptions): Promise<readonly MailerSendResult[]>;
+}
+/** @agent-note The host supplies its guarded HTTP client through the plugin ABI adapter. */
+export interface PluginMailHttpClient {
+  send(request: import("../primitives/http.js").HttpRequest, optional?: { redirect?: import("../primitives/http.js").RequestRedirect }): Promise<import("../primitives/http.js").HttpResponse>;
+}
