@@ -8,9 +8,10 @@ import { prepareClaudeSubagentStartSettings } from '../subagent-start.js';
 const scratch = await mkdtemp(join(tmpdir(), 'jini-subagent-start-'));
 afterAll(() => rm(scratch, { recursive: true, force: true }));
 const context = { ids: ['ui-ux-design'], instructions: 'Before starting, call load_agent_plugin for every parent plugin and follow it. Discover tools with search_tools, describe before executing, honor approvals, and search files inside the site.' };
+const windowsQuoteLiterals: Record<string, string> = { "'": "''", '‘': '‘‘', '’': '’’', '‚': '‚‚', '‛': '‛‛' };
 
 it.each(['linux', 'darwin', 'win32'] as const)('stages only a short pointer and preserves settings with %s path quoting', async platform => {
-  const directory = join(scratch, `${platform} owner's 日本語 directory`);
+  const directory = join(scratch, `${platform} owner's 日本語 ‘left’ ‚low‛ directory`);
   await mkdir(directory);
   await writeFile(join(directory, 'SKILL.md'), 'FULL_SKILL_TEXT'.repeat(1000));
   const priorHook = { hooks: [{ type: 'command', command: 'existing-hook' }] };
@@ -20,7 +21,7 @@ it.each(['linux', 'darwin', 'win32'] as const)('stages only a short pointer and 
   expect(merged.hooks.SubagentStart).toHaveLength(2);
   const hook = merged.hooks.SubagentStart[1].hooks[0];
   const path = join(directory, 'subagent-start.json');
-  const quoted = platform === 'win32' ? path.replaceAll("'", "''") : path.replaceAll("'", "'\\''");
+  const quoted = platform === 'win32' ? Array.from(path, char => windowsQuoteLiterals[char] ?? char).join('') : path.replaceAll("'", "'\\''");
   expect(hook).toEqual(platform === 'win32'
     ? { type: 'command', command: `Get-Content -Raw -Encoding UTF8 -LiteralPath '${quoted}'`, shell: 'powershell', timeout: 5 }
     : { type: 'command', command: `cat -- '${quoted}'`, timeout: 5 });

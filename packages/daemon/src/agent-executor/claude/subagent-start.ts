@@ -18,7 +18,7 @@ export async function prepareClaudeSubagentStartSettings({ directory, context, s
   await writeFile(path, JSON.stringify({
     hookSpecificOutput: { hookEventName: 'SubagentStart', additionalContext },
   }), { encoding: 'utf8', mode: 0o600, flag: 'wx' });
-  const quoted = platform === 'win32' ? path.replaceAll("'", "''") : path.replaceAll("'", "'\\''");
+  const quoted = platform === 'win32' ? path.replace(/['\u2018-\u201B]/g, '$&$&') : path.replaceAll("'", "'\\''");
   const command = platform === 'win32' ? `Get-Content -Raw -Encoding UTF8 -LiteralPath '${quoted}'` : `cat -- '${quoted}'`;
   const hook = { hooks: [{ type: 'command', command, timeout: 5, ...(platform === 'win32' ? { shell: 'powershell' } : {}) }] };
   return JSON.stringify({ ...existing, hooks: { ...existing.hooks,
