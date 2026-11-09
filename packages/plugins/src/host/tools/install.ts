@@ -12,8 +12,8 @@ function refusedResult(error: PluginInstallError, pluginId: string, retryInstall
 
 
 /** Inspects the package before anything is written; an installer refusal is the caller's input problem. */
-async function previewOrRefuse(required: { 
-  installer: PluginInstallerPort; 
+async function previewOrRefuse(required: {
+  installer: PluginInstallerPort;
   input: PluginInstallInput }): Promise<PluginInstallPreview> {
   try { return await required.installer.preview(required.input); }
   catch (error) {
@@ -24,8 +24,8 @@ async function previewOrRefuse(required: {
 
 
 /** What the model relays after a successful install; the plugin always lands OFF. */
-function installedResult<Request>(required: { 
-  plugin: PluginInstallPreview; 
+function installedResult<Request>(required: {
+  plugin: PluginInstallPreview;
   deps: PluginInstallToolsRequired<Request> }): unknown {
   const { plugin } = required;
   return {
@@ -71,7 +71,7 @@ export function buildPluginInstallRegistrations<Request>(deps: PluginInstallTool
 }
 
 
-export function pluginInstallDerivedRiskFor({ toolId }: { 
+export function pluginInstallDerivedRiskFor({ toolId }: {
   toolId: string }, _optional = {}): DerivedRiskByToolId { return new Map([
   // -> pluginInstaller.install (installSitePlugin): copies the package into the site's plugin
   //    directory (replacing a version on replace:true). Durable file writes; nothing is executed and

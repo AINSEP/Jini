@@ -6,8 +6,8 @@ const MUTATES_DURABLE_STATE = 'mutates-durable-state' as const;
 
 
 /** Reads one required string field, naming it when the caller sent something else. */
-function stringField(required: { 
-  input: Record<string, unknown>; 
+function stringField(required: {
+  input: Record<string, unknown>;
   key: string }): string {
   const value = required.input[required.key];
   if (typeof value !== 'string') throw new ToolInputError({ message: `${required.key} must be a string.` });
@@ -15,9 +15,9 @@ function stringField(required: {
 }
 
 
-type SourceOperation = (required: { 
-  port: PluginSourcePort; 
-  pluginId: string; 
+type SourceOperation = (required: {
+  port: PluginSourcePort;
+  pluginId: string;
   input: Record<string, unknown> }) => Promise<unknown>;
 
 
@@ -92,7 +92,7 @@ export function buildPluginSourceRegistrations<Description>(deps: PluginSourceTo
 
 /** Independently derived from calls to the source port: reads are read-only, delete unlinks,
  * and create/open/write/edit/seal/rollback durably publish bytes. */
-export function pluginSourceDerivedRiskFor({ toolIds }: { 
+export function pluginSourceDerivedRiskFor({ toolIds }: {
   toolIds: PluginSourceToolsRequired<unknown>['toolIds'] }, _optional = {}): DerivedRiskByToolId { return new Map([
   [toolIds.create, MUTATES_DURABLE_STATE], [toolIds.open, MUTATES_DURABLE_STATE],
   [toolIds.list, 'none'], [toolIds.read, 'none'], [toolIds.write, MUTATES_DURABLE_STATE],

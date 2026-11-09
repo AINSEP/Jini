@@ -7,7 +7,7 @@
  * list, so that entire half degrades to an empty array; failed public-export lookup alone uses
  * an empty export map while retaining the installed rows.
  *
- * Only public ids, versions, digests, skill names and export contracts leave this module;
+ * Only public ids, versions, digests, skill names, projected descriptions and export contracts leave;
  * package roots, skill paths, executable handles and private error details stay with their owner.
  * The two arrays keep each family's distinct response shape visible to callers.
  *
@@ -30,21 +30,21 @@ const AGENT_PLUGIN_FAMILY = 'agent-plugin' as const;
 
 /** Public installed row; the privacy and two-array rationale is documented in this file header. */
 interface AgentPluginListRow {
-  
+
   readonly pluginId: string;
-  
+
   readonly version: string | null;
-  
+
   readonly archiveDigest: string;
-  
+
   readonly skills: readonly string[];
-  
+
   readonly exports: readonly PluginExportRow[];
 }
 
 
-function toAgentPluginListRow(required: { 
-  plugin: InstalledPluginRevision; 
+function toAgentPluginListRow(required: {
+  plugin: InstalledPluginRevision;
   exports: readonly PluginExportRow[] }, _options = {}): AgentPluginListRow {
   const p = required.plugin;
   return { pluginId: p.pluginId, version: p.version ?? null, archiveDigest: p.archiveDigest, skills: p.skills.map((s) => s.name), exports: required.exports };
@@ -73,7 +73,7 @@ async function listAgentPluginsForResponse<Description>(routeDeps: PluginManagem
  * calls. See `DerivedRiskByToolId` in the kit for why it is independent of the catalog's own
  * `sideEffects` declaration.
  */
-export function pluginManagementDerivedRiskFor({ toolIds }: { 
+export function pluginManagementDerivedRiskFor({ toolIds }: {
   toolIds: PluginManagementToolsRequired<unknown>['toolIds'] }, _optional = {}): DerivedRiskByToolId { return new Map<string, AgentToolSideEffect>([
   // -> discoverPlugins() + pluginActivationRepo.getActivation() per record: reads only.
   [toolIds.list, "none"],
@@ -111,17 +111,17 @@ function readSetEnabledRequest(rawInput: unknown, familyRequired: string): SetEn
 
 /** What one plugin's enable approval is bound to; `discovery` is the site-runtime snapshot it was read from. */
 interface PluginApprovalIdentity {
-  
+
   readonly key: string;
-  
+
   readonly version?: OptionalValue<string>;
-  
+
   readonly label: string;
-  
+
   readonly discovery?: OptionalValue<readonly PluginDiscoveryRecord[]>;
-  
+
   readonly accessKey?: OptionalValue<string>;
-  
+
   readonly accessResources?: OptionalValue<readonly Omit<AccessApprovalResource, 'scope'>[]>;
 }
 
@@ -131,8 +131,8 @@ interface PluginApprovalIdentity {
  * Disabling removes capability, so it needs no identity grant and never raises a dialog.
  * @complexity One family discovery scan, bounded by the installed package count. */
 export async function pluginApprovalIdentity<Description>(
-  { deps: routeDeps, request }: { 
-  deps: Pick<PluginManagementToolsRequired<Description>, 'discoverPlugins' | 'approvalFingerprint'> & { readonly agentPlugins: Pick<PluginManagementToolsRequired<Description>['agentPlugins'], 'listInstalled' | 'previewEnableAccess'> }; 
+  { deps: routeDeps, request }: {
+  deps: Pick<PluginManagementToolsRequired<Description>, 'discoverPlugins' | 'approvalFingerprint'> & { readonly agentPlugins: Pick<PluginManagementToolsRequired<Description>['agentPlugins'], 'listInstalled' | 'previewEnableAccess'> };
   request: Pick<SetEnabledRequest, "family" | "pluginId"> }, _optional = {},
 ): Promise<PluginApprovalIdentity> {
   let revision: string;
@@ -217,7 +217,7 @@ async function uninstallConfirmedPlugin<Description>(
  * identity, activation and admission policy cannot drift between entry points.
  * @complexity O(d) in installed-digest count plus one small file rewrite.
  */
-async function applyAgentPluginDecision<Description>(routeDeps: PluginManagementToolsRequired<Description>, principalId: string, request: SetEnabledRequest, optional: { 
+async function applyAgentPluginDecision<Description>(routeDeps: PluginManagementToolsRequired<Description>, principalId: string, request: SetEnabledRequest, optional: {
   accessKey?: OptionalValue<string> } = {}): Promise<unknown> {
   try {
     const input = {
@@ -303,8 +303,8 @@ async function hostIncompatibleEnableResult<Description>(routeDeps: PluginManage
 /** A provider plugin's assistant face has no switch of its own (the provider lifecycle owns it):
  *  nothing changed, and the note names the provider plugin to switch instead. @complexity O(1). */
 function linkedFaceResult({ request, error }: {
-  
-  request: SetEnabledRequest; 
+
+  request: SetEnabledRequest;
   error: ReturnType<PluginManagementToolsRequired<unknown>['providerFaces']["describeLinkedFace"]>;
 }, _optional = {}): unknown {
   return { changed: false, cancelled: false, family: request.family, pluginId: request.pluginId, restartRequired: false,
@@ -330,7 +330,7 @@ async function agentPluginEnablePreflight<Description>(routeDeps: PluginManageme
 
 /** An interrupted update of this plugin waits for boot recovery (`PLUGIN_UPDATE_PENDING`, or an
  *  unreadable recovery record): its on/off decision is frozen until then, the same refusal used by the lifecycle writer. Nothing changed, so a not-changed result. @complexity O(1). */
-function updatePendingResult<Description>(routeDeps: PluginManagementToolsRequired<Description>, request: SetEnabledRequest, error: { 
+function updatePendingResult<Description>(routeDeps: PluginManagementToolsRequired<Description>, request: SetEnabledRequest, error: {
   code: string }): unknown {
   return {
     changed: false,
@@ -349,7 +349,7 @@ function updatePendingResult<Description>(routeDeps: PluginManagementToolsRequir
 /** The plugin declares a host range this host does not satisfy, so it cannot be enabled: the canonical
  *  `PLUGIN_HOST_INCOMPATIBLE` refusal. Nothing changed, so it is
  *  a not-changed result, not a failure. @complexity O(1). */
-function hostIncompatibleResult<Description>(routeDeps: PluginManagementToolsRequired<Description>, request: SetEnabledRequest, error: { 
+function hostIncompatibleResult<Description>(routeDeps: PluginManagementToolsRequired<Description>, request: SetEnabledRequest, error: {
   code: string }): unknown {
   return {
     changed: false,
@@ -368,7 +368,7 @@ function hostIncompatibleResult<Description>(routeDeps: PluginManagementToolsReq
  *  failure. The host path and parse detail stay in the server log via the `console.warn` below;
  *  `note` carries only the fixed, path-free E3 text.
  *  @complexity O(1). */
-function activationsUnreadableResult<Description>(routeDeps: PluginManagementToolsRequired<Description>, request: SetEnabledRequest, error: { 
+function activationsUnreadableResult<Description>(routeDeps: PluginManagementToolsRequired<Description>, request: SetEnabledRequest, error: {
   message: string }): unknown {
   console.warn(`[agent-plugins] '${request.pluginId}': ${routeDeps.toolIds.setEnabled} refused — ${error.message}`);
   return {
@@ -389,7 +389,7 @@ function activationsUnreadableResult<Description>(routeDeps: PluginManagementToo
  *  relay. The host lock path stays in the server log via `console.warn`; `note` is fixed and
  *  path-free.
  *  @complexity O(1). */
-function activationsBusyResult<Description>(routeDeps: PluginManagementToolsRequired<Description>, request: SetEnabledRequest, error: { 
+function activationsBusyResult<Description>(routeDeps: PluginManagementToolsRequired<Description>, request: SetEnabledRequest, error: {
   message: string }): unknown {
   console.warn(`[agent-plugins] '${request.pluginId}': ${routeDeps.toolIds.setEnabled} refused — ${error.message}`);
   return {
@@ -424,7 +424,7 @@ function activationsRefusalResult<Description>(routeDeps: PluginManagementToolsR
  * remain identical across host entry points.
  * @complexity O(p) in discovered-plugin count, plus the command gateway's own writes.
  */
-async function applySiteRuntimeDecision<Description>(routeDeps: PluginManagementToolsRequired<Description>, principalId: string, request: SetEnabledRequest, optional: { 
+async function applySiteRuntimeDecision<Description>(routeDeps: PluginManagementToolsRequired<Description>, principalId: string, request: SetEnabledRequest, optional: {
   discovery?: OptionalValue<readonly PluginDiscoveryRecord[]> } = {}): Promise<unknown> {
   const { pluginId, enabled } = request;
   // Reuse the manifest that passed the post-approval identity check, avoiding another discovery
@@ -493,9 +493,9 @@ async function applySiteRuntimeDecision<Description>(routeDeps: PluginManagement
  * @complexity O(1) plus one authorization evaluation. */
 async function requireEnablePermission<Description>(
   routeDeps: PluginManagementToolsRequired<Description>,
-  required: { 
-  readonly principalId: string; 
-  readonly entityType: string; 
+  required: {
+  readonly principalId: string;
+  readonly entityType: string;
   readonly entityId: string },
 ): Promise<void> {
   await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: required.principalId, permission: routeDeps.permissions.enable }, { entityType: required.entityType, entityId: required.entityId });
@@ -503,8 +503,8 @@ async function requireEnablePermission<Description>(
 
 
 /** `plugins_set_enabled`'s permission check, scoped to the family's own entity type. @complexity O(1) plus one evaluation. */
-function requireSetEnabledPermission<Description>(routeDeps: PluginManagementToolsRequired<Description>, required: { 
-  readonly principalId: string; 
+function requireSetEnabledPermission<Description>(routeDeps: PluginManagementToolsRequired<Description>, required: {
+  readonly principalId: string;
   readonly request: SetEnabledRequest }): Promise<void> {
   const { principalId, request } = required;
   return requireEnablePermission(routeDeps, { principalId, entityType: request.family === AGENT_PLUGIN_FAMILY ? routeDeps.entityTypes.agentPlugin : routeDeps.entityTypes.plugin, entityId: request.pluginId });
@@ -514,9 +514,9 @@ function requireSetEnabledPermission<Description>(routeDeps: PluginManagementToo
 /** What the owner's consent to a site-package enable rests on. Only a site-sourced `site plugin`
  * that is being enabled can carry a capability set; every other call has none. */
 interface SiteConsent {
-  
+
   readonly capabilities: readonly string[] | undefined;
-  
+
   readonly added: readonly string[];
 }
 
@@ -524,8 +524,8 @@ interface SiteConsent {
 /** The site-sourced record a site-runtime ENABLE's approval identity was read from, else `undefined`
  * (a disable, an Agent Plugin, or a built-in package). @complexity O(p) in the snapshot's plugin count. */
 function siteRecordBeingEnabled(
-  required: { 
-  readonly request: SetEnabledRequest; 
+  required: {
+  readonly request: SetEnabledRequest;
   readonly identity: PluginApprovalIdentity | undefined },
 ): PluginDiscoveryRecord | undefined {
   const { request, identity } = required;
@@ -539,8 +539,8 @@ function siteRecordBeingEnabled(
  * @complexity O(c) in the manifest's declared capability count, plus one approval-port read. */
 async function siteConsentFor<Description>(
   routeDeps: PluginManagementToolsRequired<Description>,
-  required: { 
-  readonly request: SetEnabledRequest; 
+  required: {
+  readonly request: SetEnabledRequest;
   readonly identity: PluginApprovalIdentity | undefined },
 ): Promise<SiteConsent> {
   const { request } = required;
@@ -554,19 +554,19 @@ async function siteConsentFor<Description>(
 
 /** One prepared `plugins_set_enabled` call: everything the card names and the write re-checks. */
 interface SetEnabledPrepared {
-  
+
   readonly request: SetEnabledRequest;
-  
+
   readonly identity: PluginApprovalIdentity | undefined;
-  
+
   readonly refusal: unknown;
-  
+
   readonly confirm: boolean;
-  
+
   readonly capabilities: readonly string[] | undefined;
-  
+
   readonly added: readonly string[];
-  
+
   readonly previousEnabled: boolean | null;
 }
 
@@ -574,7 +574,7 @@ interface SetEnabledPrepared {
 /** parse -> authorize -> (Agent Plugin enable: activations.json writable?) -> identity -> consent
  * inputs. See the `plugins_set_enabled` handler's own comment for why this order is load-bearing.
  * @complexity One family discovery scan plus the source/policy reads in {@link siteConsentFor}. */
-async function prepareSetEnabled<Description>(routeDeps: PluginManagementToolsRequired<Description>, required: { 
+async function prepareSetEnabled<Description>(routeDeps: PluginManagementToolsRequired<Description>, required: {
   readonly ctx: ToolExecutionContext }): Promise<SetEnabledPrepared> {
   const { ctx } = required;
   const request = readSetEnabledRequest(ctx.input, routeDeps.messages.familyRequired);
@@ -590,8 +590,8 @@ async function prepareSetEnabled<Description>(routeDeps: PluginManagementToolsRe
 
 
 /** Read only the selected family, once, for the previous access value shown on the card. */
-async function previousPluginEnabled<Description>({ deps, request }: { 
-  deps: PluginManagementToolsRequired<Description>; 
+async function previousPluginEnabled<Description>({ deps, request }: {
+  deps: PluginManagementToolsRequired<Description>;
   request: SetEnabledRequest }, _options = {}): Promise<boolean | null> {
   if (request.family !== AGENT_PLUGIN_FAMILY) return (await deps.pluginActivationRepo.getActivation({ workspaceId: deps.workspaceId, pluginId: request.pluginId }))?.enabled ?? false;
   const inactive = await deps.agentPlugins.inactivePluginIds?.({ strict: true }, {});
@@ -605,8 +605,8 @@ async function previousPluginEnabled<Description>({ deps, request }: {
  * @complexity One family discovery scan. */
 async function currentApprovedIdentity<Description>(
   routeDeps: PluginManagementToolsRequired<Description>,
-  required: { 
-  readonly request: SetEnabledRequest; 
+  required: {
+  readonly request: SetEnabledRequest;
   readonly identity: PluginApprovalIdentity | undefined },
 ): Promise<PluginApprovalIdentity | undefined> {
   const { request, identity } = required;
@@ -629,8 +629,8 @@ async function currentApprovedIdentity<Description>(
  * @complexity One family discovery scan plus the family's own write. */
 async function runSetEnabled<Description>(
   routeDeps: PluginManagementToolsRequired<Description>,
-  required: { 
-  readonly ctx: ToolExecutionContext; 
+  required: {
+  readonly ctx: ToolExecutionContext;
   readonly prepared: SetEnabledPrepared },
 ): Promise<unknown> {
   const { ctx, prepared: { request, identity, refusal, confirm, capabilities } } = required;
