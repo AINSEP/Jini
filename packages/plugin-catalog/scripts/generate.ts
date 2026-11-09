@@ -4,10 +4,18 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
 import { readPluginIdentity } from '@jini-ai/core/plugin-directory';
-import { resolveAgentPluginIdentityNamespace } from '../../agent-plugins/src/core/identity-namespace.js';
 import {
   AGENT_PLUGINS_PACKAGE, AGENT_PLUGINS_ROOT, agentPluginPackages, isPublishedAgentPluginFile, type AgentPluginPackageRow,
 } from '../../../scripts/lib/agent-plugin-packages.js';
+
+/** Release tooling keeps this portable/legacy lookup local instead of importing another package's source. */
+function resolveAgentPluginIdentityNamespace({ value }: { readonly value: unknown }): string {
+  if (typeof value !== 'object' || value === null || Array.isArray(value) || !('extensions' in value)) return 'jini';
+  const extensions = value.extensions;
+  if (typeof extensions !== 'object' || extensions === null || Array.isArray(extensions)) return 'jini';
+  if (Object.hasOwn(extensions, 'jini')) return 'jini';
+  return Object.hasOwn(extensions, 'tovu') ? 'tovu' : 'jini';
+}
 
 interface BrowserProvider { kind: string; contractVersion: number; javascript: string }
 interface PluginManifest {
