@@ -2,7 +2,7 @@
  * @file Registers the notes app's routes on any `Server` (core contract). Wiring only: the note
  * lifecycle is `@jini-ai/cms/entries`, the contact form is `@jini-ai/cms/forms`.
  */
-import type { Server } from '@jini-ai/core/server';
+import type { Server } from '@jini-ai/core/contracts/server';
 import { executeCommand } from '@jini-ai/cms/core';
 import { createEntry, listEntries, publishEntry, updateEntry, type EntryRecord } from '@jini-ai/cms/entries';
 import {

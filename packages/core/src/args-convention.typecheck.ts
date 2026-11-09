@@ -82,9 +82,8 @@ function checkApprovalPorts(required: {
 }
 void checkApprovalPorts;
 
-// The server contract: named required args for registration, handlers and the path matcher.
-import { matchServerPath } from './server.js';
-import type { Server, ServerHandler } from './server.js';
+// The server contract: named required args for registration and handlers.
+import type { Server, ServerHandler } from './contracts/server.js';
 declare const app: Server;
 const okHandler: ServerHandler = ({ request, params }) => new Response(`${request.method} ${params.id ?? ''}`);
 app.route({ method: 'GET', path: '/notes/:id', handler: okHandler });
@@ -94,5 +93,3 @@ app.route('GET', '/notes/:id', okHandler);
 app.route({ method: 'get', path: '/notes/:id', handler: okHandler });
 // @ts-expect-error Handlers receive `{ request, params }`, not a bare Request.
 const bareHandler: ServerHandler = (request: Request) => new Response(request.url);
-// @ts-expect-error Pattern and pathname are named required args.
-matchServerPath('/notes/:id', '/notes/1');
