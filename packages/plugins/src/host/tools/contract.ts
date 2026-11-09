@@ -45,6 +45,7 @@ export interface InstalledPluginRevision {
   /** @agent-note Public display projection only; inactive descriptions must be redacted by the same owner. */
   readonly displayName?: OptionalValue<string>;
   /** @agent-note Public metadata; no secrets or internal paths. */
+  readonly summary?: OptionalValue<string>;
   readonly description?: OptionalValue<string>;
   /** @agent-note Compatibility checks use the same host contract, without guessing from a product version. */
   readonly hostRange?: OptionalValue<string>;
@@ -183,6 +184,7 @@ export interface PluginLifecycleToolsPort {
   /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   displayName?: OptionalValue<string>; 
   /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
+  summary?: OptionalValue<string>;
   description?: OptionalValue<string>; 
   /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   enabled: boolean; 
