@@ -131,8 +131,8 @@ interface StoredOAuthEndpoints {
    */
   clientAuth?: string;
   /**
-   * The client id dynamic registration minted for this row. It marks the row's client as Tovu's own,
-   * which Tovu may replace; a client id an operator typed never matches it and is never replaced.
+   * The client id dynamic registration minted for this row. It marks the row's client as the host's own,
+   * which the host may replace; a client id an operator typed never matches it and is never replaced.
    * Compared against the row's live `oauthClientId` rather than trusted as a flag, so an operator
    * who later types a client id over a minted one keeps theirs.
    */
@@ -235,7 +235,7 @@ async function resolveClient(
 // Self-configuration: discovery + dynamic client registration
 //
 // A connection may reach `beginConnect` missing the two things every grant needs: where the
-// authorization server is, and who Tovu is to it. Operators can configure both for a provider
+// authorization server is, and who the host is to it. Operators can configure both for a provider
 // with a developer console. A growing share of hosted MCP servers have
 // no console at all — they publish RFC 9728 / RFC 8414 metadata and an RFC 7591 registration endpoint
 // and expect clients to self-register — and for those there is no human path to a client id, so the
@@ -295,7 +295,7 @@ async function discoverConnectionAuthorizationServer(
 }
 
 /** RFC 8628's grant-type identifier — how both RFC 8414's `grant_types_supported` and RFC 7591's own
- *  `grant_types` name the device flow. Tovu's internal grant alias is the shorter `device_code`
+ *  `grant_types` name the device flow. The internal grant alias is the shorter `device_code`
  *  (`EXTERNAL_MCP_OAUTH_GRANTS`), so this is the one place that URN gets spelled out — everywhere
  *  else compares against or registers the short name and translates through this constant instead of
  *  repeating the URN. */
@@ -321,9 +321,9 @@ function registrationGrantTypes(grant: ExternalMcpOAuthGrant): readonly string[]
  * browser-capable client uses, and it is what an operator would pick by default anyway.
  * `device_code` exists specifically for the flow a browser cannot run (RFC 8628 — the human types a
  * code at the provider instead of being redirected), so it is a fallback rather than a co-equal
- * choice, taken only when the server names no other grant Tovu implements.
+ * choice, taken only when the server names no other grant this sign-in implements.
  *
- * @throws {OAuthError} `OAUTH_INVALID_REQUEST` when the metadata names neither grant Tovu
+ * @throws {OAuthError} `OAUTH_INVALID_REQUEST` when the metadata names neither grant this sign-in
  *   implements — naming exactly what the server DID advertise, since an operator who only sees
  *   "connect failed" has no way to guess that from the failure alone.
  * @complexity O(n) in the number of advertised grant types.
@@ -521,7 +521,7 @@ function withMintedClient(required: {
 }
 
 /**
- * Whether the row's client is one Tovu minted by dynamic registration, and so Tovu's to replace.
+ * Whether the row's client is one the host minted by dynamic registration, and so the host's to replace.
  *
  * A row written before {@link StoredOAuthEndpoints.dynamicClientId} existed carries no such mark.
  * For those, a stored `clientAuth` stands in for it: that member is only ever written by dynamic
@@ -634,7 +634,7 @@ async function persistTokens(
  *  when clearing a token. Empty when `clearToken` was not requested. */
 type ClearedTokenPatch = Partial<Pick<ExternalMcpServerRecord, "sealedOAuth" | "oauthExpiresAt" | "oauthAadVersion">>;
 
-/** {@link setOAuthStatus}'s options. `forgetSelfRegisteredClient` also drops a client Tovu minted by
+/** {@link setOAuthStatus}'s options. `forgetSelfRegisteredClient` also drops a client the host minted by
  *  dynamic registration — its id and its sealed secret — so the next connect registers afresh. It
  *  leaves an operator-typed client alone (see {@link isSelfRegisteredClient}). */
 interface SetOAuthStatusOptions {
