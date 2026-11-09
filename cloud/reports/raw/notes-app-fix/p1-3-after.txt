@@ -1,0 +1,31 @@
+example-tsc-exit=0
+  ✔ keys the form limit on the socket peer, so a spoofed x-forwarded-for cannot reset it (153.467671ms)
+  ✔ stores the socket peer as source_ip (1.190287ms)
+✔ contact form client address (218.763366ms)
+  ✔ dispatches a Request to the matching handler with decoded path params (35.944746ms)
+  ✔ lets an async handler read the request body (13.730582ms)
+  ✔ answers unmatched paths with 404 and unmatched methods with 405 (6.406966ms)
+  ✔ passes the socket peer address as client.address, ignoring forwarded headers (5.345754ms)
+  ✔ rejects a second registration of the same method and path (0.775741ms)
+✔ node-server adapter (73.179671ms)
+  ✔ returns params for :name segments and an empty object for a literal match (0.22394ms)
+  ✔ rejects differing literals, segment counts, trailing slashes and empty params (0.145005ms)
+  ✔ does not match a param whose percent-encoding is malformed (0.160518ms)
+  ✔ takes named required args, not positional ones (0.191719ms)
+✔ matchServerPath (1.054943ms)
+ℹ tests 11
+ℹ pass 11
+ℹ fail 0
+ok - create note -> 303 (got 303)
+ok - edit note -> 303 (got 303)
+ok - publish note -> 303 (got 303)
+ok - detail page renders the contact form
+ok - submit contact form -> 303 (got 303)
+ok - unknown path -> 404
+ok - wrong method -> 405
+ok - after restart: note keeps its edit
+ok - after restart: note is published
+ok - after restart: contact submission is listed
+ok - after restart: list page shows the note
+PASS
+smoke-exit=0

@@ -6,7 +6,7 @@ create, edit, publish and list, and a contact form under each note. No Express.
 ## Run
 
 ```sh
-pnpm install && pnpm --filter @jini-ai/core --filter @jini-ai/db --filter @jini-ai/cms build
+pnpm install && pnpm --filter @jini-ai/core --filter @jini-ai/db --filter @jini-ai/http-kit --filter @jini-ai/cms build
 cd examples/notes-app
 node src/main.ts                 # http://127.0.0.1:3000, data in ./data/notes.db
 node src/main.ts --db /tmp/n.db --port 4000   # or NOTES_DB / PORT
@@ -25,7 +25,7 @@ Node 22.18+ runs the `.ts` files directly (type stripping).
 | Database | `openSqliteConnection` (`@jini-ai/db/sqlite`), `sqliteKernel` (`@jini-ai/db/kernel/sqlite`) | `src/db.ts` passes `better-sqlite3` in |
 | Notes | `createEntry`, `updateEntry`, `publishEntry`, `listEntries` (`@jini-ai/cms/entries`) | `src/notes-repo.ts`: a SQL entry repo (none is exported) |
 | Notes table | `declareDataModule` (`@jini-ai/db/data-modules`) | declared as a plugin data module (no entries table bootstrap exists) |
-| Contact form | `createFormDefinition`, `submitForm` (`@jini-ai/cms/forms`), `createFormsTables`, repos (`@jini-ai/cms/forms/sql`), `renderHtmlForm` (`@jini-ai/cms/forms/html-render`) | `src/ports.ts`: authorize, outbox, dispatcher, rate limiter |
+| Contact form | `createFormDefinition`, `submitForm` (`@jini-ai/cms/forms`), `createFormsTables`, repos (`@jini-ai/cms/forms/sql`), `renderHtmlForm` (`@jini-ai/cms/forms/html-render`), `createRateLimiter` (`@jini-ai/http-kit/rate-limit`) | `src/ports.ts`: authorize, outbox, dispatcher; the form's client address is the socket peer |
 | Pages | `escapeHtml` (`@jini-ai/core/text`) | `src/pages.ts`: hand-written templates |
 
 Every place the app had to write something Jini could own is marked `// GAP:` in the source.

@@ -1,14 +1,15 @@
 /**
  * @file The smallest port implementations the cms services need. Clock, ids, the content-type
- * repo, the change-set repo and the entry-outbox wrapper come from Jini; everything marked
+ * repo, the change-set repo, the entry-outbox wrapper and the rate limiter come from Jini; everything marked
  * `// GAP:` is hand-written here because no public in-memory/no-op version exists.
  */
 import { createRandomUuidGenerator, createSystemClock } from '@jini-ai/core/primitives';
+import { createMemoryCounterStore, createRateLimiter } from '@jini-ai/http-kit/rate-limit';
 import { InMemoryContentTypeRepo } from '@jini-ai/cms/content-types';
 import { InMemoryChangeSetRepo } from '@jini-ai/cms/core/commands';
 import { toEntryOutbox, type AuthorizeFn } from '@jini-ai/cms/entries';
 import type { DomainEvent } from '@jini-ai/cms/core';
-import type { FormOutboxPort, OutboxDispatcherPort, RateLimiterPort } from '@jini-ai/cms/forms';
+import type { FormOutboxPort, OutboxDispatcherPort } from '@jini-ai/cms/forms';
 
 export const WORKSPACE_ID = '00000000-0000-4000-8000-000000000001';
 export const OWNER_ID = 'local-owner';
@@ -28,22 +29,6 @@ export function createMemoryOutbox(_required: Record<string, never> = {}, _optio
 // GAP: no no-op OutboxDispatcherPort. Nothing consumes events in this app.
 export const noopDispatcher: OutboxDispatcherPort = { dispatch: async () => {} };
 
-// GAP: no neutral in-memory RateLimiterPort (http-kit's limiter is tied to its Express layer).
-export function createFixedWindowLimiter({ limit, windowMs }: { limit: number; windowMs: number }, _optional: Record<string, never> = {}): RateLimiterPort {
-  const windows = new Map<string, { start: number; count: number }>();
-  return {
-    check({ key }) {
-      const now = Date.now();
-      const current = windows.get(key);
-      const window = current && now - current.start < windowMs ? current : { start: now, count: 0 };
-      window.count += 1;
-      windows.set(key, window);
-      if (window.count <= limit) return { allowed: true };
-      return { allowed: false, retryAfterSeconds: Math.ceil((window.start + windowMs - now) / 1000) };
-    },
-  };
-}
-
 export async function createAppPorts(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {
   const clock = createSystemClock();
   const idGen = createRandomUuidGenerator();
@@ -62,7 +47,8 @@ export async function createAppPorts(_required: Record<string, never> = {}, _opt
     // In memory: change sets are an undo log for the form-definition command; not needed across restarts here.
     changeSets: new InMemoryChangeSetRepo(),
     entryOutbox: toEntryOutbox({ outbox, clock, idGen, workspaceId: WORKSPACE_ID }),
-    rateLimiter: createFixedWindowLimiter({ limit: 30, windowMs: 60_000 }),
+    // http-kit's limiter is framework-free and sweeps expired keys, so the map cannot grow without bound.
+    rateLimiter: createRateLimiter({ profile: { windowSeconds: 60, max: 30, burst: 0 }, clock, store: createMemoryCounterStore({}) }),
     dispatcher: noopDispatcher,
     logger: { warn: (...args: unknown[]) => console.warn('[notes-app]', ...args) },
   };

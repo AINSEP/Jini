@@ -107,10 +107,12 @@ export async function registerNotesApp({ app, kernel }: { app: Server; kernel: A
     return redirect(`/notes/${encodeURIComponent(note.slug)}`);
   } });
 
-  app.route({ method: 'POST', path: '/forms/:slug', handler: async ({ request, params }) => {
+  app.route({ method: 'POST', path: '/forms/:slug', handler: async ({ request, params, client }) => {
     const body = await readForm(request);
-    // GAP: no neutral "client IP of a web Request" helper; the adapter does not pass the socket address.
-    const sourceIp = request.headers.get('x-forwarded-for') ?? '127.0.0.1';
+    // The socket peer from the adapter, never a request header: the app binds to localhost and
+    // trusts no proxy. A host behind a proxy applies resolveClientIp (@jini-ai/http-kit/rate-limit)
+    // to this value. Without a peer, every such request shares one bucket rather than escaping it.
+    const sourceIp = client?.address ?? 'unknown';
     try {
       await submitForm({
         deps: {
