@@ -45,6 +45,7 @@ function specifiers(required: { file: string; source: string }): Set<string> {
   for (const directive of ast.typeReferenceDirectives) specs.add(directive.fileName);
   function visit(node: ts.Node): void {
     if (ts.isImportDeclaration(node)) collectImport({ node, specs });
+    if (ts.isImportEqualsDeclaration(node)) collectImportEquals({ node, specs });
     if (ts.isExportDeclaration(node) && node.moduleSpecifier && ts.isStringLiteral(node.moduleSpecifier)) specs.add(node.moduleSpecifier.text);
     if (isLiteralModuleCall(node)) specs.add(node.arguments[0].text);
     if (ts.isImportTypeNode(node)) collectImportType({ node, specs });
@@ -58,6 +59,12 @@ function specifiers(required: { file: string; source: string }): Set<string> {
 function collectImport({ node, specs }: { node: ts.ImportDeclaration; specs: Set<string> }): void {
   if (!ts.isStringLiteral(node.moduleSpecifier)) return;
   specs.add(node.moduleSpecifier.text);
+}
+
+/** `import x = require('<specifier>')` in sources and emitted declarations; `import x = N.y` names no module. */
+function collectImportEquals({ node, specs }: { node: ts.ImportEqualsDeclaration; specs: Set<string> }): void {
+  const reference = node.moduleReference;
+  if (ts.isExternalModuleReference(reference) && ts.isStringLiteral(reference.expression)) specs.add(reference.expression.text);
 }
 
 function collectImportType({ node, specs }: { node: ts.ImportTypeNode; specs: Set<string> }): void {
