@@ -1,5 +1,5 @@
 /** Member-login preset and identity types: what a login-provider contribution declares and what a verified login yields. */
-import type { OAuthClientAuthMethod, OidcSigningAlgorithm } from "@jini-ai/oauth";
+import type { OAuthClientAuthMethod, OidcSigningAlgorithm } from "@jini-ai/core/contracts/oauth";
 
 /** Immutable, bundled preset. Never construct one from callback claims or site-local plugins. */
 export interface LoginProviderPreset {

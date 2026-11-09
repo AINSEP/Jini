@@ -1499,9 +1499,6 @@ importers:
       '@jini-ai/cms':
         specifier: workspace:*
         version: link:../cms
-      '@jini-ai/oauth':
-        specifier: workspace:*
-        version: link:../oauth
       '@jini-ai/ui':
         specifier: workspace:*
         version: link:../ui
