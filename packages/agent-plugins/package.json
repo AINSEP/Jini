@@ -97,6 +97,7 @@
       "./google-forms/*": "universal",
       "./connect": "universal",
       "./connect/executable": "universal",
+      "./connect/plugin-host": "universal",
       "./admin-surfaces/connections": "universal"
     },
     "isolation": {
@@ -104,7 +105,8 @@
         "./manifest": "lifecycle",
         "./persistent-state": "core",
         "./connect": "lifecycle",
-        "./connect/executable": "lifecycle"
+        "./connect/executable": "lifecycle",
+        "./connect/plugin-host": "lifecycle"
       },
       "shared": [
         "core/persistent-state.js",
@@ -271,6 +273,11 @@
       "types": "./dist/connect/executable/index.d.ts",
       "import": "./dist/connect/executable/index.js",
       "default": "./dist/connect/executable/index.js"
+    },
+    "./connect/plugin-host": {
+      "types": "./dist/connect/plugin-host/index.d.ts",
+      "import": "./dist/connect/plugin-host/index.js",
+      "default": "./dist/connect/plugin-host/index.js"
     },
     "./admin-surfaces/connections": {
       "types": "./dist/admin-surfaces/connections/index.d.ts",

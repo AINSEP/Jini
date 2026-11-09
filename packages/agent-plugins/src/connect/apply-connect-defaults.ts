@@ -1,5 +1,5 @@
 import { ToolInputError } from '@jini-ai/core';
-import type { AgentPluginMcpAccessSnapshot, AgentPluginMcpRecord, AgentPluginMcpContext, AgentPluginMcpProjectionPorts } from '../service-ports.js';
+import type { AgentPluginMcpAccessSnapshot, AgentPluginMcpRecord, AgentPluginMcpProjectionPorts } from './ports.js';
 /**
  * @file Grants a plugin's declared default tools (`mcp.json`'s `defaultTools`, parsed by
  * `manifest.ts`) on the operator's FIRST successful sign-in to a server that plugin provisioned — so
@@ -25,66 +25,39 @@ import type { AgentPluginMcpAccessSnapshot, AgentPluginMcpRecord, AgentPluginMcp
  * Wired where the OAuth service is composed (`composition/app.ts`, `composition/deps.ts`,
  * `agent-daemon-server.ts`).
  */
-import type { AgentPluginMcpPort } from "../service-ports.js";
+import type { AgentPluginMcpPort } from "./ports.js";
 import type { Clock as ClockPort } from "@jini-ai/core/primitives";
 import { previewAgentPluginEnableAccess, storedAgentPluginGrants, validatedAgentPluginToolGrant } from './enable-access.js';
 
-// activation.ts was deleted; Jini owns the lifecycle, this host binding owns its effects.
-import { agentPluginActivations } from "../activation-effects.js";
-import { findAgentPluginMcpServerDefaults, isEmptyJsonList, resolveAgentPluginMcpServers } from "./federate-mcp.js";
-import type { McpServerConfig } from "../mcp-metadata.js";
-import type { AgentPluginLayout } from "../layout.js";
-import { setAgentPluginEnabled } from "../set-enabled.js";
+import { findAgentPluginMcpServerDefaults, isEmptyJsonList } from "./federate-mcp.js";
+import type { McpServerConfig } from "../lifecycle/manifest.js";
 
-export const CONNECT_DECLINED_ACTOR = "system:connect-declined";
-
-/** Recorded as the plugin activation's `updatedBy` and the row's write-grant attribution: the grant
- *  came from the plugin's declaration, at a sign-in, not from a Settings save. */
-const CONNECT_DEFAULTS_ACTOR = "system:connect-defaults";
-
-/** `activation.ts`'s seeder actor: its disabled record is the default, not an operator decision. */
-export const SEED_ACTOR = "system:seed";
-
-/** Whether `pluginId`'s activation record is a disabled one someone other than the seeder wrote.
- *  Shared with `switch-on-saved-token.ts`. @complexity One activations read. */
-export async function isPluginOffByOperator(input: { workspaceId: string; agentPluginLayout: AgentPluginLayout; pluginId: string }, _options = {}): Promise<boolean> {
-  const activations = await agentPluginActivations.readAgentPluginActivations({ workspaceRoot: input.agentPluginLayout.forWorkspace(input.workspaceId).root });
-  if (!Object.hasOwn(activations.plugins, input.pluginId)) return false;
-  const record = activations.plugins[input.pluginId];
-  return record?.enabled === false && record.updatedBy !== SEED_ACTOR;
-}
-
-/**
- * Makes sure `pluginId`'s activation is on: no record and an "on" record already read as on (nothing
- * is written); the seeder's own disabled record is switched on (decided under the activations lock,
- * so an operator toggle racing it wins); anyone else's disabled record is an operator's "off" and
- * stays. Shared with `switch-on-saved-token.ts`, which needs it on top of connect defaults (they skip a
- * row an operator already set up and so never reach the plugin's activation). EVERY state goes through
- * `setAgentPluginEnabled`, so every one keeps the checks a switch has (installed, host-compatible, no
- * pending update, not a provider plugin's linked face, whose provider's switch decides:
- * `provider-plugin-link.ts`) before anything is granted; only its write is the locked conditional one.
- * @returns false when an operator's "off" stopped it.
- * @throws What `setAgentPluginEnabled` refuses with (`AgentPluginLinkedError`, not installed, incompatible, pending update).
- * @complexity One plugin-locked switch, at most one locked write.
- */
-export async function switchPluginOnUnlessOperatorOff(input: { workspaceId: string; agentPluginLayout: AgentPluginLayout; pluginId: string }, _options = {}): Promise<boolean> {
-  const result = await setAgentPluginEnabled({ workspaceId: input.workspaceId, agentPluginLayout: input.agentPluginLayout, pluginId: input.pluginId, enabled: true, actor: CONNECT_DEFAULTS_ACTOR }, { unlessOperatorDisabled: true });
-  return result.enabled;
+/** @agent-note Actor ids are host vocabulary, saved verbatim as the activation's `updatedBy` and the row's
+ * write-grant attribution (`principalId`): a second host passes its own stable ids and never changes
+ * them once rows exist (saved bytes compare equal across restarts). */
+export interface AgentPluginConnectActors {
+  /** Recorded as the plugin activation's `updatedBy` and the row's write-grant attribution: the grant
+   *  came from the plugin's declaration, at a sign-in, not from a Settings save. */
+  readonly connectDefaults: string;
+  /** Recorded on a source whose displayed default grant the owner declined. */
+  readonly connectDeclined: string;
 }
 
 export type ApplyConnectDefaultsDeps = Pick<AgentPluginMcpPort, "repo" | "applyAccess"> & AgentPluginMcpProjectionPorts & {
   readonly clock: ClockPort;
   readonly workspaceId: string;
-  readonly agentPluginLayout: AgentPluginLayout;
-  /** Injected for tests. Defaults to `federate-mcp.ts`'s `resolveAgentPluginMcpServers`. */
-  readonly resolveServers?: (input: { workspaceId: string; pluginId: string }) => Promise<Readonly<Record<string, McpServerConfig>>>;
-  /** Injected for tests. Defaults to {@link switchPluginOnUnlessOperatorOff}; `false` means an
-   *  operator's "off" stopped it, and nothing is granted. */
-  readonly enablePlugin?: (input: { workspaceId: string; pluginId: string; actor: string }) => Promise<unknown>;
+  /** @agent-note Host lifecycle read: the host binds `federate-mcp.ts`'s `resolveAgentPluginMcpServers`
+   *  over its own installed-package reads. Fresh per call. */
+  readonly resolveServers: (input: { workspaceId: string; pluginId: string }) => Promise<Readonly<Record<string, McpServerConfig>>>;
+  /** @agent-note Host activation owner: switches the plugin on unless an operator turned it off, through
+   *  the host's one activation queue with every check a switch has; `false` means an operator's "off"
+   *  stopped it, and nothing is granted. */
+  readonly enablePlugin: (input: { workspaceId: string; pluginId: string; actor: string }) => Promise<unknown>;
+  readonly actors: AgentPluginConnectActors;
   /** Host supplies the assistant's `notifyExternalMcpRosterChanged` port. */
   readonly notifyRosterChanged: () => Promise<void>;
-  /** Injected for tests. Defaults to {@link isPluginOffByOperator} on this workspace's activations. */
-  readonly isPluginOffByOperator?: (pluginId: string) => Promise<boolean>;
+  /** @agent-note Host activation read: whether an operator (not the seeder) turned the plugin off. */
+  readonly isPluginOffByOperator: (pluginId: string) => Promise<boolean>;
 };
 
 /** Read one matching plugin row and delegate the grant decision to Jini.
@@ -117,10 +90,9 @@ function allowsAutomaticConnectGrant(row: AgentPluginMcpRecord): boolean {
  * @complexity O(s) in the plugin's declared server count, plus one row write and one activation write.
  */
 export function createApplyConnectDefaults(deps: ApplyConnectDefaultsDeps, options: { readonly approvedEnable?: { readonly principalId: string; readonly accessKey: string } } = {}): (serverId: string) => Promise<void> {
-  const resolveServers = deps.resolveServers ?? ((input: { workspaceId: string; pluginId: string }) => resolveAgentPluginMcpServers({ ...input, agentPluginLayout: deps.agentPluginLayout }));
-  const enablePlugin =
-    deps.enablePlugin ?? ((input: { workspaceId: string; pluginId: string }) => switchPluginOnUnlessOperatorOff({ ...input, agentPluginLayout: deps.agentPluginLayout }));
-  const isOff = deps.isPluginOffByOperator ?? ((pluginId: string) => isPluginOffByOperator({ workspaceId: deps.workspaceId, agentPluginLayout: deps.agentPluginLayout, pluginId }));
+  const resolveServers = deps.resolveServers;
+  const enablePlugin = deps.enablePlugin;
+  const isOff = deps.isPluginOffByOperator;
   // Resolved once per factory: preview, grant and revalidation all compare with the same projections.
   const ports: AgentPluginMcpProjectionPorts = { projections: deps.projections, classifyError: deps.classifyError };
 
@@ -138,13 +110,13 @@ export function createApplyConnectDefaults(deps: ApplyConnectDefaultsDeps, optio
     // Plugin first: if this throws, nothing is written and the next sign-in tries again. The row
     // write is the step that makes a retry a no-op, so it goes last. The check above is only a cheap
     // early exit: an operator's "off" landing after it is caught again under the activations lock.
-    if (await enablePlugin({ workspaceId: deps.workspaceId, pluginId, actor: CONNECT_DEFAULTS_ACTOR }) === false) return;
+    if (await enablePlugin({ workspaceId: deps.workspaceId, pluginId, actor: deps.actors.connectDefaults }) === false) return;
     const expected = approved?.expected ?? ports.projections.accessSnapshot({ record: row });
     // Direct repo write, the same reason `federate-mcp.ts`'s adoption gives: every other field
     // (url, auth, the token this sign-in just stored) must stay exactly as it is.
     await deps.applyAccess({ workspaceId: deps.workspaceId, serverId,
       expected, access: { enabled: true, allowedToolNames: grant.allow, writeAllowedToolNames: grant.write },
-      principalId: options.approvedEnable?.principalId ?? CONNECT_DEFAULTS_ACTOR });
+      principalId: options.approvedEnable?.principalId ?? deps.actors.connectDefaults });
     await deps.notifyRosterChanged();
   };
 }
@@ -187,14 +159,16 @@ function assertApprovedSource({ approved, grant, current, url, expected }: {
  * @throws The existing conditional writer's source-changed error if a displayed row changed.
  * @complexity One conditional point write per eligible displayed source; O(s*(a+w)) grant bytes.
  */
-export async function recordAgentPluginAccessDeclined({ applyAccess, workspaceId, accessKey }: {
+export async function recordAgentPluginAccessDeclined({ applyAccess, workspaceId, accessKey, actorId }: {
   applyAccess: AgentPluginMcpPort['applyAccess']; workspaceId: string; accessKey: string;
+  /** @agent-note The host's declined-access actor id ({@link AgentPluginConnectActors.connectDeclined}). */
+  actorId: string;
 }, _options = {}): Promise<void> {
   const sources = JSON.parse(accessKey) as Awaited<ReturnType<typeof previewAgentPluginEnableAccess>>['snapshots'];
   for (const source of sources) {
     if (!source.grant || !source.expected || source.expected.writeGrantsUpdatedByPrincipalId !== null) continue;
     await applyAccess({ workspaceId, serverId: source.connectionId, expected: source.expected,
-      principalId: CONNECT_DECLINED_ACTOR,
+      principalId: actorId,
       access: { enabled: source.current.enabled, allowedToolNames: source.current.allow, writeAllowedToolNames: source.current.write } });
   }
 }

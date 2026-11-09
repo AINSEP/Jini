@@ -1,11 +1,5 @@
 
-import type { Clock as ClockPort } from "@jini-ai/core/primitives";
-
-import type { AgentPluginMcpPort, AgentPluginMcpProjectionPorts } from "../service-ports.js";
-
-
-import { createApplyConnectDefaults, isPluginOffByOperator as defaultIsPluginOffByOperator, switchPluginOnUnlessOperatorOff } from "./apply-connect-defaults.js";
-import type { AgentPluginLayout } from "../layout.js";
+import type { AgentPluginMcpPort } from "./ports.js";
 
 /**
  * @file After an access token is saved onto a plugin's token-auth row, switches the plugin on the
@@ -25,10 +19,6 @@ import type { AgentPluginLayout } from "../layout.js";
  */
 
 
-/** Where each "off" is switched back on in the admin (`apps/admin/src/panels.tsx` nav labels). */
-export const AGENT_PLUGINS_SCREEN = "Add-Ons → Agent Plugins";
-export const EXTERNAL_MCP_SCREEN = "Add-Ons → Integrations → External MCP";
-
 export type SavedTokenSwitchOutcome =
   | { readonly state: "on" }
   | { readonly state: "plugin-off-by-operator" }
@@ -36,17 +26,15 @@ export type SavedTokenSwitchOutcome =
 
 export interface SwitchOnSavedTokenDeps {
   readonly workspaceId: string;
-  readonly agentPluginLayout: AgentPluginLayout;
-  readonly mcp: Pick<AgentPluginMcpPort, "repo" | "applyAccess"> & AgentPluginMcpProjectionPorts;
-  readonly clock: ClockPort;
-  readonly notifyRosterChanged: () => Promise<void>;
-  /** Injected for tests. Defaults to `createApplyConnectDefaults`, the sign-in's own `onConnected`. */
-  readonly onConnected?: (serverId: string) => Promise<void>;
-  /** Injected for tests. Defaults to reading this workspace's activations file. */
-  readonly isPluginOffByOperator?: (pluginId: string) => Promise<boolean>;
-  /** Injected for tests. Switches the plugin's activation on unless an operator turned it off; false
-   *  when an operator's "off" stopped it. Defaults to `apply-connect-defaults.ts`'s {@link switchPluginOnUnlessOperatorOff}. */
-  readonly switchPluginOn?: (pluginId: string) => Promise<boolean>;
+  readonly mcp: Pick<AgentPluginMcpPort, "repo">;
+  /** @agent-note Host binding of the sign-in's own `onConnected` (`createApplyConnectDefaults` over the
+   *  host's one MCP repo, projections and activation owner), so a saved token and a sign-in grant alike. */
+  readonly onConnected: (serverId: string) => Promise<void>;
+  /** @agent-note Host activation read: whether an operator (not the seeder) turned the plugin off. */
+  readonly isPluginOffByOperator: (pluginId: string) => Promise<boolean>;
+  /** @agent-note Host activation owner: switches the plugin's activation on unless an operator turned it
+   *  off, through the host's one activation queue; false when an operator's "off" stopped it. */
+  readonly switchPluginOn: (pluginId: string) => Promise<boolean>;
 }
 
 /**
@@ -60,25 +48,15 @@ export async function switchOnSavedTokenConnection(
   deps: SwitchOnSavedTokenDeps,
   target: { readonly pluginId: string; readonly connectionId: string },
 ): Promise<SavedTokenSwitchOutcome> {
-  const isOff = deps.isPluginOffByOperator ?? ((pluginId: string) => defaultIsPluginOffByOperator({ ...deps, pluginId }));
+  const isOff = deps.isPluginOffByOperator;
   if (await isOff(target.pluginId)) return { state: "plugin-off-by-operator" };
 
-  const onConnected = deps.onConnected ?? createApplyConnectDefaults({ agentPluginLayout: deps.agentPluginLayout, workspaceId: deps.workspaceId, repo: deps.mcp.repo, applyAccess: deps.mcp.applyAccess, clock: deps.clock, notifyRosterChanged: deps.notifyRosterChanged, projections: deps.mcp.projections, classifyError: deps.mcp.classifyError });
+  const onConnected = deps.onConnected;
   await onConnected(target.connectionId);
 
   const row = await deps.mcp.repo.findByServerId({ workspaceId: deps.workspaceId, serverId: target.connectionId });
   if (row?.enabled !== true) return { state: "connection-off-by-operator" };
 
-  const switchPluginOn = deps.switchPluginOn ?? ((pluginId: string) => switchPluginOnUnlessOperatorOff({ ...deps, pluginId }));
+  const switchPluginOn = deps.switchPluginOn;
   return (await switchPluginOn(target.pluginId)) ? { state: "on" } : { state: "plugin-off-by-operator" };
-}
-
-/** The plain next-step line for each outcome. Never carries a token. */
-export function describeSavedTokenSwitch(outcome: SavedTokenSwitchOutcome, names: { readonly displayName: string; readonly connectionId: string }): string {
-  const messages = {
-    on: `${names.displayName} is connected and switched on. Its tools are ready to use.`,
-    'plugin-off-by-operator': `Token saved. ${names.displayName} stays off because an operator turned it off. To use it, switch '${names.displayName}' on in ${AGENT_PLUGINS_SCREEN}.`,
-    'connection-off-by-operator': `Token saved. The '${names.connectionId}' connection stays off because an operator changed its settings. To use it, switch it on in ${EXTERNAL_MCP_SCREEN}.`,
-  };
-  return messages[outcome.state];
 }

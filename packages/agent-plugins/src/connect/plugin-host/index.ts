@@ -1,18 +1,19 @@
-/** Portable plugin-host decisions (A8 seam, in place). Everything product- or runtime-specific is a
+/** Portable plugin-host decisions (moved A9 from the A8 seam). Everything product- or runtime-specific is a
  * required port the host binds; this file imports only @jini-ai/core, the agent-plugins lifecycle
- * types (same package after A9) and the A8 connect bodies. It must never import the A10 connect
+ * types (same package) and the connect bodies. It must never import the A10 connect
  * cycle (`grant-signed-in-defaults.ts` and its neighbours): the sign-in grant arrives as the
  * required `grantSignedInDefaults` port (pinned by `portable-plugin-host.no-cycle` test).
  * Discovery is metadata-only and fresh on each call so disable/uninstall cannot leave stale grants. */
 import type { Clock } from "@jini-ai/core/primitives";
 import { redactSecrets, ToolInputError, type AccessApprovalResource } from '@jini-ai/core';
 import { createPluginLookup, readPluginIdentity, assertPluginIdentityAvailable, type PluginIdentityCandidate, type PluginLookupPort, type PluginProvider } from '@jini-ai/core/plugin-directory';
-import type { InstalledAgentPlugin, SetAgentPluginEnabledInput, SetAgentPluginEnabledResult } from '@jini-ai/agent-plugins/lifecycle';
-import { provisionAgentPluginMcpServers, resolveAgentPluginMcpServers } from '#src/features/agent-plugins/portable/federate-mcp';
-import { recordAgentPluginAccessDeclined } from '#src/features/agent-plugins/portable/apply-connect-defaults';
-import { previewAgentPluginEnableAccess } from '#src/features/agent-plugins/portable/enable-access';
-import type { AgentPluginMcpPort, AgentPluginMcpProjectionPorts } from '#src/features/agent-plugins/service-ports';
-import type { McpServerConfig } from '#src/features/agent-plugins/mcp-metadata';
+import type { InstalledAgentPlugin } from '../../lifecycle/types.js';
+import type { SetAgentPluginEnabledInput, SetAgentPluginEnabledResult } from '../../lifecycle/set-enabled.js';
+import { provisionAgentPluginMcpServers, resolveAgentPluginMcpServers, type AgentPluginInstalledMcpReads, type AgentPluginMcpTrustClassifier } from '../federate-mcp.js';
+import { recordAgentPluginAccessDeclined } from '../apply-connect-defaults.js';
+import { previewAgentPluginEnableAccess, type AgentPluginEnableAccessMessages } from '../enable-access.js';
+import type { AgentPluginMcpPort, AgentPluginMcpProjectionPorts } from '../ports.js';
+import type { McpServerConfig } from '../../lifecycle/manifest.js';
 
 type AgentPluginLayoutInput = Parameters<typeof resolveAgentPluginMcpServers>[0]['agentPluginLayout'];
 type ProvisioningFailure = Awaited<ReturnType<typeof provisionAgentPluginMcpServers>>['failed'][number];
@@ -69,7 +70,7 @@ export interface PluginHostLifecycle<UninstallInput> {
 }
 
 /** Product copy the host decisions report. Texts name host tools, so they are host input. */
-export interface PluginHostMessages {
+export interface PluginHostMessages extends AgentPluginEnableAccessMessages {
   /** @agent-note Product copy for an approved enable whose provisioning failed for `failed`
    * servers. Returned text is passed through `redactSecrets` before it is thrown. Name the host's
    * own enable tool for the retry hint. */
@@ -94,6 +95,14 @@ export interface PluginHostDeps<UninstallInput> {
   /** @agent-note Provider: the site-runtime activation repo point read (same repo the runtime uses). */
   readonly getActivation: (required: { workspaceId: string; pluginId: string }) => Promise<PluginHostActivation | null>;
   readonly lifecycle: PluginHostLifecycle<UninstallInput>;
+  /** @agent-note Provider: the lifecycle owner's installed-package and `mcp.json` reads (object
+   *  arguments, as `createAgentPluginLifecycle` returns them), fresh per call; the same owner as `lifecycle`. */
+  readonly installedMcp: AgentPluginInstalledMcpReads;
+  /** @agent-note Provider: the lifecycle owner's MCP trust rule; preview and provisioning both use it. */
+  readonly classifyTrust: AgentPluginMcpTrustClassifier;
+  /** @agent-note Host actor id saved as the write-grant attribution of a declined default grant; stable
+   *  once rows exist (saved bytes). */
+  readonly declinedAccessActor: string;
   /** @agent-note Serializes identity admission and publication across plugin kinds. Provider: ONE
    * cross-process lock per agent-plugins tree (the host chooses the lock file; creating its parent
    * is the host's job). Every install path of every family must take the same lock. */
@@ -238,16 +247,16 @@ export function createPluginHost<UninstallInput>(
     return providers.concat(await listAgentProviders({ forAdmission }));
   };
   const lookup = createPluginLookup({ listPlugins: listProviders }, { warn });
-  const resolveServers = (pluginId: string) => (optional.resolveMcpServers ?? resolveAgentPluginMcpServers)({ agentPluginLayout: deps.agentPluginLayout, workspaceId: deps.workspaceId, pluginId });
+  const resolveServers = (pluginId: string) => (optional.resolveMcpServers ?? resolveAgentPluginMcpServers)({ agentPluginLayout: deps.agentPluginLayout, lifecycle: deps.installedMcp, workspaceId: deps.workspaceId, pluginId });
 
   // Preview, provisioning grant and status share the host's composed pair (resolved once by the host).
   const { mcp, mcpPorts } = deps;
   const agentPlugins: AgentPluginLifecycleCapability<UninstallInput> = {
     inactivePluginIds: () => lifecycle.inactivePluginIds(),
     previewEnableAccess: async ({ pluginId }) => previewAgentPluginEnableAccess({
-      workspaceId: deps.workspaceId, pluginId, repo: mcp.repo, ...mcpPorts, servers: await resolveServers(pluginId),
+      workspaceId: deps.workspaceId, pluginId, repo: mcp.repo, ...mcpPorts, servers: await resolveServers(pluginId), classifyTrust: deps.classifyTrust, messages: deps.messages,
     }),
-    recordDeclinedAccess: async ({ accessKey }) => recordAgentPluginAccessDeclined({ applyAccess: mcp.applyAccess, workspaceId: deps.workspaceId, accessKey }),
+    recordDeclinedAccess: async ({ accessKey }) => recordAgentPluginAccessDeclined({ applyAccess: mcp.applyAccess, workspaceId: deps.workspaceId, accessKey, actorId: deps.declinedAccessActor }),
     listInstalled: () => lifecycle.listInstalled(),
     assertWritable: () => lifecycle.assertWritable(),
     setEnabled: input => lifecycle.setEnabled(input),
@@ -257,7 +266,7 @@ export function createPluginHost<UninstallInput>(
       try {
         const approvedEnable = execution.approvedEnable ? { principalId, accessKey: requireApprovedAccessKey(execution.approvedEnableKey, deps.messages) } : undefined;
         const servers = await resolveServers(pluginId);
-        const result = await (optional.provisionMcpServers ?? provisionAgentPluginMcpServers)(mcp, { workspaceId: deps.workspaceId, pluginId, servers, principalId });
+        const result = await (optional.provisionMcpServers ?? provisionAgentPluginMcpServers)(mcp, { workspaceId: deps.workspaceId, pluginId, servers, principalId, classifyTrust: deps.classifyTrust });
         reportProvisioningFailures({ pluginId, failed: result.failed, approved: execution.approvedEnable === true, warn, messages: deps.messages });
         // Same as the admin toggle: an account signed in while the plugin was off gets the plugin's
         // declared tools now (bug 2026-11-04, the host's sign-in grant owner).

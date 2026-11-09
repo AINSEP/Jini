@@ -1,12 +1,8 @@
-import type { AgentPluginMcpPort } from "../service-ports.js";
-import type { AgentPluginMcpRecord, AgentPluginMcpContext, AgentPluginMcpProjections, AgentPluginMcpProjectionPorts } from "../service-ports.js";
+import type { AgentPluginMcpPort } from "./ports.js";
+import type { AgentPluginMcpRecord, AgentPluginMcpProjections, AgentPluginMcpProjectionPorts } from "./ports.js";
 
-import { classifyAgentPluginMcpServerTrust, readInstalledMcpServers } from "../capability-projection.js";
-import type { AgentPluginLayout } from "../layout.js";
-import type { AgentPluginDefaultTools } from "@jini-ai/agent-plugins/lifecycle";
-import type { McpServerConfig } from "../mcp-metadata.js";
-import { preferBundledAgentPluginDigests, readBundledAgentPluginDigests } from "../lifecycle.js";
-import { listInstalledPlugins } from "../lifecycle.js";
+import type { AgentPluginDefaultTools, McpServerConfig } from "../lifecycle/manifest.js";
+import type { createAgentPluginLifecycle } from "../lifecycle/index.js";
 
 /**
  * @file Phase 4 of the 2026-09-10 plugin-MCP-wiring work: PROVISIONS an activated Agent Plugin's
@@ -182,6 +178,18 @@ export interface SkippedAgentPluginMcpServer {
 /** The shape of `classifyAgentPluginMcpServerTrust` (`capability-projection.ts`). */
 export type AgentPluginMcpTrustClassifier = (server: Pick<McpServerConfig, "type">) => "auto-admit" | "requires-confirmation";
 
+/** The host's plugin directory tree; only each workspace's root is read here. */
+export interface AgentPluginLayout {
+  forWorkspace(workspaceId: string): { readonly root: string };
+}
+
+/** @agent-note Installed-package reads, bundled-digest preference and the declared `mcp.json` read,
+ * with object arguments: the same-named functions `createAgentPluginLifecycle` returns, so a host built
+ * on that owner passes it as is. Reads are fresh per call (no cache); preference order is list →
+ * bundled digests → prefer, exactly as `resolveAgentPluginMcpServers` calls them. */
+export type AgentPluginInstalledMcpReads = Pick<ReturnType<typeof createAgentPluginLifecycle>,
+  'listInstalledPlugins' | 'readBundledAgentPluginDigests' | 'preferBundledAgentPluginDigests' | 'readInstalledMcpServers'>;
+
 export interface PlannedAgentPluginMcpUpsert {
   readonly connectionId: string;
   readonly serverKey: string;
@@ -261,12 +269,14 @@ function classifyAgentPluginMcpServerForFederation(
 export function planAgentPluginMcpFederation(input: {
   readonly servers: Readonly<Record<string, McpServerConfig>>;
 }, options: {
-  /** The trust rule consulted after the stdio narrowing. Defaults to the real
+  /** The trust rule consulted after the stdio narrowing. The host passes the real
    *  `classifyAgentPluginMcpServerTrust`; injectable so the drift guard above (a remote transport
-   *  reclassified as "requires-confirmation") stays verifiable while today's rule never trips it. */
-  readonly classifyTrust?: AgentPluginMcpTrustClassifier;
-} = {}): AgentPluginMcpFederationPlan {
-  const classifyTrust = options.classifyTrust ?? classifyAgentPluginMcpServerTrust;
+   *  reclassified as "requires-confirmation") stays verifiable while today's rule never trips it.
+   *  @agent-note Required: a second host passes its lifecycle owner's `classifyAgentPluginMcpServerTrust`
+   *  (object argument adapted to this positional shape); there is no default trust rule here. */
+  readonly classifyTrust: AgentPluginMcpTrustClassifier;
+}): AgentPluginMcpFederationPlan {
+  const classifyTrust = options.classifyTrust;
   const toUpsert: PlannedAgentPluginMcpUpsert[] = [];
   const skipped: SkippedAgentPluginMcpServer[] = [];
 
@@ -296,6 +306,7 @@ export function planAgentPluginMcpFederation(input: {
  */
 export async function resolveAgentPluginMcpServers(input: {
   readonly agentPluginLayout: AgentPluginLayout;
+  readonly lifecycle: AgentPluginInstalledMcpReads;
   readonly workspaceId: string;
   readonly pluginId: string;
   /** Read-only trust grants require the build's bundled digest, never an arbitrary install. */
@@ -305,15 +316,15 @@ export async function resolveAgentPluginMcpServers(input: {
   // A bundled plugin that was upgraded in place has its superseded package dropped here, so the
   // servers this provisions come from the digest the running build published rather than whichever
   // one the directory walk happened to reach first (`bundled-digests.ts`).
-  const bundledDigests = await readBundledAgentPluginDigests(workspaceLayout.root);
+  const bundledDigests = await input.lifecycle.readBundledAgentPluginDigests({ workspaceRoot: workspaceLayout.root });
   if (input.bundledOnly && !bundledDigests.has(input.pluginId)) return {};
-  const installed = preferBundledAgentPluginDigests(
-    await listInstalledPlugins(workspaceLayout.root),
-    bundledDigests,
-  );
+  const installed = input.lifecycle.preferBundledAgentPluginDigests({
+    installed: await input.lifecycle.listInstalledPlugins({ workspaceRoot: workspaceLayout.root }),
+    bundled: bundledDigests,
+  });
   const plugin = installed.find((candidate) => candidate.pluginId === input.pluginId);
   if (input.bundledOnly && plugin?.archiveDigest !== bundledDigests.get(input.pluginId)) return {};
-  return plugin ? readInstalledMcpServers(plugin.packageRoot) : {};
+  return plugin ? input.lifecycle.readInstalledMcpServers({ packageRoot: plugin.packageRoot }) : {};
 }
 
 /**
@@ -341,6 +352,7 @@ export function findAgentPluginMcpServerDefaults(
  */
 export async function resolveAgentPluginReadOnlyRemoteNames(input: {
   readonly agentPluginLayout: AgentPluginLayout;
+  readonly lifecycle: AgentPluginInstalledMcpReads;
   readonly workspaceId: string;
   readonly pluginId: string;
   readonly serverId: string;
@@ -357,6 +369,9 @@ export interface ProvisionAgentPluginMcpServersInput {
   /** Attributed on the row exactly as an operator's own Settings → External MCP save would be —
    *  `saveExternalMcpServer`'s own `principalId` doc. */
   readonly principalId: string;
+  /** @agent-note The host's lifecycle trust rule (see {@link planAgentPluginMcpFederation}); required,
+   *  never defaulted here. */
+  readonly classifyTrust: AgentPluginMcpTrustClassifier;
 }
 
 export interface ProvisionAgentPluginMcpServersResult {
@@ -515,7 +530,7 @@ export async function provisionAgentPluginMcpServers(
   deps: AgentPluginMcpProjectionPorts & Pick<AgentPluginMcpPort, "repo" | "saveServer"> & Partial<Pick<AgentPluginMcpPort, "notifyRosterChanged">>,
   input: ProvisionAgentPluginMcpServersInput,
 ): Promise<ProvisionAgentPluginMcpServersResult> {
-  const plan = planAgentPluginMcpFederation(input);
+  const plan = planAgentPluginMcpFederation(input, { classifyTrust: input.classifyTrust });
   const provisioned: string[] = [];
   const alreadyProvisioned: string[] = [];
   const adopted: string[] = [];

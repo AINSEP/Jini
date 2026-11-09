@@ -1,6 +1,13 @@
-import type { AgentPluginMcpRecord, AgentPluginMcpProjectionPorts, AgentPluginMcpProjections } from '../service-ports.js';
-import type { LoadPluginCredentialCards } from '../../custom-credentials/plugin-credential-card.js';
-import type { ApiConnectionHost } from '../../api-connections/host.js';
+import type { AgentPluginMcpRecord, AgentPluginMcpProjectionPorts, AgentPluginMcpProjections } from './ports.js';
+import type { LoadPluginCredentialCards } from './plugin-credential-card.js';
+
+/** @agent-note The narrow slice of the host's API-connection owner this status read uses: its one
+ * declared-connection catalog and per-connection status reads (no provider HTTP, no sealed opens).
+ * A second host passes the same instance its connect flow uses. */
+export interface AgentPluginApiConnectionStatusReads {
+  listConnections(input: Record<string, never>): Promise<readonly { readonly pluginId: string }[]>;
+  statusOf(input: { readonly connection: { readonly pluginId: string } }): Promise<{ readonly status: AgentPluginConnectionStatus | 'reconnect-required' | 'revocation-pending' }>;
+}
 
 type ConnectionRow = Pick<AgentPluginMcpRecord, 'provisionedByPluginId' | 'authMode' | 'oauthStatus' | 'sealedOAuth'>;
 export type AgentPluginConnectionStatus = 'connected' | 'disconnected' | 'pending' | 'needs_reauth';
@@ -13,7 +20,7 @@ export async function loadAgentPluginConnectionStatuses(required: Pick<AgentPlug
   workspaceId: string;
   mcp: { listByWorkspaceId: (workspaceId: string) => Promise<readonly ConnectionRow[]> };
   loadCards?: LoadPluginCredentialCards;
-  apiConnections?: Pick<ApiConnectionHost, 'listConnections' | 'statusOf'>;
+  apiConnections?: AgentPluginApiConnectionStatusReads;
 }, _optional = {}): Promise<ReadonlyMap<string, AgentPluginConnectionStatus>> {
   const [rows, cards, connections] = await Promise.all([
     required.mcp.listByWorkspaceId(required.workspaceId), required.loadCards?.(required.workspaceId) ?? [],
@@ -61,8 +68,8 @@ function addMcpStatuses({ rows, states, projections }: {
 }
 
 async function addApiStatuses({ connections, host, states }: {
-  connections: Awaited<ReturnType<ApiConnectionHost['listConnections']>>;
-  host: Pick<ApiConnectionHost, 'statusOf'> | undefined; states: Map<string, AgentPluginConnectionStatus[]>;
+  connections: Awaited<ReturnType<AgentPluginApiConnectionStatusReads['listConnections']>>;
+  host: Pick<AgentPluginApiConnectionStatusReads, 'statusOf'> | undefined; states: Map<string, AgentPluginConnectionStatus[]>;
 }, _optional = {}): Promise<void> {
   if (!host) return;
   for (const connection of connections) {

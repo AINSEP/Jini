@@ -1,10 +1,17 @@
 /** Bind Jini's grant plan to the existing external-MCP rows and plugin enable card. */
 import { ToolInputError, redactSecrets, type AccessApprovalResource } from '@jini-ai/core';
-import { planAgentPluginToolGrant, type AgentPluginToolGrant, type AgentPluginDeclaredTools } from '@jini-ai/agent-plugins/lifecycle';
-import type { AgentPluginMcpRecord, AgentPluginMcpContext, AgentPluginMcpProjectionPorts, AgentPluginMcpProjections } from '../service-ports.js';
-import type { AgentPluginMcpPort } from '../service-ports.js';
-import { findAgentPluginMcpServerDefaults, planAgentPluginMcpFederation, type PlannedAgentPluginMcpUpsert } from './federate-mcp.js';
-import type { McpServerConfig } from '../mcp-metadata.js';
+import { planAgentPluginToolGrant, type AgentPluginToolGrant, type AgentPluginDeclaredTools } from '../lifecycle/enable-grants.js';
+import type { AgentPluginMcpRecord, AgentPluginMcpProjectionPorts, AgentPluginMcpProjections } from './ports.js';
+import type { AgentPluginMcpPort } from './ports.js';
+import { findAgentPluginMcpServerDefaults, planAgentPluginMcpFederation, type AgentPluginMcpTrustClassifier, type PlannedAgentPluginMcpUpsert } from './federate-mcp.js';
+import type { McpServerConfig } from '../lifecycle/manifest.js';
+
+/** @agent-note Product copy for the enable preview's refusals. Host input: the text names the host's own
+ * settings screen; it must not echo a token (the connection id and nothing secret are passed). */
+export interface AgentPluginEnableAccessMessages {
+  /** The row was configured separately or points somewhere else; its saved sign-in was kept. */
+  sourceConfiguredSeparately(required: { readonly connectionId: string }): string;
+}
 
 /** Translate persisted host columns to Jini's grant contract. O(n) in stored list bytes; no I/O. */
 export function storedAgentPluginGrants({ row, projections }: { row: Pick<AgentPluginMcpRecord, 'enabled' | 'allowedToolNames' | 'writeAllowedToolNames'> | null; projections: AgentPluginMcpProjections }, _options = {}): AgentPluginToolGrant {
@@ -34,18 +41,18 @@ export function validatedAgentPluginToolGrant(
 }
 
 /** Check the exact source identity, rather than inheriting grants from an id collision. O(1). */
-function assertPluginSource({ row, pluginId, source }: { row: AgentPluginMcpRecord | null; pluginId: string; source: PlannedAgentPluginMcpUpsert }): void {
+function assertPluginSource({ row, pluginId, source, messages }: { row: AgentPluginMcpRecord | null; pluginId: string; source: PlannedAgentPluginMcpUpsert; messages: AgentPluginEnableAccessMessages }): void {
   if (!row) return;
   const declaredSignIn = row.authMode === source.authMode || (source.acceptsAccessToken && row.authMode === 'static_env');
   const matchesOwner = row.provisionedByPluginId === null || row.provisionedByPluginId === pluginId;
   if (matchesOwner && row.url === source.url && row.transport === 'streamable_http' && declaredSignIn) return;
-  throw new ToolInputError({ message: `The '${source.connectionId}' connection was configured separately or points somewhere else. Open Settings → External MCP and review this connection’s address before connecting the plugin again. Its saved sign-in was kept.` });
+  throw new ToolInputError({ message: messages.sourceConfiguredSeparately({ connectionId: source.connectionId }) });
 }
 
 /** One indexed row lookup, with the same Jini grant decision used by the writer. O(a+w). */
-async function previewSource({ workspaceId, pluginId, source, servers, repo, ports }: { workspaceId: string; pluginId: string; source: PlannedAgentPluginMcpUpsert; servers: Readonly<Record<string, McpServerConfig>>; repo: AgentPluginMcpPort['repo']; ports: AgentPluginMcpProjectionPorts }) {
+async function previewSource({ workspaceId, pluginId, source, servers, repo, ports, messages }: { workspaceId: string; pluginId: string; source: PlannedAgentPluginMcpUpsert; servers: Readonly<Record<string, McpServerConfig>>; repo: AgentPluginMcpPort['repo']; ports: AgentPluginMcpProjectionPorts; messages: AgentPluginEnableAccessMessages }) {
   const row = await repo.findByServerId({ workspaceId, serverId: source.connectionId });
-  assertPluginSource({ row, pluginId, source });
+  assertPluginSource({ row, pluginId, source, messages });
   const current = storedAgentPluginGrants({ row, projections: ports.projections });
   const declared = findAgentPluginMcpServerDefaults(servers, { serverId: source.connectionId, url: source.url });
   const grant = declared ? validatedAgentPluginToolGrant({ current, declared }, { reason: 'owner-enable', ports }) : null;
@@ -62,16 +69,16 @@ async function previewSource({ workspaceId, pluginId, source, servers, repo, por
  * @complexity O(s*(a+w)) in declared servers and tool lists; s point reads, no network calls.
  */
 export async function previewAgentPluginEnableAccess(
-  { workspaceId, pluginId, servers, repo, ...context }: AgentPluginMcpProjectionPorts & { workspaceId: string; pluginId: string; servers: Readonly<Record<string, McpServerConfig>>; repo: AgentPluginMcpPort['repo'] },
+  { workspaceId, pluginId, servers, repo, classifyTrust, messages, ...context }: AgentPluginMcpProjectionPorts & { workspaceId: string; pluginId: string; servers: Readonly<Record<string, McpServerConfig>>; repo: AgentPluginMcpPort['repo']; classifyTrust: AgentPluginMcpTrustClassifier; messages: AgentPluginEnableAccessMessages },
   _options = {},
 ) {
   const ports: AgentPluginMcpProjectionPorts = { projections: context.projections, classifyError: context.classifyError };
-  const planned = planAgentPluginMcpFederation({ servers });
+  const planned = planAgentPluginMcpFederation({ servers }, { classifyTrust });
   if (planned.skipped.length) throw new ToolInputError({ message: `The plugin connection cannot be enabled here: ${planned.skipped.map(entry => `${entry.serverKey}: ${entry.reason}`).join('; ')}` });
   const snapshots = [];
   const resources: Omit<AccessApprovalResource, 'scope'>[] = [];
   for (const source of planned.toUpsert) {
-    const preview = await previewSource({ workspaceId, pluginId, source, servers, repo, ports });
+    const preview = await previewSource({ workspaceId, pluginId, source, servers, repo, ports, messages });
     snapshots.push(preview.snapshot);
     if (preview.resource) resources.push(preview.resource);
   }
