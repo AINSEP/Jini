@@ -8,14 +8,20 @@ import path from "node:path";
 
 import { PROVIDER_ID_PATTERN } from "@jini-ai/core/provider-registry";
 import type { MailAdapterModule, MailProviderSetup } from "@jini-ai/core/contracts/mail";
-import { parseMailProviderSetupProperty as parseLegacySetup } from './legacy-mail-setup.js';
 
-/** @agent-note Setup validation is supplied by the host runtime. */
+/**
+ * Validates a v2 descriptor's declared setup against its credential keys.
+ * @agent-note Setup validation is supplied by the host runtime (e.g. `@jini-ai/platform/mail`'s
+ * `parseMailProviderSetupProperty`); this package keeps no copy. Without one, every schemaVersion 2
+ * descriptor is refused with "this host supplies no mail setup validator"; schemaVersion 1 needs none.
+ */
 export type ParseMailSetup = (required: { value: unknown; at: string; credentialKeys: readonly string[] }) => { setup?: MailProviderSetup } | string;
 
 import { parseCredentialCardUsedFor } from "../credential-card-metadata.js";
 
 const MAX_LABEL_LENGTH = 100;
+/** The refusal for a schemaVersion 2 descriptor parsed without a host setup validator. */
+const NO_SETUP_VALIDATOR = "this host supplies no mail setup validator";
 
 export interface MailAdapterDescriptor {
   /** 1 or 2; v1 descriptors carry neither `credentialKeys` nor `feedback`. */
@@ -63,6 +69,7 @@ export function asMailAdapterModule<M extends object = MailAdapterModule>(requir
 /**
  * Parses a plugin's mail-adapters file. Pure. Unknown keys are ignored.
  *
+ * @param required.parseSetup - The host's setup validator; absent, a v2 descriptor is refused.
  * @param optional.defaultCredentialLabel - The label a v2 descriptor without one is saved under;
  *   host text. Absent, {@link defaultMailCredentialLabel}.
  *
@@ -80,10 +87,10 @@ export function parseMailAdaptersFile(
   }
   if (!isPlainObject(value) || (value.schemaVersion !== 1 && value.schemaVersion !== 2)) return { ok: false, reason: "schemaVersion must be 1 or 2" };
   if (!Array.isArray(value.adapters)) return { ok: false, reason: "adapters must be an array" };
-  return parseAdapterDescriptors({ parseSetup: required.parseSetup ?? parseLegacySetup, adapters: value.adapters, version: value.schemaVersion, defaultLabel: optional.defaultCredentialLabel ?? defaultMailCredentialLabel });
+  return parseAdapterDescriptors({ parseSetup: required.parseSetup, adapters: value.adapters, version: value.schemaVersion, defaultLabel: optional.defaultCredentialLabel ?? defaultMailCredentialLabel });
 }
 
-function parseAdapterDescriptors({ adapters, version, defaultLabel, parseSetup }: { adapters: unknown[]; version: number; defaultLabel: DefaultLabel; parseSetup: ParseMailSetup }, _options = {}): MailAdaptersParseResult {
+function parseAdapterDescriptors({ adapters, version, defaultLabel, parseSetup }: { adapters: unknown[]; version: number; defaultLabel: DefaultLabel; parseSetup: ParseMailSetup | undefined }, _options = {}): MailAdaptersParseResult {
   const descriptors: MailAdapterDescriptor[] = [];
   for (const [index, entry] of adapters.entries()) {
     const result = version === 1 ? parseDescriptor(entry, `adapters[${index}]`) : parseDescriptorV2({ entry, at: `adapters[${index}]`, defaultLabel, parseSetup });
@@ -114,7 +121,7 @@ export function defaultMailCredentialLabel({ label }: { label: string }, _option
 }
 
 /** One v2 entry, or why it is invalid; a bad optional card only adds a note. @complexity O(k + f) credential keys and setup fields. */
-function parseDescriptorV2({ entry, at, defaultLabel, parseSetup }: { entry: unknown; at: string; defaultLabel: DefaultLabel; parseSetup: ParseMailSetup }, _options: Record<string, never> = {}): MailAdapterDescriptor | string {
+function parseDescriptorV2({ entry, at, defaultLabel, parseSetup }: { entry: unknown; at: string; defaultLabel: DefaultLabel; parseSetup: ParseMailSetup | undefined }, _options: Record<string, never> = {}): MailAdapterDescriptor | string {
   if (!isPlainObject(entry)) return `${at} must be an object`;
   const { id, label, module, credentialLabel, credentialKeys, feedback, setup } = entry;
   if (typeof id !== "string" || !PROVIDER_ID_PATTERN.test(id)) return `${at}.id must match ${PROVIDER_ID_PATTERN.source}`;
@@ -177,7 +184,8 @@ function isHttpsUrl(value: unknown): value is string {
 }
 
 /** Parse optional setup without losing the card or its refusal note. @complexity O(f) setup fields. */
-function withSetup({ descriptor, setup, at, parseSetup }: { descriptor: MailAdapterDescriptor; setup: unknown; at: string; parseSetup: ParseMailSetup }, _options = {}): MailAdapterDescriptor | string {
+function withSetup({ descriptor, setup, at, parseSetup }: { descriptor: MailAdapterDescriptor; setup: unknown; at: string; parseSetup: ParseMailSetup | undefined }, _options = {}): MailAdapterDescriptor | string {
+  if (!parseSetup) return NO_SETUP_VALIDATOR;
   const declared = parseSetup({ value: setup, at, credentialKeys: descriptor.credentialKeys! });
   return typeof declared === "string" ? declared : { ...descriptor, ...declared };
 }
