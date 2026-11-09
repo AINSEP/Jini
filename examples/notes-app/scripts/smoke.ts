@@ -28,7 +28,7 @@ function start(): Promise<{ base: string; child: ChildProcess }> {
   });
 }
 
-function stop(child: ChildProcess): Promise<void> {
+function stop({ child }: { child: ChildProcess }, _optional: Record<string, never> = {}): Promise<void> {
   return new Promise((resolve) => {
     if (child.exitCode !== null) return resolve();
     child.once('exit', () => resolve());
@@ -36,44 +36,44 @@ function stop(child: ChildProcess): Promise<void> {
   });
 }
 
-function check(condition: unknown, message: string): void {
+function check({ condition, message }: { condition: unknown; message: string }, _optional: Record<string, never> = {}): void {
   if (!condition) throw new Error(message);
   console.log(`ok - ${message}`);
 }
 
-const post = (base: string, path: string, fields: Record<string, string>) =>
+const post = ({ base, path, fields }: { base: string; path: string; fields: Record<string, string> }, _optional: Record<string, never> = {}) =>
   fetch(base + path, { method: 'POST', body: new URLSearchParams(fields), redirect: 'manual' });
 
 try {
   const first = await start();
-  const created = await post(first.base, '/notes', { title: 'First note', slug: 'first', body: 'hello' });
-  check(created.status === 303, `create note -> 303 (got ${created.status})`);
-  const edited = await post(first.base, '/notes/first/edit', { title: 'First note (edited)', body: 'hello, edited', version: '1' });
-  check(edited.status === 303, `edit note -> 303 (got ${edited.status})`);
-  const published = await post(first.base, '/notes/first/publish', {});
-  check(published.status === 303, `publish note -> 303 (got ${published.status})`);
+  const created = await post({ base: first.base, path: '/notes', fields: { title: 'First note', slug: 'first', body: 'hello' } });
+  check({ condition: created.status === 303, message: `create note -> 303 (got ${created.status})` });
+  const edited = await post({ base: first.base, path: '/notes/first/edit', fields: { title: 'First note (edited)', body: 'hello, edited', version: '1' } });
+  check({ condition: edited.status === 303, message: `edit note -> 303 (got ${edited.status})` });
+  const published = await post({ base: first.base, path: '/notes/first/publish', fields: {} });
+  check({ condition: published.status === 303, message: `publish note -> 303 (got ${published.status})` });
   const page = await (await fetch(`${first.base}/notes/first`)).text();
-  check(page.includes('data-form="contact"') && page.includes('action="/forms/contact?note=first"'), 'detail page renders the contact form');
-  const sent = await post(first.base, '/forms/contact?note=first', { name: 'Ada', email: 'ada@example.com', message: 'Nice note' });
-  check(sent.status === 303 && sent.headers.get('location') === '/notes/first?sent=1', `submit contact form -> 303 (got ${sent.status})`);
-  check((await fetch(`${first.base}/nope`)).status === 404, 'unknown path -> 404');
-  check((await fetch(`${first.base}/notes`)).status === 405, 'wrong method -> 405');
-  await stop(first.child);
+  check({ condition: page.includes('data-form="contact"') && page.includes('action="/forms/contact?note=first"'), message: 'detail page renders the contact form' });
+  const sent = await post({ base: first.base, path: '/forms/contact?note=first', fields: { name: 'Ada', email: 'ada@example.com', message: 'Nice note' } });
+  check({ condition: sent.status === 303 && sent.headers.get('location') === '/notes/first?sent=1', message: `submit contact form -> 303 (got ${sent.status})` });
+  check({ condition: (await fetch(`${first.base}/nope`)).status === 404, message: 'unknown path -> 404' });
+  check({ condition: (await fetch(`${first.base}/notes`)).status === 405, message: 'wrong method -> 405' });
+  await stop({ child: first.child });
 
   const second = await start();
   const { notes } = await (await fetch(`${second.base}/api/notes`)).json() as { notes: Array<{ slug: string; title: string; body: string; status: string }> };
   const note = notes.find((n) => n.slug === 'first');
-  check(note?.title === 'First note (edited)' && note.body === 'hello, edited', 'after restart: note keeps its edit');
-  check(note?.status === 'published', 'after restart: note is published');
+  check({ condition: note?.title === 'First note (edited)' && note.body === 'hello, edited', message: 'after restart: note keeps its edit' });
+  check({ condition: note?.status === 'published', message: 'after restart: note is published' });
   const { submissions } = await (await fetch(`${second.base}/api/forms/contact/submissions`)).json() as { submissions: Array<{ data: Record<string, unknown> }> };
-  check(submissions.length === 1 && submissions[0]?.data.message === 'Nice note', 'after restart: contact submission is listed');
-  check((await (await fetch(`${second.base}/`)).text()).includes('First note (edited)'), 'after restart: list page shows the note');
-  await stop(second.child);
+  check({ condition: submissions.length === 1 && submissions[0]?.data.message === 'Nice note', message: 'after restart: contact submission is listed' });
+  check({ condition: (await (await fetch(`${second.base}/`)).text()).includes('First note (edited)'), message: 'after restart: list page shows the note' });
+  await stop({ child: second.child });
   console.log('PASS');
 } catch (error) {
   console.log(`FAIL: ${error instanceof Error ? error.message : String(error)}`);
   process.exitCode = 1;
 } finally {
-  await Promise.all(children.map(stop));
+  await Promise.all(children.map((child) => stop({ child })));
   rmSync(dir, { recursive: true, force: true });
 }

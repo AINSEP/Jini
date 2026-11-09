@@ -10,24 +10,24 @@
 import { entryVersionConflictError, type EntryListPort, type EntryRecord, type EntryRepoPort } from '@jini-ai/cms/entries';
 import { NOTES_TABLE, type AppKernel } from './db.ts';
 
-function parse(row: { record_json: string } | undefined): EntryRecord | null {
+function parse({ row }: { row: { record_json: string } | undefined }, _optional: Record<string, never> = {}): EntryRecord | null {
   return row ? (JSON.parse(row.record_json) as EntryRecord) : null;
 }
 
 export function createSqlEntryRepo({ kernel }: { kernel: AppKernel }, _optional: Record<string, never> = {}): EntryRepoPort & EntryListPort {
-  const findById: EntryRepoPort['findById'] = async ({ workspaceId, id }) => parse(await kernel.run((db) =>
-    db.selectFrom(NOTES_TABLE).select('record_json').where('id', '=', id).where('workspace_id', '=', workspaceId).executeTakeFirst()));
+  const findById: EntryRepoPort['findById'] = async ({ workspaceId, id }) => parse({ row: await kernel.run((db) =>
+    db.selectFrom(NOTES_TABLE).select('record_json').where('id', '=', id).where('workspace_id', '=', workspaceId).executeTakeFirst()) });
 
   return {
     findById,
     async findBySlug({ workspaceId, type, slug }) {
-      return parse(await kernel.run((db) => db.selectFrom(NOTES_TABLE).select('record_json')
-        .where('workspace_id', '=', workspaceId).where('type', '=', type).where('slug', '=', slug).executeTakeFirst()));
+      return parse({ row: await kernel.run((db) => db.selectFrom(NOTES_TABLE).select('record_json')
+        .where('workspace_id', '=', workspaceId).where('type', '=', type).where('slug', '=', slug).executeTakeFirst()) });
     },
     async save(row, options = {}) {
       if (options.expectedVersion !== undefined) {
         const stored = await kernel.run((db) => db.selectFrom(NOTES_TABLE).select(['record_json', 'workspace_id']).where('id', '=', row.id).executeTakeFirst());
-        const found = stored && (options.expectedVersion === null || stored.workspace_id === row.workspaceId) ? (parse(stored)?.version ?? null) : null;
+        const found = stored && (options.expectedVersion === null || stored.workspace_id === row.workspaceId) ? (parse({ row: stored })?.version ?? null) : null;
         if (found !== options.expectedVersion) throw entryVersionConflictError({ id: row.id, expectedVersion: options.expectedVersion, found });
       }
       const values = {
@@ -52,7 +52,7 @@ export function createSqlEntryRepo({ kernel }: { kernel: AppKernel }, _optional:
         if (optional.limit !== undefined) query = query.limit(optional.limit);
         return query.execute();
       });
-      return rows.map((row) => parse(row)).filter((entry): entry is EntryRecord => entry !== null);
+      return rows.map((row) => parse({ row })).filter((entry): entry is EntryRecord => entry !== null);
     },
   };
 }
