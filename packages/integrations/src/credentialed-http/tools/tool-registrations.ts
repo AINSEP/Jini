@@ -596,7 +596,8 @@ async function openCreateCard(required: {
     result: ({ run }) => {
       if (run.status === 'saved') {
         // The summary's token hint is for the human outcome only; strip it before returning to the model.
-        const { tokenHint: _humanHint, ...credential } = run.saved;
+        const credential = { ...run.saved };
+        delete credential.tokenHint;
         return { created: true, credential };
       }
       if (run.status === 'blank') return { created: false, reason: 'invalid', message: operations.locale.text({ id: 'blank', locale }) };

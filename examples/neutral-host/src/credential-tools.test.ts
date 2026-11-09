@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { createApprovalHandler, indexCatalogById, type AgentToolDefinition, type ToolExecutionContext } from '@jini-ai/core';
+import { createApprovalHandler, indexCatalogById, type AgentToolDefinition, type ToolExecutionContext, type LegacyToolAuthorizeFn } from '@jini-ai/core';
 import type { SecretCardForm, SurfaceCardFormSpec } from '@jini-ai/core/contracts/cards';
 import type { CredentialSetSummary, CredentialedRequestPort, SourceControlWritePort } from '@jini-ai/core/contracts/credentials';
 import { askThenReport, createSurfaceExchangeStore } from '@jini-ai/daemon/surface-exchanges';
@@ -18,7 +18,7 @@ function wire() {
   const events: string[] = [];
   let next = 0;
   const exchanges = createSurfaceExchangeStore({ clock: { nowMs: () => 0 }, idGenerator: { newId: () => `book-x-${++next}` }, defaultChannel: 'mcp-ui', scheduler: { schedule: () => () => undefined } });
-  const authorize = async ({ permission, entityType }: { permission: string; entityType?: string }) => { events.push(`${permission}:${entityType ?? ''}`); return { allowed: true, reason: 'library grant' }; };
+  const authorize: LegacyToolAuthorizeFn = async ({ permission, entityType }) => { events.push(`${permission}:${entityType ?? ''}`); return { allowed: true, reason: 'library grant' }; };
   const catalog: AgentToolDefinition[] = [ids.list, ids.verify, ids.setUsername, ids.makeRequest, ids.writeFiles].map(name => ({ name, description: `Library ${name}`, inputSchema: { type: 'object' }, sideEffects: name === ids.list || name === ids.verify ? 'none' : 'mutates-durable-state', authorization: { permission: 'library.change' } }));
   const host: CustomCredentialToolHost = { vocabulary: { domain: 'library-vault', entityType: 'book-secret', catalogModule: 'library/catalog.ts', permissions: { read: 'library.inspect', write: 'library.change' }, catalog: indexCatalogById({ catalog }), metadata: {} },
     cardIdentity: { uriNamespace: 'library', appNames: { create: { appName: 'library-create', appVersion: '3' }, createOutcome: { appName: 'library-created', appVersion: '3' }, setToken: { appName: 'library-rotate', appVersion: '3' }, setTokenOutcome: { appName: 'library-rotated', appVersion: '3' } } } };
