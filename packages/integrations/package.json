@@ -21,7 +21,8 @@
       "./api-connections": "node",
       "./api-connections/hosted-mcp": "node",
       "./media-providers/node": "node",
-      "./saved-requests": "node"
+      "./saved-requests": "node",
+      "./credentialed-http/tools": "node"
     },
     "optionalPeers": {
       "@jini-ai/db": "opt-in: database-backed adapters — Database-backed adapters could not load @jini-ai/db. Install @jini-ai/db to enable this feature, or check its installed version and native binaries.",
@@ -78,6 +79,11 @@
       "types": "./dist/saved-requests/index.d.ts",
       "import": "./dist/saved-requests/index.js",
       "default": "./dist/saved-requests/index.js"
+    },
+    "./credentialed-http/tools": {
+      "types": "./dist/credentialed-http/tools/index.d.ts",
+      "import": "./dist/credentialed-http/tools/index.js",
+      "default": "./dist/credentialed-http/tools/index.js"
     }
   },
   "typesVersions": {
@@ -105,6 +111,9 @@
       ],
       "saved-requests": [
         "./dist/saved-requests/index.d.ts"
+      ],
+      "credentialed-http/tools": [
+        "./dist/credentialed-http/tools/index.d.ts"
       ]
     }
   },
