@@ -5,7 +5,7 @@
  * field limit is checked once here so the flow code can trust the shape. Endpoint safety (scheme,
  * private hosts, DNS) is still enforced at use by the injected OAuth URL guard.
  */
-import { isCallbackFieldName, MAX_CALLBACK_FIELD_LENGTH, MAX_CALLBACK_FIELDS } from '@jini-ai/oauth';
+import { isCallbackFieldName, MAX_CALLBACK_FIELD_LENGTH, MAX_CALLBACK_FIELDS } from '@jini-ai/core/oauth-callback-fields';
 import { ApiConnectionError } from './errors.js';
 import type { ApiConnectionBoundedField, ApiConnectionDescriptor } from './types.js';
 

@@ -21,6 +21,7 @@
       "./provider-registry": "universal",
       "./object-store": "universal",
       "./naming": "universal",
+      "./oauth-callback-fields": "universal",
       "./records": "universal",
       "./primitives": "universal",
       "./fetch": "universal",
@@ -129,6 +130,11 @@
       "types": "./dist/naming.d.ts",
       "import": "./dist/naming.js",
       "default": "./dist/naming.js"
+    },
+    "./oauth-callback-fields": {
+      "types": "./dist/oauth-callback-fields.d.ts",
+      "import": "./dist/oauth-callback-fields.js",
+      "default": "./dist/oauth-callback-fields.js"
     },
     "./records": {
       "types": "./dist/records.d.ts",

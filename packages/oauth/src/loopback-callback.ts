@@ -9,12 +9,9 @@ import { MAX_CODE_LENGTH, toCallbackError } from './authorization-code.js';
 import { invalidState, secureEquals } from './pending-authorizations.js';
 import { MAX_AUTHORIZATION_STATE_LENGTH } from './sealed-state.js';
 
-// `completeAuthorizationCode`'s code bound (MAX_CODE_LENGTH), applied here so an oversized code fails at the edge.
-export const MAX_CALLBACK_FIELD_LENGTH = 4096;
-export const MAX_CALLBACK_FIELDS = 16;
-const CALLBACK_FIELD_NAME = /^[A-Za-z][A-Za-z0-9_.-]{0,63}$/;
-// Protocol parameters the receiver interprets itself; a plugin may not re-declare them as data.
-const RESERVED_CALLBACK_PARAMS: ReadonlySet<string> = new Set(['code', 'state', 'error', 'error_description', 'error_uri', 'iss']);
+import { isCallbackFieldName, MAX_CALLBACK_FIELD_LENGTH, MAX_CALLBACK_FIELDS } from '@jini-ai/core/oauth-callback-fields';
+/** Moved to `@jini-ai/core/oauth-callback-fields` (one source of truth); re-exported unchanged. */
+export { isCallbackFieldName, MAX_CALLBACK_FIELD_LENGTH, MAX_CALLBACK_FIELDS };
 
 export interface LoopbackAuthorizationResult {
     readonly code: string;
@@ -38,15 +35,6 @@ function invalidRequest(message: string): OAuthError {
 
 function invalidConfiguration(message: string): OAuthError {
     return new OAuthError({ code: 'OAUTH_INVALID_REQUEST', message, operatorAction: "Fix the connection's declared callback fields." });
-}
-
-/**
- * The name rule for a provider callback field a plugin may declare: a short identifier that is not
- * a protocol parameter the receiver reads itself. API-connection descriptors apply this same check
- * (and admin-surface declarations copy it), so a declaration valid on hosted is valid on desktop.
- */
-export function isCallbackFieldName(name: string): boolean {
-    return CALLBACK_FIELD_NAME.test(name) && !RESERVED_CALLBACK_PARAMS.has(name);
 }
 
 /** Rejects a callback field list a plugin declared wrongly, before any port is opened. */
