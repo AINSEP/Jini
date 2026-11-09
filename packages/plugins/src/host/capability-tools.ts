@@ -44,7 +44,7 @@ import { capabilityToolIdFor } from "./plugin-claims.js";
  * ---------------------------------------------------------------------------
  * Tool id: `plugin_capability_<pluginId>` (hyphens folded to underscores, matching
  * `agent_plugin_<pluginId>`'s own scheme) — deliberately NOT `plugins_*` (already
- * `plugins_list`/`plugins_set_enabled`, the MANAGEMENT tools this is not) and NOT `plugin_*` bare
+ * the host's plugin-management tools, which this is not) and NOT `plugin_*` bare
  * (would read as belonging to the Agent Plugins family). Checked against every existing catalog's
  * ids (`grep -rn 'name: "[a-z_]*"' src/**\/agent-tools.ts src/**\/*tool-registrations.ts`) before
  * choosing it — no collision today. `@jini-ai/core`'s `createToolRegistry().register()` throws on a
@@ -101,8 +101,8 @@ import { capabilityToolIdFor } from "./plugin-claims.js";
  * parsed instead of as JSON inside JSON.
  *
  * Architectural role:
- * `features/plugin-runtime` domain declaration, alongside (not replacing) `agent-tools.ts`/
- * `tool-registrations.ts`'s static `plugins_list`/`plugins_set_enabled` pair — this file's tool ids
+ * The host's plugin-runtime domain declaration, alongside (not replacing) the host's static
+ * management tool registrations — this file's tool ids
  * are dynamic (learned only by awaiting `discoverPlugins()` + `pluginActivationRepo`), the same
  * reason `agent-plugins/tool-registrations.ts` is not a synchronous `ToolContributor` either. Called
  * once from `agent-daemon-server.ts`'s `start()`, immediately before `buildToolCatalogQuery` snapshots
