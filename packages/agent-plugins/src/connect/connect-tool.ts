@@ -94,7 +94,7 @@ function isOAuthServer(config: McpServerConfig): config is RemoteMcpServerConfig
  *   always use `authorization_code` (`federate-mcp.ts`), so this is a fail-loud guard.
  */
 async function beginSignIn(
-  { oauth, serverId, derivedPublicOrigin, host }: { oauth: AgentPluginConnectSignInPort; serverId: string; derivedPublicOrigin?: string; host: AgentPluginConnectHost<unknown> },
+  { oauth, serverId, derivedPublicOrigin, host }: { oauth: AgentPluginConnectSignInPort; serverId: string; derivedPublicOrigin?: string | undefined; host: AgentPluginConnectHost<unknown> },
   _options = {},
 ): Promise<string> {
   let start;
@@ -132,7 +132,7 @@ function sleepOrAbort(ms: number, signal: AbortSignal): Promise<void> {
  * refusal that opened NO card (chat then offers the key-card fallback); every other fault returns false
  * and propagates unchanged. Matching never makes a message safe: this tool redacts before model text. */
 export interface AgentPluginConnectSignInPort {
-  beginConnect(input: { serverId: string; redirectUri?: string; delivery?: "hosted" }, options?: Record<string, never>): Promise<ExternalMcpConnectStart>;
+  beginConnect(input: { serverId: string; redirectUri?: string | undefined; delivery?: "hosted" }, options?: Record<string, never>): Promise<ExternalMcpConnectStart>;
   isSignInRefusal(required: { error: unknown }, optional?: Record<string, never>): boolean;
 }
 
@@ -216,7 +216,7 @@ export interface AgentPluginConnectHost<Surfaces> {
   readonly messages: AgentPluginConnectMessages;
   /** @agent-note Your public OAuth callback URL for `serverId`, or undefined when your host has no public
    * origin (then `beginConnect` decides). Operator configuration precedence is yours to keep. */
-  readonly publicUrl: { redirectUri(required: { serverId: string; derivedPublicOrigin?: string }): string | undefined };
+  readonly publicUrl: { redirectUri(required: { serverId: string; derivedPublicOrigin?: string | undefined }): string | undefined };
   /** @agent-note Your lifecycle trust rule and federation/enable-access refusal copy (same objects your
    * provisioning and enable-access previews use, so plans and fingerprints agree). */
   readonly federation: { readonly classifyTrust: AgentPluginMcpTrustClassifier; readonly messages: AgentPluginEnableAccessMessages };
@@ -225,7 +225,7 @@ export interface AgentPluginConnectHost<Surfaces> {
   /** @agent-note Your sign-in card waiter (typically `waitAtAgentPluginSignInCardWithPorts` bound to your cards,
    * card identity and SAME process exchange store). Skip resolves with your skipped result. */
   waitAtSignInCard(required: {
-    surfaces: Surfaces; ctx: ToolExecutionContext; pluginId: string; pluginDisplayName: string; credentialCard?: PluginCredentialCard;
+    surfaces: Surfaces; ctx: ToolExecutionContext; pluginId: string; pluginDisplayName: string; credentialCard?: PluginCredentialCard | undefined;
     connect: (input: { signal: AbortSignal; showSignIn: (input: { signInUrl: string }) => Promise<void> }) => Promise<AgentPluginConnectResult>;
   }, optional: ToolExecutionOptions): Promise<AgentPluginConnectResult>;
   /** @agent-note Your destination card (typically `chooseApiConnectionDestinationWithPorts`); null = cancelled. */
@@ -246,7 +246,7 @@ export interface AgentPluginConnectDeps<Surfaces, Connection> {
   readonly authorize: AuthorizeFn;
   readonly mcp: AgentPluginMcpProjectionPorts & Pick<AgentPluginMcpPort, "repo" | "saveServer" | "applyAccess"> & Partial<Pick<AgentPluginMcpPort, "notifyRosterChanged">>;
   readonly externalMcpOAuth?: AgentPluginConnectSignInPort;
-  readonly derivedPublicOrigin?: string;
+  readonly derivedPublicOrigin?: string | undefined;
   /** Injectable for tests; a real composition root omits both and gets the production cadence. */
   readonly pollIntervalMs?: number;
   readonly waitTimeoutMs?: number;
@@ -578,7 +578,7 @@ async function waitAtMcpSignInCard(
     readonly pluginId: string;
     readonly server: PendingOAuthServer;
     readonly externalMcpOAuth: AgentPluginConnectSignInPort;
-    readonly credentialCard?: PluginCredentialCard;
+    readonly credentialCard?: PluginCredentialCard | undefined;
   },
   optional: ToolExecutionOptions = {},
 ): Promise<AgentPluginConnectResult> {

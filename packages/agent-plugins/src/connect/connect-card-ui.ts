@@ -13,7 +13,7 @@ export type AgentPluginCardBuilders<Resource> = Omit<AgentPluginCardsPort<Resour
  * @agent-note Second host: `apply` overlays the plugin's declared card (title/intro/key hint) onto the
  * form and returns YOUR form type; it must keep the single masked `token` field and never prefill it. */
 export interface AgentPluginCredentialCardForms<Form> {
-  apply(input: { card?: PluginCredentialCard; form: SecretCardForm }, options?: Record<string, never>): Form;
+  apply(input: { card?: PluginCredentialCard | undefined; form: SecretCardForm }, options?: Record<string, never>): Form;
 }
 
 /** Card identity the host owns.
@@ -70,7 +70,7 @@ function agentPluginConnectSurfaceUri({ pluginId, uriNamespace }: { pluginId: st
 /** @agent-note Safe card state from your connection owner; credentialCard is declaration copy,
  * never credential values. Waiting/connected/skipped updates reuse the host's stable card identity. */
 export type AgentPluginConnectCardSpec =
-  | { readonly pluginId: string; readonly pluginDisplayName: string; readonly state: "waiting"; readonly signInUrl: string; readonly exchangeId?: string; readonly credentialCard?: PluginCredentialCard }
+  | { readonly pluginId: string; readonly pluginDisplayName: string; readonly state: "waiting"; readonly signInUrl: string; readonly exchangeId?: string; readonly credentialCard?: PluginCredentialCard | undefined }
   | { readonly pluginId: string; readonly pluginDisplayName: string; readonly state: "connected" }
   | { readonly pluginId: string; readonly pluginDisplayName: string; readonly state: "skipped" };
 
@@ -115,7 +115,7 @@ export function buildAgentPluginAccessTokenFormWithPorts<Form>(required: { reado
   readonly credentials: AgentPluginCredentialCardForms<Form>;
   readonly pluginDisplayName: string;
   readonly helpUrl: string;
-  readonly credentialCard?: PluginCredentialCard;
+  readonly credentialCard?: PluginCredentialCard | undefined;
 } }, _optional: Record<string, never> = {}): Form {
   const { spec } = required;
   const { pluginDisplayName, helpUrl } = spec;

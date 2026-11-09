@@ -14,7 +14,7 @@ import type { AgentPluginCardsPort, AgentPluginConnectCardSpec } from './connect
 export async function waitAtAgentPluginSignInCardWithPorts<Resource, Result extends { status: string }>(required: {
   surfaceExchanges: SurfaceCardSecretDeps['surfaceExchanges']; cards: AgentPluginCardsPort<Resource>;
   buildCard: (spec: AgentPluginConnectCardSpec) => Resource; toolId: string; missingEmitterMessage: string; skippedResult: () => Result; ctx: ToolExecutionContext; pluginId: string; pluginDisplayName: string;
-  credentialCard?: PluginCredentialCard;
+  credentialCard?: PluginCredentialCard | undefined;
   connect: (input: { signal: AbortSignal; showSignIn: (input: { signInUrl: string }) => Promise<void> }) => Promise<Result>;
 }, optional: ToolExecutionOptions = {}): Promise<Result> {
   const { cards, ctx, pluginId, pluginDisplayName, credentialCard, connect } = required;

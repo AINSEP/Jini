@@ -147,7 +147,7 @@ export async function importAgentPluginAccessTokensFromEnv(
   options: {
     /** Plugins with a create-site onboarding token still pending: that explicit token wins over the
      *  env one, so the env token is not copied onto them (`bootstrap.ts`). */
-    readonly skipPluginIds?: ReadonlySet<string>;
+    readonly skipPluginIds?: ReadonlySet<string> | undefined;
   } = {},
 ): Promise<void> {
   const { deps, env, log } = required;
@@ -178,7 +178,7 @@ function reportRetiredEnv(input: Pick<EnvDeclaration, "pluginId" | "auth"> & { r
 }
 
 /** Isolate one import's failure so later declarations still run. */
-async function importDeclaredEnvToken(input: EnvDeclaration & { readonly deps: ImportAgentPluginAccessTokensFromEnvDeps; readonly token: string; readonly log: TokenImportLog; readonly skipPluginIds?: ReadonlySet<string> }, _options = {}): Promise<void> {
+async function importDeclaredEnvToken(input: EnvDeclaration & { readonly deps: ImportAgentPluginAccessTokensFromEnvDeps; readonly token: string; readonly log: TokenImportLog; readonly skipPluginIds?: ReadonlySet<string> | undefined }, _options = {}): Promise<void> {
   const { deps, pluginId, url, auth, token, log, skipPluginIds } = input;
   if (!auth.importFromEnv || token === "" || skipPluginIds?.has(pluginId)) return;
   try {

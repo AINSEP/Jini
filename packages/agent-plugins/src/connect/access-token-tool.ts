@@ -71,7 +71,7 @@ export interface AgentPluginTokenValidator {
  * @agent-note Second host: `apply` returns the form it was given with the card's copy applied (no
  * value fields); `probe` is one bounded GET that never returns a body; `find` reads safe card copy. */
 export interface AgentPluginTokenCredentialsPort {
-  apply(input: { card?: PluginCredentialCard; form: SurfaceCardSecretForm }, options?: Record<string, never>): SurfaceCardSecretForm;
+  apply(input: { card?: PluginCredentialCard | undefined; form: SurfaceCardSecretForm }, options?: Record<string, never>): SurfaceCardSecretForm;
   find(input: { workspaceId: string; saveKind: PluginCredentialCard["saveKind"]; target: string }, options?: Record<string, never>): Promise<PluginCredentialCard | undefined>;
   probe(input: { probeUrl: string; token: string }, options?: Record<string, never>): Promise<"ok" | "refused" | "unavailable">;
 }
@@ -268,7 +268,7 @@ function describeSaveError({ err, mcp, messages }: { err: unknown; mcp: Pick<Age
 async function saveSubmittedAccessToken(
   { values, routeDeps, target, principalId, locale, signal, credentialCard }: {
     values: Readonly<Record<string, unknown>>; routeDeps: AgentPluginAccessTokenToolDeps;
-    target: TokenAuthTarget; principalId: string; locale: string; signal: AbortSignal; credentialCard?: PluginCredentialCard;
+    target: TokenAuthTarget; principalId: string; locale: string; signal: AbortSignal; credentialCard?: PluginCredentialCard | undefined;
   }, _optional = {},
 ): Promise<SetAccessTokenResult> {
   const submitted = values.token;
@@ -320,7 +320,7 @@ export async function saveAgentPluginToken(
   const input = requireInputRecord({ input: ctx.input });
   const { host, messages } = routeDeps;
   const tokenApps = resolveAgentPluginCardIdentity({ cardIdentity: host.cardIdentity, toolId: host.toolId }).token;
-  const card = host.cards.defineSecretCardTool<{ target: TokenAuthTarget; principalId: string; locale: string; credentialCard?: PluginCredentialCard }, SetAccessTokenResult, SetAccessTokenResult>({
+  const card = host.cards.defineSecretCardTool<{ target: TokenAuthTarget; principalId: string; locale: string; credentialCard?: PluginCredentialCard | undefined }, SetAccessTokenResult, SetAccessTokenResult>({
     toolId: host.toolId,
     prepare: async ({ ctx }) => {
       if (Object.keys(input).some((key) => key !== "pluginId")) {
