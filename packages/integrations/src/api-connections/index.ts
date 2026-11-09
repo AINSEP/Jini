@@ -8,6 +8,7 @@ export { deriveApiConnectionKey, createApiConnectionGenerationReader } from './k
 export { waitForHostedSignIn, createSignInHandoffs, type SignInHandoffs } from './hosted-sign-in.js';
 export { ApiConnectionError, type ApiConnectionErrorCode } from './errors.js';
 export type { ApiConnectionClientKind, ApiConnectionServiceDeps } from './deps.js';
+export type { ApiConnectionOAuthCapabilities, ApiConnectionOAuthError, ApiConnectionPendingCache } from './oauth-capabilities.js';
 export type { ApiConnectionHooks, ApiConnectionRecordStore, ApiConnectionTokenStore } from './ports.js';
 export type { StartApiConnectionResult } from './authorization.js';
 export type { CompletedAuthorization } from './finish-authorization.js';

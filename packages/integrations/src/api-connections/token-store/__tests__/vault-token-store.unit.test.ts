@@ -1,6 +1,7 @@
 /** @file Unit tests for the vault token store's failure paths: what each vault conflict or
  * outage becomes (a typed refusal, a retry, a lapsed lease), and that a lease is only ever
  * released by the store that holds it. A switchable vault port wraps the real in-memory vault. */
+import { realVaultConflict } from '../../__tests__/fixtures/real-capabilities.js';
 import { describe, expect, it } from "vitest";
 import { VaultError, type SecretsVaultService } from "@jini-ai/platform/secrets/credential-sets";
 import { OAuthTokenStoreError, type OAuthTokenStoreErrorCode } from "../errors.js";
@@ -27,7 +28,7 @@ function switchableVault(vault: SecretsVaultService) {
 }
 
 function storeOver(f: ReturnType<typeof createFixture>, vault: OAuthTokenVaultPort) {
-  return createVaultOAuthTokenStore({ vault, vaultScope: SCOPE, owner: OWNER, clock: f.clock, readGeneration: async () => f.state.generation });
+  return createVaultOAuthTokenStore({ isVaultConflict: realVaultConflict, vault, vaultScope: SCOPE, owner: OWNER, clock: f.clock, readGeneration: async () => f.state.generation });
 }
 
 async function caught(promise: Promise<unknown>): Promise<unknown> {

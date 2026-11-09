@@ -5,7 +5,8 @@
  * typed object instead of re-declaring eleven ports.
  */
 import type { Clock } from '@jini-ai/core/primitives';
-import type { OAuthAppOptions, OAuthClient, OAuthFetch, OAuthRandomBytes, OAuthSleep, OAuthUrlGuard } from '@jini-ai/oauth';
+import type { OAuthAppOptions, OAuthClient, OAuthFetch, OAuthRandomBytes, OAuthSleep, OAuthUrlGuard } from '@jini-ai/core/contracts/oauth';
+import type { ApiConnectionOAuthCapabilities } from './oauth-capabilities.js';
 import { ApiConnectionError } from './errors.js';
 import type { ApiConnectionHooks, ApiConnectionRecordStore, ApiConnectionTokenStore } from './ports.js';
 import type { ApiConnectionDescriptor } from './types.js';
@@ -33,6 +34,8 @@ export interface ApiConnectionServiceDeps {
   readonly clock: Clock;
   readonly randomBytesFn: OAuthRandomBytes;
   readonly sleep: OAuthSleep;
+  /** @agent-note Required; the host's ONE `ApiConnectionOAuthCapabilities` object (real `@jini-ai/oauth` exports), the same instance for every service it creates. */
+  readonly oauth: ApiConnectionOAuthCapabilities;
 }
 
 export type ApiConnectionClientKind = 'public' | 'confidential';

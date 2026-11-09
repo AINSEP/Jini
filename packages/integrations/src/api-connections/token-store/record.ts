@@ -2,8 +2,8 @@
  * Exists so every read is checked the same way before a token leaves the store: the OAuth
  * discriminator, the expected connection owner and the token shape. Secrets live only in the
  * sealed payload; the plaintext metadata holds the discriminator, status and lease fields. */
-import type { OAuthTokenSet } from "@jini-ai/oauth";
-import type { VaultMeta } from "@jini-ai/platform/secrets/credential-sets";
+import type { OAuthTokenSet } from "@jini-ai/core/contracts/oauth";
+import type { VaultMeta } from "@jini-ai/core/contracts/vault";
 import { OAuthTokenStoreError } from "./errors.js";
 
 /** Marks a vault row (metadata and sealed payload) as an OAuth token record. */

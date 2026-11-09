@@ -1,3 +1,4 @@
+import { realOAuthCapabilities } from './fixtures/real-capabilities.js';
 import { randomBytes } from 'node:crypto';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createSignInHandoffs, waitForHostedSignIn } from '../hosted-sign-in.js';
@@ -91,7 +92,7 @@ describe('createSignInHandoffs', () => {
   const entropy = ({ byteLength }: { byteLength: number }) => randomBytes(byteLength);
 
   it('burns an id before checking its actor and refuses replays', () => {
-    const handoffs = createSignInHandoffs({ clock: { nowMs: () => Date.parse('2030-01-01T00:00:00.000Z') }, randomBytesFn: entropy });
+    const handoffs = createSignInHandoffs({ oauth: realOAuthCapabilities, clock: { nowMs: () => Date.parse('2030-01-01T00:00:00.000Z') }, randomBytesFn: entropy });
     const id = handoffs.issue(draft);
     expect(id).toMatch(/^[A-Za-z0-9_-]{43}$/);
     expect(handoffs.take({ handoffId: id, actorId: 'other' })).toBeNull();
@@ -104,8 +105,8 @@ describe('createSignInHandoffs', () => {
   it('expires at the exact deadline and keeps host instances independent', () => {
     let now = Date.parse(draft.expiresAt) - 1;
     const required = { clock: { nowMs: () => now }, randomBytesFn: entropy };
-    const first = createSignInHandoffs(required);
-    const second = createSignInHandoffs(required);
+    const first = createSignInHandoffs({ ...required, oauth: realOAuthCapabilities });
+    const second = createSignInHandoffs({ ...required, oauth: realOAuthCapabilities });
     const live = first.issue(draft);
     expect(second.take({ handoffId: live, actorId: draft.actorId })).toBeNull();
     expect(first.take({ handoffId: live, actorId: draft.actorId })).toEqual(draft);
@@ -115,7 +116,7 @@ describe('createSignInHandoffs', () => {
   });
 
   it('evicts the oldest at capacity while retaining the newest', () => {
-    const handoffs = createSignInHandoffs({ clock: { nowMs: () => Date.parse('2030-01-01T00:00:00.000Z') }, randomBytesFn: entropy });
+    const handoffs = createSignInHandoffs({ oauth: realOAuthCapabilities, clock: { nowMs: () => Date.parse('2030-01-01T00:00:00.000Z') }, randomBytesFn: entropy });
     const first = handoffs.issue(draft);
     let newest = first;
     for (let i = 0; i < 256; i += 1) newest = handoffs.issue(draft);
@@ -125,7 +126,7 @@ describe('createSignInHandoffs', () => {
 
   it('propagates entropy errors before issuing an id', () => {
     const failure = new Error('entropy unavailable');
-    const handoffs = createSignInHandoffs({ clock: { nowMs: () => 0 }, randomBytesFn: () => { throw failure; } });
+    const handoffs = createSignInHandoffs({ oauth: realOAuthCapabilities, clock: { nowMs: () => 0 }, randomBytesFn: () => { throw failure; } });
     expect(() => handoffs.issue(draft)).toThrow(failure);
   });
 });

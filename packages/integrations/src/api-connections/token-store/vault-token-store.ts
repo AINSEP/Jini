@@ -10,8 +10,8 @@
  * caller moved the connection to, and never overwrites a newer generation's tokens. */
 import { randomUUID } from "node:crypto";
 import type { Clock } from "@jini-ai/core/primitives";
-import type { OAuthTokenSet, OAuthTokenStore } from "@jini-ai/oauth";
-import { VaultError, type SecretsVaultService, type VaultContext, type VaultIdentity, type VaultMeta } from "@jini-ai/platform/secrets/credential-sets";
+import type { OAuthTokenSet, OAuthTokenStore } from "@jini-ai/core/contracts/oauth";
+import type { VaultContext, VaultIdentity, VaultMeta, VaultSummary } from "@jini-ai/core/contracts/vault";
 import type { ApiConnectionTokenStore } from "../ports.js";
 import { OAuthTokenStoreError } from "./errors.js";
 import { buildRecordMeta, buildTokenPayload, parseTokenPayload, parseTokenSet, readRecordMeta, readReplaceableGeneration,
@@ -24,8 +24,16 @@ const LOAD_OBSERVATION_WINDOW_MS = 60_000;
 /** Disconnect and install must win over concurrent lease writes; each retry re-reads the newest revision. */
 const WRITE_ATTEMPTS = 3;
 
-/** The vault operations this store uses; `SecretsVaultService` satisfies it. */
-export type OAuthTokenVaultPort = Pick<SecretsVaultService, "get" | "put" | "patchMeta" | "delete">;
+/** The vault operations this store uses; `SecretsVaultService` satisfies it.
+ * @agent-note Fulfilled by the host's real secrets vault service (the same instance the record store and archive use); exactly
+ * these four operations, with their CAS `expectedRevision` semantics and conflict errors unchanged. */
+export interface OAuthTokenVaultPort {
+  get(input: VaultIdentity): Promise<{ summary: VaultSummary; payload: VaultMeta | null } | null>;
+  put(input: VaultContext & { id?: string; expectedRevision: number | null; provider: string | null; label: string; meta: unknown;
+    payload?: VaultMeta | null | undefined }): Promise<VaultSummary>;
+  patchMeta(input: VaultIdentity & { expectedRevision: number; patch: VaultMeta }): Promise<VaultSummary>;
+  delete(input: VaultIdentity & { expectedRevision: number }): Promise<boolean>;
+}
 /** Current generation of a connection. The host bumps it on disconnect, switch and reconnect. */
 export type ReadConnectionGeneration = (requiredArgs: { readonly key: string }) => Promise<number>;
 
@@ -36,6 +44,10 @@ export interface VaultOAuthTokenStoreDeps {
   readonly owner: OAuthConnectionOwner;
   readonly readGeneration: ReadConnectionGeneration;
   readonly clock: Clock;
+  /** @agent-note Required real vault-conflict classifier from the host (`error instanceof VaultError && error.code === "conflict"`
+   * for the vault service bound above); it decides lease-lost mapping, CAS retries and lease refusal, so it must recognise exactly
+   * that service's conflict error and nothing else. */
+  readonly isVaultConflict: (error: unknown) => boolean;
 }
 /** `OAuthTokenStore` plus install and disconnect. Refresh writes (`persist`, `markNeedsReauth`)
  * require the lease; `install` is fenced by its generation instead. */
@@ -46,9 +58,6 @@ interface InstallTarget { readonly revision: number | null; readonly generation:
 interface HeldLease { readonly holder: string; readonly generation: number }
 interface LoadObservation { readonly generation: number; readonly atMs: number }
 
-function isConflict(error: unknown): boolean {
-  return error instanceof VaultError && error.code === "conflict";
-}
 
 /** Creates the store for one connection owner.
  * @throws OAuthTokenStoreError `configuration` when the vault scope names another workspace. */
@@ -57,6 +66,7 @@ export function createVaultOAuthTokenStore(
   _optionalArgs: Record<string, never> = {},
 ): VaultOAuthTokenStore {
   const { vault, vaultScope, owner, readGeneration, clock } = deps;
+  const isConflict = deps.isVaultConflict;
   if (vaultScope.workspaceId !== owner.workspaceId) throw new OAuthTokenStoreError({ code: "configuration" });
   // Leases this instance holds, with the generation recorded at acquisition (the write fence).
   const held = new Map<string, HeldLease>();

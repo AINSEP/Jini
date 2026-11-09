@@ -6,7 +6,7 @@
  * credential generation, a reconnect must be the same account, and a switch is only staged.
  */
 import { nowIso } from '@jini-ai/core/primitives';
-import type { OAuthTokenSet } from '@jini-ai/oauth';
+import type { OAuthTokenSet } from '@jini-ai/core/contracts/oauth';
 import { ATTEMPT_TTL_MS } from './attempt-state.js';
 import type { ApiConnectionServiceDeps } from './deps.js';
 import { ApiConnectionError } from './errors.js';

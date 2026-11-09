@@ -7,8 +7,7 @@
  * exchanges the code, and hands the token set to `finishAuthorization` for the grant, identity and
  * commit checks.
  */
-import { beginAuthorizationCode, completeAuthorizationCode, generateOAuthState, OAuthError, type OAuthProviderDescriptor,
-  type OAuthTokenSet } from '@jini-ai/oauth';
+import type { OAuthProviderDescriptor, OAuthTokenSet } from '@jini-ai/core/contracts/oauth';
 import type { ApiConnectionServiceDeps } from './deps.js';
 import { ApiConnectionError, invalidAttempt } from './errors.js';
 import { attemptOpener, attemptSealer, BROWSER_BINDING_BYTES, hashBrowserBinding } from './attempt-state.js';
@@ -91,8 +90,10 @@ async function clientKindParams(deps: ApiConnectionServiceDeps, record: ApiConne
 }
 
 /** Map OAuth core failures to connection codes; the core's messages are already token-free. */
-function toConnectionError(error: unknown): unknown {
-  if (!(error instanceof OAuthError)) return error;
+function toConnectionError(deps: ApiConnectionServiceDeps, raw: unknown): unknown {
+  const classified = { value: raw };
+  if (!deps.oauth.isOAuthError(classified)) return raw;
+  const error = classified.value;
   if (error.code === 'OAUTH_INVALID_STATE') return invalidAttempt({}, { cause: error });
   const code = error.code === 'OAUTH_ACCESS_DENIED' ? 'access-denied' : 'authorization-failed';
   return new ApiConnectionError({ code, message: `Sign-in did not complete: ${error.message}. ${error.operatorAction}` }, { cause: error });
@@ -117,15 +118,15 @@ export async function startApiConnectionAuthorization(
   const requestedScopes = checkScopes(await deps.hooks.resolveScopes({ scopeSetIds: [...requiredArgs.scopeSetIds] }));
   const kindParams = await clientKindParams(deps, record, intent);
   const ownerKey = ownerKeyFor(deps, { workspaceId, actorId });
-  const attemptId = generateOAuthState({ randomBytesFn: deps.randomBytesFn }, { stateBytes: ATTEMPT_ID_BYTES });
-  const browserBinding = generateOAuthState({ randomBytesFn: deps.randomBytesFn }, { stateBytes: BROWSER_BINDING_BYTES });
+  const attemptId = deps.oauth.generateState({ randomBytesFn: deps.randomBytesFn }, { stateBytes: ATTEMPT_ID_BYTES });
+  const browserBinding = deps.oauth.generateState({ randomBytesFn: deps.randomBytesFn }, { stateBytes: BROWSER_BINDING_BYTES });
   const draft = { key, attemptId, ownerKey, browserBindingHash: hashBrowserBinding(browserBinding), workspaceId, actorId, pluginId: deps.descriptor.pluginId,
     connectionId: deps.descriptor.connectionId, intent, requestedScopes, generation: record?.generation ?? 0 };
-  const begun = await beginAuthorizationCode({
+  const begun = await deps.oauth.flow.beginAuthorizationCode({
     provider: providerFor(deps), stateless: attemptSealer(deps, { draft }), randomBytesFn: deps.randomBytesFn, guard: deps.guard,
     options: deps.appOptions, ownerKey, client: deps.client, redirectUri: requiredArgs.redirectUri,
   }, { scopes: requestedScopes, extraAuthorizationParams: { ...kindParams, ...startParams } })
-    .catch((error: unknown) => { throw toConnectionError(error); });
+    .catch((error: unknown) => { throw toConnectionError(deps, error); });
   return { connectionRef: key, authorizationUrl: begun.authorizationUrl, state: begun.state, attemptId, browserBinding,
     expiresAt: begun.expiresAt };
 }
@@ -146,14 +147,14 @@ export async function completeApiConnectionAuthorization(
   assertId(requiredArgs.workspaceId, 'workspaceId');
   assertId(requiredArgs.actorId, 'actorId');
   if (!URL.canParse(requiredArgs.redirectUri)) throw requestInvalid('redirectUri');
-  const params = checkCallbackParams(requiredArgs.callbackParams);
+  const params = checkCallbackParams(requiredArgs.callbackParams, { maxAuthorizationStateLength: deps.oauth.maxAuthorizationStateLength });
   const callbackFields = pickBoundedFields(deps.descriptor.callbackFields, requiredArgs.callbackParams, 'callback field');
   let attempt: ApiConnectionAttempt | undefined;
-  const tokens: OAuthTokenSet = await completeAuthorizationCode({
+  const tokens: OAuthTokenSet = await deps.oauth.flow.completeAuthorizationCode({
     provider: providerFor(deps), stateless: attemptOpener(deps, { browserBinding: requiredArgs.browserBinding, onOpen: opened => { attempt = opened.attempt; } }),
     redirectUri: new URL(requiredArgs.redirectUri).href, ownerKey: ownerKeyFor(deps, requiredArgs), client: deps.client, params,
     fetchFn: deps.fetchFn, guard: deps.guard, clock: deps.clock,
-  }).catch((error: unknown) => { throw toConnectionError(error); });
+  }).catch((error: unknown) => { throw toConnectionError(deps, error); });
   // completeAuthorizationCode only reaches the exchange after `open` returned an attempt.
   return finishAuthorization(deps, { attempt: attempt!, tokens, callbackFields });
 }

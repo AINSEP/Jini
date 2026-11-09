@@ -5,7 +5,7 @@
  * vault-backed token store and the metadata store; the plugin owns scope sets, identity and
  * revocation. Tests use typed in-memory fakes of these same interfaces.
  */
-import type { OAuthTokenSet, OAuthTokenStore } from '@jini-ai/oauth';
+import type { OAuthTokenSet, OAuthTokenStore } from '@jini-ai/core/contracts/oauth';
 import type { ApiConnectionAccount, ApiConnectionAttempt, ApiConnectionRecord } from './types.js';
 
 /**

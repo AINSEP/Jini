@@ -7,7 +7,7 @@
  * `connected` with the new account. A crash between steps leaves "reconnect required", never a
  * record that claims one account while the store serves another account's token.
  */
-import type { OAuthTokenSet } from '@jini-ai/oauth';
+import type { OAuthTokenSet } from '@jini-ai/core/contracts/oauth';
 import type { ApiConnectionServiceDeps } from './deps.js';
 import { writeRecord } from './records.js';
 import type { ApiConnectionAccount, ApiConnectionRecord } from './types.js';

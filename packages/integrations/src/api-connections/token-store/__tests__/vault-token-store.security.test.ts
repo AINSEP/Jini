@@ -1,6 +1,7 @@
 /** @file Security pins for the vault-backed OAuth token store: sealed storage, owner binding,
  * durable lease + CAS, generation and holder fencing, reconnect-required, delete, and
  * secret-free errors/status. */
+import { realVaultConflict } from '../../__tests__/fixtures/real-capabilities.js';
 import { describe, expect, it } from "vitest";
 import { createTokenRefresher, type TokenRefreshPort } from "@jini-ai/oauth";
 import { VaultError } from "@jini-ai/platform/secrets/credential-sets";
@@ -63,7 +64,7 @@ describe("owner binding on read", () => {
 
   it("refuses construction when the vault scope names another workspace", () => {
     const f = createFixture();
-    expect(() => createVaultOAuthTokenStore({ vault: f.vault, vaultScope: { ...SCOPE, workspaceId: "ws-2" }, owner: OWNER,
+    expect(() => createVaultOAuthTokenStore({ isVaultConflict: realVaultConflict, vault: f.vault, vaultScope: { ...SCOPE, workspaceId: "ws-2" }, owner: OWNER,
       clock: f.clock, readGeneration: async () => 1 })).toThrow(expect.objectContaining({ code: "configuration" }));
   });
 });
@@ -278,7 +279,7 @@ describe("credential install (sign-in write, no refresh lease)", () => {
       await f.store().install({ key: KEY, tokens: tokenSet({ label: "newer" }), generation: 2 });
     };
     // The older install reads generation 1, then the newer one runs to completion before it opens the row.
-    const older = createVaultOAuthTokenStore({ vault: f.vault, vaultScope: SCOPE, owner: OWNER, clock: f.clock,
+    const older = createVaultOAuthTokenStore({ isVaultConflict: realVaultConflict, vault: f.vault, vaultScope: SCOPE, owner: OWNER, clock: f.clock,
       readGeneration: async () => {
         const generation = f.state.generation;
         const run = interleave;
@@ -303,7 +304,7 @@ describe("credential install (sign-in write, no refresh lease)", () => {
       get: input => f.vault.get(input), patchMeta: input => f.vault.patchMeta(input), delete: input => f.vault.delete(input),
       put: async input => { const run = interleave; interleave = null; await run?.(); return f.vault.put(input); },
     };
-    const newest = createVaultOAuthTokenStore({ vault: racedVault, vaultScope: SCOPE, owner: OWNER, clock: f.clock,
+    const newest = createVaultOAuthTokenStore({ isVaultConflict: realVaultConflict, vault: racedVault, vaultScope: SCOPE, owner: OWNER, clock: f.clock,
       readGeneration: async () => f.state.generation });
     await newest.install({ key: KEY, tokens: tokenSet({ label: "newest" }), generation: 2 });
     expect(await f.store().load({ key: KEY })).toEqual(tokenSet({ label: "newest" }));
@@ -318,7 +319,7 @@ describe("credential install under sustained contention", () => {
       get: input => f.vault.get(input), patchMeta: input => f.vault.patchMeta(input), delete: input => f.vault.delete(input),
       put: async () => { throw refused; },
     };
-    const store = createVaultOAuthTokenStore({ vault: refusing, vaultScope: SCOPE, owner: OWNER, clock: f.clock,
+    const store = createVaultOAuthTokenStore({ isVaultConflict: realVaultConflict, vault: refusing, vaultScope: SCOPE, owner: OWNER, clock: f.clock,
       readGeneration: async () => f.state.generation });
     const error = await store.install({ key: KEY, tokens: tokenSet({ label: "refused" }), generation: 1 }).then(() => null, (caught: unknown) => caught);
     expect([error, await f.repo.find({ workspaceId: SCOPE.workspaceId, id: KEY })]).toEqual([refused, null]);
@@ -332,7 +333,7 @@ describe("credential install under sustained contention", () => {
       get: input => f.vault.get(input), patchMeta: input => f.vault.patchMeta(input), delete: input => f.vault.delete(input),
       put: async input => f.vault.put({ ...input, expectedRevision: (input.expectedRevision ?? 0) + 100 }),
     };
-    const store = createVaultOAuthTokenStore({ vault: contended, vaultScope: SCOPE, owner: OWNER, clock: f.clock,
+    const store = createVaultOAuthTokenStore({ isVaultConflict: realVaultConflict, vault: contended, vaultScope: SCOPE, owner: OWNER, clock: f.clock,
       readGeneration: async () => f.state.generation });
     const error = await refusal(store.install({ key: KEY, tokens: tokenSet({ label: "contended" }), generation: 1 }));
     expect([error.code, await f.store().load({ key: KEY })]).toEqual(["write-conflict", tokenSet({ label: "first" })]);

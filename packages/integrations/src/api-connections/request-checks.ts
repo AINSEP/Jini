@@ -5,7 +5,7 @@
  * place before any state is stored or any token endpoint is called. Callback fields follow the
  * plugin's allowlist: undeclared fields are dropped, declared ones must fit their declared size.
  */
-import { MAX_AUTHORIZATION_STATE_LENGTH, MAX_CALLBACK_FIELD_LENGTH } from '@jini-ai/oauth';
+import { MAX_CALLBACK_FIELD_LENGTH } from '@jini-ai/core/oauth-callback-fields';
 import { ApiConnectionError } from './errors.js';
 import type { ApiConnectionBoundedField } from './types.js';
 
@@ -66,10 +66,10 @@ export interface CheckedCallback {
 }
 
 /** Bound the raw callback before anything is consumed; OAuth names are validated by the core. */
-export function checkCallbackParams(value: Readonly<Record<string, string>>): CheckedCallback {
+export function checkCallbackParams(value: Readonly<Record<string, string>>, limits: { readonly maxAuthorizationStateLength: number }): CheckedCallback {
   const entries = Object.entries(value);
   if (entries.length > MAX_CALLBACK_PARAMS
-    || !entries.every(([, raw]) => typeof raw === 'string' && raw.length <= Math.max(MAX_CALLBACK_FIELD_LENGTH, MAX_AUTHORIZATION_STATE_LENGTH))) {
+    || !entries.every(([, raw]) => typeof raw === 'string' && raw.length <= Math.max(MAX_CALLBACK_FIELD_LENGTH, limits.maxAuthorizationStateLength))) {
     throw requestInvalid('the callback carried too many or oversized fields');
   }
   const checked: Record<string, string> = {};

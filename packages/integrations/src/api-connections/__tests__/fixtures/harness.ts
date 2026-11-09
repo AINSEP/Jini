@@ -4,6 +4,7 @@
  * Exists so every test builds a real service over the same fakes. The fetch port refuses every
  * host but the local fake provider, so no test can reach a real third party.
  */
+import { realOAuthCapabilities, realVaultConflict } from './real-capabilities.js';
 import { randomBytes } from 'node:crypto';
 import { createOAuthUrlGuard, type OAuthClient, type OAuthFetch, type OAuthTokenSet } from '@jini-ai/oauth';
 import { AesGcmSecretSealer } from '@jini-ai/platform/secrets';
@@ -99,7 +100,7 @@ function buildWith<Tokens extends ApiConnectionTokenStore>(provider: AcmeProvide
   const clock = { now: Date.parse('2026-10-20T10:00:00.000Z'), nowMs() { return this.now; } };
   const records = options.records ?? memoryRecordStore();
   const tokens = makeTokens({ records, clock });
-  const service = createApiConnectionService({
+  const service = createApiConnectionService({ oauth: realOAuthCapabilities,
     descriptor, client, clientKind, hooks: acmeHooks(provider), records, tokens, fetchFn, clock,
     appOptions: { clientDisplayName: 'Test host', softwareId: 'test-host', redirectUris: [CALLBACK] },
     guard: createOAuthUrlGuard({ assertAllowed: () => undefined }, { allowLoopbackHttp: true }),
@@ -125,7 +126,7 @@ export function memoryVault(): SecretsVaultService {
 /** The same service over the real vault-backed token store (real sealing, lease and generation fencing). */
 export function buildVaultHarness(provider: AcmeProvider, options: HarnessOptions = {},
   vault: SecretsVaultService = memoryVault()): Harness<VaultOAuthTokenStore> & { vault: SecretsVaultService } {
-  const harness = buildWith(provider, options, ({ records, clock }) => createVaultOAuthTokenStore({
+  const harness = buildWith(provider, options, ({ records, clock }) => createVaultOAuthTokenStore({ isVaultConflict: realVaultConflict,
     vault, clock, readGeneration: createApiConnectionGenerationReader({ records }), vaultScope: VAULT_SCOPE,
     owner: { workspaceId: 'ws-1', pluginId: options.pluginId ?? 'acme-office', connectionId: 'account',
       clientId: options.client?.clientId ?? 'acme-desktop' },
