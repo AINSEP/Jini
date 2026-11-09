@@ -1,3 +1,5 @@
+import type { TokenRequestDeps } from '@jini-ai/core/contracts/oauth';
+export type { TokenRequestDeps } from '@jini-ai/core/contracts/oauth';
 import { nowIso, type Clock } from '@jini-ai/core/primitives';
 import {
     ClientSecretBasic, ClientSecretPost, Configuration, None, ResponseBodyError,
@@ -12,7 +14,6 @@ import type { OAuthClient, OAuthTokenSet, OAuthHttpPorts, OAuthResource } from '
 import { applyResourceIndicators } from './resource.js';
 
 export const DEFAULT_TOKEN_REQUEST_TIMEOUT_MS = 15000;
-export interface TokenRequestDeps extends OAuthHttpPorts { readonly clock: Clock }
 export interface TokenRequestInput {
     readonly tokenEndpoint: string;
     readonly client: OAuthClient;

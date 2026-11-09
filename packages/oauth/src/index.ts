@@ -60,3 +60,4 @@ export type { RevokeOAuthTokenInput } from './revocation.js';
 export { validateOidcIdToken } from './oidc.js';
 export type { ValidateOidcIdTokenInput } from './oidc.js';
 export type { OAuthTokenTypeHint, OidcTrustConfiguration, OidcIdTokenClaims, OidcSigningAlgorithm } from './ports.js';
+export { oauthFlowOperations } from './flow-operations.js';

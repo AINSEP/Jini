@@ -1,3 +1,5 @@
+import type { OperatorOAuthProviderInput } from '@jini-ai/core/contracts/oauth';
+export type { OperatorOAuthProviderInput } from '@jini-ai/core/contracts/oauth';
 import type { OAuthProviderRegistry } from '@jini-ai/core/contracts/oauth';
 export type { OAuthProviderRegistry } from '@jini-ai/core/contracts/oauth';
 import type { OAuthRequiredArgs, OAuthOptionalArgs, OAuthEmptyArgs } from './args.js';
@@ -41,15 +43,6 @@ export function assertValidOAuthProvider({ descriptor, guard }: {
         }
         assertSafeProviderEndpoint(descriptor.deviceAuthorizationEndpoint, "device authorization endpoint", guard);
     }
-}
-export interface OperatorOAuthProviderInput {
-    readonly providerId: string;
-    readonly label: string;
-    readonly tokenEndpoint: string;
-    readonly authorizationEndpoint?: string;
-    readonly deviceAuthorizationEndpoint?: string;
-    readonly scopes?: readonly string[];
-    readonly clientAuth?: OAuthProviderDescriptor["clientAuth"];
 }
 export function buildOperatorOAuthProvider(requiredArgs: OAuthRequiredArgs<OperatorOAuthProviderInput> & {
     readonly guard: OAuthUrlGuard;

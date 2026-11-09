@@ -1,3 +1,5 @@
+import type { TokenRefresherDeps, TokenRefresher, RefreshAccessTokenInput } from '@jini-ai/core/contracts/oauth';
+export type { TokenRefresherDeps, TokenRefresher, RefreshAccessTokenInput } from '@jini-ai/core/contracts/oauth';
 import { nowIso as readNowIso, type Clock } from '@jini-ai/core/primitives';
 import type { OAuthRequiredArgs, OAuthOptionalArgs, OAuthEmptyArgs } from './args.js';
 /** Refresh grant and token coordinator. Coalesce in-process calls, honor optional storage leases, and persist rotation before returning access tokens. */
@@ -9,20 +11,6 @@ const DEFAULT_REFRESH_SKEW_MS = 120000;
 const DEFAULT_LEASE_WAIT_MS = 5000;
 const DEFAULT_LEASE_POLL_MS = 250;
 export type { TokenRefreshPort } from "./ports.js";
-export interface TokenRefresherDeps {
-    readonly clock: Clock;
-    readonly port: TokenRefreshPort;
-    readonly refreshSkewMs?: number;
-    readonly leaseWaitMs?: number;
-    readonly leasePollMs?: number;
-    readonly sleep: OAuthSleep;
-}
-export interface TokenRefresher {
-    getAccessToken(requiredArgs: {
-        readonly key: string;
-    }): Promise<string>;
-    inFlightCount(requiredArgs: OAuthEmptyArgs): number;
-}
 function needsReauthError(reason: string, options: {
     readonly cause?: unknown;
 } = {}): OAuthError {
@@ -183,14 +171,6 @@ export function createTokenRefresher(deps: OAuthRequiredArgs<TokenRefresherDeps>
  * Carry forward scope and resource binding so refresh cannot silently broaden authority or audience.
  * The shared token endpoint dispatches refresh_token through openid-client's refreshTokenGrant;
  * single-flight, leases and persist-before-return remain exclusively in createTokenRefresher. */
-export interface RefreshAccessTokenInput {
-    readonly tokenEndpoint: string;
-    readonly client: OAuthClient;
-    readonly refreshToken: string;
-    readonly scopes?: readonly string[];
-    readonly resource?: OAuthResource;
-    readonly timeoutMs?: number;
-}
 export async function refreshAccessToken(requiredArgs: OAuthRequiredArgs<TokenRequestDeps & RefreshAccessTokenInput>, optionalArgs: OAuthOptionalArgs<TokenRequestDeps & RefreshAccessTokenInput> = {}): Promise<OAuthTokenSet> {
     const deps = requiredArgs;
     const input = { ...optionalArgs, tokenEndpoint: requiredArgs.tokenEndpoint, client: requiredArgs.client, refreshToken: requiredArgs.refreshToken };

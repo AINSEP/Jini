@@ -1,3 +1,5 @@
+import type { DynamicClientRegistrationDeps, DynamicClientRegistrationInput } from '@jini-ai/core/contracts/oauth';
+export type { DynamicClientRegistrationDeps, DynamicClientRegistrationInput } from '@jini-ai/core/contracts/oauth';
 import { defaultOAuthMessages, type OAuthMessages } from './messages.js';
 import type { OAuthRequiredArgs, OAuthOptionalArgs } from './args.js';
 import {
@@ -14,20 +16,6 @@ import { createOAuthCustomFetch } from './guarded-transport.js';
 export type { RegisteredOAuthClient } from "./ports.js";
 const DEFAULT_REGISTRATION_TIMEOUT_MS = 15000;
 const SUPPORTED_AUTH_METHODS: readonly OAuthClientAuthMethod[] = ["none", "client_secret_post", "client_secret_basic"];
-export interface DynamicClientRegistrationDeps extends OAuthHttpPorts {
-    readonly options: OAuthAppOptions;
-}
-export interface DynamicClientRegistrationInput {
-    readonly messages?: OAuthMessages;
-    readonly registrationEndpoint: string;
-    readonly scopes: readonly string[];
-    readonly grantTypes?: readonly string[];
-    readonly responseTypes?: readonly string[];
-    readonly tokenEndpointAuthMethod?: OAuthClientAuthMethod;
-    readonly authMethodsSupported?: readonly string[];
-    readonly initialAccessToken?: string;
-    readonly timeoutMs?: number;
-}
 function readOptionalNumber(value: unknown): number | null {
     return typeof value === "number" && Number.isFinite(value) ? value : null;
 }

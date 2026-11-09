@@ -1,3 +1,5 @@
+import type { BeginAuthorizationCodeArgs, BeginAuthorizationCodeDeps, BeginAuthorizationCodeInput, BeginAuthorizationCodeResult, CompleteAuthorizationCodeArgs, CompleteAuthorizationCodeDeps, CompleteAuthorizationCodeInput } from '@jini-ai/core/contracts/oauth';
+export type { BeginAuthorizationCodeDeps, BeginAuthorizationCodeInput, BeginAuthorizationCodeResult, CompleteAuthorizationCodeDeps, CompleteAuthorizationCodeInput } from '@jini-ai/core/contracts/oauth';
 import type { AuthorizationCallbackParams } from '@jini-ai/core/contracts/oauth';
 export type { AuthorizationCallbackParams } from '@jini-ai/core/contracts/oauth';
 import { defaultOAuthMessages, type OAuthMessages } from './messages.js';
@@ -19,30 +21,9 @@ import { MAX_AUTHORIZATION_STATE_LENGTH, type SealedAuthorizationState } from '.
 /** Bound on an authorization code; the loopback receiver applies the same one at the edge. */
 export const MAX_CODE_LENGTH = 2048;
 const PROVIDER_ERROR_PATTERN = /^[a-z_]{1,64}$/;
-export interface BeginAuthorizationCodeDeps {
-    readonly provider: OAuthProviderDescriptor;
-    readonly pending: PendingAuthorizationStore;
-    readonly randomBytesFn: OAuthRandomBytes;
-    readonly guard: OAuthUrlGuard;
-    readonly options: OAuthAppOptions;
-}
 /** Explicit stateless mode; the host supplies sealing bound to the expected connection. */
 export interface BeginStatelessAuthorizationCodeDeps extends Omit<BeginAuthorizationCodeDeps, 'pending'> {
     readonly stateless: SealedAuthorizationState;
-}
-export interface BeginAuthorizationCodeInput {
-    readonly messages?: OAuthMessages;
-    readonly ownerKey: string;
-    readonly client: OAuthClient;
-    readonly redirectUri: string;
-    readonly resource?: OAuthResource;
-    readonly scopes?: readonly string[];
-    readonly extraAuthorizationParams?: Readonly<Record<string, string>>;
-}
-export interface BeginAuthorizationCodeResult {
-    readonly authorizationUrl: string;
-    readonly state: string;
-    readonly expiresAt: string;
 }
 const RESERVED_AUTHORIZATION_PARAMS: ReadonlySet<string> = new Set([
     "resource", "response_type", "client_id", "redirect_uri", "scope", "state",
@@ -65,8 +46,6 @@ function assertGrantSupported(provider: OAuthProviderDescriptor, grant: "authori
             operatorAction: "Choose a different connection method for this provider."
         });
 }
-type BeginAuthorizationCodeArgs = OAuthRequiredArgs<Omit<BeginAuthorizationCodeDeps, 'pending'> & BeginAuthorizationCodeInput>
-    & ({ pending: PendingAuthorizationStore } | { stateless: SealedAuthorizationState });
 /** Upstream appends endpoint query fields; pass them as parameters to retain facade replacement
  * semantics and repeated resource fields. Formatting is synchronous and makes no HTTP request.
  */
@@ -125,23 +104,11 @@ export async function beginAuthorizationCode(requiredArgs: BeginAuthorizationCod
     formattedUrl.searchParams.set('state', entry.state);
     return { authorizationUrl: formattedUrl.href, state: entry.state, expiresAt: entry.expiresAt };
 }
-export interface CompleteAuthorizationCodeDeps extends TokenRequestDeps {
-    readonly provider: OAuthProviderDescriptor;
-    readonly pending: PendingAuthorizationStore;
-}
 /** The exact callback URI is mandatory in stateless mode and is checked before exchange. */
 export interface CompleteStatelessAuthorizationCodeDeps extends Omit<CompleteAuthorizationCodeDeps, 'pending'> {
     readonly stateless: SealedAuthorizationState;
     readonly redirectUri: string;
 }
-export interface CompleteAuthorizationCodeInput {
-    readonly ownerKey: string;
-    readonly client: OAuthClient;
-    readonly params: AuthorizationCallbackParams;
-    readonly timeoutMs?: number;
-}
-type CompleteAuthorizationCodeArgs = OAuthRequiredArgs<Omit<CompleteAuthorizationCodeDeps, 'pending'> & CompleteAuthorizationCodeInput>
-    & ({ pending: PendingAuthorizationStore } | { stateless: SealedAuthorizationState; redirectUri: string });
 export async function completeAuthorizationCode(requiredArgs: CompleteAuthorizationCodeArgs, optionalArgs: OAuthOptionalArgs<CompleteAuthorizationCodeDeps & CompleteAuthorizationCodeInput> = {}): Promise<OAuthTokenSet> {
     const deps = requiredArgs;
     const input = { ...optionalArgs, ownerKey: requiredArgs.ownerKey, client: requiredArgs.client, params: requiredArgs.params };
