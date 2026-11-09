@@ -3,6 +3,7 @@
  * granted-scope check, callback/start field allowlists, generation fencing, token redaction,
  * account rules and revocation honesty. Each test pins one behaviour against the fake provider.
  */
+import { realCallbackFieldRules } from './fixtures/real-capabilities.js';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
 import type { OAuthClient } from '@jini-ai/oauth';
@@ -219,7 +220,7 @@ describe('installed-app client that sends a client secret', () => {
   });
   it('refuses a confidential client kind that does not authenticate at the token endpoint', () => {
     const deps = { clientKind: 'confidential', client: { clientId: 'acme-web', authMethod: 'none' } } as unknown as ApiConnectionServiceDeps; // malformed wiring on purpose
-    expect(() => createApiConnectionService({ ...deps, descriptor: parseApiConnectionDescriptor({ value: { pluginId: 'p', connectionId: 'c',
+    expect(() => createApiConnectionService({ ...deps, descriptor: parseApiConnectionDescriptor({ callbackFieldRules: realCallbackFieldRules, value: { pluginId: 'p', connectionId: 'c',
       label: 'L', authorizationEndpoint: 'https://a.example/auth', tokenEndpoint: 'https://a.example/token' } }) }))
       .toThrow(expect.objectContaining({ code: 'configuration-invalid' }));
   });
@@ -278,7 +279,7 @@ describe('field allowlists and limits', () => {
       { startParams: { prompt: 'none' } })).rejects.toMatchObject({ code: 'request-invalid' });
   });
   it('refuses a descriptor that shadows a reserved OAuth parameter', () => {
-    expect(() => parseApiConnectionDescriptor({ value: { pluginId: 'p', connectionId: 'c', label: 'L',
+    expect(() => parseApiConnectionDescriptor({ callbackFieldRules: realCallbackFieldRules, value: { pluginId: 'p', connectionId: 'c', label: 'L',
       authorizationEndpoint: 'https://a.example/auth', tokenEndpoint: 'https://a.example/token',
       authorizationParams: { public: { redirect_uri: 'https://evil.example' } } } })).toThrow(expect.objectContaining({ code: 'descriptor-invalid' }));
   });
@@ -286,17 +287,17 @@ describe('field allowlists and limits', () => {
     ['a name the loopback receiver refuses', { name: '_picked', maxLength: 64 }],
     ['a size over the loopback receiver\'s field limit', { name: 'picked', maxLength: 4097 }],
   ])('refuses a descriptor whose callback field has %s', (_label, field) => {
-    expect(() => parseApiConnectionDescriptor({ value: { pluginId: 'p', connectionId: 'c', label: 'L',
+    expect(() => parseApiConnectionDescriptor({ callbackFieldRules: realCallbackFieldRules, value: { pluginId: 'p', connectionId: 'c', label: 'L',
       authorizationEndpoint: 'https://a.example/auth', tokenEndpoint: 'https://a.example/token',
       callbackFields: [field] } })).toThrow(expect.objectContaining({ code: 'descriptor-invalid' }));
   });
   it('still accepts a start parameter up to 8192 characters', () => {
-    expect(parseApiConnectionDescriptor({ value: { pluginId: 'p', connectionId: 'c', label: 'L',
+    expect(parseApiConnectionDescriptor({ callbackFieldRules: realCallbackFieldRules, value: { pluginId: 'p', connectionId: 'c', label: 'L',
       authorizationEndpoint: 'https://a.example/auth', tokenEndpoint: 'https://a.example/token',
       startParams: [{ name: '_mode', maxLength: 8192 }] } }).startParams).toEqual([{ name: '_mode', maxLength: 8192 }]);
   });
   it('refuses a descriptor that declares a callback field named like an OAuth field', () => {
-    expect(() => parseApiConnectionDescriptor({ value: { pluginId: 'p', connectionId: 'c', label: 'L',
+    expect(() => parseApiConnectionDescriptor({ callbackFieldRules: realCallbackFieldRules, value: { pluginId: 'p', connectionId: 'c', label: 'L',
       authorizationEndpoint: 'https://a.example/auth', tokenEndpoint: 'https://a.example/token',
       callbackFields: [{ name: 'code', maxLength: 10 }] } })).toThrow(expect.objectContaining({ code: 'descriptor-invalid' }));
   });

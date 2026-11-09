@@ -1,8 +1,9 @@
+import { realCallbackFieldRules } from './fixtures/real-capabilities.js';
 import { expect, it } from 'vitest';
 import { ApiConnectionError, byoClientLabel, createConnectionHookHttp, parseApiConnectionDescriptor, resolveByoClient, type ApiConnectionByoCredentials, type DeclaredApiConnection } from '../index.js';
 
 function declaration(): DeclaredApiConnection {
-  return { pluginId: 'relay', descriptor: parseApiConnectionDescriptor({ value: { pluginId: 'relay', connectionId: 'account', label: 'Relay account',
+  return { pluginId: 'relay', descriptor: parseApiConnectionDescriptor({ callbackFieldRules: realCallbackFieldRules, value: { pluginId: 'relay', connectionId: 'account', label: 'Relay account',
     authorizationEndpoint: 'https://auth.relay.test/authorize', tokenEndpoint: 'https://auth.relay.test/token', authorizationParams: { public: {}, confidential: {} }, forceConsentParams: {}, startParams: [], callbackFields: [] } }),
     clients: {}, budgets: [], scopeSets: [], apiOrigins: ['https://api.relay.test'], byoClient: true,
     module: { createHooks: () => ({ resolveScopes: async () => [], readAccount: async () => ({ accountId: 'a', displayName: 'Account' }), revoke: async () => {} }) } };

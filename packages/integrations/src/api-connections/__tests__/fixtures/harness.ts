@@ -4,7 +4,7 @@
  * Exists so every test builds a real service over the same fakes. The fetch port refuses every
  * host but the local fake provider, so no test can reach a real third party.
  */
-import { realOAuthCapabilities, realVaultConflict } from './real-capabilities.js';
+import { realCallbackFieldRules, realOAuthCapabilities, realVaultConflict } from './real-capabilities.js';
 import { randomBytes } from 'node:crypto';
 import { createOAuthUrlGuard, type OAuthClient, type OAuthFetch, type OAuthTokenSet } from '@jini-ai/oauth';
 import { AesGcmSecretSealer } from '@jini-ai/platform/secrets';
@@ -85,7 +85,7 @@ interface HarnessOptions {
 function buildWith<Tokens extends ApiConnectionTokenStore>(provider: AcmeProvider, options: HarnessOptions,
   makeTokens: (required: { records: ApiConnectionRecordStore; clock: Harness['clock'] }) => Tokens): Harness<Tokens> {
   const { client = { clientId: 'acme-desktop', authMethod: 'none' } as OAuthClient, clientKind = 'public', pluginId = 'acme-office' } = options;
-  const descriptor = parseApiConnectionDescriptor({ value: {
+  const descriptor = parseApiConnectionDescriptor({ callbackFieldRules: realCallbackFieldRules, value: {
     pluginId, connectionId: 'account', label: 'Acme account',
     authorizationEndpoint: `${provider.origin}/authorize`, tokenEndpoint: `${provider.origin}/token`,
     authorizationParams: { public: { prompt: 'consent' }, confidential: { include_granted: 'true' } },

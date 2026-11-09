@@ -147,7 +147,8 @@ export async function completeApiConnectionAuthorization(
   assertId(requiredArgs.workspaceId, 'workspaceId');
   assertId(requiredArgs.actorId, 'actorId');
   if (!URL.canParse(requiredArgs.redirectUri)) throw requestInvalid('redirectUri');
-  const params = checkCallbackParams(requiredArgs.callbackParams, { maxAuthorizationStateLength: deps.oauth.maxAuthorizationStateLength });
+  const params = checkCallbackParams(requiredArgs.callbackParams, { maxAuthorizationStateLength: deps.oauth.maxAuthorizationStateLength,
+    maxCallbackFieldLength: deps.oauth.callbackFieldRules.maxLength });
   const callbackFields = pickBoundedFields(deps.descriptor.callbackFields, requiredArgs.callbackParams, 'callback field');
   let attempt: ApiConnectionAttempt | undefined;
   const tokens: OAuthTokenSet = await deps.oauth.flow.completeAuthorizationCode({

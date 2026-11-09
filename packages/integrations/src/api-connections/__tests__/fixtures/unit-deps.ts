@@ -5,7 +5,7 @@
  * with in-memory ports and hand-made token sets, without a fake provider. The fetch port refuses
  * every request, so a unit test that reaches HTTP fails loudly instead of calling out.
  */
-import { realOAuthCapabilities } from './real-capabilities.js';
+import { realCallbackFieldRules, realOAuthCapabilities } from './real-capabilities.js';
 import { randomBytes } from 'node:crypto';
 import { createOAuthUrlGuard, type OAuthTokenSet } from '@jini-ai/oauth';
 import { parseApiConnectionDescriptor, type ApiConnectionHooks, type ApiConnectionServiceDeps } from '../../index.js';
@@ -37,7 +37,7 @@ export function fixedHooks(account: ApiConnectionAccount = { accountId: 'alice',
 export function unitDeps(
   overrides: Partial<Omit<ApiConnectionServiceDeps, 'records' | 'clock'>> & { readonly records?: UnitDeps['records'] } = {},
 ): UnitDeps {
-  const descriptor = parseApiConnectionDescriptor({ value: {
+  const descriptor = parseApiConnectionDescriptor({ callbackFieldRules: realCallbackFieldRules, value: {
     pluginId: 'acme-office', connectionId: 'account', label: 'Acme account',
     authorizationEndpoint: 'http://127.0.0.1:9/authorize', tokenEndpoint: 'http://127.0.0.1:9/token',
   } });

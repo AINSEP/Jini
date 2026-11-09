@@ -5,6 +5,7 @@
  */
 import type { Clock } from '@jini-ai/core/primitives';
 import type { OAuthEmptyArgs, OAuthFlowOperations, OAuthRandomBytes } from '@jini-ai/core/contracts/oauth';
+import type { ApiConnectionCallbackFieldRules } from './descriptor.js';
 
 /** The fields of a real OAuth error this closure reads after classification. */
 export interface ApiConnectionOAuthError {
@@ -24,7 +25,8 @@ export interface ApiConnectionPendingCache<T> {
  * callback and hand-off it creates: `flow` = `oauthFlowOperations`; `generateState` = `generateOAuthState`; `pendingStateBytes` =
  * `PENDING_AUTHORIZATION_STATE_BYTES`; `invalidPendingState` = `invalidPendingAuthorizationState`; `secureEquals` =
  * `secureEqualsForOwnerBinding`; `isOAuthError` = `isOAuthError` (real `instanceof OAuthError`, so error identity, codes and
- * retryability are the package's own, never matched by message); `maxAuthorizationStateLength` = `MAX_AUTHORIZATION_STATE_LENGTH`;
+ * retryability are the package's own, never matched by message); `maxAuthorizationStateLength` = `MAX_AUTHORIZATION_STATE_LENGTH`; `callbackFieldRules` = the same rules object given to
+ * `parseApiConnectionDescriptor` (`MAX_CALLBACK_FIELDS`, `MAX_CALLBACK_FIELD_LENGTH`, `isCallbackFieldName`);
  * `createPendingAuthorizationStore` = `createPendingAuthorizationStore`. Required: there is no default or fallback.
  */
 export interface ApiConnectionOAuthCapabilities {
@@ -35,6 +37,7 @@ export interface ApiConnectionOAuthCapabilities {
   readonly secureEquals: (requiredArgs: { readonly a: string; readonly b: string }) => boolean;
   readonly isOAuthError: (input: { readonly value: unknown }) => input is { readonly value: ApiConnectionOAuthError };
   readonly maxAuthorizationStateLength: number;
+  readonly callbackFieldRules: ApiConnectionCallbackFieldRules;
   readonly createPendingAuthorizationStore: <T>(deps: { readonly clock: Clock },
     optionalArgs: { readonly expiry: (requiredArgs: { value: T; ttlMs: number }) => number }) => ApiConnectionPendingCache<T>;
 }
