@@ -81,7 +81,7 @@ async function readConnectGrant({ deps, serverId, resolveServers, approvedEnable
 /** Existing choices and nonempty selections stay until a fresh access approval. O(n) list bytes. */
 function allowsAutomaticConnectGrant(row: AgentPluginMcpRecord): boolean {
   return row.writeGrantsUpdatedByPrincipalId === null &&
-    isEmptyJsonList(row.allowedToolNames) && isEmptyJsonList(row.writeAllowedToolNames);
+    isEmptyJsonList({ raw: row.allowedToolNames }) && isEmptyJsonList({ raw: row.writeAllowedToolNames });
 }
 
 /**

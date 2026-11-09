@@ -154,7 +154,7 @@ const MAX_CONNECTION_ID_LENGTH = 40;
  * {@link classifyAgentPluginMcpServerForFederation}, never thrown.
  * @complexity O(n) in the server key's length.
  */
-export function deriveAgentPluginConnectionId(serverKey: string): string | null {
+export function deriveAgentPluginConnectionId({ serverKey }: { serverKey: string }, _optional = {}): string | null {
   const sanitized = serverKey
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
@@ -259,7 +259,7 @@ function classifyAgentPluginMcpServerForFederation(
     };
   }
 
-  const connectionId = deriveAgentPluginConnectionId(serverKey);
+  const connectionId = deriveAgentPluginConnectionId({ serverKey });
   if (connectionId === null) {
     return { kind: "skip", reason: `server key '${serverKey}' has no valid characters to derive a connection id from` };
   }
@@ -350,7 +350,7 @@ export function findAgentPluginMcpServerDefaults(
   row: { readonly serverId: string; readonly url: string | null },
 ): AgentPluginDefaultTools | null {
   for (const [serverKey, config] of Object.entries(servers)) {
-    if (config.type === "stdio" || deriveAgentPluginConnectionId(serverKey) !== row.serverId) continue;
+    if (config.type === "stdio" || deriveAgentPluginConnectionId({ serverKey }) !== row.serverId) continue;
     return config.url === row.url ? config.defaultTools ?? null : null;
   }
   return null;
@@ -455,12 +455,12 @@ function isStaleUntouchedProvisioning({ existing, planned, projections }: { exis
   // (e.g. saved while an operator keeps the plugin off) — Codex review 2026-09-29.
   const authModeMatches = existing.authMode === planned.authMode || (planned.acceptsAccessToken && projections.hasStaticAccessToken(existing));
   const declarationChanged = existing.url !== planned.url || !authModeMatches;
-  return declarationChanged && !existing.enabled && isEmptyJsonList(existing.allowedToolNames) && isEmptyJsonList(existing.writeAllowedToolNames);
+  return declarationChanged && !existing.enabled && isEmptyJsonList({ raw: existing.allowedToolNames }) && isEmptyJsonList({ raw: existing.writeAllowedToolNames });
 }
 
 /** A stored JSON tool list that is null, blank, `[]`, or unreadable (the store reads those as `[]`).
  *  Shared with `apply-connect-defaults.ts`. */
-export function isEmptyJsonList(raw: string | null): boolean {
+export function isEmptyJsonList({ raw }: { raw: string | null }, _optional = {}): boolean {
   if (!raw) return true;
   try {
     const parsed: unknown = JSON.parse(raw);

@@ -113,7 +113,7 @@ async function applyServerToolRenames(
 ): Promise<boolean> {
   const { deps, pluginId, serverKey, config, log } = input;
   if (config.type === "stdio" || !config.renamedTools) return false;
-  const serverId = deriveAgentPluginConnectionId(serverKey);
+  const serverId = deriveAgentPluginConnectionId({ serverKey });
   if (serverId === null) return false;
   const result = { changed: false };
   try {

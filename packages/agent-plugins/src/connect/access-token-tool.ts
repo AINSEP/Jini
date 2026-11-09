@@ -188,7 +188,7 @@ export async function resolveTarget(
   if (declared.length === 0) throw new ToolInputError({ message: routeDeps.messages.noTokenSignIn({ pluginId }) });
   if (declared.length > 1) throw new ToolInputError({ message: routeDeps.messages.multipleTokenSignIns({ pluginId }) });
   const [{ serverKey, config }] = declared as [(typeof declared)[number]];
-  const connectionId = deriveAgentPluginConnectionId(serverKey);
+  const connectionId = deriveAgentPluginConnectionId({ serverKey });
   if (!connectionId) throw new ToolInputError({ message: routeDeps.messages.serverNotSetUp({ pluginId, serverKey }) });
 
   optional.signal?.throwIfAborted();

@@ -109,7 +109,7 @@ export async function grantDeclaredToolsToSignedInRows(
   const onConnected = connectGrantFor({ deps, options: optional, ports });
   const granted: string[] = [];
   for (const [serverKey, config] of Object.entries(servers)) {
-    const connectionId = config.type === "stdio" || optional.skipServerKeys?.includes(serverKey) ? null : deriveAgentPluginConnectionId(serverKey);
+    const connectionId = config.type === "stdio" || optional.skipServerKeys?.includes(serverKey) ? null : deriveAgentPluginConnectionId({ serverKey });
     if (connectionId === null) continue;
     try {
       if (await grantConnection({ deps, pluginId, connectionId, onConnected, options: optional, ports })) granted.push(connectionId);

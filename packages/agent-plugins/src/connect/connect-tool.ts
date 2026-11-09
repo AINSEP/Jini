@@ -325,7 +325,7 @@ async function resolvePendingOAuthServers(
 ): Promise<readonly PendingOAuthServer[]> {
   const pending: PendingOAuthServer[] = [];
   for (const serverKey of oauthServerKeys) {
-    const connectionId = deriveAgentPluginConnectionId(serverKey);
+    const connectionId = deriveAgentPluginConnectionId({ serverKey });
     const row = connectionId
       ? await routeDeps.mcp.repo.findByServerId({ workspaceId: routeDeps.workspaceId, serverId: connectionId })
       : null;
@@ -391,7 +391,7 @@ async function connectWithoutOAuth(
   if (tokens.length === 0) return connectDeclaredApiConnectionOrRefuse(routeDeps, surfaces, ctx, pluginId, optional);
   if (tokens.length > 1) throw new ToolInputError({ message: routeDeps.host.messages.multipleTokenServers({ pluginId }) });
   const [serverKey, config] = tokens[0]!;
-  const serverId = deriveAgentPluginConnectionId(serverKey);
+  const serverId = deriveAgentPluginConnectionId({ serverKey });
   if (!serverId) throw new ToolInputError({ message: routeDeps.host.messages.connectionNotSetUp({ pluginId, serverKey }) });
   ctx.signal.throwIfAborted();
   const row = await routeDeps.mcp.repo.findByServerId({ workspaceId: routeDeps.workspaceId, serverId });
@@ -510,7 +510,7 @@ async function retainedOAuthServers({ routeDeps, servers, oauthServerKeys }: {
 }, _optional = {}): Promise<Readonly<Record<string, McpServerConfig>>> {
   const retained: Record<string, McpServerConfig> = {};
   for (const key of oauthServerKeys) {
-    const connectionId = deriveAgentPluginConnectionId(key);
+    const connectionId = deriveAgentPluginConnectionId({ serverKey: key });
     const row = connectionId ? await routeDeps.mcp.repo.findByServerId({ workspaceId: routeDeps.workspaceId, serverId: connectionId }) : null;
     if (row && hasStoredAgentPluginCredential({ row, projections: routeDeps.mcp.projections })) retained[key] = servers[key]!;
   }
