@@ -75,6 +75,6 @@ export function pluginInstallDerivedRiskFor({ toolId }: {
   toolId: string }, _optional = {}): DerivedRiskByToolId { return new Map([
   // -> pluginInstaller.install (installSitePlugin): copies the package into the site's plugin
   //    directory (replacing a version on replace:true). Durable file writes; nothing is executed and
-  //    no network is used. Uninstalling (plugins_uninstall) is the inverse.
+  //    no network is used. The uninstall operation is the inverse.
   [toolId, "mutates-durable-state"],
 ]); }

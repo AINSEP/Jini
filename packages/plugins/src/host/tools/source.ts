@@ -61,7 +61,7 @@ export function buildPluginSourceRegistrations<Description>(deps: PluginSourceTo
   const handlers: Record<string, ToolHandler> = {};
   for (const tool of deps.registration.catalog) {
     const operation = operations[tool.name];
-    // plugin_source_delete has no direct operation: its approval handler is bound below.
+    // Source deletion has no direct operation: its approval handler is bound below.
     if (!operation) continue;
     handlers[tool.name] = async ctx => {
       await authorize(ctx, tool.authorization.permission);

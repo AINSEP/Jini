@@ -186,7 +186,7 @@ async function uninstallRequestFor<Description>(
 
 
 /**
- * The post-confirmation half of `plugins_uninstall`: re-discovers, then uninstalls only if the plugin is
+ * The post-confirmation half of uninstall: re-discovers, then uninstalls only if the plugin is
  * still the name and version the dialog showed. A change is a not-removed RESULT, the same union
  * member `expired`/`abandoned` use; every other refusal still propagates undecorated, per this file's convention.
  * @complexity one discovery scan plus `uninstallPlugin`.
@@ -490,7 +490,7 @@ async function applySiteRuntimeDecision<Description>(routeDeps: PluginManagement
 }
 
 
-/** The `admin.plugins.enable` check every write path in this file runs, through the kit's evaluator.
+/** The enable-permission check every write path in this file runs, through the kit's evaluator.
  * @complexity O(1) plus one authorization evaluation. */
 async function requireEnablePermission<Description>(
   routeDeps: PluginManagementToolsRequired<Description>,
@@ -503,7 +503,7 @@ async function requireEnablePermission<Description>(
 }
 
 
-/** `plugins_set_enabled`'s permission check, scoped to the family's own entity type. @complexity O(1) plus one evaluation. */
+/** The set-enabled permission check, scoped to the family's own entity type. @complexity O(1) plus one evaluation. */
 function requireSetEnabledPermission<Description>(routeDeps: PluginManagementToolsRequired<Description>, required: {
   readonly principalId: string;
   readonly request: SetEnabledRequest }): Promise<void> {
@@ -553,7 +553,7 @@ async function siteConsentFor<Description>(
 }
 
 
-/** One prepared `plugins_set_enabled` call: everything the card names and the write re-checks. */
+/** One prepared set-enabled call: everything the card names and the write re-checks. */
 interface SetEnabledPrepared {
 
   readonly request: SetEnabledRequest;
@@ -573,7 +573,7 @@ interface SetEnabledPrepared {
 
 
 /** parse -> authorize -> (Agent Plugin enable: activations.json writable?) -> identity -> consent
- * inputs. See the `plugins_set_enabled` handler's own comment for why this order is load-bearing.
+ * inputs. See the set-enabled handler's own comment for why this order is load-bearing.
  * @complexity One family discovery scan plus the source/policy reads in {@link siteConsentFor}. */
 async function prepareSetEnabled<Description>(routeDeps: PluginManagementToolsRequired<Description>, required: {
   readonly ctx: ToolExecutionContext }): Promise<SetEnabledPrepared> {
