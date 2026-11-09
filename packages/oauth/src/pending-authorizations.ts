@@ -1,3 +1,5 @@
+import type { PendingAuthorization, PendingAuthorizationStore } from '@jini-ai/core/contracts/oauth';
+export type { PendingAuthorization, PendingAuthorizationStore } from '@jini-ai/core/contracts/oauth';
 import { nowIso } from '@jini-ai/core/primitives';
 import { generateOAuthState } from './pkce.js';
 import type { Clock } from '@jini-ai/core/primitives';
@@ -20,33 +22,11 @@ import type { OAuthRequiredArgs, OAuthOptionalArgs, OAuthEmptyArgs } from './arg
  * fail at creation. Injected clocks let tests advance expiry without sleeping.
  */
 import { timingSafeEqual } from "node:crypto";
-import type { ISODateTime } from '@jini-ai/core/primitives';
 import { OAuthError } from "./errors.js";
 import type { OAuthRandomBytes } from "./ports.js";
 export const STATE_BYTES = 24;
 export const DEFAULT_TTL_MS = 10 * 60 * 1000;
 export const DEFAULT_MAX_ENTRIES = 256;
-/** Keep codeVerifier secret and preserve redirectUri and optional resource binding verbatim. */
-export interface PendingAuthorization {
-    readonly state: string;
-    readonly ownerKey: string;
-    readonly providerId: string;
-    readonly codeVerifier: string;
-    readonly redirectUri: string;
-    readonly scopes: readonly string[];
-    readonly resource?: import("./ports.js").OAuthResource;
-    readonly createdAt: ISODateTime;
-    readonly expiresAt: ISODateTime;
-}
-/** take must atomically consume across processes and use the same error for every redemption failure. */
-export interface PendingAuthorizationStore {
-    put(requiredArgs: OAuthRequiredArgs<Omit<PendingAuthorization, "state" | "createdAt" | "expiresAt">>, optionalArgs?: OAuthOptionalArgs<Omit<PendingAuthorization, "state" | "createdAt" | "expiresAt">>): Promise<PendingAuthorization>;
-    take(input: {
-        state: string;
-        ownerKey: string;
-    }): Promise<PendingAuthorization>;
-    size(requiredArgs: OAuthEmptyArgs): Promise<number>;
-}
 export interface PendingAuthorizationStoreDeps {
     readonly clock: Clock;
     readonly ttlMs?: number;

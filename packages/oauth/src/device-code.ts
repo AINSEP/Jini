@@ -1,29 +1,21 @@
+import type { DeviceAuthorizationDeps, BeginDeviceAuthorizationInput, PollDeviceAuthorizationInput } from '@jini-ai/core/contracts/oauth';
+export type { DeviceAuthorizationDeps, BeginDeviceAuthorizationInput, PollDeviceAuthorizationInput } from '@jini-ai/core/contracts/oauth';
 import type { DeviceAuthorization } from '@jini-ai/core/contracts/oauth';
 export type { DeviceAuthorization } from '@jini-ai/core/contracts/oauth';
-import { nowIso as readNowIso, type Clock, type ISODateTime } from '@jini-ai/core/primitives';
+import { nowIso as readNowIso, type Clock } from '@jini-ai/core/primitives';
 import type { OAuthRequiredArgs, OAuthOptionalArgs } from './args.js';
 import { customFetch, initiateDeviceAuthorization, ResponseBodyError } from 'openid-client';
 /** Device authorization and one-shot polling (RFC 8628). The application owns polling cadence and keeps the device code secret. */
 import { applyResourceIndicators } from "./resource.js";
 import { assertSafeProviderEndpoint, assertSafeUserFacingUrl } from "./endpoint-safety.js";
 import { adaptOAuthResponse, mapProviderErrorCode, OAuthError } from "./errors.js";
-import type { OAuthClient, OAuthProviderDescriptor, OAuthTokenSet, OAuthHttpPorts, OAuthResource } from "./ports.js";
+import type { OAuthTokenSet, OAuthHttpPorts } from "./ports.js";
 import { createOAuthClientConfiguration, DEFAULT_TOKEN_REQUEST_TIMEOUT_MS, requestOAuthToken, type TokenRequestDeps } from "./token-endpoint.js";
 import { createOAuthCustomFetch } from './guarded-transport.js';
 const DEFAULT_POLL_INTERVAL_SECONDS = 5;
 const MAX_POLL_INTERVAL_SECONDS = 60;
 const MAX_DEVICE_CODE_LIFETIME_SECONDS = 30 * 60;
 const MAX_RESPONSE_BYTES = 16 * 1024;
-export interface DeviceAuthorizationDeps extends OAuthHttpPorts {
-    readonly provider: OAuthProviderDescriptor;
-    readonly clock: Clock;
-}
-export interface BeginDeviceAuthorizationInput {
-    readonly resource?: OAuthResource;
-    readonly client: OAuthClient;
-    readonly scopes?: readonly string[];
-    readonly timeoutMs?: number;
-}
 function clampSeconds(seconds: number, min: number, max: number): number {
     return Math.min(Math.max(Math.ceil(seconds), min), max);
 }
@@ -61,13 +53,6 @@ export async function beginDeviceAuthorization(requiredArgs: OAuthRequiredArgs<D
         if (guardedFetch.failure) throw guardedFetch.failure.error;
         throw deviceAuthorizationError({ error, status: guardedFetch.status });
     }
-}
-export interface PollDeviceAuthorizationInput {
-    readonly resource?: OAuthResource;
-    readonly client: OAuthClient;
-    readonly deviceCode: string;
-    readonly expiresAt: ISODateTime;
-    readonly timeoutMs?: number;
 }
 export async function pollDeviceAuthorizationOnce(requiredArgs: OAuthRequiredArgs<DeviceAuthorizationDeps & TokenRequestDeps & PollDeviceAuthorizationInput>, optionalArgs: OAuthOptionalArgs<DeviceAuthorizationDeps & TokenRequestDeps & PollDeviceAuthorizationInput> = {}): Promise<OAuthTokenSet> {
     const { provider, clock, client, deviceCode, expiresAt } = requiredArgs;

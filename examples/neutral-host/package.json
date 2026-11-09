@@ -16,6 +16,8 @@
     "@jini-ai/daemon": "workspace:*",
     "@jini-ai/devops": "workspace:*",
     "@jini-ai/integrations": "workspace:*",
+    "@jini-ai/mcp": "workspace:*",
+    "@jini-ai/oauth": "workspace:*",
     "@jini-ai/platform": "workspace:*",
     "@jini-ai/search": "workspace:*",
     "@jini-ai/user-management": "workspace:*",

@@ -1,19 +1,12 @@
+import type { AuthorizationStateCodec, SealedAuthorizationState } from '@jini-ai/core/contracts/oauth';
+export type { AuthorizationStateCodec, SealedAuthorizationState } from '@jini-ai/core/contracts/oauth';
 import type { Clock } from '@jini-ai/core/primitives';
 import { DEFAULT_TTL_MS, invalidState, secureEquals, type PendingAuthorization } from './pending-authorizations.js';
 
 /** Bounds both callback allocation and the encrypted payload carried through the browser. */
 export const MAX_AUTHORIZATION_STATE_LENGTH = 4096;
 
-/** Host adapter uses its existing authenticated sealer and context AAD; no crypto lives here. */
-export interface AuthorizationStateCodec {
-    seal(requiredArgs: { plaintext: string }, optionalArgs?: Record<string, never>): Promise<string>;
-    open(requiredArgs: { state: string }, optionalArgs?: Record<string, never>): Promise<string>;
-}
 type AuthorizationEntry = Omit<PendingAuthorization, 'state' | 'createdAt' | 'expiresAt'>;
-export interface SealedAuthorizationState {
-    seal(requiredArgs: { entry: AuthorizationEntry }, optionalArgs?: Record<string, never>): Promise<PendingAuthorization>;
-    open(requiredArgs: { state: string; ownerKey: string; providerId: string; redirectUri: string }, optionalArgs?: Record<string, never>): Promise<PendingAuthorization>;
-}
 
 type OpenStateInput = Parameters<SealedAuthorizationState['open']>[0];
 type AuthorizationPayload = AuthorizationEntry & { createdAt: string; exp: number };

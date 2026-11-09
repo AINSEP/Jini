@@ -1,3 +1,5 @@
+import type { OAuthDiscoveryDeps, DiscoverAuthorizationServerInput } from '@jini-ai/core/contracts/oauth';
+export type { OAuthDiscoveryDeps, DiscoverAuthorizationServerInput } from '@jini-ai/core/contracts/oauth';
 import type { DiscoveredAuthorizationServer, DiscoveredOAuthConfiguration } from '@jini-ai/core/contracts/oauth';
 export type { DiscoveredAuthorizationServer, DiscoveredOAuthConfiguration } from '@jini-ai/core/contracts/oauth';
 import { discovery, None, allowInsecureRequests, customFetch } from 'openid-client';
@@ -12,18 +14,9 @@ import { createIssuerBoundDiscoveryPolicy, type OAuthDiscoveryPolicy } from './d
 import { assertOAuthResponseNotRedirect, assertSafeProviderEndpoint } from './endpoint-safety.js';
 import { OAuthError } from './errors.js';
 import { createOAuthCustomFetch } from './guarded-transport.js';
-import type { OAuthHttpPorts, OAuthUrlGuard } from './ports.js';
+import type { OAuthUrlGuard } from './ports.js';
 
 const DISCOVERY_TIMEOUT_MS = 10000;
-export interface OAuthDiscoveryDeps extends OAuthHttpPorts {}
-export interface DiscoverAuthorizationServerInput {
-    readonly resourceUrl: string;
-    readonly wwwAuthenticate?: string;
-    /** Origin-wide fallback is opt-in so a tenant cannot silently select another issuer. */
-    readonly allowOriginFallback?: boolean;
-    readonly timeoutMs?: number;
-    readonly metadataPolicy?: OAuthDiscoveryPolicy | 'none';
-}
 export interface DiscoveredProtectedResource {
     readonly resource: string | null;
     readonly authorizationServers: readonly string[];

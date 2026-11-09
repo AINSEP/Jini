@@ -131,7 +131,7 @@ export function createApiConnectionHost<State>(
   // connection; a later success deletes it.
   const lastSignInAttempts = new Map<string, ApiConnectionSignInAttempt>();
   // Hosted sign-ins started here, waiting for their starter's browser to open the host link.
-  const signInHandoffs = createSignInHandoffs({ clock: required.clock, randomBytesFn: ({ byteLength }) => randomBytes(byteLength) });
+  const signInHandoffs = createSignInHandoffs({ clock: required.clock, randomBytesFn: ({ byteLength }) => randomBytes(byteLength), oauth: required.oauth });
   // Per host (so per workspace) and per loaded declaration object: a BYO client never travels with a
   // connection object into another host, and the secret is never a field anything could serialize.
   const byoClients = new WeakMap<DeclaredApiConnection, ByoClient | ApiConnectionError>();
@@ -236,7 +236,7 @@ export function createApiConnectionHost<State>(
       appOptions: { ...required.appIdentity, redirectUris: redirectUri ? [redirectUri] : [] },
       hooks: hooksFor(connection),
       records, tokens: tokensFor(connection, client.clientId),
-      fetchFn: required.oauthHttp.fetchFn, guard: required.oauthHttp.guard, clock: required.clock,
+      fetchFn: required.oauthHttp.fetchFn, guard: required.oauthHttp.guard, clock: required.clock, oauth: required.oauth,
       randomBytesFn: ({ byteLength }) => randomBytes(byteLength),
       sleep: ({ ms }) => new Promise((resolve) => { setTimeout(resolve, ms); }),
     });
@@ -318,7 +318,7 @@ export function createApiConnectionHost<State>(
       descriptor: context.descriptor, client: context.client, clientKind: context.clientKind,
       appOptions: { ...required.appIdentity, redirectUris: redirectUri ? [redirectUri] : [] },
       hooks: hooksFor(connection), records: optional.shared!.records, tokens: optional.shared!.tokensFor({ context }),
-      fetchFn: required.oauthHttp.fetchFn, guard: required.oauthHttp.guard, clock: required.clock,
+      fetchFn: required.oauthHttp.fetchFn, guard: required.oauthHttp.guard, clock: required.clock, oauth: required.oauth,
       randomBytesFn: ({ byteLength }) => randomBytes(byteLength), sleep: ({ ms }) => new Promise(resolve => { setTimeout(resolve, ms); }),
     }),
   }) : undefined;

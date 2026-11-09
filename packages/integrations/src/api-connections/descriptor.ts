@@ -5,7 +5,6 @@
  * field limit is checked once here so the flow code can trust the shape. Endpoint safety (scheme,
  * private hosts, DNS) is still enforced at use by the injected OAuth URL guard.
  */
-import { isCallbackFieldName, MAX_CALLBACK_FIELD_LENGTH, MAX_CALLBACK_FIELDS } from '@jini-ai/oauth';
 import { ApiConnectionError } from './errors.js';
 import type { ApiConnectionBoundedField, ApiConnectionDescriptor } from './types.js';
 
@@ -16,11 +15,14 @@ const MAX_URL_LENGTH = 2048;
 const MAX_PARAMS = 16;
 const MAX_PARAM_VALUE_LENGTH = 512;
 interface FieldRules { readonly maxFields: number; readonly maxLength: number; readonly acceptsName: (name: string) => boolean }
+/**
+ * The loopback receiver's callback-field limits and name rule.
+ * @agent-note Required host input bound from the real `@jini-ai/oauth` exports (`maxFields` = `MAX_CALLBACK_FIELDS`, `maxLength` =
+ * `MAX_CALLBACK_FIELD_LENGTH`, `acceptsName` = `isCallbackFieldName`); one source of truth, never copied or defaulted here.
+ */
+export type ApiConnectionCallbackFieldRules = FieldRules;
 /** Start values ride in the authorization URL; 8 KiB stays within common server request-line limits. */
 const START_PARAM_RULES: FieldRules = { maxFields: 8, maxLength: 8192, acceptsName: () => true };
-/** The loopback receiver's own limits and name rule (one source of truth in the OAuth core), so a
- * declaration accepted here never fails only on desktop. */
-const CALLBACK_FIELD_RULES: FieldRules = { maxFields: MAX_CALLBACK_FIELDS, maxLength: MAX_CALLBACK_FIELD_LENGTH, acceptsName: isCallbackFieldName };
 /** Names the OAuth core sets itself or reads from the callback; a plugin may not shadow them. */
 const RESERVED_NAMES: ReadonlySet<string> = new Set([
   'resource', 'response_type', 'client_id', 'redirect_uri', 'scope', 'state', 'code',
@@ -88,7 +90,12 @@ function readFields(value: unknown, where: string, rules: FieldRules): readonly 
 }
 
 /** Validate and freeze a plugin-declared connection. Throws `descriptor-invalid` naming the bad part. */
-export function parseApiConnectionDescriptor(requiredArgs: { readonly value: unknown }): ApiConnectionDescriptor {
+export function parseApiConnectionDescriptor(requiredArgs: {
+  readonly value: unknown;
+  /** The loopback receiver's own limits and name rule (one source of truth in the OAuth core), so a
+   * declaration accepted here never fails only on desktop. */
+  readonly callbackFieldRules: ApiConnectionCallbackFieldRules;
+}): ApiConnectionDescriptor {
   const source = requiredArgs.value;
   if (!isRecord(source)) throw invalid('expected an object');
   const params = source.authorizationParams === undefined ? {} : source.authorizationParams;
@@ -105,6 +112,6 @@ export function parseApiConnectionDescriptor(requiredArgs: { readonly value: unk
     }),
     forceConsentParams: readParams(source.forceConsentParams, 'forceConsentParams'),
     startParams: readFields(source.startParams, 'startParams', START_PARAM_RULES),
-    callbackFields: readFields(source.callbackFields, 'callbackFields', CALLBACK_FIELD_RULES),
+    callbackFields: readFields(source.callbackFields, 'callbackFields', requiredArgs.callbackFieldRules),
   });
 }

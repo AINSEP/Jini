@@ -1,6 +1,7 @@
 /** @file Vertical-slice proof: the generic OAuth refresher running on the vault-backed store over
  * a real in-memory vault. Pins rotation persisted before lease release, and invalid_grant →
  * reconnect-required. The refresh grant itself is a typed fake; no network is used. */
+import { realVaultConflict } from '../../__tests__/fixtures/real-capabilities.js';
 import { describe, expect, it } from "vitest";
 import { OAuthError, createTokenRefresher, type OAuthTokenSet } from "@jini-ai/oauth";
 import { createVaultOAuthTokenStore, type OAuthTokenVaultPort } from "../index.js";
@@ -17,7 +18,7 @@ describe("refresher on the vault-backed store", () => {
       patchMeta: input => { calls.push(input.patch.leaseHolder === null ? "release" : "acquire"); return f.vault.patchMeta(input); },
       delete: input => f.vault.delete(input),
     };
-    const store = createVaultOAuthTokenStore({ vault: recordingVault, vaultScope: SCOPE, owner: OWNER, clock: f.clock,
+    const store = createVaultOAuthTokenStore({ isVaultConflict: realVaultConflict, vault: recordingVault, vaultScope: SCOPE, owner: OWNER, clock: f.clock,
       readGeneration: async () => f.state.generation });
     const due = tokenSet({ label: "old" }, { expiresAt: new Date(START_MS + 60_000).toISOString() });
     await seed({ store, tokens: due });

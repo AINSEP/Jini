@@ -3,6 +3,7 @@
  * allowlisted callback fields and the raw callback. Each refusal is `request-invalid` naming the
  * bad part; malformed values are passed as `unknown` on purpose.
  */
+import { realCallbackLimits } from './fixtures/real-capabilities.js';
 import { describe, expect, it } from 'vitest';
 import { ApiConnectionError } from '../errors.js';
 import { assertId, checkCallbackParams, checkScopes, checkStartParams, pickBoundedFields } from '../request-checks.js';
@@ -96,23 +97,23 @@ describe('checkStartParams', () => {
 
 describe('checkCallbackParams', () => {
   it('keeps only the OAuth names and drops plugin fields', () => {
-    expect(checkCallbackParams({ state: 's', code: 'c', picked: 'p' })).toEqual({ state: 's', code: 'c' });
+    expect(checkCallbackParams({ state: 's', code: 'c', picked: 'p' }, realCallbackLimits)).toEqual({ state: 's', code: 'c' });
   });
 
   it('passes a provider error through for the OAuth core to map', () => {
-    expect(checkCallbackParams({ state: 's', error: 'access_denied' })).toEqual({ state: 's', error: 'access_denied' });
+    expect(checkCallbackParams({ state: 's', error: 'access_denied' }, realCallbackLimits)).toEqual({ state: 's', error: 'access_denied' });
   });
 
   it('reads a missing state as empty so the core refuses it as an invalid attempt', () => {
-    expect(checkCallbackParams({ code: 'c' })).toEqual({ state: '', code: 'c' });
+    expect(checkCallbackParams({ code: 'c' }, realCallbackLimits)).toEqual({ state: '', code: 'c' });
   });
 
   it('refuses a callback with more than 64 fields', () => {
     const params = Object.fromEntries(Array.from({ length: 65 }, (_, index) => [`f${index}`, 'v']));
-    expect(refusal(() => checkCallbackParams(params))).toContain('too many or oversized fields');
+    expect(refusal(() => checkCallbackParams(params, realCallbackLimits))).toContain('too many or oversized fields');
   });
 
   it('refuses an oversized field before any state is consumed', () => {
-    expect(refusal(() => checkCallbackParams({ state: 's', code: 'c'.repeat(100_000) }))).toContain('too many or oversized fields');
+    expect(refusal(() => checkCallbackParams({ state: 's', code: 'c'.repeat(100_000) }, realCallbackLimits))).toContain('too many or oversized fields');
   });
 });

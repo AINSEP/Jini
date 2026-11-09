@@ -1,3 +1,4 @@
+import type { McpBearerTokenSupplier } from "@jini-ai/core/contracts/hosted-mcp";
 import { loadOptionalPeer } from '@jini-ai/core/optional-peer';
 import { redactSecrets } from '@jini-ai/core';
 import { scrubFederatedResponseValue } from "./result-secrets.js";
@@ -120,8 +121,8 @@ function buildPostFailureError(params: { error: unknown; timedOut: boolean; call
  * always one whose handshake completed — mirroring `adapter.stdio.ts`, and for the same reason:
  * there is no half-initialized state a caller could accidentally use.
  */
-/** Supplies a current token per exchange. Undefined preserves configured headers. */
-export type McpBearerTokenSupplier = (request: { readonly url: string }, options?: { readonly signal?: AbortSignal | undefined }) => string | undefined | Promise<string | undefined>;
+/** @agent-note Canonical type lives in `@jini-ai/core/contracts/hosted-mcp`; re-exported here so existing federation imports keep the same name. */
+export type { McpBearerTokenSupplier } from "@jini-ai/core/contracts/hosted-mcp";
 /** Notifies the host of a 401, including its authentication challenge. No OAuth flow or retry here. */
 export type McpAuthenticationChallengeHook = (request: {
   readonly url: string;

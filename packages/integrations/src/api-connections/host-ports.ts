@@ -2,6 +2,7 @@ import type { Clock } from '@jini-ai/core/primitives';
 import type { OAuthAppOptions, OAuthClient, OAuthHttpPorts } from '@jini-ai/core/contracts/oauth';
 import type { ApiConnectionDeclaration, ApiConnectionHooksModule } from './declarations.js';
 import type { ApiConnectionClientKind } from './deps.js';
+import type { ApiConnectionOAuthCapabilities } from './oauth-capabilities.js';
 import type { ApiConnectionError } from './errors.js';
 import type { ApiConnectionRecordStore, ApiConnectionTokenStore } from './ports.js';
 import type { ApiConnectionService } from './service.js';
@@ -136,6 +137,8 @@ export interface ApiConnectionRuntimeHostDeps<State> extends ApiConnectionHostPo
   readonly workspaceId: string;
   readonly clock: Clock;
   readonly oauthHttp: OAuthHttpPorts;
+  /** @agent-note Required; ONE `ApiConnectionOAuthCapabilities` object bound by the host from the real `@jini-ai/oauth` exports, shared by every service, attempt, callback and sign-in hand-off this host creates. */
+  readonly oauth: ApiConnectionOAuthCapabilities;
   readonly pluginHttp: PluginHttp;
   readonly runtime: ApiConnectionRuntime;
   readonly env: Readonly<Record<string, string | undefined>>;

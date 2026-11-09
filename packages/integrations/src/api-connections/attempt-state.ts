@@ -8,8 +8,7 @@
  * indistinguishable invalid-state.
  */
 import { createHash } from 'node:crypto';
-import { invalidPendingAuthorizationState, PENDING_AUTHORIZATION_STATE_BYTES, generateOAuthState,
-  secureEqualsForOwnerBinding, type PendingAuthorization, type SealedAuthorizationState } from '@jini-ai/oauth';
+import type { PendingAuthorization, SealedAuthorizationState } from '@jini-ai/core/contracts/oauth';
 import { nowIso } from '@jini-ai/core/primitives';
 import type { ApiConnectionServiceDeps } from './deps.js';
 import type { ApiConnectionAttempt } from './types.js';
@@ -29,7 +28,7 @@ export function hashBrowserBinding(value: unknown): string {
 }
 
 type AttemptDraft = Omit<ApiConnectionAttempt, 'state' | 'codeVerifier' | 'redirectUri' | 'createdAt' | 'expiresAt'>;
-type AttemptDeps = Pick<ApiConnectionServiceDeps, 'records' | 'clock' | 'randomBytesFn'>;
+type AttemptDeps = Pick<ApiConnectionServiceDeps, 'records' | 'clock' | 'randomBytesFn' | 'oauth'>;
 
 function toPending(attempt: ApiConnectionAttempt, providerId: string): PendingAuthorization {
   return {
@@ -39,8 +38,8 @@ function toPending(attempt: ApiConnectionAttempt, providerId: string): PendingAu
 }
 
 /** Each adapter serves one direction; reaching the other means the core changed its contract. */
-async function refuseUnexpected(): Promise<never> {
-  throw invalidPendingAuthorizationState({});
+async function refuseUnexpected(deps: AttemptDeps): Promise<never> {
+  throw deps.oauth.invalidPendingState({});
 }
 
 /** Seal side: store the attempt under fresh random state. */
@@ -50,24 +49,24 @@ export function attemptSealer(deps: AttemptDeps, requiredArgs: { readonly draft:
       const createdAt = nowIso({ clock: deps.clock });
       const attempt: ApiConnectionAttempt = {
         ...requiredArgs.draft, codeVerifier: entry.codeVerifier, redirectUri: entry.redirectUri, createdAt,
-        state: generateOAuthState({ randomBytesFn: deps.randomBytesFn }, { stateBytes: PENDING_AUTHORIZATION_STATE_BYTES }),
+        state: deps.oauth.generateState({ randomBytesFn: deps.randomBytesFn }, { stateBytes: deps.oauth.pendingStateBytes }),
         expiresAt: new Date(Date.parse(createdAt) + ATTEMPT_TTL_MS).toISOString(),
       };
       await deps.records.putAttempt({ attempt });
       return toPending(attempt, entry.providerId);
     },
-    open: refuseUnexpected,
+    open: () => refuseUnexpected(deps),
   };
 }
 
 interface ExpectedBinding { readonly ownerKey: string; readonly redirectUri: string; readonly browserBinding: string }
 
-function matchesBinding(attempt: ApiConnectionAttempt, expected: ExpectedBinding, nowMs: number): boolean {
+function matchesBinding(deps: AttemptDeps, attempt: ApiConnectionAttempt, expected: ExpectedBinding, nowMs: number): boolean {
   return Date.parse(attempt.expiresAt) > nowMs
-    && secureEqualsForOwnerBinding({ a: attempt.ownerKey, b: expected.ownerKey })
+    && deps.oauth.secureEquals({ a: attempt.ownerKey, b: expected.ownerKey })
     // The owner key alone cannot bind a hosted callback: a cookie-less callback route can only learn
     // the identities from the attempt itself. The browser binding is what the redirected browser carries.
-    && secureEqualsForOwnerBinding({ a: attempt.browserBindingHash, b: hashBrowserBinding(expected.browserBinding) })
+    && deps.oauth.secureEquals({ a: attempt.browserBindingHash, b: hashBrowserBinding(expected.browserBinding) })
     && attempt.redirectUri === expected.redirectUri;
 }
 
@@ -82,11 +81,11 @@ export function attemptOpener(
 ): SealedAuthorizationState {
   const { browserBinding } = requiredArgs;
   return {
-    seal: refuseUnexpected,
+    seal: () => refuseUnexpected(deps),
     async open({ state, ownerKey, providerId, redirectUri }) {
       const attempt = await deps.records.takeAttempt({ state });
-      if (attempt === null || !matchesBinding(attempt, { ownerKey, redirectUri, browserBinding }, deps.clock.nowMs())) {
-        throw invalidPendingAuthorizationState({});
+      if (attempt === null || !matchesBinding(deps, attempt, { ownerKey, redirectUri, browserBinding }, deps.clock.nowMs())) {
+        throw deps.oauth.invalidPendingState({});
       }
       requiredArgs.onOpen({ attempt });
       return toPending(attempt, providerId);

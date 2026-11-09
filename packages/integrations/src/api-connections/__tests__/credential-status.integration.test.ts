@@ -1,5 +1,6 @@
 /** @file Real vault codec + connection service regressions: incompatible credentials require
  * reconnecting, stay sealed and intact, and never escape as internal store errors. No HTTP. */
+import { realVaultConflict } from './fixtures/real-capabilities.js';
 import { describe, expect, it } from 'vitest';
 import { AesGcmSecretSealer } from '@jini-ai/platform/secrets';
 import { InMemoryKeyring } from '@jini-ai/platform/secrets/testing';
@@ -19,7 +20,7 @@ function fixture() {
   const vault = new SecretsVaultService({ repo, keyring, sealer: new AesGcmSecretSealer({ keyring }),
     metaParsers: createVaultMetaParsers({}, { parsers: { 'api-connection': parseOAuthTokenVaultMeta } }),
     authorize: async () => {}, now: () => '2026-10-20T10:00:00.000Z', newId: () => 'unused-id' });
-  const store = createVaultOAuthTokenStore({ vault, vaultScope: scope, owner, clock: deps.clock,
+  const store = createVaultOAuthTokenStore({ isVaultConflict: realVaultConflict, vault, vaultScope: scope, owner, clock: deps.clock,
     readGeneration: createApiConnectionGenerationReader({ records: deps.records }) });
   return { deps, repo, vault, service: createApiConnectionService({ ...deps, tokens: store }) };
 }

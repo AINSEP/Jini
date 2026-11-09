@@ -139,3 +139,4 @@ export interface ClientRegistrationCache {
 }
 
 export type * from './oauth/details.js';
+export type * from './oauth/flow.js';

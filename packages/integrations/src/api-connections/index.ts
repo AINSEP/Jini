@@ -2,12 +2,13 @@
  * @file Public entry `@jini-ai/integrations/api-connections`: plugin-declared OAuth connections
  * (sign-in, status, reconnect, staged account switch, disconnect/revoke, access tokens).
  */
-export { parseApiConnectionDescriptor } from './descriptor.js';
+export { parseApiConnectionDescriptor, type ApiConnectionCallbackFieldRules } from './descriptor.js';
 export { createApiConnectionService, type ApiConnectionService } from './service.js';
 export { deriveApiConnectionKey, createApiConnectionGenerationReader } from './keys.js';
 export { waitForHostedSignIn, createSignInHandoffs, type SignInHandoffs } from './hosted-sign-in.js';
 export { ApiConnectionError, type ApiConnectionErrorCode } from './errors.js';
 export type { ApiConnectionClientKind, ApiConnectionServiceDeps } from './deps.js';
+export type { ApiConnectionOAuthCapabilities, ApiConnectionOAuthError, ApiConnectionPendingCache } from './oauth-capabilities.js';
 export type { ApiConnectionHooks, ApiConnectionRecordStore, ApiConnectionTokenStore } from './ports.js';
 export type { StartApiConnectionResult } from './authorization.js';
 export type { CompletedAuthorization } from './finish-authorization.js';

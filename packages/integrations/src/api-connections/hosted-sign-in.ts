@@ -1,5 +1,6 @@
 import type { Clock } from '@jini-ai/core/primitives';
-import { createPendingAuthorizationStore, generateOAuthState, type OAuthRandomBytes } from '@jini-ai/oauth';
+import type { OAuthRandomBytes } from '@jini-ai/core/contracts/oauth';
+import type { ApiConnectionOAuthCapabilities } from './oauth-capabilities.js';
 import type { createApiConnectionGenerationReader } from './keys.js';
 import type { ApiConnectionService } from './service.js';
 
@@ -59,14 +60,18 @@ export interface SignInHandoffs {
  * @complexity O(n) insertion sweep, O(1) take; O(256) bounded space.
  * @overallScore 100
  */
-export function createSignInHandoffs(required: { readonly clock: Clock; readonly randomBytesFn: OAuthRandomBytes }, _optional: Record<string, never> = {}): SignInHandoffs {
-  const pending = createPendingAuthorizationStore<SignInHandoff>({ clock: required.clock }, {
+export function createSignInHandoffs(required: {
+  readonly clock: Clock; readonly randomBytesFn: OAuthRandomBytes;
+  /** @agent-note Required real `@jini-ai/oauth` exports (the host's one capabilities object): `createPendingAuthorizationStore` and `generateOAuthState`. */
+  readonly oauth: Pick<ApiConnectionOAuthCapabilities, 'createPendingAuthorizationStore' | 'generateState'>;
+}, _optional: Record<string, never> = {}): SignInHandoffs {
+  const pending = required.oauth.createPendingAuthorizationStore<SignInHandoff>({ clock: required.clock }, {
     expiry: ({ value }) => Date.parse(value.expiresAt),
   });
   return {
     /** Stores host-only proof; entropy errors propagate before anything is issued. */
     issue(input: SignInHandoff, _options: Record<string, never> = {}): string {
-      const id = generateOAuthState({ randomBytesFn: required.randomBytesFn }, { stateBytes: 32 });
+      const id = required.oauth.generateState({ randomBytesFn: required.randomBytesFn }, { stateBytes: 32 });
       pending.put({ state: id, value: { ...input } });
       return id;
     },

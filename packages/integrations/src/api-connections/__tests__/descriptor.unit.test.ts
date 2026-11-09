@@ -3,6 +3,7 @@
  * declaration becomes a frozen, bounded descriptor, and every malformed part is refused with
  * `descriptor-invalid` naming that part. Malformed inputs are plain `unknown` values on purpose.
  */
+import { realCallbackFieldRules } from './fixtures/real-capabilities.js';
 import { describe, expect, it } from 'vitest';
 import { ApiConnectionError, parseApiConnectionDescriptor } from '../index.js';
 
@@ -13,7 +14,7 @@ const VALID = {
 
 function refusal(value: unknown): string {
   try {
-    parseApiConnectionDescriptor({ value });
+    parseApiConnectionDescriptor({ callbackFieldRules: realCallbackFieldRules, value });
   } catch (error) {
     if (error instanceof ApiConnectionError && error.code === 'descriptor-invalid') return error.message;
     throw error;
@@ -23,25 +24,25 @@ function refusal(value: unknown): string {
 
 describe('accepted declarations', () => {
   it('fills empty parameters and field lists when the plugin declares none', () => {
-    expect(parseApiConnectionDescriptor({ value: VALID })).toEqual({
+    expect(parseApiConnectionDescriptor({ callbackFieldRules: realCallbackFieldRules, value: VALID })).toEqual({
       ...VALID, authorizationParams: { public: {}, confidential: {} }, forceConsentParams: {}, startParams: [], callbackFields: [],
     });
   });
 
   it('keeps the declared force-consent parameters, frozen', () => {
-    const descriptor = parseApiConnectionDescriptor({ value: { ...VALID, forceConsentParams: { prompt: 'consent' } } });
+    const descriptor = parseApiConnectionDescriptor({ callbackFieldRules: realCallbackFieldRules, value: { ...VALID, forceConsentParams: { prompt: 'consent' } } });
     expect([descriptor.forceConsentParams, Object.isFrozen(descriptor.forceConsentParams)]).toEqual([{ prompt: 'consent' }, true]);
   });
 
   it('freezes the descriptor and every nested part', () => {
-    const descriptor = parseApiConnectionDescriptor({ value: { ...VALID, authorizationParams: { public: { prompt: 'consent' } },
+    const descriptor = parseApiConnectionDescriptor({ callbackFieldRules: realCallbackFieldRules, value: { ...VALID, authorizationParams: { public: { prompt: 'consent' } },
       startParams: [{ name: 'mode', maxLength: 4 }] } });
     expect([descriptor, descriptor.authorizationParams, descriptor.authorizationParams.public, descriptor.startParams,
       descriptor.startParams[0]].every(part => Object.isFrozen(part))).toBe(true);
   });
 
   it('keeps only the declared field properties', () => {
-    const descriptor = parseApiConnectionDescriptor({ value: { ...VALID, callbackFields: [{ name: 'picked', maxLength: 64, note: 'x' }] } });
+    const descriptor = parseApiConnectionDescriptor({ callbackFieldRules: realCallbackFieldRules, value: { ...VALID, callbackFields: [{ name: 'picked', maxLength: 64, note: 'x' }] } });
     expect(descriptor.callbackFields).toEqual([{ name: 'picked', maxLength: 64 }]);
   });
 });

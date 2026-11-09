@@ -1,6 +1,7 @@
 /** @file Shared fixture: a real in-memory secrets vault, a controllable clock and generation,
  * and a neutral "acme" connection owner. Token strings are built at runtime and are not
  * shaped like any real provider credential. */
+import { realVaultConflict } from '../../__tests__/fixtures/real-capabilities.js';
 import type { OAuthTokenSet } from "@jini-ai/oauth";
 import { AesGcmSecretSealer } from "@jini-ai/platform/secrets";
 import { InMemoryKeyring } from "@jini-ai/platform/secrets/testing";
@@ -26,7 +27,7 @@ export function createFixture() {
     authorize: async () => {}, now: () => "2026-10-20T00:00:00.000Z", newId: () => "unused-id" });
   const state = { nowMs: START_MS, generation: 1 };
   const clock = { nowMs: () => state.nowMs };
-  const store = (optional: { owner?: OAuthConnectionOwner } = {}): VaultOAuthTokenStore => createVaultOAuthTokenStore({
+  const store = (optional: { owner?: OAuthConnectionOwner } = {}): VaultOAuthTokenStore => createVaultOAuthTokenStore({ isVaultConflict: realVaultConflict,
     vault, vaultScope: SCOPE, owner: optional.owner ?? OWNER, clock, readGeneration: async () => state.generation });
   return { repo, vault, state, clock, store };
 }

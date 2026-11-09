@@ -30,8 +30,8 @@ export interface ExternalMcpServerRecord {
   workspaceId: UUID;
   serverId: string;
   label: string | null;
-  /** The Agent Plugin id that auto-provisioned this row, or `null` for an operator-created one. See
-   *  `schema.sqlite.ts`'s `provisioned_by_plugin_id` column doc for the full rule. */
+  /** The Agent Plugin id that auto-provisioned this row, or `null` for an operator-created one.
+   * @agent-note Only the trusted plugin provisioner sets this on creation; subsequent saves preserve it and never clear it. */
   provisionedByPluginId: string | null;
   transport: string;
   /** How credentials are obtained. Independent of `transport` — see this file's header. */
@@ -90,7 +90,8 @@ export interface ExternalMcpServerRecord {
    * `oauthExpiresAt`: a lease you must decrypt to inspect is a lease you cannot break after a crash.
    */
   oauthRefreshLeaseUntil: ISODateTime | null;
-  /** Sealed `{ clientSecret?, tokens? }`. See `external-mcp-oauth.ts` for the read-modify-write rule. */
+  /** Sealed `{ clientSecret?, tokens? }`.
+   * @agent-note Writers must open, update and reseal the whole payload, preserving members they did not explicitly change or clear; writing tokens alone would erase the client secret. */
   sealedOAuth: SealedSecret | null;
   /** Compatibility read field; normalized vault envelopes use lineage 1. */
   aadVersion: number;
@@ -111,7 +112,7 @@ export interface ExternalMcpAccessUpdate {
   readonly nowIso: ISODateTime;
 }
 
-/** Workspace-scoped persistence (ADR-007 §1). Multi-row per workspace, so list/upsert/delete rather
+/** Workspace-scoped persistence. Multi-row per workspace, so list/upsert/delete rather
  *  than a single-row find/upsert. */
 /** @agent-note Fulfilled by the host (SQL or memory adapter). The store, the sign-in service and the plugin connect seam must receive the SAME repository instance, because sealed envelopes carry private repository context only that repository rebuilds. */
 export interface ExternalMcpServerRepoPort {
@@ -163,7 +164,7 @@ export interface ExternalMcpStoreDeps {
  * Resolves an `oauth` row's contribution to the child environment.
  *
  * Kept behind a port rather than inlined, so this store never imports a token endpoint, a refresher,
- * or `src/platform/oauth/` at all: the boot path asks for a token, and whoever wired the daemon decides where
+ * or an OAuth implementation at all: the boot path asks for a token, and whoever wired the daemon decides where
  * it comes from. That is also what keeps this module testable without a network.
  */
 /** @agent-note Fulfilled by the sign-in service's `tokenResolver`; the store calls it once per OAuth row read and never imports OAuth itself. */

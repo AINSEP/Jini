@@ -8,7 +8,7 @@
  * rejected refresh or unreadable credential moves the record to `reconnect-required`. Unreadable
  * credentials are preserved, and their internal store errors become a clear reconnect instruction.
  */
-import { createTokenRefresher, OAuthError, refreshAccessToken, type TokenRefreshPort } from '@jini-ai/oauth';
+import type { TokenRefreshPort } from '@jini-ai/core/contracts/oauth';
 import type { ApiConnectionServiceDeps } from './deps.js';
 import { ApiConnectionError, type ApiConnectionErrorCode } from './errors.js';
 import { loadOwnedRecord, writeRecord, type OwnedRecordArgs } from './records.js';
@@ -77,13 +77,13 @@ function refreshPort(deps: ApiConnectionServiceDeps): TokenRefreshPort {
     },
     ...(tokens.tryAcquireRefreshLease ? { tryAcquireRefreshLease: tokens.tryAcquireRefreshLease.bind(tokens) } : {}),
     ...(tokens.releaseRefreshLease ? { releaseRefreshLease: tokens.releaseRefreshLease.bind(tokens) } : {}),
-    refresh: ({ refreshToken }) => refreshAccessToken({ fetchFn: deps.fetchFn, guard: deps.guard, clock: deps.clock,
+    refresh: ({ refreshToken }) => deps.oauth.flow.refreshAccessToken({ fetchFn: deps.fetchFn, guard: deps.guard, clock: deps.clock,
       tokenEndpoint: deps.descriptor.tokenEndpoint, client: deps.client, refreshToken }),
   };
 }
 
 export function createApiConnectionAccessTokens(deps: ApiConnectionServiceDeps): ApiConnectionAccessTokens {
-  const refresher = createTokenRefresher({ clock: deps.clock, sleep: deps.sleep, port: refreshPort(deps) });
+  const refresher = deps.oauth.flow.createTokenRefresher({ clock: deps.clock, sleep: deps.sleep, port: refreshPort(deps) });
   return {
     async getAccessToken(requiredArgs, optionalArgs = {}) {
       const { expectedAccountId } = optionalArgs;
@@ -94,7 +94,8 @@ export function createApiConnectionAccessTokens(deps: ApiConnectionServiceDeps):
           await markReconnectRequired(deps, record.key, { expectedGeneration: record.generation });
           throw new ApiConnectionError(REFUSALS['reconnect-required'], { cause: error });
         }
-        if (error instanceof OAuthError && error.code === 'OAUTH_INVALID_GRANT') {
+        const classified = { value: error };
+        if (deps.oauth.isOAuthError(classified) && classified.value.code === 'OAUTH_INVALID_GRANT') {
           throw new ApiConnectionError(REFUSALS['reconnect-required'], { cause: error });
         }
         throw error;

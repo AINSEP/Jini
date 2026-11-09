@@ -75,7 +75,7 @@ for (const status of [200, 400, 503]) {
             ...fixturePorts, clock: createTestClock(), fetchFn: http.fetchFn,
             tokenEndpoint: TOKEN_ENDPOINT, client: TEST_CLIENT, params: { grant_type: 'authorization_code' },
         }), 'OAUTH_PROVIDER_REJECTED');
-        assert.equal(error.message, `the authorization server refused the request (HTTP ${status}, invalid_provider_error)`);
+        assert.equal(error.message, `the authorization server returned an unrecognized error (HTTP ${status})`);
         assert.equal(error.providerErrorCode, 'invalid_provider_error');
         assert.equal(error.cause, undefined);
         assert.equal(JSON.stringify(error).includes(providerError), false);

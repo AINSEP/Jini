@@ -1,10 +1,8 @@
+import type { OAuthDiscoveryPolicy } from '@jini-ai/core/contracts/oauth';
+export type { OAuthDiscoveryPolicy } from '@jini-ai/core/contracts/oauth';
 import { OAuthError } from './errors.js';
 import type { OAuthEmptyArgs } from './args.js';
 
-/** A host chooses its metadata trust policy separately from its outbound URL policy. */
-export interface OAuthDiscoveryPolicy {
-  assertMetadata(requiredArgs: { issuer: string; document: Readonly<Record<string, unknown>> }): void;
-}
 
 function rejectMetadata({ message }: { message: string }, _optionalArgs: OAuthEmptyArgs = {}): never {
   throw new OAuthError({
