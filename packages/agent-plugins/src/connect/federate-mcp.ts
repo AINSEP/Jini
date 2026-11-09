@@ -29,7 +29,7 @@ import type { createAgentPluginLifecycle } from "../lifecycle/index.js";
  *    key, e.g. `higgsfield`) is what lets this rule recognize the ACTUAL pre-existing row, rather
  *    than shadowing it with a second, uniquely-derived connection beside it. There is deliberately no
  *    hash-suffixed fallback id — one id, verbatim, always; a vendor's own SKILL.md documents
- *    `mcp__<serverKey>__<tool>` and cannot predict any suffix Tovu might mint, so a fallback scheme
+ *    `mcp__<serverKey>__<tool>` and cannot predict any suffix the host might mint, so a fallback scheme
  *    would defeat the exact "no guessing" goal this feature exists for.
  *
  *    A row already at that id splits into two cases, neither of which ever calls
@@ -178,6 +178,16 @@ export interface SkippedAgentPluginMcpServer {
 /** The shape of `classifyAgentPluginMcpServerTrust` (`capability-projection.ts`). */
 export type AgentPluginMcpTrustClassifier = (server: Pick<McpServerConfig, "type">) => "auto-admit" | "requires-confirmation";
 
+/** @agent-note Product copy for declarations the host's MCP store cannot hold. Returned as skip
+ * reasons (shown in enable previews and provisioning warnings), so they name the host's own store;
+ * they must never echo a header value or URL credential. */
+export interface AgentPluginMcpFederationMessages {
+  /** The server declares the legacy 'sse' transport. */
+  sseTransportUnsupported(): string;
+  /** The server declares HTTP headers the store does not persist. */
+  headersUnsupported(): string;
+}
+
 /** The host's plugin directory tree; only each workspace's root is read here. */
 export interface AgentPluginLayout {
   forWorkspace(workspaceId: string): { readonly root: string };
@@ -221,6 +231,7 @@ function classifyAgentPluginMcpServerForFederation(
   serverKey: string,
   config: McpServerConfig,
   classifyTrust: AgentPluginMcpTrustClassifier,
+  messages: AgentPluginMcpFederationMessages,
 ): { readonly kind: "upsert"; readonly planned: PlannedAgentPluginMcpUpsert } | { readonly kind: "skip"; readonly reason: string } {
   if (config.type === "stdio") {
     return { kind: "skip", reason: "declares a 'stdio' local process — requires explicit operator confirmation, never auto-wired from a plugin" };
@@ -234,7 +245,7 @@ function classifyAgentPluginMcpServerForFederation(
   if (config.type === "sse") {
     return {
       kind: "skip",
-      reason: "declares the legacy 'sse' transport, which this Tovu version's external-MCP store does not support (only stdio/streamable_http)",
+      reason: messages.sseTransportUnsupported(),
     };
   }
   // `headers` is validated and preserved by `manifest.ts` but has no column in the external-MCP
@@ -244,7 +255,7 @@ function classifyAgentPluginMcpServerForFederation(
   if (config.headers !== undefined && Object.keys(config.headers).length > 0) {
     return {
       kind: "skip",
-      reason: "declares HTTP headers, which this Tovu version's external-MCP store does not persist — refusing to provision a row that silently drops them",
+      reason: messages.headersUnsupported(),
     };
   }
 
@@ -275,13 +286,14 @@ export function planAgentPluginMcpFederation(input: {
    *  @agent-note Required: a second host passes its lifecycle owner's `classifyAgentPluginMcpServerTrust`
    *  (object argument adapted to this positional shape); there is no default trust rule here. */
   readonly classifyTrust: AgentPluginMcpTrustClassifier;
+  readonly messages: AgentPluginMcpFederationMessages;
 }): AgentPluginMcpFederationPlan {
   const classifyTrust = options.classifyTrust;
   const toUpsert: PlannedAgentPluginMcpUpsert[] = [];
   const skipped: SkippedAgentPluginMcpServer[] = [];
 
   for (const [serverKey, config] of Object.entries(input.servers)) {
-    const result = classifyAgentPluginMcpServerForFederation(serverKey, config, classifyTrust);
+    const result = classifyAgentPluginMcpServerForFederation(serverKey, config, classifyTrust, options.messages);
     if (result.kind === "upsert") toUpsert.push(result.planned);
     else skipped.push({ serverKey, reason: result.reason });
   }
@@ -372,6 +384,8 @@ export interface ProvisionAgentPluginMcpServersInput {
   /** @agent-note The host's lifecycle trust rule (see {@link planAgentPluginMcpFederation}); required,
    *  never defaulted here. */
   readonly classifyTrust: AgentPluginMcpTrustClassifier;
+  /** @agent-note The host's skip-reason copy (see {@link AgentPluginMcpFederationMessages}). */
+  readonly messages: AgentPluginMcpFederationMessages;
 }
 
 export interface ProvisionAgentPluginMcpServersResult {
@@ -417,7 +431,7 @@ function buildProvisioningSaveInput(
     writeAllowedToolNames: "",
     // A brand-new oauth row structurally REQUIRES a grant (`external-mcp-store.ts`'s
     // `assertOAuthGrant`) even though nothing else is set — `authorization_code` is the only grant
-    // Tovu's own RFC 8414/7591 discovery-then-DCR flow can complete without a device-code endpoint,
+    // The host's own RFC 8414/7591 discovery-then-DCR flow can complete without a device-code endpoint,
     // which the Agent Plugins spec has no field to declare anyway.
     ...(planned.authMode === "oauth" ? { oauth: { grant: "authorization_code" as const } } : {}),
     principalId: input.principalId,
@@ -530,13 +544,13 @@ export async function provisionAgentPluginMcpServers(
   deps: AgentPluginMcpProjectionPorts & Pick<AgentPluginMcpPort, "repo" | "saveServer"> & Partial<Pick<AgentPluginMcpPort, "notifyRosterChanged">>,
   input: ProvisionAgentPluginMcpServersInput,
 ): Promise<ProvisionAgentPluginMcpServersResult> {
-  const plan = planAgentPluginMcpFederation(input, { classifyTrust: input.classifyTrust });
+  const plan = planAgentPluginMcpFederation(input, { classifyTrust: input.classifyTrust, messages: input.messages });
   const provisioned: string[] = [];
   const alreadyProvisioned: string[] = [];
   const adopted: string[] = [];
   const failed: SkippedAgentPluginMcpServer[] = [];
   // Resolved once per call: every stale-row check uses the host's own projections (required: a
-  // portable body never falls back to one host's projections; Tovu's legacy shim adds its pair).
+  // portable body never falls back to one host's projections; a host's legacy shim adds its pair).
   const bound = { repo: deps.repo, saveServer: (save: Parameters<AgentPluginMcpPort['saveServer']>[0]) => deps.saveServer(save), projections: deps.projections, classifyError: deps.classifyError };
 
   for (const planned of plan.toUpsert) {

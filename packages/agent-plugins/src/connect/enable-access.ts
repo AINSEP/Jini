@@ -3,12 +3,12 @@ import { ToolInputError, redactSecrets, type AccessApprovalResource } from '@jin
 import { planAgentPluginToolGrant, type AgentPluginToolGrant, type AgentPluginDeclaredTools } from '../lifecycle/enable-grants.js';
 import type { AgentPluginMcpRecord, AgentPluginMcpProjectionPorts, AgentPluginMcpProjections } from './ports.js';
 import type { AgentPluginMcpPort } from './ports.js';
-import { findAgentPluginMcpServerDefaults, planAgentPluginMcpFederation, type AgentPluginMcpTrustClassifier, type PlannedAgentPluginMcpUpsert } from './federate-mcp.js';
+import { findAgentPluginMcpServerDefaults, planAgentPluginMcpFederation, type AgentPluginMcpFederationMessages, type AgentPluginMcpTrustClassifier, type PlannedAgentPluginMcpUpsert } from './federate-mcp.js';
 import type { McpServerConfig } from '../lifecycle/manifest.js';
 
 /** @agent-note Product copy for the enable preview's refusals. Host input: the text names the host's own
  * settings screen; it must not echo a token (the connection id and nothing secret are passed). */
-export interface AgentPluginEnableAccessMessages {
+export interface AgentPluginEnableAccessMessages extends AgentPluginMcpFederationMessages {
   /** The row was configured separately or points somewhere else; its saved sign-in was kept. */
   sourceConfiguredSeparately(required: { readonly connectionId: string }): string;
 }
@@ -21,7 +21,7 @@ export function storedAgentPluginGrants({ row, projections }: { row: Pick<AgentP
 }
 
 /** Bind Jini's grant decision to the existing store's name and 64-tool bounds before card/write.
- * Production callers pass the composed ports; only the legacy no-ports Tovu signature binds Tovu's pair.
+ * Production callers pass the composed ports; only a host's legacy no-ports signature binds that host's pair.
  * @throws ToolInputError with the store's validation reason (core-redacted) and a repair action.
  * @complexity O(a+w) names; no I/O or schema changes.
  */
@@ -73,7 +73,7 @@ export async function previewAgentPluginEnableAccess(
   _options = {},
 ) {
   const ports: AgentPluginMcpProjectionPorts = { projections: context.projections, classifyError: context.classifyError };
-  const planned = planAgentPluginMcpFederation({ servers }, { classifyTrust });
+  const planned = planAgentPluginMcpFederation({ servers }, { classifyTrust, messages });
   if (planned.skipped.length) throw new ToolInputError({ message: `The plugin connection cannot be enabled here: ${planned.skipped.map(entry => `${entry.serverKey}: ${entry.reason}`).join('; ')}` });
   const snapshots = [];
   const resources: Omit<AccessApprovalResource, 'scope'>[] = [];

@@ -31,9 +31,11 @@ export interface PluginHostDiscoveryRecord {
 export interface PluginHostActivation { readonly enabled: boolean }
 
 /** Deps handed to the sign-in grant. Shape matches the host's existing grant owner. */
-export interface PluginHostGrantDeps extends AgentPluginMcpProjectionPorts {
+/** @agent-note `Layout` is the host's own layout object, passed through to the grant untouched; this
+ * package reads only `forWorkspace(id).root` from it. */
+export interface PluginHostGrantDeps<Layout extends AgentPluginLayoutInput = AgentPluginLayoutInput> extends AgentPluginMcpProjectionPorts {
   readonly workspaceId: string;
-  readonly agentPluginLayout: AgentPluginLayoutInput;
+  readonly agentPluginLayout: Layout;
   readonly repo: AgentPluginMcpPort['repo'];
   readonly applyAccess: AgentPluginMcpPort['applyAccess'];
   readonly clock: Clock;
@@ -83,9 +85,9 @@ export interface PluginHostMessages extends AgentPluginEnableAccessMessages {
   approvedLoadFailed(required: { detail: string }): string;
 }
 
-export interface PluginHostDeps<UninstallInput> {
+export interface PluginHostDeps<UninstallInput, Layout extends AgentPluginLayoutInput = AgentPluginLayoutInput> {
   readonly workspaceId: string;
-  readonly agentPluginLayout: AgentPluginLayoutInput;
+  readonly agentPluginLayout: Layout;
   readonly clock: Clock;
   /** @agent-note Your app's id; it is the namespace of every plugin identity this host reads and
    * admits, so it must not change between installs. */
@@ -115,7 +117,7 @@ export interface PluginHostDeps<UninstallInput> {
    * preview, provisioning grant and status (same function and error identity as `mcp`'s owner). */
   readonly mcpPorts: AgentPluginMcpProjectionPorts;
   /**
-   * @agent-note Host supplies its sign-in grant owner (Tovu: `grantDeclaredToolsToSignedInRows`).
+   * @agent-note Host supplies its sign-in grant owner (for example a `grantDeclaredToolsToSignedInRows` owner).
    * Order: called once per `provisionMcp`, AFTER provisioning and after its failure warnings; an
    * approved enable whose provisioning failed refuses before this runs (no grant on a refused
    * consent). `skipServerKeys` carries exactly the failed servers; `approvedEnable` is passed only
@@ -123,7 +125,7 @@ export interface PluginHostDeps<UninstallInput> {
    * toggle; returns the connection ids it granted. Saved rows/approval bytes are the owner's.
    */
   readonly grantSignedInDefaults: (
-    required: { deps: PluginHostGrantDeps; pluginId: string; servers: Readonly<Record<string, McpServerConfig>> },
+    required: { deps: PluginHostGrantDeps<Layout>; pluginId: string; servers: Readonly<Record<string, McpServerConfig>> },
     optional: { skipServerKeys?: readonly string[]; approvedEnable?: { readonly principalId: string; readonly accessKey: string } },
   ) => Promise<readonly string[]>;
   /** @agent-note Host diagnostics sink (redacted strings only; never thrown at callers). */
@@ -169,8 +171,8 @@ function requireApprovedAccessKey(key: string | undefined, messages: PluginHostM
  * every valid revision identity, including revisions omitted from lookup, to prevent takeovers.
  * @complexity O(p log p) per lookup, plus existing discovery/activation I/O for p installs.
  */
-export function createPluginHost<UninstallInput>(
-  { deps }: { deps: PluginHostDeps<UninstallInput> },
+export function createPluginHost<UninstallInput, Layout extends AgentPluginLayoutInput = AgentPluginLayoutInput>(
+  { deps }: { deps: PluginHostDeps<UninstallInput, Layout> },
   optional: {
     resolveMcpServers?: typeof resolveAgentPluginMcpServers;
     provisionMcpServers?: typeof provisionAgentPluginMcpServers;
@@ -266,7 +268,7 @@ export function createPluginHost<UninstallInput>(
       try {
         const approvedEnable = execution.approvedEnable ? { principalId, accessKey: requireApprovedAccessKey(execution.approvedEnableKey, deps.messages) } : undefined;
         const servers = await resolveServers(pluginId);
-        const result = await (optional.provisionMcpServers ?? provisionAgentPluginMcpServers)(mcp, { workspaceId: deps.workspaceId, pluginId, servers, principalId, classifyTrust: deps.classifyTrust });
+        const result = await (optional.provisionMcpServers ?? provisionAgentPluginMcpServers)(mcp, { workspaceId: deps.workspaceId, pluginId, servers, principalId, classifyTrust: deps.classifyTrust, messages: deps.messages });
         reportProvisioningFailures({ pluginId, failed: result.failed, approved: execution.approvedEnable === true, warn, messages: deps.messages });
         // Same as the admin toggle: an account signed in while the plugin was off gets the plugin's
         // declared tools now (bug 2026-11-04, the host's sign-in grant owner).

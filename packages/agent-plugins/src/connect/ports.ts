@@ -3,7 +3,8 @@ import type { ExternalMcpAccessSnapshot, ExternalMcpApprovedAccess, ExternalMcpO
 import type { SealedSecret } from '@jini-ai/core/contracts/vault';
 
 /** Roster persistence and safe classification; sealing/keyring dependencies stay in composition. */
-export interface AgentPluginMcpPort {
+/** @agent-note `Lowered` is the host's own tool-access change record type (opaque to this package). */
+export interface AgentPluginMcpPort<Lowered = unknown> {
   readonly repo: AgentPluginMcpRepo;
   /** Atomically save exactly the approved source and previous grants through the store owner. */
   applyAccess(input: ExternalMcpApprovedAccess, options?: Record<string, never>): Promise<void>;
@@ -11,14 +12,15 @@ export interface AgentPluginMcpPort {
   classifyError(input: { error: unknown }, options?: Record<string, never>): "validation" | "unconfigured" | "other";
   /** @agent-note `lowered` is the host's own tool-access change record (opaque here; this package only
    * ever calls it with `{}` after provisioning settles). One roster notifier per host, shared by admin and chat enable. */
-  notifyRosterChanged(input: { readonly lowered?: unknown }, options?: Record<string, never>): Promise<void>;
+  notifyRosterChanged(input: { readonly lowered?: Lowered }, options?: Record<string, never>): Promise<void>;
 }
 
 /** @agent-note These aliases name the canonical `@jini-ai/core/contracts/hosted-mcp` rows. Never copy the record,
  * access snapshot or repository: adoption must retain the canonical store's whole saved row. */
 export type AgentPluginMcpRecord = ExternalMcpServerRecord;
 export type AgentPluginMcpSave = SaveExternalMcpServerInput;
-export type AgentPluginMcpView = ExternalMcpServerView;
+/** @agent-note The host's token-hint shape stays opaque here (`unknown`); this package never reads it. */
+export type AgentPluginMcpView = ExternalMcpServerView<unknown>;
 export type AgentPluginMcpRepo = Pick<ExternalMcpServerRepoPort, 'findByServerId' | 'upsert' | 'deleteByServerId' | 'updateAccessIfCurrent'>;
 export type AgentPluginMcpAccessSnapshot = ExternalMcpAccessSnapshot;
 /** @agent-note A second host supplies all six projections together with the paired
@@ -50,4 +52,4 @@ export interface AgentPluginMcpProjectionPorts {
   readonly classifyError: AgentPluginMcpPort['classifyError'];
 }
 /** New composition must fulfill the full contract. */
-export interface AgentPluginMcpServicesPort extends Omit<AgentPluginMcpPort, 'classifyError'>, AgentPluginMcpProjectionPorts {}
+export interface AgentPluginMcpServicesPort<Lowered = unknown> extends Omit<AgentPluginMcpPort<Lowered>, 'classifyError'>, AgentPluginMcpProjectionPorts {}
