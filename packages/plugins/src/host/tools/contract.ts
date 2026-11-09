@@ -294,6 +294,7 @@ export interface PluginManagementToolsRequired<Description> {
   uninstall(required: { 
   preview: PluginUninstallPreview }): Description };
 
+  /** @agent-note Unreadable and busy activation failures log private paths to console.warn, so host logs must stay outside model-facing output. */
   readonly messages: PluginManagementMessages;
 
   readonly telemetry?: OptionalValue<{ 
