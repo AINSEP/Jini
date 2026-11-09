@@ -1,3 +1,4 @@
+import { OAUTH_PROTOCOL_ERROR_CODES } from './protocol-error-codes.js';
 import type { DynamicClientRegistrationDeps, DynamicClientRegistrationInput } from '@jini-ai/core/contracts/oauth';
 export type { DynamicClientRegistrationDeps, DynamicClientRegistrationInput } from '@jini-ai/core/contracts/oauth';
 import { defaultOAuthMessages } from './messages.js';
@@ -14,8 +15,7 @@ import { adaptOAuthResponse, OAuthError } from "./errors.js";
 import type { OAuthClientAuthMethod, RegisteredOAuthClient } from "./ports.js";
 import { createOAuthCustomFetch } from './guarded-transport.js';
 export type { RegisteredOAuthClient } from "./ports.js";
-// Only recognized protocol codes may enter public text or metadata; identifier syntax is not trust.
-const REGISTRATION_ERROR_CODES: ReadonlySet<string> = new Set([
+const OAUTH_PROTOCOL_ERROR_CODES: ReadonlySet<string> = new Set([
     'invalid_request', 'invalid_client', 'invalid_grant', 'unauthorized_client',
     'unsupported_grant_type', 'invalid_scope', 'invalid_target', 'access_denied',
     'server_error', 'temporarily_unavailable', 'authorization_pending', 'slow_down',
@@ -111,7 +111,7 @@ function registrationError({ error, status }: { error: unknown; status: number |
     optionalArgs: Pick<DynamicClientRegistrationInput, 'messages'> = {}): OAuthError {
     if (error instanceof OAuthError) return error;
     if (error instanceof ResponseBodyError) {
-        const recognized = REGISTRATION_ERROR_CODES.has(error.error);
+        const recognized = OAUTH_PROTOCOL_ERROR_CODES.has(error.error);
         return new OAuthError({
             code: 'OAUTH_PROVIDER_REJECTED',
             message: recognized ? `the authorization server refused the client registration (HTTP ${status}, ${error.error})`

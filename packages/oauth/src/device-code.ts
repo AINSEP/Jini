@@ -1,3 +1,4 @@
+import { OAUTH_PROTOCOL_ERROR_CODES } from './protocol-error-codes.js';
 import type { DeviceAuthorizationDeps, BeginDeviceAuthorizationInput, PollDeviceAuthorizationInput } from '@jini-ai/core/contracts/oauth';
 export type { DeviceAuthorizationDeps, BeginDeviceAuthorizationInput, PollDeviceAuthorizationInput } from '@jini-ai/core/contracts/oauth';
 import type { DeviceAuthorization } from '@jini-ai/core/contracts/oauth';
@@ -12,7 +13,7 @@ import { adaptOAuthResponse, mapProviderErrorCode, OAuthError } from "./errors.j
 import type { OAuthTokenSet, OAuthHttpPorts } from "./ports.js";
 import { createOAuthClientConfiguration, DEFAULT_TOKEN_REQUEST_TIMEOUT_MS, requestOAuthToken, type TokenRequestDeps } from "./token-endpoint.js";
 import { createOAuthCustomFetch } from './guarded-transport.js';
-const DEVICE_ERROR_CODES: ReadonlySet<string> = new Set([
+const OAUTH_PROTOCOL_ERROR_CODES: ReadonlySet<string> = new Set([
     'invalid_request', 'invalid_client', 'invalid_scope', 'unauthorized_client',
     'access_denied', 'server_error', 'temporarily_unavailable',
     'invalid_grant', 'unsupported_grant_type', 'invalid_target', 'authorization_pending',
@@ -104,7 +105,7 @@ function deviceAuthorizationError({ error, status }: { error: unknown; status: n
             code: mapProviderErrorCode({ providerErrorCode: error.error }),
             message: `the authorization server refused the device authorization request (HTTP ${status})`,
             operatorAction: "Check this provider's client id and scopes, then start the connection again.",
-        }, { providerErrorCode: DEVICE_ERROR_CODES.has(error.error) ? error.error : 'invalid_provider_error' });
+        }, { providerErrorCode: OAUTH_PROTOCOL_ERROR_CODES.has(error.error) ? error.error : 'invalid_provider_error' });
     if (status !== undefined && (status < 200 || status >= 300))
         return new OAuthError({ code: 'OAUTH_PROVIDER_REJECTED',
             message: `the authorization server refused the device authorization request (HTTP ${status})`,

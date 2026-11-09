@@ -59,8 +59,9 @@ export function mapProviderErrorCode({ providerErrorCode }: {
 
 /** Facade compatibility only: error fields win even on HTTP 200/5xx. Upstream still owns
  * OAuth error decoding and validation. Projection keeps opaque identity data out of OAuth-only
- * processing; it never establishes identity trust. Provider codes are bounded protocol identifiers
- * before upstream decoding so facade messages and metadata cannot echo arbitrary provider text.
+ * processing; it never establishes identity trust. Public failures use a protocol-code allowlist;
+ * unknown values become plain text and `invalid_provider_error` in the endpoint projections.
+ * The normalization below only bounds decoder input; identifier syntax is not a trust boundary.
  * Native Response owns JSON parsing.
  */
 export async function adaptOAuthResponse({ response }: { readonly response: Response }, {

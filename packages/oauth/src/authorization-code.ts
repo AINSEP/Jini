@@ -1,3 +1,4 @@
+import { OAUTH_PROTOCOL_ERROR_CODES } from './protocol-error-codes.js';
 import type { BeginAuthorizationCodeArgs, BeginAuthorizationCodeDeps, BeginAuthorizationCodeInput, BeginAuthorizationCodeResult, CompleteAuthorizationCodeArgs, CompleteAuthorizationCodeDeps, CompleteAuthorizationCodeInput } from '@jini-ai/core/contracts/oauth';
 export type { BeginAuthorizationCodeDeps, BeginAuthorizationCodeInput, BeginAuthorizationCodeResult, CompleteAuthorizationCodeDeps, CompleteAuthorizationCodeInput } from '@jini-ai/core/contracts/oauth';
 import type { AuthorizationCallbackParams } from '@jini-ai/core/contracts/oauth';
@@ -20,7 +21,7 @@ import { createOAuthClientConfiguration, requestOAuthToken, type TokenRequestDep
 import { MAX_AUTHORIZATION_STATE_LENGTH, type SealedAuthorizationState } from './sealed-state.js';
 /** Bound on an authorization code; the loopback receiver applies the same one at the edge. */
 export const MAX_CODE_LENGTH = 2048;
-const CALLBACK_ERROR_CODES: ReadonlySet<string> = new Set([
+const OAUTH_PROTOCOL_ERROR_CODES: ReadonlySet<string> = new Set([
     'invalid_request', 'unauthorized_client', 'access_denied', 'unsupported_response_type',
     'invalid_scope', 'server_error', 'temporarily_unavailable',
     'invalid_grant', 'unsupported_grant_type', 'invalid_target', 'authorization_pending',
@@ -161,7 +162,7 @@ function assertCallbackShape(params: AuthorizationCallbackParams): void {
 }
 /** Maps a callback `error` parameter to a typed failure; the raw value is kept only when it is a recognized protocol code. */
 export function toCallbackError(rawError: string): OAuthError {
-    const providerErrorCode = CALLBACK_ERROR_CODES.has(rawError) ? rawError : undefined;
+    const providerErrorCode = OAUTH_PROTOCOL_ERROR_CODES.has(rawError) ? rawError : undefined;
     const denied = providerErrorCode === 'access_denied';
     return new OAuthError({
         code: denied ? 'OAUTH_ACCESS_DENIED' : 'OAUTH_PROVIDER_REJECTED',
