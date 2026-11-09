@@ -16,6 +16,7 @@
       "./media-providers": "node",
       "./media-providers/catalog": "universal",
       "./credentialed-http": "node",
+      "./credentialed-http/sets": "node",
       "./webhooks": "node",
       "./api-connections": "node",
       "./media-providers/node": "node",
@@ -46,6 +47,11 @@
       "types": "./dist/credentialed-http/index.d.ts",
       "import": "./dist/credentialed-http/index.js",
       "default": "./dist/credentialed-http/index.js"
+    },
+    "./credentialed-http/sets": {
+      "types": "./dist/credentialed-http/sets/index.d.ts",
+      "import": "./dist/credentialed-http/sets/index.js",
+      "default": "./dist/credentialed-http/sets/index.js"
     },
     "./webhooks": {
       "types": "./dist/webhooks/index.d.ts",
@@ -78,6 +84,9 @@
       ],
       "credentialed-http": [
         "./dist/credentialed-http/index.d.ts"
+      ],
+      "credentialed-http/sets": [
+        "./dist/credentialed-http/sets/index.d.ts"
       ],
       "webhooks": [
         "./dist/webhooks/index.d.ts"
