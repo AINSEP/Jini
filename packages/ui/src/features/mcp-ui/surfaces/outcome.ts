@@ -132,12 +132,15 @@ ${SURFACE_SCRIPT_PRELUDE}
   var CANCEL = ${escapeJsValue(spec.cancel)};
   var OPEN_URL = ${escapeJsValue(spec.openLinkUrl ?? null)};
   var locked = false;
+  var opening = null;
   function onClick(event) {
     if (event.isTrusted !== true || locked) return;
     if (event.currentTarget.getAttribute("data-mcpui-action") === "open-link") {
-      api.openLink(OPEN_URL).then(function (result) {
+      // A repeat click while the Host is still opening the link reuses that request, not a second window.
+      if (opening) return;
+      opening = api.openLink(OPEN_URL).then(function (result) {
         if (result && result.isError) throw new Error("Could not open the link.");
-      }).catch(reportCallFailure);
+      }).catch(reportCallFailure).then(function () { opening = null; });
       return;
     }
     locked = true;

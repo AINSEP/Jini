@@ -165,6 +165,28 @@ describe('cancellable outcome open-link failures', () => {
   });
 });
 
+describe('cancellable outcome repeated sign-in clicks', () => {
+  it('reuses the open request in progress instead of opening another window, and opens again once it settles', async () => {
+    const surface = mountSurface(renderOutcomeDocument({
+      title: 'Connect Example', state: 'partial', message: 'Waiting for sign-in',
+      openLinkUrl: '/api/sign-in', openLinkLabel: 'Sign in',
+      cancel: { label: 'Skip', toolName: 'connect', params: { __exchangeId: 'x', __dismissed: true } },
+    }));
+    let opened!: (value: unknown) => void;
+    surface.api.openLink.mockReturnValueOnce(new Promise(resolve => { opened = resolve; })).mockReturnValue(Promise.resolve({}));
+    surface.trustedClick('open-link');
+    surface.trustedClick('open-link');
+    surface.trustedClick('open-link');
+    expect(surface.api.openLink).toHaveBeenCalledTimes(1);
+    opened({});
+    await vi.waitFor(() => {
+      surface.trustedClick('open-link');
+      expect(surface.api.openLink).toHaveBeenCalledTimes(2);
+    });
+    expect(surface.api.callTool).not.toHaveBeenCalled();
+  });
+});
+
 describe('buildOutcomeSurface', () => {
   it('wraps the document in a ui:// EmbeddedResource at the SAME URI a caller supplies', () => {
     const resource = buildOutcomeSurface({ ...PUBLISH_SUCCESS, uri: 'ui://consumer/deployment-execute-static-publish/exchange-1' });
