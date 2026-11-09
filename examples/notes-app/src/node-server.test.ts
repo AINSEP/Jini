@@ -20,6 +20,11 @@ function registerNoteRoutes({ app }: { readonly app: Server }): void {
     path: '/notes',
     handler: async ({ request }) => Response.json({ created: await request.json() }, { status: 201 }),
   });
+  app.route({
+    method: 'GET',
+    path: '/whoami',
+    handler: ({ client }) => Response.json({ address: client?.address ?? null }),
+  });
 }
 
 describe('node-server adapter', () => {
@@ -49,6 +54,11 @@ describe('node-server adapter', () => {
     const wrongMethod = await fetch(`${base}/notes/1`, { method: 'DELETE' });
     assert.equal(wrongMethod.status, 405);
     assert.equal(wrongMethod.headers.get('allow'), 'GET');
+  });
+
+  it('passes the socket peer address as client.address, ignoring forwarded headers', async () => {
+    const response = await fetch(`${base}/whoami`, { headers: { 'x-forwarded-for': '203.0.113.9' } });
+    assert.deepEqual(await response.json(), { address: '127.0.0.1' });
   });
 
   it('rejects a second registration of the same method and path', () => {

@@ -99,7 +99,8 @@ export function createNodeServer(_required: Record<string, never> = {}, _optiona
       if (!params) continue;
       pathMatched = true;
       if (route.method !== request.method) continue;
-      await writeResponse(await route.handler({ request, params }), out);
+      const address = incoming.socket.remoteAddress;
+      await writeResponse(await route.handler({ request, params, ...(address ? { client: { address } } : {}) }), out);
       return;
     }
     if (pathMatched) {

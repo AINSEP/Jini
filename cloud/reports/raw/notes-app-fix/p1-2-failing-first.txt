@@ -1,0 +1,12 @@
+== failing first (before the contract and adapter change)
+src/node-server.test.ts(26,17): error TS2339: Property 'client' does not exist on type '{ readonly request: Request; readonly params: Readonly<Record<string, string>>; }'.
+tsc-exit=2
+  ✖ passes the socket peer address as client.address, ignoring forwarded headers (5.312187ms)
+✖ node-server adapter (74.748362ms)
+ℹ pass 8
+ℹ fail 1
+✖ failing tests:
+✖ passes the socket peer address as client.address, ignoring forwarded headers (5.312187ms)
+  + actual - expected
+    actual: { address: null },
+    expected: { address: '127.0.0.1' },
