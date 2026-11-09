@@ -12,7 +12,7 @@ Run prepare in declaration order before start. The inherited design requires exp
 
 ## Consequences and current limits
 
-The current orchestrator unwinds completed preparations on prepare failure and completed starts on start failure. It does not call stop on the failing module, and prepared-but-unstarted modules after a start failure remain host-owned. Hosts must supply the remaining cleanup rather than infer full rollback from this record. Stop failures are contained. Status reporting is authenticated host wiring; liveness alone does not prove readiness.
+The current orchestrator unwinds completed preparations on prepare failure, and on start failure unwinds completed starts plus the prepared modules after the failing one that never started. It does not call stop on the failing module. Stop failures are contained. Status reporting is authenticated host wiring; liveness alone does not prove readiness.
 
 ## Defect prevented
 

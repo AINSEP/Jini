@@ -93,8 +93,8 @@ it('critical prepare failure unwinds completed preparations despite stop failure
   expect(calls).toEqual(['one.prepare', 'two.prepare', 'failed.prepare', 'two.stop', 'one.stop']);
 });
 
-it('critical start failure keeps rolled-back ready records and leaves unstarted preparations host-owned', async () => {
-  // These rollback semantics are explicitly preserved by the existing boot contract.
+it('critical start failure keeps rolled-back ready records and also stops unstarted preparations', async () => {
+  // Modules after the failing one finished prepare() and hold its resources, so they stop too.
   const calls: string[] = [];
   const one = moduleFixture({ name: 'one', calls });
   const two = moduleFixture({ name: 'two', calls });
@@ -112,7 +112,7 @@ it('critical start failure keeps rolled-back ready records and leaves unstarted 
   ] });
   expect(calls).toEqual([
     'one.prepare', 'two.prepare', 'failed.prepare', 'unstarted.prepare',
-    'one.start', 'two.start', 'failed.start', 'two.stop', 'one.stop',
+    'one.start', 'two.start', 'failed.start', 'unstarted.stop', 'two.stop', 'one.stop',
   ]);
 });
 
