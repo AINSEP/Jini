@@ -93,3 +93,6 @@ app.route('GET', '/notes/:id', okHandler);
 app.route({ method: 'get', path: '/notes/:id', handler: okHandler });
 // @ts-expect-error Handlers receive `{ request, params }`, not a bare Request.
 const bareHandler: ServerHandler = (request: Request) => new Response(request.url);
+// The peer address rides in the required-args object and is optional, so an adapter without one compiles.
+const clientHandler: ServerHandler = ({ client }) => new Response(client?.address ?? 'unknown');
+void clientHandler({ request: new Request('http://local/'), params: {} });

@@ -19,9 +19,19 @@ export type ServerMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
  * Handles one matched request. `params` holds the `:name` path segments of the registered path,
  * already percent-decoded by the adapter (for `/notes/:id` and `/notes/a%20b`, `{ id: 'a b' }`).
  * Body, query string, headers and abort signal are read from `request` itself.
+ *
+ * `client` is the immediate peer of the connection, which a web `Request` cannot carry: the
+ * adapter fills it from its socket (Node's `incoming.socket.remoteAddress`, Bun's `requestIP`,
+ * Deno's `remoteAddr`). It is absent when the adapter has no peer (an in-memory fake, a closed
+ * socket). It is never read from a header: trusting `x-forwarded-for` is host policy, applied
+ * on top of this value.
  */
 export type ServerHandler = (
-  requiredArgs: { readonly request: Request; readonly params: Readonly<Record<string, string>> },
+  requiredArgs: {
+    readonly request: Request;
+    readonly params: Readonly<Record<string, string>>;
+    readonly client?: { readonly address: string };
+  },
   optionalArgs?: Record<string, never>,
 ) => Response | Promise<Response>;
 

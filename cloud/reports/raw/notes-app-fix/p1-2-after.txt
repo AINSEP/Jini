@@ -1,0 +1,17 @@
+core-tsc-exit=0
+example-tsc-exit=0
+  ✔ dispatches a Request to the matching handler with decoded path params (29.295952ms)
+  ✔ lets an async handler read the request body (7.48038ms)
+  ✔ answers unmatched paths with 404 and unmatched methods with 405 (6.323411ms)
+  ✔ passes the socket peer address as client.address, ignoring forwarded headers (2.515911ms)
+  ✔ rejects a second registration of the same method and path (0.671773ms)
+✔ node-server adapter (59.011492ms)
+  ✔ returns params for :name segments and an empty object for a literal match (0.252968ms)
+  ✔ rejects differing literals, segment counts, trailing slashes and empty params (0.136952ms)
+  ✔ does not match a param whose percent-encoding is malformed (0.13211ms)
+  ✔ takes named required args, not positional ones (0.17419ms)
+✔ matchServerPath (0.99764ms)
+ℹ tests 9
+ℹ pass 9
+ℹ fail 0
+
