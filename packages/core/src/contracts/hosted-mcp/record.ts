@@ -91,7 +91,7 @@ export interface ExternalMcpServerRecord {
    */
   oauthRefreshLeaseUntil: ISODateTime | null;
   /** Sealed `{ clientSecret?, tokens? }`.
-   * @agent-note Writers must open, update and reseal the whole payload, preserving the other member; writing tokens alone would erase the client secret. */
+   * @agent-note Writers must open, update and reseal the whole payload, preserving members they did not explicitly change or clear; writing tokens alone would erase the client secret. */
   sealedOAuth: SealedSecret | null;
   /** Compatibility read field; normalized vault envelopes use lineage 1. */
   aadVersion: number;

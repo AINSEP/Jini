@@ -26,7 +26,7 @@ export interface DeviceAuthorizationStore {
 
 /** @agent-note `Shared` is the host's shared-owner storage port (for example a desktop shared-owner storage type); absent keeps site-local sign-in. `repo` must be the store's repository instance; `httpPorts` is required guarded transport; `onConnected` runs once after durable success and its failure never fails sign-in. */
 export interface ExternalMcpOAuthDeps<Shared = never> {
-  /** Desktop owner storage is optional; absence retains existing site-local sign-in. */
+  /** Host owner storage is optional; absence retains existing site-local sign-in. */
   readonly shared?: Shared;
   readonly workspaceId: UUID;
   readonly repo: ExternalMcpServerRepoPort;

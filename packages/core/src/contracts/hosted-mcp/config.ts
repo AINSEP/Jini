@@ -165,7 +165,7 @@ export interface SaveExternalMcpServerInput {
   /** Raw operator input, comma-separated remote tool names the operator separately authorizes to
    *  write. Same shape and same "resent in full on every save" convention as {@link
    *  allowedToolNames} — this is NOT tri-state like {@link env}, because the admin tab shows this
-   *  list in the clear and can always resend it. Rejected at save (C-006) if it names a tool absent
+   *  list in the clear and can always resend it. Rejected at save if it names a tool absent
    *  from {@link allowedToolNames}. Defaulted defensively to `""` if a caller omits it, so a route or
    *  test written before this field existed degrades to "no write grants" rather than throwing. */
   writeAllowedToolNames: string;

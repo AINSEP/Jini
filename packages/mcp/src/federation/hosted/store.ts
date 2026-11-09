@@ -310,7 +310,7 @@ export function parseWriteAllowedToolNames(raw: string): string[] {
 }
 
 /**
- * C-006: a tool may be write-authorized only if it is ALSO allowlisted. Enforced at save time so an
+ * A tool may be write-authorized only if it is ALSO allowlisted. Enforced at save time so an
  * operator learns of the mistake immediately rather than the entry sitting inert (or, worse, being
  * misread as intentional) until a boot-time report surfaces it.
  *
