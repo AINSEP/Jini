@@ -124,6 +124,22 @@ describe('renderOutcomeDocument', () => {
   });
 });
 
+describe('read-only outcome open-link failures', () => {
+  it.each(['refused', 'rejected'] as const)('says in plain words that a %s link did not open, keeping the outcome and the button', async (failure) => {
+    const surface = mountSurface(renderOutcomeDocument(PUBLISH_SUCCESS));
+    const reply = failure === 'refused' ? Promise.resolve({ isError: true }) : Promise.reject(new Error('Connection lost'));
+    void reply.catch(() => {});
+    surface.api.openLink.mockReturnValueOnce(reply).mockReturnValue(Promise.resolve({}));
+    surface.click('open-link');
+    await vi.waitFor(() => expect(surface.status()).toContain('The link did not open.'));
+    expect(surface.status()).toBe(`${PUBLISH_SUCCESS.message} The link did not open. Try again, or copy this address into your browser: ${PUBLISH_SUCCESS.openLinkUrl}`);
+    expect(surface.statusState()).toBe('done');
+    expect(surface.disabledActions()).toEqual([false]);
+    surface.click('open-link');
+    expect(surface.api.openLink).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('cancellable outcome open-link failures', () => {
   it.each(['refused', 'rejected'] as const)('displays a %s open request immediately and keeps Retry and Skip usable', async (failure) => {
     const surface = mountSurface(renderOutcomeDocument({
@@ -177,13 +193,13 @@ describe('buildOutcomeSurface frame size', () => {
 });
 
 // Exact hashes include the intended detail-layout fix (c4c19234) and shared coarse-pointer 44px
-// rule (1e4b1d4ba); all other emitted bytes stay pinned.
+// rule (1e4b1d4ba), and the read-only open-link failure report (link-bearing cases); all other emitted bytes stay pinned.
 describe('renderOutcomeDocument exact output', () => {
   const digest = (value: unknown): string => createHash('sha256').update(JSON.stringify(value)).digest('hex');
   const cases: ReadonlyArray<readonly [string, Parameters<typeof renderOutcomeDocument>[0], string]> = [
-    ['success with link and details', PUBLISH_SUCCESS, 'dcc90cd015c88ca124d79b1afd49dcf0b74a6484222b2add49275e410e632bc2'],
-    ['partial with custom link label, app, lang and tokens', { ...PUBLISH_SUCCESS, state: 'partial', openLinkLabel: 'View', app: { appName: 'a', appVersion: '2' }, lang: 'fr', tokens: { '--jini-mcpui-bg': '#123456' } }, '81eb1445fc1fc344182b9f4fd3dc37afe306f32d2e082cc8a79faca0add1643b'],
-    ['failure with link', { ...PUBLISH_FAILURE, openLinkUrl: 'https://x.test/"</script>' }, '92f24c979491fe7f80bb65364b72299ee7a1d0ad8c9cfa400f94ed60a4942fe0'],
+    ['success with link and details', PUBLISH_SUCCESS, 'ef7164e4be0064ee7a30e19e0e17d7de76594ddb9169737975c0c8ebfce9727f'],
+    ['partial with custom link label, app, lang and tokens', { ...PUBLISH_SUCCESS, state: 'partial', openLinkLabel: 'View', app: { appName: 'a', appVersion: '2' }, lang: 'fr', tokens: { '--jini-mcpui-bg': '#123456' } }, '5cc30bc44023ee852032e8282c0c5a60a88c98ead04b08122953aee440ae1b48'],
+    ['failure with link', { ...PUBLISH_FAILURE, openLinkUrl: 'https://x.test/"</script>' }, '71fd872dd1725755089248958b7f84d3e2ec42940609cdde983804ebb46b5c50'],
     ['failure without link', PUBLISH_FAILURE, '26090b5a11ff6c4ee7b3c06b90dc2e23f5868b59f40479b143e7d555099842de'],
   ];
   it.each(cases)('%s', (_name, spec, expected) => {
@@ -191,6 +207,6 @@ describe('renderOutcomeDocument exact output', () => {
   });
 
   it('pins the framed resource wrapper', () => {
-    expect(digest(buildOutcomeSurface({ ...PUBLISH_SUCCESS, uri: 'ui://h/x/1', preferredFrameSize: ['1px', '2px'] }))).toBe('512e4aec9ddf6b60f8d9bb75d39267d80beada7c88f1c5e6be78d5623f680c8e');
+    expect(digest(buildOutcomeSurface({ ...PUBLISH_SUCCESS, uri: 'ui://h/x/1', preferredFrameSize: ['1px', '2px'] }))).toBe('74f17ce717bbcbc3668d188dac18bd7bda18c700e9b03e0f73241f3f239dac59');
   });
 });

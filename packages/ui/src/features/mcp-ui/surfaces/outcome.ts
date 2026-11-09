@@ -159,8 +159,15 @@ function outcomeScript(openLinkUrl: string | undefined): string {
   "use strict";
 ${SURFACE_SCRIPT_PRELUDE}
   var OPEN_URL = ${escapeJsValue(openLinkUrl)};
+  var OUTCOME = statusNode.textContent;
+  // A refused or failed open keeps the outcome (it still happened) and says what to do instead.
+  function reportOpenFailure() {
+    statusNode.textContent = OUTCOME + " The link did not open. Try again, or copy this address into your browser: " + OPEN_URL;
+  }
   for (var i = 0; i < actionButtons.length; i++) {
-    actionButtons[i].addEventListener("click", function () { api.openLink(OPEN_URL); });
+    actionButtons[i].addEventListener("click", function () {
+      api.openLink(OPEN_URL).then(function (result) { if (result && result.isError) reportOpenFailure(); }, reportOpenFailure);
+    });
   }
 }());`;
 }
