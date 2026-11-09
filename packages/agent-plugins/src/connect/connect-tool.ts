@@ -153,6 +153,12 @@ export interface AgentPluginConnectApiConnectionsPort<Connection> {
  * forward `emitSurface`/execution options unchanged; and call `declined` (never `run`) on decline,
  * expiry or abort. `ask` false means nothing needs consent and `run` proceeds without a card. */
 export interface AgentPluginConnectApprovalsPort<Surfaces> {
+  /** @agent-note Fail closed unless the bound authenticated approver is an active human,
+   * checked BEFORE disclosing the prepared access card and AGAIN after explicit confirmation,
+   * before `run`. The authenticated answer must bind the same tool/exchange, scope and person
+   * as the frozen requesting context; caller-supplied answer fields cannot establish authority.
+   * Missing, stale, revoked or mismatched authority must never disclose the card or run the grant.
+   * Recheck permission, activation and the prepared access fingerprint after confirmation too. */
   accessApprovalHandler<Prepared>(
     required: {
       surfaces: Surfaces;
