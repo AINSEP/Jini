@@ -21,14 +21,6 @@ import { createOAuthClientConfiguration, requestOAuthToken, type TokenRequestDep
 import { MAX_AUTHORIZATION_STATE_LENGTH, type SealedAuthorizationState } from './sealed-state.js';
 /** Bound on an authorization code; the loopback receiver applies the same one at the edge. */
 export const MAX_CODE_LENGTH = 2048;
-const OAUTH_PROTOCOL_ERROR_CODES: ReadonlySet<string> = new Set([
-    'invalid_request', 'unauthorized_client', 'access_denied', 'unsupported_response_type',
-    'invalid_scope', 'server_error', 'temporarily_unavailable',
-    'invalid_grant', 'unsupported_grant_type', 'invalid_target', 'authorization_pending',
-    'slow_down', 'expired_token', 'invalid_dpop_proof', 'use_dpop_nonce',
-    'invalid_redirect_uri', 'invalid_client_metadata', 'invalid_software_statement', 'unapproved_software_statement',
-    'invalid_client',
-]);
 /** Explicit stateless mode; the host supplies sealing bound to the expected connection. */
 export interface BeginStatelessAuthorizationCodeDeps extends Omit<BeginAuthorizationCodeDeps, 'pending'> {
     readonly stateless: SealedAuthorizationState;
