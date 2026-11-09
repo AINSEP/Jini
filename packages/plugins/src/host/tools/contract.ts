@@ -42,7 +42,7 @@ export type ClassifiedPluginError = {
   kind: 'unreadable' | 'busy'; 
   message: string };
 export interface PluginApprovalPort<Description> {
-  /** @agent-note Keep one authenticated actor/tool/exchange through preparation and execution, refusing mutation on missing transport, abort or an unanswered required approval. */
+  /** @agent-note Keep one authenticated actor/tool/exchange through preparation and execution, refusing mutation on missing transport, abort or an unanswered required approval; set-enabled constructs this handler at registration while uninstall constructs it per call. */
   handler<Prepared>(steps: {
 
   /** @agent-note Authorize before disclosing target facts and detach the proposal identity from mutable caller input. */
@@ -60,9 +60,12 @@ export interface PluginApprovalPort<Description> {
   confirmer: HumanConfirmer; 
   choice?: string }, options: ToolExecutionOptions): Promise<unknown>;
   }, options?: { 
+  /** @agent-note The flag names the false-valued result field returned when approval has no affirmative answer and declined is absent. */
   flag?: string; 
+  /** @agent-note Returning false skips the human dialog and runs immediately, so permit that path only when the prepared action needs no escalation approval. */
   ask?: (required: { 
   prepared: Prepared }) => boolean; 
+  /** @agent-note Replace the default no-answer result for declined, expired or abandoned approval without running the mutation. */
   declined?: (required: { 
   reason: 'declined' | 'expired' | 'abandoned'; 
   prepared?: Prepared }) => unknown }): ToolHandler;
@@ -84,6 +87,7 @@ export interface PluginLifecycleToolsPort {
   /** @agent-note Record only a genuine declined answer through the same scoped connection owner. */
   recordDeclinedAccess?(required: { 
   accessKey: string }): Promise<void>;
+  /** @agent-note A rejected listing empties the entire agentPlugins list response to isolate failure from the independently working runtime-plugin list. */
   listInstalled(required: Record<string, never>, optional?: Record<string, never>): Promise<readonly InstalledPluginRevision[]>;
   assertWritable(required: Record<string, never>, optional?: Record<string, never>): Promise<void>;
   /** @agent-note Share the workspace admission queue and activation repository with every other lifecycle writer. */
@@ -167,6 +171,7 @@ export interface PluginManagementMessages {
   name: string; 
   version: string }): string;
 
+  /** @agent-note Only PLUGIN_UPDATE_PENDING is recoverable by restart, so other update codes must not recommend restart recovery. */
   updatePendingNextStep(required: { 
   code: string }): string;
 
@@ -204,6 +209,7 @@ export interface PluginToolCommand {
 }
 export interface PluginManagementToolsRequired<Description> {
 
+  /** @agent-note List rejects all input, set-enabled requires family/pluginId/enabled and uninstall requires family/pluginId, with family exactly site-runtime or agent-plugin. */
   readonly registration: PluginToolRegistrationInput;
 
   readonly workspaceId: string;
@@ -317,6 +323,7 @@ export interface PluginInstallToolsRequired<Request> {
   ownerId: string; 
   runId: string }) => Promise<PluginInstallInput>;
 
+  /** @agent-note Preview and install must throw this package's canonical PluginInstallError for relayable refusals, while other errors retain opaque failure handling. */
   readonly installer?: OptionalValue<PluginInstallerPort>;
 
   readonly riskSentence: (required: { 
@@ -344,6 +351,7 @@ export interface PluginSourceToolsRequired<Description> {
   readonly workspaceId: string; 
   readonly authorize: LegacyToolAuthorizeFn;
 
+  /** @agent-note Every operation reads id; create also reads name/description, read/write/edit/delete read path, write reads content, and edit reads oldString/newString plus optional replaceAll. */
   readonly toolIds: { 
   create: string; 
   open: string; 
@@ -358,6 +366,7 @@ export interface PluginSourceToolsRequired<Description> {
   readonly enablePermission: string; 
   readonly entityType: string;
 
+  /** @agent-note Source operations must throw this package's canonical PluginSourceError or PluginInstallError for relayable refusals, while other errors retain opaque failure handling. */
   readonly pluginSource?: OptionalValue<PluginSourcePort>;
 
   readonly approvals: PluginApprovalPort<Description>;
