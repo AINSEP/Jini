@@ -6,7 +6,7 @@ import type { DeployOpsRegistry, DeployOpsSecretAppliesOn } from './ops-contract
 /** @agent-note Stable secret metadata only; never put plaintext values in results. Confirmation is human-only and fixed before the card opens. */
 export type SecretValueSource = { kind: "site-key" } | { kind: "secret"; name: string } | { kind: "typed" };
 /** @agent-note Stable secret metadata only; never put plaintext values in results. Confirmation is human-only and fixed before the card opens. */
-export interface SecretTargetInput { platform: string; target: string; credentialLabel?: string }
+export interface SecretTargetInput { platform: string; target: string; credentialLabel?: string | undefined }
 /** @agent-note Stable secret metadata only; never put plaintext values in results. Confirmation is human-only and fixed before the card opens. */
 export interface SetSecretInput extends SecretTargetInput { name: string; source: SecretValueSource; dryRun?: boolean }
 /** @agent-note Stable secret metadata only; never put plaintext values in results. Confirmation is human-only and fixed before the card opens. */

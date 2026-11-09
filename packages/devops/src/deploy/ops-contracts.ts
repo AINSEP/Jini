@@ -16,7 +16,7 @@ export interface DeployOpsLogs {
   truncated: boolean;
 }
 export interface DeployOpsTargets { platform: string; targets: Array<{ id: string; name: string; state?: string }> }
-export interface DeployOpsInput { platform: string; target: string; credentialLabel?: string; runId?: string; branch?: string; limit?: number; org?: string; ref?: string }
+export interface DeployOpsInput { platform: string; target: string; credentialLabel?: string | undefined; runId?: string | undefined; branch?: string | undefined; limit?: number; org?: string | undefined; ref?: string }
 export interface DeployOpsResponse { status: number; json?: unknown; text: string; truncated?: boolean }
 /** A JSON write. The host serializes `body`; a module never sets headers or chooses the credential.
  *  DELETE is only bound for the secret-removal verb; every other verb's facade refuses it. */
@@ -58,7 +58,7 @@ export interface DeployOpsContext {
 export interface DeployOpsModule {
   status(ctx: DeployOpsContext, input: Pick<DeployOpsInput, "target" | "runId" | "branch">): Promise<DeployOpsStatus>;
   logs(ctx: DeployOpsContext, input: Pick<DeployOpsInput, "target" | "runId" | "branch"> & { limit: number }): Promise<DeployOpsLogs>;
-  listTargets?(ctx: DeployOpsContext, input: { org?: string }): Promise<DeployOpsTargets>;
+  listTargets?(ctx: DeployOpsContext, input: { org?: string | undefined }): Promise<DeployOpsTargets>;
   /** Optional: a platform without it is observe-only and `runDeploy` refuses it. */
   deploy?(ctx: DeployOpsContext, input: DeployOpsDeployInput): Promise<DeployOpsDeployResult>;
   /** Optional secrets adapter; `listSecrets`, `setSecret` and `unsetSecret` come together with `secretCapabilities`. */
