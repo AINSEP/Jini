@@ -25,6 +25,11 @@ function registerNoteRoutes({ app }: { readonly app: Server }): void {
     path: '/whoami',
     handler: ({ client }) => Response.json({ address: client?.address ?? null }),
   });
+  app.route({
+    method: 'OPTIONS',
+    path: '/notes',
+    handler: () => new Response(null, { status: 204, headers: { 'access-control-allow-methods': 'POST' } }),
+  });
 }
 
 describe('node-server adapter', () => {
@@ -53,7 +58,20 @@ describe('node-server adapter', () => {
     assert.equal((await fetch(`${base}/missing`)).status, 404);
     const wrongMethod = await fetch(`${base}/notes/1`, { method: 'DELETE' });
     assert.equal(wrongMethod.status, 405);
-    assert.equal(wrongMethod.headers.get('allow'), 'GET');
+    assert.equal(wrongMethod.headers.get('allow'), 'GET, HEAD');
+  });
+
+  it('answers HEAD from the GET route with its status and headers but no body', async () => {
+    const response = await fetch(`${base}/notes/7`, { method: 'HEAD' });
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('content-type'), 'application/json');
+    assert.equal(await response.text(), '');
+  });
+
+  it('routes OPTIONS like any other method, so a preflight can be answered', async () => {
+    const response = await fetch(`${base}/notes`, { method: 'OPTIONS' });
+    assert.equal(response.status, 204);
+    assert.equal(response.headers.get('access-control-allow-methods'), 'POST');
   });
 
   it('passes the socket peer address as client.address, ignoring forwarded headers', async () => {

@@ -12,8 +12,14 @@
  * import http-kit, so those are not reused; a later bridge can map one onto the other.
  */
 
-/** HTTP methods a route may be registered under. Uppercase, matching web `Request.method`. */
-export type ServerMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+/**
+ * HTTP methods a route may be registered under. Uppercase, matching web `Request.method`.
+ *
+ * @agent-note Register `HEAD` only when it must differ from `GET`: an adapter answers a `HEAD`
+ * with no `HEAD` route from the `GET` route, keeping its status and headers and dropping the
+ * body. Register `OPTIONS` to answer a CORS preflight yourself; nothing answers it for you.
+ */
+export type ServerMethod = 'GET' | 'HEAD' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'OPTIONS';
 
 /**
  * Handles one matched request. `params` holds the `:name` path segments of the registered path,
@@ -25,6 +31,11 @@ export type ServerMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
  * Deno's `remoteAddr`). It is absent when the adapter has no peer (an in-memory fake, a closed
  * socket). It is never read from a header: trusting `x-forwarded-for` is host policy, applied
  * on top of this value.
+ *
+ * @agent-note Return a web `Response`; never write to a socket or framework response object, so
+ * the same handler runs on every adapter. Read the body once from `request` (`json()`,
+ * `formData()`, `text()`). For a client IP, start from `client.address`; read a forwarded header
+ * only behind a proxy the host trusts.
  */
 export type ServerHandler = (
   requiredArgs: {

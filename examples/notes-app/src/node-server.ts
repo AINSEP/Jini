@@ -93,22 +93,30 @@ export function createNodeServer(_required: Record<string, never> = {}, _optiona
     out.on('close', () => { if (!out.writableFinished) abort.abort(); });
     const request = toRequest(incoming, `http://${incoming.headers.host ?? 'localhost'}`, abort.signal);
     const pathname = new URL(request.url).pathname;
-    let pathMatched = false;
+    // One scan: every route whose path matches, kept for both the method pick and the 405's Allow.
+    const matched: { route: Route; params: Record<string, string> }[] = [];
     for (const route of routes) {
       const params = matchServerPath({ pattern: route.path, pathname });
-      if (!params) continue;
-      pathMatched = true;
-      if (route.method !== request.method) continue;
-      const address = incoming.socket.remoteAddress;
-      await writeResponse(await route.handler({ request, params, ...(address ? { client: { address } } : {}) }), out);
+      if (params) matched.push({ route, params });
+    }
+    if (matched.length === 0) {
+      await writeResponse(plain(404, 'Not Found'), out);
       return;
     }
-    if (pathMatched) {
-      const allow = routes.filter((r) => matchServerPath({ pattern: r.path, pathname })).map((r) => r.method).join(', ');
-      await writeResponse(plain(405, 'Method Not Allowed', { allow }), out);
+    const isHead = request.method === 'HEAD';
+    // A HEAD with no HEAD route is answered by the GET route, per the contract's ServerMethod note.
+    const hit = matched.find((m) => m.route.method === request.method)
+      ?? (isHead ? matched.find((m) => m.route.method === 'GET') : undefined);
+    if (!hit) {
+      const allow = new Set(matched.map((m) => m.route.method));
+      if (allow.has('GET')) allow.add('HEAD');
+      await writeResponse(plain(405, 'Method Not Allowed', { allow: [...allow].join(', ') }), out);
       return;
     }
-    await writeResponse(plain(404, 'Not Found'), out);
+    const address = incoming.socket.remoteAddress;
+    const response = await hit.route.handler({ request, params: hit.params, ...(address ? { client: { address } } : {}) });
+    if (isHead) await response.body?.cancel();
+    await writeResponse(isHead ? new Response(null, { status: response.status, headers: response.headers }) : response, out);
   }
 
   return {
