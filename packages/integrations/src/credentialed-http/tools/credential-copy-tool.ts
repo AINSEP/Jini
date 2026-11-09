@@ -1,4 +1,4 @@
-// Mechanically moved from AINSEP/Tovu@94c9bb85c78cc8bf7858ee40f1ba5b27cc419b46:apps/website/src/features/custom-credentials/credential-copy-tool.ts.
+// Mechanical extraction provenance (exact source SHA/path) is in this package's source-map.md.
 // Original bodies and why-comments are preserved; host wiring stays with the consumer.
 import type { LegacyToolAuthorizeFn, ToolExecutionContext, ToolExecutionOptions, ToolHandler, SurfaceExchangeStore, ToolRegistration } from "@jini-ai/core";
 import type { InstanceAuthorizeFn } from "@jini-ai/core/gated-mutations";

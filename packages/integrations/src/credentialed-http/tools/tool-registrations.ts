@@ -1,4 +1,4 @@
-// Mechanically moved from AINSEP/Tovu@94c9bb85c78cc8bf7858ee40f1ba5b27cc419b46:apps/website/src/features/custom-credentials/tool-registrations.ts.
+// Mechanical extraction provenance (exact source SHA/path) is in this package's source-map.md.
 // Original bodies and why-comments are preserved; host wiring stays with the consumer.
 import type { CredentialWriteFilesRequest, CredentialToolOperations, CredentialToolActorDeps, CredentialCreatePrefill as CreateCredentialPrefill, CredentialToolSurfaces, CredentialToolSetupFailure } from "./credential-tool-operations.js";
 import type { SurfaceCardApp, SecretCardForm } from "@jini-ai/core/contracts/cards";
@@ -18,7 +18,7 @@ import { CredentialedRequestValidationError } from "../../contracts/credentialed
 type ValidatedWriteFilesInput = CredentialWriteFilesRequest & { readonly owner: string; readonly repo: string };
 
 
-/** Stamps the host's app identity on a card a host builder made; Tovu's own values keep the same bytes. */
+/** Stamps the host's app identity on a card a host builder made; the host's own values keep the same bytes. */
 function withCardApp<Spec extends { readonly app?: SurfaceCardApp }>({ spec, app }: { spec: Spec; app: SurfaceCardApp }): Spec {
   return { ...spec, app };
 }
@@ -793,7 +793,7 @@ export function createCredentialToolRegistrations({ routeDeps, host, ports, oper
     // Shape/security validation (`rejectUnexpectedSetUsernameFields`, `requireUsernameOrClearSentinel`)
     // runs BEFORE the permission check, same ordering `custom_credential_make_request` below uses — a
     // malformed call is refused on its own terms regardless of who is asking. WRITE-gated (this durably
-    // changes a Tovu-side column), and — by the owner's own standing "no confirm ceremonies" instruction
+    // changes a host-side column), and — by the owner's own standing "no confirm ceremonies" instruction
     // — deliberately NOT wrapped in the DELETE-style confirmation dialog: this field is not a secret,
     // and there is structurally no way for this call to carry one.
     [operations.ids.setUsername]: async (ctx): Promise<CustomCredentialSummary> => {

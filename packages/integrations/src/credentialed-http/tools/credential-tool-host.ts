@@ -1,10 +1,10 @@
-// Mechanically moved from AINSEP/Tovu@94c9bb85c78cc8bf7858ee40f1ba5b27cc419b46:apps/website/src/features/custom-credentials/credential-tool-host.ts.
+// Mechanical extraction provenance (exact source SHA/path) is in this package's source-map.md.
 // Original bodies and why-comments are preserved; host wiring stays with the consumer.
 /**
  * @file Host inputs the credential tools need: vocabulary, card identity and card helpers.
  *
  * Types only. These are the contracts a second host fulfils when it wires the custom-credential
- * and saved-key tools; Tovu binds its values beside each old entry. Nothing here has a
+ * and saved-key tools; the host binds its values beside each old entry. Nothing here has a
  * default: every permission, id, path, namespace, app and sentence is supplied by the host.
  * @agent-note Types only; this file must keep importing nothing but `@jini-ai/core` types.
  */
@@ -73,7 +73,7 @@ export interface CustomCredentialSecretCards {
  * The two credential ports `createCustomCredentialsToolRegistrations` calls instead of reaching for
  * host request or provider functions itself.
  * @agent-note Bind both over your EXISTING adapters with the same repo, sealer, guarded HTTP client,
- *   clock, audit, auth-scheme loader and provider registry your store and routes use (Tovu: the
+ *   clock, audit, auth-scheme loader and provider registry your store and routes use (the host: the
  *   binders in `credential-ports.ts`). Ordering the tools rely on, which a second host's binding must
  *   not undo: `resolveTarget` never decrypts and runs before any dialog; GET/POST/PUT/PATCH call
  *   `request` immediately; a DELETE is held for the human first and `request` (the decrypt and send)
