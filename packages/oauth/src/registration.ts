@@ -14,6 +14,13 @@ import { adaptOAuthResponse, OAuthError } from "./errors.js";
 import type { OAuthClientAuthMethod, RegisteredOAuthClient } from "./ports.js";
 import { createOAuthCustomFetch } from './guarded-transport.js';
 export type { RegisteredOAuthClient } from "./ports.js";
+// Only recognized protocol codes may enter public text or metadata; identifier syntax is not trust.
+const REGISTRATION_ERROR_CODES: ReadonlySet<string> = new Set([
+    'invalid_request', 'invalid_client', 'invalid_grant', 'unauthorized_client',
+    'unsupported_grant_type', 'invalid_scope', 'invalid_target', 'access_denied',
+    'server_error', 'temporarily_unavailable', 'invalid_redirect_uri',
+    'invalid_client_metadata', 'invalid_software_statement', 'unapproved_software_statement',
+]);
 const DEFAULT_REGISTRATION_TIMEOUT_MS = 15000;
 const SUPPORTED_AUTH_METHODS: readonly OAuthClientAuthMethod[] = ["none", "client_secret_post", "client_secret_basic"];
 function readOptionalNumber(value: unknown): number | null {
@@ -103,11 +110,13 @@ function registrationError({ error, status }: { error: unknown; status: number |
     optionalArgs: Pick<DynamicClientRegistrationInput, 'messages'> = {}): OAuthError {
     if (error instanceof OAuthError) return error;
     if (error instanceof ResponseBodyError) {
+        const recognized = REGISTRATION_ERROR_CODES.has(error.error);
         return new OAuthError({
             code: 'OAUTH_PROVIDER_REJECTED',
-            message: `the authorization server refused the client registration (HTTP ${status}, ${error.error})`,
+            message: recognized ? `the authorization server refused the client registration (HTTP ${status}, ${error.error})`
+                : `the authorization server refused the client registration (HTTP ${status})`,
             operatorAction: (optionalArgs.messages ?? defaultOAuthMessages).registrationRejectedAction,
-        }, { providerErrorCode: error.error });
+        }, { providerErrorCode: recognized ? error.error : 'invalid_provider_error' });
     }
     if (error instanceof OperationProcessingError && error.code === RESPONSE_IS_NOT_CONFORM) {
         return new OAuthError({ code: 'OAUTH_PROVIDER_REJECTED',

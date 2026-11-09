@@ -20,7 +20,10 @@ import { createOAuthClientConfiguration, requestOAuthToken, type TokenRequestDep
 import { MAX_AUTHORIZATION_STATE_LENGTH, type SealedAuthorizationState } from './sealed-state.js';
 /** Bound on an authorization code; the loopback receiver applies the same one at the edge. */
 export const MAX_CODE_LENGTH = 2048;
-const PROVIDER_ERROR_PATTERN = /^[a-z_]{1,64}$/;
+const CALLBACK_ERROR_CODES: ReadonlySet<string> = new Set([
+    'invalid_request', 'unauthorized_client', 'access_denied', 'unsupported_response_type',
+    'invalid_scope', 'server_error', 'temporarily_unavailable',
+]);
 /** Explicit stateless mode; the host supplies sealing bound to the expected connection. */
 export interface BeginStatelessAuthorizationCodeDeps extends Omit<BeginAuthorizationCodeDeps, 'pending'> {
     readonly stateless: SealedAuthorizationState;
@@ -152,9 +155,9 @@ function assertCallbackShape(params: AuthorizationCallbackParams): void {
             operatorAction: "Start the connection again from the connection settings."
         });
 }
-/** Maps a callback `error` parameter to a typed failure; the raw value is kept only when it is a plain protocol code. */
+/** Maps a callback `error` parameter to a typed failure; the raw value is kept only when it is a recognized protocol code. */
 export function toCallbackError(rawError: string): OAuthError {
-    const providerErrorCode = PROVIDER_ERROR_PATTERN.test(rawError) ? rawError : undefined;
+    const providerErrorCode = CALLBACK_ERROR_CODES.has(rawError) ? rawError : undefined;
     const denied = providerErrorCode === 'access_denied';
     return new OAuthError({
         code: denied ? 'OAUTH_ACCESS_DENIED' : 'OAUTH_PROVIDER_REJECTED',

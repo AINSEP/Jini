@@ -12,6 +12,10 @@ import { adaptOAuthResponse, mapProviderErrorCode, OAuthError } from "./errors.j
 import type { OAuthTokenSet, OAuthHttpPorts } from "./ports.js";
 import { createOAuthClientConfiguration, DEFAULT_TOKEN_REQUEST_TIMEOUT_MS, requestOAuthToken, type TokenRequestDeps } from "./token-endpoint.js";
 import { createOAuthCustomFetch } from './guarded-transport.js';
+const DEVICE_ERROR_CODES: ReadonlySet<string> = new Set([
+    'invalid_request', 'invalid_client', 'invalid_scope', 'unauthorized_client',
+    'access_denied', 'server_error', 'temporarily_unavailable',
+]);
 const DEFAULT_POLL_INTERVAL_SECONDS = 5;
 const MAX_POLL_INTERVAL_SECONDS = 60;
 const MAX_DEVICE_CODE_LIFETIME_SECONDS = 30 * 60;
@@ -96,7 +100,7 @@ function deviceAuthorizationError({ error, status }: { error: unknown; status: n
             code: mapProviderErrorCode({ providerErrorCode: error.error }),
             message: `the authorization server refused the device authorization request (HTTP ${status})`,
             operatorAction: "Check this provider's client id and scopes, then start the connection again.",
-        }, { providerErrorCode: error.error });
+        }, { providerErrorCode: DEVICE_ERROR_CODES.has(error.error) ? error.error : 'invalid_provider_error' });
     if (status !== undefined && (status < 200 || status >= 300))
         return new OAuthError({ code: 'OAUTH_PROVIDER_REJECTED',
             message: `the authorization server refused the device authorization request (HTTP ${status})`,
