@@ -7,3 +7,6 @@ export * from './module-snapshot.js';
 export * from './source-drafts.js';
 export * from './browser-provider-assets.js';
 export * from './provider-artifact.js';
+export * from './invocation-binding.js';
+export * from './archive-policy.js';
+export * from './runtime-core.js';

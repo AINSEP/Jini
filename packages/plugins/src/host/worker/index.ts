@@ -2,3 +2,4 @@
 export * from './import-seam.js';
 export * from './protocol.js';
 export * from './run-call.js';
+export * from './start.js';
