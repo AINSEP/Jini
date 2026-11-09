@@ -9,24 +9,22 @@
 import { escapeHtml } from '@jini-ai/core/text';
 import type { EntryRecord } from '@jini-ai/cms/entries';
 
-const e = (text: string): string => escapeHtml({ text });
-
-export function html(body: string, init: { status?: number } = {}): Response {
+export function html({ body }: { body: string }, { status = 200 }: { status?: number } = {}): Response {
   return new Response(`<!doctype html><html lang="en"><head><meta charset="utf-8">` +
     `<meta name="viewport" content="width=device-width, initial-scale=1"><title>Notes</title></head>` +
-    `<body><main>${body}</main></body></html>`, { status: init.status ?? 200, headers: { 'content-type': 'text/html; charset=utf-8' } });
+    `<body><main>${body}</main></body></html>`, { status, headers: { 'content-type': 'text/html; charset=utf-8' } });
 }
 
-export function json(value: unknown, init: { status?: number } = {}): Response {
-  return new Response(JSON.stringify(value), { status: init.status ?? 200, headers: { 'content-type': 'application/json' } });
+export function json({ value }: { value: unknown }, { status = 200 }: { status?: number } = {}): Response {
+  return new Response(JSON.stringify(value), { status, headers: { 'content-type': 'application/json' } });
 }
 
-export function redirect(location: string): Response {
+export function redirect({ location }: { location: string }, _optional: Record<string, never> = {}): Response {
   return new Response(null, { status: 303, headers: { location } });
 }
 
 /** Reads an urlencoded or multipart body into a flat string record (repeated keys keep the last value). */
-export async function readForm(request: Request): Promise<Record<string, string>> {
+export async function readForm({ request }: { request: Request }, _optional: Record<string, never> = {}): Promise<Record<string, string>> {
   const form = await request.formData();
   const out: Record<string, string> = {};
   form.forEach((value, key) => { if (typeof value === 'string') out[key] = value; });
@@ -34,7 +32,7 @@ export async function readForm(request: Request): Promise<Record<string, string>
 }
 
 export function listPage({ notes }: { notes: readonly EntryRecord[] }): string {
-  const items = notes.map((n) => `<li><a href="/notes/${encodeURIComponent(n.slug)}">${e(n.title)}</a> <small>${e(n.status)}</small></li>`).join('');
+  const items = notes.map((n) => `<li><a href="/notes/${encodeURIComponent(n.slug)}">${escapeHtml({ text: n.title })}</a> <small>${escapeHtml({ text: n.status })}</small></li>`).join('');
   return `<h1>Notes</h1><ul>${items || '<li>No notes yet.</li>'}</ul>` +
     `<h2>New note</h2><form method="post" action="/notes">` +
     `<label>Title <input name="title" required></label> <label>Slug <input name="slug" required pattern="[a-z0-9-]+"></label>` +
@@ -43,11 +41,11 @@ export function listPage({ notes }: { notes: readonly EntryRecord[] }): string {
 
 export function notePage({ note, body, contactHtml, sent }: { note: EntryRecord; body: string; contactHtml: string; sent: boolean }): string {
   const path = `/notes/${encodeURIComponent(note.slug)}`;
-  return `<p><a href="/">All notes</a></p><article><h1>${e(note.title)}</h1>` +
-    `<p><small>${e(note.status)} · version ${note.version}${note.publishedAt ? ` · published ${e(note.publishedAt)}` : ''}</small></p>` +
-    `<div>${e(body).replace(/\n/g, '<br>')}</div></article>` +
+  return `<p><a href="/">All notes</a></p><article><h1>${escapeHtml({ text: note.title })}</h1>` +
+    `<p><small>${escapeHtml({ text: note.status })} · version ${note.version}${note.publishedAt ? ` · published ${escapeHtml({ text: note.publishedAt })}` : ''}</small></p>` +
+    `<div>${escapeHtml({ text: body }).replace(/\n/g, '<br>')}</div></article>` +
     `<h2>Edit</h2><form method="post" action="${path}/edit"><input type="hidden" name="version" value="${note.version}">` +
-    `<label>Title <input name="title" value="${e(note.title)}"></label><label>Body <textarea name="body">${e(body)}</textarea></label>` +
+    `<label>Title <input name="title" value="${escapeHtml({ text: note.title })}"></label><label>Body <textarea name="body">${escapeHtml({ text: body })}</textarea></label>` +
     `<button type="submit">Save</button></form>` +
     (note.status === 'published' ? '' : `<form method="post" action="${path}/publish"><button type="submit">Publish</button></form>`) +
     `<h2>Contact the author</h2>${sent ? '<p role="status">Thanks, your message was sent.</p>' : ''}${contactHtml}`;

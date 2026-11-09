@@ -52,7 +52,10 @@ export interface NodeServer extends Server {
   close(): Promise<void>;
 }
 
-function toRequest(incoming: IncomingMessage, origin: string, signal: AbortSignal): Request {
+function toRequest(
+  { incoming, origin, signal }: { incoming: IncomingMessage; origin: string; signal: AbortSignal },
+  _optional: Record<string, never> = {},
+): Request {
   const headers = new Headers();
   for (const [name, value] of Object.entries(incoming.headers)) {
     if (Array.isArray(value)) for (const item of value) headers.append(name, item);
@@ -68,7 +71,7 @@ function toRequest(incoming: IncomingMessage, origin: string, signal: AbortSigna
   } as RequestInit);
 }
 
-async function writeResponse(response: Response, out: ServerResponse): Promise<void> {
+async function writeResponse({ response, out }: { response: Response; out: ServerResponse }, _optional: Record<string, never> = {}): Promise<void> {
   out.statusCode = response.status;
   response.headers.forEach((value, name) => out.setHeader(name, value));
   if (!response.body) {
@@ -80,7 +83,7 @@ async function writeResponse(response: Response, out: ServerResponse): Promise<v
   out.end();
 }
 
-function plain(status: number, text: string, headers: Record<string, string> = {}): Response {
+function plain({ status, text }: { status: number; text: string }, { headers = {} }: { headers?: Record<string, string> } = {}): Response {
   return new Response(text, { status, headers: { 'content-type': 'text/plain; charset=utf-8', ...headers } });
 }
 
@@ -91,7 +94,7 @@ export function createNodeServer(_required: Record<string, never> = {}, _optiona
   async function dispatch(incoming: IncomingMessage, out: ServerResponse): Promise<void> {
     const abort = new AbortController();
     out.on('close', () => { if (!out.writableFinished) abort.abort(); });
-    const request = toRequest(incoming, `http://${incoming.headers.host ?? 'localhost'}`, abort.signal);
+    const request = toRequest({ incoming, origin: `http://${incoming.headers.host ?? 'localhost'}`, signal: abort.signal });
     const pathname = new URL(request.url).pathname;
     // One scan: every route whose path matches, kept for both the method pick and the 405's Allow.
     const matched: { route: Route; params: Record<string, string> }[] = [];
@@ -100,7 +103,7 @@ export function createNodeServer(_required: Record<string, never> = {}, _optiona
       if (params) matched.push({ route, params });
     }
     if (matched.length === 0) {
-      await writeResponse(plain(404, 'Not Found'), out);
+      await writeResponse({ response: plain({ status: 404, text: 'Not Found' }), out });
       return;
     }
     const isHead = request.method === 'HEAD';
@@ -110,13 +113,13 @@ export function createNodeServer(_required: Record<string, never> = {}, _optiona
     if (!hit) {
       const allow = new Set(matched.map((m) => m.route.method));
       if (allow.has('GET')) allow.add('HEAD');
-      await writeResponse(plain(405, 'Method Not Allowed', { allow: [...allow].join(', ') }), out);
+      await writeResponse({ response: plain({ status: 405, text: 'Method Not Allowed' }, { headers: { allow: [...allow].join(', ') } }), out });
       return;
     }
     const address = incoming.socket.remoteAddress;
     const response = await hit.route.handler({ request, params: hit.params, ...(address ? { client: { address } } : {}) });
     if (isHead) await response.body?.cancel();
-    await writeResponse(isHead ? new Response(null, { status: response.status, headers: response.headers }) : response, out);
+    await writeResponse({ response: isHead ? new Response(null, { status: response.status, headers: response.headers }) : response, out });
   }
 
   return {
@@ -130,7 +133,7 @@ export function createNodeServer(_required: Record<string, never> = {}, _optiona
       http = createServer((incoming, out) => {
         dispatch(incoming, out).catch((error: unknown) => {
           console.error('node-server: handler failed', error);
-          if (!out.headersSent) writeResponse(plain(500, 'Internal Server Error'), out).catch(() => out.destroy());
+          if (!out.headersSent) writeResponse({ response: plain({ status: 500, text: 'Internal Server Error' }), out }).catch(() => out.destroy());
           else out.destroy();
         });
       });

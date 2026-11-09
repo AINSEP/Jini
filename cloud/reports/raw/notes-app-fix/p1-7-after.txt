@@ -1,0 +1,19 @@
+example-tsc-exit=0
+ℹ tests 13
+ℹ pass 13
+ℹ fail 0
+ok - create note -> 303 (got 303)
+ok - edit note -> 303 (got 303)
+ok - publish note -> 303 (got 303)
+ok - detail page renders the contact form
+ok - submit contact form -> 303 (got 303)
+ok - unknown path -> 404
+ok - wrong method -> 405
+ok - after restart: note keeps its edit
+ok - after restart: note is published
+ok - after restart: contact submission is listed
+ok - after restart: list page shows the note
+PASS
+smoke-exit=0
+== positional helper calls left (listed helpers plus noteBody, findBySlug, e, post, check, stop)
+none

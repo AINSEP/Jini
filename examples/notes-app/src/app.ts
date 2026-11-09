@@ -25,7 +25,7 @@ const CONTACT_FIELDS: FieldDescriptor[] = [
 // The hooks are the CSS/data-attribute anchors renderHtmlForm writes; no default set is exported.
 const FORM_HOOKS = { field: 'data-field', form: 'data-form', success: 'data-form-success', error: 'data-form-error' };
 
-const noteBody = (entry: EntryRecord): string => {
+const noteBody = ({ entry }: { entry: EntryRecord }, _optional: Record<string, never> = {}): string => {
   const body = entry.bodyJson as { text?: unknown } | null;
   return typeof body?.text === 'string' ? body.text : '';
 };
@@ -53,62 +53,62 @@ export async function registerNotesApp({ app, kernel }: { app: Server; kernel: A
   }
   const contactForm = contact;
 
-  const findBySlug = (slug: string) => entryRepo.findBySlug({ workspaceId: WORKSPACE_ID, type: NOTE_TYPE, slug });
+  const findBySlug = ({ slug }: { slug: string }, _optional: Record<string, never> = {}) => entryRepo.findBySlug({ workspaceId: WORKSPACE_ID, type: NOTE_TYPE, slug });
 
   app.route({ method: 'GET', path: '/', handler: async () => {
     const { items } = await listEntries({ repo: entryRepo, workspaceId: WORKSPACE_ID }, { type: NOTE_TYPE });
-    return html(listPage({ notes: items }));
+    return html({ body: listPage({ notes: items }) });
   } });
 
   app.route({ method: 'GET', path: '/api/notes', handler: async () => {
     const { items } = await listEntries({ repo: entryRepo, workspaceId: WORKSPACE_ID }, { type: NOTE_TYPE });
-    return json({ notes: items.map((n) => ({ slug: n.slug, title: n.title, body: noteBody(n), status: n.status, version: n.version })) });
+    return json({ value: { notes: items.map((n) => ({ slug: n.slug, title: n.title, body: noteBody({ entry: n }), status: n.status, version: n.version })) } });
   } });
 
   app.route({ method: 'POST', path: '/notes', handler: async ({ request }) => {
-    const form = await readForm(request);
+    const form = await readForm({ request });
     const result = await createEntry({ deps: { ...entryDeps, ids: ports.idGen }, input: {
       ...actor, workspaceId: WORKSPACE_ID, type: NOTE_TYPE, slug: form.slug ?? '', title: form.title ?? '',
       fieldsJson: { ext: { site: {} } }, bodyJson: { text: form.body ?? '' },
     } });
-    if (!result.ok) return json({ error: result.error.message }, { status: 400 });
-    return redirect(`/notes/${encodeURIComponent(result.value.entry.slug)}`);
+    if (!result.ok) return json({ value: { error: result.error.message } }, { status: 400 });
+    return redirect({ location: `/notes/${encodeURIComponent(result.value.entry.slug)}` });
   } });
 
   app.route({ method: 'GET', path: '/notes/:slug', handler: async ({ request, params }) => {
-    const note = await findBySlug(params.slug ?? '');
-    if (!note) return html('<h1>Not found</h1>', { status: 404 });
+    const note = await findBySlug({ slug: params.slug ?? '' });
+    if (!note) return html({ body: '<h1>Not found</h1>' }, { status: 404 });
     const contactHtml = renderHtmlForm({
       slug: contactForm.slug, fields: contactForm.fields, hooks: FORM_HOOKS,
       action: `/forms/${CONTACT_SLUG}?note=${encodeURIComponent(note.slug)}`,
     });
     const sent = new URL(request.url).searchParams.get('sent') === '1';
-    return html(notePage({ note, body: noteBody(note), contactHtml, sent }));
+    return html({ body: notePage({ note, body: noteBody({ entry: note }), contactHtml, sent }) });
   } });
 
   app.route({ method: 'POST', path: '/notes/:slug/edit', handler: async ({ request, params }) => {
-    const note = await findBySlug(params.slug ?? '');
-    if (!note) return json({ error: 'not found' }, { status: 404 });
-    const form = await readForm(request);
+    const note = await findBySlug({ slug: params.slug ?? '' });
+    if (!note) return json({ value: { error: 'not found' } }, { status: 404 });
+    const form = await readForm({ request });
     const result = await updateEntry({ deps: entryDeps, input: {
       ...actor, workspaceId: WORKSPACE_ID, id: note.id, expectedVersion: Number(form.version ?? note.version),
       ...(form.title !== undefined ? { title: form.title } : {}),
       ...(form.body !== undefined ? { bodyJson: { text: form.body } } : {}),
     } });
-    if (!result.ok) return json({ error: result.error.message }, { status: 409 });
-    return redirect(`/notes/${encodeURIComponent(note.slug)}`);
+    if (!result.ok) return json({ value: { error: result.error.message } }, { status: 409 });
+    return redirect({ location: `/notes/${encodeURIComponent(note.slug)}` });
   } });
 
   app.route({ method: 'POST', path: '/notes/:slug/publish', handler: async ({ params }) => {
-    const note = await findBySlug(params.slug ?? '');
-    if (!note) return json({ error: 'not found' }, { status: 404 });
+    const note = await findBySlug({ slug: params.slug ?? '' });
+    if (!note) return json({ value: { error: 'not found' } }, { status: 404 });
     const result = await publishEntry({ deps: entryDeps, input: { ...actor, workspaceId: WORKSPACE_ID, id: note.id, expectedVersion: note.version } });
-    if (!result.ok) return json({ error: result.error.message }, { status: 409 });
-    return redirect(`/notes/${encodeURIComponent(note.slug)}`);
+    if (!result.ok) return json({ value: { error: result.error.message } }, { status: 409 });
+    return redirect({ location: `/notes/${encodeURIComponent(note.slug)}` });
   } });
 
   app.route({ method: 'POST', path: '/forms/:slug', handler: async ({ request, params, client }) => {
-    const body = await readForm(request);
+    const body = await readForm({ request });
     // The socket peer from the adapter, never a request header: the app binds to localhost and
     // trusts no proxy. A host behind a proxy applies resolveClientIp (@jini-ai/http-kit/rate-limit)
     // to this value. Without a peer, every such request shares one bucket rather than escaping it.
@@ -122,19 +122,19 @@ export async function registerNotesApp({ app, kernel }: { app: Server; kernel: A
         input: { workspaceId: WORKSPACE_ID, slug: params.slug ?? '', body, sourceIp },
       });
     } catch (error) {
-      if (error instanceof FormSubmissionValidationError) return json({ error: error.message }, { status: 422 });
-      if (error instanceof FormRateLimitExceededError) return json({ error: error.message }, { status: 429 });
+      if (error instanceof FormSubmissionValidationError) return json({ value: { error: error.message } }, { status: 422 });
+      if (error instanceof FormRateLimitExceededError) return json({ value: { error: error.message } }, { status: 429 });
       throw error;
     }
     const note = new URL(request.url).searchParams.get('note');
-    return note ? redirect(`/notes/${encodeURIComponent(note)}?sent=1`) : json({ status: 'accepted' }, { status: 202 });
+    return note ? redirect({ location: `/notes/${encodeURIComponent(note)}?sent=1` }) : json({ value: { status: 'accepted' } }, { status: 202 });
   } });
 
   app.route({ method: 'GET', path: '/api/forms/:slug/submissions', handler: async ({ params }) => {
     const definition = await definitionRepo.findBySlug({ workspaceId: WORKSPACE_ID, slug: params.slug ?? '' });
-    if (!definition) return json({ error: 'not found' }, { status: 404 });
+    if (!definition) return json({ value: { error: 'not found' } }, { status: 404 });
     const page = await submissionRepo.listByDefinition({ workspaceId: WORKSPACE_ID, formDefinitionId: definition.id, limit: 100 });
-    return json({ submissions: page.items.map((s) => ({ id: s.id, data: s.data, submittedAt: s.submittedAt })) });
+    return json({ value: { submissions: page.items.map((s) => ({ id: s.id, data: s.data, submittedAt: s.submittedAt })) } });
   } });
 
 }
