@@ -19,27 +19,20 @@ type PluginProviderFacesPort = PluginManagementToolsRequired<unknown>['providerF
  *  `packageRoot` or a skill's `skillPath`) ever leave this module. */
 interface AgentPluginListRow {
   
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly pluginId: string;
   
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly version: string | null;
   
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly archiveDigest: string;
   
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly skills: readonly string[];
   
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly exports: readonly PluginExportCatalogRow[];
 }
 
 
 function toAgentPluginListRow(required: { 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   plugin: InstalledPluginRevision; 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   exports: readonly PluginExportCatalogRow[] }, _options = {}): AgentPluginListRow {
   const p = required.plugin;
   return { pluginId: p.pluginId, version: p.version ?? null, archiveDigest: p.archiveDigest, skills: p.skills.map((s) => s.name), exports: required.exports };
@@ -70,15 +63,10 @@ async function listAgentPluginsForResponse<Description>(routeDeps: PluginManagem
  * calls. See `DerivedRiskByToolId` in the kit for why it is independent of the catalog's own
  * `sideEffects` declaration.
  */
-/** @agent-note Required host inputs have no vocabulary defaults. Bind the same workspace-scoped lifecycle, canonical classes, command/fingerprint owners and authenticated approval transport. Authorize before disclosure and after approval; preserve saved identity bytes, privacy, order, rollback/Stop, I/O and telemetry counts, and unknown failure identity. */
 export function pluginManagementDerivedRiskFor({ toolIds }: { 
-  /** @agent-note Host ids are required input for every operation; never replace them with this package or another host's names. */
   toolIds: { 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   list: string; 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   setEnabled: string; 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   uninstall: string } }, _optional = {}): DerivedRiskByToolId { return new Map<string, AgentToolSideEffect>([
   // -> discoverPlugins() + pluginActivationRepo.getActivation() per record: reads only.
   [toolIds.list, "none"],
@@ -122,25 +110,18 @@ function readSetEnabledRequest(rawInput: unknown, familyRequired: string): SetEn
 
 
 /** What one plugin's enable approval is bound to; `discovery` is the site-runtime snapshot it was read from. */
-/** @agent-note Saved approval identity is bound to the full current revision/digest/source/access set before and after human consent; never rewrite its bytes or serialize private metadata. */
 interface PluginApprovalIdentity {
   
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly key: string;
   
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly version?: OptionalValue<string>;
   
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly label: string;
   
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly discovery?: OptionalValue<readonly PluginDiscoveryRecord[]>;
   
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly accessKey?: OptionalValue<string>;
   
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly accessResources?: OptionalValue<readonly Omit<AccessApprovalResource, 'scope'>[]>;
 }
 
@@ -149,12 +130,9 @@ interface PluginApprovalIdentity {
  * hashes the version/digest metadata; no second hashing or approval store is introduced.
  * Disabling removes capability, so it needs no identity grant and never raises a dialog.
  * @complexity One family discovery scan, bounded by the installed package count. */
-/** @agent-note Required host inputs have no vocabulary defaults. Bind the same workspace-scoped lifecycle, canonical classes, command/fingerprint owners and authenticated approval transport. Authorize before disclosure and after approval; preserve saved identity bytes, privacy, order, rollback/Stop, I/O and telemetry counts, and unknown failure identity. */
 export async function pluginApprovalIdentity<Description>(
   { deps: routeDeps, request }: { 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   deps: PluginManagementToolsRequired<Description>; 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   request: Pick<SetEnabledRequest, "family" | "pluginId"> }, _optional = {},
 ): Promise<PluginApprovalIdentity> {
   let revision: string;
@@ -241,7 +219,6 @@ async function uninstallConfirmedPlugin<Description>(
  * @complexity O(d) in installed-digest count plus one small file rewrite.
  */
 async function applyAgentPluginDecision<Description>(routeDeps: PluginManagementToolsRequired<Description>, principalId: string, request: SetEnabledRequest, optional: { 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   accessKey?: OptionalValue<string> } = {}): Promise<unknown> {
   try {
     const input = {
@@ -344,9 +321,7 @@ async function hostIncompatibleEnableResult<Description>(routeDeps: PluginManage
  *  nothing changed, and the note names the provider plugin to switch instead. @complexity O(1). */
 function linkedFaceResult({ request, error }: {
   
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   request: SetEnabledRequest; 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   error: ReturnType<PluginProviderFacesPort["describeLinkedFace"]>;
 }, _optional = {}): unknown {
   return { changed: false, cancelled: false, family: request.family, pluginId: request.pluginId, restartRequired: false,
@@ -374,7 +349,6 @@ async function agentPluginEnablePreflight<Description>(routeDeps: PluginManageme
  *  unreadable recovery record): its on/off decision is frozen until then, the same 409 the admin
  *  switch answers. Nothing changed, so an ADR-055 Decision 6 result. @complexity O(1). */
 function updatePendingResult<Description>(routeDeps: PluginManagementToolsRequired<Description>, request: SetEnabledRequest, error: { 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   code: string }): unknown {
   return {
     changed: false,
@@ -394,7 +368,6 @@ function updatePendingResult<Description>(routeDeps: PluginManagementToolsRequir
  *  refusal the admin switch answers with 409 `PLUGIN_HOST_INCOMPATIBLE`. Nothing changed, so it is
  *  an ADR-055 Decision 6 result, not a failure. @complexity O(1). */
 function hostIncompatibleResult<Description>(routeDeps: PluginManagementToolsRequired<Description>, request: SetEnabledRequest, error: { 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   code: string }): unknown {
   return {
     changed: false,
@@ -414,7 +387,6 @@ function hostIncompatibleResult<Description>(routeDeps: PluginManagementToolsReq
  *  `note` carries only the fixed, path-free E3 text.
  *  @complexity O(1). */
 function activationsUnreadableResult<Description>(routeDeps: PluginManagementToolsRequired<Description>, request: SetEnabledRequest, error: { 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   message: string }): unknown {
   console.warn(`[agent-plugins] '${request.pluginId}': ${routeDeps.toolIds.setEnabled} refused — ${error.message}`);
   return {
@@ -436,7 +408,6 @@ function activationsUnreadableResult<Description>(routeDeps: PluginManagementToo
  *  path-free.
  *  @complexity O(1). */
 function activationsBusyResult<Description>(routeDeps: PluginManagementToolsRequired<Description>, request: SetEnabledRequest, error: { 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   message: string }): unknown {
   console.warn(`[agent-plugins] '${request.pluginId}': ${routeDeps.toolIds.setEnabled} refused — ${error.message}`);
   return {
@@ -473,7 +444,6 @@ function activationsRefusalResult<Description>(routeDeps: PluginManagementToolsR
  * @complexity O(p) in discovered-plugin count, plus the command gateway's own writes.
  */
 async function applySiteRuntimeDecision<Description>(routeDeps: PluginManagementToolsRequired<Description>, principalId: string, request: SetEnabledRequest, optional: { 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   discovery?: OptionalValue<readonly PluginDiscoveryRecord[]> } = {}): Promise<unknown> {
   const { pluginId, enabled } = request;
   // Reuse the manifest that passed the post-approval identity check, avoiding another discovery
@@ -545,11 +515,8 @@ async function applySiteRuntimeDecision<Description>(routeDeps: PluginManagement
 async function requireEnablePermission<Description>(
   routeDeps: PluginManagementToolsRequired<Description>,
   required: { 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly principalId: string; 
-  /** @agent-note Use the host's exact entity scope for permission checks before reads or writes. */
   readonly entityType: string; 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly entityId: string },
 ): Promise<void> {
   await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: required.principalId, permission: routeDeps.permissions.enable }, { entityType: required.entityType, entityId: required.entityId });
@@ -558,9 +525,7 @@ async function requireEnablePermission<Description>(
 
 /** `plugins_set_enabled`'s permission check, scoped to the family's own entity type. @complexity O(1) plus one evaluation. */
 function requireSetEnabledPermission<Description>(routeDeps: PluginManagementToolsRequired<Description>, required: { 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly principalId: string; 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly request: SetEnabledRequest }): Promise<void> {
   const { principalId, request } = required;
   return requireEnablePermission(routeDeps, { principalId, entityType: request.family === AGENT_PLUGIN_FAMILY ? routeDeps.entityTypes.agentPlugin : routeDeps.entityTypes.plugin, entityId: request.pluginId });
@@ -571,10 +536,8 @@ function requireSetEnabledPermission<Description>(routeDeps: PluginManagementToo
  * that is being enabled can carry a capability set; every other call has none. */
 interface SiteConsent {
   
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly capabilities: readonly string[] | undefined;
   
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly added: readonly string[];
 }
 
@@ -583,9 +546,7 @@ interface SiteConsent {
  * (a disable, an Agent Plugin, or a built-in package). @complexity O(p) in the snapshot's plugin count. */
 function siteRecordBeingEnabled(
   required: { 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly request: SetEnabledRequest; 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly identity: PluginApprovalIdentity | undefined },
 ): PluginDiscoveryRecord | undefined {
   const { request, identity } = required;
@@ -600,9 +561,7 @@ function siteRecordBeingEnabled(
 async function siteConsentFor<Description>(
   routeDeps: PluginManagementToolsRequired<Description>,
   required: { 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly request: SetEnabledRequest; 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly identity: PluginApprovalIdentity | undefined },
 ): Promise<SiteConsent> {
   const { request } = required;
@@ -617,25 +576,18 @@ async function siteConsentFor<Description>(
 /** One prepared `plugins_set_enabled` call: everything the card names and the write re-checks. */
 interface SetEnabledPrepared {
   
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly request: SetEnabledRequest;
   
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly identity: PluginApprovalIdentity | undefined;
   
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly refusal: unknown;
   
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly confirm: boolean;
   
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly capabilities: readonly string[] | undefined;
   
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly added: readonly string[];
   
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly previousEnabled: boolean | null;
 }
 
@@ -644,7 +596,6 @@ interface SetEnabledPrepared {
  * inputs. See the `plugins_set_enabled` handler's own comment for why this order is load-bearing.
  * @complexity One family discovery scan plus the source/policy reads in {@link siteConsentFor}. */
 async function prepareSetEnabled<Description>(routeDeps: PluginManagementToolsRequired<Description>, required: { 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly ctx: ToolExecutionContext }): Promise<SetEnabledPrepared> {
   const { ctx } = required;
   const request = readSetEnabledRequest(ctx.input, routeDeps.messages.familyRequired);
@@ -661,9 +612,7 @@ async function prepareSetEnabled<Description>(routeDeps: PluginManagementToolsRe
 
 /** Read only the selected family, once, for the previous access value shown on the card. */
 async function previousPluginEnabled<Description>({ deps, request }: { 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   deps: PluginManagementToolsRequired<Description>; 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   request: SetEnabledRequest }, _options = {}): Promise<boolean | null> {
   if (request.family !== AGENT_PLUGIN_FAMILY) return (await deps.pluginActivationRepo.getActivation({ workspaceId: deps.workspaceId, pluginId: request.pluginId }))?.enabled ?? false;
   const inactive = await deps.agentPlugins.inactivePluginIds?.({ strict: true }, {});
@@ -678,9 +627,7 @@ async function previousPluginEnabled<Description>({ deps, request }: {
 async function currentApprovedIdentity<Description>(
   routeDeps: PluginManagementToolsRequired<Description>,
   required: { 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly request: SetEnabledRequest; 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly identity: PluginApprovalIdentity | undefined },
 ): Promise<PluginApprovalIdentity | undefined> {
   const { request, identity } = required;
@@ -704,9 +651,7 @@ async function currentApprovedIdentity<Description>(
 async function runSetEnabled<Description>(
   routeDeps: PluginManagementToolsRequired<Description>,
   required: { 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly ctx: ToolExecutionContext; 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   readonly prepared: SetEnabledPrepared },
 ): Promise<unknown> {
   const { ctx, prepared: { request, identity, refusal, confirm, capabilities } } = required;
@@ -741,7 +686,6 @@ const PLUGINS_MODEL_FACING_ERRORS: readonly ModelFacingErrorRule[] = [
 ];
 
 
-/** @agent-note Required host inputs have no vocabulary defaults. Bind the same workspace-scoped lifecycle, canonical classes, command/fingerprint owners and authenticated approval transport. Authorize before disclosure and after approval; preserve saved identity bytes, privacy, order, rollback/Stop, I/O and telemetry counts, and unknown failure identity. */
 export function buildPluginManagementRegistrations<Description>(routeDeps: PluginManagementToolsRequired<Description>, _optional = {}): ToolRegistration[] {
   const handlers: Record<string, ToolHandler> = {
     [routeDeps.toolIds.list]: async (ctx) => {

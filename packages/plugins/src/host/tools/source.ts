@@ -7,9 +7,7 @@ const MUTATES_DURABLE_STATE = 'mutates-durable-state' as const;
 
 /** Reads one required string field, naming it when the caller sent something else. */
 function stringField(required: { 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   input: Record<string, unknown>; 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   key: string }): string {
   const value = required.input[required.key];
   if (typeof value !== 'string') throw new ToolInputError({ message: `${required.key} must be a string.` });
@@ -18,11 +16,8 @@ function stringField(required: {
 
 
 type SourceOperation = (required: { 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   port: PluginSourcePort; 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   pluginId: string; 
-  /** @agent-note Preserve the existing caller-safe plugin protocol value and saved/result bytes; do not infer host authority or disclose private paths, secrets or handles. */
   input: Record<string, unknown> }) => Promise<unknown>;
 
 
@@ -47,7 +42,6 @@ function sourceOperations(toolIds: PluginSourceToolsRequired<unknown>['toolIds']
  * @param _optional Reserved registration options.
  * @returns Complete registrations; typed source/install refusals become actionable input errors.
  */
-/** @agent-note Required host inputs have no vocabulary defaults. Bind the same workspace-scoped lifecycle, canonical classes, command/fingerprint owners and authenticated approval transport. Authorize before disclosure and after approval; preserve saved identity bytes, privacy, order, rollback/Stop, I/O and telemetry counts, and unknown failure identity. */
 export function buildPluginSourceRegistrations<Description>(deps: PluginSourceToolsRequired<Description>, _optional = {}): ToolRegistration[] {
   const operations = sourceOperations(deps.toolIds);
   async function authorize(ctx: ToolExecutionContext, permission: string): Promise<void> {
@@ -98,9 +92,7 @@ export function buildPluginSourceRegistrations<Description>(deps: PluginSourceTo
 
 /** Independently derived from calls to the source port: reads are read-only, delete unlinks,
  * and create/open/write/edit/seal/rollback durably publish bytes. */
-/** @agent-note Required host inputs have no vocabulary defaults. Bind the same workspace-scoped lifecycle, canonical classes, command/fingerprint owners and authenticated approval transport. Authorize before disclosure and after approval; preserve saved identity bytes, privacy, order, rollback/Stop, I/O and telemetry counts, and unknown failure identity. */
 export function pluginSourceDerivedRiskFor({ toolIds }: { 
-  /** @agent-note Host ids are required input for every operation; never replace them with this package or another host's names. */
   toolIds: PluginSourceToolsRequired<unknown>['toolIds'] }, _optional = {}): DerivedRiskByToolId { return new Map([
   [toolIds.create, MUTATES_DURABLE_STATE], [toolIds.open, MUTATES_DURABLE_STATE],
   [toolIds.list, 'none'], [toolIds.read, 'none'], [toolIds.write, MUTATES_DURABLE_STATE],
