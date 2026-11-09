@@ -1,13 +1,36 @@
+/**
+ * @file Credential tool orchestration with host-supplied policy, adapters and cards.
+ *
+ * Requests can mutate an external provider, so the host's write permission gates them; DELETE
+ * additionally holds one call for human approval rather than requiring a second model call.
+ * Target resolution checks labels and saved hosts before the dialog without decrypting, and
+ * an approved DELETE decrypts and sends only after its human answer.
+ *
+ * Username updates accept only label and username, so an unconfirmed edit cannot carry a token;
+ * resolving the label to its row id never decrypts.
+ *
+ * Secret keystrokes travel browser -> answer route -> exchange -> parked handler -> sealed store,
+ * never through model input, results or audit values; absent surface delivery fails closed.
+ * The outcome replaces the same form URI after persistence, because delivery alone does not prove
+ * sealing succeeded.
+ *
+ * Rotation resolves its label before opening a card; creation has no existing row to resolve,
+ * so the store validates submitted fields and refuses duplicate labels rather than overwriting.
+ * File shape, path, size and provider target checks precede decryption; the same provider commits
+ * the exact read-only plan it prepared, with abort checked before the commit.
+ */
 // Mechanical extraction provenance (exact source SHA/path) is in this package's source-map.md.
-// Original bodies and why-comments are preserved; host wiring stays with the consumer.
+// Host wiring stays with the consumer; ordering and privacy rationale follow the moved handlers.
 import type { CredentialWriteFilesRequest, CredentialToolOperations, CredentialToolActorDeps, CredentialCreatePrefill as CreateCredentialPrefill, CredentialToolSurfaces, CredentialToolSetupFailure } from "./credential-tool-operations.js";
 import type { SurfaceCardApp, SecretCardForm } from "@jini-ai/core/contracts/cards";
+// ToolInputError marks caller-correctable validation instead of an internal failure that transports redact.
 import { decorateWithSchema, ToolInputError, redactSecrets, requireInputRecord, requireString, adaptLegacyAuthorize, requireToolPermission, buildDomainRegistrations, requireNoInput, withSchemaOnRejection } from "@jini-ai/core";
 import type { CredentialedRequestPort, CredentialedRequestRequired, CredentialedRequestOptional, CredentialedRequestResult, CredentialSetConnectionInput as CustomProviderConnectionInput, SourceControlFileWritePlan, SourceControlFileWriter, SourceControlWritePort, PluginCredentialCard, CredentialSetSummary as CustomCredentialSummary } from "@jini-ai/core/contracts/credentials";
 import type { CustomCredentialToolHost, CredentialCardIdentity, CustomCredentialSecretCards, CustomCredentialToolPorts } from "./credential-tool-host.js";
 import { CustomCredentialValidationError, CustomCredentialNotFoundError, CustomCredentialDuplicateLabelError } from "../sets/store.js";
 import { buildAuthorizationHeader } from "../credentialed-request.js";
 import { callerSafeErrorMessage, withModelFacingErrors } from "@jini-ai/core/model-facing-tool-errors";
+// ToolHandler carries core's SurfaceEmission return contract directly rather than a transport implementation type.
 import type { ToolExecutionContext, ToolExecutionOptions, ToolHandler, ToolRegistration } from "@jini-ai/core";
 import type { CredentialedRequestOutcome } from "../credentialed-request.js";
 import { CredentialedRequestValidationError } from "../../contracts/credentialed-request-errors.js";
@@ -26,8 +49,7 @@ function withCardApp<Spec extends { readonly app?: SurfaceCardApp }>({ spec, app
 
 /**
  * Decides which of `custom_credential_make_request`'s rejections are the CALLER's to fix — the same
- * `withSchemaOnRejection` classification `features/media-import/tool-registrations.ts`'s own
- * `isImportShapeRejection` established (2026-09-07, SEC-05) for the identical failure mode: an
+ * schema-decorated validation classification used for caller-correctable input failures: an
  * unclassified rejection reaches `@jini-ai/daemon`'s `ToolExecutor` as `errorKind: 'internal'`, which
  * `@jini-ai/http-kit`'s `delegatedToolExecuteRoute` SEC-005-redacts into a bare `INTERNAL_ERROR` —
  * stripping the one piece of information (WHICH rule refused the call) a caller could actually act on.
@@ -49,8 +71,7 @@ function withCardApp<Spec extends { readonly app?: SurfaceCardApp }>({ spec, app
  * call site uses through the same classification boundary.
  *
  * Deliberately NOT `CredentialedRequestTransportError` (a DNS failure, timeout, or connection error
- * is not a decision this process made, and a different URL does not reliably fix it — same reasoning
- * `isImportShapeRejection`'s own doc gives for the identical class of failure) and NOT
+ * is not a decision this process made, and a different URL does not reliably fix it) and NOT
  * `CustomCredentialNotFoundError` (a different call shape — a wrong label — unrelated to this tool's
  * egress/allowlist boundary and out of scope for this fix).
  *
@@ -111,7 +132,7 @@ function isWriteFilesShapeRejection(error: unknown): boolean {
  *  use below for the identical reason: nothing here could ever be widened to carry the token, and a
  *  caller can always branch on `executed` alone regardless of which branch produced the result.
  *  `reason: "error"` is this tool's own addition — unlike a form submission, the write itself can fail
- *  at the GitHub API level AFTER confirmation (a diverged branch, a provider error), which needs a
+ *  at the provider API level AFTER confirmation (a diverged branch, a provider error), which needs a
  *  human-readable `message` the other reasons never carry. That `message` is always caller-safe: a
  *  network failure's detail goes to the server log only, via {@link reportRepositoryWriteFailure}.
  * @agent-note Successful results are value-free commit facts; failure messages must already be
@@ -156,7 +177,7 @@ function writeTarget(resolved: { baseUrl: string; connection: CustomProviderConn
 
 
 /** The exact keys `custom_credential_set_username` accepts — nothing else, ever. This is the
- *  structural half of "this tool can never accept a token" promised in `agent-tools.ts`'s own catalog
+ *  structural half of "this tool can never accept a token" promised by the host's tool catalog
  *  description: `additionalProperties: false` on that catalog entry's `inputSchema` is descriptive
  *  only (the kernel "neither parses nor validates" a tool's schema — see `@jini-ai/core`'s own
  *  `ToolDescriptor.inputSchema` doc), so THIS handler-level check is the one that is actually
@@ -186,7 +207,7 @@ function rejectUnexpectedSetUsernameFields({ input, messages }: { input: Record<
 
 /**
  * Reads and validates this tool's required `username` field: a non-empty string to set it, or `null`
- * to explicitly clear it. Unlike `store.ts`'s own `validateUsernamePatch` (which validates
+ * to explicitly clear it. Unlike `../sets/store.ts`'s own `validateUsernamePatch` (which validates
  * `updateCustomCredential`'s OPTIONAL `username` patch, where omitting the field entirely means "leave
  * unchanged"), omitting the key here is itself a caller error — this tool exists for exactly one job,
  * set-or-clear, so "say nothing" is never a valid call into it. Mirrors that function's own two
@@ -210,7 +231,7 @@ function requireUsernameOrClearSentinel({ input, messages }: { input: Record<str
 
 
 /** The exact keys `custom_credential_set_token` accepts on the MODEL-ISSUED call — `label`, nothing
- *  else, ever. The API rotation schema (`credential-save-tool.ts`) already has no `token` property to fill in, but
+ *  else, ever. The API rotation schema supplied by the host already has no `token` property to fill in, but
  *  `additionalProperties: false` is descriptive only (same caveat `SET_USERNAME_ALLOWED_FIELDS`'s own
  *  doc gives) — this is the layer that is actually enforced. */
 const SET_TOKEN_ALLOWED_FIELDS: ReadonlySet<string> = new Set(["label"]);
@@ -266,8 +287,7 @@ async function probeCardBeforeSave({ card, baseUrl, connection, routeDeps, opera
 
 /** Every dependency {@link saveSetToken} needs to seal the submitted token and report the
  *  outcome — bundled so `custom_credential_set_token`'s own `askThenReport` call passes one object
- *  rather than the handler's whole closure, same shape `features/deployments/publish-agent-tools.ts`'s
- *  `PublishConfirmationContext` uses for the identical reason.
+ *  rather than the handler's whole closure.
  * @agent-note The captured summary identifies a row only. Re-read current username/metadata at
  * replacement and retain current authorization, owner/grant and CAS checks. */
 interface SetTokenAnswerContext {
@@ -282,22 +302,20 @@ interface SetTokenAnswerContext {
 /**
  * `custom_credential_set_token`'s `askThenReport` answer handling — extracted to a top-level function
  * so its own complexity is measured independently of the handler that opens the exchange and builds
- * the form, same reasoning `handlePublishConfirmationAnswer`
- * (`features/deployments/publish-agent-tools.ts`) gives for its own extraction.
+ * the form.
  *
  * `askThenReport`, not `askOnce`: a submitted form's `tools/call` resolves the instant
- * `mcp-ui-tool-calls-route.ts` DELIVERS it to this parked call, before `updateCustomCredential` below
- * has even run — see `custom-credential-set-token-ui.ts`'s header for the full defect this avoids. Each
+ * the answer route DELIVERS it to this parked call, before the replacement operation below
+ * has even run. Each
  * non-success branch that sends an `outcome` does so because the confirmation-turned-form's own script
  * would otherwise leave a bare "Done." on screen for work that has not actually happened yet; the
  * cancel/no-answer branches send none, because the form's own script already reports "Dismissed."/an
  * expiry locally the moment this call resolves, and that IS the truth for those two cases (nothing
- * asynchronous happens afterward that could still fail) — identical reasoning
- * `handlePublishConfirmationAnswer`'s own cancel branch documents.
+ * asynchronous happens afterward that could still fail).
  *
  * The token itself lives in a single local parameter for the width of this function and is never
  * assigned to any field this function returns, logged, or otherwise retained — the property
- * `agent-tools.ts`'s own catalog description promises the model.
+ * the host's catalog description promises the model.
  *
  * @complexity O(1) locally, an optional bounded GET, and one `updateCustomCredential` call (validate, seal, write).
  */
@@ -330,7 +348,7 @@ async function saveSetToken(
       id: existing.id,
       signal, principalId, guardRepo: operations.policy.guardRepo,
       // Carries the CURRENT (just re-read) username forward into the fresh connection. Replacing
-      // `connection` WITHOUT one would silently CLEAR a saved username — `store.ts`'s own
+      // `connection` WITHOUT one would silently CLEAR a saved username — `../sets/store.ts`'s own
       // `updateCustomCredential` doc: "replacing the connection replaces the username ... including
       // clearing it, when the new connection omits one". A token-only fix must never have that side
       // effect, and must never resurrect a value the username has since moved on from either — hence
@@ -342,15 +360,9 @@ async function saveSetToken(
 }
 
 
-/** Reads `custom_credential_create`'s optional non-secret prefill hints off the model-issued call —
- *  see `credential-save-tool.ts`'s API creation schema for the exact three fields this accepts. Blank
- *  strings are treated as absent, matching `buildS3CompatiblePrefill`'s
- *  (`features/deployments/publish-agent-tools.ts`) identical convention for the same kind of field. A
- *  prefilled `category` that turns out not to be one of the fixed options is passed through unchecked —
- *  harmless, since `renderSelect` simply starts unselected on an unrecognised value (`custom-credential-
- *  create-ui.ts`'s own doc) and the real enforcement is `store.ts`'s `validateCategory` at write time.
- *
- * @complexity O(1) — three fixed field reads.
+/** Reads optional non-secret prefill hints from the model-issued call.
+ * Blank strings are absent; unknown category options remain subject to store validation on save.
+ * @complexity O(1) — fixed field reads.
  */
 function readCreateCredentialPrefill({ input, operations }: { input: Record<string, unknown>; operations: CredentialToolOperations }, _optional = {}): CreateCredentialPrefill {
   const prefill: { label?: string; baseUrl?: string; category?: string; worksFor?: string[] } = {};
@@ -372,7 +384,7 @@ function readCreateCredentialPrefill({ input, operations }: { input: Record<stri
 
 /** `custom_credential_create`'s ENTIRE agent-facing result shape. On success, the SAME summary shape
  *  `custom_credential_list`/`custom_credential_set_username` already return — safe in full, since
- *  `CustomCredentialSummary` has no field capable of carrying a secret (`types.ts`'s own doc). Every
+ *  `CustomCredentialSummary` has no field capable of carrying a secret by its public type. Every
  *  failure branch is boolean-plus-reason, the same shape {@link SetTokenResult} uses and for the
  *  identical reason: nothing here could ever be widened to carry the submitted token.
  *  `'duplicate-label'` is this tool's own addition — `custom_credential_set_token` has no equivalent
@@ -438,7 +450,7 @@ interface CreateCredentialSubmission {
   /** `"site"` = saved "only for this site"; omitted = the project store when one is attached. */
   readonly scope?: "site";
   /** A blank `label` still needs a human-readable name for the outcome surface's own "Label" detail
-   *  row — `store.ts`'s own validation error (surfaced via {@link mapCreateCredentialError}) is what
+   *  row — `../sets/store.ts`'s own validation error (surfaced via {@link mapCreateCredentialError}) is what
    *  actually refuses the submission; this is display-only. */
   readonly displayLabel: string;
 }
@@ -447,14 +459,14 @@ interface CreateCredentialSubmission {
 /**
  * Applies `custom_credential_create`'s three field defaults on top of {@link readRawCreateCredentialFields}'s
  * raw extraction. Every REAL field validation (non-empty label/baseUrl, a closed category, the
- * `(workspaceId, label)` uniqueness constraint) is still left entirely to `store.ts`'s own
+ * `(workspaceId, label)` uniqueness constraint) is still left entirely to `../sets/store.ts`'s own
  * `createCustomCredential` — this function only decides what a blank/missing field DEFAULTS to before
  * that validation ever runs:
  *
  * - `category`: defaults to `"general"` (the closed set's catch-all, same as the admin Access Tokens
- *   page's own "Add custom provider" form) rather than passing a blank string through to `store.ts`'s
+ *   page's own "Add custom provider" form) rather than passing a blank string through to `../sets/store.ts`'s
  *   `validateCategory`, which would reject it outright and block the save on a required field the human
- *   had no obvious answer for. Belt-and-suspenders alongside `custom-credential-create-ui.ts`'s own form
+ *   had no obvious answer for. Also enforced by the host's own form
  *   default: that default lives in the rendered `<select>`'s pre-selected option, this one covers a
  *   submission that somehow arrives without it. `"general"` is itself a member of the closed set
  *   `validateCategory` enforces, so a caller-supplied INVALID category (anything outside the fixed set)
@@ -498,10 +510,7 @@ interface CreateCardFailure {
 
 /**
  * Maps a `createCustomCredential` rejection onto `custom_credential_create`'s own failure shape — the
- * error-type dispatch mirrors the established one-function-per-error-type-table shape this codebase
- * already uses for exactly this job (`sendPageCreateError`/`sendPostCreateError`,
- * `server/inbound/admin-http/routes/pages|posts/create.ts`, and `sendPluginUninstallError`,
- * `.../plugins/uninstall.ts`), adapted here to return a value instead of writing an HTTP response.
+ * error-type dispatch returns a value instead of writing a transport response.
  *
  * A collision is refused, never silently overwritten — and the refusal names the correct tool for a
  * rotation, so the model does not retry this CREATE-only tool against an existing row. Every other
@@ -534,7 +543,7 @@ function mapCreateCredentialError(
  * domain keeps field parsing/defaulting and the error-type mapper for actionable failures.
  *
  * The token lives only in the local submission and the sealed store. It is never returned, logged,
- * or retained in a projection — the property promised by agent-tools.ts's catalog description.
+ * or retained in a projection — the property promised by the host's catalog description.
  * Only the save runs within the engine's error boundary, so Nothing was saved remains truthful.
  * @complexity O(1) locally, an optional bounded GET, and one createCustomCredential call (validate, seal, insert).
  */
@@ -639,7 +648,7 @@ async function openCreateCard(required: {
 export function createCredentialSaveHandlers({ routeDeps, surfaces, host, ports, cards, operations }: { routeDeps: CredentialToolActorDeps; surfaces: CredentialToolSurfaces; host: CustomCredentialToolHost; ports: Pick<CustomCredentialToolPorts, 'credentialedRequest'>; cards: CustomCredentialSecretCards; operations: CredentialToolOperations }, _optional = {}): { create: ToolHandler; rotate: ToolHandler; pluginProvider: ToolHandler } {
   const probe: CredentialedRequestPort["probe"] = (input) => ports.credentialedRequest.probe(input);
   const handlers: { create: ToolHandler; rotate: ToolHandler; pluginProvider: ToolHandler } = {
-    // An MCP-UI surface for the SECRET itself — see this file's header, "custom_credential_set_token",
+    // An MCP-UI surface for the SECRET itself — see this file's secret-handling header
     // for the full mechanism and why it holds up "a token must never pass through the model's
     // context" rather than merely "an agent must never write one". Shape validation
     // (`rejectUnexpectedSetTokenFields`) and the label->id resolution both run BEFORE any exchange is
@@ -707,12 +716,12 @@ export function createCredentialSaveHandlers({ routeDeps, surfaces, host, ports,
       return card.handler({ surfaceExchanges: surfaces.surfaceExchanges, askThenReport: cards.askThenReport })(ctx, options);
     },
 
-    // Creates a brand-new credential row — see this file's header, "custom_credential_create", for the
+    // Creates a brand-new credential row — see this file's creation-ordering header for the
     // full mechanism and the incident it closes. Unlike every other write handler in this domain, there
     // is no existing row to resolve or fail closed on before opening the form: a CREATE's row does not
     // exist yet, so the only pre-form checks are the permission gate and the `emitSurface` fail-closed
     // guard below. All three prefill fields are optional and non-secret by schema
-    // (`credential-save-tool.ts`'s API creation schema) — a call with none of them is a normal, valid call.
+    // in the host's API creation schema — a call with none of them is a normal, valid call.
     create: async (ctx, { emitSurface } = {}): Promise<CreateCredentialResult> => {
       // `requireInputRecord` refuses `undefined` outright, but this tool's schema has no required
       // field at all (same `required: []` shape `custom_credential_list`'s own `NO_INPUT_SCHEMA`
@@ -788,8 +797,8 @@ export function createCredentialToolRegistrations({ routeDeps, host, ports, oper
     },
 
     // The self-healing FIX half of the 401/403 diagnostic `custom_credential_verify`/
-    // `custom_credential_make_request` now carry (`credentialed-request.ts`'s `AuthFailureDiagnostic`)
-    // — see this file's header, "custom_credential_set_username", for the full incident and design.
+    // `custom_credential_make_request` now carry (`../credentialed-request.ts`'s `AuthFailureDiagnostic`)
+    // — see this file's username-update header for the full incident and design.
     // Shape/security validation (`rejectUnexpectedSetUsernameFields`, `requireUsernameOrClearSentinel`)
     // runs BEFORE the permission check, same ordering `custom_credential_make_request` below uses — a
     // malformed call is refused on its own terms regardless of who is asking. WRITE-gated (this durably
