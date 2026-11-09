@@ -20,7 +20,10 @@ for (const status of [200, 400, 503]) {
     expect(http.callCount()).toBe(1);
   });
 }
-for (const code of ['invalid_request', 'invalid_client', 'invalid_redirect_uri', 'invalid_client_metadata',
+for (const code of ['invalid_request', 'invalid_client', 'invalid_grant', 'unauthorized_client',
+  'unsupported_grant_type', 'invalid_scope', 'invalid_target', 'access_denied', 'server_error',
+  'temporarily_unavailable', 'authorization_pending', 'slow_down', 'expired_token', 'invalid_dpop_proof',
+  'use_dpop_nonce', 'unsupported_response_type', 'invalid_redirect_uri', 'invalid_client_metadata',
   'invalid_software_statement', 'unapproved_software_statement']) {
   test(`registration protocol code ${code} retains its exact text`, async () => {
     const http = createFetchDouble([{ status: 400, json: { error: code } }]);

@@ -18,7 +18,8 @@ export type { RegisteredOAuthClient } from "./ports.js";
 const REGISTRATION_ERROR_CODES: ReadonlySet<string> = new Set([
     'invalid_request', 'invalid_client', 'invalid_grant', 'unauthorized_client',
     'unsupported_grant_type', 'invalid_scope', 'invalid_target', 'access_denied',
-    'server_error', 'temporarily_unavailable', 'invalid_redirect_uri',
+    'server_error', 'temporarily_unavailable', 'authorization_pending', 'slow_down',
+    'expired_token', 'invalid_dpop_proof', 'use_dpop_nonce', 'unsupported_response_type', 'invalid_redirect_uri',
     'invalid_client_metadata', 'invalid_software_statement', 'unapproved_software_statement',
 ]);
 const DEFAULT_REGISTRATION_TIMEOUT_MS = 15000;

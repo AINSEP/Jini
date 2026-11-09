@@ -23,6 +23,10 @@ export const MAX_CODE_LENGTH = 2048;
 const CALLBACK_ERROR_CODES: ReadonlySet<string> = new Set([
     'invalid_request', 'unauthorized_client', 'access_denied', 'unsupported_response_type',
     'invalid_scope', 'server_error', 'temporarily_unavailable',
+    'invalid_grant', 'unsupported_grant_type', 'invalid_target', 'authorization_pending',
+    'slow_down', 'expired_token', 'invalid_dpop_proof', 'use_dpop_nonce',
+    'invalid_redirect_uri', 'invalid_client_metadata', 'invalid_software_statement', 'unapproved_software_statement',
+    'invalid_client',
 ]);
 /** Explicit stateless mode; the host supplies sealing bound to the expected connection. */
 export interface BeginStatelessAuthorizationCodeDeps extends Omit<BeginAuthorizationCodeDeps, 'pending'> {

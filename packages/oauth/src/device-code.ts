@@ -15,6 +15,10 @@ import { createOAuthCustomFetch } from './guarded-transport.js';
 const DEVICE_ERROR_CODES: ReadonlySet<string> = new Set([
     'invalid_request', 'invalid_client', 'invalid_scope', 'unauthorized_client',
     'access_denied', 'server_error', 'temporarily_unavailable',
+    'invalid_grant', 'unsupported_grant_type', 'invalid_target', 'authorization_pending',
+    'slow_down', 'expired_token', 'invalid_dpop_proof', 'use_dpop_nonce',
+    'invalid_redirect_uri', 'invalid_client_metadata', 'invalid_software_statement', 'unapproved_software_statement',
+    'unsupported_response_type',
 ]);
 const DEFAULT_POLL_INTERVAL_SECONDS = 5;
 const MAX_POLL_INTERVAL_SECONDS = 60;
