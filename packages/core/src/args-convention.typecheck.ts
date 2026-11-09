@@ -83,8 +83,8 @@ function checkApprovalPorts(required: {
 void checkApprovalPorts;
 
 // The server contract: named required args for registration, handlers and the path matcher.
-import { matchServerPath } from './index.js';
-import type { Server, ServerHandler } from './index.js';
+import { matchServerPath } from './server.js';
+import type { Server, ServerHandler } from './server.js';
 declare const app: Server;
 const okHandler: ServerHandler = ({ request, params }) => new Response(`${request.method} ${params.id ?? ''}`);
 app.route({ method: 'GET', path: '/notes/:id', handler: okHandler });

@@ -1,0 +1,33 @@
+== before (barrel re-exports ./server.js) ==
+packages/core/dist/approval.d.ts(55,13): error TS2304: Cannot find name 'AbortSignal'.
+packages/core/dist/approval.d.ts(162,17): error TS2304: Cannot find name 'AbortSignal'.
+packages/core/dist/approval.d.ts(179,17): error TS2304: Cannot find name 'AbortSignal'.
+packages/core/dist/object-store.d.ts(31,23): error TS2304: Cannot find name 'AbortSignal'.
+packages/core/dist/object-store.d.ts(34,23): error TS2304: Cannot find name 'AbortSignal'.
+packages/core/dist/primitives/http.d.ts(14,14): error TS2304: Cannot find name 'AbortSignal'.
+packages/core/dist/records.d.ts(78,49): error TS7017: Element implicitly has an 'any' type because type 'typeof globalThis' has no index signature.
+packages/core/dist/server.d.ts(21,23): error TS2304: Cannot find name 'Request'.
+packages/core/dist/server.d.ts(23,45): error TS2304: Cannot find name 'Response'.
+packages/core/dist/server.d.ts(23,64): error TS2304: Cannot find name 'Response'.
+packages/core/dist/surface-cards.d.ts(140,17): error TS2304: Cannot find name 'AbortSignal'.
+packages/core/dist/surface-cards.d.ts(215,17): error TS2304: Cannot find name 'AbortSignal'.
+packages/core/dist/surface-exchanges.d.ts(171,18): error TS2304: Cannot find name 'AbortSignal'.
+packages/core/dist/tool-registry.d.ts(157,26): error TS2304: Cannot find name 'AbortSignal'.
+packages/core/dist/tool-registry.d.ts(163,21): error TS2304: Cannot find name 'AbortSignal'.
+packages/core/dist/tool-registry.d.ts(174,22): error TS2304: Cannot find name 'AbortSignal'.
+exit=2
+== after (barrel line removed) ==
+packages/core/dist/approval.d.ts(55,13): error TS2304: Cannot find name 'AbortSignal'.
+packages/core/dist/approval.d.ts(162,17): error TS2304: Cannot find name 'AbortSignal'.
+packages/core/dist/approval.d.ts(179,17): error TS2304: Cannot find name 'AbortSignal'.
+packages/core/dist/object-store.d.ts(31,23): error TS2304: Cannot find name 'AbortSignal'.
+packages/core/dist/object-store.d.ts(34,23): error TS2304: Cannot find name 'AbortSignal'.
+packages/core/dist/primitives/http.d.ts(14,14): error TS2304: Cannot find name 'AbortSignal'.
+packages/core/dist/records.d.ts(78,49): error TS7017: Element implicitly has an 'any' type because type 'typeof globalThis' has no index signature.
+packages/core/dist/surface-cards.d.ts(140,17): error TS2304: Cannot find name 'AbortSignal'.
+packages/core/dist/surface-cards.d.ts(215,17): error TS2304: Cannot find name 'AbortSignal'.
+packages/core/dist/surface-exchanges.d.ts(171,18): error TS2304: Cannot find name 'AbortSignal'.
+packages/core/dist/tool-registry.d.ts(157,26): error TS2304: Cannot find name 'AbortSignal'.
+packages/core/dist/tool-registry.d.ts(163,21): error TS2304: Cannot find name 'AbortSignal'.
+packages/core/dist/tool-registry.d.ts(174,22): error TS2304: Cannot find name 'AbortSignal'.
+exit=2

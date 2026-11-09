@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { matchServerPath, type Server, type ServerHandler, type ServerMethod } from '../index.js';
+import { matchServerPath, type Server, type ServerHandler, type ServerMethod } from '../server.js';
 
 /** In-memory `Server`: what a test (or any adapter) does with the contract, minus the socket. */
 function createFakeServer() {
