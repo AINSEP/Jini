@@ -8,7 +8,6 @@ import { createMemoryCounterStore, createRateLimiter } from '@jini-ai/http-kit/r
 import { InMemoryContentTypeRepo } from '@jini-ai/cms/content-types';
 import { InMemoryChangeSetRepo } from '@jini-ai/cms/core/commands';
 import { toEntryOutbox, type AuthorizeFn } from '@jini-ai/cms/entries';
-import type { DomainEvent } from '@jini-ai/cms/core';
 import type { FormOutboxPort, OutboxDispatcherPort } from '@jini-ai/cms/forms';
 
 export const WORKSPACE_ID = '00000000-0000-4000-8000-000000000001';
@@ -19,12 +18,9 @@ export const NOTE_TYPE = 'note';
 export const authorize: AuthorizeFn = async ({ principalId }) =>
   principalId === OWNER_ID ? { allowed: true, reason: 'local owner' } : { allowed: false, reason: 'not the local owner' };
 
-// GAP: no in-memory outbox that keeps DomainEvents; events are kept for this process only.
-export function createMemoryOutbox(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {
-  const events: DomainEvent[] = [];
-  const outbox: FormOutboxPort = { enqueue: async (event) => { events.push(event); } };
-  return { outbox, events };
-}
+// GAP: no public no-op FormOutboxPort. Nothing in this app consumes events, so they are discarded
+// rather than kept in a list that would grow for the life of the process.
+export const discardOutbox: FormOutboxPort = { enqueue: async () => {} };
 
 // GAP: no no-op OutboxDispatcherPort. Nothing consumes events in this app.
 export const noopDispatcher: OutboxDispatcherPort = { dispatch: async () => {} };
@@ -32,7 +28,7 @@ export const noopDispatcher: OutboxDispatcherPort = { dispatch: async () => {} }
 export async function createAppPorts(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {
   const clock = createSystemClock();
   const idGen = createRandomUuidGenerator();
-  const { outbox, events } = createMemoryOutbox();
+  const outbox = discardOutbox;
 
   // Content types are app configuration, registered at every boot (no persisted content-type repo needed).
   const contentTypeRepo = new InMemoryContentTypeRepo();
@@ -42,7 +38,6 @@ export async function createAppPorts(_required: Record<string, never> = {}, _opt
     clock,
     idGen,
     outbox,
-    events,
     contentTypeRepo,
     // In memory: change sets are an undo log for the form-definition command; not needed across restarts here.
     changeSets: new InMemoryChangeSetRepo(),
