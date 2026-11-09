@@ -1,4 +1,4 @@
-// Mechanically moved from AINSEP/Tovu@94c9bb85c78cc8bf7858ee40f1ba5b27cc419b46:apps/website/src/features/custom-credentials/credential-tool-operations.ts.
+// Mechanical extraction provenance (exact source SHA/path) is in this package's source-map.md.
 // Original bodies and why-comments are preserved; host wiring stays with the consumer.
 /**
  * @file Consumer-only ports for credential tools. Implementations belong to the composing host.
