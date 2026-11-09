@@ -249,10 +249,12 @@ export type CredentialedRequestErrorCategory = "validation" | "transport" | "egr
 /**
  * @agent-note `error` is the SAME object that was thrown (identity, class and message unchanged).
  * Only `callerSafeMessage`/`callerSafeError` may reach a model:
- * - validation: the caller's own shape/host refusal; schema-decorate it.
+ * Classify the original rejection ONCE. For validation and egress-refused, schema-decorate
+ * `callerSafeMessage`, never the original `.message`; validation text can be private too.
+ * - validation: the caller's own shape/host refusal, with its safe repair message.
  * - egress-refused: `error.message` may name a resolved internal address — keep it in the server
- *   audit only. Rethrow `callerSafeError` (same class, address-free message) BEFORE any decoration
- *   reads `.message`, then schema-decorate.
+ *   audit only. `callerSafeError` retains the class with address-free text for callers that rethrow
+ *   without schema decoration.
  * - not-found / transport / unknown: never schema-decorated; transport text is raw (addresses), so
  *   it carries no caller-safe field. Unknown errors pass through unchanged.
  */

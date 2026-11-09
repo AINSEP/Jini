@@ -9,10 +9,10 @@ import type { McpServerConfig } from '../lifecycle/manifest.js';
 /** @agent-note Product copy for the enable preview's refusals. Host input: the text names the host's own
  * settings screen; it must not echo a token (the connection id and nothing secret are passed). */
 export interface AgentPluginEnableAccessMessages extends AgentPluginMcpFederationMessages {
-  /** The row was configured separately or points somewhere else; its saved sign-in was kept. */
   /** @agent-note Host repair copy for a refused combined grant. Detail is already core-redacted;
    * name your own selection tool or screen, never include credential material. */
   combinedGrantRejected(required: { readonly detail: string }): string;
+  /** The row was configured separately or points somewhere else; its saved sign-in was kept. */
   sourceConfiguredSeparately(required: { readonly connectionId: string }): string;
 }
 
