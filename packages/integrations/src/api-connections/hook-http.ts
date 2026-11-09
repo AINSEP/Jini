@@ -1,4 +1,4 @@
-import type { DeclaredApiConnection, PluginHttp as HttpPort } from "./host-ports.js";
+import type { DeclaredApiConnection, PluginHttp } from "./host-ports.js";
 
 /**
  * @file The HTTP a connection's hooks module (account identity, revocation, scope sets) receives:
@@ -7,9 +7,6 @@ import type { DeclaredApiConnection, PluginHttp as HttpPort } from "./host-ports
  * refresh tokens during sign-in and disconnect, so unscoped public https would let a hook carry
  * one to any host; this keeps them on the provider the plugin declared.
  */
-
-/** The plugin HTTP capability (the same shape plugin tools get). */
-export type PluginHttp = HttpPort;
 
 export const CONNECTION_HOOK_UNDECLARED_ORIGIN_MESSAGE = "A plugin's sign-in code may only call its connection's declared API addresses and its token endpoint. Report this to the plugin author.";
 

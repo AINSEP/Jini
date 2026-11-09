@@ -26,7 +26,6 @@ import type { AgentPluginHttpOptions, AgentPluginToolCapabilities, AgentPluginTo
 import type { HttpClientPort } from '@jini-ai/core/primitives';
 
 import type { AgentPluginConnectionAccess, AgentPluginArtifactWriter, AgentPluginRateLimiter, AgentPluginStateReaderFor, AgentPluginApiOriginsFor, FrozenConnectionAccounts } from './ports.js';
-export type { AgentPluginConnectionTarget, AgentPluginConnectionAccess, AgentPluginArtifactWriter, AgentPluginRateLimiter, AgentPluginStateReaderFor, AgentPluginApiOriginsFor, FrozenConnectionAccounts } from './ports.js';
 
 /** Response bodies a plugin may read in one request; larger answers fail instead of truncating. */
 const MAX_RESPONSE_BYTES = 1024 * 1024;

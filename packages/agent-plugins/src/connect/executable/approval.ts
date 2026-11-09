@@ -13,11 +13,10 @@
  * plugin tool contract right before the handler runs.
  */
 import type { SurfaceCardDetail as SurfaceDetail } from '@jini-ai/core/contracts/cards';
-import type { AgentPluginDisclosureMessages } from './ports.js';
+import type { AgentPluginConnectionAccess, AgentPluginDisclosureMessages, FrozenConnectionAccounts } from './ports.js';
 import type { ToolExecutionContext } from '@jini-ai/core';
 import type { AgentPluginToolDisclosure } from '../../lifecycle/tools/projection.js';
 import type { AgentPluginToolEffect } from '../../lifecycle/tools/manifest.js';
-import type { AgentPluginConnectionAccess, FrozenConnectionAccounts } from './host-capabilities.js';
 
 /** The approval family each declared effect maps to (see the families' own comment). */
 export const APPROVAL_FAMILY_BY_EFFECT = {

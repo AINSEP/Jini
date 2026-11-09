@@ -37,10 +37,6 @@ import { createConnectionHookHttp } from "./hook-http.js";
  */
 
 
-export type { ApiConnectionRuntime } from "./host-ports.js";
-
-type ApiConnectionRuntimeDeps<State> = ApiConnectionRuntimeHostDeps<State>;
-type ApiConnectionRuntimeOptions = ApiConnectionRuntimeHostOptions;
 
 /** The one refusal for a ref the calling plugin does not own here, whatever the reason. */
 function notAvailable(): ApiConnectionError {
@@ -53,7 +49,7 @@ function setupRefused(message: string): ApiConnectionError {
 }
 
 /** A configured host setting, trimmed; undefined when the plugin names none or it is unset. @complexity O(1). */
-function configured(env: ApiConnectionRuntimeDeps<unknown>["env"], name: string | undefined): string | undefined {
+function configured(env: ApiConnectionRuntimeHostDeps<unknown>["env"], name: string | undefined): string | undefined {
   return name === undefined ? undefined : env[name]?.trim() || undefined;
 }
 
@@ -91,7 +87,7 @@ function byoOAuthClient(byo: ByoClient, runtime: ApiConnectionRuntime): Resolved
  * web client (`confidential`) and must have its server-held secret.
  * @complexity O(1).
  */
-function resolveClient(connection: DeclaredApiConnection, runtime: ApiConnectionRuntime, env: ApiConnectionRuntimeDeps<unknown>["env"], messages: ApiConnectionHostMessages): ResolvedClient {
+function resolveClient(connection: DeclaredApiConnection, runtime: ApiConnectionRuntime, env: ApiConnectionRuntimeHostDeps<unknown>["env"], messages: ApiConnectionHostMessages): ResolvedClient {
   const config: ApiConnectionClientConfig | undefined = runtime === "desktop" ? connection.clients.desktop : connection.clients.web;
   const clientId = configured(env, config?.clientIdEnv);
   if (!config || !clientId) throw notConfigured(connection, runtime, "sign-in client", messages);
@@ -102,7 +98,7 @@ function resolveClient(connection: DeclaredApiConnection, runtime: ApiConnection
 }
 
 /** Each listed entry's origin; an entry that is not a URL is dropped (it can match nothing). @complexity O(n). */
-function configuredOrigins(env: ApiConnectionRuntimeDeps<unknown>["env"], setting: string): string[] {
+function configuredOrigins(env: ApiConnectionRuntimeHostDeps<unknown>["env"], setting: string): string[] {
   const listed = configured(env, setting)?.split(",") ?? [];
   return listed.flatMap((entry) => URL.parse(entry.trim())?.origin ?? []);
 }
@@ -122,8 +118,8 @@ function connectionStatus({ connectionRef, record }: { connectionRef: string; re
  * @complexity O(1) setup; each lookup is one contribution load, O(p + c).
  */
 export function createApiConnectionHost<State>(
-  required: ApiConnectionRuntimeDeps<State>,
-  optional: ApiConnectionRuntimeOptions = {},
+  required: ApiConnectionRuntimeHostDeps<State>,
+  optional: ApiConnectionRuntimeHostOptions = {},
 ) {
   const { records } = required.apiConnectionStorage;
   const budgets = createConnectionBudgets({ clock: required.clock, createLimiter: required.createLimiter });
@@ -342,8 +338,7 @@ export function createApiConnectionHost<State>(
     return sharedOAuth.prepare({ ...input, context });
   }
 
-  const startLoopback = required.startLoopback;
-  return { sharingAvailable: Boolean(sharedOAuth), sharedOAuth, prepareSignIn, workspaceId: required.workspaceId, runtime: required.runtime, clock: required.clock, records: honestRecords, startLoopback, listConnections, serviceFor, accessTokensFor,
+  return { sharingAvailable: Boolean(sharedOAuth), sharedOAuth, prepareSignIn, workspaceId: required.workspaceId, runtime: required.runtime, clock: required.clock, records: honestRecords, startLoopback: required.startLoopback, listConnections, serviceFor, accessTokensFor,
     toolConnections, apiOriginsFor, declaredFor, requestedScopes, hostedCallbackUrl, statusOf, callbackInbox, lastSignInAttempts, signInHandoffs, pluginState };
 }
 

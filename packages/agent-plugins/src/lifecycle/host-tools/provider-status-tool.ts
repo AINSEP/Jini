@@ -53,12 +53,6 @@ export interface ProviderStatusMessages {
 export function createProviderStatusTools({ metadata: toolMetadata, authorization, messages, catalogModule }: {
   metadata: ToolMetadataById; authorization: { permission: string }; messages: ProviderStatusMessages; catalogModule: string;
 }, _optional: Record<string, never> = {}) {
-
-
-
-
-
-
 const providerStatusAgentToolCatalog: AgentToolDefinition[] = [{
   name: PROVIDER_STATUS_TOOL_ID,
   description: messages.description,

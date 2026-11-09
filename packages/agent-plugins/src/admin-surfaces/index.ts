@@ -45,4 +45,3 @@ export { createAdminSurfaceCallbackInbox, type AdminSurfaceCallbackFieldKey } fr
 export { buildAdminSurfaceActionTools, type AdminSurfaceToolSource, type AdminSurfaceToolContext } from './action-tools.js';
 export type { AdminSurfacePluginStatePersistence } from './plugin-state-persistence.js';
 export { createAgentPluginStateStore, PLUGIN_STATE_MAX_KEYS, type AgentPluginStateScope, type AgentPluginStateStore, type AgentPluginStateSummary } from './plugin-state.js';
-export type { AdminSurfaceConnectionsHost, AdminSurfaceDeclaredConnection, AdminSurfaceConnectionAccount, AdminSurfaceStagedAccount, AdminSurfaceStatusView, AdminSurfaceConnectionRecord, AdminSurfaceAccountAction, AdminSurfaceDisconnected, AdminSurfaceSignInStart, AdminSurfaceSignInStarted, AdminSurfaceCallbackInbox } from './connections/ports.js';
