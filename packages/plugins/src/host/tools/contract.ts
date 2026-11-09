@@ -12,6 +12,7 @@ export type PluginFamily = 'site-runtime' | 'agent-plugin';
 export interface SetEnabledRequest {
   readonly family: PluginFamily;
   readonly pluginId: string;
+  /** @agent-note Every enable requires a fresh explicit human answer, including unchanged or previously approved revisions. */
   readonly enabled: boolean;
 }
 export interface PluginToolRegistrationInput {
@@ -324,7 +325,7 @@ export interface PluginInstallToolsRequired<Request> {
   ownerId: string;
   runId: string }) => Promise<PluginInstallInput>;
 
-  /** @agent-note Preview and install must throw this package's canonical PluginInstallError for relayable refusals, while other errors retain opaque failure handling. */
+  /** @agent-note Preview and install must share one scoped owner and throw this package's canonical PluginInstallError for relayable refusals, while other errors retain opaque failure handling. */
   readonly installer?: OptionalValue<PluginInstallerPort>;
 
   readonly riskSentence: (required: {
