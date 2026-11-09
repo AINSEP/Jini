@@ -30,7 +30,7 @@ import type { CustomCredentialToolHost, CredentialCardIdentity, CustomCredential
 import { CustomCredentialValidationError, CustomCredentialNotFoundError, CustomCredentialDuplicateLabelError } from "../sets/store.js";
 import { buildAuthorizationHeader } from "../credentialed-request.js";
 import { callerSafeErrorMessage, withModelFacingErrors } from "@jini-ai/core/model-facing-tool-errors";
-// ToolHandler carries core's SurfaceEmission return contract directly rather than a transport implementation type.
+// ToolExecutionOptions.emitSurface uses core's SurfaceEmission contract rather than a transport implementation type.
 import type { ToolExecutionContext, ToolExecutionOptions, ToolHandler, ToolRegistration } from "@jini-ai/core";
 import type { CredentialedRequestOutcome } from "../credentialed-request.js";
 import { CredentialedRequestValidationError } from "../../contracts/credentialed-request-errors.js";
