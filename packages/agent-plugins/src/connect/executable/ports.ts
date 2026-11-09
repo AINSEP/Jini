@@ -86,6 +86,13 @@ export interface AgentPluginExecutableRegistrationRequired<Registry extends Agen
   readonly registry: ToolRegistry; readonly workspaceId: string; readonly host: AgentPluginExecutableRuntimeHost;
   readonly isActive: (required: { readonly pluginId: string }) => Promise<boolean>;
   readonly authorize: LegacyToolAuthorizeFn; readonly applyApproval: ApplyAgentPluginApproval;
+  /**
+   * The RBAC permission `authorize` must grant before any plugin tool runs (checked per call, scoped
+   * to the plugin entity). Host vocabulary: each host names its own permission.
+   * @agent-note A second host passes the permission its own RBAC grants to assistant operators; no
+   * default exists, so a host never silently inherits another product's permission name.
+   */
+  readonly toolPermission: string;
   readonly withExtensionApprovalPolicy: ApplyAgentPluginPolicy;
   readonly contributions: AgentPluginExecutableContributions<Registry>;
   readonly connectionKey: (required: { workspaceId: string; pluginId: string; connectionId: string }) => string;

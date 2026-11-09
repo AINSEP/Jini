@@ -40,7 +40,8 @@ function ownersById({ contributions, toolIdFor }: { contributions: AgentPluginEx
  * @param required.workspaceId - The workspace whose plugins, activation and connections apply.
  * @param required.host - Loader, connection accessor, guarded HTTP, limiter and optional artifact writer.
  * @param required.isActive - Fresh activation read for one plugin; must deny on any fault.
- * @param required.authorize - The workspace RBAC evaluator; callers need `admin.assistant.use`.
+ * @param required.authorize - The workspace RBAC evaluator; callers need `required.toolPermission`.
+ * @param required.toolPermission - The host's RBAC permission a principal needs to run any plugin tool.
  * @param required.applyApproval - The approval owner, applied to write and destructive tools.
  * @returns Refusal lines, `refresh` to reload the active set, and `dispose` to remove every tool.
  * @complexity O(t) tools plus one contained import per tool module (cached by Node).
@@ -70,7 +71,7 @@ export async function registerAgentPluginExecutableTools<Registry extends AgentP
   const ports = {
     contributions, isEnabled: required.isActive,
     resolveAuth: async ({ pluginId, principalId }: { pluginId: string; principalId: string }) => {
-      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: required.authorize }), workspaceId, principalId, permission: 'admin.assistant.use' }, { entityType: 'plugin', entityId: pluginId });
+      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: required.authorize }), workspaceId, principalId, permission: required.toolPermission }, { entityType: 'plugin', entityId: pluginId });
       return { access: 'admin' as const, principalId, workspaceId };
     },
     metadata: { approval: required.readApproval },
