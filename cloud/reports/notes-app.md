@@ -4,6 +4,8 @@ Branch `cloud/notes-app`, cut from `origin/cloud/extract` at `35c4961af`. Starte
 
 **Result:** `examples/notes-app` runs on persistent SQLite with a plain Node `http` server. It has no Express, imports only public `@jini-ai/{core,db,cms}` exports, contains no copied Jini code and no hand-written DDL, and its notes and form submissions survive a restart. That only works because the app writes several pieces itself, listed in the gap table below. The biggest one is that cms entries have no durable storage.
 
+> **Updated by `cloud/notes-app-fix`** (see `cloud/reports/notes-app-fix.md`): the contract is now types only at `@jini-ai/core/contracts/server`, `matchServerPath` lives in the app's adapter, handlers get `client.address`, the form limiter is http-kit's, and gap rows 9 and 12 are dropped as not gaps. N1 below describes the original commit.
+
 Setup baseline on the unmodified tree: `pnpm install --frozen-lockfile` exited 0 and `pnpm -r build` exited 0.
 
 ## N1: `Server` contract in `@jini-ai/core`. Done.
@@ -102,13 +104,14 @@ The source files total 532 lines (`wc -l`). On top of that are `scripts/smoke.ts
 | `src/node-server.ts` | 111 | Node `http` adapter for core `Server`: IncomingMessage → Request, streamed Response, abort on disconnect, 404/405 with Allow, error on duplicate route |
 | `src/app.ts` | 139 | routes, plus seeding the contact form definition at boot |
 | `src/db.ts` | 74 | opens SQLite through `@jini-ai/db`, creates the forms tables, declares the notes data module |
-| `src/ports.ts` | 69 | hand-written ports: authorize, outbox, dispatcher, rate limiter, form HTML hooks |
+| `src/ports.ts` | 50 | hand-written ports: authorize, outbox, dispatcher (the rate limiter is http-kit's) |
 | `src/notes-repo.ts` | 58 | in-app SQL entry repo (`EntryRepoPort` + `EntryListPort`) |
 | `src/pages.ts` | 54 | HTML templates and request/response helpers |
 | `src/main.ts` | 27 | entry point (`--db`, `--port`) |
 
 Public imports used:
-- `@jini-ai/core/server`, `/primitives`, `/text`
+- `@jini-ai/core/contracts/server`, `/primitives`, `/text`
+- `@jini-ai/http-kit/rate-limit`
 - `@jini-ai/db/sqlite`, `/kernel/sqlite`, `/data-modules`
 - `@jini-ai/cms/entries`, `/content-types`, `/core`, `/core/commands`, `/forms`, `/forms/html-render`, `/forms/sql`
 - `better-sqlite3`
@@ -118,7 +121,8 @@ These came from Jini with no extra code:
 - `InMemoryContentTypeRepo`, `toEntryOutbox`, `InMemoryChangeSetRepo`, `executeCommand`
 - the system clock and UUID ids
 - `createFormDefinition`, `submitForm`, `listByDefinition`, `renderHtmlForm`, `createFormsTables`
-- `openSqliteConnection`, `sqliteKernel`, `matchServerPath`, `escapeHtml`
+- `openSqliteConnection`, `sqliteKernel`, `escapeHtml`
+- `createRateLimiter`, `createMemoryCounterStore`
 
 ## Gaps, ordered for extraction work
 
@@ -127,23 +131,23 @@ These came from Jini with no extra code:
 | 1 | Durable entries storage | Wrote `EntryRepoPort` + `EntryListPort` in the app, storing each record as JSON in one table. Only `InMemoryEntryRepo` exists. | cms/entries `sql` subpath, like forms/sql | 58 in the app; ~150 done properly |
 | 2 | Entries table bootstrap | Used `declareDataModule` (`@jini-ai/db/data-modules`), pretending to be a Tier-2 plugin `notes_app`, to get a `p_notes_app__entries` table. The DDL is declared, not hand-written, but this is a misuse of the plugin data-module system for host content. | cms/entries `createEntriesTables`, the same shape as N2 | ~60 |
 | 3 | Entry revisions | None. `appendRevision` throws them away, so there is no history. | cms/entries sql | small |
-| 4 | Node `http` adapter for `Server` | Wrote it in the app. | core (a node-only subpath) or a tiny adapter | 111 |
-| 5 | Request/response helpers: html, json, 303 redirect, reading a form body, client IP | Wrote them in the app. Client IP comes from a forwarded header, falling back to loopback. | core/server | ~25 |
+| 4 | Node `http` adapter for `Server` | Wrote it in the app, with the path matcher. | host code: under the rules a Jini package names no concrete server, so this is not a Jini gap | 155 |
+| 5 | Request/response helpers: html, json, 303 redirect, reading a form body | Wrote them in the app. The client IP is now the socket peer the adapter passes as `client.address`; a proxied host applies `resolveClientIp` (`@jini-ai/http-kit/rate-limit`) to it. | a neutral web-`Response` helper subpath | ~20 |
 | 6 | Server-side page rendering for entries | Hand-wrote templates with `escapeHtml`. cms `presentation` only stores a theme id, and http-kit's HTML helpers are tied to Express. | cms (presentation) | ~50 |
-| 7 | Neutral in-memory / no-op form ports: outbox, dispatcher, rate limiter | Wrote them in the app. http-kit's rate limiter is tied to Express. | cms/forms | ~30 |
+| 7 | Neutral no-op form ports: outbox, dispatcher | Wrote them in the app. The rate limiter is not a gap: `createRateLimiter` + `createMemoryCounterStore` (`@jini-ai/http-kit/rate-limit`) are framework-free and the app now uses them. | cms/forms | ~5 |
 | 8 | Default `FormHtmlHooks` | Defined a constant in the app. | cms/forms/html-render | 1 |
-| 9 | Simple authorize (allow-all or single owner) | Wrote it in the app. | cms/core | 3 |
 | 10 | Durable outbox and change sets | Kept them in memory, so they are lost on restart. | cms/core sql | medium |
 | 11 | Content types persisted | `InMemoryContentTypeRepo`, re-seeded at every boot. | cms/content-types sql | medium |
-| 12 | A list-submissions service | Called the repo's `listByDefinition` directly. | cms/forms | small |
 | 13 | Ports needed just to create a form | `createFormDefinition` needs 8+ ports (executeCommand, changeSets, permission, reservedSlugs, authorize, …). That is the heaviest part of the wiring. | cms/forms: a documented minimal-deps recipe or a default set | small to medium |
-| 14 | Route metadata: body limits, same-origin, error envelope | Not handled. See N1. | core/server optional object, or handler wrappers | medium |
+| 14 | Route metadata: body limits, same-origin, error envelope | Not handled. See N1. | handler wrappers passed in by the host (the contract stays types only) | medium |
+
+Rows 9 (single-owner authorize: 3 lines of app policy, stays in the host) and 12 (calling `listByDefinition` directly is the intended use) were dropped as not gaps.
 
 ## Bugs
 
 - **Packaging:** `@jini-ai/cms/forms/sql` loads `parse5` at import time, through `forms/sql/repo.rows.ts:3` → `forms/html/html-authoring.ts`. But cms declares `parse5` only as an optional peer, so a tarball consumer fails with `ERR_MODULE_NOT_FOUND: parse5`. Inside the workspace this is hidden, because parse5 is one of cms's dev dependencies.
 - **Possible, not confirmed:** `packages/cms/src/forms/sql/repo.rows.ts:77` reads a null `source_ip` back as `""`, while `FormSubmissionRecord.sourceIp` is typed `string | null` (`types.ts:79`).
-- **Typing note:** core's new `server.ts` relies on `@types/node` for `Request`/`Response`, because core's lib setting has no DOM.
+- **Typing note:** core's `contracts/server.ts` relies on `@types/node` or the DOM lib for `Request`/`Response`, because core's lib setting has no DOM. It is no longer re-exported from core's root barrel.
 
 ## Token table
 

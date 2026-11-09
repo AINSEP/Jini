@@ -14,7 +14,7 @@ export const WORKSPACE_ID = '00000000-0000-4000-8000-000000000001';
 export const OWNER_ID = 'local-owner';
 export const NOTE_TYPE = 'note';
 
-// GAP: no allow-all / single-owner AuthorizationPort. The app has one local owner and no login.
+// App policy, not a Jini gap: one local owner and no login, so only that owner is allowed.
 export const authorize: AuthorizeFn = async ({ principalId }) =>
   principalId === OWNER_ID ? { allowed: true, reason: 'local owner' } : { allowed: false, reason: 'not the local owner' };
 
