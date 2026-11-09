@@ -8,7 +8,7 @@ import { resolveExternalMcpOAuthStatus } from "./auth.js";
  * and what the agent daemon reads at boot to decide which third-party servers to federate.
  *
  * This is the SECOND config source for `mcp-federation/`. The first is `presets.ts`, whose
- * resolvers read `TOVU_<VENDOR>_MCP_*` environment variables; it stays exactly as it was. The two
+ * resolvers read the host's `<VENDOR>_MCP_*` environment variables; it stays exactly as it was. The two
  * differ in kind, which is why this is not written as a preset: a preset resolver is synchronous and
  * returns at most one connection, while this store is async (sealing is promise-based) and returns
  * N. `bootstrap.ts`'s `extraConnections` parameter is the seam that carries them.
@@ -41,7 +41,7 @@ import { resolveExternalMcpOAuthStatus } from "./auth.js";
  * {@link ExternalMcpTransport} and {@link ExternalMcpAuthMode} are two independent fields and must
  * stay that way. Encoding OAuth as a transport (`transport: "oauth"`) would be the wrong
  * abstraction immediately, not eventually: a hosted server may be HTTP + OAuth, and a LOCAL stdio
- * server may also require OAuth — Tovu obtains the token and hands it to the child process in its
+ * server may also require OAuth — the host obtains the token and hands it to the child process in its
  * environment. Both combinations are real, so neither field can be derived from the other.
  */
 import { SUPPORTED_EXTERNAL_MCP_TRANSPORTS, EXTERNAL_MCP_OAUTH_GRANTS } from "./vocabulary.js";
@@ -516,7 +516,7 @@ function oauthStatusFailure(record: ExternalMcpServerRecord, settingsLink: strin
 async function resolveExternalMcpAccessToken(
   record: ExternalMcpServerRecord,
   oauth: ExternalMcpOAuthTokenResolverPort | undefined,
-  settingsLink: string,
+  { settingsLink, reauthRequiredCode }: Pick<HostedMcpStorePorts, "settingsLink" | "reauthRequiredCode">,
 ): Promise<{ readonly ok: true; readonly token: string; readonly shared?: true } | { readonly ok: false; readonly reason: string }> {
   try {
     const shared = await oauth?.resolveSharedAccessToken?.({ serverId: record.serverId });
@@ -527,20 +527,20 @@ async function resolveExternalMcpAccessToken(
   if (!oauth) {
     return { ok: false, reason: "this process was not wired with an OAuth token resolver, so its access token cannot be obtained" };
   }
-  return resolveOwnedAccessToken(record, oauth, settingsLink);
+  return resolveOwnedAccessToken(record, oauth, { settingsLink, reauthRequiredCode });
 }
 
 /** {@link resolveExternalMcpAccessToken}'s last step, split out unchanged to keep each function under the complexity limit. */
 async function resolveOwnedAccessToken(
   record: ExternalMcpServerRecord,
   oauth: ExternalMcpOAuthTokenResolverPort,
-  settingsLink: string,
+  { settingsLink, reauthRequiredCode }: Pick<HostedMcpStorePorts, "settingsLink" | "reauthRequiredCode">,
 ): Promise<{ readonly ok: true; readonly token: string } | { readonly ok: false; readonly reason: string }> {
   try {
     return { ok: true, token: await oauth.resolveAccessToken({ serverId: record.serverId }) };
   } catch (err) {
     // Preserve reauthorization as a typed outcome, without echoing raw provider error messages.
-    const needsReauth = err instanceof Error && "code" in err && err.code === "EXTERNAL_MCP_REAUTH_REQUIRED";
+    const needsReauth = err instanceof Error && "code" in err && err.code === reauthRequiredCode;
     return { ok: false, reason: needsReauth
       ? `its authorization expired or was revoked — reconnect it in ${settingsLink}`
       : `its OAuth access token could not be obtained: OAuth token resolution failed — reconnect this server in ${settingsLink}` };
@@ -579,7 +579,7 @@ async function resolveStdioTarget(
     if (!record.oauthTokenEnvName) {
       return externalMcpFailure(record, "no environment variable name is configured to receive its OAuth access token");
     }
-    const token = await resolveExternalMcpAccessToken(record, oauth, ports.settingsLink);
+    const token = await resolveExternalMcpAccessToken(record, oauth, ports);
     if (!token.ok) return externalMcpFailure(record, token.reason);
     resolvedEnv = { ...resolvedEnv, [record.oauthTokenEnvName]: token.token };
   }
@@ -610,7 +610,7 @@ async function resolveHttpTarget(
   let shared = false;
   if (authMode === "static_env" && staticAccessToken !== null) headers.authorization = `Bearer ${staticAccessToken}`;
   if (authMode === "oauth") {
-    const token = await resolveExternalMcpAccessToken(record, oauth, ports.settingsLink);
+    const token = await resolveExternalMcpAccessToken(record, oauth, ports);
     if (!token.ok) return externalMcpFailure(record, token.reason);
     headers.authorization = `Bearer ${token.token}`;
     shared = token.shared === true;
@@ -742,7 +742,7 @@ export async function readEnabledExternalMcpConfigs(
  *
  * Timeouts and caps come from core's shared `FEDERATED_CONNECTION_DEFAULTS` rather than being
  * stored per server: they are policy about how much a third party may cost this process, which is
- * Tovu's call and not an operator preference. `allowedToolNames` is the one field that IS the
+ * the host's call and not an operator preference. `allowedToolNames` is the one field that IS the
  * operator's, and it is passed through untouched for `trust.ts` to enforce.
  *
  * @param readOnlyRemoteNamesByServer - Reviewed manifest lists matched by the roster source;
@@ -1458,7 +1458,7 @@ function resolveWriteGrantAttribution(
   return { writeGrantsUpdatedByPrincipalId: input.principalId, writeGrantsUpdatedAt: nowIso };
 }
 
-/** Tovu error adapter for the shared token policy. The store alone normalizes the value. */
+/** Host error adapter for the shared token policy. The store alone normalizes the value. */
 function normalizeOAuthClientSecret({ value, credential }: { value: string; credential: HostedMcpStorePorts["credential"] }): string {
   try { return credential.normalize({ value, field: 'oauth.clientSecret' }); }
   catch (err) {

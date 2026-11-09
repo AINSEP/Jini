@@ -39,7 +39,7 @@ export interface HostedMcpVaultPorts {
 export type HostedMcpCredentialInputError = abstract new (...args: never[]) => Error & { readonly field: string };
 
 /** Host-bound ports the hosted store reads on top of the per-call `repo/sealer/keyring/clock`. */
-/** @agent-note The host binds these ONCE (the same values for every call). `assertFreeField` throws `credential.InputError` when a plain field looks like a secret. `credential.normalize`/`assert` apply the host token policy and throw `credential.InputError`; `messages` supplies the five user-facing credential sentences; `limit` is the token length cap. `settingsLink` names where an operator fixes a connection and is interpolated verbatim into admission/model-facing failure reasons, so it must carry no secret. */
+/** @agent-note The host binds these ONCE (the same values for every call). `assertFreeField` throws `credential.InputError` when a plain field looks like a secret. `credential.normalize`/`assert` apply the host token policy and throw `credential.InputError`; `messages` supplies the five user-facing credential sentences; `limit` is the token length cap. `settingsLink` names where an operator fixes a connection and is interpolated verbatim into admission/model-facing failure reasons, so it must carry no secret. `reauthRequiredCode` is the stable `code` of the host OAuth resolver's reauthorization error; a resolver error carrying it is reported as "authorization expired" rather than as a token failure. */
 export interface HostedMcpStorePorts extends HostedMcpVaultPorts {
   assertFreeField(required: { value: string; field: string }): void;
   credential: {
@@ -51,4 +51,5 @@ export interface HostedMcpStorePorts extends HostedMcpVaultPorts {
     InputError: HostedMcpCredentialInputError;
   };
   settingsLink: string;
+  reauthRequiredCode: string;
 }

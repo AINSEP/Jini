@@ -26,7 +26,7 @@ function memoryRepo(): VaultRepoPort {
   return {
     find: async (i) => structuredClone(rows.get(key(i)) ?? null),
     list: async () => [...rows.values()],
-    put: async ({ record }) => { const saved = { isDefault: false, ...record }; rows.set(key(record), saved); return structuredClone(saved); },
+    put: async ({ record }) => { const saved: VaultRecord = { ...record, isDefault: record.isDefault ?? false }; rows.set(key(record), saved); return structuredClone(saved); },
     patchMeta: async () => { throw new AcmeVaultError("conflict"); },
     delete: async (i) => rows.delete(key(i)),
   };
@@ -69,6 +69,7 @@ const ports: HostedMcpStorePorts = {
     InputError: AcmeInputError,
   },
   settingsLink: "Console › Tools › Remote servers",
+  reauthRequiredCode: "ACME_SIGN_IN_AGAIN",
 };
 const sealer = {
   seal: async ({ plaintext, aad }: { plaintext: string; aad: string }) => { counts.seal += 1; return { keyId: "acme-k1", ciphertext: Buffer.from(`${aad}\n${plaintext}`).toString("base64"), nonce: "bm9uY2U=", alg: "acme-toy" }; },
@@ -109,9 +110,9 @@ describe("second host wires the hosted MCP store by ports", () => {
     expect(failures).toEqual([{ serverId: "acme-env", reason: "stored credentials could not be decrypted — check the site credential store and re-enter them in Console › Tools › Remote servers" }]);
     await expect(entry.saveExternalMcpServer(deps, { workspaceId: WS, serverId: "acme-x", transport: "stdio", command: "sk_acme_leak", args: "", allowedToolNames: "" } as never))
       .rejects.toMatchObject({ name: "ExternalMcpValidationError", message: "Acme: keep keys out of plain fields.", field: "command" });
-    const revoked = new entry.ExternalMcpConnectionRevokedError({ serverId: "acme-env", label: null, remoteName: "t", reason: "removed",
+    const revoked = new entry.ExternalMcpConnectionRevokedError({ serverId: "acme-env", label: null, remoteName: "t", reason: "removed", code: "ACME_CONNECTION_REVOKED",
       messages: Object.fromEntries((["removed", "turned-off", "disconnected", "changed", "tool-not-allowed", "write-not-allowed", "unverifiable"] as const).map((r) => [r, () => `Acme ${r}; see Console.`])) as never });
-    expect([revoked.message, revoked.code, revoked.retryable]).toEqual(["Acme removed; see Console.", "EXTERNAL_MCP_CONNECTION_REVOKED", false]);
+    expect([revoked.message, revoked.code, revoked.retryable]).toEqual(["Acme removed; see Console.", "ACME_CONNECTION_REVOKED", false]);
     expect(JSON.stringify(failures) + revoked.message).not.toMatch(FIRST_HOST_WORDS);
     expect(JSON.stringify(failures)).not.toMatch(/sk_acme_secret|idp\.acme\.test/);
   });

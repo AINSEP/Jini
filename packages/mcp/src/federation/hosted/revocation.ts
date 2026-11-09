@@ -56,14 +56,15 @@ function revocationMessage({ messages, ...input }: ExternalMcpRevocationMessageI
  * as a field" `retryable` convention.
  */
 export class ExternalMcpConnectionRevokedError extends ToolInputError {
-  readonly code = "EXTERNAL_MCP_CONNECTION_REVOKED";
+  readonly code: string;
   readonly retryable = false;
   readonly serverId: string;
   readonly reason: ExternalMcpRevocationReason;
 
-  /** @agent-note `messages` is the host's model-facing text, bound once by the host (a host subclass keeps the old one-argument constructor). `code`, `name` and `retryable` are stable error identity. */
-  constructor(input: ExternalMcpRevocationMessageInput & { messages: ExternalMcpRevocationMessages }) {
+  /** @agent-note `messages` (model-facing text) and `code` (the host's stable error code) are bound once by the host; a host subclass keeps the old one-argument constructor. `code`, `name` and `retryable` are stable error identity. */
+  constructor({ code, ...input }: ExternalMcpRevocationMessageInput & { messages: ExternalMcpRevocationMessages; code: string }) {
     super({ message: revocationMessage(input) });
+    this.code = code;
     this.name = "ExternalMcpConnectionRevokedError";
     this.serverId = input.serverId;
     this.reason = input.reason;
