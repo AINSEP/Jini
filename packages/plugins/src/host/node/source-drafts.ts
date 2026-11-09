@@ -1,3 +1,4 @@
+import { PluginSourceError } from '../plugin-tool-errors.js';
 /** Site-scoped source authoring. Drafts never enter discovery; publication belongs to the
  * existing installer. Node filesystem effects live here, host SDK/policy/reload stay ports. */
 import { lstat, mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile, unlink } from 'node:fs/promises';
@@ -11,9 +12,7 @@ import type { ManifestHostPorts } from '../ports.js';
 import type { PluginSourcePolicyPort } from '../source-policy.js';
 import { computePluginIntegrity, digestSitePluginSnapshot, snapshotSitePluginPackage, type PluginInstallerPort, type PluginInstallPreview, type PluginPackageSnapshot } from './install.js';
 
-export class PluginSourceError extends Error {
-  constructor(public readonly code: string, message: string) { super(message); this.name = 'PluginSourceError'; }
-}
+export { PluginSourceError } from '../plugin-tool-errors.js';
 export const PLUGIN_SOURCE_LIMITS = { maxFileBytes: 1024 * 1024, maxTotalBytes: 8 * 1024 * 1024, maxEntries: 512 } as const;
 type Options = Record<string, never>;
 type Id = { id: string };

@@ -1,6 +1,6 @@
 import { adaptLegacyAuthorize, requireToolPermission, buildDomainRegistrations, indexCatalogById, requireInputRecord, requireString, ToolInputError, type DerivedRiskByToolId, type ToolExecutionContext, type ToolHandler, type ToolRegistration } from '@jini-ai/core';
-import { PluginInstallError } from '../node/install.js';
-import { PluginSourceError, type PluginSourcePort } from '../node/source-drafts.js';
+import { PluginInstallError, PluginSourceError } from '../plugin-tool-errors.js';
+import type { PluginSourcePort } from '../node/source-drafts.js';
 import type { PluginSourceToolsRequired } from './contract.js';
 const MUTATES_DURABLE_STATE = 'mutates-durable-state' as const;
 

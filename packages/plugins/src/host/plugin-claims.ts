@@ -42,7 +42,8 @@ import type { ManifestHostPorts } from "./ports.js";
 import type { PluginActivationRecord } from "./activation.js";
 import { normalizeRoute, resolveClaimConflicts, type ClaimConflict, type ClaimMode, type ClaimOwner, type ExtensionClaim } from "./claim-conflicts.js";
 import type { PluginDiscoveryRecord } from "./discovery-types.js";
-import { CORE_OWNER_ID, type PluginContributions, type PluginManifest } from "./manifest.js";
+import { CORE_OWNER_ID } from "./plugin-format.js";
+import type { PluginContributions, PluginManifest } from "./manifest-types.js";
 
 /** The owner id core's claims are filed under, and how messages name it. */
 export { CORE_OWNER_ID };

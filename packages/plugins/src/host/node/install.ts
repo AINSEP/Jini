@@ -1,3 +1,4 @@
+import { PluginInstallError } from '../plugin-tool-errors.js';
 import { readPluginIdentity, assertPluginIdentityAvailable } from "@jini-ai/core/plugin-directory";
 /** Local-install environment consent is host-owned; archiveReader owns zip-slip/decompression
  * checks and tierPolicy.checkInstall owns publisher admission. */
@@ -17,9 +18,7 @@ import type { PluginActivationRepoPort } from "../activation.js";
 import type { PluginConflict } from "../plugin-claims.js";
 import { PLUGIN_MANIFEST_FILENAME as MANIFEST, PLUGIN_MANIFEST_FILENAMES, canonicalizePluginManifest } from "../plugin-format.js";
 
-export class PluginInstallError extends Error {
-  constructor(public readonly code: string, message: string) { super(message); this.name = "PluginInstallError"; }
-}
+export { PluginInstallError } from '../plugin-tool-errors.js';
 export interface PluginInstallPreview {
   readonly warnings?: readonly string[];
   readonly publisherId?: string;

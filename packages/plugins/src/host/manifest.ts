@@ -28,7 +28,8 @@
 import type { PluginTier, PluginManifest, PluginValidationError } from './manifest-types.js';
 export type { PluginTier, PluginCapability, PluginManifestFieldDecl, PluginManifest, PluginContributions, PluginProviderDeclaration, PluginProviderSettingsMigration, PluginProviderSettingField, PluginProviderSettingOption, PluginValidationError } from './manifest-types.js';
 import * as semver from "semver";
-import { PLUGIN_MANIFEST_FILENAME } from "./plugin-format.js";
+import { CORE_OWNER_ID, PLUGIN_MANIFEST_FILENAME } from "./plugin-format.js";
+export { CORE_OWNER_ID } from "./plugin-format.js";
 import { validatePluginProviderDeclarations } from './provider-contributions.js';
 import { validateBrowserProviders } from "./browser-providers.js";
 
@@ -136,10 +137,6 @@ export function validatePluginIdFormat(required: { id: string }, _optional: Reco
   return validateIdFormat(required.id);
 }
 
-/** The owner id the claim system gives the host core (`plugin-claims.ts` re-exports it). Conflict
- * detection never compares an owner with itself, so a plugin with this id would never conflict with
- * core's reserved routes, tools or permissions — it is refused as an id instead. */
-export const CORE_OWNER_ID = "core";
 
 /** id identity: reserved id + folder match + built-in shadowing (BR-02 step 3, DUP-01). */
 function validateIdIdentity(id: string, folderName: string, builtInIds: readonly string[], coreOwnerName: string): PluginValidationError[] {

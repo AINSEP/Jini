@@ -1,5 +1,6 @@
 import { adaptLegacyAuthorize, requireToolPermission, buildDomainRegistrations, indexCatalogById, ToolInputError, type DerivedRiskByToolId, type ToolRegistration } from '@jini-ai/core';
-import { PluginInstallError, type PluginInstallerPort, type PluginInstallInput, type PluginInstallPreview } from '../node/install.js';
+import { PluginInstallError } from '../plugin-tool-errors.js';
+import type { PluginInstallerPort, PluginInstallInput, PluginInstallPreview } from '../node/install.js';
 import type { PluginInstallToolsRequired } from './contract.js';
 
 

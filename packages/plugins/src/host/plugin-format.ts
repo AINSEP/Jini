@@ -20,3 +20,8 @@ export function canonicalizePluginManifest<T>(
   if (selected !== undefined) files.set(PLUGIN_MANIFEST_FILENAME, manifest!);
   return files;
 }
+
+/** The owner id the claim system gives the host core (`plugin-claims.ts` re-exports it). Conflict
+ * detection never compares an owner with itself, so a plugin with this id would never conflict with
+ * core's reserved routes, tools or permissions — it is refused as an id instead. */
+export const CORE_OWNER_ID = "core";
