@@ -168,7 +168,7 @@ export interface CredentialToolMessages {
 /**
  * Log-only observations, never model-facing diagnostics.
  */
-/** @agent-note Log fixed lifecycle metadata or error class/code only, with provider detail kept out of human and model messages. */
+/** @agent-note describeError returns class/code only, while trusted provider failure detail stays in server logs and never human or model messages. */
 export interface CredentialToolDiagnostics {
   describeError(required: { error: unknown }, optional?: Record<string, never>): string;
   createFailure(required: { metadata: { toolId: string; exchangeId: string; saved: false } }, optional?: Record<string, never>): void;
