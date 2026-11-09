@@ -187,6 +187,37 @@ describe('cancellable outcome repeated sign-in clicks', () => {
   });
 });
 
+describe('cancellable outcome sign-in that the Host never answers', () => {
+  it('coalesces clicks until a 30-second deadline, then says so plainly and lets a retry open the link', async () => {
+    vi.useFakeTimers();
+    try {
+      const surface = mountSurface(renderOutcomeDocument({
+        title: 'Connect Example', state: 'partial', message: 'Waiting for sign-in',
+        openLinkUrl: '/api/sign-in', openLinkLabel: 'Sign in',
+        cancel: { label: 'Skip', toolName: 'connect', params: { __exchangeId: 'x', __dismissed: true } },
+      }));
+      surface.api.openLink.mockReturnValueOnce(new Promise(() => {})).mockReturnValue(Promise.resolve({}));
+      surface.trustedClick('open-link');
+      await vi.advanceTimersByTimeAsync(29_999);
+      surface.trustedClick('open-link');
+      expect(surface.api.openLink).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1);
+      expect(surface.statusState()).toBe('failed');
+      expect(surface.status()).toBe('Failed: The link did not open within 30 seconds. Try again.');
+      expect(surface.disabledActions()).toEqual([false, false]);
+      surface.trustedClick('open-link');
+      expect(surface.api.openLink).toHaveBeenCalledTimes(2);
+      await vi.advanceTimersByTimeAsync(0);
+      surface.trustedClick('open-link');
+      expect(surface.api.openLink).toHaveBeenCalledTimes(3);
+      expect(vi.getTimerCount()).toBe(1);
+      expect(surface.api.callTool).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});
+
 describe('buildOutcomeSurface', () => {
   it('wraps the document in a ui:// EmbeddedResource at the SAME URI a caller supplies', () => {
     const resource = buildOutcomeSurface({ ...PUBLISH_SUCCESS, uri: 'ui://consumer/deployment-execute-static-publish/exchange-1' });
