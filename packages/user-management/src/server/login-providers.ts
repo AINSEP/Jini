@@ -47,7 +47,7 @@ function preset(value: unknown): LoginProviderPreset {
 /** Parse a bounded v1 preset file. Failure exposes a fixed code, never raw plugin JSON.
  * @complexity O(bytes + p), bounded to 32 KiB and eight providers per package.
  */
-export function parseLoginProviders(required: { raw: string }, _options = {}):
+export function parseLoginProviders(required: { raw: string }, _options: Record<string, never> = {}):
   { ok: true; descriptors: readonly LoginProviderPreset[] } | { ok: false; reason: string } {
   try {
     if (required.raw.length > 32768) throw new MemberLoginError({ code: "LOGIN_UNAVAILABLE" });

@@ -39,7 +39,7 @@ export type MemberLoginOutcomeCode = "LOGIN_UNAVAILABLE" | "LOGIN_INVALID" | "LO
 /** Fixed codes are safe for routes/logging; upstream OAuth exceptions can contain sensitive data. */
 export class MemberLoginError extends Error {
   readonly code: MemberLoginOutcomeCode;
-  constructor(required: { code: MemberLoginOutcomeCode }, _options = {}) {
+  constructor(required: { code: MemberLoginOutcomeCode }, _options: Record<string, never> = {}) {
     super(required.code);
     this.code = required.code;
     this.name = "MemberLoginError";
