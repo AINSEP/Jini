@@ -126,6 +126,9 @@ importers:
       '@jini-ai/devops':
         specifier: workspace:*
         version: link:../../packages/devops
+      '@jini-ai/http-kit':
+        specifier: workspace:*
+        version: link:../../packages/http-kit
       '@jini-ai/integrations':
         specifier: workspace:*
         version: link:../../packages/integrations
@@ -138,6 +141,9 @@ importers:
       '@jini-ai/platform':
         specifier: workspace:*
         version: link:../../packages/platform
+      '@jini-ai/plugins':
+        specifier: workspace:*
+        version: link:../../packages/plugins
       '@jini-ai/search':
         specifier: workspace:*
         version: link:../../packages/search
