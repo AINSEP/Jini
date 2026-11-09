@@ -254,6 +254,7 @@ export interface CredentialToolOperations {
   readonly diagnostics: CredentialToolDiagnostics;
   readonly ids: { readonly list: string; readonly verify: string; readonly setUsername: string; readonly makeRequest: string; readonly writeFiles: string; readonly save: string };
   readonly derivedRisk: DerivedRiskByToolId;
+  /** @agent-note DELETE preflight validation uses this package's CredentialedRequestValidationError from @jini-ai/integrations/credentialed-http, so include that class to surface its refusal. */
   readonly modelFacingErrors: readonly ModelFacingErrorRule[];
   readonly formErrors: readonly CallerSafeErrorRule[];
 }
