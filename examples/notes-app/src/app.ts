@@ -137,5 +137,4 @@ export async function registerNotesApp({ app, kernel }: { app: Server; kernel: A
     return json({ submissions: page.items.map((s) => ({ id: s.id, data: s.data, submittedAt: s.submittedAt })) });
   } });
 
-  return { events: ports.events };
 }
