@@ -131,6 +131,20 @@ describe('real OAuth exports through the public api-connections entry', () => {
     expectNoCanary((error as Error).message);
   });
 
+  it('never copies a provider secret in the error code into the model-facing connection failure', async () => {
+    const { started, callbackParams } = await connect();
+    const providerSecret = 'sk_' + 'live_' + 'CANARY';
+    r.poison.token = providerSecret;
+    const error = await failure(r.service.complete({ ...SCOPE, redirectUri: CALLBACK, browserBinding: started.browserBinding, callbackParams }));
+    expect(error).toBeInstanceOf(ApiConnectionError);
+    expect((error as ApiConnectionError).code).toBe('authorization-failed');
+    expect((error as Error).cause).toBeInstanceOf(OAuthError);
+    expect((error as Error).message).toBe('Sign-in did not complete: the authorization server returned an unrecognized error (HTTP 400). '
+      + "Check this provider's client id, secret, scopes and redirect URI, then try connecting again.");
+    expect((error as Error).message).not.toContain(providerSecret);
+    expectNoCanary((error as Error).message);
+  });
+
   it('issues single-use hand-offs through the real pending store and state generator', () => {
     const handoffs = createSignInHandoffs({ oauth: realOAuthCapabilities, clock: { nowMs: () => Date.parse('2030-01-01T00:00:00.000Z') },
       randomBytesFn: ({ byteLength }) => randomBytes(byteLength) });
