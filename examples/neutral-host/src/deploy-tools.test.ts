@@ -1,6 +1,5 @@
 import { expect, it } from 'vitest';
 import { askThenReport, createSurfaceExchangeStore } from '@jini-ai/daemon/surface-exchanges';
-import { defineSecretCardTool } from '@jini-ai/ui/mcp-ui/secret-card';
 import { buildDeployOpsRegistrations, runDeploy, type DeployOpsRuntime, type DeployOpsRegistrationHost } from '@jini-ai/devops/deploy';
 
 it('a public deployment consumer wires foreign ids, policy, cards and bounded I/O with no host defaults',async()=>{
@@ -14,7 +13,7 @@ it('a public deployment consumer wires foreign ids, policy, cards and bounded I/
  };
  const exchanges=createSurfaceExchangeStore({clock:{nowMs:()=>0},idGenerator:{newId:()=> 'archive-card'},defaultChannel:'mcp-ui',scheduler:{schedule:()=>()=>undefined}});
  const host:DeployOpsRegistrationHost={domain:'archive-domain',catalogModule:'archive/catalog.ts',metadata:{},derivedRisk:new Map([['archive_dispatch','mutates-durable-state']]),catalog:[{name:'archive_dispatch',description:'Archive dispatch',inputSchema:{type:'object'},authorization:{permission:'archive.publish'},sideEffects:'mutates-durable-state'}],permissions:{write:'archive.change',siteKey:'archive.copy'},permit:async({permission})=>{calls.push(permission);},approvals:{confirmFor:()=>undefined},
- cards:{defineSecretCardTool,askThenReport,surfaceExchanges:exchanges,uriHost:'archive',defaultLocale:'archive',noEmitter:'Archive human needed',locale:async()=> 'archive',form:()=>({title:'Archive private input',submitLabel:'Archive save',fields:[{name:'value',kind:'string',label:'Archive secret',secret:true}]}),text:({id})=>`Archive ${id}`}};
+ cards:{defineSecretCardTool:()=>{throw new Error('Archive deploy does not collect typed secrets');},askThenReport,surfaceExchanges:exchanges,uriHost:'archive',defaultLocale:'archive',noEmitter:'Archive human needed',locale:async()=> 'archive',form:()=>({title:'Archive private input',submitLabel:'Archive save',fields:[{name:'value',kind:'string',label:'Archive secret',secret:true}]}),text:({id})=>`Archive ${id}`}};
  const registrations=buildDeployOpsRegistrations({deps,host},{});
  expect(registrations.map(r=>r.descriptor.id)).toEqual(['archive_dispatch']);
  const ctx={executionId:'archive-call',principal:{id:'archivist'},run:{id:'archive-run'},signal:new AbortController().signal,input:{platform:'archive',target:'book'}};
