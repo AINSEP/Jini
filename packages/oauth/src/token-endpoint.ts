@@ -14,6 +14,14 @@ import type { OAuthClient, OAuthTokenSet, OAuthResource } from './ports.js';
 import { applyResourceIndicators } from './resource.js';
 
 export const DEFAULT_TOKEN_REQUEST_TIMEOUT_MS = 15000;
+// Only protocol vocabulary may become model-facing text. A syntactically valid identifier
+// can still be a provider secret, so character/length checks alone are not a trust boundary.
+const TOKEN_ERROR_CODES: ReadonlySet<string> = new Set([
+    'invalid_request', 'invalid_client', 'invalid_grant', 'unauthorized_client',
+    'unsupported_grant_type', 'invalid_scope', 'invalid_target', 'access_denied',
+    'server_error', 'temporarily_unavailable', 'authorization_pending', 'slow_down',
+    'expired_token', 'invalid_dpop_proof', 'use_dpop_nonce',
+]);
 export interface TokenRequestInput {
     readonly tokenEndpoint: string;
     readonly client: OAuthClient;
@@ -104,13 +112,15 @@ function projectTokenSet({ tokens, idToken, tokenType, clock }: {
 /** Provider protocol codes are mapped only after transport failures have been checked. */
 function providerTokenError({ error, status }: { error: ResponseBodyError; status: number }): OAuthError {
     const code = mapProviderErrorCode({ providerErrorCode: error.error });
+    const recognized = TOKEN_ERROR_CODES.has(error.error);
     const interval = error.cause.interval;
     return new OAuthError({
-        code, message: `the authorization server refused the request (HTTP ${status}, ${error.error})`,
+        code, message: recognized ? `the authorization server refused the request (HTTP ${status}, ${error.error})`
+            : `the authorization server returned an unrecognized error (HTTP ${status})`,
         operatorAction: code === 'OAUTH_INVALID_GRANT'
             ? "This connection's authorization is no longer valid — reconnect it in the connection settings."
             : "Check this provider's client id, secret, scopes and redirect URI, then try connecting again.",
-    }, { providerErrorCode: error.error,
+    }, { providerErrorCode: recognized ? error.error : 'invalid_provider_error',
         ...(typeof interval === 'number' && Number.isFinite(interval) ? { retryAfterSeconds: interval } : {}) });
 }
 function clientAuthentication(client: OAuthClient) {
