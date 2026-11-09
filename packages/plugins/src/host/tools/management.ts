@@ -1,3 +1,20 @@
+/**
+ * Lists runtime plugins and agent plugins separately because their row shapes and activation
+ * lifecycles differ; merging discovery would offer runtime activation to packages it cannot own.
+ * Both lists use the same read permission and workspace, avoiding cross-workspace disclosure.
+ *
+ * Failure isolation: a failed agent-plugin index must not take down a working runtime-plugin
+ * list, so that entire half degrades to an empty array; failed public-export lookup alone uses
+ * an empty export map while retaining the installed rows.
+ *
+ * Only public ids, versions, digests, skill names and export contracts leave this module;
+ * package roots, skill paths, executable handles and private error details stay with their owner.
+ * The two arrays keep each family's distinct response shape visible to callers.
+ *
+ * Family is explicit because independent namespaces can share an id and guessing can mutate the
+ * wrong lifecycle; one enable tool avoids ambiguous near-identical choices, while install and
+ * uninstall remain separate because each tool id has one risk band for its different effects.
+ */
 import { AGENT_TOOL_PRINCIPAL_KIND, adaptLegacyAuthorize, requireToolPermission, buildDomainRegistrations, indexCatalogById, requireInputRecord, requireNoInput, requireString, ToolInputError, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolExecutionContext, type ToolHandler, type ToolRegistration, type AccessApprovalResource } from '@jini-ai/core';
 import { nowIso } from '@jini-ai/core/primitives';
 import { withModelFacingErrors, type ModelFacingErrorRule } from '@jini-ai/core/model-facing-tool-errors';
@@ -14,9 +31,7 @@ type PluginSearchProjection = ReturnType<PluginLifecycleToolsPort['searchCandida
 type PluginProviderFacesPort = PluginManagementToolsRequired<unknown>['providerFaces'];
 
 
-/** One `plugins_list` response row for an installed Agent Plugin — see this file's header,
- *  "`plugins_list` also reports installed Agent Plugins", for why only these public fields and export contracts (never
- *  `packageRoot` or a skill's `skillPath`) ever leave this module. */
+/** Public installed row; the privacy and two-array rationale is documented in this file header. */
 interface AgentPluginListRow {
   
   readonly pluginId: string;
@@ -39,9 +54,7 @@ function toAgentPluginListRow(required: {
 }
 
 
-/** Reads every installed Agent Plugin for `plugins_list`'s Agent Plugin half. Degrades to `[]` on
- *  any failure (see this file's header, "Failure isolation") rather than failing the whole tool
- *  call over the newer, less-exercised half of this tool. */
+/** Isolates the complete agent-plugin read so its failure cannot break the runtime-plugin list. */
 async function listAgentPluginsForResponse<Description>(routeDeps: PluginManagementToolsRequired<Description>): Promise<readonly (AgentPluginListRow | Pick<PluginSearchProjection, 'pluginId' | 'enabled' | 'description'>)[]> {
   try {
     const installed = await routeDeps.agentPlugins.listInstalled({}, {});
@@ -70,16 +83,9 @@ export function pluginManagementDerivedRiskFor({ toolIds }: {
   uninstall: string } }, _optional = {}): DerivedRiskByToolId { return new Map<string, AgentToolSideEffect>([
   // -> discoverPlugins() + pluginActivationRepo.getActivation() per record: reads only.
   [toolIds.list, "none"],
-  // -> executeCommand(...) -> setPluginEnabled (activation.ts): pluginActivationRepo.save() plus
-  //    (on enable) the injected onEnabled hook, which can run ADR-023 schema DDL against the live
-  //    database. Genuinely mutating, not a metadata-only flip.
+  // Activation and its injected enable hook can mutate durable state.
   [toolIds.setEnabled, "mutates-durable-state"],
-  // -> uninstallPlugin (uninstall.ts) for family 'site-runtime': the package directory moves to the
-  //    60-day Trash, durable and reversible only through the human Admin Trash surface. ->
-  //    runAgentPluginUninstall (agent-plugins/uninstall-tool.ts) for family 'agent-plugin': the
-  //    package is deleted from disk with no Trash and no undo. One tool id, one risk band (S4,
-  //    2026-09-24) — `deletes-durable-state`, the worse of the two families' blast radii, since this
-  //    map is keyed per tool id, not per family.
+  // Runtime removal uses shared Trash; agent removal is permanent, so use the worse risk band.
   [toolIds.uninstall, "deletes-durable-state"],
 ]); }
 
@@ -185,8 +191,8 @@ async function uninstallRequestFor<Description>(
 
 
 /**
- * The post-confirmation half of `plugins_uninstall` (t91 F2.2): re-discovers, then uninstalls only if the plugin is
- * still the name and version the dialog showed. A change is a not-removed RESULT (ADR-055 Decision 6), the same union
+ * The post-confirmation half of `plugins_uninstall`: re-discovers, then uninstalls only if the plugin is
+ * still the name and version the dialog showed. A change is a not-removed RESULT, the same union
  * member `expired`/`abandoned` use; every other refusal still propagates undecorated, per this file's convention.
  * @complexity one discovery scan plus `uninstallPlugin`.
  */
@@ -213,9 +219,8 @@ async function uninstallConfirmedPlugin<Description>(
 
 
 /**
- * The Agent Plugin branch. Reuses `agent-plugins/set-enabled.ts` — the SAME composition
- * `AGENT_PLUGIN_SET_ENABLED` (the admin route) calls, so there is one writer and one definition of
- * "installed in this workspace", not a second copy that could drift.
+ * Delegate to the same scoped lifecycle writer used by other host entry points so installed
+ * identity, activation and admission policy cannot drift between entry points.
  * @complexity O(d) in installed-digest count plus one small file rewrite.
  */
 async function applyAgentPluginDecision<Description>(routeDeps: PluginManagementToolsRequired<Description>, principalId: string, request: SetEnabledRequest, optional: { 
@@ -228,22 +233,8 @@ async function applyAgentPluginDecision<Description>(routeDeps: PluginManagement
       actor: principalId,
     };
     const result = await routeDeps.agentPlugins.setEnabled(input);
-    // Enabling an Agent Plugin from chat must provision its auto-admitted MCP servers exactly as
-    // the admin toggle does (`server/inbound/admin-http/routes/agent-plugins/set-enabled.ts`);
-    // the host binds the external-MCP repository, sealer and keyring for that write.
-    // Enabling an Agent Plugin also provisions its auto-admitted MCP servers, exactly as the admin
-    // route's enable branch does; disabling has nothing to provision. Without this, the same logical
-    // enable produced a partially enabled plugin in chat while the admin toggle produced the
-    // documented disabled connection rows — see this file's header.
-    //
-    // Best-effort: provisions `pluginId`'s auto-admitted remote MCP servers into the external-MCP store
-    // on a successful enable. Calls the SAME two primitives
-    // (`resolveAgentPluginMcpServers` + `provisionAgentPluginMcpServers`) the admin route's own
-    // `provisionAgentPluginMcpServersBestEffort` does, so the in-chat enable and the admin toggle have
-    // identical side effects. Create-if-absent, never clobbering an existing row (`federate-mcp.ts`'s
-    // header); a failure is logged, never thrown, matching that route's own fail-open posture — the
-    // plugin's own activation, the operation this tool is named for, must not fail because one MCP row
-    // could not be written. O(s) in the plugin's declared server count.
+    // Provision connections only after successful activation through the host's existing owner;
+    // otherwise the same enable decision would leave different usable capabilities by entry point.
     if (result.enabled) {
       await routeDeps.agentPlugins.provisionMcp({ pluginId: request.pluginId, principalId }, { approvedEnable: true, approvedEnableKey: optional.accessKey });
     }
@@ -265,9 +256,7 @@ async function applyAgentPluginDecision<Description>(routeDeps: PluginManagement
     if (classified?.kind === 'not-installed') throw new ToolInputError({ message: classified.message });
     const linkedError = routeDeps.providerFaces.describeLinkedError({ error });
     if (linkedError !== undefined) return linkedFaceResult({ request, error: linkedError });
-    // t91 F1.1/R2 (2026-09-16): nothing changed, so this is a RESULT the model can relay — matching
-    // ADR-055 Decision 6's `changed: false` shape — not a redacted failure. See
-    // `activationsRefusalResult` below.
+    // Nothing changed, so return the actionable refusal rather than an opaque failure.
     const refusal = activationsRefusalResult(routeDeps, request, classified);
     if (refusal !== undefined) return refusal;
     throw error;
@@ -317,7 +306,7 @@ async function hostIncompatibleEnableResult<Description>(routeDeps: PluginManage
 }
 
 
-/** A provider plugin's assistant face has no switch of its own (`agent-plugins/provider-plugin-link.ts`):
+/** A provider plugin's assistant face has no switch of its own (the provider lifecycle owns it):
  *  nothing changed, and the note names the provider plugin to switch instead. @complexity O(1). */
 function linkedFaceResult({ request, error }: {
   
@@ -346,8 +335,7 @@ async function agentPluginEnablePreflight<Description>(routeDeps: PluginManageme
 
 
 /** An interrupted update of this plugin waits for boot recovery (`PLUGIN_UPDATE_PENDING`, or an
- *  unreadable recovery record): its on/off decision is frozen until then, the same 409 the admin
- *  switch answers. Nothing changed, so an ADR-055 Decision 6 result. @complexity O(1). */
+ *  unreadable recovery record): its on/off decision is frozen until then, the same refusal used by the lifecycle writer. Nothing changed, so a not-changed result. @complexity O(1). */
 function updatePendingResult<Description>(routeDeps: PluginManagementToolsRequired<Description>, request: SetEnabledRequest, error: { 
   code: string }): unknown {
   return {
@@ -364,9 +352,9 @@ function updatePendingResult<Description>(routeDeps: PluginManagementToolsRequir
 }
 
 
-/** The plugin declares a host range this host does not satisfy, so it cannot be enabled: the same
- *  refusal the admin switch answers with 409 `PLUGIN_HOST_INCOMPATIBLE`. Nothing changed, so it is
- *  an ADR-055 Decision 6 result, not a failure. @complexity O(1). */
+/** The plugin declares a host range this host does not satisfy, so it cannot be enabled: the canonical
+ *  `PLUGIN_HOST_INCOMPATIBLE` refusal. Nothing changed, so it is
+ *  a not-changed result, not a failure. @complexity O(1). */
 function hostIncompatibleResult<Description>(routeDeps: PluginManagementToolsRequired<Description>, request: SetEnabledRequest, error: { 
   code: string }): unknown {
   return {
@@ -382,7 +370,7 @@ function hostIncompatibleResult<Description>(routeDeps: PluginManagementToolsReq
 }
 
 
-/** ADR-055 Decision 6 shape: nothing changed, so it is a RESULT the model can relay, not a redacted
+/** Not-changed result: nothing changed, so it is a RESULT the model can relay, not a redacted
  *  failure. The host path and parse detail stay in the server log via the `console.warn` below;
  *  `note` carries only the fixed, path-free E3 text.
  *  @complexity O(1). */
@@ -401,8 +389,8 @@ function activationsUnreadableResult<Description>(routeDeps: PluginManagementToo
 }
 
 
-/** t91 R2 (2026-09-16): another host process held the cross-process activations.json write lock and
- *  the wait timed out, or this process lost the lock before it could commit. Same ADR-055 Decision 6
+/** Another host process held the cross-process activations.json write lock and
+ *  the wait timed out, or this process lost the lock before it could commit. Same not-changed
  *  shape as {@link activationsUnreadableResult}: nothing changed, so it is a RESULT the model can
  *  relay. The host lock path stays in the server log via `console.warn`; `note` is fixed and
  *  path-free.
@@ -438,9 +426,8 @@ function activationsRefusalResult<Description>(routeDeps: PluginManagementToolsR
 
 
 /**
- * The `site plugin` site/runtime branch — unchanged in mechanism from before this file grew a
- * second family: the SAME `executeCommand` composition `routes/admin/plugins/set-enabled.ts` uses,
- * with the same `captureInverse`/`rollback` pair.
+ * Runtime activation uses the injected command gateway so authorization, audit and inverse/rollback
+ * remain identical across host entry points.
  * @complexity O(p) in discovered-plugin count, plus the command gateway's own writes.
  */
 async function applySiteRuntimeDecision<Description>(routeDeps: PluginManagementToolsRequired<Description>, principalId: string, request: SetEnabledRequest, optional: { 
@@ -449,9 +436,7 @@ async function applySiteRuntimeDecision<Description>(routeDeps: PluginManagement
   // Reuse the manifest that passed the post-approval identity check, avoiding another discovery
   // read between checking the approved version/digest and the activation owner loading it.
   const discovery = optional.discovery ?? await routeDeps.discoverPlugins();
-  // Captured by `captureInverse` below, reused verbatim by `rollback` — mirrors
-  // `routes/admin/plugins/set-enabled.ts`'s identical `priorActivation` shape exactly, since this
-  // handler IS that route's own `executeCommand` composition.
+  // Capture and restore the same prior row, including absence, through the command gateway.
   let priorActivation: PluginActivationRecord | null = null;
 
   const { result } = await routeDeps.executeCommand({
@@ -642,7 +627,7 @@ async function currentApprovedIdentity<Description>(
  * not ask" would make confirmation decorative in precisely the contexts that most need it.
  * A cancelled run must not leave a dialog holding a call nobody is listening to, nor hold this
  * handler open until the idle deadline. Core/host approval ports now own that abort lifecycle.
- * ADR-055 Decision 6: a no-answer is a RESULT, not an exception. Nothing was changed or removed
+ * No mutation occurred: a no-answer is a RESULT, not an exception. Nothing was changed or removed
  * either way, and the model is still alive to read this and say something sensible.
  *
  * The confirmed (or card-free) half: refusal -> re-authorize -> identity unchanged -> not cancelled
@@ -670,7 +655,7 @@ async function runSetEnabled<Description>(
 
 
 /**
- * This domain's model-facing allowlist (`contracts/core/model-facing-tool-errors.ts`). Only the
+ * This domain's model-facing allowlist uses core's model-facing error contract. Only the
  * conflict refusal is listed (2026-10-04): its message names plugin ids/names and the manifest's own
  * declared names — nothing internal — and it is the one refusal an agent can act on by itself
  * ("turn the other plugin off first"). Without the rule it reached the model as a redacted
@@ -709,16 +694,9 @@ export function buildPluginManagementRegistrations<Description>(routeDeps: Plugi
     },
 
     /**
-     * ONE tool, BOTH plugin families. See `agent-tools.ts`'s header for why enable/disable is
-     * consolidated here while install/uninstall deliberately are not, and
-     * `set-enabled-confirmation-ui.ts`'s for why enabling asks a human and disabling does not.
-     *
-     * Order is load-bearing: parse -> authorize -> (Agent Plugin enable: activations.json readable?) -> confirm -> write. The explicit
-     * `requireToolPermission` ahead of the dialog is NOT a second policy (the site-runtime branch's
-     * `executeCommand` still performs its own check on the same permission with the same evaluator,
-     * per ADR-021 §2) — it gates SHOWING THE DIALOG, which is its own disclosure: a principal with no
-     * `admin.plugins.enable` grant must not be able to make a confirmation prompt appear in a human's
-     * chat naming a plugin, let alone reach the write behind it.
+     * Parse and authorize before preflight or disclosure, then confirm and write; the gateway's
+     * later authorization is still needed because a human can leave the dialog open while access
+     * changes, and the first check prevents an unauthorized principal from opening it at all.
      */
     [routeDeps.toolIds.setEnabled]: routeDeps.approvals.handler({
       prepare: ({ ctx }) => prepareSetEnabled(routeDeps, { ctx }),
@@ -741,30 +719,13 @@ export function buildPluginManagementRegistrations<Description>(routeDeps: Plugi
     }),
 
     /**
-     * ONE tool, BOTH plugin families (S4, 2026-09-24) — the same merge `plugins_set_enabled` above
-     * got on 2026-09-09, for the identical reason: two near-identically-named uninstall tools
-     * (`plugins_uninstall` and the now-deleted `agent_plugins_uninstall`) is the exact confusion this
-     * catalog exists to prevent, and the operator asking to "uninstall the Higgsfield plugin" does not
-     * know which of the host's two plugin systems that word means either.
-     *
-     * The 'site-runtime' branch is UNCHANGED: mirrors `routes/admin/plugins/uninstall.ts`'s own
-     * business rules exactly — same permission, same `uninstallPlugin()` module, same pre-bound Trash
-     * removal binding. NOT wrapped in `executeCommand` — matching that route's own deliberate choice
-     * (`Jini/packages/plugins/src/host/uninstall.ts`'s header: "there is no meaningful 'restore the prior state' for deleted bytes"),
-     * so there is nothing here for a `captureInverse`/`rollback` pair to capture. That is a statement
-     * about revertability, not about consent — the two are orthogonal, and this DOES now confirm
-     * (2026-09-16, see `agent-tools.ts`'s header). Order is load-bearing: parse -> authorize -> preview
-     * -> confirm -> re-discover and write only if the plugin is still what the dialog showed.
-     * `previewUninstallPlugin` runs BEFORE the dialog so an unknown, built-in, or still-enabled plugin
-     * is refused without ever asking a human to approve an uninstall that was never going to happen.
-     *
-     * The 'agent-plugin' branch delegates to `runAgentPluginUninstall` (`agent-plugins/
-     * uninstall-tool.ts`) for its ENTIRE order (permission, preview-or-refusal, confirm, write) —
-     * unlike `plugins_set_enabled`, whose single pre-branch `requireToolPermission` call covers both
-     * families, this tool's permission check stays INSIDE each branch, exactly where the deleted
-     * standalone tool ran it. Both branches reuse the SAME held-open exchange
-     * (`uninstall-confirmation-ui.ts` in each family's own module), and both redeem through this one
-     * `plugins_uninstall` id — see `PLUGINS_UNINSTALL_TOOL_ID` in each.
+     * One uninstall tool avoids ambiguous family-specific choices while preserving each lifecycle.
+     * Runtime removal authorizes and previews before asking so built-in, enabled or unknown targets
+     * are refused before an impossible approval; after confirmation it rediscovers the shown version.
+     * Removal has no useful inverse for deleted bytes, so it uses shared Trash instead of a command
+     * rollback; confirmation is still required because revertibility and consent are independent.
+     * Agent removal delegates its entire permission, preview, confirmation and write order, using
+     * the same held-open exchange and tool id rather than constructing a second approval channel.
      */
     [routeDeps.toolIds.uninstall]: async (ctx, optional = {}) => {
       ctx = { ...ctx, input: structuredClone(ctx.input), principal: { ...ctx.principal }, run: { ...ctx.run } };
@@ -790,7 +751,7 @@ export function buildPluginManagementRegistrations<Description>(routeDeps: Plugi
     },
   };
 
-  // No `unwiredToolIds`: Plugins wires its ENTIRE catalog, same tripwire discipline as Forms.
+  // No `unwiredToolIds`: Every supplied catalog entry must have a handler so missing wiring fails closed.
   return buildDomainRegistrations({ ...routeDeps.registration,
     catalog: indexCatalogById({ catalog: routeDeps.registration.catalog }),
     handlers: withModelFacingErrors({ handlers, rules: [...routeDeps.extraModelFacingErrors, ...PLUGINS_MODEL_FACING_ERRORS] }),
