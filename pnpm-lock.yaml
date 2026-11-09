@@ -129,6 +129,12 @@ importers:
       '@jini-ai/integrations':
         specifier: workspace:*
         version: link:../../packages/integrations
+      '@jini-ai/mcp':
+        specifier: workspace:*
+        version: link:../../packages/mcp
+      '@jini-ai/oauth':
+        specifier: workspace:*
+        version: link:../../packages/oauth
       '@jini-ai/platform':
         specifier: workspace:*
         version: link:../../packages/platform
