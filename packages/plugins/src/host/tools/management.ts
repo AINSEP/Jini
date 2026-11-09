@@ -26,9 +26,6 @@ import { PluginChangedSincePreviewError, previewUninstallPlugin, uninstallPlugin
 import { type PluginDiscoveryRecord } from '../discovery-types.js';
 import type { PluginManagementToolsRequired, InstalledPluginRevision, ClassifiedPluginError, OptionalValue, PluginLifecycleToolsPort, PluginFamily, SetEnabledRequest, PluginExportRow } from './contract.js';
 const AGENT_PLUGIN_FAMILY = 'agent-plugin' as const;
-type PluginExportCatalogRow = PluginExportRow;
-type PluginSearchProjection = ReturnType<PluginLifecycleToolsPort['searchCandidate']>;
-type PluginProviderFacesPort = PluginManagementToolsRequired<unknown>['providerFaces'];
 
 
 /** Public installed row; the privacy and two-array rationale is documented in this file header. */
@@ -42,20 +39,20 @@ interface AgentPluginListRow {
   
   readonly skills: readonly string[];
   
-  readonly exports: readonly PluginExportCatalogRow[];
+  readonly exports: readonly PluginExportRow[];
 }
 
 
 function toAgentPluginListRow(required: { 
   plugin: InstalledPluginRevision; 
-  exports: readonly PluginExportCatalogRow[] }, _options = {}): AgentPluginListRow {
+  exports: readonly PluginExportRow[] }, _options = {}): AgentPluginListRow {
   const p = required.plugin;
   return { pluginId: p.pluginId, version: p.version ?? null, archiveDigest: p.archiveDigest, skills: p.skills.map((s) => s.name), exports: required.exports };
 }
 
 
 /** Isolates the complete agent-plugin read so its failure cannot break the runtime-plugin list. */
-async function listAgentPluginsForResponse<Description>(routeDeps: PluginManagementToolsRequired<Description>): Promise<readonly (AgentPluginListRow | Pick<PluginSearchProjection, 'pluginId' | 'enabled' | 'description'>)[]> {
+async function listAgentPluginsForResponse<Description>(routeDeps: PluginManagementToolsRequired<Description>): Promise<readonly (AgentPluginListRow | Pick<ReturnType<PluginLifecycleToolsPort['searchCandidate']>, 'pluginId' | 'enabled' | 'description'>)[]> {
   try {
     const installed = await routeDeps.agentPlugins.listInstalled({}, {});
     const inactive = await routeDeps.agentPlugins.inactivePluginIds?.({ strict: false }, {}) ?? new Set<string>();
@@ -311,7 +308,7 @@ async function hostIncompatibleEnableResult<Description>(routeDeps: PluginManage
 function linkedFaceResult({ request, error }: {
   
   request: SetEnabledRequest; 
-  error: ReturnType<PluginProviderFacesPort["describeLinkedFace"]>;
+  error: ReturnType<PluginManagementToolsRequired<unknown>['providerFaces']["describeLinkedFace"]>;
 }, _optional = {}): unknown {
   return { changed: false, cancelled: false, family: request.family, pluginId: request.pluginId, restartRequired: false,
     reason: "linked", code: error.code, providerPluginId: error.providerPluginId, note: `Nothing changed. ${error.message}` };
