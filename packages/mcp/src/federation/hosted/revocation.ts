@@ -1,18 +1,17 @@
 /**
  * @file Per-call operator-revocation checks for an already-admitted federated tool — the roster half
- * of `mcp-federation/registrations.ts`'s `FederationDeps.assertConnectionUsable`, consumed by
- * `external-mcp-oauth.ts`'s `createExternalMcpConnectionGate`.
+ * of the federation's `FederationDeps.assertConnectionUsable`, consumed by
+ * `createHostedMcpConnectionGate`.
  *
- * Why this exists at all: `mcp-federation/`'s registry is append-only (see
+ * Why this exists at all: the federation's registry is append-only (see
  * `registrations.ts`'s `FederationDeps.assertConnectionUsable` doc), so a connection deleted,
  * disabled, narrowed, or edited after admission cannot be un-registered — its tools stay both
  * listed and, absent this gate, callable. This file is what turns that stale admission into a
  * refusal at the next call, by re-reading the connection's CURRENT row against what the tool was
  * admitted under.
  *
- * Deliberately does NOT import `external-mcp-oauth.ts` — that file imports FROM this one (its gate
- * calls `rosterRefusalFor`), so the reverse import would be a cycle. `resolveExternalMcpAuthMode`/
- * `resolveExternalMcpOAuthStatus` are read straight from `external-mcp-store.ts` instead.
+ * Deliberately does not import the connection gate, which calls `rosterRefusalFor`, so the
+ * reverse import would be a cycle. Auth-mode/status readers come from `auth.ts` instead.
  *
  * `ExternalMcpConnectionRevokedError` extends `ToolInputError` rather than being reported through a
  * `ToolPolicy` deny — the same D1 argument `registrations.ts`'s own gate doc and
@@ -52,7 +51,7 @@ function revocationMessage({ messages, ...input }: ExternalMcpRevocationMessageI
 /**
  * The terminal, non-retryable failure a federated tool returns once its connection has been revoked
  * since admission — deleted, disabled, narrowed, edited, or OAuth-disconnected. Sibling of
- * `external-mcp-oauth.ts`'s `ExternalMcpReauthRequiredError`, with the same "always false, present
+ * the host's canonical reauthorization error, with the same "always false, present
  * as a field" `retryable` convention.
  */
 export class ExternalMcpConnectionRevokedError extends ToolInputError {
@@ -97,7 +96,7 @@ function grantRefusalFor(record: ExternalMcpServerRecord, call: FederatedCallTar
  * design doc's D2. Pure: takes the row (already read by the caller) and the call's identity, and
  * returns why it should now be refused, or `null` when it still clears every check.
  *
- * The caller (`external-mcp-oauth.ts`'s gate) invokes this ONLY for a non-preset origin — a preset
+ * The caller (the hosted connection gate) invokes this ONLY for a non-preset origin — a preset
  * has no row to compare against and gets only the legacy `needs_reauth` check. The `call.origin.kind
  * === "preset"` branch below exists purely as a bug-guard for a roster-shaped call built outside
  * `toResolvedFederatedConnections`, mirroring the `undefined` branch immediately before it: both fail

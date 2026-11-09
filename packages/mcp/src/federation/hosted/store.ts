@@ -4,21 +4,18 @@ import type { ExternalMcpApprovedAccess } from "@jini-ai/core/contracts/hosted-m
 import { ToolInputError } from "@jini-ai/core";
 import { resolveExternalMcpOAuthStatus } from "./auth.js";
 /**
- * @file The operator-editable roster of external MCP servers — what Settings → External MCP writes,
+ * @file The operator-editable roster of external MCP servers — what the host's connection settings write,
  * and what the agent daemon reads at boot to decide which third-party servers to federate.
  *
- * This is the SECOND config source for `mcp-federation/`. The first is `presets.ts`, whose
- * resolvers read the host's `<VENDOR>_MCP_*` environment variables; it stays exactly as it was. The two
+ * This is a second config source alongside the host's preset resolution. The two
  * differ in kind, which is why this is not written as a preset: a preset resolver is synchronous and
  * returns at most one connection, while this store is async (sealing is promise-based) and returns
  * N. `bootstrap.ts`'s `extraConnections` parameter is the seam that carries them.
  *
  * ## Secrets
  *
- * An MCP server's `env` block routinely carries live credentials, so it is sealed through ADR-058's
- * Jini vault service using the same keyring instance the BYOK/media-provider stores share
- * — `src/webhooks/ports.ts` states the rule this follows: keep secret material out of the
- * portable `content.db`.
+ * An MCP server's `env` block routinely carries live credentials, so the host's vault service
+ * seals it using the injected sealer/keyring. Plaintext secrets never enter the host's database.
  *
  * The block is sealed WHOLE rather than per-variable. Every read path wants all of it at once (it
  * becomes one child process's environment), so per-variable sealing would buy nothing and cost N
@@ -27,13 +24,13 @@ import { resolveExternalMcpOAuthStatus } from "./auth.js";
  *
  * ## What this file does NOT do
  *
- * It does not decide whether a remote tool may be called. That is `mcp-federation/trust.ts`'s
+ * It does not decide whether a remote tool may be called. That is `../trust.ts`'s
  * default-deny admission tier, applied at connect time to whatever this store produced.
  * `allowedToolNames` is carried here and enforced there, on purpose: a config store that also
  * adjudicated trust would be two mechanisms with one owner.
  *
- * It does not run the OAuth flow either. That is `features/external-mcp/external-mcp-oauth.ts` over the generic
- * client in `src/platform/oauth/`; this store owns only the ROW — which auth mode a server uses, its
+ * It does not run the OAuth flow either. The host wires a sign-in service over its OAuth client;
+ * this store owns only the ROW — which auth mode a server uses, its
  * plaintext OAuth metadata, and the sealed blob. Same split as `allowedToolNames`, same reason.
  *
  * ## Transport and auth mode are ORTHOGONAL
@@ -58,8 +55,7 @@ import { EXTERNAL_MCP_AUTH_MODES, externalMcpRecordHasStaticAccessToken, resolve
 import type { ExternalMcpAuthMode } from "@jini-ai/core/contracts/hosted-mcp";
 
 /** `EXTERNAL_MCP_AUTH_MODES`/`ExternalMcpAuthMode` (how a server's credentials are obtained) and
- *  their two readers live in the shared contract leaf `contracts/core/external-mcp-auth.ts`
- *  (owner decision C — see that file's header). Imported from the shared contract leaf so every
+ *  their two readers live in the shared `auth.ts` leaf, so every
  *  consumer reads the same mode vocabulary. */
 
 
@@ -88,7 +84,7 @@ const MAX_OAUTH_SCOPES = 64;
 /** Bounds the single-line OAuth identity fields (client id, secret). A real one is far shorter; the
  *  cap exists so a pasted file cannot become a database row. */
 const MAX_OAUTH_FIELD_LENGTH = 1024;
-/** Matches `src/platform/oauth/providers.ts`'s own rule. Restated rather than imported for the reason this
+/** Matches the OAuth provider identifier rule. Restated rather than imported for the reason this
  *  file's header gives: the row shape must not depend on the flow module. */
 const OAUTH_PROVIDER_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
 
@@ -369,8 +365,7 @@ function toolNameSetsEqual(a: readonly string[], b: readonly string[]): boolean 
  *   ({@link carryOAuthRuntimeState}), so a non-null expiry cannot outlive the token it describes.
  *
  * @returns `true` only when a token is stored. The single state it can UNDER-report is a token
- * issued with no `expires_in` — RFC 6749 §5.1 makes it optional and `platform/oauth/token-endpoint
- * .ts` stores `null` rather than fabricating one — on a row that has since moved off `connected`
+ * issued with no `expires_in` — RFC 6749 §5.1 makes it optional and the OAuth token endpoint stores `null` rather than fabricating one — on a row that has since moved off `connected`
  * without its token being cleared: a re-connect left `pending`, or a terminal device-poll failure.
  * Under-reporting is the safe direction, and closing it exactly needs a plaintext token-presence
  * column, which is a schema change rather than a read fix.
@@ -738,7 +733,7 @@ export async function readEnabledExternalMcpConfigs(
 }
 
 /**
- * Maps stored configs onto the shape `mcp-federation/bootstrap.ts` consumes.
+ * Maps stored configs onto the shape `../bootstrap.ts` consumes.
  *
  * Timeouts and caps come from core's shared `FEDERATED_CONNECTION_DEFAULTS` rather than being
  * stored per server: they are policy about how much a third party may cost this process, which is
@@ -793,7 +788,7 @@ function toFederatedLaunchSpec(target: ExternalMcpServerTarget): McpLaunchSpec {
  * `env: undefined` preserves whatever is already stored, which is what lets the tab patch `enabled`
  * or `label` without the operator re-typing credentials the UI never sent them. `env: ""` is the
  * distinct, explicit "clear the credentials" instruction — the same unset-vs-empty distinction
- * `mcp-federation/config.ts` draws for allowlists, and for the same reason.
+ * `../config.ts` draws for allowlists, and for the same reason.
  *
  * @throws {ExternalMcpValidationError} On any invalid operator input.
  * @throws {ExternalMcpSecretStoreUnconfiguredError} When no site key is available to seal under.
@@ -950,7 +945,7 @@ function firstTrimmed(...candidates: readonly (string | null | undefined)[]): st
  * run RFC 8414 discovery against its own URL at connect time and read the authorization server's own
  * `grant_types_supported` (`discovery.ts`) instead of an operator having to guess between "Browser
  * sign-in" and "Device code" before they know what the server even offers. See
- * `external-mcp-oauth.ts`'s `selfConfigureConnection`, which resolves and persists a concrete grant
+ * the sign-in service's `selfConfigureConnection`, which resolves and persists a concrete grant
  * the first time such a row connects. A stdio row has no URL to discover from, so for those the
  * requirement stands unchanged.
  *
@@ -1006,12 +1001,11 @@ function assertOAuthClientId(clientId: string, selfConfigurable: boolean): strin
  * clearing a provider id and typing endpoints (or the reverse) cannot leave half of the old pairing
  * behind. "Actually typed" is judged by content, not key presence: the admin form sends both fields
  * on every save (it cannot round-trip a connection's own endpoints), so treating mere presence as a
- * touch made an untouched save look like an identity change on every edit — see
- * `use-external-mcp.hooks.ts`'s header for the caller-side half of this fix.
+ * touch made an untouched save look like an identity change on every edit. The host's form must preserve that distinction.
  *
  * The dynamic-registration members (`clientAuth`, `dynamicClientId`, `registeredRedirectUri`) are
  * exempted from re-derivation regardless of branch: they are server-owned, written only by dynamic
- * client registration (`external-mcp-oauth.ts`), and no operator input can express them, so even a
+ * client registration by the sign-in service, and no operator input can express them, so even a
  * save that legitimately edits the other endpoints must not drop them.
  *
  * @throws {ExternalMcpValidationError} When neither a provider id nor a token endpoint is present,
@@ -1120,7 +1114,7 @@ function resolveOAuthFields(
   if (authMode !== "oauth") return NO_OAUTH_FIELDS;
 
   const oauth = input.oauth ?? {};
-  // Only a remote row has a URL for `external-mcp-oauth.ts` to run RFC 9728 / RFC 8414 discovery
+  // Only a remote row has a URL for the sign-in service to run RFC 9728 / RFC 8414 discovery
   // against, so only a remote row may leave its provider identity, grant and client id to be filled
   // in at connect time.
   const selfConfigurable = transport !== "stdio";
@@ -1305,7 +1299,7 @@ function carryOAuthRuntimeState(
  * unseal, change one member, reseal — because a writer that seals `{ tokens }` alone silently
  * deletes the operator's client secret.
  *
- * Structurally compatible with `src/platform/oauth/`'s `OAuthTokenSet`, but declared here rather than
+ * Structurally compatible with the OAuth client's `OAuthTokenSet`, but declared here rather than
  * imported: this is the STORED shape, and it must be able to stay still while the flow module's
  * in-memory type moves.
  */

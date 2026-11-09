@@ -5,7 +5,7 @@ import type { FederatedCallTarget, FederatedGateVerdict } from "../ports.js";
 import { rosterRefusalFor } from "./revocation.js";
 import { resolveExternalMcpAuthMode, resolveExternalMcpOAuthStatus } from "./auth.js";
 
-/** What {@link createExternalMcpConnectionGate} closes over — split out so
+/** What {@link createHostedMcpConnectionGate} closes over — split out so
  *  {@link readConnectionRowOrRefuse} can share the exact same shape rather than restating it. */
 export interface ExternalMcpConnectionGateDeps {
   readonly workspaceId: UUID;
@@ -22,7 +22,7 @@ export interface ExternalMcpConnectionGateDeps {
  * check; `true` skips only the legacy re-authorization check. `reauthRequired` is the host's ONE canonical re-authorization
  * factory, the same function its sign-in service throws through, so `instanceof`, `code` and `retryable` stay one identity.
  * `revoked` builds the host's revocation error with its own messages and code. `recovery` returns model-facing recovery
- * text naming the host's own tool ids. `logUnreadableRow` is operator-only diagnostics; its detail never reaches model text.
+ * text naming the host's own tool ids. `logUnreadableRow` is operator-only diagnostics; it MUST NOT throw, and its detail never reaches model text.
  */
 export interface HostedMcpConnectionGatePorts extends ExternalMcpConnectionGateDeps {
   readonly reauthRequired: (input: { serverId: string; label?: string | null }) => Error;
@@ -35,7 +35,7 @@ export interface HostedMcpConnectionGatePorts extends ExternalMcpConnectionGateD
 }
 
 /**
- * Builds the liveness-AND-revocation gate `mcp-federation/registrations.ts` checks before every
+ * Builds the liveness-AND-revocation gate the federation checks before every
  * federated call.
  *
  * ## Why this reads the database on every call, and why that is the right cost
@@ -49,8 +49,8 @@ export interface HostedMcpConnectionGatePorts extends ExternalMcpConnectionGateD
  *
  * A preset connection (`origin.kind === "preset"`) has no row in this table at all — its
  * `allowedToolNames`, its enabled state, everything about it, comes from
- * `mcp-federation/presets.ts`'s environment resolution, not from an operator-editable roster row.
- * So {@link rosterRefusalFor} — `external-mcp-revocation.ts`'s per-call re-check against a roster
+ * the host's preset resolution, not from an operator-editable roster row.
+ * So {@link rosterRefusalFor} — `revocation.ts`'s per-call re-check against a roster
  * row's CURRENT `enabled`/grant-lists/admission-revision — is skipped entirely for a preset; refusing
  * it would take out a working server to guard a state it structurally cannot be in. A roster
  * connection (`origin.kind === "roster"`, or a call built with no origin at all — the `unverifiable`
@@ -109,8 +109,8 @@ async function assertProvisioningPluginEnabled({ deps, record }: { deps: HostedM
 
 /** The gate's row read, guarded: a read that THROWS (a locked database, a corrupt row) must not leak
  *  its detail to the model — that detail can carry a file path or a driver's internal message — so it
- *  goes to `console.warn` for an operator to find, and the model gets only `unverifiable`'s generic
- *  text. Split out of {@link createExternalMcpConnectionGate} purely to keep that function's
+ *  goes to the host's `logUnreadableRow` port for an operator to find, and the model gets only `unverifiable`'s generic
+ *  text. Split out of {@link createHostedMcpConnectionGate} purely to keep that function's
  *  complexity under the shop ceiling.
  *  @complexity O(1). */
 async function readConnectionRowOrRefuse(deps: HostedMcpConnectionGatePorts, connectionId: string): Promise<ExternalMcpServerRecord | null> {
@@ -124,7 +124,7 @@ async function readConnectionRowOrRefuse(deps: HostedMcpConnectionGatePorts, con
 
 /** The gate's ORIGINAL body, byte-identical in behaviour: a missing row, or one not OAuth-authenticated,
  *  passes; `needs_reauth` throws the same terminal error it always has. Split out of
- *  {@link createExternalMcpConnectionGate} purely to keep that function's complexity under the shop
+ *  {@link createHostedMcpConnectionGate} purely to keep that function's complexity under the shop
  *  ceiling.
  *  @complexity O(1). */
 function assertNotAwaitingReauth(deps: HostedMcpConnectionGatePorts, record: ExternalMcpServerRecord | null, connectionId: string): void {

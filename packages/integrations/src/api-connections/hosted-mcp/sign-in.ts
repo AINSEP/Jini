@@ -9,8 +9,8 @@ import { createSharedExternalMcpOAuth, type SharedExternalMcpOwner } from "./sha
  * @file Connects `@jini-ai/oauth`'s generic client to one external-MCP connection row.
  *
  * This is the ONLY module that knows both halves. `@jini-ai/oauth` knows nothing about MCP;
- * `external-mcp-store.ts` knows nothing about token endpoints; this file owns the join and nothing
- * else — no HTTP routing (that is `server/routes/`), no federation (that is `mcp-federation/`).
+ * the hosted store knows nothing about token endpoints; this file owns the join and nothing
+ * else. The host owns HTTP routes and binds federation separately.
  *
  * Callback routes reuse the connectors' public mount, XSS-safe page, origin-checked popup bridge,
  * focus-regain fallback and per-IP limiters. Authorization grants, PKCE, exchange, refresh and
@@ -19,7 +19,7 @@ import { createSharedExternalMcpOAuth, type SharedExternalMcpOwner } from "./sha
  * ## Connect-time failures are loud, fast and never retried
  *
  * A connect attempt is a FOREGROUND action with a human watching a spinner — the exact opposite of
- * `mcp-federation/bootstrap.ts`'s boot-time federation, which fails open precisely because nobody
+ * boot-time federation, which fails open precisely because nobody
  * asked for that server at that moment. So every call here is bounded by a timeout and reports a
  * specific failure; nothing loops. An authorization code is single-use and the first response may
  * have been lost AFTER the provider redeemed it, so an automatic retry can burn a code that

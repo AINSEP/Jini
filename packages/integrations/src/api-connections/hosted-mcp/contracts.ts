@@ -7,17 +7,14 @@ import type { ExternalMcpAuthMode, ExternalMcpConnectStart, ExternalMcpOAuthStat
 /**
  * One device authorization awaiting the operator's approval.
  *
- * `Promise`-returning because the real adapter
- * (`platform/db/repos/oauth-pending-store.ts`'s `createSqlDeviceAuthorizationStore`)
- * persists to `content.db` and seals `deviceCode` through the same ADR-058 sealer/keyring every
- * other secret there goes through, so both implementations share one async call shape. This file's
- * own `createDeviceAuthorizationStore` below is the in-memory ADR-006 "second adapter" — used by
- * tests and by any composition root with no persistent `content.db` — not the production path.
+ * `Promise`-returning so the host's durable adapter can persist and seal `deviceCode` through
+ * its sealer/keyring. The in-memory `createDeviceAuthorizationStore` is useful for tests and
+ * compositions where the entire handshake stays in one process.
  * "Worthless after a restart" was never the reason durability matters: the agent daemon starts the
  * handshake and the web server completes it in a different process, and a process-local Map cannot
  * join those two legs. Memory stores remain useful only where the whole handshake stays in one process.
  */
-/** @agent-note Fulfilled by the host (durable store in production, memory only when one process runs the whole handshake). The service that starts a device grant and the one that polls it must share this store. */
+/** @agent-note Fulfilled by the host (durable store in production, memory only when one process runs the whole handshake). The service that starts a device grant and the one that polls it must share this store. Durable adapters seal the secret `deviceCode` with the host's sealer/keyring; it must never be persisted as plaintext. */
 export interface DeviceAuthorizationStore {
   /** @agent-note Replaces any pending authorization for the server id. */
   put(serverId: string, authorization: DeviceAuthorization): Promise<void>;
@@ -47,13 +44,15 @@ export interface ExternalMcpOAuthDeps<Shared = never> {
    *  mutating another service's registry. Defaults to this service's host-owned instance. */
   readonly lookupProvider?: (providerId: string) => OAuthProviderDescriptor;
   /** Runs after a sign-in succeeds (redirect callback or device poll), once the token is durable.
-   *  The composition root wires `features/agent-plugins/apply-connect-defaults.ts` here. A throw is
-   *  logged and never fails the sign-in: the connection itself already succeeded. */
+   *  The host wires its post-connect defaults here. A throw is logged and never fails the
+   *  sign-in: the connection itself already succeeded. */
   /** @agent-note Called exactly ONCE per successful sign-in, after the token write is durable; its rejection is logged by the host and never changes the sign-in result. */
   readonly onConnected?: (serverId: string) => Promise<void>;
 }
 
-/** @agent-note One instance per host composition; its `tokenResolver` is what the store receives. OAuth errors keep their original class identity; validation refusals are the canonical `ExternalMcpValidationError` from `@jini-ai/mcp/federation/hosted`. */
+/** @agent-note One instance per host composition; its `tokenResolver` is what the store receives. OAuth errors keep their original class identity; validation refusals are the canonical `ExternalMcpValidationError` from `@jini-ai/mcp/federation/hosted`.
+ * The host owns browser routes: authenticate the hosted sign-in hop, validate callback browser bindings, escape displayed content, check popup message origins and bound public callback traffic. Route inputs must not bypass these checks through the in-process unbound callback contract.
+ */
 export interface ExternalMcpOAuthService {
   /**
    * Starts an authorization for one connection.
@@ -69,8 +68,7 @@ export interface ExternalMcpOAuthService {
    *   EVERY grant whenever the host's public-URL setting was unset — including the one that needed nothing. So:
    *   omit it when there is genuinely no origin. Never pass one built from anything the CALLER
    *   supplied (a form field, a tool-call argument) — only from operator configuration or this
-   *   process's own known bind origin (`features/external-mcp/tool-registrations.ts`'s
-   *   `resolveExternalMcpOAuthRedirectUri` covers both). A redirect URI the provider was
+   *   process's own known bind origin, resolved by the host. A redirect URI the provider was
    *   not registered with still fails at the vendor with an error about the client, so this is not a
    *   license to guess from arbitrary caller input — it is what makes a value trustworthy enough to
    *   pass at all.
@@ -109,11 +107,11 @@ export interface ExternalMcpOAuthService {
   /**
    * Reacts to a live federated call failing because the remote rejected our authorization (HTTP
    * 401/403), discovered mid-session rather than at boot — wired as
-   * `mcp-federation/registrations.ts`'s `FederationDeps.onAuthFailed`.
+   * the federation's `FederationDeps.onAuthFailed`.
    *
    * For an OAuth-authenticated row this records `needs_reauth` durably, the same state
    * `tokenResolver.resolveAccessToken` reaches at boot, so the NEXT call is refused cheaply by
-   * `createExternalMcpConnectionGate`'s row read instead of reaching the network again — and
+   * the host's connection-gate row read instead of reaching the network again — and
    * replaces the transport-shaped error with the same terminal, non-retryable
    * {@link ExternalMcpReauthRequiredError} that path already throws.
    *
@@ -200,6 +198,6 @@ export interface HostedMcpSignInPorts {
   readonly discoveryPolicy: (input: { readonly guard: OAuthUrlGuard }) => OAuthDiscoveryPolicy;
   readonly withCopy: <T>(input: { readonly call: () => Promise<T> }) => Promise<T>;
   readonly copy: HostedMcpSignInCopy;
-  /** @agent-note Operator diagnostics only; called when `onConnected` rejects, after which sign-in still succeeds. */
+  /** @agent-note Operator diagnostics only; called when `onConnected` rejects, after which sign-in still succeeds. This logger MUST NOT throw or forward provider details to model-facing text. */
   readonly log: { readonly postConnectFailed: (input: { readonly serverId: string; readonly error: unknown }) => void };
 }

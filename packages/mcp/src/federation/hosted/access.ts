@@ -22,7 +22,7 @@ type ExternalMcpAccessRecord = ExternalMcpAdmissionSource & Omit<ExternalMcpAcce
 
 const MAX_ALLOWED_TOOLS = 64;
 /** Matches `trust.ts`'s own `REMOTE_TOOL_NAME_PATTERN`. Restated rather than imported because that
- *  constant is private to the trust tier; `__tests__/external-mcp-store.test.ts` asserts the two
+ *  constant is private to the trust tier; the host's store conformance tests asserts the two
  *  agree by round-tripping a name through `admitRemoteTools`. */
 const REMOTE_TOOL_NAME_PATTERN = /^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$/;
 /** Decode stored list columns; strict grant readers refuse malformed state. O(n) JSON bytes. */
@@ -40,11 +40,11 @@ export function parseExternalMcpJsonArray({ raw }: { raw: string | null }, { str
 }
 
 /**
- * A connection's "admitted under this" fingerprint — what `external-mcp-revocation.ts`'s per-call
+ * A connection's "admitted under this" fingerprint — what `revocation.ts`'s per-call
  * gate compares a roster connection's row against to catch a delete-then-recreate, a
  * url/command/args/transport/authMode edit, or a rotated/cleared static credential, none of
  * which re-admit an already-running connection (the registry is append-only;
- * `mcp-federation/reload.ts` never re-admits an admitted id).
+ * `../reload.ts` never re-admits an admitted id).
  *
  * `sealedEnv`'s CIPHERTEXT is included: a `static_env`/`stdio` credential is
  * resealed only when an operator actually submits a new `env` block — an ordinary toggle/rename
@@ -101,7 +101,7 @@ export function externalMcpAccessSnapshot({ record }: { record: ExternalMcpAcces
 }
 
 /** Parses a row's two grant lists the same way {@link resolveExternalMcpConfig} does — shared so
- *  admission and `external-mcp-revocation.ts`'s per-call re-check can never silently disagree about
+ *  admission and `revocation.ts`'s per-call re-check can never silently disagree about
  *  what a malformed list means (both fail closed to `[]`).
  *  @complexity O(n) in the size of the two JSON blobs. */
 /** @agent-note Pure. Admission and the per-call gate must both use this function so a malformed list means the same thing to both. */

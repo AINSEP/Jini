@@ -2,11 +2,8 @@ import type { SealedSecret } from "@jini-ai/core/contracts/vault";
 import type { ExternalMcpAuthMode, ExternalMcpOAuthStatus } from "@jini-ai/core/contracts/hosted-mcp";
 
 /**
- * @file The external-MCP domain's auth-mode readers, moved here from `features/external-mcp/external-mcp-store.ts`
- * (2026-10-03, owner decision C) so `features/agent-plugins/{connect-tool,federate-mcp}.ts` can read a
- * row's credential mode without value-importing from `src/assistant/` — the edge
- * `assistant/__tests__/domain-no-direct-tool-registration.boundary.test.ts` forbids. The store
- * and its consumers import this shared leaf directly, preserving a single vocabulary owner.
+ * @file The hosted-MCP auth-mode readers. The store and its consumers import this shared leaf
+ * directly, preserving a single vocabulary owner without importing the sign-in or host tool layer.
  *
  * Parameters are declared STRUCTURALLY (the two fields each reader touches) rather than as
  * `Pick<ExternalMcpServerRecord, ...>`: the record type lives in the store, which imports THIS file,
@@ -20,7 +17,7 @@ import type { ExternalMcpAuthMode, ExternalMcpOAuthStatus } from "@jini-ai/core/
  * - `static_env` — the operator pasted a `KEY=VALUE` block. What this store has always done, and
  *   the default for every row that predates this field.
  * - `oauth` — the host holds a token it obtained itself and must keep alive. See
- *   `features/external-mcp/external-mcp-oauth.ts`.
+ *   the separately wired sign-in service.
  */
 /** @agent-note Saved `authMode` literals; equals core `ExternalMcpAuthMode` both ways (pinned by test). */
 export const EXTERNAL_MCP_AUTH_MODES = ["none", "static_env", "oauth"] as const;
@@ -45,7 +42,7 @@ export function resolveExternalMcpAuthMode(record: { authMode: string }): Extern
  * Whether a row holds a `static_env` access token — answered from plaintext columns, never by unsealing.
  *
  * Truthful because a `static_env` row's sealed OAuth blob only ever holds that token: leaving `oauth`
- * clears the client secret and token set (`features/external-mcp/external-mcp-store.ts`'s `resolveSealedOAuthBlob`),
+ * clears the client secret and token set (`store.ts`'s `resolveSealedOAuthBlob`),
  * and entering `oauth` never carries this token forward (`openExternalMcpOAuthPayload`'s callers
  * rebuild the payload from `clientSecret`/`tokens` alone).
  *

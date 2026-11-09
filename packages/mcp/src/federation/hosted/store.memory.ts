@@ -8,7 +8,7 @@ import type { ExternalMcpAccessUpdate, ExternalMcpServerRecord, ExternalMcpServe
 import type { HostedMcpVaultPorts } from "./store-ports.js";
 
 /**
- * @file In-memory `ExternalMcpServerRepoPort` — the ADR-006 rule-of-two "first adapter", and the
+ * @file In-memory `ExternalMcpServerRepoPort` — the in-memory adapter, and the
  * double every store/route test binds instead of a real database.
  *
  * Keyed by `workspaceId` + `serverId` exactly as the table's composite primary key is, so a test
