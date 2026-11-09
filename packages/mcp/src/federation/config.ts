@@ -1,4 +1,4 @@
-import type { McpBearerTokenSupplier } from "./adapter.http.js";
+import type { McpBearerTokenSupplier } from "@jini-ai/core/contracts/hosted-mcp";
 import type { FederatedMcpConnectionConfig, McpLaunchSpec } from "./ports.js";
 
 /**
