@@ -6,7 +6,11 @@ import type { VaultRecord } from '@jini-ai/core/contracts/vault';
 import type { ExternalMcpConnectStart, ExternalMcpServerRecord } from '@jini-ai/core/contracts/hosted-mcp';
 import type { ExternalMcpOAuthDeps, ExternalMcpOAuthService, HostedMcpSignInPorts } from './contracts.js';
 
-/** @agent-note Issuing configuration sealed in the owner store (structurally the host's shared-owner context); a consuming site's client cannot replace it. */
+/** @agent-note Issuing configuration sealed in the owner store; a consuming site's client cannot replace it.
+ * Storage MUST losslessly preserve the entire supplied context, including additional fields beyond this base interface.
+ * In particular, shared MCP sign-in persists `mcp: { provider: OAuthProviderDescriptor, scopes: readonly string[], url: string | null, grant: string | null }`.
+ * `saveContext` must seal those fields and `readContext` must return them unchanged after restart; projecting only the five declared fields breaks device polls and callbacks.
+ */
 export interface SharedSignInIssuingContext {
   readonly credentialId: string;
   readonly identity: SharedOAuthConnection['identity'];
@@ -28,24 +32,30 @@ export interface SharedSignInBindings {
   set(input: { consumerId: string; credentialId: string }): Promise<void>;
   remove(input: { consumerId: string }): Promise<void>;
 }
-/** @agent-note Fulfilled by the host's project-key attachments: the live owner grant, checked on every use (no cache). */
+/** @agent-note Fulfilled by the host's owner-grant attachments: the live owner grant, checked on every use (no cache). */
 export interface SharedSignInAttachments {
   attach(required: { siteId: string; keyId: string; siteName: string }): Promise<void>;
   detach(required: { siteId: string; keyId: string }): Promise<void>;
   isAttached(required: { siteId: string; keyId: string }): Promise<boolean>;
 }
-/** @agent-note The host's project transaction; binding and attachment writes inside one `run` commit together. */
+/** @agent-note The host's owner transaction; binding and attachment writes inside one `run` commit together. Concurrent grant/removal operations must serialize so a completed removal cannot be undone by an older pending grant. */
 export type SharedSignInTransaction = <T>(required: { run: () => Promise<T> }) => Promise<T>;
 
+/** @agent-note Host-owned storage and identity for shared sign-in. Owner records and tokens stay in the owner workspace; site bindings contain references only.
+ * Persisted protocol identifiers (`external-mcp`, `oauth`, `mcp:` and `shared`) stay stable across restarts and upgrades; they do not select a host workspace.
+ */
 export interface SharedExternalMcpOwner {
+  /** @agent-note The workspace validated by `owner.records` and its vault, also used to derive credential keys. Distinct from the consuming site's workspace. */
+  readonly ownerWorkspaceId: string;
   readonly owner: SharedSignInOwner;
   readonly bindings: SharedSignInBindings;
   readonly attachments: SharedSignInAttachments;
   readonly transaction: SharedSignInTransaction;
   readonly siteId: string;
   readonly siteName: string;
+  /** @agent-note The authenticated owner identity; the host supplies actor ids from trusted authentication, never model or form input. */
   readonly ownerPrincipalId: string | Promise<string>;
-  /** Production supplies the existing bounded owner inventory query. */
+  /** @agent-note Optional bounded owner inventory query; it returns metadata only, never token payloads. */
   readonly inventory?: () => Promise<readonly VaultRecord[]>;
 }
 export interface SharedMcpConfiguration {
@@ -162,14 +172,14 @@ export function createSharedExternalMcpOAuth(required: {
     const server = await deps.repo.findByServerId({ workspaceId: deps.workspaceId, serverId: input.serverId });
     if (!server || server.transport === 'stdio') throw unavailable();
     const config = await configure(input);
-    const credentialId = deriveApiConnectionKey({ workspaceId: 'project', pluginId: MCP_PLUGIN_ID, connectionId: randomUUID() });
+    const credentialId = deriveApiConnectionKey({ workspaceId: shared.ownerWorkspaceId, pluginId: MCP_PLUGIN_ID, connectionId: randomUUID() });
     const context: SharedMcpContext = { credentialId, identity: { pluginId: MCP_PLUGIN_ID, connectionId: 'oauth', clientId: config.client.clientId,
       tokenEndpoint: config.provider.tokenEndpoint, ...(config.provider.authorizationEndpoint === undefined ? {} : { authorizationEndpoint: config.provider.authorizationEndpoint }), ...(config.resource === undefined ? {} : { resource: config.resource }), ...(config.issuer === undefined ? {} : { issuer: config.issuer }) },
       client: config.client, clientKind: config.client.authMethod === 'none' ? 'public' : 'confidential', descriptor: { pluginId: MCP_PLUGIN_ID, connectionId: 'oauth', label: config.record.label ?? config.record.serverId,
         authorizationEndpoint: config.provider.authorizationEndpoint ?? config.provider.tokenEndpoint, tokenEndpoint: config.provider.tokenEndpoint,
         authorizationParams: { public: {}, confidential: {} }, forceConsentParams: {}, startParams: [], callbackFields: [] },
       mcp: { provider: config.provider, scopes: config.scopes, url: config.record.url, grant: config.record.oauthGrant } };
-    const record: ApiConnectionRecord = { key: credentialId, workspaceId: 'project', pluginId: MCP_PLUGIN_ID, connectionId: 'oauth', status: 'disconnected',
+    const record: ApiConnectionRecord = { key: credentialId, workspaceId: shared.ownerWorkspaceId, pluginId: MCP_PLUGIN_ID, connectionId: 'oauth', status: 'disconnected',
       revision: 1, generation: 0, account: null, grantedScopes: [], staged: null, revocationFailure: null, updatedAt: new Date(deps.clock.nowMs()).toISOString() };
     await owner.saveContext({ credentialId, context });
     if (!await owner.records.compareAndSet({ key: credentialId, expectedRevision: 0, record })) throw unavailable();
