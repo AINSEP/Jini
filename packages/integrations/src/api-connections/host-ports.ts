@@ -49,7 +49,13 @@ export interface ApiConnectionHostStorage {
 /** Only the selected credential's client fields and allowed origins cross this boundary. */
 export interface ApiConnectionByoCredential {
   readonly connection: { readonly username?: string | undefined; readonly token: string };
-  readonly allowedOrigins: readonly string[];
+  /**
+   * The saved credential's allowed origins, projected only when called.
+   * @agent-note Deferred on purpose: `resolveByoClient` calls it after the read has resolved and
+   * outside the read's "unreadable" catch, so a projection failure (e.g. a malformed saved base URL)
+   * rejects with the host's own raw error instead of being reported as an unreadable credential.
+   */
+  readonly allowedOrigins: () => readonly string[];
 }
 export type ApiConnectionByoRefusal = { connection: Pick<DeclaredApiConnection, 'descriptor'>; label: string } & (
   { problem: 'unreadable' | 'missing-client-id' } | { problem: 'wrong-origin'; tokenOrigin: string }

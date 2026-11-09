@@ -44,7 +44,7 @@ export async function resolveByoClient(
     .catch(() => required.byoCredentials.refuse({ connection, label, problem: "unreadable" }));
   if (saved === null || saved instanceof ApiConnectionError) return saved ?? undefined;
   const tokenOrigin = new URL(connection.descriptor.tokenEndpoint).origin;
-  if (!saved.allowedOrigins.includes(tokenOrigin)) return required.byoCredentials.refuse({ connection, label, problem: "wrong-origin", tokenOrigin });
+  if (!saved.allowedOrigins().includes(tokenOrigin)) return required.byoCredentials.refuse({ connection, label, problem: "wrong-origin", tokenOrigin });
   const clientId = saved.connection.username?.trim();
   if (!clientId) return required.byoCredentials.refuse({ connection, label, problem: "missing-client-id" });
   return { clientId, clientSecret: saved.connection.token };

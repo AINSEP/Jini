@@ -10,7 +10,7 @@ function declaration(): DeclaredApiConnection {
 
 it('A3 public BYO seam reads one projected credential and preserves the stable label', async () => {
   const reads: unknown[] = [];
-  const byoCredentials: ApiConnectionByoCredentials = { read: async input => { reads.push(input); return { connection: { username: ' client ', token: 'human-secret' }, allowedOrigins: ['https://auth.relay.test'] }; }, refuse: () => { throw new Error('unexpected refusal'); } };
+  const byoCredentials: ApiConnectionByoCredentials = { read: async input => { reads.push(input); return { connection: { username: ' client ', token: 'human-secret' }, allowedOrigins: () => ['https://auth.relay.test'] }; }, refuse: () => { throw new Error('unexpected refusal'); } };
   expect(byoClientLabel({ pluginId: 'relay', connectionId: 'account' })).toBe('relay/account OAuth client');
   expect(await resolveByoClient({ connection: declaration(), workspaceId: 'studio', byoCredentials })).toEqual({ clientId: 'client', clientSecret: 'human-secret' });
   expect(reads).toEqual([{ workspaceId: 'studio', label: 'relay/account OAuth client' }]);
@@ -20,8 +20,8 @@ it('A3 BYO unreadable/wrong-origin/missing-id refusals are the injected host err
   const marker = new ApiConnectionError({ code: 'descriptor-invalid', message: 'Studio client unavailable; use studio settings.' });
   const problems: string[] = [];
   for (const read of [async () => { throw new Error('private read failure'); },
-    async () => ({ connection: { token: 'secret', username: 'client' }, allowedOrigins: ['https://wrong.test'] }),
-    async () => ({ connection: { token: 'secret' }, allowedOrigins: ['https://auth.relay.test'] })]) {
+    async () => ({ connection: { token: 'secret', username: 'client' }, allowedOrigins: () => ['https://wrong.test'] }),
+    async () => ({ connection: { token: 'secret' }, allowedOrigins: () => ['https://auth.relay.test'] })]) {
     expect(await resolveByoClient({ connection: declaration(), workspaceId: 'studio', byoCredentials: { read, refuse: input => { problems.push(input.problem); return marker; } } })).toBe(marker);
   }
   expect(problems).toEqual(['unreadable', 'wrong-origin', 'missing-client-id']);
