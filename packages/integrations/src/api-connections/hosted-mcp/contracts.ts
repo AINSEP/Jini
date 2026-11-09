@@ -36,10 +36,12 @@ export interface ExternalMcpOAuthDeps<Shared = never> {
   readonly sealer: SecretSealerPort;
   readonly keyring: KeyringPort;
   readonly clock: ClockPort;
+  /** @agent-note ONE device store per host composition, shared by the service that starts a device grant and the one that polls it. */
   readonly devices: DeviceAuthorizationStore;
   /** Required guarded transport and endpoint policy: no raw-fetch fallback can send a credential. */
   readonly httpPorts: OAuthHttpPorts;
-  /** Host-owned registration; separate services do not mutate a process-wide provider map. */
+  /** Host-owned registration; separate services do not mutate a process-wide provider map.
+   *  @agent-note ONE registry per service instance, built by the host; never a process-wide map. */
   readonly providers?: OAuthProviderRegistry;
   /** Resolves a REGISTERED provider descriptor. Injected so a test can register its own without
    *  mutating another service's registry. Defaults to this service's host-owned instance. */
@@ -47,6 +49,7 @@ export interface ExternalMcpOAuthDeps<Shared = never> {
   /** Runs after a sign-in succeeds (redirect callback or device poll), once the token is durable.
    *  The composition root wires `features/agent-plugins/apply-connect-defaults.ts` here. A throw is
    *  logged and never fails the sign-in: the connection itself already succeeded. */
+  /** @agent-note Called exactly ONCE per successful sign-in, after the token write is durable; its rejection is logged by the host and never changes the sign-in result. */
   readonly onConnected?: (serverId: string) => Promise<void>;
 }
 
