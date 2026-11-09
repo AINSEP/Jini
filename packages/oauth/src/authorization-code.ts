@@ -15,7 +15,7 @@ import { assertSafeProviderEndpoint } from "./endpoint-safety.js";
 import { OAuthError } from "./errors.js";
 import { invalidState, type PendingAuthorizationStore } from './pending-authorizations.js';
 import { assertValidCodeVerifier, createPkcePair } from "./pkce.js";
-import type { OAuthClient, OAuthProviderDescriptor, OAuthRandomBytes, OAuthTokenSet, OAuthUrlGuard, OAuthAppOptions, OAuthResource } from "./ports.js";
+import type { OAuthClient, OAuthProviderDescriptor, OAuthTokenSet, OAuthResource } from "./ports.js";
 import { createOAuthClientConfiguration, requestOAuthToken, type TokenRequestDeps } from "./token-endpoint.js";
 import { MAX_AUTHORIZATION_STATE_LENGTH, type SealedAuthorizationState } from './sealed-state.js';
 /** Bound on an authorization code; the loopback receiver applies the same one at the edge. */

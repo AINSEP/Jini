@@ -2,7 +2,7 @@ import type { OperatorOAuthProviderInput } from '@jini-ai/core/contracts/oauth';
 export type { OperatorOAuthProviderInput } from '@jini-ai/core/contracts/oauth';
 import type { OAuthProviderRegistry } from '@jini-ai/core/contracts/oauth';
 export type { OAuthProviderRegistry } from '@jini-ai/core/contracts/oauth';
-import type { OAuthRequiredArgs, OAuthOptionalArgs, OAuthEmptyArgs } from './args.js';
+import type { OAuthRequiredArgs, OAuthOptionalArgs } from './args.js';
 /** Provider descriptor validation and independent registries. No provider is registered as a module side effect. */
 import { assertSafeProviderEndpoint } from "./endpoint-safety.js";
 import { OAuthError } from "./errors.js";

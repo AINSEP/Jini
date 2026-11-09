@@ -1,6 +1,6 @@
 import type { DynamicClientRegistrationDeps, DynamicClientRegistrationInput } from '@jini-ai/core/contracts/oauth';
 export type { DynamicClientRegistrationDeps, DynamicClientRegistrationInput } from '@jini-ai/core/contracts/oauth';
-import { defaultOAuthMessages, type OAuthMessages } from './messages.js';
+import { defaultOAuthMessages } from './messages.js';
 import type { OAuthRequiredArgs, OAuthOptionalArgs } from './args.js';
 import {
     dynamicClientRegistrationRequest, processDynamicClientRegistrationResponse,
@@ -11,7 +11,7 @@ import { assertOAuthAppOptions } from "./options.js";
 import { MAX_OAUTH_RESPONSE_BYTES, readOptionalString } from "./bounded-json.js";
 import { assertSafeProviderEndpoint } from "./endpoint-safety.js";
 import { adaptOAuthResponse, OAuthError } from "./errors.js";
-import type { OAuthClientAuthMethod, OAuthHttpPorts, OAuthAppOptions, RegisteredOAuthClient } from "./ports.js";
+import type { OAuthClientAuthMethod, RegisteredOAuthClient } from "./ports.js";
 import { createOAuthCustomFetch } from './guarded-transport.js';
 export type { RegisteredOAuthClient } from "./ports.js";
 const DEFAULT_REGISTRATION_TIMEOUT_MS = 15000;

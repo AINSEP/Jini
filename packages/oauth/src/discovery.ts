@@ -14,7 +14,7 @@ import { createIssuerBoundDiscoveryPolicy, type OAuthDiscoveryPolicy } from './d
 import { assertOAuthResponseNotRedirect, assertSafeProviderEndpoint } from './endpoint-safety.js';
 import { OAuthError } from './errors.js';
 import { createOAuthCustomFetch } from './guarded-transport.js';
-import type { OAuthHttpPorts, OAuthUrlGuard } from './ports.js';
+import type { OAuthUrlGuard } from './ports.js';
 
 const DISCOVERY_TIMEOUT_MS = 10000;
 export interface DiscoveredProtectedResource {

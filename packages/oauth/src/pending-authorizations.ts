@@ -22,7 +22,6 @@ import type { OAuthRequiredArgs, OAuthOptionalArgs, OAuthEmptyArgs } from './arg
  * fail at creation. Injected clocks let tests advance expiry without sleeping.
  */
 import { timingSafeEqual } from "node:crypto";
-import type { ISODateTime } from '@jini-ai/core/primitives';
 import { OAuthError } from "./errors.js";
 import type { OAuthRandomBytes } from "./ports.js";
 export const STATE_BYTES = 24;

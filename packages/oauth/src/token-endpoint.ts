@@ -10,7 +10,7 @@ import { MAX_OAUTH_RESPONSE_BYTES } from './bounded-json.js';
 import { assertSafeProviderEndpoint } from './endpoint-safety.js';
 import { adaptOAuthResponse, mapProviderErrorCode, OAuthError } from './errors.js';
 import { createOAuthCustomFetch } from './guarded-transport.js';
-import type { OAuthClient, OAuthTokenSet, OAuthHttpPorts, OAuthResource } from './ports.js';
+import type { OAuthClient, OAuthTokenSet, OAuthResource } from './ports.js';
 import { applyResourceIndicators } from './resource.js';
 
 export const DEFAULT_TOKEN_REQUEST_TIMEOUT_MS = 15000;
