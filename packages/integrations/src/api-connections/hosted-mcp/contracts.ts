@@ -27,7 +27,7 @@ export interface DeviceAuthorizationStore {
   delete(serverId: string): Promise<void>;
 }
 
-/** @agent-note `Shared` is the host's shared-owner storage port (Tovu binds `SharedExternalMcpOwner`); absent keeps site-local sign-in. `repo` must be the store's repository instance; `httpPorts` is required guarded transport; `onConnected` runs once after durable success and its failure never fails sign-in. */
+/** @agent-note `Shared` is the host's shared-owner storage port (for example a desktop shared-owner storage type); absent keeps site-local sign-in. `repo` must be the store's repository instance; `httpPorts` is required guarded transport; `onConnected` runs once after durable success and its failure never fails sign-in. */
 export interface ExternalMcpOAuthDeps<Shared = never> {
   /** Desktop owner storage is optional; absence retains existing site-local sign-in. */
   readonly shared?: Shared;
@@ -63,7 +63,7 @@ export interface ExternalMcpOAuthService {
    *   a code at the provider; nothing redirects back), while `authorization_code` cannot proceed
    *   without one. Requiring it here pushed that decision up to every caller, and the caller with no
    *   live HTTP request to derive an origin from (`external_mcp_oauth_connect`) consequently refused
-   *   EVERY grant whenever `TOVU_PUBLIC_URL` was unset — including the one that needed nothing. So:
+   *   EVERY grant whenever the host's public-URL setting was unset — including the one that needed nothing. So:
    *   omit it when there is genuinely no origin. Never pass one built from anything the CALLER
    *   supplied (a form field, a tool-call argument) — only from operator configuration or this
    *   process's own known bind origin (`features/external-mcp/tool-registrations.ts`'s

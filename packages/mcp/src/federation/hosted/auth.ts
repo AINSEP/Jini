@@ -19,7 +19,7 @@ import type { ExternalMcpAuthMode, ExternalMcpOAuthStatus } from "@jini-ai/core/
  * - `none` — no credentials at all. Common for local developer tooling.
  * - `static_env` — the operator pasted a `KEY=VALUE` block. What this store has always done, and
  *   the default for every row that predates this field.
- * - `oauth` — Tovu holds a token it obtained itself and must keep alive. See
+ * - `oauth` — the host holds a token it obtained itself and must keep alive. See
  *   `features/external-mcp/external-mcp-oauth.ts`.
  */
 /** @agent-note Saved `authMode` literals; equals core `ExternalMcpAuthMode` both ways (pinned by test). */

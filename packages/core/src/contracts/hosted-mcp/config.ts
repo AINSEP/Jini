@@ -85,7 +85,7 @@ export interface ExternalMcpOAuthView {
 }
 
 /** The read model the admin tab renders — never carries env VALUES or any OAuth secret. */
-/** @agent-note `TokenHint` is host input: the host binds its own credential-hint shape (Tovu binds its `CredentialTokenHint`). Never carries env values, tokens or client secrets. */
+/** @agent-note `TokenHint` is host input: the host binds its own credential-hint shape (for example the platform `CredentialTokenHint`). Never carries env values, tokens or client secrets. */
 export interface ExternalMcpServerView<TokenHint = never> {
   serverId: string;
   label: string;
