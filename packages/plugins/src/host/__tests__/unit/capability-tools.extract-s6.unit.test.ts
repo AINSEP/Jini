@@ -193,7 +193,7 @@ describe('EXTRACT-S6 capability tools: second host vocabulary', () => {
   it('registerEnabled registers each enabled capability tool on the given registry', async () => {
     const { tools, applyApprovalPolicy } = secondHost();
     const repo = await enabledRepo();
-    const registry = createToolRegistry();
+    const registry = createToolRegistry({});
     await tools.registerEnabled({
       registry,
       deps: { ...deps({ pluginActivationRepo: repo, authorize: async () => ({ allowed: true, reason: 'ok' }) }), discoverPlugins: async () => [discovered(manifest())] },

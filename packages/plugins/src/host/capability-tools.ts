@@ -197,16 +197,20 @@ export type PluginCapabilityApprovalPort<TFamily extends string> = (required: { 
 /** One resolved, already-namespace-parsed `ext.{pluginId}.*` field this tool can read back.
  *  @agent-note Built only from a `status: "valid"` manifest; no host input. */
 export interface PluginCapabilityFieldSource {
-  /** The full manifest-declared path, e.g. `"ext.word-count.count"`. */
+  /** The full manifest-declared path, e.g. `"ext.word-count.count"`.
+   *  @agent-note Manifest data, already validated; no host input. */
   readonly path: string;
   /** The key this field is stored under inside `post.ext[pluginId]` — `path` with the
    *  `ext.{pluginId}.` prefix stripped (e.g. `"count"`). Namespacing is already enforced by
    *  `Jini/packages/plugins/src/host/manifest.ts`'s `validateField` before a record can ever reach `status: "valid"`, so this is a
-   *  plain slice, not a re-validation. */
+   *  plain slice, not a re-validation.
+   *  @agent-note Key of this field in the result payload's `fields` object. */
   readonly fieldKey: string;
+  /** @agent-note Manifest field type, passed to the host's generic description only. */
   readonly type: PluginManifestFieldDecl["type"];
   /** Action-oriented, human-authored text when the manifest supplies one; otherwise
-   *  {@link PluginCapabilityToolText.genericFieldDescription}'s weaker fallback. Never empty. */
+   *  {@link PluginCapabilityToolText.genericFieldDescription}'s weaker fallback. Never empty.
+   *  @agent-note Plugin-authored or host-worded text; indexed for tool search. */
   readonly description: string;
 }
 
@@ -216,14 +220,20 @@ export interface PluginCapabilityFieldSource {
  *  @agent-note `id` is {@link capabilityToolIdFor}'s saved `plugin_capability_<id>` derivation, the
  *  same id the conflict detector claims; hosts must not re-derive it. */
 export interface PluginCapabilityToolSource {
+  /** @agent-note Saved tool id; see the interface note. */
   readonly id: string;
+  /** @agent-note Activation key re-read on every call. */
   readonly pluginId: string;
+  /** @agent-note Manifest display name handed to the host's text members. */
   readonly pluginName: string;
+  /** @agent-note Host-worded model-facing description, built once at load. */
   readonly description: string;
+  /** @agent-note Declared fields in manifest order; the result payload follows this order. */
   readonly fields: readonly PluginCapabilityFieldSource[];
   /** A tier-2 plugin with a `content.entry.beforeSave` filter: each call runs that filter on the
    *  stored post through `PluginCapabilityToolDeps.previewPluginBeforeSave` — see this file's header,
-   *  "Fresh results for Tier-2 plugins". */
+   *  "Fresh results for Tier-2 plugins".
+   *  @agent-note Fresh calls go through the host preview port and write nothing. */
   readonly runsFresh: boolean;
 }
 
@@ -255,8 +265,11 @@ export interface PluginCapabilityToolDeps<TPost extends PluginCapabilityPost, TD
 /** Discovery-time dependencies of {@link PluginCapabilityTools.loadSources}.
  *  @agent-note One discovery call; one activation read per field-declaring valid plugin. */
 export interface PluginCapabilitySourceDeps {
+  /** @agent-note Workspace whose activation rows decide which plugins get a tool. */
   readonly workspaceId: string;
+  /** @agent-note Host discovery; called once per load, never per plugin. */
   readonly discoverPlugins: () => Promise<readonly PluginDiscoveryRecord[]>;
+  /** @agent-note Same activation repository the per-call gate reads. */
   readonly pluginActivationRepo: PluginActivationRepoPort;
 }
 
@@ -300,8 +313,11 @@ export interface PluginCapabilityTools<TPost extends PluginCapabilityPost, TDraf
  *  @agent-note `register` must throw on a duplicate id; `has` and `list` are needed only for
  *  attaching executable tools to this same registry. */
 export interface PluginCapabilityRegistryPort {
+  /** @agent-note Throws on a duplicate id; not caught by the registrar. */
   register: (registration: ToolRegistration) => void;
+  /** @agent-note With `list`, lets executable tools attach to this registry. */
   has?: ToolRegistry["has"];
+  /** @agent-note With `has`, lets executable tools attach to this registry. */
   list?: ToolRegistry["list"];
 }
 
