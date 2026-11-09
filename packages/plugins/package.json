@@ -28,10 +28,10 @@
       }
     },
     "optionalPeers": {
-      "@jini-ai/platform": "opt-in: platform-backed adapters; import @jini-ai/plugins/host/node \u2014 Platform-backed adapters could not load @jini-ai/platform. Install @jini-ai/platform to enable this feature, or check its installed version and native binaries.",
-      "semver": "opt-in: plugin version compatibility; import @jini-ai/plugins/host \u2014 Plugin version compatibility could not load semver. Install semver to enable this feature, or check its installed version and native binaries.",
-      "kysely": "opt-in: sql storage adapters; import @jini-ai/plugins/host/sql \u2014 SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/db": "opt-in: database-backed adapters; import @jini-ai/plugins/host/sql \u2014 Database-backed adapters could not load @jini-ai/db. Install @jini-ai/db to enable this feature, or check its installed version and native binaries."
+      "@jini-ai/platform": "opt-in: platform-backed adapters; import @jini-ai/plugins/host/node — Platform-backed adapters could not load @jini-ai/platform. Install @jini-ai/platform to enable this feature, or check its installed version and native binaries.",
+      "semver": "opt-in: plugin version compatibility; import @jini-ai/plugins/host — Plugin version compatibility could not load semver. Install semver to enable this feature, or check its installed version and native binaries.",
+      "kysely": "opt-in: sql storage adapters; import @jini-ai/plugins/host/sql — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries.",
+      "@jini-ai/db": "opt-in: database-backed adapters; import @jini-ai/plugins/host/sql — Database-backed adapters could not load @jini-ai/db. Install @jini-ai/db to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",
