@@ -5,3 +5,8 @@ export * from "./access.js";
 export { ExternalMcpValidationError } from "./validation-error.js";
 export { ExternalMcpSecretStoreUnconfiguredError } from "./unconfigured-error.js";
 export { hostedMcpProjections } from "./projections.js";
+export type * from "./store-ports.js";
+export * from "./vault.js";
+export * from "./store.js";
+export { InMemoryExternalMcpServerRepo } from "./store.memory.js";
+export * from "./revocation.js";
