@@ -57,8 +57,10 @@ export interface CredentialSetTokenHint {
   last4: string | null;
 }
 
-/** @agent-note The store keyring as credential-set hosts supply it (zero-argument `activeKey`, so
- *  both historical keyring shapes satisfy it). Only key handles cross this port, never key bytes. */
+/** @agent-note The store keyring as credential-set hosts supply it: zero-argument `activeKey`. A keyring
+ *  whose `activeKey` takes the vault port's required options argument (`KeyringPort`) does NOT
+ *  satisfy it directly; the host adapts it (`activeKey: () => keyring.activeKey({})`). Only key
+ *  handles cross this port, never key bytes. */
 export interface CredentialSetKeyringPort {
   activeKey(): Promise<{ readonly keyId: string }>;
   deriveSigningSecret(input: { workspaceId: string; subscriptionId: string; version: number }): Promise<Uint8Array>;
