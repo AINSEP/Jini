@@ -594,16 +594,33 @@ it('pinned guidance reaches child IDs even with automatic plugins Off', async ()
 });
 
 
-it('an argv-budgeted adapter retains metadata-only automatic preparation', async () => {
+it('an argv-budgeted adapter inlines the primary when its guidance fits the remaining headroom', async () => {
   const f = fixture();
   const guidance = 'SITE_IMPORT_BEGIN\n' + 'x'.repeat(16250) + '\nSITE_IMPORT_END';
   f.resolve.mockResolvedValue({ ok: true, promptPrefix: guidance });
-  const note = await f.controller.prepare({ query: 'import my site', maxPromptArgBytes: 30000 });
+  const note = await f.controller.prepare({ query: 'import my site', maxPromptArgBytes: 70000 });
+  expect(note).toContain(guidance);
+  expect(f.controller.guidanceIds({})).toEqual(['synthetic']);
+});
+
+it('an argv-budgeted adapter defers a primary larger than the remaining headroom to a load pointer', async () => {
+  const f = fixture();
+  const guidance = 'SITE_IMPORT_BEGIN\n' + 'x'.repeat(16250) + '\nSITE_IMPORT_END';
+  f.resolve.mockResolvedValue({ ok: true, promptPrefix: guidance });
+  // Headroom exactly one byte short of the guidance: the cap is inclusive of the guidance size.
+  const note = await f.controller.prepare({ query: 'import my site', maxPromptArgBytes: new TextEncoder().encode(guidance).length - 1 });
   expect(note).toContain('host_read_plugin');
+  expect(note).toContain('deferred');
   expect(note).not.toContain('SITE_IMPORT_BEGIN');
-  expect(f.resolve).not.toHaveBeenCalled();
   expect(f.controller.guidanceIds({})).toEqual([]);
   expect(await f.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'loaded', guidance });
+});
+
+it('an argv-budgeted adapter with no headroom left inlines nothing', async () => {
+  const f = fixture();
+  const note = await f.controller.prepare({ query: 'synthetic', maxPromptArgBytes: 0 });
+  expect(note).not.toContain('Guidance for synthetic');
+  expect(f.controller.guidanceIds({})).toEqual([]);
 });
 
 it('Off children receive only current pins, not earlier full deliveries', async () => {

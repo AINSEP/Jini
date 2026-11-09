@@ -3,6 +3,7 @@ import {
   checkPromptArgvBudget,
   checkWindowsCmdShimCommandLineBudget,
   checkWindowsDirectExeCommandLineBudget,
+  resolveArgvPromptBudget,
 } from '../prompt-budget.js';
 import type { RuntimeAgentDef } from '../types.js';
 
@@ -224,5 +225,13 @@ describe('checkWindowsDirectExeCommandLineBudget', () => {
     // rather than always going through the truthy string path.
     expect(checkWindowsDirectExeCommandLineBudget({ def: def, resolvedBin: 'C:\\deepseek.exe', args: [null, undefined] })).toBeNull();
     expect(checkWindowsCmdShimCommandLineBudget({ def: def, resolvedBin: 'C:\\deepseek.cmd', args: [null, undefined] })).toBeNull();
+  });
+});
+
+describe('resolveArgvPromptBudget', () => {
+  it('keeps the adapter limit on Windows and raises it to the POSIX guard elsewhere', () => {
+    expect(resolveArgvPromptBudget({ maxPromptArgBytes: 30_000 }, { platform: 'win32' })).toBe(30_000);
+    expect(resolveArgvPromptBudget({ maxPromptArgBytes: 30_000 }, { platform: 'linux' })).toBe(100_000);
+    expect(resolveArgvPromptBudget({ maxPromptArgBytes: 150_000 }, { platform: 'darwin' })).toBe(150_000);
   });
 });

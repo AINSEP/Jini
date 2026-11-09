@@ -61,6 +61,8 @@ export interface AutomaticAgentPluginPorts {
   publish(input: { state: ChatAgentPluginState; plugins: readonly { id: string; name: string }[] }, options?: Record<string, never>): Promise<void>;
 }
 
+/** `maxPromptArgBytes`: argv bytes still free for automatic guidance once the host has counted the
+ * prompt, pinned guidance and its overlay; absent when the adapter has no argv prompt limit. */
 type PrepareInput = { maxPromptArgBytes?: number; query?: string; capabilities?: readonly string[]; loaded?: readonly string[]; signal?: AbortSignal };
 
 /** A guarded capability admits its providers outright; a query is ranked for relevance. */
@@ -146,13 +148,13 @@ export function createAutomaticAgentPluginUse(
   /** Bound automatic attachments before recording delivery; explicit loads retain complete text.
    * O(p*b) in resolved plugins and guidance bytes; a deferred plugin remains retryable.
    */
-  async function resolveGuidance({ matches, primaryId }: { matches: readonly AgentPluginSearchMatch[]; primaryId?: string | undefined }, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<string[]> {
+  async function resolveGuidance({ matches, primaryId }: { matches: readonly AgentPluginSearchMatch[]; primaryId?: string | undefined }, { signal, primaryBytes = MAX_PRIMARY_GUIDANCE_BYTES }: { signal?: AbortSignal | undefined; primaryBytes?: number } = {}): Promise<string[]> {
     const guidance: string[] = [];
     // Unloaded plugins contribute nothing; oversized guidance becomes a pointer instead of the text.
     const guidanceFor = async (match: AgentPluginSearchMatch): Promise<string | undefined> => {
       const result = await resolveOneGuidance({ plugin: match }, { signal });
       if (result.status !== 'loaded') return undefined;
-      if (new TextEncoder().encode(result.guidance).length > (match.pluginId === primaryId ? MAX_PRIMARY_GUIDANCE_BYTES : MAX_AUTOMATIC_GUIDANCE_BYTES)) {
+      if (new TextEncoder().encode(result.guidance).length > (match.pluginId === primaryId ? primaryBytes : MAX_AUTOMATIC_GUIDANCE_BYTES)) {
         const pointer = ports.formatPluginToolPointer?.({ pluginId: match.pluginId, skill: match.pluginId, file: 'SKILL.md' });
         const howToLoad = pointer === undefined ? '' : ` Load the full instructions with ${pointer}; use the same call with file '<relative path>' for supporting references.`;
         return `Agent Plugin '${match.pluginId}' guidance is deferred because it exceeds the automatic byte limit.${howToLoad}`;
@@ -200,9 +202,11 @@ export function createAutomaticAgentPluginUse(
     const relevant = ranked.filter(plugin => !delivered.has(plugin.pluginId) && !input.loaded?.includes(plugin.pluginId) && (!alreadyLoaded.has(plugin.pluginId) || !!input.query));
     const matches = await applyConsent({ matches: relevant }, { signal: input.signal });
     const shouldLoad = !!input.capabilities?.length;
-    const primary = input.maxPromptArgBytes === undefined && input.query && !input.loaded?.length && !alreadyLoaded.has(matches[0]?.pluginId ?? '') ? matches.slice(0, 1) : [];
+    const primary = input.query && !input.loaded?.length && !alreadyLoaded.has(matches[0]?.pluginId ?? '') ? matches.slice(0, 1) : [];
     const result = shouldLoad ? (await resolveGuidance({ matches }, { signal: input.signal })).join('\n\n') : [
-      ...(await resolveGuidance({ matches: primary, primaryId: primary[0]?.pluginId }, { signal: input.signal })),
+      // An argv adapter's remaining headroom caps the primary; too large becomes the deferred pointer.
+      ...(await resolveGuidance({ matches: primary, primaryId: primary[0]?.pluginId }, { signal: input.signal,
+        primaryBytes: Math.min(MAX_PRIMARY_GUIDANCE_BYTES, input.maxPromptArgBytes ?? Infinity) })),
       relevantPluginNote({ matches: matches.slice(primary.length), formatPluginToolPointer: ports.formatPluginToolPointer }),
     ].filter(Boolean).join('\n\n');
     rememberDelivery();

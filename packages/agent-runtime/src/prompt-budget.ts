@@ -41,7 +41,9 @@ function promptArgvBudgetMessage(def: RuntimeAgentDef, bytes: number, limit: num
 // E2BIG.
 const POSIX_ARGV_PROMPT_BUDGET = 100_000;
 
-function resolveArgvPromptBudget(maxPromptArgBytes: number, platform: NodeJS.Platform): number {
+/** The argv prompt byte limit `checkPromptArgvBudget` enforces for an adapter on `platform`.
+ * Exported so a host can size optional prompt content to the same limit. O(1). */
+export function resolveArgvPromptBudget({ maxPromptArgBytes }: { maxPromptArgBytes: number }, { platform = process.platform }: { platform?: NodeJS.Platform } = {}): number {
   if (platform === 'win32') return maxPromptArgBytes;
   return Math.max(maxPromptArgBytes, POSIX_ARGV_PROMPT_BUDGET);
 }
@@ -50,7 +52,7 @@ export function checkPromptArgvBudget({ def, composed }: { def: RuntimeAgentDef 
 ): RuntimePromptBudgetError | null {
   if (!def || typeof def.maxPromptArgBytes !== 'number') return null;
   const bytes = Buffer.byteLength(typeof composed === 'string' ? composed : '', 'utf8');
-  const limit = resolveArgvPromptBudget(def.maxPromptArgBytes, platform);
+  const limit = resolveArgvPromptBudget({ maxPromptArgBytes: def.maxPromptArgBytes }, { platform });
   if (bytes <= limit) return null;
   return { code: 'AGENT_PROMPT_TOO_LARGE', message: promptArgvBudgetMessage(def, bytes, limit), bytes, limit };
 }
