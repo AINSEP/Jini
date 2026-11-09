@@ -59,7 +59,7 @@ async function runBootStage(
 ): Promise<{ completed: BootModule[]; aborted: boolean }> {
   const { stage, modules, results } = required;
   const completed: BootModule[] = [];
-  for (const module of modules) {
+  for (const [index, module] of modules.entries()) {
     try {
       await module[stage]();
       completed.push(module);
@@ -70,7 +70,9 @@ async function runBootStage(
     } catch (error) {
       results.set(module.name, bootModuleFailure({ module, error }));
       if (module.criticality === 'critical') {
-        await stopInReverse(completed);
+        // On start, the modules after this one finished prepare() but never start: they hold
+        // prepare resources too, so they stop with the started ones (reverse order overall).
+        await stopInReverse(stage === 'start' ? [...completed, ...modules.slice(index + 1)] : completed);
         return { completed, aborted: true };
       }
     }
@@ -79,12 +81,11 @@ async function runBootStage(
 }
 
 /**
- * Preserve source rollback semantics: prepare failure unwinds completed preparations;
- * start failure unwinds completed starts only. Failing modules own their partial cleanup.
- * Prepared modules not yet started on a start-stage abort remain host-owned.
+ * Rollback semantics: prepare failure unwinds completed preparations; start failure unwinds
+ * completed starts and the prepared modules that never started. Failing modules own their partial cleanup.
 
  * Contract rationale (including readiness ownership):
- * Ports: `BootModule`, `ReadinessStore`, optional `LifecycleReporter`. `runBootLifecycle({ modules }, { readiness, reporter })` runs all preparations before starts. Optional failures do not set `ok=false`; critical failures stop the stage and unwind completed modules in reverse order. The failing module self-cleans. The existing start-stage rollback stops only modules that completed start, leaving other prepared resources host-owned; this extraction deliberately preserves that source behavior. A ready record for an unwound module retains the original source status.
+ * Ports: `BootModule`, `ReadinessStore`, optional `LifecycleReporter`. `runBootLifecycle({ modules }, { readiness, reporter })` runs all preparations before starts. Optional failures do not set `ok=false`; critical failures stop the stage and unwind completed modules in reverse order; a start-stage failure also stops the prepared modules after it. The failing module self-cleans. A ready record for an unwound module retains the original source status.
  *
  * `createReadinessStore({}, { initial })` owns defensive snapshot copies per instance. No module-global state or synthetic daemon name. Keep daemon health latching in the host and compose it with this store. Duplicate module names now reject before acquisition; reporter failure is best effort. Lifecycle calls can be concurrent only if callers provide separate modules/stores or coordinate their own boot.
  */
