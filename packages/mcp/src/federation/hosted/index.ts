@@ -10,3 +10,4 @@ export * from "./vault.js";
 export * from "./store.js";
 export { InMemoryExternalMcpServerRepo } from "./store.memory.js";
 export * from "./revocation.js";
+export * from "./connection-gate.js";
