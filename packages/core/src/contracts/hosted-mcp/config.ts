@@ -61,7 +61,7 @@ export interface ExternalMcpServerConfig {
   target: ExternalMcpServerTarget;
   /** {@link externalMcpAdmissionRevision} of the row this config was resolved from — carried onto
    *  {@link ResolvedFederatedConnection.config}'s `origin` by {@link toResolvedFederatedConnections}
-   *  for `external-mcp-revocation.ts`'s per-call gate. */
+   *  for the hosted-MCP per-call revocation gate. */
   admissionRevision: string;
 }
 
@@ -77,8 +77,7 @@ export interface ExternalMcpOAuthView {
   /** Plaintext expiry, straight off the row — nothing is unsealed to produce it. */
   expiresAt: ISODateTime | null;
   tokenEnvName: string | null;
-  /** Whether an access TOKEN is stored. Presence, never the value — the same technique
-   *  `routes/admin/system/deployment-overview.ts` uses for environment variables. Decided from
+  /** Whether an access TOKEN is stored. Presence, never the value. Decided from
    *  PLAINTEXT columns only; see {@link externalMcpRecordHasStoredToken} for why it must not unseal
    *  and for the one state it under-reports. */
   hasStoredToken: boolean;
@@ -124,7 +123,7 @@ export interface ExternalMcpServerView<TokenHint = never> {
  *
  * Structural validation only happens here — charsets, lengths, required-when-oauth. Whether
  * `providerId` names a registered descriptor, and whether the endpoints form a usable provider, is
- * `external-mcp-oauth.ts`'s call: resolving a descriptor is the flow module's job, and importing its
+ * the sign-in service's call: resolving a descriptor is the flow module's job, and importing its
  * registry here would put the store back in the business of the thing its header says it is not.
  */
 /** @agent-note Three-state per field: absent keeps, a string replaces, an empty string clears. Structural validation only; provider resolution belongs to the sign-in service. */
@@ -181,16 +180,16 @@ export interface SaveExternalMcpServerInput {
   accessTokenEnvName?: string;
   oauth?: SaveExternalMcpOAuthInput;
   /**
-   * Set ONLY by `features/agent-plugins/federate-mcp.ts`, on the ONE save that creates a brand-new
-   * plugin-provisioned row. Every other caller (the admin PUT route, the assistant's own
-   * `external_mcp_save` tool) omits this field entirely, and an omitted field PRESERVES whatever the
+   * Set ONLY by the host's trusted plugin provisioner, on the ONE save that creates a brand-new
+   * plugin-provisioned row. Every other caller (including administrative routes and assistant
+   * tools) omits this field entirely, and an omitted field PRESERVES whatever the
    * row already has — the same three-state rule `env` establishes, minus the "empty string clears
    * it" arm: nothing should ever intentionally clear this column once set, so no clear signal is
-   * defined for it. See `schema.sqlite.ts`'s `provisioned_by_plugin_id` doc for the full rule.
+   * defined for it.
    */
   provisionedByPluginId?: string;
   /**
-   * The principal performing this save, threaded from `getAuthedPrincipal(res)` at the route. Used
+   * The principal performing this save, supplied by the host's authenticated request context. Used
    * ONLY to attribute a change to {@link writeAllowedToolNames} — see {@link
    * resolveWriteGrantAttribution}. Required so every new caller has to supply one; a caller that
    * never touches the write list never reads it, so an un-migrated caller cannot crash on its
