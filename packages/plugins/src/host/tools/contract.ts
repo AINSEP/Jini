@@ -1,4 +1,4 @@
-import type { AgentToolDefinition, DerivedRiskByToolId, HumanConfirmer, LegacyToolAuthorizeFn, ToolExecutionContext, ToolExecutionOptions, ToolHandler, ToolMetadataById, AccessApprovalResource } from '@jini-ai/core';
+import type { AgentToolDefinition, HumanConfirmer, LegacyToolAuthorizeFn, ToolExecutionContext, ToolExecutionOptions, ToolHandler, ToolMetadataById, AccessApprovalResource } from '@jini-ai/core';
 import type { Clock } from '@jini-ai/core/primitives';
 import type { ModelFacingErrorRule } from '@jini-ai/core/model-facing-tool-errors';
 import { type PluginActivationRecord, type PluginActivationRepoPort } from '../activation.js';
