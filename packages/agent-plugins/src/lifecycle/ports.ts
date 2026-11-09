@@ -42,7 +42,8 @@ export interface AgentPluginLifecyclePorts {
   readonly onActivationChanged?: ((required: { pluginId: string; workspaceId: string; enabled: boolean; actor: string }, optional: Record<string, never>) => void) | undefined;
   /** Optional host admission serializes cross-kind identity checking and publication. */
   readonly identityAdmission?: (<T>(required: { id: string; localId: string; run: () => Promise<T> }, optional?: Record<string, never>) => Promise<T>) | undefined;
-  readonly onEvent?: ((required: { readonly event: string; readonly message: string }) => void) | undefined;
+  /** Identity warnings include pluginId so the host can deduplicate repeated package indexes. */
+  readonly onEvent?: ((required: { readonly event: string; readonly message: string; readonly pluginId?: string }) => void) | undefined;
   /** The host owns tool names and supports explicit skill/file pointers as well as default instructions. */
   readonly formatPluginToolPointer: (required: { readonly pluginId: string; readonly skill?: string; readonly file?: string }, optional?: Record<string, never>) => string;
   readonly seededEnabledPluginIds: ReadonlySet<string>;

@@ -108,7 +108,7 @@ export function createInstalledPackageIndex(required: { readonly ports: AgentPlu
     readonly archiveDigest: string;
   }, _optional: Record<string, never> = {}): Promise<InstalledAgentPlugin> {
     const parsed = await readInstalledManifest({ packageRoot });
-    for (const message of parsed.warnings) ports.onEvent?.({ event: 'agent-plugin-identity-warning', message });
+    for (const message of parsed.warnings) ports.onEvent?.({ event: 'agent-plugin-identity-warning', message, pluginId: parsed.manifest.name });
     const { files, skills } = await walkPackageTree({ packageRoot });
 
     return {
