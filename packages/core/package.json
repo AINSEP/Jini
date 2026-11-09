@@ -35,7 +35,8 @@
       "./contracts/mail": "universal",
       "./contracts/vault": "universal",
       "./contracts/oauth": "universal",
-      "./contracts/content-types": "universal"
+      "./contracts/content-types": "universal",
+      "./contracts/hosted-mcp": "universal"
     },
     "isolation": {
       "entries": {
@@ -203,6 +204,11 @@
       "types": "./dist/contracts/content-types.d.ts",
       "import": "./dist/contracts/content-types.js",
       "default": "./dist/contracts/content-types.js"
+    },
+    "./contracts/hosted-mcp": {
+      "types": "./dist/contracts/hosted-mcp.d.ts",
+      "import": "./dist/contracts/hosted-mcp.js",
+      "default": "./dist/contracts/hosted-mcp.js"
     }
   },
   "files": [

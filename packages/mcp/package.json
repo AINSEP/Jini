@@ -19,7 +19,8 @@
       "./federation": "node",
       "./federation/approvals": "node",
       "./federation/stdio": "node",
-      "./federation/testing": "universal"
+      "./federation/testing": "universal",
+      "./federation/hosted": "node"
     }
   },
   "type": "module",
@@ -56,6 +57,11 @@
       "types": "./dist/federation/testing/index.d.ts",
       "import": "./dist/federation/testing/index.js",
       "default": "./dist/federation/testing/index.js"
+    },
+    "./federation/hosted": {
+      "types": "./dist/federation/hosted/index.d.ts",
+      "import": "./dist/federation/hosted/index.js",
+      "default": "./dist/federation/hosted/index.js"
     },
     "./bin": {
       "types": "./dist/bin/serve.d.ts",

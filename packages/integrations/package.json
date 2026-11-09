@@ -18,6 +18,7 @@
       "./credentialed-http": "node",
       "./webhooks": "node",
       "./api-connections": "node",
+      "./api-connections/hosted-mcp": "node",
       "./media-providers/node": "node",
       "./saved-requests": "node"
     },
@@ -56,6 +57,11 @@
       "types": "./dist/api-connections/index.d.ts",
       "import": "./dist/api-connections/index.js",
       "default": "./dist/api-connections/index.js"
+    },
+    "./api-connections/hosted-mcp": {
+      "types": "./dist/api-connections/hosted-mcp/index.d.ts",
+      "import": "./dist/api-connections/hosted-mcp/index.js",
+      "default": "./dist/api-connections/hosted-mcp/index.js"
     },
     "./media-providers/node": {
       "types": "./dist/media-providers/dispatch/node.d.ts",
