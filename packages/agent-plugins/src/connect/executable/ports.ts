@@ -71,7 +71,20 @@ export interface AgentPluginExecutableRuntimeHost {
   readonly artifacts?: AgentPluginArtifactWriter;
   readonly state: AgentPluginStateReaderFor;
   readonly apiOrigins: AgentPluginApiOriginsFor;
+  /**
+   * The token memory that withholds issued tokens from plugin output.
+   * @agent-note Pass the host's ONE `IssuedTokenMemories`, the same instance the admin-surface
+   * handler host uses: a plugin's tools and its admin-surface handlers share module scope, so a token
+   * either path obtained must be withheld from both. A second instance leaks tokens across the paths.
+   */
   readonly issuedTokens: IssuedTokenMemories;
+  /**
+   * The accounts confirmations freeze, keyed by each call's abort signal.
+   * @agent-note Pass the SAME `FrozenConnectionAccounts` object the admin-surface connections port
+   * uses, so an admin action run as a tool is pinned to the account its confirmation showed, like any
+   * tool call; a separate map loses those pins. Omitted, the registrar keeps its own map (tool calls
+   * are still pinned, admin actions run as tools are not shared with the admin-surface port).
+   */
   readonly frozen?: FrozenConnectionAccounts;
   readonly adminSurfaces?: {
     readonly permission: string;

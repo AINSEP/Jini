@@ -1,7 +1,4 @@
 import type { Clock } from '@jini-ai/core/primitives';
-/** @agent-note The host binds its one storage owner, fresh declaration loader, guarded HTTP,
- * credential projection and application identity. These ports never construct a host or store.
- */
 import type { OAuthAppOptions, OAuthClient, OAuthHttpPorts } from '@jini-ai/core/contracts/oauth';
 import type { ApiConnectionDeclaration, ApiConnectionHooksModule } from './declarations.js';
 import type { ApiConnectionClientKind } from './deps.js';
@@ -99,6 +96,11 @@ export interface ApiConnectionSharedFactoryInput {
   readonly requestedScopes: (required: { connection: DeclaredApiConnection; scopeSetIds: readonly string[] }) => Promise<readonly string[]>;
   readonly createService: (required: { connection: DeclaredApiConnection; context: ApiConnectionSharedIssuingContext; redirectUri?: string }) => ApiConnectionService;
 }
+/**
+ * What a host binds once for the API-connection runtime.
+ * @agent-note The host binds its one storage owner, fresh declaration loader, guarded HTTP,
+ * credential projection and application identity. These ports never construct a host or store.
+ */
 export interface ApiConnectionHostPorts {
   readonly apiConnectionStorage: ApiConnectionHostStorage;
   readonly loadDeclaredConnections: (required: { workspaceId: string }) => Promise<{ connections: readonly DeclaredApiConnection[]; refusals: readonly string[] }>;
