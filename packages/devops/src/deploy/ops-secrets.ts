@@ -1,6 +1,4 @@
 // Mechanical extraction provenance is recorded in this package's source-map.md.
-type OptionalAbortSignal = AbortSignal | undefined;
-type OptionalSecretConfirm = SecretConfirm | undefined;
 import { isDeepStrictEqual } from 'node:util';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { ToolInputError } from '@jini-ai/core';
@@ -36,7 +34,7 @@ function requireSiteKey(deps: DeployOpsRuntime): string {
 }
 
 /** Refuse unknown platforms and platforms without a secrets adapter before any credential or network work. */
-async function secretsPlatform(deps: DeployOpsRuntime, id: string, signal?: OptionalAbortSignal): Promise<LoadedDeployOps> {
+async function secretsPlatform(deps: DeployOpsRuntime, id: string, signal?: AbortSignal | undefined): Promise<LoadedDeployOps> {
   if (signal?.aborted) throw aborted();
   const registry = await deps.loadDeployOps({ workspaceId: deps.workspaceId });
   const platform = requireDeployPlatform({registry,id}, {});
@@ -76,7 +74,7 @@ const nextStep = (deps:DeployOpsRuntime, platform: LoadedDeployOps, target: stri
  * @complexity Time and space: O(credentials + secrets).
  * @example await runListSecrets({ deps, input: { platform: "my-host", target: "my-app" } });
  */
-export async function runListSecrets(required: { deps: DeployOpsRuntime; input: SecretTargetInput }, optional: { signal?: OptionalAbortSignal } = {}) {
+export async function runListSecrets(required: { deps: DeployOpsRuntime; input: SecretTargetInput }, optional: { signal?: AbortSignal | undefined } = {}) {
   const { deps, input } = required; const { signal } = optional;
   const platform = await secretsPlatform(deps, input.platform, signal);
   const ctx = await boundContext({deps,platform,explicit:input.credentialLabel}, {signal});
@@ -100,7 +98,7 @@ function comparisonOfRead({ current, value }: { current: DeployOpsSecretRead | u
   return undefined;
 }
 
-async function readComparison({ platform, ctx, input, value }: { platform: LoadedDeployOps; ctx: DeployOpsContext; input: SetSecretInput; value: string }, { signal }: { signal?: OptionalAbortSignal } = {}): Promise<SecretComparison | undefined> {
+async function readComparison({ platform, ctx, input, value }: { platform: LoadedDeployOps; ctx: DeployOpsContext; input: SetSecretInput; value: string }, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<SecretComparison | undefined> {
   if (platform.module.readSecret) {
     try {
       const current = await platform.module.readSecret(ctx, { target: input.target, name: input.name });
@@ -111,7 +109,7 @@ async function readComparison({ platform, ctx, input, value }: { platform: Loade
 }
 
 /** Compare the stored value when the adapter can read it; otherwise only a complete list can establish absence. */
-async function compareCurrent(platform: LoadedDeployOps, ctx: DeployOpsContext, input: SetSecretInput, value: string, signal?: OptionalAbortSignal): Promise<SecretComparison> {
+async function compareCurrent(platform: LoadedDeployOps, ctx: DeployOpsContext, input: SetSecretInput, value: string, signal?: AbortSignal | undefined): Promise<SecretComparison> {
   const comparison = await readComparison({ platform, ctx, input, value }, { signal });
   if (comparison !== undefined) return comparison;
   const listed = await listNormalized(platform, ctx, input.target);
@@ -153,7 +151,7 @@ function describeSource({ source }: { source: SecretValueSource }, _optional = {
  * @example await runSetSecret({ deps, input: { platform: "my-host", target: "my-app", name: "APP_SITE_KEY", source: { kind: "site-key" } } }, { confirm });
  */
 /** @agent-note The confirm callback must approve the frozen overwrite request through an authenticated human answer. */
-export async function runSetSecret(required: { deps: DeployOpsRuntime; input: SetSecretInput }, optional: { signal?: OptionalAbortSignal; confirm?: OptionalSecretConfirm; typedValue?: unknown } = {}): Promise<SetSecretResult> {
+export async function runSetSecret(required: { deps: DeployOpsRuntime; input: SetSecretInput }, optional: { signal?: AbortSignal | undefined; confirm?: SecretConfirm | undefined; typedValue?: unknown } = {}): Promise<SetSecretResult> {
   const { deps, input } = required; const { signal, confirm } = optional;
   const platform = await secretsPlatform(deps, input.platform, signal);
   validateSetInput(platform, input);
@@ -191,7 +189,7 @@ function requireSecretSnapshot({ deps, secrets, name }: { deps:DeployOpsRuntime;
  * @example await runUnsetSecret({ deps, input: { platform: "my-host", target: "my-app", name: "OLD_KEY" } }, { confirm });
  */
 /** @agent-note The confirm callback must approve the frozen removal request through an authenticated human answer. */
-export async function runUnsetSecret(required: { deps: DeployOpsRuntime; input: UnsetSecretInput }, optional: { signal?: OptionalAbortSignal; confirm?: OptionalSecretConfirm } = {}): Promise<UnsetSecretResult> {
+export async function runUnsetSecret(required: { deps: DeployOpsRuntime; input: UnsetSecretInput }, optional: { signal?: AbortSignal | undefined; confirm?: SecretConfirm | undefined } = {}): Promise<UnsetSecretResult> {
   const { deps, input } = required; const { signal, confirm } = optional;
   const platform = await secretsPlatform(deps, input.platform, signal);
   requireName(input.name);

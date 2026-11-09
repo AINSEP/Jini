@@ -1,5 +1,4 @@
 // Mechanical extraction provenance is recorded in this package's source-map.md.
-type OptionalAbortSignal = AbortSignal | undefined;
 import { nowIso } from '@jini-ai/core/primitives';
 import { ToolInputError, buildDomainRegistrations, indexCatalogById, requireInputRecord, type ToolHandler, type ToolRegistration } from '@jini-ai/core';
 import type { DeployOpsRuntime, DeployOpsRegistrationHost, SecretValueSource } from './ops-tool-contracts.js';
@@ -21,7 +20,7 @@ function integer(input: Record<string, unknown>, key: string, fallback: number, 
   return value;
 }
 /** Validate deploy input independently of the schema, then call the same feature function as the admin route. */
-function deployHandler(deps: DeployOpsRuntime, input: Record<string, unknown>, signal?: OptionalAbortSignal) {
+function deployHandler(deps: DeployOpsRuntime, input: Record<string, unknown>, signal?: AbortSignal | undefined) {
   onlyKeys(input, ["platform", "target", "ref", "credentialLabel", "workflowFile"]);
   const ref = string(input, "ref"); const credentialLabel = string(input, "credentialLabel");
   return runDeploy({ deps, input: { platform: string(input, "platform", true)!, target: string(input, "target", true)!, workflowFile: string(input, "workflowFile"), ...(ref !== undefined ? { ref } : {}), ...(credentialLabel !== undefined ? { credentialLabel } : {}) } }, { signal });
@@ -69,7 +68,7 @@ function observationInput({ deps, name, input }: { deps:DeployOpsRuntime; name: 
   return args;
 }
 
-async function observationHandler({ deps, input, name }: { deps: DeployOpsRuntime; input: Record<string, unknown>; name: string }, { signal }: { signal?: OptionalAbortSignal } = {}) {
+async function observationHandler({ deps, input, name }: { deps: DeployOpsRuntime; input: Record<string, unknown>; name: string }, { signal }: { signal?: AbortSignal | undefined } = {}) {
   const args = observationInput({ deps, name, input }, {});
   if (name === deps.toolIds.listTargets) return await runDeployOps({deps,input:args,operation:"listTargets"}, {signal});
   if (name === deps.toolIds.logs) return await runDeployOps({deps,input:{ ...args, limit: integer(input, "limit", 100, 1, 500) },operation:"logs"}, {signal});

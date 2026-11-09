@@ -1,5 +1,4 @@
 // Mechanical extraction provenance is recorded in this package's source-map.md.
-type OptionalSecretConfirm = SecretConfirm | undefined;
 import { ToolInputError, type ToolExecutionContext, type ToolExecutionOptions } from '@jini-ai/core';
 import type { DeployOpsRuntime, DeployOpsSecretCards, SecretConfirm, SetSecretInput } from './ops-tool-contracts.js';
 import { requireDeployPlatform } from './ops-registry.js';
@@ -8,7 +7,7 @@ import { runSetSecret } from './ops-secrets.js';
 /** Only the human card receives the value. Neither source nor the model-facing result carries it. */
 export async function collectTypedDeploySecret(
   { ctx, deps, cards, input, permit }: { ctx: ToolExecutionContext; deps: DeployOpsRuntime; cards: DeployOpsSecretCards; input: SetSecretInput; permit: () => Promise<void> },
-  { emitSurface, confirm }: ToolExecutionOptions & { confirm?: OptionalSecretConfirm } = {},
+  { emitSurface, confirm }: ToolExecutionOptions & { confirm?: SecretConfirm | undefined } = {},
 ): Promise<unknown> {
   if (!cards.surfaceExchanges) throw new ToolInputError({ message: cards.noEmitter });
   let locale = cards.defaultLocale;

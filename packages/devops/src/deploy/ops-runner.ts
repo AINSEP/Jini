@@ -1,7 +1,4 @@
-type OptionalWaitClock = WaitClock | undefined;
 // Mechanical extraction provenance is recorded in this package's source-map.md.
-type OptionalAbortSignal = AbortSignal | undefined;
-type OptionalString = string | undefined;
 import { nowIso } from '@jini-ai/core/primitives';
 import { ToolInputError } from '@jini-ai/core';
 import type { DeployOpsRuntime, WaitClock, DeployCredentialDiagnostic } from './ops-tool-contracts.js';
@@ -24,7 +21,7 @@ const systemClock: WaitClock = {
   }),
 };
 
-export const aborted = (_required = {}, _optional = {}) => new ToolInputError({ message: "Deployment ops wait was aborted." });
+export const aborted = () => new ToolInputError({ message: "Deployment ops wait was aborted." });
 const TIMEOUT = Symbol("deployment ops timeout");
 // Neutral HTTPS origin syntax, independent of any host endpoint.
 const HTTPS_PROTOCOL = "https:";
@@ -75,7 +72,7 @@ async function requireBoundUrl({ rawUrl, platform, deps, workspaceId, label }: {
 }
 
 /** Translate only known credential/transport failures without echoing provider payloads. */
-function requestFailure({ deps, error, signal, method, host, label }: { deps:DeployOpsRuntime; error: unknown; signal?: OptionalAbortSignal; method: string; host: string; label: string }, _optional = {}): unknown {
+function requestFailure({ deps, error, signal, method, host, label }: { deps:DeployOpsRuntime; error: unknown; signal?: AbortSignal | undefined; method: string; host: string; label: string }, _optional = {}): unknown {
   if (signal?.aborted) return aborted();
   const category = deps.credentials.classifyError({error}, {}).category;
   if (category === "egress-refused") return new ToolInputError({ message: `Deployment ops host '${host}' was refused by outbound HTTP policy. Use a public HTTPS endpoint allowed by the saved credential.` });
@@ -100,7 +97,7 @@ function normalizeResponse({ deps, response, transportTruncated, host, label }: 
  * `allowDelete` is set only by the secret-removal verb, so no other verb's module can send a DELETE.
  */
 /** @agent-note The request port must recheck abort at actual I/O after asynchronous auth-scheme loading. */
-export async function boundContext({deps,platform,explicit}: {deps:DeployOpsRuntime;platform:LoadedDeployOps;explicit?:OptionalString}, {signal,allowDelete}: {signal?:OptionalAbortSignal;allowDelete?:boolean} = {}): Promise<DeployOpsContext> {
+export async function boundContext({deps,platform,explicit}: {deps:DeployOpsRuntime;platform:LoadedDeployOps;explicit?:string | undefined}, {signal,allowDelete}: {signal?:AbortSignal | undefined;allowDelete?:boolean} = {}): Promise<DeployOpsContext> {
   if (!deps.credentials.available) throw new ToolInputError({ message: "Deployment ops HTTP client is unavailable. Restart the site to rebuild its tool dependencies." });
   const label = await credentialLabel(deps, platform, explicit);
   /** One guarded path for every method, so a write can never get a looser binding than a read. */
@@ -134,13 +131,13 @@ export async function boundContext({deps,platform,explicit}: {deps:DeployOpsRunt
 
 type Operation = "status" | "logs" | "listTargets";
 /** @agent-note loadDeployOps must enforce current admission on each invocation rather than reuse an earlier registry. */
-export function runDeployOps(required:{deps:DeployOpsRuntime;input:DeployOpsInput;operation:"status"}, optional:{signal?:OptionalAbortSignal}):Promise<DeployOpsStatus>;
+export function runDeployOps(required:{deps:DeployOpsRuntime;input:DeployOpsInput;operation:"status"}, optional:{signal?:AbortSignal | undefined}):Promise<DeployOpsStatus>;
 
-export function runDeployOps(required:{deps:DeployOpsRuntime;input:DeployOpsInput;operation:"logs"}, optional:{signal?:OptionalAbortSignal}):Promise<DeployOpsLogs>;
+export function runDeployOps(required:{deps:DeployOpsRuntime;input:DeployOpsInput;operation:"logs"}, optional:{signal?:AbortSignal | undefined}):Promise<DeployOpsLogs>;
 
-export function runDeployOps(required:{deps:DeployOpsRuntime;input:DeployOpsInput;operation:"listTargets"}, optional:{signal?:OptionalAbortSignal}):Promise<DeployOpsTargets>;
+export function runDeployOps(required:{deps:DeployOpsRuntime;input:DeployOpsInput;operation:"listTargets"}, optional:{signal?:AbortSignal | undefined}):Promise<DeployOpsTargets>;
 
-export function runDeployOps(required:{deps:DeployOpsRuntime;input:DeployOpsInput;operation:Operation}, optional:{signal?:OptionalAbortSignal}):Promise<DeployOpsStatus|DeployOpsLogs|DeployOpsTargets>;
+export function runDeployOps(required:{deps:DeployOpsRuntime;input:DeployOpsInput;operation:Operation}, optional:{signal?:AbortSignal | undefined}):Promise<DeployOpsStatus|DeployOpsLogs|DeployOpsTargets>;
 /**
  * Read through a freshly gated installed adapter, passing only a bound GET facade to the module.
  * @param deps - Saved-credential ports, audited HTTP client with redirects disabled, and test seams.
@@ -151,7 +148,7 @@ export function runDeployOps(required:{deps:DeployOpsRuntime;input:DeployOpsInpu
  * @complexity Time: O(credentials + response size) plus bounded adapter requests. Space: O(response size).
  * @example await runDeployOps(deps, { platform: platformId, target: targetId }, "status", signal);
  */
-export async function runDeployOps({deps,input,operation}: {deps:DeployOpsRuntime;input:DeployOpsInput;operation:Operation}, {signal}: {signal?:OptionalAbortSignal}): Promise<DeployOpsStatus | DeployOpsLogs | DeployOpsTargets> {
+export async function runDeployOps({deps,input,operation}: {deps:DeployOpsRuntime;input:DeployOpsInput;operation:Operation}, {signal}: {signal?:AbortSignal | undefined}): Promise<DeployOpsStatus | DeployOpsLogs | DeployOpsTargets> {
   if (signal?.aborted) throw aborted();
   const registry = await deps.loadDeployOps({ workspaceId: deps.workspaceId });
   const platform = requireDeployPlatform({registry,id:input.platform}, {});
@@ -163,7 +160,7 @@ export async function runDeployOps({deps,input,operation}: {deps:DeployOpsRuntim
   return platform.module.status(ctx, input);
 }
 
-export interface DeployRequest { platform: string; target: string; ref?: OptionalString; credentialLabel?: OptionalString; workflowFile?: OptionalString }
+export interface DeployRequest { platform: string; target: string; ref?: string | undefined; credentialLabel?: string | undefined; workflowFile?: string | undefined }
 const clip = (value: unknown) => String(value).slice(0, 2000);
 function validateDeployResult({ input, result }: { input: DeployRequest; result: DeployOpsDeployResult }, _optional = {}): void {
   if (typeof result?.started !== "boolean" || typeof result.summary !== "string") throw new ToolInputError({ message: `Deployment ops platform '${input.platform}' returned an invalid deploy result.` });
@@ -192,7 +189,7 @@ function normalizeDeployResult(input: DeployRequest, result: DeployOpsDeployResu
  * @complexity Time: O(credentials + response size) plus bounded adapter requests. Space: O(response size).
  * @example await runDeploy({ deps, input: { platform: "github-actions", target: "owner/repo", ref: "main" } }, { signal });
  */
-export async function runDeploy(required: { deps: DeployOpsRuntime; input: DeployRequest }, optional: { signal?: OptionalAbortSignal } = {}): Promise<DeployOpsDeployResult> {
+export async function runDeploy(required: { deps: DeployOpsRuntime; input: DeployRequest }, optional: { signal?: AbortSignal | undefined } = {}): Promise<DeployOpsDeployResult> {
   const { deps, input } = required; const { signal } = optional;
   if (signal?.aborted) throw aborted();
   const registry = await deps.loadDeployOps({ workspaceId: deps.workspaceId });
@@ -232,7 +229,7 @@ async function recordAcceptedDeploy({ deps, platform, normalized }: { deps: Depl
  * The signal is never already aborted here: the one caller chain (`waitForDeployOps` ->
  * `pollBeforeDeadline`) checks `signal.aborted` and reaches this function synchronously, with no await
  * in between, so a pre-aborted guard here could never fire and was removed. */
-async function boundedPoll(status: (signal: AbortSignal) => Promise<DeployOpsStatus>, remaining: number, signal?: OptionalAbortSignal): Promise<DeployOpsStatus> {
+async function boundedPoll(status: (signal: AbortSignal) => Promise<DeployOpsStatus>, remaining: number, signal?: AbortSignal | undefined): Promise<DeployOpsStatus> {
   const controller = new AbortController();
   let timer: ReturnType<typeof setTimeout> | undefined;
   let onAbort: (() => void) | undefined;
@@ -245,7 +242,7 @@ async function boundedPoll(status: (signal: AbortSignal) => Promise<DeployOpsSta
   finally { if (timer) { clearTimeout(timer); } if (onAbort) { signal?.removeEventListener("abort", onAbort); } }
 }
 
-async function pollBeforeDeadline({ status, clock, deadline }: { status(signal: AbortSignal): Promise<DeployOpsStatus>; clock: WaitClock; deadline: number }, { signal }: { signal?: OptionalAbortSignal } = {}): Promise<DeployOpsStatus | typeof TIMEOUT> {
+async function pollBeforeDeadline({ status, clock, deadline }: { status(signal: AbortSignal): Promise<DeployOpsStatus>; clock: WaitClock; deadline: number }, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<DeployOpsStatus | typeof TIMEOUT> {
   try {
     const observation = await boundedPoll(status, deadline - clock.now(), signal);
     if (signal?.aborted) throw aborted();
@@ -257,12 +254,12 @@ function reachedCondition({ until, state }: { until: "healthy" | "finished"; sta
   return until === "healthy" ? state === "healthy" : ["healthy", "failing", "stopped"].includes(state);
 }
 
-async function sleepBeforeDeadline({ clock, deadline }: { clock: WaitClock; deadline: number }, { signal }: { signal?: OptionalAbortSignal } = {}): Promise<void> {
+async function sleepBeforeDeadline({ clock, deadline }: { clock: WaitClock; deadline: number }, { signal }: { signal?: AbortSignal | undefined } = {}): Promise<void> {
   const remaining = deadline - clock.now();
   if (remaining > 0) await clock.sleep(Math.min(10_000, remaining), signal);
 }
 
-function waitSettings({ deps, input }: { deps: { clock?: OptionalWaitClock; initial?: DeployOpsStatus }; input: { timeoutSeconds?: number } }, _optional = {}) {
+function waitSettings({ deps, input }: { deps: { clock?: WaitClock | undefined; initial?: DeployOpsStatus }; input: { timeoutSeconds?: number } }, _optional = {}) {
   const clock = deps.clock ?? systemClock; const started = clock.now(); const deadline = started + (input.timeoutSeconds ?? 180) * 1000;
   const initial: DeployOpsStatus = deps.initial ?? { platform: "unknown", target: "unknown", state: "unknown", summary: "No status received before timeout.", items: [], checkedAt: "" };
   return { clock, started, deadline, initial };
@@ -277,7 +274,7 @@ function waitSettings({ deps, input }: { deps: { clock?: OptionalWaitClock; init
  * @complexity Time: O(timeout / 10s) polls. Space: O(one status response).
  * @example await waitForDeployOps({ status }, { until: "healthy", timeoutSeconds: 180, signal });
  */
-export async function waitForDeployOps(deps: { status(signal: AbortSignal): Promise<DeployOpsStatus>; clock?: OptionalWaitClock; initial?: DeployOpsStatus }, input: { until: "healthy" | "finished"; timeoutSeconds?: number; signal?: OptionalAbortSignal }): Promise<DeployOpsWaitResult> {
+export async function waitForDeployOps(deps: { status(signal: AbortSignal): Promise<DeployOpsStatus>; clock?: WaitClock | undefined; initial?: DeployOpsStatus }, input: { until: "healthy" | "finished"; timeoutSeconds?: number; signal?: AbortSignal | undefined }): Promise<DeployOpsWaitResult> {
   const { clock, started, deadline, initial } = waitSettings({ deps, input }, {});
   let polls = 0;
   let last = initial;
