@@ -14,3 +14,8 @@ export * from './ops-descriptors.js';
 export * from './config-contracts.js';
 export * from './config-descriptors.js';
 export * from './ops-tool-contracts.js';
+export * from './ops-runner.js';
+export * from './ops-secrets.js';
+export * from './ops-secret-card.js';
+export * from './ops-tools.js';
+export * from './ops-registry.js';
