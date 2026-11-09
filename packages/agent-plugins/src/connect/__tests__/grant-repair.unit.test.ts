@@ -14,7 +14,7 @@ const row = { serverId: 'alpha', provisionedByPluginId: 'plugin', enabled: false
   allowedToolNames: null, writeAllowedToolNames: null, writeGrantsUpdatedByPrincipalId: null,
 } as AgentPluginMcpRecord;
 const repo: Parameters<typeof previewAgentPluginEnableAccess>[0]['repo'] = {
-  findByServerId: async () => row, upsert: async () => row, deleteByServerId: async () => {}, updateAccessIfCurrent: async () => true,
+  findByServerId: async () => row, upsert: async () => {}, deleteByServerId: async () => true, updateAccessIfCurrent: async () => true,
 };
 const ports: AgentPluginMcpProjectionPorts = {
   classifyError: () => 'validation',
