@@ -55,7 +55,7 @@ export interface DeployOpsRuntime {
   loadDeployWorkflowFiles?: ((input:{workspaceId:string})=>Promise<readonly string[]>) | undefined;
   waitClock?: WaitClock | undefined;
   credentials: DeployOpsBoundedRequest & Pick<CredentialedRequestPort,'resolveTarget'|'classifyError'> & {
-    /** @agent-note Return only non-decrypting label/origin metadata from the same saved store. */
+    /** @agent-note Return non-decrypting metadata from the same saved store with exact HTTPS origins such as https://host (no trailing slash), read only when no explicit credential label is supplied. */
     list(required: Record<string,never>, optional?: Record<string,never>): Promise<readonly {label:string; allowedOrigins:readonly string[]}[]>;
     available: boolean;
   };
@@ -94,6 +94,7 @@ export interface DeployOpsSecretCards {
 }
 /** @agent-note Supply reviewed host catalog/metadata/risk/domain/entity/path and every permission explicitly. Permit before registry, credential, site-key or network access. Approval uses explicit human on same actor-bound exchange, freezes request, rechecks write permission after answer; deny/abort means no mutation. Undefined means no interactive surface. */
 export interface DeployOpsRegistrationHost {
+  /** @agent-note Catalog names must equal toolIds values, with handler keys platform/target/credentialLabel for secret inventory, additionally name for unset and name/source/dryRun for set; deployment uses platform/target/ref/workflowFile/credentialLabel, target inventory uses platform/credentialLabel/org, status uses platform/target/credentialLabel/runId/branch, logs adds limit, and wait adds until/timeoutSeconds. */
   catalog: readonly AgentToolDefinition[];
   metadata: ToolMetadataById;
   derivedRisk: DerivedRiskByToolId;
