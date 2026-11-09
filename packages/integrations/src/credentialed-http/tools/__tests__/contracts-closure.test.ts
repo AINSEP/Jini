@@ -1,7 +1,7 @@
 /** @file EXTRACT-S8-X: pure consumer contracts, declaration notes and host-vocabulary closure. */
 import assert from 'node:assert/strict';
 import { readdirSync, readFileSync } from 'node:fs';
-import test from 'node:test';
+import { test } from 'vitest';
 import ts from 'typescript';
 
 function read(name: string) {
