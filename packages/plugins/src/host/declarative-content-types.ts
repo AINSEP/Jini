@@ -33,9 +33,11 @@ import { PluginInvalidError } from "./activation.js";
 import type { PluginValidationError } from "./manifest-types.js";
 import type { DeclaredContentType, DeclaredContentTypePlan } from "./ports.js";
 
-/** ADR-024 §5 bound: how many content types one plugin may declare. */
+/** ADR-024 §5 bound: how many content types one plugin may declare.
+ *  @agent-note Plugin-domain bound, not a host option; a longer list is refused whole at parse. */
 export const MAX_DECLARED_CONTENT_TYPES = 20;
-/** ADR-024 §5 bound: how many fields one declared content type may carry. */
+/** ADR-024 §5 bound: how many fields one declared content type may carry.
+ *  @agent-note Plugin-domain bound, not a host option. */
 export const MAX_DECLARED_FIELDS = 50;
 /** Core's own per-type queryable-field cap (`QUERYABLE_FIELD_CAP` in `@jini-ai/cms`'s
  *  `registerContentType`, not exported). Checked here so a declaration core would refuse is
@@ -92,6 +94,8 @@ export interface DeclaredContentTypeDefinition extends DeclaredContentType {
   readonly fields: readonly ContentTypeFieldDef[];
 }
 
+/** @agent-note `decls` holds only fully valid declarations; `errors` is collect-all, in order. A
+ *  host lists a plugin with any error as invalid rather than enabling a subset. */
 export interface ParseDeclaredContentTypesResult {
   readonly decls: readonly DeclaredContentTypeDefinition[];
   readonly errors: readonly PluginValidationError[];
@@ -137,7 +141,8 @@ function labelValid(label: unknown): label is string {
 const CODE_SURFACES = ["capabilities", "hooks", "fields"] as const;
 
 /** The manifest keys the declarative rules read. Values are `unknown` so `validateManifest` can pass
- *  its raw, not-yet-validated object, and a parsed `PluginManifest` fits too. */
+ *  its raw, not-yet-validated object, and a parsed `PluginManifest` fits too.
+ *  @agent-note Read only; never mutated or retained. */
 export interface DeclarativeManifestView {
   readonly tier?: unknown;
   readonly contentTypes?: unknown;
@@ -163,7 +168,9 @@ export interface DeclarativeManifestView {
  * retained on disable/uninstall.
  */
 export interface DeclaredContentTypeWritePorts {
+  /** @agent-note Read in the enabling workspace; `null` when absent, tombstones returned as such. */
   findByKey(params: { workspaceId: string; key: string }): Promise<ContentTypeRecord | null>;
+  /** @agent-note One host write; `{ ok: false, error }` for an expected rejection, never a throw. */
   register(input: {
     workspaceId: string;
     key: string;
@@ -173,6 +180,7 @@ export interface DeclaredContentTypeWritePorts {
   }): Promise<{ ok: true } | { ok: false; error: Error }>;
 }
 
+/** @agent-note `create` is the only outcome that writes; `keep`/`skip-tombstoned` never touch the type. */
 export type DeclaredContentTypeOutcome = "create" | "keep" | "skip-tombstoned";
 
 /** @agent-note Concrete form of the opaque {@link DeclaredContentTypePlan}; produced only by `plan`
@@ -223,6 +231,7 @@ async function planDeclaredContentTypes(
   return conflicts.length > 0 ? { items: [], conflicts } : { items, conflicts };
 }
 
+/** @agent-note Keys per outcome, in plan order; a lost-race key lands in `kept` or `skipped`. */
 export interface ApplyDeclaredContentTypesResult {
   readonly created: readonly string[];
   readonly kept: readonly string[];
@@ -300,6 +309,7 @@ export interface DeclarativeContentTypes {
   ): Promise<ApplyDeclaredContentTypesResult>;
 }
 
+/** @agent-note Both members are required host inputs; there is no built-in vocabulary or key list. */
 export interface CreateDeclarativeContentTypesRequired {
   /** @agent-note The host's content-type vocabulary; see {@link DeclaredContentTypeCms}. */
   readonly cms: DeclaredContentTypeCms;
