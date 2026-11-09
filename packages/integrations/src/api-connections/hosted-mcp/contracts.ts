@@ -1,5 +1,5 @@
 /** @agent-note Types only. Sign-in contracts for hosted MCP connections; the host fulfills every port and passes the same repository instance the store uses. */
-import type { Clock as ClockPort, ISODateTime, UUID } from '@jini-ai/core/primitives';
+import type { Clock as ClockPort, UUID } from '@jini-ai/core/primitives';
 import type { KeyringPort, SecretSealerPort } from '@jini-ai/core/contracts/vault';
 import type { AuthorizationCallbackParams, DeviceAuthorization, OAuthHttpPorts, OAuthProviderDescriptor, OAuthProviderRegistry } from '@jini-ai/core/contracts/oauth';
 import type { ExternalMcpConnectStart, ExternalMcpOAuthTokenResolverPort, ExternalMcpServerRepoPort } from '@jini-ai/core/contracts/hosted-mcp';
