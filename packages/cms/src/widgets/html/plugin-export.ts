@@ -7,7 +7,7 @@ import {
   parseMarkerAttributes, withInnerContentAndAttributes, withInnerContentFinal,
   type EmbedMarker,
 } from '../markers/marker.js';
-import { validateServerWidgetFragment } from './server-fragment.js';
+import { validateServerWidgetFragment, type WidgetFragmentAllowances } from './server-fragment.js';
 
 /** Host-prepared, admitted export. The host owns enablement, aliases, schema validation,
  * static-export policy, contained file reads, and public host-link readiness. No secrets belong here.
@@ -22,6 +22,12 @@ export interface PluginExportTemplate {
   readonly template: string;
   readonly props: Readonly<Record<string, unknown>>;
   readonly host?: Readonly<Record<string, unknown>>;
+  /** Exact https origins a whole `{{props.x}}` URL slot may name; also what admits an iframe. */
+  readonly frameHosts?: readonly string[];
+  /** The site's consent is off, so a gated frame loads at once rather than waiting for a choice. */
+  readonly consentOff?: boolean;
+  /** The export ships scripts, so its template may hand them values through data attributes. */
+  readonly scriptData?: boolean;
 }
 
 /** CMS knows no plugin lifecycle. Unavailable, invalid, or unsupported exports return undefined.
@@ -44,6 +50,7 @@ export interface PluginExportRender {
 
 const SLOT = /{{\s*(props|host)\.([a-zA-Z0-9_.-]+)\s*}}/g;
 const HOST_URL_SLOT = /^{{\s*host\.(?:assets\.)?[A-Za-z][A-Za-z0-9_-]*\s*}}$/;
+const PROP_URL_SLOT = /^{{\s*props\.[A-Za-z][A-Za-z0-9_-]*\s*}}$/;
 // The fragment policy's attribute allowlist rejects every other URL sink (srcset, formaction, style…).
 const URL_ATTRIBUTES: ReadonlySet<string> = new Set(['href', 'src', 'action']);
 const STAMPS: ReadonlySet<string> = new Set(['data-plugin', 'data-component', 'data-embed-v']);
@@ -61,7 +68,13 @@ function slotValue({ source, path }: { source: Readonly<Record<string, unknown>>
   return String(value);
 }
 
-/** Host links/assets stay on this origin; props cannot introduce URLs in v1. */
+/** A prop may name a URL only on an origin the manifest declared for this export. */
+function assertDeclaredUrl({ value, hosts }: { value: string; hosts: readonly string[] }, _optional: Record<string, never> = {}): void {
+  const url = new URL(value);
+  if (url.protocol !== 'https:' || url.username || url.password || !hosts.includes(url.origin)) throw new Error('plugin export URL must be on a declared host');
+}
+
+/** Host links/assets stay on this origin. */
 function assertLocalUrl({ value }: { value: string }, _optional: Record<string, never> = {}): void {
   if (!value.startsWith('/') || value.startsWith('//') || /[\u0000-\u0020\\]/.test(value)) throw new Error('plugin export URL must be a local path');
 }
@@ -72,14 +85,17 @@ function fillSlotText(
   _optional: Record<string, never> = {},
 ): string {
   // The host resolves declared hostLinks/assets. Literal pieces would let a template retarget them.
-  if (url && !HOST_URL_SLOT.test(text)) throw new Error('plugin export URL must be a whole hostLinks or assets slot');
+  const hosts = definition.frameHosts ?? [];
+  const propUrl = url && hosts.length > 0 && PROP_URL_SLOT.test(text);
+  if (url && !propUrl && !HOST_URL_SLOT.test(text)) throw new Error('plugin export URL must be a whole hostLinks or assets slot');
   // A single replace pass prevents a prop containing {{host.secret}} becoming another slot.
   if (/{{|}}/.test(text.replace(SLOT, ''))) throw new Error('unsupported plugin export slot');
   const output = text.replace(SLOT, (_match, scope: 'props' | 'host', path: string) => {
-    // HOST_URL_SLOT above permits only a whole host slot in URL attributes.
+    // The URL checks above permit only a whole host or declared-prop slot in URL attributes.
     return slotValue({ source: definition[scope] ?? {}, path });
   });
-  if (url) assertLocalUrl({ value: output });
+  if (propUrl) assertDeclaredUrl({ value: output, hosts });
+  else if (url) assertLocalUrl({ value: output });
   return output;
 }
 
@@ -112,8 +128,26 @@ function fillNode(
   }
 }
 
+/** Move each frame's address where only the consent client will load it. The fragment was already
+ * validated, so this adds exactly the two reserved attributes the client consumes.
+ * @complexity O(n) nodes of the capped fragment. No I/O.
+ */
+function holdFramesForConsent({ html, consent }: { html: string; consent: ConsentCategory }, _optional: Record<string, never> = {}): string {
+  const root = parseFragment(html);
+  const pending: DefaultTreeAdapterMap['node'][] = [root];
+  while (pending.length) {
+    const node = pending.pop()!;
+    if ('childNodes' in node) pending.push(...node.childNodes);
+    if (!('tagName' in node) || node.tagName !== 'iframe') continue;
+    for (const attr of node.attrs) if (attr.name === 'src') attr.name = 'data-src';
+    node.attrs.push({ name: 'data-jini-consent', value: JSON.stringify([consent]) });
+  }
+  return serialize(root);
+}
+
 /** Fill scalar props/host slots in text or quoted attributes, then use the single fragment-policy
- * owner. Throws on invalid slots, markup or URLs. No scripts, style, editing handles or recursion.
+ * owner. Throws on invalid slots, markup or URLs. No inline scripts, style, editing handles or
+ * recursion; a frame is admitted only with a declared host and is held for consent when required.
  * @complexity O(n + s*d), template length n, slot count s, property-path depth d; existing fragment
  * byte cap bounds input and output. No I/O.
  */
@@ -121,11 +155,13 @@ export function fillPluginExportTemplate(
   { definition }: { definition: PluginExportTemplate },
   _optional: Record<string, never> = {},
 ): string {
+  const allowed: WidgetFragmentAllowances = { frames: (definition.frameHosts ?? []).length > 0, dataAttributes: definition.scriptData === true };
   // Reuse the policy owner's cap before parsing as well as after interpolation.
-  validateServerWidgetFragment({ html: definition.template });
+  validateServerWidgetFragment({ html: definition.template }, { allowed });
   const root = parseFragment(definition.template, { sourceCodeLocationInfo: true });
   for (const node of root.childNodes) fillNode({ node, definition });
-  return validateServerWidgetFragment({ html: serialize(root) });
+  const html = validateServerWidgetFragment({ html: serialize(root) }, { allowed });
+  return definition.consent === 'necessary' || definition.consentOff === true ? html : holdFramesForConsent({ html, consent: definition.consent });
 }
 
 /** Marker versions default to 1. Admission/range refusal is fallback, never a page failure. */
@@ -165,7 +201,7 @@ export async function resolvePluginExportEmbeds(
 
 /** Plugin markers always retain the author wrapper. Only structured, validated output may stamp
  * canonical identity; a missing result keeps authored fallback and removes the marker.
- * Fragments admit neither scripts nor iframes, so no consent stamp is needed.
+ * Consent lives inside the fragment (held frames) and in the host's script tags, so no stamp here.
  */
 export function substitutePluginExport(
   { marker, resolved }: { marker: EmbedMarker; resolved: string | PluginExportRender | undefined },

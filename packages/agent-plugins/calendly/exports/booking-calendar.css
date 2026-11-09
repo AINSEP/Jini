@@ -1,0 +1,7 @@
+.plugin-calendly-booking-calendar { width: 100%; max-width: 100%; }
+.plugin-calendly-booking-calendar__frame { display: block; width: 100%; height: clamp(640px, 85vh, 900px); border: 0; border-radius: 8px; }
+.plugin-calendly-booking-calendar__frame:not([src]) { display: none; }
+.plugin-calendly-booking-calendar__note { display: none; margin: 0 0 0.5rem; }
+.plugin-calendly-booking-calendar__frame:not([src]) ~ .plugin-calendly-booking-calendar__note { display: block; }
+.plugin-calendly-booking-calendar__link { margin: 0.5rem 0 0; font-size: 0.9em; }
+.plugin-calendly-booking-calendar__link a { color: inherit; text-decoration: underline; }

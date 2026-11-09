@@ -6,6 +6,7 @@ import {
   fillPluginExportTemplate, resolvePluginExportEmbeds,
   type PluginExportRender, type PluginExportTemplate, type PluginExportsPort,
 } from '../html/plugin-export.js';
+import { validateServerWidgetFragment } from '../html/server-fragment.js';
 
 const config = { type: 'plugin', plugin: 'example/login', component: 'button', version: 1, props: {} };
 const snippet = (props: Record<string, unknown> = {}) => embedMarkerSnippetFromConfig({ config: { ...config, props } });
@@ -182,4 +183,75 @@ describe('plugin export occurrence resolution', () => {
 
 it('non-executable plugin fragments do not carry unused consent stamps', () => {
   expect(substituteHtmlEmbeds({ html: snippet(), resolve: () => rendered })).not.toContain('data-consent-category');
+});
+
+describe('plugin exports with declared external hosts', () => {
+  const frame: PluginExportTemplate = {
+    plugin: 'example/booking', component: 'calendar', version: 1, consent: 'necessary',
+    template: '<div class="c"><iframe class="c__frame" src="{{props.url}}" title="Book" loading="lazy"></iframe><a href="{{props.url}}">Open</a></div>',
+    props: { url: 'https://book.vendor.test/me/30min' }, frameHosts: ['https://book.vendor.test'],
+  };
+  const iframeAttrs = (html: string) => {
+    const found: Record<string, string>[] = [];
+    const walk = (node: { childNodes?: unknown[]; tagName?: string; attrs?: { name: string; value: string }[] }) => {
+      if (node.tagName === 'iframe') found.push(Object.fromEntries(node.attrs!.map(attr => [attr.name, attr.value])));
+      (node.childNodes as typeof node[] | undefined)?.forEach(walk);
+    };
+    walk(parseFragment(html) as never);
+    return found;
+  };
+
+  it('fills a frame and link from a prop on a declared host', () => {
+    const html = fillPluginExportTemplate({ definition: frame });
+    expect(iframeAttrs(html)[0]).toMatchObject({ src: 'https://book.vendor.test/me/30min', title: 'Book', loading: 'lazy' });
+    expect(html).toContain('<a href="https://book.vendor.test/me/30min">Open</a>');
+  });
+
+  it('holds the frame until the visitor allows its consent category', () => {
+    const html = fillPluginExportTemplate({ definition: { ...frame, consent: 'functional' } });
+    const attrs = iframeAttrs(html)[0]!;
+    expect(attrs).not.toHaveProperty('src');
+    expect(attrs['data-src']).toBe('https://book.vendor.test/me/30min');
+    expect(JSON.parse(attrs['data-jini-consent']!)).toEqual(['functional']);
+    expect(html).toContain('<a href="https://book.vendor.test/me/30min">Open</a>');
+  });
+
+  it('loads the frame directly when the site turned consent off', () => {
+    const html = fillPluginExportTemplate({ definition: { ...frame, consent: 'functional', consentOff: true } });
+    expect(iframeAttrs(html)[0]).toMatchObject({ src: 'https://book.vendor.test/me/30min' });
+    expect(iframeAttrs(html)[0]).not.toHaveProperty('data-jini-consent');
+  });
+
+  it.each([
+    ['another host', 'https://evil.test/me'],
+    ['a lookalike host', 'https://book.vendor.test.evil.test/me'],
+    ['plain HTTP', 'http://book.vendor.test/me'],
+    ['embedded credentials', 'https://user:pw@book.vendor.test/me'],
+    ['a script URL', 'javascript:alert(1)'],
+  ])('refuses a prop URL on %s', (_name, url) => {
+    expect(() => fillPluginExportTemplate({ definition: { ...frame, props: { url } } })).toThrow();
+  });
+
+  it('refuses a frame when the export declares no frame host', () => {
+    const { frameHosts: _dropped, ...undeclared } = frame;
+    expect(() => fillPluginExportTemplate({ definition: undeclared })).toThrow();
+  });
+
+  it('refuses a frame pointing anywhere but a whole prop slot on a declared host', () => {
+    expect(() => fillPluginExportTemplate({ definition: { ...frame, template: '<iframe src="https://evil.test/x"></iframe>' } })).toThrow();
+    expect(() => fillPluginExportTemplate({ definition: { ...frame, template: '<iframe srcdoc="<b>x</b>" src="{{props.url}}"></iframe>' } })).toThrow();
+  });
+
+  it('keeps ordinary server widgets free of frames', () => {
+    expect(() => validateServerWidgetFragment({ html: '<iframe src="https://book.vendor.test/me"></iframe>' })).toThrow();
+  });
+
+  it('gives declared scripts their data attributes, but never the reserved ones', () => {
+    const scripted: PluginExportTemplate = { ...definition, template: '<div data-chat-id="{{props.label}}"></div>', scriptData: true };
+    expect(fillPluginExportTemplate({ definition: scripted })).toBe('<div data-chat-id="Continue"></div>');
+    expect(() => fillPluginExportTemplate({ definition: { ...scripted, scriptData: false } })).toThrow();
+    for (const name of ['data-embed-config', 'data-agent-element', 'data-src', 'data-jini-consent', 'data-consent-category', 'data-consent-action']) {
+      expect(() => fillPluginExportTemplate({ definition: { ...scripted, template: `<div ${name}="x"></div>` } })).toThrow();
+    }
+  });
 });

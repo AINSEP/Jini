@@ -8,6 +8,12 @@ import {
 /** Matches the CMS consent vocabulary without introducing a dependency on CMS. */
 export type AgentPluginExportConsent = 'necessary' | 'functional' | 'analytics' | 'marketing';
 export type AgentPluginExportStaticMode = 'full' | 'link-only' | 'fallback-only';
+/** Exact https origins an export may reach; the host adds them to the page's content-security policy. */
+export interface AgentPluginExportExternalHosts {
+  readonly script?: readonly string[];
+  readonly frame?: readonly string[];
+  readonly connect?: readonly string[];
+}
 export interface AgentPluginExport {
   readonly template: string;
   readonly props: Extract<AdminSurfaceActionSchema, { type: 'object' }>;
@@ -21,6 +27,11 @@ export interface AgentPluginExport {
   readonly hostLinks?: Readonly<Record<string, string>>;
   readonly styles?: string;
   readonly assets?: Readonly<Record<string, string>>;
+  /** Contained .js paths or https URLs on externalHosts.script, loaded in order behind `consent`. */
+  readonly scripts?: readonly string[];
+  readonly externalHosts?: AgentPluginExportExternalHosts;
+  /** String props that must be an https page on one of externalHosts.frame. */
+  readonly urlProps?: readonly string[];
 }
 export interface AgentPluginExportMetadata {
   readonly exports?: Readonly<Record<string, AgentPluginExport>>;
@@ -32,7 +43,8 @@ export type ParseAgentPluginExportsResult =
   | { readonly ok: false; readonly errors: readonly string[] };
 
 type Entry = Readonly<Record<string, unknown>>;
-const KNOWN_KEYS: ReadonlySet<string> = new Set(['template', 'props', 'consent', 'staticExport', 'version', 'minVersion', 'aliases', 'hostLinks', 'styles', 'assets']);
+const KNOWN_KEYS: ReadonlySet<string> = new Set(['template', 'props', 'consent', 'staticExport', 'version', 'minVersion', 'aliases', 'hostLinks', 'styles', 'assets', 'scripts', 'externalHosts', 'urlProps']);
+const HOST_KINDS: readonly string[] = ['script', 'frame', 'connect'];
 const isObject = (value: unknown): value is Entry => typeof value === 'object' && value !== null && !Array.isArray(value);
 const isName = (value: unknown): value is string => typeof value === 'string' && /^[a-z0-9]+(?:[.-][a-z0-9]+)*$/.test(value);
 const isVersion = (value: unknown): value is number => Number.isSafeInteger(value) && (value as number) >= 1;
@@ -67,6 +79,42 @@ function checkFiles({ entry }: { readonly entry: Entry }, _optional = {}): strin
   if (entry.styles !== undefined && !isExportFile({ value: entry.styles, extension: ['.css'] })) return 'styles must be a contained .css path';
   const validAsset = (value: unknown) => isExportFile({ value, extension: ['.png', '.svg'] });
   return checkMap({ value: entry.assets, valid: validAsset }) ? null : 'assets must map names to contained .png or .svg paths';
+}
+
+/** Exact origins only: paths, wildcards and CSP keywords would widen what the manifest states. */
+function isHttpsOrigin(value: unknown): boolean {
+  return typeof value === 'string' && /^https:\/\/[a-z0-9.-]+(?::\d+)?$/.test(value) && new URL(value).origin === value;
+}
+
+function isDeclaredScriptUrl({ value, hosts }: { readonly value: unknown; readonly hosts: readonly string[] }, _optional = {}): boolean {
+  if (typeof value !== 'string' || !value.startsWith('https://')) return false;
+  try {
+    const url = new URL(value);
+    return !url.username && !url.password && hosts.includes(url.origin);
+  } catch { return false; }
+}
+
+/** A URL prop is only checkable against a declared frame host, and only if the schema names it. */
+function checkUrlPropsDeclared({ entry }: { readonly entry: Entry }, _optional = {}): string | null {
+  if (entry.urlProps === undefined) return null;
+  const properties = isObject(entry.props) && isObject(entry.props.properties) ? entry.props.properties : {};
+  const frames = (entry.externalHosts as AgentPluginExportExternalHosts | undefined)?.frame ?? [];
+  const valid = Array.isArray(entry.urlProps) && frames.length > 0 && entry.urlProps.every(name => typeof name === 'string' && Object.hasOwn(properties, name));
+  return valid ? null : 'urlProps must name declared props and needs externalHosts.frame';
+}
+
+/** Nothing loads unless named here: own files by contained path, third-party files by declared origin. */
+function checkExternal({ entry }: { readonly entry: Entry }, _optional = {}): string | null {
+  const hosts = entry.externalHosts;
+  if (hosts !== undefined && !(isObject(hosts) && Object.entries(hosts).every(([kind, origins]) => HOST_KINDS.includes(kind) && Array.isArray(origins) && origins.every(isHttpsOrigin)))) {
+    return 'externalHosts must map script, frame or connect to exact https origins';
+  }
+  const urlProps = checkUrlPropsDeclared({ entry });
+  if (urlProps !== null) return urlProps;
+  if (entry.scripts === undefined) return null;
+  const scriptHosts = (hosts as AgentPluginExportExternalHosts | undefined)?.script ?? [];
+  const valid = Array.isArray(entry.scripts) && entry.scripts.every(value => isExportFile({ value, extension: ['.js'] }) || isDeclaredScriptUrl({ value, hosts: scriptHosts }));
+  return valid ? null : 'scripts must be contained .js paths or https URLs on externalHosts.script';
 }
 
 function checkContract({ entry, provides }: { readonly entry: Entry; readonly provides: readonly string[] }, _optional = {}): string | null {
@@ -109,7 +157,7 @@ function checkExport({ name, entry, provides, warnings }: { readonly name: strin
   for (const key of Object.keys(entry)) {
     if (!KNOWN_KEYS.has(key)) warnings.push(`unrecognized exports.${name} field '${key}' (ignored)`);
   }
-  return checkVersions({ entry }) ?? checkFiles({ entry }) ?? checkContract({ entry, provides });
+  return checkVersions({ entry }) ?? checkFiles({ entry }) ?? checkExternal({ entry }) ?? checkContract({ entry, provides });
 }
 
 /** Save and render share the existing bounded schema/value policy; messages never echo prop values.
@@ -120,5 +168,23 @@ export function validateAgentPluginExportProps(
   _optional: Record<string, never> = {},
 ): string | null {
   if (exceedsAdminSurfacePayloadLimit({ payload: props })) return 'props exceed the payload limit';
-  return validateAdminSurfaceActionValue({ schema: definition.props, value: props });
+  return validateAdminSurfaceActionValue({ schema: definition.props, value: props }) ?? checkUrlPropValues({ definition, props });
+}
+
+function isPageOn({ value, hosts }: { readonly value: unknown; readonly hosts: readonly string[] }, _optional = {}): boolean {
+  if (typeof value !== 'string') return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === 'https:' && !url.username && !url.password && url.pathname !== '/' && hosts.includes(url.origin);
+  } catch { return false; }
+}
+
+/** Runs after the schema, so props is a closed object. Reasons name the host, never the value. */
+function checkUrlPropValues({ definition, props }: { readonly definition: AgentPluginExport; readonly props: unknown }, _optional = {}): string | null {
+  const hosts = definition.externalHosts?.frame ?? [];
+  for (const name of definition.urlProps ?? []) {
+    const value = (props as Entry)[name];
+    if (value !== undefined && !isPageOn({ value, hosts })) return `${name} must be an https link to a page on ${hosts.join(' or ')}`;
+  }
+  return null;
 }
