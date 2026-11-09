@@ -174,6 +174,20 @@ it('all real default entries keep runtime libraries required and classify opt-in
   expect(missingSubpaths).toEqual([]);
 }, 120000);
 
+// A packed consumer of cms/forms/sql installs kysely and @jini-ai/db, not an unnamed HTML parser.
+it('cms forms entries reach only required libraries or optional peers that name that entry', async () => {
+  const repoRoot = new URL('../../', import.meta.url).pathname;
+  const { readFileSync } = await import('node:fs');
+  const manifest = JSON.parse(readFileSync(new URL('../../packages/cms/package.json', import.meta.url), 'utf8'));
+  const unnamed = auditSubpathIsolation({ repoRoot }).closures
+    .filter(closure => closure.package === '@jini-ai/cms' && closure.subpath.startsWith('./forms'))
+    .flatMap(closure => closure.dependencies
+      .filter(peer => !manifest.dependencies[peer]
+        && !manifest.jini.optionalPeers[peer]?.includes(`import @jini-ai/cms${closure.subpath.slice(1)} —`))
+      .map(peer => `${closure.subpath} → ${peer}`));
+  expect(unnamed).toEqual([]);
+}, 120000);
+
 // Cross-package defaults count too: UI loads UI kit's React bindings; server loads daemon HTTP.
 it.each([['ui', 'react'], ['ui', 'react-dom'], ['daemon', 'express'], ['server', 'express'],
   ['ui-kit', 'react'], ['ui-kit', 'react-dom']])

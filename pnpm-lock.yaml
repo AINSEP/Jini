@@ -535,6 +535,9 @@ importers:
       mammoth:
         specifier: ^1.12.3
         version: 1.13.0
+      parse5:
+        specifier: ^7.3.0
+        version: 7.3.0
       unpdf:
         specifier: ^1.8.1
         version: 1.9.1
@@ -581,9 +584,6 @@ importers:
       kysely:
         specifier: ^0.29.6
         version: 0.29.6
-      parse5:
-        specifier: ^7.3.0
-        version: 7.3.0
       sharp:
         specifier: ^0.35.3
         version: 0.35.3(@types/node@24.13.3)
