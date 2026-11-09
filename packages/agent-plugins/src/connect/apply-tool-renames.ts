@@ -1,6 +1,7 @@
 import { type Clock as ClockPort, nowIso as clockNowIso } from "@jini-ai/core/primitives";
-import { deriveAgentPluginConnectionId, type AgentPluginMcpRecord, type AgentPluginMcpRepo } from "@jini-ai/agent-plugins/connect";
-import type { McpServerConfig } from "@jini-ai/agent-plugins/lifecycle";
+import { deriveAgentPluginConnectionId } from "./federate-mcp.js";
+import type { AgentPluginMcpRecord, AgentPluginMcpRepo } from "./ports.js";
+import type { McpServerConfig } from "../lifecycle/manifest.js";
 
 /** One installed plugin's declared MCP servers, as the host's installed-package reads list them. */
 interface InstalledAgentPluginServers { readonly pluginId: string; readonly servers: Readonly<Record<string, McpServerConfig>> }

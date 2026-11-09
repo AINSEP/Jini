@@ -1,7 +1,8 @@
 import { resolveTarget, saveStaticAccessToken, type AgentPluginTokenTargetDeps, type TokenAuthTarget } from "./access-token-tool.js";
 import { hasStoredAgentPluginCredential } from "./connect-tool.js";
-import type { McpServerConfig } from "@jini-ai/agent-plugins/lifecycle";
-import type { AgentPluginInstalledMcpReads, SavedTokenSwitchOutcome } from "@jini-ai/agent-plugins/connect";
+import type { McpServerConfig } from "../lifecycle/manifest.js";
+import type { AgentPluginInstalledMcpReads } from "./federate-mcp.js";
+import type { SavedTokenSwitchOutcome } from "./switch-on-saved-token.js";
 
 /**
  * @file Saves an access token that did NOT come through `agent_plugin_set_access_token`'s form onto

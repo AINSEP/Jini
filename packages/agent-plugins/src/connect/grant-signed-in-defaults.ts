@@ -1,10 +1,11 @@
 import { ToolInputError, redactSecrets } from '@jini-ai/core';
 
-import { createApplyConnectDefaults, type ApplyConnectDefaultsDeps } from "@jini-ai/agent-plugins/connect";
+import { createApplyConnectDefaults, type ApplyConnectDefaultsDeps } from "./apply-connect-defaults.js";
 import { hasStoredAgentPluginCredential } from "./connect-tool.js";
-import { deriveAgentPluginConnectionId, type AgentPluginMcpProjectionPorts } from "@jini-ai/agent-plugins/connect";
+import { deriveAgentPluginConnectionId } from "./federate-mcp.js";
+import type { AgentPluginMcpProjectionPorts } from "./ports.js";
 import type { InstalledAgentPluginServers, TokenImportLog } from "./import-access-token.js";
-import type { McpServerConfig } from "@jini-ai/agent-plugins/lifecycle";
+import type { McpServerConfig } from "../lifecycle/manifest.js";
 
 /**
  * @file "Plugin on + account connected" grants the plugin's declared tools, whichever of the two

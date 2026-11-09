@@ -1,6 +1,6 @@
 import { probeToken, type AgentPluginTokenCredentialsPort, type AgentPluginTokenValidator } from "./access-token-tool.js";
 import { titleCaseFromPluginId, type ResolvedAgentPluginForConnect } from "./connect-tool.js";
-import type { AgentPluginTokenAuth, McpServerConfig } from "@jini-ai/agent-plugins/lifecycle";
+import type { AgentPluginTokenAuth, McpServerConfig } from "../lifecycle/manifest.js";
 
 /**
  * @file Which installed Agent Plugins can be connected with a pasted access token, and a check of one

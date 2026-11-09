@@ -4,12 +4,11 @@ import { adaptLegacyAuthorize } from "@jini-ai/core";
 import { type AgentToolSideEffect, type DerivedRiskByToolId, type AgentToolDefinition, type AccessApprovalDescription, type ToolHandler } from "@jini-ai/core";
 import { requireToolPermission, type LegacyToolAuthorizeFn as AuthorizeFn } from "@jini-ai/core";
 import { ToolInputError, redactSecrets, type ToolExecutionOptions, type ToolExecutionContext } from "@jini-ai/core";
-import {
-  deriveAgentPluginConnectionId, provisionAgentPluginMcpServers, previewAgentPluginEnableAccess, recordAgentPluginAccessDeclined,
-  type AgentPluginMcpPort, type AgentPluginMcpRecord, type AgentPluginMcpProjectionPorts, type AgentPluginMcpProjections,
-  type AgentPluginMcpTrustClassifier, type AgentPluginEnableAccessMessages,
-} from "@jini-ai/agent-plugins/connect";
-import type { McpServerConfig, RemoteMcpServerConfig } from "@jini-ai/agent-plugins/lifecycle";
+import { deriveAgentPluginConnectionId, provisionAgentPluginMcpServers, type AgentPluginMcpTrustClassifier } from "./federate-mcp.js";
+import { previewAgentPluginEnableAccess, type AgentPluginEnableAccessMessages } from "./enable-access.js";
+import { recordAgentPluginAccessDeclined } from "./apply-connect-defaults.js";
+import type { AgentPluginMcpPort, AgentPluginMcpRecord, AgentPluginMcpProjectionPorts, AgentPluginMcpProjections } from "./ports.js";
+import type { McpServerConfig, RemoteMcpServerConfig } from "../lifecycle/manifest.js";
 
 /**
  * @file agent_plugin_connect connects an Agent Plugin's account through

@@ -3,12 +3,10 @@ import type { SurfaceCardSecretForm, SurfaceCardSecretRun as SecretCardRun, Surf
 import { adaptLegacyAuthorize, requireToolPermission, type LegacyToolAuthorizeFn as AuthorizeFn } from "@jini-ai/core";
 import { requireInputRecord, ToolInputError, type ToolExecutionOptions, type ToolExecutionContext } from "@jini-ai/core";
 import type { SurfaceAskThenReport, SurfaceExchangeStore } from "@jini-ai/core";
-import {
-  deriveAgentPluginConnectionId, provisionAgentPluginMcpServers,
-  type AgentPluginMcpPort, type AgentPluginMcpRecord, type AgentPluginMcpProjectionPorts,
-  type AgentPluginMcpTrustClassifier, type AgentPluginMcpFederationMessages, type SavedTokenSwitchOutcome,
-} from "@jini-ai/agent-plugins/connect";
-import type { AgentPluginTokenAuth, RemoteMcpServerConfig } from "@jini-ai/agent-plugins/lifecycle";
+import { deriveAgentPluginConnectionId, provisionAgentPluginMcpServers, type AgentPluginMcpTrustClassifier, type AgentPluginMcpFederationMessages } from "./federate-mcp.js";
+import type { AgentPluginMcpPort, AgentPluginMcpRecord, AgentPluginMcpProjectionPorts } from "./ports.js";
+import type { SavedTokenSwitchOutcome } from "./switch-on-saved-token.js";
+import type { AgentPluginTokenAuth, RemoteMcpServerConfig } from "../lifecycle/manifest.js";
 
 import {
   buildAgentPluginAccessTokenFormWithPorts, buildAgentPluginAccessTokenOutcomeWithPorts, resolveAgentPluginCardIdentity,
