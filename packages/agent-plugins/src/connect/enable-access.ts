@@ -10,6 +10,9 @@ import type { McpServerConfig } from '../lifecycle/manifest.js';
  * settings screen; it must not echo a token (the connection id and nothing secret are passed). */
 export interface AgentPluginEnableAccessMessages extends AgentPluginMcpFederationMessages {
   /** The row was configured separately or points somewhere else; its saved sign-in was kept. */
+  /** @agent-note Host repair copy for a refused combined grant. Detail is already core-redacted;
+   * name your own selection tool or screen, never include credential material. */
+  combinedGrantRejected(required: { readonly detail: string }): string;
   sourceConfiguredSeparately(required: { readonly connectionId: string }): string;
 }
 
@@ -27,7 +30,7 @@ export function storedAgentPluginGrants({ row, projections }: { row: Pick<AgentP
  */
 export function validatedAgentPluginToolGrant(
   required: { current: AgentPluginToolGrant; declared: AgentPluginDeclaredTools },
-  options: { reason?: 'sign-in' | 'owner-enable'; ports: AgentPluginMcpProjectionPorts },
+  options: { reason?: 'sign-in' | 'owner-enable'; ports: AgentPluginMcpProjectionPorts; messages: Pick<AgentPluginEnableAccessMessages, 'combinedGrantRejected'> },
 ): AgentPluginToolGrant | null {
   const ports = options.ports;
   const grant = planAgentPluginToolGrant(required, options);
@@ -36,7 +39,7 @@ export function validatedAgentPluginToolGrant(
     return { enabled: true, allow: ports.projections.validateToolNames({ names: grant.allow, field: 'allowedToolNames' }), write: ports.projections.validateToolNames({ names: grant.write, field: 'writeAllowedToolNames' }) };
   } catch (error) {
     if (ports.classifyError({ error }) !== 'validation') throw error;
-    throw new ToolInputError({ message: `The plugin's combined tool grant cannot be saved: ${redactSecrets({ input: (error as Error).message }, { redactPii: false })}. Review its tool selection with external_mcp_save before enabling it.` });
+    throw new ToolInputError({ message: options.messages.combinedGrantRejected({ detail: redactSecrets({ input: (error as Error).message }, { redactPii: false }) }) });
   }
 }
 
@@ -55,7 +58,7 @@ async function previewSource({ workspaceId, pluginId, source, servers, repo, por
   assertPluginSource({ row, pluginId, source, messages });
   const current = storedAgentPluginGrants({ row, projections: ports.projections });
   const declared = findAgentPluginMcpServerDefaults(servers, { serverId: source.connectionId, url: source.url });
-  const grant = declared ? validatedAgentPluginToolGrant({ current, declared }, { reason: 'owner-enable', ports }) : null;
+  const grant = declared ? validatedAgentPluginToolGrant({ current, declared }, { reason: 'owner-enable', ports, messages }) : null;
   const snapshot = { pluginId, connectionId: source.connectionId, url: source.url, revision: row ? ports.projections.admissionRevision(row) : null, expected: row ? ports.projections.accessSnapshot({ record: row }) : null, current, declared, grant };
   const resource: Omit<AccessApprovalResource, 'scope'> | null = grant ? { id: source.connectionId, label: `External MCP source: ${redactSecrets({ input: source.url }, { redactPii: false })}`, previous: current, proposed: grant, revision: snapshot.revision } : null;
   return { snapshot, resource };

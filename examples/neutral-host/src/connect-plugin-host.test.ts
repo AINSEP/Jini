@@ -44,7 +44,7 @@ function acmeHost(steps: Step[]) {
     warn: message => steps.push({ step: 'warn', detail: message }),
     messages: {
       provisioningFailed: ({ pluginId }) => `acme: ${pluginId} failed`, approvedSnapshotMissing: () => 'acme: no key', approvedLoadFailed: ({ detail }) => `acme: ${detail}`,
-      sourceConfiguredSeparately: ({ connectionId }) => `acme: ${connectionId} differs`,
+      combinedGrantRejected: ({ detail }) => `other-host grant: ${detail}`, sourceConfiguredSeparately: ({ connectionId }) => `acme: ${connectionId} differs`,
       sseTransportUnsupported: () => 'acme: sse unsupported', headersUnsupported: () => 'acme: headers unsupported',
     },
   };

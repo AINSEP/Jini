@@ -27,7 +27,7 @@ import type { AgentPluginMcpAccessSnapshot, AgentPluginMcpRecord, AgentPluginMcp
  */
 import type { AgentPluginMcpPort } from "./ports.js";
 import type { Clock as ClockPort } from "@jini-ai/core/primitives";
-import { previewAgentPluginEnableAccess, storedAgentPluginGrants, validatedAgentPluginToolGrant } from './enable-access.js';
+import { previewAgentPluginEnableAccess, storedAgentPluginGrants, validatedAgentPluginToolGrant, type AgentPluginEnableAccessMessages } from './enable-access.js';
 
 import { findAgentPluginMcpServerDefaults, isEmptyJsonList } from "./federate-mcp.js";
 import type { McpServerConfig } from "../lifecycle/manifest.js";
@@ -44,6 +44,8 @@ export interface AgentPluginConnectActors {
 }
 
 export type ApplyConnectDefaultsDeps = Pick<AgentPluginMcpPort, "repo" | "applyAccess"> & AgentPluginMcpProjectionPorts & {
+  /** @agent-note Host repair copy shared with the enable preview; no product tool name is assumed. */
+  readonly combinedGrantRejected: AgentPluginEnableAccessMessages['combinedGrantRejected'];
   readonly clock: ClockPort;
   readonly workspaceId: string;
   /** @agent-note Host lifecycle read: the host binds `federate-mcp.ts`'s `resolveAgentPluginMcpServers`
@@ -72,7 +74,7 @@ async function readConnectGrant({ deps, serverId, resolveServers, approvedEnable
   const defaults = findAgentPluginMcpServerDefaults(await resolveServers({ workspaceId: deps.workspaceId, pluginId }), row);
   // A read-only declaration is classification, not permission to change sign-in grants.
   if (!defaults?.allow) return null;
-  const grant = validatedAgentPluginToolGrant({ current: storedAgentPluginGrants({ row, projections: ports.projections }), declared: defaults }, { reason: approvedEnable ? 'owner-enable' : 'sign-in', ports });
+  const grant = validatedAgentPluginToolGrant({ current: storedAgentPluginGrants({ row, projections: ports.projections }), declared: defaults }, { reason: approvedEnable ? 'owner-enable' : 'sign-in', ports, messages: deps });
   return grant ? { row, pluginId, grant } : null;
 }
 
