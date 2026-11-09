@@ -166,3 +166,197 @@ export interface CredentialSetRepoPort<C extends string = string> {
   /** Idempotent: no-op when no row exists for `(workspaceId, id)`. */
   delete(input: { workspaceId: string; id: string }): Promise<void>;
 }
+
+/*
+ * Credentialed requests and source-control file writes: the two ports a credential tool host binds
+ * over its OWN guarded HTTP client, credential store, audit sink, auth-scheme registry and installed
+ * source-control providers. Types only; the request service implementation usually comes from
+ * `@jini-ai/integrations/credentialed-http`, wrapped by the host's own adapter, and the providers
+ * from the host's installed source-control plugins.
+ */
+
+/** @agent-note Authentication facts about a 401/403, never the token, header or username value.
+ *  `hint` is a hedged hypothesis; `remedyToolId` is a tool id the HOST registered. */
+export interface CredentialAuthFailureDiagnostic {
+  readonly schemeSent: string;
+  readonly usernameStored: boolean;
+  readonly hint?: string;
+  readonly remedyToolId?: string;
+}
+
+/** @agent-note One request that was actually sent. Headers and body are already redacted of every
+ *  form of the credential; a declined confirmation is the caller's own result, never this one. */
+export interface CredentialedRequestResult {
+  readonly executed: true;
+  readonly status: number;
+  readonly headers: Record<string, string>;
+  readonly bodyText: string;
+  readonly authDiagnostic?: CredentialAuthFailureDiagnostic;
+}
+
+/** Transport failure is "unreachable", never "invalid": it says nothing about the credential. */
+export type CredentialCheckStatus = "valid" | "invalid" | "unreachable";
+
+export interface CredentialVerification {
+  readonly status: CredentialCheckStatus;
+  readonly message: string;
+  readonly checkedAt: string;
+  readonly authDiagnostic?: CredentialAuthFailureDiagnostic;
+}
+
+/** A refusal means only that this GET was refused, not that the key is invalid. */
+export type CredentialProbeStatus = "ok" | "refused" | "unavailable";
+
+/** A trusted self-describing token scheme rule (e.g. an installed plugin's). */
+export interface CredentialAuthSchemeRule {
+  readonly id: string;
+  readonly prefix: string;
+  readonly scheme: string;
+}
+
+/** @agent-note `url` is TRUSTED and already resolved by the host against the saved base origin;
+ *  never pass a model-supplied URL here. `connection` is plaintext and stays in-process. */
+export interface CredentialProbeInput {
+  readonly connection: CredentialSetConnectionInput;
+  readonly url: string;
+  readonly schemes: readonly CredentialAuthSchemeRule[];
+  readonly method?: "GET";
+}
+
+/** Who and what: the label, verb and URL a tool handler already read as strings. */
+export interface CredentialedRequestRequired {
+  readonly workspaceId: string;
+  readonly label: string;
+  readonly method: string;
+  readonly url: string;
+}
+
+/** @agent-note `headers`/`body` are untrusted caller fields; the port validates them (no
+ *  credential/host override, bounded body). Never pre-trust or pre-serialize them. */
+export interface CredentialedRequestOptional {
+  readonly headers?: unknown;
+  readonly body?: unknown;
+}
+
+/** A request target checked against the credential's saved hosts, WITHOUT decrypting it. */
+export interface CredentialedRequestTarget {
+  readonly label: string;
+  readonly url: URL;
+}
+
+export type CredentialedRequestErrorCategory = "validation" | "transport" | "egress-refused" | "not-found" | "unknown";
+
+/**
+ * @agent-note `error` is the SAME object that was thrown (identity, class and message unchanged).
+ * Only `callerSafeMessage`/`callerSafeError` may reach a model:
+ * - validation: the caller's own shape/host refusal; schema-decorate it.
+ * - egress-refused: `error.message` may name a resolved internal address — keep it in the server
+ *   audit only. Rethrow `callerSafeError` (same class, address-free message) BEFORE any decoration
+ *   reads `.message`, then schema-decorate.
+ * - not-found / transport / unknown: never schema-decorated; transport text is raw (addresses), so
+ *   it carries no caller-safe field. Unknown errors pass through unchanged.
+ */
+export type CredentialedRequestErrorClass =
+  | { readonly category: "validation"; readonly error: Error; readonly callerSafeMessage: string }
+  | { readonly category: "egress-refused"; readonly error: Error; readonly callerSafeMessage: string; readonly callerSafeError: Error }
+  | { readonly category: "not-found"; readonly error: Error; readonly callerSafeMessage: string }
+  | { readonly category: "transport"; readonly error: Error }
+  | { readonly category: "unknown"; readonly error: unknown };
+
+/**
+ * Authenticated requests through a saved, origin-restricted credential.
+ * @agent-note Bind each method to ONE call of your existing guarded request adapter (request,
+ * target resolution, verification, connection probe) with the SAME repo, sealer, guarded HTTP client, clock, audit and auth-scheme loader your store
+ * uses — never by calling a lower-level request function that skips your audit/diagnostic policy.
+ * Ordering rules a host must keep:
+ * - `resolveTarget` never decrypts; run it before any confirmation dialog or decrypt.
+ * - GET/POST/PUT/PATCH may call `request` directly once permitted. DELETE must be held for a human
+ *   answer first; a decline sends nothing and decrypts nothing. The port itself never confirms.
+ * - Results and errors never carry the token, Authorization header or username value.
+ */
+export interface CredentialedRequestPort {
+  request(required: CredentialedRequestRequired, optional?: CredentialedRequestOptional): Promise<CredentialedRequestResult>;
+  resolveTarget(required: { readonly workspaceId: string; readonly label: string; readonly url: string }, optional?: Record<string, never>): Promise<CredentialedRequestTarget>;
+  verify(required: { readonly workspaceId: string; readonly label: string }, optional?: Record<string, never>): Promise<CredentialVerification>;
+  probe(required: CredentialProbeInput, optional?: Record<string, never>): Promise<CredentialProbeStatus>;
+  classifyError(required: { readonly error: unknown }, optional?: Record<string, never>): CredentialedRequestErrorClass;
+}
+
+/** A repository named by owner and name, before anything is sent. */
+export interface SourceControlRepositoryTarget {
+  readonly owner: string;
+  readonly repo: string;
+}
+
+/** Where a credentialed write goes: the credential's API base plus a ready-made Authorization value. */
+export interface SourceControlCredentialedTarget extends SourceControlRepositoryTarget {
+  readonly baseUrl: string;
+  readonly authorization: string;
+}
+
+export interface SourceControlWriteFile {
+  readonly path: string;
+  readonly content: string;
+}
+
+export interface SourceControlFileWriteState {
+  readonly path: string;
+  readonly exists: boolean;
+}
+
+/** @agent-note Read-only reconnaissance: the commit must land on exactly this parent/tree. */
+export interface SourceControlFileWritePlan {
+  readonly parentCommitSha: string;
+  readonly baseTreeSha: string;
+  readonly fileStates: readonly SourceControlFileWriteState[];
+}
+
+/** @agent-note `logDetail` is for the server log only, never model-facing. */
+export type SourceControlProviderCallFailure =
+  | { ok: false; code: "provider-error"; message: string }
+  | { ok: false; code: "network-unreachable"; message: string; logDetail: string };
+
+export type SourceControlFileWritePlanResult =
+  | { ok: true; plan: SourceControlFileWritePlan }
+  | { ok: false; code: "branch-not-found"; message: string }
+  | SourceControlProviderCallFailure;
+
+export type SourceControlCommitFilesResult =
+  | { ok: true; commitSha: string; commitUrl: string }
+  | { ok: false; code: "diverged"; message: string }
+  | SourceControlProviderCallFailure;
+
+/** The provider operations a file write uses; a host's richer provider object satisfies this. */
+export interface SourceControlFileWriter {
+  readonly validateTarget?: (target: SourceControlRepositoryTarget) => string | null;
+  planFileWrite(input: SourceControlCredentialedTarget & { readonly branch: string; readonly files: readonly SourceControlWriteFile[] }): Promise<SourceControlFileWritePlanResult>;
+  commitFiles(
+    input: SourceControlCredentialedTarget & { readonly branch: string; readonly commitMessage: string; readonly files: readonly SourceControlWriteFile[] },
+    plan: SourceControlFileWritePlan,
+  ): Promise<SourceControlCommitFilesResult>;
+}
+
+export type SourceControlWriterBuildResult =
+  | { readonly ok: true; readonly provider: SourceControlFileWriter }
+  | { readonly ok: false; readonly message: string; readonly refusals: readonly string[] };
+
+/**
+ * Validated file writes to a git host through a saved credential.
+ * @agent-note Order: `build` from the credential's plaintext base URL (no decrypt) → `validateTarget`
+ * on THAT provider (still no decrypt) → decrypt → `planFileWrite` (read-only) → stop if aborted →
+ * `commitFiles` on the SAME provider object with the EXACT plan returned. Never rebuild the provider
+ * or re-plan between plan and commit; the provider owns freshness checks and atomic commit.
+ * `build` uses the host's current provider registry, guarded HTTP client and observability.
+ * `validateTarget` throws the host's validation error (caller-safe text naming the field).
+ * Whole-site export commits are a separate contract; this port adds no file-write confirmation.
+ */
+export interface SourceControlWritePort {
+  build(required: { readonly workspaceId: string; readonly baseUrl: string }, optional?: Record<string, never>): Promise<SourceControlWriterBuildResult>;
+  validateTarget(required: { readonly provider: SourceControlFileWriter; readonly target: { readonly owner: unknown; readonly repo: unknown } }, optional?: Record<string, never>): SourceControlRepositoryTarget;
+  planFileWrite(required: { readonly provider: SourceControlFileWriter; readonly input: SourceControlCredentialedTarget & { readonly branch: string; readonly files: readonly SourceControlWriteFile[] } }, optional?: Record<string, never>): Promise<SourceControlFileWritePlanResult>;
+  commitFiles(required: {
+    readonly provider: SourceControlFileWriter;
+    readonly input: SourceControlCredentialedTarget & { readonly branch: string; readonly commitMessage: string; readonly files: readonly SourceControlWriteFile[] };
+    readonly plan: SourceControlFileWritePlan;
+  }, optional?: Record<string, never>): Promise<SourceControlCommitFilesResult>;
+}
