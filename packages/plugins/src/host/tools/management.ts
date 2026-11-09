@@ -138,7 +138,7 @@ interface PluginApprovalIdentity {
  * @complexity One family discovery scan, bounded by the installed package count. */
 export async function pluginApprovalIdentity<Description>(
   { deps: routeDeps, request }: { 
-  deps: PluginManagementToolsRequired<Description>; 
+  deps: Pick<PluginManagementToolsRequired<Description>, 'discoverPlugins' | 'approvalFingerprint'> & { readonly agentPlugins: Pick<PluginManagementToolsRequired<Description>['agentPlugins'], 'listInstalled' | 'previewEnableAccess'> }; 
   request: Pick<SetEnabledRequest, "family" | "pluginId"> }, _optional = {},
 ): Promise<PluginApprovalIdentity> {
   let revision: string;
