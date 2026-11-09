@@ -154,11 +154,7 @@ export function createAutomaticAgentPluginUse(
     const guidanceFor = async (match: AgentPluginSearchMatch): Promise<string | undefined> => {
       const result = await resolveOneGuidance({ plugin: match }, { signal });
       if (result.status !== 'loaded') return undefined;
-      if (new TextEncoder().encode(result.guidance).length > (match.pluginId === primaryId ? primaryBytes : MAX_AUTOMATIC_GUIDANCE_BYTES)) {
-        const pointer = ports.formatPluginToolPointer?.({ pluginId: match.pluginId, skill: match.pluginId, file: 'SKILL.md' });
-        const howToLoad = pointer === undefined ? '' : ` Load the full instructions with ${pointer}; use the same call with file '<relative path>' for supporting references.`;
-        return `Agent Plugin '${match.pluginId}' guidance is deferred because it exceeds the automatic byte limit.${howToLoad}`;
-      }
+      if (new TextEncoder().encode(result.guidance).length > (match.pluginId === primaryId ? primaryBytes : MAX_AUTOMATIC_GUIDANCE_BYTES)) return deferredGuidanceNote({ pluginId: match.pluginId });
       recordDelivery({ plugin: match, result });
       return result.guidance;
     };
@@ -168,6 +164,12 @@ export function createAutomaticAgentPluginUse(
       if (text !== undefined) guidance.push(text);
     }
     return guidance;
+  }
+  /** The pointer that stands in for guidance too large to inline. O(1). */
+  function deferredGuidanceNote({ pluginId }: { pluginId: string }, _options = {}): string {
+    const pointer = ports.formatPluginToolPointer?.({ pluginId, skill: pluginId, file: 'SKILL.md' });
+    const howToLoad = pointer === undefined ? '' : ` Load the full instructions with ${pointer}; use the same call with file '<relative path>' for supporting references.`;
+    return `Agent Plugin '${pluginId}' guidance is deferred because it exceeds the automatic byte limit.${howToLoad}`;
   }
   /** Persist actual deliveries separately from consent, using the existing chat decision. */
   function rememberDelivery(): void {
@@ -191,9 +193,9 @@ export function createAutomaticAgentPluginUse(
   /** Query preflight delivers one primary; guarded capabilities resolve their providers.
    * Effects serialize with loads so a suggestion never consumes a backstop's delivery.
    */
-  async function prepare(input: PrepareInput, _options = {}): Promise<string> {
+  async function prepare(input: PrepareInput, _options = {}): Promise<{ prefix: string; compact: string }> {
     for (const id of input.loaded ?? []) alreadyLoaded.add(id);
-    if (mode === 'off' || input.signal?.aborted) return '';
+    if (mode === 'off' || input.signal?.aborted) return { prefix: '', compact: '' };
     const catalog = (await ports.list({}, {})).filter(plugin => !state.excluded.includes(plugin.pluginId));
     const candidates = catalog.filter(plugin => plugin.enabled);
     for (const id of alreadyLoaded) if (!candidates.some(plugin => plugin.pluginId === id)) alreadyLoaded.delete(id);
@@ -203,18 +205,20 @@ export function createAutomaticAgentPluginUse(
     const matches = await applyConsent({ matches: relevant }, { signal: input.signal });
     const shouldLoad = !!input.capabilities?.length;
     const primary = input.query && !input.loaded?.length && !alreadyLoaded.has(matches[0]?.pluginId ?? '') ? matches.slice(0, 1) : [];
-    const result = shouldLoad ? (await resolveGuidance({ matches }, { signal: input.signal })).join('\n\n') : [
-      // An argv adapter's remaining headroom caps the primary; too large becomes the deferred pointer.
-      ...(await resolveGuidance({ matches: primary, primaryId: primary[0]?.pluginId }, { signal: input.signal,
-        primaryBytes: Math.min(MAX_PRIMARY_GUIDANCE_BYTES, input.maxPromptArgBytes ?? Infinity) })),
-      relevantPluginNote({ matches: matches.slice(primary.length), formatPluginToolPointer: ports.formatPluginToolPointer }),
-    ].filter(Boolean).join('\n\n');
+    // An argv adapter's remaining headroom caps the primary; too large becomes the deferred pointer.
+    const primaryGuidance = shouldLoad ? [] : await resolveGuidance({ matches: primary, primaryId: primary[0]?.pluginId }, { signal: input.signal,
+      primaryBytes: Math.min(MAX_PRIMARY_GUIDANCE_BYTES, input.maxPromptArgBytes ?? Infinity) });
+    const note = relevantPluginNote({ matches: matches.slice(primary.length), formatPluginToolPointer: ports.formatPluginToolPointer });
+    const result = shouldLoad ? (await resolveGuidance({ matches }, { signal: input.signal })).join('\n\n') : [...primaryGuidance, note].filter(Boolean).join('\n\n');
+    // Relevant plugins exclude earlier deliveries, so a delivered primary was inlined just now.
+    const inlined = !shouldLoad && primary[0] && delivered.has(primary[0].pluginId) ? primary[0].pluginId : undefined;
+    const compactResult = inlined === undefined ? result : [deferredGuidanceNote({ pluginId: inlined }), note].filter(Boolean).join('\n\n');
     rememberDelivery();
     await publishUsage();
     // Preflight never resolves off packages implicitly. A catalog line offers an explicit read;
     // its setup guidance may explain whether enabling or credentials are needed.
     const off = offPluginNote({ catalog, input });
-    return [result, off].filter(Boolean).join('\n\n');
+    return { prefix: [result, off].filter(Boolean).join('\n\n'), compact: [compactResult, off].filter(Boolean).join('\n\n') };
   }
   /** Rank readable metadata for off plugins; never load their tools or guidance implicitly. O(p*t). */
   function offPluginNote({ catalog, input }: { catalog: readonly AgentPluginSearchCandidate[]; input: PrepareInput }): string {
@@ -265,7 +269,10 @@ export function createAutomaticAgentPluginUse(
   return {
     guidanceIds: (_required: Record<string, never>, _options = {}) => [...new Set([...alreadyLoaded, ...delivered.keys()])].filter(id => !state.excluded.includes(id)),
     /** Suggest relevant metadata for a query; capability calls load only their providers. */
-    prepare: (input: PrepareInput, _options = {}) => enqueue({ operation: () => prepare(input) }),
+    prepare: (input: PrepareInput, _options = {}) => enqueue({ operation: () => prepare(input) }).then(({ prefix }) => prefix),
+    /** As prepare, plus `compact`: the same prefix with an inlined primary replaced by its load
+     * pointer, for a launcher to use when the full prefix does not fit the CLI's prompt limit. */
+    prepareVariants: (input: PrepareInput, _options = {}) => enqueue({ operation: () => prepare(input) }),
     /** Resolve one active, permitted id and publish usage only after real guidance is read.
      * Returns a concrete status and delivered content or a safe explicit-request refusal.
      * @example await controller.load({ pluginId: 'my-plugin' });

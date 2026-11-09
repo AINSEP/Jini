@@ -616,6 +616,22 @@ it('an argv-budgeted adapter defers a primary larger than the remaining headroom
   expect(await f.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'loaded', guidance });
 });
 
+it('prepareVariants offers a compact prefix with the inlined primary replaced by its load pointer', async () => {
+  const f = fixture();
+  const { prefix, compact } = await f.controller.prepareVariants({ query: 'synthetic' });
+  expect(prefix).toContain('Guidance for synthetic');
+  expect(compact).not.toContain('Guidance for synthetic');
+  expect(compact).toContain('host_read_plugin({"pluginId":"synthetic","skill":"synthetic","file":"SKILL.md"})');
+  expect(await f.controller.prepare({ query: 'synthetic' })).toBe('');
+});
+
+it('prepareVariants returns identical prefixes when nothing was inlined', async () => {
+  const f = fixture();
+  f.ports.rank = () => [];
+  const { prefix, compact } = await f.controller.prepareVariants({ query: 'unrelated' });
+  expect(compact).toBe(prefix);
+});
+
 it('an argv-budgeted adapter with no headroom left inlines nothing', async () => {
   const f = fixture();
   const note = await f.controller.prepare({ query: 'synthetic', maxPromptArgBytes: 0 });
