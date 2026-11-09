@@ -1,5 +1,5 @@
 import { ExternalMcpValidationError } from "./validation-error.js";
-import { externalMcpAdmissionRevision, externalMcpAccessSnapshot, readExternalMcpToolGrants, validateExternalMcpToolNames, parseExternalMcpJsonArray } from "./access.js";
+import { externalMcpAdmissionRevision, readExternalMcpToolGrants, validateExternalMcpToolNames, parseExternalMcpJsonArray } from "./access.js";
 import type { ExternalMcpApprovedAccess } from "@jini-ai/core/contracts/hosted-mcp";
 import { ToolInputError } from "@jini-ai/core";
 import { resolveExternalMcpOAuthStatus } from "./auth.js";
