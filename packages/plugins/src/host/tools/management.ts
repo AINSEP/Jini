@@ -7,8 +7,9 @@
  * list, so that entire half degrades to an empty array; failed public-export lookup alone uses
  * an empty export map while retaining the installed rows.
  *
- * Only public ids, versions, digests, skill names, projected descriptions and export contracts leave;
- * package roots, skill paths, executable handles and private error details stay with their owner.
+ * Agent-plugin list projections expose public ids, versions, digests, skill names, projected
+ * descriptions and export contracts; package roots, skill paths, executable handles and private
+ * error details stay with their owner.
  * The two arrays keep each family's distinct response shape visible to callers.
  *
  * Family is explicit because independent namespaces can share an id and guessing can mutate the
