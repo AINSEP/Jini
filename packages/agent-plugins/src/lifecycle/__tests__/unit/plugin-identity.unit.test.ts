@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { mkdtemp, mkdir, writeFile, readFile, readdir } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { parseAgentPluginManifest } from '../../manifest.js';
+import { legacyAgentPluginMetadataWarning, parseAgentPluginManifest } from '../../manifest.js';
 import { createInstallModule, type AgentPluginArchiveReaderPort, type InstallAgentPluginOptional } from '../../install.js';
 import { createAgentPluginLayout } from '../../layout.js';
 import { createSearchModule } from '../../search.js';
@@ -26,7 +26,7 @@ describe('plugin identity (owner 2026-10-09)', () => {
     expect(result.manifest.name).toBe('github');
     expect(result.manifest.version).toBe('1.0.0');
     expect(result.manifest.provides).toEqual(['source-control']);
-    expect(result.warnings).toEqual([]);
+    expect(result.warnings).toEqual([legacyAgentPluginMetadataWarning]);
   });
 
   it('warns for legacy manifests and rejects malformed qualified ids and provides', () => {
@@ -124,14 +124,18 @@ describe('plugin identity (owner 2026-10-09)', () => {
     const second = await install('github', 'tovu/github', 'site', { version: '2.0.0' });
     expect(JSON.parse(await readFile(path.join(first.packageRoot, 'plugin.json'), 'utf8')).version).toBe('1.0.0');
     expect(JSON.parse(await readFile(path.join(second.packageRoot, 'plugin.json'), 'utf8')).version).toBe('2.0.0');
-    expect(events).toEqual([{ event: 'agent-plugin-revision-prune-warning', message: "Plugin 'github': a superseded revision could not be pruned." }]);
+    expect(events).toEqual([
+      { event: 'agent-plugin-identity-warning', message: legacyAgentPluginMetadataWarning, pluginId: 'github' },
+      { event: 'agent-plugin-identity-warning', message: legacyAgentPluginMetadataWarning, pluginId: 'github' },
+      { event: 'agent-plugin-revision-prune-warning', message: "Plugin 'github': a superseded revision could not be pruned." },
+    ]);
   });
   it('keeps portable plugin.json keyword coercion advisory', () => {
     const result = parseAgentPluginManifest({ value: { ...manifest('bridge', 'tovu/bridge'), keywords: ['repository', 4, ''] } });
     expect(result.ok).toBe(true);
     if (!result.ok) throw new Error(result.errors.join(' '));
     expect(result.manifest.keywords).toEqual(['repository']);
-    expect(result.warnings).toEqual(['Plugin keywords must be an array of nonempty strings; invalid keywords were ignored.']);
+    expect(result.warnings).toEqual(['Plugin keywords must be an array of nonempty strings; invalid keywords were ignored.', legacyAgentPluginMetadataWarning]);
   });
 
   it('requires the core peer version that exports the runtime identity entry', async () => {
