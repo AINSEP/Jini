@@ -118,8 +118,8 @@
     "optionalPeers": {
       "yauzl": "opt-in: plugin zip import \u2014 Plugin ZIP import could not load yauzl. Install yauzl to enable this feature, or check its installed version and native binaries.",
       "@jini-ai/platform": "opt-in: platform-backed adapters; import @jini-ai/agent-plugins/lifecycle \u2014 Platform-backed adapters could not load @jini-ai/platform. Install @jini-ai/platform to enable this feature, or check its installed version and native binaries.",
-      "@cfworker/json-schema": "opt-in: json schema validation; import @jini-ai/agent-plugins/lifecycle/tools \u2014 JSON Schema validation could not load @cfworker/json-schema. Install @cfworker/json-schema to enable this feature, or check its installed version and native binaries.",
-      "semver": "opt-in: plugin version compatibility; import @jini-ai/agent-plugins/lifecycle \u2014 Plugin version compatibility could not load semver. Install semver to enable this feature, or check its installed version and native binaries.",
+      "@cfworker/json-schema": "opt-in: json schema validation; import @jini-ai/agent-plugins/lifecycle/tools, import @jini-ai/agent-plugins/connect/executable \u2014 JSON Schema validation could not load @cfworker/json-schema. Install @cfworker/json-schema to enable this feature, or check its installed version and native binaries.",
+      "semver": "opt-in: plugin version compatibility; import @jini-ai/agent-plugins/lifecycle, import @jini-ai/agent-plugins/lifecycle/host-tools \u2014 Plugin version compatibility could not load semver. Install semver to enable this feature, or check its installed version and native binaries.",
       "@jini-ai/commerce": "opt-in: commerce server; import @jini-ai/agent-plugins/commerce/server \u2014 Commerce checkout requires the host commerce kernel."
     }
   },

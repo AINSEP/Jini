@@ -5,6 +5,10 @@
  * wires it through each domain's own contract.
  *
  * Each tool reaches the host through ports (`ports.ts`), never an import of a same-layer package.
+ *
+ * @agent-note A host that imports this entry must install the optional peer `semver`. Plugin search
+ * (`search-tool.ts`) loads `../compatibility.js`, which imports it by value, so without it this
+ * import fails with ERR_MODULE_NOT_FOUND for `semver`.
  */
 export * from './ports.js';
 export { readPluginMaturity, readProviderPluginLink, readInstalledAgentPluginIdentity, UNTESTED_PLUGIN_GUIDANCE, type PluginMaturity } from './identity.js';
