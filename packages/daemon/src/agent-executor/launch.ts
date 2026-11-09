@@ -1388,7 +1388,22 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
    * @complexity O(1) setup (registry lookup, launch resolution, one spawn call); steady-state cost thereafter belongs to {@link wireChildLifecycle}.
    * @overallScore 100/100
    */
-  async function run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs: Pick<AgentExecutorRunInput, "filesystemRoot" | "model" | "reasoning" | "nativeToolAccess" | "nativeCapabilities" | "cliParity" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "readOnlyExtraDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings" | "chromeIntegration" | "subagentStartContext"> = {}): Promise<void> {
+  async function run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs: Pick<AgentExecutorRunInput, "filesystemRoot" | "model" | "reasoning" | "nativeToolAccess" | "nativeCapabilities" | "cliParity" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "readOnlyExtraDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings" | "chromeIntegration" | "subagentStartContext" | "compactPrompt"> = {}): Promise<void> {
+    const { compactPrompt, ...attemptArgs } = optionalArgs;
+    if (compactPrompt === undefined || compactPrompt === requiredArgs.prompt) return runAttempt(requiredArgs, attemptArgs);
+    // The budget guards both release whatever they staged before failing, and the argv guard runs
+    // before anything is staged, so the full attempt leaves nothing behind for the compact one.
+    const overBudget = Symbol('prompt over budget');
+    try {
+      return await runAttempt(requiredArgs, attemptArgs, { failPromptBudget: async () => { throw overBudget; } });
+    } catch (error) {
+      if (error !== overBudget) throw error;
+    }
+    return runAttempt({ ...requiredArgs, prompt: compactPrompt }, attemptArgs);
+  }
+
+  /** One launch of `requiredArgs.prompt`; `failPromptBudget` lets `run` try its compact prompt. */
+  async function runAttempt(requiredArgs: Parameters<AgentExecutor['run']>[0], optionalArgs: Omit<NonNullable<Parameters<AgentExecutor['run']>[1]>, 'compactPrompt'>, { failPromptBudget = failBeforeSpawn }: { failPromptBudget?: FailBeforeSpawn } = {}): Promise<void> {
     const { input, def, streamFormat } = await prepareRunContext({ requiredArgs, optionalArgs }, {});
 
     // Computed once, before anything downstream ever looks at "the prompt" or "the allowed
@@ -1402,7 +1417,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // defs' own native protocol already delivers the image and must never also get this
     // treatment (the double-delivery hazard this mechanism exists to avoid).
     await enforceNativeToolPolicy({ input, def }, {});
-    const imageDelivery = await resolveImageDeliveryAndArgvBudget({ input: { runId: input.runId, def, prompt: input.prompt, imagePaths: input.imagePaths, extraAllowedDirs: input.extraAllowedDirs }, deps: { failBeforeSpawn } }
+    const imageDelivery = await resolveImageDeliveryAndArgvBudget({ input: { runId: input.runId, def, prompt: input.prompt, imagePaths: input.imagePaths, extraAllowedDirs: input.extraAllowedDirs }, deps: { failBeforeSpawn: failPromptBudget } }
     );
     await enforceFilesystemPaths({ input, imageDelivery }, {});
 
@@ -1605,7 +1620,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // Windows .cmd/.bat shim or a direct .exe: a prompt under the raw byte
     // budget can still expand past CreateProcess's command-line cap once
     // quote-escaped. Both are no-ops off-Windows / for non-argv-bound defs.
-    await guardWindowsCommandLineBudget({ input: { runId: input.runId, def, launchPath: launch.launchPath, args }, deps: { releaseStagedResources, failBeforeSpawn } }
+    await guardWindowsCommandLineBudget({ input: { runId: input.runId, def, launchPath: launch.launchPath, args }, deps: { releaseStagedResources, failBeforeSpawn: failPromptBudget } }
     );
 
     const invocation = await prepareRunCommand({ command: launch.launchPath, args, env: childEnv, runId: input.runId }, {

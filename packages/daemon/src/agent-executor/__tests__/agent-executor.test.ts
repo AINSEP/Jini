@@ -3754,6 +3754,46 @@ describe('AgentExecutor — plain-format argv prompt-budget guard (aider/deepsee
     expect(spawnCalls).toHaveLength(0);
     expect((await lifecycle.get({ runId: run.id }))?.state).toBe('failed');
   });
+
+  // `compactPrompt` is the same request without optional content. It is used only when the full
+  // prompt would fail a pre-spawn budget guard; the guards themselves still apply to it.
+  it('launches the compact prompt when the full prompt exceeds the argv budget', async () => {
+    const def = createArgvBoundDef();
+    const { lifecycle, executor, spawnCalls } = createHarness({ def });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'fake-aider', prompt: 'x'.repeat(200_000), cwd: '/work' }, { compactPrompt: 'compact request' });
+    expect(spawnCalls).toHaveLength(1);
+    expect(spawnCalls[0]!.args).toEqual(['--message', 'compact request']);
+  });
+
+  it('launches the compact prompt when Windows quoting expands the full command line past the limit', async () => {
+    const def = createArgvBoundDef();
+    const { lifecycle, executor, spawnCalls } = createHarness({ def, launchPath: 'C:\\fake\\aider.cmd' });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    // 20,000 raw bytes fit the argv budget; cmd-shim quote doubling makes 40,000.
+    await executor.run({ runId: run.id, agentId: 'fake-aider', prompt: '"'.repeat(20_000), cwd: '/work' }, { compactPrompt: 'compact request' });
+    expect(spawnCalls).toHaveLength(1);
+    expect(spawnCalls[0]!.args).toEqual(['--message', 'compact request']);
+    expect((await lifecycle.get({ runId: run.id }))?.state).not.toBe('failed');
+  });
+
+  it('keeps the full prompt when it fits, even with a compact prompt offered', async () => {
+    const def = createArgvBoundDef();
+    const { lifecycle, executor, spawnCalls } = createHarness({ def, launchPath: 'C:\\fake\\aider.cmd' });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await executor.run({ runId: run.id, agentId: 'fake-aider', prompt: 'full request', cwd: '/work' }, { compactPrompt: 'compact request' });
+    expect(spawnCalls[0]!.args).toEqual(['--message', 'full request']);
+  });
+
+  it('still fails before spawn when the compact prompt does not fit either', async () => {
+    const def = createArgvBoundDef();
+    const { lifecycle, executor, spawnCalls } = createHarness({ def, launchPath: 'C:\\fake\\aider.cmd' });
+    const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
+    await expect(executor.run({ runId: run.id, agentId: 'fake-aider', prompt: 'x'.repeat(45_000), cwd: '/work' }, { compactPrompt: 'x'.repeat(40_000) }))
+      .rejects.toMatchObject({ code: 'AGENT_PROMPT_TOO_LARGE', message: expect.stringContaining('runs through a .cmd shim') });
+    expect(spawnCalls).toHaveLength(0);
+    expect((await lifecycle.get({ runId: run.id }))?.state).toBe('failed');
+  });
 });
 
 describe('AgentExecutor — gap 1 byte-journal (CreateAgentExecutorOptions.journal)', () => {
