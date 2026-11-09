@@ -1,18 +1,50 @@
 /**
- * @file Plain Node `http` adapter for `@jini-ai/core/server`'s `Server` contract.
+ * @file Plain Node `http` adapter for `@jini-ai/core/contracts/server`'s `Server` contract.
  *
- * Jini ships the contract and the path matcher, not an adapter, so this file is the app's own.
- * GAP: a neutral Node `http` adapter (IncomingMessage -> Request, Response -> ServerResponse)
- * is generic code every Node host will write again; it belongs next to the contract.
+ * Jini ships the contract as types only; path matching and dispatch are server code, so they are
+ * the host's and live here. A Jini package never names a concrete server, so this adapter stays
+ * host code rather than a Jini gap.
  */
 import { createServer, type IncomingMessage, type Server as HttpServer, type ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
-import { matchServerPath, type Server, type ServerHandler, type ServerMethod } from '@jini-ai/core/server';
+import type { Server, ServerHandler, ServerMethod } from '@jini-ai/core/contracts/server';
 
 interface Route {
   readonly method: ServerMethod;
   readonly path: string;
   readonly handler: ServerHandler;
+}
+
+/**
+ * Matches a registered `pattern` (e.g. `/notes/:id`) against a URL `pathname`, with the path
+ * syntax the `Server` contract defines. Returns the decoded `:name` params on a match, or `null`.
+ * Segment counts must be equal; a trailing slash is not ignored. Literal segments compare against
+ * the pathname as given (still percent-encoded). A param segment never matches an empty segment,
+ * and one whose percent-encoding is malformed does not match.
+ */
+export function matchServerPath(
+  { pattern, pathname }: { readonly pattern: string; readonly pathname: string },
+  _optional: Record<string, never> = {},
+): Record<string, string> | null {
+  const expected = pattern.split('/');
+  const actual = pathname.split('/');
+  if (expected.length !== actual.length) return null;
+  const params: Record<string, string> = {};
+  for (let index = 0; index < expected.length; index += 1) {
+    const want = expected[index] ?? '';
+    const got = actual[index] ?? '';
+    if (want.startsWith(':')) {
+      if (got === '') return null;
+      try {
+        params[want.slice(1)] = decodeURIComponent(got);
+      } catch {
+        return null;
+      }
+    } else if (want !== got) {
+      return null;
+    }
+  }
+  return params;
 }
 
 export interface NodeServer extends Server {

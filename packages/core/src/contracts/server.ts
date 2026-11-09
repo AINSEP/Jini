@@ -1,0 +1,51 @@
+/**
+ * @file The server contract: register a handler for an HTTP method + path, where handlers speak
+ * the web-standard `Request` → `Response`. Route code in Jini packages takes `{ app: Server }`
+ * and never names a concrete server, so any host adapter (plain Node `http`, Express, a Fetch
+ * runtime, an in-memory test fake) can serve the same routes.
+ *
+ * Types only. Path matching, dispatch and every other piece of server code belong to the host's
+ * adapter, which the host passes in as `app`.
+ *
+ * Overlap, kept deliberately: `@jini-ai/http-kit` has its own Express-bound route-spec shapes
+ * (`HttpMethod` in lowercase, `RouteInputContext.params`). Core is the bottom layer and must not
+ * import http-kit, so those are not reused; a later bridge can map one onto the other.
+ */
+
+/** HTTP methods a route may be registered under. Uppercase, matching web `Request.method`. */
+export type ServerMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE';
+
+/**
+ * Handles one matched request. `params` holds the `:name` path segments of the registered path,
+ * already percent-decoded by the adapter (for `/notes/:id` and `/notes/a%20b`, `{ id: 'a b' }`).
+ * Body, query string, headers and abort signal are read from `request` itself.
+ */
+export type ServerHandler = (
+  requiredArgs: { readonly request: Request; readonly params: Readonly<Record<string, string>> },
+  optionalArgs?: Record<string, never>,
+) => Response | Promise<Response>;
+
+/**
+ * Something routes can be registered on.
+ *
+ * Path syntax: literal segments and `:name` segments, matched segment by segment against the
+ * request URL's pathname (no wildcards, no regex, query string ignored). Segment counts must be
+ * equal and a trailing slash is not ignored. Literal segments compare against the pathname as
+ * given (still percent-encoded). A `:name` segment never matches an empty segment, and one whose
+ * percent-encoding is malformed does not match. Registering the same method + path twice is an
+ * adapter error. An unmatched request is the adapter's to answer (typically 404, or 405 when only
+ * the method differs).
+ *
+ * @agent-note In your app, use whichever server adapter you prefer, including Express. A plain
+ * Node `http` adapter is about 60 lines (`examples/notes-app/src/node-server.ts` is one): keep a
+ * route list, convert each `IncomingMessage` into a web `Request`, match the path as described
+ * above, call the handler, and write the returned `Response` (status, headers, body) back to the
+ * `ServerResponse`. Fetch-native runtimes skip the conversion. Tests can use an in-memory fake
+ * that dispatches a `Request` directly.
+ */
+export interface Server {
+  route(
+    requiredArgs: { readonly method: ServerMethod; readonly path: string; readonly handler: ServerHandler },
+    optionalArgs?: Record<string, never>,
+  ): void;
+}

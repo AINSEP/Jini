@@ -20,7 +20,7 @@
       "./contribution-registry": "universal",
       "./provider-registry": "universal",
       "./object-store": "universal",
-      "./server": "universal",
+      "./contracts/server": "universal",
       "./naming": "universal",
       "./records": "universal",
       "./primitives": "universal",
@@ -119,10 +119,10 @@
       "import": "./dist/object-store.js",
       "default": "./dist/object-store.js"
     },
-    "./server": {
-      "types": "./dist/server.d.ts",
-      "import": "./dist/server.js",
-      "default": "./dist/server.js"
+    "./contracts/server": {
+      "types": "./dist/contracts/server.d.ts",
+      "import": "./dist/contracts/server.js",
+      "default": "./dist/contracts/server.js"
     },
     "./naming": {
       "types": "./dist/naming.d.ts",

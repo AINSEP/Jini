@@ -11,6 +11,7 @@ cd examples/notes-app
 node src/main.ts                 # http://127.0.0.1:3000, data in ./data/notes.db
 node src/main.ts --db /tmp/n.db --port 4000   # or NOTES_DB / PORT
 node scripts/smoke.ts            # restart proof: prints PASS or FAIL
+node --test 'src/**/*.test.ts'   # adapter and app tests
 pnpm typecheck
 ```
 
@@ -20,7 +21,7 @@ Node 22.18+ runs the `.ts` files directly (type stripping).
 
 | Piece | From Jini | In the app |
 |---|---|---|
-| Routes | `Server`, `matchServerPath` (`@jini-ai/core/server`) | `src/node-server.ts`: Node `http` adapter, 404/405 |
+| Routes | `Server` (`@jini-ai/core/contracts/server`, types only) | `src/node-server.ts`: Node `http` adapter, path matching, 404/405 |
 | Database | `openSqliteConnection` (`@jini-ai/db/sqlite`), `sqliteKernel` (`@jini-ai/db/kernel/sqlite`) | `src/db.ts` passes `better-sqlite3` in |
 | Notes | `createEntry`, `updateEntry`, `publishEntry`, `listEntries` (`@jini-ai/cms/entries`) | `src/notes-repo.ts`: a SQL entry repo (none is exported) |
 | Notes table | `declareDataModule` (`@jini-ai/db/data-modules`) | declared as a plugin data module (no entries table bootstrap exists) |

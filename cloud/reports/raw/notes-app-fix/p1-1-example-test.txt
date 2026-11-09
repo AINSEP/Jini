@@ -1,0 +1,21 @@
+▶ node-server adapter
+  ✔ dispatches a Request to the matching handler with decoded path params (35.51519ms)
+  ✔ lets an async handler read the request body (11.508127ms)
+  ✔ answers unmatched paths with 404 and unmatched methods with 405 (8.424774ms)
+  ✔ rejects a second registration of the same method and path (0.925298ms)
+✔ node-server adapter (67.72341ms)
+▶ matchServerPath
+  ✔ returns params for :name segments and an empty object for a literal match (0.353027ms)
+  ✔ rejects differing literals, segment counts, trailing slashes and empty params (0.231685ms)
+  ✔ does not match a param whose percent-encoding is malformed (0.24538ms)
+  ✔ takes named required args, not positional ones (0.375318ms)
+✔ matchServerPath (1.810925ms)
+ℹ tests 8
+ℹ suites 2
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 280.327293
+exit=0
