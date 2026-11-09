@@ -10,6 +10,7 @@ export * from './plugin-claims.js';
 export * from './claim-conflicts.js';
 export * from './activation.js';
 export * from './declarative-enable.js';
+export * from './declarative-content-types.js';
 export * from './capability-sdk.js';
 export * from './quarantine.js';
 export * from './repo.memory.js';
