@@ -67,6 +67,8 @@ function agentPluginConnectSurfaceUri({ pluginId, uriNamespace }: { pluginId: st
   return `ui://${uriNamespace}/${encodeURIComponent(pluginId)}`;
 }
 
+/** @agent-note Safe card state from your connection owner; credentialCard is declaration copy,
+ * never credential values. Waiting/connected/skipped updates reuse the host's stable card identity. */
 export type AgentPluginConnectCardSpec =
   | { readonly pluginId: string; readonly pluginDisplayName: string; readonly state: "waiting"; readonly signInUrl: string; readonly exchangeId?: string; readonly credentialCard?: PluginCredentialCard }
   | { readonly pluginId: string; readonly pluginDisplayName: string; readonly state: "connected" }

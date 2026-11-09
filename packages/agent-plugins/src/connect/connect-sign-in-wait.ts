@@ -5,7 +5,10 @@ import type { AgentPluginCardsPort, AgentPluginConnectCardSpec } from './connect
 
 /** The plugin's MCP and API sign-ins share one card/exchange lifecycle. Skip cancels only the
  * sign-in watcher; the enclosing agent run continues. OAuth callback/token custody stays with
- * each connection owner. @complexity One bounded connection wait and one exchange per sign-in. */
+ * each connection owner. @complexity One bounded connection wait and one exchange per sign-in.
+ * @agent-note Bind the SAME core exchange store and card runtime as the host's answer callback;
+ * one answer wakes this waiter. The card callback preserves YOUR opaque Resource, and skip only
+ * aborts the sign-in watcher, never the enclosing run or the connection owner's token custody. */
 /* `Result` is the connect tool's result (`AgentPluginConnectResult`); it is a type parameter here so the
  * connect-tool <-> sign-in-wait type cycle needs no import back (the waiter only passes it through). */
 export async function waitAtAgentPluginSignInCardWithPorts<Resource, Result extends { status: string }>(required: {

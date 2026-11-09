@@ -124,11 +124,15 @@ const MESSAGES = {
 } as const;
 
 type UnansweredReason = "cancelled" | "expired" | "abandoned";
+/** @agent-note Public outcome from the host's secret-card lifecycle; copy is safe and token-free.
+ * A saved token and an enabled plugin remain distinct outcomes when the operator kept it off. */
 export type SetAccessTokenResult =
   | { saved: true; next: string }
   | { saved: false; reason: UnansweredReason | "invalid" | "refused" | "unavailable" | "error"; message?: string };
 
-/** The one declared token-auth server this call saves onto. */
+/** The one declared token-auth server this call saves onto.
+ * @agent-note Derived from your trusted installed declaration; the store row is freshly re-read
+ * and its host matched before saving. These declaration URLs are not credential values. */
 export interface TokenAuthTarget {
   readonly pluginId: string;
   readonly displayName: string;
@@ -304,6 +308,9 @@ function accessTokenResult({ run, locale, messages }: { run: SecretCardRun<SetAc
  *
  * @throws {ToolInputError} Extra input, unknown plugin, no token-auth server, or a re-pointed row.
  * @throws {ToolInputError} No `emitSurface` on this execution context.
+ * @agent-note Cards/askThenReport and the core exchange store must belong to the SAME answer
+ * lifecycle. Bind your validator/error classifier and canonical store; tokens travel only from
+ * the human form through probe/save, never through tool input or model-visible events.
  */
 // -> one outbound GET to the declared probeUrl, then saveExternalMcpServer: a sealed write, via the human's form.
 export async function saveAgentPluginToken(

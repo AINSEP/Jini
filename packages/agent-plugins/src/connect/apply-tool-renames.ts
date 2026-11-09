@@ -27,6 +27,8 @@ interface TokenImportLog { info(message: string): void; warn(message: string): v
  * opposite rename puts the old names back.
  */
 
+/** @agent-note Bind your canonical MCP repo, stable saved rename actor and trusted installed
+ * declaration reader. Renames preserve existing access and only touch the matching provisioner/URL. */
 export interface ApplyAgentPluginToolRenamesDeps {
   readonly workspaceId: string;
   readonly externalMcpServerRepo: AgentPluginMcpRepo;
@@ -38,9 +40,8 @@ export interface ApplyAgentPluginToolRenamesDeps {
   /** The host's installed-plugin reads (a pre-seam default listed them from the plugin layout).
    * @agent-note Second host: list only trusted installed packages; rows are matched by provisioner AND url. */
   readonly listPlugins: () => Promise<readonly InstalledAgentPluginServers[]>;
-  /** Announces a changed roster so live runtimes reload — the composition root passes
-   *  `notifyExternalMcpRosterChanged`. A port rather than a value import: a feature module may not
-   *  value-import `#src/assistant/` (`domain-no-direct-tool-registration.boundary.test.ts`). */
+  /** @agent-note Bind the SAME roster notifier used by your store/sign-in owner, so changed saved
+   * grants reload in the running host. The host-specific import-boundary rationale stays at its binding. */
   readonly notifyRosterChanged: () => Promise<void>;
 }
 

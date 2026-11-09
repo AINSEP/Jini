@@ -35,7 +35,9 @@ export interface ImportAgentPluginAccessTokenDeps
 }
 
 /** `saved-left-off`: the token is saved but an operator had turned the plugin or its connection off,
- *  so it stays off (`switch-on-saved-token.ts`). */
+ *  so it stays off (`switch-on-saved-token.ts`).
+ * @agent-note Retry the SAME switch owner without replacing an existing credential; an operator's
+ * explicit off is preserved even after a successful sealed save. */
 export type ImportAgentPluginAccessTokenOutcome = "saved" | "saved-left-off" | "already-connected";
 
 /**
@@ -75,7 +77,9 @@ export async function importAgentPluginAccessToken(
   return switched.state === "on" ? "saved" : "saved-left-off";
 }
 
-/** One installed plugin's id and declared servers. */
+/** One installed plugin's id and declared servers.
+ * @agent-note Your lifecycle owner's safe declaration projection, not a copied store row.
+ * Only a matching host-seeded digest makes bundled true and permits environment-token import. */
 export interface InstalledAgentPluginServers {
   readonly pluginId: string;
   readonly servers: Readonly<Record<string, McpServerConfig>>;

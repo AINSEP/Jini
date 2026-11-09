@@ -9,7 +9,9 @@ import type { AgentPluginTokenAuth, McpServerConfig } from "@jini-ai/agent-plugi
  * remote server in its `mcp.json`; the tokens page and the probe URL both come from there.
  */
 
-/** One plugin the onboarding form can offer a token field for. */
+/** One plugin the onboarding form can offer a token field for.
+ * @agent-note Safe display projection of your installed declaration; helpUrl is the plugin's
+ * declared human token page, never a saved token or a newly trusted endpoint. */
 export interface TokenSignInPlugin {
   readonly pluginId: string;
   readonly displayName: string;
@@ -47,6 +49,8 @@ export async function listTokenSignInPlugins(
     .sort((a, b) => a.pluginId.localeCompare(b.pluginId));
 }
 
+/** @agent-note The host validator/probe decides this bounded safe outcome. No token, response body
+ * or provider fault text is returned or persisted by the check. */
 export type TokenCheckOutcome = "ok" | "invalid" | "refused" | "unavailable" | "unsupported";
 
 /**

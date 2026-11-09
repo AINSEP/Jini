@@ -61,6 +61,8 @@ const DEFAULT_WAIT_TIMEOUT_MS = 5 * 60 * 1000;
 /** One installed plugin's declared MCP servers — the slice `agent_plugin_connect` needs. Kept
  *  narrower than `InstalledAgentPlugin` (no version/keywords/skills: this tool cares only about
  *  what it can connect). */
+/** @agent-note A fresh trusted installed declaration from your lifecycle owner, shared with
+ * provisioning/approval. Credential cards contain safe display copy, never saved credentials. */
 export interface ResolvedAgentPluginForConnect {
   readonly credentialCards?: readonly PluginCredentialCard[];
   readonly servers: Readonly<Record<string, McpServerConfig>>;
@@ -168,7 +170,9 @@ export interface AgentPluginConnectApprovalsPort<Surfaces> {
   notConfirmedResult(required: { reason: 'declined' | 'expired' | 'abandoned' }): { cancelled: boolean; reason?: 'expired' | 'abandoned'; note: string };
 }
 
-/** What this tool asks the approvals port to render. Wording is neutral; ids are host input. */
+/** What this tool asks the approvals port to render. Wording is neutral; ids are host input.
+ * @agent-note Render this fixed description through your approval owner; its display ids do not
+ * replace the bound principal or the prepared access fingerprint rechecked by run. */
 export interface AgentPluginAccessApprovalDescription {
   readonly toolId: string;
   readonly errorCode: string;
@@ -297,7 +301,9 @@ interface PendingOAuthServer {
 /** Whether a plugin's row already holds a credential: a finished sign-in, or a saved access token
  *  (`static_env` with the token sealed in `sealedOAuth` — what `agent_plugin_set_access_token`, the
  *  old env var's boot import, and create-site onboarding all write; `sealedEnv` is a stdio row's env
- *  block and never holds it). Such a row needs no sign-in, and a token import must never overwrite it. */
+ *  block and never holds it). Such a row needs no sign-in, and a token import must never overwrite it.
+ * @agent-note Pass the canonical store's SAME pure projection pair; this check performs no I/O,
+ * opens no sealed material and must not replace an existing credential with a fresh grant. */
 export function hasStoredAgentPluginCredential(required: { row: Pick<AgentPluginMcpRecord, "authMode" | "sealedOAuth" | "oauthStatus">; projections: AgentPluginMcpProjections }, _optional: Record<string, never> = {}): boolean {
   const { row, projections } = required;
   return projections.oauthStatus(row) === "connected" || projections.hasStaticAccessToken(row);
@@ -328,7 +334,9 @@ async function resolvePendingOAuthServers(
   return pending;
 }
 
-/** The injected adapter calls the existing token-card lifecycle without a runtime import cycle. */
+/** The injected adapter calls the existing token-card lifecycle without a runtime import cycle.
+ * @agent-note Bind your token-card owner with the SAME principal, emitter/options and exchange
+ * store. Only safe saved/refusal results return; plaintext tokens never pass through this adapter. */
 export type AgentPluginConnectOptions = ToolExecutionOptions & {
   readonly saveToken?: (
     input: { readonly ctx: ToolExecutionContext; readonly pluginId: string },
@@ -339,6 +347,8 @@ export type AgentPluginConnectOptions = ToolExecutionOptions & {
   >;
 };
 
+/** @agent-note Public connection status only. Host refusal/next-step copy must be safe; no token,
+ * provider response body or private sign-in state belongs in these fields. */
 export interface AgentPluginConnectResult {
   readonly status: "connected" | "waiting-for-sign-in" | "not-connected";
   readonly cancelled?: boolean;
@@ -413,6 +423,9 @@ async function assertPluginCanConnect({ routeDeps, pluginId }: { routeDeps: Conn
  *   both composition-root/transport gaps, not caller input.
  * @complexity O(s) provisioning the plugin's declared servers, plus the poll loop (bounded by
  *   `waitTimeoutMs`); O(s) space for pending declarations.
+ * @agent-note Fulfill AgentPluginConnectDeps with one host's stores/approvals/activation owners.
+ * Permission and prepared-key rechecks stay in run; approval precedes provisioning/sign-in and
+ * the final access revalidation. Forward the caller's emitter and execution options unchanged.
  */
 export async function runAgentPluginConnect<Surfaces, Connection>(
   { routeDeps, surfaces, ctx, pluginId }: {
