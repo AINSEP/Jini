@@ -139,7 +139,6 @@
       "sharp": "opt-in: image transformations; import @jini-ai/cms/media/node — Image transformations could not load sharp. Install sharp to enable this feature, or check its installed version and native binaries.",
       "kysely": "opt-in: sql storage adapters; import @jini-ai/cms/forms/sql — SQL storage adapters could not load kysely. Install kysely to enable this feature, or check its installed version and native binaries.",
       "@jini-ai/db": "opt-in: database-backed adapters; import @jini-ai/cms/forms/sql — Database-backed adapters could not load @jini-ai/db. Install @jini-ai/db to enable this feature, or check its installed version and native binaries.",
-      "parse5": "opt-in: html parsing; import @jini-ai/cms/widgets/html/html-embeds — HTML parsing could not load parse5. Install parse5 to enable this feature, or check its installed version and native binaries.",
       "@jini-ai/http-kit": "opt-in: http route adapters; import @jini-ai/cms/redirects — HTTP route adapters could not load @jini-ai/http-kit. Install @jini-ai/http-kit to enable this feature, or check its installed version and native binaries.",
       "dompurify": "opt-in: svg sanitization; import @jini-ai/cms/media — SVG sanitization could not load dompurify. Install dompurify to enable this feature, or check its installed version and native binaries.",
       "jsdom": "opt-in: server-side html and svg processing; import @jini-ai/cms/media — Server-side HTML and SVG processing could not load jsdom. Install jsdom to enable this feature, or check its installed version and native binaries.",
@@ -452,6 +451,7 @@
   },
   "dependencies": {
     "@jini-ai/core": "workspace:^",
+    "parse5": "^7.3.0",
     "unpdf": "^1.8.1",
     "mammoth": "^1.12.3"
   },
@@ -463,7 +463,6 @@
     "express": "^4.21.0 || ^5.0.0",
     "jsdom": "^25.0.1 || ^26.0.0 || ^27.0.0",
     "kysely": "^0.29.6",
-    "parse5": "^7.3.0",
     "sharp": "^0.35.3"
   },
   "peerDependenciesMeta": {
@@ -474,9 +473,6 @@
       "optional": true
     },
     "@jini-ai/db": {
-      "optional": true
-    },
-    "parse5": {
       "optional": true
     },
     "@jini-ai/http-kit": {

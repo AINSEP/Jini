@@ -72,9 +72,7 @@ export function toSubmissionRecord(row: FormSubmissionRow, _optional: Record<str
     workspaceId: row.workspace_id,
     formDefinitionId: row.form_definition_id,
     ...decodeSubmissionJson({ json: row.data_json }),
-    // cms-forms <0.2.2 required a string (0.2.2 allows null). Since nullable migration 0006, an
-    // expired IP has an empty display value until the host adopts the nullable package DTO.
-    sourceIp: row.source_ip ?? "",
+    sourceIp: row.source_ip,
     submittedAt: row.submitted_at,
   };
 }

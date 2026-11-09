@@ -185,13 +185,13 @@ describeEachDialect(
       assert.deepEqual(second, { items: [{ ...submission("a", "2026-09-28T00:00:01.000Z") }], nextCursor: null });
     });
 
-    test("a submission whose IP the retention sweep cleared reads back with an empty source IP", async () => {
+    test("a submission whose IP the retention sweep cleared reads back with a null source IP", async () => {
       const { kernel, defs, subs } = makeRepos();
       await defs.create(definition("def-1", "contact"));
       await subs.create(submission("a", T0));
       await kernel.run((db) => db.updateTable("form_submissions").set({ source_ip: null }).where("id", "=", "a").execute());
       const read = await subs.findById({ workspaceId: WS, id: "a" });
-      assert.equal(read?.sourceIp, "");
+      assert.equal(read?.sourceIp, null);
       assert.deepEqual(read?.data, { name: "n-a", agree: true });
     });
 

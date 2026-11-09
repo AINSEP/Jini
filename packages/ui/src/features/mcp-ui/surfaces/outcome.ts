@@ -101,6 +101,9 @@ export interface SurfaceOutcomeSpec {
 const DEFAULT_APP: BridgeScriptSpec = { appName: 'jini-mcp-ui-outcome', appVersion: '1' };
 const DEFAULT_OPEN_LINK_LABEL = 'Open site';
 const OPEN_LINK_ACTION_ID = 'open-link';
+/** How long a sign-in card waits for the Host to answer an open-link request. The bridge keeps an
+ * unanswered request forever, so without this deadline the card would ignore every later click. */
+const OPEN_LINK_TIMEOUT_MS = 30_000;
 
 /** The status region's `data-state` for an outcome state. @complexity O(1). */
 function statusStateOf(state: SurfaceOutcomeSpec['state']): 'done' | 'partial' | 'failed' {
@@ -131,13 +134,24 @@ ${SURFACE_SCRIPT_PRELUDE}
   var TEXT = ${escapeJsValue(DEFAULT_SURFACE_STATUS_TEXT)};
   var CANCEL = ${escapeJsValue(spec.cancel)};
   var OPEN_URL = ${escapeJsValue(spec.openLinkUrl ?? null)};
+  var OPEN_TIMEOUT_MS = ${OPEN_LINK_TIMEOUT_MS};
+  var OPEN_TIMEOUT_TEXT = ${escapeJsValue(`The link did not open within ${OPEN_LINK_TIMEOUT_MS / 1000} seconds. Try again.`)};
   var locked = false;
+  var opening = null;
   function onClick(event) {
     if (event.isTrusted !== true || locked) return;
     if (event.currentTarget.getAttribute("data-mcpui-action") === "open-link") {
-      api.openLink(OPEN_URL).then(function (result) {
-        if (result && result.isError) throw new Error("Could not open the link.");
-      }).catch(reportCallFailure);
+      // A repeat click while the Host is still opening the link reuses that request, not a second window.
+      if (opening) return;
+      var timer;
+      opening = Promise.race([
+        api.openLink(OPEN_URL).then(function (result) {
+          if (result && result.isError) throw new Error("Could not open the link.");
+        }),
+        new Promise(function (_resolve, reject) {
+          timer = setTimeout(function () { reject(new Error(OPEN_TIMEOUT_TEXT)); }, OPEN_TIMEOUT_MS);
+        }),
+      ]).catch(reportCallFailure).then(function () { clearTimeout(timer); opening = null; });
       return;
     }
     locked = true;
@@ -159,8 +173,15 @@ function outcomeScript(openLinkUrl: string | undefined): string {
   "use strict";
 ${SURFACE_SCRIPT_PRELUDE}
   var OPEN_URL = ${escapeJsValue(openLinkUrl)};
+  var OUTCOME = statusNode.textContent;
+  // A refused or failed open keeps the outcome (it still happened) and says what to do instead.
+  function reportOpenFailure() {
+    statusNode.textContent = OUTCOME + " The link did not open. Try again, or copy this address into your browser: " + OPEN_URL;
+  }
   for (var i = 0; i < actionButtons.length; i++) {
-    actionButtons[i].addEventListener("click", function () { api.openLink(OPEN_URL); });
+    actionButtons[i].addEventListener("click", function () {
+      api.openLink(OPEN_URL).then(function (result) { if (result && result.isError) reportOpenFailure(); }, reportOpenFailure);
+    });
   }
 }());`;
 }
