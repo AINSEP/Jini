@@ -5,7 +5,6 @@ import type { FederatedCallTarget, FederatedGateVerdict } from "../ports.js";
 import { rosterRefusalFor } from "./revocation.js";
 import { resolveExternalMcpAuthMode, resolveExternalMcpOAuthStatus } from "./auth.js";
 
-
 /** What {@link createExternalMcpConnectionGate} closes over — split out so
  *  {@link readConnectionRowOrRefuse} can share the exact same shape rather than restating it. */
 export interface ExternalMcpConnectionGateDeps {
@@ -85,7 +84,10 @@ export function createHostedMcpConnectionGate(deps: HostedMcpConnectionGatePorts
   };
 }
 
-
+/** Point an active plugin with missing source/tool/write grants back to its existing single card.
+ * @throws ToolInputError naming that review flow; no grant or configuration is changed here.
+ * @complexity O(1), no I/O.
+ */
 function offerPluginAccessCard({ deps, record, refusal }: { deps: HostedMcpConnectionGatePorts; record: ExternalMcpServerRecord | null; refusal: ExternalMcpRevocationReason }, _options = {}): void {
   const pluginId = record?.provisionedByPluginId;
   if (!pluginId || !['turned-off', 'tool-not-allowed', 'write-not-allowed'].includes(refusal)) return;
@@ -130,6 +132,3 @@ function assertNotAwaitingReauth(deps: HostedMcpConnectionGatePorts, record: Ext
   if (resolveExternalMcpOAuthStatus(record) !== "needs_reauth") return;
   throw deps.reauthRequired({ serverId: connectionId, label: record.label });
 }
-
-/** {@link ExternalMcpOAuthDeps} as the service holds them: `providers` defaulted once at construction,
- *  so nothing downstream builds a second registry. */
