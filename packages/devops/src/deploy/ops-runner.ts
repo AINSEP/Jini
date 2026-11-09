@@ -187,7 +187,7 @@ function normalizeDeployResult(input: DeployRequest, result: DeployOpsDeployResu
  * @returns The normalized accepted-deploy result; landing is observed afterwards with status/wait.
  * @throws {ToolInputError} Unknown or observe-only platforms, credential/host/auth failures, invalid module results, or cancellation.
  * @complexity Time: O(credentials + response size) plus bounded adapter requests. Space: O(response size).
- * @example await runDeploy({ deps, input: { platform: "github-actions", target: "owner/repo", ref: "main" } }, { signal });
+ * @example await runDeploy({ deps, input: { platform: "my-host", target: "owner/repo", ref: "main" } }, { signal });
  */
 export async function runDeploy(required: { deps: DeployOpsRuntime; input: DeployRequest }, optional: { signal?: AbortSignal | undefined } = {}): Promise<DeployOpsDeployResult> {
   const { deps, input } = required; const { signal } = optional;
