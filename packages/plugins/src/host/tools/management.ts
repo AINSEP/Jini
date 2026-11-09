@@ -74,10 +74,7 @@ async function listAgentPluginsForResponse<Description>(routeDeps: PluginManagem
  * `sideEffects` declaration.
  */
 export function pluginManagementDerivedRiskFor({ toolIds }: { 
-  toolIds: { 
-  list: string; 
-  setEnabled: string; 
-  uninstall: string } }, _optional = {}): DerivedRiskByToolId { return new Map<string, AgentToolSideEffect>([
+  toolIds: PluginManagementToolsRequired<unknown>['toolIds'] }, _optional = {}): DerivedRiskByToolId { return new Map<string, AgentToolSideEffect>([
   // -> discoverPlugins() + pluginActivationRepo.getActivation() per record: reads only.
   [toolIds.list, "none"],
   // Activation and its injected enable hook can mutate durable state.
