@@ -266,6 +266,21 @@ export interface PluginRuntimeTracker<TEvent, TOptions> {
 /** Install admission + plugin lookup. @agent-note `withInstallIdentity` must serialize admission
  * of one candidate identity and run `run` at most once; it is read per install, never cached. */
 export interface PluginRuntimeLookup extends PluginLookupPort {
+  /**
+   * Admits one site-runtime publisher identity, then publishes it by running `run`.
+   * @agent-note Second-host rule: the runtime only names the candidate; identity custody is the
+   * host's, and this port must perform the WHOLE sequence, in this order:
+   * 1. take ONE lock shared by every publisher of every plugin family the host runs, across all
+   *    processes that can publish into the same install (a per-process or per-family mutex is not
+   *    enough: two families could then both publish the same `publisher/local` identity);
+   * 2. under that lock, read a FRESH admission inventory of all families (never a cached list),
+   *    including disabled installs, reserved/built-in identities and any other reservation;
+   * 3. assert the candidate identity is available against that inventory, refusing a clash with any
+   *    other family or owner and allowing only a permitted upgrade of the same plugin's identity;
+   * 4. run `run` (which publishes the install) while STILL holding the same lock, at most once,
+   *    and release the lock only after it settles. The site installer itself checks only its own
+   *    install directory and built-ins; it cannot see another family's reservation.
+   */
   withInstallIdentity<T>(required: { candidate: { id: string; localId: string; family: "site-runtime" }; run: () => Promise<T> }): Promise<T>;
 }
 
@@ -285,8 +300,8 @@ export interface PluginRuntimeText {
  * @agent-note Second-host rule: `pluginSourcePolicy`, `tier2CallRunner` and `pluginSdkBinding` have
  * NO defaults here — the host owns env/policy, the worker entry/runner/timeout, and the SDK (hook
  * ids, version, `beforeSaveHook`). `activationRepo` and the hook registry built here are shared by
- * save AND preview of this one runtime. `createModuleImporter` is called only after integrity and
- * `sdkRange` passed, and the Tier-2 runner must register its SDK resolver before importing.
+ * save AND preview of this one runtime. The Tier-2 runner must register its SDK resolver before
+ * importing. `createModuleImporter` is two-stage; see its own note.
  */
 export interface PluginRuntimeCoreRequired<TEvent = unknown, TOptions = unknown> {
   readonly workspaceId: string;
@@ -297,6 +312,21 @@ export interface PluginRuntimeCoreRequired<TEvent = unknown, TOptions = unknown>
   readonly tier2CallRunner: Tier2CallRunner;
   readonly pluginSdkBinding: PluginSdkBinding;
   readonly hostBinding: PluginRuntimeHostBinding;
+  /**
+   * Builds the module importer for one load target.
+   * @agent-note Second-host rule: two stages, with different guarantees.
+   * 1. Factory call: the runtime calls this while preparing the `loadPlugin` arguments, BEFORE that
+   *    load's integrity and `sdkRange` checks run, and possibly for a package those checks then
+   *    reject. The call must therefore only build a closure: no import, no snapshot, no file read,
+   *    no executable loading of any kind.
+   * 2. Returned importer: invoked by the loader only AFTER admission (integrity, `sdkRange`). For a
+   *    site package it must (a) enforce containment: the resolved entry stays inside the plugin's
+   *    real package root, with links refused; (b) import a FRESH identity of the entire dependency
+   *    graph on every load, never a cached module, so a replaced package never runs stale helpers;
+   *    (c) keep any snapshot it takes, when `snapshots` is given, alive for late/lazy imports until
+   *    that lifecycle is disposed. A plain cached `import()` adapter violates (b). An injected
+   *    `importModule` seam (built-in, worker or test) keeps its original path.
+   */
   readonly createModuleImporter: (
     required: { manifest: PluginManifest; source: "built-in" | "site" },
     optional?: { importModule?: (entryPath: string) => Promise<unknown>; snapshots?: NonNullable<ReturnType<typeof createPluginModuleSnapshotLifecycle>> },
@@ -481,7 +511,8 @@ export function createPluginRuntimeCore<TEvent, TOptions>(
     let scopedSdk: PluginSdk | undefined;
     const coreDeps = { ...invocation.coreDeps, contributions: capture };
 
-    // CIC U-001: Jini invokes this required port only AFTER integrity/sdkRange checks. A site
+    // CIC U-001: the importer FACTORY runs here, before loadPlugin's integrity/sdkRange checks, so
+    // it must stay inert; loadPlugin invokes the returned importer only after those checks. A site
     // target takes the contained immutable snapshot; built-in seams retain their original path.
     const moduleImporter = resolveRuntimeImporter({ target, record });
     const result = await loadPlugin(

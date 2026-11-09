@@ -61,6 +61,7 @@ function secondHost() {
   const approvals: string[] = [];
   const tools = createPluginCapabilityTools<SecondRecord, SecondDraft, 'second-family'>({
     identityNamespace: 'second',
+    beforeSaveHook: 'content.entry.beforeSave',
     text: TEXT,
     catalog: { domain: 'second-capability', catalogModule: 'second/catalog.ts', metadata: {} },
     access: { permission: 'records.view', entityType: 'record' },

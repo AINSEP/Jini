@@ -89,7 +89,7 @@ import { capabilityToolIdFor } from "./plugin-claims.js";
  * Fresh results for Tier-2 plugins (AW-7 Tier 2, 2026-10-04)
  * ---------------------------------------------------------------------------
  * A stored `ext` value is only as fresh as the post's last save, so "analyze this page" used to answer
- * with whatever the plugin computed then. A tier-2 plugin with a `content.entry.beforeSave` filter
+ * with whatever the plugin computed then. A tier-2 plugin with a filter on the host's before-save hook
  * ({@link PluginCapabilityToolSource.runsFresh}) now runs again on the post as stored, through the
  * optional `previewPluginBeforeSave` port: the same hook-registry preview the admin editor's
  * "Analyze now" uses, so the code runs in a fresh worker and nothing is saved or counted toward
@@ -230,7 +230,7 @@ export interface PluginCapabilityToolSource {
   readonly description: string;
   /** @agent-note Declared fields in manifest order; the result payload follows this order. */
   readonly fields: readonly PluginCapabilityFieldSource[];
-  /** A tier-2 plugin with a `content.entry.beforeSave` filter: each call runs that filter on the
+  /** A tier-2 plugin with a filter on the host-supplied `beforeSaveHook`: each call runs that filter on the
    *  stored post through `PluginCapabilityToolDeps.previewPluginBeforeSave` — see this file's header,
    *  "Fresh results for Tier-2 plugins".
    *  @agent-note Fresh calls go through the host preview port and write nothing. */
@@ -279,6 +279,13 @@ export interface PluginCapabilitySourceDeps {
 export interface PluginCapabilityToolsRequired<TPost extends PluginCapabilityPost, TDraft, TFamily extends string> {
   /** @agent-note Namespace passed to `readPluginIdentity` for the discovery terms. */
   readonly identityNamespace: string;
+  /** The host SDK's before-save hook id (the same id its `PluginSdkBinding.hookIds` admits and its
+   *  invocation binding receives as `beforeSaveHook`).
+   *  @agent-note Second-host rule: required, no default. A tier-2 plugin whose manifest `hooks`
+   *  include exactly this id runs fresh through `previewPluginBeforeSave` on every call; any other
+   *  plugin reads stored values. Supply the same id every other runtime port uses, or a valid
+   *  tier-2 plugin is silently classified stored-only. */
+  readonly beforeSaveHook: string;
   /** @agent-note All model-facing prose; see {@link PluginCapabilityToolText}. */
   readonly text: PluginCapabilityToolText;
   /** @agent-note `buildDomainRegistrations` inputs: `domain` (failure messages), `catalogModule`
@@ -335,8 +342,8 @@ async function isPluginEnabledInWorkspace(repo: PluginActivationRepoPort, worksp
 
 /** Whether this plugin's tool computes a fresh result instead of reading the stored one — see this
  *  file's header, "Fresh results for Tier-2 plugins". */
-function runsFreshFor(manifest: PluginManifest): boolean {
-  return manifest.tier === "tier-2" && manifest.hooks.includes("content.entry.beforeSave");
+function runsFreshFor(manifest: PluginManifest, beforeSaveHook: string): boolean {
+  return manifest.tier === "tier-2" && manifest.hooks.includes(beforeSaveHook);
 }
 
 /** This module's own risk classification — every capability tool is a pure read of an already-saved
@@ -382,7 +389,7 @@ export function createPluginCapabilityTools<TPost extends PluginCapabilityPost, 
   required: PluginCapabilityToolsRequired<TPost, TDraft, TFamily>,
   _optional: Record<string, never> = {},
 ): PluginCapabilityTools<TPost, TDraft, TFamily> {
-  const { identityNamespace, text, catalog, access, executableAccess, approvalFamily, toPreviewDraft } = required;
+  const { identityNamespace, beforeSaveHook, text, catalog, access, executableAccess, approvalFamily, toPreviewDraft } = required;
   type Deps = PluginCapabilityToolDeps<TPost, TDraft>;
 
   /** Fallback for a field whose manifest declares no `description` (see this file's header,
@@ -422,7 +429,7 @@ export function createPluginCapabilityTools<TPost extends PluginCapabilityPost, 
   function buildCapabilityToolDescription(manifest: PluginManifest, fields: readonly PluginCapabilityFieldSource[]): string {
     const identity = readPluginIdentity({ manifest: manifest as unknown as Readonly<Record<string, unknown>>, name: manifest.id, namespace: identityNamespace });
     const fieldText = fields.map((field) => field.description).join(" ") + text.discovery({ terms: [identity.id, ...identity.keywords, ...identity.provides].join(" ") });
-    if (runsFreshFor(manifest)) {
+    if (runsFreshFor(manifest, beforeSaveHook)) {
       return text.freshDescription({ pluginName: manifest.name, fieldText });
     }
     return text.storedDescription({ pluginName: manifest.name, fieldText });
@@ -453,7 +460,7 @@ export function createPluginCapabilityTools<TPost extends PluginCapabilityPost, 
         pluginName: record.manifest.name,
         description: buildCapabilityToolDescription(record.manifest, fields),
         fields,
-        runsFresh: runsFreshFor(record.manifest),
+        runsFresh: runsFreshFor(record.manifest, beforeSaveHook),
       });
     }
 
