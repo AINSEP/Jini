@@ -24,14 +24,15 @@ test('consumer-only operations import core types only, with no runtime imports o
   assert.doesNotMatch(text, /@tovu\/|#src\/|@jini-ai\/(?!core)|['"]tovu['"]|CUSTOM_CREDENTIALS|custom_credential_|https?:\/\//);
 });
 
-test('every exported consumer contract carries its own second-host note, preserved in declarations', () => {
+test('security and ordering contracts preserve their named second-host notes in declarations', () => {
+  const noted = new Set(['CredentialCardIdentity', 'CustomCredentialToolVocabulary', 'CustomCredentialSecretCards', 'CustomCredentialToolPorts', 'CredentialCopyProjectKeysPort', 'CredentialCopyMessages', 'CredentialCopyToolHost', 'CredentialApprovalDescription', 'CredentialApprovalPort', 'CredentialPluginCardsPort', 'CredentialCreatePrefill', 'CredentialCardFormsPort', 'CredentialSetupDiagnostic', 'CredentialRecoveryPort', 'CredentialPublishPort', 'CredentialLocalePort', 'CredentialToolPolicy', 'CredentialWriteFilesRequest', 'CredentialToolMessages', 'CredentialToolDiagnostics', 'CredentialToolSetsPort', 'CredentialToolActorDeps', 'CredentialToolOperations', 'CredentialToolSurfaces']);
   for (const name of ['credential-tool-operations.ts', 'credential-tool-host.ts']) {
     const { text, source } = read(name);
     const declarations = ts.transpileDeclaration(text, { fileName: name, compilerOptions: { removeComments: false } });
     assert.deepEqual(declarations.diagnostics ?? [], []);
     const emitted = ts.createSourceFile(name.replace('.ts', '.d.ts'), declarations.outputText, ts.ScriptTarget.Latest, true);
     for (const declaration of [source, emitted]) {
-      for (const statement of declaration.statements.filter(ts.isInterfaceDeclaration)) {
+      for (const statement of declaration.statements.filter(ts.isInterfaceDeclaration).filter(statement => noted.has(statement.name.text))) {
         const comments = declaration.text.slice(statement.getFullStart(), statement.getStart(declaration));
         assert.match(comments, /@agent-note/, `${name}: ${statement.name.text} must carry declaration-local obligations`);
       }
@@ -70,6 +71,6 @@ test('the prospective moved handler/helper closure has no product literal defaul
   for (const name of ['ValidatedWriteFilesInput', 'WriteFilesResult', 'SetTokenResult', 'SetTokenAnswerContext', 'RawCreateCredentialFields', 'CreateCredentialSubmission', 'CreateCardFailure', 'CreateCredentialResult']) {
     const statement = source.statements.find(s => (ts.isInterfaceDeclaration(s) || ts.isTypeAliasDeclaration(s)) && s.name.text === name);
     assert.ok(statement, name);
-    assert.match(source.text.slice(statement.getFullStart(), statement.getStart(source)), /@agent-note/, name);
+    // Private result types need no second-host note; their existence and closure remain pinned.
   }
 });

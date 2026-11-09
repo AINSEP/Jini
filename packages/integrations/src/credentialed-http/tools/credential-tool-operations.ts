@@ -2,9 +2,6 @@
 // Original bodies and why-comments are preserved; host wiring stays with the consumer.
 /**
  * @file Consumer-only ports for credential tools. Implementations belong to the composing host.
- * @agent-note Types only: core is the sole package dependency. Bind these operations over the
- * existing credential store, guarded adapters and answer-route exchange store; never build a
- * second vault, provider registry or surface store. Every member is required, including host copy.
  */
 import type { ApprovalAnswer, ApprovalSteps, DerivedRiskByToolId, LegacyToolAuthorizeFn, SurfaceExchangeStore, ToolExecutionContext, ToolExecutionOptions, ToolHandler } from '@jini-ai/core';
 import type { SecretCardForm, SurfaceDetail, SurfaceOutcomeSpec } from '@jini-ai/core/contracts/cards';
@@ -14,10 +11,8 @@ import type { CallerSafeErrorRule, ModelFacingErrorRule } from '@jini-ai/core/mo
 
 /**
  * Only the approval fields this consumer needs; no host server or UI implementation type.
- * @agent-note The host owns all words, ids and rendering identity. Its tool id must route answers
- * to the SAME held call. Describe the exact resolved label/host/path before asking; model input
- * cannot approve. Namespace/app/path rules belong to the bound transport, not a fallback here.
  */
+/** @agent-note The tool id must route the authenticated human answer to the SAME held call described by the resolved label, host and path. */
 export interface CredentialApprovalDescription {
   readonly toolId: string;
   readonly errorCode: string;
@@ -32,11 +27,8 @@ export interface CredentialApprovalDescription {
 
 /**
  * Approval lifecycle and authenticated human transport, independently supplied by the host.
- * @agent-note Typically core createApprovalHandler plus the host's human-confirm binding. Freeze
- * input/principal/run before awaits, prepare before asking, accept only an explicit authenticated
- * answer through the SAME answer-route exchange store, and check abort before effects. Permission
- * is re-admitted after the answer. A decline/expiry/abandonment must never decrypt or send.
  */
+/** @agent-note Freeze input, principal and run before awaits, accept only an explicit authenticated human answer, and recheck permission and abort before decrypting or sending. */
 export interface CredentialApprovalPort {
   handler<Prepared>(required: ApprovalSteps<Prepared, CredentialApprovalDescription>, optional?: Record<string, never>): ToolHandler;
   askHuman(required: { ctx: ToolExecutionContext; description: CredentialApprovalDescription }, optional: ToolExecutionOptions): Promise<ApprovalAnswer>;
@@ -45,11 +37,8 @@ export interface CredentialApprovalPort {
 
 /**
  * Display-only card declarations and human-submitted connection fields.
- * @agent-note Typically bind the installed plugin card loader/operations. Absent loader returns
- * []; preserve safe optional-load failure, exact owned labels and conflicts, fixed destinations,
- * public-field/HTTPS validation and canonical validation errors. usedFor is display metadata and
- * grants no authority. readValues sees human answers only; no plaintext enters model results.
  */
+/** @agent-note Treat absent or failed optional card loading as empty enrichment, while fixed destinations, field validation and owned labels remain authoritative. */
 export interface CredentialPluginCardsPort {
   load(required: { workspaceId: string }, optional?: Record<string, never>): Promise<readonly PluginCredentialCard[]>;
   find(required: { workspaceId: string; saveKind: PluginCredentialCard['saveKind']; target: string }, optional?: Record<string, never>): Promise<PluginCredentialCard | undefined>;
@@ -60,9 +49,8 @@ export interface CredentialPluginCardsPort {
 
 /**
  * Non-secret form protocol; field names are saved-card protocol, not product vocabulary.
- * @agent-note Validate prefill with the host's secret-free field policy before rendering. worksFor
- * is compatibility metadata only; the store still validates categories and all persisted fields.
  */
+/** @agent-note Validate prefill as secret-free metadata before rendering; worksFor neither selects nor authorizes a credential. */
 export interface CredentialCreatePrefill {
   readonly label?: string;
   readonly baseUrl?: string;
@@ -72,10 +60,8 @@ export interface CredentialCreatePrefill {
 
 /**
  * Host card descriptions, usually provided by UI builders wired at composition.
- * @agent-note Supply every sentence/example URL/category option/app id through these builders.
- * Token fields must be masked and never prefilled. The secret-card lifecycle supplies the SAME
- * URI for form and outcome; emit outcome only after save finishes. No model-secret fallback.
  */
+/** @agent-note Mask token fields without prefilling them, and send the outcome on the SAME URI only after the save completes. */
 export interface CredentialCardFormsPort {
   buildPlugin(required: { card: PluginCredentialCard }, optional?: Record<string, never>): SecretCardForm;
   applyPlugin(required: { card?: PluginCredentialCard | undefined; form: SecretCardForm }, optional?: Record<string, never>): SecretCardForm;
@@ -87,15 +73,13 @@ export interface CredentialCardFormsPort {
 
 /**
  * Only the recovery facts this consumer returns. Additional host-issued fields remain intact.
- * @agent-note Preserve the issuer's object identity/provenance; never reconstruct a diagnostic
- * from untrusted returned JSON. Only already-registered tool ids may be offered as remedies.
  */
+/** @agent-note Preserve the issued diagnostic object and its non-enumerable provenance rather than reconstructing it from public fields. */
 export interface CredentialSetupDiagnostic {
   readonly hint?: string;
   readonly remedyToolId?: string;
 }
 
-/** @agent-note This value-free failure must not contain a token, raw exception or sealed context. */
 export interface CredentialToolSetupFailure {
   readonly executed: false;
   readonly credentialSetup: CredentialSetupDiagnostic;
@@ -103,31 +87,26 @@ export interface CredentialToolSetupFailure {
 
 /**
  * Credential setup diagnostics retain the host's issuance and validation policy.
- * @agent-note Missing label can offer create with public prefill; only an explicit invalid verify
- * can offer replacement. Unreachable/transport errors never establish invalidity. Preserve the
- * original issued diagnostic object and successful provider result, including additional fields.
  */
+/** @agent-note Only explicit invalid verification may offer replacement, because transport or unreachable failures never establish credential invalidity. */
 export interface CredentialRecoveryPort {
   withSetup<Result>(required: { invoke: () => Promise<Result>; label: string; url?: string; verification?: boolean }, optional?: Record<string, never>): Promise<Result | CredentialToolSetupFailure>;
 }
 
 /**
  * Read-only catalogs and publish compatibility invalidation, bound over the host's current objects.
- * @agent-note Catalog failures are optional enrichment only and must not block save or erase
- * explicit worksFor ids. prepareInvalidation loads the existing registry only when the existing
- * cache is attached, BEFORE persistence; its callback closes over those exact objects and runs
- * only AFTER a successful save. Do not reload, cache, queue, invalidate on failure or add opens.
  */
+/** @agent-note Prepare invalidation from the attached registry before persistence and invoke its captured callback only after a successful save, without reloading or invalidating on failure. */
 export interface CredentialPublishPort {
+  /** @agent-note Optional catalog failures must return empty enrichment without blocking a save or removing explicit worksFor ids. */
   loadProviders(required: Record<string, never>, optional?: Record<string, never>): Promise<{ id: string; vendorId: string }[]>;
   prepareInvalidation(required: Record<string, never>, optional?: Record<string, never>): Promise<(required: { after: CredentialSetSummary }) => void>;
 }
 
 /**
  * Host locale and translated safe credential copy.
- * @agent-note Resolve for the authenticated principal/workspace. Translate only already-safe
- * messages; token hints are for human outcomes and never model results. No default locale/copy.
  */
+/** @agent-note Translate only caller-safe text for the authenticated scope, and reserve token hints for human outcomes rather than model results. */
 export interface CredentialLocalePort {
   resolve(required: { principalId: string }, optional?: Record<string, never>): Promise<string>;
   text(required: { id: 'blank' | 'saved'; locale: string }, optional?: Record<string, never>): string;
@@ -137,28 +116,24 @@ export interface CredentialLocalePort {
 
 /**
  * Host token, public-field, abort and duplicate-message policy.
- * @agent-note guardRepo must guard site/project insert/update and vault put/applyBatch AFTER
- * asynchronous sealing while preserving receiver, vault/CAS/transaction identity and read/delete
- * behavior. cleanToken preserves the token interior and never reflects it in errors. Public fields
- * are checked before disclosure. worksFor never selects or authorizes a credential. Only a trusted
- * project-conflict classifier may publish its known safe message; arbitrary exceptions stay private.
  */
+/** @agent-note guardRepo must preserve receiver, vault, CAS and transaction identity while guarding site and project writes after asynchronous sealing. */
 export interface CredentialToolPolicy {
   guardRepo<Repo extends { readonly vault?: VaultRepoPort }>(required: { store: Repo; signal: AbortSignal }, optional?: Record<string, never>): Repo;
+  /** @agent-note Preserve token interior bytes and never reflect them in normalization errors. */
   cleanToken(required: { token: string }, optional?: Record<string, never>): string;
   assertFreeField(required: { value: string; field: string }, optional?: Record<string, never>): void;
   normalizeWorksFor(required: { value: unknown }, optional?: Record<string, never>): string[];
   readonly defaultCategory: string;
+  /** @agent-note Classify only trusted project-conflict errors whose messages are already safe to publish. */
   isProjectConflict(required: { error: Error }, optional?: Record<string, never>): boolean;
   validateWriteFiles(required: { branch: unknown; commitMessage: unknown; files: unknown }, optional?: Record<string, never>): CredentialWriteFilesRequest;
 }
 
 /**
  * Validated file payload before provider-specific owner/repository validation.
- * @agent-note The host validator preserves branch/path/size limits and canonical validation
- * errors, including reserved .git paths. It runs before permission/I/O; provider target rules run
- * after build from saved metadata but before decrypt. files are the exact validated commit input.
  */
+/** @agent-note Validate reserved paths, sizes and canonical input errors before permission or I/O, then preserve the exact file payload through provider planning and commit. */
 export interface CredentialWriteFilesRequest {
   readonly branch: string;
   readonly commitMessage: string;
@@ -167,9 +142,8 @@ export interface CredentialWriteFilesRequest {
 
 /**
  * Every sentence assembled by the handler closure; host callbacks own interpolated wording too.
- * @agent-note Never echo submitted secret values. Field errors may name keys only; duplicate
- * messages receive a secret-free display label. Keep established host bytes by binding old copy.
  */
+/** @agent-note Messages may name rejected keys or a secret-free display label but must never echo submitted secret values. */
 export interface CredentialToolMessages {
   readonly formSaveFailure: string;
   readonly noCreateChannel: string;
@@ -193,10 +167,8 @@ export interface CredentialToolMessages {
 
 /**
  * Log-only observations, never model-facing diagnostics.
- * @agent-note Error summaries may contain class/code only. Never log raw error text, the submitted
- * label/token/file contents. Write failure detail stays server-side; human/model text uses the
- * caller-safe message. Creation logs fixed lifecycle metadata only; rotation also the row id.
  */
+/** @agent-note Log fixed lifecycle metadata or error class/code only, with provider detail kept out of human and model messages. */
 export interface CredentialToolDiagnostics {
   describeError(required: { error: unknown }, optional?: Record<string, never>): string;
   createFailure(required: { metadata: { toolId: string; exchangeId: string; saved: false } }, optional?: Record<string, never>): void;
@@ -206,11 +178,8 @@ export interface CredentialToolDiagnostics {
 
 /**
  * The already-extracted credential-set job, bound over the host's C1 policy and current store.
- * @agent-note Reads preserve metadata-only behavior; resolve opens only the selected authorized
- * row. Writes use the SAME repo/vault/transaction and supplied guardRepo for both site/project
- * persistence after asynchronous sealing. replace uses trusted principalId to decide owner-only
- * shared-key replacement, rechecks current grants, and preserves CAS/context. No new repo/store.
  */
+/** @agent-note Bind the SAME repo, vault, transaction and abort guard as host routes, rechecking current grants and CAS when replacing a selected authorized row. */
 export interface CredentialToolSetsPort {
   list(required: Record<string, never>, optional?: Record<string, never>): Promise<CredentialSetSummary[]>;
   describe(required: { id: string }, optional?: Record<string, never>): Promise<CredentialSetSummary | null>;
@@ -223,10 +192,8 @@ export interface CredentialToolSetsPort {
 
 /**
  * Only authenticated scope, authorization and trusted scheme loading are consumed directly.
- * @agent-note Supply the host's existing authorizer and installed auth schemes for this workspace.
- * Scope is trusted composition input, never read from model input or an answer. All request,
- * store, provider, locale and UI implementations arrive through the named operations instead.
  */
+/** @agent-note Workspace and principal scope must come from trusted host composition rather than model input or card answers. */
 export interface CredentialToolActorDeps {
   readonly authorize: LegacyToolAuthorizeFn;
   readonly workspaceId: string;
@@ -235,12 +202,8 @@ export interface CredentialToolActorDeps {
 
 /**
  * Required consumer contract for the complete credential-tool seam.
- * @agent-note Bind every port over the SAME store/adapters/exchanges as the host's routes. ids
- * must agree with catalog/metadata/risk and answer routing; no default tool/permission/path exists.
- * Model rules are a canonical-class allowlist: unknown/transport/raw sealer/JSON errors remain
- * private; secret-store failures use fixed text. Form rules likewise use a fixed fallback. These
- * declarations are local consumer needs, so they do not introduce a domain package dependency.
  */
+/** @agent-note operations.ids must agree with catalog, metadata, derived risk and answer routing over the SAME host stores and adapters. */
 export interface CredentialToolOperations {
   readonly sets: CredentialToolSetsPort;
   readonly approval: CredentialApprovalPort;
@@ -254,16 +217,15 @@ export interface CredentialToolOperations {
   readonly diagnostics: CredentialToolDiagnostics;
   readonly ids: { readonly list: string; readonly verify: string; readonly setUsername: string; readonly makeRequest: string; readonly writeFiles: string; readonly save: string };
   readonly derivedRisk: DerivedRiskByToolId;
-  /** @agent-note DELETE preflight validation uses this package's CredentialedRequestValidationError from @jini-ai/integrations/credentialed-http, so include that class to surface its refusal. */
+  /** @agent-note DELETE preflight validation uses CredentialedRequestValidationError exported by this package's credentialed-http entry, so include that class to surface its refusal. */
   readonly modelFacingErrors: readonly ModelFacingErrorRule[];
   readonly formErrors: readonly CallerSafeErrorRule[];
 }
 
 /**
  * Only the shared exchange store is consumed by these handlers.
- * @agent-note This MUST be the SAME store instance used by answer/callback routes. The approval
- * transport may close over extra host authorization dependencies; this consumer never imports them.
  */
+/** @agent-note This must be the SAME exchange store instance used by the answer and callback routes. */
 export interface CredentialToolSurfaces {
   readonly surfaceExchanges: SurfaceExchangeStore;
 }

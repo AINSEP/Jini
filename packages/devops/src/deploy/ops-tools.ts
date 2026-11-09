@@ -79,7 +79,6 @@ async function observationHandler({ deps, input, name }: { deps: DeployOpsRuntim
 }
 
 /** Permission precedes any plugin/credential read. Handler input validation is independent of the schema. */
-/** @agent-note Host supplies every id/permission/domain/catalog/card input. Permission gates all protected work; site key also requires its separate grant before read/network. Approval callback rechecks write permission after same actor-bound answer. */
 export function buildDeployOpsRegistrations({deps,host}: {deps:DeployOpsRuntime;host:DeployOpsRegistrationHost}, _optional = {}): ToolRegistration[] {
   const catalog = host.catalog;
   const handlers: Record<string, ToolHandler> = {};

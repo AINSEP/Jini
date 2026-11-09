@@ -20,8 +20,6 @@ import { aborted, boundContext } from './ops-runner.js';
  * `readSecret`). Values stay inside this process: the audit records metadata only, and the result
  * reports a one-way fingerprint.
  */
-
-/** @agent-note Stable environment-variable name protocol, no host vocabulary. */
 export const SECRET_NAME_PATTERN = /^[A-Za-z_]\w{0,127}$/;
 const clip = (value: unknown, max: number) => String(value).slice(0, max);
 const sha256 = (value: string) => createHash("sha256").update(value, "utf8").digest();
@@ -78,7 +76,6 @@ const nextStep = (deps:DeployOpsRuntime, platform: LoadedDeployOps, target: stri
  * @complexity Time and space: O(credentials + secrets).
  * @example await runListSecrets({ deps, input: { platform: "my-host", target: "my-app" } });
  */
-/** @agent-note Metadata only; same fresh registry and credential binding, never return secret values. */
 export async function runListSecrets(required: { deps: DeployOpsRuntime; input: SecretTargetInput }, optional: { signal?: OptionalAbortSignal } = {}) {
   const { deps, input } = required; const { signal } = optional;
   const platform = await secretsPlatform(deps, input.platform, signal);
@@ -155,7 +152,7 @@ function describeSource({ source }: { source: SecretValueSource }, _optional = {
  * @complexity Time: O(credentials + secrets + value length) plus at most four adapter requests. Space: O(secrets).
  * @example await runSetSecret({ deps, input: { platform: "my-host", target: "my-app", name: "APP_SITE_KEY", source: { kind: "site-key" } } }, { confirm });
  */
-/** @agent-note Read site key afresh, exact host fingerprint; constant-time digest equality. Same/no-op/dry-run adds no approval. Overwrite requires frozen explicit human approval; abort means no write. Unreadable comparison degrades only to presence; typed bytes are never trimmed. */
+/** @agent-note The confirm callback must approve the frozen overwrite request through an authenticated human answer. */
 export async function runSetSecret(required: { deps: DeployOpsRuntime; input: SetSecretInput }, optional: { signal?: OptionalAbortSignal; confirm?: OptionalSecretConfirm; typedValue?: unknown } = {}): Promise<SetSecretResult> {
   const { deps, input } = required; const { signal, confirm } = optional;
   const platform = await secretsPlatform(deps, input.platform, signal);
@@ -193,7 +190,7 @@ function requireSecretSnapshot({ deps, secrets, name }: { deps:DeployOpsRuntime;
  * @complexity Time and space: O(credentials + secrets) plus at most three adapter requests.
  * @example await runUnsetSecret({ deps, input: { platform: "my-host", target: "my-app", name: "OLD_KEY" } }, { confirm });
  */
-/** @agent-note Freeze identifiable provider digest/update snapshot before human confirmation, reread and compare after; changed snapshot or abort means no delete. */
+/** @agent-note The confirm callback must approve the frozen removal request through an authenticated human answer. */
 export async function runUnsetSecret(required: { deps: DeployOpsRuntime; input: UnsetSecretInput }, optional: { signal?: OptionalAbortSignal; confirm?: OptionalSecretConfirm } = {}): Promise<UnsetSecretResult> {
   const { deps, input } = required; const { signal, confirm } = optional;
   const platform = await secretsPlatform(deps, input.platform, signal);

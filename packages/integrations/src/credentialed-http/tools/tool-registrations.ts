@@ -35,17 +35,12 @@ import type { ToolExecutionContext, ToolExecutionOptions, ToolHandler, ToolRegis
 import type { CredentialedRequestOutcome } from "../credentialed-request.js";
 import { CredentialedRequestValidationError } from "../../contracts/credentialed-request-errors.js";
 
-
-/** @agent-note Provider target validation joins the exact already-validated file payload; no
- * decrypt, rebuild or re-plan may change it before the single provider commit. */
 type ValidatedWriteFilesInput = CredentialWriteFilesRequest & { readonly owner: string; readonly repo: string };
-
 
 /** Stamps the host's app identity on a card a host builder made; the host's own values keep the same bytes. */
 function withCardApp<Spec extends { readonly app?: SurfaceCardApp }>({ spec, app }: { spec: Spec; app: SurfaceCardApp }): Spec {
   return { ...spec, app };
 }
-
 
 /**
  * Decides which of `custom_credential_make_request`'s rejections are the CALLER's to fix — the same
@@ -104,7 +99,6 @@ async function makeModelFacingCredentialedRequest({ port, input, catalog, toolId
   }
 }
 
-
 /**
  * The same classification for `custom_credential_write_files`, which validates its whole input
  * (`validateWriteFilesInput`) BEFORE the credential is even resolved. Every rejection from there is
@@ -126,7 +120,6 @@ function isWriteFilesShapeRejection(error: unknown): boolean {
   return error instanceof CustomCredentialValidationError;
 }
 
-
 /** `custom_credential_write_files`'s ENTIRE agent-facing result shape — boolean-plus-reason on every
  *  non-success branch, the same discriminated shape {@link SetTokenResult}/{@link CreateCredentialResult}
  *  use below for the identical reason: nothing here could ever be widened to carry the token, and a
@@ -135,14 +128,12 @@ function isWriteFilesShapeRejection(error: unknown): boolean {
  *  at the provider API level AFTER confirmation (a diverged branch, a provider error), which needs a
  *  human-readable `message` the other reasons never carry. That `message` is always caller-safe: a
  *  network failure's detail goes to the server log only, via {@link reportRepositoryWriteFailure}.
- * @agent-note Successful results are value-free commit facts; failure messages must already be
- * caller-safe. No token, authorization header or file content may enter this result. */
+ */
 type WriteFilesResult =
   | { executed: true; commitSha: string; commitUrl: string; filesWritten: number }
   | { executed: false; cancelled: true }
   | { executed: false; cancelled: false; reason: "expired" | "abandoned" }
   | { executed: false; cancelled: false; reason: "error"; message: string };
-
 
 /**
  * Commits using the SAME validated provider plan the handler obtained, rather than re-planning.
@@ -169,12 +160,10 @@ async function performRepositoryFilesWrite({ operations, port, provider, resolve
   return { executed: true, commitSha: commitResult.commitSha, commitUrl: commitResult.commitUrl, filesWritten: validated.files.length };
 }
 
-
 /** Where a write goes: the credential's API plus the `Authorization` header built from its connection. */
 function writeTarget(resolved: { baseUrl: string; connection: CustomProviderConnectionInput }, validated: ValidatedWriteFilesInput) {
   return { baseUrl: resolved.baseUrl, authorization: buildAuthorizationHeader({ connection: resolved.connection, schemes: [] }), owner: validated.owner, repo: validated.repo };
 }
-
 
 /** The exact keys `custom_credential_set_username` accepts — nothing else, ever. This is the
  *  structural half of "this tool can never accept a token" promised by the host's tool catalog
@@ -183,7 +172,6 @@ function writeTarget(resolved: { baseUrl: string; connection: CustomProviderConn
  *  `ToolDescriptor.inputSchema` doc), so THIS handler-level check is the one that is actually
  *  enforced. */
 const SET_USERNAME_ALLOWED_FIELDS: ReadonlySet<string> = new Set(["label", "username"]);
-
 
 /**
  * Refuses a `custom_credential_set_username` call carrying any field other than `label`/`username` —
@@ -203,7 +191,6 @@ function rejectUnexpectedSetUsernameFields({ input, messages }: { input: Record<
     );
   }
 }
-
 
 /**
  * Reads and validates this tool's required `username` field: a non-empty string to set it, or `null`
@@ -229,13 +216,11 @@ function requireUsernameOrClearSentinel({ input, messages }: { input: Record<str
   return input.username;
 }
 
-
 /** The exact keys `custom_credential_set_token` accepts on the MODEL-ISSUED call — `label`, nothing
  *  else, ever. The API rotation schema supplied by the host already has no `token` property to fill in, but
  *  `additionalProperties: false` is descriptive only (same caveat `SET_USERNAME_ALLOWED_FIELDS`'s own
  *  doc gives) — this is the layer that is actually enforced. */
 const SET_TOKEN_ALLOWED_FIELDS: ReadonlySet<string> = new Set(["label"]);
-
 
 /**
  * Refuses a `custom_credential_set_token` call carrying any field other than `label` — the ONLY
@@ -257,14 +242,12 @@ function rejectUnexpectedSetTokenFields({ input, messages }: { input: Record<str
   }
 }
 
-
 /** `custom_credential_set_token`'s ENTIRE agent-facing result shape — deliberately boolean-plus-reason
  *  and nothing richer, so there is no field this type could ever be widened to carry the submitted
  *  token in (contrast `CustomCredentialSummary`, which `custom_credential_set_username` safely returns
  *  in full because none of its fields are secret).
- * @agent-note Return lifecycle status and caller-safe text only; hints stay on human outcomes. */
+ */
 type SetTokenResult = { saved: true } | { saved: false; reason: "cancelled" | "expired" | "abandoned" | "invalid" | "error"; message?: string };
-
 
 /** Probe only plugin-owned API cards before sealing, keeping every failure value-free.
  * @throws CustomCredentialValidationError for refusal/unavailability or an origin mismatch.
@@ -284,12 +267,10 @@ async function probeCardBeforeSave({ card, baseUrl, connection, routeDeps, opera
   if (status === 'refused' || status === 'unavailable') throw new CustomCredentialValidationError(operations.messages.probeFailure({ status, keyHint: card.keyHint, replacing }));
 }
 
-
 /** Every dependency {@link saveSetToken} needs to seal the submitted token and report the
  *  outcome — bundled so `custom_credential_set_token`'s own `askThenReport` call passes one object
  *  rather than the handler's whole closure.
- * @agent-note The captured summary identifies a row only. Re-read current username/metadata at
- * replacement and retain current authorization, owner/grant and CAS checks. */
+ */
 interface SetTokenAnswerContext {
   readonly routeDeps: CredentialToolActorDeps;
   readonly operations: CredentialToolOperations;
@@ -297,7 +278,6 @@ interface SetTokenAnswerContext {
   readonly existing: CustomCredentialSummary;
   readonly pluginCard?: PluginCredentialCard | undefined;
 }
-
 
 /**
  * `custom_credential_set_token`'s `askThenReport` answer handling — extracted to a top-level function
@@ -359,7 +339,6 @@ async function saveSetToken(
   );
 }
 
-
 /** Reads optional non-secret prefill hints from the model-issued call.
  * Blank strings are absent; unknown category options remain subject to store validation on save.
  * @complexity O(1) — fixed field reads.
@@ -381,7 +360,6 @@ function readCreateCredentialPrefill({ input, operations }: { input: Record<stri
   return prefill;
 }
 
-
 /** `custom_credential_create`'s ENTIRE agent-facing result shape. On success, the SAME summary shape
  *  `custom_credential_list`/`custom_credential_set_username` already return — safe in full, since
  *  `CustomCredentialSummary` has no field capable of carrying a secret by its public type. Every
@@ -389,12 +367,10 @@ function readCreateCredentialPrefill({ input, operations }: { input: Record<stri
  *  identical reason: nothing here could ever be widened to carry the submitted token.
  *  `'duplicate-label'` is this tool's own addition — `custom_credential_set_token` has no equivalent
  *  case, since it always targets a row that is already known to exist.
- * @agent-note Strip human-only hints from success; failures carry safe status/reason/text,
- * never submitted values, sealed/private context or raw exceptions. */
+ */
 type CreateCredentialResult =
   | { created: true; credential: Omit<CustomCredentialSummary, "tokenHint"> }
   | { created: false; reason: "cancelled" | "expired" | "abandoned" | "invalid" | "duplicate-label" | "error"; message?: string };
-
 
 /** Create has no existing row to resolve before the form opens: its target row does not exist
  * until the human submits. The save port receives only its own explicit domain dependencies. */
@@ -402,8 +378,7 @@ type CreateCredentialResult =
  *  defaulting yet (see {@link deriveCreateCredentialSubmission} for that stage). Split from it so each
  *  function's own complexity is measured independently: this one is pure shape-narrowing, that one is
  *  pure decision-making, and neither has to read the other's reasoning to verify its own.
- *  @agent-note These are the existing saved-card field names. Values arrive only from the human
- *  secure-card answer, never a model-issued secret input; retain them only through probe/seal.
+ *
  *  @complexity O(1) — five fixed field reads. */
 interface RawCreateCredentialFields {
   readonly worksFor: unknown;
@@ -413,7 +388,6 @@ interface RawCreateCredentialFields {
   readonly username: string;
   readonly token: string;
 }
-
 
 /**
  * Narrows `custom_credential_create`'s five submitted params to strings, with no defaulting — a
@@ -433,11 +407,9 @@ function readRawCreateCredentialFields(params: Record<string, unknown>): RawCrea
   };
 }
 
-
 /** {@link deriveCreateCredentialSubmission}'s output — the fully-defaulted shape the rest of
  *  {@link saveCreateCard} actually acts on.
- * @agent-note Category/display defaults are host inputs. Fixed plugin destinations cannot be
- * widened by submitted fields; the token remains local to probe and sealing. */
+ */
 interface CreateCredentialSubmission {
   readonly additionalHosts?: readonly string[];
   readonly pluginCard?: PluginCredentialCard | undefined;
@@ -454,7 +426,6 @@ interface CreateCredentialSubmission {
    *  actually refuses the submission; this is display-only. */
   readonly displayLabel: string;
 }
-
 
 /**
  * Applies `custom_credential_create`'s three field defaults on top of {@link readRawCreateCredentialFields}'s
@@ -484,7 +455,6 @@ function safeCredentialLabel({ label, operations }: { label: string; operations:
   catch { return operations.messages.unlabeled; }
 }
 
-
 function deriveCreateCredentialSubmission({ raw, operations }: { raw: RawCreateCredentialFields; operations: CredentialToolOperations }, _optional = {}): CreateCredentialSubmission {
   return {
     worksFor: raw.worksFor,
@@ -497,16 +467,13 @@ function deriveCreateCredentialSubmission({ raw, operations }: { raw: RawCreateC
   };
 }
 
-
 /** Shared safe failure metadata drives both the model result and the human outcome. Cancel,
  * expiry and abandonment emit no outcome because their state is already rendered locally.
- * @agent-note Both projections receive only a message passed through host caller-safe rules;
- * never retain submitted tokens or raw exceptions in this state. */
+ */
 interface CreateCardFailure {
   readonly reason: 'invalid' | 'duplicate-label' | 'error';
   readonly message: string;
 }
-
 
 /**
  * Maps a `createCustomCredential` rejection onto `custom_credential_create`'s own failure shape — the
@@ -517,7 +484,7 @@ interface CreateCardFailure {
  * failure's message goes through the same caller-safe allowlist as rotation — never an unlisted
  * `err.message`, which can quote the submitted token.
  *
- * @complexity O(r) in {@link FORM_SAVE_CALLER_SAFE_ERRORS}' rule count.
+ * @complexity O(r) in operations.formErrors' rule count.
  */
 function mapCreateCredentialError(
   required: { err: unknown; locale: string; label: string; operations: CredentialToolOperations }, _optional = {}
@@ -531,7 +498,6 @@ function mapCreateCredentialError(
   const message = operations.locale.translate({ message: callerSafeErrorMessage({ err, rules: operations.formErrors, fallback: operations.messages.formSaveFailure }), locale });
   return { reason: err instanceof CustomCredentialValidationError ? 'invalid' : 'error', message };
 }
-
 
 /**
  * The create card's domain save port stays separate from the engine's exchange lifecycle so its
@@ -571,7 +537,6 @@ async function saveCreateCard(
   invalidate({ after: saved });
   return saved;
 }
-
 
 /**
  * Opens a create card and saves its submission as a NEW credential row — shared by the generic API
@@ -636,15 +601,12 @@ async function openCreateCard(required: {
   return card.handler({ surfaceExchanges: surfaces.surfaceExchanges, askThenReport: cards.askThenReport })(ctx, emitSurface ? { emitSurface } : {});
 }
 
-
 /**
  * API-key cards with every consumed operation supplied by the composing host.
- * @agent-note All policy/copy/builders/catalogs/diagnostics come from operations. Actor scope is
- * trusted, permissions precede reads/dialogs, the answer route uses the SAME surface store, and
- * only the human card supplies secrets. Probe before seal; preserve current username and grant
- * on replacement. Outcome replaces the same URI only after successful persistence/invalidation.
+ *
  * @complexity O(1) wiring; each adapter performs the bounded operations documented on its ports.
  */
+/** @agent-note create accepts optional label/baseUrl/category/worksFor, rotate requires label and pluginProvider requires provider, while secrets arrive only from human card values. */
 export function createCredentialSaveHandlers({ routeDeps, surfaces, host, ports, cards, operations }: { routeDeps: CredentialToolActorDeps; surfaces: CredentialToolSurfaces; host: CustomCredentialToolHost; ports: Pick<CustomCredentialToolPorts, 'credentialedRequest'>; cards: CustomCredentialSecretCards; operations: CredentialToolOperations }, _optional = {}): { create: ToolHandler; rotate: ToolHandler; pluginProvider: ToolHandler } {
   const probe: CredentialedRequestPort["probe"] = (input) => ports.credentialedRequest.probe(input);
   const handlers: { create: ToolHandler; rotate: ToolHandler; pluginProvider: ToolHandler } = {
@@ -707,7 +669,7 @@ export function createCredentialSaveHandlers({ routeDeps, surfaces, host, ports,
         uriHost: host.cardIdentity.uriNamespace,
         text: { noEmitter: operations.messages.noRotateChannel },
         safeError: err => {
-          // Never `err.message`: it can quote the token just submitted. See FORM_SAVE_CALLER_SAFE_ERRORS.
+          // Never `err.message`: it can quote the token just submitted. See operations.formErrors.
           errorSummary = operations.diagnostics.describeError({ error: err });
           return operations.locale.translate({ message: callerSafeErrorMessage({ err, rules: operations.formErrors, fallback: operations.messages.formSaveFailure }), locale });
         },
@@ -740,7 +702,7 @@ export function createCredentialSaveHandlers({ routeDeps, surfaces, host, ports,
 
     // A plugin's own key card (credential_save kind plugin-provider): plugin copy, a masked token
     // and declared public fields, with fixed row metadata resolved on the server. Same
-    // permission, save port and outcome as the generic create card. See plugin-credential-card.ts.
+    // permission, save port and outcome as the generic create card. The host supplies these through operations.pluginCards.
     pluginProvider: async (ctx, { emitSurface } = {}): Promise<CreateCredentialResult> => {
       const input = requireInputRecord({ input: ctx.input });
       const providerId = requireString({ input, key: "provider" });
@@ -760,16 +722,12 @@ export function createCredentialSaveHandlers({ routeDeps, surfaces, host, ports,
   return withModelFacingErrors({ handlers, rules: operations.modelFacingErrors }) as { create: ToolHandler; rotate: ToolHandler; pluginProvider: ToolHandler };
 }
 
-
 /**
  * Credential tool handlers over required host operations and core-only consumer contracts.
- * @agent-note Supply ids/risk/rules matching the supplied catalog/metadata and bind every operation
- * over the existing host objects. Metadata reads never decrypt. Target validation precedes any
- * dialog/decrypt; DELETE waits for an authenticated human and rechecks permission before sending.
- * File writes build/validate/resolve/plan once, then commit on the SAME provider with the EXACT
- * plan unless aborted. Unknown errors remain private; egress is caller-safe before decoration.
+ *
  * @complexity O(t) wiring, plus the bounded costs of each named host operation.
  */
+/** @agent-note operations.ids must exactly match catalog, metadata and risk names and the host answer routing. */
 export function createCredentialToolRegistrations({ routeDeps, host, ports, operations }: { routeDeps: CredentialToolActorDeps; host: CustomCredentialToolHost; ports: CustomCredentialToolPorts; operations: CredentialToolOperations }, _optional = {}): ToolRegistration[] {
   const { credentialedRequest, sourceControlWrite } = ports;
   const handlers: Record<string, ToolHandler> = {

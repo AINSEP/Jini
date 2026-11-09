@@ -6,7 +6,6 @@ import { requireDeployPlatform } from './ops-registry.js';
 import { boundContext, DeployCredentialSetupRequired } from './ops-runner.js';
 import { runSetSecret } from './ops-secrets.js';
 /** Only the human card receives the value. Neither source nor the model-facing result carries it. */
-/** @agent-note Same actor-bound exchange and host card identity; resolve credential before collecting. Recheck write permission after answer. Exact submitted bytes remain in process; fixed safeError and outcome only after save, recovery emits no outcome. */
 export async function collectTypedDeploySecret(
   { ctx, deps, cards, input, permit }: { ctx: ToolExecutionContext; deps: DeployOpsRuntime; cards: DeployOpsSecretCards; input: SetSecretInput; permit: () => Promise<void> },
   { emitSurface, confirm }: ToolExecutionOptions & { confirm?: OptionalSecretConfirm } = {},

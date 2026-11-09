@@ -6,13 +6,10 @@ import type { CredentialCopyProjectKeysPort, CredentialCopyToolHost } from "./cr
 import { adaptLegacyAuthorize, requireToolPermission, ToolInputError, SURFACE_EXCHANGE_ID_PARAM, buildDomainRegistrations, indexCatalogById, SURFACE_DISMISSED_PARAM } from "@jini-ai/core";
 import type { SurfaceCardUri } from "@jini-ai/core/contracts/cards";
 
-
 /**
  * What the saved-key card needs from its host, besides the host inputs.
- * @agent-note `authorize` and `authorizeInstance` are re-asked after the human answers; a session that
- *   lost the permission while the card was open is refused. `ownerPrincipalId` is the only principal
- *   that may see the inventory.
  */
+/** @agent-note ownerPrincipalId must identify the trusted installation owner before its inventory is opened. */
 export interface CredentialCopyRequired {
   readonly workspaceId: string;
   readonly ownerPrincipalId: Promise<string>;
@@ -20,7 +17,6 @@ export interface CredentialCopyRequired {
   readonly gatedMutations: { gatewayDeps: { authorizeInstance?: InstanceAuthorizeFn } };
   readonly projectKeys?: CredentialCopyProjectKeysPort;
 }
-
 
 /** Require the installation owner's current permissions before inventory and again before grant.
  * @throws ToolInputError for non-owner sessions; RBAC errors propagate without secrets.
@@ -39,7 +35,6 @@ async function admit({ deps, host, principalId, permission = host.vocabulary.own
   }
 }
 
-
 /** Only an offered id can be approved; submitted site ids or other fields cannot widen the grant. */
 function selectedKey<Row extends { readonly keyId: string }>({ params, rows, host }: { params: Record<string, unknown>; rows: readonly Row[]; host: CredentialCopyToolHost }): Row | 'new' {
   if (Object.keys(params).some(key => !['credentialId', SURFACE_EXCHANGE_ID_PARAM].includes(key))) {
@@ -51,14 +46,12 @@ function selectedKey<Row extends { readonly keyId: string }>({ params, rows, hos
   return row;
 }
 
-
 /** Selection and secrets come only from the human card, never model arguments. */
 function validateInput({ input, host }: { input: unknown; host: CredentialCopyToolHost }): void {
   if (!input || typeof input !== 'object' || Array.isArray(input) || Object.keys(input).length) {
     throw new ToolInputError({ message: host.messages.inputNotEmpty });
   }
 }
-
 
 /** The fallback uses the normal secret card and the same successful-save attachment owner. */
 async function normalKeyCard({ ctx, options, deps, host, saveNew }: {
@@ -70,15 +63,12 @@ async function normalKeyCard({ ctx, options, deps, host, saveNew }: {
   return deps.projectKeys ? deps.projectKeys.savedResult({ result }) : result;
 }
 
-
 /** One human card selects and approves a CMS site grant. Jini owns actor binding, expiry and replay
  * protection. The site is captured by the project-keys port at host composition, never by submitted input.
  * @returns Only the approved reference, or a cancellation result; no owner inventory reaches chat.
  * @complexity O(k) card metadata, k capped by the owner inventory; one grant transaction per approval.
- * @agent-note Every id, permission, URI part, app and sentence comes from `host`; there is no default.
- *   The exchange is opened in `surfaces.surfaceExchanges`, which must be the store the answer route uses.
- *   A new key goes through `saveNew` (the host's normal secret card); keystrokes never reach this tool.
  */
+/** @agent-note The catalog must accept no model input, because key selection happens only inside the held human card. */
 export function createCredentialCopyRegistrations({ deps, surfaces, host }: {
   deps: CredentialCopyRequired; surfaces: { readonly surfaceExchanges: SurfaceExchangeStore }; host: CredentialCopyToolHost;
 }, { saveNew }: { saveNew?: ToolHandler } = {}): ToolRegistration[] {
