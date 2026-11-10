@@ -252,6 +252,8 @@
  * unconditionally for core-mediated DDL; the access-control framing is advisory until ADR-024 §4
  * Rung 2 (capability sandbox) ships — see ADR-023 §0 for the full, precise wording.
  */
+import { statSync } from "node:fs";
+
 import { sql } from "kysely";
 
 import {
@@ -941,8 +943,21 @@ export async function declareDataModule(
 
   // Snapshot + journal exist for next-boot restore of a whole SQLite file (this file's header,
   // STORAGE KERNEL): nothing to restore for an in-memory db or a Postgres/PGlite kernel.
-  const recoverable = kernel.dialect === "sqlite" && !isInMemoryDbPath({ dbPath });
-  const preflight = await runPreflightChecks(kernel, dbPath, decl, recoverable, checkHeadroom);
+  // The snapshot, its boot restore and the headroom check bind to the file this connection has open,
+  // not to the named path. Identity is the filesystem's (dev, ino): two paths (a second bind mount,
+  // a hard link) can name one file. A path naming another file warns and never blocks the install.
+  let openDbPath = dbPath;
+  if (kernel.dialect === "sqlite" && !isInMemoryDbPath({ dbPath })) {
+    const [main] = await kernel.query<{ file: string }>(sql`SELECT file FROM pragma_database_list WHERE name = 'main'`);
+    openDbPath = main?.file || ":memory:";
+    const named = statSync(dbPath, { throwIfNoEntry: false });
+    const open = main?.file ? statSync(main.file, { throwIfNoEntry: false }) : undefined;
+    if (!named || !open || named.dev !== open.dev || named.ino !== open.ino) {
+      console.warn(`[data-module] ${decl.pluginId}: ${dbPath} is not the database this connection has open (${main?.file || "an in-memory database"}). Its tables are installed in the open database, and the safety snapshot and disk-space check use it too. Fix the configured database path.`);
+    }
+  }
+  const recoverable = kernel.dialect === "sqlite" && !isInMemoryDbPath({ dbPath: openDbPath });
+  const preflight = await runPreflightChecks(kernel, openDbPath, decl, recoverable, checkHeadroom);
   if (!preflight.ok) {
     return { ok: false, created: [], altered: [], snapshotPath: null, error: preflight.error };
   }
@@ -950,7 +965,7 @@ export async function declareDataModule(
   // §4 — snapshot the WHOLE db BEFORE any DDL. This is the never-brick anchor.
   // `snapshotDb` returns `null` for an in-memory `dbPath` (BUG FIX 2026-07-28, see `snapshot.ts`) —
   // no file was ever written, so there is nothing to journal a recovery pointer to.
-  const snapshotPath = recoverable ? await snapshotDb({ db: kernel, dbPath, label: decl.pluginId }) : null;
+  const snapshotPath = recoverable ? await snapshotDb({ db: kernel, dbPath: openDbPath, label: decl.pluginId }) : null;
 
   // The phase-journal (§2/T3) exists solely to let `migration-recovery.ts` restore a crash-
   // interrupted attempt at NEXT BOOT. An in-memory db has no next boot — the whole database
