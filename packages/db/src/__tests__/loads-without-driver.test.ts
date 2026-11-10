@@ -104,6 +104,10 @@ const SUBPATHS: Record<string, { dirs: string[]; probe: string; kernel?: boolean
   },
 };
 
+SUBPATHS["data-modules"] = {
+  dirs: ["data-modules", "kernel"], kernel: true,
+  probe: `m.isIncompletePhase({ phase: "DDL_IN_PROGRESS" }) === true && m.isIncompletePhase({ phase: "COMMITTED" }) === false && m.isInMemoryDbPath({ dbPath: ":memory:" }) === true && m.isInMemoryDbPath({ dbPath: "site.db" }) === false && typeof m.declareDataModule === "function"`,
+};
 SUBPATHS.recovery = {
   dirs: ["recovery", "core"],
   probe: `typeof m.planRestore === "function" && typeof m.confirmRestore === "function" && typeof m.executeRestore === "function"`,

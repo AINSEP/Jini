@@ -16,7 +16,7 @@ function violations(file: string, source: string): string[] {
     // The vault is a typed SQL repo over kernel.run, with JSON patches and binary promotion
     // ordering. Keep its Kysely query body here rather than adding vault policy to the kernel.
     // This exact-file allowance grants no driver access and does not cover other vault modules.
-    if (is("kysely") && !/^(kernel|migrate)\//.test(file) && file !== "secrets-vault/repo.sql.ts") problems.push(`kysely outside kernel/migrate: ${specifier}`);
+    if (is("kysely") && !/^(kernel|migrate|data-modules)\//.test(file) && file !== "secrets-vault/repo.sql.ts") problems.push(`kysely outside kernel/migrate: ${specifier}`);
     if (drivers.some(is) && !typeOnly) problems.push(`runtime driver: ${specifier}`);
     if (is("@electric-sql/pglite") && typeOnly && !/^(pglite|kernel\/pglite)\//.test(file)) {
       problems.push(`PGlite types outside pglite: ${specifier}`);
