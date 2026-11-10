@@ -198,7 +198,8 @@ export interface AgentPluginConnectMessages {
   connectionNotSetUp(required: { pluginId: string; serverKey: string }): string;
   multipleTokenServers(required: { pluginId: string }): string;
   noTokenCardAdapter(): string;
-  pluginOff(required: { pluginId: string }): string;
+  /** `credentialCards` is given only for a plugin that declares no OAuth sign-in: its key cards, to name instead of a connect retry. */
+  pluginOff(required: { pluginId: string }, optional?: { credentialCards?: readonly PluginCredentialCard[] }): string;
   notInstalled(required: { pluginId: string }): string;
   noOAuthService(): string;
   multipleOAuthServers(required: { pluginId: string; serverKeys: readonly string[] }): string;
@@ -409,13 +410,17 @@ async function connectWithoutOAuth(
   return { status: "not-connected", reason: result.reason, ...(result.message ? { message: result.message } : {}) };
 }
 
-/** Deny before reading an off plugin's connection instructions or starting a sign-in.
+/** Deny an off plugin before provisioning or starting a sign-in.
  * @throws ToolInputError naming the existing approval flow when activation is off/unverifiable.
- * @complexity One activation-owner read, no connection reads or writes.
+ * @complexity One activation-owner read; for an off plugin one declaration read, no connection writes.
  */
 async function assertPluginCanConnect({ routeDeps, pluginId }: { routeDeps: ConnectDeps; pluginId: string }, _options = {}): Promise<void> {
   const active = await routeDeps.isPluginEnabled(pluginId);
-  if (!active) throw new ToolInputError({ message: routeDeps.host.messages.pluginOff({ pluginId }) });
+  if (active) return;
+  // Declarations are read as data only, so a plugin with no sign-in is pointed at its key card.
+  const plugin = await routeDeps.resolveInstalledPlugin(pluginId).catch(() => null);
+  const signsIn = Object.values(plugin?.servers ?? {}).some(isOAuthServer);
+  throw new ToolInputError({ message: routeDeps.host.messages.pluginOff({ pluginId }, signsIn ? {} : { credentialCards: plugin?.credentialCards ?? [] }) });
 }
 
 /**
