@@ -718,11 +718,14 @@ export async function executeGoogleToolCalls({ executeTool, calls, onEvent }: { 
   return { functionResponseParts, followUpParts };
 }
 
-function isEmptyInitialGoogleTurn(
+/** A content-free response fails on the first request; after tools, only with a provider reason
+ * other than STOP, because a STOP there can be a valid tool-only turn. O(text) for the trim; no effects. */
+function isFailedEmptyGoogleTurn(
   { toolTurns, outcome }: { toolTurns: number; outcome: SingleRequestOutcome },
   _options = {},
 ): boolean {
-  return toolTurns === 0 && outcome.toolCalls.length === 0 && !outcome.text.trim();
+  if (outcome.toolCalls.length > 0 || outcome.text.trim()) return false;
+  return toolTurns === 0 || (outcome.finishReason !== null && outcome.finishReason !== 'STOP');
 }
 
 /**
@@ -731,7 +734,8 @@ function isEmptyInitialGoogleTurn(
  * requests a function call. See `anthropic-messages.ts#runAnthropicToolTurn`'s
  * doc for the shared event-stream/`ended`-flag contract this mirrors.
  * An initial response without text or calls emits an error with its provider finish reason,
- * not a successful stop. Tool-only turns remain valid: the host may already have acted on them.
+ * not a successful stop. So does a later empty response with a reason other than STOP. Tool-only
+ * turns ending in STOP remain valid: the host may already have acted on them.
  */
 export async function runGoogleToolTurn(requiredArgs: Pick<GoogleTurnOptions, "apiKey" | "model" | "contents" | "onEvent">, optionalArgs: Omit<GoogleTurnOptions, "apiKey" | "model" | "contents" | "onEvent"> = {}): Promise<GoogleTurnResult> {
   const options: GoogleTurnOptions = { ...optionalArgs, ...requiredArgs };
@@ -746,9 +750,9 @@ export async function runGoogleToolTurn(requiredArgs: Pick<GoogleTurnOptions, "a
   let toolTurns = 0;
   let lastFinishReason: string | null = null;
 
-  /** `'error'` (after reporting it) for a content-free first turn, else the regular loop exit reason. */
+  /** `'error'` (after reporting it) for a failed content-free turn, else the regular loop exit reason. */
   const turnExitReason = (outcome: Awaited<ReturnType<typeof runSingleGoogleRequest>>, turns: number) => {
-    if (!isEmptyInitialGoogleTurn({ toolTurns: turns, outcome })) {
+    if (!isFailedEmptyGoogleTurn({ toolTurns: turns, outcome })) {
       return googleLoopExitReason({ outcome: outcome, toolTurns: turns, maxToolTurns: maxToolTurns });
     }
     // Thinking can consume the entire output budget without producing any answer. Preserve

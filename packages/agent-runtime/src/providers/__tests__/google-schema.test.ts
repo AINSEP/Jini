@@ -1,7 +1,20 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { sanitizeGoogleSchema, coerceNumericEnumStringsToNumbers } from "../google-schema.js";
+import { googleParametersOf, sanitizeGoogleSchema, coerceNumericEnumStringsToNumbers } from "../google-schema.js";
 function isPlainObject(value: unknown): value is Record<string, unknown> { return typeof value === "object" && value !== null && !Array.isArray(value); }
+test("a union that collapses to a non-array type loses its array-only keywords", () => {
+    const parameters = googleParametersOf({ descriptor: { id: "guide", inputSchema: {
+        type: "object",
+        properties: {
+            topic: { type: ["string", "array"], minLength: 1, minItems: 1, maxItems: 1, items: { type: "string" } },
+            tags: { type: ["array", "null"], minItems: 1, items: { type: "string" } },
+        },
+    } } });
+    assert.deepEqual(parameters.properties, {
+        topic: { type: "string", minLength: 1 },
+        tags: { type: "array", minItems: 1, items: { type: "string" }, nullable: true },
+    });
+});
 test("sanitizeGoogleSchema strips additionalProperties/$schema/$ref/$defs at the top level", () => {
     const input = {
         $schema: "http://json-schema.org/draft-07/schema#",

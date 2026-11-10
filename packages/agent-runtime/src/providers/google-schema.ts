@@ -67,6 +67,12 @@ function enforceGoogleSchemaShape(node: Record<string, unknown>): Record<string,
   if (node.type === "array" && !isRecord(node.items)) {
     node.items = { type: "string", description: "Contents simplified for Gemini compatibility." };
   }
+  // Gemini 400s the whole request on array keywords outside an array, which a collapsed union leaves behind.
+  if (typeof node.type === "string" && node.type !== "array") {
+    delete node.items;
+    delete node.minItems;
+    delete node.maxItems;
+  }
   return node;
 }
 function isGoogleIgnoredSchemaKey(key: string): boolean {

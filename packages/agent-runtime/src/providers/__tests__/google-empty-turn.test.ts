@@ -66,4 +66,32 @@ describe('Google empty initial turn', () => {
     expect(events.filter(event => event.type === 'error')).toEqual([]);
     expect(events.at(-1)).toEqual({ type: 'end', reason: 'stop' });
   });
+
+  /** Runs one tool call, then ends the second request with `finalFrames`. */
+  async function eventsAfterToolTurn({ finalFrames }: { finalFrames: readonly unknown[] }): Promise<GoogleTurnEvent[]> {
+    const events: GoogleTurnEvent[] = [];
+    let requests = 0;
+    const fetchImpl: PinnedFetch = async input => responseFor({ frames: ++requests === 1 ? [
+      { candidates: [{ content: { parts: [{ functionCall: { name: 'lookup', args: {}, id: 'first' } }] }, finishReason: 'STOP' }] },
+    ] : finalFrames })(input);
+    await runGoogleToolTurn({ ...required, onEvent: event => events.push(event) }, {
+      baseUrl: 'http://127.0.0.1:1234', fetchImpl,
+      executeTool: async () => ({ content: 'found' }),
+    });
+    return events;
+  }
+
+  it('reports the provider reason when a turn ends silently after tools', async () => {
+    const events = await eventsAfterToolTurn({ finalFrames: [{ candidates: [{ finishReason: 'MALFORMED_FUNCTION_CALL' }] }] });
+    expect(events.filter(event => event.type === 'error')).toEqual([
+      { type: 'error', message: 'Google returned no text or tool calls (MALFORMED_FUNCTION_CALL)' },
+    ]);
+    expect(events.at(-1)).toEqual({ type: 'end', reason: 'error' });
+  });
+
+  it('keeps a post-tool turn with no finish reason successful', async () => {
+    const events = await eventsAfterToolTurn({ finalFrames: [{ usageMetadata: { totalTokenCount: 7 } }] });
+    expect(events.filter(event => event.type === 'error')).toEqual([]);
+    expect(events.at(-1)).toEqual({ type: 'end', reason: 'stop' });
+  });
 });
