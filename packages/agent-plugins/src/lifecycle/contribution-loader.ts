@@ -1,8 +1,7 @@
 import type { TrustedPluginPackage, TrustedPluginPackagesQuery, TrustedPluginVerdict } from './trusted-plugin-files.js';
+import type { PluginContributionParseResult } from './contribution-types.js';
 
-export type PluginContributionParseResult<T> =
-  | { readonly ok: true; readonly descriptors: readonly T[] }
-  | { readonly ok: false; readonly reason: string };
+export type { PluginContributionParseResult } from './contribution-types.js';
 export interface PluginContributionResult<T> {
   readonly items: readonly T[];
   readonly refusals: readonly string[];
