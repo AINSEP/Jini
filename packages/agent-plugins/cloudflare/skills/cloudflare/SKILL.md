@@ -12,8 +12,8 @@ task. Never offer a replacement unless the person asks.
 
 Open the plugin’s secure connection card for the selected destination, Workers or Pages. Each card explains its permissions and collects the Account ID and optional Zone ID along with the masked token. Read `references/permissions.md` before requesting custom-domain access.
 
-Use `inspect static-publishing capabilities` → `preview static publishing` →
-`publish the static site with confirmation`. Prefer **Workers** (`cloudflare-workers`) for a **new** destination.
+Inspect static-publishing capabilities → preview static publishing →
+publish the static site with confirmation. Prefer **Workers** (`cloudflare-workers`) for a **new** destination.
 Keep **Pages** (`cloudflare-pages`) for existing Pages history/bindings or an explicit Pages choice.
 A plugin upgrade never moves an existing site between products. Use `lastPublish` and the exact
 `resourceName` from its config. Never guess a workers.dev account subdomain.

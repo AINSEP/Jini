@@ -1,8 +1,8 @@
 # Backing up the site itself to a private repository
 
-`preview a site backup` and `publish the site backup` copy **this site** into one folder of a private GitHub
+preview a site backup and publish the site backup copy **this site** into one folder of a private GitHub
 repository, in one commit: its database, media, themes, installed plugins and skills, and settings.
-Both are native host tools. They push with the same saved credential `saved-credential operations` uses:
+Both are native host tools. They push with the same saved credential saved-credential operations uses:
 the plugin’s card: open the secure connection card.
 
 ---
@@ -13,12 +13,12 @@ Three tools can put the site's things in a repository. They do three different j
 
 | The human wants… | Use |
 |---|---|
-| A copy of the site itself (content, members, media, settings) to keep or restore from | `preview a site backup`, then `publish the site backup` |
-| The site's **rendered** HTML published into a repository (Pages, a static host) | `commit through source control` — see `source-control.md` |
-| A few named files: a config, a workflow, a script | `write named repository files with confirmation` — see `repo-files.md` |
+| A copy of the site itself (content, members, media, settings) to keep or restore from | preview a site backup, then publish the site backup |
+| The site's **rendered** HTML published into a repository (Pages, a static host) | commit through source control — see `source-control.md` |
+| A few named files: a config, a workflow, a script | write named repository files with confirmation — see `repo-files.md` |
 
 The rendered export holds no database. It is what the site *looks like*, not the site, and nothing
-can be restored from it. Going the other way, `write named repository files with confirmation` cannot carry a backup:
+can be restored from it. Going the other way, write named repository files with confirmation cannot carry a backup:
 25 files and 1 MiB each, and every byte would pass through your context. The database holds members
 and admin accounts, so that is not a size problem. It is a reason never to try.
 
@@ -59,12 +59,12 @@ the first upload.
 A large site can take longer than one call. The push waits about 4 minutes; if the upload is still
 running then, it returns `{ pushed: false, cancelled: false, inProgress: true, planId, progress,
 message }`, where `progress` is `{ filesDone, filesTotal, bytesDone, bytesTotal }`. Tell the human
-how far it got, then **call `publish the site backup` again with the same `planId`** to keep waiting. That
+how far it got, then **publish the site backup again with the same `planId`** to keep waiting. That
 does not start a second upload, and nothing is committed until every file is up: the backup is
 still one commit. Keep re-calling while it answers `inProgress`.
 
 The `planId` is used up when its push finishes, whatever the outcome. After a failure, a second
-attempt starts with a fresh `preview a site backup`. A server restart drops a running push; nothing is
+attempt starts with a fresh preview a site backup. A server restart drops a running push; nothing is
 committed, so plan again.
 
 GitHub hiccups (a timeout, a 5xx, a rate limit) are retried inside the push with backoff, up to 5
@@ -88,7 +88,7 @@ The repository must also **already have one commit**. An empty repository is ref
 | Result | Meaning |
 |---|---|
 | `{ pushed: true, commitSha, commitUrl, repository, branch, folder, filesWritten, totalBytes }` | Written. Report the SHA and URL. |
-| `{ pushed: false, cancelled: false, inProgress: true, planId, progress, message }` | Still uploading. Report the progress, then call `publish the site backup` again with the same `planId`. |
+| `{ pushed: false, cancelled: false, inProgress: true, planId, progress, message }` | Still uploading. Report the progress, then publish the site backup again with the same `planId`. |
 | `{ pushed: false, cancelled: false, reason: "abandoned" }` | The run ended while the push was waiting. The upload stopped and nothing was committed. Plan again. |
 | `{ pushed: false, cancelled: false, code, message }` | Refused. See the codes below. Nothing was written. |
 
@@ -147,13 +147,13 @@ own.
 
 ## Never force
 
-`publish the site backup` has no force option, and every write it makes is a **non-force** ref update on
+publish the site backup has no force option, and every write it makes is a **non-force** ref update on
 top of the exact commit the plan saw. That is why `DIVERGED_BRANCH` is a refusal, not a lost commit.
 
 So when a push is refused because the world moved (`PLAN_EXPIRED`, `PLAN_STALE`,
 `DIVERGED_BRANCH`), the answer is always **plan again** and show the human the new plan. Never force
-the branch through `authenticated GitHub request`, never delete and recreate the branch, and never
-rebuild the backup out of `write named repository files with confirmation` calls. Each of these would throw away
+the branch through authenticated GitHub request, never delete and recreate the branch, and never
+rebuild the backup out of write named repository files with confirmation calls. Each of these would throw away
 someone else's commit, or push content the human never reviewed.
 
 There is no restore tool unless the host guidance names one. Do not promise one.

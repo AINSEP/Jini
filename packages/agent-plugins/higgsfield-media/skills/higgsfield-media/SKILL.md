@@ -116,7 +116,7 @@ inspect saved external connections first and see what actually exists.
 **Step A — the plugin itself must be enabled, and only the operator can approve it.**
 `higgsfield-media` may ship bundled but **disabled**. Plugin search *will* still find it while
 disabled — that is deliberate, and it is how you got here. But a disabled plugin gets no
-`read the plugin guidance` tool. So:
+read the plugin guidance tool. So:
 
 > Offer to turn it on. Once the operator agrees, enable the plugin with confirmation with
 > `family: "agent-plugin"`, `pluginId: "higgsfield-media"`, `enabled: true` — it opens a

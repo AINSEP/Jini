@@ -24,9 +24,9 @@ Use saved site and hosting details first; ask only for missing facts.
 
 ## Use the existing host
 
-Load the selected host's skill. Use `inspect static-publishing capabilities`,
-its existing connection card if needed, `preview static publishing`, and
-`publish the static site with confirmation` with the existing publish confirmation flow.
+Load the selected host's skill. Inspect static-publishing capabilities,
+its existing connection card if needed, preview static publishing, and
+publish the static site with confirmation with the existing publish confirmation flow.
 Keep partial or protected outcomes visible. Record the deployment under that host;
 never describe it as a WordPress deployment.
 

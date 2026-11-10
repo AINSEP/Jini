@@ -43,7 +43,8 @@ test(`${face}: the skill opens that card, checks provider status first, and neve
   assert.match(skill, new RegExp(`^---\nname: ${face}\ndescription: .+\n---\n`));
   assert.match(skill, /secure connection card/);
   assert.doesNotMatch(skill, /credential_save|provider_status|project_key_use|site_restart/);
-  assert.ok(skill.includes(`provider status {pluginId:"${provider}"}`));
+  assert.ok(skill.includes(`provider status with \`{pluginId:"${provider}"}\``));
+  assert.doesNotMatch(skill, /`provider status/, 'the action is plain words, not a tool name');
   assert.ok(skill.indexOf('provider status') < skill.indexOf('secure connection card'), 'status is checked before the card opens');
   assert.match(skill, /Never ask for (a|the) .+ in chat/);
 });

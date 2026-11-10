@@ -1,8 +1,8 @@
 # Writing and updating files in a repository
 
-`write named repository files with confirmation` is the only way to put a file in a GitHub repository from here.
+write named repository files with confirmation is the only way to put a file in a GitHub repository from here.
 Never shell out to `git`, and never hand-roll the Contents API through
-`authenticated GitHub request` — this tool exists so you do not have to, and it carries a human
+authenticated GitHub request — this tool exists so you do not have to, and it carries a human
 confirmation the raw API call would skip.
 
 ---
@@ -69,7 +69,7 @@ transient error to retry.
 This is where the damage happens. Read `Rule 4` in `SKILL.md` first; this is the procedure it
 requires.
 
-**`write named repository files with confirmation` replaces a file's entire content. It does not patch.** Whatever
+**write named repository files with confirmation replaces a file's entire content. It does not patch.** Whatever
 you do not carry forward is gone.
 
 1. **Read what is actually there.**

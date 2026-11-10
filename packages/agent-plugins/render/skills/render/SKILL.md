@@ -23,8 +23,7 @@ Writing `render.yaml` needs **no key**. Do not open a key card for that task.
 Choose the card yourself from its `usedFor` list. Reuse a saved key or working
 sign-in for that task. Never offer a replacement unless the person asks.
 List saved credential labels and check for a saved key first.
-Otherwise open **Connect Render** with
-open the secure connection card; it saves as `Render API`.
+Otherwise open the secure **Connect Render** connection card; it saves as `Render API`.
 The person creates the key under Account Settings → API Keys. A deploy hook URL
 is not a key.
 Saving a key deploys nothing. Untested: this connection has not been tried end to end.
@@ -32,19 +31,19 @@ Never ask for a key in chat. Never offer to replace a working key unless asked.
 
 ## Deploy and observe
 
-Use `list deployment targets` with platform `render` to discover server
+List deployment targets with platform `render` to discover server
 services. Optional `org` filters by workspace ID. Choose the existing `srv-…`
 service; discovery refuses incomplete results at 500 services rather than hiding
-choices. Then use `start a deployment` with that target. Omit `ref` to use the
+choices. Then start a deployment with that target. Omit `ref` to use the
 latest commit on the service's connected branch. Only a full 40-character commit
 SHA is supported as an explicit `ref`; branch and tag names are refused.
 The API must accept the request before the tool reports it started. A connection
 failure may mean the request was accepted: inspect Render before retrying.
 
-Keep the returned `dep-…` runId for `deployment status` and
-`wait for deployment completion`. A deploy queued behind a running one returns no runId; wait on
+Keep the returned `dep-…` runId for deployment status and
+wait for deployment completion. A deploy queued behind a running one returns no runId; wait on
 the service's latest deployment instead. Accepted does not mean live. Unknown states remain unknown.
-`read deployment logs` resolves the service's workspace and returns a bounded page
+read deployment logs resolves the service's workspace and returns a bounded page
 (at most 100 lines) of recent **service logs**, newest first, defaulting to Render's last-hour window.
 These logs are not isolated to the selected deployment; a supplied runId is
 checked through the service-scoped deployment endpoint. Branch filters are unsupported.

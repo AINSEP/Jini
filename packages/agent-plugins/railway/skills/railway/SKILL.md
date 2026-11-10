@@ -15,15 +15,14 @@ Choose the card yourself from its `usedFor` list. Reuse a saved key or working s
 task. Never offer a replacement unless the person asks. Saving a token deploys nothing.
 
 First list saved credential labels and check for a saved token and reuse it.
-Otherwise open **Connect Railway** with
-open the secure connection card; it saves as `Railway API`.
+Otherwise open the secure **Connect Railway** connection card; it saves as `Railway API`.
 The person creates the token under Account Settings → Tokens and selects the site's workspace.
 A project token from a project's settings will not work here.
 Never ask for a token in chat. Never offer to replace a working token unless asked.
 
-Railway has no save-time probe. `verify the saved credential` cannot tell whether a Railway key
+Railway has no save-time probe. verify the saved credential cannot tell whether a Railway key
 works: it sends a GET to the GraphQL URL, so the result is "unreachable". Use
-`list deployment targets { platform: "railway", org: "<workspace UUID>" }` to check the key.
+list deployment targets with `{ platform: "railway", org: "<workspace UUID>" }` to check the key.
 The existing `org` input carries the workspace ID, not its display name. Omitting it lists the
 personal projects accessible to an account token; supply it for a workspace token.
 
@@ -35,26 +34,26 @@ per project, 50 instances per environment and 500 targets overall. If discovery 
 it refuses the result. Obtain the exact IDs from Railway's console rather than guessing a target.
 No service, disk, region, volume or billing resource is created by this adapter.
 
-Call `start a deployment` with `platform: "railway"` and the selected `target`.
+Start a deployment with `platform: "railway"` and the selected `target`.
 `ref` accepts a full 40-character commit SHA only. Omitting it deploys the service's currently
 associated commit; it does not promise the latest branch head. Branches and tags are refused.
 The service must already have a source configured in Railway.
 
 A returned `started: true` means Railway accepted the request. Keep its `runId` and pass it
-with the same target to `wait for deployment completion` until finished, then check the live URL with
+with the same target to wait for deployment completion until finished, then check the live URL with
 `fetch_live_url`. Status without a run ID inspects the latest deployment. Unknown vendor states
-remain unknown. Read bounded runtime logs with `read deployment logs`; logs are snapshots,
+remain unknown. Read deployment logs for bounded runtime logs; logs are snapshots,
 not a stream. If a write loses its connection, check status before deciding whether to retry.
 Never automatically retry a deployment or variable write.
 
 ## Variables
 
-Use `list deployment secret names` to list names only. Use the host's masked entry/site-key flow
-and overwrite confirmation with `save a deployment secret securely`. Values never belong in chat.
+List deployment secret names to list names only. Use the host's masked entry/site-key flow
+and overwrite confirmation to save a deployment secret securely. Values never belong in chat.
 Writes use `skipDeploys: true`: stage all variables, then deploy once. Running instances keep
 their current values until that deploy. Secret readback/copy is unavailable.
 Removal must be done in the provider console: Railway's list has no digest or update time,
-so the host cannot perform its required revision check for `remove a deployment secret with confirmation`.
+so the host cannot perform its required revision check for remove a deployment secret with confirmation.
 
 ## Generate the settings file
 

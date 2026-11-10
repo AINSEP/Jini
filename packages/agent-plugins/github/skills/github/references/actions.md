@@ -1,6 +1,6 @@
 # GitHub Actions: dispatch, follow, diagnose
 
-Everything here goes through `authenticated GitHub request` against the saved GitHub credential.
+Everything here goes through authenticated GitHub request against the saved GitHub credential.
 Nothing here needs a new tool, and nothing here needs a shell.
 
 ---
@@ -183,7 +183,7 @@ Report: the job name, the step name and number, and the run's `html_url`.
 `GET /repos/{owner}/{repo}/actions/jobs/{job_id}/logs` does not return logs. It returns a **302**
 whose `Location` points at an object-store host.
 
-`authenticated GitHub request` follows **zero** redirects, and that object-store host is not on
+authenticated GitHub request follows **zero** redirects, and that object-store host is not on
 the credential's saved allowlist, so you cannot follow it either. You will see the 302 and its
 `Location` header, and that is where it ends. This is not a bug to work around — following an
 arbitrary redirect target with a credential attached is exactly the egress hazard the single-hop
