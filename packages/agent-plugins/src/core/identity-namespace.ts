@@ -15,6 +15,8 @@ export function resolveAgentPluginIdentityNamespace(
   { value }: { readonly value: unknown },
   { identityNamespace }: { readonly identityNamespace?: string } = {},
 ): string {
+  // The legacy key names the same portable metadata, so a declared canonical `jini` copy wins.
+  if (identityNamespace === 'tovu' && isObject(value) && isObject(value.extensions) && Object.hasOwn(value.extensions, 'jini')) return 'jini';
   if (identityNamespace !== undefined) return identityNamespace;
   if (!isObject(value) || !isObject(value.extensions)) return 'jini';
   const extensions = value.extensions;
