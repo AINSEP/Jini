@@ -1,6 +1,5 @@
 import type { PluginCredentialField, PluginCredentialCard } from '@jini-ai/core/contracts/credentials';
 export type { PluginCredentialField, PluginCredentialCard } from '@jini-ai/core/contracts/credentials';
-import type { PluginContributionParseResult } from './contribution-loader.js';
 import { readAgentPluginPortableExtension, readAgentPluginCompatibilityWarnings } from '../core/identity-namespace.js';
 
 /** Supported categories for portable connection-card declarations. */
@@ -109,7 +108,10 @@ function cardText({ value }: { value: RecordValue }, _options = {}): Pick<Plugin
  * @returns Normalized display/form metadata or a declaration-specific refusal reason.
  * @complexity O(c + f), capped at 32 cards × 16 fields; no I/O or input mutation.
  */
-export function parsePluginCredentialCards({ raw }: { raw: string }, options: { identityNamespace?: string; onWarning?: (warning: string) => void } = {}): PluginContributionParseResult<PluginCredentialCard> {
+export function parsePluginCredentialCards({ raw }: { raw: string }, options: { identityNamespace?: string; onWarning?: (warning: string) => void } = {}):
+  // PluginContributionParseResult's shape, spelled out: manifest.ts re-exports this file, and importing
+  // contribution-loader.ts here would close a lifecycle cycle back through activation.ts to ports.ts.
+  { readonly ok: true; readonly descriptors: readonly PluginCredentialCard[] } | { readonly ok: false; readonly reason: string } {
   try {
     const manifest = recordOf({ value: JSON.parse(raw) });
     if (!manifest) throw new Error('plugin manifest must be an object');
