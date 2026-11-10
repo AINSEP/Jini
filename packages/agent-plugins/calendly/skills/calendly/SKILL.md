@@ -10,13 +10,9 @@ Use this when someone wants visitors to book time with them from their site.
 ## Adding the calendar
 
 1. You need their public booking link, such as `https://calendly.com/their-name/30min`. If you do not have it, ask for it in one short question. It is on their Calendly "Scheduling" page under "Copy link". Do not make one up.
-2. Read the page with `pages_read_html`, then place this where the calendar belongs, using `pages_write_region` or `pages_write_html`:
+2. Read the page, then place the plugin's `booking-calendar` embed where the calendar belongs. The host's guidance gives the exact markup and the page tools to write it; the embed's `url` prop is their booking link.
 
-```html
-<div data-embed-config='{"type":"plugin","plugin":"tovu/calendly","component":"booking-calendar","version":1,"props":{"url":"https://calendly.com/their-name/30min"}}'><a href="https://calendly.com/their-name/30min">Book a time</a></div>
-```
-
-The link inside the `div` is what visitors see if the calendar cannot load. Keep it, pointing at the same booking link.
+The link inside the embed is what visitors see if the calendar cannot load. Keep it, pointing at the same booking link.
 
 Never write Calendly's `<script>` or `<iframe>` by hand. This embed handles loading, cookie consent, styling and static exports.
 
@@ -28,4 +24,4 @@ Never write Calendly's `<script>` or `<iframe>` by hand. This embed handles load
 
 ## Connecting a Calendly account is optional
 
-The calendar never needs a sign-in. Only offer `agent_plugin_connect` if they want you to look up their event types or scheduled events through Calendly. This sign-in has not been tested with a real Calendly account yet; say so before relying on it.
+The calendar never needs a sign-in. Only offer the plugin's sign-in through the host if they want you to look up their event types or scheduled events through Calendly. This sign-in has not been tested with a real Calendly account yet; say so before relying on it.

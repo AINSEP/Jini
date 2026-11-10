@@ -5,7 +5,7 @@ import test from 'node:test';
 
 const root = path.resolve(import.meta.dirname, '..');
 const manifest = JSON.parse(await readFile(path.join(root, 'plugin.json'), 'utf8'));
-const calendar = manifest.extensions.tovu.exports['booking-calendar'];
+const calendar = manifest.extensions.jini.exports['booking-calendar'];
 
 test('every file the booking calendar names ships in the payload', async () => {
   for (const file of [calendar.template, calendar.styles]) assert.ok((await stat(path.join(root, file))).isFile(), file);
@@ -26,8 +26,7 @@ test('the page stays usable without the frame: its fallback link uses the same p
 
 test('the sign-in is optional and the guidance never asks for it first', async () => {
   const skill = await readFile(path.join(root, 'skills/calendly/SKILL.md'), 'utf8');
-  const [card] = manifest.extensions.tovu.credentialCards;
+  const [card] = manifest.extensions.jini.credentialCards;
   assert.match(card.intro, /^Optional/);
   assert.match(skill, /never needs a sign-in/);
-  assert.match(skill, /"plugin":"tovu\/calendly"/);
 });

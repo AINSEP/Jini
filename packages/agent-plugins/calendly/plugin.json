@@ -6,7 +6,7 @@
   "author": "Tovu",
   "license": "Apache-2.0",
   "extensions": {
-    "tovu": {
+    "jini": {
       "id": "tovu/calendly",
       "displayName": "Calendly",
       "summary": "Show your Calendly booking calendar on a page so visitors can book a time.",
