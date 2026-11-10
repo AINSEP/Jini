@@ -11,22 +11,21 @@ test('Supabase instructions use its displayed callback and human-only secret ent
   assert.match(branch, /directly in that Supabase panel themselves, never in chat/);
   assert.match(branch, /exact \*\*Callback URL \(for OAuth\)\*\*/);
   assert.match(branch, /Authorized redirect URIs/);
-  assert.match(branch, /card is unnecessary unless this site also uses Tovu members/);
-  assert.match(branch, /both the Supabase callback and Tovu's callback/);
+  assert.match(branch, /host's credential card is unnecessary unless this site also uses site members/);
+  assert.match(branch, /both the Supabase callback and the host's callback/);
   assert.match(branch, /Authentication → URL Configuration/);
   assert.match(skill, /Never import the supabase plugin/);
   assert.match(skill, /check whether the supabase plugin is active at runtime/);
 });
 
-test('Tovu guidance preserves configured base paths, requires first-link proof and explains unlink', () => {
-  assert.match(skill, /configured canonical address/);
-  assert.match(skill, /const callback = new URL\(configuredSiteAddress\)/);
-  assert.match(skill, /encodeURIComponent\(workspaceId\)/);
-  assert.match(skill, /target: "google-login-oauth-client"/);
-  assert.match(skill, /@gmail\.com.*@googlemail\.com/);
-  assert.match(skill, /Workspace accounts with an `hd` claim/);
-  assert.match(skill, /one emailed code/);
-  assert.match(skill, /issuer \+ subject, even if email changes/);
-  assert.match(skill, /Unlink must remain effective on the next Google sign-in/);
-  assert.match(skill, /Connect Google.*signed-in `\/account`/);
+// The guide is host-neutral: it names the configured address and exact callback the host owns,
+// while the host owns its callback route shape, first-link proof and unlink rules.
+test('member guidance uses the exact callback for the configured site address and base path, and leaves linking to the host', () => {
+  const branch = skill.split('## Site members')[1].split('## Google via Supabase Auth')[0];
+  assert.match(branch, /Use the host's configured canonical\s+address and exact member sign-in callback URI, including any configured base path/);
+  assert.match(skill, /Scheme, host, port, path and any configured base path must match exactly/);
+  assert.match(skill, /`redirect_uri_mismatch`: compare the exact configured callback with Google's authorized list, including scheme, port and base path/);
+  assert.match(branch, /secure connection card for the client ID and secret; never receive either secret in chat/);
+  assert.match(branch, /host owns browser binding, state, PKCE, token validation, linking, unlinking and member\s+sessions/);
+  assert.match(branch, /Verify sign-in, sign-out and unlinking through the host's existing member flow/);
 });
