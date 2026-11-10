@@ -33,7 +33,8 @@ test("CMS removes identity entry points while preserving the media import subpat
   // folded CMS services now call the shared core owner, so the package depends on it directly.
   // deaf9cc: the document-text extractors' libraries are required, never optional peers (packages/README.md;
   // scripts/__tests__/optional-peer-contract.test.ts pins cms → mammoth/unpdf as production deps).
-  expect(manifest.dependencies).toEqual({ "@jini-ai/core": "workspace:^", unpdf: "^1.8.1", mammoth: "^1.12.3" });
+  // f7ab5e9e: parse5 is required too — forms/sql, forms/html and forms/express load it at import.
+  expect(manifest.dependencies).toEqual({ "@jini-ai/core": "workspace:^", parse5: "^7.3.0", unpdf: "^1.8.1", mammoth: "^1.12.3" });
   expect(Object.hasOwn(manifest.peerDependencies, "@jini-ai/core")).toBe(false);
   expect(Object.hasOwn(manifest.peerDependenciesMeta, "@jini-ai/core")).toBe(false);
   expect(manifest.devDependencies["@jini-ai/core"]).toBe("workspace:*");
