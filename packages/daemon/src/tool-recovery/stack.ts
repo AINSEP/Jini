@@ -48,7 +48,7 @@ import type { SurfaceExchangeStore } from "../surface-exchanges.js";
 import { withReadOnlyToolConstraint } from "../core/read-only-tools.js";
 import { withToolAttemptAudit } from "../core/tool-audit.js";
 import { withToolFailureRecovery, type ToolFailureRecoveryDeps } from "./recovery.js";
-import { withRedactedToolFailures, readToolErrorId, type RedactedToolFailuresDeps } from "./redaction.js";
+import { withRedactedToolFailures, redactFailedResult, readToolErrorId, type RedactedToolFailuresDeps } from "./redaction.js";
 import { withSurfaceExchangeLifetime } from './surface-lifetime.js';
 
 export interface AssistantToolExecutorDeps extends Omit<ToolFailureRecoveryDeps, "registry"> {
@@ -71,7 +71,10 @@ function auditOptions(audit: NonNullable<AssistantToolExecutorDeps['toolAttemptA
  * @complexity O(1) composition; each decorator owns its runtime cost.
  */
 export function createAssistantToolExecutor(deps: AssistantToolExecutorDeps, _optional = {}): ToolExecutor {
-  const guarded = withReadOnlyToolConstraint({ inner: createToolExecutor({ registry: deps.registry }, { ...(deps.prepareGuidance ? { prepareGuidance: deps.prepareGuidance } : {}) }),
+  const guarded = withReadOnlyToolConstraint({ inner: createToolExecutor({ registry: deps.registry }, {
+    ...(deps.prepareGuidance ? { prepareGuidance: deps.prepareGuidance } : {}),
+    redactNestedFailure: ({ result, ...context }) => redactFailedResult(result, context, deps.toolFailures).error,
+  }),
     registry: deps.registry, idGenerator: { newId: deps.newExecutionId }, messages: deps.readOnlyMessages }, {});
   const redacted = withRedactedToolFailures({ inner: guarded, ...deps.toolFailures }, {});
   const audited = deps.toolAttemptAudit

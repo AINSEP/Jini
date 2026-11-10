@@ -1,0 +1,46 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "calendly",
+  "version": "0.1.0",
+  "description": "Shows a live Calendly booking calendar on a site page. A public Calendly link is all it needs; signing in to Calendly is optional.",
+  "author": "Tovu",
+  "license": "Apache-2.0",
+  "extensions": {
+    "tovu": {
+      "id": "tovu/calendly",
+      "displayName": "Calendly",
+      "summary": "Show your Calendly booking calendar on a page so visitors can book a time.",
+      "exports": {
+        "booking-calendar": {
+          "template": "exports/booking-calendar.html",
+          "styles": "exports/booking-calendar.css",
+          "version": 1,
+          "consent": "functional",
+          "staticExport": "full",
+          "externalHosts": { "frame": ["https://calendly.com"] },
+          "urlProps": ["url"],
+          "props": {
+            "type": "object",
+            "properties": { "url": { "type": "string", "minLength": 1, "maxLength": 500 } },
+            "required": ["url"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "credentialCards": [
+        {
+          "target": "calendly",
+          "title": "Connect Calendly",
+          "label": "Calendly account",
+          "category": "general",
+          "intro": "Optional. Sign in so the assistant can read your event types. Your booking calendar works on your site without this.",
+          "usedFor": ["Lets the assistant find your booking links and scheduled events"],
+          "keyHint": "Browser sign-in only; this connection does not accept a pasted API key.",
+          "saveKind": "oauth",
+          "baseUrl": "https://mcp.calendly.com"
+        }
+      ]
+    }
+  },
+  "keywords": ["calendly", "booking", "book-a-call", "calendar", "scheduling", "appointments", "meetings", "contact-page", "embed"]
+}

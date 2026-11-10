@@ -110,3 +110,52 @@ describe('plugin export props', () => {
     expect(parse({ ...definition, props })).toMatchObject({ ok: false, errors: [expect.stringContaining('nests deeper than 8 levels')] });
   });
 });
+
+describe('plugin export scripts and external hosts', () => {
+  const declared = { ...definition, scripts: ['exports/widget.js', 'https://assets.vendor.test/loader.js'],
+    externalHosts: { script: ['https://assets.vendor.test'], frame: ['https://book.vendor.test'], connect: ['https://api.vendor.test'] } };
+
+  it('keeps declared scripts and exact external origins', () => {
+    expect(parse(declared)).toMatchObject({ ok: true, metadata: { exports: { 'sign-in': { scripts: declared.scripts, externalHosts: declared.externalHosts } } }, warnings: [] });
+  });
+
+  it.each([
+    ['a script outside the package', { scripts: ['../widget.js'] }],
+    ['a non-JavaScript script file', { scripts: ['exports/widget.html'] }],
+    ['a remote script on an undeclared host', { scripts: ['https://other.vendor.test/loader.js'], externalHosts: { script: ['https://assets.vendor.test'] } }],
+    ['a plain-HTTP remote script', { scripts: ['http://assets.vendor.test/loader.js'], externalHosts: { script: ['http://assets.vendor.test'] } }],
+    ['a host with a path', { externalHosts: { frame: ['https://book.vendor.test/a'] } }],
+    ['a wildcard host', { externalHosts: { frame: ['https://*.vendor.test'] } }],
+    ['a CSP keyword smuggled as a host', { externalHosts: { script: ["'unsafe-eval'"] } }],
+    ['an unknown host kind', { externalHosts: { worker: ['https://assets.vendor.test'] } }],
+  ])('refuses %s', (_name, change) => {
+    expect(parse({ ...definition, ...change }).ok).toBe(false);
+  });
+
+  describe('props that name a page on a declared host', () => {
+    const booking: AgentPluginExport = { ...definition, consent: 'functional', staticExport: 'full', urlProps: ['url'], externalHosts: { frame: ['https://book.vendor.test'] },
+      props: { type: 'object', properties: { url: { type: 'string', maxLength: 500 } }, required: ['url'], additionalProperties: false } };
+
+    it('accepts a page on the declared host', () => {
+      expect(validateAgentPluginExportProps({ definition: booking, props: { url: 'https://book.vendor.test/me/30min?month=2026-12' } })).toBeNull();
+    });
+
+    it.each([
+      ['another host', 'https://evil.test/me'],
+      ['a lookalike host', 'https://book.vendor.test.evil.test/me'],
+      ['plain HTTP', 'http://book.vendor.test/me'],
+      ['the bare site root', 'https://book.vendor.test/'],
+      ['embedded credentials', 'https://a:b@book.vendor.test/me'],
+      ['not a URL', 'my link'],
+    ])('names the host when given %s, without echoing the value', (_name, url) => {
+      const reason = validateAgentPluginExportProps({ definition: booking, props: { url } });
+      expect(reason).toContain('https://book.vendor.test');
+      expect(reason).not.toContain(url);
+    });
+
+    it('refuses a url prop with no frame host or that the schema does not declare', () => {
+      expect(parse({ ...booking, externalHosts: undefined }).ok).toBe(false);
+      expect(parse({ ...booking, urlProps: ['missing'] }).ok).toBe(false);
+    });
+  });
+});

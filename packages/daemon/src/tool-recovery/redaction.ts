@@ -211,7 +211,7 @@ interface FailureContext {
  *
  * @complexity O(1) plus {@link redactSecretShapes}'s own O(text length) pass.
  */
-function redactFailedResult(result: ToolExecutionResult, context: FailureContext, deps: RedactedToolFailuresDeps): ToolExecutionResult {
+export function redactFailedResult(result: ToolExecutionResult, context: FailureContext, deps: RedactedToolFailuresDeps): ToolExecutionResult {
   if (result.errorKind === "validation") {
     if (result.error === undefined) return result;
     return { ...result, error: deps.redactSecretShapes({ text: result.error }).text };

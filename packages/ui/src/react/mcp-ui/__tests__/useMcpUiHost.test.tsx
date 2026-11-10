@@ -217,6 +217,29 @@ describe('useMcpUiHost — onOpenLink', () => {
     expect(result).toEqual({});
   });
 
+  it('relays a throwing open handler as a JSON-RPC error through the real AppBridge', async () => {
+    const onOpenLink = vi.fn(() => { throw new Error('Could not open the link.'); });
+    const { current } = renderHarness({ html: '<p>hi</p>', sandboxProxyUrl: SANDBOX_URL, onOpenLink });
+    const bridge = new AppBridge(null, { name: 'test-host', version: '1' }, {});
+    bridge.onopenlink = current().rendererProps.onOpenLink!;
+    const sent: unknown[] = [];
+    const transport = {
+      onmessage: undefined as ((message: unknown) => void) | undefined,
+      start: async () => {},
+      close: async () => {},
+      send: async (message: unknown) => { sent.push(message); },
+    };
+    await bridge.connect(transport as unknown as Parameters<typeof bridge.connect>[0]);
+    try {
+      transport.onmessage!({ jsonrpc: '2.0', id: 8, method: 'ui/open-link', params: { url: 'http://listener.test/sign-in' } });
+      await vi.waitFor(() => expect(sent).toHaveLength(1));
+      expect(onOpenLink).toHaveBeenCalledWith('http://listener.test/sign-in');
+      expect(sent[0]).toEqual({ jsonrpc: '2.0', id: 8, error: { code: -32603, message: 'Could not open the link.' } });
+    } finally {
+      await bridge.close();
+    }
+  });
+
   it('refuses (isError: true) when no handler is supplied', async () => {
     const { current } = renderHarness({ html: '<p>hi</p>', sandboxProxyUrl: SANDBOX_URL });
     const result = await current().rendererProps.onOpenLink!({ url: 'https://example.test' }, extra);
