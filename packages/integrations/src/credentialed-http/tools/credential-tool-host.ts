@@ -72,12 +72,14 @@ export interface CustomCredentialToolPorts {
  * The project-key operations the saved-key card uses. Captured by the host for one site.
  *
  */
-/** @agent-note Offer only the human inventory returned by list, recheck the chosen key permission after the answer, and re-resolve a revoked or deleted key before use. */
+/** @agent-note Offer only the human inventory returned by listChoices, recheck the chosen key permission after the answer, and re-resolve a revoked or deleted key before use. */
 export interface CredentialCopyProjectKeysPort {
   readonly site?: { readonly name: string };
-  list(required: Record<string, never>, optional?: Record<string, never>): Promise<readonly { readonly keyId: string; readonly name: string }[]>;
+  /** Every key the owner may pick, including keys saved on other sites; `locked` (plain words: why and what to do) rows are shown but never selectable. */
+  listChoices(required: Record<string, never>, optional?: Record<string, never>): Promise<readonly { readonly keyId: string; readonly name: string; readonly locked?: string }[]>;
   permissionFor(required: { keyId: string }, optional?: Record<string, never>): Promise<string>;
-  use(required: { keyId: string; use: boolean }, optional?: Record<string, never>): Promise<unknown>;
+  /** Returns the id the site now uses: a key picked from another site gets a new shared id, and that id is what the model receives. */
+  use(required: { keyId: string; use: boolean }, optional?: Record<string, never>): Promise<{ readonly keyId: string }>;
   savedResult(required: { result: unknown }, optional?: Record<string, never>): Promise<unknown>;
 }
 
@@ -96,6 +98,12 @@ export interface CredentialCopyMessages {
   readonly siteLabel: string;
   readonly siteFallback: string;
   readonly cardDescription: string;
+  /** Shown instead of `cardDescription` when no key can be picked. */
+  readonly emptyCardDescription: string;
+  /** Detail label naming the locked keys that share one reason; the reason is the detail value. */
+  readonly lockedLabel: (required: { names: readonly string[] }) => string;
+  /** Model-facing text for each `{granted:false, reason}` outcome. */
+  readonly outcomes: { readonly dismissed: string; readonly interrupted: string; readonly nothingToPick: string };
   readonly fieldLabel: string;
   readonly fieldPlaceholder: string;
   readonly newKeyLabel: string;

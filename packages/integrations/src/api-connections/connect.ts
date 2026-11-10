@@ -165,7 +165,8 @@ async function connectHosted(run: ConnectRun, scopeSetIds: readonly string[]): P
   // Built only after the start: building it first threw its setup refusals (no callback origin, no
   // client secret) raw, past the `ToolInputError` mapping above.
   const service = host.serviceFor({ connection: run.connection });
-  await run.showSignIn({ signInUrl: start.authorizationUrl });
+  // Hosted cards get the same-origin path; desktop keeps the provider URL for the system browser.
+  await run.showSignIn({ signInUrl: new URL(start.authorizationUrl).pathname });
   return waitForHostedSignIn({
     workspaceId: host.workspaceId, connectionRef, startGeneration, getStatus: service.getStatus, readGeneration,
     signal: run.signal, pollIntervalMs: run.pollIntervalMs, waitTimeoutMs: run.waitTimeoutMs,

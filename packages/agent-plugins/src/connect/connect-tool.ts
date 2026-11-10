@@ -108,7 +108,8 @@ async function beginSignIn(
   if (start.kind !== "redirect_required") {
     throw new Error(host.messages.unsupportedSignIn({ kind: start.kind }));
   }
-  return start.authorizationUrl;
+  // Cards get a same-origin path: an absolute URL names whichever origin built it, which a tunnel or proxy may not serve.
+  return new URL(start.authorizationUrl).pathname;
 }
 
 function sleepOrAbort(ms: number, signal: AbortSignal): Promise<void> {
