@@ -1,4 +1,4 @@
-import { buildDomainRegistrations, indexCatalogById, isRecord, requireInputRecord, requireString, ToolInputError, requireToolPermission, adaptLegacyAuthorize, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration, type ToolRegistry, type AgentToolDefinition, type LegacyToolAuthorizeFn, type ToolMetadata, type ToolMetadataById } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, isRecord, redactSecrets, requireInputRecord, requireString, ToolInputError, requireToolPermission, adaptLegacyAuthorize, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration, type ToolRegistry, type AgentToolDefinition, type LegacyToolAuthorizeFn, type ToolMetadata, type ToolMetadataById } from "@jini-ai/core";
 import { readPluginIdentity } from "@jini-ai/core/plugin-directory";
 import type { JsonObject } from "@jini-ai/core/primitives";
 import { attachPluginContributionTools, type PluginToolContributionPorts } from "./tool-contributions.js";
@@ -565,7 +565,7 @@ export function createPluginCapabilityTools<TPost extends PluginCapabilityPost, 
       return await isPluginEnabledInWorkspace(deps.pluginActivationRepo, deps.workspaceId, pluginId);
     } catch (error) {
       console.warn(
-        text.activationReadDenied({ pluginId, detail: error instanceof Error ? error.message : String(error) }),
+        text.activationReadDenied({ pluginId, detail: redactSecrets({ input: error instanceof Error ? error.message : String(error) }, { redactPii: false }) }),
       );
       return false;
     }

@@ -16,7 +16,7 @@
  * wrong lifecycle; one enable tool avoids ambiguous near-identical choices, while install and
  * uninstall remain separate because each tool id has one risk band for its different effects.
  */
-import { AGENT_TOOL_PRINCIPAL_KIND, adaptLegacyAuthorize, requireToolPermission, buildDomainRegistrations, indexCatalogById, requireInputRecord, requireNoInput, requireString, ToolInputError, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolExecutionContext, type ToolHandler, type ToolRegistration, type AccessApprovalResource } from '@jini-ai/core';
+import { AGENT_TOOL_PRINCIPAL_KIND, adaptLegacyAuthorize, redactSecrets, requireToolPermission, buildDomainRegistrations, indexCatalogById, requireInputRecord, requireNoInput, requireString, ToolInputError, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolExecutionContext, type ToolHandler, type ToolRegistration, type AccessApprovalResource } from '@jini-ai/core';
 import { nowIso } from '@jini-ai/core/primitives';
 import { withModelFacingErrors, type ModelFacingErrorRule } from '@jini-ai/core/model-facing-tool-errors';
 import { addedPluginCapabilities, pluginCapabilitySet } from '../source-policy.js';
@@ -371,7 +371,7 @@ function hostIncompatibleResult<Description>(routeDeps: PluginManagementToolsReq
  *  @complexity O(1). */
 function activationsUnreadableResult<Description>(routeDeps: PluginManagementToolsRequired<Description>, request: SetEnabledRequest, error: {
   message: string }): unknown {
-  console.warn(`[agent-plugins] '${request.pluginId}': ${routeDeps.toolIds.setEnabled} refused — ${error.message}`);
+  console.warn(`[agent-plugins] '${request.pluginId}': ${routeDeps.toolIds.setEnabled} refused — ${redactSecrets({ input: error.message }, { redactPii: false })}`);
   return {
     changed: false,
     cancelled: false,
@@ -392,7 +392,7 @@ function activationsUnreadableResult<Description>(routeDeps: PluginManagementToo
  *  @complexity O(1). */
 function activationsBusyResult<Description>(routeDeps: PluginManagementToolsRequired<Description>, request: SetEnabledRequest, error: {
   message: string }): unknown {
-  console.warn(`[agent-plugins] '${request.pluginId}': ${routeDeps.toolIds.setEnabled} refused — ${error.message}`);
+  console.warn(`[agent-plugins] '${request.pluginId}': ${routeDeps.toolIds.setEnabled} refused — ${redactSecrets({ input: error.message }, { redactPii: false })}`);
   return {
     changed: false,
     cancelled: false,
