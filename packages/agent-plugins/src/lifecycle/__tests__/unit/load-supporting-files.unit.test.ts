@@ -56,7 +56,8 @@ test('enable, load and supporting reads share admission after loading, including
     expect(loaded.guidance).toContain('host_read_plugin({"pluginId":"synthetic","skill":"synthetic","file":"<relative path>"})');
     expect(loaded.guidance).not.toContain('load_agent_plugin');
     expect(loaded.guidance).not.toContain('agent_plugin_synthetic');
-    expect(await controller.load({ pluginId })).toEqual({ status: 'already-loaded', guidance: '' });
+    // A repeat explicit read returns the complete guidance again (7f730e4b).
+    expect(await controller.load({ pluginId })).toEqual(loaded);
     const reference = await controller.load(request);
     expect(reference.status).toBe('loaded');
     expect(reference.guidance).toContain('Exact permissions reference.');
@@ -94,6 +95,6 @@ test('enable, load and supporting reads share admission after loading, including
     const pinned = makeController();
     await pinned.prepare({ loaded: [pluginId] });
     expect((await pinned.load(request)).guidance).toContain('Exact permissions reference.');
-    expect((await pinned.load({ pluginId })).status).toBe('already-loaded');
+    expect(await pinned.load({ pluginId })).toEqual(loaded);
   } finally { await filesystem.rm(root, { recursive: true, force: true }); }
 });
