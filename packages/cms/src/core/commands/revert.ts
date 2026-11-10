@@ -95,7 +95,7 @@ export interface RevertChangeSetRequired {
      * every existing caller that never sends this field).
      */
     force?: boolean;
-    /** Required to enforce the agent-cannot-force rule; harmless/unused when `force` is not set. */
+    /** Required with `force` (a force without it is refused); unused when `force` is not set. */
     principalKind?: RevertPrincipalKind;
   };
 }
@@ -117,6 +117,13 @@ export async function revertChangeSet(
     throw new RevertForbiddenError(
       `agent principals may not force a revert past a version conflict`,
       "AGENT_CANNOT_FORCE"
+    );
+  }
+  // Fail closed: a force that does not say who asked cannot be checked against the rule above.
+  if (input.force && input.principalKind === undefined) {
+    throw new RevertForbiddenError(
+      `a forced revert must say who is asking; retry without force or sign in again`,
+      "FORCE_NEEDS_PRINCIPAL_KIND"
     );
   }
 
