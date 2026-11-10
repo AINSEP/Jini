@@ -17,7 +17,7 @@ describe('platform OS helper import isolation', () => {
   // Local scanner/Windows hardening refactors reuse Core; pin their exact closures too.
   const primitives = ['http', 'ids', 'index', 'json', 'logger', 'paths', 'result', 'sse', 'tasks', 'time', 'trim-chars']
     .map(name => `packages/core/src/primitives/${name}.ts`);
-  const text = ['escape', 'index', 'line-tail', 'sanitize-untrusted-text']
+  const text = ['descriptor-i18n', 'escape', 'index', 'line-tail', 'sanitize-untrusted-text']
     .map(name => `packages/core/src/text/${name}.ts`)
     .concat('packages/core/src/redact.ts', 'packages/core/src/primitives/trim-chars.ts');
   it.each(['command', 'process', 'toolchain', 'proxy-env', 'shell', 'child-environment'])('%s reaches only its existing OS owners', name => {
