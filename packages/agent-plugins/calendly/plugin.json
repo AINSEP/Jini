@@ -37,6 +37,7 @@
           "usedFor": ["Lets the assistant find your booking links and scheduled events"],
           "keyHint": "Browser sign-in only; this connection does not accept a pasted API key.",
           "saveKind": "oauth",
+          "permissions": "Signing in lets the assistant look up your event types, booking links and scheduled events. Your booking calendar does not use this connection. Review the permissions on the Calendly sign-in page.",
           "baseUrl": "https://mcp.calendly.com"
         }
       ]
