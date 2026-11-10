@@ -139,6 +139,8 @@ export interface AgentPluginLifecycleCapability<UninstallInput> {
   previewEnableAccess(required: { pluginId: string }): Promise<{ readonly key: string; readonly resources?: readonly Omit<AccessApprovalResource, 'scope'>[] }>;
   recordDeclinedAccess(required: { accessKey: string }): Promise<void>;
   listInstalled(): Promise<readonly InstalledAgentPlugin[]>;
+  /** The lifecycle's revision-selection owner: the copies of `installed` the host would use. */
+  preferInstalled(required: { installed: readonly InstalledAgentPlugin[] }): Promise<readonly InstalledAgentPlugin[]>;
   assertWritable(): Promise<void>;
   setEnabled(required: SetAgentPluginEnabledInput): Promise<SetAgentPluginEnabledResult>;
   provisionMcp(required: { pluginId: string; principalId: string }, optional?: { readonly approvedEnable?: boolean; readonly approvedEnableKey?: string }): Promise<void>;
@@ -260,6 +262,7 @@ export function createPluginHost<UninstallInput, Layout extends AgentPluginLayou
     }),
     recordDeclinedAccess: async ({ accessKey }) => recordAgentPluginAccessDeclined({ applyAccess: mcp.applyAccess, workspaceId: deps.workspaceId, accessKey, actorId: deps.declinedAccessActor }),
     listInstalled: () => lifecycle.listInstalled(),
+    preferInstalled: input => lifecycle.preferInstalled(input),
     assertWritable: () => lifecycle.assertWritable(),
     setEnabled: input => lifecycle.setEnabled(input),
     /** Provisioning must use the same two owners as the admin toggle. A failed connection never
