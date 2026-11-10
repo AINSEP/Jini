@@ -75,5 +75,7 @@ export interface DeployOpsRegistry {
   get(id: string): LoadedDeployOps | undefined;
   list(): readonly LoadedDeployOps[];
   readonly refusals: readonly string[];
+  /** Platform id -> id of the installed plugin that provides it but is switched off. */
+  readonly switchedOff?: ReadonlyMap<string, string>;
 }
 export interface DeployOpsWaitResult { reached: boolean; waitedSeconds: number; polls: number; last: DeployOpsStatus }
