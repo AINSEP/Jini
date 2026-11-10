@@ -133,7 +133,7 @@ interface PluginApprovalIdentity {
  * @complexity One family discovery scan, bounded by the installed package count. */
 export async function pluginApprovalIdentity<Description>(
   { deps: routeDeps, request }: {
-  deps: Pick<PluginManagementToolsRequired<Description>, 'discoverPlugins' | 'approvalFingerprint'> & { readonly agentPlugins: Pick<PluginManagementToolsRequired<Description>['agentPlugins'], 'listInstalled' | 'previewEnableAccess'> };
+  deps: Pick<PluginManagementToolsRequired<Description>, 'discoverPlugins' | 'approvalFingerprint'> & { readonly agentPlugins: Pick<PluginManagementToolsRequired<Description>['agentPlugins'], 'listInstalled' | 'previewEnableAccess' | 'preferInstalled'> };
   request: Pick<SetEnabledRequest, "family" | "pluginId"> }, _optional = {},
 ): Promise<PluginApprovalIdentity> {
   let revision: string;
@@ -151,7 +151,9 @@ export async function pluginApprovalIdentity<Description>(
     revision = JSON.stringify(installed.map(plugin => [plugin.version ?? null, plugin.archiveDigest]).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))));
     const access = await routeDeps.agentPlugins.previewEnableAccess?.({ pluginId: request.pluginId }, {});
     if (access) { revision = JSON.stringify([revision, access.key]); accessKey = access.key; accessResources = access.resources; }
-    version = installed.map(plugin => plugin.version).filter((value): value is string => value !== undefined).sort().join(", ");
+    // The card names the copy the host's selection owner would use; several remain only when it has no winner.
+    const preferred = await routeDeps.agentPlugins.preferInstalled?.({ installed }, {}) ?? installed;
+    version = preferred.map(plugin => plugin.version).filter((value): value is string => value !== undefined).sort().join(", ");
   } else {
     discovery = structuredClone(await routeDeps.discoverPlugins());
     const plugin = discovery.find(plugin => plugin.id === request.pluginId);

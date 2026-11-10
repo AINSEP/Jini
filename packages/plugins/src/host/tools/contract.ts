@@ -90,6 +90,10 @@ export interface PluginLifecycleToolsPort {
   accessKey: string }): Promise<void>;
   /** @agent-note A rejected listing empties the entire agentPlugins list response to isolate failure from the independently working runtime-plugin list. */
   listInstalled(required: Record<string, never>, optional?: Record<string, never>): Promise<readonly InstalledPluginRevision[]>;
+  /** @agent-note Provider: the host's revision-selection owner (e.g. bundled digests win). Returns the copies
+   * of `installed` it would use; it must not invent a newest-version policy. Omit it when the host has none. */
+  preferInstalled?(required: {
+  installed: readonly InstalledPluginRevision[] }, optional?: Record<string, never>): Promise<readonly InstalledPluginRevision[]>;
   assertWritable(required: Record<string, never>, optional?: Record<string, never>): Promise<void>;
   /** @agent-note Share the workspace admission queue and activation repository with every other lifecycle writer. */
   setEnabled(required: {

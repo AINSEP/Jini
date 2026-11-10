@@ -1,6 +1,6 @@
 import { expect, test } from 'vitest';
 import { createApprovalHandler, type ToolExecutionContext, type AgentToolDefinition } from '@jini-ai/core';
-import { buildPluginManagementRegistrations, buildPluginInstallRegistrations, buildPluginSourceRegistrations, type PluginManagementToolsRequired, type PluginApprovalPort } from '@jini-ai/plugins/host/tools';
+import { buildPluginManagementRegistrations, buildPluginInstallRegistrations, buildPluginSourceRegistrations, pluginApprovalIdentity, type PluginManagementToolsRequired, type PluginApprovalPort, type InstalledPluginRevision } from '@jini-ai/plugins/host/tools';
 import { PluginInstallError } from '@jini-ai/plugins/host/node';
 
 const ids = { list: 'foreign_inventory', setEnabled: 'foreign_switch', uninstall: 'foreign_remove' };
@@ -70,4 +70,23 @@ test('public source entry dispatches foreign operation ids and per-catalog permi
   const seen:string[]=[];const fail=async()=>{throw new Error('unexpected source write');};
   const registrations=buildPluginSourceRegistrations({registration:{domain:'foreign.source',catalogModule:'foreign/source',catalog,metadata:{}},workspaceId:'foreign-space',authorize:async input=>{seen.push(input.permission);return{allowed:true,reason:'yes'};},toolIds,enablePermission:'foreign.write',entityType:'foreign-package',approvals,describeDelete:()=> 'foreign delete',pluginSource:{create:fail,open:fail,list:async()=>({files:[{path:'public',bytes:7}]}),read:fail,write:fail,edit:fail,delete:fail,seal:fail,rollback:fail,isSealedHere:fail,readApproval:fail,recordApproval:fail}});
   const listed=registrations.find(r=>r.descriptor.id==='foreign_list')!;expect(await listed.handler(ctx({id:'package'}),{})).toEqual({files:[{path:'public',bytes:7}]});expect(seen).toEqual(['foreign.inspect']);
+});
+test('agent-plugin enable approval shows the copy the host selection owner keeps, while the revision covers every installed copy', async () => {
+  const installed: InstalledPluginRevision[] = [
+    { pluginId: 'guidance', version: '0.1.0', archiveDigest: 'retained-digest', skills: [] },
+    { pluginId: 'guidance', version: '1.0.0', archiveDigest: 'shipped-digest', skills: [] },
+    { pluginId: 'guidance', version: '1.0.1', archiveDigest: 'operator-digest', skills: [] },
+  ];
+  const identity = async (keep: (copies: readonly InstalledPluginRevision[]) => readonly InstalledPluginRevision[]) => {
+    const revisions: string[] = [];
+    const result = await pluginApprovalIdentity({ deps: {
+      discoverPlugins: async () => [], approvalFingerprint: ({ revision }) => { revisions.push(revision); return 'foreign-fingerprint'; },
+      agentPlugins: { listInstalled: async () => installed, preferInstalled: async ({ installed: copies }) => keep(copies) },
+    }, request: { family: 'agent-plugin', pluginId: 'guidance' } });
+    return { version: result.version, revision: JSON.parse(revisions[0]!) };
+  };
+  const every = [['0.1.0', 'retained-digest'], ['1.0.0', 'shipped-digest'], ['1.0.1', 'operator-digest']];
+  expect(await identity(copies => copies.filter(copy => copy.archiveDigest === 'shipped-digest'))).toEqual({ version: '1.0.0', revision: every });
+  // Without a recorded winner the host refuses to guess, so the card still names every candidate.
+  expect(await identity(copies => copies)).toEqual({ version: '0.1.0, 1.0.0, 1.0.1', revision: every });
 });
