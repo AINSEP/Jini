@@ -176,6 +176,8 @@ export interface AgentExecutorRunInput {
   readonly nativeToolAccess?: boolean;
   /** Independent host-verified permissions, snapshotted for this run. */
   readonly nativeCapabilities?: Partial<import('@jini-ai/agent-runtime').NativeCapabilities>;
+  /** Approved parent plugin IDs and short instructions for native child startup. */
+  readonly subagentStartContext?: { ids: readonly string[]; instructions: string };
   /** Trusted-host CLI parity; never derived from prompt/context fields. */
   readonly cliParity?: boolean;
   /**
@@ -260,7 +262,7 @@ export interface AgentExecutor {
    * underlying run is always already transitioned to `'failed'` via
    * `lifecycle.finish()` before this rejects (see index.ts module doc's Invariant).
    */
-  run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs?: Pick<AgentExecutorRunInput, "filesystemRoot" | "model" | "reasoning" | "nativeToolAccess" | "nativeCapabilities" | "cliParity" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "readOnlyExtraDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings" | "chromeIntegration">): Promise<void>;
+  run(requiredArgs: Pick<AgentExecutorRunInput, "runId" | "agentId" | "prompt" | "cwd">, optionalArgs?: Pick<AgentExecutorRunInput, "filesystemRoot" | "model" | "reasoning" | "nativeToolAccess" | "nativeCapabilities" | "cliParity" | "permissionMode" | "imagePaths" | "imageContents" | "extraAllowedDirs" | "readOnlyExtraDirs" | "uploadRoot" | "credentialEnv" | "env" | "resumeSessionId" | "newSessionId" | "disallowedTools" | "allowedTools" | "settingSources" | "settings" | "chromeIntegration" | "subagentStartContext">): Promise<void>;
   /**
    * Delivers a message the human sent while `runId` is going straight into its live agent process
    * (see {@link UserMessageDelivery} for each outcome). A stream-json agent queues the message

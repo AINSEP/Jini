@@ -21,6 +21,9 @@ export type HttpRequest = {
 
   /** Caller byte ceilings are bounded by the client policy, never a way to widen its cap. */
   maxResponseBytes?: number;
+
+  /** Binary consumers can omit the decoded text representation. */
+  bodyAs?: "bytes";
 } & (
   | { idleTimeoutMs: number; /** Legacy alias for the socket idle budget. */ timeoutMs?: number }
   | { /** Legacy alias for the socket idle budget. */ timeoutMs: number; idleTimeoutMs?: number }

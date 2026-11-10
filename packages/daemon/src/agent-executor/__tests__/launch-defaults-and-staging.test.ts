@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { spawn as realSpawn, type ChildProcess, type spawn as nodeSpawn } from 'node:child_process';
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
 import { mkdtemp } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, delimiter, dirname, join } from 'node:path';
@@ -54,12 +54,12 @@ const fixedLaunch = (): AgentLaunchResolution => ({
   launchPath: '/fake/bin', launchKind: 'selected', childPathPrepend: [], diagnostic: null,
 });
 
-interface SpawnRecord { command: string; env: NodeJS.ProcessEnv }
+interface SpawnRecord { command: string; args: readonly string[]; env: NodeJS.ProcessEnv }
 
 /** A spawn that records what it was handed and starts `child` (or throws `throws`). */
 function recordingSpawn(child: FakeChild, calls: SpawnRecord[], throws?: Error): typeof nodeSpawn {
   return ((command: string, _args: readonly string[], options: { env: NodeJS.ProcessEnv }) => {
-    calls.push({ command, env: options.env });
+    calls.push({ command, args: _args, env: options.env });
     if (throws) throw throws;
     queueMicrotask(() => child.emit('spawn'));
     return child as unknown as ChildProcess;
@@ -242,4 +242,58 @@ it('required HTTP failure reports the transport policy and never falls back or m
   expect(credential).not.toHaveBeenCalled();
   expect(prepareHttp).toHaveBeenCalledOnce();
   expect((await lifecycle.get({ runId: run.id }))?.state).toBe('failed');
+});
+
+it.each(['complete', 'manifest', 'oversized', 'staging-failure', 'subagents-denied', 'adapter-no-hook', 'unsupported-subagents', 'no-context'] as const)('declared child-hook launch: %s', async scenario => {
+  const site = join(scratch, scenario);
+  mkdirSync(site);
+  const lifecycle = createRunLifecycle({ eventLog: createInMemoryEventLog({}) });
+  const child = createFakeChild(4399);
+  const calls: SpawnRecord[] = [];
+  const context = { ids: scenario === 'manifest' ? Array.from({ length: 120 }, (_, i) => `approved-plugin-${i}-${'x'.repeat(32)}`) : ['approved-plugin'], instructions: scenario === 'oversized' ? 'x'.repeat(2000) : 'Call load_agent_plugin for every parent plugin; honor approvals.' };
+  const def = createDef({ ...getAgentDef({ id: 'claude' })!, ...fixtureModelDiscovery, mcpIsolation: { perRun: 'fixture@2026-11-05' },
+    id: scenario === 'adapter-no-hook' ? 'claude' : 'hook-fixture', subagentStartHook: scenario !== 'adapter-no-hook', supportsSubagents: scenario !== 'unsupported-subagents' });
+  let directory = '';
+  const executor = createAgentExecutor({ lifecycle }, {
+    hostEnv: {}, getAgentDef: () => def, resolveAgentLaunch: () => ({ ...fixedLaunch(), launchPath: process.execPath }),
+    resolveModelForLaunch: fixtureLaunchModel, ensureAgentCapabilities: async () => {},
+    assertClaudeFilesystemSupport: async () => true, spawn: recordingSpawn(child, calls),
+    promptAugmenter: { contextKinds: () => [], augmentUserRequest: ({ basePrompt }) => basePrompt, systemOverlay: () => {
+      directory = join(site, '.agent-runtime', readdirSync(join(site, '.agent-runtime')).find(name => name.startsWith('tmp-'))!);
+      if (scenario === 'staging-failure') writeFileSync(join(directory, 'subagent-start.json'), 'reserved');
+      return 'FULL_OVERLAY_AND_SKILL_TEXT';
+    } },
+  });
+  const { run } = await lifecycle.start({ contextRef: scenario });
+  const launch = executor.run({ runId: run.id, agentId: def.id, prompt: 'hello', cwd: site }, {
+    filesystemRoot: site, nativeToolAccess: true, nativeCapabilities: { subagents: scenario !== 'subagents-denied' }, permissionMode: 'bypass',
+    ...(scenario === 'no-context' ? {} : { subagentStartContext: context }),
+    settings: JSON.stringify({ hooks: { Stop: [{ hooks: [{ type: 'command', command: 'stop-hook' }] }] } }),
+  });
+  try {
+    if (scenario === 'oversized' || scenario === 'staging-failure') {
+      await expect(launch).rejects.toMatchObject({ code: 'AGENT_SPAWN_FAILED' });
+      expect(calls).toEqual([]);
+    } else {
+      await launch;
+      const args = calls[0]!.args;
+      const settings = JSON.parse(args[args.indexOf('--settings') + 1]!);
+      expect(settings.hooks.Stop).toEqual([{ hooks: [{ type: 'command', command: 'stop-hook' }] }]);
+      const staged = scenario === 'complete' || scenario === 'manifest';
+      expect(existsSync(join(directory, 'subagent-start.json'))).toBe(staged);
+      if (staged) {
+        expect(settings.hooks.SubagentStart).toHaveLength(1);
+        const output = readFileSync(join(directory, 'subagent-start.json'), 'utf8');
+        expect(output).toContain(context.instructions);
+        if (scenario === 'manifest') expect(JSON.parse(readFileSync(join(directory, 'subagent-plugin-ids.json'), 'utf8'))).toEqual(context.ids);
+        else expect(output).toContain('approved-plugin');
+        expect(output).not.toContain('FULL_OVERLAY_AND_SKILL_TEXT');
+      }
+      else expect(settings.hooks.SubagentStart).toBeUndefined();
+    }
+  } finally {
+    child.emit('close', 0, null);
+    await lifecycle.waitForTerminal({ runId: run.id });
+  }
+  await vi.waitFor(() => expect(existsSync(directory)).toBe(false));
 });

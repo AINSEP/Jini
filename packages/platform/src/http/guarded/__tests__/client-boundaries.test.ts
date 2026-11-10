@@ -165,7 +165,7 @@ test("an expired total deadline without a caller signal surfaces as a FetchTimeo
   const client = createHttpClient({ transport: unreachable, policy, dns: publicDns, clock: expired, userAgent: "Pin/1.0" });
   const failure = await client.send({ request: get({ totalDeadlineMs: 5000 }) }).catch((error: unknown) => error);
   expect(failure).toBeInstanceOf(FetchTimeoutError);
-  expect((failure as FetchTimeoutError).message).toBe("fetch timed out after 5000ms: https://example.com/");
+  expect((failure as FetchTimeoutError).message).toBe("fetch timed out after 5000ms: https://example.com");
 });
 
 test("a non-deadline transport failure under a live deadline is rethrown unchanged", async () => {

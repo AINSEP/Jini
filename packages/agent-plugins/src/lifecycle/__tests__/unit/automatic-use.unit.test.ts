@@ -65,7 +65,7 @@ describe('automatic installed plugin use', () => {
     const f = fixture();
     const pointer = 'custom_host_read({"id":"synthetic"})';
     f.ports.formatPluginToolPointer = () => pointer;
-    expect(await f.controller.prepare({ query: 'synthetic' })).toContain(pointer);
+    expect(await f.controller.prepare({ query: 'synthetic', loaded: ['pinned'] })).toContain(pointer);
     f.resolve.mockResolvedValueOnce({ ok: true, promptPrefix: 'x'.repeat(8193) });
     const deferred = await f.controller.prepare({ capabilities: ['theme-authoring'] });
     expect(deferred).toContain(pointer);
@@ -75,25 +75,19 @@ describe('automatic installed plugin use', () => {
   it('omits load pointers when the host supplies no pointer formatter', async () => {
     const f = fixture();
     delete f.ports.formatPluginToolPointer;
-    const note = await f.controller.prepare({ query: 'synthetic' });
+    const note = await f.controller.prepare({ query: 'synthetic', loaded: ['pinned'] });
     expect(note).toContain('synthetic');
     expect(note).not.toContain('Load one with');
     f.resolve.mockResolvedValueOnce({ ok: true, promptPrefix: 'x'.repeat(8193) });
     expect(await f.controller.prepare({ capabilities: ['theme-authoring'] }))
       .toBe("Agent Plugin 'synthetic' guidance is deferred because it exceeds the automatic byte limit.");
   });
-  it('Auto suggests metadata matches without resolving or showing them as loaded', async () => {
+  it('Auto delivers the primary once and publishes its use', async () => {
     const f = fixture();
-    const note = await f.controller.prepare({ query: 'synthetic' });
-    expect(note).toContain('Relevant agent plugins for this request:');
-    expect(note).toContain('synthetic');
-    expect(note).toContain('host_read_plugin');
-    expect(note).not.toContain('Guidance for synthetic');
-    expect(f.resolve).not.toHaveBeenCalled();
-    expect(f.publish).not.toHaveBeenCalled();
-    expect(await f.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'loaded', guidance: 'Guidance for synthetic' });
+    expect(await f.controller.prepare({ query: 'synthetic' })).toBe('Guidance for synthetic');
     expect(f.resolve).toHaveBeenCalledTimes(1);
     expect(f.publish.mock.calls.at(-1)?.[0].plugins).toEqual([{ id: 'synthetic', name: 'synthetic' }]);
+    expect(await f.controller.prepare({ query: 'synthetic' })).toBe('');
   });
   it('exclusions win in both preflight and the first authoring tool backstop', async () => {
     const f = fixture('auto', { decision: null, excluded: ['synthetic'] });
@@ -106,9 +100,9 @@ describe('automatic installed plugin use', () => {
     f.ask.mockResolvedValue({ action, selected: ['synthetic'] });
     const guidance = await f.controller.prepare({ query: 'synthetic' });
     if (action === 'skip') expect(guidance).toBe('');
-    else expect(guidance).toContain('Relevant agent plugins for this request:');
-    expect(f.resolve).not.toHaveBeenCalled();
-    expect(f.publish.mock.calls.at(-1)?.[0].plugins).toEqual([]);
+    else expect(guidance).toBe('Guidance for synthetic');
+    expect(f.resolve).toHaveBeenCalledTimes(action === 'skip' ? 0 : 1);
+    expect(f.publish.mock.calls.at(-1)?.[0].plugins).toEqual(action === 'skip' ? [] : [{ id: 'synthetic', name: 'synthetic' }]);
     await f.controller.prepare({ capabilities: ['theme-authoring'] });
     expect(f.ask).toHaveBeenCalledTimes(1);
     expect(f.saveAuto).toHaveBeenCalledTimes(action === 'auto' ? 1 : 0);
@@ -157,7 +151,7 @@ describe('automatic installed plugin use', () => {
   it('serializes simultaneous backstops and tolerates unavailable guidance', async () => {
     const f = fixture('ask');
     f.resolve.mockRejectedValue(new Error('unreadable'));
-    const [note, guidance] = await Promise.all([f.controller.prepare({ query: 'synthetic' }), f.controller.prepare({ capabilities: ['theme-authoring'] })]);
+    const [note, guidance] = await Promise.all([f.controller.prepare({ query: 'synthetic', loaded: ['pinned'] }), f.controller.prepare({ capabilities: ['theme-authoring'] })]);
     expect(note).toContain('host_read_plugin');
     expect(guidance).toBe('');
     expect(f.ask).toHaveBeenCalledTimes(1);
@@ -172,8 +166,8 @@ describe('automatic installed plugin use', () => {
     expect(next.ask).not.toHaveBeenCalled();
     const onTopic = fixture(mode, state);
     onTopic.ports.rank = next.ports.rank;
-    expect(await onTopic.controller.prepare({ query: 'Use synthetic' })).toContain('Relevant agent plugins for this request:');
-    expect(onTopic.resolve).not.toHaveBeenCalled();
+    expect(await onTopic.controller.prepare({ query: 'Use synthetic' })).toContain('Guidance for synthetic');
+    expect(onTopic.resolve).toHaveBeenCalledTimes(1);
     expect(await onTopic.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'loaded', guidance: 'Guidance for synthetic' });
     expect(onTopic.ask).not.toHaveBeenCalled();
 
@@ -230,17 +224,17 @@ it('Auto does not reload prior selections on an unrelated turn; the write backst
 it('publication failure still returns resolved guidance and does not duplicate it at the backstop', async () => {
   const f = fixture();
   f.publish.mockRejectedValue(new Error('event store unavailable'));
-  expect(await f.controller.prepare({ query: 'synthetic' })).toContain('Relevant agent plugins for this request:');
+  expect(await f.controller.prepare({ query: 'synthetic' })).toBe('Guidance for synthetic');
   expect(await f.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'loaded', guidance: 'Guidance for synthetic' });
   expect(await f.controller.prepare({ capabilities: ['theme-authoring'] })).toBe('');
-  expect(f.resolve).toHaveBeenCalledTimes(1);
+  expect(f.resolve).toHaveBeenCalledTimes(2);
 });
 
 it('Do not ask again uses only checked matches, excludes unchecked ones and immediately enables future Auto matches', async () => {
   const f = fixture('ask');
   f.ports.list = async () => [plugin('synthetic'), plugin('unchecked')];
   f.ask.mockResolvedValue({ action: 'auto', selected: ['synthetic'] });
-  expect(await f.controller.prepare({ query: 'synthetic' })).toContain('Relevant agent plugins for this request:');
+  expect(await f.controller.prepare({ query: 'synthetic' })).toBe('Guidance for synthetic');
   expect(await f.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'loaded', guidance: 'Guidance for synthetic' });
   expect(f.publish.mock.calls.at(-1)?.[0].state.excluded).toContain('unchecked');
   f.ports.list = async () => [plugin('synthetic'), plugin('unchecked'), plugin('later')];
@@ -250,9 +244,9 @@ it('Do not ask again uses only checked matches, excludes unchecked ones and imme
 
 it('Use never implicitly approves later matching plugins in Ask mode', async () => {
   const f = fixture('ask');
-  await f.controller.prepare({ query: 'synthetic' });
+  expect(await f.controller.prepare({ query: 'synthetic' })).toBe('Guidance for synthetic');
   f.ports.list = async () => [plugin('synthetic'), plugin('later')];
-  expect(await f.controller.prepare({ capabilities: ['theme-authoring'] })).toBe('Guidance for synthetic');
+  expect(await f.controller.prepare({ capabilities: ['theme-authoring'] })).toBe('');
   expect(f.resolve.mock.calls.map(([input]) => input.pluginId)).toEqual(['synthetic']);
   expect(await f.controller.load({ pluginId: 'later' })).toEqual({ status: 'excluded', guidance: '' });
   expect(f.resolve).toHaveBeenCalledTimes(1);
@@ -263,15 +257,15 @@ it('5 genuinely relevant plugins all load: no per-chat plugin count', async () =
   const f = fixture();
   f.ports.list = async () => Array.from({ length: 5 }, (_, index) => plugin(`match-${index}`));
   await f.controller.prepare({ query: 'synthetic' });
-  expect(f.resolve).not.toHaveBeenCalled();
+  expect(f.resolve).toHaveBeenCalledTimes(1);
   for (let index = 0; index < 5; index++) await f.controller.load({ pluginId: `match-${index}` });
-  expect(f.resolve.mock.calls.map(([input]) => input.pluginId)).toEqual(['match-0', 'match-1', 'match-2', 'match-3', 'match-4']);
+  expect(f.resolve.mock.calls.map(([input]) => input.pluginId)).toEqual(['match-0', 'match-0', 'match-1', 'match-2', 'match-3', 'match-4']);
 });
 
 it('lists every short relevant match with its metadata reason when the note fits', async () => {
   const f = fixture();
   f.ports.list = async () => ['first', 'second', 'third'].map(id => ({ ...plugin(id), displayName: id.toUpperCase(), summary: `Why ${id}` }));
-  const note = await f.controller.prepare({ query: 'synthetic' });
+  const note = await f.controller.prepare({ query: 'synthetic', loaded: ['pinned'] });
   for (const id of ['first', 'second', 'third']) expect(note).toContain(`${id.toUpperCase()} (${id}) — Why ${id}`);
   expect(note).not.toContain('more relevant');
   expect(f.resolve).not.toHaveBeenCalled();
@@ -282,7 +276,7 @@ it('50 relevant plugins stay within the note budget, bulk-load nothing, and all 
   const plugins = Array.from({ length: 50 }, (_, index) => ({ ...plugin(`match-${index}`), summary: `Guidance topic ${index}` }));
   f.ports.list = async () => plugins;
   f.ports.rank = input => rankInstalledAgentPlugins(input.query, input.candidates, input.limit, true);
-  const note = await f.controller.prepare({ query: 'synthetic' });
+  const note = await f.controller.prepare({ query: 'synthetic', loaded: ['pinned'] });
   expect(new TextEncoder().encode(note).length).toBeLessThanOrEqual(600);
   expect(note).toContain('match-0');
   const shown = plugins.filter(p => note.includes(`(${p.pluginId})`)).length;
@@ -299,7 +293,7 @@ it('50 relevant plugins stay within the note budget, bulk-load nothing, and all 
 it('a guarded capability loads only its providers after a note, never other relevant plugins', async () => {
   const f = fixture();
   f.ports.list = async () => [plugin('tovu-theme'), { ...plugin('other-topic'), provides: ['other'] }];
-  await f.controller.prepare({ query: 'synthetic' });
+  await f.controller.prepare({ query: 'synthetic', loaded: ['pinned'] });
   expect(f.resolve).not.toHaveBeenCalled();
   expect(await f.controller.prepare({ capabilities: ['theme-authoring'] })).toBe('Guidance for tovu-theme');
   expect(f.resolve.mock.calls.map(([input]) => input.pluginId)).toEqual(['tovu-theme']);
@@ -326,8 +320,8 @@ it('Auto explicitly loads an active plugin that was never selected or relevant t
   f.ports.rank = () => [];
   expect(await f.controller.prepare({ query: 'unrelated' })).toBe('');
   expect(await f.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'loaded', guidance: 'Guidance for synthetic' });
-  expect(await f.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'already-loaded', guidance: '' });
-  expect(f.resolve).toHaveBeenCalledTimes(1);
+  expect(await f.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'loaded', guidance: 'Guidance for synthetic' });
+  expect(f.resolve).toHaveBeenCalledTimes(2);
   expect(f.ask).not.toHaveBeenCalled();
 });
 
@@ -348,8 +342,8 @@ it('an inactive plugin is only marked in use after its existing activation owner
   expect(await f.controller.load({ pluginId: 'inactive' })).toEqual({ status: 'installed-but-inactive', guidance: "Plugin 'inactive' is off; its tools are unavailable.\n\nGuidance for inactive" });
   expect(f.resolve).toHaveBeenCalledTimes(1);
   expect(f.publish).not.toHaveBeenCalled();
-  expect(await f.controller.load({ pluginId: 'inactive' })).toEqual({ status: 'already-loaded', guidance: '' });
-  expect(f.resolve).toHaveBeenCalledTimes(1);
+  expect(await f.controller.load({ pluginId: 'inactive' })).toEqual({ status: 'installed-but-inactive', guidance: "Plugin 'inactive' is off; its tools are unavailable.\n\nGuidance for inactive" });
+  expect(f.resolve).toHaveBeenCalledTimes(2);
   f.ports.list = async () => [plugin('inactive')];
   expect(await f.controller.load({ pluginId: 'inactive' })).toEqual({ status: 'loaded', guidance: 'Guidance for inactive' });
 });
@@ -365,17 +359,17 @@ it('explicit Ask loads still require consent and publish a skipped decision', as
   expect(f.ask).toHaveBeenCalledTimes(1);
 });
 
-it('simultaneous explicit loads share delivery and a pinned plugin is already loaded', async () => {
+it('simultaneous explicit loads and a pinned plugin each return complete guidance', async () => {
   const f = fixture();
   expect(await Promise.all([f.controller.load({ pluginId: 'synthetic' }), f.controller.load({ pluginId: 'synthetic' })])).toEqual([
-    { status: 'loaded', guidance: 'Guidance for synthetic' }, { status: 'already-loaded', guidance: '' },
+    { status: 'loaded', guidance: 'Guidance for synthetic' }, { status: 'loaded', guidance: 'Guidance for synthetic' },
   ]);
-  expect(f.resolve).toHaveBeenCalledTimes(1);
+  expect(f.resolve).toHaveBeenCalledTimes(2);
   expect(f.publish).toHaveBeenCalledTimes(1);
   const pinned = fixture();
   await pinned.controller.prepare({ loaded: ['synthetic'] });
-  expect(await pinned.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'already-loaded', guidance: '' });
-  expect(pinned.resolve).not.toHaveBeenCalled();
+  expect(await pinned.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'loaded', guidance: 'Guidance for synthetic' });
+  expect(pinned.resolve).toHaveBeenCalledTimes(1);
 });
 
 it('saved consent and exclusions have no 100-plugin limit', () => {
@@ -384,14 +378,14 @@ it('saved consent and exclusions have no 100-plugin limit', () => {
   expect(readChatAgentPluginState({ value: state })).toEqual(state);
 });
 
-it('an explicit load racing the write backstop resolves and publishes only once', async () => {
+it('an explicit load racing the write backstop resolves again without publishing twice', async () => {
   const f = fixture();
   await f.controller.prepare({ query: 'synthetic' });
   expect(await Promise.all([
     f.controller.load({ pluginId: 'synthetic' }),
     f.controller.prepare({ capabilities: ['theme-authoring'] }),
   ])).toEqual([{ status: 'loaded', guidance: 'Guidance for synthetic' }, '']);
-  expect(f.resolve).toHaveBeenCalledTimes(1);
+  expect(f.resolve).toHaveBeenCalledTimes(2);
   expect(f.publish).toHaveBeenCalledTimes(1);
 });
 
@@ -413,7 +407,7 @@ it('shuffled equal-score catalogs produce the same ranked ids and relevance note
 it('describes a plugin without provides or summary by its keywords', async () => {
   const f = fixture();
   f.ports.list = async () => [{ pluginId: 'bare', enabled: true, keywords: ['alpha', 'beta'], skills: [], mcpServerIds: [] }];
-  expect(await f.controller.prepare({ query: 'bare' })).toContain('bare (bare) — Provides alpha, beta');
+  expect(await f.controller.prepare({ query: 'bare', loaded: ['pinned'] })).toContain('bare (bare) — Provides alpha, beta');
 });
 
 it('readChatAgentPluginState treats non-object input as no previous decision', () => {
@@ -478,7 +472,7 @@ it('blank guidance is not delivered, so a later load retries it', async () => {
 it('Auto records delivered plugins as selected in the published state, keeping earlier selections', async () => {
   const f = fixture('auto', { decision: { selected: ['earlier'], asked: true }, excluded: [] });
   await f.controller.load({ pluginId: 'synthetic' });
-  expect(f.publish.mock.calls.at(-1)?.[0].state.decision).toEqual({ selected: ['earlier', 'synthetic'], asked: true });
+  expect(f.publish.mock.calls.at(-1)?.[0].state.decision).toEqual({ selected: ['earlier', 'synthetic'], asked: true, delivered: ['synthetic'] });
 });
 
 
@@ -509,4 +503,126 @@ it('the automatic byte boundary delivers a small peer and defers only oversized 
   const retry = await f.controller.prepare({ capabilities: ['theme-authoring'] });
   expect(retry).not.toContain('é');
   expect(retry).toContain('host_read_plugin');
+});
+
+
+it.each(['pinned', 'explicit'] as const)('a fresh explicit reader gets complete bytes after %s delivery and rechecks trust', async delivery => {
+  const f = fixture();
+  const guidance = 'BEGIN_SENTINEL\n' + 'é'.repeat(5000) + '\nEND_SENTINEL';
+  f.resolve.mockResolvedValue({ ok: true, promptPrefix: guidance });
+  if (delivery === 'pinned') await f.controller.prepare({ loaded: ['synthetic'] });
+  else expect(await f.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'loaded', guidance });
+  expect(await f.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'loaded', guidance });
+  f.resolve.mockResolvedValueOnce({ ok: false, code: 'untrusted', reason: 'changed trust' });
+  expect(await f.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'untrusted', guidance: '' });
+});
+
+
+it.each(['auto', 'ask'] as const)('%s preflight delivers a complete oversized primary and leaves the next candidate as a pointer', async mode => {
+  const f = fixture(mode);
+  const guidance = 'BEGIN_PRIMARY\n' + 'é'.repeat(5000) + '\nEND_PRIMARY';
+  f.list.mockResolvedValue([plugin('synthetic'), plugin('second')]);
+  f.ask.mockResolvedValue({ action: 'use', selected: ['synthetic', 'second'] });
+  f.resolve.mockResolvedValue({ ok: true, promptPrefix: guidance });
+  const note = await f.controller.prepare({ query: 'synthetic' });
+  expect(note).toBe(guidance + '\n\nRelevant agent plugins for this request:\nsecond (second) — Provides theme-authoring\nLoad one with host_read_plugin({"pluginId":"<pluginId>","file":"SKILL.md"}) before acting on that part.');
+  expect(f.resolve).toHaveBeenCalledTimes(1);
+  expect(f.publish.mock.calls.at(-1)?.[0].plugins).toEqual([{ id: 'synthetic', name: 'synthetic' }]);
+  const pinned = fixture(mode);
+  pinned.list.mockResolvedValue([plugin('synthetic'), plugin('second')]);
+  pinned.ask.mockResolvedValue({ action: 'use', selected: ['second'] });
+  expect(await pinned.controller.prepare({ query: 'synthetic', loaded: ['synthetic'] })).toContain('second (second)');
+  expect(pinned.resolve).not.toHaveBeenCalled();
+});
+
+
+it.each([15709, 16384, 16385, 61309])('automatic primary respects the 16 KiB boundary at %i bytes', async bytes => {
+  const f = fixture();
+  const guidance = 'é'.repeat(Math.floor(bytes / 2)) + (bytes % 2 ? 'x' : '');
+  f.resolve.mockResolvedValue({ ok: true, promptPrefix: guidance });
+  const note = await f.controller.prepare({ query: 'synthetic' });
+  if (bytes <= 16384) expect(note).toBe(guidance);
+  else { expect(note).toContain('host_read_plugin'); expect(note).not.toContain(guidance); }
+  expect(await f.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'loaded', guidance });
+});
+
+
+it('only full deliveries reach children; later matching turns use the existing pointer', async () => {
+  const first = fixture();
+  first.list.mockResolvedValue([plugin('synthetic'), plugin('secondary')]);
+  expect(await first.controller.prepare({ query: 'synthetic' })).toContain('Guidance for synthetic');
+  expect(first.controller.guidanceIds({})).toEqual(['synthetic']);
+  expect(first.publish.mock.calls.at(-1)?.[0].state.decision.selected).toEqual(['synthetic']);
+  const saved = JSON.parse(JSON.stringify(first.publish.mock.calls.at(-1)?.[0].state));
+  const next = fixture('auto', saved);
+  next.list.mockResolvedValue([plugin('synthetic'), plugin('secondary')]);
+  const note = await next.controller.prepare({ query: 'synthetic' });
+  expect(note).toContain('host_read_plugin');
+  expect(note).not.toContain('Guidance for synthetic');
+  expect(next.resolve).not.toHaveBeenCalled();
+  expect(next.controller.guidanceIds({})).toEqual(['synthetic']);
+  expect(await next.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'loaded', guidance: 'Guidance for synthetic' });
+});
+
+it('consent selections and deferred guidance never count as delivered', async () => {
+  const f = fixture('ask');
+  f.list.mockResolvedValue([plugin('synthetic'), plugin('secondary')]);
+  f.ask.mockResolvedValue({ action: 'use', selected: ['synthetic', 'secondary'] });
+  await f.controller.prepare({ query: 'synthetic' });
+  expect(f.controller.guidanceIds({})).toEqual(['synthetic']);
+  const next = fixture('ask', f.publish.mock.calls.at(-1)?.[0].state);
+  next.list.mockResolvedValue([plugin('synthetic'), plugin('secondary')]);
+  expect(await next.controller.prepare({ query: 'synthetic' })).not.toContain('Guidance for synthetic');
+  expect(next.controller.guidanceIds({})).toEqual(['synthetic']);
+  const excluded = fixture('ask', { ...f.publish.mock.calls.at(-1)?.[0].state, excluded: ['synthetic'] });
+  await excluded.controller.prepare({ query: 'synthetic' });
+  expect(excluded.controller.guidanceIds({})).toEqual([]);
+  const large = fixture();
+  large.resolve.mockResolvedValue({ ok: true, promptPrefix: 'x'.repeat(61309) });
+  await large.controller.prepare({ query: 'synthetic' });
+  expect(large.controller.guidanceIds({})).toEqual([]);
+  const selectedOnly = fixture('auto', { decision: { selected: ['synthetic'], asked: false }, excluded: [] });
+  selectedOnly.ports.rank = () => [];
+  await selectedOnly.controller.prepare({ query: 'unrelated' });
+  expect(selectedOnly.controller.guidanceIds({})).toEqual([]);
+});
+
+it('pinned guidance reaches child IDs even with automatic plugins Off', async () => {
+  const f = fixture('off');
+  expect(await f.controller.prepare({ query: 'synthetic', loaded: ['synthetic'] })).toBe('');
+  expect(f.controller.guidanceIds({})).toEqual(['synthetic']);
+});
+
+
+it('an argv-budgeted adapter retains metadata-only automatic preparation', async () => {
+  const f = fixture();
+  const guidance = 'SITE_IMPORT_BEGIN\n' + 'x'.repeat(16250) + '\nSITE_IMPORT_END';
+  f.resolve.mockResolvedValue({ ok: true, promptPrefix: guidance });
+  const note = await f.controller.prepare({ query: 'import my site', maxPromptArgBytes: 30000 });
+  expect(note).toContain('host_read_plugin');
+  expect(note).not.toContain('SITE_IMPORT_BEGIN');
+  expect(f.resolve).not.toHaveBeenCalled();
+  expect(f.controller.guidanceIds({})).toEqual([]);
+  expect(await f.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'loaded', guidance });
+});
+
+it('Off children receive only current pins, not earlier full deliveries', async () => {
+  const f = fixture('off', { decision: { selected: ['prior'], delivered: ['prior'], asked: false }, excluded: [] });
+  await f.controller.prepare({ loaded: ['synthetic'] });
+  expect(f.controller.guidanceIds({})).toEqual(['synthetic']);
+});
+
+it('Off admits full pinned loads while retaining all other admission checks and prior delivery history', async () => {
+  const f = fixture('off', { decision: { selected: ['prior'], delivered: ['prior'], asked: false }, excluded: [] });
+  await f.controller.prepare({ loaded: ['synthetic'] });
+  expect(await f.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'loaded', guidance: 'Guidance for synthetic' });
+  expect(await f.controller.load({ pluginId: 'prior' })).toEqual({ status: 'off', guidance: '' });
+  expect(f.publish.mock.calls.at(-1)?.[0].state.decision.delivered).toEqual(['prior', 'synthetic']);
+  expect(f.controller.guidanceIds({})).toEqual(['synthetic']);
+  f.resolve.mockResolvedValueOnce({ ok: false, code: 'untrusted', reason: 'changed trust' });
+  expect(await f.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'untrusted', guidance: '' });
+  expect(await f.controller.load({ pluginId: 'synthetic', signal: AbortSignal.abort() })).toEqual({ status: 'cancelled', guidance: '' });
+  const excluded = fixture('off', { decision: null, excluded: ['synthetic'] });
+  await excluded.controller.prepare({ loaded: ['synthetic'] });
+  expect(await excluded.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'excluded', guidance: '' });
 });
