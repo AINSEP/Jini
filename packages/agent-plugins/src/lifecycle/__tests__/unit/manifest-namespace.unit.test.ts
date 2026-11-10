@@ -36,6 +36,12 @@ describe('extension namespace per host', () => {
     expect(parsedIdentity()).toEqual(parsedIdentity('tovu'));
   });
 
+  test('an explicit tovu request reads a declared canonical jini copy, without the legacy warning', () => {
+    const value = { ...dualKey, extensions: { tovu: dualKey.extensions.tovu, jini: { id: 'jini/stock', provides: ['market-data'] } } };
+    const result = parseAgentPluginManifest({ value }, { identityNamespace: 'tovu' });
+    expect(result.ok && { id: result.manifest.id, warnings: result.warnings }).toEqual({ id: 'jini/stock', warnings: [] });
+  });
+
   test('the object validator checks only the requested host key', () => {
     const foreignInvalid = { ...dualKey, extensions: { ...dualKey.extensions, 'open-marketing': { id: 'not a publisher id' } } };
     expect(validatePluginManifest({ value: foreignInvalid }, { identityNamespace: 'open-marketing' })).toBe(false);
