@@ -136,7 +136,7 @@ describe('FETCH_TIMEOUT_MS', () => {
 
 
 it.each([
-  ['https://example.test/share/sample-share-code/archive.tovu.zip?download=sample-query#section', 'https://example.test'],
+  ['https://example.test/share/sample-share-code/archive.zip?download=sample-query#section', 'https://example.test'],
   ['https://name:sample-password@example.test:8443/private/file?key=sample-query', 'https://example.test:8443'],
   ['https://[2001:db8::1]:8443/private?key=sample-query', 'https://[2001:db8::1]:8443'],
   ['/private/file?key=sample-query', 'the requested server'],
