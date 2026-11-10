@@ -25,7 +25,8 @@ it('keeps exports and entry runtime metadata synchronized', () => {
   expect(Object.hasOwn(manifest.jini.entries, './http/settings')).toBe(false);
   // deaf9cc: the document-text extractors' libraries are required, never optional peers (packages/README.md;
   // scripts/__tests__/optional-peer-contract.test.ts pins cms → mammoth/unpdf as production deps).
-  expect(manifest.dependencies).toEqual({ "@jini-ai/core": "workspace:^", unpdf: "^1.8.1", mammoth: "^1.12.3" });
+  // f7ab5e9e: parse5 is required too — forms/sql, forms/html and forms/express load it at import.
+  expect(manifest.dependencies).toEqual({ "@jini-ai/core": "workspace:^", parse5: "^7.3.0", unpdf: "^1.8.1", mammoth: "^1.12.3" });
   expect(Object.hasOwn(manifest.peerDependencies, "@jini-ai/core")).toBe(false);
   expect(Object.hasOwn(manifest.peerDependenciesMeta, "@jini-ai/core")).toBe(false);
 });
@@ -76,7 +77,8 @@ it('keeps the folded domain entries and optional adapter peers explicit', () => 
   expect(manifest.jini.entries['./widgets/html']).toBe('node');
   expect(manifest.jini.entries['./widgets/resolvers']).toBe('universal');
   expect(manifest.jini.entries['./widgets/sql']).toBe('node');
-  expect(manifest.peerDependenciesMeta['parse5']?.optional).toBe(true);
+  expect(Object.hasOwn(manifest.peerDependencies, 'parse5')).toBe(false);
+  expect(Object.hasOwn(manifest.peerDependenciesMeta, 'parse5')).toBe(false);
   expect(manifest.peerDependenciesMeta['kysely']?.optional).toBe(true);
   expect(manifest.peerDependenciesMeta['@jini-ai/db']?.optional).toBe(true);
   expect(manifest.jini.isolation.domains.widgets).toEqual(['src/widgets']);
