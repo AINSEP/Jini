@@ -9,7 +9,7 @@
     "jini": {
       "id": "tovu/calendly",
       "displayName": "Calendly",
-      "summary": "Show your Calendly booking calendar on a page so visitors can book a time.",
+      "summary": "Show your Calendly booking calendar on a page so visitors can book a time.", "provides": ["scheduling"],
       "exports": {
         "booking-calendar": {
           "template": "exports/booking-calendar.html",
