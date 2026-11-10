@@ -47,7 +47,7 @@ describe('ui-ux-design plugin', () => {
     const manifest: unknown = JSON.parse(readFileSync(join(pluginRoot, 'plugin.json'), 'utf8'));
     expect(isPluginManifest(manifest)).toBe(true);
     expect((manifest as { name: string }).name).toBe('ui-ux-design');
-    expect((manifest as { version: string }).version).toBe('0.6.2');
+    expect((manifest as { version: string }).version).toBe('0.6.3');
   });
 
   it('bundles a skill directory per Web-Design-owned AI-Dev-Shop skill', () => {
@@ -95,7 +95,7 @@ describe('slide-design plugin', () => {
   it('has a plugin.json the strict parser accepts, with its publisher id and capability', () => {
     const parsed = parseAgentPluginManifest({ value: JSON.parse(readFileSync(join(pluginRoot, 'plugin.json'), 'utf8')) });
     if (!parsed.ok) throw new Error(parsed.errors.join('; '));
-    expect(parsed.manifest).toMatchObject({ name: 'slide-design', id: 'jini/slide-design', provides: ['slide-design'], version: '0.1.0', license: 'Apache-2.0' });
+    expect(parsed.manifest).toMatchObject({ name: 'slide-design', id: 'jini/slide-design', provides: ['slide-design'], version: '0.1.1', license: 'Apache-2.0' });
   });
 
   it('bundles exactly one skill whose frontmatter names it', () => {

@@ -2,7 +2,7 @@ import { withFileLock } from "@jini-ai/platform/fs/file-lock";
 import * as nativeFilesystem from "node:fs/promises";
 import { test, expect } from 'vitest';
 import { validatePluginManifest, validateMcpManifest, isPluginManifest, isMcpManifest } from '../index.js';
-import { createAgentPluginLifecycle, createAgentPluginLayout, parseAgentPluginManifest, fetchAgentPluginArchive } from '../lifecycle/index.js';
+import { createAgentPluginLifecycle, createAgentPluginLayout, parseAgentPluginManifest, fetchAgentPluginArchive, legacyAgentPluginMetadataWarning } from '../lifecycle/index.js';
 import { createNodeAgentPluginEffects } from '../lifecycle/node.js';
 import { ports } from '../lifecycle/__tests__/test-support.js';
 import { mkdtemp } from 'node:fs/promises';
@@ -27,7 +27,7 @@ test('identity namespace injection preserves the legacy plugin format and select
     },
   };
   expect(parseAgentPluginManifest({ value })).toMatchObject({
-    ok: true, manifest: { id: 'legacy/toolkit', provides: ['source-control'] }, warnings: [],
+    ok: true, manifest: { id: 'legacy/toolkit', provides: ['source-control'] }, warnings: [legacyAgentPluginMetadataWarning],
   });
   expect(parseAgentPluginManifest({ value }, { identityNamespace: 'example' })).toMatchObject({
     ok: true, manifest: { id: 'example/toolkit', provides: ['deploy-target:fly'] }, warnings: [],
