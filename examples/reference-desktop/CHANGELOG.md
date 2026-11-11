@@ -1,5 +1,11 @@
 # @jini-app/reference-desktop
 
+## 0.0.7
+
+### Patch Changes
+
+- @jini-ai/desktop-host@0.7.0
+
 ## 0.0.6
 
 ### Patch Changes

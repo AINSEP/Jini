@@ -1,5 +1,25 @@
 # @jini-ai/oauth
 
+## 0.7.0
+
+### Minor Changes
+
+- 6ab1d81: Re-export the moved flow signature types from `@jini-ai/core/contracts/oauth`, and export `oauthFlowOperations` (`satisfies OAuthFlowOperations`).
+
+  Public OAuth failures retain only allowlisted protocol codes. Unknown provider errors use plain refusal text and `invalid_provider_error` metadata, without echoing provider text or retaining its cause. Registration, device authorization and callbacks share one internal protocol-code allowlist.
+
+### Patch Changes
+
+- 699b478: Expose six type-only contract areas in core and retain existing type exports. Reconcile card contracts with the complete UI presentation shapes so hosts can wire package objects without cross-package type imports.
+- Updated dependencies [8fe045b]
+- Updated dependencies [41ff2ff]
+- Updated dependencies [a266ba8]
+- Updated dependencies [27063ef]
+- Updated dependencies [6ab1d81]
+- Updated dependencies [699b478]
+- Updated dependencies [39cf677]
+  - @jini-ai/core@0.7.0
+
 ## 0.6.17
 
 ### Patch Changes

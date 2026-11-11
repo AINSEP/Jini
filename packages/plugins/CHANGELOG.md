@@ -1,5 +1,52 @@
 # @jini-ai/plugins
 
+## 0.7.0
+
+### Minor Changes
+
+- 01b36f2: Publish the declarative content-type rules on `@jini-ai/plugins/host`:
+  `createDeclarativeContentTypes({ cms, reservedKeys }, {})` returns `validateManifest`, `parse`,
+  `plan` and `apply` (usable as `DeclarativeContentTypesPort`), with the `DeclaredContentTypeCms`
+  vocabulary contract, `DeclaredContentTypeWritePorts`, the concrete `DeclaredContentTypeDefinition`
+  / `DeclaredContentTypeDefinitionPlan` shapes and the `MAX_DECLARED_*` bounds. Hosts supply their
+  field kinds, kind checks, identifier grammar, already-exists classifier and reserved keys; the
+  package imports no content-type implementation.
+- ecefd45: Publish the plugin capability-tool registrar on `@jini-ai/plugins/host`:
+  `createPluginCapabilityTools(required, {})` returns `loadSources`, `buildRegistrations` and
+  `registerEnabled` for one read-only `plugin_capability_<id>` tool per enabled, field-declaring
+  plugin, plus `pluginCapabilityToolDerivedRisk({ sources }, {})`. Hosts supply the identity
+  namespace, every model-facing sentence (`PluginCapabilityToolText`), the catalog domain, path and
+  metadata, the read permission and entity scope (one object, published and enforced), the
+  executable-tool permission and metadata, the approval family and port, and the preview draft.
+- 070fe2a: Publish the per-load plugin invocation binding on `@jini-ai/plugins/host/node`:
+  `createPluginInvocationBinding({ pluginId, declaredHooks, beforeSaveHook }, {})` returns the
+  `coreDeps` for `buildCapabilityScopedSdk()` and the captured beforeSave filter, with
+  `content.read`/`content.extend` bound to the running filter through one AsyncLocalStorage per load.
+  Hosts supply their SDK's beforeSave hook id; entry and filter types are the plugin-domain
+  envelope from `@jini-ai/plugins/host`.
+- 7087c13: Add `toAdminPluginResponse({ discovery, activation }, { conflicts })` and `AdminPluginEnvelope` to
+  `@jini-ai/plugins/host`, the bounded `readPluginArchive({ archive, reader })` policy with a required
+  host `PluginArchiveReaderPort` to `@jini-ai/plugins/host/node`, and `startTier2Worker({ workerData,
+parentPort, binding, registerSdkResolver, realImport }, { importModule })` to
+  `@jini-ai/plugins/host/worker` (no auto-start on import).
+- 0f76f15: Add `createPluginRuntimeCore(required, optional)` and its port types (`PluginRuntimeSource`, `PluginRuntimeHostBinding`, `PluginRuntimeTracker`, `PluginRuntimeLookup`, `PluginRuntimeText`, `PluginRuntimeCoreRequired`/`Optional`/`Bindings`) plus `PluginUninstallPathError` to `@jini-ai/plugins/host/node`: the plugin runtime core (discovery, conflict gates, enable/load/attach, boot re-attach, provider admission, install/source/reload wiring) with every host value injected.
+- 3932647: Add the node-only `/host/tools` entry for plugin management, installation and source registrations. Hosts supply catalogs, ids, permissions, descriptions, canonical cross-family operations, command and approval-fingerprint owners, authenticated confirmation transport, runtime copy and telemetry. Existing saved formats and lifecycle owners remain unchanged. This opt-in entry requires semver and @jini-ai/platform, as does `/host/node`.
+
+### Patch Changes
+
+- Updated dependencies [8fe045b]
+- Updated dependencies [c393010]
+- Updated dependencies [41ff2ff]
+- Updated dependencies [a266ba8]
+- Updated dependencies [2364f89]
+- Updated dependencies [27063ef]
+- Updated dependencies [6ab1d81]
+- Updated dependencies [699b478]
+- Updated dependencies [39cf677]
+  - @jini-ai/core@0.7.0
+  - @jini-ai/platform@0.7.0
+  - @jini-ai/db@0.7.0
+
 ## 0.6.22
 
 - Enabling a tier-3 plugin always asks the owner, including a version approved before.

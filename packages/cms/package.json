@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/cms",
-  "version": "0.6.22",
+  "version": "0.7.0",
   "description": "Content-model capability for Jini-hosted products: framework-free contracts, ports, and domain services in `/core` and per-domain subpaths; Node-bound adapters in domain-specific subpaths.",
   "license": "Apache-2.0",
   "repository": {
@@ -462,9 +462,9 @@
     "mammoth": "^1.12.3"
   },
   "peerDependencies": {
-    "@jini-ai/db": "^0.6.10",
-    "@jini-ai/http-kit": "^0.6.10",
-    "@jini-ai/platform": "^0.6.13",
+    "@jini-ai/db": "^0.7.0",
+    "@jini-ai/http-kit": "^0.7.0",
+    "@jini-ai/platform": "^0.7.0",
     "dompurify": "^3.4.12",
     "express": "^4.21.0 || ^5.0.0",
     "jsdom": "^25.0.1 || ^26.0.0 || ^27.0.0",

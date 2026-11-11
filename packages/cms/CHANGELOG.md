@@ -1,3 +1,27 @@
+## 0.7.0
+
+### Minor Changes
+
+- 3a9fcc6: Breaking: `@jini-ai/cms` no longer exports `./consent`, `./consent/html`, `./consent/node` or `./consent/express`. The legacy consent HTML rewriting they carried is retired; consent now lives in `@jini-ai/cookie-consent` (`./render`, `./server`, `./node`, `./client`, `./plugins`), where pages declare their scripts instead of having HTML classified and rewritten.
+- 66bf2d2: Expose the universal change-set revert executor, inverse registry, and in-memory repository through `@jini-ai/cms/core/commands`.
+
+### Patch Changes
+
+- 699b478: Expose six type-only contract areas in core and retain existing type exports. Reconcile card contracts with the complete UI presentation shapes so hosts can wire package objects without cross-package type imports.
+- Updated dependencies [8fe045b]
+- Updated dependencies [c393010]
+- Updated dependencies [41ff2ff]
+- Updated dependencies [a266ba8]
+- Updated dependencies [2364f89]
+- Updated dependencies [27063ef]
+- Updated dependencies [6ab1d81]
+- Updated dependencies [699b478]
+- Updated dependencies [39cf677]
+  - @jini-ai/core@0.7.0
+  - @jini-ai/platform@0.7.0
+  - @jini-ai/db@0.7.0
+  - @jini-ai/http-kit@0.7.0
+
 ## 0.6.22
 
 - Exports `mediaReplacementMetadata` and `mediaFileReplacementRecord`; confirmed media overwrite replaces the bytes atomically and the write-once guard stays strict otherwise.

@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/daemon",
-  "version": "0.6.23",
+  "version": "0.7.0",
   "description": "The stateful agent daemon runtime: run lifecycle, durable event-log port, the tool-execution boundary, agent executor, terminal sessions, and routines.",
   "license": "Apache-2.0",
   "repository": {
@@ -38,10 +38,10 @@
       ]
     },
     "optionalPeers": {
-      "node-pty": "opt-in: import @jini-ai/daemon/terminal \u2014 Interactive terminals could not load node-pty. Install node-pty to enable this feature, or check its installed version and native binaries.",
-      "better-sqlite3": "opt-in: sqlite storage \u2014 SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
-      "@electric-sql/pglite": "opt-in: embedded postgresql storage \u2014 Embedded PostgreSQL storage could not load @electric-sql/pglite. Install @electric-sql/pglite to enable this feature, or check its installed version and native binaries.",
-      "pg": "opt-in: postgresql storage \u2014 PostgreSQL storage could not load pg. Install pg to enable this feature, or check its installed version and native binaries."
+      "node-pty": "opt-in: import @jini-ai/daemon/terminal — Interactive terminals could not load node-pty. Install node-pty to enable this feature, or check its installed version and native binaries.",
+      "better-sqlite3": "opt-in: sqlite storage — SQLite storage could not load better-sqlite3. Install better-sqlite3 to enable this feature, or check its installed version and native binaries.",
+      "@electric-sql/pglite": "opt-in: embedded postgresql storage — Embedded PostgreSQL storage could not load @electric-sql/pglite. Install @electric-sql/pglite to enable this feature, or check its installed version and native binaries.",
+      "pg": "opt-in: postgresql storage — PostgreSQL storage could not load pg. Install pg to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",

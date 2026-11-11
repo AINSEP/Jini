@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.7.0
+
+### Patch Changes
+
+- Updated dependencies [8fe045b]
+- Updated dependencies [41ff2ff]
+- Updated dependencies [a266ba8]
+- Updated dependencies [2364f89]
+- Updated dependencies [27063ef]
+- Updated dependencies [6ab1d81]
+- Updated dependencies [699b478]
+- Updated dependencies [39cf677]
+  - @jini-ai/core@0.7.0
+  - @jini-ai/db@0.7.0
+
 ## 0.6.17
 
 ### Patch Changes
@@ -42,7 +57,6 @@
 
 - Adopt shared kernel contracts and preserve the module rationale in neutral documentation.
 - BREAKING: replace package-local clock contracts with core Clock.nowMs().
-
 
 - Add an events barrel for generic leased outbox delivery, bounded draining and enqueue-only
   views, with host-owned storage. The `./events/outbox` manifest merge is pending.

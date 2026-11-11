@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/user-management",
-  "version": "0.6.22",
+  "version": "0.7.0",
   "description": "Runtime-separated user management contracts and Node authentication, authorization, and administration services.",
   "license": "Apache-2.0",
   "repository": {
@@ -107,10 +107,10 @@
     "otplib": "13.6.0"
   },
   "peerDependencies": {
-    "@jini-ai/admin": "^0.6.10",
-    "@jini-ai/agentic": "^0.6.10",
-    "@jini-ai/ui": "^0.6.10",
-    "@jini-ai/ui-kit": "^0.6.10",
+    "@jini-ai/admin": "^0.7.0",
+    "@jini-ai/agentic": "^0.7.0",
+    "@jini-ai/ui": "^0.7.0",
+    "@jini-ai/ui-kit": "^0.7.0",
     "argon2": "^0.44.0",
     "react": "^18.3.0 || ^19.0.0",
     "react-dom": "^18.3.0 || ^19.0.0"

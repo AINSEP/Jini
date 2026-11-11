@@ -1,5 +1,46 @@
 # Changelog
 
+## 0.7.0
+
+### Minor Changes
+
+- 46039c5: Expose API-connection host storage, loader, identity, shared-consumer and BYO credential
+  ports. Move the scoped hook HTTP and BYO-client resolution behind host-supplied credential
+  projection and refusal ports, preserving saved labels and exact host behavior through shims.
+- ce9e9dc: Expose the injected API host and connection sign-in flow from integrations/api-connections,
+  and the persisted plugin-state store from the universal agent-plugins/admin-surfaces entry.
+  Hosts bind their existing storage, state, callbacks, links, app identity and wording.
+- 1838089: Add the core-vault-only AdminSurfacePluginStatePersistence contract and API-host runtime
+  ports for an already-built state store, callback inbox/path, loopback receiver and exact
+  host messages. Sign-in links and model-facing refusal wording are host-supplied.
+- b2017d9: Restore the bring-your-own OAuth client's previous error behaviour in `resolveByoClient` (`@jini-ai/integrations/api-connections`). `ApiConnectionByoCredential.allowedOrigins` is now a deferred function (`() => readonly string[]`) that `resolveByoClient` calls only after the credential read has resolved, outside the read's "unreadable" catch. A failure while projecting a saved credential's origins (for example a malformed saved base URL) once again rejects with the host's raw error instead of being reported as an unreadable credential; read failures, wrong-origin and missing-client-id refusals are unchanged. Hosts implementing `ApiConnectionByoCredentials.read` return `allowedOrigins: () => origins` instead of the array.
+- 63e11c5: Add the `@jini-ai/integrations/credentialed-http/sets` entry: credential-set validation and CRUD
+  over a host-supplied vault (`CredentialSetVaultRepo`, create/update/delete/list/describe/resolve
+  operations, canonical credential-set error classes) and its host-input contracts. Every owner,
+  metadata, category, scope, error and wording value is a required host input. The existing
+  `./credentialed-http` entry is unchanged.
+- 27063ef: Add the type-only entry `@jini-ai/integrations/api-connections/hosted-mcp` with the hosted MCP sign-in contracts (device authorization store, sign-in dependencies with a host-supplied shared-owner type, and the sign-in service).
+- f1e5364: `@jini-ai/integrations/api-connections` no longer imports `@jini-ai/oauth` or `@jini-ai/platform`: hosts pass a required `oauth: ApiConnectionOAuthCapabilities` (real OAuth exports) to the API host, service deps and `createSignInHandoffs`, and a required `isVaultConflict` classifier to `createVaultOAuthTokenStore`; `parseApiConnectionDescriptor` takes a required `callbackFieldRules` input.
+- 50f6e4c: Add `createHostedMcpSignInService`, `createDeviceAuthorizationStore` and `createSharedExternalMcpOAuth` (+ shared sign-in owner ports) to `@jini-ai/integrations/api-connections/hosted-mcp`: the hosted MCP sign-in service on injected `HostedMcpSignInPorts`.
+
+### Patch Changes
+
+- ed7901c: Expose credential-tool orchestration through a core-only host contract and required vocabulary/card/operation ports.
+- Updated dependencies [8fe045b]
+- Updated dependencies [c393010]
+- Updated dependencies [41ff2ff]
+- Updated dependencies [a266ba8]
+- Updated dependencies [2364f89]
+- Updated dependencies [27063ef]
+- Updated dependencies [6ab1d81]
+- Updated dependencies [6ab1d81]
+- Updated dependencies [699b478]
+- Updated dependencies [39cf677]
+  - @jini-ai/core@0.7.0
+  - @jini-ai/platform@0.7.0
+  - @jini-ai/db@0.7.0
+  - @jini-ai/oauth@0.7.0
+
 ## 0.6.17
 
 ### Patch Changes

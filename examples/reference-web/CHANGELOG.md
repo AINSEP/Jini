@@ -1,5 +1,45 @@
 # @jini-app/reference-web
 
+## 0.0.7
+
+### Patch Changes
+
+- Updated dependencies [ed7901c]
+- Updated dependencies [8fe045b]
+- Updated dependencies [c393010]
+- Updated dependencies [46039c5]
+- Updated dependencies [ce9e9dc]
+- Updated dependencies [1838089]
+- Updated dependencies [b2017d9]
+- Updated dependencies [41ff2ff]
+- Updated dependencies [63e11c5]
+- Updated dependencies [a266ba8]
+- Updated dependencies [39cf677]
+- Updated dependencies [27063ef]
+- Updated dependencies [27063ef]
+- Updated dependencies [27063ef]
+- Updated dependencies [0203256]
+- Updated dependencies [6ab1d81]
+- Updated dependencies [f1e5364]
+- Updated dependencies [50f6e4c]
+- Updated dependencies [50f6e4c]
+- Updated dependencies [699b478]
+- Updated dependencies [1cf0306]
+- Updated dependencies [39cf677]
+  - @jini-ai/integrations@0.7.0
+  - @jini-ai/core@0.7.0
+  - @jini-ai/platform@0.7.0
+  - @jini-ai/ui@0.7.0
+  - @jini-ai/mcp@0.7.0
+  - @jini-ai/agent-runtime@0.7.0
+  - @jini-ai/agentic@0.7.0
+  - @jini-ai/chat@0.7.0
+  - @jini-ai/daemon@0.7.0
+  - @jini-ai/http-kit@0.7.0
+  - @jini-ai/server@0.7.0
+  - @jini-ai/memory@0.7.0
+  - @jini-ai/protocol@0.7.0
+
 ## 0.0.6
 
 ### Patch Changes

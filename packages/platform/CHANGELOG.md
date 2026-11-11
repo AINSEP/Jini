@@ -1,3 +1,30 @@
+## 0.7.0
+
+### Minor Changes
+
+- c393010: Publish the A2 mail seams: platform exposes `toPluginHttpClient`, `fromPositionalMailer`,
+  `toPositionalMailer` and `createProviderMailer`; agent-plugins exposes
+  `createMailContributions`, `createMailCatalog`, `createMailConfiguration`,
+  `createMailSelection` and `createHostMailer`.
+
+  Hosts inject `parseSetup` and their credential-label policy. The legacy raw-only
+  `parseMailAdaptersFile({ raw }, optional)` call remains supported through a local
+  validation boundary, preserving declared setup validation and v1/v2 descriptors.
+  Provider-status and credential-save factories also require host wording and catalog
+  provenance so a second host supplies its own navigation without changing Tovu bytes.
+
+### Patch Changes
+
+- 699b478: Expose six type-only contract areas in core and retain existing type exports. Reconcile card contracts with the complete UI presentation shapes so hosts can wire package objects without cross-package type imports.
+- Updated dependencies [8fe045b]
+- Updated dependencies [41ff2ff]
+- Updated dependencies [a266ba8]
+- Updated dependencies [27063ef]
+- Updated dependencies [6ab1d81]
+- Updated dependencies [699b478]
+- Updated dependencies [39cf677]
+  - @jini-ai/core@0.7.0
+
 ## 0.6.23
 
 - Security hardening.

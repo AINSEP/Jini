@@ -1,3 +1,26 @@
+## 0.7.0
+
+### Minor Changes
+
+- 1cf0306: Expose host-wired credential card builders, credential-save routing and card metadata operations, and provider-status tools. Hosts supply app identity, reviewed tool metadata, permission names, validation errors and public-field policy.
+
+### Patch Changes
+
+- 39cf677: New entry `@jini-ai/ui/mcp-ui/cards` exports `mcpUiCards`, the five card builders as one object checked with `satisfies SurfaceCardsPort<UIResource>`.
+- 699b478: Expose six type-only contract areas in core and retain existing type exports. Reconcile card contracts with the complete UI presentation shapes so hosts can wire package objects without cross-package type imports.
+- Updated dependencies [8fe045b]
+- Updated dependencies [c393010]
+- Updated dependencies [41ff2ff]
+- Updated dependencies [a266ba8]
+- Updated dependencies [27063ef]
+- Updated dependencies [6ab1d81]
+- Updated dependencies [699b478]
+- Updated dependencies [39cf677]
+  - @jini-ai/core@0.7.0
+  - @jini-ai/platform@0.7.0
+  - @jini-ai/agentic@0.7.0
+  - @jini-ai/ui-kit@0.7.0
+
 ## 0.6.23
 
 - Security hardening.

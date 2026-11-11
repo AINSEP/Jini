@@ -1,3 +1,25 @@
+## 0.7.0
+
+### Minor Changes
+
+- 27063ef: Add the node entry `@jini-ai/mcp/federation/hosted` with hosted MCP vocabulary constants, auth/status readers, admission revision/snapshot/tool-grant helpers, the canonical validation and unconfigured error classes, and `hostedMcpProjections`. `McpBearerTokenSupplier` is now re-exported from core under the same name.
+- 0203256: Hosted MCP store, in-memory repository, vault envelope module and revocation decision now live in `@jini-ai/mcp/federation/hosted`. Hosts bind vault, error, metadata-parser, credential-policy and settings-link ports once (`HostedMcpStorePorts`); saved formats, AAD and seal counts are unchanged.
+- 50f6e4c: Add `createHostedMcpConnectionGate` (+ `HostedMcpConnectionGatePorts`, `ExternalMcpConnectionGateDeps`) to `@jini-ai/mcp/federation/hosted`: the per-call liveness and revocation gate for hosted MCP connections, with reauth/revoked errors, recovery copy and operator log injected as ports.
+
+### Patch Changes
+
+- Updated dependencies [8fe045b]
+- Updated dependencies [c393010]
+- Updated dependencies [41ff2ff]
+- Updated dependencies [a266ba8]
+- Updated dependencies [27063ef]
+- Updated dependencies [6ab1d81]
+- Updated dependencies [699b478]
+- Updated dependencies [39cf677]
+  - @jini-ai/core@0.7.0
+  - @jini-ai/platform@0.7.0
+  - @jini-ai/protocol@0.7.0
+
 ## 0.6.23
 
 - Security hardening.

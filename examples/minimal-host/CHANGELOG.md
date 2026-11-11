@@ -1,5 +1,23 @@
 # @jini-example/minimal-host
 
+## 0.0.7
+
+### Patch Changes
+
+- Updated dependencies [c393010]
+- Updated dependencies [2364f89]
+- Updated dependencies [6ab1d81]
+- Updated dependencies [699b478]
+  - @jini-ai/platform@0.7.0
+  - @jini-ai/db@0.7.0
+  - @jini-ai/oauth@0.7.0
+  - @jini-ai/agent-runtime@0.7.0
+  - @jini-ai/daemon@0.7.0
+  - @jini-ai/http-kit@0.7.0
+  - @jini-ai/registry@0.7.0
+  - @jini-ai/server@0.7.0
+  - @jini-ai/sidecar@0.7.0
+
 ## 0.0.6
 
 ### Patch Changes

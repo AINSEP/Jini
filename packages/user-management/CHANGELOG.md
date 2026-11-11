@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.7.0
+
+### Patch Changes
+
+- fedca02: Add the entries `@jini-ai/agent-plugins/lifecycle/host-tools` and `@jini-ai/agent-plugins/lifecycle/mail`. `@jini-ai/user-management` declares `@jini-ai/oauth` as an optional peer. The new entries are empty for now; their contents arrive in later releases.
+- Updated dependencies [8fe045b]
+- Updated dependencies [41ff2ff]
+- Updated dependencies [a266ba8]
+- Updated dependencies [39cf677]
+- Updated dependencies [27063ef]
+- Updated dependencies [6ab1d81]
+- Updated dependencies [699b478]
+- Updated dependencies [1cf0306]
+- Updated dependencies [39cf677]
+  - @jini-ai/core@0.7.0
+  - @jini-ai/ui@0.7.0
+  - @jini-ai/admin@0.7.0
+  - @jini-ai/agentic@0.7.0
+  - @jini-ai/ui-kit@0.7.0
+
 ## 0.6.22
 
 - Owner recovery: hashed single-use recovery codes, atomic reset and revoke, rate limited (`issueRecoveryCodes`, `recoverOwner`, `resetOwnerPassword`), and hidden password input for the reset command.

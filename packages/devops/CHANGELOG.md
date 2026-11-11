@@ -1,5 +1,22 @@
 # @jini-ai/devops
 
+## 0.7.0
+
+### Patch Changes
+
+- 8fe045b: `@jini-ai/devops/deploy` exports the deploy contribution contracts: the parsers `parseDeployTargetsFile`, `parseDeployOpsFile` and `parseDeployConfigsFile`, the module validators `asDeployTargetModule`, `asDeployOpsModule` and `asDeployConfigGeneratorModule`, `isContainedDeployConfigPath`, and the descriptor, registry and module types for deploy targets, deploy ops and deploy config generators. The installed deploy-target ABI types carry a `Plugin` prefix (`PluginDeployTargetModule`, `PluginDeployHostKit`, ...) so they do not collide with the package's own port names.
+- afbe5a2: Expose deployment tool orchestration through explicit host ports, preserving bounded I/O, secret custody, approval ordering and accepted-dispatch history.
+- Updated dependencies [8fe045b]
+- Updated dependencies [c393010]
+- Updated dependencies [41ff2ff]
+- Updated dependencies [a266ba8]
+- Updated dependencies [27063ef]
+- Updated dependencies [6ab1d81]
+- Updated dependencies [699b478]
+- Updated dependencies [39cf677]
+  - @jini-ai/core@0.7.0
+  - @jini-ai/platform@0.7.0
+
 ## 0.6.22
 
 - Static publish runs as a background job with progress (`deploy/publish-jobs`); a failed provider build is reported as failed and timeouts report what is known.

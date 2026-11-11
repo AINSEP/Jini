@@ -1,3 +1,9 @@
+## 0.7.0
+
+### Patch Changes
+
+- 291a220: Read portable plugin metadata with legacy compatibility, ship host-neutral guidance, and regenerate agent catalog payload digests.
+
 ## 0.6.23
 
 - Security hardening.
@@ -19,4 +25,3 @@
 ### Patch Changes
 
 - Version bump only.
-

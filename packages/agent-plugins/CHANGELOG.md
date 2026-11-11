@@ -1,3 +1,50 @@
+## 0.7.0
+
+### Minor Changes
+
+- c393010: Publish the A2 mail seams: platform exposes `toPluginHttpClient`, `fromPositionalMailer`,
+  `toPositionalMailer` and `createProviderMailer`; agent-plugins exposes
+  `createMailContributions`, `createMailCatalog`, `createMailConfiguration`,
+  `createMailSelection` and `createHostMailer`.
+
+  Hosts inject `parseSetup` and their credential-label policy. The legacy raw-only
+  `parseMailAdaptersFile({ raw }, optional)` call remains supported through a local
+  validation boundary, preserving declared setup validation and v1/v2 descriptors.
+  Provider-status and credential-save factories also require host wording and catalog
+  provenance so a second host supplies its own navigation without changing Tovu bytes.
+
+- ce9e9dc: Expose the injected API host and connection sign-in flow from integrations/api-connections,
+  and the persisted plugin-state store from the universal agent-plugins/admin-surfaces entry.
+  Hosts bind their existing storage, state, callbacks, links, app identity and wording.
+- 1838089: Add the core-vault-only AdminSurfacePluginStatePersistence contract and API-host runtime
+  ports for an already-built state store, callback inbox/path, loopback receiver and exact
+  host messages. Sign-in links and model-facing refusal wording are host-supplied.
+- df2698c: Declare local executable-tool contribution, approval and capability ports and the complete admin-surface connections host contract. Hosts retain their contribution registry, frozen accounts, token memory, saved connection keys and error constructors.
+- 4044fe3: Expose host-injected executable tool registration/disclosure/capabilities and admin-surface connection adapters through two explicit public subpaths. Hosts supply registries, approval policies, saved keys, errors and account services while keeping the original shared state and token custody.
+- 0ccd93c: Expose the portable plugin connect, token-card, token-import, default-grant and tool-rename APIs through the existing `connect` entry. Hosts supply card identity, approval and exchange lifecycles, canonical stores and projections, activation owners, token validation and product copy. No new package dependencies are introduced.
+- a6e4a75: Remove the copied mail setup parser from `@jini-ai/agent-plugins/lifecycle/mail` (owner-approved deletion of `legacy-mail-setup.ts` and its test); setup validation is owned by the host runtime. `parseMailAdaptersFile`'s `parseSetup` stays optional, but **a raw-only call (no `parseSetup`) now refuses every schemaVersion 2 descriptor** with exactly `{ ok: false, reason: "this host supplies no mail setup validator" }` instead of validating it with the copy. This approved raw-only v2 refusal is the only behaviour change: schemaVersion 1 files still parse without a validator, and hosts that inject a validator (for example `parseMailProviderSetupProperty` from `@jini-ai/platform/mail`, as `contribution.ts` already passes from the host) see identical results.
+- 42cfff7: `registerAgentPluginExecutableTools` (`@jini-ai/agent-plugins/connect/executable`) now takes a required `toolPermission: string` in its required object and authorizes every plugin tool with that permission instead of the fixed `admin.assistant.use` name. **Breaking for direct registrar callers:** a caller that builds `AgentPluginExecutableRegistrationRequired` itself must now pass the permission its own RBAC grants (there is no default). A host that wants the previous behaviour passes `toolPermission: 'admin.assistant.use'`; the refusal shape on denial is unchanged.
+- 1cf0306: Expose host-wired credential card builders, credential-save routing and card metadata operations, and provider-status tools. Hosts supply app identity, reviewed tool metadata, permission names, validation errors and public-field policy.
+
+### Patch Changes
+
+- fedca02: Add the entries `@jini-ai/agent-plugins/lifecycle/host-tools` and `@jini-ai/agent-plugins/lifecycle/mail`. `@jini-ai/user-management` declares `@jini-ai/oauth` as an optional peer. The new entries are empty for now; their contents arrive in later releases.
+- 11ce174: The `search_agent_plugin_local` description no longer names host tools. A host passes its own tool names through `messages.searchHostTools` (`inventory`, `setEnabled`, `loadGuidance`); `agentPluginSearchToolCatalog` takes the same `messages` as its optional argument. Without them the text is neutral.
+- 291a220: Read portable plugin metadata with legacy compatibility, ship host-neutral guidance, and regenerate agent catalog payload digests.
+- 699b478: Expose six type-only contract areas in core and retain existing type exports. Reconcile card contracts with the complete UI presentation shapes so hosts can wire package objects without cross-package type imports.
+- Updated dependencies [7dd0dbb]
+- Updated dependencies [8fe045b]
+- Updated dependencies [c393010]
+- Updated dependencies [41ff2ff]
+- Updated dependencies [a266ba8]
+- Updated dependencies [27063ef]
+- Updated dependencies [6ab1d81]
+- Updated dependencies [699b478]
+- Updated dependencies [39cf677]
+  - @jini-ai/commerce@0.7.0
+  - @jini-ai/core@0.7.0
+  - @jini-ai/platform@0.7.0
+
 ## 0.6.23
 
 - Security hardening.

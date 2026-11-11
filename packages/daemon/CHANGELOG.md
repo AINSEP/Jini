@@ -1,3 +1,23 @@
+## 0.7.0
+
+### Patch Changes
+
+- Updated dependencies [8fe045b]
+- Updated dependencies [c393010]
+- Updated dependencies [41ff2ff]
+- Updated dependencies [a266ba8]
+- Updated dependencies [2364f89]
+- Updated dependencies [27063ef]
+- Updated dependencies [6ab1d81]
+- Updated dependencies [699b478]
+- Updated dependencies [39cf677]
+  - @jini-ai/core@0.7.0
+  - @jini-ai/platform@0.7.0
+  - @jini-ai/db@0.7.0
+  - @jini-ai/agent-runtime@0.7.0
+  - @jini-ai/http-kit@0.7.0
+  - @jini-ai/protocol@0.7.0
+
 ## 0.6.23
 
 - Security hardening.

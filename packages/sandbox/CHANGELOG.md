@@ -1,5 +1,7 @@
 # @jini-ai/sandbox
 
+## 0.7.0
+
 ## 0.6.17
 
 ### Patch Changes

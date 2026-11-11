@@ -1,3 +1,23 @@
+## 0.7.0
+
+### Minor Changes
+
+- 41ff2ff: Add host-neutral credential-set contracts to `@jini-ai/core/contracts/credentials`: record, safe
+  summary, scope, connection input, token hint, keyring, project half and repository port types,
+  with notes on metadata-only reads, private vault context, CAS and trusted ownership. Types only.
+- a266ba8: Add `CredentialedRequestPort` and `SourceControlWritePort` to `@jini-ai/core/contracts/credentials`:
+  request/target/verify/probe/error-classification and build/validate/plan/commit ports with exact
+  result, plan and failure types, plus agent notes on target-before-decrypt, held DELETE, caller-safe
+  egress messages and plan-bound commits on the same provider. Types only.
+- 27063ef: Add the type-only `@jini-ai/core/contracts/hosted-mcp` contract area: the one canonical hosted MCP connection record, repository, save/view/config/target, sealed payload, connect-start and vocabulary unions, plus `McpBearerTokenSupplier`.
+- 6ab1d81: Add the type-only `OAuthFlowOperations` contract and its signature closure (moved from `@jini-ai/oauth`) to `@jini-ai/core/contracts/oauth`.
+- 699b478: Expose six type-only contract areas in core and retain existing type exports. Reconcile card contracts with the complete UI presentation shapes so hosts can wire package objects without cross-package type imports.
+
+### Patch Changes
+
+- 8fe045b: `@jini-ai/core/text` exports `parseDescriptorI18n` and the `DescriptorI18n` type: the parser for a contribution descriptor's per-locale text map, shared by every contribution kind that carries translated labels.
+- 39cf677: `@jini-ai/core` exports `SurfaceCardsPort` and its card types: a types-only description of the five card builders, so a package that needs a card declares the port and the host passes the builders in.
+
 ## 0.6.23
 
 - Security hardening.

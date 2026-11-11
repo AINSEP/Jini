@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/search",
-  "version": "0.6.19",
+  "version": "0.7.0",
   "description": "Generic site-search contract: provider interface, registry, single-writer indexer, query service with access revalidation, agent tools and a provider conformance test-kit.",
   "license": "Apache-2.0",
   "repository": {
@@ -71,7 +71,7 @@
     "vitest": "^2.1.9"
   },
   "peerDependencies": {
-    "@jini-ai/agent-plugins": "^0.6.10"
+    "@jini-ai/agent-plugins": "^0.7.0"
   },
   "peerDependenciesMeta": {
     "@jini-ai/agent-plugins": {

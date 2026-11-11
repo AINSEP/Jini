@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.7.0
+
+### Patch Changes
+
+- Updated dependencies [fedca02]
+- Updated dependencies [11ce174]
+- Updated dependencies [3a9fcc6]
+- Updated dependencies [8fe045b]
+- Updated dependencies [c393010]
+- Updated dependencies [ce9e9dc]
+- Updated dependencies [1838089]
+- Updated dependencies [df2698c]
+- Updated dependencies [4044fe3]
+- Updated dependencies [0ccd93c]
+- Updated dependencies [a6e4a75]
+- Updated dependencies [42cfff7]
+- Updated dependencies [41ff2ff]
+- Updated dependencies [a266ba8]
+- Updated dependencies [39cf677]
+- Updated dependencies [66bf2d2]
+- Updated dependencies [291a220]
+- Updated dependencies [27063ef]
+- Updated dependencies [6ab1d81]
+- Updated dependencies [699b478]
+- Updated dependencies [1cf0306]
+- Updated dependencies [39cf677]
+  - @jini-ai/agent-plugins@0.7.0
+  - @jini-ai/cms@0.7.0
+  - @jini-ai/core@0.7.0
+  - @jini-ai/ui@0.7.0
+  - @jini-ai/agentic@0.7.0
+  - @jini-ai/ui-kit@0.7.0
+
 ## 0.6.22
 
 - Form submission detail shows a failed email notification and the field errors of an imported submission that did not pass the form checks. `FormSubmission` gains optional `notificationDelivery` and `validation`.

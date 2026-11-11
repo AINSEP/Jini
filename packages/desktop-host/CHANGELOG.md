@@ -1,5 +1,18 @@
 # @jini-ai/desktop-host
 
+## 0.7.0
+
+### Patch Changes
+
+- Updated dependencies [8fe045b]
+- Updated dependencies [41ff2ff]
+- Updated dependencies [a266ba8]
+- Updated dependencies [27063ef]
+- Updated dependencies [6ab1d81]
+- Updated dependencies [699b478]
+- Updated dependencies [39cf677]
+  - @jini-ai/core@0.7.0
+
 ## 0.6.17
 
 ### Patch Changes

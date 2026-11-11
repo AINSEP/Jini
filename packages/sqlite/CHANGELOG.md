@@ -1,3 +1,13 @@
+## 0.7.0
+
+### Patch Changes
+
+- Updated dependencies [2364f89]
+  - @jini-ai/db@0.7.0
+  - @jini-ai/chat@0.7.0
+  - @jini-ai/daemon@0.7.0
+  - @jini-ai/registry@0.7.0
+
 ## 0.6.23
 
 - Align the compatibility package version with the Jini release lockstep; the frozen API is unchanged.
@@ -19,7 +29,6 @@
 - Remove 18 server-owned root names (backend configuration/types, legacy acquisition/bootstrap and project CRUD/status helpers). Import their server concern subpaths directly; sqlite no longer depends on server.
 - Keep the immutable old surface snapshot as migration evidence; current runtime/declaration assertions explicitly check the remaining surface.
 
-
 ## 0.5.0 — 2026-10-02
 
 ### BREAKING
@@ -32,6 +41,7 @@
 # Changelog
 
 ## 0.4.0 — final compatibility release
+
 - Re-exported all 65 old public names, including erased types, from concern-owned packages.
 - Removed driver autoload. Resource-opening signatures now require a borrowed connection or host opener.
 - Replaced the obsolete j04 renamed-package manifest assertion with the final old-name shim contract.
