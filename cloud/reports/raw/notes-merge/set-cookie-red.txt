@@ -1,0 +1,54 @@
+▶ node-server adapter
+  ✔ dispatches a Request to the matching handler with decoded path params (22.063137ms)
+  ✔ lets an async handler read the request body (6.941941ms)
+  ✔ answers unmatched paths with 404 and unmatched methods with 405 (5.258584ms)
+  ✔ answers HEAD from the GET route with its status and headers but no body (4.353105ms)
+  ✔ routes OPTIONS like any other method, so a preflight can be answered (1.892819ms)
+  ✔ passes the socket peer address as client.address, ignoring forwarded headers (2.359327ms)
+  ✖ sends each Set-Cookie as its own header, not one comma-joined value (2.766641ms)
+  ✔ serves a route list mounted as ServerRoute data (3.238764ms)
+  ✔ rejects a second registration of the same method and path (0.602154ms)
+✖ node-server adapter (58.27199ms)
+▶ node-server route precedence
+  ✔ prefers a literal segment over a :param at the same position, whatever the registration order (6.600809ms)
+  ✔ decides at the first segment where the paths differ (2.753566ms)
+  ✔ treats paths that differ only in param names as the same path (0.227081ms)
+✔ node-server route precedence (11.43484ms)
+▶ matchServerPath
+  ✔ returns params for :name segments and an empty object for a literal match (0.165717ms)
+  ✔ rejects differing literals, segment counts, trailing slashes and empty params (0.075195ms)
+  ✔ does not match a param whose percent-encoding is malformed (0.048228ms)
+  ✔ takes named required args, not positional ones (0.106499ms)
+✔ matchServerPath (0.50576ms)
+ℹ tests 16
+ℹ suites 3
+ℹ pass 15
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 206.647271
+
+✖ failing tests:
+
+test at src/node-server.test.ts:97:3
+✖ sends each Set-Cookie as its own header, not one comma-joined value (2.766641ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+  
+    [
+  -   'a=1; Path=/; HttpOnly',
+      'b=2; Expires=Wed, 21 Oct 2026 07:28:00 GMT'
+    ]
+  
+      at TestContext.<anonymous> (file:///home/user/Jini/examples/notes-app/src/node-server.test.ts:99:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ 'b=2; Expires=Wed, 21 Oct 2026 07:28:00 GMT' ],
+    expected: [ 'a=1; Path=/; HttpOnly', 'b=2; Expires=Wed, 21 Oct 2026 07:28:00 GMT' ],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }

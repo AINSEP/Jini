@@ -1,0 +1,6 @@
+## node-server test
+ℹ tests 16
+ℹ pass 16
+ℹ fail 0
+## typecheck
+exit=0

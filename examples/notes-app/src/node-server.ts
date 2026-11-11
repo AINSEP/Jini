@@ -91,7 +91,15 @@ function toRequest(
 
 async function writeResponse({ response, out }: { response: Response; out: ServerResponse }, _optional: Record<string, never> = {}): Promise<void> {
   out.statusCode = response.status;
-  response.headers.forEach((value, name) => out.setHeader(name, value));
+  // Set-Cookie cannot be comma-joined (cookie dates contain commas) and `setHeader` per value keeps
+  // only the last, so each cookie is appended as its own header line.
+  const hasGetSetCookie = typeof response.headers.getSetCookie === 'function';
+  const cookies: string[] = hasGetSetCookie ? response.headers.getSetCookie() : [];
+  response.headers.forEach((value, name) => {
+    if (name !== 'set-cookie') out.setHeader(name, value);
+    else if (!hasGetSetCookie) cookies.push(value);
+  });
+  for (const cookie of cookies) out.appendHeader('set-cookie', cookie);
   if (!response.body) {
     out.end();
     return;

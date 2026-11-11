@@ -26,6 +26,16 @@ function registerNoteRoutes({ app }: { readonly app: Server }): void {
     handler: ({ client }) => Response.json({ address: client?.address ?? null }),
   });
   app.route({
+    method: 'GET',
+    path: '/cookies',
+    handler: () => {
+      const headers = new Headers();
+      headers.append('set-cookie', 'a=1; Path=/; HttpOnly');
+      headers.append('set-cookie', 'b=2; Expires=Wed, 21 Oct 2026 07:28:00 GMT');
+      return new Response('ok', { headers });
+    },
+  });
+  app.route({
     method: 'OPTIONS',
     path: '/notes',
     handler: () => new Response(null, { status: 204, headers: { 'access-control-allow-methods': 'POST' } }),
@@ -82,6 +92,11 @@ describe('node-server adapter', () => {
   it('passes the socket peer address as client.address, ignoring forwarded headers', async () => {
     const response = await fetch(`${base}/whoami`, { headers: { 'x-forwarded-for': '203.0.113.9' } });
     assert.deepEqual(await response.json(), { address: '127.0.0.1' });
+  });
+
+  it('sends each Set-Cookie as its own header, not one comma-joined value', async () => {
+    const response = await fetch(`${base}/cookies`);
+    assert.deepEqual(response.headers.getSetCookie(), ['a=1; Path=/; HttpOnly', 'b=2; Expires=Wed, 21 Oct 2026 07:28:00 GMT']);
   });
 
   it('serves a route list mounted as ServerRoute data', async () => {
