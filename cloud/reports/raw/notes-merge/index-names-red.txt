@@ -1,0 +1,61 @@
+
+ RUN  v2.1.9 /home/user/Jini/packages/cms
+
+ ❯ src/forms/__tests__/create-tables.test.ts (5 tests | 2 failed) 3518ms
+   ✓ pglite: creates the tables, is idempotent, and the repos round-trip 1992ms
+   × sqlite: index and constraint names stay within 63 bytes and distinct for long table names 7ms
+     → forms_ddddddddddddddddddddddddddddddddddddddddddddddddddddd_workspace_slug_unique is 81 bytes
+   × pglite: every index is created for long table names (none skipped by truncation) 1466ms
+     → forms_dddddddddddddddddddddddddddddddddddddddddddddddddddd_pkey, forms_ddddddddddddddddddddddddddddddddddddddddddddddddddddd_wor, idx_forms_ddddddddddddddddddddddddddddddddddddddddddddddddddddd, forms_ssssssssssssssssssssssssssssssssssssssssssssssssssss_pkey, idx_forms_sssssssssssssssssssssssssssssssssssssssssssssssssssss
+
+5 !== 7
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/forms/__tests__/create-tables.test.ts > sqlite: index and constraint names stay within 63 bytes and distinct for long table names
+AssertionError: forms_ddddddddddddddddddddddddddddddddddddddddddddddddddddd_workspace_slug_unique is 81 bytes
+
+- Expected
++ Received
+
+- true
++ false
+
+ ❯ src/forms/__tests__/create-tables.test.ts:115:38
+    113|     assert.equal(names.length, 5);
+    114|     assert.equal(new Set(names).size, 5);
+    115|     for (const name of names) assert.ok(byteLength(name) <= 63, `${nam…
+       |                                      ^
+    116|     const ddl = (db.prepare("SELECT sql FROM sqlite_master WHERE name …
+    117|     const constraint = /CONSTRAINT "([^"]+)"/.exec(ddl)?.[1] ?? "";
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/forms/__tests__/create-tables.test.ts > pglite: every index is created for long table names (none skipped by truncation)
+AssertionError: forms_dddddddddddddddddddddddddddddddddddddddddddddddddddd_pkey, forms_ddddddddddddddddddddddddddddddddddddddddddddddddddddd_wor, idx_forms_ddddddddddddddddddddddddddddddddddddddddddddddddddddd, forms_ssssssssssssssssssssssssssssssssssssssssssssssssssss_pkey, idx_forms_sssssssssssssssssssssssssssssssssssssssssssssssssssss
+
+5 !== 7
+
+
+- Expected
++ Received
+
+- 7
++ 5
+
+ ❯ src/forms/__tests__/create-tables.test.ts:131:12
+    129|     const rows = await kernel.query<{ indexname: string }>(sql`SELECT …
+    130|       WHERE schemaname = current_schema() AND tablename IN (${longTabl…
+    131|     assert.equal(rows.length, 7, rows.map((row) => row.indexname).join…
+       |            ^
+    132|   } finally {
+    133|     await kernel.close();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+ Test Files  1 failed (1)
+      Tests  2 failed | 3 passed (5)
+   Start at  03:36:29
+   Duration  4.16s (transform 179ms, setup 0ms, collect 393ms, tests 3.52s, environment 0ms, prepare 62ms)
+

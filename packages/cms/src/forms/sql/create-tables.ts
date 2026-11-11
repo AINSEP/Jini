@@ -8,6 +8,33 @@ import type { FormsTables } from "./tables.js";
  * A host that versions its schema can call this from one of its own migration steps instead.
  */
 
+/** Postgres keeps 63 bytes of an identifier (NAMEDATALEN - 1) and silently cuts the rest. */
+const MAX_IDENTIFIER_BYTES = 63;
+const utf8 = new TextEncoder();
+
+/** 32-bit FNV-1a of `text`, as 8 hex digits. */
+function fnv1a(text: string): string {
+  let hash = 0x811c9dc5;
+  for (const byte of utf8.encode(text)) hash = Math.imul(hash ^ byte, 0x01000193) >>> 0;
+  return hash.toString(16).padStart(8, "0");
+}
+
+/**
+ * `name` when it fits in 63 bytes, so the default names stay those of the existing forms schema.
+ * A longer one becomes its leading characters (at most 54 bytes) + `_` + a hash of the full name:
+ * Postgres would otherwise cut two long derived names to the same prefix and
+ * `CREATE INDEX IF NOT EXISTS` would skip the second index without an error.
+ */
+function identifier(name: string): string {
+  if (utf8.encode(name).length <= MAX_IDENTIFIER_BYTES) return name;
+  let head = "";
+  for (const char of name) {
+    if (utf8.encode(head + char).length > MAX_IDENTIFIER_BYTES - 9) break;
+    head += char;
+  }
+  return `${head}_${fnv1a(name)}`;
+}
+
 type Names = { definitions: RawBuilder<unknown>; submissions: RawBuilder<unknown>; id: (name: string) => RawBuilder<unknown> };
 
 function definitionsTable(n: Names, dialect: StorageDialect): RawBuilder<unknown> {
@@ -25,7 +52,8 @@ function submissionsTable(n: Names, dialect: StorageDialect, fk: string): RawBui
 /**
  * Create the forms definition and submission tables (and their indexes) if they do not exist.
  * Safe to run on every start: a second run changes nothing and keeps existing rows. Index and
- * constraint names derive from the table names, e.g. `idx_<submissions>_workspace`.
+ * constraint names derive from the table names, e.g. `idx_<submissions>_workspace`; a derived name
+ * longer than 63 bytes (Postgres' identifier limit) is shortened to 63 with a hash of the full name.
  *
  * @agent-note `kernel`: in your app, pass the SQLite or Postgres kernel you already opened (for
  *   SQLite, `sqliteKernel(openSqliteConnection({ filePath, open }))` from `@jini-ai/db/kernel/sqlite`
@@ -43,7 +71,7 @@ export async function createFormsTables<DB>(
   _optional: Record<string, never> = {},
 ): Promise<void> {
   const { kernel, tables } = required;
-  const n: Names = { definitions: sql.table(tables.definitions), submissions: sql.table(tables.submissions), id: (name) => sql.id(name) };
+  const n: Names = { definitions: sql.table(tables.definitions), submissions: sql.table(tables.submissions), id: (name) => sql.id(identifier(name)) };
   const d = tables.definitions;
   const s = tables.submissions;
   const statements: RawBuilder<unknown>[] = [

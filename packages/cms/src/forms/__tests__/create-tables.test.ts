@@ -4,6 +4,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterAll, test } from "vitest";
+import { sql } from "kysely";
 import { PGlite } from "@electric-sql/pglite";
 import type BetterSqlite3 from "better-sqlite3";
 import { sqliteKernel } from "@jini-ai/db/kernel/sqlite";
@@ -92,6 +93,42 @@ test("pglite: creates the tables, is idempotent, and the repos round-trip", asyn
     await writeThroughRepos(kernel);
     await createFormsTables({ kernel, tables });
     await assertReadBack(kernel);
+  } finally {
+    await kernel.close();
+  }
+});
+
+// Postgres cuts identifiers at 63 bytes. Index names derived from long table names used to cut to
+// the same 63-byte prefix, so `CREATE INDEX IF NOT EXISTS` saw the first one and silently skipped
+// the rest. 59 + 4 ("idx_") already reaches the limit before the `_definition`/`_workspace` suffix.
+const longTables = { definitions: `forms_${"d".repeat(53)}`, submissions: `forms_${"s".repeat(53)}` };
+const byteLength = (name: string) => new TextEncoder().encode(name).length;
+
+test("sqlite: index and constraint names stay within 63 bytes and distinct for long table names", async () => {
+  const db = new Database(":memory:");
+  try {
+    await createFormsTables({ kernel: sqliteKernel(db), tables: longTables });
+    const names = (db.prepare("SELECT name FROM sqlite_master WHERE type = 'index' AND name NOT LIKE 'sqlite_%'").all() as { name: string }[])
+      .map((row) => row.name);
+    assert.equal(names.length, 5);
+    assert.equal(new Set(names).size, 5);
+    for (const name of names) assert.ok(byteLength(name) <= 63, `${name} is ${byteLength(name)} bytes`);
+    const ddl = (db.prepare("SELECT sql FROM sqlite_master WHERE name = ?").get(longTables.submissions) as { sql: string }).sql;
+    const constraint = /CONSTRAINT "([^"]+)"/.exec(ddl)?.[1] ?? "";
+    assert.ok(constraint && byteLength(constraint) <= 63, `${constraint} is ${byteLength(constraint)} bytes`);
+  } finally {
+    db.close();
+  }
+});
+
+test("pglite: every index is created for long table names (none skipped by truncation)", async () => {
+  const kernel = openPgliteKernel({ PGlite }, {});
+  try {
+    await createFormsTables({ kernel, tables: longTables });
+    await createFormsTables({ kernel, tables: longTables });
+    const rows = await kernel.query<{ indexname: string }>(sql`SELECT indexname FROM pg_indexes
+      WHERE schemaname = current_schema() AND tablename IN (${longTables.definitions}, ${longTables.submissions})`);
+    assert.equal(rows.length, 7, rows.map((row) => row.indexname).join(", "));
   } finally {
     await kernel.close();
   }
