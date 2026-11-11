@@ -49,7 +49,8 @@
     "CHANGELOG.md",
     "LICENSE",
     "!dist/**/*.test.*",
-    "!dist/**/__tests__/**"
+    "!dist/**/__tests__/**",
+    "!dist/**/*.map"
   ],
   "publishConfig": {
     "access": "public",

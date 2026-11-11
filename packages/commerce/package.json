@@ -110,7 +110,8 @@
     "source-map.md",
     "LICENSE",
     "NOTICE",
-    "!dist/**/__tests__/**"
+    "!dist/**/__tests__/**",
+    "!dist/**/*.map"
   ],
   "publishConfig": {
     "access": "public",

@@ -64,6 +64,7 @@
     "!dist/**/*.test.js.map",
     "!dist/**/*.test.d.ts.map",
     "!dist/**/__tests__/**",
+    "!dist/**/*.map",
     "!dist/**/*.typecheck.*"
   ],
   "publishConfig": {
