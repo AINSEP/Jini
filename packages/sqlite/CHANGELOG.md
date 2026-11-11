@@ -1,3 +1,12 @@
+## 0.7.1
+
+### Patch Changes
+
+- @jini-ai/db@0.7.1
+- @jini-ai/chat@0.7.1
+- @jini-ai/daemon@0.7.1
+- @jini-ai/registry@0.7.1
+
 ## 0.7.0
 
 ### Patch Changes

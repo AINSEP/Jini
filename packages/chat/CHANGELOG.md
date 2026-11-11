@@ -1,3 +1,13 @@
+## 0.7.1
+
+### Patch Changes
+
+- Updated dependencies [873f10c]
+  - @jini-ai/core@0.7.1
+  - @jini-ai/db@0.7.1
+  - @jini-ai/agentic@0.7.1
+  - @jini-ai/diagnostics@0.7.1
+
 ## 0.7.0
 
 ### Patch Changes

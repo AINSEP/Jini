@@ -1,5 +1,24 @@
 # @jini-app/reference-web
 
+## 0.0.8
+
+### Patch Changes
+
+- Updated dependencies [873f10c]
+  - @jini-ai/core@0.7.1
+  - @jini-ai/http-kit@0.7.1
+  - @jini-ai/integrations@0.7.1
+  - @jini-ai/server@0.7.1
+  - @jini-ai/agent-runtime@0.7.1
+  - @jini-ai/agentic@0.7.1
+  - @jini-ai/chat@0.7.1
+  - @jini-ai/daemon@0.7.1
+  - @jini-ai/mcp@0.7.1
+  - @jini-ai/memory@0.7.1
+  - @jini-ai/platform@0.7.1
+  - @jini-ai/protocol@0.7.1
+  - @jini-ai/ui@0.7.1
+
 ## 0.0.7
 
 ### Patch Changes

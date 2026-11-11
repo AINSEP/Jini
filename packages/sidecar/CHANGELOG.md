@@ -1,5 +1,13 @@
 # @jini-ai/sidecar
 
+## 0.7.1
+
+### Patch Changes
+
+- Updated dependencies [873f10c]
+  - @jini-ai/core@0.7.1
+  - @jini-ai/platform@0.7.1
+
 ## 0.7.0
 
 ### Patch Changes

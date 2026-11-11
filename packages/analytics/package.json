@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/analytics",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Framework-free visitor analytics ingestion, aggregation and storage contracts for marketing applications.",
   "license": "Apache-2.0",
   "repository": {

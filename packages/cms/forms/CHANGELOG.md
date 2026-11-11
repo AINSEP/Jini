@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.7.1
+
+### Patch Changes
+
+- Updated dependencies [873f10c]
+- Updated dependencies [873f10c]
+  - @jini-ai/cms@0.7.1
+  - @jini-ai/core@0.7.1
+
 ## 0.7.0
 
 ### Patch Changes

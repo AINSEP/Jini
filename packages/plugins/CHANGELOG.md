@@ -1,5 +1,12 @@
 # @jini-ai/plugins
 
+## 0.7.1
+
+### Patch Changes
+
+- Updated dependencies [873f10c]
+  - @jini-ai/core@0.7.1
+
 ## 0.7.0
 
 ### Minor Changes

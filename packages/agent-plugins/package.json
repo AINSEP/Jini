@@ -1,6 +1,6 @@
 {
   "name": "@jini-ai/agent-plugins",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "description": "Support for Agent Plugins: vendor-neutral manifest types and validators, installation, activation, digests and trusted contribution loading. Every Jini agent plugin ships here as its own subpath (@jini-ai/agent-plugins/<id>); resolving one never loads another plugin's files.",
   "license": "Apache-2.0",
   "repository": {
@@ -354,8 +354,8 @@
   "devDependencies": {
     "@vitest/coverage-v8": "^2.1.9",
     "yazl": "^3.3.1",
-    "@jini-ai/core": "^0.7.0",
-    "@jini-ai/platform": "^0.7.0",
+    "@jini-ai/core": "^0.7.1",
+    "@jini-ai/platform": "^0.7.1",
     "@cfworker/json-schema": "^4.1.1",
     "@jini-ai/cms": "workspace:^",
     "@jini-ai/plugins": "workspace:^",
