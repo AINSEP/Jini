@@ -226,3 +226,104 @@ describe('checkWindowsDirectExeCommandLineBudget', () => {
     expect(checkWindowsCmdShimCommandLineBudget({ def: def, resolvedBin: 'C:\\deepseek.cmd', args: [null, undefined] })).toBeNull();
   });
 });
+
+// Stryker L3 (2026-10-25): the Windows quoting helpers are private, so their per-character rules
+// were never pinned (every metachar in `/[\s"&<>|^%]/` could be dropped). The guards report the
+// exact command-line length, so the quoted length of one arg is the length delta it adds on top of
+// an over-limit padding arg.
+const PAD = 'x'.repeat(33_000);
+const SAFE_LIMIT = 32_767 - 256;
+
+function cmdShimQuotedLength(arg: string): number {
+  const def = makeDef({ maxPromptArgBytes: 1 });
+  const base = checkWindowsCmdShimCommandLineBudget({ def, resolvedBin: 'C:\\a.cmd', args: [PAD] })!.commandLineLength!;
+  return checkWindowsCmdShimCommandLineBudget({ def, resolvedBin: 'C:\\a.cmd', args: [PAD, arg] })!.commandLineLength! - base - 1;
+}
+
+function directExeQuotedLength(arg: string): number {
+  const def = makeDef({ maxPromptArgBytes: 1 });
+  const base = checkWindowsDirectExeCommandLineBudget({ def, resolvedBin: 'C:\\a.exe', args: [PAD] })!.commandLineLength!;
+  return checkWindowsDirectExeCommandLineBudget({ def, resolvedBin: 'C:\\a.exe', args: [PAD, arg] })!.commandLineLength! - base - 1;
+}
+
+describe('cmd-shim quoting, per character (quoted form length)', () => {
+  it.each([
+    ['plain', 'abc', 3],
+    ['empty stays empty', '', 0],
+    ['backslash alone is not special', 'a\\b', 3],
+    ['space', 'a b', 5],
+    ['tab', 'a\tb', 5],
+    ['newline', 'a\nb', 5],
+    ['ampersand', 'a&b', 5],
+    ['less-than', 'a<b', 5],
+    ['greater-than', 'a>b', 5],
+    ['pipe', 'a|b', 5],
+    ['caret', 'a^b', 5],
+    ['percent becomes "^%"', 'a%b', 8],
+    ['two percents', '%P%', 2 + 4 + 1 + 4],
+    ['quote doubled', 'a"b', 6],
+    ['two quotes doubled', '""', 6],
+  ])('%s', (_label, arg, expected) => {
+    expect(cmdShimQuotedLength(arg)).toBe(expected);
+  });
+});
+
+describe('direct-exe (libuv) quoting, per character (quoted form length)', () => {
+  it.each([
+    ['plain', 'abc', 3],
+    ['empty becomes ""', '', 2],
+    ['shell metachars are not special', 'a&|^%<>b', 8],
+    ['lone backslash, no quote/space', 'a\\b', 3],
+    ['space wraps', 'a b', 5],
+    ['tab wraps', 'a\tb', 5],
+    ['quote escaped', 'a"b', 6],
+    ['backslash before quote doubled + escaped', 'a\\"', 1 + 1 + 3 + 1 + 1],
+    ['two backslashes before quote', 'a\\\\"', 1 + 1 + 5 + 1 + 1],
+    ['trailing backslash doubled before wrap quote', 'a \\', 1 + 2 + 2 + 1],
+    ['backslash not before quote kept', 'a \\b', 1 + 4 + 1],
+  ])('%s', (_label, arg, expected) => {
+    expect(directExeQuotedLength(arg)).toBe(expected);
+  });
+});
+
+describe('exact limit boundaries', () => {
+  it('argv budget: exactly the limit passes, one byte over fails (bytes are UTF-8)', () => {
+    const def = makeDef({ maxPromptArgBytes: 10 });
+    expect(checkPromptArgvBudget({ def, composed: 'x'.repeat(10) }, { platform: 'win32' })).toBeNull();
+    expect(checkPromptArgvBudget({ def, composed: 'x'.repeat(11) }, { platform: 'win32' })).toMatchObject({ code: 'AGENT_PROMPT_TOO_LARGE', bytes: 11, limit: 10 });
+    expect(checkPromptArgvBudget({ def, composed: 'é'.repeat(6) }, { platform: 'win32' })).toMatchObject({ bytes: 12, limit: 10 });
+    expect(checkPromptArgvBudget({ def, composed: 'x'.repeat(100_000) }, { platform: 'linux' })).toBeNull();
+    expect(checkPromptArgvBudget({ def, composed: 'x'.repeat(100_001) }, { platform: 'linux' })).toMatchObject({ bytes: 100_001, limit: 100_000 });
+  });
+
+  it('cmd shim: a command line of exactly the safe limit passes, +1 fails', () => {
+    const def = makeDef({ maxPromptArgBytes: 1 });
+    // 'cmd.exe /d /s /c '(17) + 'C:\a.cmd'(8) + ' '(1) + arg + outer quotes(2)
+    const fits = 'x'.repeat(SAFE_LIMIT - 28);
+    expect(checkWindowsCmdShimCommandLineBudget({ def, resolvedBin: 'C:\\a.cmd', args: [fits] })).toBeNull();
+    expect(checkWindowsCmdShimCommandLineBudget({ def, resolvedBin: 'C:\\a.cmd', args: [fits + 'x'] })).toMatchObject({
+      code: 'AGENT_PROMPT_TOO_LARGE', commandLineLength: SAFE_LIMIT + 1, limit: SAFE_LIMIT,
+    });
+  });
+
+  it('direct exe: a command line of exactly the safe limit passes, +1 fails', () => {
+    const def = makeDef({ maxPromptArgBytes: 1 });
+    const fits = 'x'.repeat(SAFE_LIMIT - 9); // 'C:\a.exe'(8) + ' '(1)
+    expect(checkWindowsDirectExeCommandLineBudget({ def, resolvedBin: 'C:\\a.exe', args: [fits] })).toBeNull();
+    expect(checkWindowsDirectExeCommandLineBudget({ def, resolvedBin: 'C:\\a.exe', args: [fits + 'x'] })).toMatchObject({
+      code: 'AGENT_PROMPT_TOO_LARGE', commandLineLength: SAFE_LIMIT + 1, limit: SAFE_LIMIT,
+    });
+  });
+
+  it.each([
+    ['forward-slash drive', 'c:/tools/a.exe', true],
+    ['lowercase drive letter', 'd:\\a.exe', true],
+    ['drive letter without separator', 'C:a.exe', false],
+    ['posix path', '/usr/bin/a', false],
+    ['leading junk before drive', 'xC:\\a.exe', false],
+    ['single leading backslash', '\\server\\a.exe', false],
+  ])('Windows-shaped path detection: %s', (_label, resolvedBin, windows) => {
+    const r = checkWindowsDirectExeCommandLineBudget({ def: makeDef({ maxPromptArgBytes: 1 }), resolvedBin, args: [PAD] });
+    expect(r !== null).toBe(windows);
+  });
+});

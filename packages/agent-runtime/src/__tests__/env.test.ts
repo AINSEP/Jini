@@ -206,3 +206,23 @@ describe('spawnEnvForAgent', () => {
     });
   });
 });
+
+// Stryker L3 (F3): blank-but-present values must be treated as unset, and the host override hook
+// must win over built-in housekeeping.
+describe('spawnEnvForAgent — blank values and override order (F3)', () => {
+  it.each(['opencode', 'mimo'])('%s: a whitespace-only disable flag is replaced with "true"', (agentId) => {
+    const key = agentId === 'opencode' ? 'OPENCODE_DISABLE_PROJECT_CONFIG' : 'MIMOCODE_DISABLE_PROJECT_CONFIG';
+    const env = spawnEnvForAgent({ agentId, baseEnv: { [key]: '   ' } }, { configuredEnv: {}, systemProxyEnv: {} });
+    expect(env[key]).toBe('true');
+  });
+  it('amr: a whitespace-only HOME is backfilled from the OS', () => {
+    const env = spawnEnvForAgent({ agentId: 'amr', baseEnv: { HOME: '  ', VELA_OPENCODE_BIN: '/x' } }, { configuredEnv: {}, systemProxyEnv: {} });
+    expect(env.HOME).toBe(os.homedir());
+  });
+  it('the perAgentEnv hook overrides housekeeping and is not applied when it returns nothing', () => {
+    const over = spawnEnvForAgent({ agentId: 'opencode', baseEnv: {} }, { configuredEnv: {}, systemProxyEnv: {}, hooks: { perAgentEnv: () => ({ OPENCODE_DISABLE_PROJECT_CONFIG: 'false' }) } });
+    expect(over.OPENCODE_DISABLE_PROJECT_CONFIG).toBe('false');
+    const none = spawnEnvForAgent({ agentId: 'opencode', baseEnv: {} }, { configuredEnv: {}, systemProxyEnv: {}, hooks: { perAgentEnv: () => undefined } });
+    expect(none.OPENCODE_DISABLE_PROJECT_CONFIG).toBe('true');
+  });
+});

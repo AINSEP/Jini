@@ -309,3 +309,51 @@ describe('extractRelativeRefs', () => {
     });
   });
 });
+
+// Stryker L3 (2026-10-25): 54 Regex survivors in client.ts — only happy-path refs were tested.
+// One row per pattern / anchor / file-kind decision, with negatives that must yield nothing.
+describe('extractRelativeRefs — per-pattern table (F3)', () => {
+  const refs = (text: string, fromPath: string, fromMime = '') => extractRelativeRefs({ text, fromPath, fromMime });
+  it.each([
+    ['html script src', '<script type="module" src="app.js"></script>', 'a/index.html', ['a/app.js']],
+    ['html link href', "<link rel='stylesheet' href='s.css'>", 'index.html', ['s.css']],
+    ['html img/source/video/audio/iframe', '<img src="i.png"><source src="s.webm"><video src="v.mp4"><audio src="a.mp3"><iframe src="f.html">', 'index.html',
+      ['i.png', 's.webm', 'v.mp4', 'a.mp3', 'f.html']],
+    ['srcset candidates', '<img srcset="a.png 1x, b.png 2x,c.png">', 'p/x.htm', ['p/a.png', 'p/b.png', 'p/c.png']],
+    ['css url() unquoted and quoted', 'a{b:url( img/x.png )} c{d:url("y.png")}', 'css/s.css', ['css/img/x.png', 'css/y.png']],
+    ['css @import string and url() (url() pattern runs first)', '@import "base.css"; @import url(\'theme.css\');', 's.css', ['theme.css', 'base.css']],
+    ['js import / from / dynamic / require', "import a from './a.js'; export * from \"./b.js\"; import('./c.js'); require( './d.js' )", 'src/m.ts', ['src/a.js', 'src/b.js', 'src/c.js', 'src/d.js']],
+    ['js-like by mime only', "import x from './x.js'", 'file', ['x.js'], 'application/javascript'],
+    ['html-like by mime only', '<img src="i.png">', 'page', ['i.png'], 'text/html; charset=utf-8'],
+    ['css-like by mime only', '@import "b.css";', 'sheet', ['b.css'], 'text/css'],
+    ['prose is not JS', "the module imported from 'x' and from 'y'", 'notes.md', []],
+    ['a .jsx.bak file is not JS', "import a from './a.js'", 'x.jsx.bak', []],
+    ['an .mjs / .cjs / .tsx file is JS', "import a from './a.js'", 'x.cjs', ['a.js']],
+    ['unknown text file runs only url()', '<img src="i.png"> url(k.png)', 'readme.txt', ['k.png']],
+    ['html in a .html.bak is not HTML', '<img src="i.png">', 'x.html.bak', []],
+    ['external refs dropped', '<img src="https://x/a.png"><img src="//cdn/a.png"><img src="data:x"><a><img src="mailto:a"><img src="tel:1"><img src="#top"><img src="HTTP://X/b.png">', 'index.html', []],
+    ['root-absolute ref resolved from root', '<img src="/img/a.png">', 'deep/dir/index.html', ['img/a.png']],
+    ['query and fragment stripped', '<img src="a.png?v=1#x">', 'index.html', ['a.png']],
+    ['traversal within root kept, escape dropped', '<img src="../b.png"><img src="../../c.png">', 'd/index.html', ['b.png']],
+    ['dot segments collapsed, duplicates removed', '<img src="./x/./a.png"><img src="x//a.png">', 'index.html', ['x/a.png']],
+    ['empty refs ignored', '<img src=" ">', 'index.html', []],
+  ])('%s', (_label, text, fromPath, expected, mime = '') => {
+    expect(refs(text, fromPath, mime)).toEqual(expected);
+  });
+
+  it('empty text yields nothing', () => {
+    expect(refs('', 'index.html')).toEqual([]);
+  });
+});
+
+describe('isTextualMime — per-pattern table (F3)', () => {
+  it.each([
+    ['text/plain', true], ['TEXT/HTML', true], ['application/json', true], ['application/json; charset=utf-8', true],
+    ['application/jsonl', false], ['application/javascript', true], ['application/typescript', true], ['application/xml', true],
+    ['application/x-yaml', true], ['application/x-toml', true], ['application/x-httpd-php', true], ['application/x-sh', true],
+    ['application/x-shellscript', false], ['application/ld+json', true], ['application/atom+xml', true], ['image/svg+xml', true],
+    ['image/png', false], ['application/octet-stream', false], ['xtext/plain', false], ['', false], [undefined, false],
+  ])('%s → %s', (mime, expected) => {
+    expect(isTextualMime({ mime })).toBe(expected);
+  });
+});

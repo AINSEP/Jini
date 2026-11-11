@@ -119,3 +119,54 @@ describe('artifacts/validate', () => {
     });
   });
 });
+
+// Stryker L5 (2026-10-25): the min-length boundary, the BOM strip, and each reserved-path site
+// (srcset splitting, style attribute, <style> block, @import, isLocalPathLike) survived on its own.
+describe('validateHtmlArtifact — boundaries and reserved-path sites (F3)', () => {
+  const doc = (inner: string) => `<!doctype html><html><head></head><body>${inner}</body></html>`.padEnd(80, ' ');
+  const reserved = { ok: false, reason: 'content references a reserved internal workspace-storage path' };
+
+  it('63 chars is too short, 64 is enough; a leading BOM is not counted', () => {
+    const base = '<!doctype html>';
+    const at = (n: number) => base + 'x'.repeat(n - base.length);
+    expect(validateHtmlArtifact({ content: at(63) })).toEqual({ ok: false, reason: 'content too short to be HTML (got 63 chars, need ≥64)' });
+    expect(validateHtmlArtifact({ content: at(64) })).toEqual({ ok: true });
+    expect(validateHtmlArtifact({ content: '﻿' + at(64) })).toEqual({ ok: true });
+    expect(validateHtmlArtifact({ content: '﻿' + at(63) })).toMatchObject({ ok: false, reason: expect.stringContaining('got 63') });
+    expect(validateHtmlArtifact({ content: ' \n﻿' })).toMatchObject({ ok: false });
+    expect(validateHtmlArtifact({ content: '﻿  ' })).toEqual({ ok: false, reason: 'empty content' });
+  });
+
+  it.each([
+    ['img src', '<img src=".workspace/a.png">'],
+    ['unquoted href', '<a href=./.tmp/x>x</a>'],
+    ['single-quoted poster', "<video poster='/.live-artifacts/p.png'></video>"],
+    ['srcset second candidate', '<img srcset="ok.png 1x, .tmp/b.png 2x">'],
+    ['srcset after a data: url with commas', '<img srcset="data:image/png;base64,AA,BB 1x, .workspace/c.png 2x">'],
+    ['style attribute url()', '<div style="background:url(.tmp/bg.png)"></div>'],
+    ['style attribute single-quoted', "<div style='background:url(\".workspace/x.png\")'></div>"],
+    ['<style> block url()', '<style>body{background:url(\'.tmp/a.png\')}</style>'],
+    ['<style> block @import string', '<style>@import ".workspace/x.css";</style>'],
+    ['<style> block @import url()', '<style>@import url(.live-artifacts/x.css);</style>'],
+    ['reserved dir followed by query', '<img src=".tmp?x=1">'],
+    ['case-insensitive', '<img src=".TMP/a.png">'],
+  ])('rejects a reserved path in %s', (_label, inner) => {
+    expect(validateHtmlArtifact({ content: doc(inner) })).toEqual(reserved);
+  });
+
+  it.each([
+    ['absolute URL with the segment', '<img src="https://cdn.example/.tmp/a.png">'],
+    ['protocol-relative', '<img src="//cdn.example/.tmp/a.png">'],
+    ['fragment-only', '<a href="#.tmp">x</a>'],
+    ['segment only in the query', '<img src="a.png?p=.tmp/x">'],
+    ['segment only in the fragment', '<a href="page.html#/.workspace">x</a>'],
+    ['lookalike segment', '<img src=".tmpfile/a.png">'],
+    ['lookalike prefix', '<img src="x.tmp/a.png">'],
+    ['empty src', '<img src="">'],
+    ['srcset of safe candidates only', '<img srcset="a.png 1x, b.png 2x">'],
+    ['srcset data: url containing the word', '<img srcset="data:text/plain,.tmp/x 1x">'],
+    ['text, not an attribute', '<p>see .tmp/a.png</p>'],
+  ])('allows %s', (_label, inner) => {
+    expect(validateHtmlArtifact({ content: doc(inner) })).toEqual({ ok: true });
+  });
+});

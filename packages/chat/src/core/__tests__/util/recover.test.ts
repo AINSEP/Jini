@@ -118,3 +118,52 @@ describe('artifacts/recover', () => {
     expect(resolvePersistedArtifactHtml({ artifactHtml: 'unrecoverable prose' })).toBe('unrecoverable prose');
   });
 });
+
+// Stryker L5 (2026-10-25): the identifier-tagged scan (last match must win), the unknown-identifier
+// and empty-identifier fallbacks, and the regex escaping of the identifier were untested.
+describe('recoverHtmlArtifactFromPrecedingDocument — tagged artifact scan (F3)', () => {
+  const docA = '<!doctype html><html><head><title>A</title></head><body><h1>Document A content here</h1></body></html>';
+  const docB = '<!doctype html><html><head><title>B</title></head><body><h1>Document B content here</h1></body></html>';
+  const prose = 'Here is a short summary of the page.';
+  const recover = (sourceText: string, identifier?: string) =>
+    recoverHtmlArtifactFromPrecedingDocument({ artifactHtml: prose, sourceText, ...(identifier === undefined ? {} : { identifier }) });
+
+  it('uses the LAST artifact tag carrying the identifier (double or single quotes)', () => {
+    const text = `${docA}<artifact identifier="page">${prose}</artifact> ${docB}<artifact identifier='page'>${prose}</artifact>`;
+    expect(recover(text, 'page')).toBe(docB);
+  });
+
+  it('prefers the tagged artifact over a later untagged one', () => {
+    const text = `${docA}<artifact identifier="page">${prose}</artifact> intro <artifact identifier="other">x</artifact>`;
+    expect(recover(text, 'page')).toBe(docA);
+  });
+
+  it('falls back to the last <artifact when the identifier matches no tag', () => {
+    const text = `${docA}<artifact identifier="other">${prose}</artifact>`;
+    expect(recover(text, 'missing')).toBe(docA);
+  });
+
+  it('an empty identifier means "the last artifact tag"', () => {
+    const text = `${docA}<artifact identifier="x">${prose}</artifact>`;
+    expect(recover(text, '')).toBe(docA);
+    expect(recover(text)).toBe(docA);
+  });
+
+  it('escapes regex metacharacters in the identifier', () => {
+    const text = `${docA}<artifact identifier="a.b">${prose}</artifact> ${docB}<artifact identifier="aXb">${prose}</artifact>`;
+    expect(recover(text, 'a.b')).toBe(docA);
+  });
+
+  it('does not match an identifier that is only a prefix of the tag value', () => {
+    const text = `${docA}<artifact identifier="page">${prose}</artifact> ${docB}<artifact identifier="page2">${prose}</artifact>`;
+    expect(recover(text, 'page')).toBe(docA);
+  });
+
+  it('returns null when text sits between the document and the artifact tag', () => {
+    expect(recover(`${docA} and then <artifact identifier="page">${prose}</artifact>`, 'page')).toBeNull();
+  });
+
+  it('returns null when the artifact body already validates', () => {
+    expect(recoverHtmlArtifactFromPrecedingDocument({ artifactHtml: docB, sourceText: `${docA}<artifact>${docB}</artifact>` })).toBeNull();
+  });
+});
