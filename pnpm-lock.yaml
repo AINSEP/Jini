@@ -371,13 +371,13 @@ importers:
         specifier: workspace:^
         version: link:../cms
       '@jini-ai/core':
-        specifier: ^0.7.0
+        specifier: ^0.7.1
         version: link:../core
       '@jini-ai/oauth':
         specifier: workspace:^
         version: link:../oauth
       '@jini-ai/platform':
-        specifier: ^0.7.0
+        specifier: ^0.7.1
         version: link:../platform
       '@jini-ai/plugins':
         specifier: workspace:^
@@ -433,7 +433,7 @@ importers:
         version: 3.25.76
     devDependencies:
       '@jini-ai/core':
-        specifier: ^0.7.0
+        specifier: ^0.7.1
         version: link:../core
       '@jini-ai/protocol':
         specifier: workspace:^
@@ -1048,7 +1048,7 @@ importers:
   packages/platform:
     dependencies:
       '@jini-ai/core':
-        specifier: ^0.7.0
+        specifier: ^0.7.1
         version: link:../core
       undici:
         specifier: ^7.25.0

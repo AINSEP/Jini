@@ -1,52 +1,52 @@
 [
   {
     "id": "ai-trace-langfuse",
-    "version": "0.7.0",
-    "path": "plugins/ai-trace-langfuse/0.7.0"
+    "version": "0.7.1",
+    "path": "plugins/ai-trace-langfuse/0.7.1"
   },
   {
     "id": "analytics-posthog",
-    "version": "0.7.0",
-    "path": "plugins/analytics-posthog/0.7.0"
+    "version": "0.7.1",
+    "path": "plugins/analytics-posthog/0.7.1"
   },
   {
     "id": "charts-echarts",
-    "version": "0.7.0",
-    "path": "plugins/charts-echarts/0.7.0"
+    "version": "0.7.1",
+    "path": "plugins/charts-echarts/0.7.1"
   },
   {
     "id": "charts-recharts",
-    "version": "0.7.0",
-    "path": "plugins/charts-recharts/0.7.0"
+    "version": "0.7.1",
+    "path": "plugins/charts-recharts/0.7.1"
   },
   {
     "id": "fixture-provider",
-    "version": "0.7.0",
-    "path": "plugins/fixture-provider/0.7.0"
+    "version": "0.7.1",
+    "path": "plugins/fixture-provider/0.7.1"
   },
   {
     "id": "formspree",
-    "version": "0.7.0",
-    "path": "plugins/formspree/0.7.0"
+    "version": "0.7.1",
+    "path": "plugins/formspree/0.7.1"
   },
   {
     "id": "google-forms",
-    "version": "0.7.0",
-    "path": "plugins/google-forms/0.7.0"
+    "version": "0.7.1",
+    "path": "plugins/google-forms/0.7.1"
   },
   {
     "id": "observability-opentelemetry",
-    "version": "0.7.0",
-    "path": "plugins/observability-opentelemetry/0.7.0"
+    "version": "0.7.1",
+    "path": "plugins/observability-opentelemetry/0.7.1"
   },
   {
     "id": "observability-sentry",
-    "version": "0.7.0",
-    "path": "plugins/observability-sentry/0.7.0"
+    "version": "0.7.1",
+    "path": "plugins/observability-sentry/0.7.1"
   },
   {
     "id": "payments-stripe",
-    "version": "0.7.0",
-    "path": "plugins/payments-stripe/0.7.0"
+    "version": "0.7.1",
+    "path": "plugins/payments-stripe/0.7.1"
   }
 ]
