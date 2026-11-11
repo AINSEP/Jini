@@ -538,3 +538,127 @@ describe('auth characterization (pinned before the complexity refactor)', () => 
     });
   });
 });
+
+// Stryker L3 (2026-10-25): 21 Regex + 17 Conditional survivors — each alternation was only reached
+// together with another, and spacing/quote variants of the placeholder key were never pinned.
+// One case per alternation (alone), plus near-misses that must NOT be flagged.
+describe('auth failure classifiers — one alternation per case', () => {
+  it.each([
+    ['Authentication Required', true], ['you are NOT authenticated', true], ['not logged in', true],
+    ['Unauthenticated', true], ['run `agent login`', true], ['set CURSOR_API_KEY', true],
+    ['authentication succeeded', false], ['logged in as bob', false], ['   ', false], ['', false],
+  ])('cursor: %j → %s', (text, expected) => {
+    expect(isCursorAuthFailureText({ text })).toBe(expected);
+  });
+
+  it.each([
+    ['Authentication required. Please visit the URL to log in: https://x', true],
+    ['Error: authentication timed out.', true], ['You are not logged into Antigravity', true],
+    ['https://accounts.google.com/o/oauth2/auth?client=antigravity', true],
+    ['authentication required', false], ['please visit our docs', false],
+    ['https://accounts.google.com/o/oauth2/auth?client=other', false], ['accountsXgoogle.com/o/oauth2/auth antigravity', false],
+  ])('antigravity: %j → %s', (text, expected) => {
+    expect(isAntigravityAuthFailureText({ text })).toBe(expected);
+  });
+
+  it.each([
+    ['DEEPSEEK_API_KEY=<your-key>', true], ['key=<YOUR-KEY>', true],
+    ['api_key="<your-key>"', true], ["api_key = '<your-key>'", true], ['API_KEY  =  "<your-key>"', true],
+    ['api_key=<your-key>', true], // matches the KEY=<your-key> alternation
+    ['api_key = <your-key>', false], ['api_key = "<real-key>"', false],
+    ['edit ~/.deepseek/config.toml and set api key', true], ['edit ~/.deepseek/config.toml and set api_key', true],
+    ['edit ~/.deepseek/config.toml and set api-key', true], ['edit ~/.deepseek/config.toml and set apikey', true],
+    ['edit ~/.deepseek/config.toml', false], ['set api key in ~/.other/config.toml', false],
+    ['DEEPSEEK_API_KEY missing', true], ['DEEPSEEK_API_KEY not set', true], ['DEEPSEEK_API_KEY required', true],
+    ['DEEPSEEK_API_KEY unauthorized', true], ['DEEPSEEK_API_KEY auth error', true], ['DEEPSEEK_API_KEY loaded', false],
+    ['  \n ', false],
+  ])('deepseek: %j → %s', (text, expected) => {
+    expect(isDeepSeekAuthFailureText({ text })).toBe(expected);
+  });
+
+  it.each([
+    ['~/.reasonix/config.json: apiKey missing', true], ['~/.reasonix/config.json api_key', true],
+    ['~/.reasonix/config.json not set', true], ['~/.reasonix/config.json required', true],
+    ['~/.reasonix/config.json unauthorized', true], ['~/.reasonix/config.json invalid', true],
+    ['~/.reasonix/config.json loaded', false],
+    ['DEEPSEEK_API_KEY missing', true], ['DEEPSEEK_API_KEY not set', true], ['DEEPSEEK_API_KEY required', true],
+    ['DEEPSEEK_API_KEY unauthorized', true], ['DEEPSEEK_API_KEY invalid', true], ['DEEPSEEK_API_KEY auth', true],
+    ['DEEPSEEK_API_KEY loaded', false], ['missing config', false],
+  ])('reasonix: %j → %s', (text, expected) => {
+    expect(isReasonixAuthFailureText({ text })).toBe(expected);
+  });
+
+  it.each([
+    ['{"authenticated":true}', false], ['{"loggedIn":true}', false], ['{"authenticated":false,"loggedIn":true}', false],
+    ['{"authenticated":false}', true], ['{"loggedIn":false}', true], ['{"other":1}', false], ['null', false],
+    ['x "authenticated" : true not authenticated', false], ['x "loggedIn":true not logged in', false],
+    ['x "authenticated" :  false', true], ['x "loggedIn" : false', true],
+    ['not authenticated', true], ['not loggedin', true], ['not logged_in', true], ['not logged-in', true],
+    ['authentication required', true], ['please sign in', true], ['please log in', true], ['please signin', true],
+    ['please login', true], ['please sign-in', true], ['signed in fine', false],
+  ])('claude: %j → %s', (text, expected) => {
+    expect(isClaudeAuthFailureText({ text })).toBe(expected);
+  });
+});
+
+// Stryker L3 re-score (F3): the codex/claude env short-circuit only had result assertions (the
+// probe mock also answers ok), JSON-ish text spacing variants, reasonix apikey, and the tailored
+// guidance hostName threading were unpinned.
+describe('auth — re-score survivors (F3)', () => {
+  it.each([
+    ['codex', { CODEX_API_KEY: 'k' }, false], ['codex', { OPENAI_API_KEY: 'k' }, false],
+    ['codex', { ANTHROPIC_API_KEY: 'k' }, true], ['claude', { ANTHROPIC_API_KEY: 'k' }, false],
+    ['claude', { CODEX_API_KEY: 'k' }, true], ['gemini', { CODEX_API_KEY: 'k', ANTHROPIC_API_KEY: 'k' }, true],
+  ] as const)('%s with %j probes the CLI: %s', async (id, env, probed) => {
+    let called = false;
+    mockState.execFileImpl = (_f, _a, _o, cb) => { called = true; cb(null, { stdout: '', stderr: '' }); };
+    await probeAgentAuthStatus({ def: { id, name: id, authProbe: { args: ['auth', 'status'] } }, resolvedBin: `/bin/${id}`, env: { ...env } });
+    expect(called).toBe(probed);
+  });
+
+  it.each([
+    ['log "authenticated":true; not authenticated', false],
+    ['log "loggedIn"  :  true; not logged in', false],
+    ['log "loggedIn":false', true],
+    ['log "authenticated":false', true],
+  ])('claude text %j → %s', (text, expected) => {
+    expect(isClaudeAuthFailureText({ text })).toBe(expected);
+  });
+
+  it('reasonix: apikey (no separator) next to its config path', () => {
+    expect(isReasonixAuthFailureText({ text: '~/.reasonix/config.json apikey' })).toBe(true);
+  });
+
+  it.each([
+    ['deepseek', 'DEEPSEEK_API_KEY missing'],
+    ['antigravity', 'Error: authentication timed out.'],
+    ['reasonix', 'DEEPSEEK_API_KEY missing'],
+    ['cursor-agent', 'not logged in'],
+    ['claude', 'not logged in'],
+  ])('%s guidance threads the host name', (agentId, text) => {
+    const result = classifyAgentAuthFailure({ agentId, text }, { hostName: 'HostX' });
+    expect(result?.status).toBe('missing');
+    expect(typeof result?.message).toBe('string');
+    expect(result?.message?.length ?? 0).toBeGreaterThan(20);
+    if (agentId !== 'antigravity' && agentId !== 'cursor-agent') expect(result?.message).toContain('HostX');
+  });
+});
+
+// FU-B (Codex on F3): the self-match fix must not lose explicit NEGATIVE credential states. Before
+// the fix these were true only by accident (the qualifier matched the variable name itself).
+describe('isDeepSeekAuthFailureText — explicit negative states vs healthy mentions (FU-B)', () => {
+  it.each([
+    ['DEEPSEEK_API_KEY is empty', true], ['DEEPSEEK_API_KEY invalid', true], ['DEEPSEEK_API_KEY is INVALID', true],
+    ['error: DEEPSEEK_API_KEY empty', true],
+    ['DEEPSEEK_API_KEY loaded', false], ['using DEEPSEEK_API_KEY from the environment', false],
+    ['DEEPSEEK_API_KEY=sk-…redacted', false],
+  ])('%j → %s', (text, expected) => {
+    expect(isDeepSeekAuthFailureText({ text })).toBe(expected);
+  });
+
+  it('classifyAgentAuthFailure reports an empty / invalid key as missing auth, and a healthy mention as null', () => {
+    expect(classifyAgentAuthFailure({ agentId: 'deepseek', text: 'DEEPSEEK_API_KEY is empty' })?.status).toBe('missing');
+    expect(classifyAgentAuthFailure({ agentId: 'deepseek', text: 'DEEPSEEK_API_KEY invalid' })?.status).toBe('missing');
+    expect(classifyAgentAuthFailure({ agentId: 'deepseek', text: 'using DEEPSEEK_API_KEY from the environment' })).toBeNull();
+  });
+});
