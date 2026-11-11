@@ -1,0 +1,48 @@
+| `@jini-ai/admin` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/agent-plugins` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/agent-runtime` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/agentic` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/analytics` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/artifacts` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/capability-providers` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/chat` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/cli` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/cms` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/commerce` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/cookie-consent` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/core` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/daemon` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/db` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/desktop-host` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/devops` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/diagnostics` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/http-kit` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/infra` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/integrations` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/mcp` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/memory` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/oauth` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/platform` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/plugin-catalog` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/plugin-fixture-provider` | 0.7.0 | not published (private) | 0.7.1 |
+| `@jini-ai/plugins` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/protocol` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/provider-plugins` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/registry` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/sandbox` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/search` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/server` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/sidecar` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/sqlite` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/ui-kit` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/ui` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/user-management` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/vibecoding` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-ai/cms-forms` | 0.7.0 | 0.7.0 | 0.7.1 |
+| `@jini-example/cookie-consent-standalone` | 0.0.2 | not published (private) | 0.0.3 |
+| `@jini-example/minimal-host` | 0.0.7 | not published (private) | 0.0.8 |
+| `@jini-example/neutral-host` | 0.0.0 | not published (private) | 0.0.0 |
+| `@jini-app/nlweb-demo` | 0.0.0 | not published (private) | 0.0.0 |
+| `@jini-example/notes-app` | 0.0.0 | not published (private) | 0.0.1 |
+| `@jini-app/reference-desktop` | 0.0.7 | not published (private) | 0.0.8 |
+| `@jini-app/reference-web` | 0.0.7 | not published (private) | 0.0.8 |

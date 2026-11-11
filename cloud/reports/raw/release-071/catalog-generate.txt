@@ -1,0 +1,4 @@
+
+> @jini-ai/plugin-catalog@0.7.1 generate /home/user/Jini/packages/plugin-catalog
+> node --import tsx scripts/generate.ts
+

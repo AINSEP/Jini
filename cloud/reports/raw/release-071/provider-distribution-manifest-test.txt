@@ -1,0 +1,11 @@
+
+ RUN  v2.1.9 /home/user/Jini/packages/provider-plugins
+
+ ✓ src/__tests__/distribution-manifest.test.ts (2 tests) 13ms
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  04:28:48
+   Duration  259ms (transform 31ms, setup 0ms, collect 25ms, tests 13ms, environment 0ms, prepare 59ms)
+
+exit 0

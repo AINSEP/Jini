@@ -1,0 +1,41 @@
+
+> @jini-ai/plugin-catalog@0.7.1 test /home/user/Jini/packages/plugin-catalog
+> vitest run
+
+[33mThe CJS build of Vite's Node API is deprecated. See https://vite.dev/guide/troubleshooting.html#vite-cjs-node-api-deprecated for more details.[39m
+
+ RUN  v2.1.9 /home/user/Jini/packages/plugin-catalog
+
+npm warn Unknown env config "disallow-workspace-cycles". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "verify-deps-before-run". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "npm-globalconfig". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "link-workspace-packages". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "recursive". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm warn Unknown env config "_jsr-registry". This will stop working in the next major version of npm. See `npm help npmrc` for supported config options.
+npm notice
+npm notice package: @jini-ai/plugin-catalog@0.7.1
+npm notice Tarball Contents
+npm notice 11.3kB LICENSE
+npm notice 256B NOTICE
+npm notice 2.6kB README.md
+npm notice 94.8kB catalog.json
+npm notice 898B package.json
+npm notice Tarball Details
+npm notice name: @jini-ai/plugin-catalog
+npm notice version: 0.7.1
+npm notice filename: jini-ai-plugin-catalog-0.7.1.tgz
+npm notice package size: 34.7 kB
+npm notice unpacked size: 109.9 kB
+npm notice shasum: e6422155874d9dc29946755b69fc571b96319fe1
+npm notice integrity: sha512-t0D5FgamVnptJ[...]OJJG95Vrho4xQ==
+npm notice total files: 5
+npm notice
+ ✓ __tests__/catalog.test.ts (66 tests) 365ms
+   ✓ standalone plugin catalog > packs only metadata and documentation into the actual npm tarball 310ms
+
+ Test Files  1 passed (1)
+      Tests  66 passed (66)
+   Start at  04:28:47
+   Duration  666ms (transform 79ms, setup 0ms, collect 90ms, tests 365ms, environment 0ms, prepare 59ms)
+
+exit 0
