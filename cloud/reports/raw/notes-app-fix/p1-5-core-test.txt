@@ -1,0 +1,11 @@
+
+ RUN  v2.1.9 /home/user/Jini/packages/core
+
+ ✓ src/__tests__/server.test.ts (6 tests) 12ms
+
+ Test Files  1 passed (1)
+      Tests  6 passed (6)
+   Start at  06:39:56
+   Duration  332ms (transform 62ms, setup 0ms, collect 53ms, tests 12ms, environment 0ms, prepare 86ms)
+
+exit=0

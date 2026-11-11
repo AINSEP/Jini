@@ -81,3 +81,18 @@ function checkApprovalPorts(required: {
   });
 }
 void checkApprovalPorts;
+
+// The server contract: named required args for registration and handlers.
+import type { Server, ServerHandler } from './contracts/server.js';
+declare const app: Server;
+const okHandler: ServerHandler = ({ request, params }) => new Response(`${request.method} ${params.id ?? ''}`);
+app.route({ method: 'GET', path: '/notes/:id', handler: okHandler });
+// @ts-expect-error Registration is one named required object, not (method, path, handler).
+app.route('GET', '/notes/:id', okHandler);
+// @ts-expect-error Methods are the uppercase web `Request.method` values.
+app.route({ method: 'get', path: '/notes/:id', handler: okHandler });
+// @ts-expect-error Handlers receive `{ request, params }`, not a bare Request.
+const bareHandler: ServerHandler = (request: Request) => new Response(request.url);
+// The peer address rides in the required-args object and is optional, so an adapter without one compiles.
+const clientHandler: ServerHandler = ({ client }) => new Response(client?.address ?? 'unknown');
+void clientHandler({ request: new Request('http://local/'), params: {} });

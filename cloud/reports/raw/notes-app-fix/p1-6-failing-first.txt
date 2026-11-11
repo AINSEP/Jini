@@ -1,0 +1,16 @@
+== failing first
+src/node-server.test.ts(29,5): error TS2322: Type '"OPTIONS"' is not assignable to type 'ServerMethod'.
+tsc-exit=2
+  ✖ answers unmatched paths with 404 and unmatched methods with 405 (7.836811ms)
+  ✖ answers HEAD from the GET route with its status and headers but no body (6.490636ms)
+✖ node-server adapter (70.418831ms)
+ℹ tests 11
+ℹ pass 9
+ℹ fail 2
+✖ failing tests:
+✖ answers unmatched paths with 404 and unmatched methods with 405 (7.836811ms)
+    actual: 'GET',
+    expected: 'GET, HEAD',
+✖ answers HEAD from the GET route with its status and headers but no body (6.490636ms)
+    actual: 405,
+    expected: 200,

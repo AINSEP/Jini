@@ -1,0 +1,22 @@
+core-tsc-exit=0
+example-tsc-exit=0
+  ✔ keys the form limit on the socket peer, so a spoofed x-forwarded-for cannot reset it (153.172422ms)
+  ✔ stores the socket peer as source_ip (1.162457ms)
+✔ contact form client address (226.068662ms)
+  ✔ dispatches a Request to the matching handler with decoded path params (38.881814ms)
+  ✔ lets an async handler read the request body (20.252549ms)
+  ✔ answers unmatched paths with 404 and unmatched methods with 405 (9.013597ms)
+  ✔ answers HEAD from the GET route with its status and headers but no body (7.597992ms)
+  ✔ routes OPTIONS like any other method, so a preflight can be answered (3.222567ms)
+  ✔ passes the socket peer address as client.address, ignoring forwarded headers (4.803139ms)
+  ✔ rejects a second registration of the same method and path (0.912257ms)
+✔ node-server adapter (98.945687ms)
+  ✔ returns params for :name segments and an empty object for a literal match (0.642157ms)
+  ✔ rejects differing literals, segment counts, trailing slashes and empty params (0.245436ms)
+  ✔ does not match a param whose percent-encoding is malformed (0.275063ms)
+  ✔ takes named required args, not positional ones (0.195405ms)
+✔ matchServerPath (1.78198ms)
+ℹ tests 13
+ℹ pass 13
+ℹ fail 0
+PASS

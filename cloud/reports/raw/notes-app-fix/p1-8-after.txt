@@ -1,0 +1,8 @@
+example-tsc-exit=0
+ℹ tests 13
+ℹ pass 13
+ℹ fail 0
+PASS
+== grep for events after the cut
+src/ports.ts:21:// GAP: no public no-op FormOutboxPort. Nothing in this app consumes events, so they are discarded
+src/ports.ts:25:// GAP: no no-op OutboxDispatcherPort. Nothing consumes events in this app.
