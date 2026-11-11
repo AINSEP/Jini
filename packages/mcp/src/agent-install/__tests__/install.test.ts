@@ -234,7 +234,18 @@ describe('applyJsonInstall', () => {
 
   it('refuses a foreign named entry without changing it', () => {
     const existing = JSON.stringify({ mcp: { servers: { jini: { command: 'foreign' } } } });
-    expect(() => applyJsonInstall({ existingText: existing, plan })).toThrow(/different.*entry/i);
+    expect(() => applyJsonInstall({ existingText: existing, plan })).toThrow(/already has an MCP server named "jini" that this app did not add/);
+  });
+
+  it('replaces a jini bridge entry an earlier install wrote, including the folded opencode command shape', () => {
+    const stale = { type: 'local', command: ['/old/node', '/old/node_modules/@jini-ai/mcp/dist/bin/serve.js'], enabled: false };
+    const existing = JSON.stringify({ mcp: { servers: { jini: stale, other: { command: 'x' } } } });
+    expect(JSON.parse(applyJsonInstall({ existingText: existing, plan })).mcp.servers).toEqual({ jini: { command: 'node' }, other: { command: 'x' } });
+  });
+
+  it('does not treat another package's serve script as our bridge', () => {
+    const existing = JSON.stringify({ mcp: { servers: { jini: { command: 'node', args: ['/x/node_modules/@other/mcp/dist/bin/serve.js'] } } } });
+    expect(() => applyJsonInstall({ existingText: existing, plan })).toThrow(/did not add/);
   });
 
   it('accepts an identical owned entry regardless of object-key order', () => {

@@ -37,12 +37,28 @@ test('approved install preserves foreign fields, file mode and first backup; rep
   await installOwnedJsonAgent(required);
   expect(await readFile(`${file}.jini-backup`, 'utf8')).toBe(original);
 });
-test('foreign jini entry is refused without write or backup', async () => {
+test('foreign jini entry is refused without write or backup, naming the file, the key and what to do', async () => {
   const { required, file } = await fixture(); await mkdir(dirname(file), { recursive: true });
-  const original = JSON.stringify({ mcpServers: { jini: { command: 'foreign' } } }); await writeFile(file, original);
-  await expect(installOwnedJsonAgent(required)).rejects.toThrow(/different jini entry/);
+  const original = JSON.stringify({ mcpServers: { jini: { command: 'foreign', args: ['/home/u/my-own-server.js'] } } }); await writeFile(file, original);
+  const refusal = installOwnedJsonAgent(required);
+  await expect(refusal).rejects.toThrow(file);
+  await expect(refusal).rejects.toThrow(/already has an MCP server named "jini" that this app did not add.*Rename or remove/);
   expect(await readFile(file, 'utf8')).toBe(original);
   expect(await readdir(dirname(file))).toEqual(['mcp_config.json']);
+});
+test.each([
+  ['an older install in node_modules', { command: '/Applications/Old.app/Contents/MacOS/Old', args: ['/Users/u/old/app/node_modules/@jini-ai/mcp/dist/bin/serve.js'], env: { ELECTRON_RUN_AS_NODE: '1' } }],
+  ['a linked checkout', { command: '/usr/local/bin/node', args: ['/Users/u/src/Jini/packages/mcp/dist/bin/serve.js'] }],
+  ['a Windows install', { command: 'C:\\Old\\Old.exe', args: ['C:\\Old\\resources\\node_modules\\@jini-ai\\mcp\\dist\\bin\\serve.js'], disabled: true }],
+])('a jini bridge entry left by %s is replaced, backed up once, and every other entry kept', async (_label, stale) => {
+  const { required, file } = await fixture(); await mkdir(dirname(file), { recursive: true });
+  const original = JSON.stringify({ theme: 'dark', mcpServers: { before: { command: 'keep', args: ['a'] }, jini: stale, after: { url: 'https://example.test/mcp' } } }, null, 2);
+  await writeFile(file, original);
+  await installOwnedJsonAgent(required);
+  const installed = JSON.parse(await readFile(file, 'utf8'));
+  expect(installed).toEqual({ theme: 'dark', mcpServers: { before: { command: 'keep', args: ['a'] }, jini: { command: 'node', args: ['/bridge.js'] }, after: { url: 'https://example.test/mcp' } } });
+  expect(Object.keys(installed.mcpServers)).toEqual(['before', 'jini', 'after']);
+  expect(await readFile(`${file}.jini-backup`, 'utf8')).toBe(original);
 });
 test('symlink config is refused without modifying its target', async () => {
   const { required, file } = await fixture(); await mkdir(dirname(file), { recursive: true });
