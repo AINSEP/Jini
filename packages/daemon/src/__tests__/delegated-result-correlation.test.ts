@@ -99,3 +99,87 @@ describe('delegated result correlation', () => {
     } finally { vi.useRealTimers(); }
   });
 });
+
+// F1 fix wave (Stryker L8 §4 delegated-result-correlation.ts: image-source guards → false and the
+// limits/eviction branches survived). A malformed CLI source image must NOT be normalized into the
+// canonical {data,mimeType} form, so it can never be passed off as the recorded result.
+describe('delegated result correlation — F1 malformed image sources', () => {
+  const good = { type: 'base64', media_type: 'image/png', data: 'PIXELS' };
+  it.each([
+    ['source null', null],
+    ['source string', 'PIXELS'],
+    ['source array', ['base64', 'image/png', 'PIXELS']],
+    ['non-base64 source type', { ...good, type: 'url' }],
+    ['numeric media_type', { ...good, media_type: 1 }],
+    ['numeric data', { ...good, data: 1 }],
+    ['missing media_type', { type: 'base64', data: 'PIXELS' }],
+    ['extra source field', { ...good, url: 'https://x' }],
+  ])('%s is not normalized and does not match the recorded canonical image', (_l, source) => {
+    const store = makeStore();
+    store.record(saved);
+    expect(store.matches({ ...saved, content: [{ type: 'image', source }] })).toBe(false);
+  });
+
+  it('a non-image block with a base64 source is left alone', () => {
+    const store = makeStore();
+    store.record(saved);
+    expect(store.matches({ ...saved, content: [{ type: 'document', source: good }] })).toBe(false);
+  });
+
+  it('an image that already has mimeType (but no data) is not re-derived from its source', () => {
+    const store = makeStore();
+    store.record(saved);
+    expect(store.matches({ ...saved, content: [{ type: 'image', mimeType: 'image/png', source: good }] })).toBe(false);
+  });
+
+  it.each([[0, 1], [1, 0], [1.5, 1], [1, Number.NaN], [-1, 1]])('limits maxRuns=%s maxCallsPerRun=%s are refused', (maxRuns, maxCallsPerRun) => {
+    expect(() => createDelegatedResultCorrelation({ crypto: createNodeCredentialCrypto({}) }, { maxRuns, maxCallsPerRun })).toThrow(new Error('correlation limits must be positive integers'));
+  });
+
+  it('evicts the OLDEST run first once maxRuns is reached, and the oldest call first per run', () => {
+    const store = createDelegatedResultCorrelation({ crypto: createNodeCredentialCrypto({}) }, { maxRuns: 2, maxCallsPerRun: 2 });
+    const at = (runId: string, toolUseId: string) => ({ ...saved, runId, toolUseId });
+    store.record(at('r1', 'a')); store.record(at('r2', 'a')); store.record(at('r3', 'a'));
+    expect([store.matches(at('r1', 'a')), store.matches(at('r2', 'a')), store.matches(at('r3', 'a'))]).toEqual([false, true, true]);
+    store.record(at('r3', 'b')); store.record(at('r3', 'c'));
+    expect([store.matches(at('r3', 'a')), store.matches(at('r3', 'b')), store.matches(at('r3', 'c'))]).toEqual([false, true, true]);
+  });
+
+  it('a digest failure (cyclic content) silently records nothing and never matches', () => {
+    const store = makeStore();
+    const cyclic: Record<string, unknown> = { type: 'text' }; cyclic.self = cyclic;
+    expect(() => store.record({ ...saved, content: [cyclic] })).not.toThrow();
+    expect(store.matches({ ...saved, content: [cyclic] })).toBe(false);
+  });
+
+  it('clearRun forgets only that run', () => {
+    const store = makeStore();
+    store.record(saved); store.record({ ...saved, runId: 'keep' });
+    store.clearRun({ runId: 'run' });
+    expect([store.matches(saved), store.matches({ ...saved, runId: 'keep' })]).toEqual([false, true]);
+  });
+});
+
+describe('delegated result correlation — F1 re-score kills (malformed ≠ canonical, both directions)', () => {
+  const canonical = { type: 'image', mimeType: 'image/png', data: 'PIXELS' };
+  it.each([
+    ['url source', { type: 'url', media_type: 'image/png', data: 'PIXELS' }],
+    ['numeric media_type', { type: 'base64', media_type: 7, data: 'PIXELS' }],
+    ['numeric data', { type: 'base64', media_type: 'image/png', data: 7 }],
+  ])('a recorded image with a %s is not interchangeable with the canonical form', (_l, source) => {
+    const store = makeStore();
+    store.record({ ...saved, content: [{ type: 'image', source }] });
+    expect(store.matches({ ...saved, content: [canonical] })).toBe(false);
+    expect(store.matches({ ...saved, content: [{ type: 'image', source }] })).toBe(true);
+  });
+  it('a recorded null-source image still matches itself (the guard must not throw the digest away)', () => {
+    const store = makeStore();
+    store.record({ ...saved, content: [{ type: 'image', source: null }] });
+    expect(store.matches({ ...saved, content: [{ type: 'image', source: null }] })).toBe(true);
+  });
+  it('a recorded non-image block with a base64 source is not interchangeable with a {data,mimeType} block', () => {
+    const store = makeStore();
+    store.record({ ...saved, content: [{ type: 'document', source: { type: 'base64', media_type: 'image/png', data: 'PIXELS' } }] });
+    expect(store.matches({ ...saved, content: [{ type: 'document', mimeType: 'image/png', data: 'PIXELS' }] })).toBe(false);
+  });
+});

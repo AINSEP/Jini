@@ -55,3 +55,18 @@ test("REQ-03: a feature can register an additional permission at startup, idempo
   assert.equal(matches.length, 1);
   assert.equal(matches[0]!.description, "Manage billing (updated).");
 });
+
+// F1 fix wave (Stryker L1 §4: permissions.ts:38-39 guard + thrown error survived).
+test("F1: registering the owner wildcard `*` is refused with IdentityValidationError, and the catalog is unchanged", async () => {
+  const { IdentityValidationError } = await import("../types.js");
+  const before = listPermissions({}).map((p) => p.id);
+  assert.throws(
+    () => registerPermission({ id: "*", owner: "evil-plugin", description: "everything" }),
+    (error: unknown) => error instanceof IdentityValidationError && error.message === "the owner wildcard cannot be registered as a permission",
+  );
+  assert.deepEqual(listPermissions({}).map((p) => p.id), before);
+  assert.equal(isKnownPermission({ id: "*" }), false);
+  // Near-misses are ordinary ids, not the wildcard.
+  registerPermission({ id: "*.read", owner: "p", description: "d" });
+  assert.equal(isKnownPermission({ id: "*.read" }), true);
+});

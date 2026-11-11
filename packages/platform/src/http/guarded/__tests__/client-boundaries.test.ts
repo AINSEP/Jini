@@ -186,3 +186,34 @@ test("finalUrl is the normalized URL that was pinned, not the caller's spelling"
   const response = await client.send({ request: get({ url: "https://EXAMPLE.com:443/a/../b" }) });
   expect(response.finalUrl).toBe("https://example.com/b");
 });
+
+// F1 fix wave (Stryker L1 §4 client.ts:38 `||`→`&&`, :107/:118 cap boundaries).
+test.each([
+  ["username only", "https://user@example.com/"],
+  ["password only", "https://:secret@example.com/"],
+  ["username and password", "https://user:secret@example.com/"],
+])("credentials in the target URL (%s) are refused before DNS or transport", async (_label, url) => {
+  const transport = new Recorder([ok]);
+  let lookups = 0;
+  const client = createHttpClient({ transport, policy, dns: { resolve: async () => { lookups++; return ["93.184.216.34"]; } }, clock: idleClock, userAgent: "Pin/1.0" });
+  const failure = await client.send({ request: get({ url }) }).catch((error: unknown) => error);
+  expect(failure).toBeInstanceOf(EgressRefusedError);
+  expect(failure).toMatchObject({ message: "credentials embedded in the target URL are not allowed", callerSafeMessage: "credentials embedded in the target URL are not allowed" });
+  expect(transport.calls).toHaveLength(0);
+  expect(lookups).toBe(0);
+});
+
+test.each([
+  [99, false],
+  [100, false],
+  [101, true],
+])("a %d-byte body against a 100-byte cap: truncated=%s, text and bytes capped at exactly 100", async (size, truncated) => {
+  const body = "x".repeat(size);
+  const transport = new Recorder([{ status: 200, headers: {}, bodyText: body, bodyBytes: new Uint8Array(Buffer.from(body)) }]);
+  const client = createHttpClient({ transport, policy, dns: publicDns, clock: idleClock, userAgent: "Pin/1.0" });
+  const response = await client.send({ request: get() });
+  expect(response.bodyText).toBe("x".repeat(Math.min(size, 100)));
+  expect(response.bodyBytes?.byteLength).toBe(Math.min(size, 100));
+  expect(response.bodyTruncated).toBe(truncated);
+  expect(response.bodyBytesTruncated).toBe(truncated);
+});
