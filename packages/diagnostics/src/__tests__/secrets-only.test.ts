@@ -404,3 +404,19 @@ test("vendor-only scan still blanks every vendor key shape, PEM block, JWT and h
     assert.deepEqual(redact({ text: first.text, policy: vendorPolicy }), { text: first.text, redactions: 0 });
   }
 });
+
+// L10 Stryker survivors (secrets-only.ts:221-229): each early-out of the unlabeled-key check alone,
+// against literals that would otherwise clear the entropy gate.
+test("code-aware entropy check: each refusal rule alone", () => {
+  const flagged = (content: string) => redact({ text: `const k = "${content}";`, policy: codePolicy }).redactions === 1;
+  for (const [content, expected] of [
+    ["Zq7xK2mP9vR4tL8wN3bY6cH1", true], // baseline: key alphabet, letters + digits, high entropy
+    ["ZqxKmPvRtLwNbYcHaBcDeFgJ", false], // no digit
+    ["1234567890+-_=1234567890+-_=", false], // no letter
+    ["!Zq7xK2mP9vR4tL8wN3bY6cH1", false], // leading non-key character
+    ["Zq7xK2mP9vR4tL8wN3bY6cH1!", false], // trailing non-key character
+    ["Zq7xK2mP9.vR4tL8wN3bY6cH1", false], // dotted name
+    ["+Zq7xK2mP9.vR4tL8wN3bY6cH1", true], // a dotted SUFFIX is not a dotted name
+    ["Zq7xK2mP9.vR4tL8wN3bY6cH1+", true], // a dotted PREFIX is not a dotted name
+  ] as const) assert.equal(flagged(content), expected, content);
+});

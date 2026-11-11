@@ -294,3 +294,60 @@ test("a workspace boundary is respected: a grant in another workspace never matc
 
   assert.equal(result.allowed, false);
 });
+
+// F1 fix wave (Stryker L1 §4: authorize.ts:167,183 — each `&&` operand of the owner-wildcard test
+// and `some`→`every` survived). One clause broken at a time; ≥2 candidate rows for the some/every cases.
+test("F1: a `*` row scoped to a resourceType is NOT the owner wildcard", async () => {
+  const deps = buildDeps();
+  await seedPrincipal(deps, { id: "p" });
+  await grantDirect(deps, "p", "*", { resourceType: "post" });
+  assert.deepEqual(await authorize({ deps, principalId: "p", permission: "user.manage", context: { workspaceId: WORKSPACE } }), { allowed: false, reason: "no_grant" });
+  assert.deepEqual(await authorize({ deps, principalId: "p", permission: "user.manage", context: { workspaceId: WORKSPACE } }, { entityType: "post" }), { allowed: false, reason: "no_grant" });
+});
+
+test("F1: a `*` row carrying a constraint is NOT the owner wildcard", async () => {
+  const deps = buildDeps();
+  await seedPrincipal(deps, { id: "p" });
+  await grantDirect(deps, "p", "*", { constraintJson: '{"own":true}' });
+  assert.deepEqual(await authorize({ deps, principalId: "p", permission: "user.manage", context: { workspaceId: WORKSPACE } }), { allowed: false, reason: "no_grant" });
+});
+
+test("F1: a non-`*` unscoped, unconstrained row is not the wildcard either (only its own permission)", async () => {
+  const deps = buildDeps();
+  await seedPrincipal(deps, { id: "p" });
+  await grantDirect(deps, "p", "post.read");
+  assert.deepEqual(await authorize({ deps, principalId: "p", permission: "user.manage", context: { workspaceId: WORKSPACE } }), { allowed: false, reason: "no_grant" });
+  assert.deepEqual(await authorize({ deps, principalId: "p", permission: "post.read", context: { workspaceId: WORKSPACE } }), { allowed: true, reason: "matched" });
+});
+
+test("F1: the unconstrained `*` grants even when listed AFTER scoped/constrained `*` rows (some, not every)", async () => {
+  const deps = buildDeps();
+  await seedPrincipal(deps, { id: "p" });
+  await grantDirect(deps, "p", "*", { resourceType: "post" });
+  await grantDirect(deps, "p", "*", { constraintJson: '{"own":true}' });
+  await grantDirect(deps, "p", "*");
+  assert.deepEqual(await authorize({ deps, principalId: "p", permission: "user.manage", context: { workspaceId: WORKSPACE } }), { allowed: true, reason: "owner_wildcard" });
+});
+
+test("F1: mixed candidates — one matching row among non-matching ones allows (some, not every)", async () => {
+  for (const order of [["constrained", "scoped", "plain"], ["plain", "constrained", "scoped"], ["scoped", "plain", "constrained"]] as const) {
+    const deps = buildDeps();
+    await seedPrincipal(deps, { id: "p" });
+    for (const kind of order) {
+      if (kind === "constrained") await grantDirect(deps, "p", "post.edit", { constraintJson: '{"own":true}' });
+      if (kind === "scoped") await grantDirect(deps, "p", "post.edit", { resourceType: "page" });
+      if (kind === "plain") await grantDirect(deps, "p", "post.edit");
+    }
+    assert.deepEqual(await authorize({ deps, principalId: "p", permission: "post.edit", context: { workspaceId: WORKSPACE } }, { entityType: "post" }), { allowed: true, reason: "matched" }, order.join(","));
+  }
+});
+
+test("F1: deny reason precedence — any constrained candidate ⇒ unconstrained_deny; only scope mismatches ⇒ resource_scope_mismatch", async () => {
+  const deps = buildDeps();
+  await seedPrincipal(deps, { id: "p" });
+  await grantDirect(deps, "p", "post.edit", { resourceType: "page" });
+  await grantDirect(deps, "p", "post.edit", { resourceType: "media" });
+  assert.deepEqual(await authorize({ deps, principalId: "p", permission: "post.edit", context: { workspaceId: WORKSPACE } }, { entityType: "post" }), { allowed: false, reason: "resource_scope_mismatch" });
+  await grantDirect(deps, "p", "post.edit", { constraintJson: '{"own":true}' });
+  assert.deepEqual(await authorize({ deps, principalId: "p", permission: "post.edit", context: { workspaceId: WORKSPACE } }, { entityType: "post" }), { allowed: false, reason: "unconstrained_deny" });
+});

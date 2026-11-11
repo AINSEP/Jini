@@ -626,3 +626,14 @@ it('Off admits full pinned loads while retaining all other admission checks and 
   await excluded.controller.prepare({ loaded: ['synthetic'] });
   expect(await excluded.controller.load({ pluginId: 'synthetic' })).toEqual({ status: 'excluded', guidance: '' });
 });
+
+// Coverage gap (automatic-use.ts resolveOneGuidance): a load cancelled WHILE the person is being
+// asked for consent stops before resolving, and still records the consent answer.
+it('a load whose signal aborts during the consent prompt is cancelled before resolving', async () => {
+  const f = fixture('ask');
+  const controller = new AbortController();
+  f.ask.mockImplementation(async () => { controller.abort(); return { action: 'use', selected: ['synthetic'] }; });
+  expect(await f.controller.load({ pluginId: 'synthetic', signal: controller.signal })).toEqual({ status: 'cancelled', guidance: '' });
+  expect(f.ask).toHaveBeenCalledTimes(1);
+  expect(f.resolve).not.toHaveBeenCalled();
+});

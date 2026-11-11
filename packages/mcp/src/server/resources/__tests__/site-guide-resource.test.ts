@@ -24,4 +24,22 @@ describe('site guide MCP resource uses the existing authorization gateway', () =
     const resource = createSiteGuideResource({ runId: 'host-run' });
     await expect(resource.read({ ctx: { baseUrl: 'http://127.0.0.1:3000', fetchImpl: async () => new Response(JSON.stringify({ result: { status: 'failed', output: 'PRIVATE_CANARY' } })) } })).rejects.toThrow('site_guide resource read did not complete. Use the delegated tool result to inspect authorization or availability.');
   });
+  // Stryker L3 (2026-10-25): each clause of the envelope check survived alone. One broken clause per case.
+  it.each([
+    ['a completed envelope without output', { status: 'completed' }],
+    ['output without a status', { output: { a: 1 } }],
+    ['a non-completed status with output', { status: 'pending', output: { a: 1 } }],
+    ['a null result', null],
+    ['a string result', 'completed'],
+  ])('refuses %s with the specific message', async (_label, result) => {
+    const resource = createSiteGuideResource({ runId: 'host-run' });
+    await expect(resource.read({ ctx: { baseUrl: 'http://127.0.0.1:3000', fetchImpl: async () => new Response(JSON.stringify({ result })) } }))
+      .rejects.toThrow('site_guide resource read did not complete. Use the delegated tool result to inspect authorization or availability.');
+  });
+  it('returns the completed output as pretty JSON, and declares its descriptor', async () => {
+    const resource = createSiteGuideResource({ runId: 'host-run' });
+    const out = await resource.read({ ctx: { baseUrl: 'http://127.0.0.1:3000', fetchImpl: async () => new Response(JSON.stringify({ result: { status: 'completed', output: { a: [1] } } })) } });
+    expect(out).toEqual({ text: '{\n  "a": [\n    1\n  ]\n}' });
+    expect({ uri: resource.uri, name: resource.name, mimeType: resource.mimeType }).toEqual({ uri: 'jini://site-guide', name: 'How this site works', mimeType: 'application/json' });
+  });
 });

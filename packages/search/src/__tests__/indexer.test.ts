@@ -347,6 +347,18 @@ describe('createSearchIndexer — reconcile', () => {
     expect(result).toEqual({ settled: 1, remaining: 1 });
   });
 
+  // Stryker L5 (2026-10-25): `upserted + removed` → `-` survived; every retry test had only one kind.
+  it('counts an upsert retry and a tombstone retry together in settled', async () => {
+    const { indexer, vendor, state, source } = setup();
+    await state.put({ row: row({ documentId: 'up', status: 'failed', attempts: 1 }) });
+    await state.put({ row: row({ documentId: 'gone', status: 'failed', attempts: 1 }) });
+    source.records.set('up', record('up', 3));
+    source.records.set('gone', record('gone', 3, { absent: true }));
+    const result = await indexer.reconcile({ siteId: SITE, workspaceId: WS });
+    expect(vendor.calls.map(c => c.method).sort()).toEqual(['remove', 'upsert']);
+    expect(result).toEqual({ settled: 2, remaining: 0 });
+  });
+
   it('writes a newer source revision on retry with a fresh attempt count, and skips an older one', async () => {
     const { indexer, state, source } = setup();
     await state.put({ row: row({ documentId: 'newer', status: 'failed', attempts: 3 }) });

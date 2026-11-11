@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { acceptedInputEvent, acceptedInputsFromMessages, acceptedInputUserEvent, projectAcceptedInputEvents, projectAcceptedInputMessages } from '../accepted-input.js';
 import type { ChatMessage } from '../messages.js';
+import type { AgentEvent } from '../index.js';
 
 const accepted = (id: string, text: string) => acceptedInputUserEvent({ input: { id, text } }, { receipt: 'accepted' });
 const unrelated = { kind: 'status' as const, label: 'queued' };
@@ -76,4 +77,24 @@ it('recalls confirmed queue receipts while their carrier awaits run acceptance, 
   const messages: ChatMessage[] = [pending, { id: 'raw-pending', role: 'user', content: 'not accepted', inputPending: true }];
   expect(acceptedInputsFromMessages({ messages })).toEqual([{ id: 'queued', text: 'accepted queue' }]);
   expect(pending.inputPending).toBe(true);
+});
+
+// Stryker L5 (2026-10-25): acceptedInputEvent's kind/name guard and its id/text type guard survived
+// being forced to true/false or swapped to &&. One malformed field per case.
+describe('acceptedInputEvent — malformed mid-run message events (F3)', () => {
+  const good = { kind: 'ext', name: 'user_message', data: { id: 'm1', text: 'hi' } } as AgentEvent;
+  it('accepts a well-formed event as-is', () => {
+    expect(acceptedInputEvent({ event: good })).toBe(good);
+  });
+  it.each([
+    ['another ext name', { kind: 'ext', name: 'mcp-ui', data: { id: 'm1', text: 'hi' } }],
+    ['a non-ext kind with the same name', { kind: 'status', name: 'user_message', label: 'x', data: { id: 'm1', text: 'hi' } }],
+    ['null data', { kind: 'ext', name: 'user_message', data: null }],
+    ['missing data', { kind: 'ext', name: 'user_message' }],
+    ['numeric id', { kind: 'ext', name: 'user_message', data: { id: 1, text: 'hi' } }],
+    ['missing text', { kind: 'ext', name: 'user_message', data: { id: 'm1' } }],
+    ['object text', { kind: 'ext', name: 'user_message', data: { id: 'm1', text: { value: 'hi' } } }],
+  ])('refuses %s', (_label, event) => {
+    expect(acceptedInputEvent({ event: event as unknown as AgentEvent })).toBeNull();
+  });
 });

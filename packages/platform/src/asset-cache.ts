@@ -141,7 +141,8 @@ export function createValidatingLookup(lookupImpl: DnsLookupCb = dnsLookupCb) {
         if (err) return cb(err);
         const list = Array.isArray(address) ? address : [{ address, family }];
         for (const entry of list) {
-          const addr = typeof entry === 'string' ? entry : (entry as { address: string }).address;
+          // A malformed entry (null/undefined/non-object) is refused like any non-public one, never thrown on.
+          const addr = typeof entry === 'string' ? entry : ((entry as { address?: string } | null | undefined)?.address ?? '');
           if (isPrivateAddress({ address: addr })) {
             return cb(new AssetCacheError(400, 'host resolves to a private address'));
           }

@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const hoisted = vi.hoisted(() => ({ getDaemonJson: vi.fn(), postDaemonJson: vi.fn() }));
 const { getDaemonJson, postDaemonJson } = hoisted;
@@ -15,6 +15,12 @@ import {
 import type { McpToolContext } from '../../tool-protocol.js';
 
 const ctx: McpToolContext = { baseUrl: 'http://d.example', fetchImpl: fetch };
+
+// Without a reset, toHaveBeenCalledWith matches ANY earlier call, so an "omitted key" assertion
+// passed on a previous test's body (Stryker L3: run-tools.ts:24/56/58/100 survived).
+beforeEach(() => {
+  vi.clearAllMocks();
+});
 
 describe('RUN_TOOLS', () => {
   it('exports all five tools with unique names', () => {
@@ -51,7 +57,11 @@ describe('startRunTool', () => {
   it('omits agentId/idempotencyKey when they are empty strings or non-strings', async () => {
     postDaemonJson.mockResolvedValueOnce({});
     await startRunTool.handler({ args: { contextRef: 'c1', agentId: '', idempotencyKey: 42 }, ctx: ctx });
-    expect(postDaemonJson).toHaveBeenCalledWith({ baseUrl: 'http://d.example', route: '/api/runs', body: { contextRef: 'c1' } }, { fetchImpl: ctx.fetchImpl });
+    await startRunTool.handler({ args: { contextRef: 'c1', agentId: 7, idempotencyKey: '' }, ctx: ctx });
+    expect(postDaemonJson).toHaveBeenNthCalledWith(1, { baseUrl: 'http://d.example', route: '/api/runs', body: { contextRef: 'c1' } }, { fetchImpl: ctx.fetchImpl });
+    // toHaveBeenCalledWith ignores undefined-valued keys; the body must not carry them.
+    expect(postDaemonJson.mock.calls.map(([request]) => Object.keys(request.body))).toEqual([['contextRef'], ['contextRef']]);
+    expect(postDaemonJson).toHaveBeenNthCalledWith(2,{ baseUrl: 'http://d.example', route: '/api/runs', body: { contextRef: 'c1' } }, { fetchImpl: ctx.fetchImpl });
   });
 
   it('declares its input schema and write annotations', () => {
@@ -97,6 +107,10 @@ describe('cancelRunTool', () => {
   it('omits an empty-string reason', async () => {
     postDaemonJson.mockResolvedValueOnce({});
     await cancelRunTool.handler({ args: { runId: 'r1', reason: '' }, ctx: ctx });
+    await cancelRunTool.handler({ args: { runId: 'r1', reason: 5 }, ctx: ctx });
+    expect(postDaemonJson).toHaveBeenCalledTimes(2);
+    expect(postDaemonJson).toHaveBeenNthCalledWith(1, { baseUrl: 'http://d.example', route: '/api/runs/r1/cancel', body: {} }, { fetchImpl: ctx.fetchImpl });
+    expect(postDaemonJson.mock.calls.map(([request]) => Object.keys(request.body))).toEqual([[], []]);
     expect(postDaemonJson).toHaveBeenCalledWith({ baseUrl: 'http://d.example', route: '/api/runs/r1/cancel', body: {} }, { fetchImpl: ctx.fetchImpl });
   });
 });
@@ -129,6 +143,11 @@ describe('getActiveContextTool', () => {
     const failure = Object.assign(new Error('daemon 500 on http://d.example/api/active: HTTP 500'), { status: 500 });
     getDaemonJson.mockRejectedValueOnce(failure);
     await expect(getActiveContextTool.handler({ args: {}, ctx: ctx })).rejects.toBe(failure);
+  });
+
+  it('rethrows a null rejection unchanged instead of crashing on .status', async () => {
+    getDaemonJson.mockRejectedValueOnce(null);
+    await expect(getActiveContextTool.handler({ args: {}, ctx: ctx })).rejects.toBeNull();
   });
 });
 
