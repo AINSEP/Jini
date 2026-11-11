@@ -1,0 +1,39 @@
+Scope: all 48 workspace projects
+Lockfile is up to date, resolution step is skipped
+Progress: resolved 1, reused 0, downloaded 0, added 0
+Packages: +1147
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+Progress: resolved 1147, reused 1139, downloaded 0, added 75
+Progress: resolved 1147, reused 1139, downloaded 0, added 1147, done
+ WARN  Failed to create bin at /home/user/xp3-base/examples/reference-web/node_modules/.bin/jini-mcp. ENOENT: no such file or directory, open '/home/user/xp3-base/packages/mcp/dist/bin/serve.js'
+
+devDependencies:
++ @changesets/cli 2.31.1
++ @jini-ai/core 0.6.23 <- packages/core
++ @jini-ai/devops 0.6.22 <- packages/devops
++ @jini-ai/plugins 0.6.22 <- packages/plugins
++ @jini-ai/provider-plugins 0.6.24 <- packages/provider-plugins
++ @types/node 24.13.3
++ @types/semver 7.8.0
++ @vitest/coverage-v8 2.1.9
++ dependency-cruiser 18.1.0
++ eslint 10.8.0
++ eslint-plugin-sonarjs 4.2.0
++ knip 5.61.3
++ semver 7.8.5
++ tsx 4.23.1
++ typescript 5.9.3
++ typescript-eslint 8.65.0
++ vitest 2.1.9
+
+ WARN  Failed to create bin at /home/user/xp3-base/examples/reference-web/node_modules/.bin/jini-mcp. ENOENT: no such file or directory, open '/home/user/xp3-base/examples/reference-web/node_modules/@jini-ai/mcp/dist/bin/serve.js'
+╭ Warning ─────────────────────────────────────────────────────────────────────╮
+│                                                                              │
+│   Ignored build scripts: @parcel/watcher@2.5.1, argon2@0.44.0,               │
+│   core-js@3.51.0, esbuild@0.21.5, esbuild@0.28.1.                            │
+│   Run "pnpm approve-builds" to pick which dependencies should be allowed     │
+│   to run scripts.                                                            │
+│                                                                              │
+╰──────────────────────────────────────────────────────────────────────────────╯
+Done in 3.4s using pnpm v10.33.2
+exit=0

@@ -1,0 +1,11 @@
+
+ RUN  v2.1.9 /home/user/Jini/packages/cms
+
+ ✓ src/forms/__tests__/create-tables.reference.test.ts (2 tests) 4671ms
+   ✓ pglite: createFormsTables matches the reference DDL's catalog 4650ms
+
+ Test Files  1 passed (1)
+      Tests  2 passed (2)
+   Start at  03:35:41
+   Duration  5.53s (transform 248ms, setup 0ms, collect 444ms, tests 4.67s, environment 0ms, prepare 101ms)
+

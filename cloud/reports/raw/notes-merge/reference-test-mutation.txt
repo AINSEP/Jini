@@ -1,0 +1,734 @@
+
+ RUN  v2.1.9 /home/user/Jini/packages/cms
+
+ ❯ src/forms/__tests__/create-tables.reference.test.ts (2 tests | 2 failed) 4089ms
+   × sqlite: createFormsTables matches the reference DDL's catalog 63ms
+     → Expected values to be strictly deep-equal:
++ actual - expected
+... Skipped lines
+
+  [
+    {
+      columns: [
+        {
+          cid: 0,
+...
+          cid: 6,
++         dflt_value: "'live'",
+-         dflt_value: "'active'",
+          name: 'status',
+          notnull: 1,
+          pk: 0,
+          type: 'TEXT'
+        },
+
+   × pglite: createFormsTables matches the reference DDL's catalog 4025ms
+     → Expected values to be strictly deep-equal:
++ actual - expected
+... Skipped lines
+
+  {
+    columns: [
+      {
+        column_default: null,
+        column_name: 'id',
+...
+      {
++       column_default: "'live'::text",
+-       column_default: "'active'::text",
+        column_name: 'status',
+        data_type: 'text',
+        is_nullable: 'NO',
+        ordinal_position: 7,
+        table_name: 'form_definitions'
+
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 2 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/forms/__tests__/create-tables.reference.test.ts > sqlite: createFormsTables matches the reference DDL's catalog
+AssertionError: Expected values to be strictly deep-equal:
++ actual - expected
+... Skipped lines
+
+  [
+    {
+      columns: [
+        {
+          cid: 0,
+...
+          cid: 6,
++         dflt_value: "'live'",
+-         dflt_value: "'active'",
+          name: 'status',
+          notnull: 1,
+          pk: 0,
+          type: 'TEXT'
+        },
+
+
+- Expected
++ Received
+
+  Array [
+    Object {
+      "columns": Array [
+        Object {
+          "cid": 0,
+          "dflt_value": null,
+          "name": "id",
+          "notnull": 1,
+          "pk": 1,
+          "type": "TEXT",
+        },
+        Object {
+          "cid": 1,
+          "dflt_value": null,
+          "name": "workspace_id",
+          "notnull": 1,
+          "pk": 0,
+          "type": "TEXT",
+        },
+        Object {
+          "cid": 2,
+          "dflt_value": null,
+          "name": "name",
+          "notnull": 1,
+          "pk": 0,
+          "type": "TEXT",
+        },
+        Object {
+          "cid": 3,
+          "dflt_value": null,
+          "name": "slug",
+          "notnull": 1,
+          "pk": 0,
+          "type": "TEXT",
+        },
+        Object {
+          "cid": 4,
+          "dflt_value": null,
+          "name": "fields_json",
+          "notnull": 1,
+          "pk": 0,
+          "type": "TEXT",
+        },
+        Object {
+          "cid": 5,
+          "dflt_value": null,
+          "name": "notify_json",
+          "notnull": 1,
+          "pk": 0,
+          "type": "TEXT",
+        },
+        Object {
+          "cid": 6,
+-         "dflt_value": "'active'",
++         "dflt_value": "'live'",
+          "name": "status",
+          "notnull": 1,
+          "pk": 0,
+          "type": "TEXT",
+        },
+        Object {
+          "cid": 7,
+          "dflt_value": null,
+          "name": "created_at",
+          "notnull": 1,
+          "pk": 0,
+          "type": "TEXT",
+        },
+        Object {
+          "cid": 8,
+          "dflt_value": null,
+          "name": "updated_at",
+          "notnull": 1,
+          "pk": 0,
+          "type": "TEXT",
+        },
+        Object {
+          "cid": 9,
+          "dflt_value": null,
+          "name": "deleted_at",
+          "notnull": 0,
+          "pk": 0,
+          "type": "TEXT",
+        },
+        Object {
+          "cid": 10,
+          "dflt_value": "1",
+          "name": "version",
+          "notnull": 1,
+          "pk": 0,
+          "type": "INTEGER",
+        },
+      ],
+      "foreignKeys": Array [],
+      "indexes": Array [
+        Object {
+          "columns": Array [
+            Object {
+              "cid": 1,
+              "name": "workspace_id",
+              "seqno": 0,
+            },
+            Object {
+              "cid": 3,
+              "name": "slug",
+              "seqno": 1,
+            },
+          ],
+          "name": "form_definitions_workspace_slug_unique",
+          "origin": "c",
+          "partial": 0,
+          "seq": 1,
+          "unique": 1,
+          "where": null,
+        },
+        Object {
+          "columns": Array [
+            Object {
+              "cid": 1,
+              "name": "workspace_id",
+              "seqno": 0,
+            },
+          ],
+          "name": "idx_form_definitions_workspace",
+          "origin": "c",
+          "partial": 0,
+          "seq": 0,
+          "unique": 0,
+          "where": null,
+        },
+        Object {
+          "columns": Array [
+            Object {
+              "cid": 0,
+              "name": "id",
+              "seqno": 0,
+            },
+          ],
+          "name": "sqlite_autoindex_form_definitions_1",
+          "origin": "pk",
+          "partial": 0,
+          "seq": 2,
+          "unique": 1,
+          "where": null,
+        },
+      ],
+      "table": "form_definitions",
+    },
+    Object {
+      "columns": Array [
+        Object {
+          "cid": 0,
+          "dflt_value": null,
+          "name": "id",
+          "notnull": 1,
+          "pk": 1,
+          "type": "TEXT",
+        },
+        Object {
+          "cid": 1,
+          "dflt_value": null,
+          "name": "workspace_id",
+          "notnull": 1,
+          "pk": 0,
+          "type": "TEXT",
+        },
+        Object {
+          "cid": 2,
+          "dflt_value": null,
+          "name": "form_definition_id",
+          "notnull": 1,
+          "pk": 0,
+          "type": "TEXT",
+        },
+        Object {
+          "cid": 3,
+          "dflt_value": null,
+          "name": "data_json",
+          "notnull": 1,
+          "pk": 0,
+          "type": "TEXT",
+        },
+        Object {
+          "cid": 4,
+          "dflt_value": null,
+          "name": "source_ip",
+          "notnull": 0,
+          "pk": 0,
+          "type": "TEXT",
+        },
+        Object {
+          "cid": 5,
+          "dflt_value": null,
+          "name": "submitted_at",
+          "notnull": 1,
+          "pk": 0,
+          "type": "TEXT",
+        },
+        Object {
+          "cid": 6,
+          "dflt_value": null,
+          "name": "deleted_at",
+          "notnull": 0,
+          "pk": 0,
+          "type": "TEXT",
+        },
+        Object {
+          "cid": 7,
+          "dflt_value": "1",
+          "name": "version",
+          "notnull": 1,
+          "pk": 0,
+          "type": "INTEGER",
+        },
+      ],
+      "foreignKeys": Array [
+        Object {
+          "from": "form_definition_id",
+          "id": 0,
+          "match": "NONE",
+          "on_delete": "RESTRICT",
+          "on_update": "NO ACTION",
+          "seq": 0,
+          "table": "form_definitions",
+          "to": "id",
+        },
+      ],
+      "indexes": Array [
+        Object {
+          "columns": Array [
+            Object {
+              "cid": 2,
+              "name": "form_definition_id",
+              "seqno": 0,
+            },
+            Object {
+              "cid": 5,
+              "name": "submitted_at",
+              "seqno": 1,
+            },
+          ],
+          "name": "idx_form_submissions_definition",
+          "origin": "c",
+          "partial": 0,
+          "seq": 2,
+          "unique": 0,
+          "where": null,
+        },
+        Object {
+          "columns": Array [
+            Object {
+              "cid": 5,
+              "name": "submitted_at",
+              "seqno": 0,
+            },
+            Object {
+              "cid": 0,
+              "name": "id",
+              "seqno": 1,
+            },
+          ],
+          "name": "idx_form_submissions_ip_retention",
+          "origin": "c",
+          "partial": 1,
+          "seq": 0,
+          "unique": 0,
+          "where": "source_ip is not null",
+        },
+        Object {
+          "columns": Array [
+            Object {
+              "cid": 1,
+              "name": "workspace_id",
+              "seqno": 0,
+            },
+          ],
+          "name": "idx_form_submissions_workspace",
+          "origin": "c",
+          "partial": 0,
+          "seq": 1,
+          "unique": 0,
+          "where": null,
+        },
+        Object {
+          "columns": Array [
+            Object {
+              "cid": 0,
+              "name": "id",
+              "seqno": 0,
+            },
+          ],
+          "name": "sqlite_autoindex_form_submissions_1",
+          "origin": "pk",
+          "partial": 0,
+          "seq": 3,
+          "unique": 1,
+          "where": null,
+        },
+      ],
+      "table": "form_submissions",
+    },
+  ]
+
+ ❯ src/forms/__tests__/create-tables.reference.test.ts:65:12
+     63|     const expected = sqliteSchema(reference);
+     64|     assert.equal(expected.flatMap((t) => t.indexes).length, 7, "refere…
+     65|     assert.deepEqual(sqliteSchema(created), expected);
+       |            ^
+     66|   } finally {
+     67|     reference.close();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/2]⎯
+
+ FAIL  src/forms/__tests__/create-tables.reference.test.ts > pglite: createFormsTables matches the reference DDL's catalog
+AssertionError: Expected values to be strictly deep-equal:
++ actual - expected
+... Skipped lines
+
+  {
+    columns: [
+      {
+        column_default: null,
+        column_name: 'id',
+...
+      {
++       column_default: "'live'::text",
+-       column_default: "'active'::text",
+        column_name: 'status',
+        data_type: 'text',
+        is_nullable: 'NO',
+        ordinal_position: 7,
+        table_name: 'form_definitions'
+
+
+- Expected
++ Received
+
+  Object {
+    "columns": Array [
+      Object {
+        "column_default": null,
+        "column_name": "id",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 1,
+        "table_name": "form_definitions",
+      },
+      Object {
+        "column_default": null,
+        "column_name": "workspace_id",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 2,
+        "table_name": "form_definitions",
+      },
+      Object {
+        "column_default": null,
+        "column_name": "name",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 3,
+        "table_name": "form_definitions",
+      },
+      Object {
+        "column_default": null,
+        "column_name": "slug",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 4,
+        "table_name": "form_definitions",
+      },
+      Object {
+        "column_default": null,
+        "column_name": "fields_json",
+        "data_type": "jsonb",
+        "is_nullable": "NO",
+        "ordinal_position": 5,
+        "table_name": "form_definitions",
+      },
+      Object {
+        "column_default": null,
+        "column_name": "notify_json",
+        "data_type": "jsonb",
+        "is_nullable": "NO",
+        "ordinal_position": 6,
+        "table_name": "form_definitions",
+      },
+      Object {
+-       "column_default": "'active'::text",
++       "column_default": "'live'::text",
+        "column_name": "status",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 7,
+        "table_name": "form_definitions",
+      },
+      Object {
+        "column_default": null,
+        "column_name": "created_at",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 8,
+        "table_name": "form_definitions",
+      },
+      Object {
+        "column_default": null,
+        "column_name": "updated_at",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 9,
+        "table_name": "form_definitions",
+      },
+      Object {
+        "column_default": null,
+        "column_name": "deleted_at",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 10,
+        "table_name": "form_definitions",
+      },
+      Object {
+        "column_default": "1",
+        "column_name": "version",
+        "data_type": "bigint",
+        "is_nullable": "NO",
+        "ordinal_position": 11,
+        "table_name": "form_definitions",
+      },
+      Object {
+        "column_default": null,
+        "column_name": "id",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 1,
+        "table_name": "form_submissions",
+      },
+      Object {
+        "column_default": null,
+        "column_name": "workspace_id",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 2,
+        "table_name": "form_submissions",
+      },
+      Object {
+        "column_default": null,
+        "column_name": "form_definition_id",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 3,
+        "table_name": "form_submissions",
+      },
+      Object {
+        "column_default": null,
+        "column_name": "data_json",
+        "data_type": "jsonb",
+        "is_nullable": "NO",
+        "ordinal_position": 4,
+        "table_name": "form_submissions",
+      },
+      Object {
+        "column_default": null,
+        "column_name": "source_ip",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 5,
+        "table_name": "form_submissions",
+      },
+      Object {
+        "column_default": null,
+        "column_name": "submitted_at",
+        "data_type": "text",
+        "is_nullable": "NO",
+        "ordinal_position": 6,
+        "table_name": "form_submissions",
+      },
+      Object {
+        "column_default": null,
+        "column_name": "deleted_at",
+        "data_type": "text",
+        "is_nullable": "YES",
+        "ordinal_position": 7,
+        "table_name": "form_submissions",
+      },
+      Object {
+        "column_default": "1",
+        "column_name": "version",
+        "data_type": "bigint",
+        "is_nullable": "NO",
+        "ordinal_position": 8,
+        "table_name": "form_submissions",
+      },
+    ],
+    "constraints": Array [
+      Object {
+        "conname": "form_definitions_created_at_not_null",
+        "contype": "n",
+        "def": "NOT NULL created_at",
+        "table_name": "form_definitions",
+      },
+      Object {
+        "conname": "form_definitions_fields_json_not_null",
+        "contype": "n",
+        "def": "NOT NULL fields_json",
+        "table_name": "form_definitions",
+      },
+      Object {
+        "conname": "form_definitions_id_not_null",
+        "contype": "n",
+        "def": "NOT NULL id",
+        "table_name": "form_definitions",
+      },
+      Object {
+        "conname": "form_definitions_name_not_null",
+        "contype": "n",
+        "def": "NOT NULL name",
+        "table_name": "form_definitions",
+      },
+      Object {
+        "conname": "form_definitions_notify_json_not_null",
+        "contype": "n",
+        "def": "NOT NULL notify_json",
+        "table_name": "form_definitions",
+      },
+      Object {
+        "conname": "form_definitions_pkey",
+        "contype": "p",
+        "def": "PRIMARY KEY (id)",
+        "table_name": "form_definitions",
+      },
+      Object {
+        "conname": "form_definitions_slug_not_null",
+        "contype": "n",
+        "def": "NOT NULL slug",
+        "table_name": "form_definitions",
+      },
+      Object {
+        "conname": "form_definitions_status_not_null",
+        "contype": "n",
+        "def": "NOT NULL status",
+        "table_name": "form_definitions",
+      },
+      Object {
+        "conname": "form_definitions_updated_at_not_null",
+        "contype": "n",
+        "def": "NOT NULL updated_at",
+        "table_name": "form_definitions",
+      },
+      Object {
+        "conname": "form_definitions_version_not_null",
+        "contype": "n",
+        "def": "NOT NULL version",
+        "table_name": "form_definitions",
+      },
+      Object {
+        "conname": "form_definitions_workspace_id_not_null",
+        "contype": "n",
+        "def": "NOT NULL workspace_id",
+        "table_name": "form_definitions",
+      },
+      Object {
+        "conname": "form_submissions_data_json_not_null",
+        "contype": "n",
+        "def": "NOT NULL data_json",
+        "table_name": "form_submissions",
+      },
+      Object {
+        "conname": "form_submissions_form_definition_id_form_definitions_id_fk",
+        "contype": "f",
+        "def": "FOREIGN KEY (form_definition_id) REFERENCES form_definitions(id) ON DELETE RESTRICT",
+        "table_name": "form_submissions",
+      },
+      Object {
+        "conname": "form_submissions_form_definition_id_not_null",
+        "contype": "n",
+        "def": "NOT NULL form_definition_id",
+        "table_name": "form_submissions",
+      },
+      Object {
+        "conname": "form_submissions_id_not_null",
+        "contype": "n",
+        "def": "NOT NULL id",
+        "table_name": "form_submissions",
+      },
+      Object {
+        "conname": "form_submissions_pkey",
+        "contype": "p",
+        "def": "PRIMARY KEY (id)",
+        "table_name": "form_submissions",
+      },
+      Object {
+        "conname": "form_submissions_submitted_at_not_null",
+        "contype": "n",
+        "def": "NOT NULL submitted_at",
+        "table_name": "form_submissions",
+      },
+      Object {
+        "conname": "form_submissions_version_not_null",
+        "contype": "n",
+        "def": "NOT NULL version",
+        "table_name": "form_submissions",
+      },
+      Object {
+        "conname": "form_submissions_workspace_id_not_null",
+        "contype": "n",
+        "def": "NOT NULL workspace_id",
+        "table_name": "form_submissions",
+      },
+    ],
+    "indexes": Array [
+      Object {
+        "indexdef": "CREATE UNIQUE INDEX form_definitions_pkey ON public.form_definitions USING btree (id)",
+        "indexname": "form_definitions_pkey",
+        "tablename": "form_definitions",
+      },
+      Object {
+        "indexdef": "CREATE UNIQUE INDEX form_definitions_workspace_slug_unique ON public.form_definitions USING btree (workspace_id, slug)",
+        "indexname": "form_definitions_workspace_slug_unique",
+        "tablename": "form_definitions",
+      },
+      Object {
+        "indexdef": "CREATE INDEX idx_form_definitions_workspace ON public.form_definitions USING btree (workspace_id)",
+        "indexname": "idx_form_definitions_workspace",
+        "tablename": "form_definitions",
+      },
+      Object {
+        "indexdef": "CREATE UNIQUE INDEX form_submissions_pkey ON public.form_submissions USING btree (id)",
+        "indexname": "form_submissions_pkey",
+        "tablename": "form_submissions",
+      },
+      Object {
+        "indexdef": "CREATE INDEX idx_form_submissions_definition ON public.form_submissions USING btree (form_definition_id, submitted_at)",
+        "indexname": "idx_form_submissions_definition",
+        "tablename": "form_submissions",
+      },
+      Object {
+        "indexdef": "CREATE INDEX idx_form_submissions_ip_retention ON public.form_submissions USING btree (submitted_at, id) WHERE (source_ip IS NOT NULL)",
+        "indexname": "idx_form_submissions_ip_retention",
+        "tablename": "form_submissions",
+      },
+      Object {
+        "indexdef": "CREATE INDEX idx_form_submissions_workspace ON public.form_submissions USING btree (workspace_id)",
+        "indexname": "idx_form_submissions_workspace",
+        "tablename": "form_submissions",
+      },
+    ],
+  }
+
+ ❯ src/forms/__tests__/create-tables.reference.test.ts:82:12
+     80|     const keys = expected.constraints.filter((row) => ["p", "f"].inclu…
+     81|     assert.equal(keys.length, 3, "reference has 2 primary keys and 1 f…
+     82|     assert.deepEqual(await postgresSchema(created), expected);
+       |            ^
+     83|   } finally {
+     84|     await reference.close();
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[2/2]⎯
+
+ Test Files  1 failed (1)
+      Tests  2 failed (2)
+   Start at  03:35:52
+   Duration  4.90s (transform 223ms, setup 0ms, collect 417ms, tests 4.09s, environment 0ms, prepare 66ms)
+
