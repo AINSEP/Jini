@@ -1,0 +1,438 @@
+
+ RUN  v2.1.9 /home/user/Jini/packages/cms
+
+ ✓ src/taxonomy/__tests__/write-service.test.ts (37 tests) 62ms
+ ✓ src/media/__tests__/media-service.test.ts (62 tests) 496ms
+   ✓ SVG upload stores sanitized bytes under their own hash, deduplicates, and refuses SVG fonts 456ms
+ ✓ src/media/__tests__/video-frames.ffmpeg.test.ts (44 tests) 451ms
+ ✓ src/widgets/__tests__/unit/resolver-service.unit.test.ts (87 tests) 56ms
+ ✓ src/navigation/__tests__/menu-service.test.ts (46 tests) 16ms
+ ✓ src/redirects/__tests__/redirects.test.ts (48 tests) 48ms
+ ✓ src/widgets/__tests__/unit/embed-service.unit.test.ts (58 tests) 73ms
+ ✓ src/seo/__tests__/seo.test.ts (52 tests) 103ms
+ ✓ src/widgets/__tests__/unit/html-embeds.unit.test.ts (53 tests) 27ms
+ ✓ src/widgets/__tests__/marker.unit.test.ts (58 tests) 72ms
+ ✓ src/media/import/__tests__/fetch-image.test.ts (54 tests) 63ms
+ ✓ src/media/__tests__/tool-registrations.test.ts (23 tests) 87ms
+ ✓ src/redirects/__tests__/redirects.reserved-target.test.ts (67 tests) 24ms
+ ✓ src/forms/express/__tests__/handler.test.ts (24 tests) 113ms
+ ✓ src/seo/__tests__/write-service.test.ts (30 tests) 14ms
+ ✓ src/media/__tests__/blob-gc.test.ts (20 tests) 55ms
+stderr | src/forms/__tests__/submit-service.host-options.test.ts > submitForm: AC-24/INV-05 — the response resolves before a slow/throwing subscriber settles (fire-and-forget outbox drain)
+form outbox dispatch failed Error: simulated slow/throwing MailerPort.send()
+    at handler (/home/user/Jini/packages/cms/src/forms/__tests__/submit-service.host-options.test.ts:244:11)
+    at InMemoryEventBus.publish (/home/user/Jini/packages/cms/src/forms/__tests__/eventing.fixture.ts:11:58)
+    at dispatch (/home/user/Jini/packages/cms/src/forms/__tests__/support/switch-bindings.fixture.ts:70:7)
+
+ ✓ src/forms/__tests__/write-service.host-options.test.ts (24 tests) 13ms
+ ✓ src/forms/__tests__/submit-service.host-options.test.ts (25 tests) 79ms
+ ✓ src/navigation/__tests__/tool-registrations.test.ts (33 tests) 36ms
+ ✓ src/forms/__tests__/submit-service.boundaries.test.ts (22 tests) 53ms
+ ✓ src/forms/__tests__/write-service.test.ts (23 tests) 24ms
+ ✓ src/comments/__tests__/ingress.test.ts (26 tests) 11ms
+ ✓ src/routing/__tests__/routing.test.ts (42 tests) 8ms
+ ✓ src/widgets/__tests__/integration/write-service.integration.test.ts (13 tests) 16ms
+ ✓ src/forms/__tests__/html-render.fields.test.ts (29 tests) 7ms
+ ✓ src/taxonomy/__tests__/write-service.import.test.ts (20 tests) 12ms
+ ✓ src/media/__tests__/rendition-service.test.ts (15 tests) 400ms
+   ✓ SVG transform URLs serve the vector original without invoking the raster transformer or saving renditions 386ms
+ ✓ src/widgets/__tests__/integration/write-service.lifecycle.integration.test.ts (16 tests) 28ms
+ ✓ src/seo/__tests__/page-head-contributor.test.ts (16 tests) 16ms
+ ✓ src/entries/__tests__/write-service.update-publish.test.ts (13 tests) 6ms
+ ✓ src/forms/__tests__/field-registry.test.ts (43 tests) 14ms
+ ✓ src/redirects/__tests__/repo.contract.test.ts (47 tests) 2869ms
+   ✓ [pglite] save() then findById() round-trips the record 2623ms
+ ✓ src/content-types/__tests__/write-service.guards-boundary.test.ts (25 tests) 8ms
+ ✓ src/forms/__tests__/email-sender.unit.test.ts (15 tests) 30ms
+ ✓ src/forms/__tests__/repo.contract.test.ts (58 tests) 2769ms
+   ✓ [SqlFormDefinitionRepo [pglite]] create + findById round-trips 2492ms
+ ✓ forms/src/__tests__/write-service.test.ts (21 tests) 10ms
+ ✓ src/content-types/__tests__/write-service.register.test.ts (14 tests) 6ms
+ ✓ src/widgets/__tests__/unit/resolvers-contact-form.unit.test.ts (22 tests) 21ms
+ ✓ src/widgets/__tests__/plugin-export.unit.test.ts (77 tests) 66ms
+ ✓ src/comments/__tests__/repo.contract.test.ts (53 tests) 2630ms
+ ✓ src/media/__tests__/documents.test.ts (12 tests) 581ms
+   ✓ ordinary blob metadata remains publishable with no owner, after Trash and after purge 355ms
+ ✓ src/redirects/__tests__/phase-handler.read-path-target.test.ts (20 tests) 13ms
+ ✓ src/entries/__tests__/write-service.boundaries.test.ts (20 tests) 11ms
+ ✓ src/entries/__tests__/write-service.import.test.ts (12 tests) 5ms
+ ✓ src/widgets/__tests__/unit/config-validation.unit.test.ts (34 tests) 12ms
+ ✓ src/taxonomy/__tests__/repo.memory.test.ts (19 tests) 16ms
+ ✓ src/navigation/__tests__/resolver.test.ts (10 tests) 6ms
+ ✓ src/trash/__tests__/service.test.ts (18 tests) 13ms
+ ✓ src/widgets/__tests__/integration/resolver-service.integration.test.ts (9 tests) 10ms
+ ✓ src/forms/__tests__/file-fields.test.ts (12 tests) 40ms
+ ✓ src/entries/__tests__/write-service.compare-and-set.test.ts (13 tests) 9ms
+ ✓ src/forms/__tests__/submit-service.test.ts (15 tests) 56ms
+ ✓ src/media/__tests__/image-transformer.sharp.test.ts (12 tests) 102ms
+ ✓ src/navigation/__tests__/menu-service.compare-and-set.test.ts (11 tests) 7ms
+ ✓ src/taxonomy/__tests__/write-service.boundaries.test.ts (20 tests) 13ms
+ ✓ src/media/__tests__/replace-media-file.test.ts (15 tests) 326ms
+   ✓ SVG replacement uses the upload sanitizer before hashing and persistence 301ms
+ ✓ src/widgets/__tests__/unit/resolvers-recent-entries.unit.test.ts (10 tests) 31ms
+ ✓ src/entries/__tests__/write-service.create.test.ts (9 tests) 4ms
+ ✓ src/redirects/__tests__/matcher.test.ts (29 tests) 8ms
+ ✓ src/redirects/__tests__/phase-handler.oracle.test.ts (13 tests) 14ms
+ ✓ src/redirects/__tests__/repo.dialects.test.ts (28 tests) 2889ms
+   ✓ redirect repo [pglite] > save round-trips every field incl. optionals and booleans; re-save replaces the row 2555ms
+ ✓ src/content-types/__tests__/write-service.update-fields.test.ts (9 tests) 6ms
+ ✓ src/forms/__tests__/repo.dialects.test.ts (26 tests) 2524ms
+   ✓ forms repos [pglite] > definition create then findById / findBySlug / list round-trip 2300ms
+ ✓ scripts/__tests__/check-packaging.test.ts (22 tests) 18ms
+ ✓ src/forms/__tests__/descriptor-rules.test.ts (27 tests) 11ms
+ ✓ src/content-types/__tests__/agent-tools.schema-agreement.test.ts (6 tests) 16ms
+ ✓ src/trash/__tests__/sweeper.decision.test.ts (9 tests) 5ms
+ ✓ src/media/__tests__/document-ingress.test.ts (9 tests) 584ms
+   ✓ admits well-formed Word, Excel and PowerPoint packages, including strict namespaces and absolute targets 355ms
+ ✓ src/navigation/__tests__/menu-html-mode.test.ts (17 tests) 21ms
+stderr | src/widgets/__tests__/integration/read-service.integration.test.ts > dossier C5 follow-up: a malformed widget-instance record is skipped, counted before filters, and identified for the caller
+[widgets] listWidgetInstances: skipping malformed widget-instance row { entryId: 'malformed-1', workspaceId: 'ws-1' }
+
+ ✓ src/widgets/__tests__/integration/read-service.integration.test.ts (8 tests) 14ms
+ ✓ src/seo/__tests__/sitemap.test.ts (10 tests) 10ms
+ ✓ src/forms/__tests__/notify-subscriber.test.ts (12 tests) 17ms
+ ✓ src/redirects/__tests__/open-redirect.matrix.test.ts (16 tests) 13ms
+ ✓ src/content-types/__tests__/field-kind-widening.test.ts (17 tests) 7ms
+ ✓ src/forms/html/__tests__/html-authoring.characterization.test.ts (19 tests) 31ms
+ ✓ src/content-types/__tests__/tool-registrations.cov-j2.test.ts (10 tests) 26ms
+ ✓ src/widgets/__tests__/unit/gallery-resolver.unit.test.ts (25 tests) 13ms
+ ✓ src/navigation/__tests__/menu-service.boundaries.test.ts (22 tests) 14ms
+ ✓ src/media/__tests__/video-frames.test.ts (18 tests) 62ms
+ ✓ src/forms/__tests__/common-fields.test.ts (23 tests) 26ms
+ ✓ src/media/__tests__/content-type-sniffer.test.ts (25 tests) 8ms
+stderr | src/forms/__tests__/notify-subscriber.host-options.test.ts > registerFormNotifySubscriber: EC-06 — a SUPPRESSED mailer result is logged, not thrown, and does not crash the subscriber
+[forms:notify] mail send failed for submission 'sub-1' recipient 'ops@example.com': SUPPRESSED (recipient suppressed)
+
+stderr | src/forms/__tests__/notify-subscriber.host-options.test.ts > registerFormNotifySubscriber: definition read fails sends nothing and preserves sibling delivery
+[forms:notify] subscriber failed: Error: definition read failed
+    at InMemoryFormDefinitionRepo.findById (/home/user/Jini/packages/cms/src/forms/__tests__/notify-subscriber.host-options.test.ts:195:109)
+    at handleSubmissionReceived (/home/user/Jini/packages/cms/src/forms/notify-subscriber.ts:101:52)
+    at handler (/home/user/Jini/packages/cms/src/forms/notify-subscriber.ts:83:17)
+    at InMemoryEventBus.publish (/home/user/Jini/packages/cms/src/forms/__tests__/eventing.fixture.ts:11:64)
+    at publishSubmissionEvent (/home/user/Jini/packages/cms/src/forms/__tests__/notify-subscriber.host-options.test.ts:75:14)
+    at /home/user/Jini/packages/cms/src/forms/__tests__/notify-subscriber.host-options.test.ts:200:38
+    at waitForActual (node:assert:632:21)
+    at strict.doesNotReject (node:assert:789:39)
+    at /home/user/Jini/packages/cms/src/forms/__tests__/notify-subscriber.host-options.test.ts:200:18
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+stderr | src/forms/__tests__/notify-subscriber.host-options.test.ts > registerFormNotifySubscriber: submission read fails sends nothing and preserves sibling delivery
+[forms:notify] subscriber failed: Error: submission read failed
+    at InMemoryFormSubmissionRepo.findById (/home/user/Jini/packages/cms/src/forms/__tests__/notify-subscriber.host-options.test.ts:196:109)
+    at handleSubmissionReceived (/home/user/Jini/packages/cms/src/forms/notify-subscriber.ts:113:52)
+    at processTicksAndRejections (node:internal/process/task_queues:104:5)
+    at handler (/home/user/Jini/packages/cms/src/forms/notify-subscriber.ts:83:11)
+    at InMemoryEventBus.publish (/home/user/Jini/packages/cms/src/forms/__tests__/eventing.fixture.ts:11:58)
+    at waitForActual (node:assert:646:5)
+    at strict.doesNotReject (node:assert:789:33)
+    at /home/user/Jini/packages/cms/src/forms/__tests__/notify-subscriber.host-options.test.ts:200:5
+    at /home/user/Jini/packages/cms/src/forms/__tests__/support/node-test.fixture.ts:16:5
+    at file:///home/user/Jini/node_modules/.pnpm/@vitest+runner@2.1.9/node_modules/@vitest/runner/dist/index.js:533:5
+
+ ✓ src/forms/__tests__/notify-subscriber.host-options.test.ts (11 tests) 20ms
+ ✓ forms/src/__tests__/submit-service.test.ts (12 tests) 50ms
+ ✓ src/redirects/__tests__/redirects.write-boundaries.test.ts (19 tests) 15ms
+ ✓ forms/src/__tests__/notify-subscriber.test.ts (11 tests) 8ms
+ ✓ src/taxonomy/__tests__/validation-chain.test.ts (13 tests) 4ms
+ ✓ src/core/commands/__tests__/command.test.ts (16 tests) 9ms
+ ✓ src/forms/__tests__/injected-ports.test.ts (9 tests) 194ms
+ ✓ src/workspace/__tests__/tool-registrations.test.ts (12 tests) 11ms
+ ✓ src/media/__tests__/html-attributes.test.ts (27 tests) 9ms
+ ✓ src/redirects/__tests__/host-config.golden.test.ts (10 tests) 10ms
+ ✓ src/routing/__tests__/routing.phase-lifecycle.test.ts (11 tests) 4ms
+ ✓ src/entries/__tests__/tool-registrations.cov-j2.test.ts (8 tests) 9ms
+ ✓ src/forms/html/__tests__/authoring-adapter.unit.test.ts (9 tests) 9ms
+ ✓ src/widgets/__tests__/gallery-config.unit.test.ts (27 tests) 10ms
+ ✓ src/widgets/__tests__/gallery.test.ts (28 tests) 14ms
+ ✓ src/forms/html/__tests__/html-authoring.test.ts (9 tests) 21ms
+ ✓ src/seo/__tests__/share-image.unit.test.ts (15 tests) 12ms
+ ✓ src/seo/__tests__/write-service.concurrent-save.test.ts (4 tests) 6ms
+ ✓ src/redirects/__tests__/capture.test.ts (10 tests) 6ms
+ ✓ src/forms/__tests__/attachment-cleanup.test.ts (8 tests) 5ms
+ ✓ src/trash/__tests__/repo.memory.test.ts (11 tests) 4ms
+ ✓ src/listing/__tests__/listing.test.ts (15 tests) 9ms
+ ✓ src/seo/__tests__/media.details.unit.test.ts (30 tests) 8ms
+ ✓ src/forms/__tests__/submission-attempts.test.ts (13 tests) 15ms
+ ✓ src/widgets/__tests__/integration/region-area-service.integration.test.ts (4 tests) 16ms
+ ✓ src/media/__tests__/blob-store.test.ts (11 tests) 24ms
+ ✓ src/seo/__tests__/media.test.ts (11 tests) 5ms
+ ✓ src/media/__tests__/transform-registry.test.ts (17 tests) 10ms
+ ✓ src/media/__tests__/unit/document-text.unit.test.ts (8 tests) 21ms
+ ✓ src/forms/__tests__/forms.submission-validation.characterization.test.ts (16 tests) 7ms
+ ✓ src/forms/delivery/__tests__/subscriptions.unit.test.ts (11 tests) 23ms
+ ✓ src/comments/__tests__/repo.dialects.test.ts (16 tests) 2394ms
+   ✓ comments repo [pglite] > create round-trips, with nulls and a real spam score 2254ms
+ ✓ src/content-types/__tests__/index-provisioning.ddl-safety.test.ts (11 tests) 6ms
+ ✓ src/forms/__tests__/forms.field-validation.characterization.test.ts (14 tests) 7ms
+ ✓ forms/src/__tests__/forms.field-validation.characterization.test.ts (14 tests) 5ms
+ ✓ src/comments/__tests__/module.cov-j2.test.ts (8 tests) 10ms
+ ✓ src/forms/delivery/__tests__/planner.unit.test.ts (16 tests) 8ms
+ ✓ src/content-types/__tests__/field-defs.test.ts (19 tests) 7ms
+ ✓ src/entries/__tests__/field-validation.boundaries.test.ts (25 tests) 10ms
+ ✓ src/comments/express/__tests__/submit-handler.request.test.ts (10 tests) 16ms
+ ✓ src/comments/__tests__/write-service.trash.test.ts (7 tests) 2157ms
+   ✓ [pglite] a failed index write rolls the moderation back rather than leaving a hidden comment with no Trash row 2136ms
+ ✓ src/forms/__tests__/provider.test.ts (7 tests) 19ms
+ ✓ src/forms/__tests__/forms.field-validation.test.ts (40 tests) 10ms
+ ✓ forms/src/__tests__/forms.submission-validation.characterization.test.ts (15 tests) 5ms
+ ✓ src/listing/__tests__/paging.test.ts (19 tests) 19ms
+ ✓ forms/src/__tests__/forms.field-validation.test.ts (40 tests) 7ms
+ ✓ src/seo/__tests__/seo.meta.unit.test.ts (14 tests) 6ms
+ ✓ forms/src/__tests__/injected-ports.test.ts (7 tests) 127ms
+ ✓ src/__tests__/integration-package.contract.test.ts (4 tests) 10ms
+ ✓ src/widgets/__tests__/integration/region-area-service.edge.integration.test.ts (7 tests) 9ms
+ ✓ src/media/__tests__/list-provenance.unit.test.ts (7 tests) 14ms
+ ✓ src/widgets/__tests__/repo.contract.test.ts (20 tests) 2169ms
+   ✓ [SqlWidgetRegionBindingRepo pglite] upsert + findByRegion round-trips, upsert on the same (workspace, regionKey) replaces the row (real UNIQUE constraint, not just in-memory discipline) 2093ms
+ ✓ src/entries/__tests__/repo.memory.cov-j2.test.ts (8 tests) 4ms
+ ✓ src/entries/__tests__/write-service.owner.test.ts (5 tests) 3ms
+ ✓ src/widgets/__tests__/integration/owned-lock-state.integration.test.ts (11 tests) 18ms
+ ✓ src/seo/__tests__/sitemap-service.factory.test.ts (9 tests) 11ms
+ ✓ src/forms/__tests__/stale-form.test.ts (8 tests) 31ms
+ ✓ src/forms/__tests__/forms.edge-cases.test.ts (4 tests) 18ms
+ ✓ src/content-types/__tests__/lifecycle.test.ts (8 tests) 4ms
+ ✓ src/content-types/__tests__/watermark-stamping.test.ts (5 tests) 5ms
+ ✓ src/content-types/__tests__/lifecycle.cov-j2.test.ts (14 tests) 6ms
+ ✓ src/widgets/__tests__/html-attributes.unit.test.ts (22 tests) 5ms
+ ❯ src/content-types/__tests__/universal-entries.boundary.test.ts (5 tests | 1 failed) 1758ms
+   × CMS declares the used HTTP toolkit peer with an optional registry range 8ms
+     → expected '^0.7.0' to be '^0.6.10' // Object.is equality
+   ✓ no CMS universal entry reaches a Node builtin 1747ms
+ ✓ src/listing/__tests__/see-more-script.test.ts (4 tests) 157ms
+ ✓ src/comments/__tests__/write-service.test.ts (6 tests) 5ms
+ ✓ src/media/__tests__/unit/document-read-paging.unit.test.ts (10 tests) 90ms
+ ✓ src/widgets/__tests__/unit/resolvers-core-wiring.unit.test.ts (7 tests) 21ms
+ ✓ src/widgets/__tests__/unit/resolvers-menu-target.unit.test.ts (4 tests) 6ms
+ ✓ src/seo/__tests__/sitemap-cache.test.ts (5 tests) 8ms
+ ✓ src/forms/__tests__/submission-email-validation.test.ts (6 tests) 15ms
+ ✓ src/widgets/__tests__/marker-target-parity.unit.test.ts (6 tests) 102ms
+ ✓ src/forms/delivery/__tests__/deliver-job.unit.test.ts (17 tests) 12ms
+ ✓ src/forms/__tests__/create-tables.test.ts (6 tests) 4124ms
+   ✓ pglite: creates the tables, is idempotent, and the repos round-trip 2382ms
+   ✓ pglite: every index is created for long table names (none skipped by truncation) 1687ms
+ ✓ src/navigation/__tests__/dropdown.test.ts (8 tests) 160ms
+ ✓ src/forms/html/__tests__/html-common-fields.test.ts (5 tests) 32ms
+ ✓ src/widgets/__tests__/unit/resolvers-gallery.unit.test.ts (10 tests) 13ms
+ ✓ src/seo/__tests__/absolute-url.test.ts (14 tests) 5ms
+ ✓ src/routing/__tests__/routing.phase-runners.test.ts (10 tests) 4ms
+ ✓ src/content-types/__tests__/cleanup.test.ts (6 tests) 4ms
+ ✓ src/entries/__tests__/field-validation.json-kind.test.ts (36 tests) 8ms
+ ✓ src/redirects/__tests__/ports.internal.test.ts (5 tests) 5ms
+ ✓ src/widgets/__tests__/unit/resolvers-menu.unit.test.ts (5 tests) 4ms
+ ✓ src/redirects/__tests__/redirects.chain-loop.test.ts (3 tests) 6ms
+ ✓ src/__tests__/args-convention.test.ts (8 tests) 12ms
+ ✓ src/forms/__tests__/submission-ip-retention.dialects.test.ts (6 tests) 4262ms
+   ✓ submission IP retention adapter and migration 0006 [pglite] > bounded batches cover more than 500 records; concurrent passes count each cleared row once 2371ms
+   ✓ [pglite] before migration 0006 the adapter refuses without writing, and re-probes once the migration lands 1828ms
+ ✓ src/seo/__tests__/seo.featured-image.test.ts (5 tests) 5ms
+ ✓ src/taxonomy/__tests__/merge-term.test.ts (8 tests) 4ms
+ ✓ src/seo/__tests__/feed.test.ts (6 tests) 8ms
+ ✓ src/forms/__tests__/reconcile-attachments.test.ts (9 tests) 5ms
+ ✓ src/widgets/__tests__/unit/resolve-html-page-embeds.unit.test.ts (5 tests) 11ms
+ ✓ src/forms/__tests__/notify-durable.test.ts (11 tests) 6ms
+ ✓ src/content-types/__tests__/index-provisioning.composition.test.ts (10 tests) 3ms
+ ✓ src/forms/delivery/__tests__/delivery-security.unit.test.ts (8 tests) 8ms
+ ✓ src/routing/__tests__/routing.ports.test.ts (5 tests) 5ms
+ ✓ src/seo/__tests__/seo.analyze.test.ts (4 tests) 6ms
+ ✓ src/comments/__tests__/comments-misc.cov-j2.test.ts (5 tests) 10ms
+ ✓ src/seo/__tests__/sitemap.schedule-expiry.test.ts (3 tests) 7ms
+ ✓ src/trash/__tests__/sweeper.test.ts (7 tests) 5ms
+ ✓ src/forms/__tests__/attachment-purge.test.ts (7 tests) 5ms
+ ✓ src/trash/__tests__/record-store-adapter.purge.test.ts (5 tests) 4ms
+ ✓ src/content-types/__tests__/repo.memory.cov-j2.test.ts (7 tests) 4ms
+ ✓ src/content-types/__tests__/agent-tools.test.ts (6 tests) 6ms
+ ✓ src/widgets/__tests__/unit/resolvers-menu-html.unit.test.ts (5 tests) 10ms
+ ✓ src/taxonomy/__tests__/content-lookup.test.ts (7 tests) 5ms
+ ✓ src/comments/express/__tests__/submit-handler.construction-refusal.test.ts (5 tests) 6ms
+ ✓ src/media/__tests__/unit/document-text-adapters.unit.test.ts (5 tests) 320ms
+ ✓ src/seo/__tests__/robots.test.ts (5 tests) 5ms
+ ✓ src/redirects/__tests__/hit-sink.test.ts (6 tests) 5ms
+ ✓ src/media/__tests__/unit/unpdf-boundaries.unit.test.ts (7 tests) 15ms
+ ✓ src/trash/__tests__/follow-ups.test.ts (6 tests) 7ms
+ ✓ src/media/__tests__/image-codec.test.ts (5 tests) 5ms
+ ✓ forms/src/__tests__/forms.submission-validation.test.ts (11 tests) 3ms
+ ✓ src/forms/__tests__/forms.submission-validation.test.ts (11 tests) 5ms
+ ✓ src/content-types/__tests__/cleanup.execute.test.ts (3 tests) 2ms
+ ✓ src/widgets/__tests__/gallery-render.test.ts (11 tests) 5ms
+ ✓ src/taxonomy/__tests__/rename-atomicity.test.ts (6 tests) 5ms
+ ✓ src/comments/__tests__/repo.cas-race.cov-j2.test.ts (6 tests) 2248ms
+   ✓ comments sql repo CAS [pglite] > an unlocked write landing between the locked read and the update is reported as a conflict at its version 2203ms
+ ✓ src/forms/__tests__/duplicate-slug.test.ts (10 tests) 10ms
+ ✓ src/widgets/__tests__/unit/resolvers-taxonomy.unit.test.ts (5 tests) 4ms
+ ✓ src/redirects/__tests__/reserved-destination.test.ts (3 tests) 6ms
+ ✓ src/widgets/__tests__/unit/mediawidget.unit.test.ts (6 tests) 7ms
+ ✓ src/navigation/__tests__/read-model.test.ts (4 tests) 6ms
+ ✓ src/media/__tests__/blob-gc-recovery.test.ts (4 tests) 5ms
+ ✓ src/navigation/__tests__/link-rel.test.ts (7 tests) 4ms
+ ✓ src/core/commands/__tests__/command-post-mutation-rollback.test.ts (9 tests) 6ms
+ ✓ src/forms/delivery/__tests__/errors.unit.test.ts (29 tests) 6ms
+ ✓ src/widgets/__tests__/unit/registry.unit.test.ts (8 tests) 8ms
+ ✓ src/forms/__tests__/create-tables.reference.test.ts (2 tests) 3766ms
+   ✓ pglite: createFormsTables matches the reference DDL's catalog 3742ms
+ ✓ src/media/__tests__/sanitize-svg.test.ts (8 tests) 146ms
+ ✓ src/media/__tests__/created-by.test.ts (3 tests) 5ms
+ ✓ src/navigation/__tests__/reconcile.test.ts (4 tests) 5ms
+ ✓ src/content-types/__tests__/cleanup.cov-j2.test.ts (4 tests) 3ms
+ ✓ src/widgets/__tests__/gallery-widget.test.ts (4 tests) 7ms
+ ✓ src/widgets/__tests__/unit/marker-edge-cases.unit.test.ts (8 tests) 6ms
+ ✓ src/entries/__tests__/write-service.entity-schema.test.ts (4 tests) 5ms
+ ✓ src/taxonomy/__tests__/cycle-detection.test.ts (7 tests) 3ms
+ ✓ src/media/__tests__/hardwiring-ports.test.ts (4 tests) 14ms
+ ✓ src/widgets/__tests__/unit/date-label.unit.test.ts (8 tests) 28ms
+ ✓ src/navigation/__tests__/update-tree-round-trip.test.ts (3 tests) 4ms
+ ✓ src/forms/__tests__/forms.defensive-inputs.test.ts (9 tests) 4ms
+ ✓ src/redirects/__tests__/order.test.ts (6 tests) 4ms
+stdout | src/forms/__tests__/unit/submission.property.unit.test.ts
+[fast-check cms/forms] seed=20261020, numRuns=150
+
+ ✓ src/forms/__tests__/unit/submission.property.unit.test.ts (5 tests) 120ms
+ ✓ src/media/__tests__/list-page-w2g.unit.test.ts (8 tests) 20ms
+ ✓ src/forms/__tests__/html-render.test.ts (3 tests) 4ms
+ ✓ src/workspace/__tests__/create.test.ts (4 tests) 3ms
+ ✓ forms/src/__tests__/forms-misc.cov-j2.test.ts (3 tests) 16ms
+ ✓ src/widgets/__tests__/server-fragment.test.ts (21 tests) 26ms
+ ✓ src/taxonomy/__tests__/content-deletion-cleanup.test.ts (4 tests) 4ms
+ ✓ src/seo/__tests__/render-origin.test.ts (6 tests) 5ms
+ ✓ src/presentation/__tests__/presentation.test.ts (6 tests) 4ms
+ ✓ src/forms/__tests__/submission-evidence.test.ts (4 tests) 10ms
+npm notice
+npm notice New major version of npm available! 11.19.1 -> 12.2.2
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.2
+npm notice To update run: npm install -g npm@12.2.2
+npm notice
+ ✓ src/widgets/__tests__/entry-isolation.test.ts (1 test) 228ms
+ ✓ src/listing/__tests__/batch.test.ts (9 tests) 5ms
+ ✓ src/forms/delivery/__tests__/pull-lease.unit.test.ts (8 tests) 5ms
+ ✓ src/core/tools/__tests__/args.contract.test.ts (5 tests) 8ms
+ ✓ src/entries/__tests__/field-validation.test.ts (6 tests) 9ms
+ ✓ src/taxonomy/__tests__/agent-tools.test.ts (6 tests) 6ms
+ ✓ src/forms/delivery/__tests__/status.unit.test.ts (10 tests) 4ms
+ ✓ src/content-types/__tests__/lifecycle-dispatch.cov-j2.test.ts (3 tests) 4ms
+ ✓ src/media/__tests__/blob-store.object-store.test.ts (4 tests) 3ms
+ ✓ src/widgets/__tests__/unit/errors.unit.test.ts (3 tests) 4ms
+ ✓ src/forms/__tests__/destination-descriptors.test.ts (4 tests) 5ms
+ ✓ src/forms/html/__tests__/html-checkbox-value.test.ts (2 tests) 20ms
+ ✓ src/forms/__tests__/submission-ip-retention.test.ts (5 tests) 5ms
+ ✓ src/widgets/__tests__/legacy-widget-markers.test.ts (12 tests) 12ms
+ ✓ src/media/__tests__/document-read-w2g.unit.test.ts (2 tests) 11ms
+npm notice
+npm notice New major version of npm available! 11.19.1 -> 12.2.2
+npm notice Changelog: https://github.com/npm/cli/releases/tag/v12.2.2
+npm notice To update run: npm install -g npm@12.2.2
+npm notice
+ ✓ src/workspace/__tests__/delete-atomicity.test.ts (4 tests) 3ms
+ ✓ src/forms/__tests__/delete-submission.test.ts (7 tests) 3ms
+ ✓ src/media/__tests__/sharp-native-memory.test.ts (3 tests) 3ms
+ ✓ src/widgets/__tests__/unit/entry-payload.concurrent-seed.unit.test.ts (2 tests) 3ms
+ ✓ src/comments/__tests__/spam.heuristic.test.ts (6 tests) 2ms
+ ✓ src/redirects/__tests__/path-key.test.ts (27 tests) 5ms
+ ✓ src/forms/__tests__/email-fields-w2g.unit.test.ts (2 tests) 9ms
+ ✓ src/content-types/__tests__/write-service.register-owner.test.ts (3 tests) 3ms
+ ✓ src/workspace/__tests__/update.test.ts (6 tests) 3ms
+ ✓ tests/forms/optional-platform.test.ts (2 tests) 8979ms
+   ✓ loads packed Forms and validates a submission without platform installed 3326ms
+   ✓ loads the packed sender subpath and configures an email action through injected ports 5651ms
+ ✓ src/forms/delivery/__tests__/pull-trigger.unit.test.ts (7 tests) 4ms
+ ✓ src/widgets/__tests__/unit/embed-validation.unit.test.ts (5 tests) 2ms
+ ✓ forms/src/__tests__/submission-ip-retention.test.ts (4 tests) 7ms
+ ✓ src/forms/delivery/__tests__/retry-policy.unit.test.ts (10 tests) 4ms
+ ✓ src/entries/__tests__/lifecycle-dispatch.cov-j2.test.ts (2 tests) 3ms
+ ✓ src/forms/html/__tests__/retry-draft.test.ts (1 test) 11ms
+ ✓ src/media/import/__tests__/injected-policy.test.ts (8 tests) 5ms
+ ✓ src/widgets/__tests__/unit/where-used.unit.test.ts (4 tests) 4ms
+ ✓ src/trash/__tests__/retention-policy.test.ts (25 tests) 7ms
+ ✓ src/__tests__/identity-extraction.boundary.test.ts (1 test) 4ms
+ ✓ src/content-types/__tests__/index-provisioning.web-crypto.test.ts (11 tests) 12ms
+ ✓ src/seo/__tests__/head-escaping.golden.test.ts (1 test) 5ms
+ ✓ src/content-types/__tests__/permissions.test.ts (1 test) 1ms
+ ✓ src/widgets/__tests__/unit/entry-payload.unit.test.ts (5 tests) 3ms
+ ✓ src/listing/__tests__/paths.test.ts (11 tests) 6ms
+ ✓ src/taxonomy/__tests__/list.test.ts (3 tests) 3ms
+ ✓ src/presentation/__tests__/theme-boundaries.unit.test.ts (2 tests) 4ms
+ ✓ src/redirects/__tests__/repo.rows.test.ts (2 tests) 2ms
+ ✓ src/media/__tests__/provenance-boundaries.unit.test.ts (25 tests) 9ms
+ ✓ src/widgets/__tests__/plugin-export-m1.unit.test.ts (7 tests) 17ms
+ ✓ src/widgets/__tests__/legacy-widget-markers.unit.test.ts (2 tests) 10ms
+ ✓ src/__tests__/settings-compatibility.contract.test.ts (2 tests) 6ms
+ ✓ src/forms/__tests__/embed-consent.unit.test.ts (3 tests) 3ms
+ ✓ src/comments/__tests__/repo.rows.test.ts (2 tests) 2ms
+ ✓ src/redirects/__tests__/entries.test.ts (2 tests) 4ms
+ ✓ src/forms/__tests__/checkbox-authored-value.test.ts (4 tests) 5ms
+ ✓ src/trash/__tests__/cursor.test.ts (4 tests) 5ms
+ ✓ forms/src/__tests__/package-boundary.test.ts (2 tests) 7ms
+ ✓ forms/src/__tests__/checkbox-authored-value.test.ts (4 tests) 5ms
+ ✓ src/forms/__tests__/reserved-slug-update.test.ts (1 test) 5ms
+ ✓ forms/src/__tests__/reserved-slug-update.test.ts (1 test) 7ms
+ ✓ src/redirects/__tests__/host-config.matcher-guard.test.ts (1 test) 3ms
+ ✓ src/widgets/__tests__/unit/concurrency.unit.test.ts (2 tests) 4ms
+ ✓ src/forms/__tests__/forms-barrel.characterization.test.ts (1 test) 3ms
+ ✓ src/widgets/__tests__/stored-format.golden.test.ts (1 test) 4ms
+ ✓ src/workspace/__tests__/delete.test.ts (3 tests) 2ms
+ ✓ src/core/commands/__tests__/public-entry.test.ts (1 test) 4ms
+ ✓ src/redirects/__tests__/target-gate.test.ts (6 tests) 4ms
+ ✓ src/content-types/__tests__/list.test.ts (3 tests) 4ms
+ ✓ src/core/__tests__/entity-liveness.test.ts (3 tests) 3ms
+ ✓ src/entries/__tests__/list.test.ts (3 tests) 2ms
+ ✓ src/forms/__tests__/browser-safe-pattern.test.ts (4 tests) 5ms
+ ✓ src/media/__tests__/repo.memory.test.ts (2 tests) 2ms
+ ✓ src/forms/__tests__/request-admission.test.ts (3 tests) 2ms
+ ✓ src/forms/__tests__/repo.memory.purge.test.ts (1 test) 3ms
+ ✓ src/widgets/__tests__/stylesheet-attributes.unit.test.ts (2 tests) 3ms
+ ✓ forms/src/__tests__/eventing.fixture.test.ts (2 tests) 3ms
+ ✓ src/content-types/__tests__/lifecycle-dispatch.test.ts (4 tests) 2ms
+ ✓ src/forms/__tests__/eventing.fixture.test.ts (2 tests) 3ms
+ ✓ src/content-types/__tests__/runtime-errors.test.ts (2 tests) 6ms
+ ✓ src/forms/__tests__/errors-defaults.test.ts (5 tests) 4ms
+stderr | src/media/__tests__/integration/document-text.integration.test.ts > real optional PDF adapter reads the tiny text fixture
+Warning: UnknownErrorException: Ensure that the `standardFontDataUrl` API parameter is provided.
+
+ ✓ src/taxonomy/__tests__/content-deletion-failure.test.ts (3 tests) 7ms
+ ✓ src/media/__tests__/integration/document-text.integration.test.ts (2 tests) 530ms
+   ✓ real optional Word adapter reads the tiny DOCX fixture 419ms
+ ✓ src/entries/__tests__/repo.memory.purge.test.ts (1 test) 2ms
+ ✓ src/forms/__tests__/submission-validation-metadata.test.ts (2 tests) 2ms
+ ✓ src/navigation/__tests__/agent-tools.menu-rel-schema.test.ts (2 tests) 3ms
+ ✓ src/forms/__tests__/forms.honeypot.test.ts (7 tests) 2ms
+ ✓ src/seo/__tests__/entry.test.ts (1 test) 5ms
+ ✓ src/media/__tests__/node-entry.test.ts (1 test) 5ms
+ ✓ src/workspace/__tests__/repo.memory.test.ts (2 tests) 2ms
+ ✓ src/entries/__tests__/lifecycle-dispatch.test.ts (3 tests) 2ms
+ ✓ forms/src/__tests__/errors-defaults.test.ts (4 tests) 3ms
+ ✓ src/forms/delivery/__tests__/index.unit.test.ts (3 tests) 3ms
+ ✓ src/comments/__tests__/sanitize.test.ts (2 tests) 2ms
+ ✓ src/navigation/__tests__/agent-tools.menu-delete-hint.test.ts (4 tests) 3ms
+ ✓ forms/src/__tests__/forms.honeypot.test.ts (6 tests) 3ms
+ ✓ src/media/__tests__/file-extension.test.ts (1 test) 2ms
+ ✓ src/redirects/__tests__/path-key-boundaries.unit.test.ts (2 tests) 2ms
+ ✓ src/navigation/__tests__/last-known-href.test.ts (1 test) 2ms
+ ✓ src/media/__tests__/sharp-failure-w2g.unit.test.ts (1 test) 8ms
+ ✓ src/trash/__tests__/exports.test.ts (2 tests) 2ms
+ ✓ src/core/__tests__/transform-format.test.ts (4 tests) 5ms
+ ✓ src/__tests__/subpath-isolation.contract.test.ts (1 test) 8168ms
+   ✓ keeps every CMS subpath isolated at runtime and installation 8167ms
+ ✓ src/seo/dom/__tests__/apply-head-elements.test.ts (2 tests) 14ms
+
+⎯⎯⎯⎯⎯⎯⎯ Failed Tests 1 ⎯⎯⎯⎯⎯⎯⎯
+
+ FAIL  src/content-types/__tests__/universal-entries.boundary.test.ts > CMS declares the used HTTP toolkit peer with an optional registry range
+AssertionError: expected '^0.7.0' to be '^0.6.10' // Object.is equality
+
+Expected: "^0.6.10"
+Received: "^0.7.0"
+
+ ❯ src/content-types/__tests__/universal-entries.boundary.test.ts:102:60
+    100| // rather than restoring "workspace:*" to peerDependencies or requirin…
+    101| test("CMS declares the used HTTP toolkit peer with an optional registr…
+    102|   expect(manifest.peerDependencies?.["@jini-ai/http-kit"]).toBe("^0.6.…
+       |                                                            ^
+    103|   expect(manifest.peerDependenciesMeta?.["@jini-ai/http-kit"]).toEqual…
+    104| });
+
+⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯[1/1]⎯
+
+ Test Files  1 failed | 330 passed (331)
+      Tests  1 failed | 3992 passed (3993)
+   Start at  03:41:51
+   Duration  82.17s (transform 5.71s, setup 0ms, collect 29.87s, tests 62.37s, environment 381ms, prepare 19.31s)
+
+exit=1
