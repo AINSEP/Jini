@@ -43,6 +43,28 @@ export function matchServerPath(
   return params;
 }
 
+/** A path's shape: `:name` segments become `:`, so paths that differ only in param names are equal. */
+function pathShape(path: string): string {
+  return path.split('/').map((segment) => (segment.startsWith(':') ? ':' : segment)).join('/');
+}
+
+/**
+ * Orders two patterns that matched the same pathname, per the contract's precedence rule: at the
+ * first segment where one is literal and the other a `:param`, the literal wins. Negative when `a`
+ * wins. Two matched patterns have the same segment count, and identical shapes cannot both be
+ * registered for one method, so the order is total.
+ */
+function bySpecificity(a: string, b: string): number {
+  const left = a.split('/');
+  const right = b.split('/');
+  for (let index = 0; index < left.length; index += 1) {
+    const aParam = (left[index] ?? '').startsWith(':');
+    const bParam = (right[index] ?? '').startsWith(':');
+    if (aParam !== bParam) return aParam ? 1 : -1;
+  }
+  return 0;
+}
+
 export interface NodeServer extends Server {
   listen(required: { port: number; host?: string }): Promise<{ port: number }>;
   close(): Promise<void>;
@@ -103,9 +125,10 @@ export function createNodeServer(_required: Record<string, never> = {}, _optiona
       return;
     }
     const isHead = request.method === 'HEAD';
+    const best = (method: string) => matched.filter((m) => m.route.method === method)
+      .sort((a, b) => bySpecificity(a.route.path, b.route.path))[0];
     // A HEAD with no HEAD route is answered by the GET route, per the contract's ServerMethod note.
-    const hit = matched.find((m) => m.route.method === request.method)
-      ?? (isHead ? matched.find((m) => m.route.method === 'GET') : undefined);
+    const hit = best(request.method) ?? (isHead ? best('GET') : undefined);
     if (!hit) {
       const allow = new Set(matched.map((m) => m.route.method));
       if (allow.has('GET')) allow.add('HEAD');
@@ -120,7 +143,7 @@ export function createNodeServer(_required: Record<string, never> = {}, _optiona
 
   return {
     route({ method, path, handler }) {
-      if (routes.some((r) => r.method === method && r.path === path)) {
+      if (routes.some((r) => r.method === method && pathShape(r.path) === pathShape(path))) {
         throw new Error(`node-server: route ${method} ${path} is already registered`);
       }
       routes.push({ method, path, handler });

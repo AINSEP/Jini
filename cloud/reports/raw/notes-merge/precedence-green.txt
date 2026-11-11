@@ -1,0 +1,8 @@
+## node-server test
+ℹ tests 15
+ℹ pass 15
+ℹ fail 0
+## typecheck
+exit=0
+## core typecheck
+exit=0

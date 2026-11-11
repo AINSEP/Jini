@@ -1,0 +1,87 @@
+▶ node-server adapter
+  ✔ dispatches a Request to the matching handler with decoded path params (44.933121ms)
+  ✔ lets an async handler read the request body (11.458245ms)
+  ✔ answers unmatched paths with 404 and unmatched methods with 405 (11.009405ms)
+  ✔ answers HEAD from the GET route with its status and headers but no body (7.374141ms)
+  ✔ routes OPTIONS like any other method, so a preflight can be answered (2.843635ms)
+  ✔ passes the socket peer address as client.address, ignoring forwarded headers (4.769885ms)
+  ✔ serves a route list mounted as ServerRoute data (2.331306ms)
+  ✔ rejects a second registration of the same method and path (0.663845ms)
+✔ node-server adapter (95.75695ms)
+▶ node-server route precedence
+  ✖ prefers a literal segment over a :param at the same position, whatever the registration order (8.507336ms)
+  ✖ decides at the first segment where the paths differ (5.668485ms)
+  ✖ treats paths that differ only in param names as the same path (0.390492ms)
+✖ node-server route precedence (17.966391ms)
+▶ matchServerPath
+  ✔ returns params for :name segments and an empty object for a literal match (0.401697ms)
+  ✔ rejects differing literals, segment counts, trailing slashes and empty params (0.150315ms)
+  ✔ does not match a param whose percent-encoding is malformed (0.078208ms)
+  ✔ takes named required args, not positional ones (0.115468ms)
+✔ matchServerPath (0.944436ms)
+ℹ tests 15
+ℹ suites 3
+ℹ pass 12
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 320.907798
+
+✖ failing tests:
+
+test at src/node-server.test.ts:112:3
+✖ prefers a literal segment over a :param at the same position, whatever the registration order (8.507336ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  
+  'param' !== 'literal'
+  
+      at TestContext.<anonymous> (file:///home/user/Jini/examples/notes-app/src/node-server.test.ts:113:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Promise.all (index 0)
+      at async Suite.run (node:internal/test_runner/test:1905:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'param',
+    expected: 'literal',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at src/node-server.test.ts:117:3
+✖ decides at the first segment where the paths differ (5.668485ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+  
+  + 'param-first'
+  - 'literal-first'
+  
+      at TestContext.<anonymous> (file:///home/user/Jini/examples/notes-app/src/node-server.test.ts:118:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'param-first',
+    expected: 'literal-first',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at src/node-server.test.ts:122:3
+✖ treats paths that differ only in param names as the same path (0.390492ms)
+  AssertionError [ERR_ASSERTION]: Missing expected exception.
+      at TestContext.<anonymous> (file:///home/user/Jini/examples/notes-app/src/node-server.test.ts:123:12)
+      at Test.runInAsyncScope (node:async_hooks:227:14)
+      at Test.run (node:internal/test_runner/test:1402:25)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Suite.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /already registered/,
+    operator: 'throws',
+    diff: 'simple'
+  }

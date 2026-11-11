@@ -94,6 +94,36 @@ describe('node-server adapter', () => {
   });
 });
 
+describe('node-server route precedence', () => {
+  let app: NodeServer;
+  let base = '';
+  before(async () => {
+    app = createNodeServer();
+    const reply = (text: string) => () => new Response(text);
+    // Param routes registered first, so registration order cannot be what picks the literal.
+    app.route({ method: 'GET', path: '/x/:id', handler: reply('param') });
+    app.route({ method: 'GET', path: '/x/new', handler: reply('literal') });
+    app.route({ method: 'GET', path: '/a/:p/c', handler: reply('param-first') });
+    app.route({ method: 'GET', path: '/a/b/:q', handler: reply('literal-first') });
+    base = `http://127.0.0.1:${(await app.listen({ port: 0 })).port}`;
+  });
+  after(() => app.close());
+
+  it('prefers a literal segment over a :param at the same position, whatever the registration order', async () => {
+    assert.equal(await (await fetch(`${base}/x/new`)).text(), 'literal');
+    assert.equal(await (await fetch(`${base}/x/42`)).text(), 'param');
+  });
+
+  it('decides at the first segment where the paths differ', async () => {
+    assert.equal(await (await fetch(`${base}/a/b/c`)).text(), 'literal-first');
+    assert.equal(await (await fetch(`${base}/a/z/c`)).text(), 'param-first');
+  });
+
+  it('treats paths that differ only in param names as the same path', () => {
+    assert.throws(() => app.route({ method: 'GET', path: '/x/:slug', handler: () => new Response(null) }), /already registered/);
+  });
+});
+
 describe('matchServerPath', () => {
   it('returns params for :name segments and an empty object for a literal match', () => {
     assert.deepEqual(matchServerPath({ pattern: '/a/:x/b/:y', pathname: '/a/1/b/two' }), { x: '1', y: 'two' });

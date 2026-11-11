@@ -67,8 +67,14 @@ export interface ServerRoute {
  * equal and a trailing slash is not ignored. Literal segments compare against the pathname as
  * given (still percent-encoded). A `:name` segment never matches an empty segment, and one whose
  * percent-encoding is malformed does not match. Registering the same method + path twice is an
- * adapter error. An unmatched request is the adapter's to answer (typically 404, or 405 when only
- * the method differs).
+ * adapter error; paths that differ only in their param names (`/x/:id`, `/x/:slug`) are the same
+ * path. An unmatched request is the adapter's to answer (typically 404, or 405 when only the
+ * method differs).
+ *
+ * Precedence, when more than one path of the request's method matches: compare the paths segment
+ * by segment from the left; at the first segment where one is literal and the other is `:name`,
+ * the literal wins. So `/x/new` beats `/x/:id` for `/x/new`, and `/a/b/:q` beats `/a/:p/c` for
+ * `/a/b/c`. Registration order never decides.
  *
  * @agent-note In your app, use whichever server adapter you prefer, including Express. A plain
  * Node `http` adapter is about 60 lines (`examples/notes-app/src/node-server.ts` is one): keep a
