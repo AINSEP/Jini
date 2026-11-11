@@ -330,7 +330,7 @@ importers:
   packages/agent-plugins:
     dependencies:
       '@jini-ai/commerce':
-        specifier: ^0.6.19
+        specifier: ^0.7.0
         version: link:../commerce
       yauzl:
         specifier: ^3.4.0
@@ -343,13 +343,13 @@ importers:
         specifier: workspace:^
         version: link:../cms
       '@jini-ai/core':
-        specifier: ^0.6.13
+        specifier: ^0.7.0
         version: link:../core
       '@jini-ai/oauth':
         specifier: workspace:^
         version: link:../oauth
       '@jini-ai/platform':
-        specifier: ^0.6.13
+        specifier: ^0.7.0
         version: link:../platform
       '@jini-ai/plugins':
         specifier: workspace:^
@@ -405,7 +405,7 @@ importers:
         version: 3.25.76
     devDependencies:
       '@jini-ai/core':
-        specifier: ^0.6.13
+        specifier: ^0.7.0
         version: link:../core
       '@jini-ai/protocol':
         specifier: workspace:^
@@ -1020,7 +1020,7 @@ importers:
   packages/platform:
     dependencies:
       '@jini-ai/core':
-        specifier: ^0.6.13
+        specifier: ^0.7.0
         version: link:../core
       undici:
         specifier: ^7.25.0
