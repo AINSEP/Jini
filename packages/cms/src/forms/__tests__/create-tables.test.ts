@@ -133,3 +133,9 @@ test("pglite: every index is created for long table names (none skipped by trunc
     await kernel.close();
   }
 });
+
+test("accepts any kernel with a dialect and execute, not only a @jini-ai/db one", async () => {
+  const executed: unknown[] = [];
+  await createFormsTables({ kernel: { dialect: "postgres", execute: async (statement) => { executed.push(statement); } }, tables });
+  assert.equal(executed.length, 7);
+});

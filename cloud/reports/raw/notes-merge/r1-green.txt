@@ -1,0 +1,10 @@
+## cms typecheck
+exit=0
+## cms build
+exit=0
+## forms tests
+ Test Files  69 passed (69)
+      Tests  812 passed (812)
+## check:cross-package
+check:cross-package: XP1–XP5 clean
+exit=0

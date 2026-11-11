@@ -1,0 +1,8 @@
+
+> jini@ check:cross-package /home/user/Jini
+> node --import tsx ./scripts/check-no-cross-package.ts --base 35c4961af
+
+XP1 packages/cms/src/forms/sql/create-tables.ts: @jini-ai/db/kernel
+XP3 packages/cms/src/forms/sql/create-tables.ts: @jini-ai/db/kernel
+ ELIFECYCLE  Command failed with exit code 1.
+exit=1

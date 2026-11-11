@@ -1,0 +1,10 @@
+base: 35c4961af718f0f30591c46d2ea2756c4484a731
+
+> @jini-ai/core@0.6.23 build /home/user/xp3-base/packages/core
+> tsc -p tsconfig.json
+
+core-build-exit=0
+recursive-build-exit=0
+declaration baseline: 35c4961af718f0f30591c46d2ea2756c4484a731; 3308 source mappings; /home/user/xp3-baseline
+write-baseline-exit=0
+3321

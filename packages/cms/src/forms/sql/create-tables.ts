@@ -1,5 +1,4 @@
 import { sql, type RawBuilder } from "kysely";
-import type { StorageDialect, StorageKernel } from "@jini-ai/db/kernel";
 import type { FormsTables } from "./tables.js";
 
 /**
@@ -7,6 +6,19 @@ import type { FormsTables } from "./tables.js";
  * current schema the forms repos read and write; it is not a migration chain and records nothing.
  * A host that versions its schema can call this from one of its own migration steps instead.
  */
+
+/** SQL dialect of the host's kernel; it picks the JSON and version column types. */
+export type FormsTablesDialect = "sqlite" | "postgres";
+
+/**
+ * The part of a storage kernel `createFormsTables` uses: its dialect, and running one statement
+ * that returns no rows. A `@jini-ai/db` storage kernel already has both, so a host passes the
+ * kernel it opened; this package does not import one.
+ */
+export interface FormsTablesKernel {
+  readonly dialect: FormsTablesDialect;
+  execute(statement: RawBuilder<unknown>): Promise<void>;
+}
 
 /** Postgres keeps 63 bytes of an identifier (NAMEDATALEN - 1) and silently cuts the rest. */
 const MAX_IDENTIFIER_BYTES = 63;
@@ -37,13 +49,13 @@ function identifier(name: string): string {
 
 type Names = { definitions: RawBuilder<unknown>; submissions: RawBuilder<unknown>; id: (name: string) => RawBuilder<unknown> };
 
-function definitionsTable(n: Names, dialect: StorageDialect): RawBuilder<unknown> {
+function definitionsTable(n: Names, dialect: FormsTablesDialect): RawBuilder<unknown> {
   const json = dialect === "postgres" ? sql.raw("jsonb") : sql.raw("text");
   const version = dialect === "postgres" ? sql.raw("bigint") : sql.raw("integer");
   return sql`CREATE TABLE IF NOT EXISTS ${n.definitions} (id text PRIMARY KEY NOT NULL, workspace_id text NOT NULL, name text NOT NULL, slug text NOT NULL, fields_json ${json} NOT NULL, notify_json ${json} NOT NULL, status text DEFAULT 'active' NOT NULL, created_at text NOT NULL, updated_at text NOT NULL, deleted_at text, version ${version} DEFAULT 1 NOT NULL)`;
 }
 
-function submissionsTable(n: Names, dialect: StorageDialect, fk: string): RawBuilder<unknown> {
+function submissionsTable(n: Names, dialect: FormsTablesDialect, fk: string): RawBuilder<unknown> {
   const json = dialect === "postgres" ? sql.raw("jsonb") : sql.raw("text");
   const version = dialect === "postgres" ? sql.raw("bigint") : sql.raw("integer");
   return sql`CREATE TABLE IF NOT EXISTS ${n.submissions} (id text PRIMARY KEY NOT NULL, workspace_id text NOT NULL, form_definition_id text NOT NULL, data_json ${json} NOT NULL, source_ip text, submitted_at text NOT NULL, deleted_at text, version ${version} DEFAULT 1 NOT NULL, CONSTRAINT ${n.id(fk)} FOREIGN KEY (form_definition_id) REFERENCES ${n.definitions} (id) ON UPDATE NO ACTION ON DELETE RESTRICT)`;
@@ -66,8 +78,8 @@ function submissionsTable(n: Names, dialect: StorageDialect, fk: string): RawBui
  * @complexity O(1) statements (seven); cost is the database's DDL cost.
  * @example await createFormsTables({ kernel, tables: { definitions: "form_definitions", submissions: "form_submissions" } });
  */
-export async function createFormsTables<DB>(
-  required: { kernel: StorageKernel<DB>; tables: FormsTables },
+export async function createFormsTables(
+  required: { kernel: FormsTablesKernel; tables: FormsTables },
   _optional: Record<string, never> = {},
 ): Promise<void> {
   const { kernel, tables } = required;
