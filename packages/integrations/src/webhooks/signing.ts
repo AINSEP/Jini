@@ -49,7 +49,8 @@ export function verifySignature(input: VerifySignatureInput): boolean {
   return parsed.signatures.some((candidateHex) => {
     // Multiple signatures allow secret-generation overlap during rotation; any matching one wins.
     // Validate hex/length before timingSafeEqual, which throws rather than returning false on mismatch.
-    if (!/^[0-9a-f]+$/i.test(candidateHex)) return false;
+    // Exact length too: Buffer.from(hex) drops a trailing odd nibble, so a longer value must not decode to the digest.
+    if (candidateHex.length !== expectedHex.length || !/^[0-9a-f]+$/i.test(candidateHex)) return false;
     const candidate = Buffer.from(candidateHex, "hex");
     return candidate.length === expected.length && timingSafeEqual(candidate, expected);
   });
