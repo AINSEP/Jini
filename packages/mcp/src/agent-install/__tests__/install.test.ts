@@ -243,7 +243,7 @@ describe('applyJsonInstall', () => {
     expect(JSON.parse(applyJsonInstall({ existingText: existing, plan })).mcp.servers).toEqual({ jini: { command: 'node' }, other: { command: 'x' } });
   });
 
-  it('does not treat another package's serve script as our bridge', () => {
+  it('does not treat the serve script of another package as our bridge', () => {
     const existing = JSON.stringify({ mcp: { servers: { jini: { command: 'node', args: ['/x/node_modules/@other/mcp/dist/bin/serve.js'] } } } });
     expect(() => applyJsonInstall({ existingText: existing, plan })).toThrow(/did not add/);
   });
@@ -502,7 +502,7 @@ describe('antigravity install against a temp HOME', () => {
     const existing = { theme: 'dark', mcpServers: { other: { command: 'other', args: ['x'] }, jini: { command: 'stale' } } };
     await mkdir(path.dirname(configFile(home)), { recursive: true });
     await writeFile(configFile(home), JSON.stringify(existing));
-    await expect(installInto(home)).rejects.toThrow(/different jini entry/);
+    await expect(installInto(home)).rejects.toThrow(/already has an MCP server named "jini" that this app did not add/);
     expect(JSON.parse((await readOrNull(configFile(home))) ?? 'null')).toEqual(existing);
   });
 });

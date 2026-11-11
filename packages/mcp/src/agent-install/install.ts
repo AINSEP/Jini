@@ -346,7 +346,8 @@ function assertSafeJsonInstallPlan(plan: JsonInstallPlan): void {
 
 /**
  * Merge one server entry into existing config text without disturbing the
- * rest. Missing intermediate objects are created; foreign named entries and non-object paths are refused. Returns pretty JSON with
+ * rest. Missing intermediate objects are created; an entry under the same name that launches this
+ * package's bridge (an earlier install) is replaced; any other named entry and non-object paths are refused. Returns pretty JSON with
  * a trailing newline. Throws if existing text is non-empty but unparseable
  * (caller decides whether to bail or back up), or if `plan.keyPath` /
  * `plan.serverKey` contains a dangerous object-path segment (CR-007).
@@ -363,11 +364,27 @@ export function applyJsonInstall({ existingText, plan }: { existingText: string 
     if (next === undefined) cursor[key] = {};
     cursor = cursor[key] as Record<string, unknown>;
   }
-  if (Object.hasOwn(cursor, plan.serverKey) && !isDeepStrictEqual(cursor[plan.serverKey], plan.entry)) {
-    throw new Error(`A different ${plan.serverKey} entry exists; choose another agent to keep these settings.`);
+  if (Object.hasOwn(cursor, plan.serverKey) && !isDeepStrictEqual(cursor[plan.serverKey], plan.entry)
+    && !launchesJiniBridge({ entry: cursor[plan.serverKey] })) {
+    throw new Error(`${plan.configPath} already has an MCP server named "${plan.serverKey}" that this app did not add, so it was left as it is. `
+      + `Rename or remove that "${plan.serverKey}" entry, then try again, or choose another agent.`);
   }
   cursor[plan.serverKey] = plan.entry;
   return `${JSON.stringify(root, null, 2)}\n`;
+}
+
+/** The bridge script every install of this package launches: `<pkg>/dist/bin/serve.js`, published as
+ * `@jini-ai/mcp` (or the earlier `@jini/mcp`) or linked from a `jini/packages/mcp` checkout. */
+const JINI_BRIDGE_SCRIPT = /(?:^|\/)(?:@jini(?:-ai)?|jini\/packages)\/mcp\/dist\/bin\/serve\.js$/i;
+
+/** True when an existing entry launches this package's own bridge, i.e. an earlier install wrote it
+ * (another install path, Node binary, env or enabled flag). Covers both the `command`+`args` and the
+ * folded OpenCode `command: [bin, ...args]` shapes. O(launch strings). */
+function launchesJiniBridge({ entry }: { entry: unknown }): boolean {
+  if (!entry || typeof entry !== 'object' || Array.isArray(entry)) return false;
+  const { command, args } = entry as Record<string, unknown>;
+  const launch = [...(Array.isArray(command) ? command : [command]), ...(Array.isArray(args) ? args : [])];
+  return launch.some(part => typeof part === 'string' && JINI_BRIDGE_SCRIPT.test(part.replaceAll('\\', '/')));
 }
 
 /**
