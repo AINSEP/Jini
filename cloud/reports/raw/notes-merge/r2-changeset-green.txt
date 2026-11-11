@@ -1,0 +1,55 @@
+## changeset status --since=origin/main (after)
+🦋  info Packages to be bumped at patch:
+🦋  info 
+🦋  - @jini-example/notes-app
+🦋  - @jini-app/reference-web
+🦋  - @jini-example/minimal-host
+🦋  - @jini-app/reference-desktop
+🦋  - @jini-example/cookie-consent-standalone
+🦋  ---
+🦋  info NO packages to be bumped at minor
+🦋  ---
+🦋  info Packages to be bumped at major:
+🦋  info 
+🦋  - @jini-ai/cms
+🦋  - @jini-ai/core
+🦋  - @jini-ai/admin
+🦋  - @jini-ai/agent-plugins
+🦋  - @jini-ai/cms-forms
+🦋  - @jini-ai/commerce
+🦋  - @jini-ai/provider-plugins
+🦋  - @jini-ai/user-management
+🦋  - @jini-ai/agent-runtime
+🦋  - @jini-ai/agentic
+🦋  - @jini-ai/analytics
+🦋  - @jini-ai/artifacts
+🦋  - @jini-ai/capability-providers
+🦋  - @jini-ai/chat
+🦋  - @jini-ai/cli
+🦋  - @jini-ai/daemon
+🦋  - @jini-ai/db
+🦋  - @jini-ai/desktop-host
+🦋  - @jini-ai/devops
+🦋  - @jini-ai/diagnostics
+🦋  - @jini-ai/http-kit
+🦋  - @jini-ai/infra
+🦋  - @jini-ai/integrations
+🦋  - @jini-ai/mcp
+🦋  - @jini-ai/oauth
+🦋  - @jini-ai/platform
+🦋  - @jini-ai/plugins
+🦋  - @jini-ai/registry
+🦋  - @jini-ai/search
+🦋  - @jini-ai/server
+🦋  - @jini-ai/sidecar
+🦋  - @jini-ai/ui
+🦋  - @jini-ai/vibecoding
+🦋  - @jini-ai/cookie-consent
+🦋  - @jini-ai/memory
+🦋  - @jini-ai/plugin-catalog
+🦋  - @jini-ai/plugin-fixture-provider
+🦋  - @jini-ai/protocol
+🦋  - @jini-ai/sandbox
+🦋  - @jini-ai/sqlite
+🦋  - @jini-ai/ui-kit
+exit=0
