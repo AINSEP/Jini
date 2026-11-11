@@ -1,0 +1,6 @@
+
+> jini@ check:cross-package /home/user/Jini
+> node --import tsx ./scripts/check-no-cross-package.ts --base 35c4961af
+
+check:cross-package: XP1–XP5 clean
+exit=0

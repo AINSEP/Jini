@@ -1,0 +1,40 @@
+typecheck-exit=0
+
+> @jini-example/notes-app@0.0.0 test
+> node --test 'src/**/*.test.ts'
+
+▶ contact form client address
+  ✔ keys the form limit on the socket peer, so a spoofed x-forwarded-for cannot reset it (117.183277ms)
+  ✔ stores the socket peer as source_ip (0.968503ms)
+✔ contact form client address (164.06995ms)
+▶ node-server adapter
+  ✔ dispatches a Request to the matching handler with decoded path params (33.887948ms)
+  ✔ lets an async handler read the request body (9.083486ms)
+  ✔ answers unmatched paths with 404 and unmatched methods with 405 (16.968502ms)
+  ✔ answers HEAD from the GET route with its status and headers but no body (5.041749ms)
+  ✔ routes OPTIONS like any other method, so a preflight can be answered (2.898838ms)
+  ✔ passes the socket peer address as client.address, ignoring forwarded headers (7.159753ms)
+  ✔ sends each Set-Cookie as its own header, not one comma-joined value (3.813091ms)
+  ✔ serves a route list mounted as ServerRoute data (3.065178ms)
+  ✔ rejects a second registration of the same method and path (23.570139ms)
+✔ node-server adapter (116.734519ms)
+▶ node-server route precedence
+  ✔ prefers a literal segment over a :param at the same position, whatever the registration order (16.747783ms)
+  ✔ decides at the first segment where the paths differ (8.666025ms)
+  ✔ treats paths that differ only in param names as the same path (3.664815ms)
+✔ node-server route precedence (30.958376ms)
+▶ matchServerPath
+  ✔ returns params for :name segments and an empty object for a literal match (0.160489ms)
+  ✔ rejects differing literals, segment counts, trailing slashes and empty params (0.105208ms)
+  ✔ does not match a param whose percent-encoding is malformed (0.176131ms)
+  ✔ takes named required args, not positional ones (0.137212ms)
+✔ matchServerPath (0.72585ms)
+ℹ tests 18
+ℹ suites 4
+ℹ pass 18
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 641.031876
+test-exit=0
