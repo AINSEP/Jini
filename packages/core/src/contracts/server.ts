@@ -47,6 +47,19 @@ export type ServerHandler = (
 ) => Response | Promise<Response>;
 
 /**
+ * One route as data: what `Server.route` takes. A package can return `ServerRoute[]` and leave
+ * registration to the host.
+ *
+ * @agent-note To mount a package's route list on your server:
+ * `for (const route of routes()) app.route(route);`
+ */
+export interface ServerRoute {
+  readonly method: ServerMethod;
+  readonly path: string;
+  readonly handler: ServerHandler;
+}
+
+/**
  * Something routes can be registered on.
  *
  * Path syntax: literal segments and `:name` segments, matched segment by segment against the
@@ -65,8 +78,5 @@ export type ServerHandler = (
  * that dispatches a `Request` directly.
  */
 export interface Server {
-  route(
-    requiredArgs: { readonly method: ServerMethod; readonly path: string; readonly handler: ServerHandler },
-    optionalArgs?: Record<string, never>,
-  ): void;
+  route(requiredArgs: ServerRoute, optionalArgs?: Record<string, never>): void;
 }

@@ -4,7 +4,7 @@
  */
 import { after, before, describe, it } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Server } from '@jini-ai/core/contracts/server';
+import type { Server, ServerRoute } from '@jini-ai/core/contracts/server';
 import { createNodeServer, matchServerPath, type NodeServer } from './node-server.ts';
 
 /** Route code in the shape packages use: it takes `{ app }`, never a concrete server. */
@@ -30,6 +30,11 @@ function registerNoteRoutes({ app }: { readonly app: Server }): void {
     path: '/notes',
     handler: () => new Response(null, { status: 204, headers: { 'access-control-allow-methods': 'POST' } }),
   });
+}
+
+/** Host-side mount: a package hands back its routes as data and the host registers each one. */
+function mount({ app, routes }: { readonly app: Server; readonly routes: readonly ServerRoute[] }): void {
+  for (const route of routes) app.route(route);
 }
 
 describe('node-server adapter', () => {
@@ -77,6 +82,11 @@ describe('node-server adapter', () => {
   it('passes the socket peer address as client.address, ignoring forwarded headers', async () => {
     const response = await fetch(`${base}/whoami`, { headers: { 'x-forwarded-for': '203.0.113.9' } });
     assert.deepEqual(await response.json(), { address: '127.0.0.1' });
+  });
+
+  it('serves a route list mounted as ServerRoute data', async () => {
+    mount({ app, routes: [{ method: 'GET', path: '/mounted', handler: () => new Response('mounted') }] });
+    assert.equal(await (await fetch(`${base}/mounted`)).text(), 'mounted');
   });
 
   it('rejects a second registration of the same method and path', () => {

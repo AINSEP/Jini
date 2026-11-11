@@ -1,0 +1,10 @@
+## core build
+exit=0
+## core typecheck
+exit=0
+## notes-app typecheck
+exit=0
+## notes-app node-server test
+ℹ tests 12
+ℹ pass 12
+ℹ fail 0

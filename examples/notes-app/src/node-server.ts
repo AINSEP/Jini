@@ -7,13 +7,9 @@
  */
 import { createServer, type IncomingMessage, type Server as HttpServer, type ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
-import type { Server, ServerHandler, ServerMethod } from '@jini-ai/core/contracts/server';
+import type { Server, ServerRoute } from '@jini-ai/core/contracts/server';
 
-interface Route {
-  readonly method: ServerMethod;
-  readonly path: string;
-  readonly handler: ServerHandler;
-}
+type Route = ServerRoute;
 
 /**
  * Matches a registered `pattern` (e.g. `/notes/:id`) against a URL `pathname`, with the path

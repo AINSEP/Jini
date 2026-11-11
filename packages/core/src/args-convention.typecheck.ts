@@ -83,7 +83,7 @@ function checkApprovalPorts(required: {
 void checkApprovalPorts;
 
 // The server contract: named required args for registration and handlers.
-import type { Server, ServerHandler } from './contracts/server.js';
+import type { Server, ServerHandler, ServerRoute } from './contracts/server.js';
 declare const app: Server;
 const okHandler: ServerHandler = ({ request, params }) => new Response(`${request.method} ${params.id ?? ''}`);
 app.route({ method: 'GET', path: '/notes/:id', handler: okHandler });
@@ -96,3 +96,8 @@ const bareHandler: ServerHandler = (request: Request) => new Response(request.ur
 // The peer address rides in the required-args object and is optional, so an adapter without one compiles.
 const clientHandler: ServerHandler = ({ client }) => new Response(client?.address ?? 'unknown');
 void clientHandler({ request: new Request('http://local/'), params: {} });
+// A package can return its routes as data; the host mounts each one with `app.route(route)`.
+const listedRoutes: readonly ServerRoute[] = [{ method: 'GET', path: '/notes/:id', handler: okHandler }];
+for (const route of listedRoutes) app.route(route);
+// @ts-expect-error A route list entry needs its handler.
+const handlerless: ServerRoute = { method: 'GET', path: '/notes' };

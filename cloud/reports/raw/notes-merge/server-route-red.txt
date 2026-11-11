@@ -1,0 +1,7 @@
+## core typecheck
+src/args-convention.typecheck.ts(86,38): error TS2305: Module '"./contracts/server.js"' has no exported member 'ServerRoute'.
+src/args-convention.typecheck.ts(102,1): error TS2578: Unused '@ts-expect-error' directive.
+exit=2
+## notes-app typecheck
+src/node-server.test.ts(7,23): error TS2305: Module '"@jini-ai/core/contracts/server"' has no exported member 'ServerRoute'.
+exit=2
