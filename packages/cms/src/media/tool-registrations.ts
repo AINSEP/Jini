@@ -321,6 +321,7 @@ export function buildMediaRegistrations(required: Omit<MediaToolDeps, "resolvePu
       const mediaId = requireString({ input, key: "mediaId" });
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "media.update" }, { entityType: "media", entityId: mediaId });
       return withSchemaOnRejection({ toolId: "media_update_metadata", catalog: CATALOG_BY_ID, isShapeRejection: isMediaShapeRejection, fn: async () => {
+        ctx.signal.throwIfAborted();
         const { media } = await updateMediaMetadata({
           deps: { clock: routeDeps.clock, mediaRepo: routeDeps.mediaRepo },
           input: {
@@ -342,6 +343,7 @@ export function buildMediaRegistrations(required: Omit<MediaToolDeps, "resolvePu
     media_trash_asset: async (ctx) => {
       const mediaId = requireString({ input: requireInputRecord({ input: ctx.input }), key: "mediaId" });
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "media.delete" }, { entityType: "media", entityId: mediaId });
+      ctx.signal.throwIfAborted();
       const { media } = await trashMedia({
         deps: { clock: routeDeps.clock, mediaRepo: routeDeps.mediaRepo },
         input: { workspaceId: routeDeps.workspaceId, id: mediaId },
