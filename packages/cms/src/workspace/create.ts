@@ -28,6 +28,7 @@ export interface WorkspaceRecord {
   name: string;
   slug: string;
   createdAt: string;
+  version: number;
 }
 
 /**
@@ -44,7 +45,7 @@ export interface WorkspaceRepoPort {
   list(): Promise<WorkspaceRecord[]>;
   /** Replaces the full record (id/createdAt immutable by convention — see
    * `update.ts`, which never changes them). */
-  update(record: WorkspaceRecord): Promise<void>;
+  update(record: WorkspaceRecord, optional?: { expectedVersion?: number }): Promise<void>;
   /** Callers (see `delete.ts`) must apply the last-workspace guard
    * themselves — this port method performs the row deletion only, no business rule. */
   delete({ id }: { id: UUID }): Promise<void>;
@@ -159,7 +160,7 @@ export async function createWorkspace(
   const now = kernelNowIso({ clock: deps.clock });
   const id = deps.idGen.newId();
 
-  await deps.repo.insert({ id, name, slug, createdAt: now });
+  await deps.repo.insert({ id, name, slug, createdAt: now, version: 1 });
 
   const event: DomainEvent<{ workspaceId: UUID; slug: string }> = {
     id: deps.idGen.newId(),

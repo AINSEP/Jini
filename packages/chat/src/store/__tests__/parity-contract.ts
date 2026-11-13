@@ -29,7 +29,7 @@ export function chatParityContract({ name, makeFixture }: { name: string; makeFi
     } });
     assert.equal((await alice.get({ id: 'embedded' }))?.messageCount, 4);
     assert.equal((await alice.list())[0]?.messageCount, 4);
-    assert.equal((await alice.history!.list({}))[0]?.messageCount, 4);
+    assert.equal((await alice.history!.list({})).items[0]?.messageCount, 4);
     assert.equal(await bob.get({ id: 'embedded' }), null);
     for (const events_json of ['broken', '{}', 'null', '[null,"scalar",4]']) {
       await f.kernel.run(db => db.updateTable('ai_chat_messages').set({ events_json }).where('id', '=', 'reply').execute());

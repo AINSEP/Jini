@@ -14,6 +14,7 @@
  * `workspace.manage` check.
  */
 import type { AuthorizeFn } from "../core/commands/command.js";
+import { requireExpectedVersion } from "@jini-ai/core/optimistic-concurrency";
 import { buildDomainRegistrations, indexCatalogById, optionalString, requireInputRecord, requireNoInput, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import { adaptLegacyAuthorize, requireToolPermission } from "../core/tools/index.js";
 import { getWorkspaceAgentToolCatalog } from "./agent-tools.js";
@@ -62,7 +63,7 @@ const UNWIRED_WORKSPACE_TOOL_IDS = new Set([
   "workspace_delete",
 ]);
 
-export function buildWorkspaceRegistrations(routeDeps: WorkspaceToolDeps): ToolRegistration[] {
+export function buildWorkspaceRegistrations(routeDeps: WorkspaceToolDeps, optional: { readToolId?: string } = {}): ToolRegistration[] {
   const handlers: Record<string, ToolHandler> = {
     workspace_get: async (ctx) => {
       requireNoInput({ input: ctx.input });
@@ -80,6 +81,7 @@ export function buildWorkspaceRegistrations(routeDeps: WorkspaceToolDeps): ToolR
     workspace_update: async (ctx) => {
       const input = requireInputRecord({ input: ctx.input });
       await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: "workspace.manage" }, { entityType: "workspace" });
+      const expectedVersion = requireExpectedVersion({ value: input.expectedVersion, readToolId: optional.readToolId ?? "workspace_get" });
 
       // WorkspaceValidationError/WorkspaceConflictError/WorkspaceNotFoundError (all real `Error`
       // subclasses, see `create.ts`) propagate as-is — a `ToolExecutor` treats any thrown error as
@@ -92,7 +94,7 @@ export function buildWorkspaceRegistrations(routeDeps: WorkspaceToolDeps): ToolR
           name: optionalString({ input, key: "name" }),
           slug: optionalString({ input, key: "slug" }),
         },
-      });
+      }, { expectedVersion });
       return { workspace };
     },
   };

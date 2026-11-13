@@ -3,6 +3,7 @@
 // require a reverse dependency on ChatMessage or a second, drifting definition of that shape.
 // Types only belong here; drivers, database lifetime and migration execution belong to adapters.
 import type { ChatMessage } from '../core/messages.js';
+import type { ListPage } from '@jini-ai/core/list-page';
 
 export type ChatOwnerKind = 'user' | 'guest';
 // Separate owner kinds preserve different disclosure/retention rules: an anonymous identifier is
@@ -139,7 +140,8 @@ export type ChatHistoryStore = Pick<
 
 /** Internal persistence projections. Model-facing tools redact and cap these before returning. */
 export interface ChatHistoryReader {
-  list(required: Record<string, never>, optional?: { query?: string; limit?: number }): Promise<readonly (ChatConversation & { firstUserLine: string })[]>;
+  /** Owner-scoped history, newest first; nextCursor continues after the last returned conversation. */
+  list(required: Record<string, never>, optional?: { query?: string; limit?: number; cursor?: string | null }): Promise<ListPage<ChatConversation & { firstUserLine: string }>>;
   read(required: { chatId: string }, optional?: { fromPosition?: number; limit?: number; includeToolEvents?: boolean }): Promise<{ messages: readonly (ChatMessage & { position: number })[]; hasMore: boolean }>;
 }
 

@@ -49,7 +49,7 @@ describe('members controller failure and race paths', () => {
   it('reloads the expanded row detail on refresh, and collapses it when the member disappeared', async () => {
     const real = memberApi();
     let roster = [member, member2];
-    const api: MembersApiPort = { ...real, listMembers: async () => ({ members: roster }) };
+    const api: MembersApiPort = { ...real, listMembers: async () => ({ members: roster, nextCursor: null }) };
     const c = createMembersController({ api }, manage);
     await c.load({});
     await c.toggleDetail({ id: 'n' });

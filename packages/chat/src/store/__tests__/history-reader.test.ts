@@ -22,11 +22,11 @@ for (const [name, makeFixture] of [['SQLite', sqliteFixture], ['PGlite', pgliteF
         const foreign = fixture.make(foreignScope);
         await foreign.create({ id: `foreign-${foreignScope.ownerId}-${foreignScope.scopeId}-${foreignScope.ownerKind}`, title: 'Theme plan' });
       }
-      expect((await store.history!.list({}, { query: 'THEME' })).map(row => row.id)).toEqual(['newer', 'older']);
-      expect((await store.history!.list({}, { query: '100%_done!' })).map(row => row.id)).toEqual(['newer']);
-      expect(await store.history!.list({}, { query: "%' OR 1=1 --" })).toEqual([]);
-      expect((await store.history!.list({}, { limit: 1 }))[0]?.id).toBe('empty');
-      const older = (await store.history!.list({}, { query: 'first line' }))[0]!;
+      expect((await store.history!.list({}, { query: 'THEME' })).items.map(row => row.id)).toEqual(['newer', 'older']);
+      expect((await store.history!.list({}, { query: '100%_done!' })).items.map(row => row.id)).toEqual(['newer']);
+      expect((await store.history!.list({}, { query: "%' OR 1=1 --" })).items).toEqual([]);
+      expect((await store.history!.list({}, { limit: 1 })).items[0]?.id).toBe('empty');
+      const older = (await store.history!.list({}, { query: 'first line' })).items[0]!;
       expect(older).toMatchObject({ id: 'older', messageCount: 1, firstUserLine: 'first line\nsecond line', updatedAt: 10 });
     });
 

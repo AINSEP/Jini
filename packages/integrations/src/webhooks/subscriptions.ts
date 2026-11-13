@@ -69,6 +69,7 @@ export async function createSubscription(
     createdByPluginId: optional.createdByPluginId ?? null,
     createdAt: now,
     updatedAt: now,
+    version: 1,
     disabledAt: null,
   };
 
@@ -92,7 +93,7 @@ export interface UpdateSubscriptionRequired {
 /** Validate a replacement before saving; missing or soft-deleted workspace-scoped rows throw. */
 export async function updateSubscription(
   required: UpdateSubscriptionRequired,
-  _optional: WebhookSubscriptionOptional = {}
+  optional: WebhookSubscriptionOptional & { expectedVersion?: number } = {}
 ): Promise<{ subscription: WebhookSubscriptionRecord }> {
   const { deps, input } = required;
 
@@ -124,9 +125,10 @@ export async function updateSubscription(
     targetUrl,
     topics,
     updatedAt: nowIso({ clock: deps.clock }),
+    version: existing.version + 1,
   };
 
-  await deps.repo.save(subscription);
+  await deps.repo.save(subscription, optional.expectedVersion === undefined ? {} : { expectedVersion: optional.expectedVersion });
   return { subscription };
 }
 

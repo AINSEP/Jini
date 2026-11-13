@@ -98,6 +98,7 @@ export interface MemberRowState {
 }
 export interface MembersState {
   readonly members: readonly AdminMember[] | null; readonly error: string | null;
+  readonly nextCursor: string | null;
   readonly rows: Readonly<Record<string, MemberRowState>>;
   readonly expandedId: string | null; readonly detailById: Readonly<Record<string, AdminMember>>;
   readonly detailError: string | null; readonly detailLoadingId: string | null;

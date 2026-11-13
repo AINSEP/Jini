@@ -282,8 +282,9 @@ export async function updateFormDefinition(
           notify,
           slug: existing.slug,
           updatedAt: kernelNowIso({ clock: deps.clock }),
+          version: existing.version + 1,
         };
-        await deps.repo.update(definition);
+        await deps.repo.update(definition, optional.expectedVersion === undefined ? {} : { expectedVersion: optional.expectedVersion });
         return { definition };
       },
     },
@@ -353,7 +354,7 @@ export interface FormWriteOptional {
   outbox?: import("../core/index.js").OutboxPort;
 }
 export interface CreateFormDefinitionOptional extends FormWriteOptional { notify?: NotifyConfig; authoring?: FormAuthoringPort; }
-export interface UpdateFormDefinitionOptional extends FormWriteOptional { authoring?: FormAuthoringPort; }
+export interface UpdateFormDefinitionOptional extends FormWriteOptional { authoring?: FormAuthoringPort; expectedVersion?: number; }
 
 /** Authoring pre-reads are authorized once; the audited gateway replays that decision.
  * @complexity O(f + h) authoring/validation, with fixed-count repository and command calls. */

@@ -7,7 +7,7 @@ const emptyRow: MemberRowState = Object.freeze({ disabling: false, resending: fa
  * different row, including collapse/reopen of the same row. Refresh invalidates cached detail. */
 export function createMembersController({ api }: { api: MembersApiPort }, { permissions = [], refresh }: { permissions?: readonly string[]; refresh?: MembersRefreshPort } = {}) {
   const grants = Object.freeze([...permissions]);
-  const store = createControllerStore<MembersState>({ initial: { members: null, error: null, rows: {}, expandedId: null, detailById: {}, detailError: null, detailLoadingId: null, pending: null, confirming: false } });
+  const store = createControllerStore<MembersState>({ initial: { members: null, nextCursor: null, error: null, rows: {}, expandedId: null, detailById: {}, detailError: null, detailLoadingId: null, pending: null, confirming: false } });
   const read = store.getSnapshot, call = store.call, set = (patch: Partial<MembersState>) => store.set({ patch });
   let listGeneration = 0, detailGeneration = 0;
   const report = (error: unknown, fallback: string) => describePeopleError({ error, fallback });
@@ -44,13 +44,13 @@ export function createMembersController({ api }: { api: MembersApiPort }, { perm
     const generation = listGeneration;
     set({ error: null });
     try {
-      const { members } = await api.listMembers({}, call);
+      const { members, nextCursor } = await api.listMembers({}, call);
       if (generation !== listGeneration || !store.active({})) {
         return;
       }
 
       ++detailGeneration;
-      set({ members: Object.freeze(members.map(m => Object.freeze({ ...m }))), detailById: {}, detailError: null, detailLoadingId: null });
+      set({ members: Object.freeze(members.map(m => Object.freeze({ ...m }))), nextCursor, detailById: {}, detailError: null, detailLoadingId: null });
       const id = read({}).expandedId;
       if (id && row(id)) {
         await loadDetail(id);

@@ -59,7 +59,7 @@ export interface UpdateWorkspaceRequired {
  * @overallScore 100
  * See docs/decisions/DR-007-workspace-and-owner-floors.md.
  */
-export async function updateWorkspace(required: UpdateWorkspaceRequired): Promise<{ workspace: WorkspaceRecord }> {
+export async function updateWorkspace(required: UpdateWorkspaceRequired, optional: { expectedVersion?: number } = {}): Promise<{ workspace: WorkspaceRecord }> {
   const { deps, input } = required;
 
   if (input.name === undefined && input.slug === undefined) {
@@ -81,7 +81,7 @@ export async function updateWorkspace(required: UpdateWorkspaceRequired): Promis
     }
   }
 
-  const updated: WorkspaceRecord = { ...existing, name, slug };
-  await deps.repo.update(updated);
+  const updated: WorkspaceRecord = { ...existing, name, slug, version: existing.version + 1 };
+  await deps.repo.update(updated, optional);
   return { workspace: updated };
 }

@@ -1,4 +1,5 @@
 import type { WorkspaceRecord, WorkspaceRepoPort } from "./create.js";
+import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 
 /**
  * @file In-memory workspace repository adapter.
@@ -46,8 +47,14 @@ export class InMemoryWorkspaceRepo implements WorkspaceRepoPort {
   }
 
   /** Replace the row matching `record.id` in place. */
-  async update(record: WorkspaceRecord): Promise<void> {
+  async update(record: WorkspaceRecord, optional: { expectedVersion?: number } = {}): Promise<void> {
     const index = this.rows.findIndex((row) => row.id === record.id);
+    const current = this.rows[index];
+    if (optional.expectedVersion !== undefined && current?.version !== optional.expectedVersion) {
+      await assertVersionedWrite({ changedRows: 0, recordKind: "workspace", recordId: record.id,
+        expectedVersion: optional.expectedVersion, readCurrentVersion: async () => current?.version ?? null });
+    }
+    // The successful comparison and assignment stay synchronous for concurrent memory callers.
     if (index === -1) return;
     this.rows[index] = record;
   }

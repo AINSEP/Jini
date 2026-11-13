@@ -381,13 +381,17 @@ export function createSqlChatStore<DB extends ChatDatabase>(
   const store: ChatStore = {
     history: {
       /** Literal search uses two scoped projections, not a transcript fetch per conversation.
-       * @complexity The database scans owned content for search; only limit rows cross the port.
+       * A continuation is bound to this owner and orders by activity descending, then ID ascending.
+       * @throws {ChatStoreError} For invalid inputs or a cursor belonging to another scope.
+       * @complexity The database scans owned content for search; at most limit+1 rows are returned.
        */
-      async list(_required, { query, limit = 20 } = {}) {
+      async list(_required, { query, limit = 20, cursor } = {}) {
         if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw new ChatStoreError({ code: 'invalid-input' });
         if (query !== undefined && (typeof query !== 'string' || query.length > 200)) {
           throw new ChatStoreError({ code: 'invalid-input' });
         }
+        const anchor = decodeCursor({ cursor: cursor ?? undefined, kind: 'conversations', scope, conversation: null });
+        const id = ordinalId(kernel.dialect, 'c.id');
         const rows = await run(db => {
           let statement = ownedConversations(db).select(eb => eb.selectFrom('ai_chat_messages as first')
             .select('first.content').whereRef('first.conversation_id', '=', 'c.id').where('first.role', '=', 'user')
@@ -402,9 +406,18 @@ export function createSqlChatStore<DB extends ChatDatabase>(
                 .where(sql<boolean>`lower(found.content) like ${pattern} escape '!'`)),
             ]));
           }
-          return statement.orderBy(CONVERSATION_UPDATED_AT, 'desc').orderBy(ordinalId(kernel.dialect, 'c.id')).limit(limit).execute();
+          if (anchor) statement = statement.where(eb => eb.or([
+            eb(CONVERSATION_UPDATED_AT, '<', anchor[0]),
+            eb.and([eb(CONVERSATION_UPDATED_AT, '=', anchor[0]), eb(id, '>', anchor[1])]),
+          ]));
+          return statement.orderBy(CONVERSATION_UPDATED_AT, 'desc').orderBy(id, 'asc').limit(limit + 1).execute();
         });
-        return rows.map(row => ({ ...toConversation(row as ConversationRow), firstUserLine: row.first_user_line ?? '' }));
+        const items = rows.slice(0, limit).map(row => ({ ...toConversation(row as ConversationRow), firstUserLine: row.first_user_line ?? '' }));
+        const last = items.at(-1);
+        const nextCursor = rows.length > limit && last
+          ? encodeCursor({ kind: 'conversations', scope, conversation: null, anchor: [last.updatedAt, last.id] })
+          : null;
+        return { items, nextCursor };
       },
       /** No attachment column is read. O(limit) rows; default tail is reversed into position order. */
       async read({ chatId }, { fromPosition, limit = 50, includeToolEvents = false } = {}) {
