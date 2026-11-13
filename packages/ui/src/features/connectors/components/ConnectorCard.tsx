@@ -1,10 +1,11 @@
-import type { KeyboardEvent as ReactKeyboardEvent, SyntheticEvent } from 'react';
+import type { SyntheticEvent } from 'react';
 import { agentHandleProps } from '@jini-ai/agentic';
 import { useT } from '../../i18n/index.js';
 import { connectorActionFlags, getConnectorDisplayToolCount, statusLabel, toolsBadgeTranslation } from '../rules.js';
 import type { Connector, ConnectorAction, ConnectorActionFlags, ConnectorAuthorizationPending } from '../types.js';
 import { Icon } from '../../../react/components/Icon.js';
 import { ConnectorLogo } from './ConnectorLogo.js';
+import { createContinueAuthorization, useConnectorCard } from './ConnectorCard.hooks.js';
 
 export interface ConnectorCardProps {
   connector: Connector;
@@ -172,17 +173,7 @@ function ConnectorCardHints({
 }: ConnectorCardHintsProps) {
   const t = useT();
 
-  function continueAuthorization(event: SyntheticEvent) {
-    stopPropagation(event);
-    // `continueAuthorization`'s only call site (the "continue in browser"
-    // button below) only ever renders while
-    // `isAuthorizationPending && authorizationPending.redirectUrl` already
-    // holds in that same render, and React re-binds this closure fresh on
-    // every render — so a re-check here was dead code for every real
-    // click, removed rather than tested around (see
-    // archived UI source map's 2026-07-22 dated entry).
-    onOpenExternalUrl?.(redirectUrl!);
-  }
+  const continueAuthorization = redirectUrl ? createContinueAuthorization({ redirectUrl, onOpenExternalUrl }) : undefined;
 
   return (
     <>
@@ -222,17 +213,7 @@ export function ConnectorCard({
   const categoryLabel = getCategoryLabel(connector.category);
   const actionProps = { flags, disabled, agentHandle };
 
-  function openDetails() {
-    if (disabled) return;
-    onOpenDetails(connector.id);
-  }
-
-  function onKeyActivate(event: ReactKeyboardEvent<HTMLElement>) {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
-    if (event.target !== event.currentTarget) return;
-    event.preventDefault();
-    openDetails();
-  }
+  const { openDetails, onKeyActivate } = useConnectorCard({ connector, disabled, onOpenDetails });
 
   return (
     <article

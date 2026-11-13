@@ -13,19 +13,17 @@
  * React import" convention): the thing being faked is *itself* a React
  * component, so its fake unavoidably needs JSX too.
  */
-import { useEffect, useRef } from 'react';
 import type { ReactNode } from 'react';
 import type { SketchEditorDependencies, SketchEditorEnginePort, SketchMainMenuComponent } from '../ports.js';
+import { useFakeExcalidraw } from './dependencies-fake.hooks.js';
 
-let fakeElementCounter = 0;
-
-interface FakeExcalidrawInitialData {
+export interface FakeExcalidrawInitialData {
   elements?: unknown[];
   appState?: Record<string, unknown>;
   files?: Record<string, unknown>;
 }
 
-interface FakeExcalidrawProps {
+export interface FakeExcalidrawProps {
   initialData?: FakeExcalidrawInitialData;
   excalidrawAPI?: (api: unknown) => void;
   onChange?: (elements: unknown[], appState: Record<string, unknown>, files: Record<string, unknown>) => void;
@@ -40,32 +38,7 @@ interface FakeExcalidrawProps {
 }
 
 function FakeExcalidraw({ initialData, excalidrawAPI, onChange, renderTopRightUI, name, theme, children }: FakeExcalidrawProps) {
-  const elementsRef = useRef<unknown[]>((initialData?.elements ?? []).slice());
-  const appStateRef = useRef<Record<string, unknown>>({ ...(initialData?.appState ?? {}) });
-  const filesRef = useRef<Record<string, unknown>>({ ...(initialData?.files ?? {}) });
-
-  useEffect(() => {
-    excalidrawAPI?.({
-      updateScene: (partial: { appState?: Record<string, unknown> } | undefined) => {
-        if (partial?.appState) appStateRef.current = { ...appStateRef.current, ...partial.appState };
-      },
-      getSceneElementsIncludingDeleted: () => elementsRef.current,
-      getAppState: () => appStateRef.current,
-      getFiles: () => filesRef.current,
-    });
-    // Mount-once, matching real Excalidraw's own imperative-handle-once contract.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const fireChange = () => {
-    fakeElementCounter += 1;
-    const nextElements = [
-      ...elementsRef.current,
-      { id: `fake-element-${fakeElementCounter}`, version: fakeElementCounter, versionNonce: fakeElementCounter, isDeleted: false, type: 'rectangle' },
-    ];
-    elementsRef.current = nextElements;
-    onChange?.(nextElements, appStateRef.current, filesRef.current);
-  };
+  const { fireChange } = useFakeExcalidraw({ initialData, excalidrawAPI, onChange });
 
   return (
     <div data-testid="fake-excalidraw" aria-label={name} data-theme={theme}>

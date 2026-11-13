@@ -1,7 +1,7 @@
 import { useAgentHandle } from '../../../../react/hooks/useAgentHandle.js';
-import { useId, useRef, type KeyboardEvent } from 'react';
+import { useRef, type KeyboardEvent } from 'react';
 import { agentHandle } from '@jini-ai/agentic';
-import { useScrollHighlightedIntoView, useSuggestInput } from './SuggestInput.hooks.js';
+import { useScrollHighlightedIntoView, useSuggestInput, useSuggestOptionIds } from './SuggestInput.hooks.js';
 
 /**
  * A free-text input with a styled suggestion list under it: the browser's native `<datalist>` cannot
@@ -41,8 +41,7 @@ export function SuggestInput({ value, onValueChange, suggestions, onPick, onKeyD
   const vm = useSuggest({ value, suggestions }, { limit });
   const listRef = useRef<HTMLUListElement>(null);
   useScrollHighlightedIntoView({ listRef, scrollTarget: vm.scrollTarget }, { scrollIntoView: scrollOptionIntoView });
-  const listId = useId();
-  const optionId = (index: number) => `${listId}-opt-${index}`;
+  const { listId, optionId } = useSuggestOptionIds({});
   return (
     <span className={className ? `jini-suggest-input ${className}` : 'jini-suggest-input'}>
       <input

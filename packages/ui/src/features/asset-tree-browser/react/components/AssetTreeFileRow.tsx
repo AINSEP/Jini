@@ -1,7 +1,7 @@
-import { useRef, type KeyboardEvent, type MouseEvent } from 'react';
 import { useT } from '../../../i18n/index.js';
-import { humanBytes, isDoubleActivation, relativeTimeResult, type MenuAnchorRect } from '../../rules.js';
+import { humanBytes, relativeTimeResult, type MenuAnchorRect } from '../../rules.js';
 import type { AssetTreeRenameState } from '../../types.js';
+import { useAssetTreeFileRow } from './AssetTreeFileRow.hooks.js';
 
 export interface AssetTreeFileRowProps {
   path: string;
@@ -52,27 +52,9 @@ export function AssetTreeFileRow({
   onCancelRename,
 }: AssetTreeFileRowProps) {
   const t = useT();
-  const lastActivationRef = useRef<number | undefined>(undefined);
+  const { handleNameKeyDown, handleMenuTrigger } = useAssetTreeFileRow({ path, onOpen, onSelectPreview, onOpenMenu });
   const relativeTime = relativeTimeResult(modifiedAt);
   const timeLabel = relativeTime.translatable ? t(relativeTime.label, relativeTime.params) : relativeTime.label;
-
-  function handleNameKeyDown(event: KeyboardEvent<HTMLButtonElement>) {
-    if (event.key !== 'Enter' && event.key !== ' ') return;
-    event.preventDefault();
-    const now = Date.now();
-    if (isDoubleActivation(lastActivationRef.current, now)) {
-      lastActivationRef.current = undefined;
-      onOpen(path);
-    } else {
-      lastActivationRef.current = now;
-      onSelectPreview(path);
-    }
-  }
-
-  function handleMenuTrigger(event: MouseEvent<HTMLSpanElement> | KeyboardEvent<HTMLSpanElement>) {
-    event.stopPropagation();
-    onOpenMenu(path, event.currentTarget.getBoundingClientRect());
-  }
 
   return (
     <div

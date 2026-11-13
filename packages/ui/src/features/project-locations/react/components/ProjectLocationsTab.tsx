@@ -1,4 +1,5 @@
 import { useT } from '../../../i18n/index.js';
+import { createDefaultControlLabel } from './ProjectLocationsTab.hooks.js';
 import { Icon } from '../../../../react/components/Icon.js';
 import type { ProjectLocationsPort } from '../../ports.js';
 import { locationLabel } from '../../rules.js';
@@ -77,9 +78,7 @@ export function ProjectLocationsTab({ port, defaultLocationId, onDefaultLocation
     scanCompleteTemplate,
   } = resolveLabels({ t }, labels);
 
-  function defaultControlLabel(active: boolean): string {
-    return active ? defaultBadge : makeDefaultLabel;
-  }
+  const defaultControlLabel = createDefaultControlLabel({ defaultBadge, makeDefaultLabel });
 
   const notice = (() => {
     switch (result.status) {

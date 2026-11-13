@@ -1,8 +1,8 @@
-import { useCallback, type MouseEvent, type ReactNode } from 'react';
+import type { ReactNode } from 'react';
 import { useT } from '../../../i18n/index.js';
 import { useInView } from '../../../../react/hooks/useInView.js';
-import { resolveCheckboxClickAction, resolvePreviewClickAction } from '../../rules.js';
 import type { AssetGridItem } from '../../types.js';
+import { useAssetCard } from './AssetCard.hooks.js';
 
 export interface AssetCardProps<TAsset extends AssetGridItem> {
   asset: TAsset;
@@ -65,24 +65,7 @@ export function AssetCard<TAsset extends AssetGridItem>({
   const { ref, inView } = useInView<HTMLDivElement>({ once: true, rootMargin: '300px' });
   const selectionValue = selected ? 'true' : 'false';
 
-  const handlePreviewClick = useCallback(
-    (e: MouseEvent) => {
-      const action = resolvePreviewClickAction(e);
-      if (action === 'toggle') onToggle(asset.id, index);
-      else if (action === 'range') onRange(index);
-      else onPreview(asset.id);
-    },
-    [asset.id, index, onToggle, onRange, onPreview],
-  );
-
-  const handleCheckboxClick = useCallback(
-    (e: MouseEvent) => {
-      e.stopPropagation();
-      if (resolveCheckboxClickAction(e) === 'range') onRange(index);
-      else onToggle(asset.id, index);
-    },
-    [asset.id, index, onToggle, onRange],
-  );
+  const { handlePreviewClick, handleCheckboxClick } = useAssetCard({ asset, index, onToggle, onRange, onPreview });
 
   return (
     <figure

@@ -3,6 +3,7 @@ import { useT } from '../../../i18n/index.js';
 import { SegmentedToggle } from './SegmentedToggle.js';
 import { ViewerShell } from './ViewerShell.js';
 import { useMarkdownScrollSync, type UseMarkdownScrollSyncResult } from '../hooks/useMarkdownScrollSync.js';
+import { createMarkdownPreviewActivator } from './MarkdownSplitPane.hooks.js';
 import type { MarkdownSplitPaneMode } from '../../types.js';
 
 export interface MarkdownSplitPaneProps {
@@ -234,7 +235,7 @@ function MarkdownPreviewPane({
   onPreviewClick: MarkdownSplitPaneProps['onPreviewClick'];
 }) {
   const t = useT();
-  const activatePreview = () => activatePane('preview');
+  const activatePreview = createMarkdownPreviewActivator({ activatePane });
   return (
     <div className="markdown-preview-pane-wrap">
       <section

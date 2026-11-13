@@ -1,8 +1,8 @@
-import { useCallback, useEffect, useRef } from 'react';
 import { useT } from '../../../i18n/index.js';
 import type { CommandPaletteItem } from '../../types.js';
 import { useWiredCommandPalette } from '../hooks/useCommandPalette.js';
 import { CommandPaletteRow } from './CommandPaletteRow.js';
+import { useCommandPaletteView } from './CommandPalette.hooks.js';
 
 export interface CommandPaletteProps {
   items: readonly CommandPaletteItem[];
@@ -37,15 +37,7 @@ export function CommandPalette({
 }: CommandPaletteProps) {
   const t = useT();
   const palette = useWiredCommandPaletteHook({ items, onSelect, onClose, scopeKey });
-  const listRef = useRef<HTMLDivElement | null>(null);
-  const setInputRef = useCallback((node: HTMLInputElement | null) => {
-    node?.focus();
-  }, []);
-
-  useEffect(() => {
-    const el = listRef.current?.querySelector<HTMLDivElement>(`[data-idx="${palette.cursor}"]`);
-    el?.scrollIntoView({ block: 'nearest' });
-  }, [palette.cursor]);
+  const { listRef, setInputRef } = useCommandPaletteView({ cursor: palette.cursor });
 
   const hasQuery = palette.query.trim().length > 0;
   const emptyLabel = hasQuery ? t('No matches') : t('No items');

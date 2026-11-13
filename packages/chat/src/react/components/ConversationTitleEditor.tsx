@@ -1,5 +1,5 @@
-import { formatErrorForLog } from '@jini-ai/core';
-import { useRef, useState } from 'react';
+import { useState } from 'react';
+import { useConversationTitleEditor } from './ConversationTitleEditor.hooks.js';
 import { MAX_CONVERSATION_TITLE_LENGTH } from '../../core/conversation-title.js';
 import { useT } from '../hooks/context.js';
 
@@ -20,25 +20,7 @@ export interface ConversationTitleEditorProps {
  */
 export function ConversationTitleEditor({ title, onCommit, onCancel, className = 'jini-conv-rename', 'data-testid': testId }: ConversationTitleEditorProps) {
   const t = useT();
-  const original = useRef(title ?? '');
-  const [draft, setDraft] = useState(original.current);
-  const finished = useRef(false);
-
-  // Enter/Escape can unmount a focused input and cause blur; only the first completion may act.
-  const finish = async ({ cancel = false } = {}) => {
-    if (finished.current) return;
-    finished.current = true;
-    const next = draft.trim().slice(0, MAX_CONVERSATION_TITLE_LENGTH);
-    if (cancel || !next || draft === original.current) {
-      onCancel();
-      return;
-    }
-    try {
-      await onCommit(next);
-    } catch (error) {
-      console.error('[@jini-ai/chat] ConversationTitleEditor onCommit host effect failed:', formatErrorForLog({ error }));
-    }
-  };
+  const { draft, setDraft, finish, handleKeyDown } = useConversationTitleEditor({ title, onCommit, onCancel });
 
   return <input
     autoFocus
@@ -49,13 +31,7 @@ export function ConversationTitleEditor({ title, onCommit, onCancel, className =
     value={draft}
     onChange={(event) => setDraft(event.currentTarget.value)}
     onBlur={() => { void finish(); }}
-    onKeyDown={(event) => {
-      if (event.key === 'Enter' || event.key === 'Escape') {
-        event.preventDefault();
-        event.stopPropagation();
-        void finish({ cancel: event.key === 'Escape' });
-      }
-    }}
+    onKeyDown={handleKeyDown}
   />;
 }
 

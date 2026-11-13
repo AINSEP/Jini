@@ -11,7 +11,7 @@ import type { ReactNode } from "react";
 import type { Translate } from "@jini-ai/ui/panel-kit";
 import { InfoTip } from "@jini-ai/ui/admin-widgets";
 import { SecretInput } from "@jini-ai/ui";
-import { useResetPasswordFields } from "./hooks/use-reset-password-fields.hooks.js";
+import { createResetPasswordConfirmHandler, useResetPasswordFields } from "./hooks/use-reset-password-fields.hooks.js";
 import { ChangeUsernameDialog } from "./ChangeUsernameDialog.js";
 
 /**
@@ -665,14 +665,7 @@ function UserResetPasswordDialog({
   const fields = useFields({ resetPasswordFor, newPassword });
   const displayedError = fields.mismatch ? t("Passwords do not match.") : passwordError;
 
-  /** Blocks the reset entirely when the two fields disagree — a mismatch never reaches
-   *  `confirmResetPassword`/the server. The inline message below is driven by the same `mismatch`
-   *  value, so it is already visible by the time a blocked click can happen; there is nothing
-   *  further to surface here. */
-  function handleConfirm() {
-    if (fields.mismatch) return;
-    void confirmResetPassword();
-  }
+  const handleConfirm = createResetPasswordConfirmHandler({ mismatch: fields.mismatch, confirmResetPassword });
 
   return (
     <ConfirmDialog

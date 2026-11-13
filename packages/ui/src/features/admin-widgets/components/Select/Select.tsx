@@ -6,7 +6,7 @@ import { agentHandle } from "@jini-ai/agentic";
 import { agentHandleSegment } from "@jini-ai/agentic";
 import type { Translate } from "../../../i18n/dictionary-translator.js";
 import { Fragment } from "react";
-import { useSelectDropdown, groupHeadingAt, type PanelPosition, type SelectOption } from "./Select.hooks.js";
+import { useSelectDropdown, useSelectOptionRef, groupHeadingAt, type PanelPosition, type SelectOption } from "./Select.hooks.js";
 
 export type { SelectOption };
 /** Use this custom listbox when in-panel search is needed: a native OS option list cannot host it.
@@ -204,7 +204,7 @@ function resolveSelectTriggerHandleProps(
 }
 
 /** Controlled searchable listbox with viewport positioning, dialog-local portals and keyboard navigation. */
-export function Select(props: SelectProps, _optional: Record<string, never> = {}) {
+export function Select(props: SelectProps) {
   const { value, onChange, options, placeholder, id, disabled, useDropdown = useSelectDropdown, agentHandle: suppliedBase, translate, t = translate ?? ((key: string) => key) } = props;
   const base = useAgentHandle({ agentHandle: suppliedBase });
   const overlayContainer = useOverlayContainer({});
@@ -234,10 +234,7 @@ export function Select(props: SelectProps, _optional: Record<string, never> = {}
     setQuery,
   } = useDropdown({ value, onChange, options }, { disabled });
 
-  function setOptionRef(index: number, el: HTMLLIElement | null) {
-    if (el) optionRefs.current.set(index, el);
-    else optionRefs.current.delete(index);
-  }
+  const setOptionRef = useSelectOptionRef({ optionRefs });
 
   const triggerLabel = resolveSelectTriggerLabel({ selectedOption: selectedOption, placeholder: placeholder }, { t: t });
   const activeDescendant = resolveSelectTriggerActiveDescendant(open, highlightedIndex, optionId);

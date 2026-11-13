@@ -1,6 +1,11 @@
 import { useEffect, useState, type ChangeEvent, type FocusEvent } from 'react';
 import type { ConsentAppearanceView, ConsentFieldProblem, ConsentSettingsPanelProps, ConsentSettingsView } from './ConsentSettingsPanel.js';
 
+/** Resolve host-supplied copy, falling back to the original text. */
+export function createConsentTranslator({ dictionary = {} }: { dictionary?: Readonly<Record<string, string>> | undefined }, _options = {}) {
+  return (text: string) => dictionary[text] ?? text;
+}
+
 /** Keep value conversions and toggle behavior out of the view. React owns event signatures. */
 export function useConsentSettingsPanel({ value, onChange }: Pick<ConsentSettingsPanelProps, 'value' | 'onChange'>, _options = {}) {
   return {

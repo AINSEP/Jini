@@ -1,4 +1,11 @@
-import { useEffect, useState, type RefObject } from 'react';
+import { useEffect, useId, useState, type RefObject } from 'react';
+
+/** Keep listbox and option identifiers in the same per-mount namespace. */
+export function useSuggestOptionIds(_input: Record<string, never>, _options = {}) {
+  const listId = useId();
+  const optionId = (index: number) => `${listId}-opt-${index}`;
+  return { listId, optionId };
+}
 
 /**
  * State for {@link SuggestInput}: which suggestions match what is typed, whether the list is open, and

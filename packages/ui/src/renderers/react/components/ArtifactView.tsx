@@ -10,14 +10,14 @@
  * how to render host-specific content.
  */
 import type { ReactNode } from 'react';
-import { useMemo } from 'react';
 import { RendererRegistry, type ArtifactRenderMatch } from '../../registry.js';
 import type { ArtifactFile } from '../../types.js';
 import type { BuildSrcDocOptions } from '../../srcdoc/build.js';
 import { renderMarkdownToSafeHtml } from '../../renderers/markdown.js';
 import { useT } from '../i18n.js';
 import { SrcDocSandbox } from './SrcDocSandbox.js';
-import { AnnotationCanvas, type AnnotationCanvasProps } from '../../annotation-canvas/index.js';
+import type { AnnotationCanvasProps } from '../../annotation-canvas/index.js';
+import { useArtifactView } from './ArtifactView.hooks.js';
 
 export interface ArtifactViewSlotProps {
   file: ArtifactFile;
@@ -53,9 +53,7 @@ export interface ArtifactViewProps {
 
 export function ArtifactView({ file, registry, hints, srcDocOptions, slots, className, annotation }: ArtifactViewProps) {
   const t = useT();
-  const match = useMemo(() => registry.resolve({ file }, { hints }), [registry, file, hints]);
-
-  const wrap = (node: ReactNode): ReactNode => (annotation ? <AnnotationCanvas {...annotation}>{node}</AnnotationCanvas> : node);
+  const { match, wrap } = useArtifactView({ file, registry, hints, annotation });
 
   if (!match) {
     return wrap(

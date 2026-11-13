@@ -14,11 +14,7 @@
  */
 import {
   createContext,
-  useCallback,
   useContext,
-  useEffect,
-  useMemo,
-  useState,
   type ReactNode,
 } from 'react';
 import type { Locale, TranslationDict, TranslationVars } from './types.js';
@@ -28,6 +24,7 @@ import {
   type LocalePersistencePort,
   type SystemLocaleDetector,
 } from './locale.js';
+import { interpolate, useI18nProvider } from './context.hooks.js';
 
 export { detectInitialLocale, resolveSystemLocale };
 export type { LocalePersistencePort, SystemLocaleDetector };
@@ -118,48 +115,7 @@ export function I18nProvider<D extends TranslationDict = TranslationDict>({
   syncDocumentAttributes = true,
   children,
 }: I18nProviderProps<D>) {
-  const supportedLocales = useMemo(
-    () => (dictionaries ? (Object.keys(dictionaries) as Locale[]) : []),
-    [dictionaries],
-  );
-
-  const [locale, setLocaleState] = useState<Locale>(() =>
-    initialLocale ??
-    detectInitialLocale({
-      supportedLocales,
-      fallbackLocale,
-      persistence,
-      detectSystemLocale,
-    }),
-  );
-
-  // Keep <html lang="…" dir="…"> in sync so screen readers and CSS hooks
-  // pick the right language token/direction without every component
-  // re-deriving it.
-  useEffect(() => {
-    if (!syncDocumentAttributes || typeof document === 'undefined') return;
-    const dir = rtlLocales.includes(locale) ? 'rtl' : 'ltr';
-    document.documentElement.setAttribute('lang', locale);
-    document.documentElement.setAttribute('dir', dir);
-  }, [locale, rtlLocales, syncDocumentAttributes]);
-
-  const setLocale = useCallback(
-    (next: Locale) => {
-      setLocaleState(next);
-      persistence?.setStoredLocale(next);
-    },
-    [persistence],
-  );
-
-  const t = useCallback(
-    (key: string, vars?: TranslationVars): string => {
-      const raw = dictionaries?.[locale]?.[key] ?? dictionaries?.[fallbackLocale]?.[key] ?? key;
-      return interpolate(raw, vars);
-    },
-    [dictionaries, locale, fallbackLocale],
-  );
-
-  const value = useMemo<I18nContextValue>(() => ({ locale, setLocale, t }), [locale, setLocale, t]);
+  const value = useI18nProvider({ dictionaries, fallbackLocale, initialLocale, rtlLocales, detectSystemLocale, persistence, syncDocumentAttributes });
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>;
 }
@@ -170,7 +126,7 @@ const PASSTHROUGH_CONTEXT: I18nContextValue = {
   setLocale: () => {
     /* no-op: no provider to hold state */
   },
-  t: (key, vars) => interpolate(key, vars),
+  t: (key, vars) => interpolate({ template: key, vars }),
 };
 
 /**
@@ -186,12 +142,4 @@ export function useI18n(): I18nContextValue {
 /** Convenience for call sites that only need the translator function. */
 export function useT(): I18nContextValue['t'] {
   return useI18n().t;
-}
-
-function interpolate(template: string, vars: TranslationVars | undefined): string {
-  if (!vars) return template;
-  return template.replace(/\{(\w+)\}/g, (_match, name: string) => {
-    const value = vars[name];
-    return value == null ? `{${name}}` : String(value);
-  });
 }

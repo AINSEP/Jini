@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import type { InteractiveUiRegistry } from '../interactive-ui/registry.js';
 import type { A2uiInterpreter, ComponentInstance } from './protocol.js';
 import { useA2uiSurfaceRoot } from './use-a2ui-surface.js';
+import { createA2uiActionHandler, createA2uiNodeHelpers } from './renderer.hooks.js';
 
 // Explicit provider contracts, not a guessed common callback. Display-only cards/charts
 // have no action callback; custom interactive entries can declare their own `actionProp`.
@@ -23,7 +24,7 @@ export interface A2uiSurfaceRendererProps {
   readonly fallback?: ReactNode;
 }
 
-interface NodeProps {
+export interface NodeProps {
   readonly interpreter: A2uiInterpreter;
   readonly surfaceId: string;
   readonly registry: InteractiveUiRegistry;
@@ -90,22 +91,7 @@ function RenderNode({ interpreter, surfaceId, registry, componentId, ancestors, 
   nextAncestors.add(componentId);
   const childProps = { interpreter, surfaceId, registry, ancestors: nextAncestors, onAction };
 
-  function resolveText(value: unknown): string {
-    const result = interpreter.resolve({ surfaceId, value: value as Parameters<A2uiInterpreter['resolve']>[0]['value'] });
-    if (!result.ok) return `⚠ unresolved (${result.reason})`;
-    return typeof result.value === 'string' ? result.value : JSON.stringify(result.value);
-  }
-
-  function renderChildList(children: unknown): ReactNode {
-    if (Array.isArray(children)) {
-      return children.map((childId) => <RenderNode key={String(childId)} componentId={String(childId)} {...childProps} />);
-    }
-    return (
-      <span className="a2ui-placeholder" data-a2ui-status="unimplemented-template-list">
-        ⚠ dynamic (template) child lists are not implemented by this port
-      </span>
-    );
-  }
+  const { resolveText, renderChildList } = createA2uiNodeHelpers({ interpreter, surfaceId, childProps, renderNode: RenderNode });
 
   switch (component.component) {
     case 'Text':
@@ -157,10 +143,7 @@ export function A2uiSurfaceRenderer({ interpreter, surfaceId, registry, fallback
   const root = useA2uiSurfaceRoot({ interpreter: interpreter, surfaceId: surfaceId });
   if (!root) return fallback ?? null;
 
-  const onAction = (componentId: string) => {
-    const component = interpreter.getSurface({ surfaceId })?.components.get(componentId);
-    if (component?.props.action !== undefined) interpreter.buildAction({ surfaceId, componentId });
-  };
+  const onAction = createA2uiActionHandler({ interpreter, surfaceId });
 
   return (
     <RenderNode
