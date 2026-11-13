@@ -56,6 +56,7 @@ export function buildPluginInstallRegistrations<Request>(deps: PluginInstallTool
         }
         const input = await deps.installInput({ request, ownerId: ctx.principal.id, runId: ctx.run.id });
         const preview = await previewOrRefuse({ installer, input });
+        ctx.signal.throwIfAborted();
         try {
           const plugin = await installer.install({ ...input, expectedDigest: preview.digest });
           deps.telemetry?.installed({ principalId: ctx.principal.id, pluginId: plugin.id });

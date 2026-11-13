@@ -86,6 +86,7 @@ export function createDatabaseReadTools(ports: DatabaseReadToolPorts, _optional:
       type Captured = { artifactRef: string; watermarkAtCapture: number };
       let captured: Captured | undefined;
 
+      ctx.signal.throwIfAborted();
       const summary = await createDatabaseRestorePoint({
         costClass: capabilities.restorePoint.costClass,
         kind: capabilities.restorePoint.kind,

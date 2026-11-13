@@ -85,6 +85,7 @@ export function buildWorkspaceRegistrations(routeDeps: WorkspaceToolDeps): ToolR
       // subclasses, see `create.ts`) propagate as-is — a `ToolExecutor` treats any thrown error as
       // a failed execution, matching every other domain's handler convention of not rewrapping
       // typed domain errors before letting them surface.
+      ctx.signal.throwIfAborted();
       const { workspace } = await updateWorkspace({
         deps: { repo: routeDeps.workspaceRepo },
         input: {

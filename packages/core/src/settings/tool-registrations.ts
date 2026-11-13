@@ -332,6 +332,7 @@ export function buildSettingsRegistrations(routeDeps: SettingsToolDeps): ToolReg
       // derive differently — the exact fail-open drift `deriveRequiredPermission`'s own header
       // (Red-Team ) says must not be duplicated. Omitting `principalId` is what makes the. See docs/decisions/DR-003-settings-ledger-invariants.md.
       // derived permission `settings.user.self.write`.
+      ctx.signal.throwIfAborted();
       const { value: stored, revisionSeq } = await withSchemaOnRejection({
           toolId: "settings_set_ui_preference",
           catalog: CATALOG_BY_ID,

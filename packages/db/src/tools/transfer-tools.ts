@@ -209,6 +209,7 @@ async function handlePlan(deps: TransferExecutionPorts, ctx: ToolExecutionContex
   const counted = countSnapshot(deps, snapshot.bytes, chatSnapshot);
   if (!("ok" in counted)) return { planned: false, ...counted };
 
+  ctx.signal.throwIfAborted();
   const plan = deps.ports.plans.save({
     principalId: ctx.principal.id,
     workspaceId: deps.ports.workspaceId,

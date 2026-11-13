@@ -181,6 +181,7 @@ export function buildMenusRegistrations(routeDeps: MenusToolDeps): ToolRegistrat
       const authoring = htmlAuthoring(input);
       await requireHtmlAuthoringPermission({ routeDeps, principalId: ctx.principal.id, authoring });
       return withSchemaOnRejection({ toolId: "menus_create_menu", catalog: CATALOG_BY_ID, isShapeRejection: ({ error }) => isMenusShapeRejection(error), fn: async () => {
+        ctx.signal.throwIfAborted();
         const { menu } = await createMenu({
           deps: menusDeps(routeDeps),
           input: {
@@ -206,6 +207,7 @@ export function buildMenusRegistrations(routeDeps: MenusToolDeps): ToolRegistrat
       if (input.items !== undefined && !Array.isArray(input.items)) throw new Error("'items' must be an array of nav items");
       await requireHtmlAuthoringPermission({ routeDeps, principalId: ctx.principal.id, authoring, menuId });
       return withSchemaOnRejection({ toolId: "menus_update_menu_tree", catalog: CATALOG_BY_ID, isShapeRejection: ({ error }) => isMenusShapeRejection(error), fn: async () => {
+        ctx.signal.throwIfAborted();
         const { menu } = await updateMenuTree({
           deps: menusDeps(routeDeps),
           input: {

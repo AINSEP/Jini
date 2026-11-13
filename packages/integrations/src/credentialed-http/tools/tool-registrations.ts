@@ -778,6 +778,7 @@ export function createCredentialToolRegistrations({ routeDeps, host, ports, oper
         throw new CustomCredentialNotFoundError(operations.messages.notFoundLabel({ label }));
       }
 
+      ctx.signal.throwIfAborted();
       return operations.sets.setUsername({ id: existing.id, username });
     },
 
