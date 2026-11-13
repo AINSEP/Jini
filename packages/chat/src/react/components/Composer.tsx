@@ -572,7 +572,6 @@ function AccessorySlot({ className, children }: { className: string; children: R
   return children ? <div className={className}>{children}</div> : null;
 }
 
-/** The plain paperclip, shown only when there is no "+" discovery menu to carry attaching instead. */
 /** The attached files and folders waiting to go with the next message. */
 function ComposerAttachmentRow({ base, composer, attachmentPicker }: {
   base: string | undefined;
@@ -587,6 +586,7 @@ function ComposerAttachmentRow({ base, composer, attachmentPicker }: {
   );
 }
 
+/** The plain paperclip, shown only when there is no "+" discovery menu to carry attaching instead. */
 function ComposerAttachButton({ base, attachmentPicker, hidden, disabled, inputRef, onChange, t }: {
   base: string | undefined;
   attachmentPicker: ComposerProps['attachmentPicker'];

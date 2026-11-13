@@ -719,6 +719,19 @@ export function resolveSystemPromptOverlayDelivery(input: {
   return { promptPrefix, prompt: `${promptPrefix}${prompt}`, extraArgs: [], envOverrides: {} };
 }
 
+/** A def with a SubagentStart hook gets one when this run allows subagents and has a temp dir and start context. */
+async function addSubagentStartSettings({ def, runInput, options }: {
+  readonly def: RuntimeAgentDef;
+  readonly runInput: AgentBuildInput & Pick<AgentExecutorRunInput, 'subagentStartContext'>;
+  readonly options: RuntimeBuildOptions;
+}, _optional = {}): Promise<void> {
+  if (def.subagentStartHook && def.supportsSubagents === true && runInput.nativeCapabilities?.subagents !== false && runInput.filesystemTempDir && runInput.subagentStartContext) {
+    options.settings = await prepareClaudeSubagentStartSettings({ directory: runInput.filesystemTempDir,
+      context: runInput.subagentStartContext, ...(options.settings === undefined ? {} : { settings: options.settings }),
+    }, {});
+  }
+}
+
 /**
  * Phase 9b: calls the def's `buildArgs`, releasing staged resources and failing the run on a throw.
  *
@@ -743,11 +756,7 @@ export async function buildRunArgs({ input, deps }: { readonly input: {
   try {
     const delivery = input.overlayDelivery;
     const options = buildAgentBuildArgsOptions({ input: input.runInput, systemPromptOverlay: input.systemPromptOverlay });
-    if (input.def.subagentStartHook && input.def.supportsSubagents === true && input.runInput.nativeCapabilities?.subagents !== false && input.runInput.filesystemTempDir && input.runInput.subagentStartContext) {
-      options.settings = await prepareClaudeSubagentStartSettings({ directory: input.runInput.filesystemTempDir,
-        context: input.runInput.subagentStartContext, ...(options.settings === undefined ? {} : { settings: options.settings }),
-      }, {});
-    }
+    await addSubagentStartSettings({ def: input.def, runInput: input.runInput, options });
     const args = input.def.buildArgs(
       { prompt: delivery.prompt, imagePaths: [...(input.imagePaths ?? [])] }, {
         ...(input.imageDelivery.extraAllowedDirs === undefined ? {} : { extraAllowedDirs: [...input.imageDelivery.extraAllowedDirs] }),
@@ -944,6 +953,29 @@ function stagedChildEnvOptions({ def, preparedCodexHome, preparedClaudeConfigDir
       : {}),
     ...(preparedClaudeConfigDir === null ? {} : { claudeConfigDir: preparedClaudeConfigDir.path }),
   };
+}
+
+/** A staged `.mcp.json` from the HTTP MCP delivery joins the runtime context the def's argv reads. */
+function withHttpMcpJsonPath(
+  { runtimeContext, preparedHttpMcp }: { runtimeContext: RuntimeContext | undefined; preparedHttpMcp: PreparedHttpMcp | null },
+  _options = {},
+): RuntimeContext | undefined {
+  return preparedHttpMcp?.mcpJsonPath
+    ? { ...runtimeContext, mcpJsonPath: preparedHttpMcp.mcpJsonPath } : runtimeContext;
+}
+
+/** `codex` receives the HTTP MCP endpoint through its staged home; every other def gets nothing extra. */
+function codexHttpMcpInput({ def, preparedHttpMcp }: { def: RuntimeAgentDef; preparedHttpMcp: PreparedHttpMcp | null }, _options = {}) {
+  return def.id === 'codex' && preparedHttpMcp ? { httpEndpoint: preparedHttpMcp.endpoint } : {};
+}
+
+/** `opencode` receives the HTTP MCP endpoint through its inline config env; every other def keeps the spawn env. */
+function httpMcpSpawnEnv(
+  { def, spawnEnv, preparedHttpMcp }: { def: RuntimeAgentDef; spawnEnv: NodeJS.ProcessEnv; preparedHttpMcp: PreparedHttpMcp | null },
+  _options = {},
+): NodeJS.ProcessEnv {
+  return def.id === 'opencode' && preparedHttpMcp
+    ? { ...spawnEnv, OPENCODE_CONFIG_CONTENT: mergeOpenCodeHttpMcpConfig({ existingRaw: spawnEnv.OPENCODE_CONFIG_CONTENT, endpoint: preparedHttpMcp.endpoint }) } : spawnEnv;
 }
 
 /** A required transport refusal is actionable without exposing listener/configuration details. */
@@ -1378,6 +1410,37 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     writePromptToStdin(def, child, stdinPrompt, stdinHandle!);
   }
 
+  /** Hand the prompt to the spawned child over its stream format's own channel. */
+  async function dispatchPrompt({ streamFormat, input, def, child, modelCatalog, cleanupStagedFiles, releaseStagedResources, mcpBridge, overlayDelivery, imageDelivery, stdinHandle }: {
+    streamFormat: SupportedStreamFormat; input: AgentExecutorRunInput; def: RuntimeAgentDef; child: ChildProcess;
+    modelCatalog: ModelCatalogSnapshot | undefined; cleanupStagedFiles: () => Promise<void>; releaseStagedResources: () => Promise<void>;
+    mcpBridge: McpBridgeDelivery | null; overlayDelivery: SystemPromptOverlayDelivery;
+    imageDelivery: ImagePromptDelivery; stdinHandle: StdinCloseHandle | null;
+  }, _options = {}): Promise<void> {
+    if (streamFormat === 'acp-json-rpc') {
+      await dispatchAcpPrompt({ input, def, child, modelCatalog, cleanupStagedFiles, releaseStagedResources, mcpBridge, overlayDelivery }, {});
+      return;
+    }
+    if (streamFormat === 'pi-rpc') {
+      await dispatchPiPrompt({ input, def, child, modelCatalog, cleanupStagedFiles, releaseStagedResources, overlayDelivery }, {});
+      return;
+    }
+    dispatchStdinPrompt({ input, def, child, overlayDelivery, imageDelivery, stdinHandle }, {});
+  }
+
+  /** Mint this run's HTTP MCP delivery; a failure removes what was staged and fails the run before spawn. */
+  async function prepareRunHttpMcp({ input, def, cleanupStagedFiles }: {
+    input: AgentExecutorRunInput; def: RuntimeAgentDef; cleanupStagedFiles: () => Promise<void>;
+  }, _options = {}): Promise<PreparedHttpMcp | null> {
+    try {
+      return await prepareHttpMcpForRun({ runId: input.runId, cwd: input.cwd, def, lifecycle,
+        injection: mcpJsonInjection, inheritUserMcp: input.nativeToolAccess !== false && input.nativeCapabilities?.userMcp !== false });
+    } catch {
+      await cleanupStagedFiles();
+      return failBeforeSpawn({ runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: httpMcpPreparationMessage(mcpJsonInjection) });
+    }
+  }
+
   /**
    * `AgentExecutor.run()` — see that interface method's own doc for the
    * public contract. Implementation note on shape: every failure path below
@@ -1505,19 +1568,12 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // resolving here means the per-run bearer credential is minted exactly once no matter which of
     // the five mechanisms ends up carrying it. `null` for an unconfigured host or a def declaring
     // no strategy — see `buildMcpBridgeDelivery`'s doc.
-    try {
-      preparedHttpMcp = await prepareHttpMcpForRun({ runId: input.runId, cwd: input.cwd, def, lifecycle,
-        injection: mcpJsonInjection, inheritUserMcp: input.nativeToolAccess !== false && input.nativeCapabilities?.userMcp !== false });
-    } catch {
-      await cleanupStagedFiles();
-      return failBeforeSpawn({ runId: input.runId, code: 'AGENT_SPAWN_FAILED', message: httpMcpPreparationMessage(mcpJsonInjection) });
-    }
+    preparedHttpMcp = await prepareRunHttpMcp({ input, def, cleanupStagedFiles });
     const mcpBridge = preparedHttpMcp ? null : await resolveMcpBridgeForRun({ input: { runId: input.runId, cwd: input.cwd, def, ...nativeCapabilityInput({ input }, {}) }, deps: { mcpJsonInjection, cleanupStagedFiles, failBeforeSpawn } }
     );
 
     const baseRuntimeContext = computeRuntimeContext({ preparedPromptFile, preparedLogFile, mcpBridge }, sessionRuntimeContext(input, {}));
-    const runtimeContext = preparedHttpMcp?.mcpJsonPath
-      ? { ...baseRuntimeContext, mcpJsonPath: preparedHttpMcp.mcpJsonPath } : baseRuntimeContext;
+    const runtimeContext = withHttpMcpJsonPath({ runtimeContext: baseRuntimeContext, preparedHttpMcp });
 
     // A `runtimeLock` def's buildArgs mutates process-global state its own CLI reads back at
     // startup, so the mutex must be held from before buildArgs until the spawned child has
@@ -1566,7 +1622,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // `codex.ts`'s `buildArgs` needs no argv change for this (CODEX_HOME is an env var, not a flag),
     // so — unlike the `.mcp.json` staging above — this can run after `buildArgs` with no ordering
     // constraint of its own; it is placed here only to keep the two staging steps adjacent.
-    preparedCodexHome = await prepareCodexHomeIfNeeded({ input: { runId: input.runId, nativeToolAccess: input.nativeToolAccess, ...nativeCapabilityInput({ input }, {}), def, mcpBridge, ...(def.id === 'codex' && preparedHttpMcp ? { httpEndpoint: preparedHttpMcp.endpoint } : {}) }, deps: { mcpJsonInjection, hostEnv: input.cliParity ? spawnEnv : hostEnv, releaseStagedResources, failBeforeSpawn } }
+    preparedCodexHome = await prepareCodexHomeIfNeeded({ input: { runId: input.runId, nativeToolAccess: input.nativeToolAccess, ...nativeCapabilityInput({ input }, {}), def, mcpBridge, ...codexHttpMcpInput({ def, preparedHttpMcp }) }, deps: { mcpJsonInjection, hostEnv: input.cliParity ? spawnEnv : hostEnv, releaseStagedResources, failBeforeSpawn } }
     );
     // Finding 1 of SEC-assistant-env-isolation-2026-09-07's one effect — stage this run's scratch
     // `CLAUDE_CONFIG_DIR` directory. Unconditional for a `claude`-id run (unlike CODEX_HOME above,
@@ -1595,8 +1651,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // `McpBridgeDelivery`'s `'codex-toml'` variant doc for why it cannot be pre-computed the way
     // `'claude-mcp-json'`'s deterministic path is). Nothing between the old, earlier call site and
     // here ever read `childEnv`, so moving the call cost nothing.
-    const httpSpawnEnv = def.id === 'opencode' && preparedHttpMcp
-      ? { ...spawnEnv, OPENCODE_CONFIG_CONTENT: mergeOpenCodeHttpMcpConfig({ existingRaw: spawnEnv.OPENCODE_CONFIG_CONTENT, endpoint: preparedHttpMcp.endpoint }) } : spawnEnv;
+    const httpSpawnEnv = httpMcpSpawnEnv({ def, spawnEnv, preparedHttpMcp });
     const childEnv = computeChildEnv({ spawnEnv: httpSpawnEnv, mcpBridge }, stagedChildEnvOptions({
       def, preparedCodexHome, preparedClaudeConfigDir, preparedSystemPromptOverlayFile, systemPromptEnvOverrides,
     }, {}));
@@ -1652,15 +1707,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     armHandoffWatcher({ runtimeLockHold: runtimeLockHold, handoffInput: { logFilePath: preparedLogFile?.path, model: selectedModel, processExited: processExitedController.signal }, release: releaseRuntimeLock }
     );
 
-    if (streamFormat === 'acp-json-rpc') {
-      await dispatchAcpPrompt({ input, def, child, modelCatalog, cleanupStagedFiles, releaseStagedResources, mcpBridge, overlayDelivery }, {});
-      return;
-    }
-    if (streamFormat === 'pi-rpc') {
-      await dispatchPiPrompt({ input, def, child, modelCatalog, cleanupStagedFiles, releaseStagedResources, overlayDelivery }, {});
-      return;
-    }
-    dispatchStdinPrompt({ input, def, child, overlayDelivery, imageDelivery, stdinHandle }, {});
+    await dispatchPrompt({ streamFormat, input, def, child, modelCatalog, cleanupStagedFiles, releaseStagedResources, mcpBridge, overlayDelivery, imageDelivery, stdinHandle }, {});
   }
 
   return { run, sendUserMessage, claimUserMessages };

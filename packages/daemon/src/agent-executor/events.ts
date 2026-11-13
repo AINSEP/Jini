@@ -307,6 +307,14 @@ function receivedJournalEntry(channel: 'stdout' | 'stderr', content: string): Jo
  */
 export const DEFAULT_BUFFERED_STDOUT_MAX_BYTES = 8 * 1024 * 1024;
 
+/** The `'until-close'` buffering switch and its sanitizer; both stay off for live and line policies. */
+function untilCloseStdoutPolicy({ stdoutPolicy }: { stdoutPolicy: RuntimeAgentDef['stdoutPolicy'] }, _options = {}) {
+  return {
+    bufferStdoutUntilClose: stdoutPolicy?.buffering === 'until-close',
+    sanitizeBufferedStdout: stdoutPolicy?.buffering === 'until-close' ? stdoutPolicy.sanitize : undefined,
+  };
+}
+
 /**
  * The host-authored note appended to a truncated flush. Written *after* the def's own `sanitize`
  * runs, never before: it is this driver's own text, not agent output, and passing it through a
@@ -520,8 +528,7 @@ export function wireChildLifecycle(ctx: WireChildLifecycleContext): StdinCloseHa
   // test rather than a repeated union narrowing. `undefined` means
   // live — see this function's own doc.
   const stdoutPolicy = def.stdoutPolicy;
-  const bufferStdoutUntilClose = stdoutPolicy?.buffering === 'until-close';
-  const sanitizeBufferedStdout = stdoutPolicy?.buffering === 'until-close' ? stdoutPolicy.sanitize : undefined;
+  const { bufferStdoutUntilClose, sanitizeBufferedStdout } = untilCloseStdoutPolicy({ stdoutPolicy });
   const lineStdout = stdoutPolicy?.buffering === 'line' ? createSanitizedLineStream({
     maxBytes: ctx.bufferedStdoutMaxBytes, sanitize: stdoutPolicy.sanitize,
     emit: ({ text }) => {

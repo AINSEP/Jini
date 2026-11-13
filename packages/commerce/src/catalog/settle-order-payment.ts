@@ -51,6 +51,17 @@ async function finishSettlement({ deps, input, association }: SettlementRequired
   return result;
 }
 
+/** The fetched payment must be the one named, and the only one this order is bound to. */
+function paymentIdentityProblem({ association, payment, input }: {
+  association: CommerceOrderPaymentRecord;
+  payment: PaymentView;
+  input: SettlementRequired["input"];
+}, _optional: Record<string, never> = {}): string | null {
+  if (payment.id !== input.paymentId) return "payment identity differs";
+  if (association.paymentId !== null && association.paymentId !== payment.id) return "second payment";
+  return null;
+}
+
 /** Verify the reserved scope and exact captured total before fulfilling; throws preserve redelivery. */
 export async function settleOrderPayment({ deps, input }: SettlementRequired, _optional: Record<string, never> = {}): Promise<SettleOutcome> {
   const association = await deps.orderPayments.findByOrder({ workspaceId: input.workspaceId, orderId: input.reference });
@@ -64,8 +75,8 @@ export async function settleOrderPayment({ deps, input }: SettlementRequired, _o
   const payment = await deps.payments.getPayment({ scope, paymentId: input.paymentId });
   if (!payment) return blocked({ deps, input, reason: "payment missing" });
   if (payment.status !== "succeeded") return "not_succeeded";
-  if (payment.id !== input.paymentId) return blocked({ deps, input, reason: "payment identity differs" });
-  if (association.paymentId !== null && association.paymentId !== payment.id) return blocked({ deps, input, reason: "second payment" });
+  const identity = paymentIdentityProblem({ association, payment, input });
+  if (identity) return blocked({ deps, input, reason: identity });
   const order = await deps.orders.findById({ workspaceId: input.workspaceId, id: input.reference });
   const problem = settlementProblem({ association, order, payment, input });
   if (problem) return blocked({ deps, input, reason: problem });

@@ -17,6 +17,13 @@ export function decodeToolInputObject({ input }: { input: unknown }, _options: R
   return decoded;
 }
 
+/** True when the schema is an explicit object contract without an `input` property of its own. */
+function schemaCannotOwnInput({ schema }: { schema: unknown }, _options: Record<string, never> = {}): boolean {
+  if (!record(schema) || schema.type !== 'object') return false;
+  const properties = schema.properties ?? {};
+  return record(properties) && !Object.hasOwn(properties, 'input');
+}
+
 /** Remove one delegated envelope only when the tool contract cannot own an `input` field.
  * Mixed fields and schemas without an explicit object contract retain ordinary validation.
  * @returns The original value or decoded inner object; never mutates caller arguments.
@@ -26,9 +33,7 @@ export function decodeToolInputObject({ input }: { input: unknown }, _options: R
 export function unwrapToolInputEnvelope(
   { input, schema }: { input: unknown; schema: unknown }, _options: Record<string, never> = {},
 ): unknown {
-  if (!record(input) || !record(schema) || schema.type !== 'object') return input;
-  const properties = schema.properties ?? {};
-  if (!record(properties) || Object.hasOwn(properties, 'input')) return input;
+  if (!record(input) || !schemaCannotOwnInput({ schema })) return input;
   if (Object.keys(input).length !== 1 || !Object.hasOwn(input, 'input')) return input;
   const decoded = decodeToolInputObject({ input: input.input });
   return record(decoded) ? decoded : input;
