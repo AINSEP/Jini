@@ -284,7 +284,9 @@ export async function updateFormDefinition(
           updatedAt: kernelNowIso({ clock: deps.clock }),
           version: existing.version + 1,
         };
-        await deps.repo.update(definition, optional.expectedVersion === undefined ? {} : { expectedVersion: optional.expectedVersion });
+        // The editor's basis when sent; otherwise this request's own read, so a basis-less (legacy
+        // API) edit still cannot write its whole row over an edit that landed after that read.
+        await deps.repo.update(definition, { expectedVersion: optional.expectedVersion ?? existing.version });
         return { definition };
       },
     },
@@ -339,8 +341,11 @@ export async function setFormDefinitionStatus(
           ...existing,
           status: input.status,
           updatedAt: kernelNowIso({ clock: deps.clock }),
+          version: existing.version + 1,
         };
-        await deps.repo.update(definition);
+        // The flip writes the whole row it read; comparing against that read keeps it from reverting
+        // a field edit that landed in between (the flip itself needs no editor basis: E2).
+        await deps.repo.update(definition, { expectedVersion: existing.version });
         return { definition };
       },
     },

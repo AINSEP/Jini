@@ -5,7 +5,7 @@ import { RecordVersionConflictError } from "@jini-ai/core/optimistic-concurrency
 import { InMemoryFormDefinitionRepo } from "../repo.memory.js";
 import { createFormAuthoring } from "../html/authoring-adapter.js";
 import { formDefinitionRepoFor } from "../sql/index.js";
-import { updateFormDefinition } from "../write-service.js";
+import { setFormDefinitionStatus, updateFormDefinition } from "../write-service.js";
 import type { FormDefinitionRepoPort } from "../ports.js";
 import type { FormDefinitionRecord } from "../types.js";
 import { executeCommand } from "../../core/index.js";
@@ -47,6 +47,17 @@ function cases(make: () => FormDefinitionRepoPort): void {
     assert.equal(await repo.findById({ workspaceId: WS, id: "form" }), null);
   });
 
+  test("a basis-less update stores the version the service computed", async () => {
+    // Why: the service returns `existing.version + 1`; if the stored row kept the old version, a
+    // stale editor's basis would still match after a legacy (basis-less) edit and could revert it.
+    const repo = make();
+    await repo.create(definition());
+    await repo.update(definition({ name: "Legacy", version: 2 }));
+    assert.equal((await repo.findById({ workspaceId: WS, id: "form" }))?.version, 2);
+    await assert.rejects(repo.update(definition({ name: "Stale", version: 2 }), { expectedVersion: 1 }),
+      (error: unknown) => error instanceof RecordVersionConflictError && error.currentVersion === 2);
+  });
+
   test("simultaneous saves with the same basis have exactly one winner", async () => {
     const repo = make();
     await repo.create(definition());
@@ -86,4 +97,45 @@ test("authored edits carry the editor's version through the service and reposito
   await assert.rejects(updateFormDefinition({ deps, input: { ...input, patch: { name: "Second", mode: "builder" } } }, { authoring, expectedVersion: 1 }),
     (error: unknown) => error instanceof RecordVersionConflictError && error.currentVersion === 2);
   assert.equal((await repo.findById({ workspaceId: WS, id: "form" }))?.name, "First");
+});
+
+/** A repository whose reads return a snapshot taken before a concurrent edit landed. */
+function withStaleReads(repo: InMemoryFormDefinitionRepo, stale: FormDefinitionRecord): FormDefinitionRepoPort {
+  return Object.assign(Object.create(repo) as InMemoryFormDefinitionRepo, { findById: async () => stale });
+}
+
+async function staleServiceDeps() {
+  const repo = new InMemoryFormDefinitionRepo();
+  await repo.create(definition());
+  const stale = await repo.findById({ workspaceId: WS, id: "form" });
+  assert.ok(stale);
+  await repo.update(definition({ name: "Edited", version: 2 }), { expectedVersion: 1 });
+  let next = 0;
+  const deps = {
+    repo: withStaleReads(repo, stale), executeCommand, changeSets: new InMemoryChangeSetRepo(),
+    clock: { nowIso: () => TIME, nowMs: () => Date.parse(TIME) },
+    idGen: { newId: () => `id-${++next}` },
+    authorize: async () => ({ allowed: true, reason: "ok" }),
+    permission: "forms.manage", reservedSlugs: new Set<string>(),
+  };
+  return { repo, deps, input: { workspaceId: WS, formId: "form", actor: { id: "editor", kind: "user" as const } } };
+}
+
+test("a basis-less edit compares against its own read, so it cannot revert a concurrent edit", async () => {
+  const { repo, deps, input } = await staleServiceDeps();
+  await assert.rejects(updateFormDefinition({ deps, input: { ...input, patch: { name: "Legacy" } } }),
+    (error: unknown) => error instanceof RecordVersionConflictError && error.expectedVersion === 1 && error.currentVersion === 2);
+  assert.equal((await repo.findById({ workspaceId: WS, id: "form" }))?.name, "Edited");
+});
+
+test("a status flip compares against its own read and moves the version", async () => {
+  const { repo, deps, input } = await staleServiceDeps();
+  await assert.rejects(setFormDefinitionStatus({ deps, input: { ...input, status: "disabled" } }),
+    (error: unknown) => error instanceof RecordVersionConflictError && error.currentVersion === 2);
+  const stored = await repo.findById({ workspaceId: WS, id: "form" });
+  assert.equal(stored?.name, "Edited");
+  assert.equal(stored?.status, "active");
+  const fresh = await setFormDefinitionStatus({ deps: { ...deps, repo }, input: { ...input, status: "disabled" } });
+  assert.equal(fresh.definition.version, 3);
+  assert.equal((await repo.findById({ workspaceId: WS, id: "form" }))?.version, 3);
 });

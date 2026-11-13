@@ -104,7 +104,9 @@ export class SqlFormDefinitionRepo implements FormDefinitionRepoPort {
   }
 
   /**
-   * Update-only path for a LIVE row. Guarded edits and Trash transitions can move `version`;
+   * Update-only path for a LIVE row. Every update stores `record.version` (the service sets it to
+   * the read version + 1), guarded or not, so the stored version always matches what the caller was
+   * told; otherwise a stale editor's basis would survive a basis-less edit and could revert it.
    * `deleted_at IS NULL` in the WHERE means the UPDATE matches zero rows if the record has since
    * been trashed — a stale in-hand copy can never clear a marker it never knew was set.
    */
@@ -129,7 +131,7 @@ export class SqlFormDefinitionRepo implements FormDefinitionRepoPort {
     await this.kernel.run((db) =>
       db
         .updateTable(this.tables.definitions)
-        .set(set)
+        .set({ ...set, version: record.version })
         .where("workspace_id", "=", record.workspaceId)
         .where("id", "=", record.id)
         .where("deleted_at", "is", null)
