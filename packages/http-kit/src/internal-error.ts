@@ -2,10 +2,15 @@ import { randomUUID } from 'node:crypto';
 import { describeErrorForLog } from '@jini-ai/core';
 import { createApiError, type ApiError } from '@jini-ai/protocol';
 
-/** What every host `onInternalError` sink receives besides the route's own fields: never shown to the caller. */
+/** What every host `onInternalError` sink receives besides the route's own fields: never shown to the caller.
+ *  This is the host channel: the full error, the request ID the caller copies and the operation
+ *  label, so the host can store one full record (under its own redaction) that the ID finds. */
 export interface RouteInternalErrorContext {
   readonly correlationId: string;
   readonly error: unknown;
+  /** The operation label the default line prints (`run-start`, `connectors/auth.list`). Optional so
+   *  hosts and route packs that build a context themselves stay assignable. */
+  readonly logSource?: string;
 }
 
 /** A host sink for one route's incidents. Hosts apply their own redaction policy here. */
@@ -13,7 +18,8 @@ export type RouteInternalErrorSink<C extends RouteInternalErrorContext = RouteIn
 
 /**
  * The one incident path for an unexpected failure inside a Jini HTTP route (SEC-005): the host
- * sink gets the real error under a fresh request ID (or the default log gets its class/code only); the caller gets
+ * sink gets the real error, the route's own fields (`runId`, ...) and the operation label under a
+ * fresh request ID (or the default log gets its class/code only); the caller gets
  * `message` (plain words: what failed + what to do) and the same ID, never the raw error.
  * Every route pack's `onInternalError` seam goes through here, so the sink-failure and default-log
  * behaviour is the same everywhere.
@@ -26,9 +32,10 @@ export type RouteInternalErrorSink<C extends RouteInternalErrorContext = RouteIn
  */
 export function reportRouteInternalError<E extends { readonly error: unknown }>(
   required: { readonly report: E; readonly logSource: string; readonly message: string },
-  { onInternalError }: { readonly onInternalError?: ((context: E & { readonly correlationId: string }) => void) | undefined } = {},
+  { onInternalError }: { readonly onInternalError?: ((context: E & { readonly correlationId: string; readonly logSource: string }) => void) | undefined } = {},
 ): ApiError {
-  const context: E & { readonly correlationId: string } = { ...required.report, correlationId: randomUUID() };
+  // `logSource` has its own key, so a route field named `operation` or `source` is never overwritten.
+  const context: E & { readonly correlationId: string; readonly logSource: string } = { ...required.report, correlationId: randomUUID(), logSource: required.logSource };
   deliverRouteInternalError({ context, logSource: required.logSource }, { onInternalError });
   return createApiError({ code: 'INTERNAL_ERROR', message: required.message }, { requestId: context.correlationId });
 }

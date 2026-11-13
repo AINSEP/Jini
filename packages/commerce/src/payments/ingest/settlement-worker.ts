@@ -6,7 +6,9 @@ export interface CommerceWorkerRequired {
   active(): Promise<boolean>;
   hasPending(): Promise<boolean>;
   run(): Promise<void>;
-  warn(message: string): void;
+  /** `message` is plain words + the cause's class/code (safe metadata only). `detail.error` is the
+   *  original error for the host's own sink and redaction policy; never print it raw. */
+  warn(message: string, detail?: { readonly error?: unknown }): void;
 }
 export interface CommerceWorkerOptional {
   /** Native PostgreSQL reserves a session advisory lock for the owner's whole lifetime. */
@@ -34,7 +36,7 @@ export function createSettlementWorker(required: CommerceWorkerRequired, optiona
   async function stillOwner(): Promise<boolean> {
     if (closed) return false;
     try { await assertOwned?.(); return true; } catch (error) {
-      required.warn(`Payment settlement ownership was lost; this process stopped its worker. Cause: ${describeErrorForLog({ err: error })}`); return false;
+      required.warn(`Payment settlement ownership was lost; this process stopped its worker. Cause: ${describeErrorForLog({ err: error })}`, { error }); return false;
     }
   }
   async function hasWork(): Promise<boolean> {
@@ -47,7 +49,7 @@ export function createSettlementWorker(required: CommerceWorkerRequired, optiona
       if (!await hasWork()) { finish?.(); return; }
       await required.run(); delayed = false;
     } catch (error) {
-      if (!delayed) required.warn(`Payment settlement is delayed; recorded payments will retry automatically. Cause: ${describeErrorForLog({ err: error })}`);
+      if (!delayed) required.warn(`Payment settlement is delayed; recorded payments will retry automatically. Cause: ${describeErrorForLog({ err: error })}`, { error });
       delayed = true;
     }
     if (!closed) cancel = schedule(() => {
@@ -60,7 +62,7 @@ export function createSettlementWorker(required: CommerceWorkerRequired, optiona
     try {
       if (!await hasWork()) return;
       if (!closed) cancel = schedule(() => { cancel = undefined; void worker.kick(); }, 5000);
-    } catch (error) { required.warn(`Payment settlement ownership retry is delayed; recorded work remains queued. Cause: ${describeErrorForLog({ err: error })}`); }
+    } catch (error) { required.warn(`Payment settlement ownership retry is delayed; recorded work remains queued. Cause: ${describeErrorForLog({ err: error })}`, { error }); }
   }
   const worker = {
     async kick() {
@@ -78,7 +80,7 @@ export function createSettlementWorker(required: CommerceWorkerRequired, optiona
         if (!result.acquired && !ownershipBlocked) required.warn('Another serving process owns payment settlement for this database.');
         ownershipBlocked = !result.acquired;
       }).catch((error: unknown) => {
-        if (!ownershipBlocked) required.warn(`Payment settlement ownership could not be acquired; recorded payments remain queued. Cause: ${describeErrorForLog({ err: error })}`);
+        if (!ownershipBlocked) required.warn(`Payment settlement ownership could not be acquired; recorded payments remain queued. Cause: ${describeErrorForLog({ err: error })}`, { error });
         ownershipBlocked = true;
       })
         .finally(async () => { holding = undefined; started(); checking = retryOwnership(); await checking; checking = undefined; });

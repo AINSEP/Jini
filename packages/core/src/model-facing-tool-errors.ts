@@ -234,59 +234,146 @@ export function callerSafeErrorMessage(required: { err: unknown; rules: readonly
   }
   return fallback;
 }
-/** A driver/system error code worth logging (`SQLITE_READONLY`, `ECONNREFUSED`, `ERR_INVALID_CHAR`) —
- *  a short constant token, never free text that could carry a value. */
-const LOGGABLE_ERROR_CODE = /^[A-Z][A-Z0-9_]{0,63}$/;
+/** A constant token: the only shape a registered code may have (checked once, at registration). */
+const CONSTANT_TOKEN = /^[A-Z][A-Z0-9_]{0,63}$/;
+/** A class label: an identifier, checked once at registration. */
+const CLASS_LABEL = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
+
+// Codes are approved by listing, never by shape: an uppercase run is not evidence that a value is a
+// code (a token or key can look exactly like one). Packages add their own constants through
+// `registerLoggableErrors`.
+const LOGGABLE_CODES = new Set<string>([
+  // Node system errors
+  "EACCES", "EADDRINUSE", "EADDRNOTAVAIL", "EAI_AGAIN", "EBADF", "EBUSY", "ECANCELED", "ECONNABORTED",
+  "ECONNREFUSED", "ECONNRESET", "EEXIST", "EHOSTUNREACH", "EINVAL", "EISDIR", "EMFILE", "ENAMETOOLONG",
+  "ENETDOWN", "ENETUNREACH", "ENFILE", "ENOENT", "ENOMEM", "ENOSPC", "ENOTDIR", "ENOTEMPTY", "ENOTFOUND",
+  "EPERM", "EPIPE", "EROFS", "ETIMEDOUT", "EXDEV",
+  // Node and undici (fetch)
+  "ABORT_ERR", "ERR_INVALID_ARG_TYPE", "ERR_INVALID_ARG_VALUE", "ERR_INVALID_CHAR", "ERR_INVALID_URL",
+  "ERR_SOCKET_CLOSED", "ERR_STREAM_PREMATURE_CLOSE", "UND_ERR_ABORTED", "UND_ERR_BODY_TIMEOUT",
+  "UND_ERR_CONNECT_TIMEOUT", "UND_ERR_HEADERS_TIMEOUT", "UND_ERR_SOCKET",
+  // SQLite
+  "SQLITE_BUSY", "SQLITE_CANTOPEN", "SQLITE_CONSTRAINT", "SQLITE_CONSTRAINT_UNIQUE", "SQLITE_CORRUPT",
+  "SQLITE_FULL", "SQLITE_IOERR", "SQLITE_LOCKED", "SQLITE_READONLY",
+]);
+
+/** The approved codes `describeErrorForLog` may print (live view: registrations add to it). */
+export const LOGGABLE_ERROR_CODES: ReadonlySet<string> = LOGGABLE_CODES;
+
+type ErrorClass = abstract new (...args: never[]) => Error;
+
+/** Built-in classes, most specific first. The label is a literal, never read from the value: a
+ *  class's or an instance's `name` is caller-controlled text and can carry a credential. */
+const BUILT_IN_ERROR_LABELS: readonly (readonly [ErrorClass, string])[] = [
+  [ToolInputError, "ToolInputError"],
+  [AggregateError, "AggregateError"],
+  [TypeError, "TypeError"],
+  [RangeError, "RangeError"],
+  [SyntaxError, "SyntaxError"],
+  [ReferenceError, "ReferenceError"],
+  [URIError, "URIError"],
+  [EvalError, "EvalError"],
+];
+
+/** `name` values worth naming (DOMException and Node abort/timeout errors). Printed only when the
+ *  value equals one of these fixed strings. */
+const WELL_KNOWN_ERROR_NAMES: ReadonlySet<string> = new Set(["AbortError", "TimeoutError"]);
+
+/** Classes registered by packages, checked newest first so a subclass registered after its base wins. */
+const registeredErrorLabels: { readonly error: ErrorClass; readonly label: string }[] = [];
+
+/** One package's additions to what `describeErrorForLog` may print. */
+export interface LoggableErrorRegistration {
+  /** Constant codes the package's own errors set (`PLUGIN_ID_CONFLICT`). */
+  readonly codes?: readonly string[];
+  /** The package's own error classes and the fixed label each is logged as. */
+  readonly classes?: readonly { readonly error: ErrorClass; readonly label: string }[];
+}
+
+/**
+ * Lets a package name its own error classes and constant codes in `describeErrorForLog` output.
+ * Call it once at module load with literals. Nothing a caught value carries can register itself.
+ * If two copies of core are loaded, a registration in one is not seen by the other: the output
+ * then falls back to the built-in label, which loses detail but never adds text.
+ * @param required.codes Constant tokens (`[A-Z][A-Z0-9_]*`, at most 64 chars).
+ * @param required.classes Error classes with an identifier label.
+ * @throws TypeError for a code or label of any other shape (a programming error).
+ * @complexity O(codes + classes).
+ */
+export function registerLoggableErrors(required: LoggableErrorRegistration, _optional: Record<string, never> = {}): void {
+  const { codes = [], classes = [] } = required;
+  const badCode = codes.find(code => !CONSTANT_TOKEN.test(code));
+  if (badCode !== undefined) throw new TypeError("registerLoggableErrors: a code must be a constant token like PLUGIN_ID_CONFLICT.");
+  if (classes.some(entry => !CLASS_LABEL.test(entry.label))) throw new TypeError("registerLoggableErrors: a class label must be an identifier.");
+  for (const code of codes) LOGGABLE_CODES.add(code);
+  registeredErrorLabels.push(...classes);
+}
 
 /** Fixed text logged when an error object cannot even be inspected. */
 const UNDESCRIBABLE_ERROR = "[diagnostic unavailable]";
+/** A field whose getter threw. */
+const UNREADABLE = Symbol("unreadable field");
 
-// A log call sits inside a catch block. If describing the error throws (a throwing `code` or
-// `constructor` getter, a revoked Proxy), the logger replaces the real failure with its own, so
-// every read of the caught value is guarded HERE, once — callers must not wrap this in try/catch.
-/** `ClassName` or `ClassName(CODE)` for one thrown value; `typeof` for a non-`Error` throw. */
-function describeOneErrorForLog(value: unknown): string {
+// A log call sits inside a catch block. If describing the error throws (a throwing getter, a revoked
+// Proxy), the logger replaces the real failure with its own, so every read of the caught value is
+// guarded HERE, once — callers must not wrap this in try/catch. Each field is read at most once, so a
+// getter cannot pass a check with one value and be printed with another.
+/** One field of a caught error, read once; `UNREADABLE` when its getter throws. */
+function readFieldOnce({ value, key }: { readonly value: Error; readonly key: "code" | "name" | "cause" }): unknown {
   try {
-    if (!(value instanceof Error)) return typeof value;
-    const className = value.constructor.name || "Error";
-    const code = (value as { code?: unknown }).code;
-    return typeof code === "string" && LOGGABLE_ERROR_CODE.test(code) ? `${className}(${code})` : className;
+    return (value as unknown as Record<string, unknown>)[key];
   } catch {
-    return UNDESCRIBABLE_ERROR;
+    return UNREADABLE;
   }
 }
 
-/** The direct `cause`, or the fixed marker when reading it throws. Only one level is read, so a
- *  cyclic cause chain cannot loop. */
-function readCauseForLog(err: unknown): unknown {
+/** A fixed label chosen by class checks. Throws only when `instanceof` itself throws. */
+function errorClassLabel({ value }: { readonly value: Error }): string {
+  for (let index = registeredErrorLabels.length - 1; index >= 0; index -= 1) {
+    const entry = registeredErrorLabels[index];
+    if (entry !== undefined && value instanceof entry.error) return entry.label;
+  }
+  const builtIn = BUILT_IN_ERROR_LABELS.find(([errorClass]) => value instanceof errorClass);
+  if (builtIn !== undefined) return builtIn[1];
+  const name = readFieldOnce({ value, key: "name" });
+  return typeof name === "string" && WELL_KNOWN_ERROR_NAMES.has(name) ? name : "Error";
+}
+
+/** `Label` or `Label(CODE)` for one thrown value (`typeof` for a non-`Error`), plus its direct cause
+ *  when asked for. Never throws. */
+function describeValueForLog({ value }: { readonly value: unknown }, { withCause = false }: { readonly withCause?: boolean } = {}): { readonly text: string; readonly cause?: unknown } {
   try {
-    return err instanceof Error ? (err as { cause?: unknown }).cause : undefined;
+    if (!(value instanceof Error)) return { text: typeof value };
+    const label = errorClassLabel({ value });
+    const code = readFieldOnce({ value, key: "code" });
+    const text = typeof code === "string" && LOGGABLE_CODES.has(code) ? `${label}(${code})` : label;
+    return withCause ? { text, cause: readFieldOnce({ value, key: "cause" }) } : { text };
   } catch {
-    return UNDESCRIBABLE_ERROR;
+    return { text: UNDESCRIBABLE_ERROR };
   }
 }
 
 /**
- * What a server-side log line may say about an error whose message is NOT known to be safe: its class
- * name, a constant-token `code`, and the same for its direct `cause`. Never the message, which can
- * quote a secret — `JSON.parse` quotes its input, and a sealer is handed plaintext.
+ * What a log line may say about an error whose message is NOT known to be safe: a fixed class label
+ * (built-in classes, core's `ToolInputError`, classes packages registered, or the well-known
+ * `AbortError`/`TimeoutError` names), an approved `code`, and the same for its direct `cause`. Never
+ * the message, the stack, the class's or instance's own `name`, or any other field: they can quote
+ * a secret — `JSON.parse` quotes its input, a sealer is handed plaintext, a class name is just text.
  *
  * Use it wherever the raw message could carry a credential. Where a class's message is designed for
  * logs (`EgressRefusedError.message`), log that instead.
  *
  * @param required.err - The caught value.
- * Never throws: an error that cannot be inspected is described as `[diagnostic unavailable]`, so
- * call it directly inside a catch block. For a server log that must keep the redacted message and
- * stack, use core's `formatErrorForLog` (redacted message + stack) instead.
+ * Never throws: an error that cannot be inspected is described as `[diagnostic unavailable]` (an
+ * unreadable cause as `cause=[diagnostic unavailable]`, an unreadable code is left out), so call it
+ * directly inside a catch block. Full detail belongs to a host sink, which receives the error object.
  *
- * @returns e.g. `SqliteError(SQLITE_BUSY)`, or `TypeError cause=Error(ECONNREFUSED)`.
- * @complexity O(1); reads only the value and its direct cause.
+ * @returns e.g. `Error(SQLITE_BUSY)`, or `TypeError cause=Error(ECONNREFUSED)`.
+ * @complexity O(registered classes); reads only the value and its direct cause, each field once.
  */
 export function describeErrorForLog(required: { err: unknown }, _optional: Record<string, never> = {}): string {
-  const { err } = required;
-  const described = describeOneErrorForLog(err);
-  if (described === UNDESCRIBABLE_ERROR) return described;
-  const cause = readCauseForLog(err);
-  if (cause === undefined) return described;
-  return `${described} cause=${cause === UNDESCRIBABLE_ERROR ? UNDESCRIBABLE_ERROR : describeOneErrorForLog(cause)}`;
+  const head = describeValueForLog({ value: required.err }, { withCause: true });
+  if (head.cause === undefined) return head.text;
+  const cause = head.cause === UNREADABLE ? UNDESCRIBABLE_ERROR : describeValueForLog({ value: head.cause }).text;
+  return `${head.text} cause=${cause}`;
 }
