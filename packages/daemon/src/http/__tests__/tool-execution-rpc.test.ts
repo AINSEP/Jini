@@ -476,15 +476,15 @@ describe('remote tool catalog', () => {
     expect(onInternalError).toHaveBeenCalledWith({ source: 'tool-catalog', correlationId: error.requestId, error: thrown });
   });
 
-  it('logs a listToolsFor failure redacted, with its stack and request ID, when the host gives no sink', async () => {
+  it('logs only the class and request ID of a listToolsFor failure when the host gives no sink', async () => {
     const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const { baseUrl } = await serve({ executor: executorWith(), listToolsFor: () => { throw new Error('boom api_key=SECRETSECRETSECRETSECRET'); } });
     const response = await rawRequest(baseUrl, { method: 'GET', path: '/internal/tool-catalog?principalId=p1', token: TOKEN });
     const { error } = JSON.parse(response.text) as { error: { requestId: string } };
     const line = logged.mock.calls.map((args) => args.join(' ')).join('\n');
-    expect(line).toContain(`correlationId=${error.requestId}`);
-    expect(line).toContain('boom');
-    expect(line).toContain('tool-execution-rpc.test.ts');
+    expect(line).toContain(`correlationId=${error.requestId}) Error`);
+    expect(line).not.toContain('boom');
+    expect(line).not.toContain('tool-execution-rpc.test.ts');
     expect(line).not.toContain('SECRETSECRET');
   });
 });
