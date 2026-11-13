@@ -91,6 +91,39 @@ test('lost PostgreSQL session ownership stops future cycles and releases the wor
   assert.equal(warnings.length, 1); await worker.close();
 });
 
+test('every settlement warning keeps its plain words and adds the redacted cause with its stack', async () => {
+  const failure = () => new Error('connection lost api_key=SECRETSECRETSECRETSECRET');
+  const cases: { name: string; expected: string; worker: (warn: (message: string) => void) => { kick(): Promise<void>; close(): Promise<void> }; trigger?: (timers: (() => void)[]) => void }[] = [];
+  let valid = true;
+  const timers: (() => void)[] = [];
+  const schedule = (run: () => void) => { timers.push(run); return () => {}; };
+  cases.push({ name: 'ownership lost', expected: 'Payment settlement ownership was lost; this process stopped its worker.',
+    worker: warn => createCommerceWorker({ owner: true, directory: 'unused', active: async () => true, hasPending: async () => true, run: async () => {}, warn }, {
+      withOwnership: async run => { await run({ assertOwned: async () => { if (!valid) throw failure(); } }); return { acquired: true }; }, schedule }),
+    trigger: queued => { valid = false; queued.shift()!(); } });
+  cases.push({ name: 'run failed', expected: 'Payment settlement is delayed; recorded payments will retry automatically.',
+    worker: warn => createCommerceWorker({ owner: true, directory: 'unused', active: async () => true, hasPending: async () => true, run: async () => { throw failure(); }, warn }, {
+      withOwnership: async run => { await run(); return { acquired: true }; }, schedule }) });
+  cases.push({ name: 'ownership not acquired', expected: 'Payment settlement ownership could not be acquired; recorded payments remain queued.',
+    worker: warn => createCommerceWorker({ owner: true, directory: 'unused', active: async () => true, hasPending: async () => false, run: async () => {}, warn }, {
+      withOwnership: async () => { throw failure(); }, schedule }) });
+  cases.push({ name: 'ownership retry failed', expected: 'Payment settlement ownership retry is delayed; recorded work remains queued.',
+    worker: warn => createCommerceWorker({ owner: true, directory: 'unused', active: async () => false, hasPending: async () => { throw failure(); }, run: async () => {}, warn }, {
+      withOwnership: async () => ({ acquired: false }), schedule }) });
+  for (const { name, expected, worker: make, trigger } of cases) {
+    valid = true; timers.length = 0;
+    const warnings: string[] = [];
+    const worker = make(message => warnings.push(message));
+    await worker.kick(); trigger?.(timers); await tick();
+    const warning = warnings.find(text => text.startsWith(expected));
+    assert.ok(warning?.startsWith(`${expected} Cause: `), `${name}: ${warnings.join(' | ')}`);
+    assert.match(warning, /connection lost/, name);
+    assert.match(warning, /settlement-worker\.unit\.test\.ts/, name);
+    assert.doesNotMatch(warning, /SECRETSECRET/, name);
+    await worker.close();
+  }
+});
+
 test('standby retries ownership and takes over after the former owner exits without another HTTP request', async () => {
   let available = false, runs = 0;
   const timers: (() => void)[] = [];
