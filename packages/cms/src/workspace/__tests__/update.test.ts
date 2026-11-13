@@ -10,7 +10,7 @@ import { updateWorkspace } from "../update.js";
  * See docs/decisions/DR-007-workspace-and-owner-floors.md.
  */
 test("updateWorkspace renames name and persists it (AC-05)", async () => {
-  const repo = new InMemoryWorkspaceRepo({}, { initialRows: [{ id: "ws-1", name: "Old Name", slug: "old-slug", createdAt: "t0" }] });
+  const repo = new InMemoryWorkspaceRepo({}, { initialRows: [{ id: "ws-1", name: "Old Name", slug: "old-slug", createdAt: "t0", version: 1 }] });
 
   const { workspace } = await updateWorkspace({ deps: { repo }, input: { id: "ws-1", name: "New Name" } });
 
@@ -22,8 +22,8 @@ test("updateWorkspace renames name and persists it (AC-05)", async () => {
 
 test("updateWorkspace rejects a slug colliding with a different workspace row (AC-05)", async () => {
   const repo = new InMemoryWorkspaceRepo({}, { initialRows: [
-    { id: "ws-1", name: "A", slug: "a-slug", createdAt: "t0" },
-    { id: "ws-2", name: "B", slug: "b-slug", createdAt: "t0" },
+    { id: "ws-1", name: "A", slug: "a-slug", createdAt: "t0", version: 1 },
+    { id: "ws-2", name: "B", slug: "b-slug", createdAt: "t0", version: 1 },
   ] });
 
   await assert.rejects(
@@ -35,14 +35,14 @@ test("updateWorkspace rejects a slug colliding with a different workspace row (A
 });
 
 test("updateWorkspace accepts a slug identical to the workspace's own current slug (EC-02)", async () => {
-  const repo = new InMemoryWorkspaceRepo({}, { initialRows: [{ id: "ws-1", name: "A", slug: "a-slug", createdAt: "t0" }] });
+  const repo = new InMemoryWorkspaceRepo({}, { initialRows: [{ id: "ws-1", name: "A", slug: "a-slug", createdAt: "t0", version: 1 }] });
 
   const { workspace } = await updateWorkspace({ deps: { repo }, input: { id: "ws-1", slug: "a-slug" } });
   assert.equal(workspace.slug, "a-slug");
 });
 
 test("updateWorkspace rejects an invalid slug pattern", async () => {
-  const repo = new InMemoryWorkspaceRepo({}, { initialRows: [{ id: "ws-1", name: "A", slug: "a-slug", createdAt: "t0" }] });
+  const repo = new InMemoryWorkspaceRepo({}, { initialRows: [{ id: "ws-1", name: "A", slug: "a-slug", createdAt: "t0", version: 1 }] });
 
   await assert.rejects(
     () => updateWorkspace({ deps: { repo }, input: { id: "ws-1", slug: "Not A Slug" } }),
@@ -51,7 +51,7 @@ test("updateWorkspace rejects an invalid slug pattern", async () => {
 });
 
 test("updateWorkspace rejects an empty-object update (EC-01, no name and no slug)", async () => {
-  const repo = new InMemoryWorkspaceRepo({}, { initialRows: [{ id: "ws-1", name: "A", slug: "a-slug", createdAt: "t0" }] });
+  const repo = new InMemoryWorkspaceRepo({}, { initialRows: [{ id: "ws-1", name: "A", slug: "a-slug", createdAt: "t0", version: 1 }] });
 
   await assert.rejects(() => updateWorkspace({ deps: { repo }, input: { id: "ws-1" } }), WorkspaceValidationError);
 });

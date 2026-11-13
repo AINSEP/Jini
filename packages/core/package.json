@@ -23,6 +23,8 @@
       "./contracts/server": "universal",
       "./naming": "universal",
       "./records": "universal",
+      "./optimistic-concurrency": "universal",
+      "./list-page": "universal",
       "./primitives": "universal",
       "./fetch": "universal",
       "./text": "universal",
@@ -140,6 +142,16 @@
       "types": "./dist/records.d.ts",
       "import": "./dist/records.js",
       "default": "./dist/records.js"
+    },
+    "./optimistic-concurrency": {
+      "types": "./dist/optimistic-concurrency.d.ts",
+      "import": "./dist/optimistic-concurrency.js",
+      "default": "./dist/optimistic-concurrency.js"
+    },
+    "./list-page": {
+      "types": "./dist/list-page.d.ts",
+      "import": "./dist/list-page.js",
+      "default": "./dist/list-page.js"
     },
     "./primitives": {
       "types": "./dist/primitives/index.d.ts",

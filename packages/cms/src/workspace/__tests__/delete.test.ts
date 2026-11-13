@@ -12,7 +12,7 @@ import { InMemoryWorkspaceRepo } from "../repo.memory.js";
  * See docs/decisions/DR-007-workspace-and-owner-floors.md.
  */
 test("deleteWorkspace refuses to delete the install's only workspace (AC-06, INV-03)", async () => {
-  const repo = new InMemoryWorkspaceRepo({}, { initialRows: [{ id: "ws-1", name: "Only", slug: "only", createdAt: "t0" }] });
+  const repo = new InMemoryWorkspaceRepo({}, { initialRows: [{ id: "ws-1", name: "Only", slug: "only", createdAt: "t0", version: 1 }] });
 
   await assert.rejects(
     () => deleteWorkspace({ deps: { repo, transaction: repo.transaction.bind(repo) }, input: { id: "ws-1" } }),
@@ -23,8 +23,8 @@ test("deleteWorkspace refuses to delete the install's only workspace (AC-06, INV
 
 test("deleteWorkspace succeeds when a second workspace row exists", async () => {
   const repo = new InMemoryWorkspaceRepo({}, { initialRows: [
-    { id: "ws-1", name: "First", slug: "first", createdAt: "t0" },
-    { id: "ws-2", name: "Second", slug: "second", createdAt: "t0" },
+    { id: "ws-1", name: "First", slug: "first", createdAt: "t0", version: 1 },
+    { id: "ws-2", name: "Second", slug: "second", createdAt: "t0", version: 1 },
   ] });
 
   await deleteWorkspace({ deps: { repo, transaction: repo.transaction.bind(repo) }, input: { id: "ws-1" } });
@@ -34,7 +34,7 @@ test("deleteWorkspace succeeds when a second workspace row exists", async () => 
 });
 
 test("deleteWorkspace throws WorkspaceNotFoundError for an unknown id", async () => {
-  const repo = new InMemoryWorkspaceRepo({}, { initialRows: [{ id: "ws-1", name: "Only", slug: "only", createdAt: "t0" }] });
+  const repo = new InMemoryWorkspaceRepo({}, { initialRows: [{ id: "ws-1", name: "Only", slug: "only", createdAt: "t0", version: 1 }] });
 
   await assert.rejects(() => deleteWorkspace({ deps: { repo, transaction: repo.transaction.bind(repo) }, input: { id: "missing" } }), WorkspaceNotFoundError);
 });

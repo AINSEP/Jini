@@ -1,4 +1,5 @@
 import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
+import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 import { type Clock as ClockPort } from "@jini-ai/core/primitives";
 import { assertEntityLive, ForbiddenError, type AuthorizeFn } from "../core/index.js";
 import type { SeoPostWritePort as PostRepoPort, SeoFeaturedImagePort } from "./ports.js";
@@ -315,7 +316,8 @@ async function saveWithRevision(required: {
 async function mergeOverridesOntoCurrentRow(
   postRepo: PostRepoPort,
   clock: ClockPort,
-  input: SetEntrySeoOverridesInput
+  input: SetEntrySeoOverridesInput,
+  optional: { expectedVersion?: number } = {},
 ): Promise<SeoExtFields> {
   for (let attempt = 0; attempt < MAX_MERGE_ATTEMPTS; attempt += 1) {
     const existing = await postRepo.findById({ workspaceId: input.workspaceId, id: input.entryId });
@@ -324,9 +326,20 @@ async function mergeOverridesOntoCurrentRow(
     }
     assertEntityLive({ entityType: existing.kind, entityId: input.entryId, state: postRepo.isTrashed({ post: existing }) ? "trashed" : "live" });
 
+    if (optional.expectedVersion !== undefined && existing.version !== optional.expectedVersion) {
+      await assertVersionedWrite({ changedRows: 0, recordKind: "entry", recordId: input.entryId,
+        expectedVersion: optional.expectedVersion, readCurrentVersion: async () => existing.version });
+    }
+
     const { mergedOverrides, updatedRecord } = mergePatchIntoRow({ existing, patch: input.patch });
     const applied = await saveWithRevision({ postRepo, clock, existing, updatedRecord, actorId: input.callerPrincipalId });
     if (applied) return mergedOverrides;
+    if (optional.expectedVersion !== undefined) {
+      // An editor-supplied basis is never silently retried against a newer post.
+      await assertVersionedWrite({ changedRows: 0, recordKind: "entry", recordId: input.entryId,
+        expectedVersion: optional.expectedVersion,
+        readCurrentVersion: async () => (await postRepo.findById({ workspaceId: input.workspaceId, id: input.entryId }))?.version ?? null });
+    }
   }
 
   throw new SeoConcurrentWriteError(
@@ -341,7 +354,7 @@ async function mergeOverridesOntoCurrentRow(
  */
 export async function setEntrySeoOverrides(
   required: SetEntrySeoOverridesRequired,
-  _optional: Record<string, never> = {}
+  optional: { expectedVersion?: number } = {}
 ): Promise<{ overrides: SeoExtFields }> {
   const { deps, input } = required;
 
@@ -359,7 +372,7 @@ export async function setEntrySeoOverrides(
   validateSeoExtFieldsPatch(input.patch as Record<string, unknown>);
   await validateShareImageRefs(deps.media, input);
 
-  const mergedOverrides = await mergeOverridesOntoCurrentRow(deps.postRepo, deps.clock, input);
+  const mergedOverrides = await mergeOverridesOntoCurrentRow(deps.postRepo, deps.clock, input, optional);
 
   if (touchesSitemapEligibility(input.patch as Record<string, unknown>)) {
     await deps.invalidateSitemapCache({ workspaceId: input.workspaceId });

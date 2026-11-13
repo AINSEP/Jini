@@ -1,4 +1,5 @@
 import { PeopleApiError, RolesApiError } from '../ports.js';
+import { decodeListCursor, encodeListCursor, pageFromArray } from '@jini-ai/core/list-page';
 import type { RolesApiPort, RolesCallOptions, UsersApiPort, UsersSafetyPort, MembersApiPort, AuthApiPort } from '../ports.js';
 import type { RoleRecord, PolicyRecord, PolicyPermissionRecord, AdminOperator, AdminMember, AdminAccount, CallerInfo, UserAction } from '../models.js';
 import { BUILTIN_PERMISSIONS } from '../../core/builtin-permissions.js';
@@ -255,7 +256,18 @@ export function createMemoryMembersApi({ workspaceId }: { workspaceId: string },
     };
     const get = (id: string) => rows.get(id) ?? fail('RESOURCE_NOT_FOUND', 'Member not found.');
     return {
-        async listMembers(_r, o = {}) { check(o); const limit = o.limit !== undefined && Number.isFinite(o.limit) && o.limit > 0 ? Math.floor(o.limit) : 100; return { members: [...rows.values()].sort((a, b) => a.id.localeCompare(b.id)).filter(m => o.afterId === undefined || m.id > o.afterId).slice(0, limit).map(m => ({ ...m })) }; },
+        /** Page scoped members by ID; return fresh copies and reject invalid cursor input.
+         * @complexity O(n log n) time and O(n) space for n members; no I/O.
+         */
+        async listMembers(_r, o = {}) {
+            check(o);
+            if (o.afterId !== undefined && o.cursor != null) fail('VALIDATION_ERROR', 'Pass cursor or afterId, not both.');
+            const limit = Math.min(o.limit !== undefined && Number.isFinite(o.limit) && o.limit > 0 ? Math.floor(o.limit) : 100, 100);
+            const cursor = o.afterId === undefined ? o.cursor ?? null : encodeListCursor({ position: [o.afterId] });
+            if (cursor !== null) decodeListCursor({ cursor, size: 1 });
+            const page = pageFromArray({ rows: [...rows.values()], limit, cursor, positionOf: m => [m.id] });
+            return { members: page.items.map(m => ({ ...m })), nextCursor: page.nextCursor };
+        },
         async getMember(r, o = {}) { check(o); return { member: { ...get(r.id) } }; },
         async disableMember(r, o = {}) { gate(o); const old = get(r.id); const member = old.status === 'disabled' ? old : { ...old, status: 'disabled' as const, version: old.version + 1, updatedAt: new Date(0).toISOString() }; rows.set(member.id, member); return { member: { ...member } }; },
         async requestMemberMagicLink(r, o = {}) {

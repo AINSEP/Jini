@@ -18,9 +18,10 @@ export interface FormDefinitionRepoPort {
    * A trashed row retains its slug so restoring it is lossless, and can therefore still conflict. */
   create(record: FormDefinitionRecord): Promise<void>;
 
-  /** Update only a live row, affecting zero rows if it was trashed meanwhile. Only Trash restore
-   * may revive it. Keep create/update separate so genuine insert uniqueness races remain visible. */
-  update(record: FormDefinitionRecord): Promise<void>;
+  /** Update only a live row. Without a basis, a trashed row remains untouched; with one, a
+   * mismatched or missing row throws RecordVersionConflictError. Only Trash restore may revive it.
+   * Keep create/update separate so genuine insert uniqueness races remain visible. */
+  update(record: FormDefinitionRecord, optional?: { expectedVersion?: number }): Promise<void>;
 
   /** Deliberately trash-blind: both live and trashed rows reserve a slug. Duplication must not
    * propose a trashed slug as available and then collide with the database unique index. */

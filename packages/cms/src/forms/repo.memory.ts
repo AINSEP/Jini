@@ -1,4 +1,5 @@
 import { deleteMapRecord } from "@jini-ai/core/records";
+import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 // The local trash fork was removed; @jini-ai/cms/trash owns the shared adapter/hooks.
 import { encodeKeysetCursor } from "../core/keyset-cursor.js";
 import type { UUID } from "@jini-ai/core/primitives";
@@ -92,8 +93,17 @@ export class InMemoryFormDefinitionRepo implements FormDefinitionRepoPort {
    * clear a marker it never knew was set. A record with no existing row at all is still accepted
    * (pre-existing behavior of this in-memory double, unrelated to trashing).
    */
-  async update(record: FormDefinitionRecord): Promise<void> {
+  async update(record: FormDefinitionRecord, optional: { expectedVersion?: number } = {}): Promise<void> {
     const existing = this.rows.get(record.id);
+    const { expectedVersion } = optional;
+    if (expectedVersion !== undefined &&
+      (!existing || existing.workspaceId !== record.workspaceId || existing.deletedAt !== null || existing.version !== expectedVersion)) {
+      await assertVersionedWrite({
+        changedRows: 0, recordKind: "form", recordId: record.id, expectedVersion,
+        readCurrentVersion: async () => existing?.workspaceId === record.workspaceId && existing.deletedAt === null ? existing.version : null,
+      });
+    }
+    // Do not yield between the in-memory comparison and write: concurrent calls share this map.
     if (existing && existing.deletedAt !== null) return;
     this.rows.set(record.id, cloneStored({ ...record, deletedAt: existing?.deletedAt ?? null }));
   }

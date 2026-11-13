@@ -1,4 +1,5 @@
 import type { UUID } from "@jini-ai/core/primitives";
+import { assertVersionedWrite } from "@jini-ai/core/optimistic-concurrency";
 import type { StorageKernel } from "@jini-ai/db/kernel";
 import type { FormsTables, FormDefinitionDatabase, FormSubmissionDatabase } from "./tables.js";
 import { FormSlugConflictError } from "../errors.js";
@@ -103,17 +104,34 @@ export class SqlFormDefinitionRepo implements FormDefinitionRepoPort {
   }
 
   /**
-   * Update-only path for a LIVE row. `version`/`deleted_at` are deliberately excluded from the SET
-   * list (only the Trash's compare-and-set may move `version`), and `deleted_at IS NULL` in the
-   * WHERE means the UPDATE simply matches zero rows if the record has since been trashed — a stale
-   * in-hand copy can never clear a marker it never knew was set.
+   * Update-only path for a LIVE row. Every update stores `record.version` (the service sets it to
+   * the read version + 1), guarded or not, so the stored version always matches what the caller was
+   * told; otherwise a stale editor's basis would survive a basis-less edit and could revert it.
+   * `deleted_at IS NULL` in the WHERE means the UPDATE matches zero rows if the record has since
+   * been trashed — a stale in-hand copy can never clear a marker it never knew was set.
    */
-  async update(record: FormDefinitionRecord): Promise<void> {
+  async update(record: FormDefinitionRecord, optional: { expectedVersion?: number } = {}): Promise<void> {
     const set = updatableDefinitionColumns(toDefinitionRow(record));
+    const { expectedVersion } = optional;
+    if (expectedVersion !== undefined) {
+      // One conditional UPDATE prevents two editors with the same basis from both landing.
+      const result = await this.kernel.run((db) => db.updateTable(this.tables.definitions)
+        .set({ ...set, version: record.version })
+        .where("workspace_id", "=", record.workspaceId)
+        .where("id", "=", record.id)
+        .where("deleted_at", "is", null)
+        .where("version", "=", expectedVersion)
+        .executeTakeFirst());
+      await assertVersionedWrite({
+        changedRows: result.numUpdatedRows, recordKind: "form", recordId: record.id, expectedVersion,
+        readCurrentVersion: async () => (await this.findById({ workspaceId: record.workspaceId, id: record.id }))?.version ?? null,
+      });
+      return;
+    }
     await this.kernel.run((db) =>
       db
         .updateTable(this.tables.definitions)
-        .set(set)
+        .set({ ...set, version: record.version })
         .where("workspace_id", "=", record.workspaceId)
         .where("id", "=", record.id)
         .where("deleted_at", "is", null)

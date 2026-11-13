@@ -282,8 +282,11 @@ export async function updateFormDefinition(
           notify,
           slug: existing.slug,
           updatedAt: kernelNowIso({ clock: deps.clock }),
+          version: existing.version + 1,
         };
-        await deps.repo.update(definition);
+        // The editor's basis when sent; otherwise this request's own read, so a basis-less (legacy
+        // API) edit still cannot write its whole row over an edit that landed after that read.
+        await deps.repo.update(definition, { expectedVersion: optional.expectedVersion ?? existing.version });
         return { definition };
       },
     },
@@ -338,8 +341,11 @@ export async function setFormDefinitionStatus(
           ...existing,
           status: input.status,
           updatedAt: kernelNowIso({ clock: deps.clock }),
+          version: existing.version + 1,
         };
-        await deps.repo.update(definition);
+        // The flip writes the whole row it read; comparing against that read keeps it from reverting
+        // a field edit that landed in between (the flip itself needs no editor basis: E2).
+        await deps.repo.update(definition, { expectedVersion: existing.version });
         return { definition };
       },
     },
@@ -353,7 +359,7 @@ export interface FormWriteOptional {
   outbox?: import("../core/index.js").OutboxPort;
 }
 export interface CreateFormDefinitionOptional extends FormWriteOptional { notify?: NotifyConfig; authoring?: FormAuthoringPort; }
-export interface UpdateFormDefinitionOptional extends FormWriteOptional { authoring?: FormAuthoringPort; }
+export interface UpdateFormDefinitionOptional extends FormWriteOptional { authoring?: FormAuthoringPort; expectedVersion?: number; }
 
 /** Authoring pre-reads are authorized once; the audited gateway replays that decision.
  * @complexity O(f + h) authoring/validation, with fixed-count repository and command calls. */

@@ -40,8 +40,8 @@ export function toDefinitionRecord(row: FormDefinitionRow, _optional: Record<str
 }
 
 /**
- * The `form_definitions` row an INSERT writes. `version` is included for `create`; `update()` strips
- * it (see {@link updatableDefinitionColumns}) because only the Trash's compare-and-set may move it.
+ * The `form_definitions` row an INSERT writes. `version` is included for `create`; `update()` adds
+ * it back to the mutable columns for a guarded edit, while Trash owns its own transitions.
  */
 export function toDefinitionRow(record: FormDefinitionRecord, _optional: Record<string, never> = {}): Insertable<FormDefinitionTable> {
   return {

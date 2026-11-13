@@ -60,7 +60,7 @@ export function withFormAuthoring(
     list: (target) => repo.list(target),
     isSlugTaken: (target) => repo.isSlugTaken(target),
     create: async (record) => { Object.assign(record, authoring); await repo.create(record); },
-    update: async (record) => { Object.assign(record, authoring); await repo.update(record); },
+    update: async (record, optional = {}) => { Object.assign(record, authoring); await repo.update(record, optional); },
   };
 }
 

@@ -1,4 +1,5 @@
 import type { RolesApiPort, RolesHttpTransport, RolesCallOptions } from '../ports.js';
+import { PeopleApiError } from '../ports.js';
 /** Host transport owns cookies/authentication, API prefix, typed errors and server authorization.
  * These resource routes intentionally retain their response envelopes and workspace scope. */
 export function createHttpRolesApi({ transport, workspaceId }: {
@@ -59,9 +60,14 @@ export function createHttpMembersApi({ transport, workspaceId }: { transport: Ro
         return transport.request<T>({ path, method, ...(body ? { body } : {}) }, o.signal ? { signal: o.signal } : {});
     };
     return {
-        listMembers: (_r, o = {}) => {
+        listMembers: async (_r, o = {}) => {
+            o.signal?.throwIfAborted();
+            if (o.afterId !== undefined && o.cursor != null) throw new PeopleApiError({ code: 'VALIDATION_ERROR', message: 'Pass cursor or afterId, not both.' });
             const query = new URLSearchParams(); if (o.afterId !== undefined) {
                 query.set('afterId', o.afterId);
+            }
+            if (o.cursor != null) {
+                query.set('cursor', o.cursor);
             }
             if (o.limit !== undefined) {
                 query.set('limit', String(o.limit));

@@ -5,8 +5,8 @@ import { deleteWorkspace } from "../delete.js";
 import { InMemoryWorkspaceRepo } from "../repo.memory.js";
 
 const rows = [
-  { id: "first", name: "First", slug: "first", createdAt: "t0" },
-  { id: "second", name: "Second", slug: "second", createdAt: "t0" },
+  { id: "first", name: "First", slug: "first", createdAt: "t0", version: 1 },
+  { id: "second", name: "Second", slug: "second", createdAt: "t0", version: 1 },
 ];
 
 test("concurrent deletions preserve the last workspace even when list yields", async () => {

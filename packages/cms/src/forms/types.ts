@@ -61,7 +61,7 @@ export interface FormDefinitionRecord {
   createdAt: string;
   updatedAt: string;
 
-  /** Compare-and-set counter for trash transitions; never an admin-editable field.
+  /** Compare-and-set counter for edits and trash transitions; never an admin-editable field.
    * Every record constructor, including fixtures, must supply it. */
   version: number;
 }

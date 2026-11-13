@@ -313,7 +313,7 @@ function buildJsonLdEntry(post: PostRecord, schemaType: string, title: string, d
  * `getEffective` reads), up to 2 media lookups, one origin lookup (2026-09-03,
  * absolute-URL fix — {@link resolveWorkspaceOrigin}).
  */
-export async function getEntryMeta(required: { deps: GetEntryMetaDeps; input: GetEntryMetaInput }, _optional: Record<string, never> = {}): Promise<SeoMeta> {
+export async function getEntryMeta(required: { deps: GetEntryMetaDeps; input: GetEntryMetaInput }, _optional: Record<string, never> = {}): Promise<SeoMeta & { version: number }> {
   const { deps, input } = required;
   const post = await deps.postRepo.findById({ workspaceId: input.workspaceId, id: input.entryId });
   if (!post) throw new SeoEntryNotFoundError(`entry '${input.entryId}' was not found`);
@@ -330,6 +330,7 @@ export async function getEntryMeta(required: { deps: GetEntryMetaDeps; input: Ge
   const { ogType, schemaType } = resolveContentTypeFields(post, overrides);
 
   return {
+    version: post.version,
     title,
     description,
     canonical,
