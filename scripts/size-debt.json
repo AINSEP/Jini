@@ -1,0 +1,3831 @@
+[
+  {
+    "file": "packages/admin/src/agent-plugins/controllers/agent-plugins.controller.ts",
+    "function": "createAgentPluginsController",
+    "line": 7,
+    "rule": "max-lines-per-function",
+    "value": 62
+  },
+  {
+    "file": "packages/admin/src/comments/controllers/comment-queue.controller.ts",
+    "function": "createCommentQueueController",
+    "line": 15,
+    "rule": "max-lines-per-function",
+    "value": 146
+  },
+  {
+    "file": "packages/admin/src/comments/controllers/comment-settings.controller.ts",
+    "function": "createCommentSettingsController",
+    "line": 12,
+    "rule": "max-lines-per-function",
+    "value": 57
+  },
+  {
+    "file": "packages/admin/src/comments/react/components/SettingsSection.tsx",
+    "function": "SettingsSection",
+    "line": 17,
+    "rule": "max-lines-per-function",
+    "value": 114
+  },
+  {
+    "file": "packages/admin/src/core/module/create-admin.ts",
+    "function": "createAdmin",
+    "line": 397,
+    "rule": "max-lines-per-function",
+    "value": 52
+  },
+  {
+    "file": "packages/admin/src/forms/adapters/memory.ts",
+    "function": "createMemoryFormsApi",
+    "line": 22,
+    "rule": "max-lines-per-function",
+    "value": 66
+  },
+  {
+    "file": "packages/admin/src/forms/react/components/FieldAttributesDialog.tsx",
+    "function": "FieldAttributesDialog",
+    "line": 21,
+    "rule": "max-lines-per-function",
+    "value": 148
+  },
+  {
+    "file": "packages/admin/src/forms/react/components/FormFieldsEditor.tsx",
+    "function": "FormFieldsEditor",
+    "line": 16,
+    "rule": "max-lines-per-function",
+    "value": 182
+  },
+  {
+    "file": "packages/admin/src/forms/react/components/FormFieldsEditor.tsx",
+    "function": "FormFieldsEditor.rows.map callback",
+    "line": 90,
+    "rule": "max-lines-per-function",
+    "value": 108
+  },
+  {
+    "file": "packages/admin/src/forms/react/components/FormSubmissionDetail.tsx",
+    "function": "FormSubmissionDetail",
+    "line": 19,
+    "rule": "max-lines-per-function",
+    "value": 78
+  },
+  {
+    "file": "packages/admin/src/forms/react/hooks/use-form-editor.hooks.ts",
+    "function": "useFormEditor",
+    "line": 133,
+    "rule": "max-lines-per-function",
+    "value": 151
+  },
+  {
+    "file": "packages/admin/src/forms/react/hooks/use-form-submission-detail.hooks.ts",
+    "function": "useFormSubmissionDetail",
+    "line": 65,
+    "rule": "max-lines-per-function",
+    "value": 62
+  },
+  {
+    "file": "packages/admin/src/forms/react/hooks/use-form-submissions.hooks.ts",
+    "function": "useFormSubmissions",
+    "line": 73,
+    "rule": "max-lines-per-function",
+    "value": 66
+  },
+  {
+    "file": "packages/admin/src/forms/react/hooks/use-forms-list.hooks.ts",
+    "function": "useFormsList",
+    "line": 78,
+    "rule": "max-lines-per-function",
+    "value": 66
+  },
+  {
+    "file": "packages/admin/src/forms/react/pages/FormEditor.tsx",
+    "function": "FormEditor",
+    "line": 24,
+    "rule": "max-lines-per-function",
+    "value": 90
+  },
+  {
+    "file": "packages/admin/src/forms/react/pages/FormsList.tsx",
+    "function": "FormsList",
+    "line": 43,
+    "rule": "max-lines-per-function",
+    "value": 106
+  },
+  {
+    "file": "packages/admin/src/media/adapters/http.ts",
+    "function": "createHttpMediaApi",
+    "line": 14,
+    "rule": "max-lines-per-function",
+    "value": 59
+  },
+  {
+    "file": "packages/admin/src/media/adapters/memory.ts",
+    "function": "createMemoryMediaApi",
+    "line": 21,
+    "rule": "max-lines-per-function",
+    "value": 98
+  },
+  {
+    "file": "packages/admin/src/media/conformance/media-api.conformance.ts",
+    "function": "runMediaApiConformance",
+    "line": 5,
+    "rule": "max-lines-per-function",
+    "value": 84
+  },
+  {
+    "file": "packages/admin/src/media/controllers/edit-media.controller.ts",
+    "function": "createEditMediaController",
+    "line": 5,
+    "rule": "max-lines-per-function",
+    "value": 56
+  },
+  {
+    "file": "packages/admin/src/media/controllers/library.controller.ts",
+    "function": "createLibraryController",
+    "line": 16,
+    "rule": "max-lines-per-function",
+    "value": 169
+  },
+  {
+    "file": "packages/admin/src/media/controllers/providers.controller.ts",
+    "function": "createProvidersController",
+    "line": 4,
+    "rule": "max-lines-per-function",
+    "value": 74
+  },
+  {
+    "file": "packages/admin/src/media/react/hooks/EditMediaPanel.hooks.ts",
+    "function": "useEditMediaPanel",
+    "line": 21,
+    "rule": "max-lines-per-function",
+    "value": 84
+  },
+  {
+    "file": "packages/admin/src/media/react/hooks/LibraryTab.hooks.ts",
+    "function": "useLibraryTab",
+    "line": 114,
+    "rule": "max-lines-per-function",
+    "value": 88
+  },
+  {
+    "file": "packages/admin/src/media/react/hooks/ProvidersTab.hooks.ts",
+    "function": "useProvidersTab",
+    "line": 148,
+    "rule": "max-lines-per-function",
+    "value": 56
+  },
+  {
+    "file": "packages/admin/src/media/react/hooks/UploadButton.hooks.ts",
+    "function": "useUploadButton",
+    "line": 66,
+    "rule": "max-lines-per-function",
+    "value": 66
+  },
+  {
+    "file": "packages/admin/src/media/react/index.ts",
+    "function": "media",
+    "line": 17,
+    "rule": "max-lines-per-function",
+    "value": 78
+  },
+  {
+    "file": "packages/admin/src/react/components/ConfirmDialog/ConfirmDialog.tsx",
+    "function": "ConfirmDialog",
+    "line": 125,
+    "rule": "max-lines-per-function",
+    "value": 57
+  },
+  {
+    "file": "packages/admin/src/react/components/DataTable.tsx",
+    "function": "DataTable",
+    "line": 237,
+    "rule": "max-lines-per-function",
+    "value": 71
+  },
+  {
+    "file": "packages/admin/src/react/components/RowMenu/RowMenu.hooks.tsx",
+    "function": "trackOpenMenu",
+    "line": 55,
+    "rule": "max-lines-per-function",
+    "value": 51
+  },
+  {
+    "file": "packages/admin/src/react/components/RowMenu/RowMenu.hooks.tsx",
+    "function": "useRowMenu",
+    "line": 115,
+    "rule": "max-lines-per-function",
+    "value": 87
+  },
+  {
+    "file": "packages/admin/src/react/components/RowMenu/RowMenu.tsx",
+    "function": "RowMenu",
+    "line": 121,
+    "rule": "max-lines-per-function",
+    "value": 76
+  },
+  {
+    "file": "packages/admin/src/react/components/Sidebar.tsx",
+    "function": "SidebarRoot",
+    "line": 303,
+    "rule": "max-lines-per-function",
+    "value": 51
+  },
+  {
+    "file": "packages/admin/src/react/entities/use-entity-edit.ts",
+    "function": "useEntityEdit",
+    "line": 63,
+    "rule": "max-lines-per-function",
+    "value": 59
+  },
+  {
+    "file": "packages/admin/src/redirects/adapters/memory.ts",
+    "function": "createMemoryRedirectsApi",
+    "line": 7,
+    "rule": "max-lines-per-function",
+    "value": 78
+  },
+  {
+    "file": "packages/admin/src/redirects/react/components/ImportRedirectsForm.tsx",
+    "function": "ImportRedirectsForm",
+    "line": 18,
+    "rule": "max-lines-per-function",
+    "value": 59
+  },
+  {
+    "file": "packages/admin/src/redirects/react/pages/RedirectsPage.tsx",
+    "function": "RedirectsPage",
+    "line": 22,
+    "rule": "max-lines-per-function",
+    "value": 111
+  },
+  {
+    "file": "packages/admin/src/security/controllers/access-tokens.controller.ts",
+    "function": "createAccessTokensController",
+    "line": 9,
+    "rule": "max-lines-per-function",
+    "value": 58
+  },
+  {
+    "file": "packages/admin/src/seo/react/components/SitemapModal.tsx",
+    "function": "SitemapModalTable",
+    "line": 105,
+    "rule": "max-lines-per-function",
+    "value": 53
+  },
+  {
+    "file": "packages/admin/src/seo/react/pages/SeoPage.tsx",
+    "function": "SeoEntrySearchFields",
+    "line": 316,
+    "rule": "max-lines-per-function",
+    "value": 60
+  },
+  {
+    "file": "packages/admin/src/seo/react/pages/SeoPage.tsx",
+    "function": "SeoDefaultsTab",
+    "line": 526,
+    "rule": "max-lines-per-function",
+    "value": 133
+  },
+  {
+    "file": "packages/admin/src/seo/react/pages/SeoPage.tsx",
+    "function": "<file>",
+    "line": 725,
+    "rule": "max-lines",
+    "value": 588
+  },
+  {
+    "file": "packages/admin/src/seo/react/pages/SeoPage.tsx",
+    "function": "Seo",
+    "line": 746,
+    "rule": "max-lines-per-function",
+    "value": 71
+  },
+  {
+    "file": "packages/admin/src/widgets/adapters/memory.ts",
+    "function": "createMemoryWidgetsApi",
+    "line": 10,
+    "rule": "max-lines-per-function",
+    "value": 77
+  },
+  {
+    "file": "packages/admin/src/widgets/controllers/instance-editor.controller.ts",
+    "function": "createWidgetInstanceEditorController",
+    "line": 14,
+    "rule": "max-lines-per-function",
+    "value": 76
+  },
+  {
+    "file": "packages/admin/src/widgets/react/pages/WidgetInstanceEditor.tsx",
+    "function": "WidgetInstanceEditor",
+    "line": 32,
+    "rule": "max-lines-per-function",
+    "value": 99
+  },
+  {
+    "file": "packages/admin/src/widgets/react/pages/WidgetRegionEditor.tsx",
+    "function": "WidgetRegionEditor",
+    "line": 29,
+    "rule": "max-lines-per-function",
+    "value": 111
+  },
+  {
+    "file": "packages/admin/src/widgets/react/pages/WidgetRegionEditor.tsx",
+    "function": "WidgetRegionEditor.placements.map callback",
+    "line": 84,
+    "rule": "max-lines-per-function",
+    "value": 55
+  },
+  {
+    "file": "packages/admin/src/widgets/react/pages/WidgetRegions.tsx",
+    "function": "WidgetRegions",
+    "line": 25,
+    "rule": "max-lines-per-function",
+    "value": 100
+  },
+  {
+    "file": "packages/admin/src/widgets/react/pages/WidgetsLibrary.tsx",
+    "function": "WidgetsLibrary",
+    "line": 34,
+    "rule": "max-lines-per-function",
+    "value": 130
+  },
+  {
+    "file": "packages/agent-plugins/src/admin-surfaces/connections/connections.ts",
+    "function": "createAdminSurfaceConnections",
+    "line": 74,
+    "rule": "max-lines-per-function",
+    "value": 87
+  },
+  {
+    "file": "packages/agent-plugins/src/admin-surfaces/plugin-state.ts",
+    "function": "createAgentPluginStateStore",
+    "line": 69,
+    "rule": "max-lines-per-function",
+    "value": 57
+  },
+  {
+    "file": "packages/agent-plugins/src/admin-surfaces/surface-client.ts",
+    "function": "createAdminSurfaceClient",
+    "line": 163,
+    "rule": "max-lines-per-function",
+    "value": 101
+  },
+  {
+    "file": "packages/agent-plugins/src/admin-surfaces/surface-handlers.ts",
+    "function": "createAdminSurfaceHandlerHost",
+    "line": 146,
+    "rule": "max-lines-per-function",
+    "value": 64
+  },
+  {
+    "file": "packages/agent-plugins/src/connect/credential-save-tool.ts",
+    "function": "createCredentialSaveTools",
+    "line": 27,
+    "rule": "max-lines-per-function",
+    "value": 119
+  },
+  {
+    "file": "packages/agent-plugins/src/connect/executable/register.ts",
+    "function": "registerAgentPluginExecutableTools",
+    "line": 49,
+    "rule": "max-lines-per-function",
+    "value": 73
+  },
+  {
+    "file": "packages/agent-plugins/src/connect/plugin-host/index.ts",
+    "function": "createPluginHost",
+    "line": 176,
+    "rule": "max-lines-per-function",
+    "value": 107
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/activation.ts",
+    "function": "buildModule",
+    "line": 175,
+    "rule": "max-lines-per-function",
+    "value": 314
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/automatic-use.ts",
+    "function": "createAutomaticAgentPluginUse",
+    "line": 108,
+    "rule": "max-lines-per-function",
+    "value": 143
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/bundled-digests.ts",
+    "function": "buildModule",
+    "line": 92,
+    "rule": "max-lines-per-function",
+    "value": 126
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/bundled-source-archive.ts",
+    "function": "buildModule",
+    "line": 102,
+    "rule": "max-lines-per-function",
+    "value": 224
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/capability-projection.ts",
+    "function": "buildModule",
+    "line": 12,
+    "rule": "max-lines-per-function",
+    "value": 56
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/index.ts",
+    "function": "createAgentPluginLifecycle",
+    "line": 61,
+    "rule": "max-lines-per-function",
+    "value": 81
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/install.ts",
+    "function": "buildModule",
+    "line": 170,
+    "rule": "max-lines-per-function",
+    "value": 303
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/install.ts",
+    "function": "buildModule.installAgentPlugin",
+    "line": 272,
+    "rule": "max-lines-per-function",
+    "value": 61
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/installed-package-index.ts",
+    "function": "createInstalledPackageIndex",
+    "line": 18,
+    "rule": "max-lines-per-function",
+    "value": 79
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/mail/catalog.ts",
+    "function": "createMailCatalog",
+    "line": 30,
+    "rule": "max-lines-per-function",
+    "value": 62
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/mail/contribution.ts",
+    "function": "createMailContributions",
+    "line": 49,
+    "rule": "max-lines-per-function",
+    "value": 60
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/mail/selection.ts",
+    "function": "createMailSelection",
+    "line": 15,
+    "rule": "max-lines-per-function",
+    "value": 57
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/package-paths.ts",
+    "function": "buildModule",
+    "line": 30,
+    "rule": "max-lines-per-function",
+    "value": 52
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/resolve-agent-plugin-refs.ts",
+    "function": "buildModule",
+    "line": 94,
+    "rule": "max-lines-per-function",
+    "value": 154
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/retire-bundled.ts",
+    "function": "buildModule",
+    "line": 106,
+    "rule": "max-lines-per-function",
+    "value": 89
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/seed-bundled.ts",
+    "function": "buildModule",
+    "line": 148,
+    "rule": "max-lines-per-function",
+    "value": 118
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/set-enabled.ts",
+    "function": "buildModule",
+    "line": 39,
+    "rule": "max-lines-per-function",
+    "value": 53
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/skill-file-reader.ts",
+    "function": "createSkillFileReader",
+    "line": 63,
+    "rule": "max-lines-per-function",
+    "value": 78
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/tools/projection.ts",
+    "function": "createAgentPluginToolProjection",
+    "line": 225,
+    "rule": "max-lines-per-function",
+    "value": 87
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/trusted-plugin-files.ts",
+    "function": "buildModule",
+    "line": 70,
+    "rule": "max-lines-per-function",
+    "value": 59
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/uninstall.ts",
+    "function": "buildModule",
+    "line": 188,
+    "rule": "max-lines-per-function",
+    "value": 180
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/update-store.ts",
+    "function": "createAgentPluginUpdateStore",
+    "line": 72,
+    "rule": "max-lines-per-function",
+    "value": 67
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/update.ts",
+    "function": "createUpdateModule",
+    "line": 74,
+    "rule": "max-lines-per-function",
+    "value": 204
+  },
+  {
+    "file": "packages/agent-runtime/src/agent-protocol/acp/models.ts",
+    "function": "detectAcpModels",
+    "line": 253,
+    "rule": "max-lines-per-function",
+    "value": 108
+  },
+  {
+    "file": "packages/agent-runtime/src/agent-protocol/acp/models.ts",
+    "function": "detectAcpModels.<anonymous>",
+    "line": 268,
+    "rule": "max-lines-per-function",
+    "value": 92
+  },
+  {
+    "file": "packages/agent-runtime/src/agent-protocol/acp/session.ts",
+    "function": "applyDsmlArtifactSuppression",
+    "line": 492,
+    "rule": "max-lines-per-function",
+    "value": 54
+  },
+  {
+    "file": "packages/agent-runtime/src/agent-protocol/acp/session.ts",
+    "function": "<file>",
+    "line": 683,
+    "rule": "max-lines",
+    "value": 1236
+  },
+  {
+    "file": "packages/agent-runtime/src/agent-protocol/acp/session.ts",
+    "function": "attachAcpSession",
+    "line": 1007,
+    "rule": "max-lines-per-function",
+    "value": 482
+  },
+  {
+    "file": "packages/agent-runtime/src/agent-protocol/acp/session.ts",
+    "function": "attachAcpSession.replyPermission",
+    "line": 1376,
+    "rule": "max-lines-per-function",
+    "value": 56
+  },
+  {
+    "file": "packages/agent-runtime/src/agent-protocol/acp/text-suppression.ts",
+    "function": "createTaggedTextSuppressor",
+    "line": 108,
+    "rule": "max-lines-per-function",
+    "value": 75
+  },
+  {
+    "file": "packages/agent-runtime/src/agent-protocol/pi-rpc/session.ts",
+    "function": "attachPiRpcSession",
+    "line": 306,
+    "rule": "max-lines-per-function",
+    "value": 119
+  },
+  {
+    "file": "packages/agent-runtime/src/ai-trace/recorder.ts",
+    "function": "createAiTraceRecorder",
+    "line": 95,
+    "rule": "max-lines-per-function",
+    "value": 191
+  },
+  {
+    "file": "packages/agent-runtime/src/claude-stream.ts",
+    "function": "createClaudeStreamHandler",
+    "line": 472,
+    "rule": "max-lines-per-function",
+    "value": 373
+  },
+  {
+    "file": "packages/agent-runtime/src/claude-stream.ts",
+    "function": "<file>",
+    "line": 731,
+    "rule": "max-lines",
+    "value": 685
+  },
+  {
+    "file": "packages/agent-runtime/src/model-discovery.ts",
+    "function": "createAgentModelDiscovery",
+    "line": 137,
+    "rule": "max-lines-per-function",
+    "value": 87
+  },
+  {
+    "file": "packages/agent-runtime/src/providers/connection-guard.ts",
+    "function": "pinnedFetch",
+    "line": 258,
+    "rule": "max-lines-per-function",
+    "value": 79
+  },
+  {
+    "file": "packages/agent-runtime/src/providers/connection-guard.ts",
+    "function": "pinnedFetch.<anonymous>",
+    "line": 268,
+    "rule": "max-lines-per-function",
+    "value": 69
+  },
+  {
+    "file": "packages/agent-runtime/src/providers/connection-test.ts",
+    "function": "buildProviderCall",
+    "line": 246,
+    "rule": "max-lines-per-function",
+    "value": 76
+  },
+  {
+    "file": "packages/agent-runtime/src/providers/oauth-callback-server.ts",
+    "function": "startOAuthCallbackListener",
+    "line": 55,
+    "rule": "max-lines-per-function",
+    "value": 111
+  },
+  {
+    "file": "packages/agent-runtime/src/providers/openai-chat.ts",
+    "function": "<file>",
+    "line": 829,
+    "rule": "max-lines",
+    "value": 528
+  },
+  {
+    "file": "packages/agent-runtime/src/qoder-stream.ts",
+    "function": "createQoderStreamHandler",
+    "line": 114,
+    "rule": "max-lines-per-function",
+    "value": 78
+  },
+  {
+    "file": "packages/agent-runtime/src/role-marker-guard.ts",
+    "function": "createRoleMarkerGuard",
+    "line": 171,
+    "rule": "max-lines-per-function",
+    "value": 55
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/chat-motion-overlay/assets/remotion-template/src/components/BubbleScene.tsx",
+    "function": "Bubble",
+    "line": 140,
+    "rule": "max-lines-per-function",
+    "value": 65
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/chat-motion-overlay/assets/remotion-template/src/components/BubbleScene.tsx",
+    "function": "BubbleScene",
+    "line": 196,
+    "rule": "max-lines-per-function",
+    "value": 76
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/dna-scaffold.mjs",
+    "function": "skeleton",
+    "line": 44,
+    "rule": "max-lines-per-function",
+    "value": 56
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/init-clone.mjs",
+    "function": "notesTemplate",
+    "line": 55,
+    "rule": "max-lines-per-function",
+    "value": 52
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/interaction-probe.mjs",
+    "function": "candidates",
+    "line": 126,
+    "rule": "max-lines-per-function",
+    "value": 67
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/interaction-probe.mjs",
+    "function": "candidates.page.evaluate callback",
+    "line": 127,
+    "rule": "max-lines-per-function",
+    "value": 65
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/recon-site.mjs",
+    "function": "collectSignals",
+    "line": 115,
+    "rule": "max-lines-per-function",
+    "value": 260
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/recon-site.mjs",
+    "function": "collectSignals.page.evaluate callback",
+    "line": 116,
+    "rule": "max-lines-per-function",
+    "value": 258
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/visual-diff.mjs",
+    "function": "compareInBrowser",
+    "line": 56,
+    "rule": "max-lines-per-function",
+    "value": 79
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/visual-diff.mjs",
+    "function": "compareInBrowser.page.evaluate callback",
+    "line": 57,
+    "rule": "max-lines-per-function",
+    "value": 77
+  },
+  {
+    "file": "packages/agentic/src/core/a2ui/interpreter.ts",
+    "function": "createA2uiInterpreter",
+    "line": 193,
+    "rule": "max-lines-per-function",
+    "value": 192
+  },
+  {
+    "file": "packages/agentic/src/core/dom/dom-page-driver.ts",
+    "function": "createDomPageDriver",
+    "line": 457,
+    "rule": "max-lines-per-function",
+    "value": 171
+  },
+  {
+    "file": "packages/agentic/src/core/gen-ui/encoder.ts",
+    "function": "createGenUiEncoder",
+    "line": 76,
+    "rule": "max-lines-per-function",
+    "value": 59
+  },
+  {
+    "file": "packages/agentic/src/skills/install/install-service.ts",
+    "function": "createSkillInstaller",
+    "line": 67,
+    "rule": "max-lines-per-function",
+    "value": 86
+  },
+  {
+    "file": "packages/analytics/src/product/index.ts",
+    "function": "withProductAnalyticsGuards",
+    "line": 127,
+    "rule": "max-lines-per-function",
+    "value": 64
+  },
+  {
+    "file": "packages/artifacts/src/text-suppression.ts",
+    "function": "createTaggedTextSuppressor",
+    "line": 54,
+    "rule": "max-lines-per-function",
+    "value": 75
+  },
+  {
+    "file": "packages/capability-providers/src/unsafe-reference/auth.ts",
+    "function": "createInMemoryAuthProvider",
+    "line": 29,
+    "rule": "max-lines-per-function",
+    "value": 53
+  },
+  {
+    "file": "packages/capability-providers/src/visitor-auth/lifecycle.ts",
+    "function": "planVisitorAuthAuthorization",
+    "line": 199,
+    "rule": "max-lines-per-function",
+    "value": 55
+  },
+  {
+    "file": "packages/chat/src/core/assistant-client/ag-ui-transport.ts",
+    "function": "createAgUiRunClient",
+    "line": 54,
+    "rule": "max-lines-per-function",
+    "value": 113
+  },
+  {
+    "file": "packages/chat/src/core/assistant-client/ag-ui-transport.ts",
+    "function": "createAgUiRunClient.startAgUiRun",
+    "line": 104,
+    "rule": "max-lines-per-function",
+    "value": 68
+  },
+  {
+    "file": "packages/chat/src/core/assistant-client/durable-run-subscription.ts",
+    "function": "followDurableRun",
+    "line": 21,
+    "rule": "max-lines-per-function",
+    "value": 103
+  },
+  {
+    "file": "packages/chat/src/core/assistant-client/transport.ts",
+    "function": "createAssistantTransportClient",
+    "line": 125,
+    "rule": "max-lines-per-function",
+    "value": 400
+  },
+  {
+    "file": "packages/chat/src/core/assistant-client/transport.ts",
+    "function": "createAssistantTransportClient.createAssistantTransport",
+    "line": 908,
+    "rule": "max-lines-per-function",
+    "value": 58
+  },
+  {
+    "file": "packages/chat/src/core/util/parser.ts",
+    "function": "createArtifactParser",
+    "line": 156,
+    "rule": "max-lines-per-function",
+    "value": 83
+  },
+  {
+    "file": "packages/chat/src/embed-widget/browser/frontend-session-bridge.ts",
+    "function": "createFrontendSessionBridge",
+    "line": 199,
+    "rule": "max-lines-per-function",
+    "value": 219
+  },
+  {
+    "file": "packages/chat/src/embed-widget/browser/lazy-loader.ts",
+    "function": "installLazyChatLoader",
+    "line": 21,
+    "rule": "max-lines-per-function",
+    "value": 68
+  },
+  {
+    "file": "packages/chat/src/embed-widget/vanilla/index.ts",
+    "function": "mountVanillaChat",
+    "line": 55,
+    "rule": "max-lines-per-function",
+    "value": 256
+  },
+  {
+    "file": "packages/chat/src/embed-widget/vanilla/state.ts",
+    "function": "createVanillaChatController",
+    "line": 30,
+    "rule": "max-lines-per-function",
+    "value": 72
+  },
+  {
+    "file": "packages/chat/src/react/components/A2uiSurfaceCard.hooks.ts",
+    "function": "useA2uiSurfaceCard",
+    "line": 54,
+    "rule": "max-lines-per-function",
+    "value": 98
+  },
+  {
+    "file": "packages/chat/src/react/components/A2uiSurfaceCard.tsx",
+    "function": "RenderComponent",
+    "line": 41,
+    "rule": "max-lines-per-function",
+    "value": 78
+  },
+  {
+    "file": "packages/chat/src/react/components/AttachmentPreviewModal.hooks.ts",
+    "function": "useAttachmentPreviewModal",
+    "line": 170,
+    "rule": "max-lines-per-function",
+    "value": 75
+  },
+  {
+    "file": "packages/chat/src/react/components/Composer.hooks.ts",
+    "function": "useComposerView",
+    "line": 52,
+    "rule": "max-lines-per-function",
+    "value": 171
+  },
+  {
+    "file": "packages/chat/src/react/components/Composer.tsx",
+    "function": "Composer",
+    "line": 104,
+    "rule": "max-lines-per-function",
+    "value": 108
+  },
+  {
+    "file": "packages/chat/src/react/components/Composer.tsx",
+    "function": "ComposerWorkdirControl",
+    "line": 286,
+    "rule": "max-lines-per-function",
+    "value": 79
+  },
+  {
+    "file": "packages/chat/src/react/components/ComposerDiscovery.tsx",
+    "function": "ComposerDiscoveryMenu",
+    "line": 34,
+    "rule": "max-lines-per-function",
+    "value": 94
+  },
+  {
+    "file": "packages/chat/src/react/components/ComposerDiscovery.tsx",
+    "function": "ComposerSlashMenu",
+    "line": 150,
+    "rule": "max-lines-per-function",
+    "value": 51
+  },
+  {
+    "file": "packages/chat/src/react/components/ConversationList.hooks.ts",
+    "function": "useConversationListView",
+    "line": 60,
+    "rule": "max-lines-per-function",
+    "value": 111
+  },
+  {
+    "file": "packages/chat/src/react/components/ConversationList.tsx",
+    "function": "ConversationList",
+    "line": 114,
+    "rule": "max-lines-per-function",
+    "value": 108
+  },
+  {
+    "file": "packages/chat/src/react/components/McpUiSurfaceCard.tsx",
+    "function": "SurfaceCardContent",
+    "line": 292,
+    "rule": "max-lines-per-function",
+    "value": 57
+  },
+  {
+    "file": "packages/chat/src/react/components/MessageList.hooks.ts",
+    "function": "useMessageListAutoScroll",
+    "line": 43,
+    "rule": "max-lines-per-function",
+    "value": 51
+  },
+  {
+    "file": "packages/chat/src/react/components/MessageRow.hooks.tsx",
+    "function": "useAssistantMessageRenderers",
+    "line": 30,
+    "rule": "max-lines-per-function",
+    "value": 123
+  },
+  {
+    "file": "packages/chat/src/react/components/MessageRow.tsx",
+    "function": "AssistantMessageRow",
+    "line": 334,
+    "rule": "max-lines-per-function",
+    "value": 55
+  },
+  {
+    "file": "packages/chat/src/react/components/TodoCard.tsx",
+    "function": "TodoCard",
+    "line": 22,
+    "rule": "max-lines-per-function",
+    "value": 51
+  },
+  {
+    "file": "packages/chat/src/react/components/ToolCard.tsx",
+    "function": "<file>",
+    "line": 661,
+    "rule": "max-lines",
+    "value": 516
+  },
+  {
+    "file": "packages/chat/src/react/features/chat-pane/components/AgentRuntimePicker.tsx",
+    "function": "RuntimePopover",
+    "line": 475,
+    "rule": "max-lines-per-function",
+    "value": 67
+  },
+  {
+    "file": "packages/chat/src/react/features/chat-pane/components/AgentRuntimePicker.tsx",
+    "function": "<file>",
+    "line": 599,
+    "rule": "max-lines",
+    "value": 512
+  },
+  {
+    "file": "packages/chat/src/react/features/chat-pane/components/ChatPane.tsx",
+    "function": "ChatPaneComposerArea",
+    "line": 519,
+    "rule": "max-lines-per-function",
+    "value": 57
+  },
+  {
+    "file": "packages/chat/src/react/features/chat-pane/components/ChatPane.tsx",
+    "function": "<file>",
+    "line": 641,
+    "rule": "max-lines",
+    "value": 766
+  },
+  {
+    "file": "packages/chat/src/react/features/chat-pane/components/ChatPane.tsx",
+    "function": "ChatPane",
+    "line": 755,
+    "rule": "max-lines-per-function",
+    "value": 176
+  },
+  {
+    "file": "packages/chat/src/react/features/chat-pane/components/RuntimeDropUp.tsx",
+    "function": "RuntimeDropUp",
+    "line": 95,
+    "rule": "max-lines-per-function",
+    "value": 52
+  },
+  {
+    "file": "packages/chat/src/react/features/chat-pane/create-daemon-attachment-uploader.ts",
+    "function": "createDaemonAttachmentUploader",
+    "line": 195,
+    "rule": "max-lines-per-function",
+    "value": 96
+  },
+  {
+    "file": "packages/chat/src/react/features/chat-pane/hooks/useAgentRuntimePicker.hooks.ts",
+    "function": "useAgentRuntimePicker",
+    "line": 227,
+    "rule": "max-lines-per-function",
+    "value": 103
+  },
+  {
+    "file": "packages/chat/src/react/features/chat-pane/hooks/useChatPane.hooks.ts",
+    "function": "useChatPane",
+    "line": 404,
+    "rule": "max-lines-per-function",
+    "value": 618
+  },
+  {
+    "file": "packages/chat/src/react/features/chat-pane/hooks/useChatPane.hooks.ts",
+    "function": "<file>",
+    "line": 714,
+    "rule": "max-lines",
+    "value": 946
+  },
+  {
+    "file": "packages/chat/src/react/features/chat-pane/hooks/useChatPaneRuntimeInventory.hooks.ts",
+    "function": "useChatPaneRuntimeInventory",
+    "line": 59,
+    "rule": "max-lines-per-function",
+    "value": 134
+  },
+  {
+    "file": "packages/chat/src/react/features/chat-pane/hooks/useChatPaneRuntimeInventory.hooks.ts",
+    "function": "useInventoryRetry",
+    "line": 242,
+    "rule": "max-lines-per-function",
+    "value": 63
+  },
+  {
+    "file": "packages/chat/src/react/features/chat-pane/hooks/useChatPaneRuntimeInventory.hooks.ts",
+    "function": "useInventoryRetry.useState callback",
+    "line": 251,
+    "rule": "max-lines-per-function",
+    "value": 52
+  },
+  {
+    "file": "packages/chat/src/react/features/chat-pane/hooks/useChatPaneWorkingDirectory.hooks.ts",
+    "function": "useChatPaneWorkingDirectory",
+    "line": 43,
+    "rule": "max-lines-per-function",
+    "value": 160
+  },
+  {
+    "file": "packages/chat/src/react/features/chat-pane/hooks/useRuntimeDropUp.hooks.ts",
+    "function": "useRuntimeDropUp",
+    "line": 80,
+    "rule": "max-lines-per-function",
+    "value": 98
+  },
+  {
+    "file": "packages/chat/src/react/hooks/assistant-chats.ts",
+    "function": "createAssistantChatsClient",
+    "line": 10,
+    "rule": "max-lines-per-function",
+    "value": 382
+  },
+  {
+    "file": "packages/chat/src/react/hooks/assistant-chats.ts",
+    "function": "createAssistantChatsClient.useAssistantChats",
+    "line": 311,
+    "rule": "max-lines-per-function",
+    "value": 279
+  },
+  {
+    "file": "packages/chat/src/react/hooks/fab-position.ts",
+    "function": "useFabPosition",
+    "line": 204,
+    "rule": "max-lines-per-function",
+    "value": 118
+  },
+  {
+    "file": "packages/chat/src/react/hooks/useChatFabDrag.ts",
+    "function": "useChatFabDrag",
+    "line": 45,
+    "rule": "max-lines-per-function",
+    "value": 56
+  },
+  {
+    "file": "packages/chat/src/react/hooks/useComposer.ts",
+    "function": "useDeferredDraftWrite",
+    "line": 180,
+    "rule": "max-lines-per-function",
+    "value": 52
+  },
+  {
+    "file": "packages/chat/src/react/hooks/useComposer.ts",
+    "function": "useComposer",
+    "line": 239,
+    "rule": "max-lines-per-function",
+    "value": 208
+  },
+  {
+    "file": "packages/chat/src/react/hooks/useComposerHistory.hooks.ts",
+    "function": "useComposerHistory",
+    "line": 23,
+    "rule": "max-lines-per-function",
+    "value": 90
+  },
+  {
+    "file": "packages/chat/src/react/hooks/useConversation.ts",
+    "function": "useConversation",
+    "line": 136,
+    "rule": "max-lines-per-function",
+    "value": 145
+  },
+  {
+    "file": "packages/chat/src/react/hooks/useRunStream.ts",
+    "function": "useRunStream",
+    "line": 83,
+    "rule": "max-lines-per-function",
+    "value": 117
+  },
+  {
+    "file": "packages/chat/src/server/durable-runs/recover.ts",
+    "function": "createDurableRecovery",
+    "line": 140,
+    "rule": "max-lines-per-function",
+    "value": 122
+  },
+  {
+    "file": "packages/chat/src/server/run-finalizer/entry.ts",
+    "function": "createAssistantRunFinalizer",
+    "line": 77,
+    "rule": "max-lines-per-function",
+    "value": 132
+  },
+  {
+    "file": "packages/chat/src/store/legacy/sqlite/conversations.ts",
+    "function": "conversationSummarySql",
+    "line": 16,
+    "rule": "max-lines-per-function",
+    "value": 56
+  },
+  {
+    "file": "packages/chat/src/store/runtime/durable-run-store.ts",
+    "function": "createDurableRunStore",
+    "line": 182,
+    "rule": "max-lines-per-function",
+    "value": 280
+  },
+  {
+    "file": "packages/chat/src/store/runtime/run-ledger.ts",
+    "function": "createChatRunLedger",
+    "line": 126,
+    "rule": "max-lines-per-function",
+    "value": 186
+  },
+  {
+    "file": "packages/chat/src/store/sql/store.ts",
+    "function": "createSqlChatStore",
+    "line": 232,
+    "rule": "max-lines-per-function",
+    "value": 328
+  },
+  {
+    "file": "packages/chat/src/store/sql/store.ts",
+    "function": "createSqlChatStore.writeMessage",
+    "line": 311,
+    "rule": "max-lines-per-function",
+    "value": 51
+  },
+  {
+    "file": "packages/cms/src/comments/write-service.ts",
+    "function": "createCommentWriteService",
+    "line": 188,
+    "rule": "max-lines-per-function",
+    "value": 53
+  },
+  {
+    "file": "packages/cms/src/content-types/tool-registrations.ts",
+    "function": "buildContentTypesRegistrations",
+    "line": 174,
+    "rule": "max-lines-per-function",
+    "value": 94
+  },
+  {
+    "file": "packages/cms/src/content-types/write-service.ts",
+    "function": "registerContentType",
+    "line": 276,
+    "rule": "max-lines-per-function",
+    "value": 52
+  },
+  {
+    "file": "packages/cms/src/core/commands/command.ts",
+    "function": "buildAppliedChangeSet",
+    "line": 307,
+    "rule": "max-lines-per-function",
+    "value": 56
+  },
+  {
+    "file": "packages/cms/src/core/commands/revert.ts",
+    "function": "revertChangeSet",
+    "line": 105,
+    "rule": "max-lines-per-function",
+    "value": 59
+  },
+  {
+    "file": "packages/cms/src/entries/tool-registrations.ts",
+    "function": "buildEntriesRegistrations",
+    "line": 130,
+    "rule": "max-lines-per-function",
+    "value": 84
+  },
+  {
+    "file": "packages/cms/src/forms/email-sender.ts",
+    "function": "createFormsEmailSender",
+    "line": 59,
+    "rule": "max-lines-per-function",
+    "value": 68
+  },
+  {
+    "file": "packages/cms/src/forms/submission-attempts.ts",
+    "function": "createSubmissionAttempts",
+    "line": 109,
+    "rule": "max-lines-per-function",
+    "value": 70
+  },
+  {
+    "file": "packages/cms/src/forms/write-service.ts",
+    "function": "createFormDefinition",
+    "line": 143,
+    "rule": "max-lines-per-function",
+    "value": 59
+  },
+  {
+    "file": "packages/cms/src/forms/write-service.ts",
+    "function": "updateFormDefinition",
+    "line": 224,
+    "rule": "max-lines-per-function",
+    "value": 65
+  },
+  {
+    "file": "packages/cms/src/media/media-service.ts",
+    "function": "uploadMedia",
+    "line": 400,
+    "rule": "max-lines-per-function",
+    "value": 51
+  },
+  {
+    "file": "packages/cms/src/media/rendition-service.ts",
+    "function": "resolveMediaRendition",
+    "line": 133,
+    "rule": "max-lines-per-function",
+    "value": 64
+  },
+  {
+    "file": "packages/cms/src/media/tool-registrations.ts",
+    "function": "buildMediaRegistrations",
+    "line": 209,
+    "rule": "max-lines-per-function",
+    "value": 143
+  },
+  {
+    "file": "packages/cms/src/navigation/menu-service.ts",
+    "function": "assignLocation",
+    "line": 681,
+    "rule": "max-lines-per-function",
+    "value": 64
+  },
+  {
+    "file": "packages/cms/src/navigation/tool-registrations.ts",
+    "function": "buildMenusRegistrations",
+    "line": 159,
+    "rule": "max-lines-per-function",
+    "value": 88
+  },
+  {
+    "file": "packages/cms/src/redirects/redirects.ts",
+    "function": "<file>",
+    "line": 847,
+    "rule": "max-lines",
+    "value": 518
+  },
+  {
+    "file": "packages/cms/src/routing/routing.ts",
+    "function": "createRouting",
+    "line": 143,
+    "rule": "max-lines-per-function",
+    "value": 188
+  },
+  {
+    "file": "packages/cms/src/seo/sitemap.ts",
+    "function": "createSitemapService",
+    "line": 160,
+    "rule": "max-lines-per-function",
+    "value": 81
+  },
+  {
+    "file": "packages/cms/src/taxonomy/write-service.ts",
+    "function": "<file>",
+    "line": 787,
+    "rule": "max-lines",
+    "value": 712
+  },
+  {
+    "file": "packages/cms/src/trash/write-service.ts",
+    "function": "createTrashService",
+    "line": 120,
+    "rule": "max-lines-per-function",
+    "value": 132
+  },
+  {
+    "file": "packages/cms/src/widgets/embed-service.ts",
+    "function": "writePostHostBody",
+    "line": 377,
+    "rule": "max-lines-per-function",
+    "value": 98
+  },
+  {
+    "file": "packages/cms/src/widgets/resolver-service.ts",
+    "function": "<file>",
+    "line": 947,
+    "rule": "max-lines",
+    "value": 701
+  },
+  {
+    "file": "packages/commerce/src/browser/checkout.ts",
+    "function": "installCommerceCheckout",
+    "line": 17,
+    "rule": "max-lines-per-function",
+    "value": 117
+  },
+  {
+    "file": "packages/commerce/src/browser/checkout.ts",
+    "function": "installCommerceCheckout.required.document.querySelectorAll<HTMLFormElement>(\"form[data-commerce-checkout]\").forEach callback",
+    "line": 18,
+    "rule": "max-lines-per-function",
+    "value": 115
+  },
+  {
+    "file": "packages/commerce/src/catalog/plugin-server.ts",
+    "function": "createCommerceServer",
+    "line": 109,
+    "rule": "max-lines-per-function",
+    "value": 62
+  },
+  {
+    "file": "packages/commerce/src/payments/ingest/settlement-worker.ts",
+    "function": "createSettlementWorker",
+    "line": 19,
+    "rule": "max-lines-per-function",
+    "value": 74
+  },
+  {
+    "file": "packages/commerce/src/payments/ledger/rows.ts",
+    "function": "<file>",
+    "line": 658,
+    "rule": "max-lines",
+    "value": 726
+  },
+  {
+    "file": "packages/commerce/src/payments/testkit/lipay-fake.ts",
+    "function": "createLipayFake",
+    "line": 68,
+    "rule": "max-lines-per-function",
+    "value": 72
+  },
+  {
+    "file": "packages/commerce/src/react/Payments.tsx",
+    "function": "Payments",
+    "line": 26,
+    "rule": "max-lines-per-function",
+    "value": 103
+  },
+  {
+    "file": "packages/cookie-consent/src/client/runtime.ts",
+    "function": "createCookieConsent",
+    "line": 26,
+    "rule": "max-lines-per-function",
+    "value": 133
+  },
+  {
+    "file": "packages/cookie-consent/src/node/index.ts",
+    "function": "createNodeConsentFiles",
+    "line": 47,
+    "rule": "max-lines-per-function",
+    "value": 87
+  },
+  {
+    "file": "packages/core/src/approval.ts",
+    "function": "createApprovalHandler",
+    "line": 111,
+    "rule": "max-lines-per-function",
+    "value": 52
+  },
+  {
+    "file": "packages/core/src/approval.ts",
+    "function": "createBatchApprovalHandler",
+    "line": 193,
+    "rule": "max-lines-per-function",
+    "value": 51
+  },
+  {
+    "file": "packages/core/src/approval.ts",
+    "function": "createApprovalProposalStore",
+    "line": 253,
+    "rule": "max-lines-per-function",
+    "value": 68
+  },
+  {
+    "file": "packages/core/src/batch-tool-inputs.ts",
+    "function": "withBatchInput",
+    "line": 298,
+    "rule": "max-lines-per-function",
+    "value": 57
+  },
+  {
+    "file": "packages/core/src/fetch/cache.ts",
+    "function": "FetchQueryCache.load",
+    "line": 127,
+    "rule": "max-lines-per-function",
+    "value": 56
+  },
+  {
+    "file": "packages/core/src/provider-registry.ts",
+    "function": "createProviderRegistry",
+    "line": 111,
+    "rule": "max-lines-per-function",
+    "value": 62
+  },
+  {
+    "file": "packages/core/src/redact.ts",
+    "function": "<file>",
+    "line": 874,
+    "rule": "max-lines",
+    "value": 601
+  },
+  {
+    "file": "packages/core/src/settings/agent-tools.ts",
+    "function": "getSettingsAgentToolCatalog",
+    "line": 159,
+    "rule": "max-lines-per-function",
+    "value": 61
+  },
+  {
+    "file": "packages/core/src/settings/express/cms-adapter.ts",
+    "function": "createCmsSettingsService",
+    "line": 16,
+    "rule": "max-lines-per-function",
+    "value": 61
+  },
+  {
+    "file": "packages/core/src/settings/express/http.ts",
+    "function": "registerSettingsRoutes",
+    "line": 48,
+    "rule": "max-lines-per-function",
+    "value": 112
+  },
+  {
+    "file": "packages/core/src/settings/express/stream.ts",
+    "function": "openSettingsChangeStream",
+    "line": 18,
+    "rule": "max-lines-per-function",
+    "value": 77
+  },
+  {
+    "file": "packages/core/src/settings/purge-service.ts",
+    "function": "purgeTenantSettings",
+    "line": 58,
+    "rule": "max-lines-per-function",
+    "value": 100
+  },
+  {
+    "file": "packages/core/src/settings/purge-service.ts",
+    "function": "purgeTenantSettings.deps.repo.transaction callback",
+    "line": 76,
+    "rule": "max-lines-per-function",
+    "value": 81
+  },
+  {
+    "file": "packages/core/src/settings/tool-registrations.ts",
+    "function": "buildSettingsRegistrations",
+    "line": 213,
+    "rule": "max-lines-per-function",
+    "value": 116
+  },
+  {
+    "file": "packages/core/src/settings/write-service.ts",
+    "function": "registerDefinitions",
+    "line": 97,
+    "rule": "max-lines-per-function",
+    "value": 62
+  },
+  {
+    "file": "packages/core/src/settings/write-service.ts",
+    "function": "set",
+    "line": 331,
+    "rule": "max-lines-per-function",
+    "value": 76
+  },
+  {
+    "file": "packages/core/src/settings/write-service.ts",
+    "function": "clear",
+    "line": 445,
+    "rule": "max-lines-per-function",
+    "value": 72
+  },
+  {
+    "file": "packages/core/src/settings/write-service.ts",
+    "function": "renameDefinition",
+    "line": 693,
+    "rule": "max-lines-per-function",
+    "value": 86
+  },
+  {
+    "file": "packages/core/src/settings/write-service.ts",
+    "function": "renameDefinition.deps.repo.transaction callback",
+    "line": 727,
+    "rule": "max-lines-per-function",
+    "value": 55
+  },
+  {
+    "file": "packages/core/src/settings/write-service.ts",
+    "function": "<file>",
+    "line": 734,
+    "rule": "max-lines",
+    "value": 777
+  },
+  {
+    "file": "packages/core/src/settings/write-service.ts",
+    "function": "retypeDefinition",
+    "line": 833,
+    "rule": "max-lines-per-function",
+    "value": 66
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/events.ts",
+    "function": "wireChildLifecycle",
+    "line": 471,
+    "rule": "max-lines-per-function",
+    "value": 335
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/events.ts",
+    "function": "<file>",
+    "line": 812,
+    "rule": "max-lines",
+    "value": 931
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/events.ts",
+    "function": "wireAcpLifecycle",
+    "line": 1019,
+    "rule": "max-lines-per-function",
+    "value": 79
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/events.ts",
+    "function": "wirePiRpcLifecycle",
+    "line": 1149,
+    "rule": "max-lines-per-function",
+    "value": 70
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/launch.ts",
+    "function": "<file>",
+    "line": 826,
+    "rule": "max-lines",
+    "value": 1048
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/launch.ts",
+    "function": "createAgentExecutor",
+    "line": 1009,
+    "rule": "max-lines-per-function",
+    "value": 429
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/launch.ts",
+    "function": "createAgentExecutor.run",
+    "line": 1450,
+    "rule": "max-lines-per-function",
+    "value": 115
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/live-session-state.ts",
+    "function": "createLiveSessionState",
+    "line": 35,
+    "rule": "max-lines-per-function",
+    "value": 100
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/mcp-bridge-probe.ts",
+    "function": "probeMcpBridge",
+    "line": 59,
+    "rule": "max-lines-per-function",
+    "value": 51
+  },
+  {
+    "file": "packages/daemon/src/ai-trace-lifecycle.ts",
+    "function": "withAiTracing",
+    "line": 41,
+    "rule": "max-lines-per-function",
+    "value": 67
+  },
+  {
+    "file": "packages/daemon/src/core/tool-gaps.ts",
+    "function": "createToolGapCollector",
+    "line": 102,
+    "rule": "max-lines-per-function",
+    "value": 79
+  },
+  {
+    "file": "packages/daemon/src/event-log.ts",
+    "function": "createInMemoryEventLog",
+    "line": 130,
+    "rule": "max-lines-per-function",
+    "value": 104
+  },
+  {
+    "file": "packages/daemon/src/frontend-session-registry.ts",
+    "function": "createFrontendSessionRegistry",
+    "line": 241,
+    "rule": "max-lines-per-function",
+    "value": 131
+  },
+  {
+    "file": "packages/daemon/src/http/attachments.ts",
+    "function": "<file>",
+    "line": 1086,
+    "rule": "max-lines",
+    "value": 869
+  },
+  {
+    "file": "packages/daemon/src/http/attachments.ts",
+    "function": "createDiskAttachmentStore",
+    "line": 1099,
+    "rule": "max-lines-per-function",
+    "value": 189
+  },
+  {
+    "file": "packages/daemon/src/http/attachments.ts",
+    "function": "createDiskAttachmentStore.register",
+    "line": 1187,
+    "rule": "max-lines-per-function",
+    "value": 59
+  },
+  {
+    "file": "packages/daemon/src/http/frontend-control.ts",
+    "function": "createFrontendControl",
+    "line": 153,
+    "rule": "max-lines-per-function",
+    "value": 55
+  },
+  {
+    "file": "packages/daemon/src/http/model-proxy.ts",
+    "function": "buildProxyProviderRegistry",
+    "line": 498,
+    "rule": "max-lines-per-function",
+    "value": 70
+  },
+  {
+    "file": "packages/daemon/src/http/xai.ts",
+    "function": "<file>",
+    "line": 804,
+    "rule": "max-lines",
+    "value": 511
+  },
+  {
+    "file": "packages/daemon/src/idle-monitor.ts",
+    "function": "createIdleMonitor",
+    "line": 23,
+    "rule": "max-lines-per-function",
+    "value": 51
+  },
+  {
+    "file": "packages/daemon/src/routines/routine-store.ts",
+    "function": "createInMemoryRoutineStore",
+    "line": 144,
+    "rule": "max-lines-per-function",
+    "value": 80
+  },
+  {
+    "file": "packages/daemon/src/routines/scheduler.ts",
+    "function": "RoutineService.start_",
+    "line": 354,
+    "rule": "max-lines-per-function",
+    "value": 58
+  },
+  {
+    "file": "packages/daemon/src/run-lifecycle.ts",
+    "function": "createRunLifecycle",
+    "line": 572,
+    "rule": "max-lines-per-function",
+    "value": 393
+  },
+  {
+    "file": "packages/daemon/src/run-lifecycle.ts",
+    "function": "<file>",
+    "line": 909,
+    "rule": "max-lines",
+    "value": 691
+  },
+  {
+    "file": "packages/daemon/src/store/event-log/sqlite.ts",
+    "function": "bindSqliteEventLog",
+    "line": 94,
+    "rule": "max-lines-per-function",
+    "value": 106
+  },
+  {
+    "file": "packages/daemon/src/surface-exchanges.ts",
+    "function": "createSurfaceExchangeStore",
+    "line": 127,
+    "rule": "max-lines-per-function",
+    "value": 119
+  },
+  {
+    "file": "packages/daemon/src/surface-exchanges.ts",
+    "function": "createSurfaceExchangeStore.store.open",
+    "line": 137,
+    "rule": "max-lines-per-function",
+    "value": 84
+  },
+  {
+    "file": "packages/daemon/src/terminal-session.ts",
+    "function": "createTerminalSessionManager",
+    "line": 208,
+    "rule": "max-lines-per-function",
+    "value": 101
+  },
+  {
+    "file": "packages/daemon/src/tool-executor.ts",
+    "function": "createToolExecutor",
+    "line": 254,
+    "rule": "max-lines-per-function",
+    "value": 344
+  },
+  {
+    "file": "packages/db/src/data-modules/data-module.ts",
+    "function": "declareDataModule",
+    "line": 944,
+    "rule": "max-lines-per-function",
+    "value": 63
+  },
+  {
+    "file": "packages/db/src/kernel/kernel-core.ts",
+    "function": "buildKernel",
+    "line": 86,
+    "rule": "max-lines-per-function",
+    "value": 80
+  },
+  {
+    "file": "packages/db/src/kernel/store-copy.ts",
+    "function": "copyPgStoreInternal",
+    "line": 294,
+    "rule": "max-lines-per-function",
+    "value": 53
+  },
+  {
+    "file": "packages/db/src/pglite/owner.ts",
+    "function": "startPgliteOwner",
+    "line": 429,
+    "rule": "max-lines-per-function",
+    "value": 67
+  },
+  {
+    "file": "packages/db/src/tools/read-tools.ts",
+    "function": "createDatabaseReadTools",
+    "line": 27,
+    "rule": "max-lines-per-function",
+    "value": 76
+  },
+  {
+    "file": "packages/desktop-host/src/electron/electron-url-capture.ts",
+    "function": "captureElectronUrl",
+    "line": 90,
+    "rule": "max-lines-per-function",
+    "value": 67
+  },
+  {
+    "file": "packages/desktop-host/src/electron/testing.ts",
+    "function": "createFakeBrowserWindowFactory",
+    "line": 62,
+    "rule": "max-lines-per-function",
+    "value": 79
+  },
+  {
+    "file": "packages/desktop-host/src/electron/testing.ts",
+    "function": "createFakeBrowserWindowFactory.factory",
+    "line": 68,
+    "rule": "max-lines-per-function",
+    "value": 72
+  },
+  {
+    "file": "packages/desktop-host/src/electron/updates/auto-update-controller.ts",
+    "function": "createAutoUpdateController",
+    "line": 155,
+    "rule": "max-lines-per-function",
+    "value": 116
+  },
+  {
+    "file": "packages/desktop-host/src/sidecar.ts",
+    "function": "waitUntilReady",
+    "line": 79,
+    "rule": "max-lines-per-function",
+    "value": 51
+  },
+  {
+    "file": "packages/devops/src/checks/hardwiring.ts",
+    "function": "createHardwiringInspector",
+    "line": 56,
+    "rule": "max-lines-per-function",
+    "value": 276
+  },
+  {
+    "file": "packages/devops/src/dns/node/resolver.ts",
+    "function": "createNodeAuthoritativeDnsResolver",
+    "line": 101,
+    "rule": "max-lines-per-function",
+    "value": 64
+  },
+  {
+    "file": "packages/devops/src/packaging/electron/typescript.ts",
+    "function": "runtimeImportReferences",
+    "line": 6,
+    "rule": "max-lines-per-function",
+    "value": 89
+  },
+  {
+    "file": "packages/diagnostics/src/observability/otel.ts",
+    "function": "createOtelObservabilityPort",
+    "line": 105,
+    "rule": "max-lines-per-function",
+    "value": 96
+  },
+  {
+    "file": "packages/diagnostics/src/web-evidence/page-performance-script.ts",
+    "function": "collectPagePerformance",
+    "line": 25,
+    "rule": "max-lines-per-function",
+    "value": 56
+  },
+  {
+    "file": "packages/diagnostics/src/web-evidence/page-structure-script.ts",
+    "function": "collectPageStructure",
+    "line": 56,
+    "rule": "max-lines-per-function",
+    "value": 275
+  },
+  {
+    "file": "packages/diagnostics/src/web-evidence/playwright-browser.ts",
+    "function": "PlaywrightSiteEvidenceBrowser.observe",
+    "line": 60,
+    "rule": "max-lines-per-function",
+    "value": 60
+  },
+  {
+    "file": "packages/diagnostics/src/web-evidence/request-guard.ts",
+    "function": "createRequestRouter",
+    "line": 261,
+    "rule": "max-lines-per-function",
+    "value": 56
+  },
+  {
+    "file": "packages/http-kit/src/rate-limit.ts",
+    "function": "createRateLimiter",
+    "line": 75,
+    "rule": "max-lines-per-function",
+    "value": 51
+  },
+  {
+    "file": "packages/http-kit/src/raw-sse.ts",
+    "function": "createSseResponse",
+    "line": 47,
+    "rule": "max-lines-per-function",
+    "value": 54
+  },
+  {
+    "file": "packages/http-kit/src/sse.ts",
+    "function": "createSseChannel",
+    "line": 136,
+    "rule": "max-lines-per-function",
+    "value": 87
+  },
+  {
+    "file": "packages/integrations/src/api-connections/host.ts",
+    "function": "createApiConnectionHost",
+    "line": 120,
+    "rule": "max-lines-per-function",
+    "value": 163
+  },
+  {
+    "file": "packages/integrations/src/api-connections/hosted-mcp/shared-sign-in.ts",
+    "function": "createSharedExternalMcpOAuth",
+    "line": 78,
+    "rule": "max-lines-per-function",
+    "value": 257
+  },
+  {
+    "file": "packages/integrations/src/api-connections/hosted-mcp/sign-in.ts",
+    "function": "createHostedMcpSignInService",
+    "line": 773,
+    "rule": "max-lines-per-function",
+    "value": 216
+  },
+  {
+    "file": "packages/integrations/src/api-connections/hosted-mcp/sign-in.ts",
+    "function": "createHostedMcpSignInService.beginConnect",
+    "line": 838,
+    "rule": "max-lines-per-function",
+    "value": 52
+  },
+  {
+    "file": "packages/integrations/src/api-connections/hosted-mcp/sign-in.ts",
+    "function": "<file>",
+    "line": 911,
+    "rule": "max-lines",
+    "value": 602
+  },
+  {
+    "file": "packages/integrations/src/api-connections/token-store/vault-token-store.ts",
+    "function": "createVaultOAuthTokenStore",
+    "line": 64,
+    "rule": "max-lines-per-function",
+    "value": 147
+  },
+  {
+    "file": "packages/integrations/src/credentialed-http/tools/tool-registrations.ts",
+    "function": "createCredentialSaveHandlers",
+    "line": 610,
+    "rule": "max-lines-per-function",
+    "value": 74
+  },
+  {
+    "file": "packages/integrations/src/credentialed-http/tools/tool-registrations.ts",
+    "function": "createCredentialToolRegistrations",
+    "line": 731,
+    "rule": "max-lines-per-function",
+    "value": 107
+  },
+  {
+    "file": "packages/integrations/src/media-providers/dispatch/async-operation-store.ts",
+    "function": "createInMemoryAsyncOperationStore",
+    "line": 400,
+    "rule": "max-lines-per-function",
+    "value": 106
+  },
+  {
+    "file": "packages/integrations/src/media-providers/dispatch/providers/imagerouter-video-async.ts",
+    "function": "createImageRouterVideoPollingAdapter",
+    "line": 112,
+    "rule": "max-lines-per-function",
+    "value": 53
+  },
+  {
+    "file": "packages/integrations/src/media-providers/dispatch/sqlite-async-operation-store.ts",
+    "function": "createSqliteAsyncOperationStore",
+    "line": 131,
+    "rule": "max-lines-per-function",
+    "value": 145
+  },
+  {
+    "file": "packages/integrations/src/media-providers/sqlite-task-store.ts",
+    "function": "createSqliteMediaTaskStore",
+    "line": 130,
+    "rule": "max-lines-per-function",
+    "value": 140
+  },
+  {
+    "file": "packages/integrations/src/media-providers/task-store.ts",
+    "function": "createInMemoryMediaTaskStore",
+    "line": 114,
+    "rule": "max-lines-per-function",
+    "value": 58
+  },
+  {
+    "file": "packages/integrations/src/webhooks/delivery.ts",
+    "function": "attemptOneDelivery",
+    "line": 342,
+    "rule": "max-lines-per-function",
+    "value": 65
+  },
+  {
+    "file": "packages/mcp/src/client/client.ts",
+    "function": "createMcpIdleExitController",
+    "line": 60,
+    "rule": "max-lines-per-function",
+    "value": 52
+  },
+  {
+    "file": "packages/mcp/src/federation/hosted/store.ts",
+    "function": "<file>",
+    "line": 878,
+    "rule": "max-lines",
+    "value": 988
+  },
+  {
+    "file": "packages/mcp/src/federation/hosted/store.ts",
+    "function": "saveExternalMcpServer",
+    "line": 1585,
+    "rule": "max-lines-per-function",
+    "value": 66
+  },
+  {
+    "file": "packages/mcp/src/federation/registrations.ts",
+    "function": "buildFederatedMcpRegistrations",
+    "line": 183,
+    "rule": "max-lines-per-function",
+    "value": 58
+  },
+  {
+    "file": "packages/mcp/src/federation/reload.ts",
+    "function": "createFederationReloadCoordinator",
+    "line": 120,
+    "rule": "max-lines-per-function",
+    "value": 57
+  },
+  {
+    "file": "packages/mcp/src/federation/stdio/adapter.stdio.ts",
+    "function": "spawnMcpStdioChannel",
+    "line": 391,
+    "rule": "max-lines-per-function",
+    "value": 71
+  },
+  {
+    "file": "packages/mcp/src/server/http-tool-server.adapter.ts",
+    "function": "startMcpHttpToolServer",
+    "line": 57,
+    "rule": "max-lines-per-function",
+    "value": 104
+  },
+  {
+    "file": "packages/mcp/src/server/http-tool-server.adapter.ts",
+    "function": "createMcpHttpToolServerRuntime",
+    "line": 191,
+    "rule": "max-lines-per-function",
+    "value": 68
+  },
+  {
+    "file": "packages/mcp/src/server/stdio-hosting.ts",
+    "function": "createStdioHosting",
+    "line": 73,
+    "rule": "max-lines-per-function",
+    "value": 97
+  },
+  {
+    "file": "packages/mcp/src/server/tool-result-pages.ts",
+    "function": "createToolResultPages",
+    "line": 24,
+    "rule": "max-lines-per-function",
+    "value": 54
+  },
+  {
+    "file": "packages/mcp/src/server/tool-server.ts",
+    "function": "createMcpToolServer",
+    "line": 287,
+    "rule": "max-lines-per-function",
+    "value": 103
+  },
+  {
+    "file": "packages/mcp/src/server/tool-server.ts",
+    "function": "createMcpToolServer.connectHost",
+    "line": 299,
+    "rule": "max-lines-per-function",
+    "value": 61
+  },
+  {
+    "file": "packages/mcp/src/server/tools/delegated-tool.ts",
+    "function": "createDelegatedGateway",
+    "line": 163,
+    "rule": "max-lines-per-function",
+    "value": 61
+  },
+  {
+    "file": "packages/memory/src/extraction-log.ts",
+    "function": "createExtractionLog",
+    "line": 75,
+    "rule": "max-lines-per-function",
+    "value": 118
+  },
+  {
+    "file": "packages/memory/src/note-store.ts",
+    "function": "createNoteStore",
+    "line": 296,
+    "rule": "max-lines-per-function",
+    "value": 367
+  },
+  {
+    "file": "packages/memory/src/note-store.ts",
+    "function": "<file>",
+    "line": 722,
+    "rule": "max-lines",
+    "value": 522
+  },
+  {
+    "file": "packages/oauth/src/loopback-receiver.ts",
+    "function": "startLoopbackAuthorizationReceiver",
+    "line": 126,
+    "rule": "max-lines-per-function",
+    "value": 61
+  },
+  {
+    "file": "packages/oauth/src/pending-authorizations.ts",
+    "function": "createPendingAuthorizationStore",
+    "line": 98,
+    "rule": "max-lines-per-function",
+    "value": 65
+  },
+  {
+    "file": "packages/oauth/src/refresh.ts",
+    "function": "createTokenRefresher",
+    "line": 36,
+    "rule": "max-lines-per-function",
+    "value": 130
+  },
+  {
+    "file": "packages/oauth/src/registration-cache.ts",
+    "function": "createOAuthClientRegistrar",
+    "line": 24,
+    "rule": "max-lines-per-function",
+    "value": 57
+  },
+  {
+    "file": "packages/platform/src/asset-cache.ts",
+    "function": "createAssetCache",
+    "line": 191,
+    "rule": "max-lines-per-function",
+    "value": 123
+  },
+  {
+    "file": "packages/platform/src/download.ts",
+    "function": "<file>",
+    "line": 613,
+    "rule": "max-lines",
+    "value": 981
+  },
+  {
+    "file": "packages/platform/src/fs/directory-registry.ts",
+    "function": "createDirectoryRegistry",
+    "line": 22,
+    "rule": "max-lines-per-function",
+    "value": 67
+  },
+  {
+    "file": "packages/platform/src/fs/directory-running-lock.ts",
+    "function": "createDirectoryRunningLock",
+    "line": 22,
+    "rule": "max-lines-per-function",
+    "value": 56
+  },
+  {
+    "file": "packages/platform/src/fs/directory-user-config.ts",
+    "function": "createDirectoryUserConfig",
+    "line": 46,
+    "rule": "max-lines-per-function",
+    "value": 146
+  },
+  {
+    "file": "packages/platform/src/fs/directory-workspace.ts",
+    "function": "createNodeDirectoryWorkspace",
+    "line": 22,
+    "rule": "max-lines-per-function",
+    "value": 172
+  },
+  {
+    "file": "packages/platform/src/fs/durable-json.ts",
+    "function": "createDurableJsonFile",
+    "line": 59,
+    "rule": "max-lines-per-function",
+    "value": 59
+  },
+  {
+    "file": "packages/platform/src/fs/guarded-reader.ts",
+    "function": "createGuardedFileReader",
+    "line": 49,
+    "rule": "max-lines-per-function",
+    "value": 329
+  },
+  {
+    "file": "packages/platform/src/http/guarded/transport.fetch.ts",
+    "function": "FetchHttpTransportAdapter.requestPinned",
+    "line": 27,
+    "rule": "max-lines-per-function",
+    "value": 67
+  },
+  {
+    "file": "packages/platform/src/http/guarded/transport.fetch.ts",
+    "function": "FetchHttpTransportAdapter.requestPinned.<anonymous>",
+    "line": 48,
+    "rule": "max-lines-per-function",
+    "value": 51
+  },
+  {
+    "file": "packages/platform/src/terminal.ts",
+    "function": "createTerminalService",
+    "line": 255,
+    "rule": "max-lines-per-function",
+    "value": 239
+  },
+  {
+    "file": "packages/platform/src/terminal.ts",
+    "function": "createTerminalService.create",
+    "line": 356,
+    "rule": "max-lines-per-function",
+    "value": 52
+  },
+  {
+    "file": "packages/plugins/src/host/capability-sdk.ts",
+    "function": "buildCapabilityScopedSdk",
+    "line": 86,
+    "rule": "max-lines-per-function",
+    "value": 56
+  },
+  {
+    "file": "packages/plugins/src/host/capability-tools.ts",
+    "function": "createPluginCapabilityTools",
+    "line": 388,
+    "rule": "max-lines-per-function",
+    "value": 186
+  },
+  {
+    "file": "packages/plugins/src/host/contributions.ts",
+    "function": "createPluginContributionCapture",
+    "line": 82,
+    "rule": "max-lines-per-function",
+    "value": 52
+  },
+  {
+    "file": "packages/plugins/src/host/declarative-content-types.ts",
+    "function": "createDeclarativeContentTypes",
+    "line": 336,
+    "rule": "max-lines-per-function",
+    "value": 131
+  },
+  {
+    "file": "packages/plugins/src/host/hook-registry.ts",
+    "function": "createHookRegistry",
+    "line": 233,
+    "rule": "max-lines-per-function",
+    "value": 99
+  },
+  {
+    "file": "packages/plugins/src/host/node/runtime-core.ts",
+    "function": "createPluginRuntimeCore",
+    "line": 387,
+    "rule": "max-lines-per-function",
+    "value": 395
+  },
+  {
+    "file": "packages/plugins/src/host/node/runtime-core.ts",
+    "function": "<file>",
+    "line": 801,
+    "rule": "max-lines",
+    "value": 562
+  },
+  {
+    "file": "packages/plugins/src/host/node/source-drafts.ts",
+    "function": "createPluginSourceService",
+    "line": 153,
+    "rule": "max-lines-per-function",
+    "value": 180
+  },
+  {
+    "file": "packages/plugins/src/host/provider-host.ts",
+    "function": "createPluginProviderHost",
+    "line": 114,
+    "rule": "max-lines-per-function",
+    "value": 134
+  },
+  {
+    "file": "packages/plugins/src/host/tools/management.ts",
+    "function": "applySiteRuntimeDecision",
+    "line": 430,
+    "rule": "max-lines-per-function",
+    "value": 58
+  },
+  {
+    "file": "packages/plugins/src/host/tools/management.ts",
+    "function": "buildPluginManagementRegistrations",
+    "line": 671,
+    "rule": "max-lines-per-function",
+    "value": 62
+  },
+  {
+    "file": "packages/provider-plugins/src/analytics-posthog/posthog.ts",
+    "function": "createPostHogProductAnalyticsAdapter",
+    "line": 44,
+    "rule": "max-lines-per-function",
+    "value": 56
+  },
+  {
+    "file": "packages/provider-plugins/src/observability-sentry/sentry.ts",
+    "function": "createSentryObservabilityAdapter",
+    "line": 107,
+    "rule": "max-lines-per-function",
+    "value": 72
+  },
+  {
+    "file": "packages/sandbox/src/e2b/wrap-e2b-sandbox.ts",
+    "function": "wrapE2bSandbox",
+    "line": 170,
+    "rule": "max-lines-per-function",
+    "value": 197
+  },
+  {
+    "file": "packages/search/src/indexer.ts",
+    "function": "createSearchIndexer",
+    "line": 93,
+    "rule": "max-lines-per-function",
+    "value": 239
+  },
+  {
+    "file": "packages/search/src/service.ts",
+    "function": "createSearchService",
+    "line": 67,
+    "rule": "max-lines-per-function",
+    "value": 62
+  },
+  {
+    "file": "packages/search/src/testkit/conformance.ts",
+    "function": "createSession",
+    "line": 150,
+    "rule": "max-lines-per-function",
+    "value": 63
+  },
+  {
+    "file": "packages/search/src/testkit/memory-provider.ts",
+    "function": "createInMemorySearchProvider",
+    "line": 167,
+    "rule": "max-lines-per-function",
+    "value": 100
+  },
+  {
+    "file": "packages/search/src/tools.ts",
+    "function": "buildSearchToolRegistrations",
+    "line": 160,
+    "rule": "max-lines-per-function",
+    "value": 75
+  },
+  {
+    "file": "packages/server/src/builtin-features.ts",
+    "function": "createBuiltInFeatures",
+    "line": 231,
+    "rule": "max-lines-per-function",
+    "value": 426
+  },
+  {
+    "file": "packages/server/src/builtin-features.ts",
+    "function": "<file>",
+    "line": 644,
+    "rule": "max-lines",
+    "value": 566
+  },
+  {
+    "file": "packages/server/src/compose-jini-kernel.ts",
+    "function": "composeJiniKernel",
+    "line": 342,
+    "rule": "max-lines-per-function",
+    "value": 64
+  },
+  {
+    "file": "packages/server/src/create-local-node-daemon.ts",
+    "function": "createLocalNodeDaemon",
+    "line": 354,
+    "rule": "max-lines-per-function",
+    "value": 113
+  },
+  {
+    "file": "packages/server/src/host-bootstrap.ts",
+    "function": "installGracefulShutdown",
+    "line": 146,
+    "rule": "max-lines-per-function",
+    "value": 52
+  },
+  {
+    "file": "packages/server/src/kernel-base.ts",
+    "function": "createJiniKernelBase",
+    "line": 133,
+    "rule": "max-lines-per-function",
+    "value": 73
+  },
+  {
+    "file": "packages/sidecar/src/json-ipc.ts",
+    "function": "createJsonIpcServer",
+    "line": 188,
+    "rule": "max-lines-per-function",
+    "value": 157
+  },
+  {
+    "file": "packages/sidecar/src/json-ipc.ts",
+    "function": "createJsonIpcServer.createNetServer callback",
+    "line": 201,
+    "rule": "max-lines-per-function",
+    "value": 132
+  },
+  {
+    "file": "packages/sidecar/src/json-ipc.ts",
+    "function": "createJsonIpcServer.createNetServer callback.socket.on callback#3",
+    "line": 272,
+    "rule": "max-lines-per-function",
+    "value": 92
+  },
+  {
+    "file": "packages/sidecar/src/json-ipc.ts",
+    "function": "requestJsonIpc",
+    "line": 398,
+    "rule": "max-lines-per-function",
+    "value": 129
+  },
+  {
+    "file": "packages/sidecar/src/json-ipc.ts",
+    "function": "requestJsonIpc.<anonymous>",
+    "line": 402,
+    "rule": "max-lines-per-function",
+    "value": 124
+  },
+  {
+    "file": "packages/sidecar/src/supervision/supervisor-node.ts",
+    "function": "createNodeIpcChannel",
+    "line": 217,
+    "rule": "max-lines-per-function",
+    "value": 63
+  },
+  {
+    "file": "packages/sidecar/src/supervision/supervisor.ts",
+    "function": "createDaemonSupervisor",
+    "line": 89,
+    "rule": "max-lines-per-function",
+    "value": 208
+  },
+  {
+    "file": "packages/ui/src/browser/useFileDropTarget.ts",
+    "function": "useFileDropTarget",
+    "line": 28,
+    "rule": "max-lines-per-function",
+    "value": 56
+  },
+  {
+    "file": "packages/ui/src/features/a2ui/renderer.tsx",
+    "function": "RenderNode",
+    "line": 72,
+    "rule": "max-lines-per-function",
+    "value": 61
+  },
+  {
+    "file": "packages/ui/src/features/admin-widgets/components/InfoTip.hooks.tsx",
+    "function": "useInfoTip",
+    "line": 68,
+    "rule": "max-lines-per-function",
+    "value": 91
+  },
+  {
+    "file": "packages/ui/src/features/admin-widgets/components/Lightbox/Lightbox.hooks.ts",
+    "function": "useLightbox",
+    "line": 69,
+    "rule": "max-lines-per-function",
+    "value": 63
+  },
+  {
+    "file": "packages/ui/src/features/admin-widgets/components/Select/Select.hooks.tsx",
+    "function": "useSelectDropdown",
+    "line": 201,
+    "rule": "max-lines-per-function",
+    "value": 79
+  },
+  {
+    "file": "packages/ui/src/features/admin-widgets/components/Select/Select.tsx",
+    "function": "SelectPanel",
+    "line": 91,
+    "rule": "max-lines-per-function",
+    "value": 92
+  },
+  {
+    "file": "packages/ui/src/features/admin-widgets/components/Select/Select.tsx",
+    "function": "Select",
+    "line": 207,
+    "rule": "max-lines-per-function",
+    "value": 83
+  },
+  {
+    "file": "packages/ui/src/features/admin-widgets/components/SuggestInput/SuggestInput.tsx",
+    "function": "SuggestInput",
+    "line": 39,
+    "rule": "max-lines-per-function",
+    "value": 60
+  },
+  {
+    "file": "packages/ui/src/features/appearance/react/components/AppearanceTab.tsx",
+    "function": "AppearanceTab",
+    "line": 46,
+    "rule": "max-lines-per-function",
+    "value": 81
+  },
+  {
+    "file": "packages/ui/src/features/asset-grid/react/components/AssetCard.tsx",
+    "function": "AssetCard",
+    "line": 48,
+    "rule": "max-lines-per-function",
+    "value": 78
+  },
+  {
+    "file": "packages/ui/src/features/asset-grid/react/components/AssetGrid.hooks.tsx",
+    "function": "useAssetGridView",
+    "line": 20,
+    "rule": "max-lines-per-function",
+    "value": 142
+  },
+  {
+    "file": "packages/ui/src/features/asset-grid/react/components/AssetGrid.tsx",
+    "function": "AssetGrid",
+    "line": 66,
+    "rule": "max-lines-per-function",
+    "value": 80
+  },
+  {
+    "file": "packages/ui/src/features/asset-grid/react/components/AssetGridToolbar.tsx",
+    "function": "AssetGridToolbar",
+    "line": 27,
+    "rule": "max-lines-per-function",
+    "value": 96
+  },
+  {
+    "file": "packages/ui/src/features/asset-grid/react/hooks/useAssetGridLiveUpdates.ts",
+    "function": "useAssetGridLiveUpdates",
+    "line": 47,
+    "rule": "max-lines-per-function",
+    "value": 99
+  },
+  {
+    "file": "packages/ui/src/features/asset-grid/react/hooks/useAssetGridLiveUpdates.ts",
+    "function": "useAssetGridLiveUpdates.useEffect callback#4",
+    "line": 70,
+    "rule": "max-lines-per-function",
+    "value": 81
+  },
+  {
+    "file": "packages/ui/src/features/asset-grid/react/hooks/useRubberBandDrag.ts",
+    "function": "useRubberBandDrag",
+    "line": 33,
+    "rule": "max-lines-per-function",
+    "value": 86
+  },
+  {
+    "file": "packages/ui/src/features/asset-grid/react/hooks/useRubberBandDrag.ts",
+    "function": "useRubberBandDrag.useEffect callback",
+    "line": 67,
+    "rule": "max-lines-per-function",
+    "value": 57
+  },
+  {
+    "file": "packages/ui/src/features/asset-tree-browser/react/components/AssetTreeBrowser.tsx",
+    "function": "AssetTreeBrowser",
+    "line": 77,
+    "rule": "max-lines-per-function",
+    "value": 66
+  },
+  {
+    "file": "packages/ui/src/features/asset-tree-browser/react/components/AssetTreeFileRow.tsx",
+    "function": "AssetTreeFileRow",
+    "line": 36,
+    "rule": "max-lines-per-function",
+    "value": 124
+  },
+  {
+    "file": "packages/ui/src/features/asset-tree-browser/react/components/FilePreviewPane.tsx",
+    "function": "FilePreviewPane",
+    "line": 43,
+    "rule": "max-lines-per-function",
+    "value": 70
+  },
+  {
+    "file": "packages/ui/src/features/asset-tree-browser/react/components/useAssetTreeBrowserController.ts",
+    "function": "useAssetTreeBrowserController",
+    "line": 60,
+    "rule": "max-lines-per-function",
+    "value": 63
+  },
+  {
+    "file": "packages/ui/src/features/browser-chrome/react/components/BrowserViewportControls.tsx",
+    "function": "BrowserViewportControls",
+    "line": 33,
+    "rule": "max-lines-per-function",
+    "value": 59
+  },
+  {
+    "file": "packages/ui/src/features/browser-chrome/react/hooks/useBrowserNavigationStack.ts",
+    "function": "useBrowserNavigationStack",
+    "line": 36,
+    "rule": "max-lines-per-function",
+    "value": 56
+  },
+  {
+    "file": "packages/ui/src/features/charts/browser.ts",
+    "function": "mountChart",
+    "line": 33,
+    "rule": "max-lines-per-function",
+    "value": 96
+  },
+  {
+    "file": "packages/ui/src/features/command-palette/react/components/CommandPalette.tsx",
+    "function": "CommandPalette",
+    "line": 30,
+    "rule": "max-lines-per-function",
+    "value": 52
+  },
+  {
+    "file": "packages/ui/src/features/connectors/components/ConnectorCard.tsx",
+    "function": "ConnectorCard",
+    "line": 194,
+    "rule": "max-lines-per-function",
+    "value": 70
+  },
+  {
+    "file": "packages/ui/src/features/connectors/components/ConnectorDetailDrawer.tsx",
+    "function": "ConnectorDrawerHead",
+    "line": 50,
+    "rule": "max-lines-per-function",
+    "value": 52
+  },
+  {
+    "file": "packages/ui/src/features/connectors/components/ConnectorDetailDrawer.tsx",
+    "function": "ConnectorDetailDrawer",
+    "line": 349,
+    "rule": "max-lines-per-function",
+    "value": 99
+  },
+  {
+    "file": "packages/ui/src/features/connectors/components/ConnectorGrid.tsx",
+    "function": "ConnectorGrid",
+    "line": 72,
+    "rule": "max-lines-per-function",
+    "value": 60
+  },
+  {
+    "file": "packages/ui/src/features/connectors/components/ConnectorSearchBar.tsx",
+    "function": "ConnectorSearchBar",
+    "line": 18,
+    "rule": "max-lines-per-function",
+    "value": 51
+  },
+  {
+    "file": "packages/ui/src/features/connectors/ConnectorsBrowser.hooks.ts",
+    "function": "useConnectorsBrowserView",
+    "line": 14,
+    "rule": "max-lines-per-function",
+    "value": 54
+  },
+  {
+    "file": "packages/ui/src/features/connectors/ConnectorsBrowser.tsx",
+    "function": "ConnectorsBrowser",
+    "line": 109,
+    "rule": "max-lines-per-function",
+    "value": 76
+  },
+  {
+    "file": "packages/ui/src/features/connectors/hooks/useConnectorAuthorization.ts",
+    "function": "useConnectorAuthorization",
+    "line": 159,
+    "rule": "max-lines-per-function",
+    "value": 149
+  },
+  {
+    "file": "packages/ui/src/features/connectors/hooks/useConnectorCatalog.ts",
+    "function": "useConnectorCatalog",
+    "line": 30,
+    "rule": "max-lines-per-function",
+    "value": 52
+  },
+  {
+    "file": "packages/ui/src/features/connectors/hooks/useConnectorDetail.ts",
+    "function": "useConnectorDetail",
+    "line": 30,
+    "rule": "max-lines-per-function",
+    "value": 75
+  },
+  {
+    "file": "packages/ui/src/features/execution/http-adapter.ts",
+    "function": "createExecutionHttpAdapter",
+    "line": 92,
+    "rule": "max-lines-per-function",
+    "value": 59
+  },
+  {
+    "file": "packages/ui/src/features/execution/react/components/ByokProviderForm.tsx",
+    "function": "ByokProviderForm",
+    "line": 152,
+    "rule": "max-lines-per-function",
+    "value": 59
+  },
+  {
+    "file": "packages/ui/src/features/execution/react/components/ByokProviderForm.tsx",
+    "function": "ByokApiKeyField",
+    "line": 290,
+    "rule": "max-lines-per-function",
+    "value": 55
+  },
+  {
+    "file": "packages/ui/src/features/execution/react/components/ByokProviderForm.tsx",
+    "function": "ByokModelRow",
+    "line": 387,
+    "rule": "max-lines-per-function",
+    "value": 52
+  },
+  {
+    "file": "packages/ui/src/features/execution/react/components/ExecutionTab.tsx",
+    "function": "ExecutionTab",
+    "line": 107,
+    "rule": "max-lines-per-function",
+    "value": 60
+  },
+  {
+    "file": "packages/ui/src/features/execution/react/components/ExecutionTab.tsx",
+    "function": "ByokPane",
+    "line": 215,
+    "rule": "max-lines-per-function",
+    "value": 62
+  },
+  {
+    "file": "packages/ui/src/features/execution/react/components/LocalCliAgentCard.tsx",
+    "function": "LocalCliAgentCard",
+    "line": 60,
+    "rule": "max-lines-per-function",
+    "value": 63
+  },
+  {
+    "file": "packages/ui/src/features/execution/react/components/LocalCliAgentList.tsx",
+    "function": "LocalCliAgentList",
+    "line": 53,
+    "rule": "max-lines-per-function",
+    "value": 54
+  },
+  {
+    "file": "packages/ui/src/features/execution/react/components/LocalCliAgentSettings.tsx",
+    "function": "LocalCliAgentModelControls",
+    "line": 51,
+    "rule": "max-lines-per-function",
+    "value": 82
+  },
+  {
+    "file": "packages/ui/src/features/execution/react/components/SearchableModelSelect.tsx",
+    "function": "SearchableModelSelect",
+    "line": 53,
+    "rule": "max-lines-per-function",
+    "value": 54
+  },
+  {
+    "file": "packages/ui/src/features/execution/react/hooks/use-execution-credential.hooks.ts",
+    "function": "useExecutionCredential",
+    "line": 199,
+    "rule": "max-lines-per-function",
+    "value": 130
+  },
+  {
+    "file": "packages/ui/src/features/execution/react/hooks/useExecutionTab.ts",
+    "function": "useExecutionTab",
+    "line": 69,
+    "rule": "max-lines-per-function",
+    "value": 155
+  },
+  {
+    "file": "packages/ui/src/features/execution/react/hooks/useLocalCliAgentCard.ts",
+    "function": "useLocalCliAgentCard",
+    "line": 50,
+    "rule": "max-lines-per-function",
+    "value": 64
+  },
+  {
+    "file": "packages/ui/src/features/execution/react/hooks/useReasoningControl.ts",
+    "function": "useReasoningControl",
+    "line": 111,
+    "rule": "max-lines-per-function",
+    "value": 74
+  },
+  {
+    "file": "packages/ui/src/features/external-mcp/react/components/ExternalMcpTab.tsx",
+    "function": "ExternalMcpTab",
+    "line": 55,
+    "rule": "max-lines-per-function",
+    "value": 72
+  },
+  {
+    "file": "packages/ui/src/features/file-dropzone/react/components/FileDropzone.tsx",
+    "function": "FileDropzone",
+    "line": 77,
+    "rule": "max-lines-per-function",
+    "value": 64
+  },
+  {
+    "file": "packages/ui/src/features/file-dropzone/react/hooks/useFileDialogTracking.ts",
+    "function": "useFileDialogTracking",
+    "line": 54,
+    "rule": "max-lines-per-function",
+    "value": 66
+  },
+  {
+    "file": "packages/ui/src/features/file-dropzone/react/hooks/useFileDropzone.ts",
+    "function": "useFileDropzone",
+    "line": 59,
+    "rule": "max-lines-per-function",
+    "value": 95
+  },
+  {
+    "file": "packages/ui/src/features/file-dropzone/react/hooks/useFileDropzonePreviews.ts",
+    "function": "useFileDropzonePreviews",
+    "line": 30,
+    "rule": "max-lines-per-function",
+    "value": 80
+  },
+  {
+    "file": "packages/ui/src/features/html-editor/css.ts",
+    "function": "prettifyCss",
+    "line": 22,
+    "rule": "max-lines-per-function",
+    "value": 110
+  },
+  {
+    "file": "packages/ui/src/features/html-editor/protected-elements.ts",
+    "function": "registerProtectedElementType",
+    "line": 132,
+    "rule": "max-lines-per-function",
+    "value": 65
+  },
+  {
+    "file": "packages/ui/src/features/html-editor/react/hooks/useInteractiveHtmlEditor.ts",
+    "function": "useInteractiveHtmlEditor",
+    "line": 272,
+    "rule": "max-lines-per-function",
+    "value": 121
+  },
+  {
+    "file": "packages/ui/src/features/html-editor/react/hooks/useInteractiveHtmlEditor.ts",
+    "function": "useInteractiveHtmlEditor.useEffect callback",
+    "line": 288,
+    "rule": "max-lines-per-function",
+    "value": 105
+  },
+  {
+    "file": "packages/ui/src/features/iframe-pool/react/components/IframeKeepAliveProvider.hooks.ts",
+    "function": "useIframeKeepAliveProvider",
+    "line": 7,
+    "rule": "max-lines-per-function",
+    "value": 64
+  },
+  {
+    "file": "packages/ui/src/features/integrations/react/components/ClientPicker.tsx",
+    "function": "ClientPicker",
+    "line": 36,
+    "rule": "max-lines-per-function",
+    "value": 56
+  },
+  {
+    "file": "packages/ui/src/features/integrations/rules.ts",
+    "function": "snippetForClient",
+    "line": 135,
+    "rule": "max-lines-per-function",
+    "value": 69
+  },
+  {
+    "file": "packages/ui/src/features/interactive-ui/providers/shadcn/data-table.tsx",
+    "function": "DataTable",
+    "line": 39,
+    "rule": "max-lines-per-function",
+    "value": 67
+  },
+  {
+    "file": "packages/ui/src/features/lexical-rich-text-editor/react/components/RichTextInput.tsx",
+    "function": "EditorSurface",
+    "line": 83,
+    "rule": "max-lines-per-function",
+    "value": 136
+  },
+  {
+    "file": "packages/ui/src/features/lexical-rich-text-editor/react/components/RichTextInput.tsx",
+    "function": "EditorSurface.useImperativeHandle callback",
+    "line": 126,
+    "rule": "max-lines-per-function",
+    "value": 76
+  },
+  {
+    "file": "packages/ui/src/features/lexical-rich-text-editor/react/hooks/useMentionAtomicNavigation.ts",
+    "function": "useMentionAtomicNavigation",
+    "line": 30,
+    "rule": "max-lines-per-function",
+    "value": 59
+  },
+  {
+    "file": "packages/ui/src/features/lexical-rich-text-editor/react/hooks/useMentionAtomicNavigation.ts",
+    "function": "useMentionAtomicNavigation.useEffect callback",
+    "line": 32,
+    "rule": "max-lines-per-function",
+    "value": 56
+  },
+  {
+    "file": "packages/ui/src/features/list-detail-panel/react/components/ListDetailPanel.tsx",
+    "function": "ListDetailPanel",
+    "line": 45,
+    "rule": "max-lines-per-function",
+    "value": 85
+  },
+  {
+    "file": "packages/ui/src/features/media-providers/react/components/MediaProvidersTab.tsx",
+    "function": "MediaProvidersTab",
+    "line": 71,
+    "rule": "max-lines-per-function",
+    "value": 60
+  },
+  {
+    "file": "packages/ui/src/features/media-providers/react/hooks/useMediaProvidersTab.ts",
+    "function": "useMediaProvidersTab",
+    "line": 119,
+    "rule": "max-lines-per-function",
+    "value": 168
+  },
+  {
+    "file": "packages/ui/src/features/memory/dependencies.ts",
+    "function": "createMemoryHttpPorts",
+    "line": 67,
+    "rule": "max-lines-per-function",
+    "value": 105
+  },
+  {
+    "file": "packages/ui/src/features/memory/react/components/MemoryAdvancedModal.tsx",
+    "function": "MemoryAdvancedModal",
+    "line": 10,
+    "rule": "max-lines-per-function",
+    "value": 172
+  },
+  {
+    "file": "packages/ui/src/features/memory/react/components/MemoryAdvancedModal.tsx",
+    "function": "MemoryAdvancedModal.treeFolders.map callback",
+    "line": 123,
+    "rule": "max-lines-per-function",
+    "value": 51
+  },
+  {
+    "file": "packages/ui/src/features/memory/react/components/MemoryConnectedPanel.tsx",
+    "function": "MemorySuggestionPanel",
+    "line": 276,
+    "rule": "max-lines-per-function",
+    "value": 58
+  },
+  {
+    "file": "packages/ui/src/features/memory/react/components/MemoryConnectedPanel.tsx",
+    "function": "MemoryConnectedPanel",
+    "line": 396,
+    "rule": "max-lines-per-function",
+    "value": 153
+  },
+  {
+    "file": "packages/ui/src/features/memory/react/components/MemoryConnectedPanel.tsx",
+    "function": "<file>",
+    "line": 530,
+    "rule": "max-lines",
+    "value": 520
+  },
+  {
+    "file": "packages/ui/src/features/memory/react/components/MemoryEntryCard.tsx",
+    "function": "MemoryEntryCard",
+    "line": 15,
+    "rule": "max-lines-per-function",
+    "value": 65
+  },
+  {
+    "file": "packages/ui/src/features/memory/react/components/MemoryExtractionCard.tsx",
+    "function": "MemoryExtractionCard",
+    "line": 16,
+    "rule": "max-lines-per-function",
+    "value": 63
+  },
+  {
+    "file": "packages/ui/src/features/memory/react/components/MemoryHooksPanel.tsx",
+    "function": "MemoryHooksPanel",
+    "line": 62,
+    "rule": "max-lines-per-function",
+    "value": 54
+  },
+  {
+    "file": "packages/ui/src/features/memory/react/components/MemoryList.tsx",
+    "function": "MemoryListRows",
+    "line": 137,
+    "rule": "max-lines-per-function",
+    "value": 52
+  },
+  {
+    "file": "packages/ui/src/features/memory/react/components/MemoryList.tsx",
+    "function": "MemoryList",
+    "line": 190,
+    "rule": "max-lines-per-function",
+    "value": 91
+  },
+  {
+    "file": "packages/ui/src/features/memory/react/components/MemoryManualEditor.tsx",
+    "function": "MemoryManualEditor",
+    "line": 13,
+    "rule": "max-lines-per-function",
+    "value": 200
+  },
+  {
+    "file": "packages/ui/src/features/memory/react/components/MemorySettingsPanel.tsx",
+    "function": "MemorySettingsPanel",
+    "line": 49,
+    "rule": "max-lines-per-function",
+    "value": 94
+  },
+  {
+    "file": "packages/ui/src/features/memory/react/hooks/useMemoryConfig.hooks.ts",
+    "function": "useMemoryConfig",
+    "line": 119,
+    "rule": "max-lines-per-function",
+    "value": 130
+  },
+  {
+    "file": "packages/ui/src/features/memory/react/hooks/useMemoryConnectors.hooks.ts",
+    "function": "useMemoryConnectors",
+    "line": 216,
+    "rule": "max-lines-per-function",
+    "value": 327
+  },
+  {
+    "file": "packages/ui/src/features/memory/react/hooks/useMemoryEntries.hooks.ts",
+    "function": "useMemoryEntries",
+    "line": 79,
+    "rule": "max-lines-per-function",
+    "value": 254
+  },
+  {
+    "file": "packages/ui/src/features/memory/react/hooks/useMemoryExtractions.hooks.ts",
+    "function": "useMemoryExtractions",
+    "line": 41,
+    "rule": "max-lines-per-function",
+    "value": 114
+  },
+  {
+    "file": "packages/ui/src/features/memory/react/hooks/useMemoryExtractions.store.ts",
+    "function": "createExtractionHistoryStore",
+    "line": 172,
+    "rule": "max-lines-per-function",
+    "value": 144
+  },
+  {
+    "file": "packages/ui/src/features/mention-autocomplete/react/components/MentionAutocomplete.tsx",
+    "function": "MentionAutocomplete",
+    "line": 49,
+    "rule": "max-lines-per-function",
+    "value": 72
+  },
+  {
+    "file": "packages/ui/src/features/mention-autocomplete/react/hooks/useMentionAutocomplete.ts",
+    "function": "useMentionAutocomplete",
+    "line": 75,
+    "rule": "max-lines-per-function",
+    "value": 100
+  },
+  {
+    "file": "packages/ui/src/features/notifications/react/components/NotificationsTab.tsx",
+    "function": "NotificationsTab",
+    "line": 63,
+    "rule": "max-lines-per-function",
+    "value": 95
+  },
+  {
+    "file": "packages/ui/src/features/panel-kit/hooks/use-settings-slice.hooks.ts",
+    "function": "useSettingsSlice",
+    "line": 212,
+    "rule": "max-lines-per-function",
+    "value": 126
+  },
+  {
+    "file": "packages/ui/src/features/panel-kit/hooks/use-standing-draft-autosave.hooks.ts",
+    "function": "useStandingDraftAutosave",
+    "line": 170,
+    "rule": "max-lines-per-function",
+    "value": 175
+  },
+  {
+    "file": "packages/ui/src/features/privacy/react/components/PrivacyTab.tsx",
+    "function": "PrivacyTab",
+    "line": 104,
+    "rule": "max-lines-per-function",
+    "value": 71
+  },
+  {
+    "file": "packages/ui/src/features/project-locations/react/components/ProjectLocationsTab.tsx",
+    "function": "ProjectLocationsTab",
+    "line": 70,
+    "rule": "max-lines-per-function",
+    "value": 101
+  },
+  {
+    "file": "packages/ui/src/features/project-locations/react/hooks/useProjectLocationsTab.ts",
+    "function": "useProjectLocationsTab",
+    "line": 76,
+    "rule": "max-lines-per-function",
+    "value": 119
+  },
+  {
+    "file": "packages/ui/src/features/resource-dashboard/react/components/ResourceBoard.tsx",
+    "function": "ResourceBoard",
+    "line": 45,
+    "rule": "max-lines-per-function",
+    "value": 83
+  },
+  {
+    "file": "packages/ui/src/features/resource-dashboard/react/components/ResourceBoardToolbar.tsx",
+    "function": "ResourceBoardToolbar",
+    "line": 91,
+    "rule": "max-lines-per-function",
+    "value": 92
+  },
+  {
+    "file": "packages/ui/src/features/resource-dashboard/react/components/ResourceCard.tsx",
+    "function": "ResourceCard",
+    "line": 36,
+    "rule": "max-lines-per-function",
+    "value": 52
+  },
+  {
+    "file": "packages/ui/src/features/resource-dashboard/react/components/ResourceKanbanBoard.tsx",
+    "function": "ResourceKanbanBoard",
+    "line": 33,
+    "rule": "max-lines-per-function",
+    "value": 65
+  },
+  {
+    "file": "packages/ui/src/features/resource-dashboard/react/components/ResourceKanbanBoard.tsx",
+    "function": "ResourceKanbanBoard.columns.map callback",
+    "line": 44,
+    "rule": "max-lines-per-function",
+    "value": 51
+  },
+  {
+    "file": "packages/ui/src/features/resource-dashboard/react/components/ResourceRowList.tsx",
+    "function": "ResourceRowList",
+    "line": 38,
+    "rule": "max-lines-per-function",
+    "value": 55
+  },
+  {
+    "file": "packages/ui/src/features/resource-dashboard/react/components/ResourceRowListViewParts.tsx",
+    "function": "ResourceRowListRows",
+    "line": 74,
+    "rule": "max-lines-per-function",
+    "value": 62
+  },
+  {
+    "file": "packages/ui/src/features/resource-dashboard/react/components/ResourceRunHistoryList.tsx",
+    "function": "ResourceRunHistoryList",
+    "line": 24,
+    "rule": "max-lines-per-function",
+    "value": 61
+  },
+  {
+    "file": "packages/ui/src/features/resource-dashboard/react/hooks/useResourceBoard.ts",
+    "function": "useResourceBoard",
+    "line": 90,
+    "rule": "max-lines-per-function",
+    "value": 176
+  },
+  {
+    "file": "packages/ui/src/features/resource-dashboard/react/hooks/useResourceRowList.ts",
+    "function": "useResourceRowList",
+    "line": 51,
+    "rule": "max-lines-per-function",
+    "value": 91
+  },
+  {
+    "file": "packages/ui/src/features/sketch-editor/react/components/SketchEditor.tsx",
+    "function": "SketchEditor",
+    "line": 107,
+    "rule": "max-lines-per-function",
+    "value": 109
+  },
+  {
+    "file": "packages/ui/src/features/sketch-editor/react/components/SketchMainMenu.tsx",
+    "function": "SketchMainMenu",
+    "line": 21,
+    "rule": "max-lines-per-function",
+    "value": 55
+  },
+  {
+    "file": "packages/ui/src/features/sketch-editor/react/hooks/useSketchDomEnhancements.ts",
+    "function": "useSketchDomEnhancements",
+    "line": 45,
+    "rule": "max-lines-per-function",
+    "value": 65
+  },
+  {
+    "file": "packages/ui/src/features/sketch-editor/react/hooks/useSketchSaveWorkflow.ts",
+    "function": "useSketchSaveWorkflow",
+    "line": 53,
+    "rule": "max-lines-per-function",
+    "value": 85
+  },
+  {
+    "file": "packages/ui/src/features/sketch-editor/react/hooks/useSketchScene.ts",
+    "function": "useSketchScene",
+    "line": 42,
+    "rule": "max-lines-per-function",
+    "value": 73
+  },
+  {
+    "file": "packages/ui/src/features/skills/dependencies.ts",
+    "function": "createFakeSkillsPort",
+    "line": 44,
+    "rule": "max-lines-per-function",
+    "value": 55
+  },
+  {
+    "file": "packages/ui/src/features/skills/react/components/SkillDraftForm.tsx",
+    "function": "SkillDraftForm",
+    "line": 47,
+    "rule": "max-lines-per-function",
+    "value": 65
+  },
+  {
+    "file": "packages/ui/src/features/skills/react/components/SkillRow.tsx",
+    "function": "SkillRow",
+    "line": 73,
+    "rule": "max-lines-per-function",
+    "value": 106
+  },
+  {
+    "file": "packages/ui/src/features/skills/react/components/SkillsTab.tsx",
+    "function": "SkillsTabToolbar",
+    "line": 101,
+    "rule": "max-lines-per-function",
+    "value": 69
+  },
+  {
+    "file": "packages/ui/src/features/skills/react/components/SkillsTab.tsx",
+    "function": "SkillsTabRows",
+    "line": 219,
+    "rule": "max-lines-per-function",
+    "value": 59
+  },
+  {
+    "file": "packages/ui/src/features/skills/react/hooks/useSkillsTab.ts",
+    "function": "useSkillsTab",
+    "line": 98,
+    "rule": "max-lines-per-function",
+    "value": 260
+  },
+  {
+    "file": "packages/ui/src/features/source-config-list/react/components/SourceConfigList.tsx",
+    "function": "SourceConfigList",
+    "line": 41,
+    "rule": "max-lines-per-function",
+    "value": 56
+  },
+  {
+    "file": "packages/ui/src/features/source-config-list/react/hooks/useSourceConfigList.ts",
+    "function": "useSourceConfigList",
+    "line": 77,
+    "rule": "max-lines-per-function",
+    "value": 119
+  },
+  {
+    "file": "packages/ui/src/features/tab-launcher-menu/react/components/TabLauncherMenu.tsx",
+    "function": "TabLauncherMenu",
+    "line": 65,
+    "rule": "max-lines-per-function",
+    "value": 92
+  },
+  {
+    "file": "packages/ui/src/features/tab-launcher-menu/react/hooks/useTabLauncherMenu.ts",
+    "function": "useTabLauncherMenu",
+    "line": 61,
+    "rule": "max-lines-per-function",
+    "value": 109
+  },
+  {
+    "file": "packages/ui/src/features/tab-strip/react/components/TabStrip.tsx",
+    "function": "TabStrip",
+    "line": 46,
+    "rule": "max-lines-per-function",
+    "value": 55
+  },
+  {
+    "file": "packages/ui/src/features/tab-strip/react/hooks/useTabStripDragReorder.ts",
+    "function": "useTabStripDragReorder",
+    "line": 73,
+    "rule": "max-lines-per-function",
+    "value": 125
+  },
+  {
+    "file": "packages/ui/src/features/tabbed-dialog/react/components/TabbedDialog.tsx",
+    "function": "TabbedDialog",
+    "line": 85,
+    "rule": "max-lines-per-function",
+    "value": 71
+  },
+  {
+    "file": "packages/ui/src/features/version-manager/react/components/VersionManagerModal.tsx",
+    "function": "VersionManagerModal",
+    "line": 38,
+    "rule": "max-lines-per-function",
+    "value": 127
+  },
+  {
+    "file": "packages/ui/src/features/version-manager/react/components/VersionPreviewFrame.tsx",
+    "function": "VersionPreviewFrame",
+    "line": 27,
+    "rule": "max-lines-per-function",
+    "value": 51
+  },
+  {
+    "file": "packages/ui/src/features/version-manager/react/components/VersionSidebar.tsx",
+    "function": "VersionSidebar",
+    "line": 23,
+    "rule": "max-lines-per-function",
+    "value": 96
+  },
+  {
+    "file": "packages/ui/src/features/version-manager/react/hooks/useVersionManager.ts",
+    "function": "useVersionManager",
+    "line": 91,
+    "rule": "max-lines-per-function",
+    "value": 236
+  },
+  {
+    "file": "packages/ui/src/features/viewer-shell/react/components/CommentSidePanel.tsx",
+    "function": "CommentSidePanel",
+    "line": 67,
+    "rule": "max-lines-per-function",
+    "value": 104
+  },
+  {
+    "file": "packages/ui/src/features/viewer-shell/react/components/CommentSidePanel.tsx",
+    "function": "CommentSideItem",
+    "line": 318,
+    "rule": "max-lines-per-function",
+    "value": 93
+  },
+  {
+    "file": "packages/ui/src/features/viewer-shell/react/components/CommentSidePanel.tsx",
+    "function": "CommentSideCreateForm",
+    "line": 480,
+    "rule": "max-lines-per-function",
+    "value": 60
+  },
+  {
+    "file": "packages/ui/src/features/viewer-shell/react/components/MarkdownSplitPane.tsx",
+    "function": "MarkdownSplitPane",
+    "line": 57,
+    "rule": "max-lines-per-function",
+    "value": 83
+  },
+  {
+    "file": "packages/ui/src/features/viewer-shell/react/components/ViewportSwitcher.tsx",
+    "function": "ViewportSwitcher",
+    "line": 32,
+    "rule": "max-lines-per-function",
+    "value": 54
+  },
+  {
+    "file": "packages/ui/src/features/viewer-shell/react/hooks/useMarkdownScrollSync.ts",
+    "function": "useMarkdownScrollSync",
+    "line": 40,
+    "rule": "max-lines-per-function",
+    "value": 126
+  },
+  {
+    "file": "packages/ui/src/react/components/ComponentKitPreview.tsx",
+    "function": "ComponentKitPreview",
+    "line": 56,
+    "rule": "max-lines-per-function",
+    "value": 79
+  },
+  {
+    "file": "packages/ui/src/react/components/CustomSelect.tsx",
+    "function": "useCustomSelect",
+    "line": 262,
+    "rule": "max-lines-per-function",
+    "value": 88
+  },
+  {
+    "file": "packages/ui/src/react/components/CustomSelect.tsx",
+    "function": "CustomSelect",
+    "line": 494,
+    "rule": "max-lines-per-function",
+    "value": 101
+  },
+  {
+    "file": "packages/ui/src/react/components/HeaderActionsMenu.tsx",
+    "function": "HeaderActionsMenu",
+    "line": 164,
+    "rule": "max-lines-per-function",
+    "value": 58
+  },
+  {
+    "file": "packages/ui/src/react/components/Icon.tsx",
+    "function": "<file>",
+    "line": 538,
+    "rule": "max-lines",
+    "value": 674
+  },
+  {
+    "file": "packages/ui/src/react/components/LanguageMenu.tsx",
+    "function": "LanguageMenu",
+    "line": 156,
+    "rule": "max-lines-per-function",
+    "value": 60
+  },
+  {
+    "file": "packages/ui/src/react/components/OnboardingDropdown.tsx",
+    "function": "useOnboardingDropdown",
+    "line": 259,
+    "rule": "max-lines-per-function",
+    "value": 102
+  },
+  {
+    "file": "packages/ui/src/react/components/OnboardingDropdown.tsx",
+    "function": "OnboardingDropdown",
+    "line": 502,
+    "rule": "max-lines-per-function",
+    "value": 59
+  },
+  {
+    "file": "packages/ui/src/react/components/PaletteTweaks.tsx",
+    "function": "PaletteTweaks",
+    "line": 163,
+    "rule": "max-lines-per-function",
+    "value": 64
+  },
+  {
+    "file": "packages/ui/src/react/components/TooltipLayer.tsx",
+    "function": "useTooltipLayer",
+    "line": 116,
+    "rule": "max-lines-per-function",
+    "value": 208
+  },
+  {
+    "file": "packages/ui/src/react/components/TooltipLayer.tsx",
+    "function": "useTooltipLayer.useEffect callback#3",
+    "line": 250,
+    "rule": "max-lines-per-function",
+    "value": 87
+  },
+  {
+    "file": "packages/ui/src/react/components/WorkingDirPicker.tsx",
+    "function": "WorkingDirPanel",
+    "line": 323,
+    "rule": "max-lines-per-function",
+    "value": 68
+  },
+  {
+    "file": "packages/ui/src/react/components/WorkingDirPicker.tsx",
+    "function": "WorkingDirPicker",
+    "line": 400,
+    "rule": "max-lines-per-function",
+    "value": 51
+  },
+  {
+    "file": "packages/ui/src/react/hooks/useBrandFonts.ts",
+    "function": "useBrandFonts",
+    "line": 40,
+    "rule": "max-lines-per-function",
+    "value": 65
+  },
+  {
+    "file": "packages/ui/src/react/hooks/useEdgeAutoScroll.ts",
+    "function": "useEdgeAutoScroll",
+    "line": 27,
+    "rule": "max-lines-per-function",
+    "value": 63
+  },
+  {
+    "file": "packages/ui/src/react/hooks/useResizableSplitPane.ts",
+    "function": "useResizableSplitPane",
+    "line": 111,
+    "rule": "max-lines-per-function",
+    "value": 209
+  },
+  {
+    "file": "packages/ui/src/react/hooks/useResizableSplitPane.ts",
+    "function": "useResizableSplitPane.useCallback callback#4",
+    "line": 230,
+    "rule": "max-lines-per-function",
+    "value": 63
+  },
+  {
+    "file": "packages/ui/src/react/mcp-ui/useMcpUiHost.ts",
+    "function": "useMcpUiHost",
+    "line": 164,
+    "rule": "max-lines-per-function",
+    "value": 116
+  },
+  {
+    "file": "packages/ui/src/renderers/annotation-canvas/react/components/AnnotationCanvas.tsx",
+    "function": "TextMarkItem",
+    "line": 122,
+    "rule": "max-lines-per-function",
+    "value": 77
+  },
+  {
+    "file": "packages/ui/src/renderers/annotation-canvas/react/components/AnnotationCanvas.tsx",
+    "function": "AnnotationDock",
+    "line": 200,
+    "rule": "max-lines-per-function",
+    "value": 83
+  },
+  {
+    "file": "packages/ui/src/renderers/annotation-canvas/react/components/AnnotationCanvas.tsx",
+    "function": "SubmitPicker",
+    "line": 349,
+    "rule": "max-lines-per-function",
+    "value": 51
+  },
+  {
+    "file": "packages/ui/src/renderers/annotation-canvas/react/hooks/useAnnotationCanvas.ts",
+    "function": "useAnnotationCanvas",
+    "line": 179,
+    "rule": "max-lines-per-function",
+    "value": 739
+  },
+  {
+    "file": "packages/ui/src/renderers/annotation-canvas/react/hooks/useAnnotationCanvas.ts",
+    "function": "<file>",
+    "line": 583,
+    "rule": "max-lines",
+    "value": 880
+  },
+  {
+    "file": "packages/ui/src/renderers/annotation-canvas/react/hooks/useAnnotationCanvas.ts",
+    "function": "useAnnotationCanvas.send",
+    "line": 817,
+    "rule": "max-lines-per-function",
+    "value": 57
+  },
+  {
+    "file": "packages/ui/src/renderers/annotation-canvas/rules.ts",
+    "function": "computeDockPlacement",
+    "line": 79,
+    "rule": "max-lines-per-function",
+    "value": 68
+  },
+  {
+    "file": "packages/ui/src/renderers/preview-modal-shell/react/components/PreviewModalShell.tsx",
+    "function": "PreviewModalShell",
+    "line": 69,
+    "rule": "max-lines-per-function",
+    "value": 73
+  },
+  {
+    "file": "packages/ui/src/renderers/preview-modal-shell/react/components/PreviewModalShell.tsx",
+    "function": "ShellStage",
+    "line": 201,
+    "rule": "max-lines-per-function",
+    "value": 53
+  },
+  {
+    "file": "packages/ui/src/renderers/preview-modal-shell/react/hooks/usePreviewModalShell.ts",
+    "function": "usePreviewModalShell",
+    "line": 49,
+    "rule": "max-lines-per-function",
+    "value": 141
+  },
+  {
+    "file": "packages/ui/src/renderers/sandbox-scripts.ts",
+    "function": "buildStorageScript",
+    "line": 29,
+    "rule": "max-lines-per-function",
+    "value": 64
+  },
+  {
+    "file": "packages/ui/src/utils/zip.ts",
+    "function": "buildZip",
+    "line": 53,
+    "rule": "max-lines-per-function",
+    "value": 79
+  },
+  {
+    "file": "packages/user-management/src/admin/adapters/memory.ts",
+    "function": "createMemoryRolesApi",
+    "line": 33,
+    "rule": "max-lines-per-function",
+    "value": 99
+  },
+  {
+    "file": "packages/user-management/src/admin/adapters/memory.ts",
+    "function": "createMemoryUsersApi",
+    "line": 154,
+    "rule": "max-lines-per-function",
+    "value": 87
+  },
+  {
+    "file": "packages/user-management/src/admin/conformance/index.ts",
+    "function": "runRolesApiConformance",
+    "line": 11,
+    "rule": "max-lines-per-function",
+    "value": 62
+  },
+  {
+    "file": "packages/user-management/src/admin/controllers/members.controller.ts",
+    "function": "createMembersController",
+    "line": 8,
+    "rule": "max-lines-per-function",
+    "value": 120
+  },
+  {
+    "file": "packages/user-management/src/admin/controllers/roles.controller.ts",
+    "function": "createRolesController",
+    "line": 15,
+    "rule": "max-lines-per-function",
+    "value": 327
+  },
+  {
+    "file": "packages/user-management/src/admin/controllers/users.controller.ts",
+    "function": "createUsersController",
+    "line": 18,
+    "rule": "max-lines-per-function",
+    "value": 165
+  },
+  {
+    "file": "packages/user-management/src/react/members/hooks/use-members.hooks.ts",
+    "function": "useMembers",
+    "line": 92,
+    "rule": "max-lines-per-function",
+    "value": 109
+  },
+  {
+    "file": "packages/user-management/src/react/members/Members.tsx",
+    "function": "MemberRow",
+    "line": 93,
+    "rule": "max-lines-per-function",
+    "value": 67
+  },
+  {
+    "file": "packages/user-management/src/react/members/Members.tsx",
+    "function": "Members",
+    "line": 161,
+    "rule": "max-lines-per-function",
+    "value": 96
+  },
+  {
+    "file": "packages/user-management/src/react/testing.ts",
+    "function": "createFakeUsersPort",
+    "line": 64,
+    "rule": "max-lines-per-function",
+    "value": 80
+  },
+  {
+    "file": "packages/user-management/src/react/testing.ts",
+    "function": "createFakeRolesPort",
+    "line": 199,
+    "rule": "max-lines-per-function",
+    "value": 107
+  },
+  {
+    "file": "packages/user-management/src/react/users/hooks/use-users.hooks.ts",
+    "function": "useUsers",
+    "line": 300,
+    "rule": "max-lines-per-function",
+    "value": 296
+  },
+  {
+    "file": "packages/user-management/src/react/users/Users.tsx",
+    "function": "NewUserForm",
+    "line": 112,
+    "rule": "max-lines-per-function",
+    "value": 54
+  },
+  {
+    "file": "packages/user-management/src/react/users/Users.tsx",
+    "function": "UserManagePanel",
+    "line": 282,
+    "rule": "max-lines-per-function",
+    "value": 55
+  },
+  {
+    "file": "packages/user-management/src/react/users/Users.tsx",
+    "function": "UsersTable",
+    "line": 425,
+    "rule": "max-lines-per-function",
+    "value": 65
+  },
+  {
+    "file": "packages/user-management/src/react/users/Users.tsx",
+    "function": "UserResetPasswordDialog",
+    "line": 652,
+    "rule": "max-lines-per-function",
+    "value": 71
+  },
+  {
+    "file": "packages/user-management/src/react/users/Users.tsx",
+    "function": "<file>",
+    "line": 696,
+    "rule": "max-lines",
+    "value": 726
+  },
+  {
+    "file": "packages/user-management/src/react/users/Users.tsx",
+    "function": "Users",
+    "line": 826,
+    "rule": "max-lines-per-function",
+    "value": 127
+  },
+  {
+    "file": "packages/user-management/src/server/admin-crud-service.ts",
+    "function": "resetUserPassword",
+    "line": 328,
+    "rule": "max-lines-per-function",
+    "value": 54
+  },
+  {
+    "file": "packages/user-management/src/server/agent-tool-registrations.ts",
+    "function": "buildIdentityRegistrations",
+    "line": 344,
+    "rule": "max-lines-per-function",
+    "value": 186
+  },
+  {
+    "file": "packages/user-management/src/server/grant-service.ts",
+    "function": "assignRole",
+    "line": 387,
+    "rule": "max-lines-per-function",
+    "value": 58
+  },
+  {
+    "file": "packages/user-management/src/server/grant-service.ts",
+    "function": "attachPolicy",
+    "line": 465,
+    "rule": "max-lines-per-function",
+    "value": 53
+  },
+  {
+    "file": "packages/user-management/src/server/repo.memory-transactions.ts",
+    "function": "createTransactionalInMemoryIdentityRepos",
+    "line": 12,
+    "rule": "max-lines-per-function",
+    "value": 65
+  },
+  {
+    "file": "packages/vibecoding/src/core/history.ts",
+    "function": "createEditHistory",
+    "line": 165,
+    "rule": "max-lines-per-function",
+    "value": 94
+  },
+  {
+    "file": "packages/vibecoding/src/core/session.ts",
+    "function": "createVibecodingSession",
+    "line": 111,
+    "rule": "max-lines-per-function",
+    "value": 126
+  },
+  {
+    "file": "packages/vibecoding/src/html/regions.ts",
+    "function": "createHtmlRegionTarget",
+    "line": 186,
+    "rule": "max-lines-per-function",
+    "value": 86
+  },
+  {
+    "file": "packages/vibecoding/src/node/project.ts",
+    "function": "assembleProject",
+    "line": 139,
+    "rule": "max-lines-per-function",
+    "value": 181
+  },
+  {
+    "file": "packages/vibecoding/src/node/store.ts",
+    "function": "createProjectStore",
+    "line": 178,
+    "rule": "max-lines-per-function",
+    "value": 246
+  },
+  {
+    "file": "packages/vibecoding/src/react/components/VibecodingWorkbench.tsx",
+    "function": "VibecodingWorkbench",
+    "line": 82,
+    "rule": "max-lines-per-function",
+    "value": 55
+  },
+  {
+    "file": "packages/vibecoding/src/tools.ts",
+    "function": "buildVibecodingToolDefinitions",
+    "line": 158,
+    "rule": "max-lines-per-function",
+    "value": 69
+  }
+]

@@ -1,0 +1,21 @@
+{
+  "_comment": "Owner-approved size exceptions, 2026-11-13. Add entries only with an owner-approved reason.",
+  "limits": {
+    "fileLines": 500,
+    "functionLines": 50
+  },
+  "pathExclusions": [
+    { "repo": "*", "pattern": "\\.generated\\.(ts|tsx|js|mjs)$", "reason": "Generated code: regenerate it rather than splitting it by hand." },
+    { "repo": "*", "pattern": "(^|/)migrations/", "reason": "Migrations are immutable once applied." }
+  ],
+  "entries": [
+    { "repo": "jini", "file": "packages/chat/src/react/features/chat-pane/styles.ts", "reason": "Stylesheet: CSS in one template string, no logic." },
+    { "repo": "jini", "file": "packages/ui/src/features/mcp-ui/surfaces/form.ts", "function": "formScript", "reason": "Inline browser script in one template string." },
+    { "repo": "jini", "file": "packages/ui/src/features/mcp-ui/surfaces/confirmation.ts", "function": "confirmationScript", "reason": "Inline browser script in one template string." },
+    { "repo": "jini", "file": "packages/ui/src/features/mcp-ui/surfaces/bridge.ts", "function": "renderBridgeScript", "reason": "Inline browser script in one template string." },
+    { "repo": "jini", "file": "packages/provider-plugins/src/analytics-posthog/browser.ts", "function": "postHogBrowserContribution", "reason": "Inline browser script in one template string." },
+    { "repo": "jini", "file": "packages/agentic/src/core/annotated-actions-script.ts", "function": "createAnnotatedActionsScript", "reason": "Inline browser script in one template string." },
+    { "repo": "jini", "file": "packages/analytics/src/product/browser.ts", "function": "renderBrowserAnalytics", "reason": "Inline browser script in one template string." },
+    { "repo": "jini", "file": "packages/db/src/tools/database-catalog.ts", "function": "getDatabaseAgentToolCatalog", "reason": "Registration list: agent tool catalog entries." }
+  ]
+}

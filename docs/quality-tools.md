@@ -79,6 +79,19 @@ introduced across packages with different tsconfig include boundaries here.
 The initial rollout ran no scanners or tests; see the dated Sonar triage below for
 subsequent measurements. Installs and builds remain outside that triage.
 
+## Size gate
+
+`pnpm check:size` blocks production functions above 50 lines and files above 500,
+excluding blank lines and comments. Tests, fixtures, stories, generated files,
+bundles, declarations and migration folders are outside the scan.
+Existing violations live in `scripts/size-debt.json`, keyed by file, qualified
+function name and rule; line numbers are diagnostic. New or larger violations fail.
+Lower an entry's value when it improves and remove it when the violation passes;
+CI also prevents adding debt or increasing allowances relative to the base commit.
+Permanent exceptions belong in `scripts/size-exceptions.json`, separate from debt.
+Only add one with owner approval and a reason: supply `file` and, for a function,
+its qualified `function` name; omit `function` for an approved whole-file exception.
+
 ## Sonar triage — 2026-10-20
 
 The initial report had 5,346 warnings across 2,889 files, including 85 entries labeled

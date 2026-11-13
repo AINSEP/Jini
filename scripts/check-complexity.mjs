@@ -13,6 +13,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const debtFile = 'scripts/complexity-debt.json';
 const rules = ['complexity', 'sonarjs/cognitive-complexity'];
 const threshold = 10;
+const limits = Object.fromEntries(rules.map(rule => [rule, threshold]));
 
 function functionLabel(node, source) {
   if (ts.isConstructorDeclaration(node)) return 'constructor';
@@ -27,7 +28,7 @@ function functionLabel(node, source) {
 }
 
 /** Index function ranges and their lexical names once per file, in O(nodes) time and space. */
-function functionRanges(source) {
+export function functionRanges(source) {
   const ranges = [];
   const counts = new Map();
   function visit(node, parents) {
@@ -106,13 +107,13 @@ function key(violation) {
   return JSON.stringify([violation.file, violation.function, violation.rule]);
 }
 
-function index(records, source) {
+function index(records, source, ruleLimits) {
   if (!Array.isArray(records)) throw new Error(`${source} must contain an array of violations`);
   const map = new Map();
   for (const record of records) {
     if (typeof record.file !== 'string' || !record.file || typeof record.function !== 'string' || !record.function ||
-        !rules.includes(record.rule) || !Number.isInteger(record.line) || record.line < 1 ||
-        !Number.isInteger(record.value) || record.value <= threshold) {
+        !Object.hasOwn(ruleLimits, record.rule) || !Number.isInteger(record.line) || record.line < 1 ||
+        !Number.isInteger(record.value) || record.value <= ruleLimits[record.rule]) {
       throw new Error(`Invalid violation in ${source}: ${JSON.stringify(record)}`);
     }
     const identity = key(record);
@@ -123,9 +124,9 @@ function index(records, source) {
 }
 
 /** Compare actual violations with permitted values; duplicates cannot share an allowance. */
-export function compareDebt(debt, current) {
-  const allowed = index(debt, debtFile);
-  const actual = index(current, 'ESLint output');
+export function compareDebt(debt, current, ruleLimits = limits) {
+  const allowed = index(debt, 'debt list', ruleLimits);
+  const actual = index(current, 'ESLint output', ruleLimits);
   const added = [];
   const worsened = [];
   const improved = [];
@@ -147,19 +148,18 @@ function git(args) {
 }
 
 /** Compare debt to the trusted base so editing the JSON cannot increase allowances. */
-function baseDebt() {
-  let ref = process.env.COMPLEXITY_BASE_REF || 'HEAD';
+export function baseDebt(file = debtFile, baseRef = process.env.COMPLEXITY_BASE_REF, firstCommit = process.env.COMPLEXITY_FIRST_PUSH_COMMIT) {
+  let ref = baseRef || 'HEAD';
   if (/^0+$/.test(ref)) {
-    const firstCommit = process.env.COMPLEXITY_FIRST_PUSH_COMMIT;
     ref = firstCommit ? `${firstCommit}^` : 'HEAD^';
   }
   const commit = git(['rev-parse', '--verify', `${ref}^{commit}`]);
-  if (commit.status !== 0) throw new Error(`Cannot resolve complexity base ${ref}: ${commit.stderr.trim()}`);
-  const listing = git(['ls-tree', '-r', '--name-only', commit.stdout.trim(), '--', debtFile]);
-  if (listing.status !== 0) throw new Error(`Cannot inspect complexity base: ${listing.stderr.trim()}`);
+  if (commit.status !== 0) throw new Error(`Cannot resolve debt base ${ref}: ${commit.stderr.trim()}`);
+  const listing = git(['ls-tree', '-r', '--name-only', commit.stdout.trim(), '--', file]);
+  if (listing.status !== 0) throw new Error(`Cannot inspect debt base: ${listing.stderr.trim()}`);
   if (!listing.stdout.trim()) return null; // Initial adoption creates the first baseline.
-  const show = git(['show', `${commit.stdout.trim()}:${debtFile}`]);
-  if (show.status !== 0) throw new Error(`Cannot read complexity base: ${show.stderr.trim()}`);
+  const show = git(['show', `${commit.stdout.trim()}:${file}`]);
+  if (show.status !== 0) throw new Error(`Cannot read debt base: ${show.stderr.trim()}`);
   return JSON.parse(show.stdout);
 }
 
