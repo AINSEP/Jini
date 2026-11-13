@@ -15,6 +15,17 @@ function invalidIdentity({ session, mode }: { session: Record<string, unknown>; 
   return session.object !== "checkout.session" || session.mode !== "payment" || session.livemode !== (mode === "live");
 }
 
+/** Classifies a completed session without inferring failure from an unexpanded intent. O(1) time/space. */
+function completedSessionStatus(
+  { session }: { session: Record<string, unknown> }, _optional: Record<string, never> = {}
+): ProviderPaymentStatus | null {
+  if (session.payment_status === "paid") return "succeeded";
+  if (session.payment_status !== "unpaid") return null;
+  // An id-only PI says nothing about failure; only an expanded retrieval can establish it.
+  const pi = record({ value: session.payment_intent });
+  return FAILED_PI_STATUSES.has(pi.status) ? "failed" : "pending";
+}
+
 /** Maps provider facts without treating delayed payment completion as success. O(1) time/space. */
 function sessionStatus(
   { session, eventType }: { session: Record<string, unknown>; eventType: string | undefined }, _optional: Record<string, never> = {}
@@ -24,11 +35,7 @@ function sessionStatus(
   if (session.status === "open") return "requires_action";
   if (session.status === "expired") return "canceled";
   if (session.status !== "complete") return null;
-  if (session.payment_status === "paid") return "succeeded";
-  if (session.payment_status !== "unpaid") return null;
-  // An id-only PI says nothing about failure; only an expanded retrieval can establish it.
-  const pi = record({ value: session.payment_intent });
-  return FAILED_PI_STATUSES.has(pi.status) ? "failed" : "pending";
+  return completedSessionStatus({ session });
 }
 
 /** Translates an owned Checkout session, preserving incomplete facts for worker retrieval.

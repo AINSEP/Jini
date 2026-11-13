@@ -36,6 +36,15 @@ export async function createCheckoutSession(
   if (form === null) return { kind: "rejected", error: paymentError({ code: "CURRENCY_UNSUPPORTED", message: "unsupported checkout currency or amount" }) };
   const result = await stripeRequest({ ctx, method: "POST", path: "/v1/checkout/sessions" }, { form, idempotencyKey: req.idempotencyKey });
   if (result.kind !== "ok") return result;
+  return checkoutSessionOutcome({ req, result });
+}
+
+/** Validates the response before exposing a redirect; incomplete fields remain unknown.
+ * O(n) time/space in response currency length, with no I/O. */
+function checkoutSessionOutcome(
+  { req, result }: { req: IntentRequest; result: Extract<Outcome<Readonly<Record<string, unknown>>>, { kind: "ok" }> },
+  _optional: Record<string, never> = {}
+): Outcome<{ evidence: PaymentEvidence; next: NextAction }> {
   const { id, url, amount_total, currency } = result.value;
   // A session may already exist: never report a missing response field as proof no money moved.
   if (typeof id !== "string" || id.length === 0 || typeof url !== "string" || url.length === 0) return {

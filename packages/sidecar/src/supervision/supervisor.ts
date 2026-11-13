@@ -159,11 +159,20 @@ export function createDaemonSupervisor(deps: DaemonSupervisorRequired, options: 
     return discoveryWork;
   }
 
-  function ensureReady(_required: Record<string, never>, { signal }: { signal?: AbortSignal } = {}): Promise<void> {
+  /** Return immediate readiness outcomes before starting or joining discovery. O(1) time/space. */
+  function readinessPreflight(
+    { signal }: { signal: AbortSignal | undefined }, _optional: Record<string, never> = {}
+  ): Promise<void> | undefined {
     if (signal?.aborted) return Promise.reject(signal.reason);
     if (terminating) return Promise.reject(new Error("shutting down"));
     if (isReady()) return Promise.resolve();
     if (!deps.readiness) return Promise.reject(new Error("readiness port is not configured"));
+    return undefined;
+  }
+
+  function ensureReady(_required: Record<string, never>, { signal }: { signal?: AbortSignal } = {}): Promise<void> {
+    const preflight = readinessPreflight({ signal });
+    if (preflight !== undefined) return preflight;
     // A shared discovery may already exist; this demand still has to request replacement after
     // the retiring child exits. Reuse that discovery rather than canceling its current waiters.
     if (current?.parking) supervisor.ensureStarted();
