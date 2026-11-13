@@ -18,6 +18,12 @@ export function resolveAgentPluginIdentityNamespace(
   // The legacy key names the same portable metadata, so a declared canonical `jini` copy wins.
   if (identityNamespace === 'tovu' && isObject(value) && isObject(value.extensions) && Object.hasOwn(value.extensions, 'jini')) return 'jini';
   if (identityNamespace !== undefined) return identityNamespace;
+  return defaultIdentityNamespace({ value });
+}
+
+/** The namespace a manifest selects when the host requested none: `jini` unless only the legacy key is present.
+ * @complexity O(1) time and space; no I/O or manifest mutation. */
+function defaultIdentityNamespace({ value }: { readonly value: unknown }, _optional = {}): string {
   if (!isObject(value) || !isObject(value.extensions)) return 'jini';
   const extensions = value.extensions;
   if (Object.hasOwn(extensions, 'jini')) return 'jini';

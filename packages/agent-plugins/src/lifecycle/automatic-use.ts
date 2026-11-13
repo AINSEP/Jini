@@ -81,11 +81,22 @@ export function readChatAgentPluginState({ value }: { value: unknown }, _options
   const empty = { decision: null, excluded: [] };
   if (!value || typeof value !== 'object') return empty;
   const record = value as Record<string, unknown>;
-  const ids = (raw: unknown): raw is string[] => Array.isArray(raw) && raw.every(id => typeof id === 'string' && id.length > 0 && id.length <= 160);
   if (!ids(record.excluded)) return empty;
-  const decision = record.decision as { selected?: unknown; asked?: unknown; delivered?: unknown } | null;
+  const decision = record.decision as SavedDecision | null;
   if (decision !== null && (!decision || !ids(decision.selected))) return empty;
-  return { decision: decision ? { selected: [...new Set(decision.selected as string[])], ...(typeof decision.asked === 'boolean' ? { asked: decision.asked } : {}), ...(ids(decision.delivered) ? { delivered: [...new Set(decision.delivered)] } : {}) } : null, excluded: [...new Set(record.excluded)] };
+  return { decision: decision ? copyDecision({ decision }) : null, excluded: [...new Set(record.excluded)] };
+}
+
+type SavedDecision = { selected?: unknown; asked?: unknown; delivered?: unknown };
+
+/** A saved id list: non-empty strings of at most 160 characters. O(n). */
+function ids(raw: unknown): raw is string[] {
+  return Array.isArray(raw) && raw.every(id => typeof id === 'string' && id.length > 0 && id.length <= 160);
+}
+
+/** Copy a decision whose `selected` list was already validated, keeping only well-formed optional fields. O(n). */
+function copyDecision({ decision }: { decision: SavedDecision }, _options = {}): NonNullable<ChatAgentPluginState['decision']> {
+  return { selected: [...new Set(decision.selected as string[])], ...(typeof decision.asked === 'boolean' ? { asked: decision.asked } : {}), ...(ids(decision.delivered) ? { delivered: [...new Set(decision.delivered)] } : {}) };
 }
 
 /** Create one run's preparation owner. Calls serialize so parallel tool writes share one question.
@@ -195,22 +206,34 @@ export function createAutomaticAgentPluginUse(
     const catalog = (await ports.list({}, {})).filter(plugin => !state.excluded.includes(plugin.pluginId));
     const candidates = catalog.filter(plugin => plugin.enabled);
     for (const id of alreadyLoaded) if (!candidates.some(plugin => plugin.pluginId === id)) alreadyLoaded.delete(id);
-    const ranked = rankCandidates({ candidates, input, ports });
-    // Owner decision 2026-10-18: no per-chat plugin count; the relevance threshold and vendor gate decide.
-    const relevant = ranked.filter(plugin => !delivered.has(plugin.pluginId) && !input.loaded?.includes(plugin.pluginId) && (!alreadyLoaded.has(plugin.pluginId) || !!input.query));
-    const matches = await applyConsent({ matches: relevant }, { signal: input.signal });
-    const shouldLoad = !!input.capabilities?.length;
-    const primary = input.maxPromptArgBytes === undefined && input.query && !input.loaded?.length && !alreadyLoaded.has(matches[0]?.pluginId ?? '') ? matches.slice(0, 1) : [];
-    const result = shouldLoad ? (await resolveGuidance({ matches }, { signal: input.signal })).join('\n\n') : [
-      ...(await resolveGuidance({ matches: primary, primaryId: primary[0]?.pluginId }, { signal: input.signal })),
-      relevantPluginNote({ matches: matches.slice(primary.length), formatPluginToolPointer: ports.formatPluginToolPointer }),
-    ].filter(Boolean).join('\n\n');
+    const matches = await consentedMatches({ candidates, input });
+    const result = await preparedGuidance({ matches, input });
     rememberDelivery();
     await publishUsage();
     // Preflight never resolves off packages implicitly. A catalog line offers an explicit read;
     // its setup guidance may explain whether enabling or credentials are needed.
     const off = offPluginNote({ catalog, input });
     return [result, off].filter(Boolean).join('\n\n');
+  }
+  /** Rank enabled candidates, drop plugins this run already has, then apply the person's consent. */
+  async function consentedMatches({ candidates, input }: { candidates: readonly AgentPluginSearchCandidate[]; input: PrepareInput }, _options = {}): Promise<AgentPluginSearchMatch[]> {
+    const ranked = rankCandidates({ candidates, input, ports });
+    // Owner decision 2026-10-18: no per-chat plugin count; the relevance threshold and vendor gate decide.
+    const relevant = ranked.filter(plugin => !delivered.has(plugin.pluginId) && !input.loaded?.includes(plugin.pluginId) && (!alreadyLoaded.has(plugin.pluginId) || !!input.query));
+    return applyConsent({ matches: relevant }, { signal: input.signal });
+  }
+  /** Capability calls resolve every match; a query resolves one primary and notes the rest. */
+  async function preparedGuidance({ matches, input }: { matches: AgentPluginSearchMatch[]; input: PrepareInput }, _options = {}): Promise<string> {
+    const shouldLoad = !!input.capabilities?.length;
+    const primary = primaryMatch({ matches, input });
+    return shouldLoad ? (await resolveGuidance({ matches }, { signal: input.signal })).join('\n\n') : [
+      ...(await resolveGuidance({ matches: primary, primaryId: primary[0]?.pluginId }, { signal: input.signal })),
+      relevantPluginNote({ matches: matches.slice(primary.length), formatPluginToolPointer: ports.formatPluginToolPointer }),
+    ].filter(Boolean).join('\n\n');
+  }
+  /** The single top match a fresh, unbounded query preflight delivers in full; otherwise none. */
+  function primaryMatch({ matches, input }: { matches: AgentPluginSearchMatch[]; input: PrepareInput }, _options = {}): AgentPluginSearchMatch[] {
+    return input.maxPromptArgBytes === undefined && input.query && !input.loaded?.length && !alreadyLoaded.has(matches[0]?.pluginId ?? '') ? matches.slice(0, 1) : [];
   }
   /** Rank readable metadata for off plugins; never load their tools or guidance implicitly. O(p*t). */
   function offPluginNote({ catalog, input }: { catalog: readonly AgentPluginSearchCandidate[]; input: PrepareInput }): string {

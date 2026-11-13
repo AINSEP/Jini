@@ -105,14 +105,22 @@ function checkUrlPropsDeclared({ entry }: { readonly entry: Entry }, _optional =
 
 /** Nothing loads unless named here: own files by contained path, third-party files by declared origin. */
 function checkExternal({ entry }: { readonly entry: Entry }, _optional = {}): string | null {
+  return checkExternalHosts({ entry }) ?? checkUrlPropsDeclared({ entry }) ?? checkScripts({ entry });
+}
+
+/** externalHosts, when present, maps known kinds to exact https origins. */
+function checkExternalHosts({ entry }: { readonly entry: Entry }, _optional = {}): string | null {
   const hosts = entry.externalHosts;
   if (hosts !== undefined && !(isObject(hosts) && Object.entries(hosts).every(([kind, origins]) => HOST_KINDS.includes(kind) && Array.isArray(origins) && origins.every(isHttpsOrigin)))) {
     return 'externalHosts must map script, frame or connect to exact https origins';
   }
-  const urlProps = checkUrlPropsDeclared({ entry });
-  if (urlProps !== null) return urlProps;
+  return null;
+}
+
+/** Scripts are own contained .js files or https URLs on a declared script origin. */
+function checkScripts({ entry }: { readonly entry: Entry }, _optional = {}): string | null {
   if (entry.scripts === undefined) return null;
-  const scriptHosts = (hosts as AgentPluginExportExternalHosts | undefined)?.script ?? [];
+  const scriptHosts = (entry.externalHosts as AgentPluginExportExternalHosts | undefined)?.script ?? [];
   const valid = Array.isArray(entry.scripts) && entry.scripts.every(value => isExportFile({ value, extension: ['.js'] }) || isDeclaredScriptUrl({ value, hosts: scriptHosts }));
   return valid ? null : 'scripts must be contained .js paths or https URLs on externalHosts.script';
 }

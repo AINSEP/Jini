@@ -61,6 +61,15 @@ function isOpaqueSegment(segment: string): boolean {
   return changes / (segment.length - 1) >= 0.4;
 }
 
+/** A long token reads as a secret unless it is pure hex, has no letters, or lacks the entropy of a random key. */
+function isRandomLookingToken({ text }: { readonly text: string }, _options = {}): boolean {
+  if (/^[a-f0-9]+$/i.test(text) || !/[A-Za-z]/.test(text)) return false;
+  const bits = entropy(text);
+  const mixedAlphabet = /[A-Z]/.test(text) && /[a-z]/.test(text);
+  if (bits < 4 || (!/\d/.test(text) && (!mixedAlphabet || bits < 4.5))) return false;
+  return true;
+}
+
 /** Stricter than error redaction: also detects unlabelled long tokens, while retaining ordinary URLs,
  * filesystem paths, hexadecimal hashes, identifiers and prose. Strong credential syntax inside
  * URLs or paths is still caught. */
@@ -94,10 +103,7 @@ export function redactUserText({ text }: { readonly text: string }, { secretFiel
     const location = locations.find(span => offset >= span.start && offset + candidate.length <= span.end);
     // A key glued straight onto a path (/proj/KEY) is still checked; URLs keep their opaque ids.
     if (location && (location.url || !candidate.split(/[\\/]/).some(isOpaqueSegment))) return candidate;
-    if (/^[a-f0-9]+$/i.test(candidate) || !/[A-Za-z]/.test(candidate)) return candidate;
-    const bits = entropy(candidate);
-    const mixedAlphabet = /[A-Z]/.test(candidate) && /[a-z]/.test(candidate);
-    if (bits < 4 || (!/\d/.test(candidate) && (!mixedAlphabet || bits < 4.5))) return candidate;
+    if (!isRandomLookingToken({ text: candidate })) return candidate;
     count += 1;
     return INTERNAL_REMOVED;
   });
