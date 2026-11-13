@@ -550,6 +550,21 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
     return emitSurface !== undefined ? { emitSurface } : {};
   }
 
+  /** The message a nested call's caller sees for a result that did not complete. */
+  function nestedFailureMessage(
+    { result, toolId, run, principal }: { result: ToolExecutionResult; toolId: string; run: RunRef; principal: Principal },
+    _optional = {},
+  ): string {
+    // `failed` results always carry `error` (and only they carry `errorKind`); the bare terminal
+    // statuses carry none, so they are named by tool id and status instead.
+    // Use the host's secret-only redaction and error id when supplied. Otherwise withhold
+    // internal paths or SQL before a batch copies this message into its results.
+    return result.errorKind === 'internal'
+      ? options.redactNestedFailure?.({ result, toolId, runId: run.id, principalId: principal.id })
+        ?? `${toolId} failed on the server. The cause is withheld because it can contain internal paths; it is in the audit log under execution ${result.executionId}.`
+      : result.error ?? `${toolId}: ${result.status}`;
+  }
+
   /** The handler's `invokeTool` port: a nested call through this same executor and its gates. */
   function nestedInvoker(
     { principal, run, toolId, invocationRegistry, signal }: { principal: Principal; run: RunRef; toolId: string; invocationRegistry: ToolRegistry; signal: AbortSignal },
@@ -559,14 +574,7 @@ export function createToolExecutor(requiredArgs: Pick<CreateToolExecutorOptions,
       const selectedRegistry = nestedToolId === toolId || invocationRegistry.has({ toolId: nestedToolId }) ? invocationRegistry : nestedRegistry;
       const result = await execute({ principal, run, toolId: nestedToolId, input: nestedInput }, { signal, ...surfaceOption(emitSurface), invocationRegistry: selectedRegistry });
       if (result.status === 'completed') return result.output;
-      // `failed` results always carry `error` (and only they carry `errorKind`); the bare terminal
-      // statuses carry none, so they are named by tool id and status instead.
-      // Use the host's secret-only redaction and error id when supplied. Otherwise withhold
-      // internal paths or SQL before a batch copies this message into its results.
-      const message = result.errorKind === 'internal'
-        ? options.redactNestedFailure?.({ result, toolId: nestedToolId, runId: run.id, principalId: principal.id })
-          ?? `${nestedToolId} failed on the server. The cause is withheld because it can contain internal paths; it is in the audit log under execution ${result.executionId}.`
-        : result.error ?? `${nestedToolId}: ${result.status}`;
+      const message = nestedFailureMessage({ result, toolId: nestedToolId, run, principal });
       throw result.errorKind === 'validation' ? new ToolInputError({ message }) : new Error(message);
     };
   }

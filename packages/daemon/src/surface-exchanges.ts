@@ -173,16 +173,20 @@ export function createSurfaceExchangeStore(
         idleDeadline = deps.clock.nowMs() + idleTtlMs;
         cancelIdle = deps.scheduler.schedule({ delayMs: idleTtlMs, callback: () => end({ status: 'expired' }) });
       }
-      // Register only after both timers are installed, so scheduler failure leaves no discoverable exchange.
-      try {
-        if (!leased) cancelLifetime = deps.scheduler.schedule({ delayMs: maxLifetimeMs, callback: () => end({ status: 'expired' }) });
-        armIdle();
-      } catch (error) {
-        // Only the lifetime timer can be live here: `armIdle` is the last statement, and it assigns
-        // `cancelIdle` only once its own `schedule` call has returned, so a throw there leaves it unset.
-        cancelLifetime?.();
-        throw error;
+      /** Install the lifetime and idle timers; a scheduler failure cancels whichever is already live. */
+      function installTimers(): void {
+        try {
+          if (!leased) cancelLifetime = deps.scheduler.schedule({ delayMs: maxLifetimeMs, callback: () => end({ status: 'expired' }) });
+          armIdle();
+        } catch (error) {
+          // Only the lifetime timer can be live here: `armIdle` is the last statement, and it assigns
+          // `cancelIdle` only once its own `schedule` call has returned, so a throw there leaves it unset.
+          cancelLifetime?.();
+          throw error;
+        }
       }
+      // Register only after both timers are installed, so scheduler failure leaves no discoverable exchange.
+      installTimers();
       openExchanges.set(id, {
         binding: { ...binding },
         accept(params) {
