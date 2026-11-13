@@ -8,9 +8,9 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
 import { inspect } from 'node:util';
-import { redactSecrets } from '@jini-ai/core';
+import { redactSecrets, type SecretRedactionPattern } from '@jini-ai/core';
 import type { Server } from '@jini-ai/core/contracts/server';
-import { createRouteTable } from './server-port.js';
+import { createRouteTable, type RouteMatch } from './server-port.js';
 
 /** Optional per-request hints from a host framework that already touched the request. */
 export interface NodeDispatchOptions {
@@ -25,6 +25,26 @@ export interface NodeDispatchOptions {
    * `express.json()` would see an empty body.
    */
   readonly parsedBody?: unknown;
+  /**
+   * Trusted per-request values the host's own code established before this request reached the
+   * dispatcher (Express: `res.locals`, where host authentication put the signed-in principal).
+   * Handlers and middleware get a fresh `locals` seeded with these. Only values the host itself
+   * set belong here, never anything rebuilt from request headers or body: the routes behind the
+   * dispatcher trust them as the host's verdict.
+   */
+  readonly locals?: Readonly<Record<string, unknown>>;
+}
+
+/** Optional settings for {@link createNodeDispatcher}. */
+export interface NodeDispatcherOptions {
+  /** Where a handler failure goes when no `next` was given, and where a failure after the headers were sent always goes (default: redacted, to stderr). */
+  readonly onUnhandledError?: (error: unknown) => void;
+  /**
+   * Extra credential shapes the default stderr sink masks on top of the shared redactor's own.
+   * Jini stays vendor-neutral and knows no host's key formats, so the host injects them (Tovu
+   * passes its API key shape). Ignored when `onUnhandledError` is given: that sink owns redaction.
+   */
+  readonly redactionPatterns?: readonly SecretRedactionPattern[];
 }
 
 export interface NodeDispatcher {
@@ -39,6 +59,28 @@ function consumedBody(parsedBody: unknown): Uint8Array | string | null {
   if (parsedBody instanceof Uint8Array) return new Uint8Array(parsedBody);
   if (typeof parsedBody === 'string') return parsedBody;
   return JSON.stringify(parsedBody);
+}
+
+/**
+ * The request path exactly as received, plus the URL for the web `Request`; `null` when no URL
+ * can be built (a Host header that is not a host, an absolute-form or `*` request target).
+ * Routes match on the raw path, never on a parsed URL's pathname: the URL parser resolves `..`
+ * and would read `//a/b` as host `a` + path `/b`, so it could pick a different route than the
+ * one the host framework's own gates looked at. The URL takes only the origin's scheme and host,
+ * so a Host header carrying a path cannot shift the path either.
+ */
+function requestTarget({ incoming, origin }: { incoming: IncomingMessage; origin: string | undefined }): { pathname: string; url: URL } | null {
+  const target = incoming.url ?? '/';
+  if (!target.startsWith('/')) return null;
+  const pathname = /^[^?#]*/.exec(target)?.[0] ?? target;
+  try {
+    const url = new URL(new URL(origin ?? `http://${incoming.headers.host ?? 'localhost'}`).origin);
+    url.pathname = pathname;
+    url.search = target.slice(pathname.length).split('#')[0] ?? '';
+    return { pathname, url };
+  } catch {
+    return null;
+  }
 }
 
 function toWebRequest({ incoming, url, signal, parsedBody }: { incoming: IncomingMessage; url: URL; signal: AbortSignal; parsedBody: unknown }): Request {
@@ -56,6 +98,42 @@ function toWebRequest({ incoming, url, signal, parsedBody }: { incoming: Incomin
   return new Request(url, init);
 }
 
+const GONE = Symbol('client gone');
+
+/** Settles with {@link GONE} once the client connection is closed (at once if it already is). */
+function clientGone(out: ServerResponse): Promise<typeof GONE> {
+  if (out.destroyed) return Promise.resolve(GONE);
+  return new Promise((resolve) => { out.once('close', () => resolve(GONE)); });
+}
+
+function drained(out: ServerResponse): Promise<void> {
+  return new Promise((resolve) => { out.once('drain', () => resolve()); });
+}
+
+/** Writes chunks until the stream ends (true) or the client leaves (false); waits for `drain` whenever the socket buffer is full. */
+async function copyChunks({ reader, out, gone }: { reader: ReadableStreamDefaultReader<Uint8Array>; out: ServerResponse; gone: Promise<typeof GONE> }): Promise<boolean> {
+  for (;;) {
+    const chunk = await Promise.race([reader.read(), gone]);
+    if (chunk === GONE) return false;
+    if (chunk.done) return true;
+    if (!out.write(chunk.value) && (await Promise.race([drained(out), gone])) === GONE) return false;
+  }
+}
+
+/**
+ * Copies `body` to `out` with backpressure: when the socket buffer is full, reading waits for
+ * `drain`, so a slow or stalled client holds the producer back instead of the stream filling
+ * Node's memory (the producers' own queue ceilings, e.g. SSE, only work if this waits). A client
+ * that leaves cancels the stream so its producer stops. Returns false when the client left.
+ * @throws When the stream itself fails; the caller cuts the connection.
+ */
+async function pipeBody({ body, out }: { body: ReadableStream<Uint8Array>; out: ServerResponse }): Promise<boolean> {
+  const reader = body.getReader();
+  const finished = await copyChunks({ reader, out, gone: clientGone(out) });
+  if (!finished) await reader.cancel().catch(() => undefined);
+  return finished;
+}
+
 async function writeWebResponse({ response, out, headOnly }: { response: Response; out: ServerResponse; headOnly: boolean }): Promise<void> {
   out.statusCode = response.status;
   // Set-Cookie cannot be comma-joined (cookie dates contain commas), so each one gets its own line.
@@ -71,80 +149,98 @@ async function writeWebResponse({ response, out, headOnly }: { response: Respons
   }
   // Headers first, so a streamed (SSE) response reaches the client before its first event.
   out.flushHeaders();
-  const reader = response.body.getReader();
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    out.write(value);
-  }
-  out.end();
+  if (await pipeBody({ body: response.body, out })) out.end();
 }
 
 function plainText({ status, text }: { status: number; text: string }, { headers = {} }: { headers?: Record<string, string> } = {}): Response {
   return new Response(text, { status, headers: { 'content-type': 'text/plain; charset=utf-8', ...headers } });
 }
 
-// Exceptions can echo credentials; inspect keeps stack and code, then the shared redactor runs (as adapter.ts does).
-function writeUnhandledToStderr(error: unknown): void {
-  process.stderr.write(`[@jini-ai/http-kit] route handler failed: ${redactSecrets({ input: inspect(error) }, { redactPii: false })}\n`);
+/** The dispatcher's own answer when no route takes the request (`match` null = no usable URL). */
+function unroutedResponse(match: RouteMatch | null): Response {
+  if (!match) return plainText({ status: 400, text: 'The request address is not valid. Check the URL and the Host header.' });
+  if (match.kind === 'method-not-allowed') return plainText({ status: 405, text: 'Method Not Allowed' }, { headers: { allow: match.allow.join(', ') } });
+  return plainText({ status: 404, text: 'Not Found' });
+}
+
+// Exceptions can echo credentials; inspect keeps stack and code, then the shared redactor runs (as adapter.ts does)
+// with the host's own key shapes added, since only the host knows them.
+function stderrSink(extraPatterns: readonly SecretRedactionPattern[]): (error: unknown) => void {
+  return (error) => {
+    process.stderr.write(`[@jini-ai/http-kit] route handler failed: ${redactSecrets({ input: inspect(error) }, { redactPii: false, extraPatterns })}\n`);
+  };
+}
+
+interface Dispatch {
+  readonly incoming: IncomingMessage;
+  readonly out: ServerResponse;
+  readonly method: string;
+  readonly options: NodeDispatchOptions;
+  readonly onUnhandledError: (error: unknown) => void;
+}
+
+/** Calls the matched route and writes its answer; a handler failure goes to `next(error)` or a plain 500. */
+async function serveRoute({ incoming, out, method, options, onUnhandledError }: Dispatch, { url, match }: { url: URL; match: Extract<RouteMatch, { kind: 'route' }> }): Promise<void> {
+  // A client that hangs up aborts `request.signal`, which is how a handler or stream notices.
+  const abort = new AbortController();
+  const onClose = () => { if (!out.writableFinished) abort.abort(); };
+  out.on('close', onClose);
+  const address = incoming.socket?.remoteAddress;
+  let response: Response;
+  try {
+    const request = toWebRequest({ incoming, url, signal: abort.signal, parsedBody: options.parsedBody });
+    response = await match.route.handler({ request, params: match.params, locals: { ...options.locals }, ...(address ? { client: { address } } : {}) });
+  } catch (error) {
+    out.off('close', onClose);
+    if (options.next) {
+      options.next(error);
+      return;
+    }
+    onUnhandledError(error);
+    await writeWebResponse({ response: plainText({ status: 500, text: 'The server could not finish this request.' }), out, headOnly: false })
+      .catch(() => { out.destroy(); });
+    return;
+  }
+  try {
+    await writeWebResponse({ response, out, headOnly: method === 'HEAD' });
+  } catch (error) {
+    // Headers are already on the wire, so no error page can follow: cut the connection so the
+    // client sees a failed response instead of a silently truncated one.
+    onUnhandledError(error);
+    out.destroy();
+  } finally {
+    out.off('close', onClose);
+  }
 }
 
 /**
  * Creates a dispatcher with an empty route table.
  * @param optional.onUnhandledError - Where a handler failure goes when no `next` was given (default: redacted, to stderr).
+ * @param optional.redactionPatterns - Host key shapes the default stderr sink also masks.
  */
 export function createNodeDispatcher(
   _required: Record<string, never> = {},
-  { onUnhandledError = writeUnhandledToStderr }: { readonly onUnhandledError?: (error: unknown) => void } = {},
+  { onUnhandledError, redactionPatterns = [] }: NodeDispatcherOptions = {},
 ): NodeDispatcher {
   const table = createRouteTable();
+  const report = onUnhandledError ?? stderrSink(redactionPatterns);
+  const dispatch = async (dispatchArgs: Dispatch): Promise<void> => {
+    const target = requestTarget({ incoming: dispatchArgs.incoming, origin: dispatchArgs.options.origin });
+    const match = target ? table.match({ method: dispatchArgs.method, pathname: target.pathname }) : null;
+    if (target && match?.kind === 'route') return serveRoute(dispatchArgs, { url: target.url, match });
+    // Not ours (or no usable URL): the host's own routes and validation decide, as before the dispatcher.
+    if (dispatchArgs.options.next) return dispatchArgs.options.next();
+    return writeWebResponse({ response: unroutedResponse(match), out: dispatchArgs.out, headOnly: dispatchArgs.method === 'HEAD' })
+      .catch(() => { dispatchArgs.out.destroy(); });
+  };
   return {
     server: { route: (route) => table.route(route) },
-    async handle({ incoming, out }, { next, origin, parsedBody } = {}) {
-      const url = new URL(incoming.url ?? '/', origin ?? `http://${incoming.headers.host ?? 'localhost'}`);
-      const method = incoming.method ?? 'GET';
-      const match = table.match({ method, pathname: url.pathname });
-      if (match.kind !== 'route') {
-        if (next) {
-          next();
-          return;
-        }
-        const response = match.kind === 'not-found'
-          ? plainText({ status: 404, text: 'Not Found' })
-          : plainText({ status: 405, text: 'Method Not Allowed' }, { headers: { allow: match.allow.join(', ') } });
-        await writeWebResponse({ response, out, headOnly: method === 'HEAD' }).catch(() => { out.destroy(); });
-        return;
-      }
-      // A client that hangs up aborts `request.signal`, which is how a handler or stream notices.
-      const abort = new AbortController();
-      const onClose = () => { if (!out.writableFinished) abort.abort(); };
-      out.on('close', onClose);
-      const address = incoming.socket?.remoteAddress;
-      let response: Response;
-      try {
-        const request = toWebRequest({ incoming, url, signal: abort.signal, parsedBody });
-        response = await match.route.handler({ request, params: match.params, locals: {}, ...(address ? { client: { address } } : {}) });
-      } catch (error) {
-        out.off('close', onClose);
-        if (next) {
-          next(error);
-          return;
-        }
-        onUnhandledError(error);
-        await writeWebResponse({ response: plainText({ status: 500, text: 'The server could not finish this request.' }), out, headOnly: false })
-          .catch(() => { out.destroy(); });
-        return;
-      }
-      try {
-        await writeWebResponse({ response, out, headOnly: method === 'HEAD' });
-      } catch (error) {
-        // Headers are already on the wire, so no error page can follow: cut the connection so the
-        // client sees a failed response instead of a silently truncated one.
-        onUnhandledError(error);
+    handle({ incoming, out }, options = {}) {
+      // The promise never rejects (the Express adapter discards it): anything left is reported and the connection cut.
+      return dispatch({ incoming, out, method: incoming.method ?? 'GET', options, onUnhandledError: report }).catch((error: unknown) => {
+        report(error);
         out.destroy();
-      } finally {
-        out.off('close', onClose);
-      }
+      });
     },
   };
 }
