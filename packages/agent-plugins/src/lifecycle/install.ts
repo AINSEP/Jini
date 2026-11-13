@@ -26,7 +26,7 @@ import { readPluginIdentity, assertPluginIdentityAvailable } from "@jini-ai/core
  *   bounding bytes actually observed leaving `openReadStream()`, not the archive's own declared
  *   size) and the "many small files" shape (caught by a running total across the whole archive).
  *
- * Why this is a SEPARATE format from the host runtime-plugin format's loader (`plugin-runtime/loader.ts`), not a
+ * Why this is a SEPARATE format from the host runtime-plugin format's loader (`packages/plugins/src/host/node/loader.ts`), not a
  * shared one: verified against that file directly. `loadPlugin()`'s BR-01 pipeline requires
  * `manifest.integrity` (a per-file SHA-256 map), `manifest.sdkRange` checked against a runtime
  * the host plugin SDK version, and a `server/index.mjs` ESM entry point it `import()`s. An Agent Plugin has
@@ -38,7 +38,7 @@ import { readPluginIdentity, assertPluginIdentityAvailable } from "@jini-ai/core
  * feature's own owner-locked decisions (see `CTX-AGENTPLUGINS-2026-08-12.md` F2) rule out.
  *
  * Why the archive itself is a `ArchiveReaderPort`, not a concrete zip/tar library call: this
- * codebase's own port+adapter discipline (`mcp-federation/ports.ts`'s `McpSessionPort`/
+ * codebase's own port+adapter discipline (`packages/mcp/src/federation/ports.ts`'s `McpSessionPort`/
  * `McpStdioChannel` split is the direct precedent) — and, concretely, no zip/tar dependency exists
  * in this repo's `package.json` today. Choosing and vetting one (license, maintenance, streaming
  * support) is a real decision outside a Programmer's scope to make silently; this module declares
@@ -578,7 +578,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
  * this slice, since MCP execution is out of scope for v1, but the bit is preserved now rather than
  * silently dropped for whenever it is).
  *
- * Stated plainly rather than implied (`mcp-federation/trust.ts`'s own "what this tier deliberately
+ * Stated plainly rather than implied (`packages/mcp/src/federation/trust.ts`'s own "what this tier deliberately
  * does NOT claim" discipline): this is best-effort defense against an ACCIDENTAL same-process write
  * into what is supposed to be a read-only `PLUGIN_ROOT`, not a security boundary against a
  * determined attacker already running code as this same OS user — that user can `chmod` again. */

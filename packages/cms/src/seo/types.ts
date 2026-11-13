@@ -15,7 +15,7 @@
  *    the bespoke `posts.seo_ext_json` column (state.spec.md §0), not a
  *    generic ext-bag with a content-type field registry.
  *  - `HeadElement`/`HeadElementKey`/`PageHeadContext`/`PageHeadEntryRef` live
- *    canonically in `src/server/http/site/page-head.ts` (ADR-PIPE-008
+ *    canonically in `Tovu apps/website/src/server/inbound/public-http/http/site/page-head.ts` (ADR-PIPE-008
  *    Decision §2 — the render seam is core-owned, not SEO-owned); as of
  *    2026-08-20 (RouteDeps-narrowing pass 3) this file holds a structural
  *    DUPLICATE of them, not a re-export — see the block comment just above
@@ -25,7 +25,7 @@ import type { ISODateTime, JsonObject, UUID } from "@jini-ai/core/primitives";
 
 
 /**
- * Structural duplicate of `server/http/site/page-head.ts`'s `HeadElement`/`HeadElementKey`/
+ * Structural duplicate of `Tovu apps/website/src/server/inbound/public-http/http/site/page-head.ts`'s `HeadElement`/`HeadElementKey`/
  * `JsonLd`/`PageHeadContext`/`PageHeadEntryRef`/`PageHeadHook` — NOT a re-export, as of the
  * 2026-08-20 RouteDeps-narrowing pass 3 (`check:architecture`'s `backEdgesIntoServer` metric counts
  * a type-only `export type {...} from ".../server/..."` re-export as a real graph edge, same as any

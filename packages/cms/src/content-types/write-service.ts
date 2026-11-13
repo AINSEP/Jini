@@ -42,7 +42,7 @@ import { type ActorIdentityInput, type ActorPrincipalKind, type ContentTypeField
  * How it relates to the project:
  * `deps.watermark` and the actor-identity delegation fields
  * (`delegatedByWorkspaceId`/`delegatedById`) are both optional/additive — every
- * pre-existing call site that omits them is unaffected; `watermark-stamping.integration.test.ts`
+ * pre-existing call site that omits them is unaffected; `packages/cms/src/content-types/__tests__/watermark-stamping.test.ts`
  * exercises both.
  *
  * Architectural role:

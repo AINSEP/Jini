@@ -1,6 +1,6 @@
 /** @agent-note Node entry: values for hosted MCP connections. Types come from `@jini-ai/core/contracts/hosted-mcp`; the host wires these values into its store, plugin and sign-in seams. No other Jini package is imported. */
 /**
- * Both transports are federated. `stdio` is served by `../adapter.stdio.ts` (a local
+ * Both transports are federated. `stdio` is served by `packages/mcp/src/federation/stdio/adapter.stdio.ts` (a local
  * child process); `streamable_http` by `../adapter.http.ts` (a hosted endpoint, with a
  * bearer header when the row is OAuth- or access-token-authenticated — see `resolveHttpTarget`).
  * {@link readEnabledExternalMcpConfigs} resolves a hosted row to a `streamable_http` target,

@@ -368,7 +368,7 @@ export interface ResolveHtmlPageEmbedsDeps extends WidgetInstanceResolutionDeps 
    * Video/embed capability (2026-08-24) — optional, same "degrade gracefully when absent" contract
    * `mediaRepo`/`transformRepo` already have. When present, {@link resolveMediaTypeEmbeds} uses it
    * to tell a video asset from an image one (keyed by `MediaRecord.source.sha256`, the same key
-   * `routes/admin/media/upload.ts` already records under). Absent (every pre-existing call site
+   * `Tovu apps/website/src/server/inbound/admin-http/routes/media/upload.ts` already records under). Absent (every pre-existing call site
    * before this feature, and any future one that never touches media) means every asset resolves as
    * an image exactly as it always has — this is additive, not a behavior change for images.
    */
@@ -382,7 +382,7 @@ export interface ResolveHtmlPageEmbedsDeps extends WidgetInstanceResolutionDeps 
   /**
    * Template-preview pending-body fix (2026-08-12) — an explicitly-passed, per-call override for
    * exactly one entity id's content, consulted ONLY by {@link resolveContentTypeEmbeds}. Lets
-   * `routes/admin/posts/template-preview.ts` preview the operator's unsaved, in-editor `bodyJson`
+   * `Tovu apps/website/src/server/inbound/admin-http/routes/posts/template-preview.ts` preview the operator's unsaved, in-editor `bodyJson`
    * through the real render pipeline: without this, the current entity's own `{"type":"content"}`
    * slot (`injectCurrentEntityContentId`) always re-fetches by id via {@link findPublishedPostById},
    * which returns the last-SAVED row and silently discards any in-memory override the caller built
@@ -588,7 +588,7 @@ async function resolveFormTypeEmbeds(
  * MIME TYPE. `MediaRecord` (`@jini-ai/cms/media`) still has no mime/contentType field of its own —
  * that remains an upstream `@jini-ai/cms` gap, not fixed here — but this host now has a
  * host-owned side channel for it: `mediaContentTypeStore` (`media/content-type-store.ts`), keyed by
- * `record.source.sha256`, already populated at upload time (`routes/admin/media/upload.ts`) for the
+ * `record.source.sha256`, already populated at upload time (`Tovu apps/website/src/server/inbound/admin-http/routes/media/upload.ts`) for the
  * admin Media screen's own Images/Videos filter. When present and it knows the asset's type as
  * `video/*`, this resolver now skips the image-transform lookup entirely and resolves a `video`-kind
  * IR instead — `render.ts`'s `renderWidgetMediaImage` branches on it. Everything else (no store
@@ -1043,7 +1043,7 @@ async function findPublishedPostByRef(
  * authoritative when both are present).
  *
  * Returns RAW post data (title/bodyJson/updatedAt/slug), not rendered HTML — this file (`widgets/`)
- * must not depend on `server/http/site/render.ts` (that module sits above this one in the codebase's
+ * must not depend on `Tovu apps/website/src/server/inbound/public-http/http/site/render.ts` (that module sits above this one in the codebase's
  * layering, the same constraint `resolveMediaTypeEmbeds`'s own doc discloses for why it returns
  * `{assetId, transformName, ...}` instead of an `<img>` string). `render.ts`'s `renderWidgetIr`
  * `"post-content"` case (which already has `renderDocNode` in scope) does the actual TipTap-to-HTML
@@ -1220,7 +1220,7 @@ async function resolveOneContentEmbed({ ref, deps, context, resolved }: {
  *
  * `pendingContentOverride` (2026-08-12; slug matching added S3 2026-09-23) bypasses this specific
  * `findPublishedPostByRef` call, but NOT the visibility guard's intent: it only ever matches ONE
- * row — the exact one `routes/admin/posts/template-preview.ts` already fetched (any status, but
+ * row — the exact one `Tovu apps/website/src/server/inbound/admin-http/routes/posts/template-preview.ts` already fetched (any status, but
  * through its own `content.read`-authorized, session-gated lookup) and is previewing back to the
  * SAME authenticated operator who owns that unsaved edit. It matches by `id` when the ref carries
  * one (never falling through to `slug` for that same ref — the identical authoritative-when-present
@@ -1321,7 +1321,7 @@ export const HTML_EMBED_RESOLVERS: Readonly<Record<string, HtmlEmbedResolver>> =
 } satisfies Record<PageEmbedType, HtmlEmbedResolver>;
 
 /**
- * Marker types that exist in the shared `data-embed-config` vocabulary (`core/embeds/marker.ts`) but
+ * Marker types that exist in the shared `data-embed-config` vocabulary (`packages/cms/src/widgets/markers/marker.ts`) but
  * are deliberately absent from {@link HTML_EMBED_RESOLVERS} — a theme's own structural markers, owned
  * end-to-end by `features/theme/static-render.ts`'s `resolveSlots` (`"partial"`) and
  * `injectMenuEmbeds` (`"menu"`), which run AFTER this stage on every static-tier page render
@@ -1354,21 +1354,21 @@ export const HTML_EMBED_RESOLVERS: Readonly<Record<string, HtmlEmbedResolver>> =
  * the two it shouldn't fire for. This set names the missing fact directly instead. It intentionally
  * duplicates `static-render.ts`'s own `marker.type !== "menu"`/`!== "partial"` literals rather than
  * importing them (that file is a different feature's territory in this change's dispatch) — the real
- * fix, hoisting a shared constant into `core/embeds/marker.ts` for both files to import, is proposed but
+ * fix, hoisting a shared constant into `packages/cms/src/widgets/markers/marker.ts` for both files to import, is proposed but
  * not yet authorized; see `ADS-memory/reports/2026-08-16-embed-placeholder-gap.md`'s "Reuse decision"
  * section. Keep this set's members in sync with those two literals, not with `isPageEmbedType`.
  *
  * `"post-previews"` (2026-09-03) joins the set for the identical reason: it is resolved by
  * `static-render.ts`'s `injectPostPreviewsEmbeds`, AFTER this stage, on every static-tier page
  * render that reaches `renderStaticPage` — same duplicated-literal debt as the other two entries
- * (see `POST_PREVIEWS_MARKER_TYPE`, `core/embeds/marker.ts`), not yet hoisted for the same reason.
+ * (see `POST_PREVIEWS_MARKER_TYPE`, `packages/cms/src/widgets/markers/marker.ts`), not yet hoisted for the same reason.
  *
  * `"collection"` (2026-09-23) joins the set for the identical reason: it is resolved by
  * `static-render.ts`'s `injectCollectionEmbeds`, AFTER this stage — same duplicated-literal debt as
- * the other three entries (see `COLLECTION_MARKER_TYPE`, `core/embeds/marker.ts`).
+ * the other three entries (see `COLLECTION_MARKER_TYPE`, `packages/cms/src/widgets/markers/marker.ts`).
  *
  * `"featured-image"` (2026-10-05) joins for the identical reason: `static-render.ts`'s
- * `injectFeaturedImage` resolves it (see `FEATURED_IMAGE_MARKER_TYPE`, `core/embeds/marker.ts`).
+ * `injectFeaturedImage` resolves it (see `FEATURED_IMAGE_MARKER_TYPE`, `packages/cms/src/widgets/markers/marker.ts`).
  *
  * `"post-author"` (2026-10-11) joins for the identical reason: `static-render.ts`'s
  * `injectPostAuthor` fills the byline. Without it this stage warned once per post render while the

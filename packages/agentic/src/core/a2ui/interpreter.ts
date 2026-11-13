@@ -6,7 +6,7 @@ import type { Clock } from "@jini-ai/core/primitives";
  * addressed data model, per surface) that processes agent→renderer messages
  * (`createSurface -> updateComponents -> updateDataModel -> ...`) and produces renderer→agent
  * messages (`action`/`functionResponse`/`error`) in return. This is the piece GenUI/AG-UI
- * (`packages/agentic/src/gen-ui/`, this repo's existing, much smaller GenUI surface-request shim)
+ * (`packages/agentic/src/core/gen-ui/`, this repo's existing, much smaller GenUI surface-request shim)
  * has no equivalent of — AG-UI streams
  * opaque `ui.surface_requested`/`ui.surface_responded` events with no component tree, no catalog,
  * no data binding; A2UI's interpreter has to actually hold and mutate structured state.

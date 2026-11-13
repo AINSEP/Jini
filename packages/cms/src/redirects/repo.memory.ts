@@ -115,7 +115,7 @@ export class InMemoryRedirectRepo implements RedirectRepoPort, RedirectDbHandle 
   }
 
   // -------------------------------------------------------------------
-  // RedirectDbHandle (used by redirects.ts/capture.ts via ports.internal.ts)
+  // RedirectDbHandle (used by packages/cms/src/redirects/redirects.ts and packages/cms/src/redirects/capture.ts via ports.internal.ts)
   // -------------------------------------------------------------------
 
   insertRedirect(record: RedirectRecord, _optional: Record<string, never> = {}): void {

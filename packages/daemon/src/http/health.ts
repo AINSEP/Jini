@@ -38,7 +38,7 @@
  * /health` 404s live) — this module's mount-relative variants are a deliberate Jini generalization
  * for hosts that don't prefix their API under `/api`, not an OD-observed route. Also confirmed no
  * origin/CORS headers appear on any of the three live OD responses — `requireLocalDaemonRequest`
- * (`http/local-daemon-request.ts`), which is what stamps `Vary: Origin`/`Access-Control-*`
+ * (`packages/http-kit/src/local-daemon-request.ts`), which is what stamps `Vary: Origin`/`Access-Control-*`
  * headers on other `/api/daemon/*` routes like shutdown, is never applied to health/ready/version,
  * matching this module's `requireSameOrigin`-unset routes.
  *

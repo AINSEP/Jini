@@ -18,7 +18,7 @@
  *    result and mints its `ERR-…` id, per the owner's "hide secrets only" ruling (see that file's own
  *    header). Sits ABOVE the read-only gate so a read-only refusal (`status: 'denied'`, set by layer
  *    1, never `'failed'`) is never touched by it, and BELOW `withToolAttemptAudit` so the audit sees
- *    the finished `errorId` and can store it (`tool-executor-audit.ts`). It sits INSIDE
+ *    the finished `errorId` and can store it (`packages/daemon/src/core/tool-audit.ts`). It sits INSIDE
  *    `withToolFailureRecovery` (layer 4) rather than outside it: recovery's own read-only-remedy
  *    refusal message is set on the OUTER result, after this layer has already run, so that message is
  *    never redacted either — only the original/remedy/retry calls recovery makes THROUGH `inner` pass

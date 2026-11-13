@@ -5,7 +5,7 @@ import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
  * Purpose:
  * Same chokepoint discipline as `posts`/`menus`/`forms` — no parallel mutation path. A widget
  * instance is a `type='widget'` entries row (ADR-022 §1); every write here composes
- * `features/entries/write-service.ts`'s real `createEntry`/`updateEntry` chokepoint (never
+ * `packages/cms/src/entries/write-service.ts`'s real `createEntry`/`updateEntry` chokepoint (never
  * reimplemented) so revisions and slug-uniqueness come for free.
  *
  * Deleting (2026-09-21, generic Trash): `trashWidgetInstance` moves a widget to the Trash through
@@ -17,7 +17,7 @@ import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
  *
  * `entry_refs` extraction (INV-06) runs inside the same DB transaction as the triggering
  * `createEntry`/`updateEntry` call, via that chokepoint's optional `deps.onWritten` hook (added
- * 2026-07-21 — a narrow, additive extension to `features/entries/write-service.ts`, invoked after
+ * 2026-07-21 — a narrow, additive extension to `packages/cms/src/entries/write-service.ts`, invoked after
  * `save`/`appendRevision` but before commit, so a failed extraction rolls back the whole write; see
  * the implementation report for why this was previously sequenced after instead).
  *
@@ -91,7 +91,7 @@ async function extractAndStoreInstanceRefs(deps: WidgetWriteServiceDeps, workspa
  * full-`DomainEvent` infra port — see `WidgetWriteServiceDeps.outbox`) through `toEntryOutbox` into
  * the narrower `{enqueue({name,payload})}` shape `createEntry`/`updateEntry` declare locally.
  * Previously each of the four call sites below passed `deps.outbox` straight through unwrapped —
- * compiled fine (`features/entries/write-service.ts`'s own narrow `OutboxPort` accepted it via a
+ * compiled fine (`packages/cms/src/entries/write-service.ts`'s own narrow `OutboxPort` accepted it via a
  * structural/bivariance loophole), but threw `NOT NULL constraint failed: outbox_events.id` against
  * the real SQLite outbox in production on every widget create/update/trash/purge, invisible against
  * the in-memory test double (which accepts any shape). One composer means the bridge can't be
@@ -159,7 +159,7 @@ export async function createWidgetInstance(required: CreateWidgetInstanceRequire
   });
 
   // `input.widgetType` is typed `WidgetTypeKey` but only ASSERTED to be one — HTTP routes
-  // (`server/routes/admin/widgets/create.ts`/`agent-tools.ts`) cast an unvalidated request-body
+  // (`Tovu apps/website/src/server/inbound/admin-http/routes/widgets/create.ts`/`agent-tools.ts`) cast an unvalidated request-body
   // string to it. `findWidgetTypeRegistration` is the correct accessor here: `undefined` is
   // genuinely reachable, and this check is what catches an unregistered type at this boundary.
   const registration = findWidgetTypeRegistration({ raw: input.widgetType });

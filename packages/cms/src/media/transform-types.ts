@@ -17,7 +17,7 @@
  * `owner` is kept as a plain string (not a hardcoded `"core"` literal type)
  * specifically so a future theme/plugin declarer can pass its own id through
  * the same field without a schema change — mirrors
- * `identity/permissions.ts`'s `PermissionDescriptor.owner` pattern, which
+ * `packages/user-management/src/core/permissions.ts`'s `PermissionDescriptor.owner` pattern, which
  * solves the identical "who registered this, extensibly" problem for the
  * permission catalog.
  */

@@ -2,7 +2,7 @@ import type { EntryRecord, EntryStatus } from "./types.js";
 
 /**
  * @file Admin-UI backend-gap closure (design-spec.md §1.9) — the `entries` package's missing read
- * side. Mirrors `features/content-types/list.ts`'s shape exactly: a thin pass-through over an
+ * side. Mirrors `packages/cms/src/content-types/list.ts`'s shape exactly: a thin pass-through over an
  * injected read port, no authorization of its own (the caller route checks `admin.collections.read`
  * first).
  *

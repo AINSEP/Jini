@@ -19,7 +19,7 @@ import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
  *
  * Oracle-call discipline (documented, load-bearing): `isAllowedRedirectTarget`
  * only accepts a fully-qualified, WHATWG-parseable candidate URL (see
- * `origin/origin.ts`'s `normalizeOriginCandidate` — a bare relative path like
+ * `packages/http-kit/src/verified-origin/origin.ts`'s `normalizeOriginCandidate` — a bare relative path like
  * `/new` fails to parse with no base and would otherwise always resolve to
  * "not allowed"). So a plain relative `location` is first resolved to an
  * absolute URL against the workspace's own verified canonical origin (making

@@ -120,7 +120,7 @@ export function isOwnerAccount(required: { user: AdminIdentityUser; roles: Reado
  * `use-users.hooks.ts` — see that hook's `canManageUserTrash` state for where it comes from.
  *
  * Disable/Enable share a single "toggle" item (label follows status, same shape as
- * `Redirects.tsx`'s own toggle item) — Disable confirms via the modal below; Enable fires
+ * `packages/admin/src/redirects/rules.ts`'s own toggle item) — Disable confirms via the modal below; Enable fires
  * immediately, matching this screen's existing behavior (Enable was never confirm-gated). The
  * `toggleSaving` guard reproduces the original inline check (`if (toggleSavingId) return`) against
  * whatever row action is currently in flight, read fresh at click time.

@@ -15,7 +15,7 @@
  *
  * `ExternalMcpConnectionRevokedError` extends `ToolInputError` rather than being reported through a
  * `ToolPolicy` deny — the same D1 argument `registrations.ts`'s own gate doc and
- * `federated-refusal-diagnosis.ts` both make: every consumer maps a policy `denied` to a fixed
+ * `packages/daemon/src/tool-recovery/federated-refusal.ts` both make: every consumer maps a policy `denied` to a fixed
  * "denied by policy"-shaped string, which sends an operator who DOES have the permission looking in
  * the wrong place. A handler-side `ToolInputError` reaches the model as `errorKind: 'validation'`
  * with this file's own text instead.

@@ -23,8 +23,8 @@ import { KEYS } from "../../rules.js";
  * Naming follows `hooks/use-settings-slice.hooks.ts`: `use-<thing>.hooks.ts`. Feature-local because
  * nothing outside `features/forms` needs it.
  *
- * `port` is injected — see `core/ports/forms.ts` (shared with `use-form-submission-
- * detail.hooks.ts`, since both read/write the same submissions list for a form) — rather than
+ * `port` is injected — see `core/ports/forms.ts` (shared with `packages/admin/src/forms/react/hooks/use-form-submission-detail.hooks.ts`,
+ * since both read/write the same submissions list for a form) — rather than
  * importing `lib/api` directly, so a test can describe list outcomes against
  * `the memory adapter` instead of stubbing global `fetch`. `useWiredFormSubmissions`
  * below is the zero-argument pair `FormEditor.tsx` actually mounts.

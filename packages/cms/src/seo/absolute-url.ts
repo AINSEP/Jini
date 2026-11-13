@@ -13,7 +13,7 @@ import { OriginNotVerifiedError } from "@jini-ai/http-kit/verified-origin";
  * Graph protocol: every social crawler and link-preview fetcher fails to resolve a relative one, so
  * link previews for the live site were silently broken.
  *
- * Root cause: `platform/routing/routing.ts`'s `composeCanonicalUrl` has carried a `TODO(ADR-040)`
+ * Root cause: `packages/cms/src/routing/routing.ts`'s `composeCanonicalUrl` has carried a `TODO(ADR-040)`
  * since routing was built — "compose canonicalUrl from OriginRegistryPort.canonicalOrigin(ctx) once
  * src/origin exists" — but nothing ever wired it up once `src/origin` (now `features/origin`)
  * landed; `RouteResolveContext.originOverride` (the seam that TODO describes) is never populated by
@@ -31,7 +31,7 @@ import { OriginNotVerifiedError } from "@jini-ai/http-kit/verified-origin";
 /** Renders a `VerifiedOrigin` as a base URL with no trailing slash (`https://example.com`,
  *  `https://example.com/site`, `http://localhost:3000`).
  *
- *  Local copy, not a shared import — `features/site-evidence/same-origin.ts`'s own
+ *  Local copy, not a shared import — `packages/diagnostics/src/web-evidence/same-origin.ts`'s own
  *  `verifiedOriginToBaseUrl` (the same three-line join) documents why: `newsletter/unsubscribe.ts`,
  *  `newsletter/confirmation.ts`, `redirects/phase-handler.ts`, and `members/write-service.ts` each
  *  already keep a private copy rather than import one, because `features/origin` deliberately
@@ -45,7 +45,7 @@ function originBaseUrl(origin: VerifiedOrigin): string {
 const ABSOLUTE_URL_PATTERN = /^[a-z][a-z0-9+.-]*:\/\//i;
 
 /** Whether `value` already names a full URL (a scheme is present) rather than a site-relative path
- *  — mirrors `platform/routing/routing.ts`'s and `features/seo/media.ts`'s own local copies of the
+ *  — mirrors `packages/cms/src/routing/routing.ts`'s and `packages/cms/src/seo/media.ts`'s own local copies of the
  *  identical check (both pre-existing, both unexported, so this is a third local copy by the same
  *  convention {@link originBaseUrl} follows above, not a new pattern). */
 function isAbsoluteUrl(value: string): boolean {

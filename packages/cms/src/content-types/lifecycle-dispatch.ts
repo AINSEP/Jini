@@ -7,10 +7,10 @@ import type { ActorPrincipalKind, ContentTypeRecord } from "./types.js";
 
 /**
  * @file Content-type lifecycle `op` dispatch (the closed-union-dispatch convention,
- * `features/settings/definitions-dispatch.ts`'s pattern reused verbatim for this domain).
+ * `packages/core/src/settings/definitions-dispatch.ts`'s pattern reused verbatim for this domain).
  *
  * Purpose:
- * The admin lifecycle route (`routes/admin/content-types/lifecycle.ts`) accepts an untrusted `op`
+ * The admin lifecycle route (`Tovu apps/website/src/server/inbound/admin-http/routes/content-types/lifecycle.ts`) accepts an untrusted `op`
  * string in the request body. Per the binding rule that any such string is narrowed to this
  * closed 3-entry union at the parse boundary (`parseContentTypeLifecycleOp`) BEFORE any dispatch
  * table lookup — never a raw `Record<string, Handler>` keyed by the unparsed value.

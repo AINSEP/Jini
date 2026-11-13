@@ -6,7 +6,7 @@ import type { FederatedMcpConnectionConfig, RemoteToolDescriptor } from "./ports
 /**
  * @file The federated trust tier: the separate, deliberately more restricted posture that tools
  * sourced from an external MCP server are admitted under, as opposed to the native posture
- * `tool-registrations.ts` + `tool-registration-kit.ts` apply to host app's own catalog.
+ * `tool-registrations.ts` + `tool registration helpers` apply to host app's own catalog.
  *
  * ---------------------------------------------------------------------------
  * Why a second tier exists at all
@@ -248,7 +248,7 @@ export function federatedToolId({ connectionId, remoteName }: { connectionId: st
  * The inverse of {@link federatedToolId}: the `connectionId` a federated-shaped id names, without
  * needing a live admission snapshot to look it up (`refusal-notice.ts`'s `findFederatedToolRefusal`
  * re-mints instead of parsing, precisely because it always has a snapshot in hand; a caller that has
- * NOT admitted this connection yet — 2026-09-24, see `federated-refusal-diagnosis.ts`'s "still
+ * NOT admitted this connection yet — 2026-09-24, see `packages/daemon/src/tool-recovery/federated-refusal.ts`'s "still
  * connecting" case — has nothing to re-mint against and must parse `toolId` itself instead).
  *
  * Splits on the FIRST `__` after {@link FEDERATED_TOOL_ID_PREFIX} rather than the last: safe only

@@ -10,7 +10,7 @@ import type { Clock } from "@jini-ai/core/primitives";
  * over. See `archived provenance ledger` for the full old→new field-mapping table and the generalization
  * writeup for the six event kinds that had no generic equivalent before this task.
  *
- * Folded in 2026-07-26 from the standalone `@jini-ai/agui` package (plan §3a) into this `src/gen-ui/`
+ * Folded in 2026-07-26 from the standalone `@jini-ai/agui` package (plan §3a) into this `packages/agentic/src/core/gen-ui/`
  * subdirectory — kept out of the flat `ag-ui.ts` namespace because that file is a different
  * projection ({@link CapabilityDef} → an AG-UI *frontend tool*); this one turns a run's event
  * stream into Jini's own gen-ui *wire* events. These are separate protocols; the old package name

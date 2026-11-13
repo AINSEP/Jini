@@ -48,7 +48,7 @@ export interface AssistantTransportOptions {
    * agentId this set contains: "the caller trusts this adapter's CLI to carry its own multi-turn
    * conversation memory... and should skip resending the rendered transcript on follow-up turns"
    * (`types.ts`). Resending it anyway would duplicate everything the daemon's own `--resume`/
-   * `session/load` already restores (`agent-session-resume.ts`).
+   * `session/load` already restores (`packages/daemon/src/session-coordination.ts`).
    *
    * Read fresh on every `startRun` call, same "never captured" convention {@link getExecutionConfig}/
    * {@link getAgUiEnabled} already establish: the admin's own `/api/agents` probe resolves
@@ -136,14 +136,14 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
    * `createAssistantTransport`'s own doc):
    *
    * 1. **Local CLI** (the original, unchanged path): binds to the real `@jini-ai/http` run surface
-   *    `src/server/modules/assistant.ts` mounts — `POST /api/runs` to start, `GET
+   *    `Tovu apps/website/src/server/runtime/composition/modules/assistant.ts` mounts — `POST /api/runs` to start, `GET
    *    /api/runs/:runId/events` (native `EventSource`) to stream, `GET /api/runs/:runId` for status,
    *    `POST /api/runs/:runId/cancel` to stop. Every SSE frame's `data` is a full `@jini-ai/protocol`
    *    `RunProtocolEvent` (`{kind, payload, ...}`), not chat-core's own `AgentEvent` — chat-core's own
    *    module doc is explicit that this reduction is a transport concern ("a host's transport adapter
    *    is responsible for reducing wire deltas... into the persisted/renderable AgentEvent items"), so
    *    `translateRunAgentPayload` below does that translation.
-   * 2. **API · BYOK** (2026-08-04, ADR-049's picker): binds to `src/server/modules/assistant-byok.ts`'s
+   * 2. **API · BYOK** (2026-08-04, ADR-049's picker): binds to `Tovu apps/website/src/server/runtime/composition/modules/assistant-byok.ts`'s
    *    `POST /api/admin/v1/assistant/byok-turn` — one request/response holding the WHOLE turn open,
    *    no separate `EventSource`/reattach/cancel-by-runId (see that route's own header for why, and
    *    what it costs). Its SSE frames carry the SAME `payload.type` vocabulary
@@ -600,7 +600,7 @@ export function createAssistantTransportClient({ ports }: { ports: AssistantTran
    * (`AssistantDock.tsx` supplies it from the live `FrontendSessionBridge`).
    *
    * Read by name rather than spreading the whole `input.context` blob: `contextRef` is a shared
-   * envelope that the host's proxy also writes `principalId` into (`src/server/modules/assistant.ts`),
+   * envelope that the host's proxy also writes `principalId` into (`Tovu apps/website/src/server/runtime/composition/modules/assistant.ts`),
    * and a spread would let any future `runContext` key silently shadow it — an identity field being
    * overwritten by a UI prop is not a failure mode worth leaving open to save one line.
    *

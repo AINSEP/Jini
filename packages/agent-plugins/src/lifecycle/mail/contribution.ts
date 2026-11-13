@@ -13,7 +13,7 @@
  * methods) whose `module.id` must equal the descriptor's `id`. `credentialLabel` stays optional
  * there; absent, it is {@link defaultCredentialLabel}. v1 keeps its create-only module format; both
  * versions use the keyed registry's provider ID grammar. 2026-10-22: v2
- * may also carry `setup` (field labels/types/defaults/help links, `./mail-provider-setup.ts`).
+ * may also carry `setup` (field labels/types/defaults/help links, `packages/platform/src/mail/provider-setup.ts`).
  * {@link contributeMailProviders} offers every loaded adapter to Jini's keyed mail-provider registry
  * so its refusals (bad id, duplicate, capability claims without code) surface with the loader's.
  *
@@ -21,7 +21,7 @@
  * (`custom-credentials/plugin-credential-card.ts`). It is data only, never required: an invalid card
  * is dropped with a note in `refusals` and the adapter still loads.
  *
- * TRUST RULE (fail closed), the shared gate in `./trusted-plugin-files.ts`: a module runs in this
+ * TRUST RULE (fail closed), the shared gate in `packages/agent-plugins/src/lifecycle/trusted-plugin-files.ts`: a module runs in this
  * process, so it loads only when the plugin is ACTIVE by the fail-closed reader, its installed digest
  * is the one `bundled-digests.json` records (only plugins the host shipped), and the module path stays
  * inside the plugin root and ends in `.mjs`. A bad plugin drops only its

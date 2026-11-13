@@ -63,7 +63,7 @@ import { capabilityToolIdFor } from "./plugin-claims.js";
  * ---------------------------------------------------------------------------
  * Activation gate — the OPPOSITE default from Agent Plugins, and that is a real, disclosed decision
  * ---------------------------------------------------------------------------
- * `features/agent-plugins/activation.ts` treats an absent activation record as ACTIVE ("presence
+ * `packages/agent-plugins/src/lifecycle/activation.ts` treats an absent activation record as ACTIVE ("presence
  * implies consent"). Plugin-runtime's own projection (`admin-response.ts`: `enabled: activation?.
  * enabled ?? false`) is the opposite: absent means DISABLED. This loader follows plugin-runtime's own
  * convention, not the Agent Plugins one it sits next to — a disabled plugin's `content.entry.

@@ -1,13 +1,13 @@
 import type { AgentToolDefinition } from "@jini-ai/core";
 /**
  * @file The Entries agent-tool catalog — this domain's instance of the per-domain `agent-tools.ts`
- * convention `features/content-types/agent-tools.ts`, `features/settings/agent-tools.ts`, and every
+ * convention `packages/cms/src/content-types/agent-tools.ts`, `packages/core/src/settings/agent-tools.ts`, and every
  * other domain catalog already use.
  *
  * Purpose:
  * A static, in-process catalog describing every agent-callable tool this domain exposes. Every
- * entry maps 1:1 onto a real exported function of `features/entries/write-service.ts` (`createEntry`,
- * `updateEntry`, `publishEntry`, `unpublishEntry`) or `features/entries/list.ts` (`listEntries`) —
+ * entry maps 1:1 onto a real exported function of `packages/cms/src/entries/write-service.ts` (`createEntry`,
+ * `updateEntry`, `publishEntry`, `unpublishEntry`) or `packages/cms/src/entries/list.ts` (`listEntries`) —
  * this catalog never names an operation the domain cannot perform.
  *
  * Naming and scope — a real discrepancy from this dispatch's own brief, disclosed rather than
@@ -22,9 +22,9 @@ import type { AgentToolDefinition } from "@jini-ai/core";
  * `executeCommand` gateway, gated by `content.write`/`content.read` — a different permission
  * namespace entirely). `features/entries` has no relationship to that module at all: no shared
  * table, no shared write chokepoint, no shared permission. So this catalog's tools name their
- * resource `collections_entry_*` (pairing with `features/content-types/agent-tools.ts`'s own
+ * resource `collections_entry_*` (pairing with `packages/cms/src/content-types/agent-tools.ts`'s own
  * `collections_content_type_*` prefix — the two packages are "one cohesive domain" per
- * `server/routes/admin/content-types/deps.ts`'s own file header), not `entry_*`/`page_*`/`post_*` —
+ * `Tovu apps/website/src/server/inbound/admin-http/routes/content-types/deps.ts`'s own file header), not `entry_*`/`page_*`/`post_*` —
  * a name that could be misread as covering Pages/Posts. Wiring Pages/Posts agent tools would mean
  * wrapping `features/post`, a different backend this dispatch was not asked to touch and has not
  * inspected for the same safety discipline this catalog applies here.
@@ -41,7 +41,7 @@ import type { AgentToolDefinition } from "@jini-ai/core";
  * `undefined`, so this exclusion changes nothing about what a call can still do.
  * - `collections_entry_list`'s schema omits `status`/`orderBy`/`limit` even though
  * `EntryListPort.listByWorkspace` supports all three (added for `widgets/resolvers/recent-entries.ts`'s
- * own bounded-query need) — `server/routes/admin/entries/list.ts` only ever forwards `type` from
+ * own bounded-query need) — `Tovu apps/website/src/server/inbound/admin-http/routes/entries/list.ts` only ever forwards `type` from
  * its query string, so the other three are not part of what the Collections admin list screen
  * itself can do; adding them here would again exceed the human surface this catalog mirrors.
  *

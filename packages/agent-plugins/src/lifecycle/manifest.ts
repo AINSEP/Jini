@@ -51,7 +51,7 @@
  *   `ParseAgentPluginMcpConfigResult`'s own doc for the fail-open contract this preserves.
  *
  * Architectural role:
- * Pure, no-I/O parsing over an already-`JSON.parse`d value — mirrors `plugin-runtime/manifest.ts`'s
+ * Pure, no-I/O parsing over an already-`JSON.parse`d value — mirrors `packages/plugins/src/host/manifest.ts`'s
  * own "receives a JS value, never a file path or raw bytes" contract. `install.ts` is the only
  * caller that reads the file and hands the parsed value here.
  */
@@ -225,8 +225,8 @@ function collectManifestProblems(
  * Hosts inject identityNamespace; the default is `jini`, with a legacy-key fallback.
  *
  * @throws Nothing — every failure is reported via the returned `errors`, matching this codebase's
- * own convention for expected validation outcomes (`plugin-runtime/manifest.ts`,
- * `plugin-runtime/discovery.ts`).
+ * own convention for expected validation outcomes (`packages/plugins/src/host/manifest.ts`,
+ * `packages/plugins/src/host/node/discovery.ts`).
  * @complexity O(k + n) time and space in the input keys and keyword entries.
  */
 export function parseAgentPluginManifest({ value }: { readonly value: unknown }, optional: { readonly identityNamespace?: string } = {}): ParseAgentPluginManifestResult {

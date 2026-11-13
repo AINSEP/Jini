@@ -212,7 +212,7 @@ function buildSubmitLogEntry(deps: CommentIngressDeps, record: CommentRecord, no
 async function enqueueSubmittedEvent(deps: CommentIngressDeps, record: CommentRecord, now: string): Promise<void> {
   // Inline object literal (not a `CommentDomainEvent`-typed intermediate) — matches this
   // codebase's established `outbox.enqueue()` call-site convention (e.g.
-  // `features/entries/write-service.ts`): TS only infers a `Record<string, unknown>`-
+  // `packages/cms/src/entries/write-service.ts`): TS only infers a `Record<string, unknown>`-
   // compatible index signature for a FRESH object literal argument, not for a value already
   // typed against a concrete interface without one.
   await deps.outbox.enqueue({

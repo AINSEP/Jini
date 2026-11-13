@@ -5,7 +5,7 @@
  * survive a process restart).
  *
  * Reuses this repo's existing durability pattern exactly —
- * `packages/sqlite/src/event-log.ts`'s `createSqliteEventLog`, the durable
+ * `packages/daemon/src/store/event-log/sqlite.ts`'s `createSqliteEventLog`, the durable
  * adapter for `@jini-ai/daemon`'s `EventLog` port — rather than inventing a
  * parallel one: `new Database(dbPath)`, `db.pragma('journal_mode = WAL')`,
  * `CREATE TABLE IF NOT EXISTS` (idempotent — reopening the same file

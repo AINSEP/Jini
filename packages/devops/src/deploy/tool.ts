@@ -50,7 +50,7 @@ export const DEFAULT_DEPLOY_PUBLISH_ROLE = 'deploy:publish';
  * calls, a wrongly-allowed `deploy.publish` is not cheaply reversible and
  * has an externally visible blast radius. That is a strictly stronger case
  * for deny-by-default than `@jini-ai/media`'s `DEFAULT_MEDIA_EXECUTION_POLICY`
- * (SEC-RB-010, `packages/media/src/policy.ts`) — media generation is
+ * (SEC-RB-010, `packages/integrations/src/media-providers/policy.ts`) — media generation is
  * costly but self-contained; a bad deploy is costly AND publicly visible AND
  * (for custom domains) mutates DNS. Matching this branch's established
  * "deny-by-default" discipline (see commit `0a9c9c237`'s media-policy fix)

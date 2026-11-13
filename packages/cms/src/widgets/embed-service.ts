@@ -5,7 +5,7 @@ import { isNonArrayRecord } from "@jini-ai/core";
  *
  * Purpose:
  * The second entry point into the SAME document-mutation contract the live TipTap editor's own
- * Save path uses — both ultimately write through `features/entries/write-service.ts`'s
+ * Save path uses — both ultimately write through `packages/cms/src/entries/write-service.ts`'s
  * `updateEntry` chokepoint, the same `expectedVersion` OCC guard, and the same revision machinery.
  * Usable with no browser editor session open (an AI agent, or a server-side script). Enforces
  * REQ-19/20's guardrails (no widget-in-widget recursion, per-document embed-count clamp) via
@@ -15,7 +15,7 @@ import { isNonArrayRecord } from "@jini-ai/core";
  *
  * Closes a real, previously-disclosed gap this file's own domain depends on: `updateEntry` had no
  * parameter to change `bodyJson` after creation (only `createEntry` did) — fixed additively in
- * `features/entries/write-service.ts` as part of this same dispatch (see that file's `bodyJson`
+ * `packages/cms/src/entries/write-service.ts` as part of this same dispatch (see that file's `bodyJson`
  * doc comment) rather than worked around here.
  *
  * Architectural role:

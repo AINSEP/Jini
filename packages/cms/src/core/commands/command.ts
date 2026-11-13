@@ -91,8 +91,8 @@ export interface CommandMutation<TResult> {
  * The shape of the `authorize()` gate, kept generic here so
  * `core/commands` never imports the `identity` library (that would invert the
  * dependency direction — `features`/libraries depend on `core`, not the
- * reverse; see `identity/authorize.ts`'s file header). Composition roots
- * (`server/app.ts` / `server/deps.ts`) bind a closure over the real
+ * reverse; see `packages/user-management/src/server/authorize.ts`'s file header). Composition roots
+ * (`Tovu apps/website/src/server/runtime/composition/app.ts` / `Tovu apps/website/src/server/runtime/composition/deps.ts`) bind a closure over the real
  * `identity.authorize()` and its repos, and pass that closure as
  * `ExecuteCommandDeps.authorize`.
  */

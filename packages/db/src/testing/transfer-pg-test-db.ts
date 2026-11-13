@@ -2,7 +2,7 @@ import { createPsqlPostgresTarget, type PostgresTargetPort } from "../transfer/p
 
 /**
  * @file Throwaway-database helpers for this feature's live-Postgres tests, built on the feature's own
- * `psql` target (the shared `platform/db/migration/pg-fixture.ts` is fenced to `platform/db/__tests__`).
+ * `psql` target (the shared `packages/db/src/testing/pg-fixture.ts` is fenced to `platform/db/__tests__`).
  * Local default: Homebrew Postgres 14 on localhost:5432 as role `la`; `PGHOST`/`PGPORT`/`PGUSER`
  * override it for CI. The admin database is always `postgres`; only the caller's own distinctively
  * named database is ever dropped.

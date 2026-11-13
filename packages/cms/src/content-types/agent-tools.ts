@@ -7,7 +7,7 @@ import type { AgentToolDefinition } from "@jini-ai/core";
  * Purpose:
  * A static, in-process catalog describing every agent-callable tool this domain exposes and the
  * permission/actor-class rule each one carries. `collections_content_type_list` (admin-UI-backend-
- * gap closure, mirroring `routes/admin/content-types/list.ts`) and `collections_plan_cleanup` are
+ * gap closure, mirroring `Tovu apps/website/src/server/inbound/admin-http/routes/content-types/list.ts`) and `collections_plan_cleanup` are
  * both free reads (`admin.collections.read`, `sideEffects:'none'`) — the former lists the registry,
  * the latter only recomputes and returns an eligibility plan. `collections_execute_cleanup` is the
  * one destructive tool, gated to
@@ -51,7 +51,7 @@ const ADMIN_COLLECTIONS_MANAGE = "admin.collections.manage";
    * These schemas are hand-authored, and enforcement lives elsewhere — `field-defs.ts` for
    * structure and `write-service.ts`'s chain for the domain rules. That is a
    * deliberate two-artifact design, so the pair is pinned against drift by a fixture corpus in
-   * `__tests__/unit/agent-tools.schema-agreement.unit.test.ts`. The two values a schema would
+   * `packages/cms/src/content-types/__tests__/agent-tools.schema-agreement.test.ts`. The two values a schema would
    * otherwise duplicate — the field-kind enum and the identifier grammar — are imported from their
    * single sources rather than restated.
  * See docs/decisions/DR-001-safe-schema-and-index-transitions.md.
@@ -117,7 +117,7 @@ const LIFECYCLE_INPUT_SCHEMA = {
 /**
  * — the Collections content-types domain's fixed agent-tool catalog.
  *
- * `collections_content_type_list` is ordered first, mirroring `identity/agent-tools.ts`'s
+ * `collections_content_type_list` is ordered first, mirroring `packages/user-management/src/server/agent-tools.ts`'s
  * "read-tools-first" convention: a model cannot call `update_fields`/`deprecate`/`reactivate`/
  * `tombstone` without a `key` and current `expectedVersion`, and this is the only way to learn
  * either for a content type it did not itself just create.

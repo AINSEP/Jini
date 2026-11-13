@@ -9,7 +9,7 @@
  * MCP-capable CLI's launch config, prove a tool round-trip through the existing
  * `delegated-tool-bridge.ts`." Where `../tools/run-tools.js`'s tools proxy generic
  * run-lifecycle HTTP endpoints, this tool proxies the new `POST /api/delegated-tool-calls`
- * daemon route (`packages/http/src/delegated-tools.ts`), which is the one and only thing that
+ * daemon route (`packages/daemon/src/http/delegated-tools.ts`), which is the one and only thing that
  * calls into `createDelegatedToolBridge` (`packages/daemon/src/delegated-tool-bridge.ts`) — the
  * same `ToolExecutor` deny-by-default gate every other tool-execution path in this codebase
  * already uses. No parallel authorization mechanism is introduced anywhere on this path.
@@ -41,7 +41,7 @@ import { postDaemonJson } from '../daemon-client.js';
 import { daemonCallOptions, requireString, type McpToolDef } from '../tool-protocol.js';
 import { resolveMcpToolName } from '../tool-arguments.js';
 
-/** Response shape `POST /api/delegated-tool-calls` (`packages/http-kit/src/delegated-tools.ts`) returns. */
+/** Response shape `POST /api/delegated-tool-calls` (`packages/daemon/src/http/delegated-tools.ts`) returns. */
 interface DelegatedToolExecuteResponse {
   readonly result: unknown;
 }

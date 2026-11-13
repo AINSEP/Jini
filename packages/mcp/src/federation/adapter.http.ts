@@ -27,7 +27,7 @@ import type { McpHttpExchange, McpHttpLaunchSpec, McpHttpResponse, McpSessionPor
  * `https://mcp.supabase.com/mcp`, anything SaaS — has no such program, and the only way to reach it
  * is an authenticated HTTPS endpoint. `external-mcp-server-federation.md` deferred this transport
  * with a specific, now-expired reason: "OAuth needs an interactive browser consent flow and a token
- * store, neither of which host app has". `src/platform/oauth/` and `assistant/external-mcp-oauth.ts` are both of
+ * store, neither of which host app has". `src/platform/oauth/` and `Tovu apps/website/src/features/external-mcp/external-mcp-oauth.ts` are both of
  * those, so the blocker is gone and, exactly as that doc predicted, this lands as an added adapter
  * rather than a redesign.
  *
@@ -479,7 +479,7 @@ export async function connectMcpHttpSession(deps: Omit<McpHttpSessionDependencie
  * already under test through the exchange seam, and code that only runs when a real network exists
  * is code that only fails in production.
  *
- * `redirect: "error"` is the security-relevant choice, and matches `src/platform/oauth/token-endpoint.ts`:
+ * `redirect: "error"` is the security-relevant choice, and matches `packages/oauth/src/token-endpoint.ts`:
  * these requests carry a bearer token in a header, and a followed cross-origin redirect would
  * re-send that header to whatever host the server nominated. Refusing to follow means a redirect is
  * a visible failure rather than a silent credential disclosure.

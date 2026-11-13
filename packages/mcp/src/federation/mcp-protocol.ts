@@ -59,7 +59,7 @@ export class McpProtocolError extends Error {
  * not this). Kept as a distinguishable
  * subtype, rather than a generic `McpProtocolError` a caller would have to pattern-match on message
  * text, so a layer that DOES know what "authorization" means for one connection (an OAuth-backed
- * row, at `assistant/external-mcp-oauth.ts`) can react to it — without this module, which is
+ * row, at `Tovu apps/website/src/features/external-mcp/external-mcp-oauth.ts`) can react to it — without this module, which is
  * transport-independent protocol plumbing, knowing anything about OAuth.
  */
 export class McpAuthFailedError extends McpProtocolError {}

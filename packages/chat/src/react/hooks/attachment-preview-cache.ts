@@ -7,7 +7,7 @@
  * again — image or text — without a round trip to the server.
  *
  * **Why this has to exist at all.** `@jini-ai/http-kit`'s attachment store
- * (`packages/http-kit/src/attachments.ts`) has no read route: `register()`'s only output is an
+ * (`packages/daemon/src/http/attachments.ts`) has no read route: `register()`'s only output is an
  * opaque capability id meant for `claim()`/`resolveForRun` (server-side, run-scoped reads), and
  * `claim()` is one-shot. There is no `GET /api/attachments/:id` anywhere in this codebase, and
  * `cleanupRun` deletes a run's claimed files once it ends — so once a browser has sent an

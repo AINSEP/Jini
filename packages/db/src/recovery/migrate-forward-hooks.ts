@@ -71,7 +71,7 @@ export interface BuildMigrateForwardHooksInput extends RecoveryHookPolicy {
  * at `openContentDb()` boot time (`db/sqlite/content-db.ts`), so by the time any ceremony could
  * run, the schema is already at head; re-invoking the migrator here would be a no-op in every
  * environment this dispatch can actually exercise, and this file has no reachable seam into the
- * hermetic (`server/app.ts`) composition's non-existent `content.db` at all. Persisting a
+ * hermetic (`Tovu apps/website/src/server/runtime/composition/app.ts`) composition's non-existent `content.db` at all. Persisting a
  * `migration_runs` row (the former state machine's attempt ledger) is likewise
  * out of this pass's scope — no composition root wires `SqliteMigrationRunsRepo`/an in-memory
  * counterpart into `RouteDeps` yet; disclosed, not silently skipped.
@@ -82,7 +82,7 @@ export interface BuildMigrateForwardHooksInput extends RecoveryHookPolicy {
  * so the resulting artifact carries every workspace's data, not just the caller's) plus one
  * `restorePointsRepo`/`databaseLedgerRepo` write each. The restore-points subsystem this feeds is
  * itself not workspace-partitioned in practice: the real SQLite repo is nominally `siteId`-scoped
- * but bound to exactly one `siteId` for a whole process's lifetime (`server/deps.ts`), the
+ * but bound to exactly one `siteId` for a whole process's lifetime (`Tovu apps/website/src/server/runtime/composition/deps.ts`), the
  * in-memory test double has no partitioning field at all (`features/database/repo.memory.ts`),
  * and `features/recovery/gated-hooks.ts`'s `buildRestoreHooks` reads `restorePointsRepo.list()`
  * completely unfiltered — so a restore point this ceremony captures is exactly as instance-wide

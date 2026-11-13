@@ -121,7 +121,7 @@ export function safeRemoteName({ remoteName, messages }: { remoteName: unknown; 
  * Host wording names the concrete remediation; the reducer must not assume a UI or labels.
  *
  * The routine default-deny explanation is included for attempts — see R-B. Needed here
- * because ATTEMPT-TIME reporting (`../federated-refusal-diagnosis.ts`) is not enumeration: R-B's
+ * because ATTEMPT-TIME reporting (`packages/daemon/src/tool-recovery/federated-refusal.ts`) is not enumeration: R-B's
  * "not news" argument only holds for a boot-time list the model reads whether it asked or not. A
  * model that has actually NAMED this exact tool id in a call has, by doing so, already decided it
  * wants it — telling it why that specific call failed is never the spam R-B guards against.

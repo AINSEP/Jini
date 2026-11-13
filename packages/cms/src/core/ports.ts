@@ -6,9 +6,9 @@
  *
  * How it relates to the project:
  * - `features/*` import these contracts to stay framework/provider-agnostic.
- * - `core/memory-bus.ts` provides in-memory implementations for local dev/tests.
- * - `core/outbox-worker.ts` orchestrates reliable async delivery using these ports.
- * - `server/app.ts` composes concrete implementations and runs the slice.
+ * - `Tovu apps/website/src/contracts/core/events/memory-bus.ts` provides in-memory implementations for local dev/tests.
+ * - `Tovu apps/website/src/contracts/core/events/outbox-worker.ts` orchestrates reliable async delivery using these ports.
+ * - `Tovu apps/website/src/server/runtime/composition/app.ts` composes concrete implementations and runs the slice.
  *
  * Architectural role:
  * This file is the dependency inversion seam. Concrete infrastructure can change
@@ -163,7 +163,7 @@ export interface OutboxPort {
  *    inside the same transaction as the delete is what makes the guard's answer still true at the
  *    moment the delete actually runs.
  * 2. **Partial cascade.** `deleteTaxonomy` deletes N member terms then the taxonomy row itself,
- *    with no FK/CASCADE at the schema level (`db/schema.ts` — `taxonomies`/`terms`/`entry_terms`/
+ *    with no FK/CASCADE at the schema level (`Tovu apps/website/src/platform/db/schema.sqlite.ts` — `taxonomies`/`terms`/`entry_terms`/
  *    `taxonomy_revisions` are plain columns, no foreign keys) to undo a mid-cascade failure. A
  *    real transaction is the only thing that can.
  *

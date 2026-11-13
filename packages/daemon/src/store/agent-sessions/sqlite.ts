@@ -5,7 +5,7 @@
  *
  * NOTE (neutral port): no OD-specific columns or logic — every field (session id, prompt hash,
  * model, cwd, last message id) is generic resume-identity bookkeeping already matched 1:1 by the
- * already-ported `schema/migrate.ts` `agent_sessions` table. Ported verbatim aside from
+ * already-ported `packages/daemon/src/store/agent-sessions/schema.ts` `agent_sessions` table. Ported verbatim aside from
  * de-branding the module doc comment.
  */
 import type { SqliteDb } from '@jini-ai/db/sqlite';

@@ -221,7 +221,7 @@
  * any other connection exists) — so T2's stated danger literally cannot occur here. Holding a
  * real `PRAGMA locking_mode=EXCLUSIVE` during the live window instead caused a genuine,
  * deterministic production bug: a live multi-boot smoke test against the real server found the
- * store plugin's own separate `content.db` connection (`store-plugin.ts#bootstrapStore`) failing
+ * store plugin's own separate `content.db` connection (`store plugin bootstrap`) failing
  * boot with "database is locked" every time, confirmed via A/B testing (disabling the lock calls
  * made the failure disappear immediately) — the exact interleaving mechanism was not fully
  * root-caused (multiple fire-and-forget dataModule declares and other writers share one
@@ -235,7 +235,7 @@
  * `plugin-identity.ts`, `migration-recovery.ts`, and `restore.ts` — see SPEC-032/SPEC-033 for the
  * full record of which finding lives where. This engine exists ahead of §12's "v1 ships seams
  * only" schedule: §12's own last line permits shipping it early "against a concrete demand
- * plugin," and Newsletter (`src/newsletter/data-module-manifest.ts`) is exactly that — a real
+ * plugin," and Newsletter (`Tovu apps/website/src/features/newsletter/data-module-manifest.ts`) is exactly that — a real
  * production consumer already calling this engine before this file's safety mechanics existed.
  *
  * STORAGE KERNEL (2026-09-28, storage plan P1): the engine runs on the storage kernel, so the same

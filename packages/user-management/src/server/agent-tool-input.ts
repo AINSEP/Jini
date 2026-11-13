@@ -1,11 +1,11 @@
 /**
  * @file The enforcing boundary parser for identity agent-tool input — the identity domain's
- * analogue of `features/content-types/field-defs.ts`.
+ * analogue of `packages/cms/src/content-types/field-defs.ts`.
  *
  * Deliberate divergence from content-types, disclosed:
  * content-types hand-authors its published `inputSchema` and hand-authors `field-defs.ts`
  * separately, then pins the two together with a fixture corpus
- * (`agent-tools.schema-agreement.unit.test.ts`) because deriving one from the other would have
+ * (`packages/user-management/src/server/__tests__/agent-tools.schema-agreement.test.ts`) because deriving one from the other would have
  * needed either a JSON Schema library this project does not depend on or a code generator. That
  * reasoning does not carry over here: identity's schemas use a small keyword subset and describe
  * flat objects of strings, so this file INTERPRETS that published schema directly rather than

@@ -23,7 +23,7 @@ export interface WidgetsLibraryController {
   cancelTrash: () => void;
   /** Bound translator — `WidgetsLibrary.tsx`'s only source of UI copy; see this file's own header. */
   t: Translate;
-  /** The raw resolved locale — exposed only because `widgetTypeLabel` (`../rules.ts`) genuinely
+  /** The raw resolved locale — exposed only because `widgetTypeLabel` (`packages/admin/src/widgets/rules.ts`) genuinely
    *  needs it, not `t`. */
   locale: string;
 }

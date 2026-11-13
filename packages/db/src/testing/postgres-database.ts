@@ -45,7 +45,7 @@ export function postgresDatabaseHelpers(
     helpers.recreateDatabase(name);
     return postgresUrlFor({ name, env, userInfo });
   }
-  /** {@link freshPostgresDatabase} with the whole content schema created (`pglite/content-schema.ts`). */
+  /** {@link freshPostgresDatabase} with the whole content schema created (`packages/db/src/testing/content-schema.ts`). */
   function freshPostgresContentDatabase(name: string): string {
     const url = freshPostgresDatabase(name);
     const created = helpers.psql(name, pgContentSchemaSql());

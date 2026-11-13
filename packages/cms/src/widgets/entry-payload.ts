@@ -27,12 +27,12 @@ import type {
  *
  * Purpose (a real, disclosed deviation from the spec's literal storage-path wording — see the
  * implementation report):
- * `features/entries/write-service.ts`'s `updateEntry` can only change `title`/`fieldsJson` — it has
+ * `packages/cms/src/entries/write-service.ts`'s `updateEntry` can only change `title`/`fieldsJson` — it has
  * no parameter to change `bodyJson` at all once an entry is created (confirmed by reading its
  * `UpdateEntryRequired.input` shape and body). Widget config MUST be updatable (REQ-05/AC-04), so
  * it cannot live in `bodyJson`.
  *
- * Owner namespace (2026-07-21, fixed): `features/entries/field-validation.ts`'s
+ * Owner namespace (2026-07-21, fixed): `packages/cms/src/entries/field-validation.ts`'s
  * `validateFieldsAgainstSchema` now accepts an `owner` parameter instead of hardcoding `site`
  * (a real, confirmed gap against ADR-022 §2 — see that file's header and the implementation
  * report). Widget instances write under `fields.ext.widget.*` (`WIDGET_FIELD_NAMESPACE`) and

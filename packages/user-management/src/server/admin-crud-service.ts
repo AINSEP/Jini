@@ -304,8 +304,8 @@ async function assertUsernameAvailable(required: {
  * Deliberately NOT unconditional the way `disablePrincipal`'s owner check is: the owner resetting
  * ITS OWN password (`callerPrincipalId === principalId === seededOwnerPrincipalId`) is refused
  * nothing — that self-service path is real, shipped infrastructure
- * (`reset-admin-password-self-verified.ts`, driven by both the `HOST_ADMIN_RESET_PASSWORD`
- * boot-time incident-recovery hook and the `backfill-reset-admin-password.ts` CLI script), added
+ * (`packages/user-management/src/server/recovery-codes.ts`, driven by both the `HOST_ADMIN_RESET_PASSWORD`
+ * boot-time incident-recovery hook and the `password backfill` CLI script), added
  * specifically to let an operator recover a locked-out owner account out-of-band. Disabling has no
  * legitimate self-case (an owner disabling itself only ever stands the workspace down), so
  * `disablePrincipal` can refuse unconditionally; a credential rotation the owner performs on itself

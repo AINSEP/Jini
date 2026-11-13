@@ -6,7 +6,7 @@ const RUNNING_TITLE_CLASS = ' shimmer-text';
  *
  * Renders a single `tool_use` (optionally paired with its `tool_result`) as
  * an inline card. Lookup order: (1) a user-registered renderer
- * (`registerToolRenderer` — `../../tool-renderer-registry.js`), (2) a
+ * (`registerToolRenderer` — `packages/chat/src/react/tool-renderer-registry.ts`), (2) a
  * hardcoded family card for tools shipped with this package (TodoWrite /
  * Write / Edit / Read / Bash / Glob / Grep / WebFetch / WebSearch), (3) a
  * generic command/output fallback.

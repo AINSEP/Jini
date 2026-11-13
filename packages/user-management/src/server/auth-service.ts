@@ -13,7 +13,7 @@ import { normalizeUsername } from "./username.js";
  * @file Login / logout / session validation (state.spec `LOGIN`/`LOGOUT`).
  *
  * Purpose:
- * The credential-verification + session-lifecycle surface `middleware/dev-auth.ts`
+ * The credential-verification + session-lifecycle surface `Tovu apps/website/src/server/inbound/admin-http/dev-auth.ts`
  * wires into HTTP. Session tokens are hashed with SHA-256 before storage — the
  * same technique `members/write-service.ts` uses for magic-link/member-session
  * tokens (: the raw token is never persisted). Password verification is

@@ -670,7 +670,7 @@ interface SetOAuthStatusOptions {
  * without inventing a new one — `disconnect()`'s admin route already maps it to a 503
  * `SECRET_STORE_UNCONFIGURED`, `reportAuthFailure` already carries an unexpected `setOAuthStatus`
  * failure as `cause` on its terminal error, and `markNeedsReauth`'s two call sites in
- * `token-refresh.ts`'s `performRefresh` treat this write as best-effort the same way — its failure
+ * `packages/oauth/src/refresh.ts`'s `performRefresh` treat this write as best-effort the same way — its failure
  * is carried as `cause` on the `OAUTH_INVALID_GRANT` error they throw next, never left to propagate
  * in that error's place. (An earlier version of this comment claimed that path "already folds" a
  * write failure into the boot report; it did not — the failure escaped unguarded and displaced the

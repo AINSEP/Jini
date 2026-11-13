@@ -3,7 +3,7 @@
  * on-disk package(s) under `packages/sha256/*` for this `pluginId`, then its activation record.
  * `previewAgentPluginUninstall()` runs the same refusals without removing anything.
  *
- * `features/plugin-runtime/uninstall.ts` already has this exact feature for the OTHER plugin family
+ * `packages/plugins/src/host/uninstall.ts` already has this exact feature for the OTHER plugin family
  * (the host runtime-plugin format site/runtime plugins) — this is "the same feature, one family over", mirroring its
  * shape: the same `<Domain>NotFoundError`/`<Domain>NotUninstallableError` pair, thrown for the same
  * two reasons (unknown id; nothing an operator can actually remove). Two deliberate divergences from

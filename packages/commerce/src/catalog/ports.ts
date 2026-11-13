@@ -39,7 +39,7 @@ export interface CommercePriceProviderRefRepoPort {
 
 /**
  * @file Port contracts for the Commerce first vertical slice (dependency-inversion seams, ADR-006
- * rule-of-two). Interfaces only — no feature logic. Mirrors `src/members/ports.ts`'s shape.
+ * rule-of-two). Interfaces only — no feature logic. Mirrors `Tovu apps/website/src/features/members/ports.ts`'s shape.
  *
  * Only a SQLite adapter exists this pass (`repo.sqlite.ts`) — Postgres/MySQL have no live driver
  * anywhere in this codebase yet (2026-08-12 debate F3), so a second adapter would have nothing

@@ -43,7 +43,7 @@ export interface VerifiedOriginPort {
 const MAX_PATH_LENGTH = 2048;
 
 /** Raw C0 controls, DEL, and whitespace — the characters that let a crafted string mean one thing
- *  to a validator and another to a URL parser. Mirrors `origin/origin.ts`'s
+ *  to a validator and another to a URL parser. Mirrors `packages/http-kit/src/verified-origin/origin.ts`'s
  *  `normalizeOriginCandidate`, which rejects the same class for the same reason. */
 // biome-ignore lint/suspicious/noControlCharactersInRegex: matching control characters is the entire purpose — a raw CR/LF/NUL in a path is exactly the smuggling vector this refuses.
 const FORBIDDEN_CHARACTERS = /[\u0000-\u0020\u007f]/;
@@ -106,7 +106,7 @@ function rejectionForRawPath(trimmed: string): NormalizeSitePathResult | null {
  * keeping it would make two citations of the same evidence look like different pages.
  *
  * @throws Nothing — every rejection is returned, matching this codebase's convention for expected
- * validation outcomes (`agent-plugins/manifest.ts`, `plugin-runtime/discovery.ts`).
+ * validation outcomes (`packages/agent-plugins/src/lifecycle/manifest.ts`, `packages/plugins/src/host/node/discovery.ts`).
  * @complexity O(n) in the path's own length.
  */
 export function normalizeSitePath({ raw }: { raw: string }): NormalizeSitePathResult {

@@ -159,7 +159,7 @@ function checkDecodedSitePathname(
  * returns `ok`. It deliberately does not compare origins itself: `platform/routing` cannot use
  * `features/origin`'s normalizer, and a string `URL.origin` comparison is wrong for redirect
  * candidates (`https://site./admin`). Callers: `checkSiteRelativeTarget` (probe-origin check),
- * `site-inspection`'s `resolveWithinOrigin`, and `features/redirects/reserved-destination.ts` (the
+ * `site-inspection`'s `resolveWithinOrigin`, and `packages/cms/src/redirects/reserved-destination.ts` (the
  * origin oracle's `isSameOrigin`).
  *
  * @param required.url - An already-parsed `URL`; only `url.pathname` is read.

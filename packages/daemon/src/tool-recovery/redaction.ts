@@ -5,7 +5,7 @@
  * chat transcript, the tool card, admin BYOK, the daemon's delegated-tool route, the MCP-UI
  * redemption endpoint, http-kit's server log), only a secret-shaped VALUE inside it never does.
  *
- * ## Position — see `tool-executor-stack.ts`'s own header
+ * ## Position — see `packages/daemon/src/tool-recovery/stack.ts`'s own header
  * Sits between `withReadOnlyToolConstraint` and `withToolAttemptAudit`, and INSIDE
  * `withToolFailureRecovery` (which calls `inner` for the original call, the remedy, and the retry —
  * each one redacted here). A read-only refusal is set by `withToolFailureRecovery` on the OUTER
@@ -24,7 +24,7 @@
  * for why only the VALUE is ever blanked, never the surrounding text.
  *
  * Architectural role: `src/assistant` composition-layer adapter, same layer as
- * `tool-executor-audit.ts` and `tool-failure-recovery.ts`. Depends only on the host policy
+ * `packages/daemon/src/core/tool-audit.ts` and `packages/daemon/src/tool-recovery/recovery.ts`. Depends only on the host policy
  * adapter over `@jini-ai/diagnostics/redaction/secrets-only` and `@jini-ai/daemon`'s `ToolExecutor` shape.
  */
 
@@ -188,7 +188,7 @@ export interface RedactedToolFailuresDeps {
 
 /** Calls `onFailure`, containing a throw so a hostile or buggy sink can never turn a
  *  redacted result into a thrown error — audit is observation, never a gate, the same rule
- *  `tool-executor-audit.ts`'s `appendSafely` enforces for its own sink. */
+ *  `packages/daemon/src/core/tool-audit.ts`'s `appendSafely` enforces for its own sink. */
 function safeOnFailure(onFailure: (record: ToolFailureRecord) => void, record: ToolFailureRecord): void {
   try {
     onFailure(record);
@@ -244,7 +244,7 @@ export function redactFailedResult(result: ToolExecutionResult, context: Failure
  *   second-guessed here — this layer only ever transforms an already-`failed` result's `error` text.
  * @param deps - Test seams; production callers pass nothing and get the real minter and logger.
  * @returns A drop-in `ToolExecutor`. `resumeConfirmation`, `cancel`, `getAuditRecord` delegate
- *   straight through, matching `tool-failure-recovery.ts`'s and `tool-executor-audit.ts`'s own shape.
+ *   straight through, matching `packages/daemon/src/tool-recovery/recovery.ts`'s and `packages/daemon/src/core/tool-audit.ts`'s own shape.
  * @complexity O(1) beyond `inner`'s own cost and {@link redactFailedResult}'s.
  */
 export function withRedactedToolFailures({ inner, ...deps }: RedactedToolFailuresDeps & { inner: ToolExecutor }, _optional = {}): ToolExecutor {
