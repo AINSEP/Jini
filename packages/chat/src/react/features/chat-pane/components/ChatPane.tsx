@@ -492,6 +492,21 @@ interface ChatPaneComposerAreaProps {
   t: (key: string) => string;
 }
 
+/** Why Send is blocked (streaming is not a block), and whether that reason also shows as a notice. */
+function resolveSendBlockerNotice(
+  { pane, unavailable, t }: Pick<ChatPaneComposerAreaProps, 'pane' | 'unavailable' | 't'>,
+  _optional = {},
+): { sendDisabledReason: string | undefined; showsNotice: boolean } {
+  const sendDisabledReason = pane.sendBlocker && pane.sendBlocker !== 'streaming'
+    ? t(describeChatPaneSendBlocker(pane.sendBlocker))
+    : undefined;
+  // MOVE: the reason used to sit in the composer's footer row beside the folder and model buttons.
+  // It is now a notice above the composer, with the other pane notices; Send's tooltip keeps it.
+  // While the pane is unavailable its own banner (loading, no usable CLI) already says it.
+  const showsNotice = sendDisabledReason !== undefined && !unavailable && chatPaneSendBlockerNeedsNotice({ blocker: pane.sendBlocker });
+  return { sendDisabledReason, showsNotice };
+}
+
 /** The drop target, composer, and working-directory block — everything below the status banners
  * that reads/writes the live pane. Cancelling an in-flight run is not a separate control here: it
  * lives in the composer's own trailing button, which swaps from send to stop while streaming (see
@@ -516,13 +531,7 @@ function ChatPaneComposerArea({
   t,
 }: ChatPaneComposerAreaProps): ReactNode {
   const sendDisabledReasonId = useId();
-  const sendDisabledReason = pane.sendBlocker && pane.sendBlocker !== 'streaming'
-    ? t(describeChatPaneSendBlocker(pane.sendBlocker))
-    : undefined;
-  // MOVE: the reason used to sit in the composer's footer row beside the folder and model buttons.
-  // It is now a notice above the composer, with the other pane notices; Send's tooltip keeps it.
-  // While the pane is unavailable its own banner (loading, no usable CLI) already says it.
-  const showsNotice = sendDisabledReason !== undefined && !unavailable && chatPaneSendBlockerNeedsNotice({ blocker: pane.sendBlocker });
+  const { sendDisabledReason, showsNotice } = resolveSendBlockerNotice({ pane, unavailable, t });
   return (
     <div
       className={`jini-chat-pane__drop-target${fileDrop.draggingFiles ? ' is-dragging-files' : ''}`}

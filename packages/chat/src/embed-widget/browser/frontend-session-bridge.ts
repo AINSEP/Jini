@@ -367,6 +367,17 @@ export function createFrontendSessionBridge(
     } else void serveLocally(action, controller);
   }
 
+  /** Adopt a fresh attachment: drop work from the previous one, then release every waiter. */
+  function attach({ frame }: { frame: Extract<FrameReading, { kind: 'attached' }> }): void {
+    abortPending();
+    sessionId = frame.sessionId;
+    currentBindToken = frame.bindToken;
+    // A no-op after the first attach — which is exactly why `currentBindToken` exists.
+    resolveReady({ sessionId, bindToken: currentBindToken });
+    for (const waiter of attachments) waiter.resolve({ sessionId, bindToken: currentBindToken });
+    attachments.clear();
+  }
+
   function connect(): void {
     const current = openStream({ url: `${base}${endpointPrefix}/stream?${query}`, ...(headers ? { headers: headers() } : {}) });
     source = current;
@@ -378,13 +389,7 @@ export function createFrontendSessionBridge(
           pending.get(frame.invocationId)?.abort();
           return;
         case 'attached':
-          abortPending();
-          sessionId = frame.sessionId;
-          currentBindToken = frame.bindToken;
-          // A no-op after the first attach — which is exactly why `currentBindToken` exists.
-          resolveReady({ sessionId, bindToken: currentBindToken });
-          for (const waiter of attachments) waiter.resolve({ sessionId, bindToken: currentBindToken });
-          attachments.clear();
+          attach({ frame });
           return;
         case 'refused': {
           const error = new Error(frame.message);

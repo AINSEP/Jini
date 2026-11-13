@@ -439,10 +439,7 @@ export function Composer({
   return (
     <div className="jini-composer">
       <AccessorySlot className="jini-composer-leading">{leadingAccessories}</AccessorySlot>
-      <div className="jini-composer-attachments">
-        <AttachmentTray agentHandle={base} attachments={composer.attachments} onRemove={composer.removeAttachment} uploading={attachmentPicker?.uploading === true} />
-        <FolderChips agentHandle={base} folders={composer.folders} onRemove={composer.removeFolder} />
-      </div>
+      <ComposerAttachmentRow base={base} composer={composer} attachmentPicker={attachmentPicker} />
       <textarea
         {...agentHandleProps({}, { base, action: 'draft', role: 'field', label: t('Message draft') })}
         ref={textareaRef}
@@ -576,6 +573,20 @@ function AccessorySlot({ className, children }: { className: string; children: R
 }
 
 /** The plain paperclip, shown only when there is no "+" discovery menu to carry attaching instead. */
+/** The attached files and folders waiting to go with the next message. */
+function ComposerAttachmentRow({ base, composer, attachmentPicker }: {
+  base: string | undefined;
+  composer: ComposerProps['composer'];
+  attachmentPicker: ComposerProps['attachmentPicker'];
+}) {
+  return (
+    <div className="jini-composer-attachments">
+      <AttachmentTray agentHandle={base} attachments={composer.attachments} onRemove={composer.removeAttachment} uploading={attachmentPicker?.uploading === true} />
+      <FolderChips agentHandle={base} folders={composer.folders} onRemove={composer.removeFolder} />
+    </div>
+  );
+}
+
 function ComposerAttachButton({ base, attachmentPicker, hidden, disabled, inputRef, onChange, t }: {
   base: string | undefined;
   attachmentPicker: ComposerProps['attachmentPicker'];
