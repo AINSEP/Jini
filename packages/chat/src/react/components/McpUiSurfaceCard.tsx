@@ -217,12 +217,10 @@ export function McpUiSurfaceCard({ events, sandboxProxyUrl, onToolCall, onOpenLi
   const originalResources = useMemo(() => latestResourcesByUri(events), [events]);
   const recovery = useSurfaceRecovery({ resource: originalResources.length === 1 ? originalResources[0] : undefined,
     call, runStreaming, onToolCall });
-  const resources = recovery.restored && recovery.resource ? [recovery.resource] : originalResources;
+  const { resources, currentEvents, currentCall } = recoveredView({ recovery, resources: originalResources, events, call });
   // One card per slot is the registered shape (`mcpUiSurfaceSlotKey`), so `call` belongs to exactly
   // that card. A group holding several URIs has no single call to judge them by, and stays live.
   const single = resources.length === 1 ? resources[0] : undefined;
-  const currentEvents = recovery.restored && recovery.resource ? [recovery.resource] : events;
-  const currentCall = recovery.restored ? undefined : call;
   const { displayCall, input, standalone } = useSurfaceQuestionCall({ events: currentEvents, call: currentCall });
   const { expiresAtMs, toolCall } = surfaceInteraction({ resource: single, answered, onToolCall: recovery.onToolCall, onAnswered, onAnswerText, call: displayCall });
   const expiry = useSurfaceExpiry(
@@ -238,6 +236,20 @@ export function McpUiSurfaceCard({ events, sandboxProxyUrl, onToolCall, onOpenLi
   return <SurfaceCardContent resources={resources} single={single} answerRecorded={answerRecorded}
     answer={answer} closed={closed} call={displayCall} standalone={standalone} t={t} sandboxProxyUrl={sandboxProxyUrl}
     toolCall={toolCall} onOpenLink={onOpenLink} maxHeight={maxHeight} expiry={expiry} />;
+}
+
+/** What the card shows after recovery: a restored document replaces the originals and leaves no call to judge it by. */
+function recoveredView({ recovery, resources, events, call }: {
+  recovery: ReturnType<typeof useSurfaceRecovery>;
+  resources: ReturnType<typeof latestResourcesByUri>;
+  events: McpUiSurfaceCardProps['events'];
+  call: McpUiSurfaceCardProps['call'];
+}, _options = {}) {
+  return {
+    resources: recovery.restored && recovery.resource ? [recovery.resource] : resources,
+    currentEvents: recovery.restored && recovery.resource ? [recovery.resource] : events,
+    currentCall: recovery.restored ? undefined : call,
+  };
 }
 
 /** A standalone form's call may lack the question; its current document supplies the title and

@@ -79,15 +79,24 @@ function assertLocalUrl({ value }: { value: string }, _optional: Record<string, 
   if (!value.startsWith('/') || value.startsWith('//') || /[\u0000-\u0020\\]/.test(value)) throw new Error('plugin export URL must be a local path');
 }
 
+/** A URL sink must hold one whole slot: a declared-prop slot (true) when the export declares hosts, else a host slot (false). */
+function wholeUrlSlotIsProp(
+  { text, hosts, url }: { text: string; hosts: readonly string[]; url: boolean },
+  _optional: Record<string, never> = {},
+): boolean {
+  // The host resolves declared hostLinks/assets. Literal pieces would let a template retarget them.
+  const propUrl = url && hosts.length > 0 && PROP_URL_SLOT.test(text);
+  if (url && !propUrl && !HOST_URL_SLOT.test(text)) throw new Error('plugin export URL must be a whole hostLinks or assets slot');
+  return propUrl;
+}
+
 /** Interpolate once into a decoded text/attribute value; URL sinks admit only host-owned paths. */
 function fillSlotText(
   { text, definition, url = false }: { text: string; definition: PluginExportTemplate; url?: boolean },
   _optional: Record<string, never> = {},
 ): string {
-  // The host resolves declared hostLinks/assets. Literal pieces would let a template retarget them.
   const hosts = definition.frameHosts ?? [];
-  const propUrl = url && hosts.length > 0 && PROP_URL_SLOT.test(text);
-  if (url && !propUrl && !HOST_URL_SLOT.test(text)) throw new Error('plugin export URL must be a whole hostLinks or assets slot');
+  const propUrl = wholeUrlSlotIsProp({ text, hosts, url });
   // A single replace pass prevents a prop containing {{host.secret}} becoming another slot.
   if (/{{|}}/.test(text.replace(SLOT, ''))) throw new Error('unsupported plugin export slot');
   const output = text.replace(SLOT, (_match, scope: 'props' | 'host', path: string) => {

@@ -109,23 +109,7 @@ export async function revertChangeSet(
   const { deps, input } = required;
   const { changeSets, registry } = deps;
 
-  // Agent-cannot-force — fires FIRST, unconditionally, before any repo read, mirroring
-  // `gated-mutations/gateway.ts`'s `confirm()` `principalKind === "agent"` check firing regardless
-  // of what the plan actually contains. There is nothing to "escalate" here: an agent that never
-  // sets `force` is unaffected by this check and reverts exactly as before.
-  if (input.force && input.principalKind === "agent") {
-    throw new RevertForbiddenError(
-      `agent principals may not force a revert past a version conflict`,
-      "AGENT_CANNOT_FORCE"
-    );
-  }
-  // Fail closed: a force that does not say who asked cannot be checked against the rule above.
-  if (input.force && input.principalKind === undefined) {
-    throw new RevertForbiddenError(
-      `a forced revert must say who is asking; retry without force or sign in again`,
-      "FORCE_NEEDS_PRINCIPAL_KIND"
-    );
-  }
+  requireForceAllowed({ input });
 
   // (1) exists in workspace
   const found = await changeSets.findById({
@@ -192,6 +176,30 @@ export async function revertChangeSet(
   }
 
   return reverted;
+}
+
+/** Only a named, non-agent principal may force a revert past a version conflict. */
+function requireForceAllowed(
+  { input }: { input: RevertChangeSetRequired["input"] },
+  _optional: RevertChangeSetOptional = {},
+): void {
+  // Agent-cannot-force — fires FIRST, unconditionally, before any repo read, mirroring
+  // `gated-mutations/gateway.ts`'s `confirm()` `principalKind === "agent"` check firing regardless
+  // of what the plan actually contains. There is nothing to "escalate" here: an agent that never
+  // sets `force` is unaffected by this check and reverts exactly as before.
+  if (input.force && input.principalKind === "agent") {
+    throw new RevertForbiddenError(
+      `agent principals may not force a revert past a version conflict`,
+      "AGENT_CANNOT_FORCE"
+    );
+  }
+  // Fail closed: a force that does not say who asked cannot be checked against the rule above.
+  if (input.force && input.principalKind === undefined) {
+    throw new RevertForbiddenError(
+      `a forced revert must say who is asking; retry without force or sign in again`,
+      "FORCE_NEEDS_PRINCIPAL_KIND"
+    );
+  }
 }
 
 async function requireRevertibleItems(
