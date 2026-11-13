@@ -1,3 +1,9 @@
+import type { CodexExecutorOptions, CodexMcpHomeOptions } from './codex/contracts.js';
+import type { ClaudeExecutorOptions } from './claude/contracts.js';
+import type { PiExecutorOptions } from './pi/contracts.js';
+export type { PreparedCodexHome } from './codex/contracts.js';
+export type { PreparedClaudeConfigDir, ClaudeConfigDirSeams, ClaudeConfigDirIsolationOptions } from './claude/contracts.js';
+
 import type { DelegatedResultCorrelation } from '../delegated-result-correlation.js';
 import type { StdoutJournalBlobPort } from '../tool-result-diagnostics.js';
 import type { MessageAttachmentImage } from '../attachment-content.js';
@@ -397,7 +403,7 @@ export interface McpHttpEndpoint {
   close(required: Record<string, never>, optional?: Record<string, never>): Promise<void>;
 }
 
-export interface McpJsonInjectionOptions {
+export interface McpJsonInjectionOptions extends CodexMcpHomeOptions {
   /** The trusted host owns authorization and human confirmation for bridge calls. Codex may
    * approve the jini MCP transport without its own prompt; this grants no target-tool permission.
    * Omission preserves the CLI's default approval behavior. Applies only to the jini bridge. */
@@ -468,32 +474,7 @@ export interface McpJsonInjectionOptions {
    * @default `fs.promises.rm(path, { force: true })` — already-gone is success, not an error.
    */
   readonly removeFile?: ({ path }: { readonly path: string }) => Promise<void>;
-  /**
-   * `'codex-toml'` only. Creates a fresh, randomly-named directory `prepareCodexHomeForRun` stages
-   * as a run's scratch `CODEX_HOME`. **Must be non-deterministic (a real `mkdtemp`, not a
-   * caller-computed path)** — unlike `mcpJsonPathForRun`'s deterministic path inside the run's own
-   * `cwd`, this directory holds a copy of the operator's real Codex login credential, and
-   * `os.tmpdir()` is a shared location on a multi-user host: a guessable name there is a real
-   * pre-plant/symlink target for another local user. `fs.mkdtemp`'s random suffix plus its `0700`
-   * directory mode is the actual confidentiality control, matching the same reasoning
-   * `@jini-ai/agent-runtime`'s `log-file.ts`/`prompt-file.ts` already apply to their own staged temp
-   * dirs.
-   * @param prefix - A caller-composed, run-id-derived prefix (already sanitized) for the mkdtemp
-   * template; the real suffix mkdtemp appends is what makes the path unpredictable.
-   * @default `fs.mkdtemp(path.join(os.tmpdir(), prefix))`
-   */
-  readonly mkdtemp?: ({ prefix }: { readonly prefix: string }) => Promise<string>;
-  /**
-   * `'codex-toml'` only. Recursively removes the scratch `CODEX_HOME` directory `mkdtemp` above
-   * created — the directory-level analogue of `removeFile`, needed because this mechanism stages a
-   * whole directory (`config.toml` plus a copied `auth.json`), not one file.
-   * @default `fs.rm(path, { recursive: true, force: true })` — already-gone is success, not an error.
-   */
-  readonly removeDir?: ({ path }: { readonly path: string }) => Promise<void>;
-  /** `'codex-toml'` only. Links the run home's sessions/archived_sessions to the operator's
-   * persistent rollout store and authentication. Parity also links user home entries; config alone stays isolated.
-   * @default Native mkdir (0700) and directory symlinks; errors fail staging before spawn. */
-  readonly linkSessionStore?: (required: { runHome: string; sourceHome: string }, optional?: { inheritUserConfig?: boolean }) => Promise<void>;
+
 }
 
 /** One `.mcp.json` `mcpServers` entry — the shape Claude Code's own config schema expects. */
@@ -536,59 +517,6 @@ export type McpBridgeDelivery =
    * server registered once, globally, out of band (see `types.ts`'s own doc on this strategy).
    */
   | { readonly kind: 'env-passthrough'; readonly serverEntry: McpJsonServerEntry };
-
-/** A staged, run-scoped Codex `CODEX_HOME` — the directory-holding analogue of {@link PreparedPromptFile}/{@link PreparedAgentLogFile} from `@jini-ai/agent-runtime`. */
-export type PreparedCodexHome = {
-  /** Absolute path to hand to the spawned child as its `CODEX_HOME` env var. */
-  readonly path: string;
-  /** Recursively removes the staged directory — the live `auth.json` copy it may hold makes this a confidentiality cleanup, not just tidiness. Safe to call more than once. */
-  readonly cleanup: () => Promise<void>;
-};
-
-/**
- * Finding 1 of SEC-assistant-env-isolation-2026-09-07 — a staged, run-scoped `claude` CLI config
- * directory, the `CLAUDE_CONFIG_DIR`-isolation analogue of {@link PreparedCodexHome} above.
- *
- * **The bug this closes:** `BASELINE_AGENT_ENV_KEYS` forwards `HOME` verbatim and neither this
- * package nor `@jini-ai/agent-runtime` ever set `CLAUDE_CONFIG_DIR`, so a spawned `claude` child
- * resolved its config (skills, plugins, agents, memory-path index, settings) from the OPERATOR's
- * own real `$HOME/.claude` — a personal grant (including `Task`/`Edit`/`Write`/`Cron*`/worktree
- * tools on this host) the host process never intended to hand the model.
- */
-export type PreparedClaudeConfigDir = {
-  /** Absolute path to hand to the spawned child as its `CLAUDE_CONFIG_DIR` env var. */
-  readonly path: string;
-  /** Recursively removes the staged directory — it may hold a copied login credential (see {@link prepareClaudeConfigDirForRun}'s doc), the same confidentiality-cleanup duty as {@link PreparedCodexHome.cleanup}. Safe to call more than once. */
-  readonly cleanup: () => Promise<void>;
-};
-
-/** The Claude-config-dir mechanism's injectable filesystem seams, real by default — the directory-staging analogue of {@link CodexHomeSeams}, kept as its own small options bag (see {@link CreateAgentExecutorOptions.claudeConfigDirIsolation}) rather than folded into {@link McpJsonInjectionOptions}: isolating the operator's personal config is an env-hygiene concern independent of whether this host configured MCP federation at all, and must not be gated on that unrelated flag. */
-export interface ClaudeConfigDirSeams {
-  readonly mkdtemp: ({ prefix }: { readonly prefix: string }) => Promise<string>;
-  readonly readFile: ({ path }: { readonly path: string }) => Promise<string>;
-  readonly writeFile: ({ path, content }: { readonly path: string; readonly content: string }) => Promise<void>;
-  readonly removeDir: ({ path }: { readonly path: string }) => Promise<void>;
-}
-
-/**
- * `CreateAgentExecutorOptions.claudeConfigDirIsolation` — every field optional and real-filesystem
- * by default, matching the executor's standing "no real disk I/O by default in tests" convention (see
- * `preparePromptFileForAgent`/`prepareAgentLogFile`'s identical shape). Unlike
- * {@link McpJsonInjectionOptions}, this bag is never itself a gate: {@link
- * prepareClaudeConfigDirIfNeeded} stages a scratch directory for every `claude`-def run regardless
- * of whether a host supplies overrides here — this options bag only lets a test observe/replace the
- * filesystem calls, the same way `preparePromptFileForAgent`'s own default does.
- */
-export interface ClaudeConfigDirIsolationOptions {
-  /** @default the real `fs.promises.mkdtemp(path.join(os.tmpdir(), prefix))` */
-  readonly mkdtemp?: ({ prefix }: { readonly prefix: string }) => Promise<string>;
-  /** Reads the operator's real `.credentials.json`, if any — see {@link prepareClaudeConfigDirForRun}'s own doc. @default the real `fs.promises.readFile` (utf8) */
-  readonly readFile?: ({ path }: { readonly path: string }) => Promise<string>;
-  /** Writes the copied `.credentials.json` into the scratch directory. @default the real `fs.promises.writeFile` (utf8) */
-  readonly writeFile?: ({ path, content }: { readonly path: string; readonly content: string }) => Promise<void>;
-  /** @default `fs.promises.rm(path, { recursive: true, force: true })` — already-gone is success, not an error. */
-  readonly removeDir?: ({ path }: { readonly path: string }) => Promise<void>;
-}
 
 /**
  * Gap 4 of the run/chat orchestration Final Recommendation: what
@@ -635,7 +563,7 @@ export interface FailureClassificationContext {
  */
 export type ClassifyFailure = (context: FailureClassificationContext) => boolean | Promise<boolean>;
 
-export interface CreateAgentExecutorOptions {
+export interface CreateAgentExecutorOptions extends ClaudeExecutorOptions, CodexExecutorOptions, PiExecutorOptions {
   /** Negotiated v1 only; share with bridge/lifecycle. Absent preserves legacy diagnostics/echoes. */
   readonly delegatedResultCorrelation?: DelegatedResultCorrelation;
   /** Required with correlation + byte journal: exact stdout blobs and durable reference records. */
@@ -643,10 +571,6 @@ export interface CreateAgentExecutorOptions {
   /** Host environment snapshot; baseline spawn keys and source config paths are allowlisted. */
   readonly hostEnv?: NodeJS.ProcessEnv;
   readonly runtimeState?: AgentRuntimeState;
-  /** Host policy; native executor composition resolves its env default when absent. */
-  readonly codexDisablePlugins?: boolean;
-  /** Post-completion pi RPC grace period, resolved once at native composition. */
-  readonly piGracefulShutdownMs?: number;
   readonly lifecycle: RunLifecycle;
   /** Resolves/pins the concrete starting model against the actual launch scope. */
   readonly resolveModelForLaunch?: typeof resolveModelForLaunch;
@@ -739,39 +663,6 @@ export interface CreateAgentExecutorOptions {
    * `command`/`daemonUrl` this package could assume on a caller's behalf.
    */
   readonly mcpJsonInjection?: McpJsonInjectionOptions;
-  /**
-   * Finding 1 of SEC-assistant-env-isolation-2026-09-07's injectable filesystem seams — see
-   * {@link ClaudeConfigDirIsolationOptions}'s own doc. This bag itself is still NOT a gate (supplying
-   * it only lets a test observe/replace the real filesystem calls); whether staging happens AT ALL is
-   * now {@link claudeConfigDirIsolationEnabled}'s job — see that field's doc for why the two were
-   * split apart instead of overloading this one's presence as the switch.
-   * @default the real `fs.promises.mkdtemp`/`readFile`/`rm` — no real disk I/O for every def other
-   * than `claude`, matching this factory's "no real filesystem by default in tests" convention.
-   */
-  readonly claudeConfigDirIsolation?: ClaudeConfigDirIsolationOptions;
-  /**
-   * The actual on/off switch for Finding 1's `CLAUDE_CONFIG_DIR` isolation (see
-   * {@link prepareClaudeConfigDirIfNeeded}'s doc for the staging behavior this gates). Split out as
-   * its own boolean rather than reusing {@link claudeConfigDirIsolation}'s presence, because that bag
-   * is a test-seam-injection convention shared with every other `*IsolationOptions`/`*Seams` field in
-   * this file (see `mcpJsonInjection`'s own "NOT a gate" precedent) — overloading it here would mean a
-   * host that only wants to override `mkdtemp` for a test silently also flips production behavior.
-   *
-   * @default `false`. This DEFAULTS OFF, which reopens the leak Finding 1 closed (the spawned
-   * `claude` child again reads the operator's real `~/.claude` — skills, plugins, memory index, and
-   * whatever tool grant that directory carries) — **not a regression discovered later, a deliberate
-   * rollback landed the same day as the isolation fix itself.** Reason: on macOS the Keychain login
-   * `claude auth status` reports is keyed to `CLAUDE_CONFIG_DIR` (see {@link
-   * prepareClaudeConfigDirForRun}'s doc), and no caller of this factory was passing a credential of
-   * its own (`AgentExecutorRunInput.credentialEnv`) when Finding 1 landed unconditionally — so every
-   * isolated child ran unauthenticated and the assistant reported "Not logged in" on its default
-   * runtime. A host that provisions a real `ANTHROPIC_API_KEY`/`CLAUDE_CODE_OAUTH_TOKEN` via
-   * `credentialEnv` (both outrank Keychain login in Claude Code's own auth precedence, so an isolated,
-   * still-logged-in child needs no access to the operator's personal Keychain entry at all) should
-   * flip this back on — the mechanism itself is unchanged and was already proven live
-   * (2026-09-07); only the default changed.
-   */
-  readonly claudeConfigDirIsolationEnabled?: boolean;
   /**
    * Ceiling on how many bytes of a `'until-close'` def's stdout this driver will hold in memory
    * before it stops accumulating and reports the shortfall — see

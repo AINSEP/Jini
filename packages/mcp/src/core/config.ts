@@ -1,6 +1,5 @@
 import { inspect } from 'node:util';
 import { redactSecrets } from '@jini-ai/core';
-import { isLoopbackHostname } from '@jini-ai/platform/net';
 /**
  * @module @jini-ai/mcp/core/config
  * Config schema + on-disk store for the external MCP servers the daemon connects
@@ -28,7 +27,10 @@ import { realpathSync } from 'node:fs';
 import path from 'node:path';
 import { pathContains } from '@jini-ai/core/primitives';
 import { writeFileAtomicAsync } from '@jini-ai/platform/fs';
-import { trimCharsEnd } from '@jini-ai/core/text';
+import { inferMcpAuthModeForUrl, isPlainObject } from './config-shared.js';
+export { inferMcpAuthModeForUrl } from './config-shared.js';
+export { buildClaudeMcpJson } from './claude/config.js';
+export { buildOpenCodeMcpConfigContent, type OpenCodeConfigBuildOptions } from './opencode/config.js';
 
 /** Wire-level transport discriminator for how the daemon connects to an external MCP server. */
 export type McpTransport = 'stdio' | 'sse' | 'http';
@@ -109,10 +111,6 @@ function configFile(dataDir: string): string {
   return path.join(dataDir, 'mcp-config.json');
 }
 
-function isPlainObject(v: unknown): v is Record<string, unknown> {
-  return Boolean(v) && typeof v === 'object' && !Array.isArray(v);
-}
-
 function isKeepableMapEntry(entry: [string, unknown]): entry is [string, string] {
   const [k, v] = entry;
   if (k === '__proto__' || k === 'constructor' || !k.trim()) return false;
@@ -142,35 +140,10 @@ function sanitizeStringArray(raw: unknown): string[] | undefined {
   return out.length > 0 ? out : undefined;
 }
 
-// The shared classifier receives the URL parser's canonical hostname; IPv4-mapped
-// IPv6 is deliberately not a loopback exception for default authentication.
-/**
- * Infer the appropriate `McpAuthMode` for a given server URL.
- * Returns `'none'` for loopback targets (localhost, 127.x.x.x, ::1)
- * and `'oauth'` for everything else, including when `rawUrl` is absent or unparseable.
- * @param rawUrl The server URL string to inspect, if any.
- * @returns The inferred `McpAuthMode`.
- */
-export function inferMcpAuthModeForUrl({ rawUrl }: { rawUrl: string | undefined }): McpAuthMode {
-  if (!rawUrl) return 'oauth';
-  try {
-    return isLoopbackHostname({ hostname: new URL(rawUrl).hostname }) ? 'none' : 'oauth';
-  } catch {
-    return 'oauth';
-  }
-}
-
 function sanitizeMcpAuthMode(raw: unknown): McpAuthMode | undefined {
   return typeof raw === 'string' && VALID_AUTH_MODES.has(raw as McpAuthMode)
     ? (raw as McpAuthMode)
     : undefined;
-}
-
-// Only ever invoked for http/sse servers (the callers gate on transport), so
-// there is no stdio short-circuit here — the token merge just needs the
-// effective auth mode for a remote server.
-function effectiveMcpAuthMode(server: McpServerConfig): McpAuthMode {
-  return server.authMode ?? inferMcpAuthModeForUrl({ rawUrl: server.url });
 }
 
 /**
@@ -353,74 +326,6 @@ export function isManagedProjectCwd(
 }
 
 /**
- * Project-cwd `.mcp.json` shape that Claude Code auto-loads on spawn (the
- * same format Claude Desktop and Cursor use). Returns null when the user
- * has no enabled servers — in that case the caller should NOT write the
- * file (and should clean up any stale one).
- *
- * `tokens` is an optional map of `serverId -> bearer access token`, used
- * for HTTP/SSE servers that completed the daemon's web OAuth flow. When a
- * token is present we inject `Authorization: Bearer <token>` into the
- * server's headers — this is what bypasses the per-spawn `mcp-remote`
- * dance and lets Claude Code talk directly to the upstream MCP using
- * pre-authenticated credentials. User-supplied headers always win on
- * conflict so they can pin a specific token if they really want to.
- */
-export function buildClaudeMcpJson(
-  { servers }: { servers: McpServerConfig[] },
-  { tokens = {} }: { tokens?: Record<string, string> } = {},
-): unknown | null {
-  const enabled = servers.filter((s) => s.enabled);
-  if (enabled.length === 0) return null;
-  const out: Record<string, Record<string, unknown>> = {};
-  for (const s of enabled) {
-    out[s.id] = s.transport === 'stdio'
-      ? { command: s.command, ...nonEmptyField({ key: 'args', value: s.args }), ...nonEmptyField({ key: 'env', value: s.env }) }
-      // type: 'sse' | 'http'
-      : { type: s.transport, url: s.url, ...remoteHeadersField({ server: s, tokens }) };
-  }
-  return { mcpServers: out };
-}
-
-/** `{ [key]: value }` when `value` has at least one element/key, else `{}` — for spreading optional fields. */
-function nonEmptyField({ key, value }: { key: string; value: object | undefined }): Record<string, unknown> {
-  return value && Object.keys(value).length > 0 ? { [key]: value } : {};
-}
-
-/** `{ headers }` for a remote server (user headers + its own stored OAuth bearer), or `{}` when empty. */
-function remoteHeadersField({ server, tokens }: { server: McpServerConfig; tokens: Record<string, string> }, _options = {}): Record<string, unknown> {
-  const bearer = effectiveMcpAuthMode(server) === 'oauth' && Object.hasOwn(tokens, server.id) ? tokens[server.id] : undefined;
-  return nonEmptyField({ key: 'headers', value: mergeAuthHeader(server.headers, bearer) });
-}
-
-/** Build a headers object that includes the daemon-issued bearer token when
- * the user hasn't already supplied a NON-EMPTY Authorization header. A
- * blank Authorization (empty string / whitespace only) is treated as
- * "not pinned" — historically the template UI persisted empty values from
- * unfilled fields, and we never want a blank Authorization to suppress a
- * valid OAuth Bearer (the upstream MCP would refuse the connection and
- * fall back to its in-tool re-auth dance). Real user-pinned values still
- * win so manually-set PATs aren't silently overwritten. */
-function mergeAuthHeader(
-  existing: Record<string, string> | undefined,
-  bearer: string | undefined,
-): Record<string, string> | undefined {
-  const merged: Record<string, string> = {};
-  let userAuth = false;
-  for (const [k, v] of Object.entries(existing ?? {})) {
-    const isAuth = k.toLowerCase() === 'authorization';
-    // empty / whitespace authorization is ignored, NOT carried through
-    if (isAuth && (typeof v !== 'string' || v.trim() === '')) continue;
-    userAuth ||= isAuth;
-    merged[k] = v;
-  }
-  if (bearer && !userAuth) {
-    merged['Authorization'] = `Bearer ${bearer}`;
-  }
-  return merged;
-}
-
-/**
  * Convert user-configured external MCP servers into the ACP `mcpServers`
  * shape that stdio-capable ACP agents accept.
  * SSE/HTTP servers are dropped — ACP currently models stdio only.
@@ -452,125 +357,4 @@ export function buildAcpMcpServers({ servers }: { servers: McpServerConfig[] }):
         .filter(([, value]) => typeof value === 'string')
         .map(([name, value]) => ({ name, value })),
     }));
-}
-
-/**
- * OpenCode merges its config from multiple sources at boot — global
- * `~/.config/opencode/opencode.json`, the `OPENCODE_CONFIG` file path, the
- * project `opencode.json`, and the `OPENCODE_CONFIG_CONTENT` env var (an
- * inline JSON string). The env-var path is what lets a launcher hand servers
- * to a single `opencode run` invocation without writing into the user's
- * global config or leaving a temp file around on crash. We also use the same
- * payload to grant `external_directory` access to launcher-selected absolute
- * paths (project cwd, staged skill dirs, etc.) so headless OpenCode runs do
- * not auto-reject them.
- *
- * Returns `null` when nothing would be emitted — the caller must NOT set
- * `OPENCODE_CONFIG_CONTENT` to `null`/empty in that case, because doing so
- * would override the user's saved global config with an empty object. A
- * null return means "leave the env untouched and let OpenCode read the
- * user's home-dir config as-is."
- *
- * The OAuth Bearer merge mirrors `buildClaudeMcpJson` so a remote MCP
- * server the daemon already authenticated against works the same way for
- * OpenCode users without forcing them to re-authenticate inside OpenCode.
- */
-/** Options for `buildOpenCodeMcpConfigContent`. */
-export interface OpenCodeConfigBuildOptions {
-  /** Access tokens keyed by server id. */
-  tokens?: Record<string, string>;
-  /** Resolves symlinks for permission allowlists. */
-  resolvePath?: (args: { filePath: string }) => string;
-  /** Absolute filesystem paths OpenCode's `external_directory` permission should allow. */
-  allowedDirectories?: string[];
-  /** Additional top-level keys merged into the emitted config object (e.g. `provider`). */
-  extraConfig?: Record<string, unknown>;
-}
-
-export function buildOpenCodeMcpConfigContent(
-  { servers }: { servers: McpServerConfig[] },
-  options: OpenCodeConfigBuildOptions = {},
-): string | null {
-  const tokens = options.tokens ?? {};
-  const resolvePath = options.resolvePath ?? (({ filePath }: { filePath: string }) => realpathSync.native(filePath));
-  const mcp: Record<string, Record<string, unknown>> = {};
-  for (const s of servers.filter((server) => server.enabled)) {
-    const entry = buildOpenCodeServerEntry({ server: s, tokens });
-    if (entry) mcp[s.id] = entry;
-  }
-  const externalDirectory = buildOpenCodeExternalDirectoryAllowlist(
-    options.allowedDirectories, resolvePath,
-  );
-  const config: Record<string, unknown> = { ...options.extraConfig, ...nonEmptyField({ key: 'mcp', value: mcp }) };
-  if (externalDirectory) {
-    const priorPermission = isPlainObject(config.permission) ? config.permission : {};
-    config.permission = {
-      ...priorPermission,
-      external_directory: externalDirectory,
-    };
-  }
-  return Object.keys(config).length === 0 ? null : JSON.stringify(config);
-}
-
-/** One OpenCode `mcp` entry, or null when the server lacks its transport-required command/url. */
-function buildOpenCodeServerEntry(
-  { server: s, tokens }: { server: McpServerConfig; tokens: Record<string, string> },
-): Record<string, unknown> | null {
-  if (s.transport === 'stdio') {
-    const cmd = typeof s.command === 'string' ? s.command.trim() : '';
-    if (!cmd) return null;
-    return {
-      type: 'local',
-      command: [cmd, ...(Array.isArray(s.args) ? s.args : [])],
-      ...nonEmptyField({ key: 'environment', value: { ...s.env } }),
-      enabled: true,
-    };
-  }
-  if (typeof s.url !== 'string' || !s.url.trim()) return null;
-  return { type: 'remote', url: s.url, ...remoteHeadersField({ server: s, tokens }), enabled: true };
-}
-
-function buildOpenCodeExternalDirectoryAllowlist(
-  directories: string[] | undefined,
-  resolvePath: (args: { filePath: string }) => string,
-): Record<string, 'allow'> | null {
-  const normalized = Array.from(
-    new Set(
-      (directories ?? [])
-        .filter((dir) => typeof dir === 'string' && dir.trim().length > 0)
-        .filter((dir) => path.isAbsolute(dir))
-        .flatMap((dir) => normalizeAllowedDirectoryVariants(dir, resolvePath)),
-    ),
-  );
-  if (normalized.length === 0) return null;
-
-  const allowlist: Record<string, 'allow'> = {};
-  for (const dir of normalized) {
-    allowlist[dir] = 'allow';
-    allowlist[joinPermissionGlob(dir, '*')] = 'allow';
-    allowlist[joinPermissionGlob(dir, '**')] = 'allow';
-  }
-  return allowlist;
-}
-
-function normalizeAllowedDirectory(dir: string): string {
-  const resolved = path.resolve(dir);
-  const root = path.parse(resolved).root;
-  if (resolved === root) return root;
-  return trimCharsEnd({ text: resolved, chars: '\\/' });
-}
-
-function normalizeAllowedDirectoryVariants(dir: string, resolvePath: (args: { filePath: string }) => string): string[] {
-  const normalized = normalizeAllowedDirectory(dir);
-  let real: string | null = null;
-  try {
-    real = normalizeAllowedDirectory(resolvePath({ filePath: dir }));
-  } catch {
-    real = null;
-  }
-  return real && real !== normalized ? [normalized, real] : [normalized];
-}
-
-function joinPermissionGlob(dir: string, suffix: '*' | '**'): string {
-  return dir.endsWith(path.sep) ? `${dir}${suffix}` : `${dir}${path.sep}${suffix}`;
 }
