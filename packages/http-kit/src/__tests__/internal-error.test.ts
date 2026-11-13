@@ -23,7 +23,10 @@ describe('reportRouteInternalError', () => {
     expect(apiError.code).toBe('INTERNAL_ERROR');
     expect(apiError.message).toBe(MESSAGE);
     expect(apiError.requestId).toMatch(/^[0-9a-f-]{36}$/);
-    expect(seen).toEqual([{ source: 'run-start', runId: 'r1', error: thrown, correlationId: apiError.requestId }]);
+    // The host channel: the full error, the request ID the caller copies, the operation label and
+    // the route's own fields (here `runId`), so the host can store one record under that ID.
+    expect(seen).toEqual([{ source: 'run-start', runId: 'r1', error: thrown, correlationId: apiError.requestId, logSource: 'run-start' }]);
+    expect((seen[0] as { error: unknown }).error).toBe(thrown);
     expect(JSON.stringify(apiError)).not.toContain(HOST_SECRET);
   });
 
@@ -64,6 +67,15 @@ describe('reportRouteInternalError', () => {
     expect(line).not.toContain('sink down');
     expect(line).not.toContain('SECRETSECRET');
     expect(line).not.toContain('hunter2hunter2');
+  });
+
+  it('keeps a route field named like the operation label untouched (the label has its own key)', () => {
+    const seen: Record<string, unknown>[] = [];
+    reportRouteInternalError(
+      { report: { source: 'auth', operation: 'list', error: new Error('x') }, logSource: 'connectors/auth.list', message: MESSAGE },
+      { onInternalError: context => { seen.push(context); } },
+    );
+    expect(seen[0]).toMatchObject({ source: 'auth', operation: 'list', logSource: 'connectors/auth.list' });
   });
 
   it('is part of the public barrel', () => {

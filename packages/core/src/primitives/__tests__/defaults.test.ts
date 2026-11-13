@@ -54,8 +54,37 @@ describe('primitive default adapters', () => {
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn).toHaveBeenCalledWith('[host] retry', meta);
     expect(error).toHaveBeenCalledTimes(1);
-    expect(error).toHaveBeenCalledWith('[host] stopped', meta, cause);
+    expect(error).toHaveBeenCalledWith('[host] stopped', meta, 'Error');
     createConsoleLogger({ prefix: '' }).info({ message: 'plain' });
     expect(info).toHaveBeenLastCalledWith('plain');
+  });
+
+  // The default console adapter writes safe metadata only: a caught error's text can quote
+  // untrusted input or a credential no redaction pattern knows. Full detail needs a host sink.
+  it('writes only the error class, never its message, stack or name, for the error bag and for error-valued meta', () => {
+    const lines: unknown[][] = [];
+    vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => { lines.push(args); });
+    vi.spyOn(console, 'warn').mockImplementation((...args: unknown[]) => { lines.push(args); });
+    const logger = createConsoleLogger({ prefix: '[host]' });
+    const secretError = Object.assign(new TypeError('boom api_key=SECRETSECRETSECRETSECRET'), { name: 'SECRETSECRETNAME' });
+    logger.error({ message: 'stopped' }, { meta: { runId: 'run-1', reason: secretError }, error: secretError });
+    logger.warn({ message: 'retry' }, { meta: { error: 'plain text reason SECRETSECRET' } });
+    expect(lines).toEqual([['[host] stopped', { runId: 'run-1', reason: 'TypeError' }, 'TypeError'], ['[host] retry', { error: 'string' }]]);
+    const printed = JSON.stringify(lines);
+    for (const forbidden of ['boom', 'SECRETSECRET', 'defaults.test.ts']) expect(printed).not.toContain(forbidden);
+  });
+
+  it('hands the full record to an injected host sink and keeps the console line metadata-only, even when the sink throws', () => {
+    const lines: unknown[][] = [];
+    vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => { lines.push(args); });
+    const records: unknown[] = [];
+    const cause = new Error('boom api_key=SECRETSECRETSECRETSECRET');
+    createConsoleLogger({ prefix: '[host]' }, { diagnostics: record => { records.push(record); } })
+      .error({ message: 'stopped' }, { meta: { runId: 'run-1' }, error: cause });
+    expect(records).toEqual([{ level: 'error', message: '[host] stopped', meta: { runId: 'run-1' }, error: cause }]);
+    expect((records[0] as { error: unknown }).error).toBe(cause);
+    expect(lines).toEqual([['[host] stopped', { runId: 'run-1' }, 'Error']]);
+    createConsoleLogger({ prefix: '' }, { diagnostics: () => { throw new Error('sink down'); } }).error({ message: 'still logged' }, { error: cause });
+    expect(lines[1]).toEqual(['still logged', 'Error']);
   });
 });

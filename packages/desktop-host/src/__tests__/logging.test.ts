@@ -67,7 +67,7 @@ describe('createFileLogger', () => {
     const lines = contents.trim().split('\n').map((line) => JSON.parse(line));
     expect(lines[0]).toMatchObject({ level: 'info', message: 'starting up', meta: { pid: 123 } });
     expect(lines[1]).toMatchObject({ level: 'error', message: 'boom' });
-    expect(lines[1].meta.error).toMatchObject({ message: 'bad' });
+    expect(lines[1].meta.error).toBe('Error');
   });
 
   it('omits the meta field entirely when no meta is provided', async () => {
@@ -81,14 +81,15 @@ describe('createFileLogger', () => {
     expect(line.meta).toBeUndefined();
   });
 
-  it('passes non-Error values assigned to error/reason meta keys through unchanged', async () => {
+  // A rejection reason can be any value, including a string that quotes a secret: only its type is written.
+  it('writes only the type of a non-Error value assigned to error/reason meta keys', async () => {
     dir = await mkdtemp(join(tmpdir(), 'jini-desktop-host-log-'));
     const logPath = join(dir, 'host-non-error-reason.log');
     const logger = createFileLogger({ logPath }, { echoToConsole: false });
     logger.warn({ message: 'plain reason' }, { meta: { reason: 'just a string, not an Error' } });
     const contents = await readFile(logPath, 'utf8');
     const line = JSON.parse(contents.trim());
-    expect(line.meta.reason).toBe('just a string, not an Error');
+    expect(line.meta.reason).toBe('string');
   });
 
   it('falls back to a serializationError entry when the meta cannot be JSON-serialized', async () => {
@@ -119,7 +120,8 @@ describe('createFileLogger', () => {
     logger.warn({ message: 'poisoned meta' }, { meta: { detail: poisoned } });
     const contents = await readFile(logPath, 'utf8');
     const line = JSON.parse(contents.trim());
-    expect(line.meta.serializationError).toBe('not an Error instance');
+    // The serializer's own failure is described like any other error: by type, never by its text.
+    expect(line.meta.serializationError).toBe('string');
   });
 
   it('echoes to the matching console method for every level when echoToConsole defaults to true', async () => {
@@ -239,13 +241,13 @@ it('serializes the core Logger error bag alongside structured metadata', () => {
     logger[level]({ message: level }, { meta: { context: 'host' }, error: new Error('detail') });
   }
   expect(lines.map(line => JSON.parse(line))).toMatchObject([
-    { level: 'info', meta: { context: 'host', error: { message: 'detail', name: 'Error' } } },
-    { level: 'warn', meta: { context: 'host', error: { message: 'detail', name: 'Error' } } },
-    { level: 'error', meta: { context: 'host', error: { message: 'detail', name: 'Error' } } },
+    { level: 'info', meta: { context: 'host', error: 'Error' } },
+    { level: 'warn', meta: { context: 'host', error: 'Error' } },
+    { level: 'error', meta: { context: 'host', error: 'Error' } },
   ]);
 });
 
-it('echoes metadata and the error bag to the injected console exactly as it writes them', () => {
+it('echoes metadata and the error bag to the injected console exactly as it writes them (class only)', () => {
   const echoed: unknown[][] = [];
   const out = { error: (...args: unknown[]) => { echoed.push(['error', ...args]); }, info: (...args: unknown[]) => { echoed.push(['info', ...args]); }, warn: (...args: unknown[]) => { echoed.push(['warn', ...args]); } };
   const lines: string[] = [];
@@ -256,9 +258,40 @@ it('echoes metadata and the error bag to the injected console exactly as it writ
     logger[level]({ message: `${level} with error` }, { meta: { context: 'host' }, error });
   }
   expect(echoed).toEqual([
-    ['error', 'error with meta', { context: 'host' }], ['error', 'error with error', { context: 'host', error }],
-    ['info', 'info with meta', { context: 'host' }], ['info', 'info with error', { context: 'host', error }],
-    ['warn', 'warn with meta', { context: 'host' }], ['warn', 'warn with error', { context: 'host', error }],
+    ['error', 'error with meta', { context: 'host' }], ['error', 'error with error', { context: 'host', error: 'Error' }],
+    ['info', 'info with meta', { context: 'host' }], ['info', 'info with error', { context: 'host', error: 'Error' }],
+    ['warn', 'warn with meta', { context: 'host' }], ['warn', 'warn with error', { context: 'host', error: 'Error' }],
   ]);
   expect(lines).toHaveLength(6);
+});
+
+// The default file and echo carry safe metadata only (class + approved code): a caught error's text
+// or stack can quote untrusted input or a credential, and a console tee cannot protect the file write.
+it('never writes or echoes an error message, stack or name, including fatal-handler meta', () => {
+  const echoed: unknown[][] = [];
+  const out = { error: (...args: unknown[]) => { echoed.push(args); }, info: (...args: unknown[]) => { echoed.push(args); }, warn: (...args: unknown[]) => { echoed.push(args); } };
+  const lines: string[] = [];
+  const logger = createFileLogger({ logPath: '/unused' }, { console: out, append: ({ data }) => { lines.push(data); } });
+  const secretError = Object.assign(new RangeError('boom api_key=SECRETSECRETSECRETSECRET'), { name: 'SECRETSECRETNAME' });
+  logger.error({ message: 'fatal uncaught exception' }, { meta: { error: secretError } });
+  logger.warn({ message: 'fatal unhandled rejection' }, { meta: { reason: secretError } });
+  logger.error({ message: 'bag' }, { error: secretError });
+  expect(lines.map(line => JSON.parse(line).meta)).toEqual([{ error: 'RangeError' }, { reason: 'RangeError' }, { error: 'RangeError' }]);
+  expect(echoed).toEqual([['fatal uncaught exception', { error: 'RangeError' }], ['fatal unhandled rejection', { reason: 'RangeError' }], ['bag', { error: 'RangeError' }]]);
+  const written = JSON.stringify([lines, echoed]);
+  for (const forbidden of ['boom', 'SECRETSECRET', 'logging.test.ts']) expect(written).not.toContain(forbidden);
+});
+
+it('hands the full record to an injected host diagnostics sink; a throwing sink never stops the file line', () => {
+  const lines: string[] = [];
+  const records: unknown[] = [];
+  const error = new Error('boom detail');
+  const logger = createFileLogger({ logPath: '/unused' }, { echoToConsole: false, append: ({ data }) => { lines.push(data); }, diagnostics: record => { records.push(record); } });
+  logger.error({ message: 'stopped' }, { meta: { runId: 'run-1' }, error });
+  expect(records).toEqual([{ level: 'error', message: 'stopped', meta: { runId: 'run-1' }, error }]);
+  expect((records[0] as { error: unknown }).error).toBe(error);
+  expect(JSON.parse(lines[0]!).meta).toEqual({ runId: 'run-1', error: 'Error' });
+  const failing = createFileLogger({ logPath: '/unused' }, { echoToConsole: false, append: ({ data }) => { lines.push(data); }, diagnostics: () => { throw new Error('sink down'); } });
+  expect(() => failing.warn({ message: 'kept' }, { error })).not.toThrow();
+  expect(lines.some(line => JSON.parse(line).message === 'kept')).toBe(true);
 });

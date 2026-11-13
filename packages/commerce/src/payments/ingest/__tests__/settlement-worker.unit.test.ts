@@ -121,6 +121,20 @@ test('every settlement warning keeps its plain words and adds only the error cla
   }
 });
 
+// Host channel: the one-string warning stays metadata-only, and the host's port also receives the
+// original error so its own sink can store the full record under its own redaction.
+test('a settlement warning hands the original error to the host port beside the metadata-only text', async () => {
+  const thrown = new Error('connection lost api_key=SECRETSECRETSECRETSECRET');
+  const seen: { message: string; detail: { readonly error?: unknown } | undefined }[] = [];
+  const worker = createCommerceWorker({ owner: true, directory: 'unused', active: async () => true, hasPending: async () => true, run: async () => { throw thrown; },
+    warn: (message, detail) => { seen.push({ message, detail }); } }, { withOwnership: async run => { await run(); return { acquired: true }; }, schedule: () => () => {} });
+  await worker.kick(); await tick();
+  const warning = seen.find(entry => entry.message.startsWith('Payment settlement is delayed'));
+  assert.equal(warning?.message, 'Payment settlement is delayed; recorded payments will retry automatically. Cause: Error');
+  assert.equal(warning?.detail?.error, thrown);
+  await worker.close();
+});
+
 test('standby retries ownership and takes over after the former owner exits without another HTTP request', async () => {
   let available = false, runs = 0;
   const timers: (() => void)[] = [];
