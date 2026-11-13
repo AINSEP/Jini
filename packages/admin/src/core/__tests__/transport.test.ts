@@ -114,12 +114,24 @@ describe('describeApiError', () => {
     expect(describeApiError({ e: new AdminApiError({ message: '', status: 400 }), fallback: 'fallback' })).toBe('fallback');
   });
 
-  it('uses a plain Error message', () => {
-    expect(describeApiError({ e: new Error('network down'), fallback: 'fallback' })).toBe('network down');
+  it('never shows a plain Error message: only an AdminApiError carries approved copy', () => {
+    const warn = vi.fn();
+    expect(describeApiError({ e: new Error('credential: PRIVATEVALUE'), fallback: 'fallback' }, { warn })).toBe('fallback');
+    expect(warn).toHaveBeenCalledTimes(1);
+    expect(warn.mock.calls[0]![0]).toBe('[admin] fallback Cause: Error');
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('PRIVATEVALUE');
   });
 
-  it('falls back for a thrown non-Error', () => {
-    expect(describeApiError({ e: 'a string', fallback: 'fallback' })).toBe('fallback');
+  it('falls back for a thrown non-Error and logs only its type', () => {
+    const warn = vi.fn();
+    expect(describeApiError({ e: 'a string PRIVATEVALUE', fallback: 'fallback' }, { warn })).toBe('fallback');
+    expect(JSON.stringify(warn.mock.calls)).not.toContain('PRIVATEVALUE');
+  });
+
+  it('does not log an AdminApiError: the host API port already reported it', () => {
+    const warn = vi.fn();
+    describeApiError({ e: new AdminApiError({ message: 'server said no', status: 400 }), fallback: 'fallback' }, { warn });
+    expect(warn).not.toHaveBeenCalled();
   });
 });
 

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { createMemoryMediaApi, createMemoryMediaProviders } from '../adapters/memory.js';
 import { createLibraryController } from '../controllers/library.controller.js';
 import { createEditMediaController } from '../controllers/edit-media.controller.js';
@@ -161,6 +161,17 @@ describe('memory API and controllers', () => {
     expect(controller.getSnapshot().error).toBe('Provider service unavailable');
     expect(await controller.save({ id: 'example', credential: 'secret' })).toBe(false);
     expect(controller.getSnapshot().error).toBe('Failed to save provider credentials');
+    const warned = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    failure = new Error('credential: PRIVATEVALUE');
+    await controller.load();
+    expect(controller.getSnapshot().error).toBe('Provider service unavailable');
+    expect(await controller.save({ id: 'example', credential: 'secret' })).toBe(false);
+    expect(controller.getSnapshot().error).toBe('Failed to save provider credentials');
+    expect(warned.mock.calls.map(args => args.join(' '))).toEqual([
+      '[admin] Provider service unavailable Cause: Error', '[admin] Failed to save provider credentials Cause: Error',
+    ]);
+    expect(JSON.stringify(controller.getSnapshot())).not.toContain('PRIVATEVALUE');
+    warned.mockRestore();
     controller.dispose();
   });
 });
