@@ -125,8 +125,22 @@ describe('model-facing chat history tools', () => {
 
   it('validates ranges/types and fails closed for hosts without the bounded reader', async () => {
     const h = harness({ history: reader() });
-    for (const input of [{ limit: 0 }, { limit: 51 }, { limit: null }, { query: 2 }, { query: 'x'.repeat(201) }]) await expect(h.call('assistant_chats_list', input)).rejects.toThrow();
-    for (const input of [{}, { chatId: '' }, { chatId: 'x'.repeat(129) }, { chatId: 'chat', limit: 101 }, { chatId: 'chat', fromPosition: -1 }, { chatId: 'chat', fromPosition: 0.5 }, { chatId: 'chat', includeToolEvents: 'yes' }]) await expect(h.call('assistant_chat_read', input)).rejects.toThrow();
+    for (const [input, message] of [
+      [{ limit: 0 }, 'limit must be an integer from 1 through 50.'],
+      [{ limit: 51 }, 'limit must be an integer from 1 through 50.'],
+      [{ limit: null }, 'limit must be an integer from 1 through 50.'],
+      [{ query: 2 }, 'query must be a string of at most 200 characters.'],
+      [{ query: 'x'.repeat(201) }, 'query must be a string of at most 200 characters.'],
+    ] as const) await expect(h.call('assistant_chats_list', input)).rejects.toThrow(message);
+    for (const [input, message] of [
+      [{}, 'chatId must be an id returned by assistant_chats_list.'],
+      [{ chatId: '' }, 'chatId must be an id returned by assistant_chats_list.'],
+      [{ chatId: 'x'.repeat(129) }, 'chatId must be an id returned by assistant_chats_list.'],
+      [{ chatId: 'chat', limit: 101 }, 'limit must be an integer from 1 through 100.'],
+      [{ chatId: 'chat', fromPosition: -1 }, 'fromPosition must be an integer from 0 through 9007199254740991.'],
+      [{ chatId: 'chat', fromPosition: 0.5 }, 'fromPosition must be an integer from 0 through 9007199254740991.'],
+      [{ chatId: 'chat', includeToolEvents: 'yes' }, 'includeToolEvents must be boolean.'],
+    ] as const) await expect(h.call('assistant_chat_read', input)).rejects.toThrow(message);
     expect(h.callers).toEqual([]);
     const unavailable = harness({});
     await expect(unavailable.call('assistant_chats_list', {})).rejects.toThrow('unavailable');

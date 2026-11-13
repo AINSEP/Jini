@@ -283,7 +283,7 @@ describe('@jini-ai/platform — process — spawnBackgroundProcess', () => {
   it('rejects when the command cannot be spawned', async () => {
     await expect(
       spawnBackgroundProcess({ args: [], command: 'this-command-does-not-exist-anywhere-xyz' }),
-    ).rejects.toThrow();
+    ).rejects.toThrow('spawn this-command-does-not-exist-anywhere-xyz ENOENT');
   });
 
   it('throws a descriptive error when the child reports no pid after spawning', async () => {

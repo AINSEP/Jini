@@ -891,7 +891,7 @@ test("CLOSED: a layout never derived from forWorkspace() at all -- arbitrary str
     );
 
     // No bytes were written outside the agent-plugins tree at all -- `rogueRoot` was never created.
-    await assert.rejects(() => stat(rogueRoot));
+    await assert.rejects(() => stat(rogueRoot), { name: "Error", code: "ENOENT", message: `ENOENT: no such file or directory, stat '${rogueRoot}'` });
   } finally {
     await forceRemove(cwd);
   }

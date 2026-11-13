@@ -7,14 +7,14 @@ describe('visitor frontend ownership', () => {
     const registry = createFrontendSessionRegistry({});
     const handle = registry.attach({ descriptor: { sessionId: 's', capabilities: ['page.click'], owner }, deliver() {} });
     for (const forged of [{ ...owner, principalId: 'other' }, { ...owner, tabId: 'other' }, { ...owner, workspaceId: 'other' }, undefined]) {
-      expect(() => registry.bindRunByToken({ runId: 'r', bindToken: handle.bindToken, ...(forged ? { owner: forged } : {}) })).toThrow();
+      expect(() => registry.bindRunByToken({ runId: 'r', bindToken: handle.bindToken, ...(forged ? { owner: forged } : {}) })).toThrow('FrontendSessionRegistry: cannot bind run "r" — unknown or expired bind token');
     }
     const release = registry.bindRunByToken({ runId: 'r', bindToken: handle.bindToken, owner });
     expect(registry.sessionFor({ runId: 'r' })?.sessionId).toBe('s');
     release();
     expect(registry.sessionFor({ runId: 'r' })).toBeUndefined();
     handle.detach({});
-    expect(() => registry.bindRunByToken({ runId: 'r', bindToken: handle.bindToken, owner })).toThrow();
+    expect(() => registry.bindRunByToken({ runId: 'r', bindToken: handle.bindToken, owner })).toThrow('FrontendSessionRegistry: cannot bind run "r" — unknown or expired bind token');
   });
   it('authenticates responses with both owner and current token and suppresses replay', async () => {
     const registry = createFrontendSessionRegistry({});
@@ -42,7 +42,7 @@ describe('visitor frontend ownership', () => {
     first.detach({});
     const second = registry.attach({ descriptor: { sessionId: 's', capabilities: [], owner }, deliver() {} });
     expect(second.bindToken).not.toBe(first.bindToken);
-    expect(() => registry.bindRunByToken({ runId: 'r', bindToken: first.bindToken, owner })).toThrow();
+    expect(() => registry.bindRunByToken({ runId: 'r', bindToken: first.bindToken, owner })).toThrow('FrontendSessionRegistry: cannot bind run "r" — unknown or expired bind token');
     second.detach({});
   });
 });

@@ -23,7 +23,7 @@ export function sqlSessionContract(make:()=>Promise<SqlSessionFixture>,create:(i
  });
  it('uses assistant_agent_sessions FK and cascades exactly the deleted conversation',async()=>{
   const f=await make();try{
-   await expect(f.store.setSessionId({ conversationId: 'unknown', agentId: 'c', sessionId: 'foreign' })).rejects.toThrow();
+   await expect(f.store.setSessionId({ conversationId: 'unknown', agentId: 'c', sessionId: 'foreign' })).rejects.toThrow(f.kernel.transport === 'better-sqlite3' ? 'FOREIGN KEY constraint failed' : 'insert or update on table "assistant_agent_sessions" violates foreign key constraint "assistant_agent_sessions_conversation_id_fkey"');
    await f.store.setSessionId({ conversationId: 'a:b', agentId: 'c', sessionId: 'first' });await f.store.setSessionId({ conversationId: 'a', agentId: 'b:c', sessionId: 'second' });
    expect(await f.store.getSessionId({ conversationId: 'a:b', agentId: 'c' })).toBe('first');
    await f.kernel.execute(sql`DELETE FROM ai_chats WHERE id = ${'a:b'}`);

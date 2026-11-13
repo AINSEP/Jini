@@ -30,7 +30,7 @@ it('matches all workspace wire routes, encodes ids, preserves empty patches and 
     ]);
     const abort = new AbortController();
     abort.abort();
-    await expect(api.createRole({ name: 'blocked' }, { signal: abort.signal })).rejects.toThrow();
+    await expect(api.createRole({ name: 'blocked' }, { signal: abort.signal })).rejects.toThrow(abort.signal.reason.message);
     expect(calls).toHaveLength(11);
 });
 it('supports a host API prefix and preserves structured transport failures', async () => {

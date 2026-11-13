@@ -1056,7 +1056,7 @@ describe('selectOption with an explicit `selected`', () => {
   it('does not change the single-select\'s value when the deselect is refused', async () => {
     const select = root.querySelector('[data-agent-element="role-select"]') as HTMLSelectElement;
     select.value = 'designer';
-    await expect(makeDriver().selectOption({ handle: 'role-select', option: 'Engineer' }, { selected: false })).rejects.toThrow();
+    await expect(makeDriver().selectOption({ handle: 'role-select', option: 'Engineer' }, { selected: false })).rejects.toThrow('"role-select" is a single-select; its choice cannot be removed, only replaced — select a different option instead of deselecting "Engineer"');
     expect(select.value).toBe('designer');
   });
 

@@ -52,7 +52,7 @@ describe('Composer agent handles', () => {
     document.body.append(restricted);
     try {
       const outside = createDomPageDriver({ root: restricted, pages: { chat: { label: 'Chat', navigate: () => {} } } });
-      await expect(outside.click({ handle: 'assistant-send' })).rejects.toThrow();
+      await expect(outside.click({ handle: 'assistant-send' })).rejects.toThrow('no element published as "assistant-send" on this page');
       expect(onSend).not.toHaveBeenCalled();
     } finally { restricted.remove(); }
     expect(within(container).getByRole('button', { name: 'Send' })).toBeEnabled();

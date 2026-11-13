@@ -98,7 +98,7 @@ describe('writeFileAtomicAsync', () => {
     const file = path.join(dir, 'secret.json');
     await writeFileAtomicAsync({ filePath: file, content: 'good' }, { mode: 0o600, verifyOwnerOnly: true, createParent: true });
     hoisted.statMode = 'group-readable';
-    await expect(writeFileAtomicAsync({ filePath: file, content: 'bad' }, { mode: 0o600, verifyOwnerOnly: true, createParent: true })).rejects.toThrow();
+    await expect(writeFileAtomicAsync({ filePath: file, content: 'bad' }, { mode: 0o600, verifyOwnerOnly: true, createParent: true })).rejects.toThrow('atomic write refused non-owner-only permissions');
     expect(fs.readFileSync(file, 'utf8')).toBe('good');
   });
 

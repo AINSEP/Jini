@@ -98,7 +98,7 @@ describe('default body stdin reader (async iterator)', () => {
     await withIterableStdin([], async (stdin) => {
       const original = (process.stdin as unknown as { [Symbol.asyncIterator]: () => AsyncIterator<string> });
       Object.assign(original, { async *[Symbol.asyncIterator]() { yield 'a'; controller.abort(); yield 'b'; } });
-      await expect(readBodyFromFlags({ flags: { 'body-file': '-' } }, { signal: controller.signal })).rejects.toThrow();
+      await expect(readBodyFromFlags({ flags: { 'body-file': '-' } }, { signal: controller.signal })).rejects.toThrow(controller.signal.reason.message);
       expect(stdin.destroyed).toHaveLength(1);
       expect((stdin.destroyed[0] as Error).message).toBe('stdin read aborted');
     });

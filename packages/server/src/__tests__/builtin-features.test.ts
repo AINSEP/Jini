@@ -582,7 +582,7 @@ describe('kernel base failure cleanup', () => {
     // already open — the one path where a leak would otherwise be invisible.
     writeFileSync(join(dataDir, 'events.db'), 'not a sqlite file at all');
 
-    await expect(createJiniKernelBase({ storage: { kind: 'sqlite', open: openSqlite, dataDir } })).rejects.toThrow();
+    await expect(createJiniKernelBase({ storage: { kind: 'sqlite', open: openSqlite, dataDir } })).rejects.toThrow('file is not a database');
   });
 });
 

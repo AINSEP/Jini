@@ -151,7 +151,7 @@ it.each(['parked', 'error', 'close'])('%s rejects a pending current attachment w
   const { bridge, sources } = bridgeHarness();
   // This surface never attached; observe ready only to prevent a refusal becoming unhandled.
   const waiting = bridge.rebind({}, {});
-  const rejected = expect(waiting).rejects.toThrow();
+  const rejected = expect(waiting).rejects.toThrow(kind === 'close' ? 'the frontend bridge is closed' : kind === 'parked' ? 'the surface is parked' : 'the frontend stream failed');
   if (kind === 'close') bridge.close();
   else sources[0]!.dispatchEvent(new Event(kind));
   await rejected;

@@ -24,7 +24,7 @@ it('atomically replaces only a scope, refuses native and other-scope collisions,
   const before = toolRegistryRevision({ registry });
   expect(() => scope.replace({ registrations: [registration('new'), registration('native')] })).toThrow(/already registered/);
   expect(registry.list({}).map(tool => tool.id)).toEqual(['native', 'old']);
-  expect(() => other.replace({ registrations: [registration('old')] })).toThrow();
+  expect(() => other.replace({ registrations: [registration('old')] })).toThrow('ToolRegistry: tool "old" is already registered');
   expect(toolRegistryRevision({ registry })).toBe(before);
   const { authorizeToolInvocation: authorizeBeforeReplace } = await import('../tool-registry.js');
   const retained = await authorizeBeforeReplace({ registry, toolId: 'old', principal: { id: 'p' }, run: { id: 'r' }, input: {} });

@@ -78,11 +78,11 @@ describe('neutral sign-in card', () => {
     await expect(waitAtSignInCard({ ...f.required, connect: async ({ signal, showSignIn }) => {
       await showSignIn({ signInUrl: 'https://atlas.test/login' }); f.controller.abort();
       expect(f.exchange.close).toHaveBeenCalled(); signal.throwIfAborted(); return { status: 'connected' };
-    } }, { emitSurface: async () => {} })).rejects.toThrow();
+    } }, { emitSurface: async () => {} })).rejects.toThrow(f.controller.signal.reason.message);
     expect(f.ctx.signal.aborted).toBe(true);
   });
   it('never starts authorization on a pre-aborted run', async () => {
     const f = fixture(); f.controller.abort(); const connect = vi.fn();
-    await expect(waitAtSignInCard({ ...f.required, connect })).rejects.toThrow(); expect(connect).not.toHaveBeenCalled();
+    await expect(waitAtSignInCard({ ...f.required, connect })).rejects.toThrow(f.controller.signal.reason.message); expect(connect).not.toHaveBeenCalled();
   });
 });

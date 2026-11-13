@@ -86,7 +86,7 @@ describe('legacy media controller guards', () => {
     await api.trash({ id: item.id });
     await expect(api.replace!({ id: item.id, upload: input })).rejects.toThrow('trashed');
     const abort = new AbortController(); abort.abort();
-    await expect(api.replace!({ id: item.id, upload: input }, { signal: abort.signal })).rejects.toThrow();
+    await expect(api.replace!({ id: item.id, upload: input }, { signal: abort.signal })).rejects.toThrow(abort.signal.reason.message);
   });
   it('exposes replacement only with an HTTP route and forwards encoded identity and abort options', async () => {
     const { item } = await fixture();

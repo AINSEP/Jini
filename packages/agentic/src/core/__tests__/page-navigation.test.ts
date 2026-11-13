@@ -31,7 +31,7 @@ describe('published navigation targets', () => {
     await expect(resolvePageNavigation({ screen: pages, input: { entity: { type: 'page', id: 'id' } } }, { lookupEntity: async () => ({ params: { slug } }) })).rejects.toThrow('invalid route parameter');
   });
   it('refuses arbitrary link destinations and query state', () => {
-    for (const path of ['https://evil.test', '../pages', 'pages?tab=other', 'made-up', 'constructor']) expect(() => validatePageLink({ screens: [pages], path })).toThrow();
+    for (const path of ['https://evil.test', '../pages', 'pages?tab=other', 'made-up', 'constructor']) expect(() => validatePageLink({ screens: [pages], path })).toThrow('Not a published admin screen');
     expect(() => validatePageLink({ screens: [pages], path: 'pages', query: { next: '//evil' } })).toThrow('not allowed');
     expect(() => validatePageLink({ screens: [plugins], path: 'plugins', query: { tab: 'evil' } })).toThrow('Invalid value');
   });

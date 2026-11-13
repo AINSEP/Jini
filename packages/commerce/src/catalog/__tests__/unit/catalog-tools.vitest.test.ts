@@ -32,16 +32,18 @@ it("refuses setup while disabled and propagates a specific recoverable reason", 
   expect(f.products.save).not.toHaveBeenCalled();
 });
 it.each([
-  { name: "Notebook", slug: "../other" }, { name: " ", slug: "notebook" }, { name: "Notebook", slug: "notebook", workspaceId: "other" },
-])("rejects unsafe product input before a write: %j", async input => {
-  const f = fixture(); await expect(f.createProduct(input)).rejects.toThrow(); expect(f.products.save).not.toHaveBeenCalled();
+  [{ name: "Notebook", slug: "../other" }, "slug must contain lowercase words separated by single hyphens"],
+  [{ name: " ", slug: "notebook" }, "'name' must be 1 to 200 characters, not blank"],
+  [{ name: "Notebook", slug: "notebook", workspaceId: "other" }, "unknown field 'workspaceId'; this tool accepts: name, slug"],
+] as const)("rejects unsafe product input before a write: %j", async (input, message) => {
+  const f = fixture(); await expect(f.createProduct(input)).rejects.toThrow(message); expect(f.products.save).not.toHaveBeenCalled();
 });
 it.each([
-  { productId: "product", amount: { minorUnits: -1, currency: "USD" } },
-  { productId: "product", amount: { minorUnits: 1.5, currency: "USD" } },
-  { productId: "product", amount: { minorUnits: 10, currency: "USD" }, providerAccountId: "other" },
-])("rejects invalid or foreign price input before a write: %j", async input => {
-  const f = fixture(); await expect(f.createPrice(input)).rejects.toThrow(); expect(f.prices.save).not.toHaveBeenCalled();
+  [{ productId: "product", amount: { minorUnits: -1, currency: "USD" } }, "amount: minorUnits must be greater than zero"],
+  [{ productId: "product", amount: { minorUnits: 1.5, currency: "USD" } }, "amount: minorUnits must be a safe integer number of minor units"],
+  [{ productId: "product", amount: { minorUnits: 10, currency: "USD" }, providerAccountId: "other" }, "unknown field 'providerAccountId'; this tool accepts: productId, amount"],
+] as const)("rejects invalid or foreign price input before a write: %j", async (input, message) => {
+  const f = fixture(); await expect(f.createPrice(input)).rejects.toThrow(message); expect(f.prices.save).not.toHaveBeenCalled();
 });
 it("refuses a foreign product returned by an adapter", async () => {
   const f = fixture(); f.product.workspaceId = "foreign";

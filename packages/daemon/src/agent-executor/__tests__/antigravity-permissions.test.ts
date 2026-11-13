@@ -67,7 +67,14 @@ it('serializes concurrent setup and creates a missing settings file with only th
 
 it.each(['{broken', '[]', '{"permissions":[]}', '{"permissions":null}', '{"permissions":{"allow":"mcp(*)"}}'])('refuses malformed settings without replacing them: %s', async raw => {
   const settingsPath = await fixture(raw);
-  await expect(prepare()).rejects.toThrow();
+  let message = raw === '[]' ? 'Antigravity settings must be an object' : 'Antigravity permissions.allow must be an array';
+  if (raw === '{broken') {
+    try { JSON.parse(raw); } catch (error) {
+      if (error instanceof SyntaxError) message = error.message;
+      else throw error;
+    }
+  }
+  await expect(prepare()).rejects.toThrow(message);
   expect(await fs.readFile(settingsPath, 'utf8')).toBe(raw);
 });
 

@@ -186,7 +186,7 @@ describe("CIC-2 — a tagged element the parser could not reliably locate must n
       // ends up without a locatable end tag.
       const html = '<b><i data-agent-element="misnest">text</b>more</i>';
 
-      expect(() => parser.findRegions({ html })).toThrow();
+      expect(() => parser.findRegions({ html })).toThrow('a "data-agent-element" region ("misnest") has no closing tag the parser could locate — its content boundaries cannot be determined safely. Close the tag explicitly.');
     }
   );
 
@@ -199,7 +199,7 @@ describe("CIC-2 — a tagged element the parser could not reliably locate must n
       '<section data-agent-element="hero">fine</section>' +
       '<div><td data-agent-element="stray-td">dropped</td></div>';
 
-    expect(() => parser.findRegions({ html })).toThrow();
+    expect(() => parser.findRegions({ html })).toThrow("the source mentions data-agent-element 1 time(s) but only 0 could be located in the parsed document — the parser's error-recovery rules likely dropped one entirely (a common cause: a table-only tag, such as <td>, used outside a <table>). Rewrite the document so every tagged element sits in ordinary, non-table-recovery document structure.");
   });
 });
 

@@ -19,7 +19,7 @@ const entry = RegistryEntrySchema.parse({
 
 describe('registry protocol', () => {
   it('requires stable vendor/plugin-name ids', () => {
-    expect(() => RegistryEntrySchema.parse({ ...entry, name: 'example' })).toThrow();
+    expect(() => RegistryEntrySchema.parse({ ...entry, name: 'example' })).toThrow(JSON.stringify([{ validation: 'regex', code: 'invalid_string', message: 'Invalid', path: ['name'] }], null, 2));
     expect(RegistryEntrySchema.parse(entry).name).toBe('vendor/example');
   });
 
@@ -176,13 +176,13 @@ describe('registry protocol', () => {
     expect(manifest.entries).toHaveLength(1);
     expect(() =>
       RegistryManifestSchema.parse({ specVersion: '1.0.0', name: 'fixture-registry', version: '0.0.0' }),
-    ).toThrow();
+    ).toThrow(JSON.stringify([{ code: 'invalid_type', expected: 'array', received: 'undefined', path: ['entries'], message: 'Required' }], null, 2));
   });
 
   it('requires a non-empty reason on a yank outcome', () => {
     expect(() =>
       RegistryYankOutcomeSchema.parse({ ok: true, name: entry.name, version: '1.0.0', reason: '' }),
-    ).toThrow();
+    ).toThrow(JSON.stringify([{ code: 'too_small', minimum: 1, type: 'string', inclusive: true, exact: false, message: 'String must contain at least 1 character(s)', path: ['reason'] }], null, 2));
     expect(
       RegistryYankOutcomeSchema.parse({
         ok: true,

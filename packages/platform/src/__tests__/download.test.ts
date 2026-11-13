@@ -1163,7 +1163,7 @@ describe("managed download engine", () => {
           fileName,
           payload: { checksum: { algorithm: "sha256", value: "0".repeat(64) }, url: "https://example.invalid/x.bin" },
         }),
-      ).rejects.toThrow();
+      ).rejects.toThrow(`EACCES: permission denied, open '${join(locksDir, `${sha256(`${bucket}\0${fileName}`)}.lock`)}'`);
     } finally {
       chmodSync(locksDir, 0o755);
     }
@@ -1670,7 +1670,7 @@ describe("managed download engine", () => {
           outputPath,
           payload: { checksum: { algorithm: "sha256", value: sha256(body) }, url: fixture.url },
         }),
-      ).rejects.toThrow();
+      ).rejects.toThrow(`destination already exists: ${outputPath}`);
     } finally {
       await fixture.close();
     }

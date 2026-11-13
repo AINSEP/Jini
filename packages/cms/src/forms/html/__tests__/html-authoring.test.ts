@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { ForbiddenError } from "../../../core/index.js";
 import { FormSubmissionValidationError, FormRateLimitExceededError } from "../../index.js";
+import { FormFieldValidationError } from "../../errors.js";
 import { executeCommand, InMemoryChangeSetRepo } from "../../__tests__/support/host-ports.fixture.js";
 import { InMemoryEventBus, InMemoryOutbox } from "../../__tests__/eventing.fixture.js";
 import { InMemoryFormDefinitionRepo, InMemoryFormSubmissionRepo } from "../../__tests__/support/repo-ports.fixture.js";
@@ -74,8 +75,12 @@ test("HTML authoring requires raw-HTML permission even when forms.manage is allo
 });
 
 test("reserved names and password controls cannot become submission columns", () => {
-  for (const html of ['<input name="_hp">', '<input name="constructor">', '<input name="secret" type="password">']) {
-    assert.throws(() => deriveHtmlForm({ html }));
+  for (const [html, message] of [
+    ['<input name="_hp">', "Reserved field name '_hp'"],
+    ['<input name="constructor">', "Reserved field name 'constructor'"],
+    ['<input name="secret" type="password">', 'Password fields are not supported'],
+  ] as const) {
+    assert.throws(() => deriveHtmlForm({ html }), { constructor: FormFieldValidationError, message });
   }
 });
 

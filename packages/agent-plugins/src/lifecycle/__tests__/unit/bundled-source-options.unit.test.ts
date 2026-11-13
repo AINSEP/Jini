@@ -227,7 +227,7 @@ describe('opt-in source packing', () => {
       await expect(api.packAgentPluginDirectory({ sourceDir: '/source' }, { limits: { ...limits, maxFiles: value } })).rejects.toThrow('Invalid packing limit maxFiles');
     }
     for (const allowPath of ['../escape', '/absolute', 'C:\\absolute']) {
-      await expect(api.packAgentPluginDirectory({ sourceDir: '/source' }, { allowPaths: [allowPath] })).rejects.toThrow();
+      await expect(api.packAgentPluginDirectory({ sourceDir: '/source' }, { allowPaths: [allowPath] })).rejects.toThrow(allowPath === '../escape' ? `package entry path escapes the package root: '${allowPath}'` : `package entry path must be relative: '${allowPath}'`);
     }
     expect(calls).toEqual([]);
   });
@@ -274,7 +274,7 @@ describe('opt-in source packing', () => {
     expect(calls.some(call => call.startsWith('open:') || call.startsWith('readFile:'))).toBe(false);
     expect((await api.packAgentPluginDirectory({ sourceDir: '/source' }, { ...option, excludeNames: ['unsafe'] })).files).toEqual(['safe']);
     const root = fixture({ nodes: {}, root: { kind } });
-    await expect(root.api.packAgentPluginDirectory({ sourceDir: '/source' }, option)).rejects.toThrow();
+    await expect(root.api.packAgentPluginDirectory({ sourceDir: '/source' }, option)).rejects.toThrow(`bundled agent plugin refuses ${kind === 'symlink' ? 'symlink' : 'special file'} '/source'`);
     expect(root.calls.some(call => call.startsWith('list:'))).toBe(false);
   });
 

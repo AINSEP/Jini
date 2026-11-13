@@ -262,7 +262,7 @@ describe('token store mutations', () => {
     const dir = tmp();
     await setToken({ dataDir: dir, serverId: 's1', token: tok });
     hoisted.statMode = 'group-readable';
-    await expect(setToken({ dataDir: dir, serverId: 's2', token: { accessToken: 'B', tokenType: 'Bearer', savedAt: 2 } })).rejects.toThrow();
+    await expect(setToken({ dataDir: dir, serverId: 's2', token: { accessToken: 'B', tokenType: 'Bearer', savedAt: 2 } })).rejects.toThrow('atomic write refused non-owner-only permissions');
     hoisted.statMode = 'ok';
     expect(await getToken({ dataDir: dir, serverId: 's1' })).toEqual(tok);
     expect(await getToken({ dataDir: dir, serverId: 's2' })).toBeNull();

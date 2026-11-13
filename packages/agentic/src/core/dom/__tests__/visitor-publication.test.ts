@@ -16,27 +16,27 @@ it('publication hides unmarked, duplicate, private, hidden and credential handle
   const state = await driver.describeState!({ handle: 'panel' });
   expect(state?.text).toBe('Public');
   expect(await driver.describeState!({ handle: 'secret' })).toBeNull();
-  await expect(driver.click({ handle: 'toggle' })).rejects.toThrow();
-  await expect(driver.fill({ handle: 'secret', text: 'x' })).rejects.toThrow();
+  await expect(driver.click({ handle: 'toggle' })).rejects.toThrow('no element published as "toggle" on this page');
+  await expect(driver.fill({ handle: 'secret', text: 'x' })).rejects.toThrow('no element published as "secret" on this page');
 });
 it('rechecks identity, visibility, action class and publication revision before effects', async () => {
   const { root, driver } = setup('<button type="button" data-agent-element="toggle">Menu</button><section data-agent-element="panel">Content</section>');
   const clicked = vi.fn(); root.firstElementChild!.addEventListener('click', clicked);
   await driver.click({ handle: 'toggle' }); expect(clicked).toHaveBeenCalledTimes(1);
-  await expect(driver.click({ handle: 'panel' })).rejects.toThrow();
+  await expect(driver.click({ handle: 'panel' })).rejects.toThrow('Published action unavailable');
   root.firstElementChild!.setAttribute('hidden', '');
-  await expect(driver.click({ handle: 'toggle' })).rejects.toThrow();
+  await expect(driver.click({ handle: 'toggle' })).rejects.toThrow('no element published as "toggle" on this page');
   root.firstElementChild!.removeAttribute('hidden');
   root.firstElementChild!.replaceWith(root.firstElementChild!.cloneNode(true));
-  await expect(driver.click({ handle: 'toggle' })).rejects.toThrow();
+  await expect(driver.click({ handle: 'toggle' })).rejects.toThrow('no element published as "toggle" on this page');
   root.dataset.agentPublication = 'new';
   expect(await driver.findElements({})).toEqual([]);
 });
 it('never follows links through click, and rejects a submitter whose form target changed', async () => {
   const { root, driver } = setup('<a href="/admin" data-agent-element="toggle">Link</a><form action="/contact"><button data-agent-element="submit">Send</button></form>');
-  await expect(driver.click({ handle: 'toggle' })).rejects.toThrow();
+  await expect(driver.click({ handle: 'toggle' })).rejects.toThrow('Published action unavailable');
   root.querySelector('form')!.action = '/admin';
-  await expect(driver.click({ handle: 'submit' })).rejects.toThrow();
+  await expect(driver.click({ handle: 'submit' })).rejects.toThrow('no element published as "submit" on this page');
 });
 it('cancellation during observation prevents the later effect', async () => {
   const { root, driver } = setup('<button type="button" data-agent-element="toggle">Menu</button>');
@@ -51,7 +51,7 @@ it('cancellation during observation prevents the later effect', async () => {
     const result = await describe(...args); controller.abort(); return result;
   });
   const guarded = { ...driver, click, describeState: observed };
-  await expect(executePageCapability({ driver: guarded, capabilityId: 'page.click', input: { handle: 'toggle' } }, { signal: controller.signal })).rejects.toThrow();
+  await expect(executePageCapability({ driver: guarded, capabilityId: 'page.click', input: { handle: 'toggle' } }, { signal: controller.signal })).rejects.toThrow(controller.signal.reason.message);
   expect(observed).toHaveBeenCalledTimes(1);
   expect(controller.signal.aborted).toBe(true);
   expect(click).not.toHaveBeenCalled();
@@ -70,7 +70,7 @@ it('native submit can acknowledge acceptance before its effect, and rechecks the
   await driver.click({ handle: 'send' });
   expect(submitted).toBe(0); expect(effect).toBeTypeOf('function');
   root.querySelector('form')!.action = '/admin';
-  await expect(effect!()).rejects.toThrow(); expect(submitted).toBe(0);
+  await expect(effect!()).rejects.toThrow('no element published as "send" on this page'); expect(submitted).toBe(0);
 });
 it('published submitters cannot submit unmarked credential or payment controls', async () => {
   for (const field of ['<input type="password" name="password">', '<input autocomplete="cc-number" name="number">']) {
@@ -81,7 +81,7 @@ it('published submitters cannot submit unmarked credential or payment controls',
     const driver = createDomPageDriver({ root, pages: {} }, { publication: { revision: 'rev', elements: [
       { handle: 'send', action: 'submit', target: { action: '/contact', method: 'get' } },
     ] } });
-    await expect(driver.click({ handle: 'send' })).rejects.toThrow(); expect(submit).not.toHaveBeenCalled();
+    await expect(driver.click({ handle: 'send' })).rejects.toThrow('Published action unavailable'); expect(submit).not.toHaveBeenCalled();
   }
 });
 it('payment autocomplete protects dropdown reads and selection as well as text fields', async () => {
@@ -91,14 +91,14 @@ it('payment autocomplete protects dropdown reads and selection as well as text f
   const driver = createDomPageDriver({ root, pages: {} }, { publication: { revision: 'rev', elements: [{ handle: 'expiry', action: 'select' }] } });
   expect(await driver.findElements({})).toEqual([]);
   expect(await driver.describeState!({ handle: 'expiry' })).toBeNull();
-  await expect(driver.selectOption({ handle: 'expiry', option: 'January' })).rejects.toThrow();
+  await expect(driver.selectOption({ handle: 'expiry', option: 'January' })).rejects.toThrow('no element published as "expiry" on this page');
 });
 
 
 it('a publication never authorizes an untagged descendant action through a read region', async () => {
   const { root, driver } = setup('<section data-agent-element="panel"><button>Reveal</button></section>');
   const clicked = vi.fn(); root.querySelector('button')!.addEventListener('click', clicked);
-  await expect(driver.click({ handle: 'panel' })).rejects.toThrow();
+  await expect(driver.click({ handle: 'panel' })).rejects.toThrow('Published action unavailable');
   expect(clicked).not.toHaveBeenCalled();
 });
 

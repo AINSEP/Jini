@@ -258,15 +258,15 @@ test("rejects/permits egress consistently with classifyAddress for a raw-IP CGNA
     // be rejected pre-connect, same as any other private-range target below.
     const transport = new ScriptedTransport([{ status: 200, headers: {}, bodyText: "ok" }]);
     const client = createHttpClient({ ...{ transport, policy: makePolicy() }, dns, clock, userAgent: "Fixture/1.0" });
-    await assert.rejects(() => client.send({ request: makeRequest({ url: "https://100.64.0.1/" }) }));
+    await assert.rejects(() => client.send({ request: makeRequest({ url: "https://100.64.0.1/" }) }), { constructor: EgressRefusedError, message: "egress to '100.64.0.1' (100.64.0.1) rejected: resolved address is private" });
     assert.equal(transport.calls.length, 0, "transport must never be reached for a rejected target");
 });
 test("rejects a private/loopback/link-local target pre-connect for each address family", async () => {
     const transport = new ScriptedTransport([{ status: 200, headers: {}, bodyText: "" }]);
     const client = createHttpClient({ ...{ transport, policy: makePolicy() }, dns, clock, userAgent: "Fixture/1.0" });
-    await assert.rejects(() => client.send({ request: makeRequest({ url: "https://127.0.0.1/" }) }));
-    await assert.rejects(() => client.send({ request: makeRequest({ url: "https://10.0.0.1/" }) }));
-    await assert.rejects(() => client.send({ request: makeRequest({ url: "https://169.254.169.254/" }) }));
+    await assert.rejects(() => client.send({ request: makeRequest({ url: "https://127.0.0.1/" }) }), { constructor: EgressRefusedError, message: "egress to '127.0.0.1' (127.0.0.1) rejected: resolved address is loopback" });
+    await assert.rejects(() => client.send({ request: makeRequest({ url: "https://10.0.0.1/" }) }), { constructor: EgressRefusedError, message: "egress to '10.0.0.1' (10.0.0.1) rejected: resolved address is private" });
+    await assert.rejects(() => client.send({ request: makeRequest({ url: "https://169.254.169.254/" }) }), { constructor: EgressRefusedError, message: "egress to '169.254.169.254' (169.254.169.254) rejected: resolved address is link-local" });
     // WHATWG URL brackets a literal IPv6 hostname (`new URL("https://[::1]/").hostname === "[::1]"`).
     // Assert the EXACT classification message, not just "something threw" — before
     // `resolveHostAddresses` strips the brackets, `isIP("[::1]")` is 0, so this falls through to
@@ -460,12 +460,12 @@ test("connectTimeoutMs caps a caller-supplied timeout that exceeds it", async ()
 test("rejects a scheme not in the policy's allowedSchemes", async () => {
     const transport = new ScriptedTransport([{ status: 200, headers: {}, bodyText: "" }]);
     const client = createHttpClient({ ...{ transport, policy: makePolicy({ allowedSchemes: ["https"] }) }, dns, clock, userAgent: "Fixture/1.0" });
-    await assert.rejects(() => client.send({ request: makeRequest({ url: "http://example.com/" }) }));
+    await assert.rejects(() => client.send({ request: makeRequest({ url: "http://example.com/" }) }), { constructor: EgressRefusedError, message: "scheme 'http:' is not in the allowed egress schemes" });
 });
 test("rejects a target URL carrying embedded credentials", async () => {
     const transport = new ScriptedTransport([{ status: 200, headers: {}, bodyText: "" }]);
     const client = createHttpClient({ ...{ transport, policy: makePolicy() }, dns, clock, userAgent: "Fixture/1.0" });
-    await assert.rejects(() => client.send({ request: makeRequest({ url: "https://user:pass@example.com/" }) }));
+    await assert.rejects(() => client.send({ request: makeRequest({ url: "https://user:pass@example.com/" }) }), { constructor: EgressRefusedError, message: "credentials embedded in the target URL are not allowed" });
 });
 // -------------------------------------------------------------------------------------------
 // Default User-Agent (2026-09-03) — GitHub rejects every request with no `User-Agent` header

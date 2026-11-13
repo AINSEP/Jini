@@ -476,7 +476,9 @@ describe('createNoteStore — filesystem safety hardening', () => {
         await fs.symlink(outsideDir, join(dataDir, 'notes'), 'dir');
 
         await expect(store.upsertEntry({ dataDir: dataDir, input: { name: 'Evil', type: 'user' } })).rejects.toThrow(/escapes its data root/);
-        await expect(store.readConfig({ dataDir: dataDir })).rejects.toThrow();
+        const realOutsideDir = await fs.realpath(outsideDir);
+        const realDataDir = await fs.realpath(dataDir);
+        await expect(store.readConfig({ dataDir: dataDir })).rejects.toThrow(`note store config could not be read; refusing to default to "enabled" (note store: resolved directory "${realOutsideDir}" escapes its data root "${realDataDir}" (check the "subdir" option and for a symlink))`);
         await expect(store.listEntries({ dataDir: dataDir })).resolves.toEqual([]);
 
         // Nothing should have been written into the outside directory.

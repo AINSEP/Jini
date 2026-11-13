@@ -2,6 +2,7 @@ import { chmod, mkdir, mkdtemp, readFile, rm, stat, writeFile } from "node:fs/pr
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { getSystemErrorMessage } from "node:util";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -191,7 +192,7 @@ describe("@jini-ai/platform — fs", () => {
 
     const result = await removePathBestEffort(target);
     expect(result).toEqual({ removed: true });
-    await expect(stat(target)).rejects.toThrow();
+    await expect(stat(target)).rejects.toThrow(`ENOENT: no such file or directory, stat '${target}'`);
   });
 
   it("reads the trailing non-empty lines of a log file, and returns empty for a missing file", async () => {
@@ -275,8 +276,17 @@ describe("@jini-ai/platform — fs", () => {
 
     // A directory source makes the underlying copyFile() call itself fail,
     // exercising the outer try/catch's temp-file cleanup + rethrow.
-    await expect(atomicCopyFile(sourceDir, destination)).rejects.toThrow();
-    await expect(stat(destination)).rejects.toThrow();
+    const error = await atomicCopyFile(sourceDir, destination).then(
+      () => { throw new Error('Expected copying a directory to fail'); },
+      (failure: NodeJS.ErrnoException & { dest?: string }) => failure,
+    );
+    expect(error).toBeInstanceOf(Error);
+    expect(error).toMatchObject({ path: sourceDir, syscall: 'copyfile' });
+    expect(['ENOTSUP', 'EISDIR', 'EPERM', 'EACCES']).toContain(error.code);
+    if (typeof error.errno !== 'number') throw new Error('Expected a system error number');
+    const reason = `${error.code}: ${getSystemErrorMessage(error.errno)}`;
+    expect(error.message).toBe(`${reason}, copyfile '${sourceDir}' -> '${error.dest}'`);
+    await expect(stat(destination)).rejects.toThrow(`ENOENT: no such file or directory, stat '${destination}'`);
   });
 
   it.skipIf(isRoot)("reports the failure message when a best-effort removal itself fails (real chmod, non-root)", async () => {

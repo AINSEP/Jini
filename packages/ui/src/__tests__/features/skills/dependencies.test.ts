@@ -165,7 +165,7 @@ describe('createFakeSkillsPort', () => {
     it('removes an existing skill', async () => {
       const port = createFakeSkillsPort();
       await port.deleteSkill('skill-summarize');
-      await expect(port.fetchSkillDetail('skill-summarize')).rejects.toThrow();
+      await expect(port.fetchSkillDetail('skill-summarize')).rejects.toThrow('Unknown skill: skill-summarize');
     });
 
     it('rejects for an unknown id, and does not affect the existing list', async () => {

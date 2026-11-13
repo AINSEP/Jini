@@ -52,10 +52,15 @@ test('file cache reports corrupt documents and can be used again after the file 
         const filePath = join(dir, 'clients.json');
         const cache = createFileClientRegistrationCache({ filePath, fileIO: createNodeRegistrationCacheFileIO({ randomBytesFn: fixtureEntropy }) });
         await writeFile(filePath, '{corrupt');
+        let syntaxError: SyntaxError;
+        try { JSON.parse('{corrupt'); throw new Error('Expected invalid JSON'); } catch (error) {
+            if (error instanceof SyntaxError) syntaxError = error;
+            else throw error;
+        }
         await expect(cache.set({
             key: 'a',
             client: client
-        })).rejects.toThrow();
+        })).rejects.toThrow(syntaxError.message);
         await writeFile(filePath, '[]');
         await cache.set({
             key: 'a',

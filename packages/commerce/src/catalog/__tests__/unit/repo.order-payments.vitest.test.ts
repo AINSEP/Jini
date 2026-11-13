@@ -61,7 +61,7 @@ it("concurrent different bindings have one winner and keep the winning payment",
 it("propagates a duplicate payment binding and preserves both reservations", async () => {
   const repo = await world(), other = { ...record, orderId: "other" };
   await repo.reserve(record); await repo.reserve(other); await repo.bind({ ...record, paymentId: "payment" });
-  await expect(repo.bind({ ...other, paymentId: "payment" })).rejects.toThrow();
+  await expect(repo.bind({ ...other, paymentId: "payment" })).rejects.toThrow("UNIQUE constraint failed: commerce_order_payments.workspace_id, commerce_order_payments.mode, commerce_order_payments.payment_id");
   expect(await repo.findByOrder(record)).toEqual({ ...record, paymentId: "payment" });
   expect(await repo.findByOrder(other)).toEqual({ ...other, paymentId: null });
 });

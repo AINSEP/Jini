@@ -45,7 +45,7 @@ describe('consent proof storage', () => {
       await expect(readConsentReceiptStorage({ directory }, { filesystem: { ...fs, readdir: async () => { throw denied; } } })).rejects.toBe(denied);
       const blocker = path.join(directory, 'file');
       await fs.writeFile(blocker, 'not a directory');
-      await expect(readConsentReceiptStorage({ directory: path.join(blocker, 'receipts') })).rejects.toThrow();
+      await expect(readConsentReceiptStorage({ directory: path.join(blocker, 'receipts') })).rejects.toThrow(`ENOTDIR: not a directory, mkdir '${path.join(blocker, 'receipts')}'`);
     } finally { await fs.rm(directory, { recursive: true, force: true }); }
   });
   // REGRESSION: fails if Windows receipt publication opens a directory after its hard link lands.

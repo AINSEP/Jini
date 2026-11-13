@@ -130,7 +130,7 @@ describe('connection + schema', () => {
     const a = openDatabase({ projectRoot: '/r' }, { dataDir: tmp() });
     const b = openDatabase({ projectRoot: '/r' }, { dataDir: tmp() });
     expect(b).not.toBe(a);
-    expect(() => a.prepare('SELECT 1')).toThrow(); // previous handle is closed
+    expect(() => a.prepare('SELECT 1')).toThrow('The database connection is not open'); // previous handle is closed
   });
 
   it('closeDatabase is a safe no-op when nothing is open', () => {
@@ -586,7 +586,7 @@ describe('messages CRUD', () => {
         // instead of reading a stale MAX(position) and silently colliding with db1's in-flight row.
         expect(() =>
           upsertMessage({ db: db2, conversationId: 'c1', m: { id: 'm2', role: 'user', content: 'from db2' } }),
-        ).toThrow();
+        ).toThrow('database is locked');
 
         // Once db1 commits, db2's upsert succeeds and correctly continues the position sequence
         // past db1's now-committed row instead of reusing position 1.

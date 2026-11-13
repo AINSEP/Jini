@@ -83,7 +83,7 @@ it('foreign and revoked capabilities dispatch zero tools', async () => {
   expect(foreignSession.status).toBeGreaterThanOrEqual(400);
   await foreignSession.body?.cancel();
   await first.close({});
-  await expect(fetch(first.url, { method: 'POST', headers: { Authorization: `Bearer ${first.token}` }, body: '{}' })).rejects.toThrow();
+  await expect(fetch(first.url, { method: 'POST', headers: { Authorization: `Bearer ${first.token}` }, body: '{}' })).rejects.toThrow('fetch failed');
   expect(handler).not.toHaveBeenCalled();
 });
 
@@ -98,7 +98,7 @@ it('cancellation reaches the delegated handler', async () => {
   const { client } = await connect(host);
   const controller = new AbortController();
   const call = client.callTool({ name: 'execute_delegated_tool', arguments: { toolId: 'content.read', input: {} } }, undefined, { signal: controller.signal });
-  const rejected = expect(call).rejects.toThrow();
+  const rejected = expect(call).rejects.toThrow('MCP error -32001: AbortError: This operation was aborted');
   await ready;
   controller.abort();
   await rejected;
@@ -110,7 +110,7 @@ it('terminal cleanup stops admission and disposes sessions', async () => {
   const { client } = await connect(host);
   expect((await client.listTools()).tools.length).toBeGreaterThan(0);
   await host.close({});
-  await expect(client.listTools()).rejects.toThrow();
+  await expect(client.listTools()).rejects.toThrow('fetch failed');
 });
 
 it('desktop stateless behavior remains unchanged', async () => {

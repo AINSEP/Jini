@@ -13,5 +13,5 @@ it('matches every server route, request body, envelope and signal while strippin
 });
 it('aborted operations never reach the injected transport', async () => {
   const request = vi.fn(), api = createHttpSourceControlApi({ transport: { request }, workspacePath: '/workspace' }); const abort = new AbortController(); abort.abort();
-  for (const action of [() => api.providers({}, { signal: abort.signal }), () => api.list({}, { signal: abort.signal }), () => api.create({ label: 'x', connection: { providerId: 'git', token: 'x' } }, { signal: abort.signal }), () => api.update({ id: 'x', patch: {} }, { signal: abort.signal }), () => api.remove({ id: 'x' }, { signal: abort.signal })]) await expect(action()).rejects.toThrow(); expect(request).not.toHaveBeenCalled();
+  for (const action of [() => api.providers({}, { signal: abort.signal }), () => api.list({}, { signal: abort.signal }), () => api.create({ label: 'x', connection: { providerId: 'git', token: 'x' } }, { signal: abort.signal }), () => api.update({ id: 'x', patch: {} }, { signal: abort.signal }), () => api.remove({ id: 'x' }, { signal: abort.signal })]) await expect(action()).rejects.toThrow(abort.signal.reason.message); expect(request).not.toHaveBeenCalled();
 });
