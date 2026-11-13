@@ -35,3 +35,11 @@ it('refuses a missing loopback run id before touching the queue', async () => {
   expect(await res.json()).toEqual({ error: { code: 'NOT_FOUND', message: 'run was not found' } });
   expect(claimUserMessages).not.toHaveBeenCalled();
 });
+
+it('states the claim body limit itself (1 KiB, as the production host enforces), never the reader default', async () => {
+  const claimUserMessages = vi.fn(() => []);
+  const handler = createMessageRelayClaimHandler({ agentExecutor: { claimUserMessages }, runScopedCallers: undefined });
+  const res = await postClaim({ handler }, { runId: 'run', body: { via: 'tool-result', pad: 'x'.repeat(2048) } });
+  expect(res.status).toBe(413);
+  expect(claimUserMessages).not.toHaveBeenCalled();
+});
