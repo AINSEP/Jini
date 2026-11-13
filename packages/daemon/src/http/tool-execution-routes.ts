@@ -25,9 +25,8 @@
 import express, { type ErrorRequestHandler, type NextFunction, type Request, type RequestHandler, type Response } from 'express';
 import { createApiError, type ApiError } from '@jini-ai/protocol';
 import type { Principal, SurfaceEmitter, ToolDescriptor } from '@jini-ai/core';
-import { bearerTokenFromHeader, isLoopbackPeerAddress, sendApiError, statusForError, timingSafeTokenMatch } from '@jini-ai/http-kit';
+import { bearerTokenFromHeader, isLoopbackPeerAddress, reportRouteInternalError, sendApiError, statusForError, timingSafeTokenMatch, type RouteInternalErrorSink } from '@jini-ai/http-kit';
 import type { ToolExecutionResult, ToolExecutor } from '../tool-executor.js';
-import { reportRouteInternalError, type RouteInternalErrorSink } from './internal-error.js';
 import { TOOL_EXECUTIONS_ROUTE_PATH, type ToolExecutionWireError, type ToolExecutionWireLine, type ToolExecutionWireRequest } from '../remote-tool-executor.js';
 
 export { TOOL_EXECUTIONS_ROUTE_PATH };
@@ -212,7 +211,7 @@ function catalogHandler(
       res.end(JSON.stringify({ tools }));
     } catch (error) {
       sendApiError({ res, status: 500, error: reportRouteInternalError({
-        source: 'tool-catalog', error,
+        report: { source: 'tool-catalog', error }, logSource: 'tool-catalog',
         message: 'The tool list could not be loaded. Try again; if it keeps failing, copy the request ID and report this problem.',
       }, { onInternalError }) });
     }
