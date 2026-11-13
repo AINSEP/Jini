@@ -1,6 +1,6 @@
 import { createServer, request as httpRequest, type Server as HttpServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
 import { createNodeDispatcher, type NodeDispatcher } from '../node-bridge.js';
 import { jsonResponse, readJsonBody } from '../server-port.js';
@@ -79,7 +79,87 @@ describe('createNodeDispatcher on plain node:http', () => {
     req.destroy();
     await sawAbort;
   });
+
+  it('answers a Host header that makes no valid URL with a 400 and never rejects', async () => {
+    const dispatcher = createNodeDispatcher({}, { onUnhandledError: () => undefined });
+    routes(dispatcher);
+    const rejections: unknown[] = [];
+    const base = await listen(createServer((incoming, out) => { dispatcher.handle({ incoming, out }).catch((e: unknown) => { rejections.push(e); out.destroy(); }); }));
+    const status = await rawStatus({ base, path: '/echo/1', headers: { host: '[' } });
+    expect([status, rejections]).toEqual([400, []]);
+  });
+
+  it('matches the request path exactly as received; a leading double slash is not an authority', async () => {
+    const dispatcher = createNodeDispatcher();
+    routes(dispatcher);
+    const base = await listen(createServer((incoming, out) => { void dispatcher.handle({ incoming, out }); }));
+    expect(await rawStatus({ base, path: '//elsewhere/cookies' })).toBe(404);
+  });
+
+  it('stops reading a stream while the client is not reading, and cancels it when the client leaves', async () => {
+    const chunk = new Uint8Array(256 * 1024);
+    let pulled = 0;
+    let cancelled!: () => void;
+    const sawCancel = new Promise<void>((resolve) => { cancelled = resolve; });
+    const dispatcher = createNodeDispatcher();
+    dispatcher.server.route({ method: 'GET', path: '/flood', handler: () => new Response(new ReadableStream<Uint8Array>({
+      pull(controller) { pulled += 1; if (pulled > 256) controller.close(); else controller.enqueue(chunk); },
+      cancel() { cancelled(); },
+    }), { headers: { 'content-type': 'text/event-stream' } }) });
+    const base = await listen(createServer((incoming, out) => { void dispatcher.handle({ incoming, out }); }));
+    const req = httpRequest(`${base}/flood`);
+    req.on('error', () => undefined);
+    // A stalled client: it takes the response head and never reads the body.
+    const res = await new Promise<import('node:http').IncomingMessage>((resolve) => { req.on('response', resolve); req.end(); });
+    res.pause();
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    // Without backpressure all 256 chunks (64 MiB) land in Node's buffers; socket buffers hold far fewer.
+    expect(pulled).toBeLessThan(128);
+    req.destroy();
+    await sawCancel;
+  });
+
+  it('cuts the connection and reports once when a stream fails mid-way', async () => {
+    const errors: unknown[] = [];
+    const dispatcher = createNodeDispatcher({}, { onUnhandledError: (e) => errors.push(e) });
+    dispatcher.server.route({ method: 'GET', path: '/broken', handler: () => new Response(new ReadableStream<Uint8Array>({
+      start(controller) { controller.enqueue(new TextEncoder().encode('data: one\n\n')); },
+      pull(controller) { controller.error(new Error('producer failed')); },
+    })) });
+    const base = await listen(createServer((incoming, out) => { void dispatcher.handle({ incoming, out }); }));
+    const response = await fetch(`${base}/broken`);
+    await expect(response.text()).rejects.toThrow();
+    expect(errors).toHaveLength(1);
+  });
+
+  it('masks a host-injected key shape in the default error log (Jini knows no host key formats)', async () => {
+    // Tovu's key shape, `tovu_ak_<12 hex>.<43 base64url>`; the host supplies the pattern, Jini only applies it.
+    const secret = 'Qm9vZ2llV29vZ2llQm9vZ2llV29vZ2llQm9vZ2llV29';
+    const key = `tovu_ak_9f2c1b04d7e5.${secret}`;
+    const writes: string[] = [];
+    const spy = vi.spyOn(process.stderr, 'write').mockImplementation((text: string | Uint8Array) => { writes.push(String(text)); return true; });
+    try {
+      const dispatcher = createNodeDispatcher({}, { redactionPatterns: [{ name: 'host_api_key', regex: /tovu_ak_[0-9a-f]{12}\.[A-Za-z0-9_-]+/g }] });
+      dispatcher.server.route({ method: 'GET', path: '/leak', handler: () => { throw new Error(`rejected ${key}`); } });
+      const base = await listen(createServer((incoming, out) => { void dispatcher.handle({ incoming, out }); }));
+      expect((await fetch(`${base}/leak`)).status).toBe(500);
+    } finally {
+      spy.mockRestore();
+    }
+    expect(writes.join('')).toContain('route handler failed');
+    expect(writes.join('')).not.toContain(secret);
+  });
 });
+
+/** Sends a request with a raw path and headers (fetch would normalize both) and returns the status. */
+function rawStatus({ base, path, headers = {} }: { base: string; path: string; headers?: Record<string, string> }): Promise<number> {
+  const { hostname, port } = new URL(base);
+  return new Promise((resolve, reject) => {
+    const req = httpRequest({ hostname, port, path, headers, setHost: !('host' in headers) }, (res) => { res.resume(); resolve(res.statusCode ?? 0); });
+    req.on('error', reject);
+    req.end();
+  });
+}
 
 // The Tovu Express adapter is exactly this wiring (development/refactor-patterns/server-port.md):
 // one middleware, `next` for fall-through and errors, Express's own origin, and `req.body` for a
@@ -102,6 +182,16 @@ describe('createNodeDispatcher mounted in Express (the host adapter shape)', () 
     const base = await listen(createServer(app));
     const echo = await fetch(`${base}/echo/1`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"x":2}' });
     expect(await echo.json()).toMatchObject({ id: '1', body: { x: 2 }, proto: 'http:' });
+  });
+
+  it('gives handlers the trusted values the host already set (res.locals), seeded per request', async () => {
+    const app = express();
+    app.use((_req, res, next) => { res.locals.principal = { userId: 'u1' }; next(); });
+    const dispatcher = createNodeDispatcher();
+    app.use((req, res, next) => { void dispatcher.handle({ incoming: req, out: res }, { next, locals: res.locals }); });
+    dispatcher.server.route({ method: 'GET', path: '/whoami', handler: ({ locals }) => jsonResponse({ status: 200, body: { principal: locals?.principal ?? null } }) });
+    const base = await listen(createServer(app));
+    expect(await (await fetch(`${base}/whoami`)).json()).toEqual({ principal: { userId: 'u1' } });
   });
 
   it('falls through to host routes on no match and to the host error handler on a throw', async () => {
