@@ -94,6 +94,9 @@ describe('createNodeDispatcher on plain node:http', () => {
     routes(dispatcher);
     const base = await listen(createServer((incoming, out) => { void dispatcher.handle({ incoming, out }); }));
     expect(await rawStatus({ base, path: '//elsewhere/cookies' })).toBe(404);
+    // Dot segments are not resolved either: the host framework's own path checks never resolve them.
+    expect(await rawStatus({ base, path: '/x/../cookies' })).toBe(404);
+    expect(await rawStatus({ base, path: '/cookies?x=1' })).toBe(200);
   });
 
   it('stops reading a stream while the client is not reading, and cancels it when the client leaves', async () => {
