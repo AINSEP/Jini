@@ -1,4 +1,5 @@
 import { createControllerStore } from '../../core/module/controller-store.js';
+import { describeApiError } from '../../core/transport/errors.js';
 import type { MediaProvidersPort } from '../ports.js';
 import type { MediaProvider } from '../models.js';
 export function createProvidersController(
@@ -32,8 +33,9 @@ export function createProvidersController(
               ? { error: 'Provider service unavailable' }
               : { items: Object.freeze([...items]), error: null },
         });
-    } catch {
-      if (ticket === generation) store.set({ patch: { error: 'Provider service unavailable' } });
+    } catch (error) {
+      // The host's API port reports the incident (Copy details); this line shows its approved words.
+      if (ticket === generation) store.set({ patch: { error: describeApiError({ e: error, fallback: 'Provider service unavailable' }) } });
     } finally {
       if (ticket === generation) store.set({ patch: { loading: false } });
     }
@@ -46,8 +48,8 @@ export function createProvidersController(
       if (store.signal.aborted) return false;
       await load();
       return true;
-    } catch {
-      store.set({ patch: { error: 'Failed to save provider credentials' } });
+    } catch (error) {
+      store.set({ patch: { error: describeApiError({ e: error, fallback: 'Failed to save provider credentials' }) } });
     } finally {
       store.set({ patch: { saving: false } });
     }

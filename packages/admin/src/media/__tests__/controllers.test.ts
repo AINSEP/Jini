@@ -6,6 +6,7 @@ import { createProvidersController } from '../controllers/providers.controller.j
 import { runMediaApiConformance } from '../conformance/media-api.conformance.js';
 import type { MediaAsset } from '../models.js';
 import type { MediaApiPort } from '../ports.js';
+import { AdminApiError } from '../../core/transport/errors.js';
 const image = { filename: 'photo.png', contentType: 'image/png', dataBase64: 'test-bytes' };
 describe('memory API and controllers', () => {
   it('passes the exported adapter checklist', async () => {
@@ -142,6 +143,24 @@ describe('memory API and controllers', () => {
     await controller.load();
     expect(controller.getSnapshot().items[0]?.configured).toBe(true);
     expect(controller.getSnapshot().error).toBe('Provider service unavailable');
+    controller.dispose();
+  });
+  it('shows the server\'s own words for a failed provider read or save, and the specific fallback otherwise', async () => {
+    const memory = createMemoryMediaProviders({ providers: [{ id: 'example', label: 'Example', configured: false }] });
+    let failure: unknown = new AdminApiError({ message: 'The media providers could not be loaded. Reload the page.', status: 500 });
+    const controller = createProvidersController({
+      api: { ...memory, list: () => Promise.reject(failure), saveCredential: () => Promise.reject(failure) },
+    });
+    await controller.load();
+    expect(controller.getSnapshot().error).toBe('The media providers could not be loaded. Reload the page.');
+    failure = new AdminApiError({ message: 'The provider key could not be saved. Try again.', status: 500 });
+    expect(await controller.save({ id: 'example', credential: 'secret' })).toBe(false);
+    expect(controller.getSnapshot().error).toBe('The provider key could not be saved. Try again.');
+    failure = 'not an Error';
+    await controller.load();
+    expect(controller.getSnapshot().error).toBe('Provider service unavailable');
+    expect(await controller.save({ id: 'example', credential: 'secret' })).toBe(false);
+    expect(controller.getSnapshot().error).toBe('Failed to save provider credentials');
     controller.dispose();
   });
 });
