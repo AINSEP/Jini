@@ -1,4 +1,4 @@
-import { createServer, request as httpRequest, type Server as HttpServer } from 'node:http';
+import { createServer, request as httpRequest, type IncomingMessage, type Server as HttpServer, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
@@ -44,7 +44,7 @@ function routes(dispatcher: NodeDispatcher) {
 describe('createNodeDispatcher on plain node:http', () => {
   it('serves JSON, keeps every Set-Cookie line, streams, and answers 404/405 itself', async () => {
     const errors: unknown[] = [];
-    const dispatcher = createNodeDispatcher({}, { onUnhandledError: (e) => errors.push(e) });
+    const dispatcher = createNodeDispatcher({}, { onUnhandledError: ({ error }) => errors.push(error) });
     routes(dispatcher);
     const base = await listen(createServer((incoming, out) => { void dispatcher.handle({ incoming, out }); }));
     const echo = await fetch(`${base}/echo/a%20b`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"x":1}' });
@@ -60,7 +60,8 @@ describe('createNodeDispatcher on plain node:http', () => {
     const head = await fetch(`${base}/cookies`, { method: 'HEAD' });
     expect(head.status).toBe(200);
     const boom = await fetch(`${base}/boom`);
-    expect([boom.status, await boom.text()]).toEqual([500, 'The server could not finish this request.']);
+    expect(boom.status).toBe(500);
+    expect(await boom.text()).toMatch(/^The server could not finish this request\. Reference: [0-9a-f]{12}\. /);
     expect(errors).toHaveLength(1);
   });
 
@@ -113,7 +114,7 @@ describe('createNodeDispatcher on plain node:http', () => {
     const req = httpRequest(`${base}/flood`);
     req.on('error', () => undefined);
     // A stalled client: it takes the response head and never reads the body.
-    const res = await new Promise<import('node:http').IncomingMessage>((resolve) => { req.on('response', resolve); req.end(); });
+    const res = await new Promise<IncomingMessage>((resolve) => { req.on('response', resolve); req.end(); });
     res.pause();
     await new Promise((resolve) => setTimeout(resolve, 300));
     // Without backpressure all 256 chunks (64 MiB) land in Node's buffers; socket buffers hold far fewer.
@@ -124,7 +125,7 @@ describe('createNodeDispatcher on plain node:http', () => {
 
   it('cuts the connection and reports once when a stream fails mid-way', async () => {
     const errors: unknown[] = [];
-    const dispatcher = createNodeDispatcher({}, { onUnhandledError: (e) => errors.push(e) });
+    const dispatcher = createNodeDispatcher({}, { onUnhandledError: ({ error }) => errors.push(error) });
     dispatcher.server.route({ method: 'GET', path: '/broken', handler: () => new Response(new ReadableStream<Uint8Array>({
       start(controller) { controller.enqueue(new TextEncoder().encode('data: one\n\n')); },
       pull(controller) { controller.error(new Error('producer failed')); },
@@ -133,6 +134,77 @@ describe('createNodeDispatcher on plain node:http', () => {
     const response = await fetch(`${base}/broken`);
     await expect(response.text()).rejects.toThrow();
     expect(errors).toHaveLength(1);
+  });
+
+  it('releases the stream once written, whether it ended or failed, so nothing keeps it locked', async () => {
+    const streams: ReadableStream<Uint8Array>[] = [];
+    const dispatcher = createNodeDispatcher({}, { onUnhandledError: () => undefined });
+    const track = (stream: ReadableStream<Uint8Array>) => { streams.push(stream); return new Response(stream); };
+    dispatcher.server.route({ method: 'GET', path: '/ok', handler: () => track(new ReadableStream<Uint8Array>({
+      start(controller) { controller.enqueue(new TextEncoder().encode('one')); controller.close(); },
+    })) });
+    dispatcher.server.route({ method: 'GET', path: '/broken', handler: () => track(new ReadableStream<Uint8Array>({
+      start(controller) { controller.enqueue(new TextEncoder().encode('one')); },
+      pull(controller) { controller.error(new Error('producer failed')); },
+    })) });
+    const pending: Promise<void>[] = [];
+    const base = await listen(createServer((incoming, out) => { pending.push(dispatcher.handle({ incoming, out })); }));
+    expect(await (await fetch(`${base}/ok`)).text()).toBe('one');
+    await expect((await fetch(`${base}/broken`)).text()).rejects.toThrow();
+    await Promise.all(pending);
+    expect(streams.map((stream) => stream.locked)).toEqual([false, false]);
+  });
+
+  it('leaves no listener on the response once a stalled client leaves mid-wait', async () => {
+    const chunk = new Uint8Array(256 * 1024);
+    let out!: ServerResponse;
+    let baseline = 0;
+    let served!: Promise<void>;
+    const counted = (response: ServerResponse) => ['drain', 'close', 'error'].reduce((sum, name) => sum + response.listenerCount(name), 0);
+    const dispatcher = createNodeDispatcher();
+    dispatcher.server.route({ method: 'GET', path: '/flood', handler: () => new Response(new ReadableStream<Uint8Array>({
+      pull(controller) { controller.enqueue(chunk); },
+    })) });
+    const base = await listen(createServer((incoming, response) => {
+      out = response;
+      baseline = counted(response);
+      served = dispatcher.handle({ incoming, out: response });
+    }));
+    const req = httpRequest(`${base}/flood`);
+    req.on('error', () => undefined);
+    const res = await new Promise<IncomingMessage>((resolve) => { req.on('response', resolve); req.end(); });
+    res.pause();
+    // Long enough for the socket buffer to fill, so the bridge is waiting for `drain` when the client goes.
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    req.destroy();
+    await served;
+    expect(counted(out)).toBe(baseline);
+  });
+
+  it('never rejects and still answers 500 when the error sink itself throws', async () => {
+    const dispatcher = createNodeDispatcher({}, { onUnhandledError: () => { throw new Error('sink down'); } });
+    routes(dispatcher);
+    const rejections: unknown[] = [];
+    const base = await listen(createServer((incoming, out) => { dispatcher.handle({ incoming, out }).catch((e: unknown) => { rejections.push(e); out.destroy(); }); }));
+    const stderr = vi.spyOn(process.stderr, 'write').mockImplementation(() => true);
+    try {
+      expect((await fetch(`${base}/boom`)).status).toBe(500);
+    } finally {
+      stderr.mockRestore();
+    }
+    expect(rejections).toEqual([]);
+  });
+
+  it('gives the 500 a reference the error log also carries, and no error text', async () => {
+    const reports: { error: unknown; reference: string }[] = [];
+    const dispatcher = createNodeDispatcher({}, { onUnhandledError: (report) => { reports.push(report); } });
+    routes(dispatcher);
+    const base = await listen(createServer((incoming, out) => { void dispatcher.handle({ incoming, out }); }));
+    const text = await (await fetch(`${base}/boom`)).text();
+    expect(text).not.toContain('secret db path');
+    const reference = /Reference: (\S+)\./.exec(text)?.[1];
+    expect(reference).toBeDefined();
+    expect(reports.map((report) => report.reference)).toEqual([reference]);
   });
 
   it('masks a host-injected key shape in the default error log (Jini knows no host key formats)', async () => {
@@ -149,7 +221,7 @@ describe('createNodeDispatcher on plain node:http', () => {
     } finally {
       spy.mockRestore();
     }
-    expect(writes.join('')).toContain('route handler failed');
+    expect(writes.join('')).toMatch(/route handler failed \(reference [0-9a-f]{12}\)/);
     expect(writes.join('')).not.toContain(secret);
   });
 });
