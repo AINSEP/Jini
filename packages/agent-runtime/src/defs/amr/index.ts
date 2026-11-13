@@ -6,17 +6,6 @@ const AMR_MODELS_TIMEOUT_MS = 10_000;
 const AMR_MODELS_RETRY_DELAYS_MS = [250, 750] as const;
 export type VelaModelJsonSource = 'preset' | 'remote';
 
-const PREFERRED_AMR_CHAT_MODEL_ORDER = [
-  'deepseek-v4-flash',
-  'deepseek-v3.2',
-  'glm-5.1',
-  'gemini-2.5-flash',
-] as const;
-
-const PREFERRED_AMR_CHAT_MODEL_RANK: ReadonlyMap<string, number> = new Map(
-  PREFERRED_AMR_CHAT_MODEL_ORDER.map((id, index) => [id, index]),
-);
-
 // AMR is the vela CLI's ACP stdio mode. `vela agent run --runtime opencode`
 // starts a private OpenCode server and forwards stream-json over ACP JSON-RPC.
 // Required env (supplied by the host process environment):
@@ -156,7 +145,7 @@ function parseVelaModelJsonData({ stdout, expectedSource }: { stdout: string; ex
   return data;
 }
 
-/** First occurrence of each non-empty chat model id, in preferred AMR chat order. */
+/** First occurrence of each non-empty chat model id, in discovered order. */
 function collectChatModels(ids: ReadonlyArray<string | null>): RuntimeModelOption[] {
   const seen = new Set<string>();
   const models: RuntimeModelOption[] = [];
@@ -168,19 +157,11 @@ function collectChatModels(ids: ReadonlyArray<string | null>): RuntimeModelOptio
   return orderAmrChatModels(models);
 }
 
+// Discovered order is kept; the user's saved choice is preselected elsewhere. No hard-coded preference.
 function orderAmrChatModels(
   models: RuntimeModelOption[],
 ): RuntimeModelOption[] {
-  return models
-    .map((model, index) => ({ model, index }))
-    .sort((a, b) => {
-      const aRank =
-        PREFERRED_AMR_CHAT_MODEL_RANK.get(a.model.id) ?? Number.MAX_SAFE_INTEGER;
-      const bRank =
-        PREFERRED_AMR_CHAT_MODEL_RANK.get(b.model.id) ?? Number.MAX_SAFE_INTEGER;
-      return aRank - bRank || a.index - b.index;
-    })
-    .map(({ model }) => model);
+  return [...models];
 }
 
 function sleep(ms: number): Promise<void> {
