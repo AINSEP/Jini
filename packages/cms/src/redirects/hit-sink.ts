@@ -10,7 +10,7 @@
  * a redirect (INV-06).
  *
  * Storage note (disclosed simplification, matches existing precedent): this
- * is an in-memory-only sink, the same pattern `analytics/repo.memory.ts`'s
+ * is an in-memory-only sink, the same pattern `packages/analytics/src/repo.memory.ts`'s
  * `LocalBufferSink` already uses in BOTH `server/app.ts` (test/dev) and
  * `server/deps.ts` (the real running server) — no SQLite adapter exists yet
  * for either. The `redirect_hits` table (`db/schema.sqlite.ts`) is reserved

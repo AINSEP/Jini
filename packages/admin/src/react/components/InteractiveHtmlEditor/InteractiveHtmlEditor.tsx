@@ -26,10 +26,10 @@ import {
 
 /** The attribute either the current (`data-embed-type`) or legacy (`data-widget-embed`,
  *  `data-form-embed`) convention uses to mark a Page HTML embed placeholder div — see the
- *  consuming product's own `src/widgets/html-embeds.ts`'s file header for the convention this protects.
+ *  legacy embed marker convention this protects.
  *
  *  **Does NOT include `data-embed-config`, the CURRENT marker attribute** (the consuming product's own
- *  `src/core/embeds/marker.ts`) — a known, separately-tracked gap: an embed marker written the current way is still
+ *  `packages/cms/src/widgets/markers/marker.ts`) — a known, separately-tracked gap: an embed marker written the current way is still
  *  editable/draggable/removable in this editor today. Left alone here deliberately (out of scope for
  *  the placeholder-card feature this file's `describeEmbedPlaceholder` was added for); widening this
  *  list to close that gap is a one-line fix (`'data-embed-config'` added below) but changes real
@@ -47,7 +47,7 @@ export function isProtectedEmbedElement({ el }: { readonly el: Element }): boole
 
 /**
  * Friendly card headings for every embed `type` value this codebase names anywhere, split into two
- * groups (traced against the consuming product's own `src/server/http/site/render.ts`'s `renderHtmlPageBody`/`isPageEmbedType`
+ * groups (traced against the consuming product's own `Tovu apps/website/src/server/inbound/public-http/http/site/render.ts`'s `renderHtmlPageBody`/`isPageEmbedType`
  * at the owner's own request, 2026-08-25 — authoritative, not re-derived):
  *
  * - **`media`, `widget`, `post`, `content`** — the ONLY four types `isPageEmbedType` (gating
@@ -69,10 +69,10 @@ export function isProtectedEmbedElement({ el }: { readonly el: Element }): boole
  * or guessing from the id string, which is not a real signal and would be actively misleading if wrong.
  * "Media" stays correct for both until a cheap, real signal exists.
  *
- * Matched lower-cased — see `identityLabel`'s doc and `core/embeds/marker.ts`'s own `toEmbedRef` for
+ * Matched lower-cased — see `identityLabel`'s doc and `packages/cms/src/widgets/html/html-embeds.ts`'s own `toEmbedRef` for
  * why the server-side scanner lower-cases `type` the same way. An unregistered type is not an error
  * here (unlike a rejected/unparseable marker) — `type` is deliberately a free string end-to-end (see
- * the consuming product's own `src/widgets/html-embeds.ts`'s file header) precisely so a new one (a marketplace theme
+ * the consuming product's own `packages/cms/src/widgets/html/html-embeds.ts`'s file header) precisely so a new one (a marketplace theme
  * introducing its own, say) never requires a matching change on this list AND never renders nothing —
  * `titleCase` below covers it with a still-legible generic card instead of a blank/thrown result.
  */
@@ -120,7 +120,7 @@ function identityLabel(config: Readonly<Record<string, unknown>>): string {
 }
 
 /**
- * Recognizes a `data-embed-config` marker (the consuming product's own `src/core/embeds/marker.ts`'s single scanner
+ * Recognizes a `data-embed-config` marker (the consuming product's own `packages/cms/src/widgets/markers/marker.ts`'s single scanner
  * convention) on a live canvas element and describes it for `@jini-ai/ui/html-editor`'s
  * `applyCanvasEmbedPlaceholders` — see that function's own file header for what it does with the
  * result. Exported for direct unit-testability without mounting the editor, same convention

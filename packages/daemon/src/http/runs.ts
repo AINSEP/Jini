@@ -298,8 +298,8 @@ function sendStreamFailure(res: ServerResponse, kind: Exclude<Awaited<ReturnType
  * The core of `GET /api/runs/:runId/events` — canonical events as SSE, with Last-Event-ID
  * reconnect support. Takes `runId`/`afterCursor` already resolved by the caller. `res` is typed
  * against the raw `node:http` `ServerResponse` rather than Express's own `Response` type — Express's
- * `Response` extends it directly, so this is a no-op widening, the same pattern `run-stream.ts`'s
- * AG-UI handler already established.
+ * `Response` extends it directly, so this is a no-op widening, the same pattern `AG-UI run stream`'s
+ * handler already established.
  */
 export async function handleRunEventStreamRequest({ res, runId, afterCursor, deps }: { readonly res: ServerResponse; readonly runId: string; readonly afterCursor: string | null; readonly deps: RunHttpDeps }, _optional: Record<string, never> = {}
 ): Promise<void> {

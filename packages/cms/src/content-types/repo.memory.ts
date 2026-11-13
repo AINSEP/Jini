@@ -7,7 +7,7 @@ import type { ContentTypeRecord } from "./types.js";
 
 /**
  * @file In-memory adapters for the `content-types` package's write/list ports (port/adapter rule-of-two
- * "one being built now" half). Backs `server/app.ts`'s hermetic test/dev composition AND, until a
+ * "one being built now" half). Backs `Tovu apps/website/src/server/runtime/composition/app.ts`'s hermetic test/dev composition AND, until a
  * real SQLite adapter is built for this domain (a disclosed gap — see this dispatch's handoff),
  * `server/deps.ts`'s real running-server composition too — the same precedent `mediaRepo`/
  * `transformDefinitionRepo`/`memberRepo` already establish in both those files (in-process,

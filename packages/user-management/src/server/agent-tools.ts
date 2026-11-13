@@ -25,7 +25,7 @@ const MUTATES_DURABLE_STATE = "mutates-durable-state";
  * then authenticate as owner, so it is a full account-takeover primitive rather than a
  * permission grant. An assistant is reachable by prompt injection through ordinary operator
  * content (a form submission, a comment) in a way a human clicking the admin button is not.
- * Left human-UI-only, mirroring `features/content-types/agent-tools.ts`'s reasoning for never
+ * Left human-UI-only, mirroring `packages/cms/src/content-types/agent-tools.ts`'s reasoning for never
  * exposing the destructive-cleanup confirm step to an agent.
  * - `writePolicyPermission`. This is the one policy transition still
  * deliberately excluded, and on different grounds than the five wired below: unlike

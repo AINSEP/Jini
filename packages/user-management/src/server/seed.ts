@@ -15,10 +15,10 @@ import { IdentityNotFoundError, IdentityValidationError, type PrincipalRecord, t
  * `viewer`) each 1:1 with a built-in policy; and the initial `owner` user.
  *
  * How it relates to the project:
- * - Called once by each composition root (`server/app.ts` in-memory,
+ * - Called once by each composition root (`Tovu apps/website/src/server/runtime/composition/app.ts` in-memory,
  * `server/deps.ts` SQLite-content-with-in-memory-identity) before the
  * server accepts requests. `RouteDeps.identityReady` is this call's
- * promise — auth-adjacent middleware awaits it (see `middleware/dev-auth.ts`).
+ * promise — auth-adjacent middleware awaits it (see `Tovu apps/website/src/server/inbound/admin-http/dev-auth.ts`).
  *
  * Architectural role:
  * Seed data lives in one place so both composition roots stay identical
@@ -67,7 +67,7 @@ const BUILTIN_ADMIN_PERMISSIONS: readonly string[] = [
   // actions directly, so it never depends on migrateDeprecatedPermissionGrants(). The umbrella
   // "media.manage" is deliberately not included here (mirrors admin.menus.manage's exclusion
   // above). "media.write" is deliberately dropped from THIS seed list only — the string stays
-  // registered (deprecated) in identity/permissions.ts.
+  // registered (deprecated) in packages/user-management/src/core/permissions.ts.
   "media.read",
   "media.upload",
   "media.update",
@@ -79,7 +79,7 @@ const BUILTIN_ADMIN_PERMISSIONS: readonly string[] = [
   // workspace gets the 6 new admin.menus.* CRUD strings directly, so it never depends on
   // migrateDeprecatedPermissionGrants() for its own built-in role grants. The now-legacy
   // "navigation.manage" is deliberately dropped from THIS seed list only — the string itself
-  // stays registered (deprecated) in identity/permissions.ts. migrateDeprecatedPermissionGrants()
+  // stays registered (deprecated) in packages/user-management/src/core/permissions.ts. migrateDeprecatedPermissionGrants()
   // now IS wired into live boot (identity/wiring.ts, chained right after seedIdentity resolves)
   // so any pre-existing policy still holding navigation.manage/integration.manage also gains
   // the new string(s) — this fresh-seed list just doesn't need to depend on that fan-out for its
@@ -153,7 +153,7 @@ const BUILTIN_EDITOR_PERMISSIONS: readonly string[] = [
   // admin.forms.submissions.* PII-split precedent rather than granting editor
   // everything admin.write's single flat string previously implied. "media.write" is deliberately
   // dropped from THIS seed list only — the string stays registered (deprecated) in
-  // identity/permissions.ts. Still a subset of admin's media.* set above ( owner ⊇ admin ⊇. See docs/decisions/DR-001-identity-and-session-boundary.md.
+  // packages/user-management/src/core/permissions.ts. Still a subset of admin's media.* set above ( owner ⊇ admin ⊇. See docs/decisions/DR-001-identity-and-session-boundary.md.
   // editor subset property).
   "media.read",
   "media.upload",

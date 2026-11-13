@@ -89,7 +89,7 @@ export interface McpUiSurfaceCardProps extends ExtEventRenderProps {
    * Where the sandbox proxy page is served. Required since 2026-08-18, when this card's rendering
    * switched from a hand-rolled `srcdoc` iframe to the real `@mcp-ui/client` `AppRenderer`, which
    * mounts every View through a real, separately-served proxy page rather than inline HTML — see
-   * `@jini-ai/ui/mcp-ui`'s `SANDBOX_PROXY_HTML` (in `sandbox-proxy.js`) for what must be running at
+   * `@jini-ai/ui/mcp-ui`'s `SANDBOX_PROXY_HTML` (in `packages/ui/src/features/mcp-ui/sandbox-proxy.ts`) for what must be running at
    * that URL and why this package cannot supply a default itself.
    */
   sandboxProxyUrl: URL;

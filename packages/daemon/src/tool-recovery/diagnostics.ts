@@ -109,7 +109,7 @@ const issuedDiagnostics = new WeakSet<object>();
 
 /**
  * Marks `diagnostic` as issued by the calling tool for a real failure, so the recovery loop
- * (`assistant/tool-failure-recovery.ts`) may act on it. Returns the same object. Call it where the
+ * (`packages/daemon/src/tool-recovery/recovery.ts`) may act on it. Returns the same object. Call it where the
  * diagnostic is built, and return that object itself: a copy (spread, JSON round trip) is not issued.
  *
  * @complexity O(1).

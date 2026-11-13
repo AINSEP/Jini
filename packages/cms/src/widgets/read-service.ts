@@ -13,7 +13,7 @@
  * `InMemoryEntryRepo` nor `SqliteEntryRepo` exposes one either, even as an extra, non-port method).
  * That is a real, pre-existing gap in the shared chokepoint, not a widgets-specific hole, and
  * meaningfully larger than the two additive fixes this dispatch already made to
- * `features/entries/write-service.ts` (the `onWritten` hook, the `bodyJson` parameter) — it needs
+ * `packages/cms/src/entries/write-service.ts` (the `onWritten` hook, the `bodyJson` parameter) — it needs
  * its own port + both adapters, a bigger shared-module change than this dispatch is authorized to
  * make unilaterally. `getWidgetInstance` below returns current state only; `revisions: []` is
  * returned as an honest placeholder shape (not a silently-dropped field) so callers/tests have a

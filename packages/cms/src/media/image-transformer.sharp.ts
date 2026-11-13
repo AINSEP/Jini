@@ -4,7 +4,7 @@
  * never passed through unmodified).
  *
  * `sharp` is an OPTIONAL runtime dependency of this package (mirrors
- * `identity/hasher.ts`'s treatment of `argon2`), not a hard one — a host that
+ * `packages/user-management/src/server/hasher.ts`'s treatment of `argon2`), not a hard one — a host that
  * only wants `InMemoryImageTransformer` (tests, or a build that has no need
  * for real pixel transforms) must not be forced to install a native binary
  * just by importing `./media`. Two consequences follow:

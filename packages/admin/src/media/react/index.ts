@@ -1,5 +1,5 @@
 // Styling: scoped feature presentation used to travel with compiled JS (a `mediaStyles` string in
-// `media/styles.ts`), which also overrode host dialog CSS that could accidentally display a closed
+// `media presentation`), which also overrode host dialog CSS that could accidentally display a closed
 // dialog or shrink a large media preview. Host CSS now supplies presentation and the closed-dialog
 // safeguards on jini- classes, so no style string ships from this module.
 export { useGallerySelection, type GallerySelectionImage } from './hooks/GallerySelection.hooks.js';

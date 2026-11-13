@@ -1,25 +1,25 @@
 // Local federation forks moved to @jini-ai/mcp/federation (+ /stdio, /approvals); see development/DELETED-CODE.md.
 
 /**
- * @file The CALL-TIME half of "a refusal must never be silent" — `mcp-federation/refusal-notice.ts`
+ * @file The CALL-TIME half of "a refusal must never be silent" — `packages/mcp/src/federation/refusal-notice.ts`
  * is the BOOT-TIME half (the prompt prefix every run starts with). Read that file's header first;
  * this one only makes sense as the second half of the same incident.
  *
  * ---------------------------------------------------------------------------
  * The defect this closes
  * ---------------------------------------------------------------------------
- * A federated tool this boot refused is never registered (`mcp-federation/trust.ts`'s
+ * A federated tool this boot refused is never registered (`packages/mcp/src/federation/trust.ts`'s
  * `admitRemoteTools`), so `@jini-ai/daemon`'s `createToolExecutor` does the only thing its contract
  * allows for an id it does not know: it THROWS `ToolExecutor: unknown tool "<id>"` — "a
  * routing/programming error", per that file's own doc, never a `ToolExecutionResult`. That throw
- * propagates through every decorator in `tool-executor-stack.ts` (each of which passes it through
+ * propagates through every decorator in `packages/daemon/src/tool-recovery/stack.ts` (each of which passes it through
  * unchanged) and out through `@jini-ai/http-kit`'s `delegated-tools.ts`, whose route wraps the whole
  * call in a try/catch that treats ANY throw as SEC-005-worthy: it redacts the message to a bare
  * `INTERNAL_ERROR` + correlation id and sends the real text ONLY to `onInternalError` (the daemon's
  * `console.error`). The model — and therefore the user — sees an opaque 500 indistinguishable from a
  * genuine internal fault, for a call that was in fact refused for a nameable, fixable reason.
  *
- * `mcp-federation/refusal-notice.ts` already solves the ENUMERATION half of this (the boot prompt
+ * `packages/mcp/src/federation/refusal-notice.ts` already solves the ENUMERATION half of this (the boot prompt
  * names every actionable refusal up front) but deliberately never mentions `not-in-operator-allowlist`
  * (its R-B: reporting every tool an operator never asked for would spam the prompt on a real server
  * with dozens of unwanted tools). That silence is correct for a list nobody asked to see. It is not
@@ -32,15 +32,15 @@
  * Why a decorator, and why OUTERMOST
  * ---------------------------------------------------------------------------
  * `ToolExecutor` is a plain structural interface and every one of the host's existing decorators
- * (`read-only-tool-constraint.ts`, `tool-executor-audit.ts`, `tool-failure-recovery.ts`,
- * `tool-executor-stack.ts`) is exactly this shape — a wrapper, not an upstream change. This one is
+ * (`read-only-tool-constraint.ts`, `packages/daemon/src/core/tool-audit.ts`, `packages/daemon/src/tool-recovery/recovery.ts`,
+ * `packages/daemon/src/tool-recovery/stack.ts`) is exactly this shape — a wrapper, not an upstream change. This one is
  * composed OUTSIDE all three of those (see `agent-daemon-server.ts`'s `toolExecutor` construction),
- * not folded into `tool-executor-stack.ts` itself: every existing decorator still sees and classifies
- * the ORIGINAL throw exactly as it does today — `tool-executor-audit.ts`'s `isUnknownToolError` still
+ * not folded into `packages/daemon/src/tool-recovery/stack.ts` itself: every existing decorator still sees and classifies
+ * the ORIGINAL throw exactly as it does today — the tool-attempt audit's unknown-tool classifier still
  * records an `unknown-tool` audit row, byte-for-byte the current behavior — and this layer only ever
  * intercepts what is ABOUT TO ESCAPE the whole stack, converting it into a legible result at the very
  * last moment instead of an opaque throw. Composed here rather than baked into
- * `createAssistantToolExecutor` for the same reason `tool-executor-stack.ts` stays free of federation
+ * `createAssistantToolExecutor` for the same reason `packages/daemon/src/tool-recovery/stack.ts` stays free of federation
  * concerns: BYOK shares that stack and has no federated connections or admission snapshot to check
  * against.
  *
@@ -64,12 +64,12 @@
  * ---------------------------------------------------------------------------
  * This decorator is composed OUTERMOST (see above), so a `failed` result it mints itself in its own
  * `catch` block never passes back through `withRedactedToolFailures`, which sits INSIDE
- * `createAssistantToolExecutor` (`tool-executor-stack.ts`) — every other `failed`-result path in the
+ * `createAssistantToolExecutor` (`packages/daemon/src/tool-recovery/stack.ts`) — every other `failed`-result path in the
  * stack is redacted; this was the one that structurally could not be. Today `remoteName` is the only
  * upstream-influenced piece of the composed string (the external server's own advertised tool name,
  * sanitized by `safeRemoteName` against injection characters but not against secret shapes) and
  * `connectionId`/`explanation` are operator-authored or fixed prose, but calling
- * {@link redactSecretShapes} directly on the composed message — mirroring `tool-failure-redaction.ts`'s
+ * {@link redactSecretShapes} directly on the composed message — mirroring `packages/daemon/src/tool-recovery/redaction.ts`'s
  * own `errorKind: 'validation'` branch exactly — closes the hole structurally rather than relying on
  * that staying true.
  *
@@ -257,7 +257,7 @@ export function withFederatedRefusalDiagnosis(
           executionId: deps.newExecutionId(),
           status: "failed",
           errorKind: "validation",
-          // Redacted like every other `errorKind: 'validation'` failure (`tool-failure-redaction.ts`'s
+          // Redacted like every other `errorKind: 'validation'` failure (`packages/daemon/src/tool-recovery/redaction.ts`'s
           // own validation branch) even though THIS layer sits outside `withRedactedToolFailures` in
           // `agent-daemon-server.ts`'s composition and so would otherwise never pass back through it —
           // see this file's header for why it is composed outermost. `remoteName` is the one

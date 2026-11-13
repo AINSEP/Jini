@@ -8,7 +8,7 @@
  * `POST /api/daemon/db/verify`, `POST /api/daemon/db/vacuum` (see
  * `archived provenance ledger`'s routes-classification table, row `#12 daemon.ts`: "generic
  * in shape but depend on a separate `storage/db-inspect.ts` port not built
- * this round" — that port now exists as `@jini-ai/sqlite-chat`'s `db-inspect.ts`).
+ * this round" — that port now exists as `@jini-ai/sqlite-chat`'s `packages/db/src/sqlite/inspect.ts`).
  *
  * This module does **not** depend on `@jini-ai/sqlite-chat` or `better-sqlite3` at
  * all: `DaemonDbOperations` is a plain injected interface (structurally
@@ -26,7 +26,7 @@
  * `verify`/`vacuum` behind `requireLocalDaemonRequest` and left `GET
  * /api/daemon/db` completely ungated — a real pre-existing gap, not carried
  * forward here. Per this repo's binding tool-execution-boundary precedent
- * (`packages/deploy/src/tool.ts`'s `deploy.publish`, `packages/daemon/src/
+ * (`packages/devops/src/deploy/tool.ts`'s `deploy.publish`, `packages/daemon/src/
  * delegated-tool-bridge.ts`), the actual work happens only inside a
  * `ToolHandler` `ToolExecutor.execute` invokes after `ToolPolicy.authorize`
  * allows it — never directly from `registerDaemonDbRoutes`' handlers. All

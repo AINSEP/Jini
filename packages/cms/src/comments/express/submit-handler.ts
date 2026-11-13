@@ -13,7 +13,7 @@ import type { CommentSubmission } from "../types.js";
  * is `CommentIngressPolicy` (rate-limit, honeypot, sanitize, spam-classify — see `comments/ingress.ts`).
  *
  * `authorIpHash` is computed HERE, at the HTTP boundary, from the raw request IP — the raw IP
- * itself is never passed into `ingressContext` or stored (mirrors `analytics/ingest.ts`'s
+ * itself is never passed into `ingressContext` or stored (mirrors `packages/analytics/src/ingest.ts`'s
  * discard-raw-IP-at-the-boundary discipline). The host provides the salt at construction.
  */
 /** The handler needs only the accepted id/status, so a host may dispatch to any stored provider. */

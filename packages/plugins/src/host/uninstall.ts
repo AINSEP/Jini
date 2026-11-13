@@ -95,7 +95,7 @@ async function resolveUninstallTarget(deps: UninstallPluginDeps, pluginId: strin
 }
 
 /** What a human confirmation dialog needs to describe truthfully what is about to be removed.
- *  Mirrors `agent-plugins/uninstall.ts`'s own `AgentPluginUninstallPreview` for the sibling family,
+ *  Mirrors `packages/agent-plugins/src/lifecycle/uninstall.ts`'s own `AgentPluginUninstallPreview` for the sibling family,
  *  for the identical reason: the preview carries no host path, only the fields a dialog may say out
  *  loud. */
 export interface PluginUninstallPreview {

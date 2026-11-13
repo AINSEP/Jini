@@ -9,7 +9,7 @@ import type { DomainEvent, OutboxPort } from "../core/ports.js";
  * Encapsulates business rules for creating a workspace. Also owns the shared
  * `WorkspaceRepoPort` contract and record shape for the whole feature slice
  * (`update.ts`/`delete.ts` import from here rather than duplicating
- * the port) — mirrors `identity/types.ts`+`identity/ports.ts` owning the
+ * the port) — mirrors `packages/user-management/src/core/types.ts`+`packages/user-management/src/core/ports.ts` owning the
  * shared shapes their sibling transition files (`grant-service.ts`) import.
  *
  * How it relates to the package:

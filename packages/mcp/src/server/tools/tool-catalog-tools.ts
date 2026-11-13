@@ -49,7 +49,7 @@ interface ToolCatalogSearchResponse {
   }>;
 }
 
-/** `search_tools` -> `GET /api/tools/search` (`packages/http/src/tool-catalog.ts`'s `toolCatalogSearchRoute`). */
+/** `search_tools` -> `GET /api/tools/search` (`packages/daemon/src/http/tool-catalog.ts`'s `toolCatalogSearchRoute`). */
 export const searchToolsTool: McpToolDef = {
   name: 'search_tools',
   description:
@@ -77,7 +77,7 @@ export const searchToolsTool: McpToolDef = {
         description:
           'Describe what the tool you need DOES, the way its own documentation would describe it — a full phrase, not a keyword bag. Name the thing being acted on and the action, and include likely synonyms for both. Example: for a request like "how many people visited last week", write "retrieve site traffic and visitor analytics counts for a date range" rather than "visitors last week". Descriptive phrasing retrieves substantially better than terse keywords, because the catalog is matched on tool descriptions. Required.',
       },
-      // Bounds mirror `packages/http-kit/src/tool-catalog.ts`'s `parseSearchInput`
+      // Bounds mirror `packages/daemon/src/http/tool-catalog.ts`'s `parseSearchInput`
       // exactly (`MAX_SEARCH_LIMIT = 25`, `DEFAULT_SEARCH_LIMIT = 10`, integers only,
       // `>= 1`). Declared rather than left as a bare `number` so MCP validation and the
       // route agree: otherwise `0`/`1.5` pass here and are refused downstream, and `26`
@@ -120,7 +120,7 @@ export const searchToolsTool: McpToolDef = {
   },
 };
 
-/** `describe_tool` -> `GET /api/tools/:id` (`packages/http/src/tool-catalog.ts`'s `toolCatalogDescribeRoute`). */
+/** `describe_tool` -> `GET /api/tools/:id` (`packages/daemon/src/http/tool-catalog.ts`'s `toolCatalogDescribeRoute`). */
 export const describeToolTool: McpToolDef = {
   name: 'describe_tool',
   description:

@@ -208,7 +208,7 @@ function writeRecordBranch(current: unknown, head: string, rest: readonly string
  * Never throws on a malformed pointer (e.g. missing leading `/`) — degrades to a no-op (`doc`
  * returned unchanged), matching `getAtPointer`'s "a bad binding must not crash the renderer"
  * contract. `updateDataModel`'s `path` is agent-authored wire data; an uncaught throw here had no
- * error boundary above it anywhere in `packages/chat-react` or its hosts to stop it from
+ * error boundary above it anywhere in `packages/chat/src/react` or its hosts to stop it from
  * unmounting the whole chat React root (see `ExtEventErrorBoundary`, added as a systemic backstop
  * for the same class of bug — this is the specific root cause it would otherwise have had to
  * catch).

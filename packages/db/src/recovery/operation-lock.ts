@@ -23,12 +23,12 @@ import { nowIso as readNowIso, type Clock as ClockPort } from "@jini-ai/core/pri
  *
  * ADR-041/043/044/045 re-audit (2026-07-16, TM-adr041-043-044-045-audit-001, Finding 3):
  * the internal verifier's original claim — "never wired into any composition root" — is false,
- * disproven by direct evidence: `server/routes/admin/database/migrate-forward.ts` and
- * `server/routes/admin/recovery/restore.ts` both import `acquireOperationLock`/
+ * disproven by direct evidence: `Tovu apps/website/src/server/inbound/admin-http/routes/database/migrate-forward.ts` and
+ * `Tovu apps/website/src/server/inbound/admin-http/routes/recovery/restore.ts` both import `acquireOperationLock`/
  * `releaseOperationLock` from this file directly and pass them into `executeMigrateForward`/
  * `executeRestore` (their `execute` endpoints only). The mutual-exclusion guarantee (U-001) is
  * real and live for both gated ceremonies today. The actual, narrower gap the re-audit surfaced:
- * this module had no read-only query, so `routes/admin/recovery/status.ts`'s capability bar
+ * this module had no read-only query, so `Tovu apps/website/src/server/inbound/admin-http/routes/recovery/status.ts`'s capability bar
  * could not reflect live lock state and stubbed `operationInFlight: false` unconditionally.
  * `isOperationInFlight` below closes that display gap without changing the mutual-exclusion
  * mechanism itself.

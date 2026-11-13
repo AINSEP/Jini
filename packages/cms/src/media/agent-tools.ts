@@ -17,7 +17,7 @@ import type { AgentToolDefinition } from "@jini-ai/core";
  *   `admin.menus.delete.force`). An assistant is reachable by prompt injection through ordinary
  *   operator content (a comment, a form submission) in a way a human clicking the admin "purge"
  *   button is not, so an irreversible, storage-reclaiming delete is left human-UI-only — the same
- *   discipline `identity/agent-tools.ts` applies to `resetUserPassword`.
+ *   discipline `packages/user-management/src/server/agent-tools.ts` applies to `resetUserPassword`.
  * - There is NO named-transform-registry tool (`registerTransform`, `media/transform-registry.ts`).
  *   No admin HTTP route needs to expose it at all — it is a core-declared, boot-time/operational
  *   concept, not a human admin-UI operation. Wrapping it here would invent agent capability beyond
@@ -71,7 +71,7 @@ const MEDIA_ID_SCHEMA = {
  * The Media domain's fixed agent-tool catalog — the 4 operations a host's admin HTTP surface
  * exposes that are safe to wrap, out of its 5 total (see file header for why `purge` is excluded).
  *
- * Ordered read-first, matching `identity/agent-tools.ts`'s convention: a model needs a `mediaId`
+ * Ordered read-first, matching `packages/user-management/src/server/agent-tools.ts`'s convention: a model needs a `mediaId`
  * before it can update or trash an asset, and `media_list_assets` is the only way to learn one for
  * an existing asset (there is no dedicated get-by-id admin route to wrap instead).
  */

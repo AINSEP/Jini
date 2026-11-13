@@ -2,7 +2,7 @@
  * @module daemon-command
  *
  * `daemon status` / `daemon stop` — concrete commands over `@jini-ai/http-kit`'s
- * `daemonStatusRoute`/`daemonShutdownRoute` (`packages/http/src/daemon-status.ts`).
+ * `daemonStatusRoute`/`daemonShutdownRoute` (`packages/daemon/src/http/daemon-status.ts`).
  * `packages/cli/archived provenance ledger`'s original UNCLEAR verdict on these two
  * blocked on `@jini-ai/http-kit` being a stub with no `/status`/`/shutdown` route to
  * call; that blocker no longer holds (both routes exist and are tested), and

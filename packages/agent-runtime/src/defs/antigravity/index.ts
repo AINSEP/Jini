@@ -25,7 +25,7 @@ import type { RuntimeAgentDef, RuntimeBuildOptions, RuntimeContext, RuntimeModel
 // (verified live), rather than the old settings.json path's silent `availableModels` cache miss +
 // empty print-mode output. Kept `false` anyway: nothing here validates a typed id before spawn, so
 // letting a UI send arbitrary text would just move that same failure into production instead of
-// preventing it — `isKnownModel` (`../models.ts`) is what actually gates a caller-supplied id
+// preventing it — `isKnownModel` (`packages/agent-runtime/src/models.ts`) is what actually gates a caller-supplied id
 // against this list before it ever reaches `buildArgs`.
 //
 // The 14 slugs/labels below are `agy models`' full live output as of agy v1.1.24 (2026-09-02), not

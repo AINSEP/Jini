@@ -19,7 +19,7 @@ const MAX_ID_SEGMENT_LENGTH = 64;
  * Deliberately does NOT import anything from `src/features/agent-plugins/` — Agent Skills and Agent
  * Plugins are different things with their own directories (owner decision, above), and this file's
  * small id-segment guard is duplicated rather than shared, for the same reason
- * `capability-projection.ts`/`capability-source.ts` already duplicate their own `humanize` helper
+ * `capability-projection.ts`/`capability-search` already duplicate their own `humanize` helper
  * between themselves: a private guard belonging to one small module, not a promise to keep two
  * independent features' internals in sync.
  */

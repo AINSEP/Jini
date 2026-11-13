@@ -25,7 +25,7 @@
  * the queryable-field cap stay solely in `write-service.ts`'s guard chain, whose
  * fixed order (`key grammar -> reserved-key -> field-name grammar -> field-kind -> queryable-cap`)
  * and stop-at-first-failure behavior are pinned by
- * `__tests__/unit/write-service.register.unit.test.ts`. Duplicating any of those here
+ * `packages/cms/src/content-types/__tests__/write-service.register.test.ts`. Duplicating any of those here
  * would either reorder that chain for boundary callers or create a second source of truth for a
  * rule that must have exactly one definition.
  *

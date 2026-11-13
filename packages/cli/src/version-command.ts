@@ -2,7 +2,7 @@
  * @module version-command
  *
  * `version` — prints just the running daemon's version string. Sourced from
- * `GET /api/daemon/status`'s `version` field (`packages/http/src/daemon-status.ts`,
+ * `GET /api/daemon/status`'s `version` field (`packages/daemon/src/http/daemon-status.ts`,
  * `DaemonStatusResponse.version`) — the same route `daemon-command.ts`'s `daemon status`
  * already calls. `packages/cli/archived provenance ledger`'s original UNCLEAR verdict on a standalone
  * `version` command noted "@jini-ai/http-kit has no version route yet ... nothing to call"; that

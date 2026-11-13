@@ -131,7 +131,7 @@ export type SurfaceExchangeConversation = Omit<SurfaceExchange, 'expiresAtMs'> &
  * (MCP-UI's behavior is unchanged, byte for byte); when omitted, only `principalId` and the
  * exchange's own unguessable `randomUUID()` id gate the delivery. That pair is still sufficient —
  * the id is not enumerable, and `principalId` is a server-verified session identity, never a value
- * the browser chooses (see `run-ownership.ts`) — so relaxing the caller's OBLIGATION does not
+ * the browser chooses (see `Tovu apps/website/src/assistant/daemon-access.ts`) — so relaxing the caller's OBLIGATION does not
  * relax the exchange's own binding, which `open()` still records honestly as whatever tool actually
  * opened it.
  */

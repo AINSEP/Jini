@@ -70,7 +70,7 @@ export function messageWriteKey({ message }: { message: Pick<ChatMessage, "id" |
  * race — recording ITS id as "the current run" would point a future reattach at the wrong turn.
  *
  * `saveMessage`'s server-side route upserts by message id (`ON CONFLICT(id) DO UPDATE`,
- * `Jini/packages/sqlite`'s `chat-history/store.ts`), so this stub write and the message's eventual
+ * `packages/chat/src/store/sql/store.ts`), so this stub write and the message's eventual
  * terminal-state write (through the normal {@link persistableMessages} path) converge on the same
  * row rather than creating two — the terminal write simply overwrites `run_status`/`content`/
  * `events_json` in place once the run settles.

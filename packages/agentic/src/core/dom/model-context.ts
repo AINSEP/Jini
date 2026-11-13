@@ -14,10 +14,10 @@
  * `@mcp-b/webmcp-polyfill`) — this module adapts only the candidates the host supplies.
  *
  * Moved 2026-07-26 from `@jini-ai/ui/src/features/agent-tools/model-context.ts` (plan §4/§8 step 6).
- * Lives under `src/dom/`, not alongside `../webmcp.ts`'s pure `CapabilityDef` → WebMCP-tool
+ * Lives under `packages/agentic/src/core/dom/`, not alongside `../webmcp.ts`'s pure `CapabilityDef` → WebMCP-tool
  * projection, because it adapts the native browser API — `webmcp.ts`'s own module doc is explicit
  * that "that detection is deliberately NOT here: it touches browser globals, and this package
- * holds none," which is exactly the DOM-free guarantee `src/dom/` exists to carve an exception
+ * holds none," which is exactly the DOM-free guarantee `packages/agentic/src/core/dom/` exists to carve an exception
  * for. See `dom/index.ts`'s re-export of this module.
  *
  * `AgentModelContextToolRegistration` gained `title`/`annotations` 2026-07-28, matching the same

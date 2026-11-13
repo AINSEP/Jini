@@ -5,7 +5,7 @@
  * `EventLog`, and `ToolExecutor` are themselves kernel nouns (§2.1), so
  * their tokens are defined here, alongside the services, rather than in
  * `@jini-ai/core` itself. A pack composes against them the same way
- * `packages/core/src/index.test.ts` demonstrates for its own example tokens.
+ * `packages/core/src/__tests__/index.test.ts` demonstrates for its own example tokens.
  *
  * `ArtifactStoreToken` used to live here too — moved to `@jini-ai/artifacts`'s own
  * `tokens.ts` on 2026-07-19 (see that file's doc comment) after the swarm-consensus

@@ -4,10 +4,10 @@ import { nowIso as clockNowIso } from "@jini-ai/core/primitives";
  * (SPEC-005 REQ-07; BR-05; AC-02/AC-13; INV-03/INV-05).
  *
  * Purpose:
- * Mirrors `src/features/presentation/presentation.ts`'s `setActiveTheme`/`getPresentationSettings`
+ * Mirrors `packages/cms/src/presentation/presentation.ts`'s `setActiveTheme`/`getPresentationSettings`
  * shape exactly (Module Map) — a plain feature function, validated and typed-error-throwing, that
- * the ROUTE layer (`src/server/routes/admin/plugins/set-enabled.ts`, C-016) wraps in
- * `executeCommand` (mirrors `admin/posts/update.ts`'s `executeCommand`-wrapped shape, per the
+ * the ROUTE layer (`Tovu apps/website/src/server/inbound/admin-http/routes/plugins/set-enabled.ts`, C-016) wraps in
+ * `executeCommand` (mirrors `Tovu apps/website/src/server/inbound/admin-http/routes/posts/update.ts`'s `executeCommand`-wrapped shape, per the
  * ADR's API/Event Contract Summary) — NOT wrapped here. This function itself performs BR-05's
  * three-step precondition evaluation and, on success, upserts the `PluginActivationRecord` and
  * (on enable) invokes the injected load hook / (on disable) the injected unload hook — it does not

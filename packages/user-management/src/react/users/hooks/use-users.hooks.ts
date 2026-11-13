@@ -370,8 +370,8 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
   });
 
   // Disable now confirms via a `RowMenu` item -> `ConfirmDialog` modal (replacing the in-place
-  // two-click `ConfirmButton`, which has no menu-item equivalent — same migration Posts.tsx/
-  // Redirects.tsx already made). `null` when the dialog is closed.
+  // two-click `ConfirmButton`, which has no menu-item equivalent — same migration Tovu apps/admin/src/features/posts/Posts.tsx and
+  // packages/admin/src/redirects/react/pages/RedirectsPage.tsx already made). `null` when the dialog is closed.
   const [confirmingDisable, setConfirmingDisable] = useState<AdminIdentityUser | null>(null);
 
   // Reset password moved out of the expanded "Manage" panel into its own `RowMenu` item, which
@@ -539,7 +539,7 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
 
   /** Opens the reset-password dialog for `user` — the `RowMenu` item's `onSelect`. Guards against
    *  opening a second one while a toggle or a previous reset is still in flight, same discipline
-   *  Redirects.tsx uses for its own `RowMenu` items (no per-item `disabled` on `RowMenu` itself). */
+   *  packages/admin/src/redirects/react/hooks/RedirectsPage.hooks.ts uses for its own `RowMenu` items (no per-item `disabled` on `RowMenu` itself). */
   function openResetPassword(user: AdminIdentityUser) {
     if (!rowCapabilities(user).canResetPassword) return;
     if (toggleSavingId || resetPassword.saving) return;
@@ -558,7 +558,7 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
       await resetPasswordMutation.mutate({ input: { principalId: resetPasswordFor.principalId, password: newPassword } });
       // A self-reset (own row, deep-linked or from the ordinary row menu — see `ownPrincipalId`'s
       // own doc comment) gets the "sign in again" notice instead of the per-username one: the reset
-      // just revoked the CALLER'S OWN session, so the next request 401s and `App.hooks.tsx` sends
+      // just revoked the CALLER'S OWN session, so the next request 401s and `Tovu apps/admin/src/App.hooks.ts` sends
       // them to the login screen — the generic notice naming a DIFFERENT user would be misleading
       // here, since it's actually their own sign-in that just ended.
       setNotice(
@@ -604,7 +604,7 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
   }
 
   /** Confirms the Disable that `RowMenu`'s "Disable" item asked about. Closes the dialog either
-   *  way (matching Posts.tsx/Redirects.tsx's own Disable/Delete `ConfirmDialog` convention) — a
+   *  way (matching Tovu apps/admin/src/features/posts/Posts.tsx and packages/admin/src/redirects/react/pages/RedirectsPage.tsx's own Disable/Delete `ConfirmDialog` convention) — a
    *  failure surfaces via `toggleError` above the table, not by leaving the modal open.
    *
    *  2026-09-05 fix, same bug class as `use-roles.hooks.ts`'s `runRowDelete`: `setConfirmingDisable`
@@ -638,7 +638,7 @@ export function useUsers({ port, translate, queryScope }: UsersDependencies, {
   }
 
   /** Confirms the Delete that `RowMenu`'s "Delete" item asked about. Closes the dialog either way
-   *  (matching `confirmDisable`'s and Posts.tsx/Redirects.tsx's own Delete `ConfirmDialog`
+   *  (matching `confirmDisable`'s and Tovu apps/admin/src/features/posts/Posts.tsx and packages/admin/src/redirects/react/pages/RedirectsPage.tsx's own Delete `ConfirmDialog`
    *  convention) — a failure surfaces via `toggleError` above the table, not by leaving the modal
    *  open. Same stale-call guard as `confirmDisable`: only clears `confirmingDelete` when it still
    *  names the SAME user this call started for. */

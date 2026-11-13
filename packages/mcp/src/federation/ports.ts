@@ -203,7 +203,7 @@ export interface McpStdioLaunchSpec {
  *
  * Deliberately a plain header bag rather than a token field: this layer should not know that OAuth
  * exists. It is handed headers and sends them. Which credential produced them, whether it can be
- * refreshed, and what to do when it expires are all `assistant/external-mcp-oauth.ts`'s questions,
+ * refreshed, and what to do when it expires are all `Tovu apps/website/src/features/external-mcp/external-mcp-oauth.ts`'s questions,
  * decided before a launch spec is ever built.
  */
 export interface McpHttpLaunchSpec {
@@ -278,7 +278,7 @@ export interface FederatedCallConfirmationRequest {
   /**
    * The hints recorded when the tool was admitted, and where its connection came from — the tool
    * identity a remembered approval ("Allow for this chat", "Always allow") is pinned to
-   * (`assistant/external-mcp-tool-approvals.ts`), so a changed server, name or hints asks again.
+   * (`packages/mcp/src/federation/tool-approvals.ts`), so a changed server, name or hints asks again.
    */
   readonly declaredAnnotations: RemoteToolDescriptor["annotations"] | undefined;
   readonly origin: FederatedConnectionOrigin | undefined;

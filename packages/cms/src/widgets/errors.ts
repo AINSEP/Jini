@@ -9,7 +9,7 @@
  * `this.name` fix (found during implementation, additive-only — no constructor signature
  * changed): `class X extends Error {}` does NOT give an instance a `.name` of `"X"` on this
  * runtime unless the constructor sets `this.name` explicitly (confirmed by
- * `features/entries/errors.ts`'s own header, which documents and applies this exact fix already).
+ * `packages/cms/src/entries/errors.ts`'s own header, which documents and applies this exact fix already).
  * Without it, `Error.prototype.toString()` — what `assert.rejects(fn, /ClassName/)` matches
  * against — reads `"Error: <message>"` for every class here, so a certified test asserting
  * `/WidgetConfigValidationError/` etc. could never pass regardless of which error actually threw.

@@ -14,7 +14,7 @@
  * real `core/gated-mutations.plan/confirm/execute`, never re-tested here.
  *
  * Certified: no export beyond this plan/confirm/execute trio may perform a merge directly —
- * enforced by `merge-term.unit.test.ts`'s own export-surface inspection.
+ * enforced by `packages/cms/src/taxonomy/__tests__/merge-term.test.ts`'s own export-surface inspection.
  */
 
 export class SameTermMergeError extends Error {

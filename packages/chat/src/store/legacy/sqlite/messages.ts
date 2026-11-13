@@ -11,7 +11,7 @@ import { redactUserText, type SecretRedactionSignal, type UserTextRedactionOptio
  * scope for this port), `produced_files_json` and `trace_object_files_json` (design-canvas file
  * output tracking), `feedback_json` (Critique Theater's scoring feedback), `pre_turn_file_names_json`
  * (design-canvas per-turn file context), and `applied_plugin_snapshot_json` (OD's plugin host). The
- * already-ported `schema/migrate.ts` messages table was pre-trimmed to match; see that file and
+ * already-ported `packages/chat/src/store/legacy/sqlite/schema.ts` messages table was pre-trimmed to match; see that file and
  * `source-map.md`'s Design Decisions for the same drop list.
  */
 import type { SqliteDb } from '@jini-ai/db/sqlite';

@@ -12,9 +12,9 @@
  * branch) per the decisions in `ADS-memory/reports/proposals/
  * PROP-http-route-packs-automation-routines-2026-07-21.md` (Finding 2). That proposal identified
  * two separable gaps blocking this route pack: (1) no scheduler existed anywhere in this repo —
- * closed by porting `routines.ts` into `@jini-ai/daemon/src/routines/scheduler.ts` this same pass;
+ * closed by porting `routines.ts` into `packages/daemon/src/routines/scheduler.ts` this same pass;
  * (2) no `RoutineStore` persistence port existed for the CRUD side — closed by
- * `@jini-ai/daemon/src/routines/routine-store.ts`, designed the same way `EventLog` is designed.
+ * `packages/daemon/src/routines/routine-store.ts`, designed the same way `EventLog` is designed.
  * This file is the third piece: the actual HTTP routes, now that both ports exist.
  *
  * **Confirmed bug fixed while porting** (per the proposal's own finding, not carried forward):

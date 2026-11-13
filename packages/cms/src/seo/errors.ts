@@ -3,7 +3,7 @@
  *
  * Purpose:
  * One class per error this module originates, mirroring
- * `features/settings/errors.ts`'s one-class-per-code convention. Route
+ * `packages/core/src/settings/errors.ts`'s one-class-per-code convention. Route
  * handlers (`src/server/routes/admin/seo/*.ts`) map these 1:1 to the HTTP
  * codes in api.spec.md §6. `FORBIDDEN` reuses `core/commands`'s shared
  * `ForbiddenError` (same authorize-then-throw shape `write-service.ts`'s

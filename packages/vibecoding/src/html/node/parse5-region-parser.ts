@@ -294,7 +294,7 @@ function locationProblem(scan: HtmlRegionScan): string | undefined {
 
 /**
  * Build the parse5-backed `HtmlRegionParser`. Stateless — a single instance is safe to share as a
- * module-level singleton across every call, per `./regions.js`'s injected-port contract.
+ * module-level singleton across every call, per `packages/vibecoding/src/html/regions.ts`'s injected-port contract.
  *
  * @returns a parser ready to hand to `createHtmlRegionTarget`, with `checkWellFormed` always
  * present even though the generic parser port allows implementations to omit it.

@@ -13,9 +13,9 @@
  *
  * `getWidgetTypeRegistration`/`findWidgetTypeRegistration` are the two lookup accessors over this
  * data — pure, O(1) functions with no I/O and no reference to resolver code, kept here (unlike
- * `forms/manifest.ts`'s stricter zero-function convention, which exists specifically for a
+ * `forms manifest`'s stricter zero-function convention, which exists specifically for a
  * hypothetical future loader retrofit this file has no equivalent of) because every other registry
- * in this codebase (`identity/permissions.ts`) pairs its data with a plain accessor the same way.
+ * in this codebase (`packages/user-management/src/core/permissions.ts`) pairs its data with a plain accessor the same way.
  * The split is deliberate, not incidental: `getWidgetTypeRegistration` is total and only accepts a
  * `typeKey` the type system has actually proven is one of the five registered keys; a caller
  * holding a merely-asserted `WidgetTypeKey` (cast from an HTTP body or decoded JSON, not narrowed)
@@ -224,7 +224,7 @@ export const WIDGET_TYPE_REGISTRATIONS = {
  * The total lookup accessor — pure, O(1), no I/O. Only valid for a `typeKey` already narrowed to
  * `WidgetTypeKey` by the type system itself (a literal, or a value whose type was proven, not
  * asserted). For a raw/untrusted string that merely claims to be a `WidgetTypeKey` (an HTTP body
- * field cast at the boundary, e.g. `server/routes/admin/widgets/create.ts`, or a value decoded out
+ * field cast at the boundary, e.g. `Tovu apps/website/src/server/inbound/admin-http/routes/widgets/create.ts`, or a value decoded out
  * of stored JSON via `entry-payload.ts`'s `parseWidgetInstancePayload`), `undefined` is genuinely
  * reachable — use `findWidgetTypeRegistration` instead; do not smuggle an unverified string past
  * this signature with a cast.

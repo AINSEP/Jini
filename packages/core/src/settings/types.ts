@@ -6,7 +6,7 @@ import type { ISODateTime, JsonValue, UUID } from "../primitives/index.js";
  * Purpose:
  * Record shapes + the schema-validation vocabulary shared by `settings.ts`,
  * `write-service.ts`, `purge-service.ts`, and both repo adapters. Interfaces
- * and types only — no feature logic (mirrors `identity/types.ts`).
+ * and types only — no feature logic (mirrors `packages/user-management/src/core/types.ts`).
  */
 
 export type SettingScope = "global" | "workspace" | "user";

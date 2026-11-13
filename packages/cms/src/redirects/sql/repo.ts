@@ -158,7 +158,7 @@ export class SqlRedirectRepo implements RedirectRepoPort, RedirectDbHandle {
   }
 
   // -------------------------------------------------------------------
-  // RedirectDbHandle (used by redirects.ts/capture.ts via ports.internal.ts)
+  // RedirectDbHandle (used by packages/cms/src/redirects/redirects.ts and packages/cms/src/redirects/capture.ts via ports.internal.ts)
   // -------------------------------------------------------------------
 
   /** Upsert-by-id; no transaction control of its own. */

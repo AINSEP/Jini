@@ -52,7 +52,7 @@ import { ChangeUsernameDialog } from "./ChangeUsernameDialog.js";
  * thin composition of those, none of them exported, so no test does anything `Users.tsx`
  * didn't already support — see `__tests__/Users.unit.test.tsx`/`Users.crud.unit.test.tsx` for the
  * full-render tests these were extracted underneath (unchanged), plus new
- * `__tests__/users-components.unit.test.tsx` for direct component-level tests of each piece.
+ * `packages/user-management/src/react/users/__tests__/Users.coverage.test.tsx` for direct component-level tests of each piece.
  *
  * Second complexity pass (lot L182a): `UserRow` was back at cyclomatic 16 and `Users` at 11. The
  * row's cells and its menu-item wiring moved to `UserRowParts.tsx` (`UserNameCell`,

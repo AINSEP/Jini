@@ -115,8 +115,8 @@ export function useMembers({ port, translate, queryScope = "members" }: MembersD
 
 
   // Disable now confirms via a `RowMenu` item -> `ConfirmDialog` modal (replacing the in-place
-  // two-click `ConfirmButton`, which has no menu-item equivalent — same migration Posts.tsx/
-  // Redirects.tsx/Users.tsx already made). `null` when the dialog is closed.
+  // two-click `ConfirmButton`, which has no menu-item equivalent — same migration Tovu apps/admin/src/features/posts/Posts.tsx,
+  // packages/admin/src/redirects/react/pages/RedirectsPage.tsx, and packages/user-management/src/react/users/Users.tsx already made). `null` when the dialog is closed.
   const [confirmingDisable, setConfirmingDisable] = useState<AdminMember | null>(null);
   // Which row's detail panel is actually open (C7, plan-access.md §8, N2) — a ref, not just
   // expandedId state, because onToggleDetail reads it after await, when a closure can be stale.
@@ -185,7 +185,7 @@ export function useMembers({ port, translate, queryScope = "members" }: MembersD
   }
 
   /** Confirms the Disable that `RowMenu`'s "Disable" item asked about. Closes the dialog either
-   *  way (matching Posts.tsx/Redirects.tsx/Users.tsx's own Disable/Delete `ConfirmDialog`
+   *  way (matching Tovu apps/admin/src/features/posts/Posts.tsx, packages/admin/src/redirects/react/pages/RedirectsPage.tsx, and packages/user-management/src/react/users/Users.tsx's own Disable/Delete `ConfirmDialog`
    *  convention) — a failure surfaces via the row's own `rs.error`, not by leaving the modal open. */
   async function confirmDisable() {
     if (!confirmingDisable) return;

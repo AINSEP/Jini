@@ -40,7 +40,7 @@ import type { TermListPort } from "./list.js";
  * `TAXONOMY_ALLOWED_CONTENT_TYPES` below are permanent design choices, not stopgaps.
  *
  * How it relates to the project:
- * Mirrors `src/features/settings/write-service.ts`'s chokepoint shape (authorize -> validate ->
+ * Mirrors `packages/core/src/settings/write-service.ts`'s chokepoint shape (authorize -> validate ->
  * same-tx write + revision) and the required-input-object convention `src/features/post/post.ts`
  * establishes.
  */

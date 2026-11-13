@@ -65,7 +65,7 @@ export interface FormDestinationKit {
 }
 /** A destination's own vendor credential, opened from the vault by its exact label. On the push
  *  path, `baseUrl`'s origin plus `additionalHosts` (exact origins) are the only origins the
- *  attempt's `kit.fetch` may reach (`./deliver.ts`). A connection kind whose tokens are short-lived
+ *  attempt's `kit.fetch` may reach (`Tovu apps/website/src/features/form-destinations/deliver.ts`). A connection kind whose tokens are short-lived
  *  (OAuth) also offers `getAccessToken`: one fresh read per provider request, the first returning
  *  `token`, so the connection's request budgets count every request of the attempt. */
 export interface FormDestinationCredential { readonly token: string; readonly baseUrl: string; readonly username?: string; readonly additionalHosts?: readonly string[]; readonly getAccessToken?: () => Promise<string> }
@@ -74,7 +74,7 @@ export interface FormDestinationCredential { readonly token: string; readonly ba
  *  same store the plugin's admin surface writes and its tools read. */
 export interface FormDestinationPluginState { get(required: { readonly key: string }): Promise<unknown> }
 
-/** A destination module's default export. Every method is optional; `./registry.ts` checks the set
+/** A destination module's default export. Every method is optional; `Tovu apps/website/src/features/form-destinations/registry.ts` checks the set
  *  the descriptor's receive mode needs. All args are `(required, optional)`; effects go through `kit`. */
 export interface FormDestinationModule {
   /** Read-only. What `prepare` would create or change. External receivers only; for a co-hosted
@@ -87,7 +87,7 @@ export interface FormDestinationModule {
   pull?(required: { readonly kit: FormDestinationKit; readonly destination: FormDestinationAddress }, optional?: { readonly after?: number; readonly limit?: number }): Promise<FormDestinationPage>;
   /** Marks rows the host has durably imported, so they are no longer pending at the receiver. */
   ack?(required: { readonly kit: FormDestinationKit; readonly destination: FormDestinationAddress; readonly ids: readonly string[] }, optional?: Record<string, never>): Promise<{ readonly acknowledged: number }>;
-  /** Push model (sheets, tables, email): one attempt of one binding's durable delivery job (`./deliver.ts`).
+  /** Push model (sheets, tables, email): one attempt of one binding's durable delivery job (`Tovu apps/website/src/features/form-destinations/deliver.ts`).
    *  `credential` is resolved fresh per attempt from `binding.connectionRef` and is never stored in the
    *  job; `form`, `submission` and `binding` were frozen when the submission was planned (the source IP
    *  is never included). `idempotencyKey` is identical on every retry, so pass it to the destination
@@ -101,7 +101,7 @@ export interface FormDestinationModule {
 
 /** Resolves a binding's `connectionRef` to the credential its adapter needs, or null when there is
  *  none (deleted, revoked, other workspace). The single seam for connection kinds: the shipped one
- *  opens a custom credential by stable id (`./connection-port.ts`); an OAuth connection is another
+ *  opens a custom credential by stable id (`Tovu apps/website/src/features/form-destinations/connection-port.ts`); an OAuth connection is another
  *  implementation of this same type. Modules never see the vault, only the resolved credential.
  *  `optional.binding` is the job's frozen binding, for a kind that freezes more than the ref (the
  *  OAuth one reads the account the binding was set up with). A port may throw a `FormDeliveryError`

@@ -186,7 +186,7 @@ export const COMMENTS_PLUGIN_ID = "comments";
 /**
  * ADR-031 round-2 sweep-crosscutting fold (OQ-3 resolution, SPEC-035): "Pin the anonymous-ingress
  * `system` actor as a seeded principal ULID." A fixed, well-known id (not per-boot-generated) —
- * mirrors `identity/seed.ts`'s `LEGACY_USER_LOCAL_PRINCIPAL_ID` shape (a stable, non-interactive
+ * mirrors `packages/user-management/src/server/seed.ts`'s `LEGACY_USER_LOCAL_PRINCIPAL_ID` shape (a stable, non-interactive
  * `kind: "system"` principal referenced by id, not resolved dynamically) and `server/seed.ts`'s
  * `SETTINGS_MIGRATION_SYSTEM_PRINCIPAL_ID` convention (a composition-root-seeded constant scoped
  * to one subsystem's boot-time attribution, so it doesn't need to wait on `identity`'s own

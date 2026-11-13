@@ -357,7 +357,7 @@ export interface StdinCloseHandle {
  * building unproven intent-detection: nothing auto-continues unless a host
  * has explicitly vetted that specific tool as autonomous-safe. A
  * human-facing "ask the user a question" tool is simply never added to this
- * set; `packages/chat-core/src/question-form.ts`'s existing text-tag
+ * set; `packages/chat/src/core/question-form.ts`'s existing text-tag
  * mechanism (a new `Run` per turn, not mid-turn injection) already covers
  * that case without needing this transport at all.
  */

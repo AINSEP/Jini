@@ -1,7 +1,7 @@
 /**
  * @file Composition factory for the Comments plugin (ADR-031, SPEC-033/SPEC-035) — wires the
  * repo, spam check, hooks, ingress policy, and write-service together given the low-level deps a
- * composition root (`server/deps.ts`/`app.ts`) already has. Both composition roots call this
+ * composition root (`Tovu apps/website/src/server/runtime/composition/deps.ts`/`app.ts`) already has. Both composition roots call this
  * instead of each hand-assembling the same 5-piece wiring twice.
  *
  * `entryLookup` adapts `EntryRepoPort.findById` (already on `RouteDeps`) into the narrow shape

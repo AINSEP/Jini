@@ -10,7 +10,7 @@
  * `<div data-embed-config='{"type":"widget","id":"{widgetEntryId}"}'></div>` (or `"type":"media"`,
  * `"post"`, or any future type token), anywhere in the page's `body_html`.
  *
- * **This file no longer owns a pattern.** Locating and parsing a marker is `core/embeds/marker.ts`'s
+ * **This file no longer owns a pattern.** Locating and parsing a marker is `packages/cms/src/widgets/markers/marker.ts`'s
  * single job; this module is only the adapter that projects a parsed marker into the
  * {@link PageHtmlEmbedRef} shape `resolver-service.ts` resolves against. Before the 2026-08-10
  * unification there were four regexes for one concept — this one, `static-render.ts`'s,
@@ -277,7 +277,7 @@ export function scanHtmlEmbeds({ html }: { html: string }, _optional: Record<str
  *
  * Nothing in this codebase authors a `"media"` marker directly on one of these tags today — every
  * real example (the theme-authoring guide, the shipped `basic` theme, this bug's own report) wraps
- * the marker in a container (`div`, `nav`, …) — but {@link MARKER_PATTERN} in `core/embeds/marker.ts`
+ * the marker in a container (`div`, `nav`, …) — but {@link MARKER_PATTERN} in `packages/cms/src/widgets/markers/marker.ts`
  * matches any `[a-z]+` tag name, so the grammar does not forbid it. This check is defensive, not a
  * response to an observed case.
  *
@@ -348,7 +348,7 @@ export const MEDIA_ELEMENT_ATTRIBUTE_NAMES: ReadonlySet<string> = new Set([
  * - **`widget` stays excluded from THIS constant** (it has its own 2026-09-16 rule instead — see this
  *   file's header and {@link withElementKeptIfAttributed}). Unlike `post`/`content`, a widget's
  *   resolved root tag is NOT a small, closed set this function can reason about: `WIDGET_IR_RENDERERS`
- *   (`server/http/site/render.ts`) alone spans `<div>`, `<ul>`, `<li>`, `<nav>`, and `<form>` across
+ *   (`Tovu apps/website/src/server/inbound/public-http/http/site/render.ts`) alone spans `<div>`, `<ul>`, `<li>`, `<nav>`, and `<form>` across
  *   its registered component ids, and `resolver-service.ts`'s own doc states adding a new widget type
  *   is meant to be cheap — a future one can introduce any root tag. Several of today's shapes are also
  *   written to BE the final element at the marker's position rather than content for a further

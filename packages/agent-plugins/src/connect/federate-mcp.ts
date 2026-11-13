@@ -98,7 +98,7 @@ import type { createAgentPluginLifecycle } from "../lifecycle/index.js";
  * What happens on plugin disable or uninstall: THE ROW SURVIVES
  * ---------------------------------------------------------------------------
  * Nothing in this file, and nothing this dispatch added to `set-enabled.ts` or
- * `features/agent-plugins/uninstall.ts`, ever deletes or disables a provisioned row when its plugin
+ * `packages/agent-plugins/src/lifecycle/uninstall.ts`, ever deletes or disables a provisioned row when its plugin
  * is turned off or removed. This is a deliberate position, not an oversight: a provisioned row may
  * already hold OAuth tokens the operator earned through a real browser sign-in, and deleting an
  * external MCP connection is UNRECOVERABLE in this app (`project_external_mcp_delete_is_unrecoverable`
@@ -134,7 +134,7 @@ import type { createAgentPluginLifecycle } from "../lifecycle/index.js";
  * (`manifest.ts`) to say so explicitly.
  */
 
-/** `mcp-federation/trust.ts`'s `CONNECTION_ID_PATTERN` caps a connection id at 40 characters. */
+/** `packages/mcp/src/federation/trust.ts`'s `CONNECTION_ID_PATTERN` caps a connection id at 40 characters. */
 const MAX_CONNECTION_ID_LENGTH = 40;
 
 /**
@@ -165,7 +165,7 @@ export function deriveAgentPluginConnectionId({ serverKey }: { serverKey: string
 }
 
 /** One server this plugin declared that {@link planAgentPluginMcpFederation} will not attempt to
- *  provision, and why — reported rather than silently dropped, matching `mcp-federation/trust.ts`'s
+ *  provision, and why — reported rather than silently dropped, matching `packages/mcp/src/federation/trust.ts`'s
  *  own "every refusal is reportable, never silent" discipline. */
 export interface SkippedAgentPluginMcpServer {
   readonly serverKey: string;

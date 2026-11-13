@@ -108,7 +108,7 @@ export class AgentPluginActivationsUnreadableError extends Error {
 
 /**
  * A WRITER could not take (or lost) the cross-process write lock in time — see this file's header,
- *  "Concurrency", ACROSS processes, and `exclusive-file-lock.ts`. `lost: true` means the lock WAS
+ *  "Concurrency", ACROSS processes, and `packages/platform/src/fs/file-lock.ts`. `lost: true` means the lock WAS
  *  acquired but was judged stale by another process before this writer's own rename; `lost: false`
  *  means the initial acquisition itself timed out. Either way NOTHING was written. `message` names
  *  the host lock path: keep it in a server-side log, never in a model- or user-facing payload.

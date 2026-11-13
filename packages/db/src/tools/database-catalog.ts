@@ -14,7 +14,7 @@
  * `inputSchema` — this file previously declared id/sideEffects/authorization only, one layer short
  * of what `tool-registrations.ts` requires to actually publish a tool to the model (mirrors
  * core's `AgentToolDefinition` shape; `inputSchema` stays OPTIONAL, as in
- * `features/content-types/agent-tools.ts`, because 1 of these 9 entries is still declared but
+ * `packages/cms/src/content-types/agent-tools.ts`, because 1 of these 9 entries is still declared but
  * deliberately never wired — see `tool-registrations.ts`'s `UNWIRED_DATABASE_TOOL_IDS`:
  * `database_get_restore_guidance` has no envelope-minting function to compose (only the RECEIVING
  * side, `recovery/deep-link.ts`'s `resolveDeepLinkContext`, exists — building one would mean
@@ -23,7 +23,7 @@
  * read-only introspection adapter below).
  *
  * A later dispatch built `features/database/adapter.sqlite.ts` (`DatabaseIntrospectionPort`,
- * composed into `RouteDeps` as `databaseIntrospection` in both `server/deps.ts` and `server/app.ts`)
+ * composed into `RouteDeps` as `databaseIntrospection` in both `Tovu apps/website/src/server/runtime/composition/deps.ts` and `Tovu apps/website/src/server/runtime/composition/app.ts`)
  * and wired `database_get_health`/`database_get_schema_state`/`content_read.database_pending_migration`
  * against it — see each entry's own comment below and `tool-registrations.ts`'s handlers.
  *
@@ -59,7 +59,7 @@ const NO_INPUT_SCHEMA = {
   properties: {},
 } as const;
 
-/** `database_query_timeline`'s filter — mirrors `features/database/timeline.ts`'s `getTimeline` filter shape and `routes/admin/database/timeline.ts`'s query-string parsing 1:1. */
+/** `database_query_timeline`'s filter — mirrors `features/database/timeline.ts`'s `getTimeline` filter shape and `Tovu apps/website/src/server/inbound/admin-http/routes/database/timeline.ts`'s query-string parsing 1:1. */
 const TIMELINE_QUERY_SCHEMA = {
   type: "object",
   additionalProperties: false,

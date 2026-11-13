@@ -47,7 +47,7 @@ import type { SeoEntryAnalysis, SeoEntryPanelController } from "../../models.js"
  * built on the shared `@jini-ai/ui/tab-strip` that `Deployment.tsx`, `Sites.tsx`, `Themes.tsx`,
  * `Security.tsx`, `SourceControl.tsx` and `Database.tsx` already use. Nothing new was written for
  * the tab mechanism: the shell was ALREADY extracted (`@jini-ai/ui/tab-strip` for the strip,
- * `lib/resolve-active-tab-id.ts` for the `?tab=` guard), so this screen reuses it rather than
+ * `packages/ui/src/features/panel-kit/helpers/resolve-active-tab-id.ts` for the `?tab=` guard), so this screen reuses it rather than
  * becoming a third implementation. The reasoning for the grouping, the tab NAMES, and the one
  * cut that was considered and rejected all live in `react/hooks/SeoPage.hooks.ts`'s header.
  *

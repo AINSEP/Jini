@@ -11,7 +11,7 @@
  *
  * Both chains were the exact unit three separate Red-Team rounds found real ordering defects in —
  * a combined-failure case must always report the FIRST-in-order failure, never a later one that
- * also happens to apply. Every test in `validation-chain.unit.test.ts` replays one of those
+ * also happens to apply. Every test in `packages/cms/src/taxonomy/__tests__/validation-chain.test.ts` replays one of those
  * regressions or a compound-failure case to lock the order in place.
  *
  * `wouldCreateCycle` is the full ancestor-chain walk `validateHierarchyAssignment`'s cycle check

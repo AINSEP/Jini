@@ -7,7 +7,7 @@ import type { IdentityTransactionPort, PolicyPermissionRepoPort, PolicyRepoPort 
  * @file Shared deprecate-old/grant-new permission migration mechanism
  * (generalized from the `settings.write` ->
  * `settings.definitions.manage` precedent already shipped ad hoc in
- * `identity/seed.ts`/`identity/permissions.ts`; see
+ * `packages/user-management/src/server/seed.ts`/`packages/user-management/src/core/permissions.ts`; see
  * `docs/decisions/permission-catalog-migration.md`).
  *
  * Purpose:
@@ -34,7 +34,7 @@ import type { IdentityTransactionPort, PolicyPermissionRepoPort, PolicyRepoPort 
  * `policy_permissions` anywhere in this file.
  * - Feature-agnostic by design: this module has zero knowledge of
  * `navigation`/`settings`/any specific feature. Callers (e.g.
- * `identity/permissions.ts`) register their own pairs.
+ * `packages/user-management/src/core/permissions.ts`) register their own pairs.
  *
  * Architectural role:
  * Security-adjacent domain logic (a bug here could fail-open (grant more than
@@ -71,7 +71,7 @@ export interface PermissionMigrationRegistry {
    * Register a `{from, to, reason}` rename/split pair for later fan-out.
    * Idempotent: re-registering the same `from` overwrites the prior entry
    * rather than duplicating it (matches `PermissionCatalog.register`'s
-   * existing overwrite semantics, `identity/permissions.ts`).
+   * existing overwrite semantics, `packages/user-management/src/core/permissions.ts`).
    *
    * @complexity O(1).
    */

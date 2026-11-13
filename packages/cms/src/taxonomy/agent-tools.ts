@@ -5,14 +5,14 @@ const MUTATES_DURABLE_STATE = "mutates-durable-state";
 
 /**
  * @file The Taxonomy agent-tool catalog — this domain's instance of the per-domain
- * `agent-tools.ts` convention `features/content-types/agent-tools.ts`,
+ * `agent-tools.ts` convention `packages/cms/src/content-types/agent-tools.ts`,
  * `features/database/agent-tools.ts`, and every other domain catalog already use.
  *
  * Purpose:
  * A static, in-process catalog describing every agent-callable tool this domain exposes. Every
- * WRITE entry maps 1:1 onto a real exported function of `features/taxonomy/write-service.ts`
+ * WRITE entry maps 1:1 onto a real exported function of `packages/cms/src/taxonomy/write-service.ts`
  * (`createTaxonomy`, `createTerm`, `renameTerm`, `assignTerms`); the one read maps onto
- * `features/taxonomy/list.ts`'s `listTaxonomiesWithTerms`.
+ * `packages/cms/src/taxonomy/list.ts`'s `listTaxonomiesWithTerms`.
  *
  * `mergeTerm` (`merge-term.ts`) — read carefully, treated with the same scrutiny Database's
  * `migrate-forward` and Recovery's `restore` ceremonies got:

@@ -1,7 +1,7 @@
 import type { AgentToolDefinition } from "@jini-ai/core";
 /**
  * @file The Navigation (Menus) agent-tool catalog — this domain's instance of the
- * per-domain `agent-tools.ts` convention `forms/agent-tools.ts` and `identity/agent-tools.ts`
+ * per-domain `agent-tools.ts` convention `forms/agent-tools.ts` and `packages/user-management/src/server/agent-tools.ts`
  * already use.
  *
  * Purpose:
@@ -33,7 +33,7 @@ import type { AgentToolDefinition } from "@jini-ai/core";
  *   permission). Unlike `widgets`/`media` (which expose trash and purge as two SEPARATE domain
  *   functions, letting a catalog safely wire trash alone), navigation has no decomposed trash-only
  *   entrypoint to call — the very same tool call, made twice, silently escalates from a reversible
- *   soft-delete into a permanent one. That is exactly the shape of risk `identity/agent-tools.ts`
+ *   soft-delete into a permanent one. That is exactly the shape of risk `packages/user-management/src/server/agent-tools.ts`
  *   excludes `resetUserPassword` for: a single lever whose second pull does something categorically
  *   more dangerous than its first, reachable by an agent re-invoking a tool it already called once
  *   (e.g. after losing track of a prior call, or via prompt injection through ordinary operator
@@ -195,7 +195,7 @@ const ITEMS_TREE_SCHEMA = {
  * (`server/routes/admin/menus/*.ts`) exposes that are safe to wrap, out of its 6 total (see file
  * header for why `delete` is the one exclusion).
  *
- * Ordered read-first, matching `identity/agent-tools.ts`'s convention: a model needs a menu's id
+ * Ordered read-first, matching `packages/user-management/src/server/agent-tools.ts`'s convention: a model needs a menu's id
  * before it can update or assign one, and `menus_list_menus` is how it learns one for an existing menu.
  */
 export const menusAgentToolCatalog: AgentToolDefinition[] = [

@@ -524,8 +524,8 @@ export type RuntimeAgentDef = Partial<AgentModelDiscoveryPort> & {
   //                            `JINI_DAEMON_TOKEN` triple every other
   //                            strategy carries) directly onto the spawned
   //                            CLI's own OS environment, for the CLI's own
-  //                            child to inherit in turn. See `defs/
-  //                            antigravity.ts`'s own doc for the live
+  //                            child to inherit in turn. See `packages/agent-runtime/src/defs/antigravity/index.ts`'s own doc
+  //                            for the live
   //                            evidence this inheritance chain actually
   //                            works end to end (`server/discover` →
   //                            `initialize` → `tools/list` observed against

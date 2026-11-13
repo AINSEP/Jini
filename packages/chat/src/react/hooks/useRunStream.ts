@@ -6,7 +6,7 @@ import { formatErrorForLog } from '@jini-ai/core';
  * error/terminal state, and the ephemeral tool-input-delta buffer (keyed by
  * tool id) for a single active run. Calls `transport.startRun`/
  * `reattachRun`/`stopRun` — never touches `fetch`/`EventSource` itself; the
- * `ChatTransport` port (see `../../transport.js`) is the only I/O this hook
+ * `ChatTransport` port (see `packages/chat/src/core/transport.ts`) is the only I/O this hook
  * performs. Per `ADS-memory/reports/jini-port/recon/r4b-webui-design.md` §4's hook table.
  *
  * This hook IS the "single-instance orchestrator" the §4 accumulating-

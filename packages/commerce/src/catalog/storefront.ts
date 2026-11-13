@@ -5,13 +5,13 @@ import type { CommercePriceRecord, CommerceProductRecord, CommerceProductSpec } 
  * product shape (2026-08-12: "wire products into template render data").
  *
  * Purpose:
- * The render pipeline's `SiteProduct` (`src/server/http/site/render.ts`) is deliberately shaped
+ * The render pipeline's `SiteProduct` (`Tovu apps/website/src/server/inbound/public-http/http/site/render.ts`) is deliberately shaped
  * structurally rather than imported from a specific data source's module — its own doc says so
  * explicitly, for the sample store plugin, so the core render engine never depends on any one
  * plugin/feature's types. This module keeps that same decoupling in the other direction:
  * `features/commerce` does not import `SiteProduct` or anything from `server/http/site` — it
  * returns a plain object structurally compatible with it, and the route layer
- * (`server/routes/site/products.ts`) is what bridges the two, exactly as `SiteProduct`'s own doc
+ * (`Tovu apps/website/src/server/inbound/public-http/routes/site/products.ts`) is what bridges the two, exactly as `SiteProduct`'s own doc
  * already establishes as the pattern.
  *
  * Deliberately NOT included in this mapping this pass, named explicitly rather than silently
@@ -53,7 +53,7 @@ import type { CommercePriceRecord, CommerceProductRecord, CommerceProductSpec } 
  */
 
 /** The public-render-facing shape this module produces — structurally compatible with
- * `SiteProduct` (`server/http/site/render.ts`), not imported from it. See file header. */
+ * `SiteProduct` (`Tovu apps/website/src/server/inbound/public-http/http/site/render.ts`), not imported from it. See file header. */
 export interface StorefrontSiteProduct {
   id: string;
   /** Readable-slugs S7 (2026-09-23): the product's own unique slug — `render.ts`'s
