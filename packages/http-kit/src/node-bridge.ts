@@ -5,6 +5,7 @@
  * errors fall through to the host's own routes and error handler. Express's `req`/`res` ARE Node's
  * `IncomingMessage`/`ServerResponse`, which is why moving the host to Express 5 changes nothing here.
  */
+import { randomBytes } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import { Readable } from 'node:stream';
 import { inspect } from 'node:util';
@@ -35,10 +36,21 @@ export interface NodeDispatchOptions {
   readonly locals?: Readonly<Record<string, unknown>>;
 }
 
+/** One unhandled failure, with the reference its 500 answer showed the caller. */
+export interface UnhandledErrorReport {
+  readonly error: unknown;
+  /** Also in the plain-words 500 body (when one could still be sent), so a pasted reference finds this log line. */
+  readonly reference: string;
+}
+
 /** Optional settings for {@link createNodeDispatcher}. */
 export interface NodeDispatcherOptions {
-  /** Where a handler failure goes when no `next` was given, and where a failure after the headers were sent always goes (default: redacted, to stderr). */
-  readonly onUnhandledError?: (error: unknown) => void;
+  /**
+   * Where a handler failure goes when no `next` was given, and where a failure after the headers
+   * were sent always goes (default: redacted, to stderr). A sink that throws is contained: the
+   * dispatcher writes one fixed line to stderr instead and carries on.
+   */
+  readonly onUnhandledError?: (required: UnhandledErrorReport) => void;
   /**
    * Extra credential shapes the default stderr sink masks on top of the shared redactor's own.
    * Jini stays vendor-neutral and knows no host's key formats, so the host injects them (Tovu
@@ -98,25 +110,36 @@ function toWebRequest({ incoming, url, signal, parsedBody }: { incoming: Incomin
   return new Request(url, init);
 }
 
-const GONE = Symbol('client gone');
-
-/** Settles with {@link GONE} once the client connection is closed (at once if it already is). */
-function clientGone(out: ServerResponse): Promise<typeof GONE> {
-  if (out.destroyed) return Promise.resolve(GONE);
-  return new Promise((resolve) => { out.once('close', () => resolve(GONE)); });
+/**
+ * Resolves once the socket takes more (`drain`) or the client is gone (`close`/`error`). All three
+ * listeners come off when it settles: one wait per full buffer, never a growing set of listeners
+ * or promise reactions over a long-lived SSE connection.
+ */
+function writableOrGone(out: ServerResponse): Promise<void> {
+  // Already gone: its `close` has fired and will not fire again.
+  if (out.destroyed) return Promise.resolve();
+  return new Promise((resolve) => {
+    const settle = () => {
+      out.off('drain', settle);
+      out.off('close', settle);
+      out.off('error', settle);
+      resolve();
+    };
+    out.on('drain', settle);
+    out.on('close', settle);
+    out.on('error', settle);
+  });
 }
 
-function drained(out: ServerResponse): Promise<void> {
-  return new Promise((resolve) => { out.once('drain', () => resolve()); });
-}
-
-/** Writes chunks until the stream ends (true) or the client leaves (false); waits for `drain` whenever the socket buffer is full. */
-async function copyChunks({ reader, out, gone }: { reader: ReadableStreamDefaultReader<Uint8Array>; out: ServerResponse; gone: Promise<typeof GONE> }): Promise<boolean> {
+/** Writes chunks until the stream ends (true) or the client leaves (false); waits whenever the socket buffer is full. */
+async function copyChunks({ reader, out }: { reader: ReadableStreamDefaultReader<Uint8Array>; out: ServerResponse }): Promise<boolean> {
   for (;;) {
-    const chunk = await Promise.race([reader.read(), gone]);
-    if (chunk === GONE) return false;
+    // Checked before reading (a client gone before the first read never fires `close` again) and after (never write to a closed socket).
+    if (out.destroyed) return false;
+    const chunk = await reader.read();
+    if (out.destroyed) return false;
     if (chunk.done) return true;
-    if (!out.write(chunk.value) && (await Promise.race([drained(out), gone])) === GONE) return false;
+    if (!out.write(chunk.value)) await writableOrGone(out);
   }
 }
 
@@ -124,14 +147,24 @@ async function copyChunks({ reader, out, gone }: { reader: ReadableStreamDefault
  * Copies `body` to `out` with backpressure: when the socket buffer is full, reading waits for
  * `drain`, so a slow or stalled client holds the producer back instead of the stream filling
  * Node's memory (the producers' own queue ceilings, e.g. SSE, only work if this waits). A client
- * that leaves cancels the stream so its producer stops. Returns false when the client left.
+ * that leaves cancels the stream so its producer stops; cancelling also ends a read that is
+ * waiting on an idle producer. The reader is always released, so nothing keeps the stream locked.
+ * Returns false when the client left.
  * @throws When the stream itself fails; the caller cuts the connection.
  */
 async function pipeBody({ body, out }: { body: ReadableStream<Uint8Array>; out: ServerResponse }): Promise<boolean> {
   const reader = body.getReader();
-  const finished = await copyChunks({ reader, out, gone: clientGone(out) });
-  if (!finished) await reader.cancel().catch(() => undefined);
-  return finished;
+  const onLeave = () => { reader.cancel().catch(() => undefined); };
+  out.once('close', onLeave);
+  let finished = false;
+  try {
+    finished = await copyChunks({ reader, out });
+    return finished;
+  } finally {
+    out.off('close', onLeave);
+    if (!finished) await reader.cancel().catch(() => undefined);
+    reader.releaseLock();
+  }
 }
 
 async function writeWebResponse({ response, out, headOnly }: { response: Response; out: ServerResponse; headOnly: boolean }): Promise<void> {
@@ -163,12 +196,37 @@ function unroutedResponse(match: RouteMatch | null): Response {
   return plainText({ status: 404, text: 'Not Found' });
 }
 
+/** A short random reference that ties a caller's 500 to the server's log line; it reveals nothing about the failure. */
+function newErrorReference(): string {
+  return randomBytes(6).toString('hex');
+}
+
 // Exceptions can echo credentials; inspect keeps stack and code, then the shared redactor runs (as adapter.ts does)
 // with the host's own key shapes added, since only the host knows them.
-function stderrSink(extraPatterns: readonly SecretRedactionPattern[]): (error: unknown) => void {
-  return (error) => {
-    process.stderr.write(`[@jini-ai/http-kit] route handler failed: ${redactSecrets({ input: inspect(error) }, { redactPii: false, extraPatterns })}\n`);
+function stderrSink(extraPatterns: readonly SecretRedactionPattern[]): (required: UnhandledErrorReport) => void {
+  return ({ error, reference }) => {
+    process.stderr.write(`[@jini-ai/http-kit] route handler failed (reference ${reference}): ${redactSecrets({ input: inspect(error) }, { redactPii: false, extraPatterns })}\n`);
   };
+}
+
+/**
+ * Wraps a sink so it can never throw into the dispatcher: a failing sink would otherwise turn a
+ * reported error into a rejected `handle()` (which the Express adapter discards) and skip cutting
+ * the connection. The fallback line names only the reference, never the error, so it cannot leak.
+ */
+function containedSink(sink: (required: UnhandledErrorReport) => void): (required: UnhandledErrorReport) => void {
+  return (report) => {
+    try {
+      sink(report);
+    } catch {
+      try { process.stderr.write(`[@jini-ai/http-kit] the error sink failed; error reference ${report.reference} was not logged\n`); } catch { /* nothing left to report to */ }
+    }
+  };
+}
+
+/** The 500 a caller sees: plain words plus a reference they can paste to whoever runs the site. */
+function internalErrorResponse(reference: string): Response {
+  return plainText({ status: 500, text: `The server could not finish this request. Reference: ${reference}. Try again; if it keeps failing, send this reference to the site's owner.` });
 }
 
 interface Dispatch {
@@ -176,7 +234,7 @@ interface Dispatch {
   readonly out: ServerResponse;
   readonly method: string;
   readonly options: NodeDispatchOptions;
-  readonly onUnhandledError: (error: unknown) => void;
+  readonly onUnhandledError: (required: UnhandledErrorReport) => void;
 }
 
 /** Calls the matched route and writes its answer; a handler failure goes to `next(error)` or a plain 500. */
@@ -196,8 +254,9 @@ async function serveRoute({ incoming, out, method, options, onUnhandledError }: 
       options.next(error);
       return;
     }
-    onUnhandledError(error);
-    await writeWebResponse({ response: plainText({ status: 500, text: 'The server could not finish this request.' }), out, headOnly: false })
+    const reference = newErrorReference();
+    onUnhandledError({ error, reference });
+    await writeWebResponse({ response: internalErrorResponse(reference), out, headOnly: false })
       .catch(() => { out.destroy(); });
     return;
   }
@@ -206,7 +265,7 @@ async function serveRoute({ incoming, out, method, options, onUnhandledError }: 
   } catch (error) {
     // Headers are already on the wire, so no error page can follow: cut the connection so the
     // client sees a failed response instead of a silently truncated one.
-    onUnhandledError(error);
+    onUnhandledError({ error, reference: newErrorReference() });
     out.destroy();
   } finally {
     out.off('close', onClose);
@@ -215,7 +274,7 @@ async function serveRoute({ incoming, out, method, options, onUnhandledError }: 
 
 /**
  * Creates a dispatcher with an empty route table.
- * @param optional.onUnhandledError - Where a handler failure goes when no `next` was given (default: redacted, to stderr).
+ * @param optional.onUnhandledError - Where a handler failure goes when no `next` was given, with the reference its 500 shows (default: redacted, to stderr).
  * @param optional.redactionPatterns - Host key shapes the default stderr sink also masks.
  */
 export function createNodeDispatcher(
@@ -223,7 +282,7 @@ export function createNodeDispatcher(
   { onUnhandledError, redactionPatterns = [] }: NodeDispatcherOptions = {},
 ): NodeDispatcher {
   const table = createRouteTable();
-  const report = onUnhandledError ?? stderrSink(redactionPatterns);
+  const report = containedSink(onUnhandledError ?? stderrSink(redactionPatterns));
   const dispatch = async (dispatchArgs: Dispatch): Promise<void> => {
     const target = requestTarget({ incoming: dispatchArgs.incoming, origin: dispatchArgs.options.origin });
     const match = target ? table.match({ method: dispatchArgs.method, pathname: target.pathname }) : null;
@@ -236,10 +295,14 @@ export function createNodeDispatcher(
   return {
     server: { route: (route) => table.route(route) },
     handle({ incoming, out }, options = {}) {
-      // The promise never rejects (the Express adapter discards it): anything left is reported and the connection cut.
+      // The promise never rejects (the Express adapter discards it): anything left is reported and
+      // the connection cut. `report` is contained, and the cut runs even if it were not.
       return dispatch({ incoming, out, method: incoming.method ?? 'GET', options, onUnhandledError: report }).catch((error: unknown) => {
-        report(error);
-        out.destroy();
+        try {
+          report({ error, reference: newErrorReference() });
+        } finally {
+          out.destroy();
+        }
       });
     },
   };
