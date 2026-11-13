@@ -15,6 +15,8 @@ import type { AgentModelDiscoveryPort, ModelCatalogSnapshot, DefaultModelResolut
 import type { ExecFileOptions } from 'node:child_process';
 import type { AgentDiagnostic } from '@jini-ai/protocol';
 import type { RuntimeEnv, RuntimeModelOption, RuntimeReasoningOption } from './model-contracts.js';
+import type { ClaudeRuntimeBuildOptions } from './defs/claude/types.js';
+import type { CodexRuntimeBuildOptions } from './defs/codex/types.js';
 
 export type { RuntimeEnv, RuntimeModelOption, RuntimeReasoningOption } from './model-contracts.js';
 
@@ -55,15 +57,13 @@ export type RuntimeReasoningInModelId = {
   levels: readonly RuntimeReasoningOption[];
 };
 
-export type RuntimeBuildOptions = {
+export type RuntimeBuildOptions = ClaudeRuntimeBuildOptions & CodexRuntimeBuildOptions & {
   /** Host folder boundary, independent of native grants; unsupported providers disclose the exception. */
   filesystemRoot?: string;
   /** Executor-created private temporary directory inside the host root; never a shared temp root. */
   filesystemTempDir?: string;
   /** Shared host/login temp roots denied even when child TMPDIR is replaced. */
   filesystemSharedTempRoots?: readonly string[];
-  /** Executor-created per-run CLAUDE_CODE_TMPDIR; its /claude-<uid> child must fit 44 bytes. Absent grants no runtime scratch. */
-  filesystemRuntimeTempBase?: string;
   /** Executor-resolved CLI/runtime files; read-only exceptions for sandboxed commands. */
   filesystemRuntimeReadPaths?: readonly string[];
   /** Host-validated owner-picked folders outside filesystemRoot: natively readable, never writable. */
@@ -75,8 +75,6 @@ export type RuntimeBuildOptions = {
   nativeToolAccess?: boolean;
   /** Explicit trusted-host grant for hand-run CLI configuration and capabilities. */
   cliParity?: boolean;
-  /** Explicit host/run policy; environment defaults belong to native composition. */
-  codexDisablePlugins?: boolean;
   /** Host-scoped capability flags; absent retains the published compatibility cache. */
   capabilities?: RuntimeCapabilityMap;
   model?: string | null;

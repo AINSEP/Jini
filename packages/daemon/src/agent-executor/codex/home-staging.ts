@@ -22,6 +22,12 @@ import { buildCodexHomeConfigToml } from './home-config.js';
 import { assertCodexHomeConfigParses, assertStagedHomeIsolated, CodexMcpIsolationError, codexIsolationRefusalMessage } from './isolation.js';
 import { omitKeys } from '../../core/omit-keys.js';
 
+export const CODEX_HOME_ENV = 'CODEX_HOME';
+
+export function resolveCodexDisablePlugins(value: boolean | undefined, env: NodeJS.ProcessEnv): boolean {
+  return value ?? (env.CODEX_DISABLE_PLUGINS === '1');
+}
+
 /**
  * Where `'codex-toml'` reads the operator's REAL Codex config from, to seed a run's scratch copy —
  * never where it writes. Resolved against the daemon HOST process's own environment (`hostEnv`,
@@ -200,6 +206,11 @@ function codexTurnsOffPersonalConfig(input: { readonly def: RuntimeAgentDef; rea
 export function codexInheritance(input: { readonly nativeToolAccess?: boolean | undefined; readonly nativeCapabilities?: Partial<import('@jini-ai/agent-runtime').NativeCapabilities> }): { settings: boolean; mcp: boolean } {
   const nativeAllowed = input.nativeToolAccess !== false;
   return { settings: nativeAllowed && input.nativeCapabilities?.userSettings !== false, mcp: nativeAllowed && input.nativeCapabilities?.userMcp !== false };
+}
+
+/** Supply the HTTP endpoint to this CLI's run-scoped home staging. */
+export function codexHttpMcpStaging(endpoint: McpHttpEndpoint): { httpEndpoint: McpHttpEndpoint } {
+  return { httpEndpoint: endpoint };
 }
 
 /**

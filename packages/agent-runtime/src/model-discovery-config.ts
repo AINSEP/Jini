@@ -3,45 +3,42 @@ import { homedir } from 'node:os';
 import type { ModelDiscoveryContext, ModelDiscoveryDeps } from './model-discovery-types.js';
 import { yamlModelCapture } from './model-discovery-yaml.js';
 
-/** JSON path of the model setting in the Qoder and Qwen settings files. */
-const MODEL_NAME_PATH = 'model.name';
+import { codexModelConfig } from './defs/codex/model-discovery.js';
+import { claudeModelConfig } from './defs/claude/model-discovery.js';
+import { antigravityModelConfig } from './defs/antigravity/model-discovery.js';
+import { opencodeModelConfig, parseOpenCodeRecentModel } from './defs/opencode/model-discovery.js';
+import { piModelConfig, parsePiDefaultModel } from './defs/pi/model-discovery.js';
+import { aiderModelConfig } from './defs/aider/model-discovery.js';
+import { grokBuildModelConfig } from './defs/grok-build/model-discovery.js';
+import { codebuddyModelConfig } from './defs/codebuddy/model-discovery.js';
+import { cursorAgentModelConfig } from './defs/cursor-agent/model-discovery.js';
+import { droidModelConfig } from './defs/droid/model-discovery.js';
+import { qoderModelConfig } from './defs/qoder/model-discovery.js';
+import { qwenModelConfig } from './defs/qwen/model-discovery.js';
+import { deepseekModelConfig } from './defs/deepseek/model-discovery.js';
+import { mimoModelConfig } from './defs/mimo/model-discovery.js';
+import { crushModelConfig } from './defs/crush/model-discovery.js';
+import { amrModelConfig } from './defs/amr/model-discovery.js';
+import { parseSettingsJson, scalar, type ConfigFile, type ModelConfigAdapter } from './model-discovery-config-types.js';
+export { parseSettingsJson } from './model-discovery-config-types.js';
 
-type ConfigFile = { path: string; format: 'json' | 'toml' | 'yaml'; key?: string };
-const json = (path: string, key = 'model'): ConfigFile => ({ path, format: 'json', key });
-type ConfigPaths = {
-  env: ModelDiscoveryContext['env']; context: ModelDiscoveryContext; configHome: string;
-  user(name: string): string; local(name: string): string; root(name: string): string;
-};
-function codexConfigFiles({ env, context, user, local }: ConfigPaths): ConfigFile[] {
-  const root = env.CODEX_HOME || user('.codex');
-  return [{ path: join(root, 'config.toml'), format: 'toml' },
-    ...(context.profile ? [{ path: join(root, `${context.profile}.config.toml`), format: 'toml' as const }] : []),
-    { path: local('.codex/config.toml'), format: 'toml' }];
-}
-function claudeConfigFiles({ env, context, user, root }: ConfigPaths): ConfigFile[] {
-  const claudeRoot = env.CLAUDE_CONFIG_DIR || user('.claude');
-  const sources = context.settingSources ?? ['user', 'project', 'local'];
-  return [...(sources.includes('user') ? [json(join(claudeRoot, 'settings.json'))] : []),
-    ...(sources.includes('project') ? [json(root('.claude/settings.json'))] : []),
-    ...(sources.includes('local') ? [json(root('.claude/settings.local.json'))] : [])];
-}
-const CONFIG_FILES: ReadonlyMap<string, (paths: ConfigPaths) => ConfigFile[]> = new Map<string, (paths: ConfigPaths) => ConfigFile[]>([
-  ['codex', codexConfigFiles],
-  ['claude', claudeConfigFiles],
-  ['antigravity', ({ user }) => [json(user('.gemini/antigravity-cli/settings.json'))]],
-  ['opencode', ({ env, user, configHome, root, local }) => [json(join(env.XDG_STATE_HOME || user('.local/state'), 'opencode/model.json'), 'recent'), json(join(configHome, 'opencode/opencode.json')), json(join(configHome, 'opencode/opencode.jsonc')), json(root('opencode.json')), json(root('opencode.jsonc')), json(local('opencode.json')), json(local('opencode.jsonc'))]],
-  ['pi', ({ env, user, local }) => [json(join(env.PI_CODING_AGENT_DIR || user('.pi/agent'), 'settings.json'), 'defaultModel'), json(local('.pi/settings.json'), 'defaultModel')]],
-  ['aider', ({ context, user, root, local }) => context.configPath ? [{ path: context.configPath, format: 'yaml' }] : [{ path: user('.aider.conf.yml'), format: 'yaml' }, { path: root('.aider.conf.yml'), format: 'yaml' }, { path: local('.aider.conf.yml'), format: 'yaml' }]],
-  // UNVERIFIED locally: the survey documents these settings, not installed schema behavior.
-  ['grok-build', ({ user }) => [{ path: user('.grok/config.toml'), format: 'toml', key: 'models.model' }]],
-  ['codebuddy', ({ user, local }) => [json(user('.codebuddy/settings.json')), json(local('.codebuddy/settings.json')), json(local('.codebuddy/settings.local.json'))]],
-  ['cursor-agent', ({ user }) => [json(user('.cursor/cli-config.json'))]],
-  ['droid', ({ user }) => [json(user('.factory/settings.json'), 'sessionDefaultSettings.model')]],
-  ['qoder', ({ env, user, local }) => [json(join(env.QODER_CONFIG_DIR || user('.qoder'), 'settings.json'), MODEL_NAME_PATH), json(local('.qoder/settings.json'), MODEL_NAME_PATH), json(local('.qoder/settings.local.json'), MODEL_NAME_PATH)]],
-  ['qwen', ({ user, local }) => [json(user('.qwen/settings.json'), MODEL_NAME_PATH), json(local('.qwen/settings.json'), MODEL_NAME_PATH)]],
-  ['deepseek', ({ user }) => [{ path: user('.deepseek/config.toml'), format: 'toml' }, { path: user('.codewhale/config.toml'), format: 'toml' }]],
-  ['mimo', ({ configHome, local }) => [json(join(configHome, 'mimocode/mimocode.json')), json(local('.mimocode/mimocode.jsonc'))]],
-  ['crush', ({ configHome, local }) => [json(join(configHome, 'crush/crush.json'), 'models.large.model'), json(local('crush.json'), 'models.large.model')]],
+const CONFIG_FILES: ReadonlyMap<string, ModelConfigAdapter> = new Map([
+  ['codex', codexModelConfig],
+  ['claude', claudeModelConfig],
+  ['antigravity', antigravityModelConfig],
+  ['opencode', opencodeModelConfig],
+  ['pi', piModelConfig],
+  ['aider', aiderModelConfig],
+  ['grok-build', grokBuildModelConfig],
+  ['codebuddy', codebuddyModelConfig],
+  ['cursor-agent', cursorAgentModelConfig],
+  ['droid', droidModelConfig],
+  ['qoder', qoderModelConfig],
+  ['qwen', qwenModelConfig],
+  ['deepseek', deepseekModelConfig],
+  ['mimo', mimoModelConfig],
+  ['crush', crushModelConfig],
+  ['amr', amrModelConfig],
 ]);
 /** Config-file resolvers read only settings, never auth-store contents. Precedence is applied
  * from global to workspace/local. Unknown native priorities remain unresolved, not invented. */
@@ -52,35 +49,21 @@ export function modelConfigFiles(agentId: string, context: ModelDiscoveryContext
   const local = (name: string) => join(context.cwd, name);
   const root = (name: string) => join(context.projectRoot || context.cwd, name);
   const configHome = env.XDG_CONFIG_HOME || user('.config');
-  return CONFIG_FILES.get(agentId)?.({ env, context, configHome, user, local, root }) ?? [];
+  return CONFIG_FILES.get(agentId)?.files?.({ env, context, configHome, user, local, root }) ?? [];
 }
-export function parseSettingsJson(raw: string): Record<string, unknown> | null {
-  try {
-    // Preserve quoted strings (including URLs) while removing JSONC comments.
-    const stripped = raw.replace(/"(?:\\.|[^"\\])*"|\/\/[^\n]*|\/\*[\s\S]*?\*\//g, (token) => token.startsWith('"') ? token : '').replace(/,\s*([}\]])/g, '$1');
-    const value: unknown = JSON.parse(stripped);
-    return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : null;
-  } catch { return null; }
-}
-function scalar(value: unknown): string | undefined { return typeof value === 'string' && value.trim() ? value.trim() : undefined; }
 function dotted(value: unknown, key: string): unknown {
   return key.split('.').reduce<unknown>((item, part) => item && typeof item === 'object' ? (item as Record<string, unknown>)[part] : undefined, value);
 }
-/** "provider/id" when both parts are present; a bare id is never guessed into a provider. */
-function qualified(provider: string | undefined, id: string | undefined): string | undefined {
-  return provider && id ? `${provider}/${id}` : undefined;
-}
+const JSON_MODEL_PARSERS = new Map<string, (model: unknown, settings: Record<string, unknown> | null) => string | undefined>([
+  ['recent', parseOpenCodeRecentModel],
+  ['defaultModel', parsePiDefaultModel],
+]);
 function parseJsonModel(file: ConfigFile, raw: string): string | undefined {
   const settings = parseSettingsJson(raw);
   const model = dotted(settings, file.key || 'model');
-  if (file.key === 'recent' && Array.isArray(model)) {
-    const first = model[0] as { providerID?: unknown; modelID?: unknown } | undefined;
-    return qualified(scalar(first?.providerID), scalar(first?.modelID));
-  }
   // Cursor's model object subkeys are undocumented: never guess which one is the effective id.
-  const id = scalar(model);
-  if (file.key === 'defaultModel' && id) return qualified(scalar(settings?.defaultProvider), id);
-  return id;
+  const parse = file.key ? JSON_MODEL_PARSERS.get(file.key) : undefined;
+  return parse ? parse(model, settings) : scalar(model);
 }
 /** Every quoted `model = "..."` assignment with the TOML section it appears in. */
 function tomlModelAssignments(raw: string): { section: string; model: string }[] {
@@ -105,45 +88,33 @@ export function parseConfiguredModel(file: ConfigFile, raw: string, profile?: st
   if (file.format === 'yaml') return scalar(yamlModelCapture(raw));
   return parseTomlModel(file, raw, profile);
 }
-const MODEL_ENV: Record<string, readonly string[]> = {
-  claude: ['ANTHROPIC_MODEL'], aider: ['AIDER_MODEL'], amr: ['VELA_DEFAULT_MODEL'],
-  deepseek: ['CODEWHALE_MODEL', 'DEEPSEEK_MODEL'], qwen: ['QWEN_MODEL', 'OPENAI_MODEL', 'ANTHROPIC_MODEL', 'GEMINI_MODEL'],
-};
-const PROJECT_ROOT_AGENTS: ReadonlySet<string> = new Set(['claude', 'aider', 'opencode']);
-const INLINE_CONFIG_ENV: ReadonlyMap<string, string> = new Map([['opencode', 'OPENCODE_CONFIG_CONTENT'], ['mimo', 'MIMOCODE_CONFIG_CONTENT']]);
 async function withProjectRoot(agentId: string, context: ModelDiscoveryContext, deps: ModelDiscoveryDeps, signal: AbortSignal): Promise<ModelDiscoveryContext> {
-  if (context.projectRoot || !PROJECT_ROOT_AGENTS.has(agentId) || !deps.fs.projectRoot) return context;
+  if (context.projectRoot || !CONFIG_FILES.get(agentId)?.projectRoot || !deps.fs.projectRoot) return context;
   const projectRoot = await deps.fs.projectRoot({ cwd: context.cwd, signal });
   return projectRoot ? { ...context, projectRoot } : context;
 }
 /** Later files override earlier ones; Pi merges its files so provider and model may be split. */
 function fileSelection(agentId: string, contents: readonly { file: ConfigFile; raw: string | null }[], profile?: string): string | undefined {
-  if (agentId === 'pi') {
-    const effective = Object.assign({}, ...contents.map(({ raw }) => raw ? parseSettingsJson(raw) || {} : {})) as Record<string, unknown>;
-    return qualified(scalar(effective.defaultProvider), scalar(effective.defaultModel));
-  }
+  const select = CONFIG_FILES.get(agentId)?.fileSelection;
+  if (select) return select(contents);
   let selection: string | undefined;
   for (const { file, raw } of contents) if (raw !== null) selection = parseConfiguredModel(file, raw, profile) || selection;
   return selection;
 }
 function inlineSelection(agentId: string, env: ModelDiscoveryContext['env']): string | undefined {
-  const key = INLINE_CONFIG_ENV.get(agentId);
+  const key = CONFIG_FILES.get(agentId)?.inlineConfigEnv;
   const inline = key ? env[key] : undefined;
   return inline ? scalar(parseSettingsJson(inline)?.model) : undefined;
 }
 /** The first listed model variable with a value wins. */
 function envSelection(agentId: string, env: ModelDiscoveryContext['env']): string | undefined {
-  return (MODEL_ENV[agentId] || []).map((key) => scalar(env[key])).find(Boolean);
-}
-async function claudeSettingsRaw(agentId: string, context: ModelDiscoveryContext, deps: ModelDiscoveryDeps, signal: AbortSignal): Promise<string | null> {
-  if (agentId !== 'claude' || !context.settings) return null;
-  return context.settings.trim().startsWith('{') ? context.settings : deps.fs.read(context.settings, { signal });
+  return (CONFIG_FILES.get(agentId)?.modelEnv || []).map((key) => scalar(env[key])).find(Boolean);
 }
 export async function readModelConfiguration(agentId: string, context: ModelDiscoveryContext, deps: ModelDiscoveryDeps, signal: AbortSignal): Promise<{ selection?: string; fingerprintMaterial: string }> {
   context = await withProjectRoot(agentId, context, deps, signal);
   const files = modelConfigFiles(agentId, context);
   const contents = await Promise.all(files.map(async (file) => ({ file, raw: await deps.fs.read(file.path, { signal }) })));
-  const settingsRaw = await claudeSettingsRaw(agentId, context, deps, signal);
+  const settingsRaw = await (CONFIG_FILES.get(agentId)?.settingsRaw?.(context, deps, signal) ?? null);
   const settingsModel = settingsRaw ? scalar(parseSettingsJson(settingsRaw)?.model) : undefined;
   // Precedence, strongest first: launch model, Claude --settings, model env, inline config content, config files.
   const launchSelection = context.model || settingsModel;

@@ -1,6 +1,9 @@
 import { concreteModelOptions, modelIdentityKind } from '@jini-ai/agent-runtime/model-selection';
 import type { I18nAdapter } from '../../slots.js';
 import type { ChatPaneAgent, ChatPaneAgentOption } from './types.js';
+import { claudeBarVendorWords } from './claude/model-options.js';
+import { codexBarVendorWords } from './codex/model-options.js';
+import { antigravityBarVendorWords } from './antigravity/model-options.js';
 
 // Model names and timestamps are metadata; only surrounding picker copy is translated.
 const passthrough: I18nAdapter['t'] = key => key;
@@ -45,9 +48,9 @@ export function pickerCatalogNote(agent: ChatPaneAgent, t: I18nAdapter['t'] = pa
 // The vendor word each CLI's own icon already shows beside the bar label (owner 2026-10-18).
 // Agents not listed keep every word: a Cursor icon says nothing about whether a model is GPT.
 const BAR_VENDOR_WORDS: Readonly<Record<string, readonly string[]>> = {
-  claude: ['claude', 'anthropic'],
-  codex: ['gpt', 'openai'],
-  antigravity: ['gemini', 'google'],
+  claude: claudeBarVendorWords,
+  codex: codexBarVendorWords,
+  antigravity: antigravityBarVendorWords,
 };
 // A bare catalog id ("claude-opus-5-5", "gpt-6-astra[1m]", "anthropic/claude-sonnet-5") rather than a display name.
 const RAW_MODEL_ID = /^(?:[a-z0-9._-]+\/)*[a-z0-9][a-z0-9._-]*(?:\[[^\]]*\])?$/;

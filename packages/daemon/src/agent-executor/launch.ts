@@ -1,5 +1,5 @@
 import { prepareHttpMcpForRun, type PreparedHttpMcp } from './http-mcp.js';
-import { mergeOpenCodeHttpMcpConfig } from './opencode/mcp-config.js';
+import { withOpenCodeHttpMcp } from './opencode/mcp-config.js';
 import { prepareClaudeSubagentStartSettings } from './claude/subagent-start.js';
 import { buildAgentEnv } from './agent-env.js';
 import { randomUUID } from 'node:crypto';
@@ -24,9 +24,6 @@ import {
   agentCapabilities,
   planRun,
   resolveNativeToolPolicy,
-  createClaudeFilesystemSupportProbe,
-  claudeFilesystemRuntimePaths,
-  claudeFilesystemSettings,
   validateFilesystemLaunch,
   validateReadOnlyExtraDirs,
   bindRuntimeAgentDef,
@@ -107,11 +104,19 @@ import {
   writeMcpJsonIfNeeded,
   prepareClaudeConfigDirIfNeeded,
 } from './mcp-bridge.js';
-import { prepareCodexHomeIfNeeded, withStagedCodexHome } from './codex/home-staging.js';
+import { CODEX_HOME_ENV, codexHttpMcpStaging, prepareCodexHomeIfNeeded, resolveCodexDisablePlugins, withStagedCodexHome } from './codex/home-staging.js';
+import { CLAUDE_CONFIG_DIR_ENV, withStagedClaudeConfigDir } from './claude/config-dir.js';
+import { claudeFilesystemAdapter } from './claude/filesystem.js';
+import { AMR_OPENCODE_BIN_ENV } from './amr/executable-env.js';
+import { resolvePiGracefulShutdownMs } from './pi/options.js';
 import {
   acquireRuntimeLockIfConfigured,
   armHandoffWatcher,
 } from './handoff.js';
+
+const HTTP_MCP_ENV_ADAPTERS = new Map([['opencode', withOpenCodeHttpMcp]]);
+const HTTP_MCP_HOME_ADAPTERS = new Map([['codex', codexHttpMcpStaging]]);
+const FILESYSTEM_ADAPTERS = new Map([['claude', claudeFilesystemAdapter]]);
 
 /**
  * Narrows a `RuntimeAgentDef.streamFormat` string to the supported
@@ -206,7 +211,7 @@ function toStringEnvRecord(env: NodeJS.ProcessEnv): Record<string, string> {
  * Returns an independent allowlisted record. @complexity O(1), fixed key list. */
 export function selectAgentExecutorHostEnv({ env }: { env: NodeJS.ProcessEnv }, { runtimeState }: { runtimeState?: AgentRuntimeState } = {}): NodeJS.ProcessEnv {
   const selected = buildAgentEnv({ hostEnv: env });
-  for (const key of ['CODEX_HOME', 'CLAUDE_CONFIG_DIR', 'VELA_OPENCODE_BIN', 'AGENT_RUNTIME_HOME', 'AGENT_RUNTIME_RESOURCE_ROOT', 'VP_HOME', 'NPM_CONFIG_PREFIX', 'npm_config_prefix', 'APPDATA', 'LOCALAPPDATA', 'MISE_DATA_DIR', 'FNM_DIR'] as const) {
+  for (const key of [CODEX_HOME_ENV, CLAUDE_CONFIG_DIR_ENV, AMR_OPENCODE_BIN_ENV, 'AGENT_RUNTIME_HOME', 'AGENT_RUNTIME_RESOURCE_ROOT', 'VP_HOME', 'NPM_CONFIG_PREFIX', 'npm_config_prefix', 'APPDATA', 'LOCALAPPDATA', 'MISE_DATA_DIR', 'FNM_DIR'] as const) {
     if (typeof env[key] === 'string') selected[key] = env[key];
   }
   // Host-configured resolution names are explicit configuration, never a scan of the env bag.
@@ -469,7 +474,7 @@ export function computeChildEnv({ spawnEnv, mcpBridge }: { readonly spawnEnv: No
   // for a 'codex-toml' bridge, claudeConfigDir only ever for a `claude`-id run), so both existing
   // side by side here is a documentation convenience, not a real collision risk.
   const claudeConfigDirApplied =
-    claudeConfigDir === undefined ? codexHomeApplied : { ...codexHomeApplied, CLAUDE_CONFIG_DIR: claudeConfigDir };
+    claudeConfigDir === undefined ? codexHomeApplied : withStagedClaudeConfigDir({ env: codexHomeApplied, configDir: claudeConfigDir });
   return systemPromptEnvOverrides === undefined ? claudeConfigDirApplied : { ...claudeConfigDirApplied, ...systemPromptEnvOverrides };
 }
 
@@ -906,7 +911,7 @@ export async function confirmChildSpawned({ input, deps }: { readonly input: { r
   }
 }
 
-type MutableRunInput = { -readonly [K in keyof AgentExecutorRunInput]: AgentExecutorRunInput[K] } & { filesystemRuntimeReadPaths?: readonly string[]; filesystemTempDir?: string; filesystemSharedTempRoots?: readonly string[]; filesystemRuntimeTempBase?: string; filesystemNotice?: string };
+export type MutableRunInput = { -readonly [K in keyof AgentExecutorRunInput]: AgentExecutorRunInput[K] } & { filesystemRuntimeReadPaths?: readonly string[]; filesystemTempDir?: string; filesystemSharedTempRoots?: readonly string[]; filesystemRuntimeTempBase?: string; filesystemNotice?: string };
 
 /** Only include declared capability restrictions; absence has a distinct downstream contract. */
 function nativeCapabilityInput({ input }: { input: AgentExecutorRunInput }, _options = {}) {
@@ -972,8 +977,8 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
   // This native composition boundary resolves ambient defaults once, before allowlisting child env.
   const env = optionalArgs.hostEnv ?? process.env;
   const options: CreateAgentExecutorOptions & { readonly piGracefulShutdownMs: number } = { ...requiredArgs, ...optionalArgs,
-    codexDisablePlugins: optionalArgs.codexDisablePlugins ?? (env.CODEX_DISABLE_PLUGINS === '1'),
-    piGracefulShutdownMs: optionalArgs.piGracefulShutdownMs ?? (Number(env.PI_GRACEFUL_SHUTDOWN_MS) || 5000),
+    codexDisablePlugins: resolveCodexDisablePlugins(optionalArgs.codexDisablePlugins, env),
+    piGracefulShutdownMs: resolvePiGracefulShutdownMs(optionalArgs.piGracefulShutdownMs, env),
   };
   const lifecycle = options.lifecycle;
   const hostEnv = selectAgentExecutorHostEnv({ env: options.hostEnv ?? process.env }, options.runtimeState ? { runtimeState: options.runtimeState } : {});
@@ -1000,7 +1005,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
   const claudeConfigDirIsolationEnabled = options.claudeConfigDirIsolationEnabled ?? false;
 
   const filesystemTemps = new Map<string, string[]>();
-  const verifyClaudeFilesystem = options.assertClaudeFilesystemSupport ?? createClaudeFilesystemSupportProbe({});
+  const verifyFilesystem = options.assertClaudeFilesystemSupport ?? claudeFilesystemAdapter.createProbe({});
 
   /** Remove this run's private temp directories on startup failure, exit, crash or cancellation.
    * O(d) removals for d staged directories; each failure is reported without skipping the others.
@@ -1114,43 +1119,33 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
   }, _options = {}) {
     if (input.filesystemRoot === undefined) return;
     try {
-      const supported = await verifyClaudeFilesystem({ agentId: def.id, launchPath: launch.launchPath, env: spawnEnv }, {});
+      const supported = await verifyFilesystem({ agentId: def.id, launchPath: launch.launchPath, env: spawnEnv }, {});
       const runtimeDir = join(input.filesystemRoot, '.agent-runtime');
       await fsPromises.mkdir(runtimeDir, { recursive: true, mode: 0o700 });
       // Refuse a runtime-folder symlink escaping the site before creating anything beneath it.
       validateFilesystemLaunch({ filesystemRoot: input.filesystemRoot, cwd: input.cwd, extraAllowedDirs: [runtimeDir] }, {});
       input.filesystemTempDir = await fsPromises.realpath(await fsPromises.mkdtemp(join(runtimeDir, 'tmp-')));
-      filesystemTemps.set(input.runId, [input.filesystemTempDir]);
+      const runtimeTemps = [input.filesystemTempDir];
+      filesystemTemps.set(input.runId, runtimeTemps);
       // Recheck after creation too: swapping the runtime symlink must never grant outside temp access.
       validateFilesystemLaunch({ filesystemRoot: input.filesystemRoot, cwd: input.cwd, extraAllowedDirs: [input.filesystemTempDir] }, {});
       input.filesystemSharedTempRoots = [spawnEnv.TMPDIR, spawnEnv.TMP, spawnEnv.TEMP].filter((path): path is string => Boolean(path));
       spawnEnv.TMPDIR = input.filesystemTempDir;
       spawnEnv.TMP = input.filesystemTempDir;
       spawnEnv.TEMP = input.filesystemTempDir;
-      if (def.id === 'claude' && process.platform !== 'win32') {
-        // Read denies also block create/unlink, so Claude's cwd files cannot live under /tmp.
-        // /var/tmp exists on macOS/Linux; its realpath plus /claude-<uid> must fit 44 bytes
-        // or the policy refuses launch instead of letting Bash fall back to shared scratch.
-        // mkdtemp creates a private 0700 directory; register cleanup before resolving aliases.
-        const runtimeTemp = await fsPromises.mkdtemp('/var/tmp/jini-');
-        filesystemTemps.get(input.runId)!.push(runtimeTemp);
-        input.filesystemRuntimeTempBase = await fsPromises.realpath(runtimeTemp);
-        spawnEnv.CLAUDE_CODE_TMPDIR = input.filesystemRuntimeTempBase;
-      }
+      const filesystemAdapter = FILESYSTEM_ADAPTERS.get(def.id);
+      const preparation = filesystemAdapter?.prepare({ input, spawnEnv, runtimeTemps });
+      if (preparation) await preparation;
       if (supported === false) {
         input.filesystemNotice = 'files and shell are not folder-limited for this agent';
         console.warn('[agent-executor] files and shell are not folder-limited for this agent');
-        // Personal Claude hooks/permissions stay excluded even on an unconfined CLI fallback.
-        if (def.id === 'claude') input.settingSources = [];
+        filesystemAdapter?.unsupported({ input });
         delete input.filesystemRoot;
         return;
       }
       if (supported === undefined) console.warn('[agent-executor] filesystem capability unknown; applying read block and sandbox settings');
-      input.filesystemRuntimeReadPaths = claudeFilesystemRuntimePaths({ launchPath: launch.launchPath }, {});
-      // Validates host settings here so a malformed value fails cleanly; buildArgs merges again (idempotent).
-      input.settings = claudeFilesystemSettings({ options: input }, {});
-      // A login environment can otherwise force auto-memory back on despite the host setting.
-      spawnEnv.CLAUDE_CODE_DISABLE_AUTO_MEMORY = '1';
+      // A host-supplied probe may report support for another id; preserve the existing policy in that case.
+      (filesystemAdapter ?? claudeFilesystemAdapter).supported({ input, launchPath: launch.launchPath, spawnEnv });
     } catch {
       await failBeforeSpawn({ runId: input.runId, code: 'FILESYSTEM_POLICY_UNSUPPORTED', message: 'Folder-limited launch refused: invalid host settings or private runtime directory.' });
     }
@@ -1566,7 +1561,7 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // `codex.ts`'s `buildArgs` needs no argv change for this (CODEX_HOME is an env var, not a flag),
     // so — unlike the `.mcp.json` staging above — this can run after `buildArgs` with no ordering
     // constraint of its own; it is placed here only to keep the two staging steps adjacent.
-    preparedCodexHome = await prepareCodexHomeIfNeeded({ input: { runId: input.runId, nativeToolAccess: input.nativeToolAccess, ...nativeCapabilityInput({ input }, {}), def, mcpBridge, ...(def.id === 'codex' && preparedHttpMcp ? { httpEndpoint: preparedHttpMcp.endpoint } : {}) }, deps: { mcpJsonInjection, hostEnv: input.cliParity ? spawnEnv : hostEnv, releaseStagedResources, failBeforeSpawn } }
+    preparedCodexHome = await prepareCodexHomeIfNeeded({ input: { runId: input.runId, nativeToolAccess: input.nativeToolAccess, ...nativeCapabilityInput({ input }, {}), def, mcpBridge, ...(preparedHttpMcp ? HTTP_MCP_HOME_ADAPTERS.get(def.id)?.(preparedHttpMcp.endpoint) ?? {} : {}) }, deps: { mcpJsonInjection, hostEnv: input.cliParity ? spawnEnv : hostEnv, releaseStagedResources, failBeforeSpawn } }
     );
     // Finding 1 of SEC-assistant-env-isolation-2026-09-07's one effect — stage this run's scratch
     // `CLAUDE_CONFIG_DIR` directory. Unconditional for a `claude`-id run (unlike CODEX_HOME above,
@@ -1595,8 +1590,9 @@ export function createAgentExecutor(requiredArgs: Pick<CreateAgentExecutorOption
     // `McpBridgeDelivery`'s `'codex-toml'` variant doc for why it cannot be pre-computed the way
     // `'claude-mcp-json'`'s deterministic path is). Nothing between the old, earlier call site and
     // here ever read `childEnv`, so moving the call cost nothing.
-    const httpSpawnEnv = def.id === 'opencode' && preparedHttpMcp
-      ? { ...spawnEnv, OPENCODE_CONFIG_CONTENT: mergeOpenCodeHttpMcpConfig({ existingRaw: spawnEnv.OPENCODE_CONFIG_CONTENT, endpoint: preparedHttpMcp.endpoint }) } : spawnEnv;
+    const httpSpawnEnv = preparedHttpMcp
+      ? HTTP_MCP_ENV_ADAPTERS.get(def.id)?.({ env: spawnEnv, endpoint: preparedHttpMcp.endpoint }) ?? spawnEnv
+      : spawnEnv;
     const childEnv = computeChildEnv({ spawnEnv: httpSpawnEnv, mcpBridge }, stagedChildEnvOptions({
       def, preparedCodexHome, preparedClaudeConfigDir, preparedSystemPromptOverlayFile, systemPromptEnvOverrides,
     }, {}));

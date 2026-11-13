@@ -32,8 +32,23 @@
 // The planning functions are pure (no fs / spawn) so they unit-test
 // against fixed launch specs + a fake home dir; the executor performs the IO.
 
-import path from 'node:path';
 import { isDeepStrictEqual } from 'node:util';
+
+import type { PlannerArgs } from './planner-shared.js';
+import { planClaudeInstall } from './claude/install.js';
+import { planCodexInstall } from './codex/install.js';
+import { planKimiInstall } from './kimi/install.js';
+import { planCursorInstall } from './cursor/install.js';
+import { planClineInstall } from './cline/install.js';
+import { planOpencodeInstall } from './opencode/install.js';
+import { planOpenclawInstall } from './openclaw/install.js';
+import { planAntigravityInstall } from './antigravity/install.js';
+import { planTraeInstall } from './trae/install.js';
+import { planVibeInstall } from './vibe/install.js';
+import { planPiInstall } from './pi/install.js';
+import { planHermesInstall } from './hermes/install.js';
+export { ANTIGRAVITY_MCP_CONFIG_SEGMENTS } from './antigravity/install.js';
+
 
 /**
  * Exhaustive tuple of all agent slugs recognized by `mcp install`.
@@ -128,151 +143,21 @@ export interface ManualInstallPlan {
 /** Discriminated union of all installation plan shapes returned by `planAgentInstall`. */
 export type InstallPlan = CliInstallPlan | JsonInstallPlan | ManualInstallPlan;
 
-// RESIDUAL RISK (CR-006 / SEC-RB-002): `-e`/`--env KEY=VALUE` is claude's,
-// codex's, and kimi's own documented `mcp add` CLI contract for passing
-// server env vars — a fixed, external interface this package does not
-// control and cannot change unilaterally. Because these values land in
-// `addArgv` (argv), they are visible to any other local process that can
-// list this process's command line (e.g. `ps -ww`) for the — typically very
-// brief — window while the daemon's executor shells out to `claude`/`codex`/
-// `kimi mcp add`. This package only builds the plan (`planAgentInstall`
-// itself performs no fs/spawn, per this file's header comment); there is no
-// executor here yet to redact `addArgv` before logging it, so there is
-// nothing left in this package's own code to redact. Whichever executor
-// eventually drives these plans MUST NOT log/echo `addArgv` verbatim
-// (redact anything that looks like an env value from `-e`/`--env` pairs
-// before writing it to any log/error surface), and should prefer a
-// less-exposed handoff (e.g. piping `env` via stdin, or setting it directly
-// in the spawned child's environment) for any future agent whose CLI
-// supports that instead of argv-only `KEY=VALUE`.
-function envFlags(env: Record<string, string>, flag: string): string[] {
-  const out: string[] = [];
-  for (const [k, v] of Object.entries(env)) {
-    out.push(flag, `${k}=${v}`);
-  }
-  return out;
-}
-
-// Attaches the env map under `key` only when non-empty, so configs stay clean.
-function withEnv(entry: Record<string, unknown>, env: Record<string, string>, key: 'env' | 'environment'): Record<string, unknown> {
-  if (Object.keys(env).length > 0) entry[key] = env;
-  return entry;
-}
-
-/** JSON server entry shared by the `env`-style agents (cursor /
- *  cline / openclaw / antigravity / trae). `extra` carries per-agent
- *  fields; env is only attached when non-empty so configs stay clean. */
-function jsonEntry(spec: McpLaunchSpec, extra: Record<string, unknown> = {}): Record<string, unknown> {
-  return withEnv({ command: spec.command, args: spec.args, ...extra }, spec.env, 'env');
-}
-
-/**
- * Home-relative path of the MCP registry the `agy` CLI actually reads:
- * `~/.gemini/config/mcp_config.json` (verified live; see the
- * `externalMcpInjection` comment in `@jini-ai/agent-runtime`'s
- * `packages/agent-runtime/src/defs/antigravity/index.ts`). NOT `~/.gemini/antigravity/mcp_config.json`: that
- * file only works on machines where the Antigravity IDE happened to symlink it
- * to this one, and on a machine without that symlink the bridge entry would
- * never reach `agy`. Planning only this path also means a regular-file
- * `antigravity/mcp_config.json` (the IDE's own) is never touched.
- */
-export const ANTIGRAVITY_MCP_CONFIG_SEGMENTS = ['.gemini', 'config', 'mcp_config.json'] as const;
-
-/** Inputs every per-agent planner receives; `appData` is the resolved `APPDATA` (win32 only). */
-interface PlannerArgs {
-  spec: McpLaunchSpec;
-  ctx: PlanContext;
-  appData: string | undefined;
-}
-
-function cliPlan(slug: AgentSlug, bin: string, argv: Pick<CliInstallPlan, 'addArgv' | 'removeArgv'>, serverName: string): CliInstallPlan {
-  return { kind: 'cli', slug, bin, ...argv, getArgv: ['mcp', 'get', serverName] };
-}
-
-function jsonPlan(slug: AgentSlug, configPath: string, keyPath: string[], serverKey: string, entry: unknown): JsonInstallPlan {
-  return { kind: 'json', slug, configPath, keyPath, serverKey, entry };
-}
-
 // One planner per slug. Typed as a total map over `AgentSlug`, so adding a slug
 // without a planner is a compile error (the role the old switch's `never` default played).
 const AGENT_PLANNERS: { readonly [K in AgentSlug]: (args: PlannerArgs) => InstallPlan } = {
-  // ----- CLI-driven agents (idempotent via the agent's own tool) -----
-  claude: ({ spec, ctx: { serverName } }) => cliPlan('claude', 'claude', {
-    addArgv: [
-      'mcp', 'add', '--scope', 'user',
-      serverName,
-      ...envFlags(spec.env, '-e'),
-      '--', spec.command, ...spec.args,
-    ],
-    removeArgv: ['mcp', 'remove', '--scope', 'user', serverName],
-  }, serverName),
-  codex: ({ spec, ctx: { serverName } }) => cliPlan('codex', 'codex', {
-    addArgv: [
-      'mcp', 'add', serverName,
-      ...envFlags(spec.env, '--env'),
-      '--', spec.command, ...spec.args,
-    ],
-    removeArgv: ['mcp', 'remove', serverName],
-  }, serverName),
-  kimi: ({ spec, ctx: { serverName } }) => cliPlan('kimi', 'kimi', {
-    addArgv: [
-      'mcp', 'add', '--transport', 'stdio',
-      ...envFlags(spec.env, '--env'),
-      serverName, '--', spec.command, ...spec.args,
-    ],
-    removeArgv: ['mcp', 'remove', serverName],
-  }, serverName),
-
-  // ----- JSON config-file agents (safe deep-merge) -----
-  cursor: ({ spec, ctx: { home, serverName } }) =>
-    jsonPlan('cursor', path.join(home, '.cursor', 'mcp.json'), ['mcpServers'], serverName, jsonEntry(spec, { type: 'stdio' })),
-  cline: ({ spec, ctx: { home, platform, serverName }, appData }) =>
-    jsonPlan('cline', clineConfigPath(home, platform, appData), ['mcpServers'], serverName, jsonEntry(spec, { disabled: false, autoApprove: [] })),
-  // OpenCode nests under `mcp`, folds command+args into one array,
-  // and gates the server with `enabled`.
-  opencode: ({ spec, ctx: { home, serverName } }) =>
-    jsonPlan('opencode', path.join(home, '.config', 'opencode', 'opencode.json'), ['mcp'], serverName,
-      withEnv({ type: 'local', command: [spec.command, ...spec.args], enabled: true }, spec.env, 'environment')),
-  openclaw: ({ spec, ctx: { home, serverName } }) =>
-    jsonPlan('openclaw', path.join(home, '.openclaw', 'openclaw.json'), ['mcp', 'servers'], serverName, jsonEntry(spec)),
-  antigravity: ({ spec, ctx: { home, serverName } }) =>
-    jsonPlan('antigravity', path.join(home, ...ANTIGRAVITY_MCP_CONFIG_SEGMENTS), ['mcpServers'], serverName, jsonEntry(spec)),
-  trae: ({ spec, ctx: { home, platform, serverName }, appData }) =>
-    jsonPlan('trae', traeConfigPath(home, platform, appData), ['mcpServers'], serverName, jsonEntry(spec)),
-
-  // ----- Unverified formats: print-only, never write -----
-  vibe: ({ spec, ctx: { home, serverName } }) => ({
-    kind: 'manual',
-    slug: 'vibe',
-    format: 'toml',
-    configPath: path.join(home, '.vibe', 'config.toml'),
-    snippet: vibeTomlSnippet({ spec, name: serverName }),
-    reason:
-      'Vibe uses a TOML array-of-tables ([[mcp_servers]]); ' +
-      'its exact schema is unverified, so append this block by hand ' +
-      'to avoid corrupting an existing config.',
-  }),
-  pi: ({ spec, ctx: { home, serverName } }) => ({
-    kind: 'manual',
-    slug: 'pi',
-    format: 'json',
-    configPath: path.join(home, '.pi', 'agent', 'mcp.json'),
-    snippet: JSON.stringify({ mcpServers: { [serverName]: jsonEntry(spec) } }, null, 2),
-    reason:
-      'The pi coding agent exposes MCP, but its config path/schema is ' +
-      'not authoritatively documented. Paste this into pi’s MCP ' +
-      'config (check `pi --help` for the exact location).',
-  }),
-  hermes: ({ spec, ctx: { home, serverName } }) => ({
-    kind: 'manual',
-    slug: 'hermes',
-    format: 'yaml',
-    configPath: path.join(home, '.hermes', 'config.yaml'),
-    snippet: hermesYamlSnippet(spec, serverName),
-    reason:
-      'Hermes config format is unverified. Add this under your Hermes ' +
-      'MCP server configuration by hand.',
-  }),
+  claude: planClaudeInstall,
+  codex: planCodexInstall,
+  kimi: planKimiInstall,
+  cursor: planCursorInstall,
+  cline: planClineInstall,
+  opencode: planOpencodeInstall,
+  openclaw: planOpenclawInstall,
+  antigravity: planAntigravityInstall,
+  trae: planTraeInstall,
+  vibe: planVibeInstall,
+  pi: planPiInstall,
+  hermes: planHermesInstall,
 };
 
 /**
@@ -289,27 +174,6 @@ export function planAgentInstall(
     throw new Error(`unknown agent slug: ${String(slug)}`);
   }
   return AGENT_PLANNERS[slug]({ spec, ctx, appData: env.APPDATA });
-}
-
-// VS Code-family editors keep per-user state under one platform-specific root.
-function editorUserDir(app: string, home: string, platform: NodeJS.Platform, suppliedAppData: string | undefined): string {
-  if (platform === 'darwin') return path.join(home, 'Library', 'Application Support', app, 'User');
-  if (platform === 'win32') return path.join(suppliedAppData ?? path.join(home, 'AppData', 'Roaming'), app, 'User');
-  return path.join(home, '.config', app, 'User');
-}
-
-function clineConfigPath(home: string, platform: NodeJS.Platform, suppliedAppData: string | undefined): string {
-  return path.join(
-    editorUserDir('Code', home, platform, suppliedAppData),
-    'globalStorage',
-    'saoudrizwan.claude-dev',
-    'settings',
-    'cline_mcp_settings.json',
-  );
-}
-
-function traeConfigPath(home: string, platform: NodeJS.Platform, suppliedAppData: string | undefined): string {
-  return path.join(editorUserDir('Trae', home, platform, suppliedAppData), 'mcp.json');
 }
 
 // --- Pure JSON merge / removal (the heart of the 'json' strategy) -------
@@ -464,41 +328,4 @@ function installedLaunchMatches({ entry, expected }: { entry: unknown; expected:
   if (actual.disabled === true || actual.command !== wanted.command) return false;
   if (JSON.stringify(actual.args ?? []) !== JSON.stringify(wanted.args ?? [])) return false;
   return JSON.stringify(actual.env ?? {}) === JSON.stringify(wanted.env ?? {});
-}
-
-// --- Snippets for the manual (print-only) strategy ----------------------
-
-function hermesYamlSnippet(spec: McpLaunchSpec, name: string): string {
-  const lines = [
-    'mcp_servers:',
-    `  ${name}:`,
-    `    command: ${JSON.stringify(spec.command)}`,
-    `    args: ${JSON.stringify(spec.args)}`,
-  ];
-  if (Object.keys(spec.env).length > 0) {
-    lines.push('    env:');
-    for (const [k, v] of Object.entries(spec.env)) {
-      lines.push(`      ${k}: ${JSON.stringify(v)}`);
-    }
-  }
-  return lines.join('\n');
-}
-
-/** Render the launch command and environment as a Vibe TOML snippet without I/O.
- * @complexity O(n) time and space in the serialized launch spec length.
- */
-function vibeTomlSnippet({ spec, name }: { spec: McpLaunchSpec; name: string }, _options = {}): string {
-  const argsToml = `[${spec.args.map((a) => JSON.stringify(a)).join(', ')}]`;
-  const lines = [
-    '[[mcp_servers]]',
-    `name = ${JSON.stringify(name)}`,
-    'transport = "stdio"',
-    `command = ${JSON.stringify(spec.command)}`,
-    `args = ${argsToml}`,
-  ];
-  if (Object.keys(spec.env).length > 0) {
-    const envToml = Object.entries(spec.env).map(([key, value]) => `${JSON.stringify(key)} = ${JSON.stringify(value)}`).join(', ');
-    lines.push(`env = { ${envToml} }`);
-  }
-  return lines.join('\n');
 }

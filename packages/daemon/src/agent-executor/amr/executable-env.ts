@@ -1,0 +1,1 @@
+export const AMR_OPENCODE_BIN_ENV = 'VELA_OPENCODE_BIN';

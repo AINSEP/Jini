@@ -1,0 +1,11 @@
+import path from 'node:path';
+import type { InstallPlan } from '../install.js';
+import type { PlannerArgs } from '../planner-shared.js';
+import { jsonEntry, jsonPlan, editorUserDir } from '../planner-shared.js';
+
+export const planTraeInstall: (args: PlannerArgs) => InstallPlan = ({ spec, ctx: { home, platform, serverName }, appData }) =>
+    jsonPlan('trae', traeConfigPath(home, platform, appData), ['mcpServers'], serverName, jsonEntry(spec));
+function traeConfigPath(home: string, platform: NodeJS.Platform, suppliedAppData: string | undefined): string {
+  return path.join(editorUserDir('Trae', home, platform, suppliedAppData), 'mcp.json');
+}
+

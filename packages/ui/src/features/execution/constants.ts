@@ -1,4 +1,6 @@
 import type { AgentCliEnvFieldSpec, ApiProtocol, ProviderPreset } from './types.js';
+import { claudeEnvFields } from './claude/env-fields.js';
+import { codexEnvFields } from './codex/env-fields.js';
 
 /** @deprecated Endpoints come from host presets. Blank means the operator must supply an endpoint. */
 export const DEFAULT_BASE_URL_BY_PROTOCOL: Readonly<Record<ApiProtocol, string>> = {
@@ -112,56 +114,6 @@ export const DEFAULT_AGENT_DESCRIPTIONS: Readonly<Record<string, string>> = {
  * the mechanism itself is generic to any agent a host tags this way.
  */
 export const DEFAULT_AGENT_CLI_ENV_FIELDS: readonly AgentCliEnvFieldSpec[] = [
-  {
-    agentId: 'claude',
-    envKey: 'CLAUDE_CONFIG_DIR',
-    label: 'Config directory',
-    placeholder: '~/.claude-2',
-  },
-  {
-    agentId: 'claude',
-    envKey: 'ANTHROPIC_BASE_URL',
-    label: 'Base URL',
-    placeholder: 'https://your-proxy.example.com',
-  },
-  {
-    agentId: 'claude',
-    envKey: 'ANTHROPIC_API_KEY',
-    label: 'API key',
-    placeholder: 'Paste CLI API key',
-    secret: true,
-  },
-  {
-    agentId: 'codex',
-    envKey: 'CODEX_HOME',
-    label: 'Config directory',
-    placeholder: '~/.codex-alt',
-  },
-  {
-    agentId: 'codex',
-    envKey: 'CODEX_BIN',
-    label: 'Binary path',
-    placeholder: '/absolute/path/to/codex',
-    kind: 'binPath',
-  },
-  {
-    agentId: 'codex',
-    envKey: 'OPENAI_BASE_URL',
-    label: 'Base URL',
-    placeholder: 'https://your-proxy.example.com/v1',
-  },
-  {
-    agentId: 'codex',
-    envKey: 'CODEX_API_KEY',
-    label: 'API key (CODEX_API_KEY)',
-    placeholder: 'Paste CODEX_API_KEY',
-    secret: true,
-  },
-  {
-    agentId: 'codex',
-    envKey: 'OPENAI_API_KEY',
-    label: 'API key (OPENAI_API_KEY)',
-    placeholder: 'Paste OPENAI_API_KEY',
-    secret: true,
-  },
+  ...claudeEnvFields,
+  ...codexEnvFields,
 ];

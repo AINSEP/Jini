@@ -21,6 +21,21 @@
 import { execAgentFile } from './invocation.js';
 import type { RuntimeAgentDef, RuntimeEnv } from './types.js';
 
+import { DEFAULT_HOST_NAME } from './auth-common.js';
+import { claudeAuthProfile } from './defs/claude/auth.js';
+import { codexAuthProfile } from './defs/codex/auth.js';
+import { cursorAuthProfile } from './defs/cursor-agent/auth.js';
+import { deepseekAuthProfile } from './defs/deepseek/auth.js';
+import { antigravityAuthProfile } from './defs/antigravity/auth.js';
+import { reasonixAuthProfile } from './defs/reasonix/auth.js';
+
+export { claudeAuthGuidance, isClaudeAuthFailureText } from './defs/claude/auth.js';
+export { cursorAuthGuidance, isCursorAuthFailureText } from './defs/cursor-agent/auth.js';
+export { deepseekAuthGuidance, isDeepSeekAuthFailureText } from './defs/deepseek/auth.js';
+export { antigravityAuthGuidance, antigravityQuotaGuidance, isAntigravityAuthFailureText } from './defs/antigravity/auth.js';
+export { reasonixAuthGuidance, isReasonixAuthFailureText } from './defs/reasonix/auth.js';
+
+
 export type AgentAuthProbeResult = {
   status: 'ok' | 'missing' | 'unknown';
   message?: string;
@@ -35,159 +50,28 @@ export type AgentAuthProbeResult = {
   signal?: string | null;
 };
 
-const DEFAULT_HOST_NAME = 'the host application';
-
-export function cursorAuthGuidance({  }: {  }, { hostName = DEFAULT_HOST_NAME }: { hostName?: string } = {}): string {
-  return `Cursor Agent is not authenticated. Run \`cursor-agent login\`, then \`cursor-agent status\`, and retry. For automation, ensure CURSOR_API_KEY is set in ${hostName}'s process environment.`;
-}
-
-export function deepseekAuthGuidance({  }: {  }, { hostName = DEFAULT_HOST_NAME }: { hostName?: string } = {}): string {
-  return `DeepSeek TUI is installed but is not authenticated. Add or verify your API key in \`~/.deepseek/config.toml\` as \`api_key = "..."\`, or expose DEEPSEEK_API_KEY to ${hostName}'s daemon process, then retry. If ${hostName} is launched outside an interactive shell, shell rc files such as ~/.zshrc may not be loaded.`;
-}
-
-// agy's print mode (`-p`) detects a missing OAuth token, prints the
-// Google sign-in URL to stdout, waits 30s for completion, then exits
-// "Error: authentication timed out." That URL points at a callback page
-// that asks the user to paste the resulting auth code BACK into agy —
-// which only works in the interactive TUI. So surfacing the raw URL in a
-// chat UI is a dead end (no input field to paste the code into). Instead
-// we ask the user to run `agy` in a terminal once, which opens the
-// browser, completes OAuth, and writes the credentials to the system
-// keyring — both `-p` and TUI invocations read from there afterward, so
-// the chat run can succeed on retry.
-export function antigravityAuthGuidance({  }: {  }, { hostName = DEFAULT_HOST_NAME }: { hostName?: string } = {}): string {
-  return `Antigravity needs to sign in. The agy CLI's keyring entry has expired or been cleared, and \`-p\` print mode cannot complete OAuth on its own (it has no field to paste the auth code into).\n\nFix: open a terminal and run \`agy\` once — it will open Google sign-in in your browser, accept the redirect, and store the token in your system keyring. After you finish, return here and retry this chat. You only need to do this once; the keyring entry persists across both terminal and ${hostName} runs.`;
-}
-
-// agy's account-level quota is per-model (consumer accounts get a
-// separate quota for Gemini 3 Pro vs Flash vs Claude vs GPT-OSS), and
-// when exhausted the upstream returns
-//   RESOURCE_EXHAUSTED (code 429): Individual quota reached. Contact
-//   your administrator to enable overages. Resets in <H>h<M>m<S>s.
-// to the `--log-file`. Print mode emits nothing on stdout/stderr, so
-// without log inspection the failure misreads as missing-OAuth.
-export function antigravityQuotaGuidance(): string {
-  return 'Antigravity returned "RESOURCE_EXHAUSTED: Individual quota reached" for the current model. Each Antigravity model (Gemini 3 Pro / Flash, Claude 4.6, GPT-OSS) has its own quota.\n\nFix: open `agy` in a terminal and use its Switch Model picker (the menu at the bottom of the TUI) to pick a model with available quota, then retry here. Quotas reset automatically on Antigravity\'s schedule.';
-}
-
-export function reasonixAuthGuidance({  }: {  }, { hostName = DEFAULT_HOST_NAME }: { hostName?: string } = {}): string {
-  return `DeepSeek Reasonix is installed but is not authenticated. Add your API key in \`~/.reasonix/config.json\` under \`apiKey\`, or expose DEEPSEEK_API_KEY to ${hostName}'s daemon process, then retry. If ${hostName} is launched outside an interactive shell, shell rc files such as ~/.zshrc may not be loaded.`;
-}
-
-export function claudeAuthGuidance({  }: {  }, { hostName = DEFAULT_HOST_NAME }: { hostName?: string } = {}): string {
-  return `Claude Code is installed but is not authenticated. Run \`claude auth login\` or open \`claude\` and complete login in a terminal, then rescan. If ${hostName} was launched outside an interactive shell, your shell rc files (e.g. ~/.zshrc) may not be loaded into its environment.`;
-}
-
-
-export function isCursorAuthFailureText({ text }: { text: string }): boolean {
-  const value = String(text || '');
-  if (!value.trim()) return false;
-  return [
-    /authentication required/i,
-    /not authenticated/i,
-    /not logged in/i,
-    /unauthenticated/i,
-    /agent login/i,
-    /cursor_api_key/i,
-  ].some((pattern) => pattern.test(value));
-}
-
-// agy's plain-mode output when no keyring credentials are available:
-//   - Top of stdout: "Authentication required. Please visit the URL to log in: <URL>"
-//   - Tail of stdout: "Waiting for authentication (timeout 30s)..."
-//                      "Error: authentication timed out."
-// The same TUI text is logged by `agy --log-file` as
-//   "You are not logged into Antigravity" and
-//   "error getting token source: You are not logged into Antigravity"
-// Any of these is sufficient signal — match conservatively so the regex
-// doesn't fire on prose containing the word "authentication" by accident.
-export function isAntigravityAuthFailureText({ text }: { text: string }): boolean {
-  const value = String(text || '');
-  if (!value.trim()) return false;
-  return (
-    /authentication required.*please visit/i.test(value) ||
-    /authentication timed out/i.test(value) ||
-    /not logged into antigravity/i.test(value) ||
-    /accounts\.google\.com\/o\/oauth2\/auth.*antigravity/i.test(value)
-  );
-}
-
-export function isDeepSeekAuthFailureText({ text }: { text: string }): boolean {
-  const value = String(text || '');
-  if (!value.trim()) return false;
-  const placeholderKey = /KEY=<your-key>/i.test(value) || /api_key\s*=\s*["']<your-key>["']/i.test(value);
-  const configMentionsKey = /~\/\.deepseek\/config\.toml/i.test(value) && /api[_ -]?key|KEY=/i.test(value);
-  const envKeyProblem = /DEEPSEEK_API_KEY/i.test(value) && /auth|missing|not set|required|unauthorized|empty|invalid/i.test(value);
-  return placeholderKey || configMentionsKey || envKeyProblem;
-}
-
-export function isReasonixAuthFailureText({ text }: { text: string }): boolean {
-  const value = String(text || '');
-  if (!value.trim()) return false;
-  return (
-    (/~\/\.reasonix\/config\.json/i.test(value) &&
-      /api[_ -]?key|missing|not set|required|unauthorized|invalid/i.test(value)) ||
-    (/DEEPSEEK_API_KEY/i.test(value) &&
-      /auth|missing|not set|required|unauthorized|invalid/i.test(value))
-  );
-}
-
-// Structured verdict from `claude auth status` JSON: a boolean when either key
-// is a boolean (`true` wins), undefined when the text is not JSON or carries
-// neither key. Property access on a JSON `null` throws inside the `try`, which
-// deliberately lands in the same text-matching fallback as invalid JSON.
-function claudeJsonAuthFailure({ value }: { value: string }): boolean | undefined {
-  try {
-    const parsed = JSON.parse(value) as { authenticated?: unknown; loggedIn?: unknown };
-    if (parsed.authenticated === true || parsed.loggedIn === true) return false;
-    if (parsed.authenticated === false || parsed.loggedIn === false) return true;
-  } catch {
-    // Fall through to text matching below.
-  }
-  return undefined;
-}
-
-function claudeTextAuthFailure({ value }: { value: string }): boolean {
-  if (/"authenticated"\s*:\s*true/i.test(value) || /"loggedIn"\s*:\s*true/i.test(value)) {
-    return false;
-  }
-  return [
-    /"authenticated"\s*:\s*false/i,
-    /"loggedIn"\s*:\s*false/i,
-    /not authenticated/i,
-    /not logged[ _-]?in/i,
-    /authentication required/i,
-    /please (?:sign|log)[ _-]?in/i,
-  ].some((pattern) => pattern.test(value));
-}
-
-export function isClaudeAuthFailureText({ text }: { text: string }): boolean {
-  const value = String(text || '');
-  if (!value.trim()) return false;
-  return claudeJsonAuthFailure({ value }) ?? claudeTextAuthFailure({ value });
-}
-
 type TailoredAuthClassifier = {
-  isFailure: (requiredArgs: { text: string }) => boolean;
-  guidance: (requiredArgs: { hostName: string }) => string;
+  isFailure?: (requiredArgs: { text: string }) => boolean;
+  guidance?: (requiredArgs: { hostName: string }) => string;
+  apiKeyEnv?: readonly string[];
 };
 
 // Agents that ship a bespoke auth-failure classifier + tailored sign-in hint.
 // Map (not an object literal) so an arbitrary agent id can never hit a
-// prototype key.
+// prototype key. Codex also declares credentials that satisfy its probe.
 const TAILORED_AUTH_CLASSIFIERS: ReadonlyMap<string, TailoredAuthClassifier> = new Map<string, TailoredAuthClassifier>([
-  ['claude', { isFailure: isClaudeAuthFailureText, guidance: ({ hostName }) => claudeAuthGuidance({}, { hostName }) }],
-  ['cursor-agent', { isFailure: isCursorAuthFailureText, guidance: ({ hostName }) => cursorAuthGuidance({}, { hostName }) }],
-  ['deepseek', { isFailure: isDeepSeekAuthFailureText, guidance: ({ hostName }) => deepseekAuthGuidance({}, { hostName }) }],
-  ['antigravity', { isFailure: isAntigravityAuthFailureText, guidance: ({ hostName }) => antigravityAuthGuidance({}, { hostName }) }],
-  ['reasonix', { isFailure: isReasonixAuthFailureText, guidance: ({ hostName }) => reasonixAuthGuidance({}, { hostName }) }],
+  ['claude', claudeAuthProfile],
+  ['codex', codexAuthProfile],
+  ['cursor-agent', cursorAuthProfile],
+  ['deepseek', deepseekAuthProfile],
+  ['antigravity', antigravityAuthProfile],
+  ['reasonix', reasonixAuthProfile],
 ]);
-
 
 export function classifyAgentAuthFailure({ agentId, text }: { agentId: string; text: string }, { hostName = DEFAULT_HOST_NAME }: { hostName?: string } = {}
 ): AgentAuthProbeResult | null {
   const classifier = TAILORED_AUTH_CLASSIFIERS.get(agentId);
-  if (!classifier?.isFailure({ text: text })) return null;
+  if (!classifier?.isFailure?.({ text: text }) || !classifier.guidance) return null;
   return { status: 'missing', message: classifier.guidance({ hostName: hostName }) };
 }
 
@@ -288,10 +172,10 @@ function genericAuthGuidance(agentName: string, hostName: string): string {
 // regex (e.g. cursor-agent's healthy `status` output mentions "login" in
 // ways the generic matcher would misread). The generic classifier is only a
 // fallback for adapters with no tailored classifier of their own.
-// (The tailored set is `TAILORED_AUTH_CLASSIFIERS`' keys, so the two lists
-// can no longer drift apart.)
+// (The tailored set is the entries with `isFailure` in `TAILORED_AUTH_CLASSIFIERS`,
+// so the classifier and the fallback decision cannot drift apart.)
 
-function hasNonEmptyEnv(env: RuntimeEnv, keys: string[]): boolean {
+function hasNonEmptyEnv(env: RuntimeEnv, keys: readonly string[]): boolean {
   return keys.some((key) => {
     const value = env[key];
     return typeof value === 'string' && value.trim().length > 0;
@@ -299,13 +183,7 @@ function hasNonEmptyEnv(env: RuntimeEnv, keys: string[]): boolean {
 }
 
 function hasProbeSatisfyingApiKey(def: Pick<RuntimeAgentDef, 'id'>, env: RuntimeEnv): boolean {
-  if (def.id === 'codex') {
-    return hasNonEmptyEnv(env, ['CODEX_API_KEY', 'OPENAI_API_KEY']);
-  }
-  if (def.id === 'claude') {
-    return hasNonEmptyEnv(env, ['ANTHROPIC_API_KEY', 'ANTHROPIC_AUTH_TOKEN']);
-  }
-  return false;
+  return hasNonEmptyEnv(env, TAILORED_AUTH_CLASSIFIERS.get(def.id)?.apiKeyEnv ?? []);
 }
 
 // Classify an auth-probe's combined output into a missing-auth result, or
@@ -319,7 +197,7 @@ function classifyProbedAuthFailure(
   text: string,
   hostName: string,
 ): AgentAuthProbeResult | null {
-  if (TAILORED_AUTH_CLASSIFIERS.has(def.id)) {
+  if (TAILORED_AUTH_CLASSIFIERS.get(def.id)?.isFailure) {
     return classifyAgentAuthFailure({ agentId: def.id, text: text }, { hostName: hostName });
   }
   if (classifyAgentServiceFailure({ text: text }) === 'AGENT_AUTH_REQUIRED') {
