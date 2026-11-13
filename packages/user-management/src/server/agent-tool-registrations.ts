@@ -201,6 +201,9 @@ export interface ValidatedIdentityInput {
   req(field: string): string;
   /** A field the schema leaves optional. `undefined` means the caller omitted it. */
   opt(field: string): string | undefined;
+  /** An integer field (e.g. `expectedVersion`); `undefined` means the caller omitted it. The
+   *  parser already enforced `required`, the integer type and `minimum`. */
+  int(field: string): number | undefined;
 }
 
 /**
@@ -214,7 +217,7 @@ export function identityInput({ toolId, input }: { toolId: string; input: unknow
     const recovery = "Fix the input and retry — this will not resolve on retry without an input change.";
     throw new Error(`${parsed.error.message}. ${recovery} Schema for '${toolId}': ${JSON.stringify(entry.inputSchema)}`);
   }
-  const value = parsed.value;
+  const { value, integers } = parsed;
   return {
     req(field) {
       const found = value[field];
@@ -227,6 +230,9 @@ export function identityInput({ toolId, input }: { toolId: string; input: unknow
     },
     opt(field) {
       return value[field];
+    },
+    int(field) {
+      return integers[field];
     },
   };
 }

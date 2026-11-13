@@ -125,7 +125,7 @@ describe("schema interpretation (developer errors throw)", () => {
 
   it("refuses a non-string property type", () => {
     expect(() => parse({ ...SCHEMA, properties: { a: { type: "number" } }, required: [] }, {})).toThrow(
-      /^identity agent-tool schema declares non-string property 'a' — this parser only implements string properties$/,
+      /^identity agent-tool schema declares property 'a' of unsupported type 'number' — this parser implements string and integer properties$/,
     );
   });
 
@@ -145,13 +145,13 @@ describe("schema interpretation (developer errors throw)", () => {
   });
 
   it("accepts a schema with no properties and no required keys as a closed empty object", () => {
-    expect(parse({ type: "object", additionalProperties: false }, {})).toEqual({ ok: true, value: {} });
+    expect(parse({ type: "object", additionalProperties: false }, {})).toEqual({ ok: true, value: {}, integers: {} });
     expect(rejection({ type: "object", additionalProperties: false }, { x: "1" })).toBe("'x' is not a recognized input key");
   });
 
   it("accepts minLength 0 and an integer-valued float", () => {
     const schema = { ...SCHEMA, properties: { a: { type: "string", minLength: 0 }, b: { type: "string", minLength: 2.0 } }, required: [] };
-    expect(parse(schema, { a: "", b: "xy" })).toEqual({ ok: true, value: { a: "", b: "xy" } });
+    expect(parse(schema, { a: "", b: "xy" })).toEqual({ ok: true, value: { a: "", b: "xy" }, integers: {} });
   });
 });
 
@@ -199,14 +199,14 @@ describe("input verdicts (Result, never throws)", () => {
     const schema = { ...SCHEMA, properties: { principalId: { type: "string", minLength: 2 } } };
     // One astral code point is two UTF-16 units; code-point counting must still call it length 1.
     expect(rejection(schema, { principalId: "\u{1F600}" })).toBe("'principalId' must contain at least 2 Unicode code point(s)");
-    expect(parse(schema, { principalId: "\u{1F600}\u{1F600}" })).toEqual({ ok: true, value: { principalId: "\u{1F600}\u{1F600}" } });
+    expect(parse(schema, { principalId: "\u{1F600}\u{1F600}" })).toEqual({ ok: true, value: { principalId: "\u{1F600}\u{1F600}" }, integers: {} });
   });
 
   it("returns only present declared keys, in declaration order", () => {
     const result = parse(SCHEMA, { note: "n", principalId: "p" });
-    expect(result).toEqual({ ok: true, value: { principalId: "p", note: "n" } });
+    expect(result).toEqual({ ok: true, value: { principalId: "p", note: "n" }, integers: {} });
     expect(result.ok && Object.keys(result.value)).toEqual(["principalId", "note"]);
-    expect(parse(SCHEMA, { principalId: "p" })).toEqual({ ok: true, value: { principalId: "p" } });
+    expect(parse(SCHEMA, { principalId: "p" })).toEqual({ ok: true, value: { principalId: "p" }, integers: {} });
   });
 
   it("stores a `__proto__` property as an own data key without touching the prototype", () => {
@@ -237,7 +237,7 @@ describe("inherited schema members (reported, not fixed)", () => {
 
   it("parses against inherited properties that were never validated (reported, not fixed)", () => {
     const schema = inheritedSchema({ properties: { a: { type: "number", minLength: 3 } } });
-    expect(parse(schema, { a: "abc" })).toEqual({ ok: true, value: { a: "abc" } });
+    expect(parse(schema, { a: "abc" })).toEqual({ ok: true, value: { a: "abc" }, integers: {} });
     expect(rejection(schema, { a: "ab" })).toBe("'a' must contain at least 3 Unicode code point(s)");
   });
 
