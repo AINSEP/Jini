@@ -56,9 +56,12 @@ describe('useBoundedStatusPoll (T23J)', () => {
     await tick(1);
     expect(fetch).toHaveBeenCalledTimes(1);
 
-    // A new onStatus identity mid-wait must not restart the timer (no extra or earlier fetch).
-    rerender({ active: true, onStatus: () => {} });
+    // A new onStatus identity HALF-WAY through the wait must not restart the timer. Rerendering
+    // right after a tick would not catch a restart: a restarted timer would fire at that same
+    // deadline. So wait half an interval first; then the original deadline is the next
+    // half-interval, while a restarted timer would fire a whole interval after the rerender.
     await act(async () => { await vi.advanceTimersByTimeAsync(INTERVAL_MS / 2); });
+    rerender({ active: true, onStatus: () => {} });
     expect(fetch).toHaveBeenCalledTimes(1);
     await act(async () => { await vi.advanceTimersByTimeAsync(INTERVAL_MS / 2); });
     expect(fetch).toHaveBeenCalledTimes(2);
