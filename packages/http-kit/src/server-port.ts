@@ -160,6 +160,38 @@ export function jsonResponse({ status, body }: { readonly status: number; readon
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8', ...headers } });
 }
 
+/** Stands in for what `qs` turned a bracketed key into (`a[b]=1` → an object): not a string, so a route's "must be a string" check still refuses it. */
+const BRACKETED_QUERY_VALUE: Readonly<Record<string, never>> = Object.freeze({});
+
+function addQueryValue({ query, key, value }: { query: Map<string, unknown>; key: string; value: string }): void {
+  const bracket = key.indexOf('[');
+  if (bracket <= 0) {
+    const previous = query.get(key);
+    if (previous === undefined) query.set(key, value);
+    else if (Array.isArray(previous)) previous.push(value);
+    else if (typeof previous === 'string') query.set(key, [previous, value]);
+    return;
+  }
+  const name = key.slice(0, bracket);
+  const previous = query.get(name);
+  if (key === `${name}[]` && (previous === undefined || Array.isArray(previous))) query.set(name, [...(previous ?? []), value]);
+  else query.set(name, BRACKETED_QUERY_VALUE);
+}
+
+/**
+ * The query string in the shapes the Express 4 host's `req.query` gave routes, so a converted
+ * route's existing validation sees the same values: one value → string; a repeated key or
+ * `name[]` → `string[]`; any other bracketed key (`a[b]=1`) → a non-string value, so a route that
+ * requires a string still refuses it instead of reading it as absent. Nested values are not
+ * parsed: no Jini route reads them. Built from entries, so `__proto__` is a plain key.
+ * @complexity O(n) in query parameters.
+ */
+export function readQuery({ request }: { readonly request: Request }, _optional: Record<string, never> = {}): Record<string, unknown> {
+  const query = new Map<string, unknown>();
+  for (const [key, value] of new URL(request.url).searchParams) addQueryValue({ query, key, value });
+  return Object.fromEntries(query);
+}
+
 /** Express's `express.json()` default ceiling, kept so moving a route off Express changes no limit. */
 export const DEFAULT_JSON_BODY_MAX_BYTES = 100 * 1024;
 
