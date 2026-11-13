@@ -1,4 +1,5 @@
 import { nowIso as kernelNowIso } from "../primitives/index.js";
+import { RecordVersionConflictError } from "../optimistic-concurrency.js";
 import type { Clock, IdGenerator, JsonValue, UUID } from "../primitives/index.js";
 import type { SettingsPrincipalLookupPort } from "./principal-lookup.js";
 import {
@@ -284,8 +285,36 @@ async function assertTargetPrincipalInWorkspace(
   }
 }
 
-/** chokepoint write: authorize -> validate -> value + revision, same tx. See docs/decisions/DR-003-settings-ledger-invariants.md. */
-export async function set(required: SetValueRequired): Promise<{ value: JsonValue; revisionSeq: number }> {
+/**
+ * The stored value row's revision for `set`'s compare-and-set: the row's `seq`; an unset value is 0,
+ * and a cleared value keeps its seq (the same rule `visitor-tools-write.ts` in Tovu already reads).
+ * @complexity O(1) — one row read.
+ */
+async function currentValueSeq(
+  deps: SettingsWriteServiceDeps,
+  input: SetValueRequired["input"],
+  settingId: UUID
+): Promise<number> {
+  let row;
+  if (input.scope === "global") row = await deps.repo.getGlobalValue(settingId);
+  else if (input.scope === "workspace") row = await deps.repo.getWorkspaceValue({ workspaceId: input.workspaceId ?? "", settingId });
+  else row = await deps.repo.getUserValue({ workspaceId: input.workspaceId ?? "", principalId: input.principalId ?? input.callerPrincipalId, settingId });
+  return row?.seq ?? 0;
+}
+
+/**
+ * chokepoint write: authorize -> validate -> value + revision, same tx. See docs/decisions/DR-003-settings-ledger-invariants.md.
+ *
+ * `optional.expectedRevisionSeq` (refactor pattern "lost updates", 2026-11-13) makes the write a
+ * compare-and-set: the caller passes the value row's `seq` it read (0 when unset), and a value that
+ * moved on since is refused with `RecordVersionConflictError` instead of overwritten. Compared AFTER
+ * `appendRevision`, which takes the revision-stream lock, so two writers cannot both pass the check;
+ * the throw rolls the appended revision back with the transaction. Omitted ⇒ unchanged last-write-wins.
+ */
+export async function set(
+  required: SetValueRequired,
+  optional: { expectedRevisionSeq?: number } = {}
+): Promise<{ value: JsonValue; revisionSeq: number }> {
   const { deps, input } = required;
 
   const permission =
@@ -336,6 +365,19 @@ export async function set(required: SetValueRequired): Promise<{ value: JsonValu
       changeSetId: null,
       createdAt: now,
     });
+
+    const expectedRevisionSeq = optional.expectedRevisionSeq;
+    if (expectedRevisionSeq !== undefined) {
+      const currentSeq = await currentValueSeq(deps, input, definition.settingId);
+      if (currentSeq !== expectedRevisionSeq) {
+        throw new RecordVersionConflictError({
+          recordKind: "setting",
+          recordId: `${input.namespace}.${input.key}`,
+          expectedVersion: expectedRevisionSeq,
+          currentVersion: currentSeq,
+        });
+      }
+    }
 
     const base = {
       settingId: definition.settingId,
