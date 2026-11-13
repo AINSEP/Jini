@@ -128,6 +128,28 @@ test("a basis-less edit compares against its own read, so it cannot revert a con
   assert.equal((await repo.findById({ workspaceId: WS, id: "form" }))?.name, "Edited");
 });
 
+/** Only the FIRST read is stale: a concurrent edit lands between the authoring pre-read and the
+ *  service's own read inside the command. */
+function staleFirstRead(repo: InMemoryFormDefinitionRepo, stale: FormDefinitionRecord): FormDefinitionRepoPort {
+  let reads = 0;
+  return Object.assign(Object.create(repo) as InMemoryFormDefinitionRepo, {
+    findById: async (key: { workspaceId: string; id: string }) => (++reads === 1 ? stale : repo.findById(key)),
+  });
+}
+
+test("an authored basis-less edit is bound to the read it computed from, not a later read", async () => {
+  // Why: authoring prepares the stored HTML/fields from the pre-read; if the compare-and-set used
+  // the command's second read instead, an edit landing between the two would be overwritten by
+  // output computed from the older row.
+  const { repo, deps, input } = await staleServiceDeps();
+  const stale = definition();
+  const authoring = createFormAuthoring({ permission: "pages.edit_html" });
+  await assert.rejects(
+    updateFormDefinition({ deps: { ...deps, repo: staleFirstRead(repo, stale) }, input: { ...input, patch: { name: "Legacy", mode: "builder" } } }, { authoring }),
+    (error: unknown) => error instanceof RecordVersionConflictError && error.expectedVersion === 1 && error.currentVersion === 2);
+  assert.equal((await repo.findById({ workspaceId: WS, id: "form" }))?.name, "Edited");
+});
+
 test("a status flip compares against its own read and moves the version", async () => {
   const { repo, deps, input } = await staleServiceDeps();
   await assert.rejects(setFormDefinitionStatus({ deps, input: { ...input, status: "disabled" } }),

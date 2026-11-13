@@ -396,7 +396,17 @@ async function updateAuthoredFormDefinition(
   } : gatewayDeps;
   return updateFormDefinition({
     deps: boundDeps, input: { ...input, patch: { ...builderPatch, ...(authored?.fields ? { fields: authored.fields } : {}) } },
-  }, writeOptions);
+  }, withFirstReadBasis({ options: writeOptions, existing }));
+}
+
+/** Binds a basis-less authored edit to the read authoring computed from. Why: comparing against the
+ * command's later read would let output prepared from an older row overwrite a newer edit.
+ * @complexity O(1). */
+function withFirstReadBasis(
+  { options, existing }: { options: Omit<UpdateFormDefinitionOptional, "authoring">; existing: FormDefinitionRecord | null },
+): Omit<UpdateFormDefinitionOptional, "authoring"> {
+  if (!existing || options.expectedVersion !== undefined) return options;
+  return { ...options, expectedVersion: existing.version };
 }
 
 /** Same provider and public settings, whatever order a client lists them in.
