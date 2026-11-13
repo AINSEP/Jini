@@ -1,0 +1,121 @@
+[
+  {
+    "file": "packages/agent-plugins/core/persistent-state.js",
+    "function": "createPluginMemory.list.walk",
+    "line": 74,
+    "rule": "sonarjs/cognitive-complexity",
+    "value": 16
+  },
+  {
+    "file": "packages/agent-plugins/core/persistent-state.js",
+    "function": "migratePluginLayout.run",
+    "line": 135,
+    "rule": "complexity",
+    "value": 25
+  },
+  {
+    "file": "packages/agent-plugins/core/persistent-state.js",
+    "function": "migratePluginLayout.run",
+    "line": 135,
+    "rule": "sonarjs/cognitive-complexity",
+    "value": 42
+  },
+  {
+    "file": "packages/agent-runtime/src/executables.ts",
+    "function": "inspectAgentExecutableResolution",
+    "line": 311,
+    "rule": "complexity",
+    "value": 12
+  },
+  {
+    "file": "packages/agent-runtime/src/model-discovery-config.ts",
+    "function": "readModelConfiguration",
+    "line": 113,
+    "rule": "complexity",
+    "value": 12
+  },
+  {
+    "file": "packages/chat/src/core/question-form/scan.ts",
+    "function": "balancedObjectEnd",
+    "line": 339,
+    "rule": "sonarjs/cognitive-complexity",
+    "value": 13
+  },
+  {
+    "file": "packages/chat/src/embed-widget/browser/frontend-session-bridge.ts",
+    "function": "openFetchFrontendStream.connect",
+    "line": 482,
+    "rule": "sonarjs/cognitive-complexity",
+    "value": 11
+  },
+  {
+    "file": "packages/cli/src/flags.ts",
+    "function": "positionalArgs",
+    "line": 100,
+    "rule": "sonarjs/cognitive-complexity",
+    "value": 11
+  },
+  {
+    "file": "packages/cms/src/navigation/repo.memory.ts",
+    "function": "InMemoryMenuRepo.save",
+    "line": 131,
+    "rule": "sonarjs/cognitive-complexity",
+    "value": 11
+  },
+  {
+    "file": "packages/cms/src/widgets/resolver-service.ts",
+    "function": "forEachDocNode",
+    "line": 107,
+    "rule": "sonarjs/cognitive-complexity",
+    "value": 13
+  },
+  {
+    "file": "packages/cms/src/widgets/resolvers/menu.ts",
+    "function": "createMenuResolver.resolveMany",
+    "line": 69,
+    "rule": "sonarjs/cognitive-complexity",
+    "value": 12
+  },
+  {
+    "file": "packages/cms/src/widgets/resolvers/taxonomy.ts",
+    "function": "resolveTaxonomyEmbeds",
+    "line": 6,
+    "rule": "sonarjs/cognitive-complexity",
+    "value": 11
+  },
+  {
+    "file": "packages/core/src/tool-input-normalization.ts",
+    "function": "normalizeEntry",
+    "line": 162,
+    "rule": "sonarjs/cognitive-complexity",
+    "value": 11
+  },
+  {
+    "file": "packages/daemon/src/frontend-session-registry.ts",
+    "function": "assertSessionCapacity",
+    "line": 217,
+    "rule": "sonarjs/cognitive-complexity",
+    "value": 11
+  },
+  {
+    "file": "packages/desktop-host/src/electron/updates/instance-presence.ts",
+    "function": "createFileInstancePresence.readLive",
+    "line": 69,
+    "rule": "sonarjs/cognitive-complexity",
+    "value": 11
+  },
+  {
+    "file": "packages/platform/src/secrets/credential-sets/vault-archive.ts",
+    "function": "captureVaultArchive",
+    "line": 28,
+    "rule": "sonarjs/cognitive-complexity",
+    "value": 16
+  },
+  {
+    "file": "packages/ui-kit/src/react/testing/driver.ts",
+    "function": "runKitConformance",
+    "line": 87,
+    "rule": "sonarjs/cognitive-complexity",
+    "value": 11
+  }
+]
