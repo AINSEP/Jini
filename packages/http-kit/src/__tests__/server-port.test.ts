@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { ServerHandler, ServerMiddleware, ServerRoute } from '@jini-ai/core/contracts/server';
-import { createRouteTable, jsonResponse, readBodyBytes, readJsonBody, withServerMiddleware } from '../server-port.js';
+import { createRouteTable, jsonResponse, readBodyBytes, readJsonBody, readQuery, withServerMiddleware } from '../server-port.js';
 
 const text = (body: string): ServerHandler => () => new Response(body);
 
@@ -116,5 +116,31 @@ describe('readJsonBody / readBodyBytes', () => {
     expect(!streamed.ok && streamed.error.message).toBe('The request body is larger than the 10 bytes this address accepts. Send less data.');
     const exact = await readBodyBytes({ request: new Request('http://l/', { method: 'POST', body: 'x'.repeat(10) }) }, { maxBytes: 10 });
     expect(exact.ok && exact.value.byteLength).toBe(10);
+  });
+});
+
+describe('readQuery (the Express 4 query shapes routes already validate)', () => {
+  const query = (search: string) => readQuery({ request: new Request(`http://l/x${search}`) });
+
+  it('gives one value as a string and a repeated key as an array, in order', () => {
+    expect(query('?a=1&b=2&b=3')).toEqual({ a: '1', b: ['2', '3'] });
+    expect(query('')).toEqual({});
+  });
+
+  it('collects `name[]` keys into an array, as Express did', () => {
+    expect(query('?capability[]=x&capability[]=y')).toEqual({ capability: ['x', 'y'] });
+  });
+
+  it('gives a bracketed key a non-string value, so a route that requires a string still refuses it', () => {
+    const value = query('?contextRef[a]=1').contextRef;
+    expect(value).toBeDefined();
+    expect(typeof value).not.toBe('string');
+    expect(Array.isArray(value)).toBe(false);
+  });
+
+  it('never touches the prototype', () => {
+    const result = query('?__proto__=x&constructor=y');
+    expect(Object.getPrototypeOf(result)).toBe(Object.prototype);
+    expect(result).toEqual(Object.fromEntries([['__proto__', 'x'], ['constructor', 'y']]));
   });
 });
