@@ -14,6 +14,7 @@
  * agent/stdout/stderr/error events, observes cancellation via
  * `onCancelRequested`, and calls `finish()` once it knows the real outcome.
  */
+import { createConsoleLogger } from '@jini-ai/core/primitives';
 import { inspect } from 'node:util';
 import { redactSecrets } from '@jini-ai/core';
 import type { DelegatedResultCorrelation } from './delegated-result-correlation.js';
@@ -726,11 +727,9 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
   function reportInternalError(context: RunLifecycleInternalErrorContext): void {
     try {
       if (input.onInternalError) input.onInternalError(context);
-      // eslint-disable-next-line no-console
-      else console.error(`[@jini-ai/daemon] internal error (${context.source}, runId=${context.runId})`, redactSecrets({ input: inspect(context.error) }, { redactPii: false }));
+      else createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] internal error (${context.source}, runId=${context.runId})` }, { error: redactSecrets({ input: inspect(context.error) }, { redactPii: false }) });
     } catch (sinkError) {
-      // eslint-disable-next-line no-console
-      console.error(`[@jini-ai/daemon] internal error sink failed (${context.source}, runId=${context.runId})`, redactSecrets({ input: inspect(sinkError) }, { redactPii: false }));
+      createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] internal error sink failed (${context.source}, runId=${context.runId})` }, { error: redactSecrets({ input: inspect(sinkError) }, { redactPii: false }) });
     }
   }
 
@@ -802,14 +801,12 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
         if (input.onInternalError) {
           input.onInternalError(context);
         } else {
-          // eslint-disable-next-line no-console
-          console.error(`[@jini-ai/daemon] internal error (inactivity-timeout, runId=${runId})`, redactSecrets({ input: inspect(error) }, { redactPii: false }));
+          createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] internal error (inactivity-timeout, runId=${runId})` }, { error: redactSecrets({ input: inspect(error) }, { redactPii: false }) });
         }
       } catch (sinkError) {
         // A diagnostic sink must not turn a contained timer failure into another unhandled
         // rejection.
-        // eslint-disable-next-line no-console
-        console.error(`[@jini-ai/daemon] internal error sink failed (inactivity-timeout, runId=${runId})`, redactSecrets({ input: inspect(sinkError) }, { redactPii: false }));
+        createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] internal error sink failed (inactivity-timeout, runId=${runId})` }, { error: redactSecrets({ input: inspect(sinkError) }, { redactPii: false }) });
       }
     }
   }
@@ -848,13 +845,11 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
         if (input.onInternalError) {
           input.onInternalError(context);
         } else {
-          // eslint-disable-next-line no-console
-          console.error(`[@jini-ai/daemon] internal error (slow-run-notice, runId=${runId})`, redactSecrets({ input: inspect(error) }, { redactPii: false }));
+          createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] internal error (slow-run-notice, runId=${runId})` }, { error: redactSecrets({ input: inspect(error) }, { redactPii: false }) });
         }
       } catch (sinkError) {
         // Same containment reasoning as `handleInactivityTimeout`'s own catch below it.
-        // eslint-disable-next-line no-console
-        console.error(`[@jini-ai/daemon] internal error sink failed (slow-run-notice, runId=${runId})`, redactSecrets({ input: inspect(sinkError) }, { redactPii: false }));
+        createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] internal error sink failed (slow-run-notice, runId=${runId})` }, { error: redactSecrets({ input: inspect(sinkError) }, { redactPii: false }) });
       }
     }
   }

@@ -211,6 +211,7 @@ export interface SettingsSlice<T> {
  */
 export function useSettingsSlice<T>(options: SettingsSliceOptions<T>, _optional: Record<string, never> = {}): SettingsSlice<T> {
   const { defaultValue } = options;
+  const initialDefaultValue = useRef(defaultValue);
   const [value, setValue] = useState<T | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveState, setSaveState] = useState<SaveState>({ status: "idle" });
@@ -300,7 +301,6 @@ export function useSettingsSlice<T>(options: SettingsSliceOptions<T>, _optional:
 
   // `defaultValue` is a module-level constant at every call site; re-running
   // this on a new identity would re-issue the load and clobber live edits.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: `defaultValue` is a module-level constant; re-running on a new identity would re-issue the load and clobber live edits.
   useEffect(() => {
     let alive = true;
     io.current
@@ -325,7 +325,7 @@ export function useSettingsSlice<T>(options: SettingsSliceOptions<T>, _optional:
         if (!alive) return;
         setLoadError(error instanceof Error ? error.message : String(error));
         if (hasUnsavedEdits.current) return;
-        setValue(defaultValue);
+        setValue(initialDefaultValue.current);
       });
     return () => {
       alive = false;

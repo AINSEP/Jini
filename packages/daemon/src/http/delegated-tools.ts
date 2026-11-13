@@ -1,3 +1,4 @@
+import { createConsoleLogger } from '@jini-ai/core/primitives';
 import { inspect } from 'node:util';
 import type { DelegatedResultCorrelation } from '../delegated-result-correlation.js';
 /**
@@ -156,8 +157,7 @@ function checkReadOnlyConstraint(
 /** Logs the real failure server-side and returns the generic, correlation-id-bearing public error (SEC-005: never the raw exception). */
 function defaultInternalErrorSink(context: DelegatedToolsInternalErrorContext): void {
   // Exceptions can echo credentials; inspect preserves stacks and codes before shared redaction.
-  // eslint-disable-next-line no-console
-  console.error(`[@jini-ai/http-kit] internal error (${context.source}, correlationId=${context.correlationId})`, redactSecrets({ input: inspect(context.error) }, { redactPii: false }));
+  createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/http-kit] internal error (${context.source}, correlationId=${context.correlationId})` }, { error: redactSecrets({ input: inspect(context.error) }, { redactPii: false }) });
 }
 
 /**
@@ -172,8 +172,7 @@ function describeSafely(deps: DelegatedToolsHttpDeps, context: DelegatedToolsInt
     const text = deps.describeInternalError(context);
     return typeof text === 'string' && text.length > 0 ? text : undefined;
   } catch (error) {
-    // eslint-disable-next-line no-console
-    console.error(`[@jini-ai/http-kit] describeInternalError threw (correlationId=${context.correlationId})`, redactSecrets({ input: inspect(error) }, { redactPii: false }));
+    createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/http-kit] describeInternalError threw (correlationId=${context.correlationId})` }, { error: redactSecrets({ input: inspect(error) }, { redactPii: false }) });
     return undefined;
   }
 }

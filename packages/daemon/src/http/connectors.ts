@@ -44,6 +44,7 @@
  *   to the provider.
  * - `RealtimeProvider.subscribe` has no route here — see the realtime section below for why.
  */
+import { createConsoleLogger } from '@jini-ai/core/primitives';
 import { inspect } from 'node:util';
 import { redactSecrets } from '@jini-ai/core';
 import { randomUUID } from 'node:crypto';
@@ -137,8 +138,7 @@ export interface ConnectorsHttpDeps {
 }
 
 function defaultInternalErrorSink(context: ConnectorsInternalErrorContext): void {
-  // eslint-disable-next-line no-console
-  console.error(`[@jini-ai/http-kit] internal error (connectors/${context.source}.${context.operation}, correlationId=${context.correlationId})`, redactSecrets({ input: inspect(context.error) }, { redactPii: false }));
+  createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/http-kit] internal error (connectors/${context.source}.${context.operation}, correlationId=${context.correlationId})` }, { error: redactSecrets({ input: inspect(context.error) }, { redactPii: false }) });
 }
 
 function notConfiguredError(capability: string): ReturnType<typeof createApiError> {

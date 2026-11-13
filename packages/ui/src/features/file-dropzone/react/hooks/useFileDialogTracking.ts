@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef } from 'react';
 import {
   FILE_DIALOG_FOCUS_DELAY_MS,
   FILE_DIALOG_STALE_MS,
@@ -18,6 +18,17 @@ export interface UseFileDialogTrackingResult {
   completeTracking: () => (() => void) | undefined;
   /** Call from the input's `cancel` event: completes tracking and, if a loading affordance was showing, schedules its finish after the minimum-visible delay so it doesn't flash. */
   handleDialogCancelled: () => void;
+}
+
+function clearTimer(ref: { current: number | undefined }) {
+  if (ref.current === undefined) return;
+  window.clearTimeout(ref.current);
+  ref.current = undefined;
+}
+
+function scheduleFinish(finish: (() => void) | undefined) {
+  if (!finish) return;
+  window.setTimeout(finish, FILE_DROPZONE_PROCESSING_MIN_VISIBLE_MS);
 }
 
 /**
@@ -50,13 +61,7 @@ export function useFileDialogTracking(onProcessingStart?: () => () => void): Use
   const onProcessingStartRef = useRef(onProcessingStart);
   onProcessingStartRef.current = onProcessingStart;
 
-  function clearTimer(ref: { current: number | undefined }) {
-    if (ref.current === undefined) return;
-    window.clearTimeout(ref.current);
-    ref.current = undefined;
-  }
-
-  function completeTracking(): (() => void) | undefined {
+  const completeTracking = useCallback((): (() => void) | undefined => {
     clearTimer(focusDelayRef);
     clearTimer(warmupRef);
     clearTimer(staleRef);
@@ -65,18 +70,13 @@ export function useFileDialogTracking(onProcessingStart?: () => () => void): Use
     const finish = loadingFinishRef.current;
     loadingFinishRef.current = undefined;
     return finish;
-  }
+  }, []);
 
-  function scheduleFinish(finish: (() => void) | undefined) {
-    if (!finish) return;
-    window.setTimeout(finish, FILE_DROPZONE_PROCESSING_MIN_VISIBLE_MS);
-  }
-
-  function handleDialogCancelled() {
+  const handleDialogCancelled = useCallback(() => {
     scheduleFinish(completeTracking());
-  }
+  }, [completeTracking]);
 
-  function beginReturnLoading() {
+  const beginReturnLoading = useCallback(() => {
     if (!pendingRef.current) return;
     if (!canShowLoadingRef.current) return;
     const start = onProcessingStartRef.current;
@@ -86,7 +86,7 @@ export function useFileDialogTracking(onProcessingStart?: () => () => void): Use
     staleRef.current = window.setTimeout(() => {
       handleDialogCancelled();
     }, FILE_DIALOG_STALE_MS);
-  }
+  }, [handleDialogCancelled]);
 
   useEffect(() => {
     if (!onProcessingStart) return undefined;
@@ -95,9 +95,8 @@ export function useFileDialogTracking(onProcessingStart?: () => () => void): Use
     }
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-    // `beginReturnLoading` closes only over refs (stable identity semantics) — re-subscribing per render would just churn the listener for no behavioral change.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onProcessingStart]);
+    // `beginReturnLoading` uses refs and stable callbacks — re-subscribing per render would just churn the listener for no behavioral change.
+  }, [onProcessingStart, beginReturnLoading]);
 
   // Clears any pending timers on unmount without invoking a stored `finish`
   // (calling into host state after unmount would be the host's problem, but
@@ -109,7 +108,6 @@ export function useFileDialogTracking(onProcessingStart?: () => () => void): Use
       clearTimer(warmupRef);
       clearTimer(staleRef);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function prepareTracking() {

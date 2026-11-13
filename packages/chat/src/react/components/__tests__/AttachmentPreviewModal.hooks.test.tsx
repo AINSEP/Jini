@@ -59,6 +59,17 @@ describe('readFileAsText', () => {
 });
 
 describe('useAttachmentPreviewModal', () => {
+  it('uses a replacement text reader and ignores the previous reader result', async () => {
+    const oldRead = deferred(), newRead = deferred();
+    const attachment = cached('a:reader', 'notes.txt');
+    const { container, rerender } = render(<Harness attachment={attachment} readText={() => oldRead.promise} />);
+    rerender(<Harness attachment={attachment} readText={() => newRead.promise} />);
+    await act(async () => { newRead.resolve('new reader'); });
+    await act(async () => { oldRead.resolve('old reader'); });
+    expect(dialogOf(container).textContent).toBe('new reader');
+    expect(dialogOf(container).dataset.loading).toBe('false');
+  });
+
   it('treats a cached file without an extension as unsupported', () => {
     const { container } = render(<Harness attachment={cached('a:1', 'README')} />);
     expect(dialogOf(container).dataset.status).toBe('unsupported');

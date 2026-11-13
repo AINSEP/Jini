@@ -1,4 +1,4 @@
-import { useEffect, useRef, type ChangeEvent, type DragEvent, type RefObject } from 'react';
+import { useCallback, useEffect, useRef, type ChangeEvent, type DragEvent, type RefObject } from 'react';
 import { useFileDropTarget } from '../../../../browser/useFileDropTarget.js';
 import { filesFromClipboardData, shouldIgnoreClipboardFilePaste } from '../../../../utils/file-transfer.js';
 import { FILE_DROPZONE_PROCESSING_BYTES_THRESHOLD, FILE_DROPZONE_PROCESSING_FILE_COUNT_THRESHOLD, FILE_DROPZONE_PROCESSING_MIN_VISIBLE_MS } from '../../constants.js';
@@ -81,10 +81,10 @@ export function useFileDropzone({
   // Every caller (processSelectedFiles' two staging branches, and the paste
   // listener) already guards a non-empty selection before reaching here, so
   // this has no empty-array case to handle.
-  function stageFiles(nextFiles: File[]) {
+  const stageFiles = useCallback((nextFiles: File[]) => {
     onErrorRef.current?.(null);
     onFilesRef.current(nextFiles);
-  }
+  }, []);
 
   function processSelectedFiles(nextFiles: File[], activeFinish?: () => void) {
     if (nextFiles.length === 0) {
@@ -163,8 +163,7 @@ export function useFileDropzone({
     }
     window.addEventListener('paste', onPaste);
     return () => window.removeEventListener('paste', onPaste);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enablePaste]);
+  }, [enablePaste, stageFiles]);
 
   return {
     inputRef,

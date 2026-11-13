@@ -13,8 +13,8 @@ export interface NormalizedTarget {
  * cross-host Location even when a parsed-path check sees only slashes. Storage validation and
  * redirect reads must use this same raw predicate; checking a reserialized url.href checks too late.
  */
-// biome-ignore lint/suspicious/noControlCharactersInRegex: control chars are the POINT — F3 requires rejecting C0/DEL and backslash in a raw candidate URL before the WHATWG parser silently strips them. See this constant's own doc comment. See docs/decisions/DR-001-redirect-normalization.md.
-const FORBIDDEN_RAW_CHARS = /[\\\s\x00-\x08\x0E-\x1F\x7F]/;
+// F3 requires rejecting C0/DEL and backslash before parsing; see docs/decisions/DR-001-redirect-normalization.md.
+const FORBIDDEN_RAW_CHARS = /[\\\s]|(?![\u0080-\u009F])\p{Cc}/u;
 
 /** Reject parser-ambiguous backslashes, whitespace and controls before URL normalization.
  * @complexity O(raw.length) time, O(1) space; pure.

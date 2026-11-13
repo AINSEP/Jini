@@ -166,7 +166,6 @@ export function installGracefulShutdown(
     let timedOut = false;
     const timer = timers.setTimeout(() => {
       timedOut = true;
-      // eslint-disable-next-line no-console
       logger.error(
         `[@jini-ai/server] graceful shutdown did not complete within ${timeoutMs}ms after ${signal}; forcing exit`,
       );
@@ -176,7 +175,6 @@ export function installGracefulShutdown(
 
     void stop()
       .catch((error: unknown) => {
-        // eslint-disable-next-line no-console
         logger.error(`[@jini-ai/server] graceful shutdown failed after ${signal}`, redactSecrets({ input: inspect(error) }, { redactPii: false }));
         // Re-thrown so the `.finally` below still distinguishes success from failure via rejection
         // state rather than a second flag.

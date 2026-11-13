@@ -206,7 +206,7 @@ export function useMcpUiHost(options: McpUiHostOptions): McpUiHostResult {
       setStateBoth('timed-out');
     }, initializedTimeoutMs);
     return () => clearTimeout(timer);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- effectiveSessionKey intentionally
+    // effectiveSessionKey intentionally
     // stands in for both `sessionKey` and `html` (mirrors the pre-swap effect's own `[sessionKey, ...]`).
   }, [effectiveSessionKey, initializedTimeoutMs, emit, setStateBoth]);
 
@@ -298,7 +298,7 @@ export function useMcpUiHost(options: McpUiHostOptions): McpUiHostResult {
       onOpenLink: handleOpenLink,
       onSizeChanged: handleSizeChanged,
       onError: handleError,
-      // eslint-disable-next-line react-hooks/exhaustive-deps -- optionsRef.current.toolName/hostInfo/hostContext
+      // optionsRef.current.toolName/hostInfo/hostContext
       // are read once per `html`/`sandboxProxyUrl` change intentionally, same ref-read pattern as the rest of this hook.
     }),
     [html, sandboxProxyUrl, handleCallTool, handleOpenLink, handleSizeChanged, handleError],

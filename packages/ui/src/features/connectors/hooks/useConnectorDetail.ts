@@ -79,8 +79,7 @@ export function useConnectorDetail(port: ConnectorsPort, params: UseConnectorDet
     if (failedIds[detailConnector.id] === retryToken) return;
     if (loadingIds[detailConnector.id]) return;
     void hydrateToolPreview(detailConnector.id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [unlocked, detailConnector, failedIds, fetchedIds, loadingIds, retryToken]);
+  }, [unlocked, detailConnector, failedIds, fetchedIds, loadingIds, retryToken, hydrateToolPreview]);
 
   const openDetails = useCallback((connectorId: string) => {
     setFailedIds((curr) => {

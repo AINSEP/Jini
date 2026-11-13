@@ -77,13 +77,11 @@ export function useResourceRowList<TRow extends ResourceRowItem>(
     } finally {
       setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [port]);
 
   useEffect(() => {
     void reload();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [port, refreshToken]);
+  }, [reload, refreshToken]);
 
   const isRowBusy = useCallback((id: string) => isActionPending(pendingKeys, id, ROW_ACTION_KIND), [pendingKeys]);
 

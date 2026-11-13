@@ -55,7 +55,7 @@ export function useCodexInstallToggle(
     }
     // `port` is host-supplied once; re-creating this callback per render
     // would refetch on every parent re-render.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- refreshing only on mount avoids refetching for recreated ports.
   }, []);
 
   useEffect(() => {
@@ -82,7 +82,7 @@ export function useCodexInstallToggle(
         setBusy(false);
       }
     })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the install action shares the mount-stable port contract.
   }, [installed, refresh]);
 
   return { available, installed, busy, error, successKind, toggle };

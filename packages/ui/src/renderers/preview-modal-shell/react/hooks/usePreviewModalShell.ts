@@ -83,7 +83,6 @@ export function usePreviewModalShell<V extends PreviewModalViewLike>(
 
   useEffect(() => {
     onView?.(activeId);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeId, onView]);
 
   // Close on Escape. In fullscreen, the first Escape exits fullscreen

@@ -1,3 +1,4 @@
+import { createConsoleLogger } from '@jini-ai/core/primitives';
 import type {
   StandingDraftAutosaveInput,
   StandingDraftAutosaveSnapshot,
@@ -53,8 +54,8 @@ export function createStandingDraftLocalBackup(
       const storage = getStorage({}, {});
       storage.setItem(keyFor(entryId, options.principalId), JSON.stringify(snapshot));
     } catch {
-      // eslint-disable-next-line no-console -- best-effort; the operator's text is still in the tab.
-      console.warn("standing-draft local backup: could not write");
+      // best-effort; the operator's text is still in the tab.
+      createConsoleLogger({ prefix: '' }).warn({ message: "standing-draft local backup: could not write" });
     }
   }
 

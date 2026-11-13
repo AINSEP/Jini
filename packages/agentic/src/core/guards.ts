@@ -235,9 +235,7 @@ export const MAX_AGENT_LABEL_LENGTH = 200;
  * render one way and read another, which is a direct way to smuggle a different instruction
  * into whatever reads the label back.
  */
-const CONTROL_AND_BIDI =
-  // eslint-disable-next-line no-control-regex
-  /[\u0000-\u001F\u007F-\u009F\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/g;
+const CONTROL_AND_BIDI = /[\p{Cc}\u200B-\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF]/gu;
 
 export interface NormalizedLabel {
   readonly text: string;

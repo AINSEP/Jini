@@ -28,6 +28,7 @@
  * composition root can make (it is the thing that starts runs), so it calls `registry.bindRun`
  * directly — see `@jini-ai/daemon`'s own module doc for why attach and bind are separate.
  */
+import { createConsoleLogger } from '@jini-ai/core/primitives';
 import { inspect } from 'node:util';
 import { redactSecrets } from '@jini-ai/core';
 import { randomUUID } from 'node:crypto';
@@ -132,12 +133,10 @@ export interface FrontendSessionsHttpDeps {
 function reportInternalError(deps: FrontendSessionsHttpDeps, source: string, error: unknown): void {
   try {
     if (deps.onInternalError) deps.onInternalError({ source, error });
-    // eslint-disable-next-line no-console
-    else console.error(`[@jini-ai/http-kit] internal error (frontend-sessions:${source})`, redactSecrets({ input: inspect(error) }, { redactPii: false }));
+    else createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/http-kit] internal error (frontend-sessions:${source})` }, { error: redactSecrets({ input: inspect(error) }, { redactPii: false }) });
   } catch (sinkError) {
     // A diagnostic sink must never turn a contained failure into an unhandled rejection of its own.
-    // eslint-disable-next-line no-console
-    console.error(`[@jini-ai/http-kit] internal error sink failed (frontend-sessions:${source})`, redactSecrets({ input: inspect(sinkError) }, { redactPii: false }));
+    createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/http-kit] internal error sink failed (frontend-sessions:${source})` }, { error: redactSecrets({ input: inspect(sinkError) }, { redactPii: false }) });
   }
 }
 

@@ -1,7 +1,7 @@
 import { createToolResultDiagnosticProjection, projectDiagnosticFrame } from '../tool-result-diagnostics.js';
 import type { DelegatedResultCorrelation } from '../delegated-result-correlation.js';
 import type { StdoutJournalBlobPort } from '../tool-result-diagnostics.js';
-import { appendSerialTask } from "@jini-ai/core/primitives";
+import { appendSerialTask, createConsoleLogger } from "@jini-ai/core/primitives";
 import { createLiveSessionState } from './live-session-state.js';
 import { createSanitizedLineStream } from './sanitized-line-stream.js';
 import { acceptsMidRunUserMessages, createMessageRelay, type RunMessageRelay } from './message-relay.js';
@@ -156,11 +156,7 @@ function reportDroppedEmit(): void {
 
 /** Default sink when a host does not supply `onCleanupFailure`: still observable, never silent. Redacted per SEC-007 (a spawn/permission error can embed paths/host detail). */
 export function defaultCleanupFailureSink(context: AgentCleanupFailureContext): void {
-  // eslint-disable-next-line no-console
-  console.error(
-    `[@jini-ai/daemon] agent-executor: process-tree cleanup failed for run "${context.runId}" (${context.phase}, pid=${context.pid})`,
-    redactSecrets({ input: errorMessage(context.error) }),
-  );
+  createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] agent-executor: process-tree cleanup failed for run "${context.runId}" (${context.phase}, pid=${context.pid})` }, { error: redactSecrets({ input: errorMessage(context.error) }) });
 }
 
 /**

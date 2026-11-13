@@ -122,13 +122,11 @@ export function useResourceBoard<TItem extends ResourceBoardItem>(params: UseRes
     } finally {
       setLoading(false);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [port]);
 
   useEffect(() => {
     void reload();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [port, refreshToken]);
+  }, [reload, refreshToken]);
 
   // Drop selected ids that no longer exist (DesignsTab's own "prune selection" effect).
   useEffect(() => {
