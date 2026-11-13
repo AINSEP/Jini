@@ -238,12 +238,32 @@ export function callerSafeErrorMessage(required: { err: unknown; rules: readonly
  *  a short constant token, never free text that could carry a value. */
 const LOGGABLE_ERROR_CODE = /^[A-Z][A-Z0-9_]{0,63}$/;
 
+/** Fixed text logged when an error object cannot even be inspected. */
+const UNDESCRIBABLE_ERROR = "[diagnostic unavailable]";
+
+// A log call sits inside a catch block. If describing the error throws (a throwing `code` or
+// `constructor` getter, a revoked Proxy), the logger replaces the real failure with its own, so
+// every read of the caught value is guarded HERE, once — callers must not wrap this in try/catch.
 /** `ClassName` or `ClassName(CODE)` for one thrown value; `typeof` for a non-`Error` throw. */
 function describeOneErrorForLog(value: unknown): string {
-  if (!(value instanceof Error)) return typeof value;
-  const className = value.constructor.name || "Error";
-  const code = (value as { code?: unknown }).code;
-  return typeof code === "string" && LOGGABLE_ERROR_CODE.test(code) ? `${className}(${code})` : className;
+  try {
+    if (!(value instanceof Error)) return typeof value;
+    const className = value.constructor.name || "Error";
+    const code = (value as { code?: unknown }).code;
+    return typeof code === "string" && LOGGABLE_ERROR_CODE.test(code) ? `${className}(${code})` : className;
+  } catch {
+    return UNDESCRIBABLE_ERROR;
+  }
+}
+
+/** The direct `cause`, or the fixed marker when reading it throws. Only one level is read, so a
+ *  cyclic cause chain cannot loop. */
+function readCauseForLog(err: unknown): unknown {
+  try {
+    return err instanceof Error ? (err as { cause?: unknown }).cause : undefined;
+  } catch {
+    return UNDESCRIBABLE_ERROR;
+  }
 }
 
 /**
@@ -255,12 +275,18 @@ function describeOneErrorForLog(value: unknown): string {
  * logs (`EgressRefusedError.message`), log that instead.
  *
  * @param required.err - The caught value.
+ * Never throws: an error that cannot be inspected is described as `[diagnostic unavailable]`, so
+ * call it directly inside a catch block. For a server log that must keep the redacted message and
+ * stack, use core's `formatErrorForLog` (redacted message + stack) instead.
+ *
  * @returns e.g. `SqliteError(SQLITE_BUSY)`, or `TypeError cause=Error(ECONNREFUSED)`.
- * @complexity O(1).
+ * @complexity O(1); reads only the value and its direct cause.
  */
 export function describeErrorForLog(required: { err: unknown }, _optional: Record<string, never> = {}): string {
   const { err } = required;
   const described = describeOneErrorForLog(err);
-  const cause = err instanceof Error ? (err as { cause?: unknown }).cause : undefined;
-  return cause === undefined ? described : `${described} cause=${describeOneErrorForLog(cause)}`;
+  if (described === UNDESCRIBABLE_ERROR) return described;
+  const cause = readCauseForLog(err);
+  if (cause === undefined) return described;
+  return `${described} cause=${cause === UNDESCRIBABLE_ERROR ? UNDESCRIBABLE_ERROR : describeOneErrorForLog(cause)}`;
 }
