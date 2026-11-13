@@ -163,19 +163,23 @@ export function jsonResponse({ status, body }: { readonly status: number; readon
 /** Stands in for what `qs` turned a bracketed key into (`a[b]=1` → an object): not a string, so a route's "must be a string" check still refuses it. */
 const BRACKETED_QUERY_VALUE: Readonly<Record<string, never>> = Object.freeze({});
 
+function addFlatQueryValue({ query, key, value }: { query: Map<string, unknown>; key: string; value: string }): void {
+  const previous = query.get(key);
+  if (previous === undefined) query.set(key, value);
+  else if (Array.isArray(previous)) previous.push(value);
+  else if (typeof previous === 'string') query.set(key, [previous, value]);
+}
+
 function addQueryValue({ query, key, value }: { query: Map<string, unknown>; key: string; value: string }): void {
   const bracket = key.indexOf('[');
   if (bracket <= 0) {
-    const previous = query.get(key);
-    if (previous === undefined) query.set(key, value);
-    else if (Array.isArray(previous)) previous.push(value);
-    else if (typeof previous === 'string') query.set(key, [previous, value]);
+    addFlatQueryValue({ query, key, value });
     return;
   }
   const name = key.slice(0, bracket);
   const previous = query.get(name);
-  if (key === `${name}[]` && (previous === undefined || Array.isArray(previous))) query.set(name, [...(previous ?? []), value]);
-  else query.set(name, BRACKETED_QUERY_VALUE);
+  const listItem = key === `${name}[]` && (previous === undefined || Array.isArray(previous));
+  query.set(name, listItem ? [...((previous as string[] | undefined) ?? []), value] : BRACKETED_QUERY_VALUE);
 }
 
 /**
