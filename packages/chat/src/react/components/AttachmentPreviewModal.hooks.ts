@@ -202,7 +202,6 @@ export function useAttachmentPreviewModal(
     const url = URL.createObjectURL(cachedFile);
     setImageUrl(url);
     return () => URL.revokeObjectURL(url);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [attemptImage, cachedFile]);
 
   useEffect(() => {
@@ -229,8 +228,7 @@ export function useAttachmentPreviewModal(
     return () => {
       canceled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [attemptText, cachedFile]);
+  }, [attemptText, cachedFile, readText]);
 
   function handleNativeCancel(event: SyntheticEvent<HTMLDialogElement>): void {
     // Always prevented, same reasoning as `ConfirmDialog.hooks.tsx`: the effect above is the single

@@ -99,12 +99,8 @@ export function useSourceConfigList<TSource extends SourceConfigItem>(
 
   useEffect(() => {
     void reload();
-    // `reload` intentionally excluded: it's `port`-derived and re-running it
-    // on every `reload` identity change would just mean "port changed",
-    // which the `[port]` dep below already covers via `reload`'s own
-    // `[port]` dependency.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [port]);
+    // `reload` is port-derived, so its identity changes only when the port changes.
+  }, [reload]);
 
   const addSourceToList = useCallback((source: TSource) => {
     setSources((current) => upsertSourceById(current, source));

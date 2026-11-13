@@ -105,7 +105,7 @@ export function useSelectPopoverPosition<P>(required: {
   // this component's own tests: every keyboard-driven test failed until this was split out, because
   // `panelRef.current`/`searchInputRef.current` were both still `null` when focus was attempted in
   // the same pass that first computed the position.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: two-phase focus effect — see comment above; changing search/focus callbacks are read through latest and intentionally do not redrive it.
+  // Changing search/focus callbacks are read through latest and intentionally do not redrive it.
   useLayoutEffect(() => {
     if (!open) { setPosition(null); return; }
     if (portal && !position) { updatePosition(); return; }
@@ -122,7 +122,7 @@ export function useSelectPopoverPosition<P>(required: {
   // this effect happily recomputing a mathematically-correct `position` for it — the panel just
   // ended up following the trigger to an off-screen (or behind-the-header, obscured) spot, floating
   // there indefinitely, nominally still "open" with no visible way to tell.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: scroll/resize listener wiring — see comment above; onOutOfView is read through latest; only lifecycle/ref changes re-arm it.
+  // onOutOfView is read through latest; only lifecycle/ref changes re-arm the scroll/resize listeners.
   useEffect(() => {
     if (!open || !portal) return undefined;
     function reposition() {

@@ -104,6 +104,23 @@ afterEach(() => {
 });
 
 describe('useChatPaneAgentControl — registration lifecycle', () => {
+  it('registers and revokes WebMCP tools when the host changes its opt-in', () => {
+    const context = installModelContext();
+    const transport = createFakeChatTransport();
+    const view = renderHook(({ webmcp }) => {
+      const pane = useChatPane({ transport, agents, selection: { agentId: 'codex' } });
+      useChatPaneAgentControl({ pane }, { enabled: true, webmcp });
+    }, { initialProps: { webmcp: false } });
+
+    expect(context.registerCalls).toBe(0);
+    view.rerender({ webmcp: true });
+    expect(context.registerCalls).toBe(CHAT_PANE_AGENT_TOOLS.length);
+    expect(context.tools.size).toBe(CHAT_PANE_AGENT_TOOLS.length);
+    view.rerender({ webmcp: false });
+    expect(context.tools.size).toBe(0);
+    expect(context.unregistered).toEqual(CHAT_PANE_AGENT_TOOLS.map((tool) => tool.id));
+  });
+
   it('registers every manifest tool once and does not re-register when the host re-renders with a fresh inline bridge object', () => {
     const context = installModelContext();
     const subscribe = vi.fn(() => vi.fn());

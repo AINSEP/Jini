@@ -1,3 +1,4 @@
+import { createConsoleLogger } from '@jini-ai/core/primitives';
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useSerialWrites } from "./use-serial-writes.hooks.js";
@@ -286,10 +287,10 @@ export function useStandingDraftAutosave(deps: StandingDraftAutosaveOptions, _op
   const enqueue = useCallback(
     (op: () => Promise<void>): Promise<void> =>
       writes.run({ task: op }).catch(() => {
-        // eslint-disable-next-line no-console -- best-effort background persistence; surfaced to
+        // best-effort background persistence; surfaced to
         // the console rather than the operator, who has nothing actionable to do about one dropped
         // autosave tick, and rather than thrown, which would wedge every later tick on this chain.
-        console.error("standing-draft autosave: request failed");
+        createConsoleLogger({ prefix: '' }).error({ message: "standing-draft autosave: request failed" });
       }),
     [writes]
   );

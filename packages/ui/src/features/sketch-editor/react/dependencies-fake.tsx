@@ -43,9 +43,10 @@ function FakeExcalidraw({ initialData, excalidrawAPI, onChange, renderTopRightUI
   const elementsRef = useRef<unknown[]>((initialData?.elements ?? []).slice());
   const appStateRef = useRef<Record<string, unknown>>({ ...(initialData?.appState ?? {}) });
   const filesRef = useRef<Record<string, unknown>>({ ...(initialData?.files ?? {}) });
+  const initialExcalidrawAPI = useRef(excalidrawAPI);
 
   useEffect(() => {
-    excalidrawAPI?.({
+    initialExcalidrawAPI.current?.({
       updateScene: (partial: { appState?: Record<string, unknown> } | undefined) => {
         if (partial?.appState) appStateRef.current = { ...appStateRef.current, ...partial.appState };
       },
@@ -54,7 +55,6 @@ function FakeExcalidraw({ initialData, excalidrawAPI, onChange, renderTopRightUI
       getFiles: () => filesRef.current,
     });
     // Mount-once, matching real Excalidraw's own imperative-handle-once contract.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fireChange = () => {

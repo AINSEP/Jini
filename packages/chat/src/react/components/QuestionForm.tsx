@@ -78,7 +78,6 @@ export const QuestionForm = forwardRef<QuestionFormHandle, QuestionFormProps>(fu
   useImperativeHandle(ref, () => ({ submit: handleSubmit, skipAll: handleSkipAll }));
   useEffect(() => {
     onReadyChange?.(!locked && ready);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onReadyChange, locked, ready]);
 
   return (

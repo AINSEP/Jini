@@ -125,10 +125,12 @@ function useResetHighlightOnQueryChange({
   hasMatches: boolean;
   setHighlightedIndex: (index: number) => void;
 }) {
+  const latest = useRef({ open, hasMatches, setHighlightedIndex });
+  latest.current = { open, hasMatches, setHighlightedIndex };
   useEffect(() => {
-    if (!open) return;
-    setHighlightedIndex(hasMatches ? 0 : -1);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const current = latest.current;
+    if (!current.open) return;
+    current.setHighlightedIndex(current.hasMatches ? 0 : -1);
   }, [query]);
 }
 

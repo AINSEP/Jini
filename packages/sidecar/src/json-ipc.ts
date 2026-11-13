@@ -11,6 +11,7 @@
  * the IPC-path recognizer, and the public IPC types.
  */
 
+import { createConsoleLogger } from '@jini-ai/core/primitives';
 import { lstat, mkdir, rm } from "node:fs/promises";
 import { createConnection } from "node:net";
 import { createServer as createNetServer } from "node:net";
@@ -354,8 +355,7 @@ export async function createJsonIpcServer({
         // the traceId as a correlation handle; the real detail is redacted and logged
         // server-side only, unconditionally (not gated behind JINI_JSON_IPC_TRACE).
         const redactedDetail = redactSecrets({ input: errorMessage(error) });
-        // eslint-disable-next-line no-console
-        console.error(`[@jini-ai/sidecar] json-ipc handler failed (traceId=${traceId})`, redactedDetail);
+        createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/sidecar] json-ipc handler failed (traceId=${traceId})` }, { error: redactedDetail });
         traceJsonIpc("server.handler_failed", {
           durationMs: jsonIpcTraceDurationMs(startedAt),
           error: redactedDetail,

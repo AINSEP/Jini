@@ -99,6 +99,7 @@
  * correlation-id-bearing generic `INTERNAL_ERROR`, with the real error reaching a host-owned sink —
  * the same `reportInternalError` shape `media.ts`/`delegated-tools.ts` use.
  */
+import { createConsoleLogger } from '@jini-ai/core/primitives';
 import { inspect } from 'node:util';
 import { redactSecrets } from '@jini-ai/core';
 import { chmod, copyFile, lstat, mkdir, mkdtemp, open, readFile, readdir, realpath, rm, rmdir, type FileHandle } from 'node:fs/promises';
@@ -1420,11 +1421,7 @@ export interface AttachmentsHttpDeps {
 export const ATTACHMENTS_ROUTE_PATH = '/api/attachments';
 
 function defaultInternalErrorSink(context: AttachmentsInternalErrorContext): void {
-  // eslint-disable-next-line no-console
-  console.error(
-    `[@jini-ai/http-kit] internal error (${context.source}, correlationId=${context.correlationId})`,
-    redactSecrets({ input: inspect(context.error) }, { redactPii: false }),
-  );
+  createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/http-kit] internal error (${context.source}, correlationId=${context.correlationId})` }, { error: redactSecrets({ input: inspect(context.error) }, { redactPii: false }) });
 }
 
 function reportInternalError(

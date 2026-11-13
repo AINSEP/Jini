@@ -51,18 +51,14 @@ export function describeQueryNode({ node }: { node: unknown }): QueryDescription
 }
 
 /** The kernel surface the decorator replaces; `StorageKernel<DB>` from `@jini-ai/db/kernel` fits it. */
-// `any` for the builder and statement: each host's kernel is generic over its own schema, and no
-// structural type both accepts every instantiation and stays callable here. The decorator only
-// passes them through (plus `withPlugin`, feature-detected at run time).
+// Each host's kernel is generic over its own schema. The decorator passes opaque builders and
+// statements through, feature-detecting `withPlugin` at run time.
 export interface InstrumentableKernel {
  readonly dialect: string;
- // eslint-disable-next-line @typescript-eslint/no-explicit-any
- run(fn: (db: any) => unknown): Promise<unknown>;
+ run(fn: (db: unknown) => unknown): Promise<unknown>;
  transaction(fn: () => Promise<unknown>): Promise<unknown>;
- // eslint-disable-next-line @typescript-eslint/no-explicit-any
- query(statement: any): Promise<unknown>;
- // eslint-disable-next-line @typescript-eslint/no-explicit-any
- execute(statement: any): Promise<unknown>;
+ query(statement: unknown): Promise<unknown>;
+ execute(statement: unknown): Promise<unknown>;
 }
 type LooseKernel = {
  dialect: string;
@@ -124,7 +120,7 @@ export function instrumentStorageKernel<K extends InstrumentableKernel>({ kernel
 
 /** Any `fetch`-shaped function: the global, a timeout wrapper, a SigV4 client's `fetch`. Structural,
  * so this universal entry needs no DOM or undici types. */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
+// eslint-disable-next-line @typescript-eslint/no-explicit-any -- fetch implementations have different input and init types.
 export type FetchLike = (input: any, init?: any) => Promise<{ status: number }>;
 
 /** URL and method of one fetch call: `init.method` wins over a Request's own, as in `fetch` itself.

@@ -36,6 +36,7 @@
  * boundary — see {@link denyAllDaemonDbPolicy}'s doc for why the default
  * policy denies every call rather than allowing one.
  */
+import { createConsoleLogger } from '@jini-ai/core/primitives';
 import { inspect } from 'node:util';
 import { redactSecrets } from '@jini-ai/core';
 import { randomUUID } from 'node:crypto';
@@ -195,8 +196,7 @@ export interface DaemonDbInternalErrorContext {
 }
 
 function defaultDaemonDbInternalErrorSink(context: DaemonDbInternalErrorContext): void {
-  // eslint-disable-next-line no-console
-  console.error(`[@jini-ai/http-kit] internal error (${context.source}, correlationId=${context.correlationId})`, redactSecrets({ input: inspect(context.error) }, { redactPii: false }));
+  createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/http-kit] internal error (${context.source}, correlationId=${context.correlationId})` }, { error: redactSecrets({ input: inspect(context.error) }, { redactPii: false }) });
 }
 
 export interface DaemonDbHttpDeps {

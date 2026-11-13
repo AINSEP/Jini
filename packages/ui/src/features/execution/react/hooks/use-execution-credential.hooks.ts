@@ -281,8 +281,7 @@ export function useExecutionCredential<TStored extends ExecutionCredentialView>(
     // the same module-level singleton), so adding it changes nothing about when this effect re-runs —
     // it is here only because it is now a function-scoped value ESLint's exhaustive-deps rule can see,
     // where the old `loadAdminExecutionCredential` import was invisible to that rule.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [port, effects]);
+  }, [port, effects, storedSettlement]);
 
   // Offer the migration prompt only once the server's own state is known AND nothing is already
   // stored there — an admin who already has a server-side credential (migrated earlier, or just

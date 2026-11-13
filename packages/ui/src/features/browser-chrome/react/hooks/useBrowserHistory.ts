@@ -33,7 +33,6 @@ export function useBrowserHistory(
     setHistory(storageRef.current.loadHistory(scopeKey));
     // Re-hydrating on scope change only; the storage port is read via a ref
     // above so a fresh `dependencies` object each render doesn't re-trigger this.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scopeKey]);
 
   useEffect(() => {

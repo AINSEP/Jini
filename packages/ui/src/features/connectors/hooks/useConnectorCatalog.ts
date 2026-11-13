@@ -51,7 +51,7 @@ export function useConnectorCatalog(port: ConnectorsPort, options: ConnectorCata
     return () => {
       cancelled = true;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- changing ports also requires resetting catalog scope, not merging old rows.
   }, [unlocked, refreshKey]);
 
   useEffect(() => {
@@ -80,7 +80,7 @@ export function useConnectorCatalog(port: ConnectorsPort, options: ConnectorCata
       cancelled = true;
       setEnriching(false);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- enrichment must follow the same scoped catalog lifecycle as the base load.
   }, [unlocked, refreshKey, enriched]);
 
   return { connectors, setConnectors, loading, enriching, enriched };

@@ -3,6 +3,7 @@
  * agent, tool, or product vocabulary: a host optionally supplies `onStarted`
  * to attach its chosen driver after the lifecycle has durably recorded start.
  */
+import { createConsoleLogger } from '@jini-ai/core/primitives';
 import { inspect } from 'node:util';
 import { redactSecrets } from '@jini-ai/core';
 import { randomUUID } from 'node:crypto';
@@ -41,8 +42,7 @@ export interface RunInternalErrorContext {
 
 /** Default sink when a host does not supply `onInternalError`: still observable, never silent. */
 function defaultInternalErrorSink(context: RunInternalErrorContext): void {
-  // eslint-disable-next-line no-console
-  console.error(`[@jini-ai/http-kit] internal error (${context.source}, correlationId=${context.correlationId})`, redactSecrets({ input: inspect(context.error) }, { redactPii: false }));
+  createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/http-kit] internal error (${context.source}, correlationId=${context.correlationId})` }, { error: redactSecrets({ input: inspect(context.error) }, { redactPii: false }) });
 }
 
 export interface RunCreateRequest {

@@ -72,6 +72,7 @@ export function useTabLauncherMenu<TActionCtx = void>(
     onClose,
   } = options;
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const initialOnTrack = useRef(onTrack);
   const [query, setQuery] = useState('');
   const [kindFilter, setKindFilterState] = useState<string>(ALL_KIND_FILTER);
   const [selected, setSelected] = useState(0);
@@ -104,10 +105,9 @@ export function useTabLauncherMenu<TActionCtx = void>(
   }, [selectableCount]);
 
   useEffect(() => {
-    onTrack?.({ type: 'open' });
+    initialOnTrack.current?.({ type: 'open' });
     // Fires once when the menu mounts (it only mounts while open) —
     // deliberately not re-fired on every onTrack identity change.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const setKindFilter = useCallback((kind: string) => {

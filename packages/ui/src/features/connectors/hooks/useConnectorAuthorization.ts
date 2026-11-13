@@ -198,7 +198,6 @@ export function useConnectorAuthorization(
     setCancelFailed((curr) => clearConnectorAuthorizationCancelFailuresForConnected(curr, statuses));
     if (statusChanged) onConnectorsChanged?.();
     return statuses;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [port, setConnectors, onConnectorsChanged]);
 
   const cancelStaleAuthorizations = useCallback(
@@ -262,7 +261,7 @@ export function useConnectorAuthorization(
   // Persist pending state whenever it changes.
   useEffect(() => {
     authPendingStorage.save(pending);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- replacing storage requires rehydrating pending state before writing it.
   }, [pending]);
 
   // Poll statuses while any authorization is in flight.

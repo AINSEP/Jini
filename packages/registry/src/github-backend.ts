@@ -23,8 +23,8 @@ import type { RegistryTrustRoot } from './trust.js';
 const SAFE_ENTRY_NAME = /^([a-z0-9][a-z0-9._-]*)\/([a-z0-9][a-z0-9._-]*)$/;
 /** A single safe path/branch segment: alnum-bounded, no separators, no traversal. */
 const SAFE_VERSION = /^[A-Za-z0-9](?:[A-Za-z0-9._+-]*[A-Za-z0-9])?$/;
-// eslint-disable-next-line no-control-regex -- deliberately matching C0/DEL control bytes.
-const CONTROL_CHARS = /[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/;
+// Deliberately match C0/DEL control bytes, while allowing tab, newline, and carriage return.
+const CONTROL_CHARS = /(?![\t\n\r\u0080-\u009F])\p{Cc}/u;
 
 /**
  * Split and validate a registry entry name into safe `vendor`/`name` path

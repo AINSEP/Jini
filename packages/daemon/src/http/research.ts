@@ -94,6 +94,7 @@
  * token out of any upstream error text before it is even logged, belt-and-braces alongside the
  * generic-message substitution.
  */
+import { createConsoleLogger } from '@jini-ai/core/primitives';
 import { inspect } from 'node:util';
 import { redactSecrets } from '@jini-ai/core';
 import { randomUUID } from 'node:crypto';
@@ -151,8 +152,7 @@ export interface ResearchHttpDeps {
 }
 
 function defaultInternalErrorSink(context: ResearchInternalErrorContext): void {
-  // eslint-disable-next-line no-console
-  console.error(`[@jini-ai/http-kit] internal error (research/search, correlationId=${context.correlationId})`, redactSecrets({ input: inspect(context.error) }, { redactPii: false }));
+  createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/http-kit] internal error (research/search, correlationId=${context.correlationId})` }, { error: redactSecrets({ input: inspect(context.error) }, { redactPii: false }) });
 }
 
 /**

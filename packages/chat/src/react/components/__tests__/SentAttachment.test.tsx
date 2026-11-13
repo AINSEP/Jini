@@ -105,6 +105,18 @@ describe('SentAttachmentButton', () => {
     expect(urls.revoked).toEqual(['blob:fake-1']);
   });
 
+  it('revokes the old URL and uses a replacement object URL port', () => {
+    const file = new File(['png'], 'shot.png');
+    cacheAttachmentPreviewSource({ path: IMAGE.path, file });
+    const first = fakeObjectUrls(), second = fakeObjectUrls();
+    const { rerender, unmount } = render(<SentAttachmentButton attachment={IMAGE} onOpen={() => {}} objectUrls={first} />);
+    rerender(<SentAttachmentButton attachment={IMAGE} onOpen={() => {}} objectUrls={second} />);
+    expect(first.revoked).toEqual(['blob:fake-1']);
+    expect(second.created).toEqual([file]);
+    unmount();
+    expect(second.revoked).toEqual(['blob:fake-1']);
+  });
+
   it('lets a host renderAttachment win and makes no thumbnail for it', () => {
     cacheAttachmentPreviewSource({ path: IMAGE.path, file: new File(['png'], 'shot.png') });
     const urls = fakeObjectUrls();

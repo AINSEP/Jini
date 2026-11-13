@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent, type RefObject } from 'react';
 
 /**
  * @file `RowMenu`'s open/close state, viewport-aware positioning, and keyboard/focus behavior,
@@ -127,11 +127,11 @@ export function useRowMenu(
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   itemRefs.current = itemRefs.current.slice(0, itemCount);
 
-  function close(returnFocus: boolean) {
+  const close = useCallback((returnFocus: boolean) => {
     setAnchor(null);
     setPosition(null);
     if (returnFocus) triggerRef.current?.focus();
-  }
+  }, []);
 
   function openAt(index: number) {
     setActiveIndex(index);
@@ -150,8 +150,7 @@ export function useRowMenu(
       else stop();
     };
     // `close` only touches state setters and `triggerRef`, all stable across renders.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [anchor, window, document]);
+  }, [anchor, window, document, close]);
 
   // Keeps real DOM focus on the active item (roving focus via `tabIndex={-1}` on every item except
   // the active one) rather than only tracking `activeIndex` in state — arrow-key navigation needs

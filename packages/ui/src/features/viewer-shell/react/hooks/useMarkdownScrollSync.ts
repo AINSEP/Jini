@@ -185,7 +185,7 @@ export function useMarkdownScrollSync(options: UseMarkdownScrollSyncOptions): Us
     const sourcePane = activePaneRef.current;
     const targetPane = sourcePane === 'preview' ? 'editor' : 'preview';
     scheduleScrollSync(sourcePane, targetPane);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- resyncKey intentionally re-triggers this on preview content changes.
+    // resyncKey intentionally re-triggers this on preview content changes.
   }, [mode, resyncKey, scheduleScrollSync]);
 
   return { handleEditorScroll, handlePreviewScroll, activatePane };

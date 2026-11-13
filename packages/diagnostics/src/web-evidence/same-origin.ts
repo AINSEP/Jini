@@ -45,8 +45,8 @@ const MAX_PATH_LENGTH = 2048;
 /** Raw C0 controls, DEL, and whitespace — the characters that let a crafted string mean one thing
  *  to a validator and another to a URL parser. Mirrors `packages/http-kit/src/verified-origin/origin.ts`'s
  *  `normalizeOriginCandidate`, which rejects the same class for the same reason. */
-// biome-ignore lint/suspicious/noControlCharactersInRegex: matching control characters is the entire purpose — a raw CR/LF/NUL in a path is exactly the smuggling vector this refuses.
-const FORBIDDEN_CHARACTERS = /[\u0000-\u0020\u007f]/;
+// A raw CR/LF/NUL in a path is exactly the smuggling vector this refuses.
+const FORBIDDEN_CHARACTERS = /(?![\u0080-\u009F])[\p{Cc} ]/u;
 
 export type SitePathRejectionReason =
   | "empty"

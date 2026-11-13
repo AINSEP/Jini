@@ -65,8 +65,7 @@ export interface PollingVendorAdapter<Meta = undefined> {
  * own `build*` to that same adapter's `parse*` — so erasing it here is sound, unlike the `never`
  * that `VendorAdapterRegistry` uses (which is only sound because every caller re-casts).
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type AnyPollingVendorAdapter = PollingVendorAdapter<any>;
+export type AnyPollingVendorAdapter = PollingVendorAdapter<unknown>;
 
 /** A signed request, ready to hand to `fetch`. */
 export interface SignedVendorRequest {

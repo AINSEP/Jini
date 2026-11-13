@@ -94,7 +94,6 @@ export function sanitizePreviewTitle(text: string): string {
     prev = result;
     result = result.replace(/^~\$/, '').trim();
   } while (result !== prev);
-  // eslint-disable-next-line no-useless-escape
   result = result.replace(/[:#%&*{}\\<>?/+|"]+/g, '-');
   return result.trim();
 }

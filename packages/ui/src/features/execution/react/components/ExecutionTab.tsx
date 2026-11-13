@@ -1,4 +1,4 @@
-import { useEffect, type CSSProperties, type ReactNode } from 'react';
+import { useEffect, useRef, type CSSProperties, type ReactNode } from 'react';
 import { agentHandleProps, agentSubHandle } from '@jini-ai/agentic';
 import { useT } from '../../../i18n/index.js';
 import { DEFAULT_AGENT_CLI_ENV_FIELDS } from '../../constants.js';
@@ -144,6 +144,8 @@ export function ExecutionTab({
    * keying on `apiKey` itself would have done.
    */
   const hasApiKey = config.byok.apiKey.trim().length > 0;
+  const discoveryInputs = useRef({ byok: config.byok, canDiscoverModels });
+  discoveryInputs.current = { byok: config.byok, canDiscoverModels };
 
   // Re-discover models whenever the selected endpoint changes (preset pick,
   // manual protocol switch, or a typed base URL settling on a new value), and
@@ -167,9 +169,9 @@ export function ExecutionTab({
   // `canDiscoverModels` is read here but is deliberately not a dependency — see that prop's doc for why
   // its turning `true` on its own must never probe.
   useEffect(() => {
-    if (config.mode !== 'byok' || typeof port.listModels !== 'function' || !canDiscoverModels) return;
-    loadModels(config.byok);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    const current = discoveryInputs.current;
+    if (config.mode !== 'byok' || typeof port.listModels !== 'function' || !current.canDiscoverModels) return;
+    loadModels(current.byok);
   }, [config.mode, port, loadModels, config.byok.protocol, config.byok.baseUrl, config.byok.providerId, hasApiKey]);
 
   // All a turn to "cannot discover" does: drop the current result and any response still in flight —

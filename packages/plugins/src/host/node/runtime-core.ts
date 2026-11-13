@@ -11,7 +11,7 @@ import { lstat } from "node:fs/promises";
 import path from "node:path";
 import { formatErrorForLog, redactSecrets } from "@jini-ai/core";
 import { createPluginLookupFacade, type PluginLookupPort } from "@jini-ai/core/plugin-directory";
-import type { Clock as ClockPort } from "@jini-ai/core/primitives";
+import { createConsoleLogger, type Clock as ClockPort } from "@jini-ai/core/primitives";
 import { setPluginEnabled, type PluginActivationRepoPort } from "../activation.js";
 import { initializeBundledPlugins } from "../bundled-initialization.js";
 import { createPluginContributionCapture, createPluginContributionRegistry, type PluginContributionRegistry } from "../contributions.js";
@@ -627,8 +627,7 @@ export function createPluginRuntimeCore<TEvent, TOptions>(
       const reason = describeBootConflictQuarantine({ conflicts: pluginConflicts });
       await quarantinePlugin({ deps: quarantineDeps, input: { pluginId, workspaceId: required.workspaceId, consecutiveFailures: 0, reason } });
       onPluginDisabled(pluginId);
-      // eslint-disable-next-line no-console
-      console.warn(`[plugin-runtime] '${pluginId}' quarantined at boot: ${reason}`);
+      createConsoleLogger({ prefix: '' }).warn({ message: `[plugin-runtime] '${pluginId}' quarantined at boot: ${reason}` });
       quarantined.add(pluginId);
     }
     return quarantined;
@@ -667,8 +666,7 @@ export function createPluginRuntimeCore<TEvent, TOptions>(
       // Fail closed: without a finished conflict pass there is no telling which of two clashing
       // plugins should run, so none is attached this boot (each would previously have failed its
       // own discovery read here anyway). Logged, not thrown — same isolation as a per-plugin failure.
-      // eslint-disable-next-line no-console
-      console.warn(`[plugin-runtime] boot conflict check failed, no plugin attached: ${redactSecrets({ input: error instanceof Error ? error.message : String(error) }, { redactPii: false })}`);
+      createConsoleLogger({ prefix: '' }).warn({ message: `[plugin-runtime] boot conflict check failed, no plugin attached: ${redactSecrets({ input: error instanceof Error ? error.message : String(error) }, { redactPii: false })}` });
       for (const record of enabledHere) onPluginDisabled(record.pluginId);
       return;
     }
@@ -689,12 +687,9 @@ export function createPluginRuntimeCore<TEvent, TOptions>(
       if (discovered.manifest?.tier === "tier-1" || declaresProviders({ manifest: discovered.manifest })) return;
       await attachPlugin(pluginId, discovered);
     } catch (error) {
-      // eslint-disable-next-line no-console
-      console.warn(
-        `[plugin-runtime] boot re-attach failed for '${pluginId}': ${
+      createConsoleLogger({ prefix: '' }).warn({ message: `[plugin-runtime] boot re-attach failed for '${pluginId}': ${
           redactSecrets({ input: error instanceof Error ? error.message : String(error) }, { redactPii: false })
-        }`
-      );
+        }` });
     }
   }
 

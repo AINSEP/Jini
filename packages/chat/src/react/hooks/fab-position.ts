@@ -236,11 +236,9 @@ export function useFabPosition(options: FabPositionInput, _optional: Record<stri
    */
   const dragStart = useRef<DragStart | null>(null);
 
-  /** Bumped to force a re-render on every pointermove and on resize — `liveRef`/`window.innerWidth`
-   *  are read directly in `style`'s `useMemo` below, neither of which React tracks as a reactive
-   *  dependency on its own, so without this counter in that hook's dependency array the memo
-   *  would never invalidate and the FAB would visually freeze mid-drag. */
-  const [renderTick, forceRender] = useState(0);
+  /** Force a render on pointermove and resize so the memo below samples the live position and
+   *  viewport dimensions; React does not observe changes to refs or viewport properties itself. */
+  const [, forceRender] = useState(0);
 
   // Re-clamp on resize/orientationchange — `rightFraction`/`bottomFraction` are already
   // resolution-independent on their own axes, but this still forces a re-render so any consumer
@@ -339,29 +337,29 @@ export function useFabPosition(options: FabPositionInput, _optional: Record<stri
     return dragged;
   }, []);
 
-  // `renderTick`/`isDragging` are read only to force recomputation while dragging (their values
-  // are not otherwise used in the body — the live position comes from `liveRef`/`draggingRef`
-  // directly, per the staleness note above) — expected extra deps, not a lint miss.
-  // biome-ignore lint/correctness/useExhaustiveDependencies: renderTick/isDragging force recompute while dragging; not otherwise used in the body.
+  // Snapshot the live refs and viewport so each forced render recomputes when geometry changes.
+  const live = liveRef.current;
+  const dragging = draggingRef.current;
+  const viewportWidth = window.innerWidth;
+  const viewportHeight = window.innerHeight;
   const style = useMemo(() => {
-    const live = liveRef.current;
-    if (draggingRef.current && live) {
+    if (dragging && live) {
       // Clamped live so a fast drag can't throw the FAB fully off-screen mid-gesture, only to
       // have it snap back on release — the same margin used for the resting position below.
       return {
-        right: clamp(live.right, FAB_EDGE_MARGIN, window.innerWidth - FAB_EDGE_MARGIN - FAB_SIZE_PX),
-        bottom: clamp(live.bottom, FAB_EDGE_MARGIN, window.innerHeight - FAB_EDGE_MARGIN - FAB_SIZE_PX),
+        right: clamp(live.right, FAB_EDGE_MARGIN, viewportWidth - FAB_EDGE_MARGIN - FAB_SIZE_PX),
+        bottom: clamp(live.bottom, FAB_EDGE_MARGIN, viewportHeight - FAB_EDGE_MARGIN - FAB_SIZE_PX),
       };
     }
     const rightPx = clamp(
-      persisted.rightFraction * window.innerWidth,
+      persisted.rightFraction * viewportWidth,
       FAB_EDGE_MARGIN,
-      window.innerWidth - FAB_EDGE_MARGIN - FAB_SIZE_PX,
+      viewportWidth - FAB_EDGE_MARGIN - FAB_SIZE_PX,
     );
     const bottomPx = clamp(
-      persisted.bottomFraction * window.innerHeight,
+      persisted.bottomFraction * viewportHeight,
       FAB_EDGE_MARGIN,
-      window.innerHeight - FAB_EDGE_MARGIN - FAB_SIZE_PX,
+      viewportHeight - FAB_EDGE_MARGIN - FAB_SIZE_PX,
     );
     // While the dock/sheet is open, hold clear of it — but only at the UNTOUCHED default spot or a
     // migrated legacy one (`!persisted.pinnedByUser`); an operator who explicitly dragged the FAB
@@ -395,7 +393,7 @@ export function useFabPosition(options: FabPositionInput, _optional: Record<stri
     const effectiveBottom = clamp(
       avoidDock ? Math.max(bottomPx, avoidBottomPx + FAB_EDGE_MARGIN) : bottomPx,
       FAB_EDGE_MARGIN,
-      Math.max(FAB_EDGE_MARGIN, window.innerHeight - FAB_EDGE_MARGIN - FAB_SIZE_PX),
+      Math.max(FAB_EDGE_MARGIN, viewportHeight - FAB_EDGE_MARGIN - FAB_SIZE_PX),
     );
     // Same shape, same clamp, and the clamp is load-bearing for the same reason: `avoidRightPx` is
     // a raw pixel measurement of another element, so a dock wider than the viewport allows would
@@ -403,10 +401,10 @@ export function useFabPosition(options: FabPositionInput, _optional: Record<stri
     const effectiveRight = clamp(
       avoidDock ? Math.max(rightPx, avoidRightPx + FAB_EDGE_MARGIN) : rightPx,
       FAB_EDGE_MARGIN,
-      Math.max(FAB_EDGE_MARGIN, window.innerWidth - FAB_EDGE_MARGIN - FAB_SIZE_PX),
+      Math.max(FAB_EDGE_MARGIN, viewportWidth - FAB_EDGE_MARGIN - FAB_SIZE_PX),
     );
     return { right: effectiveRight, bottom: effectiveBottom };
-  }, [persisted, dockOpen, avoidBottomPx, avoidRightPx, renderTick, isDragging]);
+  }, [persisted, dockOpen, avoidBottomPx, avoidRightPx, live, dragging, viewportWidth, viewportHeight, FAB_EDGE_MARGIN, FAB_SIZE_PX]);
 
   return { style, onPointerDown, consumeDragFlag, isDragging };
 }
