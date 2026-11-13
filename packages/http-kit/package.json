@@ -17,7 +17,9 @@
       "./middleware": "node",
       "./verified-origin": "universal",
       "./observability": "node",
-      "./html-response": "node"
+      "./html-response": "node",
+      "./server-port": "universal",
+      "./node-bridge": "node"
     },
     "runtime": "node"
   },
@@ -55,6 +57,16 @@
       "types": "./dist/html-response.d.ts",
       "import": "./dist/html-response.js",
       "default": "./dist/html-response.js"
+    },
+    "./server-port": {
+      "types": "./dist/server-port.d.ts",
+      "import": "./dist/server-port.js",
+      "default": "./dist/server-port.js"
+    },
+    "./node-bridge": {
+      "types": "./dist/node-bridge.d.ts",
+      "import": "./dist/node-bridge.js",
+      "default": "./dist/node-bridge.js"
     }
   },
   "files": [

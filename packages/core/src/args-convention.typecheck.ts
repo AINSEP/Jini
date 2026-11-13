@@ -83,7 +83,7 @@ function checkApprovalPorts(required: {
 void checkApprovalPorts;
 
 // The server contract: named required args for registration and handlers.
-import type { Server, ServerHandler, ServerRoute } from './contracts/server.js';
+import type { Server, ServerHandler, ServerMiddleware, ServerRoute } from './contracts/server.js';
 declare const app: Server;
 const okHandler: ServerHandler = ({ request, params }) => new Response(`${request.method} ${params.id ?? ''}`);
 app.route({ method: 'GET', path: '/notes/:id', handler: okHandler });
@@ -101,3 +101,13 @@ const listedRoutes: readonly ServerRoute[] = [{ method: 'GET', path: '/notes/:id
 for (const route of listedRoutes) app.route(route);
 // @ts-expect-error A route list entry needs its handler.
 const handlerless: ServerRoute = { method: 'GET', path: '/notes' };
+// Middleware continues with `next()` and hands values to the handler through `locals`.
+const gate: ServerMiddleware = async ({ request, locals, next }) => {
+  if (!request.headers.get('authorization')) return new Response(null, { status: 401 });
+  locals.principal = 'p';
+  return next();
+};
+void gate;
+// @ts-expect-error Middleware returns a Response; it never calls next(error).
+const nextWithError: ServerMiddleware = ({ next }) => next(new Error('x'));
+void nextWithError;

@@ -42,6 +42,34 @@ export type ServerHandler = (
     readonly request: Request;
     readonly params: Readonly<Record<string, string>>;
     readonly client?: { readonly address: string };
+    /**
+     * Per-request values that middleware hands to the handler (what Express calls `res.locals`).
+     * Adapters and `withServerMiddleware` always pass one object per request; it is optional here
+     * only so an adapter written before middleware existed still satisfies the contract.
+     */
+    readonly locals?: Record<string, unknown>;
+  },
+  optionalArgs?: Record<string, never>,
+) => Response | Promise<Response>;
+
+/**
+ * Runs before a route's handler and may answer instead of it. Call `next()` to continue to the
+ * next middleware or the handler and get its `Response` back (to read its status, or to add a
+ * header); return a `Response` without calling `next()` to refuse the request. Write values for
+ * the handler into `locals`. `route` is the registered method + path pattern that matched (for
+ * logs and metrics), never the raw URL.
+ *
+ * @agent-note Middleware never writes to a socket or framework response object, and never
+ * forwards an error by calling something: throw it, and the adapter's error path answers.
+ */
+export type ServerMiddleware = (
+  requiredArgs: {
+    readonly request: Request;
+    readonly params: Readonly<Record<string, string>>;
+    readonly client?: { readonly address: string };
+    readonly locals: Record<string, unknown>;
+    readonly route: { readonly method: ServerMethod; readonly path: string };
+    readonly next: () => Promise<Response>;
   },
   optionalArgs?: Record<string, never>,
 ) => Response | Promise<Response>;

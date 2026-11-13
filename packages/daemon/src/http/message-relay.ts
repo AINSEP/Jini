@@ -1,5 +1,6 @@
-import type { Express, RequestHandler } from 'express';
-import { bearerTokenFromHeader } from '@jini-ai/http-kit';
+import type { Server, ServerHandler } from '@jini-ai/core/contracts/server';
+import { bearerTokenFromHeader, statusForError } from '@jini-ai/http-kit';
+import { jsonResponse, readJsonBody } from '@jini-ai/http-kit/server-port';
 import type { RunScopedCallerResolver } from '../run-credentials.js';
 import type { AgentExecutor } from '../agent-executor/contracts.js';
 
@@ -13,21 +14,21 @@ export interface MessageRelayHttpDeps {
 
 /** Claim a FIFO prefix without I/O. A run credential determines scope; the URL only checks it.
  * Body-supplied scope is refused. A proxy credential or another run's token cannot claim.
- * @returns Express handler; errors go to the host's existing error boundary.
+ * The body is read only after the caller and run are accepted, so a refused caller costs no body read.
+ * @returns `Server` handler; a failure rejects it, and the host adapter's error path answers.
  * @complexity O(claimed text bytes); no storage or network work outside the existing event FIFO.
  */
-export function createMessageRelayClaimHandler({ agentExecutor, runScopedCallers }: MessageRelayHttpDeps, _options = {}): RequestHandler {
-  return (req, res, next) => {
-    try {
-      const token = bearerTokenFromHeader({ header: req.get('authorization') });
-      const caller = resolveRelayCaller({ token, runScopedCallers });
-      if (runScopedCallers && !caller) { res.status(401).json({ error: { code: 'UNAUTHENTICATED', message: 'a live run credential is required' } }); return; }
-      const runId = caller?.runId ?? req.params.runId;
-      if (!runId || runId !== req.params.runId) { res.status(404).json({ error: { code: 'NOT_FOUND', message: 'run was not found' } }); return; }
-      const body: unknown = req.body;
-      if (!validClaim(body)) { res.status(400).json({ error: { code: 'BAD_REQUEST', message: 'body must contain only via: tool-result or check_messages' } }); return; }
-      res.json({ messages: agentExecutor.claimUserMessages({ runId, via: body.via }) });
-    } catch (error) { next(error); }
+export function createMessageRelayClaimHandler({ agentExecutor, runScopedCallers }: MessageRelayHttpDeps, _options = {}): ServerHandler {
+  return async ({ request, params }) => {
+    const token = bearerTokenFromHeader({ header: request.headers.get('authorization') ?? undefined });
+    const caller = resolveRelayCaller({ token, runScopedCallers });
+    if (runScopedCallers && !caller) return jsonResponse({ status: 401, body: { error: { code: 'UNAUTHENTICATED', message: 'a live run credential is required' } } });
+    const runId = caller?.runId ?? params.runId;
+    if (!runId || runId !== params.runId) return jsonResponse({ status: 404, body: { error: { code: 'NOT_FOUND', message: 'run was not found' } } });
+    const body = await readJsonBody({ request });
+    if (!body.ok) return jsonResponse({ status: statusForError({ error: body.error }), body: { error: body.error } });
+    if (!validClaim(body.value)) return jsonResponse({ status: 400, body: { error: { code: 'BAD_REQUEST', message: 'body must contain only via: tool-result or check_messages' } } });
+    return jsonResponse({ status: 200, body: { messages: agentExecutor.claimUserMessages({ runId, via: body.value.via }) } });
   };
 }
 
@@ -43,6 +44,6 @@ function validClaim(body: unknown): body is { via: 'tool-result' | 'check_messag
 }
 
 /** Mount behind the host's existing daemon gate; allow this POST for live run credentials there. */
-export function registerMessageRelayRoutes({ app, ...deps }: { app: Express } & MessageRelayHttpDeps, _options = {}): void {
-  app.post('/api/runs/:runId/messages/claim', createMessageRelayClaimHandler(deps));
+export function registerMessageRelayRoutes({ app, ...deps }: { app: Server } & MessageRelayHttpDeps, _options = {}): void {
+  app.route({ method: 'POST', path: '/api/runs/:runId/messages/claim', handler: createMessageRelayClaimHandler(deps) });
 }

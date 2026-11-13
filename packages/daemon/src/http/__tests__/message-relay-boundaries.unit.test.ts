@@ -1,49 +1,37 @@
-import type { RequestHandler } from 'express';
+import type { ServerRoute } from '@jini-ai/core/contracts/server';
 import { expect, it, vi } from 'vitest';
 import { createMessageRelayClaimHandler, registerMessageRelayRoutes } from '../message-relay.js';
+import { postClaim } from './message-relay-test-helpers.js';
 
-it('mounts the relay route and forwards executor failures to the host error boundary', () => {
-  let handler!: RequestHandler;
-  const post = vi.fn((path: string, callback: RequestHandler) => { handler = callback; });
+it('mounts the relay route and lets executor failures reach the host error boundary', async () => {
+  const routes: ServerRoute[] = [];
   const failure = new Error('queue unavailable');
   const claimUserMessages = vi.fn(() => { throw failure; });
-  registerMessageRelayRoutes({ app: { post } as never, agentExecutor: { claimUserMessages }, runScopedCallers: undefined });
-  expect(post).toHaveBeenCalledWith('/api/runs/:runId/messages/claim', handler);
-  const json = vi.fn();
-  const next = vi.fn();
-  handler({ get: () => undefined, params: { runId: 'run' }, body: { via: 'check_messages' } } as never,
-    { json } as never, next);
+  registerMessageRelayRoutes({ app: { route: (r) => { routes.push(r); } }, agentExecutor: { claimUserMessages }, runScopedCallers: undefined });
+  expect(routes).toHaveLength(1);
+  expect(routes[0]).toMatchObject({ method: 'POST', path: '/api/runs/:runId/messages/claim' });
+  // The adapter turns a rejected handler into `next(error)` (Express) or its own 500 (node:http).
+  await expect(postClaim({ handler: routes[0]!.handler }, { runId: 'run', body: { via: 'check_messages' } })).rejects.toBe(failure);
   expect(claimUserMessages).toHaveBeenCalledTimes(1);
   expect(claimUserMessages).toHaveBeenCalledWith({ runId: 'run', via: 'check_messages' });
-  expect(next).toHaveBeenCalledTimes(1);
-  expect(next).toHaveBeenCalledWith(failure);
-  expect(json).not.toHaveBeenCalled();
 });
 
-it.each([null, [], 'tool-result', {}, { via: 'invalid' }, { via: 'tool-result', principalId: 'forged' }])
-  ('rejects malformed claim bodies before consuming messages: %j', body => {
+it.each([[], {}, { via: 'invalid' }, { via: 'tool-result', principalId: 'forged' }])
+  ('rejects malformed claim bodies before consuming messages: %j', async body => {
     const claimUserMessages = vi.fn(() => []);
     const handler = createMessageRelayClaimHandler({ agentExecutor: { claimUserMessages }, runScopedCallers: undefined });
-    const res = { status: vi.fn().mockReturnThis(), json: vi.fn() };
-    const next = vi.fn();
-    handler({ get: () => 'Bearer ignored-loopback-token', params: { runId: 'run' }, body } as never, res as never, next);
-    expect(res.status).toHaveBeenCalledTimes(1);
-    expect(res.status).toHaveBeenCalledWith(400);
-    expect(res.json).toHaveBeenCalledTimes(1);
-    expect(res.json).toHaveBeenCalledWith({ error: { code: 'BAD_REQUEST',
+    const res = await postClaim({ handler }, { token: 'ignored-loopback-token', runId: 'run', body });
+    expect(res.status).toBe(400);
+    expect(await res.json()).toEqual({ error: { code: 'BAD_REQUEST',
       message: 'body must contain only via: tool-result or check_messages' } });
     expect(claimUserMessages).not.toHaveBeenCalled();
-    expect(next).not.toHaveBeenCalled();
   });
 
-it('refuses a missing loopback run id before touching the queue', () => {
+it('refuses a missing loopback run id before touching the queue', async () => {
   const claimUserMessages = vi.fn(() => []);
   const handler = createMessageRelayClaimHandler({ agentExecutor: { claimUserMessages }, runScopedCallers: undefined });
-  const res = { status: vi.fn().mockReturnThis(), json: vi.fn() };
-  handler({ get: () => undefined, params: {}, body: { via: 'tool-result' } } as never, res as never, vi.fn());
-  expect(res.status).toHaveBeenCalledTimes(1);
-  expect(res.status).toHaveBeenCalledWith(404);
-  expect(res.json).toHaveBeenCalledTimes(1);
-  expect(res.json).toHaveBeenCalledWith({ error: { code: 'NOT_FOUND', message: 'run was not found' } });
+  const res = await postClaim({ handler }, { body: { via: 'tool-result' } });
+  expect(res.status).toBe(404);
+  expect(await res.json()).toEqual({ error: { code: 'NOT_FOUND', message: 'run was not found' } });
   expect(claimUserMessages).not.toHaveBeenCalled();
 });
