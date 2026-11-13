@@ -1,4 +1,4 @@
-import { formatErrorForLog } from '@jini-ai/core';
+import { describeErrorForLog } from '@jini-ai/core';
 
 export interface CommerceWorkerRequired {
   /** Only the serving owner schedules jobs; daemon/client compositions never do. */
@@ -34,7 +34,7 @@ export function createSettlementWorker(required: CommerceWorkerRequired, optiona
   async function stillOwner(): Promise<boolean> {
     if (closed) return false;
     try { await assertOwned?.(); return true; } catch (error) {
-      required.warn(`Payment settlement ownership was lost; this process stopped its worker. Cause: ${formatErrorForLog({ error })}`); return false;
+      required.warn(`Payment settlement ownership was lost; this process stopped its worker. Cause: ${describeErrorForLog({ err: error })}`); return false;
     }
   }
   async function hasWork(): Promise<boolean> {
@@ -47,7 +47,7 @@ export function createSettlementWorker(required: CommerceWorkerRequired, optiona
       if (!await hasWork()) { finish?.(); return; }
       await required.run(); delayed = false;
     } catch (error) {
-      if (!delayed) required.warn(`Payment settlement is delayed; recorded payments will retry automatically. Cause: ${formatErrorForLog({ error })}`);
+      if (!delayed) required.warn(`Payment settlement is delayed; recorded payments will retry automatically. Cause: ${describeErrorForLog({ err: error })}`);
       delayed = true;
     }
     if (!closed) cancel = schedule(() => {
@@ -60,7 +60,7 @@ export function createSettlementWorker(required: CommerceWorkerRequired, optiona
     try {
       if (!await hasWork()) return;
       if (!closed) cancel = schedule(() => { cancel = undefined; void worker.kick(); }, 5000);
-    } catch (error) { required.warn(`Payment settlement ownership retry is delayed; recorded work remains queued. Cause: ${formatErrorForLog({ error })}`); }
+    } catch (error) { required.warn(`Payment settlement ownership retry is delayed; recorded work remains queued. Cause: ${describeErrorForLog({ err: error })}`); }
   }
   const worker = {
     async kick() {
@@ -78,7 +78,7 @@ export function createSettlementWorker(required: CommerceWorkerRequired, optiona
         if (!result.acquired && !ownershipBlocked) required.warn('Another serving process owns payment settlement for this database.');
         ownershipBlocked = !result.acquired;
       }).catch((error: unknown) => {
-        if (!ownershipBlocked) required.warn(`Payment settlement ownership could not be acquired; recorded payments remain queued. Cause: ${formatErrorForLog({ error })}`);
+        if (!ownershipBlocked) required.warn(`Payment settlement ownership could not be acquired; recorded payments remain queued. Cause: ${describeErrorForLog({ err: error })}`);
         ownershipBlocked = true;
       })
         .finally(async () => { holding = undefined; started(); checking = retryOwnership(); await checking; checking = undefined; });

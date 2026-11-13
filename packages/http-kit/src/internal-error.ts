@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { formatErrorForLog } from '@jini-ai/core';
+import { describeErrorForLog } from '@jini-ai/core';
 import { createApiError, type ApiError } from '@jini-ai/protocol';
 
 /** What every host `onInternalError` sink receives besides the route's own fields: never shown to the caller. */
@@ -13,7 +13,7 @@ export type RouteInternalErrorSink<C extends RouteInternalErrorContext = RouteIn
 
 /**
  * The one incident path for an unexpected failure inside a Jini HTTP route (SEC-005): the host
- * sink (or the redacted default log) gets the real error under a fresh request ID; the caller gets
+ * sink gets the real error under a fresh request ID (or the default log gets its class/code only); the caller gets
  * `message` (plain words: what failed + what to do) and the same ID, never the raw error.
  * Every route pack's `onInternalError` seam goes through here, so the sink-failure and default-log
  * behaviour is the same everywhere.
@@ -22,7 +22,7 @@ export type RouteInternalErrorSink<C extends RouteInternalErrorContext = RouteIn
  * @param required.message Caller-facing plain words. Never the raw error or a generic "internal error".
  * @param optional.onInternalError Host sink. A throwing sink never replaces the answer.
  * @returns The `INTERNAL_ERROR` ApiError carrying `requestId`.
- * @complexity O(1) besides the sink and the redaction of one error.
+ * @complexity O(1) besides the sink.
  */
 export function reportRouteInternalError<E extends { readonly error: unknown }>(
   required: { readonly report: E; readonly logSource: string; readonly message: string },
@@ -45,12 +45,15 @@ function deliverRouteInternalError<C extends RouteInternalErrorContext>(
     // sink's own failure, so neither is lost and the route still answers.
     logRouteInternalError({ context, logSource });
     // eslint-disable-next-line no-console
-    console.error(`[@jini-ai/http-kit] internal error sink failed (${logSource}, correlationId=${context.correlationId})`, formatErrorForLog({ error: sinkError }));
+    console.error(`[@jini-ai/http-kit] internal error sink failed (${logSource}, correlationId=${context.correlationId})`, describeErrorForLog({ err: sinkError }));
   }
 }
 
 function logRouteInternalError({ context, logSource }: { readonly context: RouteInternalErrorContext; readonly logSource: string }): void {
   // Default sink of a library route; hosts inject their own through `onInternalError`.
+  // Safe metadata only (class + constant code + request ID): a route's error can quote request
+  // input or a credential that no default redaction pattern recognises. The host sink gets the
+  // original error and decides what its own log may keep.
   // eslint-disable-next-line no-console
-  console.error(`[@jini-ai/http-kit] internal error (${logSource}, correlationId=${context.correlationId})`, formatErrorForLog({ error: context.error }));
+  console.error(`[@jini-ai/http-kit] internal error (${logSource}, correlationId=${context.correlationId})`, describeErrorForLog({ err: context.error }));
 }
