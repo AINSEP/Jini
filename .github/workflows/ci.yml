@@ -17,11 +17,9 @@
 # interface-shape mismatch after `DomPageDriverPage` gained a `label` field) was small and
 # mechanical enough to just fix directly; it runs here unmodified and fully blocking.
 #
-# `pnpm complexity` runs too, but purely for visibility, not as a blocking gate: `complexity` and
-# `sonarjs/cognitive-complexity` are configured `warn`, not `error`, repo-wide (`eslint.config.mjs`),
-# so this step cannot fail CI as configured — it currently reports ~15.6k warnings. Turning that into
-# a real gate (à la Tovu's `apps/admin`-scoped `check:admin-complexity-drift` ratchet) is a
-# repo-wide initiative at a much larger scale than guard's 25, and deliberately out of scope here.
+# `pnpm check:complexity` blocks new or worsened production-function complexity above 10/10,
+# and requires resolved entries to be removed from `scripts/complexity-debt.json`. It also checks
+# that the debt list has not grown relative to the base commit.
 #
 # 2026-08-17: `push: branches: [main]` meant this workflow had NEVER fired since it was added the
 # day before — all Jini work happens on `general-work` (Tovu and Jini are developed in lockstep on
@@ -49,6 +47,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: pnpm/action-setup@v4
 
@@ -88,12 +88,11 @@ jobs:
         run: pnpm test:agent-plugins:content
         continue-on-error: true
 
-      # Not gated with continue-on-error/an id checked below: `complexity` and
-      # `sonarjs/cognitive-complexity` are `warn`-level repo-wide, so this step cannot exit non-zero
-      # as currently configured — it is here purely so the warning count is visible in every run's
-      # log, not to block anything.
-      - name: complexity (informational — warn-level, cannot fail; visibility only)
-        run: pnpm complexity
+      - name: complexity (blocking ratchet)
+        env:
+          COMPLEXITY_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+          COMPLEXITY_FIRST_PUSH_COMMIT: ${{ github.event.commits[0].id }}
+        run: pnpm check:complexity
 
       - name: SonarJS (report-only; counts per rule)
         if: ${{ !cancelled() }}
