@@ -91,7 +91,7 @@ test('lost PostgreSQL session ownership stops future cycles and releases the wor
   assert.equal(warnings.length, 1); await worker.close();
 });
 
-test('every settlement warning keeps its plain words and adds the redacted cause with its stack', async () => {
+test('every settlement warning keeps its plain words and adds only the error class (a database error can quote row values)', async () => {
   const failure = () => new Error('connection lost api_key=SECRETSECRETSECRETSECRET');
   const cases: { name: string; expected: string; worker: (warn: (message: string) => void) => { kick(): Promise<void>; close(): Promise<void> }; trigger?: (timers: (() => void)[]) => void }[] = [];
   let valid = true;
@@ -116,10 +116,7 @@ test('every settlement warning keeps its plain words and adds the redacted cause
     const worker = make(message => warnings.push(message));
     await worker.kick(); trigger?.(timers); await tick();
     const warning = warnings.find(text => text.startsWith(expected));
-    assert.ok(warning?.startsWith(`${expected} Cause: `), `${name}: ${warnings.join(' | ')}`);
-    assert.match(warning, /connection lost/, name);
-    assert.match(warning, /settlement-worker\.unit\.test\.ts/, name);
-    assert.doesNotMatch(warning, /SECRETSECRET/, name);
+    assert.equal(warning, `${expected} Cause: Error`, `${name}: ${warnings.join(' | ')}`);
     await worker.close();
   }
 });
