@@ -153,6 +153,13 @@ function isMcpContentEnvelope(payload: unknown): payload is { content: readonly 
   return Array.isArray(content) && content.every(isPassthroughContentBlock);
 }
 
+/** A payload is an error when it flags itself so or reports a failed batch outcome. */
+function isErrorPayload({ payload }: { payload: unknown }, _optional = {}): boolean {
+  const outcome = batchOutcomeFor({ output: payload });
+  const flaggedError = typeof payload === 'object' && payload !== null && 'isError' in payload && payload.isError === true;
+  return flaggedError || outcome === 'partial_failure' || outcome === 'error';
+}
+
 /**
  * Wraps a tool result as an MCP `CallToolResult`, preserving explicit errors and failed batch outcomes.
  *
@@ -167,9 +174,7 @@ function isMcpContentEnvelope(payload: unknown): payload is { content: readonly 
  * envelope or batch; O(1) otherwise.
  */
 export function okResult({ payload }: { payload: unknown }): CallToolResult {
-  const outcome = batchOutcomeFor({ output: payload });
-  const flaggedError = typeof payload === 'object' && payload !== null && 'isError' in payload && payload.isError === true;
-  const isError = flaggedError || outcome === 'partial_failure' || outcome === 'error';
+  const isError = isErrorPayload({ payload });
   if (isMcpContentEnvelope(payload)) {
     return { content: payload.content as CallToolResult['content'],
       ...(isRecord(payload.structuredContent) ? { structuredContent: payload.structuredContent } : {}),

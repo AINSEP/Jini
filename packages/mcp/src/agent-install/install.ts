@@ -462,6 +462,11 @@ function installedLaunchMatches({ entry, expected }: { entry: unknown; expected:
   const actual = entry as Record<string, unknown>;
   const wanted = expected as Record<string, unknown>;
   if (actual.disabled === true || actual.command !== wanted.command) return false;
+  return sameArgsAndEnv({ actual, wanted });
+}
+
+/** Args and env match by value; a missing list or map counts as empty. */
+function sameArgsAndEnv({ actual, wanted }: { actual: Record<string, unknown>; wanted: Record<string, unknown> }, _optional = {}): boolean {
   if (JSON.stringify(actual.args ?? []) !== JSON.stringify(wanted.args ?? [])) return false;
   return JSON.stringify(actual.env ?? {}) === JSON.stringify(wanted.env ?? {});
 }

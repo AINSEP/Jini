@@ -368,7 +368,7 @@ export function createFrontendSessionBridge(
   }
 
   /** Adopt a fresh attachment: drop work from the previous one, then release every waiter. */
-  function attach({ frame }: { frame: Extract<FrameReading, { kind: 'attached' }> }): void {
+  function attach({ frame }: { frame: Extract<FrameReading, { kind: 'attached' }> }, _optional = {}): void {
     abortPending();
     sessionId = frame.sessionId;
     currentBindToken = frame.bindToken;
