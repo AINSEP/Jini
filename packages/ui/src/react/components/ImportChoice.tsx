@@ -2,7 +2,7 @@
 // / "Upload zip" / "Upload folder"). Origin: `ImportChoice` in
 // `PluginsView.tsx` (OD), verbatim structural port — all copy
 // (title/body) is supplied by the caller as props, so there was nothing
-// product-specific to strip. See packages/ui/source-map.md.
+// product-specific to strip. See archived UI source map.
 
 import { Icon, type IconName } from './Icon.js';
 

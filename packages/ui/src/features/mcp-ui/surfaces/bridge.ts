@@ -21,7 +21,7 @@ export type { BridgeScriptSpec } from '@jini-ai/core/contracts/cards';
  *
  * The community `@mcp-ui/client` SDK accepts a legacy, non-JSON-RPC action —
  * `{ type: 'tool', payload: { toolName, params } }` — and the reference implementation's
- * `delete-confirmation-ui.ts` emits exactly that. This bridge emits the JSON-RPC
+ * original post-deletion confirmation surface emitted exactly that. This bridge emits the JSON-RPC
  * `tools/call` request from {@link MCP_UI_VIEW_METHODS} instead, and emits **only** that.
  *
  * That is a real divergence from the brief this module was built to, and it is deliberate: the two

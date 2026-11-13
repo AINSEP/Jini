@@ -2,7 +2,8 @@
 // transport — every transition is a synchronous function call, so the
 // ordering rules below hold by construction and are directly unit-testable
 // without renderHook/act/deferred promises (see useMemoryExtractions.store.test.ts).
-// Owned by exactly one hook (unlike rules.ts/formatters.ts, which are shared
+// Owned by exactly one hook (unlike packages/ui/src/features/memory/rules.ts and
+// packages/ui/src/features/memory/formatters.ts, which are shared
 // across the memory slice's hooks), hence colocated here rather than at the
 // slice root.
 //

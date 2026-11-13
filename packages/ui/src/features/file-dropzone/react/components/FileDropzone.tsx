@@ -72,7 +72,7 @@ export interface FileDropzoneProps {
  * file-dialog cancel-vs-still-loading detection heuristic and a plain
  * staged-names list). Both are the same underlying interaction — native
  * drag/drop + click-to-browse resolving to a flat `File[]` — configured
- * differently; see `packages/ui/source-map.md` for the full writeup.
+ * differently; see `archived UI source map` for the full writeup.
  */
 export function FileDropzone({
   label,

@@ -4,7 +4,7 @@
 // hardcoded its "Import"/"Importing…" button copy directly in JSX (title/
 // body/fileLabel were already caller-supplied props); that copy now goes
 // through `useT()` per this package's i18n policy. See
-// packages/ui/source-map.md.
+// archived UI source map.
 
 import { useT } from '../../features/i18n/index.js';
 

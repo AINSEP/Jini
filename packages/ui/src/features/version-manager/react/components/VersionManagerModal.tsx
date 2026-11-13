@@ -30,7 +30,7 @@ export interface VersionManagerModalProps<TVersion extends VersionRecord> {
 /**
  * The generic slice of the source's `FileVersionManagerModal`: a list +
  * cached-preview + restore + search modal shell. See
- * `packages/ui/source-map.md`'s `html-viewer` classification section for
+ * `archived UI source map`'s `html-viewer` classification section for
  * what was dropped (deploy/analytics calls — there were none; the actual
  * fetch/restore/preview-resolution calls became the injected
  * `VersionManagerPort`).

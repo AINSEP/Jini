@@ -103,13 +103,13 @@ export function formDatesLines(
   const updated = formDateDisplay({ iso: form.updatedAt, locale }, options);
   if (created.text === updated.text) {
     const label = t("Created {created} · Updated {updated}")
-      .replace("{created}", created.full)
-      .replace("{updated}", updated.full);
+      .replace("{created}", () => created.full)
+      .replace("{updated}", () => updated.full);
     return [{ kind: "both", text: created.text, dateTime: created.dateTime, label }];
   }
   return [
-    { kind: "created", text: created.text, dateTime: created.dateTime, label: t("Created {date}").replace("{date}", created.full) },
-    { kind: "updated", text: updated.text, dateTime: updated.dateTime, label: t("Updated {date}").replace("{date}", updated.full) },
+    { kind: "created", text: created.text, dateTime: created.dateTime, label: t("Created {date}").replace("{date}", () => created.full) },
+    { kind: "updated", text: updated.text, dateTime: updated.dateTime, label: t("Updated {date}").replace("{date}", () => updated.full) },
   ];
 }
 

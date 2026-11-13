@@ -37,7 +37,7 @@ export interface SketchEditorProps {
   /** Overrides the default locale → Excalidraw `langCode` mapping. */
   excalidrawLangCode?: (locale: string) => string;
   /** Host translations for Excalidraw's own baked-in English UI text — no
-   *  default translated copy ships (see `packages/ui/source-map.md`). */
+   *  default translated copy ships (see `archived UI source map`). */
   domTextOverrides?: SketchDomTextOverrides;
   tooltipTargets?: readonly SketchTooltipTarget[];
   contextMenuActionOrder?: readonly string[];
@@ -100,7 +100,7 @@ function sketchToastActionProps({
  * orchestration with content-signature deduping, and a DOM-enhancement
  * toolkit (tooltips, simplified context menu, DOM text overrides, portal
  * polish) that makes embedding a third-party editor with no extension
- * hooks feel native. See `packages/ui/source-map.md` for what stayed
+ * hooks feel native. See `archived UI source map` for what stayed
  * behind (the source product's legacy pre-Excalidraw item migration, its
  * `.sketch.json` naming convention, and its own translated copy).
  */

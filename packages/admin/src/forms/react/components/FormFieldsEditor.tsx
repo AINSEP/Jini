@@ -167,7 +167,7 @@ export function FormFieldsEditor({
                     ref={ref}
                     type="button"
                     className="row-menu-trigger"
-                    aria-label={t('Settings for field "{name}"').replace("{name}", displayName)}
+                    aria-label={t('Settings for field "{name}"').replace("{name}", () => displayName)}
                     onClick={onAttributes}
                     {...agentHandle({ handle: `${base}-attributes` }, {
                       role: "button",

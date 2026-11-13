@@ -1,5 +1,5 @@
 // NOTE: verified zero real consumers in the vendored source snapshot before
-// porting (see packages/ui/source-map.md) — shipped anyway since it's small,
+// porting (see archived UI source map) — shipped anyway since it's small,
 // self-contained, and correct; a host may still find it useful as a select
 // primitive with grouped options and optional portal-rendered menu.
 //

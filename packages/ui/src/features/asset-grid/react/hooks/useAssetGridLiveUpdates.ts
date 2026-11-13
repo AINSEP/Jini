@@ -39,7 +39,7 @@ function applyPendingDeletes<TAsset extends AssetGridItem>({ pendingDelete, pend
  * changed ids, drop the deleted ids) instead of one full reload per event.
  * A burst of many events, a filtered view, or an event with no resolvable
  * id all fall back to a single full reload for that window — see
- * `packages/ui/archived provenance ledger` for why (the original OD comment: "a filtered
+ * `archived UI provenance ledger` for why (the original OD comment: "a filtered
  * view can't predict membership client-side").
  * Disposed subscriptions discard in-flight incremental reads. Failed passes report a
  * fixed diagnostic and request a full reconciliation on the next live event.

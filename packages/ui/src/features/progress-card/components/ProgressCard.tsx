@@ -24,7 +24,7 @@ export interface ProgressCardProps {
  * Generic "run/job in progress" card — a status icon + headline, a progress
  * bar (determinate or indeterminate), a primary step list, and an optional
  * secondary item list. Unifies the source `WorkspaceActivityCard` and
- * `GenerationStatusCard` occurrences; see `packages/ui/source-map.md` for
+ * `GenerationStatusCard` occurrences; see `archived UI source map` for
  * provenance and what was dropped.
  */
 export function ProgressCard({ data, maxSteps = 6, maxSecondaryItems = 5 }: ProgressCardProps) {

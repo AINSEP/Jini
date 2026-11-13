@@ -76,7 +76,7 @@ export * from './annotation-canvas/index.js';
  * tag *and* no matching close tag at all; `html-utils.ts`'s versions do a
  * plain prepend/append in that same edge case instead. Both fallback
  * behaviors are real and independently tested (`html-utils.test.ts` vs.
- * `srcdoc/build.test.ts`'s "falls back to DOMParser" cases), so rather than
+ * `packages/ui/src/renderers/srcdoc/__tests__/build.test.ts`'s "falls back to DOMParser" cases), so rather than
  * pick a winner or let one silently shadow the other under the shared name,
  * `html-utils.ts`'s versions are re-exported here under a `StringOnly`
  * suffix — this is the exact set `sandboxed-document.ts` (this package's

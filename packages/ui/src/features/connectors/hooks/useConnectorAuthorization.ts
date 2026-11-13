@@ -238,7 +238,7 @@ export function useConnectorAuthorization(
           // this stale-sweep success path with a real `pending[id]` entry,
           // `authError[id]` is guaranteed already absent. Left in place
           // (not stripped) as a guard against a future refactor breaking
-          // that invariant — see packages/ui/archived provenance ledger's 2026-07-22
+          // that invariant — see archived UI provenance ledger's 2026-07-22
           // dated entry for the full proof.
           // Correction (2026-10-21 coverage pass): the proof above misses one interleaving. While this
           // sweep's `cancelConnectorAuthorization` call is still awaiting, a `runConnectorAction(id,

@@ -22,7 +22,7 @@ export interface UseSketchDomEnhancementsParams {
   containerRef: RefObject<HTMLElement | null>;
   t: SketchTranslate;
   /** Host-supplied translations for Excalidraw's own baked-in English UI
-   *  text — no default translated copy ships (see `packages/ui/archived provenance ledger`). */
+   *  text — no default translated copy ships (see `archived UI provenance ledger`). */
   domTextOverrides?: SketchDomTextOverrides | undefined;
   tooltipTargets?: readonly SketchTooltipTarget[] | undefined;
   contextMenuActionOrder?: readonly string[] | undefined;

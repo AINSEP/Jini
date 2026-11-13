@@ -48,6 +48,7 @@ export function WidgetsLibrary({ useWidgetsLibraryHook = useWiredWidgetsLibrary 
     t,
     rowHandleById,
   } = useWidgetsLibraryView({ useWidgetsLibraryHook });
+  const pendingTrashTitle = pendingTrash?.title ?? "";
 
   if (error && !widgets) return <div className="notice error">{error}</div>;
   if (!widgets) return <div className="notice">{t("Loading widgets…")}</div>;
@@ -161,7 +162,7 @@ export function WidgetsLibrary({ useWidgetsLibraryHook = useWiredWidgetsLibrary 
         open={pendingTrash !== null}
         agentHandle="widgets-trash"
         title={t("Move to trash?")}
-        body={pendingTrash ? <p>{t('Move "{title}" to trash?').replace("{title}", pendingTrash.title)}</p> : null}
+        body={pendingTrash ? <p>{t('Move "{title}" to trash?').replace("{title}", () => pendingTrashTitle)}</p> : null}
         confirmLabel={t("Move to trash")}
         destructive
         pending={trashing}

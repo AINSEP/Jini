@@ -76,7 +76,7 @@ function clampWidthForMax(width: number, min: number, max: number, effectiveMax:
 // === 'undefined'` SSR guards can be exercised for real under a
 // `@vitest-environment node` companion test — this package's default jsdom
 // environment always defines `window`, so that branch is otherwise
-// unreachable. See `useResizableSplitPane.ssr.test.ts`.
+// unreachable. See `packages/ui/src/react/hooks/__tests__/useResizableSplitPane.test.tsx`.
 export function readSavedWidth(storageKey: string, defaultWidth: number, min: number, max: number): number {
   if (typeof window === 'undefined') return defaultWidth;
   try {

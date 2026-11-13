@@ -176,6 +176,6 @@ export const formsMessagesEn = {
 /** Host translators may replace any key; the default preserves the original English bytes. */
 export const translateForms: FormsTranslator = (key, vars = {}) => {
   let text: string = (formsMessagesEn as Readonly<Record<string, string>>)[key] ?? key;
-  for (const [name, value] of Object.entries(vars)) text = text.replaceAll(`{${name}}`, String(value));
+  for (const [name, value] of Object.entries(vars)) text = text.replaceAll(`{${name}}`, () => String(value));
   return text;
 };

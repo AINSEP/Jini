@@ -6,7 +6,7 @@
  * on that package, and any host whose real types are a structural superset
  * can pass them in directly. Field-level provenance and what was
  * deliberately dropped (a Bash `rm`-command heuristic from the file-ops
- * derivation) are documented in `packages/ui/archived provenance ledger`.
+ * derivation) are documented in `archived UI provenance ledger`.
  *
  * These adapters are shipped as documented reference material, not as the
  * package's primary port surface — a host with its own run/job shape maps

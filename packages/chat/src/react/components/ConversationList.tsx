@@ -279,7 +279,7 @@ export function ConversationList({
         confirmDelete ??
         // Only ever called from a click handler, so a browser `window` always exists here.
         ((c: ConversationListItem) =>
-          window.confirm(t('Delete "{title}"? This cannot be undone.').replace('{title}', c.title ?? t('Untitled'))));
+          window.confirm(t('Delete "{title}"? This cannot be undone.').replace('{title}', () => c.title ?? t('Untitled'))));
       // No optimistic removal — the row stays in `conversations` until the host's own state
       // drops it — so a rejected confirmer or `onDelete` cannot leave a deleted-looking row
       // behind; it only means the item silently never disappears. `onDelete` is the effect name

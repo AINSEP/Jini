@@ -180,7 +180,7 @@ function ConnectorCardHints({
     // holds in that same render, and React re-binds this closure fresh on
     // every render — so a re-check here was dead code for every real
     // click, removed rather than tested around (see
-    // packages/ui/source-map.md's 2026-07-22 dated entry).
+    // archived UI source map's 2026-07-22 dated entry).
     onOpenExternalUrl?.(redirectUrl!);
   }
 

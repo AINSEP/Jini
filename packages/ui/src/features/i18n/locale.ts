@@ -5,7 +5,7 @@
  * a React tree.
  *
  * Origin: `i18n/index.tsx`'s `resolveSystemLocale`/`detectInitialLocale` in
- * the vendored OD web tree. Genericized — see `packages/ui/archived provenance ledger`
+ * the vendored OD web tree. Genericized — see `archived UI provenance ledger`
  * for the full accounting of what was dropped (OD's hard-coded 19-locale
  * list, the desktop-host OS-locale bridge, the manual-vs-auto-detected
  * localStorage tagging).

@@ -36,7 +36,7 @@ export interface TabStripProps extends AgentControlProps {
  * `FileWorkspace.tsx` (a project's file/terminal/browser tab strip)
  * independently hand-rolled. Tab content, order (`tabs`), and active id are
  * fully host-owned; this component only supplies the shared drag/reorder/
- * active/close-button chrome. See `packages/ui/source-map.md`'s
+ * active/close-button chrome. See `archived UI source map`'s
  * `features/tab-strip/` section for what each source shape contributed and
  * what stayed host-specific (hover-preview popover, search-tabs popover,
  * global keyboard shortcuts, and localStorage/route-sync persistence are

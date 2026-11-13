@@ -327,5 +327,6 @@ async function sendDirectRetry({ req, res, deps, slug, error }: { req: Request; 
  * retaining the failed token or adding visitor answers to state. Timing evidence remains unknown.
  * @complexity O(form HTML bytes) time/space; one random identifier, no persistence. */
 function retryAttemptToken(form: string): string {
-  return form.replace(/<\/form>$/, `<input type="hidden" name="${FORM_ATTEMPT_FIELD}" value="${randomUUID()}"></form>`);
+  const replacement = `<input type="hidden" name="${FORM_ATTEMPT_FIELD}" value="${randomUUID()}"></form>`;
+  return form.replace(/<\/form>$/, () => replacement);
 }

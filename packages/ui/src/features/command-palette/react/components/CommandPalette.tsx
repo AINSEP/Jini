@@ -23,7 +23,7 @@ export interface CommandPaletteProps {
  *
  * Origin: `QuickSwitcher.tsx` — the origin's `ProjectFile`/`WorkspaceContextItem`
  * split (files vs. tabs, two different shapes) is replaced by one generic
- * `CommandPaletteItem`; see `packages/ui/source-map.md` for the full
+ * `CommandPaletteItem`; see `archived UI source map` for the full
  * genericization writeup, including why this is a distinct primitive from
  * `features/mention-autocomplete/`.
  */

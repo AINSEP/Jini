@@ -94,7 +94,7 @@ export function createMemoryHttpPorts(
    * `useMemoryConfig.hydrate()`.
    *
    * BUG FIX (ported from the pinned source with this fix applied — see
-   * `packages/ui/archived provenance ledger`): the pinned source validated only `entries`
+   * `archived UI provenance ledger`): the pinned source validated only `entries`
    * here, even though `hydrate()`/`reload()` read `enabled`/`rootDir`/`index`
    * off this same response with no fallback. A malformed `200` like
    * `{ entries: [] }` passed validation and then silently hydrated those other

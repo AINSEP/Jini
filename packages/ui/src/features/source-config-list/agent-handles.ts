@@ -73,7 +73,7 @@ const LIST_ITEM_NAMESPACE = 'item';
  */
 function sanitizeHandleSegment(segment: string): string {
   const separated = segment
-    .replace(/([a-z0-9])([A-Z])/g, `$1${HANDLE_SEPARATOR}$2`)
+    .replace(/([a-z0-9])([A-Z])/g, (_match, first, second) => `${first}${HANDLE_SEPARATOR}${second}`)
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, HANDLE_SEPARATOR);
   return trimChars(separated, '-');

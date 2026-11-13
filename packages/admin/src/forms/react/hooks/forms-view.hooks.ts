@@ -26,7 +26,7 @@ export function useFormsListView({ forms, t, formatFormDates, toggleStatus, setP
   };
   return {
     rows: (forms ?? []).map((form, index) => ({ ...form, rowHandle: rowHandles[index]!, dates: formatFormDates(form),
-      menuLabel: t('Actions for form "{name}"').replace('{name}', form.name),
+      menuLabel: t('Actions for form "{name}"').replace('{name}', () => form.name),
       menuItems: formRowMenuItems({ form, handlers: { onEdit, onToggleStatus: form => { void toggleStatus(form); }, onDelete: setPendingDelete }, t }),
     })),
     cancelDelete: () => setPendingDelete(null), headerActions,

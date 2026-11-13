@@ -27,7 +27,7 @@ export interface BrowserViewportControlsProps {
  * hook (`packages/ui/src/browser/`) rather than a hand-rolled listener pair.
  *
  * Confirmed (2026-07-17) to be the same shape as `FileViewer.tsx`'s
- * `PreviewViewportControls` — see `packages/ui/source-map.md`'s
+ * `PreviewViewportControls` — see `archived UI source map`'s
  * `features/browser-chrome/` section before building a second one.
  */
 export function BrowserViewportControls({

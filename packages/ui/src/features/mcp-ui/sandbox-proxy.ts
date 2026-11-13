@@ -72,7 +72,7 @@
  * configurable away without also breaking the ready/resource-ready handshake, which this package's
  * script needs `window.parent` for regardless of same-origin status). Combined with `document.write`
  * happening in that SAME window, the guest surface gets full same-origin access to whatever origin
- * this proxy page is served from. This is the exact hazard `../protocol.ts`'s `MCP_UI_VIEW_SANDBOX`
+ * this proxy page is served from. This is the exact hazard `packages/ui/src/features/mcp-ui/protocol.ts`'s `MCP_UI_VIEW_SANDBOX`
  * comment warns about for a `srcdoc` frame — and it is why the official guidance is explicit that a
  * production sandbox proxy MUST be served from an origin distinct from the host application's own,
  * so "full same-origin access" only ever reaches an origin that holds nothing sensitive (no cookies,

@@ -2,7 +2,7 @@
 // body. OD's real `runtime/markdown.tsx` (2,881 lines) is chat/artifact
 // rendering territory, explicitly deferred to `@jini-ai/chat`'s `./react` subpath (formerly
 // this package's own `./chat` export, extracted 2026-08-03)/this package's own `./renderers`
-// subpath (see `packages/ui/source-map.md`) — this is a
+// subpath (see `archived UI source map`) — this is a
 // scoped-down local reimplementation covering just this slice's one need:
 // render a memory body's GFM Markdown as read-only preview text. Built on
 // `micromark`, already a real dependency of this package (see

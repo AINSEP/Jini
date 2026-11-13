@@ -78,7 +78,7 @@ export interface TabbedDialogProps<T extends TabbedDialogTab = TabbedDialogTab> 
  * it as the reference host, not a special case this component needs to know about.
  *
  * Proof this is separable from any one tab's content: in the origin `SettingsDialog.tsx`
- * (the 8,538-line vendored OD reference — see `packages/ui/source-map.md`), 8 of its 17
+ * (the 8,538-line vendored OD reference — see `archived UI source map`), 8 of its 17
  * real tabs were already separate files the original component merely mounted — the shell
  * itself never reached into a tab's internals.
  */

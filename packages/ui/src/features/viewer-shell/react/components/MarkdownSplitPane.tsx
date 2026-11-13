@@ -50,7 +50,7 @@ export interface MarkdownSplitPaneProps {
  * one-line description, also without the autosave/debounce-write pipeline,
  * image paste/drop upload, and shiki-based code-block syntax highlighting,
  * all of which are genuinely product/daemon-specific (see
- * `packages/ui/source-map.md` for the full disclosure). A host renders its
+ * `archived UI source map` for the full disclosure). A host renders its
  * own markdown-to-HTML pipeline and passes the result as `previewHtml`.
  */
 export function MarkdownSplitPane({

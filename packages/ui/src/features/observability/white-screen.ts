@@ -89,7 +89,7 @@ export function installWhiteScreenDetector(options: WhiteScreenDetectorOptions =
   // its callback afterward. So neither callback can run after teardown or
   // after the other has finished. The guards (and the then write-only flag)
   // were removed in the 2026-10-21 coverage pass — unreachable code is
-  // refactored away rather than fake-tested; see packages/ui/archived
+  // refactored away rather than fake-tested; see archived UI
   // provenance ledger's 2026-07-22 dated entry for the full proof, same
   // pattern as this package's `stuck-run.ts` `emitStuck`.
   const timer = window.setTimeout(() => {
@@ -151,7 +151,7 @@ function checkAppMounted(options: CheckAppMountedOptions): boolean {
     // only for `Document`/`DocumentType` nodes — for any `Element` it is
     // always a string (possibly `''`). The `?? ''` fallback this used to
     // have was dead code for every real entry here, removed rather than
-    // tested around (see packages/ui/archived provenance ledger's 2026-07-22 dated
+    // tested around (see archived UI provenance ledger's 2026-07-22 dated
     // entry).
     .map((el) => (el as HTMLElement).innerText ?? (el.textContent as string))
     .join('')
@@ -180,7 +180,7 @@ function monitorMount(isAppMounted: () => boolean, onMounted: () => void): () =>
   // about): two synchronous body mutations followed by two microtask
   // flushes produced exactly one callback invocation with `stopped` still
   // `false` at its start, and a further post-disconnect mutation produced
-  // zero more. See packages/ui/archived provenance ledger's 2026-07-22 dated entry for
+  // zero more. See archived UI provenance ledger's 2026-07-22 dated entry for
   // the full record.
   const observer = new MutationObserver(() => {
     if (isAppMounted()) {

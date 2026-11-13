@@ -124,7 +124,7 @@ function ConnectorDrawerAbout({
     // and React re-binds this closure fresh on every render — so a
     // re-check here was dead code for every real click, removed rather
     // than tested around (same pattern as this package's `ConnectorCard.tsx`
-    // precedent; see packages/ui/source-map.md's 2026-07-22 dated entry).
+    // precedent; see archived UI source map's 2026-07-22 dated entry).
     onOpenExternalUrl?.(redirectUrl!);
   }
 
@@ -351,7 +351,7 @@ function useDrawerModalBehavior({
  * Modal detail drawer with a paginated tool list. Keeps its own
  * escape-key-to-close and body-scroll-lock behavior inline (standard modal
  * a11y idioms, not business/transport logic) — see
- * `packages/ui/source-map.md`'s purity-check note for why these two
+ * `archived UI source map`'s purity-check note for why these two
  * `document`/`window` touches were kept here rather than routed through
  * `dependencies.ts`.
  */

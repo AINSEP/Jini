@@ -77,6 +77,6 @@ export const widgetsMessagesEn = {
 /** English fallback with the same interpolation convention as the host. */
 export function widgetsEnglish(key: string, vars?: Record<string, string | number> | undefined): string {
   let message: string = widgetsMessagesEn[key as keyof typeof widgetsMessagesEn] ?? key;
-  for (const [name, value] of Object.entries(vars ?? {})) message = message.replaceAll(`{${name}}`, String(value));
+  for (const [name, value] of Object.entries(vars ?? {})) message = message.replaceAll(`{${name}}`, () => String(value));
   return message;
 }

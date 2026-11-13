@@ -205,7 +205,7 @@ function resolveTitleAndDescription(
 ): { title: string; description: string | undefined } {
   // title is never empty — entry.title is itself validated non-empty at the post write
   // chokepoint, and %s substitution never drops it.
-  const title = overrides.title ?? settings.titleTemplate.replaceAll("%s", post.title);
+  const title = overrides.title ?? settings.titleTemplate.replaceAll("%s", () => post.title);
   const description = overrides.description ?? settings.defaultDescription ?? deriveExcerpt({ post, postRepo });
   return { title, description };
 }

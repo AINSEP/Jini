@@ -112,7 +112,7 @@ function ConnectorsDetailPane({
  * own data lifecycle: fetches the catalog on mount, lazily enriches once
  * `unlocked`, and rehydrates statuses on window focus and OAuth callback
  * messages. Ported from OD's `ConnectorsBrowser.tsx` — see
- * `packages/ui/source-map.md` for full provenance.
+ * `archived UI source map` for full provenance.
  */
 export function ConnectorsBrowser({
   unlocked,

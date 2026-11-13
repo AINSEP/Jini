@@ -94,8 +94,8 @@ export function createExecutionHttpAdapter(
   _options: Record<string, never> = {},
 ) {
   /**
-   * host's real `ExecutionPort` — wired to `src/server/modules/assistant-
-   * execution.ts`'s 3 routes (`@jini-ai/agent-runtime` underneath). Follows
+   * host's real `ExecutionPort` — wired to the 3 routes in
+   * `Tovu apps/website/src/server/inbound/admin-http/routes/assistant/` (`@jini-ai/agent-runtime` underneath). Follows
    * `@jini-ai/ui`'s `ports.ts` contract (error-reporting contract §3.1):
    *
    * - `detectLocalAgents`/`rescanLocalAgents`/`listModels` REJECT on any

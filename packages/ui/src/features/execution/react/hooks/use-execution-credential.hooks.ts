@@ -210,8 +210,9 @@ export function useExecutionCredential<TStored extends ExecutionCredentialView>(
   // `byok` its own closure captured at button-press time. Without this, a provider chip click, a
   // model edit, or a newly typed key made while a key save was in flight was reverted to the
   // click-time config the instant the response landed, and the ledger slice then autosaved that
-  // revert (S1). Assigning a ref during render is the same idiom `use-visitor-credential-
-  // form.hooks.ts`'s `apiRef` uses for the identical reason.
+  // revert (S1). Assigning a ref during render is the same idiom
+  // `Tovu apps/admin/src/features/ai-assistant/hooks/use-visitor-credential-form.hooks.ts`'s
+  // `apiRef` uses for the identical reason.
   const inputRef = useRef<UseExecutionCredentialInput>({ byok, onByokChange });
   inputRef.current = { byok, onByokChange };
 

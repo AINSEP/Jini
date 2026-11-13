@@ -3,7 +3,7 @@
 // single-select or multi-select variant sharing one component. Origin:
 // `OnboardingChipField` in `EntryShell.tsx` (OD), verbatim
 // structural port — label/options come entirely from props, so there was
-// nothing product-specific to strip. See packages/ui/source-map.md.
+// nothing product-specific to strip. See archived UI source map.
 
 export interface OnboardingChipFieldOption {
   value: string;

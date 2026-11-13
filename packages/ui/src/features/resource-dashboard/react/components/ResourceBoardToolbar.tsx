@@ -84,7 +84,7 @@ function ResourceBoardSelectControls({
  * DesignsTab's toolbar: sub-tab sort pills + a create button + search +
  * select-mode/bulk-delete bar (grid view only) + the grid/kanban view
  * toggle. The origin's manual-refresh button and 15s auto-refresh polling
- * are deliberately NOT ported — see `packages/ui/source-map.md`'s "Dropped"
+ * are deliberately NOT ported — see `archived UI source map`'s "Dropped"
  * list; a host wanting that composes its own refresh affordance around the
  * hook's `reload()`.
  */

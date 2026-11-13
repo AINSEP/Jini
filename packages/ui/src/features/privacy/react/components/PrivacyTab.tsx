@@ -99,7 +99,7 @@ function resolveInstallationLabels(
  * mounted by `SettingsDialog.tsx`'s `privacy` tab — flagged "likely
  * generic, not fully verified" by
  * `ADS-memory/reports/jini-port/recon/r6-god-component-internals.md` §1.3; this task is
- * the first full verification (see `packages/ui/source-map.md`).
+ * the first full verification (see `archived UI source map`).
  */
 export function PrivacyTab({ state, onChange, labels, now = Date.now, agentHandle }: PrivacyTabProps) {
   const t = useT();

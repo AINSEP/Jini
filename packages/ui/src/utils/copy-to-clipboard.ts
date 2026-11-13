@@ -43,9 +43,9 @@ export async function copyToClipboard(
     // `finally` clause: this `try`'s own `catch { return false; }` can
     // never itself throw, so a `finally` here would carry v8's synthetic
     // "abrupt completion through finally" branch permanently unreachable —
-    // same dead-branch discipline as this repo's `daemon/tool-executor.ts`
+    // same dead-branch discipline as this repo's `packages/daemon/src/tool-executor.ts`
     // and `packages/ui`'s `useMemoryExtractions.hooks.ts` precedents (see
-    // packages/ui/archived provenance ledger's 2026-07-22 dated entry).
+    // archived UI provenance ledger's 2026-07-22 dated entry).
     const cleanup = () => {
       document.body.removeChild(ta);
       if (priorFocus?.isConnected) {

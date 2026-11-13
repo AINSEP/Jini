@@ -255,7 +255,7 @@ function rewriteOverrideAttributes(root: ParentNode, overrides: SketchDomTextOve
  * Walks `root`'s text nodes and a fixed set of text-bearing attributes,
  * rewriting any that match `overrides`. `overrides` is entirely
  * host-supplied — no translated copy ships as a default (see
- * `packages/ui/archived provenance ledger`).
+ * `archived UI provenance ledger`).
  */
 export function applySketchDomTextOverrides(root: ParentNode, overrides: SketchDomTextOverrides | undefined): void {
   if (!overrides || Object.keys(overrides).length === 0 || typeof document === 'undefined') return;

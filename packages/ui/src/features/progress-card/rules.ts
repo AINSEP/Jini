@@ -31,7 +31,7 @@ export function progressCardStatusLabel(status: ProgressStatus): string {
 
 /** Neutral fallback title used when a host doesn't supply one. Deliberately
  *  generic — the source cards' actual default copy is branded product voice,
- *  not part of the generic component (see `packages/ui/archived provenance ledger`). */
+ *  not part of the generic component (see `archived UI provenance ledger`). */
 export function defaultProgressCardTitle(status: ProgressStatus): string {
   return progressCardStatusLabel(status);
 }

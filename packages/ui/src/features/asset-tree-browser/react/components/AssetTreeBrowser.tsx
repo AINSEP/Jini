@@ -54,7 +54,7 @@ export interface AssetTreeBrowserProps<TFile extends AssetTreeFileItem> {
   thumbnailIsInteractive?: boolean;
   toolbarActions?: readonly AssetTreeToolbarAction[];
   emptyStateActions?: readonly AssetTreeToolbarAction[];
-  /** Host-owned footer slot, rendered below the listing. This package ships no default footer — see `packages/ui/source-map.md` for why. */
+  /** Host-owned footer slot, rendered below the listing. This package ships no default footer — see `archived UI source map` for why. */
   footer?: ReactNode;
   /** Custom hook overrides for dependency injection / testing. */
   useAssetTreeNavigation?: typeof useAssetTreeNavigation;
@@ -69,7 +69,7 @@ export interface AssetTreeBrowserProps<TFile extends AssetTreeFileItem> {
  * batch delete/download, inline rename, a row context menu, drag-and-drop +
  * clipboard-paste upload, and a companion `FilePreviewPane`. Ported from a
  * design-tool origin project's file-manager panel — see
- * `packages/ui/source-map.md` for the full retained-behavior manifest and
+ * `archived UI source map` for the full retained-behavior manifest and
  * everything dropped (the origin's live-artifacts section, plugin-folders
  * section, project menu, rotating-tip footer, and file-kind-specific
  * preview rendering).

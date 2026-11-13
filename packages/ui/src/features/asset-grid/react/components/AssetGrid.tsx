@@ -71,7 +71,7 @@ function withoutAssetIds<TAsset extends AssetGridItem>(
 
 /**
  * A live-updating, filterable, multi-selectable asset grid — the generic
- * pattern behind a photo library / DAM. See `packages/ui/source-map.md` for
+ * pattern behind a photo library / DAM. See `archived UI source map` for
  * the full retained-behavior manifest against the original `LibrarySection.tsx`.
  */
 export function AssetGrid<TAsset extends AssetGridItem>({

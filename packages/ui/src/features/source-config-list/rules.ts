@@ -1,6 +1,6 @@
 /**
  * Pure logic for the generic source-config-list primitive. No React, no
- * transport, no DOM — see `packages/ui/archived provenance ledger` for full provenance.
+ * transport, no DOM — see `archived UI provenance ledger` for full provenance.
  */
 import { isAllowedEndpointUrl } from '../../utils/endpoint-policy.js';
 import { MASK_CHAR, MASKED_VALUE_MIN_MASK_LENGTH, MASKED_VALUE_VISIBLE_SUFFIX_LENGTH } from './constants.js';
