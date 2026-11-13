@@ -12,6 +12,8 @@ export interface MessageRelayHttpDeps {
   readonly runScopedCallers: RunScopedCallerResolver | undefined;
 }
 
+const CLAIM_BODY_MAX_BYTES = 1024;
+
 /** Claim a FIFO prefix without I/O. A run credential determines scope; the URL only checks it.
  * Body-supplied scope is refused. A proxy credential or another run's token cannot claim.
  * The body is read only after the caller and run are accepted, so a refused caller costs no body read.
@@ -25,7 +27,8 @@ export function createMessageRelayClaimHandler({ agentExecutor, runScopedCallers
     if (runScopedCallers && !caller) return jsonResponse({ status: 401, body: { error: { code: 'UNAUTHENTICATED', message: 'a live run credential is required' } } });
     const runId = caller?.runId ?? params.runId;
     if (!runId || runId !== params.runId) return jsonResponse({ status: 404, body: { error: { code: 'NOT_FOUND', message: 'run was not found' } } });
-    const body = await readJsonBody({ request });
+    // The only valid body is `{ via }`; 1 KiB is the limit the production host has always enforced here.
+    const body = await readJsonBody({ request }, { maxBytes: CLAIM_BODY_MAX_BYTES });
     if (!body.ok) return jsonResponse({ status: statusForError({ error: body.error }), body: { error: body.error } });
     if (!validClaim(body.value)) return jsonResponse({ status: 400, body: { error: { code: 'BAD_REQUEST', message: 'body must contain only via: tool-result or check_messages' } } });
     return jsonResponse({ status: 200, body: { messages: agentExecutor.claimUserMessages({ runId, via: body.value.via }) } });
