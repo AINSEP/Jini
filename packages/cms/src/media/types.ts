@@ -51,7 +51,11 @@ export interface MediaSource {
 export type MediaProvenance =
   | { kind: 'url'; url: string }
   | { kind: 'picked-folder'; path: string }
-  | { kind: 'upload' | 'generated'; path?: string | undefined };
+  | { kind: 'upload'; path?: string | undefined }
+  /** `model`/`provider` name the exact image model id and vendor id that produced the bytes, so the
+   * library and the assistant can say which generator made an asset. Optional: rows written before
+   * 2026-11-13 carry neither and still parse. */
+  | { kind: 'generated'; path?: string | undefined; model?: string | undefined; provider?: string | undefined };
 
 export interface MediaRecord {
   /** Absent only in legacy callers/serialized records; persistent adapters default to media. */
