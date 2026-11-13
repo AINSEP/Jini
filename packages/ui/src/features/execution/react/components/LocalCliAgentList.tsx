@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { agentHandleProps, buildAgentListHandles } from '@jini-ai/agentic';
+import { agentHandleProps } from '@jini-ai/agentic';
 import { useT } from '../../../i18n/index.js';
 import type {
   AgentCliEnvFieldSpec,
@@ -8,7 +8,7 @@ import type {
   DetectedAgent,
   LocalCliConfig,
 } from '../../types.js';
-import { LocalCliAgentCard } from './LocalCliAgentCard.js';
+import { useLocalCliAgentCards } from './LocalCliAgentList.hooks.js';
 import { useLocalCliAgentList, type UseLocalCliAgentListResult } from '../hooks/useLocalCliAgentList.js';
 
 export interface LocalCliAgentListProps {
@@ -68,32 +68,9 @@ export function LocalCliAgentList({
   useAgentList = useLocalCliAgentList,
 }: LocalCliAgentListProps) {
   const t = useT();
-  const installed = agents.filter((agent) => agent.installed);
+  const { installed, renderCard } = useLocalCliAgentCards({ agents, config, onSelect, onModelChange, onReasoningChange, onEnvChange, cliEnvFields, onRescan, onTest, agentTest, renderAgentIcon, agentHandle });
   const scope = scopeLabel ?? t('Runs a code-agent CLI detected by the host.');
-  const handleList = agentHandle ? buildAgentListHandles({ prefix: agentHandle, ids: agents.map((agent) => agent.id) }) : undefined;
-  const cardHandles = new Map(agents.map((agent, index) => [agent.id, handleList?.[index]]));
   const list = useAgentList({ agents, selectedAgentId: config.agentId });
-  const renderCard = (agent: DetectedAgent) => {
-    const handle = cardHandles.get(agent.id);
-    return (
-      <LocalCliAgentCard
-        key={agent.id}
-        agent={agent}
-        config={config}
-        selected={config.agentId === agent.id}
-        onSelect={onSelect}
-        onModelChange={onModelChange}
-        onReasoningChange={onReasoningChange}
-        onEnvChange={onEnvChange}
-        cliEnvFields={cliEnvFields}
-        renderIcon={renderAgentIcon}
-        onTest={onTest}
-        agentTest={agentTest}
-        onRescan={onRescan}
-        {...(handle ? { agentHandle: handle } : {})}
-      />
-    );
-  };
 
   return (
     <section className="jini-settings-section jini-local-cli">

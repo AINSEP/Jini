@@ -1,4 +1,3 @@
-import { useState } from 'react';
 import { agentHandleProps, buildAgentListHandles } from '@jini-ai/agentic';
 import { useT } from '../../../i18n/index.js';
 import { Icon } from '../../../../react/components/Icon.js';
@@ -7,6 +6,7 @@ import { invalidBaseUrlProviderIds, sortProvidersByConfigured } from '../../rule
 import type { MediaProviderMap, MediaProviderOption, MediaProvidersSaveState } from '../../types.js';
 import { useMediaProvidersTab } from '../hooks/useMediaProvidersTab.js';
 import { MediaProviderCard } from './MediaProviderCard.js';
+import { useMediaProviderKeyVisibility } from './MediaProvidersTab.hooks.js';
 import { resolveMediaProvidersTabLabels, type ResolvedMediaProvidersTabLabels } from './media-providers-tab-labels.js';
 
 export interface MediaProvidersTabLabels {
@@ -81,12 +81,8 @@ export function MediaProvidersTab({
   const { providers, load, save, hasAnyConfigured, pendingProviderIds, updateProvider, clearProvider, saveChanges, reload } =
     useMediaProvidersTab({ port, catalogPolicy, initialProviders });
   const { canonicalMediaProviderId } = catalogPolicy;
-  const [visibleApiKeys, setVisibleApiKeys] = useState<ReadonlySet<string>>(() => new Set());
+  const { visibleApiKeys, toggleKeyVisible } = useMediaProviderKeyVisibility({});
   const resolved = resolveMediaProvidersTabLabels({ t }, { labels });
-
-  const toggleKeyVisible = (providerId: string) => {
-    setVisibleApiKeys((current) => toggledMember({ set: current, member: providerId }));
-  };
 
   const canonicalPinnedIds = pinnedProviderIds?.map((id) => canonicalMediaProviderId({ id }));
   const orderedCatalog = sortProvidersByConfigured(catalog.map((entry) => ({ ...entry, id: canonicalMediaProviderId({ id: entry.id }) })), providers, canonicalPinnedIds);
@@ -143,17 +139,6 @@ export function MediaProvidersTab({
       />
     </section>
   );
-}
-
-/** A copy of `set` with `member` added if absent, removed if present. */
-function toggledMember({ set, member }: { set: ReadonlySet<string>; member: string }): ReadonlySet<string> {
-  const next = new Set(set);
-  if (next.has(member)) {
-    next.delete(member);
-  } else {
-    next.add(member);
-  }
-  return next;
 }
 
 /**

@@ -1,4 +1,4 @@
-import { useConsentPreviewWidth, type ConsentPreviewWidth } from './settings-panel.hooks.js';
+import { createConsentTranslator, useConsentPreviewWidth, type ConsentPreviewWidth } from './settings-panel.hooks.js';
 
 export interface ConsentPreviewFrameProps {
   /** The engine-gated page; `null` while it loads or when the host could not render it. */
@@ -15,7 +15,7 @@ const WIDTHS: readonly { id: ConsentPreviewWidth; label: string }[] = [{ id: 'ph
  * with an empty `sandbox`: no scripts, forms, popups or same-origin access, and it never enters the
  * host DOM. Phone is 320px, the narrowest width the banner must still work at. */
 export function ConsentPreviewFrame({ html, status = '', initialWidth = 'desktop', dictionary = {} }: ConsentPreviewFrameProps) {
-  const t = (text: string) => dictionary[text] ?? text;
+  const t = createConsentTranslator({ dictionary });
   const { width, setWidth } = useConsentPreviewWidth({ initial: initialWidth });
   return <section className="jini-consent-preview" aria-label={t('Banner preview')}>
     <div className="jini-consent-preview-widths" role="group" aria-label={t('Preview width')}>

@@ -1,7 +1,7 @@
 import { useId, type ReactNode } from 'react';
 import { defaultAdminTheme } from '@jini-ai/ui/theme';
 import type { ConsentAppearanceView, ConsentFieldProblem, ConsentSettingsView } from './ConsentSettingsPanel.js';
-import { pixelInputValue, problemsFor, useConsentSettingsPanel, usePolicyVersionInput } from './settings-panel.hooks.js';
+import { createConsentTranslator, pixelInputValue, problemsFor, useConsentSettingsPanel, usePolicyVersionInput } from './settings-panel.hooks.js';
 
 /**
  * @file The consent settings split into the three sections a host can place on its own tabs:
@@ -46,10 +46,6 @@ const PIXEL_TOKENS: readonly { key: keyof ConsentAppearanceView; label: string; 
   { key: 'fontSize', label: 'Text size (px)', min: 16, max: 24 }, { key: 'maxWidth', label: 'Max width (px)', min: 256, max: 960 },
 ];
 
-function translator(dictionary: Readonly<Record<string, string>> = {}) {
-  return (text: string) => dictionary[text] ?? text;
-}
-
 /** One field's problems, linked to its control through `aria-describedby`. */
 function FieldProblems({ id, problems }: { id: string; problems: readonly ConsentFieldProblem[] }) {
   if (!problems.length) return null;
@@ -71,7 +67,7 @@ function Field({ label, field, problems, children }: { label: string; field: str
  * while hidden, and the parent fieldset supplies the disabled state. */
 function BannerModeFields({ value, onChange, dictionary, modes }: Pick<ConsentFieldsProps, 'value' | 'onChange' | 'dictionary'> & { modes: readonly NonNullable<ConsentSettingsView['bannerMode']>[] }) {
   const id = useId();
-  const t = translator(dictionary);
+  const t = createConsentTranslator({ dictionary });
   const handlers = useConsentSettingsPanel({ value, onChange });
   return <fieldset className="jini-consent-banner-modes" aria-describedby={value.bannerMode === 'headless' ? `${id}-mode-hint` : undefined}>
       <legend>{t('Banner mode')}</legend>
@@ -89,7 +85,7 @@ function BannerModeFields({ value, onChange, dictionary, modes }: Pick<ConsentFi
  * enabled switch stays authoritative. Text is always plain text.
  * @example <ConsentBannerFields value={value} onChange={onChange} bannerModes={['jini', 'headless', 'off']} /> */
 export function ConsentBannerFields({ value, onChange, disabled = false, problems, dictionary, limits = {}, bannerModes }: ConsentFieldsProps & { bannerModes?: readonly NonNullable<ConsentSettingsView['bannerMode']>[] | undefined }) {
-  const t = translator(dictionary);
+  const t = createConsentTranslator({ dictionary });
   const handlers = useConsentSettingsPanel({ value, onChange });
   return <fieldset disabled={disabled} className="jini-consent-settings-fields"><legend>{t('Banner text')}</legend>
     {bannerModes && <BannerModeFields value={value} onChange={onChange} dictionary={dictionary} modes={bannerModes} />}
@@ -103,7 +99,7 @@ export function ConsentBannerFields({ value, onChange, disabled = false, problem
 /** On/off, region behavior and the version that re-asks visitors when it changes. */
 export function ConsentRulesFields({ value, onChange, disabled = false, problems, dictionary, limits = {}, regionModes = ['auto', 'opt-in', 'opt-out'] }: ConsentFieldsProps & { regionModes?: readonly ConsentSettingsView['regionMode'][] }) {
   const id = useId();
-  const t = translator(dictionary);
+  const t = createConsentTranslator({ dictionary });
   const handlers = useConsentSettingsPanel({ value, onChange });
   const modes = regionModes.includes(value.regionMode) ? regionModes : [value.regionMode, ...regionModes];
   return <fieldset disabled={disabled} className="jini-consent-settings-fields"><legend>{t('Rules')}</legend>
@@ -122,7 +118,7 @@ export function ConsentRulesFields({ value, onChange, disabled = false, problems
 /** Placement, bounded appearance tokens and allowlisted custom CSS. The engine checks contrast and
  * CSS safety; its problems arrive on the `appearance` field and show under the custom CSS. */
 export function ConsentLookFields({ value, onChange, disabled = false, problems, dictionary, placements = Object.keys(PLACEMENT_LABELS) }: ConsentFieldsProps & { placements?: readonly string[] }) {
-  const t = translator(dictionary);
+  const t = createConsentTranslator({ dictionary });
   const handlers = useConsentSettingsPanel({ value, onChange });
   const appearance = value.appearance ?? {};
   return <fieldset disabled={disabled} className="jini-consent-settings-fields"><legend>{t('Look & position')}</legend>

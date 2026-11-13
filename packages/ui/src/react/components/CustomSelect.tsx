@@ -14,8 +14,9 @@ import { createPortal } from 'react-dom';
 import { useOverlayContainer } from '@jini-ai/ui-kit/react';
 import { useSelectPopover, isSelectEventInside, openSelectOnKey, applySelectNavigationKey, resolveSelectPortalContainer, resolveSelectOriginPage } from './select-popover.js';
 import { Icon } from './Icon.js';
-import { agentHandleProps, agentHandleSegment } from '@jini-ai/agentic';
+import { agentHandleProps } from '@jini-ai/agentic';
 import { useAgentHandle, type AgentControlProps } from '../hooks/useAgentHandle.js';
+import { useCustomSelectOptionRenderer } from './CustomSelect.hooks.js';
 
 export interface CustomSelectOption {
   value: string;
@@ -471,18 +472,7 @@ function CustomSelectMenuOptions({ options, value, activeValue, optionIdByValue,
   onChoose: (value: string) => void;
   onActive: (value: string) => void;
 }) {
-  const renderOption = (option: CustomSelectOption) => (
-    <CustomSelectOptionButton
-      key={option.value}
-      option={option}
-      agentHandle={base ? `${base}-option-${agentHandleSegment({ value: option.value })}` : false}
-      selected={option.value === value}
-      active={option.value === activeValue}
-      id={optionIdByValue.get(option.value)}
-      onChoose={onChoose}
-      onActive={onActive}
-    />
-  );
+  const renderOption = useCustomSelectOptionRenderer({ base, value, activeValue, optionIdByValue, onChoose, onActive, OptionButton: CustomSelectOptionButton });
   return (
     <>
       {options.map((item) => (isCustomSelectGroup(item) ? (

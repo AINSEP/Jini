@@ -1,6 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import type { ChatMessage } from '../../core/messages.js';
 import type { ChatTransport } from '../../core/transport.js';
 import { ChatPane } from '../../react/chat-pane.js';
 import type { ChatPaneAgent } from '../../react/chat-pane.js';
@@ -8,7 +6,7 @@ import { ChatFab } from '../../react/components/ChatFab.js';
 import { JiniChatProvider } from '../../react/components/JiniChatProvider.js';
 import type { BrowserSessionStore } from '../browser/session-store.js';
 import { EmbedChatHeader } from './header.js';
-import { useEmbedChatSurface } from './dialog.hooks.js';
+import { useEmbedChatWidget } from './dialog.hooks.js';
 export { useEmbedChatDialog } from './dialog.hooks.js';
 import type { EmbedHeaderCopy, EscapeKeyPort } from './header.js';
 export { EmbedChatHeader } from './header.js';
@@ -43,17 +41,7 @@ const shellStyles = `
  */
 export function EmbedChatWidget(args: EmbedChatWidgetArgs) {
   const { agent, copy, transport, session, keyboard } = args;
-  const [initial] = useState(() => session.load({}));
-  const [paneKey, setPaneKey] = useState(0);
-  const { open, toggle, panelRef, launcherRef, panelId } = useEmbedChatSurface({ initialOpen: initial.open }, { resetKey: paneKey });
-  const [messages, setMessages] = useState(initial.messages);
-  useEffect(() => { session.save({ state: { open, messages } }); }, [session, open, messages]);
-  const reset = useCallback(() => {
-    session.clear({});
-    setMessages([]);
-    setPaneKey(key => key + 1);
-  }, [session]);
-  const onMessagesChange = useCallback((next: ChatMessage[]) => { setMessages(next); }, []);
+  const { open, toggle, panelRef, launcherRef, panelId, paneKey, messages, reset, onMessagesChange } = useEmbedChatWidget({ session });
   return <div className="jini-chat-embed">
     <style>{shellStyles}</style>
     <div ref={launcherRef} tabIndex={-1}>

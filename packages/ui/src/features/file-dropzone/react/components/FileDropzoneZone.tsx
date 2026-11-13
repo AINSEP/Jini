@@ -1,7 +1,7 @@
-import type { KeyboardEvent } from 'react';
 import { Icon } from '../../../../react/components/Icon.js';
 import { useT } from '../../../i18n/index.js';
 import type { UseFileDropzoneResult } from '../hooks/useFileDropzone.js';
+import { useFileDropzoneZone } from './FileDropzoneZone.hooks.js';
 
 export interface FileDropzoneZoneProps {
   dropzone: UseFileDropzoneResult;
@@ -18,14 +18,7 @@ export interface FileDropzoneZoneProps {
 export function FileDropzoneZone({ dropzone, zoneText, accept, directory, enablePaste, hint }: FileDropzoneZoneProps) {
   const t = useT();
 
-  function onZoneKeyDown(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.key === 'Enter' || event.key === ' ') {
-      event.preventDefault();
-      dropzone.openPicker();
-    }
-  }
-
-  const directoryInputProps = directory ? ({ webkitdirectory: '', directory: '' } as Record<string, string>) : {};
+  const { onZoneKeyDown, onInputClick, directoryInputProps } = useFileDropzoneZone({ dropzone, directory });
 
   return (
     <div
@@ -49,15 +42,7 @@ export function FileDropzoneZone({ dropzone, zoneText, accept, directory, enable
         multiple
         accept={accept}
         className="jini-file-dropzone__input"
-        onClick={(event) => {
-          // The input is nested inside the zone div so a real user
-          // click on it (e.g. via `openPicker`'s own `input.click()`
-          // call) would otherwise bubble straight back into the zone's
-          // own `onClick={dropzone.openPicker}`, re-triggering it and
-          // opening the file dialog a second time.
-          event.stopPropagation();
-          dropzone.onInputClick();
-        }}
+        onClick={onInputClick}
         onChange={dropzone.onInputChange}
         {...directoryInputProps}
       />

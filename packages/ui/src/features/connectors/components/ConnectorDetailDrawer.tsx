@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import type { RefObject, SyntheticEvent } from 'react';
+import type { RefObject } from 'react';
 import { agentHandleProps } from '@jini-ai/agentic';
 import { useT } from '../../i18n/index.js';
 import {
@@ -12,6 +12,7 @@ import {
 import type { Connector, ConnectorAction, ConnectorActionFlags, ConnectorAuthorizationPending } from '../types.js';
 import { Icon } from '../../../react/components/Icon.js';
 import { ConnectorLogo } from './ConnectorLogo.js';
+import { createContinueAuthorization } from './ConnectorCard.hooks.js';
 
 export interface ConnectorDetailDrawerProps {
   connector: Connector;
@@ -116,17 +117,7 @@ function ConnectorDrawerAbout({
 }: ConnectorDrawerAboutProps) {
   const t = useT();
 
-  function continueAuthorization(event: SyntheticEvent) {
-    event.stopPropagation();
-    // `continueAuthorization`'s only call site (the "continue in browser"
-    // button below) only ever renders while `authorizationPending &&
-    // authorizationPending.redirectUrl` already holds in that same render,
-    // and React re-binds this closure fresh on every render — so a
-    // re-check here was dead code for every real click, removed rather
-    // than tested around (same pattern as this package's `ConnectorCard.tsx`
-    // precedent; see archived UI source map's 2026-07-22 dated entry).
-    onOpenExternalUrl?.(redirectUrl!);
-  }
+  const continueAuthorization = redirectUrl ? createContinueAuthorization({ redirectUrl, onOpenExternalUrl }) : undefined;
 
   return (
     <section className="connector-drawer-section">

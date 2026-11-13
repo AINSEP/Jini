@@ -2,6 +2,17 @@ import { useEffect, useState } from "react";
 
 import type { AdminIdentityUser } from "../../models.js";
 
+/** Blocks the reset entirely when the two fields disagree — a mismatch never reaches
+ *  `confirmResetPassword`/the server. The inline message below is driven by the same `mismatch`
+ *  value, so it is already visible by the time a blocked click can happen; there is nothing
+ *  further to surface here. */
+export function createResetPasswordConfirmHandler({ mismatch, confirmResetPassword }: { mismatch: boolean; confirmResetPassword: () => Promise<void> }, _options = {}) {
+  return () => {
+    if (mismatch) return;
+    void confirmResetPassword();
+  };
+}
+
 /**
  * @file The reset-password dialog's own confirm-field and reveal-toggle state — client-side only,
  * never sent to the server (`use-users.hooks.ts`'s `resetPasswordMutation` still posts only

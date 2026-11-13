@@ -1,5 +1,6 @@
 import { useId } from 'react';
 import { ConsentBannerFields, ConsentLookFields, ConsentRulesFields, type ConsentFieldsProps } from './ConsentFields.js';
+import { createConsentTranslator } from './settings-panel.hooks.js';
 
 /** Bounded appearance tokens, as the engine accepts them: opaque hex colors and `Npx` lengths. */
 export interface ConsentAppearanceView {
@@ -56,7 +57,7 @@ export interface ConsentSettingsPanelProps extends Pick<ConsentFieldsProps, 'pro
  * Native labels/selects/checkboxes support keyboard use at desktop and narrow widths. */
 export function ConsentSettingsPanel({ value, onChange, loading, error, status, dictionary = {}, problems, limits }: ConsentSettingsPanelProps) {
   const id = useId();
-  const t = (text: string) => dictionary[text] ?? text;
+  const t = createConsentTranslator({ dictionary });
   const fields = { value, onChange, disabled: loading, problems, dictionary, limits };
   return <section className="jini-settings-section" aria-labelledby={`${id}-heading`}>
     <div className="jini-section-head"><div><h4 id={`${id}-heading`}>{t('Site cookie consent')}</h4>

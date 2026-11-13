@@ -2,6 +2,7 @@ import { agentHandleProps } from '@jini-ai/agentic';
 import type { SkillDraft, SkillDraftError } from '../../types.js';
 import { useT } from '../../../i18n/index.js';
 import { resolveSkillDraftFormLabels, skillDraftErrorText, skillDraftSubmitLabel } from './SkillDraftForm.labels.js';
+import { createSkillDraftChangeHandler } from './SkillDraftForm.hooks.js';
 
 export interface SkillDraftFormLabels {
   nameLabel?: string;
@@ -129,8 +130,7 @@ interface SkillDraftFieldProps {
 /** One labelled draft field. Attribute order matches the original inline
  *  markup exactly so the rendered HTML is unchanged. */
 function SkillDraftField({ draft, onDraftChange, agentHandle, field, label, placeholder, disabled, rows }: SkillDraftFieldProps) {
-  const onChange = (event: { target: { value: string } }) =>
-    onDraftChange((current) => ({ ...current, [field]: event.target.value }));
+  const onChange = createSkillDraftChangeHandler({ field, onDraftChange });
   const handle = agentHandleProps({}, { base: agentHandle, action: field, role: 'field', label });
   return (
     <div className="jini-settings-field">

@@ -24,6 +24,11 @@ import { resolveRovingIndex } from './useAgentRuntimePicker.hooks.js';
 
 const MENU_ITEMS = '[role="menuitemradio"]';
 
+/** Only reveal a shortened-value tooltip when the menu is closed. */
+export function createRuntimeDropUpTipHandler({ tipVisible, tip }: { tipVisible: boolean; tip: { show: () => void } }, _options = {}) {
+  return () => { if (tipVisible) tip.show(); };
+}
+
 /**
  * Viewport-fixed geometry for a drop-up: right-aligned with the trigger, clamped into the
  * viewport and (when given) into `bounds`, bottom edge just above it, and never taller than the

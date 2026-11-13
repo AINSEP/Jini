@@ -1,8 +1,8 @@
-import { useId, useState } from 'react';
 import { agentHandleProps, agentHandleSegment } from '@jini-ai/agentic';
 import { useT } from '../hooks/context.js';
 import { CopyMessageButton } from './CopyMessageButton.js';
 import { Icon } from './Icon.js';
+import { useFolderChips } from './FolderChips.hooks.js';
 
 /** Display only: splitting both separators never changes the exact path carried or copied. */
 function folderName({ path }: { path: string }, _options = {}): string {
@@ -39,12 +39,8 @@ export function FolderChips({ agentHandle, folders = [], onRemove }: {
 }) {
   const base = agentHandle || undefined;
   const t = useT();
-  const [expanded, setExpanded] = useState(false);
-  const id = useId();
+  const { expanded, setExpanded, id, list } = useFolderChips({ folders, renderChip: path => <FolderChip key={path} base={base} path={path} onRemove={onRemove} /> });
   if (folders.length === 0) return null;
-  const list = (listId?: string) => <ul id={listId} className="jini-folder-chips__list">
-    {folders.map(path => <FolderChip key={path} base={base} path={path} onRemove={onRemove} />)}
-  </ul>;
   if (folders.length === 1) return <div className="jini-folder-chips">{list()}</div>;
   return <div className="jini-folder-chips">
     <button type="button" className="jini-folder-chips__toggle" aria-expanded={expanded} aria-controls={id}

@@ -1,7 +1,7 @@
 import type { ReactElement } from "react";
 import { agentHandle } from "@jini-ai/agentic";
 import type { ProviderSummary } from "../payments/contract/payments-port.js";
-import { t as translateCommerce } from "./commerce-i18n.js";
+import { usePayments } from "./Payments.hooks.js";
 
 /**
  * @file Provider-neutral Payments overview for the Commerce admin area.
@@ -26,7 +26,7 @@ import { t as translateCommerce } from "./commerce-i18n.js";
 export function Payments({ locale = "en", providers = [] }: {
   locale?: (string) | undefined; providers?: readonly ProviderSummary[];
 } = {}): ReactElement {
-  const t = (key: string): string => translateCommerce({ locale, key });
+  const t = usePayments({ locale });
   return (
     <div className="page">
       <div className="page-header">

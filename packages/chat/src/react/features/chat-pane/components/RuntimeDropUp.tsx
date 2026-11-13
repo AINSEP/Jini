@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { RemixIcon, infoTipBubbleStyle, useInfoTip, useAgentHandle } from '@jini-ai/ui';
 
 import { agentHandleProps, agentHandleSegment } from '@jini-ai/agentic';
-import { useRuntimeDropUp, type UseRuntimeDropUpResult } from '../hooks/useRuntimeDropUp.hooks.js';
+import { createRuntimeDropUpTipHandler, useRuntimeDropUp, type UseRuntimeDropUpResult } from '../hooks/useRuntimeDropUp.hooks.js';
 
 export interface RuntimeDropUpProps {
   agentHandle?: string | false | undefined;
@@ -113,9 +113,7 @@ export function RuntimeDropUp({
   const shortened = triggerLabel !== undefined && triggerLabel !== valueLabel;
   // No tip over the open menu, which already lists the full name.
   const tipVisible = shortened && !open;
-  const showTip = () => {
-    if (tipVisible) tip.show();
-  };
+  const showTip = createRuntimeDropUpTipHandler({ tipVisible, tip });
 
   return (
     <>

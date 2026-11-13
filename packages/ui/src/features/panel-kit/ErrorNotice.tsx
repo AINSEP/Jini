@@ -1,7 +1,7 @@
-import { useState } from 'react';
 import type { UserFacingError } from '@jini-ai/core';
-import { copyToClipboard, type CopyToClipboardOptions } from '../../utils/copy-to-clipboard.js';
+import type { CopyToClipboardOptions } from '../../utils/copy-to-clipboard.js';
 import type { Translate } from '../i18n/index.js';
+import { useErrorNotice } from './ErrorNotice.hooks.js';
 
 /** A formatted failure, optional host translation, and injectable clipboard ports. */
 export interface ErrorNoticeProps extends CopyToClipboardOptions {
@@ -18,11 +18,7 @@ export interface ErrorNoticeProps extends CopyToClipboardOptions {
  * @complexity O(copyText length) per render/copy; one clipboard write plus the existing fallback on rejection.
  */
 export function ErrorNotice({ failure, t = text => text, className = 'notice error', role = 'alert', ...ports }: ErrorNoticeProps) {
-  const [feedback, setFeedback] = useState<{ text: string; copied: boolean } | null>(null);
-  async function copy() {
-    const copied = await copyToClipboard({ text: failure.copyText }, ports);
-    setFeedback({ text: failure.copyText, copied });
-  }
+  const { feedback, copy } = useErrorNotice({ failure, ports });
   return (
     <div className={className} role={role}>
       <p>{failure.message}</p>

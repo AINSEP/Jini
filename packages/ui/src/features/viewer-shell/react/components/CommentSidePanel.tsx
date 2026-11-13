@@ -5,6 +5,7 @@ import { RemixIcon } from '../../../../react/components/RemixIcon.js';
 import { useCommentReorder, type UseCommentReorderResult } from '../hooks/useCommentReorder.js';
 import { relativeCommentTimeTranslation, visibleSelectedCommentIds } from '../../rules.js';
 import type { CommentSideDragState, ViewerCommentAttachment, ViewerCommentBase } from '../../types.js';
+import { createCommentSubmitter } from './CommentSidePanel.hooks.js';
 
 export interface CommentSidePanelProps<TComment extends ViewerCommentBase> {
   comments: TComment[];
@@ -499,11 +500,7 @@ function CommentSideCreateForm({
   const canCreateComment = draft.trim().length > 0 && !sending && !sendDisabled;
   const addLabel = t('Add a comment…');
 
-  async function submitNewComment() {
-    if (!draft.trim()) return;
-    const saved = await createComment(draft.trim());
-    if (saved) onDraftChange('');
-  }
+  const submitNewComment = createCommentSubmitter({ draft, onDraftChange, createComment });
 
   return (
     <form

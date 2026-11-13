@@ -83,6 +83,14 @@ export function buildOptionId({ listboxId, index }: { listboxId: string; index: 
   return `${listboxId}-option-${index}`;
 }
 
+/** Keep the dropdown's option-node map aligned with mounted rows. */
+export function useSelectOptionRef({ optionRefs }: { optionRefs: React.RefObject<Map<number, HTMLLIElement>> }, _options = {}) {
+  return (index: number, el: HTMLLIElement | null) => {
+    if (el) optionRefs.current.set(index, el);
+    else optionRefs.current.delete(index);
+  };
+}
+
 /**
  * Positioning reports a clipped or obscured trigger through onOutOfView; deciding whether
  * to close belongs to the dropdown lifecycle rather than this reusable measurement hook.
