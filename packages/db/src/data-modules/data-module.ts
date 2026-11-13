@@ -902,6 +902,33 @@ async function finishCommittedMigration(
   }
 }
 
+/** The SQLite file this connection really has open, warning when the configured path names another file.
+ * Unchanged for an in-memory path or a Postgres/PGlite kernel. */
+async function resolveOpenDbPath(
+  { kernel, dbPath, decl }: { kernel: PluginKernel; dbPath: string; decl: DataModuleDecl },
+  _optional: Record<string, never> = {}
+): Promise<string> {
+  let openDbPath = dbPath;
+  if (kernel.dialect === "sqlite" && !isInMemoryDbPath({ dbPath })) {
+    const [main] = await kernel.query<{ file: string }>(sql`SELECT file FROM pragma_database_list WHERE name = 'main'`);
+    openDbPath = main?.file || ":memory:";
+    warnIfNotOpenFile({ dbPath, openFile: main?.file, decl });
+  }
+  return openDbPath;
+}
+
+/** File identity is the filesystem's (dev, ino); a configured path naming another file warns and never blocks the install. */
+function warnIfNotOpenFile(
+  { dbPath, openFile, decl }: { dbPath: string; openFile: string | undefined; decl: DataModuleDecl },
+  _optional: Record<string, never> = {}
+): void {
+  const named = statSync(dbPath, { throwIfNoEntry: false });
+  const open = openFile ? statSync(openFile, { throwIfNoEntry: false }) : undefined;
+  if (!named || !open || named.dev !== open.dev || named.ino !== open.ino) {
+    console.warn(`[data-module] ${decl.pluginId}: ${dbPath} is not the database this connection has open (${openFile || "an in-memory database"}). Its tables are installed in the open database, and the safety snapshot and disk-space check use it too. Fix the configured database path.`);
+  }
+}
+
 /**
  * Declare (reconcile) a plugin's tables. Core snapshots first, then runs the DDL transactionally.
  *
@@ -946,16 +973,7 @@ export async function declareDataModule(
   // The snapshot, its boot restore and the headroom check bind to the file this connection has open,
   // not to the named path. Identity is the filesystem's (dev, ino): two paths (a second bind mount,
   // a hard link) can name one file. A path naming another file warns and never blocks the install.
-  let openDbPath = dbPath;
-  if (kernel.dialect === "sqlite" && !isInMemoryDbPath({ dbPath })) {
-    const [main] = await kernel.query<{ file: string }>(sql`SELECT file FROM pragma_database_list WHERE name = 'main'`);
-    openDbPath = main?.file || ":memory:";
-    const named = statSync(dbPath, { throwIfNoEntry: false });
-    const open = main?.file ? statSync(main.file, { throwIfNoEntry: false }) : undefined;
-    if (!named || !open || named.dev !== open.dev || named.ino !== open.ino) {
-      console.warn(`[data-module] ${decl.pluginId}: ${dbPath} is not the database this connection has open (${main?.file || "an in-memory database"}). Its tables are installed in the open database, and the safety snapshot and disk-space check use it too. Fix the configured database path.`);
-    }
-  }
+  const openDbPath = await resolveOpenDbPath({ kernel, dbPath, decl });
   const recoverable = kernel.dialect === "sqlite" && !isInMemoryDbPath({ dbPath: openDbPath });
   const preflight = await runPreflightChecks(kernel, openDbPath, decl, recoverable, checkHeadroom);
   if (!preflight.ok) {
