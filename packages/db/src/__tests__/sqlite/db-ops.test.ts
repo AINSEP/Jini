@@ -223,7 +223,7 @@ describe('SqliteDbOpsAdapter', () => {
         filePath,
         readWatermark: () => 0,
       });
-      await expect(adapter.restoreFromArtifact({ artifactRef: join(dir, 'nope.db') })).rejects.toThrow();
+      await expect(adapter.restoreFromArtifact({ artifactRef: join(dir, 'nope.db') })).rejects.toThrow(`ENOENT: no such file or directory, access '${join(dir, 'nope.db')}'`);
       expect(readFileSync(filePath, 'utf8')).toBe('LIVE');
     });
 

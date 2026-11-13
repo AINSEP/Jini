@@ -11,6 +11,8 @@ import { beginOwnerLogin, completeOwnerLogin, beginOwnerEnrollment, confirmOwner
 
 import { beginOwnerPasskeyEnrollment, confirmOwnerPasskeyEnrollment, beginOwnerPasskeyLogin, completeOwnerPasskeyLogin, removeOwnerPasskey } from '../mfa/passkey-service.js';
 import type { OwnerPasskeyDeps, PasskeyCredential } from '../mfa/passkey-ports.js';
+const passkeyRefusal = 'This passkey attempt was not accepted or has expired. Start a new attempt, or use your authenticator app or recovery code.';
+
 async function mfaFixture() {
   const repos = createTransactionalInMemoryIdentityRepos({ repos: {
     principals: new memory.InMemoryPrincipalRepo({}), users: new memory.InMemoryUserRepo({}),
@@ -103,11 +105,11 @@ test('enrollment requires current owner password and confirmed TOTP, stores only
   const f = await fixture();
   await expect(f.register()).rejects.toThrow('Set up your authenticator');
   await f.enroll();
-  await expect(beginOwnerPasskeyEnrollment({ deps: f.deps, input: { ...f.scope, password: 'wrong', code: '123456' } })).rejects.toThrow();
-  await expect(beginOwnerPasskeyEnrollment({ deps: f.deps, input: { ...f.scope, principalId: 'staff', password: 'old', code: '123456' } })).rejects.toThrow();
+  await expect(beginOwnerPasskeyEnrollment({ deps: f.deps, input: { ...f.scope, password: 'wrong', code: '123456' } })).rejects.toThrow('The current owner password was not accepted. Enter your current password and try again.');
+  await expect(beginOwnerPasskeyEnrollment({ deps: f.deps, input: { ...f.scope, principalId: 'staff', password: 'old', code: '123456' } })).rejects.toThrow('Only the active site owner can change this authenticator. Sign in as the owner and try again.');
   const started = await f.register();
   expect(f.credentials()).toEqual([{ ...f.scope, id: 'key', publicKey: 'public', counter: 0, rpId: 'localhost' }]);
-  await expect(confirmOwnerPasskeyEnrollment({ deps: f.deps, input: { ...f.scope, pendingToken: started.pendingToken, response: 'valid' } })).rejects.toThrow();
+  await expect(confirmOwnerPasskeyEnrollment({ deps: f.deps, input: { ...f.scope, pendingToken: started.pendingToken, response: 'valid' } })).rejects.toThrow(passkeyRefusal);
 });
 
 test('password and passkey proofs create exactly one session under concurrent replay', async () => {
@@ -121,8 +123,8 @@ test('password and passkey proofs create exactly one session under concurrent re
 
 test('wrong signature or missing UV spends challenge, but leaves TOTP fallback intact', async () => {
   const f = await fixture(); await f.enroll(); await f.register(); const begun = await f.begin();
-  await expect(f.complete(begun.pendingToken, { id: 'key', valid: false })).rejects.toThrow();
-  await expect(f.complete(begun.pendingToken)).rejects.toThrow();
+  await expect(f.complete(begun.pendingToken, { id: 'key', valid: false })).rejects.toThrow(passkeyRefusal);
+  await expect(f.complete(begun.pendingToken)).rejects.toThrow(passkeyRefusal);
   expect(f.pending().find(p => p.purpose === 'login')?.attempts).toBe(0);
   expect(await f.sessions()).toHaveLength(0);
 });
@@ -130,18 +132,18 @@ test('wrong signature or missing UV spends challenge, but leaves TOTP fallback i
 test('expired, changed origin/port, wrong workspace or owner challenges grant nothing', async () => {
   const f = await fixture(); await f.enroll(); await f.register();
   const begun = await f.begin(); f.deps.site.origin = 'http://localhost:3001';
-  await expect(f.complete(begun.pendingToken)).rejects.toThrow();
+  await expect(f.complete(begun.pendingToken)).rejects.toThrow(passkeyRefusal);
   f.deps.site.origin = 'http://localhost:3000'; const next = await f.begin();
-  await expect(completeOwnerPasskeyLogin({ deps: f.deps, input: { workspaceId: 'b', pendingToken: next.pendingToken, response: { id: 'key', valid: true } } })).rejects.toThrow();
-  f.advance(300001); await expect(f.complete(next.pendingToken)).rejects.toThrow();
+  await expect(completeOwnerPasskeyLogin({ deps: f.deps, input: { workspaceId: 'b', pendingToken: next.pendingToken, response: { id: 'key', valid: true } } })).rejects.toThrow(passkeyRefusal);
+  f.advance(300001); await expect(f.complete(next.pendingToken)).rejects.toThrow(passkeyRefusal);
   const enrollment = await beginOwnerPasskeyEnrollment({ deps: f.deps, input: { ...f.scope, password: 'old', code: '123456' } });
-  await expect(confirmOwnerPasskeyEnrollment({ deps: f.deps, input: { ...f.scope, principalId: 'other', pendingToken: enrollment.pendingToken, response: 'valid' } })).rejects.toThrow();
+  await expect(confirmOwnerPasskeyEnrollment({ deps: f.deps, input: { ...f.scope, principalId: 'other', pendingToken: enrollment.pendingToken, response: 'valid' } })).rejects.toThrow(passkeyRefusal);
   expect(await f.sessions()).toHaveLength(0);
 });
 
 test('credential ownership and RP are checked before the protocol verifier', async () => {
   const f = await fixture(); await f.enroll(); await f.register();
-  let begun = await f.begin(); await expect(f.complete(begun.pendingToken, { id: 'foreign', valid: true })).rejects.toThrow();
+  let begun = await f.begin(); await expect(f.complete(begun.pendingToken, { id: 'foreign', valid: true })).rejects.toThrow(passkeyRefusal);
   await f.deps.credentials.save({ ...f.scope, id: 'key', publicKey: 'public', counter: 0, rpId: 'evil.test' });
   await expect(f.begin()).rejects.toThrow('No passkey');
   expect(await f.sessions()).toHaveLength(0);
@@ -161,7 +163,7 @@ test('five-key cap and fresh-factor removal keep the credential set bounded', as
   const f = await fixture(); await f.enroll();
   for (let i = 0; i < 5; i++) { f.next(`key-${i}`); await f.register(); }
   await expect(f.register()).rejects.toThrow('Five passkeys');
-  await expect(removeOwnerPasskey({ deps: f.deps, input: { ...f.scope, id: 'key-0', password: 'old', code: '000000' } })).rejects.toThrow();
+  await expect(removeOwnerPasskey({ deps: f.deps, input: { ...f.scope, id: 'key-0', password: 'old', code: '000000' } })).rejects.toThrow('The authenticator code was not accepted or has expired. Enter a fresh code, or sign in again to start a new attempt.');
   await removeOwnerPasskey({ deps: f.deps, input: { ...f.scope, id: 'key-0', password: 'old', code: '123456' } });
   expect(f.credentials()).toHaveLength(4);
 });
@@ -169,7 +171,7 @@ test('five-key cap and fresh-factor removal keep the credential set bounded', as
 test('registration cannot reset the counter of an already registered credential', async () => {
   const f = await fixture(); await f.enroll(); await f.register();
   await f.deps.credentials.save({ ...f.credentials()[0]!, counter: 42 });
-  await expect(f.register()).rejects.toThrow();
+  await expect(f.register()).rejects.toThrow(passkeyRefusal);
   expect(f.credentials()[0]?.counter).toBe(42);
 });
 
@@ -195,12 +197,12 @@ test('TOTP and passkey completions compete for the same password proof, with one
 test('purpose substitution, expired registration and replaced password proofs grant nothing', async () => {
   const f = await fixture(); await f.enroll(); await f.register();
   const begun = await f.begin();
-  await expect(confirmOwnerPasskeyEnrollment({ deps: f.deps, input: { ...f.scope, pendingToken: begun.pendingToken, response: 'valid' } })).rejects.toThrow();
+  await expect(confirmOwnerPasskeyEnrollment({ deps: f.deps, input: { ...f.scope, pendingToken: begun.pendingToken, response: 'valid' } })).rejects.toThrow(passkeyRefusal);
   await f.login();
-  await expect(f.complete(begun.pendingToken)).rejects.toThrow();
+  await expect(f.complete(begun.pendingToken)).rejects.toThrow(passkeyRefusal);
   const registration = await beginOwnerPasskeyEnrollment({ deps: f.deps, input: { ...f.scope, password: 'old', code: '123456' } });
   f.advance(300001);
-  await expect(confirmOwnerPasskeyEnrollment({ deps: f.deps, input: { ...f.scope, pendingToken: registration.pendingToken, response: 'valid' } })).rejects.toThrow();
+  await expect(confirmOwnerPasskeyEnrollment({ deps: f.deps, input: { ...f.scope, pendingToken: registration.pendingToken, response: 'valid' } })).rejects.toThrow(passkeyRefusal);
   expect(f.credentials()).toHaveLength(1); expect(await f.sessions()).toHaveLength(0);
 });
 
@@ -214,6 +216,6 @@ test('parallel registration confirmation activates once; a suspended owner canno
   const principal = await f.deps.mfa.auth.repos.principals.findById({ workspaceId: 'a', id: f.scope.principalId });
   if (!principal) throw Error('missing principal');
   await f.deps.mfa.auth.repos.principals.save({ ...principal, status: 'disabled' });
-  await expect(f.complete(begun.pendingToken)).rejects.toThrow();
+  await expect(f.complete(begun.pendingToken)).rejects.toThrow(passkeyRefusal);
   expect(await f.sessions()).toHaveLength(0);
 });

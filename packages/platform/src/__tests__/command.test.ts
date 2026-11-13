@@ -113,7 +113,7 @@ describe('@jini-ai/platform — command — createCommandInvocation', () => {
         for (const arg of ['first\nsecond', 'first\rsecond']) {
           expect.soft(() => createCommandInvocation({
             args: [arg], command, env: { ComSpec: 'cmd.exe' },
-          })).toThrow();
+          })).toThrow("Windows command shim arguments cannot contain line breaks");
         }
       }
     });

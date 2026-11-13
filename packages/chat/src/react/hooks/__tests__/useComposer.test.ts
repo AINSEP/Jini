@@ -79,7 +79,7 @@ describe('useComposer', () => {
 
   it('addAttachments rejects when no upload port is wired', async () => {
     const { result } = renderHook(() => useComposer());
-    await expect(result.current.addAttachments([new File(['x'], 'a.png')])).rejects.toThrow();
+    await expect(result.current.addAttachments([new File(['x'], 'a.png')])).rejects.toThrow('addAttachments requires ProjectContextValue.uploadFiles to be wired by the host');
   });
 
   it('removeAttachment removes by path', () => {
@@ -146,7 +146,7 @@ describe('useComposer', () => {
   it('addAttachments rejects when a project is wired but has no uploadFiles port', async () => {
     const project: ProjectContextValue = { projectId: 'p1', files: [], resolveFileUrl: (p) => p, resolveRawUrl: (p) => p };
     const { result } = renderHook(() => useComposer({ project }));
-    await expect(result.current.addAttachments([new File(['x'], 'a.png')])).rejects.toThrow();
+    await expect(result.current.addAttachments([new File(['x'], 'a.png')])).rejects.toThrow('addAttachments requires ProjectContextValue.uploadFiles to be wired by the host');
   });
 
   it('addAttachments calls composerSlots.onAttach for each uploaded file when wired, and skips it when absent', async () => {

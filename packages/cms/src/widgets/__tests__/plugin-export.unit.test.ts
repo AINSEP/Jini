@@ -65,7 +65,7 @@ describe('plugin marker serialization and substitution', () => {
 describe('plugin export template policy', () => {
   it.each(['/some/path', 'https://example.com/path', '//example.com/path', 'javascript:alert(1)'])('refuses literal URL %s in every supported URL attribute', value => {
     for (const template of [`<a href="${value}">Link</a>`, `<img src="${value}" alt="">`, `<form action="${value}"></form>`]) {
-      expect(() => fillPluginExportTemplate({ definition: { ...definition, template } })).toThrow();
+      expect(() => fillPluginExportTemplate({ definition: { ...definition, template } })).toThrow(value.startsWith('//') || value.startsWith('javascript:') ? 'unsafe widget URL' : 'plugin export URL must be a whole hostLinks or assets slot');
     }
   });
 
@@ -93,7 +93,7 @@ describe('plugin export template policy', () => {
     '<div poster="/poster.png"></div>', '<a xlink:href="/link">Link</a>',
     '<span style="background:url(/image.png)">Image</span>',
   ])('retains the fragment policy refusal for unsupported URL sinks: %s', template => {
-    expect(() => fillPluginExportTemplate({ definition: { ...definition, template } })).toThrow();
+    expect(() => fillPluginExportTemplate({ definition: { ...definition, template } })).toThrow('executable or unsupported widget attribute');
   });
 
   it('escapes text and attributes without interpreting values as template source', () => {
@@ -108,17 +108,23 @@ describe('plugin export template policy', () => {
   });
 
   it.each(['javascript:alert(1)', '//evil.example/start', 'https://evil.example/start', '/\\evil.example', '/path\nnext'])('refuses host URL %s', start => {
-    expect(() => fillPluginExportTemplate({ definition: { ...definition, host: { start } } })).toThrow();
+    expect(() => fillPluginExportTemplate({ definition: { ...definition, host: { start } } })).toThrow('plugin export URL must be a local path');
   });
 
   it.each([
-    '<script>x</script>', '<span style="color:red">x</span>', '<span onclick="x">x</span>',
-    '<span data-embed-config="x">x</span>', '<span data-page-region="x">x</span>',
-    '<a href="{{props.url}}">x</a>', '<span title={{props.label}}>x</span>',
-    '<span>{{props.missing}}</span>', '<span>{{props.__proto__.x}}</span>',
-    '<span>{{include template}}</span>', '<!-- {{props.label}} -->',
-  ])('refuses unsupported template %s', template => {
-    expect(() => fillPluginExportTemplate({ definition: { ...definition, template, props: { label: 'hi', url: '/safe' } } })).toThrow();
+    ['<script>x</script>', 'executable or unsupported widget element'],
+    ['<span style="color:red">x</span>', 'executable or unsupported widget attribute'],
+    ['<span onclick="x">x</span>', 'executable or unsupported widget attribute'],
+    ['<span data-embed-config="x">x</span>', 'executable or unsupported widget attribute'],
+    ['<span data-page-region="x">x</span>', 'executable or unsupported widget attribute'],
+    ['<a href="{{props.url}}">x</a>', 'plugin export URL must be a whole hostLinks or assets slot'],
+    ['<span title={{props.label}}>x</span>', 'plugin export slots require quoted attributes'],
+    ['<span>{{props.missing}}</span>', 'unknown plugin export slot'],
+    ['<span>{{props.__proto__.x}}</span>', 'unknown plugin export slot'],
+    ['<span>{{include template}}</span>', 'unsupported plugin export slot'],
+    ['<!-- {{props.label}} -->', 'plugin export slots cannot appear in comments'],
+  ] as const)('refuses unsupported template %s', (template, message) => {
+    expect(() => fillPluginExportTemplate({ definition: { ...definition, template, props: { label: 'hi', url: '/safe' } } })).toThrow(message);
   });
 
   it('uses the existing fragment byte cap', () => {
@@ -229,29 +235,29 @@ describe('plugin exports with declared external hosts', () => {
     ['embedded credentials', 'https://user:pw@book.vendor.test/me'],
     ['a script URL', 'javascript:alert(1)'],
   ])('refuses a prop URL on %s', (_name, url) => {
-    expect(() => fillPluginExportTemplate({ definition: { ...frame, props: { url } } })).toThrow();
+    expect(() => fillPluginExportTemplate({ definition: { ...frame, props: { url } } })).toThrow('plugin export URL must be on a declared host');
   });
 
   it('refuses a frame when the export declares no frame host', () => {
     const { frameHosts: _dropped, ...undeclared } = frame;
-    expect(() => fillPluginExportTemplate({ definition: undeclared })).toThrow();
+    expect(() => fillPluginExportTemplate({ definition: undeclared })).toThrow('executable or unsupported widget element');
   });
 
   it('refuses a frame pointing anywhere but a whole prop slot on a declared host', () => {
-    expect(() => fillPluginExportTemplate({ definition: { ...frame, template: '<iframe src="https://evil.test/x"></iframe>' } })).toThrow();
-    expect(() => fillPluginExportTemplate({ definition: { ...frame, template: '<iframe srcdoc="<b>x</b>" src="{{props.url}}"></iframe>' } })).toThrow();
+    expect(() => fillPluginExportTemplate({ definition: { ...frame, template: '<iframe src="https://evil.test/x"></iframe>' } })).toThrow('plugin export URL must be a whole hostLinks or assets slot');
+    expect(() => fillPluginExportTemplate({ definition: { ...frame, template: '<iframe srcdoc="<b>x</b>" src="{{props.url}}"></iframe>' } })).toThrow('unsupported widget frame');
   });
 
   it('keeps ordinary server widgets free of frames', () => {
-    expect(() => validateServerWidgetFragment({ html: '<iframe src="https://book.vendor.test/me"></iframe>' })).toThrow();
+    expect(() => validateServerWidgetFragment({ html: '<iframe src="https://book.vendor.test/me"></iframe>' })).toThrow('executable or unsupported widget element');
   });
 
   it('gives declared scripts their data attributes, but never the reserved ones', () => {
     const scripted: PluginExportTemplate = { ...definition, template: '<div data-chat-id="{{props.label}}"></div>', scriptData: true };
     expect(fillPluginExportTemplate({ definition: scripted })).toBe('<div data-chat-id="Continue"></div>');
-    expect(() => fillPluginExportTemplate({ definition: { ...scripted, scriptData: false } })).toThrow();
+    expect(() => fillPluginExportTemplate({ definition: { ...scripted, scriptData: false } })).toThrow('executable or unsupported widget attribute');
     for (const name of ['data-embed-config', 'data-agent-element', 'data-src', 'data-jini-consent', 'data-consent-category', 'data-consent-action']) {
-      expect(() => fillPluginExportTemplate({ definition: { ...scripted, template: `<div ${name}="x"></div>` } })).toThrow();
+      expect(() => fillPluginExportTemplate({ definition: { ...scripted, template: `<div ${name}="x"></div>` } })).toThrow('executable or unsupported widget attribute');
     }
   });
 });

@@ -40,7 +40,7 @@ describe('delegated argument envelopes', () => {
   });
 
   it.each(['[]', 'null', '4', '{broken'])('refuses invalid envelopes without disclosing values: %s', async input => {
-    await expect(normalize({ input })).rejects.toThrow();
+    await expect(normalize({ input })).rejects.toThrow(input === '{broken' ? 'The delegated input is not valid JSON. Send one JSON object containing the tool fields.' : 'The delegated input must be a JSON object. Send the tool fields inside an object.');
   });
 });
 

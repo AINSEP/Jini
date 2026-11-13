@@ -231,8 +231,8 @@ describe('AI trace lifecycle failure containment and terminal observation', () =
   it('propagates underlying lifecycle failures without treating them as telemetry failures', async () => {
     const onSinkError = vi.fn();
     const { traced } = fixture({ onSinkError });
-    await expect(traced.emit({ runId: 'missing', input: { event: 'agent', data: { type: 'text_delta', delta: 'answer' } } })).rejects.toThrow();
-    await expect(traced.finish({ runId: 'missing', ...success })).rejects.toThrow();
+    await expect(traced.emit({ runId: 'missing', input: { event: 'agent', data: { type: 'text_delta', delta: 'answer' } } })).rejects.toThrow('RunLifecycle: unknown run "missing"');
+    await expect(traced.finish({ runId: 'missing', ...success })).rejects.toThrow('RunLifecycle: unknown run "missing"');
     expect(onSinkError).not.toHaveBeenCalled();
   });
 });

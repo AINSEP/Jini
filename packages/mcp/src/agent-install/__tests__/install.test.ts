@@ -296,9 +296,9 @@ describe('applyJsonInstall / removeJsonInstall — prototype-pollution guard (CR
 
   it('rejects "constructor" and "prototype" segments anywhere in keyPath', () => {
     const base = { kind: 'json' as const, slug: 'openclaw' as const, configPath: '/x.json', serverKey: 'jini', entry: safeEntry };
-    expect(() => applyJsonInstall({ existingText: null, plan: { ...base, keyPath: ['constructor'] } })).toThrow();
-    expect(() => applyJsonInstall({ existingText: null, plan: { ...base, keyPath: ['a', 'prototype'] } })).toThrow();
-    expect(() => applyJsonInstall({ existingText: null, plan: { ...base, keyPath: ['a', 'constructor', 'b'] } })).toThrow();
+    expect(() => applyJsonInstall({ existingText: null, plan: { ...base, keyPath: ['constructor'] } })).toThrow('refusing to apply MCP install plan: "constructor" is not a safe keyPath segment (prototype-pollution guard)');
+    expect(() => applyJsonInstall({ existingText: null, plan: { ...base, keyPath: ['a', 'prototype'] } })).toThrow('refusing to apply MCP install plan: "prototype" is not a safe keyPath segment (prototype-pollution guard)');
+    expect(() => applyJsonInstall({ existingText: null, plan: { ...base, keyPath: ['a', 'constructor', 'b'] } })).toThrow('refusing to apply MCP install plan: "constructor" is not a safe keyPath segment (prototype-pollution guard)');
   });
 
   it('rejects a "constructor" serverKey', () => {
@@ -306,7 +306,7 @@ describe('applyJsonInstall / removeJsonInstall — prototype-pollution guard (CR
       kind: 'json', slug: 'openclaw', configPath: '/x.json',
       keyPath: ['mcp'], serverKey: 'constructor', entry: { polluted: true },
     };
-    expect(() => applyJsonInstall({ existingText: null, plan })).toThrow();
+    expect(() => applyJsonInstall({ existingText: null, plan })).toThrow('refusing to apply MCP install plan: "constructor" is not a safe serverKey segment (prototype-pollution guard)');
   });
 
   it('removeJsonInstall also rejects dangerous keyPath/serverKey segments, even against an empty file', () => {
@@ -314,12 +314,12 @@ describe('applyJsonInstall / removeJsonInstall — prototype-pollution guard (CR
       removeJsonInstall({ existingText: null, plan: {
         kind: 'json', slug: 'openclaw', configPath: '/x.json', keyPath: ['__proto__'], serverKey: 'jini', entry: {},
       } }),
-    ).toThrow();
+    ).toThrow('refusing to apply MCP install plan: "__proto__" is not a safe keyPath segment (prototype-pollution guard)');
     expect(() =>
       removeJsonInstall({ existingText: '{}', plan: {
         kind: 'json', slug: 'openclaw', configPath: '/x.json', keyPath: ['mcp'], serverKey: 'prototype', entry: {},
       } }),
-    ).toThrow();
+    ).toThrow('refusing to apply MCP install plan: "prototype" is not a safe serverKey segment (prototype-pollution guard)');
   });
 
   it('still accepts an ordinary safe plan — the guard is not overly broad', () => {

@@ -11,7 +11,11 @@ afterEach(async () => { for (const root of roots.splice(0)) await fs.rm(root, { 
 test.each(['../x', '/absolute', 'a/../b', 'C:/x', '\\\\server\\share', 'a\\b', 'a//b',
   'con', 'CON.txt', 'nul.json', 'COM1.js', 'LPT9.log', 'COM¹.txt', 'a:stream', 'a<', 'a>', 'a"', 'a|', 'a?', 'a*', 'a\0', 'a\x1f', 'a.', 'a '])(
   'refuses nonportable path %j', relativePath => {
-    expect(() => canonicalPath({ relativePath, maxDepth: 32 })).toThrow();
+    const segment = relativePath === '../x' || relativePath === 'a/../b' ? '..'
+      : relativePath === '/absolute' || relativePath === 'a//b' ? '' : relativePath.split('/')[0];
+    const message = relativePath.includes('\\') ? 'use a relative slash-separated path of at most 200 characters'
+      : `nonportable path segment: ${segment}`;
+    expect(() => canonicalPath({ relativePath, maxDepth: 32 })).toThrow(message);
   },
 );
 test('enforces path length and depth while preserving Unicode filename spelling', () => {
@@ -33,7 +37,7 @@ test('guarded reader and host policy exclude secrets, dependencies and escaped l
   const root = join(base, 'app'); await fs.mkdir(root);
   const paths = createProjectPaths({ root, policy: { allows: ({ relativePath }) => relativePath.endsWith('.ts') }, limits: projectLimits({}) });
   for (const relativePath of ['.git/a.ts', 'node_modules/a.ts', 'dist/a.ts', '.env', '.ENV.local/a.ts', 'readme.md']) {
-    expect(() => paths.check({ relativePath })).toThrow();
+    expect(() => paths.check({ relativePath })).toThrow(relativePath === 'readme.md' ? 'host policy refuses readme.md' : `excluded path: ${relativePath}`);
   }
   await fs.mkdir(join(base, 'outside'));
   await fs.symlink(join(base, 'outside'), join(root, 'linked'), process.platform === 'win32' ? 'junction' : 'dir');

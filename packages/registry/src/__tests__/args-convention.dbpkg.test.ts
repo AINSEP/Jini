@@ -27,8 +27,8 @@ describe('registry object arguments and unchanged behavior', () => {
   });
 
   it('rejects unknown trust and backend modes before serving any entries', () => {
-    expect(() => new StaticRegistryBackend({ id: 'fixture', trust: 'unknown' as never, manifest })).toThrow();
-    expect(() => new StaticRegistryBackend({ id: 'fixture', trust: 'restricted', manifest }, { kind: 'unknown' as never })).toThrow();
+    expect(() => new StaticRegistryBackend({ id: 'fixture', trust: 'unknown' as never, manifest })).toThrow(JSON.stringify([{ received: 'unknown', code: 'invalid_enum_value', options: ['official', 'trusted', 'restricted'], path: [], message: "Invalid enum value. Expected 'official' | 'trusted' | 'restricted', received 'unknown'" }], null, 2));
+    expect(() => new StaticRegistryBackend({ id: 'fixture', trust: 'restricted', manifest }, { kind: 'unknown' as never })).toThrow(JSON.stringify([{ received: 'unknown', code: 'invalid_enum_value', options: ['github', 'http', 'local', 'db'], path: [], message: "Invalid enum value. Expected 'github' | 'http' | 'local' | 'db', received 'unknown'" }], null, 2));
   });
 
   it('retains dry-run isolation, timestamps and nonexistent-version yank outcomes', async () => {

@@ -434,7 +434,7 @@ describe('pinnedFetch', () => {
       const pending = pinnedFetch({ url: `http://svc.invalid:${port}/v1`, init: { method: 'POST', headers: {}, body: '{}', signal: controller.signal }, pinnedAddress: { address: '127.0.0.1', family: 4 } }
       );
       controller.abort();
-      await expect(pending).rejects.toThrow();
+      await expect(pending).rejects.toThrow('The operation was aborted');
     } finally {
       await new Promise<void>((resolve) => server.close(() => resolve()));
     }
@@ -465,7 +465,7 @@ describe('pinnedFetch transport selection and late aborts', () => {
     });
     const port = await listen(server);
     try {
-      await expect(pinnedFetch({ url: `https://provider.test:${port}/v1`, init: { method: 'POST', headers: {}, body: '{}' }, pinnedAddress: { address: '127.0.0.1', family: 4 } })).rejects.toThrow();
+      await expect(pinnedFetch({ url: `https://provider.test:${port}/v1`, init: { method: 'POST', headers: {}, body: '{}' }, pinnedAddress: { address: '127.0.0.1', family: 4 } })).rejects.toThrow('Client network socket disconnected before secure TLS connection was established');
       expect(firstBytes?.[0]).toBe(0x16);
       expect(firstBytes?.includes(Buffer.from('provider.test'))).toBe(true);
     } finally {

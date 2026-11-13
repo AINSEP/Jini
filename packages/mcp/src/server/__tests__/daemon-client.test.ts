@@ -258,7 +258,7 @@ describe('getDaemonJson / postDaemonJson', () => {
           });
         }),
     );
-    await expect(getDaemonJson({ baseUrl: 'http://d.example', route: '/api/x' }, { fetchImpl, timeoutMs: 10 })).rejects.toThrow();
+    await expect(getDaemonJson({ baseUrl: 'http://d.example', route: '/api/x' }, { fetchImpl, timeoutMs: 10 })).rejects.toThrow('This operation was aborted');
   });
 
   it('aborts when a caller-supplied signal fires, even before timeoutMs elapses', async () => {
@@ -273,7 +273,7 @@ describe('getDaemonJson / postDaemonJson', () => {
     );
     const pending = getDaemonJson({ baseUrl: 'http://d.example', route: '/api/x' }, { fetchImpl, signal: controller.signal, timeoutMs: 60_000 });
     controller.abort();
-    await expect(pending).rejects.toThrow();
+    await expect(pending).rejects.toThrow('This operation was aborted');
   });
 
   it('DaemonResponseTooLargeError carries the configured limit', () => {

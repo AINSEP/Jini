@@ -67,6 +67,6 @@ test.each(["missing", "different"])("a %s owner key is a recovery error and neve
 test("reading a missing owner.db fails without creating it", async () => {
   const store = await setup();
   store.cleanup();
-  await expect(countLegacyOwnerStore({ filePath: store.filePath, open })).rejects.toThrow();
+  await expect(countLegacyOwnerStore({ filePath: store.filePath, open })).rejects.toThrow(new TypeError("Cannot open database because the directory does not exist"));
   expect(existsSync(store.filePath)).toBe(false);
 });

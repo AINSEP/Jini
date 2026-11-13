@@ -82,7 +82,7 @@ describe('readMediaFile', () => {
     const { reader, createReader } = fakeReader();
     const abort = new AbortController();
     abort.abort();
-    await expect(readMediaFile({ file: file('a.png') }, { signal: abort.signal, createReader })).rejects.toThrow();
+    await expect(readMediaFile({ file: file('a.png') }, { signal: abort.signal, createReader })).rejects.toThrow(abort.signal.reason.message);
     expect(reader.readAsDataURL).not.toHaveBeenCalled();
   });
 });

@@ -27,12 +27,12 @@ test('fork archive changes identity and literal text without mutating source', a
 
 test.each(['../outside', '/absolute', 'skills\\SKILL.md', 'plugin.json'])('refuses an unsafe or identity edit path: %s', async file => {
   const input = await fixture();
-  await expect(zipCustomizedAgentPluginFolder({ ...input, edit: { ...input.edit, path: file } })).rejects.toThrow();
+  await expect(zipCustomizedAgentPluginFolder({ ...input, edit: { ...input.edit, path: file } })).rejects.toThrow('Choose an existing package-relative text file other than plugin.json.');
 });
 
 test.each(['', 'missing', 'e'])('refuses empty, missing and ambiguous old text: %j', async oldString => {
   const input = await fixture();
-  await expect(zipCustomizedAgentPluginFolder({ ...input, edit: { ...input.edit, oldString } })).rejects.toThrow();
+  await expect(zipCustomizedAgentPluginFolder({ ...input, edit: { ...input.edit, oldString } })).rejects.toThrow(oldString ? 'oldString must match exactly once. Read the file and send more context.' : 'oldString must not be empty.');
 });
 
 test('refuses a non-UTF-8 edit target as a named folder error, not a raw decoder error', async () => {
@@ -43,10 +43,10 @@ test('refuses a non-UTF-8 edit target as a named folder error, not a raw decoder
 
 test('refuses links, same identity and over-budget replacement bytes', async () => {
   const input = await fixture();
-  await expect(zipCustomizedAgentPluginFolder({ ...input, name: 'stock' })).rejects.toThrow();
-  await expect(zipCustomizedAgentPluginFolder({ ...input, maxBytes: 512, edit: { ...input.edit, newString: 'x'.repeat(1024) } })).rejects.toThrow();
+  await expect(zipCustomizedAgentPluginFolder({ ...input, name: 'stock' })).rejects.toThrow('Choose a valid new Agent Plugin id different from the source.');
+  await expect(zipCustomizedAgentPluginFolder({ ...input, maxBytes: 512, edit: { ...input.edit, newString: 'x'.repeat(1024) } })).rejects.toThrow('Folder is over the upload limit.');
   await symlink(path.join(input.path, input.edit.path), path.join(input.path, 'link'));
-  await expect(zipCustomizedAgentPluginFolder(input)).rejects.toThrow();
+  await expect(zipCustomizedAgentPluginFolder(input)).rejects.toThrow('Could not read that folder. Try again.');
 });
 
 // The upload and manifest parser share the spec's id grammar, including delimiter and size bounds.

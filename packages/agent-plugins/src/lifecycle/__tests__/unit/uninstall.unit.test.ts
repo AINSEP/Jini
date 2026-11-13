@@ -202,7 +202,7 @@ test("uninstalls an operator-installed plugin that was NEVER explicitly toggled 
 
     const result = await uninstallAgentPlugin({ layout: instanceLayout, workspaceId: WORKSPACE_ID, pluginId: "never-toggled" });
     assert.deepEqual(result.removedDigests, [installed.archiveDigest]);
-    await assert.rejects(() => stat(installed.packageRoot));
+    await assert.rejects(() => stat(installed.packageRoot), { name: "Error", code: "ENOENT", message: `ENOENT: no such file or directory, stat '${installed.packageRoot}'` });
   } finally {
     await forceRemove(cwd);
   }
@@ -216,7 +216,7 @@ test("removing a frozen (read-only, 0o555) published package root does not throw
     assert.equal(rootMode, 0o555, "sanity: install.ts really does freeze the package root read-only");
 
     await uninstallAgentPlugin({ layout: instanceLayout, workspaceId: WORKSPACE_ID, pluginId: "frozen-check" });
-    await assert.rejects(() => stat(installed.packageRoot));
+    await assert.rejects(() => stat(installed.packageRoot), { name: "Error", code: "ENOENT", message: `ENOENT: no such file or directory, stat '${installed.packageRoot}'` });
   } finally {
     await forceRemove(cwd);
   }
@@ -236,7 +236,7 @@ test("removing a package tree never chmods through a symlink to a file outside i
     await chmod(installed.packageRoot, 0o555);
 
     await uninstallAgentPlugin({ layout: instanceLayout, workspaceId: WORKSPACE_ID, pluginId: "symlink-check" });
-    await assert.rejects(() => stat(installed.packageRoot));
+    await assert.rejects(() => stat(installed.packageRoot), { name: "Error", code: "ENOENT", message: `ENOENT: no such file or directory, stat '${installed.packageRoot}'` });
     assert.equal((await stat(outside)).mode & 0o777, 0o444, "the link's target keeps its own mode");
   } finally {
     await forceRemove(cwd);
@@ -311,7 +311,7 @@ test("TENANT ISOLATION: uninstalling in one workspace never touches another work
 
     await uninstallAgentPlugin({ layout: instanceLayout, workspaceId: WORKSPACE_ID, pluginId: "shared-name" });
 
-    await assert.rejects(() => stat(installedMine.packageRoot));
+    await assert.rejects(() => stat(installedMine.packageRoot), { name: "Error", code: "ENOENT", message: `ENOENT: no such file or directory, stat '${installedMine.packageRoot}'` });
     const otherStillThere = await stat(installedOther.packageRoot);
     assert.equal(otherStillThere.isDirectory(), true, "the other workspace's own copy must survive untouched");
   } finally {
@@ -416,7 +416,7 @@ test("an unchanged confirmed preview uninstalls normally", async () => {
     const result = await uninstallAgentPlugin(req, { confirmedPreview: preview });
 
     assert.deepEqual(result, { pluginId: "unchanged-plugin", removedDigests: [installed.archiveDigest] });
-    await assert.rejects(() => stat(installed.packageRoot));
+    await assert.rejects(() => stat(installed.packageRoot), { name: "Error", code: "ENOENT", message: `ENOENT: no such file or directory, stat '${installed.packageRoot}'` });
   } finally {
     await forceRemove(cwd);
   }

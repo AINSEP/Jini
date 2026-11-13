@@ -1224,7 +1224,7 @@ describe('createLocalNodeDaemon', () => {
     const daemon = await createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] });
 
     await daemon.stop();
-    await expect(fetch(`${daemon.url}/api/ping`)).rejects.toThrow();
+    await expect(fetch(`${daemon.url}/api/ping`)).rejects.toThrow('fetch failed');
   });
 
   it('stop() releases the sqlite file handle: reopening the same path afterward does not throw', async () => {
@@ -1339,7 +1339,7 @@ describe('createLocalNodeDaemon', () => {
     // preserved here) — poll until the listener has actually closed.
     await vi.waitFor(
       async () => {
-        await expect(fetch(`${daemon.url}/api/ping`)).rejects.toThrow();
+        await expect(fetch(`${daemon.url}/api/ping`)).rejects.toThrow('fetch failed');
       },
       { timeout: 2000 },
     );
@@ -1475,7 +1475,7 @@ describe('createLocalNodeDaemon', () => {
     const dataDirB = makeTempDataDir();
     await expect(
       createLocalNodeDaemon({ open: openSqlite, dataDir: dataDirB, packs: [makePingPack()], port: fixedPort }),
-    ).rejects.toThrow();
+    ).rejects.toThrow(`listen EADDRINUSE: address already in use 127.0.0.1:${fixedPort}`);
   });
 
   it('closes the durable EventLog and propagates the error when rehydrate() fails on a corrupt/unreadable durable history', async () => {
@@ -1534,7 +1534,7 @@ describe('createLocalNodeDaemon', () => {
       });
     try {
       const dataDir = makeTempDataDir();
-      await expect(createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()], port: 70_000 })).rejects.toThrow();
+      await expect(createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()], port: 70_000 })).rejects.toThrow("options.port should be >= 0 and < 65536. Received type number (70000).");
 
       const created = spy.mock.results[0]?.value as ReturnType<typeof original>;
       const createdJournal = spy.mock.results[1]?.value as ReturnType<typeof original>;
@@ -1574,7 +1574,7 @@ describe('createLocalNodeDaemon', () => {
       });
     try {
       const dataDir = makeTempDataDir();
-      await expect(createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] })).rejects.toThrow();
+      await expect(createLocalNodeDaemon({ open: openSqlite, dataDir, packs: [makePingPack()] })).rejects.toThrow("@jini-ai/server: daemon failed to resolve listening port (address=null)");
 
       const created = spy.mock.results[0]?.value as ReturnType<typeof original>;
       const createdJournal = spy.mock.results[1]?.value as ReturnType<typeof original>;
@@ -1603,7 +1603,7 @@ describe('createLocalNodeDaemon', () => {
       const dataDirB = makeTempDataDir();
       await expect(
         createLocalNodeDaemon({ open: openSqlite, dataDir: dataDirB, packs: [makePingPack()], port: fixedPort }),
-      ).rejects.toThrow();
+      ).rejects.toThrow(`listen EADDRINUSE: address already in use 127.0.0.1:${fixedPort}`);
 
       const created = spy.mock.results[0]?.value as ReturnType<typeof original>;
       const createdJournal = spy.mock.results[1]?.value as ReturnType<typeof original>;

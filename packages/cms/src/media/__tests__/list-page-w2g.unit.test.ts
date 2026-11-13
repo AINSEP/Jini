@@ -37,10 +37,15 @@ test('paging orders different timestamps before ids and resumes beyond a deleted
   expect(last.nextCursor).toBeNull();
 });
 
-test.each([{ cursor: 42 }, { query: 'a'.repeat(1001) }, { limit: NaN }, { limit: '2' }])('invalid list input %j rejects before a storage read', async input => {
+test.each([
+  [{ cursor: 42 }, 'cursor must be a string'],
+  [{ query: 'a'.repeat(1001) }, 'query must be a string of at most 1000 characters'],
+  [{ limit: NaN }, 'limit must be an integer from 1 to 100'],
+  [{ limit: '2' }, 'limit must be an integer from 1 to 100'],
+] as const)('invalid list input %j rejects before a storage read', async (input, message) => {
   const mediaRepo = new InMemoryMediaRepo({});
   const read = vi.spyOn(mediaRepo, 'list');
-  await expect(listMediaPage({ mediaRepo, workspaceId: 'site', library: false, input })).rejects.toThrow();
+  await expect(listMediaPage({ mediaRepo, workspaceId: 'site', library: false, input })).rejects.toThrow(message);
   expect(read).not.toHaveBeenCalled();
 });
 

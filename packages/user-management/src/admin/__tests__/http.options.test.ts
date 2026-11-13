@@ -40,7 +40,8 @@ describe('members HTTP adapter', () => {
     const signal = new AbortController().signal;
     await api.getMember({ id: 'm/1' }, { signal });
     expect(calls).toEqual([[{ path: '/workspaces/w/members/m%2F1', method: 'GET' }, { signal }]]);
-    await expect(api.disableMember({ id: 'm' }, { signal: aborted() })).rejects.toThrow();
+    const abortedSignal = aborted();
+    await expect(api.disableMember({ id: 'm' }, { signal: abortedSignal })).rejects.toThrow(abortedSignal.reason.message);
     expect(calls).toHaveLength(1);
   });
 
@@ -60,7 +61,8 @@ describe('auth HTTP adapter', () => {
     const signal = new AbortController().signal;
     await api.login({ username: 'admin', password: 'pw' }, { signal });
     expect(calls).toEqual([[{ path: '/api/auth/login', method: 'POST', body: { username: 'admin', password: 'pw' } }, { signal }]]);
-    await expect(api.login({ username: 'admin', password: 'pw' }, { signal: aborted() })).rejects.toThrow();
+    const abortedSignal = aborted();
+    await expect(api.login({ username: 'admin', password: 'pw' }, { signal: abortedSignal })).rejects.toThrow(abortedSignal.reason.message);
     expect(calls).toHaveLength(1);
   });
 });

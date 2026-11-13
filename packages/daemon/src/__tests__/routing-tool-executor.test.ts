@@ -65,7 +65,7 @@ describe('createRoutingToolExecutor', () => {
     expect(remote.getAuditRecord).toHaveBeenCalledWith({ executionId: 'remote-1' });
     routing.cancel({ executionId: 'remote-1' });
     expect(remote.cancel).toHaveBeenCalledWith({ executionId: 'remote-1' });
-    expect(() => routing.resumeConfirmation({ executionId: 'nope', decision: 'confirm' })).toThrow();
+    expect(() => routing.resumeConfirmation({ executionId: 'nope', decision: 'confirm' })).toThrow('ToolExecutor: no pending confirmation for execution "nope"');
     expect(remote.resumeConfirmation).not.toHaveBeenCalled();
   });
 });

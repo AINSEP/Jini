@@ -30,7 +30,7 @@ it('publishes a generation atomically, swaps handlers, detaches and refuses pref
 });
 it('rejects route escape, malformed access, unsupported schemas and excessive registrations', () => {
   const capture = createPluginContributionCapture({ manifest });
-  for (const path of ['/../hello', '//hello', '/hello?x=1', '/hello%2fworld']) expect(() => capture.routes.add({ method: 'GET', path, access: 'public', handler: async () => ({}) })).toThrow();
+  for (const path of ['/../hello', '//hello', '/hello?x=1', '/hello%2fworld']) expect(() => capture.routes.add({ method: 'GET', path, access: 'public', handler: async () => ({}) })).toThrow('unsafe plugin route path');
   expect(() => capture.routes.add({ method: 'GET', path: '/hello', access: 'owner' as never, handler: async () => ({}) })).toThrow(/access/);
   expect(() => capture.tools.add({ name: 'hello', description: 'hello', inputSchema: [] as never, handler: async () => null })).toThrow(/schema/);
   expect(() => capture.tools.add({ name: 'hello', description: 'hello', inputSchema: { type: 'object', description: 'é'.repeat(40000) }, handler: async () => null })).toThrow(/too large/);

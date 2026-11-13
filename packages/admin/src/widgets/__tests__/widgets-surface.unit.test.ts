@@ -56,7 +56,7 @@ describe('createMemoryWidgetsApi regions', () => {
 
   it('honours an aborted signal when listing regions', async () => {
     const abort = new AbortController(); abort.abort();
-    await expect(createMemoryWidgetsApi({}).listWidgetRegions({}, { signal: abort.signal })).rejects.toThrow();
+    await expect(createMemoryWidgetsApi({}).listWidgetRegions({}, { signal: abort.signal })).rejects.toThrow(abort.signal.reason.message);
   });
 });
 

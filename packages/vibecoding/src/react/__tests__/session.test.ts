@@ -101,8 +101,10 @@ describe('createVibecodingSession — readPart caching', () => {
 
     // Not `.rejects.toThrow('...')`: that overload is broken by `@testing-library/jest-dom`'s
     // global `expect.extend` under this package's jsdom projects (verified empirically — see
-    // `vitest.setup.ts`'s doc). The bare, argument-less form is unaffected.
-    await expect(session.readPart({ id: 'missing' })).rejects.toThrow();
+    // `vitest.setup.ts`'s doc). Assert the error type and message separately instead.
+    const missingRead = session.readPart({ id: 'missing' });
+    await expect(missingRead).rejects.toBeInstanceOf(Error);
+    await expect(missingRead).rejects.toMatchObject({ message: 'no such part: missing' });
     expect(session.getSnapshot().status).toBe('error');
     expect(session.getSnapshot().lastError).toContain('no such part: missing');
   });

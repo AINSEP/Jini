@@ -291,7 +291,7 @@ describe('createMcpToolServer — wire-level (real SDK Client + Server + InMemor
     await closeDown(runPromise);
     // The transport pair is genuinely torn down end-to-end (not just a `closeCalls` counter
     // incremented on a fake): a further request over the same client can no longer be sent at all.
-    await expect(client.ping()).rejects.toThrow();
+    await expect(client.ping()).rejects.toThrow('Not connected');
   });
 });
 
@@ -573,7 +573,7 @@ describe('typed delegated publication — real MCP wire and existing daemon owne
     await aborted.promise;
     // The actual executor records cancellation, and its pending confirmation cannot execute later.
     await vi.waitFor(() => expect(fixture.toolExecutor.getAuditRecord({ executionId })?.events.at(-1)?.phase).toBe('cancelled'));
-    expect(() => fixture.toolExecutor.resumeConfirmation({ executionId, decision: 'confirm' })).toThrow();
+    expect(() => fixture.toolExecutor.resumeConfirmation({ executionId, decision: 'confirm' })).toThrow(`ToolExecutor: no pending confirmation for execution "${executionId}"`);
     expect(handler).not.toHaveBeenCalled();
   });
 

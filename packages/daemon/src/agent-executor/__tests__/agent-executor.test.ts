@@ -2549,7 +2549,7 @@ describe('AgentExecutor — plain-format prompt-file delivery (grok-build: promp
     expect(finished.state).toBe('succeeded');
 
     // Cleaned up after the child exits — no leaked temp file with prompt content on disk.
-    await expect(fs.access(promptFilePath)).rejects.toThrow();
+    await expect(fs.access(promptFilePath)).rejects.toThrow(`ENOENT: no such file or directory, access '${promptFilePath}'`);
   });
 
   it('cleans up the staged prompt file when spawn() throws synchronously, before ever reaching the child process', async () => {
@@ -3122,7 +3122,7 @@ describe('AgentExecutor — needsAgentLogFile staging (antigravity)', () => {
     const dirStat = await fs.stat(path.dirname(logPath));
     expect(dirStat.isDirectory()).toBe(true);
     expect(dirStat.mode & 0o777).toBe(0o700);
-    await expect(fs.access(logPath)).rejects.toThrow();
+    await expect(fs.access(logPath)).rejects.toThrow(`ENOENT: no such file or directory, access '${logPath}'`);
 
     // Simulate the CLI writing its diagnostic log, then exiting.
     await fs.writeFile(logPath, 'Propagating selected model override to backend: label="M"\n', 'utf8');
@@ -3131,8 +3131,8 @@ describe('AgentExecutor — needsAgentLogFile staging (antigravity)', () => {
     expect((await lifecycle.waitForTerminal({ runId: run.id })).state).toBe('succeeded');
 
     // Cleaned up — a leaked log can hold whatever the CLI chose to write.
-    await expect(fs.access(logPath)).rejects.toThrow();
-    await expect(fs.access(path.dirname(logPath))).rejects.toThrow();
+    await expect(fs.access(logPath)).rejects.toThrow(`ENOENT: no such file or directory, access '${logPath}'`);
+    await expect(fs.access(path.dirname(logPath))).rejects.toThrow(`ENOENT: no such file or directory, access '${path.dirname(logPath)}'`);
   });
 
   it('stages nothing for a def that did not opt in', async () => {
@@ -5532,7 +5532,9 @@ describe('prepareSystemPromptOverlayFileIfNeeded', () => {
     const staged = await fs.readFile(result!.path, 'utf8');
     expect(staged).toBe('Follow the house rules.');
     await result!.cleanup();
-    await expect(fs.readFile(result!.path, 'utf8')).rejects.toThrow();
+    if (result === null) throw new Error('Expected a staged overlay file');
+    const resultPath = result.path;
+    await expect(fs.readFile(resultPath, 'utf8')).rejects.toThrow(`ENOENT: no such file or directory, open '${resultPath}'`);
   });
 
   it('cleanup is safe to call more than once', async () => {

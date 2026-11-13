@@ -183,7 +183,7 @@ describe("@jini-ai/sidecar — net", () => {
     const first = await listenOnPort(0, "127.0.0.1");
     const address = first.address();
     if (address == null || typeof address === "string") throw new Error("expected a TCP address");
-    await expect(listenOnPort(address.port, "127.0.0.1")).rejects.toThrow();
+    await expect(listenOnPort(address.port, "127.0.0.1")).rejects.toThrow(`listen EADDRINUSE: address already in use 127.0.0.1:${address.port}`);
     await closeServer(first);
   });
 
@@ -781,7 +781,7 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
     const root = await mkdtemp(join(tmpdir(), "jini-sidecar-ipc-noserver-"));
     try {
       const missingSocketPath = join(root, "nobody-listening.sock");
-      await expect(requestJsonIpc({ socketPath: missingSocketPath, payload: { type: "X" } }, { timeoutMs: 2000 })).rejects.toThrow();
+      await expect(requestJsonIpc({ socketPath: missingSocketPath, payload: { type: "X" } }, { timeoutMs: 2000 })).rejects.toThrow(`connect ENOENT ${missingSocketPath}`);
     } finally {
       await rm(root, { force: true, recursive: true });
     }
@@ -946,7 +946,7 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
       writeFileSync(socketPath, "not a socket, just a file");
       await expect(
         createJsonIpcServer({ handler: async () => "ok", socketPath }),
-      ).rejects.toThrow();
+      ).rejects.toThrow(`listen EADDRINUSE: address already in use ${socketPath}`);
       // The unrelated file was left untouched — only a *stale socket* gets unlinked.
       expect(existsSync(socketPath)).toBe(true);
     } finally {

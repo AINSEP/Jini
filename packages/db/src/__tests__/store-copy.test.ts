@@ -48,7 +48,7 @@ it("injected schemas/ledgers select only their tables, preserve ledgers, validat
     expect(await target.query(sql`SELECT id FROM public.outside_scope`)).toEqual([{ id: "leave-me" }]);
     expect(await target.query(sql`SELECT id, checksum FROM history.applied`)).toEqual([{ id: "step", checksum: "same" }]);
     expect(await target.query(sql`INSERT INTO catalog.parent DEFAULT VALUES RETURNING id`)).toEqual([{ id: 8 }]);
-    await expect(target.execute(sql`INSERT INTO history.child VALUES ('orphan', 999)`)).rejects.toThrow();
+    await expect(target.execute(sql`INSERT INTO history.child VALUES ('orphan', 999)`)).rejects.toThrow('insert or update on table "child" violates foreign key constraint "child_parent_id_fkey"');
     expect(await source.query(sql`SELECT id FROM history.child`)).toEqual([{ id: "child" }]);
   } finally { await source.close(); await target.close(); }
 }, 60_000);

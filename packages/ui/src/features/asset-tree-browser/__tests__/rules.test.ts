@@ -557,7 +557,7 @@ describe('filesFromDataTransfer', () => {
       file: (_success: (f: File) => void, error: (e: DOMException) => void) => error(new DOMException('nope')),
     } as unknown as FileSystemEntry;
     const item = { kind: 'file', webkitGetAsEntry: () => failingEntry } as unknown as DataTransferItem;
-    await expect(filesFromDataTransfer({ items: [item], files: [] } as unknown as DataTransfer)).rejects.toThrow();
+    await expect(filesFromDataTransfer({ items: [item], files: [] } as unknown as DataTransfer)).rejects.toThrow('nope');
   });
 });
 

@@ -32,6 +32,6 @@ it('uses the injected transport, encoded ids and separate body/options objects',
   expect(api.replace).toBeUndefined();
   expect(api.replaceSupported).toBe(false);
   abort.abort();
-  await expect(api.list({}, { signal: abort.signal })).rejects.toThrow();
+  await expect(api.list({}, { signal: abort.signal })).rejects.toThrow(abort.signal.reason.message);
   expect(calls).toHaveLength(2);
 });

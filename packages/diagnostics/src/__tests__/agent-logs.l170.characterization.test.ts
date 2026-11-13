@@ -92,7 +92,7 @@ describe("agent CLI log discovery characterization", () => {
       const { filesystem } = createNodeDiagnosticsPorts({});
       const sources = await buildAgentCliLogSources({ homeDir, filesystem });
       expect(sources).toEqual([]);
-      await expect(filesystem.readFile({ absolutePath }, { tailBytes: defaultTail })).rejects.toThrow();
+      await expect(filesystem.readFile({ absolutePath }, { tailBytes: defaultTail })).rejects.toThrow(`ELOOP: too many symbolic links encountered, open '${absolutePath}'`);
       expect(await collectLogSources({ sources, filesystem })).toEqual([]);
     } finally {
       await rm(root, { recursive: true, force: true });

@@ -81,7 +81,9 @@ describe('VibecodingWorkbench', () => {
     const session = createVibecodingSession({ target: makeTarget() });
     render(<VibecodingWorkbench session={session} />);
 
-    await expect(session.readPart({ id: 'missing' })).rejects.toThrow();
+    const missingRead = session.readPart({ id: 'missing' });
+    await expect(missingRead).rejects.toBeInstanceOf(Error);
+    await expect(missingRead).rejects.toMatchObject({ message: 'no such part: missing' });
 
     await waitFor(() => expect(screen.getByText(/no such part: missing/)).toBeInTheDocument());
   });
