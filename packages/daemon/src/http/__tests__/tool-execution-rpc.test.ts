@@ -473,7 +473,7 @@ describe('remote tool catalog', () => {
     expect(error.message).toBe('The tool list could not be loaded. Try again; if it keeps failing, copy the request ID and report this problem.');
     expect(error.requestId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
     expect(response.text).not.toContain('SECRETSECRET');
-    expect(onInternalError).toHaveBeenCalledWith({ source: 'tool-catalog', correlationId: error.requestId, error: thrown });
+    expect(onInternalError).toHaveBeenCalledWith({ source: 'tool-catalog', correlationId: error.requestId, error: thrown, logSource: 'tool-catalog' });
   });
 
   it('logs only the class and request ID of a listToolsFor failure when the host gives no sink', async () => {
