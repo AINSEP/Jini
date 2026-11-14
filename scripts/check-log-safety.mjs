@@ -59,8 +59,9 @@ const ERROR_NAME = '/^(e|err|error|cause|reason|ex|exc|exception|[A-Za-z]+Error|
 const LOG_METHOD = '/^(log|info|warn|error|debug|trace)$/';
 // A bare `error(...)` call is left out: its callee name would itself match ERROR_NAME below.
 const BARE_LOG_FUNCTION = '/^(log|info|warn|debug|trace)$/';
-/** Calls that take a caught value safely, plus `String`, which the `error-format` rule already reports. */
-const SAFE_DESCRIBER = '/^(describeErrorForLog|errorClassLabel|String)$/';
+/** Calls the helper rule skips: the safe describers, and `String`, which `error-format` reports.
+ *  (`inspect(err)` / `formatErrorForLog(err)` count under both rules: both must go.) */
+const NOT_A_HELPER = '/^(describeErrorForLog|errorClassLabel|String)$/';
 /** `:nth-child` counts only list fields (`arguments`), so it never matches a callee named like an error. */
 const ARGUMENT_POSITION = ':nth-child(1), :nth-child(2), :nth-child(3), :nth-child(4)';
 const STORED_FIELD = '/^(error|errorMessage|errorText|detail|reason|cause)$/';
@@ -76,8 +77,8 @@ const restrictedSyntax = [
   { category: 'raw-error', selector: `${LOG_CALL} > MemberExpression[property.name=${ERROR_NAME}]:matches(${ARGUMENT_POSITION})` },
   { category: 'raw-error', selector: `${LOG_CALL} TemplateLiteral > Identifier[name=${ERROR_NAME}]` },
   { category: 'raw-error', selector: `${LOG_CALL} BinaryExpression[operator='+'] > Identifier[name=${ERROR_NAME}]` },
-  { category: 'error-helper', selector: `${LOG_CALL} CallExpression:not([callee.name=${SAFE_DESCRIBER}]) > Identifier[name=${ERROR_NAME}]:matches(${ARGUMENT_POSITION})` },
-  { category: 'error-helper', selector: `${LOG_CALL} CallExpression:not([callee.name=${SAFE_DESCRIBER}]) > MemberExpression[property.name=${ERROR_NAME}]:matches(${ARGUMENT_POSITION})` },
+  { category: 'error-helper', selector: `${LOG_CALL} CallExpression:not([callee.name=${NOT_A_HELPER}]) > Identifier[name=${ERROR_NAME}]:matches(${ARGUMENT_POSITION})` },
+  { category: 'error-helper', selector: `${LOG_CALL} CallExpression:not([callee.name=${NOT_A_HELPER}]) > MemberExpression[property.name=${ERROR_NAME}]:matches(${ARGUMENT_POSITION})` },
   { category: 'stored-error-text', selector: `Property[key.name=${STORED_FIELD}] MemberExpression[object.name=${ERROR_NAME}][property.name=/^(message|stack)$/]` },
   { category: 'stored-error-text', selector: `Property[key.name=${STORED_FIELD}] CallExpression[callee.name='String'] > Identifier[name=${ERROR_NAME}]` },
 ].map(({ category, selector }) => ({ selector, message: `log-safety/${category}: route the failure through describeErrorForLog, the Logger error bag or a host sink.` }));
