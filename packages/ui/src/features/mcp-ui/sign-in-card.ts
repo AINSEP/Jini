@@ -5,12 +5,11 @@ import {
   type SurfaceExchangeConversation, type SurfaceExchangeStore,
   type ToolExecutionContext, type ToolExecutionOptions,
 } from '@jini-ai/core';
+import type { SurfaceCardSignInState } from '@jini-ai/core/contracts/cards';
 import { buildOutcomeSurface, type SurfaceOutcomeSpec } from './surfaces/outcome.js';
 import type { UIResource, UIResourceUri } from './resource.js';
 
-export type SignInCardState =
-  | { state: 'waiting'; signInUrl: string; exchangeId?: string }
-  | { state: 'connected' | 'skipped' };
+export type SignInCardState = SurfaceCardSignInState;
 
 /** Host-owned wording and identity; no connection-provider or product types enter the engine. */
 export interface SignInCardSpec {

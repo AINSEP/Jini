@@ -20,6 +20,39 @@ export function isNonArrayRecord(required: { value: unknown }, _optional: Record
   return isRecord(required) && !Array.isArray(required.value);
 }
 
+/** A shallow copy of `source` minus `keys`: what `const { a: _a, ...rest } = source` does,
+ * without binding a throwaway name for every dropped key. */
+export function omitKeys<T extends object, K extends keyof T>({ source, keys }: { source: T; keys: readonly K[] }, _optional: Record<string, never> = {}): Omit<T, K> {
+  const copy: Partial<Record<PropertyKey, unknown>> = { ...source };
+  for (const key of keys) delete copy[key];
+  return copy as Omit<T, K>;
+}
+
+/** Parse a plugin contribution file and require `schemaVersion: 1`; callers validate their own list key. */
+export function parseSchemaV1Document({ raw }: { raw: string }, _optional: Record<string, never> = {}): { ok: true; document: Readonly<Record<string, unknown>> } | { ok: false; reason: string } {
+  let value: unknown;
+  try { value = JSON.parse(raw); } catch { return { ok: false, reason: "not valid JSON" }; }
+  const holder = { value };
+  if (!isNonArrayRecord(holder) || holder.value.schemaVersion !== 1) return { ok: false, reason: "schemaVersion must be 1" };
+  return { ok: true, document: holder.value };
+}
+
+/** Defined-only view of `T`: every key optional, and present only when its value is not `undefined`. */
+export type DefinedFields<T> = { [K in keyof T]?: Exclude<T[K], undefined> };
+
+/**
+ * Copies the own enumerable string fields of `source` without their `undefined` values,
+ * keeping key order — the
+ * `...(x === undefined ? {} : { x })` spread pattern for many fields at once, so an absent
+ * optional field is omitted from the result rather than carried as `undefined`.
+ * Under `exactOptionalPropertyTypes`, omission is required when an optional field does not
+ * accept `undefined`; it also keeps built option objects byte-identical to the
+ * pre-injection shape when nothing is overridden.
+ */
+export function withoutUndefined<T extends object>({ source }: { source: T }, _optional: Record<string, never> = {}): DefinedFields<T> {
+  return Object.fromEntries(Object.entries(source).filter(([, value]) => value !== undefined)) as DefinedFields<T>;
+}
+
 /** Strict equality over the supplied own, enumerable string fields; omitted fields are unconstrained.
  * Memory adapters keep their scope and identity fields in this selector, including on deletes.
  * @complexity O(k) time and space for k selector fields.

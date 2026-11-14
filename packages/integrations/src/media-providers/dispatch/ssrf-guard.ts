@@ -39,6 +39,7 @@
  */
 import { isLoopbackApiHost, isBlockedExternalApiHostname } from '@jini-ai/platform/net';
 import { promises as dnsPromises } from 'node:dns';
+import { isIpLiteralHostname } from '@jini-ai/core';
 import { trimCharsEnd } from '@jini-ai/core/primitives';
 import { FETCH_TIMEOUT_MS } from '@jini-ai/platform/fetch-with-timeout';
 import { defaultMediaOutboundMessages, fetchMediaOutbound, requireMediaHttpClient } from './outbound.js';
@@ -55,13 +56,6 @@ const defaultDnsLookup: DnsLookupFn = async ({ hostname }) => {
   const result = await dnsPromises.lookup(hostname, { all: true, family: 0 });
   return result.map(({ address, family }) => ({ address, family }));
 };
-
-/** Whether `hostname` is already a literal IPv4/IPv6 address (as opposed to a DNS name) — skips the DNS-resolve step in `validateBaseUrlResolved` since there's nothing further to resolve. */
-function looksLikeIpLiteral(hostname: string): boolean {
-  const host = hostname.startsWith('[') && hostname.endsWith(']') ? hostname.slice(1, -1) : hostname;
-  if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) return true;
-  return host.includes(':');
-}
 
 type BaseUrlValidationResult = { readonly ok: true; readonly parsed: URL } | { readonly ok: false; readonly error: string; readonly forbidden: boolean };
 
@@ -99,7 +93,8 @@ export async function validateBaseUrlResolved({ baseUrl }: { baseUrl: string }, 
   if (!sync.ok) return sync;
 
   const hostname = sync.parsed.hostname.toLowerCase();
-  if (looksLikeIpLiteral(hostname)) {
+  // A literal IPv4/IPv6 address needs no DNS-resolve step since there is nothing further to resolve.
+  if (isIpLiteralHostname({ hostname })) {
     return { ok: true };
   }
 

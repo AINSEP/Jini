@@ -46,6 +46,7 @@ import { readProviderResponseText, MAX_PROVIDER_ERROR_BYTES } from './response-t
  */
 
 import { isLoopbackApiHost, isBlockedExternalApiHostname } from '@jini-ai/platform/net';
+import { isIpLiteralHostname } from '@jini-ai/core';
 import { trimCharsEnd } from '@jini-ai/core/text';
 
 export interface BaseUrlValidationResult {
@@ -105,14 +106,6 @@ export function validateBaseUrl({ baseUrl }: { baseUrl: string }): BaseUrlValida
 export type DnsLookupAddress = { address: string; family: number };
 export type DnsLookupFn = (requiredArgs: { hostname: string }) => Promise<DnsLookupAddress[]>;
 
-function looksLikeIpLiteral(hostname: string): boolean {
-  const host = hostname.startsWith('[') && hostname.endsWith(']')
-    ? hostname.slice(1, -1)
-    : hostname;
-  if (/^\d{1,3}(?:\.\d{1,3}){3}$/.test(host)) return true;
-  return host.includes(':');
-}
-
 /**
  * DNS-aware companion to {@link validateBaseUrl}. The synchronous check only
  * inspects the literal hostname string, so a public DNS name pointing at
@@ -160,7 +153,7 @@ export async function validateBaseUrlResolved({ baseUrl, lookup }: { baseUrl: st
 
   const hostname = sync.parsed.hostname.toLowerCase();
   if (isLoopbackApiHost({ hostname: hostname })) return sync;
-  if (looksLikeIpLiteral(hostname)) return sync;
+  if (isIpLiteralHostname({ hostname })) return sync;
 
   let addresses: DnsLookupAddress[];
   try {

@@ -58,6 +58,8 @@ export {
   adaptLegacyAuthorize,
   type LegacyToolAuthorizeFn,
   type AuthorizationPort as ToolPermissionAuthorizationPort,
+  type AuthorizationRequired as ToolPermissionAuthorizationRequired,
+  type AuthorizationOptional as ToolPermissionAuthorizationOptional,
   type RequireToolPermissionRequired,
   type RequireToolPermissionOptional,
 } from "./tool-permissions.js";

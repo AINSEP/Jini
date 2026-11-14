@@ -1,4 +1,4 @@
-import type { SecretCardField, SecretCardForm } from '@jini-ai/core/contracts/cards';
+import type { SecretCardField, SecretCardForm, SurfaceCardSecretRun } from '@jini-ai/core/contracts/cards';
 export type { SecretCardField, SecretCardForm } from '@jini-ai/core/contracts/cards';
 /**
  * One human-only secret-card lifecycle. Keystrokes go directly to the held exchange and save
@@ -22,13 +22,7 @@ import { buildFormSurface, type FormSurfaceSpec } from './surfaces/form.js';
 import { buildOutcomeSurface, type SurfaceOutcomeSpec } from './surfaces/outcome.js';
 import type { StringField, SurfaceField } from './surfaces/fields.js';
 
-export type SecretCardRun<Saved> =
-  | { readonly status: 'saved'; readonly saved: Saved }
-  | { readonly status: 'cancelled' }
-  | { readonly status: 'expired' }
-  | { readonly status: 'abandoned' }
-  | { readonly status: 'blank' }
-  | { readonly status: 'failed'; readonly safeMessage: string };
+export type SecretCardRun<Saved> = SurfaceCardSecretRun<Saved>;
 
 /** A domain spec, with authorization and target resolution in prepare and persistence in save.
  * Projections must contain safe metadata only. Neither projection receives the submitted values. */
