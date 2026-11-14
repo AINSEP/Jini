@@ -8,7 +8,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type RefObject, type
 import { conversationUsage, type ChatUsageSummary } from '../../core/turn-usage.js';
 import { projectAcceptedInputEvents } from '../../core/accepted-input.js';
 import type { ChatMessage } from '../../core/index.js';
-import { nextStickToBottom, startsNewTurn } from './MessageList.rules.js';
+import { hasOverflow, nextStickToBottom, startsNewTurn } from './MessageList.rules.js';
 
 export interface MessageListAutoScroll {
   containerRef: RefObject<HTMLDivElement | null>;
@@ -17,6 +17,10 @@ export interface MessageListAutoScroll {
   awayFromLatest: boolean;
   /** Scrolls to the newest message and resumes following new output. */
   jumpToLatest: () => void;
+  /** True while the transcript is taller than its box — the "Jump to top" arrow needs somewhere to go. */
+  scrollable: boolean;
+  /** Scrolls to the oldest message and stops following new output. */
+  jumpToTop: () => void;
 }
 
 const prefersReducedMotion = () =>
@@ -58,6 +62,8 @@ export function useMessageListAutoScroll(
   // State mirror of `!stickToBottomRef.current` for the "Jump to latest" button; the ref stays the
   // source of truth for the scroll effects, which must not wait for a render.
   const [awayFromLatest, setAwayFromLatest] = useState(false);
+  // Whether there is history above to jump up to; refreshed on scroll and whenever rows change size.
+  const [scrollable, setScrollable] = useState(false);
 
   // Runs BEFORE the scroll effect below (effects run in declaration order), so a send re-sticks in
   // time for that same commit's scroll. The user's own send (or retry) is an explicit "take me to
@@ -106,6 +112,7 @@ export function useMessageListAutoScroll(
     const el = containerRef.current;
     if (!el || typeof ResizeObserver !== 'function') return undefined;
     const observer = new ResizeObserver(() => {
+      setScrollable(hasOverflow(el));
       if (!stickToBottomRef.current) return;
       el.scrollTop = el.scrollHeight;
     });
@@ -118,6 +125,7 @@ export function useMessageListAutoScroll(
     stickToBottomRef.current = nextStickToBottom(el, { wasSticking: stickToBottomRef.current, previousScrollTop: lastScrollTopRef.current });
     lastScrollTopRef.current = el.scrollTop;
     setAwayFromLatest(!stickToBottomRef.current);
+    setScrollable(hasOverflow(el));
   };
 
   const jumpToLatest = useCallback(() => {
@@ -130,5 +138,15 @@ export function useMessageListAutoScroll(
     el.scrollTo({ top: el.scrollHeight, behavior: reducedMotion() ? 'auto' : 'smooth' });
   }, [reducedMotion]);
 
-  return { containerRef, onScroll, awayFromLatest, jumpToLatest };
+  const jumpToTop = useCallback(() => {
+    const el = containerRef.current;
+    if (!el) return;
+    // Unstick first, mirroring jumpToLatest: otherwise output streaming in during the smooth scroll
+    // re-sticks via the ResizeObserver and yanks the reader straight back down.
+    stickToBottomRef.current = false;
+    setAwayFromLatest(true);
+    el.scrollTo({ top: 0, behavior: reducedMotion() ? 'auto' : 'smooth' });
+  }, [reducedMotion]);
+
+  return { containerRef, onScroll, awayFromLatest, jumpToLatest, scrollable, jumpToTop };
 }

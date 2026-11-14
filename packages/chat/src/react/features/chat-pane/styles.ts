@@ -111,33 +111,49 @@ export const CHAT_PANE_STYLES = `
   scrollbar-width: thin;
 }
 /*
- * 'Jump to latest' (MessageList.tsx's JumpToLatest): a zero-height sticky last child, so it floats
- * centred just above the composer overlay without taking layout space. Sticky offsets measure from
- * the scrollport edge, not the padding, hence the controls height in 'bottom'.
+ * 'Jump to latest' / 'Jump to top' (MessageList.tsx's JumpArrow): a zero-height last child of the
+ * scroll container, so it floats without a wrapper element changing the pane's flex layout.
+ * Right-aligned, not centred: the centred pill covered the message being read (owner 2026-11-13).
+ * Standalone (a host rendering <MessageList> on its own) it is sticky at the list's bottom-right.
  */
 .jini-message-list__jump {
   position: sticky;
-  bottom: calc(var(--jini-chat-controls-height, 240px) + 8px);
+  bottom: 8px;
   height: 0;
   display: flex;
-  justify-content: center;
+  justify-content: flex-end;
   align-items: flex-end;
   z-index: 2;
   pointer-events: none;
 }
+/*
+ * Inside the pane it is pinned to .jini-chat-pane__body (position: relative; the list itself is
+ * unpositioned, so absolute escapes its scroll and overflow clip) just above the composer overlay.
+ * Not sticky: Chrome measures sticky offsets from the list's CONTENT box, i.e. above its
+ * composer-sized bottom padding, so 'bottom: controls + 8px' counted that height twice and floated
+ * the button ~280px up, mid-transcript on a phone (owner report 2026-11-13). right: 22px matches the
+ * list's side padding. z-index 5 beats the controls overlay's 4.
+ */
+.jini-chat-pane__body .jini-message-list__jump {
+  position: absolute;
+  left: auto;
+  right: 22px;
+  bottom: calc(var(--jini-chat-controls-height, 240px) + 8px);
+  z-index: 5;
+}
 .jini-message-list__jump-btn {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 5px 12px;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  padding: 0;
   border: 1px solid var(--jini-chat-border);
-  border-radius: 999px;
+  border-radius: 50%;
   background: var(--jini-chat-panel);
   color: var(--jini-chat-muted);
   box-shadow: var(--jini-chat-popover-shadow);
-  font-size: 12px;
-  line-height: 1.2;
-  white-space: nowrap;
   cursor: pointer;
   pointer-events: auto;
 }

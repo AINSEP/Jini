@@ -98,7 +98,7 @@ export const MessageList = memo(function MessageList({
   // Derive from the conversation's saved events, so replay/remount does not repeat the notice.
   const accessNoticeId = useMemo(() => messages.find(message => message.role === 'assistant'
     && message.events?.some(event => event.kind === 'status' && event.label === 'full_cli_access' && event.detail))?.id, [messages]);
-  const { containerRef, onScroll, awayFromLatest, jumpToLatest } = useMessageListAutoScroll({ messages, scrollIntent }, onScrolled !== undefined ? { onScrolled } : {});
+  const { containerRef, onScroll, awayFromLatest, jumpToLatest, scrollable, jumpToTop } = useMessageListAutoScroll({ messages, scrollIntent }, onScrolled !== undefined ? { onScrolled } : {});
 
   return (
     <div
@@ -122,24 +122,30 @@ export const MessageList = memo(function MessageList({
       {(pendingPrompts ?? (pendingPrompt ? [pendingPrompt] : [])).map((prompt, index) => (
         <QueuedMessage key={prompt.id ?? index} prompt={prompt} renderAttachment={rowProps.renderAttachment} />
       ))}
-      {awayFromLatest && <JumpToLatest onJump={jumpToLatest} />}
+      {awayFromLatest ? <JumpArrow direction="down" onJump={jumpToLatest} />
+        : scrollable ? <JumpArrow direction="up" onJump={jumpToTop} /> : null}
     </div>
   );
 });
 
 /**
- * Sticky, zero-height last child of the scroll container, so the button floats centred just above
- * the composer without a wrapper element changing the pane's flex layout.
+ * Sticky, zero-height last child of the scroll container, so the button floats at the list's
+ * bottom-right just above the composer without a wrapper element changing the pane's flex layout.
+ * Owner 2026-11-13: the centred "↓ Jump to latest" pill covered a message; it is an icon-only arrow
+ * now — down to the latest when scrolled away, up to the top when already there. The label lives in
+ * aria-label/title only, so screen readers and hover still name it.
  */
-function JumpToLatest({ onJump }: { onJump: () => void }) {
+function JumpArrow({ direction, onJump }: { direction: 'up' | 'down'; onJump: () => void }) {
   const t = useT();
+  const label = direction === 'down' ? t('Jump to latest') : t('Jump to top');
   return (
     <div className="jini-message-list__jump">
-      <button type="button" className="jini-message-list__jump-btn" onClick={onJump}>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-          <path d="M12 5v14" /><path d="m19 12-7 7-7-7" />
+      <button type="button" className="jini-message-list__jump-btn" onClick={onJump} aria-label={label} title={label}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          {direction === 'down'
+            ? <><path d="M12 5v14" /><path d="m19 12-7 7-7-7" /></>
+            : <><path d="M12 19V5" /><path d="m5 12 7-7 7 7" /></>}
         </svg>
-        {t('Jump to latest')}
       </button>
     </div>
   );
