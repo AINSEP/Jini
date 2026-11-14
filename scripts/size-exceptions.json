@@ -1,8 +1,10 @@
 {
   "_comment": "Owner-approved size exceptions, 2026-11-13. Add entries only with an owner-approved reason.",
+  "note": "owner 2026-11-13: warn 50, error 80 (replaces error at 50)",
   "limits": {
     "fileLines": 500,
-    "functionLines": 50
+    "functionLines": 80,
+    "functionWarnLines": 50
   },
   "pathExclusions": [
     { "repo": "*", "pattern": "\\.generated\\.(ts|tsx|js|mjs)$", "reason": "Generated code: regenerate it rather than splitting it by hand." },

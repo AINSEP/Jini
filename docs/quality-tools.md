@@ -81,8 +81,9 @@ subsequent measurements. Installs and builds remain outside that triage.
 
 ## Size gate
 
-`pnpm check:size` blocks production functions above 50 lines and files above 500,
-excluding blank lines and comments. Tests, fixtures, stories, generated files,
+Editors warn on production functions above 50 lines. `pnpm check:size` enforces
+CI errors above 80 lines for functions and above 500 lines for files, excluding blank
+lines and comments and including IIFEs. Tests, fixtures, stories, generated files,
 bundles, declarations and migration folders are outside the scan.
 Existing violations live in `scripts/size-debt.json`, keyed by file, qualified
 function name and rule; line numbers are diagnostic. New or larger violations fail.

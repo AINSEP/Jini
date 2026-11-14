@@ -12,7 +12,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const debtFile = 'scripts/size-debt.json';
 const exceptionFile = 'scripts/size-exceptions.json';
 const sourceGlob = 'packages/*/src/**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}';
-const ruleLimits = { 'max-lines': 500, 'max-lines-per-function': 50 };
+const ruleLimits = { 'max-lines': 500, 'max-lines-per-function': 80 };
 
 function validateException(item) {
   if (!['*', 'jini'].includes(item.repo) || typeof item.reason !== 'string' || !item.reason.trim()) {
@@ -33,7 +33,10 @@ function validatePathExclusion(item) {
 
 function readExceptions() {
   const config = JSON.parse(readFileSync(path.join(root, exceptionFile), 'utf8'));
-  if (config.limits?.fileLines !== 500 || config.limits?.functionLines !== 50 ||
+  const limits = config.limits ?? {};
+  if (limits.fileLines !== ruleLimits['max-lines'] ||
+      limits.functionLines !== ruleLimits['max-lines-per-function'] ||
+      limits.functionWarnLines !== 50 ||
       !Array.isArray(config.pathExclusions) || !Array.isArray(config.entries)) {
     throw new Error(`Invalid size limits or exception lists in ${exceptionFile}`);
   }
@@ -112,7 +115,10 @@ function describe(v) {
 }
 
 function checkBaseDebt(base, debt) {
-  const growth = compareDebt(base, debt, ruleLimits);
+  // Historical baselines include functions that exceeded the former 50-line limit.
+  compareDebt(base, [], { ...ruleLimits, 'max-lines-per-function': 50 });
+  const applicableBase = base.filter(item => item.value > ruleLimits[item.rule]);
+  const growth = compareDebt(applicableBase, debt, ruleLimits);
   for (const v of growth.added) console.error(`Debt added: ${describe(v)}`);
   for (const { prior, violation } of growth.worsened) console.error(`Debt allowance increased from ${prior.value}: ${describe(violation)}`);
   if (growth.added.length || growth.worsened.length) throw new Error('Size debt may only shrink relative to the base commit.');
