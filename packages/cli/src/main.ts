@@ -78,6 +78,7 @@ import { existsSync, realpathSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { CommandRegistry, type CommandDispatchResult } from './command-registry.js';
 import { registerDaemonCommands } from './daemon-command.js';
+import { defaultWrite, defaultWriteErr } from './daemon-call-deps.js';
 import { resolveDaemonUrl, type ResolveDaemonUrlOptions } from './daemon-url.js';
 import { exitWithStructuredError } from './errors.js';
 import { createLocalDaemonDiscovery } from './local-daemon-discovery.js';
@@ -96,14 +97,6 @@ export interface MainDeps {
   fetchImpl?: typeof fetch;
   /** Defaults to `process.env`; inject for tests. */
   env?: NodeJS.ProcessEnv;
-}
-
-function defaultWrite({ text }: { text: string }): void {
-  process.stdout.write(text);
-}
-
-function defaultWriteErr({ text }: { text: string }): void {
-  process.stderr.write(text);
 }
 
 function defaultExit({ code }: { code: number }): never {

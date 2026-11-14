@@ -146,9 +146,10 @@ export type {
   TerminalEventRecord,
   TerminalService,
   TerminalSession,
+  TerminalSessionState,
   TerminalSseSink,
 } from "./terminal.js";
-export { createTerminalService, ensureSpawnHelperExecutable, resolveShell, spawnHelperCandidatePaths } from "./terminal.js";
+export { createTerminalService, ensureSpawnHelperExecutable, resolveShell, spawnHelperCandidatePaths, terminalSessionState } from "./terminal.js";
 
 export type {
   DownloadCopyAndClearOptions,

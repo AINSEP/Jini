@@ -29,8 +29,9 @@
  */
 
 
-import type { Principal, RunRef, SurfaceEmitter } from "@jini-ai/core";
+import type { Principal, RunRef } from "@jini-ai/core";
 import type { ToolExecutionResult, ToolExecutor } from "../tool-executor.js";
+import { decorateToolExecutor } from "./decorate-executor.js";
 
 
 
@@ -248,17 +249,14 @@ export function redactFailedResult(result: ToolExecutionResult, context: Failure
  * @complexity O(1) beyond `inner`'s own cost and {@link redactFailedResult}'s.
  */
 export function withRedactedToolFailures({ inner, ...deps }: RedactedToolFailuresDeps & { inner: ToolExecutor }, _optional = {}): ToolExecutor {
-  return {
+  return decorateToolExecutor({ inner,
     execute: async (
       { principal, run, toolId, input }: { principal: Principal; run: RunRef; toolId: string; input: unknown },
-      { signal, emitSurface }: { signal?: AbortSignal; emitSurface?: SurfaceEmitter } = {},
+      options: Parameters<ToolExecutor['execute']>[1] = {},
     ): Promise<ToolExecutionResult> => {
-      const result = await inner.execute({ principal, run, toolId, input }, { ...(signal === undefined ? {} : { signal }), ...(emitSurface === undefined ? {} : { emitSurface }) });
+      const result = await inner.execute({ principal, run, toolId, input }, options);
       if (result.status !== "failed") return result;
       return redactFailedResult(result, { toolId, runId: run.id, principalId: principal.id }, deps);
     },
-    resumeConfirmation: (args) => inner.resumeConfirmation(args),
-    cancel: (executionId) => inner.cancel(executionId),
-    getAuditRecord: (executionId) => inner.getAuditRecord(executionId),
-  };
+  });
 }

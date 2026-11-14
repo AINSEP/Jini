@@ -1,7 +1,6 @@
 import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
-import { inIdentityTransaction } from "./identity-transaction.js";
 import type { UUID } from "@jini-ai/core/primitives";
-import { assertCallerHasAnyPermission, assertGrantClamp, assertOwnerTargetMayBeModified, principalHoldsOwnerWildcard } from "./grant-service.js";
+import { inAuthorizedIdentityTransaction, assertCallerHasAnyPermission, assertGrantClamp, assertOwnerTargetMayBeModified, principalHoldsOwnerWildcard } from "./grant-service.js";
 import { validatePasswordPolicy } from "./password-policy.js";
 import { normalizeUsername } from "./username.js";
 import { isKnownPermission } from "../core/permissions.js";
@@ -72,17 +71,12 @@ export async function disablePrincipal(required: {
 }): Promise<{ principal: PrincipalRecord }> {
   const { deps, input } = required;
 
-  return inIdentityTransaction({
-    transactions: deps.repos.transactions,
+  return inAuthorizedIdentityTransaction({
+    deps,
     workspaceId: input.workspaceId,
+    callerPrincipalId: input.callerPrincipalId,
+    permissions: [USER_MANAGE],
     execute: async () => {
-      await assertCallerHasAnyPermission({
-        deps,
-        workspaceId: input.workspaceId,
-        callerPrincipalId: input.callerPrincipalId,
-        permissions: [USER_MANAGE],
-      });
-
       const target = await deps.repos.principals.findById({ workspaceId: input.workspaceId, id: input.principalId });
       if (!target) throw new IdentityNotFoundError({ message: `principal '${input.principalId}' was not found` });
 
@@ -140,17 +134,12 @@ export async function enablePrincipal(required: {
 }): Promise<{ principal: PrincipalRecord }> {
   const { deps, input } = required;
 
-  return inIdentityTransaction({
-    transactions: deps.repos.transactions,
+  return inAuthorizedIdentityTransaction({
+    deps,
     workspaceId: input.workspaceId,
+    callerPrincipalId: input.callerPrincipalId,
+    permissions: [USER_MANAGE],
     execute: async () => {
-      await assertCallerHasAnyPermission({
-        deps,
-        workspaceId: input.workspaceId,
-        callerPrincipalId: input.callerPrincipalId,
-        permissions: [USER_MANAGE],
-      });
-
       const target = await deps.repos.principals.findById({ workspaceId: input.workspaceId, id: input.principalId });
       if (!target) throw new IdentityNotFoundError({ message: `principal '${input.principalId}' was not found` });
 
@@ -194,20 +183,15 @@ export async function updateUser(required: {
   const { deps } = required;
   const input = { ...required.input, ...optional };
 
-  return inIdentityTransaction({
-    transactions: deps.repos.transactions,
+  return inAuthorizedIdentityTransaction({
+    deps,
     workspaceId: input.workspaceId,
+    callerPrincipalId: input.callerPrincipalId,
+    // Preserve existing self-profile access without letting member.manage edit other operators.
+    permissions: input.username === undefined && input.callerPrincipalId === input.principalId
+      ? [USER_MANAGE, "member.manage"]
+      : [USER_MANAGE],
     execute: async () => {
-      await assertCallerHasAnyPermission({
-        deps,
-        workspaceId: input.workspaceId,
-        callerPrincipalId: input.callerPrincipalId,
-        // Preserve existing self-profile access without letting member.manage edit other operators.
-        permissions: input.username === undefined && input.callerPrincipalId === input.principalId
-          ? [USER_MANAGE, "member.manage"]
-          : [USER_MANAGE],
-      });
-
       const target = await deps.repos.users.findByPrincipalId({
         workspaceId: input.workspaceId,
         principalId: input.principalId,
@@ -331,17 +315,12 @@ export async function resetUserPassword(required: {
 }): Promise<{ user: UserRecord }> {
   const { deps, input } = required;
 
-  return inIdentityTransaction({
-    transactions: deps.repos.transactions,
+  return inAuthorizedIdentityTransaction({
+    deps,
     workspaceId: input.workspaceId,
+    callerPrincipalId: input.callerPrincipalId,
+    permissions: [USER_MANAGE],
     execute: async () => {
-      await assertCallerHasAnyPermission({
-        deps,
-        workspaceId: input.workspaceId,
-        callerPrincipalId: input.callerPrincipalId,
-        permissions: [USER_MANAGE],
-      });
-
       const target = await deps.repos.users.findByPrincipalId({
         workspaceId: input.workspaceId,
         principalId: input.principalId,
@@ -500,17 +479,12 @@ export async function deleteRole(required: {
 }): Promise<void> {
   const { deps, input } = required;
 
-  return inIdentityTransaction({
-    transactions: deps.repos.transactions,
+  return inAuthorizedIdentityTransaction({
+    deps,
     workspaceId: input.workspaceId,
+    callerPrincipalId: input.callerPrincipalId,
+    permissions: [ROLE_MANAGE],
     execute: async () => {
-      await assertCallerHasAnyPermission({
-        deps,
-        workspaceId: input.workspaceId,
-        callerPrincipalId: input.callerPrincipalId,
-        permissions: [ROLE_MANAGE],
-      });
-
       const target = await deps.repos.roles.findById({ workspaceId: input.workspaceId, id: input.roleId });
       if (!target) throw new IdentityNotFoundError({ message: `role '${input.roleId}' was not found` });
       if (target.isBuiltin) {
@@ -551,17 +525,12 @@ export async function deletePolicy(required: {
 }): Promise<void> {
   const { deps, input } = required;
 
-  return inIdentityTransaction({
-    transactions: deps.repos.transactions,
+  return inAuthorizedIdentityTransaction({
+    deps,
     workspaceId: input.workspaceId,
+    callerPrincipalId: input.callerPrincipalId,
+    permissions: [ROLE_MANAGE],
     execute: async () => {
-      await assertCallerHasAnyPermission({
-        deps,
-        workspaceId: input.workspaceId,
-        callerPrincipalId: input.callerPrincipalId,
-        permissions: [ROLE_MANAGE],
-      });
-
       const target = await deps.repos.policies.findById({ workspaceId: input.workspaceId, id: input.policyId });
       if (!target) throw new IdentityNotFoundError({ message: `policy '${input.policyId}' was not found` });
       if (target.isBuiltin || target.isFrozen) {
@@ -610,17 +579,12 @@ export async function writePolicyPermission(required: {
   const { deps } = required;
   const input = { ...required.input, ...optional };
 
-  return inIdentityTransaction({
-    transactions: deps.repos.transactions,
+  return inAuthorizedIdentityTransaction({
+    deps,
     workspaceId: input.workspaceId,
+    callerPrincipalId: input.callerPrincipalId,
+    permissions: [ROLE_MANAGE],
     execute: async () => {
-      await assertCallerHasAnyPermission({
-        deps,
-        workspaceId: input.workspaceId,
-        callerPrincipalId: input.callerPrincipalId,
-        permissions: [ROLE_MANAGE],
-      });
-
       if (!isKnownPermission({ id: input.permission })) {
         throw new PermissionUnknownError({ message: `permission '${input.permission}' is not in the registered catalog` });
       }
@@ -683,17 +647,12 @@ export async function removePolicyPermission(required: {
 }): Promise<void> {
   const { deps, input } = required;
 
-  return inIdentityTransaction({
-    transactions: deps.repos.transactions,
+  return inAuthorizedIdentityTransaction({
+    deps,
     workspaceId: input.workspaceId,
+    callerPrincipalId: input.callerPrincipalId,
+    permissions: [ROLE_MANAGE],
     execute: async () => {
-      await assertCallerHasAnyPermission({
-        deps,
-        workspaceId: input.workspaceId,
-        callerPrincipalId: input.callerPrincipalId,
-        permissions: [ROLE_MANAGE],
-      });
-
       const policy = await deps.repos.policies.findById({ workspaceId: input.workspaceId, id: input.policyId });
       if (!policy) throw new IdentityNotFoundError({ message: `policy '${input.policyId}' was not found` });
       if (policy.isBuiltin || policy.isFrozen) {

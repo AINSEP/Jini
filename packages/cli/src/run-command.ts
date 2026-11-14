@@ -21,34 +21,14 @@
  */
 import { decodeSseFrames } from '@jini-ai/core/primitives';
 import { parseFlags, positionalArgs } from './flags.js';
-import { exitWithStructuredError, structuredHttpFailure, type ExitCodeTable } from './errors.js';
+import { exitWithStructuredError, structuredHttpFailure } from './errors.js';
 import { getJsonFromDaemon, postJsonToDaemon } from './http.js';
 import { sanitizeUntrustedText, stripControlSequences } from '@jini-ai/core/text';
 import { renderUsage } from './usage.js';
 import type { CommandRegistry } from './command-registry.js';
+import { defaultWrite, errorOptions, transportOptions, type DaemonCallDeps } from './daemon-call-deps.js';
 
-export interface RunCommandDeps {
-  /** Resolves the daemon HTTP base URL once per command invocation (e.g. wraps `resolveDaemonUrl`). */
-  resolveBaseUrl: () => Promise<string> | string;
-  /** Defaults to `process.stdout.write`; inject for tests. Used for successful command output. */
-  write?: (requiredArgs: { text: string }) => void;
-  /** Defaults to `process.stderr.write`; inject for tests. Used for usage/validation errors. */
-  writeErr?: (requiredArgs: { text: string }) => void;
-  /** Defaults to the global `fetch`; inject for tests. */
-  fetchImpl?: typeof fetch;
-  /** Defaults to `process.exit`; inject for tests (must not return). */
-  exit?: (requiredArgs: { code: number }) => never;
-  /** Extra/overriding `code -> exitCode` entries layered on the package default table. */
-  exitCodes?: ExitCodeTable;
-}
-
-function defaultWrite({ text }: { text: string }): void {
-  process.stdout.write(text);
-}
-
-function defaultWriteErr({ text }: { text: string }): void {
-  process.stderr.write(text);
-}
+export interface RunCommandDeps extends DaemonCallDeps {}
 
 const RUN_START_USAGE = renderUsage({ usage: ['run start --context-ref <ref> [--agent-id <id>] [--idempotency-key <key>]'] }, { description: 'Starts a new run for the given contextRef.', options: [
     { flag: '--context-ref', description: 'Opaque caller-supplied identity the run belongs to (required).' },
@@ -66,36 +46,12 @@ const RUN_WATCH_USAGE = renderUsage({ usage: ['run watch <runId> [--after-cursor
 
 const RUN_USAGE = renderUsage({ usage: ['run <start|list|get|cancel|watch> ...'] }, { description: 'Manage runs against a Jini daemon over HTTP.' });
 
-/** Builds `{write, exit, exitCodes?}` for `errors.ts`'s structured-error helpers, never assigning `exitCodes` when unset (required under `exactOptionalPropertyTypes`). */
-function errorOptions(deps: Omit<RunCommandDeps, "resolveBaseUrl">): { write: (requiredArgs: { text: string }) => void; exit: (requiredArgs: { code: number }) => never; exitCodes?: ExitCodeTable } {
-  return {
-    write: deps.writeErr ?? defaultWriteErr,
-    exit: deps.exit ?? (({ code }: { code: number }) => process.exit(code)),
-    ...(deps.exitCodes !== undefined ? { exitCodes: deps.exitCodes } : {}),
-  };
-}
-
-/** Builds the transport-call options object for `postJsonToDaemon`/`getJsonFromDaemon`, only ever including a key when its value is actually set. */
-function transportOptions(deps: RunCommandDeps): {
-  fetchImpl?: typeof fetch;
-  write?: (requiredArgs: { text: string }) => void;
-  exit?: (requiredArgs: { code: number }) => never;
-  exitCodes?: ExitCodeTable;
-} {
-  return {
-    ...(deps.fetchImpl !== undefined ? { fetchImpl: deps.fetchImpl } : {}),
-    ...(deps.writeErr !== undefined ? { write: deps.writeErr } : {}),
-    ...(deps.exit !== undefined ? { exit: deps.exit } : {}),
-    ...(deps.exitCodes !== undefined ? { exitCodes: deps.exitCodes } : {}),
-  };
-}
-
 function missingInput(deps: RunCommandDeps, message: string): never {
-  return exitWithStructuredError({ code: 'missing-input', message }, errorOptions(deps));
+  return exitWithStructuredError({ code: 'missing-input', message }, errorOptions({ deps }));
 }
 
 function invalidFlag(deps: RunCommandDeps, message: string): never {
-  return exitWithStructuredError({ code: 'invalid-flag', message }, errorOptions(deps));
+  return exitWithStructuredError({ code: 'invalid-flag', message }, errorOptions({ deps }));
 }
 
 function printJsonResult(deps: RunCommandDeps, value: unknown): void {
@@ -123,7 +79,7 @@ export async function runStartCommand({ args, resolveBaseUrl: resolveBaseUrlPort
   if (typeof flags['idempotency-key'] === 'string') body.idempotencyKey = flags['idempotency-key'];
 
   const baseUrl = await deps.resolveBaseUrl();
-  const result = await postJsonToDaemon({ base: baseUrl, route: '/api/runs', body }, transportOptions(deps));
+  const result = await postJsonToDaemon({ base: baseUrl, route: '/api/runs', body }, transportOptions({ deps }));
   printJsonResult(deps, result);
 }
 
@@ -138,7 +94,7 @@ export async function runListCommand({ args, resolveBaseUrl: resolveBaseUrlPort 
     : '/api/runs';
 
   const baseUrl = await deps.resolveBaseUrl();
-  const result = await getJsonFromDaemon({ base: baseUrl, route }, transportOptions(deps));
+  const result = await getJsonFromDaemon({ base: baseUrl, route }, transportOptions({ deps }));
   printJsonResult(deps, result);
 }
 
@@ -152,7 +108,7 @@ export async function runGetCommand({ args, resolveBaseUrl: resolveBaseUrlPort }
   }
 
   const baseUrl = await deps.resolveBaseUrl();
-  const result = await getJsonFromDaemon({ base: baseUrl, route: `/api/runs/${encodeURIComponent(runId)}` }, transportOptions(deps));
+  const result = await getJsonFromDaemon({ base: baseUrl, route: `/api/runs/${encodeURIComponent(runId)}` }, transportOptions({ deps }));
   printJsonResult(deps, result);
 }
 
@@ -169,7 +125,7 @@ export async function runCancelCommand({ args, resolveBaseUrl: resolveBaseUrlPor
   if (typeof flags.reason === 'string') body.reason = flags.reason;
 
   const baseUrl = await deps.resolveBaseUrl();
-  const result = await postJsonToDaemon({ base: baseUrl, route: `/api/runs/${encodeURIComponent(runId)}/cancel`, body }, transportOptions(deps));
+  const result = await postJsonToDaemon({ base: baseUrl, route: `/api/runs/${encodeURIComponent(runId)}/cancel`, body }, transportOptions({ deps }));
   printJsonResult(deps, result);
 }
 
@@ -232,7 +188,7 @@ export async function watchRunEvents({ baseUrl, runId, args }: { baseUrl: string
 
   const resp = await fetchImpl(`${baseUrl}/api/runs/${encodeURIComponent(runId)}/events`, { headers });
   if (!resp.ok || resp.body === null) {
-    await structuredHttpFailure({ resp }, { fallbackCode: 'daemon-not-running', ...errorOptions(deps) });
+    await structuredHttpFailure({ resp }, { fallbackCode: 'daemon-not-running', ...errorOptions({ deps }) });
     return;
   }
   try {
@@ -241,7 +197,7 @@ export async function watchRunEvents({ baseUrl, runId, args }: { baseUrl: string
     // A broken/hostile stream (e.g. the unbounded-buffer guard above) must exit through the same
     // structured contract as every other failure here, not surface as an unhandled rejection.
     const message = error instanceof Error ? error.message : String(error);
-    exitWithStructuredError({ code: 'daemon-not-running', message: sanitizeUntrustedText({ text: message }) }, errorOptions(deps));
+    exitWithStructuredError({ code: 'daemon-not-running', message: sanitizeUntrustedText({ text: message }) }, errorOptions({ deps }));
     return;
   }
 }

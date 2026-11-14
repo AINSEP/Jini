@@ -1,3 +1,4 @@
+import { collectManifestKeyErrors } from "../glue/manifest-keys.js";
 /**
  * @file `PluginManifest` type + `validateManifest()` — static, collect-all manifest validation
  * (SPEC-005 REQ-01, BR-02/BR-03; ADR-024 `tier`, 1.1.1 fix).
@@ -109,18 +110,7 @@ interface IdValidationResult {
 
 /** Unknown-key and missing-required-key checks (BR-02 step 1's manifest-shape half). */
 function validateKeys(raw: Readonly<Record<string, unknown>>): PluginValidationError[] {
-  const errors: PluginValidationError[] = [];
-  for (const key of Object.keys(raw)) {
-    if (!ALLOWED_KEYS.has(key)) {
-      errors.push(malformed(`unknown manifest key '${key}'`));
-    }
-  }
-  for (const key of REQUIRED_KEYS) {
-    if (raw[key] === undefined) {
-      errors.push(malformed(`missing required manifest field '${key}'`));
-    }
-  }
-  return errors;
+  return collectManifestKeyErrors({ raw, allowedKeys: ALLOWED_KEYS, requiredKeys: REQUIRED_KEYS, malformed });
 }
 
 /** id shape only: pattern + length (BR-02 step 2 half of id validation). */

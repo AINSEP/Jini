@@ -11,7 +11,7 @@ import type { Express, Request, Response } from 'express';
 import { createApiError, type ApiError } from '@jini-ai/protocol';
 import { rawInput } from './request.js';
 import { sendApiError, sendJson, statusForError } from './response.js';
-import { guardSameOrigin, type OriginContext } from './origin.js';
+import { passesSameOriginGuard, type OriginContext } from './origin.js';
 import type { JsonRouteAuthorize, JsonRouteSpec, Result } from './types.js';
 
 export interface AdapterInternalErrorContext {
@@ -150,10 +150,7 @@ function allowRouteOrigin({ req, res, spec, adapter }: {
 }, _optional: Record<string, never> = {}): boolean {
   if (!spec.requireSameOrigin) return true;
   if (!adapter) throw new Error('same-origin adapter context is required');
-  const origin = guardSameOrigin({ req, origin: adapter });
-  if (origin.ok) return true;
-  sendApiError({ res, status: statusForError({ error: origin.error }), error: origin.error });
-  return false;
+  return passesSameOriginGuard({ req, res, origin: adapter });
 }
 
 function sendRouteResult<Output>({ res, result, spec, signal }: {

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { guardSameOrigin } from '../origin.js';
+import { guardSameOrigin, passesSameOriginGuard } from '../origin.js';
 import { isLocalSameOrigin } from '@jini-ai/core';
 
 vi.mock('@jini-ai/core', async (importOriginal) => ({
@@ -14,6 +14,16 @@ beforeEach(() => {
 });
 
 describe('guardSameOrigin', () => {
+  it('writes a forbidden envelope through a framework-neutral response port', () => {
+    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    let status: number | undefined;
+    let body: unknown;
+    const res = { status(code: number) { status = code; return { json(value: unknown) { body = value; } }; } };
+    expect(passesSameOriginGuard({ req: { headers: { origin: 'https://foreign.example' } }, res, origin })).toBe(false);
+    expect(status).toBe(403);
+    expect(body).toEqual({ error: { code: 'FORBIDDEN', message: 'cross-origin request rejected' } });
+  });
+
   it('allows the request when isLocalSameOrigin says the origin matches', () => {
     vi.mocked(isLocalSameOrigin).mockReturnValue(true);
     const result = guardSameOrigin({ req: {} as any, origin });

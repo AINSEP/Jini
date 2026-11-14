@@ -2,10 +2,10 @@
  * Same-origin security guard: wraps `isLocalSameOrigin` in the module's `Result` pipeline so
  * the Adapter can treat an origin failure the same as a parse/handle failure.
  */
-import type { Request } from 'express';
 import { createApiError } from '@jini-ai/protocol';
-import { isLocalSameOrigin, type OriginValidationEnvConfig } from '@jini-ai/core';
+import { isLocalSameOrigin, type OriginValidationEnvConfig, type RequestWithOriginHeaders } from '@jini-ai/core';
 import { err, ok, type Result } from './types.js';
+import { sendApiError, statusForError, type ApiErrorResponseWriter } from './response.js';
 
 /** The subset of server startup state `guardSameOrigin` needs: the resolved local port, and the
  * environment the origin policy is read from. */
@@ -28,7 +28,7 @@ export interface OriginContext extends OriginValidationEnvConfig {
  * Wraps `isLocalSameOrigin` so the HTTP Adapter can fold the origin decision into the same
  * error-handling pipeline as parse/handle failures.
  */
-export function guardSameOrigin({ req, origin }: { readonly req: Request; readonly origin: OriginContext }, _optional: Record<string, never> = {}): Result<void> {
+export function guardSameOrigin({ req, origin }: { readonly req: RequestWithOriginHeaders; readonly origin: OriginContext }, _optional: Record<string, never> = {}): Result<void> {
   const { env, allowedOriginsEnvVar, webPortEnvVar, bindHostEnvVar } = origin;
   if (isLocalSameOrigin({ req, port: origin.resolvedPortRef.current, env,
     config: { allowedOriginsEnvVar, webPortEnvVar, bindHostEnvVar },
@@ -36,4 +36,18 @@ export function guardSameOrigin({ req, origin }: { readonly req: Request; readon
     return ok({ value: undefined });
   }
   return err({ error: createApiError({ code: 'FORBIDDEN', message: 'cross-origin request rejected' }) });
+}
+
+/**
+ * The same-origin check for a raw route (one not mounted through `mountJsonRoute`, e.g. an SSE
+ * stream): answers a cross-origin request with the guard's own error and status and returns
+ * `false`, so the caller only has to `return`. `mountJsonRoute` routes get this from `requireSameOrigin`.
+ * Framework-neutral: `req` needs only the origin headers, `res` only `status().json()`.
+ * @complexity O(1) plus the origin check.
+ */
+export function passesSameOriginGuard({ req, res, origin }: { readonly req: RequestWithOriginHeaders; readonly res: ApiErrorResponseWriter; readonly origin: OriginContext }, _optional: Record<string, never> = {}): boolean {
+  const verdict = guardSameOrigin({ req, origin });
+  if (verdict.ok) return true;
+  sendApiError({ res, status: statusForError({ error: verdict.error }), error: verdict.error });
+  return false;
 }

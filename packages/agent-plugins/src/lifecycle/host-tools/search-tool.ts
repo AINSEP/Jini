@@ -5,7 +5,7 @@ import type { AgentPluginSearchCandidate } from "../search.js";
 import type { AgentPluginActivations } from "../activation.js";
 import type { InstalledAgentPlugin } from "../types.js";
 import { readInstalledAgentPluginIdentity, type PluginMaturity } from "./identity.js";
-import { summarizeSkillMarkdown, type AgentPluginSkillDetail } from "./skill-tool.js";
+import { readInstalledSkillDetail, type AgentPluginSkillDetail } from "./skill-tool.js";
 import type { AgentPluginHostToolPorts, HostSearchToolNames, HostToolMessages } from "./ports.js";
 
 /**
@@ -317,10 +317,7 @@ async function resolveSkillsForSearchTolerant(plugin: {
   const skills: AgentPluginSkillDetail[] = [];
   for (const skill of plugin.skills) {
     try {
-      const markdown = await ports.lifecycle.readInstalledSkillMarkdown({ packageRoot: plugin.packageRoot, skillPath: skill.skillPath });
-      skills.push({ name: skill.name, summary: summarizeSkillMarkdown(skill.name, markdown, ports), markdown,
-        readFile: (_input, options = {}) => ports.lifecycle.readInstalledSkillFile({ packageRoot: plugin.packageRoot, skillPath: skill.skillPath }, options),
-      });
+      skills.push(await readInstalledSkillDetail({ plugin, skill, ports }));
     } catch (error) {
       console.warn(
         `[agent-plugins] '${plugin.pluginId}': skill '${skill.name}' could not be read ` +

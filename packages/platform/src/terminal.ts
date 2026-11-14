@@ -156,9 +156,8 @@ export interface TerminalSseSink {
   end(): void;
 }
 
-export interface TerminalSession {
+export interface TerminalSessionState {
   readonly id: string;
-  readonly projectId: string | null;
   readonly cwd: string;
   readonly shell: string;
   readonly cols: number;
@@ -168,6 +167,15 @@ export interface TerminalSession {
   readonly updatedAt: number;
   readonly exitCode: number | null;
   readonly signal: string | null;
+}
+
+export interface TerminalSession extends TerminalSessionState {
+  readonly projectId: string | null;
+}
+
+/** The grouping-key-free session fields, copied field by field so a richer internal record never leaks extra keys. */
+export function terminalSessionState({ session }: { session: TerminalSessionState }, _optional: Record<string, never> = {}): TerminalSessionState {
+  return { id: session.id, cwd: session.cwd, shell: session.shell, cols: session.cols, rows: session.rows, status: session.status, createdAt: session.createdAt, updatedAt: session.updatedAt, exitCode: session.exitCode, signal: session.signal };
 }
 
 interface InternalSession {
@@ -192,19 +200,7 @@ interface InternalSession {
 }
 
 function toPublicSession(session: InternalSession): TerminalSession {
-  return {
-    id: session.id,
-    projectId: session.projectId,
-    cwd: session.cwd,
-    shell: session.shell,
-    cols: session.cols,
-    rows: session.rows,
-    status: session.status,
-    createdAt: session.createdAt,
-    updatedAt: session.updatedAt,
-    exitCode: session.exitCode,
-    signal: session.signal,
-  };
+  return { ...terminalSessionState({ session }), projectId: session.projectId };
 }
 
 export interface CreateTerminalOptions {
