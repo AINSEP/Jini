@@ -18,8 +18,8 @@
 import type { Express } from 'express';
 import { createApiError } from '@jini-ai/protocol';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
-import { validationError } from '@jini-ai/http-kit';
-import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
+import { err, ok } from '@jini-ai/http-kit';
+import { parseCatalogDescribeInput, parseCatalogSearchInput } from './catalog-route-input.js';
 
 export interface ComponentCatalogSearchHit {
   readonly id: string;
@@ -48,23 +48,6 @@ export interface ComponentCatalogHttpDeps {
   readonly catalog: ComponentCatalogQuery;
 }
 
-const MAX_SEARCH_LIMIT = 25;
-const DEFAULT_SEARCH_LIMIT = 10;
-
-function parseSearchInput(input: RouteInputContext): Result<{ query: string; limit: number }> {
-  const rawQuery = input.query.q;
-  if (typeof rawQuery !== 'string' || rawQuery.trim().length === 0) {
-    return err({ error: validationError({ message: 'q (search query) is required and must be a non-empty string' }) });
-  }
-  const rawLimit = input.query.limit;
-  if (rawLimit === undefined) return ok({ value: { query: rawQuery, limit: DEFAULT_SEARCH_LIMIT } });
-  if (typeof rawLimit !== 'string' || !/^\d+$/.test(rawLimit)) {
-    return err({ error: validationError({ message: 'limit must be a single positive-integer query-string value when provided' }) });
-  }
-  const parsed = Number(rawLimit);
-  if (parsed < 1) return err({ error: validationError({ message: 'limit must be at least 1' }) });
-  return ok({ value: { query: rawQuery, limit: Math.min(parsed, MAX_SEARCH_LIMIT) } });
-}
 
 /**
  * `GET /api/components/search?q=...&limit=...` — ranked candidates only, never schemas.
@@ -81,15 +64,8 @@ export const componentCatalogSearchRoute = defineJsonRoute<
   { query: string; limit: number },
   { hits: readonly ComponentCatalogSearchHit[] },
   ComponentCatalogHttpDeps
->({ method: 'get', path: '/api/components/search', parse: parseSearchInput, handle: ({ input, deps }) => ok({ value: { hits: deps.catalog.search({ query: input.query }, { limit: input.limit }) } }) }, { requireSameOrigin: true });
+>({ method: 'get', path: '/api/components/search', parse: (input) => parseCatalogSearchInput({ input }), handle: ({ input, deps }) => ok({ value: { hits: deps.catalog.search({ query: input.query }, { limit: input.limit }) } }) }, { requireSameOrigin: true });
 
-function parseDescribeInput(input: RouteInputContext): Result<{ id: string }> {
-  const id = input.params.id;
-  if (typeof id !== 'string' || id.length === 0) {
-    return err({ error: validationError({ message: 'id path segment is required' }) });
-  }
-  return ok({ value: { id } });
-}
 
 /**
  * `GET /api/components/:id` — full descriptor (propsSchema included). An unknown id is 404,
@@ -101,7 +77,7 @@ function parseDescribeInput(input: RouteInputContext): Result<{ id: string }> {
  * pattern.
  */
 export const componentCatalogDescribeRoute = defineJsonRoute<{ id: string }, ComponentCatalogEntry, ComponentCatalogHttpDeps>({
-  method: 'get', path: '/api/components/:id', parse: parseDescribeInput, handle: ({ input, deps }) => {
+  method: 'get', path: '/api/components/:id', parse: (input) => parseCatalogDescribeInput({ input }), handle: ({ input, deps }) => {
     const entry = deps.catalog.describe({ id: input.id });
     if (!entry) return err({ error: createApiError({ code: 'NOT_FOUND', message: `no catalog entry for component id "${input.id}"` }) });
     return ok({ value: entry });

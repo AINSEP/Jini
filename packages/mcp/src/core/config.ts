@@ -90,7 +90,7 @@ export interface McpConfigFilesystemPort {
  *      flush can fail after replacement; it is reported rather than silently ignored.
  *
  */
-const defaultFilesystem: McpConfigFilesystemPort = {
+export const defaultMcpSecretFilesystem: McpConfigFilesystemPort = {
   readText: ({ filePath }) => readFile(filePath, 'utf8'),
   writeSecretText: ({ filePath, contents }) => writeFileAtomicAsync({ filePath, content: contents }, { mode: 0o600, verifyOwnerOnly: true, createParent: true }),
 };
@@ -231,7 +231,7 @@ export function sanitizeMcpConfig({ raw }: { raw: unknown }): McpConfig {
  * @param dataDir The resolved runtime data directory.
  * @returns The sanitized `McpConfig`, never rejects on missing-file or corrupt-JSON.
  */
-export async function readMcpConfig({ dataDir }: { dataDir: string }, { filesystem = defaultFilesystem }: { filesystem?: McpConfigFilesystemPort } = {}): Promise<McpConfig> {
+export async function readMcpConfig({ dataDir }: { dataDir: string }, { filesystem = defaultMcpSecretFilesystem }: { filesystem?: McpConfigFilesystemPort } = {}): Promise<McpConfig> {
   try {
     const raw = await filesystem.readText({ filePath: configFile(dataDir) });
     const parsed: unknown = JSON.parse(raw);
@@ -264,7 +264,7 @@ const writeLocks = new Map<string, Promise<unknown>>();
  */
 export async function writeMcpConfig(
   { dataDir, body }: { dataDir: string; body: unknown },
-  { filesystem = defaultFilesystem }: { filesystem?: McpConfigFilesystemPort } = {},
+  { filesystem = defaultMcpSecretFilesystem }: { filesystem?: McpConfigFilesystemPort } = {},
 ): Promise<McpConfig> {
   const prev = writeLocks.get(dataDir) ?? Promise.resolve();
   const task = prev.catch(() => {}).then(() => doWrite(dataDir, body, filesystem));

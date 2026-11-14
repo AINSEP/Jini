@@ -2,6 +2,7 @@ import type { RolesApiPort } from '../ports.js';
 import type { RolesState, RolesDraft, RoleRecord, PolicyRecord, DestructiveTarget } from '../models.js';
 import { canManageRoles, mutableRole, mutablePolicy, describeRolesError } from '../rules.js';
 import { rolesMessagesEn as m } from '../messages.en.js';
+import { createControllerStore } from './controller-store.js';
 const initial: RolesState = {
     roles: null, policies: null, error: null, rowError: null, roleError: null, policyError: null,
     roleName: '', policyName: '', policyDescription: '', roleSaving: false, policySaving: false, rowSavingId: null,
@@ -18,25 +19,13 @@ export function createRolesController({ api }: {
     permissions?: readonly string[];
 } = {}) {
     const grants = Object.freeze([...permissions]);
-    let state: RolesState = Object.freeze({ ...initial }), disposed = false, listGeneration = 0, permissionGeneration = 0, panelGeneration = 0;
-    const listeners = new Set<() => void>();
-    const abort = new AbortController();
-    const call = { signal: abort.signal };
-    const set = (patch: Partial<RolesState>) => {
-        if (disposed) {
-            return;
-        }
-
-        const immutablePatch = patch.permissionRows ? { ...patch, permissionRows: Object.freeze([...patch.permissionRows]) } : patch;
-        state = Object.freeze({ ...state, ...immutablePatch });
-        for (const listener of listeners) {
-            listener();
-        }
-
-    };
+    const store = createControllerStore<RolesState>({ initial });
+    const read = store.getSnapshot, call = store.call;
+    let listGeneration = 0, permissionGeneration = 0, panelGeneration = 0;
+    const set = (patch: Partial<RolesState>) => store.set({ patch: patch.permissionRows ? { ...patch, permissionRows: Object.freeze([...patch.permissionRows]) } : patch });
     const report = (error: unknown, fallback: string) => describeRolesError({ error, fallback });
     const gate = () => {
-        if (disposed || state.confirming) {
+        if (!store.active({}) || read({}).confirming) {
             return false;
         }
         if (!canManageRoles({ permissions: grants })) {
@@ -44,8 +33,8 @@ export function createRolesController({ api }: {
             return false;
         } return true;
     };
-    const role = (id: string) => state.roles?.find(r => r.id === id);
-    const policy = (id: string) => state.policies?.find(p => p.id === id);
+    const role = (id: string) => read({}).roles?.find(r => r.id === id);
+    const policy = (id: string) => read({}).policies?.find(p => p.id === id);
     const roleGate = (r: RoleRecord | undefined) => gate() && !!r && (mutableRole({ role: r }) || (set({ rowError: m.immutable }), false));
     const policyGate = (p: PolicyRecord | undefined) => gate() && !!p && (mutablePolicy({ policy: p }) || (set({ rowError: m.immutable }), false));
     const rows = <T extends object>(items: T[]): readonly T[] => Object.freeze(items.map(r => Object.freeze({ ...r })));
@@ -61,7 +50,7 @@ export function createRolesController({ api }: {
         try {
             await run();
             await load({});
-            saved = !disposed;
+            saved = store.active({});
         }
         catch (error) {
             set({ [errorKey]: report(error, fallback) });
@@ -81,13 +70,13 @@ export function createRolesController({ api }: {
         let saved = false;
         try {
             await run();
-            saved = !disposed;
+            saved = store.active({});
         }
         catch (error) {
             set({ rowError: report(error, fallback) });
         }
         finally {
-            if (state.rowSavingId === id) {
+            if (read({}).rowSavingId === id) {
                 set({ rowSavingId: null });
             }
 
@@ -95,7 +84,7 @@ export function createRolesController({ api }: {
         return saved;
     }
     async function load(_required: Record<string, never>, _optional: Record<string, never> = {}) {
-        if (disposed) {
+        if (!store.active({})) {
             return;
         }
 
@@ -119,7 +108,7 @@ export function createRolesController({ api }: {
     async function loadPermissions({ policyId }: {
         policyId: string;
     }, _optional: Record<string, never> = {}) {
-        if (disposed || state.permissionPolicyId !== policyId) {
+        if (!store.active({}) || read({}).permissionPolicyId !== policyId) {
             return;
         }
 
@@ -129,13 +118,13 @@ export function createRolesController({ api }: {
         set({ permissionsLoading: true });
         try {
             const result = await api.listPolicyPermissions({ policyId }, call);
-            if (generation === permissionGeneration && state.permissionPolicyId === policyId) {
+            if (generation === permissionGeneration && read({}).permissionPolicyId === policyId) {
                 set({ permissionRows: rows(result.policyPermissions) });
             }
 
         }
         catch (error) {
-            if (generation === permissionGeneration && state.permissionPolicyId === policyId) {
+            if (generation === permissionGeneration && read({}).permissionPolicyId === policyId) {
                 set({ permissionRows: [], rowError: report(error, 'Failed to load permissions.') });
             }
 
@@ -150,11 +139,11 @@ export function createRolesController({ api }: {
     async function togglePermissions({ policyId }: {
         policyId: string;
     }, _optional: Record<string, never> = {}) {
-        if (disposed || !policy(policyId)) {
+        if (!store.active({}) || !policy(policyId)) {
             return;
         }
 
-        const next = state.permissionPolicyId === policyId ? null : policyId;
+        const next = read({}).permissionPolicyId === policyId ? null : policyId;
         ++panelGeneration;
         ++permissionGeneration;
         // Clear first so reopening cannot flash the previous policy's permissions.
@@ -165,15 +154,15 @@ export function createRolesController({ api }: {
 
     }
     async function createRole(_required: Record<string, never>, _optional: Record<string, never> = {}) {
-        if (!gate() || state.roleSaving) {
+        if (!gate() || read({}).roleSaving) {
             return false;
         }
 
-        const name = state.roleName;
+        const name = read({}).roleName;
         return formWrite({
             saving: 'roleSaving', error: 'roleError', fallback: 'Failed to create role.', run: async () => {
                 await api.createRole({ name }, call);
-                if (state.roleName === name) {
+                if (read({}).roleName === name) {
                     set({ roleName: '' });
                 }
 
@@ -181,15 +170,15 @@ export function createRolesController({ api }: {
         });
     }
     async function createPolicy(_required: Record<string, never>, _optional: Record<string, never> = {}) {
-        if (!gate() || state.policySaving) {
+        if (!gate() || read({}).policySaving) {
             return false;
         }
 
-        const name = state.policyName, description = state.policyDescription;
+        const name = read({}).policyName, description = read({}).policyDescription;
         return formWrite({
             saving: 'policySaving', error: 'policyError', fallback: 'Failed to create policy.', run: async () => {
                 await api.createPolicy({ name }, { ...call, ...(description ? { description } : {}) });
-                if (state.policyName === name && state.policyDescription === description) {
+                if (read({}).policyName === name && read({}).policyDescription === description) {
                     set({ policyName: '', policyDescription: '' });
                 }
 
@@ -211,8 +200,8 @@ export function createRolesController({ api }: {
         }
     }
     async function saveRole(_required: Record<string, never>, _optional: Record<string, never> = {}) {
-        const id = state.editingRoleId, name = state.editingRoleName;
-        if (!id || !roleGate(role(id)) || state.rowSavingId) {
+        const id = read({}).editingRoleId, name = read({}).editingRoleName;
+        if (!id || !roleGate(role(id)) || read({}).rowSavingId) {
             return false;
         }
 
@@ -220,7 +209,7 @@ export function createRolesController({ api }: {
             id, fallback: 'Failed to rename role.', run: async () => {
                 await api.updateRole({ roleId: id, name }, call);
                 // A late save must not close another row's newer edit.
-                if (state.editingRoleId === id && state.editingRoleName === name) {
+                if (read({}).editingRoleId === id && read({}).editingRoleName === name) {
                     set({ editingRoleId: null });
                 }
 
@@ -229,15 +218,15 @@ export function createRolesController({ api }: {
         });
     }
     async function savePolicy(_required: Record<string, never>, _optional: Record<string, never> = {}) {
-        const id = state.editingPolicyId, name = state.editingPolicyName, description = state.editingPolicyDescription;
-        if (!id || !policyGate(policy(id)) || state.rowSavingId) {
+        const id = read({}).editingPolicyId, name = read({}).editingPolicyName, description = read({}).editingPolicyDescription;
+        if (!id || !policyGate(policy(id)) || read({}).rowSavingId) {
             return false;
         }
 
         return rowWrite({
             id, fallback: 'Failed to update policy.', run: async () => {
                 await api.updatePolicy({ policyId: id }, { ...call, name, description });
-                if (state.editingPolicyId === id && state.editingPolicyName === name && state.editingPolicyDescription === description) {
+                if (read({}).editingPolicyId === id && read({}).editingPolicyName === name && read({}).editingPolicyDescription === description) {
                     set({ editingPolicyId: null });
                 }
 
@@ -246,8 +235,8 @@ export function createRolesController({ api }: {
         });
     }
     async function writePermission(_required: Record<string, never>, _optional: Record<string, never> = {}) {
-        const id = state.permissionPolicyId, permission = state.permissionInput, resourceType = state.resourceTypeInput;
-        if (!id || !permission || !policyGate(policy(id)) || state.rowSavingId) {
+        const id = read({}).permissionPolicyId, permission = read({}).permissionInput, resourceType = read({}).resourceTypeInput;
+        if (!id || !permission || !policyGate(policy(id)) || read({}).rowSavingId) {
             return false;
         }
 
@@ -257,11 +246,11 @@ export function createRolesController({ api }: {
                 await api.writePolicyPermission({ policyId: id, permission }, { ...call, ...(resourceType ? { resourceType } : {}) });
                 // Ordering alone cannot protect a trailing refresh: it always mints the newest generation.
                 // Check the CURRENT panel identity, and preserve a newer draft even on the same panel.
-                if (generation === panelGeneration && state.permissionInput === permission && state.resourceTypeInput === resourceType) {
+                if (generation === panelGeneration && read({}).permissionInput === permission && read({}).resourceTypeInput === resourceType) {
                     set({ permissionInput: '', resourceTypeInput: '' });
                 }
 
-                if (state.permissionPolicyId === id) {
+                if (read({}).permissionPolicyId === id) {
                     await loadPermissions({ policyId: id });
                 }
 
@@ -289,11 +278,11 @@ export function createRolesController({ api }: {
     function requestDestructive({ target }: {
         target: DestructiveTarget;
     }, _optional: Record<string, never> = {}) {
-        if (state.confirming || !targetGate(target)) {
+        if (read({}).confirming || !targetGate(target)) {
             return;
         }
 
-        if (target.kind === 'permission' && (state.permissionPolicyId !== target.policyId || !state.permissionRows.some(r => r.id === target.row.id))) {
+        if (target.kind === 'permission' && (read({}).permissionPolicyId !== target.policyId || !read({}).permissionRows.some(r => r.id === target.row.id))) {
             return;
         }
 
@@ -302,7 +291,7 @@ export function createRolesController({ api }: {
         set({ pending: capture(target), rowError: null });
     }
     function cancelDestructive(_required: Record<string, never>, _optional: Record<string, never> = {}) {
-        if (!state.confirming) {
+        if (!read({}).confirming) {
             set({ pending: null });
         }
     }
@@ -313,7 +302,7 @@ export function createRolesController({ api }: {
         }
         else if (target.kind === 'policy') {
             await api.deletePolicy({ policyId: target.policy.id }, call);
-            if (state.permissionPolicyId === target.policy.id) {
+            if (read({}).permissionPolicyId === target.policy.id) {
                 ++permissionGeneration;
                 ++panelGeneration;
                 set({ permissionPolicyId: null, permissionRows: [], permissionsLoading: false });
@@ -323,15 +312,15 @@ export function createRolesController({ api }: {
         else {
             set({ removingPermissionId: target.row.id });
             await api.removePolicyPermission({ policyId: target.policyId, policyPermissionId: target.row.id }, call);
-            if (state.permissionPolicyId === target.policyId) {
+            if (read({}).permissionPolicyId === target.policyId) {
                 await loadPermissions({ policyId: target.policyId });
             }
 
         }
     }
     async function confirmDestructive(_required: Record<string, never>, _optional: Record<string, never> = {}) {
-        const target = state.pending;
-        if (!target || state.confirming || state.rowSavingId || !targetGate(target)) {
+        const target = read({}).pending;
+        if (!target || read({}).confirming || read({}).rowSavingId || !targetGate(target)) {
             return false;
         }
 
@@ -339,13 +328,13 @@ export function createRolesController({ api }: {
         let destroyed = false;
         try {
             await destroy(target);
-            destroyed = !disposed;
+            destroyed = store.active({});
         }
         catch (error) {
             set({ rowError: report(error, target.kind === 'permission' ? 'Failed to remove permission.' : `Failed to delete ${target.kind}.`) });
         }
         finally {
-            if (state.pending === target) {
+            if (read({}).pending === target) {
                 set({ pending: null });
             }
 
@@ -354,20 +343,11 @@ export function createRolesController({ api }: {
         return destroyed;
     }
     return {
-        getSnapshot(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) { return state; },
-        subscribe({ listener }: {
-            listener: () => void;
-        }, _optional: Record<string, never> = {}) {
-            if (!disposed) {
-                listeners.add(listener);
-            }
-            return () => { listeners.delete(listener); };
-        },
+        getSnapshot: store.getSnapshot,
+        subscribe: store.subscribe,
         dispose(_required: Record<string, never> = {}, _optional: Record<string, never> = {}) {
-            if (disposed) {
-                return;
-            }
-            disposed = true; abort.abort(); ++listGeneration; ++permissionGeneration; listeners.clear();
+            if (!store.active({})) return;
+            ++listGeneration; ++permissionGeneration; store.dispose({});
         },
         setDraft({ patch }: {
             patch: Partial<RolesDraft>;

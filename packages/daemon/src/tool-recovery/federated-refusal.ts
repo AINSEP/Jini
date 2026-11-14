@@ -80,8 +80,9 @@
  */
 
 
-import type { Principal, RunRef, SurfaceEmitter } from "@jini-ai/core";
+import type { Principal, RunRef } from "@jini-ai/core";
 import type { ToolExecutionResult, ToolExecutor } from "../tool-executor.js";
+import { decorateToolExecutor } from "./decorate-executor.js";
 
 export interface FederatedRefusalDiagnosisDeps {
   readonly inner: ToolExecutor;
@@ -238,13 +239,13 @@ export function withFederatedRefusalDiagnosis(
   { inner, ...deps }: FederatedRefusalDiagnosisDeps,
   _optional = {},
 ): ToolExecutor {
-  return {
+  return decorateToolExecutor({ inner,
     execute: async (
       { principal, run, toolId, input }: { principal: Principal; run: RunRef; toolId: string; input: unknown },
-      { signal, emitSurface }: { signal?: AbortSignal; emitSurface?: SurfaceEmitter } = {},
+      options: Parameters<ToolExecutor['execute']>[1] = {},
     ): Promise<ToolExecutionResult> => {
       try {
-        return await inner.execute({ principal, run, toolId, input }, { ...(signal === undefined ? {} : { signal }), ...(emitSurface === undefined ? {} : { emitSurface }) });
+        return await inner.execute({ principal, run, toolId, input }, options);
       } catch (error) {
         if (!isUnknownToolError(error) || !deps.isFederatedTool({ toolId })) throw error;
         const refusal = deps.findRefusal({ toolId });
@@ -272,8 +273,5 @@ export function withFederatedRefusalDiagnosis(
         };
       }
     },
-    resumeConfirmation: (args) => inner.resumeConfirmation(args),
-    cancel: (executionId) => inner.cancel(executionId),
-    getAuditRecord: (executionId) => inner.getAuditRecord(executionId),
-  };
+  });
 }

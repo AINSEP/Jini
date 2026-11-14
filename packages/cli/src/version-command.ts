@@ -11,63 +11,17 @@
  * extracts and prints that one field instead of the full status envelope `daemon status` prints.
  *
  * Same DI/testing/`resolveBaseUrl` conventions as `daemon-command.ts`'s `daemon status`/`daemon
- * stop` (this file duplicates rather than imports their small `errorOptions`/`transportOptions`
- * helpers, matching that file's own precedent of each command module owning its own copy rather
- * than sharing a not-otherwise-needed abstraction across files).
+ * stop`; this file shares `daemon-call-deps.ts` with the other daemon commands.
  */
-import { exitWithStructuredError, type ExitCodeTable } from './errors.js';
+import { exitWithStructuredError } from './errors.js';
 import { getJsonFromDaemon } from './http.js';
 import { renderUsage } from './usage.js';
 import type { CommandRegistry } from './command-registry.js';
+import { defaultWrite, errorOptions, transportOptions, type DaemonCallDeps } from './daemon-call-deps.js';
 
-export interface VersionCommandDeps {
-  /** Resolves the daemon HTTP base URL once per command invocation (e.g. wraps `resolveDaemonUrl`). */
-  resolveBaseUrl: () => Promise<string> | string;
-  /** Defaults to `process.stdout.write`; inject for tests. Used for the printed version string. */
-  write?: (requiredArgs: { text: string }) => void;
-  /** Defaults to `process.stderr.write`; inject for tests. Used for usage/validation errors. */
-  writeErr?: (requiredArgs: { text: string }) => void;
-  /** Defaults to the global `fetch`; inject for tests. */
-  fetchImpl?: typeof fetch;
-  /** Defaults to `process.exit`; inject for tests (must not return). */
-  exit?: (requiredArgs: { code: number }) => never;
-  /** Extra/overriding `code -> exitCode` entries layered on the package default table. */
-  exitCodes?: ExitCodeTable;
-}
-
-function defaultWrite({ text }: { text: string }): void {
-  process.stdout.write(text);
-}
-
-function defaultWriteErr({ text }: { text: string }): void {
-  process.stderr.write(text);
-}
+export interface VersionCommandDeps extends DaemonCallDeps {}
 
 const VERSION_USAGE = renderUsage({ usage: ['version'] }, { description: 'Prints the running daemon\'s version string (nothing else — see "daemon status" for the full status envelope).' });
-
-/** Builds `{write, exit, exitCodes?}` for `errors.ts`'s structured-error helpers, never assigning `exitCodes` when unset (required under `exactOptionalPropertyTypes`). */
-function errorOptions(deps: VersionCommandDeps): { write: (requiredArgs: { text: string }) => void; exit: (requiredArgs: { code: number }) => never; exitCodes?: ExitCodeTable } {
-  return {
-    write: deps.writeErr ?? defaultWriteErr,
-    exit: deps.exit ?? (({ code }: { code: number }) => process.exit(code)),
-    ...(deps.exitCodes !== undefined ? { exitCodes: deps.exitCodes } : {}),
-  };
-}
-
-/** Builds the transport-call options object for `getJsonFromDaemon`, only ever including a key when its value is actually set. */
-function transportOptions(deps: VersionCommandDeps): {
-  fetchImpl?: typeof fetch;
-  write?: (requiredArgs: { text: string }) => void;
-  exit?: (requiredArgs: { code: number }) => never;
-  exitCodes?: ExitCodeTable;
-} {
-  return {
-    ...(deps.fetchImpl !== undefined ? { fetchImpl: deps.fetchImpl } : {}),
-    ...(deps.writeErr !== undefined ? { write: deps.writeErr } : {}),
-    ...(deps.exit !== undefined ? { exit: deps.exit } : {}),
-    ...(deps.exitCodes !== undefined ? { exitCodes: deps.exitCodes } : {}),
-  };
-}
 
 /**
  * Extracts a non-empty `version` string out of `/api/daemon/status`'s parsed JSON body. A daemon
@@ -81,7 +35,7 @@ function extractVersion(deps: VersionCommandDeps, body: unknown): string {
     const version = (body as { version?: unknown }).version;
     if (typeof version === 'string' && version.length > 0) return version;
   }
-  return exitWithStructuredError({ code: 'daemon-not-running', message: '/api/daemon/status response did not include a version string' }, errorOptions(deps));
+  return exitWithStructuredError({ code: 'daemon-not-running', message: '/api/daemon/status response did not include a version string' }, errorOptions({ deps }));
 }
 
 /** `version` */
@@ -92,7 +46,7 @@ export async function versionCommand({ args, resolveBaseUrl }: { args: readonly 
     return;
   }
   const baseUrl = await deps.resolveBaseUrl();
-  const result = await getJsonFromDaemon({ base: baseUrl, route: '/api/daemon/status' }, transportOptions(deps));
+  const result = await getJsonFromDaemon({ base: baseUrl, route: '/api/daemon/status' }, transportOptions({ deps }));
   const version = extractVersion(deps, result);
   (deps.write ?? defaultWrite)({ text: `${version}\n` });
 }

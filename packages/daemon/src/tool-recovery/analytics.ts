@@ -10,8 +10,9 @@
  * `ProductAnalyticsPort` satisfies it — so the daemon gains no dependency. One event per call,
  * emitted after the call settles; it never changes a result or a throw.
  */
-import type { Principal, RunRef, SurfaceEmitter } from "@jini-ai/core";
+import type { Principal, RunRef } from "@jini-ai/core";
 import type { ToolExecutionResult, ToolExecutor } from "../tool-executor.js";
+import { decorateToolExecutor } from "./decorate-executor.js";
 import { pseudonymousUserId, toolCallLabel, type IsRegisteredTool } from "./observability.js";
 
 /** The one `ProductAnalyticsPort` method this decorator calls. */
@@ -36,14 +37,14 @@ export function withToolCallAnalytics({ inner, analytics }: { inner: ToolExecuto
       analytics.capture({ name: TOOL_CALL_EVENT, userId: pseudonymousUserId({ principal }), properties: { tool_id: toolCallLabel({ toolId }, { isRegisteredTool }), ...properties } });
     } catch { /* analytics never fails a tool call */ }
   };
-  return {
+  return decorateToolExecutor({ inner,
     execute: async (
       { principal, run, toolId, input }: { principal: Principal; run: RunRef; toolId: string; input: unknown },
-      { signal, emitSurface }: { signal?: AbortSignal; emitSurface?: SurfaceEmitter } = {},
+      options: Parameters<ToolExecutor['execute']>[1] = {},
     ): Promise<ToolExecutionResult> => {
       let result: ToolExecutionResult;
       try {
-        result = await inner.execute({ principal, run, toolId, input }, { ...(signal === undefined ? {} : { signal }), ...(emitSurface === undefined ? {} : { emitSurface }) });
+        result = await inner.execute({ principal, run, toolId, input }, options);
       } catch (error) {
         emit({ principal, toolId }, { outcome: "threw", failed: true });
         throw error;
@@ -52,8 +53,5 @@ export function withToolCallAnalytics({ inner, analytics }: { inner: ToolExecuto
       emit({ principal, toolId }, { outcome: result.status, failed, ...(result.status === "failed" ? { error_kind: result.errorKind ?? "internal" } : {}) });
       return result;
     },
-    resumeConfirmation: (args) => inner.resumeConfirmation(args),
-    cancel: (args) => inner.cancel(args),
-    getAuditRecord: (args) => inner.getAuditRecord(args),
-  };
+  });
 }

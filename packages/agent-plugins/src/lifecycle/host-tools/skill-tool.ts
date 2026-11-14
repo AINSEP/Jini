@@ -175,6 +175,18 @@ function assertSingleDigestPerPlugin(digestByPluginId: Map<string, string>, plug
   digestByPluginId.set(plugin.pluginId, plugin.archiveDigest);
 }
 
+/** Reads one installed skill's markdown and builds its detail. A read failure propagates: each
+ *  caller applies its own policy (the tool loader refuses the plugin, search skips the skill). */
+export async function readInstalledSkillDetail(
+  { plugin, skill, ports }: { plugin: { readonly packageRoot: string }; skill: { readonly name: string; readonly skillPath: string }; ports: AgentPluginHostToolPorts },
+  _optional: Record<string, never> = {},
+): Promise<AgentPluginSkillDetail> {
+  const markdown = await ports.lifecycle.readInstalledSkillMarkdown({ packageRoot: plugin.packageRoot, skillPath: skill.skillPath });
+  return { name: skill.name, summary: summarizeSkillMarkdown(skill.name, markdown, ports), markdown,
+    readFile: (_input, options = {}) => ports.lifecycle.readInstalledSkillFile({ packageRoot: plugin.packageRoot, skillPath: skill.skillPath }, options),
+  };
+}
+
 /** Reads and summarizes every one of one installed plugin's skills — the only `await`-per-item
  *  work in the whole load, isolated so the caller's loop has no nested `for` of its own. */
 async function resolveSkillsForPlugin(plugin: {
@@ -183,10 +195,7 @@ async function resolveSkillsForPlugin(plugin: {
 }, ports: AgentPluginHostToolPorts): Promise<AgentPluginSkillDetail[]> {
   const skills: AgentPluginSkillDetail[] = [];
   for (const skill of plugin.skills) {
-    const markdown = await ports.lifecycle.readInstalledSkillMarkdown({ packageRoot: plugin.packageRoot, skillPath: skill.skillPath });
-    skills.push({ name: skill.name, summary: summarizeSkillMarkdown(skill.name, markdown, ports), markdown,
-      readFile: (_input, options = {}) => ports.lifecycle.readInstalledSkillFile({ packageRoot: plugin.packageRoot, skillPath: skill.skillPath }, options),
-    });
+    skills.push(await readInstalledSkillDetail({ plugin, skill, ports }));
   }
   return skills;
 }

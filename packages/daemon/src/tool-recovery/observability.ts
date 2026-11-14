@@ -9,8 +9,9 @@
  * A host whose telemetry is off should not wrap at all (diagnostics' `isNoopObservabilityPort`), so
  * a disabled install keeps its exact executor object and pays no wrapper frame.
  */
-import { redactSecrets, ToolInputError, type Principal, type RunRef, type SurfaceEmitter } from "@jini-ai/core";
+import { redactSecrets, ToolInputError, type Principal, type RunRef } from "@jini-ai/core";
 import type { ToolExecutionResult, ToolExecutionStatus, ToolExecutor } from "../tool-executor.js";
+import { decorateToolExecutor } from "./decorate-executor.js";
 
 type Attributes = Readonly<Record<string, string | number>>;
 /** The two `ObservabilityPort` methods this decorator calls; the port itself satisfies it. */
@@ -79,17 +80,17 @@ function errorKindOf(result: ToolExecutionResult): string | undefined {
  * @complexity O(1) beyond `inner`'s own cost.
  */
 export function withToolCallObservability({ inner, observability }: { inner: ToolExecutor; observability: ToolCallObservability }, { isRegisteredTool }: { isRegisteredTool?: IsRegisteredTool } = {}): ToolExecutor {
-  return {
+  return decorateToolExecutor({ inner,
     execute: async (
       { principal, run, toolId, input }: { principal: Principal; run: RunRef; toolId: string; input: unknown },
-      { signal, emitSurface }: { signal?: AbortSignal; emitSurface?: SurfaceEmitter } = {},
+      options: Parameters<ToolExecutor['execute']>[1] = {},
     ): Promise<ToolExecutionResult> => {
       const attributes = { "tool.id": toolCallLabel({ toolId }, { isRegisteredTool }), "agent.run.id": run.id, "user.id": pseudonymousUserId({ principal }) };
       const context = { operation: TOOL_CALL_OPERATION, attributes };
       const tracker = observability.trackOperation({ name: TOOL_CALL_OPERATION, attributes });
       let result: ToolExecutionResult;
       try {
-        result = await tracker.run(() => inner.execute({ principal, run, toolId, input }, { ...(signal === undefined ? {} : { signal }), ...(emitSurface === undefined ? {} : { emitSurface }) }));
+        result = await tracker.run(() => inner.execute({ principal, run, toolId, input }, options));
       } catch (error) {
         // An unknown tool id throws ToolInputError: the same caller mistake as a validation failure.
         const errorKind = error instanceof ToolInputError ? "validation" : "internal";
@@ -104,8 +105,5 @@ export function withToolCallObservability({ inner, observability }: { inner: Too
       tracker.end({ outcome: result.status, failed: FAILED_STATUSES.has(result.status), ...(errorKind ? { attributes: { "tool.error_kind": errorKind } } : {}) });
       return result;
     },
-    resumeConfirmation: (args) => inner.resumeConfirmation(args),
-    cancel: (args) => inner.cancel(args),
-    getAuditRecord: (args) => inner.getAuditRecord(args),
-  };
+  });
 }

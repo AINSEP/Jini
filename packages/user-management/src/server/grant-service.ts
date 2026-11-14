@@ -129,6 +129,17 @@ export async function assertCallerHasAnyPermission(required: {
   throw new IdentityForbiddenError({ message: `principal '${callerPrincipalId}' is not authorized for any of [${permissions.join(", ")}]`, permission: permissions.join("|"), reason: lastReason });
 }
 
+/** Runs `execute` in one identity transaction after the caller passes `assertCallerHasAnyPermission`, so the check and the write see the same snapshot. */
+export function inAuthorizedIdentityTransaction<T>(
+  { deps, workspaceId, callerPrincipalId, permissions, execute }: { deps: AuthServiceDeps; workspaceId: UUID; callerPrincipalId: UUID; permissions: readonly string[]; execute: () => Promise<T> },
+  _optional: Record<string, never> = {},
+): Promise<T> {
+  return inIdentityTransaction({ transactions: deps.repos.transactions, workspaceId, execute: async () => {
+    await assertCallerHasAnyPermission({ deps, workspaceId, callerPrincipalId, permissions });
+    return execute();
+  } });
+}
+
 /** True iff `effectiveRows` contains an unconstrained hold of `permission` — an exact match with
  * `resourceType`/`constraintJson` both null, or the owner wildcard `*` (which counts as an
  * unconstrained hold of every permission).
@@ -390,17 +401,12 @@ export async function assignRole(required: {
 }): Promise<{ assignment: PrincipalRoleRecord }> {
   const { deps, input } = required;
 
-  return inIdentityTransaction({
-    transactions: deps.repos.transactions,
+  return inAuthorizedIdentityTransaction({
+    deps,
     workspaceId: input.workspaceId,
+    callerPrincipalId: input.callerPrincipalId,
+    permissions: ["role.manage"],
     execute: async () => {
-      await assertCallerHasAnyPermission({
-        deps,
-        workspaceId: input.workspaceId,
-        callerPrincipalId: input.callerPrincipalId,
-        permissions: ["role.manage"],
-      });
-
       await findAssignableTargetOrThrow({
         deps,
         workspaceId: input.workspaceId,
@@ -468,17 +474,12 @@ export async function attachPolicy(required: {
 }): Promise<{ attachment: PrincipalPolicyRecord }> {
   const { deps, input } = required;
 
-  return inIdentityTransaction({
-    transactions: deps.repos.transactions,
+  return inAuthorizedIdentityTransaction({
+    deps,
     workspaceId: input.workspaceId,
+    callerPrincipalId: input.callerPrincipalId,
+    permissions: ["role.manage"],
     execute: async () => {
-      await assertCallerHasAnyPermission({
-        deps,
-        workspaceId: input.workspaceId,
-        callerPrincipalId: input.callerPrincipalId,
-        permissions: ["role.manage"],
-      });
-
       await findAssignableTargetOrThrow({
         deps,
         workspaceId: input.workspaceId,

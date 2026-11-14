@@ -1,16 +1,12 @@
 import type { MailAdapterCredential, MailProviderModule, MailProviderRegistry, MailProviderSetup } from "@jini-ai/core/contracts/mail";
 import type { PluginCredentialCard } from "@jini-ai/core/contracts/credentials";
+import type { SmtpMailPayload as SmtpPayload } from "@jini-ai/platform/mail/smtp";
 import type { MailAdapterRegistry } from "./contribution.js";
 export interface MailCatalogDeps {
  loadMailAdapters: () => Promise<MailAdapterRegistry>;
  createSmtpTransport: (config: { host: string; port: number; secure: boolean; auth: { user: string; pass: string } }) => { sendMail(mail: SmtpPayload): Promise<{ messageId: string }> };
  log?: ((line: string) => void) | undefined;
  resolvePluginAccountToken?: ((required: { pluginId: string; serverId: string }) => Promise<string | null>) | undefined;
-}
-interface SmtpPayload {
- from: { name?: string; address: string }; to: { name?: string; address: string }; replyTo?: { name?: string; address: string };
- subject: string; html?: string; text?: string; headers?: Readonly<Record<string,string>>;
- attachments?: { filename: string; content: string; encoding: "base64"; contentType: string }[];
 }
 type Clock = { nowMs(): number };
 export interface MailProviderCatalog {
