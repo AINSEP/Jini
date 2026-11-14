@@ -81,9 +81,6 @@
  * over routing for the five providers that already have a dedicated, more
  * specifically-typed path.
  */
-import { inspect } from 'node:util';
-import { redactSecrets } from '@jini-ai/core';
-import { randomUUID } from 'node:crypto';
 import type { Express, Request, Response } from 'express';
 import {
   runAnthropicToolTurn,
@@ -128,6 +125,7 @@ import { createApiError, type ApiError } from '@jini-ai/protocol';
 import type { AdapterContext } from '@jini-ai/http-kit';
 import { validationError } from '@jini-ai/http-kit';
 import { sendApiError } from '@jini-ai/http-kit';
+import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { guardSameOrigin } from '@jini-ai/http-kit';
 import { createSseChannel, type SseChannel, type SseEvent } from '@jini-ai/http-kit';
 import { err, ok, type Result } from '@jini-ai/http-kit';
@@ -151,12 +149,12 @@ export interface ModelProxyInternalErrorContext {
   readonly provider: 'anthropic' | 'openai' | 'azure' | 'google' | 'ollama';
   readonly correlationId: string;
   readonly error: unknown;
+  /** The operation label the default line prints (`model-proxy/anthropic`). Additive. */
+  readonly logSource?: string;
 }
 
-function defaultInternalErrorSink(context: ModelProxyInternalErrorContext): void {
-  // eslint-disable-next-line no-console
-  console.error(`[@jini-ai/http-kit] internal error (model-proxy/${context.provider}, correlationId=${context.correlationId})`, redactSecrets({ input: inspect(context.error) }, { redactPii: false }));
-}
+/** What the caller is told when a turn stops on an unexpected failure: what happened + what to do. */
+const PROXY_STREAM_STOPPED_MESSAGE = 'The assistant response stopped. Review any completed actions before starting another turn. Copy the request ID and report this problem.';
 
 export interface ModelProxyHttpDeps {
   /** Host-owned tool execution for the Anthropic proxy route. Omit to stream `tool_use` events without running a server-side tool loop (see module doc). */
@@ -169,7 +167,7 @@ export interface ModelProxyHttpDeps {
   readonly googleExecuteTool?: GoogleToolExecutor;
   /** Host-owned tool execution for the Ollama proxy route. Same default-unset behavior as `anthropicExecuteTool`. */
   readonly ollamaExecuteTool?: OllamaToolExecutor;
-  /** Host-owned sink for the real exception behind a generic internal-error SSE event (SEC-005). Defaults to `console.error`. */
+  /** Host-owned sink for the real exception behind an internal-error SSE event (SEC-005). Without one, the default line carries the error class only (`reportRouteInternalError`). */
   readonly onInternalError?: (context: ModelProxyInternalErrorContext) => void;
   /**
    * Injectable HTTP transport, forwarded verbatim to every provider turn-runner as its own
@@ -379,11 +377,12 @@ function respondInternalError(res: Response, correlationId: string): void {
     if (!res.writableEnded) res.end();
     return;
   }
-  sendApiError({ res, status: 500, error: createApiError({ code: 'INTERNAL_ERROR', message: 'The assistant response stopped. Review any completed actions before starting another turn. Copy the request ID and report this problem.' }, { requestId: correlationId }) });
+  sendApiError({ res, status: 500, error: createApiError({ code: 'INTERNAL_ERROR', message: PROXY_STREAM_STOPPED_MESSAGE }, { requestId: correlationId }) });
 }
 
 type ProxyProvider = ModelProxyInternalErrorContext['provider'];
 type InternalErrorSink = (context: ModelProxyInternalErrorContext) => void;
+type AdapterInternalErrorSink = NonNullable<AdapterContext['onInternalError']>;
 
 /** Type-erased registry entry: one provider's request parser plus its turn-runner call. See {@link buildProxyProviderRegistry}. */
 interface ProxyProviderRegistryEntry {
@@ -404,7 +403,7 @@ async function runProxyStream({ req, res, adapter, provider, onInternalError, en
   readonly res: Response;
   readonly adapter: AdapterContext;
   readonly provider: ProxyProvider;
-  readonly onInternalError: InternalErrorSink;
+  readonly onInternalError?: InternalErrorSink | undefined;
   readonly entry: ProxyProviderRegistryEntry;
 }): Promise<void> {
   // Both `channel` and `seq` are declared ahead of the try so the catch block below can still
@@ -448,8 +447,7 @@ async function runProxyStream({ req, res, adapter, provider, onInternalError, en
     // rejection with no process-level guard anywhere in this package's path, which is Node's
     // documented crash-the-process default. See the paired regression test in
     // `__tests__/model-proxy.test.ts`.
-    const correlationId = randomUUID();
-    onInternalError({ provider, correlationId, error });
+    const correlationId = String(reportRouteInternalError({ report: { provider, error }, logSource: `model-proxy/${provider}`, message: PROXY_STREAM_STOPPED_MESSAGE }, { onInternalError }).requestId);
     if (!channel) {
       // The SSE channel was never opened (the throw happened before it), so no stream headers
       // were ever committed — a normal JSON error response is still possible here, matching how
@@ -462,7 +460,7 @@ async function runProxyStream({ req, res, adapter, provider, onInternalError, en
     // here (an exception escaping `run` — e.g. a caller-supplied `executeTool` throwing — means
     // no `'end'` event was ever emitted for this connection), and the synthetic `'end'`-kind
     // event's own `isEndEvent` match closes the channel via the same path as a real one.
-    channel.enqueue({ event: toStreamEvent(nextSeq(), { type: 'error', message: 'The assistant response stopped. Review any completed actions before starting another turn. Copy the request ID and report this problem.', code: correlationId } as AnyProxyTurnEvent) });
+    channel.enqueue({ event: toStreamEvent(nextSeq(), { type: 'error', message: PROXY_STREAM_STOPPED_MESSAGE, code: correlationId } as AnyProxyTurnEvent) });
     channel.enqueue({ event: toStreamEvent(nextSeq(), { type: 'end', reason: 'error' } as AnyProxyTurnEvent) });
   }
 }
@@ -575,20 +573,25 @@ function isRecognizedProvider(value: string): value is ProxyProvider {
   return RECOGNIZED_PROVIDERS.has(value as ProxyProvider);
 }
 
-/** Reports a throw from the catch-all before `runProxyStream` took over. */
-function reportCatchAllError(providerParam: string, onInternalError: InternalErrorSink, error: unknown): string {
-  const correlationId = randomUUID();
+/** The catch-all's registered path: the fixed label its generic incident carries. */
+const CATCH_ALL_PATH = '/api/proxy/:provider/stream';
+
+/** Reports a throw from the catch-all before `runProxyStream` took over; returns the request ID. */
+function reportCatchAllError(
+  { providerParam, error }: { readonly providerParam: string; readonly error: unknown },
+  { onInternalError, onAdapterInternalError }: { readonly onInternalError?: InternalErrorSink | undefined; readonly onAdapterInternalError?: AdapterInternalErrorSink | undefined } = {},
+): string {
+  const message = PROXY_STREAM_STOPPED_MESSAGE;
+  if (isRecognizedProvider(providerParam)) {
+    return String(reportRouteInternalError({ report: { provider: providerParam, error }, logSource: `model-proxy/${providerParam}`, message }, { onInternalError }).requestId);
+  }
   // `onInternalError`'s contract only accepts the 5 recognized provider literals; a throw
   // this early (e.g. `guardSameOrigin`) may have happened before the provider name was even
-  // validated, so an unrecognized/empty `providerParam` logs directly instead of lying to
-  // that typed contract with a provider that was never actually confirmed.
-  if (isRecognizedProvider(providerParam)) {
-    onInternalError({ provider: providerParam, correlationId, error });
-  } else {
-    // eslint-disable-next-line no-console
-    console.error(`[@jini-ai/http-kit] internal error (model-proxy/${providerParam || 'unknown'}, correlationId=${correlationId})`, redactSecrets({ input: inspect(error) }, { redactPii: false }));
-  }
-  return correlationId;
+  // validated, so an unrecognized/empty `providerParam` goes to the adapter's generic route sink
+  // (method + registered path) instead of lying to that typed contract with a provider that was
+  // never actually confirmed. The label is fixed words: the raw param is request input and can
+  // carry anything, so it never reaches a log line.
+  return String(reportRouteInternalError({ report: { method: 'POST', path: CATCH_ALL_PATH, error }, logSource: 'model-proxy/unknown', message }, { onInternalError: onAdapterInternalError }).requestId);
 }
 
 /**
@@ -600,10 +603,10 @@ function reportCatchAllError(providerParam: string, onInternalError: InternalErr
 function registerGenericProxyStreamRoute({ app, adapter, onInternalError, registry }: {
   readonly app: Express;
   readonly adapter: AdapterContext;
-  readonly onInternalError: InternalErrorSink;
+  readonly onInternalError?: InternalErrorSink | undefined;
   readonly registry: Record<string, ProxyProviderRegistryEntry>;
 }): void {
-  app.post('/api/proxy/:provider/stream', async (req: Request, res: Response) => {
+  app.post(CATCH_ALL_PATH, async (req: Request, res: Response) => {
     // Unlike the five fixed routes, this catch-all's own `guardSameOrigin` call sits ahead of
     // `runProxyStream` (the registry lookup below has to happen first, to even know which
     // `provider` string to hand `onInternalError`) — so it needs its own guard against the same
@@ -635,14 +638,14 @@ function registerGenericProxyStreamRoute({ app, adapter, onInternalError, regist
       // No SSE channel can exist yet at this point — `runProxyStream` owns opening one, and this
       // catch only reaches errors thrown before that call. A plain JSON error response is always
       // still possible, matching `runProxyStream`'s own "channel never opened" branch.
-      respondInternalError(res, reportCatchAllError(providerParam, onInternalError, error));
+      respondInternalError(res, reportCatchAllError({ providerParam, error }, { onInternalError, onAdapterInternalError: adapter.onInternalError }));
     }
   });
 }
 
 /** Mounts `POST /api/proxy/{anthropic,openai,azure,google,ollama}/stream` and the generic `POST /api/proxy/:provider/stream` catch-all. */
 export function registerModelProxyRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: ModelProxyHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {
-  const onInternalError = deps.onInternalError ?? defaultInternalErrorSink;
+  const onInternalError = deps.onInternalError;
   const registry = buildProxyProviderRegistry(deps);
 
   // Each fixed route is a thin wrapper over `runProxyStream` with `provider` fixed, not read from

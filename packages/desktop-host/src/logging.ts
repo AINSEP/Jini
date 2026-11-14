@@ -18,16 +18,24 @@ import { describeLogMeta, type LogDiagnosticsSink, type Logger } from '@jini-ai/
 
 type LogLevel = 'error' | 'info' | 'warn';
 
-// The file line and the console echo carry safe metadata only: `error`/`reason` (and any
-// Error-valued meta) are written as their class + approved code, never message, name or stack. A
-// caught error's text can quote untrusted input or a credential, and a host's console tee cannot
-// protect this file write. Full detail goes only to an injected `diagnostics` sink.
-// `meta` is always defined at the `describeLogMeta` call (see `serializeMessage`'s `meta == null`
-// guard below) — that guard is the single source of truth for the null check.
-function serializeMessage(level: LogLevel, message: string, meta?: Record<string, unknown>): string {
+// The file line and the console echo carry safe metadata only: `describeLogMeta` projects meta at
+// every depth (`error`/`reason` and any Error become class + approved code, opaque objects become
+// fixed words, hostile getters/proxies become `[unreadable]`), and the error bag is described the
+// same way. A caught error's text can quote untrusted input or a credential, and a host's console
+// tee cannot protect this file write. Full detail goes only to an injected `diagnostics` sink.
+/** The meta and error bag of one call, projected once for both the file line and the echo. */
+function projectForLog({ meta, error }: { meta?: Record<string, unknown>; error?: unknown }): Record<string, unknown> | undefined {
+  // Never spread the caller's meta: a hostile getter would throw here, before the host sink runs.
+  const safeMeta = meta === undefined ? undefined : describeLogMeta({ meta });
+  return error === undefined ? safeMeta : { ...safeMeta, error: describeErrorForLog({ err: error }) };
+}
+
+// `safeMeta` is already projected (plain JSON values only), so the stringify below cannot throw on
+// it; the catch stays for a host that hands a non-string message.
+function serializeMessage(level: LogLevel, message: string, safeMeta?: Record<string, unknown>): string {
   const timestamp = new Date().toISOString();
   try {
-    return `${JSON.stringify({ level, message, timestamp, ...(meta == null ? {} : { meta: describeLogMeta({ meta }) }) })}\n`;
+    return `${JSON.stringify({ level, message, timestamp, ...(safeMeta === undefined ? {} : { meta: safeMeta }) })}\n`;
   } catch (error) {
     // The serializer's own error is described like any other: its text can name meta content.
     return `${JSON.stringify({
@@ -57,16 +65,16 @@ export type LogConsole = Pick<Console, 'error' | 'info' | 'warn'>;
  * File logger (JSON lines) with an optional console echo. Both carry safe metadata only (see
  * `serializeMessage`). A host that wants the full error injects `diagnostics`: it receives every
  * call unchanged, after the file line; a throwing sink is recorded (class only) and never throws.
- * @complexity O(meta entries) per call plus one append.
+ * @complexity O(projected meta, see `describeLogMeta`) per call plus one append.
  */
 export function createFileLogger({ logPath }: { logPath: string }, options: { echoToConsole?: boolean; append?: LogAppend; console?: LogConsole; diagnostics?: LogDiagnosticsSink } = {}): Logger {
   const echo = options.echoToConsole ?? true;
   const out = options.console ?? console;
   const appendOptions = options.append === undefined ? {} : { append: options.append };
   const write = (level: LogLevel, message: string, { meta, error }: { meta?: Record<string, unknown>; error?: unknown }) => {
-    const merged = error === undefined ? meta : { ...meta, error };
-    appendLogLine({ logPath, line: serializeMessage(level, message, merged) }, appendOptions);
-    if (echo) out[level](message, merged === undefined ? '' : describeLogMeta({ meta: merged }));
+    const safe = projectForLog({ meta, error });
+    appendLogLine({ logPath, line: serializeMessage(level, message, safe) }, appendOptions);
+    if (echo) out[level](message, safe === undefined ? '' : safe);
     if (options.diagnostics !== undefined) deliverDiagnostics({ diagnostics: options.diagnostics, level, message, meta, error }, { write: line => appendLogLine({ logPath, line }, appendOptions) });
   };
   return {
@@ -85,7 +93,7 @@ function deliverDiagnostics(
   } catch (sinkError) {
     // The host sink failed: the file line above already recorded the call; record the sink's own
     // failure (class only) so it is not lost, and never throw from a log call.
-    write(serializeMessage('warn', 'diagnostics sink failed', { error: sinkError }));
+    write(serializeMessage('warn', 'diagnostics sink failed', { error: describeErrorForLog({ err: sinkError }) }));
   }
 }
 
