@@ -1,5 +1,13 @@
 # @jini-ai/http-kit
 
+## 0.7.2
+
+### Patch Changes
+
+- @jini-ai/core@0.7.2
+- @jini-ai/platform@0.7.2
+- @jini-ai/protocol@0.7.2
+
 ## 0.7.1
 
 ### Patch Changes

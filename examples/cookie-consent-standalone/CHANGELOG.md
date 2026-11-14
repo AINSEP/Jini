@@ -1,5 +1,11 @@
 # @jini-example/cookie-consent-standalone
 
+## 0.0.4
+
+### Patch Changes
+
+- @jini-ai/cookie-consent@0.7.2
+
 ## 0.0.3
 
 ### Patch Changes

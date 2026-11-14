@@ -1,3 +1,9 @@
+## 0.7.2
+
+### Patch Changes
+
+- @jini-ai/core@0.7.2
+
 ## 0.7.1
 
 ### Patch Changes

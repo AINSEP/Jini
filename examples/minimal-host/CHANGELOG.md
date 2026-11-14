@@ -1,5 +1,19 @@
 # @jini-example/minimal-host
 
+## 0.0.9
+
+### Patch Changes
+
+- @jini-ai/daemon@0.7.2
+- @jini-ai/server@0.7.2
+- @jini-ai/agent-runtime@0.7.2
+- @jini-ai/db@0.7.2
+- @jini-ai/http-kit@0.7.2
+- @jini-ai/oauth@0.7.2
+- @jini-ai/platform@0.7.2
+- @jini-ai/registry@0.7.2
+- @jini-ai/sidecar@0.7.2
+
 ## 0.0.8
 
 ### Patch Changes
