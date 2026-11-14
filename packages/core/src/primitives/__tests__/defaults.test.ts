@@ -87,4 +87,54 @@ describe('primitive default adapters', () => {
     createConsoleLogger({ prefix: '' }, { diagnostics: () => { throw new Error('sink down'); } }).error({ message: 'still logged' }, { error: cause });
     expect(lines[1]).toEqual(['still logged', 'Error']);
   });
+
+  // Nested metadata is projected the same way at every depth: an error two levels down is still a
+  // caught value, and an opaque object (a response, a Map) can carry anything.
+  it('projects nested metadata: nested errors become their class, opaque objects become fixed words', () => {
+    const lines: unknown[][] = [];
+    vi.spyOn(console, 'warn').mockImplementation((...args: unknown[]) => { lines.push(args); });
+    const secretError = Object.assign(new TypeError('boom api_key=SECRETSECRETSECRETSECRET'), { code: 'SECRETSECRETCODE' });
+    class Response { readonly body = 'SECRETSECRETBODY'; }
+    const circular: Record<string, unknown> = { runId: 'run-1' };
+    circular.self = circular;
+    createConsoleLogger({ prefix: '' }).warn({ message: 'retry' }, {
+      meta: { detail: { error: secretError, list: [secretError, 'kept'], response: new Response(), map: new Map([['k', 'SECRETSECRETMAP']]) }, circular, count: 2n, fn: () => 'SECRETSECRETFN' },
+    });
+    expect(lines).toEqual([['retry', {
+      detail: { error: 'TypeError', list: ['TypeError', 'kept'], response: '[object]', map: '[object]' },
+      circular: { runId: 'run-1', self: { runId: 'run-1', self: { runId: 'run-1', self: '[nested too deep]' } } },
+      count: '2',
+      fn: '[function]',
+    }]]);
+    const printed = JSON.stringify(lines);
+    for (const forbidden of ['boom', 'SECRETSECRET', 'defaults.test.ts']) expect(printed).not.toContain(forbidden);
+  });
+
+  // A log call sits inside a catch block: hostile metadata must never replace the failure being
+  // logged, and the host sink must still receive the original record.
+  it('contains hostile getters and proxies in metadata; the console line and the host sink both still happen', () => {
+    const lines: unknown[][] = [];
+    vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => { lines.push(args); });
+    const records: unknown[] = [];
+    let reads = 0;
+    const hostile = Object.defineProperty({ runId: 'run-1' }, 'detail', {
+      enumerable: true,
+      get() { reads += 1; if (reads > 1) return 'SECRETSECRETSECONDREAD'; throw new Error('getter SECRETSECRETGETTER'); },
+    });
+    const { proxy: revoked, revoke } = Proxy.revocable({}, {});
+    revoke();
+    const trapping = new Proxy({}, { ownKeys() { throw new Error('ownKeys SECRETSECRETKEYS'); } });
+    const getTrap = new Proxy({ a: 1 }, { get() { throw new Error('get SECRETSECRETGET'); } });
+    const logger = createConsoleLogger({ prefix: '' }, { diagnostics: record => { records.push(record); } });
+    expect(() => logger.error({ message: 'stopped' }, { meta: { nested: hostile, revoked, getTrap } })).not.toThrow();
+    expect(() => logger.error({ message: 'keys' }, { meta: trapping })).not.toThrow();
+    expect(lines).toEqual([
+      ['stopped', { nested: { runId: 'run-1', detail: '[unreadable]' }, revoked: '[unreadable]', getTrap: { a: '[unreadable]' } }],
+      ['keys', { meta: '[unreadable]' }],
+    ]);
+    expect(reads).toBe(1);
+    expect(records).toHaveLength(2);
+    expect((records[0] as { meta: { nested: unknown } }).meta.nested).toBe(hostile);
+    expect(JSON.stringify(lines)).not.toContain('SECRETSECRET');
+  });
 });
