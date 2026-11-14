@@ -1,4 +1,5 @@
 export * from './time.js';
+export * from './errors.js';
 export * from './ids.js';
 export * from './json.js';
 export * from './http.js';

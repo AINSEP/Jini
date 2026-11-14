@@ -140,7 +140,7 @@ describe('validateBaseUrlResolved', () => {
     it('accepts a public bracketed IPv6-literal hostname without calling lookup', async () => {
         // The WHATWG URL parser serializes an IPv6 host with brackets
         // (`.hostname === '[2001:db8::1]'`), so this also exercises
-        // looksLikeIpLiteral's bracket-stripping branch.
+        // isIpLiteralHostname's bracketed-IPv6 branch.
         const lookup = vi.fn();
         const result = await validateBaseUrlResolved({ baseUrl: 'http://[2001:db8::1]/asset.png' }, { lookup: lookup });
         expect(result).toEqual({ ok: true });

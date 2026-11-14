@@ -1,6 +1,32 @@
 import { describe, expect, it } from 'vitest';
 import { createHash, webcrypto } from 'node:crypto';
-import { canonicalArgumentDigest, CanonicalJsonError, canonicalJson, deleteMapRecord, matchesRecordFields, upsertRecord } from './records.js';
+import { canonicalArgumentDigest, CanonicalJsonError, canonicalJson, deleteMapRecord, matchesRecordFields, omitKeys, parseSchemaV1Document, upsertRecord, withoutUndefined } from './records.js';
+
+describe('shared record helpers', () => {
+  it('omits selected keys from a shallow copy without mutating the source', () => {
+    const source = { a: 1, b: 2, nested: { value: 3 } };
+    const result = omitKeys({ source, keys: ['a', 'a'] });
+    expect(result).toEqual({ b: 2, nested: source.nested });
+    expect(result.nested).toBe(source.nested);
+    expect(source).toEqual({ a: 1, b: 2, nested: { value: 3 } });
+  });
+
+  it('parses only schema version 1 JSON objects', () => {
+    expect(parseSchemaV1Document({ raw: '{' })).toEqual({ ok: false, reason: 'not valid JSON' });
+    expect(parseSchemaV1Document({ raw: '[]' })).toEqual({ ok: false, reason: 'schemaVersion must be 1' });
+    expect(parseSchemaV1Document({ raw: 'null' })).toEqual({ ok: false, reason: 'schemaVersion must be 1' });
+    expect(parseSchemaV1Document({ raw: '{"schemaVersion":2}' })).toEqual({ ok: false, reason: 'schemaVersion must be 1' });
+    expect(parseSchemaV1Document({ raw: '{"schemaVersion":1,"items":[1,2]}' })).toEqual({ ok: true, document: { schemaVersion: 1, items: [1, 2] } });
+  });
+
+  it('omits undefined fields while retaining falsy values, order, and the source', () => {
+    const source = { first: 0, missing: undefined, second: false, third: null, fourth: '' };
+    const result = withoutUndefined({ source });
+    expect(result).toEqual({ first: 0, second: false, third: null, fourth: '' });
+    expect(Object.keys(result)).toEqual(['first', 'second', 'third', 'fourth']);
+    expect(Object.keys(source)).toEqual(['first', 'missing', 'second', 'third', 'fourth']);
+  });
+});
 
 describe('memory record operations', () => {
   it('matches all supplied fields strictly, including explicit undefined', () => {
