@@ -1,10 +1,10 @@
 import type { ReactNode, RefObject } from 'react';
 import { ResourceBoardAlerts, ResourceBoardContent } from './ResourceBoardViewParts.js';
-import { ResourceBoardToolbar } from './ResourceBoardToolbar.js';
+import { ResourceBoardToolbar, type ResourceBoardToolbarProps } from './ResourceBoardToolbar.js';
 import type { ResourceKanbanColumn } from './ResourceKanbanBoard.js';
-import type { ResourceBoardItem, ResourceBoardViewMode, ResourceSortOption, ResourceStatusToneMap } from '../../types.js';
+import type { ResourceBoardItem, ResourceStatusToneMap } from '../../types.js';
 
-export interface ResourceBoardViewProps<TBody = unknown> {
+export interface ResourceBoardViewProps<TBody = unknown> extends Omit<ResourceBoardToolbarProps, 'selectedCount'> {
   loading: boolean;
   error: string | null;
   errorLabel?: string;
@@ -16,35 +16,7 @@ export interface ResourceBoardViewProps<TBody = unknown> {
   items: ResourceBoardItem<TBody>[];
   kanbanColumns: readonly ResourceKanbanColumn<TBody>[];
 
-  sortOptions: ResourceSortOption[];
-  activeSort?: string;
-  onSortChange: (value: string) => void;
-  sortAriaLabel: string;
-
-  query: string;
-  onQueryChange: (value: string) => void;
-  searchPlaceholder: string;
-
-  viewMode: ResourceBoardViewMode;
-  onViewModeChange: (mode: ResourceBoardViewMode) => void;
-  viewToggleAriaLabel: string;
-  gridViewLabel: string;
-  kanbanViewLabel: string;
-
-  enableBulkDelete: boolean;
-  selectMode: boolean;
   selected: ReadonlySet<string>;
-  bulkDeleteBusy: boolean;
-  onEnterSelectMode: () => void;
-  onExitSelectMode: () => void;
-  onBulkDelete: () => void;
-  selectModeLabel: string;
-  selectedCountLabel: (n: number) => string;
-  deleteSelectedLabel: string;
-  cancelSelectLabel: string;
-
-  createLabel?: string;
-  onCreate?: () => void;
 
   openMenuId: string | null;
   menuContainerRef?: RefObject<HTMLDivElement | null>;

@@ -34,7 +34,7 @@
 // this is defence-in-depth, not a live bug.)
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import { applyConnectorStatuses, hasConnectorStatusChanges } from '../../../connectors/rules.js';
+import { applyConnectorStatuses, hasConnectorStatusChanges, withoutConnectedEntries } from '../../../connectors/rules.js';
 import type { Connector, ConnectorActionResult, ConnectorStatusMap } from '../../../connectors/types.js';
 import { createAsyncCommitGuard } from '../../async-commit-guard.js';
 import {
@@ -428,17 +428,7 @@ export function useMemoryConnectors(
       }
       return next.size === prev.size ? prev : next;
     });
-    setConnectorConnectErrors((prev) => {
-      let changed = false;
-      const next = { ...prev };
-      for (const [connectorId, status] of Object.entries(statuses)) {
-        if (status.status === 'connected' && next[connectorId] !== undefined) {
-          delete next[connectorId];
-          changed = true;
-        }
-      }
-      return changed ? next : prev;
-    });
+    setConnectorConnectErrors((prev) => withoutConnectedEntries({ record: prev, statuses }));
     if (statusChanged) port.notifyConnectorsChanged();
   }, [port, commitConnectorStatuses]);
 
@@ -452,7 +442,7 @@ export function useMemoryConnectors(
       if (connectingConnectorIdsRef.current.has(connectorId)) return;
       connectingConnectorIdsRef.current.add(connectorId);
       setConnectingConnectorIds((prev) => new Set(prev).add(connectorId));
-      setConnectorConnectErrors((prev) => withoutKey(prev, connectorId));
+      setConnectorConnectErrors((prev) => withoutKey({ record: prev, key: connectorId }));
       try {
         let result: ConnectorActionResult;
         try {

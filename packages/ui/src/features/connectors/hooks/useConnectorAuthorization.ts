@@ -17,6 +17,7 @@ import {
   pruneConnectorAuthorizationPending,
   updateConnectorAuthorizationPendingFromConnectResponse,
   updateConnectorAuthorizationPendingFromStatuses,
+  withoutKey,
 } from '../rules.js';
 import type {
   Connector,
@@ -45,16 +46,6 @@ export interface ConnectorAuthorizationController {
   reloadStatuses: () => Promise<ConnectorStatusMap>;
   runConnectorAction: (connectorId: string, action: ConnectorAction) => Promise<void>;
   cancelAuthorization: (connectorId: string) => Promise<void>;
-}
-
-/** Removes `key` from `record`, preserving referential identity when the key
- *  was already absent — the shared shape behind this file's several
- *  "clear this connector's flag if it has one" state updates. */
-export function withoutKey<T>(record: Record<string, T>, key: string): Record<string, T> {
-  if (record[key] === undefined) return record;
-  const next = { ...record };
-  delete next[key];
-  return next;
 }
 
 export interface ConnectorActionSetters {
@@ -118,8 +109,8 @@ export async function performConnectorConnect(
     setCancelFailed: Dispatch<SetStateAction<Record<string, boolean>>>;
   },
 ): Promise<void> {
-  setCancelFailed((curr) => withoutKey(curr, connectorId));
-  setAuthError((curr) => withoutKey(curr, connectorId));
+  setCancelFailed((curr) => withoutKey({ record: curr, key: connectorId }));
+  setAuthError((curr) => withoutKey({ record: curr, key: connectorId }));
   try {
     const result = await port.connectConnector(connectorId);
     updateConnector(result.connector);
@@ -139,7 +130,7 @@ export async function performConnectorDisconnect(
   { onConnectorsChanged, onAuthResult, setPending, setAuthError }: ConnectorActionSetters,
 ): Promise<void> {
   setPending((curr) => clearConnectorAuthorizationPending(curr, connectorId));
-  setAuthError((curr) => withoutKey(curr, connectorId));
+  setAuthError((curr) => withoutKey({ record: curr, key: connectorId }));
   try {
     updateConnector(await port.disconnectConnector(connectorId));
     onConnectorsChanged?.();
@@ -217,12 +208,7 @@ export function useConnectorAuthorization(
             return;
           }
           updateConnector(connector);
-          setCancelFailed((curr) => {
-            if (curr[connectorId] === undefined) return curr;
-            const next = { ...curr };
-            delete next[connectorId];
-            return next;
-          });
+          setCancelFailed((curr) => withoutKey({ record: curr, key: connectorId }));
           // This clear's `curr[connectorId] !== undefined` guard is
           // structurally unreachable as *true*: `authError[connectorId]`
           // and `pending[connectorId]` (this function only ever runs for
@@ -245,12 +231,7 @@ export function useConnectorAuthorization(
           // this clear removes that NEWER error. Reproduced in
           // `__tests__/hooks/useConnectorAuthorization.stale-race.test.ts`; flagged for an owner decision
           // on whether the sweep should leave a fresher error alone.
-          setAuthError((curr) => {
-            if (curr[connectorId] === undefined) return curr;
-            const next = { ...curr };
-            delete next[connectorId];
-            return next;
-          });
+          setAuthError((curr) => withoutKey({ record: curr, key: connectorId }));
           setPending((curr) => clearConnectorAuthorizationPending(curr, connectorId));
         }),
       );
@@ -318,18 +299,8 @@ export function useConnectorAuthorization(
       const connector = await port.cancelConnectorAuthorization(connectorId);
       if (connector) {
         updateConnector(connector);
-        setCancelFailed((curr) => {
-          if (curr[connectorId] === undefined) return curr;
-          const next = { ...curr };
-          delete next[connectorId];
-          return next;
-        });
-        setAuthError((curr) => {
-          if (curr[connectorId] === undefined) return curr;
-          const next = { ...curr };
-          delete next[connectorId];
-          return next;
-        });
+        setCancelFailed((curr) => withoutKey({ record: curr, key: connectorId }));
+        setAuthError((curr) => withoutKey({ record: curr, key: connectorId }));
         setPending((curr) => clearConnectorAuthorizationPending(curr, connectorId));
         return;
       }

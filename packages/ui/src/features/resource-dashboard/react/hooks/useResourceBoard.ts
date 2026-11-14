@@ -2,13 +2,11 @@ import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } fro
 import {
   filterBoardItemsByQuery,
   groupItemsByStatus,
-  isActionPending,
   pruneSelectedIds,
   sortBoardItems,
   toggleSelectedId,
-  withoutPendingAction,
-  withPendingAction,
 } from '../../rules.js';
+import { isActionPending, withoutPendingAction, withPendingAction } from '../../../../utils/pending-actions.js';
 import { createLocalStorageViewModeStorage } from '../../dependencies.js';
 import type { ResourceBoardDependencies, ResourceBoardPort } from '../../ports.js';
 import type { ResourceBoardItem, ResourceBoardViewMode } from '../../types.js';
@@ -181,11 +179,11 @@ export function useResourceBoard<TItem extends ResourceBoardItem>(params: UseRes
   const toggleMenu = useCallback((id: string) => setOpenMenuId((current) => (current === id ? null : id)), []);
   const closeMenu = useCallback(() => setOpenMenuId(null), []);
 
-  const isItemBusy = useCallback((id: string) => isActionPending(pendingKeys, id, ITEM_ACTION_KIND), [pendingKeys]);
+  const isItemBusy = useCallback((id: string) => isActionPending({ pendingKeys, id, kind: ITEM_ACTION_KIND }), [pendingKeys]);
 
   const remove = useCallback(
     async (id: string) => {
-      setPendingKeys((current) => withPendingAction(current, id, ITEM_ACTION_KIND));
+      setPendingKeys((current) => withPendingAction({ pendingKeys: current, id, kind: ITEM_ACTION_KIND }));
       setActionError(null);
       try {
         const ok = await port.deleteItem(id);
@@ -199,7 +197,7 @@ export function useResourceBoard<TItem extends ResourceBoardItem>(params: UseRes
         // instead, matching the origin's own catch-and-report shape.
         setActionError(REMOVE_FAILED_MESSAGE);
       } finally {
-        setPendingKeys((current) => withoutPendingAction(current, id, ITEM_ACTION_KIND));
+        setPendingKeys((current) => withoutPendingAction({ pendingKeys: current, id, kind: ITEM_ACTION_KIND }));
         setOpenMenuId((current) => (current === id ? null : current));
       }
     },
@@ -209,7 +207,7 @@ export function useResourceBoard<TItem extends ResourceBoardItem>(params: UseRes
   const duplicate = useCallback(
     async (id: string) => {
       if (!port.duplicateItem) return;
-      setPendingKeys((current) => withPendingAction(current, id, ITEM_ACTION_KIND));
+      setPendingKeys((current) => withPendingAction({ pendingKeys: current, id, kind: ITEM_ACTION_KIND }));
       setActionError(null);
       try {
         const created = await port.duplicateItem(id);
@@ -217,7 +215,7 @@ export function useResourceBoard<TItem extends ResourceBoardItem>(params: UseRes
       } catch {
         setActionError(DUPLICATE_FAILED_MESSAGE);
       } finally {
-        setPendingKeys((current) => withoutPendingAction(current, id, ITEM_ACTION_KIND));
+        setPendingKeys((current) => withoutPendingAction({ pendingKeys: current, id, kind: ITEM_ACTION_KIND }));
         setOpenMenuId((current) => (current === id ? null : current));
       }
     },
@@ -228,7 +226,7 @@ export function useResourceBoard<TItem extends ResourceBoardItem>(params: UseRes
     const ids = [...selected];
     if (ids.length === 0) return { deleted: 0, failed: 0 };
     setBulkDeleteBusy(true);
-    setPendingKeys((current) => withPendingAction(current, BULK_DELETE_SCOPE, BULK_DELETE_KIND));
+    setPendingKeys((current) => withPendingAction({ pendingKeys: current, id: BULK_DELETE_SCOPE, kind: BULK_DELETE_KIND }));
     try {
       const results = await Promise.all(
         ids.map(async (id) => {
@@ -245,7 +243,7 @@ export function useResourceBoard<TItem extends ResourceBoardItem>(params: UseRes
       const deleted = results.filter(Boolean).length;
       return { deleted, failed: results.length - deleted };
     } finally {
-      setPendingKeys((current) => withoutPendingAction(current, BULK_DELETE_SCOPE, BULK_DELETE_KIND));
+      setPendingKeys((current) => withoutPendingAction({ pendingKeys: current, id: BULK_DELETE_SCOPE, kind: BULK_DELETE_KIND }));
       setBulkDeleteBusy(false);
     }
   }, [selected, port, exitSelectMode]);

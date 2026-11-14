@@ -1,3 +1,4 @@
+import { fakeLatencyDelay } from '../../utils/fake-latency.js';
 import { DEFAULT_LOCATION_ID } from './rules.js';
 import type { ProjectLocation, ProjectLocationDraft } from './types.js';
 import type { ProjectLocationsPort } from './ports.js';
@@ -38,18 +39,16 @@ export function createFakeProjectLocationsPort(options: FakeProjectLocationsPort
   let locations = options.locations ?? [DEFAULT_BUILT_IN];
   const folderPicks = options.folderPicks ?? ['/home/operator/another-project'];
   let pickIndex = 0;
-  const latencyMs = options.latencyMs ?? 0;
-  const delay = <T>(value: T): Promise<T> =>
-    latencyMs > 0 ? new Promise((resolve) => setTimeout(() => resolve(value), latencyMs)) : Promise.resolve(value);
+  const delay = fakeLatencyDelay({}, { latencyMs: options.latencyMs });
 
   return {
     fetchLocations() {
-      return delay([...locations]);
+      return delay({ value: [...locations] });
     },
     openFolderDialog() {
       const pick = folderPicks[Math.min(pickIndex, folderPicks.length - 1)] ?? null;
       pickIndex += 1;
-      return delay(pick);
+      return delay({ value: pick });
     },
     saveLocations(drafts: readonly ProjectLocationDraft[]) {
       const builtIn = locations.filter((location) => location.builtIn);
@@ -59,10 +58,10 @@ export function createFakeProjectLocationsPort(options: FakeProjectLocationsPort
         path: draft.path,
       }));
       locations = [...builtIn, ...nextExternal];
-      return delay([...locations]);
+      return delay({ value: [...locations] });
     },
     scanLocations() {
-      return delay({ imported: [], existing: [] });
+      return delay({ value: { imported: [], existing: [] } });
     },
   };
 }

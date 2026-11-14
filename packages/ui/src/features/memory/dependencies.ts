@@ -7,6 +7,7 @@
  * Removal plan: migrate singleton consumers to host factories/providers, then remove deprecated
  * defaults in an owner-approved breaking release. Do not silently turn a demo into a live port.
  */
+import { fakeLatencyDelay } from '../../utils/fake-latency.js';
 import { requestWithTimeout } from '../../utils/browser-request.js';
 import type { Connector, ConnectorActionResult, ConnectorStatusMap } from '../connectors/types.js';
 import {
@@ -233,20 +234,18 @@ export interface FakeMemoryConnectorsPortOptions {
  */
 export function createFakeMemoryConnectorsPort(options: FakeMemoryConnectorsPortOptions = {}): MemoryConnectorsPort {
   let connectors = options.connectors ? options.connectors.map((c) => ({ ...c })) : [];
-  const latencyMs = options.latencyMs ?? 0;
-  const delay = <T>(value: T): Promise<T> =>
-    latencyMs > 0 ? new Promise((resolve) => setTimeout(() => resolve(value), latencyMs)) : Promise.resolve(value);
+  const delay = fakeLatencyDelay({}, { latencyMs: options.latencyMs });
 
   return {
     fetchMemoryConnectors() {
-      return delay(connectors.map((c) => ({ ...c })));
+      return delay({ value: connectors.map((c) => ({ ...c })) });
     },
     fetchConnectorStatuses() {
       const statuses: ConnectorStatusMap = {};
       for (const c of connectors) {
         statuses[c.id] = { status: c.status, ...(c.accountLabel ? { accountLabel: c.accountLabel } : {}) };
       }
-      return delay(statuses);
+      return delay({ value: statuses });
     },
     connectConnector(connectorId: string): Promise<ConnectorActionResult> {
       const idx = connectors.findIndex((c) => c.id === connectorId);
@@ -260,13 +259,13 @@ export function createFakeMemoryConnectorsPort(options: FakeMemoryConnectorsPort
           tools: [],
         };
         connectors = [...connectors, created];
-        return delay({ connector: { ...created }, auth: { kind: 'connected' } });
+        return delay({ value: { connector: { ...created }, auth: { kind: 'connected' } } });
       }
       connectors[idx] = { ...connectors[idx]!, status: 'connected' };
-      return delay({ connector: { ...connectors[idx]! }, auth: { kind: 'connected' } });
+      return delay({ value: { connector: { ...connectors[idx]! }, auth: { kind: 'connected' } } });
     },
     suggestConnectorMemories() {
-      return delay(options.suggestionResponse ?? null);
+      return delay({ value: options.suggestionResponse ?? null });
     },
     saveMemoryEntry: memoryEntriesPort.saveMemoryEntry,
     readPendingConnectorAuthIds: readPendingConnectorAuthIdsFromSession,
