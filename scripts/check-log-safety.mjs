@@ -26,8 +26,8 @@
  * `console` rule wherever it is, and Part A's search step covers the rest by reading.
  *
  * Debt identity is file + rule; the value is the count, so moving lines never churns the list.
- * Usage: `node scripts/check-log-safety.mjs` (CI gate) or `--update` (rewrite the list; the base
- * comparison still refuses any growth).
+ * Usage: `node scripts/check-log-safety.mjs` (CI gate), `--list` (print every entry with its lines,
+ * the work list), or `--update` (rewrite the list; the base comparison still refuses any growth).
  */
 import { spawnSync } from 'node:child_process';
 import { globSync, readFileSync, writeFileSync } from 'node:fs';
@@ -194,8 +194,9 @@ function toDebt(current) {
   return current.map(({ file, rule, value }) => ({ file, rule, value }));
 }
 
-async function main({ update = process.argv.includes('--update') } = {}) {
+async function main({ update = process.argv.includes('--update'), list = process.argv.includes('--list') } = {}) {
   const current = await findLogSafetyViolations();
+  if (list) for (const entry of current) console.log(describe(entry));
   if (update) {
     writeFileSync(path.join(root, debtFile), `${JSON.stringify(toDebt(current), null, 2)}\n`);
   }
