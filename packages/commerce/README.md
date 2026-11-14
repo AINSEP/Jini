@@ -164,3 +164,15 @@ foreign-key integration tests remain in Tovu. See [source-map.md](source-map.md)
 boundary and coordinator build requirements. Phase 1's cross-package E2E specification is
 `../provider-plugins/src/payments-stripe/__tests__/payments-stripe-kernel.test.ts`. Tests, builds, typechecks and
 coverage were not run during this dispatch; validation and measured coverage remain pending.
+
+## Future: agent checkout protocols (owner decision 2026-11-13, not built)
+
+When commerce is finished, build agent checkout on the open standards rather than a custom flow:
+
+- **Agentic Commerce Protocol (ACP, OpenAI + Stripe):** lets an AI agent (e.g. ChatGPT Instant Checkout)
+  complete a purchase on the merchant's checkout, with a delegated payment token from the payment provider.
+- **AP2 (Agent Payments Protocol, Google):** signed "mandates" proving what the user authorized an agent
+  to buy (intent and cart), payment-method agnostic; works alongside A2A and MCP.
+
+Before building, re-check both specs' current versions and which agents and payment providers support
+them. Expose them through the existing provider-plugin/payment ports, so the commerce core stays vendor-neutral.
