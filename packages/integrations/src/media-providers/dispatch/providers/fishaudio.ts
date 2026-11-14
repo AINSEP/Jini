@@ -22,7 +22,7 @@
  * `PROVIDER_CREDENTIAL_ENV_VARS.fishaudio` already de-branded this to
  * plain `FISH_AUDIO_API_KEY`.
  */
-import { withRequestInit } from '../openai-compatible.js';
+import { jsonPostInit } from '../openai-compatible.js';
 import { createRawBytesParser } from '../response-parsers.js';
 import type { ProviderCredentials, RenderContext, RenderResult } from '../types.js';
 import { dispatchVendorRequest, requireApiKey } from '../vendor-adapter.js';
@@ -71,14 +71,7 @@ const fishAudioTTSAdapter: VendorAdapter<FishAudioTTSMeta> = {
 
     return {
       url: `${baseUrl}/v1/tts`,
-      init: withRequestInit(ctx, {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${apiKey}`,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify(body),
-      }),
+      init: jsonPostInit({ ctx, body }, { apiKey }),
       meta: { wireModel },
     };
   },

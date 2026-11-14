@@ -5,7 +5,7 @@ import { createAgentModelDiscovery } from '../model-discovery-native.js';
  * overlay wording. */
 import os from 'node:os';
 import path from 'node:path';
-import { detectAcpModels, DEFAULT_MODEL_OPTION } from './shared.js';
+import { acpModelFetcher, DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
 
 /** Resolve Reasonix's home directory, respecting REASONIX_HOME if already set. */
@@ -26,15 +26,7 @@ export const reasonixAgentDef = {
     bin: 'reasonix',
     fallbackBins: ['dsnix'],
     versionArgs: ['--version'],
-    fetchModels: async ({ resolvedBin, env }, { acpModelProbe } = {}) =>
-      (({ bin, args, ...optionalArgs }: Parameters<typeof detectAcpModels>[0] & NonNullable<Parameters<typeof detectAcpModels>[1]>) => detectAcpModels({ bin, args }, optionalArgs))({
-        ...(acpModelProbe ? { probe: acpModelProbe } : {}),
-        bin: resolvedBin,
-        args: ['acp'],
-        env,
-        timeoutMs: 15_000,
-        defaultModelOption: DEFAULT_MODEL_OPTION,
-      }),
+    fetchModels: acpModelFetcher({ args: ['acp'] }),
     buildArgs: () => ['acp'],
     streamFormat: 'acp-json-rpc',
     mcpDiscovery: 'mature-acp',

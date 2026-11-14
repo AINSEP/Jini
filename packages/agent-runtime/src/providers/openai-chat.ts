@@ -67,9 +67,10 @@ import { redactSecrets } from '@jini-ai/core';
  * treating its own tool's output as a brand-new user request instead of a continuation of its own
  * reasoning.
  */
-import { createRoleMarkerGuard } from '../role-marker-guard.js';
+import { createRoleMarkerGuard, emitGuardedTextDelta } from '../role-marker-guard.js';
+import { extractProviderErrorDetail } from './response-text.js';
 import { defaultDnsLookup, pinnedFetch, validateBaseUrlResolved, type DnsLookupAddress, type DnsLookupFn, type PinnedFetch } from './connection-guard.js';
-import { decodeSseStream, type DecodedSseEvent } from './sse-decode.js';
+import { decodeSseStream, parseSseJsonRecord, type DecodedSseEvent } from './sse-decode.js';
 import { buildOpenAIChatTokenParam } from './token-params.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
 import type { ProviderToolSnapshotOptions, ProviderSchemaFallback, ProviderProtocol } from './provider-tool-policy.js';
@@ -215,17 +216,7 @@ export function openAiRequestBody({ options, messages }: { options: OpenAiTurnOp
   };
 }
 
-export function extractOpenAiErrorDetail({ rawText }: { rawText: string }): string {
-  try {
-    const parsed: unknown = JSON.parse(rawText);
-    if (isRecord(parsed) && isRecord(parsed.error) && typeof parsed.error.message === 'string') {
-      return parsed.error.message;
-    }
-  } catch {
-    // Non-JSON error body — fall through to the raw text below.
-  }
-  return rawText.trim().slice(0, 500);
-}
+export const extractOpenAiErrorDetail = extractProviderErrorDetail;
 
 export interface PendingToolCall {
   id: string;
@@ -350,15 +341,7 @@ export function refreshOpenAiTools<T extends OpenAiTurnOptions>(
 }
 
 /** Parses one SSE frame's data as a JSON object, or `null` for a malformed/empty keep-alive frame or a non-object payload — both are tolerated by the caller as "nothing to do this frame". */
-export function parseOpenAiSseData({ raw }: { raw: string }): Record<string, unknown> | null {
-  let data: unknown;
-  try {
-    data = JSON.parse(raw);
-  } catch {
-    return null;
-  }
-  return isRecord(data) ? data : null;
-}
+export const parseOpenAiSseData = parseSseJsonRecord;
 
 export function applyOpenAiStreamUsage({ state, data, onEvent }: { state: OpenAiStreamState; data: Record<string, unknown>; onEvent: (event: OpenAiTurnEvent) => void }): void {
   if (!isRecord(data.usage)) return;
@@ -379,15 +362,7 @@ export function firstOpenAiChoice({ data }: { data: Record<string, unknown> }): 
  * `'continue'` — same contract as `anthropic-messages.ts#handleAnthropicTextDelta`.
  */
 export function handleOpenAiTextContentDelta({ state, content, onEvent }: { state: OpenAiStreamState; content: string; onEvent: (event: OpenAiTurnEvent) => void }): 'continue' | 'break' {
-  const safe = state.guard.feedText({ text: content });
-  if (safe.length > 0) {
-    state.fullText += safe;
-    onEvent({ type: 'text_delta', delta: safe });
-  }
-  if (!state.guard.contaminated) return 'continue';
-  const warn = state.guard.warningEvent();
-  if (warn) onEvent(warn);
-  return 'break';
+  return emitGuardedTextDelta({ state, text: content, onEvent });
 }
 
 /** Builds a fresh `PendingToolCall` from the streaming chunk that first mentions a given tool-call index — OpenAI sends `id`/`function.name` once, on that first chunk, then dribbles `function.arguments` in across subsequent chunks (accumulated separately by the caller). */

@@ -43,7 +43,7 @@
  * `PROVIDER_CREDENTIAL_ENV_VARS.senseaudio` already de-branded this to
  * plain `SENSEAUDIO_API_KEY`.
  */
-import { truncate, withRequestInit } from '../openai-compatible.js';
+import { truncate, withRequestInit, jsonPostInit } from '../openai-compatible.js';
 import type { HexEnvelopeAudioMeta } from '../response-parsers.js';
 import { createHexEnvelopeAudioParser } from '../response-parsers.js';
 import { assertAndFetchExternalAsset } from '../ssrf-guard.js';
@@ -92,14 +92,7 @@ const senseAudioTTSAdapter: VendorAdapter<HexEnvelopeAudioMeta> = {
 
     return {
       url: `${baseUrl}/v1/t2a_v2`,
-      init: withRequestInit(ctx, {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${apiKey}`,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify(body),
-      }),
+      init: jsonPostInit({ ctx, body }, { apiKey }),
       meta: { wireModel, voiceId },
     };
   },
@@ -163,14 +156,7 @@ const senseAudioImageAdapter: VendorAdapter<SenseAudioImageMeta> = {
 
     return {
       url: `${baseUrl}/v1/image/sync`,
-      init: withRequestInit(ctx, {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${apiKey}`,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify(body),
-      }),
+      init: jsonPostInit({ ctx, body }, { apiKey }),
       meta: { size, hasReference: Boolean(reference) },
     };
   },

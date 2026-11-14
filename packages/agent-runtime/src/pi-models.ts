@@ -4,7 +4,17 @@
  */
 import type { RuntimeModelOption } from './types.js';
 
-export function parsePiModels({ stdout }: { stdout: unknown }): RuntimeModelOption[] | null {
+/**
+ * Parses the tabular stdout of `pi --list-models` into an array of model options.
+ * The first entry is always the `default` sentinel ("Default (CLI config)").
+ * Provider/model pairs are de-duplicated; the header line is skipped.
+ * Returns `null` when the output is empty or contains no parseable rows beyond
+ * the header.
+ *
+ * @param stdout - Raw stdout captured from `pi --list-models`, as a string or Buffer.
+ * @returns Parsed model array (at least 2 entries), or `null` when nothing is found.
+ */
+export function parsePiModels({ stdout }: { stdout: unknown }, _optional: Record<string, never> = {}): RuntimeModelOption[] | null {
   const lines = String(stdout || '')
     .split('\n')
     .map((l) => l.trim())

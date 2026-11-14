@@ -104,7 +104,7 @@ import { redactSecrets } from '@jini-ai/core';
  * set `isError` keeps its exact prior behavior.
  * See docs/decisions/DR-001-provider-native-tool-lifecycle.md.
  */
-import { createRoleMarkerGuard } from '../role-marker-guard.js';
+import { createRoleMarkerGuard, emitGuardedTextDelta } from '../role-marker-guard.js';
 import { defaultDnsLookup, pinnedFetch, validateBaseUrlResolved, type DnsLookupFn, type PinnedFetch } from './connection-guard.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
 import { trimCharsEnd } from '@jini-ai/core/text';
@@ -363,15 +363,7 @@ export function handleOllamaToolCallsField({ state, message }: { state: OllamaSt
  * `anthropic-messages.ts#handleAnthropicTextDelta`/`openai-chat.ts#handleOpenAiTextContentDelta`.
  */
 export function handleOllamaTextContent({ state, content, onEvent }: { state: OllamaStreamState; content: string; onEvent: (event: OllamaTurnEvent) => void }): 'continue' | 'break' {
-  const safe = state.guard.feedText({ text: content });
-  if (safe.length > 0) {
-    state.fullText += safe;
-    onEvent({ type: 'text_delta', delta: safe });
-  }
-  if (!state.guard.contaminated) return 'continue';
-  const warn = state.guard.warningEvent();
-  if (warn) onEvent(warn);
-  return 'break';
+  return emitGuardedTextDelta({ state, text: content, onEvent });
 }
 
 /**

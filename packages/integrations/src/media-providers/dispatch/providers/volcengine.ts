@@ -46,7 +46,7 @@
  * `bytesFromOpenAICompatibleData` helpers directly, same as before this
  * pass (see `imagerouter.ts`'s module doc for the identical reasoning).
  */
-import { buildOpenAIImageUrl, bytesFromOpenAICompatibleData, openaiSizeFor, parseOpenAICompatibleJson, withRequestInit } from '../openai-compatible.js';
+import { buildOpenAIImageUrl, bytesFromOpenAICompatibleData, openaiSizeFor, parseOpenAICompatibleJson, jsonPostInit } from '../openai-compatible.js';
 import type { ProviderCredentials, RenderContext, RenderResult } from '../types.js';
 import { dispatchVendorRequest, requireApiKey } from '../vendor-adapter.js';
 import type { VendorAdapter, VendorRequest } from '../vendor-adapter.js';
@@ -73,14 +73,7 @@ const volcengineImageAdapter: VendorAdapter = {
 
     return {
       url: buildOpenAIImageUrl(baseUrl, false),
-      init: withRequestInit(ctx, {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${apiKey}`,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify(body),
-      }),
+      init: jsonPostInit({ ctx, body }, { apiKey }),
       meta: undefined,
     };
   },

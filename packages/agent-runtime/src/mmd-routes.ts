@@ -116,8 +116,8 @@ export function mergeMmdRouteModels({ routeIds, fallbackModels }: { routeIds: re
   return out;
 }
 
-export async function loadMmdRouteModels({ env, fallbackModels }: { env: RuntimeEnv; fallbackModels: readonly RuntimeModelOption[] }
-): Promise<RuntimeModelOption[] | null> {
+/** Reads and parses the configured routes file, returning null on file or JSON errors. */
+async function readMmdRoutesJson({ env }: { env: RuntimeEnv }, _optional: Record<string, never> = {}): Promise<{ raw: unknown } | null> {
   const routesFile = resolveMmdRoutesFile({ env: env });
   if (!routesFile) return null;
 
@@ -128,36 +128,27 @@ export async function loadMmdRouteModels({ env, fallbackModels }: { env: Runtime
     return null;
   }
 
-  let parsed: unknown;
   try {
-    parsed = JSON.parse(text);
+    return { raw: JSON.parse(text) as unknown };
   } catch {
     return null;
   }
+}
 
-  const routeIds = parseMmdRouteModelIds({ raw: parsed });
+export async function loadMmdRouteModels({ env, fallbackModels }: { env: RuntimeEnv; fallbackModels: readonly RuntimeModelOption[] }
+): Promise<RuntimeModelOption[] | null> {
+  const routes = await readMmdRoutesJson({ env });
+  if (!routes) return null;
+
+  const routeIds = parseMmdRouteModelIds({ raw: routes.raw });
   if (routeIds.length === 0) return null;
   return mergeMmdRouteModels({ routeIds: routeIds, fallbackModels: fallbackModels });
 }
 
 export async function loadMmdRouteLaunchEnv({ env, modelId }: { env: RuntimeEnv; modelId: string | null | undefined }
 ): Promise<MmdRouteLaunchEnv | null> {
-  const routesFile = resolveMmdRoutesFile({ env: env });
-  if (!routesFile) return null;
+  const routes = await readMmdRoutesJson({ env });
+  if (!routes) return null;
 
-  let text: string;
-  try {
-    text = await readFile(routesFile, 'utf8');
-  } catch {
-    return null;
-  }
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(text);
-  } catch {
-    return null;
-  }
-
-  return resolveMmdRouteLaunchEnv({ raw: parsed, modelId: modelId });
+  return resolveMmdRouteLaunchEnv({ raw: routes.raw, modelId: modelId });
 }

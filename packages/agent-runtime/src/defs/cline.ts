@@ -9,7 +9,7 @@ import { createAgentModelDiscovery } from '../model-discovery-native.js';
  * sign-in failed with "Authentication required: Call authenticate before starting a session",
  * which `auth.ts`'s generic classifier already reads as a missing sign-in (fix: `cline auth`).
  */
-import { detectAcpModels, DEFAULT_MODEL_OPTION } from './shared.js';
+import { acpModelFetcher, DEFAULT_MODEL_OPTION } from './shared.js';
 import type { RuntimeAgentDef } from '../types.js';
 
 export const clineAgentDef = {
@@ -19,15 +19,7 @@ export const clineAgentDef = {
     name: 'Cline',
     bin: 'cline',
     versionArgs: ['--version'],
-    fetchModels: async ({ resolvedBin, env }, { acpModelProbe } = {}) =>
-      (({ bin, args, ...optionalArgs }: Parameters<typeof detectAcpModels>[0] & NonNullable<Parameters<typeof detectAcpModels>[1]>) => detectAcpModels({ bin, args }, optionalArgs))({
-        ...(acpModelProbe ? { probe: acpModelProbe } : {}),
-        bin: resolvedBin,
-        args: ['--acp'],
-        env,
-        timeoutMs: 15_000,
-        defaultModelOption: DEFAULT_MODEL_OPTION,
-      }),
+    fetchModels: acpModelFetcher({ args: ['--acp'] }),
     fallbackModels: [DEFAULT_MODEL_OPTION],
     buildArgs: () => ['--acp'],
     streamFormat: 'acp-json-rpc',

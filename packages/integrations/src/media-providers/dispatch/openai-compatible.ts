@@ -62,6 +62,11 @@ export function withRequestInit(
   };
 }
 
+/** `withRequestInit` for the common JSON POST: bearer auth when `apiKey` is given, JSON content type, serialized `body`. */
+export function jsonPostInit({ ctx, body }: { ctx: Pick<RenderContext, 'requestInit'>; body: unknown }, { apiKey, headers = {} }: { apiKey?: string; headers?: Readonly<Record<string, string>> } = {}): RequestInit {
+  return withRequestInit(ctx, { method: 'POST', headers: { ...(apiKey === undefined ? {} : { authorization: `Bearer ${apiKey}` }), 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
+}
+
 /**
  * A magic-byte signature: every `[offset, bytes]` run must match. No separate
  * minimum-length check is needed: a read past the end of the buffer is

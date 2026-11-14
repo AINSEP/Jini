@@ -148,6 +148,31 @@ function createToolProjection(input: InternalTurnInput, _options = {}) {
     },
   };
 }
+type AdapterLoopEvent = Parameters<Parameters<ProviderTurnAdapters['anthropic']>[0]['onEvent']>[0]
+  | Parameters<Parameters<ProviderTurnAdapters['openai']>[0]['onEvent']>[0]
+  | Parameters<Parameters<ProviderTurnAdapters['google']>[0]['onEvent']>[0];
+
+/** Projects adapter events and retains the adapter end reason, which overrides the raw stop code. */
+function forwardAdapterEvents(
+  { input, projection }: { input: InternalTurnInput; projection: ReturnType<typeof createToolProjection> },
+  { errorFromContentPrefix = false }: { errorFromContentPrefix?: boolean } = {},
+) {
+  let endReason: string | null = null;
+  const onEvent = (event: AdapterLoopEvent): void => {
+    if (event.type === 'fabricated_role_marker') return;
+    if (event.type === 'end') endReason = event.reason;
+    if (event.type === 'tool_result') {
+      const content = describeToolResultContent(event.content);
+      input.onEvent({ type: 'tool_result', toolUseId: event.toolUseId, content, isError: event.isError || (errorFromContentPrefix && content.startsWith(TOOL_ERROR_PREFIX.trimEnd())) });
+      return;
+    }
+    projection.onEvent(event as ProviderTurnEvent);
+  };
+  return {
+    onEvent,
+    endReason: (_required: Record<string, never> = {}, _optional: Record<string, never> = {}) => endReason,
+  };
+}
 function anthropicTools(tools: readonly ProjectedTool[]): AnthropicToolDef[] {
   return tools.map(({ name, description, operation }) => ({ name, ...(description !== undefined ? { description } : {}), input_schema: operation.schema, ...(operation.strict ? { strict: true } : {}) }));
 }
@@ -175,7 +200,7 @@ async function runAnthropicTurn(input: InternalTurnInput): Promise<ProviderToolT
     const result = await projection.execute({ id: call.id, name: call.name, input: call.input });
     return { content: toAnthropicToolContent(result.content), ...(result.isError !== undefined ? { isError: result.isError } : {}) };
   };
-  let capturedEndReason: string | null = null;
+  const forward = forwardAdapterEvents({ input, projection });
   const result = await (({ apiKey, model, messages, maxTokens, onEvent, ...optionalArgs }: Parameters<typeof input.adapters.anthropic>[0] & NonNullable<Parameters<typeof input.adapters.anthropic>[1]>) => input.adapters.anthropic({ apiKey, model, messages, maxTokens, onEvent }, optionalArgs))({
     apiKey: input.apiKey,
     ...(input.baseUrl ? { baseUrl: input.baseUrl } : {}),
@@ -189,24 +214,9 @@ async function runAnthropicTurn(input: InternalTurnInput): Promise<ProviderToolT
     ...(input.maxToolTurns !== undefined ? { maxToolTurns: input.maxToolTurns } : {}),
     executeTool,
     ...(input.signal ? { signal: input.signal } : {}),
-    onEvent: (event) => {
-      if (event.type === "fabricated_role_marker")
-        return;
-      if (event.type === "end")
-        capturedEndReason = event.reason;
-      if (event.type === "tool_result") {
-        input.onEvent({
-          type: "tool_result",
-          toolUseId: event.toolUseId,
-          content: describeToolResultContent(event.content),
-          isError: event.isError,
-        });
-        return;
-      }
-      projection.onEvent(event as ProviderTurnEvent);
-    },
+    onEvent: forward.onEvent,
   });
-  return normalizeTurnResult(result, capturedEndReason);
+  return normalizeTurnResult(result, forward.endReason());
 }
 /** OpenAI and Azure share message/tool projection; the selected adapter retains its native request semantics. */
 async function runOpenAiCompatibleTurn(input: InternalTurnInput, _options = {}): Promise<ProviderToolTurnResult> {
@@ -223,7 +233,7 @@ async function runOpenAiCompatibleTurn(input: InternalTurnInput, _options = {}):
     const result = await projection.execute({ id: call.id, name: call.name, input: call.input });
     return { content: foldToolError(toOpenAiToolContent(result.content), result.isError) };
   };
-  let capturedEndReason: string | null = null;
+  const forward = forwardAdapterEvents({ input, projection }, { errorFromContentPrefix: true });
   const result = await (({ apiKey, model, messages, onEvent, ...optionalArgs }: Parameters<typeof input.adapters.openai>[0] & NonNullable<Parameters<typeof input.adapters.openai>[1]>) => {
     if (input.protocol === 'azure') {
       // runAzureTurn checks the required endpoint before any projection or adapter work.
@@ -243,20 +253,9 @@ async function runOpenAiCompatibleTurn(input: InternalTurnInput, _options = {}):
     ...(input.maxToolTurns !== undefined ? { maxToolTurns: input.maxToolTurns } : {}),
     executeTool,
     ...(input.signal ? { signal: input.signal } : {}),
-    onEvent: (event) => {
-      if (event.type === "fabricated_role_marker")
-        return;
-      if (event.type === "end")
-        capturedEndReason = event.reason;
-      if (event.type === "tool_result") {
-        const content = describeToolResultContent(event.content);
-        input.onEvent({ type: "tool_result", toolUseId: event.toolUseId, content, isError: event.isError || content.startsWith(TOOL_ERROR_PREFIX.trimEnd()) });
-        return;
-      }
-      projection.onEvent(event as ProviderTurnEvent);
-    },
+    onEvent: forward.onEvent,
   });
-  return normalizeTurnResult(result, capturedEndReason);
+  return normalizeTurnResult(result, forward.endReason());
 }
 async function runAzureTurn(input: InternalTurnInput): Promise<ProviderToolTurnResult> {
   if (!input.baseUrl) {
@@ -278,7 +277,7 @@ async function runGoogleTurn(input: InternalTurnInput): Promise<ProviderToolTurn
     const result = await projection.execute({ id: call.id, name: call.name, input: call.input });
     return { content: toGoogleToolContent(result.content), ...(result.isError !== undefined ? { isError: result.isError } : {}) };
   };
-  let capturedEndReason: string | null = null;
+  const forward = forwardAdapterEvents({ input, projection });
   const result = await (({ apiKey, model, contents, onEvent, ...optionalArgs }: Parameters<typeof input.adapters.google>[0] & NonNullable<Parameters<typeof input.adapters.google>[1]>) => input.adapters.google({ apiKey, model, contents, onEvent }, optionalArgs))({
     apiKey: input.apiKey,
     ...(input.baseUrl ? { baseUrl: input.baseUrl } : {}),
@@ -292,24 +291,9 @@ async function runGoogleTurn(input: InternalTurnInput): Promise<ProviderToolTurn
     ...(input.maxToolTurns !== undefined ? { maxToolTurns: input.maxToolTurns } : {}),
     executeTool,
     ...(input.signal ? { signal: input.signal } : {}),
-    onEvent: (event) => {
-      if (event.type === "fabricated_role_marker")
-        return;
-      if (event.type === "end")
-        capturedEndReason = event.reason;
-      if (event.type === "tool_result") {
-        input.onEvent({
-          type: "tool_result",
-          toolUseId: event.toolUseId,
-          content: describeToolResultContent(event.content),
-          isError: event.isError,
-        });
-        return;
-      }
-      projection.onEvent(event as ProviderTurnEvent);
-    },
+    onEvent: forward.onEvent,
   });
-  return normalizeTurnResult(result, capturedEndReason);
+  return normalizeTurnResult(result, forward.endReason());
 }
 /** Runs one provider-neutral turn through the supplied adapters. The adapter end event takes precedence over a raw provider stop code.
  * Local mapping is proportional to the descriptors, expanded schemas and emitted result parts; request and loop cost belongs to the adapter ports.

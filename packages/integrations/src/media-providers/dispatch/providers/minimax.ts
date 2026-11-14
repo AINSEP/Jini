@@ -34,7 +34,7 @@
  * `PROVIDER_CREDENTIAL_ENV_VARS.minimax` already de-branded this to plain
  * `MINIMAX_API_KEY`.
  */
-import { withRequestInit } from '../openai-compatible.js';
+import { jsonPostInit } from '../openai-compatible.js';
 import type { HexEnvelopeAudioMeta } from '../response-parsers.js';
 import { createHexEnvelopeAudioParser } from '../response-parsers.js';
 import type { ProviderCredentials, RenderContext, RenderResult } from '../types.js';
@@ -86,14 +86,7 @@ const minimaxTTSAdapter: VendorAdapter<HexEnvelopeAudioMeta> = {
 
     return {
       url: `${baseUrl}/t2a_v2`,
-      init: withRequestInit(ctx, {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${apiKey}`,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify(body),
-      }),
+      init: jsonPostInit({ ctx, body }, { apiKey }),
       meta: { wireModel, voiceId },
     };
   },

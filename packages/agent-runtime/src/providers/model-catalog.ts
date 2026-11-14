@@ -18,6 +18,7 @@ import { redactSecrets } from '@jini-ai/core';
 import type { DnsLookupFn } from './connection-guard.js';
 import { defaultDnsLookup, validateBaseUrl, validateBaseUrlResolved } from './connection-guard.js';
 import { aihubmixCatalogUrl, aihubmixHeaders, parseAIHubMixCatalog } from './aihubmix.js';
+import { appendVersionedApiPath } from './provider-url.js';
 import { googleProviderModelsUrl, normalizeGoogleModelId } from './google.js';
 import type {
   ConnectionTestKind,
@@ -26,7 +27,6 @@ import type {
   ProviderModelsRequest,
   ProviderModelsResponse,
 } from './types.js';
-import { trimCharsEnd } from '@jini-ai/core/text';
 
 export type ProviderModelsInput = ProviderModelsRequest & {
   signal?: AbortSignal;
@@ -66,15 +66,6 @@ const BEDROCK_MODEL_OPTIONS: ProviderModelOption[] = [
   { id: 'amazon.nova-lite-v1:0', label: 'Amazon Nova Lite' },
   { id: 'amazon.nova-micro-v1:0', label: 'Amazon Nova Micro' },
 ];
-
-function appendVersionedApiPath(baseUrl: string, suffix: string): string {
-  const url = new URL(baseUrl);
-  const pathname = trimCharsEnd({ text: url.pathname, chars: '/' });
-  url.pathname = /\/v\d+(\/|$)/.test(pathname)
-    ? `${pathname}${suffix}`
-    : `${pathname}/v1${suffix}`;
-  return url.toString();
-}
 
 function statusToKind(status: number): ConnectionTestKind {
   if (status === 401) return 'auth_failed';
@@ -221,10 +212,10 @@ function providerModelsUrl(protocol: ConnectionTestProtocol, baseUrl: string, ap
     return aihubmixCatalogUrl({ baseUrl: baseUrl, type: 'llm' });
   }
   if (protocol === 'openai' || protocol === 'senseaudio') {
-    return appendVersionedApiPath(baseUrl, '/models');
+    return appendVersionedApiPath({ baseUrl, suffix: '/models' });
   }
   if (protocol === 'anthropic') {
-    const url = new URL(appendVersionedApiPath(baseUrl, '/models'));
+    const url = new URL(appendVersionedApiPath({ baseUrl, suffix: '/models' }));
     url.searchParams.set('limit', '1000');
     return url.toString();
   }

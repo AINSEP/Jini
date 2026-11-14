@@ -21,6 +21,7 @@ import { redactSecrets } from '@jini-ai/core';
 
 import type { DnsLookupFn } from './connection-guard.js';
 import { defaultDnsLookup, validateBaseUrlResolved } from './connection-guard.js';
+import { appendVersionedApiPath } from './provider-url.js';
 import { googleGenerateContentUrl } from './google.js';
 import { buildOpenAIChatTokenParam, buildLegacyMaxTokensParam } from './token-params.js';
 import type { ConnectionTestKind, ConnectionTestProtocol } from './types.js';
@@ -83,13 +84,6 @@ const SAMPLE_MAX_CHARS = 120;
 
 function isSupportedProtocol(protocol: ConnectionTestProtocol): protocol is SupportedConnectionTestProtocol {
   return protocol === 'anthropic' || protocol === 'openai' || protocol === 'azure' || protocol === 'google';
-}
-
-function appendVersionedApiPath(baseUrl: string, suffix: string): string {
-  const url = new URL(baseUrl);
-  const pathname = trimCharsEnd({ text: url.pathname, chars: '/' });
-  url.pathname = /\/v\d+(\/|$)/.test(pathname) ? `${pathname}${suffix}` : `${pathname}/v1${suffix}`;
-  return url.toString();
 }
 
 /** Only ever called with the redacted string `extractText` produced, so no non-string guard is needed. */
@@ -248,7 +242,7 @@ function buildProviderCall(input: ProviderConnectionTestRequest & { protocol: Su
   switch (input.protocol) {
     case 'anthropic':
       return {
-        url: appendVersionedApiPath(baseUrl, '/messages'),
+        url: appendVersionedApiPath({ baseUrl, suffix: '/messages' }),
         headers: {
           'content-type': 'application/json',
           'x-api-key': apiKey,
@@ -278,7 +272,7 @@ function buildProviderCall(input: ProviderConnectionTestRequest & { protocol: Su
       };
     case 'openai':
       return {
-        url: appendVersionedApiPath(baseUrl, '/chat/completions'),
+        url: appendVersionedApiPath({ baseUrl, suffix: '/chat/completions' }),
         headers: {
           'content-type': 'application/json',
           authorization: `Bearer ${apiKey}`,

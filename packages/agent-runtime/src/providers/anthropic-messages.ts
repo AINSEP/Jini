@@ -74,9 +74,10 @@ import { redactSecrets } from '@jini-ai/core';
  *    `__tests__/anthropic-messages.test.ts`'s "never emits end twice" case
  *    for the integration-level regression proof.
  */
-import { createRoleMarkerGuard } from '../role-marker-guard.js';
+import { createRoleMarkerGuard, emitGuardedTextDelta } from '../role-marker-guard.js';
+import { extractProviderErrorDetail } from './response-text.js';
 import { defaultDnsLookup, pinnedFetch, validateBaseUrlResolved, type DnsLookupFn, type PinnedFetch } from './connection-guard.js';
-import { decodeSseStream, type DecodedSseEvent } from './sse-decode.js';
+import { decodeSseStream, parseSseJsonRecord, type DecodedSseEvent } from './sse-decode.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
 import { createStrictToolRetry, type StrictToolRetryState } from './openai-chat.js';
 import type { ProviderToolSnapshotOptions, ProviderSchemaFallback } from './provider-tool-policy.js';
@@ -258,17 +259,7 @@ export function anthropicRequestBody({ options, messages }: { options: Anthropic
   };
 }
 
-export function extractAnthropicErrorDetail({ rawText }: { rawText: string }): string {
-  try {
-    const parsed: unknown = JSON.parse(rawText);
-    if (isRecord(parsed) && isRecord(parsed.error) && typeof parsed.error.message === 'string') {
-      return parsed.error.message;
-    }
-  } catch {
-    // Non-JSON error body — fall through to the raw text below.
-  }
-  return rawText.trim().slice(0, 500);
-}
+export const extractAnthropicErrorDetail = extractProviderErrorDetail;
 
 const ANTHROPIC_ALLOWED_IMAGE_MEDIA_TYPES: ReadonlySet<string> = new Set([
   'image/jpeg',
@@ -364,15 +355,7 @@ export interface AnthropicStreamState {
 }
 
 /** Parses one SSE frame's data as a JSON object, or `null` for a malformed/empty keep-alive frame or a non-object payload — both are tolerated by the caller as "nothing to do this frame". */
-export function parseAnthropicSseData({ raw }: { raw: string }): Record<string, unknown> | null {
-  let data: unknown;
-  try {
-    data = JSON.parse(raw);
-  } catch {
-    return null;
-  }
-  return isRecord(data) ? data : null;
-}
+export const parseAnthropicSseData = parseSseJsonRecord;
 
 export function handleContentBlockStart({ state, data }: { state: AnthropicStreamState; data: Record<string, unknown> }): void {
   if (!isRecord(data.content_block) || typeof data.index !== 'number') return;
@@ -400,15 +383,7 @@ export function handleAnthropicTextDelta({ state, index, text, onEvent }: { stat
   // delta in the same request can never reach this point already contaminated. (`feedText` itself
   // is still safe to call unconditionally regardless — it early-returns `''` once contaminated,
   // per its own doc.)
-  const safe = state.guard.feedText({ text: text });
-  if (safe.length > 0) {
-    state.fullText += safe;
-    onEvent({ type: 'text_delta', delta: safe });
-  }
-  if (!state.guard.contaminated) return 'continue';
-  const warn = state.guard.warningEvent();
-  if (warn) onEvent(warn);
-  return 'break';
+  return emitGuardedTextDelta({ state, text: text, onEvent });
 }
 
 export function handleAnthropicInputJsonDelta({ state, index, partialJson }: { state: AnthropicStreamState; index: number; partialJson: string }): void {

@@ -299,3 +299,19 @@ export function createRoleMarkerGuard({ messageId }: { messageId: string }): Rol
     },
   };
 }
+
+/** Emits the safe portion of a text delta and stops the caller after a role marker. */
+export function emitGuardedTextDelta(
+  { state, text, onEvent }: { state: { guard: ReturnType<typeof createRoleMarkerGuard>; fullText: string }; text: string; onEvent: (event: { type: 'text_delta'; delta: string } | RoleMarkerWarningEvent) => void },
+  _optional: Record<string, never> = {},
+): 'continue' | 'break' {
+  const safe = state.guard.feedText({ text });
+  if (safe.length > 0) {
+    state.fullText += safe;
+    onEvent({ type: 'text_delta', delta: safe });
+  }
+  if (!state.guard.contaminated) return 'continue';
+  const warn = state.guard.warningEvent();
+  if (warn) onEvent(warn);
+  return 'break';
+}

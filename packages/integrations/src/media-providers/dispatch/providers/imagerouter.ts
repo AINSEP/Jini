@@ -22,7 +22,7 @@ import {
   bytesFromOpenAICompatibleData,
   parseOpenAICompatibleJson,
   sniffImageExt,
-  withRequestInit,
+  jsonPostInit,
 } from '../openai-compatible.js';
 import type { ProviderCredentials, RenderContext, RenderResult } from '../types.js';
 import { dispatchVendorRequest, requireApiKey } from '../vendor-adapter.js';
@@ -67,14 +67,7 @@ const imageRouterImageAdapter: VendorAdapter<ImageRouterMeta> = {
 
     return {
       url: buildOpenAIImageUrl(baseUrl, false),
-      init: withRequestInit(ctx, {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${apiKey}`,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify(body),
-      }),
+      init: jsonPostInit({ ctx, body }, { apiKey }),
       meta: { wireModel, size },
     };
   },
@@ -119,14 +112,7 @@ const imageRouterVideoAdapter: VendorAdapter<ImageRouterVideoMeta> = {
 
     return {
       url: buildOpenAIVideoUrl(baseUrl),
-      init: withRequestInit(ctx, {
-        method: 'POST',
-        headers: {
-          authorization: `Bearer ${apiKey}`,
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify(body),
-      }),
+      init: jsonPostInit({ ctx, body }, { apiKey }),
       meta: { wireModel, size, seconds },
     };
   },

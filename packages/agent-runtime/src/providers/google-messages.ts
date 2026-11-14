@@ -94,7 +94,8 @@ import { redactSecrets } from '@jini-ai/core';
  * matching this module's existing single-continuation-turn shape (see `runGoogleToolTurn`'s
  * tool-loop body and its test file's multi-tool-call image test).
  */
-import { createRoleMarkerGuard } from '../role-marker-guard.js';
+import { createRoleMarkerGuard, emitGuardedTextDelta } from '../role-marker-guard.js';
+import { extractProviderErrorDetail } from './response-text.js';
 import { defaultDnsLookup, pinnedFetch, validateBaseUrlResolved, type DnsLookupFn, type PinnedFetch } from './connection-guard.js';
 import { googleStreamGenerateContentUrl } from './google.js';
 import { decodeSseStream } from './sse-decode.js';
@@ -287,18 +288,6 @@ function googleRequestBody(options: GoogleTurnOptions, contents: readonly Google
   };
 }
 
-function extractGoogleErrorDetail(rawText: string): string {
-  try {
-    const parsed: unknown = JSON.parse(rawText);
-    if (isRecord(parsed) && isRecord(parsed.error) && typeof parsed.error.message === 'string') {
-      return parsed.error.message;
-    }
-  } catch {
-    // Non-JSON error body — fall through to the raw text below.
-  }
-  return rawText.trim().slice(0, 500);
-}
-
 interface SingleRequestOutcome {
   readonly finishReason: string | null;
   readonly toolCalls: readonly GoogleToolCall[];
@@ -354,15 +343,7 @@ function googleCandidateParts(candidate: Record<string, unknown>): readonly unkn
  * `'continue'` — same contract as `anthropic-messages.ts#handleAnthropicTextDelta`.
  */
 export function handleGoogleTextPart({ state, text, onEvent }: { state: GoogleStreamState; text: string; onEvent: (event: GoogleTurnEvent) => void }): 'continue' | 'break' {
-  const safe = state.guard.feedText({ text: text });
-  if (safe.length > 0) {
-    state.fullText += safe;
-    onEvent({ type: 'text_delta', delta: safe });
-  }
-  if (!state.guard.contaminated) return 'continue';
-  const warn = state.guard.warningEvent();
-  if (warn) onEvent(warn);
-  return 'break';
+  return emitGuardedTextDelta({ state, text: text, onEvent });
 }
 
 /** `rawPart.functionCall` must already be confirmed a record by the caller. Reads `thoughtSignature` off `rawPart` (a sibling of `functionCall`, not a member of it) — see `GoogleFunctionCallPart.thoughtSignature`'s doc for why only a non-empty string is carried. */
@@ -453,7 +434,7 @@ async function resolveGoogleResponse(
     }
     onEvent({
       type: 'error',
-      message: redactSecrets({ input: extractGoogleErrorDetail(rawText) }, { exactSecrets: [options.apiKey] }),
+      message: redactSecrets({ input: extractProviderErrorDetail({ rawText }) }, { exactSecrets: [options.apiKey] }),
       code: String(response.status),
     });
     emitEnd('error');

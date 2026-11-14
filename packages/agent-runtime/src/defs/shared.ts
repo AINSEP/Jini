@@ -12,9 +12,17 @@ import { detectAcpModels } from '../acp-model-probe.js';
 import { parsePiModels } from '../pi-models.js';
 import { execAgentFile } from '../invocation.js';
 import { DEFAULT_MODEL_OPTION } from '../models.js';
-import type { RuntimeContext, RuntimeModelOption } from '../types.js';
+import type { RuntimeAgentDef, RuntimeContext, RuntimeModelOption } from '../types.js';
 
 export { detectAcpModels, parsePiModels, execAgentFile, DEFAULT_MODEL_OPTION };
+
+/** Probe an ACP CLI session for its model options, with the default option first. */
+export function acpModelFetcher({ args }: { args: readonly string[] }, { timeoutMs = 15_000 }: { timeoutMs?: number } = {}): NonNullable<RuntimeAgentDef['fetchModels']> {
+  return async ({ resolvedBin, env }, { acpModelProbe } = {}) => detectAcpModels(
+    { bin: resolvedBin, args: [...args] },
+    { ...(acpModelProbe ? { probe: acpModelProbe } : {}), env, timeoutMs, defaultModelOption: DEFAULT_MODEL_OPTION },
+  );
+}
 
 type ClaudeMcpOptions = { filesystemRoot?: string; cliParity?: boolean; permissionMode?: string; nativeToolAccess?: boolean; nativeCapabilities?: { userMcp?: boolean } };
 

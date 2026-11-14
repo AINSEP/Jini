@@ -33,6 +33,26 @@ export interface CreateSubscriptionRequired {
 
 export interface WebhookSubscriptionOptional { createdByPluginId?: string | null; }
 
+/** Validate the replacement fields in the same order used for creation and updates. */
+async function validateSubscriptionFields(
+  { deps, input }: { deps: WebhookSubscriptionDeps; input: { label: string; targetUrl: string; topics: readonly WebhookTopic[] } },
+  _optional: Record<string, never> = {},
+): Promise<{ label: string; targetUrl: Awaited<ReturnType<typeof validateTargetUrl>>; topics: ReturnType<typeof normalizeTopics> }> {
+  const label = input.label.trim();
+  if (!label) throw new WebhookSubscriptionValidationError({ message: "label is required" });
+  const targetUrl = await validateTargetUrl({ targetUrl: input.targetUrl, isAllowedTarget: deps.isAllowedTarget });
+  const topics = normalizeTopics(input.topics);
+  if (topics.length === 0) throw new WebhookSubscriptionValidationError({ message: "at least one topic is required" });
+  return { label, targetUrl, topics };
+}
+
+/** Load a workspace-scoped subscription or report the existing not-found error. */
+async function requireSubscription({ deps, workspaceId, id }: { deps: WebhookSubscriptionDeps; workspaceId: UUID; id: UUID }, _optional: Record<string, never> = {}): Promise<WebhookSubscriptionRecord> {
+  const existing = await deps.repo.findById({ workspaceId, id });
+  if (!existing) throw new WebhookSubscriptionNotFoundError({ message: `webhook subscription '${id}' was not found` });
+  return existing;
+}
+
 /** Validate then insert an active subscription; no write occurs on validation failure. */
 export async function createSubscription(
   required: CreateSubscriptionRequired,
@@ -40,18 +60,7 @@ export async function createSubscription(
 ): Promise<{ subscription: WebhookSubscriptionRecord }> {
   const { deps, input } = required;
 
-  const label = input.label.trim();
-  if (!label) throw new WebhookSubscriptionValidationError({ message: "label is required" });
-
-  const targetUrl = await validateTargetUrl({
-    targetUrl: input.targetUrl,
-    isAllowedTarget: deps.isAllowedTarget,
-  });
-
-  const topics = normalizeTopics(input.topics);
-  if (topics.length === 0) {
-    throw new WebhookSubscriptionValidationError({ message: "at least one topic is required" });
-  }
+  const { label, targetUrl, topics } = await validateSubscriptionFields({ deps, input });
 
   const now = nowIso({ clock: deps.clock });
   const subscription: WebhookSubscriptionRecord = {
@@ -97,27 +106,13 @@ export async function updateSubscription(
 ): Promise<{ subscription: WebhookSubscriptionRecord }> {
   const { deps, input } = required;
 
-  const existing = await deps.repo.findById({ workspaceId: input.workspaceId, id: input.id });
-  if (!existing) {
-    throw new WebhookSubscriptionNotFoundError({ message: `webhook subscription '${input.id}' was not found` });
-  }
+  const existing = await requireSubscription({ deps, workspaceId: input.workspaceId, id: input.id });
   // Soft deletion is terminal: an update must preserve the disabled row's audit history.
   if (existing.status === "disabled") {
     throw new WebhookSubscriptionValidationError({ message: `webhook subscription '${input.id}' is disabled (deleted) and cannot be updated` });
   }
 
-  const label = input.label.trim();
-  if (!label) throw new WebhookSubscriptionValidationError({ message: "label is required" });
-
-  const targetUrl = await validateTargetUrl({
-    targetUrl: input.targetUrl,
-    isAllowedTarget: deps.isAllowedTarget,
-  });
-
-  const topics = normalizeTopics(input.topics);
-  if (topics.length === 0) {
-    throw new WebhookSubscriptionValidationError({ message: "at least one topic is required" });
-  }
+  const { label, targetUrl, topics } = await validateSubscriptionFields({ deps, input });
 
   const subscription: WebhookSubscriptionRecord = {
     ...existing,
@@ -154,10 +149,7 @@ export async function pauseSubscription(
   const { deps, input } = required;
   const { paused = true } = optional;
 
-  const existing = await deps.repo.findById({ workspaceId: input.workspaceId, id: input.id });
-  if (!existing) {
-    throw new WebhookSubscriptionNotFoundError({ message: `webhook subscription '${input.id}' was not found` });
-  }
+  const existing = await requireSubscription({ deps, workspaceId: input.workspaceId, id: input.id });
   if (existing.status === "disabled") {
     // Soft deletion is terminal: preserving audit history must not offer a resume-to-life path.
     throw new WebhookSubscriptionValidationError({ message: `webhook subscription '${input.id}' is disabled and cannot be paused or resumed` });
@@ -191,10 +183,7 @@ export async function deleteSubscription(
   // Retain the row and disabledAt for audit durability; the repository intentionally has no delete.
   const { deps, input } = required;
 
-  const existing = await deps.repo.findById({ workspaceId: input.workspaceId, id: input.id });
-  if (!existing) {
-    throw new WebhookSubscriptionNotFoundError({ message: `webhook subscription '${input.id}' was not found` });
-  }
+  const existing = await requireSubscription({ deps, workspaceId: input.workspaceId, id: input.id });
 
   const now = nowIso({ clock: deps.clock });
   const subscription: WebhookSubscriptionRecord = {
