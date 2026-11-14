@@ -1,3 +1,4 @@
+import { upsertRecord } from "@jini-ai/core/records";
 import type {
   DomainEvent,
   OutboxPort,
@@ -64,12 +65,6 @@ export class InMemoryChangeSetRepo implements ChangeSetRepoPort {
   }
 
   async save(record: ChangeSetRecord): Promise<void> {
-    const index = this.rows.findIndex((row) => row.id === record.id);
-    if (index === -1) {
-      this.rows.push(record);
-      return;
-    }
-
-    this.rows[index] = record;
+    upsertRecord({ records: this.rows, record, identity: { id: record.id } });
   }
 }

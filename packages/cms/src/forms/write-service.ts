@@ -48,6 +48,24 @@ export interface FormWriteServiceDeps {
   authorize: AuthorizeFn;
 }
 
+/** Supplies the common gateway dependencies for a form-definition command. */
+function formCommandDeps(
+  { deps }: { deps: FormWriteServiceDeps },
+  { outbox }: { outbox?: FormWriteOptional["outbox"] } = {},
+) {
+  return { clock: deps.clock, idGen: deps.idGen, changeSets: deps.changeSets, outbox, authorize: deps.authorize };
+}
+
+/** Loads a live definition or raises the form service's existing not-found error. */
+async function requireFormDefinition(
+  { repo, workspaceId, formId }: { repo: FormDefinitionRepoPort; workspaceId: UUID; formId: UUID },
+  _optional: Record<string, never> = {},
+): Promise<FormDefinitionRecord> {
+  const existing = await repo.findById({ workspaceId, id: formId });
+  if (!existing) throw new FormDefinitionNotFoundError({ message: `form definition '${formId}' was not found` });
+  return existing;
+}
+
 // Export validation bounds so host tool schemas can share them rather than drift from the service.
 export const MAX_NOTIFY_RECIPIENTS = 10;
 const EMAIL_PATTERN = /^[^\s@]+@([^\s@]+)$/;
@@ -160,13 +178,7 @@ export async function createFormDefinition(
   const definitionId = deps.idGen.newId();
 
   const { result } = await deps.executeCommand({
-    deps: {
-      clock: deps.clock,
-      idGen: deps.idGen,
-      changeSets: deps.changeSets,
-      outbox: optional.outbox,
-      authorize: deps.authorize,
-    },
+    deps: formCommandDeps({ deps }, { outbox: optional.outbox }),
     command: {
       workspaceId: input.workspaceId,
       actor: input.actor,
@@ -229,13 +241,7 @@ export async function updateFormDefinition(
   const { deps, input } = required;
 
   const { result } = await deps.executeCommand({
-    deps: {
-      clock: deps.clock,
-      idGen: deps.idGen,
-      changeSets: deps.changeSets,
-      outbox: optional.outbox,
-      authorize: deps.authorize,
-    },
+    deps: formCommandDeps({ deps }, { outbox: optional.outbox }),
     command: {
       workspaceId: input.workspaceId,
       actor: input.actor,
@@ -249,10 +255,7 @@ export async function updateFormDefinition(
       operation: "update",
       captureInverse: async () => null,
       execute: async () => {
-        const existing = await deps.repo.findById({ workspaceId: input.workspaceId, id: input.formId });
-        if (!existing) {
-          throw new FormDefinitionNotFoundError({ message: `form definition '${input.formId}' was not found` });
-        }
+        const existing = await requireFormDefinition({ repo: deps.repo, workspaceId: input.workspaceId, formId: input.formId });
 
         const name = input.patch.name !== undefined ? input.patch.name : existing.name;
         if (input.patch.name !== undefined) {
@@ -313,13 +316,7 @@ export async function setFormDefinitionStatus(
   const { deps, input } = required;
 
   const { result } = await deps.executeCommand({
-    deps: {
-      clock: deps.clock,
-      idGen: deps.idGen,
-      changeSets: deps.changeSets,
-      outbox: optional.outbox,
-      authorize: deps.authorize,
-    },
+    deps: formCommandDeps({ deps }, { outbox: optional.outbox }),
     command: {
       workspaceId: input.workspaceId,
       actor: input.actor,
@@ -333,10 +330,7 @@ export async function setFormDefinitionStatus(
       operation: "update",
       captureInverse: async () => null,
       execute: async () => {
-        const existing = await deps.repo.findById({ workspaceId: input.workspaceId, id: input.formId });
-        if (!existing) {
-          throw new FormDefinitionNotFoundError({ message: `form definition '${input.formId}' was not found` });
-        }
+        const existing = await requireFormDefinition({ repo: deps.repo, workspaceId: input.workspaceId, formId: input.formId });
         const definition: HtmlFormDefinitionRecord = {
           ...existing,
           status: input.status,

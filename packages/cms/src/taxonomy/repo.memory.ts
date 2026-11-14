@@ -1,5 +1,5 @@
 import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
-import type { Clock } from "@jini-ai/core/primitives";
+import type { KernelOutboxAdapterDeps } from "../core/kernel-outbox.js";
 import type { ContentLookupPort, EntryTermRepoPort, TaxonomyRepoPort, TaxonomyRevisionRepoPort, TaxonomyRevisionRow, Term, TermRepoPort, UnassignableEntryTermRepoPort } from "./write-service.js";
 import type { Taxonomy } from "./write-service.js";
 import type { TaxonomyListPort, TermListPort } from "./list.js";
@@ -228,24 +228,11 @@ export function noopStampWatermark(): void {}
 /** Adapts a real `core/ports` `OutboxPort` into the loose `{enqueue(event: unknown)}` shape
  * `taxonomy/write-service.ts` declares locally. That package's own event objects already carry
  * `name`/`occurredAt` at their top level (unlike `content-types`/`entries`' nested-`payload`
- * shape), so this wrapper forwards them as the full event payload rather than re-nesting. */
-export function toTaxonomyOutbox(deps: {
-  outbox: {
-    enqueue(event: {
-      id: string;
-      workspaceId: string;
-      name: string;
-      occurredAt: string;
-      payload: Record<string, unknown>;
-    }): Promise<void>;
-  };
-  clock: Clock;
-  idGen: { newId(): string };
-  /** Required — see `entries/repo.memory.ts`'s `toEntryOutbox` for the full rationale. Taxonomy is
-   * the case that rules out reading the tenant off the event: its own event objects
-   * (`{name, taxonomyId, actorId, occurredAt}`) carry no `workspaceId` at all. */
-  workspaceId: string;
-}): { enqueue: ({ event }: { event: unknown }) => Promise<void> } {
+ * shape), so this wrapper forwards them as the full event payload rather than re-nesting.
+ * Taxonomy is the case that rules out reading the tenant off the event: its own event objects
+ * (`{name, taxonomyId, actorId, occurredAt}`) carry no `workspaceId` at all. See
+ * `core/kernel-outbox.ts` for the full tenant-boundary rationale. */
+export function toTaxonomyOutbox(deps: KernelOutboxAdapterDeps): { enqueue: ({ event }: { event: unknown }) => Promise<void> } {
   return {
     enqueue: async ({ event }) => {
       const record = event as Record<string, unknown>;

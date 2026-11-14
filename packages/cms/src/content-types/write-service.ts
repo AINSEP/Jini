@@ -123,6 +123,15 @@ export interface ContentTypeWriteServiceDeps {
   reservedKeys?: ReadonlySet<string>;
 }
 
+/** Authorizes content-type management and preserves the caller-specific denial message. */
+export async function authorizeContentTypeManage(
+  { deps, input, action }: { deps: { authorize: AuthorizeFn }; input: { actorId: string; workspaceId: string }; action: string },
+  _optional: Record<string, never> = {},
+): Promise<ForbiddenError | null> {
+  const result = await deps.authorize({ principalId: input.actorId, permission: "admin.collections.manage", workspaceId: input.workspaceId }, { entityType: "content-type" });
+  return result.allowed ? null : new ForbiddenError({ message: `principal '${input.actorId}' cannot ${action} (${result.reason})` });
+}
+
 /**
  * Field-name guards shared by register and update, in order: every name passes the identifier
  * grammar (`InvalidFieldNameGrammarError`), THEN no name appears twice
@@ -278,14 +287,8 @@ export async function registerContentType(
 ): Promise<Result<{ contentType: ContentTypeRecord }, Error>> {
   const { deps, input } = required;
 
-  const authResult = await deps.authorize({
-    principalId: input.actorId,
-    permission: "admin.collections.manage",
-    workspaceId: input.workspaceId
-  }, { entityType: "content-type" });
-  if (!authResult.allowed) {
-    return { ok: false, error: new ForbiddenError({ message: `principal '${input.actorId}' cannot register a content type (${authResult.reason})` }) };
-  }
+  const authError = await authorizeContentTypeManage({ deps, input, action: "register a content type" });
+  if (authError) return { ok: false, error: authError };
 
   const keyError = registerKeyError({ key: input.key, owner: input.owner }, { reservedKeys: deps.reservedKeys });
   if (keyError) return { ok: false, error: keyError };
@@ -373,14 +376,8 @@ export async function updateContentTypeFields(
 ): Promise<Result<{ contentType: ContentTypeRecord }, Error>> {
   const { deps, input } = required;
 
-  const authResult = await deps.authorize({
-    principalId: input.actorId,
-    permission: "admin.collections.manage",
-    workspaceId: input.workspaceId
-  }, { entityType: "content-type" });
-  if (!authResult.allowed) {
-    return { ok: false, error: new ForbiddenError({ message: `principal '${input.actorId}' cannot update content type '${input.key}' (${authResult.reason})` }) };
-  }
+  const authError = await authorizeContentTypeManage({ deps, input, action: `update content type '${input.key}'` });
+  if (authError) return { ok: false, error: authError };
 
   const current = await deps.repo.findByKey({ workspaceId: input.workspaceId, key: input.key });
   if (!current) {

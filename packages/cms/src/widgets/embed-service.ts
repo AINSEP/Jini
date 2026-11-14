@@ -494,6 +494,37 @@ function writeEmbedHost({ deps, input, host, nextBodyJson }: {
     : writePostHostBody(deps, input.workspaceId, input.actor, host.record, input.baseVersion, nextBodyJson);
 }
 
+/** The fields every embed mutation input shares. */
+type EmbedHostEditInput = {
+  readonly workspaceId: UUID;
+  readonly actor: { readonly principalId: UUID; readonly kind: string };
+  readonly hostEntryId: UUID;
+  readonly baseVersion: number;
+};
+
+/** Authorize placement, then load, edit, validate and write under the host's entry lock. */
+async function editEmbedHostBody<R extends object>(
+  required: {
+    deps: EmbedServiceDeps;
+    input: EmbedHostEditInput;
+    edit: (required: { host: EmbedHost }) => Promise<{ nextBodyJson: unknown; result: R }>;
+  },
+  _optional: Record<string, never> = {},
+): Promise<R & { entry: EntryRecord | PostRecord }> {
+  const { deps, input, edit } = required;
+  await requireWidgetPermission({ authorize: deps.authorize, actor: input.actor, workspaceId: input.workspaceId, permission: "widgets.place" });
+  return withEntryLock({
+    key: `${input.workspaceId}::${input.hostEntryId}`,
+    fn: async () => {
+      const host = await loadEmbedHost(deps, input.workspaceId, input.hostEntryId);
+      const { nextBodyJson, result } = await edit({ host });
+      assertGuardrails(deps, hostBodyType(host), nextBodyJson);
+      const entry = await writeEmbedHost({ deps, input, host, nextBodyJson });
+      return { ...result, entry };
+    },
+  }, deps.entryLocks ? { locks: deps.entryLocks } : {});
+}
+
 export interface InsertWidgetEmbedInput {
   readonly workspaceId: UUID;
   readonly actor: { readonly principalId: UUID; readonly kind: string };
@@ -513,24 +544,14 @@ export interface InsertWidgetEmbedRequired {
  * server-side embed-mutation routes) can address this exact placement afterward. */
 export async function insertWidgetEmbed(required: InsertWidgetEmbedRequired, _optional: Record<string, never> = {}): Promise<{ entry: EntryRecord | PostRecord; placementId: UUID }> {
   const { deps, input } = required;
-  await requireWidgetPermission({
-    authorize: deps.authorize,
-    actor: input.actor,
-    workspaceId: input.workspaceId,
-    permission: "widgets.place",
-  });
-
-  return withEntryLock({
-    key: `${input.workspaceId}::${input.hostEntryId}`, fn: async () => {
-      const host = await loadEmbedHost(deps, input.workspaceId, input.hostEntryId);
+  return editEmbedHostBody({
+    deps, input,
+    edit: async ({ host }) => {
       await assertEmbedTargetIsLiveWidget(deps, input.workspaceId, input.widgetEntryId);
       const placementId = deps.ids.newId();
-      const nextBodyJson = appendEmbed(host.record.bodyJson, placementId, input.widgetEntryId);
-      assertGuardrails(deps, hostBodyType(host), nextBodyJson);
-      const entry = await writeEmbedHost({ deps, input, host, nextBodyJson });
-      return { entry, placementId };
-    }
-  }, deps.entryLocks ? { locks: deps.entryLocks } : {});
+      return { nextBodyJson: appendEmbed(host.record.bodyJson, placementId, input.widgetEntryId), result: { placementId } };
+    },
+  });
 }
 
 export interface RemoveWidgetEmbedInput {
@@ -550,16 +571,9 @@ export interface RemoveWidgetEmbedRequired {
  * the placement itself is removed (the widget instance it referenced is untouched). */
 export async function removeWidgetEmbed(required: RemoveWidgetEmbedRequired, _optional: Record<string, never> = {}): Promise<{ entry: EntryRecord | PostRecord }> {
   const { deps, input } = required;
-  await requireWidgetPermission({
-    authorize: deps.authorize,
-    actor: input.actor,
-    workspaceId: input.workspaceId,
-    permission: "widgets.place",
-  });
-
-  return withEntryLock({
-    key: `${input.workspaceId}::${input.hostEntryId}`, fn: async () => {
-      const host = await loadEmbedHost(deps, input.workspaceId, input.hostEntryId);
+  return editEmbedHostBody({
+    deps, input,
+    edit: async ({ host }) => {
       if (!containsEmbedWithPlacementId({ node: host.record.bodyJson, placementId: input.placementId })) {
         // C4d fix: `removeEmbedByPlacementId` is a no-op filter — without this check a stale/bogus
         // placementId fell through to `writeHostBody` unchanged and reported success while writing
@@ -567,12 +581,9 @@ export async function removeWidgetEmbed(required: RemoveWidgetEmbedRequired, _op
         throw new WidgetEmbedPlacementNotFoundError({ message: `no widget embed with placementId '${input.placementId}' was found in host '${input.hostEntryId}'` }
         );
       }
-      const nextBodyJson = removeEmbedByPlacementId({ node: host.record.bodyJson, placementId: input.placementId });
-      assertGuardrails(deps, hostBodyType(host), nextBodyJson);
-      const entry = await writeEmbedHost({ deps, input, host, nextBodyJson });
-      return { entry };
-    }
-  }, deps.entryLocks ? { locks: deps.entryLocks } : {});
+      return { nextBodyJson: removeEmbedByPlacementId({ node: host.record.bodyJson, placementId: input.placementId }), result: {} };
+    },
+  });
 }
 
 export interface ReorderWidgetEmbedsInput {
@@ -607,17 +618,9 @@ export class WidgetEmbedReorderCountMismatchError extends Error {
  * mismatch before writing anything (the caller must supply exactly one id per existing slot). */
 export async function reorderWidgetEmbeds(required: ReorderWidgetEmbedsRequired, _optional: Record<string, never> = {}): Promise<{ entry: EntryRecord | PostRecord }> {
   const { deps, input } = required;
-  await requireWidgetPermission({
-    authorize: deps.authorize,
-    actor: input.actor,
-    workspaceId: input.workspaceId,
-    permission: "widgets.place",
-  });
-
-  return withEntryLock({
-    key: `${input.workspaceId}::${input.hostEntryId}`, fn: async () => {
-      const host = await loadEmbedHost(deps, input.workspaceId, input.hostEntryId);
-
+  return editEmbedHostBody({
+    deps, input,
+    edit: async ({ host }) => {
       const existing: WidgetEmbedNode[] = [];
       collectEmbeds(host.record.bodyJson, existing);
       if (existing.length !== input.orderedWidgetEntryIds.length) {
@@ -638,10 +641,7 @@ export async function reorderWidgetEmbeds(required: ReorderWidgetEmbedsRequired,
         await assertEmbedTargetIsLiveWidget(deps, input.workspaceId, widgetEntryId);
       }
 
-      const nextBodyJson = reorderEmbedSlots({ node: host.record.bodyJson, newIds: () => deps.ids.newId(), orderedWidgetEntryIds: input.orderedWidgetEntryIds });
-      assertGuardrails(deps, hostBodyType(host), nextBodyJson);
-      const entry = await writeEmbedHost({ deps, input, host, nextBodyJson });
-      return { entry };
-    }
-  }, deps.entryLocks ? { locks: deps.entryLocks } : {});
+      return { nextBodyJson: reorderEmbedSlots({ node: host.record.bodyJson, newIds: () => deps.ids.newId(), orderedWidgetEntryIds: input.orderedWidgetEntryIds }), result: {} };
+    },
+  });
 }

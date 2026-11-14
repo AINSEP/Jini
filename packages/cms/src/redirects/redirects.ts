@@ -474,6 +474,24 @@ async function enqueueMutatedEvent(
   await deps.outbox.enqueue(event as unknown as DomainEvent);
 }
 
+/** Builds the audit revision associated with a redirect record. */
+function redirectRevision(
+  { record, input, tombstoned }: { record: RedirectRecord; input: { actorId: string; pluginId?: string | undefined }; tombstoned: boolean },
+  _optional: Record<string, never> = {},
+): RedirectRevision {
+  return { redirectId: record.id, workspaceId: record.workspaceId, seq: record.version, state: record, tombstoned, actorId: input.actorId, pluginId: input.pluginId, recordedAt: record.updatedAt };
+}
+
+/** Persists a redirect with its revision before enqueueing its mutation event. */
+async function persistRedirectWrite(
+  { deps, record, revision, change }: { deps: RedirectsWriteDeps; record: RedirectRecord; revision: RedirectRevision; change: "created" | "updated" },
+  _optional: Record<string, never> = {},
+): Promise<{ record: RedirectRecord }> {
+  await deps.transaction(async () => { await insertRedirectAndRevision({ db: deps.db, record, revision }); });
+  await enqueueMutatedEvent(deps, record, change);
+  return { record };
+}
+
 export interface CreateRedirectRequired {
   deps: RedirectsWriteDeps;
   input: CreateRedirectInput;
@@ -512,23 +530,7 @@ export async function createRedirect(required: CreateRedirectRequired, _optional
     updatedAt: now,
     version: 1,
   };
-  const revision: RedirectRevision = {
-    redirectId: id,
-    workspaceId: input.workspaceId,
-    seq: 1,
-    state: record,
-    tombstoned: false,
-    actorId: input.actorId,
-    pluginId: input.pluginId,
-    recordedAt: now,
-  };
-
-  await deps.transaction(async () => {
-    await insertRedirectAndRevision({ db: deps.db, record, revision });
-  });
-  await enqueueMutatedEvent(deps, record, "created");
-
-  return { record };
+  return persistRedirectWrite({ deps, record, revision: redirectRevision({ record, input, tombstoned: false }), change: "created" });
 }
 
 export interface UpdateRedirectRequired {
@@ -680,23 +682,7 @@ export async function updateRedirect(required: UpdateRedirectRequired, _optional
   const now = clockNowIso({ clock: deps.clock });
   const version = existing.version + 1;
   const record: RedirectRecord = { ...existing, ...fields, toTarget: finalTarget, updatedAt: now, version };
-  const revision: RedirectRevision = {
-    redirectId: existing.id,
-    workspaceId: input.workspaceId,
-    seq: version,
-    state: record,
-    tombstoned: false,
-    actorId: input.actorId,
-    pluginId: input.pluginId,
-    recordedAt: now,
-  };
-
-  await deps.transaction(async () => {
-    await insertRedirectAndRevision({ db: deps.db, record, revision });
-  });
-  await enqueueMutatedEvent(deps, record, "updated");
-
-  return { record };
+  return persistRedirectWrite({ deps, record, revision: redirectRevision({ record, input, tombstoned: false }), change: "updated" });
 }
 
 export interface TombstoneRedirectRequired {
@@ -724,16 +710,7 @@ export async function tombstoneRedirect(
   const now = clockNowIso({ clock: deps.clock });
   const version = existing.version + 1;
   const record: RedirectRecord = { ...existing, status: "disabled", updatedAt: now, version };
-  const revision: RedirectRevision = {
-    redirectId: existing.id,
-    workspaceId: input.workspaceId,
-    seq: version,
-    state: record,
-    tombstoned: true,
-    actorId: input.actorId,
-    pluginId: input.pluginId,
-    recordedAt: now,
-  };
+  const revision = redirectRevision({ record, input, tombstoned: true });
 
   // The marker flip, the Trash index row and the revision append are one unit. `deps.remove` joins
   // this transaction rather than opening its own, so a tombstone can never land without its Trash

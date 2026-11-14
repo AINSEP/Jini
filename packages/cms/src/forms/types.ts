@@ -103,3 +103,16 @@ export interface SubmitFormInput {
   body: Record<string, unknown>;
   sourceIp: string;
 }
+
+/** Submission outcome encoded by a host when redirecting back to a form. */
+export type FormSubmissionRedirectResult =
+  | { kind: "success"; slug: string }
+  | {
+      kind: "validation";
+      slug: string;
+      fieldErrors: ReadonlyArray<{ field: string; reason: string }>;
+      values?: Readonly<Record<string, string>>;
+    }
+  | { kind: "rate-limited"; slug: string; retryAfterSeconds: number }
+  | { kind: "too-fast"; slug: string; values?: Readonly<Record<string, string>> }
+  | { kind: "error"; slug: string };

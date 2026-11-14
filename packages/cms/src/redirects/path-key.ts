@@ -40,3 +40,12 @@ export function redirectPathKey(required: { path: string }, _optional: Record<st
   while (end > 1 && decoded[end - 1] === "/") end -= 1;
   return decoded.slice(0, end) || "/";
 }
+
+/** Matches a raw prefix at a path segment boundary, including the prefix itself. */
+export function redirectPrefixMatches(
+  { path, pattern }: { path: string; pattern: string },
+  _optional: Record<string, never> = {},
+): boolean {
+  if (path === pattern) return true;
+  return path.startsWith(pattern.endsWith("/") ? pattern : `${pattern}/`);
+}

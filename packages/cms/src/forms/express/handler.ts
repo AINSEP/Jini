@@ -7,21 +7,11 @@ import type { Request, Response } from "express";
 import { FormDefinitionNotFoundError, FormRateLimitExceededError, FormSubmissionValidationError, FormSubmissionTooFastError, FormAttachmentSpaceError, FormSchemaChangedError } from "../errors.js";
 import { renderHtmlForm, escapeFormHtml } from "../html-render.js";
 import { FORM_ATTEMPT_FIELD } from "../submission-attempts.js";
-import type { FieldDescriptor } from "../types.js";
+import type { FieldDescriptor, FormSubmissionRedirectResult } from "../types.js";
 import type { FormDefinitionRepoPort } from "../ports.js";
 import type { SubmitFormInput } from "../submit-service.js";
 
-export type FormSubmissionRedirectResult =
-  | { kind: "success"; slug: string }
-  | {
-      kind: "validation";
-      slug: string;
-      fieldErrors: ReadonlyArray<{ field: string; reason: string }>;
-      values?: Readonly<Record<string, string>>;
-    }
-  | { kind: "rate-limited"; slug: string; retryAfterSeconds: number }
-  | { kind: "too-fast"; slug: string; values?: Readonly<Record<string, string>> }
-  | { kind: "error"; slug: string };
+export type { FormSubmissionRedirectResult } from "../types.js";
 
 /** The host owns the existing query/cookie wire format and safe site target policy. */
 export interface FormSubmitResultCodec {

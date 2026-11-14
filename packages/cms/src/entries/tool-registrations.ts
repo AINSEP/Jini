@@ -127,6 +127,24 @@ function fromEntryResult(fn: () => ReturnType<typeof createEntry>): Promise<{ en
   return fromResult({ fn: fn }).then(({ entry }) => ({ entry: toEntryToolView(entry) }));
 }
 
+/** Builds the common tool handler for publishing or unpublishing an entry. */
+function entryStatusHandler(
+  { routeDeps, transition }: { routeDeps: EntriesToolDeps; transition: typeof publishEntry },
+  _optional: Record<string, never> = {},
+): ToolHandler {
+  return async (ctx) => {
+    const input = requireInputRecord({ input: ctx.input });
+    return fromEntryResult(() => transition({
+      deps: entriesDeps(routeDeps),
+      input: {
+        actorId: ctx.principal.id, principalKind: AGENT_TOOL_PRINCIPAL_KIND,
+        workspaceId: routeDeps.workspaceId, id: requireString({ input, key: "id" }),
+        expectedVersion: requireNumber({ input, key: "expectedVersion" }),
+      },
+    }));
+  };
+}
+
 export function buildEntriesRegistrations(routeDeps: EntriesToolDeps): ToolRegistration[] {
   const handlers: Record<string, ToolHandler> = {
     collections_entry_list: async (ctx) => {
@@ -176,37 +194,9 @@ export function buildEntriesRegistrations(routeDeps: EntriesToolDeps): ToolRegis
         ) });
     },
 
-    collections_entry_publish: async (ctx) => {
-      const input = requireInputRecord({ input: ctx.input });
-      return fromEntryResult(() =>
-        publishEntry({
-          deps: entriesDeps(routeDeps),
-          input: {
-            actorId: ctx.principal.id,
-            principalKind: AGENT_TOOL_PRINCIPAL_KIND,
-            workspaceId: routeDeps.workspaceId,
-            id: requireString({ input, key: "id" }),
-            expectedVersion: requireNumber({ input, key: "expectedVersion" }),
-          },
-        }),
-      );
-    },
+    collections_entry_publish: entryStatusHandler({ routeDeps, transition: publishEntry }),
 
-    collections_entry_unpublish: async (ctx) => {
-      const input = requireInputRecord({ input: ctx.input });
-      return fromEntryResult(() =>
-        unpublishEntry({
-          deps: entriesDeps(routeDeps),
-          input: {
-            actorId: ctx.principal.id,
-            principalKind: AGENT_TOOL_PRINCIPAL_KIND,
-            workspaceId: routeDeps.workspaceId,
-            id: requireString({ input, key: "id" }),
-            expectedVersion: requireNumber({ input, key: "expectedVersion" }),
-          },
-        }),
-      );
-    },
+    collections_entry_unpublish: entryStatusHandler({ routeDeps, transition: unpublishEntry }),
   };
 
   // No `unwiredToolIds`: Entries wires its ENTIRE catalog, same tripwire discipline as Widgets/Forms.

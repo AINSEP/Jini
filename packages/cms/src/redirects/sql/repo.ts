@@ -2,7 +2,7 @@ import type { StorageKernel } from "@jini-ai/db/kernel";
 import type { RedirectDbHandle } from "../ports.internal.js";
 import type { RedirectRepoPort } from "../ports.js";
 import { compareLongestFirst, compareSamePatternExactFirst, compareTieBreak } from "../order.js";
-import { sameRedirectPath } from "../path-key.js";
+import { redirectPrefixMatches, sameRedirectPath } from "../path-key.js";
 import { toRecord, toRevision, toRevisionRow, toRow, updatableColumns } from "./repo.rows.js";
 import { RedirectNotFoundError } from "../types.js";
 import type { ListRedirectsFilter, RedirectRecord, RedirectRevision } from "../types.js";
@@ -93,11 +93,7 @@ export class SqlRedirectRepo implements RedirectRepoPort, RedirectDbHandle {
         matchType: "prefix",
         overrideOnly: required.includeOverrideOnly,
       })
-    ).filter((r) => {
-      const pattern = r.fromPattern;
-      if (required.path === pattern) return true;
-      return required.path.startsWith(pattern.endsWith("/") ? pattern : `${pattern}/`);
-    });
+    ).filter((r) => redirectPrefixMatches({ path: required.path, pattern: r.fromPattern }));
     candidates.sort((a, b) => compareLongestFirst({ a, b }, {}));
     return candidates[0] ?? null;
   }

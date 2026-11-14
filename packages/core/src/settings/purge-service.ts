@@ -75,6 +75,15 @@ export async function purgeTenantSettings(
 
   const result = await deps.repo.transaction(async () => {
     const now = kernelNowIso({ clock: deps.clock });
+    /** Records the redacted revision before its corresponding value is deleted. */
+    const appendPurgeRevision = (
+      { scope, principalId, value }: { scope: "user" | "workspace"; principalId: string | null; value: { settingId: string; defVersion: number } },
+      _optional: Record<string, never> = {},
+    ) => deps.repo.appendRevision({
+      entityKind: "value", settingId: value.settingId, scope, workspaceId: input.workspaceId,
+      principalId, op: "purge", beforeJson: null, afterJson: null, defVersion: value.defVersion,
+      actor: input.callerPrincipalId, originPluginId: null, changeSetId: null, createdAt: now,
+    });
     let purgedCount = 0;
 
     if (input.principalId) {
@@ -83,21 +92,7 @@ export async function purgeTenantSettings(
         principalId: input.principalId,
       });
       for (const value of userValues) {
-        await deps.repo.appendRevision({
-          entityKind: "value",
-          settingId: value.settingId,
-          scope: "user",
-          workspaceId: input.workspaceId,
-          principalId: input.principalId,
-          op: "purge",
-          beforeJson: null,
-          afterJson: null,
-          defVersion: value.defVersion,
-          actor: input.callerPrincipalId,
-          originPluginId: null,
-          changeSetId: null,
-          createdAt: now,
-        });
+        await appendPurgeRevision({ scope: "user", principalId: input.principalId, value });
         await deps.repo.deleteUserValue({
           workspaceId: input.workspaceId,
           principalId: input.principalId,
@@ -110,21 +105,7 @@ export async function purgeTenantSettings(
 
     const workspaceValues = await deps.repo.listWorkspaceValues({ workspaceId: input.workspaceId });
     for (const value of workspaceValues) {
-      await deps.repo.appendRevision({
-        entityKind: "value",
-        settingId: value.settingId,
-        scope: "workspace",
-        workspaceId: input.workspaceId,
-        principalId: null,
-        op: "purge",
-        beforeJson: null,
-        afterJson: null,
-        defVersion: value.defVersion,
-        actor: input.callerPrincipalId,
-        originPluginId: null,
-        changeSetId: null,
-        createdAt: now,
-      });
+      await appendPurgeRevision({ scope: "workspace", principalId: null, value });
       await deps.repo.deleteWorkspaceValue({ workspaceId: input.workspaceId, settingId: value.settingId });
       purgedCount++;
     }
@@ -133,21 +114,7 @@ export async function purgeTenantSettings(
     for (const value of userValues) {
       const targetPrincipalId = value.principalId;
       if (!targetPrincipalId) continue; // defensive: every setting_values_user row carries a principal_id
-      await deps.repo.appendRevision({
-        entityKind: "value",
-        settingId: value.settingId,
-        scope: "user",
-        workspaceId: input.workspaceId,
-        principalId: targetPrincipalId,
-        op: "purge",
-        beforeJson: null,
-        afterJson: null,
-        defVersion: value.defVersion,
-        actor: input.callerPrincipalId,
-        originPluginId: null,
-        changeSetId: null,
-        createdAt: now,
-      });
+      await appendPurgeRevision({ scope: "user", principalId: targetPrincipalId, value });
       await deps.repo.deleteUserValue({
         workspaceId: input.workspaceId,
         principalId: targetPrincipalId,

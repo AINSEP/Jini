@@ -1,5 +1,5 @@
 import type { IdGenerator } from "@jini-ai/core/primitives";
-import type { Clock } from "@jini-ai/core/primitives";
+import type { Clock, Result } from "@jini-ai/core/primitives";
 /**
  * @file Content-types' half of the agent-tool authorization wiring: maps `agent-tools.ts`'s catalog entries onto the
  * `write-service.ts`/`lifecycle.ts` functions the admin HTTP routes call, as `ToolRegistration`s.
@@ -17,9 +17,9 @@ import type { Clock } from "@jini-ai/core/primitives";
  * `ToolPolicy.authorize` is a pass-through for every entry here (see `buildDomainRegistrations`).
  * For the five mutations, that is the "one evaluator" rule: each domain entrypoint —
  * `registerContentType`, `updateContentTypeFields` (`write-service.ts`), `deprecateContentType`,
- * `reactivateContentType`, `tombstoneContentType` (`lifecycle.ts`) — opens with an
- * `await deps.authorize({ permission: 'admin.collections.manage', ... })` that returns
- * `ForbiddenError` before any repo read, repo write, or index-provisioner call, and
+ * `reactivateContentType`, `tombstoneContentType` (`lifecycle.ts`) — first calls the shared
+ * `admin.collections.manage` authorization helper, which returns `ForbiddenError` before any
+ * repo read, repo write, or index-provisioner call, and
  * `admin.collections.manage` is exactly what each of their five catalog entries declares under
  * `authorization.permission`. `assistant/__tests__/tool-registrations.authorization.test.ts` drives
  * all five through a denying `authorize` and asserts each refuses and writes nothing, deriving its
@@ -39,7 +39,7 @@ import { adaptLegacyAuthorize, requireToolPermission } from "../core/tools/index
 import { contentTypesAgentToolCatalog } from "./agent-tools.js";
 import { parseContentTypeFieldDefs } from "./field-defs.js";
 import { listContentTypes, type ContentTypeListPort } from "./list.js";
-import { deprecateContentType, reactivateContentType, tombstoneContentType, type TeardownIndexProvisionerPort } from "./lifecycle.js";
+import { deprecateContentType, reactivateContentType, tombstoneContentType, type LifecycleTransitionInput, type TeardownIndexProvisionerPort } from "./lifecycle.js";
 import { toContentTypeOutbox } from "./repo.memory.js";
 import type { ContentTypeFieldDef, ContentTypeRecord } from "./types.js";
 import { registerContentType, updateContentTypeFields, type ContentTypeRepoPort, type IndexProvisionerPort } from "./write-service.js";
@@ -171,6 +171,24 @@ function contentTypesDeps(routeDeps: ContentTypesToolDeps) {
   };
 }
 
+/** Builds the common tool handler for a content-type lifecycle transition. */
+function contentTypeLifecycleHandler(
+  { routeDeps, transition }: { routeDeps: ContentTypesToolDeps; transition: (required: { deps: ReturnType<typeof contentTypesDeps>; input: LifecycleTransitionInput }) => Promise<Result<{ contentType: ContentTypeRecord }, Error>> },
+  _optional: Record<string, never> = {},
+): ToolHandler {
+  return async (ctx) => {
+    const input = requireInputRecord({ input: ctx.input });
+    return fromContentTypeResult(() => transition({
+      deps: contentTypesDeps(routeDeps),
+      input: {
+        actorId: ctx.principal.id, principalKind: AGENT_TOOL_PRINCIPAL_KIND,
+        workspaceId: routeDeps.workspaceId, key: requireString({ input, key: "key" }),
+        expectedVersion: requireNumber({ input, key: "expectedVersion" }),
+      },
+    }));
+  };
+}
+
 export function buildContentTypesRegistrations(routeDeps: ContentTypesToolDeps): ToolRegistration[] {
   const handlers: Record<string, ToolHandler> = {
     collections_content_type_list: async (ctx) => {
@@ -211,51 +229,9 @@ export function buildContentTypesRegistrations(routeDeps: ContentTypesToolDeps):
         }),
       );
     },
-    collections_content_type_deprecate: async (ctx) => {
-      const input = requireInputRecord({ input: ctx.input });
-      return fromContentTypeResult(() =>
-        deprecateContentType({
-          deps: contentTypesDeps(routeDeps),
-          input: {
-            actorId: ctx.principal.id,
-            principalKind: AGENT_TOOL_PRINCIPAL_KIND,
-            workspaceId: routeDeps.workspaceId,
-            key: requireString({ input, key: "key" }),
-            expectedVersion: requireNumber({ input, key: "expectedVersion" }),
-          },
-        }),
-      );
-    },
-    collections_content_type_reactivate: async (ctx) => {
-      const input = requireInputRecord({ input: ctx.input });
-      return fromContentTypeResult(() =>
-        reactivateContentType({
-          deps: contentTypesDeps(routeDeps),
-          input: {
-            actorId: ctx.principal.id,
-            principalKind: AGENT_TOOL_PRINCIPAL_KIND,
-            workspaceId: routeDeps.workspaceId,
-            key: requireString({ input, key: "key" }),
-            expectedVersion: requireNumber({ input, key: "expectedVersion" }),
-          },
-        }),
-      );
-    },
-    collections_content_type_tombstone: async (ctx) => {
-      const input = requireInputRecord({ input: ctx.input });
-      return fromContentTypeResult(() =>
-        tombstoneContentType({
-          deps: contentTypesDeps(routeDeps),
-          input: {
-            actorId: ctx.principal.id,
-            principalKind: AGENT_TOOL_PRINCIPAL_KIND,
-            workspaceId: routeDeps.workspaceId,
-            key: requireString({ input, key: "key" }),
-            expectedVersion: requireNumber({ input, key: "expectedVersion" }),
-          },
-        }),
-      );
-    },
+    collections_content_type_deprecate: contentTypeLifecycleHandler({ routeDeps, transition: deprecateContentType }),
+    collections_content_type_reactivate: contentTypeLifecycleHandler({ routeDeps, transition: reactivateContentType }),
+    collections_content_type_tombstone: contentTypeLifecycleHandler({ routeDeps, transition: tombstoneContentType }),
   };
 
   return buildDomainRegistrations({

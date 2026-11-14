@@ -111,6 +111,14 @@ function entriesWriteDeps(deps: WidgetWriteServiceDeps, workspaceId: UUID) {
   };
 }
 
+/** Adds instance reference extraction to the shared entry write dependencies. */
+function instanceEntriesWriteDeps(
+  { deps, workspaceId }: { deps: WidgetWriteServiceDeps; workspaceId: UUID },
+  _optional: Record<string, never> = {},
+) {
+  return { ...entriesWriteDeps(deps, workspaceId), onWritten: (entry: EntryRecord) => extractAndStoreInstanceRefs(deps, workspaceId, entry) };
+}
+
 /**
  * Keep every write's rejection actionable when the tool only describes a generic config bag.
  * The registration owns the expected keys; fieldErrors also stay structured for admin HTTP.
@@ -131,6 +139,17 @@ function widgetConfigValidationError(
     message: `config for widget type '${registration.typeKey}' failed schema validation: ${reasons}. Expected config keys: ${expectedKeys}`,
     fieldErrors,
   });
+}
+
+/** Rejects an unregistered widget type or a config that does not match its schema. */
+function assertValidWidgetConfig(
+  { widgetType, config }: { widgetType: string; config: Record<string, unknown> },
+  _optional: Record<string, never> = {},
+): void {
+  const registration = findWidgetTypeRegistration({ raw: widgetType });
+  if (!registration) throw new WidgetTypeUnregisteredError({ message: `widget type '${widgetType}' is not registered`, widgetType });
+  const validation = validateWidgetConfig({ schema: registration.configSchema, config });
+  if (!validation.valid) throw widgetConfigValidationError({ registration, fieldErrors: validation.fieldErrors });
 }
 
 export interface CreateWidgetInstanceInput {
@@ -162,25 +181,14 @@ export async function createWidgetInstance(required: CreateWidgetInstanceRequire
   // (`Tovu apps/website/src/server/inbound/admin-http/routes/widgets/create.ts`/`agent-tools.ts`) cast an unvalidated request-body
   // string to it. `findWidgetTypeRegistration` is the correct accessor here: `undefined` is
   // genuinely reachable, and this check is what catches an unregistered type at this boundary.
-  const registration = findWidgetTypeRegistration({ raw: input.widgetType });
-  if (!registration) {
-    throw new WidgetTypeUnregisteredError({ message: `widget type '${input.widgetType}' is not registered`, widgetType: input.widgetType });
-  }
-
-  const validation = validateWidgetConfig({ schema: registration.configSchema, config: input.config });
-  if (!validation.valid) {
-    throw widgetConfigValidationError({ registration, fieldErrors: validation.fieldErrors });
-  }
+  assertValidWidgetConfig({ widgetType: input.widgetType, config: input.config });
 
   await ensureWidgetContentTypesRegistered({ deps, workspaceId: input.workspaceId });
 
   const slug = input.slug ?? `${slugify(input.title, deps.host)}-${deps.ids.newId().slice(0, 8)}`;
 
   const created = await deps.host.entries.createEntry({
-    deps: {
-      ...entriesWriteDeps(deps, input.workspaceId),
-      onWritten: (entry) => extractAndStoreInstanceRefs(deps, input.workspaceId, entry),
-    },
+    deps: instanceEntriesWriteDeps({ deps, workspaceId: input.workspaceId }),
     input: {
       actorId: input.actor.principalId,
       workspaceId: input.workspaceId,
@@ -235,21 +243,10 @@ export async function updateWidgetInstance(required: UpdateWidgetInstanceRequire
       // `currentPayload.widgetType` is typed `WidgetTypeKey` but only ASSERTED to be one —
       // `parseWidgetInstancePayload` casts decoded, stored JSON (`entry-payload.ts`), so
       // `findWidgetTypeRegistration` is the correct, honestly-partial accessor here too.
-      const registration = findWidgetTypeRegistration({ raw: currentPayload.widgetType });
-      if (!registration) {
-        throw new WidgetTypeUnregisteredError({ message: `widget type '${currentPayload.widgetType}' is not registered`, widgetType: currentPayload.widgetType });
-      }
-
-      const validation = validateWidgetConfig({ schema: registration.configSchema, config: input.config });
-      if (!validation.valid) {
-        throw widgetConfigValidationError({ registration, fieldErrors: validation.fieldErrors });
-      }
+      assertValidWidgetConfig({ widgetType: currentPayload.widgetType, config: input.config });
 
       const result = await deps.host.entries.updateEntry({
-        deps: {
-          ...entriesWriteDeps(deps, input.workspaceId),
-          onWritten: (entry) => extractAndStoreInstanceRefs(deps, input.workspaceId, entry),
-        },
+        deps: instanceEntriesWriteDeps({ deps, workspaceId: input.workspaceId }),
         input: {
           actorId: input.actor.principalId,
           workspaceId: input.workspaceId,
@@ -307,14 +304,7 @@ export async function importWidgetInstance(required: ImportWidgetInstanceRequire
     permission: input.expectedVersion === undefined ? "widgets.create" : "widgets.update",
   });
 
-  const registration = findWidgetTypeRegistration({ raw: input.widgetType });
-  if (!registration) {
-    throw new WidgetTypeUnregisteredError({ message: `widget type '${input.widgetType}' is not registered`, widgetType: input.widgetType });
-  }
-  const validation = validateWidgetConfig({ schema: registration.configSchema, config: input.config });
-  if (!validation.valid) {
-    throw widgetConfigValidationError({ registration, fieldErrors: validation.fieldErrors });
-  }
+  assertValidWidgetConfig({ widgetType: input.widgetType, config: input.config });
 
   await ensureWidgetContentTypesRegistered({ deps, workspaceId: input.workspaceId });
 
@@ -322,10 +312,7 @@ export async function importWidgetInstance(required: ImportWidgetInstanceRequire
     key: `${input.workspaceId}::${input.id}`, fn: async () => {
       const current = await deps.entryRepo.findById({ workspaceId: input.workspaceId, id: input.id });
       const result = await deps.host.entries.importEntry({
-        deps: {
-          ...entriesWriteDeps(deps, input.workspaceId),
-          onWritten: (entry) => extractAndStoreInstanceRefs(deps, input.workspaceId, entry),
-        },
+        deps: instanceEntriesWriteDeps({ deps, workspaceId: input.workspaceId }),
         input: {
           actorId: input.actor.principalId,
           workspaceId: input.workspaceId,
