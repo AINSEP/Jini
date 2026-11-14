@@ -221,48 +221,37 @@ function DelegatedToolCard({ name, input, result, runStreaming, runSucceeded }: 
   );
 }
 
+/** The row every simple family card shares: status badge, a title (shimmering while the call runs when `shimmer`), optional meta, then the full call detail. */
+function FamilyCard({ call, className, title, meta, shimmer = false, after, detailInput, children }: {
+  call: CardProps; className: string; title: string; meta?: ReactNode; shimmer?: boolean; after?: ReactNode; detailInput?: unknown; children?: ReactNode;
+}) {
+  const isRunning = shimmer && call.runStreaming && !call.result;
+  return (
+    <ExpandableCard className={className} call={call} after={after} head={
+      <>
+        <ResultBadge result={call.result} runStreaming={call.runStreaming} runSucceeded={call.runSucceeded} />
+        <span className={`op-title${isRunning ? RUNNING_TITLE_CLASS : ''}`}>{title}</span>
+        {meta}
+      </>
+    }>
+      {children}
+      <ToolCallDetail input={detailInput ?? call.input} result={call.result} runStreaming={call.runStreaming} runSucceeded={call.runSucceeded} />
+    </ExpandableCard>
+  );
+}
+
 function SearchToolsCard({ input, result, runStreaming, runSucceeded }: CardProps) {
   const t = useT();
   const obj = (input ?? {}) as { query?: string; limit?: number };
-  const isRunning = runStreaming && !result;
-  return (
-    <ExpandableCard
-      className="op-jini-tool"
-      call={{ input: input, result: result, runStreaming: runStreaming, runSucceeded: runSucceeded }}
-      head={
-        <>
-          <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
-          <span className={`op-title${isRunning ? RUNNING_TITLE_CLASS : ''}`}>{t('Search tools')}</span>
-          {obj.query ? <span className="op-meta">{obj.query}</span> : null}
-        </>
-      }
-      after={<FileErrorDetail result={result} />}
-    >
-      <ToolCallDetail input={input} result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
-    </ExpandableCard>
-  );
+  const call = { input, result, runStreaming, runSucceeded };
+  return <FamilyCard call={call} className="op-jini-tool" shimmer title={t('Search tools')} meta={obj.query ? <span className="op-meta">{obj.query}</span> : null} after={<FileErrorDetail result={result} />} />;
 }
 
 function DescribeToolCard({ input, result, runStreaming, runSucceeded }: CardProps) {
   const t = useT();
   const obj = (input ?? {}) as { id?: string };
-  const isRunning = runStreaming && !result;
-  return (
-    <ExpandableCard
-      className="op-jini-tool"
-      call={{ input: input, result: result, runStreaming: runStreaming, runSucceeded: runSucceeded }}
-      head={
-        <>
-          <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
-          <span className={`op-title${isRunning ? RUNNING_TITLE_CLASS : ''}`}>{t('Describe tool')}</span>
-          {obj.id ? <span className="op-meta">{obj.id}</span> : null}
-        </>
-      }
-      after={<FileErrorDetail result={result} />}
-    >
-      <ToolCallDetail input={input} result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
-    </ExpandableCard>
-  );
+  const call = { input, result, runStreaming, runSucceeded };
+  return <FamilyCard call={call} className="op-jini-tool" shimmer title={t('Describe tool')} meta={obj.id ? <span className="op-meta">{obj.id}</span> : null} after={<FileErrorDetail result={result} />} />;
 }
 
 interface FileToolCtx {
@@ -301,29 +290,17 @@ function FileWriteCard({ input, result, runStreaming, runSucceeded, ctx }: CardP
   // See OpenInTabButton's baseName comment: `.split('/').pop()` is never undefined.
   const baseName = file.split('/').pop()!;
   const lines = typeof obj.content === 'string' ? obj.content.split('\n').length : null;
-  const isRunning = runStreaming && !result;
+  const call = { input, result, runStreaming, runSucceeded };
   return (
-    <ExpandableCard
-      className="op-file"
-      call={{ input: input, result: result, runStreaming: runStreaming, runSucceeded: runSucceeded }}
-      head={
-        <>
-            <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
-            <span className={`op-title${isRunning ? RUNNING_TITLE_CLASS : ''}`}>{t('Write')}</span>
-            <span className="op-meta">
-              {baseName}
-              {lines !== null ? ` · ${t('{n} lines', { n: lines })}` : ''}
-            </span>
-        </>
-      }
-      after={<FileErrorDetail result={result} />}
-    >
+    <FamilyCard call={call} className="op-file" shimmer title={t('Write')} meta={<span className="op-meta">
+      {baseName}
+      {lines !== null ? ` · ${t('{n} lines', { n: lines })}` : ''}
+    </span>} after={<FileErrorDetail result={result} />}>
       <div className="op-card-detail op-card-file-detail">
         <code className="op-path">{file}</code>
         <OpenInTabButton filePath={file} ctx={ctx} />
       </div>
-      <ToolCallDetail input={input} result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
-    </ExpandableCard>
+    </FamilyCard>
   );
 }
 
@@ -334,28 +311,16 @@ function FileEditCard({ input, result, runStreaming, runSucceeded, ctx }: CardPr
   // See OpenInTabButton's baseName comment: `.split('/').pop()` is never undefined.
   const baseName = file.split('/').pop()!;
   const editCount = Array.isArray(obj.edits) ? obj.edits.length : 1;
-  const isRunning = runStreaming && !result;
+  const call = { input, result, runStreaming, runSucceeded };
   return (
-    <ExpandableCard
-      className="op-file"
-      call={{ input: input, result: result, runStreaming: runStreaming, runSucceeded: runSucceeded }}
-      head={
-        <>
-            <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
-            <span className={`op-title${isRunning ? RUNNING_TITLE_CLASS : ''}`}>{t('Edit')}</span>
-            <span className="op-meta">
-              {baseName} · {editCount} {editCount === 1 ? t('change') : t('changes')}
-            </span>
-        </>
-      }
-      after={<FileErrorDetail result={result} />}
-    >
+    <FamilyCard call={call} className="op-file" shimmer title={t('Edit')} meta={<span className="op-meta">
+      {baseName} · {editCount} {editCount === 1 ? t('change') : t('changes')}
+    </span>} after={<FileErrorDetail result={result} />}>
       <div className="op-card-detail op-card-file-detail">
         <code className="op-path">{file}</code>
         <OpenInTabButton filePath={file} ctx={ctx} />
       </div>
-      <ToolCallDetail input={input} result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
-    </ExpandableCard>
+    </FamilyCard>
   );
 }
 
@@ -365,26 +330,14 @@ function FileReadCard({ input, result, runStreaming, runSucceeded, ctx }: CardPr
   const file = obj.file_path ?? obj.filePath ?? obj.path ?? '(unnamed)';
   // See OpenInTabButton's baseName comment: `.split('/').pop()` is never undefined.
   const baseName = targetAtOffset({ target: file.split('/').pop()!, offset: obj.offset });
-  const isRunning = runStreaming && !result;
+  const call = { input, result, runStreaming, runSucceeded };
   return (
-    <ExpandableCard
-      className="op-file"
-      call={{ input: input, result: result, runStreaming: runStreaming, runSucceeded: runSucceeded }}
-      head={
-        <>
-            <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
-            <span className={`op-title${isRunning ? RUNNING_TITLE_CLASS : ''}`}>{t('Read')}</span>
-            <span className="op-meta">{baseName}</span>
-        </>
-      }
-      after={<FileErrorDetail result={result} />}
-    >
+    <FamilyCard call={call} className="op-file" shimmer title={t('Read')} meta={<span className="op-meta">{baseName}</span>} after={<FileErrorDetail result={result} />}>
       <div className="op-card-detail op-card-file-detail">
         <code className="op-path">{file}</code>
         <OpenInTabButton filePath={file} ctx={ctx} />
       </div>
-      <ToolCallDetail input={input} result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
-    </ExpandableCard>
+    </FamilyCard>
   );
 }
 
@@ -393,108 +346,42 @@ function BashCard({ input, result, runStreaming, runSucceeded }: CardProps) {
   const obj = (input ?? {}) as { command?: string; description?: string };
   const command = obj.command ?? '';
   const desc = obj.description;
-  const isRunning = runStreaming && !result;
-  return (
-    <ExpandableCard
-      className="op-bash"
-      call={{ input: input, result: result, runStreaming: runStreaming, runSucceeded: runSucceeded }}
-      head={
-        <>
-            <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
-            <span className={`op-title${isRunning ? RUNNING_TITLE_CLASS : ''}`}>{t('Bash')}</span>
-            {desc ? <span className="op-meta op-desc">{desc}</span> : null}
-        </>
-      }
-    >
-      <ToolCallDetail input={command} result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
-    </ExpandableCard>
-  );
+  const call = { input, result, runStreaming, runSucceeded };
+  return <FamilyCard call={call} className="op-bash" shimmer title={t('Bash')} meta={desc ? <span className="op-meta op-desc">{desc}</span> : null} detailInput={command} />;
 }
 
 function GlobCard({ input, result, runStreaming, runSucceeded }: CardProps) {
   const t = useT();
   const obj = (input ?? {}) as { pattern?: string; path?: string };
-  return (
-    <ExpandableCard
-      className="op-search"
-      call={{ input: input, result: result, runStreaming: runStreaming, runSucceeded: runSucceeded }}
-      head={
-        <>
-          <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
-          <span className="op-title">{t('Search files')}</span>
-          <span className="op-meta">
-            {obj.pattern ?? '*'}
-            {obj.path ? ` in ${obj.path}` : ''}
-          </span>
-        </>
-      }
-    >
-      <ToolCallDetail input={input} result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
-    </ExpandableCard>
-  );
+  const call = { input, result, runStreaming, runSucceeded };
+  return <FamilyCard call={call} className="op-search" title={t('Search files')} meta={<span className="op-meta">
+    {obj.pattern ?? '*'}
+    {obj.path ? ` in ${obj.path}` : ''}
+  </span>} />;
 }
 
 function GrepCard({ input, result, runStreaming, runSucceeded }: CardProps) {
   const t = useT();
   const obj = (input ?? {}) as { pattern?: string; path?: string };
-  return (
-    <ExpandableCard
-      className="op-search"
-      call={{ input: input, result: result, runStreaming: runStreaming, runSucceeded: runSucceeded }}
-      head={
-        <>
-          <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
-          <span className="op-title">{t('Search content')}</span>
-          <span className="op-meta">
-            {obj.pattern ?? ''}
-            {obj.path ? ` in ${obj.path}` : ''}
-          </span>
-        </>
-      }
-    >
-      <ToolCallDetail input={input} result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
-    </ExpandableCard>
-  );
+  const call = { input, result, runStreaming, runSucceeded };
+  return <FamilyCard call={call} className="op-search" title={t('Search content')} meta={<span className="op-meta">
+    {obj.pattern ?? ''}
+    {obj.path ? ` in ${obj.path}` : ''}
+  </span>} />;
 }
 
 function WebFetchCard({ input, result, runStreaming, runSucceeded }: CardProps) {
   const t = useT();
   const obj = (input ?? {}) as { url?: string };
-  return (
-    <ExpandableCard
-      className="op-web"
-      call={{ input: input, result: result, runStreaming: runStreaming, runSucceeded: runSucceeded }}
-      head={
-        <>
-          <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
-          <span className="op-title">{t('Fetch')}</span>
-          <span className="op-meta">{obj.url ?? ''}</span>
-        </>
-      }
-    >
-      <ToolCallDetail input={input} result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
-    </ExpandableCard>
-  );
+  const call = { input, result, runStreaming, runSucceeded };
+  return <FamilyCard call={call} className="op-web" title={t('Fetch')} meta={<span className="op-meta">{obj.url ?? ''}</span>} />;
 }
 
 function WebSearchCard({ input, result, runStreaming, runSucceeded }: CardProps) {
   const t = useT();
   const obj = (input ?? {}) as { query?: string };
-  return (
-    <ExpandableCard
-      className="op-web"
-      call={{ input: input, result: result, runStreaming: runStreaming, runSucceeded: runSucceeded }}
-      head={
-        <>
-          <ResultBadge result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
-          <span className="op-title">{t('Search')}</span>
-          <span className="op-meta">{obj.query ?? ''}</span>
-        </>
-      }
-    >
-      <ToolCallDetail input={input} result={result} runStreaming={runStreaming} runSucceeded={runSucceeded} />
-    </ExpandableCard>
-  );
+  const call = { input, result, runStreaming, runSucceeded };
+  return <FamilyCard call={call} className="op-web" title={t('Search')} meta={<span className="op-meta">{obj.query ?? ''}</span>} />;
 }
 
 /** Any tool this package has no family card for — an MCP tool, or a card tool such as `assistant_ask_choice` whose form renders elsewhere in the turn. The row still opens to the full call. */

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { getNumericColumnKeys, sortTableRows, type TableSort } from '../../table-data.js';
+import { clickableRowProps, type DataTableRowClick } from '../../table-row-activation.js';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from './table.js';
 
 /** Header glyph per column sort state; `none` marks a sortable but unsorted column. */
@@ -18,7 +19,7 @@ export interface DataTableProps {
   /** Opt-in local paging; omitted means all rows, preserving existing callers. */
   readonly pageSize?: number;
   /** Host-wired, not part of the agent-facing wire schema — see data-table.manifest.ts. */
-  readonly onRowClick?: (row: Record<string, unknown>, index: number) => void;
+  readonly onRowClick?: DataTableRowClick;
 }
 
 function resolveTablePage({ pageSize, rowCount, requestedPage }: {
@@ -75,15 +76,7 @@ export function DataTable({ columns, rows, onRowClick, sortable = true, pageSize
           {visibleRows.map(({ row, index }) => (
             <TableRow
               key={index}
-              onClick={onRowClick ? () => onRowClick(row, index) : undefined}
-              role={onRowClick ? 'button' : undefined}
-              tabIndex={onRowClick ? 0 : undefined}
-              onKeyDown={onRowClick ? (event) => {
-                if (event.target === event.currentTarget && (event.key === 'Enter' || event.key === ' ')) {
-                  event.preventDefault();
-                  onRowClick(row, index);
-                }
-              } : undefined}
+              {...clickableRowProps({ row, index }, { onRowClick })}
             >
               {columns.map((column) => (
                 <TableCell key={column.key} data-numeric={numericKeys.has(column.key)}>{String(row[column.key] ?? '')}</TableCell>

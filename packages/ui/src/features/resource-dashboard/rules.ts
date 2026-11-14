@@ -5,33 +5,11 @@
 import { DEFAULT_STATUS_TONE, UNMATCHED_STATUS_BUCKET } from './constants.js';
 import type { ResourceBoardItem, ResourceStatusTone, ResourceStatusToneMap } from './types.js';
 
-// --- Shared: status tone + pending-action tracking ----------------------
+// --- Shared: status tone ------------------------------------------------
 
 /** Resolves a status value's visual tone from a host-supplied map, defaulting to `'neutral'` for any status the host didn't classify. */
 export function statusToneFor(status: string, toneMap: ResourceStatusToneMap | undefined): ResourceStatusTone {
   return toneMap?.[status] ?? DEFAULT_STATUS_TONE;
-}
-
-/** Stable per-(id, kind) key used to track in-flight per-item actions independently, so one item's busy action never disables an unrelated item — same pattern already established by `features/source-config-list`'s `pendingActionKey`, re-derived fresh here (deliberately not imported cross-feature; see `archived UI provenance ledger`'s "share only what correctness forces" note). */
-export function pendingActionKey(id: string, kind: string): string {
-  return `${kind}:${id}`;
-}
-
-export function isActionPending(pendingKeys: ReadonlySet<string>, id: string, kind: string): boolean {
-  return pendingKeys.has(pendingActionKey(id, kind));
-}
-
-export function withPendingAction(pendingKeys: ReadonlySet<string>, id: string, kind: string): ReadonlySet<string> {
-  const next = new Set(pendingKeys);
-  next.add(pendingActionKey(id, kind));
-  return next;
-}
-
-export function withoutPendingAction(pendingKeys: ReadonlySet<string>, id: string, kind: string): ReadonlySet<string> {
-  if (!pendingKeys.has(pendingActionKey(id, kind))) return pendingKeys;
-  const next = new Set(pendingKeys);
-  next.delete(pendingActionKey(id, kind));
-  return next;
 }
 
 // --- ResourceBoard rules -------------------------------------------------

@@ -170,12 +170,12 @@ describe('describeConnectorSuggestionsSaveOutcome', () => {
 
 describe('withoutKey', () => {
   it('removes the key when present', () => {
-    expect(withoutKey({ a: 1, b: 2 }, 'a')).toEqual({ b: 2 });
+    expect(withoutKey({ record: { a: 1, b: 2 }, key: 'a' })).toEqual({ b: 2 });
   });
 
   it('returns the same reference when the key is already absent', () => {
     const record = { a: 1 };
-    expect(withoutKey(record, 'missing')).toBe(record);
+    expect(withoutKey({ record, key: 'missing' })).toBe(record);
   });
 });
 

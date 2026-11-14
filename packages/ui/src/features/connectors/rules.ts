@@ -13,6 +13,19 @@ import type {
 } from './types.js';
 import { omitKeys } from '../../utils/omit-keys.js';
 
+/** Removes `key` from `record`, preserving referential identity when the key
+ *  was already absent — the shared shape behind the connector hooks' several
+ *  "clear this connector's flag if it has one" state updates. */
+export function withoutKey<T>(
+  { record, key }: { record: Record<string, T>; key: string },
+  _optional: Record<string, never> = {},
+): Record<string, T> {
+  if (record[key] === undefined) return record;
+  const next = { ...record };
+  delete next[key];
+  return next;
+}
+
 /** Restricts the catalog to a single provider tab's `match` predicate, defaulting to the first tab. */
 export function scopeConnectorsToProvider(
   connectors: Connector[],
@@ -156,34 +169,36 @@ export function updateConnectorAuthorizationPendingFromStatuses(
   return pruneConnectorAuthorizationPending(next, nowMs);
 }
 
-export function clearConnectorAuthorizationErrorsForConnected(
-  errors: Record<string, string>,
-  statuses: ConnectorStatusMap,
-): Record<string, string> {
+/** Drops every entry whose connector is now `connected`. Returns `record` itself when nothing
+ *  changed, so a React state update can bail out. @complexity O(s) in the status map; copying
+ *  the record also takes O(r) in its number of entries. */
+export function withoutConnectedEntries<T>(
+  { record, statuses }: { record: Record<string, T>; statuses: ConnectorStatusMap },
+  _optional: Record<string, never> = {},
+): Record<string, T> {
   let mutated = false;
-  const next = { ...errors };
+  const next = { ...record };
   for (const [connectorId, status] of Object.entries(statuses)) {
     if (status.status === 'connected' && next[connectorId] !== undefined) {
       delete next[connectorId];
       mutated = true;
     }
   }
-  return mutated ? next : errors;
+  return mutated ? next : record;
+}
+
+export function clearConnectorAuthorizationErrorsForConnected(
+  errors: Record<string, string>,
+  statuses: ConnectorStatusMap,
+): Record<string, string> {
+  return withoutConnectedEntries({ record: errors, statuses });
 }
 
 export function clearConnectorAuthorizationCancelFailuresForConnected(
   failures: Record<string, boolean>,
   statuses: ConnectorStatusMap,
 ): Record<string, boolean> {
-  let mutated = false;
-  const next = { ...failures };
-  for (const [connectorId, status] of Object.entries(statuses)) {
-    if (status.status === 'connected' && next[connectorId] !== undefined) {
-      delete next[connectorId];
-      mutated = true;
-    }
-  }
-  return mutated ? next : failures;
+  return withoutConnectedEntries({ record: failures, statuses });
 }
 
 export function clearConnectorAuthorizationPending(

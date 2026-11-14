@@ -1,3 +1,4 @@
+import { fakeLatencyDelay } from '../../utils/fake-latency.js';
 import type { MediaProvidersPort } from './ports.js';
 import type { MediaProviderMap } from './types.js';
 
@@ -28,8 +29,7 @@ export interface FakeMediaProvidersPortOptions {
 export function createFakeMediaProvidersPort(options: FakeMediaProvidersPortOptions = {}): MediaProvidersPort {
   let providers: MediaProviderMap = { ...(options.providers ?? {}) };
   const latencyMs = options.latencyMs ?? 0;
-  const delay = <T>(value: T): Promise<T> =>
-    latencyMs > 0 ? new Promise((resolve) => setTimeout(() => resolve(value), latencyMs)) : Promise.resolve(value);
+  const delay = fakeLatencyDelay({}, { latencyMs });
   const delayedRejection = (message: string): Promise<never> =>
     latencyMs > 0
       ? new Promise((_resolve, reject) => setTimeout(() => reject(new Error(message)), latencyMs))
@@ -37,13 +37,13 @@ export function createFakeMediaProvidersPort(options: FakeMediaProvidersPortOpti
 
   return {
     fetchMediaProviders() {
-      if (options.unreachable) return delay(null);
-      return delay({ ...providers });
+      if (options.unreachable) return delay({ value: null });
+      return delay({ value: { ...providers } });
     },
     saveMediaProviders(next: MediaProviderMap) {
       if (options.saveError) return delayedRejection(options.saveError);
       providers = { ...next };
-      return delay({ ...providers });
+      return delay({ value: { ...providers } });
     },
   };
 }

@@ -2,15 +2,12 @@ import { describe, expect, it } from 'vitest';
 import {
   filterBoardItemsByQuery,
   groupItemsByStatus,
-  isActionPending,
-  pendingActionKey,
   pruneSelectedIds,
   sortBoardItems,
   statusToneFor,
   toggleSelectedId,
-  withoutPendingAction,
-  withPendingAction,
 } from '../rules.js';
+import { isActionPending, pendingActionKey, withoutPendingAction, withPendingAction } from '../../../utils/pending-actions.js';
 import { UNMATCHED_STATUS_BUCKET } from '../constants.js';
 import type { ResourceBoardItem } from '../types.js';
 
@@ -34,23 +31,23 @@ describe('statusToneFor', () => {
 
 describe('pendingActionKey / isActionPending / withPendingAction / withoutPendingAction', () => {
   it('builds a stable per-(id, kind) key', () => {
-    expect(pendingActionKey('r1', 'run')).toBe('run:r1');
+    expect(pendingActionKey({ id: 'r1', kind: 'run' })).toBe('run:r1');
   });
 
   it('tracks and clears pending state independently per (id, kind)', () => {
     let pending: ReadonlySet<string> = new Set<string>();
-    pending = withPendingAction(pending, 'r1', 'run');
-    expect(isActionPending(pending, 'r1', 'run')).toBe(true);
-    expect(isActionPending(pending, 'r1', 'delete')).toBe(false);
-    expect(isActionPending(pending, 'r2', 'run')).toBe(false);
+    pending = withPendingAction({ pendingKeys: pending, id: 'r1', kind: 'run' });
+    expect(isActionPending({ pendingKeys: pending, id: 'r1', kind: 'run' })).toBe(true);
+    expect(isActionPending({ pendingKeys: pending, id: 'r1', kind: 'delete' })).toBe(false);
+    expect(isActionPending({ pendingKeys: pending, id: 'r2', kind: 'run' })).toBe(false);
 
-    pending = withoutPendingAction(pending, 'r1', 'run');
-    expect(isActionPending(pending, 'r1', 'run')).toBe(false);
+    pending = withoutPendingAction({ pendingKeys: pending, id: 'r1', kind: 'run' });
+    expect(isActionPending({ pendingKeys: pending, id: 'r1', kind: 'run' })).toBe(false);
   });
 
   it('withoutPendingAction returns the same set instance when nothing was pending', () => {
     const pending = new Set<string>();
-    expect(withoutPendingAction(pending, 'r1', 'run')).toBe(pending);
+    expect(withoutPendingAction({ pendingKeys: pending, id: 'r1', kind: 'run' })).toBe(pending);
   });
 });
 

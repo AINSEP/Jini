@@ -3,6 +3,7 @@
  * transport, no DOM — see `archived UI provenance ledger` for full provenance.
  */
 import { isAllowedEndpointUrl } from '../../utils/endpoint-policy.js';
+import { pendingActionKey as pendingActionKey_, isActionPending as isActionPending_, withPendingAction as withPendingAction_, withoutPendingAction as withoutPendingAction_ } from '../../utils/pending-actions.js';
 import { MASK_CHAR, MASKED_VALUE_MIN_MASK_LENGTH, MASKED_VALUE_VISIBLE_SUFFIX_LENGTH } from './constants.js';
 import type {
   SourceActionKind,
@@ -82,7 +83,7 @@ export function issueForField(
 
 /** Stable per-(id, action) key used to track in-flight per-item actions independently, so one card's Refresh doesn't disable another card's Remove. */
 export function pendingActionKey(id: string, kind: SourceActionKind): string {
-  return `${kind}:${id}`;
+  return pendingActionKey_({ id, kind });
 }
 
 export function isActionPending(
@@ -90,7 +91,7 @@ export function isActionPending(
   id: string,
   kind: SourceActionKind,
 ): boolean {
-  return pendingKeys.has(pendingActionKey(id, kind));
+  return isActionPending_({ pendingKeys, id, kind });
 }
 
 export function withPendingAction(
@@ -98,9 +99,7 @@ export function withPendingAction(
   id: string,
   kind: SourceActionKind,
 ): ReadonlySet<string> {
-  const next = new Set(pendingKeys);
-  next.add(pendingActionKey(id, kind));
-  return next;
+  return withPendingAction_({ pendingKeys, id, kind });
 }
 
 export function withoutPendingAction(
@@ -108,10 +107,7 @@ export function withoutPendingAction(
   id: string,
   kind: SourceActionKind,
 ): ReadonlySet<string> {
-  if (!pendingKeys.has(pendingActionKey(id, kind))) return pendingKeys;
-  const next = new Set(pendingKeys);
-  next.delete(pendingActionKey(id, kind));
-  return next;
+  return withoutPendingAction_({ pendingKeys, id, kind });
 }
 
 export function upsertSourceById<TSource extends SourceConfigItem>(

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { isActionPending, withoutPendingAction, withPendingAction } from '../../rules.js';
+import { isActionPending, withoutPendingAction, withPendingAction } from '../../../../utils/pending-actions.js';
 import type { ResourceRowListDependencies, ResourceRowListPort } from '../../ports.js';
 import type { ResourceRowItem, ResourceRunHistoryItem } from '../../types.js';
 
@@ -83,7 +83,7 @@ export function useResourceRowList<TRow extends ResourceRowItem>(
     void reload();
   }, [reload, refreshToken]);
 
-  const isRowBusy = useCallback((id: string) => isActionPending(pendingKeys, id, ROW_ACTION_KIND), [pendingKeys]);
+  const isRowBusy = useCallback((id: string) => isActionPending({ pendingKeys, id, kind: ROW_ACTION_KIND }), [pendingKeys]);
 
   const fetchHistoryFor = useCallback(
     async (id: string) => {
@@ -140,7 +140,7 @@ export function useResourceRowList<TRow extends ResourceRowItem>(
 
   const dispatchRowAction = useCallback(
     async (id: string, run: () => Promise<void> | void) => {
-      setPendingKeys((current) => withPendingAction(current, id, ROW_ACTION_KIND));
+      setPendingKeys((current) => withPendingAction({ pendingKeys: current, id, kind: ROW_ACTION_KIND }));
       setActionError(null);
       try {
         await run();
@@ -159,7 +159,7 @@ export function useResourceRowList<TRow extends ResourceRowItem>(
         setActionError(ROW_ACTION_FAILED_MESSAGE);
         throw err;
       } finally {
-        setPendingKeys((current) => withoutPendingAction(current, id, ROW_ACTION_KIND));
+        setPendingKeys((current) => withoutPendingAction({ pendingKeys: current, id, kind: ROW_ACTION_KIND }));
       }
     },
     [reload, expandedRowId, fetchHistoryFor],

@@ -11,6 +11,7 @@
  * same way, and this fake is good enough to drive this feature's own
  * hook/component tests and any host's local dev/demo needs.
  */
+import { fakeLatencyDelay, type FakeLatencyDelay } from '../../utils/fake-latency.js';
 import type { AddSourceInput, AddSourceResult, SourceConfigItem, SourceFieldValues, SourceTestResult, SourceUpdateInput } from './types.js';
 import type { SourceConfigDependencies, SourceConfigPort } from './ports.js';
 
@@ -36,16 +37,9 @@ export interface FakeSourceConfigPortOptions<TSource extends SourceConfigItem> {
   onUpdate?: (source: TSource, patch: SourceUpdateInput) => TSource;
 }
 
-type Delay = <T>(value: T) => Promise<T>;
-
 interface FakeStore<TSource extends SourceConfigItem> {
   store: TSource[];
-  delay: Delay;
-}
-
-function createDelay({ latencyMs }: { latencyMs: number }): Delay {
-  return <T>(value: T): Promise<T> =>
-    latencyMs > 0 ? new Promise((resolve) => setTimeout(() => resolve(value), latencyMs)) : Promise.resolve(value);
+  delay: FakeLatencyDelay;
 }
 
 /**
@@ -62,10 +56,10 @@ function replaceById<TSource extends SourceConfigItem>({
   transform: (current: TSource) => TSource;
 }): Promise<TSource | null> {
   const index = store.findIndex((source) => source.id === id);
-  if (index === -1) return delay(null);
+  if (index === -1) return delay({ value: null });
   const updated = transform(store[index]!);
   store[index] = updated;
-  return delay(updated);
+  return delay({ value: updated });
 }
 
 /** The default `onUpdate`: `fields` merged key-by-key, `label`/`enabled` replaced only when the patch carries them. */
@@ -86,7 +80,7 @@ function createTestSource<TSource extends SourceConfigItem>(
 ): NonNullable<SourceConfigPort<TSource>['testSource']> {
   return (id: string | undefined, draft?: SourceFieldValues): Promise<SourceTestResult> => {
     const source = id === undefined ? undefined : store.find((s) => s.id === id);
-    return delay(onTest ? onTest(id, draft, source) : { ...DEFAULT_TEST_RESULT });
+    return delay({ value: onTest ? onTest(id, draft, source) : { ...DEFAULT_TEST_RESULT } });
   };
 }
 
@@ -133,22 +127,22 @@ export function createFakeSourceConfigPort<TSource extends SourceConfigItem>(
   options: FakeSourceConfigPortOptions<TSource>,
 ): SourceConfigPort<TSource> {
   const store = options.sources ? [...options.sources] : [];
-  const delay = createDelay({ latencyMs: options.latencyMs ?? 0 });
+  const delay = fakeLatencyDelay({}, { latencyMs: options.latencyMs ?? 0 });
 
   const port: SourceConfigPort<TSource> = {
     fetchSources() {
-      return delay([...store]);
+      return delay({ value: [...store] });
     },
     addSource(input: AddSourceInput): Promise<AddSourceResult<TSource>> {
       const created = options.createSource(input);
       store.push(created);
-      return delay({ ok: true, source: created });
+      return delay({ value: { ok: true, source: created } });
     },
     removeSource(id: string): Promise<boolean> {
       const index = store.findIndex((source) => source.id === id);
-      if (index === -1) return delay(false);
+      if (index === -1) return delay({ value: false });
       store.splice(index, 1);
-      return delay(true);
+      return delay({ value: true });
     },
   };
 
