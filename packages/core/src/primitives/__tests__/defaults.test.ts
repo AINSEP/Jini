@@ -119,12 +119,16 @@ describe('primitive default adapters', () => {
     const thrown = { message: 'boom PRIVATEVALUE', stack: 'PRIVATEVALUE at defaults.test.ts' };
     const logger = createConsoleLogger({ prefix: '' });
     logger.warn({ message: 'retry' }, {
-      meta: { detail: thrown, upstream: { list: [{ stack: 'PRIVATEVALUE' }], runId: 'run-1' }, message: 'PRIVATEVALUE', cause: 'PRIVATEVALUE', err: { code: 'PRIVATEVALUE' } },
+      meta: { detail: thrown, upstream: { list: [{ stack: 'PRIVATEVALUE' }], runId: 'run-1' }, cause: 'PRIVATEVALUE', err: { code: 'PRIVATEVALUE' } },
     });
     logger.warn({ message: 'whole' }, { meta: thrown });
+    // A meta with its own top-level `message` looks thrown, so the whole meta collapses: its other
+    // fields (`runId` here) are not printed either.
+    logger.warn({ message: 'top' }, { meta: { message: 'PRIVATEVALUE', runId: 'r' } });
     expect(lines).toEqual([
-      ['retry', { detail: 'object', upstream: { list: ['object'], runId: 'run-1' }, message: 'string', cause: 'string', err: 'object' }],
+      ['retry', { detail: 'object', upstream: { list: ['object'], runId: 'run-1' }, cause: 'string', err: 'object' }],
       ['whole', { meta: 'object' }],
+      ['top', { meta: 'object' }],
     ]);
     expect(JSON.stringify(lines)).not.toContain('PRIVATEVALUE');
   });
