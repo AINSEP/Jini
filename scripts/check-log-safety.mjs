@@ -19,7 +19,7 @@
  * - `raw-error`: a caught value embedded in a text sink's template string or concatenation; passed
  *   straight to a log call; or nested in a log call's object argument. The ONE exemption is the core
  *   `Logger` error bag: an object-first call (`({ message }, { error })`) on a receiver named
- *   `logger` / `*Logger`, with the value under an `error`/`err`/`reason`/`cause` key of its second
+ *   `logger` / `*Logger` or on `createConsoleLogger(...)`, with the value under an `error`/`err`/`reason`/`cause` key of its second
  *   argument (the default sinks describe those keys; a host logger is the host's channel). The
  *   receiver is matched by name, not by type: a job that changes such a call confirms by reading
  *   that the receiver is a core `Logger`.
@@ -79,9 +79,10 @@ const ERROR_BAG_KEY = '/^(error|err|reason|cause)$/';
 const LOG_CALL = `CallExpression:matches([callee.object.name='console'], [callee.property.name=${LOG_METHOD}], [callee.name=${BARE_LOG_FUNCTION}])`;
 /** Log calls plus the other places text goes out as-is: a bare `report(...)` sink and process stdio. */
 const TEXT_SINK = `CallExpression:matches([callee.object.name='console'], [callee.property.name=${LOG_METHOD}], [callee.name=/^(log|info|warn|debug|trace|report)$/], [callee.property.name='write'][callee.object.property.name=/^(stdout|stderr)$/])`;
-/** A core Logger port call: object-first, receiver named `logger` or `*Logger` (by name, not type). */
+/** A core Logger port call: object-first, on a receiver named `logger` / `*Logger` (by name, not
+ *  type) or on `createConsoleLogger(...)` itself (the default sink). */
 const LOGGER_RECEIVER = '/^(logger|[a-z][A-Za-z]*Logger)$/';
-const LOGGER_CALL_ATTRS = `[callee.property.name=/^(info|warn|error)$/][arguments.0.type='ObjectExpression']:matches([callee.object.name=${LOGGER_RECEIVER}], [callee.object.property.name=${LOGGER_RECEIVER}])`;
+const LOGGER_CALL_ATTRS = `[callee.property.name=/^(info|warn|error)$/][arguments.0.type='ObjectExpression']:matches([callee.object.name=${LOGGER_RECEIVER}], [callee.object.property.name=${LOGGER_RECEIVER}], [callee.object.callee.name='createConsoleLogger'])`;
 const LOGGER_CALL = `CallExpression${LOGGER_CALL_ATTRS}`;
 /** A caught value: an error-named identifier or member (`err`, `ctx.error`). */
 const CAUGHT = `:matches(Identifier[name=${ERROR_NAME}], MemberExpression[property.name=${ERROR_NAME}])`;
