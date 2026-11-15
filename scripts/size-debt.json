@@ -1351,13 +1351,6 @@
     "value": 105
   },
   {
-    "file": "packages/ui/src/features/lexical-rich-text-editor/react/components/RichTextInput.tsx",
-    "function": "EditorSurface",
-    "line": 83,
-    "rule": "max-lines-per-function",
-    "value": 136
-  },
-  {
     "file": "packages/ui/src/features/list-detail-panel/react/components/ListDetailPanel.tsx",
     "function": "ListDetailPanel",
     "line": 45,

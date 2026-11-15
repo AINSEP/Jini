@@ -1311,13 +1311,6 @@
       "fingerprint": "cce286426f611dcd2e79385816016d3ce1c0c6f4b827f717a0b79831b9457e76"
     },
     {
-      "rule": "HW1-env-default",
-      "file": "packages/ui/src/features/lexical-rich-text-editor/react/components/RichTextInput.tsx",
-      "line": 261,
-      "reason": "process.env is allowed only as an injected environment default (?? process.env or env = process.env).",
-      "fingerprint": "bad235beef56966ca0b4887eb3a3787b1db890efb2414aa61a405af40daa7f2a"
-    },
-    {
       "rule": "HW3-module-state",
       "file": "packages/ui/src/features/observability/boot-timing.ts",
       "line": 26,

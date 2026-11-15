@@ -766,7 +766,6 @@
         "src/index.ts",
         "src/core.ts",
         "src/features/sketch-editor/index.ts",
-        "src/features/lexical-rich-text-editor/index.ts",
         "src/features/html-editor/index.ts",
         "src/react/mcp-ui/index.ts",
         "src/features/mcp-ui/index.ts",

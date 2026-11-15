@@ -20,7 +20,6 @@ Signatures below preserve the implemented API. Converted functions use `(require
 | package root | React primitives, browser hooks, feature domains, utilities, widgets and panel kit | `src/index.ts` |
 | `/core` | Framework-free settings/domain types, rules, catalogs and ports | `src/core.ts` |
 | `/sketch-editor` | Excalidraw scene editor, rules, DOM enhancements and engine port | `src/features/sketch-editor/index.ts` |
-| `/lexical-rich-text-editor` | Plain-text editor with atomic mentions, trigger and caret helpers | `src/features/lexical-rich-text-editor/index.ts` |
 | `/html-editor` | GrapesJS inline HTML editor and canvas adapters | `src/features/html-editor/index.ts` |
 | `/mcp-ui` | React MCP Apps host, message source and all surface exports | `src/react/mcp-ui/index.ts` |
 | `/mcp-ui/surfaces` | Framework-free resource builders, confirmation store, protocol and proxy HTML | `src/features/mcp-ui/index.ts` |
@@ -39,7 +38,7 @@ Signatures below preserve the implemented API. Converted functions use `(require
 | `/admin-widgets.css` | Standalone widget styles | `src/features/admin-widgets/styles/admin-widgets.css` |
 | `/styles/*` | Static assets; current source files are `variables.css` and `admin.css` | `src/styles/` |
 
-React and React DOM peers support `^18.3.0 || ^19.0.0`. Editor peers are optional to install for other entry points, but required when importing their editor: Excalidraw `0.18.1`; Lexical, `@lexical/react` and `@lexical/utils` `0.36.2`; GrapesJS `0.23.4`. The root barrel excludes the three heavy editors, MCP hosts, interactive providers, A2UI, renderers and theme; use their explicit subpaths. Framework-free entries require no React mount or host DOM.
+React and React DOM peers support `^18.3.0 || ^19.0.0`. Editor peers are optional to install for other entry points, but required when importing their editor: Excalidraw `0.18.1`; GrapesJS `0.23.4`. The root barrel excludes the two heavy editors, MCP hosts, interactive providers, A2UI, renderers and theme; use their explicit subpaths. Framework-free entries require no React mount or host DOM.
 
 ## Root entry
 
@@ -199,19 +198,6 @@ target.setAttribute('data-color-scheme', resolveColorScheme({ preference: 'light
 ```tsx
 import { SketchEditor } from '@jini-ai/ui/sketch-editor';
 <SketchEditor scene={scene} onSceneChange={setScene} onSave={saveScene} fileName="drawing" />;
-```
-
-## `/lexical-rich-text-editor`
-
-`RichTextInput` is `forwardRef<RichTextInputHandle, RichTextInputProps>` with required `{placeholder, value, knownMentions, onChange(text,mentions), onTriggerChange(match|null), onSubmit(), popoverOpen, onPopoverKey(key): boolean}`. Optional pasted-files callback, combobox state/listbox id, title/test id/namespace, trigger list/id and mention-color resolver. `RichTextInputHandle` exposes `getText`, positional `setText`, `insertText`, `insertMention`, `replaceActiveTrigger`, and no-arg clear/focus.
-
-Public helpers include legacy `buildMentionToken(label): string`, `parseMentionParts(text, knownMentions, {highlightUnknown = true} = {}): MentionPart[]|null`, mention boundary/presence/folding predicates, `MentionNode` and its create/type guard helpers, `serializeRichText(state): SerializedRichText`, `setRichTextFromPlainText(editor,text,knownMentions): void`, trigger detection/deletion/match rules, `readCaretRect(rootEl): CaretRect|null`, caret positioning, `CaretFloatingLayer`, and mention-color/caret-position hooks. Supply installed Lexical peers and host mention data/callbacks; no registry/network port is created.
-
-```tsx
-import { RichTextInput } from '@jini-ai/ui/lexical-rich-text-editor';
-<RichTextInput placeholder="Write" value={text} knownMentions={[]}
-  onChange={setTextAndMentions} onTriggerChange={setTrigger} onSubmit={submit}
-  popoverOpen={false} onPopoverKey={() => false} />;
 ```
 
 ## `/html-editor`
@@ -392,8 +378,6 @@ These names are also reachable through the current export map. Parameter declara
 
 | Function and declared parameters | Declaration |
 |---|---|
-| `$createMentionNode(p: MentionPayload)` | [mention-node.ts](../../src/features/lexical-rich-text-editor/mention-node.ts) |
-| `$isMentionNode(n: LexicalNode \| null \| undefined)` | [mention-node.ts](../../src/features/lexical-rich-text-editor/mention-node.ts) |
 | `AboutTab({ appVersionInfo, updaterModel, onPerformUpdateAction, onOpenReleaseLink, allowSilentUpdates = false, onSilentUpdatePreferenceChange, labels, }: AboutTabProps)` | [AboutTab.tsx](../../src/features/about/react/components/AboutTab.tsx) |
 | `AgentCliEnvFields({ agentId, fields, config, onChange }: AgentCliEnvFieldsProps)` | [AgentCliEnvFields.tsx](../../src/features/execution/react/components/AgentCliEnvFields.tsx) |
 | `AgentDiagnosticRow({ diagnostic, handlers = {}, className }: AgentDiagnosticRowProps)` | [AgentDiagnosticRow.tsx](../../src/features/execution/react/components/AgentDiagnosticRow.tsx) |
@@ -547,7 +531,6 @@ These names are also reachable through the current export map. Parameter declara
 | `beginSilentUpdatesWrite(next: boolean)` | [rules.ts](../../src/features/about/rules.ts) |
 | `binPathEnvField(fields: readonly AgentCliEnvFieldSpec[], agentId: string,)` | [rules.ts](../../src/features/execution/rules.ts) |
 | `brandMonogram(name: string)` | [BrandLogo.tsx](../../src/react/components/BrandLogo.tsx) |
-| `buildAnyTriggerDeletionRegex(triggers: readonly RichTextTriggerConfig[],)` | [rules.ts](../../src/features/lexical-rich-text-editor/rules.ts) |
 | `buildAssetGridQuery(kind: string, source: string, search: string, mapKindToQuery?: (kind: string) => string \| undefined,)` | [rules.ts](../../src/features/asset-grid/rules.ts) |
 | `buildBreadcrumbSegments(currentDir: string)` | [rules.ts](../../src/features/asset-tree-browser/rules.ts) |
 | `buildClaudeCliSnippet(serverName: string, info: McpInstallInfo)` | [rules.ts](../../src/features/integrations/rules.ts) |
@@ -567,8 +550,6 @@ These names are also reachable through the current export map. Parameter declara
 | `buildSketchTooltipLabels(t: SketchTranslate)` | [rules.ts](../../src/features/sketch-editor/rules.ts) |
 | `buildStorageShimScript()` | [sandboxed-document.ts](../../src/renderers/sandboxed-document.ts) |
 | `buildSubmitOptionRules(input: { canSubmit: boolean; sendDisabled: boolean })` | [rules.ts](../../src/renderers/annotation-canvas/rules.ts) |
-| `buildTriggerDeletionRegex(trigger: RichTextTriggerConfig)` | [rules.ts](../../src/features/lexical-rich-text-editor/rules.ts) |
-| `buildTriggerMatch(detected: { id: string; query: string } \| null, rootEl: HTMLElement \| null,)` | [rules.ts](../../src/features/lexical-rich-text-editor/rules.ts) |
 | `buildVersionIndex(versions: readonly TVersion[],)` | [rules.ts](../../src/features/version-manager/rules.ts) |
 | `buildVsCodeSnippet(serverName: string, info: McpInstallInfo)` | [rules.ts](../../src/features/integrations/rules.ts) |
 | `buildZedSnippet(serverName: string, info: McpInstallInfo)` | [rules.ts](../../src/features/integrations/rules.ts) |
@@ -596,7 +577,6 @@ These names are also reachable through the current export map. Parameter declara
 | `cloneJson(value: unknown, fallback: T)` | [rules.ts](../../src/features/sketch-editor/rules.ts) |
 | `commandPaletteShortcut(platform: McpInstallPlatform)` | [rules.ts](../../src/features/integrations/rules.ts) |
 | `compositeMarksOntoCanvas(ctx: CanvasRenderingContext2D, input: { target: CaptureTarget \| null; selectionBoxes: readonly NormalizedRect[]; strokes: readonly Stroke[]; textMarks: readonly TextMark[]; }, outputWidth: number, outputHeight: number, scaleX: number, scaleY: number,)` | [drawing.ts](../../src/renderers/annotation-canvas/drawing.ts) |
-| `computeCaretFloatingLayerPosition(caret: CaretRect, size: { width: number; height: number } \| null, boundary: DOMRect \| null, config: { gap: number; margin: number; hardMaxHeight: number; preferredWidth: number; },)` | [rules.ts](../../src/features/lexical-rich-text-editor/rules.ts) |
 | `computeCustomSelectMenuPosition(rect: { top: number; bottom: number; left: number; width: number }, viewport: { width: number; height: number },)` | [CustomSelect.tsx](../../src/react/components/CustomSelect.tsx) |
 | `computeDockPlacement(input: DockPlacementInput)` | [rules.ts](../../src/renderers/annotation-canvas/rules.ts) |
 | `computeMenuPosition(anchor: MenuAnchorRect, viewportHeight: number, options: MenuPositionOptions = {},)` | [rules.ts](../../src/features/asset-tree-browser/rules.ts) |
@@ -683,7 +663,6 @@ These names are also reachable through the current export map. Parameter declara
 | `designMdHeadings(body: string, startOffset: number)` | [design-md.ts](../../src/utils/design-md.ts) |
 | `designMdModuleSlice(body: string, module: DesignMdModule)` | [design-md.ts](../../src/utils/design-md.ts) |
 | `designSystemGenerationJobToProgressCard(job: DesignSystemGenerationJobLike)` | [reference-adapters.ts](../../src/features/progress-card/reference-adapters.ts) |
-| `detectActiveTrigger(beforeText: string, triggers: readonly RichTextTriggerConfig[],)` | [rules.ts](../../src/features/lexical-rich-text-editor/rules.ts) |
 | `detectInitialLocale(options: DetectInitialLocaleOptions)` | [locale.ts](../../src/features/i18n/locale.ts) |
 | `detectLocalTimezone()` | [timezone.ts](../../src/utils/timezone.ts) |
 | `diffAddedLines(baseText: string, proposedText: string)` | [rules.ts](../../src/features/revision-review/rules.ts) |
@@ -741,7 +720,6 @@ These names are also reachable through the current export map. Parameter declara
 | `findViewportPreset(presets: readonly ViewportPreset[], id: string)` | [rules.ts](../../src/features/version-manager/rules.ts) |
 | `firstLogoStage(opts: { canUseBrandStage: boolean; logoSrc?: string \| null \| undefined; host?: string \| undefined; })` | [BrandLogo.tsx](../../src/react/components/BrandLogo.tsx) |
 | `flattenCustomSelectOptions(items: CustomSelectItem[])` | [CustomSelect.tsx](../../src/react/components/CustomSelect.tsx) |
-| `foldPresentMentions(text: string, present: MentionEntity[], known: MentionEntity[],)` | [mention-parser.ts](../../src/features/lexical-rich-text-editor/mention-parser.ts) |
 | `folderPathsFromDataTransfer(dataTransfer: DataTransfer, port: FolderPathDropPort)` | [rules.ts](../../src/features/folder-path-drop/rules.ts) |
 | `formatAbsoluteTime(at: number, now: number)` | [formatters.ts](../../src/features/memory/formatters.ts) |
 | `formatAddressDisplay(url: string, title?: string, homeLabel: string = DEFAULT_HOME_NAVIGATION_ENTRY.title,)` | [rules.ts](../../src/features/browser-chrome/rules.ts) |
@@ -835,8 +813,6 @@ These names are also reachable through the current export map. Parameter declara
 | `isMacPlatform()` | [platform.ts](../../src/utils/platform.ts) |
 | `isMarkerOnlyEntry(entry: MediaProviderCredentials \| null \| undefined)` | [rules.ts](../../src/features/media-providers/rules.ts) |
 | `isMcpInstallPrerequisiteMissing(info: McpInstallInfo)` | [rules.ts](../../src/features/integrations/rules.ts) |
-| `isMentionBoundary(text: string, start: number)` | [mention-parser.ts](../../src/features/lexical-rich-text-editor/mention-parser.ts) |
-| `isMentionRightBoundary(text: string, end: number)` | [mention-parser.ts](../../src/features/lexical-rich-text-editor/mention-parser.ts) |
 | `isNonDeletedExcalidrawElement(element: unknown)` | [rules.ts](../../src/features/sketch-editor/rules.ts) |
 | `isOutsideHeaderMenu(container: HTMLElement \| null, target: EventTarget \| null,)` | [HeaderActionsMenu.tsx](../../src/react/components/HeaderActionsMenu.tsx) |
 | `isOutsideLanguageMenu(container: HTMLElement \| null, target: EventTarget \| null,)` | [LanguageMenu.tsx](../../src/react/components/LanguageMenu.tsx) |
@@ -876,7 +852,6 @@ These names are also reachable through the current export map. Parameter declara
 | `memorySourceTabs(t: Translate)` | [formatters.ts](../../src/features/memory/formatters.ts) |
 | `memoryTypeLabels(t: Translate)` | [formatters.ts](../../src/features/memory/formatters.ts) |
 | `mentionSelectionKey(categoryId: string, itemId: string)` | [rules.ts](../../src/features/mention-autocomplete/rules.ts) |
-| `mentionTokenPresent(text: string, label: string)` | [mention-parser.ts](../../src/features/lexical-rich-text-editor/mention-parser.ts) |
 | `mergeBounds(rects: ReadonlyArray<Rect \| null \| undefined>)` | [rules.ts](../../src/renderers/annotation-canvas/rules.ts) |
 | `mergeConnectorActionResult(current: Connector, next: Connector)` | [rules.ts](../../src/features/connectors/rules.ts) |
 | `mergeConnectorToolPreview(current: Connector, next: Connector, append: boolean)` | [rules.ts](../../src/features/connectors/rules.ts) |
@@ -1113,7 +1088,6 @@ These names are also reachable through the current export map. Parameter declara
 | `useBrowserBridgeRegistration(scopeKey: string \| undefined, handle: BrowserTabHandle \| null, dependencies: { bridgeRegistration: BrowserBridgeRegistrationPort },)` | [useBrowserBridgeRegistration.ts](../../src/features/browser-chrome/react/hooks/useBrowserBridgeRegistration.ts) |
 | `useBrowserHistory(scopeKey: string, dependencies: { historyStorage: BrowserHistoryStoragePort }, options: UseBrowserHistoryOptions = {},)` | [useBrowserHistory.ts](../../src/features/browser-chrome/react/hooks/useBrowserHistory.ts) |
 | `useBrowserNavigationStack(options: UseBrowserNavigationStackOptions = {})` | [useBrowserNavigationStack.ts](../../src/features/browser-chrome/react/hooks/useBrowserNavigationStack.ts) |
-| `useCaretFloatingLayerPosition(caret: CaretRect \| null, open: boolean, boundaryRef?: RefObject<HTMLElement \| null> \| undefined,)` | [useCaretFloatingLayerPosition.ts](../../src/features/lexical-rich-text-editor/react/hooks/useCaretFloatingLayerPosition.ts) |
 | `useCodexInstallToggle(port: Pick<McpIntegrationsPort, 'fetchCodexInstallStatus' \| 'installCodexMcp' \| 'uninstallCodexMcp'>,)` | [useCodexInstallToggle.ts](../../src/features/integrations/react/hooks/useCodexInstallToggle.ts) |
 | `useCommandPalette(options: UseCommandPaletteOptions, dependencies: { recents: CommandPaletteRecentsPort },)` | [useCommandPalette.ts](../../src/features/command-palette/react/hooks/useCommandPalette.ts) |
 | `useCommentReorder(orderedIds: string[], onReorder: ((orderedIds: string[]) => void) \| undefined,)` | [useCommentReorder.ts](../../src/features/viewer-shell/react/hooks/useCommentReorder.ts) |
@@ -1149,7 +1123,6 @@ These names are also reachable through the current export map. Parameter declara
 | `useMemoryFlash()` | [useMemoryFlash.hooks.ts](../../src/features/memory/react/hooks/useMemoryFlash.hooks.ts) |
 | `useMemoryNavigation()` | [useMemoryNavigation.hooks.ts](../../src/features/memory/react/hooks/useMemoryNavigation.hooks.ts) |
 | `useMentionAutocomplete({ value, onValueChange, items, categories, onSelectionChange, triggerChar = DEFAULT_TRIGGER_CHAR, getSearchText, maxResultsPerCategory = DEFAULT_MAX_RESULTS_PER_CATEGORY, }: UseMentionAutocompleteParams<T>)` | [useMentionAutocomplete.ts](../../src/features/mention-autocomplete/react/hooks/useMentionAutocomplete.ts) |
-| `useMentionColorStamping(resolveMentionColor?: ((mention: MentionEntity) => string \| undefined) \| undefined,)` | [useMentionColorStamping.ts](../../src/features/lexical-rich-text-editor/react/hooks/useMentionColorStamping.ts) |
 | `useOnboardingDropdown(props: OnboardingDropdownProps)` | [OnboardingDropdown.tsx](../../src/react/components/OnboardingDropdown.tsx) |
 | `useOnboardingDropdownPlacement(rootRef: RefObject<HTMLDivElement \| null>, open: boolean, placement: OnboardingDropdownPlacement, optionCount: number,)` | [OnboardingDropdown.tsx](../../src/react/components/OnboardingDropdown.tsx) |
 | `usePaletteDismiss(options: { open: boolean; onClose: () => void; })` | [PaletteTweaks.tsx](../../src/react/components/PaletteTweaks.tsx) |
@@ -1288,8 +1261,6 @@ These names are also reachable through the current export map. Parameter declara
 | `CanvasContentWrapperNode`, `CanvasStyling` | type; [canvas-style.ts](../../src/features/html-editor/canvas-style.ts) |
 | `CanvasEmbedPlaceholderDescriptor` | type; [canvas-embed-placeholders.ts](../../src/features/html-editor/canvas-embed-placeholders.ts) |
 | `CaptureFolderPathDropInput`, `FolderPathDropEvent`, `FolderPathDropInsertTarget`, `FolderPathDropInsertTargetRef` | type; [types.ts](../../src/features/folder-path-drop/types.ts) |
-| `CaretFloatingLayerPosition` | type; [rules.ts](../../src/features/lexical-rich-text-editor/rules.ts) |
-| `CaretFloatingLayerProps` | type; [CaretFloatingLayer.tsx](../../src/features/lexical-rich-text-editor/react/components/CaretFloatingLayer.tsx) |
 | `CheckboxClickAction`, `DayHeading`, `PreviewClickAction` | type; [rules.ts](../../src/features/asset-grid/rules.ts) |
 | `ClientPickerProps` | type; [ClientPicker.tsx](../../src/features/integrations/react/components/ClientPicker.tsx) |
 | `ClipboardWritePort`, `CopyToClipboardOptions` | interface; [copy-to-clipboard.ts](../../src/utils/copy-to-clipboard.ts) |
@@ -1351,7 +1322,6 @@ These names are also reachable through the current export map. Parameter declara
 | `DEFAULT_SCHEDULE_KINDS`, `DEFAULT_SCHEDULE_MINUTE`, `DEFAULT_SCHEDULE_TIME`, `DEFAULT_SCHEDULE_WEEKDAY`, `DEFAULT_WEEKDAYS` | const; [constants.ts](../../src/features/schedule-picker/constants.ts) |
 | `DEFAULT_SRC_DOC_CSP` | const; [build.ts](../../src/renderers/srcdoc/build.ts) |
 | `DEFAULT_SURFACE_STATUS_TEXT`, `SURFACE_BASE_CSS`, `SURFACE_CSP`, `SURFACE_NOT_PENDING_ERROR_CODE`, `SURFACE_SCRIPT_PRELUDE`, `SURFACE_STATUS_ELEMENT_ID` | const; [document.ts](../../src/features/mcp-ui/surfaces/document.ts) |
-| `DEFAULT_TEST_ID`, `DEFAULT_TRIGGERS` | const; [constants.ts](../../src/features/lexical-rich-text-editor/constants.ts) |
 | `DEFAULT_VISUAL_STABILITY_STORAGE_KEY` | const; [visual-stability.ts](../../src/utils/visual-stability.ts) |
 | `DEFAULT_WORKING_DIR_LABELS` | const; [WorkingDirPicker.tsx](../../src/react/components/WorkingDirPicker.tsx) |
 | `DRAFT_TEST_SCOPE`, `MASKED_VALUE_MIN_MASK_LENGTH`, `MASKED_VALUE_VISIBLE_SUFFIX_LENGTH`, `MASK_CHAR` | const; [constants.ts](../../src/features/source-config-list/constants.ts) |
@@ -1426,7 +1396,6 @@ These names are also reachable through the current export map. Parameter declara
 | `LongTaskObserverOptions` | type; [long-task.ts](../../src/features/observability/long-task.ts) |
 | `MCP_SOURCE_FIELD_SPECS` | const; [constants.ts](../../src/features/external-mcp/constants.ts) |
 | `MCP_UI_PROTOCOL_VERSION` | const; [protocol.ts](../../src/features/mcp-ui/protocol.ts) |
-| `MENTION_COLOR_PROPERTY` | const; [useMentionColorStamping.ts](../../src/features/lexical-rich-text-editor/react/hooks/useMentionColorStamping.ts) |
 | `MODAL_WINDOW_DRAG_STRIP_HEIGHT` | const; [useModalWindowDragGuard.ts](../../src/browser/useModalWindowDragGuard.ts) |
 | `MarkdownRenderer` | const; [markdown.ts](../../src/renderers/renderers/markdown.ts) |
 | `MarkdownSplitPaneProps` | type; [MarkdownSplitPane.tsx](../../src/features/viewer-shell/react/components/MarkdownSplitPane.tsx) |
@@ -1449,8 +1418,6 @@ These names are also reachable through the current export map. Parameter declara
 | `MentionAutocompleteProps` | type; [MentionAutocomplete.tsx](../../src/features/mention-autocomplete/react/components/MentionAutocomplete.tsx) |
 | `MentionCategory`, `MentionCategoryFilter`, `MentionInsertResult`, `MentionItem`, `MentionTriggerMatch` | type; [types.ts](../../src/features/mention-autocomplete/types.ts) |
 | `MentionCategoryTabsProps` | type; [MentionCategoryTabs.tsx](../../src/features/mention-autocomplete/react/components/MentionCategoryTabs.tsx) |
-| `MentionEntity`, `MentionInsert`, `PopoverNavigationKey`, `RichTextTriggerAnchor`, `RichTextTriggerConfig`, `RichTextTriggerMatch` | type; [types.ts](../../src/features/lexical-rich-text-editor/types.ts) |
-| `MentionPayload`, `SerializedMentionNode` | type; [mention-node.ts](../../src/features/lexical-rich-text-editor/mention-node.ts) |
 | `MentionResultGroup` | type; [rules.ts](../../src/features/mention-autocomplete/rules.ts) |
 | `MentionResultItemProps` | type; [MentionResultItem.tsx](../../src/features/mention-autocomplete/react/components/MentionResultItem.tsx) |
 | `MentionResultsListProps` | type; [MentionResultsList.tsx](../../src/features/mention-autocomplete/react/components/MentionResultsList.tsx) |
@@ -1666,4 +1633,4 @@ These names are also reachable through the current export map. Parameter declara
 
 ## Current manifest boundary
 
-The current `package.json` exposes `.`, `./core`, `./sketch-editor`, `./lexical-rich-text-editor`, `./html-editor`, `./mcp-ui`, `./mcp-ui/surfaces`, `./interactive-ui`, `./interactive-ui/manifests`, `./a2ui`, `./renderers`, `./interactive-ui.css`, `./settings-dialog.css`, `./tabbed-dialog.css`, `./remixicon.css`, `./admin-widgets`, `./panel-kit`, `./fetch-query`, `./admin-widgets.css`, `./theme`, `./styles/*`. Internal source exports do not create additional supported import paths. The contracts above describe source, not generated output.
+The current `package.json` exposes `.`, `./core`, `./sketch-editor`, `./html-editor`, `./mcp-ui`, `./mcp-ui/surfaces`, `./interactive-ui`, `./interactive-ui/manifests`, `./a2ui`, `./renderers`, `./interactive-ui.css`, `./settings-dialog.css`, `./tabbed-dialog.css`, `./remixicon.css`, `./admin-widgets`, `./panel-kit`, `./fetch-query`, `./admin-widgets.css`, `./theme`, `./styles/*`. Internal source exports do not create additional supported import paths. The contracts above describe source, not generated output.

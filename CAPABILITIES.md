@@ -328,7 +328,6 @@ react-library · [README](packages/ui/README.md)
 | `@jini-ai/ui` | Reusable React features: boards/assets/versions/browser chrome, dialogs, menus, dropzones and i18n. | `ResourceBoard`, `AssetGrid`, `TabbedDialog`, `CommandPalette` | browser | Tovu: admin; Jini: admin, chat |
 | `@jini-ai/ui/core` | Framework-free feature rules/ports for settings, agents, connectors, media and memory. | `ExecutionPort`, `DetectedAgent`, `resolveInitialActiveTabId` | universal | Tovu: admin |
 | `@jini-ai/ui/sketch-editor` | Excalidraw sketch integration with save/export/theme/DOM orchestration. | `SketchEditor`, `SketchScene` | browser | none yet |
-| `@jini-ai/ui/lexical-rich-text-editor` | Lexical editor, atomic mention tokens, caret layers and string serialization. | `RichTextInput`, `serializeRichText`, `MentionEntity` | browser | none yet |
 | `@jini-ai/ui/html-editor` | Interactive HTML canvas/editor integration and injected editor tools. | `InteractiveHtmlEditor`, `useInteractiveHtmlEditor` | browser | Tovu: admin; Jini: admin |
 | `@jini-ai/ui/mcp-ui` | Host official MCP-UI iframes with lifecycle, messaging and tool-call coordination. | `McpUiHost`, `useMcpUiHost` | browser | Jini: chat |
 | `@jini-ai/ui/mcp-ui/surfaces` | Build forms/approval cards and bind confirmation answers without React. | `buildFormSurface`, `buildConfirmationSurface`, `buildOutcomeSurface`, `createConfirmationStore` | universal | Tovu: admin, website |

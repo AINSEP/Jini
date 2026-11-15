@@ -88,7 +88,6 @@ Default-entry runtime libraries require regular dependencies.
 | `@jini-ai/capability-providers` | `ws` | `./adapters/ws` (`WebSocketRealtimeProvider`) |
 | `@jini-ai/capability-providers` | `better-sqlite3` | `./adapters/sqlite` (`SqliteDbProvider`) |
 | `@jini-ai/ui` | `@excalidraw/excalidraw` | `./sketch-editor` |
-| `@jini-ai/ui` | `lexical`, `@lexical/react`, `@lexical/utils` | `./lexical-rich-text-editor` |
 | `@jini-ai/ui` | `@radix-ui/react-checkbox`, `@radix-ui/react-label`, `@radix-ui/react-radio-group`, `@radix-ui/react-select`, `@radix-ui/react-slot` | `./interactive-ui` (shadcn provider components) |
 | `@jini-ai/ui` | `recharts` | `./interactive-ui` (chart provider components) |
 | `@jini-ai/ui` | `@mcp-ui/client` | `./mcp-ui` (`McpUiHost`) |

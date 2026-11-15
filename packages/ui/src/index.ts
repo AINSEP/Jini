@@ -38,7 +38,7 @@
  *   fallback. Choosing one fallback for both would change public behavior.
  *
  * Heavy editors use dedicated @jini-ai/ui/sketch-editor and
- * @jini-ai/ui/lexical-rich-text-editor entries so ordinary root imports do not
+ * @jini-ai/ui/html-editor entries so ordinary root imports do not
  * load their editor dependencies. See packages/ui/README.md for package scope.
  */
 export * from './features/i18n/index.js';

@@ -62,7 +62,6 @@ The root feature inventory is in `api.spec.md`; family members use their exporte
 | `data-color-scheme="light"|"dark"` | Consumer-selected palette; no automatic system listener |
 | `--see-more-lines` | Per-instance text-clamp count |
 | `--jini-mcpui-*` | Separate self-contained MCP surface token family; tokens are embedded into generated HTML |
-| `--rich-text-mention-color` | Inline mention-color property supplied by the Lexical mention-color hook |
 
 Theme target/document are injected. Body-portaled menus/tooltips inherit from the body/root, so a narrowly scoped theme does not automatically reach those portals; consumers choose the scope. Font loading uses stylesheet URLs. Validation excludes arbitrary CSS fragments; it does not measure contrast or certify font availability.
 

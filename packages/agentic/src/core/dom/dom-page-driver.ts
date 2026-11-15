@@ -783,7 +783,7 @@ export function createDomPageDriver({ root, pages }: DomPageDriverRequired, opti
  * case and for a real browser that reports the command did not run.
  *
  * Verified 2026-07-26 in Chromium against real Lexical 0.36.2 — the editor
- * `packages/ui/src/features/lexical-rich-text-editor/` is built on — driving both paths at one editor each
+ * `@jini-ai/ui`'s former lexical-rich-text-editor (deleted 2026-11, see git history) was built on — driving both paths at one editor each
  * and reading back Lexical's own `EditorState`, not the DOM. The `textContent` write left the
  * model at its seed value and was reverted in the DOM too; the `execCommand` path landed in the
  * model. That is the whole reason this function exists, and no unit test in this repo can show it.

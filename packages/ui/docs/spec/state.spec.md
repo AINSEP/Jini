@@ -97,7 +97,6 @@ Evidence: UI registry and A2UI adapter/hook/renderer source; interpreter source 
 
 Browser history hook loads scope-keyed history through `BrowserHistoryStoragePort`, reloads on scope change, and debounce-saves on state change (default 140ms). clearHistory immediately saves an empty list; cleanup cancels pending debounce without flushing. Wired variant uses browser localStorage with SSR guards; a custom port defines other persistence semantics. Browser navigation stacks, selectors, expanded rows, drafts and per-feature detail caches otherwise live in mounted hooks and follow their injected ports.
 
-Lexical mention parsing caches its token trie in a WeakMap keyed by the mention array reference. Supply a new array when entities/tokens change; mutating an existing array is not detected. No durable index or cache flush API exists.
 
 Syntax highlighting shares a module-level lazy highlighter promise and a 128-entry insertion-order cache keyed by resolved light/dark, language and code. Cache hits do not promote recency. Unsupported language returns an empty string; highlighter-load rejection remains cached in the promise. Theme resolution uses data-theme or system preference (server default light), independently of the admin theme's data-color-scheme attribute. No public reset/dispose or persistence exists.
 
@@ -109,4 +108,4 @@ Theme application leases font links per injected document and captures target va
 
 Web observability has a module-level installed flag: repeated install returns a no-op disposer, first disposer best-effort tears down observers and permits a later install. Individual browser observers no-op when unsupported. Stuck-run watch map uses runId; start replaces prior timer/state, progress reschedules until stuck, terminal clears and may report recovery. Default stuck threshold is 300000ms. There is no persisted run registry.
 
-Editor state lives in mounted peers: HTML editor loads initial content/protection/canvas styling once, flush commits current RTE session before caller save/unmount; RichTextInput uses a Lexical editor plus controlled text/mention callbacks; SketchEditor reports scene/save/export through host callbacks. None is a persistence store.
+Editor state lives in mounted peers: HTML editor loads initial content/protection/canvas styling once, flush commits current RTE session before caller save/unmount; SketchEditor reports scene/save/export through host callbacks. None is a persistence store.
