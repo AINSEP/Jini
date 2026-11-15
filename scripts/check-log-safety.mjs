@@ -29,7 +29,8 @@
  *   `describeErrorForLog` and the scripts' `errorClassLabel` take a caught value safely.
  * - `stored-error-text`: `.message` / `.stack` of a caught value (`err.message`, `ctx.error.stack`)
  *   or `String(<caught value>)` stored under an `error`, `errorMessage`, `errorText`, `detail`,
- *   `reason` or `cause` field (a manifest entry, a report row, a trace record).
+ *   `reason` or `cause` field (a manifest entry, a report row, a trace record); `.message` / `.stack`
+ *   assigned to such a field (`entry.error = error.message`) too.
  * Not traced: data flow through intermediate variables, sinks with other names, and stored fields
  * with other names (`{ message: error.message }` is mostly a caller answer). Those stay explicit
  * rows in the design (jini-errors.md) and are fixed by reading.
@@ -111,6 +112,8 @@ const restrictedSyntax = [
   { category: 'error-helper', selector: `${TEXT_SINK} CallExpression:not([callee.name=${NOT_A_HELPER}]) > MemberExpression[property.name=${ERROR_NAME}]:matches(${ARGUMENT_POSITION})` },
   { category: 'stored-error-text', selector: `Property[key.name=${STORED_FIELD}] MemberExpression:matches([object.name=${ERROR_NAME}], [object.property.name=${ERROR_NAME}])[property.name=${MESSAGE_OR_STACK}]` },
   { category: 'stored-error-text', selector: `Property[key.name=${STORED_FIELD}] CallExpression[callee.name='String'] > ${CAUGHT}` },
+  // The same text assigned into a record (`entry.error = error.message`, a web-clone manifest entry).
+  { category: 'stored-error-text', selector: `AssignmentExpression[left.property.name=${STORED_FIELD}] MemberExpression:matches([object.name=${ERROR_NAME}], [object.property.name=${ERROR_NAME}])[property.name=${MESSAGE_OR_STACK}]` },
 ].map(({ category, selector }) => ({ selector, message: `log-safety/${category}: route the failure through describeErrorForLog, the Logger error bag or a host sink.` }));
 
 const categories = ['console', 'error-text', 'error-format', 'raw-error', 'error-helper', 'stored-error-text'];
