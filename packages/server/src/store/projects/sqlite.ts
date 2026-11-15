@@ -7,7 +7,7 @@
  * NOTE (neutral port): drops three OD-product columns with no generic engine equivalent —
  * `skill_id` (OD's agent-skill marketplace selection), `design_system_id` (OD's Design System
  * feature), and `applied_plugin_snapshot_id` (OD's plugin host). The already-ported
- * `packages/server/src/store/projects/sqlite.ts` projects table was pre-trimmed to match; see that file and `3bdace890^:packages/server/source-map.md`'s
+ * `packages/server/src/store/projects/sqlite.ts` projects table was pre-trimmed to match; see that file and `3bdace890^:packages/sqlite/source-map.md`'s
  * Design Decisions for the same drop list. The kernel-noun exclusion in `extraction-plan.md` §2.1
  * ("projects... conversations" are not kernel nouns) does not block this module for the same reason
  * it didn't block `conversations`: `concern-owned storage` is a generic *optional* storage adapter any
