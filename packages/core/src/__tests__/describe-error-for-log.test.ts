@@ -72,7 +72,7 @@ test('names every built-in class, the core ToolInputError and the well-known abo
   assert.equal(describeErrorForLog({ err: new ReferenceError('x') }), 'ReferenceError');
   assert.equal(describeErrorForLog({ err: new URIError('x') }), 'URIError');
   assert.equal(describeErrorForLog({ err: new EvalError('x') }), 'EvalError');
-  assert.equal(describeErrorForLog({ err: new ToolInputError('BAD_INPUT: x') }), 'ToolInputError');
+  assert.equal(describeErrorForLog({ err: new ToolInputError({ message: 'BAD_INPUT: x' }) }), 'ToolInputError');
   assert.equal(describeErrorForLog({ err: new DOMException(`stopped ${SECRET}`, 'AbortError') }), 'AbortError');
   assert.equal(describeErrorForLog({ err: new DOMException('x', 'TimeoutError') }), 'TimeoutError');
   assert.equal(describeErrorForLog({ err: Object.assign(new Error('x'), { name: 'AbortError', code: 'ABORT_ERR' }) }), 'AbortError(ABORT_ERR)');
