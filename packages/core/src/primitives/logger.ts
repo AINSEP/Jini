@@ -27,12 +27,18 @@ const TOO_DEEP_VALUE = '[nested too deep]';
 /** Bounds per call: a log line is not a data dump, and a cycle must end. */
 const MAX_META_DEPTH = 4;
 const MAX_META_ENTRIES = 50;
+/** Payload keys: whatever sits under them is a caught value or its text, so it is described, never
+ *  printed. `message`/`stack` belong here too: the line already has its own message. */
+const PAYLOAD_KEY = /^(error|err|reason|cause|message|stack)$/;
 
 /**
- * Meta as a default sink may write it, at every depth: `error`/`reason` keys and any `Error` become
- * `describeErrorForLog` text (class + approved code); plain objects and arrays are projected the same
+ * Meta as a default sink may write it, at every depth: a payload key (`error`, `err`, `reason`,
+ * `cause`, `message`, `stack`), any `Error`, and any error-shaped object (own `message` or `stack`:
+ * `throw { message }`, an upstream JSON error) become `describeErrorForLog` text (class + approved
+ * code, `object`/`string` for a non-Error); other plain objects and arrays are projected the same
  * way; any other object (a class instance, a Map, a response) becomes a fixed placeholder; strings,
- * numbers and booleans pass through as the caller's own structured fields (`runId`, counts).
+ * numbers and booleans under any other key pass through as the caller's own structured fields
+ * (`runId`, counts). A caught value under a non-payload key is the log-safety gate's finding.
  * Never throws: each field is read once inside a guard, so a throwing getter or a revoked Proxy
  * becomes `[unreadable]` instead of replacing the failure being logged. Originals reach only a host
  * `diagnostics` sink.
@@ -40,42 +46,52 @@ const MAX_META_ENTRIES = 50;
  */
 export function describeLogMeta(required: { meta: Record<string, unknown> }, _optional: Record<string, never> = {}): Record<string, unknown> {
   try {
-    return projectRecord({ record: required.meta, depth: 1 });
+    const { meta } = required;
+    // The whole meta can itself be a thrown plain object.
+    if (isErrorShaped({ value: meta })) return { meta: describeErrorForLog({ err: meta }) };
+    return projectRecord({ record: meta, depth: 1 });
   } catch {
     // Even the key list could not be read (a Proxy whose `ownKeys` throws): fixed words only.
     return { meta: UNREADABLE_VALUE };
   }
 }
 
-function projectRecord({ record, depth }: { record: object; depth: number }): Record<string, unknown> {
+/** An object carrying its own `message` or `stack`: a thrown value, whatever its prototype. May
+ *  throw on a hostile Proxy; every caller is inside a guard. */
+function isErrorShaped({ value }: { value: object }, _optional: Record<string, never> = {}): boolean {
+  return Object.prototype.hasOwnProperty.call(value, 'message') || Object.prototype.hasOwnProperty.call(value, 'stack');
+}
+
+function projectRecord({ record, depth }: { record: object; depth: number }, _optional: Record<string, never> = {}): Record<string, unknown> {
   const keys = Object.keys(record).slice(0, MAX_META_ENTRIES);
   return Object.fromEntries(keys.map(key => [key, projectEntry({ key, read: () => (record as Record<string, unknown>)[key], depth })]));
 }
 
-function projectArray({ list, depth }: { list: readonly unknown[]; depth: number }): unknown[] {
+function projectArray({ list, depth }: { list: readonly unknown[]; depth: number }, _optional: Record<string, never> = {}): unknown[] {
   const length = Math.min(list.length, MAX_META_ENTRIES);
   return Array.from({ length }, (_, index) => projectEntry({ key: String(index), read: () => list[index], depth }));
 }
 
 /** One field, read once and projected; a throwing read or check becomes fixed words. */
-function projectEntry({ key, read, depth }: { key: string; read: () => unknown; depth: number }): unknown {
+function projectEntry({ key, read, depth }: { key: string; read: () => unknown; depth: number }, _optional: Record<string, never> = {}): unknown {
   try {
     const value = read();
-    if (key === 'error' || key === 'reason' || value instanceof Error) return describeErrorForLog({ err: value });
+    if (PAYLOAD_KEY.test(key) || value instanceof Error) return describeErrorForLog({ err: value });
     return typeof value === 'object' && value !== null ? projectObject({ value, depth }) : projectScalar({ value });
   } catch {
     return UNREADABLE_VALUE;
   }
 }
 
-function projectObject({ value, depth }: { value: object; depth: number }): unknown {
+function projectObject({ value, depth }: { value: object; depth: number }, _optional: Record<string, never> = {}): unknown {
+  if (isErrorShaped({ value })) return describeErrorForLog({ err: value });
   if (depth >= MAX_META_DEPTH) return TOO_DEEP_VALUE;
   if (Array.isArray(value)) return projectArray({ list: value, depth: depth + 1 });
   const prototype = Object.getPrototypeOf(value);
   return prototype === Object.prototype || prototype === null ? projectRecord({ record: value, depth: depth + 1 }) : OPAQUE_VALUE;
 }
 
-function projectScalar({ value }: { value: unknown }): unknown {
+function projectScalar({ value }: { value: unknown }, _optional: Record<string, never> = {}): unknown {
   if (typeof value === 'function') return FUNCTION_VALUE;
   if (typeof value === 'symbol') return SYMBOL_VALUE;
   // JSON cannot write a bigint; its digits are the caller's own number.
@@ -92,7 +108,7 @@ function projectScalar({ value }: { value: unknown }): unknown {
  * @complexity O(projected meta, see `describeLogMeta`) per call.
  */
 export function createConsoleLogger({ prefix }: { prefix: string }, { diagnostics }: { diagnostics?: LogDiagnosticsSink } = {}): Logger {
-  const write = (level: LogDiagnosticRecord['level'], message: string, optional: { meta?: Record<string, unknown>; error?: unknown }) => {
+  const write = ({ level, message }: { level: LogDiagnosticRecord['level']; message: string }, optional: { meta?: Record<string, unknown>; error?: unknown } = {}) => {
     const line = prefix ? `${prefix} ${message}` : message;
     const args: unknown[] = [line];
     if (optional.meta !== undefined) args.push(describeLogMeta({ meta: optional.meta }));
@@ -101,13 +117,13 @@ export function createConsoleLogger({ prefix }: { prefix: string }, { diagnostic
     if (diagnostics !== undefined) deliverDiagnostics({ diagnostics, record: { level, message: line, ...optional } });
   };
   return {
-    info: ({ message }, optional = {}) => write('info', message, optional),
-    warn: ({ message }, optional = {}) => write('warn', message, optional),
-    error: ({ message }, optional = {}) => write('error', message, optional),
+    info: ({ message }, optional = {}) => write({ level: 'info', message }, optional),
+    warn: ({ message }, optional = {}) => write({ level: 'warn', message }, optional),
+    error: ({ message }, optional = {}) => write({ level: 'error', message }, optional),
   };
 }
 
-function deliverDiagnostics({ diagnostics, record }: { diagnostics: LogDiagnosticsSink; record: LogDiagnosticRecord }): void {
+function deliverDiagnostics({ diagnostics, record }: { diagnostics: LogDiagnosticsSink; record: LogDiagnosticRecord }, _optional: Record<string, never> = {}): void {
   try {
     diagnostics(record);
   } catch (sinkError) {

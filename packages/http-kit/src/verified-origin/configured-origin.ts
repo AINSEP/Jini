@@ -69,9 +69,13 @@ export function resolveConfiguredOrigin(required: ConfiguredOriginRequired): Ver
   const { env, envVarName, clock, warn } = required;
   const raw = env[envVarName]?.trim();
   if (!raw) return undefined;
-  const refuse = (reason: string): undefined => {
-    warn(`${envVarName} is set but was refused as this deployment's public origin (${reason}); ` +
-      `no origin was registered from it. Value: ${raw}`);
+  // The refused value is never echoed: it may be refused precisely because it carries userinfo or a
+  // query/fragment credential, and the warning reaches the operator's console and logs. The refusal
+  // is fixed words (a loopback refusal names only the host).
+  const refuse = (refusal: string): undefined => {
+    warn(`${envVarName} is set but was refused as this deployment's public origin (${refusal}); ` +
+      `no origin was registered from it. Set ${envVarName} to this site's public https address, ` +
+      "with no user name, password, query string or fragment.");
     return undefined;
   };
   const url = parseConfiguredUrl(raw);
