@@ -25,6 +25,30 @@ function inputOfType(container: HTMLElement, type: string): HTMLInputElement {
 }
 
 describe('QuestionForm', () => {
+  it('gives every free-input control the question label as its spoken name', () => {
+    const q = questionForm([
+      { id: 't', label: 'Project name', type: 'text' },
+      { id: 'n', label: 'Team size', type: 'number' },
+      { id: 'a', label: 'Summary', type: 'textarea' },
+      { id: 's', label: 'Region', type: 'select', options: [{ label: 'EU', value: 'eu' }] },
+      { id: 'e', label: 'Contact email', type: 'email' },
+      { id: 'r', label: 'Budget', type: 'range', min: 0, max: 10 },
+      { id: 'w', label: 'Agree', type: 'switch' },
+      { id: 'c', label: 'Accent color', type: 'color' },
+      { id: 'f', label: 'Logo file', type: 'file' },
+    ]);
+    render(<QuestionForm form={q} interactive onSubmit={vi.fn()} />);
+    expect(screen.getByRole('textbox', { name: 'Project name' })).toBeInTheDocument();
+    expect(screen.getByRole('spinbutton', { name: 'Team size' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Summary' })).toBeInTheDocument();
+    expect(screen.getByRole('combobox', { name: 'Region' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Contact email' })).toBeInTheDocument();
+    expect(screen.getByRole('slider', { name: 'Budget' })).toBeInTheDocument();
+    expect(screen.getByRole('switch', { name: 'Agree' })).toBeInTheDocument();
+    expect(screen.getByLabelText('Accent color')).toHaveAttribute('type', 'color');
+    expect(screen.getByLabelText('Logo file')).toHaveAttribute('type', 'file');
+  });
+
   it('disables submit until the required question is answered', async () => {
     const onSubmit = vi.fn();
     render(<QuestionForm form={form} interactive onSubmit={onSubmit} />);

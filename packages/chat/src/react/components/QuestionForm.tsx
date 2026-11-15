@@ -290,7 +290,7 @@ function SelectControl(ctx: FieldContext) {
   if (!q.options) return null;
   return (
     <>
-      <select className="qf-select" value={typeof value === 'string' && questionValueIsKnown(q, value) ? value : ''} disabled={locked} onChange={(e) => update(q.id, e.target.value)}>
+      <select className="qf-select" aria-label={q.label} value={typeof value === 'string' && questionValueIsKnown(q, value) ? value : ''} disabled={locked} onChange={(e) => update(q.id, e.target.value)}>
         <option value="" disabled>
           {q.placeholder ?? t('Choose one')}
         </option>
@@ -328,7 +328,7 @@ function TextControl({ q, value, locked, update, t }: FieldContext) {
   if (type === 'password') {
     return <SecretInput {...secretProps} {...shared} aria-label={q.label} label={q.label} toggleLabels={{ show: `${t('Show')} ${q.label}`, hide: `${t('Hide')} ${q.label}` }} />;
   }
-  return <input {...props} {...shared} />;
+  return <input {...props} {...shared} aria-label={q.label} />;
 }
 
 /** A credential-shaped textarea gets the same eye toggle; `SecretTextarea` owns the masking style. */
@@ -338,12 +338,12 @@ function TextareaControl({ q, value, locked, update, t }: FieldContext) {
   if (isSecretQuestion({ question: q })) {
     return <SecretTextarea {...props} {...shared} aria-label={q.label} label={q.label} toggleLabels={{ show: `${t('Show')} ${q.label}`, hide: `${t('Hide')} ${q.label}` }} />;
   }
-  return <textarea {...props} {...shared} />;
+  return <textarea {...props} {...shared} aria-label={q.label} />;
 }
 
 /** date/time/datetime-local and url/email/tel share one plain input whose `type` is the question type. */
 function TypedInputControl({ q, value, locked, update }: FieldContext) {
-  return <input type={q.type} className="qf-input" value={stringValue(value)} placeholder={q.placeholder} disabled={locked} onChange={(e) => update(q.id, e.target.value)} />;
+  return <input type={q.type} className="qf-input" aria-label={q.label} value={stringValue(value)} placeholder={q.placeholder} disabled={locked} onChange={(e) => update(q.id, e.target.value)} />;
 }
 
 const QUESTION_CONTROLS: Record<Question['type'], (ctx: FieldContext) => ReactNode> = {
@@ -352,10 +352,10 @@ const QUESTION_CONTROLS: Record<Question['type'], (ctx: FieldContext) => ReactNo
   select: SelectControl,
   'direction-cards': DirectionCardsControl,
   text: TextControl,
-  number: ({ q, value, locked, update }) => <input type="number" className="qf-input" value={stringValue(value)} placeholder={q.placeholder} min={q.min} max={q.max} step={q.step} disabled={locked} onChange={(e) => update(q.id, e.target.value)} />,
+  number: ({ q, value, locked, update }) => <input type="number" className="qf-input" aria-label={q.label} value={stringValue(value)} placeholder={q.placeholder} min={q.min} max={q.max} step={q.step} disabled={locked} onChange={(e) => update(q.id, e.target.value)} />,
   range: ({ q, value, locked, update }) => (
     <div className="qf-range-wrap">
-      <input type="range" className="qf-range" value={rangeValue(q, value)} min={q.min} max={q.max} step={q.step} disabled={locked} onChange={(e) => update(q.id, e.target.value)} />
+      <input type="range" className="qf-range" aria-label={q.label} value={rangeValue(q, value)} min={q.min} max={q.max} step={q.step} disabled={locked} onChange={(e) => update(q.id, e.target.value)} />
       <output className="qf-range-value">{rangeValue(q, value)}</output>
     </div>
   ),
@@ -365,16 +365,16 @@ const QUESTION_CONTROLS: Record<Question['type'], (ctx: FieldContext) => ReactNo
   url: TypedInputControl,
   email: TypedInputControl,
   tel: TypedInputControl,
-  color: ({ q, value, locked, update }) => <input type="color" className="qf-color" value={normalizeColorInputValue(value)} disabled={locked} onChange={(e) => update(q.id, e.target.value)} />,
+  color: ({ q, value, locked, update }) => <input type="color" className="qf-color" aria-label={q.label} value={normalizeColorInputValue(value)} disabled={locked} onChange={(e) => update(q.id, e.target.value)} />,
   file: ({ q, value, locked, selectFiles }) => (
     <div className="qf-file-wrap">
-      <input type="file" className="qf-file" multiple={q.multiple} accept={q.accept} disabled={locked} onChange={(e) => selectFiles(q, e.target.files)} />
+      <input type="file" className="qf-file" aria-label={q.label} multiple={q.multiple} accept={q.accept} disabled={locked} onChange={(e) => selectFiles(q, e.target.files)} />
       {fileValueLabel(value) ? <div className="qf-file-summary">{fileValueLabel(value)}</div> : null}
     </div>
   ),
   switch: ({ q, value, locked, update }) => (
     <label className="qf-switch">
-      <input type="checkbox" role="switch" checked={value === 'true'} disabled={locked} onChange={(e) => update(q.id, e.target.checked ? 'true' : 'false')} />
+      <input type="checkbox" role="switch" aria-label={q.label} checked={value === 'true'} disabled={locked} onChange={(e) => update(q.id, e.target.checked ? 'true' : 'false')} />
       <span aria-hidden />
     </label>
   ),
