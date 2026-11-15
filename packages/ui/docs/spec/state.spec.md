@@ -97,7 +97,6 @@ Evidence: UI registry and A2UI adapter/hook/renderer source; interpreter source 
 
 Browser history hook loads scope-keyed history through `BrowserHistoryStoragePort`, reloads on scope change, and debounce-saves on state change (default 140ms). clearHistory immediately saves an empty list; cleanup cancels pending debounce without flushing. Wired variant uses browser localStorage with SSR guards; a custom port defines other persistence semantics. Browser navigation stacks, selectors, expanded rows, drafts and per-feature detail caches otherwise live in mounted hooks and follow their injected ports.
 
-
 Syntax highlighting shares a module-level lazy highlighter promise and a 128-entry insertion-order cache keyed by resolved light/dark, language and code. Cache hits do not promote recency. Unsupported language returns an empty string; highlighter-load rejection remains cached in the promise. Theme resolution uses data-theme or system preference (server default light), independently of the admin theme's data-color-scheme attribute. No public reset/dispose or persistence exists.
 
 ## Locale, theme and observers
