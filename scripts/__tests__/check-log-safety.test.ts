@@ -62,6 +62,8 @@ describe('log-safety selectors', () => {
     expect(categories('logger.warn({ message: "failed" }, { meta: { error: err, runId } });')).toEqual([]);
     expect(categories('deps.logger.error({ message: "failed" }, { error: ctx.error });')).toEqual([]);
     expect(categories('this.auditLogger.warn({ message: "failed" }, { error });')).toEqual([]);
+    expect(categories('createConsoleLogger({ prefix: "" }).error({ message: "failed" }, { error: context.error });')).toEqual([]);
+    expect(categories('createConsoleLogger({ prefix: "" }).error({ message: "failed" }, { error: redactSecrets({ input: inspect(context.error) }) });')).toEqual(['error-format', 'error-helper']);
   });
 
   test('leaves the sanctioned routes alone', () => {
