@@ -31,6 +31,9 @@
  *   or `String(<caught value>)` stored under an `error`, `errorMessage`, `errorText`, `detail`,
  *   `reason` or `cause` field (a manifest entry, a report row, a trace record); `.message` / `.stack`
  *   assigned to such a field (`entry.error = error.message`) too.
+ * - `console-logger`: a `logger` / `*Logger` / `required` / `deps` parameter or property typed
+ *   `Console` (`Pick<Console, ...>`) or defaulting to `console`. The error-bag exemption above
+ *   trusts the receiver's name, so such a holder must be a core `Logger` by construction.
  * Not traced: data flow through intermediate variables, sinks with other names, and stored fields
  * with other names (`{ message: error.message }` is mostly a caller answer). Those stay explicit
  * rows in the design (jini-errors.md) and are fixed by reading.
@@ -114,9 +117,13 @@ const restrictedSyntax = [
   { category: 'stored-error-text', selector: `Property[key.name=${STORED_FIELD}] CallExpression[callee.name='String'] > ${CAUGHT}` },
   // The same text assigned into a record (`entry.error = error.message`, a web-clone manifest entry).
   { category: 'stored-error-text', selector: `AssignmentExpression[left.property.name=${STORED_FIELD}] MemberExpression:matches([object.name=${ERROR_NAME}], [object.property.name=${ERROR_NAME}])[property.name=${MESSAGE_OR_STACK}]` },
+  // The error-bag exemption trusts the receiver's name, so a logger-named holder must be a core
+  // Logger by construction: one typed as Console, or defaulting to `console`, is reported.
+  { category: 'console-logger', selector: `:matches(TSPropertySignature[key.name=${LOGGER_RECEIVER}], PropertyDefinition[key.name=${LOGGER_RECEIVER}], Identifier[name=${LOGGER_RECEIVER}] > TSTypeAnnotation) TSTypeReference[typeName.name='Console']` },
+  { category: 'console-logger', selector: `AssignmentPattern[left.name=${LOGGER_RECEIVER}][right.name='console']` },
 ].map(({ category, selector }) => ({ selector, message: `log-safety/${category}: route the failure through describeErrorForLog, the Logger error bag or a host sink.` }));
 
-const categories = ['console', 'error-text', 'error-format', 'raw-error', 'error-helper', 'stored-error-text'];
+const categories = ['console', 'error-text', 'error-format', 'raw-error', 'error-helper', 'stored-error-text', 'console-logger'];
 
 /** The ESLint flat config of the gate: only these rules, inline directives ignored. */
 export function logSafetyConfig() {
