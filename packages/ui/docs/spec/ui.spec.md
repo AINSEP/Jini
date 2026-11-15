@@ -26,7 +26,6 @@ React components use one props object; event callbacks retain their currently de
 | ViewerShell/version manager/HTML viewer | File/preview/version data and host action callbacks | Viewport controls, file actions, comment side panel/dock, markdown split/code/media bodies; version transport and clipboard ports |
 | List-detail, mention, schedule, palette/launcher, revisions, dropzone | Items/configuration/selection and declared callback/port inputs | Render callbacks and labels; scheduling/navigation/history/import semantics remain consumer-owned |
 | SketchEditor | scene, fileName, onSceneChange(scene,options?), onSave(scene?) | Engine port, export/clear/open callbacks, save state, theme hook and DOM/menu/tooltip/localization overrides |
-| RichTextInput | placeholder, value, knownMentions, text+mention change callback, trigger callback, submit callback, popoverOpen, popover-key handler | ref handle, pasted files, combobox/listbox metadata, custom triggers, mention colors and namespace |
 | InteractiveHtmlEditor | html, onChange(html) | ref flush handle, protection predicate, canvas CSS/wrapper/style assets, embed placeholders and className |
 | McpUiHost | HTML, sandboxProxyUrl and title | tool/link/size/event callbacks, host context/info, session key, timeout, wrapper class/height controls |
 | Interactive providers | Props accepted by each exported manifest's Zod schema | Table row callback, button/form callbacks and chart/field presentation; caller must validate wire props before direct rendering |
@@ -43,7 +42,6 @@ The root feature inventory is in `api.spec.md`; family members use their exporte
 - Source-config optional port methods control the visibility of refresh/trust/edit/test actions. Similar optional execution/install/location capabilities determine their controls; a missing method is not a failed attempt.
 - Sketch engine DI replaces the actual Excalidraw canvas/menu/export engine. save/export callbacks own persistence. Editor DOM overrides are editor-specific display adapters, not a global translation service.
 - HTML editor's initial HTML, protection predicate, canvas styling and embed-descriptor callback are mount-time inputs. Remount to switch documents/configuration. onChange reports edited output; await handle.flush before a save that must include an open RTE session. Canvas decorations/styles/wrapper are display aids and excluded from saved content.
-- RichTextInput is plain text with atomic mention nodes, not a block rich-text editor. Host manages suggestion/popover state and supplies mention identity/category vocabulary. Imperative ref methods are the supported text/mention insertion interface.
 - A2UI fallback is used without a root. Missing/cyclic/unsupported nodes get visible placeholders. Dynamic template lists are unimplemented. Registry components receive props and an onRowClick shim; other provider action callbacks are not universally translated to interpreter actions.
 
 ## Theme contract
@@ -79,7 +77,6 @@ MCP generated documents embed their own tokens and default force-light setting; 
 | TabbedDialog | Modal mode uses role dialog/aria-modal; inline uses region without aria-modal. Named close/fullscreen/sidebar controls, pressed states, sidebar name. Host must ensure ids are unique when mounting multiple instances; default sidebar id is fixed. Shell does not supply a general focus trap. |
 | Spinner/skeleton | Spinner role status, polite live region; skeletons aria-hidden. Provide descriptive loading labels for user-facing loads. |
 | Focus trap | Most recently active container traps Tab boundaries, excluding hidden/disabled/inert descendants. Host manages initial focus, restore focus and modal background behavior. |
-| RichTextInput | Supports host combobox active-id/expanded/listbox association; navigation/submit callbacks honor editor keyboard handling and atomic mentions. Host owns suggestion list semantics. |
 | MCP fields | Native labelled input/select/group markup; hint associations, required/disabled states and status region. Caller owns readable labels, meaningful action copy and server-side validation. |
 | MCP/artifact frames | MCP title labels its wrapper; its client-generated iframe has no title attribute. SrcDocSandbox supplies an iframe title. Consumer must inspect iframe content accessibility separately. |
 | Interactive UI | Native/shadcn field controls and semantic data tables; charts have provider-defined presentation. Schema validity does not imply accessible labels, contrast or chart descriptions. |
