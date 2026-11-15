@@ -129,7 +129,7 @@ describe('readOAuthTokenFile', () => {
   it('re-throws an unexpected (non-ENOENT, non-SyntaxError) read error', async () => {
     // Mocked rather than induced via real file permissions: this sandbox
     // runs as root, where chmod 000 does not actually deny a root reader
-    // (see packages/agent-runtime/archived provenance ledger's launch.test.ts note for
+    // (see 070311a07^:packages/agent-runtime/source-map.md's launch.test.ts note for
     // the same pre-existing environment caveat), so a real permission
     // error can't be reproduced here.
     fsMockState.readFileImpl = async () => {

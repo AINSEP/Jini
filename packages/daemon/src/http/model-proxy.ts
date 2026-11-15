@@ -58,7 +58,7 @@
  *
  * **Tool execution is out of scope for this pass.** `ModelProxyHttpDeps`'s
  * `executeTool` hooks are optional and default to unset, matching
- * `packages/deploy/archived provenance ledger`'s precedent for "deferred real
+ * `f0a771d88^:packages/deploy/source-map.md`'s precedent for "deferred real
  * `ToolExecutor` wiring." With no executor supplied, a turn still streams
  * back any `tool_use`/`tool_calls` the model requests (so a caller can act
  * on them itself and start a fresh request with the results appended to

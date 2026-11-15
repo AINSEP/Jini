@@ -6,7 +6,7 @@
  * process or launched editor run in?" OD answers that with
  * `ctx.projectStore.getProject` + `ctx.projectFiles.resolveProjectDir` — a
  * project-store lookup plus a metadata-driven directory resolver, both
- * product-specific (see `packages/http/archived provenance ledger`'s routes-classification
+ * product-specific (see `5bd5e6b3d^:packages/http/source-map.md`'s routes-classification
  * table, rows `#11 terminal.ts` and `#23 host-tools.ts`, both of which name
  * exactly this dependency as the reason `POST /api/projects/:id/open-in` and
  * the interactive-terminal spawn route were not ported earlier). The kernel

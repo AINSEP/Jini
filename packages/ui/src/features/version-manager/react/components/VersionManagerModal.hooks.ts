@@ -7,7 +7,7 @@ export function useVersionManagerEscape({ onClose }: { onClose: () => void }, _o
   // via `useDismissOnOutsideOrEscape`, so this only needs to know whether
   // to let Escape reach the modal itself. Simplified from the source's
   // single-listener if/else priority chain to two independently-scoped
-  // listeners plus this modal-level one; see source-map.md for why this is
+  // listeners plus this modal-level one; see 070311a07^:packages/ui/source-map.md for why this is
   // a disclosed, behavior-preserving-in-practice simplification.
   //
   // `promptOpenRef` is how the modal knows "to let Escape reach the modal

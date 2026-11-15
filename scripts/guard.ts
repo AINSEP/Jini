@@ -93,7 +93,7 @@ async function main() {
     checkSubpathIsolation(),
     await checkProtocolPurity(),
     // domSubdir override: the DOM-bearing tree moved from src/dom to src/core/dom (see
-    // packages/agentic/source-map.md's "The DOM split") when the ./core export subpath was added;
+    // 070311a07^:packages/agentic/source-map.md's "The DOM split") when the ./core export subpath was added;
     // the check's own default stays src/dom for scripts/lib/self-test.ts's fixtures — see
     // CheckAgenticDomPurityOptions.domSubdir's doc in check-agentic-dom-purity.ts.
     await checkAgenticDomPurity({ domSubdir: 'src/core/dom' }),

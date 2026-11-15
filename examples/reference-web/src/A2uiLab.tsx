@@ -11,7 +11,7 @@ import { A2uiSurfaceCard, registerExtEventRenderer } from '@jini-ai/chat/react';
  * `daemon.ts`'s `runA2uiDemo`), interpreted by `@jini-ai/agentic/a2ui`'s headless interpreter, and rendered
  * by the small React renderer below (Column/Row/Text/Button — the catalog validates all 18 of the
  * real basic catalog's components, but rendering still only draws these 4; see
- * `packages/agentic/source-map.md`'s "Folded from `@jini-ai/a2ui`" section for the renderer-coverage gap). Clicking the button builds a real,
+ * `070311a07^:packages/agentic/source-map.md`'s "Folded from `@jini-ai/a2ui`" section for the renderer-coverage gap). Clicking the button builds a real,
  * spec-shaped `action` envelope and POSTs it to a dedicated relay (`/a2ui-action`, proxied to
  * `daemon.ts`'s `startA2uiActionRelay`), which delivers it back into the running daemon-side demo —
  * a genuine renderer -> agent round trip, not a client-only simulation.
@@ -59,7 +59,7 @@ async function readApiError(response: Response): Promise<Error> {
   }
 }
 
-/** Renders one component and its children by walking the surface's component map from `componentId`, degrading sanely (a visible, inert placeholder, never a crash) for a missing child id or a circular reference — the two adversarial cases `packages/agentic/src/a2ui/tree.ts` is built to answer. Only the static-array `ChildList` form is walked; a template (dynamic-list) `children` value renders a documented "not implemented" placeholder instead of expanding — see `packages/agentic/source-map.md`. */
+/** Renders one component and its children by walking the surface's component map from `componentId`, degrading sanely (a visible, inert placeholder, never a crash) for a missing child id or a circular reference — the two adversarial cases `packages/agentic/src/a2ui/tree.ts` is built to answer. Only the static-array `ChildList` form is walked; a template (dynamic-list) `children` value renders a documented "not implemented" placeholder instead of expanding — see `070311a07^:packages/agentic/source-map.md`. */
 function RenderComponent({
   interpreter,
   surfaceId,

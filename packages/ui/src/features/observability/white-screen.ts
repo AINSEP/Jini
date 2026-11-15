@@ -129,7 +129,7 @@ function checkAppMounted(options: CheckAppMountedOptions): boolean {
   // `installWhiteScreenDetector`, itself only ever reachable after that
   // function's own `typeof document === 'undefined'` guard has already
   // passed — a second check here was dead code for every real call,
-  // removed rather than tested around (see packages/ui/archived provenance ledger's
+  // removed rather than tested around (see 070311a07^:packages/ui/source-map.md's
   // 2026-07-22 dated entry).
   // Primary signal: the host's root-mount effect ran.
   if (document.documentElement.getAttribute(options.mountedAttribute) === options.mountedAttributeValue) {

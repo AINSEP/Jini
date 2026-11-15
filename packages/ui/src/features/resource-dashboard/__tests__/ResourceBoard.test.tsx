@@ -12,7 +12,7 @@ import type { ResourceBoardItem, ResourceStatusOption } from '../types.js';
 // clearing it between tests, one test's persisted view-mode choice (e.g.
 // clicking "Kanban view") leaks into every later test in this file — see
 // `useResourceBoard.test.ts` for the first time this exact pitfall was
-// caught (documented in `packages/ui/source-map.md`).
+// caught (documented in `070311a07^:packages/ui/source-map.md`).
 beforeEach(() => {
   window.localStorage.clear();
 });

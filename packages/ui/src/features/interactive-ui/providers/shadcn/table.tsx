@@ -1,6 +1,6 @@
 /**
  * Ported from `npx shadcn@latest add table` (real CLI run, 2026-08-08, against a
- * scratch Vite+Tailwind v4 project — see source-map.md). Only the `cn` import path changed
+ * scratch Vite+Tailwind v4 project — see 070311a07^:packages/ui/source-map.md). Only the `cn` import path changed
  * (`@/lib/utils` -> `./lib/utils.js`, this monorepo's relative-import convention); every
  * retained class name, `data-slot` attribute, and prop shape below is unmodified CLI output.
  * Unused private footer and caption primitives are omitted.

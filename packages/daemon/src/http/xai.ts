@@ -6,7 +6,7 @@
  * from OD's real `apps/daemon/src/routes/xai.ts` (read directly in the sibling
  * `/Users/la/Desktop/Programming/OSS-Repos/open-design` checkout on this machine, per this repo's
  * "verify against the real source, don't guess" convention), and from that same file's own
- * `packages/http/archived provenance ledger` routes-classification row #27 ("MIXED, OD-leaning... the OAuth
+ * `5bd5e6b3d^:packages/http/source-map.md` routes-classification row #27 ("MIXED, OD-leaning... the OAuth
  * start/complete/status/cancel/disconnect shape is a recognizable generic pattern, but this file is
  * fused to a transitional xAI PoC arrangement"). Deliberately left out of the 2026-07-22
  * azure/google/ollama/connectors/health/research route-parity pass pending a product decision on

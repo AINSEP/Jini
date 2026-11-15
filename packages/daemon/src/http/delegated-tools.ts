@@ -5,7 +5,7 @@ import type { DelegatedResultCorrelation } from '../delegated-result-correlation
  * @module delegated-tools
  *
  * `POST /api/delegated-tool-calls` — the daemon-side half of gap 3's MCP-callback continuation
- * transport spike (see `packages/daemon/archived provenance ledger`'s "run/chat orchestration gap 3, part 1"
+ * transport spike (see `070311a07^:packages/daemon/source-map.md`'s "run/chat orchestration gap 3, part 1"
  * addition and this package's own dated section in `archived provenance ledger`). The swarm-consensus Final
  * Recommendation asked for exactly this round trip: "inject the already-shipped MCP host into
  * one MCP-capable CLI's launch config, prove a tool round-trip through the existing

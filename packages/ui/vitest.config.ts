@@ -10,7 +10,7 @@ export default defineConfig({
     // Package-wide default is jsdom (most tests in this package touch the
     // DOM). The few tests that assert real SSR/no-DOM behavior (e.g.
     // utils/dom-subscriptions, utils/zip) opt back into Node per-file via a
-    // `// @vitest-environment node` pragma — see packages/ui/archived provenance ledger.
+    // `// @vitest-environment node` pragma — see 070311a07^:packages/ui/source-map.md.
     environment: 'jsdom',
     // `src/__tests__/features/**`, `src/__tests__/utils/**`, and
     // `src/__tests__/rules.test.ts` are the former `@jini-ai/ui-core`
@@ -88,7 +88,7 @@ export default defineConfig({
         // the package, each re-verified zero-runtime-declaration via the
         // same `grep -nE '^(export )?(const|function|class|let|var) '`
         // check (plus a broader `enum|default` sweep) before being added
-        // here — see packages/ui/archived provenance ledger's dated entry for the full
+        // here — see 070311a07^:packages/ui/source-map.md's dated entry for the full
         // file-by-file record.
         'src/features/asset-grid/ports.ts',
         'src/features/asset-grid/types.ts',

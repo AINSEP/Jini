@@ -3,7 +3,7 @@
  *
  * `execute_delegated_tool` and its read-only companion `execute_readonly_delegated_tool` — the
  * MCP-callback half of gap 3's continuation transport (see
- * `packages/daemon/archived provenance ledger`'s "run/chat orchestration gap 3, part 1" addition and this
+ * `070311a07^:packages/daemon/source-map.md`'s "run/chat orchestration gap 3, part 1" addition and this
  * package's own dated section in `archived provenance ledger` for the rest of the spike). The swarm-consensus
  * Final Recommendation asked for exactly this: "inject the already-shipped MCP host into one
  * MCP-capable CLI's launch config, prove a tool round-trip through the existing

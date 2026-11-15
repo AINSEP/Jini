@@ -4,7 +4,7 @@
 // Forced to the `node` environment (overriding this package's package-wide
 // `jsdom` default, added by the parallel i18n/observability porting task)
 // because jsdom's `Blob` shim doesn't implement `.arrayBuffer()` the way
-// Node's native `Blob` does — see `packages/ui/archived provenance ledger`.
+// Node's native `Blob` does — see `070311a07^:packages/ui/source-map.md`.
 import { describe, expect, it } from 'vitest';
 import { buildZip } from '../zip.js';
 

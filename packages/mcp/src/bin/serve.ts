@@ -4,7 +4,7 @@
  *
  * The bootable `jini-mcp` binary (`package.json`'s `"bin": { "jini-mcp": "./dist/bin/serve.js" }`)
  * — the real executable entry point gap 3's MCP-callback continuation-transport spike needed and
- * did not have (see `packages/daemon/archived provenance ledger`'s "run/chat orchestration gap 3, part 1"
+ * did not have (see `070311a07^:packages/daemon/source-map.md`'s "run/chat orchestration gap 3, part 1"
  * addition, and this package's own dated section in `archived provenance ledger`). `../server/tool-server.js`'s
  * `createMcpToolServer` was always designed to run as *this process's own* stdio — meant to be a
  * script a client (Claude Code) spawns as its own child subprocess and talks to over that child's

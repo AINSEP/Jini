@@ -7,7 +7,7 @@
  * was copied from the real JSON Schema `$defs`, not guessed). A2UI is a real, versioned,
  * actively-maintained spec (v1.0 is a release candidate at the time this was written) for agents
  * to stream a declarative, catalog-whitelisted component tree + JSON-Pointer-bound data model to a
- * renderer. See `../archived provenance ledger` for provenance, what was verified against the primary source,
+ * renderer. See `070311a07^:packages/agentic/source-map.md` for provenance, what was verified against the primary source,
  * and — importantly — why this was hand-rolled from the JSON Schemas rather than built on the
  * official `@a2ui/web_core` npm package (materially version-drifted: see that doc).
  *

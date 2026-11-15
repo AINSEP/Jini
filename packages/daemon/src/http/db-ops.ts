@@ -204,7 +204,7 @@ export interface DaemonDbHttpDeps {
   /**
    * The identity these routes execute tool calls as. A fixed, host-supplied
    * value rather than derived per-request — this transport has no session/
-   * identity subsystem of its own (see `packages/http/archived provenance ledger`'s
+   * identity subsystem of its own (see `5bd5e6b3d^:packages/http/source-map.md`'s
    * `ExecutionDelegate` design-decision note); a host that needs per-request
    * principals should resolve one from its own auth layer and construct
    * `DaemonDbHttpDeps` per request, or supply a `ToolPolicy` that inspects

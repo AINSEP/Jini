@@ -17,7 +17,7 @@
  * unambiguous, fully-specified semantics reachable from the fetched schema text alone — the
  * others, e.g. `formatString`/`formatDate`, depend on locale/formatting semantics not pinned down
  * by the schema text, and are deliberately not guessed at). The remaining 11 functions are **not
- * implemented** — see `../archived provenance ledger` for the full gap list. `createLabCatalog()` also adds
+ * implemented** — see `070311a07^:packages/agentic/source-map.md` for the full gap list. `createLabCatalog()` also adds
  * three lab-only demo functions (`greetUser`/`logServerEvent`/`adminReset`, clearly not part of
  * the real basic catalog) purely to exercise all three `callableFrom` values end-to-end — the real
  * basic catalog's own 14 functions are all `rendererOnly`, which alone can't test the `agentOnly` /

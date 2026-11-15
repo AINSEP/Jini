@@ -10,7 +10,7 @@
  * No such port existed anywhere in this repo before this file — OD's own `routine.ts` route file
  * called eight raw `db.js` SQL functions directly (`getRoutine`/`insertRoutine`/`updateRoutine`/
  * `deleteRoutine`/`listRoutines`/`listRoutineRuns`/`getLatestRoutineRun`/`getRoutineRun`) against
- * `routines`/`routine_runs` tables that `packages/sqlite/archived provenance ledger` already documents as
+ * `routines`/`routine_runs` tables that `3bdace890^:packages/sqlite/source-map.md` already documents as
  * explicitly out of scope for the db-barrel port. This is the missing design.
  *
  * **Deliberately separate from `./scheduler.js`'s `RoutinePersistence`, not a shared interface**,

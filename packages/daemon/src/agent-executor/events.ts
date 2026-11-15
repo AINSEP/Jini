@@ -436,7 +436,7 @@ function createStdoutDiagnostics({ ctx, enqueueEmit }: {
  * **Deliberately un-hygiened for v1**: no ANSI/terminal-control-sequence
  * stripping is applied (there is no Jini equivalent of OD's
  * `TerminalControlSequenceStripper` yet) — a documented decision, not an
- * oversight; see `packages/daemon/archived provenance ledger`'s 2026-07-21 addition for
+ * oversight; see `070311a07^:packages/daemon/source-map.md`'s 2026-07-21 addition for
  * the reasoning.
  *
  * *When* those chunks leave is the def's call, via `def.stdoutPolicy`:

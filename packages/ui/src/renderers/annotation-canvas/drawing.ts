@@ -7,7 +7,7 @@ import { resolveAnnotationTheme } from './theme.js';
  * layer.
  *
  * Origin: `apps/web/src/components/PreviewDrawOverlay.tsx`. See
- * `../archived provenance ledger`.
+ * `070311a07^:packages/ui/src/renderers/source-map.md`.
  */
 import type { CaptureTarget, NormalizedRect, Stroke, TextMark } from './types.js';
 

@@ -89,13 +89,13 @@ const EXACT_PUBLIC_IMPORTS = new Set([
   // R2 exception #2 (2026-07-26 extraction): @jini-ai/agentic ships two entry points on
   // purpose — a DOM-free root and a browser-only "./dom" half, split across two
   // tsconfigs so the root's DOM-free guarantee stays compile-time (see
-  // packages/agentic/source-map.md's "The DOM split"). @jini-ai/chat-react genuinely needs
+  // 070311a07^:packages/agentic/source-map.md's "The DOM split"). @jini-ai/chat-react genuinely needs
   // the DOM half (createDomPageDriver) and there is no third package for it to live in
   // without adding to the sprawl this rule exists to bound. Gated to this exact literal,
   // not a pattern — no other package's subpath is exempted by this branch.
   '@jini-ai/agentic/dom',
   // R2 exception #3 (2026-07-28 fold-in): the standalone @jini-ai/a2ui package folded into
-  // @jini-ai/agentic/src/a2ui/ (see packages/agentic/source-map.md's "Folded from
+  // @jini-ai/agentic/src/a2ui/ (see 070311a07^:packages/agentic/source-map.md's "Folded from
   // @jini-ai/a2ui") rather than adding a fourth top-level package — the same
   // sprawl-avoidance reasoning as ./dom above. Published as its own subpath (not bundled
   // into the bare root barrel) since it has zero DOM/React dependency and a consumer of

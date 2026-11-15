@@ -218,7 +218,7 @@ function resolvePlaygroundMcpBridge(): JiniMcpBridgeInjection | undefined {
 // A2UI Lab demo: a real agent-driven surface (createSurface -> updateComponents -> updateDataModel)
 // streamed through the same RunLifecycle every other playground demo uses, plus a real renderer ->
 // agent `action` round trip when the fixture's button is clicked. See `A2uiLab.tsx` for the
-// browser-side interpreter/renderer this drives, and `../../../packages/a2ui/source-map.md` for
+// browser-side interpreter/renderer this drives, and `3f2370766^:packages/a2ui/source-map.md` for
 // what this port of the spec does and does not implement.
 // ---------------------------------------------------------------------------------------------
 

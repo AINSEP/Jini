@@ -6,7 +6,7 @@
  * shell.
  *
  * Origin: `apps/web/src/components/PreviewDrawOverlay.tsx`. See
- * `../../source-map.md`.
+ * `070311a07^:packages/ui/src/renderers/source-map.md`.
  */
 import { createPortal } from 'react-dom';
 import type { ReactElement, ReactNode } from 'react';

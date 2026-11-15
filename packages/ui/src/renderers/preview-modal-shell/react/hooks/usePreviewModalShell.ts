@@ -4,7 +4,7 @@
  * consumer.
  *
  * Origin: `apps/web/src/components/PreviewModal.tsx`'s component body (the
- * generic-chrome subset — see `../../archived provenance ledger`'s classification). The
+ * generic-chrome subset — see `070311a07^:packages/ui/src/renderers/source-map.md`'s classification). The
  * merged Share/Export popover's state (`templateShareOpen`/
  * `copyShareFeedback`/`socialShareTargets`/...) is deliberately not ported
  * here; that block is OD-specific and out of scope for this shell.

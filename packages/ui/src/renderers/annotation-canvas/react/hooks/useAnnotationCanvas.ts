@@ -8,7 +8,7 @@ import { resolveAnnotationTheme } from '../../theme.js';
  * Shift+Cmd/Ctrl+Z redo; Enter in the note input submits as Queue).
  *
  * Origin: `apps/web/src/components/PreviewDrawOverlay.tsx`. See
- * `../../archived provenance ledger` for the exact file-by-file port breakdown and what
+ * `070311a07^:packages/ui/src/renderers/source-map.md` for the exact file-by-file port breakdown and what
  * was intentionally left product-side (the `window` `CustomEvent` wire
  * protocol, the compositor-iframe snapshot lookup, the composer's
  * submission semantics).

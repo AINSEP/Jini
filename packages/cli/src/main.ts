@@ -6,7 +6,7 @@
  * other module in this package is a library building block — `run-command.ts`,
  * `daemon-command.ts`, and `version-command.ts` each export a `register*Commands(registry,
  * deps)` function ready for a pack to call, but until this file, nothing actually parsed
- * `process.argv` and called them: `packages/cli/archived provenance ledger`'s "Not built" note on
+ * `process.argv` and called them: `070311a07^:packages/cli/source-map.md`'s "Not built" note on
  * `run-command.ts`'s original addition said as much — "no wiring of this file's commands into
  * an actual bootable CLI entrypoint." This closes that gap.
  *

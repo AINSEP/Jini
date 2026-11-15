@@ -3,7 +3,7 @@ import { render } from '@testing-library/react';
 import type { AnnotationCanvasController } from '../../hooks/useAnnotationCanvas.js';
 
 // `AnnotationCanvas` is a pure presentational shell over `useAnnotationCanvas`'s
-// controller (see `../../source-map.md`): `showCanvas`/`textLayerVisible` can
+// controller (see `070311a07^:packages/ui/src/renderers/source-map.md`): `showCanvas`/`textLayerVisible` can
 // be `true` while `props.active` is `false` for one render — the render
 // where a host has just flipped `active` to `false` but the hook's own
 // "reset everything on deactivate" `useEffect` hasn't committed yet. Passive

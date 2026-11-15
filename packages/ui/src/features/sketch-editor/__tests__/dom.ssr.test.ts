@@ -7,7 +7,7 @@
 // jsdom, which always defines `document`. Splitting these two assertions
 // into their own `node`-environment file (matching `utils/dom-subscriptions
 // .test.ts`'s precedent) exercises the real SSR guard instead of a source
-// change or a suppression comment. See `packages/ui/archived provenance ledger`.
+// change or a suppression comment. See `070311a07^:packages/ui/source-map.md`.
 import { describe, expect, it } from 'vitest';
 import { applySketchDomTextOverrides, readDefaultSketchToolColor, readExcalidrawTheme } from '../dom.js';
 

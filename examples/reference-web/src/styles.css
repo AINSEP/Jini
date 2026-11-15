@@ -1195,7 +1195,7 @@ button {
   overflow: auto;
 }
 
-/* A2UI catalog rendering — Column/Row/Text/Button; @jini-ai/a2ui's catalog validates all 18 of the real basic catalog's components, but this renderer (shared by the lab page and A2uiSurfaceCard below) still only draws these 4 — see packages/a2ui/source-map.md for the renderer-coverage gap against the catalog. */
+/* A2UI catalog rendering — Column/Row/Text/Button; @jini-ai/a2ui's catalog validates all 18 of the real basic catalog's components, but this renderer (shared by the lab page and A2uiSurfaceCard below) still only draws these 4 — see 3f2370766^:packages/a2ui/source-map.md for the renderer-coverage gap against the catalog. */
 
 .a2ui-column {
   display: flex;

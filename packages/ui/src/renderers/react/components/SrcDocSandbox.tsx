@@ -20,7 +20,7 @@ export interface SrcDocSandboxProps {
   /** Accessible iframe title. Defaults to a translated "Artifact preview". */
   title?: string | undefined;
   className?: string | undefined;
-  /** Messages posted by the sandboxed document to this window (e.g. a bridge reply). Origin is intentionally not checked — see `srcdoc/build.ts`'s selection-bridge security note in `source-map.md`; sandboxing contains the blast radius, not origin checks. */
+  /** Messages posted by the sandboxed document to this window (e.g. a bridge reply). Origin is intentionally not checked — see `srcdoc/build.ts`'s selection-bridge security note in `070311a07^:packages/ui/src/renderers/source-map.md`; sandboxing contains the blast radius, not origin checks. */
   onMessage?: ((data: unknown) => void) | undefined;
 }
 

@@ -8,7 +8,7 @@
  * the presentational shell.
  *
  * Origin: `apps/web/src/components/PreviewModal.tsx`. The merged Share/
- * Export popover is NOT ported here — see `../../../source-map.md`'s
+ * Export popover is NOT ported here — see `070311a07^:packages/ui/src/renderers/source-map.md`'s
  * `preview-modal-shell` classification section for why.
  */
 import type { ReactElement, ReactNode } from 'react';

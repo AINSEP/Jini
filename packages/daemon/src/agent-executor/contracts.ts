@@ -122,7 +122,7 @@ export type AgentExecutorCompatibility =
  * `tool_use` block in the same assistant message has already been
  * translated (so a caller can decide whether to keep stdin open before
  * closing it), but v1 (pre-gap-3) discarded it and closed stdin
- * unconditionally on any `turn-end` — see `packages/daemon/archived provenance ledger`'s
+ * unconditionally on any `turn-end` — see `070311a07^:packages/daemon/source-map.md`'s
  * "Design decision 2" note. `wireChildLifecycle` now reads it to decide
  * whether `stop_reason: 'tool_use'` means "inject a tool result and keep
  * going" (gap 3, gated — see `ContinuationOptions`) or "close stdin as

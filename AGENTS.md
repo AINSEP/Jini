@@ -161,4 +161,4 @@ Per-package tests run as `npm --prefix packages/<pkg> run test`. A root-level `n
 
 ## Provenance
 
-Apache-2.0 (inherited from OD). See `NOTICE` and per-package `source-map.md`. Backups of the pre-extraction `integrated` OD trunk are in `../jini-backups/`.
+Apache-2.0 (inherited from OD). See `NOTICE`. The per-package provenance ledgers (`source-map.md`, cited in comments as "the archived provenance ledger" or as `<commit>^:<path>/source-map.md`) were deleted in 070311a07 (devops/server/sqlite in 3bdace890); read one with `git show 070311a07^:packages/<pkg>/source-map.md`. Backups of the pre-extraction `integrated` OD trunk are in `../jini-backups/`.

@@ -14,7 +14,7 @@ export interface MarkdownSplitPaneProps {
   /** Host-rendered markdown HTML (`renderMarkdownToSafeHtml`-shaped — the
    *  actual renderer, shiki highlighting, and image-src-rewriting are all
    *  genuinely OD/product-specific and were not ported; see
-   *  `packages/ui/source-map.md`). `null` while loading. */
+   *  `070311a07^:packages/ui/source-map.md`). `null` while loading. */
   previewHtml: string | null;
   /** CSS selector for the rendered preview's root element, forwarded to the
    *  scroll-sync measurement (default `.markdown-rendered`). */

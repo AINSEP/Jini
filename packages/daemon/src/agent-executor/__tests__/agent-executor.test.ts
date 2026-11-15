@@ -2623,7 +2623,7 @@ describe('AgentExecutor — plain-format prompt-file delivery (grok-build: promp
 //       `agy` reads at its own startup, so concurrent runs must serialize.
 // Every test below drives those through the *generic* fields, using fake defs
 // that declare them — so the driver is proved to key off the fields, never the
-// id. See packages/daemon/archived provenance ledger's 2026-07-29 addition.
+// id. See 070311a07^:packages/daemon/source-map.md's 2026-07-29 addition.
 // ---------------------------------------------------------------------------
 
 /** A staged-log-file stager whose path is caller-controlled, recording each call and its cleanup. */

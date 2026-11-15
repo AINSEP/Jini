@@ -265,7 +265,7 @@ function ConnectorDrawerToolsBody({ connector, toolsPreviewLoading, toolsLoaded,
               section instead swaps to the "Loading tools…" message
               above the moment `toolsPreviewLoading` flips true), so
               it was removed rather than tested around. See
-              packages/ui/source-map.md's 2026-07-22 dated entry. */}
+              070311a07^:packages/ui/source-map.md's 2026-07-22 dated entry. */}
           <span>{t('Load more tools')}</span>
         </button>
       ) : null}
