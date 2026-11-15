@@ -312,6 +312,20 @@ it('writes nested errors as their class and opaque objects as fixed words, in th
   for (const forbidden of ['boom', 'SECRETSECRET', 'logging.test.ts']) expect(written).not.toContain(forbidden);
 });
 
+// A plain thrown object (`throw { message, stack }`) is a caught value as much as an Error is: the
+// file line and the echo write fixed words for it, nested or as the whole meta.
+it('writes plain error-shaped objects as fixed words, in the file and the echo', () => {
+  const echoed: unknown[][] = [];
+  const out = { error: (...args: unknown[]) => { echoed.push(args); }, info: (...args: unknown[]) => { echoed.push(args); }, warn: (...args: unknown[]) => { echoed.push(args); } };
+  const lines: string[] = [];
+  const logger = createFileLogger({ logPath: '/unused' }, { console: out, append: ({ data }) => { lines.push(data); } });
+  const thrown = { message: 'boom PRIVATEVALUE', stack: 'PRIVATEVALUE at logging.test.ts' };
+  logger.error({ message: 'nested' }, { meta: { detail: thrown, items: [{ message: 'PRIVATEVALUE' }] } });
+  logger.error({ message: 'whole' }, { meta: thrown });
+  expect(lines.map(line => JSON.parse(line).meta)).toEqual([{ detail: 'object', items: ['object'] }, { meta: 'object' }]);
+  expect(JSON.stringify([lines, echoed])).not.toContain('PRIVATEVALUE');
+});
+
 // A log call sits inside a catch block: hostile meta must not throw, and the host sink still gets
 // the original record.
 it('contains hostile getters and proxies in meta; the file line and the host sink both still happen', () => {

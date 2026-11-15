@@ -110,6 +110,25 @@ describe('primitive default adapters', () => {
     for (const forbidden of ['boom', 'SECRETSECRET', 'defaults.test.ts']) expect(printed).not.toContain(forbidden);
   });
 
+  // A thrown value need not be an Error: a plain object with `message`/`stack` (`throw { message }`,
+  // an upstream JSON error) is a caught value too, wherever it sits in meta, and so is anything
+  // under a payload key (`error`, `err`, `reason`, `cause`, `message`, `stack`).
+  it('writes plain error-shaped objects and payload keys as fixed words at every depth', () => {
+    const lines: unknown[][] = [];
+    vi.spyOn(console, 'warn').mockImplementation((...args: unknown[]) => { lines.push(args); });
+    const thrown = { message: 'boom PRIVATEVALUE', stack: 'PRIVATEVALUE at defaults.test.ts' };
+    const logger = createConsoleLogger({ prefix: '' });
+    logger.warn({ message: 'retry' }, {
+      meta: { detail: thrown, upstream: { list: [{ stack: 'PRIVATEVALUE' }], runId: 'run-1' }, message: 'PRIVATEVALUE', cause: 'PRIVATEVALUE', err: { code: 'PRIVATEVALUE' } },
+    });
+    logger.warn({ message: 'whole' }, { meta: thrown });
+    expect(lines).toEqual([
+      ['retry', { detail: 'object', upstream: { list: ['object'], runId: 'run-1' }, message: 'string', cause: 'string', err: 'object' }],
+      ['whole', { meta: 'object' }],
+    ]);
+    expect(JSON.stringify(lines)).not.toContain('PRIVATEVALUE');
+  });
+
   // A log call sits inside a catch block: hostile metadata must never replace the failure being
   // logged, and the host sink must still receive the original record.
   it('contains hostile getters and proxies in metadata; the console line and the host sink both still happen', () => {
