@@ -27,7 +27,7 @@ function inputOfType(container: HTMLElement, type: string): HTMLInputElement {
 describe('QuestionForm', () => {
   it('gives every free-input control the question label as its spoken name', () => {
     const q = questionForm([
-      { id: 't', label: 'Project name', type: 'text' },
+      { id: 't', label: 'Project name', type: 'text', required: true },
       { id: 'n', label: 'Team size', type: 'number' },
       { id: 'a', label: 'Summary', type: 'textarea' },
       { id: 's', label: 'Region', type: 'select', options: [{ label: 'EU', value: 'eu' }] },
@@ -39,6 +39,7 @@ describe('QuestionForm', () => {
     ]);
     render(<QuestionForm form={q} interactive onSubmit={vi.fn()} />);
     expect(screen.getByRole('textbox', { name: 'Project name' })).toBeInTheDocument();
+    expect(screen.getByRole('textbox', { name: 'Project name' })).toHaveAttribute('aria-required', 'true');
     expect(screen.getByRole('spinbutton', { name: 'Team size' })).toBeInTheDocument();
     expect(screen.getByRole('textbox', { name: 'Summary' })).toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Region' })).toBeInTheDocument();
