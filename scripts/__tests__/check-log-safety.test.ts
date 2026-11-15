@@ -79,6 +79,17 @@ describe('log-safety selectors', () => {
     expect(categories('createConsoleLogger({ prefix: "" }).error({ message: "failed" }, { error: redactSecrets({ input: inspect(context.error) }) });')).toEqual(['error-format', 'error-helper']);
   });
 
+  // Review d5r6: the error-bag exemption trusts the receiver's name, so a `logger` typed as Console
+  // (or defaulting to `console`) would print a raw Error and its stack under that exemption.
+  test('flags a logger-named parameter or property typed Console or defaulting to console', () => {
+    expect(categories('function f({ logger = console }: { logger?: Pick<Console, "info"> } = {}) {}')).toEqual(['console-logger', 'console-logger']);
+    expect(categories('interface Options { logger?: Pick<Console, "error"> }')).toEqual(['console-logger']);
+    expect(categories('function f(auditLogger: Console) {}')).toEqual(['console-logger']);
+    expect(categories('class Host { logger: Console = console; }')).toEqual(['console-logger']);
+    expect(categories('function f({ logger = createConsoleLogger({ prefix: "" }) }: { logger?: Logger } = {}) {}')).toEqual([]);
+    expect(categories('interface Options { output?: Pick<Console, "log"> }')).toEqual([]);
+  });
+
   test('leaves the sanctioned routes alone', () => {
     expect(categories('logger.warn({ message: "save failed" }, { error });')).toEqual([]);
     expect(categories('logger.warn({ message: `save failed: ${describeErrorForLog({ err: error })}` }, { meta: { runId } });')).toEqual([]);
