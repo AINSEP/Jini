@@ -50,6 +50,15 @@ describe('log-safety selectors', () => {
     expect(categories('process.stdout.write(`failed: ${error}`);')).toEqual(['raw-error']);
   });
 
+  // Review d5r6: an assignment store (`entry.error = error.message`, web-clone manifests) writes the
+  // same text into an exported record as a property store does.
+  test('flags error text assigned to a stored field', () => {
+    expect(categories('entry.error = error.message;')).toEqual(['stored-error-text']);
+    expect(categories('row.detail = ctx.error.stack;')).toEqual(['stored-error-text']);
+    expect(categories('entry.error = errorClassLabel({ error });')).toEqual([]);
+    expect(categories('entry.status = error.message ? "error" : "ok";')).toEqual([]);
+  });
+
   // The raw error bag is the host's channel only on a core Logger port: object-first call on a
   // receiver named `logger`/`*Logger`. Anywhere else a nested raw value is printed as-is.
   test('flags raw caught values nested in a log call unless they sit in a Logger error bag', () => {
