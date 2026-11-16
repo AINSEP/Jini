@@ -36,18 +36,18 @@ const IMPORT_TIME_REASON = 'This environment read runs while the module is being
  * Only the env name (or the ambient object's own name) is hashed for debt identity.
  */
 export function createEnvAccessInspector({ compiler: c, inspector }: { compiler: typeof ts; inspector: HardwiringInspector }, _options: Record<string, never> = {}) {
-  function isImportMetaEnv(node: ts.Node): boolean {
+  function isImportMetaEnv({ node }: { node: ts.Node }): boolean {
     return c.isPropertyAccessExpression(node) && node.name.text === 'env' &&
       c.isMetaProperty(node.expression) && node.expression.keywordToken === c.SyntaxKind.ImportKeyword;
   }
 
-  function ambientEnv(node: ts.Node): AmbientEnv | undefined {
+  function ambientEnv({ node }: { node: ts.Node }): AmbientEnv | undefined {
     if (inspector.isProcessEnv({ node })) return 'process.env';
-    return isImportMetaEnv(node) ? 'import.meta.env' : undefined;
+    return isImportMetaEnv({ node }) ? 'import.meta.env' : undefined;
   }
 
   /** The static name read directly off the ambient object (`process.env.X`, `import.meta.env['X']`). */
-  function staticKey(node: ts.Node): string | undefined {
+  function staticKey({ node }: { node: ts.Node }): string | undefined {
     const parent = node.parent;
     if (c.isPropertyAccessExpression(parent) && parent.expression === node) return parent.name.text;
     if (c.isElementAccessExpression(parent) && parent.expression === node && c.isStringLiteralLike(parent.argumentExpression)) return parent.argumentExpression.text;
@@ -55,7 +55,7 @@ export function createEnvAccessInspector({ compiler: c, inspector }: { compiler:
   }
 
   /** Only the exact expression is a define: `process.env`, `process.env[name]` and other keys stay reads. */
-  function isBuildDefine(input: EnvAccessSource, owner: AmbientEnv, key: string | undefined): boolean {
+  function isBuildDefine({ input, owner, key }: { input: EnvAccessSource; owner: AmbientEnv; key: string | undefined }): boolean {
     return input.buildDefine && owner === 'process.env' && key === 'NODE_ENV';
   }
 
@@ -69,9 +69,9 @@ export function createEnvAccessInspector({ compiler: c, inspector }: { compiler:
     if (input.envRoot) return [];
     const found: HardwiringViolation[] = [];
     function visit(node: ts.Node): void {
-      const owner = ambientEnv(node);
-      const key = owner ? staticKey(node) : undefined;
-      if (owner && !isBuildDefine(input, owner, key)) {
+      const owner = ambientEnv({ node });
+      const key = owner ? staticKey({ node }) : undefined;
+      if (owner && !isBuildDefine({ input, owner, key })) {
         const identity = key ?? owner;
         found.push(inspector.violation({ tree, node, rule: 'HW9-env-access', reason: ACCESS_REASON, identity }));
         if (inspector.isModuleScope({ node })) found.push(inspector.violation({ tree, node, rule: 'HW12-env-import-time', reason: IMPORT_TIME_REASON, identity }));
