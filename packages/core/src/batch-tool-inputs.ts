@@ -279,6 +279,31 @@ function summarizeBatchResults({ results, images }: { results: BatchItemResult[]
   return images.length ? { ...summary, content: [{ type: 'text', text: JSON.stringify(summary) }, ...images] } : summary;
 }
 
+function planBatchRegistration(
+  { registration, tool, descriptor, maxItems }: { registration: ToolRegistration; tool: BatchableTool; descriptor: ToolRegistration["descriptor"]; maxItems: number },
+): ToolRegistration {
+  const toolId = registration.descriptor.id;
+  return {
+    ...registration, descriptor: { ...descriptor,
+      description: `${registration.descriptor.description ?? ''}${BATCH_GUIDANCE_MARKER}${singleCallGuidance({ fields: batchItemRequiredFields({ inputSchema: descriptor.inputSchema }) })}up to ${maxItems} inputs are normalized before authorization and passed to the existing combined approval plan.`,
+    },
+    // The plan owns one confirmation. Normalize every merged item before the outer gate so
+    // its policy and planner receive the same targets; never execute items to preflight them.
+    normalizeInput: async ({ input }) => {
+      if (!Object.hasOwn(input, 'items')) return normalizeSingleBatchInput({ input, registration });
+      const { items: rawItems, ...shared } = input;
+      const items = readItems({ items: rawItems, toolId, maxItems });
+      const normalized = [];
+      for (const item of items) {
+        const result = await normalizeBatchItem({ registration, defaults: tool.itemDefaults, shared, item });
+        tool.validateItem?.({ input: result.input });
+        normalized.push(result);
+      }
+      return { input: { items: normalized.map(item => item.input) }, notes: normalized.flatMap(item => item.notes) };
+    },
+  };
+}
+
 /**
  * Wraps one registration so it also accepts `items`. Single calls retain their handler.
  * Ordinary merged items re-enter the executor; plan batches normalize all items at the outer
@@ -302,25 +327,7 @@ export function withBatchInput(
   const toolId = registration.descriptor.id;
   const maxItems = tool.maxItems ?? DEFAULT_MAX_BATCH_ITEMS;
   const descriptor = batchDescriptorFor({ descriptor: registration.descriptor, tool });
-  if (mode === 'plan') return {
-    ...registration, descriptor: { ...descriptor,
-      description: `${registration.descriptor.description ?? ''}${BATCH_GUIDANCE_MARKER}${singleCallGuidance({ fields: batchItemRequiredFields({ inputSchema: descriptor.inputSchema }) })}up to ${maxItems} inputs are normalized before authorization and passed to the existing combined approval plan.`,
-    },
-    // The plan owns one confirmation. Normalize every merged item before the outer gate so
-    // its policy and planner receive the same targets; never execute items to preflight them.
-    normalizeInput: async ({ input }) => {
-      if (!Object.hasOwn(input, 'items')) return normalizeSingleBatchInput({ input, registration });
-      const { items: rawItems, ...shared } = input;
-      const items = readItems({ items: rawItems, toolId, maxItems });
-      const normalized = [];
-      for (const item of items) {
-        const result = await normalizeBatchItem({ registration, defaults: tool.itemDefaults, shared, item });
-        tool.validateItem?.({ input: result.input });
-        normalized.push(result);
-      }
-      return { input: { items: normalized.map(item => item.input) }, notes: normalized.flatMap(item => item.notes) };
-    },
-  };
+  if (mode === 'plan') return planBatchRegistration({ registration, tool, descriptor, maxItems });
   const original = registration.handler;
   const itemRegistry = createToolRegistry({});
   itemRegistry.register(registration);
