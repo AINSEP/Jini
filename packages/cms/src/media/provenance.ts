@@ -35,9 +35,10 @@ function generatedOrigin({ source }: { source: Extract<MediaProvenance, { kind: 
 
 /** Strip credentials, query and fragment from an HTTP(S) origin URL.
  * @throws MediaValidationError for an invalid URL or non-HTTP(S) protocol. */
-function safeUrlOrigin({ url: raw }: { url: string }, _options = {}): MediaProvenance {
+function safeUrlOrigin({ source }: { source: Extract<MediaProvenance, { kind: 'url' }> }, _options = {}): MediaProvenance {
   let url: URL;
-  try { url = new URL(raw); }
+  // Read source.url inside the try: a host-provided accessor that throws must surface as MediaValidationError.
+  try { url = new URL(source.url); }
   catch { throw new MediaValidationError({ message: 'source URL must be HTTP or HTTPS' }); }
   if (!['https:', 'http:'].includes(url.protocol)) throw new MediaValidationError({ message: 'source URL must be HTTP or HTTPS' });
   url.username = ''; url.password = ''; url.search = ''; url.hash = '';
@@ -49,7 +50,7 @@ function safeUrlOrigin({ url: raw }: { url: string }, _options = {}): MediaProve
  * @throws MediaValidationError for an invalid URL, kind or path. @complexity O(origin length). */
 export function safeMediaProvenance({ source }: { source?: MediaProvenance | undefined }, _options = {}): MediaProvenance {
   if (!source) return { kind: 'upload' };
-  if (source.kind === 'url') return safeUrlOrigin({ url: source.url });
+  if (source.kind === 'url') return safeUrlOrigin({ source });
   if (source.kind === 'picked-folder') return { kind: source.kind, path: relativeOrigin({ path: source.path }) };
   if (source.kind === 'generated') return generatedOrigin({ source });
   if (source.kind === 'upload') {

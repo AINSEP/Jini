@@ -33,6 +33,12 @@ describe('safe media origin metadata', () => {
     expect(() => safeMediaProvenance({ source: { kind: 'url', url } })).toThrow('source URL must be HTTP or HTTPS');
   });
 
+  it('turns a URL origin whose url accessor throws into a validation error', () => {
+    const source = { kind: 'url', get url(): string { throw new Error('host accessor failed'); } } as MediaProvenance;
+    expect(() => safeMediaProvenance({ source })).toThrow(MediaValidationError);
+    expect(() => safeMediaProvenance({ source })).toThrow('source URL must be HTTP or HTTPS');
+  });
+
   it('keeps the model and vendor that generated an asset, alone or beside a path', () => {
     expect(safeMediaProvenance({ source: { kind: 'generated', model: 'gpt-image-2', provider: 'openai' } }))
       .toEqual({ kind: 'generated', model: 'gpt-image-2', provider: 'openai' });
