@@ -19,8 +19,8 @@ export const COMMERCE_PAYMENTS_MIGRATION_CHECKSUMS: Readonly<Record<string, stri
  * checksum above only after a reviewed edit that changes no behavior (2026-11-15, C3: import specifiers and kernel
  * type arguments). The ledger checksum is what databases recorded; it never changes. */
 export const COMMERCE_PAYMENTS_SOURCE_DIGESTS: Readonly<Record<string, string>> = {
-  "0001_payments_ledger": "f47c10d3e9f452afcced611376bb3b87f4a8af25d42b2c037828107d7836aed5",
-  "0002_payments_operator_actions": "6eb5c38d18650b2759876abbce57e9863f208221ee29e9e95af39473399c3da0",
-  "0004_payments_attempt_recovery": "7c0b2e6b9fab580dd21504d4a67ba97713cf2b67b8b5fd816cfe9f91e6bb9101",
-  "0005_payments_intent_replay": "25886c9450c6524a4a8b1fbc41897ba7a4250518b8480257f70d53ea0e8702ec",
+  "0001_payments_ledger": "1fdbfa3fcee461c76a4109f2a86c358b118189185e13745b329b8562bc4b4e83",
+  "0002_payments_operator_actions": "13d656a8bcf4dd4ac2a510fb380617b368b2d76ebd2dbf1a178ff05e0c6e20ae",
+  "0004_payments_attempt_recovery": "ca640f01f97cfc62176e008e1253f226f47a70c53442dea45334b79648b329b6",
+  "0005_payments_intent_replay": "e9daa73f617c1d66c339beed46161cc3ac4f57fd336f41f54f141cc5f22bf244",
 };
