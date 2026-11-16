@@ -135,3 +135,98 @@ http-kit 561 tests pass (was 550). daemon 4526 pass + 1 pre-existing skip (was 4
 2. R7-P0, Tovu: parser-chain suite (design 11.2) and the nine `authorizeRun` cases (3.5), each with its named break.
 3. Owner decision on finding 1.
 4. Then R7-P1.
+
+---
+
+# Run 3 (2026-11-16, no subagents): rest of R7-P0, and R7-P1
+
+Status: **PARTIAL.** R7-P0 is done except for the items listed under "Not done". R7-P1 is done except for one line of preset wiring. R7-G1 was not started (context budget, not wall clock). No route file under `packages/daemon/src/http` changed behaviour; the only edit to an existing source file is one type export in `http/index.ts`.
+
+## Commits (branch `refactor/daemon-prereqs`, all pushed)
+
+| Repo | SHA | What |
+|---|---|---|
+| Jini | `68353d1b` | T6: life of the five event-stream kinds on a real socket (40 tests) |
+| Jini | `adf8ec8c` | T7: the two line-stream routes; stream reader fails a route that never sends headers |
+| Jini | `9611c430` | T8: upload and cleanup below the JSON parser (17 tests) |
+| Jini | `928e2cb8` | T2b path matching, T5 query shapes, T12 per-mount state (24 tests) |
+| Jini | `7c2ff922`, `2530a64a` | T11 in `packages/server`: token check vs parser per security profile (10 tests) |
+| Jini | `8e3cc15a` | T10: guest cookie `Set-Cookie` bytes (5 tests) |
+| Jini | `f4242547` | T9: where the host run check (`authorizeRun`) sits on the tool RPC (4 tests) |
+| Jini | `19f587ce` | **R7-P1**: `route-host.ts`, `route-table.ts`, `sse-commit.ts`, `line-stream.ts`, fake host, `server/src/mount-routes.ts`, changeset `daemon-route-host` |
+| Tovu | `7f28be21` | `authorizeRun` suite on the real `assistant-tool-exec.ts` router (14 tests; names Jini `8e3cc15a`) |
+| Tovu | `1ef25f35` | Parser-chain suite on the real statements of `agent-daemon-scope.ts` (8 tests; names Jini `f4242547`) |
+| Tovu | `0f9e39b4` | **R7-P1**: `composition/jini-routes.ts` + unit test (6 tests; builds on Jini `19f587ce`) |
+
+## Pins and the mutation that fails each
+
+Every mutation was applied to the source, the suite run, the failure seen, and the file restored with `git checkout` (tree clean after each).
+
+**T6 streams** (`characterization/streams.characterization.test.ts`)
+
+| Mutation | Tests that failed |
+|---|---|
+| runs: end event no longer ends the stream | end-event test |
+| runs: stream not opened before replay is queued | 1,167-event replay; failure-after-first-event |
+| runs: no unsubscribe when the client left during subscribe | that test |
+| runs: failure before commit ends the stream instead of JSON 500 | that test |
+| runs: cursor read from the query only | 3 cursor rows |
+| memory: one `off()` removed | 5 (all listener-count checks) |
+| memory: a 15 s ping added | idle test |
+| memory: queue cap removed | slow-consumer test |
+| terminals: deferred end replaced by a direct end | both exited-session replay tests |
+| terminals: detach removed | 5 |
+| terminals: cursor ignored | 2 |
+| frontend sessions: ping interval 60 s | ping test |
+| frontend sessions: detach removed on close | 3 |
+| model proxy: stream opened before the body is validated | 400-before-stream test |
+| model proxy: a ping added | no-timer test |
+
+**T7 line streams**: headers not flushed (10 fail); abort not forwarded; keepalive added to tool-exec; `code` dropped from the throw line; keepalive removed from page requests; `release()` removed; resolver error text put in the 403; extra-field check removed. Each fails its own test. **T9 run check order**: hook removed from POST (2), hook moved before the gate and parser (2), hook removed from the catalog GET (1).
+
+**T8 uploads**: every chunk passed through `String()` (binary round-trip fails, the corruption the design warns about); consumed-body check removed; slot not released (2); limiter removed; cleanup answers 200 with a body; activity acquired after the origin check; path cap removed.
+
+**T2b/T5/T12**: `contextRef` accepts an array; tool-catalog `principalId` accepts an array; active-context store shared between mounts; upload counter shared between mounts. **T10**: `HttpOnly` dropped; `SameSite` lax; `Secure` forced off; `no-store` dropped; a tab credential accepted as the guest cookie. **T11**: `sidecar-strict` parser moved above the token gate (2 fail); parser limit raised to 1 MB (3 fail).
+
+**Tovu `authorizeRun`** (mutations in `assistant-tool-exec.ts`): principal equality removed (2 fail); rewrite removed (2); read-only attenuation removed (1); workspace clause removed (1); liveness clause removed (3); run-id clause removed (1); `!runStore` guard removed (1); `forget` removed (5); `authorizeRun` not passed (13); lookup rejection swallowed (1); check skipped for the catalog GET (3).
+
+**Tovu parser chain** (mutations in `agent-daemon-scope.ts`): `validateDelegatedRunId` removed (2 fail); parser limit back to the default (1); per-run re-resolve passes without a caller (2); parser removed, parser scoped to the delegated path, first token gate removed (8 each: these also trip the suite's assertion on the five statements and their order, so they fail as a whole rather than one case).
+
+## Findings (code differs from what the design assumed; nothing was changed)
+
+1. **A failing run store on `POST /internal/tool-executions` answers 400 "request body must be valid JSON".** The rejected lookup goes to `next(error)`, and the next error handler is the route's own body-parser handler. The design (§3.5) expects "the host error path answers". Pinned as it is in Tovu. The conversion must decide: keep 400, or make it a 500 (a behaviour change, needs the owner).
+2. **`TOVU_API_KEY_REDACTION` does not exist** in Tovu (design §4.2 passes it to the dispatcher). `mountJiniRoutes` takes `redactionPatterns` as an option, default none (the bridge's built-in patterns still apply). Needs an owner answer on whether Tovu has a key shape to add.
+3. **Model proxy: a transport failure's own message reaches the client** inside the stream (`{"type":"error","message":"<upstream error text>"}`); it comes from the provider turn, not from the route, and nothing is reported to the sink. Pinned as it is. Same class as run 2's memory finding.
+4. **The proxy token is refused on the delegated path** (404 "a live run is required", from the per-run re-resolve). Design §11.2 has a row "proxy token + any `runId` passes". Pinned as it is.
+5. **1,167-event replay on a real socket arrives whole** on one connection today (INDEX §9.6 asked). The frames go straight into the kernel buffer, so the 1000 cap is not reached. This supports O-11 "accept".
+6. A mismatched delegated `runId` answers **403**, not 401; a run credential on a site-owned route answers 403 "cannot call POST …". Recorded in the suite.
+7. `jini-local`: a loopback caller is never asked for a token, so the test cannot show whether the parser runs before the token check in that profile (moving the parser fails nothing). The rows record the answers only, and the test says so.
+8. The `settled` flag in `streamToolExecution` cannot fail a test alone today: `res.writableEnded` covers the same instant. The late-emission pin becomes meaningful after conversion.
+
+## Deviations from the design in P1
+
+- `daemonRouteHost({ context, parserLimitBytes })`: the design's signature takes only `context`. The parser limit is a literal (`"6mb"`) in the scope file, which P1 must not touch, so the caller passes the number and the helper derives `jsonBodyMaxBytes` with `maxReserializedJsonBytes` (33,030,144 for 6 MiB).
+- Tovu's interval scheduler unrefs its timers (the helpers it replaces did; the design's sketch did not).
+- `createLineStream` on an already-aborted request returns an empty, ended body (as §3.3 says), not an errored one.
+- `createCommitLatch(_required = {}, _optional = {})` to satisfy the args convention check.
+- Only the `DaemonRouteHost` type is exported from `@jini-ai/daemon/http`; `gated`, `describeRoutes`, `createLineStream`, `createCommitLatch` stay internal until a route group uses them.
+- **Not landed in P1:** `services.context.routeHost` in the preset (§11.9), and who reads the route-registration guard's inventory (§11.11). `mountRoutes` itself is landed and tested.
+
+## Not done in P0
+
+- T3's happy-path and parse-failure rows per route (run 2 finding 2). Today's per-file tests still cover them on Express.
+- Sorting the 17 existing `listen` tests into the three layers of §11.13 (nothing was deleted or moved).
+- O-12 census is partial: a search of string literals in both repos finds no caller that sends a daemon path with a trailing slash or in upper case; URL builders that concatenate were not traced. Today's answers for those spellings are pinned (T2b), so the conversion will show the difference.
+- §11.15 rows not given a new harness test: frontend-session wrong owner / wrong bind token (resolver-throws is pinned), run ownership and owned-list shadowing, the principal header rewrite (existing tests in both repos cover these on Express; not re-proven by mutation in this run).
+- Query shapes are pinned as "accepted or refused" per route; which element of a repeated value a route uses is not visible in that table.
+
+## Verification
+
+- Jini `19f587ce`: daemon 4,647 tests pass + 1 pre-existing skip (was 4,526); server 490 pass + 1 skip (was 472); `pnpm guard` ok; `pnpm -r typecheck` 0 errors; `check:size` and `check:complexity` pass. No test deleted or loosened.
+- Tovu `0f9e39b4`: `tsc -p tsconfig.json --noEmit` clean; `tsconfig.tests.json` reports nothing for the three new files; the three new suites pass (14 + 8 + 6). No other Tovu test was run. No `apps/desktop` change.
+
+## Next
+
+1. Preset `routeHost` on `services.context` (finish P1), then R7-G1 with `tool-catalog` first, one file per pair, each gated by these pins (swap the harness mount function for that file only).
+2. Owner answers on findings 1, 2 and 3, and on run 2's memory finding, before G2/G3 reach those files.
+3. The P0 items above.
