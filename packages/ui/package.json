@@ -293,6 +293,7 @@
     "@jini-ai/ui-kit": "workspace:^",
     "@jini-ai/core": "workspace:^",
     "@jini-ai/agentic": "workspace:^",
+    "@jini-ai/protocol": "workspace:^",
     "@jini-ai/platform": "workspace:^",
     "micromark": "^4.0.0",
     "micromark-extension-gfm": "^3.0.0"

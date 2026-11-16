@@ -1,5 +1,5 @@
 import { createElement, type ComponentType, type ReactNode } from 'react';
-import type { A2uiInterpreter } from './protocol.js';
+import type { A2uiInterpreter } from '@jini-ai/protocol/a2ui';
 import type { NodeProps } from './renderer.js';
 
 /** Resolve this node's text values and render explicit child IDs. */
