@@ -190,241 +190,248 @@ export interface A2uiInterpreter {
   subscribe(required: { listener: (required: Record<string, never>) => void }, _optional?: Record<string, never>): (required: Record<string, never>) => void;
 }
 
+/** The catalog, ports, and live surface/listener state one interpreter instance shares across its handlers. */
+interface InterpreterCtx {
+  catalog: Catalog;
+  clock: Clock;
+  ids: A2uiIdsPort;
+  surfaces: Map<string, SurfaceState>;
+  listeners: Set<(required: Record<string, never>) => void>;
+}
+
+function notify(ctx: InterpreterCtx): void {
+  for (const listener of ctx.listeners) listener({});
+}
+
+function applyComponentsList(ctx: InterpreterCtx, surface: SurfaceState, wireComponents: ComponentsList): RendererToAgentMessage[] {
+  const errors: RendererToAgentMessage[] = [];
+  wireComponents.forEach((wireComponent, index) => {
+    const { id, component: type, ...rest } = wireComponent;
+    if (!isComponentAllowed({ catalog: ctx.catalog, componentType: type })) {
+      errors.push(
+        buildValidationFailedMessage({ surfaceId: surface.surfaceId, path: `/components/${index}/component`, message: `Component type "${type}" is not in catalog "${ctx.catalog.catalogId}" — refused, not rendered.` }
+        ),
+      );
+      return;
+    }
+    const spec = ctx.catalog.components.get(type)!;
+    const parsed = spec.propsSchema.safeParse(rest);
+    if (!parsed.success) {
+      // zod guarantees a non-empty `issues` array on failure — see agent-to-renderer.ts's
+      // parseAgentToRendererMessage for the same asserted (not defensively branched) invariant.
+      const issue = parsed.error.issues[0]!;
+      // `issue.message` alone ("Required") names no field — Zod puts the field on `issue.path`
+      // instead, so it has to be spliced back in here or the only place a human sees this (this
+      // string, not the sibling `path` pointer on the built message) never says which prop.
+      const field = issue.path.length > 0 ? issue.path.join('.') : '(root)';
+      errors.push(
+        buildValidationFailedMessage({ surfaceId: surface.surfaceId, path: `/components/${index}/${issue.path.join('/')}`, message: `Component "${id}" (${type}) failed catalog validation: ${field}: ${issue.message}` }
+        ),
+      );
+      return;
+    }
+    surface.components.set(id, { id, component: type, props: parsed.data as Record<string, unknown> });
+  });
+  return errors;
+}
+
+function handleCreateSurface(ctx: InterpreterCtx, message: Extract<AgentToRendererMessage, { createSurface: unknown }>): RendererToAgentMessage[] {
+  const { surfaceId, catalogId, components, dataModel } = message.createSurface;
+  if (catalogId !== ctx.catalog.catalogId) {
+    return [buildValidationFailedMessage({ surfaceId, path: '/createSurface/catalogId', message: `Unknown catalogId "${catalogId}" — this renderer only has "${ctx.catalog.catalogId}" loaded.` })];
+  }
+  if (ctx.surfaces.has(surfaceId)) {
+    return [buildValidationFailedMessage({ surfaceId, path: '/createSurface/surfaceId', message: `Surface "${surfaceId}" already exists — delete it before recreating (per spec).` })];
+  }
+  const surface: SurfaceState = {
+    surfaceId,
+    catalogId,
+    components: new Map(),
+    dataModel: dataModel ?? {},
+    sendDataModel: message.createSurface.sendDataModel ?? false,
+    pendingActions: new Map(),
+  };
+  ctx.surfaces.set(surfaceId, surface);
+  return components ? applyComponentsList(ctx, surface, components) : [];
+}
+
+function handleUpdateComponents(ctx: InterpreterCtx, message: Extract<AgentToRendererMessage, { updateComponents: unknown }>): RendererToAgentMessage[] {
+  const { surfaceId, components } = message.updateComponents;
+  const surface = ctx.surfaces.get(surfaceId);
+  if (!surface) {
+    return [buildValidationFailedMessage({ surfaceId, path: '/updateComponents/surfaceId', message: `Unknown surfaceId "${surfaceId}" — createSurface must be sent first.` })];
+  }
+  return applyComponentsList(ctx, surface, components);
+}
+
+function handleUpdateDataModel(ctx: InterpreterCtx, message: Extract<AgentToRendererMessage, { updateDataModel: unknown }>): RendererToAgentMessage[] {
+  const { surfaceId, path, value } = message.updateDataModel;
+  const surface = ctx.surfaces.get(surfaceId);
+  if (!surface) {
+    return [buildValidationFailedMessage({ surfaceId, path: '/updateDataModel/surfaceId', message: `Unknown surfaceId "${surfaceId}" — createSurface must be sent first.` })];
+  }
+  surface.dataModel = setAtPointer({ doc: surface.dataModel, pointer: path ?? '/', value });
+  return [];
+}
+
+function handleDeleteSurface(ctx: InterpreterCtx, message: Extract<AgentToRendererMessage, { deleteSurface: unknown }>): RendererToAgentMessage[] {
+  const { surfaceId } = message.deleteSurface;
+  if (!ctx.surfaces.has(surfaceId)) {
+    return [buildValidationFailedMessage({ surfaceId, path: '/deleteSurface/surfaceId', message: `Unknown surfaceId "${surfaceId}" — nothing to delete.` })];
+  }
+  // Dropping the whole SurfaceState also drops its pendingActions map — any actionResponse that
+  // arrives afterward for an actionId that lived here simply won't be found (handled gracefully
+  // in handleActionResponse below), which is exactly the "deleteSurface mid-flight" adversarial
+  // case this is designed to answer.
+  ctx.surfaces.delete(surfaceId);
+  return [];
+}
+
+function handleCallFunction(ctx: InterpreterCtx, message: Extract<AgentToRendererMessage, { callFunction: unknown }>): RendererToAgentMessage[] {
+  const { functionCallId, callFunction, wantResponse } = message;
+  const result = resolveDynamicValue({ value: callFunction, ctx: { dataModel: undefined, catalog: ctx.catalog, side: 'agent' } });
+  if (!result.ok) {
+    const code = result.reason === 'FUNCTION_NOT_CALLABLE_FROM_SIDE' || result.reason === 'FUNCTION_NOT_REGISTERED' ? 'INVALID_FUNCTION_CALL' : result.reason;
+    return [buildGenericErrorMessage({ code, message: result.detail, target: { functionCallId } })];
+  }
+  if (!wantResponse) return [];
+  // `?? null` because `functionResponse.value` is required on the wire and JSON has no
+  // `undefined`: a `returnType: 'void'` function (the catalog has three) resolves to
+  // `undefined`, and passing that straight through built a message whose `value` vanished on
+  // serialization — one this package's own `parseRendererToAgentMessage` correctly refuses.
+  return [buildFunctionResponseMessage({ payload: { functionCallId, call: callFunction.call, value: result.value ?? null } })];
+}
+
+function handleActionResponse(ctx: InterpreterCtx, message: Extract<AgentToRendererMessage, { actionResponse: unknown }>): RendererToAgentMessage[] {
+  const { actionId, actionResponse } = message;
+  for (const surface of ctx.surfaces.values()) {
+    const pending = surface.pendingActions.get(actionId);
+    if (!pending) continue;
+    surface.pendingActions.delete(actionId);
+    if ('value' in actionResponse && pending.responsePath !== undefined) {
+      surface.dataModel = setAtPointer({ doc: surface.dataModel, pointer: pending.responsePath, value: actionResponse.value });
+    }
+    return [];
+  }
+  // No surface has a pending action under this id — already resolved, never existed, or its
+  // surface was deleted while the action was in flight. Graceful no-op, not an error: the agent
+  // sent a well-formed message, it just arrived too late (or was mistaken) to mean anything now.
+  return [];
+}
+
+/** Routes one successfully-parsed envelope to its message-type handler. */
+function dispatchAgentMessage(ctx: InterpreterCtx, message: AgentToRendererMessage): RendererToAgentMessage[] {
+  if ('createSurface' in message) return handleCreateSurface(ctx, message);
+  if ('updateComponents' in message) return handleUpdateComponents(ctx, message);
+  if ('updateDataModel' in message) return handleUpdateDataModel(ctx, message);
+  if ('deleteSurface' in message) return handleDeleteSurface(ctx, message);
+  if ('callFunction' in message) return handleCallFunction(ctx, message);
+  return handleActionResponse(ctx, message);
+}
+
+function applyAgentMessage(ctx: InterpreterCtx, { raw }: { raw: unknown }, _optional: Record<string, never> = {}): ApplyMessageResult {
+  const parsed = parseAgentToRendererMessage({ raw });
+  if (!parsed.ok) return buildParseFailureResult({ parsed, raw });
+
+  const rendererMessages = dispatchAgentMessage(ctx, parsed.message);
+  notify(ctx);
+  return { rendererMessages };
+}
+
+function getSurface(ctx: InterpreterCtx, { surfaceId }: { surfaceId: string }, _optional: Record<string, never> = {}): SurfaceSnapshot | undefined {
+  const surface = ctx.surfaces.get(surfaceId);
+  if (!surface) return undefined;
+  return { surfaceId: surface.surfaceId, catalogId: surface.catalogId, components: surface.components, dataModel: surface.dataModel };
+}
+
+function getRoot(ctx: InterpreterCtx, { surfaceId }: { surfaceId: string }, _optional: Record<string, never> = {}): ComponentInstance | undefined {
+  return ctx.surfaces.get(surfaceId)?.components.get('root');
+}
+
+function resolve(ctx: InterpreterCtx, { surfaceId, value }: { surfaceId: string; value: DynamicValue }, { itemBasePath, itemIndex }: { itemBasePath?: string | undefined; itemIndex?: number | undefined } = {}) {
+  const surface = ctx.surfaces.get(surfaceId);
+  const itemScope = itemBasePath !== undefined && itemIndex !== undefined ? { basePath: itemBasePath, index: itemIndex } : undefined;
+  return resolveDynamicValue({ value, ctx: { dataModel: surface?.dataModel, catalog: ctx.catalog, side: 'renderer' } }, { itemScope });
+}
+
+function resolveActionContext(ctx: InterpreterCtx, context: Record<string, DynamicValue> | undefined, surfaceId: string): Record<string, unknown> {
+  const resolved: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(context ?? {})) {
+    const result = resolve(ctx, { surfaceId, value });
+    resolved[key] = result.ok ? result.value : null;
+  }
+  return resolved;
+}
+
+/** Looks up the surface, component, and `action` prop `buildAction` needs, or the specific reason it can't. */
+function resolveActionTarget(ctx: InterpreterCtx, 
+  surfaceId: string,
+  componentId: string,
+): { ok: true; surface: SurfaceState; action: Action } | { ok: false; reason: string } {
+  const surface = ctx.surfaces.get(surfaceId);
+  if (!surface) return { ok: false, reason: `unknown surfaceId "${surfaceId}"` };
+  const component = surface.components.get(componentId);
+  if (!component) return { ok: false, reason: `unknown componentId "${componentId}" on surface "${surfaceId}"` };
+  const action = component.props.action as Action | undefined;
+  if (!action) return { ok: false, reason: `component "${componentId}" has no action` };
+  return { ok: true, surface, action };
+}
+
+/** Builds the `action` wire envelope for an agent-event action, registering a pending response if `wantResponse` was set. */
+function buildAgentEventAction(ctx: InterpreterCtx, 
+  surface: SurfaceState,
+  surfaceId: string,
+  componentId: string,
+  event: AgentActionEvent,
+  now: (required: Record<string, never>) => number,
+): BuildActionResult {
+  const { name, context, wantResponse, responsePath } = event;
+  const actionId = wantResponse ? ctx.ids.next({}) : undefined;
+  if (actionId) {
+    surface.pendingActions.set(actionId, { name, sourceComponentId: componentId, responsePath });
+  }
+  const payload: ActionMessagePayload = {
+    name,
+    surfaceId,
+    sourceComponentId: componentId,
+    timestamp: new Date(now({})).toISOString(),
+    context: resolveActionContext(ctx, context, surfaceId),
+    ...(wantResponse !== undefined ? { wantResponse } : {}),
+    ...(actionId !== undefined ? { actionId } : {}),
+  };
+  return { ok: true, kind: 'agent', message: buildActionMessage({ payload }) };
+}
+
+function buildAction(ctx: InterpreterCtx, { surfaceId, componentId }: { surfaceId: string; componentId: string }, { now }: { now?: ((required: Record<string, never>) => number) | undefined } = {}): BuildActionResult {
+  const target = resolveActionTarget(ctx, surfaceId, componentId);
+  if (!target.ok) return target;
+  const { surface, action } = target;
+
+  if ('functionCall' in action) {
+    return runLocalFunctionAction({ dataModel: surface.dataModel, catalog: ctx.catalog, action });
+  }
+  // `ActionSchema` (validated when this component's props were ingested — see
+  // `applyComponentsList`) is a closed 2-branch union: `{event}` | `{functionCall}`. Having
+  // already eliminated the `functionCall` branch above, TypeScript itself narrows `action` to
+  // the `event` branch here — no runtime `isAgentEventAction` re-check is reachable to fail; a
+  // malformed third shape could never have made it into `component.props.action` in the first
+  // place. (Not defensively branched-and-left-untested, per this package's own testing
+  // discipline — see the zod-issues-array comments above for the same principle.)
+  return buildAgentEventAction(ctx, surface, surfaceId, componentId, action.event, now ?? (() => ctx.clock.nowMs()));
+}
+
 export function createA2uiInterpreter({ catalog, clock, ids }: { catalog: Catalog; clock: Clock; ids: A2uiIdsPort }, _optional: Record<string, never> = {}): A2uiInterpreter {
-  const surfaces = new Map<string, SurfaceState>();
-  const listeners = new Set<(required: Record<string, never>) => void>();
-
-  function notify(): void {
-    for (const listener of listeners) listener({});
-  }
-
-  function applyComponentsList(surface: SurfaceState, wireComponents: ComponentsList): RendererToAgentMessage[] {
-    const errors: RendererToAgentMessage[] = [];
-    wireComponents.forEach((wireComponent, index) => {
-      const { id, component: type, ...rest } = wireComponent;
-      if (!isComponentAllowed({ catalog, componentType: type })) {
-        errors.push(
-          buildValidationFailedMessage({ surfaceId: surface.surfaceId, path: `/components/${index}/component`, message: `Component type "${type}" is not in catalog "${catalog.catalogId}" — refused, not rendered.` }
-          ),
-        );
-        return;
-      }
-      const spec = catalog.components.get(type)!;
-      const parsed = spec.propsSchema.safeParse(rest);
-      if (!parsed.success) {
-        // zod guarantees a non-empty `issues` array on failure — see agent-to-renderer.ts's
-        // parseAgentToRendererMessage for the same asserted (not defensively branched) invariant.
-        const issue = parsed.error.issues[0]!;
-        // `issue.message` alone ("Required") names no field — Zod puts the field on `issue.path`
-        // instead, so it has to be spliced back in here or the only place a human sees this (this
-        // string, not the sibling `path` pointer on the built message) never says which prop.
-        const field = issue.path.length > 0 ? issue.path.join('.') : '(root)';
-        errors.push(
-          buildValidationFailedMessage({ surfaceId: surface.surfaceId, path: `/components/${index}/${issue.path.join('/')}`, message: `Component "${id}" (${type}) failed catalog validation: ${field}: ${issue.message}` }
-          ),
-        );
-        return;
-      }
-      surface.components.set(id, { id, component: type, props: parsed.data as Record<string, unknown> });
-    });
-    return errors;
-  }
-
-  function handleCreateSurface(message: Extract<AgentToRendererMessage, { createSurface: unknown }>): RendererToAgentMessage[] {
-    const { surfaceId, catalogId, components, dataModel } = message.createSurface;
-    if (catalogId !== catalog.catalogId) {
-      return [buildValidationFailedMessage({ surfaceId, path: '/createSurface/catalogId', message: `Unknown catalogId "${catalogId}" — this renderer only has "${catalog.catalogId}" loaded.` })];
-    }
-    if (surfaces.has(surfaceId)) {
-      return [buildValidationFailedMessage({ surfaceId, path: '/createSurface/surfaceId', message: `Surface "${surfaceId}" already exists — delete it before recreating (per spec).` })];
-    }
-    const surface: SurfaceState = {
-      surfaceId,
-      catalogId,
-      components: new Map(),
-      dataModel: dataModel ?? {},
-      sendDataModel: message.createSurface.sendDataModel ?? false,
-      pendingActions: new Map(),
-    };
-    surfaces.set(surfaceId, surface);
-    return components ? applyComponentsList(surface, components) : [];
-  }
-
-  function handleUpdateComponents(message: Extract<AgentToRendererMessage, { updateComponents: unknown }>): RendererToAgentMessage[] {
-    const { surfaceId, components } = message.updateComponents;
-    const surface = surfaces.get(surfaceId);
-    if (!surface) {
-      return [buildValidationFailedMessage({ surfaceId, path: '/updateComponents/surfaceId', message: `Unknown surfaceId "${surfaceId}" — createSurface must be sent first.` })];
-    }
-    return applyComponentsList(surface, components);
-  }
-
-  function handleUpdateDataModel(message: Extract<AgentToRendererMessage, { updateDataModel: unknown }>): RendererToAgentMessage[] {
-    const { surfaceId, path, value } = message.updateDataModel;
-    const surface = surfaces.get(surfaceId);
-    if (!surface) {
-      return [buildValidationFailedMessage({ surfaceId, path: '/updateDataModel/surfaceId', message: `Unknown surfaceId "${surfaceId}" — createSurface must be sent first.` })];
-    }
-    surface.dataModel = setAtPointer({ doc: surface.dataModel, pointer: path ?? '/', value });
-    return [];
-  }
-
-  function handleDeleteSurface(message: Extract<AgentToRendererMessage, { deleteSurface: unknown }>): RendererToAgentMessage[] {
-    const { surfaceId } = message.deleteSurface;
-    if (!surfaces.has(surfaceId)) {
-      return [buildValidationFailedMessage({ surfaceId, path: '/deleteSurface/surfaceId', message: `Unknown surfaceId "${surfaceId}" — nothing to delete.` })];
-    }
-    // Dropping the whole SurfaceState also drops its pendingActions map — any actionResponse that
-    // arrives afterward for an actionId that lived here simply won't be found (handled gracefully
-    // in handleActionResponse below), which is exactly the "deleteSurface mid-flight" adversarial
-    // case this is designed to answer.
-    surfaces.delete(surfaceId);
-    return [];
-  }
-
-  function handleCallFunction(message: Extract<AgentToRendererMessage, { callFunction: unknown }>): RendererToAgentMessage[] {
-    const { functionCallId, callFunction, wantResponse } = message;
-    const result = resolveDynamicValue({ value: callFunction, ctx: { dataModel: undefined, catalog, side: 'agent' } });
-    if (!result.ok) {
-      const code = result.reason === 'FUNCTION_NOT_CALLABLE_FROM_SIDE' || result.reason === 'FUNCTION_NOT_REGISTERED' ? 'INVALID_FUNCTION_CALL' : result.reason;
-      return [buildGenericErrorMessage({ code, message: result.detail, target: { functionCallId } })];
-    }
-    if (!wantResponse) return [];
-    // `?? null` because `functionResponse.value` is required on the wire and JSON has no
-    // `undefined`: a `returnType: 'void'` function (the catalog has three) resolves to
-    // `undefined`, and passing that straight through built a message whose `value` vanished on
-    // serialization — one this package's own `parseRendererToAgentMessage` correctly refuses.
-    return [buildFunctionResponseMessage({ payload: { functionCallId, call: callFunction.call, value: result.value ?? null } })];
-  }
-
-  function handleActionResponse(message: Extract<AgentToRendererMessage, { actionResponse: unknown }>): RendererToAgentMessage[] {
-    const { actionId, actionResponse } = message;
-    for (const surface of surfaces.values()) {
-      const pending = surface.pendingActions.get(actionId);
-      if (!pending) continue;
-      surface.pendingActions.delete(actionId);
-      if ('value' in actionResponse && pending.responsePath !== undefined) {
-        surface.dataModel = setAtPointer({ doc: surface.dataModel, pointer: pending.responsePath, value: actionResponse.value });
-      }
-      return [];
-    }
-    // No surface has a pending action under this id — already resolved, never existed, or its
-    // surface was deleted while the action was in flight. Graceful no-op, not an error: the agent
-    // sent a well-formed message, it just arrived too late (or was mistaken) to mean anything now.
-    return [];
-  }
-
-  /** Routes one successfully-parsed envelope to its message-type handler. */
-  function dispatchAgentMessage(message: AgentToRendererMessage): RendererToAgentMessage[] {
-    if ('createSurface' in message) return handleCreateSurface(message);
-    if ('updateComponents' in message) return handleUpdateComponents(message);
-    if ('updateDataModel' in message) return handleUpdateDataModel(message);
-    if ('deleteSurface' in message) return handleDeleteSurface(message);
-    if ('callFunction' in message) return handleCallFunction(message);
-    return handleActionResponse(message);
-  }
-
-  function applyAgentMessage({ raw }: { raw: unknown }, _optional: Record<string, never> = {}): ApplyMessageResult {
-    const parsed = parseAgentToRendererMessage({ raw });
-    if (!parsed.ok) return buildParseFailureResult({ parsed, raw });
-
-    const rendererMessages = dispatchAgentMessage(parsed.message);
-    notify();
-    return { rendererMessages };
-  }
-
-  function getSurface({ surfaceId }: { surfaceId: string }, _optional: Record<string, never> = {}): SurfaceSnapshot | undefined {
-    const surface = surfaces.get(surfaceId);
-    if (!surface) return undefined;
-    return { surfaceId: surface.surfaceId, catalogId: surface.catalogId, components: surface.components, dataModel: surface.dataModel };
-  }
-
-  function getRoot({ surfaceId }: { surfaceId: string }, _optional: Record<string, never> = {}): ComponentInstance | undefined {
-    return surfaces.get(surfaceId)?.components.get('root');
-  }
-
-  function resolve({ surfaceId, value }: { surfaceId: string; value: DynamicValue }, { itemBasePath, itemIndex }: { itemBasePath?: string | undefined; itemIndex?: number | undefined } = {}) {
-    const surface = surfaces.get(surfaceId);
-    const itemScope = itemBasePath !== undefined && itemIndex !== undefined ? { basePath: itemBasePath, index: itemIndex } : undefined;
-    return resolveDynamicValue({ value, ctx: { dataModel: surface?.dataModel, catalog, side: 'renderer' } }, { itemScope });
-  }
-
-  function resolveActionContext(context: Record<string, DynamicValue> | undefined, surfaceId: string): Record<string, unknown> {
-    const resolved: Record<string, unknown> = {};
-    for (const [key, value] of Object.entries(context ?? {})) {
-      const result = resolve({ surfaceId, value });
-      resolved[key] = result.ok ? result.value : null;
-    }
-    return resolved;
-  }
-
-  /** Looks up the surface, component, and `action` prop `buildAction` needs, or the specific reason it can't. */
-  function resolveActionTarget(
-    surfaceId: string,
-    componentId: string,
-  ): { ok: true; surface: SurfaceState; action: Action } | { ok: false; reason: string } {
-    const surface = surfaces.get(surfaceId);
-    if (!surface) return { ok: false, reason: `unknown surfaceId "${surfaceId}"` };
-    const component = surface.components.get(componentId);
-    if (!component) return { ok: false, reason: `unknown componentId "${componentId}" on surface "${surfaceId}"` };
-    const action = component.props.action as Action | undefined;
-    if (!action) return { ok: false, reason: `component "${componentId}" has no action` };
-    return { ok: true, surface, action };
-  }
-
-  /** Builds the `action` wire envelope for an agent-event action, registering a pending response if `wantResponse` was set. */
-  function buildAgentEventAction(
-    surface: SurfaceState,
-    surfaceId: string,
-    componentId: string,
-    event: AgentActionEvent,
-    now: (required: Record<string, never>) => number,
-  ): BuildActionResult {
-    const { name, context, wantResponse, responsePath } = event;
-    const actionId = wantResponse ? ids.next({}) : undefined;
-    if (actionId) {
-      surface.pendingActions.set(actionId, { name, sourceComponentId: componentId, responsePath });
-    }
-    const payload: ActionMessagePayload = {
-      name,
-      surfaceId,
-      sourceComponentId: componentId,
-      timestamp: new Date(now({})).toISOString(),
-      context: resolveActionContext(context, surfaceId),
-      ...(wantResponse !== undefined ? { wantResponse } : {}),
-      ...(actionId !== undefined ? { actionId } : {}),
-    };
-    return { ok: true, kind: 'agent', message: buildActionMessage({ payload }) };
-  }
-
-  function buildAction({ surfaceId, componentId }: { surfaceId: string; componentId: string }, { now }: { now?: ((required: Record<string, never>) => number) | undefined } = {}): BuildActionResult {
-    const target = resolveActionTarget(surfaceId, componentId);
-    if (!target.ok) return target;
-    const { surface, action } = target;
-
-    if ('functionCall' in action) {
-      return runLocalFunctionAction({ dataModel: surface.dataModel, catalog, action });
-    }
-    // `ActionSchema` (validated when this component's props were ingested — see
-    // `applyComponentsList`) is a closed 2-branch union: `{event}` | `{functionCall}`. Having
-    // already eliminated the `functionCall` branch above, TypeScript itself narrows `action` to
-    // the `event` branch here — no runtime `isAgentEventAction` re-check is reachable to fail; a
-    // malformed third shape could never have made it into `component.props.action` in the first
-    // place. (Not defensively branched-and-left-untested, per this package's own testing
-    // discipline — see the zod-issues-array comments above for the same principle.)
-    return buildAgentEventAction(surface, surfaceId, componentId, action.event, now ?? (() => clock.nowMs()));
-  }
-
+  const ctx: InterpreterCtx = { catalog, clock, ids, surfaces: new Map(), listeners: new Set() };
   return {
-    applyAgentMessage,
-    getSurface,
-    listSurfaceIds: (_required: Record<string, never>) => [...surfaces.keys()],
-    getRoot,
-    buildAction,
-    resolve,
+    applyAgentMessage: (required, optional) => applyAgentMessage(ctx, required, optional),
+    getSurface: (required, optional) => getSurface(ctx, required, optional),
+    listSurfaceIds: (_required: Record<string, never>) => [...ctx.surfaces.keys()],
+    getRoot: (required, optional) => getRoot(ctx, required, optional),
+    buildAction: (required, optional) => buildAction(ctx, required, optional),
+    resolve: (required, optional) => resolve(ctx, required, optional),
     subscribe: ({ listener }: { listener: (required: Record<string, never>) => void }) => {
-      listeners.add(listener);
-      return (_required: Record<string, never>) => { listeners.delete(listener); };
+      ctx.listeners.add(listener);
+      return (_required: Record<string, never>) => { ctx.listeners.delete(listener); };
     },
   };
 }
