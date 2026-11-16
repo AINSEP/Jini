@@ -286,8 +286,9 @@ test("seedBundledAgentPlugins refuses a corrupt activations file: installs nothi
     const outcome = result.outcomes[0] as { pluginId: string; status: string; reason?: string };
     assert.equal(outcome.pluginId, "mini-bundled");
     assert.equal(outcome.status, "failed");
-    assert.match(outcome.reason ?? "", /activations\.json is not valid JSON/);
-    assert.match(outcome.reason ?? "", /left untouched/);
+    // A failed outcome carries the error CLASS only (the corrupt file's content/path never reaches the
+    // report); the corrupt file staying byte-identical is asserted below.
+    assert.equal(outcome.reason, "Error");
 
     assert.deepEqual(await listInstalledPlugins(workspaceLayout.root), [], "nothing may be installed while the record cannot be written");
     assert.equal(await readFile(path.join(workspaceLayout.root, "activations.json"), "utf8"), CORRUPT);

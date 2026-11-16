@@ -141,8 +141,12 @@ describe('plugin identity (owner 2026-10-09)', () => {
   it('requires the core peer version that exports the runtime identity entry', async () => {
     const pkg = JSON.parse(await readFile(new URL('../../../../package.json', import.meta.url), 'utf8'));
     // 0.4.3 added the runtime identity entry and 0.4.9 ./provider-registry; the fixed-group
-    // 0.6.10 release moved the floor to ^0.6.10.
-    expect(pkg.peerDependencies['@jini-ai/core']).toBe('^0.6.10');
+    // 0.6.10 release moved the floor to ^0.6.10. Assert the floor is at least that (not an exact
+    // string) so a later fixed-group bump does not break this test without changing the invariant.
+    const floor = /^\^(\d+)\.(\d+)\.(\d+)$/.exec(pkg.peerDependencies['@jini-ai/core'] ?? '');
+    expect(floor).not.toBeNull();
+    const [major = 0, minor = 0, patch = 0] = (floor ?? []).slice(1).map(Number);
+    expect(major > 0 || minor > 6 || (minor === 6 && patch >= 10)).toBe(true);
     expect(pkg.peerDependenciesMeta['@jini-ai/core']?.optional).not.toBe(true);
   });
 
