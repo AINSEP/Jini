@@ -39,6 +39,8 @@ export {
 } from '@jini-ai/core';
 export type { AdapterContext } from './adapter.js';
 export { ClientFacingError, defineJsonRoute, mountJsonRoute } from './adapter.js';
+export type { RouteInternalErrorContext, RouteInternalErrorSink } from './internal-error.js';
+export { reportRouteInternalError } from './internal-error.js';
 export type { InstallRouteRegistrationGuardOptions, RouteRegistration } from './route-registration-guard.js';
 export {
   getRouteRegistrationInventory,

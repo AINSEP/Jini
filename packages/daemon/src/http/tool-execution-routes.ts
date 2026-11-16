@@ -25,7 +25,7 @@
 import express, { type ErrorRequestHandler, type NextFunction, type Request, type RequestHandler, type Response } from 'express';
 import { createApiError, type ApiError } from '@jini-ai/protocol';
 import type { Principal, SurfaceEmitter, ToolDescriptor } from '@jini-ai/core';
-import { bearerTokenFromHeader, isLoopbackPeerAddress, sendApiError, statusForError, timingSafeTokenMatch } from '@jini-ai/http-kit';
+import { bearerTokenFromHeader, isLoopbackPeerAddress, reportRouteInternalError, sendApiError, statusForError, timingSafeTokenMatch, type RouteInternalErrorSink } from '@jini-ai/http-kit';
 import type { ToolExecutionResult, ToolExecutor } from '../tool-executor.js';
 import { TOOL_EXECUTIONS_ROUTE_PATH, type ToolExecutionWireError, type ToolExecutionWireLine, type ToolExecutionWireRequest } from '../remote-tool-executor.js';
 
@@ -61,6 +61,8 @@ export interface ToolExecutionRoutesOptional {
   readonly runWithContext?: RunWithToolContext;
   /** Host-owned live-run/identity gate, after parsing and before either route dispatches. */
   readonly authorizeRun?: RequestHandler;
+  /** Receives an unexpected route failure with its request ID; defaults to a redacted `console.error`. */
+  readonly onInternalError?: RouteInternalErrorSink;
 }
 
 function refusalFor({ req, expected, tokenEnvVar }: { readonly req: Request; readonly expected: string | undefined; readonly tokenEnvVar: string }): ApiError | null {
@@ -192,7 +194,10 @@ function executionHandler(
  * weak ETag to `json` GET responses, and this answer must never be served from a validator cache:
  * plugin state and delete policy can change between two runs.
  */
-function catalogHandler({ listToolsFor }: Pick<ToolExecutionRoutesRequired, 'listToolsFor'>): RequestHandler {
+function catalogHandler(
+  { listToolsFor }: Pick<ToolExecutionRoutesRequired, 'listToolsFor'>,
+  { onInternalError }: Pick<ToolExecutionRoutesOptional, 'onInternalError'> = {},
+): RequestHandler {
   return async (req, res) => {
     const principalId = req.query.principalId;
     if (!nonEmptyString(principalId)) {
@@ -204,8 +209,11 @@ function catalogHandler({ listToolsFor }: Pick<ToolExecutionRoutesRequired, 'lis
       res.status(200).setHeader('content-type', 'application/json; charset=utf-8');
       res.setHeader('cache-control', 'no-store');
       res.end(JSON.stringify({ tools }));
-    } catch {
-      sendApiError({ res, status: 500, error: createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }) });
+    } catch (error) {
+      sendApiError({ res, status: 500, error: reportRouteInternalError({
+        report: { source: 'tool-catalog', error }, logSource: 'tool-catalog',
+        message: 'The tool list could not be loaded. Try again; if it keeps failing, copy the request ID and report this problem.',
+      }, { onInternalError }) });
     }
   };
 }
@@ -217,12 +225,12 @@ function catalogHandler({ listToolsFor }: Pick<ToolExecutionRoutesRequired, 'lis
  */
 export function registerToolExecutionRoutes(
   { app, executor, listToolsFor }: ToolExecutionRoutesRequired,
-  { tokenEnvVar, env, maxBodyBytes = DEFAULT_TOOL_EXEC_MAX_BODY_BYTES, runWithContext, authorizeRun }: ToolExecutionRoutesOptional = {},
+  { tokenEnvVar, env, maxBodyBytes = DEFAULT_TOOL_EXEC_MAX_BODY_BYTES, runWithContext, authorizeRun, onInternalError }: ToolExecutionRoutesOptional = {},
 ): void {
   const gate = requireToolExecutionCaller({}, { ...(tokenEnvVar === undefined ? {} : { tokenEnvVar }), ...(env === undefined ? {} : { env }) });
   const parser = express.json({ limit: maxBodyBytes });
   const runGate = authorizeRun ? [authorizeRun] : [];
   app.post(TOOL_EXECUTIONS_ROUTE_PATH, gate, parser, ...runGate, executionHandler({ executor }, runWithContext === undefined ? {} : { runWithContext }), bodyParserFailure);
-  app.get(TOOL_CATALOG_ROUTE_PATH, gate, ...runGate, catalogHandler({ listToolsFor }));
+  app.get(TOOL_CATALOG_ROUTE_PATH, gate, ...runGate, catalogHandler({ listToolsFor }, { onInternalError }));
 }
 

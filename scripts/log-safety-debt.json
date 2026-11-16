@@ -1,0 +1,1147 @@
+[
+  {
+    "file": "packages/admin/src/core/transport/errors.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/core/transport/http.ts",
+    "rule": "stored-error-text",
+    "value": 3
+  },
+  {
+    "file": "packages/admin/src/media/controllers/edit-media.controller.ts",
+    "rule": "stored-error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/media/controllers/library.controller.ts",
+    "rule": "stored-error-text",
+    "value": 3
+  },
+  {
+    "file": "packages/admin/src/seo/controllers/sitemap.controller.ts",
+    "rule": "stored-error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/widgets/react/hooks/use-widget-regions.hooks.ts",
+    "rule": "stored-error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/widgets/react/hooks/use-widgets-library.hooks.ts",
+    "rule": "stored-error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/admin-surfaces/connections/connections.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/admin-surfaces/connections/connections.ts",
+    "rule": "error-helper",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/connect/apply-tool-renames.ts",
+    "rule": "error-format",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-plugins/src/connect/apply-tool-renames.ts",
+    "rule": "error-text",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-plugins/src/connect/credential-cards.ts",
+    "rule": "console",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-plugins/src/connect/federate-mcp.ts",
+    "rule": "stored-error-text",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-plugins/src/connect/grant-signed-in-defaults.ts",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/connect/grant-signed-in-defaults.ts",
+    "rule": "error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/connect/import-access-token.ts",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/connect/import-access-token.ts",
+    "rule": "error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/connect/plugin-credential-card.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/credential-card-metadata.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/credential-card-metadata.ts",
+    "rule": "stored-error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/host-tools/identity.ts",
+    "rule": "console",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/host-tools/search-tool.ts",
+    "rule": "console",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/host-tools/search-tool.ts",
+    "rule": "error-format",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/host-tools/search-tool.ts",
+    "rule": "error-text",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/host-tools/skill-tool.ts",
+    "rule": "console",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/host-tools/skill-tool.ts",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/host-tools/skill-tool.ts",
+    "rule": "error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/retire-bundled.ts",
+    "rule": "stored-error-text",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/seed-bundled.ts",
+    "rule": "stored-error-text",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-runtime/src/agent-protocol/pi-rpc/session.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/anthropic-live-models.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/providers/oauth-callback-server.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/providers/oauth-callback-server.ts",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/providers/oauth-callback-server.ts",
+    "rule": "error-helper",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/providers/oauth-tokens.ts",
+    "rule": "console",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-runtime/src/providers/oauth-tokens.ts",
+    "rule": "error-format",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-runtime/src/providers/oauth-tokens.ts",
+    "rule": "error-helper",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/asset-harvest.mjs",
+    "rule": "console",
+    "value": 3
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/asset-harvest.mjs",
+    "rule": "error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/audit-clone.mjs",
+    "rule": "console",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/audit-clone.mjs",
+    "rule": "error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/compare-recon.mjs",
+    "rule": "console",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/compare-recon.mjs",
+    "rule": "error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/dna-scaffold.mjs",
+    "rule": "console",
+    "value": 3
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/dna-scaffold.mjs",
+    "rule": "error-text",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/init-clone.mjs",
+    "rule": "console",
+    "value": 2
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/init-clone.mjs",
+    "rule": "error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/interaction-probe.mjs",
+    "rule": "console",
+    "value": 3
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/interaction-probe.mjs",
+    "rule": "stored-error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/mirror-site.mjs",
+    "rule": "console",
+    "value": 3
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/network-capture.mjs",
+    "rule": "console",
+    "value": 3
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/od-preview-rewrite.mjs",
+    "rule": "console",
+    "value": 3
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/recon-site.mjs",
+    "rule": "console",
+    "value": 3
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/route-crawl.mjs",
+    "rule": "console",
+    "value": 3
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/route-crawl.mjs",
+    "rule": "stored-error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/sourcemap-hunt.mjs",
+    "rule": "console",
+    "value": 3
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/visual-diff.mjs",
+    "rule": "console",
+    "value": 3
+  },
+  {
+    "file": "packages/agent-runtime/src/terminal-launch.ts",
+    "rule": "stored-error-text",
+    "value": 4
+  },
+  {
+    "file": "packages/agentic/src/core/dom/dom-page-driver.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/analytics/src/product/index.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/core/assistant-client/ag-ui-transport.ts",
+    "rule": "stored-error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/embed-widget/vanilla/state.ts",
+    "rule": "stored-error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/react/components/Composer.tsx",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/react/components/Composer.tsx",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/react/components/ConversationList.tsx",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/react/components/ConversationList.tsx",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/react/components/ConversationTitleEditor.tsx",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/react/components/ConversationTitleEditor.tsx",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/react/components/ExtEventErrorBoundary.tsx",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/react/components/ExtEventErrorBoundary.tsx",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/react/components/ToolCard.tsx",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/react/components/ToolCard.tsx",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/react/features/chat-pane/hooks/useChatPaneFileDrop.hooks.ts",
+    "rule": "console",
+    "value": 2
+  },
+  {
+    "file": "packages/chat/src/react/features/chat-pane/hooks/useChatPaneFileDrop.hooks.ts",
+    "rule": "error-format",
+    "value": 2
+  },
+  {
+    "file": "packages/chat/src/react/hooks/useConversation.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/react/hooks/useConversation.ts",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/react/hooks/useRunStream.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/react/hooks/useRunStream.ts",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/store/runtime/chat-expiry-sweep.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/store/runtime/chat-expiry-sweep.ts",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/store/runtime/chat-expiry-sweep.ts",
+    "rule": "error-helper",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/comments/express/submit-handler.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/comments/express/submit-handler.ts",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/comments/express/submit-handler.ts",
+    "rule": "error-helper",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/forms/express/handler.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/forms/express/handler.ts",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/forms/express/handler.ts",
+    "rule": "error-helper",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/forms/express/handler.ts",
+    "rule": "stored-error-text",
+    "value": 6
+  },
+  {
+    "file": "packages/cms/src/forms/notify-subscriber.ts",
+    "rule": "error-format",
+    "value": 2
+  },
+  {
+    "file": "packages/cms/src/forms/notify-subscriber.ts",
+    "rule": "error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/forms/notify-subscriber.ts",
+    "rule": "raw-error",
+    "value": 2
+  },
+  {
+    "file": "packages/cms/src/forms/submit-service.ts",
+    "rule": "error-format",
+    "value": 2
+  },
+  {
+    "file": "packages/cms/src/media/tool-registrations.ts",
+    "rule": "stored-error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/widgets/html/resolve-html-page-embeds.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/widgets/read-service.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/widgets/resolver-service.ts",
+    "rule": "console",
+    "value": 15
+  },
+  {
+    "file": "packages/commerce/src/payments/ingest/worker.ts",
+    "rule": "stored-error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/core/src/approval.ts",
+    "rule": "stored-error-text",
+    "value": 2
+  },
+  {
+    "file": "packages/core/src/primitives/logger.ts",
+    "rule": "error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/core/src/settings/express/stream.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/core/src/settings/express/stream.ts",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/core/src/settings/express/stream.ts",
+    "rule": "error-helper",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/event-translation.ts",
+    "rule": "stored-error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/events.ts",
+    "rule": "console",
+    "value": 2
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/events.ts",
+    "rule": "error-helper",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/http-mcp.ts",
+    "rule": "console",
+    "value": 3
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/launch.ts",
+    "rule": "console",
+    "value": 3
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/run-output.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/run-output.ts",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/run-output.ts",
+    "rule": "error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/attachment-lookup-routes.ts",
+    "rule": "stored-error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/attachments.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/attachments.ts",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/attachments.ts",
+    "rule": "error-helper",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/connectors.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/connectors.ts",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/connectors.ts",
+    "rule": "error-helper",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/db-ops.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/db-ops.ts",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/db-ops.ts",
+    "rule": "error-helper",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/delegated-tools.ts",
+    "rule": "console",
+    "value": 2
+  },
+  {
+    "file": "packages/daemon/src/http/delegated-tools.ts",
+    "rule": "error-format",
+    "value": 2
+  },
+  {
+    "file": "packages/daemon/src/http/delegated-tools.ts",
+    "rule": "error-helper",
+    "value": 2
+  },
+  {
+    "file": "packages/daemon/src/http/delegated-tools.ts",
+    "rule": "stored-error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/frontend-control.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/frontend-control.ts",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/frontend-control.ts",
+    "rule": "error-helper",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/frontend-sessions.ts",
+    "rule": "console",
+    "value": 2
+  },
+  {
+    "file": "packages/daemon/src/http/frontend-sessions.ts",
+    "rule": "error-format",
+    "value": 2
+  },
+  {
+    "file": "packages/daemon/src/http/frontend-sessions.ts",
+    "rule": "error-helper",
+    "value": 2
+  },
+  {
+    "file": "packages/daemon/src/http/host-tools.ts",
+    "rule": "stored-error-text",
+    "value": 2
+  },
+  {
+    "file": "packages/daemon/src/http/media.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/media.ts",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/media.ts",
+    "rule": "error-helper",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/media.ts",
+    "rule": "stored-error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/remote-run-events.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/remote-run-events.ts",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/remote-run-events.ts",
+    "rule": "error-helper",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/research.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/research.ts",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/research.ts",
+    "rule": "error-helper",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/runs.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/runs.ts",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/runs.ts",
+    "rule": "error-helper",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/terminals.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/terminals.ts",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/terminals.ts",
+    "rule": "error-helper",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/xai.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/xai.ts",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/http/xai.ts",
+    "rule": "error-helper",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/legacy-data-migration.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/daemon/src/routines/scheduler.ts",
+    "rule": "console",
+    "value": 2
+  },
+  {
+    "file": "packages/daemon/src/routines/scheduler.ts",
+    "rule": "error-format",
+    "value": 2
+  },
+  {
+    "file": "packages/daemon/src/routines/scheduler.ts",
+    "rule": "error-helper",
+    "value": 2
+  },
+  {
+    "file": "packages/daemon/src/run-lifecycle.ts",
+    "rule": "console",
+    "value": 6
+  },
+  {
+    "file": "packages/daemon/src/run-lifecycle.ts",
+    "rule": "error-format",
+    "value": 6
+  },
+  {
+    "file": "packages/daemon/src/run-lifecycle.ts",
+    "rule": "error-helper",
+    "value": 6
+  },
+  {
+    "file": "packages/db/src/data-modules/data-module.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/db/src/data-modules/data-module.ts",
+    "rule": "stored-error-text",
+    "value": 2
+  },
+  {
+    "file": "packages/db/src/kernel/postgres/driver.ts",
+    "rule": "console",
+    "value": 2
+  },
+  {
+    "file": "packages/db/src/kernel/postgres/driver.ts",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/db/src/kernel/postgres/driver.ts",
+    "rule": "error-helper",
+    "value": 1
+  },
+  {
+    "file": "packages/db/src/pglite/socket-server.ts",
+    "rule": "error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/db/src/tools/transfer-tools.ts",
+    "rule": "error-helper",
+    "value": 3
+  },
+  {
+    "file": "packages/desktop-host/src/electron/updates/auto-update-controller.ts",
+    "rule": "error-helper",
+    "value": 6
+  },
+  {
+    "file": "packages/devops/src/agent-jobs/jobs.ts",
+    "rule": "stored-error-text",
+    "value": 4
+  },
+  {
+    "file": "packages/devops/src/deploy/ops-runner.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/diagnostics/src/observability/tracker.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/diagnostics/src/sources.ts",
+    "rule": "stored-error-text",
+    "value": 2
+  },
+  {
+    "file": "packages/diagnostics/src/web-evidence/playwright-runtime.ts",
+    "rule": "stored-error-text",
+    "value": 4
+  },
+  {
+    "file": "packages/http-kit/src/adapter.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/http-kit/src/adapter.ts",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/http-kit/src/adapter.ts",
+    "rule": "error-helper",
+    "value": 1
+  },
+  {
+    "file": "packages/http-kit/src/verified-origin/configured-origin.ts",
+    "rule": "raw-error",
+    "value": 1
+  },
+  {
+    "file": "packages/infra/src/events/outbox/worker.ts",
+    "rule": "error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/infra/src/events/outbox/worker.ts",
+    "rule": "stored-error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/integrations/src/webhooks/worker.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/mcp/src/core/config.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/mcp/src/core/config.ts",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/mcp/src/core/config.ts",
+    "rule": "error-helper",
+    "value": 1
+  },
+  {
+    "file": "packages/mcp/src/core/tokens.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/mcp/src/core/tokens.ts",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/mcp/src/core/tokens.ts",
+    "rule": "error-helper",
+    "value": 1
+  },
+  {
+    "file": "packages/mcp/src/federation/bootstrap.ts",
+    "rule": "error-format",
+    "value": 2
+  },
+  {
+    "file": "packages/mcp/src/federation/bootstrap.ts",
+    "rule": "error-helper",
+    "value": 2
+  },
+  {
+    "file": "packages/mcp/src/federation/stdio/default-connect.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/platform/src/fs/directory-user-config.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/platform/src/fs/durable-json.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/platform/src/fs/durable-json.ts",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/platform/src/fs/workspace-directory.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/platform/src/mail/builtin-providers.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/platform/src/mail/delivery-wrapper.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/platform/src/mail/resolve-mailer.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/platform/src/mail/resolve-mailer.ts",
+    "rule": "stored-error-text",
+    "value": 2
+  },
+  {
+    "file": "packages/plugins/src/host/capability-tools.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/plugins/src/host/capability-tools.ts",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/plugins/src/host/capability-tools.ts",
+    "rule": "error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/plugins/src/host/capability-tools.ts",
+    "rule": "stored-error-text",
+    "value": 2
+  },
+  {
+    "file": "packages/plugins/src/host/contributions.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/plugins/src/host/contributions.ts",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/plugins/src/host/node/install.ts",
+    "rule": "console",
+    "value": 2
+  },
+  {
+    "file": "packages/plugins/src/host/node/runtime-core.ts",
+    "rule": "console",
+    "value": 7
+  },
+  {
+    "file": "packages/plugins/src/host/node/runtime-core.ts",
+    "rule": "error-format",
+    "value": 6
+  },
+  {
+    "file": "packages/plugins/src/host/node/runtime-core.ts",
+    "rule": "error-text",
+    "value": 3
+  },
+  {
+    "file": "packages/plugins/src/host/node/runtime-core.ts",
+    "rule": "raw-error",
+    "value": 1
+  },
+  {
+    "file": "packages/plugins/src/host/tools/management.ts",
+    "rule": "console",
+    "value": 2
+  },
+  {
+    "file": "packages/plugins/src/host/tools/management.ts",
+    "rule": "error-text",
+    "value": 2
+  },
+  {
+    "file": "packages/plugins/src/host/worker/run-call.ts",
+    "rule": "stored-error-text",
+    "value": 2
+  },
+  {
+    "file": "packages/server/src/create-local-node-daemon.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/server/src/create-local-node-daemon.ts",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/server/src/create-local-node-daemon.ts",
+    "rule": "error-helper",
+    "value": 1
+  },
+  {
+    "file": "packages/server/src/host-bootstrap.ts",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/server/src/host-bootstrap.ts",
+    "rule": "error-helper",
+    "value": 1
+  },
+  {
+    "file": "packages/sidecar/src/json-ipc.ts",
+    "rule": "console",
+    "value": 2
+  },
+  {
+    "file": "packages/ui-kit/src/react/confirm/ConfirmDialog.hooks.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/ui-kit/src/react/context.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/features/asset-grid/react/hooks/useAssetGridLiveUpdates.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/features/connectors/hooks/useConnectorCatalog.ts",
+    "rule": "console",
+    "value": 2
+  },
+  {
+    "file": "packages/ui/src/features/html-editor/editor-serialization.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/features/html-editor/editor-serialization.ts",
+    "rule": "raw-error",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/features/lexical-rich-text-editor/react/components/RichTextInput.tsx",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/features/lexical-rich-text-editor/react/components/RichTextInput.tsx",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/features/panel-kit/helpers/standing-draft-local-backup.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/features/panel-kit/hooks/use-settings-slice.hooks.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/features/panel-kit/hooks/use-standing-draft-autosave.hooks.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/features/sketch-editor/react/hooks/useSketchSaveWorkflow.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/features/sketch-editor/react/hooks/useSketchSaveWorkflow.ts",
+    "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/react/components/RemixIcon.stylesheet.ts",
+    "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/user-management/src/admin/controllers/auth.controller.ts",
+    "rule": "stored-error-text",
+    "value": 1
+  }
+]

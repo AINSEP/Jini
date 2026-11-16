@@ -71,7 +71,7 @@ describe('resolveConfiguredOrigin refusals', () => {
   ])('%s refused: %s', (value, reason) => {
     const { origin, warn } = resolve(value);
     expect(origin).toBeUndefined();
-    expect(warn).toHaveBeenCalledWith(`URL is set but was refused as this deployment's public origin (${reason}); no origin was registered from it. Value: ${value}`);
+    expect(warn).toHaveBeenCalledWith(`URL is set but was refused as this deployment's public origin (${reason}); no origin was registered from it. Set URL to this site's public https address, with no user name, password, query string or fragment.`);
   });
   it.each(['https://127.0.0.1.example.com', 'https://x127.0.0.1.test', 'https://1270.0.0.1.test', 'https://localhost.example.com'])('loopback look-alike %s is accepted as public', (value) => {
     expect(resolve(value).origin?.host).toBe(new URL(value).hostname);

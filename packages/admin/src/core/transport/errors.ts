@@ -1,3 +1,5 @@
+import { describeErrorForLog } from '@jini-ai/core/model-facing-tool-errors';
+
 /**
  * @file The error contract every admin route group throws, host-supplied or Jini-shipped.
  *
@@ -17,8 +19,9 @@
  *    username is already in use" on Users. Three correct operator-facing sentences for one code.
  *    A shared table could only pick one, which is a regression dressed as consolidation. So
  *    `describeApiError` is only the *base case*: it decides what to show when the server sent no
- *    message, or when the thrown value is not an `AdminApiError` at all (network failure, a
- *    thrown non-Error). Panels layer their own per-code copy on top and fall through to this.
+ *    message, or when the thrown value is not an `AdminApiError` at all (a port's own exception or
+ *    a thrown non-Error: never shown, logged by class and code only). Panels layer their own
+ *    per-code copy on top and fall through to this.
  */
 
 /** A failed admin API call: a non-2xx response, or a network/timeout failure with status 0. */
@@ -61,9 +64,22 @@ export class AdminApiError extends Error {
  * }
  * ```
  *
- * @complexity O(1) — two `instanceof` checks, no iteration.
+ * Only an `AdminApiError` (the host API's contract, network failures included as status 0) shows its
+ * own words; any other thrown value shows `fallback` and is logged by class and code only.
+ *
+ * @complexity O(1) — one `instanceof` check, no iteration.
  */
-export function describeApiError({ e, fallback }: { readonly e: unknown; readonly fallback: string }): string {
+export function describeApiError(
+  { e, fallback }: { readonly e: unknown; readonly fallback: string },
+  { warn = defaultWarn }: { readonly warn?: (line: string) => void } = {},
+): string {
   if (e instanceof AdminApiError) return e.message || fallback;
-  return e instanceof Error ? e.message : fallback;
+  // Anything else is not approved copy: a port's own exception can quote private values, so the
+  // operator sees the specific fallback and the log gets only the error's class and code.
+  warn(`[admin] ${fallback} Cause: ${describeErrorForLog({ err: e })}`);
+  return fallback;
+}
+
+function defaultWarn(line: string): void {
+  console.warn(line);
 }

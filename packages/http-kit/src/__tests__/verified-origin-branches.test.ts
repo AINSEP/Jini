@@ -71,7 +71,7 @@ describe("resolveConfiguredOrigin", () => {
     const origin = resolveConfiguredOrigin({ env: { APP_PUBLIC_URL: "https://./" }, envVarName: "APP_PUBLIC_URL", clock: { nowIso: () => NOW }, warn: (m) => warnings.push(m) });
     expect(origin).toBeUndefined();
     expect(warnings).toEqual([
-      "APP_PUBLIC_URL is set but was refused as this deployment's public origin (its host is empty); no origin was registered from it. Value: https://./",
+      "APP_PUBLIC_URL is set but was refused as this deployment's public origin (its host is empty); no origin was registered from it. Set APP_PUBLIC_URL to this site's public https address, with no user name, password, query string or fragment.",
     ]);
   });
 });

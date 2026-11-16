@@ -18,12 +18,24 @@ function resolve(value: string | undefined) {
   return { origin, warnings };
 }
 
-function refusalMessage(reason: string, value: string): string {
+// The refused value is never echoed: it is refused precisely because it can carry userinfo or a
+// query credential. The reason is fixed words (plus a host name for a loopback refusal).
+function refusalMessage(reason: string, _value: string): string {
   return (
     `APP_PUBLIC_URL is set but was refused as this deployment's public origin (${reason}); ` +
-    `no origin was registered from it. Value: ${value}`
+    "no origin was registered from it. Set APP_PUBLIC_URL to this site's public https address, " +
+    "with no user name, password, query string or fragment."
   );
 }
+
+test("resolveConfiguredOrigin: a refused URL's userinfo or query credential never reaches the warning", () => {
+  for (const value of ["https://admin:SECRETSECRETSECRET@site.test", "https://site.test/?token=SECRETSECRETSECRET", "https://site.test/#SECRETSECRETSECRET"]) {
+    const { origin, warnings } = resolve(value);
+    assert.equal(origin, undefined);
+    assert.equal(warnings.length, 1);
+    assert.ok(!warnings[0]!.includes("SECRETSECRET"), warnings[0]);
+  }
+});
 
 test("resolveConfiguredOrigin: a valid public https URL yields a workspace-setting VerifiedOrigin", () => {
   const { origin, warnings } = resolve("https://product.fly.dev");

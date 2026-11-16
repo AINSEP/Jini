@@ -34,6 +34,7 @@ import crypto from "node:crypto";
 import { loadPlaywright, launchChromium } from "./lib/playwright-loader.mjs";
 import { flag, list, parseCliArgs, rejectUnknown, runIfMain, text } from "./lib/script-cli.mjs";
 import { replaceCssUrls } from "./lib/css-url.mjs";
+import { assetId, errorClassLabel, hostLabel } from "./lib/diagnostic-labels.mjs";
 
 export function usage(log) {
   log(`asset-harvest.mjs — 抓取页面真实用到的图片/字体/媒体(含第三方 CDN)并生成本地映射
@@ -196,25 +197,35 @@ function fetchTransport(fetchImpl) {
   };
 }
 
+/** A refusal this script raises itself: its message is fixed words and numbers, safe to record. */
+class AssetRefusedError extends Error {}
+
 async function downloadOne(entry, get, { outDir, maxBytes, referer, fs: files }) {
   const rel = localPathFor(entry.kind, entry.url);
   const resp = await get(entry.url, referer);
-  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  if (!resp.ok) throw new AssetRefusedError(`HTTP ${resp.status}`);
   const buffer = await resp.body();
-  if (buffer.length > maxBytes) throw new Error(`exceeds --max-bytes (${buffer.length})`);
+  if (buffer.length > maxBytes) throw new AssetRefusedError(`exceeds --max-bytes (${buffer.length})`);
   const dest = path.join(outDir, rel);
   files.mkdirSync(path.dirname(dest), { recursive: true });
   files.writeFileSync(dest, buffer);
   return { ...entry, status: "ok", bytes: buffer.length, localPath: rel.split(path.sep).join("/") };
 }
 
-/** Sequentially downloads every entry; a failure is recorded, never thrown. */
+/** Sequentially downloads every entry; a failure is recorded, never thrown. Each result gets the
+ * generated `id` that printed failure lines use. The recorded `error` is this script's own refusal
+ * text or the error class: a transport error's text can quote a URL with private values. */
 export async function downloadAll(entries, get, options) {
   const results = [];
-  for (const entry of entries) {
-    results.push(await downloadOne(entry, get, options).catch((error) => ({ ...entry, status: "error", error: error.message })));
+  for (const [index, entry] of entries.entries()) {
+    const withId = { id: assetId({ index }), ...entry };
+    results.push(await downloadOne(withId, get, options).catch((error) => ({ ...withId, status: "error", error: describeDownloadFailure({ error }) })));
   }
   return results;
+}
+
+function describeDownloadFailure({ error }, _optional = {}) {
+  return error instanceof AssetRefusedError ? error.message : errorClassLabel({ error });
 }
 
 function createCandidates(types) {
@@ -239,8 +250,9 @@ function recordResponse(resp, candidates) {
 // fonts actually hit the network; every classified response becomes a candidate.
 async function captureNetworkAssets(page, { pageUrl, args, io, candidates }) {
   page.on("response", (resp) => recordResponse(resp, candidates));
-  io.log(`▸ 加载 + 全程滚动捕获资产请求: ${pageUrl}`);
-  await page.goto(pageUrl, { waitUntil: "networkidle", timeout: 90000 }).catch((e) => io.warn("  goto:", e.message));
+  // Progress and failure lines carry the host and the error class only (see lib/diagnostic-labels.mjs).
+  io.log(`▸ 加载 + 全程滚动捕获资产请求: ${hostLabel({ url: pageUrl })}`);
+  await page.goto(pageUrl, { waitUntil: "networkidle", timeout: 90000 }).catch((e) => io.warn("  goto:", errorClassLabel({ error: e })));
   const total = await page.evaluate(() => document.documentElement.scrollHeight);
   for (let y = 0; y <= total; y += args.scrollStep) {
     await page.evaluate((yy) => window.scrollTo(0, yy), y);
@@ -304,7 +316,8 @@ function reportSummary({ io, args, outDir, results, okCount, hasFontsCss, manife
   io.log(`✅ 下载 ${okCount} 成功 / ${results.length - okCount} 失败 → ${outDir}`);
   if (hasFontsCss) io.log(`▸ 自托管字体样式: ${path.join(args.outDir, "fonts/fonts.css")} (页面 <link> 引入即可)`);
   const failedFonts = results.filter((r) => r.kind === "font" && r.status === "error");
-  const failedList = failedFonts.map((f) => `${f.error} ${f.url}`).slice(0, 10).join("\n   ");
+  // Each failure is named by its manifest `id`, never its URL (a URL can carry a private query).
+  const failedList = failedFonts.map((f) => `${f.error} ${f.id}`).slice(0, 10).join("\n   ");
   if (failedFonts.length) io.log(`⚠️ ${failedFonts.length} 个字体下载失败——不许用系统字体糊弄，逐个排查:\n   ${failedList}`);
   io.log(manifestFile);
 }

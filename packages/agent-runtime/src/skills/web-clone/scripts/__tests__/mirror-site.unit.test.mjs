@@ -130,7 +130,7 @@ describe("main", () => {
 
     const manifest = JSON.parse(fs.readFileSync(path.join(outDir, "mirror-manifest.json"), "utf8"));
     expect(manifest).toHaveLength(6);
-    expect(manifest[0]).toEqual({ url: "https://s.test/", status: 200, type: "document", ct: "text/html" });
+    expect(manifest[0]).toEqual({ id: "asset-1", url: "https://s.test/", status: 200, type: "document", ct: "text/html" });
     expect(manifest[1].ct).toBe("");
     expect(fs.readFileSync(path.join(outDir, "own-asset-urls.txt"), "utf8")).toBe("assets/app.js\nboom.bin\nindex.html\nmissing.png\n");
     expect(JSON.parse(fs.readFileSync(path.join(outDir, "third-party.json"), "utf8"))).toEqual({
@@ -138,10 +138,10 @@ describe("main", () => {
       webfont_css_to_selfhost: ["https://use.typekit.net/abc123.css"],
     });
 
-    expect(out.errors).toEqual(["  goto: Timeout 90000ms exceeded"]);
+    expect(out.errors).toEqual(["  goto: Error"]);
     expect(out.logs).toContain("▸ 捕获请求 6 个；同源 4 个，开始下载…");
     expect(out.logs).toContain(`✅ 镜像完成: 2 成功 / 2 失败 → ${site}`);
-    expect(out.logs).toContain("  ⚠️ 失败:\n   HTTP404 missing.png\n   socket hang up boom.bin");
+    expect(out.logs).toContain("  ⚠️ 失败:\n   HTTP404 asset-3\n   Error asset-4");
     expect(out.logs).toContain("▸ 第三方 host: cdn.x.test, use.typekit.net");
     expect(out.logs.some((line) => line.includes("需自托管的 webfont CSS"))).toBe(true);
     // Scrolled through 0, 700, 1400 then bottom, then back to top.
@@ -160,6 +160,34 @@ describe("main", () => {
     expect(out.logs).toContain("▸ 第三方 host: (无)");
     expect(out.logs.some((line) => line.includes("失败:"))).toBe(false);
     expect(out.logs.some((line) => line.includes("webfont"))).toBe(false);
+  });
+
+  // Script output is often pasted or captured into transcripts: a URL's user:password part, a
+  // signed query value or an error that quotes a URL must not reach a printed line. The manifest
+  // files keep the URLs as data, and each failure line names the asset by its manifest id.
+  it("never prints userinfo, query secrets or error text; failures name the manifest asset id", async () => {
+    const outDir = tempDir();
+    const out = createOutput();
+    const pageUrl = "https://user:SECRETPASS@s.test/?token=SECRETQUERY";
+    const { page } = pageEmitting(
+      [
+        fakeResponse({ url: "https://s.test/", resourceType: "document" }),
+        fakeResponse({ url: "https://s.test/private.bin?sig=SECRETSIG" }),
+        fakeResponse({ url: "https://fonts.googleapis.com/css2?family=Inter&key=SECRETKEY", resourceType: "stylesheet" }),
+      ],
+      { gotoError: new Error(`navigating to "${pageUrl}" failed`) },
+    );
+    const browser = mirrorBrowser(page, {
+      "https://s.test/": { status: 200, body: "ok" },
+      "https://s.test/private.bin?sig=SECRETSIG": new Error("fetch https://s.test/private.bin?sig=SECRETSIG failed"),
+    });
+    expect(await main({ argv: ["--url", pageUrl, "--out", outDir, "--settle", "10"] }, { ...out, ...playwrightPorts(browser) })).toBe(0);
+    expect(out.logs[0]).toBe("▸ 加载 + 全程滚动捕获: s.test");
+    expect(out.errors).toEqual(["  goto: Error"]);
+    expect(out.logs).toContain("  ⚠️ 失败:\n   Error asset-2");
+    expect(JSON.stringify([out.logs, out.errors])).not.toMatch(/SECRET|mirror-site\.unit\.test/);
+    const manifest = JSON.parse(fs.readFileSync(path.join(outDir, "mirror-manifest.json"), "utf8"));
+    expect(manifest[1]).toMatchObject({ id: "asset-2", url: "https://s.test/private.bin?sig=SECRETSIG" });
   });
 
   it("lets an invalid --url propagate as a failure", async () => {

@@ -102,7 +102,6 @@
       "@jini-ai/ui-kit": "opt-in: ui kit integrations; import @jini-ai/admin/react — UI kit integrations could not load @jini-ai/ui-kit. Install @jini-ai/ui-kit to enable this feature, or check its installed version and native binaries.",
       "@jini-ai/agent-plugins": "opt-in: agent plugin integrations — Agent plugin integrations could not load @jini-ai/agent-plugins. Install @jini-ai/agent-plugins to enable this feature, or check its installed version and native binaries.",
       "@jini-ai/cms": "opt-in: cms integrations; import @jini-ai/admin/media — CMS integrations could not load @jini-ai/cms. Install @jini-ai/cms to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/core": "opt-in: core module integrations; import @jini-ai/admin/react — Core module integrations could not load @jini-ai/core. Install @jini-ai/core to enable this feature, or check its installed version and native binaries.",
       "react": "opt-in: react admin bindings; import @jini-ai/admin/react — React admin bindings could not load react. Install react to enable this feature, or check its installed version.",
       "react-dom": "opt-in: react admin bindings; import @jini-ai/admin/react — React admin bindings could not load react-dom. Install react-dom to enable this feature, or check its installed version."
     }
@@ -509,9 +508,6 @@
       "optional": true
     },
     "@jini-ai/cms": {
-      "optional": true
-    },
-    "@jini-ai/core": {
       "optional": true
     },
     "react": {

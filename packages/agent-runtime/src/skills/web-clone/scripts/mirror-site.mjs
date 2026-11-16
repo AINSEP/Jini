@@ -16,6 +16,7 @@
 import { loadPlaywright, launchChromium } from "./lib/playwright-loader.mjs";
 import { HELP_OPTIONS, int, parseCliArgs, text } from "./lib/cli-args.mjs";
 import { runIfMain } from "./lib/main-guard.mjs";
+import { assetId, errorClassLabel, hostLabel } from "./lib/diagnostic-labels.mjs";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -60,8 +61,9 @@ export function urlToLocalPath(u, origin) {
 
 // 全程滚动捕获: 先加载，再按步长滚到底、停留 settle，最后回顶。
 async function captureAllRequests(page, args, deps) {
-  deps.log(`▸ 加载 + 全程滚动捕获: ${args.url}`);
-  await page.goto(args.url, { waitUntil: "networkidle", timeout: args.maxMs }).catch((e) => deps.warn("  goto:", e.message));
+  // Progress and failure lines carry the host and the error class only (see lib/diagnostic-labels.mjs).
+  deps.log(`▸ 加载 + 全程滚动捕获: ${hostLabel({ url: args.url })}`);
+  await page.goto(args.url, { waitUntil: "networkidle", timeout: args.maxMs }).catch((e) => deps.warn("  goto:", errorClassLabel({ error: e })));
   const total = await page.evaluate(() => document.documentElement.scrollHeight);
   for (let y = 0; y <= total; y += args.scrollStep) {
     await page.evaluate((yy) => window.scrollTo(0, yy), y);
@@ -78,6 +80,8 @@ export function isOwnUrl(url, origin) {
   return url.startsWith(origin + "/") || url === origin || url === origin + "/";
 }
 
+// A failure line names the asset by its manifest `id` and the error by its class: the URL path
+// and the error text can carry private values.
 async function downloadOwnAssets(ctx, ownUrls, origin, siteDir, deps) {
   const tally = { ok: 0, fail: 0, failed: [] };
   for (const r of ownUrls) {
@@ -85,13 +89,13 @@ async function downloadOwnAssets(ctx, ownUrls, origin, siteDir, deps) {
     const dest = path.join(siteDir, rel);
     try {
       const resp = await ctx.request.get(r.url); // 复用浏览器网络栈(cookie/TUN/代理一致)
-      if (!resp.ok()) { tally.fail++; tally.failed.push(`HTTP${resp.status()} ${rel}`); continue; }
+      if (!resp.ok()) { tally.fail++; tally.failed.push(`HTTP${resp.status()} ${r.id}`); continue; }
       const buf = await resp.body();
       deps.fs.mkdirSync(path.dirname(dest), { recursive: true });
       deps.fs.writeFileSync(dest, buf);
       tally.ok++;
     } catch (e) {
-      tally.fail++; tally.failed.push(`${e.message} ${rel}`);
+      tally.fail++; tally.failed.push(`${errorClassLabel({ error: e })} ${r.id}`);
     }
   }
   return tally;
@@ -112,7 +116,8 @@ function printReport({ tally, third, siteDir }, log) {
   log(`✅ 镜像完成: ${tally.ok} 成功 / ${tally.fail} 失败 → ${siteDir}`);
   if (tally.failed.length) log("  ⚠️ 失败:\n   " + tally.failed.slice(0, 20).join("\n   "));
   log(`▸ 第三方 host: ${third.hosts.join(", ") || "(无)"}`);
-  if (third.webfont_css_to_selfhost.length) log(`▸ 需自托管的 webfont CSS(锁域名,见 static-mirror.md): \n   ${third.webfont_css_to_selfhost.join("\n   ")}`);
+  // The stylesheet URLs themselves are in third-party.json; a printed URL can carry a private query.
+  if (third.webfont_css_to_selfhost.length) log(`▸ 需自托管的 webfont CSS(锁域名,见 static-mirror.md): ${third.webfont_css_to_selfhost.length} 个，见 third-party.json`);
   log(`▸ 下一步: 自托管字体 + 改写 CSS @import + 删追踪 → cd ${siteDir} && python3 -m http.server 8124`);
 }
 
@@ -136,7 +141,7 @@ async function mirror(args, deps) {
 
   await captureAllRequests(page, args, deps);
 
-  const all = [...responses.entries()].map(([url, m]) => ({ url, ...m }));
+  const all = [...responses.entries()].map(([url, m], index) => ({ id: assetId({ index }), url, ...m }));
   const ownUrls = all.filter((r) => isOwnUrl(r.url, origin));
 
   deps.log(`▸ 捕获请求 ${all.length} 个；同源 ${ownUrls.length} 个，开始下载…`);

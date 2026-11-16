@@ -431,14 +431,21 @@ describe('POST /api/proxy/anthropic/stream', () => {
     expect(res.end).toHaveBeenCalledOnce();
   });
 
-  it('SEC-005: falls back to console.error when no onInternalError sink is supplied', async () => {
+  // Without a host sink the default line carries the error class only: the tool's error text can
+  // quote a credential no redaction pattern knows.
+  it('SEC-005: without a sink, the default line carries the provider label, the request ID and the class only', async () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
     const fetchMock = vi.fn().mockResolvedValue(okResponse(sseBody(anthropicToolUseChunk('toolu_1', 'boom_tool', {}))));
     injectedFetch.mockImplementation(fetchMock);
-    const anthropicExecuteTool = vi.fn().mockRejectedValue(new Error('boom'));
+    const anthropicExecuteTool = vi.fn().mockRejectedValue(new Error('boom api_key=SECRETSECRETSECRETSECRET'));
     const res = makeSseRes();
     await handler({ anthropicExecuteTool })(makeReq(validAnthropicBody), res);
     expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+    const errorEvent = writtenEvents(res).find((e) => e.kind === 'error')!;
+    const requestId = (errorEvent.data as { code: string }).code;
+    expect(consoleErrorSpy.mock.calls[0]).toEqual([`[@jini-ai/http-kit] internal error (model-proxy/anthropic, correlationId=${requestId})`, 'Error']);
+    const printed = JSON.stringify(consoleErrorSpy.mock.calls);
+    for (const forbidden of ['boom', 'SECRETSECRET', 'model-proxy.test.ts']) expect(printed).not.toContain(forbidden);
   });
 
   // Regression test for the process-crash class of bug this route family is structurally exposed
@@ -1470,16 +1477,40 @@ describe('model-proxy pins — catch-block fallbacks once headers are already co
     expect(res.json).toHaveBeenCalledWith({ error: { code: 'INTERNAL_ERROR', message: 'The assistant response stopped. Review any completed actions before starting another turn. Copy the request ID and report this problem.', requestId: correlationId } });
   });
 
-  it('catch-all: logs an unrecognized provider via console.error, never via the typed sink', async () => {
+  // The provider param is request input: an unrecognized one is never printed, and never handed to
+  // the typed provider sink as if it were confirmed.
+  it('catch-all: an unrecognized provider logs the fixed label model-proxy/unknown, never the raw param or the typed sink', async () => {
     throwingOriginOnce();
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
     const onInternalError = vi.fn();
     const res = makeSseRes();
-    await callCatchAll('openrouter', validOpenAiBody, { onInternalError });
+    await callCatchAll('PRIVATEVALUE', validOpenAiBody, { onInternalError }, res);
     expect(onInternalError).not.toHaveBeenCalled();
     expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
-    expect(String(consoleErrorSpy.mock.calls[0]![0])).toMatch(/^\[@jini-ai\/http-kit\] internal error \(model-proxy\/openrouter, correlationId=[0-9a-f-]{36}\)$/);
-    expect(res.status).not.toHaveBeenCalled();
+    expect(consoleErrorSpy.mock.calls[0]![0]).toMatch(/^\[@jini-ai\/http-kit\] internal error \(model-proxy\/unknown, correlationId=[0-9a-f-]{36}\)$/);
+    expect(consoleErrorSpy.mock.calls[0]![1]).toBe('Error');
+    expect(JSON.stringify(consoleErrorSpy.mock.calls)).not.toContain('PRIVATEVALUE');
+    expect(res.status).toHaveBeenCalledWith(500);
+  });
+
+  // The incident still reaches the host: through the adapter's generic route sink (method +
+  // registered path), with the same request ID the caller was given.
+  it('catch-all: an unrecognized provider reaches the adapter sink with the registered path and the answered request ID', async () => {
+    throwingOriginOnce();
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
+    const adapterSink = vi.fn();
+    const onInternalError = vi.fn();
+    const app = makeApp();
+    registerModelProxyRoutes({ app: app as any, deps: { fetchImpl: injectedFetch, dnsLookup: injectedDnsLookup, onInternalError }, adapter: { ...adapter, onInternalError: adapterSink } });
+    const res = makeSseRes();
+    await app.handlers['POST /api/proxy/:provider/stream']!(makeParamReq({ provider: 'PRIVATEVALUE' }, validOpenAiBody), res);
+    expect(onInternalError).not.toHaveBeenCalled();
+    expect(adapterSink).toHaveBeenCalledTimes(1);
+    const [context] = adapterSink.mock.calls[0]!;
+    expect(context).toEqual({ method: 'POST', path: '/api/proxy/:provider/stream', error: expect.any(Error), correlationId: expect.any(String), logSource: 'model-proxy/unknown' });
+    expect(res.json.mock.calls[0]![0].error.requestId).toBe(context.correlationId);
+    expect(JSON.stringify(context)).not.toContain('PRIVATEVALUE');
+    expect(consoleErrorSpy).not.toHaveBeenCalled();
   });
 
   it('catch-all: labels an empty provider param as "unknown" in the console line and answers 500', async () => {
@@ -1511,25 +1542,29 @@ describe('model-proxy pins — catch-block fallbacks once headers are already co
     expect(res.end).not.toHaveBeenCalled();
   });
 
-  // A host sink that throws is re-invoked by the catch-all's outer catch, which throws again and
-  // escapes as a rejection — the unhandled-rejection class the outer catch exists to prevent.
-  it('catch-all: a throwing onInternalError escapes as a rejection after being called twice (reported, not fixed)', async () => {
-    const onInternalError = vi.fn(() => { throw new Error('sink exploded'); });
+  // The route owner contains a throwing host sink: the default line records the incident and the
+  // sink's failure (class only), the caller still gets an answer, and nothing escapes as a rejection.
+  it('catch-all: a throwing onInternalError is called once, contained, and logged by class', async () => {
+    const onInternalError = vi.fn(() => { throw new Error('sink exploded SECRETSECRETSINK'); });
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => { });
     const res = makeSseRes();
     // The catch-all's own origin check passes; the one inside runProxyStream throws.
     vi.mocked(isLocalSameOrigin).mockReturnValueOnce(true).mockImplementationOnce(() => {
       throw new Error('origin check exploded');
     });
-    await expect(callCatchAll('anthropic', validAnthropicBody, { onInternalError }, res)).rejects.toThrow('sink exploded');
-    expect(onInternalError).toHaveBeenCalledTimes(2);
-    expect(consoleErrorSpy).not.toHaveBeenCalled();
+    await callCatchAll('anthropic', validAnthropicBody, { onInternalError }, res); // a rejection would fail the test
+    expect(onInternalError).toHaveBeenCalledTimes(1);
+    expect(res.status).toHaveBeenCalledWith(500);
+    expect(consoleErrorSpy).toHaveBeenCalledTimes(2);
+    expect(JSON.stringify(consoleErrorSpy.mock.calls)).not.toContain('SECRETSECRET');
   });
 
-  it('fixed route: a throwing onInternalError escapes as a rejection (reported, not fixed)', async () => {
+  it('fixed route: a throwing onInternalError is contained and the route still answers', async () => {
     throwingOriginOnce();
+    vi.spyOn(console, 'error').mockImplementation(() => { });
     const onInternalError = vi.fn(() => { throw new Error('sink exploded'); });
-    await expect(callFixed('ollama', validOllamaBody, { onInternalError })).rejects.toThrow('sink exploded');
+    const res = await callFixed('ollama', validOllamaBody, { onInternalError }); // a rejection would fail the test
+    expect(res.status).toHaveBeenCalledWith(500);
     expect(onInternalError).toHaveBeenCalledTimes(1);
   });
 });

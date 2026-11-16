@@ -461,4 +461,30 @@ describe('remote tool catalog', () => {
     expect(response.status).toBe(500);
     expect(response.text).not.toContain('secret path');
   });
+
+  it('answers a listToolsFor failure with plain words and a request ID the host sink receives with the cause', async () => {
+    const thrown = new Error('boom api_key=SECRETSECRETSECRETSECRET');
+    const onInternalError = vi.fn();
+    const { baseUrl } = await serve({ executor: executorWith(), listToolsFor: () => { throw thrown; } }, { onInternalError });
+    const response = await rawRequest(baseUrl, { method: 'GET', path: '/internal/tool-catalog?principalId=p1', token: TOKEN });
+    const { error } = JSON.parse(response.text) as { error: { code: string; message: string; requestId?: string } };
+    expect(response.status).toBe(500);
+    expect(error.code).toBe('INTERNAL_ERROR');
+    expect(error.message).toBe('The tool list could not be loaded. Try again; if it keeps failing, copy the request ID and report this problem.');
+    expect(error.requestId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/);
+    expect(response.text).not.toContain('SECRETSECRET');
+    expect(onInternalError).toHaveBeenCalledWith({ source: 'tool-catalog', correlationId: error.requestId, error: thrown, logSource: 'tool-catalog' });
+  });
+
+  it('logs only the class and request ID of a listToolsFor failure when the host gives no sink', async () => {
+    const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { baseUrl } = await serve({ executor: executorWith(), listToolsFor: () => { throw new Error('boom api_key=SECRETSECRETSECRETSECRET'); } });
+    const response = await rawRequest(baseUrl, { method: 'GET', path: '/internal/tool-catalog?principalId=p1', token: TOKEN });
+    const { error } = JSON.parse(response.text) as { error: { requestId: string } };
+    const line = logged.mock.calls.map((args) => args.join(' ')).join('\n');
+    expect(line).toContain(`correlationId=${error.requestId}) Error`);
+    expect(line).not.toContain('boom');
+    expect(line).not.toContain('tool-execution-rpc.test.ts');
+    expect(line).not.toContain('SECRETSECRET');
+  });
 });

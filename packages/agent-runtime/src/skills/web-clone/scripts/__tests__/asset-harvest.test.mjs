@@ -170,12 +170,23 @@ describe("downloadAll", () => {
     };
     const entries = ["https://a.test/boom", "https://a.test/big", "https://a.test/down"].map((url) => ({ url, kind: "image", via: "recon" }));
     const results = await downloadAll(entries, get, { outDir: dir, maxBytes: 10, referer: "https://a.test/", fs });
-    expect(results.map((r) => [r.status, r.error])).toEqual([
-      ["error", "socket hang up"],
-      ["error", "exceeds --max-bytes (11)"],
-      ["error", "HTTP 503"],
+    // The script's own refusals keep their words; a transport error is recorded by class only.
+    expect(results.map((r) => [r.id, r.status, r.error])).toEqual([
+      ["asset-1", "error", "Error"],
+      ["asset-2", "error", "exceeds --max-bytes (11)"],
+      ["asset-3", "error", "HTTP 503"],
     ]);
     expect(fs.readdirSync(dir)).toEqual([]);
+  });
+
+  // A transport error can quote the URL it fetched, including a user:password part or a signed query.
+  it("never records a transport error's text, even when it quotes a URL with userinfo or a query secret", async () => {
+    const dir = makeTempDir();
+    const secretUrl = "https://user:SECRETPASS@a.test/f.woff2?sig=SECRETSIG";
+    const get = async (url) => { throw new Error(`request to ${url} failed`); };
+    const results = await downloadAll([{ url: secretUrl, kind: "font", via: "recon" }], get, { outDir: dir, maxBytes: 10, referer: "https://a.test/", fs });
+    expect(results[0]).toMatchObject({ id: "asset-1", status: "error", error: "Error" });
+    expect(results[0].error).not.toMatch(/SECRET/);
   });
 });
 
@@ -265,7 +276,9 @@ describe("main", () => {
     expect(out.logs[0]).toBe("▸ 候选资产 4 个(图片 2 / 字体 2)，开始下载…");
     expect(out.logs[1]).toBe(`✅ 下载 2 成功 / 2 失败 → ${path.join(dir, "assets")}`);
     expect(out.logs[2]).toBe(`▸ 自托管字体样式: ${path.join("assets", "fonts/fonts.css")} (页面 <link> 引入即可)`);
-    expect(out.logs[3]).toBe("⚠️ 1 个字体下载失败——不许用系统字体糊弄，逐个排查:\n   ECONNRESET https://cdn.test/x.woff2");
+    const failedFont = manifest.assets.find((a) => a.url === "https://cdn.test/x.woff2");
+    expect(failedFont).toMatchObject({ status: "error", error: "Error" });
+    expect(out.logs[3]).toBe(`⚠️ 1 个字体下载失败——不许用系统字体糊弄，逐个排查:\n   Error ${failedFont.id}`);
     expect(out.logs[4]).toBe(path.join(dir, "assets", "asset-manifest.json"));
   });
 
@@ -326,7 +339,7 @@ describe("main", () => {
     expect(code).toBe(0);
     expect(state.contextOptions).toEqual({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
     expect(state.gotos).toEqual([{ url: "https://site.test/", options: { waitUntil: "networkidle", timeout: 90000 } }]);
-    expect(out.warns).toEqual(["  goto: Timeout 90000ms exceeded"]);
+    expect(out.warns).toEqual(["  goto: Error"]);
     expect(state.scrolls).toEqual([[0, 0], [0, 700], [0, 1400], [0, 0]]);
     expect(state.waits).toEqual([180, 180, 180, 10, 800]);
     expect(state.pageClosed).toBe(true);
@@ -340,7 +353,7 @@ describe("main", () => {
     expect(fs.readFileSync(path.join(dir, "out", "fonts", "fonts.css"), "utf8")).toBe(
       `/* self-hosted from ${typekit} */\n@font-face{src:url("${font.replace(/^fonts\//, "")}")}\n`,
     );
-    expect(out.logs[0]).toBe("▸ 加载 + 全程滚动捕获资产请求: https://site.test/");
+    expect(out.logs[0]).toBe("▸ 加载 + 全程滚动捕获资产请求: site.test");
   });
 
   it("writes no fonts.css when nothing needs self-hosting and closes the browser on failure", async () => {
