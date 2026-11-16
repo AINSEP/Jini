@@ -1,5 +1,6 @@
 import { screen, waitFor } from '@testing-library/react';
 import { renderWithChatSurfaces } from '../../__tests__/fake-chat-surfaces.js';
+import { hostChatSurfaces } from '../../__tests__/host-chat-surfaces.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { createLabCatalog } from '@jini-ai/protocol/a2ui';
@@ -478,7 +479,7 @@ describe('A2uiSurfaceCard', () => {
         { id: 'btn', component: 'shadcn.button', label: 'Publish' },
       ]),
     ];
-    renderWithChatSurfaces(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming runSucceeded={false} runId="run-1" />);
+    renderWithChatSurfaces(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming runSucceeded={false} runId="run-1" />, { surfaces: hostChatSurfaces() });
     expect(document.querySelector('.a2ui-card')).not.toBeNull();
     expect(screen.queryByText(/no renderer yet for component type/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Publish' })).toBeInTheDocument();
@@ -499,7 +500,7 @@ describe('A2uiSurfaceCard', () => {
         },
       ]),
     ];
-    renderWithChatSurfaces(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming runSucceeded={false} runId="run-1" />);
+    renderWithChatSurfaces(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming runSucceeded={false} runId="run-1" />, { surfaces: hostChatSurfaces() });
     expect(screen.getByText('Posts vs Pages')).toBeInTheDocument();
     expect(screen.getByRole('table')).toHaveTextContent('Posts12Pages4');
     expect(document.querySelector('svg.recharts-surface')).toBeNull();

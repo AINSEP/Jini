@@ -15,6 +15,7 @@
  */
 import { waitFor } from '@testing-library/react';
 import { renderWithChatSurfaces } from '../../__tests__/fake-chat-surfaces.js';
+import { hostChatSurfaces } from '../../__tests__/host-chat-surfaces.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { MCP_UI_EXT_EVENT_NAME, McpUiSurfaceCard, mcpUiSurfaceSlotKey, registerMcpUiSurfaceRenderer } from '../McpUiSurfaceCard.js';
 import {
@@ -256,7 +257,7 @@ describe('McpUiSurfaceCard', () => {
   });
 
   it('renders one real sandboxed iframe per resource, pointed at the given sandbox proxy URL', async () => {
-    const { container } = renderWithChatSurfaces(<McpUiSurfaceCard {...BASE_PROPS} events={[resourceEvent('ui://a/1', '<p>one</p>')]} />);
+    const { container } = renderWithChatSurfaces(<McpUiSurfaceCard {...BASE_PROPS} events={[resourceEvent('ui://a/1', '<p>one</p>')]} />, { surfaces: hostChatSurfaces() });
     await waitFor(() => expect(container.querySelectorAll('iframe')).toHaveLength(1));
     const frame = container.querySelector('iframe')!;
     expect(frame.src).toBe(SANDBOX_URL.href);
@@ -267,7 +268,7 @@ describe('McpUiSurfaceCard', () => {
       <McpUiSurfaceCard
         {...BASE_PROPS}
         events={[resourceEvent('ui://a/1', '<p>first</p>'), resourceEvent('ui://a/1', '<p>second</p>')]}
-      />,
+      />, { surfaces: hostChatSurfaces() }
     );
     await waitFor(() => expect(container.querySelectorAll('iframe')).toHaveLength(1));
     // One resource, one card wrapper — the "second" event replaced "first" rather than stacking.
@@ -279,7 +280,7 @@ describe('McpUiSurfaceCard', () => {
       <McpUiSurfaceCard
         {...BASE_PROPS}
         events={[resourceEvent('ui://a/1', '<p>a</p>'), resourceEvent('ui://b/2', '<p>b</p>'), resourceEvent('ui://a/1', '<p>a2</p>')]}
-      />,
+      />, { surfaces: hostChatSurfaces() }
     );
     await waitFor(() => expect(container.querySelectorAll('[data-mcpui-host]')).toHaveLength(2));
     const wrappers = [...container.querySelectorAll('[data-mcpui-host]')];
@@ -295,7 +296,7 @@ describe('McpUiSurfaceCard', () => {
           resourceEvent('ui://b/2', '<p>b</p>', { [MCP_UI_PREFERRED_FRAME_SIZE_META_KEY]: ['auto', 'auto'] }),
           resourceEvent('ui://c/3', '<p>c</p>'),
         ]}
-      />,
+      />, { surfaces: hostChatSurfaces() }
     );
     const wrapperFor = (uri: string) =>
       [...container.querySelectorAll('[data-mcpui-host]')].find((el) => el.getAttribute('aria-label') === uri) as HTMLElement;

@@ -1,5 +1,6 @@
 import { screen, waitFor } from '@testing-library/react';
 import { renderWithChatSurfaces } from '../../__tests__/fake-chat-surfaces.js';
+import { hostChatSurfaces } from '../../__tests__/host-chat-surfaces.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { createLabCatalog } from '@jini-ai/protocol/a2ui';
@@ -42,7 +43,7 @@ describe('A2uiSurfaceCard agent delivery', () => {
         action: { event: { name: 'pick-row', wantResponse: true } } },
     ] } }];
     const onAgentAction = vi.fn();
-    renderWithChatSurfaces(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming runSucceeded={false} runId="run-7" onAgentAction={onAgentAction} />);
+    renderWithChatSurfaces(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming runSucceeded={false} runId="run-7" onAgentAction={onAgentAction} />, { surfaces: hostChatSurfaces() });
     await userEvent.click(screen.getByRole('button', { name: /Ada/ }));
     expect(onAgentAction).toHaveBeenCalledWith('run-7', expect.objectContaining({ action: expect.objectContaining({
       name: 'pick-row', surfaceId: 's1', sourceComponentId: 'root', wantResponse: true, actionId: expect.stringMatching(/^a2ui-action-\d+-[0-9a-z]+$/),
