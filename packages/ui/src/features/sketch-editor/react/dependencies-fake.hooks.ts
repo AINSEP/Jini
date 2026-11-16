@@ -1,8 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { FakeExcalidrawProps } from './dependencies-fake.js';
 
-let fakeElementCounter = 0;
-
 /** Mirror the fake canvas's mount-once API and observable draw operation. */
 export function useFakeExcalidraw({ initialData, excalidrawAPI, onChange }: {
   initialData: FakeExcalidrawProps['initialData']; excalidrawAPI: FakeExcalidrawProps['excalidrawAPI']; onChange: FakeExcalidrawProps['onChange'];
@@ -11,6 +9,7 @@ export function useFakeExcalidraw({ initialData, excalidrawAPI, onChange }: {
   const elementsRef = useRef<unknown[]>((initialData?.elements ?? []).slice());
   const appStateRef = useRef<Record<string, unknown>>({ ...(initialData?.appState ?? {}) });
   const filesRef = useRef<Record<string, unknown>>({ ...(initialData?.files ?? {}) });
+  const elementCounterRef = useRef(0);
 
   useEffect(() => {
     initialApi.current?.({
@@ -25,10 +24,11 @@ export function useFakeExcalidraw({ initialData, excalidrawAPI, onChange }: {
   }, []);
 
   const fireChange = () => {
-    fakeElementCounter += 1;
+    elementCounterRef.current += 1;
+    const counter = elementCounterRef.current;
     const nextElements = [
       ...elementsRef.current,
-      { id: `fake-element-${fakeElementCounter}`, version: fakeElementCounter, versionNonce: fakeElementCounter, isDeleted: false, type: 'rectangle' },
+      { id: `fake-element-${counter}`, version: counter, versionNonce: counter, isDeleted: false, type: 'rectangle' },
     ];
     elementsRef.current = nextElements;
     onChange?.(nextElements, appStateRef.current, filesRef.current);

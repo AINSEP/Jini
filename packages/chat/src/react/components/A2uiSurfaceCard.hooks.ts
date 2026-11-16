@@ -21,9 +21,6 @@ export interface RenderComponentProps {
 /** Every agent→renderer message shape carries `surfaceId` under exactly one of these keys. */
 const SURFACE_ID_KEYS = ['createSurface', 'updateComponents', 'updateDataModel', 'deleteSurface'] as const;
 
-// Preserve the interpreter's former module-wide sequence so separate cards cannot reuse an
-// action ID in the same millisecond; the wall-clock suffix keeps the existing wire format.
-let actionIdCounter = 0;
 
 function extractSurfaceId(message: unknown): string | undefined {
   if (typeof message !== 'object' || message === null) return undefined;
@@ -70,14 +67,16 @@ export function useA2uiSurfaceCard({ events, runId, onAgentAction, registry, t, 
     return surfaces.a2ui.catalogFromRegistry({ registry, catalogId: base.catalogId }, { base });
   }, [registry, surfaces]);
   const interpreterRef = useRef<A2uiInterpreter | null>(null);
+  // Per-card sequence (instance-owned state); the wall-clock suffix keeps the existing wire format.
+  const actionIdCounterRef = useRef(0);
   if (!interpreterRef.current) {
     interpreterRef.current = createA2uiInterpreter({
       catalog,
       clock,
       ids: {
         next: (_required) => {
-          actionIdCounter += 1;
-          return `a2ui-action-${actionIdCounter}-${clock.nowMs().toString(36)}`;
+          actionIdCounterRef.current += 1;
+          return `a2ui-action-${actionIdCounterRef.current}-${clock.nowMs().toString(36)}`;
         },
       },
     });

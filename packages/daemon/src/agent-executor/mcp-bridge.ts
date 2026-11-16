@@ -163,7 +163,7 @@ const MCP_DELIVERY_BUILDERS: Record<NonNullable<RuntimeAgentDef['externalMcpInje
   'codex-toml': buildCodexMcpDelivery,
   'env-passthrough': ({ serverEntry }) => ({ kind: 'env-passthrough', serverEntry }),
 };
-const MCP_DELIVERY_WRITERS = new Map([['claude-mcp-json', writeMcpJsonForRun]]);
+const MCP_DELIVERY_WRITERS: ReadonlyMap<string, typeof writeMcpJsonForRun> = new Map([['claude-mcp-json', writeMcpJsonForRun]]);
 
 /**
  * **The single dispatch point from an `externalMcpInjection` strategy to its delivery mechanism.**
@@ -226,7 +226,7 @@ function needsInheritedMcpConsent(input: { def: RuntimeAgentDef; nativeCapabilit
   return input.def.externalMcpInjection === 'env-passthrough' && injection !== undefined && input.nativeCapabilities?.userMcp !== true;
 }
 
-const MCP_BRIDGE_PREPARERS = new Map([['antigravity', prepareAntigravityBridge]]);
+const MCP_BRIDGE_PREPARERS: ReadonlyMap<string, typeof prepareAntigravityBridge> = new Map([['antigravity', prepareAntigravityBridge]]);
 
 /** Phase 5: resolve credentials and delivery, then await agy's scoped MCP permission setup.
  * Setup errors release staged files and fail before spawn. @complexity O(settings bytes) for agy. */
