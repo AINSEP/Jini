@@ -1151,6 +1151,9 @@ importers:
       '@jini-ai/plugins':
         specifier: workspace:^
         version: link:../plugins
+      '@jini-ai/protocol':
+        specifier: workspace:^
+        version: link:../protocol
       '@jini-ai/ui':
         specifier: workspace:^
         version: link:../ui

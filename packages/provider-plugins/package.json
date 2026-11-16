@@ -101,6 +101,7 @@
     "@jini-ai/cookie-consent": "workspace:^",
     "@jini-ai/diagnostics": "workspace:^",
     "@jini-ai/plugins": "workspace:^",
+    "@jini-ai/protocol": "workspace:^",
     "@jini-ai/ui": "workspace:^",
     "@opentelemetry/api": "^1.9.1",
     "@opentelemetry/otlp-exporter-base": "^0.221.0",
