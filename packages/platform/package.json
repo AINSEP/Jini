@@ -52,6 +52,8 @@
         "./child-environment": "os"
       },
       "shared": [
+        "src/web/html-document.ts",
+        "src/web/first-distinct.ts",
         "src/system.ts",
         "src/net/address.ts",
         "src/fetch-with-timeout.ts",
