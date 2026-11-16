@@ -42,7 +42,7 @@ describe("useComments", () => {
     const port = createFakeCommentsPort({ meError: new Error("boom") });
     const { result } = renderHook(() => useComments({ port, locale: "en" }), { wrapper });
     await waitFor(() => expect(result.current.error).not.toBeNull());
-    expect(result.current.error).toBe("boom");
+    expect(result.current.error).toBe("failed to load permissions");
     expect(result.current.permissions).toBeNull();
   });
 

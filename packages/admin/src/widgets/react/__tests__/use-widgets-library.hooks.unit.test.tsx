@@ -331,7 +331,7 @@ describe("useWidgetsLibrary — trash error mapping", () => {
       await result.current.confirmTrash();
     });
 
-    expect(result.current.error).toBe("network exploded");
+    expect(result.current.error).toBe("delete failed");
   });
 });
 

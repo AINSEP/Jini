@@ -116,7 +116,7 @@ describe('comments controllers edge outcomes', () => {
   it('honours a live grant change but ignores settings configure after dispose', () => {
     const controller = createCommentSettingsController({ api: fakeApi(), permissions: [] });
     controller.configure({ permissions: ['comments.configure'], t: barrel.englishComments });
-    controller.settleRead({ settings: null, error: new Error('down') });
+    controller.settleRead({ settings: null, error: new AdminApiError({ message: 'down', status: 503 }) });
     expect(controller.getSnapshot().error).toBe('down');
     controller.dispose();
     controller.configure({ permissions: [], t: key => `x:${key}` });

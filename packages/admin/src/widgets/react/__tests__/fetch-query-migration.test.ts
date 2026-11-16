@@ -26,7 +26,8 @@ describe('widgets shared query ownership', () => {
     await waitFor(() => expect(result.current.second.widgets).toEqual([widget]));
     act(() => result.current.first.requestTrash(widget));
     await act(async () => { await result.current.first.confirmTrash(); });
-    expect(result.current.first.error).toBe('offline');
+    // A port's plain Error is not approved copy, so the library shows its own fallback.
+    expect(result.current.first.error).toBe('delete failed');
     expect(result.current.first.widgets).toEqual([widget]);
     expect(result.current.second.widgets).toEqual([widget]);
   });

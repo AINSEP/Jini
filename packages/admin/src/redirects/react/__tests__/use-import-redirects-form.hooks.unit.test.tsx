@@ -197,7 +197,7 @@ describe("useImportRedirectsForm — injected port (no fetch stub)", () => {
   it("surfaces a rejected port call as an error", async () => {
     const port = createFakeRedirectsPort();
     port.importRedirects = async () => {
-      throw new Error("port down");
+      throw new AdminApiError({ message: "port down", status: 503 });
     };
     const { result } = renderHook(() => useImportRedirectsForm(port, fakeT, fakeLocale), { wrapper });
 

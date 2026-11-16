@@ -103,7 +103,7 @@ describe("initial load — existing widget (widgetId set)", () => {
   });
 
   it("sets a describable error and loading=false when the load rejects with an Error", async () => {
-    vi.spyOn(api, "getWidget").mockRejectedValue(new Error("network down"));
+    vi.spyOn(api, "getWidget").mockRejectedValue(new ApiError("network down", 503));
     const { result } = renderHook(() => useWiredWidgetInstanceEditor({ widgetId: "w1", widgetType: null }));
 
     await waitFor(() => expect(result.current.loading).toBe(false));
@@ -308,11 +308,8 @@ describe("save — update (existing widget)", () => {
     expect(view.result.current.fieldErrors).toEqual([]);
   });
 
-  it("uses a plain Error's own (possibly empty) message rather than the 'save failed' fallback", async () => {
-    // `describeApiError` (lib/api.ts) special-cases `ApiError` to fall back on an EMPTY message
-    // (`e.message || fallback`), but for a plain `Error` it does `e instanceof Error ? e.message :
-    // fallback` — no `||` — so an empty-message plain Error yields `""`, not the fallback. Observed
-    // and pinned as-is (see report); not asserted as correct, and not fixed in this pass.
+  it("shows the 'save failed' fallback for a plain Error with an empty message", async () => {
+    // Only an AdminApiError's own words reach the screen; any other thrown value gets the fallback.
     const view = await mountLoaded();
     vi.spyOn(api, "updateWidget").mockRejectedValue(new Error());
 
@@ -320,10 +317,10 @@ describe("save — update (existing widget)", () => {
       await view.result.current.save();
     });
 
-    expect(view.result.current.error).toBe("");
+    expect(view.result.current.error).toBe("save failed");
   });
 
-  it("uses a plain Error's real message when it has one", async () => {
+  it("never shows a plain Error's own message (it may quote private values); shows the fallback", async () => {
     const view = await mountLoaded();
     vi.spyOn(api, "updateWidget").mockRejectedValue(new Error("boom"));
 
@@ -331,7 +328,7 @@ describe("save — update (existing widget)", () => {
       await view.result.current.save();
     });
 
-    expect(view.result.current.error).toBe("boom");
+    expect(view.result.current.error).toBe("save failed");
   });
 
   it("clears a prior message/error/fieldErrors when re-invoked", async () => {
