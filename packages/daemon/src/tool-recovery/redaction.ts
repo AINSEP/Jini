@@ -36,20 +36,9 @@ import { decorateToolExecutor } from "./decorate-executor.js";
 
 
 /** Matches a minted error ID anywhere in a string — exported for tests and for a later chat-side
- *  copy button (`ToolCard` matching this against `result.content`, tracked separately). */
+ *  copy button (`ToolCard` matching this against `result.content`, tracked separately). The IDs are
+ *  minted by `mintToolErrorId` in `@jini-ai/core/errors/error-id`, the one owner of the format. */
 export const TOOL_ERROR_ID_PATTERN = /\bERR-[0-9A-F]{4}(?:-[0-9A-F]{4}){3}\b/;
-
-/**
- * Mints one error ID: 64 bits of `crypto.randomBytes`, formatted `ERR-XXXX-XXXX-XXXX-XXXX`.
- *
- * @returns A string always matching {@link TOOL_ERROR_ID_PATTERN}.
- * @complexity O(1).
- */
-export function mintToolErrorId({ randomHex }: { randomHex: (required: { bytes: number }) => string }, _optional = {}): string {
-  const hex = randomHex({ bytes: 8 }).toUpperCase();
-  const groups = hex.match(/.{4}/g) ?? [];
-  return `ERR-${groups.join("-")}`;
-}
 
 /** A `ToolExecutionResult` that may additionally carry the minted error ID — the ONLY field this
  *  decorator ever adds. Every other field is `inner`'s own, untouched. */

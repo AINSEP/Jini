@@ -61,6 +61,7 @@
       "./errors/approved-cause": "universal",
       "./errors/disclosure": "universal",
       "./errors/idioms": "universal",
+      "./errors/error-id": "universal",
       "./errors/testing": "universal"
     },
     "isolation": {
@@ -356,6 +357,11 @@
       "types": "./dist/errors/idioms.d.ts",
       "import": "./dist/errors/idioms.js",
       "default": "./dist/errors/idioms.js"
+    },
+    "./errors/error-id": {
+      "types": "./dist/errors/error-id.d.ts",
+      "import": "./dist/errors/error-id.js",
+      "default": "./dist/errors/error-id.js"
     },
     "./errors/testing": {
       "types": "./dist/errors/testing.d.ts",

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { describeDelegatedInternalError, mintToolErrorId, TOOL_ERROR_ID_PATTERN } from '../redaction.js';
+import { mintToolErrorId } from '@jini-ai/core/errors/error-id';
+import { describeDelegatedInternalError, TOOL_ERROR_ID_PATTERN } from '../redaction.js';
 
 // F1 fix wave (Stryker L8 §4 tool-recovery/redaction.ts:39 quantifiers/anchors, 107 reason
 // fallbacks): one row per regex rule and per reason branch.
