@@ -49,7 +49,7 @@ export {
   type DefinitionInput,
   validateDefinitionInput,
   validateValueAgainstSchema,
-  registerCoercer,
+  type SettingCoercer,
   invalidateDefinitionNamespaceCache,
   invalidateWorkspaceSettingsCache,
   resolveDefinitionRaw,

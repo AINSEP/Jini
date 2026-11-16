@@ -243,7 +243,6 @@ Source: [types.ts](../../src/settings/types.ts), [ports.ts](../../src/settings/p
 ```ts
 declare function validateDefinitionInput( input: DefinitionInput ): { valid: true } | { valid: false; error: DefinitionInvalidError | SecretNotSupportedError };
 declare function validateValueAgainstSchema(schema: SettingValueSchema, value: JsonValue): boolean;
-declare function registerCoercer({ tag, fn }: { tag: string; fn: (required: { value: JsonValue }) => JsonValue }, _optional: Record<string, never> = {}): void;
 declare function invalidateDefinitionNamespaceCache(repo: SettingsRepoPort, namespace: string): void;
 declare function invalidateWorkspaceSettingsCache(_required: { repo: SettingsRepoPort; workspaceId: string }, _optional: { principalId?: string | undefined } = {}): void;
 declare function resolveDefinitionRaw( deps: { repo: SettingsRepoPort }, input: { namespace: string; key: string; workspaceId: string | null } ): Promise<SettingDefinitionRecord | null>;

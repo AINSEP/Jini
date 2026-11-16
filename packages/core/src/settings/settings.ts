@@ -129,12 +129,11 @@ export function validateValueAgainstSchema(schema: SettingValueSchema, value: Js
   }
 }
 
-/** Identity-registry of total coercers keyed by `coercionTag`. `"identity"` is always registered. See docs/decisions/DR-003-settings-ledger-invariants.md. */
-const coercers = new Map<string, (required: { value: JsonValue }) => JsonValue>([["identity", ({ value }) => value]]);
+/** A total coercer: maps a value stored under an older definition version into the current shape. */
+export type SettingCoercer = (required: { value: JsonValue }) => JsonValue;
 
-export function registerCoercer({ tag, fn }: { tag: string; fn: (required: { value: JsonValue }) => JsonValue }, _optional: Record<string, never> = {}): void {
-  coercers.set(tag, fn);
-}
+/** Built-in total coercers keyed by `coercionTag`; never written after load. `"identity"` is always present. A host supplies its own tags per call through `getEffective`'s `coercers` option. See docs/decisions/DR-003-settings-ledger-invariants.md. */
+const BUILTIN_COERCERS: ReadonlyMap<string, SettingCoercer> = new Map<string, SettingCoercer>([["identity", ({ value }) => value]]);
 
 /**
  * Workspace-qualified definition cache.
@@ -329,7 +328,8 @@ export interface ResolvedSetting {
  */
 export async function getEffective(
   deps: { repo: SettingsRepoPort },
-  input: { namespace: string; key: string; scopeContext: SettingScopeContext }
+  input: { namespace: string; key: string; scopeContext: SettingScopeContext },
+  { coercers }: { coercers?: ReadonlyMap<string, SettingCoercer> } = {},
 ): Promise<ResolvedSetting | null> {
   const definition = await resolveDefinition(deps, {
     namespace: input.namespace,
@@ -339,14 +339,15 @@ export async function getEffective(
   if (!definition) return null;
 
   const hit = await firstSetLayer(deps.repo, definition.settingId, input.scopeContext);
-  if (hit) return { value: coerceToVersion(definition, hit.record), sourceLayer: hit.sourceLayer, defVersion: definition.version };
+  if (hit) return { value: coerceToVersion(definition, hit.record, coercers), sourceLayer: hit.sourceLayer, defVersion: definition.version };
   return { value: definition.defaultValue, sourceLayer: "default", defVersion: definition.version };
 }
 
 /** A value stored under an older definition version is coerced in memory (no write-back). O(1). */
-function coerceToVersion(definition: SettingDefinitionRecord, record: SettingValueRecord): JsonValue {
+function coerceToVersion(definition: SettingDefinitionRecord, record: SettingValueRecord, coercers?: ReadonlyMap<string, SettingCoercer>): JsonValue {
   if (record.defVersion === definition.version) return record.valueJson;
-  const coercer = coercers.get(definition.coercionTag ?? "identity") ?? coercers.get("identity")!;
+  const tag = definition.coercionTag ?? "identity";
+  const coercer = coercers?.get(tag) ?? BUILTIN_COERCERS.get(tag) ?? BUILTIN_COERCERS.get("identity")!;
   return coercer({ value: record.valueJson });
 }
 
