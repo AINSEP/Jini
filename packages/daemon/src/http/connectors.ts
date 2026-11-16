@@ -46,9 +46,9 @@
  */
 import type { Express } from 'express';
 import { createApiError } from '@jini-ai/protocol';
-import { ClientFacingError, defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
-import { reportRouteInternalError, validationError } from '@jini-ai/http-kit';
-import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
+import { defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
+import { ClientFacingError, type RouteHostContext, validationError, err, ok, type Result, type RouteInputContext } from '@jini-ai/core/contracts/server';
+import { reportRouteInternalError } from '@jini-ai/http-kit';
 
 /** Validation message for a request body that is not a JSON object. */
 const BODY_NOT_OBJECT_MESSAGE = 'body must be a JSON object';
@@ -506,7 +506,7 @@ export const connectorsRealtimePublishRoute = defineJsonRoute<RealtimePublishReq
 }, { requireSameOrigin: true });
 
 /** Mounts every connectors route on `app`. A pack's `http(app, services)` calls this directly. */
-export function registerConnectorsRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: ConnectorsHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {
+export function registerConnectorsRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: ConnectorsHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
   mountJsonRoute({ app, spec: connectorsAuthSignUpRoute, deps, adapter });
   mountJsonRoute({ app, spec: connectorsAuthSignInRoute, deps, adapter });
   mountJsonRoute({ app, spec: connectorsAuthSignOutRoute, deps, adapter });

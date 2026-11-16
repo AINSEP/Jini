@@ -1,5 +1,5 @@
 import type { Express, Request, Response } from 'express';
-import type { AdapterContext } from '@jini-ai/http-kit';
+import type { RouteHostContext } from '@jini-ai/core/contracts/server';
 import { expect, it, vi } from 'vitest';
 import { registerAttachmentRoutes, type AttachmentStore } from '../attachments.js';
 
@@ -19,7 +19,7 @@ it.each(['upload', 'cleanup'] as const)('%s holds activity through cleanup after
     pruneExpired: async () => { throw new Error('upload aborted'); },
     deleteUnclaimed: async () => { entered(); await pending; },
   } as unknown as AttachmentStore;
-  registerAttachmentRoutes({ app, adapter: {} as AdapterContext, deps: {
+  registerAttachmentRoutes({ app, adapter: {} as RouteHostContext, deps: {
     store, requireSameOrigin: false, acquireActivity, onInternalError: () => {},
   } });
   const req = { query: { batch: 'batch', name: 'file' }, body: { batchId: 'batch', paths: [] } } as unknown as Request;

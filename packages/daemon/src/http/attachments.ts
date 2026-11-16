@@ -104,8 +104,8 @@ import { randomUUID } from 'node:crypto';
 import { basename, dirname, extname, resolve } from 'node:path';
 import type { Express, Request, Response } from 'express';
 import { createApiError, type ApiError } from '@jini-ai/protocol';
-import type { AdapterContext } from '@jini-ai/http-kit';
-import { guardSameOrigin } from '@jini-ai/http-kit';
+import type { RouteHostContext } from '@jini-ai/core/contracts/server';
+import { guardSameOrigin } from '@jini-ai/core/contracts/server';
 import { reportRouteInternalError, sendApiError, sendJson } from '@jini-ai/http-kit';
 import { writeJsonFileAtomicAsync } from '@jini-ai/platform/fs';
 
@@ -1447,7 +1447,7 @@ function respondToUploadFailure(
 }
 
 /** `false` when the same-origin guard rejected the request (and already answered it). */
-function passesOriginGuard(req: Request, res: Response, deps: AttachmentsHttpDeps, adapter: AdapterContext): boolean {
+function passesOriginGuard(req: Request, res: Response, deps: AttachmentsHttpDeps, adapter: RouteHostContext): boolean {
   if (deps.requireSameOrigin === false) return true;
   const origin = guardSameOrigin({ req, origin: adapter });
   if (origin.ok) return true;
@@ -1600,7 +1600,7 @@ export async function handleAttachmentCleanup({ req, res, deps }: { readonly req
  * the upload reads the raw request stream (a JSON-parsed `req.body` is exactly what must not have
  * happened), and the cleanup answers `204` with no body, which a JSON responder cannot express.
  */
-export function registerAttachmentRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: AttachmentsHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}
+export function registerAttachmentRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: AttachmentsHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}
 ): void {
   // Per-registration, not module-level: two daemons in one process (a test harness, an embedded
   // second host) must not share one upload budget.

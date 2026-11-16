@@ -15,8 +15,8 @@
  * metadata; this transport only serializes the safe summary.
  */
 import type { Express } from 'express';
-import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
-import { ok } from '@jini-ai/http-kit';
+import { defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
+import { type RouteHostContext, ok } from '@jini-ai/core/contracts/server';
 import type { ModelCatalogSnapshot, DefaultModelResolution, ModelIdentityKind } from '@jini-ai/agent-runtime';
 
 export interface AgentModelSummary {
@@ -86,7 +86,7 @@ function activeAgents(agents: readonly AgentSummary[]): readonly AgentSummary[] 
 }
 
 /** Mounts the read and explicit-rescan agent discovery routes. */
-export function registerAgentRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: AgentsHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {
+export function registerAgentRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: AgentsHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
   mountJsonRoute({ app, spec: agentListRoute, deps, adapter });
   mountJsonRoute({ app, spec: agentRescanRoute, deps, adapter });
 }

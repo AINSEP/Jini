@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import type { NextFunction, Request, Response } from "express";
-import { createVerifiedOrigin, InMemoryOriginSettingRepo, OriginRegistry } from "@jini-ai/http-kit/verified-origin";
+import {
+  createVerifiedOrigin,
+  InMemoryOriginSettingRepo,
+  OriginRegistry,
+} from "@jini-ai/core/contracts/server/verified-origin";
 import { createRedirectResolver } from "../resolver.js";
 import { redirectMatcher } from "../matcher.js";
 import { InMemoryRedirectRepo } from "../repo.memory.js";

@@ -24,11 +24,13 @@ import { type Clock as ClockPort, type IdGenerator as IdGeneratorPort } from "@j
 import { assertEntityLive } from "../core/index.js";
 import { type DomainEvent, type OutboxPort } from "@jini-ai/core/contracts/events";
 import { callerSafeErrorMessage, type CallerSafeErrorRule } from "@jini-ai/core/model-facing-tool-errors";
-import { hasForbiddenRawUrlCharacter } from "@jini-ai/http-kit/verified-origin";
-import type { OriginRegistryPort, RedirectTargetContext } from "@jini-ai/http-kit/verified-origin";
+import { hasForbiddenRawUrlCharacter, checkSiteRelativeTarget } from "@jini-ai/core/contracts/server/verified-origin";
+import type {
+  OriginRegistryPort,
+  RedirectTargetContext,
+  SiteRelativeTargetCheck,
+} from "@jini-ai/core/contracts/server/verified-origin";
 
-import { checkSiteRelativeTarget } from "@jini-ai/http-kit/verified-origin";
-import type { SiteRelativeTargetCheck } from "@jini-ai/http-kit/verified-origin";
 
 import { insertRedirectAndRevision, type RedirectDbHandle } from "./ports.internal.js";
 import type { RedirectMatcher, RedirectMutatedEvent, RedirectRepoPort } from "./ports.js";

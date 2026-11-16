@@ -21,8 +21,8 @@
  */
 import type { Express } from 'express';
 import { createApiError } from '@jini-ai/protocol';
-import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
-import { err, ok, type Result } from '@jini-ai/http-kit';
+import { defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
+import { type RouteHostContext, err, ok, type Result } from '@jini-ai/core/contracts/server';
 
 /** How long a recorded focus stays valid before a GET treats it as stale and clears it. */
 export const ACTIVE_CONTEXT_TTL_MS = 5 * 60 * 1000;
@@ -139,7 +139,7 @@ export const setActiveRoute = defineJsonRoute<SetActiveInput, SetActiveOutput, A
 export const getActiveRoute = defineJsonRoute<void, GetActiveOutput, ActiveContextRouteDeps>({ method: 'get', path: '/api/active', parse: () => ok({ value: undefined }), handle: handleGetActive }, { requireSameOrigin: true });
 
 /** Mounts both active-context routes on `app`, sharing one in-memory store between them. A pack's `http(app, services)` calls this directly. */
-export function registerActiveContextRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: ActiveContextDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {
+export function registerActiveContextRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: ActiveContextDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
   const store: ActiveContextStore = { current: null };
   const routeDeps: ActiveContextRouteDeps = {
     store,

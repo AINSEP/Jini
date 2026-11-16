@@ -79,9 +79,8 @@ import {
 } from '../index.js';
 import { ToolInputError } from '@jini-ai/core';
 import { createApiError, type ApiError } from '@jini-ai/protocol';
-import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
-import { validationError } from '@jini-ai/http-kit';
-import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
+import { defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
+import { type RouteHostContext, validationError, err, ok, type Result, type RouteInputContext } from '@jini-ai/core/contracts/server';
 
 /** The 404 message for an unknown routine id. */
 const ROUTINE_NOT_FOUND_MESSAGE = 'routine not found';
@@ -399,7 +398,7 @@ export const routineRunsListRoute = defineJsonRoute<RoutineRunsQuery, RoutineRun
 });
 
 /** Mounts every routine route on `app`. A pack's `http(app, services)` calls this directly. */
-export function registerRoutineRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: RoutineHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {
+export function registerRoutineRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: RoutineHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
   mountJsonRoute({ app, spec: routineListRoute, deps, adapter });
   mountJsonRoute({ app, spec: routineCreateRoute, deps, adapter });
   mountJsonRoute({ app, spec: routineGetRoute, deps, adapter });

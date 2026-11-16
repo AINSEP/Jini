@@ -6,7 +6,8 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import express, { type Express } from 'express';
 import { definePack, type ToolRegistration } from '@jini-ai/core';
-import { getRouteRegistrationInventory, installRouteRegistrationGuard, type AdapterContext } from '@jini-ai/http-kit';
+import { getRouteRegistrationInventory, installRouteRegistrationGuard } from '@jini-ai/http-kit';
+import { type RouteHostContext } from '@jini-ai/core/contracts/server';
 
 import { composeJiniKernel, type JiniKernel } from '../compose-jini-kernel.js';
 import { createBuiltInFeatures } from '../builtin-features.js';
@@ -30,7 +31,7 @@ const kernels: JiniKernel[] = [];
 async function compose(config: Omit<Parameters<typeof composeJiniKernel>[0], 'app' | 'adapter'> & { app?: Express }) {
   const app = config.app ?? express();
   installRouteRegistrationGuard({ app });
-  const adapter: AdapterContext = { resolvedPortRef: { current: 4000 }, env: {}, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' };
+  const adapter: RouteHostContext = { resolvedPortRef: { current: 4000 }, env: {}, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' };
   const kernel = await composeJiniKernel({ ...config, app, adapter });
   kernels.push(kernel);
   return { app, kernel };

@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
 import { createToolRegistry } from '@jini-ai/core';
 import { checkReadOnlyTool } from '../../read-only-tools.js';
-import { validationError } from '@jini-ai/http-kit';
+import { validationError } from '@jini-ai/core/contracts/server';
 import { cancelRunsOwnedBy } from '../cancel-owned-runs.js';
 import { mediaGenerateRoute, type MediaHttpDeps } from '../media.js';
 

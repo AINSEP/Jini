@@ -37,14 +37,13 @@ import type {
 import { TERMINAL_CREATE_TOOL_ID } from '../index.js';
 import type { ToolExecutionResult, ToolExecutor } from '../index.js';
 import { createApiError } from '@jini-ai/protocol';
-import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
-import { guardSameOrigin } from '@jini-ai/http-kit';
-import { reportRouteInternalError, validationError } from '@jini-ai/http-kit';
-import { sendApiError, statusForError } from '@jini-ai/http-kit';
-import { createSseChannel, requestedAfterCursor, type SseEvent } from '@jini-ai/http-kit';
+import { defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
+import { type RouteHostContext, guardSameOrigin, validationError, statusForError, type SseEvent, err, ok, type Result, type RouteInputContext } from '@jini-ai/core/contracts/server';
+import { reportRouteInternalError } from '@jini-ai/http-kit';
+import { sendApiError } from '@jini-ai/http-kit';
+import { createSseChannel, requestedAfterCursor } from '@jini-ai/http-kit';
 import { denyAllWorkspaceRoots, type WorkspaceRootResolver } from './workspace-root.js';
 import { isRecord, readOptionalNonEmptyString, readOptionalNumber, resolveResourceRoot, withoutUndefined } from './resource-request.js';
-import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
 
 /** Diagnostic detail for an internal-error response the public API deliberately does not disclose (SEC-005, matching `runs.ts`/`db-ops.ts`): a spawn failure (e.g. a missing/uncompiled native addon) can embed executable paths or host detail. */
 export interface TerminalsInternalErrorContext {
@@ -295,7 +294,7 @@ export function createDeferredEndGate({ channel }: { readonly channel: DeferredE
  * `requireSameOrigin` for free the way the JSON routes above do — the guard is applied here
  * directly, before the SSE channel is opened, so a cross-origin request never gets a stream.
  */
-export function registerTerminalEventStream({ app, deps, adapter }: { readonly app: Express; readonly deps: TerminalsHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {
+export function registerTerminalEventStream({ app, deps, adapter }: { readonly app: Express; readonly deps: TerminalsHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
   app.get('/api/terminals/:id/stream', (req: Request, res: Response) => {
     const origin = guardSameOrigin({ req, origin: adapter });
     if (!origin.ok) {
@@ -350,7 +349,7 @@ export function registerTerminalEventStream({ app, deps, adapter }: { readonly a
 }
 
 /** Mounts every terminal route (`list`/`create`/`stdin`/`resize`/`kill`/`delete`/`stream`) on `app`. A pack's `http(app, services)` calls this directly. */
-export function registerTerminalRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: TerminalsHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {
+export function registerTerminalRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: TerminalsHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
   mountJsonRoute({ app, spec: terminalListRoute, deps, adapter });
   mountJsonRoute({ app, spec: terminalCreateRoute, deps, adapter });
   mountJsonRoute({ app, spec: terminalStdinRoute, deps, adapter });

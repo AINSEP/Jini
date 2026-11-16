@@ -21,8 +21,8 @@
 import type { AgentToolSideEffect } from '@jini-ai/core';
 import type { Express } from 'express';
 import { createApiError } from '@jini-ai/protocol';
-import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
-import { err, ok } from '@jini-ai/http-kit';
+import { defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
+import { type RouteHostContext, err, ok } from '@jini-ai/core/contracts/server';
 import { parseCatalogDescribeInput, parseCatalogSearchInput } from './catalog-route-input.js';
 
 export interface ToolCatalogSearchHit {
@@ -107,7 +107,7 @@ export const toolCatalogDescribeRoute = defineJsonRoute<{ id: string }, ToolCata
 }, { requireSameOrigin: true });
 
 /** Mounts both tool-catalog routes on `app`. A pack's `http({ app, services })` calls this directly. */
-export function registerToolCatalogRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: ToolCatalogHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {
+export function registerToolCatalogRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: ToolCatalogHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
   mountJsonRoute({ app, spec: toolCatalogSearchRoute, deps, adapter });
   mountJsonRoute({ app, spec: toolCatalogDescribeRoute, deps, adapter });
 }

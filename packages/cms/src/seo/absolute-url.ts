@@ -1,5 +1,8 @@
-import type { OriginRegistryPort, VerifiedOrigin } from "@jini-ai/http-kit/verified-origin";
-import { OriginNotVerifiedError } from "@jini-ai/http-kit/verified-origin";
+import type {
+  OriginRegistryPort,
+  VerifiedOrigin,
+} from "@jini-ai/core/contracts/server/verified-origin";
+import { OriginNotVerifiedError } from "@jini-ai/core/contracts/server/verified-origin";
 
 
 /**

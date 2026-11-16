@@ -1,5 +1,8 @@
 import type { JsonValue } from "@jini-ai/core/primitives";
-import type { OriginRegistryPort, VerifiedOrigin } from "@jini-ai/http-kit/verified-origin";
+import type {
+  OriginRegistryPort,
+  VerifiedOrigin,
+} from "@jini-ai/core/contracts/server/verified-origin";
 import type { SeoPostRecord as PostRecord, SeoPostReadPort, SeoSettingsReaderPort, SeoUrlsPort, SeoLivenessPort } from "./ports.js";
 import { resolveWorkspaceOrigin, toAbsoluteUrl } from "./absolute-url.js";
 import { SeoEntryNotFoundError } from "./errors.js";

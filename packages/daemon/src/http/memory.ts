@@ -52,18 +52,20 @@ import { createApiError } from '@jini-ai/protocol';
 import {
   createSseChannel,
   defineJsonRoute,
+  mountJsonRoute,
+  sendApiError,
+} from '@jini-ai/http-kit';
+import {
   err,
   guardSameOrigin,
-  mountJsonRoute,
   ok,
-  sendApiError,
   statusForError,
   validationError,
-  type AdapterContext,
+  type RouteHostContext,
   type Result,
   type RouteInputContext,
   type SseEvent,
-} from '@jini-ai/http-kit';
+} from '@jini-ai/core/contracts/server';
 
 // ---------------------------------------------------------------------------
 // Local structural mirrors of @jini-ai/memory's NoteStore/ExtractionLog/VerifyLog
@@ -538,7 +540,7 @@ interface MemoryStreamEvent extends SseEvent {
  * `requireSameOrigin` for free the way the JSON routes below do — the guard is applied here
  * directly, before the SSE channel is opened, so a cross-origin request never gets a stream.
  */
-export function registerMemoryEventStream({ app, deps, adapter }: { readonly app: Express; readonly deps: MemoryHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {
+export function registerMemoryEventStream({ app, deps, adapter }: { readonly app: Express; readonly deps: MemoryHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
   app.get('/api/memory/events', (req: Request, res: Response) => {
     const origin = guardSameOrigin({ req, origin: adapter });
     if (!origin.ok) {
@@ -581,7 +583,7 @@ export function registerMemoryEventStream({ app, deps, adapter }: { readonly app
  * ordering discipline ("so an `index`/`config`/`extract` slug can't shadow
  * the real handlers") — Express matches routes in registration order.
  */
-export function registerMemoryRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: MemoryHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {
+export function registerMemoryRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: MemoryHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
   mountJsonRoute({ app, spec: memoryOverviewRoute, deps, adapter });
   mountJsonRoute({ app, spec: memoryTreeRoute, deps, adapter });
   mountJsonRoute({ app, spec: memoryUpdateTreeNodeRoute, deps, adapter });

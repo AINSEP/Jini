@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { RouteInputContext } from '@jini-ai/http-kit';
+import type { RouteInputContext } from '@jini-ai/core/contracts/server';
 import { memoryCreateEntryRoute, memoryUpdateEntryRoute } from '../memory.js';
 
 /** Pins every branch of the entry-body parser shared by `POST /api/memory` and `PUT /api/memory/:id`. */

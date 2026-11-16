@@ -122,13 +122,11 @@ import {
   type PinnedFetch,
 } from '@jini-ai/agent-runtime';
 import { createApiError, type ApiError } from '@jini-ai/protocol';
-import type { AdapterContext } from '@jini-ai/http-kit';
-import { validationError } from '@jini-ai/http-kit';
+import type { RouteHostContext } from '@jini-ai/core/contracts/server';
+import { validationError, guardSameOrigin, type SseEvent, err, ok, type Result } from '@jini-ai/core/contracts/server';
 import { sendApiError } from '@jini-ai/http-kit';
 import { reportRouteInternalError } from '@jini-ai/http-kit';
-import { guardSameOrigin } from '@jini-ai/http-kit';
-import { createSseChannel, type SseChannel, type SseEvent } from '@jini-ai/http-kit';
-import { err, ok, type Result } from '@jini-ai/http-kit';
+import { createSseChannel, type SseChannel } from '@jini-ai/http-kit';
 import {
   firstOptionalFieldError,
   isArray,
@@ -382,7 +380,7 @@ function respondInternalError(res: Response, correlationId: string): void {
 
 type ProxyProvider = ModelProxyInternalErrorContext['provider'];
 type InternalErrorSink = (context: ModelProxyInternalErrorContext) => void;
-type AdapterInternalErrorSink = NonNullable<AdapterContext['onInternalError']>;
+type AdapterInternalErrorSink = NonNullable<RouteHostContext['onInternalError']>;
 
 /** Type-erased registry entry: one provider's request parser plus its turn-runner call. See {@link buildProxyProviderRegistry}. */
 interface ProxyProviderRegistryEntry {
@@ -401,7 +399,7 @@ interface ProxyProviderRegistryEntry {
 async function runProxyStream({ req, res, adapter, provider, onInternalError, entry }: {
   readonly req: Request;
   readonly res: Response;
-  readonly adapter: AdapterContext;
+  readonly adapter: RouteHostContext;
   readonly provider: ProxyProvider;
   readonly onInternalError?: InternalErrorSink | undefined;
   readonly entry: ProxyProviderRegistryEntry;
@@ -602,7 +600,7 @@ function reportCatchAllError(
  */
 function registerGenericProxyStreamRoute({ app, adapter, onInternalError, registry }: {
   readonly app: Express;
-  readonly adapter: AdapterContext;
+  readonly adapter: RouteHostContext;
   readonly onInternalError?: InternalErrorSink | undefined;
   readonly registry: Record<string, ProxyProviderRegistryEntry>;
 }): void {
@@ -644,7 +642,7 @@ function registerGenericProxyStreamRoute({ app, adapter, onInternalError, regist
 }
 
 /** Mounts `POST /api/proxy/{anthropic,openai,azure,google,ollama}/stream` and the generic `POST /api/proxy/:provider/stream` catch-all. */
-export function registerModelProxyRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: ModelProxyHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {
+export function registerModelProxyRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: ModelProxyHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
   const onInternalError = deps.onInternalError;
   const registry = buildProxyProviderRegistry(deps);
 

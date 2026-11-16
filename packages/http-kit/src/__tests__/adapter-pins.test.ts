@@ -2,14 +2,15 @@ import { EventEmitter } from 'node:events';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Express, Request, Response } from 'express';
 import { createApiError } from '@jini-ai/protocol';
-import { ClientFacingError, defineJsonRoute, mountJsonRoute, type AdapterContext } from '../adapter.js';
-import { err, ok, type JsonRouteSpec } from '../types.js';
+import { defineJsonRoute, mountJsonRoute } from '../adapter.js';
+import { ClientFacingError, type RouteHostContext, err, ok } from '@jini-ai/core/contracts/server';
+import { type JsonRouteSpec } from '../types.js';
 
 type Spec = JsonRouteSpec<string, string, { tag: string }, { id: string }>;
 type Mounted = (req: Request, res: Response) => Promise<void>;
 
 function fixture({ spec }: { readonly spec: Spec }, { adapter, closable = true, origin = 'http://localhost:7456' }: {
-  readonly adapter?: AdapterContext | undefined;
+  readonly adapter?: RouteHostContext | undefined;
   readonly closable?: boolean;
   readonly origin?: string;
 } = {}) {
@@ -38,7 +39,7 @@ function route({ handle = () => ok({ value: 'response' }) }: { readonly handle?:
   return { method: 'post', path: '/pin', parse: () => ok({ value: 'parsed' }), handle, ...options };
 }
 
-const originContext: AdapterContext = {
+const originContext: RouteHostContext = {
   env: {}, allowedOriginsEnvVar: 'PIN_ALLOWED_ORIGINS', webPortEnvVar: 'PIN_WEB_PORT',
   bindHostEnvVar: 'PIN_BIND_HOST', resolvedPortRef: { current: 7456 },
 };

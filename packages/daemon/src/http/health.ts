@@ -54,8 +54,8 @@
  */
 import type { Express } from 'express';
 import { createApiError } from '@jini-ai/protocol';
-import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
-import { err, ok } from '@jini-ai/http-kit';
+import { defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
+import { type RouteHostContext, err, ok } from '@jini-ai/core/contracts/server';
 
 export interface HealthReadinessResult {
   readonly ok: boolean;
@@ -121,7 +121,7 @@ export const versionInfoRoute = versionRoute('/version');
 export const apiVersionInfoRoute = versionRoute('/api/version');
 
 /** Mounts all six health/readiness/version routes on `app`. Call this before installing `express.json()`/the bearer-auth/origin-guard middleware — see module doc. */
-export function registerHealthRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: HealthHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {
+export function registerHealthRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: HealthHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
   mountJsonRoute({ app, spec: healthRoute, deps, adapter });
   mountJsonRoute({ app, spec: apiHealthRoute, deps, adapter });
   mountJsonRoute({ app, spec: readyRoute, deps, adapter });

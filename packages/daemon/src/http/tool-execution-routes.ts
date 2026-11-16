@@ -25,7 +25,8 @@
 import express, { type ErrorRequestHandler, type NextFunction, type Request, type RequestHandler, type Response } from 'express';
 import { createApiError, type ApiError } from '@jini-ai/protocol';
 import type { Principal, SurfaceEmitter, ToolDescriptor } from '@jini-ai/core';
-import { bearerTokenFromHeader, isLoopbackPeerAddress, reportRouteInternalError, sendApiError, statusForError, timingSafeTokenMatch, type RouteInternalErrorSink } from '@jini-ai/http-kit';
+import { bearerTokenFromHeader, isLoopbackPeerAddress, reportRouteInternalError, sendApiError, timingSafeTokenMatch, type RouteInternalErrorSink } from '@jini-ai/http-kit';
+import { statusForError } from '@jini-ai/core/contracts/server';
 import type { ToolExecutionResult, ToolExecutor } from '../tool-executor.js';
 import { TOOL_EXECUTIONS_ROUTE_PATH, type ToolExecutionWireError, type ToolExecutionWireLine, type ToolExecutionWireRequest } from '../remote-tool-executor.js';
 

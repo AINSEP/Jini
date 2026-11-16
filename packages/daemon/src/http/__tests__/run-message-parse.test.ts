@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { RouteInputContext } from '@jini-ai/http-kit';
+import type { RouteInputContext } from '@jini-ai/core/contracts/server';
 import { RUN_MESSAGE_MAX_CHARS, runMessageRoute } from '../runs.js';
 
 /** Pins every branch of the `POST /api/runs/:runId/messages` body parser. */

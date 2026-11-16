@@ -7,7 +7,7 @@
  * knows any provider's wire protocol (see `model-proxy.ts`'s module doc).
  */
 import type { ApiError } from '@jini-ai/protocol';
-import { validationError } from '@jini-ai/http-kit';
+import { validationError } from '@jini-ai/core/contracts/server';
 
 export function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);

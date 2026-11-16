@@ -12,8 +12,8 @@
  * particular process/runtime wiring.
  */
 import type { Express } from 'express';
-import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
-import { ok } from '@jini-ai/http-kit';
+import { defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
+import { type RouteHostContext, ok } from '@jini-ai/core/contracts/server';
 
 /**
  * Everything the two routes below need, supplied by the caller. `requestShutdown`
@@ -102,7 +102,7 @@ export const daemonShutdownRoute = defineJsonRoute<void, DaemonShutdownResponse,
 }, { requireSameOrigin: true });
 
 /** Mounts both daemon-status routes on `app`. A pack's `http(app, services)` calls this directly. */
-export function registerDaemonStatusRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: DaemonStatusDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}
+export function registerDaemonStatusRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: DaemonStatusDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}
 ): void {
   mountJsonRoute({ app, spec: daemonStatusRoute, deps, adapter });
   mountJsonRoute({ app, spec: daemonShutdownRoute, deps, adapter });

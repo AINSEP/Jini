@@ -3,7 +3,7 @@ import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { isLocalSameOrigin } from '@jini-ai/core';
-import { ClientFacingError } from '@jini-ai/http-kit';
+import { ClientFacingError } from '@jini-ai/core/contracts/server';
 import {
   type AuthCredentials,
   type AuthProvider,

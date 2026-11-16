@@ -33,12 +33,11 @@ import type { ToolApprovalDecision } from '@jini-ai/core';
 import type { Express, Request, Response } from 'express';
 import type { FrontendSessionHandle, FrontendSessionRegistry, FrontendSessionOwner } from '../frontend-session-registry.js';
 import { FrontendSessionCapacityError } from '../frontend-session-registry.js';
-import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
-import { guardSameOrigin } from '@jini-ai/http-kit';
+import { defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
+import { type RouteHostContext, guardSameOrigin, validationError, statusForError, err, ok, type Result, type RouteInputContext } from '@jini-ai/core/contracts/server';
 import { createSseResponse } from '@jini-ai/http-kit';
-import { reportRouteInternalError, validationError } from '@jini-ai/http-kit';
-import { sendApiError, statusForError } from '@jini-ai/http-kit';
-import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
+import { reportRouteInternalError } from '@jini-ai/http-kit';
+import { sendApiError } from '@jini-ai/http-kit';
 
 export const FRONTEND_SESSION_STREAM_ROUTE_PATH = '/api/frontend-sessions/stream';
 export const FRONTEND_SESSION_RESPONSE_ROUTE_PATH = '/api/frontend-sessions/:sessionId/responses';
@@ -286,7 +285,7 @@ export const frontendSessionResponseRoute = defineJsonRoute<
  * guard is applied here directly, before the SSE channel is opened, so a cross-origin request
  * never gets a stream (and, notably, never mints a session id or `bindToken` either).
  */
-export function registerFrontendSessionRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: FrontendSessionsHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}
+export function registerFrontendSessionRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: FrontendSessionsHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}
 ): void {
   const prefix = deps.routePrefix ?? '/api/frontend-sessions';
   app.get(`${prefix}/stream`, async (req: Request, res: Response) => {

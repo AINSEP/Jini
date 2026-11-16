@@ -20,7 +20,7 @@
  * error, never a silent win for either side.
  */
 import type { Pack } from '@jini-ai/core';
-import type { AdapterContext } from '@jini-ai/http-kit';
+import type { RouteHostContext } from '@jini-ai/core/contracts/server';
 
 import type { JiniKernelBase } from './kernel-base.js';
 
@@ -131,7 +131,7 @@ export type FeaturePhase = 'probe' | 'api' | 'status';
 export interface FeatureBuildContext {
   /** Kernel-owned infrastructure. Features **borrow** from here; they never own or close it. */
   readonly kernel: JiniKernelBase;
-  readonly adapter: AdapterContext;
+  readonly adapter: RouteHostContext;
   readonly env: NodeJS.ProcessEnv;
 }
 

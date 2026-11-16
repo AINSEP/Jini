@@ -42,9 +42,9 @@
 import { randomUUID } from 'node:crypto';
 import type { Express } from 'express';
 import { createApiError } from '@jini-ai/protocol';
-import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
-import { reportRouteInternalError, validationError } from '@jini-ai/http-kit';
-import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
+import { defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
+import { type RouteHostContext, validationError, err, ok, type Result, type RouteInputContext } from '@jini-ai/core/contracts/server';
+import { reportRouteInternalError } from '@jini-ai/http-kit';
 
 type MediaSurface = 'image' | 'video' | 'audio';
 type AudioKind = 'music' | 'speech' | 'sfx';
@@ -474,7 +474,7 @@ export const mediaTaskListRoute = defineJsonRoute<MediaTaskListQuery, MediaTaskL
 });
 
 /** Mounts every media route on `app`. A pack's `http(app, services)` calls this directly. */
-export function registerMediaRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: MediaHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {
+export function registerMediaRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: MediaHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
   mountJsonRoute({ app, spec: mediaGenerateRoute, deps, adapter });
   mountJsonRoute({ app, spec: mediaTaskGetRoute, deps, adapter });
   mountJsonRoute({ app, spec: mediaTaskDeleteRoute, deps, adapter });

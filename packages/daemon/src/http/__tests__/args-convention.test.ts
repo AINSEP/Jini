@@ -2,12 +2,12 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
-import { ClientFacingError, defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
+import { defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
+import { ClientFacingError, ok, err } from '@jini-ai/core/contracts/server';
 import { createCompatApiError } from '@jini-ai/http-kit';
 import { sendApiError } from '@jini-ai/http-kit';
 import { bearerTokenFromHeader, timingSafeTokenMatch } from '@jini-ai/http-kit';
 import { registerConnectorsRoutes, connectorsStoragePutRoute, type StorageProvider } from '../connectors.js';
-import { ok, err } from '@jini-ai/http-kit';
 import { WorkspaceRootDeniedError } from '../workspace-root.js';
 
 describe('required and optional argument objects', () => {

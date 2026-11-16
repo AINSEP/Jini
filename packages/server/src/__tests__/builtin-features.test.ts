@@ -6,7 +6,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import express, { type Express } from 'express';
-import { getRouteRegistrationInventory, installRouteRegistrationGuard, type AdapterContext } from '@jini-ai/http-kit';
+import { getRouteRegistrationInventory, installRouteRegistrationGuard } from '@jini-ai/http-kit';
+import { type RouteHostContext } from '@jini-ai/core/contracts/server';
 
 import { composeJiniKernel, type JiniKernel } from '../compose-jini-kernel.js';
 import { projectDetectedAgent, createBuiltInFeatures } from '../builtin-features.js';
@@ -43,7 +44,7 @@ async function boot(
   const app = express();
   installRouteRegistrationGuard({ app });
   const resolvedPortRef = { current: 0 };
-  const adapter: AdapterContext = { resolvedPortRef, env: config.env ?? {}, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' };
+  const adapter: RouteHostContext = { resolvedPortRef, env: config.env ?? {}, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' };
   const kernel = await composeJiniKernel({ ...config, app, adapter });
   const server = await new Promise<Server>((resolve, reject) => {
     const s = app.listen(0, '127.0.0.1');

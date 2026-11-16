@@ -41,9 +41,9 @@ import type { Express } from 'express';
 import type { Principal, RunRef, ToolPolicy, ToolRegistration } from '@jini-ai/core';
 import type { ToolExecutionResult, ToolExecutor } from '../index.js';
 import { createApiError } from '@jini-ai/protocol';
-import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
-import { reportRouteInternalError, validationError } from '@jini-ai/http-kit';
-import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
+import { defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
+import { type RouteHostContext, validationError, err, ok, type Result, type RouteInputContext } from '@jini-ai/core/contracts/server';
+import { reportRouteInternalError } from '@jini-ai/http-kit';
 
 /** The `ToolRegistry` id `GET /api/daemon/db` executes through. */
 export const DB_INSPECT_TOOL_ID = 'daemon.db.inspect';
@@ -289,7 +289,7 @@ export const daemonDbVacuumRoute = defineJsonRoute<void, DaemonDbVacuumResult, D
 }, { requireSameOrigin: true });
 
 /** Mounts all three DB-ops routes on `app`. A pack's `http({ app, services })` calls this directly. */
-export function registerDaemonDbRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: DaemonDbHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {
+export function registerDaemonDbRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: DaemonDbHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
   mountJsonRoute({ app, spec: daemonDbInspectRoute, deps, adapter });
   mountJsonRoute({ app, spec: daemonDbVerifyRoute, deps, adapter });
   mountJsonRoute({ app, spec: daemonDbVacuumRoute, deps, adapter });

@@ -4,7 +4,10 @@
  * production settings owner. Defaults below are today's test host policy, never package policy.
  */
 import { afterEach } from "vitest";
-import type { OriginRegistryPort, VerifiedOrigin } from "@jini-ai/http-kit/verified-origin";
+import type {
+  OriginRegistryPort,
+  VerifiedOrigin,
+} from "@jini-ai/core/contracts/server/verified-origin";
 import { findMediaByIdOrSlug, isValidMediaSlugFormat } from "../../../media/index.js";
 import type { MediaRepoPort, TransformDefinitionRepoPort } from "../../../media/index.js";
 import type { SeoSettings, SeoExtFieldsPatch, PageHeadContext } from "../../types.js";

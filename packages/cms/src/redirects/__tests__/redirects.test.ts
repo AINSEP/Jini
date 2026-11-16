@@ -8,7 +8,11 @@ import { eachDialect } from "../../core/__tests__/support/dialect-matrix.js";
 import { createTables } from "./support/redirects-tables.fixture.js";
 
 import { InMemoryOutbox } from "./support/events.fixture.js";
-import { createVerifiedOrigin, InMemoryOriginSettingRepo, OriginRegistry } from "@jini-ai/http-kit/verified-origin";
+import {
+  createVerifiedOrigin,
+  InMemoryOriginSettingRepo,
+  OriginRegistry,
+} from "@jini-ai/core/contracts/server/verified-origin";
 import { REDIRECT_ENTITY_TYPE, removeEntityWithoutBlocker } from "./support/trash.fixture.js";
 import { createTrashService, InMemoryTrashRepo, createRecordStoreTrashAdapter } from "../../trash/index.js";
 import type { TrashAdapter } from "../../trash/index.js";

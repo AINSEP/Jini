@@ -1,5 +1,5 @@
 /** Static host configuration: emit only rules whose match and security verdict stay invariant. */
-import { checkSiteRelativeTarget } from "@jini-ai/http-kit/verified-origin";
+import { checkSiteRelativeTarget } from "@jini-ai/core/contracts/server/verified-origin";
 import { match } from "../matcher.js";
 import { checkRedirectLocation, type RedirectLocationRefusalReason, type RedirectTargetOracle } from "../target-gate.js";
 import type { RedirectRecord, RedirectStatusCode } from "../types.js";

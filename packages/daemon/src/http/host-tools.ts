@@ -22,9 +22,8 @@ import { access as fsAccess, constants as fsConstants } from 'node:fs/promises';
 import { createCommandInvocation } from '@jini-ai/platform/command';
 import type { Express } from 'express';
 import { createApiError } from '@jini-ai/protocol';
-import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
-import { validationError } from '@jini-ai/http-kit';
-import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
+import { defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
+import { type RouteHostContext, validationError, err, ok, type Result, type RouteInputContext } from '@jini-ai/core/contracts/server';
 import { denyAllWorkspaceRoots, type WorkspaceRootResolver } from './workspace-root.js';
 import { isRecord, readOptionalNonEmptyString, resolveResourceRoot, withoutUndefined } from './resource-request.js';
 
@@ -423,7 +422,7 @@ export const openResourceInEditorRoute = defineJsonRoute<
 }, { requireSameOrigin: true });
 
 /** Mounts `GET /api/editors` and `POST /api/resources/:resourceRef/open-in` on `app`. A pack's `http(app, services)` calls this directly. */
-export function registerHostToolsRoutes({ app, adapter }: { readonly app: Express; readonly adapter: AdapterContext }, openInDeps: HostToolsOpenInDeps = {}
+export function registerHostToolsRoutes({ app, adapter }: { readonly app: Express; readonly adapter: RouteHostContext }, openInDeps: HostToolsOpenInDeps = {}
 ): void {
   mountJsonRoute({ app, spec: hostEditorsRoute, deps: {}, adapter });
   mountJsonRoute({ app, spec: openResourceInEditorRoute, deps: openInDeps, adapter });

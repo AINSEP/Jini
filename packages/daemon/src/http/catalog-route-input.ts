@@ -1,4 +1,10 @@
-import { err, ok, validationError, type Result, type RouteInputContext } from '@jini-ai/http-kit';
+import {
+  err,
+  ok,
+  validationError,
+  type Result,
+  type RouteInputContext,
+} from '@jini-ai/core/contracts/server';
 
 const MAX_SEARCH_LIMIT = 25;
 const DEFAULT_SEARCH_LIMIT = 10;

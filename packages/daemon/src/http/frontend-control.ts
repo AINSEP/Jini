@@ -45,7 +45,7 @@ import {
   type FrontendCapabilitySpec,
 } from '../index.js';
 
-import type { AdapterContext } from '@jini-ai/http-kit';
+import type { RouteHostContext } from '@jini-ai/core/contracts/server';
 import { registerFrontendSessionRoutes } from './frontend-sessions.js';
 import type { RunCreateRequest, RunStartContext, RunStartHandler } from './runs.js';
 
@@ -60,7 +60,7 @@ import type { RunCreateRequest, RunStartContext, RunStartHandler } from './runs.
  * this facade too, instead of reimplementing it. The reference implementation had to do exactly
  * that.
  */
-export type FrontendHttpExtension = (requiredArgs: { readonly app: Express; readonly context: { readonly adapter: AdapterContext } }, optionalArgs?: Record<string, never>) => void;
+export type FrontendHttpExtension = (requiredArgs: { readonly app: Express; readonly context: { readonly adapter: RouteHostContext } }, optionalArgs?: Record<string, never>) => void;
 
 export interface FrontendBindErrorContext {
   readonly runId: string;

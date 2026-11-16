@@ -2,7 +2,7 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { EventEmitter } from 'node:events';
 import express from 'express';
-import type { AdapterContext } from '@jini-ai/http-kit';
+import type { RouteHostContext } from '@jini-ai/core/contracts/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createFrontendControl } from '../frontend-control.js';
@@ -37,7 +37,7 @@ describe('createFrontendControl', () => {
     const app = express();
     app.use(express.json());
     const resolvedPortRef = { current: 0 };
-    const adapter: AdapterContext = {
+    const adapter: RouteHostContext = {
       resolvedPortRef, env: {}, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS',
       webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST',
     };

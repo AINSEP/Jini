@@ -25,11 +25,11 @@
 import type { Express, NextFunction, Request, Response } from 'express';
 import { createApiError, isTerminalRunState } from '@jini-ai/protocol';
 import type { RemoteToolEventRecorder, RunLifecycle } from '../index.js';
-import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
+import { defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
+import { type RouteHostContext, validationError, statusForError, err, ok, type Result, type RouteInputContext } from '@jini-ai/core/contracts/server';
 import { bearerTokenFromHeader, timingSafeTokenMatch } from '@jini-ai/http-kit';
-import { reportRouteInternalError, validationError } from '@jini-ai/http-kit';
-import { sendApiError, statusForError } from '@jini-ai/http-kit';
-import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
+import { reportRouteInternalError } from '@jini-ai/http-kit';
+import { sendApiError } from '@jini-ai/http-kit';
 
 export interface RemoteToolBridgeTokenConfig {
   /** Env var name for the required shared secret. Defaults to `JINI_REMOTE_TOOL_BRIDGE_TOKEN`. */
@@ -264,7 +264,7 @@ export const remoteToolResultRoute = defineJsonRoute<RemoteToolResultRequest, Re
  * `requireSameOrigin` — they are not meant to be called from a browser at all, only from a host's
  * own trusted backend process, so the dedicated bearer token above is the sole gate.
  */
-export function registerRemoteRunEventRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: RemoteRunEventHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {
+export function registerRemoteRunEventRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: RemoteRunEventHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
   const gate = requireRemoteToolBridgeToken({}, deps);
   app.use('/api/runs/:runId/tool-use', gate);
   app.use('/api/runs/:runId/tool-result', gate);

@@ -141,9 +141,9 @@ import {
   type StoredOAuthToken,
 } from '@jini-ai/agent-runtime';
 import { createApiError } from '@jini-ai/protocol';
-import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
-import { reportRouteInternalError, validationError } from '@jini-ai/http-kit';
-import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
+import { defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
+import { type RouteHostContext, validationError, err, ok, type Result, type RouteInputContext } from '@jini-ai/core/contracts/server';
+import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { trimCharsEnd } from '@jini-ai/core/text';
 
 /** Plain words per failing operation; the caller also gets the request ID. */
@@ -791,7 +791,7 @@ export const xaiSearchRoute = defineJsonRoute<XaiSearchRequest, XaiSearchRespons
 }, { requireSameOrigin: true });
 
 /** Mounts every xAI route on `app`. A pack's `http(app, services)` calls this directly. */
-export function registerXaiRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: XaiHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {
+export function registerXaiRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: XaiHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
   const resolved = resolveXaiHttpDeps(deps);
   mountJsonRoute({ app, spec: xaiOauthStartRoute, deps: resolved, adapter });
   mountJsonRoute({ app, spec: xaiOauthCompleteRoute, deps: resolved, adapter });

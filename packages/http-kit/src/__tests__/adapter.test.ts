@@ -1,8 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import express from 'express';
 import { createApiError } from '@jini-ai/protocol';
-import { ClientFacingError, defineJsonRoute, mountJsonRoute } from '../adapter.js';
-import { err, ok } from '../types.js';
+import { defineJsonRoute, mountJsonRoute } from '../adapter.js';
+import { ClientFacingError, err, ok } from '@jini-ai/core/contracts/server';
 import { isLocalSameOrigin } from '@jini-ai/core';
 
 vi.mock('@jini-ai/core', async (importOriginal) => ({

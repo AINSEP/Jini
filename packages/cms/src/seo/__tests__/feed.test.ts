@@ -3,7 +3,11 @@ import { test, vi, afterEach } from "vitest";
 import { InMemoryPostRepo, type PostRecord } from "./support/post.fixture.js";
 import { InMemorySettingsRepo } from "./support/legacy-api.fixture.js";
 import { InMemoryMediaRepo, InMemoryAssetRenditionRepo, InMemoryTransformDefinitionRepo } from "../../media/index.js";
-import { OriginNotVerifiedError, type OriginRegistryPort, type VerifiedOrigin } from "@jini-ai/http-kit/verified-origin";
+import {
+  OriginNotVerifiedError,
+  type OriginRegistryPort,
+  type VerifiedOrigin,
+} from "@jini-ai/core/contracts/server/verified-origin";
 import { ensureSeoSettingDefinitions } from "./support/legacy-api.fixture.js";
 import { buildFeed, renderRssXml } from "./support/legacy-api.fixture.js";
 

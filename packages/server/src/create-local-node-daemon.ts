@@ -40,7 +40,8 @@ import type { DetectedAgent, OAuthCallbackListener } from '@jini-ai/agent-runtim
 import type { Bindings, Principal, ToolRegistration } from '@jini-ai/core';
 import type { AnyPack, MissingTokenIds } from '@jini-ai/core/composition';
 import type { CreateTerminalSessionManagerOptions, ResolveRunInput, RunLifecycle } from '@jini-ai/daemon';
-import { installRouteRegistrationGuard, mountPackHttp, type AdapterContext } from '@jini-ai/http-kit';
+import { installRouteRegistrationGuard, mountPackHttp } from '@jini-ai/http-kit';
+import { type RouteHostContext } from '@jini-ai/core/contracts/server';
 import type {  DelegatedToolExecuteRequest,  RunStartHandler,  WorkspaceRootResolver } from '@jini-ai/daemon/http';
 import { removeDaemonRegistryRecordIfCurrent, resolveDaemonRegistryPath, writeDaemonRegistryRecord } from '@jini-ai/sidecar';
 
@@ -109,7 +110,7 @@ export type { KernelBoundIds };
  * of becoming downward dependencies of this locked host preset.
  */
 export interface LocalNodeHttpExtensionContext {
-  readonly adapter: AdapterContext;
+  readonly adapter: RouteHostContext;
   readonly lifecycle: RunLifecycle;
   readonly dataDir: string;
 }
@@ -361,7 +362,7 @@ export async function createLocalNodeDaemon(
 
   const resolvedPortRef = { current: requestedPort };
   // The kernel's origin middleware and per-route guards must share the same daemon-local env.
-  const adapter: AdapterContext = { resolvedPortRef, env, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' };
+  const adapter: RouteHostContext = { resolvedPortRef, env, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' };
 
   let shuttingDown = false;
   let stopPromise: Promise<void> | null = null;

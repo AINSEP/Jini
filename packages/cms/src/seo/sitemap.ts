@@ -1,7 +1,7 @@
 import type { EventBusPort, OutboxPort } from "@jini-ai/core/contracts/events";
 import type { UUID } from "@jini-ai/core/primitives";
 import type { SeoPostRecord as PostRecord, SeoPostListPort, SeoSettingsReaderPort } from "./ports.js";
-import type { OriginRegistryPort } from "@jini-ai/http-kit/verified-origin";
+import type { OriginRegistryPort } from "@jini-ai/core/contracts/server/verified-origin";
 import { resolveWorkspaceOrigin, toAbsoluteUrl } from "./absolute-url.js";
 import { getEntryMeta, type GetEntryMetaDeps } from "./seo.js";
 import type { RobotsPolicy, SeoMeta, SitemapEntry } from "./types.js";

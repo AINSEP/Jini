@@ -10,18 +10,20 @@ import type { RunLifecycle, StartRunInput, Unsubscribe, UserMessageDelivery } fr
 import {
   createSseChannel,
   defineJsonRoute,
-  err,
   mountJsonRoute,
-  ok,
   reportRouteInternalError,
   requestedAfterCursor,
   sendApiError,
   sendRawApiError,
+} from '@jini-ai/http-kit';
+import {
+  err,
+  ok,
   validationError,
-  type AdapterContext,
+  type RouteHostContext,
   type Result,
   type RouteInputContext,
-} from '@jini-ai/http-kit';
+} from '@jini-ai/core/contracts/server';
 import type { ServerResponse } from 'node:http';
 
 /**
@@ -369,7 +371,7 @@ export function registerRunEventStream({ app, deps }: { readonly app: Express; r
 }
 
 /** Mounts create/status/cancel/message JSON endpoints and the SSE event stream as one run transport. */
-export function registerRunRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: RunHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {
+export function registerRunRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: RunHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
   mountJsonRoute({ app, spec: runStartRoute, deps, adapter });
   mountJsonRoute({ app, spec: runListRoute, deps, adapter });
   mountJsonRoute({ app, spec: runStatusRoute, deps, adapter });

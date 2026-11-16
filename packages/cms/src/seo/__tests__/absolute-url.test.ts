@@ -1,7 +1,11 @@
 import assert from "node:assert/strict";
 import { test, vi, afterEach } from "vitest";
 
-import { OriginNotVerifiedError, type OriginRegistryPort, type VerifiedOrigin } from "@jini-ai/http-kit/verified-origin";
+import {
+  OriginNotVerifiedError,
+  type OriginRegistryPort,
+  type VerifiedOrigin,
+} from "@jini-ai/core/contracts/server/verified-origin";
 import { resolveWorkspaceOrigin, toAbsoluteUrl } from "./support/legacy-api.fixture.js";
 
 /**

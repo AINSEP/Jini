@@ -17,7 +17,7 @@ import { tmpdir } from 'node:os';
 import { resolve } from 'node:path';
 import { mkdtemp, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises';
 import express from 'express';
-import type { AdapterContext } from '@jini-ai/http-kit';
+import type { RouteHostContext } from '@jini-ai/core/contracts/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   ATTACHMENTS_ROUTE_PATH,
@@ -116,7 +116,7 @@ async function throwingGuardHarness(): Promise<{ url: string; sink: ReturnType<t
   const store = await diskStore();
   const sink = vi.fn<(context: AttachmentsInternalErrorContext) => void>();
   const deps: AttachmentsHttpDeps = { store, onInternalError: sink };
-  const adapter: AdapterContext = {
+  const adapter: RouteHostContext = {
     allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS',
     webPortEnvVar: 'JINI_WEB_PORT',
     bindHostEnvVar: 'JINI_BIND_HOST',

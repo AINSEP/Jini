@@ -98,7 +98,15 @@ import { redactSecrets } from '@jini-ai/core';
 import type { Express } from 'express';
 import { createTavilyResearchProvider } from './research-tavily.adapter.js';
 import { createApiError } from '@jini-ai/protocol';
-import { defineJsonRoute, err, mountJsonRoute, ok, reportRouteInternalError, validationError, type AdapterContext, type Result, type RouteInputContext } from '@jini-ai/http-kit';
+import { defineJsonRoute, mountJsonRoute, reportRouteInternalError } from '@jini-ai/http-kit';
+import {
+  err,
+  ok,
+  validationError,
+  type RouteHostContext,
+  type Result,
+  type RouteInputContext,
+} from '@jini-ai/core/contracts/server';
 
 /** Matches OD's real `research/index.ts#searchResearch` query cap — see module doc. */
 const MAX_QUERY_LENGTH = 1000;
@@ -287,6 +295,6 @@ export function createResearchSearchRoute({ provider }: { provider?: ResearchPro
 export const researchSearchRoute = createResearchSearchRoute({});
 
 /** Mounts `POST /api/research/search` on `app`. A pack's `http(app, services)` calls this directly. */
-export function registerResearchRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: ResearchHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {
+export function registerResearchRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: ResearchHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
   mountJsonRoute({ app, spec: deps.provider ? createResearchSearchRoute({ provider: deps.provider }) : researchSearchRoute, deps, adapter });
 }

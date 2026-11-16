@@ -17,8 +17,8 @@
  */
 import type { Express } from 'express';
 import { createApiError } from '@jini-ai/protocol';
-import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
-import { err, ok } from '@jini-ai/http-kit';
+import { defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
+import { type RouteHostContext, err, ok } from '@jini-ai/core/contracts/server';
 import { parseCatalogDescribeInput, parseCatalogSearchInput } from './catalog-route-input.js';
 
 export interface ComponentCatalogSearchHit {
@@ -85,7 +85,7 @@ export const componentCatalogDescribeRoute = defineJsonRoute<{ id: string }, Com
 }, { requireSameOrigin: true });
 
 /** Mounts both component-catalog routes on `app`. A pack's `http(app, services)` calls this directly. */
-export function registerComponentCatalogRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: ComponentCatalogHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {
+export function registerComponentCatalogRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: ComponentCatalogHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
   mountJsonRoute({ app, spec: componentCatalogSearchRoute, deps, adapter });
   mountJsonRoute({ app, spec: componentCatalogDescribeRoute, deps, adapter });
 }

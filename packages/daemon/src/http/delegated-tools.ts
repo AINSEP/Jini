@@ -32,7 +32,15 @@ import type { Express } from 'express';
 import { createApiError } from '@jini-ai/protocol';
 import { batchOutcomeFor, ToolInputError, type Principal, type ToolRegistry } from '@jini-ai/core';
 import { createDelegatedToolBridge, type RunLifecycle, type ToolExecutionResult, type ToolExecutor } from '../index.js';
-import { defineJsonRoute, err, mountJsonRoute, ok, reportRouteInternalError, validationError, type AdapterContext, type Result, type RouteInputContext } from '@jini-ai/http-kit';
+import { defineJsonRoute, mountJsonRoute, reportRouteInternalError } from '@jini-ai/http-kit';
+import {
+  err,
+  ok,
+  validationError,
+  type RouteHostContext,
+  type Result,
+  type RouteInputContext,
+} from '@jini-ai/core/contracts/server';
 import * as readOnlyTools from '../core/read-only-tools.js';
 
 export interface DelegatedToolExecuteRequest {
@@ -379,6 +387,6 @@ export const delegatedToolExecuteRoute = defineJsonRoute<
 }, { requireSameOrigin: true });
 
 /** Mounts `POST /api/delegated-tool-calls` on `app`. A pack's `http(app, services)` calls this directly. */
-export function registerDelegatedToolRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: DelegatedToolsHttpDeps; readonly adapter: AdapterContext }, _optional: Record<string, never> = {}): void {
+export function registerDelegatedToolRoutes({ app, deps, adapter }: { readonly app: Express; readonly deps: DelegatedToolsHttpDeps; readonly adapter: RouteHostContext }, _optional: Record<string, never> = {}): void {
   mountJsonRoute({ app, spec: delegatedToolExecuteRoute, deps, adapter });
 }

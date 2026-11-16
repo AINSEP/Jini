@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { OriginNotVerifiedError } from "@jini-ai/http-kit/verified-origin";
+import { OriginNotVerifiedError } from "@jini-ai/core/contracts/server/verified-origin";
 import { createSitemapService, SITEMAP_INVALIDATED_EVENT } from "../sitemap.js";
 import { setEntrySeoOverrides } from "../write-service.js";
 import { SeoFieldValidationError } from "../errors.js";

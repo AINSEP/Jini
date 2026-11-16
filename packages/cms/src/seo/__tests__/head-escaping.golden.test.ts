@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { buildHeadElements } from "../page-head.js";
-import { OriginNotVerifiedError } from "@jini-ai/http-kit/verified-origin";
+import { OriginNotVerifiedError } from "@jini-ai/core/contracts/server/verified-origin";
 import { buildPostRecord, InMemoryPostRepo } from "./support/post.fixture.js";
 import { InMemorySettingsRepo, seoDeps } from "./support/legacy-api.fixture.js";
 import { InMemoryMediaRepo, InMemoryTransformDefinitionRepo } from "../../media/index.js";

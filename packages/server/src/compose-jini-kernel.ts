@@ -48,8 +48,8 @@ import {
   registerApiBearerAuthMiddleware,
   registerApiOriginGuardMiddleware,
   requireStrictBearerToken,
-  type AdapterContext,
 } from '@jini-ai/http-kit';
+import { type RouteHostContext } from '@jini-ai/core/contracts/server';
 
 import { createBuiltInFeatures, type BuiltInFeatureOptions } from './builtin-features.js';
 import {
@@ -113,7 +113,7 @@ export type JiniKernelSecurity =
 export interface ComposeJiniKernelConfig {
   /** The app to mount onto. Always caller-supplied — this function never opens a listener. */
   readonly app: Express;
-  readonly adapter: AdapterContext;
+  readonly adapter: RouteHostContext;
   readonly storage: JiniKernelStorage;
   /** @default 'agent-core-v1' — the conservative embedding posture. */
   readonly profile?: JiniProfileId;
@@ -238,7 +238,7 @@ function prepareComposition(
 function composeFeatures(
   { base, adapter, env, catalog, activation, composed }: {
     base: JiniKernelBase;
-    adapter: AdapterContext;
+    adapter: RouteHostContext;
     env: NodeJS.ProcessEnv;
     catalog: readonly JiniFeature[];
     activation: FeatureActivationPlan;
