@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { guardSameOrigin, passesSameOriginGuard } from '../origin.js';
+import { guardSameOrigin } from '@jini-ai/core/contracts/server';
+import { passesSameOriginGuard } from '../origin.js';
 import { isLocalSameOrigin } from '@jini-ai/core';
 
 vi.mock('@jini-ai/core', async (importOriginal) => ({

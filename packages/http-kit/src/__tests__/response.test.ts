@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { sendApiError, sendJson, statusForError } from '../response.js';
+import { statusForError } from '@jini-ai/core/contracts/server';
+import { sendApiError, sendJson } from '../response.js';
 
 function makeRes() {
   return {
