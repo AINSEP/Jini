@@ -102,6 +102,28 @@ function retryAfterField(resp: Response): { retryAfterMs?: number } {
   return retryAfterMs !== undefined ? { retryAfterMs } : {};
 }
 
+/** The generation request for one render; the wire model, size and duration come from the render context. */
+function buildVideoSubmitRequest(
+  { ctx, config, baseUrl }: { ctx: RenderContext; config: ImageRouterVideoConfig; baseUrl: string },
+): UnsignedVendorRequest<ImageRouterVideoMeta> {
+  const meta = videoMetaFor({ ctx, config });
+  return {
+    url: `${baseUrl}/videos/generations`,
+    init: withUnsignedRequestInit({ ctx, init: {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({
+        prompt: ctx.prompt || 'A short cinematic clip.',
+        model: meta.wireModel,
+        size: meta.size,
+        seconds: meta.seconds,
+        response_format: 'b64_json',
+      }),
+    } }),
+    meta,
+  };
+}
+
 /**
  * Builds the ImageRouter video polling adapter for a given endpoint configuration.
  *
@@ -119,24 +141,7 @@ export function createImageRouterVideoPollingAdapter(_required: Record<string, n
     // not have landed cannot be safely re-issued — a duplicate submit is a duplicate charge.
     submitIsIdempotent: false,
 
-    buildSubmitRequest({ ctx }: { ctx: RenderContext }): UnsignedVendorRequest<ImageRouterVideoMeta> {
-      const meta = videoMetaFor({ ctx, config });
-      return {
-        url: `${baseUrl}/videos/generations`,
-        init: withUnsignedRequestInit({ ctx, init: {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({
-            prompt: ctx.prompt || 'A short cinematic clip.',
-            model: meta.wireModel,
-            size: meta.size,
-            seconds: meta.seconds,
-            response_format: 'b64_json',
-          }),
-        } }),
-        meta,
-      };
-    },
+    buildSubmitRequest: ({ ctx }: { ctx: RenderContext }) => buildVideoSubmitRequest({ ctx, config, baseUrl }),
 
     async parseSubmitResponse({ resp, ctx, request }: { resp: Response; ctx: RenderContext; request: UnsignedVendorRequest<ImageRouterVideoMeta> }
     ): Promise<SubmitOutcome> {
