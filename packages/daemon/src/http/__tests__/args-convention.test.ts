@@ -7,7 +7,8 @@ import { defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
 import { ClientFacingError, ok, err } from '@jini-ai/core/contracts/server';
 import { createCompatApiError } from '@jini-ai/http-kit';
 import { sendApiError } from '@jini-ai/http-kit';
-import { bearerTokenFromHeader, timingSafeTokenMatch } from '@jini-ai/http-kit';
+import { timingSafeTokenMatch } from '@jini-ai/http-kit';
+import { bearerTokenFromHeader } from '@jini-ai/core/contracts/server';
 import { registerConnectorsRoutes, connectorsStoragePutRoute, type StorageProvider } from '../connectors.js';
 import { WorkspaceRootDeniedError } from '../workspace-root.js';
 

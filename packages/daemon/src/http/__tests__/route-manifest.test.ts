@@ -6,7 +6,7 @@ import {
   manifestRoutesForFamilies,
   routeFamilyManifest,
 } from '../route-manifest.js';
-import type { RouteRegistration } from '@jini-ai/http-kit';
+import type { RouteRegistration } from '../route-manifest.js';
 import { registerAgentRoutes } from '../agents.js';
 import { registerDelegatedToolRoutes } from '../delegated-tools.js';
 import { registerHealthRoutes } from '../health.js';

@@ -1,5 +1,5 @@
 import type { Express, RequestHandler } from 'express';
-import { bearerTokenFromHeader } from '@jini-ai/http-kit';
+import { bearerTokenFromHeader } from '@jini-ai/core/contracts/server';
 import type { RunScopedCallerResolver } from '../run-credentials.js';
 import type { AgentExecutor } from '../agent-executor/contracts.js';
 

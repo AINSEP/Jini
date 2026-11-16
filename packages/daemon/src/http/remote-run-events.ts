@@ -26,8 +26,9 @@ import type { Express, NextFunction, Request, Response } from 'express';
 import { createApiError, isTerminalRunState } from '@jini-ai/protocol';
 import type { RemoteToolEventRecorder, RunLifecycle } from '../index.js';
 import { defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
-import { type RouteHostContext, validationError, statusForError, err, ok, type Result, type RouteInputContext } from '@jini-ai/core/contracts/server';
-import { bearerTokenFromHeader, timingSafeTokenMatch } from '@jini-ai/http-kit';
+import { timingSafeTokenMatch, type TimingSafeByteComparison } from '@jini-ai/core';
+import { type RouteHostContext, bearerTokenFromHeader, validationError, statusForError, err, ok, type Result, type RouteInputContext } from '@jini-ai/core/contracts/server';
+import { nodeTimingSafeEqual } from './node-timing-safe-equal.js';
 import { reportRouteInternalError } from '@jini-ai/http-kit';
 import { sendApiError } from '@jini-ai/http-kit';
 
@@ -35,6 +36,7 @@ export interface RemoteToolBridgeTokenConfig {
   /** Env var name for the required shared secret. Defaults to `JINI_REMOTE_TOOL_BRIDGE_TOKEN`. */
   readonly tokenEnvVar?: string;
 }
+
 
 export interface RemoteRunEventInternalErrorContext {
   readonly source: 'tool-use' | 'tool-result';
@@ -74,9 +76,12 @@ const DEFAULT_TOKEN_ENV_VAR = 'JINI_REMOTE_TOOL_BRIDGE_TOKEN';
 export function requireRemoteToolBridgeToken(_required: Record<string, never>, deps: {
   readonly tokenConfig?: RemoteToolBridgeTokenConfig | undefined;
   readonly env?: NodeJS.ProcessEnv | undefined;
+  /** Constant-time byte comparison for the token check. Defaults to `node:crypto`'s; tests inject a recording one. */
+  readonly timingSafeEqual?: TimingSafeByteComparison | undefined;
 } = {}) {
   const tokenEnvVar = deps.tokenConfig?.tokenEnvVar ?? DEFAULT_TOKEN_ENV_VAR;
   const env = deps.env ?? process.env;
+  const timingSafeEqual = deps.timingSafeEqual ?? nodeTimingSafeEqual;
   return (req: Request, res: Response, next: NextFunction): void => {
     const token = env[tokenEnvVar];
     if (!token) {
@@ -85,7 +90,7 @@ export function requireRemoteToolBridgeToken(_required: Record<string, never>, d
       return;
     }
     const presented = bearerTokenFromHeader({ header: req.get('authorization') });
-    if (presented === null || !timingSafeTokenMatch({ presented, expected: token })) {
+    if (presented === null || !timingSafeTokenMatch({ presented, expected: token, timingSafeEqual })) {
       const error = createApiError({ code: 'REMOTE_TOOL_BRIDGE_TOKEN_REQUIRED', message: `Authorization: Bearer <${tokenEnvVar}> required` });
       sendApiError({ res, status: statusForError({ error }), error });
       return;

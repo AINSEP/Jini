@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import type { NextFunction, Request, Response } from 'express';
+import { fakeTimingSafeEqual } from '@jini-ai/core/contracts/server/testing';
 import { createMessageRelayClaimHandler } from '../message-relay.js';
 import { requireRemoteToolBridgeToken } from '../remote-run-events.js';
 import { requireToolExecutionCaller } from '../tool-execution-routes.js';
@@ -112,5 +113,38 @@ describe('createMessageRelayClaimHandler bearer parsing', () => {
       expect(call(authorization)).toBe(401);
     }
     expect(claim).toHaveBeenCalledOnce();
+  });
+});
+
+/**
+ * The constant-time comparison is injected, so a gate that stops calling it (for example by comparing with
+ * `===`) is caught: behaviour tests cannot see timing, but they can see that the port was asked.
+ */
+describe('both token gates compare through the injected constant-time port', () => {
+  const gates = [
+    { name: 'requireToolExecutionCaller', build: (timingSafeEqual: ReturnType<typeof fakeTimingSafeEqual>) => requireToolExecutionCaller({}, { env: { JINI_TOOL_EXEC_TOKEN: TOKEN }, timingSafeEqual }) },
+    { name: 'requireRemoteToolBridgeToken', build: (timingSafeEqual: ReturnType<typeof fakeTimingSafeEqual>) => requireRemoteToolBridgeToken({}, { env: { JINI_REMOTE_TOOL_BRIDGE_TOKEN: TOKEN }, timingSafeEqual }) },
+  ];
+  it.each(gates)('$name: a same-length wrong token is refused and the port is asked exactly once with two equal-length arrays', ({ build }) => {
+    const compare = fakeTimingSafeEqual();
+    const { next, sent } = run(build(compare), request({ authorization: `Bearer ${SAME_LENGTH_WRONG}` }));
+    expect([next.mock.calls.length, sent.status]).toEqual([0, 401]);
+    expect(compare.calls).toHaveLength(1);
+    expect(compare.calls[0]!.left.length).toBe(compare.calls[0]!.right.length);
+  });
+  it.each(gates)('$name: a token of another length is refused without the port being asked', ({ build }) => {
+    const compare = fakeTimingSafeEqual();
+    expect(run(build(compare), request({ authorization: `Bearer ${TOKEN}x` })).sent.status).toBe(401);
+    expect(compare.calls).toHaveLength(0);
+  });
+  it.each(gates)('$name: the exact token is admitted through the port', ({ build }) => {
+    const compare = fakeTimingSafeEqual();
+    expect(run(build(compare), request({ authorization: `Bearer ${TOKEN}` })).next).toHaveBeenCalledOnce();
+    expect(compare.calls).toHaveLength(1);
+  });
+  it.each(gates)('$name: the verdict is the port\'s: a port that says no refuses even the exact token', ({ build }) => {
+    const compare = fakeTimingSafeEqual();
+    const refusing = Object.assign(() => false, { calls: compare.calls });
+    expect(run(build(refusing), request({ authorization: `Bearer ${TOKEN}` })).sent.status).toBe(401);
   });
 });
