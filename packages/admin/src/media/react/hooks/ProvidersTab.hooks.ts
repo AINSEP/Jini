@@ -1,8 +1,8 @@
-import { useFetchMutation } from '@jini-ai/ui/fetch-query';
+import { useFetchMutation, useMediaProvidersTab } from '../../../react/kit.js';
 import { MEDIA_QUERY_KEYS, useMediaProvidersQuery } from './MediaQuery.hooks.js';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { useMediaProvidersTab, sortProvidersByConfigured, isEntryPresent, isMarkerOnlyEntry,
+import { sortProvidersByConfigured, isEntryPresent, isMarkerOnlyEntry,
   maskedKeyLabel, isProviderBaseUrlInvalid, invalidBaseUrlProviderIds } from '@jini-ai/ui';
 import type { MediaProvider, MediaProviderOption, MediaProviderConfigurationMap } from '../../models.js';
 import { useMediaPorts } from './MediaPorts.hooks.js';

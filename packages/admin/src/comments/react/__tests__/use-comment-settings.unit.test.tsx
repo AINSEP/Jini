@@ -1,7 +1,8 @@
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
-import { FetchQueryProvider, useFetchQuery, useInvalidate } from "@jini-ai/ui/fetch-query";
+import { FetchQueryProvider } from "@jini-ai/ui/fetch-query";
+import { useFetchQuery, useInvalidate } from "../../../react/kit.js";
 import { createFakeCommentSettingsPort } from "./support.js";
 import { useCommentSettings } from "./support.js";
 import { KEYS } from "../../rules.js";

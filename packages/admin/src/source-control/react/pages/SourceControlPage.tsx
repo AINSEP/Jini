@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { Notice, Spinner, Tabs } from '@jini-ai/ui-kit/react';
+import { Notice, Spinner, Tabs } from '../../../react/kit.js';
 import type { ModulePageProps } from '../../../core/react/bind-react.js';
 import { useSourceControlPage } from '../hooks/SourceControlPage.hooks.js';
 import { sourceControlMessagesEn as m } from '../../messages.en.js';

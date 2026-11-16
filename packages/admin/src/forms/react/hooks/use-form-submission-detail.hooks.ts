@@ -7,7 +7,7 @@ import { createFormSubmissionDetailController, initialFormSubmissionDetailState,
 import type { AdminFormSubmission } from "../../models.js";
 import { describeApiError as describeCoreApiError } from "../../../core/transport/errors.js";
 const describeApiError = (e: unknown, fallback: string) => describeCoreApiError({ e, fallback });
-import { useFetchMutation, useFetchQuery, useInvalidate } from "@jini-ai/ui/fetch-query";
+import { useFetchMutation, useFetchQuery, useInvalidate } from "../../../react/kit.js";
 import { KEYS, describeTrashError } from "../../rules.js";
 
 /**

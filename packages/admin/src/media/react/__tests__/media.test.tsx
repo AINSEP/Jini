@@ -10,8 +10,9 @@ import { createMemoryMediaApi, createMemoryMediaProviders } from '../../adapters
 import { media } from '../index.js';
 import { createOverlayController } from '../../../react/overlays.js';
 import { OverlayHost } from '../../../react/OverlayHost.js';
-import { KitProvider, createKit, Button, Dialog, TextField } from '@jini-ai/ui-kit/react';
-import type { ButtonProps } from '@jini-ai/ui-kit/react';
+import { KitProvider, createKit } from '@jini-ai/ui-kit/react';
+import { Button, Dialog, TextField } from '../../../react/kit.js';
+import type { ButtonProps } from '../../../react/kit.js';
 import { MediaPurgeDialog } from '../components/MediaPurgeDialog.js';
 import { useController } from '../../../react/use-controller.js';
 import { bindReact } from '../../../react/bind-react.js';

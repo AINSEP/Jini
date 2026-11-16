@@ -1,4 +1,4 @@
-import { useFetchQuery } from "@jini-ai/ui/fetch-query";
+import { useFetchQuery } from "../../../react/kit.js";
 import { act, cleanup, render, waitFor } from '../../../__tests__/fetch-query-support.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { useLibraryTab } from '../hooks/LibraryTab.hooks.js';

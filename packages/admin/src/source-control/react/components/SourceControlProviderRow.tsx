@@ -1,4 +1,4 @@
-import { Notice } from '@jini-ai/ui-kit/react';
+import { Notice } from '../../../react/kit.js';
 import type { SourceControlRowView } from '../hooks/ProvidersTab.hooks.js';
 import { SourceControlCredentialFields } from './SourceControlCredentialFields.js';
 function providerRowBody(row: SourceControlRowView) {

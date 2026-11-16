@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { useConfirmController } from '@jini-ai/ui-kit/react';
+import { useConfirmController } from '../../kit.js';
 import { resolveTone, toneClassName, type ConfirmTone } from '../../types.js';
 import { useConfirmDialog, useConfirmDialogCancelLabel, type UseConfirmDialog } from './ConfirmDialog.hooks.js';
 import { confirmDialogAgentAttrs, withoutAccessibleName } from './confirm-dialog-attrs.js';

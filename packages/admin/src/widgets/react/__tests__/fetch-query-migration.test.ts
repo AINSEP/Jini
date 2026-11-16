@@ -1,4 +1,4 @@
-import { useFetchQuery } from "@jini-ai/ui/fetch-query";
+import { useFetchQuery } from "../../../react/kit.js";
 import { act, renderHook, waitFor } from '../../../__tests__/fetch-query-support.js';
 import { describe, expect, it } from 'vitest';
 import { createMemoryWidgetsApi } from '../../adapters/memory.js';

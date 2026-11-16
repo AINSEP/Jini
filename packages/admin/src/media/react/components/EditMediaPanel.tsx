@@ -1,5 +1,5 @@
 import { MediaDialog } from './MediaDialog.js';
-import { Button, TextField } from '@jini-ai/ui-kit/react';
+import { Button, TextField } from '../../../react/kit.js';
 import { useEditMediaPanel } from '../hooks/EditMediaPanel.hooks.js';
 import type { EditMediaPanelProps } from '../hooks/EditMediaPanel.hooks.js';
 import { UploadButton } from './UploadButton.js';

@@ -1,5 +1,5 @@
 import { agentHandle } from '@jini-ai/core/agent-handles';
-import type { AgentAttrsPort, KitAttrs } from '@jini-ai/ui-kit';
+import type { AgentAttrsPort, KitAttrs } from '../../kit.js';
 import { omitKeys } from '../../../core/omit-keys.js';
 
 /**

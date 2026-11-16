@@ -1,7 +1,6 @@
 import type { ReactNode } from 'react';
 import { agentHandleProps } from '@jini-ai/core/agent-handles';
-import { useAgentHandle } from '@jini-ai/ui';
-import { Select } from '@jini-ai/ui/admin-widgets';
+import { useAgentHandle, WidgetSelect as Select } from '../kit.js';
 import type { AdminEntityField, AdminEntityRelationField } from '../../core/ports/entities.js';
 import { selectTranslate, type EntityTranslate } from './types.js';
 import { fromDatetimeLocalValue, toDatetimeLocalValue, type RelationIndex } from './rules.js';

@@ -1,6 +1,6 @@
 import { useWidgetInstanceQuery } from './WidgetsQuery.hooks.js';
 import type { AdminWidget, AdminWidgetType, AdminWidgetWhereUsed, WidgetsTranslate as Translate } from '../../models.js';
-import type { DirtyGuard } from '@jini-ai/ui/panel-kit';
+import type { DirtyGuard } from '../../../react/kit.js';
 export interface WidgetInstanceEditorController {
   isNew: boolean;
   widget: AdminWidget | null;
@@ -33,7 +33,7 @@ export interface WidgetInstanceEditorController {
   locale: string;
 }
 import { useEffect, useRef } from 'react';
-import { useDirtyGuard } from '@jini-ai/ui/panel-kit';
+import { useDirtyGuard } from '../../../react/kit.js';
 import { useController } from '../../../core/react/use-controller.js';
 import { createWidgetInstanceEditorController } from '../../controllers/instance-editor.controller.js';
 import type { AdminWidgetsPort } from '../../ports.js';

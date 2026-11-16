@@ -7,8 +7,7 @@ import { useCallback, useEffect, useRef } from "react";
 import type { AdminFormSubmission } from "../../models.js";
 import { describeApiError as describeCoreApiError } from "../../../core/transport/errors.js";
 const describeApiError = (e: unknown, fallback: string) => describeCoreApiError({ e, fallback });
-import { useFetchQuery, useInvalidate } from "@jini-ai/ui/fetch-query";
-import { useSettlementGeneration } from "@jini-ai/ui/panel-kit";
+import { useFetchQuery, useInvalidate, useSettlementGeneration } from "../../../react/kit.js";
 import { KEYS } from "../../rules.js";
 
 /**

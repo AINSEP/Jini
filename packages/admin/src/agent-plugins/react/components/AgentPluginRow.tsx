@@ -1,4 +1,4 @@
-import { Badge, Button, IconButton, Switch } from '@jini-ai/ui-kit/react';
+import { Badge, Button, IconButton, Switch } from '../../../react/kit.js';
 import type { AgentPluginRowView } from '../hooks/AgentPluginPanel.hooks.js';
 import { useAgentPluginRow } from '../hooks/AgentPluginRow.hooks.js';
 type RowViewModel = ReturnType<typeof useAgentPluginRow>;

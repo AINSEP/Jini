@@ -1,7 +1,7 @@
 import { describeSeoError } from '../../models.js';
 import { useEffect, useRef } from 'react';
 import { useSeoEntryQuery, SEO_KEYS } from './SeoQuery.hooks.js';
-import { useFetchQuery } from '@jini-ai/ui/fetch-query';
+import { useFetchQuery } from '../../../react/kit.js';
 import { useController } from '../../../core/react/use-controller.js';
 import { createSeoEntryController } from '../../controllers/seo-entry.controller.js';
 import { initialSeoEntryState } from '../../models.js';

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
-import { applyAdminTheme, resolveColorScheme, type AdminTheme, type ColorSchemePreference } from '@jini-ai/ui/theme';
+import { applyAdminTheme, resolveColorScheme } from '@jini-ai/ui/theme';
+import { type AdminTheme, type ColorSchemePreference } from '../kit.js';
 import type { AdminShellAppearance, AdminThemeEnvironment, AdminThemePreferenceStorePort } from './theme-ports.js';
 
 /** Keep effects inside the host's scope; storage reads/writes never use ambient browser state. */

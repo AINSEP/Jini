@@ -1,4 +1,4 @@
-import { Button, TextField, TextArea, Select, Dialog } from '@jini-ai/ui-kit/react';
+import { Button, TextField, TextArea, Select, Dialog } from '../../../react/kit.js';
 import { useCredentialEditor, type CredentialEditorProps } from '../hooks/CredentialEditor.hooks.js';
 export function CredentialEditor(props: CredentialEditorProps, _optional = {}) {
   const vm = useCredentialEditor(props);

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useFetchQuery, useInvalidate } from '@jini-ai/ui/fetch-query';
+import { useFetchQuery, useInvalidate } from '../../../react/kit.js';
 import { useController } from '../../../core/react/use-controller.js';
 import type { AdminCommentsPort, CommentsSettings } from '../../../core/ports/comments.js';
 import { createCommentSettingsController } from '../../controllers/comment-settings.controller.js';

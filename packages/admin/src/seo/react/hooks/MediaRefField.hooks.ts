@@ -4,7 +4,7 @@ import { agentHandle } from '@jini-ai/core/agent-handles';
 import { useController } from '../../../core/react/use-controller.js';
 import { createMediaRefController } from '../../controllers/media-ref.controller.js';
 import { describeMediaRef, isStoredMediaRef, resolveMediaRefPreviewUrl } from '../../rules.js';
-import { useFetchQuery } from '@jini-ai/ui/fetch-query';
+import { useFetchQuery } from '../../../react/kit.js';
 import { extensionForMimeType } from '@jini-ai/core/text';
 import { SEO_KEYS } from './SeoQuery.hooks.js';
 import type { MediaRefFieldController, SeoTranslator } from '../../models.js';

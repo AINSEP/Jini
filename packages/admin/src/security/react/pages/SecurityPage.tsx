@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { Tabs, Notice, Spinner } from '@jini-ai/ui-kit/react';
+import { Tabs, Notice, Spinner } from '../../../react/kit.js';
 import type { ModulePageProps } from '../../../core/react/bind-react.js';
 import { useSecurityPage } from '../hooks/SecurityPage.hooks.js';
 export function SecurityPage(props: ModulePageProps, _optional = {}) {

@@ -1,4 +1,4 @@
-import { Lightbox } from '@jini-ai/ui/admin-widgets';
+import { Lightbox } from '../../../react/kit.js';
 import { useMediaLightbox } from '../hooks/MediaLightbox.hooks.js';
 import type { MediaLightboxProps } from '../hooks/MediaLightbox.hooks.js';
 import { MediaPreview } from './MediaCard.js';

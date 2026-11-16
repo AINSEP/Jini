@@ -1,4 +1,4 @@
-import { useInvalidate } from '@jini-ai/ui/fetch-query';
+import { useInvalidate } from '../../../react/kit.js';
 import { WIDGET_QUERY_KEYS, useWidgetsListQuery } from './WidgetsQuery.hooks.js';
 import type { AdminWidget, AdminWidgetType, WidgetsTranslate as Translate } from '../../models.js';
 export interface WidgetsLibraryController {

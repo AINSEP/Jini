@@ -2,7 +2,7 @@ import type { RowMenuItem } from "../react/components/RowMenu/RowMenu.js";
 import { AdminApiError as ApiError, describeApiError as describeCoreApiError } from "../core/transport/errors.js";
 import type { AdminFormDefinition, AdminFormField } from "./models.js";
 const describeApiError = (e: unknown, fallback: string) => describeCoreApiError({ e, fallback });
-import type { QueryKey } from "@jini-ai/ui/fetch-query";
+import type { QueryKey } from "@jini-ai/core/fetch";
 import { FIELD_TYPE_REGISTRY, type FieldType } from "@jini-ai/cms/forms";
 
 /**

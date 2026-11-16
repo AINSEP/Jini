@@ -1,5 +1,5 @@
 import { Suspense } from 'react';
-import { Notice, Spinner } from '@jini-ai/ui-kit/react';
+import { Notice, Spinner } from '../../../react/kit.js';
 import type { ModulePageProps } from '../../../core/react/bind-react.js';
 import { usePlaygroundPage } from '../hooks/PlaygroundPage.hooks.js';
 import { playgroundMessagesEn as m } from '../../messages.en.js';

@@ -1,7 +1,8 @@
 import type { ReactNode } from "react";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { FetchQueryProvider, useInvalidate } from "@jini-ai/ui/fetch-query";
+import { FetchQueryProvider } from "@jini-ai/ui/fetch-query";
+import { useInvalidate } from "../../../react/kit.js";
 
 import type { AdminFormDefinition as CoreForm, AdminFormsPort } from "../../../core/ports/forms.js";
 import { createMemoryFormsApi } from "../../adapters/memory.js";

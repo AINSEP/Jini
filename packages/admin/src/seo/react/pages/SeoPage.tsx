@@ -4,8 +4,7 @@ import type { SeoTabController, SeoTabId } from "../hooks/SeoPage.hooks.js";
 
 import { agentHandle } from "@jini-ai/core/agent-handles";
 
-import { TabBar } from "@jini-ai/ui/tab-strip";
-import { InfoTip, Select } from "@jini-ai/ui/admin-widgets";
+import { TabBar, InfoTip, WidgetSelect as Select } from "../../../react/kit.js";
 import { useSeoCopy, useSeoOptions } from "../hooks/SeoPorts.hooks.js";
 import { actionLabel, orEmpty, xIsCustomized, xResolvedValue } from "../../rules.js";
 import { useWiredEntryPicker } from "../hooks/use-entry-picker.hooks.js";

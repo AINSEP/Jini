@@ -1,7 +1,7 @@
 import { render, screen, waitFor, within } from '../../../__tests__/fetch-query-support.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it } from 'vitest';
-import { Dialog } from '@jini-ai/ui-kit/react';
+import { Dialog } from '../../../react/kit.js';
 import { createMemorySeoApi } from '../../adapters/memory.js';
 import type { SeoEntryMeta, SeoSettings } from '../../models.js';
 import type { SeoMediaPickerSlotProps } from '../options.js';

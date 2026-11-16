@@ -1,8 +1,8 @@
 import {
-  InteractiveHtmlEditor as HtmlEditor,
+  HtmlEditor,
   type CanvasEmbedPlaceholderDescriptor,
-  type InteractiveHtmlEditorProps as HtmlEditorProps,
-} from '@jini-ai/ui/html-editor';
+  type HtmlEditorProps,
+} from '../../kit.js';
 import { hasAttributeOnAnyNodeShape } from '@jini-ai/core/primitives';
 
 /**

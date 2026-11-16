@@ -1,4 +1,4 @@
-import { ConfirmDialog } from '@jini-ai/ui-kit/react';
+import { ConfirmDialog } from '../../../react/kit.js';
 import { useMediaPurgeDialog } from '../hooks/MediaPurgeDialog.hooks.js';
 import type { MediaPurgeDialogProps } from '../hooks/MediaPurgeDialog.hooks.js';
 /** Views are overridable; ui-kit owns cancel-first focus and pending/agent guards. */

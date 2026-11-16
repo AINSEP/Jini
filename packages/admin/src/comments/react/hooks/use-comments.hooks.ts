@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useFetchQuery } from '@jini-ai/ui/fetch-query';
+import { useFetchQuery } from '../../../react/kit.js';
 import { useController } from '../../../core/react/use-controller.js';
 import { createCommentsController } from '../../controllers/comments.controller.js';
 import type { CommentsSessionPort } from '../../ports.js';

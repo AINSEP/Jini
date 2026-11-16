@@ -1,5 +1,10 @@
 import { createContext, createElement, useContext, useCallback, useEffect, useMemo, useRef, type Dispatch, type SetStateAction, type ReactNode } from 'react';
-import { useCachedLoader, useFetchQuery, useInvalidate, useFetchQueryScope } from '@jini-ai/ui/fetch-query';
+import {
+  useCachedLoader,
+  useFetchQuery,
+  useInvalidate,
+  useFetchQueryScope,
+} from '../../../react/kit.js';
 import { AdminConfigError } from '../../../core/module/create-admin.js';
 import { useController } from '../../../core/react/use-controller.js';
 import type { AdminComment, AdminCommentsPort, AdminCommentsQueuePage, CommentModerationAction, CommentStatus } from '../../../core/ports/comments.js';

@@ -1,6 +1,6 @@
 import { render } from '@testing-library/react';
 import { expect, it, vi } from 'vitest';
-import type { InteractiveHtmlEditorProps as HtmlEditorProps } from '@jini-ai/ui/html-editor';
+import type { HtmlEditorProps } from '../../../kit.js';
 import { InteractiveHtmlEditor } from '../InteractiveHtmlEditor.js';
 
 // The generic editor mounts GrapesJS; a recording fake proves only what this composition passes it.

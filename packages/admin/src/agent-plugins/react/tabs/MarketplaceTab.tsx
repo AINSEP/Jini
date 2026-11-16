@@ -1,4 +1,4 @@
-import { Notice } from '@jini-ai/ui-kit/react';
+import { Notice } from '../../../react/kit.js';
 import type { TabViewProps } from '../../../core/react/bind-react.js';
 import { useMarketplaceTab } from '../hooks/MarketplaceTab.hooks.js';
 import { agentPluginsMessagesEn as m } from '../../messages.en.js';

@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import type { FormEvent } from 'react';
-import { useFetchMutation } from '@jini-ai/ui/fetch-query';
+import { useFetchMutation } from '../../../react/kit.js';
 import { describeApiError } from '../../../core/transport/errors.js';
 import { useController } from '../../../core/react/use-controller.js';
 import type { AdminRedirectCreateInput, AdminRedirectsPort } from '../../../core/ports/redirects.js';

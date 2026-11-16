@@ -1,4 +1,4 @@
-import { Button, TextField, Notice, ConfirmDialog, Spinner } from '@jini-ai/ui-kit/react';
+import { Button, TextField, Notice, ConfirmDialog, Spinner } from '../../../react/kit.js';
 import type { TabViewProps } from '../../../core/react/bind-react.js';
 import { useRootKeyTab } from '../hooks/RootKeyTab.hooks.js';
 type RootKeyView = ReturnType<typeof useRootKeyTab>;

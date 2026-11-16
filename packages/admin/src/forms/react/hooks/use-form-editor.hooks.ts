@@ -7,10 +7,9 @@ import { useController } from "../../../core/react/use-controller.js";
 import { createFormEditorController, initialFormEditorState, type FormEditorState } from "../../controllers/form-editor.controller.js";
 import { formHtmlEmbed, formAnswerColumns, type FormAnswerColumn } from "../../html-rules.js";
 import { useEffect, useRef, useState } from "react";
-import { useDirtyGuard } from "@jini-ai/ui/panel-kit";
+import { useDirtyGuard, useFetchMutation, useFetchQuery } from "../../../react/kit.js";
 import { formEditorBaseline, formEditorDraft } from "../../form-editor-dirty.js";
 import type { AdminFormDefinition, AdminFormField, AdminFormNotify } from "../../models.js";
-import { useFetchMutation, useFetchQuery } from "@jini-ai/ui/fetch-query";
 import { FORM_TABS, KEYS, existingFieldIdsOf, nextTabIndex, visibleFormEditorError } from "../../rules.js";
 
 /**

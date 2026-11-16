@@ -1,5 +1,5 @@
 import { MediaDialog } from './MediaDialog.js';
-import { Button, IconButton, TextField } from '@jini-ai/ui-kit/react';
+import { Button, IconButton, TextField } from '../../../react/kit.js';
 import { useMediaPicker } from '../hooks/MediaPicker.hooks.js';
 import type { MediaPickerProps } from '../hooks/MediaPicker.hooks.js';
 import { MediaGrid } from './MediaGrid.js';

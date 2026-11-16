@@ -1,4 +1,4 @@
-import { Button, Notice, Spinner } from '@jini-ai/ui-kit/react';
+import { Button, Notice, Spinner } from '../../../react/kit.js';
 import type { TabViewProps } from '../../../core/react/bind-react.js';
 import { useProvidersTab } from '../hooks/ProvidersTab.hooks.js';
 import { SourceControlProviderRow } from '../components/SourceControlProviderRow.js';

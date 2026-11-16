@@ -1,4 +1,4 @@
-import { Button, TextField } from '@jini-ai/ui-kit/react';
+import { Button, TextField } from '../../../react/kit.js';
 import { useUploadButton } from '../hooks/UploadButton.hooks.js';
 import type { UploadButtonProps } from '../hooks/UploadButton.hooks.js';
 export function UploadButton(props: UploadButtonProps, _optional: Record<string, never> = {}) {

@@ -1,4 +1,4 @@
-import { Badge, Button, Menu } from '@jini-ai/ui-kit/react';
+import { Badge, Button, Menu } from '../../../react/kit.js';
 import { useMediaCard } from '../hooks/MediaCard.hooks.js';
 import type { MediaCardProps } from '../hooks/MediaCard.hooks.js';
 import { EyeIcon, ExpandIcon, DocumentIcon } from './MediaIcons.js';

@@ -1,4 +1,4 @@
-import { useInvalidate } from '@jini-ai/ui/fetch-query';
+import { useInvalidate } from '../../../react/kit.js';
 import { WIDGET_QUERY_KEYS, useWidgetRegionsQuery } from './WidgetsQuery.hooks.js';
 import type { AdminWidgetRegionBinding, WidgetsTranslate as Translate } from '../../models.js';
 export interface WidgetRegionsController {

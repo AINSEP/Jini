@@ -1,4 +1,4 @@
-import { Button, Select, TextField } from '@jini-ai/ui-kit/react';
+import { Button, Select, TextField } from '../../../react/kit.js';
 import type { TabViewProps } from '../../../core/react/bind-react.js';
 import { useLibraryTab } from '../hooks/LibraryTab.hooks.js';
 import { MediaGrid } from '../components/MediaGrid.js';

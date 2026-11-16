@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useRef } from 'react';
-import { useCachedLoader, useFetchMutation, useFetchQuery } from '@jini-ai/ui/fetch-query';
+import { useCachedLoader, useFetchMutation, useFetchQuery } from '../../../react/kit.js';
 import type { MediaApiPort, MediaProvidersPort } from '../../ports.js';
 export const MEDIA_QUERY_KEYS = { root: ['media'] as const, library: ['media', 'library'] as const, providers: ['media-providers'] as const };
 

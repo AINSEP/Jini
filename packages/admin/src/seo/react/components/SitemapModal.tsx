@@ -1,5 +1,5 @@
 import { agentHandle } from "@jini-ai/core/agent-handles";
-import { Dialog } from "@jini-ai/ui-kit/react";
+import { Dialog } from "../../../react/kit.js";
 
 import { useSeoCopy, useSeoOptions } from "../hooks/SeoPorts.hooks.js";
 import { actionLabel } from "../../rules.js";

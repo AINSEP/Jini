@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef } from 'react';
 import type { FormEvent } from 'react';
-import { useFetchQuery, useFetchMutation, useInvalidate } from '@jini-ai/ui/fetch-query';
+import { useFetchQuery, useFetchMutation, useInvalidate } from '../../../react/kit.js';
 import { buildAgentListHandles } from '@jini-ai/core/agent-handles';
 import type { AdminRedirect, AdminRedirectsPort } from '../../../core/ports/redirects.js';
 import { useController } from '../../../core/react/use-controller.js';

@@ -1,6 +1,6 @@
 import { useLayoutEffect, useRef } from 'react';
 import type { RefObject } from 'react';
-import type { DialogProps } from '@jini-ai/ui-kit/react';
+import type { DialogProps } from '../../../react/kit.js';
 export interface MediaDialogProps extends Omit<DialogProps, 'ref'> {
   readonly dialogRef?: RefObject<HTMLDialogElement | null>;
 }

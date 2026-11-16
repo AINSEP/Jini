@@ -1,4 +1,4 @@
-import { useInvalidate } from '@jini-ai/ui/fetch-query';
+import { useInvalidate } from '../../../react/kit.js';
 import { MEDIA_QUERY_KEYS, useMediaLibraryQuery, useMediaProvidersQuery } from './MediaQuery.hooks.js';
 import type { ReactNode } from 'react';
 import { createElement, createContext, useContext, useEffect, useState } from 'react';

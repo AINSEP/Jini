@@ -1,5 +1,5 @@
 import type { ReactNode, Ref } from 'react';
-import type { AdminTheme, ColorSchemePreference } from '@jini-ai/ui/theme';
+import type { AdminTheme, ColorSchemePreference } from '../kit.js';
 import type { AdminShellAppearance, AdminThemeEnvironment, AdminThemePreferenceStorePort } from './theme-ports.js';
 import type { AdminPanel } from '../../core/manifest/types.js';
 import type { AdminNavGroup } from '../../core/manifest/rules.js';

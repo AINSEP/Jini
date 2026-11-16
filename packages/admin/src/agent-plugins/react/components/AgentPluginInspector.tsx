@@ -1,4 +1,4 @@
-import { Dialog, Notice } from '@jini-ai/ui-kit/react';
+import { Dialog, Notice } from '../../../react/kit.js';
 import { useAgentPluginInspector, type AgentPluginInspectorProps } from '../hooks/AgentPluginInspector.hooks.js';
 import { AgentPluginFileTree } from './AgentPluginFileTree.js';
 import { AgentPluginFileContent } from './AgentPluginFileContent.js';

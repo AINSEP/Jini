@@ -1,6 +1,7 @@
 import { act, cleanup, render, renderHook, screen, waitFor } from '@testing-library/react';
 import { afterEach, expect, it, vi } from 'vitest';
-import { defaultAdminTheme, type ColorSchemePreference } from '@jini-ai/ui/theme';
+import { defaultAdminTheme } from '@jini-ai/ui/theme';
+import { type ColorSchemePreference } from '../../kit.js';
 import { AdminShell } from '../AdminShell.js';
 import { useAdminTheme } from '../use-admin-theme.js';
 import type { AdminThemeEnvironment, AdminThemePreferenceStorePort } from '../theme-ports.js';

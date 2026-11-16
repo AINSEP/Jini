@@ -1,5 +1,5 @@
 import { Fragment } from 'react';
-import { Button } from '@jini-ai/ui-kit/react';
+import { Button } from '../../../react/kit.js';
 import type { AgentPluginPackageFile } from '../../models.js';
 import { useAgentPluginFileContent } from '../hooks/AgentPluginInspector.hooks.js';
 export function AgentPluginFileContent({ file }: { file: AgentPluginPackageFile }, _optional = {}) {

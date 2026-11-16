@@ -1,7 +1,7 @@
 import { createElement, useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
 import { render as renderOriginal, renderHook as renderHookOriginal, type RenderResult } from '../../../../__tests__/fetch-query-support.js';
-import { Dialog } from '@jini-ai/ui-kit/react';
+import { Dialog } from '../../../../react/kit.js';
 import { acceptsMedia } from '../../../../media/rules.js';
 import { SeoPortsContext, SeoOptionsContext } from '../../hooks/SeoPorts.hooks.js';
 import { createMemorySeoApi } from '../../../adapters/memory.js';

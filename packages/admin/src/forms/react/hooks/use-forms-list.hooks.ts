@@ -6,7 +6,7 @@ import { useController } from "../../../core/react/use-controller.js";
 import { createFormsListController, initialFormsListState, type FormsListState } from "../../controllers/forms-list.controller.js";
 import { useCallback, useEffect, useMemo } from "react";
 import type { AdminFormDefinition } from "../../models.js";
-import { useFetchMutation, useFetchQuery, useInvalidate } from "@jini-ai/ui/fetch-query";
+import { useFetchMutation, useFetchQuery, useInvalidate } from "../../../react/kit.js";
 import { KEYS, describeTrashError, formDatesLines, formsListError, newestUpdatedForms, type FormDateLine } from "../../rules.js";
 
 /**

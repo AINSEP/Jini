@@ -1,4 +1,4 @@
-import { Button, Notice, TextField } from '@jini-ai/ui-kit/react';
+import { Button, Notice, TextField } from '../../../react/kit.js';
 import type { SourceControlRowView } from '../hooks/ProvidersTab.hooks.js';
 import { useSourceControlCredentialFields } from '../hooks/SourceControlCredentialFields.hooks.js';
 export function SourceControlCredentialFields({ row }: { row: SourceControlRowView }, _optional = {}) {

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { useInvalidate } from '@jini-ai/ui/fetch-query';
+import { useInvalidate } from '../../../react/kit.js';
 import { SEO_KEYS, useSeoSettingsQuery } from './SeoQuery.hooks.js';
 import { useController } from '../../../core/react/use-controller.js';
 import { createSeoController } from '../../controllers/seo.controller.js';

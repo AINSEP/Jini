@@ -1,4 +1,4 @@
-import { useFetchQuery } from '@jini-ai/ui/fetch-query';
+import { useFetchQuery } from '../../../react/kit.js';
 import { useController } from '../../../core/react/use-controller.js';
 import type { AdminRedirectsPort } from '../../../core/ports/redirects.js';
 import type { RedirectsTranslate } from '../../models.js';
