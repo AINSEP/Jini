@@ -273,6 +273,31 @@ async function saveWithRevision(required: {
   });
 }
 
+/** An editor-supplied basis is never silently retried against a newer post: this always throws the
+ * version conflict (or a not-found) for the lost write. */
+async function refuseRetryOnEditorBasis(
+  { postRepo, input, expectedVersion }: { postRepo: PostRepoPort; input: SetEntrySeoOverridesInput; expectedVersion: number },
+  _optional = {},
+): Promise<void> {
+  await assertVersionedWrite({ changedRows: 0, recordKind: "entry", recordId: input.entryId,
+    expectedVersion,
+    readCurrentVersion: async () => (await postRepo.findById({ workspaceId: input.workspaceId, id: input.entryId }))?.version ?? null });
+}
+
+/** Reads the entry afresh for one merge attempt.
+ * @throws SeoEntryNotFoundError when it is gone; EntityNotLiveError when it is in the Trash. */
+async function readLiveEntryForMerge(
+  { postRepo, input }: { postRepo: PostRepoPort; input: SetEntrySeoOverridesInput },
+  _optional = {},
+) {
+  const existing = await postRepo.findById({ workspaceId: input.workspaceId, id: input.entryId });
+  if (!existing) {
+    throw new SeoEntryNotFoundError(`entry '${input.entryId}' was not found`);
+  }
+  assertEntityLive({ entityType: existing.kind, entityId: input.entryId, state: postRepo.isTrashed({ post: existing }) ? "trashed" : "live" });
+  return existing;
+}
+
 /**
  * The SEO chokepoint's whole write: read the row, merge the patch onto whatever it currently holds,
  * and persist it ONLY while it is still the row that was read.
@@ -320,12 +345,7 @@ async function mergeOverridesOntoCurrentRow(
   optional: { expectedVersion?: number } = {},
 ): Promise<SeoExtFields> {
   for (let attempt = 0; attempt < MAX_MERGE_ATTEMPTS; attempt += 1) {
-    const existing = await postRepo.findById({ workspaceId: input.workspaceId, id: input.entryId });
-    if (!existing) {
-      throw new SeoEntryNotFoundError(`entry '${input.entryId}' was not found`);
-    }
-    assertEntityLive({ entityType: existing.kind, entityId: input.entryId, state: postRepo.isTrashed({ post: existing }) ? "trashed" : "live" });
-
+    const existing = await readLiveEntryForMerge({ postRepo, input });
     if (optional.expectedVersion !== undefined && existing.version !== optional.expectedVersion) {
       await assertVersionedWrite({ changedRows: 0, recordKind: "entry", recordId: input.entryId,
         expectedVersion: optional.expectedVersion, readCurrentVersion: async () => existing.version });
@@ -335,10 +355,7 @@ async function mergeOverridesOntoCurrentRow(
     const applied = await saveWithRevision({ postRepo, clock, existing, updatedRecord, actorId: input.callerPrincipalId });
     if (applied) return mergedOverrides;
     if (optional.expectedVersion !== undefined) {
-      // An editor-supplied basis is never silently retried against a newer post.
-      await assertVersionedWrite({ changedRows: 0, recordKind: "entry", recordId: input.entryId,
-        expectedVersion: optional.expectedVersion,
-        readCurrentVersion: async () => (await postRepo.findById({ workspaceId: input.workspaceId, id: input.entryId }))?.version ?? null });
+      await refuseRetryOnEditorBasis({ postRepo, input, expectedVersion: optional.expectedVersion });
     }
   }
 

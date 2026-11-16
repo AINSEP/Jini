@@ -96,8 +96,7 @@ export class InMemoryFormDefinitionRepo implements FormDefinitionRepoPort {
   async update(record: FormDefinitionRecord, optional: { expectedVersion?: number } = {}): Promise<void> {
     const existing = this.rows.get(record.id);
     const { expectedVersion } = optional;
-    if (expectedVersion !== undefined &&
-      (!existing || existing.workspaceId !== record.workspaceId || existing.deletedAt !== null || existing.version !== expectedVersion)) {
+    if (expectedVersion !== undefined && !isLiveVersionMatch({ existing, record, expectedVersion })) {
       await assertVersionedWrite({
         changedRows: 0, recordKind: "form", recordId: record.id, expectedVersion,
         readCurrentVersion: async () => existing?.workspaceId === record.workspaceId && existing.deletedAt === null ? existing.version : null,
@@ -259,4 +258,12 @@ export class InMemoryFormSubmissionRepo implements FormSubmissionRepoPort {
       .filter(row => row.workspaceId === required.workspaceId && row.formDefinitionId === required.formDefinitionId)
       .map(cloneSubmission);
   }
+}
+
+/** True when the stored row is live, in the same workspace, and at the expected version. */
+function isLiveVersionMatch(
+  { existing, record, expectedVersion }: { existing: StoredFormDefinition | undefined; record: FormDefinitionRecord; expectedVersion: number },
+  _optional = {},
+): boolean {
+  return !!existing && existing.workspaceId === record.workspaceId && existing.deletedAt === null && existing.version === expectedVersion;
 }
