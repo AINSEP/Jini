@@ -63,14 +63,18 @@ describe("database import isolation", () => {
     expect(files.flatMap(file => violations(relative(sourceRoot, file), readFileSync(file, "utf8")).map(v => `${file}: ${v}`))).toEqual([]);
   });
 
-  it("SQL vault persistence imports platform only through the contracts leaf", () => {
+  it("SQL vault persistence imports the vault contract from core and nothing from platform", () => {
     const file = join(sourceRoot, "secrets-vault/repo.sql.ts");
     const tree = ts.createSourceFile(file, readFileSync(file, "utf8"), ts.ScriptTarget.Latest, true);
     const platformImports = tree.statements.flatMap(statement =>
       ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier)
         && statement.moduleSpecifier.text.startsWith("@jini-ai/platform")
         ? [statement.moduleSpecifier.text] : []);
-    expect(platformImports).toEqual(["@jini-ai/platform/secrets/credential-sets/contracts"]);
+    // C5: the vault contract moved to core, so no platform import is left (the optional platform peer is for the adapters).
+    expect(platformImports).toEqual([]);
+    const coreImports = tree.statements.flatMap(statement =>
+      ts.isImportDeclaration(statement) && ts.isStringLiteral(statement.moduleSpecifier) ? [statement.moduleSpecifier.text] : []);
+    expect(coreImports).toContain("@jini-ai/core/contracts/vault");
   });
 
   it.each([
