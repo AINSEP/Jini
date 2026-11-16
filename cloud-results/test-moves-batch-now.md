@@ -41,3 +41,7 @@ tests on a worktree of origin/integ/wave-b (Tovu base, linked to the same merged
 
 ## UI check should look at
 Admin Members, Users, Media (edit dialog, HTML attributes, provider settings), Database timeline paging (useCursorPages), Sites home, Plugin content analyzer scoring, object-storage media store selection, skills tool registration.
+
+## Push status
+- Jini moves/batch-now pushed (includes the integ/wave-b merge and this report).
+- Tovu moves/batch-now: the 13 move commits are already on origin; the local integ/wave-b merge (9 commits ahead after `git pull --rebase`) was NOT pushed — the repo's pre-push hook ("desktop gates") fails (tests, typecheck, complexity, coverage — the pre-existing failures above) and `--no-verify` was not authorized for an unattended run. Push it from a machine where the gates pass, or with `--no-verify` if intended.
