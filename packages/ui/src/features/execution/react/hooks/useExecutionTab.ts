@@ -58,47 +58,11 @@ function describeErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-/**
- * Owns the tab's async edges: local-agent detection, rescan, connection test,
- * and optional model discovery. Config state itself stays with the host — the
- * tab is controlled, so a host can persist to its own store on every change.
- *
- * Every async result is dropped if the hook unmounted first, so a slow probe
- * can't set state on a torn-down tree.
- */
-export function useExecutionTab({
-  port,
-  autoDetect = true,
-  describeProbeError = describeErrorMessage,
-}: UseExecutionTabOptions): UseExecutionTabResult {
-  const [agents, setAgents] = useState<readonly DetectedAgent[]>([]);
-  const [scan, setScan] = useState<AgentScanState>({ status: 'idle' });
-  const [connectionTest, setConnectionTest] = useState<ConnectionTestState>({ status: 'idle' });
-  const [modelDiscovery, setModelDiscovery] = useState<ModelDiscoveryState>({ status: 'idle' });
-  const [agentTest, setAgentTest] = useState<AgentTestState>({ status: 'idle' });
+type DescribeProbeErrorRef = { readonly current: (error: unknown) => string };
+type AliveRef = { readonly current: boolean };
 
-  /*
-   * One monotonic ticket per async edge.
-   *
-   * `alive` alone is NOT enough: it only stops a result landing after UNMOUNT,
-   * and says nothing about ORDER. Every edge here can be launched again before
-   * the previous call settles — the operator switches provider mid-discovery,
-   * clicks Test twice, rescans while a scan is running — and responses are not
-   * guaranteed to return in the order they were sent. Without a ticket the
-   * slower FIRST response lands last and overwrites the newer one, so the form
-   * shows provider A's models under provider B, or A's failure hides B's
-   * success. Only the newest ticket for an edge may write its state.
-   */
-  const detectionTicket = useRef(0);
-  const connectionTestTicket = useRef(0);
-  const agentTestTicket = useRef(0);
-  const modelDiscoveryTicket = useRef(0);
-
-  /** The host's describer as of the latest render — see `UseExecutionTabOptions.describeProbeError`. */
-  const describeProbeErrorRef = useRef(describeProbeError);
-  describeProbeErrorRef.current = describeProbeError;
-
-  const detectionTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+/** True while mounted (async results are dropped after unmount); also clears the detection poll timer. */
+function useAliveRef(detectionTimer: { current: ReturnType<typeof setTimeout> | undefined }): AliveRef {
   const alive = useRef(true);
   useEffect(() => {
     alive.current = true;
@@ -106,7 +70,20 @@ export function useExecutionTab({
       alive.current = false;
       clearTimeout(detectionTimer.current);
     };
-  }, []);
+  }, [detectionTimer]);
+  return alive;
+}
+
+/** Local-agent detection / rescan, polling while the host reports discovery still pending. */
+function useAgentDetection(
+  port: ExecutionPort,
+  autoDetect: boolean,
+  alive: AliveRef,
+  detectionTimer: { current: ReturnType<typeof setTimeout> | undefined },
+) {
+  const [agents, setAgents] = useState<readonly DetectedAgent[]>([]);
+  const [scan, setScan] = useState<AgentScanState>({ status: 'idle' });
+  const detectionTicket = useRef(0);
 
   const runDetection: (detect: () => Promise<readonly DetectedAgent[]>) => void = useCallback(
     (detect: () => Promise<readonly DetectedAgent[]>) => {
@@ -147,6 +124,14 @@ export function useExecutionTab({
     runDetection(() => rescanFn.call(port));
   }, [port, runDetection]);
 
+  return { agents, scan, rescan };
+}
+
+/** Provider connection test. */
+function useConnectionTest(port: ExecutionPort, alive: AliveRef, describeProbeErrorRef: DescribeProbeErrorRef) {
+  const [connectionTest, setConnectionTest] = useState<ConnectionTestState>({ status: 'idle' });
+  const connectionTestTicket = useRef(0);
+
   const testConnection = useCallback(
     (config: ByokConfig) => {
       connectionTestTicket.current += 1;
@@ -170,6 +155,14 @@ export function useExecutionTab({
     },
     [port],
   );
+
+  return { connectionTest, testConnection };
+}
+
+/** Per-agent health check. */
+function useAgentTestAction(port: ExecutionPort, alive: AliveRef) {
+  const [agentTest, setAgentTest] = useState<AgentTestState>({ status: 'idle' });
+  const agentTestTicket = useRef(0);
 
   const testAgent = useCallback(
     (agentId: string, model?: string | undefined) => {
@@ -206,6 +199,14 @@ export function useExecutionTab({
     [port],
   );
 
+  return { agentTest, testAgent };
+}
+
+/** Optional model discovery for the selected provider. */
+function useModelDiscovery(port: ExecutionPort, alive: AliveRef, describeProbeErrorRef: DescribeProbeErrorRef) {
+  const [modelDiscovery, setModelDiscovery] = useState<ModelDiscoveryState>({ status: 'idle' });
+  const modelDiscoveryTicket = useRef(0);
+
   const loadModels = useCallback(
     (config: ByokConfig) => {
       const listModels = port.listModels;
@@ -240,13 +241,53 @@ export function useExecutionTab({
     setModelDiscovery({ status: 'idle' });
   }, []);
 
+  return { modelDiscovery, loadModels, resetModelDiscovery };
+}
+
+/**
+ * Owns the tab's async edges: local-agent detection, rescan, connection test,
+ * and optional model discovery. Config state itself stays with the host — the
+ * tab is controlled, so a host can persist to its own store on every change.
+ *
+ * Every async result is dropped if the hook unmounted first, so a slow probe
+ * can't set state on a torn-down tree.
+ */
+export function useExecutionTab({
+  port,
+  autoDetect = true,
+  describeProbeError = describeErrorMessage,
+}: UseExecutionTabOptions): UseExecutionTabResult {
+  /*
+   * One monotonic ticket per async edge.
+   *
+   * `alive` alone is NOT enough: it only stops a result landing after UNMOUNT,
+   * and says nothing about ORDER. Every edge here can be launched again before
+   * the previous call settles — the operator switches provider mid-discovery,
+   * clicks Test twice, rescans while a scan is running — and responses are not
+   * guaranteed to return in the order they were sent. Without a ticket the
+   * slower FIRST response lands last and overwrites the newer one, so the form
+   * shows provider A's models under provider B, or A's failure hides B's
+   * success. Only the newest ticket for an edge may write its state.
+   */
+  /** The host's describer as of the latest render — see `UseExecutionTabOptions.describeProbeError`. */
+  const describeProbeErrorRef = useRef(describeProbeError);
+  describeProbeErrorRef.current = describeProbeError;
+
+  // The timer lives with detection but the unmount effect must run first, so it is created here.
+  const detectionTimerHolder = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  const alive = useAliveRef(detectionTimerHolder);
+  const detection = useAgentDetection(port, autoDetect, alive, detectionTimerHolder);
+  const { connectionTest, testConnection } = useConnectionTest(port, alive, describeProbeErrorRef);
+  const { agentTest, testAgent } = useAgentTestAction(port, alive);
+  const { modelDiscovery, loadModels, resetModelDiscovery } = useModelDiscovery(port, alive, describeProbeErrorRef);
+
   return {
-    agents,
-    scan,
+    agents: detection.agents,
+    scan: detection.scan,
     connectionTest,
     modelDiscovery,
     agentTest,
-    rescan,
+    rescan: detection.rescan,
     testConnection,
     testAgent,
     loadModels,
