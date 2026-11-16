@@ -10,17 +10,221 @@ import { memoryFlashLabels, memoryTypeLabels } from '../../formatters.js';
 import type { DraftEntry, FlashKind, MemoryType } from '../../types.js';
 import { FIELD_LABEL_STYLE } from '../styles.js';
 
-export function MemoryManualEditor({
+function MemoryStarterRow({
   editing,
   onEditingChange,
-  onStartNew,
+}: Pick<MemoryManualEditorProps, 'onEditingChange'> & { editing: DraftEntry }) {
+  const t = useT();
+  return (
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: 6,
+          paddingBottom: 10,
+          borderBottom: '1px solid var(--jini-border-soft)',
+        }}
+      >
+        <span
+          style={{
+            ...FIELD_LABEL_STYLE,
+            display: 'inline-block',
+            marginRight: 4,
+            marginBottom: 0,
+          }}
+        >
+          {t('Start from')}
+        </span>
+        {STARTERS.map((starter) => (
+          <button
+            key={starter.name}
+            type="button"
+            className="filter-pill"
+            onClick={() =>
+              onEditingChange({
+                id: editing.id,
+                type: starter.type,
+                name: t(starter.name),
+                description: t(starter.description),
+                body: t(starter.body),
+              })
+            }
+            title={t(starter.description)}
+            style={{ display: 'inline-flex', alignItems: 'center' }}
+          >
+            {t(starter.name)}
+          </button>
+        ))}
+      </div>
+  );
+}
+
+type DraftFieldProps = Pick<MemoryManualEditorProps, 'onEditingChange'> & { editing: DraftEntry };
+
+function MemoryNameTypeRow({
+  editing,
+  onEditingChange,
+  editorNameRef,
+}: DraftFieldProps & Pick<MemoryManualEditorProps, 'editorNameRef'>) {
+  const t = useT();
+  const typeLabel = useMemo(() => memoryTypeLabels(t), [t]);
+  return (
+    <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <label style={FIELD_LABEL_STYLE}>{t('Name')}</label>
+        <input
+          ref={editorNameRef}
+          type="text"
+          placeholder={t('e.g. Prefers dark mode')}
+          value={editing.name}
+          onChange={(e) => onEditingChange({ ...editing, name: e.target.value })}
+          style={{ width: '100%' }}
+        />
+      </div>
+      <div style={{ flex: '0 0 auto', minWidth: 120 }}>
+        <label style={FIELD_LABEL_STYLE}>{t('Type')}</label>
+        <select
+          value={editing.type}
+          onChange={(e) => onEditingChange({ ...editing, type: e.target.value as MemoryType })}
+          style={{ width: '100%' }}
+        >
+          {TYPES.map((tt) => (
+            <option key={tt} value={tt}>
+              {typeLabel[tt]}
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
+}
+
+function MemoryDetailsField({ editing, onEditingChange }: DraftFieldProps) {
+  const t = useT();
+  return (
+    <div>
+      <label style={FIELD_LABEL_STYLE}>{t('Details')}</label>
+      <textarea
+        placeholder={t('What should the assistant remember?')}
+        value={editing.body}
+        onChange={(e) => onEditingChange({ ...editing, body: e.target.value })}
+        rows={7}
+        style={{
+          width: '100%',
+          fontFamily: 'var(--jini-font-mono)',
+          fontSize: 12,
+          lineHeight: 1.5,
+        }}
+      />
+      <p className="hint" style={{ fontSize: 11, marginTop: 4 }}>
+        {t('Plain text or Markdown. Keep it concise — this is added to future chat context.')}
+      </p>
+    </div>
+  );
+}
+
+function MemoryDraftFields({
+  editing,
+  onEditingChange,
+  editorNameRef,
+}: DraftFieldProps & Pick<MemoryManualEditorProps, 'editorNameRef'>) {
+  const t = useT();
+  return (
+    <div
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 12,
+        width: '100%',
+      }}
+    >
+      <MemoryNameTypeRow editing={editing} onEditingChange={onEditingChange} editorNameRef={editorNameRef} />
+      <div>
+        <label style={FIELD_LABEL_STYLE}>{t('Description')}</label>
+        <input
+          type="text"
+          placeholder={t('Short description')}
+          value={editing.description}
+          onChange={(e) => onEditingChange({ ...editing, description: e.target.value })}
+          style={{ width: '100%' }}
+        />
+      </div>
+      <MemoryDetailsField editing={editing} onEditingChange={onEditingChange} />
+    </div>
+  );
+}
+
+function MemoryDraftActions({
+  editing,
+  busy,
+  onCancel,
+  onSave,
+}: Pick<MemoryManualEditorProps, 'busy' | 'onCancel' | 'onSave'> & { editing: DraftEntry }) {
+  const t = useT();
+  return (
+    <div
+      style={{
+        display: 'flex',
+        gap: 8,
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        flexWrap: 'wrap',
+      }}
+    >
+      <span
+        className="hint"
+        style={{
+          fontSize: 11,
+          margin: 0,
+          color: 'var(--jini-text-muted)',
+        }}
+      >
+        {t('Saved memories are available to future chats.')}
+      </span>
+      <div style={{ display: 'flex', gap: 8 }}>
+        <button type="button" className="ghost" onClick={onCancel}>
+          {t('Cancel')}
+        </button>
+        <button type="button" className="primary" onClick={onSave} disabled={busy || !editing.name.trim()}>
+          {editing.id ? t('Save') : t('Create')}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function MemoryDraftForm({
+  editing,
+  onEditingChange,
   onCancel,
   onSave,
   busy,
   editorRef,
   editorNameRef,
-  flash,
-}: {
+}: MemoryManualEditorProps & { editing: DraftEntry }) {
+  return (
+    <div
+      ref={editorRef}
+      className="library-card"
+      style={{
+        flexDirection: 'column',
+        alignItems: 'stretch',
+        gap: 14,
+        padding: 14,
+        background: 'var(--jini-bg-subtle)',
+        border: '1px solid var(--jini-border-soft)',
+        borderRadius: 10,
+      }}
+    >
+      {!editing.id ? <MemoryStarterRow editing={editing} onEditingChange={onEditingChange} /> : null}
+      <MemoryDraftFields editing={editing} onEditingChange={onEditingChange} editorNameRef={editorNameRef} />
+      <MemoryDraftActions editing={editing} busy={busy} onCancel={onCancel} onSave={onSave} />
+    </div>
+  );
+}
+
+export interface MemoryManualEditorProps {
   editing: DraftEntry | null;
   onEditingChange: (draft: DraftEntry) => void;
   onStartNew: () => void;
@@ -30,9 +234,11 @@ export function MemoryManualEditor({
   editorRef: MutableRefObject<HTMLDivElement | null>;
   editorNameRef: MutableRefObject<HTMLInputElement | null>;
   flash: { kind: FlashKind; key: number } | null;
-}) {
+}
+
+export function MemoryManualEditor(props: MemoryManualEditorProps) {
+  const { editing, onStartNew, flash } = props;
   const t = useT();
-  const typeLabel = useMemo(() => memoryTypeLabels(t), [t]);
   const flashLabel = useMemo(() => memoryFlashLabels(t), [t]);
   return (
     <div className="memory-tab-panel memory-manual-panel">
@@ -58,157 +264,7 @@ export function MemoryManualEditor({
         </div>
       ) : null}
 
-      {editing ? (
-        <div
-          ref={editorRef}
-          className="library-card"
-          style={{
-            flexDirection: 'column',
-            alignItems: 'stretch',
-            gap: 14,
-            padding: 14,
-            background: 'var(--jini-bg-subtle)',
-            border: '1px solid var(--jini-border-soft)',
-            borderRadius: 10,
-          }}
-        >
-          {!editing.id ? (
-            <div
-              style={{
-                display: 'flex',
-                flexWrap: 'wrap',
-                alignItems: 'center',
-                gap: 6,
-                paddingBottom: 10,
-                borderBottom: '1px solid var(--jini-border-soft)',
-              }}
-            >
-              <span
-                style={{
-                  ...FIELD_LABEL_STYLE,
-                  display: 'inline-block',
-                  marginRight: 4,
-                  marginBottom: 0,
-                }}
-              >
-                {t('Start from')}
-              </span>
-              {STARTERS.map((starter) => (
-                <button
-                  key={starter.name}
-                  type="button"
-                  className="filter-pill"
-                  onClick={() =>
-                    onEditingChange({
-                      id: editing.id,
-                      type: starter.type,
-                      name: t(starter.name),
-                      description: t(starter.description),
-                      body: t(starter.body),
-                    })
-                  }
-                  title={t(starter.description)}
-                  style={{ display: 'inline-flex', alignItems: 'center' }}
-                >
-                  {t(starter.name)}
-                </button>
-              ))}
-            </div>
-          ) : null}
-          <div
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 12,
-              width: '100%',
-            }}
-          >
-            <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <label style={FIELD_LABEL_STYLE}>{t('Name')}</label>
-                <input
-                  ref={editorNameRef}
-                  type="text"
-                  placeholder={t('e.g. Prefers dark mode')}
-                  value={editing.name}
-                  onChange={(e) => onEditingChange({ ...editing, name: e.target.value })}
-                  style={{ width: '100%' }}
-                />
-              </div>
-              <div style={{ flex: '0 0 auto', minWidth: 120 }}>
-                <label style={FIELD_LABEL_STYLE}>{t('Type')}</label>
-                <select
-                  value={editing.type}
-                  onChange={(e) => onEditingChange({ ...editing, type: e.target.value as MemoryType })}
-                  style={{ width: '100%' }}
-                >
-                  {TYPES.map((tt) => (
-                    <option key={tt} value={tt}>
-                      {typeLabel[tt]}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div>
-              <label style={FIELD_LABEL_STYLE}>{t('Description')}</label>
-              <input
-                type="text"
-                placeholder={t('Short description')}
-                value={editing.description}
-                onChange={(e) => onEditingChange({ ...editing, description: e.target.value })}
-                style={{ width: '100%' }}
-              />
-            </div>
-            <div>
-              <label style={FIELD_LABEL_STYLE}>{t('Details')}</label>
-              <textarea
-                placeholder={t('What should the assistant remember?')}
-                value={editing.body}
-                onChange={(e) => onEditingChange({ ...editing, body: e.target.value })}
-                rows={7}
-                style={{
-                  width: '100%',
-                  fontFamily: 'var(--jini-font-mono)',
-                  fontSize: 12,
-                  lineHeight: 1.5,
-                }}
-              />
-              <p className="hint" style={{ fontSize: 11, marginTop: 4 }}>
-                {t('Plain text or Markdown. Keep it concise — this is added to future chat context.')}
-              </p>
-            </div>
-          </div>
-          <div
-            style={{
-              display: 'flex',
-              gap: 8,
-              alignItems: 'center',
-              justifyContent: 'space-between',
-              flexWrap: 'wrap',
-            }}
-          >
-            <span
-              className="hint"
-              style={{
-                fontSize: 11,
-                margin: 0,
-                color: 'var(--jini-text-muted)',
-              }}
-            >
-              {t('Saved memories are available to future chats.')}
-            </span>
-            <div style={{ display: 'flex', gap: 8 }}>
-              <button type="button" className="ghost" onClick={onCancel}>
-                {t('Cancel')}
-              </button>
-              <button type="button" className="primary" onClick={onSave} disabled={busy || !editing.name.trim()}>
-                {editing.id ? t('Save') : t('Create')}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
+      {editing ? <MemoryDraftForm {...props} editing={editing} /> : null}
     </div>
   );
 }

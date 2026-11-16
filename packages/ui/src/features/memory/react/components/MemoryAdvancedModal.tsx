@@ -12,7 +12,12 @@ type MemoryIndexEditorCardProps = Pick<
   'index' | 'indexDraft' | 'onIndexDraftChange' | 'onSaveIndex' | 'busy'
 >;
 
-function MemoryIndexEditorFooter({ indexDraft, onIndexDraftChange, onSaveIndex, busy }: MemoryIndexEditorCardProps) {
+function MemoryIndexEditorFooter({
+  indexDraft,
+  onIndexDraftChange,
+  onSaveIndex,
+  busy,
+}: Omit<MemoryIndexEditorCardProps, 'index'>) {
   const t = useT();
   return (
     <div
