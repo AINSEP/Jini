@@ -197,13 +197,13 @@ function extractValues(record: Schema, properties: Record<string, Schema>): Iden
     if (sub.type === "integer") {
       const integerViolation = findIntegerViolation(key, sub, candidate);
       if (integerViolation !== undefined) return rejected(integerViolation);
-      Object.defineProperty(integers, key, { value: candidate as number, enumerable: true, writable: true, configurable: true });
+      Object.defineProperty(integers, key, { value: candidate, enumerable: true, writable: true, configurable: true });
       continue;
     }
     const stringViolation = findStringViolation(key, sub, candidate);
     if (stringViolation !== undefined) return rejected(stringViolation);
     // defineProperty keeps a `__proto__` key as plain own data rather than invoking the setter.
-    Object.defineProperty(value, key, { value: candidate as string, enumerable: true, writable: true, configurable: true });
+    Object.defineProperty(value, key, { value: candidate, enumerable: true, writable: true, configurable: true });
   }
 
   return { ok: true, value, integers };
