@@ -1,5 +1,6 @@
 /** Pure parser for a plugin's member login-provider preset file. Loading, admission and pinning stay with the host. */
 import { MemberLoginError, type LoginProviderPreset } from "./login-types.js";
+import { describeErrorForLog } from "@jini-ai/core";
 
 const ID = /^[a-z][a-z0-9-]{0,63}$/;
 const DOMAIN = /^(?:[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.)+[a-z]{2,63}$/;
@@ -44,17 +45,17 @@ function preset(value: unknown): LoginProviderPreset {
     credentialCardTarget: text(row.credentialCardTarget), ...emailAuthority(row) };
 }
 
-/** Parse a bounded v1 preset file. Failure exposes a fixed code, never raw plugin JSON.
+/** Parse a bounded v1 preset file. Failure exposes a fixed code plus a redacted `detail` (class, code, credential-redacted message) saying what was wrong.
  * @complexity O(bytes + p), bounded to 32 KiB and eight providers per package.
  */
 export function parseLoginProviders(required: { raw: string }, _options: Record<string, never> = {}):
-  { ok: true; descriptors: readonly LoginProviderPreset[] } | { ok: false; reason: string } {
+  { ok: true; descriptors: readonly LoginProviderPreset[] } | { ok: false; reason: string; detail: string } {
   try {
     if (required.raw.length > 32768) throw new MemberLoginError({ code: "LOGIN_UNAVAILABLE" });
     const file = JSON.parse(required.raw);
     if (file.schemaVersion !== 1 || !Array.isArray(file.providers) || file.providers.length > 8) throw new MemberLoginError({ code: "LOGIN_UNAVAILABLE" });
     return { ok: true, descriptors: file.providers.map(preset) };
-  } catch {
-    return { ok: false, reason: "LOGIN_PROVIDER_INVALID" };
+  } catch (error) {
+    return { ok: false, reason: "LOGIN_PROVIDER_INVALID", detail: describeErrorForLog({ err: error }) };
   }
 }

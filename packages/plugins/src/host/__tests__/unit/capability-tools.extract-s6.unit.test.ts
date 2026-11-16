@@ -187,8 +187,8 @@ describe('EXTRACT-S6 capability tools: second host vocabulary', () => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     vi.spyOn(repo, 'getActivation').mockRejectedValueOnce(new Error('boom api_key=SECRETSECRETSECRETSECRET'));
     expect(await registration!.policy.authorize(ctx)).toBe('deny');
-    expect(warn).toHaveBeenCalledWith('[denied meter: Error]');
-    expect(JSON.stringify(warn.mock.calls)).not.toMatch(/boom|SECRETSECRET/);
+    expect(warn).toHaveBeenCalledWith('[denied meter: Error: boom api_key=[REDACTED:labeled_secret]]');
+    expect(JSON.stringify(warn.mock.calls)).not.toMatch(/SECRETSECRET/);
     warn.mockRestore();
   });
 

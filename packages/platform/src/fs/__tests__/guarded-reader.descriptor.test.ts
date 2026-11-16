@@ -93,7 +93,7 @@ describe.each(["read", "readBytes"] as const)("descriptor %s", method => {
     // The refusal names only the relative path; the host's absolute path stays out of it.
     const refusal = await Promise.resolve().then(() => invoke(f.make(), method)).catch(error => error);
     expect(refusal).toBeInstanceOf(FsFilePathError);
-    expect(refusal.message).toBe("path 'file' is a symbolic link or could not be opened");
+    expect(refusal.message).toBe("path 'file' is a symbolic link or could not be opened (ELOOP)");
     expect(f.close).not.toHaveBeenCalled();
   });
 

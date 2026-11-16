@@ -5,10 +5,11 @@ import { validateBrowserProviders, type AdmittedBrowserProvider, type BrowserPro
 import type { PluginManifest } from '../manifest.js';
 import type { PluginDiscoveryRecord } from '../discovery-types.js';
 import type { BundledBrowserProviderApproval } from '../ports.js';
+import { describeErrorForLog } from "@jini-ai/core";
 
 export type BrowserProviderAdmissionResult =
   | { readonly admitted: true; readonly providers: readonly AdmittedBrowserProvider[] }
-  | { readonly admitted: false; readonly reason: 'BROWSER_PROVIDER_FORBIDDEN' | 'BROWSER_PROVIDER_INVALID' | 'INTEGRITY_FAILED' };
+  | { readonly admitted: false; readonly reason: 'BROWSER_PROVIDER_FORBIDDEN' | 'BROWSER_PROVIDER_INVALID' | 'INTEGRITY_FAILED'; /** What failed, redacted (class, code, message), when a thrown error caused it. */ readonly detail?: string };
 
 /** Compare review-owned declarations with what the discovered manifest requests. Array order is
  * significant (capability preference); object key order is not. No self-declared trust field exists.
@@ -54,7 +55,7 @@ export async function admitBrowserProviderAssets(
         declaration: Object.freeze({ ...declaration, kinds: Object.freeze([...declaration.kinds]) }), assets: Object.freeze(assets) });
     });
     return { admitted: true, providers: Object.freeze(providers) };
-  } catch {
-    return { admitted: false, reason: 'INTEGRITY_FAILED' };
+  } catch (error) {
+    return { admitted: false, reason: 'INTEGRITY_FAILED', detail: describeErrorForLog({ err: error }) };
   }
 }

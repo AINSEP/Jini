@@ -20,7 +20,11 @@ describe('parseLoginProviders', () => {
     ['public client', { clientAuthentication: 'none' }], ['extra scope', { scopes: ['openid', 'email', 'offline_access'] }],
     ['http issuer', { issuer: 'http://id.example.com' }], ['bad id', { id: 'Example' }], ['bad domain', { authoritativeEmailDomains: ['nope'] }],
   ])('refuses %s with the fixed code only', (_name, change) => {
-    expect(parseLoginProviders({ raw: file({ ...provider, ...change }) })).toEqual({ ok: false, reason: 'LOGIN_PROVIDER_INVALID' });
+    expect(parseLoginProviders({ raw: file({ ...provider, ...change }) })).toMatchObject({ ok: false, reason: 'LOGIN_PROVIDER_INVALID', detail: expect.stringMatching(/^\w*Error: \S+/) });
+  });
+
+  it('says why a malformed file was refused, with the parser message', () => {
+    expect(parseLoginProviders({ raw: '{' })).toEqual({ ok: false, reason: 'LOGIN_PROVIDER_INVALID', detail: "SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)" });
   });
 
   it('refuses oversized, malformed and wrong-version files', () => {

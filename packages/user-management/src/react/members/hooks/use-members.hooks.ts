@@ -164,7 +164,7 @@ export function useMembers({ port, translate, queryScope = "members" }: MembersD
     patchRowState(member.id, { disabling: true, error: null, notice: null });
     try {
       const result = await disable.mutate({ input: member.id });
-      await listLoader.load().catch(() => {}); // Await roster settlement; list.error owns a failed read, not the accepted disable.
+      await listLoader.load().catch(() => { /* why: list.error already owns and shows a failed roster read; it must not turn the accepted disable into a failure. */ });
       setDetailById(current => current[member.id] ? { ...current, [member.id]: result.member } : current);
       patchRowState(member.id, { disabling: false, notice: translate("Member disabled.") });
     } catch (e) {

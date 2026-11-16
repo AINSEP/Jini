@@ -460,3 +460,4 @@ export function createErrorDescriber(required: ErrorDescriberVocabulary, _option
     describeErrorForLog: (args, _optional = {}) => lineFor({ err: args.err, vocabulary }),
   };
 }
+export { ignoreBestEffortFailure } from "./best-effort.js";

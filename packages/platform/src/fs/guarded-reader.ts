@@ -3,6 +3,7 @@ import type { Stats } from "node:fs";
 import { dirname, isAbsolute, relative, resolve, sep } from "node:path";
 import { trimCharsEnd } from "@jini-ai/core/primitives";
 import { FsFilePathError, type DenyRules, type GuardedFileReader, type GuardedReaderLimits } from '@jini-ai/core/filesystem';
+import { describeErrorParts } from "@jini-ai/core/model-facing-tool-errors";
 
 /** Path segments that never add a component: empty (doubled separator), ".", and "..". */
 const NON_DESCENDING_SEGMENTS: ReadonlySet<string> = new Set(["", ".", ".."]);
@@ -398,8 +399,10 @@ export function createGuardedFileReader({ rootPath, denyRules, limits, filesyste
         try {
             return fs.openSync(target, descriptorFlags!);
         }
-        catch {
-            throw new FsFilePathError({ message: `path '${relativePath}' is a symbolic link or could not be opened` });
+        catch (cause) {
+            // Only the approved code (ELOOP, EACCES...) is added: the full message quotes the host's absolute path.
+            const { code } = describeErrorParts({ err: cause });
+            throw new FsFilePathError({ message: `path '${relativePath}' is a symbolic link or could not be opened${code === undefined ? '' : ` (${code})`}` });
         }
     }
     /** Transfer ownership to the stream only after construction; it alone closes on end/error. */

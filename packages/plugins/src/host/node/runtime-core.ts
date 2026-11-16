@@ -9,7 +9,7 @@
  */
 import { lstat } from "node:fs/promises";
 import path from "node:path";
-import { describeErrorForLog, redactSecrets } from "@jini-ai/core";
+import { describeErrorForLog, ignoreBestEffortFailure, redactSecrets } from "@jini-ai/core";
 import { createPluginLookupFacade, type PluginLookupPort } from "@jini-ai/core/plugin-directory";
 import { createConsoleLogger, type Clock as ClockPort } from "@jini-ai/core/primitives";
 import { setPluginEnabled, type PluginActivationRepoPort } from "../activation.js";
@@ -701,7 +701,8 @@ export function createPluginRuntimeCore<TEvent, TOptions>(
     });
     const attached = attachPlugin(record.id, record);
     // Observed even after the deadline wins, so a late failure is never an unhandled rejection.
-    attached.catch(() => {});
+    // why: if the deadline wins, the late attach failure has no caller left to throw to; it is logged, not dropped.
+    attached.catch(ignoreBestEffortFailure({ operation: `finish attaching provider plugin ${record.id} after its load deadline` }, { scope: "plugins" }));
     try { await Promise.race([attached, deadline]); } finally { clearTimeout(timer); }
   }
 

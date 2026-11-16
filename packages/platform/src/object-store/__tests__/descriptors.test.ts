@@ -11,7 +11,7 @@ describe('parseObjectStoresFile', () => {
   });
 
   it('refuses bad JSON, modules, labels, env declarations and duplicates', () => {
-    expect(parseObjectStoresFile({ raw: 'x' })).toEqual({ ok: false, reason: 'not valid JSON' });
+    expect(parseObjectStoresFile({ raw: 'x' })).toEqual({ ok: false, reason: 'not valid JSON: SyntaxError: Unexpected token \'x\', "x" is not valid JSON' });
     expect(parseObjectStoresFile({ raw: file({}) })).toEqual({ ok: false, reason: 'providers must be an array' });
     expect(parseObjectStoresFile({ raw: file([{ id: 'a', module: '/a.mjs' }]) })).toEqual({ ok: false, reason: 'providers[0].module must be a relative path ending in .mjs' });
     expect(parseObjectStoresFile({ raw: file([{ id: 'a', module: 'a.mjs', label: ' ' }]) })).toEqual({ ok: false, reason: 'providers[0].label must be a non-empty string of at most 100 characters' });

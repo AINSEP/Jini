@@ -4,6 +4,7 @@
  * through its lifecycle, validating it with `objectStoreProviderFault` from `@jini-ai/core/object-store`.
  */
 import path from "node:path";
+import { describeErrorForLog } from "@jini-ai/core/model-facing-tool-errors";
 
 const MAX_LABEL_LENGTH = 100;
 
@@ -35,8 +36,8 @@ export function parseObjectStoresFile(required: { readonly raw: string }, _optio
   let value: unknown;
   try {
     value = JSON.parse(required.raw);
-  } catch {
-    return { ok: false, reason: "not valid JSON" };
+  } catch (error) {
+    return { ok: false, reason: `not valid JSON: ${describeErrorForLog({ err: error })}` };
   }
   if (!isPlainObject(value) || value.schemaVersion !== 1) return { ok: false, reason: "schemaVersion must be 1" };
   if (!Array.isArray(value.providers)) return { ok: false, reason: "providers must be an array" };

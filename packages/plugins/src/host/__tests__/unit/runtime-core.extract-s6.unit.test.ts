@@ -140,8 +140,8 @@ describe('createPluginRuntimeCore (second host via @jini-ai/plugins/host/node)',
       // The host importer factory runs inside the attachment, so its throw reaches the boot re-attach catch.
       const runtime = createPluginRuntimeCore({ ...host.required, createModuleImporter: (() => { throw failure; }) as never }, {});
       await runtime.attachEnabledPluginsAtBoot();
-      expect(warn).toHaveBeenCalledWith("[plugin-runtime] boot re-attach failed for 'acme-stamp'", 'Error');
-      expect(JSON.stringify(warn.mock.calls)).not.toMatch(/boom|SECRETSECRET|runtime-core\.extract-s6/);
+      expect(warn).toHaveBeenCalledWith("[plugin-runtime] boot re-attach failed for 'acme-stamp'", 'Error: boom api_key=[REDACTED:labeled_secret]');
+      expect(JSON.stringify(warn.mock.calls)).not.toMatch(/SECRETSECRET|runtime-core\.extract-s6/);
       await runtime.dispose({}, {});
     } finally { warn.mockRestore(); }
   });

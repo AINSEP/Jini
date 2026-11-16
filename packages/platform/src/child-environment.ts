@@ -1,6 +1,7 @@
 import { execFile } from 'node:child_process';
 import { userInfo } from 'node:os';
 import { promisify } from 'node:util';
+import { describeErrorParts } from '@jini-ai/core/model-facing-tool-errors';
 
 /** Environment isolation for child processes; hosts name the settings that belong to one run. */
 
@@ -90,7 +91,11 @@ export async function readLoginShellEnvironment(required: {
   const read = optional.read ?? ((input: { shell: string; env: Record<string, string> }) => readHostLoginEnvironment(input, ports));
   let env: Record<string, string>;
   try { env = await read({ shell, env: baseline }, {}); }
-  catch { throw new Error('Login shell environment unavailable'); }
+  catch (cause) {
+    // why: shell profile output can be secret, so only the failure's class and approved code are reported, never its message.
+    const { label, code } = describeErrorParts({ err: cause });
+    throw new Error(`Login shell environment unavailable (${code ?? label})`, { cause });
+  }
   return Object.fromEntries(Object.entries(env).filter(([key, value]) => typeof value === 'string' &&
     !isExcludedEnvironmentKey({ key, required })));
 }

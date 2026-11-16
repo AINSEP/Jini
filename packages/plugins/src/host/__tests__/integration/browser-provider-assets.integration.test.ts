@@ -92,6 +92,6 @@ describe('bundled browser-provider asset admission', () => {
     await writeFile(path.join(root, 'client/styles.css'), '.chart { color: blue; }');
     const record = { id: manifest.id, name: manifest.name, version: manifest.version, source: 'built-in' as const, status: 'valid' as const, errors: [] };
     expect(await admitBrowserProviderAssets({ record, manifest, pluginRoot: root, approvals: [approval] }))
-      .toEqual({ admitted: false, reason: 'INTEGRITY_FAILED' });
+      .toEqual({ admitted: false, reason: 'INTEGRITY_FAILED', detail: 'Error: Package changed before loading.' });
   }));
 });

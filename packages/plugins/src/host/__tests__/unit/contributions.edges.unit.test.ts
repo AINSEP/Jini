@@ -114,13 +114,13 @@ describe('renderPluginWidgetFragments', () => {
     expect(checks).toBe(2);
   });
 
-  it.each([true, false])('without an error port, widget failures log the class only (Error instance=%s)', async asError => {
+  it.each([true, false])('without an error port, widget failures log the class and redacted message (Error instance=%s)', async asError => {
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
     const registry = createPluginContributionRegistry({});
     const failure = asError ? new Error('boom api_key=SECRETSECRETSECRETSECRET') : 'boom api_key=SECRETSECRETSECRETSECRET';
     registry.replace({ contributions: sealed('sample', { hello: () => { throw failure; } }) });
     expect((await renderPluginWidgetFragments(base(registry))).hello).toBe('');
-    expect(warn).toHaveBeenCalledWith("[plugins] Plugin 'sample' widget 'hello' failed", asError ? 'Error' : 'string');
-    expect(JSON.stringify(warn.mock.calls)).not.toMatch(/boom|SECRETSECRET|contributions\.edges/);
+    expect(warn).toHaveBeenCalledWith("[plugins] Plugin 'sample' widget 'hello' failed", asError ? 'Error: boom api_key=[REDACTED:labeled_secret]' : 'string');
+    expect(JSON.stringify(warn.mock.calls)).not.toMatch(/SECRETSECRET|contributions\.edges/);
   });
 });

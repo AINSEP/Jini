@@ -41,7 +41,7 @@ it('login-shell parity exposes operator credentials while withholding daemon sec
 it('never exposes shell profile output through a failed environment read', async () => {
   await expect(readLoginShellEnvironment({ baseEnv: {}, excludedPrefixes: [], excludedKeys: [] }, {
     read: async () => { throw new Error('profile printed a secret'); },
-  })).rejects.toThrow('Login shell environment unavailable');
+  })).rejects.toThrow(new Error('Login shell environment unavailable (Error)'));
 });
 
 describe('readLoginShellEnvironment default reader', () => {
@@ -78,10 +78,10 @@ describe('readLoginShellEnvironment default reader', () => {
     expect(result).toEqual({ USERPROFILE: 'C:\\Users\\op', ComSpec: 'cmd.exe', Path: 'C:\\Tools' });
   });
 
-  it('turns a command failure into the generic unavailable error', async () => {
+  it('turns a command failure into an unavailable error that names only the failure class', async () => {
     const ports: LoginShellPorts = { platform: 'linux', userShell: () => '/bin/sh', runCommand: async () => { throw new Error('profile leaked a value'); } };
     await expect(readLoginShellEnvironment({ baseEnv: {}, excludedPrefixes: [], excludedKeys: [] }, { ports }))
-      .rejects.toThrow(new Error('Login shell environment unavailable'));
+      .rejects.toThrow(new Error('Login shell environment unavailable (Error)'));
   });
 
   it('the Node host ports report this process and run a real bounded command with the given env and cwd', async () => {

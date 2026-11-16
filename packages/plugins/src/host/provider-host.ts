@@ -5,6 +5,7 @@ import type {
   PluginProviderContribution,
   PluginProviderResource,
 } from '@jini-ai/core/contracts/plugin-sdk';
+import { ignoreBestEffortFailure } from "@jini-ai/core";
 
 export interface PluginProviderContract {
   readonly contract: string;
@@ -138,7 +139,10 @@ export function createPluginProviderHost(required: {
   } });
   const report = (failure: PluginProviderFailure): void => {
     // Diagnostics must never prevent another provider from releasing its resources.
-    try { void Promise.resolve(optional.onError?.(failure, {})).catch(() => {}); } catch { /* Failure reporting is a borrowed host effect. */ }
+    try { void Promise.resolve(optional.onError?.(failure, {})).catch(ignoreBestEffortFailure({ operation: "report a provider failure to the host" }, { scope: "plugins" })); } catch (reportFailure) {
+      // why: failure reporting is a borrowed host effect; its own failure is logged, never allowed to block another provider's release.
+      ignoreBestEffortFailure({ operation: "report a provider failure to the host" }, { scope: "plugins" })(reportFailure);
+    }
   };
   function releaserFor(input: {
     resource: PluginProviderResource; snapshot: PluginContributionsSnapshot; provider: PluginProviderContribution;
