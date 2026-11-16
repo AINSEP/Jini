@@ -1,3 +1,4 @@
+import { webcrypto } from "node:crypto";
 /** Boundary behaviour of `submitForm` pinned around its persistence, upload-compensation and attempt paths. */
 import assert from "node:assert/strict";
 import { test } from "vitest";
@@ -35,7 +36,7 @@ function fixture(fields: FieldDescriptor[], status: FormDefinitionRecord["status
     definitionRepo,
     submissionRepo,
     clock: { nowMs: () => 0 },
-    idGen: { newId: () => `id-${++id}` },
+    crypto: webcrypto, idGen: { newId: () => `id-${++id}` },
     rateLimiter: { check: async () => ({ allowed: true }) },
     outbox: { enqueue: async () => { events += 1; } },
     dispatcher: { dispatch: async () => { dispatches += 1; } },

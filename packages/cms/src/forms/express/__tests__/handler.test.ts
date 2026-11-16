@@ -1,3 +1,4 @@
+import { webcrypto } from "node:crypto";
 import { parseFragment, type DefaultTreeAdapterMap } from "parse5";
 import assert from "node:assert/strict";
 import type { Request, Response } from "express";
@@ -356,7 +357,7 @@ test('double clicking the form on a schema retry stores one submission', async (
   await definitionRepo.create(DEFINITION);
   let id = 0;
   const attempts = createSubmissionAttempts({ hash: value => value });
-  const service = { definitionRepo, submissionRepo, clock: { nowMs: () => 0 }, idGen: { newId: () => String(++id) },
+  const service = { definitionRepo, submissionRepo, clock: { nowMs: () => 0 }, crypto: webcrypto, idGen: { newId: () => String(++id) },
     outbox: { enqueue: async () => {} }, dispatcher: { dispatch: async () => {} }, logger: { warn: () => {} },
     rateLimiter: { check: async () => ({ allowed: true as const }) } };
   const { deps } = harness({ definitionRepo, submit: ({ input }) => submitForm({ deps: service, input }, { attempts }) });

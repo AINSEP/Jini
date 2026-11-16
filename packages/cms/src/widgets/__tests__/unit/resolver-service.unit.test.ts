@@ -1,3 +1,4 @@
+import { webcrypto } from "node:crypto";
 import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
 import type { JsonObject } from "@jini-ai/core/primitives";
 import { InMemoryEntryRepo, type EntryRecord } from "../../../entries/index.js";
@@ -485,7 +486,7 @@ describe("form embed resolution", () => {
   };
   // Native forms carry the empty field schema's stable digest for stale-submission checks.
   const formIr = { componentId: "contact-form", props: { formDefinitionId: "form-1", schemaHash: "bfeb2da8e38c8c677855967b6f7a10e4ad36b23d8ef2ef19c4704863e5e1e837", slug: "contact", fields: [], successMessage: null } };
-  beforeEach(() => { registerCoreResolver({ typeKey: "contact-form", resolver: createContactFormResolver({ formDefinitionRepo: formRepo }) }); });
+  beforeEach(() => { registerCoreResolver({ typeKey: "contact-form", resolver: createContactFormResolver({ crypto: webcrypto, formDefinitionRepo: formRepo }) }); });
 
   it("resolves an id and a slug reference to the same contact form, keyed as authored", async () => {
     const resolved = await form([ref({ type: "form", id: "form-1" }), ref({ type: "form", slug: "contact" })], deps());

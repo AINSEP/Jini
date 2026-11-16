@@ -1,3 +1,4 @@
+import { webcrypto } from "node:crypto";
 import assert from "node:assert/strict";
 import { test, type NodeTestContext } from "./support/node-test.fixture.js";
 
@@ -49,7 +50,7 @@ function makeDeps() {
   let counter = 0;
   const idGen = { newId: () => `id-${++counter}` };
   const rateLimiter = createRateLimiter({ profile: FORMS_SUBMIT_PROFILE, clock });
-  return { definitionRepo, submissionRepo, outbox, bus, clock, idGen, rateLimiter };
+  return { definitionRepo, submissionRepo, outbox, bus, clock, idGen, crypto: webcrypto, rateLimiter };
 }
 
 test("submitForm: AC-07/REQ-05 — accepts a valid submission to an active form", async () => {

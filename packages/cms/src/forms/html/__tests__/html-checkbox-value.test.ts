@@ -1,3 +1,4 @@
+import { webcrypto } from "node:crypto";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { deriveHtmlForm } from "../html-authoring.js";
@@ -23,7 +24,7 @@ test("HTML save and submission preserve authored checkbox strings, including emp
   const stored = await repo.findById({ workspaceId: "ws", id: definition.id });
   assert.match((stored as { html?: string })?.html ?? "", /value="yes"/);
   assert.match((stored as { html?: string })?.html ?? "", /value="yes" required>/);
-  const deps = { definitionRepo: repo, submissionRepo: submissions, clock, idGen, outbox, bus: new InMemoryEventBus(), rateLimiter: { check: async () => ({ allowed: true as const }) } };
+  const deps = { definitionRepo: repo, submissionRepo: submissions, clock, idGen, crypto: webcrypto, outbox, bus: new InMemoryEventBus(), rateLimiter: { check: async () => ({ allowed: true as const }) } };
   const input = { workspaceId: "ws", slug: "consent", sourceIp: "127.0.0.1", body: { consent: "yes", native: "on", empty: "", onvalue: "on" } };
   await submitForm({ deps, input });
   const page = await submissions.listByDefinition({ workspaceId: "ws", formDefinitionId: definition.id, limit: 10 });

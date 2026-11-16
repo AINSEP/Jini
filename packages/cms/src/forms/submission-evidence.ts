@@ -1,6 +1,6 @@
 import { submissionEvidenceSchema } from '../core/form-schema.js';
 export { submissionEvidenceSchema } from '../core/form-schema.js';
-import { canonicalArgumentDigest, isNonArrayRecord } from '@jini-ai/core/records';
+import { canonicalArgumentDigest, isNonArrayRecord, type DigestCryptoPort } from '@jini-ai/core/records';
 import type { FormSubmissionEvidence } from '@jini-ai/core/contracts/forms';
 import type { FieldDescriptor, FieldType, FormDefinitionRecord } from './types.js';
 
@@ -11,11 +11,11 @@ const MAX_EVIDENCE_BYTES = 1024 * 1024;
  * @complexity O(schema bytes + key sorting) time and O(schema bytes) space; one local digest.
  * @overallScore 98 — relies on the existing canonical JSON/WebCrypto owner. */
 export async function captureSubmissionEvidence(
-  { definition, capturedAt, source }: { definition: FormDefinitionRecord & { html?: string | undefined }; capturedAt: string; source: FormSubmissionEvidence<FieldType>['source'] },
+  { definition, capturedAt, source, crypto }: { definition: FormDefinitionRecord & { html?: string | undefined }; capturedAt: string; source: FormSubmissionEvidence<FieldType>['source']; crypto: DigestCryptoPort },
   _optional: Record<string, never> = {},
 ): Promise<FormSubmissionEvidence<FieldType>> {
   const schema = submissionEvidenceSchema({ definition });
-  const evidence: FormSubmissionEvidence<FieldType> = { version: 1, ...schema, schemaHash: await canonicalArgumentDigest({ args: schema }), capturedAt, source };
+  const evidence: FormSubmissionEvidence<FieldType> = { version: 1, ...schema, schemaHash: await canonicalArgumentDigest({ args: schema, crypto }), capturedAt, source };
   assertEvidenceSize({ value: evidence });
   return evidence;
 }

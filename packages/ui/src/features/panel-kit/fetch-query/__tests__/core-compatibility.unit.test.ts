@@ -11,7 +11,7 @@ it('routes deprecated public contracts directly to core without private shims', 
   const directory = path.resolve(__dirname, '..');
   expect(existsSync(path.join(directory, 'cache.ts'))).toBe(false);
   expect(existsSync(path.join(directory, 'types.ts'))).toBe(false);
-  const cache = new core.FetchQueryCache({}, { scheduler: { schedule: () => 0, cancel: () => {} } });
+  const cache = new core.FetchQueryCache({ clock: { nowMs: () => 0 }, scheduler: { schedule: () => 0, cancel: () => {} } });
   try {
     const key: core.QueryKey = ['compatibility', 1];
     const entry = cache.entry({ key });

@@ -1,3 +1,4 @@
+import type { DigestCryptoPort } from "@jini-ai/core/records";
 import { assertCurrentFormSchema } from "./stale-form.js";
 import { FORM_SCHEMA_HASH_FIELD } from "./portable-validation.js";
 import { captureSubmissionEvidence } from "./submission-evidence.js";
@@ -55,6 +56,8 @@ export interface SubmitFormDeps {
   logger: Pick<Logger, 'warn'>;
   clock: Clock;
   idGen: IdGenerator;
+  /** Host WebCrypto port for the schema digest and submission evidence. */
+  crypto: DigestCryptoPort;
   rateLimiter: RateLimiterPort;
   /** Anonymous uploads go through the host media owner only after validation/rate/dedupe. */
   files?: FormFileStoragePort;
@@ -104,7 +107,7 @@ export async function submitForm(required: SubmitFormRequired, optional: SubmitF
     return { status: "accepted" };
   }
 
-  await assertCurrentFormSchema({ original: originalDefinition, definition, body: pageInput.body });
+  await assertCurrentFormSchema({ original: originalDefinition, definition, body: pageInput.body, crypto: deps.crypto });
   if (optional.validateEmails) assertSubmissionEmails({ definition, body: input.body });
   const validation = assertValidSubmission({ deps, definition, body: input.body });
   assertSubmissionTiming({ deps, input, attemptToken }, optional);
@@ -215,7 +218,7 @@ async function buildSubmissionRecords(
     workspaceId: input.workspaceId,
     formDefinitionId: definition.id,
     data,
-    evidence: await captureSubmissionEvidence({ definition, capturedAt: now, source: "native" }),
+    evidence: await captureSubmissionEvidence({ definition, capturedAt: now, source: "native", crypto: deps.crypto }),
     sourceIp: input.sourceIp,
     submittedAt: now,
   };

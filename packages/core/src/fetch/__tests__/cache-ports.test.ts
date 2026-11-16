@@ -6,7 +6,7 @@ it('uses host clock/scheduler ports and replacement supersedes an in-flight read
   let now = 100;
   const timers = new Map<unknown, () => void>();
   let id = 0;
-  const cache = new FetchQueryCache({}, {
+  const cache = new FetchQueryCache({
     clock: { nowMs: () => now },
     scheduler: {
       schedule: ({ callback }) => { const handle = ++id; timers.set(handle, callback); return handle; },

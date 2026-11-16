@@ -1,3 +1,4 @@
+import { webcrypto } from "node:crypto";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
@@ -98,7 +99,7 @@ function makeSubmitDeps() {
   let counter = 0;
   const idGen = { newId: () => `id-${++counter}` };
   const rateLimiter = createRateLimiter({ profile: FORMS_SUBMIT_PROFILE, clock });
-  return { definitionRepo, submissionRepo, outbox, bus, clock, idGen, rateLimiter };
+  return { definitionRepo, submissionRepo, outbox, bus, clock, idGen, crypto: webcrypto, rateLimiter };
 }
 
 test("EC-01: a submission supplying only required fields is accepted; omitted optional fields are absent from data", async () => {

@@ -1,4 +1,5 @@
 import { redactSecretShapes } from '../core/secrets-only.js';
+import type { ErrorDescriber } from '@jini-ai/core';
 import { errorType } from './otel.js';
 
 export interface ReportedErrorDescription { type: string; message: string; stack?: string; }
@@ -24,8 +25,8 @@ function rawMessage({ error, type }: { error: unknown; type: string }): string {
  if (error instanceof Error) return error.message;
  return typeof error === 'string' ? error : type;
 }
-export function describeReportedError({ error }: { error: unknown }, _options = {}): ReportedErrorDescription {
- const type = errorType({ error });
+export function describeReportedError({ error }: { error: unknown }, { describer }: { describer?: Pick<ErrorDescriber, 'describeErrorParts'> } = {}): ReportedErrorDescription {
+ const type = errorType({ error }, describer ? { describer } : {});
  const raw = rawMessage({ error, type });
  const stack = error instanceof Error && typeof error.stack === 'string'
   ? redact(error.stack).split('\n').slice(0, MAX_STACK_LINES).join('\n') : undefined;

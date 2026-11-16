@@ -1,3 +1,4 @@
+import { webcrypto } from "node:crypto";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { validateFieldDescriptors, validateSubmissionPayload } from "../forms.js";
@@ -62,7 +63,7 @@ for (const entry of cases) {
     assert.equal(valid.valid, true);
     const definitionRepo = new InMemoryFormDefinitionRepo(); const submissionRepo = new InMemoryFormSubmissionRepo();
     await definitionRepo.create(d); let id = 0;
-    await submitForm({ deps: { definitionRepo, submissionRepo, clock: { nowMs: () => 0 }, idGen: { newId: () => `id-${++id}` }, rateLimiter: { check: async () => ({ allowed: true }) }, outbox: { enqueue: async () => {} }, dispatcher: { dispatch: async () => {} }, logger: { warn() {} } }, input: { workspaceId: "ws", slug: "common", sourceIp: "127.0.0.1", body: { answer: entry.value } } });
+    await submitForm({ deps: { definitionRepo, submissionRepo, clock: { nowMs: () => 0 }, crypto: webcrypto, idGen: { newId: () => `id-${++id}` }, rateLimiter: { check: async () => ({ allowed: true }) }, outbox: { enqueue: async () => {} }, dispatcher: { dispatch: async () => {} }, logger: { warn() {} } }, input: { workspaceId: "ws", slug: "common", sourceIp: "127.0.0.1", body: { answer: entry.value } } });
     const rows = await submissionRepo.listByDefinition({ workspaceId: "ws", formDefinitionId: "form", limit: 10 });
     assert.deepEqual(rows.items[0]?.data, valid.valid ? valid.data : {});
     assert.deepEqual(toSubmissionRecord(toSubmissionRow(rows.items[0]!) as Parameters<typeof toSubmissionRecord>[0]).data, rows.items[0]!.data);

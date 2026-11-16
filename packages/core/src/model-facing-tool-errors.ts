@@ -236,13 +236,13 @@ export function callerSafeErrorMessage(required: { err: unknown; rules: readonly
 }
 /** A constant token: the only shape a registered code may have (checked once, at registration). */
 const CONSTANT_TOKEN = /^[A-Z][A-Z0-9_]{0,63}$/;
-/** A class label: an identifier, checked once at registration. */
+/** A class label: an identifier, checked once when a describer is built. */
 const CLASS_LABEL = /^[A-Za-z][A-Za-z0-9_]{0,63}$/;
 
 // Codes are approved by listing, never by shape: an uppercase run is not evidence that a value is a
-// code (a token or key can look exactly like one). Packages add their own constants through
-// `registerLoggableErrors`.
-const LOGGABLE_CODES = new Set<string>([
+// code (a token or key can look exactly like one). A package adds its own constants through
+// `createErrorDescriber`, which builds a separate describer and never mutates this built-in list.
+const LOGGABLE_CODES: ReadonlySet<string> = new Set<string>([
   // Node system errors: every libuv errno name (`util.getSystemErrorMap()`), plus dns's ENOTFOUND.
   // why: owner ruling 2026-11-15: errno names are fixed vocabulary, not user text. Kept as a list,
   // not an `E[A-Z0-9_]+` rule, because a thrown value's `code` is caller text and could be a secret.
@@ -265,7 +265,7 @@ const LOGGABLE_CODES = new Set<string>([
   "SQLITE_FULL", "SQLITE_IOERR", "SQLITE_LOCKED", "SQLITE_READONLY",
 ]);
 
-/** The approved codes `describeErrorForLog` may print (live view: registrations add to it). */
+/** The built-in approved codes `describeErrorForLog` may print. Never written after load. */
 export const LOGGABLE_ERROR_CODES: ReadonlySet<string> = LOGGABLE_CODES;
 
 type ErrorClass = abstract new (...args: never[]) => Error;
@@ -287,35 +287,30 @@ const BUILT_IN_ERROR_LABELS: readonly (readonly [ErrorClass, string])[] = [
  *  value equals one of these fixed strings. */
 const WELL_KNOWN_ERROR_NAMES: ReadonlySet<string> = new Set(["AbortError", "TimeoutError"]);
 
-/** Classes registered by packages, checked newest first so a subclass registered after its base wins. */
-const registeredErrorLabels: { readonly error: ErrorClass; readonly label: string }[] = [];
+/** A registered error class and the fixed label it is logged as. */
+type LabelledErrorClass = { readonly error: ErrorClass; readonly label: string };
 
-/** One package's additions to what `describeErrorForLog` may print. */
-export interface LoggableErrorRegistration {
+/** What a describer may print: approved codes and package-supplied classes (checked newest first so a subclass listed after its base wins). */
+interface ErrorVocabulary {
+  readonly codes: ReadonlySet<string>;
+  readonly classes: readonly LabelledErrorClass[];
+}
+
+/** One package's additions to what a describer may print. */
+export interface ErrorDescriberVocabulary {
   /** Constant codes the package's own errors set (`PLUGIN_ID_CONFLICT`). */
   readonly codes?: readonly string[];
   /** The package's own error classes and the fixed label each is logged as. */
-  readonly classes?: readonly { readonly error: ErrorClass; readonly label: string }[];
+  readonly classes?: readonly LabelledErrorClass[];
 }
 
-/**
- * Lets a package name its own error classes and constant codes in `describeErrorForLog` output.
- * Call it once at module load with literals. Nothing a caught value carries can register itself.
- * If two copies of core are loaded, a registration in one is not seen by the other: the output
- * then falls back to the built-in label, which loses detail but never adds text.
- * @param required.codes Constant tokens (`[A-Z][A-Z0-9_]*`, at most 64 chars).
- * @param required.classes Error classes with an identifier label.
- * @throws TypeError for a code or label of any other shape (a programming error).
- * @complexity O(codes + classes).
- */
-export function registerLoggableErrors(required: LoggableErrorRegistration, _optional: Record<string, never> = {}): void {
-  const { codes = [], classes = [] } = required;
-  const badCode = codes.find(code => !CONSTANT_TOKEN.test(code));
-  if (badCode !== undefined) throw new TypeError("registerLoggableErrors: a code must be a constant token like PLUGIN_ID_CONFLICT.");
-  if (classes.some(entry => !CLASS_LABEL.test(entry.label))) throw new TypeError("registerLoggableErrors: a class label must be an identifier.");
-  for (const code of codes) LOGGABLE_CODES.add(code);
-  registeredErrorLabels.push(...classes);
+/** The describers returned by {@link createErrorDescriber}. */
+export interface ErrorDescriber {
+  describeErrorParts(required: { err: unknown }, _optional?: Record<string, never>): ErrorLogParts;
+  describeErrorForLog(required: { err: unknown }, _optional?: Record<string, never>): string;
 }
+
+const BUILT_IN_VOCABULARY: ErrorVocabulary = { codes: LOGGABLE_CODES, classes: [] };
 
 /** Fixed text logged when an error object cannot even be inspected. */
 const UNDESCRIBABLE_ERROR = "[diagnostic unavailable]";
@@ -336,9 +331,9 @@ function readFieldOnce({ value, key }: { readonly value: Error; readonly key: "c
 }
 
 /** A fixed label chosen by class checks. Throws only when `instanceof` itself throws. */
-function errorClassLabel({ value }: { readonly value: Error }): string {
-  for (let index = registeredErrorLabels.length - 1; index >= 0; index -= 1) {
-    const entry = registeredErrorLabels[index];
+function errorClassLabel({ value, vocabulary }: { readonly value: Error; readonly vocabulary: ErrorVocabulary }): string {
+  for (let index = vocabulary.classes.length - 1; index >= 0; index -= 1) {
+    const entry = vocabulary.classes[index];
     if (entry !== undefined && value instanceof entry.error) return entry.label;
   }
   const builtIn = BUILT_IN_ERROR_LABELS.find(([errorClass]) => value instanceof errorClass);
@@ -356,12 +351,12 @@ export interface ErrorLogParts {
 }
 
 /** Label and approved code for one thrown value, plus its direct cause when asked for. Never throws. */
-function readErrorParts({ value }: { readonly value: unknown }, { withCause = false }: { readonly withCause?: boolean } = {}): ErrorLogParts & { readonly cause?: unknown } {
+function readErrorParts({ value, vocabulary }: { readonly value: unknown; readonly vocabulary: ErrorVocabulary }, { withCause = false }: { readonly withCause?: boolean } = {}): ErrorLogParts & { readonly cause?: unknown } {
   try {
     if (!(value instanceof Error)) return { label: typeof value };
-    const label = errorClassLabel({ value });
+    const label = errorClassLabel({ value, vocabulary });
     const code = readFieldOnce({ value, key: "code" });
-    const parts = typeof code === "string" && LOGGABLE_CODES.has(code) ? { label, code } : { label };
+    const parts = typeof code === "string" && vocabulary.codes.has(code) ? { label, code } : { label };
     return withCause ? { ...parts, cause: readFieldOnce({ value, key: "cause" }) } : parts;
   } catch {
     return { label: UNDESCRIBABLE_ERROR };
@@ -369,8 +364,8 @@ function readErrorParts({ value }: { readonly value: unknown }, { withCause = fa
 }
 
 /** `Label` or `Label(CODE)` for one thrown value, plus its direct cause when asked for. Never throws. */
-function describeValueForLog({ value }: { readonly value: unknown }, { withCause = false }: { readonly withCause?: boolean } = {}): { readonly text: string; readonly cause?: unknown } {
-  const { label, code, cause } = readErrorParts({ value }, { withCause });
+function describeValueForLog({ value, vocabulary }: { readonly value: unknown; readonly vocabulary: ErrorVocabulary }, { withCause = false }: { readonly withCause?: boolean } = {}): { readonly text: string; readonly cause?: unknown } {
+  const { label, code, cause } = readErrorParts({ value, vocabulary }, { withCause });
   const text = code === undefined ? label : `${label}(${code})`;
   return withCause ? { text, cause } : { text };
 }
@@ -385,7 +380,11 @@ function describeValueForLog({ value }: { readonly value: unknown }, { withCause
  * @complexity O(registered classes).
  */
 export function describeErrorParts(required: { err: unknown }, _optional: Record<string, never> = {}): ErrorLogParts {
-  const { label, code } = readErrorParts({ value: required.err });
+  return partsFor({ err: required.err, vocabulary: BUILT_IN_VOCABULARY });
+}
+
+function partsFor({ err, vocabulary }: { readonly err: unknown; readonly vocabulary: ErrorVocabulary }): ErrorLogParts {
+  const { label, code } = readErrorParts({ value: err, vocabulary });
   return code === undefined ? { label } : { label, code };
 }
 
@@ -408,8 +407,35 @@ export function describeErrorParts(required: { err: unknown }, _optional: Record
  * @complexity O(registered classes); reads only the value and its direct cause, each field once.
  */
 export function describeErrorForLog(required: { err: unknown }, _optional: Record<string, never> = {}): string {
-  const head = describeValueForLog({ value: required.err }, { withCause: true });
+  return lineFor({ err: required.err, vocabulary: BUILT_IN_VOCABULARY });
+}
+
+function lineFor({ err, vocabulary }: { readonly err: unknown; readonly vocabulary: ErrorVocabulary }): string {
+  const head = describeValueForLog({ value: err, vocabulary }, { withCause: true });
   if (head.cause === undefined) return head.text;
-  const cause = head.cause === UNREADABLE ? UNDESCRIBABLE_ERROR : describeValueForLog({ value: head.cause }).text;
+  const cause = head.cause === UNREADABLE ? UNDESCRIBABLE_ERROR : describeValueForLog({ value: head.cause, vocabulary }).text;
   return `${head.text} cause=${cause}`;
+}
+
+/**
+ * Builds a describer that also names a package's own error classes and constant codes. The built-in
+ * describers are untouched: the returned one reads a new set (built-in codes plus `codes`), so a
+ * code added for one describer is not loggable through another. Nothing a caught value carries can
+ * extend the vocabulary.
+ * @param required.codes Constant tokens (`[A-Z][A-Z0-9_]*`, at most 64 chars).
+ * @param required.classes Error classes with an identifier label.
+ * @returns `{ describeErrorParts, describeErrorForLog }` over the extended vocabulary.
+ * @throws TypeError for a code or label of any other shape (a programming error).
+ * @complexity O(codes + classes) to build; O(classes) per described value.
+ */
+export function createErrorDescriber(required: ErrorDescriberVocabulary, _optional: Record<string, never> = {}): ErrorDescriber {
+  const { codes = [], classes = [] } = required;
+  const badCode = codes.find(code => !CONSTANT_TOKEN.test(code));
+  if (badCode !== undefined) throw new TypeError("createErrorDescriber: a code must be a constant token like PLUGIN_ID_CONFLICT.");
+  if (classes.some(entry => !CLASS_LABEL.test(entry.label))) throw new TypeError("createErrorDescriber: a class label must be an identifier.");
+  const vocabulary: ErrorVocabulary = { codes: new Set([...LOGGABLE_CODES, ...codes]), classes: [...classes] };
+  return {
+    describeErrorParts: (args, _optional = {}) => partsFor({ err: args.err, vocabulary }),
+    describeErrorForLog: (args, _optional = {}) => lineFor({ err: args.err, vocabulary }),
+  };
 }

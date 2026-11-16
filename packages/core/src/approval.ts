@@ -1,7 +1,14 @@
 import { humanConfirmedHandler, requireInputRecord, type HumanConfirmationAnswer, type HumanConfirmer } from './registration-kit.js';
 import { ToolInputError } from './tool-registry.js';
 import type { ToolExecutionContext, ToolExecutionOptions, ToolHandler, ToolRegistration } from './tool-registry.js';
+import type { IdGenerator } from './primitives/ids.js';
 import { isNonArrayRecord } from './records.js';
+
+/** Host-supplied timer port so the approval wait never touches ambient timers. */
+export interface ApprovalSchedulerPort {
+  schedule(required: { callback: () => void; delayMs: number }): unknown;
+  cancel(required: { handle: unknown }): void;
+}
 
 /** Maximum human approval wait for one invocation, independent of execution time. */
 export const APPROVAL_WAIT_TIMEOUT_MS = 120_000;
@@ -251,8 +258,8 @@ export function createBatchApprovalHandler<TPrepared, TDescription>(
  * @complexity O(description size) to detach the proposal; O(listeners) to publish a change.
  */
 export function createApprovalProposalStore<TDescription>(
-  { responseTool, messages }: { responseTool: string; messages: { closed: string; pending: string; missing: string } },
-  { createId = () => crypto.randomUUID() }: { createId?: () => string } = {},
+  { responseTool, messages, ids, scheduler }: { responseTool: string; messages: { closed: string; pending: string; missing: string }; ids: IdGenerator; scheduler: ApprovalSchedulerPort },
+  _optional = {},
 ) {
   type Pending = { approvalId: string; description: TDescription };
   type Snapshot = { pending: Pending | null; error: string | null };
@@ -279,7 +286,7 @@ export function createApprovalProposalStore<TDescription>(
       if (signal.aborted) throw new Error(messages.closed);
       if (snapshot.pending) throw new Error(messages.pending);
       const frozenDescription = structuredClone(description);
-      const approvalId = createId();
+      const approvalId = ids.newId();
       action = { approvalId, execute, signal, humanOnly, ...(decide ? { decide } : {}) };
       const abort = () => clear();
       signal.addEventListener('abort', abort, { once: true });
@@ -309,13 +316,13 @@ export function createApprovalProposalStore<TDescription>(
     if (signal.aborted) return { confirmed: false, reason: 'abandoned' };
     signal.addEventListener('abort', abort, { once: true });
     let expired = false;
-    const timer = setTimeout(() => { expired = true; lifetime.abort(); }, timeoutMs);
+    const handle = scheduler.schedule({ callback: () => { expired = true; lifetime.abort(); }, delayMs: timeoutMs });
     try {
       return await resolveApproval({ signal: lifetime.signal, askHuman: () => new Promise<ApprovalAnswer>(resolve => {
         store.propose({ description, signal: lifetime.signal, execute: async () => undefined }, { humanOnly: true, decide: resolve });
       }) }).then(answer => expired ? { confirmed: false, reason: 'expired' } as const : answer);
     } finally {
-      clearTimeout(timer);
+      scheduler.cancel({ handle });
       signal.removeEventListener('abort', abort);
       lifetime.abort();
     }

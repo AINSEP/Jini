@@ -1,9 +1,10 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { getEffective, registerCoercer } from "../settings.js";
+import { getEffective } from "../settings.js";
 import { InMemorySettingsRepo } from "../repo.memory.js";
 import type { SettingDefinitionRecord, SettingValueRecord } from "../types.js";
+import type { JsonValue } from "../../primitives/index.js";
 
 const NOW = "2026-07-11T00:00:00.000Z";
 
@@ -165,14 +166,15 @@ test("getEffective returns null for a tombstoned key (EC-10)", async () => {
 });
 
 test("getEffective coerces a value stored under a stale def_version in memory, no write-back (AC-21/EC-08)", async () => {
-  registerCoercer({ tag: "upcase", fn: ({ value }) => (typeof value === "string" ? value.toUpperCase() : value) });
+  const coercers = new Map([["upcase", ({ value }: { value: JsonValue }) => (typeof value === "string" ? value.toUpperCase() : value)]]);
   const def = definition({ version: 2, coercionTag: "upcase" });
   const staleValue = value({ scope: "global", valueJson: "lowercase", defVersion: 1 });
   const repo = new InMemorySettingsRepo({ definitions: [def], globalValues: [staleValue] });
 
   const result = await getEffective(
     { repo },
-    { namespace: def.namespace, key: def.key, scopeContext: {} }
+    { namespace: def.namespace, key: def.key, scopeContext: {} },
+    { coercers },
   );
 
   assert.equal(result?.value, "LOWERCASE");

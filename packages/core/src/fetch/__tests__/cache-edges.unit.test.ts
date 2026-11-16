@@ -24,6 +24,7 @@ function manualScheduler() {
   let id = 0;
   return {
     timers,
+    clock: { nowMs: () => 0 },
     scheduler: {
       schedule: ({ callback, delayMs }: { callback: () => void; delayMs: number }) => { timers.set(++id, { callback, delayMs }); return id; },
       cancel: ({ handle }: { handle: unknown }) => { timers.delete(handle as number); },
@@ -50,7 +51,7 @@ describe('FetchQueryCache edges', () => {
   it('serves a fresh entry from cache without fetching and re-arms its idle eviction', async () => {
     const { timers, scheduler } = manualScheduler();
     let now = 1_000;
-    const cache = new FetchQueryCache({}, { scheduler, clock: { nowMs: () => now } });
+    const cache = new FetchQueryCache({ scheduler, clock: { nowMs: () => now } });
     const entry = cache.entry({ key: ['rows'] }, { staleTime: 500 });
     cache.replace({ entry, data: 'cached' });
     timers.clear();
@@ -62,9 +63,15 @@ describe('FetchQueryCache edges', () => {
     expect([...timers.values()].map(timer => timer.delayMs)).toEqual([IDLE_RETENTION]);
   });
 
-  it('evicts an unobserved entry through the default timer scheduler, and a subscriber cancels that eviction', () => {
+  it('evicts an unobserved entry through a timer-backed scheduler, and a subscriber cancels that eviction', () => {
     vi.useFakeTimers();
-    const cache = new FetchQueryCache();
+    const cache = new FetchQueryCache({
+      clock: { nowMs: () => Date.now() },
+      scheduler: {
+        schedule: ({ callback, delayMs }) => setTimeout(callback, delayMs),
+        cancel: ({ handle }) => clearTimeout(handle as ReturnType<typeof setTimeout>),
+      },
+    });
     const kept = cache.entry({ key: ['kept'] });
     const dropped = cache.entry({ key: ['dropped'] });
     cache.replace({ entry: kept, data: 'kept' });
@@ -80,7 +87,7 @@ describe('FetchQueryCache edges', () => {
   });
 
   it('invalidates only entries whose key starts with the prefix', () => {
-    const cache = new FetchQueryCache({}, manualScheduler());
+    const cache = new FetchQueryCache(manualScheduler());
     const child = cache.entry({ key: ['rows', 1] });
     const sibling = cache.entry({ key: ['rowsets', 1] });
     const shorter = cache.entry({ key: ['other'] });
@@ -90,7 +97,7 @@ describe('FetchQueryCache edges', () => {
 
   it('re-queues an operation whose connectivity dropped between queueing and invocation', async () => {
     const { environment, connect } = connectivity();
-    const cache = new FetchQueryCache({}, { environment, ...manualScheduler() });
+    const cache = new FetchQueryCache(manualScheduler(), { environment });
     cache.activate();
     const run = vi.fn(async () => 'sent');
     const result = cache.runOnline({ run });
@@ -105,7 +112,7 @@ describe('FetchQueryCache edges', () => {
 
   it('lets an offline read superseded by invalidation follow the newer request instead of fetching twice', async () => {
     const { environment, connect } = connectivity({ online: false });
-    const cache = new FetchQueryCache({}, { environment, ...manualScheduler() });
+    const cache = new FetchQueryCache(manualScheduler(), { environment });
     cache.activate();
     const entry = cache.entry({ key: ['rows'] });
     const fetch = vi.fn(async () => 'fresh');
@@ -127,7 +134,7 @@ describe('FetchQueryCache edges', () => {
 
   it('lets a queued offline read whose replacement already finished during a connectivity flap resolve to the published data', async () => {
     const { environment, connect } = connectivity({ online: false });
-    const cache = new FetchQueryCache({}, { environment, ...manualScheduler() });
+    const cache = new FetchQueryCache(manualScheduler(), { environment });
     cache.activate();
     const entry = cache.entry({ key: ['flap'] });
     const fetch = vi.fn(async () => 'fresh');
@@ -155,7 +162,7 @@ describe('FetchQueryCache edges', () => {
   });
 
   it('honours a refresh requested on the public entry while a request is in flight, once it settles', async () => {
-    const cache = new FetchQueryCache({}, manualScheduler());
+    const cache = new FetchQueryCache(manualScheduler());
     const entry = cache.entry({ key: ['rows'] });
     let calls = 0;
     const fetch = vi.fn(async () => `v${++calls}`);

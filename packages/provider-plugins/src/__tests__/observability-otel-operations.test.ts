@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { registerLoggableErrors } from "@jini-ai/core";
+import { createErrorDescriber } from "@jini-ai/core";
 
 import { InMemorySpanExporter, createAsyncScope, createPort } from "./otel-fakes.js";
 import { createNoopObservabilityPort } from "@jini-ai/diagnostics/observability";
@@ -13,7 +13,6 @@ import type { ObservabilityConfigEnabled } from "@jini-ai/diagnostics/observabil
 
 const CONFIG: ObservabilityConfigEnabled = { enabled: true, serviceName: "svc", tracerName: "svc.ops", endpoint: "http://collector/v1/traces" };
 class RepoLabelTestError extends Error {}
-registerLoggableErrors({ codes: ["REPO_LABEL_TEST_CODE"], classes: [{ error: RepoLabelTestError, label: "RepoLabelTestError" }] });
 
 const SECRET = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
 
@@ -177,13 +176,19 @@ test("obs2 #1: a credential-shaped error.code is redacted before OTel and error-
   assert.ok(!JSON.stringify(spans).includes(code));
 });
 
+test("error labels include package-supplied classes and codes through an injected describer", () => {
+  const repoDescriber = createErrorDescriber({ codes: ["REPO_LABEL_TEST_CODE"], classes: [{ error: RepoLabelTestError, label: "RepoLabelTestError" }] });
+  assert.equal(errorType({ error: new RepoLabelTestError("hidden") }, { describer: repoDescriber }), "RepoLabelTestError");
+  assert.equal(errorType({ error: Object.assign(new Error("hidden"), { code: "REPO_LABEL_TEST_CODE" }) }, { describer: repoDescriber }), "REPO_LABEL_TEST_CODE");
+  // Without the describer the same errors read as the built-in class label, never the package's name.
+  assert.equal(errorType({ error: new RepoLabelTestError("hidden") }), "Error");
+});
+
 // Review jini-batch1 M2: host dashboards and alerts match `error.type = "ECONNREFUSED"`; the label
 // keeps that shape (approved code, else fixed class label) and still never carries raw text.
 test("error labels are an approved code, else the describer's class label, never the message, name or cause text", () => {
   assert.equal(errorType({ error: Object.assign(new TypeError("hidden"), { code: "ECONNRESET" }) }), "ECONNRESET");
   assert.equal(errorType({ error: Object.assign(new Error("hidden"), { code: "SQLITE_CONSTRAINT" }) }), "SQLITE_CONSTRAINT");
-  assert.equal(errorType({ error: new RepoLabelTestError("hidden") }), "RepoLabelTestError");
-  assert.equal(errorType({ error: Object.assign(new Error("hidden"), { code: "REPO_LABEL_TEST_CODE" }) }), "REPO_LABEL_TEST_CODE");
   assert.equal(errorType({ error: Object.assign(new Error("hidden"), { code: "UNLISTED_CODE" }) }), "Error");
   assert.equal(errorType({ error: Object.assign(new TypeError("hidden"), { code: "invalid code" }) }), "TypeError");
   const error = new Error("hidden");

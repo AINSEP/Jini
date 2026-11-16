@@ -1,3 +1,4 @@
+import { webcrypto } from "node:crypto";
 import { captureSubmissionEvidence } from "../../../forms/submission-evidence.js";
 import assert from "node:assert/strict";
 import test from "../support/test-runner.js";
@@ -44,7 +45,7 @@ test("REQ-38: a config with no formDefinitionId resolves invalid-config, never c
   const repo = new InMemoryFormDefinitionRepo();
   const byId = t.mock.method(repo, "findById");
   const bySlug = t.mock.method(repo, "findBySlug");
-  const resolver = createContactFormResolver({ formDefinitionRepo: repo });
+  const resolver = createContactFormResolver({ crypto: webcrypto, formDefinitionRepo: repo });
 
   const results = await resolver.resolveMany([instance({ id: "w-1", config: {} })], CTX);
 
@@ -56,7 +57,7 @@ test("REQ-38: a config with no formDefinitionId resolves invalid-config, never c
 
 test("REQ-38: a non-string formDefinitionId resolves invalid-config", async () => {
   const repo = new InMemoryFormDefinitionRepo();
-  const resolver = createContactFormResolver({ formDefinitionRepo: repo });
+  const resolver = createContactFormResolver({ crypto: webcrypto, formDefinitionRepo: repo });
 
   const results = await resolver.resolveMany(
     [instance({ id: "w-1", config: { formDefinitionId: 42 } })],
@@ -69,7 +70,7 @@ test("REQ-38: a non-string formDefinitionId resolves invalid-config", async () =
 
 test("REQ-38/EC-05: a formDefinitionId that resolves to no definition at all degrades to target-disabled, same as a disabled one", async () => {
   const repo = new InMemoryFormDefinitionRepo();
-  const resolver = createContactFormResolver({ formDefinitionRepo: repo });
+  const resolver = createContactFormResolver({ crypto: webcrypto, formDefinitionRepo: repo });
 
   const results = await resolver.resolveMany(
     [instance({ id: "w-1", config: { formDefinitionId: "does-not-exist" } })],
@@ -88,7 +89,7 @@ test("REQ-37: an active definition's successMessage config, when a string, is pa
     { id: "consent", label: "Contact me", type: "checkbox", required: false },
   ];
   await repo.create(definition({ fields, version: 1 }));
-  const resolver = createContactFormResolver({ formDefinitionRepo: repo });
+  const resolver = createContactFormResolver({ crypto: webcrypto, formDefinitionRepo: repo });
 
   const results = await resolver.resolveMany(
     [instance({ id: "w-1", config: { formDefinitionId: "form-1", successMessage: "Thanks!" } })],
@@ -108,7 +109,7 @@ test("REQ-37: an active definition's successMessage config, when a string, is pa
 test("REQ-37: an active definition with no successMessage config resolves successMessage: null, not undefined", async () => {
   const repo = new InMemoryFormDefinitionRepo();
   await repo.create(definition());
-  const resolver = createContactFormResolver({ formDefinitionRepo: repo });
+  const resolver = createContactFormResolver({ crypto: webcrypto, formDefinitionRepo: repo });
 
   const results = await resolver.resolveMany(
     [instance({ id: "w-1", config: { formDefinitionId: "form-1" } })],
@@ -124,7 +125,7 @@ test("REQ-37: an active definition with no successMessage config resolves succes
 test("REQ-38: a form id in another workspace degrades to target-disabled", async () => {
   const repo = new InMemoryFormDefinitionRepo();
   await repo.create(definition({ workspaceId: "other-workspace" }));
-  const resolver = createContactFormResolver({ formDefinitionRepo: repo });
+  const resolver = createContactFormResolver({ crypto: webcrypto, formDefinitionRepo: repo });
   const results = await resolver.resolveMany([instance({ id: "w-1", config: { formDefinitionId: "form-1" } })], CTX);
   assert.deepEqual(results.get("w-1"), { ok: false, reason: "target-disabled" });
 });
@@ -151,21 +152,21 @@ function view(overrides: Partial<FormDefinitionView> = {}): FormDefinitionView {
 
 test("REQ-38: a formDefinitionRef alone is tried as an id first, then as the authored slug", async () => {
   const repo = recordingRepo({ bySlug: [view({ id: "form-9", slug: "contact" })] });
-  const resolver = createContactFormResolver({ formDefinitionRepo: repo });
+  const resolver = createContactFormResolver({ crypto: webcrypto, formDefinitionRepo: repo });
 
   const results = await resolver.resolveMany([instance({ id: "w-1", config: { formDefinitionRef: "contact" } })], CTX);
 
   assert.deepEqual(repo.calls, ["id:ws-1:contact", "slug:ws-1:contact"]);
   assert.deepEqual(results.get("w-1"), {
     ok: true,
-    ir: { componentId: "contact-form", props: { formDefinitionId: "form-9", schemaHash: (await captureSubmissionEvidence({ definition: definition(), capturedAt: "now", source: "native" })).schemaHash, slug: "contact", fields: [], successMessage: null } },
+    ir: { componentId: "contact-form", props: { formDefinitionId: "form-9", schemaHash: (await captureSubmissionEvidence({ crypto: webcrypto, definition: definition(), capturedAt: "now", source: "native" })).schemaHash, slug: "contact", fields: [], successMessage: null } },
     dependencyKeys: ["form-9"],
   });
 });
 
 test("REQ-38: a formDefinitionRef found by id never falls back to the slug lookup", async () => {
   const repo = recordingRepo({ byId: [view({ id: "form-1" })] });
-  const resolver = createContactFormResolver({ formDefinitionRepo: repo });
+  const resolver = createContactFormResolver({ crypto: webcrypto, formDefinitionRepo: repo });
 
   const results = await resolver.resolveMany([instance({ id: "w-1", config: { formDefinitionRef: "form-1" } })], CTX);
 
@@ -175,21 +176,21 @@ test("REQ-38: a formDefinitionRef found by id never falls back to the slug looku
 
 test("REQ-38: with both keys, formDefinitionId is looked up by id and formDefinitionRef is the slug fallback", async () => {
   const repo = recordingRepo({ bySlug: [view({ id: "form-2", slug: "contact" })] });
-  const resolver = createContactFormResolver({ formDefinitionRepo: repo });
+  const resolver = createContactFormResolver({ crypto: webcrypto, formDefinitionRepo: repo });
 
   const results = await resolver.resolveMany([instance({ id: "w-1", config: { formDefinitionId: "gone", formDefinitionRef: "contact" } })], CTX);
 
   assert.deepEqual(repo.calls, ["id:ws-1:gone", "slug:ws-1:contact"]);
   assert.deepEqual(results.get("w-1"), {
     ok: true,
-    ir: { componentId: "contact-form", props: { formDefinitionId: "form-2", schemaHash: (await captureSubmissionEvidence({ definition: definition(), capturedAt: "now", source: "native" })).schemaHash, slug: "contact", fields: [], successMessage: null } },
+    ir: { componentId: "contact-form", props: { formDefinitionId: "form-2", schemaHash: (await captureSubmissionEvidence({ crypto: webcrypto, definition: definition(), capturedAt: "now", source: "native" })).schemaHash, slug: "contact", fields: [], successMessage: null } },
     dependencyKeys: ["form-2"],
   });
 });
 
 test("REQ-38: a formDefinitionId that misses with no formDefinitionRef never tries a slug lookup", async () => {
   const repo = recordingRepo({});
-  const resolver = createContactFormResolver({ formDefinitionRepo: repo });
+  const resolver = createContactFormResolver({ crypto: webcrypto, formDefinitionRepo: repo });
 
   const results = await resolver.resolveMany([instance({ id: "w-1", config: { formDefinitionId: "gone" } })], CTX);
 
@@ -198,7 +199,7 @@ test("REQ-38: a formDefinitionId that misses with no formDefinitionRef never tri
 });
 
 test("REQ-38: a formDefinitionRef matching neither an id nor a slug degrades to target-disabled", async () => {
-  const resolver = createContactFormResolver({ formDefinitionRepo: recordingRepo({}) });
+  const resolver = createContactFormResolver({ crypto: webcrypto, formDefinitionRepo: recordingRepo({}) });
 
   const results = await resolver.resolveMany([instance({ id: "w-1", config: { formDefinitionRef: "missing" } })], CTX);
 
@@ -207,7 +208,7 @@ test("REQ-38: a formDefinitionRef matching neither an id nor a slug degrades to 
 
 test("REQ-38: empty-string keys on both sides are invalid-config", async () => {
   const repo = recordingRepo({});
-  const resolver = createContactFormResolver({ formDefinitionRepo: repo });
+  const resolver = createContactFormResolver({ crypto: webcrypto, formDefinitionRepo: repo });
 
   const results = await resolver.resolveMany([instance({ id: "w-1", config: { formDefinitionId: "", formDefinitionRef: "" } })], CTX);
 
@@ -217,7 +218,7 @@ test("REQ-38: empty-string keys on both sides are invalid-config", async () => {
 
 test("REQ-38: an empty-string formDefinitionId is still sent to findById before the formDefinitionRef slug fallback", async () => {
   const repo = recordingRepo({ bySlug: [view({ slug: "contact" })] });
-  const resolver = createContactFormResolver({ formDefinitionRepo: repo });
+  const resolver = createContactFormResolver({ crypto: webcrypto, formDefinitionRepo: repo });
 
   const results = await resolver.resolveMany([instance({ id: "w-1", config: { formDefinitionId: "", formDefinitionRef: "contact" } })], CTX);
 
@@ -226,7 +227,7 @@ test("REQ-38: an empty-string formDefinitionId is still sent to findById before 
 });
 
 test("REQ-38/EC-05: a found but non-active definition degrades to target-disabled", async () => {
-  const resolver = createContactFormResolver({ formDefinitionRepo: recordingRepo({ byId: [view({ status: "disabled" })] }) });
+  const resolver = createContactFormResolver({ crypto: webcrypto, formDefinitionRepo: recordingRepo({ byId: [view({ status: "disabled" })] }) });
 
   const results = await resolver.resolveMany([instance({ id: "w-1", config: { formDefinitionId: "form-1" } })], CTX);
 
@@ -234,18 +235,18 @@ test("REQ-38/EC-05: a found but non-active definition degrades to target-disable
 });
 
 test("REQ-37: an html-mode definition adds mode and its html to the props", async () => {
-  const resolver = createContactFormResolver({ formDefinitionRepo: recordingRepo({ byId: [view({ mode: "html", html: "<form></form>" })] }) });
+  const resolver = createContactFormResolver({ crypto: webcrypto, formDefinitionRepo: recordingRepo({ byId: [view({ mode: "html", html: "<form></form>" })] }) });
 
   const results = await resolver.resolveMany([instance({ id: "w-1", config: { formDefinitionId: "form-1" } })], CTX);
 
   const result = results.get("w-1");
   assert.ok(result?.ok);
   if (!result.ok) return;
-  assert.deepEqual(result.ir.props, { formDefinitionId: "form-1", schemaHash: (await captureSubmissionEvidence({ definition: { ...definition(), html: "<form></form>" }, capturedAt: "now", source: "native" })).schemaHash, slug: "contact", fields: [], mode: "html", html: "<form></form>", successMessage: null });
+  assert.deepEqual(result.ir.props, { formDefinitionId: "form-1", schemaHash: (await captureSubmissionEvidence({ crypto: webcrypto, definition: { ...definition(), html: "<form></form>" }, capturedAt: "now", source: "native" })).schemaHash, slug: "contact", fields: [], mode: "html", html: "<form></form>", successMessage: null });
 });
 
 test("REQ-37: an html-mode definition with null html renders an empty html string", async () => {
-  const resolver = createContactFormResolver({ formDefinitionRepo: recordingRepo({ byId: [view({ mode: "html", html: null })] }) });
+  const resolver = createContactFormResolver({ crypto: webcrypto, formDefinitionRepo: recordingRepo({ byId: [view({ mode: "html", html: null })] }) });
 
   const results = await resolver.resolveMany([instance({ id: "w-1", config: { formDefinitionId: "form-1" } })], CTX);
 
@@ -256,7 +257,7 @@ test("REQ-37: an html-mode definition with null html renders an empty html strin
 });
 
 test("REQ-37: a non-html mode definition carries neither mode nor html in the props", async () => {
-  const resolver = createContactFormResolver({ formDefinitionRepo: recordingRepo({ byId: [view({ mode: "fields", html: "<p>ignored</p>" })] }) });
+  const resolver = createContactFormResolver({ crypto: webcrypto, formDefinitionRepo: recordingRepo({ byId: [view({ mode: "fields", html: "<p>ignored</p>" })] }) });
 
   const results = await resolver.resolveMany([instance({ id: "w-1", config: { formDefinitionId: "form-1" } })], CTX);
 
@@ -267,7 +268,7 @@ test("REQ-37: a non-html mode definition carries neither mode nor html in the pr
 });
 
 test("REQ-37: a non-string successMessage config resolves successMessage: null", async () => {
-  const resolver = createContactFormResolver({ formDefinitionRepo: recordingRepo({ byId: [view()] }) });
+  const resolver = createContactFormResolver({ crypto: webcrypto, formDefinitionRepo: recordingRepo({ byId: [view()] }) });
 
   const results = await resolver.resolveMany([instance({ id: "w-1", config: { formDefinitionId: "form-1", successMessage: 7 } })], CTX);
 
@@ -279,7 +280,7 @@ test("REQ-37: a non-string successMessage config resolves successMessage: null",
 
 test("REQ-38: one batch isolates each instance's outcome by instance id", async () => {
   const repo = recordingRepo({ byId: [view()] });
-  const resolver = createContactFormResolver({ formDefinitionRepo: repo });
+  const resolver = createContactFormResolver({ crypto: webcrypto, formDefinitionRepo: repo });
 
   const results = await resolver.resolveMany([
     instance({ id: "bad", config: {} }),
@@ -295,7 +296,7 @@ test("REQ-38: one batch isolates each instance's outcome by instance id", async 
 
 test("REQ-38: an empty batch resolves an empty map without touching the repo", async () => {
   const repo = recordingRepo({});
-  const resolver = createContactFormResolver({ formDefinitionRepo: repo });
+  const resolver = createContactFormResolver({ crypto: webcrypto, formDefinitionRepo: repo });
 
   const results = await resolver.resolveMany([], CTX);
 
@@ -309,7 +310,7 @@ test("embed consent-off comes only from the host snapshot and is read once per r
   const widgets = [instance({ id: 'one', config: { formDefinitionId: 'form-1', collectionConsentOff: true } }), instance({ id: 'two', config: { formDefinitionId: 'form-1' } })];
   for (const value of [undefined, false, true]) {
     let reads = 0;
-    const resolver = createContactFormResolver({ formDefinitionRepo: repo, ...(value === undefined ? {} : { formEmbedConsentOff: () => { reads++; return value; } }) });
+    const resolver = createContactFormResolver({ crypto: webcrypto, formDefinitionRepo: repo, ...(value === undefined ? {} : { formEmbedConsentOff: () => { reads++; return value; } }) });
     const results = await resolver.resolveMany(widgets, CTX);
     for (const result of results.values()) {
       assert.ok(result.ok);
@@ -321,7 +322,7 @@ test("embed consent-off comes only from the host snapshot and is read once per r
 
 
 test("built-in forms carry no external collection consent-off flag", async () => {
-  const resolver = createContactFormResolver({ formDefinitionRepo: recordingRepo({ byId: [view()] }), formEmbedConsentOff: () => true });
+  const resolver = createContactFormResolver({ crypto: webcrypto, formDefinitionRepo: recordingRepo({ byId: [view()] }), formEmbedConsentOff: () => true });
   const result = (await resolver.resolveMany([instance({ id: 'builtin', config: { formDefinitionId: 'form-1' } })], CTX)).get('builtin')!;
   assert.ok(result.ok);
   assert.equal(result.ir.props.collectionConsentOff, undefined);

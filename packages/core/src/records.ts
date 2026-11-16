@@ -171,19 +171,22 @@ export function canonicalJson(required: { readonly value: unknown }, _optional: 
   return canonicalValue(required.value, new Set());
 }
 
+/** The slice of WebCrypto the argument digest needs. */
+export type DigestCryptoPort = { readonly subtle: Pick<typeof globalThis.crypto.subtle, 'digest'> };
+
 /**
  * SHA-256 lowercase hex over canonical UTF-8 tool arguments, shared by plugins and host gates.
  * @param required.args JSON arguments; validation completes before hashing starts.
- * @param optional.crypto Host WebCrypto port; defaults to the runtime's global WebCrypto.
+ * @param required.crypto Host WebCrypto port; the caller supplies it, core never reads a global.
  * @returns An asynchronous digest, usable in browsers and Node without Node imports.
  * @throws CanonicalJsonError for invalid arguments; WebCrypto failures propagate.
  * @complexity Canonical serialization cost plus O(s) hashing time and space for s UTF-8 bytes.
  */
 export async function canonicalArgumentDigest(
-  required: { readonly args: unknown },
-  { crypto = globalThis.crypto }: { readonly crypto?: { readonly subtle: Pick<typeof globalThis.crypto.subtle, 'digest'> } } = {},
+  { args, crypto }: { readonly args: unknown; readonly crypto: DigestCryptoPort },
+  _optional: Record<string, never> = {},
 ): Promise<string> {
-  const json = canonicalJson({ value: required.args });
+  const json = canonicalJson({ value: args });
   const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(json));
   return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('');
 }

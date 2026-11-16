@@ -154,33 +154,33 @@ describe('canonicalJson', () => {
 
 describe('canonicalArgumentDigest', () => {
   it('returns the known SHA-256 hex digest of canonical UTF-8 JSON', async () => {
-    expect(await canonicalArgumentDigest({ args: {} })).toBe('44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a');
+    expect(await canonicalArgumentDigest({ args: {}, crypto: webcrypto })).toBe('44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a');
     const args = { z: ['\u{1f600}', '\u00e9'], a: { y: null, x: true } };
     const bytes = '{"a":{"x":true,"y":null},"z":["\u{1f600}","\u00e9"]}';
-    expect(await canonicalArgumentDigest({ args })).toBe(createHash('sha256').update(bytes).digest('hex'));
+    expect(await canonicalArgumentDigest({ args, crypto: webcrypto })).toBe(createHash('sha256').update(bytes).digest('hex'));
   });
 
   it('matches the host digest for reordered keys but distinguishes array and value changes', async () => {
-    const first = await canonicalArgumentDigest({ args: { b: { d: 4, c: 3 }, a: [1, 2] } });
-    const reordered = await canonicalArgumentDigest({ args: { a: [1, 2], b: { c: 3, d: 4 }, omitted: undefined } });
+    const first = await canonicalArgumentDigest({ args: { b: { d: 4, c: 3 }, a: [1, 2] }, crypto: webcrypto });
+    const reordered = await canonicalArgumentDigest({ args: { a: [1, 2], b: { c: 3, d: 4 }, omitted: undefined }, crypto: webcrypto });
     expect(reordered).toBe(first);
     expect(first).toBe(createHash('sha256').update('{"a":[1,2],"b":{"c":3,"d":4}}').digest('hex'));
-    expect(await canonicalArgumentDigest({ args: { a: [2, 1], b: { c: 3, d: 4 } } })).not.toBe(first);
-    expect(await canonicalArgumentDigest({ args: { a: [1, 2], b: { c: 3, d: 5 } } })).not.toBe(first);
+    expect(await canonicalArgumentDigest({ args: { a: [2, 1], b: { c: 3, d: 4 } }, crypto: webcrypto })).not.toBe(first);
+    expect(await canonicalArgumentDigest({ args: { a: [1, 2], b: { c: 3, d: 5 } }, crypto: webcrypto })).not.toBe(first);
   });
 
   it('supports a host-supplied WebCrypto port', async () => {
-    expect(await canonicalArgumentDigest({ args: {} }, { crypto: webcrypto })).toBe('44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a');
+    expect(await canonicalArgumentDigest({ args: {}, crypto: webcrypto })).toBe('44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a');
   });
 
   it('rejects invalid arguments before invoking crypto', async () => {
     const crypto = { subtle: { digest: () => { throw new Error('crypto must not run'); } } };
-    await expect(canonicalArgumentDigest({ args: [undefined] }, { crypto })).rejects.toBeInstanceOf(CanonicalJsonError);
+    await expect(canonicalArgumentDigest({ args: [undefined], crypto })).rejects.toBeInstanceOf(CanonicalJsonError);
   });
 
   it('propagates failures from the host crypto port', async () => {
     const error = new Error('digest unavailable');
     const crypto = { subtle: { digest: async () => { throw error; } } };
-    await expect(canonicalArgumentDigest({ args: {} }, { crypto })).rejects.toBe(error);
+    await expect(canonicalArgumentDigest({ args: {}, crypto })).rejects.toBe(error);
   });
 });
