@@ -52,6 +52,40 @@ export interface DurableJsonFile {
   quarantine(required: { notice: QuarantineNotice }): boolean;
   withLock<T>(required: { critical: () => T }, optional?: FileLockOptions): T;
 }
+function readJsonFile({ filePath, fs }: { filePath: string; fs: DurableJsonPorts["filesystem"] }): JsonFileRead {
+let text: string;
+try {
+  text = fs.readFileSync(filePath, "utf8");
+} catch (error) {
+  return (error as NodeJS.ErrnoException).code === "ENOENT" ? { state: "missing" } : { state: "unreadable" };
+}
+try {
+  return { state: "ok", value: JSON.parse(text) as unknown };
+} catch {
+  return { state: "unreadable", text };
+}
+}
+
+// Preserve damaged bytes for inspection instead of deleting/overwriting them. False means callers
+// must leave the original alone; an already-moved file is safe because another process cleared it.
+function quarantineUnreadableFile(
+  { filePath, notice, fs, clock, report, notices }: {
+    filePath: string; notice: QuarantineNotice; fs: DurableJsonPorts["filesystem"]; clock: DurableJsonPorts["clock"];
+    report: DurableJsonPorts["report"]; notices: DurableJsonNotices;
+  },
+): boolean {
+const asidePath = `${filePath}.corrupt-${clock.nowMs()}`;
+try {
+  fs.renameSync(filePath, asidePath);
+} catch (error) {
+  if ((error as NodeJS.ErrnoException).code === "ENOENT") return true;
+  report.error({ message: `${notices.prefix}: ${notice.label} ${filePath} is unreadable and could not be moved aside (${describeErrorForLog({ err: error })}). Left untouched; nothing was written over it.` });
+  return false;
+}
+report.error({ message: `${notices.prefix}: ${notice.label} ${filePath} was unreadable (torn or corrupt). Moved it aside to ${asidePath}; ${notice.consequence}` });
+return true;
+}
+
 /** Atomic replacement, distinct corrupt reads, quarantine, and token-owned synchronous locks.
  * Lock stealing rechecks inode, bytes and mtime; conditional unlink is not available on all hosts.
  * File fsync precedes rename; directory flush afterwards is best-effort: skipped on Windows,
@@ -71,20 +105,6 @@ export function createDurableJsonFile(
   // Thirty-second staleness also handles pid reuse after a crash:
   // an unrelated live process must not hold the abandoned file forever merely by inheriting its pid.
   const LOCK_WAIT_MS = 5000, LOCK_POLL_MS = pollMs, LOCK_STALE_MS = staleMs;
-function readJsonFile(filePath: string): JsonFileRead {
-  let text: string;
-  try {
-    text = fs.readFileSync(filePath, "utf8");
-  } catch (error) {
-    return (error as NodeJS.ErrnoException).code === "ENOENT" ? { state: "missing" } : { state: "unreadable" };
-  }
-  try {
-    return { state: "ok", value: JSON.parse(text) as unknown };
-  } catch {
-    return { state: "unreadable", text };
-  }
-}
-
 // Per-process sibling temps prevent one writer truncating another's pending replacement. Writes
 // within one process are synchronous, so it cannot collide with itself; its next write reuses the temp.
 function tempPathFor(filePath: string, pid: number = process.pid): string {
@@ -103,29 +123,14 @@ function writeJson(filePath: string, value: unknown): void {
   });
 }
 
-// Preserve damaged bytes for inspection instead of deleting/overwriting them. False means callers
-// must leave the original alone; an already-moved file is safe because another process cleared it.
-function quarantineUnreadableFile(filePath: string, notice: QuarantineNotice): boolean {
-  const asidePath = `${filePath}.corrupt-${clock.nowMs()}`;
-  try {
-    fs.renameSync(filePath, asidePath);
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") return true;
-    report.error({ message: `${notices.prefix}: ${notice.label} ${filePath} is unreadable and could not be moved aside (${describeErrorForLog({ err: error })}). Left untouched; nothing was written over it.` });
-    return false;
-  }
-  report.error({ message: `${notices.prefix}: ${notice.label} ${filePath} was unreadable (torn or corrupt). Moved it aside to ${asidePath}; ${notice.consequence}` });
-  return true;
-}
-
 // Atomic replacement prevents tears; this lock serializes shared read-modify-write operations.
 // Deliberately non-reentrant. Token-owned release must not evict a later owner after a stale break.
 // The canonical lock rechecks the inode at steal time; its documented check-to-unlink race remains.
   return {
-    read: (_required) => readJsonFile(filePath),
+    read: (_required) => readJsonFile({ filePath, fs }),
     tempPath: (_required, { pid = process.pid } = {}) => tempPathFor(filePath, pid),
     write: ({ value }) => writeJson(filePath, value),
-    quarantine: ({ notice }) => quarantineUnreadableFile(filePath, notice),
+    quarantine: ({ notice }) => quarantineUnreadableFile({ filePath, notice, fs, clock, report, notices }),
     withLock: ({ critical }, optional = {}) => {
       if (optional.waitMs !== undefined && (!Number.isSafeInteger(optional.waitMs) || optional.waitMs < 0)) throw new TypeError("waitMs must be a nonnegative safe integer");
       return withFileLockSync({ lockPath: `${filePath}.lock`, run: critical }, {
