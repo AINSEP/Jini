@@ -170,7 +170,9 @@ describe("launchChromium", () => {
     expect(calls).toEqual([{ headless: true }, { headless: true, channel: "chrome" }]);
   });
 
-  it("rethrows the first (more useful) error when both launches fail", async () => {
+  // Review jini-batch1 M3: runCli prints only the class of a plain error, so a missing browser
+  // must arrive as a CliUsageError with fixed install words; the first error stays as its cause.
+  it("throws fixed install words, keeping the first error as the cause, when both launches fail", async () => {
     let n = 0;
     const chromium = {
       launch: async () => {
@@ -178,6 +180,13 @@ describe("launchChromium", () => {
         throw new Error(`launch ${n}`);
       },
     };
-    await expect(launchChromium(chromium)).rejects.toThrow("launch 1");
+    const failure = await launchChromium(chromium).catch((error) => error);
+    expect(failure).toBeInstanceOf(CliUsageError);
+    expect(failure.message).toContain("npx playwright install chromium");
+    expect(failure.message).not.toContain("launch");
+    expect(failure.cause).toEqual(new Error("launch 1"));
+    const lines = [];
+    await runCli({ label: "recon-site", body: () => launchChromium(chromium), report: (line) => lines.push(line) });
+    expect(lines.join("\n")).toContain("recon-site failed: Chromium could not start.");
   });
 });
