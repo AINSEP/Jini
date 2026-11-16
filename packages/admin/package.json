@@ -28,6 +28,7 @@
       "./react/use-controller": "browser",
       "./react/overlays": "browser",
       "./react/kit": "browser",
+      "./react/testing-kit": "browser",
       "./media": "universal",
       "./media/react": "browser",
       "./media/adapters/http": "universal",
@@ -177,6 +178,11 @@
       "types": "./dist/react/kit.d.ts",
       "import": "./dist/react/kit.js",
       "default": "./dist/react/kit.js"
+    },
+    "./react/testing-kit": {
+      "types": "./dist/react/testing-kit.d.ts",
+      "import": "./dist/react/testing-kit.js",
+      "default": "./dist/react/testing-kit.js"
     },
     "./media": {
       "types": "./dist/media/index.d.ts",

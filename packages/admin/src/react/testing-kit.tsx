@@ -1,8 +1,7 @@
-import { render, type RenderResult } from '@testing-library/react';
-import { forwardRef, useRef, type ReactElement } from 'react';
+import { forwardRef, useEffect, useRef } from 'react';
 import type { FetchQueryAdapter, QueryResult } from '@jini-ai/core/fetch';
-import { AdminKitProvider, type AdminKit, type ButtonProps, type IconButtonProps, type AdminKitComponents, type AdminKitHooks, type AdminThemeKit } from '../kit.js';
-import type { AdminMediaProvidersKit } from '../kit-media-providers.js';
+import { type AdminKit, type DialogProps, type NativeDialogView, type ButtonProps, type IconButtonProps, type AdminKitComponents, type AdminKitHooks, type AdminThemeKit } from './kit.js';
+import type { AdminMediaProvidersKit } from './kit-media-providers.js';
 
 const fakeComponents: AdminKitComponents = {
   Button: forwardRef<HTMLButtonElement, Omit<ButtonProps, 'ref'>>((p, ref) => <button ref={ref} {...p.attrs} type={p.type ?? 'button'} className={p.className} disabled={p.disabled || p.pending} onClick={() => p.onPress?.({})}>{p.children}</button>),
@@ -49,6 +48,18 @@ const fakeComponents: AdminKitComponents = {
 fakeComponents.Button.displayName = 'FakeButton';
 fakeComponents.IconButton.displayName = 'FakeIconButton';
 
+// Mirrors the real hook's one observable duty: a `<dialog>` is only visible/accessible once opened, so follow `open`.
+function useFakeNativeDialog(required: DialogProps): NativeDialogView {
+  const ref = useRef<HTMLDialogElement | null>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (required.open && !el.open) el.showModal();
+    if (!required.open && el.open) el.close();
+  }, [required.open]);
+  return { titleId: 'fake-title', props: { ref, onCancel: () => required.onClose({}), onClick: () => {} } };
+}
+
 const fakeHooks: AdminKitHooks = {
   useAgentHandle: (r) => (r.agentHandle === false ? undefined : r.agentHandle ?? 'fake-handle'),
   useFocusTrap: () => {},
@@ -63,7 +74,7 @@ const fakeHooks: AdminKitHooks = {
     confirm: { onPress: () => void r.onConfirm({}) },
     requestDismiss: () => { r.onCancel({}); return true; },
   }),
-  useNativeDialog: (r) => ({ titleId: 'fake-title', props: { ref: useRef<HTMLDialogElement | null>(null), onCancel: () => r.onClose({}), onClick: () => {} } }),
+  useNativeDialog: useFakeNativeDialog,
 };
 
 /** Query hooks that answer immediately with `data`; mutations resolve at once. */
@@ -103,7 +114,8 @@ const fakeTheme: AdminThemeKit = {
   defaultAdminTheme: Object.freeze({ name: 'fake', fonts: Object.freeze({ body: 'sans-serif', heading: 'sans-serif' }), light: neutralColors, dark: neutralColors }),
 };
 
-/** Plain elements, no UI library: package tests check admin's behaviour, not a kit's markup. */
+/** Test-only kit for admin AND for consumer packages whose screens render under it (`@jini-ai/admin/react/testing-kit`).
+ *  Plain elements, no UI library: package tests check admin's behaviour, not a kit's markup. */
 export function fakeAdminKit(overrides: Partial<{ [G in keyof AdminKit]: Partial<AdminKit[G]> }> = {}): AdminKit {
   return {
     components: { ...fakeComponents, ...overrides.components },
@@ -112,8 +124,4 @@ export function fakeAdminKit(overrides: Partial<{ [G in keyof AdminKit]: Partial
     mediaProviders: { ...fakeMediaProviders, ...overrides.mediaProviders },
     theme: { ...fakeTheme, ...overrides.theme },
   } satisfies AdminKit;
-}
-
-export function renderWithAdminKit(ui: ReactElement, options: { kit?: AdminKit } = {}): RenderResult {
-  return render(<AdminKitProvider kit={options.kit ?? fakeAdminKit()}>{ui}</AdminKitProvider>);
 }

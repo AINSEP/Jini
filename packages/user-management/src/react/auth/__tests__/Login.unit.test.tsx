@@ -1,6 +1,6 @@
 const translate = (key: string) => key;
 const port = { login: async () => ({ user: { id: "u", username: "operator" } }) };
-import { render, screen } from "@testing-library/react";
+import { render, screen } from "../../__tests__/fetch-query-support.js";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 
