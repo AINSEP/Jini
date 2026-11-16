@@ -85,3 +85,4 @@ export * from './observability.js';
 export * from './request.js';
 export * from './response.js';
 export * from './origin.js';
+export * from './trust-proxy.js';
