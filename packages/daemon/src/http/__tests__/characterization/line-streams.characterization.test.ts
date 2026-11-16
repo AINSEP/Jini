@@ -178,3 +178,62 @@ describe('page request (POST /api/frontend-requests)', () => {
     expect(asked).not.toHaveBeenCalled();
   });
 });
+
+describe('tool execution with a host run check (authorizeRun)', () => {
+  const headers = { authorization: `Bearer ${HARNESS_BEARER_TOKEN}` };
+  const call = { executionId: 'exec-1', principal: { id: 'as-sent', roles: ['admin'] }, run: { id: 'run-1' }, toolId: 'tool.one', input: {} };
+  const executor = pendingExecutor();
+  /** What the host check saw, in order: the parsed body for an execution, the query for the catalog. */
+  const seen: unknown[] = [];
+  let verdict: 'allow' | 'refuse' | 'narrow' = 'allow';
+  const listToolsFor = vi.fn(async () => []);
+  let harness: RouteHarness;
+  beforeAll(async () => {
+    harness = await startRouteHarness({}, { familyDeps: { 'tool-execution-routes': {
+      execute: executor.execute,
+      listToolsFor,
+      authorizeRun: (req: { method: string; body: { principal?: unknown }; query: unknown }, res: { status(code: number): { json(body: unknown): void } }, next: () => void) => {
+        seen.push(req.method === 'POST' ? structuredClone(req.body) : req.query);
+        if (verdict === 'refuse') { res.status(403).json({ error: { code: 'FORBIDDEN', message: 'host says no' } }); return; }
+        if (verdict === 'narrow') req.body.principal = { id: 'as-recorded' };
+        next();
+      },
+    } } });
+  });
+  afterAll(async () => { await harness.close(); });
+  afterEach(() => { seen.length = 0; verdict = 'allow'; executor.calls.length = 0; executor.outcomes.length = 0; listToolsFor.mockClear(); });
+
+  it('the check sees the parsed body, and the tool runs as whatever principal the check left on it', async () => {
+    verdict = 'narrow';
+    const stream = await openStream({ harness, route: 'POST /internal/tool-executions' }, { headers, body: line(call), separator: '\n' });
+    expect(seen).toEqual([call]);
+    expect(executor.calls[0]?.call.principal).toEqual({ id: 'as-recorded' });
+    executor.outcomes[0]!.resolve(null);
+    await stream.rest();
+  });
+
+  it('a refusal by the check comes before the shape of the call is looked at: a malformed call is answered 403, not 400', async () => {
+    verdict = 'refuse';
+    const answer = await probe({ harness, route: 'POST /internal/tool-executions' }, { headers, body: line({ ...call, toolId: '' }) });
+    expect(answer.summary).toBe('403 FORBIDDEN');
+    expect(answer.json).toEqual({ error: { code: 'FORBIDDEN', message: 'host says no' } });
+    expect(executor.calls).toHaveLength(0);
+  });
+
+  it('the check is asked only after the caller gate and the body parser: no token is 401 and bad JSON is 400, both without asking it', async () => {
+    verdict = 'refuse';
+    expect((await probe({ harness, route: 'POST /internal/tool-executions' }, { body: line(call) })).summary).toBe('401 UNAUTHORIZED');
+    expect((await probe({ harness, route: 'POST /internal/tool-executions' }, { headers, body: '{"broken"' })).summary).toBe('400 BAD_REQUEST');
+    expect(seen).toEqual([]);
+  });
+
+  it('the catalog route asks the same check, with the query, and lists nothing when it refuses', async () => {
+    verdict = 'refuse';
+    expect((await probe({ harness, route: 'GET /internal/tool-catalog?runId=run-1&principalId=p-1' }, { headers })).summary).toBe('403 FORBIDDEN');
+    expect(seen).toEqual([{ runId: 'run-1', principalId: 'p-1' }]);
+    expect(listToolsFor).not.toHaveBeenCalled();
+    verdict = 'allow';
+    expect((await probe({ harness, route: 'GET /internal/tool-catalog?runId=run-1&principalId=p-1' }, { headers })).json).toEqual({ tools: [] });
+    expect(listToolsFor).toHaveBeenCalledWith({ principalId: 'p-1' });
+  });
+});

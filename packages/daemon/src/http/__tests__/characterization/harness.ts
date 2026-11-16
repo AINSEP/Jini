@@ -7,7 +7,7 @@
  */
 import { createServer, type Server as HttpServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import express, { type Express } from 'express';
+import express, { type Express, type RequestHandler } from 'express';
 import type { RouteHostContext } from '@jini-ai/core/contracts/server';
 import { createLocalSameOriginPolicy } from '@jini-ai/core/contracts/server';
 import { testOriginConfig } from '../fixtures/local-origin.js';
@@ -101,7 +101,11 @@ const gateEnv = { JINI_TOOL_EXEC_TOKEN: HARNESS_BEARER_TOKEN, JINI_REMOTE_TOOL_B
  */
 const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-parser')[] = [
   ['health', ({ app, adapter, deps }) => registerHealthRoutes({ app, deps: deps(), adapter })],
-  ['tool-execution-routes', ({ app, deps }) => registerToolExecutionRoutes({ app, executor: deps(), listToolsFor: (deps() as { listToolsFor: never }).listToolsFor }, { env: gateEnv })],
+  ['tool-execution-routes', ({ app, deps }) => {
+    // The host's run check is optional; a test that wants one supplies it as this family's `authorizeRun`.
+    const { authorizeRun } = deps({ authorizeRun: undefined }) as { authorizeRun: RequestHandler | undefined };
+    registerToolExecutionRoutes({ app, executor: deps(), listToolsFor: (deps() as { listToolsFor: never }).listToolsFor }, { env: gateEnv, ...(authorizeRun ? { authorizeRun } : {}) });
+  }],
   ['attachment-lookup-routes', ({ app, deps }) => registerAttachmentLookupRoutes({ app, store: deps() })],
   'json-parser',
   ['runs', ({ app, adapter, deps }) => registerRunRoutes({ app, deps: deps(), adapter })],
