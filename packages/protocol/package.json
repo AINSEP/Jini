@@ -13,7 +13,8 @@
     "kind": "contract",
     "runtime": "universal",
     "entries": {
-      ".": "universal"
+      ".": "universal",
+      "./mcp-ui": "universal"
     }
   },
   "type": "module",
@@ -25,6 +26,11 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js",
       "default": "./dist/index.js"
+    },
+    "./mcp-ui": {
+      "types": "./dist/mcp-ui.d.ts",
+      "import": "./dist/mcp-ui.js",
+      "default": "./dist/mcp-ui.js"
     }
   },
   "files": [

@@ -14,7 +14,7 @@ import {
   createPageActionRequest,
   isJsonRpcMessage,
   isJsonRpcRequest,
-} from '../index.js';
+} from '../mcp-ui.js';
 
 describe('mcp-ui envelope', () => {
   it('names the spec methods it borrows', () => {

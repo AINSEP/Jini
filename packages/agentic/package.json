@@ -15,15 +15,13 @@
     "entries": {
       ".": "universal",
       "./core": "universal",
-      "./core/handle": "universal",
       "./dom": "browser",
       "./a2ui": "universal",
       "./skills/install": "node",
       "./skills/install/node": "node"
     },
     "optionalPeers": {
-      "@jini-ai/protocol": "opt-in: agent protocol adapters — Agent protocol adapters could not load @jini-ai/protocol. Install @jini-ai/protocol to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/core": "opt-in: core module integrations — Core module integrations could not load @jini-ai/core. Install @jini-ai/core to enable this feature, or check its installed version and native binaries."
+      "@jini-ai/protocol": "opt-in: agent protocol adapters — Agent protocol adapters could not load @jini-ai/protocol. Install @jini-ai/protocol to enable this feature, or check its installed version and native binaries."
     }
   },
   "type": "module",
@@ -40,11 +38,6 @@
       "types": "./dist/core/index.d.ts",
       "import": "./dist/core/index.js",
       "default": "./dist/core/index.js"
-    },
-    "./core/handle": {
-      "types": "./dist/core/handle.d.ts",
-      "import": "./dist/core/handle.js",
-      "default": "./dist/core/handle.js"
     },
     "./dom": {
       "types": "./dist/core/dom/index.d.ts",
@@ -102,9 +95,6 @@
   },
   "peerDependenciesMeta": {
     "@jini-ai/protocol": {
-      "optional": true
-    },
-    "@jini-ai/core": {
       "optional": true
     }
   },

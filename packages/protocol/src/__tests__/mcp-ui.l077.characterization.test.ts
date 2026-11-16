@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isJsonRpcMessage } from '../mcp-ui-apps.js';
+import { isJsonRpcMessage } from '../mcp-ui.js';
 
 describe('L077 JSON-RPC shape separation', () => {
   it.each([

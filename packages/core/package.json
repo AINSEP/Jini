@@ -28,6 +28,7 @@
       "./primitives": "universal",
       "./fetch": "universal",
       "./text": "universal",
+      "./agent-handles": "universal",
       "./settings": "universal",
       "./settings/express": "node",
       "./plugin-directory": "universal",
@@ -167,6 +168,11 @@
       "types": "./dist/text/index.d.ts",
       "import": "./dist/text/index.js",
       "default": "./dist/text/index.js"
+    },
+    "./agent-handles": {
+      "types": "./dist/agent-handles/index.d.ts",
+      "import": "./dist/agent-handles/index.js",
+      "default": "./dist/agent-handles/index.js"
     },
     "./settings": {
       "types": "./dist/settings/index.d.ts",
