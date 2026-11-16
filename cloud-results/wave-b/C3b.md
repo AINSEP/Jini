@@ -1,0 +1,7 @@
+# C3b report: PARTIAL-complete (all hand edits done; importer errors await applier pass)
+- Branch wave-b/C3b from refactor/terra b7666092 (Jini). Tovu not edited (Tovu HEAD b28d38c6). Code commit 3cf9385b.
+- Done: core/src/contracts/events.ts + events/{ports,change-set,command}.ts (verbatim, header rewrites, new ExecuteCommandFn); deleted cms/src/core/{ports.ts,commands/change-set.ts}; cms core/index.ts export blocks removed; commands/command.ts 7 declarations removed and imported from core; cms/src/core/__tests__/execute-command-fn.typecheck.ts (satisfies ExecuteCommandFn, compiles).
+- New subpath: @jini-ai/core ./contracts/events (package.json exports + jini.entries, README paragraph); .changeset/core-events-contract.md (core minor; cms, cms-forms patch). Note: no packages/cms-forms dir exists in this checkout (changeset names it per sheet; verify the package name).
+- Debt entries retired: none identified.
+- Checks: core build OK; check:complexity OK; check:size OK; eslint on touched files 0 errors. cms typecheck: lane files clean; ~98 TS2305/TS2459/TS2307 errors in cms importers of the deleted/removed names = NEEDS-APPLIER-PASS. pnpm guard = ENV (node_modules/@jini-ai/plugins unbuilt, MODULE_NOT_FOUND). No tests run (typecheck-only per sheet; importers broken until pass). Tovu-text rg on touched files: clean; core library-name rg: clean.
+- Sheet notes: sheet put 'executeCommand satisfies ExecuteCommandFn' in command.ts; done in the typecheck test instead (avoids unused import).

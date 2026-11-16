@@ -1,27 +1,19 @@
 /**
- * @file Core port contracts for the CMS runtime.
+ * @file Event, outbox and transaction-boundary port contracts.
  *
  * Purpose:
- * Defines the stable interfaces that domain/application code depends on.
- *
- * How it relates to the project:
- * - `features/*` import these contracts to stay framework/provider-agnostic.
- * - `Tovu apps/website/src/contracts/core/events/memory-bus.ts` provides in-memory implementations for local dev/tests.
- * - `Tovu apps/website/src/contracts/core/events/outbox-worker.ts` orchestrates reliable async delivery using these ports.
- * - `Tovu apps/website/src/server/runtime/composition/app.ts` composes concrete implementations and runs the slice.
+ * Defines the stable interfaces that domain/application code depends on to publish events and deliver them reliably.
  *
  * Architectural role:
- * This file is the dependency inversion seam. Concrete infrastructure can change
- * without changing feature logic as long as implementations satisfy these types.
- */
-/**
- * Shared primitives and runtime ports used by the CMS core.
+ * This file is the dependency inversion seam. Hosts provide in-memory or durable implementations and compose them in
+ * their composition root. Concrete infrastructure can change without changing feature logic as long as implementations
+ * satisfy these types.
  *
  * Design goal:
- * Core/domain code depends on interfaces from this file only, never on concrete
- * infrastructure SDKs or framework-specific implementations.
+ * Core/domain code depends on interfaces from this file only, never on concrete infrastructure SDKs or
+ * framework-specific implementations.
  */
-import type { UUID, ISODateTime } from "@jini-ai/core/primitives";
+import type { UUID, ISODateTime } from "../../primitives/index.js";
 
 /**
  * Immutable domain event emitted by synchronous command handlers and delivered
@@ -163,7 +155,7 @@ export interface OutboxPort {
  *    inside the same transaction as the delete is what makes the guard's answer still true at the
  *    moment the delete actually runs.
  * 2. **Partial cascade.** `deleteTaxonomy` deletes N member terms then the taxonomy row itself,
- *    with no FK/CASCADE at the schema level (`Tovu apps/website/src/platform/db/schema.sqlite.ts` — `taxonomies`/`terms`/`entry_terms`/
+ *    with no FK/CASCADE at the schema level (the host schema — `taxonomies`/`terms`/`entry_terms`/
  *    `taxonomy_revisions` are plain columns, no foreign keys) to undo a mid-cascade failure. A
  *    real transaction is the only thing that can.
  *

@@ -41,7 +41,8 @@
       "./contracts/oauth": "universal",
       "./contracts/content-types": "universal",
       "./contracts/hosted-mcp": "universal",
-      "./contracts/storage": "universal"
+      "./contracts/storage": "universal",
+      "./contracts/events": "universal"
     },
     "isolation": {
       "entries": {
@@ -239,6 +240,11 @@
       "types": "./dist/contracts/storage.d.ts",
       "import": "./dist/contracts/storage.js",
       "default": "./dist/contracts/storage.js"
+    },
+    "./contracts/events": {
+      "types": "./dist/contracts/events.d.ts",
+      "import": "./dist/contracts/events.js",
+      "default": "./dist/contracts/events.js"
     }
   },
   "files": [
