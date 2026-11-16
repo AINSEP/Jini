@@ -33,9 +33,9 @@ afterEach(() => rmSync(root, { recursive: true, force: true }));
 
 it('registers every distribution leaf and the catalog without allowing core imports of them', () => {
   expect(checkPluginPackages({ repoRoot: root })).toEqual([]);
-  expect(checkPackageLayers({ repoRoot: root })).toEqual([]);
+  expect(checkPackageLayers({ repoRoot: root }, { injection: false })).toEqual([]);
   manifest({ name: 'core', fields: { dependencies: { '@jini-ai/provider-plugins': '^0.6.17' } } });
-  expect(checkPackageLayers({ repoRoot: root })).toEqual([{
+  expect(checkPackageLayers({ repoRoot: root }, { injection: false })).toEqual([{
     rule: 'L1-layer-edge', file: 'packages/core/package.json',
     reason: 'core → @jini-ai/provider-plugins: L0 cannot depend on L7',
   }]);
@@ -44,17 +44,17 @@ it('registers every distribution leaf and the catalog without allowing core impo
 it('treats a new plugin package as a leaf by rule, while an unlisted core package still needs a layer', () => {
   manifest({ name: 'plugin-brand-new' });
   manifest({ name: 'brand-new-core' });
-  expect(checkPackageLayers({ repoRoot: root })).toEqual([{
+  expect(checkPackageLayers({ repoRoot: root }, { injection: false })).toEqual([{
     rule: 'L0-unlisted-package', file: 'packages/brand-new-core/package.json', reason: 'package missing from the approved layer table',
   }]);
   rmSync(join(root, 'packages/brand-new-core'), { recursive: true });
   manifest({ name: 'agent-plugins', fields: { exports: subpathExports, dependencies: { '@jini-ai/plugin-brand-new': '^0.6.19' } } });
-  expect(checkPackageLayers({ repoRoot: root })).toContainEqual({
+  expect(checkPackageLayers({ repoRoot: root }, { injection: false })).toContainEqual({
     rule: 'L1-layer-edge', file: 'packages/agent-plugins/package.json',
     reason: 'agent-plugins → @jini-ai/plugin-brand-new: L4 cannot depend on L7',
   });
   manifest({ name: 'plugin-brand-new', fields: { dependencies: { '@jini-ai/core': '^0.6.19' } } });
-  expect(checkPackageLayers({ repoRoot: root }).filter(violation => violation.file === 'packages/plugin-brand-new/package.json')).toEqual([]);
+  expect(checkPackageLayers({ repoRoot: root }, { injection: false }).filter(violation => violation.file === 'packages/plugin-brand-new/package.json')).toEqual([]);
 });
 
 it('checks workspace dependency aliases and resolves local targets by their manifest identity', () => {

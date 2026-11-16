@@ -67,9 +67,9 @@ it('required integration peers keep their approved adapter boundary, never the n
   write('boundary/packages/user-management/package.json', { name: '@jini-ai/user-management', peerDependencies: { '@jini-ai/admin': '*' } });
   write('boundary/packages/admin/package.json', { name: '@jini-ai/admin', exports: { './core/module': './dist/core/module.js' } });
   write('boundary/packages/user-management/src/admin/roles.ts', "import { X } from '@jini-ai/admin/core/module';");
-  expect(checkPackageLayers({ repoRoot: join(root, 'boundary') })).toEqual([]);
+  expect(checkPackageLayers({ repoRoot: join(root, 'boundary') }, { injection: false })).toEqual([]);
   write('boundary/packages/user-management/src/core/leak.ts', "import { X } from '@jini-ai/admin/core/module';");
-  expect(checkPackageLayers({ repoRoot: join(root, 'boundary') })).toEqual([expect.objectContaining({ rule: 'L1-layer-edge', file: 'packages/user-management/src/core/leak.ts' })]);
+  expect(checkPackageLayers({ repoRoot: join(root, 'boundary') }, { injection: false })).toEqual([expect.objectContaining({ rule: 'L1-layer-edge', file: 'packages/user-management/src/core/leak.ts' })]);
 });
 
 it.each([

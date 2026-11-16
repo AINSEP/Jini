@@ -6,7 +6,6 @@ import { checkPackageLayers } from '../check-package-layers.js';
 
 describe.each([
   { owner: 'agent-runtime', target: 'integrations', leaf: 'media-providers/catalog', source: 'src/model-discovery-adapters.ts', layer: 3, targetLayer: 4 },
-  { owner: 'memory', target: 'integrations', leaf: 'media-providers/catalog', source: 'src/llm-provider.ts', layer: 2, targetLayer: 4 },
   { owner: 'db', target: 'platform', leaf: 'secrets/credential-sets/contracts', source: 'src/secrets-vault/repo.sql.ts', layer: 2, targetLayer: 2 },
 ])('$owner reviewed leaf edge', ({ owner, target, leaf, source, layer, targetLayer }) => {
   let root: string;
@@ -30,7 +29,7 @@ describe.each([
   afterEach(() => rmSync(root, { recursive: true, force: true }));
 
   it('permits the corresponding manifest declaration alone', () => {
-    expect(checkPackageLayers({ repoRoot: root })).toEqual([]);
+    expect(checkPackageLayers({ repoRoot: root }, { injection: false })).toEqual([]);
   });
 
   it('permits an optional peer declaration and the exact production leaf', () => {
@@ -39,14 +38,14 @@ describe.each([
       peerDependenciesMeta: { [targetPackage]: { optional: true } },
     }) });
     write({ file: `packages/${owner}/${source}`, content: `import { X } from '${spec}';` });
-    expect(checkPackageLayers({ repoRoot: root })).toEqual([]);
+    expect(checkPackageLayers({ repoRoot: root }, { injection: false })).toEqual([]);
   });
 
   it.each(['import type { X } from', 'export { X } from', 'const x = import', 'const x = require'])
     ('permits only the reviewed file and leaf with %s', syntax => {
       const content = syntax.endsWith('from') ? `${syntax} '${spec}';` : `${syntax}('${spec}');`;
       write({ file: `packages/${owner}/${source}`, content });
-      expect(checkPackageLayers({ repoRoot: root })).toEqual([]);
+      expect(checkPackageLayers({ repoRoot: root }, { injection: false })).toEqual([]);
     });
 
   it.each(['', '/parent', '/service', '/dispatch', '/src/private', '/../contracts'])
@@ -54,7 +53,7 @@ describe.each([
       const parent = spec.slice(0, spec.lastIndexOf('/'));
       const blocked = suffix === '/parent' ? parent : suffix ? `${parent}${suffix}` : targetPackage;
       write({ file: `packages/${owner}/${source}`, content: `import { X } from '${blocked}';` });
-      expect(checkPackageLayers({ repoRoot: root })).toEqual([{
+      expect(checkPackageLayers({ repoRoot: root }, { injection: false })).toEqual([{
         rule: 'L1-layer-edge', file: `packages/${owner}/${source}`,
         reason: `${owner} → ${blocked}: L${layer} cannot depend on L${targetLayer}`,
       }]);
@@ -64,7 +63,7 @@ describe.each([
     const sibling = `packages/${owner}/src/sibling.ts`;
     write({ file: `packages/${owner}/${source}`, content: `import { X } from '${spec}';` });
     write({ file: sibling, content: `const x = import('${spec}');` });
-    expect(checkPackageLayers({ repoRoot: root })).toEqual([{
+    expect(checkPackageLayers({ repoRoot: root }, { injection: false })).toEqual([{
       rule: 'L1-layer-edge', file: sibling,
       reason: `${owner} → ${spec}: L${layer} cannot depend on L${targetLayer}`,
     }]);
@@ -76,7 +75,7 @@ describe.each([
       name: '@jini-ai/diagnostics', dependencies: { [targetPackage]: '*' },
     }) });
     write({ file, content: `import { X } from '${spec}';` });
-    expect(checkPackageLayers({ repoRoot: root })).toEqual([{
+    expect(checkPackageLayers({ repoRoot: root }, { injection: false })).toEqual([{
       rule: 'L1-layer-edge', file: 'packages/diagnostics/package.json',
       reason: `diagnostics → ${targetPackage}: L2 cannot depend on L${targetLayer}`,
     }, {
@@ -88,7 +87,7 @@ describe.each([
   it('does not exempt undeclared production imports', () => {
     write({ file: `packages/${owner}/package.json`, content: JSON.stringify({ name: `@jini-ai/${owner}` }) });
     write({ file: `packages/${owner}/${source}`, content: `import { X } from '${spec}';` });
-    expect(checkPackageLayers({ repoRoot: root })).toEqual([{
+    expect(checkPackageLayers({ repoRoot: root }, { injection: false })).toEqual([{
       rule: 'L3-undeclared-edge', file: `packages/${owner}/${source}`,
       reason: `${owner} → ${spec}: production import must be a dependency or peerDependency`,
     }]);
@@ -117,7 +116,7 @@ describe('production dependency declarations', () => {
       devDependencies: { '@jini-ai/ui': '*' },
     }) });
     write({ file: `packages/${owner}/src/input.ts`, content: "import { Spec } from '@jini-ai/ui/charts';" });
-    expect(checkPackageLayers({ repoRoot: root })).toEqual([{
+    expect(checkPackageLayers({ repoRoot: root }, { injection: false })).toEqual([{
       rule: 'L3-undeclared-edge', file: `packages/${owner}/src/input.ts`,
       reason: `${owner} → @jini-ai/ui/charts: production import must be a dependency or peerDependency`,
     }]);
@@ -176,13 +175,13 @@ describe('user-management optional admin integration layer exception', () => {
     ['src/admin/contract.ts', "import type { Contract } from '@jini-ai/admin/contracts/entities';"],
   ])('allows public optional admin entry in %s', (file, content) => {
     write({ file: `packages/user-management/${file}`, content });
-    expect(checkPackageLayers({ repoRoot: root })).toEqual([]);
+    expect(checkPackageLayers({ repoRoot: root }, { injection: false })).toEqual([]);
   });
 
   it.each(['src/server/service.ts', 'src/core/model.ts', 'src/index.ts', 'src/administer/service.ts'])
     ('keeps public admin imports blocked outside the admin subtree: %s', file => {
       write({ file: `packages/user-management/${file}`, content: "import { Module } from '@jini-ai/admin/core/module';" });
-      expect(checkPackageLayers({ repoRoot: root })).toEqual([{
+      expect(checkPackageLayers({ repoRoot: root }, { injection: false })).toEqual([{
         rule: 'L1-layer-edge', file: `packages/user-management/${file}`,
         reason: 'user-management → @jini-ai/admin/core/module: L4 cannot depend on L5',
       }]);
@@ -194,7 +193,7 @@ describe('user-management optional admin integration layer exception', () => {
     '@jini-ai/admin/contracts/private', '@jini-ai/admin/contracts/../private',
   ])('keeps private or disabled admin path blocked: %s', spec => {
     write({ file: 'packages/user-management/src/admin/private.ts', content: `import { X } from '${spec}';` });
-    expect(checkPackageLayers({ repoRoot: root })).toEqual([{
+    expect(checkPackageLayers({ repoRoot: root }, { injection: false })).toEqual([{
       rule: 'L1-layer-edge', file: 'packages/user-management/src/admin/private.ts',
       reason: `user-management → ${spec}: L4 cannot depend on L5`,
     }]);
@@ -202,7 +201,7 @@ describe('user-management optional admin integration layer exception', () => {
 
   it('does not extend the admin subtree exception to another L5 peer', () => {
     write({ file: 'packages/user-management/src/admin/ui.ts', content: "import { X } from '@jini-ai/ui';" });
-    expect(checkPackageLayers({ repoRoot: root })).toEqual([{
+    expect(checkPackageLayers({ repoRoot: root }, { injection: false })).toEqual([{
       rule: 'L1-layer-edge', file: 'packages/user-management/src/admin/ui.ts',
       reason: 'user-management → @jini-ai/ui: L4 cannot depend on L5',
     }]);
@@ -211,12 +210,12 @@ describe('user-management optional admin integration layer exception', () => {
   it('allows required admin peers within the same approved adapter boundary', () => {
     userManifest({ optional: false });
     write({ file: 'packages/user-management/src/admin/roles.ts', content: "import { X } from '@jini-ai/admin/core/module';" });
-    expect(checkPackageLayers({ repoRoot: root })).toEqual([]);
+    expect(checkPackageLayers({ repoRoot: root }, { injection: false })).toEqual([]);
   });
 
   it('still rejects a required dependency even alongside the optional peer', () => {
     userManifest({ optional: true }, { dependencies: { '@jini-ai/admin': '*' } });
-    expect(checkPackageLayers({ repoRoot: root })).toEqual([{
+    expect(checkPackageLayers({ repoRoot: root }, { injection: false })).toEqual([{
       rule: 'L1-layer-edge', file: 'packages/user-management/package.json',
       reason: 'user-management → @jini-ai/admin: L4 cannot depend on L5',
     }]);
@@ -224,7 +223,7 @@ describe('user-management optional admin integration layer exception', () => {
 
   it('preserves the existing optional React integration exception', () => {
     write({ file: 'packages/user-management/src/react/roles.ts', content: "import { X } from '@jini-ai/admin/core/module'; import { Y } from '@jini-ai/ui';" });
-    expect(checkPackageLayers({ repoRoot: root })).toEqual([]);
+    expect(checkPackageLayers({ repoRoot: root }, { injection: false })).toEqual([]);
   });
 });
 
@@ -253,19 +252,19 @@ describe('packaged payload peers keep the runtime source boundary', () => {
   afterEach(() => rmSync(root, { recursive: true, force: true }));
 
   it('permits only the documented optional payload peer declarations', () => {
-    expect(checkPackageLayers({ repoRoot: root })).toEqual([]);
+    expect(checkPackageLayers({ repoRoot: root }, { injection: false })).toEqual([]);
   });
   it.each(['@jini-ai/cms', '@jini-ai/cms/forms', '@jini-ai/commerce', '@jini-ai/commerce/payments/kernel'])
     ('still rejects an upward runtime source import of %s', spec => {
       writeFileSync(join(root, 'packages/agent-plugins/src/index.ts'), `import { X } from '${spec}';`);
-      expect(checkPackageLayers({ repoRoot: root }).map(finding => finding.file)).toEqual(['packages/agent-plugins/src/index.ts']);
+      expect(checkPackageLayers({ repoRoot: root }, { injection: false }).map(finding => finding.file)).toEqual(['packages/agent-plugins/src/index.ts']);
     });
   it('keeps direct dependencies blocked', () => {
     manifest(true, true);
-    expect(checkPackageLayers({ repoRoot: root })).toHaveLength(2);
+    expect(checkPackageLayers({ repoRoot: root }, { injection: false })).toHaveLength(2);
   });
   it('keeps required peer declarations blocked', () => {
     manifest(false);
-    expect(checkPackageLayers({ repoRoot: root })).toHaveLength(2);
+    expect(checkPackageLayers({ repoRoot: root }, { injection: false })).toHaveLength(2);
   });
 });

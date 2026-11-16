@@ -99,7 +99,7 @@ describe('re-verify dependency and state regressions', () => {
   });
 
   it('declares the shared secret-input owner on the permitted optional UI layer edge', () => {
-    expect(checkPackageLayers({ repoRoot }).filter(finding => finding.file.startsWith('packages/ui/')
+    expect(checkPackageLayers({ repoRoot }, { injection: false }).filter(finding => finding.file.startsWith('packages/ui/')
       && finding.reason.startsWith('ui → @jini-ai/ui-kit'))).toEqual([]);
     expect(audit.findings.filter(finding => finding.package === '@jini-ai/ui'
       && finding.rule === 'SI-dependency')).toEqual([]);

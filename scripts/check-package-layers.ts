@@ -8,6 +8,7 @@ import { join, relative } from 'node:path';
 import ts from 'typescript';
 import { REPO_ROOT } from './lib/walk-imports.js';
 import { packageSourceFiles, parseSource, sourcePackages, type SourcePackage } from './lib/package-sources.js';
+import { injectionViolations } from './lib/injection-gate.js';
 
 export interface LayerViolation { rule: string; file: string; reason: string }
 const layers: Readonly<Record<string, number>> = {
@@ -42,7 +43,6 @@ const sameLayerEdges = new Set(['cli→sidecar', 'cms-forms→cms', 'admin→ui'
 // Manifest declarations permit installation; each production import still needs its exact leaf/file.
 const leafEdges = [
   { owner: 'agent-runtime', target: 'integrations', spec: '@jini-ai/integrations/media-providers/catalog', sourcePath: 'src/model-discovery-adapters.ts' },
-  { owner: 'memory', target: 'integrations', spec: '@jini-ai/integrations/media-providers/catalog', sourcePath: 'src/llm-provider.ts' },
   { owner: 'db', target: 'platform', spec: '@jini-ai/platform/secrets/credential-sets/contracts', sourcePath: 'src/secrets-vault/repo.sql.ts' },
 ] as const;
 
@@ -176,7 +176,7 @@ function isLiteralModuleCall(node: ts.Node): node is ts.CallExpression & { argum
 
 export function checkPackageLayers(
   required: { repoRoot: string } = { repoRoot: REPO_ROOT },
-  _optional: Record<string, never> = {},
+  optional: { injection?: boolean; warn?: (message: string) => void } = {},
 ): LayerViolation[] {
   const root = required.repoRoot;
   const violations: LayerViolation[] = [];
@@ -233,6 +233,10 @@ export function checkPackageLayers(
   for (const pkg of packages) {
     checkManifest(pkg);
     checkSources(pkg);
+  }
+  // L5-L7: the base-only rule, with its ratchet. Layer-table fixtures opt out; the real gate never does.
+  if (optional.injection !== false) {
+    violations.push(...injectionViolations({ root, packages }, optional.warn ? { warn: optional.warn } : {}));
   }
   return violations;
 }
