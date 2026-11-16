@@ -1,11 +1,11 @@
 /** Bind only the forms DDL and current tables to the existing p1 matrix. */
 import { describeEachDialect as matrix, eachDialect } from "../../../core/__tests__/support/dialect-matrix.js";
-import type { StorageKernel, StorageDialect } from "@jini-ai/core/contracts/storage";
+import type { StorageDialect } from "@jini-ai/core/contracts/storage";
+import type { KyselyKernel } from "@jini-ai/db/kernel";
 import type { FormDefinitionTable, FormSubmissionTable } from "../../sql/tables.js";
 import { createTables } from "./forms-tables.fixture.js";
-import type { Kysely } from "kysely";
 export type FormsDatabase = { form_definitions: FormDefinitionTable; form_submissions: FormSubmissionTable };
-export type ContentKernel = StorageKernel<Kysely<FormsDatabase>, FormsDatabase>;
+export type ContentKernel = KyselyKernel<FormsDatabase>;
 
 export function describeEachDialect<R>(
   title: string,
