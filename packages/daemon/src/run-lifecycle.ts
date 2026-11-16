@@ -15,8 +15,6 @@
  * `onCancelRequested`, and calls `finish()` once it knows the real outcome.
  */
 import { createConsoleLogger } from '@jini-ai/core/primitives';
-import { inspect } from 'node:util';
-import { redactSecrets } from '@jini-ai/core';
 import type { DelegatedResultCorrelation } from './delegated-result-correlation.js';
 import { randomUUID } from 'node:crypto';
 import type {
@@ -727,9 +725,9 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
   function reportInternalError(context: RunLifecycleInternalErrorContext): void {
     try {
       if (input.onInternalError) input.onInternalError(context);
-      else createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] internal error (${context.source}, runId=${context.runId})` }, { error: redactSecrets({ input: inspect(context.error) }, { redactPii: false }) });
+      else createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] internal error (${context.source}, runId=${context.runId})` }, { error: context.error });
     } catch (sinkError) {
-      createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] internal error sink failed (${context.source}, runId=${context.runId})` }, { error: redactSecrets({ input: inspect(sinkError) }, { redactPii: false }) });
+      createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] internal error sink failed (${context.source}, runId=${context.runId})` }, { error: sinkError });
     }
   }
 
@@ -801,12 +799,12 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
         if (input.onInternalError) {
           input.onInternalError(context);
         } else {
-          createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] internal error (inactivity-timeout, runId=${runId})` }, { error: redactSecrets({ input: inspect(error) }, { redactPii: false }) });
+          createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] internal error (inactivity-timeout, runId=${runId})` }, { error });
         }
       } catch (sinkError) {
         // A diagnostic sink must not turn a contained timer failure into another unhandled
         // rejection.
-        createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] internal error sink failed (inactivity-timeout, runId=${runId})` }, { error: redactSecrets({ input: inspect(sinkError) }, { redactPii: false }) });
+        createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] internal error sink failed (inactivity-timeout, runId=${runId})` }, { error: sinkError });
       }
     }
   }
@@ -845,11 +843,11 @@ export function createRunLifecycle(requiredArgs: Pick<CreateRunLifecycleInput, "
         if (input.onInternalError) {
           input.onInternalError(context);
         } else {
-          createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] internal error (slow-run-notice, runId=${runId})` }, { error: redactSecrets({ input: inspect(error) }, { redactPii: false }) });
+          createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] internal error (slow-run-notice, runId=${runId})` }, { error });
         }
       } catch (sinkError) {
         // Same containment reasoning as `handleInactivityTimeout`'s own catch below it.
-        createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] internal error sink failed (slow-run-notice, runId=${runId})` }, { error: redactSecrets({ input: inspect(sinkError) }, { redactPii: false }) });
+        createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] internal error sink failed (slow-run-notice, runId=${runId})` }, { error: sinkError });
       }
     }
   }

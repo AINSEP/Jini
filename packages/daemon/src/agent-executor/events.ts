@@ -14,9 +14,8 @@ import { messageContentWithImages, type MessageAttachmentImage } from '../attach
 import type {
    ChildProcess,
 } from 'node:child_process';
-import {
-  redactSecrets,
-  type RunRef,
+import type {
+  RunRef,
 } from '@jini-ai/core';
 import type {
    JournalEntry,
@@ -156,7 +155,7 @@ function reportDroppedEmit(): void {
 
 /** Default sink when a host does not supply `onCleanupFailure`: still observable, never silent. Redacted per SEC-007 (a spawn/permission error can embed paths/host detail). */
 export function defaultCleanupFailureSink(context: AgentCleanupFailureContext): void {
-  createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] agent-executor: process-tree cleanup failed for run "${context.runId}" (${context.phase}, pid=${context.pid})` }, { error: redactSecrets({ input: errorMessage(context.error) }) });
+  createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/daemon] agent-executor: process-tree cleanup failed for run "${context.runId}" (${context.phase}, pid=${context.pid})` }, { error: context.error });
 }
 
 /**

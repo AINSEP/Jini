@@ -72,7 +72,7 @@ export function observeRunOutput(
     noteDiagnostic({ seen, tails, event, plainStdout });
   } }).catch(error => {
     // An observer failure is a daemon diagnostic, not evidence that the agent failed.
-    createConsoleLogger({ prefix: '' }).warn({ message: `[@jini-ai/daemon] agent-executor: output observer unavailable for run "${runId}"` }, { error: redactSecrets({ input: error instanceof Error ? error.message : String(error) }) });
+    createConsoleLogger({ prefix: '' }).warn({ message: `[@jini-ai/daemon] agent-executor: output observer unavailable for run "${runId}"` }, { error });
     return null;
   });
 
