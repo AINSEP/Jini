@@ -16,7 +16,8 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { captureLineTail } from "@jini-ai/core/text";
 import { windowsPowerShell } from "./windows-system-tools.js";
 
-import { createCommandInvocation, type CommandInvocationRequest } from "./command.js";
+import type { CommandInvocationRequest, ProcessSnapshot, StopProcessesResult } from "@jini-ai/core/contracts/runtime";
+import { createCommandInvocation } from "./command.js";
 import { execFileBuffered } from "./shell.js";
 
 export type ProcessStampShape = object;
@@ -37,12 +38,6 @@ export type SpawnProcessRequest = CommandInvocationRequest & {
   cwd?: string;
   detached?: boolean;
   logFd?: number | null;
-};
-
-export type ProcessSnapshot = {
-  command: string;
-  pid: number;
-  ppid: number;
 };
 
 /** Display-only usage: RSS is bytes; CPU is cumulative seconds across all cores. */
@@ -71,14 +66,6 @@ export type ProcessPrivateMemory = {
 };
 
 export type StampedProcessMatchCriteria<TStamp extends ProcessStampShape> = Partial<TStamp>;
-
-export type StopProcessesResult = {
-  alreadyStopped: boolean;
-  forcedPids: number[];
-  matchedPids: number[];
-  remainingPids: number[];
-  stoppedPids: number[];
-};
 
 type WindowsProcessRecord = {
   CommandLine?: string | null;
@@ -549,38 +536,6 @@ export async function sampleProcessPrivateMemory(
   }, options);
   const byPid = parsePrivateWorkingSets({ stdout });
   return { metric: "private-working-set", readings: pids.map((pid) => ({ pid, bytes: byPid.get(pid) ?? null })) };
-}
-
-/**
- * Collect the transitive set of descendant PIDs (including the roots) from a
- * process snapshot list, returned sorted by numeric PID descending for deterministic ordering.
- * PID reuse and wraparound mean this does not guarantee children precede parents.
- *
- * @param processes - The full process snapshot list to walk.
- * @param rootPids - The root PIDs whose subtrees to collect (non-numbers ignored).
- * @returns The unique PIDs of the roots and all their descendants, descending.
- */
-export function collectProcessTreePids(
-  processes: ProcessSnapshot[],
-  rootPids: Array<number | null | undefined>,
-): number[] {
-  const queue = [...new Set(rootPids.filter((pid): pid is number => typeof pid === "number"))];
-  const visited = new Set<number>();
-  const childrenByParent = new Map<number, number[]>();
-  for (const processInfo of processes) {
-    const children = childrenByParent.get(processInfo.ppid) ?? [];
-    children.push(processInfo.pid);
-    childrenByParent.set(processInfo.ppid, children);
-  }
-  while (queue.length > 0) {
-    const pid = queue.shift();
-    if (pid == null || visited.has(pid)) continue;
-    visited.add(pid);
-    for (const childPid of childrenByParent.get(pid) ?? []) {
-      if (!visited.has(childPid)) queue.push(childPid);
-    }
-  }
-  return [...visited].sort((left, right) => right - left);
 }
 
 /** @internal Send a signal to each PID, ignoring `ESRCH` (already-dead) but rethrowing other errors. */

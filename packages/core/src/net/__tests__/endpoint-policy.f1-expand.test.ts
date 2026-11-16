@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyAddressLiteral, expandIpv6 } from '../endpoint-policy.js';
+import { classifyAddressLiteral, expandIpv6 } from '../index.js';
 
 // F1 fix wave (Stryker L1 §4 net/endpoint-policy.ts:68 `fill<1`, :78 dotted-tail regex anchors,
 // :83 octet validation): each case breaks exactly one rule of the IPv6/embedded-IPv4 grammar.

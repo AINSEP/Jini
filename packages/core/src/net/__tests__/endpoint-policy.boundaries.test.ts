@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isBlockedExternalApiHostname, isLoopbackApiHost, isDeployedApiHostname } from '../endpoint-policy.js';
+import { isBlockedExternalApiHostname, isLoopbackApiHost, isDeployedApiHostname } from '../index.js';
 
 // Pins edges of the browser-safe literal policy not already covered by the
 // contract table, retaining dc606bf5's canonical-byte classification.

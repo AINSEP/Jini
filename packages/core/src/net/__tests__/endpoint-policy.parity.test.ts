@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isLoopbackApiHost, isBlockedExternalApiHostname } from '../address.js';
+import { isLoopbackApiHost, isBlockedExternalApiHostname } from '../index.js';
 // Vector tables are copied from ui's endpoint-policy tests; no cross-package source import.
 /** Endpoints no tab may accept, each with the reason it is dangerous rather than merely odd. */
 const BLOCKED = [

@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { readFileSync } from 'node:fs';
-import { isBlockedExternalApiHostname, isLoopbackApiHost } from '../endpoint-policy.js';
-import { isBlockedExternalApiHostname as nodeBlocked, isLoopbackApiHost as nodeLoopback } from '../address.js';
+import { isBlockedExternalApiHostname, isLoopbackApiHost } from '../index.js';
 
 // Absolute answers protect the contract even when all adapters share one owner.
 // Literal-host inspection is deliberately separate from DNS and isPrivateAddress.
@@ -38,20 +37,16 @@ const HOSTS = [
 describe('literal endpoint hostname contract', () => {
   it('publishes the pure policy as a universal entry without Node imports', () => {
     const manifest = JSON.parse(readFileSync(new URL('../../../package.json', import.meta.url), 'utf8'));
-    expect(manifest.jini.entries['./net/endpoint-policy']).toBe('universal');
-    expect(manifest.exports['./net/endpoint-policy']).toEqual({
-      types: './dist/net/endpoint-policy.d.ts',
-      import: './dist/net/endpoint-policy.js',
-      default: './dist/net/endpoint-policy.js',
+    expect(manifest.jini.entries['./net']).toBe('universal');
+    expect(manifest.exports['./net']).toEqual({
+      types: './dist/net/index.d.ts',
+      import: './dist/net/index.js',
+      default: './dist/net/index.js',
     });
     const source = readFileSync(new URL('../endpoint-policy.ts', import.meta.url), 'utf8');
     expect(source.match(/^\s*(?:import\b|export\s+[^\n]*\bfrom\b)/gm)).toBeNull();
   });
 
-  it('keeps the Node API exports as the exact same predicates', () => {
-    expect(nodeLoopback).toBe(isLoopbackApiHost);
-    expect(nodeBlocked).toBe(isBlockedExternalApiHostname);
-  });
   it.each(HOSTS)('classifies %j without changing its loopback exception or blocked range', (hostname, loopback, blocked) => {
     expect(isLoopbackApiHost({ hostname })).toBe(loopback);
     expect(isBlockedExternalApiHostname({ hostname })).toBe(blocked);

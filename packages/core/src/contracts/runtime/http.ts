@@ -1,6 +1,15 @@
-import type { Clock, HttpRequest, HttpResponse } from "@jini-ai/core/primitives";
-import type { PinnedPeer } from "./types.js";
-export type { PinnedPeer } from "./types.js";
+import type { Clock, HttpClientPort, HttpRequest, HttpResponse } from "../../primitives/index.js";
+import type { TextReadOptions } from "../../net/fetch-timeouts.js";
+
+export interface PinnedPeer {
+  ip: string;
+  port: number;
+  authority: string;
+
+  /** RFC 6066 permits hostnames in SNI, never IP literals. Undefined means omit the extension. */
+  tlsServerName: string | undefined;
+}
+
 /** Resolver returns every peer address; a mixed public/private answer is refused as a whole. */
 export interface DnsResolver { resolve(required: { hostname: string }): Promise<readonly string[]>; }
 /** Supplies time and deadline cancellation without a global timer dependency in the guard. */
@@ -10,7 +19,6 @@ export type GuardedClock = Clock & { timeoutSignal(required: { timeoutMs: number
 // Re-resolving the original hostname would undo peer vetting and reopen a DNS-rebinding race.
 // The buffered response is bounded by byte/decompression caps; it is not a streaming response contract.
 export interface PinnedHttpTransport { requestPinned(required: { request: HttpRequest; peer: PinnedPeer }): Promise<HttpResponse>; }
-export type HttpTransportAdapter = PinnedHttpTransport;
 /** Policy must cover IPv4 and IPv6, mapped-address/hostname normalization, URL credentials and
  * redirects. Re-verify each redirected peer and strip sensitive headers across origins. */
 export interface EgressPolicy {
@@ -36,3 +44,16 @@ export interface EgressPolicy {
 }
 
 export type GuardedHttpRequired = { transport: PinnedHttpTransport; policy: EgressPolicy; dns: DnsResolver; clock: GuardedClock; userAgent: string };
+
+export interface HttpFetchPort {
+  fetchWithTimeout(required: { url: string | URL; timeoutMs: number }, optional?: { init?: RequestInit }): Promise<Response>;
+  readResponseText(required: { response: Response }, optional?: TextReadOptions): Promise<string>;
+}
+
+export interface GuardedHttpPort {
+  createClient(required: GuardedHttpRequired): HttpClientPort;
+  /** Projects guarded bytes into a Response (adapter for SDK/OAuth fetch signatures). */
+  fetch(required: { client: HttpClientPort; url: string; timeoutMs: number }, optional?: {
+    method?: string; headers?: Record<string, string>; body?: string | URLSearchParams; signal?: AbortSignal;
+    redirect?: "follow" | "error" | "manual"; idleTimeoutMs?: number; totalDeadlineMs?: number }): Promise<Response>;
+}

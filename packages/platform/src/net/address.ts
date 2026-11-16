@@ -1,9 +1,7 @@
 import { isIP } from 'node:net';
-import { classifyAddressLiteral, type AddressClass } from './endpoint-policy.js';
+import { classifyAddressLiteral, type AddressClass } from '@jini-ai/core/net';
 
 // SSRF peer classification is distinct from core's browser-development LAN origin allow-list.
-export { expandIpv6 } from './endpoint-policy.js';
-export type { AddressClass } from './endpoint-policy.js';
 
 /** Strict Node peer classification; invalid literals fail closed to reserved. */
 export function classifyIpAddress({ ip }: { ip: string }, _options: Record<string, never> = {}): AddressClass {
@@ -33,19 +31,4 @@ export function classifyIpAddress({ ip }: { ip: string }, _options: Record<strin
 /** True for loopback, link-local, private, CGNAT, ULA, multicast or unspecified; invalid input fails closed. */
 export function isPrivateAddress({ address }: { address: string }): boolean {
   return classifyIpAddress({ ip: address }) !== 'public';
-}
-
-// Preserve the Node entry's published names while sharing the literal-host owner with browser consumers.
-export { isLoopbackApiHost, isBlockedExternalApiHostname } from './endpoint-policy.js';
-
-/** True when `hostname` is `localhost`, an IPv6 loopback literal, or a `127.0.0.0/8` IPv4 literal. */
-export function isLoopbackHostname({ hostname }: { readonly hostname: unknown }, _optional: Record<string, never> = {}): boolean {
-  const normalized = String(hostname || '')
-    .toLowerCase()
-    .replace(/^\[|\]$/g, '')
-    .replace(/\.$/, '');
-  if (normalized === 'localhost') return true;
-  if (normalized === '::1' || normalized === '0:0:0:0:0:0:0:1') return true;
-  if (isIP(normalized) === 4) return normalized === '127.0.0.1' || normalized.startsWith('127.');
-  return false;
 }

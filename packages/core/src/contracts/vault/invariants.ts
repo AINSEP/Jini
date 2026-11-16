@@ -1,6 +1,4 @@
-import type { VaultKind, CredentialType, CredentialMeta, VaultJson, VaultMeta, VaultOptions, VaultContext, VaultIdentity, VaultRecord, VaultSummary, VaultPutRecord, VaultQuery, VaultDefaultQuery, VaultSingletonQuery, VaultBatchOp, VaultBatchResult, VaultCopyResult, VaultMetaParser, VaultMetaParsers, VaultRepoPort  , VaultErrorCode } from '@jini-ai/core/contracts/vault';
-export type { VaultKind, CredentialType, CredentialMeta, VaultJson, VaultMeta, VaultOptions, VaultContext, VaultIdentity, VaultRecord, VaultSummary, VaultPutRecord, VaultQuery, VaultDefaultQuery, VaultSingletonQuery, VaultBatchOp, VaultBatchResult, VaultCopyResult, VaultMetaParser, VaultMetaParsers, VaultRepoPort } from '@jini-ai/core/contracts/vault';
-import type { SealedSecret } from "../types.js";
+import type { VaultKind, VaultErrorCode, VaultOptions, VaultRecord, VaultQuery, VaultDefaultQuery, VaultPutRecord } from "./records.js";
 
 export const VAULT_KINDS = ["site-assistant", "personal-execution", "media-provider", "publish-peer",
   "database-destination", "vendor", "source-control", "mcp-env", "mcp-auth", "api-connection"] as const satisfies readonly Exclude<VaultKind, "custom">[];

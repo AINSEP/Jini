@@ -12,3 +12,5 @@ export interface SealedSecret {
 export type * from './vault/ports.js';
 export type * from './vault/vendor-credential-sets.js';
 export type * from './vault/records.js';
+
+export * from "./vault/invariants.js";

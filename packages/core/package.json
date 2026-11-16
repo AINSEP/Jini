@@ -45,7 +45,10 @@
       "./contracts/content-types": "universal",
       "./contracts/hosted-mcp": "universal",
       "./contracts/storage": "universal",
-      "./contracts/events": "universal"
+      "./contracts/events": "universal",
+      "./net": "universal",
+      "./contracts/blob": "universal",
+      "./contracts/runtime": "universal"
     },
     "isolation": {
       "entries": {
@@ -263,6 +266,21 @@
       "types": "./dist/contracts/events.d.ts",
       "import": "./dist/contracts/events.js",
       "default": "./dist/contracts/events.js"
+    },
+    "./net": {
+      "types": "./dist/net/index.d.ts",
+      "import": "./dist/net/index.js",
+      "default": "./dist/net/index.js"
+    },
+    "./contracts/blob": {
+      "types": "./dist/contracts/blob.d.ts",
+      "import": "./dist/contracts/blob.js",
+      "default": "./dist/contracts/blob.js"
+    },
+    "./contracts/runtime": {
+      "types": "./dist/contracts/runtime.d.ts",
+      "import": "./dist/contracts/runtime.js",
+      "default": "./dist/contracts/runtime.js"
     }
   },
   "files": [
