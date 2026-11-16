@@ -46,44 +46,9 @@ export interface PreviewModalShellController<V extends PreviewModalViewLike> {
   primaryMenuRef: RefObject<HTMLDivElement | null>;
 }
 
-export function usePreviewModalShell<V extends PreviewModalViewLike>(
-  options: UsePreviewModalShellOptions<V>,
-): PreviewModalShellController<V> {
-  const {
-    views,
-    initialViewId,
-    onView,
-    onClose,
-    sidebarDefaultOpen = false,
-    sidebarOnToggle,
-    sidebarContentKey,
-    designWidth = 1280,
-  } = options;
-
-  const initial = resolveInitialViewId(views, initialViewId);
-  const [activeId, setActiveId] = useState<string>(initial);
+/** Fullscreen flag + enter/exit; Escape in fullscreen exits it instead of closing the modal. */
+function useFullscreen(stageRef: RefObject<HTMLDivElement | null>, onClose: () => void) {
   const [fullscreen, setFullscreen] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState<boolean>(sidebarDefaultOpen);
-  const [primaryMenuOpen, setPrimaryMenuOpen] = useState(false);
-  const [stageSize, setStageSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
-
-  const stageRef = useRef<HTMLDivElement | null>(null);
-  const stageFrameRef = useRef<HTMLDivElement | null>(null);
-  const primaryMenuRef = useRef<HTMLDivElement | null>(null);
-
-  // Captured in a ref so the lazy-load effect below depends only on
-  // sidebarOpen/sidebarContentKey — a fresh `sidebarOnToggle` identity on
-  // every host render would otherwise re-fire the load every render.
-  const sidebarToggleRef = useRef(sidebarOnToggle);
-  sidebarToggleRef.current = sidebarOnToggle;
-
-  useEffect(() => {
-    sidebarToggleRef.current?.(sidebarOpen);
-  }, [sidebarOpen, sidebarContentKey]);
-
-  useEffect(() => {
-    onView?.(activeId);
-  }, [activeId, onView]);
 
   // Close on Escape. In fullscreen, the first Escape exits fullscreen
   // instead of dismissing the whole modal.
@@ -111,7 +76,32 @@ export function usePreviewModalShell<V extends PreviewModalViewLike>(
     return () => document.removeEventListener('fullscreenchange', onFsChange);
   }, []);
 
-  // Outside-click / Escape dismissal for the split-button's secondary menu.
+  function enterFullscreen() {
+    const el = stageRef.current;
+    if (el && typeof el.requestFullscreen === 'function') {
+      el.requestFullscreen()
+        .then(() => setFullscreen(true))
+        .catch(() => setFullscreen(true));
+    } else {
+      setFullscreen(true);
+    }
+  }
+
+  function exitFullscreen() {
+    if (document.fullscreenElement && document.exitFullscreen) {
+      document.exitFullscreen().catch(() => {});
+    }
+    setFullscreen(false);
+  }
+
+  return { fullscreen, enterFullscreen, exitFullscreen };
+}
+
+/** The split-button's secondary menu: open state plus outside-click / Escape dismissal. */
+function usePrimaryMenu() {
+  const [primaryMenuOpen, setPrimaryMenuOpen] = useState(false);
+  const primaryMenuRef = useRef<HTMLDivElement | null>(null);
+
   useEffect(() => {
     if (!primaryMenuOpen) return undefined;
     const onDoc = (e: MouseEvent) => {
@@ -129,7 +119,11 @@ export function usePreviewModalShell<V extends PreviewModalViewLike>(
     };
   }, [primaryMenuOpen]);
 
-  // Lock body scroll while mounted.
+  return { primaryMenuOpen, setPrimaryMenuOpen, primaryMenuRef };
+}
+
+/** Lock body scroll while mounted. */
+function useBodyScrollLock() {
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -137,6 +131,18 @@ export function usePreviewModalShell<V extends PreviewModalViewLike>(
       document.body.style.overflow = prev;
     };
   }, []);
+}
+
+interface StageMeasurementDeps {
+  stageFrameRef: RefObject<HTMLDivElement | null>;
+  sidebarOpen: boolean;
+  activeId: string;
+  designWidth: number;
+}
+
+/** Stage size tracking, so content renders at a fixed logical width and scales to fit. */
+function useStageMeasurement({ stageFrameRef, sidebarOpen, activeId, designWidth }: StageMeasurementDeps) {
+  const [stageSize, setStageSize] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
 
   // Track the stage size so content can render at a fixed logical width and
   // scale to fit. ResizeObserver is missing from some environments (jsdom,
@@ -165,7 +171,7 @@ export function usePreviewModalShell<V extends PreviewModalViewLike>(
       cancelAnimationFrame(raf);
       window.removeEventListener('resize', measure);
     };
-  }, []);
+  }, [stageFrameRef]);
 
   // Re-measure when the sidebar toggles (the stage width jumps) or the
   // active view changes, so `scale` tracks the current stage width instead
@@ -177,49 +183,54 @@ export function usePreviewModalShell<V extends PreviewModalViewLike>(
       setStageSize({ w: el.clientWidth, h: el.clientHeight });
     });
     return () => cancelAnimationFrame(raf);
-  }, [sidebarOpen, activeId]);
+  }, [sidebarOpen, activeId, stageFrameRef]);
 
-  const activeView = findActiveView(views, activeId);
   const scale = computeStageScale(stageSize.w, designWidth);
   const scalerStyle = useMemo(
     () => computeScalerStyle(stageSize, designWidth, scale),
     [scale, stageSize.w, stageSize.h, designWidth],
   );
+  return { stageSize, scale, scalerStyle };
+}
 
-  function enterFullscreen() {
-    const el = stageRef.current;
-    if (el && typeof el.requestFullscreen === 'function') {
-      el.requestFullscreen()
-        .then(() => setFullscreen(true))
-        .catch(() => setFullscreen(true));
-    } else {
-      setFullscreen(true);
-    }
-  }
+export function usePreviewModalShell<V extends PreviewModalViewLike>(
+  options: UsePreviewModalShellOptions<V>,
+): PreviewModalShellController<V> {
+  const { views, initialViewId, onView, onClose, sidebarDefaultOpen = false, sidebarOnToggle, sidebarContentKey } = options;
+  const [activeId, setActiveId] = useState<string>(resolveInitialViewId(views, initialViewId));
+  const [sidebarOpen, setSidebarOpen] = useState<boolean>(sidebarDefaultOpen);
+  const stageRef = useRef<HTMLDivElement | null>(null);
+  const stageFrameRef = useRef<HTMLDivElement | null>(null);
 
-  function exitFullscreen() {
-    if (document.fullscreenElement && document.exitFullscreen) {
-      document.exitFullscreen().catch(() => {});
-    }
-    setFullscreen(false);
-  }
+  // Captured in a ref so the lazy-load effect below depends only on
+  // sidebarOpen/sidebarContentKey — a fresh `sidebarOnToggle` identity on
+  // every host render would otherwise re-fire the load every render.
+  const sidebarToggleRef = useRef(sidebarOnToggle);
+  sidebarToggleRef.current = sidebarOnToggle;
+
+  useEffect(() => {
+    sidebarToggleRef.current?.(sidebarOpen);
+  }, [sidebarOpen, sidebarContentKey]);
+
+  useEffect(() => {
+    onView?.(activeId);
+  }, [activeId, onView]);
+
+  const fullscreenState = useFullscreen(stageRef, onClose);
+  const primaryMenu = usePrimaryMenu();
+  useBodyScrollLock();
+  const stage = useStageMeasurement({ stageFrameRef, sidebarOpen, activeId, designWidth: options.designWidth ?? 1280 });
 
   return {
     activeId,
     setActiveId,
-    activeView,
-    fullscreen,
-    enterFullscreen,
-    exitFullscreen,
+    activeView: findActiveView(views, activeId),
+    ...fullscreenState,
     sidebarOpen,
     setSidebarOpen,
-    primaryMenuOpen,
-    setPrimaryMenuOpen,
-    stageSize,
-    scale,
-    scalerStyle,
+    ...primaryMenu,
+    ...stage,
     stageRef,
     stageFrameRef,
-    primaryMenuRef,
   };
 }
