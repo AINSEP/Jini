@@ -1,6 +1,6 @@
 /** Parameterized messages belong in locale data too: branching on locale in every interpolation
  * helper would require editing every caller to add a language, instead of adding templates. */
-export function interpolate({ template, vars }: { template: string; vars: Record<string, string | number> }): string {
+export function interpolate({ template, vars }: { template: string; vars: Record<string, string | number> }, _options = {}): string {
   return template.replace(/\{(\w+)\}/g, (match, key) => {
     return key in vars ? String(vars[key]) : match;
   });
@@ -13,7 +13,7 @@ export function interpolate({ template, vars }: { template: string; vars: Record
  * empty segments, so a translation defect does not crash its dialog.
  */
 /** Returns tokens.length + 1 segments in token order; callers interleave their node values. */
-export function splitOnPlaceholders({ template, tokens }: { template: string; tokens: readonly string[] }): string[] {
+export function splitOnPlaceholders({ template, tokens }: { template: string; tokens: readonly string[] }, _options = {}): string[] {
   const segments: string[] = [];
   let rest = template;
   for (const token of tokens) {
@@ -32,7 +32,7 @@ export function splitOnPlaceholders({ template, tokens }: { template: string; to
 
 /** Only singular versus other; this is not full CLDR pluralization. Languages needing more than
  * two forms require a richer mechanism rather than being forced into these two templates. */
-export function pickPlural({ count, forms }: { count: number; forms: { one: string; other: string } }): string {
+export function pickPlural({ count, forms }: { count: number; forms: { one: string; other: string } }, _options = {}): string {
   return count === 1 ? forms.one : forms.other;
 }
 

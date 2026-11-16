@@ -74,3 +74,9 @@ describe("resolveActiveTabId", () => {
     expect(resolveActiveTabId({ tabId: "restore-points", validIds: TAB_IDS, defaultId: invalidDefault })).toBe("restore-points");
   });
 });
+
+describe("(required, optional = {}) convention", () => {
+  it("accepts an explicit empty options object", () => {
+    expect(resolveActiveTabId({ tabId: "b", validIds: ["a", "b"] as const, defaultId: "a" }, {})).toBe("b");
+  });
+});

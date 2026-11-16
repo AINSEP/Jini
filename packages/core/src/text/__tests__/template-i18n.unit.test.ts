@@ -71,3 +71,11 @@ describe("pickPlural", () => {
     expect(pickPlural({ count: 5, forms: { one: "1 term", other: "{count} terms" } })).toBe("{count} terms");
   });
 });
+
+describe("(required, optional = {}) convention", () => {
+  it("accepts an explicit empty options object on every template helper", () => {
+    expect(interpolate({ template: "{n}", vars: { n: 1 } }, {})).toBe("1");
+    expect(splitOnPlaceholders({ template: "a{x}b", tokens: ["{x}"] }, {})).toEqual(["a", "b"]);
+    expect(pickPlural({ count: 1, forms: { one: "one", other: "other" } }, {})).toBe("one");
+  });
+});
