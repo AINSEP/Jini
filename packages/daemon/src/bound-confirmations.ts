@@ -17,6 +17,11 @@ export interface BoundConfirmationBinding<TOwner> {
   readonly executionId: string;
   /** Host-authenticated quota scope (for example the client address); never a browser claim. */
   readonly quotaKey: string;
+  /** Who may answer. Presence is what binds, not truthiness: `0`, `''` and `false` are owners like any
+   *  other and must match. Omitted (or `undefined`) means no owner is bound and the exchange ID alone
+   *  answers. `null` means "bound to nobody": such a prompt is refused and never emitted. The value is
+   *  compared when the answer arrives, so it must not change while the prompt is held: pass a primitive
+   *  key or an object nothing mutates. */
   readonly owner?: TOwner;
 }
 
@@ -36,7 +41,9 @@ export interface BoundConfirmations<TOwner> {
 }
 
 /** @agent-note Host-wired. `principalId` and `channel` must be reserved for these prompts so no other
- *  answer route (an admin surface, another tool's exchange) can resolve them. */
+ *  answer route (an admin surface, another tool's exchange) can resolve them. The exchange ID is the
+ *  bearer for every prompt (the only credential when no owner is bound), so the store's `idGenerator`
+ *  must be unguessable (at least 128 random bits) and the store should be dedicated to these prompts. */
 export interface BoundConfirmationsDeps<TOwner> {
   readonly exchanges: SurfaceExchangeStore;
   readonly nowMs: () => number;
@@ -51,6 +58,17 @@ interface HeldConfirmation<TOwner> {
   readonly validate: () => Promise<boolean>;
   readonly expiresAtMs: number;
   readonly deliver: (required: { allow: boolean }) => boolean;
+}
+
+/** Whether this answerer may claim the prompt. An owner is bound when one was GIVEN, whatever its value:
+ * testing truthiness here would let anyone answer for an owner of `0`, `''` or `false`.
+ * @complexity O(1) plus the host's comparison.
+ */
+function ownerMayAnswer<TOwner>(
+  { held, actual, sameOwner }: { held: HeldConfirmation<TOwner>; actual: TOwner | undefined; sameOwner: BoundConfirmationsDeps<TOwner>['sameOwner'] },
+  _optional = {},
+): boolean {
+  return held.owner === undefined || sameOwner({ expected: held.owner, actual });
 }
 
 /** Re-validates a CLAIMED prompt (expiry before and after the host check) and delivers the answer exactly
@@ -99,7 +117,7 @@ export function createBoundConfirmations<TOwner>(deps: BoundConfirmationsDeps<TO
     async request(required, _optional = {}) {
       const { binding, signal } = required;
       const quotaCount = quotaCounts.get(binding.quotaKey) ?? 0;
-      if (signal?.aborted || atCapacity({ binding })) return false;
+      if (signal?.aborted || binding.owner === null || atCapacity({ binding })) return false;
       // Identity here is the unguessable human-only exchange ID, not a principal. The server retains
       // the full execution binding; caller input can supply none of these fields.
       const exchange = exchanges.open({ binding: { principalId, toolId: binding.executionId, channel },
@@ -125,7 +143,7 @@ export function createBoundConfirmations<TOwner>(deps: BoundConfirmationsDeps<TO
     async confirm({ challengeId, allow, owner }, _optional = {}) {
       const held = pending.get(challengeId);
       if (!held) return false;
-      if (held.owner && !deps.sameOwner({ expected: held.owner, actual: owner })) return false;
+      if (!ownerMayAnswer({ held, actual: owner, sameOwner: deps.sameOwner })) return false;
       // Claim before any await: simultaneous clicks/replays cannot queue a second answer.
       pending.delete(challengeId);
       return settleHeld({ held, allow, nowMs });
