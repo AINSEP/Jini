@@ -230,3 +230,103 @@ Every mutation was applied to the source, the suite run, the failure seen, and t
 1. Preset `routeHost` on `services.context` (finish P1), then R7-G1 with `tool-catalog` first, one file per pair, each gated by these pins (swap the harness mount function for that file only).
 2. Owner answers on findings 1, 2 and 3, and on run 2's memory finding, before G2/G3 reach those files.
 3. The P0 items above.
+
+---
+
+# Run 4 (2026-11-16, no subagents): P1 finished; O-12 census; R7-G1 held before the first conversion
+
+Status: **PARTIAL, stopped on purpose.** P1 is complete. The O-12 census is done and its result is "the design's premise does not hold". A trial conversion of `tool-catalog` (local, not committed) then showed a second difference the design does not name. Both change answers a client can get today, the task says byte-identical, so **no route file was converted** and nothing that changes an answer was pushed. The trial is saved as a patch. In Tovu only one test file changed (3 tests added); no Tovu source changed.
+
+## Commits (branch `refactor/daemon-prereqs`, all pushed)
+
+| Repo | SHA | What |
+|---|---|---|
+| Jini | `bb2b3409` | **R7-P1, preset half**: `server/src/route-host.ts` (`presetRouteHost`), `FeatureBuildContext.routeHost`, built once in `composeJiniKernel`; changeset `server-preset-route-host`; 8 tests |
+| Jini | `e660edad` | **R7-P0**: `characterization/tool-catalog.characterization.test.ts`, every answer of the two tool-catalog routes (28 tests) |
+| Jini | `e97a4764` | `cloud-results/r7-g1-tool-catalog-trial.patch` (the trial conversion, not applied) |
+| Jini | (this report's commit) | this section |
+| Tovu | `7f898ad5` | **R7-P0**: 3 tests in `server/__tests__/assistant-proxy-routes.test.ts`: the admin proxy forwards a path in the client's spelling (builds on Jini `e660edad`) |
+| Tovu | (this report's commit) | this section |
+
+## 1. P1 finished
+
+`context.routeHost` (the design's `services.context.routeHost`, §11.9) is on every feature's build context. `presetRouteHost({ context, parserLimitBytes })` binds Node timers (unref'd), `node:crypto.timingSafeEqual`, http-kit's reporter and `maxReserializedJsonBytes` (102,400 -> 537,600, A5.1).
+
+Deviation: new optional config `jsonBodyParserLimitBytes` on `composeJiniKernel`. The design gives the preset one number, but a caller may set `installJsonBodyParser: false` and mount its own parser, whose limit the kernel cannot know. Without the option, converted routes would refuse (413) bodies such a caller's parser accepted. No in-repo host sets `installJsonBodyParser: false` today.
+
+Mutations seen to fail, then restored: caller's limit ignored (1 test); `unref()` removed (1); context copied instead of passed (1); limit not derived (3).
+
+§11.11's open question (who reads the route-registration guard's inventory) is answered: the guard records calls to the app's verb methods, and `getRouteRegistrationInventory` is read by **three `server` test files** (`compose-jini-kernel.test.ts`, `builtin-features.test.ts`, `builtin-features.mounts.test.ts`) and by no production code (`route-manifest.ts` names it in a comment only). A route mounted through `mountRoutes` goes through `app.use` and is not recorded, so those tests' route lists lose every converted route. Nothing was changed; per the design the first converted pack makes `mountRoutes` append to the same inventory.
+
+## 2. O-12 census: no caller originates an odd spelling, but one forwarder passes any spelling through
+
+Method: every non-test line in both repos that names a daemon route path (132 lines, 42 files; daemon `src/http` itself excluded), checked by script for a trailing slash, an upper-case literal segment, and a path segment interpolated without `encodeURIComponent`. Result: **0, 0, 0.** The two joiners (`mcp/daemon-client.ts:231`, `cli/http.ts:260`) are `${base}${route}` with constant routes.
+
+What the design did not know: **Tovu's admin proxy forwards the inbound path as the client spelled it.** `assistant-daemon-client.ts:148` builds the target from `req.originalUrl`; `proxyPassthrough` uses it for `GET /api/tools/search`, `GET /api/tools/:id` (`assistant.ts:661-662`), the runs routes (`:619, :622, :623, :629`) and attachments (`:557, :701`). Neither Express app sets `case sensitive routing` or `strict routing`. So a client with an admin session that sends `/API/tools/search?q=x` or `/api/tools/search/?q=x` is matched by Tovu, forwarded with that spelling, matched by the daemon, and answered 200 today. Design §11.10 assumed "Tovu's proxy forward list is generated from constants". (A bad percent escape is refused by Tovu's own router first, so that class does not reach the daemon through the proxy.)
+
+Pinned in Tovu (`7f898ad5`): `/API/Tools/Search?q=posts`, `/api/tools/search/?q=posts` and `/api/tools/SEARCH?q=posts` each reach the stand-in daemon with exactly that URL. Mutation: the proxy lower-cases the path and drops the trailing slash -> all 3 fail (and 1 existing test); restored.
+
+Why "fix it in the bridge" (§11.10) is not enough: core `matchServerPath` compares literal segments exactly and literal wins over `:name`. `/api/tools/SEARCH` therefore matches `:id`. Case-insensitive matching has to be in the core route table, not in the bridge's dispatch.
+
+## 3. Trial conversion of `tool-catalog` (local only; patch: `cloud-results/r7-g1-tool-catalog-trial.patch` in Jini)
+
+The patch holds `toolCatalogRoutes({ deps, host })` and the harness mount swapped for that family only. It is **not a complete pair**: `http/index.ts`, the preset pack, `tool-catalog.test.ts`, `route-manifest.test.ts`, the T1 literal, API docs and the Tovu callers are not repointed.
+
+Against the 28 pins of `e660edad`: **17 pass unchanged** (bytes of every success, every 400, both 403s, the 404, the 500 contract with its message text, request ID and sink, what the catalog is asked). **11 change:**
+
+| Request | Today | After the trial |
+|---|---|---|
+| `GET /api/tools/search/?q=a` | 200 hits | 404 framework page |
+| `GET /API/Tools/Search?q=a` | 200 hits | 404 framework page |
+| `GET /api/tools/SEARCH?q=a` | 200 hits (search route) | **404 JSON `no catalog entry for tool id "SEARCH"`** (the other route answers) |
+| `GET /api/tools/a/`, `GET /API/TOOLS/a` | 200 entry | 404 framework page |
+| `GET /api/tools/%E0%A4%A` | 400 framework page | 404 framework page |
+| `OPTIONS /api/tools/search`, `/api/tools/:id` | 200, `Allow: GET,HEAD` | 404 framework page |
+| every success (GET) | `Content-Length`, `ETag: W/"…"` | **neither; `Transfer-Encoding: chunked`** |
+| GET with `If-None-Match` (as a browser cache sends it) | 304, no body | 200, full body |
+| `HEAD /api/tools/search?q=a` | `Content-Length: 109` | no `Content-Length` |
+
+The last three rows are **new**: Express's `res.json` sets a length and a weak validator and answers conditional requests; the bridge writes the web `Response` as a stream. The design names one accepted difference (the abort answer, §2.3). §8 says a changed header is a STOP. This applies to all 83 JSON routes, not only this file.
+
+## 4. Decisions needed before G1 can start
+
+1. **O-12.** Either (a) accept the stricter path answers knowing the admin proxy makes them reachable by any session client, or (b) match Express first. (b) needs: a case-insensitive literal compare and one optional trailing slash in core's route table (opt-in), and the bad-escape 400 through `next(error)` in the bridge.
+2. **OPTIONS** on a converted path (200 + `Allow` today). §11.10 says the bridge answers it when no CORS layer is above; nothing implements that yet.
+3. **New: `Content-Length`, `ETag` and 304.** Either accept (answers become chunked, no validator), or the bridge's writer sets a length for a non-stream body and reproduces Express's weak ETag and freshness check.
+4. Still open from run 3: its findings 1 to 4 (the HOLD list of this run), and run 2's memory finding.
+
+With 1 to 3 answered, the trial patch plus the caller repoints is the first pair; the 28 pins are its gate.
+
+## Also found
+
+- Tovu has **source-reading tests** that name the register functions: `inbound/assistant/__tests__/daemon-source-roots.unit.test.ts:13` asserts the scope calls `registerToolCatalogRoutes`; `__tests__/helpers/daemon-catalog.ts:25` finds the mount statement by AST. Each Tovu half must update them (lesson 2).
+- `tool-catalog.characterization.test.ts` cannot be broken by a daemon source mutation in its spelling, HEAD, OPTIONS and validator rows: they are the framework's answers. Their named break is the mount change, shown above.
+- A client that names a validator through `fetch` gets 200 today, not 304: `fetch` adds `Cache-Control: no-cache`. The 304 pin is sent with `node:http`.
+
+## Mutations for `e660edad` (each applied, seen to fail, restored by file copy)
+
+Search loses its same-origin gate (1 test fails); unknown id answers `BAD_REQUEST` (1); default limit 20 (2); max limit 50 (1); entry route mounted before search (17); query trimmed (1); zero limit allowed (1); `describe` given a second argument (4); search returns the thrown text (1).
+
+## Not done (still owed from P0)
+
+- T3 happy-path and parse-failure rows for the other 81 JSON routes (done for the 2 tool-catalog routes only).
+- Sorting the 17 `listen` tests into §11.13's three layers.
+- §11.15 rows without a harness test (frontend-session wrong owner / wrong bind token, run ownership and owned-list shadowing, principal header rewrite).
+- Which element of a repeated query value each route uses.
+- R7-G1: not started, see section 4.
+
+## Self-check (owner audits, `tools/owner-audits-2026-11-16`)
+
+`owner-rules-audit.mjs` on Jini: **5 new rows, all `jini-cross-package-import`**, all in `packages/server`: `route-host.ts` imports `@jini-ai/daemon/http` (type), `@jini-ai/http-kit` and `@jini-ai/http-kit/node-bridge`; `feature.ts` and `compose-jini-kernel.ts` each gain one type import of `DaemonRouteHost`. `server` is the host preset that assembles those two packages (run 3's `mount-routes.ts` has the same row); the design puts this code there (§11.9). No other rule has a new row. `args-object-audit.mjs`: no new violation (`presetRouteHost(required, _optional = {})`).
+
+## Verification
+
+- Jini `e660edad` (the last code commit; `e97a4764` adds only the patch file): daemon 4,675 tests pass + 1 pre-existing skip (was 4,647; +28); server 498 pass + 1 skip (was 490; +8); `pnpm guard` ok; `pnpm -r typecheck` 0 errors; `check:size` and `check:complexity` pass. No test deleted or loosened. Baseline before any edit: `pnpm --no-bail -r build` exit 0.
+- Tovu `7f898ad5`: `assistant-proxy-routes.test.ts` 33 pass (was 30) on the website runner; `tsc -p tsconfig.json --noEmit` exit 0; `tsc -p tsconfig.tests.json --noEmit` exit 0, 0 errors. No other Tovu test was run. No `apps/desktop` change; the pre-push hook skipped the desktop gates.
+- The trial conversion was reverted with `git checkout` of its two files before any gate ran; both trees were clean at each commit.
+
+## Next
+
+1. Owner answers on section 4 (items 1 to 3).
+2. Then the `tool-catalog` pair: the trial patch + `http/index.ts`, the preset pack through `mountRoutes` with `context.routeHost`, `tool-catalog.test.ts`, `route-manifest.test.ts`, the T1 literal for that family, API docs; Tovu `agent-daemon-scope.ts:1554`, the two source-reading tests, and the `desktop-agent.ts:377` hunk as a patch.
+3. The P0 items under "Not done", one G1 file at a time, each before its own conversion (the tool-catalog file is the model).
