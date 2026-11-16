@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test, vi } from 'vitest';
-import { ignoreBestEffortFailure } from '../best-effort.js';
+import { ignoreBestEffortFailure } from '../model-facing-tool-errors.js';
 
 test('logs the operation, scope and the cause message at debug, and does not throw', () => {
   const debug = vi.spyOn(console, 'debug').mockImplementation(() => {});
