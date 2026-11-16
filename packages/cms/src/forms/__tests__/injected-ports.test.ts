@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { expect, test, vi } from "vitest";
+import { createConsoleLogger } from "@jini-ai/core/primitives";
 import { submitForm } from "../submit-service.js";
 import { registerFormNotifySubscriber } from "../notify-subscriber.js";
 import { createFormDefinition, updateFormDefinition } from "../write-service.js";
@@ -78,6 +79,36 @@ test("async rate limiter receives the composite key before persistence", async (
   assert.equal((await submitDeps.submissionRepo.listByDefinition({ workspaceId: "workspace", formDefinitionId: definition.id, limit: 10 })).items.length, 1);
 });
 
+test("a mail refusal never reaches console text and reaches a host logger as the original error", async () => {
+  const { writes, input, submitDeps } = setup();
+  await createFormDefinition({ deps: writes, input }, { notify: { enabled: true, recipients: ["first@example.org"] } });
+  await submitForm({ deps: submitDeps, input: { workspaceId: "workspace", slug: "new", body: { name: "Ada" }, sourceIp: "source" } });
+  const event = submitDeps.outbox.events[0];
+  assert.ok(event);
+  const send = vi.fn(async () => ({ ok: false as const, retryable: false, errorCode: "X", message: "refused PRIVATEVALUE" }));
+  const printed = vi.spyOn(console, "warn").mockImplementation(() => {});
+  const recorded: Array<[{ message: string }, { error?: unknown } | undefined]> = [];
+  const recordingLogger = { warn: (entry: { message: string }, optional?: { error?: unknown }) => { recorded.push([entry, optional]); } };
+  try {
+    for (const logger of [createConsoleLogger({ prefix: "" }), recordingLogger]) {
+      const bus = new InMemoryEventBus();
+      const unsubscribe = await registerFormNotifySubscriber({ bus, mailer: { send }, sender: { email: "host@example.org" }, logger, formDefinitionRepo: submitDeps.definitionRepo, formSubmissionRepo: submitDeps.submissionRepo });
+      await bus.publish(event);
+      await unsubscribe();
+    }
+    expect(printed).toHaveBeenCalledTimes(1);
+    expect(JSON.stringify(printed.mock.calls)).not.toContain("PRIVATEVALUE");
+    expect(recorded).toHaveLength(1);
+    expect(recorded[0]?.[0].message).not.toContain("PRIVATEVALUE");
+    const refusal = recorded[0]?.[1]?.error;
+    expect(refusal).toBeInstanceOf(Error);
+    expect((refusal as Error).message).toBe("refused PRIVATEVALUE");
+    expect((refusal as Error & { code?: unknown }).code).toBe("X");
+  } finally {
+    printed.mockRestore();
+  }
+});
+
 test.each(["reject", "throw"])("background dispatcher may %s without rejecting submission", async (failure) => {
   const { writes, input, submitDeps } = setup();
   await createFormDefinition({ deps: writes, input });
@@ -86,7 +117,8 @@ test.each(["reject", "throw"])("background dispatcher may %s without rejecting s
   const deps = { ...submitDeps, dispatcher: { dispatch: failure === "throw" ? () => { throw error; } : async () => { throw error; } } };
   assert.deepEqual(await submitForm({ deps, input: { workspaceId: "workspace", slug: "new", body: { name: "Ada" }, sourceIp: "source" } }), { status: "accepted" });
   await vi.waitFor(() => assert.equal(submitDeps.logger.warn.mock.calls.length, 1));
-  expect(submitDeps.logger.warn).toHaveBeenCalledWith({ message: "form outbox dispatch failed" }, { error: expect.stringContaining("Error: dispatcher unavailable [REDACTED:github_token]") });
+  expect(submitDeps.logger.warn).toHaveBeenCalledWith({ message: "form outbox dispatch failed" }, { error });
+  expect(submitDeps.logger.warn.mock.calls[0]?.[1]?.error).toBe(error);
   expect(JSON.stringify(submitDeps.logger.warn.mock.calls)).not.toContain(secret);
 });
 
@@ -132,7 +164,7 @@ test("injected sender is used and failed delivery still reaches the next recipie
   assert.equal(siblingCalls, 2);
 });
 
-test("failed mailer results redact provider messages and still deliver to sibling recipients and subscribers", async () => {
+test("failed mailer results keep provider messages out of the log text, give them to the host logger, and still deliver to sibling recipients and subscribers", async () => {
   const { writes, input, submitDeps } = setup();
   await createFormDefinition({ deps: writes, input }, { notify: { enabled: true, recipients: ["first@example.org", "second@example.org"] } });
   await submitForm({ deps: submitDeps, input: { workspaceId: "workspace", slug: "new", body: { name: "Ada" }, sourceIp: "source" } });
@@ -147,5 +179,7 @@ test("failed mailer results redact provider messages and still deliver to siblin
   assert.equal(siblingCalls, 1);
   const diagnostic = JSON.stringify(warn.mock.calls);
   expect(diagnostic).not.toContain("provider secret");
-  for (const value of ["UPSTREAM_FAILED", "req-42", "[REDACTED:"]) expect(diagnostic).toContain(value);
+  expect(diagnostic).toContain("UPSTREAM_FAILED");
+  expect(JSON.stringify(warn.mock.calls.map(([entry]) => entry))).not.toContain("req-42");
+  expect(warn.mock.calls.map(([, optional]) => (optional as { error?: Error }).error?.message)).toEqual(['requestId=req-42 password="provider secret"', 'requestId=req-42 password="provider secret"']);
 });

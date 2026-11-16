@@ -1,6 +1,5 @@
 import { parseFragment, type DefaultTreeAdapterMap } from "parse5";
 import assert from "node:assert/strict";
-import { inspect } from "node:util";
 import type { Request, Response } from "express";
 import { afterEach, test, vi } from "vitest";
 import { FormDefinitionNotFoundError, FormRateLimitExceededError, FormSubmissionValidationError, FormSubmissionTooFastError } from "../../errors.js";
@@ -259,13 +258,14 @@ test("an oversized flash payload the codec refuses still redirects, just without
 test("a failing definition lookup is logged and the validation redirect still happens", async () => {
   const logged: unknown[][] = [];
   vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => { logged.push(args); });
-  const lookupError = new Error("db down");
+  const lookupError = new Error("boom api_key=SECRETSECRETSECRETSECRET");
   const { deps } = harness({
     submit: async () => { throw new FormSubmissionValidationError({ message: "invalid" }); },
     definitionRepo: { findBySlug: async () => { throw lookupError; } },
   });
   const sent = await send(deps, request({ slug: "contact", body: { name: "Ada" }, headers: HTML_HEADERS }));
-  assert.deepEqual(logged, [["[site/forms-submit] failed to set validation flash cookie (slug=contact)", inspect(lookupError)]]);
+  assert.deepEqual(logged, [["[site/forms-submit] failed to set validation flash cookie (slug=contact)", "Error"]]);
+  for (const leak of ["boom", "SECRETSECRET", "handler.test"]) assert.ok(!JSON.stringify(logged).includes(leak));
   assert.deepEqual(sent.cookies, []);
   assert.deepEqual(sent.redirect, { status: 303, location: "/?form_result=validation&form_slug=contact" });
 });

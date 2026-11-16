@@ -1,5 +1,4 @@
 import assert from "node:assert/strict";
-import { inspect } from "node:util";
 import { createHash } from "node:crypto";
 import type { Request, Response } from "express";
 import { afterEach, test, vi } from "vitest";
@@ -86,13 +85,14 @@ test("a non-string honeypot field is treated as empty", async () => {
 });
 
 test("an ingress failure answers a generic 500 and logs the cause", async () => {
-  const cause = new Error("store down");
+  const cause = new Error("boom api_key=SECRETSECRETSECRETSECRET");
   const log = vi.spyOn(console, "error").mockImplementation(() => {});
   const { deps } = harness({ submit: async () => { throw cause; } });
   const out = await send(deps, { entryId: "entry-1" });
   assert.equal(out.status, 500);
   assert.deepEqual(out.payload, { error: "internal error", code: "INTERNAL_ERROR" });
-  assert.deepEqual(log.mock.calls, [["[site/comments-submit] unexpected error", inspect(cause)]]);
+  assert.deepEqual(log.mock.calls, [["[site/comments-submit] unexpected error", "Error"]]);
+  for (const leak of ["boom", "SECRETSECRET", "submit-handler.request.test"]) assert.ok(!JSON.stringify(log.mock.calls).includes(leak));
 });
 
 test("a rate-limiter failure answers a generic 500", async () => {
