@@ -88,6 +88,8 @@ consumer of `@jini-ai/cms/core` physically cannot reach a Node adapter, and `/co
 cannot import a transport type, because the module resolver refuses. Porting into this shape from
 the first commit means that failure mode cannot recur here.
 
+`@jini-ai/cms/seo/content-analysis` (universal, pure): `analyzeContent` scores title + content blocks (checks, readability, TOC with a host-supplied `slugify`) and `summarizeReport` renders the report as one English paragraph.
+
 ## Port inventory
 
 The kernel went first — the source repo's `src/core/{ports,commands,events,tools}` — because every
