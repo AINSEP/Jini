@@ -1,14 +1,14 @@
-/** T0-2 (AG-UI design S0): the daemon-payload reducers must not be merged silently.
- * `run-events` `translateRunAgentPayload` is the canonical reducer; `ag-ui` `reduceAgentWirePayload`
- * is a copy that has drifted. Each row states, separately, whether the two reduced OBJECTS are equal
- * and whether the SERIALIZED AG-UI events are equal after projection: a difference JSON drops is not
- * a wire difference. A row marked "differs" pins both sides, so deleting the copy while a difference
- * is still observable needs an explicit decision in this file. */
+/** T0-2 (AG-UI design S0), after S1 step B2: there is ONE daemon-payload reducer, `run-events`
+ * `translateRunAgentPayload`. The `ag-ui` copy and the host copy are deleted (owner decision OD-2).
+ * This file keeps the rows where the copies used to differ, so a second reducer cannot come back
+ * with the old behaviour unnoticed: each row pins the reduced object and the serialized AG-UI
+ * events a client reads. Fields the projection does not carry yet (bridge correlation, media,
+ * outcome) are pinned as absent from the wire; design step B4 changes those rows on purpose. */
 import { describe, expect, it } from 'vitest';
 import { translateRunAgentPayload } from '../../run-events/entry.js';
 import type { AgentEvent } from '../../events.js';
-import { closeAgUiRun, createAgUiTranslationState, reduceAgentWirePayload, translateAgentEventToAgUi } from '../event-projection.js';
-import { IDS, NAMES, PAYLOADS, type FixturePayload } from './wire-fixture.js';
+import { closeAgUiRun, createAgUiTranslationState, translateAgentEventToAgUi } from '../event-projection.js';
+import { IDS, NAMES, PAYLOADS } from './wire-fixture.js';
 
 /** The AG-UI events one reduced event becomes, as the bytes a client would read. */
 function wire(event: AgentEvent | null): string {
@@ -17,73 +17,60 @@ function wire(event: AgentEvent | null): string {
   return JSON.stringify([...translateAgentEventToAgUi({ event, state }), ...closeAgUiRun({ state })]);
 }
 
-function both(payload: FixturePayload): { canonical: AgentEvent | null; copy: AgentEvent | null } {
-  return { canonical: translateRunAgentPayload({ payload }), copy: reduceAgentWirePayload({ payload }) };
-}
+const reduce = (name: string): AgentEvent | null => translateRunAgentPayload({ payload: PAYLOADS[name]! });
 
-describe('reducer drift: rows where the two reducers agree', () => {
-  const same = ['statusWithDetail', 'statusWithoutDetail', 'textDelta', 'thinkingStart', 'thinkingDelta', 'raw', 'a2ui', 'stageStart'] as const;
-  it.each(same)('%s reduces to the same object and the same wire bytes', (name) => {
-    const { canonical, copy } = both(PAYLOADS[name]!);
-    expect(copy).toStrictEqual(canonical);
-    expect(wire(copy)).toBe(wire(canonical));
+describe('the one reducer: rows where the deleted copies differed', () => {
+  it('a status without detail has no `detail` key', () => {
+    expect(reduce('statusWithoutDetail')).toStrictEqual({ kind: 'status', label: 'Working' });
+    expect(Object.hasOwn(reduce('statusWithoutDetail') as object, 'detail')).toBe(false);
   });
 
-  it('a status without detail has no `detail` key in either reducer', () => {
-    const { canonical, copy } = both(PAYLOADS.statusWithoutDetail!);
-    expect(Object.hasOwn(canonical as object, 'detail')).toBe(false);
-    expect(Object.hasOwn(copy as object, 'detail')).toBe(false);
-  });
-});
-
-describe('reducer drift: rows where the objects differ and the wire does not (yet)', () => {
-  it('tool_use: only the canonical reducer keeps the bridge correlation; the projection drops it', () => {
-    const { canonical, copy } = both(PAYLOADS.toolUse!);
-    expect(copy).toStrictEqual({ kind: 'tool_use', id: 'call-1', name: 'search', input: { q: 'posts' } });
-    expect(canonical).toStrictEqual({
+  it('tool_use keeps the bridge correlation on the event; the projection does not carry it yet', () => {
+    expect(reduce('toolUse')).toStrictEqual({
       kind: 'tool_use', id: 'call-1', name: 'search', input: { q: 'posts' },
       toolOrigin: 'bridge', bridgeCall: { name: 'posts.search', input: { q: 'posts' }, buffered: true },
     });
-    expect(wire(copy)).toBe(wire(canonical));
+    expect(wire(reduce('toolUse'))).toBe('[{"type":"TOOL_CALL_START","toolCallId":"call-1","toolCallName":"search"},{"type":"TOOL_CALL_ARGS","toolCallId":"call-1","delta":"{\\"q\\":\\"posts\\"}"},{"type":"TOOL_CALL_END","toolCallId":"call-1"}]');
   });
 
-  it('tool_result: only the canonical reducer keeps media and the unknown outcome; the projection drops them', () => {
-    const { canonical, copy } = both(PAYLOADS.toolResult!);
-    expect(copy).toStrictEqual({ kind: 'tool_result', toolUseId: 'call-1', content: 'found 3', isError: true });
-    expect(canonical).toStrictEqual({
+  it('tool_result keeps media and the unknown outcome on the event; the projection does not carry them yet', () => {
+    expect(reduce('toolResult')).toStrictEqual({
       kind: 'tool_result', toolUseId: 'call-1', content: 'found 3', isError: true,
       media: [{ type: 'image', mimeType: 'image/png', data: 'AAAA' }], outcome: 'unknown',
     });
-    expect(wire(copy)).toBe(wire(canonical));
+    expect(wire(reduce('toolResult'))).toBe('[{"type":"TOOL_CALL_RESULT","messageId":"tool_result_msg_1","toolCallId":"call-1","content":"found 3","role":"tool"}]');
+  });
+
+  it('tool_input_delta is dropped: nothing reaches the wire', () => {
+    expect(reduce('toolInputDelta')).toBeNull();
+    expect(wire(reduce('toolInputDelta'))).toBe('');
+  });
+
+  it('mcp-ui carries the exchange identity beside the resource own metadata', () => {
+    const resource = { uri: 'ui://confirm/1', mimeType: 'text/html', text: '<p>Delete?</p>' };
+    const expected = { type: 'resource', resource: { ...resource, _meta: { existing: true, 'jini/surface-exchange': { exchangeId: 'ex-1', toolId: 'posts.delete', runId: 'run-1' } } } };
+    expect(reduce('mcpUi')).toStrictEqual({ kind: 'ext', name: 'mcp-ui', data: expected });
+    expect(wire(reduce('mcpUi'))).toBe(JSON.stringify([{ type: 'CUSTOM', name: 'jini.ext.mcp-ui', value: expected }]));
+  });
+
+  it('usage keeps the stop reason', () => {
+    const expected = { kind: 'usage', inputTokens: 11, outputTokens: 7, costUsd: 0.01, cumulativeCostUsd: 0.05, costSessionId: 'cost-1', durationMs: 1200, stopReason: 'end_turn' };
+    expect(reduce('usage')).toStrictEqual(expected);
+    expect(wire(reduce('usage'))).toBe(JSON.stringify([{ type: 'CUSTOM', name: 'jini.usage', value: expected }]));
   });
 });
 
-describe('reducer drift: rows observable on the wire', () => {
-  it('tool_input_delta: the canonical reducer drops it; the copy sends a CUSTOM extension event', () => {
-    const { canonical, copy } = both(PAYLOADS.toolInputDelta!);
-    expect(canonical).toBeNull();
-    expect(copy).toStrictEqual({ kind: 'ext', name: 'tool_input_delta', data: PAYLOADS.toolInputDelta });
-    expect(wire(canonical)).toBe('');
-    expect(wire(copy)).toBe('[{"type":"CUSTOM","name":"jini.ext.tool_input_delta","value":{"type":"tool_input_delta","id":"call-1","delta":"{\\"q\\":"}}]');
-  });
-
-  it('mcp-ui: the canonical reducer attaches the exchange identity; the copy sends the raw resource', () => {
-    const { canonical, copy } = both(PAYLOADS.mcpUi!);
-    const resource = { uri: 'ui://confirm/1', mimeType: 'text/html', text: '<p>Delete?</p>' };
-    expect(copy).toStrictEqual({ kind: 'ext', name: 'mcp-ui', data: { type: 'resource', resource: { ...resource, _meta: { existing: true } } } });
-    expect(canonical).toStrictEqual({
-      kind: 'ext', name: 'mcp-ui',
-      data: { type: 'resource', resource: { ...resource, _meta: { existing: true, 'jini/surface-exchange': { exchangeId: 'ex-1', toolId: 'posts.delete', runId: 'run-1' } } } },
-    });
-    expect(wire(copy)).not.toBe(wire(canonical));
-  });
-
-  it('usage: only the canonical reducer keeps the stop reason', () => {
-    const { canonical, copy } = both(PAYLOADS.usage!);
-    const shared = { kind: 'usage', inputTokens: 11, outputTokens: 7, costUsd: 0.01, cumulativeCostUsd: 0.05, costSessionId: 'cost-1', durationMs: 1200 };
-    expect(copy).toStrictEqual(shared);
-    expect(canonical).toStrictEqual({ ...shared, stopReason: 'end_turn' });
-    expect(wire(copy)).not.toBe(wire(canonical));
+describe('the one reducer: rows the copies agreed on', () => {
+  it.each([
+    ['statusWithDetail', { kind: 'status', label: 'Working', detail: 'step 2 of 3' }],
+    ['textDelta', { kind: 'text', text: 'Hello' }],
+    ['thinkingStart', null],
+    ['thinkingDelta', { kind: 'thinking', text: 'plan' }],
+    ['raw', { kind: 'raw', line: 'raw line' }],
+    ['a2ui', { kind: 'ext', name: 'a2ui', data: { createSurface: { surfaceId: 's1', catalogId: 'basic' } } }],
+    ['stageStart', { kind: 'ext', name: 'stage_start', data: { type: 'stage_start', stage: 'plan' } }],
+  ])('%s', (name, expected) => {
+    expect(reduce(name)).toStrictEqual(expected);
   });
 });
 

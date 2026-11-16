@@ -1,7 +1,7 @@
 /** Pure chat-event to AG-UI projection; lifecycle state belongs to one run.
- * This legacy wire reducer is independent of saved-chat reduction: partial tool input remains
- * a CUSTOM extension, while media stays in run-event vocabulary and is absent from TOOL_CALL_RESULT.
- * Strict interruption ordering closes a message before a tool starts. IDs and custom event names
+ * Daemon payloads are reduced to chat events by `run-events` `translateRunAgentPayload`, the one
+ * reducer; this file only projects. Media stays in run-event vocabulary and is absent from
+ * TOOL_CALL_RESULT. Strict interruption ordering closes a message before a tool starts. IDs and custom event names
  * are injected, with official AG-UI types authoritative; auth, routes and encoder stay with the host.
  * The host emits RUN_STARTED and terminal RUN_FINISHED/RUN_ERROR outside this pure projection. */
 import { EventType, type AGUIEvent } from '@ag-ui/core';
@@ -14,54 +14,6 @@ export interface CustomEventNames {
   readonly usage: string;
   readonly status: string;
   readonly extensionPrefix: string;
-}
-
-export interface RunAgentWirePayload {
-  readonly type: string;
-  readonly [key: string]: unknown;
-}
-
-function asString(v: unknown): string {
-  if (typeof v === "string") return v;
-  return v == null ? "" : JSON.stringify(v);
-}
-
-function reduceUsagePayload(payload: RunAgentWirePayload): AgentEvent {
-  const usage = (payload.usage ?? {}) as Record<string, unknown>;
-  return {
-    kind: "usage",
-    ...(typeof usage.input_tokens === "number" ? { inputTokens: usage.input_tokens } : {}),
-    ...(typeof usage.output_tokens === "number" ? { outputTokens: usage.output_tokens } : {}),
-    ...(typeof payload.costUsd === "number" ? { costUsd: payload.costUsd } : {}),
-    ...(typeof payload.cumulativeCostUsd === "number" ? { cumulativeCostUsd: payload.cumulativeCostUsd } : {}),
-    ...(typeof payload.costSessionId === "string" ? { costSessionId: payload.costSessionId } : {}),
-    ...(typeof payload.durationMs === "number" ? { durationMs: payload.durationMs } : {}),
-  };
-}
-
-const WIRE_PAYLOAD_REDUCERS: Record<string, (payload: RunAgentWirePayload) => AgentEvent | null> = {
-  status: (payload) => ({ kind: "status", label: asString(payload.label), ...(payload.detail ? { detail: asString(payload.detail) } : {}) }),
-  text_delta: (payload) => ({ kind: "text", text: asString(payload.delta) }),
-  thinking_delta: (payload) => ({ kind: "thinking", text: asString(payload.delta) }),
-  tool_use: (payload) => ({ kind: "tool_use", id: asString(payload.id), name: asString(payload.name), input: payload.input }),
-  tool_result: (payload) => ({
-    kind: "tool_result",
-    toolUseId: asString(payload.toolUseId),
-    content: asString(payload.content),
-    isError: Boolean(payload.isError),
-  }),
-  usage: reduceUsagePayload,
-  raw: (payload) => ({ kind: "raw", line: asString(payload.line) }),
-  "mcp-ui": (payload) => ({ kind: "ext", name: "mcp-ui", data: payload.resource }),
-  a2ui: (payload) => ({ kind: "ext", name: "a2ui", data: payload.message }),
-  thinking_start: () => null,
-};
-
-/** Preserve the legacy AG-UI wire reduction, including partial input as extension events.
- * Unlike the saved-chat reducer, this projection carries partial tool-input extensions. */
-export function reduceAgentWirePayload({ payload }: { payload: RunAgentWirePayload }): AgentEvent | null {
-  const reducer = Object.hasOwn(WIRE_PAYLOAD_REDUCERS, payload.type) ? WIRE_PAYLOAD_REDUCERS[payload.type] : undefined;
-  return reducer ? reducer(payload) : { kind: "ext", name: payload.type, data: payload };
 }
 
 export type AgUiEvent = Extract<
