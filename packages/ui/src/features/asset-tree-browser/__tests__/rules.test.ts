@@ -406,7 +406,7 @@ describe('extensionForMimeType', () => {
     ['text/plain', '.txt'],
     ['application/octet-stream', ''],
   ])('%s -> %s', (mime, ext) => {
-    expect(extensionForMimeType(mime)).toBe(ext);
+    expect(extensionForMimeType({ mimeType: mime })).toBe(ext);
   });
 });
 

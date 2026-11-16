@@ -42,7 +42,7 @@ const EMBED_MARKER_ATTRIBUTES = ['data-embed-type', 'data-widget-embed', 'data-f
  *  the `isProtectedElement` predicate is invoked from inside GrapesJS's `isComponent` callback,
  *  which is not always called with a real DOM `Element` — see that helper's own doc. */
 export function isProtectedEmbedElement({ el }: { readonly el: Element }): boolean {
-  return EMBED_MARKER_ATTRIBUTES.some((attr) => hasAttributeOnAnyNodeShape(el, attr));
+  return EMBED_MARKER_ATTRIBUTES.some((attr) => hasAttributeOnAnyNodeShape({ node: el, attribute: attr }));
 }
 
 /**

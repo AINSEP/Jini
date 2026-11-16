@@ -681,7 +681,7 @@ These names are also reachable through the current export map. Parameter declara
 | `exportViaHttp({ exportPath, filenamePrefix }: { exportPath: string; filenamePrefix: string }, { fetch }: { fetch?: typeof globalThis.fetch } = {},)` | [ExportDiagnosticsButton.tsx](../../src/react/components/ExportDiagnosticsButton.tsx) |
 | `exportedImageFileName(fileName: string, sourceExtension?: string)` | [rules.ts](../../src/features/sketch-editor/rules.ts) |
 | `exportedImageResultFileName(result: SketchExportImageResult, fallback: string)` | [rules.ts](../../src/features/sketch-editor/rules.ts) |
-| `extensionForMimeType(mimeType: string)` | [file-transfer.ts](../../src/utils/file-transfer.ts) |
+| `extensionForMimeType({ mimeType })` | [file-transfer.ts](../../src/utils/file-transfer.ts) |
 | `externalLocations(locations: readonly ProjectLocation[])` | [rules.ts](../../src/features/project-locations/rules.ts) |
 | `extractMarkdownBlockLines(markdown: string)` | [markdown-scroll-sync.ts](../../src/utils/markdown-scroll-sync.ts) |
 | `extractionCardMeta(record: MemoryExtractionRecord, now: number, t: Translate)` | [formatters.ts](../../src/features/memory/formatters.ts) |

@@ -56,7 +56,7 @@ export function filesFromClipboardData(clipboardData: DataTransfer | null): File
 /** A pasted file with no filename (common for a straight image-data paste) gets a synthetic timestamped name so it isn't uploaded as `""`. */
 export function normalizePastedFile(file: File): File {
   if (file.name.trim()) return file;
-  const extension = extensionForMimeType(file.type);
+  const extension = extensionForMimeType({ mimeType: file.type });
   const stamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
   return new File([file], `pasted-${stamp}${extension}`, {
     type: file.type,

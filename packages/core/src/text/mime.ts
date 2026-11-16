@@ -1,6 +1,9 @@
 /** @file Maps a MIME type to the file extension used when a pasted file arrives without a name. */
 
-export function extensionForMimeType(mimeType: string): string {
+export function extensionForMimeType(
+  { mimeType }: { mimeType: string },
+  _optional: Record<string, never> = {},
+): string {
   if (mimeType === 'image/png') return '.png';
   if (mimeType === 'image/jpeg') return '.jpg';
   if (mimeType === 'image/gif') return '.gif';

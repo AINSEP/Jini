@@ -19,8 +19,11 @@ export interface NodeShape {
  * which parse mode called this. An `isProtectedElement` predicate passed to `InteractiveHtmlEditor`
  * that checks attributes should use this instead of `el.hasAttribute` directly.
  */
-export function hasAttributeOnAnyNodeShape(el: NodeShape, attr: string): boolean {
-  if (typeof el.hasAttribute === 'function') return el.hasAttribute(attr);
-  const { attributes } = el;
-  return typeof attributes === 'object' && attributes !== null && Object.prototype.hasOwnProperty.call(attributes, attr);
+export function hasAttributeOnAnyNodeShape(
+  { node, attribute }: { node: NodeShape; attribute: string },
+  _optional: Record<string, never> = {},
+): boolean {
+  if (typeof node.hasAttribute === 'function') return node.hasAttribute(attribute);
+  const { attributes } = node;
+  return typeof attributes === 'object' && attributes !== null && Object.prototype.hasOwnProperty.call(attributes, attribute);
 }
