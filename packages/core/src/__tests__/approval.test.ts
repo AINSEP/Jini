@@ -1,5 +1,6 @@
 import { expect, it, vi } from 'vitest';
 import { createApprovalProposalStore, createApprovalHandler, resolveApproval, type ApprovalAnswer, type ApprovalSteps, type RememberedApprovalPort } from '../approval.js';
+import { fakeScheduler, fixedIds } from './approval-fakes.js';
 import type { ToolExecutionContext } from '../tool-registry.js';
 
 const context = (signal = new AbortController().signal): ToolExecutionContext => ({ executionId: 'exec', run: { id: 'run' }, principal: { id: 'human' }, input: { target: 'original', decision: 'confirm' }, signal });
@@ -81,7 +82,7 @@ it('abort releases a host transport that never supplies a decision', async () =>
 });
 
 it('browser proposal transport shares fail-closed decisions, snapshots descriptions and redeems once', async () => {
-  const store = createApprovalProposalStore<{ args: { target: string } }>({ responseTool: 'reply', messages: { closed: 'closed', missing: 'missing', pending: 'pending' } }, { createId: () => 'proposal' });
+  const store = createApprovalProposalStore<{ args: { target: string } }>({ responseTool: 'reply', messages: { closed: 'closed', missing: 'missing', pending: 'pending' }, ids: fixedIds('proposal'), scheduler: fakeScheduler() });
   const controller = new AbortController(); let calls = 0;
   const description = { args: { target: 'original' } };
   store.propose({ description, signal: controller.signal, execute: async () => { calls++; return 'done'; } });
@@ -101,7 +102,7 @@ it('browser proposal transport shares fail-closed decisions, snapshots descripti
 });
 
 it('abort between a browser reply and effect prevents execution', async () => {
-  const store = createApprovalProposalStore({ responseTool: 'reply', messages: { closed: 'closed', missing: 'missing', pending: 'pending' } }, { createId: () => 'proposal' });
+  const store = createApprovalProposalStore({ responseTool: 'reply', messages: { closed: 'closed', missing: 'missing', pending: 'pending' }, ids: fixedIds('proposal'), scheduler: fakeScheduler() });
   const controller = new AbortController(); let calls = 0;
   store.propose({ description: {}, signal: controller.signal, execute: async () => { calls++; } });
   const pending = store.respond({ approvalId: 'proposal', approved: true }); controller.abort();
@@ -109,7 +110,7 @@ it('abort between a browser reply and effect prevents execution', async () => {
 });
 
 it('the app dialog alone may decide an awaiting proposal; inputs are frozen and decisions are single use', async () => {
-  const store = createApprovalProposalStore<{ target: string }>({ responseTool: 'reply', messages: { closed: 'closed', pending: 'pending', missing: 'missing' } }, { createId: () => 'human' });
+  const store = createApprovalProposalStore<{ target: string }>({ responseTool: 'reply', messages: { closed: 'closed', pending: 'pending', missing: 'missing' }, ids: fixedIds('human'), scheduler: fakeScheduler() });
   const description = { target: 'original' };
   const pending = store.request({ description, signal: new AbortController().signal });
   description.target = 'replacement';
@@ -122,16 +123,16 @@ it('the app dialog alone may decide an awaiting proposal; inputs are frozen and 
 });
 
 it.each(['declined', 'expired', 'abandoned'] as const)('an awaiting proposal settles %s without executing an action', async reason => {
-  vi.useFakeTimers();
-  try {
-    const store = createApprovalProposalStore<string>({ responseTool: 'reply', messages: { closed: 'closed', pending: 'pending', missing: 'missing' } }, { createId: () => 'human' });
-    const controller = new AbortController();
-    const pending = store.request({ description: 'delete', signal: controller.signal }, { timeoutMs: 100 });
-    if (reason === 'declined') await store.respond({ approvalId: 'human', approved: false }, { source: 'human' });
-    if (reason === 'expired') await vi.advanceTimersByTimeAsync(101);
-    if (reason === 'abandoned') controller.abort();
-    expect(await pending).toEqual({ confirmed: false, reason });
-    expect(store.getSnapshot().pending).toBeNull();
-    await expect(store.respond({ approvalId: 'human', approved: true }, { source: 'human' })).rejects.toThrow('missing');
-  } finally { vi.useRealTimers(); }
+  const scheduler = fakeScheduler();
+  const store = createApprovalProposalStore<string>({ responseTool: 'reply', messages: { closed: 'closed', pending: 'pending', missing: 'missing' }, ids: fixedIds('human'), scheduler });
+  const controller = new AbortController();
+  const pending = store.request({ description: 'delete', signal: controller.signal }, { timeoutMs: 100 });
+  expect([...scheduler.pending.values()].map(entry => entry.delayMs)).toEqual([100]);
+  if (reason === 'declined') await store.respond({ approvalId: 'human', approved: false }, { source: 'human' });
+  if (reason === 'expired') scheduler.fireAll();
+  if (reason === 'abandoned') controller.abort();
+  expect(await pending).toEqual({ confirmed: false, reason });
+  expect(store.getSnapshot().pending).toBeNull();
+  expect(scheduler.pending.size).toBe(0);
+  await expect(store.respond({ approvalId: 'human', approved: true }, { source: 'human' })).rejects.toThrow('missing');
 });
