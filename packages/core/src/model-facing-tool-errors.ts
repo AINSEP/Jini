@@ -370,7 +370,7 @@ const MAX_LOGGED_MESSAGE_CHARS = 300;
 /** The message of an Error, secret-redacted and truncated; `undefined` when empty or unreadable. Never throws. */
 function redactedMessage({ value }: { readonly value: unknown }): string | undefined {
   try {
-    if (!(value instanceof Error)) return undefined;
+    if (!(value instanceof Error)) return undefined; // a non-Error stays its `typeof`: a bare thrown value has no message field.
     const raw = value.message;
     if (typeof raw !== "string" || raw.length === 0) return undefined;
     // why: the message is what says what failed ("EACCES: permission denied", "offline"); the shared

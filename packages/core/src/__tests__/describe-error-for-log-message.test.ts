@@ -28,3 +28,10 @@ test('truncates a very long message and survives a throwing message getter', () 
   Object.defineProperty(hostile, 'message', { get() { throw new Error('boom'); } });
   assert.equal(describeErrorForLog({ err: hostile }), 'Error');
 });
+
+test('a non-Error throw stays its type: it has no message field to keep', () => {
+  assert.equal(describeErrorForLog({ err: 'offline' }), 'string');
+  assert.equal(describeErrorForLog({ err: 42 }), 'number');
+  assert.equal(describeErrorForLog({ err: null }), 'object');
+  assert.equal(describeErrorForLog({ err: '' }), 'string');
+});
