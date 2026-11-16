@@ -781,3 +781,11 @@ describe('adapter port plumbing per protocol', () => {
     expect(wireName).toBe('second_name');
   });
 });
+
+describe('runProviderToolTurn protocol guard', () => {
+  test('rejects an unsupported protocol with a TypeError naming it', async () => {
+    await expect(runProviderToolTurn({ protocol: 'carrier-pigeon' } as never)).rejects.toThrow(
+      new TypeError('Unsupported provider tool-turn protocol: carrier-pigeon'),
+    );
+  });
+});

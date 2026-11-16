@@ -376,3 +376,11 @@ describe('antigravityAgentDef.discoverModels', () => {
     expect(calls).toEqual([{ args: ['models'], timeoutMs: 10_000 }]);
   });
 });
+
+describe('sanitizeAntigravityWireLine framing', () => {
+  it('re-serialises a valid frame without inventing a trailing newline, and keeps one that was there', () => {
+    const frame = { event: 'init', note: 'ok' };
+    expect(sanitizeAntigravityWireLine({ fullText: JSON.stringify(frame) })).toBe(JSON.stringify(frame));
+    expect(sanitizeAntigravityWireLine({ fullText: JSON.stringify(frame) + '\n' })).toBe(JSON.stringify(frame) + '\n');
+  });
+});
