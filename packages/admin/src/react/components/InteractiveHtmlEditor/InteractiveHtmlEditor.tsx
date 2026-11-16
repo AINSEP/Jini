@@ -47,7 +47,7 @@ export function isProtectedEmbedElement({ el }: { readonly el: Element }): boole
 
 /**
  * Friendly card headings for every embed `type` value this codebase names anywhere, split into two
- * groups (traced against the consuming product's own the host app's `src/server/inbound/public-http/http/site/render.ts`'s `renderHtmlPageBody`/`isPageEmbedType`
+ * groups (traced against the host app's `src/server/inbound/public-http/http/site/render.ts`'s `renderHtmlPageBody`/`isPageEmbedType`
  * at the owner's own request, 2026-08-25 — authoritative, not re-derived):
  *
  * - **`media`, `widget`, `post`, `content`** — the ONLY four types `isPageEmbedType` (gating
