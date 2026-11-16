@@ -1,0 +1,161 @@
+{
+ ".": {
+  "types": "./dist/contract.d.ts",
+  "symbols": {
+   "ACTIONS": "variable:4d9f0f4ead",
+   "ADAPTER_KIND": "variable:3e61e9f4b2",
+   "AdapterContribution": "type:01c0237243",
+   "BANNER_MODES": "variable:f63830d570",
+   "BRIDGE_KIND": "variable:f7861bca92",
+   "BannerMode": "type:77da8167dd",
+   "CATEGORIES": "variable:b87bbede69",
+   "CONFIG_ID": "variable:c3b94d5aad",
+   "CONSENT_COOKIE": "variable:bfa9d6a868",
+   "CONTRACT": "variable:c293877bd7",
+   "Category": "type:b58af69eac",
+   "Choices": "type:66a79ebab9",
+   "ClientConfig": "interface:8fa54fde05",
+   "ConsentAction": "type:adf66cf174",
+   "ConsentAdapter": "interface:75632ba519",
+   "ConsentAnalyticsProof": "interface:cdf4eaed88",
+   "ConsentBridge": "interface:8b1fba2852",
+   "ConsentConfig": "interface:de95590d66",
+   "ConsentState": "interface:0bb1a72b2a",
+   "Contribution": "interface:39c06251fe",
+   "DeclaredScript": "interface:ca166f883e",
+   "Evidence": "type:4f00e02ba9",
+   "Flags": "type:8370dca357",
+   "GrantInput": "interface:b9b1e4a648",
+   "HeaderRegion": "interface:0476edf7a5",
+   "JiniConsentApi": "interface:e7b9850b61",
+   "LazyAdapter": "interface:cb18810520",
+   "OPEN_EVENT": "variable:07eee4a6e3",
+   "OPTIONAL": "variable:e59054aef6",
+   "Optional": "type:3549e50488",
+   "PageConfig": "type:27d80c57c7",
+   "PluginRegistry": "interface:f9ee789f83",
+   "READY_EVENT": "variable:0d3fb809c7",
+   "REGION_COOKIE": "variable:6487a50d8c",
+   "REGION_KIND": "variable:522815e479",
+   "RawContribution": "type:fea72c5a0a",
+   "ReceiptStatus": "type:da5399f334",
+   "RegionHint": "type:b035ef4e1f",
+   "RegionMode": "type:15d9412241",
+   "RegionRequest": "interface:759bb4cd90",
+   "RegionResolver": "interface:b7d9e9bddc",
+   "RegistrationOptions": "interface:97e462c106",
+   "Revoker": "interface:0bd0ac9d0e",
+   "STATE_EVENT": "variable:48d78315cf",
+   "SlotKind": "interface:cfcbf440c9",
+   "SlotProblem": "interface:63db39c596",
+   "StoragePrefixes": "interface:a4da77708e",
+   "StoredChoice": "interface:36f37efe68"
+  }
+ },
+ "./banner.css": {
+  "types": null,
+  "symbols": {}
+ },
+ "./client": {
+  "types": "./dist/client/index.d.ts",
+  "symbols": {
+   "BootOptions": "interface:49bf6aabd8",
+   "ClientOptions": "interface:95b7ccfae7",
+   "ClientPorts": "interface:44e9f966da",
+   "bindBanner": "function:e17c4ec8e0",
+   "boot": "function:55e9cacfc9",
+   "bootWithContext": "function:70738fc68d",
+   "browserPorts": "function:089b5ee807",
+   "createCookieConsent": "variable:ac7c0fe586",
+   "installOpeners": "function:01e4ae064f",
+   "purgeStorage": "function:e84a44e2be"
+  }
+ },
+ "./client.min.js": {
+  "types": "./dist/client.min.d.ts",
+  "symbols": {}
+ },
+ "./extensions.min.js": {
+  "types": "./dist/extensions.min.d.ts",
+  "symbols": {}
+ },
+ "./node": {
+  "types": "./dist/node/index.d.ts",
+  "symbols": {
+   "ConsentAtomicWriter": "type:0c5b2ed07a",
+   "ConsentFilePorts": "interface:7e7fddc446",
+   "ConsentReceiptStorageHealth": "type:b52f8ffa8e",
+   "consentRateLimitKey": "function:afe0f1f770",
+   "createConsentFileRecords": "function:e851adfdb2",
+   "createNodeConsentFiles": "function:dbb9e4088a",
+   "readConsentReceiptStorage": "function:dd40215fd3"
+  }
+ },
+ "./plugins": {
+  "types": "./dist/plugins.d.ts",
+  "symbols": {
+   "ADAPTER_SLOT": "variable:14ecc9654c",
+   "consentBridgeContribution": "function:3999002aa9",
+   "createPluginRegistry": "function:2cafae09b8",
+   "declaredScriptsContribution": "function:2475933d7e",
+   "parseConsentContributions": "function:4ee831b96d"
+  }
+ },
+ "./policy": {
+  "types": "./dist/policy.d.ts",
+  "symbols": {
+   "DAY_MS": "variable:5b58dfeb53",
+   "DEFAULT_MAX_AGE_MS": "variable:c38cf0bf4b",
+   "DENIED": "variable:06e1ccdb69",
+   "RECEIPT_ID": "variable:5243821b67",
+   "allows": "function:257fa894be",
+   "choicesFor": "function:9b1df83f6d",
+   "clamp": "function:1be44b0dc5",
+   "effective": "function:2e6b5ab999",
+   "isFlags": "function:7f68f21346",
+   "parseStored": "function:d98cda4f22",
+   "regionFrom": "function:60d824ff1d",
+   "validateScripts": "function:6fb60ed585"
+  }
+ },
+ "./render": {
+  "types": "./dist/render/index.d.ts",
+  "symbols": {
+   "BASE_CSS": "variable:113d512462",
+   "BannerCopy": "interface:5e77e0ff30",
+   "BannerCopyInput": "type:59893dc602",
+   "CONSENT_CSS_SCOPE": "variable:9ae05daa7e",
+   "CONSENT_MAX_CSS_LENGTH": "variable:4ce98d7eab",
+   "CONSENT_PLACEMENTS": "variable:57b0f1ccc9",
+   "ConsentAppearanceTokens": "interface:bb97e28eab",
+   "ConsentCssProblem": "interface:dc933ccc7d",
+   "ConsentCssResult": "interface:0d6913b8bd",
+   "ConsentPlacement": "type:a5a443b810",
+   "DEFAULT_COPY": "variable:890737f0ed",
+   "RenderBannerConfig": "interface:36c901f772",
+   "RenderBannerOptions": "interface:059181c3e1",
+   "RenderedBanner": "interface:af814f39fa",
+   "compileConsentCss": "function:80472cf1a9",
+   "parityCss": "function:f660733f5e",
+   "renderBanner": "function:a5306bedc7",
+   "renderScriptAssets": "function:4bbc5d14c6",
+   "resolveCopy": "function:12e1b852cb",
+   "safeHref": "function:c8be07dc97",
+   "scopedSelector": "function:71132ebc0c"
+  }
+ },
+ "./server": {
+  "types": "./dist/server/index.d.ts",
+  "symbols": {
+   "ConsentRecord": "interface:bc8fb3e96e",
+   "ConsentRecordPort": "interface:60b7f8c757",
+   "REGION_SLOT": "variable:51fb8c65ce",
+   "ReceiptOptions": "interface:eff966c3ea",
+   "ReceiptPorts": "interface:6c76460ffa",
+   "handleReceipt": "function:eaf464eb8a",
+   "headerResolver": "function:94b3c2cb03",
+   "readConsent": "function:bb8c8747a5",
+   "resolveRegion": "function:6f1abffc4b"
+  }
+ }
+}
