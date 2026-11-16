@@ -427,7 +427,7 @@ describe('remote-run-events — remaining contract surface', () => {
         },
       }
     });
-    expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred' } });
+    expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'The tool call could not be recorded for this run. Check the run status; copy the request ID and report this problem.' } });
     expect(onInternalError).toHaveBeenCalledOnce();
     expect(onInternalError.mock.calls[0]![0]).toMatchObject({ error: 'a bare string rejection' });
   });
@@ -462,6 +462,8 @@ describe('remote-run-events — remaining contract surface', () => {
     const context = onInternalError.mock.calls[0]![0] as { correlationId: string; error: unknown };
     expect((context.error as Error).message).toBe(secret);
     expect(result.error.requestId).toBe(context.correlationId);
+    expect(onInternalError.mock.calls[0]?.[0]).toMatchObject({ source: 'tool-use', runId: run.id, logSource: 'remote-run-events/tool-use' });
+    expect(result.error.message).toBe('The tool call could not be recorded for this run. Check the run status; copy the request ID and report this problem.');
   });
 
   it('without a host sink, the real failure goes to console.error with the correlation id the caller received', async () => {
@@ -480,7 +482,7 @@ describe('remote-run-events — remaining contract surface', () => {
       expect(result.error.code).toBe('INTERNAL_ERROR');
       expect(logged).toHaveBeenCalledOnce();
       expect(logged.mock.calls[0]).toEqual([
-        `[@jini-ai/http-kit] internal error (remote-run-events/tool-result, correlationId=${result.error.requestId})`, expect.stringContaining('Error: disk full'),
+        `[@jini-ai/http-kit] internal error (remote-run-events/tool-result, correlationId=${result.error.requestId})`, 'Error',
       ]);
     } finally { logged.mockRestore(); }
   });

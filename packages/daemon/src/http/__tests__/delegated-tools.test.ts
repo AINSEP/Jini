@@ -246,7 +246,7 @@ describe('delegatedToolExecuteRoute.handle', () => {
     const result = await delegatedToolExecuteRoute.handle({ input: { runId: run.id, toolUseId: 'tu-1', toolId: 'flaky' }, deps });
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error).toEqual({ code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) });
+      expect(result.error).toEqual({ code: 'INTERNAL_ERROR', message: 'The tool could not run because of a server fault. Do not retry the same call; tell the user to copy the request ID and report this problem.', requestId: expect.any(String) });
     }
     expect(onInternalError).toHaveBeenCalledTimes(1);
     const context = onInternalError.mock.calls[0]![0];
@@ -292,7 +292,7 @@ describe('delegatedToolExecuteRoute.handle', () => {
     const result = await delegatedToolExecuteRoute.handle({ input: { runId: run.id, toolUseId: 'tu-1', toolId: 'flaky-internal' }, deps });
     expect(result).toEqual({
       ok: false,
-      error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) },
+      error: { code: 'INTERNAL_ERROR', message: 'The tool could not run because of a server fault. Do not retry the same call; tell the user to copy the request ID and report this problem.', requestId: expect.any(String) },
     });
     expect(onInternalError).toHaveBeenCalledTimes(1);
     expect(onInternalError.mock.calls[0]![0].error).toBe('boom: secret detail');
@@ -372,7 +372,7 @@ describe('delegatedToolExecuteRoute.handle', () => {
     const result = await resultPromise;
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error).toEqual({ code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) });
+      expect(result.error).toEqual({ code: 'INTERNAL_ERROR', message: 'The tool could not run because of a server fault. Do not retry the same call; tell the user to copy the request ID and report this problem.', requestId: expect.any(String) });
     }
   });
 
@@ -388,7 +388,7 @@ describe('delegatedToolExecuteRoute.handle', () => {
     const result = await delegatedToolExecuteRoute.handle({ input: { runId: run.id, toolUseId: 'tu-1', toolId: 'echo' }, deps });
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error).toEqual({ code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) });
+      expect(result.error).toEqual({ code: 'INTERNAL_ERROR', message: 'The tool could not run because of a server fault. Do not retry the same call; tell the user to copy the request ID and report this problem.', requestId: expect.any(String) });
     }
     const context = onInternalError.mock.calls[0]![0];
     expect(context.source).toBe('resolve-principal');
@@ -761,5 +761,20 @@ describe('delegatedToolExecuteRoute read-only constraint (requireReadOnly)', () 
     await delegatedToolExecuteRoute.handle({ input: { runId: run.id, toolUseId: 'tu-1', toolId: 'verify', requireReadOnly: true }, deps });
 
     expect(ran).toEqual(['verify ran']);
+  });
+});
+
+describe('delegated tool route: one incident owner (log safety)', () => {
+  it('the sink gets the original error, tool and run IDs and logSource; the default line prints the class only', async () => {
+    const failure = new Error('boom api_key=SECRETSECRETSECRETSECRET');
+    const toolExecutor: ToolExecutor = { ...makeToolExecutor(), execute: async () => { throw failure; } };
+    const onInternalError = vi.fn();
+    const deps = makeDeps({ toolExecutor, onInternalError });
+    const { run } = await deps.lifecycle.start({ contextRef: 'ctx-incident' });
+    const result = await delegatedToolExecuteRoute.handle({ input: { runId: run.id, toolUseId: 'tu-1', toolId: 'nope' }, deps });
+    if (result.ok) throw new Error('expected failure');
+    expect(result.error.message).toBe('The tool could not run because of a server fault. Do not retry the same call; tell the user to copy the request ID and report this problem.');
+    expect(onInternalError).toHaveBeenCalledWith({ source: 'delegated-tool-execute', error: failure, runId: run.id, toolId: 'nope', correlationId: result.error.requestId, logSource: 'delegated-tool-execute' });
+    expect(onInternalError.mock.calls[0]?.[0].error).toBe(failure);
   });
 });

@@ -151,13 +151,14 @@ describe('registerAttachmentRoutes — origin guard throwing', () => {
 
     expect(response.status).toBe(500);
     const payload = (await response.json()) as { error: { code: string; message: string; requestId: string } };
-    expect(payload.error).toMatchObject({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' });
+    expect(payload.error).toMatchObject({ code: 'INTERNAL_ERROR', message: 'The file could not be attached. Try again; if it keeps failing, copy the request ID and report this problem.' });
     expect(sink).toHaveBeenCalledTimes(1);
     expect(sink).toHaveBeenCalledWith({
       source: 'attachment-upload',
       // The guard throws before a batch is read off the request, so the report carries none.
       batchId: null,
       correlationId: payload.error.requestId,
+      logSource: 'attachment-upload',
       error: expect.objectContaining({ message: 'origin policy unavailable' }),
     });
   });
@@ -174,11 +175,12 @@ describe('registerAttachmentRoutes — origin guard throwing', () => {
 
     expect(response.status).toBe(500);
     const payload = (await response.json()) as { error: { code: string; message: string; requestId: string } };
-    expect(payload.error).toMatchObject({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' });
+    expect(payload.error).toMatchObject({ code: 'INTERNAL_ERROR', message: 'The attachment could not be removed. Try again; if it keeps failing, copy the request ID and report this problem.' });
     expect(sink).toHaveBeenCalledWith({
       source: 'attachment-cleanup',
       batchId: null,
       correlationId: payload.error.requestId,
+      logSource: 'attachment-cleanup',
       error: expect.objectContaining({ message: 'origin policy unavailable' }),
     });
   });

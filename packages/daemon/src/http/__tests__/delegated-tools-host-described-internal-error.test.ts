@@ -15,7 +15,7 @@ vi.mock('@jini-ai/core', async (importOriginal) => ({
 }));
 
 const PRINCIPAL: Principal = { id: 'test-principal' };
-const GENERIC = 'an internal error occurred';
+const GENERIC = 'The tool could not run because of a server fault. Do not retry the same call; tell the user to copy the request ID and report this problem.';
 
 /** Injects an infrastructure failure; unknown tool ids are caller input errors. */
 function throwingExecutor(): ToolExecutor {
@@ -76,8 +76,7 @@ describe('delegated tool route: describeInternalError (host-supplied model-safe 
       for (const line of log.mock.calls) {
         const output = line.map(String).join(' ');
         expect(output).toContain(requestId);
-        expect(output).toContain('UPSTREAM_FAILED');
-        expect(output).toContain('[REDACTED:');
+        expect(output).not.toContain('UPSTREAM_FAILED');
         for (const value of [secret, 'abcdefghijklmnopqrst', 'hunter2']) expect(output).not.toContain(value);
         expect(output).toContain('ECONNREFUSED');
       }

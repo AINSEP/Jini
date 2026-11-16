@@ -146,7 +146,7 @@ describe('registerFrontendSessionRoutes', () => {
     // SSE headers were already committed, so the response ends rather than becoming a 500.
     await response.text();
 
-    expect(onInternalError).toHaveBeenCalledWith({ source: 'stream', error: expect.any(Error) });
+    expect(onInternalError).toHaveBeenCalledWith(expect.objectContaining({ source: 'stream', error: expect.any(Error), logSource: 'frontend-sessions:stream' }));
   });
 
   it('answers 500 when the stream fails before SSE headers were committed', () => {
@@ -176,8 +176,10 @@ describe('registerFrontendSessionRoutes', () => {
     };
     getHandler!(Object.assign(new EventEmitter(), { query: {}, headers: { host: '127.0.0.1:4310' } }) as never, res as never);
 
-    expect(onInternalError).toHaveBeenCalledWith({ source: 'stream', error: expect.any(Error) });
+    const context = onInternalError.mock.calls[0]?.[0];
+    expect(context).toMatchObject({ source: 'stream', error: expect.any(Error), logSource: 'frontend-sessions:stream' });
     expect(status).toHaveBeenCalledWith(500);
+    expect(json).toHaveBeenCalledWith({ error: { code: 'INTERNAL_ERROR', message: 'The page connection could not be opened. Reload the page; if it keeps failing, copy the request ID and report this problem.', requestId: context.correlationId } });
     expect(json).toHaveBeenCalledWith({
       error: expect.objectContaining({ code: 'INTERNAL_ERROR' }),
     });
@@ -212,7 +214,7 @@ describe('registerFrontendSessionRoutes', () => {
     await (await fetch(`${base}${FRONTEND_SESSION_STREAM_ROUTE_PATH}?capability=page.click`)).text();
     expect(consoleError).toHaveBeenCalledWith(
       expect.stringContaining('frontend-sessions:stream'),
-      expect.stringContaining('Error: registry exploded'),
+      'Error',
     );
 
     // A sink that itself throws must not turn a contained failure into an unhandled rejection.
@@ -223,7 +225,7 @@ describe('registerFrontendSessionRoutes', () => {
     expect(throwingSink).toHaveBeenCalled();
     expect(consoleError).toHaveBeenCalledWith(
       expect.stringContaining('internal error sink failed'),
-      expect.stringContaining('Error: sink exploded'),
+      'Error',
     );
     consoleError.mockRestore();
   });

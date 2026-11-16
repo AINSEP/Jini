@@ -209,7 +209,7 @@ describe('xaiOauthStartRoute', () => {
     const onInternalError = vi.fn();
     const deps = makeDeps({ startCallbackListener, onInternalError });
     const result = await xaiOauthStartRoute.handle({ input: undefined, deps });
-    expect(result).toEqual({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) } });
+    expect(result).toEqual({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'xAI sign-in could not start. Try again; if it keeps failing, copy the request ID and report this problem.', requestId: expect.any(String) } });
     expect(onInternalError).toHaveBeenCalledWith(expect.objectContaining({ source: 'oauth-start', error: boom }));
     expect(deps.listenerRef.current).toBeNull();
   });
@@ -380,7 +380,7 @@ describe('xaiOauthCompleteRoute', () => {
       fetchImpl: vi.fn(async () => ({ ok: false, status: 400, statusText: 'Bad Request', text: async () => 'invalid_grant: code already used' })),
     });
     const result = await xaiOauthCompleteRoute.handle({ input: { state, code: 'auth-code-1' }, deps });
-    expect(result).toEqual({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) } });
+    expect(result).toEqual({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'xAI sign-in could not be completed. Try again; if it keeps failing, copy the request ID and report this problem.', requestId: expect.any(String) } });
     expect(JSON.stringify(result)).not.toContain('invalid_grant');
     expect(onInternalError).toHaveBeenCalledTimes(1);
   });
@@ -432,10 +432,9 @@ describe('xaiOauthCompleteRoute — non-Error failures and token defaults', () =
     const deps = makeDeps({ pending, onInternalError });
     const result = await xaiOauthCompleteRoute.handle({ input: { state: 's', code: 'c' }, deps });
     expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
-    const reported = onInternalError.mock.calls[0]![0].error as Error;
-    expect(reported).toBeInstanceOf(Error);
-    expect(reported.message).toContain('pending store gone');
-    expect(reported.message).not.toContain('atk-leaked-9');
+    // The host sink now gets the original value and redacts under its own policy; the caller never sees it.
+    expect(onInternalError.mock.calls[0]?.[0].error).toBe('pending store gone with Bearer atk-leaked-9');
+    expect(JSON.stringify(result)).not.toContain('atk-leaked-9');
   });
 
   it('rejects a token response with no token_type without persisting it', async () => {
@@ -444,7 +443,7 @@ describe('xaiOauthCompleteRoute — non-Error failures and token defaults', () =
     const deps = makeDeps({ pending, fetchImpl: vi.fn(async () => Response.json({ access_token: 'atk-no-type' })) });
     // MOVE: openid-client validates required token_type before the route can persist a token.
     await expect(xaiOauthCompleteRoute.handle({ input: { state, code: 'c1' }, deps })).resolves.toEqual({
-      ok: false, error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) },
+      ok: false, error: { code: 'INTERNAL_ERROR', message: 'xAI sign-in could not be completed. Try again; if it keeps failing, copy the request ID and report this problem.', requestId: expect.any(String) },
     });
     await expect(readFile(path.join(dataDir, 'xai-oauth-token.json'), 'utf8')).rejects.toMatchObject({ code: 'ENOENT' });
   });
@@ -568,6 +567,7 @@ describe('xaiAuthStatusRoute', () => {
     expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
     expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
     expect(consoleErrorSpy.mock.calls[0]![0]).toContain('internal error (xai/auth-status, correlationId=');
+    expect(consoleErrorSpy.mock.calls[0]?.[1]).toBe('Error(EISDIR)');
     consoleErrorSpy.mockRestore();
   });
 
@@ -614,7 +614,7 @@ describe('xaiAuthStatusRoute', () => {
     const onInternalError = vi.fn();
     const deps = makeDeps({ onInternalError });
     const result = await xaiAuthStatusRoute.handle({ input: undefined, deps });
-    expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred' } });
+    expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'The xAI connection status could not be read. Try again; if it keeps failing, copy the request ID and report this problem.' } });
     expect(onInternalError).toHaveBeenCalledWith(expect.objectContaining({ source: 'auth-status' }));
   });
 });
@@ -1047,7 +1047,7 @@ describe('xaiSearchRoute.handle', () => {
     await xaiOauthCompleteRoute.handle({ input: { state, code: 'c1' }, deps });
 
     const result = await xaiSearchRoute.handle({ input: { query: 'q' }, deps });
-    expect(result).toEqual({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) } });
+    expect(result).toEqual({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'The X search could not be completed. Try again; if it keeps failing, copy the request ID and report this problem.', requestId: expect.any(String) } });
     expect(JSON.stringify(result)).not.toContain('super-secret-token');
     expect(onInternalError).toHaveBeenCalledTimes(1);
     const reportedError = onInternalError.mock.calls[0]![0].error as Error;

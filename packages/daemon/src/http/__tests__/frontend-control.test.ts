@@ -1,5 +1,6 @@
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
+import { EventEmitter } from 'node:events';
 import express from 'express';
 import type { AdapterContext } from '@jini-ai/http-kit';
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -230,7 +231,7 @@ describe('createFrontendControl', () => {
 
       expect(consoleError).toHaveBeenCalledWith(
         expect.stringContaining('could not bind run "run-1"'),
-        expect.stringContaining('unknown or expired bind token'),
+        'Error',
       );
       consoleError.mockRestore();
     });
@@ -270,6 +271,35 @@ describe('createFrontendControl', () => {
         input: {}, signal: new AbortController().signal,
       } as never)).rejects.toThrow(/no frontend is bound/);
       surface.close();
+    });
+  });
+
+  describe('session.onInternalError (log safety, row 5d)', () => {
+    it('hands a stream failure to the host sink with the request ID the 500 answer carries', () => {
+      const onInternalError = vi.fn();
+      const control = createFrontendControl({ capabilities: [PAGE_CLICK], resolveBindToken: () => undefined, session: { onInternalError } });
+      // Capture the GET handler directly, as frontend-sessions.test.ts does: only a failing SSE
+      // handshake reaches this path, which a live server cannot produce reliably.
+      let getHandler: ((req: unknown, res: unknown) => unknown) | undefined;
+      const fakeApp = {
+        get: (_path: string, handler: (req: unknown, res: unknown) => unknown) => { getHandler = handler; },
+        post: () => undefined,
+      };
+      const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 4310 } };
+      control.httpExtension({ app: fakeApp as never, context: { adapter: adapter as never } });
+      const failure = new Error('boom api_key=SECRETSECRETSECRETSECRET');
+      const status = vi.fn().mockReturnThis();
+      const json = vi.fn();
+      const res = { headersSent: false, writableEnded: false, writeHead: vi.fn(() => { throw failure; }), write: vi.fn(), end: vi.fn(), status, json };
+      getHandler?.(Object.assign(new EventEmitter(), { query: {}, headers: { host: '127.0.0.1:4310' } }), res);
+
+      expect(onInternalError).toHaveBeenCalledTimes(1);
+      const context = onInternalError.mock.calls[0]?.[0];
+      expect(context).toMatchObject({ source: 'stream', logSource: 'frontend-sessions:stream' });
+      expect(context?.error).toBe(failure);
+      expect(status).toHaveBeenCalledWith(500);
+      expect(json).toHaveBeenCalledWith({ error: { code: 'INTERNAL_ERROR', message: 'The page connection could not be opened. Reload the page; if it keeps failing, copy the request ID and report this problem.', requestId: context?.correlationId } });
+      expect(JSON.stringify(json.mock.calls)).not.toMatch(/boom|SECRETSECRET/);
     });
   });
 });

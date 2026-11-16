@@ -1493,7 +1493,7 @@ describe('POST /api/attachments', () => {
 
     expect(response.status).toBe(500);
     const body = await response.json() as { error: { message: string; requestId?: string } };
-    expect(body.error.message).toBe('an internal error occurred');
+    expect(body.error.message).toBe('The file could not be attached. Try again; if it keeps failing, copy the request ID and report this problem.');
     expect(body.error.message).not.toContain('secret');
     expect(onInternalError).toHaveBeenCalledWith(expect.objectContaining({
       source: 'attachment-upload',
@@ -1516,7 +1516,7 @@ describe('POST /api/attachments', () => {
     const response = await upload(url, { batch: 'batch-upload-7', name: 'a.txt' });
 
     expect(response.status).toBe(500);
-    expect(await response.json()).toMatchObject({ error: { message: 'an internal error occurred' } });
+    expect(await response.json()).toMatchObject({ error: { message: 'The file could not be attached. Try again; if it keeps failing, copy the request ID and report this problem.' } });
     expect(onInternalError).toHaveBeenCalledTimes(1);
   });
 
@@ -1555,7 +1555,7 @@ describe('POST /api/attachments', () => {
     });
 
     expect(response.status).toBe(500);
-    expect(await response.json()).toMatchObject({ error: { message: 'an internal error occurred' } });
+    expect(await response.json()).toMatchObject({ error: { message: 'The file could not be attached. Try again; if it keeps failing, copy the request ID and report this problem.' } });
     expect(onInternalError).toHaveBeenCalledWith(expect.objectContaining({
       error: expect.objectContaining({ reason: 'attachment-body-consumed' }),
     }));
@@ -1688,7 +1688,7 @@ describe('DELETE /api/attachments', () => {
     });
 
     expect(response.status).toBe(500);
-    expect(await response.json()).toMatchObject({ error: { message: 'an internal error occurred' } });
+    expect(await response.json()).toMatchObject({ error: { message: 'The attachment could not be removed. Try again; if it keeps failing, copy the request ID and report this problem.' } });
     expect(onInternalError).toHaveBeenCalledWith(expect.objectContaining({
       source: 'attachment-cleanup',
       batchId: 'batch-delete-4',
@@ -1843,7 +1843,7 @@ describe('attachment routes — default internal-error sink', () => {
     expect(response.status).toBe(500);
     expect(consoleError).toHaveBeenCalledWith(
       expect.stringContaining('internal error (attachment-upload, correlationId='),
-      expect.stringContaining('Error: boom'),
+      'Error',
     );
   });
 });
@@ -2440,7 +2440,7 @@ describe('handleAttachmentUpload', () => {
     const response = await upload(url, { batch: 'batch-direct-5', name: 'a.json', body: '{"a":1}', contentType: 'application/json' });
 
     expect(response.status).toBe(500);
-    expect(await response.json()).toMatchObject({ error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred' } });
+    expect(await response.json()).toMatchObject({ error: { code: 'INTERNAL_ERROR', message: 'The file could not be attached. Try again; if it keeps failing, copy the request ID and report this problem.' } });
     expect(onInternalError).toHaveBeenCalledWith(expect.objectContaining({
       source: 'attachment-upload',
       batchId: 'batch-direct-5',
@@ -2579,7 +2579,7 @@ describe('handleAttachmentUpload', () => {
 
     expect(response.status).toBe(500);
     const body = await response.json() as { error: { message: string; requestId?: string } };
-    expect(body.error.message).toBe('an internal error occurred');
+    expect(body.error.message).toBe('The file could not be attached. Try again; if it keeps failing, copy the request ID and report this problem.');
     expect(onInternalError).toHaveBeenCalledWith(expect.objectContaining({
       source: 'attachment-upload', batchId: 'batch-direct-15', correlationId: body.error.requestId,
     }));

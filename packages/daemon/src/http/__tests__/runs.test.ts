@@ -1012,3 +1012,29 @@ it('replay_over_1000_events_delivers_sse_and_advancing_cursors', async () => {
   expect(res.end).not.toHaveBeenCalled();
   res.emitClose();
 });
+
+describe('run routes: one incident owner (log safety)', () => {
+  it('the host sink gets the original error, the run ID and the request ID the caller sees', async () => {
+    const failure = new Error('boom api_key=SECRETSECRETSECRETSECRET');
+    const onInternalError = vi.fn();
+    const deps = makeDeps({ onStarted: () => { throw failure; }, onInternalError });
+    const result = await runStartRoute.handle({ input: { contextRef: 'ctx-1' }, deps });
+    if (result.ok) throw new Error('expected failure');
+    const context = onInternalError.mock.calls[0]?.[0];
+    expect(context).toEqual({ source: 'run-start', runId: expect.any(String), error: failure, correlationId: result.error.requestId, logSource: 'run-start' });
+    expect(context.error).toBe(failure);
+    expect(JSON.stringify(result.error)).not.toContain('SECRETSECRET');
+  });
+
+  it('without a host sink the default line carries the class only', async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => { });
+    try {
+      const deps = makeDeps({ onStarted: () => { throw new Error('boom api_key=SECRETSECRETSECRETSECRET'); } });
+      const result = await runStartRoute.handle({ input: { contextRef: 'ctx-1' }, deps });
+      if (result.ok) throw new Error('expected failure');
+      expect(consoleError.mock.calls).toEqual([[`[@jini-ai/http-kit] internal error (run-start, correlationId=${result.error.requestId})`, 'Error']]);
+      const printed = JSON.stringify(consoleError.mock.calls);
+      for (const leaked of ['boom', 'SECRETSECRET', 'runs.test']) expect(printed).not.toContain(leaked);
+    } finally { consoleError.mockRestore(); }
+  });
+});

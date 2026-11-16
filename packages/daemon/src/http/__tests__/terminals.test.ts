@@ -313,8 +313,10 @@ describe('terminalCreateRoute.handle', () => {
     });
     const executor = createToolExecutor({ registry });
     const deps: TerminalsHttpDeps = { manager: makeManager().manager, toolExecutor: executor, principal: alice, resolveRoot: () => '/work' };
-    await terminalCreateRoute.handle({ input: { resourceRef: 'proj-1' }, deps });
-    expect(consoleError).toHaveBeenCalled();
+    const result = await terminalCreateRoute.handle({ input: { resourceRef: 'proj-1' }, deps });
+    if (result.ok) throw new Error('expected failure');
+    expect(consoleError.mock.calls).toEqual([[`[@jini-ai/http-kit] internal error (terminal-create, correlationId=${result.error.requestId})`, 'string']]);
+    expect(JSON.stringify(consoleError.mock.calls)).not.toContain('boom');
     consoleError.mockRestore();
   });
 
@@ -343,7 +345,7 @@ describe('terminalCreateRoute.handle', () => {
     const result = await terminalCreateRoute.handle({ input: { resourceRef: 'proj-1' }, deps });
     expect(result).toEqual({
       ok: false,
-      error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) },
+      error: { code: 'INTERNAL_ERROR', message: 'The terminal could not be opened. Try again; if it keeps failing, copy the request ID and report this problem.', requestId: expect.any(String) },
     });
   });
 
@@ -358,7 +360,7 @@ describe('terminalCreateRoute.handle', () => {
     const result = await terminalCreateRoute.handle({ input: { resourceRef: 'proj-1' }, deps });
     expect(result).toEqual({
       ok: false,
-      error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) },
+      error: { code: 'INTERNAL_ERROR', message: 'The terminal could not be opened. Try again; if it keeps failing, copy the request ID and report this problem.', requestId: expect.any(String) },
     });
   });
 });

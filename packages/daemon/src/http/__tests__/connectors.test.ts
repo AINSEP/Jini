@@ -200,7 +200,7 @@ describe('auth routes', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.code).toBe('INTERNAL_ERROR');
-      expect(result.error.message).toBe('an internal error occurred');
+      expect(result.error.message).toBe('The sign-in provider could not finish this request. Try again; if it keeps failing, copy the request ID and report this problem.');
       expect(result.error.requestId).toBeDefined();
     }
     expect(onInternalError).toHaveBeenCalledWith(
@@ -432,6 +432,8 @@ describe('registerConnectorsRoutes', () => {
     expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
     expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
     expect(consoleErrorSpy.mock.calls[0]![0]).toContain('internal error (connectors/auth.signIn, correlationId=');
+    expect(consoleErrorSpy.mock.calls[0]?.[1]).toBe('Error');
+    expect(JSON.stringify(consoleErrorSpy.mock.calls)).not.toContain('db down');
     consoleErrorSpy.mockRestore();
   });
 });
@@ -486,7 +488,7 @@ describe('every connectors route', () => {
       expect(result.ok).toBe(false);
       if (!result.ok) {
         expect(result.error.code).toBe('INTERNAL_ERROR');
-        expect(result.error.message).toBe('an internal error occurred');
+        expect(result.error.message).toBe(({ auth: 'The sign-in provider could not finish this request. Try again; if it keeps failing, copy the request ID and report this problem.', storage: 'The file storage provider could not finish this request. Try again; if it keeps failing, copy the request ID and report this problem.', db: 'The database provider could not finish this request. Try again; if it keeps failing, copy the request ID and report this problem.', realtime: 'The realtime provider could not finish this request. Try again; if it keeps failing, copy the request ID and report this problem.' } as Record<string, string>)[entry.slot]);
         expect(result.error.requestId).toBeDefined();
         expect(JSON.stringify(result.error)).not.toContain(secret);
       }

@@ -272,7 +272,7 @@ describe('daemonDbInspectRoute', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.code).toBe('INTERNAL_ERROR');
-      expect(result.error.message).toBe('an internal error occurred');
+      expect(result.error.message).toBe('The database could not be inspected. Try again; if it keeps failing, copy the request ID and report this problem.');
       expect(JSON.stringify(result.error)).not.toContain('/secret/data/app.sqlite');
       expect(result.error.requestId).toEqual(expect.any(String));
     }
@@ -291,8 +291,11 @@ describe('daemonDbInspectRoute', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => { });
     const operations = makeOperations({ inspect: vi.fn(async () => { throw new Error('boom'); }) });
     const { deps } = makeDeps({ operations });
-    await daemonDbInspectRoute.handle({ input: undefined, deps });
-    expect(consoleError).toHaveBeenCalled();
+    const result = await daemonDbInspectRoute.handle({ input: undefined, deps });
+    if (result.ok) throw new Error('expected failure');
+    expect(result.error.message).toBe('The database could not be inspected. Try again; if it keeps failing, copy the request ID and report this problem.');
+    expect(consoleError.mock.calls).toEqual([[`[@jini-ai/http-kit] internal error (db-inspect, correlationId=${result.error.requestId})`, 'string']]);
+    expect(JSON.stringify(consoleError.mock.calls)).not.toContain('boom');
     consoleError.mockRestore();
   });
 
@@ -331,7 +334,7 @@ describe('daemonDbInspectRoute', () => {
     const result = await daemonDbInspectRoute.handle({ input: undefined, deps });
     expect(result).toEqual({
       ok: false,
-      error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) },
+      error: { code: 'INTERNAL_ERROR', message: 'The database could not be inspected. Try again; if it keeps failing, copy the request ID and report this problem.', requestId: expect.any(String) },
     });
   });
 
@@ -341,7 +344,7 @@ describe('daemonDbInspectRoute', () => {
     const result = await daemonDbInspectRoute.handle({ input: undefined, deps });
     expect(result).toEqual({
       ok: false,
-      error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) },
+      error: { code: 'INTERNAL_ERROR', message: 'The database could not be inspected. Try again; if it keeps failing, copy the request ID and report this problem.', requestId: expect.any(String) },
     });
   });
 });

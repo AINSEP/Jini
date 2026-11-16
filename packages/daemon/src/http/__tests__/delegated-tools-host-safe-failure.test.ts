@@ -92,7 +92,7 @@ describe('delegated tool route: a failure the host marks model-safe', () => {
     });
     expect(result).toEqual({
       ok: false,
-      error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) },
+      error: { code: 'INTERNAL_ERROR', message: 'The tool could not run because of a server fault. Do not retry the same call; tell the user to copy the request ID and report this problem.', requestId: expect.any(String) },
     });
     expect(onInternalError).toHaveBeenCalledTimes(1);
   });

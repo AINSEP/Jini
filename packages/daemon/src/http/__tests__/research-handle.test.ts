@@ -76,15 +76,15 @@ describe('research handle: outcomes', () => {
     const failure = new Error('vault down');
     const { deps, errors } = sinkDeps({ resolveCredentials: async () => { throw failure; } });
     const result = await researchSearchRoute.handle({ input: { query: 'q' }, deps });
-    expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred' } });
-    expect(errors).toEqual([{ correlationId: result.ok ? '' : result.error.requestId, error: failure }]);
+    expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'The web research request could not be completed. Try again; if it keeps failing, copy the request ID and report this problem.' } });
+    expect(errors).toEqual([{ correlationId: result.ok ? '' : result.error.requestId, error: failure, logSource: 'research/search' }]);
   });
 
   it('a non-Error thrown by the provider is reported as a plain Error carrying the redacted text', async () => {
     const route = createResearchSearchRoute({ provider: provider('p', async () => { throw `upstream said ${KEY}`; }) });
     const { deps, errors } = sinkDeps();
     const result = await route.handle({ input: { query: 'q' }, deps });
-    expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred' } });
+    expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'The web research request could not be completed. Try again; if it keeps failing, copy the request ID and report this problem.' } });
     expect(errors).toHaveLength(1);
     const reported = errors[0]!.error as Error;
     expect(reported).toBeInstanceOf(Error);

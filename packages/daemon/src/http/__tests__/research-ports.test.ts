@@ -39,7 +39,7 @@ it('redacts the resolved key from injected provider failures before calling the 
   const provider: ResearchProvider = { id: 'host-research', search: async () => { throw failure; } };
   const errors: unknown[] = [];
   const result = await createResearchSearchRoute({ provider }).handle({ input: { query: 'q' }, deps: { resolveCredentials: async () => ({ apiKey: 'fixture-key' }), onInternalError: ({ error }) => { errors.push(error); } } });
-  expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred' } });
+  expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR', message: 'The web research request could not be completed. Try again; if it keeps failing, copy the request ID and report this problem.' } });
   expect(errors).toHaveLength(1);
   expect((errors[0] as Error).message).toBe('upstream rejected [REDACTED:exact_secret]');
   expect((errors[0] as Error).name).toBe('TypeError');

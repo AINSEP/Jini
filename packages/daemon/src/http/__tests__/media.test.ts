@@ -420,7 +420,7 @@ describe('mediaGenerateRoute.handle', () => {
       expect(task?.status).toBe('failed');
     });
     const task = await deps.taskStore.get({ id: taskId });
-    expect(task?.error).toEqual({ message: 'an internal error occurred', code: 'INTERNAL_ERROR' });
+    expect(task?.error).toEqual({ message: 'The media could not be generated. Try again; if it keeps failing, copy the request ID and report this problem.', code: 'INTERNAL_ERROR' });
     expect(onInternalError).toHaveBeenCalledTimes(1);
     const context = onInternalError.mock.calls[0]![0];
     expect(context.source).toBe('media-generate-dispatch');
@@ -444,7 +444,7 @@ describe('mediaGenerateRoute.handle', () => {
     const result = await mediaGenerateRoute.handle({ input: { ownerRef: 'owner-1', request: { surface: 'image', model: 'm' } }, deps });
     expect(result.ok).toBe(false);
     if (!result.ok) {
-      expect(result.error).toEqual({ code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) });
+      expect(result.error).toEqual({ code: 'INTERNAL_ERROR', message: 'The media task could not be read or saved. Reload to check the task; if it keeps failing, copy the request ID and report this problem.', requestId: expect.any(String) });
     }
     const context = onInternalError.mock.calls[0]![0];
     expect(context.source).toBe('media-task-store');
@@ -514,6 +514,9 @@ describe('mediaGenerateRoute.handle', () => {
       expect(task?.status).toBe('failed');
     });
     expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
+    expect(consoleErrorSpy.mock.calls[0]?.[0]).toMatch(/^\[@jini-ai\/http-kit\] internal error \(media-generate-dispatch, correlationId=[0-9a-f-]{36}\)$/);
+    expect(consoleErrorSpy.mock.calls[0]?.[1]).toBe('Error');
+    expect(JSON.stringify(consoleErrorSpy.mock.calls)).not.toContain('boom');
     consoleErrorSpy.mockRestore();
   });
 });
@@ -560,7 +563,7 @@ describe('mediaTaskGetRoute.handle', () => {
     const result = await mediaTaskGetRoute.handle({ input: 't1', deps });
     expect(result).toEqual({
       ok: false,
-      error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) },
+      error: { code: 'INTERNAL_ERROR', message: 'The media task could not be read or saved. Reload to check the task; if it keeps failing, copy the request ID and report this problem.', requestId: expect.any(String) },
     });
     expect(JSON.stringify(result)).not.toContain('/private/jini.sqlite');
     expect(onInternalError).toHaveBeenCalledWith(
@@ -601,7 +604,7 @@ describe('mediaTaskDeleteRoute.handle', () => {
     const result = await mediaTaskDeleteRoute.handle({ input: 't1', deps });
     expect(result).toEqual({
       ok: false,
-      error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) },
+      error: { code: 'INTERNAL_ERROR', message: 'The media task could not be read or saved. Reload to check the task; if it keeps failing, copy the request ID and report this problem.', requestId: expect.any(String) },
     });
     expect(JSON.stringify(result)).not.toContain('/private/tasks.db');
     expect(onInternalError).toHaveBeenCalledWith(
@@ -687,7 +690,7 @@ describe('mediaTaskListRoute.handle', () => {
     const result = await mediaTaskListRoute.handle({ input: { ownerRef: 'owner-1', options: {} }, deps });
     expect(result).toEqual({
       ok: false,
-      error: { code: 'INTERNAL_ERROR', message: 'an internal error occurred', requestId: expect.any(String) },
+      error: { code: 'INTERNAL_ERROR', message: 'The media task could not be read or saved. Reload to check the task; if it keeps failing, copy the request ID and report this problem.', requestId: expect.any(String) },
     });
     expect(JSON.stringify(result)).not.toContain('/private/tasks.db');
     expect(onInternalError).toHaveBeenCalledWith(

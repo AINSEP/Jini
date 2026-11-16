@@ -208,7 +208,7 @@ describe('researchSearchRoute.handle', () => {
     expect(result.ok).toBe(false);
     if (!result.ok) {
       expect(result.error.code).toBe('INTERNAL_ERROR');
-      expect(result.error.message).toBe('an internal error occurred');
+      expect(result.error.message).toBe('The web research request could not be completed. Try again; if it keeps failing, copy the request ID and report this problem.');
       expect(JSON.stringify(result.error)).not.toContain('tvly-test-key');
     }
     expect(onInternalError).toHaveBeenCalledTimes(1);
@@ -292,6 +292,7 @@ describe('researchSearchRoute.handle', () => {
       expect(result).toMatchObject({ ok: false, error: { code: 'INTERNAL_ERROR' } });
       expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
       expect(consoleErrorSpy.mock.calls[0]![0]).toContain('internal error (research/search, correlationId=');
+      expect(consoleErrorSpy.mock.calls[0]?.[1]).toBe('Error');
       consoleErrorSpy.mockRestore();
     });
   });
