@@ -104,7 +104,25 @@ export type IconName =
   | 'trash'
   | 'volume'
   | 'zoom-in'
-  | 'zoom-out';
+  | 'zoom-out'
+  | 'compass'
+  | 'timeline'
+  | 'migrate-forward'
+  | 'folder-outline'
+  | 'folder-plus'
+  | 'tray-export'
+  | 'tray-import'
+  | 'tray-upload'
+  | 'document-lines'
+  | 'document-marked'
+  | 'tiles-four'
+  | 'picture-frame'
+  | 'video-frame'
+  | 'cloud-outline'
+  | 'bin-lidded'
+  | 'flag-triangle'
+  | 'more-horizontal-outline'
+  | 'star-filled';
 
 /**
  * Runtime enumeration of every {@link IconName}. A string union has no
@@ -130,4 +148,22 @@ export const ICON_NAMES: readonly IconName[] = [
   'send', 'settings', 'share', 'sliders', 'smartphone', 'spinner', 'sparkles', 'stop',
   'sun', 'moon', 'sun-moon', 'terminal', 'thumbs-down', 'thumbs-up', 'tweaks', 'upload',
   'trash', 'volume', 'zoom-in', 'zoom-out',
+  'compass',
+  'timeline',
+  'migrate-forward',
+  'folder-outline',
+  'folder-plus',
+  'tray-export',
+  'tray-import',
+  'tray-upload',
+  'document-lines',
+  'document-marked',
+  'tiles-four',
+  'picture-frame',
+  'video-frame',
+  'cloud-outline',
+  'bin-lidded',
+  'flag-triangle',
+  'more-horizontal-outline',
+  'star-filled',
 ];
