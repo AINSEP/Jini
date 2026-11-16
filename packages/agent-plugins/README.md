@@ -124,6 +124,7 @@ Catalog format) that this package does not implement.
 | `./folder-zip/node` | node | `zipLocalFolder({ path, maxBytes })`: the same encoder over a local folder; refuses symlinks/special files, bounds entries and bytes. |
 | `./admin-surfaces` | universal | Plugin-owned admin surfaces: the contribution definition (host-named file), sandboxed-iframe/CSP/bootstrap helpers, the host-page message gate and the server-side action dispatcher. See "Admin surfaces" below. |
 | `./admin-surfaces/client` | universal | `createAdminSurfaceClient(...)`: the self-contained surface-side protocol client a plugin's UI imports or copies. |
+| `./admin-surfaces/node` | node | `createIssuedSignInCollector({ admitHttp })`: per-request (AsyncLocalStorage) registry of the sign-in links the connections port issued during one action, for the host page to open. |
 
 The universal root handles structural validation. The separate Node lifecycle entry implements
 local archive installation and host-owned activation policy; it does not implement remote catalog discovery.
