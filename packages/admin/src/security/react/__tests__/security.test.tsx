@@ -1,6 +1,6 @@
 import { Suspense, StrictMode } from 'react';
 import { afterEach, describe, it, expect, vi } from 'vitest';
-import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react';
+import { render, screen, fireEvent, waitFor, cleanup, act } from '../../../__tests__/fetch-query-support.js';
 import { KitProvider, createKit, type ConfirmViewProps } from '@jini-ai/ui-kit/react';
 import { createAdmin } from '../../../core/module/index.js';
 import { security } from '../index.js';

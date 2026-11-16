@@ -15,8 +15,8 @@ const fakeComponents: AdminKitComponents = {
       </select>
     </label>
   ),
-  Switch: (p) => <label>{p.label}<input type="checkbox" checked={p.checked} disabled={p.disabled} onChange={(e) => p.onCheckedChange({ checked: e.target.checked })} /></label>,
-  Dialog: (p) => (p.open ? <div role="dialog" aria-label={p.title}>{p.children}<button type="button" onClick={() => p.onClose({})}>{p.closeLabel ?? 'Close'}</button></div> : null),
+  Switch: (p) => <label>{p.label}<input type="checkbox" role="switch" checked={p.checked} disabled={p.disabled} onChange={(e) => p.onCheckedChange({ checked: e.target.checked })} /></label>,
+  Dialog: (p) => (p.open ? <div role="dialog" aria-label={p.title}><h2>{p.title}</h2>{p.children}<button type="button" onClick={() => p.onClose({})}>{p.closeLabel ?? 'Close'}</button></div> : null),
   ConfirmDialog: (p) => (p.open ? (
     <div role="dialog" aria-label={p.title}>{p.body}
       <button type="button" onClick={() => p.onCancel({})}>{p.cancelLabel ?? 'Cancel'}</button>
@@ -54,8 +54,8 @@ function useFakeNativeDialog(required: DialogProps): NativeDialogView {
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    if (required.open && !el.open) el.showModal();
-    if (!required.open && el.open) el.close();
+    // Attribute, not showModal(): jsdom has no dialog top layer, and the attribute is all accessibility queries read.
+    el.toggleAttribute('open', required.open);
   }, [required.open]);
   return { titleId: 'fake-title', props: { ref, onCancel: () => required.onClose({}), onClick: () => {} } };
 }

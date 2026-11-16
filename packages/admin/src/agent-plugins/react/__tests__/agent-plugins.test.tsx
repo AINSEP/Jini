@@ -1,6 +1,6 @@
 import { forwardRef, StrictMode, Suspense } from 'react';
 import { afterEach, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '../../../__tests__/fetch-query-support.js';
 import { createKit, KitProvider } from '@jini-ai/ui-kit/react';
 import { type ButtonProps } from '../../../react/kit.js';
 import { createAdmin } from '../../../core/module/index.js';

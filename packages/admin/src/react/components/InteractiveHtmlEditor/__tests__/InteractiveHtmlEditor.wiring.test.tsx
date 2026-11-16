@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react';
+import { render } from '../../../../__tests__/fetch-query-support.js';
 import { expect, it, vi } from 'vitest';
 import type { HtmlEditorProps } from '../../../kit.js';
 import { InteractiveHtmlEditor } from '../InteractiveHtmlEditor.js';

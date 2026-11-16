@@ -1,5 +1,5 @@
 import type { ReactElement } from 'react';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen } from '../../../__tests__/fetch-query-support.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AdminErasedEntityPort } from '../../../core/ports/entities.js';
 import { matchRoute } from '../../../core/routing/rules.js';

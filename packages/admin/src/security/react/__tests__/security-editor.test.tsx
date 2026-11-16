@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '../../../__tests__/fetch-query-support.js';
 import { KitProvider } from '@jini-ai/ui-kit/react';
 import { createAdmin } from '../../../core/module/index.js';
 import { security } from '../index.js';

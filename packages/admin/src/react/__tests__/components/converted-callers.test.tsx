@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '../../../__tests__/fetch-query-support.js';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { Sidebar } from '../../components/Sidebar.js';
 import { RowMenu } from '../../components/RowMenu/RowMenu.js';

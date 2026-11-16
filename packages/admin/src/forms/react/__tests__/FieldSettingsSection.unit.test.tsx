@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen } from "../../../__tests__/fetch-query-support.js";
 import { describe, expect, it, vi } from "vitest";
 
 import type { AdminFormField } from "../../models.js";

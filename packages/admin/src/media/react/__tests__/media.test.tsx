@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { render as renderController } from '@testing-library/react';
+import { render as renderController } from '../../../__tests__/fetch-query-support.js';
 import { render, screen, fireEvent, waitFor, cleanup, act, configure } from '../../../__tests__/fetch-query-support.js';
 import { StrictMode, Suspense, createRef } from 'react';
 import { createAdmin } from '../../../core/module/index.js';

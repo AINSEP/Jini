@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { act, render, renderHook, waitFor } from '@testing-library/react';
+import { act, render, renderHook, waitFor } from './fetch-query-support.js';
 import { describe, expect, it } from 'vitest';
 import type { ReactNode } from 'react';
 import { FetchQueryProvider as BuiltinProvider } from '@jini-ai/ui/fetch-query';
