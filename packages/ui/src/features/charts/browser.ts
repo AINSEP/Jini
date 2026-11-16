@@ -20,10 +20,10 @@ export interface MountedChart extends ChartInstance {
 export async function loadChartProvider(
   { url }: { url: string },
   { importModule = ({ url }: { url: string }) => import(/* @vite-ignore */ url) }: { importModule?: (input: { url: string }, options?: Record<string, never>) => Promise<unknown> } = {},
-): Promise<ChartProvider> {
+): Promise<ChartProvider<HTMLElement>> {
   const module = await importModule({ url }) as { mount?: unknown };
   if (typeof module?.mount !== 'function') throw new TypeError('Chart provider must export mount.');
-  return module as ChartProvider;
+  return module as ChartProvider<HTMLElement>;
 }
 
 /** Mount a vanilla provider into its own child node, keeping data visible until ready. Updates and
@@ -90,7 +90,7 @@ export function mountChart(
         if (isStaleMount({ token })) return;
         const frame = element.ownerDocument.createElement('div'); renderer.replaceChildren(frame);
         renderRevision = revision;
-        const instance = provider.mount({ element: frame, ...input }, { onError: (error) => renderError(entry, error, token) });
+        const instance = provider.mount({ element: frame, applyTheme: applyChartTheme, ...input }, { onError: (error) => renderError(entry, error, token) });
         active = { entry, instance };
         await instance.ready;
         if (isStaleMount({ token }) || renderRevision !== revision) return;
