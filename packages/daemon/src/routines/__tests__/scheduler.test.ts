@@ -680,7 +680,7 @@ describe('RoutineService scheduled run idempotency', () => {
       await vi.advanceTimersByTimeAsync(0);
 
       const logged = errors.mock.calls.find(
-        (call) => String(call[0]).includes('prepare cleanup failed') && call[1] === "'raw discard failure'",
+        (call) => String(call[0]).includes('prepare cleanup failed') && call[1] === 'string',
       );
       expect(logged).toBeDefined();
     } finally {
@@ -841,7 +841,7 @@ describe('RoutineService scheduled run idempotency', () => {
         },
         discard: () => {
           discardCalls += 1;
-          throw new Error('cleanup blew up');
+          throw new Error('cleanup blew up api_key=SECRETSECRETSECRETSECRET');
         },
         start: () => {},
       };
@@ -855,12 +855,10 @@ describe('RoutineService scheduled run idempotency', () => {
 
       expect(discardCalls).toBe(1);
 
-      expect(
-        errors.mock.calls.some((call) => call.some((value) => String(value).includes('cleanup blew up'))),
-      ).toBe(true);
-      expect(
-        errors.mock.calls.some((call) => call.some((value) => String(value).includes('prepare exploded'))),
-      ).toBe(true);
+      expect(errors.mock.calls.some((call) => String(call[0]).includes('prepare cleanup failed') && call[1] === 'Error')).toBe(true);
+      for (const leaked of ['cleanup blew up', 'prepare exploded', 'SECRETSECRET']) {
+        expect(errors.mock.calls.some((call) => call.some((value) => String(value).includes(leaked)))).toBe(false);
+      }
 
       expect(persistence.runs).toHaveLength(1);
       const stored = persistence.runs[0]!;
@@ -903,10 +901,10 @@ describe('RoutineService scheduled run idempotency', () => {
       await vi.advanceTimersByTimeAsync(60_000);
 
       // ScheduledRunPersistenceError wraps the raw discard failure as `originalError`;
-      // the diagnostic must retain that non-Error value through inspection and redaction.
+      // the line describes that underlying value (its type), never its text.
       expect(errors).toHaveBeenCalled();
       const logged = errors.mock.calls[0]!;
-      expect(String(logged[1])).toBe("'raw discard failure'");
+      expect(logged[1]).toBe('string');
 
       // A ScheduledRunPersistenceError retries the same slot rather than advancing the cadence —
       // still scheduled (not silently dropped) after the failed attempt.
@@ -943,7 +941,7 @@ describe('RoutineService scheduled run idempotency', () => {
       await vi.advanceTimersByTimeAsync(60_000);
       await vi.advanceTimersByTimeAsync(0);
 
-      const logged = errors.mock.calls.find((call) => String(call[1]) === "'raw prepare failure'");
+      const logged = errors.mock.calls.find((call) => String(call[0]).includes('scheduled run failed') && call[1] === 'string');
       expect(logged).toBeDefined();
 
       // Not a ScheduledRunPersistenceError, so the scheduler advances to the next normal cadence
@@ -994,7 +992,8 @@ describe('RoutineService scheduled run idempotency', () => {
       expect(persistence.runs).toHaveLength(0);
       expect(
         errors.mock.calls.some((call) => call.some((value) => String(value).includes('duplicate loser cleanup failed'))),
-      ).toBe(true);
+      ).toBe(false);
+      expect(errors).toHaveBeenCalled();
     } finally {
       service.stop({});
       errors.mockRestore();

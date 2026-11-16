@@ -1241,7 +1241,7 @@ describe('createAgentExecutor — real default collaborators', () => {
             childPathPrepend: [],
             diagnostic: null,
           }) as AgentLaunchResolution, applyAgentLaunchEnv: ({ env }) => env, spawn: fakeSpawn, attachPiRpcSession: fakeAttachPiRpcSession, listProcessSnapshots: async () => [], stopProcesses: async () => {
-          throw new Error('EPERM: not permitted');
+          throw Object.assign(new Error('EPERM: not permitted api_key=SECRETSECRETSECRETSECRET'), { code: 'EPERM' });
         } });
 
       const { run } = await lifecycle.start({ contextRef: 'ctx-1' });
@@ -1254,9 +1254,9 @@ describe('createAgentExecutor — real default collaborators', () => {
       const [firstArg, secondArg] = consoleErrorSpy.mock.calls[0]!;
       expect(firstArg).toContain('pid=5300');
       expect(firstArg).toContain('pi-rpc-attach-failure');
-      // redactSecrets ran on the message — the raw sensitive-looking text isn't asserted verbatim,
-      // only that some redacted string was passed as the second console.error argument.
-      expect(typeof secondArg).toBe('string');
+      // The default sink prints the class and approved code only; the host sink would get the original.
+      expect(secondArg).toBe('Error(EPERM)');
+      expect(JSON.stringify(consoleErrorSpy.mock.calls)).not.toContain('SECRETSECRET');
     } finally {
       consoleErrorSpy.mockRestore();
     }
