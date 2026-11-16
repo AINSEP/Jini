@@ -14,9 +14,9 @@ import * as secretsTesting from '../secrets/testing.js';
 import { InMemoryKeyring } from '../secrets/keyring.memory.js';
 import { FixedRootKeyKeyring } from '../secrets/keyring.env.js';
 
-test('./net publishes the address classifiers and the loopback probe by identity', () => {
+test('./net publishes the private-address check and the loopback probe by identity (the pure classifiers moved to core/net)', () => {
   const expected = { ...address, ...localHttpProbe, ...localHttpRequest };
-  expect(Object.keys(net).sort()).toEqual(['expandIpv6', 'isBlockedExternalApiHostname', 'isLoopbackApiHost', 'isLoopbackHostname', 'isPrivateAddress', 'probeLoopbackHttp', 'requestLoopbackHttp']);
+  expect(Object.keys(net).sort()).toEqual(['isPrivateAddress', 'probeLoopbackHttp', 'requestLoopbackHttp']);
   for (const name of Object.keys(net) as (keyof typeof net)[]) expect(net[name]).toBe(expected[name]);
   expect(net.isPrivateAddress({ address: '10.0.0.1' })).toBe(true);
   expect(net.isPrivateAddress({ address: '203.0.113.1' })).toBe(false);
