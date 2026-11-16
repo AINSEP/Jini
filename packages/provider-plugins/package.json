@@ -92,6 +92,9 @@
     "access": "public",
     "registry": "https://registry.npmjs.org"
   },
+  "dependencies": {
+    "@jini-ai/core": "workspace:^"
+  },
   "devDependencies": {
     "@jini-ai/agent-runtime": "workspace:^",
     "@jini-ai/analytics": "workspace:^",

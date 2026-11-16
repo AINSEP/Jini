@@ -1126,6 +1126,10 @@ importers:
         version: 2.1.9(vitest@2.1.9(@types/node@24.13.3)(jsdom@26.1.0)(lightningcss@1.33.0)(sass@1.51.0))
 
   packages/provider-plugins:
+    dependencies:
+      '@jini-ai/core':
+        specifier: workspace:^
+        version: link:../core
     devDependencies:
       '@jini-ai/agent-runtime':
         specifier: workspace:^
@@ -1353,6 +1357,9 @@ importers:
       '@jini-ai/chat':
         specifier: workspace:^
         version: link:../chat
+      '@jini-ai/core':
+        specifier: workspace:^
+        version: link:../core
       '@jini-ai/daemon':
         specifier: workspace:^
         version: link:../daemon
