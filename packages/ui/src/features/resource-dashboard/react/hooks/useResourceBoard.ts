@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type Dispatch, type RefObject, type SetStateAction } from 'react';
 import {
   filterBoardItemsByQuery,
   groupItemsByStatus,
@@ -85,29 +85,15 @@ export interface ResourceBoardController<TItem extends ResourceBoardItem> {
  * `ResourceBoard.tsx`'s `onRenameRequest` prop and
  * `archived UI provenance ledger`'s "Dropped" list.
  */
-export function useResourceBoard<TItem extends ResourceBoardItem>(params: UseResourceBoardParams<TItem>): ResourceBoardController<TItem> {
-  const { port, refreshToken } = params;
-  const viewModeStorage = params.viewModeStorage;
-  const storageScopeKey = params.storageScopeKey ?? 'resource-dashboard:view';
-  const defaultViewMode = params.defaultViewMode ?? 'grid';
-  const statusOrder = params.statusOrder ?? [];
+type SetItems<TItem> = Dispatch<SetStateAction<TItem[]>>;
+type SetPendingKeys = Dispatch<SetStateAction<ReadonlySet<string>>>;
+type SetOpenMenuId = Dispatch<SetStateAction<string | null>>;
 
+/** Loads the item list from the port; bumping `refreshToken` re-fetches. */
+function useBoardItems<TItem extends ResourceBoardItem>(port: ResourceBoardPort<TItem>, refreshToken: string | number | undefined) {
   const [items, setItems] = useState<TItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
-  const [query, setQuery] = useState('');
-  const [sort, setSort] = useState<string | undefined>(params.initialSort);
-  const [selectMode, setSelectMode] = useState(false);
-  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
-  const [pendingKeys, setPendingKeys] = useState<ReadonlySet<string>>(new Set());
-  const [bulkDeleteBusy, setBulkDeleteBusy] = useState(false);
-  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const menuContainerRef = useRef<HTMLDivElement | null>(null);
-  const [viewMode, setViewModeState] = useState<ResourceBoardViewMode>(() => {
-    const stored = (viewModeStorage ?? createLocalStorageViewModeStorage()).getViewMode(storageScopeKey);
-    return stored ?? defaultViewMode;
-  });
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -126,10 +112,39 @@ export function useResourceBoard<TItem extends ResourceBoardItem>(params: UseRes
     void reload();
   }, [reload, refreshToken]);
 
+  return { items, setItems, loading, error, reload };
+}
+
+/** The (persisted) grid/kanban view mode. */
+function useBoardViewMode(params: UseResourceBoardParams<ResourceBoardItem>) {
+  const { viewModeStorage } = params;
+  const storageScopeKey = params.storageScopeKey ?? 'resource-dashboard:view';
+  const defaultViewMode = params.defaultViewMode ?? 'grid';
+  const [viewMode, setViewModeState] = useState<ResourceBoardViewMode>(() => {
+    const stored = (viewModeStorage ?? createLocalStorageViewModeStorage()).getViewMode(storageScopeKey);
+    return stored ?? defaultViewMode;
+  });
+
+  const setViewMode = useCallback(
+    (mode: ResourceBoardViewMode) => {
+      setViewModeState(mode);
+      (viewModeStorage ?? createLocalStorageViewModeStorage()).setViewMode(storageScopeKey, mode);
+    },
+    [viewModeStorage, storageScopeKey],
+  );
+
+  return { viewMode, setViewMode };
+}
+
+/** Select mode + selected ids, pruned as items disappear and reset when leaving grid view. */
+function useBoardSelection(itemIds: string[], viewMode: ResourceBoardViewMode, itemsKey: unknown) {
+  const [selectMode, setSelectMode] = useState(false);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
+
   // Drop selected ids that no longer exist (DesignsTab's own "prune selection" effect).
   useEffect(() => {
-    setSelected((current) => pruneSelectedIds(current, new Set(items.map((item) => item.id))));
-  }, [items]);
+    setSelected((current) => pruneSelectedIds(current, new Set(itemIds)));
+  }, [itemsKey]);
 
   // Leaving grid view exits select mode entirely (DesignsTab hides select-mode UI in kanban view).
   useEffect(() => {
@@ -138,6 +153,21 @@ export function useResourceBoard<TItem extends ResourceBoardItem>(params: UseRes
       setSelected(new Set());
     }
   }, [viewMode, selectMode]);
+
+  const enterSelectMode = useCallback(() => setSelectMode(true), []);
+  const exitSelectMode = useCallback(() => {
+    setSelectMode(false);
+    setSelected(new Set());
+  }, []);
+  const toggleSelected = useCallback((id: string) => setSelected((current) => toggleSelectedId(current, id)), []);
+
+  return { selectMode, selected, enterSelectMode, exitSelectMode, toggleSelected };
+}
+
+/** The single-open-at-a-time kebab menu. */
+function useBoardMenu() {
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
+  const menuContainerRef = useRef<HTMLDivElement | null>(null);
 
   // Single-open-at-a-time kebab menu: outside-click/Escape dismiss. A click
   // INSIDE the open menu (e.g. a menu item) must NOT close it before its own
@@ -161,25 +191,22 @@ export function useResourceBoard<TItem extends ResourceBoardItem>(params: UseRes
     };
   }, [openMenuId]);
 
-  const setViewMode = useCallback(
-    (mode: ResourceBoardViewMode) => {
-      setViewModeState(mode);
-      (viewModeStorage ?? createLocalStorageViewModeStorage()).setViewMode(storageScopeKey, mode);
-    },
-    [viewModeStorage, storageScopeKey],
-  );
-
-  const enterSelectMode = useCallback(() => setSelectMode(true), []);
-  const exitSelectMode = useCallback(() => {
-    setSelectMode(false);
-    setSelected(new Set());
-  }, []);
-  const toggleSelected = useCallback((id: string) => setSelected((current) => toggleSelectedId(current, id)), []);
-
   const toggleMenu = useCallback((id: string) => setOpenMenuId((current) => (current === id ? null : id)), []);
   const closeMenu = useCallback(() => setOpenMenuId(null), []);
 
-  const isItemBusy = useCallback((id: string) => isActionPending({ pendingKeys, id, kind: ITEM_ACTION_KIND }), [pendingKeys]);
+  return { openMenuId, setOpenMenuId, menuContainerRef, toggleMenu, closeMenu };
+}
+
+interface ItemActionDeps<TItem extends ResourceBoardItem> {
+  port: ResourceBoardPort<TItem>;
+  setItems: SetItems<TItem>;
+  setPendingKeys: SetPendingKeys;
+  setOpenMenuId: SetOpenMenuId;
+}
+
+/** Single-item remove / duplicate, with a visible `actionError` on failure. */
+function useBoardItemActions<TItem extends ResourceBoardItem>({ port, setItems, setPendingKeys, setOpenMenuId }: ItemActionDeps<TItem>) {
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const remove = useCallback(
     async (id: string) => {
@@ -201,7 +228,7 @@ export function useResourceBoard<TItem extends ResourceBoardItem>(params: UseRes
         setOpenMenuId((current) => (current === id ? null : current));
       }
     },
-    [port],
+    [port, setItems, setPendingKeys, setOpenMenuId],
   );
 
   const duplicate = useCallback(
@@ -219,8 +246,19 @@ export function useResourceBoard<TItem extends ResourceBoardItem>(params: UseRes
         setOpenMenuId((current) => (current === id ? null : current));
       }
     },
-    [port],
+    [port, setItems, setPendingKeys, setOpenMenuId],
   );
+
+  return { actionError, remove, duplicate };
+}
+
+/** Bulk delete of the current selection; never rejects (reports per-item outcome counts). */
+function useBoardBulkDelete<TItem extends ResourceBoardItem>(
+  { port, setItems, setPendingKeys }: Omit<ItemActionDeps<TItem>, 'setOpenMenuId'>,
+  selected: ReadonlySet<string>,
+  exitSelectMode: () => void,
+) {
+  const [bulkDeleteBusy, setBulkDeleteBusy] = useState(false);
 
   const bulkDelete = useCallback(async () => {
     const ids = [...selected];
@@ -246,7 +284,26 @@ export function useResourceBoard<TItem extends ResourceBoardItem>(params: UseRes
       setPendingKeys((current) => withoutPendingAction({ pendingKeys: current, id: BULK_DELETE_SCOPE, kind: BULK_DELETE_KIND }));
       setBulkDeleteBusy(false);
     }
-  }, [selected, port, exitSelectMode]);
+  }, [selected, port, exitSelectMode, setItems, setPendingKeys]);
+
+  return { bulkDeleteBusy, bulkDelete };
+}
+
+export function useResourceBoard<TItem extends ResourceBoardItem>(params: UseResourceBoardParams<TItem>): ResourceBoardController<TItem> {
+  const { port, refreshToken } = params;
+  const statusOrder = params.statusOrder ?? [];
+  const { items, setItems, loading, error, reload } = useBoardItems(port, refreshToken);
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<string | undefined>(params.initialSort);
+  const [pendingKeys, setPendingKeys] = useState<ReadonlySet<string>>(new Set());
+  const { viewMode, setViewMode } = useBoardViewMode(params);
+  const itemIds = useMemo(() => items.map((item) => item.id), [items]);
+  const selection = useBoardSelection(itemIds, viewMode, items);
+  const menu = useBoardMenu();
+  const deps = { port, setItems, setPendingKeys, setOpenMenuId: menu.setOpenMenuId };
+  const itemActions = useBoardItemActions(deps);
+  const bulk = useBoardBulkDelete(deps, selection.selected, selection.exitSelectMode);
+  const isItemBusy = useCallback((id: string) => isActionPending({ pendingKeys, id, kind: ITEM_ACTION_KIND }), [pendingKeys]);
 
   const visibleItems = useMemo(() => sortBoardItems(filterBoardItemsByQuery(items, query), sort), [items, query, sort]);
 
@@ -260,35 +317,13 @@ export function useResourceBoard<TItem extends ResourceBoardItem>(params: UseRes
   );
 
   return {
-    loading,
-    error,
-    actionError,
-    totalCount: items.length,
-    query,
-    setQuery,
-    sort,
-    setSort,
-    viewMode,
-    setViewMode,
-    visibleItems,
-    kanbanColumns,
-    selectMode,
-    selected,
-    enterSelectMode,
-    exitSelectMode,
-    toggleSelected,
-    bulkDeleteBusy,
-    bulkDelete,
-    openMenuId,
-    menuContainerRef,
-    toggleMenu,
-    closeMenu,
-    isItemBusy,
-    reload,
-    remove,
-    duplicate,
+    ...selection, ...itemActions, ...bulk,
+    openMenuId: menu.openMenuId, menuContainerRef: menu.menuContainerRef, toggleMenu: menu.toggleMenu, closeMenu: menu.closeMenu,
+    loading, error, totalCount: items.length, query, setQuery, sort, setSort, viewMode, setViewMode,
+    visibleItems, kanbanColumns, isItemBusy, reload,
   };
 }
+
 
 export type UseWiredResourceBoardParams<TItem extends ResourceBoardItem> = {
   dependencies: ResourceBoardDependencies<TItem>;
