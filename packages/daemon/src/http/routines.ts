@@ -77,6 +77,7 @@ import {
   type RoutineStore,
   type RoutineUpdateInput,
 } from '../index.js';
+import { ToolInputError } from '@jini-ai/core';
 import { createApiError, type ApiError } from '@jini-ai/protocol';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
 import { validationError } from '@jini-ai/http-kit';
@@ -252,6 +253,7 @@ function parseRoutineUpdate(input: RouteInputContext): Result<RoutineUpdateReque
 interface RoutineRunsQuery {
   readonly id: string;
   readonly limit: number;
+  readonly cursor: string | null;
 }
 
 function parseRoutineRunsQuery(input: RouteInputContext): Result<RoutineRunsQuery> {
@@ -264,7 +266,11 @@ function parseRoutineRunsQuery(input: RouteInputContext): Result<RoutineRunsQuer
   const parsed = Number(rawValue);
   const numeric = parsed > 0 ? parsed : 20;
   const limit = Math.min(100, Math.max(1, numeric));
-  return ok({ value: { id: idResult.value, limit } });
+  const rawCursor = Array.isArray(input.query.cursor) ? input.query.cursor[0] : input.query.cursor;
+  if (rawCursor !== undefined && (typeof rawCursor !== 'string' || rawCursor.length === 0)) {
+    return err({ error: validationError({ message: 'cursor must be a non-empty string' }) });
+  }
+  return ok({ value: { id: idResult.value, limit, cursor: rawCursor ?? null } });
 }
 
 // ---------------------------------------------------------------------------
@@ -370,14 +376,21 @@ export const routineRunNowRoute = defineJsonRoute<string, RoutineRunNowResponse,
 
 export interface RoutineRunsResponse {
   readonly runs: readonly RoutineRun[];
+  /** Opaque cursor for the next (older) page, or `null` on the last page. */
+  readonly nextCursor: string | null;
 }
 
 export const routineRunsListRoute = defineJsonRoute<RoutineRunsQuery, RoutineRunsResponse, RoutineHttpDeps>({
-  method: 'get', path: '/api/routines/:id/runs', parse: parseRoutineRunsQuery, handle: async ({ input: { id, limit }, deps }) => {
+  method: 'get', path: '/api/routines/:id/runs', parse: parseRoutineRunsQuery, handle: async ({ input: { id, limit, cursor }, deps }) => {
     const existing = await deps.store.get({ id });
     if (existing === null) return err({ error: createApiError({ code: 'NOT_FOUND', message: ROUTINE_NOT_FOUND_MESSAGE }) });
-    const runs = await deps.store.listRuns({ routineId: id, limit });
-    return ok({ value: { runs } });
+    try {
+      const page = await deps.store.listRuns({ routineId: id, limit }, { cursor });
+      return ok({ value: { runs: page.items, nextCursor: page.nextCursor } });
+    } catch (error) {
+      if (error instanceof ToolInputError) return err({ error: validationError({ message: error.message }) });
+      throw error;
+    }
   }
 });
 

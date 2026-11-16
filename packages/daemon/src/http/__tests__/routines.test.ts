@@ -1039,7 +1039,8 @@ describe('registerRoutineRoutes — real Express server on a real socket', () =>
       agentRunId: 'agent-run-1',
     });
 
-    expect(await send(base, 'GET', `/api/routines/${routine.id}/runs`)).toEqual({ status: 200, body: { runs: [] } });
+    expect(await send(base, 'GET', `/api/routines/${routine.id}/runs`)).toEqual({ status: 200, body: { runs: [], nextCursor: null } });
+    expect((await send(base, 'GET', `/api/routines/${routine.id}/runs?cursor=garbage`)).status).toBe(400);
   });
 
   it('rejects a cross-origin create request with 403 before the routine store is ever called', async () => {
