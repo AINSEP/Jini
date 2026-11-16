@@ -154,6 +154,112 @@ function isWellFormedResponse(message: Message): boolean {
   return message.ok === true ? Object.hasOwn(message, 'result') : message.ok === false && isFailure(message.error);
 }
 
+/** The client's mutable state and fixed ports, shared by the module-level helpers below. */
+interface ClientState {
+  readonly parent: AdminSurfaceParentPort;
+  readonly timeoutMs: number;
+  readonly nowMs: () => number;
+  readonly pending: Map<string, Pending>;
+  readonly themeRoot: AdminSurfaceThemeRoot | null;
+  readonly size: AdminSurfaceSizePort | null;
+  init: Init | undefined;
+  nextRequest: number;
+  currentTheme: AdminSurfaceClientTheme | undefined;
+  stopSize: (() => void) | undefined;
+  lastHeight: number;
+  resolveReady: () => void;
+}
+
+/** Tells the host this surface's height (only when it changed), so the frame fits its content. */
+function reportHeight(state: ClientState, height: number): void {
+  const { init } = state;
+  if (init === undefined || !Number.isFinite(height) || height === state.lastHeight) return;
+  state.lastHeight = height;
+  state.parent.postMessage({ protocol: PROTOCOL, version: VERSION, kind: 'resize', mountId: init.mountId, height }, init.origin);
+}
+
+/** Replaces the applied tokens: a token the new theme no longer sends falls back to the surface's CSS. */
+function applyTheme(state: ClientState, value: unknown): void {
+  const next = acceptedTheme(value);
+  if (next === undefined) return;
+  const { themeRoot } = state;
+  if (themeRoot !== null) {
+    for (const name of Object.keys(state.currentTheme?.tokens ?? {})) if (!(name in next.tokens)) themeRoot.style.removeProperty(name);
+    for (const [name, token] of Object.entries(next.tokens)) themeRoot.style.setProperty(name, token);
+    themeRoot.style.setProperty('color-scheme', next.scheme);
+    themeRoot.setAttribute('data-jini-scheme', next.scheme);
+  }
+  state.currentTheme = next;
+}
+
+function onInit(state: ClientState, event: AdminSurfaceIncomingMessage, data: Message): void {
+  if (state.init !== undefined || typeof data.mountId !== 'string') return;
+  state.init = { mountId: data.mountId, origin: event.origin, bootstrap: data.bootstrap };
+  applyTheme(state, data.theme);
+  state.stopSize = state.size?.((height) => reportHeight(state, height));
+  state.resolveReady();
+}
+
+function onResponse(state: ClientState, event: AdminSurfaceIncomingMessage, data: Message): void {
+  const { init, pending } = state;
+  if (event.origin !== init?.origin || data.mountId !== init.mountId || typeof data.requestId !== 'string') return;
+  const waiting = pending.get(data.requestId);
+  if (waiting === undefined || !isWellFormedResponse(data)) return;
+  pending.delete(data.requestId);
+  clearTimeout(waiting.timer);
+  if (data.ok === true) waiting.resolve(data.result);
+  else waiting.reject(new AdminSurfaceCallError(data.error as AdminSurfaceClientFailure));
+}
+
+/** Routes one message from the parent window: init, a theme update, or an action response. */
+function onParentMessage(state: ClientState, event: AdminSurfaceIncomingMessage): void {
+  if (event.source !== state.parent) return;
+  if (isMessage(event.data, 'init')) {
+    onInit(state, event, event.data);
+    return;
+  }
+  if (isMessage(event.data, 'theme')) {
+    if (event.origin === state.init?.origin && event.data.mountId === state.init.mountId) applyTheme(state, event.data.theme);
+    return;
+  }
+  if (isMessage(event.data, 'action-response')) onResponse(state, event, event.data);
+}
+
+/** Posts one request of `kind` to the host origin and waits for its `action-response`. */
+async function sendRequest(state: ClientState, ready: Promise<void>, kind: string, fields: Readonly<Record<string, unknown>>): Promise<unknown> {
+  if (state.init === undefined) await ready;
+  const { mountId, origin } = state.init!;
+  state.nextRequest += 1;
+  const requestId = `r${state.nextRequest}`;
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(() => {
+      state.pending.delete(requestId);
+      reject(new AdminSurfaceCallError({ code: 'timeout', message: 'The host did not answer in time. Try again.', retryable: true }));
+    }, state.timeoutMs);
+    state.pending.set(requestId, { resolve, reject, timer });
+    state.parent.postMessage({ protocol: PROTOCOL, version: VERSION, kind, mountId, requestId, ...fields }, origin);
+  });
+}
+
+/** The bootstrap `data` the host sent with init, or `undefined` once it has expired (or none was sent). */
+function readBootstrap(state: ClientState): unknown {
+  const envelope = state.init?.bootstrap;
+  if (typeof envelope !== 'object' || envelope === null) return undefined;
+  const { expiresAt, data } = envelope as Message;
+  return typeof expiresAt === 'number' && state.nowMs() < expiresAt ? data : undefined;
+}
+
+/** Stops listening and rejects every pending call. */
+function closeClient(state: ClientState, unsubscribe: () => void): void {
+  unsubscribe();
+  state.stopSize?.();
+  for (const [requestId, waiting] of state.pending) {
+    clearTimeout(waiting.timer);
+    waiting.reject(new AdminSurfaceCallError({ code: 'closed', message: 'The surface was closed before the host answered.', retryable: false }));
+    state.pending.delete(requestId);
+  }
+}
+
 /**
  * Connects a surface to its host. In a browser:
  * `createAdminSurfaceClient({ parent: window.parent, listen: (h) => { addEventListener('message', h); return () => removeEventListener('message', h); } })`.
@@ -164,123 +270,32 @@ export function createAdminSurfaceClient(
   required: { readonly parent: AdminSurfaceParentPort; readonly listen: AdminSurfaceListenPort },
   optional: { readonly timeoutMs?: number; readonly nowMs?: () => number; readonly themeRoot?: AdminSurfaceThemeRoot | null; readonly size?: AdminSurfaceSizePort | null; readonly browser?: AdminSurfaceBrowserScope } = {},
 ) {
-  const timeoutMs = optional.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-  const nowMs = optional.nowMs ?? Date.now;
-  const pending = new Map<string, Pending>();
-  let init: Init | undefined;
-  let nextRequest = 0;
   // The Promise executor runs synchronously, so `resolveReady` is assigned before anything can call it.
   let resolveReady!: () => void;
   const ready = new Promise<void>((resolve) => { resolveReady = resolve; });
   // The DOM's own observer/element types are wider than the structural subset this client reads.
   const browser = optional.browser ?? (globalThis as unknown as AdminSurfaceBrowserScope);
-  const themeRoot = optional.themeRoot === undefined ? documentRoot(browser) : optional.themeRoot;
-  let currentTheme: AdminSurfaceClientTheme | undefined;
-  const size = optional.size === undefined ? documentSize(browser) : optional.size;
-  let stopSize: (() => void) | undefined;
-  let lastHeight = -1;
+  const state: ClientState = {
+    parent: required.parent,
+    timeoutMs: optional.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    nowMs: optional.nowMs ?? Date.now,
+    pending: new Map<string, Pending>(),
+    themeRoot: optional.themeRoot === undefined ? documentRoot(browser) : optional.themeRoot,
+    size: optional.size === undefined ? documentSize(browser) : optional.size,
+    init: undefined, nextRequest: 0, currentTheme: undefined, stopSize: undefined, lastHeight: -1, resolveReady,
+  };
+  const unsubscribe = required.listen((event) => onParentMessage(state, event));
 
-  /** Tells the host this surface's height (only when it changed), so the frame fits its content. */
-  function reportHeight(height: number): void {
-    if (init === undefined || !Number.isFinite(height) || height === lastHeight) return;
-    lastHeight = height;
-    required.parent.postMessage({ protocol: PROTOCOL, version: VERSION, kind: 'resize', mountId: init.mountId, height }, init.origin);
-  }
-
-  /** Replaces the applied tokens: a token the new theme no longer sends falls back to the surface's CSS. */
-  function applyTheme(value: unknown): void {
-    const next = acceptedTheme(value);
-    if (next === undefined) return;
-    if (themeRoot !== null) {
-      for (const name of Object.keys(currentTheme?.tokens ?? {})) if (!(name in next.tokens)) themeRoot.style.removeProperty(name);
-      for (const [name, token] of Object.entries(next.tokens)) themeRoot.style.setProperty(name, token);
-      themeRoot.style.setProperty('color-scheme', next.scheme);
-      themeRoot.setAttribute('data-jini-scheme', next.scheme);
-    }
-    currentTheme = next;
-  }
-
-  function onInit(event: AdminSurfaceIncomingMessage, data: Message): void {
-    if (init !== undefined || typeof data.mountId !== 'string') return;
-    init = { mountId: data.mountId, origin: event.origin, bootstrap: data.bootstrap };
-    applyTheme(data.theme);
-    stopSize = size?.(reportHeight);
-    resolveReady();
-  }
-
-  function onResponse(event: AdminSurfaceIncomingMessage, data: Message): void {
-    if (event.origin !== init?.origin || data.mountId !== init.mountId || typeof data.requestId !== 'string') return;
-    const waiting = pending.get(data.requestId);
-    if (waiting === undefined || !isWellFormedResponse(data)) return;
-    pending.delete(data.requestId);
-    clearTimeout(waiting.timer);
-    if (data.ok === true) waiting.resolve(data.result);
-    else waiting.reject(new AdminSurfaceCallError(data.error as AdminSurfaceClientFailure));
-  }
-
-  const unsubscribe = required.listen((event) => {
-    if (event.source !== required.parent) return;
-    if (isMessage(event.data, 'init')) {
-      onInit(event, event.data);
-      return;
-    }
-    if (isMessage(event.data, 'theme')) {
-      if (event.origin === init?.origin && event.data.mountId === init.mountId) applyTheme(event.data.theme);
-      return;
-    }
-    if (isMessage(event.data, 'action-response')) onResponse(event, event.data);
-  });
-
-  /** Posts one request of `kind` to the host origin and waits for its `action-response`. */
-  async function send(kind: string, fields: Readonly<Record<string, unknown>>): Promise<unknown> {
-    if (init === undefined) await ready;
-    const { mountId, origin } = init!;
-    nextRequest += 1;
-    const requestId = `r${nextRequest}`;
-    return new Promise((resolve, reject) => {
-      const timer = setTimeout(() => {
-        pending.delete(requestId);
-        reject(new AdminSurfaceCallError({ code: 'timeout', message: 'The host did not answer in time. Try again.', retryable: true }));
-      }, timeoutMs);
-      pending.set(requestId, { resolve, reject, timer });
-      required.parent.postMessage({ protocol: PROTOCOL, version: VERSION, kind, mountId, requestId, ...fields }, origin);
-    });
-  }
-
-  /** Asks the host to run one declared action; resolves with its result. */
-  function call(input: { readonly action: string; readonly payload: unknown }): Promise<unknown> {
-    return send('action-request', { action: input.action, payload: input.payload });
-  }
-
-  /** Asks the host to open `url` outside the sandbox; only https links on the surface's declared
-   * `linkOrigins` open, and the host decides how (new tab, system browser). Rejects with the host's refusal. */
-  async function openLink(input: { readonly url: string }): Promise<void> {
-    await send('open-link', { url: input.url });
-  }
-
-  /** The bootstrap `data` the host sent with init, or `undefined` once it has expired (or none was sent). */
-  function bootstrap(): unknown {
-    const envelope = init?.bootstrap;
-    if (typeof envelope !== 'object' || envelope === null) return undefined;
-    const { expiresAt, data } = envelope as Message;
-    return typeof expiresAt === 'number' && nowMs() < expiresAt ? data : undefined;
-  }
-
-  /** The host's theme as applied, or `undefined` when the host sent none. */
-  function theme(): AdminSurfaceClientTheme | undefined {
-    return currentTheme;
-  }
-
-  /** Stops listening and rejects every pending call. */
-  function close(): void {
-    unsubscribe();
-    stopSize?.();
-    for (const [requestId, waiting] of pending) {
-      clearTimeout(waiting.timer);
-      waiting.reject(new AdminSurfaceCallError({ code: 'closed', message: 'The surface was closed before the host answered.', retryable: false }));
-      pending.delete(requestId);
-    }
-  }
-
-  return { ready, call, openLink, bootstrap, theme, close };
+  return {
+    ready,
+    /** Asks the host to run one declared action; resolves with its result. */
+    call: (input: { readonly action: string; readonly payload: unknown }): Promise<unknown> => sendRequest(state, ready, 'action-request', { action: input.action, payload: input.payload }),
+    /** Asks the host to open `url` outside the sandbox; only https links on the surface's declared
+     * `linkOrigins` open, and the host decides how (new tab, system browser). Rejects with the host's refusal. */
+    openLink: async (input: { readonly url: string }): Promise<void> => { await sendRequest(state, ready, 'open-link', { url: input.url }); },
+    bootstrap: (): unknown => readBootstrap(state),
+    /** The host's theme as applied, or `undefined` when the host sent none. */
+    theme: (): AdminSurfaceClientTheme | undefined => state.currentTheme,
+    close: (): void => closeClient(state, unsubscribe),
+  };
 }
