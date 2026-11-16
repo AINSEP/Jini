@@ -56,7 +56,7 @@ async function host(options: HostOptions = {}) {
     tier2CallRunner: tier2 as never,
     pluginSdkBinding: { ...baseBinding, hookIds: [HOOK], beforeSaveHook: HOOK, hookSemantics: { [HOOK]: 'shared' } },
     hostBinding: {
-      capabilityVocabulary: ['content.read', 'content.extend', 'hooks.attach'], declarativeContentTypes: manifestHost.declarativeContentTypes,
+      capabilityVocabulary: ['content.read', 'content.extend', 'hooks.attach', 'tools.register', 'providers.register'], declarativeContentTypes: manifestHost.declarativeContentTypes,
       coreOwnerName: 'Acme core', identityNamespace: 'ns', localInstallDisabledMessage: 'install off',
       tierPolicy: { execution: 'in-process', allowLoad: () => true, siteErrors: () => [], checkInstall: () => {} },
       archiveReader: async () => { throw new Error('no archive'); }, verifyDigest: async ({ absoluteFilePath }) => `sha256-${createHash('sha256').update(await readFile(absoluteFilePath)).digest('hex')}`,
@@ -224,5 +224,134 @@ describe('site plugin enable and disable', () => {
     await without.runtime.onPluginEnabled('core-a');
     expect(seen[0]).toBeDefined();
     expect(seen[1]).toBeUndefined();
+  });
+});
+
+const toolClaimer = (id: string): PluginManifest => builtIn({ id, name: id, capabilities: [], contributes: { settings: ['theme'] } as never });
+
+describe('conflicts', () => {
+  it('refuses an enable that would take a name an enabled plugin holds, before importing its code', async () => {
+    const h = await host({ sources: [source(toolClaimer('first-p')), source(toolClaimer('second-p'))], rows: [row('first-p', { updatedAt: '2029-01-01T00:00:00.000Z' })] });
+    await h.runtime.onPluginEnabled('first-p');
+    h.importer.mockClear();
+    const error = await h.runtime.onPluginEnabled('second-p').catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(PluginConflictError);
+    expect(h.importer).not.toHaveBeenCalled();
+    const conflicts = await h.runtime.listPluginConflicts();
+    expect([...conflicts.keys()]).toEqual(['second-p']);
+    expect(conflicts.get('second-p')![0]).toMatchObject({ heldBy: 'first-p' });
+  });
+
+  it('reports no conflicts when nothing clashes', async () => {
+    const h = await host({ sources: [source(builtIn())] });
+    expect((await h.runtime.listPluginConflicts()).size).toBe(0);
+  });
+
+  it('reports what a staged install would clash with when it is previewed', async () => {
+    const h = await host({ installDir: 'tmp', sources: [source(toolClaimer('held-p'))], rows: [row('held-p')] });
+    await h.runtime.onPluginEnabled('held-p');
+    await h.runtime.pluginSource!.create({ id: 'newcomer', name: 'N', description: 'd' }, {});
+    const manifest = JSON.parse((await h.runtime.pluginSource!.read({ id: 'newcomer', path: 'jini.plugin.json' }, {})).content);
+    await h.runtime.pluginSource!.write({ id: 'newcomer', path: 'jini.plugin.json', content: JSON.stringify({ ...manifest, capabilities: [], contributes: { settings: ['theme'] } }) }, {});
+    const sealed = await h.runtime.pluginSource!.seal({ id: 'newcomer' }, {});
+    expect(sealed.plugin.conflicts).toEqual([expect.objectContaining({ heldBy: 'held-p', kind: 'setting' })]);
+  });
+});
+
+describe('boot', () => {
+  it('re-attaches every enabled plugin of this workspace and skips other workspaces\' rows', async () => {
+    const h = await host({ sources: [source(builtIn()), source(builtIn({ id: 'core-b', name: 'B' }))], rows: [row('core-a'), row('core-b', { workspaceId: 'other' as never })] });
+    await h.runtime.attachEnabledPluginsAtBoot();
+    expect(h.setups).toEqual(['core-a']);
+    expect(h.runtime.pluginLoadedVersion({ id: 'core-a' })).toBe('1.0.0');
+  });
+
+  it('does nothing when no plugin is enabled here', async () => {
+    const h = await host({ sources: [source(builtIn())], rows: [row('core-a', { enabled: false })] });
+    await h.runtime.attachEnabledPluginsAtBoot();
+    expect(h.importer).not.toHaveBeenCalled();
+  });
+
+  it('quarantines the newer of a conflicting enabled pair durably and keeps the older running', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const h = await host({ sources: [source(toolClaimer('old-p')), source(toolClaimer('new-p'))], rows: [row('old-p', { updatedAt: '2029-01-01T00:00:00.000Z' }), row('new-p', { updatedAt: '2030-01-01T00:00:00.000Z' })] });
+    await h.runtime.attachEnabledPluginsAtBoot();
+    const rows = await h.repo.listAll();
+    expect(rows.find(r => r.pluginId === 'new-p')).toMatchObject({ enabled: false, quarantineFailureCount: 0, quarantineReason: expect.stringContaining('Turned off at startup because it claims things already in use') });
+    expect(rows.find(r => r.pluginId === 'old-p')!.enabled).toBe(true);
+    expect(h.setups).toEqual(['old-p']);
+    expect(h.runtime.pluginLoadedVersion({ id: 'new-p' })).toBeUndefined();
+    warn.mockRestore();
+  });
+
+  it('attaches nothing and detaches every enabled plugin when the conflict pass cannot finish', async () => {
+    const h = await host({ sources: [source(builtIn())], rows: [row('core-a')] });
+    await h.runtime.onPluginEnabled('core-a');
+    expect(h.runtime.pluginLoadedVersion({ id: 'core-a' })).toBe('1.0.0');
+    let calls = 0;
+    const real = h.repo.listAll.bind(h.repo);
+    vi.spyOn(h.repo, 'listAll').mockImplementation(async () => { if (++calls >= 3) throw new Error('db gone'); return real(); });
+    await h.runtime.attachEnabledPluginsAtBoot();
+    expect(h.runtime.pluginLoadedVersion({ id: 'core-a' })).toBeUndefined();
+  });
+
+  it('enables bundled defaults on first boot and reports bundled failures without blocking boot', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const h = await host({
+      sources: [source(builtIn()), source(builtIn({ id: 'core-bad', name: 'Bad' }))], optional: { bundledEnabledIds: ['core-a', 'core-bad', 'not-bundled'] },
+      importer: ({ manifest }) => async () => { if (manifest.id === 'core-bad') throw new Error('import exploded'); return { exported: { definition: { setup: () => {} } } }; },
+    });
+    await h.runtime.attachEnabledPluginsAtBoot();
+    const rows = await h.repo.listAll();
+    expect(rows.find(r => r.pluginId === 'core-a')).toMatchObject({ enabled: true });
+    expect(rows.find(r => r.pluginId === 'core-bad')).toBeUndefined();
+    expect(rows.find(r => r.pluginId === 'not-bundled')).toBeUndefined();
+    expect(h.runtime.pluginLoadedVersion({ id: 'core-a' })).toBe('1.0.0');
+    expect(warn.mock.calls.some(call => String(call[0]).includes("bundled initialization failed for 'core-bad'"))).toBe(true);
+  });
+
+  it('logs and continues when bundled discovery fails', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const dir = await mkdtemp(path.join(os.tmpdir(), 'rc-disc-'));
+    dirs.push(dir);
+    const asFile = path.join(dir, 'f');
+    await writeFile(asFile, 'x');
+    const h = await host({ installDir: asFile, sources: [source(builtIn())], optional: { bundledEnabledIds: ['core-a'] } });
+    vi.spyOn(h.runtime, 'discoverPlugins');
+    await h.runtime.attachEnabledPluginsAtBoot();
+    expect(warn.mock.calls.some(call => String(call[0]).includes('bundled discovery failed') || String(call[0]).includes('bundled initialization failed'))).toBe(true);
+  });
+
+  it('skips re-attaching a plugin that vanished from discovery and one declared as tier-1', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const h = await host({ sources: [source(builtIn())], rows: [row('core-a'), row('vanished')] });
+    await h.runtime.attachEnabledPluginsAtBoot();
+    expect(h.setups).toEqual(['core-a']);
+    expect(warn.mock.calls.some(call => String(call[0]).includes("boot re-attach failed for 'vanished'"))).toBe(true);
+  });
+});
+
+describe('invalid site records and installer wiring', () => {
+  it('fails closed with PLUGIN_EXPORT_INVALID for a site record that has no valid manifest', async () => {
+    const h = await host({ installDir: 'tmp' });
+    const dir = path.join(h.installDir, 'broken-one', '1.0.0');
+    await mkdir(dir, { recursive: true });
+    await writeFile(path.join(dir, 'jini.plugin.json'), '{ not json');
+    const record = (await h.runtime.discoverPlugins()).find(r => r.id === 'broken-one');
+    expect(record).toMatchObject({ status: 'invalid', manifest: undefined });
+    await expect(h.runtime.onPluginEnabled('broken-one')).rejects.toMatchObject({ name: 'PluginLoadError', reason: 'PLUGIN_EXPORT_INVALID' });
+  });
+
+  it('serializes install through the host lookup with the previewed publisher identity', async () => {
+    const withInstallIdentity = vi.fn(async ({ run }: { run: () => Promise<unknown> }) => run());
+    const h = await host({ installDir: 'tmp', optional: { lookup: () => ({ getPlugin: vi.fn(), findProviders: vi.fn(), withInstallIdentity }) as never } });
+    await sealSite(h, 'via-lookup');
+    expect(withInstallIdentity).toHaveBeenCalledWith({ candidate: { id: 'unknown/via-lookup', localId: 'via-lookup', family: 'site-runtime' }, run: expect.any(Function) });
+  });
+
+  it('exposes no installer or source service without an install directory', async () => {
+    const h = await host();
+    expect(h.runtime.pluginInstaller).toBeUndefined();
+    expect(h.runtime.pluginSource).toBeUndefined();
   });
 });
