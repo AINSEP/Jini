@@ -21,24 +21,8 @@
  * invented-from-scratch design.
  */
 import type { ServerResponse } from 'node:http';
+import { DEFAULT_MAX_QUEUED_SSE_EVENTS, type SseEvent } from '@jini-ai/core/contracts/server';
 import { createApiErrorResponse, type ApiError } from '@jini-ai/protocol';
-
-/** The minimal shape any event needs to flow through an `SseChannel`: an id for `Last-Event-ID` reconnect bookkeeping and a `kind` used as the wire `event:` field. */
-export interface SseEvent {
-  readonly opaqueCursor: string;
-  readonly kind: string;
-}
-
-/**
- * Cap on events queued for one client — covers both a pre-header replay
- * burst and any backlog built up while `res.write` reports backpressure
- * (`write() === false`, awaiting `'drain'`). A stalled or malicious client
- * would otherwise let an unbounded producer grow this array without limit
- * (SEC-006, carried forward from `runs.ts`'s original constant). Once
- * exceeded, the connection is dropped rather than accepting unbounded
- * memory growth.
- */
-export const DEFAULT_MAX_QUEUED_SSE_EVENTS = 1000;
 
 /** Default wire format: `id: <cursor>\nevent: <kind>\ndata: <json>\n\n`, matching the SSE spec's field syntax. */
 function defaultFormatEvent<E extends SseEvent>(event: E): string {

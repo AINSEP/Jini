@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { InMemoryOriginSettingRepo, OriginRegistry, normalizeOriginCandidate } from '../verified-origin.js';
+import { InMemoryOriginSettingRepo, OriginRegistry, normalizeOriginCandidate } from '../index.js';
 
 it.each([
   ['good.example/path', 'good.example'], ['good.example?query', 'good.example'],

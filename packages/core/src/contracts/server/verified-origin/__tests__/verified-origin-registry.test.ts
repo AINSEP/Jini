@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { OriginRegistry } from "../verified-origin.js";
-import { InMemoryOriginSettingRepo } from "../verified-origin.js";
-import { OriginNotVerifiedError, createVerifiedOrigin, InsecureOriginSourceError } from "../verified-origin.js";
+import { OriginRegistry } from "../index.js";
+import { InMemoryOriginSettingRepo } from "../index.js";
+import { OriginNotVerifiedError, createVerifiedOrigin, InsecureOriginSourceError } from "../index.js";
 
 const WORKSPACE = "workspace-1";
 

@@ -1,0 +1,239 @@
+/**
+ * @file Declarative JSON routes for the `Server` contract: `jsonRoute` turns a spec (parse, handle,
+ * origin policy, host ports) into one `ServerRoute`, so route modules return `ServerRoute[]` and the
+ * host mounts them on whatever adapter it runs.
+ */
+import type { ServerMethod, ServerRoute } from '../server.js';
+import { statusForError, type ServerApiError } from './api-error.js';
+import { guardSameOrigin, type OriginContext } from './origin.js';
+import { readQuery } from './query.js';
+import { readJsonBody } from './request-body.js';
+import type { Result } from './result.js';
+
+/**
+ * The normalized shape of a raw HTTP request handed to a route's `parse` function: body, query,
+ * and params, decoupled from any framework `Request` type so parsers are unit-testable without
+ * a real server.
+ */
+export interface RouteInputContext {
+  body: unknown;
+  query: Record<string, unknown>;
+  params: Record<string, string>;
+}
+
+/** Parses a `RouteInputContext` into a typed `Input`, or fails with an error. */
+export type InputParser<Input> = (raw: RouteInputContext) => Result<Input>;
+
+/** HTTP verbs a `JsonRouteSpec` can be mounted under. */
+export type HttpMethod = 'get' | 'post' | 'put' | 'delete' | 'patch';
+
+/** Explicit authorization remains at the route's chosen point, preserving validation precedence. */
+export type JsonRouteAuthorize = (
+  requiredArgs: { readonly permission: string; readonly entityType: string },
+  optionalArgs?: Record<string, never>,
+) => Promise<void>;
+
+/**
+ * Handles a parsed `Input` (plus injected `Deps`) and produces a `Result<Output>`.
+ *
+ * `signal` is optional and additive: it aborts if the client's connection drops before a response
+ * is written; handlers read it from their optional arguments when they perform cancellable work.
+ */
+export type Handler<Input, Output, Deps, Context = undefined> = (
+  requiredArgs: { readonly input: Input; readonly deps: Deps; readonly context?: Context | undefined; readonly authorize?: JsonRouteAuthorize },
+  optionalArgs?: { readonly signal?: AbortSignal | undefined },
+) => Promise<Result<Output>> | Result<Output>;
+
+/** What a host's incident sink receives for an exception no route anticipated. */
+export interface RouteExceptionContext {
+  /** HTTP method of the route whose handler threw. */
+  readonly method: string;
+  /** Registered path of the route whose handler threw. */
+  readonly path: string;
+  /** Echoed back to the caller as the response's `requestId`, so an operator can tie a user's report to this log line. */
+  readonly correlationId: string;
+  /** The exception exactly as thrown — never sent to the caller. */
+  readonly error: unknown;
+}
+
+/**
+ * Records an unanticipated exception (SEC-005) and returns the caller-safe error to answer with.
+ * Required on the host: generating the correlation id needs a runtime API core does not have.
+ */
+export type ReportRouteInternalError = <E extends { readonly error: unknown }>(
+  required: { readonly report: E; readonly logSource: string; readonly message: string },
+  optional?: { readonly onInternalError?: ((context: E & { readonly correlationId: string; readonly logSource: string }) => void) | undefined },
+) => ServerApiError;
+
+/** Server startup state a route needs to evaluate its same-origin guard and report incidents. */
+export interface RouteHostContext extends OriginContext {
+  /**
+   * Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005).
+   * The catch-all for a route that throws outside its own guarded path.
+   */
+  readonly onInternalError?: (context: RouteExceptionContext) => void;
+  /** The host's incident reporter. */
+  readonly reportInternalError: ReportRouteInternalError;
+}
+
+/**
+ * Host-owned workspace, authentication/authorization and exception policy.
+ * Guards throw on rejection; the error port owns the answer. Without an error port the
+ * route keeps its caller-safe-error and SEC-005 redaction policy. Authentication can await
+ * host readiness; it runs after workspace rejection and before parsing or handling.
+ */
+export interface JsonRoutePorts<Deps, Context = undefined> {
+  readonly workspace?: (required: { readonly raw: RouteInputContext; readonly deps: Deps }) => void | Promise<void>;
+  readonly authenticate?: (required: { readonly raw: RouteInputContext; readonly request: Request; readonly locals: Record<string, unknown>; readonly deps: Deps }) => Context | Promise<Context>;
+  readonly authorize?: (required: { readonly context: Context | undefined; readonly deps: Deps; readonly permission: string; readonly entityType: string }) => void | Promise<void>;
+  /** Host error policy; returns the answer instead of writing it. */
+  readonly onError?: (required: { readonly error: unknown; readonly request: Request }) => Response | Promise<Response>;
+}
+
+/** Declarative description of one JSON route. Consumed by {@link jsonRoute}. */
+export interface JsonRouteSpec<Input, Output, Deps, Context = undefined> {
+  method: HttpMethod;
+  path: string;
+  requireSameOrigin?: boolean;
+  /** Body ceiling for every method but GET. Defaults to the shared JSON body limit. */
+  maxBodyBytes?: number;
+  parse: InputParser<Input>;
+  handle: Handler<Input, Output, Deps, Context>;
+  successStatus?: number;
+  ports?: JsonRoutePorts<Deps, Context>;
+}
+
+/**
+ * Thrown by a route's `handle` — or by anything it calls, at any depth — to bypass the SEC-005
+ * redaction below with an error the throwing code has already decided is safe for the caller
+ * to see. Prefer returning `err(...)` from `handle` when the failure is anticipated at that point;
+ * this class is for the same kind of failure discovered a level deeper, inside an awaited call
+ * `handle` did not wrap in its own `try`.
+ *
+ * Not a way to defeat SEC-005: the only way to reach the branch that reads this class is for code to
+ * construct one itself, naming the exact error — code and message — it is choosing to disclose.
+ * Any thrown value that is not this class (including a plain `Error` with an actionable-looking
+ * message) still redacts; nothing here widens what a route can leak by accident.
+ */
+export class ClientFacingError extends Error {
+  readonly apiError: ServerApiError;
+
+  constructor({ apiError }: { readonly apiError: ServerApiError }, _optional: Record<string, never> = {}) {
+    super(apiError.message);
+    this.name = 'ClientFacingError';
+    this.apiError = apiError;
+  }
+}
+
+/**
+ * Combines required route fields and optional settings into a fresh spec while pinning its generic
+ * parameters at the definition site so callers do not have to repeat them. Optional settings take
+ * precedence. Never mutates either argument.
+ * @complexity O(1) time/space for the fixed spec fields.
+ */
+export function defineJsonRoute<Input, Output, Deps, Context = undefined>(requiredArgs: Omit<JsonRouteSpec<Input, Output, Deps, Context>, 'requireSameOrigin' | 'successStatus' | 'ports' | 'maxBodyBytes'>, optionalArgs: Pick<JsonRouteSpec<Input, Output, Deps, Context>, 'requireSameOrigin' | 'successStatus' | 'ports' | 'maxBodyBytes'> = {}
+): JsonRouteSpec<Input, Output, Deps, Context> {
+  return { ...requiredArgs, ...optionalArgs };
+}
+
+/** A JSON response with Express's `res.json` content type, so clients see the same header. */
+export function jsonResponse({ status, body }: { readonly status: number; readonly body: unknown }, { headers = {} }: { readonly headers?: Readonly<Record<string, string>> } = {}): Response {
+  return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8', ...headers } });
+}
+
+const errorAnswer = ({ error }: { readonly error: ServerApiError }): Response =>
+  jsonResponse({ status: statusForError({ error }), body: { error } });
+
+interface RouteCall<I, O, D, C> {
+  readonly spec: JsonRouteSpec<I, O, D, C>;
+  readonly deps: D;
+  readonly request: Request;
+  readonly params: Record<string, string>;
+  readonly locals: Record<string, unknown>;
+}
+
+/**
+ * Builds the one `ServerRoute` for `spec`. The route's parse and handle functions operate on
+ * `RouteInputContext` and `Deps`, so they are unit testable without a server. A host context is
+ * required only for routes that opt into the same-origin guard or that can throw unanticipated errors.
+ */
+export function jsonRoute<I, O, D, C = undefined>(
+  { spec, deps }: { readonly spec: JsonRouteSpec<I, O, D, C>; readonly deps: D },
+  { host }: { readonly host?: RouteHostContext } = {},
+): ServerRoute {
+  return {
+    method: spec.method.toUpperCase() as ServerMethod,
+    path: spec.path,
+    handler: ({ request, params, locals = {} }) => answerJsonRoute({ spec, deps, request, params: { ...params }, locals }, { host }),
+  };
+}
+
+async function answerJsonRoute<I, O, D, C>(call: RouteCall<I, O, D, C>, { host }: { readonly host: RouteHostContext | undefined }): Promise<Response> {
+  try {
+    return await routeAnswer(call, { host });
+  } catch (error) {
+    return exceptionAnswer({ call, error }, { host });
+  }
+}
+
+async function readRawInput<I, O, D, C>({ spec, request, params }: RouteCall<I, O, D, C>): Promise<Result<RouteInputContext>> {
+  const query = readQuery({ request });
+  if (request.method === 'GET' || request.method === 'HEAD') return { ok: true, value: { body: {}, query, params } };
+  const body = await readJsonBody({ request }, spec.maxBodyBytes === undefined ? {} : { maxBytes: spec.maxBodyBytes });
+  return body.ok ? { ok: true, value: { body: body.value, query, params } } : body;
+}
+
+function originRefusal<I, O, D, C>({ spec, request }: RouteCall<I, O, D, C>, { host }: { readonly host: RouteHostContext | undefined }): Response | undefined {
+  if (!spec.requireSameOrigin) return undefined;
+  if (!host) throw new Error('same-origin adapter context is required');
+  const header = (name: string): string | undefined => request.headers.get(name) ?? undefined;
+  const verdict = guardSameOrigin({ req: { headers: { host: header('host'), origin: header('origin'), 'sec-fetch-site': header('sec-fetch-site') } }, origin: host });
+  return verdict.ok ? undefined : errorAnswer({ error: verdict.error });
+}
+
+async function routeAnswer<I, O, D, C>(call: RouteCall<I, O, D, C>, { host }: { readonly host: RouteHostContext | undefined }): Promise<Response> {
+  const { spec, deps, request, locals } = call;
+  const raw = await readRawInput(call);
+  if (!raw.ok) return errorAnswer({ error: raw.error });
+  if (spec.ports?.workspace) await spec.ports.workspace({ raw: raw.value, deps });
+  const refused = originRefusal(call, { host });
+  if (refused) return refused;
+  const context = spec.ports?.authenticate ? await spec.ports.authenticate({ raw: raw.value, request, locals, deps }) : undefined;
+  const parsed = spec.parse(raw.value);
+  if (!parsed.ok) return errorAnswer({ error: parsed.error });
+  // The route chooses where authorization occurs: reads may authorize before validation,
+  // while writes must reject an inconsistent tenant target before asking for a permission.
+  const authorize: JsonRouteAuthorize = async ({ permission, entityType }) => {
+    if (!spec.ports?.authorize) throw new Error('JSON route authorizer is required');
+    await spec.ports.authorize({ context, deps, permission, entityType });
+  };
+  const result = await spec.handle({ input: parsed.value, deps, context, authorize }, { signal: request.signal });
+  // Disconnect comes from `request.signal`, which the adapter aborts on the response's close,
+  // never on the request body finishing. Aborted means the client was already gone before any
+  // answer: serializing one now is wasted work and would turn a benign disconnect into a false
+  // internal error if the socket rejects the write.
+  if (request.signal.aborted) return new Response(null, { status: 499 });
+  return result.ok ? jsonResponse({ status: spec.successStatus ?? 200, body: result.value }) : errorAnswer({ error: result.error });
+}
+
+async function exceptionAnswer<I, O, D, C>({ call, error }: { readonly call: RouteCall<I, O, D, C>; readonly error: unknown }, { host }: { readonly host: RouteHostContext | undefined }): Promise<Response> {
+  const { spec, request } = call;
+  // An explicit host error port owns exception classification and the answer, including its
+  // guard rejections. Hosts without it keep the SEC-005 policy below.
+  if (spec.ports?.onError) return spec.ports.onError({ error, request });
+  // A route (or something it called) already classified this failure as safe to disclose, so it is
+  // sent verbatim at its own status and never routed to the SEC-005 sink below.
+  if (error instanceof ClientFacingError) return errorAnswer({ error: error.apiError });
+  // No host context means no incident reporter: rethrow so the adapter's own last-resort answer applies.
+  if (!host) throw error;
+  // SEC-005. This catch exists for exceptions no route anticipated, which makes it precisely the
+  // path most likely to be holding something private: a driver error naming a database file, a
+  // connection string, a credential a provider echoed back. The real error reaches the operator
+  // through the sink, correlated to what the caller was told by the request ID.
+  const apiError = host.reportInternalError<Omit<RouteExceptionContext, 'correlationId'>>({
+    report: { method: spec.method, path: spec.path, error },
+    logSource: `${spec.method.toUpperCase()} ${spec.path}`,
+    message: 'The server could not finish this request. Check whether your change was saved, then copy the request ID and report this problem.',
+  }, { onInternalError: host.onInternalError });
+  return errorAnswer({ error: apiError });
+}

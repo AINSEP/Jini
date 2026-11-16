@@ -21,6 +21,9 @@
       "./provider-registry": "universal",
       "./object-store": "universal",
       "./contracts/server": "universal",
+      "./contracts/server/verified-origin": "universal",
+      "./contracts/server/testing": "universal",
+      "./contracts/server/conformance": "universal",
       "./naming": "universal",
       "./records": "universal",
       "./optimistic-concurrency": "universal",
@@ -132,6 +135,21 @@
       "types": "./dist/contracts/server.d.ts",
       "import": "./dist/contracts/server.js",
       "default": "./dist/contracts/server.js"
+    },
+    "./contracts/server/verified-origin": {
+      "types": "./dist/contracts/server/verified-origin/index.d.ts",
+      "import": "./dist/contracts/server/verified-origin/index.js",
+      "default": "./dist/contracts/server/verified-origin/index.js"
+    },
+    "./contracts/server/testing": {
+      "types": "./dist/contracts/server/testing.d.ts",
+      "import": "./dist/contracts/server/testing.js",
+      "default": "./dist/contracts/server/testing.js"
+    },
+    "./contracts/server/conformance": {
+      "types": "./dist/contracts/server/conformance.d.ts",
+      "import": "./dist/contracts/server/conformance.js",
+      "default": "./dist/contracts/server/conformance.js"
     },
     "./naming": {
       "types": "./dist/naming.d.ts",

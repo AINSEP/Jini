@@ -1,4 +1,4 @@
-import { trimCharsEnd } from '@jini-ai/core/primitives';
+import { trimCharsEnd } from '../../../primitives/trim-chars.js';
 import { hasForbiddenRawUrlCharacter } from "./origin.js";
 import { createVerifiedOrigin, type VerifiedOrigin } from "./types.js";
 import { isLoopbackHost } from "./loopback-host.js";

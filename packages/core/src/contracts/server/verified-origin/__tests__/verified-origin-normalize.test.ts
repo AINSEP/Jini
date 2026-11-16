@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { normalizeOriginCandidate } from "../verified-origin.js";
+import { normalizeOriginCandidate } from "../index.js";
 
 test("normalizeOriginCandidate accepts a plain https URL with default port", () => {
   const result = normalizeOriginCandidate({ rawUrl: "https://good.com/path" });

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { checkSitePathname, checkSiteRelativeTarget, hasControlCharacter } from "../verified-origin/index.js";
+import { checkSitePathname, checkSiteRelativeTarget, hasControlCharacter } from "../index.js";
 
 /**
  * @file The shared reserved-path rule (`reserved-paths.ts`) and the pin that keeps its two

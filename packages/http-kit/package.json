@@ -15,7 +15,6 @@
       ".": "node",
       "./rate-limit": "node",
       "./middleware": "node",
-      "./verified-origin": "universal",
       "./observability": "node",
       "./html-response": "node"
     },
@@ -40,11 +39,6 @@
       "types": "./dist/middleware.d.ts",
       "import": "./dist/middleware.js",
       "default": "./dist/middleware.js"
-    },
-    "./verified-origin": {
-      "types": "./dist/verified-origin.d.ts",
-      "import": "./dist/verified-origin.js",
-      "default": "./dist/verified-origin.js"
     },
     "./observability": {
       "types": "./dist/observability.d.ts",

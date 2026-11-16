@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { OriginRegistry, isSameOrigin, normalizeOriginCandidate } from '../verified-origin/origin.js';
-import { planOriginBoot, resolveConfiguredOrigin } from '../verified-origin/configured-origin.js';
+import { OriginRegistry, isSameOrigin, normalizeOriginCandidate } from '../origin.js';
+import { planOriginBoot, resolveConfiguredOrigin } from '../configured-origin.js';
 
 /** L9 §4: candidate normalization refuses each bad input on its own, cross-origin allowlisting is
  *  HTTPS-only, and operator-declared origins refuse userinfo / loopback look-alikes individually. */

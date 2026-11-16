@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
-import { InMemoryOriginSettingRepo, createVerifiedOrigin, type OriginSettingRepoPort } from "../verified-origin.js";
+import { InMemoryOriginSettingRepo, createVerifiedOrigin, type OriginSettingRepoPort } from "../index.js";
 const WORKSPACE_ID = "workspace-1";
 
 function seedOrigin() {
