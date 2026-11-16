@@ -73,10 +73,12 @@ export function createFileLogger({ logPath }: { logPath: string }, options: { ec
   const out = options.console ?? console;
   const appendOptions = options.append === undefined ? {} : { append: options.append };
   const write = ({ level, message }: { level: LogLevel; message: string }, { meta, error }: { meta?: Record<string, unknown>; error?: unknown } = {}) => {
-    const safe = projectForLog({ meta, error });
+    // exactOptionalPropertyTypes: absent stays absent, so forward only the fields that were given.
+    const given = { ...(meta === undefined ? {} : { meta }), ...(error === undefined ? {} : { error }) };
+    const safe = projectForLog(given);
     appendLogLine({ logPath, line: serializeMessage({ level, message }, safe === undefined ? {} : { safeMeta: safe }) }, appendOptions);
     if (echo) out[level](message, safe === undefined ? '' : safe);
-    if (options.diagnostics !== undefined) deliverDiagnostics({ diagnostics: options.diagnostics, level, message, meta, error }, { write: line => appendLogLine({ logPath, line }, appendOptions) });
+    if (options.diagnostics !== undefined) deliverDiagnostics({ diagnostics: options.diagnostics, level, message, ...given }, { write: line => appendLogLine({ logPath, line }, appendOptions) });
   };
   return {
     error: ({ message }, optional = {}) => write({ level: 'error', message }, optional),

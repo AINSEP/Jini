@@ -25,7 +25,7 @@ describe('member list cursor', () => {
     const request = vi.fn().mockResolvedValue({ members: [member], nextCursor: 'next' });
     const api = createHttpMembersApi({ transport: { request }, workspaceId: 'w' });
     expect(await api.listMembers({}, { cursor: 'abc+/=', limit: 2 })).toEqual({ members: [member], nextCursor: 'next' });
-    expect(request.mock.calls[0][0].path).toBe('/workspaces/w/members?cursor=abc%2B%2F%3D&limit=2');
+    expect(request.mock.calls[0]?.[0].path).toBe('/workspaces/w/members?cursor=abc%2B%2F%3D&limit=2');
     await expect(api.listMembers({}, { cursor: 'next', afterId: 'm' })).rejects.toMatchObject({ code: 'VALIDATION_ERROR' });
     expect(request).toHaveBeenCalledTimes(1);
   });

@@ -107,9 +107,9 @@ export interface FederationDeps {
    * disabled, narrowed (allowlist or write list), or otherwise changed since admission has no way to
    * be un-registered (see this doc's own paragraph above), so every one of those must be caught here
    * instead, on every call, by re-reading the connection's current row.
-   * `Tovu apps/website/src/features/external-mcp/external-mcp-oauth.ts`'s `createExternalMcpConnectionGate` is the composition root
+   * a host module's `createExternalMcpConnectionGate` is the composition root
    * that does both jobs — the original liveness check plus this revocation re-check
-   * (`Tovu apps/website/src/features/external-mcp/external-mcp-revocation.ts`'s `rosterRefusalFor`) — and it is NOT a `ToolPolicy` deny:
+   * (a host module's `rosterRefusalFor`) — and it is NOT a `ToolPolicy` deny:
    * see that gate's own doc for why a handler-side refusal, not a policy one, is what lets the model
    * see WHY rather than a fixed "denied by policy" string.
    *
@@ -119,9 +119,9 @@ export interface FederationDeps {
    * @returns `"current-grants-checked"` only when it checked this call against the roster row's current
    *   allowlist and write list; anything else keeps the admitted-grants check ({@link FederatedGateVerdict}).
    * @throws Whatever the composition root's terminal error is — for OAuth connections,
-   * `Tovu apps/website/src/features/external-mcp/external-mcp-oauth.ts`'s `ExternalMcpReauthRequiredError`, whose message tells the
+   * a host module's `ExternalMcpReauthRequiredError`, whose message tells the
    * model in words not to retry. For a revoked roster connection,
-   * `Tovu apps/website/src/features/external-mcp/external-mcp-revocation.ts`'s `ExternalMcpConnectionRevokedError`.
+   * a host module's `ExternalMcpConnectionRevokedError`.
    */
   readonly assertConnectionUsable?: ((required: { connectionId: string; call: FederatedCallTarget }) => void | FederatedGateVerdict | Promise<void | FederatedGateVerdict>) | undefined;
   /**
@@ -133,7 +133,7 @@ export interface FederationDeps {
    * shape invites a retry loop).
    *
    * A composition root that KNOWS what "authorization" means for this connection (an OAuth-backed
-   * row, today — `Tovu apps/website/src/features/external-mcp/external-mcp-oauth.ts`) wires this to record the durable state — so
+   * row, today — a host module) wires this to record the durable state — so
    * `assertConnectionUsable`'s cheap row read catches the NEXT call instead of this module reaching
    * the network again — and to throw the same terminal, non-retryable error that path already uses.
    * Always throws; this module does not decide what replaces the original error.

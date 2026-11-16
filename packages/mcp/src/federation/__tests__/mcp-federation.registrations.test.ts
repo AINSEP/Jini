@@ -592,7 +592,10 @@ function fakeRegistry(seed: string[] = []): ToolRegistry & { registered: ToolReg
 
 function collectingLogger() {
   const messages: string[] = [];
-  return { messages, logger: { error: () => undefined, info: ({ message: m }: { message: string }) => messages.push(`info:${m}`), warn: ({ message: m }: { message: string }) => messages.push(`warn:${m}`) } };
+  // The log line carries fixed words; the original error goes to the host's sink in the second argument,
+  // so this stand-in sink records both, as a real host logger would.
+  const line = (level: string, { message }: { message: string }, bag: { error?: unknown } = {}) => messages.push(`${level}:${message}${bag.error instanceof Error ? ` ${bag.error.message}` : ''}`);
+  return { messages, logger: { error: () => undefined, info: (entry: { message: string }, bag?: { error?: unknown }) => line('info', entry, bag), warn: (entry: { message: string }, bag?: { error?: unknown }) => line('warn', entry, bag) } };
 }
 
 test("with no configuration, the daemon boots exactly as it did before federation existed", async () => {

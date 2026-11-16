@@ -31,7 +31,7 @@ import type { RuntimeAgentDef } from '../../types.js';
 // `--mode` (deep / smart / rush). We surface those modes through the model
 // picker and map the chosen id onto `--mode`, and disable the free-text
 // "Custom model" input since an arbitrary model id is meaningless here.
-const AMP_MODES = new Set(['deep', 'smart', 'rush']);
+const AMP_MODES: ReadonlySet<string> = new Set(['deep', 'smart', 'rush']);
 
 export const ampAgentDef = {
   // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.

@@ -149,7 +149,7 @@ describe('writeTokenFile chmod fallback', () => {
     expect(warnSpy).toHaveBeenCalledWith(
       '[oauth-tokens] could not chmod 0600',
       expect.stringContaining(FILE_NAME),
-      'Error',
+      'Error(EIO)',
     );
   });
 
@@ -251,7 +251,7 @@ it('keeps a token out of parser and chmod failure diagnostics', async () => {
   expect(errorLog).toHaveBeenCalledWith('[oauth-tokens] Corrupted JSON, returning empty:', 'SyntaxError');
   fsMockState.chmodImpl = async () => { throw Object.assign(new Error(`chmod failed ${secret}`), { code: 'EIO' }); };
   await setStoredOAuthToken({ dataDir, fileName: FILE_NAME, token: token() });
-  expect(warning).toHaveBeenCalledWith('[oauth-tokens] could not chmod 0600', expect.stringContaining(FILE_NAME), 'Error');
+  expect(warning).toHaveBeenCalledWith('[oauth-tokens] could not chmod 0600', expect.stringContaining(FILE_NAME), 'Error(EIO)');
   expect(JSON.stringify([...errorLog.mock.calls, ...warning.mock.calls])).not.toContain(secret);
 });
 
@@ -264,6 +264,6 @@ it('logs only the class of parser and chmod failures', async () => {
   fsMockState.readFileImpl = null;
   fsMockState.chmodImpl = async () => { throw Object.assign(new Error('boom api_key=SECRETSECRETSECRETSECRET'), { code: 'EIO' }); };
   await setStoredOAuthToken({ dataDir, fileName: FILE_NAME, token: token() });
-  expect(warning).toHaveBeenCalledWith('[oauth-tokens] could not chmod 0600', expect.stringContaining(FILE_NAME), 'Error');
+  expect(warning).toHaveBeenCalledWith('[oauth-tokens] could not chmod 0600', expect.stringContaining(FILE_NAME), 'Error(EIO)');
   expect(JSON.stringify([...errorLog.mock.calls, ...warning.mock.calls])).not.toMatch(/boom|SECRETSECRET|oauth-tokens\.test/);
 });

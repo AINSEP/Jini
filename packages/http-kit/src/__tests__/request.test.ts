@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { rawInput, validationError } from '../request.js';
+import { validationError } from '@jini-ai/core/contracts/server';
+import { rawInput } from '../request.js';
 
 describe('rawInput', () => {
   it('extracts body/query/params from a full Express request', () => {

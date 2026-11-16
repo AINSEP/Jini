@@ -25,7 +25,12 @@ const nodeLoadablePackageManagerExtensions = new Set([".js", ".cjs", ".mjs"]);
  * @returns The `{ command, args }` (plus `windowsVerbatimArguments` when a shim is used) to spawn.
  */
 export function createCommandInvocation({ args = [], command, env = process.env }: CommandInvocationRequest, _options = {}): CommandInvocation {
-  return planCommandInvocation({ command, platform: process.platform, env }, { args, fallbackComSpec: process.env.ComSpec });
+  return planCommandInvocation({ command, platform: process.platform, env }, { args, fallbackComSpec: ambientComSpec() });
+}
+
+/** The process's own `ComSpec`, the fallback when a caller-supplied `env` carries none; `ambient` is injectable. */
+function ambientComSpec(ambient: NodeJS.ProcessEnv = process.env): string | undefined {
+  return ambient.ComSpec;
 }
 
 /**
@@ -53,7 +58,7 @@ export function createPackageManagerInvocation(args: string[], env: NodeJS.Proce
   // package manager out of the box, while a bare `pnpm` only resolves when a
   // separate global install or a `corepack enable` shim is present. See #2438.
   if (process.platform === "win32") {
-    return planCmdShimInvocation({ command: "corepack", args: ["pnpm", ...args], env }, { fallbackComSpec: process.env.ComSpec });
+    return planCmdShimInvocation({ command: "corepack", args: ["pnpm", ...args], env }, { fallbackComSpec: ambientComSpec() });
   }
   return { args: ["pnpm", ...args], command: "corepack" };
 }

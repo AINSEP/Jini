@@ -62,7 +62,9 @@ it('moved plugin host provisions with the real bodies, warns, then grants with t
   expect(grant.required.pluginId).toBe('weather');
   expect(grant.required.deps.workspaceId).toBe('acme-ws');
   expect(grant.optional).toEqual({ skipServerKeys: ['beta'] });
-  expect(String(steps[4]!.detail)).toContain('acme store full');
+  // The warning carries fixed words plus the error class; the original text ('acme store full') goes to the host's sink.
+  expect(String(steps[4]!.detail)).toContain("MCP provisioning for server 'beta' failed");
+  expect(String(steps[4]!.detail)).not.toContain('acme store full');
   expect(JSON.stringify(steps)).not.toMatch(/tovu|Tovu|plugins_set_enabled|system:/);
 });
 

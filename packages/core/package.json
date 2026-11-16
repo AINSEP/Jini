@@ -77,6 +77,8 @@
         ]
       },
       "shared": [
+        "src/text",
+        "src/model-facing-tool-errors.ts",
         "src/tool-permissions.ts",
         "src/records.ts"
       ],

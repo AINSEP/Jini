@@ -1,14 +1,8 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import express from 'express';
 import { createApiError } from '@jini-ai/protocol';
 import { defineJsonRoute, mountJsonRoute } from '../adapter.js';
 import { ClientFacingError, err, ok } from '@jini-ai/core/contracts/server';
-import { isLocalSameOrigin } from '@jini-ai/core';
-
-vi.mock('@jini-ai/core', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@jini-ai/core')>(),
-  isLocalSameOrigin: vi.fn(() => true),
-}));
 
 type RecordedHandler = (req: any, res: any) => Promise<void> | void;
 
@@ -63,10 +57,6 @@ function makeClosableRes() {
 }
 
 const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 7456 } };
-
-beforeEach(() => {
-  vi.mocked(isLocalSameOrigin).mockReturnValue(true);
-});
 
 describe('http adapter', () => {
   it('prints only class, code and correlation for an error carrying config headers and quoted credentials', async () => {
@@ -178,23 +168,21 @@ describe('http adapter', () => {
   });
 
   it('allows a same-origin request through when requireSameOrigin is set', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(true);
     const route = defineJsonRoute<void, { secret: number }, unknown>({ method: 'get', path: '/secret', parse: () => ok({ value: undefined }), handle: () => ok({ value: { secret: 42 } }) }, { requireSameOrigin: true });
     const app = makeApp();
     mountJsonRoute({ app, spec: route, deps: {}, adapter });
     const res = makeRes();
-    await app.handlers['GET /secret']!({ body: {}, query: {}, params: {} }, res);
+    await app.handlers['GET /secret']!({ body: {}, query: {}, params: {}, headers: { host: '127.0.0.1:7456', origin: 'http://127.0.0.1:7456' } }, res);
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith({ secret: 42 });
   });
 
   it('blocks cross-origin requests when requireSameOrigin is set', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
     const route = defineJsonRoute<void, { secret: number }, unknown>({ method: 'get', path: '/secret', parse: () => ok({ value: undefined }), handle: () => ok({ value: { secret: 42 } }) }, { requireSameOrigin: true });
     const app = makeApp();
     mountJsonRoute({ app, spec: route, deps: {}, adapter });
     const res = makeRes();
-    await app.handlers['GET /secret']!({ body: {}, query: {}, params: {} }, res);
+    await app.handlers['GET /secret']!({ body: {}, query: {}, params: {}, headers: { host: '127.0.0.1:7456', origin: 'http://evil.example' } }, res);
     expect(res.status).toHaveBeenCalledWith(403);
     expect(res.json).toHaveBeenCalledWith({
       error: { code: 'FORBIDDEN', message: 'cross-origin request rejected' },

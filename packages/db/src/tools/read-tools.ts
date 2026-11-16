@@ -78,7 +78,7 @@ export function createDatabaseReadTools(ports: DatabaseReadToolPorts, _optional:
       const costAck = optionalBoolean(input, "costAck");
 
       // `createRestorePoint` (restore-points.ts) has no authorize() call of its own — the real HTTP
-      // route (`Tovu apps/website/src/server/inbound/admin-http/routes/database/restore-points.ts`) authorizes inline before calling it, so
+      // route (a host module) authorizes inline before calling it, so
       // this handler does the identical inline check.
       await ports.requirePermission({ principalId: ctx.principal.id, permission: "backup.create", entityType: "restore-point" });
 

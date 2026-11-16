@@ -368,7 +368,9 @@ test("obs #1: a credential-shaped error.code never reaches an exported OTel span
   assert.equal(spans.length, 4);
   const exported = JSON.stringify(spans.map((span) => ({ name: span.name, attributes: span.attributes, status: span.status, events: span.events })));
   assert.ok(!exported.includes(code), exported);
-  assert.ok(exported.includes("[REDACTED:credential]"));
+  // An unapproved (credential-shaped) code is never printed: spans carry the class label instead.
+  assert.ok(!exported.includes("AKIA") && !exported.includes("REDACTED"), exported);
+  assert.ok(exported.includes('"Error"'), exported);
 });
 
 test("constructing and disposing the adapter never takes over the process-wide tracer provider", async () => {

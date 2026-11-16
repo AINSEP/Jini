@@ -36,7 +36,9 @@ describe("infra 0.3.3 shim surface", () => {
     expect(manifest.dependencies).toEqual({ "@jini-ai/core": "workspace:^" });
     expect(manifest.scripts.build).toBe("tsc -p tsconfig.json");
     expect(JSON.stringify(manifest.exports)).not.toContain('"require"');
-    expect(manifest.peerDependencies).toEqual({ "@jini-ai/db": "^0.6.10" });
+    expect(Object.keys(manifest.peerDependencies)).toEqual(["@jini-ai/db"]);
+    // Caret floor on the current minor line, not an exact string every fixed-group bump invalidates.
+    expect(manifest.peerDependencies["@jini-ai/db"]).toMatch(/^\^0\.(?:[7-9]|\d{2,})\.\d+$/);
     expect(manifest.peerDependenciesMeta).toEqual({ "@jini-ai/db": { optional: true } });
     expect(manifest.devDependencies["@jini-ai/db"]).toBe("workspace:^");
     expect(manifest.devDependencies["@jini-ai/core"]).toBe("workspace:*");

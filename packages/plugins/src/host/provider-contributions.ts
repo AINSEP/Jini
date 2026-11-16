@@ -1,7 +1,7 @@
 /** Server factories are inert registrations. Clients and timers belong to initialized resources. */
 import { PROVIDER_ID_PATTERN } from '@jini-ai/core/provider-registry';
 import type { PluginValidationError } from './manifest-types.js';
-import type { PluginProviderDeclaration } from '@jini-ai/core/contracts/plugin-sdk';
+import { PLUGIN_PROVIDER_CAPABILITY, type PluginProviderDeclaration } from '@jini-ai/core/contracts/plugin-sdk';
 
 /** Shared grammar for manifest validation and runtime capture, using core's frozen id contract. */
 export function isPluginProviderDeclaration(

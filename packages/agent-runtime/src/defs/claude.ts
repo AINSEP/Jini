@@ -64,6 +64,7 @@ const CLAUDE_FALLBACK_MODELS = [
   { id: 'claude-sonnet-5-5', label: 'claude-sonnet-5-5' },
   { id: 'claude-haiku-5-5', label: 'claude-haiku-5-5' },
   { id: 'claude-haiku-4-5-20251001', label: 'claude-haiku-4-5-20251001' },
+  { id: 'claude-fable-5-2', label: 'claude-fable-5-2' },
   { id: 'claude-fable-5-1', label: 'claude-fable-5-1' },
   { id: 'claude-fable-5', label: 'claude-fable-5' },
   { id: 'claude-opus-5', label: 'claude-opus-5' },

@@ -271,8 +271,8 @@ function resourceRootOf({ env, state }: ResolvedOptions): string | undefined {
 const EXECUTABLE_HELPERS: ExecutableResolutionHelpers = {
   executableFilePath, isRunnableFile, searchPath, platformExecutableName, resourceRootOf, resolveDetectionHome,
 };
-const PACKAGED_EXECUTABLES = new Map([['amr', packagedAmrExecutable]]);
-const APP_BUNDLE_EXECUTABLES = new Map([['codex', codexAppBundleExecutable]]);
+const PACKAGED_EXECUTABLES: ReadonlyMap<string, typeof packagedAmrExecutable> = new Map([['amr', packagedAmrExecutable]]);
+const APP_BUNDLE_EXECUTABLES: ReadonlyMap<string, typeof codexAppBundleExecutable> = new Map([['codex', codexAppBundleExecutable]]);
 
 export function resolveAmrOpenCodeExecutable({  }: {  }, { env = process.env, state = defaultRuntimeState }: ExecutableResolutionOptions = {}): string | null {
   return resolveAmrCompanion({ env, state }, EXECUTABLE_HELPERS);

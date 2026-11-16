@@ -49,6 +49,7 @@
   },
   "dependencies": {
     "@jini-ai/chat": "workspace:^",
+    "@jini-ai/core": "workspace:^",
     "@jini-ai/daemon": "workspace:^",
     "@jini-ai/db": "workspace:^",
     "@jini-ai/registry": "workspace:^"

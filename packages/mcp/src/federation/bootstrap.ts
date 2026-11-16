@@ -16,11 +16,11 @@ import type { FederatedAdmissionReport } from "./trust.js";
  * `agent-daemon-server.ts` calls, and the only place in this subtree that performs I/O it was not
  * handed.
  *
- * Split out of `agent-daemon-server.ts` for the reason `tool-catalog-query.ts` and `Tovu apps/website/src/assistant/daemon-access.ts`
+ * Split out of `agent-daemon-server.ts` for the reason `tool-catalog-query.ts` and a host module
  * were: that file is a top-level side-effecting script which opens a real port and a real DB
  * connection on import, so nothing in it can be imported by a test. Everything here can be.
  *
- * FAIL-OPEN, and deliberately the opposite of `Tovu apps/website/src/assistant/daemon-access.ts`'s fail-closed gate. The two are
+ * FAIL-OPEN, and deliberately the opposite of a host module's fail-closed gate. The two are
  * answering different questions. `requireAgentDaemonToken` guards ACCESS TO host app, where failing
  * open would admit unauthenticated callers, so an unconfigured gate must refuse to serve. This
  * guards an OPTIONAL OUTBOUND CONVENIENCE, where failing closed would mean a third party's server
@@ -122,7 +122,7 @@ export interface AttachFederatedMcpToolsParams {
   connections?: readonly ResolvedFederatedConnection[] | undefined;
   /**
    * Connections from a config source that is not the preset registry — today, the operator-editable
-   * roster in `Tovu apps/website/src/features/external-mcp/external-mcp-store.ts`.
+   * roster in a host module.
    *
    * A second parameter rather than a second preset, because `FederatedMcpPresetResolver` cannot
    * express this source: it is synchronous (a DB read plus an unseal are not) and returns at most

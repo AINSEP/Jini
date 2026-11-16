@@ -27,7 +27,7 @@ import type { McpHttpExchange, McpHttpLaunchSpec, McpHttpResponse, McpSessionPor
  * `https://mcp.supabase.com/mcp`, anything SaaS — has no such program, and the only way to reach it
  * is an authenticated HTTPS endpoint. `external-mcp-server-federation.md` deferred this transport
  * with a specific, now-expired reason: "OAuth needs an interactive browser consent flow and a token
- * store, neither of which host app has". `src/platform/oauth/` and `Tovu apps/website/src/features/external-mcp/external-mcp-oauth.ts` are both of
+ * store, neither of which host app has". `src/platform/oauth/` and a host module are both of
  * those, so the blocker is gone and, exactly as that doc predicted, this lands as an added adapter
  * rather than a redesign.
  *

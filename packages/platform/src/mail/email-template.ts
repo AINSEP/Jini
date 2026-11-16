@@ -32,7 +32,7 @@ const FIELD_NAME = /^[A-Za-z_][A-Za-z0-9_.-]*$/;
 const HTML_NAMESPACE = "http://www.w3.org/1999/xhtml";
 
 /** Tags a sent email never carries: embedded documents and plugins, on top of `stripActiveHtml`'s. */
-const SEND_STRIPPED_TAGS = new Set(["iframe", "object", "embed", "frame", "frameset", "applet", "base", "form", "link"]);
+const SEND_STRIPPED_TAGS: ReadonlySet<string> = new Set(["iframe", "object", "embed", "frame", "frameset", "applet", "base", "form", "link"]);
 /** Script-bearing URL schemes; tested after removing the whitespace/control characters a browser ignores. */
 const ACTIVE_URL = /^(?:javascript|vbscript):/i;
 

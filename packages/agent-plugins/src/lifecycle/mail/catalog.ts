@@ -3,7 +3,7 @@ import type { PluginCredentialCard } from "@jini-ai/core/contracts/credentials";
 import type { MailAdapterRegistry } from "./contribution.js";
 export interface MailCatalogDeps {
  loadMailAdapters: () => Promise<MailAdapterRegistry>;
- createSmtpTransport: (config: { host: string; port: number; secure: boolean; auth: { user: string; pass: string } }) => { sendMail(mail: SmtpPayload): Promise<{ messageId: string }> };
+ createSmtpTransport: (config: { host: string; port: number; secure: boolean; auth: { user: string; pass: string } }) => { sendMail(required: { mail: SmtpPayload }): Promise<{ messageId: string }> };
  log?: ((line: string) => void) | undefined;
  resolvePluginAccountToken?: ((required: { pluginId: string; serverId: string }) => Promise<string | null>) | undefined;
 }
@@ -33,12 +33,8 @@ export function createMailCatalog(requiredHost: {
 
 function builtins(deps: MailCatalogDeps): MailProviderModule[] {
   const clock = { nowMs: () => Date.now() };
-  const createTransport = deps.createSmtpTransport;
-  // The host's transport takes the payload positionally; Jini's SMTP adapter calls it with `{mail}`.
-  const smtp = requiredHost.mailEngine.builtins.smtp({ clock, createTransport: (config) => {
-    const transport = createTransport(config);
-    return { sendMail: ({ mail }) => transport.sendMail(mail) };
-  } });
+  // The host transport and Jini's SMTP adapter share the object-args shape `sendMail({ mail })`.
+  const smtp = requiredHost.mailEngine.builtins.smtp({ clock, createTransport: deps.createSmtpTransport });
   return [smtp, requiredHost.mailEngine.builtins.console({ clock }, deps.log ? { log: deps.log } : {})];
 }
 

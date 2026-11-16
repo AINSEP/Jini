@@ -15,7 +15,7 @@ describe('loadChartProvider default import', () => {
   it('natively imports a module URL and returns it when it exports mount', async () => {
     const provider = await loadChartProvider({ url: PROVIDER_MODULE });
     const element = document.createElement('div');
-    provider.mount({ element, spec, theme: { mode: 'light', tokens: {} } }, { onError: () => {} });
+    provider.mount({ element, spec, theme: { mode: 'light', tokens: {} }, applyTheme: () => {} }, { onError: () => {} });
     expect(element.textContent).toBe('fixture chart');
   });
 

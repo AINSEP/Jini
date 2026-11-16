@@ -61,7 +61,7 @@ export class RestorePointNotFoundError extends Error {
  * target restore point still exists and records a real `restore.executed` `database_ledger` row —
  * the honest, auditable half of a restore. It does NOT physically overwrite the live `content.db`
  * file. This codebase has no mechanism to hot-swap the shared, already-open `content.db`
- * connection every other repo across `Tovu apps/website/src/server/runtime/composition/deps.ts` holds a reference to (doing so would either
+ * connection every other repo across a host module holds a reference to (doing so would either
  * crash every other in-flight request against a closed handle, or silently leave every existing
  * repo instance reading the stale pre-restore file) — inventing an unreviewed live-swap or
  * process-restart mechanism here is exactly the kind of unrequested architecture this dispatch's

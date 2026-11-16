@@ -1,7 +1,8 @@
 import { createServer, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { describe, expect, it, vi } from 'vitest';
-import { createSseChannel, requestedAfterCursor, sendRawApiError, DEFAULT_MAX_QUEUED_SSE_EVENTS, type SseEvent } from '../sse.js';
+import { DEFAULT_MAX_QUEUED_SSE_EVENTS, type SseEvent } from '@jini-ai/core/contracts/server';
+import { createSseChannel, requestedAfterCursor, sendRawApiError } from '../sse.js';
 
 interface TestEvent extends SseEvent {
   readonly payload?: string;

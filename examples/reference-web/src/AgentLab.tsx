@@ -1,10 +1,10 @@
 import { fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChatMessage } from '@jini-ai/chat/core';
+import { createDomPageDriver, createDriverPagePort } from '@jini-ai/agentic/dom';
 import {
   ChatFab,
   ChatPane,
-  createDomPageDriver,
   createFrontendSessionBridge,
   type FrontendSessionBridge,
 } from '@jini-ai/chat/react';
@@ -164,7 +164,8 @@ export function AgentLab() {
     // page.navigate actually changes what elements report themselves as belonging to.
     const driver = createDomPageDriver({ root, pages: labPages });
     const session = createFrontendSessionBridge({ baseUrl: '', fetch: globalThis.fetch, openStream: ({ url }) => new EventSource(url), request: ({ url, init, timeoutMs }) => fetchWithTimeout(url, init, { timeoutMs }) }, {
-      pageDriver: driver,
+      // The page-control port over the DOM driver: it claims the six `page.*` verbs.
+      page: createDriverPagePort({ driver }),
       // The activity trail the design debate flagged as missing: the user can see the agent
       // acting on their own screen instead of inferring it from the transcript.
       onInvocation: (action) => setStatus(`Agent ran ${action.capabilityId}.`),

@@ -2,6 +2,7 @@
 import type { PluginManifest, PluginValidationError } from './manifest-types.js';
 import type { PluginDiscoveryRecord } from './discovery-types.js';
 import type { ClaimMode } from './claim-conflicts.js';
+import type { DefinedPlugin, HookPoints, PluginSdk } from '@jini-ai/core/contracts/plugin-sdk';
 
 /** Required binding to the host-owned SDK. Hook ids and semantics never default to a product catalog.
  * @example { hookIds: ['beforeSave'], beforeSaveHook: 'beforeSave', hookSemantics: { beforeSave: 'shared' }, ...abi }

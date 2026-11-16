@@ -98,7 +98,9 @@ describe('default body stdin reader (async iterator)', () => {
     await withIterableStdin([], async (stdin) => {
       const original = (process.stdin as unknown as { [Symbol.asyncIterator]: () => AsyncIterator<string> });
       Object.assign(original, { async *[Symbol.asyncIterator]() { yield 'a'; controller.abort(); yield 'b'; } });
-      await expect(readBodyFromFlags({ flags: { 'body-file': '-' } }, { signal: controller.signal })).rejects.toThrow(controller.signal.reason.message);
+      // `signal.reason` only exists once aborted, so read it after the rejection, not while building the expectation.
+      const rejection = await readBodyFromFlags({ flags: { 'body-file': '-' } }, { signal: controller.signal }).then(() => undefined, (error: unknown) => error);
+      expect(rejection).toBe(controller.signal.reason);
       expect(stdin.destroyed).toHaveLength(1);
       expect((stdin.destroyed[0] as Error).message).toBe('stdin read aborted');
     });

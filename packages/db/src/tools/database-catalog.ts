@@ -23,7 +23,7 @@
  * read-only introspection adapter below).
  *
  * A later dispatch built `features/database/adapter.sqlite.ts` (`DatabaseIntrospectionPort`,
- * composed into `RouteDeps` as `databaseIntrospection` in both `Tovu apps/website/src/server/runtime/composition/deps.ts` and `Tovu apps/website/src/server/runtime/composition/app.ts`)
+ * composed into `RouteDeps` as `databaseIntrospection` in both a host module and a host module)
  * and wired `database_get_health`/`database_get_schema_state`/`content_read.database_pending_migration`
  * against it — see each entry's own comment below and `tool-registrations.ts`'s handlers.
  *
@@ -59,7 +59,7 @@ const NO_INPUT_SCHEMA = {
   properties: {},
 } as const;
 
-/** `database_query_timeline`'s filter — mirrors `features/database/timeline.ts`'s `getTimeline` filter shape and `Tovu apps/website/src/server/inbound/admin-http/routes/database/timeline.ts`'s query-string parsing 1:1. */
+/** `database_query_timeline`'s filter — mirrors `features/database/timeline.ts`'s `getTimeline` filter shape and a host module's query-string parsing 1:1. */
 const TIMELINE_QUERY_SCHEMA = {
   type: "object",
   additionalProperties: false,

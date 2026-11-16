@@ -1145,12 +1145,18 @@ importers:
       '@jini-ai/cookie-consent':
         specifier: workspace:^
         version: link:../cookie-consent
+      '@jini-ai/core':
+        specifier: workspace:^
+        version: link:../core
       '@jini-ai/diagnostics':
         specifier: workspace:^
         version: link:../diagnostics
       '@jini-ai/plugins':
         specifier: workspace:^
         version: link:../plugins
+      '@jini-ai/protocol':
+        specifier: workspace:^
+        version: link:../protocol
       '@jini-ai/ui':
         specifier: workspace:^
         version: link:../ui
@@ -1350,6 +1356,9 @@ importers:
       '@jini-ai/chat':
         specifier: workspace:^
         version: link:../chat
+      '@jini-ai/core':
+        specifier: workspace:^
+        version: link:../core
       '@jini-ai/daemon':
         specifier: workspace:^
         version: link:../daemon

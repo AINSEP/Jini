@@ -18,7 +18,7 @@ export type AgentLaunchResolution = ReturnType<typeof inspectAgentExecutableReso
   diagnostic: string | null;
 };
 
-const LAUNCH_ADAPTERS = new Map<string, typeof resolveCodexLaunch>([['codex', resolveCodexLaunch]]);
+const LAUNCH_ADAPTERS: ReadonlyMap<string, typeof resolveCodexLaunch> = new Map([['codex', resolveCodexLaunch]]);
 
 export function resolveAgentLaunch({ def }: { def: RuntimeAgentDef }, options: ExecutableResolutionOptions & { configuredEnv?: Record<string, string> } = {}
 ): AgentLaunchResolution {
