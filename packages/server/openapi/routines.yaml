@@ -111,8 +111,10 @@ paths:
       parameters:
         - { $ref: '#/components/parameters/RoutineId' }
         - { name: limit, in: query, required: false, schema: { type: string }, description: 'Any non-positive-integer/absent value (including 0, negative, or non-numeric) falls back to 20, matching `Number(value) || 20`. Clamped to [1, 100].' }
+        - { name: cursor, in: query, required: false, schema: { type: string, minLength: 1 }, description: 'Opaque `nextCursor` from the previous page; returns the next (older) runs. An empty or malformed cursor is refused with 400.' }
       responses:
         '200': { description: Runs, newest first., content: { application/json: { schema: { $ref: '#/components/schemas/RoutineRunsResponse' } } } }
+        '400': { description: The cursor is empty or malformed., content: { application/json: { schema: { $ref: '#/components/schemas/ErrorResponse' } } } }
         '404': { $ref: '#/components/responses/NotFound' }
         '500': { $ref: '#/components/responses/InternalError' }
 components:
@@ -211,7 +213,7 @@ components:
     RoutineResponse: { type: object, required: [routine], properties: { routine: { $ref: '#/components/schemas/Routine' } } }
     RoutineListResponse: { type: object, required: [routines], properties: { routines: { type: array, items: { $ref: '#/components/schemas/Routine' } } } }
     RoutineDeleteResponse: { type: object, required: [ok], properties: { ok: { type: boolean, enum: [true] } } }
-    RoutineRunsResponse: { type: object, required: [runs], properties: { runs: { type: array, items: { $ref: '#/components/schemas/RoutineRun' } } } }
+    RoutineRunsResponse: { type: object, required: [runs, nextCursor], properties: { runs: { type: array, items: { $ref: '#/components/schemas/RoutineRun' } }, nextCursor: { type: string, nullable: true, description: 'Opaque cursor for the next (older) page, or null on the last page.' } } }
     RoutineRunNowResponse:
       type: object
       required: [routine, run, projectId, conversationId, agentRunId]

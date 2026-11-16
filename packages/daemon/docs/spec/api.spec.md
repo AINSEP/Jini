@@ -231,7 +231,7 @@ RoutinePersistence is synchronous: list(); insertRun({run},{scheduledSlotAt?}); 
 | `rescheduleOne({routineId})` / `unschedule({routineId})` | void |
 | `nextRunAt({routineId})` / `runNow({routineId})` | Date or null / Promise<RoutineRunHandlerStart> |
 
-RoutineStore methods are async: list(); get({id}); create({name,prompt,schedule,target},{skillId?,agentId?,context?,enabled?}); update({id,patch}); delete({id}):boolean; listRuns({routineId,limit}); getLatestRun({routineId}). InMemoryRoutineStore additionally has recordRun({run}) and patchRun({id,patch}). enabled defaults true; validation helpers are separate from create.
+RoutineStore methods are async: list(); get({id}); create({name,prompt,schedule,target},{skillId?,agentId?,context?,enabled?}); update({id,patch}); delete({id}):boolean; listRuns({routineId,limit},{cursor?}) → {items,nextCursor} (newest first; nextCursor is null on the last page, a bad cursor is refused); getLatestRun({routineId}). InMemoryRoutineStore additionally has recordRun({run}) and patchRun({id,patch}). enabled defaults true; validation helpers are separate from create.
 
 Example: use createInMemoryRoutineStore for CRUD, adapt its recordRun/patchRun to RoutinePersistence, set the host's run handler, then start the scheduler. stop clears future scheduling; it does not stop already running agent work.
 

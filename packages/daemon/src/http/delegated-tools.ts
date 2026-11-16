@@ -124,7 +124,7 @@ export interface DelegatedToolsHttpDeps {
    */
   readonly isModelSafeToolFailure?: ({ result }: { result: ToolExecutionResult }) => boolean;
   /**
-   * Host opt-in: the model-safe text to send in place of `'an internal error occurred'` for every
+   * Host opt-in: the model-safe text to send in place of the default {@link DELEGATED_TOOL_FAULT_MESSAGE} for every
    * failure this route would otherwise answer with the SEC-005-redacted `500 INTERNAL_ERROR` — a
    * thrown executor infrastructure failure, a throwing `resolvePrincipal`, `timed-out`,
    * `cancelled`, and a `failed` result `isModelSafeToolFailure` did not vouch for. Without it, those
