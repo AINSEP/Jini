@@ -149,14 +149,8 @@ const SET_VALUE_SCHEMA = {
   properties: { ...CLEAR_VALUE_SCHEMA.properties, value: { description: "Any JSON matching the definition schema returned by settings_list_definitions." } },
 } as const;
 
-/**
- * The Settings domain's fixed agent-tool catalog — three reads, three bounded writes, and two bulk/schema writes documented but never
- * wired. See file header.
- *
- * @complexity O(1) — a fixed, statically-defined list.
- * @overallScore 100
- */
-export function getSettingsAgentToolCatalog(): AgentToolDefinition[] {
+/** The catalog's three metadata/value reads; none has a side effect. */
+function readAgentTools(): AgentToolDefinition[] {
   return [
     {
       name: "settings_list_definitions",
@@ -181,6 +175,12 @@ export function getSettingsAgentToolCatalog(): AgentToolDefinition[] {
       authorization: { permission: "settings.read.raw" },
       inputSchema: GET_RAW_SCHEMA,
     },
+  ];
+}
+
+/** The catalog's three bounded writes, each limited to the caller's own workspace or user layer. */
+function boundedWriteAgentTools(): AgentToolDefinition[] {
+  return [
     {
       name: "settings_set_ui_preference",
       description:
@@ -207,6 +207,12 @@ export function getSettingsAgentToolCatalog(): AgentToolDefinition[] {
       authorization: { permission: "settings.workspace.write" },
       inputSchema: CLEAR_VALUE_SCHEMA,
     },
+  ];
+}
+
+/** Documented but never wired: the bulk reset and the schema-level definition change. */
+function excludedAgentTools(): AgentToolDefinition[] {
+  return [
     {
       // EXCLUDED BY DESIGN, never wired: see this file's header. Bulk variant of a single-value clear —
       // clears every value in an operator-named namespace at a scope in one call, irreversible.
@@ -225,4 +231,15 @@ export function getSettingsAgentToolCatalog(): AgentToolDefinition[] {
       authorization: { permission: "settings.definitions.manage" },
     },
   ];
+}
+
+/**
+ * The Settings domain's fixed agent-tool catalog — three reads, three bounded writes, and two bulk/schema writes documented but never
+ * wired. See file header.
+ *
+ * @complexity O(1) — a fixed, statically-defined list.
+ * @overallScore 100
+ */
+export function getSettingsAgentToolCatalog(): AgentToolDefinition[] {
+  return [...readAgentTools(), ...boundedWriteAgentTools(), ...excludedAgentTools()];
 }
