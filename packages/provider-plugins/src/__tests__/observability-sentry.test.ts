@@ -114,7 +114,7 @@ test('memory diagnostic severity is a warning in the destination envelope', asyn
   assert.deepEqual(events[0]!.payload.contexts.operation, { process: 'renderer', rss_0_mb: 1000, rss_1_mb: 1300 });
 });
 
-test("obs2 #1: credential-shaped error codes never reach Sentry exception types", async () => {
+test("obs2 #1: a credential-shaped error code never reaches Sentry; the type reads as the class", async () => {
   const { items, transport } = recordingTransport();
   const { port, dispose } = createSentryObservabilityAdapter({ config: CONFIG }, { transport });
   assert.equal(port.supportsMetric, false);
@@ -123,7 +123,8 @@ test("obs2 #1: credential-shaped error codes never reach Sentry exception types"
   await flush(); await dispose();
   const events = items.filter((item) => item.type === "event");
   assert.equal(events.length, 1);
-  assert.equal(events[0]?.payload.exception.values[0].type, "[REDACTED:credential]");
+  // An unapproved (credential-shaped) code is never printed: the label falls back to the class.
+  assert.equal(events[0]?.payload.exception.values[0].type, "Error");
   assert.ok(!JSON.stringify(items).includes(code));
 });
 
