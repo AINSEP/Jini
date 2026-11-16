@@ -388,7 +388,11 @@ export const routineRunsListRoute = defineJsonRoute<RoutineRunsQuery, RoutineRun
       const page = await deps.store.listRuns({ routineId: id, limit }, { cursor });
       return ok({ value: { runs: page.items, nextCursor: page.nextCursor } });
     } catch (error) {
-      if (error instanceof ToolInputError) return err({ error: validationError({ message: error.message }) });
+      if (error instanceof ToolInputError) {
+        // `ToolInputError` text is Jini's own plain-words input refusal (an invalid cursor), meant for the caller.
+        const refusal = validationError({ message: error.message });
+        return err({ error: refusal });
+      }
       throw error;
     }
   }

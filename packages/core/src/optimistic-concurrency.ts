@@ -183,6 +183,10 @@ export function versionConflictBody(
 /** The machine-readable code for a save that named no version (HTTP status 428). */
 export const VERSION_REQUIRED_CODE = 'VERSION_REQUIRED';
 
+/** The one plain-words answer for a save that named no version, shared by the error and its 428 body. */
+export const VERSION_REQUIRED_MESSAGE =
+  "This save did not say which version you were editing, so nothing was saved (it could have overwritten someone else's change). Reload, make your change again, and save.";
+
 /**
  * A save for an editable record arrived without saying which version the person was editing, so it
  * could have overwritten someone else's change. Nothing was written. Re-reading and saving again can
@@ -194,10 +198,7 @@ export class RecordVersionRequiredError extends Error {
   readonly field: string;
 
   constructor(required: { field: string }, optional: ErrorOptions = {}) {
-    super(
-      "This save did not say which version you were editing, so nothing was saved (it could have overwritten someone else's change). Reload, make your change again, and save.",
-      optional,
-    );
+    super(VERSION_REQUIRED_MESSAGE, optional);
     this.name = 'RecordVersionRequiredError';
     this.field = required.field;
   }
@@ -228,7 +229,7 @@ export function versionRequiredBody(
   _optional: Record<string, never> = {},
 ): { error: string; code: typeof VERSION_REQUIRED_CODE; details: { field: string } } {
   const { error } = required;
-  return { error: error.message, code: VERSION_REQUIRED_CODE, details: { field: error.field } };
+  return { error: VERSION_REQUIRED_MESSAGE, code: VERSION_REQUIRED_CODE, details: { field: error.field } };
 }
 
 /**
