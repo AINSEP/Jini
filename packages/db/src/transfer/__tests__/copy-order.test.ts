@@ -60,7 +60,8 @@ test("topologicalTableCopyOrder re-sorts a newly-ready table into its alphabetic
 });
 
 test("topologicalTableCopyOrder rejects either unnamed edge endpoint", () => {
-  for (const [from, to] of [["missing", "named"], ["named", "missing"]]) {
+  const pairs: ReadonlyArray<readonly [string, string]> = [["missing", "named"], ["named", "missing"]];
+  for (const [from, to] of pairs) {
     const edge = { fromExportName: from, fromSqlTableName: from, toExportName: to, toSqlTableName: to, selfReferencing: false };
     assert.throws(() => topologicalTableCopyOrder({ allExportNames: ["named"], edges: [edge] }), { message: `edge references "${from}" -> "${to}", but allExportNames does not list both — topologicalTableCopyOrder() requires every edge endpoint to be one of the named tables.` });
   }
