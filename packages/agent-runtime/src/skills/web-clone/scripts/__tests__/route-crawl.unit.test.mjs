@@ -167,7 +167,7 @@ describe("main", () => {
   it("rejects a non-http start URL", async () => {
     const out = createOutput();
     expect(await main({ argv: ["--url", "ftp://s.test/"] }, out)).toBe(1);
-    expect(out.errors).toEqual(["route-crawl failed: Invalid URL: ftp://s.test/"]);
+    expect(out.errors).toEqual(["route-crawl failed: Invalid --url: pass an absolute http(s) URL."]);
   });
 
   it("crawls same-site routes breadth-first within depth, recording failures and skips", async () => {
@@ -193,7 +193,7 @@ describe("main", () => {
     expect(result.routes[0].screenshot).toMatch(/^screenshots\/s.test-[0-9a-f]{8}\.png$/);
     expect(fs.existsSync(path.join(outDir, result.routes[0].screenshot))).toBe(true);
     expect(result.skipped).toEqual([
-      { url: "https://s.test/blog?a=1&b=2", reason: "net::ERR_FAILED at https://s.test/blog?a=1&b=2" },
+      { url: "https://s.test/blog?a=1&b=2", reason: "Error" },
       { url: "https://s.test/about/team", reason: "depth>1" },
     ]);
     // The console listener is detached after every route.

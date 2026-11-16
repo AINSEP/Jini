@@ -165,7 +165,8 @@ describe("main", () => {
     expect(main({ argv: ["--out", "c.json", "--recon", "null.json"] }, io)).toBe(0);
     expect(readJson(path.join(dir, "c.json"))).toEqual(skeleton(""));
     expect(out.warns).toHaveLength(2);
-    expect(out.warns[0]).toMatch(/^⚠️ 读 recon 失败\(ENOENT.*\)，只输出空骨架。$/);
+    expect(out.warns[1]).toBe("⚠️ 读 recon 失败(TypeError)，只输出空骨架。");
+    expect(out.warns[0]).toBe("⚠️ 读 recon 失败(Error)，只输出空骨架。");
     expect(out.logs.filter((l) => l.includes("预填:"))).toEqual([]);
   });
 
@@ -174,7 +175,7 @@ describe("main", () => {
     fs.writeFileSync(path.join(dir, "file"), "");
     const { io, out } = makeIo(dir);
     expect(main({ argv: ["--out", "file/dna.json"] }, io)).toBe(1);
-    expect(out.errors[0]).toMatch(/^dna-scaffold 失败: (EEXIST|ENOTDIR)/);
+    expect(out.errors[0]).toBe("dna-scaffold 失败: Error");
   });
 
   it("uses the real fs and console when no ports are injected", () => {

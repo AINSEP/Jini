@@ -334,7 +334,7 @@ describe("main", () => {
             await page.emit("console", { type: () => "error", text: () => "E" });
             await page.emit("console", { type: () => "warning", text: () => "W" });
             await page.emit("console", { type: () => "log", text: () => "L" });
-            await page.emit("pageerror", new Error("boom"));
+            await page.emit("pageerror", new Error("boom api_key=SECRETSECRETSECRETSECRET"));
           },
         },
       }),
@@ -359,10 +359,11 @@ describe("main", () => {
         { type: "warning", text: "W", viewport: 390 },
       ],
       pageErrors: [
-        { message: "boom", viewport: 1440 },
-        { message: "boom", viewport: 390 },
+        { message: "Error", viewport: 1440 },
+        { message: "Error", viewport: 390 },
       ],
     });
+    expect(fs.readFileSync(jsonFile, "utf8")).not.toMatch(/boom|SECRETSECRET/);
     expect(result.captures.map((c) => [c.viewport, c.screenshot, c.signals.title])).toEqual([
       [{ width: 1440, height: 900 }, "screenshots/orig-1440.png", "Rich"],
       [{ width: 390, height: 900 }, "screenshots/orig-390.png", "Rich"],
@@ -390,6 +391,6 @@ describe("main", () => {
 
     const failing = createFakeBrowser(() => createFakePage({ gotoError: new Error("net::ERR_ABORTED") }));
     expect(await main({ argv: ["--url", "https://s.test/", "--out", outDir] }, { ...out, ...playwrightPorts(failing) })).toBe(1);
-    expect(out.errors).toEqual(["recon-site failed: net::ERR_ABORTED"]);
+    expect(out.errors).toEqual(["recon-site failed: Error"]);
   });
 });

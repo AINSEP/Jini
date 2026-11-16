@@ -330,11 +330,12 @@ describe("main", () => {
       ["scroll", true, ""],
       ["hover", false, ""],
       ["click", true, ""],
-      ["click", false, "detached: html > body:nth-of-type(1) > nav:nth-of-type(1) > a:nth-of-type(1)"],
+      ["click", false, "Error"],
       ["canvas-drag", false, ""],
     ]);
     expect(result.actions[4]).toMatchObject({ screenshot: "", after: result.actions[4].before });
     expect(result.consoleErrors).toEqual(["seed error"]);
+    expect(fs.readFileSync(jsonFile, "utf8")).not.toContain("detached:");
     expect(result.findings).toContain("3/6 actions changed DOM, URL, scroll, or visible overlay counts");
     expect(fs.existsSync(path.join(outDir, "screenshots", "00-initial.png"))).toBe(true);
     expect(fs.readFileSync(path.join(outDir, "orig-interactions.md"), "utf8")).toContain("# orig interaction probe");
@@ -354,6 +355,6 @@ describe("main", () => {
 
     const failing = createFakeBrowser(() => createFakePage({ gotoError: new Error("net::ERR_NAME_NOT_RESOLVED") }));
     expect(await main({ argv: ["--url", "https://nope.test/", "--out", outDir] }, { ...out, ...playwrightPorts(failing) })).toBe(1);
-    expect(out.errors).toEqual(["interaction-probe failed: net::ERR_NAME_NOT_RESOLVED"]);
+    expect(out.errors).toEqual(["interaction-probe failed: Error"]);
   });
 });

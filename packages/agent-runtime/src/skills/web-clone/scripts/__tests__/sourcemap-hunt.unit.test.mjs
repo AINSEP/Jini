@@ -86,7 +86,7 @@ describe("main", () => {
       "https://s.test/js/vendor.js": "y();\n/*@ sourceMappingURL=/maps/vendor.map */",
       "https://s.test/maps/vendor.map": '{"version":3,"v":1}',
       "https://s.test/js/inline.js": "z();\n//# sourceMappingURL=data:application/json;base64,e30=",
-      "https://s.test/js/missing.js": new Error("fetch failed"),
+      "https://s.test/js/missing.js": new Error("fetch failed api_key=SECRETSECRETSECRETSECRET"),
       "https://s.test/js/nomap.js": "w();",
     });
     const outDir = path.join(dir, "maps");
@@ -102,8 +102,9 @@ describe("main", () => {
     expect(fs.readFileSync(byScript["https://s.test/js/app.js"].mapFile, "utf8")).toBe('{"version":3}');
     expect(byScript["https://s.test/js/vendor.js"]).toMatchObject({ status: "ok", mapUrl: "https://s.test/maps/vendor.map" });
     expect(byScript["https://s.test/js/inline.js"]).toMatchObject({ status: "inline-or-data-map", mapUrl: "", mapFile: "" });
-    expect(byScript["https://s.test/js/missing.js"]).toMatchObject({ status: "error", error: "fetch failed" });
-    expect(byScript["https://s.test/js/nomap.js"]).toMatchObject({ status: "error", mapUrl: "https://s.test/js/nomap.js.map", error: "404 Not Found" });
+    expect(byScript["https://s.test/js/missing.js"]).toMatchObject({ status: "error", error: "Error" });
+    expect(byScript["https://s.test/js/nomap.js"]).toMatchObject({ status: "error", mapUrl: "https://s.test/js/nomap.js.map", error: "Error" });
+    expect(fs.readFileSync(manifestFile, "utf8")).not.toMatch(/fetch failed|SECRETSECRET|Not Found/);
     expect(byScript["https://cdn.test/lib.js"]).toBeUndefined();
   });
 
@@ -125,6 +126,6 @@ describe("main", () => {
   it("fails with exit 1 when the recon file cannot be read", async () => {
     const out = createOutput();
     expect(await main({ argv: ["--recon", path.join(tempDir(), "nope.json")] }, out)).toBe(1);
-    expect(out.errors[0]).toMatch(/^sourcemap-hunt failed: ENOENT/);
+    expect(out.errors[0]).toBe("sourcemap-hunt failed: Error");
   });
 });

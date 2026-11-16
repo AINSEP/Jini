@@ -139,6 +139,6 @@ describe("main", () => {
   it("fails with exit 1 when the project directory does not exist", async () => {
     const out = createOutput();
     expect(await main({ argv: ["--project", path.join(tempDir(), "missing")] }, out)).toBe(1);
-    expect(out.errors[0]).toMatch(/^od-preview-rewrite failed: ENOENT/);
+    expect(out.errors[0]).toBe("od-preview-rewrite failed: Error");
   });
 });

@@ -3,7 +3,7 @@ import path from "node:path";
 import { pathToFileURL } from "node:url";
 import { describe, expect, it } from "vitest";
 import { HELP_OPTIONS, int, num, parseCliArgs, text } from "../lib/cli-args.mjs";
-import { exitOnFailure, isMainModule, runCli, runIfMain } from "../lib/main-guard.mjs";
+import { CliUsageError, exitOnFailure, isMainModule, runCli, runIfMain } from "../lib/main-guard.mjs";
 import { launchChromium, loadPlaywright } from "../lib/playwright-loader.mjs";
 import { tempDir } from "./fakes-wc2.mjs";
 
@@ -32,6 +32,7 @@ describe("parseCliArgs", () => {
 
   it("throws on unknown arguments in strict mode, including prototype keys", () => {
     expect(() => parseCliArgs({ argv: ["--nope"], ...spec })).toThrow("Unexpected argument: --nope");
+    expect(() => parseCliArgs({ argv: ["--nope"], ...spec })).toThrow(CliUsageError);
     expect(() => parseCliArgs({ argv: ["constructor"], ...spec })).toThrow("Unexpected argument: constructor");
   });
 
@@ -96,7 +97,16 @@ describe("main guard", () => {
         throw new Error("boom");
       }, report: (m) => reports.push(m) }),
     ).toBe(1);
-    expect(reports).toEqual(["tool failed: boom"]);
+    expect(reports).toEqual(["tool failed: Error"]);
+  });
+
+  it("runCli prints a CliUsageError's own words and only the class of any other error", async () => {
+    const reports = [];
+    const report = (m) => reports.push(m);
+    await runCli({ label: "tool", body: () => { throw new Error("boom api_key=SECRETSECRETSECRETSECRET"); }, report });
+    await runCli({ label: "tool", body: () => { throw new CliUsageError("Unexpected argument: --x"); }, report });
+    expect(reports).toEqual(["tool failed: Error", "tool failed: Unexpected argument: --x"]);
+    expect(JSON.stringify(reports)).not.toMatch(/boom|SECRETSECRET|lib-wc2/);
   });
 });
 
@@ -125,6 +135,7 @@ describe("loadPlaywright", () => {
     expect(() => loadPlaywright({ requireFromScript: fail("script"), requireFromCwd: fail("cwd"), env: {} })).toThrow(
       /Playwright not found\. Fix \(run in the project root, once per project\):\n {2}npm install -D playwright/,
     );
+    expect(() => loadPlaywright({ requireFromScript: fail("script"), requireFromCwd: fail("cwd"), env: {} })).toThrow(CliUsageError);
   });
 
   it("resolves with the real require/env defaults (result depends on the install)", () => {

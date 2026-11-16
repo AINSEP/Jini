@@ -49,7 +49,7 @@ describe("main", () => {
       fakeResponse({ url: "https://s.test/api/items", resourceType: "xhr", headers: { "content-type": "application/json" }, body: '{"a":1}' }),
       fakeResponse({ url: "https://s.test/notes", resourceType: "fetch", headers: { "content-type": "text/plain" }, body: "hi" }),
       fakeResponse({ url: "https://s.test/big", resourceType: "fetch", headers: { "content-type": "application/json" }, body: "x".repeat(50) }),
-      fakeResponse({ url: "https://s.test/gone", resourceType: "xhr", status: 500, headers: { "content-type": "application/json" }, bodyError: new Error("No resource with given identifier") }),
+      fakeResponse({ url: "https://s.test/gone", resourceType: "xhr", status: 500, headers: { "content-type": "application/json" }, bodyError: new Error("No resource with given identifier api_key=SECRETSECRETSECRETSECRET") }),
       fakeResponse({ url: "https://s.test/logo.png", resourceType: "image", headers: { "content-type": "image/png" } }),
       fakeResponse({ url: "https://s.test/raw", resourceType: "fetch" }),
     ];
@@ -85,7 +85,8 @@ describe("main", () => {
     expect(items.fixture).toMatch(/^fixtures\/api-items-[0-9a-f]{10}\.json$/);
     expect(notes.fixture).toMatch(/\.txt$/);
     expect(big).toMatchObject({ fixture: "", error: "body too large: 50" });
-    expect(gone).toMatchObject({ ok: false, fixture: "", error: "No resource with given identifier" });
+    expect(gone).toMatchObject({ ok: false, fixture: "", error: "Error" });
+    expect(fs.readFileSync(manifestFile, "utf8")).not.toMatch(/No resource|SECRETSECRET/);
     expect(logo).toMatchObject({ fixture: "", error: "" });
     expect(raw).toMatchObject({ contentType: "", fixture: "" });
     expect(page.calls).toContainEqual(["waitForLoadState", "networkidle", { timeout: 7 }]);
@@ -126,6 +127,6 @@ describe("main", () => {
 
     const failing = createFakeBrowser(() => createFakePage({ gotoError: new Error("net::ERR_FAILED") }));
     expect(await main({ argv: ["--url", "https://s.test/", "--out", outDir] }, { ...out, ...playwrightPorts(failing) })).toBe(1);
-    expect(out.errors).toEqual(["network-capture failed: net::ERR_FAILED"]);
+    expect(out.errors).toEqual(["network-capture failed: Error"]);
   });
 });

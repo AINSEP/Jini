@@ -92,4 +92,13 @@ describe("main", () => {
     expect(main({ argv: ["demo", "--root", dir] })).toBe(0);
     expect(fs.existsSync(path.join(dir, "demo-clone", "NOTES.md"))).toBe(true);
   });
+
+  it("prints only the class of an unexpected failure, never its text", () => {
+    const dir = makeTempDir("wc1-init-");
+    const { io, out } = makeIo(dir);
+    const failingFs = { ...fs, mkdirSync: () => { throw new Error("boom api_key=SECRETSECRETSECRETSECRET"); } };
+    expect(main({ argv: ["acme", "--root", dir] }, { ...io, fs: failingFs })).toBe(1);
+    expect(out.errors).toEqual(["init-clone failed: Error"]);
+    expect(JSON.stringify(out.errors)).not.toMatch(/boom|SECRETSECRET|init-clone\.test/);
+  });
 });

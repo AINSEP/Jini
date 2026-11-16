@@ -366,10 +366,11 @@ describe("main", () => {
     expect(fs.existsSync(path.join(dir, "assets", "fonts"))).toBe(false);
     expect(out.logs).toHaveLength(4);
 
-    const broken = { ...browser, newContext: async () => { throw new Error("context crashed"); }, close: browser.close };
+    const broken = { ...browser, newContext: async () => { throw new Error("boom api_key=SECRETSECRETSECRETSECRET"); }, close: browser.close };
     state.closed = false;
     expect(await main({ argv: ["--url", "https://site.test/"] }, { ...io, fs, launchBrowser: async () => broken })).toBe(1);
-    expect(out.errors).toEqual(["asset-harvest failed: context crashed"]);
+    expect(out.errors).toEqual(["asset-harvest failed: Error"]);
+    expect(JSON.stringify(out.errors)).not.toMatch(/boom|SECRETSECRET|asset-harvest\.test/);
     expect(state.closed).toBe(true);
   });
 });

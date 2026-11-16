@@ -169,13 +169,13 @@ describe("main", () => {
 
     const broken = createFakeBrowser(() => createFakePage({ env: diffEnv({}) }));
     expect(await main({ argv: ["--original", a, "--clone", a, "--out", outFile] }, { ...out, ...playwrightPorts(broken) })).toBe(1);
-    expect(out.errors).toEqual([`visual-diff failed: Failed to load image: ${imageDataUrl(a).slice(0, 80)}`]);
+    expect(out.errors).toEqual(["visual-diff failed: Error"]);
   });
 
   it("fails with exit 1 when a screenshot file is missing", async () => {
     const out = createOutput();
     const browser = createFakeBrowser(() => createFakePage({ env: diffEnv({}) }));
     expect(await main({ argv: ["--original", path.join(tempDir(), "no.png"), "--clone", "x.png"] }, { ...out, ...playwrightPorts(browser) })).toBe(1);
-    expect(out.errors[0]).toMatch(/^visual-diff failed: ENOENT/);
+    expect(out.errors[0]).toBe("visual-diff failed: Error");
   });
 });

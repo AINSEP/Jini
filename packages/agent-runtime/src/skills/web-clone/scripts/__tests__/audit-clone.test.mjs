@@ -222,7 +222,7 @@ describe("main", () => {
     expect(main({ argv: ["--recon", "bad.json"] }, io)).toBe(1);
     expect(main({ argv: ["--nope"] }, io)).toBe(1);
     expect(out.errors[0]).toBe(`audit-clone failed: Project not found: ${path.join(dir, "missing")}`);
-    expect(out.errors[1]).toMatch(/^audit-clone failed: .*JSON/);
+    expect(out.errors[1]).toBe("audit-clone failed: SyntaxError");
     expect(out.errors[2]).toBe("audit-clone failed: Unexpected argument: --nope");
   });
 

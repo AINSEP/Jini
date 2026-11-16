@@ -221,7 +221,7 @@ describe("main", () => {
     const { io, out } = makeIo(dir);
     expect(main({ argv: ["--original", "o.json", "--clone", "missing.json"] }, io)).toBe(1);
     expect(main({ argv: ["--bogus"] }, io)).toBe(1);
-    expect(out.errors[0]).toMatch(/^compare-recon failed: ENOENT/);
+    expect(out.errors[0]).toBe("compare-recon failed: Error");
     expect(out.errors[1]).toBe("compare-recon failed: Unexpected argument: --bogus");
   });
 

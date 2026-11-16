@@ -4,6 +4,7 @@ import { pathToFileURL } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 import { flag, list, parseCliArgs, rejectUnknown, runIfMain, text } from "../lib/script-cli.mjs";
 import { makeTempDir } from "./fakes-wc1.mjs";
+import { CliUsageError } from "../lib/main-guard.mjs";
 
 describe("runIfMain", () => {
   const savedExitCode = process.exitCode;
@@ -82,5 +83,6 @@ describe("parseCliArgs", () => {
 
   it("rejectUnknown throws the scripts' shared message", () => {
     expect(() => rejectUnknown("--x")).toThrow("Unexpected argument: --x");
+    expect(() => rejectUnknown("--x")).toThrow(CliUsageError);
   });
 });
