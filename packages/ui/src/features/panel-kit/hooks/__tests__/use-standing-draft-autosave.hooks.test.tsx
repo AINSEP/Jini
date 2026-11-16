@@ -297,3 +297,19 @@ describe('preserveFailedSave', () => {
     expect(backup.read({ entryId: 'entry' }, { principalId: 'operator' })?.title).toBe('parked');
   });
 });
+
+describe('clearStandingDraft result', () => {
+  it.each([
+    ['the server drops it', async () => ({ ok: true }), true],
+    ['the server keeps it', async () => ({ ok: false }), false],
+    ['the request fails', async (): Promise<{ ok: boolean }> => { throw new Error('offline'); }, false],
+  ])('says discarded=%s-appropriately when %s', async (_name, discardAutosave, expected) => {
+    vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    const { port } = makePort({ discardAutosave });
+    const { result } = mount({ port, backup: makeBackup() });
+    await act(async () => {});
+    let outcome: { discarded: boolean } | undefined;
+    await act(async () => { outcome = await result.current.clearStandingDraft(); });
+    expect(outcome).toEqual({ discarded: expected });
+  });
+});

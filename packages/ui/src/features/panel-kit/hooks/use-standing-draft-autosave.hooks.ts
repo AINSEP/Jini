@@ -131,8 +131,11 @@ export interface StandingDraftAutosaveController {
    * to reach the server before this discard does, and no new one can be queued after it — the
    * ordering guarantee that keeps a late autosave from resurrecting content a real save (or an
    * explicit discard) just superseded.
+   *
+   * Resolves `discarded: false` when the server refused or could not be reached; the banner and the
+   * local copy are already gone, so the caller tells the person the draft may come back.
    */
-  clearStandingDraft: () => Promise<void>;
+  clearStandingDraft: () => Promise<{ discarded: boolean }>;
   /**
    * The caller replaced its basis with a newer saved row it did not write itself (an assistant
    * write applied by `use-external-entry-refresh.hooks.ts`, silently or through Load latest). Every
@@ -438,10 +441,13 @@ export function useStandingDraftAutosave(deps: StandingDraftAutosaveOptions, _op
     // discard, since by then the gate that wrote it belongs to a previous mount.
     liftStaleGate();
     dropLocalBackup();
-    if (!entryId) return;
+    if (!entryId) return { discarded: true };
+    let discarded = false;
     await enqueue(async () => {
-      await port.discardAutosave({ id: entryId }, {});
+      // A throw is logged by `enqueue` and leaves `discarded` false; `{ ok: false }` is the server keeping it.
+      discarded = (await port.discardAutosave({ id: entryId }, {})).ok;
     });
+    return { discarded };
   }, [clearPendingTimer, dropLocalBackup, enqueue, entryId, liftStaleGate, port]);
 
   const dismissRecoverable = useCallback(() => setRecoverableDraft(null), []);
