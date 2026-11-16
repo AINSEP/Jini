@@ -1,7 +1,9 @@
-import { createOtelObservabilityPort } from "../observability/otel.js";
-import type { ObservabilityConfigEnabled } from "../observability/config.js";
-import { createAsyncLocalSpanScope } from "../observability/node.js";
-import type { SpanScopePort, TraceSpanPort } from "../observability/ports.js";
+import { observabilityProviderContract } from "@jini-ai/diagnostics/observability";
+import type { ObservabilityConfigEnabled, SpanScopePort, TraceSpanPort } from "@jini-ai/diagnostics/observability";
+import { createAsyncLocalSpanScope } from "@jini-ai/diagnostics/observability/node";
+import { createOtelObservabilityPort } from "../observability-opentelemetry/otel-port.js";
+
+/** Local recording fakes for the OpenTelemetry adapter tests (a package never imports another package's tests). */
 export const SpanKind = { SERVER: "server", CLIENT: "client", INTERNAL: "internal" };
 export const SpanStatusCode = { ERROR: "error", UNSET: "unset" };
 export type FinishedSpan = {
@@ -12,12 +14,13 @@ export class InMemorySpanExporter {
  readonly spans: FinishedSpan[] = [];
  getFinishedSpans() { return this.spans; }
 }
-/** The package's own Node scope, so parenting in these tests is the real mechanism. */
+/** The domain's own Node scope, so parenting in these tests is the real mechanism. */
 export function createAsyncScope(): SpanScopePort {
  return createAsyncLocalSpanScope({});
 }
 export function createPort(config: ObservabilityConfigEnabled, exporter: InMemorySpanExporter, options: { scope?: SpanScopePort } = {}) {
  const records = new WeakMap<TraceSpanPort, FinishedSpan>();
+ const { errorType, redactOperationAttributes, redactLabel } = observabilityProviderContract.context;
  return createOtelObservabilityPort({ config,
   exporterFactory: { create: () => exporter },
   tracerProviderFactory: { create: () => ({ getTracer: () => ({ startSpan: ({ name, kind, attributes }, { parent } = {}) => {
@@ -32,5 +35,5 @@ export function createPort(config: ObservabilityConfigEnabled, exporter: InMemor
    records.set(port, span);
    return port;
   } }) }) },
- }, options);
+ }, { ...options, helpers: { errorType, redactOperationAttributes, redactLabel } });
 }

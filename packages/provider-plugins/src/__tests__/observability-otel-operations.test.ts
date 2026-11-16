@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { registerLoggableErrors } from "@jini-ai/core";
 
-import { InMemorySpanExporter, createAsyncScope, createPort } from "./observability-fakes.js";
-import { createNoopObservabilityPort } from "../observability/noop.js";
-import { createHookObservabilityPort } from "../observability/hooks.js";
-import { describeReportedError } from "../observability/errors.js";
-import { errorType, redactOperationAttributes } from "../observability/otel.js";
-import type { ObservabilityConfigEnabled } from "../observability/config.js";
+import { InMemorySpanExporter, createAsyncScope, createPort } from "./otel-fakes.js";
+import { createNoopObservabilityPort } from "@jini-ai/diagnostics/observability";
+import { createHookObservabilityPort } from "@jini-ai/diagnostics/observability";
+import { describeReportedError } from "@jini-ai/diagnostics/observability";
+import { errorType, redactOperationAttributes } from "@jini-ai/diagnostics/observability";
+import type { ObservabilityConfigEnabled } from "@jini-ai/diagnostics/observability";
 
 /** Feature-level operations and error reports: the two signals no transport names. */
 
@@ -115,7 +115,7 @@ test("C61: redact multiline secrets before applying the stack line limit", () =>
 
 test("combineObservabilityPorts: noop-only is the noop; one live port still delivers its signals", async () => {
   const { combineObservabilityPorts } = await import("../observability/fanout.js");
-  const { isNoopObservabilityPort } = await import("../observability/noop.js");
+  const { isNoopObservabilityPort } = await import("@jini-ai/diagnostics/observability");
   assert.ok(isNoopObservabilityPort(combineObservabilityPorts({ ports: [createNoopObservabilityPort({}), createNoopObservabilityPort({})] })));
   const exporter = new InMemorySpanExporter();
   const port = combineObservabilityPorts({ ports: [createNoopObservabilityPort({}), createPort(CONFIG, exporter)] });
