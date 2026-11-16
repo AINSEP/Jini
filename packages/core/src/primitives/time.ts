@@ -13,11 +13,6 @@ export function toMsClock({ clock }: { clock: Clock | IsoClock }, _optional: Rec
   return "nowMs" in clock ? clock : { nowMs: () => Date.parse(clock.nowIso()) };
 }
 
-/** Default wall clock; inject a Clock to control time in application code. */
-export function createSystemClock(): Clock {
-  return { nowMs: () => Date.now() };
-}
-
 /** Converts epoch milliseconds using the standard UTC ISO representation. Invalid time throws. */
 export function toIsoDateTime({ epochMs }: { epochMs: number }): ISODateTime {
   return new Date(epochMs).toISOString();

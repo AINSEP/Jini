@@ -17,8 +17,9 @@ import * as asyncFs from "node:fs/promises";
 import { randomUUID } from "node:crypto";
 import { hostname as nodeHostname } from "node:os";
 import path from "node:path";
-import { createSystemClock, type Clock } from "@jini-ai/core/primitives";
+import type { Clock } from "@jini-ai/core/primitives";
 import { defaultPlatformMessages, type PlatformMessages } from "../messages.js";
+import { createSystemClock } from "../system.js";
 import { errorCodeOf, fallbackIf } from "./errno.js";
 
 /** Re-exported so a host's own process port can record the boot its locks were taken in. */

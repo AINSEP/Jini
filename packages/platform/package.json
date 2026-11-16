@@ -24,6 +24,7 @@
       "./http/multipart": "node",
       "./mail": "node",
       "./mail/senders": "universal",
+      "./system": "universal",
       "./mail/email-template": "node",
       "./mail/smtp": "node",
       "./fs/guarded-reader": "node",
@@ -120,6 +121,11 @@
       "types": "./dist/mail/index.d.ts",
       "import": "./dist/mail/index.js",
       "default": "./dist/mail/index.js"
+    },
+    "./system": {
+      "types": "./dist/system.d.ts",
+      "import": "./dist/system.js",
+      "default": "./dist/system.js"
     },
     "./mail/senders": {
       "types": "./dist/mail/senders.d.ts",

@@ -190,8 +190,8 @@ UUIDs and timestamps remain unbranded strings. The HTTP contract includes binary
 bytes, redirect provenance, socket idle budgets and an optional total deadline. Platform
 supplies the guarded HTTP implementation; core defines the port only.
 
-Default adapters are `createSystemClock()`, `createRandomUuidGenerator()` and
-`createConsoleLogger({ prefix })`. Clock/ID getters take no arguments. Time helpers are
+Default adapter is `createConsoleLogger({ prefix })`; `createSystemClock()` and
+`createRandomUuidGenerator()` live in `@jini-ai/platform/system`. Clock/ID getters take no arguments. Time helpers are
 `toIsoDateTime({ epochMs })` and `nowIso({ clock })`. The UUID adapter requires a host
 cryptographic UUID implementation and fails if unavailable. The console adapter routes
 info/warn/error with optional `{ meta, error }` to the same console severity.

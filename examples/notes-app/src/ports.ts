@@ -3,7 +3,7 @@
  * repo, the change-set repo, the entry-outbox wrapper and the rate limiter come from Jini; everything marked
  * `// GAP:` is hand-written here because no public in-memory/no-op version exists.
  */
-import { createRandomUuidGenerator, createSystemClock } from '@jini-ai/core/primitives';
+import { createRandomUuidGenerator, createSystemClock } from '@jini-ai/platform/system';
 import { createMemoryCounterStore, createRateLimiter } from '@jini-ai/http-kit/rate-limit';
 import { InMemoryContentTypeRepo } from '@jini-ai/cms/content-types';
 import { InMemoryChangeSetRepo } from '@jini-ai/cms/core/commands';
