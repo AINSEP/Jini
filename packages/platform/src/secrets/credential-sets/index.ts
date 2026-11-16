@@ -1,6 +1,7 @@
 export { buildVaultAad } from "./vault.aad.js";
 export { createVaultMetaParsers, isCopyableKind } from "./vault.meta.js";
-export { SecretsVaultService, type VaultServiceDeps, type VaultPutInput, type VaultCopyInput } from "./vault.service.js";
+export { SecretsVaultService, type VaultServiceDeps, type VaultPutInput, type VaultCopyInput, type VaultRotateOptions } from "./vault.service.js";
+export { VaultResealRefusedError, type VaultResealRefusalStep } from "./vault.reseal-refused.js";
 export { InMemoryVaultRepo } from "./vault.repo.memory.js";
 export { captureVaultArchive, prepareVaultArchiveRestore, type VaultArchiveEntry } from "./vault-archive.js";
 export { matchingCredentialProviderIds, selectCredentialForProvider, suggestCredentialWorksFor,

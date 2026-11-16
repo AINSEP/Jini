@@ -79,7 +79,11 @@ test("excluded kinds and legacy AAD rows never open; mixed batches deduplicate a
     assert.deepEqual(result, [{ kind, id: "same-id", status: "skipped",
       reasonCode: kind === "mcp-env" ? "requires-mcp-configuration" : "kind-not-copyable" }]);
   }
+  assert.equal(open.mock.calls.length, 0);
   await source.service.put(source.input);
+  // The put itself opens its fresh envelope once to verify it; count only what the copies open.
+  assert.equal(open.mock.calls.length, 1);
+  open.mockClear();
   const row = (await source.repo.find({ workspaceId: "source", id: "same-id" }))!;
   await source.repo.put({ record: { ...row, id: "legacy", label: "Legacy", meta: { legacyAad: { aadVersion: 0 } } }, expectedRevision: null });
   assert.deepEqual(await target.service.copyToSite(transfer(source, target, { ids: ["legacy", "missing", "same-id", "same-id"] })), [
