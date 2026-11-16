@@ -101,7 +101,7 @@ const gateEnv = { JINI_TOOL_EXEC_TOKEN: HARNESS_BEARER_TOKEN, JINI_REMOTE_TOOL_B
  */
 const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-parser')[] = [
   ['health', ({ app, adapter, deps }) => registerHealthRoutes({ app, deps: deps(), adapter })],
-  ['tool-execution-routes', ({ app, deps }) => registerToolExecutionRoutes({ app, executor: deps(), listToolsFor: deps().listToolsFor }, { env: gateEnv })],
+  ['tool-execution-routes', ({ app, deps }) => registerToolExecutionRoutes({ app, executor: deps(), listToolsFor: (deps() as { listToolsFor: never }).listToolsFor }, { env: gateEnv })],
   ['attachment-lookup-routes', ({ app, deps }) => registerAttachmentLookupRoutes({ app, store: deps() })],
   'json-parser',
   ['runs', ({ app, adapter, deps }) => registerRunRoutes({ app, deps: deps(), adapter })],
@@ -126,7 +126,7 @@ const MOUNT_ORDER: readonly (readonly [family: string, mount: Mount] | 'json-par
   ['component-catalog', ({ app, adapter, deps }) => registerComponentCatalogRoutes({ app, deps: deps(), adapter })],
   ['attachments', ({ app, adapter, deps }) => registerAttachmentRoutes({ app, deps: deps({ acquireActivity: undefined }), adapter })],
   ['message-relay', ({ app, deps }) => registerMessageRelayRoutes({ app, agentExecutor: deps(), runScopedCallers: undefined })],
-  ['frontend-request-route', ({ app, deps }) => registerFrontendRequestRoute({ app, path: '/api/frontend-requests', control: deps(), executor: deps(), resolveOwner: deps().resolveOwner, capabilityIds: ['characterization.capability'] })],
+  ['frontend-request-route', ({ app, deps }) => registerFrontendRequestRoute({ app, path: '/api/frontend-requests', control: deps(), executor: deps(), resolveOwner: (deps() as { resolveOwner: never }).resolveOwner, capabilityIds: ['characterization.capability'] })],
 ];
 
 const layerName = (handler: unknown): string => (typeof handler === 'function' ? `${handler.name || 'anonymous'}/${handler.length}` : String(handler));
