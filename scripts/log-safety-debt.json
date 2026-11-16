@@ -25,6 +25,16 @@
     "value": 1
   },
   {
+    "file": "packages/admin/src/seo/react/hooks/use-seo.hooks.ts",
+    "rule": "stored-error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/seo/react/hooks/use-sitemap-modal.hooks.ts",
+    "rule": "stored-error-text",
+    "value": 1
+  },
+  {
     "file": "packages/admin/src/widgets/react/hooks/use-widget-regions.hooks.ts",
     "rule": "stored-error-text",
     "value": 1
@@ -90,6 +100,11 @@
     "value": 1
   },
   {
+    "file": "packages/agent-plugins/src/connect/plugin-host/index.ts",
+    "rule": "raw-error",
+    "value": 1
+  },
+  {
     "file": "packages/agent-plugins/src/lifecycle/credential-card-metadata.ts",
     "rule": "console",
     "value": 1
@@ -132,6 +147,11 @@
   {
     "file": "packages/agent-plugins/src/lifecycle/host-tools/skill-tool.ts",
     "rule": "error-text",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/host-tools/skill-tool.ts",
+    "rule": "raw-error",
     "value": 1
   },
   {
@@ -245,6 +265,11 @@
     "value": 1
   },
   {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/lib/main-guard.mjs",
+    "rule": "error-text",
+    "value": 1
+  },
+  {
     "file": "packages/agent-runtime/src/skills/web-clone/scripts/mirror-site.mjs",
     "rule": "console",
     "value": 3
@@ -253,6 +278,11 @@
     "file": "packages/agent-runtime/src/skills/web-clone/scripts/network-capture.mjs",
     "rule": "console",
     "value": 3
+  },
+  {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/network-capture.mjs",
+    "rule": "stored-error-text",
+    "value": 1
   },
   {
     "file": "packages/agent-runtime/src/skills/web-clone/scripts/od-preview-rewrite.mjs",
@@ -280,6 +310,11 @@
     "value": 3
   },
   {
+    "file": "packages/agent-runtime/src/skills/web-clone/scripts/sourcemap-hunt.mjs",
+    "rule": "stored-error-text",
+    "value": 1
+  },
+  {
     "file": "packages/agent-runtime/src/skills/web-clone/scripts/visual-diff.mjs",
     "rule": "console",
     "value": 3
@@ -305,38 +340,63 @@
     "value": 1
   },
   {
+    "file": "packages/chat/src/core/assistant-client/durable-run-subscription.ts",
+    "rule": "console-logger",
+    "value": 2
+  },
+  {
+    "file": "packages/chat/src/core/assistant-client/durable-run-subscription.ts",
+    "rule": "raw-error",
+    "value": 1
+  },
+  {
     "file": "packages/chat/src/embed-widget/vanilla/state.ts",
     "rule": "stored-error-text",
     "value": 1
   },
   {
-    "file": "packages/chat/src/react/components/Composer.tsx",
+    "file": "packages/chat/src/react/components/Composer.hooks.ts",
     "rule": "console",
     "value": 1
   },
   {
-    "file": "packages/chat/src/react/components/Composer.tsx",
+    "file": "packages/chat/src/react/components/Composer.hooks.ts",
     "rule": "error-format",
     "value": 1
   },
   {
-    "file": "packages/chat/src/react/components/ConversationList.tsx",
+    "file": "packages/chat/src/react/components/Composer.hooks.ts",
+    "rule": "raw-error",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/react/components/ConversationList.hooks.ts",
     "rule": "console",
     "value": 1
   },
   {
-    "file": "packages/chat/src/react/components/ConversationList.tsx",
+    "file": "packages/chat/src/react/components/ConversationList.hooks.ts",
     "rule": "error-format",
     "value": 1
   },
   {
-    "file": "packages/chat/src/react/components/ConversationTitleEditor.tsx",
+    "file": "packages/chat/src/react/components/ConversationList.hooks.ts",
+    "rule": "raw-error",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/react/components/ConversationTitleEditor.hooks.ts",
     "rule": "console",
     "value": 1
   },
   {
-    "file": "packages/chat/src/react/components/ConversationTitleEditor.tsx",
+    "file": "packages/chat/src/react/components/ConversationTitleEditor.hooks.ts",
     "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/react/components/ConversationTitleEditor.hooks.ts",
+    "rule": "raw-error",
     "value": 1
   },
   {
@@ -350,6 +410,11 @@
     "value": 1
   },
   {
+    "file": "packages/chat/src/react/components/ExtEventErrorBoundary.tsx",
+    "rule": "raw-error",
+    "value": 1
+  },
+  {
     "file": "packages/chat/src/react/components/ToolCard.tsx",
     "rule": "console",
     "value": 1
@@ -357,6 +422,11 @@
   {
     "file": "packages/chat/src/react/components/ToolCard.tsx",
     "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/react/components/ToolCard.tsx",
+    "rule": "raw-error",
     "value": 1
   },
   {
@@ -370,6 +440,11 @@
     "value": 2
   },
   {
+    "file": "packages/chat/src/react/features/chat-pane/hooks/useChatPaneFileDrop.hooks.ts",
+    "rule": "raw-error",
+    "value": 2
+  },
+  {
     "file": "packages/chat/src/react/hooks/useConversation.ts",
     "rule": "console",
     "value": 1
@@ -377,6 +452,11 @@
   {
     "file": "packages/chat/src/react/hooks/useConversation.ts",
     "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/chat/src/react/hooks/useConversation.ts",
+    "rule": "raw-error",
     "value": 1
   },
   {
@@ -390,9 +470,14 @@
     "value": 1
   },
   {
-    "file": "packages/chat/src/store/runtime/chat-expiry-sweep.ts",
-    "rule": "console",
+    "file": "packages/chat/src/react/hooks/useRunStream.ts",
+    "rule": "raw-error",
     "value": 1
+  },
+  {
+    "file": "packages/chat/src/server/durable-runs/recover.ts",
+    "rule": "console-logger",
+    "value": 2
   },
   {
     "file": "packages/chat/src/store/runtime/chat-expiry-sweep.ts",
@@ -417,6 +502,11 @@
   {
     "file": "packages/cms/src/comments/express/submit-handler.ts",
     "rule": "error-helper",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/content-types/cleanup.ts",
+    "rule": "stored-error-text",
     "value": 1
   },
   {
@@ -465,6 +555,11 @@
     "value": 1
   },
   {
+    "file": "packages/cms/src/taxonomy/write-service.ts",
+    "rule": "raw-error",
+    "value": 1
+  },
+  {
     "file": "packages/cms/src/widgets/html/resolve-html-page-embeds.ts",
     "rule": "console",
     "value": 1
@@ -485,9 +580,19 @@
     "value": 1
   },
   {
+    "file": "packages/commerce/src/payments/ops/common.ts",
+    "rule": "stored-error-text",
+    "value": 1
+  },
+  {
     "file": "packages/core/src/approval.ts",
     "rule": "stored-error-text",
     "value": 2
+  },
+  {
+    "file": "packages/core/src/optimistic-concurrency.ts",
+    "rule": "stored-error-text",
+    "value": 1
   },
   {
     "file": "packages/core/src/primitives/logger.ts",
@@ -517,7 +622,7 @@
   {
     "file": "packages/daemon/src/agent-executor/events.ts",
     "rule": "console",
-    "value": 2
+    "value": 1
   },
   {
     "file": "packages/daemon/src/agent-executor/events.ts",
@@ -536,11 +641,6 @@
   },
   {
     "file": "packages/daemon/src/agent-executor/run-output.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/daemon/src/agent-executor/run-output.ts",
     "rule": "error-format",
     "value": 1
   },
@@ -550,17 +650,17 @@
     "value": 1
   },
   {
+    "file": "packages/daemon/src/agent-executor/run-output.ts",
+    "rule": "stored-error-text",
+    "value": 2
+  },
+  {
     "file": "packages/daemon/src/http/attachment-lookup-routes.ts",
     "rule": "stored-error-text",
     "value": 1
   },
   {
     "file": "packages/daemon/src/http/attachments.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/daemon/src/http/attachments.ts",
     "rule": "error-format",
     "value": 1
   },
@@ -571,22 +671,12 @@
   },
   {
     "file": "packages/daemon/src/http/connectors.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/daemon/src/http/connectors.ts",
     "rule": "error-format",
     "value": 1
   },
   {
     "file": "packages/daemon/src/http/connectors.ts",
     "rule": "error-helper",
-    "value": 1
-  },
-  {
-    "file": "packages/daemon/src/http/db-ops.ts",
-    "rule": "console",
     "value": 1
   },
   {
@@ -598,11 +688,6 @@
     "file": "packages/daemon/src/http/db-ops.ts",
     "rule": "error-helper",
     "value": 1
-  },
-  {
-    "file": "packages/daemon/src/http/delegated-tools.ts",
-    "rule": "console",
-    "value": 2
   },
   {
     "file": "packages/daemon/src/http/delegated-tools.ts",
@@ -621,11 +706,6 @@
   },
   {
     "file": "packages/daemon/src/http/frontend-control.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/daemon/src/http/frontend-control.ts",
     "rule": "error-format",
     "value": 1
   },
@@ -633,11 +713,6 @@
     "file": "packages/daemon/src/http/frontend-control.ts",
     "rule": "error-helper",
     "value": 1
-  },
-  {
-    "file": "packages/daemon/src/http/frontend-sessions.ts",
-    "rule": "console",
-    "value": 2
   },
   {
     "file": "packages/daemon/src/http/frontend-sessions.ts",
@@ -656,11 +731,6 @@
   },
   {
     "file": "packages/daemon/src/http/media.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/daemon/src/http/media.ts",
     "rule": "error-format",
     "value": 1
   },
@@ -676,11 +746,6 @@
   },
   {
     "file": "packages/daemon/src/http/remote-run-events.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/daemon/src/http/remote-run-events.ts",
     "rule": "error-format",
     "value": 1
   },
@@ -691,11 +756,6 @@
   },
   {
     "file": "packages/daemon/src/http/research.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/daemon/src/http/research.ts",
     "rule": "error-format",
     "value": 1
   },
@@ -706,11 +766,6 @@
   },
   {
     "file": "packages/daemon/src/http/runs.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/daemon/src/http/runs.ts",
     "rule": "error-format",
     "value": 1
   },
@@ -721,22 +776,12 @@
   },
   {
     "file": "packages/daemon/src/http/terminals.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/daemon/src/http/terminals.ts",
     "rule": "error-format",
     "value": 1
   },
   {
     "file": "packages/daemon/src/http/terminals.ts",
     "rule": "error-helper",
-    "value": 1
-  },
-  {
-    "file": "packages/daemon/src/http/xai.ts",
-    "rule": "console",
     "value": 1
   },
   {
@@ -768,11 +813,6 @@
     "file": "packages/daemon/src/routines/scheduler.ts",
     "rule": "error-helper",
     "value": 2
-  },
-  {
-    "file": "packages/daemon/src/run-lifecycle.ts",
-    "rule": "console",
-    "value": 6
   },
   {
     "file": "packages/daemon/src/run-lifecycle.ts",
@@ -815,6 +855,11 @@
     "value": 1
   },
   {
+    "file": "packages/db/src/recovery/recovery-orchestrator.ts",
+    "rule": "stored-error-text",
+    "value": 1
+  },
+  {
     "file": "packages/db/src/tools/transfer-tools.ts",
     "rule": "error-helper",
     "value": 3
@@ -830,8 +875,28 @@
     "value": 4
   },
   {
+    "file": "packages/devops/src/checks/hardwiring-node.ts",
+    "rule": "console-logger",
+    "value": 2
+  },
+  {
+    "file": "packages/devops/src/checks/hardwiring-node.ts",
+    "rule": "raw-error",
+    "value": 1
+  },
+  {
     "file": "packages/devops/src/deploy/ops-runner.ts",
     "rule": "console",
+    "value": 1
+  },
+  {
+    "file": "packages/devops/src/dns/delegation.ts",
+    "rule": "stored-error-text",
+    "value": 2
+  },
+  {
+    "file": "packages/diagnostics/src/observability/telemetry-test.ts",
+    "rule": "raw-error",
     "value": 1
   },
   {
@@ -845,14 +910,14 @@
     "value": 2
   },
   {
+    "file": "packages/diagnostics/src/web-evidence/collect-page-evidence.ts",
+    "rule": "error-helper",
+    "value": 1
+  },
+  {
     "file": "packages/diagnostics/src/web-evidence/playwright-runtime.ts",
     "rule": "stored-error-text",
     "value": 4
-  },
-  {
-    "file": "packages/http-kit/src/adapter.ts",
-    "rule": "console",
-    "value": 1
   },
   {
     "file": "packages/http-kit/src/adapter.ts",
@@ -862,11 +927,6 @@
   {
     "file": "packages/http-kit/src/adapter.ts",
     "rule": "error-helper",
-    "value": 1
-  },
-  {
-    "file": "packages/http-kit/src/verified-origin/configured-origin.ts",
-    "rule": "raw-error",
     "value": 1
   },
   {
@@ -885,6 +945,11 @@
     "value": 1
   },
   {
+    "file": "packages/integrations/src/webhooks/worker.ts",
+    "rule": "raw-error",
+    "value": 1
+  },
+  {
     "file": "packages/mcp/src/core/config.ts",
     "rule": "console",
     "value": 1
@@ -923,6 +988,11 @@
     "file": "packages/mcp/src/federation/bootstrap.ts",
     "rule": "error-helper",
     "value": 2
+  },
+  {
+    "file": "packages/mcp/src/federation/bootstrap.ts",
+    "rule": "raw-error",
+    "value": 1
   },
   {
     "file": "packages/mcp/src/federation/stdio/default-connect.ts",
@@ -1000,6 +1070,11 @@
     "value": 1
   },
   {
+    "file": "packages/plugins/src/host/contributions.ts",
+    "rule": "raw-error",
+    "value": 1
+  },
+  {
     "file": "packages/plugins/src/host/node/install.ts",
     "rule": "console",
     "value": 2
@@ -1007,7 +1082,7 @@
   {
     "file": "packages/plugins/src/host/node/runtime-core.ts",
     "rule": "console",
-    "value": 7
+    "value": 4
   },
   {
     "file": "packages/plugins/src/host/node/runtime-core.ts",
@@ -1022,7 +1097,7 @@
   {
     "file": "packages/plugins/src/host/node/runtime-core.ts",
     "rule": "raw-error",
-    "value": 1
+    "value": 4
   },
   {
     "file": "packages/plugins/src/host/tools/management.ts",
@@ -1040,8 +1115,8 @@
     "value": 2
   },
   {
-    "file": "packages/server/src/create-local-node-daemon.ts",
-    "rule": "console",
+    "file": "packages/provider-plugins/src/ai-trace-langfuse/langfuse.ts",
+    "rule": "stored-error-text",
     "value": 1
   },
   {
@@ -1052,6 +1127,11 @@
   {
     "file": "packages/server/src/create-local-node-daemon.ts",
     "rule": "error-helper",
+    "value": 1
+  },
+  {
+    "file": "packages/server/src/host-bootstrap.ts",
+    "rule": "console-logger",
     "value": 1
   },
   {
@@ -1067,7 +1147,12 @@
   {
     "file": "packages/sidecar/src/json-ipc.ts",
     "rule": "console",
-    "value": 2
+    "value": 1
+  },
+  {
+    "file": "packages/sidecar/src/json-ipc.ts",
+    "rule": "stored-error-text",
+    "value": 1
   },
   {
     "file": "packages/ui-kit/src/react/confirm/ConfirmDialog.hooks.ts",
@@ -1100,31 +1185,11 @@
     "value": 1
   },
   {
-    "file": "packages/ui/src/features/lexical-rich-text-editor/react/components/RichTextInput.tsx",
-    "rule": "console",
-    "value": 1
-  },
-  {
-    "file": "packages/ui/src/features/lexical-rich-text-editor/react/components/RichTextInput.tsx",
-    "rule": "error-format",
-    "value": 1
-  },
-  {
-    "file": "packages/ui/src/features/panel-kit/helpers/standing-draft-local-backup.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
     "file": "packages/ui/src/features/panel-kit/hooks/use-settings-slice.hooks.ts",
     "rule": "console",
     "value": 1
   },
   {
-    "file": "packages/ui/src/features/panel-kit/hooks/use-standing-draft-autosave.hooks.ts",
-    "rule": "console",
-    "value": 1
-  },
-  {
     "file": "packages/ui/src/features/sketch-editor/react/hooks/useSketchSaveWorkflow.ts",
     "rule": "console",
     "value": 1
@@ -1132,6 +1197,11 @@
   {
     "file": "packages/ui/src/features/sketch-editor/react/hooks/useSketchSaveWorkflow.ts",
     "rule": "error-format",
+    "value": 1
+  },
+  {
+    "file": "packages/ui/src/features/sketch-editor/react/hooks/useSketchSaveWorkflow.ts",
+    "rule": "raw-error",
     "value": 1
   },
   {
