@@ -112,3 +112,159 @@ Fixtures are copies of sites the design names: `payments-stripe/http.ts:52` (pas
 ## Next step
 
 Finish E0 in this order: rule 3 with fixtures; fill `pureHelpers` and re-take the baseline (it may only shrink from 913); the Tovu copies, hash check and Tovu baseline. Then decide item 1 (move the mint function with a Tovu repoint commit) and build the guard allowlists before any host calls `approveCause` or `tracker: 'skip'` (E3/E4).
+
+# Run 2 (error-e0b, 2026-11-16)
+
+Result: **E0 done in both repos (WARN mode), with three sites the design expected to pass left flagged on purpose. E2's two leftovers done. `fix/errors-jini-1` not merged: the design decides against its central change. E3 not started: SEQUENCE does not allow it yet.** Nothing was force-pushed.
+
+## Commits (all pushed)
+
+Jini `refactor/error-e0-e2`:
+
+| SHA | What |
+|---|---|
+| `c187c983` | E0: rule 3, the copied-site corpus (83 sites), reviewed pure helpers, baseline re-taken |
+| `cd738554` | E2 leftover: guard rule R14 (caller lists for `approveCause` and `tracker: 'skip'`); CI runs the gate's fixture tests |
+| `172f9b4c` | E2 leftover: `mintToolErrorId` moved to `@jini-ai/core/errors/error-id`; daemon definition deleted |
+| `1a30b153` | `describeFailure` in the reporter takes `(required, optional = {})` (found by the args audit) |
+| this commit | report |
+
+Tovu `refactor/error-e0-e2` (new branch, from `origin/refactor/terra` @ `80b00f5b`):
+
+| SHA | Builds on Jini | What |
+|---|---|---|
+| `b8ba7bbf` | `c187c983` | E0: rule copies, hash check, runner, baseline, 36 copied sites, CI steps |
+| `51e6d495` | `172f9b4c` | `tool-recovery-preset.ts` imports the mint function from core |
+
+Changeset (patch): `error-id-one-owner` (core, daemon). The Tovu branch cannot install from the registry until core and daemon are published with the move.
+
+## Gates, as run
+
+| Gate | Result |
+|---|---|
+| Baseline, unmodified tree | Jini build exit 0; gate test 12 passed; `check:errors` 913 findings |
+| Jini `scripts/__tests__/check-error-gate.test.ts` | 103 passed |
+| Jini `scripts/__tests__/check-error-disclosure-callers.test.ts` | 5 passed |
+| Jini core, whole package | 2784 passed (run at `172f9b4c`). After `1a30b153` only `src/errors` was re-run: 71 passed |
+| Jini daemon `src/tool-recovery` | 139 passed (29 before the move, in the two files that import the function) |
+| `pnpm guard` | ok. `pnpm -r typecheck` exit 0, 0 errors, and `tsc -p scripts/tsconfig.json` exit 0 (both at `172f9b4c`; core rebuilt clean after `1a30b153`) |
+| `check:size`, `check:complexity`, `check:log-safety` | pass |
+| `check:errors` (Jini) | 978 findings in 543 entries = the new baseline |
+| Tovu root `tsc` | 0 errors (2 before the repoint, both caused by the Jini move) |
+| Tovu `typecheck:tests` | exit 0 |
+| Tovu tests | 64 passed in three files (the gate test, 43, and the two tool-failure redaction files) |
+| Tovu `check:errors`, `check:error-rule-copies` | 829 findings in 484 entries = baseline; copies match the lock and the Jini originals |
+
+Not run: Jini `test:scripts` as a whole, daemon outside `tool-recovery`, any other Jini package, Tovu `npm test`. Tovu `check:size` prints one worsened row (`provider-plugins.ts:337`, 149 vs 147) and four stale rows; this run touched none of those files, and I did not check the unmodified tree.
+
+## 1. E0, finished
+
+**Rule 3, `failure-text-from-catalog`** (`scripts/eslint-rules/errors/failure-text-from-catalog.mjs`, 114 lines). Inside a catch: words passed to `res.status(5xx).json`, a `set*Error` call or `store.set` are flagged; `new X("...")` without `{ cause }` is flagged unless the catch hands the caught value to `reporter.record` / `reporter.describe`, a logger or an idiom. A pure-parse refusal satisfies the cause clause (precedence step 2). Rule 1 exports the pure-parse test, so both rules use one definition.
+
+**Rule 1.** Its allowed-call lists now match the design's prototype (`work/fp-recheck.cjs`). A reviewed helper is matched by the path of the module that declares it.
+
+**Fixtures** (each is the whole try/catch copied as written, with every finding of the three rules recorded):
+
+| | Jini (`scripts/__tests__/fixtures/error-gate/sites.json`) | Tovu (`development/eslint-rules/__tests__/fixtures/error-gate-sites.json`) |
+|---|---|---|
+| Parse refusals the design says pass | 48 of 48 pass | 24 of 27 pass (see deviation 1) |
+| The 7 that are not parse refusals | 5, all flagged | 2, both flagged |
+| One site per idiom, flagged as written; the idiom rewrite passes | 6 idioms | 4 idioms |
+| Fixed-message and dropped-cause sites (rule 3) | 24 | 3 |
+| Named cases | — | the three judge sites pass; `backstop-service.ts:116` passes rules 1 and 3 |
+
+**Baselines** (WARN mode in both repos):
+
+| | Rule 1 | Rule 2 | Rule 3 (new) |
+|---|---|---|---|
+| Jini | 867 → 853, no entry grew | 46 | 79 |
+| Tovu (first baseline) | 580 | 131 | 118 |
+
+The design's census says 1,187 / 684 unread handlers and 76 / 244 generic literals. Mine are lower because of the exemption and the exclusions; not reconciled row by row. Tovu's rule 2 rows include locale dictionaries (for example `deployment-i18n.tsx`).
+
+**Tovu.** Three byte-identical rule copies in `development/eslint-rules/`, `error-gate-rules.lock.json` (sha256 per file), `npm run check:error-rule-copies` (a CI gate; also compares with a Jini checkout when one sits beside the repo), `npm run check:errors` (CI step, exits 0).
+
+**Mutations, each failed a test and was reverted.** Jini rules, 12: no pure-parse precedence in rule 3 (23 tests failed); any read counts as handing over; `{ cause }` ignored; any status counts as 5xx; not limited to a catch; a code token counts as text; any function counts as a `.catch` handler; a logger call that never receives the value counts; helper matched by name only; an import does not shadow a file's own helper; a static owner passes by member name; built-in `new Error("words")` not allowed. Tovu, 5: the filesystem validator listed as pure; `isRecord` unlisted; hash never compared; original never compared; a rule copy edited (the check script also exits 1).
+
+### Deviations from the design in E0 (review these)
+
+1. **Two of the design's ten pure helpers read the filesystem.** `readPickedFolders` calls `assertExistingAbsoluteDirectory` (`existsSync`, `statSync`), and `redactAdminRunContextRef` calls `readPickedFolders`. The design's own rule is "synchronous, no I/O", so neither is listed. Their three sites stay flagged and are on the Tovu debt list: `assistant-byok.ts:427`, `assistant-chats.ts:251`, `durable-run-routes.ts:19`. Each answers 400 "Invalid picked folders" for any failure, including a failed `stat`. So 72 of the design's 75 pass, not 75.
+2. **Three of the ten are private to the file that calls them** (`fromBase64Url`, `parseRequestUrl`, `isLocalAdminUrl`), so "resolve the import" cannot find them. The rule accepts a helper declared in the listed file itself; an import of the same name from elsewhere does not qualify.
+3. **`isRecord` is an eleventh helper** (Tovu, `byok-meta-tool-result.ts`). The design says that site passes; its prototype allowed `isRecord` by name alone. I listed it by path instead.
+4. **`new Error("words")` is allowed in a parse block.** The design says "bare `new Error()`"; its prototype and at least four of its passing sites use words.
+5. **`Buffer.concat` is on the list** though the prototype lacks it. Without it one site that passed before would have become new debt. An ALL_CAPS receiver (a compiled regex or decoder constant) is judged by member name; a `PascalCase.method()` call qualifies only when listed.
+6. **Rule 3 details the design does not state:** it also covers an inline `.catch(handler)`; a constant-token code is not "text"; `new X` counts when thrown or when the class name ends in `Error`; a logger is recognised by name (`logger`, `log`), `console` is not; a function nested inside the catch is not followed; `{ ...spread }` is not taken as a cause.
+7. **Tovu has its own runner** (`development/scripts/check-error-gate.mjs`, about 110 lines adapted from Jini's). The design copies only the three rules, so I did not share the runner. Tovu's sanctioned-module list is empty: the reporter and logger live in Jini.
+8. **Not in the corpus:** the 190 rows revision 1 called real, except the 24 + 3 above.
+
+## 2. `fix/errors-jini-1`: decision — superseded, not merged
+
+Read: its report, the full diff of `core/src/model-facing-tool-errors.ts`, `diagnostics/src/best-effort.ts` and `payments-stripe/http.ts`, and the file list (89 files). The other site changes I classified from the commit titles and its report, not line by line.
+
+**Decision: `core/src/errors/{reporter,incident-text,idioms}.ts` supersede the branch's two mechanisms. Its site fixes are redone in the E7 lanes, not merged.**
+
+| Branch change | Design text | Verdict |
+|---|---|---|
+| `describeErrorForLog` returns `Label(CODE): <redacted 300-char message>` | §3.3 table: the library console line never gets a message or stack. "Keep class-only for the line a library prints on its own, because a library cannot know the host's secrets. … The record is written by the host's reporter." D1 says the same. Judge finding 1: redaction is not permission | **Reject.** The message goes to the host record through `createErrorReporter` (E3/E4), which blanks the host's exact secrets |
+| `ignoreBestEffortFailure({ operation }, { scope })` in core, and a second copy in diagnostics | §3.8 `bestEffort({ work, step, logger })`: logger is a port; class + code + step | **Superseded.** It writes to `console.debug` directly and is defined twice |
+| Parser message put into the error ("auth-schemes JSON says why", "object-store JSON says why", admin JSON import) | §3.7: a parse refusal's "only cause is a `SyntaxError` that quotes the input, and dropping it is the safe choice" | **Reject** for these sites |
+| Site fixes that keep a cause, propagate a snapshot-removal failure, log a cleanup | E7 lanes W3, W5, W8 | **Redo** with the idioms and reporter, after E3 |
+
+**Why not "merge and make both test sets pass".** I ran the merge without committing (then aborted; the tree is clean). One textual conflict (`db/src/pglite/socket-server.ts`, an import line). With it resolved: infra `src/events/outbox` **29 of 145 tests fail**, including "a failed publish stores only the error class, never its message"; core 1 of 2787 fails (the E2 catalog describer test); cms `forms/delivery` passes. The outbox failures are real, not stale expectations: `worker.ts:62` stores `describeErrorForLog(...)` in `lastError`, so the merge would persist message text in outbox rows, which §3.3 forbids ("a code from the owner's closed list, or the class label. Nothing else"). The same function also feeds values that are returned, not logged: `seed-bundled.ts:195,295`, `retire-bundled.ts:130`, `plugins/capability-tools.ts:568` (text for the model), `diagnostics/sources.ts:41`, `sidecar/json-ipc.ts` ×4. The two test sets assert opposite things about one function, so both cannot pass.
+
+**Merge plan (for whoever lands the branch's intent):**
+
+1. Do not merge `fix/errors-jini-1`. It is also based on `integ/wave-b`, before r2.
+2. Drop `65f2f21d`'s and `6216cb1c`'s change to `model-facing-tool-errors.ts`, both `ignoreBestEffortFailure` definitions, the roughly 35 flipped expectations, and `f7c21401` (http-kit / server logs keep the message; E4 routes those through the reporter instead).
+3. E7 W3 (after E3): each `ignoreBestEffortFailure` site becomes `bestEffort({ work, step, logger })`; `step` is the branch's `operation` text. Sites: diagnostics (13), db pglite cleanup, admin telemetry / widget title, plugins late attach.
+4. E7 W5: take `db/src/data-modules/snapshot.ts` (removal failure propagates) with its test `discard-snapshot.test.ts`, red first on this branch.
+5. E7 W8: take "`FormDeliveryError` keeps `cause`" and the cms free-disk log. For Stripe keep the `unknown` outcome and record the transport error once through a logger; the branch's `transportFailureLabel` (code or class only) is compatible and can stay in the message.
+6. `detail` fields carrying a redacted message (platform, plugins, user-management, cms reconcile / redirect): each needs the §3.3 question answered first: who reads `detail`? A caller gets it only through `approveCause`.
+7. Admin panels (`b8886808`): superseded by E6 (`useReportFailure`, notice with ID).
+8. The branch's 12 changesets are dropped with it; each lane writes its own.
+
+## 3. The ten open choices from run 1
+
+| # | Choice | Design or amendment text | Outcome |
+|---|---|---|---|
+| 1 | `ErrorMatch` fields | names the type, no fields | **Owner.** No change |
+| 2 | `onDuplicate: 'warn'` requires a `logger` | type is `'throw' \| 'warn'`; "at runtime the catalog warns and keeps the first" | Values and behaviour match. The required logger is an addition (a warning needs a port). **Owner**, no change |
+| 3 | `sentence.audience: 'authorized'` → fallback words below that tier | field exists, no rule | **Owner.** No change |
+| 4 | `sentence`-mode bindings not in `modelFacingRules` / `callerSafeRules` | decided only for discriminants ("`modelFacingRules` skips them") | **Owner.** Cost: such a class is redacted for the model. An option: publish the sentence when it has no placeholders |
+| 5 | A throwing `params` gives no match | stated for `codeOf` only | Consistent by analogy. **Owner**, no change |
+| 6 | Tracker gets a redacted carrier `Error` | "`reportErrorOnce` … is what the host passes as `tracker`"; the tracker row says "the same record" | **Not decided by the text; the two sentences pull apart.** The port has no `exactSecrets` argument, so only a pre-redacted carrier blanks call-scoped secrets; but `reportErrorOnce` de-duplicates by object identity, which a carrier defeats. **Owner / E4.** One way out: add `exactSecrets` to the port's report and pass the original |
+| 7 | `ClientFacingError` is a refusal; status from the catalog, then the table | §3.1 rule 5; §3.4 `host?.statusFor ?? statusForError` | **Decided, matches.** No change |
+| 8 | A failing ID port yields `ERR-0000-0000-0000-0000` | "never throws"; "the reporter does not format IDs" | The two pull apart for this one case. **Owner.** No change |
+| 9 | Empty named option interfaces | "a named interface, never `Record<string, never>`" | **Decided, matches.** No change |
+| 10 | `DescribedFailure.error` is core's `ServerApiError` | signature says `ApiError` (protocol) | Protocol has no Jini dependency, so core could import it without a cycle, but core has no dependencies today. **Owner.** No change |
+
+No code changed under this item: where the text decides (7, 9), the code already agrees.
+
+## 4. Next step after E2: E3 — not started, blocked by SEQUENCE
+
+- **Tovu half** is H1 step 7, after steps 1 to 6. Not landed on `origin/refactor/terra`: no `createInMemoryApp` (size-02 3a), and 17 files still call `createConsoleLogger`.
+- **Jini half** is last in H4, after R7 P1 and env-schema J3. `packages/server/src/mount-routes.ts` does not exist.
+- **E5a-1** (H5) needs C-ORIGIN-PORT. `79b19ffd` is not an ancestor of this branch.
+
+So after E0, E1 and E2 nothing else in SEQUENCE is open on this tree. I used the time for E2's two leftovers instead.
+
+**R14 (`cd738554`).** `pnpm guard` refuses a production file that uses `approveCause` or passes `tracker: 'skip'` unless it is on the matching list with a reason, and reports a listed file that stopped. Both lists are empty: the design's "one caller each" are Tovu files that do not exist yet. Mutations, 6, all caught: tests counted as callers; defining modules counted; comments counted; unlisted caller not reported; stale entry not reported; one list used for both calls. It is proven by its own test file, not inside `runGuardSelfTest`.
+
+**Mint move (`172f9b4c`, Tovu `51e6d495`).** The function, its comment and its pins moved; no forwarder. `TOOL_ERROR_ID_PATTERN` stays in the daemon. New pin: `formatUserFacingError` recovers a minted ID from a rebuilt error message. Mutations, 3, all caught: no upper-casing; 4 bytes asked for; groups not joined by `-`.
+
+## Self-check (owner audits, on files this run changed)
+
+- `owner-rules-audit.mjs`: 0 findings in the changed files, both repos.
+- `args-object-audit.mjs`: Tovu 0. Jini 8 at first: 4 in `core/src/errors/reporter.ts` (run 1's code), fixed in `1a30b153`, now 0 in `core/src/errors`. 4 remain in `daemon/src/tool-recovery/redaction.ts` (lines 151, 182, 204, 242), in functions this run did not change.
+- `hook-injection-audit.py`: nothing to check; no component was added or moved.
+- Repo-level `scripts/` and Tovu `development/` are outside what the audits scan.
+
+## Not done
+
+1. The three Tovu sites in deviation 1 need a decision: keep them as debt until W5, or split the validator into a pure shape check and a filesystem check.
+2. A Tovu-side caller list for `approveCause` / `tracker: 'skip'` (belongs with E4, when the first callers exist).
+3. Whole-package test runs listed under "Not run".
+
+## Next step
+
+Land H1 steps 1 to 6 (Tovu) and C-ORIGIN-PORT into this line, then E3. Before E4: decide choice 6 (tracker carrier) and choice 8.
