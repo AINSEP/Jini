@@ -185,9 +185,10 @@ describe('EXTRACT-S6 capability tools: second host vocabulary', () => {
     await repo.deleteActivation({ workspaceId: WORKSPACE, pluginId: 'meter' });
     expect(await registration!.policy.authorize(ctx)).toBe('deny');
     const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
-    vi.spyOn(repo, 'getActivation').mockRejectedValueOnce('boom');
+    vi.spyOn(repo, 'getActivation').mockRejectedValueOnce(new Error('boom api_key=SECRETSECRETSECRETSECRET'));
     expect(await registration!.policy.authorize(ctx)).toBe('deny');
-    expect(warn).toHaveBeenCalledWith('[denied meter: boom]');
+    expect(warn).toHaveBeenCalledWith('[denied meter: Error]');
+    expect(JSON.stringify(warn.mock.calls)).not.toMatch(/boom|SECRETSECRET/);
     warn.mockRestore();
   });
 
