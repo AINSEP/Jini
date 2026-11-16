@@ -10,3 +10,5 @@ export * from './result.js';
 export * from './paths.js';
 export * from './tasks.js';
 export { trimChars, trimCharsEnd, trimCharsStart } from './trim-chars.js';
+export { hasAttributeOnAnyNodeShape } from './node-shape.js';
+export type { NodeShape } from './node-shape.js';

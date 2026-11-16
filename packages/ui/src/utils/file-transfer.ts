@@ -25,6 +25,7 @@
  * upload access). An Electron host can recover one via `webUtils.getPathForFile()`, but that is a
  * separate, desktop-only integration point — not something a browser-facing utility module can do.
  */
+import { extensionForMimeType } from '@jini-ai/core/text';
 import { createFileSystemReadError } from './file-system-errors.js';
 
 /**
@@ -61,18 +62,6 @@ export function normalizePastedFile(file: File): File {
     type: file.type,
     lastModified: file.lastModified,
   });
-}
-
-export function extensionForMimeType(mimeType: string): string {
-  if (mimeType === 'image/png') return '.png';
-  if (mimeType === 'image/jpeg') return '.jpg';
-  if (mimeType === 'image/gif') return '.gif';
-  if (mimeType === 'image/webp') return '.webp';
-  if (mimeType === 'image/avif') return '.avif';
-  if (mimeType === 'image/svg+xml') return '.svg';
-  if (mimeType === 'text/html') return '.html';
-  if (mimeType === 'text/plain') return '.txt';
-  return '';
 }
 
 /** Whether a global paste event landed on a text-entry target that owns paste itself (so a page-wide clipboard-upload listener should ignore it). */
