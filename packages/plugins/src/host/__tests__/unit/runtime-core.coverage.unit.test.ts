@@ -355,3 +355,145 @@ describe('invalid site records and installer wiring', () => {
     expect(h.runtime.pluginSource).toBeUndefined();
   });
 });
+
+describe('source reload of an enabled site plugin', () => {
+  /** Seals `id`, approves its capability set and turns it on, returning the helper handles. */
+  async function enabledSite(options: HostOptions = {}, id = 'reload-p') {
+    const h = await host({ installDir: 'tmp', ...options });
+    await sealSite(h, id);
+    const manifest = (await h.runtime.discoverPlugins()).find(r => r.id === id)!.manifest!;
+    await h.runtime.pluginSource!.recordApproval({ id, capabilities: pluginCapabilitySet({ manifest }) }, {});
+    await h.repo.save(row(id, { version: '0.1.0' }));
+    await h.runtime.onPluginEnabled(id);
+    return h;
+  }
+
+  it('advances the active pointer and the loaded version on an approved re-seal', async () => {
+    const h = await enabledSite();
+    const result = await h.runtime.pluginSource!.seal({ id: 'reload-p' }, {});
+    expect(result).toMatchObject({ installed: true, reloaded: true });
+    expect(result.reloadError).toBeUndefined();
+    expect((await h.repo.getActivation({ workspaceId: WS as never, pluginId: 'reload-p' }))!.version).toBe('0.1.1');
+    expect(h.runtime.pluginLoadedVersion({ id: 'reload-p' })).toBe('0.1.1');
+    await h.runtime.dispose({}, {});
+  });
+
+  it('keeps the approved version running when a re-seal widens capabilities', async () => {
+    const h = await enabledSite();
+    const src = h.runtime.pluginSource!;
+    const current = JSON.parse((await src.read({ id: 'reload-p', path: 'jini.plugin.json' }, {})).content);
+    await src.write({ id: 'reload-p', path: 'jini.plugin.json', content: JSON.stringify({ ...current, capabilities: ['content.read'] }) }, {});
+    const result = await src.seal({ id: 'reload-p' }, {});
+    expect(result).toMatchObject({ installed: true, reloaded: false, reloadError: 'NEED_APPROVAL capability:content.read' });
+    expect((await h.repo.getActivation({ workspaceId: WS as never, pluginId: 'reload-p' }))!.version).toBe('0.1.0');
+    expect(h.runtime.pluginLoadedVersion({ id: 'reload-p' })).toBe('0.1.0');
+    await h.runtime.dispose({}, {});
+  });
+
+  it('restores the previous version when the new one fails to load', async () => {
+    const h = await enabledSite({ importer: ({ manifest }) => async () => {
+      if (manifest.version === '0.1.1') throw new Error('new version broken');
+      return { exported: { definition: { setup: () => {} } } };
+    } });
+    const result = await h.runtime.pluginSource!.seal({ id: 'reload-p' }, {});
+    expect(result).toMatchObject({ installed: true, reloaded: false });
+    expect(result.reloadError).toContain('reload-p');
+    const restored = await h.repo.getActivation({ workspaceId: WS as never, pluginId: 'reload-p' });
+    expect(restored).toMatchObject({ enabled: true, version: '0.1.0' });
+    expect(h.runtime.pluginLoadedVersion({ id: 'reload-p' })).toBe('0.1.0');
+    await h.runtime.dispose({}, {});
+  });
+
+  it('quarantines the plugin with the host reason when the restored version cannot reload either', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    let loads = 0;
+    const h = await enabledSite({ importer: () => async () => {
+      if (++loads > 1) throw new Error('everything broken');
+      return { exported: { definition: { setup: () => {} } } };
+    } });
+    const result = await h.runtime.pluginSource!.seal({ id: 'reload-p' }, {});
+    expect(result.reloaded).toBe(false);
+    expect(await h.repo.getActivation({ workspaceId: WS as never, pluginId: 'reload-p' })).toMatchObject({ enabled: false, quarantineReason: 'restore failed', quarantineFailureCount: 0 });
+    expect(h.runtime.pluginLoadedVersion({ id: 'reload-p' })).toBeUndefined();
+    expect(warn.mock.calls.some(call => String(call[0]).includes("Plugin 'reload-p' restored-version reload failed"))).toBe(true);
+    await h.runtime.dispose({}, {});
+  });
+
+  it('reloads activations of other workspaces without loading code here, and reports not-reloaded', async () => {
+    const h = await host({ installDir: 'tmp' });
+    await sealSite(h, 'elsewhere');
+    await h.repo.save(row('elsewhere', { workspaceId: 'other' as never, version: '0.1.0' }));
+    const manifest = (await h.runtime.discoverPlugins()).find(r => r.id === 'elsewhere')!.manifest!;
+    await h.runtime.pluginSource!.recordApproval({ id: 'elsewhere', capabilities: pluginCapabilitySet({ manifest }) }, {});
+    const result = await h.runtime.pluginSource!.seal({ id: 'elsewhere' }, {});
+    expect(result).toMatchObject({ installed: true, reloaded: false });
+    expect(result.reloadError).toBeUndefined();
+    expect(h.importer).not.toHaveBeenCalled();
+    expect((await h.repo.getActivation({ workspaceId: 'other' as never, pluginId: 'elsewhere' }))!.version).toBe('0.1.1');
+    await h.runtime.dispose({}, {});
+  });
+
+  it('does not restore or reload locally when another workspace\'s activation fails to advance', async () => {
+    const h = await host({ installDir: 'tmp' });
+    await sealSite(h, 'broken-else');
+    await h.repo.save(row('broken-else', { workspaceId: 'other' as never, version: '0.1.0' }));
+    const manifest = (await h.runtime.discoverPlugins()).find(r => r.id === 'broken-else')!.manifest!;
+    await h.runtime.pluginSource!.recordApproval({ id: 'broken-else', capabilities: pluginCapabilitySet({ manifest }) }, {});
+    vi.spyOn(h.repo, 'save').mockRejectedValue(new Error('disk full'));
+    const result = await h.runtime.pluginSource!.seal({ id: 'broken-else' }, {});
+    expect(result).toMatchObject({ reloaded: false, reloadError: 'disk full' });
+    expect(h.importer).not.toHaveBeenCalled();
+  });
+});
+
+// BUG (RED, behaviour deliberately unchanged): `src/host/provider-contributions.ts:171` uses
+// `PLUGIN_PROVIDER_CAPABILITY` without importing it (lost in the wave-B import rewrite), so validating
+// ANY manifest that declares `contributes.providers` throws `ReferenceError`. These tests state the
+// correct behaviour and fail until that one import is restored.
+describe('provider plugins', () => {
+  const providerManifest = (id: string): PluginManifest => builtIn({
+    id, name: id, capabilities: ['providers.register'],
+    contributes: { providers: [{ contract: 'search', id: `${id}-engine`, contractVersion: 1 }] } as never,
+  });
+
+  it('lists enabled provider plugins with their declarations (manifest only)', async () => {
+    const h = await host({ sources: [source(providerManifest('prov-a')), source(builtIn())], rows: [row('prov-a'), row('core-a')] });
+    expect(await h.runtime.listProviderPlugins({}, {})).toEqual([
+      { pluginId: 'prov-a', providers: [{ contract: 'search', id: 'prov-a-engine', contractVersion: 1 }] },
+    ]);
+  });
+
+  it('loads only the requested, enabled provider plugins and never at enable time', async () => {
+    const h = await host({ sources: [source(providerManifest('prov-a')), source(providerManifest('prov-off')), source(builtIn())], rows: [row('prov-a'), row('core-a')] });
+    expect(await h.runtime.loadProviderPlugins({ pluginIds: [] }, {})).toEqual([]);
+    await h.runtime.onPluginEnabled('prov-a');
+    expect(h.importer).not.toHaveBeenCalled();
+    expect(await h.runtime.loadProviderPlugins({ pluginIds: ['prov-a', 'prov-off', 'core-a'] }, {})).toEqual(['prov-a']);
+    expect(h.setups).toEqual(['prov-a']);
+  });
+
+  it('skips a provider plugin on boot re-attach because loadProviderPlugins owns it', async () => {
+    const h = await host({ sources: [source(providerManifest('prov-a'))], rows: [row('prov-a')] });
+    await h.runtime.attachEnabledPluginsAtBoot();
+    expect(h.importer).not.toHaveBeenCalled();
+  });
+
+  it('logs and skips a provider plugin that fails to load, retiring its selection', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const h = await host({ sources: [source(providerManifest('prov-a'))], rows: [row('prov-a')], importer: () => async () => { throw new Error('provider import failed'); } });
+    expect(await h.runtime.loadProviderPlugins({ pluginIds: ['prov-a'] }, {})).toEqual([]);
+    expect(warn.mock.calls.some(call => String(call[0]).includes("provider plugin 'prov-a' failed to load; its contract stays on the noop"))).toBe(true);
+  });
+
+  it('abandons a provider plugin whose load outlasts the deadline', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const h = await host({ sources: [source(providerManifest('prov-a'))], rows: [row('prov-a')], importer: () => () => new Promise(() => {}) });
+    expect(await h.runtime.loadProviderPlugins({ pluginIds: ['prov-a'] }, { timeoutMs: 20 })).toEqual([]);
+    expect(warn.mock.calls.some(call => String(call[0]).includes('provider plugin load timed out after 20 ms'))).toBe(true);
+  });
+
+  it('starts with an empty browser provider generation', async () => {
+    const h = await host();
+    expect(h.runtime.browserProviders({}, {})).toEqual({ generation: 0, providers: [] });
+  });
+});
