@@ -34,26 +34,6 @@ export class PluginProviderError extends Error {
     super(required.message); this.name = 'PluginProviderError';
   }
 }
-/** Explicit plugin-authored startup guidance. Raw SDK errors must never be shown to users. */
-export class PluginProviderStartupError extends Error {
-  readonly reason: string;
-  readonly action: string;
-  constructor({ reason, action, cause }: { reason: string; action: string; cause?: unknown }, _optional = {}) {
-    super(reason, { cause });
-    this.name = 'PluginProviderStartupError';
-    this.reason = reason;
-    this.action = action;
-  }
-}
-
-/** Startup guidance from a {@link PluginProviderStartupError}, matched by shape: each provider plugin
- *  artifact bundles its own copy of this class, so `instanceof` against the host's copy is always false. */
-export function pluginProviderStartupGuidance({ error }: { error: unknown }, _optional = {}): { reason: string; action: string } | undefined {
-  if (!(error instanceof Error) || error.name !== 'PluginProviderStartupError') return undefined;
-  const { reason, action } = error as Partial<PluginProviderStartupError>;
-  return typeof reason === 'string' && typeof action === 'string' ? { reason, action } : undefined;
-}
-
 /** Applying saved settings either succeeds, requires a browser/process refresh, or fails to start. */
 export type PluginProviderApplyResult = 'now' | 'restart' | { appliesAt: 'failed'; reason: string; action: string };
 

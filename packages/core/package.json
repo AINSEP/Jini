@@ -39,7 +39,10 @@
       "./contracts/vault": "universal",
       "./contracts/oauth": "universal",
       "./contracts/content-types": "universal",
-      "./contracts/hosted-mcp": "universal"
+      "./contracts/hosted-mcp": "universal",
+      "./contracts/forms": "universal",
+      "./contracts/charts": "universal",
+      "./contracts/plugin-sdk": "universal"
     },
     "isolation": {
       "entries": {
@@ -227,6 +230,21 @@
       "types": "./dist/contracts/hosted-mcp.d.ts",
       "import": "./dist/contracts/hosted-mcp.js",
       "default": "./dist/contracts/hosted-mcp.js"
+    },
+    "./contracts/forms": {
+      "types": "./dist/contracts/forms.d.ts",
+      "import": "./dist/contracts/forms.js",
+      "default": "./dist/contracts/forms.js"
+    },
+    "./contracts/charts": {
+      "types": "./dist/contracts/charts.d.ts",
+      "import": "./dist/contracts/charts.js",
+      "default": "./dist/contracts/charts.js"
+    },
+    "./contracts/plugin-sdk": {
+      "types": "./dist/contracts/plugin-sdk.d.ts",
+      "import": "./dist/contracts/plugin-sdk.js",
+      "default": "./dist/contracts/plugin-sdk.js"
     }
   },
   "files": [

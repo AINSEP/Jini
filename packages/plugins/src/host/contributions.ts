@@ -10,30 +10,6 @@ import type { PluginManifest } from './manifest-types.js';
 import type { PluginSdk } from './ports.js';
 
 export const PLUGIN_CONTRIBUTION_CAPABILITIES = ['http.route.register', 'tools.register', 'render.contribute', PLUGIN_PROVIDER_CAPABILITY] as const;
-export type PluginRouteAccess = 'public' | 'member' | 'admin';
-export interface PluginAuthContext { readonly access: PluginRouteAccess; readonly principalId?: string; readonly workspaceId: string }
-export interface PluginInvocationContext { readonly pluginId: string; readonly auth: PluginAuthContext; readonly sdk: PluginSdk; readonly signal?: AbortSignal }
-export interface PluginRouteInput extends PluginInvocationContext {
-  readonly body: unknown; readonly params: Readonly<Record<string, string>>; readonly query: Readonly<Record<string, unknown>>;
-}
-export interface PluginRouteResult { readonly status?: number; readonly body?: unknown }
-export interface PluginRouteContribution {
-  readonly method: string; readonly path: string; readonly access: PluginRouteAccess;
-  readonly handler: (required: PluginRouteInput, optional?: Record<string, never>) => PluginRouteResult | void | Promise<PluginRouteResult | void>;
-}
-/** Declared change class. Only ever tightens host policy: `destructive` forces confirmation. */
-export type PluginToolEffect = 'read' | 'write' | 'destructive';
-export interface PluginToolContribution {
-  readonly name: string; readonly description: string; readonly inputSchema: Readonly<Record<string, unknown>>;
-  readonly effect?: PluginToolEffect;
-  readonly handler: (required: PluginInvocationContext & { readonly input: unknown }, optional?: Record<string, never>) => unknown | Promise<unknown>;
-}
-export interface PluginWidgetContribution {
-  readonly name: string;
-  /** Public SSR only. Host sanitizes the bounded HTML before partial placement (ADR-025). */
-  readonly render: (required: PluginInvocationContext, optional?: Record<string, never>) => string | Promise<string>;
-}
-export type PluginContribution = { readonly kind: 'route'; readonly value: PluginRouteContribution } | { readonly kind: 'tool'; readonly value: PluginToolContribution } | { readonly kind: 'widget'; readonly value: PluginWidgetContribution };
 export interface PluginContributionsSnapshot {
   readonly pluginId: string; readonly sdk: PluginSdk;
   readonly providers?: readonly PluginProviderContribution[];

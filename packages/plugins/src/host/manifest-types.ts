@@ -97,52 +97,6 @@ export interface PluginContributions {
   readonly permissions?: readonly string[];
 }
 
-export interface PluginProviderDeclaration {
-  readonly contract: string;
-  readonly id: string;
-  readonly contractVersion: 1;
-  /**
-   * The settings a host collects (on its own secure settings card) and passes to this provider's
-   * factory as `required[name]`. Declared here, not in code, so a host can render the card and decide
-   * "configured?" without executing the plugin. Secret fields are sealed by the host and never shown back.
-   */
-  readonly settings?: readonly PluginProviderSettingField[];
-  /** Ordered read-time public-setting migrations; never rewrite persisted rows or secrets. */
-  readonly settingsMigrations?: readonly PluginProviderSettingsMigration[];
-}
-
-/** A plugin-owned migration of retired public choices, applied to a copy on read. */
-export interface PluginProviderSettingsMigration {
-  readonly when: { readonly field: string; readonly in: readonly string[]; readonly orAbsent?: boolean };
-  readonly whenPresent?: string;
-  readonly set: Readonly<Record<string, string>>;
-}
-
-/** One declared provider setting; `name` is the factory input key. */
-export interface PluginProviderSettingField {
-  readonly name: string;
-  readonly label: string;
-  readonly secret?: boolean;
-  readonly required?: boolean;
-  /** Waive on an exact choice or a nonblank alternative. With `headerNames`, only a listed nonblank Name=Value header qualifies. */
-  readonly requiredUnless?: { readonly field: string; readonly equals: string; readonly orPresent?: string; readonly headerNames?: readonly string[] };
-  /** Require this field only when the controlling public setting is one of these values. */
-  readonly requiredWhen?: { readonly field: string; readonly in: readonly string[] };
-  readonly hint?: string;
-  /** Public fields only: the value a host prefills and uses while none is saved (e.g. a vendor's cloud host). */
-  readonly default?: string;
-  /** Public fields only: a host renders a select of these choices instead of free text. */
-  readonly options?: readonly PluginProviderSettingOption[];
-  /** With `options`: also offer "Custom…" free text (e.g. a self-hosted URL). */
-  readonly allowCustom?: boolean;
-}
-
-/** One choice of a {@link PluginProviderSettingField}'s `options`. */
-export interface PluginProviderSettingOption {
-  readonly value: string;
-  readonly label: string;
-}
-
 /** One validation-vocabulary entry (errors.spec.md §3). `file` names the offending packaged file
  * when applicable; `null` for manifest-level errors with no single implicated file. This is the
  * shared shape used verbatim by both `PLUGINS_LIST.plugins[].errors[]` and

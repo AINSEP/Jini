@@ -3,30 +3,6 @@ import type { PluginManifest, PluginValidationError } from './manifest-types.js'
 import type { PluginDiscoveryRecord } from './discovery-types.js';
 import type { ClaimMode } from './claim-conflicts.js';
 
-/** Plain serializable entry envelope; hosts extend it with their own hook payload fields. */
-export interface ContentEntryDraft {
-  readonly workspaceId: string;
-  readonly ext: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
-}
-export interface HookContext { readonly pluginId: string; readonly workspaceId: string }
-export type ExtPatch = Readonly<Record<string, string | number | boolean>>;
-/** Positional callbacks are the existing plugin wire ABI, not Jini factory boundaries. */
-export type BeforeSaveFilter = (entry: Readonly<ContentEntryDraft>, ctx: HookContext) => ExtPatch | Promise<ExtPatch>;
-export type HookPoints = Readonly<Record<string, unknown>>;
-export interface PluginSdk<H extends HookPoints = HookPoints> {
-  readonly providers: import('./provider-contributions.js').PluginProvidersSdk;
-  readonly plugins?: import("@jini-ai/core/plugin-directory").PluginLookupPort;
-  readonly content: { read(): Readonly<ContentEntryDraft>; extend(field: string, value: string | number | boolean): void };
-  addFilter<K extends keyof H & string>(hookName: K, filter: H[K] extends (...args: never[]) => unknown ? H[K] : BeforeSaveFilter): void;
-  readonly routes: { add(required: import('./contributions.js').PluginRouteContribution, optional?: Record<string, never>): void };
-  readonly tools: { add(required: import('./contributions.js').PluginToolContribution, optional?: Record<string, never>): void };
-  readonly widgets: { add(required: import('./contributions.js').PluginWidgetContribution, optional?: Record<string, never>): void };
-  addAction(...args: never[]): void;
-  addContribution(required: import('./contributions.js').PluginContribution, optional?: Record<string, never>): void;
-}
-export interface DefinedPlugin<H extends HookPoints = HookPoints> {
-  readonly definition: { setup(sdk: PluginSdk<H>): void | Promise<void> };
-}
 /** Required binding to the host-owned SDK. Hook ids and semantics never default to a product catalog.
  * @example { hookIds: ['beforeSave'], beforeSaveHook: 'beforeSave', hookSemantics: { beforeSave: 'shared' }, ...abi }
  */
