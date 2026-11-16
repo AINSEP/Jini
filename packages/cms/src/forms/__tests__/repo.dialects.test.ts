@@ -108,7 +108,7 @@ describeEachDialect(
       assert.equal(await defs.isSlugTaken({ workspaceId: OTHER, slug: "contact" }), false);
     });
 
-    test("update rewrites the live row but never moves version; other workspaces and trashed rows are untouched", async () => {
+    test("update rewrites the live row and stores the version the service computed; other workspaces and trashed rows are untouched", async () => {
       const { kernel, defs } = makeRepos();
       await defs.create(definition("def-1", "contact"));
       await defs.create(definition("def-t", "old"));
@@ -119,7 +119,7 @@ describeEachDialect(
       await defs.update(definition("def-o", "contact", { workspaceId: WS, name: "Wrong ws" }));
       assert.deepEqual(
         await defs.findById({ workspaceId: WS, id: "def-1" }),
-        definition("def-1", "contact", { name: "Renamed", fields: [], status: "disabled", updatedAt: "2026-09-29T00:00:00.000Z", version: 1 })
+        definition("def-1", "contact", { name: "Renamed", fields: [], status: "disabled", updatedAt: "2026-09-29T00:00:00.000Z", version: 99 })
       );
       assert.equal((await defs.findById({ workspaceId: OTHER, id: "def-o" }))?.name, "Form contact");
       const trashed = await kernel.run((db) => db.selectFrom("form_definitions").select("name").where("id", "=", "def-t").executeTakeFirst());

@@ -114,6 +114,8 @@ test("analyzeEntry: carries the fully-resolved SeoMeta in `resolved`", async () 
     openGraph: { title: "Social title", description: "Social description", type: "website", url: "https://canonical.test/article", image: "https://cdn.test/social.png", imageOverridden: true, imageSource: "override", siteName: undefined },
     twitter: { title: "Twitter title", description: "Twitter description", card: "summary", image: "https://cdn.test/twitter.jpg", site: undefined },
     jsonLd: [{ "@context": "https://schema.org", "@type": "NewsArticle", headline: "Search title", description: "Search description" }],
+    // getEntryMeta returns the entry's row version (its optimistic-concurrency token) with the meta.
+    version: 1,
   });
   assert.equal(analysis.entryId, "post-1");
 });
