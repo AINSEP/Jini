@@ -92,7 +92,8 @@ export function runPublishHygieneSelfTest(_required: Record<string, never> = {},
     // REGRESSION: fails if analytics is omitted from L4 or allowed a domain peer.
     write('packages/analytics/src/ok.ts', "import type { X } from '@jini-ai/core/primitives';");
     write('packages/analytics/src/bad.ts', "import { X } from '@jini-ai/chat';");
-    const layers = checkPackageLayers({ repoRoot: root });
+    // Layer-table fixtures: the injection rules (base-only edges) would reject every legal layer edge here.
+    const layers = checkPackageLayers({ repoRoot: root }, { injection: false });
     const layerHas = (file: string, rule: string) => layers.some(v => v.file.endsWith(file) && v.rule === rule);
     expect(layerHas('core/src/up.ts', 'L1-layer-edge'), 'upward type-only source import must fail');
     expect(layerHas('http-kit/package.json', 'L1-layer-edge'), 'upward manifest edge must fail');
@@ -130,6 +131,32 @@ export function runPublishHygieneSelfTest(_required: Record<string, never> = {},
       jini: { optionalPeers: { 'domain-driver': 'opt-in: beta adapter — This feature needs domain-driver.' } },
     });
     expect(!checkSubpathIsolation({ repoRoot: root }).some(v => v.file.includes('isolation-fixture/')), 'type-only sibling, shared core and optional peer must pass');
+    failures.push(...injectionSelfTest({ root: join(root, 'injection') }));
     return failures;
   } finally { rmSync(root, { recursive: true, force: true }); }
+}
+
+/** L5-L7 controls on their own tree: the real gate runs these rules, so removing one must fail here. */
+function injectionSelfTest(required: { root: string }): string[] {
+  const failures: string[] = [];
+  const expect = (condition: boolean, description: string): void => { if (!condition) failures.push(description); };
+  const write = (file: string, content: string | object): void => {
+    const path = join(required.root, file);
+    mkdirSync(dirname(path), { recursive: true });
+    writeFileSync(path, typeof content === 'string' ? content : JSON.stringify(content));
+  };
+  for (const name of ['core', 'protocol', 'platform']) write(`packages/${name}/package.json`, { name: `@jini-ai/${name}` });
+  write('packages/daemon/package.json', { name: '@jini-ai/daemon', dependencies: { '@jini-ai/core': '*', '@jini-ai/protocol': '*' } });
+  write('packages/ui/package.json', { name: '@jini-ai/ui' });
+  write('packages/daemon/src/ok.ts', "import { a } from '@jini-ai/core/records'; import type { B } from '@jini-ai/protocol'; export { a };");
+  write('packages/daemon/src/bad.ts', "import { run } from '@jini-ai/platform/fs'; export { run };");
+  write('packages/core/src/impure.ts', 'export const home = process.env.HOME;');
+  write('packages/ui/src/a.css', '.a { color: var(--unlisted-token); }');
+  const found = checkPackageLayers({ repoRoot: required.root }, { warn: () => undefined });
+  const has = (file: string, rule: string): boolean => found.some(v => v.file.endsWith(file) && v.rule === rule);
+  expect(!found.some(v => v.file.endsWith('daemon/src/ok.ts')), 'core and protocol imports must pass the base rule');
+  expect(has('daemon/src/bad.ts', 'L5-injected-edge'), 'a non-base package import must fail L5');
+  expect(has('core/src/impure.ts', 'L6-base-purity'), 'a process read in core must fail L6');
+  expect(has('ui/src/a.css', 'L7-css-tokens'), 'an unlisted CSS token must fail L7');
+  return failures;
 }
