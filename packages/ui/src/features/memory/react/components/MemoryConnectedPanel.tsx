@@ -393,41 +393,7 @@ function MemoryScanHistory({
   );
 }
 
-export function MemoryConnectedPanel({
-  enabled,
-  onOpenConnectors,
-  connectorStatuses,
-  connectorsLoading,
-  connectedCount,
-  selectedConnectorIds,
-  selectedConnectedConnectorIds,
-  connectingConnectorIds,
-  pendingConnectorAuthIds,
-  connectorConnectErrors,
-  connectorIdsWithDetails,
-  connectorExtracting,
-  connectorSaving,
-  connectorScanLabel,
-  connectorSuggestions,
-  selectedSuggestionIds,
-  selectedConnectorSuggestions,
-  connectorStatus,
-  connectorError,
-  connectorLoadError,
-  connectorAttempts,
-  connectorContextBytes,
-  connectorExtractions,
-  memoryConnectors,
-  toggleConnectorSelection,
-  onConnectMemoryConnector,
-  toggleConnectorSuggestion,
-  onSuggestConnectorMemory,
-  onSaveConnectorSuggestions,
-  onDiscardConnectorSuggestions,
-  nowClock,
-  onOpenPreview,
-  onDeleteExtraction,
-}: {
+export interface MemoryConnectedPanelProps {
   enabled: boolean;
   onOpenConnectors?: (() => void) | undefined;
   connectorStatuses: ConnectorStatusMap;
@@ -462,8 +428,27 @@ export function MemoryConnectedPanel({
   nowClock: number;
   onOpenPreview: (id: string) => void;
   onDeleteExtraction: (id: string) => void;
-}) {
+}
+
+function MemoryConnectorPickerHead({ selectedCount }: { selectedCount: number }) {
   const t = useT();
+  return (
+    <div className="memory-connector-picker-head">
+      <div>
+        <h4>{t('Choose sources')}</h4>
+        <p className="hint">{t('Select connected apps first. Only the apps you choose are scanned.')}</p>
+      </div>
+      <span className="memory-source-badge">
+        {selectedCount} {t('selected')}
+      </span>
+    </div>
+  );
+}
+
+function MemoryConnectorWorkbench(props: MemoryConnectedPanelProps) {
+  const t = useT();
+  const { connectorStatuses, connectorsLoading, selectedConnectorIds, connectingConnectorIds, pendingConnectorAuthIds } = props;
+  const { connectorConnectErrors, connectorIdsWithDetails, selectedConnectedConnectorIds } = props;
   const rowContext: ConnectorRowContext = {
     connectorStatuses,
     connectorsLoading,
@@ -474,55 +459,41 @@ export function MemoryConnectedPanel({
     connectorIdsWithDetails,
   };
   return (
-    <div className="memory-tab-panel memory-connected-panel">
-      <MemoryConnectedSummary connectorsLoading={connectorsLoading} connectedCount={connectedCount} onOpenConnectors={onOpenConnectors} />
-      <div className="memory-connector-workbench">
-        {connectorLoadError ? (
-          <div role="alert" className="memory-connector-result is-error">
-            {connectorLoadError}
-          </div>
-        ) : null}
-        <div className="memory-connector-picker-head">
-          <div>
-            <h4>{t('Choose sources')}</h4>
-            <p className="hint">{t('Select connected apps first. Only the apps you choose are scanned.')}</p>
-          </div>
-          <span className="memory-source-badge">
-            {selectedConnectedConnectorIds.length} {t('selected')}
-          </span>
+    <div className="memory-connector-workbench">
+      {props.connectorLoadError ? (
+        <div role="alert" className="memory-connector-result is-error">
+          {props.connectorLoadError}
         </div>
-        <div className="memory-connector-list" aria-label={t('Connected memory apps')}>
-          {memoryConnectors.map((connector) => (
-            <MemoryConnectorRow
-              key={connector.id}
-              connector={connector}
-              context={rowContext}
-              toggleConnectorSelection={toggleConnectorSelection}
-              onConnectMemoryConnector={onConnectMemoryConnector}
-            />
-          ))}
-        </div>
-        <MemoryConnectorRunBar
-          enabled={enabled}
-          connectorExtracting={connectorExtracting}
-          connectorSaving={connectorSaving}
-          connectedCount={connectedCount}
-          selectedCount={selectedConnectedConnectorIds.length}
-          connectorScanLabel={connectorScanLabel}
-          onSuggestConnectorMemory={onSuggestConnectorMemory}
-        />
-      </div>
-      {connectorSuggestions.length > 0 ? (
-        <MemorySuggestionPanel
-          connectorSuggestions={connectorSuggestions}
-          selectedSuggestionIds={selectedSuggestionIds}
-          selectedConnectorSuggestions={selectedConnectorSuggestions}
-          connectorSaving={connectorSaving}
-          toggleConnectorSuggestion={toggleConnectorSuggestion}
-          onSaveConnectorSuggestions={onSaveConnectorSuggestions}
-          onDiscardConnectorSuggestions={onDiscardConnectorSuggestions}
-        />
       ) : null}
+      <MemoryConnectorPickerHead selectedCount={selectedConnectedConnectorIds.length} />
+      <div className="memory-connector-list" aria-label={t('Connected memory apps')}>
+        {props.memoryConnectors.map((connector) => (
+          <MemoryConnectorRow
+            key={connector.id}
+            connector={connector}
+            context={rowContext}
+            toggleConnectorSelection={props.toggleConnectorSelection}
+            onConnectMemoryConnector={props.onConnectMemoryConnector}
+          />
+        ))}
+      </div>
+      <MemoryConnectorRunBar
+        enabled={props.enabled}
+        connectorExtracting={props.connectorExtracting}
+        connectorSaving={props.connectorSaving}
+        connectedCount={props.connectedCount}
+        selectedCount={selectedConnectedConnectorIds.length}
+        connectorScanLabel={props.connectorScanLabel}
+        onSuggestConnectorMemory={props.onSuggestConnectorMemory}
+      />
+    </div>
+  );
+}
+
+function MemoryConnectorFeedback(props: MemoryConnectedPanelProps) {
+  const { connectorStatus, connectorError, connectorAttempts, connectorExtractions } = props;
+  return (
+    <>
       {connectorStatus ? (
         <div role="status" className="memory-connector-result is-success">
           {connectorStatus}
@@ -534,16 +505,42 @@ export function MemoryConnectedPanel({
         </div>
       ) : null}
       {connectorAttempts.length > 0 ? (
-        <MemoryConnectorDiagnostics connectorAttempts={connectorAttempts} connectorContextBytes={connectorContextBytes} />
+        <MemoryConnectorDiagnostics connectorAttempts={connectorAttempts} connectorContextBytes={props.connectorContextBytes} />
       ) : null}
       {connectorExtractions.length > 0 ? (
         <MemoryScanHistory
           connectorExtractions={connectorExtractions}
-          nowClock={nowClock}
-          onOpenPreview={onOpenPreview}
-          onDeleteExtraction={onDeleteExtraction}
+          nowClock={props.nowClock}
+          onOpenPreview={props.onOpenPreview}
+          onDeleteExtraction={props.onDeleteExtraction}
         />
       ) : null}
+    </>
+  );
+}
+
+export function MemoryConnectedPanel(props: MemoryConnectedPanelProps) {
+  const { connectorSuggestions } = props;
+  return (
+    <div className="memory-tab-panel memory-connected-panel">
+      <MemoryConnectedSummary
+        connectorsLoading={props.connectorsLoading}
+        connectedCount={props.connectedCount}
+        onOpenConnectors={props.onOpenConnectors}
+      />
+      <MemoryConnectorWorkbench {...props} />
+      {connectorSuggestions.length > 0 ? (
+        <MemorySuggestionPanel
+          connectorSuggestions={connectorSuggestions}
+          selectedSuggestionIds={props.selectedSuggestionIds}
+          selectedConnectorSuggestions={props.selectedConnectorSuggestions}
+          connectorSaving={props.connectorSaving}
+          toggleConnectorSuggestion={props.toggleConnectorSuggestion}
+          onSaveConnectorSuggestions={props.onSaveConnectorSuggestions}
+          onDiscardConnectorSuggestions={props.onDiscardConnectorSuggestions}
+        />
+      ) : null}
+      <MemoryConnectorFeedback {...props} />
     </div>
   );
 }
