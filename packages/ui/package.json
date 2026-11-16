@@ -54,6 +54,7 @@
         "./preview-modal-shell": "renderers"
       },
       "shared": [
+        "src/react/kit.tsx",
         "src/features/charts",
         "src/features/interactive-ui/registry.ts",
         "src/features/interactive-ui/table-data.ts",
