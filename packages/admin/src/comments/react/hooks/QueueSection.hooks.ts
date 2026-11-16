@@ -41,6 +41,8 @@ export function queueColumns(props: {
   onModerate: (comment: AdminComment, action: CommentModerationAction) => void;
   onRequestPurge: (comment: AdminComment) => void;
   handleForRow: (commentId: string) => string;
+  /** IANA zone the Created column renders in; resolved by the browser-side hook, never inside core. */
+  viewerTimeZone: string;
 }, _optional: Record<string, never> = {}): DataTableColumn<AdminComment>[] {
   return [
     { key: "author", header: props.t("Author"), cell: (comment) => comment.authorName },
@@ -51,7 +53,7 @@ export function queueColumns(props: {
       cell: (comment) => createElement('span', { className: `status status-${comment.status}` }, props.t(comment.status)),
     },
     { key: "depth", header: props.t("Depth"), cell: (comment) => comment.depth },
-    { key: "created", header: props.t("Created"), cell: (comment) => formatTimestamp({ iso: comment.createdAt }, { timeZone: "local" }) },
+    { key: "created", header: props.t("Created"), cell: (comment) => formatTimestamp({ iso: comment.createdAt }, { viewerTimeZone: props.viewerTimeZone }) },
     {
       key: "actions",
       header: props.t("More"),
@@ -77,5 +79,7 @@ export function useQueueTable(props: {
   );
   const handleById = new Map(props.items.map((comment, index) => [comment.id, rowHandles[index]!]));
 
-  return { columns: queueColumns({ ...props, handleForRow: commentId => handleById.get(commentId)! }) };
+  // The browser is the host boundary for viewer-local time: core's formatTimestamp takes the zone explicitly.
+  const viewerTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+  return { columns: queueColumns({ ...props, handleForRow: commentId => handleById.get(commentId)!, viewerTimeZone }) };
 }
