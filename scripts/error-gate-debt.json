@@ -20,6 +20,11 @@
     "value": 4
   },
   {
+    "file": "packages/admin/src/core/module/create-admin.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
     "file": "packages/admin/src/core/transport/http.ts",
     "rule": "catch-reads-error",
     "value": 1
@@ -40,6 +45,11 @@
     "value": 3
   },
   {
+    "file": "packages/admin/src/forms/react/hooks/use-form-submissions.hooks.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
     "file": "packages/admin/src/forms/react/hooks/use-forms-list.hooks.ts",
     "rule": "catch-reads-error",
     "value": 1
@@ -50,8 +60,18 @@
     "value": 1
   },
   {
+    "file": "packages/admin/src/media/controllers/edit-media.controller.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
     "file": "packages/admin/src/media/controllers/library.controller.ts",
     "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/media/controllers/library.controller.ts",
+    "rule": "failure-text-from-catalog",
     "value": 1
   },
   {
@@ -62,6 +82,11 @@
   {
     "file": "packages/admin/src/media/react/hooks/ProvidersTab.hooks.ts",
     "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/media/react/hooks/UploadButton.hooks.ts",
+    "rule": "failure-text-from-catalog",
     "value": 1
   },
   {
@@ -130,13 +155,28 @@
     "value": 3
   },
   {
+    "file": "packages/admin/src/security/controllers/access-tokens.controller.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 2
+  },
+  {
     "file": "packages/admin/src/security/controllers/other-credentials.controller.ts",
     "rule": "catch-reads-error",
     "value": 2
   },
   {
+    "file": "packages/admin/src/security/controllers/other-credentials.controller.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 2
+  },
+  {
     "file": "packages/admin/src/security/controllers/root-key.controller.ts",
     "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/admin/src/security/controllers/root-key.controller.ts",
+    "rule": "failure-text-from-catalog",
     "value": 3
   },
   {
@@ -147,6 +187,16 @@
   {
     "file": "packages/admin/src/seo/controllers/seo-entry.controller.ts",
     "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/seo/controllers/sitemap.controller.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/admin/src/seo/react/hooks/MediaPickerBridge.hooks.ts",
+    "rule": "failure-text-from-catalog",
     "value": 1
   },
   {
@@ -162,6 +212,11 @@
   {
     "file": "packages/admin/src/source-control/controllers/source-control.controller.ts",
     "rule": "catch-reads-error",
+    "value": 2
+  },
+  {
+    "file": "packages/admin/src/source-control/controllers/source-control.controller.ts",
+    "rule": "failure-text-from-catalog",
     "value": 2
   },
   {
@@ -187,6 +242,11 @@
   {
     "file": "packages/agent-plugins/src/connect/connect-tool.ts",
     "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/connect/connect-tool.ts",
+    "rule": "failure-text-from-catalog",
     "value": 1
   },
   {
@@ -220,8 +280,18 @@
     "value": 1
   },
   {
+    "file": "packages/agent-plugins/src/folder-zip-node.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
     "file": "packages/agent-plugins/src/folder-zip.ts",
     "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/folder-zip.ts",
+    "rule": "failure-text-from-catalog",
     "value": 1
   },
   {
@@ -256,6 +326,11 @@
   },
   {
     "file": "packages/agent-plugins/src/lifecycle/fetch-archive.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 3
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/fetch-archive.ts",
     "rule": "no-generic-failure-text",
     "value": 2
   },
@@ -265,9 +340,24 @@
     "value": 1
   },
   {
+    "file": "packages/agent-plugins/src/lifecycle/host-tools/identity.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
     "file": "packages/agent-plugins/src/lifecycle/install.ts",
     "rule": "catch-reads-error",
     "value": 5
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/install.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/installed-package-index.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
   },
   {
     "file": "packages/agent-plugins/src/lifecycle/installed-package-roots.ts",
@@ -323,6 +413,11 @@
     "file": "packages/agent-plugins/src/lifecycle/update.ts",
     "rule": "catch-reads-error",
     "value": 4
+  },
+  {
+    "file": "packages/agent-plugins/src/lifecycle/update.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
   },
   {
     "file": "packages/agent-plugins/src/lifecycle/update.ts",
@@ -478,6 +573,11 @@
     "file": "packages/agent-runtime/src/providers/response-text.ts",
     "rule": "catch-reads-error",
     "value": 2
+  },
+  {
+    "file": "packages/agent-runtime/src/providers/response-text.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
   },
   {
     "file": "packages/agent-runtime/src/qoder-stream.ts",
@@ -711,6 +811,11 @@
   },
   {
     "file": "packages/cms/src/comments/express/submit-handler.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/comments/express/submit-handler.ts",
     "rule": "no-generic-failure-text",
     "value": 1
   },
@@ -730,8 +835,18 @@
     "value": 1
   },
   {
+    "file": "packages/cms/src/forms/attachment-cleanup.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
     "file": "packages/cms/src/forms/attachment-purge.ts",
     "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/forms/delivery/deliver-job.ts",
+    "rule": "failure-text-from-catalog",
     "value": 1
   },
   {
@@ -775,6 +890,16 @@
     "value": 4
   },
   {
+    "file": "packages/cms/src/forms/write-service.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/media/image-transformer.sharp.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
     "file": "packages/cms/src/media/plugins/document-text/unpdf.ts",
     "rule": "catch-reads-error",
     "value": 1
@@ -815,11 +940,6 @@
     "value": 1
   },
   {
-    "file": "packages/cms/src/trash/cursor.ts",
-    "rule": "catch-reads-error",
-    "value": 1
-  },
-  {
     "file": "packages/cms/src/trash/sweeper.ts",
     "rule": "catch-reads-error",
     "value": 1
@@ -832,6 +952,11 @@
   {
     "file": "packages/cms/src/widgets/date-label.ts",
     "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/cms/src/widgets/embed-service.ts",
+    "rule": "failure-text-from-catalog",
     "value": 2
   },
   {
@@ -860,13 +985,18 @@
     "value": 4
   },
   {
+    "file": "packages/commerce/src/browser/checkout.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
     "file": "packages/commerce/src/catalog-tools.ts",
     "rule": "catch-reads-error",
     "value": 1
   },
   {
     "file": "packages/commerce/src/catalog/checkout.ts",
-    "rule": "catch-reads-error",
+    "rule": "failure-text-from-catalog",
     "value": 1
   },
   {
@@ -985,11 +1115,6 @@
     "value": 1
   },
   {
-    "file": "packages/core/src/list-page.ts",
-    "rule": "catch-reads-error",
-    "value": 1
-  },
-  {
     "file": "packages/core/src/object-store.ts",
     "rule": "catch-reads-error",
     "value": 1
@@ -1043,6 +1168,11 @@
     "file": "packages/daemon/src/agent-executor/codex/isolation.ts",
     "rule": "catch-reads-error",
     "value": 2
+  },
+  {
+    "file": "packages/daemon/src/agent-executor/codex/isolation.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
   },
   {
     "file": "packages/daemon/src/agent-executor/events.ts",
@@ -1197,7 +1327,7 @@
   {
     "file": "packages/daemon/src/routines/schedule.ts",
     "rule": "catch-reads-error",
-    "value": 3
+    "value": 2
   },
   {
     "file": "packages/daemon/src/routines/scheduler.ts",
@@ -1290,6 +1420,11 @@
     "value": 1
   },
   {
+    "file": "packages/db/src/kernel/ops.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
     "file": "packages/db/src/kernel/pglite/driver.ts",
     "rule": "catch-reads-error",
     "value": 2
@@ -1350,6 +1485,11 @@
     "value": 3
   },
   {
+    "file": "packages/desktop-host/src/electron/electron-url-capture.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 2
+  },
+  {
     "file": "packages/desktop-host/src/electron/navigation-policy/webview-guest-policy.ts",
     "rule": "catch-reads-error",
     "value": 1
@@ -1390,8 +1530,8 @@
     "value": 1
   },
   {
-    "file": "packages/desktop-host/src/speech/macos/mac-on-device-transcriber.ts",
-    "rule": "catch-reads-error",
+    "file": "packages/desktop-host/src/render-bridge.ts",
+    "rule": "failure-text-from-catalog",
     "value": 1
   },
   {
@@ -1413,6 +1553,11 @@
     "file": "packages/devops/src/deploy/ops-runner.ts",
     "rule": "catch-reads-error",
     "value": 2
+  },
+  {
+    "file": "packages/devops/src/deploy/ops-runner.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
   },
   {
     "file": "packages/devops/src/dns/delegation.ts",
@@ -1535,6 +1680,11 @@
     "value": 2
   },
   {
+    "file": "packages/infra/src/events/outbox/fenced-conformance.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
     "file": "packages/infra/src/events/outbox/worker.ts",
     "rule": "catch-reads-error",
     "value": 3
@@ -1552,7 +1702,7 @@
   {
     "file": "packages/integrations/src/credentialed-http/credentialed-request.ts",
     "rule": "catch-reads-error",
-    "value": 4
+    "value": 2
   },
   {
     "file": "packages/integrations/src/credentialed-http/tools/tool-registrations.ts",
@@ -1585,8 +1735,23 @@
     "value": 3
   },
   {
+    "file": "packages/integrations/src/media-providers/staging.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/integrations/src/saved-requests/execute.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 2
+  },
+  {
     "file": "packages/integrations/src/saved-requests/projection.ts",
     "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/integrations/src/saved-requests/projection.ts",
+    "rule": "failure-text-from-catalog",
     "value": 1
   },
   {
@@ -1595,8 +1760,18 @@
     "value": 2
   },
   {
+    "file": "packages/integrations/src/saved-requests/validation.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
     "file": "packages/mcp/src/agent-install/install.ts",
     "rule": "catch-reads-error",
+    "value": 1
+  },
+  {
+    "file": "packages/mcp/src/agent-install/install.ts",
+    "rule": "failure-text-from-catalog",
     "value": 1
   },
   {
@@ -1626,6 +1801,11 @@
   },
   {
     "file": "packages/mcp/src/federation/adapter.http.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
+    "file": "packages/mcp/src/federation/adapter.http.ts",
     "rule": "no-generic-failure-text",
     "value": 1
   },
@@ -1645,11 +1825,6 @@
     "value": 1
   },
   {
-    "file": "packages/mcp/src/federation/hosted/access.ts",
-    "rule": "catch-reads-error",
-    "value": 1
-  },
-  {
     "file": "packages/mcp/src/federation/hosted/connection-gate.ts",
     "rule": "catch-reads-error",
     "value": 1
@@ -1662,7 +1837,12 @@
   {
     "file": "packages/mcp/src/federation/hosted/store.ts",
     "rule": "catch-reads-error",
-    "value": 8
+    "value": 7
+  },
+  {
+    "file": "packages/mcp/src/federation/hosted/store.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 2
   },
   {
     "file": "packages/mcp/src/federation/reload.ts",
@@ -1726,6 +1906,11 @@
   },
   {
     "file": "packages/memory/src/llm-provider.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 2
+  },
+  {
+    "file": "packages/memory/src/llm-provider.ts",
     "rule": "no-generic-failure-text",
     "value": 1
   },
@@ -1745,6 +1930,11 @@
     "value": 1
   },
   {
+    "file": "packages/oauth/src/authorization-code.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
     "file": "packages/oauth/src/bounded-json.ts",
     "rule": "catch-reads-error",
     "value": 1
@@ -1753,6 +1943,11 @@
     "file": "packages/oauth/src/discovery.ts",
     "rule": "catch-reads-error",
     "value": 3
+  },
+  {
+    "file": "packages/oauth/src/discovery.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
   },
   {
     "file": "packages/oauth/src/endpoint-safety.ts",
@@ -1775,6 +1970,11 @@
     "value": 1
   },
   {
+    "file": "packages/oauth/src/oidc.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
     "file": "packages/oauth/src/options.ts",
     "rule": "catch-reads-error",
     "value": 1
@@ -1790,8 +1990,8 @@
     "value": 1
   },
   {
-    "file": "packages/oauth/src/resource.ts",
-    "rule": "catch-reads-error",
+    "file": "packages/oauth/src/revocation.ts",
+    "rule": "failure-text-from-catalog",
     "value": 1
   },
   {
@@ -1805,9 +2005,19 @@
     "value": 3
   },
   {
+    "file": "packages/platform/src/asset-cache.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
     "file": "packages/platform/src/blob-storage.ts",
     "rule": "catch-reads-error",
     "value": 2
+  },
+  {
+    "file": "packages/platform/src/blob-storage.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 4
   },
   {
     "file": "packages/platform/src/child-environment.ts",
@@ -1815,9 +2025,19 @@
     "value": 1
   },
   {
+    "file": "packages/platform/src/child-environment.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
     "file": "packages/platform/src/download.ts",
     "rule": "catch-reads-error",
     "value": 25
+  },
+  {
+    "file": "packages/platform/src/download.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
   },
   {
     "file": "packages/platform/src/fetch-with-timeout.ts",
@@ -1862,6 +2082,11 @@
   {
     "file": "packages/platform/src/fs/guarded-reader.ts",
     "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/platform/src/fs/guarded-reader.ts",
+    "rule": "failure-text-from-catalog",
     "value": 3
   },
   {
@@ -1925,6 +2150,11 @@
     "value": 1
   },
   {
+    "file": "packages/platform/src/secrets/passphrase-envelope.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
     "file": "packages/platform/src/terminal.ts",
     "rule": "catch-reads-error",
     "value": 6
@@ -1985,9 +2215,19 @@
     "value": 1
   },
   {
+    "file": "packages/plugins/src/host/tools/install.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
     "file": "packages/plugins/src/host/tools/management.ts",
     "rule": "catch-reads-error",
     "value": 3
+  },
+  {
+    "file": "packages/plugins/src/host/tools/source.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
   },
   {
     "file": "packages/protocol/src/a2ui/json-pointer.ts",
@@ -2015,8 +2255,8 @@
     "value": 1
   },
   {
-    "file": "packages/provider-plugins/src/charts-echarts/descriptor.ts",
-    "rule": "catch-reads-error",
+    "file": "packages/provider-plugins/src/observability-opentelemetry/opentelemetry.ts",
+    "rule": "failure-text-from-catalog",
     "value": 1
   },
   {
@@ -2031,11 +2271,6 @@
   },
   {
     "file": "packages/provider-plugins/src/payments-stripe/http.ts",
-    "rule": "catch-reads-error",
-    "value": 1
-  },
-  {
-    "file": "packages/provider-plugins/src/payments-stripe/provider.ts",
     "rule": "catch-reads-error",
     "value": 1
   },
@@ -2063,6 +2298,11 @@
     "file": "packages/search/src/service.ts",
     "rule": "catch-reads-error",
     "value": 2
+  },
+  {
+    "file": "packages/search/src/testkit/conformance.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
   },
   {
     "file": "packages/server/src/builtin-features.ts",
@@ -2100,6 +2340,11 @@
     "value": 3
   },
   {
+    "file": "packages/sidecar/src/port.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 1
+  },
+  {
     "file": "packages/sidecar/src/supervision/supervisor-node.ts",
     "rule": "catch-reads-error",
     "value": 5
@@ -2128,11 +2373,6 @@
     "file": "packages/ui/src/features/browser-chrome/dependencies.ts",
     "rule": "catch-reads-error",
     "value": 2
-  },
-  {
-    "file": "packages/ui/src/features/browser-chrome/rules.ts",
-    "rule": "catch-reads-error",
-    "value": 1
   },
   {
     "file": "packages/ui/src/features/charts/browser.ts",
@@ -2212,6 +2452,11 @@
   {
     "file": "packages/ui/src/features/memory/react/hooks/useMemoryConnectors.hooks.ts",
     "rule": "catch-reads-error",
+    "value": 3
+  },
+  {
+    "file": "packages/ui/src/features/memory/react/hooks/useMemoryConnectors.hooks.ts",
+    "rule": "failure-text-from-catalog",
     "value": 3
   },
   {
@@ -2408,6 +2653,11 @@
     "file": "packages/user-management/src/admin/people.rules.ts",
     "rule": "catch-reads-error",
     "value": 1
+  },
+  {
+    "file": "packages/user-management/src/react/auth/passkey-browser.ts",
+    "rule": "failure-text-from-catalog",
+    "value": 2
   },
   {
     "file": "packages/user-management/src/react/auth/TotpSettings.hooks.ts",

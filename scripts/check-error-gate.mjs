@@ -4,8 +4,10 @@
  * worsened entry is printed and the exit code stays 0; step E11 turns a package to ERROR when its
  * debt rows reach 0 (`--strict` already does that for a local run).
  *
- * Rules today: `catch-reads-error` (rule 1) and `no-generic-failure-text` (rule 2). Rule 3
- * (`failure-text-from-catalog`) is not built yet.
+ * Rules: `catch-reads-error` (rule 1), `no-generic-failure-text` (rule 2) and
+ * `failure-text-from-catalog` (rule 3). One precedence order: a sanctioned module is skipped by all
+ * three; a pure-parse refusal satisfies rule 1 and rule 3's cause clause while rule 2 still reads its
+ * words; everything else gets all three.
  *
  * Skipped by every rule: the sanctioned reporting modules (they are where a caught value ends up, and
  * guard their own failures), and standalone skill scripts, which run in a user's project with no
@@ -22,6 +24,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import { ESLint } from 'eslint';
 import tseslint from 'typescript-eslint';
 import catchReadsError from './eslint-rules/errors/catch-reads-error.mjs';
+import failureTextFromCatalog from './eslint-rules/errors/failure-text-from-catalog.mjs';
 import noGenericFailureText from './eslint-rules/errors/no-generic-failure-text.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -42,16 +45,23 @@ export const sanctionedModules = [
   'packages/diagnostics/src/observability/report-error.ts', 'packages/plugins/src/host/provider-host.ts',
 ];
 /** Reviewed synchronous helpers with no I/O; a call to one keeps a `try` a pure parse. Added by review. */
-export const pureHelpers = [];
-const ruleNames = ['catch-reads-error', 'no-generic-failure-text'];
+export const pureHelpers = [
+  { name: 'addMoney', module: 'packages/commerce/src/money/money' },
+  { name: 'fromBase64Url', module: 'packages/core/src/list-page' },
+  { name: 'parseRequestUrl', module: 'packages/integrations/src/credentialed-http/credentialed-request' },
+  { name: 'redactJsonResponseBody', module: 'packages/integrations/src/credentialed-http/response-redaction' },
+];
+const rules = { 'catch-reads-error': catchReadsError, 'no-generic-failure-text': noGenericFailureText, 'failure-text-from-catalog': failureTextFromCatalog };
+const ruleNames = Object.keys(rules);
 
 /** The ESLint flat config of the gate: only these rules, inline directives ignored. */
 export function errorGateConfig(_required = {}, optional = {}) {
+  const helpers = { pureHelpers: optional.pureHelpers ?? pureHelpers };
   return [{
     files: ['**/*.{js,jsx,mjs,cjs,ts,tsx,mts,cts}'],
     languageOptions: { parser: tseslint.parser, parserOptions: { ecmaFeatures: { jsx: true } } },
-    plugins: { errors: { rules: { 'catch-reads-error': catchReadsError, 'no-generic-failure-text': noGenericFailureText } } },
-    rules: { 'errors/catch-reads-error': ['error', { pureHelpers: optional.pureHelpers ?? pureHelpers }], 'errors/no-generic-failure-text': 'error' },
+    plugins: { errors: { rules } },
+    rules: { 'errors/catch-reads-error': ['error', helpers], 'errors/no-generic-failure-text': 'error', 'errors/failure-text-from-catalog': ['error', helpers] },
   }];
 }
 
