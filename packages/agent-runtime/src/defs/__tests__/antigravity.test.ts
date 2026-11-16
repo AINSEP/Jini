@@ -384,3 +384,12 @@ describe('sanitizeAntigravityWireLine framing', () => {
     expect(sanitizeAntigravityWireLine({ fullText: JSON.stringify(frame) + '\n' })).toBe(JSON.stringify(frame) + '\n');
   });
 });
+
+describe('sanitizeAntigravityWireLine non-JSON output', () => {
+  it('redacts a sign-in URL in a plain auth prompt line instead of parsing it', () => {
+    const line = 'Please sign in: "https://accounts.google.com/o/oauth2/auth?client_id=private" to continue\n';
+    const safe = sanitizeAntigravityWireLine({ fullText: line });
+    expect(safe).toBe('Please sign in: "[redacted sign-in URL]" to continue\n');
+    expect(safe).not.toContain('private');
+  });
+});

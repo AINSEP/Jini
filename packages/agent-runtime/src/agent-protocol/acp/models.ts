@@ -295,8 +295,9 @@ export async function detectAcpModels(requiredArgs: Pick<DetectAcpModelsOptions,
       finish(reject, new Error(message));
     };
     const abort = () => fail('ACP model detection aborted');
+    // An already-aborted signal threw at the top of this executor and nothing awaits in between, so
+    // the signal cannot have aborted by now: the listener alone covers every later abort.
     signal?.addEventListener('abort', abort, { once: true });
-    if (signal?.aborted) { abort(); return; }
 
     const writeRpc = (id: JsonRpcId, method: string, params: unknown) => {
       try {
