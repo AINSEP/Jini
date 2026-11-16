@@ -29,7 +29,8 @@ import { A2uiSurfaceCard, registerExtEventRenderer } from '@jini-ai/chat/react';
  * deliberately omitted here — see `A2uiSurfaceCard`'s own module doc for why an agent-directed
  * action has nowhere real to go yet outside this fixed lab demo's own `/a2ui-action` relay.
  */
-registerExtEventRenderer({ name: 'a2ui', renderer: (props) => <A2uiSurfaceCard {...props} /> });
+const hostClock = createSystemClock();
+registerExtEventRenderer({ name: 'a2ui', renderer: (props) => <A2uiSurfaceCard {...props} clock={hostClock} /> });
 
 const A2UI_DEMO_AGENT_ID = 'a2ui-demo';
 
