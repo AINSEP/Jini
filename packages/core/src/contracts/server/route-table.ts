@@ -15,6 +15,16 @@ export interface RouteTable extends Server {
   match(requiredArgs: { readonly method: string; readonly pathname: string }, optionalArgs?: Record<string, never>): RouteMatch;
 }
 
+/** Decodes one `:name` segment; an empty segment or malformed percent-encoding is "no match" (`null`), per the contract, not a thrown 500. */
+function decodeParam(segment: string): string | null {
+  if (segment === '') return null;
+  try {
+    return decodeURIComponent(segment);
+  } catch {
+    return null;
+  }
+}
+
 /**
  * Matches a registered `pattern` (e.g. `/notes/:id`) against a URL `pathname` with the contract's
  * path syntax. Returns the decoded `:name` params, or `null`. One matcher, so every adapter agrees.
@@ -31,13 +41,9 @@ export function matchServerPath({ pattern, pathname }: { readonly pattern: strin
       if (want !== got) return null;
       continue;
     }
-    if (got === '') return null;
-    try {
-      params[want.slice(1)] = decodeURIComponent(got);
-    } catch {
-      // Malformed percent-encoding is "no match", per the contract, not a thrown 500.
-      return null;
-    }
+    const value = decodeParam(got);
+    if (value === null) return null;
+    params[want.slice(1)] = value;
   }
   return params;
 }

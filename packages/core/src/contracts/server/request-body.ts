@@ -28,7 +28,11 @@ export async function readBodyBytes({ request }: { readonly request: Request }, 
   const declared = Number(request.headers.get('content-length') ?? '0');
   if (declared > maxBytes) return err({ error: tooLarge(maxBytes) });
   if (!request.body) return ok({ value: new Uint8Array(0) });
-  const reader = request.body.getReader();
+  return collectBody({ body: request.body, maxBytes });
+}
+
+async function collectBody({ body, maxBytes }: { readonly body: ReadableStream<Uint8Array>; readonly maxBytes: number }): Promise<Result<Uint8Array>> {
+  const reader = body.getReader();
   const chunks: Uint8Array[] = [];
   let total = 0;
   for (;;) {

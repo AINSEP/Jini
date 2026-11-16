@@ -191,23 +191,37 @@ function originRefusal<I, O, D, C>({ spec, request }: RouteCall<I, O, D, C>, { h
   return verdict.ok ? undefined : errorAnswer({ error: verdict.error });
 }
 
-async function routeAnswer<I, O, D, C>(call: RouteCall<I, O, D, C>, { host }: { readonly host: RouteHostContext | undefined }): Promise<Response> {
+// The route chooses where authorization occurs: reads may authorize before validation,
+// while writes must reject an inconsistent tenant target before asking for a permission.
+function makeAuthorize<I, O, D, C>({ spec, deps, context }: { readonly spec: JsonRouteSpec<I, O, D, C>; readonly deps: D; readonly context: C | undefined }): JsonRouteAuthorize {
+  return async ({ permission, entityType }) => {
+    if (!spec.ports?.authorize) throw new Error('JSON route authorizer is required');
+    await spec.ports.authorize({ context, deps, permission, entityType });
+  };
+}
+
+function authenticate<I, O, D, C>({ call, raw }: { readonly call: RouteCall<I, O, D, C>; readonly raw: RouteInputContext }): C | undefined | Promise<C | undefined> {
   const { spec, deps, request, locals } = call;
+  return spec.ports?.authenticate ? spec.ports.authenticate({ raw, request, locals, deps }) : undefined;
+}
+
+async function routeAnswer<I, O, D, C>(call: RouteCall<I, O, D, C>, { host }: { readonly host: RouteHostContext | undefined }): Promise<Response> {
+  const { spec, deps, request } = call;
   const raw = await readRawInput(call);
   if (!raw.ok) return errorAnswer({ error: raw.error });
   if (spec.ports?.workspace) await spec.ports.workspace({ raw: raw.value, deps });
   const refused = originRefusal(call, { host });
   if (refused) return refused;
-  const context = spec.ports?.authenticate ? await spec.ports.authenticate({ raw: raw.value, request, locals, deps }) : undefined;
+  const context = await authenticate({ call, raw: raw.value });
   const parsed = spec.parse(raw.value);
   if (!parsed.ok) return errorAnswer({ error: parsed.error });
-  // The route chooses where authorization occurs: reads may authorize before validation,
-  // while writes must reject an inconsistent tenant target before asking for a permission.
-  const authorize: JsonRouteAuthorize = async ({ permission, entityType }) => {
-    if (!spec.ports?.authorize) throw new Error('JSON route authorizer is required');
-    await spec.ports.authorize({ context, deps, permission, entityType });
-  };
+  const authorize = makeAuthorize({ spec, deps, context });
   const result = await spec.handle({ input: parsed.value, deps, context, authorize }, { signal: request.signal });
+  return finalAnswer({ spec, result, request });
+}
+
+
+function finalAnswer<I, O, D, C>({ spec, result, request }: { readonly spec: JsonRouteSpec<I, O, D, C>; readonly result: Result<O>; readonly request: Request }): Response {
   // Disconnect comes from `request.signal`, which the adapter aborts on the response's close,
   // never on the request body finishing. Aborted means the client was already gone before any
   // answer: serializing one now is wasted work and would turn a benign disconnect into a false
