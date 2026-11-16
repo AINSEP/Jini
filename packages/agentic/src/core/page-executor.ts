@@ -14,7 +14,7 @@
 import {
   findCapability,
   findCapabilityInputError,
-} from './capability.js';
+} from '@jini-ai/core/contracts/capabilities';
 import { AGENT_ELEMENT_ROLES, isValidElementHandle } from '@jini-ai/core/agent-handles';
 import type {
   AgentElementRawState,

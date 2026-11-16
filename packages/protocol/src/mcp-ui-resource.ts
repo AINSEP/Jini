@@ -1,5 +1,5 @@
 /**
- * @module features/mcp-ui/resource
+ * @module mcp-ui-resource
  *
  * The `ui://` resource half of MCP-UI: the wire shape a tool result carries so a host knows to
  * render a View instead of handing text to the model, plus the parser a host uses to recognize one.
@@ -345,4 +345,14 @@ export type UIActionResult =
   | { messageId?: string; type: "intent"; payload: { intent: string; params: Record<string, unknown> } }
   | { messageId?: string; type: "notify"; payload: { message: string } };
 
+/** A tool call a View asked its host to execute. */
+export interface McpUiToolCall {
+  readonly name: string;
+  readonly arguments: Readonly<Record<string, unknown>>;
+}
 
+/**
+ * Executes a tool a View asked for. A rejection is relayed to the View as a JSON-RPC error and a
+ * resolution is passed through as the `result` UNVALIDATED against any particular shape.
+ */
+export type McpUiToolCallHandler = (call: McpUiToolCall) => Promise<unknown> | unknown;

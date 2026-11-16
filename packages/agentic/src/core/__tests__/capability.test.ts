@@ -1,12 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  PAGE_CAPABILITIES,
-  availableCapabilities,
-  findCapability,
-  findCapabilityInputError,
-  type CapabilityDef,
-} from '../index.js';
+import { PAGE_CAPABILITIES } from '../index.js';
+import { availableCapabilities, findCapability, findCapabilityInputError, type CapabilityDef } from '@jini-ai/core/contracts/capabilities';
 
 /**
  * A synthetic destructive, server-surface capability standing in for a product's own manifest

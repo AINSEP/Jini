@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { findCapabilityInputError, type CapabilityDef } from '../capability.js';
+import { findCapabilityInputError, type CapabilityDef } from '@jini-ai/core/contracts/capabilities';
 
 const capability: CapabilityDef = {
   id: 'test.input', description: 'Characterize shallow validation', risk: 'read', surface: 'session',
