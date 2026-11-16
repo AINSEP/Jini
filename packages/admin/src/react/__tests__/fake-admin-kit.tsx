@@ -1,12 +1,12 @@
 import { render, type RenderResult } from '@testing-library/react';
-import { useRef, type ReactElement } from 'react';
+import { forwardRef, useRef, type ReactElement } from 'react';
 import type { FetchQueryAdapter, QueryResult } from '@jini-ai/core/fetch';
-import { AdminKitProvider, type AdminKit, type AdminKitComponents, type AdminKitHooks, type AdminThemeKit } from '../kit.js';
+import { AdminKitProvider, type AdminKit, type ButtonProps, type IconButtonProps, type AdminKitComponents, type AdminKitHooks, type AdminThemeKit } from '../kit.js';
 import type { AdminMediaProvidersKit } from '../kit-media-providers.js';
 
 const fakeComponents: AdminKitComponents = {
-  Button: (p) => <button {...p.attrs} type={p.type ?? 'button'} className={p.className} disabled={p.disabled || p.pending} onClick={() => p.onPress?.({})}>{p.children}</button>,
-  IconButton: (p) => <button {...p.attrs} type={p.type ?? 'button'} aria-label={p.label} disabled={p.disabled || p.pending} onClick={() => p.onPress?.({})}>{p.children}</button>,
+  Button: forwardRef<HTMLButtonElement, Omit<ButtonProps, 'ref'>>((p, ref) => <button ref={ref} {...p.attrs} type={p.type ?? 'button'} className={p.className} disabled={p.disabled || p.pending} onClick={() => p.onPress?.({})}>{p.children}</button>),
+  IconButton: forwardRef<HTMLButtonElement, Omit<IconButtonProps, 'ref'>>((p, ref) => <button ref={ref} {...p.attrs} type={p.type ?? 'button'} aria-label={p.label} disabled={p.disabled || p.pending} onClick={() => p.onPress?.({})}>{p.children}</button>),
   TextField: (p) => <label>{p.label}<input {...p.attrs} type={p.type} value={p.value} disabled={p.disabled} onChange={(e) => p.onValueChange({ value: e.target.value })} /></label>,
   TextArea: (p) => <label>{p.label}<textarea {...p.attrs} value={p.value} disabled={p.disabled} onChange={(e) => p.onValueChange({ value: e.target.value })} /></label>,
   Select: (p) => (
@@ -45,6 +45,9 @@ const fakeComponents: AdminKitComponents = {
   HtmlEditor: (p) => <textarea value={p.html} className={p.className} onChange={(e) => p.onChange(e.target.value)} />,
   ErrorNotice: (p) => <p role={p.role ?? 'alert'}>{p.failure.message}</p>,
 };
+
+fakeComponents.Button.displayName = 'FakeButton';
+fakeComponents.IconButton.displayName = 'FakeIconButton';
 
 const fakeHooks: AdminKitHooks = {
   useAgentHandle: (r) => (r.agentHandle === false ? undefined : r.agentHandle ?? 'fake-handle'),
