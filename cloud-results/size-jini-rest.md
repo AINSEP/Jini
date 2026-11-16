@@ -54,7 +54,7 @@ Setup: Node 24, `pnpm install --frozen-lockfile`, `pnpm -r build` (same pre-exis
 - mcp/src/server/tool-server.ts createMcpToolServer — ce54173b
 - memory/src/extraction-log.ts createExtractionLog — 962a653f
 - memory/src/note-store.ts createNoteStore — a342294b
-- platform/src/asset-cache.ts createAssetCache — see `git log` (subject: split createAssetCache)
+- platform/src/asset-cache.ts createAssetCache — 8dfe2061
 - vibecoding/src/core/history.ts createEditHistory — 9d514166
 - search/src/testkit/memory-provider.ts createInMemorySearchProvider — f1b070aa
 - user-management/src/admin/adapters/memory.ts createMemoryRolesApi — 105d061e
