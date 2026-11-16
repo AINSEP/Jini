@@ -107,6 +107,3 @@ export interface OpenSqliteConnectionOptions<Connection extends SqliteClient = S
  * test double, and so this package never needs to name the host's ORM handle type.
  */
 export type SqliteBackupSource = { backup(destination: string): Promise<unknown> };
-
-/** An ORM handle that carries its embedded SQLite driver client as `$client`, or the client itself. */
-export type SqliteConnectionSource = SqliteClient | { readonly $client: SqliteClient };

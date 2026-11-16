@@ -1,7 +1,7 @@
 /**
  * @file The storage kernel contract: the ONE async way a repository adapter reaches its database, on every driver.
  * Package: `@jini-ai/core/contracts/storage`. Names no query library and no driver: `Handle` is whatever query handle
- * the host's storage package passes to {@link StorageKernel.run} (`@jini-ai/db` binds its query-builder handle as `KyselyKernel`).
+ * the host's storage package passes to {@link StorageKernel.run} (`@jini-ai/db` binds its own handle type).
  *
  * A repo is ONE query body for every dialect. It never holds a raw handle, never runs `BEGIN`, never calls a driver
  * API. It asks the kernel:

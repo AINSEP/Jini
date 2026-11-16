@@ -1,11 +1,10 @@
 import path from "node:path";
 import { assertDatabaseCopySpace } from "../../sqlite/backup-policy.js";
 
-import type { SqliteConnectionSource } from "@jini-ai/core/contracts/storage";
+import type { SqliteClient, SqliteOpener } from "@jini-ai/core/contracts/storage";
 import { Kysely, type SqliteDatabase, SqliteDialect } from "kysely";
 
 import { buildKernel, type StorageKernel, TurnLock } from "../index.js";
-import type { SqliteClient, SqliteOpener } from "../../sqlite/types.js";
 import { checkedClients, checkedStates, connectionsByKernel, rawKernelClients } from "../../sqlite/checked-state.js";
 import { inheritOwnedTransaction } from "../owned-transaction.js";
 
@@ -35,6 +34,9 @@ import { inheritOwnedTransaction } from "../owned-transaction.js";
  */
 
 export type SqliteKernel<DB> = KyselyKernel<DB>;
+
+/** An ORM handle that carries its better-sqlite3 client as `$client`, or the client itself. */
+export type SqliteConnectionSource = SqliteClient | { readonly $client: SqliteClient };
 
 const kernels = new WeakMap<SqliteClient, SqliteKernel<unknown>>();
 
