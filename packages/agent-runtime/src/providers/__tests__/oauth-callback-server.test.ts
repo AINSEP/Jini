@@ -126,7 +126,22 @@ describe('startOAuthCallbackListener', () => {
     expect(result.status).toBe(200);
     await new Promise((resolve) => setTimeout(resolve, 20));
     expect(errSpy).toHaveBeenCalledTimes(1);
-    expect(errSpy).toHaveBeenCalledWith('[oauth-callback-server] onCallback failed:', 'Error: handler boom\n    at callback fixture');
+    expect(errSpy).toHaveBeenCalledWith('[oauth-callback-server] onCallback failed:', 'Error');
+  });
+
+  it('logs only the class when onCallback throws a secret-bearing error', async () => {
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    try {
+      const listener = await startOAuthCallbackListener({ host: '127.0.0.1', port: 0, path: '/callback', expectedState: 'state-1', onCallback: () => {
+          throw new Error('boom api_key=SECRETSECRETSECRETSECRET');
+        } });
+      await get(`http://${listener.address.host}:${listener.address.port}/callback?code=abc&state=state-1`);
+      await new Promise((resolve) => setTimeout(resolve, 20));
+      expect(errSpy).toHaveBeenCalledWith('[oauth-callback-server] onCallback failed:', 'Error');
+      expect(JSON.stringify(errSpy.mock.calls)).not.toMatch(/boom|SECRETSECRET|oauth-callback-server\.test/);
+    } finally {
+      errSpy.mockRestore();
+    }
   });
 
   it('can be stopped early before any callback arrives', async () => {
