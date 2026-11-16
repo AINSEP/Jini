@@ -7,16 +7,10 @@ import {
 import type { JsonValue } from "../../primitives/index.js";
 import type { SettingsService, SettingsPermissions, SettingsChangeFeed, DefinitionResult } from "./contracts.js";
 
-/** Keep the CMS write chokepoint while translating its permission vocabulary to host policy.
- * Bind the CMS ledger and write chokepoint without copying their domain logic.
- * Effective reads scan definitions and resolve each namespace key; mutations inherit CMS transactions/errors.
- * @complexity O(1) setup. Per operation: O(definitions + keys) reads, or O(batch size) writes.
- * @example createCmsSettingsService({ deps: cmsPorts, permissions });
- */
-export function createCmsSettingsService(required: {
-  deps: SettingsWriteServiceDeps; permissions: SettingsPermissions;
-}): SettingsService {
-  const { deps: original, permissions } = required;
+/** Translate the CMS permission vocabulary to host policy before any write reaches the chokepoint. */
+function withHostPermissions(
+  { original, permissions }: { original: SettingsWriteServiceDeps; permissions: SettingsPermissions },
+): SettingsWriteServiceDeps {
   const permissionMap = new Map([
     ["settings.definitions.manage", permissions.manageDefinitions],
     ["settings.global.write", permissions.writeGlobal],
@@ -34,6 +28,20 @@ export function createCmsSettingsService(required: {
       return original.authorize({ ...input, permission });
     },
   };
+  return deps;
+}
+
+/** Keep the CMS write chokepoint while translating its permission vocabulary to host policy.
+ * Bind the CMS ledger and write chokepoint without copying their domain logic.
+ * Effective reads scan definitions and resolve each namespace key; mutations inherit CMS transactions/errors.
+ * @complexity O(1) setup. Per operation: O(definitions + keys) reads, or O(batch size) writes.
+ * @example createCmsSettingsService({ deps: cmsPorts, permissions });
+ */
+export function createCmsSettingsService(required: {
+  deps: SettingsWriteServiceDeps; permissions: SettingsPermissions;
+}): SettingsService {
+  const { deps: original, permissions } = required;
+  const deps = withHostPermissions({ original, permissions });
   const repo = deps.repo;
   const listDefinitions: SettingsService["listDefinitions"] = async ({ workspaceId }) => {
     const [platform, workspace] = await Promise.all([
