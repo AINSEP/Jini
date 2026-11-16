@@ -6,9 +6,9 @@
 import { describe, expect, it } from "vitest";
 import {
   InMemoryOriginSettingRepo, OriginRegistry, isSameOrigin, normalizeOriginCandidate, resolveConfiguredOrigin,
-} from "../verified-origin.js";
-import type { OriginSettingRepoPort } from "../verified-origin/ports.js";
-import type { VerifiedOrigin } from "../verified-origin/types.js";
+} from "../index.js";
+import type { OriginSettingRepoPort } from "../ports.js";
+import type { VerifiedOrigin } from "../types.js";
 
 const NOW = "2026-10-04T00:00:00.000Z";
 

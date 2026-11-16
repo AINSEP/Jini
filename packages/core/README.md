@@ -126,6 +126,8 @@ See the archived provenance ledger for per-file provenance and scope decisions. 
 
 ## Additional entry points
 
+`./contracts/server` also holds the route vocabulary (`Result`, `jsonRoute`, `readJsonBody`, `readQuery`, `createSseStream`, origin checks). `./contracts/server/testing` is an in-memory `Server`; `./contracts/server/conformance` checks any `Server` adapter; `./contracts/server/verified-origin` is the canonical-origin registry.
+
 The entries below also have named exports from the package root. Each is universal
 and has no runtime dependency. Importing the root and a subpath shares the same
 class and factory identities.

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { planOriginBoot, resolveConfiguredOrigin } from "../verified-origin.js";
-import type { VerifiedOrigin } from "../verified-origin.js";
+import { planOriginBoot, resolveConfiguredOrigin } from "../index.js";
+import type { VerifiedOrigin } from "../index.js";
 
 const NOW = "2026-09-18T00:00:00.000Z";
 
