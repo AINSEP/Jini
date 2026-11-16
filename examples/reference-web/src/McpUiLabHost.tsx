@@ -9,9 +9,8 @@ import {
   createJsonRpcResult,
   isJsonRpcMessage,
   isJsonRpcRequest,
-  type JsonRpcMessage,
-  type JsonRpcRequest,
-} from '@jini-ai/agentic';
+} from '@jini-ai/protocol/mcp-ui';
+import type { JsonRpcMessage, JsonRpcRequest } from '@jini-ai/protocol/mcp-ui';
 import { createEarlyMessageBuffer, type BufferedWindowMessage } from './mcpui-lab-message-buffer.js';
 import type { McpUiLabViewMode } from './mcpui-lab-view.js';
 

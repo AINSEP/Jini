@@ -14,7 +14,7 @@ import { createPortal } from 'react-dom';
 import { useOverlayContainer } from '@jini-ai/ui-kit/react';
 import { useSelectPopover, isSelectEventInside, openSelectOnKey, applySelectNavigationKey, resolveSelectPortalContainer, resolveSelectOriginPage } from './select-popover.js';
 import { Icon } from './Icon.js';
-import { agentHandleProps } from '@jini-ai/agentic';
+import { agentHandleProps } from '@jini-ai/core/agent-handles';
 import { useAgentHandle, type AgentControlProps } from '../hooks/useAgentHandle.js';
 import { useCustomSelectOptionRenderer } from './CustomSelect.hooks.js';
 

@@ -1,7 +1,7 @@
 import { forwardRef, type InputHTMLAttributes } from 'react';
 import { useSecretReveal, type SecretRevealOptional } from './secret-reveal.hooks.js';
 import { eyeIcon } from './native/Controls.hooks.js';
-import { secretControlAttrs } from '../attrs.js';
+import { secretControlAttrs } from '@jini-ai/core/agent-handles';
 
 export interface SecretInputProps extends Omit<InputHTMLAttributes<HTMLInputElement>, 'type'>, SecretRevealOptional {
   readonly label: string;

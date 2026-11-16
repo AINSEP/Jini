@@ -1,6 +1,6 @@
 import { useId } from 'react';
 import type { AgentAttrsPort, AgentSpec, KitAttrs } from '../attrs.js';
-import { secretControlAttrs } from '../attrs.js';
+import { secretControlAttrs } from '@jini-ai/core/agent-handles';
 import { useKitContext } from './context.js';
 import type { BaseProps } from './types.js';
 

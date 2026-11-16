@@ -1,4 +1,4 @@
-import { agentHandleProps } from '@jini-ai/agentic';
+import { agentHandleProps } from '@jini-ai/core/agent-handles';
 import { useT } from '../../i18n/index.js';
 import { Icon } from '../../../react/components/Icon.js';
 import { useConnectorSearchBar } from './ConnectorSearchBar.hooks.js';

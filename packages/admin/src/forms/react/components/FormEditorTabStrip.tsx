@@ -1,6 +1,6 @@
 import { useFormTabStripView } from "../hooks/forms-view.hooks.js";
 import type * as React from 'react';
-import { agentHandle } from '@jini-ai/agentic';
+import { agentHandle } from '@jini-ai/core/agent-handles';
 
 export function FormEditorTabStrip(props: {
   showTabs: boolean;

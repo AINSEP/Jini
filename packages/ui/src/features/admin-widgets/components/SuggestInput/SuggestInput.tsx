@@ -1,6 +1,6 @@
 import { useAgentHandle } from '../../../../react/hooks/useAgentHandle.js';
 import { useRef, type KeyboardEvent } from 'react';
-import { agentHandle } from '@jini-ai/agentic';
+import { agentHandle } from '@jini-ai/core/agent-handles';
 import { useScrollHighlightedIntoView, useSuggestInput, useSuggestOptionIds } from './SuggestInput.hooks.js';
 
 /**

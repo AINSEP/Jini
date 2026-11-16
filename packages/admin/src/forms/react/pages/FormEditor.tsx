@@ -1,4 +1,4 @@
-import { agentHandle } from '@jini-ai/agentic';
+import { agentHandle } from '@jini-ai/core/agent-handles';
 import { ConfirmDialog } from '../../../react/components/ConfirmDialog/ConfirmDialog.js';
 import { useWiredFormEditor } from "../hooks/use-form-editor.hooks.js";
 import { FormEditorFieldsBody } from "../components/FormEditorFieldsBody.js";

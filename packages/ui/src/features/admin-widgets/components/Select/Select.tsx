@@ -2,8 +2,7 @@ import { useOverlayContainer } from '@jini-ai/ui-kit/react';
 import { useAgentHandle } from '../../../../react/hooks/useAgentHandle.js';
 import { resolveSelectPortalContainer, resolveSelectOriginPage } from '../../../../react/components/select-popover.js';
 import { createPortal } from "react-dom";
-import { agentHandle } from "@jini-ai/agentic";
-import { agentHandleSegment } from "@jini-ai/agentic";
+import { agentHandle, agentHandleSegment } from "@jini-ai/core/agent-handles";
 
 import { Fragment } from "react";
 import { useSelectDropdown, useSelectOptionRef, groupHeadingAt, type PanelPosition, type SelectOption } from "./Select.hooks.js";

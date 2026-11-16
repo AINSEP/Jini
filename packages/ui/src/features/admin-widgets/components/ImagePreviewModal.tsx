@@ -1,5 +1,5 @@
 import { useAgentHandle } from '../../../react/hooks/useAgentHandle.js';
-import { agentHandle } from "@jini-ai/agentic";
+import { agentHandle } from "@jini-ai/core/agent-handles";
 
 import { Lightbox } from "./Lightbox/Lightbox.js";
 import type { useLightbox } from "./Lightbox/Lightbox.hooks.js";

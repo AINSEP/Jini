@@ -1,4 +1,4 @@
-import { agentHandleProps } from '@jini-ai/agentic';
+import { agentHandleProps } from '@jini-ai/core/agent-handles';
 import type { SkillDraft, SkillDraftError } from '../../types.js';
 import { useT } from '../../../i18n/index.js';
 import { resolveSkillDraftFormLabels, skillDraftErrorText, skillDraftSubmitLabel } from './SkillDraftForm.labels.js';

@@ -1,5 +1,5 @@
 import { ConfirmDialog } from '../../../react/components/ConfirmDialog/ConfirmDialog.js';
-import { agentHandle } from '@jini-ai/agentic';
+import { agentHandle } from '@jini-ai/core/agent-handles';
 import { useWiredFormSubmissionDetail } from '../hooks/use-form-submission-detail.hooks.js';
 import { useFormSubmissionDate } from '../hooks/use-form-submission-date.hooks.js';
 import { FormSubmissionDate } from "./FormSubmissionDate.js";

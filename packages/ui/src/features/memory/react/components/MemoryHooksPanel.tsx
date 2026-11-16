@@ -12,7 +12,7 @@
 // toggle callbacks. Folded into this slice from OD's separate
 // `components/MemoryHooksPanel.tsx` (single consumer, `MemoryHowPanel`) — see
 // `archived UI source map`.
-import { agentHandleProps } from '@jini-ai/agentic';
+import { agentHandleProps } from '@jini-ai/core/agent-handles';
 import { Icon, type IconName } from '../../../../react/components/Icon.js';
 import { useT } from '../../../i18n/index.js';
 

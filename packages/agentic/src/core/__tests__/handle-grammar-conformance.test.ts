@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { isValidElementHandle } from '../element-handles.js';
+import { isValidElementHandle } from '@jini-ai/core/agent-handles';
 
 /**
  * REF-004 — the `data-agent-element` handle grammar is declared in two packages.

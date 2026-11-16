@@ -1,4 +1,4 @@
-import { agentSubHandle } from '@jini-ai/agentic';
+import { agentSubHandle } from '@jini-ai/core/agent-handles';
 import { useT } from '../i18n/index.js';
 import {
   DEFAULT_PROVIDER_TABS,

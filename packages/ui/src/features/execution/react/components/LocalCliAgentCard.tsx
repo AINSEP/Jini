@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { agentHandleProps } from '@jini-ai/agentic';
+import { agentHandleProps } from '@jini-ai/core/agent-handles';
 import { useT } from '../../../i18n/index.js';
 import { DEFAULT_AGENT_DESCRIPTIONS } from '../../constants.js';
 import { agentMetaLabel, agentModelSummary } from '../../rules.js';

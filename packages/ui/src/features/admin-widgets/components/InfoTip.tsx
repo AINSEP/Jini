@@ -1,7 +1,7 @@
 import { useAgentHandle } from '../../../react/hooks/useAgentHandle.js';
 import { useId, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { agentHandle } from "@jini-ai/agentic";
+import { agentHandle } from "@jini-ai/core/agent-handles";
 
 import { useInfoTip, type InfoTipController } from "./InfoTip.hooks.js";
 import { infoTipBubbleStyle, infoTipLines } from "./InfoTip.rules.js";

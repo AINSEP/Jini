@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import * as HtmlEditor from '../index.js';
-import { hasAttributeOnAnyNodeShape } from '../dom.js';
+import { hasAttributeOnAnyNodeShape } from '@jini-ai/core/primitives';
 import { prettifyCss } from '../css.js';
 import { detectEditorBlocks, findEditorBlockOpening, prepareEditorSource } from '../editor-blocks.js';
 import { EditorSourceError, isEditorSourceError, protectTextAncestors, registerProtectedElementType } from '../protected-elements.js';

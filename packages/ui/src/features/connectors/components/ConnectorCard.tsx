@@ -1,5 +1,5 @@
 import type { SyntheticEvent } from 'react';
-import { agentHandleProps } from '@jini-ai/agentic';
+import { agentHandleProps } from '@jini-ai/core/agent-handles';
 import { useT } from '../../i18n/index.js';
 import { connectorActionFlags, getConnectorDisplayToolCount, statusLabel, toolsBadgeTranslation } from '../rules.js';
 import type { Connector, ConnectorAction, ConnectorActionFlags, ConnectorAuthorizationPending } from '../types.js';

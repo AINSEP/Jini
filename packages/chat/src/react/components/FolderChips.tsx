@@ -1,4 +1,4 @@
-import { agentHandleProps, agentHandleSegment } from '@jini-ai/agentic';
+import { agentHandleProps, agentHandleSegment } from '@jini-ai/core/agent-handles';
 import { useT } from '../hooks/context.js';
 import { CopyMessageButton } from './CopyMessageButton.js';
 import { Icon } from './Icon.js';

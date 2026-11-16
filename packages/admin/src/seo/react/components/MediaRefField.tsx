@@ -1,4 +1,4 @@
-import { agentHandle } from "@jini-ai/agentic";
+import { agentHandle } from "@jini-ai/core/agent-handles";
 
 import { MediaPickerBridge } from "./MediaPickerBridge.js";
 import { useSeoCopy } from "../hooks/SeoPorts.hooks.js";

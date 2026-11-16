@@ -6,7 +6,7 @@
 // `@jini-ai/chat`'s `./react` subpath (formerly this package's own `./chat` export, extracted
 // 2026-08-03)/this package's own `./renderers` subpath — see `archived UI source map`)
 // — just enough to render a saved memory's plain-text/Markdown body safely.
-import { agentHandleProps } from '@jini-ai/agentic';
+import { agentHandleProps } from '@jini-ai/core/agent-handles';
 import { Icon } from '../../../../react/components/Icon.js';
 import { useT } from '../../../i18n/index.js';
 import { renderMarkdown } from '../render-markdown.js';

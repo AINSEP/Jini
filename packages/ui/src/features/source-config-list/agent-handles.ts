@@ -38,7 +38,8 @@
  * cannot collide with the add form's `<base>-add` handle. See {@link sourceConfigItemHandles} for
  * why cards are keyed by id rather than list position.
  */
-import { agentHandle, buildAgentListHandles, type AgentElementRole, type AgentHandleProps } from '@jini-ai/agentic';
+import { agentHandle, buildAgentListHandles } from '@jini-ai/core/agent-handles';
+import type { AgentElementRole, AgentHandleProps } from '@jini-ai/core/agent-handles';
 import { trimChars } from '../../utils/trim-chars.js';
 
 /** Segments of a derived handle: `<base>-field-<key>` and `<base>-<action>` share one joiner. */

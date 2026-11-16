@@ -2,7 +2,7 @@
 import { useT } from '../hooks/context.js';
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard.js';
 import { Icon } from './Icon.js';
-import { agentHandleProps } from '@jini-ai/agentic';
+import { agentHandleProps } from '@jini-ai/core/agent-handles';
 
 interface CopyMessageButtonProps {
   /** Inherited control identity; ordinary message-copy buttons remain opt-in. */

@@ -3,7 +3,7 @@ import { FormProviderSettings } from "./FormProviderSettings.js";
 import type { AdminFormProviderSelection } from "../../../core/ports/forms.js";
 import { useFormFieldsBodyView } from "../hooks/forms-view.hooks.js";
 import type { AdminFormDefinition, AdminFormField } from '../../models.js';
-import { agentHandle } from '@jini-ai/agentic';
+import { agentHandle } from '@jini-ai/core/agent-handles';
 import { FormEditorActions, FormEditorModeSwitch } from "./FormEditorFieldsBodyParts.js";
 export interface FormEditorFieldsBodyProps {
   providers?: readonly FormProviderDescription[] | undefined;

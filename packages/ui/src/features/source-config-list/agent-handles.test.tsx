@@ -1,7 +1,7 @@
 import { render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { AGENT_ELEMENT_ATTRIBUTE, isValidElementHandle } from '@jini-ai/agentic';
+import { AGENT_ELEMENT_ATTRIBUTE, isValidElementHandle } from '@jini-ai/core/agent-handles';
 import {
   sourceConfigActionHandle,
   sourceConfigAddFormHandle,

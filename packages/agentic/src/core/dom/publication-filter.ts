@@ -1,5 +1,6 @@
 import type { PagePublication, PublishedPageElement } from '../page-publication.js';
-import { findFieldReadRefusal, type FieldDescriptor } from '../guards.js';
+import { findFieldReadRefusal } from '../guards.js';
+import type { FieldDescriptor } from '@jini-ai/core/agent-handles';
 
 const EXCLUDED = '[hidden], [inert], [aria-hidden="true"], [data-agent-private], [data-agent-personalized], dialog:not([open]), script, style, template, noscript';
 /** Rendering/private checks include ancestors, even where checkVisibility is unavailable. */

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { resolveSelectOriginPage } from '../../../../react/components/select-popover.js';
-import { agentHandleProps, agentHandleSegment } from '@jini-ai/agentic';
+import { agentHandleProps, agentHandleSegment } from '@jini-ai/core/agent-handles';
 import { useAgentHandle, type AgentControlProps } from '../../../../react/hooks/useAgentHandle.js';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './select.js';
 

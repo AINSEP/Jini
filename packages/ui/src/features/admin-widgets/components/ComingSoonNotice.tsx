@@ -1,4 +1,4 @@
-import { agentHandle as handleProps } from '@jini-ai/agentic';
+import { agentHandle as handleProps } from '@jini-ai/core/agent-handles';
 
 export interface ComingSoonNoticeProps {
   kicker: string;

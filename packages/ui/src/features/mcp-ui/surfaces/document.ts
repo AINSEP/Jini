@@ -13,7 +13,12 @@ export type { SurfaceStatusText } from '@jini-ai/core/contracts/cards';
  * builders because the CSS that styles them lives here — splitting the markup from the only
  * stylesheet that can reach it is how a "generic" fragment quietly becomes unstyled in one caller.
  */
-import { AGENT_ELEMENT_ATTRIBUTE, AGENT_LABEL_ATTRIBUTE, AGENT_PRIVATE_ATTRIBUTE, AGENT_ROLE_ATTRIBUTE } from '@jini-ai/agentic';
+import {
+  AGENT_ELEMENT_ATTRIBUTE,
+  AGENT_LABEL_ATTRIBUTE,
+  AGENT_PRIVATE_ATTRIBUTE,
+  AGENT_ROLE_ATTRIBUTE,
+} from '@jini-ai/core/agent-handles';
 import { escapeHtml } from '../escape.js';
 import { SURFACE_BRIDGE_GLOBAL, renderBridgeScript, type BridgeScriptSpec } from './bridge.js';
 import { renderTokenBlock, type SurfaceTokenName } from './tokens.js';

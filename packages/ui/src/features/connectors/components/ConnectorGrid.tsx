@@ -1,4 +1,4 @@
-import { agentHandleProps, buildAgentListHandles } from '@jini-ai/agentic';
+import { agentHandleProps, buildAgentListHandles } from '@jini-ai/core/agent-handles';
 import { useT } from '../../i18n/index.js';
 import type { Connector, ConnectorAction, ConnectorAuthorizationPendingState } from '../types.js';
 import { ConnectorCard } from './ConnectorCard.js';

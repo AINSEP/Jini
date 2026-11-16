@@ -8,12 +8,14 @@ import {
   PAGE_CAPABILITIES,
   executePageCapability,
   projectElementState,
-  type AgentElementDescriptor,
-  type AgentElementRawState,
-  type FieldDescriptor,
   type FindElementsResult,
   type PageDriver,
 } from '../index.js';
+import type {
+  AgentElementDescriptor,
+  AgentElementRawState,
+  FieldDescriptor,
+} from '@jini-ai/core/agent-handles';
 
 const ELEMENTS: AgentElementDescriptor[] = [
   { handle: 'add-task-button', role: 'button', label: 'Submit the new task', labelTruncated: false, page: 'sunday-list' },

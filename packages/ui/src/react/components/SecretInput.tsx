@@ -1,6 +1,6 @@
 import { forwardRef } from 'react';
 import { SecretInput as KitSecretInput } from '@jini-ai/ui-kit/react';
-import { secretControlAttrs } from '@jini-ai/ui-kit';
+import { secretControlAttrs } from '@jini-ai/core/agent-handles';
 import type { CSSProperties, InputHTMLAttributes, TextareaHTMLAttributes } from 'react';
 import { useT } from '../../features/i18n/index.js';
 import { Icon } from './Icon.js';

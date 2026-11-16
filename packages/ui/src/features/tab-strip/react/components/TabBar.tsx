@@ -1,6 +1,6 @@
 import { TabStripFrame } from "./TabStripFrame.js";
 import type { ReactNode } from "react";
-import { agentHandle } from "@jini-ai/agentic";
+import { agentHandle } from "@jini-ai/core/agent-handles";
 import { resolveTabBarTabIndex, tabHandleProps, useActiveTabInView, useTabBarKeyboard } from "./TabBar.hooks.js";
 
 /**

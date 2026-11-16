@@ -1,4 +1,4 @@
-import { agentHandleProps } from '@jini-ai/agentic';
+import { agentHandleProps } from '@jini-ai/core/agent-handles';
 import { useT } from '../../../i18n/index.js';
 import type { McpIntegrationsPort } from '../../ports.js';
 import { useCodexInstallToggle, type CodexInstallToggleController } from '../hooks/useCodexInstallToggle.js';

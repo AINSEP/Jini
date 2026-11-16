@@ -1,4 +1,4 @@
-import { buildAgentListHandles } from '@jini-ai/agentic';
+import { buildAgentListHandles } from '@jini-ai/core/agent-handles';
 import type { LocalCliAgentListProps } from './LocalCliAgentList.js';
 import { LocalCliAgentCard } from './LocalCliAgentCard.js';
 import type { DetectedAgent } from '../../types.js';

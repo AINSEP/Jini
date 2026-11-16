@@ -2,7 +2,7 @@ import { useFieldAttributesView } from "../hooks/forms-view.hooks.js";
 import type { AdminFormField } from '../../models.js';
 import { Dialog } from '@jini-ai/ui-kit/react';
 import { InfoTip } from '@jini-ai/ui/admin-widgets';
-import { agentHandle } from '@jini-ai/agentic';
+import { agentHandle } from '@jini-ai/core/agent-handles';
 import { ATTRIBUTE_NAME_SUGGESTIONS } from '../../rules.js';
 import { useFieldAttributesDialog } from '../hooks/use-field-attributes-dialog.hooks.js';
 import { FieldSettingsSection } from './FieldSettingsSection.js';

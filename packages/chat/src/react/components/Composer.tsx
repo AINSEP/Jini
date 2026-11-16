@@ -19,7 +19,7 @@ import {
   type RefObject,
 } from 'react';
 import { RemixIcon, useAgentHandle } from '@jini-ai/ui';
-import { agentHandleProps, agentHandleSegment } from '@jini-ai/agentic';
+import { agentHandleProps, agentHandleSegment } from '@jini-ai/core/agent-handles';
 import { useT } from '../hooks/context.js';
 import { AttachmentTray } from './AttachmentTray.js';
 import type { UseComposerResult } from '../hooks/useComposer.js';

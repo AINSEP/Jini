@@ -1,8 +1,7 @@
 import { useId, type Dispatch, type FormEvent, type SetStateAction } from "react";
 import type { AdminIdentityUser, AdminPolicy, AdminRole } from "../models.js";
 import { RowMenu, ConfirmDialog } from "@jini-ai/admin/react";
-import { agentHandle } from "@jini-ai/agentic";
-import { buildAgentListHandles } from "@jini-ai/ui/panel-kit";
+import { agentHandle, buildAgentListHandles } from "@jini-ai/core/agent-handles";
 
 import { grantOptionLabel, type UserAccountCapabilities } from "./rules.js";
 import { UserGrantCells, UserNameCell, UserStatusCell, userRowMenuItemsFor } from "./UserRowParts.js";

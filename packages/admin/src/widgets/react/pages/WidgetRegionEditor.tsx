@@ -1,7 +1,7 @@
 import { useWidgetRegionEditorView } from '../hooks/page-views.hooks.js';
 import { useWidgetsOptions } from '../hooks/WidgetsPorts.hooks.js';
 
-import { agentHandle } from "@jini-ai/agentic";
+import { agentHandle } from "@jini-ai/core/agent-handles";
 import { useWiredWidgetRegionEditor } from "../hooks/use-widget-region-editor.hooks.js";
 import { widgetTypeLabel } from "../../rules.js";
 

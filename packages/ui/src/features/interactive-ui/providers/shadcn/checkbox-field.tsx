@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import { agentHandleProps } from '@jini-ai/agentic';
+import { agentHandleProps } from '@jini-ai/core/agent-handles';
 import { useAgentHandle, type AgentControlProps } from '../../../../react/hooks/useAgentHandle.js';
 import { Checkbox } from './checkbox.js';
 import { Label } from './label.js';

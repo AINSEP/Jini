@@ -1,4 +1,4 @@
-import { agentHandleSegment } from '@jini-ai/agentic';
+import { agentHandleSegment } from '@jini-ai/core/agent-handles';
 import type { CustomSelectOption, CustomSelectOptionButton } from './CustomSelect.js';
 
 /** Render listbox choices with their current selection and activation state. */

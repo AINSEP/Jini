@@ -1,5 +1,5 @@
 import type { CommentsTranslator } from '../../messages.en.js';
-import { agentHandle } from '@jini-ai/agentic';
+import { agentHandle } from '@jini-ai/core/agent-handles';
 import { useWiredCommentSettings } from '../hooks/use-comment-settings.hooks.js';
 import { useSettingsSection } from '../hooks/SettingsSection.hooks.js';
 

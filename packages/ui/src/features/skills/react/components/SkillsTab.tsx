@@ -1,4 +1,8 @@
-import { agentHandleProps, agentSubHandle, buildAgentListHandles } from '@jini-ai/agentic';
+import {
+  agentHandleProps,
+  agentSubHandle,
+  buildAgentListHandles,
+} from '@jini-ai/core/agent-handles';
 import type { SkillsPort } from '../../ports.js';
 import { humanizeSkillCategory } from '../../rules.js';
 import { useT } from '../../../i18n/index.js';

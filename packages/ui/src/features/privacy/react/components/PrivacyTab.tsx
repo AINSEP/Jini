@@ -1,4 +1,4 @@
-import { agentHandleProps, agentSubHandle } from '@jini-ai/agentic';
+import { agentHandleProps, agentSubHandle } from '@jini-ai/core/agent-handles';
 import { useT } from '../../../i18n/index.js';
 import { Icon } from '../../../../react/components/Icon.js';
 import {

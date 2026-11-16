@@ -3,7 +3,11 @@
 // visible extraction rows). Rendering only — every list, count, and handler is
 // supplied by a host's entries/extractions hooks.
 import { useMemo, type MutableRefObject } from 'react';
-import { agentHandleProps, agentSubHandle, buildAgentListHandles } from '@jini-ai/agentic';
+import {
+  agentHandleProps,
+  agentSubHandle,
+  buildAgentListHandles,
+} from '@jini-ai/core/agent-handles';
 import { Icon } from '../../../../react/components/Icon.js';
 import { useT } from '../../../i18n/index.js';
 import { TYPES } from '../../constants.js';

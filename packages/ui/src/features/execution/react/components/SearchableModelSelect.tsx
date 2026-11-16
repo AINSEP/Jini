@@ -1,4 +1,4 @@
-import { agentHandleProps } from '@jini-ai/agentic';
+import { agentHandleProps } from '@jini-ai/core/agent-handles';
 import { useAgentHandle, type AgentControlProps } from '../../../../react/hooks/useAgentHandle.js';
 import type { AgentModelOption } from '../../types.js';
 import { CustomSelect } from '../../../../react/components/CustomSelect.js';

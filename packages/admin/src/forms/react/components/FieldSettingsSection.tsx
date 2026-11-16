@@ -1,4 +1,4 @@
-import { agentHandle } from '@jini-ai/agentic';
+import { agentHandle } from '@jini-ai/core/agent-handles';
 import type { AdminFormField } from '../../models.js';
 import { useFieldSettingsView } from '../hooks/forms-view.hooks.js';
 import { FieldSettingsDefaultRows, FieldSettingsLimitRows, FieldSettingsOptionsRow, FieldSettingsTextRows, FieldSettingsUploadRows } from './FieldSettingsRows.js';

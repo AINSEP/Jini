@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { RemixIcon, infoTipBubbleStyle, useInfoTip, useAgentHandle } from '@jini-ai/ui';
 
-import { agentHandleProps, agentHandleSegment } from '@jini-ai/agentic';
+import { agentHandleProps, agentHandleSegment } from '@jini-ai/core/agent-handles';
 import { createRuntimeDropUpTipHandler, useRuntimeDropUp, type UseRuntimeDropUpResult } from '../hooks/useRuntimeDropUp.hooks.js';
 
 export interface RuntimeDropUpProps {
