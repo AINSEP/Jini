@@ -392,44 +392,119 @@ export function mergeAsyncOperationPatch(
   };
 }
 
+type OperationRows = Map<string, AsyncOperationRecord>;
+
+function createRow(input: RequiredArgs<AsyncOperationCreateInput> & OptionalArgs<AsyncOperationCreateInput>, now: number): AsyncOperationRecord {
+  return {
+    schemaVersion: ASYNC_OPERATION_SCHEMA_VERSION,
+    id: input.id,
+    providerId: input.providerId,
+    routeKey: input.routeKey,
+    ownerRef: input.ownerRef,
+    status: input.status ?? 'submitted',
+    attempts: 0,
+    maxAttempts: input.maxAttempts,
+    deadlineAt: input.deadlineAt,
+    nextPollAt: input.nextPollAt ?? now,
+    leaseOwner: null,
+    leaseExpiresAt: null,
+    state: cloneState(input.state ?? null),
+    result: null,
+    error: null,
+    createdAt: now,
+    updatedAt: now,
+  };
+}
+
+function createOperation(rows: OperationRows, required: RequiredArgs<AsyncOperationCreateInput>, optional: OptionalArgs<AsyncOperationCreateInput>): AsyncOperationRecord {
+  const input = { ...required, ...optional };
+  if (rows.has(input.id)) {
+    throw new Error(`async operation "${input.id}" already exists`);
+  }
+  assertValidCreateInput({ input });
+
+  const row = createRow(input, Date.now());
+  rows.set(row.id, row);
+  return cloneRecord(row);
+}
+
+function updateOperation(rows: OperationRows, { id, patch }: { id: string; patch: AsyncOperationPatch }, options: AsyncOperationUpdateOptions | undefined): AsyncOperationRecord | null {
+  const existing = rows.get(id);
+  if (!existing) return null;
+  // Fenced, like releaseLease: a caller writing against a lease it no longer holds gets a
+  // no-op, not an overwrite of whoever holds (or now holds none of) it.
+  if (isFencedOut({ existing, options })) return cloneRecord(existing);
+  const merged = mergeAsyncOperationPatch({ existing, patch }, { now: Date.now() });
+  // Store a private copy of `state` so the caller's patch object never aliases the row.
+  const next: AsyncOperationRecord = { ...merged, state: cloneState(merged.state) };
+  rows.set(id, next);
+  return cloneRecord(next);
+}
+
+function claimDueOperations(rows: OperationRows, options: AsyncOperationClaimOptions): AsyncOperationRecord[] {
+  const { now, leaseOwner, leaseMs } = options;
+  const limit = options.limit ?? 10;
+  const claimed: AsyncOperationRecord[] = [];
+
+  // A live lease held by anyone (including this worker's previous tick) blocks the claim;
+  // an expired one does not, which is what makes a dead worker's rows recoverable.
+  const blocked = (row: AsyncOperationRecord): boolean =>
+    TERMINAL_STATUSES.has(row.status) || row.nextPollAt > now || (row.leaseExpiresAt !== null && row.leaseExpiresAt > now);
+  for (const row of [...rows.values()].sort((a, b) => a.nextPollAt - b.nextPollAt).filter((each) => !blocked(each))) {
+    if (claimed.length >= limit) break;
+
+    const leased: AsyncOperationRecord = {
+      ...row,
+      leaseOwner,
+      leaseExpiresAt: now + leaseMs,
+      updatedAt: now,
+    };
+    rows.set(row.id, leased);
+    claimed.push(cloneRecord(leased));
+  }
+  return claimed;
+}
+
+function reconcileOperationsOnBoot(rows: OperationRows, { now }: { now: number }): AsyncOperationReconcileResult {
+  let leasesReleased = 0;
+  let deadlineExpired = 0;
+
+  for (const row of [...rows.values()].filter((each) => !TERMINAL_STATUSES.has(each.status))) {
+    if (row.deadlineAt <= now) {
+      rows.set(row.id, {
+        ...row,
+        status: 'unknown',
+        leaseOwner: null,
+        leaseExpiresAt: null,
+        error: {
+          message: 'async operation passed its absolute deadline while unattended — vendor-side effect is undetermined',
+          code: 'DEADLINE_EXPIRED',
+        },
+        updatedAt: now,
+      });
+      deadlineExpired += 1;
+      continue;
+    }
+
+    if (row.leaseOwner !== null && (row.leaseExpiresAt === null || row.leaseExpiresAt <= now)) {
+      rows.set(row.id, { ...row, leaseOwner: null, leaseExpiresAt: null, updatedAt: now });
+      leasesReleased += 1;
+    }
+  }
+  return { leasesReleased, deadlineExpired };
+}
+
 /**
  * Creates the in-memory reference `AsyncOperationStore`. No persistence — a durable adapter
  * implements the same interface; every method here is written so the equivalent SQL is a direct
  * translation (`claimDue` in particular is a single conditional UPDATE ... RETURNING).
  */
 export function createInMemoryAsyncOperationStore(): AsyncOperationStore {
-  const rows = new Map<string, AsyncOperationRecord>();
+  const rows: OperationRows = new Map();
 
   return {
     async create(required: RequiredArgs<AsyncOperationCreateInput>, optional: OptionalArgs<AsyncOperationCreateInput> = {}): Promise<AsyncOperationRecord> {
-      const input = { ...required, ...optional };
-      if (rows.has(input.id)) {
-        throw new Error(`async operation "${input.id}" already exists`);
-      }
-      assertValidCreateInput({ input });
-
-      const now = Date.now();
-      const row: AsyncOperationRecord = {
-        schemaVersion: ASYNC_OPERATION_SCHEMA_VERSION,
-        id: input.id,
-        providerId: input.providerId,
-        routeKey: input.routeKey,
-        ownerRef: input.ownerRef,
-        status: input.status ?? 'submitted',
-        attempts: 0,
-        maxAttempts: input.maxAttempts,
-        deadlineAt: input.deadlineAt,
-        nextPollAt: input.nextPollAt ?? now,
-        leaseOwner: null,
-        leaseExpiresAt: null,
-        state: cloneState(input.state ?? null),
-        result: null,
-        error: null,
-        createdAt: now,
-        updatedAt: now,
-      };
-      rows.set(row.id, row);
-      return cloneRecord(row);
+      return createOperation(rows, required, optional);
     },
 
     async get({ id }: { id: string }): Promise<AsyncOperationRecord | null> {
@@ -437,17 +512,8 @@ export function createInMemoryAsyncOperationStore(): AsyncOperationStore {
       return row ? cloneRecord(row) : null;
     },
 
-    async update({ id, patch }: { id: string; patch: AsyncOperationPatch } , { options }: { options?: AsyncOperationUpdateOptions | undefined } = {}): Promise<AsyncOperationRecord | null> {
-      const existing = rows.get(id);
-      if (!existing) return null;
-      // Fenced, like releaseLease: a caller writing against a lease it no longer holds gets a
-      // no-op, not an overwrite of whoever holds (or now holds none of) it.
-      if (isFencedOut({ existing, options })) return cloneRecord(existing);
-      const merged = mergeAsyncOperationPatch({ existing, patch }, { now: Date.now() });
-      // Store a private copy of `state` so the caller's patch object never aliases the row.
-      const next: AsyncOperationRecord = { ...merged, state: cloneState(merged.state) };
-      rows.set(id, next);
-      return cloneRecord(next);
+    async update(required: { id: string; patch: AsyncOperationPatch }, { options }: { options?: AsyncOperationUpdateOptions | undefined } = {}): Promise<AsyncOperationRecord | null> {
+      return updateOperation(rows, required, options);
     },
 
     async listByOwner({ ownerRef }: { ownerRef: string }): Promise<AsyncOperationRecord[]> {
@@ -458,28 +524,7 @@ export function createInMemoryAsyncOperationStore(): AsyncOperationStore {
     },
 
     async claimDue(required: RequiredArgs<AsyncOperationClaimOptions>, optional: OptionalArgs<AsyncOperationClaimOptions> = {}): Promise<AsyncOperationRecord[]> {
-      const options = { ...required, ...optional };
-      const { now, leaseOwner, leaseMs } = options;
-      const limit = options.limit ?? 10;
-      const claimed: AsyncOperationRecord[] = [];
-
-      // A live lease held by anyone (including this worker's previous tick) blocks the claim;
-      // an expired one does not, which is what makes a dead worker's rows recoverable.
-      const blocked = (row: AsyncOperationRecord): boolean =>
-        TERMINAL_STATUSES.has(row.status) || row.nextPollAt > now || (row.leaseExpiresAt !== null && row.leaseExpiresAt > now);
-      for (const row of [...rows.values()].sort((a, b) => a.nextPollAt - b.nextPollAt).filter((each) => !blocked(each))) {
-        if (claimed.length >= limit) break;
-
-        const leased: AsyncOperationRecord = {
-          ...row,
-          leaseOwner,
-          leaseExpiresAt: now + leaseMs,
-          updatedAt: now,
-        };
-        rows.set(row.id, leased);
-        claimed.push(cloneRecord(leased));
-      }
-      return claimed;
+      return claimDueOperations(rows, { ...required, ...optional });
     },
 
     async releaseLease({ id, leaseOwner }: { id: string; leaseOwner: string }): Promise<void> {
@@ -492,33 +537,7 @@ export function createInMemoryAsyncOperationStore(): AsyncOperationStore {
     },
 
     async reconcileOnBoot(options: { now: number }): Promise<AsyncOperationReconcileResult> {
-      const { now } = options;
-      let leasesReleased = 0;
-      let deadlineExpired = 0;
-
-      for (const row of [...rows.values()].filter((each) => !TERMINAL_STATUSES.has(each.status))) {
-        if (row.deadlineAt <= now) {
-          rows.set(row.id, {
-            ...row,
-            status: 'unknown',
-            leaseOwner: null,
-            leaseExpiresAt: null,
-            error: {
-              message: 'async operation passed its absolute deadline while unattended — vendor-side effect is undetermined',
-              code: 'DEADLINE_EXPIRED',
-            },
-            updatedAt: now,
-          });
-          deadlineExpired += 1;
-          continue;
-        }
-
-        if (row.leaseOwner !== null && (row.leaseExpiresAt === null || row.leaseExpiresAt <= now)) {
-          rows.set(row.id, { ...row, leaseOwner: null, leaseExpiresAt: null, updatedAt: now });
-          leasesReleased += 1;
-        }
-      }
-      return { leasesReleased, deadlineExpired };
+      return reconcileOperationsOnBoot(rows, options);
     },
   };
 }
