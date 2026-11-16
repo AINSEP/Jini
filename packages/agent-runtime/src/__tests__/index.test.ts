@@ -31,16 +31,17 @@ describe('@jini-ai/agent-runtime root barrel', () => {
     expect(pkgBarrel.detectAcpModels).not.toBe(pkgBarrel.probeAcpModels);
     expect(typeof pkgBarrel.probeAcpModels).toBe('function');
 
-    // `parsePiModels` (pi-models.ts, the standalone copy with real internal
-    // consumers) and `parsePiRpcModels` (agent-protocol/pi-rpc's own copy of
-    // the identical OD origin function) are two independently-ported
-    // functions kept under two different names.
+    // `parsePiRpcModels` is the agent-protocol/pi-rpc name for the SAME function as `parsePiModels`
+    // (pi-models.ts): the two ported copies were deduplicated into one implementation, so the
+    // alias must stay the single implementation rather than drift into a second copy.
     expect(typeof pkgBarrel.parsePiModels).toBe('function');
     expect(typeof pkgBarrel.parsePiRpcModels).toBe('function');
-    expect(pkgBarrel.parsePiModels).not.toBe(pkgBarrel.parsePiRpcModels);
-    // Both are verified-identical ports of the same origin function, so
-    // they must still agree on behavior for the same input.
+    expect(pkgBarrel.parsePiRpcModels).toBe(pkgBarrel.parsePiModels);
     const stdout = 'provider model\nopenai gpt-5\nanthropic claude\n';
-    expect(pkgBarrel.parsePiModels({ stdout })).toEqual(pkgBarrel.parsePiRpcModels({ stdout }));
+    expect(pkgBarrel.parsePiRpcModels({ stdout })).toEqual([
+      { id: 'default', label: 'Default (CLI config)' },
+      { id: 'openai/gpt-5', label: 'openai/gpt-5' },
+      { id: 'anthropic/claude', label: 'anthropic/claude' },
+    ]);
   });
 });
