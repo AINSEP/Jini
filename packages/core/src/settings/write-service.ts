@@ -642,6 +642,82 @@ export interface RenameDefinitionRequired {
   };
 }
 
+type RenameInput = RenameDefinitionRequired["input"];
+type ActiveDefinition = Awaited<ReturnType<typeof resolveActiveDefinitionOrThrow>>;
+
+/** Retarget every prior alias marker pointing at the OLD name so it follows the definition to the NEW name. */
+async function retargetAliasMarkers(
+  { deps, input, now }: { deps: SettingsWriteServiceDeps; input: RenameInput; now: string },
+): Promise<void> {
+  const siblings = await deps.repo.listActiveDefinitions({ workspaceId: input.workspaceId });
+  for (const sibling of siblings) {
+    if (
+      sibling.status === "alias" &&
+      sibling.aliasOfNamespace === input.namespace &&
+      sibling.aliasOfKey === input.key
+    ) {
+      await deps.repo.saveDefinition({
+        ...sibling,
+        aliasOfNamespace: input.newNamespace,
+        aliasOfKey: input.newKey,
+        updatedAt: now,
+      });
+    }
+  }
+}
+
+/** One transaction body: move the row to the new name, retarget old markers, leave a fresh alias marker, ledger it. */
+async function moveDefinitionBehindAlias(
+  { deps, input, current }: { deps: SettingsWriteServiceDeps; input: RenameInput; current: ActiveDefinition },
+): Promise<{ settingId: string; markerSettingId: string }> {
+  const now = kernelNowIso({ clock: deps.clock });
+
+  // Step 1: move the active row to the new name -- same setting_id, same version.
+  await deps.repo.saveDefinition({ ...current, namespace: input.newNamespace, key: input.newKey, updatedAt: now });
+
+  await retargetAliasMarkers({ deps, input, now });
+
+  // Step 2: insert a fresh v1 alias marker at the OLD name pointing at the NEW name.
+  const markerSettingId = deps.ids.newId();
+  await deps.repo.saveDefinition({
+    settingId: markerSettingId,
+    version: 1,
+    workspaceId: input.workspaceId,
+    namespace: input.namespace,
+    key: input.key,
+    ownerKind: current.ownerKind,
+    ownerId: current.ownerId,
+    schema: current.schema,
+    defaultValue: current.defaultValue,
+    scopes: current.scopes,
+    secret: current.secret,
+    status: "alias",
+    aliasOfNamespace: input.newNamespace,
+    aliasOfKey: input.newKey,
+    coercionTag: null,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  await deps.repo.appendRevision({
+    entityKind: "definition",
+    settingId: current.settingId,
+    scope: null,
+    workspaceId: input.workspaceId,
+    principalId: null,
+    op: "alias",
+    beforeJson: null,
+    afterJson: null,
+    defVersion: current.version,
+    actor: input.callerPrincipalId,
+    originPluginId: null,
+    changeSetId: null,
+    createdAt: now,
+  });
+
+  return { settingId: current.settingId, markerSettingId };
+}
+
 /**
  * The rename mechanism : a same-tx pair —
  * (1) UPDATE the active definition row's `(namespace,key)` to the new name,
@@ -693,69 +769,7 @@ export async function renameDefinition(
     );
   }
 
-  const result = await deps.repo.transaction(async () => {
-    const now = kernelNowIso({ clock: deps.clock });
-
-    // Step 1: move the active row to the new name -- same setting_id, same version.
-    await deps.repo.saveDefinition({ ...current, namespace: input.newNamespace, key: input.newKey, updatedAt: now });
-
-    // Sequential rename: retarget every prior marker pointing at the OLD name to the NEW name.
-    const siblings = await deps.repo.listActiveDefinitions({ workspaceId: input.workspaceId });
-    for (const sibling of siblings) {
-      if (
-        sibling.status === "alias" &&
-        sibling.aliasOfNamespace === input.namespace &&
-        sibling.aliasOfKey === input.key
-      ) {
-        await deps.repo.saveDefinition({
-          ...sibling,
-          aliasOfNamespace: input.newNamespace,
-          aliasOfKey: input.newKey,
-          updatedAt: now,
-        });
-      }
-    }
-
-    // Step 2: insert a fresh v1 alias marker at the OLD name pointing at the NEW name.
-    const markerSettingId = deps.ids.newId();
-    await deps.repo.saveDefinition({
-      settingId: markerSettingId,
-      version: 1,
-      workspaceId: input.workspaceId,
-      namespace: input.namespace,
-      key: input.key,
-      ownerKind: current.ownerKind,
-      ownerId: current.ownerId,
-      schema: current.schema,
-      defaultValue: current.defaultValue,
-      scopes: current.scopes,
-      secret: current.secret,
-      status: "alias",
-      aliasOfNamespace: input.newNamespace,
-      aliasOfKey: input.newKey,
-      coercionTag: null,
-      createdAt: now,
-      updatedAt: now,
-    });
-
-    await deps.repo.appendRevision({
-      entityKind: "definition",
-      settingId: current.settingId,
-      scope: null,
-      workspaceId: input.workspaceId,
-      principalId: null,
-      op: "alias",
-      beforeJson: null,
-      afterJson: null,
-      defVersion: current.version,
-      actor: input.callerPrincipalId,
-      originPluginId: null,
-      changeSetId: null,
-      createdAt: now,
-    });
-
-    return { settingId: current.settingId, markerSettingId };
-  });
+  const result = await deps.repo.transaction(() => moveDefinitionBehindAlias({ deps, input, current }));
 
   // Both the old (alias-marker) namespace and the new (active-row) namespace
   // need a fresh definition-cache read after a rename.
