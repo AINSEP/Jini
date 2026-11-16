@@ -98,6 +98,7 @@ fetcher and provenance check. Normalized `url` input requires a provider and nev
 | `./a2ui` | The real A2UI v1.0 wire types and a minimal client-side interpreter (`common-types`, `agent-to-renderer`, `renderer-to-agent`, `catalog`, `json-pointer`, `resolve`, `tree`, `interpreter`) — zero DOM dependency. | none |
 | `./skills/install` | Bounded bundle validation, source/archive import, installation/state, explicit layout and live-registration factories. | Node runtime; injected filesystem, YAML, archive, source, IDs and tool-source ports |
 | `./skills/install/node` | `createNodeSkillFilesystem({})`, a bounded no-follow filesystem adapter. | Node runtime |
+| `./skills/tools` | `loadInstalledSkillToolSources`, `buildSkillToolRegistrations`, `skillToolDerivedRisk`: installed skills as one tool each, with host-injected frontmatter reader, file reader, enable check and report. | Node runtime; requires `@jini-ai/core` |
 
 ## What's swappable
 
