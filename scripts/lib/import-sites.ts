@@ -6,6 +6,7 @@
  * only what the injection rules need beyond loads: `import('…')` types and JSDoc type imports.
  */
 import ts from 'typescript';
+import { syntaxError } from '../../packages/devops/src/checks/hardwiring.js';
 import { runtimeImportReferences, type RuntimeImportRef } from '../../packages/devops/src/packaging/electron/typescript.js';
 import { parseSource } from './package-sources.js';
 
@@ -43,8 +44,11 @@ function jsdocSites(required: { source: string; known: readonly ImportSite[] }):
   return found;
 }
 
+/** Fails closed: a file the parser cannot read throws instead of reporting no imports. */
 export function importSites(required: { file: string; source: string }, { jsdoc = false }: { jsdoc?: boolean } = {}): ImportSite[] {
   const ast = parseSource(required);
+  const failure = syntaxError({ tree: ast, file: required.file });
+  if (failure) throw failure;
   const loads = runtimeImportReferences({ compiler: ts, ...required }, { tree: ast })
     .map(ref => ({ spec: ref.specifier, kind: kindOf(ref), line: ref.line }));
   const sites = [...loads, ...importTypeSites(ast)].sort((a, b) => a.line - b.line);

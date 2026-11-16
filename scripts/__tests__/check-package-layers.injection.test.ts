@@ -69,6 +69,12 @@ describe('L5-injected-edge', () => {
     expect(gate().filter(line => line.startsWith(L5))).toEqual([`${L5} packages/daemon/src/a.ts`, `${L5} packages/daemon/src/a.ts`, `${L5} packages/daemon/src/a.ts`]);
   });
 
+  it('fails closed on a malformed plugin payload instead of reporting no imports', () => {
+    manifest('agent-plugins', { dependencies: { '@jini-ai/core': '*' } });
+    put('packages/agent-plugins/foo/bad.mjs', "import { d } from '@jini-ai/devops/deploy'\nexport const = d;");
+    expect(() => gate()).toThrow(/Cannot parse .*bad\.mjs: syntax error at line 2/);
+  });
+
   it('fails a manifest peer declaration', () => {
     manifest('daemon', { peerDependencies: { '@jini-ai/platform': '*' } });
     expect(gate()).toEqual([`${L5} packages/daemon/package.json`]);
@@ -234,6 +240,10 @@ describe('helpers', () => {
     expect(kinds).toEqual(['node:module:import', 'x10:require', 'x8:dynamic', 'x9:require']);
   });
 
+  it('fails closed on a file it cannot parse', () => {
+    expect(() => importSites({ file: 'bad.ts', source: "import { a } from '@jini-ai/platform';\nexport const = ;" }))
+      .toThrow(/Cannot parse bad\.ts: syntax error at line 2/);
+  });
 });
 
 describe('the real workspace baseline', () => {
