@@ -5,9 +5,9 @@ Window: 03:58 to about 04:04 UTC 2026-11-16. Both branches are cut from origin/r
 | # | Slice | Result | Jini SHA | Tovu SHA | START / END |
 |---|---|---|---|---|---|
 | 1 | delete-postgres DL-postgres-1 | DONE | none (Tovu only) | 54421a74 | 03:59:02 / 03:59:27 |
-| 2 | split-commands MV-commands-1 | DONE | see `git log` on this branch: "feat(plugins): runPluginIntegrityCommand ..." | e42acbec | 03:59:40 / 04:00:00 |
-| 3 | move-kernel MV-kernel-1 | DONE | see log: "feat(db): stopped-SQLite admission ..." | 4e69539c | 04:00:07 / 04:00:40 |
-| 4 | split-web DL-web-1 | DONE | see log: "test(platform): pin htmlToText ..." | f931ce45 | 04:00:47 / 04:01:01 |
+| 2 | split-commands MV-commands-1 | DONE | cc16cee1 | e42acbec | 03:59:40 / 04:00:00 |
+| 3 | move-kernel MV-kernel-1 | DONE | 0c6b6f9b | 4e69539c | 04:00:07 / 04:00:40 |
+| 4 | split-web DL-web-1 | DONE | f0cf14bb | f931ce45 | 04:00:47 / 04:01:01 |
 
 Every blob guard, census and reach check matched the sheets. Slice 2 uses T-MOVE; the task text said T-SPLIT, but the sheet itself names T-MOVE, so I used that.
 
