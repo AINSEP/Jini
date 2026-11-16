@@ -47,7 +47,7 @@ export type { SurfaceOutcomeSpec } from '@jini-ai/core/contracts/cards';
  * cancel action answers the caller's existing exchange without confirming an operation or
  * navigating. Ordinary completed outcomes retain their read-only contract.
  */
-import { createUIResource, type UIResource, type UIResourceUri } from '../resource.js';
+import { createUIResource, type UIResource, type UIResourceUri } from '@jini-ai/protocol/mcp-ui';
 import { escapeHtml, escapeJsValue } from '../escape.js';
 import {
   DEFAULT_SURFACE_STATUS_TEXT,

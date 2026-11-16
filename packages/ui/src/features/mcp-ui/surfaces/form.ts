@@ -25,7 +25,7 @@ export type { FormSurfaceSpec } from '@jini-ai/core/contracts/cards';
  * conversion at the only point that knows it: `number` becomes a number or `null` when blank,
  * `boolean` reads `checked`, and `string`/`enum` pass through.
  */
-import { createUIResource, type UIResource, type UIResourceUri } from '../resource.js';
+import { createUIResource, type UIResource, type UIResourceUri } from '@jini-ai/protocol/mcp-ui';
 import { escapeHtml, escapeJsValue } from '../escape.js';
 import {
   DEFAULT_SURFACE_STATUS_TEXT,

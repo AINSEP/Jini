@@ -11,7 +11,7 @@
  * Chat outcomes belong here; generic capability vocabulary belongs to @jini-ai/agentic so
  * non-chat consumers can use it independently of chat.
  */
-import type { CapabilityDef } from '@jini-ai/agentic';
+import type { CapabilityDef } from '@jini-ai/core/contracts/capabilities';
 
 /** The bounded, explicit set of chat-pane capabilities every transport surface hosts. */
 export const CHAT_CAPABILITIES: readonly CapabilityDef[] = [

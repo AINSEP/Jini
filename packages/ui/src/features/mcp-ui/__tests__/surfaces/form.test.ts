@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createHash } from 'node:crypto';
 import { buildFormSurface, renderFormDocument, type FormSurfaceSpec } from '../../surfaces/form.js';
-import { MCP_UI_PREFERRED_FRAME_SIZE_META_KEY } from '../../resource.js';
+import { MCP_UI_PREFERRED_FRAME_SIZE_META_KEY } from '@jini-ai/protocol/mcp-ui';
 import { SURFACE_NOT_PENDING_ERROR_CODE } from '../../surfaces/document.js';
 import { mountSurface } from './mount-surface.js';
 

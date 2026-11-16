@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { buildOutcomeSurface, renderOutcomeDocument } from '../../surfaces/outcome.js';
-import { MCP_UI_ACTION_PLAN_META_KEY } from '../../resource.js';
+import { MCP_UI_ACTION_PLAN_META_KEY } from '@jini-ai/protocol/mcp-ui';
 import { mountSurface } from './mount-surface.js';
 
 const spec = {

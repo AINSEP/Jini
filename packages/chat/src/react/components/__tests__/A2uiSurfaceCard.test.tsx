@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { createLabCatalog } from '@jini-ai/agentic/a2ui';
+import { createLabCatalog } from '@jini-ai/protocol/a2ui';
 import { A2uiSurfaceCard } from '../A2uiSurfaceCard.js';
 
 // A package test supplies its own clock port; the system clock lives in the platform package.

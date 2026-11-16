@@ -1,5 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { createA2uiInterpreter, createLabCatalog, type A2uiInterpreter } from '@jini-ai/agentic/a2ui';
+import {
+  createA2uiInterpreter,
+  createLabCatalog,
+  type A2uiInterpreter,
+} from '@jini-ai/protocol/a2ui';
 import type { Clock } from '@jini-ai/core/primitives';
 import { buildA2uiCatalogFromRegistry } from '@jini-ai/ui/a2ui';
 import type { InteractiveUiRegistry } from '@jini-ai/ui/interactive-ui';

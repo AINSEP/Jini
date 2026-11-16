@@ -1,4 +1,9 @@
-import { createLabCatalog, parseAgentToRendererMessage, type AgentToRendererMessage, type RendererToAgentMessage } from '@jini-ai/agentic/a2ui';
+import {
+  createLabCatalog,
+  parseAgentToRendererMessage,
+  type AgentToRendererMessage,
+  type RendererToAgentMessage,
+} from '@jini-ai/protocol/a2ui';
 import type { RunLifecycle } from '@jini-ai/daemon';
 import type { RunAgentPayload } from '@jini-ai/protocol';
 

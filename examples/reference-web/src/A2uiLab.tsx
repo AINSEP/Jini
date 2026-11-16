@@ -3,7 +3,12 @@ import { createSystemClock } from "@jini-ai/platform/system";
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
 import { FETCH_TIMEOUT_MS } from '@jini-ai/core/net';
-import { createA2uiInterpreter, createLabCatalog, DynamicValueSchema, type A2uiInterpreter } from '@jini-ai/agentic/a2ui';
+import { DynamicValueSchema } from '@jini-ai/agentic/a2ui';
+import {
+  createA2uiInterpreter,
+  createLabCatalog,
+  type A2uiInterpreter,
+} from '@jini-ai/protocol/a2ui';
 import { A2uiSurfaceCard, registerExtEventRenderer } from '@jini-ai/chat/react';
 
 /**
