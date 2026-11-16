@@ -57,37 +57,33 @@ export interface UseMentionAutocompleteResult<T extends MentionItem> {
   closeMention: () => void;
 }
 
-/**
- * Owns a mention-enabled textarea's trigger-detection state (which `@token`
- * is currently in progress), the active category tab, the filtered/grouped
- * results, the multi-select "context chips" set (add on pick, remove on
- * chip click — the vendored picker's `selectedSkillIds`/`selectedPluginIds`/
- * etc. arrays, generalized to one `T[]` list keyed by `category:id`), and
- * the splice-in-a-token pick flow (including restoring focus+cursor to the
- * textarea after a pick, since the picker itself never takes focus — it's
- * driven by `onMouseDown`/`preventDefault` the same way the vendored picker
- * was).
- *
- * Deliberately i18n-free (returns plain data only) — see this package's
- * i18n policy on why a hook shouldn't thread `useT()` through effect/callback
- * dependencies. The presentational layer translates category labels itself.
- */
-export function useMentionAutocomplete<T extends MentionItem>({
-  value,
-  onValueChange,
-  items,
-  categories,
-  onSelectionChange,
-  triggerChar = DEFAULT_TRIGGER_CHAR,
-  getSearchText,
-  maxResultsPerCategory = DEFAULT_MAX_RESULTS_PER_CATEGORY,
-}: UseMentionAutocompleteParams<T>): UseMentionAutocompleteResult<T> {
-  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-  const containerRef = useRef<HTMLDivElement | null>(null);
-  const [mention, setMention] = useState<MentionTriggerMatch | null>(null);
-  const [activeCategory, setActiveCategory] = useState<MentionCategoryFilter>('all');
-  const [selectedItems, setSelectedItems] = useState<T[]>([]);
+/** Re-focus the textarea and place the cursor after a pick (the picker never takes focus). */
+function restoreTextareaCursor(textarea: HTMLTextAreaElement | null, cursor: number) {
+  requestAnimationFrame(() => {
+    if (!textarea) return;
+    textarea.focus();
+    textarea.setSelectionRange(cursor, cursor);
+  });
+}
 
+type MentionSetter = (next: MentionTriggerMatch | null) => void;
+
+interface TextareaHandlersParams {
+  textareaRef: RefObject<HTMLTextAreaElement | null>;
+  mention: MentionTriggerMatch | null;
+  setMention: MentionSetter;
+  triggerChar: string;
+  onValueChange: (next: string) => void;
+}
+
+/** Trigger-detection handlers for the mention-enabled textarea. */
+function useMentionTextareaHandlers({
+  textareaRef,
+  mention,
+  setMention,
+  triggerChar,
+  onValueChange,
+}: TextareaHandlersParams) {
   const refreshFromTextarea = () => {
     const textarea = textareaRef.current;
     if (!textarea) return;
@@ -117,16 +113,16 @@ export function useMentionAutocomplete<T extends MentionItem>({
     refreshFromTextarea();
   };
 
-  const closeMention = () => setMention(null);
+  return { refreshFromTextarea, onTextareaChange, onTextareaKeyDown, onTextareaKeyUp };
+}
 
-  useDismissOnOutsideOrEscape({ onDismiss: closeMention }, { enabled: mention !== null, containerRef });
+/** The multi-select "context chips" set: add on pick, remove on chip click. */
+function useMentionSelection<T extends MentionItem>(
+  onSelectionChange: ((selected: T[]) => void) | undefined,
+) {
+  const [selectedItems, setSelectedItems] = useState<T[]>([]);
 
-  const pickItem = (item: T) => {
-    const token = buildMentionToken(item.label, triggerChar);
-    const textarea = textareaRef.current;
-    const { nextValue, cursor } = insertMentionToken(value, mention, token);
-    onValueChange(nextValue);
-    setMention(null);
+  const addItem = (item: T) => {
     setSelectedItems((current) => {
       if (current.some((existing) => mentionSelectionKey(existing.category, existing.id) === mentionSelectionKey(item.category, item.id))) {
         return current;
@@ -134,11 +130,6 @@ export function useMentionAutocomplete<T extends MentionItem>({
       const next = [...current, item];
       onSelectionChange?.(next);
       return next;
-    });
-    requestAnimationFrame(() => {
-      if (!textarea) return;
-      textarea.focus();
-      textarea.setSelectionRange(cursor, cursor);
     });
   };
 
@@ -151,7 +142,32 @@ export function useMentionAutocomplete<T extends MentionItem>({
     });
   };
 
-  const query = (mention?.query ?? '').trim();
+  const selectedKeys = useMemo(
+    () => new Set(selectedItems.map((item) => mentionSelectionKey(item.category, item.id))),
+    [selectedItems],
+  );
+
+  return { selectedItems, selectedKeys, addItem, removeItem };
+}
+
+interface MentionResultsParams<T extends MentionItem> {
+  items: T[];
+  categories: MentionCategory[];
+  activeCategory: MentionCategoryFilter;
+  query: string;
+  getSearchText: ((item: T) => string) | undefined;
+  maxResultsPerCategory: number;
+}
+
+/** Filtered + per-category-grouped results for the active query. */
+function useMentionResults<T extends MentionItem>({
+  items,
+  categories,
+  activeCategory,
+  query,
+  getSearchText,
+  maxResultsPerCategory,
+}: MentionResultsParams<T>) {
   // Filter the full candidate set first (uncapped — `items.length` as the
   // cap is a no-op ceiling), then let `groupItemsByCategory` apply the
   // per-category cap independently, matching the vendored picker's
@@ -161,14 +177,58 @@ export function useMentionAutocomplete<T extends MentionItem>({
     () => filterMentionItems(items, query, getSearchText, items.length),
     [items, query, getSearchText],
   );
-  const groups = useMemo(
+  return useMemo(
     () => groupItemsByCategory(filteredItems, categories, activeCategory, maxResultsPerCategory),
     [filteredItems, categories, activeCategory, maxResultsPerCategory],
   );
-  const selectedKeys = useMemo(
-    () => new Set(selectedItems.map((item) => mentionSelectionKey(item.category, item.id))),
-    [selectedItems],
-  );
+}
+
+/**
+ * Owns a mention-enabled textarea's trigger-detection state (which `@token`
+ * is currently in progress), the active category tab, the filtered/grouped
+ * results, the multi-select "context chips" set (add on pick, remove on
+ * chip click — the vendored picker's `selectedSkillIds`/`selectedPluginIds`/
+ * etc. arrays, generalized to one `T[]` list keyed by `category:id`), and
+ * the splice-in-a-token pick flow (including restoring focus+cursor to the
+ * textarea after a pick, since the picker itself never takes focus — it's
+ * driven by `onMouseDown`/`preventDefault` the same way the vendored picker
+ * was).
+ *
+ * Deliberately i18n-free (returns plain data only) — see this package's
+ * i18n policy on why a hook shouldn't thread `useT()` through effect/callback
+ * dependencies. The presentational layer translates category labels itself.
+ */
+export function useMentionAutocomplete<T extends MentionItem>({
+  value,
+  onValueChange,
+  items,
+  categories,
+  onSelectionChange,
+  triggerChar = DEFAULT_TRIGGER_CHAR,
+  getSearchText,
+  maxResultsPerCategory = DEFAULT_MAX_RESULTS_PER_CATEGORY,
+}: UseMentionAutocompleteParams<T>): UseMentionAutocompleteResult<T> {
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const [mention, setMention] = useState<MentionTriggerMatch | null>(null);
+  const [activeCategory, setActiveCategory] = useState<MentionCategoryFilter>('all');
+  const { selectedItems, selectedKeys, addItem, removeItem } = useMentionSelection(onSelectionChange);
+  const handlers = useMentionTextareaHandlers({ textareaRef, mention, setMention, triggerChar, onValueChange });
+
+  const closeMention = () => setMention(null);
+
+  useDismissOnOutsideOrEscape({ onDismiss: closeMention }, { enabled: mention !== null, containerRef });
+
+  const pickItem = (item: T) => {
+    const { nextValue, cursor } = insertMentionToken(value, mention, buildMentionToken(item.label, triggerChar));
+    onValueChange(nextValue);
+    setMention(null);
+    addItem(item);
+    restoreTextareaCursor(textareaRef.current, cursor);
+  };
+
+  const query = (mention?.query ?? '').trim();
+  const groups = useMentionResults({ items, categories, activeCategory, query, getSearchText, maxResultsPerCategory });
 
   return {
     textareaRef,
@@ -182,11 +242,11 @@ export function useMentionAutocomplete<T extends MentionItem>({
     hasResults: hasAnyResults(groups),
     selectedItems,
     selectedKeys,
-    onTextareaChange,
-    onTextareaClick: refreshFromTextarea,
-    onTextareaKeyUp,
+    onTextareaChange: handlers.onTextareaChange,
+    onTextareaClick: handlers.refreshFromTextarea,
+    onTextareaKeyUp: handlers.onTextareaKeyUp,
     onTextareaFocus: closeMention,
-    onTextareaKeyDown,
+    onTextareaKeyDown: handlers.onTextareaKeyDown,
     pickItem,
     removeItem,
     closeMention,
