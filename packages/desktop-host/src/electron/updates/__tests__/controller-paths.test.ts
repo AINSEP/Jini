@@ -47,11 +47,19 @@ it('logs a failed prompt, a failed check and a failed presence write with the de
   native.emitter.emit('update-downloaded', { version: '9.0.0' });
   await new Promise(resolve => setImmediate(resolve));
   expect(h.logs).toEqual([
-    'auto-update: presence write failed: disk full',
-    'auto-update: check failed: offline',
+    'auto-update: presence write failed: Error',
+    'auto-update: check failed: Error',
     'auto-update: 9.0.0 downloaded',
-    'auto-update: prompt failed: dismissed',
+    'auto-update: prompt failed: string',
   ]);
+});
+
+it('logs only the error class for a failed check, never its message or stack', () => {
+  const native = nativeUpdater(() => { throw new Error('boom api_key=SECRETSECRETSECRETSECRET'); });
+  const h = host(native.updater);
+  h.controller.tick();
+  expect(h.logs).toEqual(['auto-update: check failed: Error']);
+  for (const text of ['boom', 'SECRETSECRET', 'controller-paths']) expect(h.logs.join('\n')).not.toContain(text);
 });
 
 it('ignores downloads, errors, restart clicks and a second quit once it has quit', () => {

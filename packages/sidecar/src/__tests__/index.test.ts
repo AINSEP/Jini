@@ -689,7 +689,8 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
       await rm(root, { force: true, recursive: true });
     }
     expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
-    expect(String(consoleErrorSpy.mock.calls[0]![1])).toContain("/secret/internal/path");
+    expect(consoleErrorSpy.mock.calls[0]?.[1]).toBe("Error");
+    expect(JSON.stringify(consoleErrorSpy.mock.calls)).not.toContain("/secret/internal/path");
     consoleErrorSpy.mockRestore();
   });
 
@@ -708,7 +709,7 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
       await rm(root, { force: true, recursive: true });
     }
     expect(consoleErrorSpy).toHaveBeenCalledTimes(1);
-    expect(String(consoleErrorSpy.mock.calls[0]![1])).toContain("raw string failure");
+    expect(consoleErrorSpy.mock.calls[0]?.[1]).toBe("string");
     consoleErrorSpy.mockRestore();
   });
 
@@ -773,7 +774,7 @@ describe("@jini-ai/sidecar — JSON IPC", () => {
       await server.close();
       await rm(root, { force: true, recursive: true });
     }
-    expect(String(consoleErrorSpy.mock.calls[0]![1])).toContain("not found: /etc/shadow");
+    expect(consoleErrorSpy.mock.calls[0]?.[1]).toBe("Error(ENOENT)");
     consoleErrorSpy.mockRestore();
   });
 

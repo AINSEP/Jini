@@ -77,7 +77,7 @@ it('P18: releases the final quit immediately and cancels the fallback when insta
     native.downloaded('2');
     expect(host.controller.beforeFinalQuit()).toBe(false);
     expect(vi.getTimerCount()).toBe(0);
-    expect(host.logs).toContain('auto-update: sync install');
+    expect(host.logs).toContain('auto-update: Error');
   } finally {
     host.controller.willQuit();
   }

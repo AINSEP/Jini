@@ -175,7 +175,7 @@ describe("polling", () => {
     await h.open(timings);
     h.feed.collect.mockRejectedValueOnce(new Error("boom"));
     h.scheduled.get(POLL)!(); await settle();
-    expect(spy).toHaveBeenCalledWith("[settings] change feed poll failed", expect.stringContaining("Error: boom"));
+    expect(spy).toHaveBeenCalledWith("[settings] change feed poll failed", "Error");
 
     const t = harness();
     await t.open({ ...timings, onError: () => { throw new Error("reporter broke"); } });
@@ -284,7 +284,7 @@ describe("closing", () => {
 });
 
 // Exception-log class: a backend failure must retain diagnostics without disclosing credentials.
-it('redacts a failed settings poll before the default console reporter', async () => {
+it('prints only the error class for a failed settings poll on the default console reporter', async () => {
   const secret = 'ghp_' + 's'.repeat(36);
   const h = harness();
   const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -292,7 +292,8 @@ it('redacts a failed settings poll before the default console reporter', async (
   try {
     h.feed.collect.mockRejectedValueOnce(new Error(`backend failed ${secret}`));
     h.scheduled.get(POLL)!(); await settle();
-    expect(spy).toHaveBeenCalledWith('[settings] change feed poll failed', expect.stringContaining('Error: backend failed [REDACTED:github_token]'));
+    expect(spy).toHaveBeenCalledWith('[settings] change feed poll failed', 'Error');
+    for (const text of ['backend failed', 'settings-stream.test']) expect(JSON.stringify(spy.mock.calls)).not.toContain(text);
     expect(String(spy.mock.calls[0]?.[1])).not.toContain(secret);
   } finally { close(); }
 });

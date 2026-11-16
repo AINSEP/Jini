@@ -34,7 +34,7 @@ test('a throwing resolver or an invalid policy falls back to the default policy 
     const f = fixture([row('evt', 6)]);
     f.bus.publish.mockRejectedValueOnce(new Error('offline'));
     await processOutbox(f.args, { retryPolicyForEvent: resolver });
-    expect(f.outbox.markFailed).toHaveBeenCalledWith({ id: 'evt', error: 'offline', nextAttemptAt: at(480_000), nextStatus: 'failed' });
+    expect(f.outbox.markFailed).toHaveBeenCalledWith({ id: 'evt', error: 'Error', nextAttemptAt: at(480_000), nextStatus: 'failed' });
     expect(f.logger.error).toHaveBeenCalledWith({
       message: '[outbox-worker] the retry policy for outbox event "demo.event" (evt) failed; using the default policy for this row',
     }, { error: expect.any(Error) });
@@ -53,7 +53,7 @@ test('a custom policy governs the over-cap seal, the timeout status and the late
     nextAttemptAt: at(30 * 60 * 1000), nextStatus: 'pending' });
   held.reject(new Error('late failure'));
   await vi.advanceTimersByTimeAsync(0);
-  expect(f.outbox.markFailed).toHaveBeenLastCalledWith({ id: 'held', error: 'late failure', nextAttemptAt: at(1_000), nextStatus: 'pending' });
+  expect(f.outbox.markFailed).toHaveBeenLastCalledWith({ id: 'held', error: 'Error', nextAttemptAt: at(1_000), nextStatus: 'pending' });
 });
 
 test('the drainer keeps the resolver through its resolved options', async () => {
@@ -63,7 +63,7 @@ test('the drainer keeps the resolver through its resolved options', async () => 
   f.bus.publish.mockRejectedValueOnce(new Error('offline'));
   const drainer = startOutboxDrainer(f.args, { retryPolicyForEvent: () => ({ maxAttempts: 12, backoffMs: () => 1_000 }) });
   await vi.advanceTimersByTimeAsync(0);
-  expect(f.outbox.markFailed).toHaveBeenCalledWith({ id: 'evt', error: 'offline', nextAttemptAt: at(1_000), nextStatus: 'pending' });
+  expect(f.outbox.markFailed).toHaveBeenCalledWith({ id: 'evt', error: 'Error', nextAttemptAt: at(1_000), nextStatus: 'pending' });
   await drainer.stop();
 });
 
@@ -81,7 +81,7 @@ test.each([
   const f = fixture([row('evt', 6)]);
   f.bus.publish.mockRejectedValueOnce(new Error('offline'));
   await processOutbox(f.args, { retryPolicyForEvent: resolver });
-  expect(f.outbox.markFailed).toHaveBeenCalledWith({ id: 'evt', error: 'offline', nextAttemptAt: at(480_000), nextStatus: 'failed' });
+  expect(f.outbox.markFailed).toHaveBeenCalledWith({ id: 'evt', error: 'Error', nextAttemptAt: at(480_000), nextStatus: 'failed' });
   expect(f.logger.error).toHaveBeenCalledWith(policyFailure('evt'), { error: expect.any(Error) });
 });
 
@@ -115,5 +115,5 @@ test('a timeout is judged by the cap only, while the late outcome is judged by t
   expect(f.outbox.markFailed).toHaveBeenLastCalledWith(expect.objectContaining({ id: 'held', nextStatus: 'pending' }));
   held.reject(new Error('late failure'));
   await vi.advanceTimersByTimeAsync(0);
-  expect(f.outbox.markFailed).toHaveBeenLastCalledWith({ id: 'held', error: 'late failure', nextAttemptAt: at(1_000), nextStatus: 'failed' });
+  expect(f.outbox.markFailed).toHaveBeenLastCalledWith({ id: 'held', error: 'Error', nextAttemptAt: at(1_000), nextStatus: 'failed' });
 });

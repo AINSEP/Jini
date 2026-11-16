@@ -69,7 +69,7 @@ beforeEach(() => {
 });
 
 describe('http adapter', () => {
-  it('redacts inspected config headers and quoted credentials while retaining stack, code and correlation', async () => {
+  it('prints only class, code and correlation for an error carrying config headers and quoted credentials', async () => {
     const failure = Object.assign(new Error('UPSTREAM_FAILED'), {
       code: 'ECONNREFUSED',
       config: { headers: { 'x-api-key': 'synthetic-opaque-value' } },
@@ -90,8 +90,8 @@ describe('http adapter', () => {
       const output = log.mock.calls.flat().map(String).join(' ');
       for (const word of ['synthetic', 'two words']) expect(output).not.toContain(word);
       expect(output).toContain('ECONNREFUSED');
-      expect(output).toContain('UPSTREAM_FAILED');
-      expect(output).toContain('adapter.test.ts:');
+      expect(output).toContain('Error(ECONNREFUSED)');
+      for (const word of ['UPSTREAM_FAILED', 'adapter.test.ts:']) expect(output).not.toContain(word);
       expect(output).toContain(body.error.requestId);
       expect(body.error.requestId).toEqual(expect.any(String));
       expect(res.status).toHaveBeenCalledWith(500);
@@ -116,11 +116,35 @@ describe('http adapter', () => {
       expect(body.error.requestId).toEqual(expect.any(String));
       const output = log.mock.calls.flat().map(String).join(' ');
       expect(output).toContain(body.error.requestId);
-      expect(output).toContain('UPSTREAM_FAILED');
-      expect(output).toContain('[REDACTED:');
+      expect(output).not.toContain('UPSTREAM_FAILED');
+      expect(output).toContain(nonError ? 'string' : 'Error(ECONNREFUSED)');
       for (const value of [secret, 'abcdefghijklmnopqrst', 'hunter2']) expect(output).not.toContain(value);
       if (!nonError) expect(output).toContain('ECONNREFUSED');
     } finally { log.mockRestore(); }
+  });
+
+  it('reports an unexpected throw through the route incident owner: class-only default line, original to the sink', async () => {
+    const failure = new Error('boom api_key=SECRETSECRETSECRETSECRET');
+    const route = defineJsonRoute<void, unknown, unknown>({ method: 'get', path: '/incident', parse: () => ok({ value: undefined }), handle: () => { throw failure; } });
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined);
+    try {
+      const app = makeApp();
+      mountJsonRoute({ app, spec: route, deps: {}, adapter });
+      const res = makeRes();
+      await app.handlers['GET /incident']?.({ body: {}, query: {}, params: {} }, res);
+      const body = res.json.mock.calls[0]?.[0] as { error: { requestId: string } };
+      expect(consoleError.mock.calls).toEqual([[`[@jini-ai/http-kit] internal error (GET /incident, correlationId=${body.error.requestId})`, 'Error']]);
+      for (const text of ['boom', 'SECRETSECRET', 'adapter.test']) expect(JSON.stringify(consoleError.mock.calls)).not.toContain(text);
+      const onInternalError = vi.fn();
+      const hosted = makeApp();
+      mountJsonRoute({ app: hosted, spec: route, deps: {}, adapter: { ...adapter, onInternalError } });
+      const hostedRes = makeRes();
+      await hosted.handlers['GET /incident']?.({ body: {}, query: {}, params: {} }, hostedRes);
+      const context = onInternalError.mock.calls[0]?.[0] as { error: unknown; logSource: string; correlationId: string };
+      expect(context.error).toBe(failure);
+      expect(context.logSource).toBe('GET /incident');
+      expect((hostedRes.json.mock.calls[0]?.[0] as { error: { requestId: string } }).error.requestId).toBe(context.correlationId);
+    } finally { consoleError.mockRestore(); }
   });
 
   it('parses input and returns the success payload', async () => {

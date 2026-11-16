@@ -1407,7 +1407,7 @@ describe('createLocalNodeDaemon', () => {
         () => {
           expect(consoleError).toHaveBeenCalledWith(
             expect.stringContaining('shutdown requested through POST /api/daemon/shutdown failed'),
-            expect.stringContaining('Error: onShutdown failed'),
+            'Error',
           );
         },
         { timeout: 2000 },

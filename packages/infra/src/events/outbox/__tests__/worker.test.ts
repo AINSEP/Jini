@@ -28,7 +28,7 @@ test.each([new Error('handler failed to execute'), 'literal string error'])('pub
   const f = fixture();
   f.bus.publish.mockRejectedValueOnce(error);
   expect(await processOutbox(f.args)).toBe(1);
-  expect(f.outbox.markFailed).toHaveBeenCalledWith({ id: 'evt-1', error: error instanceof Error ? error.message : 'unknown outbox error',
+  expect(f.outbox.markFailed).toHaveBeenCalledWith({ id: 'evt-1', error: error instanceof Error ? 'Error' : 'string',
     nextAttemptAt: '2026-02-21T12:00:15.000Z', nextStatus: 'pending' });
 });
 
@@ -36,8 +36,16 @@ test('synchronous publisher throws are captured and the next row still delivers'
   const f = fixture([row('bad'), row('good')]);
   f.bus.publish.mockImplementationOnce(() => { throw new Error('sync failure'); });
   expect(await processOutbox(f.args)).toBe(2);
-  expect(f.outbox.markFailed).toHaveBeenCalledWith(expect.objectContaining({ id: 'bad', error: 'sync failure' }));
+  expect(f.outbox.markFailed).toHaveBeenCalledWith(expect.objectContaining({ id: 'bad', error: 'Error' }));
   expect(f.outbox.markDelivered).toHaveBeenCalledWith({ id: 'good' });
+});
+
+test('a failed publish stores only the error class, never its message', async () => {
+  const f = fixture();
+  f.bus.publish.mockRejectedValueOnce(new Error('boom api_key=SECRETSECRETSECRETSECRET'));
+  await processOutbox(f.args);
+  expect(f.outbox.markFailed).toHaveBeenCalledWith(expect.objectContaining({ id: 'evt-1', error: 'Error' }));
+  for (const text of ['boom', 'SECRETSECRET']) expect(JSON.stringify(f.outbox.markFailed.mock.calls)).not.toContain(text);
 });
 
 test('MAX_OUTBOX_ATTEMPTS is six and default lease outlasts every timeout in a full batch', () => {
@@ -83,7 +91,7 @@ test('markDelivered failure falls through to the ordinary retry policy', async (
   const f = fixture();
   f.outbox.markDelivered.mockRejectedValueOnce(new Error('storage error'));
   await processOutbox(f.args);
-  expect(f.outbox.markFailed).toHaveBeenCalledWith(expect.objectContaining({ error: 'storage error', nextStatus: 'pending' }));
+  expect(f.outbox.markFailed).toHaveBeenCalledWith(expect.objectContaining({ error: 'Error', nextStatus: 'pending' }));
 });
 
 test('timeout records the lease horizon, does not block later rows, and late success writes delivered', async () => {
@@ -113,7 +121,7 @@ test('late rejection replaces a timeout with an ordinary backed-off failure', as
   await processing;
   held.reject(new Error('late handler failure'));
   await vi.advanceTimersByTimeAsync(0);
-  expect(f.outbox.markFailed).toHaveBeenLastCalledWith({ id: 'evt-1', error: 'late handler failure',
+  expect(f.outbox.markFailed).toHaveBeenLastCalledWith({ id: 'evt-1', error: 'Error',
     nextAttemptAt: '2026-02-21T12:00:15.000Z', nextStatus: 'pending' });
 });
 
