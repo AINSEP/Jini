@@ -88,41 +88,15 @@ async function loadLocations(
   }
 }
 
-/**
- * Owns the tab's async edges: the initial locations fetch, the add-folder ->
- * duplicate-check -> save -> (optional) scan sequence, and removal. Origin:
- * `ProjectLocationsSection`'s own `useState`/`useEffect` block — ported as a
- * hook rather than inline so a host can drive the same lifecycle from its own
- * tree if it ever needs to (matches `useExecutionTab`'s convention).
- *
- * The default-location id itself stays host-controlled (`defaultLocationId`/
- * `onDefaultLocationIdChange`), same "tab owns its async edges, host owns
- * cross-cutting config" split as `useExecutionTab`'s `ByokConfig`.
- */
-export function useProjectLocationsTab({
-  port,
-  defaultLocationId,
-  onDefaultLocationIdChange,
-}: UseProjectLocationsTabOptions): UseProjectLocationsTabResult {
-  const [locations, setLocations] = useState<readonly ProjectLocation[]>([]);
-  const [drafts, setDrafts] = useState<readonly ProjectLocationDraft[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [result, setResult] = useState<ProjectLocationsActionResult>({ status: 'idle' });
+/** A ref that always holds the latest render's value. */
+function useLatest<T>(value: T): { readonly current: T } {
+  const ref = useRef(value);
+  ref.current = value;
+  return ref;
+}
 
-  /** Volatile values async callbacks need at RUN time, not at schedule time —
-   *  same convention as `useSettingsSlice`'s `io.current`. */
-  const portRef = useRef(port);
-  portRef.current = port;
-  const locationsRef = useRef(locations);
-  locationsRef.current = locations;
-  const draftsRef = useRef(drafts);
-  draftsRef.current = drafts;
-  const defaultLocationIdRef = useRef(defaultLocationId);
-  defaultLocationIdRef.current = defaultLocationId;
-  const onDefaultLocationIdChangeRef = useRef(onDefaultLocationIdChange);
-  onDefaultLocationIdChangeRef.current = onDefaultLocationIdChange;
-
+/** True while mounted; async callbacks check it before publishing state. */
+function useAliveRef(): { readonly current: boolean } {
   const alive = useRef(true);
   useEffect(() => {
     alive.current = true;
@@ -130,7 +104,21 @@ export function useProjectLocationsTab({
       alive.current = false;
     };
   }, []);
+  return alive;
+}
 
+interface InitialLoadDeps {
+  port: ProjectLocationsPort;
+  portRef: { readonly current: ProjectLocationsPort };
+  alive: { readonly current: boolean };
+  setLocations: (locations: readonly ProjectLocation[]) => void;
+  setDrafts: (drafts: readonly ProjectLocationDraft[]) => void;
+  setResult: (result: ProjectLocationsActionResult) => void;
+  setLoading: (loading: boolean) => void;
+}
+
+/** Fetches the locations on mount and whenever `port` changes. */
+function useInitialLocationsLoad({ port, portRef, alive, setLocations, setDrafts, setResult, setLoading }: InitialLoadDeps) {
   useEffect(() => {
     let cancelled = false;
     void loadLocations({ port: portRef.current, isLive: () => !cancelled && alive.current, setLocations, setDrafts, setResult, setLoading });
@@ -138,6 +126,32 @@ export function useProjectLocationsTab({
       cancelled = true;
     };
   }, [port]);
+}
+
+type LiveRef<T> = { readonly current: T };
+type Setter<T> = (value: T) => void;
+
+interface PersistDeps {
+  portRef: LiveRef<ProjectLocationsPort>;
+  defaultLocationIdRef: LiveRef<string | null | undefined>;
+  onDefaultLocationIdChangeRef: LiveRef<((id: string) => void) | undefined>;
+  alive: LiveRef<boolean>;
+  setLocations: Setter<readonly ProjectLocation[]>;
+  setDrafts: Setter<readonly ProjectLocationDraft[]>;
+  setResult: Setter<ProjectLocationsActionResult>;
+}
+
+/** Saving state + the save-then-publish sequence shared by add and remove. */
+function useLocationsPersist({
+  portRef,
+  defaultLocationIdRef,
+  onDefaultLocationIdChangeRef,
+  alive,
+  setLocations,
+  setDrafts,
+  setResult,
+}: PersistDeps) {
+  const [saving, setSaving] = useState(false);
 
   const persist = useCallback(async (nextDrafts: readonly ProjectLocationDraft[]): Promise<readonly ProjectLocation[] | null> => {
     const applySaved = (saved: readonly ProjectLocation[]): readonly ProjectLocation[] => {
@@ -165,8 +179,23 @@ export function useProjectLocationsTab({
       if (alive.current) setSaving(false);
     }
     return persisted;
-  }, []);
+  }, [portRef, defaultLocationIdRef, onDefaultLocationIdChangeRef, alive, setLocations, setDrafts, setResult]);
 
+  return { saving, persist };
+}
+
+interface DraftActionsDeps {
+  persist: (drafts: readonly ProjectLocationDraft[]) => Promise<readonly ProjectLocation[] | null>;
+  portRef: LiveRef<ProjectLocationsPort>;
+  locationsRef: LiveRef<readonly ProjectLocation[]>;
+  draftsRef: LiveRef<readonly ProjectLocationDraft[]>;
+  alive: LiveRef<boolean>;
+  setDrafts: Setter<readonly ProjectLocationDraft[]>;
+  setResult: Setter<ProjectLocationsActionResult>;
+}
+
+/** Add-folder (dialog -> duplicate check -> save -> scan) and removal, both rolling back on a failed save. */
+function useDraftActions({ persist, portRef, locationsRef, draftsRef, alive, setDrafts, setResult }: DraftActionsDeps) {
   const addFolder = useCallback(() => {
     void (async () => {
       setResult({ status: 'idle' });
@@ -194,7 +223,7 @@ export function useProjectLocationsTab({
       }
       await scanAddedLocation({ port: portRef.current, alive, setResult });
     })();
-  }, [persist]);
+  }, [persist, portRef, locationsRef, draftsRef, alive, setDrafts, setResult]);
 
   const removeDraft = useCallback(
     (index: number) => {
@@ -206,8 +235,53 @@ export function useProjectLocationsTab({
         if (!saved && alive.current) setDrafts(previous);
       })();
     },
-    [persist],
+    [persist, draftsRef, alive, setDrafts],
   );
+
+  return { addFolder, removeDraft };
+}
+
+/**
+ * Owns the tab's async edges: the initial locations fetch, the add-folder ->
+ * duplicate-check -> save -> (optional) scan sequence, and removal. Origin:
+ * `ProjectLocationsSection`'s own `useState`/`useEffect` block — ported as a
+ * hook rather than inline so a host can drive the same lifecycle from its own
+ * tree if it ever needs to (matches `useExecutionTab`'s convention).
+ *
+ * The default-location id itself stays host-controlled (`defaultLocationId`/
+ * `onDefaultLocationIdChange`), same "tab owns its async edges, host owns
+ * cross-cutting config" split as `useExecutionTab`'s `ByokConfig`.
+ */
+export function useProjectLocationsTab({
+  port,
+  defaultLocationId,
+  onDefaultLocationIdChange,
+}: UseProjectLocationsTabOptions): UseProjectLocationsTabResult {
+  const [locations, setLocations] = useState<readonly ProjectLocation[]>([]);
+  const [drafts, setDrafts] = useState<readonly ProjectLocationDraft[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [result, setResult] = useState<ProjectLocationsActionResult>({ status: 'idle' });
+
+  // Volatile values async callbacks need at RUN time, not at schedule time —
+  // same convention as `useSettingsSlice`'s `io.current`.
+  const portRef = useLatest(port);
+  const locationsRef = useLatest(locations);
+  const draftsRef = useLatest(drafts);
+  const defaultLocationIdRef = useLatest(defaultLocationId);
+  const onDefaultLocationIdChangeRef = useLatest(onDefaultLocationIdChange);
+  const alive = useAliveRef();
+  useInitialLocationsLoad({ port, portRef, alive, setLocations, setDrafts, setResult, setLoading });
+
+  const { saving, persist } = useLocationsPersist({
+    portRef,
+    defaultLocationIdRef,
+    onDefaultLocationIdChangeRef,
+    alive,
+    setLocations,
+    setDrafts,
+    setResult,
+  });
+  const { addFolder, removeDraft } = useDraftActions({ persist, portRef, locationsRef, draftsRef, alive, setDrafts, setResult });
 
   const setDefaultLocationId = useCallback((id: string) => {
     setResult({ status: 'default-saved' });
