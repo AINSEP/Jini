@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useMemo, useRef } from 'react';
+import { forwardRef, useEffect, useMemo, useRef, type RefObject } from 'react';
 import type { FetchQueryAdapter, QueryResult } from '@jini-ai/core/fetch';
 import { type AdminKit, type DialogProps, type NativeDialogView, type SettlementGeneration, type ButtonProps, type IconButtonProps, type AdminKitComponents, type AdminKitHooks, type AdminThemeKit } from './kit.js';
 import { fakeMediaProviders } from './testing-kit-media-providers.js';
@@ -60,10 +60,33 @@ function useFakeNativeDialog(required: DialogProps): NativeDialogView {
   return { titleId: 'fake-title', props: { ref, onCancel: () => required.onClose({}), onClick: () => {} } };
 }
 
+const FOCUSABLE = 'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])';
+// Mirrors the real trap's contract: while active, Tab and Shift+Tab wrap at the container's first/last focusable.
+function useFakeFocusTrap({ containerRef }: { containerRef: RefObject<HTMLElement | null> }, { active = true }: { active?: boolean | undefined } = {}): void {
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!active || !container) return undefined;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Tab') return;
+      const items = Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE));
+      const edge = event.shiftKey ? items[0] : items[items.length - 1];
+      if (!edge || document.activeElement !== edge) return;
+      event.preventDefault();
+      (event.shiftKey ? items[items.length - 1] : items[0])?.focus();
+    };
+    container.addEventListener('keydown', onKeyDown);
+    return () => container.removeEventListener('keydown', onKeyDown);
+  }, [containerRef, active]);
+}
+
 const fakeHooks: AdminKitHooks = {
   useAgentHandle: (r) => (r.agentHandle === false ? undefined : r.agentHandle ?? 'fake-handle'),
-  useFocusTrap: () => {},
-  useDirtyGuard: (r) => ({ isDirty: r.original !== null && JSON.stringify(r.current) !== JSON.stringify(r.original), confirmLeave: () => true }),
+  useFocusTrap: useFakeFocusTrap,
+  useDirtyGuard: (r, o) => {
+    const isDirty = r.original !== null && JSON.stringify(r.current) !== JSON.stringify(r.original);
+    // The contract: clean (and nothing untracked) leaves freely; otherwise the operator's answer decides.
+    return { isDirty, confirmLeave: (_required = {}, { unsavedBeyondTracked = false } = {}) => (!isDirty && !unsavedBeyondTracked) || (o?.host ?? window).confirm('You have unsaved changes. Leave without saving?') };
+  },
   useSettlementGeneration: () => {
     const ref = useRef(0);
     // Stable identity across renders, like a host's: callers list it in effect deps.
