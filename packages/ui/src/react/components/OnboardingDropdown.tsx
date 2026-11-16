@@ -248,37 +248,16 @@ export interface UseOnboardingDropdownResult {
   selectOption: (option: OnboardingDropdownOption, selected: boolean) => void;
 }
 
-/**
- * All of the dropdown's behavior — open/query state, the field ref, the
- * viewport-aware placement, the click-outside/Escape dismissal, the query
- * reset on close, the single-open-at-a-time peer coordination, and the
- * select/toggle logic — with no rendering. Exported (with the pure helpers
- * above) so the logic is testable in isolation; `OnboardingDropdown` is the
- * dumb consumer.
- */
-export function useOnboardingDropdown(props: OnboardingDropdownProps): UseOnboardingDropdownResult {
-  const t = useT();
-  const {
-    placeholder,
-    value,
-    options,
-    placement = 'bottom',
-    multiple = false,
-    searchable = false,
-  } = props;
-
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState('');
-  const rootRef = useRef<HTMLDivElement | null>(null);
-  const dropdownIdRef = useRef(`onboarding-dropdown-${globalThis.crypto.getRandomValues(new Uint32Array(1))[0]!.toString(36)}`);
-
-  const { placement: resolvedPlacement, maxHeight: menuMaxHeight } = useOnboardingDropdownPlacement(
-    rootRef,
-    open,
-    placement,
-    options.length,
-  );
-
+/** Closes the open menu on an outside pointer-down or Escape. */
+function useDropdownDismiss({
+  open,
+  rootRef,
+  setOpen,
+}: {
+  open: boolean;
+  rootRef: RefObject<HTMLDivElement | null>;
+  setOpen: (open: boolean) => void;
+}) {
   useEffect(() => {
     if (!open) return undefined;
 
@@ -300,7 +279,16 @@ export function useOnboardingDropdown(props: OnboardingDropdownProps): UseOnboar
       document.removeEventListener('pointerdown', handlePointerDown);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [open]);
+  }, [open, rootRef, setOpen]);
+}
+
+/** Open/query state: dismissal (outside click / Escape), query reset on close, and single-open-at-a-time peer coordination. */
+function useDropdownOpenState(rootRef: RefObject<HTMLDivElement | null>) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState('');
+  const dropdownIdRef = useRef(`onboarding-dropdown-${globalThis.crypto.getRandomValues(new Uint32Array(1))[0]!.toString(36)}`);
+
+  useDropdownDismiss({ open, rootRef, setOpen });
 
   useEffect(() => {
     if (!open) {
@@ -334,6 +322,31 @@ export function useOnboardingDropdown(props: OnboardingDropdownProps): UseOnboar
       return nextOpen;
     });
   }, []);
+
+  return { open, setOpen, query, setQuery, toggleOpen };
+}
+
+/**
+ * All of the dropdown's behavior — open/query state, the field ref, the
+ * viewport-aware placement, the click-outside/Escape dismissal, the query
+ * reset on close, the single-open-at-a-time peer coordination, and the
+ * select/toggle logic — with no rendering. Exported (with the pure helpers
+ * above) so the logic is testable in isolation; `OnboardingDropdown` is the
+ * dumb consumer.
+ */
+export function useOnboardingDropdown(props: OnboardingDropdownProps): UseOnboardingDropdownResult {
+  const t = useT();
+  const { placeholder, value, options, placement = 'bottom', multiple = false, searchable = false } = props;
+
+  const rootRef = useRef<HTMLDivElement | null>(null);
+  const { open, setOpen, query, setQuery, toggleOpen } = useDropdownOpenState(rootRef);
+
+  const { placement: resolvedPlacement, maxHeight: menuMaxHeight } = useOnboardingDropdownPlacement(
+    rootRef,
+    open,
+    placement,
+    options.length,
+  );
 
   const selectedValues = resolveOnboardingSelectedValues(value);
   const selectedOptions = options.filter((option) => selectedValues.includes(option.value));
