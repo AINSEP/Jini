@@ -101,6 +101,12 @@ jobs:
           SIZE_FIRST_PUSH_COMMIT: ${{ github.event.commits[0].id }}
         run: pnpm check:size
 
+      - name: log safety (blocking ratchet)
+        env:
+          LOG_SAFETY_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+          LOG_SAFETY_FIRST_PUSH_COMMIT: ${{ github.event.commits[0].id }}
+        run: pnpm check:log-safety
+
       - name: SonarJS (report-only; counts per rule)
         if: ${{ !cancelled() }}
         run: pnpm quality:sonar
