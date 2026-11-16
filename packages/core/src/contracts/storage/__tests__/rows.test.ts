@@ -1,6 +1,6 @@
 /** C2 unchanged pure helpers from the old public db/core surface. */
 import { expect, it } from 'vitest';
-import { parseJsonOrUndef, row, rows } from '../../core/row-values.js';
+import { parseJsonOrUndef, row, rows } from '../rows.js';
 it('tolerates invalid JSON while retaining every valid JSON value',()=>{
   for(const value of [undefined,null,42,{},'', '{bad']) expect(parseJsonOrUndef(value)).toBeUndefined();
   for(const value of [null,false,0,'',[],{nested:[1,'x']}]) expect(parseJsonOrUndef(JSON.stringify(value))).toEqual(value);

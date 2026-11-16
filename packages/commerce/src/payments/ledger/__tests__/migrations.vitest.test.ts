@@ -12,17 +12,33 @@ import { PAYMENTS_LEDGER_ID, paymentsLedger } from "../migrations/0001_payments_
 import { PAYMENTS_OPERATOR_ACTIONS_ID } from "../migrations/0002_payments_operator_actions.js";
 import { PAYMENTS_ATTEMPT_RECOVERY_ID } from "../migrations/0004_payments_attempt_recovery.js";
 import { PAYMENTS_INTENT_REPLAY_ID } from "../migrations/0005_payments_intent_replay.js";
-import { COMMERCE_PAYMENTS_MIGRATION_CHECKSUMS } from "../migrations/checksums.js";
+import { COMMERCE_PAYMENTS_MIGRATION_CHECKSUMS, COMMERCE_PAYMENTS_SOURCE_DIGESTS } from "../migrations/checksums.js";
 import { LEDGER_INTEGER_COLUMNS, LEDGER_TABLE_RULES, LEDGER_TABLES } from "../rows.js";
 import { sqlPaymentsLedger } from "../repo.sql.js";
 import { payment } from "./ledger-contract.js";
 
 /**
  * @file Holds the payments ledger's migration history immutable (ADR-066 §3) and proves it applies:
- * every step's pinned checksum equals the one derived from its source (comments removed,
+ * every step's source digest (the edit guard) equals the one derived from its source (comments removed,
  * whitespace collapsed), so editing a shipped step goes red here instead of differing silently
- * between databases. `UPDATE_COMMERCE_PAYMENTS_CHECKSUMS=1` pins NEW ids only.
+ * between databases. The ledger checksums are what databases recorded and are asserted as literals.
+ * `UPDATE_COMMERCE_PAYMENTS_CHECKSUMS=1` pins NEW ids only, into both maps.
  */
+
+/** The ledger identity: what shipped databases recorded. Never changes. */
+const LEDGER_CHECKSUM_LITERALS: Readonly<Record<string, string>> = {
+  "0001_payments_ledger": "484498a844675099a2cd1b6ddcaba4e2b0f2293597b4c4a8be81458bc9424749",
+  "0002_payments_operator_actions": "b25706b7606c5e9be93eba63ae2a415cf81212307e06bf511f158a14701aa74d",
+  "0004_payments_attempt_recovery": "902fb1230f456c3420e64c2093cbdbc0ab18ee65184febdc777c76a0574bbe4c",
+  "0005_payments_intent_replay": "7d49e170dbe7f7b89befc1bcc0d02429e0bbc6f169b3c7c597469038b15bbbac",
+};
+
+/** Appends `lines` before the closing brace of the exported map named `name`. */
+function appendToMap(text: string, name: string, lines: string): string {
+  const start = text.indexOf(`export const ${name}`);
+  const end = text.indexOf("\n};\n", start);
+  return `${text.slice(0, end)}\n${lines.replace(/\n$/, "")}${text.slice(end)}`;
+}
 
 const MIGRATIONS_DIR = path.resolve(import.meta.dirname, "../migrations");
 const CHECKSUMS_FILE = path.join(MIGRATIONS_DIR, "checksums.ts");
@@ -49,20 +65,25 @@ function openKernel() {
 
 describe("payments ledger migrations", () => {
   test("every step's pinned checksum matches its source", async () => {
-    const unpinned = STEP_IDS.filter((id) => COMMERCE_PAYMENTS_MIGRATION_CHECKSUMS[id] === undefined);
+    const unpinned = STEP_IDS.filter((id) => COMMERCE_PAYMENTS_MIGRATION_CHECKSUMS[id] === undefined || COMMERCE_PAYMENTS_SOURCE_DIGESTS[id] === undefined);
     if (process.env.UPDATE_COMMERCE_PAYMENTS_CHECKSUMS === "1" && unpinned.length > 0) {
       const lines = unpinned.map((id) => `  "${id}": "${derive(id)}",\n`).join("");
-      fs.writeFileSync(CHECKSUMS_FILE, fs.readFileSync(CHECKSUMS_FILE, "utf8").replace(/\n};\n$/, `\n${lines}};\n`));
+      const text = fs.readFileSync(CHECKSUMS_FILE, "utf8");
+      fs.writeFileSync(CHECKSUMS_FILE, appendToMap(appendToMap(text, "COMMERCE_PAYMENTS_MIGRATION_CHECKSUMS", lines), "COMMERCE_PAYMENTS_SOURCE_DIGESTS", lines));
       return;
     }
     expect(unpinned, "pin new steps with UPDATE_COMMERCE_PAYMENTS_CHECKSUMS=1").toEqual([]);
     const { COMMERCE_PAYMENTS_MIGRATIONS } = await history();
     for (const step of COMMERCE_PAYMENTS_MIGRATIONS) {
-      expect(derive(step.id), `${step.id} changed after it was pinned; add a new step instead`).toBe(COMMERCE_PAYMENTS_MIGRATION_CHECKSUMS[step.id]);
+      expect(derive(step.id), `${step.id} changed after it was pinned; add a new step instead`).toBe(COMMERCE_PAYMENTS_SOURCE_DIGESTS[step.id]);
       expect(step.checksum).toBe(COMMERCE_PAYMENTS_MIGRATION_CHECKSUMS[step.id]);
     }
     expect(COMMERCE_PAYMENTS_MIGRATIONS.map((step) => step.id)).toEqual(STEP_IDS);
     expect(STEP_IDS).toEqual([PAYMENTS_LEDGER_ID, PAYMENTS_OPERATOR_ACTIONS_ID, PAYMENTS_ATTEMPT_RECOVERY_ID, PAYMENTS_INTENT_REPLAY_ID]);
+  });
+
+  test("the ledger checksums databases recorded are unchanged", () => {
+    expect(COMMERCE_PAYMENTS_MIGRATION_CHECKSUMS).toEqual(LEDGER_CHECKSUM_LITERALS);
   });
 
   test("pinnedChecksum refuses an id with no pin", async () => {

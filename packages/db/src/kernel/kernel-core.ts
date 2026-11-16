@@ -10,6 +10,7 @@ import {
   type StorageTransport,
   UnsupportedCapabilityError,
 } from "./port.js";
+import type { DbTransport } from "./port.js";
 import { TurnLock } from "./turn-lock.js";
 import { registerOwnedTransaction } from "./owned-transaction.js";
 
@@ -28,7 +29,7 @@ interface OwnedTurn { onSettled?: () => void }
 /** What a driver supplies. Everything else about a kernel is built here. */
 export interface KernelDriver<DB> {
   dialect: StorageDialect;
-  transport: StorageTransport;
+  transport: DbTransport;
   capabilities: StorageCapabilities;
   ready: Promise<void>;
   base: Kysely<DB>;
