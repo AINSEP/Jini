@@ -65,6 +65,27 @@ export interface NodeDispatcher {
   handle(requiredArgs: { readonly incoming: IncomingMessage; readonly out: ServerResponse }, optionalArgs?: NodeDispatchOptions): Promise<void>;
 }
 
+/**
+ * How many times longer a JSON text can get when it is parsed and printed again
+ * (`JSON.stringify(JSON.parse(text))`), which is what {@link consumedBody} does to a body an upstream
+ * parser already read. The only JSON production that grows is a number written in exponent form:
+ * `1e20` (4 bytes) prints as `100000000000000000000` (21 bytes), 21 / 4 = 5.25. Nothing does worse:
+ * from `1e21` up JavaScript prints the exponent form again, and a sign, a longer mantissa or a
+ * negative exponent adds input bytes faster than output bytes. Strings, escapes, whitespace and
+ * duplicate keys never grow.
+ */
+const JSON_RESERIALIZE_MAX_EXPANSION = 5.25;
+
+/**
+ * Largest size a body of `parserLimitBytes` can have after the bridge re-serializes it. See JSON_RESERIALIZE_MAX_EXPANSION.
+ * A host with a JSON parser in front of the dispatcher passes this as the route-side body limit:
+ * the parser has already applied the real limit to the bytes on the wire, and the route limit
+ * only has to be large enough never to refuse a body the parser accepted.
+ */
+export function maxReserializedJsonBytes(required: { parserLimitBytes: number }, _optional: Record<string, never> = {}): number {
+  return Math.ceil(required.parserLimitBytes * JSON_RESERIALIZE_MAX_EXPANSION);
+}
+
 function consumedBody(parsedBody: unknown): Uint8Array | string | null {
   if (parsedBody === undefined || parsedBody === null) return null;
   if (parsedBody instanceof Uint8Array) return new Uint8Array(parsedBody);
@@ -94,6 +115,29 @@ function requestTarget({ incoming, origin }: { incoming: IncomingMessage; origin
   }
 }
 
+/**
+ * Makes the headers describe a body the bridge rebuilt from `parsedBody` instead of the one that
+ * was on the wire: `content-length` is the rebuilt byte length, `content-encoding` and
+ * `transfer-encoding` go. The upstream parser already decoded and de-chunked what it read (Express
+ * inflates gzip by default), and core's `readBodyBytes` refuses any `content-encoding` other than
+ * identity and compares `content-length` to its limit. Left as received, a gzip JSON call the
+ * host's parser accepted would be answered 415 behind the bridge.
+ */
+function describeRebuiltBody({ headers, body }: { headers: Headers; body: Uint8Array | string }): void {
+  headers.set('content-length', String(typeof body === 'string' ? Buffer.byteLength(body) : body.byteLength));
+  headers.delete('content-encoding');
+  headers.delete('transfer-encoding');
+}
+
+/** The body for the web `Request`: the untouched stream, or what an upstream parser left of it (with `headers` corrected to match). */
+function requestBody({ incoming, headers, parsedBody }: { incoming: IncomingMessage; headers: Headers; parsedBody: unknown }): ReadableStream<Uint8Array> | Uint8Array | string | null {
+  if (!incoming.readableEnded) return Readable.toWeb(incoming) as ReadableStream<Uint8Array>;
+  // An upstream parser has drained the socket; rebuild from what it produced, not from the empty stream.
+  const rebuilt = consumedBody(parsedBody);
+  if (rebuilt !== null) describeRebuiltBody({ headers, body: rebuilt });
+  return rebuilt;
+}
+
 function toWebRequest({ incoming, url, signal, parsedBody }: { incoming: IncomingMessage; url: URL; signal: AbortSignal; parsedBody: unknown }): Request {
   const headers = new Headers();
   for (const [name, value] of Object.entries(incoming.headers)) {
@@ -102,8 +146,7 @@ function toWebRequest({ incoming, url, signal, parsedBody }: { incoming: Incomin
   }
   const method = incoming.method ?? 'GET';
   if (method === 'GET' || method === 'HEAD') return new Request(url, { method, headers, signal });
-  // An upstream parser has drained the socket; rebuild from what it produced, not from the empty stream.
-  const body = incoming.readableEnded ? consumedBody(parsedBody) : (Readable.toWeb(incoming) as ReadableStream<Uint8Array>);
+  const body = requestBody({ incoming, headers, parsedBody });
   // `duplex` is required by Node's fetch for a stream body but missing from the DOM RequestInit type.
   const init: RequestInit & { duplex: 'half' } = { method, headers, signal, body, duplex: 'half' };
   return new Request(url, init);
