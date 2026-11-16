@@ -37,6 +37,12 @@ function validateScope(scope: string): void {
   if (!/^@[a-z0-9][a-z0-9._-]*$/.test(scope)) throw new TypeError('scope must be an npm scope such as @example');
 }
 
+/** Pins must name packages inside the checked scope; anything else is a caller error, not a project failure. */
+function validatePins(pins: Readonly<Record<string, string>>, scope: string): void {
+  const name = new RegExp(`^${escapeRegex(scope)}/[a-z0-9][a-z0-9._-]*$`);
+  for (const pinned of Object.keys(pins)) if (!name.test(pinned)) throw new TypeError(`pin outside scope ${scope}: ${pinned}`);
+}
+
 /** Select registry-resolved dependencies from the required scope; explicit local specs are exempt. */
 export function registryDependencies({ manifest, scope }: { manifest: DependencyManifest; scope: string }): Record<string, string> {
   validateScope(scope);
@@ -154,7 +160,12 @@ function installedVersions({ scratch, deps, fs }: { scratch: string; deps: Recor
   return versions;
 }
 
-async function checkCompile(project: CompileProject, manifest: DependencyManifest, deps: Record<string, string>, scope: string, fs: FilesystemPort, runner: ProcessRunnerPort, installer: PackageInstallerPort): Promise<PublishedTypesResult> {
+/** Pins apply to compile projects only: a links project inspects what the host installed. */
+function projectDependencies({ project, manifest, scope, pins }: { project: PublishedTypesProject; manifest: DependencyManifest; scope: string; pins: Readonly<Record<string, string>> }): Record<string, string> {
+  return { ...registryDependencies({ manifest, scope }), ...(project.mode === 'links' ? {} : pins) };
+}
+
+async function checkCompile(project: CompileProject, manifest: DependencyManifest, deps: Record<string, string>, scope: string, fs: FilesystemPort, runner: ProcessRunnerPort, installer: PackageInstallerPort, keepScratch: boolean): Promise<PublishedTypesResult> {
   if (Object.keys(deps).length === 0) return emptyResult(project.key, 'skipped', 'no registry-resolved scoped dependencies');
   const failed = await failedPrerequisite({ project, runner });
   if (failed) return emptyResult(project.key, 'prerequisite-error', combined(failed));
@@ -175,7 +186,7 @@ async function checkCompile(project: CompileProject, manifest: DependencyManifes
     finally { cleanup(); }
     return evaluateCompile(project, registry, baseline, versions);
   } finally {
-    fs.removeDirectory({ path: scratch });
+    if (!keepScratch) fs.removeDirectory({ path: scratch });
   }
 }
 
@@ -185,16 +196,23 @@ async function checkCompile(project: CompileProject, manifest: DependencyManifes
  */
 export async function check({ projects, scope, fs, runner, installer }: {
   projects: readonly PublishedTypesProject[]; scope: string; fs: FilesystemPort; runner: ProcessRunnerPort; installer: PackageInstallerPort;
-}, { logger }: { logger?: CheckLoggerPort } = {}): Promise<PublishedTypesReport> {
+}, { logger, pins = {}, keepScratch = false }: {
+  logger?: CheckLoggerPort;
+  /** Registry specs that add to or replace the manifest's scoped dependencies for compile projects (e.g. to prove the gate fails on a known-bad version). */
+  pins?: Readonly<Record<string, string>>;
+  /** Leave each scratch install on disk for inspection instead of removing it. */
+  keepScratch?: boolean;
+} = {}): Promise<PublishedTypesReport> {
   validateScope(scope);
+  validatePins(pins, scope);
   if (projects.length === 0) throw new TypeError('at least one project is required');
   const results: PublishedTypesResult[] = [];
   for (const project of projects) {
     let result: PublishedTypesResult;
     try {
       const manifest = JSON.parse(fs.readText({ path: project.manifestPath })) as DependencyManifest;
-      const deps = registryDependencies({ manifest, scope });
-      result = project.mode === 'links' ? checkLinks(project, deps, fs) : await checkCompile(project, manifest, deps, scope, fs, runner, installer);
+      const deps = projectDependencies({ project, manifest, scope, pins });
+      result = project.mode === 'links' ? checkLinks(project, deps, fs) : await checkCompile(project, manifest, deps, scope, fs, runner, installer, keepScratch);
     } catch (error) {
       result = emptyResult(project.key, 'operation-error', error instanceof Error ? error.message : String(error));
     }
@@ -211,6 +229,7 @@ export interface TypecheckDiagnosis { ok: boolean; failures: readonly (Typecheck
 export function diagnosePublishedTypes({ scope, logs }: { scope: string; logs: readonly TypecheckLog[] }): TypecheckDiagnosis {
   validateScope(scope);
   const escapedScope = escapeRegex(scope);
+  // tsc wraps a module specifier in its own single quotes around the source's double quotes ('"@scope/pkg"'), so match one or two quote characters on each side.
   const missingExport = new RegExp(`Module ["']{1,2}${escapedScope}/[^"']+["']{1,2} has no exported member ["']([^"']+)["']`, 'g');
   const missingModule = new RegExp(`Cannot find module ["']{1,2}(${escapedScope}/[^"']+)["']{1,2} or its corresponding type declarations`, 'g');
   const failures = logs.filter((log) => log.exitCode !== 0).map((log) => {
