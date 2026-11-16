@@ -1,0 +1,9 @@
+{
+  "_comment": "Files that are in a runtime import cycle today and may stay in one until their fix lands. Read by scripts/check-runtime-cycles.ts (R14 in `pnpm guard`). The list only shrinks: a cycle that involves any file not listed here fails the guard, and an entry whose file is no longer in a cycle also fails it, so the entry is deleted in the commit that removes the cycle. Never add an entry to pass a new cycle. The four entries are one cycle: agent-executor/mcp-bridge.ts builds delivery maps from the per-agent files and re-exports four of their functions, and the per-agent files import shared MCP JSON helpers back from it. The fix is planned as import-cycle step J2 (a leaf file `mcp-json-file.ts`), which runs after daemon lane R8b because both edit the same import lines.",
+  "files": [
+    "packages/daemon/src/agent-executor/claude/config-dir.ts",
+    "packages/daemon/src/agent-executor/claude/mcp-delivery.ts",
+    "packages/daemon/src/agent-executor/mcp-bridge.ts",
+    "packages/daemon/src/agent-executor/opencode/mcp-config.ts"
+  ]
+}
