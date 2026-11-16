@@ -180,6 +180,57 @@ export function versionConflictBody(
   };
 }
 
+/** The machine-readable code for a save that named no version (HTTP status 428). */
+export const VERSION_REQUIRED_CODE = 'VERSION_REQUIRED';
+
+/**
+ * A save for an editable record arrived without saying which version the person was editing, so it
+ * could have overwritten someone else's change. Nothing was written. Re-reading and saving again can
+ * succeed.
+ */
+export class RecordVersionRequiredError extends Error {
+  readonly code = VERSION_REQUIRED_CODE;
+  /** The input field that should have carried the version. */
+  readonly field: string;
+
+  constructor(required: { field: string }, optional: ErrorOptions = {}) {
+    super(
+      "This save did not say which version you were editing, so nothing was saved (it could have overwritten someone else's change). Reload, make your change again, and save.",
+      optional,
+    );
+    this.name = 'RecordVersionRequiredError';
+    this.field = required.field;
+  }
+}
+
+/**
+ * Like {@link parseExpectedVersion} but the basis is mandatory for an editor save (a person's form),
+ * and a missing one is its own error so a route can answer 428 instead of a generic 400.
+ *
+ * @throws {ToolInputError} when present but malformed.
+ * @throws {RecordVersionRequiredError} when missing.
+ * @complexity O(1).
+ */
+export function requireEditorVersion(required: { value: unknown }, optional: { field?: string } = {}): number {
+  const field = optional.field ?? 'expectedVersion';
+  const parsed = parseExpectedVersion({ value: required.value }, { field });
+  if (parsed === undefined) throw new RecordVersionRequiredError({ field });
+  return parsed;
+}
+
+/**
+ * The 428 body for a save that named no version. HTTP status 428.
+ *
+ * @complexity O(1).
+ */
+export function versionRequiredBody(
+  required: { error: RecordVersionRequiredError },
+  _optional: Record<string, never> = {},
+): { error: string; code: typeof VERSION_REQUIRED_CODE; details: { field: string } } {
+  const { error } = required;
+  return { error: error.message, code: VERSION_REQUIRED_CODE, details: { field: error.field } };
+}
+
 /**
  * The model-facing rule for a domain's allowlist: publishes the plain message plus what to do next,
  * so the assistant re-reads instead of resending the same stale call (or giving up).

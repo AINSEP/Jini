@@ -4,10 +4,14 @@ import {
   fromSettingsRevisionConflict,
   parseExpectedVersion,
   RecordVersionConflictError,
+  RecordVersionRequiredError,
+  requireEditorVersion,
   requireExpectedVersion,
   VERSION_CONFLICT_CODE,
   versionConflictBody,
   versionConflictRule,
+  VERSION_REQUIRED_CODE,
+  versionRequiredBody,
 } from '../optimistic-concurrency.js';
 import { ToolInputError } from '../tool-input-errors.js';
 import { SettingsRevisionConflictError } from '../settings/errors.js';
@@ -114,5 +118,24 @@ describe('fromSettingsRevisionConflict', () => {
   it('returns any other error unchanged', () => {
     const other = new Error('disk full');
     expect(fromSettingsRevisionConflict({ error: other, setting: 'site.seo.title' })).toBe(other);
+  });
+});
+
+describe('requireEditorVersion', () => {
+  it('refuses a save that names no version', () => {
+    expect(() => requireEditorVersion({ value: undefined })).toThrow(RecordVersionRequiredError);
+  });
+
+  it('keeps a malformed version a ToolInputError', () => {
+    expect(() => requireEditorVersion({ value: '3' })).toThrow(ToolInputError);
+  });
+
+  it('returns a valid version', () => {
+    expect(requireEditorVersion({ value: 3 })).toBe(3);
+  });
+
+  it('answers 428 with the full envelope', () => {
+    const error = new RecordVersionRequiredError({ field: 'version' });
+    expect(versionRequiredBody({ error })).toEqual({ error: error.message, code: VERSION_REQUIRED_CODE, details: { field: 'version' } });
   });
 });
