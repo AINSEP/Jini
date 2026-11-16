@@ -75,6 +75,7 @@ export {
 export * from './pi-models.js';
 export * from './prompt-augmenter.js';
 export * from './runtime-def-binding.js';
+export * from './runtime-port-bindings.js';
 export * from './defs/codex/options.js';
 export * from './defs/pi/options.js';
 export * from './artifact-taxonomy.js';
