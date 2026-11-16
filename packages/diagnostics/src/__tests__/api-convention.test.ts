@@ -35,7 +35,7 @@ describe("object arguments and host ports", () => {
       { name: "good", absolutePath: "/good", kind: "text" },
     ] });
     expect(files.map(({ name, content, error }) => ({ name, content, error }))).toEqual([
-      { name: "bad", content: null, error: "unavailable" },
+      { name: "bad", content: null, error: "string" },
       { name: "good", content: "token=[REDACTED]", error: undefined },
     ]);
   });
@@ -53,7 +53,7 @@ describe("object arguments and host ports", () => {
     });
     expect(creations).toBe(1);
     expect(result.zip.toString()).toBe("archive");
-    expect(entries.get("missing.log")).toBe("; file unavailable: unavailable\n");
+    expect(entries.get("missing.log")).toBe("; file unavailable: string\n");
     expect(JSON.parse(entries.get("summary/manifest.json")!).extra).toEqual({ token: "[REDACTED]" });
   });
 
