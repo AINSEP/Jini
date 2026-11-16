@@ -110,6 +110,20 @@ describe('primitive default adapters', () => {
     for (const forbidden of ['boom', 'SECRETSECRET', 'defaults.test.ts']) expect(printed).not.toContain(forbidden);
   });
 
+  // Review jini-batch1 L4: 50 entries per level at depth 4 still let one call project ~125k entries
+  // (meta of arrays of objects). One shared budget per call keeps every log call's work bounded.
+  it('projects at most a fixed total of entries per call, then writes fixed words', () => {
+    const lines: unknown[][] = [];
+    vi.spyOn(console, 'warn').mockImplementation((...args: unknown[]) => { lines.push(args); });
+    const row = Object.fromEntries(Array.from({ length: 50 }, (_, index) => [`k${index}`, index]));
+    const meta = Object.fromEntries(Array.from({ length: 50 }, (_, index) => [`list${index}`, Array.from({ length: 50 }, () => row)]));
+    createConsoleLogger({ prefix: '' }).warn({ message: 'bulk' }, { meta });
+    const countEntries = (value: unknown): number => (typeof value === 'object' && value !== null
+      ? Object.values(value).reduce((sum: number, inner) => sum + 1 + countEntries(inner), 0) : 0);
+    expect(countEntries(lines[0]?.[1])).toBeLessThanOrEqual(250);
+    expect(JSON.stringify(lines)).toContain('[too many entries]');
+  });
+
   // A thrown value need not be an Error: a plain object with `message`/`stack` (`throw { message }`,
   // an upstream JSON error) is a caught value too, wherever it sits in meta, and so is anything
   // under a payload key (`error`, `err`, `reason`, `cause`, `message`, `stack`).
