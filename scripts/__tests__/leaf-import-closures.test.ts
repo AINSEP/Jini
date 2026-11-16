@@ -62,11 +62,11 @@ describe('native kit assembly cycles', () => {
 describe('universal translation owner and SEO entries', () => {
   it('keeps SEO and its HTTP adapter free of React and preserves the existing interpolation owner', () => {
     const audit = auditSubpathIsolation({ repoRoot });
-    for (const [owner, subpath] of [['@jini-ai/ui', './i18n'], ['@jini-ai/admin', './seo'], ['@jini-ai/admin', './seo/adapters/http']]) {
+    for (const [owner, subpath] of [['@jini-ai/core', './text'], ['@jini-ai/admin', './seo'], ['@jini-ai/admin', './seo/adapters/http']]) {
       const entry = audit.closures.find(closure => closure.package === owner && closure.subpath === subpath);
       expect(entry).toBeDefined();
       expect(entry!.dependencies.filter(name => /^(?:react|react-dom)$/.test(name))).toEqual([]);
-      expect(entry!.files).toContain('packages/ui/src/features/i18n/template-i18n.ts');
+      expect(entry!.files).toContain('packages/core/src/text/template-i18n.ts');
       expect(entry!.files.some(file => file.includes('/features/panel-kit/'))).toBe(false);
       expect(audit.findings.filter(finding => finding.package === owner && finding.subpath === subpath && finding.kind === 'resolution')).toEqual([]);
     }
