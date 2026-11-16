@@ -89,19 +89,13 @@ export interface InstalledDigestIdentity {
   readonly archiveDigest: string;
 }
 
-function buildModule(ports: AgentPluginLifecyclePorts) {
-  const open = ports.filesystem.open.bind(ports.filesystem);
-  const readFile = ports.filesystem.readFile.bind(ports.filesystem);
-  const rename = ports.filesystem.rename.bind(ports.filesystem);
-  const rm = ports.filesystem.rm.bind(ports.filesystem);
-  const randomUUID = () => ports.ids.newId();
-  const SHA256_DIGEST_PATTERN = /^[a-f0-9]{64}$/;
+const SHA256_DIGEST_PATTERN = /^[a-f0-9]{64}$/;
 
-  const SAFE_PLUGIN_ID_PATTERN = /^[a-z0-9]+(?:[-.][a-z0-9]+)*$/;
+const SAFE_PLUGIN_ID_PATTERN = /^[a-z0-9]+(?:[-.][a-z0-9]+)*$/;
 
-  const EMPTY_LEDGER: BundledAgentPluginDigests = new Map();
+const EMPTY_LEDGER: BundledAgentPluginDigests = new Map();
 
-  /**
+/**
  * Reads one workspace's bundled-digest ledger.
  *
  * @param workspaceRoot - `AgentPluginWorkspaceLayout.root`, never an instance-level path.
@@ -112,42 +106,42 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
  * module could have resolved simply stays the explicit error it already was.
  * @complexity One file read plus O(p) in the recorded plugin count.
  */
-  async function readBundledAgentPluginDigests(workspaceRoot: string): Promise<BundledAgentPluginDigests> {
-    let raw: string;
-    try {
-      raw = await readFile(path.join(workspaceRoot, BUNDLED_DIGESTS_FILENAME), "utf8");
-    } catch {
-      return EMPTY_LEDGER;
-    }
-
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      return EMPTY_LEDGER;
-    }
-
-    return normalizeBundledDigests(parsed);
+async function readBundledAgentPluginDigests(ports: AgentPluginLifecyclePorts, workspaceRoot: string): Promise<BundledAgentPluginDigests> {
+  let raw: string;
+  try {
+    raw = await ports.filesystem.readFile(path.join(workspaceRoot, BUNDLED_DIGESTS_FILENAME), "utf8");
+  } catch {
+    return EMPTY_LEDGER;
   }
 
-  /**
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return EMPTY_LEDGER;
+  }
+
+  return normalizeBundledDigests(parsed);
+}
+
+/**
  * Validates an already-`JSON.parse`d ledger value, dropping anything that does not match the shape.
  * Pure, so the parsing rules are assertable without touching a filesystem.
  *
  * @complexity O(p) in the entry count.
  */
-  function normalizeBundledDigests(value: unknown): BundledAgentPluginDigests {
-    if (!isPlainObject(value) || value.schemaVersion !== 1 || !isPlainObject(value.plugins)) return EMPTY_LEDGER;
+function normalizeBundledDigests(value: unknown): BundledAgentPluginDigests {
+  if (!isPlainObject(value) || value.schemaVersion !== 1 || !isPlainObject(value.plugins)) return EMPTY_LEDGER;
 
-    const digests = new Map<string, string>();
-    for (const [pluginId, entry] of Object.entries(value.plugins)) {
-      const archiveDigest = SAFE_PLUGIN_ID_PATTERN.test(pluginId) && isPlainObject(entry) ? entry.archiveDigest : undefined;
-      if (typeof archiveDigest === "string" && SHA256_DIGEST_PATTERN.test(archiveDigest)) digests.set(pluginId, archiveDigest);
-    }
-    return digests;
+  const digests = new Map<string, string>();
+  for (const [pluginId, entry] of Object.entries(value.plugins)) {
+    const archiveDigest = SAFE_PLUGIN_ID_PATTERN.test(pluginId) && isPlainObject(entry) ? entry.archiveDigest : undefined;
+    if (typeof archiveDigest === "string" && SHA256_DIGEST_PATTERN.test(archiveDigest)) digests.set(pluginId, archiveDigest);
   }
+  return digests;
+}
 
-  /**
+/**
  * Records the digest this boot seeded for each bundled plugin, merged over whatever was already
  * recorded.
  *
@@ -168,27 +162,27 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
  * into its report rather than failing the boot.
  * @complexity One file read and one atomic write, O(p) in the recorded plugin count.
  */
-  async function recordBundledAgentPluginDigests(required: {
-    readonly workspaceRoot: string;
-    readonly seeded: readonly SeededBundledAgentPluginDigest[];
-    readonly now?: ((required: Record<string, never>) => Date) | undefined;
-  }): Promise<void> {
-    if (required.seeded.length === 0) return;
+async function recordBundledAgentPluginDigests(ports: AgentPluginLifecyclePorts, required: {
+  readonly workspaceRoot: string;
+  readonly seeded: readonly SeededBundledAgentPluginDigest[];
+  readonly now?: ((required: Record<string, never>) => Date) | undefined;
+}): Promise<void> {
+  if (required.seeded.length === 0) return;
 
-    const existing = await readBundledAgentPluginDigests(required.workspaceRoot);
-    const merged = new Map(existing);
-    const seededAt = (required.now?.({}) ?? new Date(ports.clock.nowMs())).toISOString();
+  const existing = await readBundledAgentPluginDigests(ports, required.workspaceRoot);
+  const merged = new Map(existing);
+  const seededAt = (required.now?.({}) ?? new Date(ports.clock.nowMs())).toISOString();
 
-    for (const [pluginId, archiveDigest] of resolveThisBootsDigests(required.seeded)) {
-      if (archiveDigest === undefined) merged.delete(pluginId);
-      else merged.set(pluginId, archiveDigest);
-    }
-
-    const plugins = Object.fromEntries([...merged].map(([pluginId, archiveDigest]) => [pluginId, { archiveDigest, seededAt }]));
-    await writeLedgerAtomically(required.workspaceRoot, plugins);
+  for (const [pluginId, archiveDigest] of resolveThisBootsDigests(required.seeded)) {
+    if (archiveDigest === undefined) merged.delete(pluginId);
+    else merged.set(pluginId, archiveDigest);
   }
 
-  /**
+  const plugins = Object.fromEntries([...merged].map(([pluginId, archiveDigest]) => [pluginId, { archiveDigest, seededAt }]));
+  await writeLedgerAtomically(ports, required.workspaceRoot, plugins);
+}
+
+/**
  * This boot's verdict per plugin id: the digest it seeded, or `undefined` when the run seeded the
  * same id under two different digests and therefore has no authoritative answer for it.
  *
@@ -197,19 +191,19 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
  *
  * @complexity O(n) in the seeded-entry count.
  */
-  function resolveThisBootsDigests(
-    seeded: readonly SeededBundledAgentPluginDigest[],
-  ): ReadonlyMap<string, string | undefined> {
-    const thisBoot = new Map<string, string | undefined>();
-    for (const { pluginId, archiveDigest } of seeded) {
-      if (!SAFE_PLUGIN_ID_PATTERN.test(pluginId) || !SHA256_DIGEST_PATTERN.test(archiveDigest)) continue;
-      if (thisBoot.has(pluginId) && thisBoot.get(pluginId) !== archiveDigest) thisBoot.set(pluginId, undefined);
-      else thisBoot.set(pluginId, archiveDigest);
-    }
-    return thisBoot;
+function resolveThisBootsDigests(
+  seeded: readonly SeededBundledAgentPluginDigest[],
+): ReadonlyMap<string, string | undefined> {
+  const thisBoot = new Map<string, string | undefined>();
+  for (const { pluginId, archiveDigest } of seeded) {
+    if (!SAFE_PLUGIN_ID_PATTERN.test(pluginId) || !SHA256_DIGEST_PATTERN.test(archiveDigest)) continue;
+    if (thisBoot.has(pluginId) && thisBoot.get(pluginId) !== archiveDigest) thisBoot.set(pluginId, undefined);
+    else thisBoot.set(pluginId, archiveDigest);
   }
+  return thisBoot;
+}
 
-  /**
+/**
  * Drops one plugin id from the ledger — for `retire-bundled.ts`, once a retired bundled plugin's
  * packages are gone and no build will ever seed it again.
  *
@@ -222,49 +216,49 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
  * @throws {Error} Any filesystem fault from the write. `retire-bundled.ts` captures it into its report.
  * @complexity One file read and at most one atomic write, O(p) in the recorded plugin count.
  */
-  async function removeBundledAgentPluginDigest(required: {
-    readonly workspaceRoot: string;
-    readonly pluginId: string;
-  }): Promise<boolean> {
-    let parsed: unknown;
-    try {
-      parsed = JSON.parse(await readFile(path.join(required.workspaceRoot, BUNDLED_DIGESTS_FILENAME), "utf8"));
-    } catch {
-      return false;
-    }
-    if (!isPlainObject(parsed) || parsed.schemaVersion !== 1 || !isPlainObject(parsed.plugins)) return false;
-    if (!Object.hasOwn(parsed.plugins, required.pluginId)) return false;
-
-    const remaining: Record<string, unknown> = { ...parsed.plugins };
-    delete remaining[required.pluginId];
-    await writeLedgerAtomically(required.workspaceRoot, remaining);
-    return true;
+async function removeBundledAgentPluginDigest(ports: AgentPluginLifecyclePorts, required: {
+  readonly workspaceRoot: string;
+  readonly pluginId: string;
+}): Promise<boolean> {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(await ports.filesystem.readFile(path.join(required.workspaceRoot, BUNDLED_DIGESTS_FILENAME), "utf8"));
+  } catch {
+    return false;
   }
+  if (!isPlainObject(parsed) || parsed.schemaVersion !== 1 || !isPlainObject(parsed.plugins)) return false;
+  if (!Object.hasOwn(parsed.plugins, required.pluginId)) return false;
 
-  /** Temp-file-then-`rename`, so a reader never observes a half-written ledger and a crash mid-write
+  const remaining: Record<string, unknown> = { ...parsed.plugins };
+  delete remaining[required.pluginId];
+  await writeLedgerAtomically(ports, required.workspaceRoot, remaining);
+  return true;
+}
+
+/** Temp-file-then-`rename`, so a reader never observes a half-written ledger and a crash mid-write
  *  leaves the previous one intact — the same durability shape `activation.ts`'s
  *  `writeActivationsAtomically` uses, minus its cross-process lock: this file has exactly one writer
  *  (the boot seeder, retirement included), and two concurrent boots of the SAME build write byte-identical content.
  *  @complexity One write and one rename. */
-  async function writeLedgerAtomically(workspaceRoot: string, plugins: Readonly<Record<string, unknown>>): Promise<void> {
-    const finalPath = path.join(workspaceRoot, BUNDLED_DIGESTS_FILENAME);
-    const tempPath = `${finalPath}.tmp-${ports.process.pid}-${randomUUID()}`;
+async function writeLedgerAtomically(ports: AgentPluginLifecyclePorts, workspaceRoot: string, plugins: Readonly<Record<string, unknown>>): Promise<void> {
+  const finalPath = path.join(workspaceRoot, BUNDLED_DIGESTS_FILENAME);
+  const tempPath = `${finalPath}.tmp-${ports.process.pid}-${ports.ids.newId()}`;
+  try {
+    const handle = await ports.filesystem.open(tempPath, "wx", 0o600);
     try {
-      const handle = await open(tempPath, "wx", 0o600);
-      try {
-        await handle.writeFile(`${JSON.stringify({ schemaVersion: 1, plugins }, null, 2)}\n`, "utf8");
-        await handle.sync();
-      } finally {
-        await handle.close();
-      }
-      await rename(tempPath, finalPath);
-    } catch (error) {
-      await rm(tempPath, { force: true });
-      throw error;
+      await handle.writeFile(`${JSON.stringify({ schemaVersion: 1, plugins }, null, 2)}\n`, "utf8");
+      await handle.sync();
+    } finally {
+      await handle.close();
     }
+    await ports.filesystem.rename(tempPath, finalPath);
+  } catch (error) {
+    await ports.filesystem.rm(tempPath, { force: true });
+    throw error;
   }
+}
 
-  /**
+/**
  * Drops the SUPERSEDED installs of any bundled plugin id from a list of installed packages, leaving
  * every other entry — and every other plugin id — exactly as it was.
  *
@@ -282,54 +276,61 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
  * @complexity O(n) in the installed-package count, over one O(n) pre-pass that counts digests per
  * plugin id.
  */
-  function preferBundledAgentPluginDigests<T extends InstalledDigestIdentity>(
-    installed: readonly T[],
-    bundled: BundledAgentPluginDigests,
-  ): readonly T[] {
-    if (bundled.size === 0) return installed;
+function preferBundledAgentPluginDigests<T extends InstalledDigestIdentity>(
+  installed: readonly T[],
+  bundled: BundledAgentPluginDigests,
+): readonly T[] {
+  if (bundled.size === 0) return installed;
 
-    const supersededIds = idsNarrowableToTheirBundledDigest(installed, bundled);
-    if (supersededIds.size === 0) return installed;
+  const supersededIds = idsNarrowableToTheirBundledDigest(installed, bundled);
+  if (supersededIds.size === 0) return installed;
 
-    return installed.filter((plugin) => !supersededIds.has(plugin.pluginId) || plugin.archiveDigest === bundled.get(plugin.pluginId));
-  }
+  return installed.filter((plugin) => !supersededIds.has(plugin.pluginId) || plugin.archiveDigest === bundled.get(plugin.pluginId));
+}
 
-  /**
+/**
  * The plugin ids whose installed digests the ledger can authoritatively narrow to one — every id
  * that is installed under several digests, exactly one of which is the digest this build seeded.
  *
  * @complexity O(n) in the installed-package count.
  */
-  function idsNarrowableToTheirBundledDigest(
-    installed: readonly InstalledDigestIdentity[],
-    bundled: BundledAgentPluginDigests,
-  ): ReadonlySet<string> {
-    const digestsByPluginId = new Map<string, Set<string>>();
-    for (const plugin of installed) {
-      const digests = digestsByPluginId.get(plugin.pluginId) ?? new Set<string>();
-      digests.add(plugin.archiveDigest);
-      digestsByPluginId.set(plugin.pluginId, digests);
-    }
-
-    const narrowable = new Set<string>();
-    for (const [pluginId, digests] of digestsByPluginId) {
-      if (digests.size < 2) continue;
-      const bundledDigest = bundled.get(pluginId);
-      if (bundledDigest !== undefined && digests.has(bundledDigest)) narrowable.add(pluginId);
-    }
-    return narrowable;
+function idsNarrowableToTheirBundledDigest(
+  installed: readonly InstalledDigestIdentity[],
+  bundled: BundledAgentPluginDigests,
+): ReadonlySet<string> {
+  const digestsByPluginId = new Map<string, Set<string>>();
+  for (const plugin of installed) {
+    const digests = digestsByPluginId.get(plugin.pluginId) ?? new Set<string>();
+    digests.add(plugin.archiveDigest);
+    digestsByPluginId.set(plugin.pluginId, digests);
   }
 
-  /** Whether `value` is a plain (non-null, non-array) object — the shape both this file's JSON-adjacent
+  const narrowable = new Set<string>();
+  for (const [pluginId, digests] of digestsByPluginId) {
+    if (digests.size < 2) continue;
+    const bundledDigest = bundled.get(pluginId);
+    if (bundledDigest !== undefined && digests.has(bundledDigest)) narrowable.add(pluginId);
+  }
+  return narrowable;
+}
+
+/** Whether `value` is a plain (non-null, non-array) object — the shape both this file's JSON-adjacent
  *  values must have before their own fields are worth looking at. Duplicated from `activation.ts`'s
  *  private helper of the same name rather than widening that module's public surface, matching this
  *  codebase's own precedent for small private formatting/shape helpers (see `resolve-agent-plugin-
  *  refs.ts`'s note on `humanize()`). */
-  function isPlainObject(value: unknown): value is Readonly<Record<string, unknown>> {
-    return typeof value === "object" && value !== null && !Array.isArray(value);
-  }
+function isPlainObject(value: unknown): value is Readonly<Record<string, unknown>> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
-  return { readBundledAgentPluginDigests, normalizeBundledDigests, recordBundledAgentPluginDigests, removeBundledAgentPluginDigest, preferBundledAgentPluginDigests };
+function buildModule(ports: AgentPluginLifecyclePorts) {
+  return {
+    readBundledAgentPluginDigests: (workspaceRoot: string) => readBundledAgentPluginDigests(ports, workspaceRoot),
+    normalizeBundledDigests,
+    recordBundledAgentPluginDigests: (required: Parameters<typeof recordBundledAgentPluginDigests>[1]) => recordBundledAgentPluginDigests(ports, required),
+    removeBundledAgentPluginDigest: (required: Parameters<typeof removeBundledAgentPluginDigest>[1]) => removeBundledAgentPluginDigest(ports, required),
+    preferBundledAgentPluginDigests,
+  };
 }
 
 const instances = new WeakMap<AgentPluginLifecyclePorts, ReturnType<typeof buildModule>>();
