@@ -195,20 +195,34 @@ function extractValues(record: Schema, properties: Record<string, Schema>): Iden
 
     const candidate = record[key];
     if (sub.type === "integer") {
-      if (typeof candidate !== "number" || !Number.isSafeInteger(candidate)) return rejected(`'${key}' must be an integer, received ${describeType(candidate)}`);
-      if (typeof sub.minimum === "number" && candidate < sub.minimum) return rejected(`'${key}' must be at least ${sub.minimum}`);
-      Object.defineProperty(integers, key, { value: candidate, enumerable: true, writable: true, configurable: true });
+      const integerViolation = findIntegerViolation(key, sub, candidate);
+      if (integerViolation !== undefined) return rejected(integerViolation);
+      Object.defineProperty(integers, key, { value: candidate as number, enumerable: true, writable: true, configurable: true });
       continue;
     }
-    if (typeof candidate !== "string") return rejected(`'${key}' must be a string, received ${describeType(candidate)}`);
-    if (typeof sub.minLength === "number" && Array.from(candidate).length < sub.minLength) {
-      return rejected(`'${key}' must contain at least ${sub.minLength} Unicode code point(s)`);
-    }
+    const stringViolation = findStringViolation(key, sub, candidate);
+    if (stringViolation !== undefined) return rejected(stringViolation);
     // defineProperty keeps a `__proto__` key as plain own data rather than invoking the setter.
-    Object.defineProperty(value, key, { value: candidate, enumerable: true, writable: true, configurable: true });
+    Object.defineProperty(value, key, { value: candidate as string, enumerable: true, writable: true, configurable: true });
   }
 
   return { ok: true, value, integers };
+}
+
+/** Rejection message for a non-integer value or one below `minimum`; undefined when it conforms. */
+function findIntegerViolation(key: string, sub: Schema, candidate: unknown): string | undefined {
+  if (typeof candidate !== "number" || !Number.isSafeInteger(candidate)) return `'${key}' must be an integer, received ${describeType(candidate)}`;
+  if (typeof sub.minimum === "number" && candidate < sub.minimum) return `'${key}' must be at least ${sub.minimum}`;
+  return undefined;
+}
+
+/** Rejection message for a non-string value or one shorter than `minLength`; undefined when it conforms. */
+function findStringViolation(key: string, sub: Schema, candidate: unknown): string | undefined {
+  if (typeof candidate !== "string") return `'${key}' must be a string, received ${describeType(candidate)}`;
+  if (typeof sub.minLength === "number" && Array.from(candidate).length < sub.minLength) {
+    return `'${key}' must contain at least ${sub.minLength} Unicode code point(s)`;
+  }
+  return undefined;
 }
 
 /** Names a value's type for a rejection message WITHOUT echoing the value itself. */
