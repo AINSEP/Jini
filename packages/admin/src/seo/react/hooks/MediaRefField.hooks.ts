@@ -27,7 +27,7 @@ export function useMediaRefField(
   const media = useFetchQuery({ key: SEO_KEYS.media, fetch: () => list!.call(api, {}) }, { enabled: Boolean(list) && isStoredMediaRef({ value }) });
   return {
     ...diagnostics,
-    file: describeMediaRef({ value, media: media.data }, { width: naturalWidth, height: naturalHeight, t, extensionFor: extensionForMimeType }),
+    file: describeMediaRef({ value, media: media.data }, { width: naturalWidth, height: naturalHeight, t, extensionFor: contentType => extensionForMimeType({ mimeType: contentType }) }),
     pickerOpen: snapshot?.pickerOpen ?? false,
     openPicker: () => controller?.openPicker({}), closePicker: () => controller?.closePicker({}),
     handleSelect: item => controller?.handleSelect({ item }), clear: () => controller?.clear({}),

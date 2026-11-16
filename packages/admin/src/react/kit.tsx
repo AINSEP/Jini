@@ -90,7 +90,7 @@ export interface WidgetSelectProps {
   placeholder?: string | undefined; id?: string | undefined; 'aria-label'?: string | undefined;
   disabled?: boolean | undefined; agentHandle?: string | false | undefined; translate?: Translate | undefined;
 }
-export interface TabBarTab { readonly id: string; readonly label: string; readonly icon?: ReactNode | undefined; readonly count?: number | undefined; readonly tag?: string | undefined }
+export interface TabBarTab { readonly id: string; readonly label: string; readonly icon?: ReactNode | undefined; readonly count?: number | undefined; readonly tag?: string | undefined; readonly handle?: string | undefined; readonly handleLabel?: string | undefined }
 export interface TabBarProps { tabs: readonly TabBarTab[]; activeId: string; onChange: (id: string) => void; ariaLabel: string; containerHandle?: string | undefined }
 export interface CanvasEmbedPlaceholderDescriptor { kindLabel: string; identityLabel: string }
 export interface CanvasContentWrapperNode { tagName: string; attributes?: Readonly<Record<string, string>> }
