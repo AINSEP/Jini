@@ -1,5 +1,6 @@
 /** Manifest data contracts do not depend on validation or host composition. */
 import type { PluginIdentityExtension } from '@jini-ai/core/plugin-directory';
+import type { PluginProviderDeclaration } from '@jini-ai/core/contracts/plugin-sdk';
 
 export interface BrowserProviderDeclaration {
   readonly id: string;

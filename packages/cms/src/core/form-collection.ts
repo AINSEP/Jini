@@ -2,7 +2,7 @@
  * Submission, persistence and notification behavior stay with the Forms domain. */
 /** Collection plans concern browser collection only; delivery and imported history keep their owners. */
 import { createProviderRegistry, type ProviderRegistry } from '@jini-ai/core';
-import { FORM_COLLECTION_CONTRACT, type FormCollectionCapabilities, type FormCollectionProvider, type FormProviderDescription } from '@jini-ai/core/contracts/forms';
+import { FORM_COLLECTION_CONTRACT, type FormCollectionCapabilities, type FormCollectionPlan, type FormCollectionProvider, type FormProviderDescription, type FormProviderSelection } from '@jini-ai/core/contracts/forms';
 
 export type FormCollectionRegistry = ProviderRegistry<FormCollectionProvider>;
 const BUILTIN_CAPABILITIES: FormCollectionCapabilities = {

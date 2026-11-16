@@ -72,3 +72,10 @@ for (const adapter of ADAPTERS) {
     assert.doesNotThrow(() => second.end(OUTCOMES[1]!));
   });
 }
+
+test("the adapter entry exports its factory and the request/outbound target redaction helpers", async () => {
+  const entry = await import("../observability-opentelemetry/otel-port.js");
+  for (const name of ["createOtelObservabilityPort", "redactRequestTarget", "outboundTargetAttributes"]) {
+    assert.equal(typeof (entry as Record<string, unknown>)[name], "function", name);
+  }
+});

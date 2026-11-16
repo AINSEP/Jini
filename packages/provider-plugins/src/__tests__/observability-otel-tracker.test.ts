@@ -40,6 +40,8 @@ describe("tracker over the OpenTelemetry adapter", () => {
 
 const helpers = observabilityProviderContract.context;
 
+const { errorType } = helpers;
+
 it('OTel reports active IDs only when the host supplies them and keeps metrics inert', () => {
   const ids = { traceId: 'trace', spanId: 'span' };
   const span: TraceSpanPort = { ids: () => ids, updateName() {}, setAttribute() {}, setStatus() {}, addEvent() {}, end() {} };
