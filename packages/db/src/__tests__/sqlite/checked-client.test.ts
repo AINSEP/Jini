@@ -337,3 +337,22 @@ describe("leased SQLite transactions", () => {
     });
   }
 });
+
+describe("checked client residual paths", () => {
+  test("a helper started in the same tick as one still waiting for its turn is refused as busy", async () => {
+    const f = checkedFixture();
+    const running = withSqliteTransaction({ ...f, work: async () => "first" });
+    const overlapping = withSqliteTransaction({ ...f, work: async () => "second" });
+    await assert.rejects(overlapping, (error) => error instanceof SqliteClientError && error.code === "transaction_busy");
+    assert.equal(await running, "first");
+  });
+
+  test("a non-control statement failure is rethrown unchanged, not wrapped as a commit/rollback failure", () => {
+    const f = checkedFixture();
+    const failure = new Error("syntax error near nonsense");
+    f.database.exec = () => { throw failure; };
+    assert.throws(() => f.client.exec("CREATE nonsense"), (error) => error === failure);
+    // The handle is not quarantined by an ordinary statement failure.
+    assert.deepEqual(f.client.prepare("select value").all(), [{ value: 1 }]);
+  });
+});

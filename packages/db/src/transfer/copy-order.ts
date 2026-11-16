@@ -63,7 +63,8 @@ function buildCopyOrderGraph(allExportNames: readonly string[], edges: readonly 
     }
     if (!targets.has(edge.fromExportName)) {
       targets.add(edge.fromExportName);
-      inDegree.set(edge.fromExportName, (inDegree.get(edge.fromExportName) ?? 0) + 1);
+      // Endpoint membership was validated above, so the entry exists.
+      inDegree.set(edge.fromExportName, (inDegree.get(edge.fromExportName) as number) + 1);
     }
   }
   return { dependents, inDegree };
@@ -109,11 +110,12 @@ export function topologicalTableCopyOrder(
   const order: string[] = [];
   const remaining = new Map(inDegree);
   while (ready.length) {
-    const next = ready.shift(); // already sorted; shifting keeps output deterministic
-    if (next === undefined) throw new Error("table copy order has an empty ready queue");
+    // `ready.length` is truthy, so shift() cannot return undefined. Already sorted; shifting keeps output deterministic.
+    const next = ready.shift() as string;
     order.push(next);
     for (const dependent of dependents.get(next) ?? []) {
-      const updated = (remaining.get(dependent) ?? 0) - 1;
+      // `dependents` only holds names that were seeded into `inDegree` (hence `remaining`).
+      const updated = (remaining.get(dependent) as number) - 1;
       remaining.set(dependent, updated);
       if (updated === 0) insertIntoReadyQueue({ ready, name: dependent });
     }

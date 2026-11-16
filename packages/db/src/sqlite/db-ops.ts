@@ -133,15 +133,16 @@ async function reserveRestorePoint(
   required: { targetDir: string; scopeId: string; watermarkAtCapture: number; timestamp: number },
   _options: Record<string, never> = {},
 ): Promise<string> {
-  for (let timestamp = required.timestamp; ; timestamp++) {
-    const artifactRef = path.join(required.targetDir, restorePointFilename({ ...required, timestamp }));
-    try {
-      const reservation = await fs.open(artifactRef, 'wx', 0o600);
-      await reservation.close();
-      return artifactRef;
-    } catch (error) {
-      if (error instanceof Error && 'code' in error && error.code === 'EEXIST') continue;
-      throw error;
+  const artifactRef = path.join(required.targetDir, restorePointFilename(required));
+  try {
+    const reservation = await fs.open(artifactRef, 'wx', 0o600);
+    await reservation.close();
+    return artifactRef;
+  } catch (error) {
+    // Collision: advance only the filename stamp and try again (recursion depth = collisions).
+    if (error instanceof Error && 'code' in error && error.code === 'EEXIST') {
+      return reserveRestorePoint({ ...required, timestamp: required.timestamp + 1 });
     }
+    throw error;
   }
 }

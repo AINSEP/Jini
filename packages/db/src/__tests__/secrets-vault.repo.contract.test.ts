@@ -400,3 +400,31 @@ for (const { name, kernel } of cases) describe(`secrets vault contract [${name}]
     assert.deepEqual(await memory.applyBatch({ ops: [] }), []);
   });
 });
+
+for (const { name, kernel } of cases) describe(`secrets vault default placement on rotation [${name}]`, () => {
+  test("rotating an existing unmoved record with isDefault omitted does not re-claim the default; both adapters agree", async () => {
+    const repo = new SqlSecretsVaultRepo({ kernel });
+    await kernel.run(db => db.schema.dropTable("secrets_vault").ifExists().execute());
+    await kernel.run(db => db.schema.createTable("secrets_vault")
+      .addColumn("workspace_id", "text", c => c.notNull()).addColumn("id", "text", c => c.notNull())
+      .addColumn("kind", "text", c => c.notNull()).addColumn("owner_key", "text", c => c.notNull())
+      .addColumn("principal_id", "text").addColumn("binding", "text").addColumn("provider", "text")
+      .addColumn("label", "text", c => c.notNull()).addColumn("is_default", "boolean", c => c.notNull())
+      .addColumn("revision", "integer", c => c.notNull()).addColumn("sealed_key_id", "text")
+      .addColumn("sealed_ciphertext", "text").addColumn("sealed_nonce", "text").addColumn("sealed_alg", "text")
+      .addColumn("last4", "text").addColumn("token_length", "integer")
+      .addColumn("meta", kernel.dialect === "sqlite" ? "text" : "jsonb", c => c.notNull())
+      .addColumn("created_at", "text", c => c.notNull()).addColumn("updated_at", "text", c => c.notNull())
+      .addPrimaryKeyConstraint("vault_pk", ["workspace_id", "id"]).execute());
+    const memory = new InMemoryVaultRepo({});
+    const outcomes: boolean[] = [];
+    for (const adapter of [repo, memory]) {
+      const created = await adapter.put({ record: row("r1"), expectedRevision: null });
+      assert.equal(created.isDefault, true);
+      const rotated = await adapter.put({ record: row("r1", { revision: 2 }), expectedRevision: 1 });
+      outcomes.push(rotated.isDefault);
+    }
+    assert.deepEqual(outcomes, [false, false]);
+    assert.equal((await repo.list(query))[0]?.revision, 2);
+  });
+});
