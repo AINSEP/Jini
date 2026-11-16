@@ -254,6 +254,17 @@ describe('createTerminalSessionManager — create/get/list', () => {
     await manager.shutdownActive({ graceMs: 0 });
   });
 
+  // R8a step 0 (R10): the manager is a pass-through to whichever service it was given.
+  it('shutdownActive forwards its options, and graceMs in particular, to the service untouched', async () => {
+    const { spawnPty } = fakeSpawnPty();
+    const terminalService = createTerminalService({ loadSpawnPty: async () => spawnPty });
+    const shutdown = vi.spyOn(terminalService, 'shutdownActive');
+    const manager = createTerminalSessionManager({}, { terminalService });
+    await manager.shutdownActive({ graceMs: 25 });
+    await manager.shutdownActive();
+    expect(shutdown.mock.calls).toEqual([[{ graceMs: 25 }], [undefined]]);
+  });
+
   it('get() returns not-found for an unknown id', () => {
     const { manager } = makeManager();
     expect(manager.get({ principal: alice, id: 'missing' })).toEqual({ status: 'not-found' });
