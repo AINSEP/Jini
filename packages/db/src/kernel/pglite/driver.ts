@@ -45,7 +45,7 @@ export function openPgliteKernel<DB>(
   })();
   // Surfaced by every call that awaits `ready`; this only stops an unhandled-rejection crash when
   // nothing has called in yet.
-  ready.catch(() => {});
+  ready.catch(() => { /* why: every call awaiting `ready` rethrows the real failure; this only prevents an unhandled-rejection crash before any caller exists. */ });
   return buildKernel<DB>({
     dialect: "postgres",
     transport: "pglite",
@@ -60,7 +60,7 @@ export function openPgliteKernel<DB>(
       await writeFile(destPath, Buffer.from(await dump.arrayBuffer()));
     },
     async close() {
-      await ready.catch(() => {});
+      await ready.catch(() => { /* why: close() must still release the client when startup failed; the startup failure was already surfaced to every caller of `ready`. */ });
       await client.close();
     },
   });

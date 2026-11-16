@@ -1,5 +1,6 @@
 import { FOREIGN_SCHEMA_SIGNAL, COUNT_MISMATCH_SIGNAL } from "./signals.js";
 import { spawn } from "node:child_process";
+import { describeErrorForLog } from "@jini-ai/core";
 
 /**
  * @file The Postgres side of a database transfer, behind a port, plus its P0 adapter.
@@ -45,8 +46,9 @@ function parsePostgresUrl({ raw }: { raw: string }, _options = {}): URL {
   let url: URL;
   try {
     url = new URL(raw.trim());
-  } catch {
-    throw new InvalidConnectionStringError("the connection string is not a valid postgres:// URL");
+  } catch (cause) {
+    // why: the detail is the parser's own redacted message ("Invalid URL"), never the raw string, which holds the password.
+    throw new InvalidConnectionStringError(`the connection string is not a valid postgres:// URL (${describeErrorForLog({ err: cause })})`);
   }
   if (url.protocol !== "postgres:" && url.protocol !== "postgresql:") {
     throw new InvalidConnectionStringError("the connection string must start with postgres:// or postgresql://");

@@ -1,7 +1,7 @@
 import { expect, it, vi } from 'vitest';
 import { openPostgresKernel } from '../kernel/postgres/driver.js';
 
-it('logs an idle-pool failure as its class only, without connecting to a database', async () => {
+it('logs an idle-pool failure as its class and redacted message, without connecting to a database', async () => {
   let emit!: (error: Error) => void;
   class Pool {
     options = {};
@@ -13,7 +13,7 @@ it('logs an idle-pool failure as its class only, without connecting to a databas
   const kernel = openPostgresKernel({ pg: { Pool, types: { getTypeParser: () => value => value } }, connectionString: 'postgres://unused' });
   try {
     emit(new Error('boom api_key=SECRETSECRETSECRETSECRET'));
-    expect(warn).toHaveBeenCalledWith('[postgres] idle pool connection dropped:', 'Error');
-    expect(JSON.stringify(warn.mock.calls)).not.toMatch(/boom|SECRETSECRET|postgres-idle-error-redaction/);
+    expect(warn).toHaveBeenCalledWith('[postgres] idle pool connection dropped:', 'Error: boom api_key=[REDACTED:labeled_secret]');
+    expect(JSON.stringify(warn.mock.calls)).not.toMatch(/SECRETSECRET|postgres-idle-error-redaction/);
   } finally { warn.mockRestore(); await kernel.close(); }
 });

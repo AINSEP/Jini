@@ -300,7 +300,7 @@ test("a client that disconnects while one message runs has the rest of its pipel
   await db.exec("DROP TABLE pipeline_marks");
 });
 
-test("a listener error after start is logged as its class only, never its text", async () => {
+test("a listener error after start is logged as its class and redacted message, never its secrets", async () => {
   const lines: string[] = [];
   const listener = Object.assign(new EventEmitter(), {
     listen: (_path: string, onListening: () => void) => onListening(),
@@ -309,6 +309,6 @@ test("a listener error after start is logged as its class only, never its text",
   server = new PgliteSocketServer({ db, path: "/unused", createServer: () => listener, log: (line) => lines.push(line) });
   await server.start();
   listener.emit("error", new Error("boom api_key=SECRETSECRETSECRETSECRET"));
-  assert.deepEqual(lines, ["socket server error: Error"]);
-  assert.doesNotMatch(lines.join("\n"), /boom|SECRETSECRET|socket-server\.edges/);
+  assert.deepEqual(lines, ["socket server error: Error: boom api_key=[REDACTED:labeled_secret]"]);
+  assert.doesNotMatch(lines.join("\n"), /SECRETSECRET|socket-server\.edges/);
 });

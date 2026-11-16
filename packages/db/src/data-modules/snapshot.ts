@@ -101,5 +101,6 @@ export async function discardCommittedSnapshot(
   { snapshotPath }: { snapshotPath: string },
   _optional: Record<string, never> = {}
 ): Promise<void> {
-  await fs.rm(snapshotPath, { force: true }).catch(() => {});
+  // A failed removal (EACCES, EBUSY) propagates: the only caller treats the whole step as housekeeping and decides what to do with it.
+  await fs.rm(snapshotPath, { force: true });
 }

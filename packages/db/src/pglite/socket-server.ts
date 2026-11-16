@@ -7,7 +7,7 @@
 import { createServer as createNetServer } from "node:net";
 
 import type { PGlite } from "@electric-sql/pglite";
-import { describeErrorForLog } from "@jini-ai/core";
+import { describeErrorForLog, ignoreBestEffortFailure } from "@jini-ai/core";
 
 /**
  * @file One PGlite served to several processes over a Unix socket, speaking the Postgres wire
@@ -286,7 +286,8 @@ class Connection {
     this.closed = true;
     const gone = new Error("connection closed");
     this.queue.dropQueued(this.id, gone);
-    void this.queue.rollbackIfOwned(this.id).catch(() => {});
+    // why: the client is already gone; a failed rollback cannot be reported to it, but it must be findable in a log.
+    void this.queue.rollbackIfOwned(this.id).catch(ignoreBestEffortFailure({ operation: "roll back the closed pglite connection's open transaction" }, { scope: "db" }));
     endSocket(this.socket, destroyNow);
     this.onClosed(this);
   }

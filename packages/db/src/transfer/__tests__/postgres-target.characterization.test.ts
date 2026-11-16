@@ -23,7 +23,7 @@ describe('connection URL compatibility pins', () => {
     expect(parsed.env).not.toHaveProperty('PGPASSWORD');
   });
   it.each([
-    { raw: 'not a URL', message: 'the connection string is not a valid postgres:// URL' },
+    { raw: 'not a URL', message: 'the connection string is not a valid postgres:// URL (TypeError(ERR_INVALID_URL): Invalid URL)' },
     { raw: 'https://user:secret@localhost/db', message: 'the connection string must start with postgres:// or postgresql://' },
     { raw: 'postgres://user@localhost/', message: 'the connection string must name a host, a user and a database' },
     { raw: 'postgres://localhost/db', message: 'the connection string must name a host, a user and a database' },
@@ -31,6 +31,7 @@ describe('connection URL compatibility pins', () => {
   ])('rejects $raw with its established error type and safe message', ({ raw, message }) => {
     expect(() => parseConnectionString({ raw })).toThrow(InvalidConnectionStringError);
     expect(() => parseConnectionString({ raw })).toThrow(message);
+    expect(() => parseConnectionString({ raw })).not.toThrow(raw === 'not a URL' ? /not a URL/ : /secret/);
   });
   it('lets malformed percent escapes escape as URIError (reported, not fixed)', () => {
     expect(() => parseConnectionString({ raw: 'postgres://user:%ZZ@localhost/db' })).toThrow(URIError);

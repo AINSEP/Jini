@@ -24,6 +24,7 @@ import type { PGlite } from "@electric-sql/pglite";
 import { PGLITE_SOCKET_FILE } from "../core/index.js";
 import { PgliteSocketServer } from "./socket-server.js";
 import type { PgliteClass } from "./types.js";
+import { ignoreBestEffortFailure } from "@jini-ai/core";
 
 /**
  * @file The PGlite OWNER: the one process that opens a PGlite data dir and serves it on a private
@@ -466,8 +467,9 @@ export async function startPgliteOwner(
     fs.chmodSync(socketPath, 0o600);
     if ((fs.statSync(socketPath).mode & 0o077) !== 0) throw new Error(`socket ${socketPath} is not owner-only`);
   } catch (error) {
-    await server?.stop().catch(() => {});
-    await db?.close().catch(() => {});
+    // why: cleanup while the real startup failure propagates below; a cleanup failure must not replace it.
+    await server?.stop().catch(ignoreBestEffortFailure({ operation: "stop the pglite socket server after a failed start" }, { scope: "db" }));
+    await db?.close().catch(ignoreBestEffortFailure({ operation: "close pglite after a failed start" }, { scope: "db" }));
     fs.rmSync(socketPath, { force: true });
     releaseLock();
     throw error;

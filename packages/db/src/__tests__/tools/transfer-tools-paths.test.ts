@@ -110,8 +110,8 @@ it("plan reports a failed capture as DATABASE_SNAPSHOT_FAILED and logs the descr
   const h = harness(); h.useDestination();
   h.ports.dbOps.captureRestorePoint = async () => { throw new Error("boom api_key=SECRETSECRETSECRETSECRET"); };
   expect(await h.call("database_transfer_plan")).toEqual({ planned: false, code: "DATABASE_SNAPSHOT_FAILED", message: "the site database could not be snapshotted; nothing was copied" });
-  expect(h.logs).toEqual(["[database-transfer] snapshot failed: Error"]);
-  expect(h.logs.join("\n")).not.toMatch(/boom|SECRETSECRET/);
+  expect(h.logs).toEqual(["[database-transfer] snapshot failed: Error: boom api_key=[REDACTED:labeled_secret]"]);
+  expect(h.logs.join("\n")).not.toMatch(/SECRETSECRET/);
   expect(h.calls.some(call => call.startsWith("unlink:"))).toBe(false);
 });
 
@@ -119,7 +119,7 @@ it("plan reports an unreadable snapshot file and still deletes it", async () => 
   const h = harness(); h.useDestination();
   h.files.content = new Error("EACCES");
   expect(await h.call("database_transfer_plan")).toEqual({ planned: false, code: "DATABASE_SNAPSHOT_FAILED", message: "the site database snapshot could not be read; nothing was copied" });
-  expect(h.logs).toEqual(["[database-transfer] snapshot read failed: Error"]);
+  expect(h.logs).toEqual(["[database-transfer] snapshot read failed: Error: EACCES"]);
   expect(h.calls).toContain("unlink:/snapshots/one");
 });
 
@@ -150,7 +150,7 @@ it("plan reports a failed chat capture after the content snapshot", async () => 
   const h = harness(); h.useDestination();
   h.ports.captureChatSnapshot = async () => { throw new Error("chat locked"); };
   expect(await h.call("database_transfer_plan")).toEqual({ planned: false, code: "DATABASE_SNAPSHOT_FAILED", message: "the chat database could not be snapshotted; nothing was copied" });
-  expect(h.logs).toEqual(["[database-transfer] chat snapshot failed: Error"]);
+  expect(h.logs).toEqual(["[database-transfer] chat snapshot failed: Error: chat locked"]);
 });
 
 it("plan turns an incomplete catalog into SCHEMA_MISMATCH and closes both sources", async () => {
@@ -264,8 +264,8 @@ it.each([
   const h = harness();
   answering(h, { status: "received", params });
   const result = await h.call("database_transfer_set_destination", {}, withSurface) as { saved: boolean; code: string; message: string };
-  expect(result).toEqual({ saved: false, code: "INVALID_CONNECTION_STRING", message: "the connection string is not a valid postgres:// URL" });
-  expect(h.calls).toContain("outcome:failure:Not saved: the connection string is not a valid postgres:// URL.");
+  expect(result).toEqual({ saved: false, code: "INVALID_CONNECTION_STRING", message: "the connection string is not a valid postgres:// URL (TypeError(ERR_INVALID_URL): Invalid URL)" });
+  expect(h.calls).toContain("outcome:failure:Not saved: the connection string is not a valid postgres:// URL (TypeError(ERR_INVALID_URL): Invalid URL).");
   expect(h.calls).not.toContain("saved");
 });
 
