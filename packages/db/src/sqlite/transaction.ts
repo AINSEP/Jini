@@ -1,5 +1,4 @@
-import type { KyselyKernel } from "../kernel/port.js";
-import type { RawBuilder } from "kysely";
+import type { KyselyKernel, RawBuilder } from "../kernel/port.js";
 import { ownedTransactionOf } from "../kernel/owned-transaction.js";
 import type { CheckedSqliteClient } from "./checked-client.js";
 import { assertCheckedAvailable, checkedClients, checkedStates, connectionsByKernel, SqliteClientError, type CheckedState, type SqliteLease } from "./checked-state.js";

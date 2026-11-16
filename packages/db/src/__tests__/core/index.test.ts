@@ -9,7 +9,7 @@ import * as core from '../../core/index.js';
 
 describe('@jini-ai/infra/db/core barrel', () => {
   it('exports exactly the runtime surface it promises', () => {
-    expect(Object.keys(core).sort()).toEqual(['PGLITE_SOCKET_FILE', 'PG_OID', 'PG_PARSERS', 'parseInt8', 'parseJsonOrUndef', 'restorePointFilename', 'row', 'rows', 'sanitizeForFilename']);
+    expect(Object.keys(core).sort()).toEqual(['PGLITE_SOCKET_FILE', 'PG_OID', 'PG_PARSERS', 'parseInt8', 'restorePointFilename', 'sanitizeForFilename']);
   });
 
   it('re-exports working implementations, not just names', () => {
