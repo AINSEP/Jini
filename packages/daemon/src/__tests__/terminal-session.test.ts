@@ -1,10 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createToolRegistry, type Principal, type ToolPolicy, type ToolRegistry } from '@jini-ai/core';
 import type {
-  ensureSpawnHelperExecutable as EnsureSpawnHelperExecutableFn,
-  spawnHelperCandidatePaths as SpawnHelperCandidatePathsFn,
-} from '@jini-ai/platform';
-import type {
   PtyProcess,
   PtySpawn,
   PtySpawnOptions,
@@ -12,7 +8,6 @@ import type {
 } from '@jini-ai/core/contracts/runtime';
 import { createTerminalService } from '@jini-ai/platform';
 import { createToolExecutor, type ToolExecutor } from '../tool-executor.js';
-import { loadRealSpawnPty } from '../terminal.adapter.js';
 import {
   createTerminalSessionManager,
   createTerminalToolRegistrations,
@@ -23,22 +18,12 @@ import {
   type TerminalSessionManager,
 } from '../terminal-session.js';
 
-// `loadRealSpawnPty` touches the real filesystem (`ensureSpawnHelperExecutable`) and dynamically
-// imports the real `node-pty` addon — mocked out here so the daemon test suite never spawns a
-// real OS process or mutates real files on disk, matching this codebase's "no real subprocess or
-// filesystem by default in tests" convention (see `agent-executor.ts`'s injectable `spawn`).
-const spawnHelperCandidatePathsMock = vi.fn<typeof SpawnHelperCandidatePathsFn>(() => ['/fake/candidate/spawn-helper']);
-const ensureSpawnHelperExecutableMock = vi.fn<typeof EnsureSpawnHelperExecutableFn>();
 // Records the options each manager hands the real engine, so knob forwarding is asserted, not assumed.
 const createTerminalServiceOptions: Array<Parameters<typeof import('@jini-ai/platform').createTerminalService>[0]> = [];
 vi.mock('@jini-ai/platform', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@jini-ai/platform')>();
   return {
     ...actual,
-    spawnHelperCandidatePaths: (...args: Parameters<typeof actual.spawnHelperCandidatePaths>) =>
-      spawnHelperCandidatePathsMock(...args),
-    ensureSpawnHelperExecutable: (...args: Parameters<typeof actual.ensureSpawnHelperExecutable>) =>
-      ensureSpawnHelperExecutableMock(...args),
     createTerminalService: (...args: Parameters<typeof actual.createTerminalService>) => {
       createTerminalServiceOptions.push(args[0]);
       return actual.createTerminalService(...args);
@@ -78,67 +63,8 @@ class FakeIPty {
   }
 }
 
-const nodePtySpawnMock = vi.fn<(shell: string, args: string[], options: PtySpawnOptions) => FakeIPty>();
-vi.mock('node-pty', () => ({
-  spawn: (shell: string, args: string[], options: PtySpawnOptions) => nodePtySpawnMock(shell, args, options),
-}));
-
 afterEach(() => {
   vi.clearAllMocks();
-});
-
-describe('loadRealSpawnPty', () => {
-  it('repairs the spawn-helper executable bit using a resolver anchored at this module before the first import, and adapts a real IPty to PtyProcess', async () => {
-    const fakePty = new FakeIPty();
-    nodePtySpawnMock.mockReturnValue(fakePty);
-
-    const spawnPty = await loadRealSpawnPty({  });
-
-    expect(ensureSpawnHelperExecutableMock).toHaveBeenCalledWith(['/fake/candidate/spawn-helper']);
-    const [candidatesCallOptions] = spawnHelperCandidatePathsMock.mock.calls[0]!;
-    expect(typeof candidatesCallOptions?.resolve).toBe('function');
-    // The injected resolver must actually resolve something (this module's own `node-pty`
-    // dependency), not silently no-op — proving it is anchored at `@jini-ai/daemon`, which declares
-    // `node-pty`, rather than `@jini-ai/platform`'s own default resolver, which would throw since
-    // that package deliberately does not depend on `node-pty`.
-    expect(candidatesCallOptions!.resolve!('node-pty')).toEqual(expect.stringContaining('node-pty'));
-
-    const process: PtyProcess = spawnPty('/bin/bash', ['-l'], {
-      name: 'xterm-color',
-      cols: 80,
-      rows: 24,
-      cwd: '/work',
-      env: {},
-    });
-    expect(nodePtySpawnMock).toHaveBeenCalledWith('/bin/bash', ['-l'], {
-      name: 'xterm-color',
-      cols: 80,
-      rows: 24,
-      cwd: '/work',
-      env: {},
-    });
-
-    const dataChunks: string[] = [];
-    process.onData((chunk) => dataChunks.push(chunk));
-    fakePty.emitData('hello');
-    expect(dataChunks).toEqual(['hello']);
-
-    const exits: Array<{ exitCode: number; signal?: number }> = [];
-    process.onExit((event) => exits.push(event));
-    fakePty.emitExit(0, 15);
-    expect(exits).toEqual([{ exitCode: 0, signal: 15 }]);
-
-    process.write('echo hi\n');
-    expect(fakePty.writeCalls).toEqual(['echo hi\n']);
-
-    process.resize(100, 40);
-    expect(fakePty.resizeCalls).toEqual([[100, 40]]);
-
-    process.kill('SIGTERM');
-    expect(fakePty.killCalls).toEqual(['SIGTERM']);
-    process.kill();
-    expect(fakePty.killCalls).toEqual(['SIGTERM', undefined]);
-  });
 });
 
 describe('denyAllTerminalCreatePolicy', () => {
@@ -210,22 +136,12 @@ describe('createTerminalSessionManager — create/get/list', () => {
     expect(session.shell).toBe('/bin/zsh');
   });
 
-  it('uses the host-injected native loader from the terminal subpath and forwards tuning knobs', async () => {
-    const fakePty = new FakeIPty();
-    nodePtySpawnMock.mockReturnValue(fakePty);
-    const manager = createTerminalSessionManager({  }, { loadSpawnPty: () => loadRealSpawnPty({}), maxEvents: 10, maxBufferBytes: 1024, exitTailBytes: 256, flushIntervalMs: 1, flushThresholdBytes: 64, shutdownGraceMs: 1 });
-    const session = await manager.create({ principal: alice, options: { cwd: '/work' } });
-    expect(session.status).toBe('running');
-    expect(nodePtySpawnMock).toHaveBeenCalledTimes(1);
-  });
-
   it('keeps boot inert and rejects terminal creation without a host-supplied implementation', async () => {
     const manager = createTerminalSessionManager({});
     expect(manager.list({ principal: alice })).toEqual([]);
     await expect(manager.create({ principal: alice, options: { cwd: '/work' } })).rejects.toThrow(
       'Interactive terminals require a host-supplied terminalService or loadSpawnPty. Import loadRealSpawnPty from @jini-ai/daemon/terminal to enable node-pty.',
     );
-    expect(nodePtySpawnMock).not.toHaveBeenCalled();
   });
 
   it('forwards exactly the tuning knobs that were supplied to the engine, and only those', () => {

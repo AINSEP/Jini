@@ -172,7 +172,7 @@ export interface CreateLocalNodeDaemonConfig<
    * with `404`, never fabricating or guessing a path.
    */
   resolveWorkspaceRoot?: WorkspaceRootResolver;
-  /** Opt into PTYs with `() => loadRealSpawnPty({})` from `@jini-ai/daemon/terminal`. */
+  /** Opt into PTYs with `() => loadRealSpawnPty({})` from `@jini-ai/server/adapters/node-pty`. */
   loadTerminalSpawnPty?: CreateTerminalSessionManagerOptions['loadSpawnPty'];
   /**
    * Optional product/capability route registrars. They run after the host's security middleware

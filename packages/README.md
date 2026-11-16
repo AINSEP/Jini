@@ -69,7 +69,7 @@ consumer-adoption pass — see each package's own the archived provenance ledger
 | `@jini-ai/registry` | `better-sqlite3` | `peerDependencies` (optional) — `database-backend.ts` only needs the *type*, the caller owns/opens the real handle | Only pay the native-compile cost if you actually install `better-sqlite3` yourself to use `DatabaseRegistryBackend`; `StaticRegistryBackend` and friends need nothing. |
 | `@jini-ai/capability-providers` | `better-sqlite3` | `peerDependencies` (optional), and the code that needs it is behind the `./adapters/sqlite` subpath | Nothing on the root barrel references it, in code *or* in emitted `.d.ts`. Only pay the native-compile cost if you import `./adapters/sqlite` for `SqliteDbProvider`. |
 | `@jini-ai/integrations` (`./media-providers`) | `better-sqlite3` | Dynamically imported (`await import('better-sqlite3')`) inside `createSqliteMediaTaskStore` only | Importing anything else from `./media-providers` (e.g. `renderStub`) never touches the native binary at all; the cost is paid only if you actually call that one factory. |
-| `@jini-ai/daemon` | `node-pty` | Optional peer; native adapter at `./terminal` | The default entry uses an injected PTY port. Only hosts opting into `loadRealSpawnPty` from `@jini-ai/daemon/terminal` install the native addon. |
+| `@jini-ai/server` | `node-pty` | Optional peer; native adapter at `./adapters/node-pty` | `@jini-ai/daemon`'s session manager uses an injected PTY port. Only hosts opting into `loadRealSpawnPty` from `@jini-ai/server/adapters/node-pty` install the native addon. |
 
 Everything else in the workspace (`shiki` in `@jini-ai/ui`'s `./renderers` subpath, the various
 vendor SDKs in `@jini-ai/integrations`'s `./media-providers` dispatch providers) is pure JS — no

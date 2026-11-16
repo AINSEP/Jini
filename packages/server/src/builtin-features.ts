@@ -85,7 +85,7 @@ export interface BuiltInFeatureOptions {
   };
   readonly hostTools?: { readonly resolveWorkspaceRoot?: WorkspaceRootResolver };
   readonly terminal?: {
-    /** Host-selected PTY implementation; the native adapter is at `@jini-ai/daemon/terminal`. */
+    /** Host-selected PTY implementation; the native adapter is at `@jini-ai/server/adapters/node-pty`. */
     readonly loadSpawnPty?: CreateTerminalSessionManagerOptions['loadSpawnPty'];
     readonly resolveWorkspaceRoot?: WorkspaceRootResolver;
     readonly principal?: Principal;

@@ -1,5 +1,5 @@
 /**
- * Opt-in native PTY adapter. Import from `@jini-ai/daemon/terminal` and inject
+ * Opt-in native PTY adapter. Import from `@jini-ai/server/adapters/node-pty` and inject
  * `() => loadRealSpawnPty({})` into the session manager's `loadSpawnPty` port.
  */
 import { loadOptionalPeer } from '@jini-ai/core/optional-peer';
@@ -17,7 +17,7 @@ import type {
   PtySpawnOptions,
 } from '@jini-ai/core/contracts/runtime';
 
-const daemonRequire = createRequire(import.meta.url);
+const hostRequire = createRequire(import.meta.url);
 
 /** Adapts a real `node-pty` `IPty` to `@jini-ai/platform`'s narrower `PtyProcess` port — explicit per-member mapping rather than relying on structural assignability, matching this package's established "explicit adapter, no implicit coercion" convention (e.g. `agent-executor.ts`'s `toStringEnvRecord`). */
 function toPtyProcess(pty: IPty): PtyProcess {
@@ -48,14 +48,14 @@ function toPtyProcess(pty: IPty): PtyProcess {
  * (`createRequire(import.meta.url)` here, not `@jini-ai/platform`'s own
  * default): `@jini-ai/platform` deliberately does not depend on `node-pty`, so
  * its default `require.resolve('node-pty')` would not find the copy this
- * package (`@jini-ai/daemon`) actually declares — this is exactly the
+ * package (`@jini-ai/server`) actually declares — this is exactly the
  * resolver injection seam `spawnHelperCandidatePaths` was built for.
  * @throws A feature-specific load error with the original resolution/ABI error as `cause`.
  * @complexity O(1) adapter work; module loading and helper repair belong to the platform.
  */
 export async function loadRealSpawnPty(_requiredArgs: Record<string, never>, _optionalArgs: Record<string, never> = {}): Promise<PtySpawn> {
   ensureSpawnHelperExecutable(
-    spawnHelperCandidatePaths({ resolve: (specifier) => daemonRequire.resolve(specifier) }),
+    spawnHelperCandidatePaths({ resolve: (specifier) => hostRequire.resolve(specifier) }),
   );
   const nodePty = await loadOptionalPeer({ feature: 'Interactive terminals', dependency: 'node-pty', load: () => import('node-pty') });
   return (shell: string, args: string[], options: PtySpawnOptions) =>

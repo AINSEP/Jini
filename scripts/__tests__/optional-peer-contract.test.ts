@@ -113,7 +113,7 @@ it('feature load messages match the owning manifest classifications', async () =
   const sites = [
     'capability-providers/src/adapters/ws/index.ts', 'cms/src/media/image-transformer.sharp.ts',
     'cms/src/media/document-ingress.ts', 'cms/src/media/sanitize-svg.ts',
-    'daemon/src/terminal.adapter.ts', 'daemon/src/store/event-log/sqlite-kernel.ts',
+    'server/src/adapters/node-pty.ts', 'daemon/src/store/event-log/sqlite-kernel.ts',
     'integrations/src/media-providers/sqlite-driver.adapter.ts', 'platform/src/asset-cache.adapter.ts',
     'ui/src/renderers/shiki.ts', 'user-management/src/server/hasher.ts', 'mcp/src/federation/adapter.http.ts',
   ];

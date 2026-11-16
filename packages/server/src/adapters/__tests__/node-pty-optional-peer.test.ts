@@ -6,14 +6,14 @@ import { spawnSync } from 'node:child_process';
 import { expect, it } from 'vitest';
 
 it('a real terminal opt-in without node-pty reports an actionable feature error', () => {
-  const repo = fileURLToPath(new URL('../../../../', import.meta.url));
+  const repo = fileURLToPath(new URL('../../../../../', import.meta.url));
   const root = mkdtempSync(join(tmpdir(), 'jini-terminal-opt-in-'));
   try {
-    copyFileSync(resolve(repo, 'packages/daemon/src/terminal.adapter.ts'), join(root, 'terminal.adapter.ts'));
+    copyFileSync(resolve(repo, 'packages/server/src/adapters/node-pty.ts'), join(root, 'terminal.adapter.ts'));
     writeFileSync(join(root, 'package.json'), JSON.stringify({ type: 'module' }));
     mkdirSync(join(root, 'node_modules', '@jini-ai'), { recursive: true });
     // Use the real platform dependency; only the optional native addon is absent from this install.
-    symlinkSync(resolve(repo, 'packages/daemon/node_modules/@jini-ai/platform'), join(root, 'node_modules', '@jini-ai/platform'), 'junction');
+    symlinkSync(resolve(repo, 'packages/server/node_modules/@jini-ai/platform'), join(root, 'node_modules', '@jini-ai/platform'), 'junction');
     // Resolve the new helper from source in this child and the real platform's imports;
     // an unrelated concurrent dist refresh must not require a core build for this test.
     const helper = pathToFileURL(resolve(repo, 'packages/core/src/optional-peer.ts')).href;
