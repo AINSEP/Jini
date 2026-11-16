@@ -51,7 +51,7 @@ it('cancellation during observation prevents the later effect', async () => {
     const result = await describe(...args); controller.abort(); return result;
   });
   const guarded = { ...driver, click, describeState: observed };
-  await expect(executePageCapability({ driver: guarded, capabilityId: 'page.click', input: { handle: 'toggle' } }, { signal: controller.signal })).rejects.toThrow(controller.signal.reason.message);
+  await expect(executePageCapability({ driver: guarded, capabilityId: 'page.click', input: { handle: 'toggle' } }, { signal: controller.signal })).rejects.toMatchObject({ name: 'AbortError' });  // jsdom's AbortSignal has no `reason`, so assert the standard abort error name
   expect(observed).toHaveBeenCalledTimes(1);
   expect(controller.signal.aborted).toBe(true);
   expect(click).not.toHaveBeenCalled();
