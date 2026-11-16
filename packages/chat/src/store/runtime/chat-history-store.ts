@@ -52,10 +52,9 @@ export function createChatHistoryStore<DB extends ChatDatabase>(
   { now = Date.now }: { now?: () => number } = {},
 ): ChatStore {
   const kernel = chatKernelTables<DB, ChatDatabase>({ kernel: hostKernel }, {});
-  const required = { kernel, scope };
-  const optional = { clock: { nowMs: now } };
+  const required = { kernel, scope, clock: { nowMs: now } };
   const createStore = storeFactory(kernel.transport);
-  const store = createStore(required, optional);
+  const store = createStore(required, {});
   return { ...store,
     // Admin reload and recovery use this full-transcript compatibility read. Preserve stored
     // positions (and Jini's position-based page cursors); existing user databases need no migration.

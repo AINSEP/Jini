@@ -10,6 +10,9 @@ import { conversationUsage } from '../../core/turn-usage.js';
 import { formatUsageCost } from '../../core/usage-format.js';
 import { parseUsageEvent } from '../../core/run-events/entry.js';
 
+// A package test supplies its own clock port; the system clock lives in the platform package.
+const testClock = { nowMs: () => Date.now() };
+
 const require = createRequire(new URL('../../../../db/package.json', import.meta.url));
 const Database = require('better-sqlite3');
 const scope = { scopeId: 'ws', ownerKind: 'user', ownerId: 'alice' } as const;
@@ -29,7 +32,7 @@ it('retains cumulative session snapshots through a real SQLite close/reopen and 
     const before = conversationUsage({ messages: await original.messages({ conversationId: 'c' }) });
     db.close();
     db = new Database(path);
-    const reloaded = createSqliteChatStore({ kernel: sqliteKernel<ChatDatabase>(db), scope });
+    const reloaded = createSqliteChatStore({ clock: testClock, kernel: sqliteKernel<ChatDatabase>(db), scope });
     const page = await reloaded.pageMessages({ conversationId: 'c' });
     expect(page.items.map(message => message.events)).toEqual([
       [{ kind: 'usage', cumulativeCostUsd: 2.05, costSessionId: 's' }],

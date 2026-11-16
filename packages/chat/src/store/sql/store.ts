@@ -17,7 +17,7 @@ const CONVERSATION_UPDATED_AT = 'c.updated_at';
  * constraint remains the backstop, and nested appends join the host's existing transaction.
  */
 import { sql, type Kysely } from 'kysely';
-import { createSystemClock, type Clock } from '@jini-ai/core/primitives';
+import type { Clock } from '@jini-ai/core/primitives';
 import { isUniqueViolation, type StorageKernel } from '@jini-ai/db/kernel';
 import { redactUserMessage, type UserTextRedactionOptions } from '../../core/user-text-redaction.js';
 import type { ChatMessage } from '../../core/messages.js';
@@ -233,13 +233,13 @@ function assertHistoryListInputs({ limit, query }: { limit: number; query: unkno
  *   `ON DELETE CASCADE` needs `foreign_keys = ON`, which the host must enable.
  * @param scope the isolation predicate, resolved from the host's authentication. For a guest,
  *   `ownerId` must already be a hash of the session key (`tenant-scope.ts`).
- * @param optional Optional core Clock for deterministic host/tests; defaults to system wall time.
+ * @param clock the host's core Clock; tests pass a fake for deterministic time.
  * @complexity each method is one to four indexed statements; conversation summaries scan their
  *   messages and embedded events in SQL; `messages` is O(messages in the conversation).
  */
 export function createSqlChatStore<DB extends ChatDatabase>(
-  { kernel, scope: inputScope }: { kernel: StorageKernel<DB>; scope: ChatOwnerScope },
-  { clock = createSystemClock(), ...redactionOptions }: { clock?: Clock } & UserTextRedactionOptions = {},
+  { kernel, scope: inputScope, clock }: { kernel: StorageKernel<DB>; scope: ChatOwnerScope; clock: Clock },
+  redactionOptions: UserTextRedactionOptions = {},
 ): ChatStore {
   const scope = copyScope({ scope: inputScope });
   const { scopeId, ownerKind, ownerId } = scope;

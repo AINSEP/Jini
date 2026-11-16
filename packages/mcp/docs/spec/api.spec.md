@@ -34,13 +34,13 @@ Source signatures are authoritative for this specification. `required` names an 
 | `buildClaudeMcpJson({servers:McpServerConfig[]}, optional:{tokens?:Record<string,string>} = {})` | `unknown \| null` |
 | `buildAcpMcpServers({servers:McpServerConfig[]})` | `AcpMcpServer[]` |
 | `buildOpenCodeMcpConfigContent({servers:McpServerConfig[]}, optional:OpenCodeConfigBuildOptions = {})` | `string \| null` |
-| `sanitizeTokensFile({raw:unknown}, optional:McpTokenClockOptions = {})` | `McpTokensFile` |
-| `readTokensFile({dataDir:string}, optional:McpTokenStoreOptions = {})` | `Promise<McpTokensFile>` |
-| `getToken({dataDir:string,serverId:string}, optional:McpTokenStoreOptions = {})` | `Promise<StoredMcpToken \| null>` |
-| `setToken({dataDir:string,serverId:string,token:StoredMcpToken}, optional:McpTokenStoreOptions = {})` | `Promise<void>` |
-| `clearToken({dataDir:string,serverId:string}, optional:McpTokenStoreOptions = {})` | `Promise<void>` |
-| `readAllTokens({dataDir:string}, optional:McpTokenStoreOptions = {})` | `Promise<Record<string,StoredMcpToken>>` |
-| `isTokenExpired({token:StoredMcpToken}, optional:{clock?:Clock,now?:number,skew?:number} = {})` | `boolean` |
+| `sanitizeTokensFile({raw:unknown, clock:Clock}, _optional = {})` | `McpTokensFile` |
+| `readTokensFile({dataDir:string,clock:Clock}, optional:McpTokenStoreOptions = {})` | `Promise<McpTokensFile>` |
+| `getToken({dataDir:string,serverId:string,clock:Clock}, optional:McpTokenStoreOptions = {})` | `Promise<StoredMcpToken \| null>` |
+| `setToken({dataDir:string,serverId:string,token:StoredMcpToken,clock:Clock}, optional:McpTokenStoreOptions = {})` | `Promise<void>` |
+| `clearToken({dataDir:string,serverId:string,clock:Clock}, optional:McpTokenStoreOptions = {})` | `Promise<void>` |
+| `readAllTokens({dataDir:string,clock:Clock}, optional:McpTokenStoreOptions = {})` | `Promise<Record<string,StoredMcpToken>>` |
+| `isTokenExpired({token:StoredMcpToken, clock:Clock}, optional:{now?:number,skew?:number} = {})` | `boolean` |
 
 `McpTransport` is stdio/sse/http; `McpAuthMode` is none/oauth. `McpServerConfig` requires id/transport/enabled and permits label/authMode/command/args/env/url/headers. `McpConfig` is `{servers:McpServerConfig[]}`. `AcpMcpServer` is `{type:'stdio',name,command,args,env:{name,value}[]}`.
 

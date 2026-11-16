@@ -3,11 +3,14 @@ import { sqliteFixture, type Fixture } from './fixtures.js';
 import { createSqliteChatStore, createSqliteChatMaintenance } from '../sqlite/index.js';
 import { createPgliteChatStore, createPgliteChatMaintenance } from '../pglite/index.js';
 import { createPostgresChatStore, createPostgresChatMaintenance } from '../postgres/index.js';
+
+// A package test supplies its own clock port; the system clock lives in the platform package.
+const testClock = { nowMs: () => Date.now() };
 const scope={scopeId:'ws',ownerKind:'user',ownerId:'alice'} as const;
 let f:Fixture;afterEach(async()=>{vi.restoreAllMocks();await f?.close();});
 it('construction borrows the exact kernel without SQL, configuration or resource lifecycle effects',async()=>{
  f=await sqliteFixture();const run=vi.spyOn(f.kernel,'run'),execute=vi.spyOn(f.kernel,'execute'),close=vi.spyOn(f.kernel,'close');
- const s=createSqliteChatStore({kernel:f.kernel,scope});createSqliteChatMaintenance({kernel:f.kernel});
+ const s=createSqliteChatStore({ clock: testClock,kernel:f.kernel,scope});createSqliteChatMaintenance({kernel:f.kernel});
  expect(run).not.toHaveBeenCalled();expect(execute).not.toHaveBeenCalled();expect(close).not.toHaveBeenCalled();
  await s.create({id:'c'});expect((await f.make(scope).get({ id: 'c' }))?.id).toBe('c');
 });

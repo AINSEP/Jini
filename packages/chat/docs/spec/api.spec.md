@@ -114,13 +114,13 @@ const title = deriveConversationTitle({ prompt: hostUserPrompt });
 ## Owner-scoped stores
 
 ```ts
-createSqliteChatStore(required: { kernel: StorageKernel<DB>; scope: ChatOwnerScope }, optional: { clock?: Clock } = {}): ChatStore;
+createSqliteChatStore(required: { kernel: StorageKernel<DB>; scope: ChatOwnerScope; clock: Clock }, optional: UserTextRedactionOptions = {}): ChatStore;
 createSqliteChatMaintenance(required: { kernel: StorageKernel<DB> }): ChatHistoryMaintenance;
-createPgliteChatStore(required: { kernel: StorageKernel<DB>; scope: ChatOwnerScope }, optional: { clock?: Clock } = {}): ChatStore;
+createPgliteChatStore(required: { kernel: StorageKernel<DB>; scope: ChatOwnerScope; clock: Clock }, optional: UserTextRedactionOptions = {}): ChatStore;
 createPgliteChatMaintenance(required: { kernel: StorageKernel<DB> }): ChatHistoryMaintenance;
-createPostgresChatStore(required: { kernel: StorageKernel<DB>; scope: ChatOwnerScope }, optional: { clock?: Clock } = {}): ChatStore;
+createPostgresChatStore(required: { kernel: StorageKernel<DB>; scope: ChatOwnerScope; clock: Clock }, optional: UserTextRedactionOptions = {}): ChatStore;
 createPostgresChatMaintenance(required: { kernel: StorageKernel<DB> }): ChatHistoryMaintenance;
-createChatHistoryStore({ db, scope }: { db: SqliteConnectionSource; scope: ChatOwnerScope }, optional: { clock?: Clock } = {}): ChatStore; // SQLite compatibility
+createChatHistoryStore({ db, scope }: { db: SqliteConnectionSource; scope: ChatOwnerScope; clock: Clock }, optional: UserTextRedactionOptions = {}): ChatStore; // SQLite compatibility
 createChatHistoryMaintenance({ db }: { db: SqliteConnectionSource }): ChatHistoryMaintenance;
 ensureChatHistoryTables({ db }: { db: Pick<SqliteClient, 'exec'> }): void;
 ```
@@ -144,8 +144,7 @@ ensureChatHistoryTables({ db }: { db: Pick<SqliteClient, 'exec'> }): void;
 ```ts
 import { createSqliteChatStore } from '@jini-ai/chat/store/sqlite';
 const store = createSqliteChatStore(
-  { kernel: hostKernel, scope: { scopeId: 'workspace', ownerKind: 'user', ownerId: 'actor' } },
-  { now: hostClock },
+  { kernel: hostKernel, scope: { scopeId: 'workspace', ownerKind: 'user', ownerId: 'actor' }, clock: hostClock },
 );
 await store.create({ id: hostIds.next() });
 const page = await store.pageConversations({ limit: 20 });
@@ -158,8 +157,8 @@ import type { ChatStore } from '@jini-ai/chat/store';
 import type { ChatSessionMode } from '@jini-ai/chat/store/legacy';
 import { createPgliteChatStore } from '@jini-ai/chat/store/pglite';
 import { createPostgresChatStore } from '@jini-ai/chat/store/postgres';
-const embedded: ChatStore = createPgliteChatStore({kernel: hostPgliteKernel, scope});
-const network: ChatStore = createPostgresChatStore({kernel: hostPostgresKernel, scope});
+const embedded: ChatStore = createPgliteChatStore({kernel: hostPgliteKernel, scope, clock: hostClock});
+const network: ChatStore = createPostgresChatStore({kernel: hostPostgresKernel, scope, clock: hostClock});
 const mode: ChatSessionMode = 'chat';
 ```
 

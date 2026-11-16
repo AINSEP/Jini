@@ -4,11 +4,14 @@ import { sqliteFixture } from './fixtures.js';
 import { acceptedInputsFromMessages, projectAcceptedInputMessages } from '../../core/accepted-input.js';
 import type { ChatMessage } from '../../core/messages.js';
 
+// A package test supplies its own clock port; the system clock lives in the platform package.
+const testClock = { nowMs: () => Date.now() };
+
 it('round-trips ordinary and queued folder receipts through storage without changing any path bytes', async () => {
   const folders = ['/tmp/A B', String.raw`C:\A B`, String.raw`\\srv\share`];
   const fixture = await sqliteFixture();
   try {
-    const store = createSqliteChatStore({ kernel: fixture.kernel, scope: { scopeId: 's', ownerId: 'u', ownerKind: 'user' } });
+    const store = createSqliteChatStore({ clock: testClock, kernel: fixture.kernel, scope: { scopeId: 's', ownerId: 'u', ownerKind: 'user' } });
     await store.create({ id: 'c' });
     const message: ChatMessage = { id: 'm', role: 'user', content: 'inspect', folders };
     await store.appendMessage({ conversationId: 'c', message });

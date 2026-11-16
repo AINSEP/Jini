@@ -129,9 +129,9 @@ All database and React peers are optional; Kysely dev tests pin 0.29.6 and PGlit
 
 ```ts
 import { createSqliteChatStore } from '@jini-ai/chat/store/sqlite';
-const store = createSqliteChatStore({ kernel, scope: {
+const store = createSqliteChatStore({ kernel, clock, scope: {
   scopeId: 'workspace', ownerKind: 'user', ownerId: 'account',
-} });
+} }); // `clock` is a core Clock, e.g. createSystemClock() from @jini-ai/platform/system
 const page = await store.pageConversations({}, { limit: 50 });
 const conversation = await store.get({ id: 'conversation' });
 await store.appendMessage({ conversationId: 'conversation', message });
