@@ -1,5 +1,5 @@
-import { dispatchFrame, extractErrorMessage, initializingStatus, isRecord, optionalNumber, pickUsage, safeParseJson, stringifyContent, todoWriteInputFromParsedValue } from '../../json-event-stream.js';
-import type { FrameHandler, JsonObject, ParserState, StreamEventHandler, UsageFields } from '../../json-event-stream.js';
+import { dispatchFrame, extractErrorMessage, initializingStatus, isRecord, optionalNumber, pickUsage, safeParseJson, stringifyContent, todoWriteInputFromParsedValue } from '../../json-event-stream-shared.js';
+import type { FrameHandler, JsonObject, ParserState, StreamEventHandler, UsageFields } from '../../json-event-stream-shared.js';
 
 export type LegacyGoogleStreamState = {
   suppressNextArtifactText: boolean;

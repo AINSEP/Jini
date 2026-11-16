@@ -1,6 +1,6 @@
 import { sanitizeUntrustedText } from '@jini-ai/core/text';
-import { dispatchFrame, extractErrorMessage, isRecord, nonEmptyString, pickUsage, safeParseJson, stringifyContent, todoWriteInputFromItems, trimmedNonBlank } from '../../json-event-stream.js';
-import type { FrameHandler, JsonObject, ParserState, StreamEventHandler, UsageFields } from '../../json-event-stream.js';
+import { dispatchFrame, extractErrorMessage, isRecord, nonEmptyString, pickUsage, safeParseJson, stringifyContent, todoWriteInputFromItems, trimmedNonBlank } from '../../json-event-stream-shared.js';
+import type { FrameHandler, JsonObject, ParserState, StreamEventHandler, UsageFields } from '../../json-event-stream-shared.js';
 
 export type CodexStreamState = {
   toolUses: Set<string>;

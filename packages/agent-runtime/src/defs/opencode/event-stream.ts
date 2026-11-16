@@ -1,5 +1,5 @@
-import { dispatchFrame, extractErrorMessage, isRecord, nonEmptyString, optionalNumber, pickUsage, safeParseJson, stringifyContent } from '../../json-event-stream.js';
-import type { FrameHandler, JsonObject, ParserState, StreamEventHandler, Usage, UsageFields } from '../../json-event-stream.js';
+import { dispatchFrame, extractErrorMessage, isRecord, nonEmptyString, optionalNumber, pickUsage, safeParseJson, stringifyContent } from '../../json-event-stream-shared.js';
+import type { FrameHandler, JsonObject, ParserState, StreamEventHandler, Usage, UsageFields } from '../../json-event-stream-shared.js';
 
 export type OpenCodeStreamState = { toolUses: Set<string> };
 export function createOpenCodeStreamState(): OpenCodeStreamState { return { toolUses: new Set<string>() }; }
