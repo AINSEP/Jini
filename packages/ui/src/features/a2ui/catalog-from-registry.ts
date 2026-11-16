@@ -1,5 +1,10 @@
-import type { Catalog, ComponentKind } from './protocol.js';
-import type { InteractiveUiRegistry } from '../interactive-ui/registry.js';
+import type { Catalog, ComponentKind, ComponentSpec } from '@jini-ai/protocol/a2ui';
+
+/** The fields the builder reads. Chat's ChatSurfaceRegistry and ui's InteractiveUiRegistry both fit structurally. */
+export interface A2uiCatalogSourceEntry {
+  readonly id: string;
+  readonly propsSchema: ComponentSpec['propsSchema'];
+}
 
 export interface BuildA2uiCatalogFromRegistryOptions {
   /**
@@ -17,7 +22,7 @@ export interface BuildA2uiCatalogFromRegistryOptions {
 }
 
 /**
- * Builds an A2UI `Catalog` from an `InteractiveUiRegistry`'s current entries — each registered
+ * Builds an A2UI `Catalog` from a registry's current entries — each registered
  * component becomes a catalog component type keyed by its manifest `id` (e.g.
  * `"native.data-table"`), reusing the manifest's own zod `propsSchema` directly rather than
  * re-declaring it.
@@ -29,11 +34,11 @@ export interface BuildA2uiCatalogFromRegistryOptions {
  * against the registry, so this is a documented simplification, not a load-bearing choice.
  */
 export function buildA2uiCatalogFromRegistry(
-  { registry, catalogId }: { registry: Pick<InteractiveUiRegistry, 'list'>; catalogId: string },
+  { registry, catalogId }: { registry: { list(): readonly A2uiCatalogSourceEntry[] }; catalogId: string },
   options: BuildA2uiCatalogFromRegistryOptions = {},
 ): Catalog {
   const registryComponents = registry.list().map(
-    (entry): readonly [string, { kind: ComponentKind; propsSchema: typeof entry.propsSchema }] => [
+    (entry): readonly [string, { kind: ComponentKind; propsSchema: ComponentSpec['propsSchema'] }] => [
       entry.id,
       { kind: 'container' as ComponentKind, propsSchema: entry.propsSchema },
     ],

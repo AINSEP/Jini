@@ -1,6 +1,6 @@
 import { expect, it, vi } from 'vitest';
 import { createInMemoryEventLog, createRunLifecycle } from '@jini-ai/daemon';
-import type { RendererToAgentMessage } from '@jini-ai/agentic/a2ui';
+import type { RendererToAgentMessage } from '@jini-ai/protocol/a2ui';
 import type { RunProtocolEvent } from '@jini-ai/protocol';
 import { driveA2uiDemoRun } from './a2ui-demo-run.js';
 

@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useSyncExternalStore } from 'react';
-import type { A2uiInterpreter, ComponentInstance, SurfaceSnapshot } from './protocol.js';
+import type { A2uiInterpreter, ComponentInstance, SurfaceSnapshot } from '@jini-ai/protocol/a2ui';
 
 /**
  * Subscribes a component to one A2UI surface's root, re-rendering when its components or data

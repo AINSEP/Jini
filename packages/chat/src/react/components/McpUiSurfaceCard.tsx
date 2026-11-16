@@ -66,6 +66,8 @@ import { MidRunUserMessage } from './MidRunUserMessage.js';
 import { Fragment, useMemo } from 'react';
 import {
   McpUiHost,
+} from '@jini-ai/ui/mcp-ui';
+import {
   parseUIResource,
   readActionPlan,
   readExpiresAt,
@@ -73,7 +75,7 @@ import {
   type McpUiActionPlan,
   type McpUiToolCallHandler,
   type UIResource,
-} from '@jini-ai/ui/mcp-ui';
+} from '@jini-ai/protocol/mcp-ui';
 import { defaultExtEventRendererRegistry, type ExtEventRendererRegistry, type ExtEventCall, type ExtEventRenderProps } from '../ext-event-renderer-registry.js';
 import { useT } from '../hooks/context.js';
 import { useSurfaceExpiry, type SurfaceExpiryClock } from '../hooks/useSurfaceExpiry.js';

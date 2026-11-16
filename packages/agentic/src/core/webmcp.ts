@@ -47,7 +47,7 @@
  *    `"<id>: <reason>. Expected input: <schema>"` shape `page-executor.ts` already uses for
  *    `page.*` — one discipline, not two.
  */
-import { findCapabilityInputError, type CapabilityDef, type CapabilityInputSchema } from './capability.js';
+import { findCapabilityInputError, type CapabilityDef, type CapabilityInputSchema } from '@jini-ai/core/contracts/capabilities';
 
 /** The registration object `registerTool` accepts. WebMCP names the schema field `inputSchema`. */
 export interface WebMcpToolRegistration {

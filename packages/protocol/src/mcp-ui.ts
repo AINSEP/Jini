@@ -312,3 +312,4 @@ export function createPageActionRequest({ id, capabilityId, input }: { id: numbe
 ): JsonRpcRequest {
   return createJsonRpcRequest({ id, method: JINI_PAGE_ACTION_METHOD }, { params: { capabilityId, input } });
 }
+export * from './mcp-ui-resource.js';

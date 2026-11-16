@@ -7,7 +7,7 @@ import {
 } from '@jini-ai/core';
 import type { SurfaceCardSignInState } from '@jini-ai/core/contracts/cards';
 import { buildOutcomeSurface, type SurfaceOutcomeSpec } from './surfaces/outcome.js';
-import type { UIResource, UIResourceUri } from './resource.js';
+import type { UIResource, UIResourceUri } from '@jini-ai/protocol/mcp-ui';
 
 export type SignInCardState = SurfaceCardSignInState;
 

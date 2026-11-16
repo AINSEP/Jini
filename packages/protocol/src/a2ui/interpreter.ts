@@ -1,4 +1,3 @@
-import type { Clock } from "@jini-ai/core/primitives";
 /**
  * @module interpreter
  *
@@ -60,6 +59,9 @@ import type {
    DynamicValue,
    LocalFunctionAction,
 } from './common-types.js';
+
+/** Structural clock: core's `Clock` satisfies it; protocol imports nothing from Jini. */
+type Clock = { nowMs(): number };
 
 export interface ComponentInstance {
   readonly id: string;

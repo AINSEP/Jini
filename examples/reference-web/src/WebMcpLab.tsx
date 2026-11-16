@@ -3,12 +3,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ChatMessage } from '@jini-ai/chat/core';
 import { ChatFab, ChatPane, createFrontendSessionBridge, type FrontendSessionBridge } from '@jini-ai/chat/react';
 import {
-  findCapabilityInputError,
   toWebMcpTool,
   toWebMcpTools,
-  type CapabilityDef,
   type WebMcpUserInteraction,
 } from '@jini-ai/agentic';
+import { findCapabilityInputError, type CapabilityDef } from '@jini-ai/core/contracts/capabilities';
 import { getAgentModelContext } from '@jini-ai/agentic/dom';
 import { PLAYGROUND_ATTACHMENT_UPLOADER } from './attachment-uploader.js';
 import { createDaemonChatTransport } from './daemon-transport.js';

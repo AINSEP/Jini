@@ -17,7 +17,7 @@
  * - `code: 'tool_progress'`, `data: { elapsedSeconds }` — a tool call is still running.
  * - `code: 'thinking'` — the model is reasoning (keeps the idle timer honest).
  */
-import { a2uiSurfaceIdOf, displayOnlySurfaceIdOf } from '@jini-ai/agentic/a2ui';
+import { a2uiSurfaceIdOf, displayOnlySurfaceIdOf } from '@jini-ai/protocol/a2ui';
 import type { AgentEvent } from './events.js';
 import { isDelegatedWrapperToolName } from './tool-events.js';
 import { MID_RUN_USER_MESSAGE_EVENT_NAME } from './turn-usage.js';

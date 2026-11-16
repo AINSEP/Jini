@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { expect, it } from 'vitest';
-import { MCP_UI_EXPIRES_AT_META_KEY, MCP_UI_MIME_TYPE } from '@jini-ai/ui/mcp-ui';
+import { MCP_UI_EXPIRES_AT_META_KEY, MCP_UI_MIME_TYPE } from '@jini-ai/protocol/mcp-ui';
 import { fakeClock } from '../../hooks/__tests__/fake-surface-expiry-clock.js';
 import { McpUiSurfaceCard } from '../McpUiSurfaceCard.js';
 

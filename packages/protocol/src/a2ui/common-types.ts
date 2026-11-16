@@ -76,6 +76,13 @@ export const DynamicValueSchema = z.union([
 ]);
 export type DynamicValue = z.infer<typeof DynamicValueSchema>;
 
+/** Parse an A2UI dynamic value at a `Record<string, unknown>` boundary (zod stays inside protocol). */
+export function parseDynamicValue({ value }: { value: unknown }, _optional: Record<string, never> = {}):
+  { readonly ok: true; readonly value: DynamicValue } | { readonly ok: false; readonly error: string } {
+  const parsed = DynamicValueSchema.safeParse(value);
+  return parsed.success ? { ok: true, value: parsed.data } : { ok: false, error: parsed.error.issues[0]?.message ?? 'invalid dynamic value' };
+}
+
 /** `common_types.json#/$defs/DynamicString` — literal, JSON-Pointer binding, or `FunctionCall` returning a string. */
 export const DynamicStringSchema = z.union([z.string(), DataBindingSchema, FunctionCallSchema]);
 export type DynamicString = z.infer<typeof DynamicStringSchema>;

@@ -1,5 +1,5 @@
 /** Read display context from a standalone form; its host may not have emitted a tool call. */
-import { parseUIResource, readActionPlan, type UIResource } from '@jini-ai/ui/mcp-ui';
+import { parseUIResource, readActionPlan, type UIResource } from '@jini-ai/protocol/mcp-ui';
 import { useMemo, useRef } from 'react';
 import type { AgentEvent } from '../../core/events.js';
 import type { AcceptedInputProjectionOptions } from '../../core/accepted-input.js';

@@ -350,7 +350,7 @@
     "value": 258
   },
   {
-    "file": "packages/agentic/src/core/a2ui/interpreter.ts",
+    "file": "packages/protocol/src/a2ui/interpreter.ts",
     "function": "createA2uiInterpreter",
     "line": 193,
     "rule": "max-lines-per-function",

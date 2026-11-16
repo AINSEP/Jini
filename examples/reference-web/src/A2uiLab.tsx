@@ -3,7 +3,12 @@ import { createSystemClock } from "@jini-ai/platform/system";
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
 import { FETCH_TIMEOUT_MS } from '@jini-ai/core/net';
-import { createA2uiInterpreter, createLabCatalog, DynamicValueSchema, type A2uiInterpreter } from '@jini-ai/agentic/a2ui';
+import { parseDynamicValue } from '@jini-ai/protocol/a2ui';
+import {
+  createA2uiInterpreter,
+  createLabCatalog,
+  type A2uiInterpreter,
+} from '@jini-ai/protocol/a2ui';
 import { A2uiSurfaceCard, registerExtEventRenderer } from '@jini-ai/chat/react';
 
 /**
@@ -97,9 +102,9 @@ function RenderComponent({
   const childProps = { interpreter, surfaceId, ancestors: nextAncestors, onAction };
 
   function resolveText(value: unknown): string {
-    const parsed = DynamicValueSchema.safeParse(value);
-    if (!parsed.success) return '⚠ unresolved (invalid dynamic value)';
-    const result = interpreter.resolve({ surfaceId, value: parsed.data });
+    const parsed = parseDynamicValue({ value });
+    if (!parsed.ok) return '⚠ unresolved (invalid dynamic value)';
+    const result = interpreter.resolve({ surfaceId, value: parsed.value });
     if (!result.ok) return `⚠ unresolved (${result.reason})`;
     return typeof result.value === 'string' ? result.value : JSON.stringify(result.value);
   }

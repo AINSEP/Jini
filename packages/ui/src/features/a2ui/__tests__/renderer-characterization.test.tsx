@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { A2uiSurfaceRenderer } from '../renderer.js';
 import { buildA2uiCatalogFromRegistry } from '../catalog-from-registry.js';
-import { createA2uiInterpreter, createLabCatalog } from '../protocol.js';
+import { createA2uiInterpreter, createLabCatalog } from '@jini-ai/protocol/a2ui';
 import { InteractiveUiRegistry, type InteractiveComponentEntry } from '../../interactive-ui/registry.js';
 
 function surface({ registry, components }: {

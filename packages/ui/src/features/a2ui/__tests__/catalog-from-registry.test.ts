@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { buildA2uiCatalogFromRegistry } from '../catalog-from-registry.js';
-import { createLabCatalog } from '../protocol.js';
+import { createLabCatalog } from '@jini-ai/protocol/a2ui';
 import { InteractiveUiRegistry, type InteractiveComponentEntry } from '../../interactive-ui/registry.js';
 
 function entry(id: string, propsSchema = z.object({})): InteractiveComponentEntry {
@@ -9,6 +9,12 @@ function entry(id: string, propsSchema = z.object({})): InteractiveComponentEntr
 }
 
 describe('buildA2uiCatalogFromRegistry', () => {
+  it('accepts any registry exposing id + propsSchema entries', () => {
+    const propsSchema = { safeParse: () => ({ success: true as const, data: {} }) };
+    const catalog = buildA2uiCatalogFromRegistry({ registry: { list: () => [{ id: 'x', propsSchema }] }, catalogId: 'plain' });
+    expect(catalog.components.get('x')?.propsSchema).toBe(propsSchema);
+  });
+
   it('carries the given catalogId through unchanged', () => {
     const catalog = buildA2uiCatalogFromRegistry({ registry: new InteractiveUiRegistry({ entries: [] }), catalogId: 'my-catalog' });
     expect(catalog.catalogId).toBe('my-catalog');

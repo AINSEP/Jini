@@ -56,6 +56,7 @@
  */
 import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from 'react';
 import type { AppRendererHandle, AppRendererProps } from '@mcp-ui/client';
+import type { McpUiToolCall, McpUiToolCallHandler } from '@jini-ai/protocol/mcp-ui';
 
 /**
  * Vestigial after this swap — `@mcp-ui/client` owns the sandbox-proxy-ready handshake internally on
@@ -84,19 +85,6 @@ export interface McpUiHostEvent {
   readonly direction: 'in' | 'out' | 'rejected' | 'refused' | 'timeout' | 'info';
   readonly note: string;
 }
-
-export interface McpUiToolCall {
-  readonly name: string;
-  readonly arguments: Readonly<Record<string, unknown>>;
-}
-
-/**
- * Executes a tool a View asked for. Unchanged from before this swap — see this hook's module doc
- * for the verified runtime guarantee that a rejection is relayed to the View as a JSON-RPC error and
- * a resolution is passed through as the `result` UNVALIDATED against any particular shape (checked
- * directly against the installed `@modelcontextprotocol/sdk`'s `Protocol._onrequest`, not assumed).
- */
-export type McpUiToolCallHandler = (call: McpUiToolCall) => Promise<unknown> | unknown;
 
 export interface McpUiHostOptions {
   /** The View document. Unchanged in meaning; no longer mounted via `srcdoc` — see this module's doc. */
