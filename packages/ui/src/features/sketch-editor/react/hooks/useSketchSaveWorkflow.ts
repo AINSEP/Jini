@@ -1,4 +1,4 @@
-import { formatErrorForLog } from '@jini-ai/core';
+import { describeErrorForLog } from '@jini-ai/core/model-facing-tool-errors';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { MutableRefObject } from 'react';
 import { EXPORTED_IMAGE_MIME_TYPE, SAVED_VISIBLE_MS } from '../../constants.js';
@@ -125,7 +125,7 @@ export function useSketchSaveWorkflow(params: UseSketchSaveWorkflowParams): Sket
         actionFileName: savedFileName,
       });
     } catch (err) {
-      console.warn('[SketchEditor] export image failed', formatErrorForLog({ error: err }));
+      console.warn('[SketchEditor] export image failed', describeErrorForLog({ err }));
       setToast({ message: tRef.current('Could not export image'), tone: 'error' });
     } finally {
       setExporting(false);
