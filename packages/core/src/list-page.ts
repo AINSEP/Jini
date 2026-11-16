@@ -93,15 +93,26 @@ export function parseListPageRequest(
 ): { limit: number; cursor: string | null } {
   const maxLimit = optional.maxLimit ?? DEFAULT_MAX_LIST_LIMIT;
   const defaultLimit = Math.min(optional.defaultLimit ?? DEFAULT_LIST_LIMIT, maxLimit);
-  const rawLimit = typeof required.value.limit === 'string' && /^\d+$/.test(required.value.limit) ? Number(required.value.limit) : required.value.limit;
+  const rawLimit = readRawLimit({ limit: required.value.limit });
+  const rawCursor = readRawCursor({ cursor: required.value.cursor });
+  return { limit: Math.min(rawLimit ?? defaultLimit, maxLimit), cursor: typeof rawCursor === 'string' ? rawCursor : null };
+}
+
+/** A digit-only string limit is coerced; anything that is not a positive safe integer is refused. */
+function readRawLimit({ limit }: { limit: unknown }, _optional = {}): number | undefined {
+  const rawLimit = typeof limit === 'string' && /^\d+$/.test(limit) ? Number(limit) : limit;
   if (rawLimit !== undefined && (typeof rawLimit !== 'number' || !Number.isSafeInteger(rawLimit) || rawLimit < 1)) {
     throw new ToolInputError({ message: "'limit' must be a whole number of at least 1" });
   }
-  const rawCursor = required.value.cursor;
-  if (rawCursor !== undefined && rawCursor !== null && (typeof rawCursor !== 'string' || rawCursor.length === 0)) {
+  return rawLimit;
+}
+
+/** A cursor is absent (undefined/null) or a non-empty string; anything else is refused. */
+function readRawCursor({ cursor }: { cursor: unknown }, _optional = {}): string | null | undefined {
+  if (cursor !== undefined && cursor !== null && (typeof cursor !== 'string' || cursor.length === 0)) {
     throw new ToolInputError({ message: "'cursor' must be the nextCursor string from the previous page" });
   }
-  return { limit: Math.min(rawLimit ?? defaultLimit, maxLimit), cursor: typeof rawCursor === 'string' ? rawCursor : null };
+  return cursor;
 }
 
 /**
@@ -125,10 +136,15 @@ function comparePositions(left: ListPosition, right: ListPosition): number {
     const a = left[index];
     const b = right[index];
     if (a === b) continue;
-    if (typeof a === 'number' && typeof b === 'number') return a < b ? -1 : 1;
-    return String(a) < String(b) ? -1 : 1;
+    return compareUnequal(a, b);
   }
   return 0;
+}
+
+/** Orders two unequal position parts: numerically when both are numbers, else by string. */
+function compareUnequal(a: ListPosition[number] | undefined, b: ListPosition[number] | undefined): number {
+  if (typeof a === 'number' && typeof b === 'number') return a < b ? -1 : 1;
+  return String(a) < String(b) ? -1 : 1;
 }
 
 /**
