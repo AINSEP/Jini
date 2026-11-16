@@ -200,6 +200,34 @@ describe("declareDataModule reconciliation (in-memory)", () => {
   });
 });
 
+describe("declareDataModule on PGlite and re-declare without indexes", () => {
+  it("re-declaring an index-less table is a no-op", async () => {
+    const db = memKernel();
+    await declareDataModule({ db, dbPath: ":memory:", decl: mk([T()]) });
+    expect(await declareDataModule({ db, dbPath: ":memory:", decl: mk([T()]) })).toEqual({ ok: true, created: [], altered: [], snapshotPath: null });
+    await db.close();
+  });
+
+  it("treats a PRIMARY KEY column as NOT NULL on Postgres, so re-declare is idempotent and a nullable mismatch is not raised", async () => {
+    const db = openPgliteKernel<PluginCoreTables>({ PGlite });
+    try {
+      const decl = mk([T("t", { indexes: [{ name: "i", columns: ["id"] }] })]);
+      expect(await declareDataModule({ db, dbPath: ":memory:", decl })).toEqual({ ok: true, created: ["p_ex__t"], altered: [], snapshotPath: null });
+      expect(await declareDataModule({ db, dbPath: ":memory:", decl })).toEqual({ ok: true, created: [], altered: [], snapshotPath: null });
+    } finally { await db.close(); }
+  });
+});
+
+describe("data-modules barrel", () => {
+  it("re-exports the declaration engine, journal, identity, snapshot, recovery and restore helpers", async () => {
+    const barrel = await import("../index.js");
+    for (const name of ["declareDataModule", "ensureMigrationJournal", "checkNamespaceAdoption", "snapshotDb", "recoverIncompleteDataModuleMigrations", "checkDiskHeadroom", "restoreFromSnapshot", "pluginKernel"]) {
+      expect(typeof (barrel as Record<string, unknown>)[name], name).toBe("function");
+    }
+    expect(barrel.declareDataModule).toBe(declareDataModule);
+  });
+});
+
 describe("declareDataModule file-backed (snapshot + journal)", () => {
   const fileDb = (name = "app.db") => {
     const file = path.join(tmp, name);
