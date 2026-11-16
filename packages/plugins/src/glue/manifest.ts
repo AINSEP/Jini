@@ -1,4 +1,4 @@
-import { collectManifestKeyErrors } from "./manifest-keys.js";
+import { collectManifestKeyErrors } from "../core/manifest-keys.js";
 /** Host-independent collect-all manifest validation; vocabularies are host inputs. */
 export interface GlueVocabulary { readonly capabilities: readonly string[]; readonly callSites: readonly string[] }
 

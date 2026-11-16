@@ -1,4 +1,4 @@
-import { collectManifestKeyErrors } from "../glue/manifest-keys.js";
+import { collectManifestKeyErrors } from "../core/manifest-keys.js";
 /**
  * @file `PluginManifest` type + `validateManifest()` — static, collect-all manifest validation
  * (SPEC-005 REQ-01, BR-02/BR-03; ADR-024 `tier`, 1.1.1 fix).
