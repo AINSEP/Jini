@@ -32,14 +32,14 @@ describe('primitive default adapters', () => {
     expect(warn).toHaveBeenCalledTimes(1);
     expect(warn).toHaveBeenCalledWith('[host] retry', meta);
     expect(error).toHaveBeenCalledTimes(1);
-    expect(error).toHaveBeenCalledWith('[host] stopped', meta, 'Error');
+    expect(error).toHaveBeenCalledWith('[host] stopped', meta, 'Error: failed');
     createConsoleLogger({ prefix: '' }).info({ message: 'plain' });
     expect(info).toHaveBeenLastCalledWith('plain');
   });
 
   // The default console adapter writes safe metadata only: a caught error's text can quote
   // untrusted input or a credential no redaction pattern knows. Full detail needs a host sink.
-  it('writes only the error class, never its message, stack or name, for the error bag and for error-valued meta', () => {
+  it('writes the error class and redacted message, never the stack or instance name, for the error bag and for error-valued meta', () => {
     const lines: unknown[][] = [];
     vi.spyOn(console, 'error').mockImplementation((...args: unknown[]) => { lines.push(args); });
     vi.spyOn(console, 'warn').mockImplementation((...args: unknown[]) => { lines.push(args); });
@@ -47,9 +47,9 @@ describe('primitive default adapters', () => {
     const secretError = Object.assign(new TypeError('boom api_key=SECRETSECRETSECRETSECRET'), { name: 'SECRETSECRETNAME' });
     logger.error({ message: 'stopped' }, { meta: { runId: 'run-1', reason: secretError }, error: secretError });
     logger.warn({ message: 'retry' }, { meta: { error: 'plain text reason SECRETSECRET' } });
-    expect(lines).toEqual([['[host] stopped', { runId: 'run-1', reason: 'TypeError' }, 'TypeError'], ['[host] retry', { error: 'string' }]]);
+    expect(lines).toEqual([['[host] stopped', { runId: 'run-1', reason: 'TypeError: boom api_key=[REDACTED:labeled_secret]' }, 'TypeError: boom api_key=[REDACTED:labeled_secret]'], ['[host] retry', { error: 'string' }]]);
     const printed = JSON.stringify(lines);
-    for (const forbidden of ['boom', 'SECRETSECRET', 'defaults.test.ts']) expect(printed).not.toContain(forbidden);
+    for (const forbidden of ['SECRETSECRET', 'defaults.test.ts']) expect(printed).not.toContain(forbidden);
   });
 
   it('hands the full record to an injected host sink and keeps the console line metadata-only, even when the sink throws', () => {
@@ -61,9 +61,9 @@ describe('primitive default adapters', () => {
       .error({ message: 'stopped' }, { meta: { runId: 'run-1' }, error: cause });
     expect(records).toEqual([{ level: 'error', message: '[host] stopped', meta: { runId: 'run-1' }, error: cause }]);
     expect((records[0] as { error: unknown }).error).toBe(cause);
-    expect(lines).toEqual([['[host] stopped', { runId: 'run-1' }, 'Error']]);
+    expect(lines).toEqual([['[host] stopped', { runId: 'run-1' }, 'Error: boom api_key=[REDACTED:labeled_secret]']]);
     createConsoleLogger({ prefix: '' }, { diagnostics: () => { throw new Error('sink down'); } }).error({ message: 'still logged' }, { error: cause });
-    expect(lines[1]).toEqual(['still logged', 'Error']);
+    expect(lines[1]).toEqual(['still logged', 'Error: boom api_key=[REDACTED:labeled_secret]']);
   });
 
   // Nested metadata is projected the same way at every depth: an error two levels down is still a
@@ -79,13 +79,13 @@ describe('primitive default adapters', () => {
       meta: { detail: { error: secretError, list: [secretError, 'kept'], response: new Response(), map: new Map([['k', 'SECRETSECRETMAP']]) }, circular, count: 2n, fn: () => 'SECRETSECRETFN' },
     });
     expect(lines).toEqual([['retry', {
-      detail: { error: 'TypeError', list: ['TypeError', 'kept'], response: '[object]', map: '[object]' },
+      detail: { error: 'TypeError: boom api_key=[REDACTED:labeled_secret]', list: ['TypeError: boom api_key=[REDACTED:labeled_secret]', 'kept'], response: '[object]', map: '[object]' },
       circular: { runId: 'run-1', self: { runId: 'run-1', self: { runId: 'run-1', self: '[nested too deep]' } } },
       count: '2',
       fn: '[function]',
     }]]);
     const printed = JSON.stringify(lines);
-    for (const forbidden of ['boom', 'SECRETSECRET', 'defaults.test.ts']) expect(printed).not.toContain(forbidden);
+    for (const forbidden of ['SECRETSECRET', 'defaults.test.ts']) expect(printed).not.toContain(forbidden);
   });
 
   // Review jini-batch1 L4: 50 entries per level at depth 4 still let one call project ~125k entries

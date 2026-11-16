@@ -6,6 +6,7 @@
 // made validation/not-found/permission errors look like identical crashes, preventing recovery.
 // Domains explicitly own which classes/messages are safe to expose, including anonymous callers:
 // stacks, internal paths, SQL, credentials, and another tenant's data must remain unlisted/redacted.
+import { redactSecrets } from "./redact.js";
 import { ToolInputError, type ToolHandler, type ToolRegistration } from "./tool-registry.js";
 
 // Stable code prefixes let callers match failure kinds without parsing mutable prose. Guidance is
@@ -363,10 +364,30 @@ function readErrorParts({ value, vocabulary }: { readonly value: unknown; readon
   }
 }
 
-/** `Label` or `Label(CODE)` for one thrown value, plus its direct cause when asked for. Never throws. */
+/** Longest message a log line carries; a stack-sized message is cut, not dropped. */
+const MAX_LOGGED_MESSAGE_CHARS = 300;
+
+/** The message of an Error, secret-redacted and truncated; `undefined` when empty or unreadable. Never throws. */
+function redactedMessage({ value }: { readonly value: unknown }): string | undefined {
+  try {
+    if (!(value instanceof Error)) return undefined;
+    const raw = value.message;
+    if (typeof raw !== "string" || raw.length === 0) return undefined;
+    // why: the message is what says what failed ("EACCES: permission denied", "offline"); the shared
+    // credential policy masks tokens/keys, and the cut keeps one failure from flooding a log line.
+    const clean = redactSecrets({ input: raw.length > MAX_LOGGED_MESSAGE_CHARS ? `${raw.slice(0, MAX_LOGGED_MESSAGE_CHARS)}…` : raw });
+    return clean.replace(/\s+/g, " ").trim() || undefined;
+  } catch {
+    return undefined; // why: a throwing message getter must not replace the failure being logged; label + code still print.
+  }
+}
+
+/** `Label(CODE): message` for one thrown value, plus its direct cause when asked for. Never throws. */
 function describeValueForLog({ value, vocabulary }: { readonly value: unknown; readonly vocabulary: ErrorVocabulary }, { withCause = false }: { readonly withCause?: boolean } = {}): { readonly text: string; readonly cause?: unknown } {
   const { label, code, cause } = readErrorParts({ value, vocabulary }, { withCause });
-  const text = code === undefined ? label : `${label}(${code})`;
+  const head = code === undefined ? label : `${label}(${code})`;
+  const message = redactedMessage({ value });
+  const text = message === undefined ? head : `${head}: ${message}`;
   return withCause ? { text, cause } : { text };
 }
 

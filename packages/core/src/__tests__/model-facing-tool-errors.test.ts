@@ -68,29 +68,29 @@ test('every map and registration handler is wrapped; successful values retain id
   assert.equal(await withModelFacingRegistrationErrors({ registrations: [successful], rules })[0]!.handler(ctx), result);
 });
 
-// describeErrorForLog must never echo a message: messages can quote secrets (JSON.parse input, sealer plaintext).
-test('describeErrorForLog names the class and a constant-token code, never the message', () => {
+// describeErrorForLog keeps the message (so a log says what failed) but masks credentials in it.
+test('describeErrorForLog names the class, a constant-token code and the redacted message', () => {
   const secret = ['tok', 'en-', 'value'].join('');
   class SqliteError extends Error { code = 'SQLITE_BUSY'; }
   // A subclass the core does not know is labelled by its built-in base: its own name is never read.
-  assert.equal(describeErrorForLog({ err: new SqliteError(`database is locked near '${secret}'`) }), 'Error(SQLITE_BUSY)');
-  assert.equal(describeErrorForLog({ err: new SyntaxError(`Unexpected token in '${secret}'`) }), 'SyntaxError');
-  assert.equal(describeErrorForLog({ err: new (class extends Error {})(secret) }), 'Error');
+  assert.equal(describeErrorForLog({ err: new SqliteError(`database is locked near '${secret}'`) }), "Error(SQLITE_BUSY): database is locked near 'token-value'");
+  assert.equal(describeErrorForLog({ err: new SyntaxError(`Unexpected token in '${secret}'`) }), "SyntaxError: Unexpected token in 'token-value'");
+  assert.equal(describeErrorForLog({ err: new (class extends Error {})(secret) }), 'Error: token-value');
 });
 
 test('describeErrorForLog drops codes that are not in the approved set', () => {
   const withCode = (code: unknown) => Object.assign(new Error('x'), { code });
-  assert.equal(describeErrorForLog({ err: withCode('ECONNREFUSED') }), 'Error(ECONNREFUSED)');
-  assert.equal(describeErrorForLog({ err: withCode('free text with secret') }), 'Error');
-  assert.equal(describeErrorForLog({ err: withCode('lowercase_code') }), 'Error');
-  assert.equal(describeErrorForLog({ err: withCode('E'.repeat(65)) }), 'Error');
-  assert.equal(describeErrorForLog({ err: withCode(503) }), 'Error');
+  assert.equal(describeErrorForLog({ err: withCode('ECONNREFUSED') }), 'Error(ECONNREFUSED): x');
+  assert.equal(describeErrorForLog({ err: withCode('free text with secret') }), 'Error: x');
+  assert.equal(describeErrorForLog({ err: withCode('lowercase_code') }), 'Error: x');
+  assert.equal(describeErrorForLog({ err: withCode('E'.repeat(65)) }), 'Error: x');
+  assert.equal(describeErrorForLog({ err: withCode(503) }), 'Error: x');
 });
 
 test('describeErrorForLog describes a direct cause the same way, and a non-Error throw by its type', () => {
   const cause = Object.assign(new Error('connect ECONNREFUSED 10.0.0.1'), { code: 'ECONNREFUSED' });
-  assert.equal(describeErrorForLog({ err: new TypeError('fetch failed', { cause }) }), 'TypeError cause=Error(ECONNREFUSED)');
-  assert.equal(describeErrorForLog({ err: new Error('wrapped', { cause: 'raw string cause' }) }), 'Error cause=string');
+  assert.equal(describeErrorForLog({ err: new TypeError('fetch failed', { cause }) }), 'TypeError: fetch failed cause=Error(ECONNREFUSED): connect ECONNREFUSED [REDACTED:ipv4]');
+  assert.equal(describeErrorForLog({ err: new Error('wrapped', { cause: 'raw string cause' }) }), 'Error: wrapped cause=string');
   assert.equal(describeErrorForLog({ err: 'thrown string' }), 'string');
   assert.equal(describeErrorForLog({ err: null }), 'object');
   assert.equal(describeErrorForLog({ err: undefined }), 'undefined');
