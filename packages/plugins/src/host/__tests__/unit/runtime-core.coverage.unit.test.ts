@@ -40,6 +40,7 @@ interface HostOptions {
   optional?: PluginRuntimeCoreOptional;
   localInstall?: boolean;
   tier2?: (...args: never[]) => Promise<unknown>;
+  declarative?: Partial<typeof manifestHost.declarativeContentTypes>;
 }
 
 async function host(options: HostOptions = {}) {
@@ -56,7 +57,7 @@ async function host(options: HostOptions = {}) {
     tier2CallRunner: tier2 as never,
     pluginSdkBinding: { ...baseBinding, hookIds: [HOOK], beforeSaveHook: HOOK, hookSemantics: { [HOOK]: 'shared' } },
     hostBinding: {
-      capabilityVocabulary: ['content.read', 'content.extend', 'hooks.attach', 'tools.register', 'providers.register'], declarativeContentTypes: manifestHost.declarativeContentTypes,
+      capabilityVocabulary: ['content.read', 'content.extend', 'hooks.attach', 'tools.register', 'providers.register'], declarativeContentTypes: { ...manifestHost.declarativeContentTypes, ...options.declarative },
       coreOwnerName: 'Acme core', identityNamespace: 'ns', localInstallDisabledMessage: 'install off',
       tierPolicy: { execution: 'in-process', allowLoad: () => true, siteErrors: () => [], checkInstall: () => {} },
       archiveReader: async () => { throw new Error('no archive'); }, verifyDigest: async ({ absoluteFilePath }) => `sha256-${createHash('sha256').update(await readFile(absoluteFilePath)).digest('hex')}`,
@@ -328,6 +329,31 @@ describe('boot', () => {
     await h.runtime.attachEnabledPluginsAtBoot();
     expect(h.setups).toEqual(['core-a']);
     expect(warn.mock.calls.some(call => String(call[0]).includes("boot re-attach failed for 'vanished'"))).toBe(true);
+  });
+});
+
+describe('declared content types', () => {
+  const typed = builtIn({ id: 'typed-p', name: 'Typed', contentTypes: [{ key: 'note' }] as never });
+
+  it('unloads the loaded code when applying the declared types fails after load', async () => {
+    const boom = new Error('apply failed');
+    const ports = { findByKey: vi.fn(), register: vi.fn() };
+    const h = await host({ sources: [source(typed)], optional: { declaredContentTypes: ports as never },
+      declarative: { plan: async () => ({ conflicts: [] }) as never, apply: async () => { throw boom; } } });
+    await expect(h.runtime.onPluginEnabled('typed-p')).rejects.toBe(boom);
+    expect(h.setups).toEqual(['typed-p']);
+    expect(h.runtime.pluginLoadedVersion({ id: 'typed-p' })).toBeUndefined();
+  });
+
+  it('records the loaded version once the declared types are applied', async () => {
+    const apply = vi.fn(async () => {});
+    const plan = vi.fn(async () => ({ conflicts: [] }) as never);
+    const ports = { findByKey: vi.fn(), register: vi.fn() };
+    const h = await host({ sources: [source(typed)], optional: { declaredContentTypes: ports as never }, declarative: { plan, apply: apply as never } });
+    await h.runtime.onPluginEnabled('typed-p');
+    expect(plan).toHaveBeenCalledWith({ ports, workspaceId: WS, decls: [{ key: 'note' }] });
+    expect(apply).toHaveBeenCalledTimes(1);
+    expect(h.runtime.pluginLoadedVersion({ id: 'typed-p' })).toBe('1.0.0');
   });
 });
 
