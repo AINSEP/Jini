@@ -601,6 +601,129 @@ async function openCreateCard(required: {
   return card.handler({ surfaceExchanges: surfaces.surfaceExchanges, askThenReport: cards.askThenReport })(ctx, emitSurface ? { emitSurface } : {});
 }
 
+type SaveHandlerContext = {
+  routeDeps: CredentialToolActorDeps; surfaces: CredentialToolSurfaces; host: CustomCredentialToolHost;
+  cards: CustomCredentialSecretCards; operations: CredentialToolOperations; probe: CredentialedRequestPort["probe"];
+};
+
+// An MCP-UI surface for the SECRET itself — see this file's secret-handling header
+// for the full mechanism and why it holds up "a token must never pass through the model's
+// context" rather than merely "an agent must never write one". Shape validation
+// (`rejectUnexpectedSetTokenFields`) and the label->id resolution both run BEFORE any exchange is
+// opened, same ordering `custom_credential_make_request`'s DELETE gate below uses: a malformed or
+// unresolvable call must never raise a dialog for a human to see. WRITE-gated, same permission
+// `custom_credential_set_username`/`custom_credential_make_request` use.
+function rotateCredentialHandler(c: SaveHandlerContext): ToolHandler {
+  const { routeDeps, surfaces, host, cards, operations, probe } = c;
+  return async (ctx, options = {}): Promise<SetTokenResult> => {
+    const input = requireInputRecord({ input: ctx.input });
+    rejectUnexpectedSetTokenFields({ input, messages: operations.messages });
+    const label = requireString({ input, key: "label" });
+    await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: host.vocabulary.permissions.write }, { entityType: host.vocabulary.entityType });
+
+    // Non-decrypting label->id resolution — same lookup `custom_credential_set_username` above uses,
+    // and for the identical reason: a bad label should never cost a decrypt. Only `existing.id` is
+    // load-bearing past this point: `saveSetToken` deliberately re-reads the username itself,
+    // fresh, right before writing — see its own header for why trusting THIS snapshot's username
+    // would be wrong once the human's answer can arrive an arbitrarily long time later.
+    const existing = await operations.sets.byLabel({ label });
+    if (!existing) {
+      throw new CustomCredentialNotFoundError(operations.messages.notFoundLabel({ label }));
+    }
+
+    // Fail closed rather than degrade — and, unlike every OTHER gated tool in this codebase, there is
+    // deliberately no fallback second-call shape for this one even in principle: that shape is a
+    // fresh MODEL-ISSUED tool call carrying the human's answer as its own input, which is exactly the
+    // path this tool exists to make impossible for a secret. See this file's header.
+    // A `ToolInputError` with the wording unchanged: a bare `Error` is redacted to a 500 that
+    // no allowlist rule can rescue. No code prefix — the per-tool suites pin this exact string.
+    // The run ended during the pre-dialog reads: the engine opens no dialog for an aborted run.
+    // `askThenReport`, not `askOnce` — the engine waits for save and replaces the same card URI.
+    const locale = await operations.locale.resolve({ principalId: ctx.principal.id });
+    const pluginCard = await operations.pluginCards.find({ workspaceId: routeDeps.workspaceId, saveKind: 'api', target: label });
+    let errorSummary = "";
+    const card = cards.defineSecretCardTool<{ label: string }, CustomCredentialSummary, SetTokenResult>({
+      toolId: operations.ids.save,
+      prepare: async () => ({ label }),
+      form: ({ prep }) => operations.credentialCardForms.applyPlugin({ card: pluginCard, form: withCardApp({ spec: operations.credentialCardForms.rotate(prep), app: host.cardIdentity.appNames.setToken }) }),
+      save: ({ values, signal }) => saveSetToken({ token: values.token as string, signal, routeDeps, operations, probe, existing, pluginCard, principalId: ctx.principal.id }),
+      result: ({ run }) => {
+        // Token hints belong on the human's card, never in the model-facing result or audit output.
+        if (run.status === "saved") return { saved: true };
+        if (run.status === "blank") return { saved: false, reason: "invalid", message: operations.locale.text({ id: "blank", locale }) };
+        if (run.status === "failed") return { saved: false, reason: "error", message: run.safeMessage };
+        return { saved: false, reason: run.status };
+      },
+      outcome: ({ run }) => {
+        if (run.status === "saved") {
+          const hint = operations.locale.hint({ hint: run.saved.tokenHint, locale });
+          return withCardApp({ spec: operations.credentialCardForms.rotateOutcome({ label, state: "success", message: `${hint ? hint + ". " : ""}${operations.locale.text({ id: "saved", locale })}` }), app: host.cardIdentity.appNames.setTokenOutcome });
+        }
+        if (run.status === "blank" || run.status === "failed") return withCardApp({ spec: operations.credentialCardForms.rotateOutcome({ label, state: "failure",
+          message: run.status === "blank" ? operations.locale.text({ id: "blank", locale }) : run.safeMessage }), app: host.cardIdentity.appNames.setTokenOutcome });
+        return undefined;
+      },
+    }, {
+      uriHost: host.cardIdentity.uriNamespace,
+      text: { noEmitter: operations.messages.noRotateChannel },
+      safeError: err => {
+        // Never `err.message`: it can quote the token just submitted. See operations.formErrors.
+        errorSummary = operations.diagnostics.describeError({ error: err });
+        return operations.locale.translate({ message: callerSafeErrorMessage({ err, rules: operations.formErrors, fallback: operations.messages.formSaveFailure }), locale });
+      },
+      logFailure: ({ toolId, exchangeId }) => operations.diagnostics.rotateFailure({ toolId, exchangeId, credentialId: existing.id, errorSummary }),
+    });
+    return card.handler({ surfaceExchanges: surfaces.surfaceExchanges, askThenReport: cards.askThenReport })(ctx, options);
+  };
+}
+
+// Creates a brand-new credential row — see this file's creation-ordering header for the
+// full mechanism and the incident it closes. Unlike every other write handler in this domain, there
+// is no existing row to resolve or fail closed on before opening the form: a CREATE's row does not
+// exist yet, so the only pre-form checks are the permission gate and the `emitSurface` fail-closed
+// guard below. All three prefill fields are optional and non-secret by schema
+// in the host's API creation schema — a call with none of them is a normal, valid call.
+function createCredentialHandler(c: SaveHandlerContext): ToolHandler {
+  const { routeDeps, surfaces, host, cards, operations, probe } = c;
+  return async (ctx, { emitSurface } = {}): Promise<CreateCredentialResult> => {
+    // `requireInputRecord` refuses `undefined` outright, but this tool's schema has no required
+    // field at all (same `required: []` shape `custom_credential_list`'s own `NO_INPUT_SCHEMA`
+    // documents) — a model-issued call with no arguments at all is a normal, valid call here, not a
+    // malformed one, so it is treated the same as an explicit `{}` rather than rejected.
+    const input = ctx.input === undefined ? {} : requireInputRecord({ input: ctx.input });
+    const prefill = readCreateCredentialPrefill({ input, operations });
+    await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: host.vocabulary.permissions.write }, { entityType: host.vocabulary.entityType });
+
+    const providers = await operations.publish.loadProviders({});
+    const locale = await operations.locale.resolve({ principalId: ctx.principal.id });
+    return openCreateCard({ ctx, emitSurface, routeDeps, operations, probe, cards, surfaces, locale, initialLabel: prefill.label ?? '', cardIdentity: host.cardIdentity,
+      form: () => withCardApp({ spec: operations.credentialCardForms.create({ prefill, providers }), app: host.cardIdentity.appNames.create }),
+      submissionOf: values => deriveCreateCredentialSubmission({ raw: readRawCreateCredentialFields(values), operations }) });
+  };
+}
+
+// A plugin's own key card (credential_save kind plugin-provider): plugin copy, a masked token
+// and declared public fields, with fixed row metadata resolved on the server. Same
+// permission, save port and outcome as the generic create card. The host supplies these through operations.pluginCards.
+function pluginProviderHandler(c: SaveHandlerContext): ToolHandler {
+  const { routeDeps, surfaces, host, cards, operations, probe } = c;
+  return async (ctx, { emitSurface } = {}): Promise<CreateCredentialResult> => {
+    const input = requireInputRecord({ input: ctx.input });
+    const providerId = requireString({ input, key: "provider" });
+    await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: host.vocabulary.permissions.write }, { entityType: host.vocabulary.entityType });
+    const card = (await operations.pluginCards.load({ workspaceId: routeDeps.workspaceId })).find(entry => entry.providerId === providerId);
+    if (!card) throw new ToolInputError({ message: operations.messages.missingPluginCard({ providerId }) });
+    const locale = await operations.locale.resolve({ principalId: ctx.principal.id });
+    return openCreateCard({ ctx, emitSurface, routeDeps, operations, probe, cards, surfaces, locale, initialLabel: card.label, cardIdentity: host.cardIdentity,
+      form: () => operations.credentialCardForms.buildPlugin({ card }),
+      submissionOf: values => {
+        const fields = operations.pluginCards.readValues({ card, values });
+        return { ...deriveCreateCredentialSubmission({ raw: readRawCreateCredentialFields({ ...fields, worksFor: [] }), operations }), pluginCard: card,
+          ...(fields.additionalHosts === undefined ? {} : { additionalHosts: fields.additionalHosts }) };
+      } });
+  };
+}
+
 /**
  * API-key cards with every consumed operation supplied by the composing host.
  *
@@ -609,116 +732,8 @@ async function openCreateCard(required: {
 /** @agent-note create accepts optional label/baseUrl/category/worksFor, rotate requires label and pluginProvider requires provider, while secrets arrive only from human card values. */
 export function createCredentialSaveHandlers({ routeDeps, surfaces, host, ports, cards, operations }: { routeDeps: CredentialToolActorDeps; surfaces: CredentialToolSurfaces; host: CustomCredentialToolHost; ports: Pick<CustomCredentialToolPorts, 'credentialedRequest'>; cards: CustomCredentialSecretCards; operations: CredentialToolOperations }, _optional = {}): { create: ToolHandler; rotate: ToolHandler; pluginProvider: ToolHandler } {
   const probe: CredentialedRequestPort["probe"] = (input) => ports.credentialedRequest.probe(input);
-  const handlers: { create: ToolHandler; rotate: ToolHandler; pluginProvider: ToolHandler } = {
-    // An MCP-UI surface for the SECRET itself — see this file's secret-handling header
-    // for the full mechanism and why it holds up "a token must never pass through the model's
-    // context" rather than merely "an agent must never write one". Shape validation
-    // (`rejectUnexpectedSetTokenFields`) and the label->id resolution both run BEFORE any exchange is
-    // opened, same ordering `custom_credential_make_request`'s DELETE gate below uses: a malformed or
-    // unresolvable call must never raise a dialog for a human to see. WRITE-gated, same permission
-    // `custom_credential_set_username`/`custom_credential_make_request` use.
-    rotate: async (ctx, options = {}): Promise<SetTokenResult> => {
-      const input = requireInputRecord({ input: ctx.input });
-      rejectUnexpectedSetTokenFields({ input, messages: operations.messages });
-      const label = requireString({ input, key: "label" });
-      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: host.vocabulary.permissions.write }, { entityType: host.vocabulary.entityType });
-
-      // Non-decrypting label->id resolution — same lookup `custom_credential_set_username` above uses,
-      // and for the identical reason: a bad label should never cost a decrypt. Only `existing.id` is
-      // load-bearing past this point: `saveSetToken` deliberately re-reads the username itself,
-      // fresh, right before writing — see its own header for why trusting THIS snapshot's username
-      // would be wrong once the human's answer can arrive an arbitrarily long time later.
-      const existing = await operations.sets.byLabel({ label });
-      if (!existing) {
-        throw new CustomCredentialNotFoundError(operations.messages.notFoundLabel({ label }));
-      }
-
-      // Fail closed rather than degrade — and, unlike every OTHER gated tool in this codebase, there is
-      // deliberately no fallback second-call shape for this one even in principle: that shape is a
-      // fresh MODEL-ISSUED tool call carrying the human's answer as its own input, which is exactly the
-      // path this tool exists to make impossible for a secret. See this file's header.
-      // A `ToolInputError` with the wording unchanged: a bare `Error` is redacted to a 500 that
-      // no allowlist rule can rescue. No code prefix — the per-tool suites pin this exact string.
-      // The run ended during the pre-dialog reads: the engine opens no dialog for an aborted run.
-      // `askThenReport`, not `askOnce` — the engine waits for save and replaces the same card URI.
-      const locale = await operations.locale.resolve({ principalId: ctx.principal.id });
-      const pluginCard = await operations.pluginCards.find({ workspaceId: routeDeps.workspaceId, saveKind: 'api', target: label });
-      let errorSummary = "";
-      const card = cards.defineSecretCardTool<{ label: string }, CustomCredentialSummary, SetTokenResult>({
-        toolId: operations.ids.save,
-        prepare: async () => ({ label }),
-        form: ({ prep }) => operations.credentialCardForms.applyPlugin({ card: pluginCard, form: withCardApp({ spec: operations.credentialCardForms.rotate(prep), app: host.cardIdentity.appNames.setToken }) }),
-        save: ({ values, signal }) => saveSetToken({ token: values.token as string, signal, routeDeps, operations, probe, existing, pluginCard, principalId: ctx.principal.id }),
-        result: ({ run }) => {
-          // Token hints belong on the human's card, never in the model-facing result or audit output.
-          if (run.status === "saved") return { saved: true };
-          if (run.status === "blank") return { saved: false, reason: "invalid", message: operations.locale.text({ id: "blank", locale }) };
-          if (run.status === "failed") return { saved: false, reason: "error", message: run.safeMessage };
-          return { saved: false, reason: run.status };
-        },
-        outcome: ({ run }) => {
-          if (run.status === "saved") {
-            const hint = operations.locale.hint({ hint: run.saved.tokenHint, locale });
-            return withCardApp({ spec: operations.credentialCardForms.rotateOutcome({ label, state: "success", message: `${hint ? hint + ". " : ""}${operations.locale.text({ id: "saved", locale })}` }), app: host.cardIdentity.appNames.setTokenOutcome });
-          }
-          if (run.status === "blank" || run.status === "failed") return withCardApp({ spec: operations.credentialCardForms.rotateOutcome({ label, state: "failure",
-            message: run.status === "blank" ? operations.locale.text({ id: "blank", locale }) : run.safeMessage }), app: host.cardIdentity.appNames.setTokenOutcome });
-          return undefined;
-        },
-      }, {
-        uriHost: host.cardIdentity.uriNamespace,
-        text: { noEmitter: operations.messages.noRotateChannel },
-        safeError: err => {
-          // Never `err.message`: it can quote the token just submitted. See operations.formErrors.
-          errorSummary = operations.diagnostics.describeError({ error: err });
-          return operations.locale.translate({ message: callerSafeErrorMessage({ err, rules: operations.formErrors, fallback: operations.messages.formSaveFailure }), locale });
-        },
-        logFailure: ({ toolId, exchangeId }) => operations.diagnostics.rotateFailure({ toolId, exchangeId, credentialId: existing.id, errorSummary }),
-      });
-      return card.handler({ surfaceExchanges: surfaces.surfaceExchanges, askThenReport: cards.askThenReport })(ctx, options);
-    },
-
-    // Creates a brand-new credential row — see this file's creation-ordering header for the
-    // full mechanism and the incident it closes. Unlike every other write handler in this domain, there
-    // is no existing row to resolve or fail closed on before opening the form: a CREATE's row does not
-    // exist yet, so the only pre-form checks are the permission gate and the `emitSurface` fail-closed
-    // guard below. All three prefill fields are optional and non-secret by schema
-    // in the host's API creation schema — a call with none of them is a normal, valid call.
-    create: async (ctx, { emitSurface } = {}): Promise<CreateCredentialResult> => {
-      // `requireInputRecord` refuses `undefined` outright, but this tool's schema has no required
-      // field at all (same `required: []` shape `custom_credential_list`'s own `NO_INPUT_SCHEMA`
-      // documents) — a model-issued call with no arguments at all is a normal, valid call here, not a
-      // malformed one, so it is treated the same as an explicit `{}` rather than rejected.
-      const input = ctx.input === undefined ? {} : requireInputRecord({ input: ctx.input });
-      const prefill = readCreateCredentialPrefill({ input, operations });
-      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: host.vocabulary.permissions.write }, { entityType: host.vocabulary.entityType });
-
-      const providers = await operations.publish.loadProviders({});
-      const locale = await operations.locale.resolve({ principalId: ctx.principal.id });
-      return openCreateCard({ ctx, emitSurface, routeDeps, operations, probe, cards, surfaces, locale, initialLabel: prefill.label ?? '', cardIdentity: host.cardIdentity,
-        form: () => withCardApp({ spec: operations.credentialCardForms.create({ prefill, providers }), app: host.cardIdentity.appNames.create }),
-        submissionOf: values => deriveCreateCredentialSubmission({ raw: readRawCreateCredentialFields(values), operations }) });
-    },
-
-    // A plugin's own key card (credential_save kind plugin-provider): plugin copy, a masked token
-    // and declared public fields, with fixed row metadata resolved on the server. Same
-    // permission, save port and outcome as the generic create card. The host supplies these through operations.pluginCards.
-    pluginProvider: async (ctx, { emitSurface } = {}): Promise<CreateCredentialResult> => {
-      const input = requireInputRecord({ input: ctx.input });
-      const providerId = requireString({ input, key: "provider" });
-      await requireToolPermission({ authorize: adaptLegacyAuthorize({ authorize: routeDeps.authorize }), workspaceId: routeDeps.workspaceId, principalId: ctx.principal.id, permission: host.vocabulary.permissions.write }, { entityType: host.vocabulary.entityType });
-      const card = (await operations.pluginCards.load({ workspaceId: routeDeps.workspaceId })).find(entry => entry.providerId === providerId);
-      if (!card) throw new ToolInputError({ message: operations.messages.missingPluginCard({ providerId }) });
-      const locale = await operations.locale.resolve({ principalId: ctx.principal.id });
-      return openCreateCard({ ctx, emitSurface, routeDeps, operations, probe, cards, surfaces, locale, initialLabel: card.label, cardIdentity: host.cardIdentity,
-        form: () => operations.credentialCardForms.buildPlugin({ card }),
-        submissionOf: values => {
-          const fields = operations.pluginCards.readValues({ card, values });
-          return { ...deriveCreateCredentialSubmission({ raw: readRawCreateCredentialFields({ ...fields, worksFor: [] }), operations }), pluginCard: card,
-            ...(fields.additionalHosts === undefined ? {} : { additionalHosts: fields.additionalHosts }) };
-        } });
-    },
-  };
+  const context: SaveHandlerContext = { routeDeps, surfaces, host, cards, operations, probe };
+  const handlers = { rotate: rotateCredentialHandler(context), create: createCredentialHandler(context), pluginProvider: pluginProviderHandler(context) };
   return withModelFacingErrors({ handlers, rules: operations.modelFacingErrors }) as { create: ToolHandler; rotate: ToolHandler; pluginProvider: ToolHandler };
 }
 
