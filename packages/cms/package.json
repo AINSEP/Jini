@@ -35,6 +35,7 @@
       "./widgets/html/html-embeds": "node",
       "./widgets/html/gallery-render": "universal",
       "./widgets/date-label": "universal",
+      "./html/style-values": "universal",
       "./navigation/types": "universal",
       "./navigation/dropdown": "universal",
       "./navigation/node": "node",
@@ -261,6 +262,11 @@
       "types": "./dist/widgets/date-label.d.ts",
       "import": "./dist/widgets/date-label.js",
       "default": "./dist/widgets/date-label.js"
+    },
+    "./html/style-values": {
+      "types": "./dist/html/style-values.d.ts",
+      "import": "./dist/html/style-values.js",
+      "default": "./dist/html/style-values.js"
     },
     "./navigation/types": {
       "types": "./dist/navigation/types.d.ts",
