@@ -24,15 +24,13 @@ export interface FetchQueryEnvironmentPort {
   subscribeOnline(required: { listener: (online: boolean) => void }): () => void;
   subscribeFocus(required: { listener: () => void }): () => void;
 }
+export interface FetchQueryCacheRequired {
+  clock: Clock;
+  scheduler: QueryCacheSchedulerPort;
+}
 export interface FetchQueryCacheOptions {
-  clock?: Clock;
-  scheduler?: QueryCacheSchedulerPort;
   environment?: FetchQueryEnvironmentPort;
 }
-const browserScheduler: QueryCacheSchedulerPort = {
-  schedule: ({ callback, delayMs }) => setTimeout(callback, delayMs),
-  cancel: ({ handle }) => clearTimeout(handle as ReturnType<typeof setTimeout>),
-};
 
 export interface QueryState {
   data: unknown;
@@ -82,7 +80,7 @@ export class FetchQueryCache {
   private readonly onlineWaiters = new Set<() => void>();
   private releaseEnvironment: (() => void) | undefined;
 
-  constructor(_required: Record<string, never> = {}, { clock = { nowMs: () => Date.now() }, scheduler = browserScheduler, environment }: FetchQueryCacheOptions = {}) {
+  constructor({ clock, scheduler }: FetchQueryCacheRequired, { environment }: FetchQueryCacheOptions = {}) {
     this.clock = clock;
     this.scheduler = scheduler;
     this.environment = environment;
@@ -124,7 +122,7 @@ export class FetchQueryCache {
 
   /** Cache hits respect freshness; explicit refreshes restart background reads.
    * Initial reads still deduplicate because no earlier successful data exists to refresh. */
-  load<T>({ entry, fetch, staleTime }: { entry: CacheEntry; fetch: () => Promise<T>; staleTime: number }, { force = false }: { force?: boolean } = {}): Promise<T> {
+  load<T>({ entry, fetch: read, staleTime }: { entry: CacheEntry; fetch: () => Promise<T>; staleTime: number }, { force = false }: { force?: boolean } = {}): Promise<T> {
     this.cancelEviction(entry);
     if (entry.pending && (!force || entry.state.data === undefined)) return entry.pending as Promise<T>;
     if (!force && this.fresh({ entry: entry, staleTime: staleTime })) {
@@ -138,7 +136,7 @@ export class FetchQueryCache {
       // A queued offline refresh may have been superseded before reconnection.
       if (entry.pending !== pending) return this.supersedingResult<T>({ entry });
       this.publish(entry, { ...entry.state, isFetching: true });
-      return fetch();
+      return read();
     };
     const pending: Promise<T> = Promise.resolve().then(() => {
       if (this.online) return run();
@@ -185,7 +183,7 @@ export class FetchQueryCache {
       this.scheduleEviction(entry);
     });
     entry.pending = pending;
-    entry.pendingRead = { fetch, staleTime };
+    entry.pendingRead = { fetch: read, staleTime };
     // Mark handled even when a UI caller deliberately discards the promise.
     void pending.catch(() => {});
     // Like TanStack's background refetches, retain the last error until success clears it

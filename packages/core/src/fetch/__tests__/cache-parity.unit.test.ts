@@ -18,10 +18,10 @@ function fixture({ online = true }: { online?: boolean } = {}) {
     subscribeOnline: ({ listener }) => { onlineListeners.add(listener); return () => { onlineListeners.delete(listener); }; },
     subscribeFocus: ({ listener }) => { focusListeners.add(listener); return () => { focusListeners.delete(listener); }; },
   };
-  const cache = new FetchQueryCache({}, {
-    environment, clock: { nowMs: () => now },
+  const cache = new FetchQueryCache({
+    clock: { nowMs: () => now },
     scheduler: { schedule: () => 0, cancel: () => {} },
-  });
+  }, { environment });
   cache.activate();
   return {
     cache, onlineListeners, focusListeners,
