@@ -55,6 +55,8 @@ describe('viewer-shell barrel (index.ts)', () => {
     expect(typeof viewerShell.ViewportSwitcher).toBe('function');
     expect(typeof viewerShell.ViewportToggleGroup).toBe('function');
     expect(typeof viewerShell.CodeWithLines).toBe('function');
+    expect(typeof viewerShell.CodeWrapToggle).toBe('function');
+    expect(typeof viewerShell.useCodeWrap).toBe('function');
     expect(typeof viewerShell.JsonPanel).toBe('function');
     expect(typeof viewerShell.ImageViewerBody).toBe('function');
     expect(typeof viewerShell.VideoViewerBody).toBe('function');
