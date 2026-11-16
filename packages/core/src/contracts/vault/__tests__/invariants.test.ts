@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, test } from "vitest";
-import { assertVaultReplacement, vaultGroupKey, VaultError, type VaultRecord } from "../credential-sets/index.js";
+import { assertVaultReplacement, vaultGroupKey, VaultError, type VaultRecord } from "../../vault.js";
 
 function row(patch: Partial<VaultRecord> = {}): VaultRecord {
   return { workspaceId: "ws", id: "a", kind: "site-assistant", ownerKey: "owner", principalId: "p", binding: "b",

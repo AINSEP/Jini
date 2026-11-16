@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { isLoopbackHostname } from '../address.js';
+import { isLoopbackHostname } from '../index.js';
 describe('isLoopbackHostname', () => {
   // PARITY: copied local-daemon hostname policy vector.
   it('accepts localhost', () => {
