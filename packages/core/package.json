@@ -39,7 +39,10 @@
       "./contracts/vault": "universal",
       "./contracts/oauth": "universal",
       "./contracts/content-types": "universal",
-      "./contracts/hosted-mcp": "universal"
+      "./contracts/hosted-mcp": "universal",
+      "./net": "universal",
+      "./contracts/blob": "universal",
+      "./contracts/runtime": "universal"
     },
     "isolation": {
       "entries": {
@@ -227,6 +230,21 @@
       "types": "./dist/contracts/hosted-mcp.d.ts",
       "import": "./dist/contracts/hosted-mcp.js",
       "default": "./dist/contracts/hosted-mcp.js"
+    },
+    "./net": {
+      "types": "./dist/net/index.d.ts",
+      "import": "./dist/net/index.js",
+      "default": "./dist/net/index.js"
+    },
+    "./contracts/blob": {
+      "types": "./dist/contracts/blob.d.ts",
+      "import": "./dist/contracts/blob.js",
+      "default": "./dist/contracts/blob.js"
+    },
+    "./contracts/runtime": {
+      "types": "./dist/contracts/runtime.d.ts",
+      "import": "./dist/contracts/runtime.js",
+      "default": "./dist/contracts/runtime.js"
     }
   },
   "files": [

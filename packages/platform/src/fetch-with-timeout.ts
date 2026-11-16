@@ -51,6 +51,8 @@
  * serving `index.js`: throws at import time) — see the 2026-08-17 Jini hardening report. Browser
  * call sites should import from this subpath, never the root barrel.
  */
+import type { TextReadOptions } from "@jini-ai/core/net";
+
 
 /** Thrown in place of the platform's generic abort error specifically when the timeout — not a
  * caller-supplied `init.signal` — is what ended the call, so a caller can tell "this took too long"
@@ -79,32 +81,8 @@ export class ResponseLimitExceededError extends RangeError {
   }
 }
 
-/**
- * Shared, documented timeout classes for outbound `fetch()` calls. Every call site names one
- * explicitly (or its own justified number) rather than relying on an unstated default.
- */
-export const FETCH_TIMEOUT_MS = {
-  /** A single metadata/status/API-read call expected to return quickly: a model catalog listing, a
-   * connection test, a GitHub API read, an LLM provider's non-streaming completion call. */
-  QUICK: 15_000,
-  /** A deploy-provider API call that may involve real backend work on the provider's side — site
-   * creation, DNS record lookups, deployment status polling. */
-  DEPLOY: 30_000,
-  /** A large-payload transfer: an asset/blob upload, a generated-media byte fetch. */
-  UPLOAD: 120_000,
-  /** A media-generation API call whose response only arrives once the vendor has actually finished
-   * generating the image/video/audio server-side — routinely minutes, not seconds. Matches the
-   * value OpenAI's and OpenRouter's own image providers already hardcode locally
-   * (`OPENAI_IMAGE_*_TIMEOUT_MS`/`OPENROUTER_IMAGE_TIMEOUT_MS`); used as the shared dispatch-level
-   * backstop in `@jini-ai/integrations`' `dispatchVendorRequest` for every OTHER vendor that (as of
-   * 2026-08-16) sets no timeout of its own at all. Deliberately NOT the same as `UPLOAD`: a backstop
-   * shorter than a vendor's own already-correct 10-minute generation timeout would abort a
-   * legitimately still-generating request early. */
-  GENERATE: 10 * 60_000,
-} as const satisfies Record<string, number>;
-
 export interface FetchWithTimeoutOptions {
-  /** Milliseconds before the call is aborted. Pick one of {@link FETCH_TIMEOUT_MS}, or a specific
+  /** Milliseconds before the call is aborted. Pick one of `FETCH_TIMEOUT_MS` from `@jini-ai/core/net`, or a specific
    * justified number for a call site that doesn't fit those classes. */
   timeoutMs: number;
   /** Host-supplied transport; defaults to the global fetch. */
@@ -174,14 +152,6 @@ export function createDeadlineSignal(
   }
   return { signal: deadline.signal, dispose };
 }
-
-/** Opt-in byte and decoding guards; defaults remain unlimited and replacement-decoded. */
-export type TextReadOptions = {
-  /** Nonnegative safe integer. Actual streamed bytes, independent of Content-Length. */
-  maxResponseBytes?: number;
-  /** Reject malformed UTF-8, including an incomplete trailing character. */
-  strictUtf8?: boolean;
-};
 
 type TextReadDetails = { text: string; byteLength: number; truncated: boolean };
 type DetailedTextReadInput = {

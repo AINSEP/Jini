@@ -135,3 +135,6 @@ export interface PositionalMailer {
 export interface PluginMailHttpClient {
   send(request: import("../primitives/http.js").HttpRequest, optional?: { redirect?: import("../primitives/http.js").RequestRedirect }): Promise<import("../primitives/http.js").HttpResponse>;
 }
+
+export * from "./mail/email-sender.js";
+export type * from "./mail/smtp-payload.js";

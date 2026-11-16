@@ -1,8 +1,8 @@
 import fs from "node:fs";
+import type { BootIdentity } from "@jini-ai/core/contracts/runtime";
 import { execFileSync } from "node:child_process";
 import { windowsPowerShell } from "../windows-system-tools.js";
 
-export interface BootIdentity { id: string; startedAtMs: number; }
 let cached: BootIdentity | null | undefined;
 const NATIVE_TIMEOUT_MS = 3000;
 function linuxBootIdentity(): BootIdentity | null {

@@ -225,7 +225,7 @@
     "!dist/**/*.map"
   ],
   "dependencies": {
-    "@jini-ai/core": "^0.7.1",
+    "@jini-ai/core": "workspace:^",
     "undici": "^7.30.1"
   },
   "publishConfig": {

@@ -11,7 +11,8 @@
  * torn content. Proven live owners are never age-evicted; staleMs: Infinity also disables age
  * recovery for owners whose liveness is unknown.
  */
-import { fromEarlierBoot, fromThisBoot, readBootIdentity, type BootIdentity } from "./boot-identity.js";
+import { fromEarlierBoot, fromThisBoot, readBootIdentity } from "./boot-identity.js";
+import { FileLockLostError, FileLockTimeoutError, type BootIdentity, type FileLockHolder, type FileLockPortOptions, type HeldFileLock, type HeldFileLockSync } from "@jini-ai/core/contracts/runtime";
 import fs from "node:fs";
 import * as asyncFs from "node:fs/promises";
 import { randomUUID } from "node:crypto";
@@ -22,52 +23,13 @@ import { defaultPlatformMessages, type PlatformMessages } from "../messages.js";
 import { errorCodeOf, fallbackIf } from "./errno.js";
 
 /** Re-exported so a host's own process port can record the boot its locks were taken in. */
-export { readBootIdentity, type BootIdentity } from "./boot-identity.js";
+export { readBootIdentity } from "./boot-identity.js";
 export const DEFAULT_LOCK_TIMEOUT_MS = 15_000;
 export const DEFAULT_LOCK_STALE_AFTER_MS = 10_000;
-export interface FileLockHolder { readonly pid: number; readonly hostname: string; readonly token: string; readonly acquiredAt: string; readonly bootId?: string; }
-export interface HeldFileLock { readonly lockPath: string; assertHeld(required: Record<string, never>): Promise<void>; }
-export interface HeldFileLockSync { readonly lockPath: string; assertHeld(required: Record<string, never>): void; }
 export type FileLockSyncFilesystem = Pick<typeof fs, "mkdirSync" | "openSync" | "writeSync" | "fstatSync" | "readFileSync" | "statSync" | "closeSync" | "rmSync">;
 export type FileLockAsyncFilesystem = Pick<typeof asyncFs, "mkdir" | "open" | "stat" | "rm">;
-export interface FileLockOptions {
-  /** Infinity follows an operation with its own deadline; dead local owners remain reclaimable. */
-  timeoutMs?: number;
-  /** Age threshold for unknown owners. Proven live owners are never evicted; Infinity disables age recovery. */
-  staleMs?: number;
-  pollMs?: number;
-  clock?: Clock;
-  /** Times the wait budget (start and timeout check). Defaults to `clock.nowMs`; hosts with a
-   * monotonic source pass it so a wall-clock jump can neither end nor stretch the wait. Stale age
-   * stays on `clock.nowMs`, because lock-file mtimes are wall-clock times. */
-  monotonicMs?: () => number;
-  sleep?: (required: { durationMs: number }) => void | Promise<void>;
-  process?: { pid: number; isAlive(required: { pid: number }): boolean; bootIdentity?: () => BootIdentity | undefined };
-  token?: () => string;
-  hostname?: () => string;
-  onStaleLockRemoved?: (required: { holder: FileLockHolder | undefined }) => void;
-  createParent?: boolean;
-  format?: "json" | "token";
-  /** Host stores keep their existing user-facing timeout copy. */
-  timeoutMessage?: (required: { lockPath: string; waitMs: number }) => string;
+export interface FileLockOptions extends FileLockPortOptions {
   messages?: PlatformMessages;
-  /** Durable stores historically ignored release failures to avoid masking their critical section. */
-  suppressReleaseErrors?: boolean;
-}
-export class FileLockTimeoutError extends Error {
-  readonly lockPath: string;
-  readonly holder: FileLockHolder | undefined;
-  readonly waitedMs: number;
-  constructor(required: { lockPath: string; holder: FileLockHolder | undefined; waitedMs: number }, optional: { message?: string; messages?: PlatformMessages } = {}) {
-    super(optional.message ?? (optional.messages ?? defaultPlatformMessages).fileLockTimeout({ waitedMs: required.waitedMs }));
-    this.name = "FileLockTimeoutError"; this.lockPath = required.lockPath; this.holder = required.holder; this.waitedMs = required.waitedMs;
-  }
-}
-export class FileLockLostError extends Error {
-  readonly lockPath: string;
-  constructor({ lockPath }: { lockPath: string }, { messages = defaultPlatformMessages }: { messages?: PlatformMessages } = {}) {
-    super(messages.fileLockLost()); this.name = "FileLockLostError"; this.lockPath = lockPath;
-  }
 }
 /** Platform-specific contention classification retains the Windows exclusive-open behavior. */
 export function isContendedLockError({ code, platform }: { code: string | undefined; platform: NodeJS.Platform }): boolean {

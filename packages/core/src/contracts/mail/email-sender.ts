@@ -2,7 +2,7 @@
  * MOVE: Event data and recipient authority belong to the originating feature, independently of
  * delivery providers. Hosts bind authorization, templates and persistence; this surface sends nothing.
  */
-import type { EmailAddress, MailerSendOptions } from "./types.js";
+import type { EmailAddress, MailerSendOptions } from "../mail.js";
 
 /** Explicit caller scope, including for background jobs running as a host service principal. */
 export interface EmailSenderContext { readonly workspaceId: string; readonly principalId: string; }
@@ -69,4 +69,16 @@ export class EmailSenderError extends Error {
     this.code = required.code;
     this.name = "EmailSenderError";
   }
+}
+
+/** Refuses unsupported declarations and undeclared placeholders before activation or rendering.
+ * @complexity O(f + d + p) source fields, declarations and placeholders; no I/O. */
+export function validateEmailSourceTemplate(
+  required: { readonly fields: readonly EmailSourceField[]; readonly template: { readonly fields: readonly string[]; readonly placeholders: readonly string[] } },
+  _optional: Record<string, never> = {},
+): void {
+  const available = new Set(required.fields.map(field => field.token));
+  const declared = new Set(required.template.fields);
+  if (required.template.fields.some(token => !available.has(token))) throw new EmailSenderError({ code: "incompatible" });
+  if (required.template.placeholders.some(token => !declared.has(token))) throw new EmailSenderError({ code: "incompatible" });
 }
