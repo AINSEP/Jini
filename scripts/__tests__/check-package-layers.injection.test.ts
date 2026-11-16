@@ -98,7 +98,7 @@ describe('L5-injected-edge', () => {
   });
 
   it('lets a host preset import anything but lets nothing import a host preset', () => {
-    manifest('server', { dependencies: { '@jini-ai/daemon': '*' } });
+    manifest('server', { dependencies: { '@jini-ai/daemon': '*' }, jini: { kind: 'host-preset' } });
     put('packages/server/src/a.ts', "import { d } from '@jini-ai/daemon'; export { d };");
     expect(gate()).toEqual([]);
     manifest('daemon', { dependencies: { '@jini-ai/core': '*', '@jini-ai/server': '*' } });

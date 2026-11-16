@@ -9,7 +9,7 @@
   },
   "jini": {
     "domain": "server",
-    "kind": "host",
+    "kind": "host-preset",
     "runtime": "node",
     "admission": "locked",
     "isolation": {

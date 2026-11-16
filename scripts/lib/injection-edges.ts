@@ -9,8 +9,15 @@ import { packageSourceFiles, packageTestFiles, payloadSourceFiles, type SourcePa
 import { specMatches, type Finding, type InjectionException } from './injection-debt.js';
 
 const BASE_PACKAGES = new Set(['core', 'protocol']);
-/** Owner decision 2026-11-15 (Q1): wiring-only packages the host may use as a standard preset. */
-export const HOST_PRESETS = new Set(['server', 'cli']);
+/** Owner decision 2026-11-15 (Q1): wiring-only packages the host may use as a standard preset.
+ * A manifest says so with `jini.kind: "host-preset"`; `server` and `cli` are also named here so a
+ * manifest edit alone can never lose the rule. */
+const NAMED_HOST_PRESETS = ['server', 'cli'];
+
+export function hostPresets(required: { packages: readonly SourcePackage[] }, _optional: Record<string, never> = {}): Set<string> {
+  const declared = required.packages.filter(pkg => (pkg.manifest as { jini?: { kind?: string } }).jini?.kind === 'host-preset').map(ownerOf);
+  return new Set([...NAMED_HOST_PRESETS, ...declared]);
+}
 const SCOPE = '@jini-ai/';
 
 export interface Edge { owner: string; target: string; spec: string; kind: string; file: string }
@@ -57,26 +64,26 @@ export function manifestEdges(required: { root: string; pkg: SourcePackage }, _o
     .flatMap(spec => edgeOf({ owner, spec, kind, file }) ?? []));
 }
 
-function l5Reason(required: { edge: Edge; exceptions: readonly InjectionException[] }): string | undefined {
-  const { edge, exceptions } = required;
+function l5Reason(required: { edge: Edge; exceptions: readonly InjectionException[]; presets: ReadonlySet<string> }): string | undefined {
+  const { edge, exceptions, presets } = required;
   if (BASE_PACKAGES.has(edge.target)) return undefined;
-  if (HOST_PRESETS.has(edge.target)) return 'nothing may import a host-preset package';
-  if (HOST_PRESETS.has(edge.owner)) return undefined;
+  if (presets.has(edge.target)) return 'nothing may import a host-preset package';
+  if (presets.has(edge.owner)) return undefined;
   const excused = exceptions.some(item => item.owner === edge.owner && item.target === edge.target
     && specMatches({ glob: item.specGlob, spec: edge.spec }));
   return excused ? undefined : 'only @jini-ai/core and @jini-ai/protocol may be imported; inject the rest from the host';
 }
 
-export function injectedEdgeFindings(required: { edges: readonly Edge[]; exceptions: readonly InjectionException[] }, _optional: Record<string, never> = {}): Finding[] {
+export function injectedEdgeFindings(required: { edges: readonly Edge[]; exceptions: readonly InjectionException[]; presets: ReadonlySet<string> }, _optional: Record<string, never> = {}): Finding[] {
   return required.edges.flatMap(edge => {
-    const why = l5Reason({ edge, exceptions: required.exceptions });
+    const why = l5Reason({ edge, exceptions: required.exceptions, presets: required.presets });
     return why ? [{ rule: 'L5-injected-edge', file: edge.file, spec: edge.spec, kind: edge.kind, reason: `${edge.owner} → ${edge.spec}: ${why}` }] : [];
   });
 }
 
 /** Test-only imports of another package's `/testing` or `/conformance` entry are allowed (owner Q5).
  * The rest is reported, not failing, until the cross-package tests move to their own workspace. */
-export function advisoryTestEdges(required: { edges: readonly Edge[] }, _optional: Record<string, never> = {}): Edge[] {
-  return required.edges.filter(edge => !BASE_PACKAGES.has(edge.target) && !HOST_PRESETS.has(edge.owner)
+export function advisoryTestEdges(required: { edges: readonly Edge[]; presets: ReadonlySet<string> }, _optional: Record<string, never> = {}): Edge[] {
+  return required.edges.filter(edge => !BASE_PACKAGES.has(edge.target) && !required.presets.has(edge.owner)
     && !/\/(?:testing|conformance)(?:\/|$)/.test(edge.spec));
 }

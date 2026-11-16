@@ -10,7 +10,7 @@
   },
   "jini": {
     "domain": "server",
-    "kind": "cli",
+    "kind": "host-preset",
     "entries": {
       ".": "node",
       "./introspection": "universal"

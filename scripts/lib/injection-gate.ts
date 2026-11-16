@@ -4,7 +4,7 @@
 import { basePurityFindings } from './base-purity.js';
 import { cssTokenFindings, loadThemeTokens } from './css-tokens.js';
 import {
-  advisoryTestEdges, injectedEdgeFindings, manifestEdges, ownerOf, payloadEdges, productionEdges, testEdges, type Edge,
+  advisoryTestEdges, hostPresets, injectedEdgeFindings, manifestEdges, ownerOf, payloadEdges, productionEdges, testEdges, type Edge,
 } from './injection-edges.js';
 import { applyDebt, loadDebt, loadExceptions, type DebtViolation, type Finding } from './injection-debt.js';
 import type { SourcePackage } from './package-sources.js';
@@ -20,7 +20,7 @@ export function collectInjectionFindings(required: Scope, _optional: Record<stri
   const { root, packages } = required;
   const edges = packages.flatMap(pkg => edgesOf({ root, pkg }));
   return [
-    ...injectedEdgeFindings({ edges, exceptions: loadExceptions({ root }) }),
+    ...injectedEdgeFindings({ edges, exceptions: loadExceptions({ root }), presets: hostPresets({ packages }) }),
     ...basePurityFindings({ root, packages }),
     ...cssTokenFindings({ root, packages, tokens: loadThemeTokens({ root }) }),
   ];
@@ -28,7 +28,7 @@ export function collectInjectionFindings(required: Scope, _optional: Record<stri
 
 /** Cross-package imports in test files: reported as a count, never failing (owner Q5). */
 export function advisoryTestFindings(required: Scope, _optional: Record<string, never> = {}): Edge[] {
-  return advisoryTestEdges({ edges: required.packages.flatMap(pkg => testEdges({ root: required.root, pkg })) });
+  return advisoryTestEdges({ edges: required.packages.flatMap(pkg => testEdges({ root: required.root, pkg })), presets: hostPresets({ packages: required.packages }) });
 }
 
 export function injectionViolations(
