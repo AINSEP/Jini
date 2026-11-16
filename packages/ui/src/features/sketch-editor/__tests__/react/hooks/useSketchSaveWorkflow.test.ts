@@ -175,8 +175,9 @@ describe('useSketchSaveWorkflow', () => {
         await result.current.handleExportImage();
       });
       expect(result.current.toast).toEqual({ message: 'Could not export image', tone: 'error' });
-      expect(warn).toHaveBeenCalledWith('[SketchEditor] export image failed', expect.stringContaining('[REDACTED:github_token]'));
+      expect(warn).toHaveBeenCalledWith('[SketchEditor] export image failed', 'Error');
       expect(String(warn.mock.calls[0]?.[1])).not.toContain(secret);
+      for (const leak of ['disk read failed', 'ghp_', 'useSketchSaveWorkflow.test']) expect(JSON.stringify(warn.mock.calls)).not.toContain(leak);
       expect(onExportImage).not.toHaveBeenCalled();
       warn.mockRestore();
     } finally {
@@ -226,7 +227,7 @@ describe('useSketchSaveWorkflow', () => {
         await result.current.handleExportImage();
       });
       expect(result.current.toast).toEqual({ message: 'Could not export image', tone: 'error' });
-      expect(warn).toHaveBeenCalledWith('[SketchEditor] export image failed', expect.stringContaining('Error: Could not read exported image'));
+      expect(warn).toHaveBeenCalledWith('[SketchEditor] export image failed', 'Error');
       warn.mockRestore();
     } finally {
       vi.unstubAllGlobals();
