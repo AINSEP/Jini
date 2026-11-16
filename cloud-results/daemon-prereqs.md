@@ -55,3 +55,83 @@ Every auth/origin/body-limit/compare gate keeps its behaviour: same inputs, same
 ## Next item
 
 R7-P0 (the 12 characterization files and the 100-row matrix) is next in the design order; its prerequisites are now all on this branch. First apply `cloud-results/desktop-agent-origin-port.patch` in an environment where the desktop gates can run, and decide O-12 / O-11 (R7 §11.10, INDEX §9.5) before P0's census.
+
+---
+
+# Run 2 (2026-11-16, ~40 min wall clock, no subagents): P-NODE-BRIDGE-b and part of R7-P0
+
+Status: **PARTIAL.** Item 1 done. Item 2 (R7-P0) about one third done, Jini side only. Item 3 (R7-P1) not started. No source file under `packages/daemon/src/http` changed; the only production change is in `http-kit/src/node-bridge.ts`. Tovu has no code change in this run (so no pair commit); only this report.
+
+## Commits (branch `refactor/daemon-prereqs`, Jini; all pushed)
+
+| SHA | What |
+|---|---|
+| `5cae9758` | P-NODE-BRIDGE-b: `maxReserializedJsonBytes`, the rebuilt-request header rule, 11 tests, changeset `http-kit-reserialized-body-limit` |
+| `161b5e4b` | R7-P0: harness, T1 route table, T3 response matrix, T2 precedence |
+| `ad29433a` | R7-P0: hand-mounted route gates, body limits (T4, T9, origin half of T6/T8) |
+| `90524450` | harness typing fix |
+
+## Item 1: P-NODE-BRIDGE-b (AMENDMENTS-A A5.1 to A5.3): done
+
+- `maxReserializedJsonBytes({ parserLimitBytes })` = `ceil(limit x 5.25)`; 102,400 -> 537,600 and 6,291,456 -> 33,030,144, as the amendment's table says. The derivation is the why-comment on `JSON_RESERIALIZE_MAX_EXPANSION`.
+- A request the bridge rebuilds from `parsedBody` gets `content-length` = rebuilt byte length and loses `content-encoding` and `transfer-encoding` (`describeRebuiltBody`). d2's bridge did not do this; before the change a gzip JSON body behind `express.json()` answered 415.
+- Tests (`http-kit/src/__tests__/node-bridge-reserialized-body.test.ts`), real socket where a socket matters. Each mutation was applied to `node-bridge.ts`, seen to fail, and reverted (`git status` clean after):
+
+| Mutation | Tests that failed |
+|---|---|
+| helper returns the old constant 128 KiB | 6: both exact values, both sweeps, accepted-at-limit-minus-1 and at-limit |
+| expansion 5.25 -> 5 | 4: exact values, rounding, both sweeps |
+| `content-encoding` kept | gzip-behind-parser (415 instead of 200) |
+| `transfer-encoding` kept | chunked-body header pin |
+| `content-length` not rewritten | both header pins |
+| headers also stripped on a body nothing read | "gzip is still refused, never inflated" |
+
+## Item 2: R7-P0, what exists now (`packages/daemon/src/http/__tests__/characterization/`)
+
+- `harness.ts`: the one seam (`RouteHarness.fetch/close/routes/internalErrors`). Today: real Express on `127.0.0.1:0`, all 25 route files mounted in host order (health, the two groups with their own parser, blanket `express.json()`, the rest), real local origin policy, every dependency a stand-in that throws a marker.
+- `route-table.characterization.test.ts` (T1): inline literal of all 100 routes + 3 path gates, by file, in mount order, with the layers in front of each answer.
+- `response-matrix.characterization.test.ts` (T3, T2): 88 rows (83 JSON specs + the 5 other JSON-answering routes): answer to an empty same-origin request and to a foreign origin. Every `500` row also checks: request ID shape, marker text absent from the body, the sink got the original error under the same ID. 11 precedence rows + 2 no-match rows.
+- `gates-and-limits.characterization.test.ts` (T4, T9, origin part of T6/T8): 32 tests.
+- Counts re-run against the design: 83 `mountJsonRoute`, 17 hand-mounted routes, 3 gates, 28 `register*`, 55 same-origin specs. All match.
+
+Proof the pins fail (source mutation, test run, revert; tree clean after each):
+
+| Class | Mutation | Failed |
+|---|---|---|
+| T1 lost route | agents rescan not mounted | route table x2, its matrix row, coverage check |
+| T1 gate order | tool-exec parser before gate | route table |
+| T1 lost path gate | `app.use(...tool-result, gate)` deleted | route table x2, its matrix row |
+| T3 same-origin removed | agents rescan `requireSameOrigin: false` | its row |
+| T3 same-origin added | agents list gets the gate | its row |
+| T3 SEC-005 | connectors returns `error.message` | 6+ connectors rows |
+| T2 precedence | memory `/:id` mounted before `/tree` | route table + 3 precedence rows |
+| T6 origin (stream) | guard removed from memory event stream | its row |
+| T6 origin (none today) | guard added to the run event stream | its row |
+| T9 bearer compare | remote bridge accepts any token | both remote rows |
+| T9 token before body | tool-exec gate after parser | its test |
+| T4 limit | attachment-lookup 64kb -> 128kb | limit+1 row |
+| T9 owner gate | scoped frontend-session gate passes on a resolver error | its test |
+| T7 body bytes | frontend-request plain-string error becomes an envelope | 2 tests |
+
+## Findings and deviations
+
+1. **Three memory routes put a dependency's error text in a 400 answer today**: `PATCH /api/memory/tree/:id`, `PATCH /api/memory/config`, `DELETE /api/memory/:id` (`memory.ts:270`, `errorMessage(error)` into `BAD_REQUEST`). The design's T3 says no body contains the thrown message. The code differs, so these rows are pinned as they are (`leaks-dependency-message`) and nothing was changed. Needs an owner decision before G2 converts `memory.ts`.
+2. T3 is a two-question matrix, not the full row the design lists. **Not pinned by P0 yet:** happy status + body shape per route, and a parse-failure case per route. For the 29 routes whose empty request stops at 400, the handler-throws contract is also not reached. Today's per-file tests cover those paths on Express.
+3. T1's layer column is `name/arity` because every gate is an anonymous closure; same-origin is pinned per route by the matrix, not as a T1 column.
+4. The number sweep is exhaustive to 6 characters (2,584,000 tokens, count checked by an independent regex brute force); for 7 to 8 characters the mantissa digits are 0, 1, 9 with every exponent (11,788,695 tokens). The full 8-character space is too large for a unit test.
+5. The header rule applies only when a body was actually rebuilt. A drained request with no `parsedBody` (body `null`) keeps its headers.
+6. `JSON_RESERIALIZE_MAX_EXPANSION` is module-private; only the function is exported.
+7. The blanket-parser limit pins (102,400, with the most-expanding body) cannot be broken by a daemon source mutation, because the parser is the host's. They are there to fail after conversion if a route limit is set below `maxReserializedJsonBytes`.
+8. The harness ignores `fetch(.., { client })` on a real socket (peer is always loopback).
+9. O-11 and O-12: the amendments do not change either, so the design's recommendation stands. O-11 accept (C4-e `backlog` landed in run 1). O-12 accept only if the P0 census finds no caller; **the census and T2b were not done in this run**, so O-12 is still conditional.
+
+## Verification (Jini `90524450`)
+
+http-kit 561 tests pass (was 550). daemon 4526 pass + 1 pre-existing skip (was 4388; +138). `pnpm guard` ok, `pnpm -r typecheck` 0 errors, `check:size` and `check:complexity` pass. No test deleted or loosened. Tovu: `npm ci`, `link-jini`, contracts and sdk builds ran; no Tovu test was run because nothing in Tovu changed.
+
+## Next (in order)
+
+1. Rest of R7-P0, Jini: T2b path classes + the O-12 caller census; T5 query shapes; T6 stream behaviour (content type, heartbeat per kind, replay incl. 1,167 events, overflow, abort cleanup, terminal exited-session, run error before/after commit); T7 NDJSON; T8 upload; T10 cookie; T12 state isolation; T11 in `packages/server`; the happy/parse rows of finding 2; sort the 17 `listen` tests (design 11.13).
+2. R7-P0, Tovu: parser-chain suite (design 11.2) and the nine `authorizeRun` cases (3.5), each with its named break.
+3. Owner decision on finding 1.
+4. Then R7-P1.
