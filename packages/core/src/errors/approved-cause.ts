@@ -5,9 +5,9 @@
  * and the reporter shows it only to a caller authorised for that same step. Redaction still runs on
  * an approved cause, as a second layer.
  *
- * The callers of {@link approveCause} are meant to be an allowlist held by `scripts/guard.ts`, so
- * adding one is a reviewed diff with the operation owner's reason beside it. That guard rule is not
- * built yet; until it is, a new caller is caught only by review.
+ * The callers of {@link approveCause} are a reviewed list held by
+ * `scripts/check-error-disclosure-callers.ts` (run by `pnpm guard`), so adding one is a reviewed
+ * diff with the operation owner's reason beside it. A host keeps its own list for its own callers.
  */
 declare const approvedCauseBrand: unique symbol;
 

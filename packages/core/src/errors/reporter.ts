@@ -57,8 +57,8 @@ export interface RecordFailureOptions {
   readonly exactSecrets?: readonly string[];
   /** `'skip'` is for a failure the caller caused and was told about (a rate-limit refusal on an
    *  anonymous surface): without it, unauthenticated requests could drive unbounded third-party
-   *  reports. The host record is still written. Its callers are meant to be a `scripts/guard.ts`
-   *  allowlist (not built yet; until then a new caller is caught only by review). */
+   *  reports. The host record is still written. Its callers are a reviewed list in
+   *  `scripts/check-error-disclosure-callers.ts` (run by `pnpm guard`); a host keeps its own. */
   readonly tracker?: 'report' | 'skip';
 }
 export interface DescribedFailure {
