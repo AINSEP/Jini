@@ -95,7 +95,8 @@ describe('query shapes, per route that reads a query value', () => {
     ['/internal/tool-catalog',    'principalId', 'p1',       'reads',   'refuses', 'refuses', 'refuses', 'refuses', 'refuses'],
   ];
 
-  it.each(rows)('%s reads %s', async (path, key, value, single, repeated, bracket, nested, empty, absent, fixed = '') => {
+  it.each(rows.map((row) => [row[0], row[1], row] as const))('%s reads %s', async (path, key, row) => {
+    const [, , value, single, repeated, bracket, nested, empty, absent, fixed = ''] = row;
     const v = encodeURIComponent(value);
     const shapes: Record<string, [string, Verdict]> = {
       single: [`${key}=${v}`, single], repeated: [`${key}=${v}&${key}=${v}`, repeated], bracket: [`${key}[]=${v}`, bracket],
