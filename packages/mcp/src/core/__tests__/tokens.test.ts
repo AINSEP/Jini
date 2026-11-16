@@ -170,7 +170,7 @@ describe('sanitizeTokensFile boundaries', () => {
       missing: { accessToken: 'a' },
       inf: { accessToken: 'b', savedAt: -Infinity },
       kept: { accessToken: 'c', savedAt: 0 },
-    } }, clock: testClock }, { clock: fixedClock });
+    } }, clock: fixedClock });
     expect(out.servers.missing?.savedAt).toBe(4242);
     expect(out.servers.inf?.savedAt).toBe(4242);
     expect(out.servers.kept?.savedAt).toBe(0);
