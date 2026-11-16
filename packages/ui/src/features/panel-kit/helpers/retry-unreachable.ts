@@ -1,10 +1,9 @@
+import { isAbortError } from "@jini-ai/core/text";
+
+export { isAbortError };
+
 /** About 60 seconds of waits spans a short restart/redeploy while still bounding downtime reporting. */
 export const UNREACHABLE_RETRY_DELAYS_MS: readonly number[] = [1_000, 2_000, 4_000, 8_000, 15_000, 30_000];
-
-/** Duck-type the name: DOMException's instanceof Error result depends on its browser realm. */
-export function isAbortError({ error }: { error: unknown }): boolean {
-  return typeof error === "object" && error !== null && (error as { name?: unknown }).name === "AbortError";
-}
 
 /** Clear the timer on abort and detach the listener on completion so unmounts leave no scheduled wait. */
 function waitUnlessAborted(ms: number, signal: AbortSignal): Promise<void> {
