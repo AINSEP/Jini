@@ -1,4 +1,4 @@
-import { render } from '@testing-library/react';
+import { render, type RenderResult } from '@testing-library/react';
 import { useState } from 'react';
 import type { ReactElement } from 'react';
 import { UiKitProvider } from '../kit.js';
@@ -20,6 +20,6 @@ export const fakeUiKit: UiKit = {
   },
 };
 
-export function renderWithUiKit(ui: ReactElement, optional: { kit?: UiKit } = {}) {
+export function renderWithUiKit(ui: ReactElement, optional: { kit?: UiKit } = {}): RenderResult {
   return render(<UiKitProvider kit={optional.kit ?? fakeUiKit}>{ui}</UiKitProvider>);
 }

@@ -211,7 +211,7 @@ describe('writing autosaves', () => {
     await act(async () => {});
     act(() => result.current.scheduleAutosave(draft({ title: 'in flight' })));
     await act(async () => { vi.advanceTimersByTime(3000); });
-    let cleared!: Promise<void>;
+    let cleared!: Promise<{ discarded: boolean }>;
     act(() => { cleared = result.current.clearStandingDraft(); });
     await act(async () => { write.reject(Object.assign(new Error('expired'), { status: 401 })); await cleared; });
     expect(backup.read({ entryId: 'entry' }, { principalId: 'operator' })).toBeNull();
@@ -227,7 +227,7 @@ describe('writing autosaves', () => {
     await act(async () => {});
     act(() => result.current.scheduleAutosave(draft()));
     await act(async () => { vi.advanceTimersByTime(3000); });
-    let cleared!: Promise<void>;
+    let cleared!: Promise<{ discarded: boolean }>;
     act(() => { cleared = result.current.clearStandingDraft(); });
     await act(async () => { write.resolve({ applied: false }); await cleared; });
     expect(result.current.staleBasis).toBeNull();
