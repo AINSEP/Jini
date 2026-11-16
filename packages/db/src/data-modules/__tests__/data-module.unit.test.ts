@@ -236,7 +236,7 @@ describe("declareDataModule file-backed (snapshot + journal)", () => {
 
   it("snapshots, journals COMMITTED, then discards the snapshot", async () => {
     const { file, db } = fileDb();
-    const headroom = vi.fn(() => ({ ok: true, requiredBytes: 1, freeBytes: 100 }));
+    const headroom = vi.fn((_required: { dbPath: string }) => ({ ok: true, requiredBytes: 1, freeBytes: 100 }));
     const res = await declareDataModule({ db, dbPath: file, decl: mk([T()]) }, { checkHeadroom: headroom });
     expect(res.ok).toBe(true);
     expect(res.created).toEqual(["p_ex__t"]);

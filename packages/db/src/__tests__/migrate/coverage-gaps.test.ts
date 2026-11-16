@@ -71,7 +71,7 @@ describe("runner backup callbacks", () => {
   it("exposes the optional callbacks to each step's context", async () => {
     const kernel = await withExistingTable();
     const onBackupError = () => {};
-    const onBackupComplete = () => {};
+    const onBackupComplete = async () => {};
     const seen: object[] = [];
     const s: MigrationStep<KyselyKernel<unknown>> = {
       ...step("0001_a", "a_t"),
