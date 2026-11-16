@@ -63,13 +63,14 @@ function isJsonContentType(contentType: string | null): boolean {
 /**
  * Reads a JSON body the way the Express 4 host's `express.json()` did, so a converted route sees
  * the same value: no body, an empty body or a non-JSON content type give `{}`; only an object or
- * array is accepted (body-parser's strict mode); invalid JSON is a 400 `BAD_REQUEST`; a body over
- * `maxBytes` is a 413 `PAYLOAD_TOO_LARGE`.
+ * array is accepted (body-parser's strict mode); invalid JSON is a 400 `BAD_REQUEST`. Unlike
+ * `express.json()`, the encoding refusal (415) and the `maxBytes` ceiling (413 `PAYLOAD_TOO_LARGE`)
+ * apply to every content type, so a mislabelled body cannot slip past either check.
  */
 export async function readJsonBody({ request }: { readonly request: Request }, { maxBytes = DEFAULT_JSON_BODY_MAX_BYTES }: { readonly maxBytes?: number } = {}): Promise<Result<unknown>> {
-  if (!isJsonContentType(request.headers.get('content-type'))) return ok({ value: {} });
   const bytes = await readBodyBytes({ request }, { maxBytes });
   if (!bytes.ok) return bytes;
+  if (!isJsonContentType(request.headers.get('content-type'))) return ok({ value: {} });
   const text = new TextDecoder().decode(bytes.value).trim();
   if (text === '') return ok({ value: {} });
   const invalid: ServerApiError = { code: 'BAD_REQUEST', message: 'The request body is not valid JSON. Send a JSON object or array.' };

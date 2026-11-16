@@ -42,6 +42,17 @@ describe('content-encoding and exact limits', () => {
       expect(result.ok ? undefined : result.error.code).toBe('UNSUPPORTED_MEDIA_TYPE');
     }
   });
+  it('refuses a compressed or oversized body whatever its content type', async () => {
+    const text = (body: string, headers: Record<string, string> = {}) =>
+      new Request('http://local/x', { method: 'POST', body, headers: { 'content-type': 'text/plain', ...headers } });
+    const compressed = await readJsonBody({ request: text('{}', { 'content-encoding': 'gzip' }) });
+    expect(compressed.ok ? undefined : compressed.error.code).toBe('UNSUPPORTED_MEDIA_TYPE');
+    const streamed = await readJsonBody({ request: text('x'.repeat(8)) }, { maxBytes: 7 });
+    expect(streamed.ok ? undefined : streamed.error.code).toBe('PAYLOAD_TOO_LARGE');
+    const declared = await readJsonBody({ request: text('x', { 'content-length': '8' }) }, { maxBytes: 7 });
+    expect(declared.ok ? undefined : declared.error.code).toBe('PAYLOAD_TOO_LARGE');
+    expect(await readJsonBody({ request: text('x'.repeat(7)) }, { maxBytes: 7 })).toEqual({ ok: true, value: {} });
+  });
   it('reads an identity-encoded body', async () => {
     const result = await readJsonBody({ request: jsonRequest('{"a":1}', { 'content-encoding': 'identity' }) });
     expect(result.ok ? result.value : undefined).toEqual({ a: 1 });
