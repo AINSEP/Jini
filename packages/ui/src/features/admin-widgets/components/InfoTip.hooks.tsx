@@ -62,24 +62,20 @@ export interface InfoTipController {
   handleIconKeyDown: (e: KeyboardEvent<HTMLSpanElement>) => void;
 }
 
-/** Prefer a host's placement when the measured bubble fits; default preserves automatic flipping.
- * @complexity Time/space: O(1), with one icon and one bubble measurement.
- */
-export function useInfoTip(_input: Record<string, never> = {}, { placement: preferredPlacement }: { placement?: "top" | "bottom" | undefined } = {}): InfoTipController {
-  const [open, setOpen] = useState(false);
+type InfoTipPlacementInput = {
+  iconRef: React.RefObject<HTMLSpanElement | null>;
+  bubbleRef: React.RefObject<HTMLSpanElement | null>;
+  open: boolean;
+};
+
+/** Measures the icon/bubble and holds the resulting placement + coordinates; `place` returns false
+ * while the icon is not mounted. Re-places before paint once the portal exists. */
+function useInfoTipPlacement(
+  { iconRef, bubbleRef, open }: InfoTipPlacementInput,
+  { preferredPlacement }: { preferredPlacement?: "top" | "bottom" | undefined } = {},
+) {
   const [placement, setPlacement] = useState<"above" | "below">("above");
   const [coords, setCoords] = useState<InfoTipController["coords"]>({ top: 0, left: 0 });
-  // "tap" pins auto-hide; "key" (Enter/Space) pins stay until blur or Escape.
-  const [pinned, setPinned] = useState<false | "tap" | "key">(false);
-  const iconRef = useRef<HTMLSpanElement>(null);
-  const bubbleRef = useRef<HTMLSpanElement>(null);
-  const pointerTypeRef = useRef<string | null>(null);
-  // Stable identity for the one-open-tip slot; state setters never change.
-  const hide = useRef(() => {
-    setOpen(false);
-    setPinned(false);
-  }).current;
-
   // Placement math lives in `placeInfoTipBubble`; this only gathers the measurements. Before the
   // portal exists the bubble is unmeasured and the rules assume the worst-case width.
   const place = () => {
@@ -100,14 +96,76 @@ export function useInfoTip(_input: Record<string, never> = {}, { placement: pref
     setCoords(measured && measured.width > 0 ? { top: next.top, left: next.left, arrowLeft: next.arrowLeft } : { top: next.top, left: next.left });
     return true;
   };
-  const show = () => {
-    if (place()) setOpen(true);
-  };
   // The portal exists only after opening. Re-place before paint with its real size, so a short tip
   // near an edge shifts only as far as it must and a short tip fits above its label.
   useLayoutEffect(() => {
     if (open) place();
   }, [open, preferredPlacement]);
+  return { placement, coords, place };
+}
+
+/** The bubble is position:fixed at measured viewport coordinates, so a scroll that moves the icon
+ * would leave it floating over the wrong content, and the pointer has usually left the icon
+ * without a mouseleave firing yet: close it. A scroll in an unrelated pane (a streaming chat)
+ * leaves it be. A resize re-measures instead, so it keeps following its icon. */
+function useCloseOnScrollFollowOnResize(
+  { open, iconRef, hide, show }: { open: boolean; iconRef: React.RefObject<HTMLSpanElement | null>; hide: () => void; show: () => void },
+) {
+  useEffect(() => {
+    if (!open) return undefined;
+    const closeIfMoved = (e: Event) => {
+      const icon = iconRef.current;
+      if (icon && e.target instanceof Node && !e.target.contains(icon)) return;
+      hide();
+    };
+    const follow = () => show();
+    window.addEventListener("scroll", closeIfMoved, true);
+    window.addEventListener("resize", follow);
+    return () => {
+      window.removeEventListener("scroll", closeIfMoved, true);
+      window.removeEventListener("resize", follow);
+    };
+  }, [open]);
+}
+
+/** Auto-hide for a tap-pinned tip, and the one-open-tip claim while open. */
+function useInfoTipPinLifecycle(
+  { open, pinned, hide, iconRef }: { open: boolean; pinned: false | "tap" | "key"; hide: () => void; iconRef: React.RefObject<HTMLSpanElement | null> },
+) {
+  useEffect(() => {
+    if (!open) return undefined;
+    return claimOpenTip(hide);
+  }, [open]);
+
+  // A tapped-open tip stays up until the operator taps elsewhere or it times out; the bubble
+  // itself is pointer-events:none, so "outside the icon" is every other target.
+  useDismissOnOutsideOrEscape({ onDismiss: hide }, { enabled: pinned !== false, containerRef: iconRef });
+  useEffect(() => {
+    if (pinned !== "tap") return undefined;
+    const timer = setTimeout(hide, TAP_TIP_MS);
+    return () => clearTimeout(timer);
+  }, [pinned]);
+}
+
+/** Prefer a host's placement when the measured bubble fits; default preserves automatic flipping.
+ * @complexity Time/space: O(1), with one icon and one bubble measurement.
+ */
+export function useInfoTip(_input: Record<string, never> = {}, { placement: preferredPlacement }: { placement?: "top" | "bottom" | undefined } = {}): InfoTipController {
+  const [open, setOpen] = useState(false);
+  // "tap" pins auto-hide; "key" (Enter/Space) pins stay until blur or Escape.
+  const [pinned, setPinned] = useState<false | "tap" | "key">(false);
+  const iconRef = useRef<HTMLSpanElement>(null);
+  const bubbleRef = useRef<HTMLSpanElement>(null);
+  const pointerTypeRef = useRef<string | null>(null);
+  // Stable identity for the one-open-tip slot; state setters never change.
+  const hide = useRef(() => {
+    setOpen(false);
+    setPinned(false);
+  }).current;
+  const { placement, coords, place } = useInfoTipPlacement({ iconRef, bubbleRef, open }, { preferredPlacement });
+  const show = () => {
+    if (place()) setOpen(true);
+  };
   const leave = () => {
     if (!pinned) setOpen(false);
   };
@@ -126,40 +184,9 @@ export function useInfoTip(_input: Record<string, never> = {}, { placement: pref
     // stuck open after the pointer moved on. No pointer press means Enter/Space.
     if (via !== "mouse") setPinned(via ? "tap" : "key");
   };
+  useInfoTipPinLifecycle({ open, pinned, hide, iconRef });
+  useCloseOnScrollFollowOnResize({ open, iconRef, hide, show });
 
-  useEffect(() => {
-    if (!open) return undefined;
-    return claimOpenTip(hide);
-  }, [open]);
-
-  // A tapped-open tip stays up until the operator taps elsewhere or it times out; the bubble
-  // itself is pointer-events:none, so "outside the icon" is every other target.
-  useDismissOnOutsideOrEscape({ onDismiss: hide }, { enabled: pinned !== false, containerRef: iconRef });
-  useEffect(() => {
-    if (pinned !== "tap") return undefined;
-    const timer = setTimeout(hide, TAP_TIP_MS);
-    return () => clearTimeout(timer);
-  }, [pinned]);
-
-  // The bubble is position:fixed at measured viewport coordinates, so a scroll that moves the icon
-  // would leave it floating over the wrong content, and the pointer has usually left the icon
-  // without a mouseleave firing yet: close it. A scroll in an unrelated pane (a streaming chat)
-  // leaves it be. A resize re-measures instead, so it keeps following its icon.
-  useEffect(() => {
-    if (!open) return undefined;
-    const closeIfMoved = (e: Event) => {
-      const icon = iconRef.current;
-      if (icon && e.target instanceof Node && !e.target.contains(icon)) return;
-      hide();
-    };
-    const follow = () => show();
-    window.addEventListener("scroll", closeIfMoved, true);
-    window.addEventListener("resize", follow);
-    return () => {
-      window.removeEventListener("scroll", closeIfMoved, true);
-      window.removeEventListener("resize", follow);
-    };
-  }, [open]);
 
   function handleIconKeyDown(e: KeyboardEvent<HTMLSpanElement>) {
     if (e.key === "Escape" && open) {
