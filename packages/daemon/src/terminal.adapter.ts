@@ -9,10 +9,12 @@ import {
   ensureSpawnHelperExecutable,
   spawnHelperCandidatePaths,
 } from '@jini-ai/platform';
-import {
-  type PtyProcess,
-  type PtySpawn,
-  type PtySpawnOptions,
+// Type-only: an inline-`type` named import still leaves a runtime side-effect import of core's
+// contracts/runtime behind (verbatim module syntax / Node type stripping).
+import type {
+  PtyProcess,
+  PtySpawn,
+  PtySpawnOptions,
 } from '@jini-ai/core/contracts/runtime';
 
 const daemonRequire = createRequire(import.meta.url);
