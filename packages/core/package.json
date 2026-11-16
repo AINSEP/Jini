@@ -53,7 +53,15 @@
       "./contracts/admin-module": "universal",
       "./contracts/forms": "universal",
       "./contracts/charts": "universal",
-      "./contracts/plugin-sdk": "universal"
+      "./contracts/plugin-sdk": "universal",
+      "./errors/sentences": "universal",
+      "./errors/bindings": "universal",
+      "./errors/catalog": "universal",
+      "./errors/reporter": "universal",
+      "./errors/approved-cause": "universal",
+      "./errors/disclosure": "universal",
+      "./errors/idioms": "universal",
+      "./errors/testing": "universal"
     },
     "isolation": {
       "entries": {
@@ -313,6 +321,46 @@
       "types": "./dist/contracts/plugin-sdk.d.ts",
       "import": "./dist/contracts/plugin-sdk.js",
       "default": "./dist/contracts/plugin-sdk.js"
+    },
+    "./errors/sentences": {
+      "types": "./dist/errors/sentences.d.ts",
+      "import": "./dist/errors/sentences.js",
+      "default": "./dist/errors/sentences.js"
+    },
+    "./errors/bindings": {
+      "types": "./dist/errors/bindings.d.ts",
+      "import": "./dist/errors/bindings.js",
+      "default": "./dist/errors/bindings.js"
+    },
+    "./errors/catalog": {
+      "types": "./dist/errors/catalog.d.ts",
+      "import": "./dist/errors/catalog.js",
+      "default": "./dist/errors/catalog.js"
+    },
+    "./errors/reporter": {
+      "types": "./dist/errors/reporter.d.ts",
+      "import": "./dist/errors/reporter.js",
+      "default": "./dist/errors/reporter.js"
+    },
+    "./errors/approved-cause": {
+      "types": "./dist/errors/approved-cause.d.ts",
+      "import": "./dist/errors/approved-cause.js",
+      "default": "./dist/errors/approved-cause.js"
+    },
+    "./errors/disclosure": {
+      "types": "./dist/errors/disclosure.d.ts",
+      "import": "./dist/errors/disclosure.js",
+      "default": "./dist/errors/disclosure.js"
+    },
+    "./errors/idioms": {
+      "types": "./dist/errors/idioms.d.ts",
+      "import": "./dist/errors/idioms.js",
+      "default": "./dist/errors/idioms.js"
+    },
+    "./errors/testing": {
+      "types": "./dist/errors/testing.d.ts",
+      "import": "./dist/errors/testing.js",
+      "default": "./dist/errors/testing.js"
     }
   },
   "files": [

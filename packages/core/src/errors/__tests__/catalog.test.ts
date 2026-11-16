@@ -2,7 +2,7 @@
  * @file Contract cases of the error catalog: the three relationships a class-first table cannot
  * hold (one class with many codes, one class with a different code per scope, two classes with one
  * code), binding order, and the rule that a thrown value's own `code` property is never trusted.
- * The classes here stand in for the real ones (cms, Tovu), which core cannot import.
+ * The classes here stand in for the real ones (a cms package, a host app), which core cannot import.
  */
 import { describe, expect, test } from 'vitest';
 import { createErrorDescriber, reclassifyToolError, callerSafeErrorMessage, ToolInputError } from '../../index.js';
@@ -108,7 +108,7 @@ describe('the three relationships', () => {
 
 describe('order and trust', () => {
   test('a subclass listed first wins, with its guidance; its superclass still matches its own code', () => {
-    expect(catalog.match({ error: new PostVersionConflictError('stale'), scope: 'content-post' })).toMatchObject({ code: 'VERSION_CONFLICT', guidance: 'Call get_post again.', reason: 'stale' });
+    expect(catalog.match({ error: new PostVersionConflictError('stale'), scope: 'content-post' })).toMatchObject({ code: 'VERSION_CONFLICT', guidance: 'Call get_post again.', message: 'stale' });
     expect(codeOf(new PostConflictError('slug taken'), 'content-post')).toBe('CONTENT_POST_CONFLICT');
   });
 
@@ -128,8 +128,8 @@ describe('order and trust', () => {
 
 describe('words', () => {
   test('own-message publishes the error message, fixed publishes the binding text, sentence carries the sentence and its values', () => {
-    expect(catalog.match({ error: new ForbiddenError('principal p-1 lacks posts:write'), scope: 'content-post' })).toEqual({ scope: 'content-post', code: 'CONTENT_POST_FORBIDDEN', mode: 'own-message', reason: 'principal p-1 lacks posts:write' });
-    expect(catalog.match({ error: new SealerError('plaintext: hunter2'), scope: 'content-post' })).toEqual({ scope: 'content-post', code: 'CONTENT_POST_SEAL_FAILED', mode: 'fixed', reason: 'The post could not be sealed.' });
+    expect(catalog.match({ error: new ForbiddenError('principal p-1 lacks posts:write'), scope: 'content-post' })).toEqual({ scope: 'content-post', code: 'CONTENT_POST_FORBIDDEN', mode: 'own-message', message: 'principal p-1 lacks posts:write' });
+    expect(catalog.match({ error: new SealerError('plaintext: hunter2'), scope: 'content-post' })).toEqual({ scope: 'content-post', code: 'CONTENT_POST_SEAL_FAILED', mode: 'fixed', message: 'The post could not be sealed.' });
     expect(catalog.match({ error: new QuotaError('over'), scope: 'content-post' })).toEqual({
       scope: 'content-post', code: 'CONTENT_POST_QUOTA', mode: 'sentence', params: { used: 12, limit: 10 }, sentence: words('You have {used} of {limit} posts.', 429) });
   });

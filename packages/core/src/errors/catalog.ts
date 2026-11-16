@@ -14,8 +14,10 @@ export interface ErrorMatch {
   readonly scope: string;
   readonly code: string;
   readonly mode: ErrorText['mode'];
-  /** `own-message`: the error's own message. `fixed`: the binding's text. Absent in `sentence` mode. */
-  readonly reason?: string;
+  /** The words the binding publishes. `own-message`: the error's own message, which the binding's
+   *  owner listed as built from fixed text and the caller's own input. `fixed`: the binding's text.
+   *  Absent in `sentence` mode. */
+  readonly message?: string;
   /** `sentence` mode: values for the sentence's placeholders (strings and numbers, at most 16). */
   readonly params?: Readonly<Record<string, string | number>>;
   /** The sentence for the code, when a set defines one. */
@@ -106,10 +108,10 @@ function safeParams({ values }: { values: unknown }): Readonly<Record<string, st
 }
 
 /** The words a matched binding publishes. A throwing `params` is no match, for the same reason as {@link resolveCode}. */
-function resolveText({ text, error }: { text: ErrorText; error: Error }): Pick<ErrorMatch, 'mode' | 'reason' | 'params'> | undefined {
+function resolveText({ text, error }: { text: ErrorText; error: Error }): Pick<ErrorMatch, 'mode' | 'message' | 'params'> | undefined {
   try {
-    if (text.mode === 'fixed') return { mode: text.mode, reason: text.text };
-    if (text.mode === 'own-message') return { mode: text.mode, reason: String(error.message) };
+    if (text.mode === 'fixed') return { mode: text.mode, message: text.text };
+    if (text.mode === 'own-message') return { mode: text.mode, message: String(error.message) };
     return text.params === undefined ? { mode: text.mode } : { mode: text.mode, params: safeParams({ values: text.params({ error }) }) };
   } catch {
     return undefined;
@@ -142,12 +144,11 @@ function ruleBindings({ bindings }: { bindings: readonly ErrorBinding[] }): read
 function vocabulary({ scopes, sentences }: { scopes: ReadonlyMap<string, readonly ErrorBinding[]>; sentences: ReadonlyMap<string, ErrorSentence> }): ErrorDescriberVocabulary {
   const codes = new Set<string>(sentences.keys());
   const labels = new Map<ErrorClass, string>();
-  for (const bindings of scopes.values()) {
-    // The describer checks classes newest first; a scope lists subclasses first, so walk it backwards.
-    for (const binding of [...bindings].reverse()) {
-      for (const code of 'codes' in binding ? binding.codes : [binding.code]) codes.add(code);
-      if (binding.label !== undefined && !labels.has(binding.error)) labels.set(binding.error, binding.label);
-    }
+  // The describer checks classes newest first; a scope lists subclasses first, so walk it backwards.
+  const bindings = [...scopes.values()].flatMap(scope => [...scope].reverse());
+  for (const binding of bindings) {
+    for (const code of 'codes' in binding ? binding.codes : [binding.code]) codes.add(code);
+    if (binding.label !== undefined && !labels.has(binding.error)) labels.set(binding.error, binding.label);
   }
   return { codes: [...codes], classes: [...labels].map(([error, label]) => ({ error, label })) };
 }

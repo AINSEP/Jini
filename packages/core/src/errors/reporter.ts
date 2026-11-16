@@ -170,7 +170,7 @@ function refusalError(required: { match: ErrorMatch; fallback: { readonly messag
   const { sentence } = match;
   const base = { code: match.code, ...(sentence === undefined ? {} : { retryable: sentence.retryable }) };
   if (sentence?.audience === 'authorized' && audience !== 'authorized') return { ...base, message: fallback.message };
-  if (match.mode !== 'sentence') return { ...base, message: match.reason ?? fallback.message };
+  if (match.mode !== 'sentence') return { ...base, message: match.message ?? fallback.message };
   if (sentence === undefined) return { ...base, message: fallback.message };
   const params = redactedParams({ params: match.params ?? {}, redaction });
   const message = interpolateSentence({ text: sentence.message }, { params });

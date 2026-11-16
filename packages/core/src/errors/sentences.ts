@@ -45,13 +45,17 @@ export function isErrorCodeToken(required: { code: unknown }, _optional: ErrorSe
   return typeof required.code === 'string' && CONSTANT_TOKEN.test(required.code);
 }
 
+function wordsProblem({ code, sentence }: { code: string; sentence: ErrorSentence }): string | undefined {
+  if (typeof sentence.message !== 'string' || !sentence.message.trim()) return `"${code}" needs a message that says what failed`;
+  if (typeof sentence.action !== 'string' || !sentence.action.trim()) return `"${code}" needs an action that says what to do next`;
+  return undefined;
+}
+
 function sentenceProblem({ code, sentence }: { code: string; sentence: ErrorSentence }): string | undefined {
   if (!Number.isInteger(sentence.status) || sentence.status < 400 || sentence.status > 599) return `"${code}" needs an HTTP status from 400 to 599`;
   if (typeof sentence.retryable !== 'boolean') return `"${code}" needs retryable to be true or false`;
-  if (typeof sentence.message !== 'string' || !sentence.message.trim()) return `"${code}" needs a message that says what failed`;
-  if (typeof sentence.action !== 'string' || !sentence.action.trim()) return `"${code}" needs an action that says what to do next`;
   if (sentence.audience !== 'anyone' && sentence.audience !== 'authorized') return `"${code}" needs audience "anyone" or "authorized"`;
-  return undefined;
+  return wordsProblem({ code, sentence });
 }
 
 function buildSet({ domain, codes, prefixed }: { domain: string; codes: Readonly<Record<string, ErrorSentence>>; prefixed: boolean }): ErrorSentenceSet {
