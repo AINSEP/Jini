@@ -1,7 +1,7 @@
 import { useWidgetRegionsView } from '../hooks/page-views.hooks.js';
 import { useWidgetsOptions } from '../hooks/WidgetsPorts.hooks.js';
 import { DataTable } from "../../../react/components/DataTable.js";
-import { agentHandle } from "@jini-ai/agentic";
+import { agentHandle } from "@jini-ai/core/agent-handles";
 import { useWiredWidgetRegions } from "../hooks/use-widget-regions.hooks.js";
 
 /**

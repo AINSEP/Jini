@@ -1,5 +1,5 @@
 import { useAgentHandle } from '../../../../react/hooks/useAgentHandle.js';
-import { agentHandle } from "@jini-ai/agentic";
+import { agentHandle } from "@jini-ai/core/agent-handles";
 import { useSeeMoreClamp } from "./SeeMore.hooks.js";
 import { withClassName } from "../../../../utils/class-names.js";
 

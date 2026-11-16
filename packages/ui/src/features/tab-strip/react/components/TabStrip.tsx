@@ -1,4 +1,4 @@
-import { agentHandleSegment } from '@jini-ai/agentic';
+import { agentHandleSegment } from '@jini-ai/core/agent-handles';
 import { useAgentHandle, type AgentControlProps } from '../../../../react/hooks/useAgentHandle.js';
 import type { ReactNode } from 'react';
 import { noopTabStripHaptics } from '../../ports.js';

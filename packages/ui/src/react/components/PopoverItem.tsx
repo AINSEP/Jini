@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react';
-import { agentHandleProps } from '@jini-ai/agentic';
+import { agentHandleProps } from '@jini-ai/core/agent-handles';
 import { useAgentHandle, type AgentControlProps } from '../hooks/useAgentHandle.js';
 
 export interface PopoverItemProps extends AgentControlProps {

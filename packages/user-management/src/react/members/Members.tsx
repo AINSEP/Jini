@@ -1,9 +1,8 @@
 import { Fragment } from "react";
 import { RowMenu, ConfirmDialog } from "@jini-ai/admin/react";
-import { agentHandle } from "@jini-ai/agentic";
+import { agentHandle, buildAgentListHandles } from "@jini-ai/core/agent-handles";
 import type { AdminMember } from "../models.js";
 
-import { buildAgentListHandles } from "@jini-ai/ui/panel-kit";
 
 import { memberRowMenuItems, type RowActionState } from "./rules.js";
 import { useMembers, type MembersDependencies, type MembersOptions } from "./hooks/use-members.hooks.js";

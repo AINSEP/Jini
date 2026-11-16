@@ -13,3 +13,4 @@ export { interpolate, splitOnPlaceholders, pickPlural, localeEntry } from './tem
 export { formatTimestamp, formatRelativeMinutesAgo } from './format-timestamp.js';
 export { resolveActiveTabId } from './resolve-active-tab-id.js';
 export { isAbortError } from './is-abort-error.js';
+export { extensionForMimeType } from './mime.js';

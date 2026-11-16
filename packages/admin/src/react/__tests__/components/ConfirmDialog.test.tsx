@@ -1,7 +1,7 @@
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import { memo, useRef, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { AGENT_ELEMENT_ATTRIBUTE } from '@jini-ai/agentic';
+import { AGENT_ELEMENT_ATTRIBUTE } from '@jini-ai/core/agent-handles';
 import { ConfirmDialog } from '../../components/ConfirmDialog/ConfirmDialog.js';
 import { ConfirmDialogDefaultsProvider, useConfirmDialog } from '../../components/ConfirmDialog/ConfirmDialog.hooks.js';
 import type { UseConfirmDialog } from '../../components/ConfirmDialog/ConfirmDialog.hooks.js';

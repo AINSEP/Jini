@@ -125,7 +125,7 @@ See the archived provenance ledger for per-file provenance and scope decisions. 
 
 ## Additional entry points
 
-The four entries below also have named exports from the package root. Each is universal
+The entries below also have named exports from the package root. Each is universal
 and has no runtime dependency. Importing the root and a subpath shares the same
 class and factory identities.
 
@@ -135,6 +135,7 @@ class and factory identities.
 | `./model-facing-tool-errors` | `forbiddenRule`, `reclassifyToolError`, `withModelFacingErrors`, `withModelFacingRegistrationErrors`, `callerSafeErrorMessage`; callers own ordered error allowlists and fallback wording. |
 | `./contribution-registry` | `createContributionRegistry({ keyOf })`; instance-owned replacement by key, with detached array snapshots. |
 | `./naming` | `deriveAvailableName`, `deriveDuplicateName`, `MAX_SUFFIX_ATTEMPTS`; required collision predicate, suffix formatter and exhaustion message policy. |
+| `./agent-handles` | `agentHandle`/`agentHandleProps`/`buildAgentListHandles`, the `data-agent-*` attribute names and handle grammar, `FieldDescriptor`. Pure data, no DOM. |
 
 Contribution registries use `register({ contribution })`, `list({})` and `clear({})`.
 Approval clock/ID ports use the shared zero-argument `Clock.nowMs()` and

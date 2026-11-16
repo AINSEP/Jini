@@ -34,7 +34,6 @@ describe('asset-tree-browser index barrel', () => {
       'buildBreadcrumbSegments',
       'filesFromClipboardData',
       'normalizePastedFile',
-      'extensionForMimeType',
       'shouldIgnoreClipboardFilePaste',
       'filesFromDataTransfer',
       'filesFromFileSystemEntry',

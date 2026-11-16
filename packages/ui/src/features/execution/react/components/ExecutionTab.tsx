@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
-import { agentHandleProps, agentSubHandle } from '@jini-ai/agentic';
+import { agentHandleProps, agentSubHandle } from '@jini-ai/core/agent-handles';
 import { useT } from '../../../i18n/index.js';
 import { DEFAULT_AGENT_CLI_ENV_FIELDS } from '../../constants.js';
 import type { ExecutionPort } from '../../ports.js';

@@ -2,7 +2,7 @@ import { useAnalyzePanel, useSeoDefaults, useSeoTabs } from "../hooks/SeoPage.ho
 import type { ReactNode } from "react";
 import type { SeoTabController, SeoTabId } from "../hooks/SeoPage.hooks.js";
 
-import { agentHandle } from "@jini-ai/agentic";
+import { agentHandle } from "@jini-ai/core/agent-handles";
 
 import { TabBar } from "@jini-ai/ui/tab-strip";
 import { InfoTip, Select } from "@jini-ai/ui/admin-widgets";

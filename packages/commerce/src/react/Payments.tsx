@@ -1,5 +1,5 @@
 import type { ReactElement } from "react";
-import { agentHandle } from "@jini-ai/agentic";
+import { agentHandle } from "@jini-ai/core/agent-handles";
 import type { ProviderSummary } from "../payments/contract/payments-port.js";
 import { usePayments } from "./Payments.hooks.js";
 

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
-import { AGENT_PRIVATE_ATTRIBUTE } from '../../element-handles.js';
+import { AGENT_PRIVATE_ATTRIBUTE } from '@jini-ai/core/agent-handles';
 import { createDomPageDriver } from '../dom-page-driver.js';
 
 /**

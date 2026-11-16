@@ -1,5 +1,5 @@
 import { createElement, type ChangeEvent } from 'react';
-import { buildAgentListHandles } from '@jini-ai/agentic';
+import { buildAgentListHandles } from '@jini-ai/core/agent-handles';
 
 import type { DataTableColumn } from '../../../react/components/DataTable.js';
 import type { AdminComment, CommentModerationAction, CommentStatus } from '../../../core/ports/comments.js';

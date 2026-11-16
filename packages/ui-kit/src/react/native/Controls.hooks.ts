@@ -1,6 +1,6 @@
 import { createElement, useId, useState } from 'react';
 import type { ChangeEvent } from 'react';
-import { secretControlAttrs } from '../../attrs.js';
+import { secretControlAttrs } from '@jini-ai/core/agent-handles';
 import { childControlAttrs, useControlAttrs } from '../agent-attrs.hooks.js';
 import type { BaseProps, ButtonProps, IconButtonProps, TextFieldProps, TextAreaProps, SelectProps, CheckboxProps, ToastProps, NoticeProps, SpinnerProps, BadgeProps } from '../types.js';
 export function useNativeButton(required: ButtonProps, _optional: Record<string, never> = {}) {

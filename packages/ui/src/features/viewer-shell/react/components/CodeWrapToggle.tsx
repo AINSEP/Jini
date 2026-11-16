@@ -1,4 +1,4 @@
-import { agentHandle } from '@jini-ai/agentic';
+import { agentHandle } from '@jini-ai/core/agent-handles';
 
 import { type Translate } from '@jini-ai/core/text';
 export interface CodeWrapToggleProps {

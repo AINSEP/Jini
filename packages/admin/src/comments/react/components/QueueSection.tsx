@@ -4,7 +4,7 @@ import type { RowActionState } from '../../rules.js';
 import { DataTable } from '../../../react/components/DataTable.js';
 import { RowMenu } from '../../../react/components/RowMenu/RowMenu.js';
 import { ConfirmDialog } from '../../../react/components/ConfirmDialog/ConfirmDialog.js';
-import { agentHandle } from '@jini-ai/agentic';
+import { agentHandle } from '@jini-ai/core/agent-handles';
 
 import { useWiredCommentQueue } from '../hooks/use-comment-queue.hooks.js';
 import { useQueueSection, useQueueActionsCell, useQueueTable, useQueueToolbar } from '../hooks/QueueSection.hooks.js';

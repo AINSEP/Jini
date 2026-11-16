@@ -8,11 +8,14 @@ import {
   AGENT_ROLE_ATTRIBUTE,
   AGENT_ELEMENT_ROLES,
   resolveHandleSelector,
-  type AgentElementDescriptor,
-  type AgentElementRawState,
-  type AgentElementRole,
-} from '../element-handles.js';
-import { normalizeAgentLabel, type FieldDescriptor } from '../guards.js';
+} from '@jini-ai/core/agent-handles';
+import type {
+  AgentElementDescriptor,
+  AgentElementRawState,
+  AgentElementRole,
+  FieldDescriptor,
+} from '@jini-ai/core/agent-handles';
+import { normalizeAgentLabel } from '../guards.js';
 import type { AgentNavigationScreen, PageNavigationInput, PageNavigationResult } from '../page-navigation.js';
 import type { FindElementsFilter, PageDriver } from '../page-driver.js';
 

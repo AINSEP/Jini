@@ -4,7 +4,7 @@ import { type AdminWidgetType } from "../../models.js";
 
 import { ConfirmDialog } from "../../../react/components/ConfirmDialog/ConfirmDialog.js";
 import { DataTable } from "../../../react/components/DataTable.js";
-import { agentHandle } from "@jini-ai/agentic";
+import { agentHandle } from "@jini-ai/core/agent-handles";
 import { widgetTypeLabel } from "../../rules.js";
 import { useWiredWidgetsLibrary } from "../hooks/use-widgets-library.hooks.js";
 

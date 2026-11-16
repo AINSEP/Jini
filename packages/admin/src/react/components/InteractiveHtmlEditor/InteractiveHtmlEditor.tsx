@@ -1,9 +1,9 @@
 import {
   InteractiveHtmlEditor as HtmlEditor,
-  hasAttributeOnAnyNodeShape,
   type CanvasEmbedPlaceholderDescriptor,
   type InteractiveHtmlEditorProps as HtmlEditorProps,
 } from '@jini-ai/ui/html-editor';
+import { hasAttributeOnAnyNodeShape } from '@jini-ai/core/primitives';
 
 /**
  * @file Consuming-product-specific composition of `@jini-ai/ui/html-editor`'s generic

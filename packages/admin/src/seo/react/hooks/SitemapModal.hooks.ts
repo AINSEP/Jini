@@ -1,6 +1,6 @@
 import type { SitemapModalController } from '../../models.js';
 import { useSeoCopy, useSeoOptions } from './SeoPorts.hooks.js';
-import { buildAgentListHandles } from '@jini-ai/agentic';
+import { buildAgentListHandles } from '@jini-ai/core/agent-handles';
 /** The regeneration mutation owns cache invalidation; forwarding it must not start a second
  * XML read. Failed writes leave the viewed XML alone.
  * @returns The mutation callback as the modal's click handler; no additional I/O.

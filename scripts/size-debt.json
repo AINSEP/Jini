@@ -1766,9 +1766,9 @@
   {
     "file": "packages/user-management/src/react/users/Users.tsx",
     "function": "<file>",
-    "line": 696,
+    "line": 697,
     "rule": "max-lines",
-    "value": 726
+    "value": 725
   },
   {
     "file": "packages/user-management/src/react/users/Users.tsx",

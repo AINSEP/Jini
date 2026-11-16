@@ -1,4 +1,4 @@
-import { buildAgentListHandles } from '@jini-ai/agentic';
+import { buildAgentListHandles } from '@jini-ai/core/agent-handles';
 import { useWiredWidgetsLibrary } from './use-widgets-library.hooks.js';
 import { useWiredWidgetRegions } from './use-widget-regions.hooks.js';
 import { useWiredWidgetRegionEditor } from './use-widget-region-editor.hooks.js';

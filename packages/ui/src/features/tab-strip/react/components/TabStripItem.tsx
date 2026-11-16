@@ -1,4 +1,4 @@
-import { agentHandleProps } from '@jini-ai/agentic';
+import { agentHandleProps } from '@jini-ai/core/agent-handles';
 import { useAgentHandle, type AgentControlProps } from '../../../../react/hooks/useAgentHandle.js';
 import type { ReactNode } from 'react';
 import { useT } from '../../../i18n/index.js';

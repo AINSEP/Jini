@@ -1,4 +1,4 @@
-import { agentHandle } from "@jini-ai/agentic";
+import { agentHandle } from "@jini-ai/core/agent-handles";
 import { Dialog } from "@jini-ai/ui-kit/react";
 
 import { useSeoCopy, useSeoOptions } from "../hooks/SeoPorts.hooks.js";

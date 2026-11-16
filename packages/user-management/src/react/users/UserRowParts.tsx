@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import type { RowMenuItem } from "@jini-ai/admin/react";
-import { agentHandle } from "@jini-ai/agentic";
+import { agentHandle } from "@jini-ai/core/agent-handles";
 
 import type { AdminIdentityUser, AdminPolicy, AdminRole } from "../models.js";
 import { formatGrantLabel, userRowMenuItems } from "./rules.js";

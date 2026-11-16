@@ -8,7 +8,7 @@
  * `resolveHandleSelector` can only ever build `[data-agent-element="<validated-handle>"]`,
  * so there is no path from caller input to an arbitrary `querySelector`.
  */
-import type { FieldDescriptor } from './guards.js';
+import type { FieldDescriptor } from './field-descriptor.js';
 
 export const AGENT_ELEMENT_ATTRIBUTE = 'data-agent-element';
 export const AGENT_ROLE_ATTRIBUTE = 'data-agent-role';

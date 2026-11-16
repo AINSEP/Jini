@@ -3,7 +3,7 @@ import { friendlyModelLabel, pickerModelValue, pickerCatalogNote, pickerModelOpt
 import { useId, type ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { AgentIcon, RemixIcon, SearchableModelSelect, useAgentHandle, useOverlayContainer } from '@jini-ai/ui';
-import { agentHandleProps, agentHandleSegment } from '@jini-ai/agentic';
+import { agentHandleProps, agentHandleSegment } from '@jini-ai/core/agent-handles';
 import { InfoTip } from '@jini-ai/ui/admin-widgets';
 import { assessNativeToolPolicy, type NativeToolPolicyInput } from '@jini-ai/agent-runtime/native-tool-policy';
 

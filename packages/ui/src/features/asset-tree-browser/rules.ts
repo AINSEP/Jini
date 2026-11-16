@@ -11,7 +11,6 @@
 export {
   filesFromClipboardData,
   normalizePastedFile,
-  extensionForMimeType,
   shouldIgnoreClipboardFilePaste,
   filesFromDataTransfer,
   filesFromFileSystemEntry,

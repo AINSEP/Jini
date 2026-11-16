@@ -1,6 +1,6 @@
 import { render, screen } from '@testing-library/react';
 import { describe, expect, it } from 'vitest';
-import { isValidElementHandle } from '@jini-ai/agentic';
+import { isValidElementHandle } from '@jini-ai/core/agent-handles';
 import { useAgentHandle, type AgentControlProps } from '../useAgentHandle.js';
 
 function Control({ name, ...props }: { name: string } & AgentControlProps) {

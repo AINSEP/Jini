@@ -1,4 +1,4 @@
-import { buildAgentListHandles } from '@jini-ai/agentic';
+import { buildAgentListHandles } from '@jini-ai/core/agent-handles';
 import type { ChangeEvent, MutableRefObject } from 'react';
 import { fieldDisplayName, formRowMenuItems, FORM_TABS, type FormDateLine } from '../../rules.js';
 import { fieldSettingsFor, fieldTypeGroups, labelChangePatch, retypeField, UPLOAD_CHOICES } from '../../field-settings.js';

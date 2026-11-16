@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-  agentHandle, agentHandleProps, createGenUiEncoder, createJsonRpcRequest,
-  findCapability, PAGE_CAPABILITIES, toWebMcpTool,
+  createGenUiEncoder, findCapability, PAGE_CAPABILITIES, toWebMcpTool,
 } from '../index.js';
+import { createJsonRpcRequest } from '@jini-ai/protocol/mcp-ui';
+import { agentHandle, agentHandleProps } from '@jini-ai/core/agent-handles';
 import { createA2uiInterpreter, createLabCatalog, resolveDynamicValue } from '../a2ui/index.js';
 
 describe('public argument-object contracts', () => {

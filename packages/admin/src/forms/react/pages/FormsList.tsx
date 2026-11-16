@@ -1,7 +1,7 @@
 import { ConfirmDialog } from '../../../react/components/ConfirmDialog/ConfirmDialog.js';
 import { DataTable } from '../../../react/components/DataTable.js';
 import { RowMenu } from '../../../react/components/RowMenu/RowMenu.js';
-import { agentHandle } from '@jini-ai/agentic';
+import { agentHandle } from '@jini-ai/core/agent-handles';
 import { useWiredFormsList } from '../hooks/use-forms-list.hooks.js';
 import { useFormsListView } from '../hooks/forms-view.hooks.js';
 /**

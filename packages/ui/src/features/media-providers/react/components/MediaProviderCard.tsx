@@ -1,5 +1,5 @@
 import { Fragment, useId } from 'react';
-import { agentHandleProps } from '@jini-ai/agentic';
+import { agentHandleProps } from '@jini-ai/core/agent-handles';
 import type { I18nContextValue } from '../../../i18n/index.js';
 import { SecretInput } from '../../../../react/components/SecretInput.js';
 import {

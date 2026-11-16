@@ -1,4 +1,4 @@
-import { agentHandleProps, agentSubHandle } from '@jini-ai/agentic';
+import { agentHandleProps, agentSubHandle } from '@jini-ai/core/agent-handles';
 import { useT } from '../../../i18n/index.js';
 import { CUSTOM_MODEL_SENTINEL } from '../../constants.js';
 import type { AgentCliEnvFieldSpec, DetectedAgent, LocalCliConfig } from '../../types.js';

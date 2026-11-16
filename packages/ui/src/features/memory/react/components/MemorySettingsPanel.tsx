@@ -16,7 +16,7 @@
 // either component's real signature.
 import { useRef, type CSSProperties } from 'react';
 import type { ComponentProps } from 'react';
-import { agentHandleProps, agentSubHandle } from '@jini-ai/agentic';
+import { agentHandleProps, agentSubHandle } from '@jini-ai/core/agent-handles';
 import { Icon } from '../../../../react/components/Icon.js';
 import { useT } from '../../../i18n/index.js';
 import { MemoryHowPanel } from './MemoryHowPanel.js';

@@ -1,18 +1,16 @@
 /**
  * @module features/mcp-ui/protocol
  *
- * The MCP Apps wire vocabulary, re-exported from `@jini-ai/agentic`'s `mcp-ui-apps.ts` rather than
- * restated here.
+ * The MCP Apps wire vocabulary lives in `@jini-ai/protocol/mcp-ui`; this module owns none of it.
  *
- * `mcp-ui-apps.ts` owns message direction and isJsonRpcMessage's malformed-postMessage guards.
- * Duplicating those rules would
- * create a second surface to keep in sync with a moving spec, so this module owns nothing of the
- * envelope — it only re-exports it, plus adds the one constant that genuinely belongs to *this*
- * package: {@link MCP_UI_VIEW_SANDBOX}.
+ * `@jini-ai/protocol/mcp-ui` owns message direction and isJsonRpcMessage's malformed-postMessage
+ * guards. Duplicating those rules would create a second surface to keep in sync with a moving
+ * spec, so this module owns nothing of the envelope — it adds only the constants that genuinely
+ * belong to *this* package: {@link MCP_UI_VIEW_SANDBOX} and `MCP_UI_PROTOCOL_VERSION`.
  *
  * ## What this package adds on top
  *
- * `mcp-ui-apps.ts` deliberately models the *envelope* and nothing else — it is transport-free and
+ * `@jini-ai/protocol/mcp-ui` deliberately models the *envelope* and nothing else — it is transport-free and
  * touches no browser globals. It therefore has no notion of:
  * - the `ui://` **resource** a tool returns to get a View rendered at all (see `resource.ts`); that
  *   half comes from mcp-ui / MCP Apps' resource conventions, not from the JSON-RPC envelope.
@@ -20,33 +18,8 @@
  * - a **Host implementation** (see `../../react/mcp-ui/`).
  *
  * Those are this package's three additions, and they are the only additions — everything about the
- * messages crossing the boundary comes from the re-exports below.
+ * messages crossing the boundary comes from `@jini-ai/protocol/mcp-ui`.
  */
-export {
-  JINI_PAGE_ACTION_METHOD,
-  JSON_RPC_ERROR_CODES,
-  MCP_UI_HOST_NOTIFICATIONS,
-  MCP_UI_HOST_REQUESTS,
-  MCP_UI_SANDBOX_NOTE,
-  MCP_UI_VIEW_METHODS,
-  MCP_UI_VIEW_NOTIFICATIONS,
-  createJsonRpcError,
-  createJsonRpcNotification,
-  createJsonRpcRequest,
-  createJsonRpcResult,
-  createPageActionRequest,
-  isJsonRpcMessage,
-  isJsonRpcRequest,
-} from '@jini-ai/agentic';
-
-export type {
-  JsonRpcError,
-  JsonRpcMessage,
-  JsonRpcNotification,
-  JsonRpcRequest,
-  JsonRpcResponse,
-} from '@jini-ai/agentic';
-
 /**
  * The `sandbox` attribute every View this package renders gets — `allow-scripts` and nothing else.
  *

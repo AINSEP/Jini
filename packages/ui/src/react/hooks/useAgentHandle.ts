@@ -1,5 +1,5 @@
 import { useId } from 'react';
-import { agentHandleSegment } from '@jini-ai/agentic';
+import { agentHandleSegment } from '@jini-ai/core/agent-handles';
 
 /** Shared controls preserve explicit names; `false` suppresses automatic addressing. */
 export interface AgentControlProps {

@@ -1,5 +1,9 @@
 import type { CSSProperties } from 'react';
-import { agentHandleProps, agentSubHandle, buildAgentListHandles } from '@jini-ai/agentic';
+import {
+  agentHandleProps,
+  agentSubHandle,
+  buildAgentListHandles,
+} from '@jini-ai/core/agent-handles';
 import { useT } from '../../../i18n/index.js';
 import {
   FAILURE_SOUNDS,

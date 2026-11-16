@@ -1,4 +1,4 @@
-import { agentHandle } from '@jini-ai/agentic';
+import { agentHandle } from '@jini-ai/core/agent-handles';
 import { InfoTip } from '@jini-ai/ui/admin-widgets';
 import { MAX_UPLOAD_MB } from '../../field-settings.js';
 import type { useFieldSettingsView } from '../hooks/forms-view.hooks.js';

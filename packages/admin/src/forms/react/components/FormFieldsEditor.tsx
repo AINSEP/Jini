@@ -1,6 +1,6 @@
 import { useFormFieldsView } from "../hooks/forms-view.hooks.js";
 import type { AdminFormField } from '../../models.js';
-import { agentHandle } from '@jini-ai/agentic';
+import { agentHandle } from '@jini-ai/core/agent-handles';
 import { useFormFieldsEditor } from '../hooks/use-form-fields-editor.hooks.js';
 import { FieldAttributesDialog } from "./FieldAttributesDialog.js";
 export interface FormFieldsEditorProps {

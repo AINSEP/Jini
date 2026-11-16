@@ -7,7 +7,6 @@ import {
   computeMenuPosition,
   countFilesUnderDir,
   deriveTreeChildren,
-  extensionForMimeType,
   fileExtensionLabel,
   filesFromClipboardData,
   filesFromDataTransfer,
@@ -24,6 +23,7 @@ import {
   shouldIgnoreClipboardFilePaste,
   toggleInSet,
 } from '../rules.js';
+import { extensionForMimeType } from '@jini-ai/core/text';
 import type { AssetTreeSelectors } from '../types.js';
 
 interface TestFile {

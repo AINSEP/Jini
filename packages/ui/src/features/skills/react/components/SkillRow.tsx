@@ -1,4 +1,4 @@
-import { agentHandleProps, agentSubHandle } from '@jini-ai/agentic';
+import { agentHandleProps, agentSubHandle } from '@jini-ai/core/agent-handles';
 import {
   formatSkillFileSize,
   humanizeSkillCategory,

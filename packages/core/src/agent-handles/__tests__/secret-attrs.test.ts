@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { secretControlAttrs } from './attrs.js';
+import { secretControlAttrs } from '../secret-attrs.js';
 
 it('excludes mixed-case agent metadata without mutating ordinary control props', () => {
   const onClick = () => undefined;

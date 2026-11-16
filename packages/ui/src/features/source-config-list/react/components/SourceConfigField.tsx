@@ -1,5 +1,5 @@
 import { useEffect, useRef, type ChangeEvent } from 'react';
-import type { AgentHandleProps } from '@jini-ai/agentic';
+import type { AgentHandleProps } from '@jini-ai/core/agent-handles';
 import { useT } from '../../../i18n/index.js';
 import { SecretInput, SecretTextarea } from '../../../../react/components/SecretInput.js';
 import { useSecretReveal as useSecretInputReveal } from '../../../../react/components/SecretInput.hooks.js';

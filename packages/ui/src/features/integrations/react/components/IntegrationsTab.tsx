@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { agentHandleProps, agentSubHandle } from '@jini-ai/agentic';
+import { agentHandleProps, agentSubHandle } from '@jini-ai/core/agent-handles';
 import { useT, type I18nContextValue } from '../../../i18n/index.js';
 import { DEFAULT_MCP_CLIENT_ID, DEFAULT_MCP_SERVER_NAME, MCP_CLIENTS } from '../../constants.js';
 import { createFakeMcpIntegrationsPort } from '../../dependencies.js';

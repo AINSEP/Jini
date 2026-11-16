@@ -11,7 +11,7 @@
  * sent message's thumbnail reads) and opens the shared `AttachmentPreviewModal`, with previous/next
  * across the staged images - before sending, the operator can check which screenshots are going.
  */
-import { agentHandleProps, agentHandleSegment } from '@jini-ai/agentic';
+import { agentHandleProps, agentHandleSegment } from '@jini-ai/core/agent-handles';
 import type { ChatAttachment } from '../../core/index.js';
 import { useT } from '../hooks/context.js';
 import { Icon } from './Icon.js';
