@@ -1,4 +1,4 @@
-import { buildDomainRegistrations, indexCatalogById, isRecord, redactSecrets, requireInputRecord, requireString, ToolInputError, requireToolPermission, adaptLegacyAuthorize, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration, type ToolRegistry, type AgentToolDefinition, type LegacyToolAuthorizeFn, type ToolMetadata, type ToolMetadataById } from "@jini-ai/core";
+import { buildDomainRegistrations, indexCatalogById, isRecord, describeErrorForLog, requireInputRecord, requireString, ToolInputError, requireToolPermission, adaptLegacyAuthorize, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration, type ToolRegistry, type AgentToolDefinition, type LegacyToolAuthorizeFn, type ToolMetadata, type ToolMetadataById } from "@jini-ai/core";
 import { readPluginIdentity } from "@jini-ai/core/plugin-directory";
 import type { JsonObject } from "@jini-ai/core/primitives";
 import { attachPluginContributionTools, type PluginToolContributionPorts } from "./tool-contributions.js";
@@ -138,7 +138,7 @@ export interface PluginCapabilityToolText {
    *  stays on `cause`; the model sees only this text. It must not claim a write happened. */
   readonly previewFailed: (required: { pluginName: string; postId: string }, optional?: Record<string, never>) => string;
   /** @agent-note Warning logged through `console.warn` when the per-call activation read throws and
-   *  the call is denied. `detail` is the error message, or `String(value)` for a non-Error. */
+   *  the call is denied. `detail` is `describeErrorForLog` of the thrown value: its class and approved code, never its text. */
   readonly activationReadDenied: (required: { pluginId: string; detail: string }, optional?: Record<string, never>) => string;
 }
 
@@ -565,7 +565,7 @@ export function createPluginCapabilityTools<TPost extends PluginCapabilityPost, 
       return await isPluginEnabledInWorkspace(deps.pluginActivationRepo, deps.workspaceId, pluginId);
     } catch (error) {
       console.warn(
-        text.activationReadDenied({ pluginId, detail: redactSecrets({ input: error instanceof Error ? error.message : String(error) }, { redactPii: false }) }),
+        text.activationReadDenied({ pluginId, detail: describeErrorForLog({ err: error }) }),
       );
       return false;
     }

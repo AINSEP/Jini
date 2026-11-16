@@ -9,7 +9,7 @@
  */
 import { lstat } from "node:fs/promises";
 import path from "node:path";
-import { formatErrorForLog, redactSecrets } from "@jini-ai/core";
+import { describeErrorForLog, redactSecrets } from "@jini-ai/core";
 import { createPluginLookupFacade, type PluginLookupPort } from "@jini-ai/core/plugin-directory";
 import { createConsoleLogger, type Clock as ClockPort } from "@jini-ai/core/primitives";
 import { setPluginEnabled, type PluginActivationRepoPort } from "../activation.js";
@@ -637,12 +637,12 @@ export function createPluginRuntimeCore<TEvent, TOptions>(
     // Serialize first-boot defaults with boot attachment. Existing disabled/quarantined rows win.
     const initialized = await initializeBundledPlugins({
       deps: { clock, repo: activationRepo, discovery: optional.bundledEnabledIds?.length ? await discoverPlugins().catch((error: unknown) => {
-        console.warn("[plugin-runtime] bundled discovery failed; chart providers remain unavailable", formatErrorForLog({ error }));
+        console.warn("[plugin-runtime] bundled discovery failed; chart providers remain unavailable", describeErrorForLog({ err: error }));
         return [];
       }) : [], onEnabled: onPluginEnabled, onDisabled: onPluginDisabled },
       input: { workspaceId: required.workspaceId, pluginIds: optional.bundledEnabledIds ?? [] },
     });
-    for (const failure of initialized.failed) console.warn(redactSecrets({ input: `[plugin-runtime] bundled initialization failed for '${failure.pluginId}'` }, { redactPii: false }), formatErrorForLog({ error: failure.error }));
+    for (const failure of initialized.failed) console.warn(redactSecrets({ input: `[plugin-runtime] bundled initialization failed for '${failure.pluginId}'` }, { redactPii: false }), describeErrorForLog({ err: failure.error }));
     return initialized;
   }
 
@@ -666,7 +666,7 @@ export function createPluginRuntimeCore<TEvent, TOptions>(
       // Fail closed: without a finished conflict pass there is no telling which of two clashing
       // plugins should run, so none is attached this boot (each would previously have failed its
       // own discovery read here anyway). Logged, not thrown — same isolation as a per-plugin failure.
-      createConsoleLogger({ prefix: '' }).warn({ message: `[plugin-runtime] boot conflict check failed, no plugin attached: ${redactSecrets({ input: error instanceof Error ? error.message : String(error) }, { redactPii: false })}` });
+      createConsoleLogger({ prefix: '' }).warn({ message: '[plugin-runtime] boot conflict check failed, no plugin attached' }, { error });
       for (const record of enabledHere) onPluginDisabled(record.pluginId);
       return;
     }
@@ -687,9 +687,7 @@ export function createPluginRuntimeCore<TEvent, TOptions>(
       if (discovered.manifest?.tier === "tier-1" || declaresProviders({ manifest: discovered.manifest })) return;
       await attachPlugin(pluginId, discovered);
     } catch (error) {
-      createConsoleLogger({ prefix: '' }).warn({ message: `[plugin-runtime] boot re-attach failed for '${pluginId}': ${
-          redactSecrets({ input: error instanceof Error ? error.message : String(error) }, { redactPii: false })
-        }` });
+      createConsoleLogger({ prefix: '' }).warn({ message: `[plugin-runtime] boot re-attach failed for '${pluginId}'` }, { error });
     }
   }
 
@@ -728,7 +726,7 @@ export function createPluginRuntimeCore<TEvent, TOptions>(
         loaded.push(record.id);
       } catch (error) {
         onPluginDisabled(record.id);
-        console.warn(`[plugin-runtime] provider plugin '${record.id}' failed to load; its contract stays on the noop: ${redactSecrets({ input: error instanceof Error ? error.message : String(error) }, { redactPii: false })}`);
+        console.warn(`[plugin-runtime] provider plugin '${record.id}' failed to load; its contract stays on the noop: ${describeErrorForLog({ err: error })}`);
       }
     }
     return loaded;
@@ -813,7 +811,7 @@ export function createPluginRuntimeCore<TEvent, TOptions>(
     // to pin its retained bytes, rather than turning a working plugin off for a bad update.
     try { await onPluginEnabled(id); }
     catch (rollbackError) {
-      console.warn(`[plugin-runtime] Plugin '${id}' restored-version reload failed`, formatErrorForLog({ error: rollbackError }));
+      console.warn(`[plugin-runtime] Plugin '${id}' restored-version reload failed`, describeErrorForLog({ err: rollbackError }));
       onPluginDisabled(id);
       await quarantinePlugin({ deps: quarantineDeps, input: { pluginId: id, workspaceId, consecutiveFailures: 0, reason: required.text.restoreFailedReason } });
     }
