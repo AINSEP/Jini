@@ -304,17 +304,8 @@ export function handlePiResponseMessage({
  * @returns A `PiRpcSession` handle with `hasFatalError`, `getLastSessionPath`, and `abort`.
  */
 export function attachPiRpcSession(requiredArgs: Pick<PiRpcSessionOptions, "child" | "prompt" | "send">, optionalArgs: Omit<PiRpcSessionOptions, "child" | "prompt" | "send"> = {}): PiRpcSession {
-  const {
-  child,
-  prompt,
-  cwd,
-  model,
-  send,
-  imagePaths,
-  uploadRoot,
-  parentSession,
-  gracefulShutdownMs = 5000,
-}: PiRpcSessionOptions = { ...optionalArgs, ...requiredArgs };
+  const options: PiRpcSessionOptions = { ...optionalArgs, ...requiredArgs };
+  const { child, cwd, model, send, imagePaths, uploadRoot, parentSession } = options;
   const { stdin, stdout } = child;
   if (stdin === null) {
     throw new Error('pi RPC child process is missing stdin');
@@ -322,39 +313,12 @@ export function attachPiRpcSession(requiredArgs: Pick<PiRpcSessionOptions, "chil
   if (stdout === null) {
     throw new Error('pi RPC child process is missing stdout');
   }
-
-  const runStartedAt = Date.now();
-  const sessionFilesBeforePrompt = snapshotPiSessionFiles(cwd);
-  let finished = false;
-  let fatal = false;
-  const sentFirstToken = { value: false };
-  let capturedSessionPath: string | null = null;
-
-  let nextRpcId = 1;
-  let stdinOpen = true;
-
-  function sendCommand(writable: Writable, type: string, params: PiRpcParams = {}): number | null {
-    if (!stdinOpen) return null;
-    const id = nextRpcId;
-    nextRpcId += 1;
-    writable.write(`${JSON.stringify({ id, type, ...params })}\n`);
-    return id;
-  }
-
-  // Track RPC ids so resume and prompt failures are attributed to the right
-  // request. A resumed turn must not send the trimmed prompt until pi confirms
-  // it loaded the parent session.
-  let parentSessionRpcId: number | null = null;
-  let promptRpcId: number | null = null;
-
-  const fail = (message: string, code?: string): void => {
-    if (finished) return;
-    finished = true;
-    fatal = true;
-    send({ event: 'error', payload: { message, ...(code ? { code } : {}) } });
-    if (!child.killed) child.kill('SIGTERM');
+  const run: PiRun = {
+    options, stdin, runStartedAt: Date.now(), sessionFilesBeforePrompt: snapshotPiSessionFiles(cwd),
+    finished: false, fatal: false, sentFirstToken: { value: false }, capturedSessionPath: null,
+    nextRpcId: 1, stdinOpen: true, parentSessionRpcId: null, promptRpcId: null,
+    images: [],
   };
-
   // Emit initial status with model name immediately — before pi even
   // responds — so the UI header shows the model name at session start.
   send({ event: 'agent', payload: {
@@ -362,32 +326,11 @@ export function attachPiRpcSession(requiredArgs: Pick<PiRpcSessionOptions, "chil
     label: 'initializing',
     model: typeof model === 'string' && model ? model : null,
   } });
-
-  // ---- Outbound: send new_session (if parentSession provided) then prompt via RPC ----
-  stdin.on('error', (err: unknown) => {
-    if (errorCode(err) !== 'EPIPE') {
-      fail(`stdin: ${errorMessage(err)}`);
-    }
-  });
-  stdin.on('close', () => {
-    stdinOpen = false;
-  });
-
-  // If a prior session file path is provided, send new_session with
-  // parentSession so pi loads the prior conversation history into the
-  // new session, enabling conversational continuity across edit rounds.
+  wirePiStdin(run);
   // Build the images array for pi's prompt command. pi's RPC protocol
   // accepts `images` as an array of {type, data, mimeType} objects where
   // `data` is base64-encoded file contents.
-  const images: PiImagePayload[] = buildPiImagePayloads(imagePaths, uploadRoot);
-
-  const sendPromptCommand = (): void => {
-    promptRpcId = sendCommand(stdin, 'prompt', {
-      message: prompt,
-      ...(images.length > 0 ? { images } : {}),
-    });
-  };
-
+  run.images = buildPiImagePayloads(imagePaths, uploadRoot);
   // If a prior session file path is provided, send new_session with
   // parentSession so pi loads the prior conversation history into the
   // new session, enabling conversational continuity across edit rounds.
@@ -395,85 +338,156 @@ export function attachPiRpcSession(requiredArgs: Pick<PiRpcSessionOptions, "chil
   // intentionally contain only the latest user turn, so continuing after a
   // failed parent load would silently drop prior conversation context.
   if (parentSession) {
-    parentSessionRpcId = sendCommand(stdin, 'new_session', { parentSession });
+    run.parentSessionRpcId = sendPiCommand(run, 'new_session', { parentSession });
   } else {
-    sendPromptCommand();
+    sendPiPrompt(run);
+  }
+  wirePiOutput(run, child, stdout);
+  return buildPiRpcSession(run);
+}
+
+/** Mutable state of one attached pi RPC session, shared by the helpers below. */
+interface PiRun {
+  options: PiRpcSessionOptions;
+  stdin: Writable;
+  runStartedAt: number;
+  sessionFilesBeforePrompt: ReturnType<typeof snapshotPiSessionFiles>;
+  finished: boolean;
+  fatal: boolean;
+  sentFirstToken: { value: boolean };
+  capturedSessionPath: string | null;
+  nextRpcId: number;
+  stdinOpen: boolean;
+  // Track RPC ids so resume and prompt failures are attributed to the right
+  // request. A resumed turn must not send the trimmed prompt until pi confirms
+  // it loaded the parent session.
+  parentSessionRpcId: number | null;
+  promptRpcId: number | null;
+  images: PiImagePayload[];
+}
+
+function sendPiCommand(run: PiRun, type: string, params: PiRpcParams = {}): number | null {
+  if (!run.stdinOpen) return null;
+  const id = run.nextRpcId;
+  run.nextRpcId += 1;
+  run.stdin.write(`${JSON.stringify({ id, type, ...params })}\n`);
+  return id;
+}
+
+function sendPiPrompt(run: PiRun): void {
+  run.promptRpcId = sendPiCommand(run, 'prompt', {
+    message: run.options.prompt,
+    ...(run.images.length > 0 ? { images: run.images } : {}),
+  });
+}
+
+function failPi(run: PiRun, message: string, code?: string): void {
+  if (run.finished) return;
+  run.finished = true;
+  run.fatal = true;
+  run.options.send({ event: 'error', payload: { message, ...(code ? { code } : {}) } });
+  if (!run.options.child.killed) run.options.child.kill('SIGTERM');
+}
+
+function wirePiStdin(run: PiRun): void {
+  run.stdin.on('error', (err: unknown) => {
+    if (errorCode(err) !== 'EPIPE') {
+      failPi(run, `stdin: ${errorMessage(err)}`);
+    }
+  });
+  run.stdin.on('close', () => {
+    run.stdinOpen = false;
+  });
+}
+
+function handlePiAgentEnd(run: PiRun): void {
+  const { child, cwd, gracefulShutdownMs = 5000 } = run.options;
+  run.finished = true;
+  // Capture only the session file changed by this run. If another pi
+  // process wrote to the shared session directory concurrently, the
+  // resolver returns null instead of risking cross-conversation resume.
+  run.capturedSessionPath = resolveSessionPathChangedSince(cwd, run.sessionFilesBeforePrompt);
+  // pi's RPC process stays alive after agent_end (designed for
+  // multi-prompt sessions). The daemon's /api/chat is single-shot,
+  // so close stdin and let the process exit naturally, or kill it
+  // after a grace period.
+  try {
+    run.stdin.end();
+  } catch (err: unknown) {
+    failPi(run, `stdin close: ${errorMessage(err)}`);
+  }
+  // Grace period before SIGTERM lets resource-constrained machines drain a slow event loop.
+  // The host supplies timing explicitly, resolving PI_GRACEFUL_SHUTDOWN_MS at composition.
+  setTimeout(() => {
+    if (!child.killed) child.kill('SIGTERM');
+  }, gracefulShutdownMs);
+}
+
+function handlePiMessage(run: PiRun, raw: unknown): void {
+  if (!isRecord(raw)) return;
+  // Once finished (agent_end or abort), stop processing — the run is
+  // over, so no more agent events should be emitted. We still drain
+  // stdout via parser.feed() so the pipe doesn't break; we just skip
+  // acting on the parsed objects.
+  if (run.finished) return;
+
+  // Extension UI requests: auto-resolve to keep pi unblocked.
+  if (raw.type === 'extension_ui_request') {
+    replyExtensionUi(run.stdin, raw);
+    return;
   }
 
-  const handlePiAgentEnd = (): void => {
-    finished = true;
-    // Capture only the session file changed by this run. If another pi
-    // process wrote to the shared session directory concurrently, the
-    // resolver returns null instead of risking cross-conversation resume.
-    capturedSessionPath = resolveSessionPathChangedSince(cwd, sessionFilesBeforePrompt);
-    // pi's RPC process stays alive after agent_end (designed for
-    // multi-prompt sessions). The daemon's /api/chat is single-shot,
-    // so close stdin and let the process exit naturally, or kill it
-    // after a grace period.
-    try {
-      stdin.end();
-    } catch (err: unknown) {
-      fail(`stdin close: ${errorMessage(err)}`);
-    }
-    // Grace period before SIGTERM lets resource-constrained machines drain a slow event loop.
-    // The host supplies timing explicitly, resolving PI_GRACEFUL_SHUTDOWN_MS at composition.
-    setTimeout(() => {
-      if (!child.killed) child.kill('SIGTERM');
-    }, gracefulShutdownMs);
-  };
+  if (raw.type === 'response') {
+    handlePiResponseMessage({
+      raw,
+      parentSessionRpcId: run.parentSessionRpcId,
+      promptRpcId: run.promptRpcId,
+      fail: (message, code) => failPi(run, message, code),
+      sendPromptCommand: () => sendPiPrompt(run),
+    });
+    return;
+  }
 
-  // ---- Inbound: parse stdout events ----
-  const parser = createJsonLineStream({ onError: error => fail(`parser: ${error.message}`), onMessage: ({ message: raw }: { message: unknown }) => {
-    if (!isRecord(raw)) return;
-    // Once finished (agent_end or abort), stop processing — the run is
-    // over, so no more agent events should be emitted. We still drain
-    // stdout via parser.feed() so the pipe doesn't break; we just skip
-    // acting on the parsed objects.
-    if (finished) return;
+  // Agent events: delegate to the pure mapper.
+  const result = mapPiRpcEvent({ raw: raw, send: run.options.send, ctx: { runStartedAt: run.runStartedAt, sentFirstToken: run.sentFirstToken } });
+  if (result === 'agent_end') {
+    handlePiAgentEnd(run);
+  }
+}
 
-    // Extension UI requests: auto-resolve to keep pi unblocked.
-    if (raw.type === 'extension_ui_request') {
-      replyExtensionUi(stdin, raw);
-      return;
-    }
-
-    if (raw.type === 'response') {
-      handlePiResponseMessage({ raw, parentSessionRpcId, promptRpcId, fail, sendPromptCommand });
-      return;
-    }
-
-    // Agent events: delegate to the pure mapper.
-    const result = mapPiRpcEvent({ raw: raw, send: send, ctx: { runStartedAt, sentFirstToken } });
-    if (result === 'agent_end') {
-      handlePiAgentEnd();
-    }
-  } });
-
+// ---- Inbound: parse stdout events ----
+function wirePiOutput(run: PiRun, child: ChildProcess, stdout: NonNullable<ChildProcess['stdout']>): void {
+  const parser = createJsonLineStream({
+    onError: error => failPi(run, `parser: ${error.message}`),
+    onMessage: ({ message: raw }: { message: unknown }) => handlePiMessage(run, raw),
+  });
   stdout.on('data', (chunk: Buffer | string) => {
     try {
       parser.feed({ chunk: typeof chunk === 'string' ? chunk : chunk.toString('utf8') });
     } catch (err) {
-      fail(`parser: ${errorMessage(err)}`);
+      failPi(run, `parser: ${errorMessage(err)}`);
     }
   });
   stdout.on('close', () => parser.flush());
-  child.on('error', (err: unknown) => fail(errorMessage(err)));
+  child.on('error', (err: unknown) => failPi(run, errorMessage(err)));
+}
 
+function buildPiRpcSession(run: PiRun): PiRpcSession {
   return {
     hasFatalError() {
-      return fatal;
+      return run.fatal;
     },
     getLastSessionPath() {
-      return capturedSessionPath;
+      return run.capturedSessionPath;
     },
     abort() {
       // Send RPC abort so pi can clean up gracefully (flush logs,
       // finalize session files, etc.). The termination guarantee
       // (SIGTERM fallback) is owned by the caller (runs.cancel()),
       // not by this method.
-      if (finished || child.killed) return;
-      finished = true;
-      sendCommand(stdin, 'abort');
+      if (run.finished || run.options.child.killed) return;
+      run.finished = true;
+      sendPiCommand(run, 'abort');
     },
   };
 }
