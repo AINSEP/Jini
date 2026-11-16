@@ -107,6 +107,7 @@ export * from './react/hooks/useDebouncedValue.js';
 export * from './react/hooks/useResizableSplitPane.js';
 export * from './react/hooks/useBrandFonts.js';
 export * from './react/hooks/useEdgeAutoScroll.js';
+export * from './react/hooks/usePersistedDisclosure.js';
 
 export * from './browser/useModalWindowDragGuard.js';
 
