@@ -91,7 +91,11 @@ describe('jsonRoute', () => {
   it('refuses a cross-origin request and needs a host context to check one', async () => {
     const refused = await mount({ requireSameOrigin: true }).fetch(post({}, { headers: { origin: 'http://evil.example', host: 'local' } }));
     expect([refused.status, (await refused.json() as { error: { message: string } }).error.message]).toEqual([403, 'cross-origin request rejected']);
-    await expect(mount({ requireSameOrigin: true }, false).fetch(post({}))).rejects.toThrow('same-origin adapter context is required');
+    // Since the SEC-005 reporter became a route argument, the missing host is reported and answered 500, never served.
+    reports.length = 0;
+    const hostless = await mount({ requireSameOrigin: true }, false).fetch(post({}));
+    expect([hostless.status, reports.length]).toEqual([500, 1]);
+    expect(reports[0]).toMatchObject({ error: expect.objectContaining({ message: 'same-origin adapter context is required' }) });
   });
   it('does not serialize a result once the request was aborted', async () => {
     const controller = new AbortController();
