@@ -67,17 +67,13 @@ export function useA2uiSurfaceCard({ events, runId, onAgentAction, registry, t, 
     return surfaces.a2ui.catalogFromRegistry({ registry, catalogId: base.catalogId }, { base });
   }, [registry, surfaces]);
   const interpreterRef = useRef<A2uiInterpreter | null>(null);
-  // Per-card sequence (instance-owned state); the wall-clock suffix keeps the existing wire format.
-  const actionIdCounterRef = useRef(0);
+  const actionIdCounterRef = useRef(0); // per-card sequence; the clock suffix keeps the wire format
   if (!interpreterRef.current) {
     interpreterRef.current = createA2uiInterpreter({
       catalog,
       clock,
       ids: {
-        next: (_required) => {
-          actionIdCounterRef.current += 1;
-          return `a2ui-action-${actionIdCounterRef.current}-${clock.nowMs().toString(36)}`;
-        },
+        next: (_required) => `a2ui-action-${(actionIdCounterRef.current += 1)}-${clock.nowMs().toString(36)}`,
       },
     });
   }
