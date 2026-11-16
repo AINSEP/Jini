@@ -10,4 +10,5 @@ export type { SqliteBackupSource, SqliteRecoveryHook, OpenSqliteConnectionOption
 
 export type { SqliteSyncClient, SqliteSyncStatement, SqliteSyncTransaction, SqliteSyncOpener, SqliteDb } from "./sync-types.js";
 export { inspectSqliteDatabase, verifySqliteIntegrity } from "./inspect.js";
+export { assertSqliteStopped, checkpointStoppedSqliteWal, inspectStoppedSqlite, type StoppedSqliteOpener } from "./stopped.js";
 export type { DaemonDbTableInfo, DaemonDbStatusReport, DbIntegrityIssueKind, DbIntegrityIssue, DbIntegrityReport, VerifyDbOptions } from "./inspect.js";
