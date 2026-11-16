@@ -7,16 +7,19 @@ import { VaultError } from "@jini-ai/core/contracts/vault";
 test("retains published subpaths and declares adapter dependencies as optional peers", () => {
     const root = new URL("../../../", import.meta.url);
     const manifest = JSON.parse(readFileSync(new URL("package.json", root), "utf8"));
-    expect(Object.keys(manifest.exports)).toEqual([".", "./fetch-with-timeout", "./asset-cache", "./secrets", "./secrets/credential-sets", "./secrets/credential-sets/contracts", "./secrets/testing", "./http/multipart", "./http/guarded", "./mail", "./mail/senders", "./mail/smtp", "./fs/guarded-reader", "./fs/durable-json", "./fs", "./object-store", "./net", "./fs/file-lock", "./secrets/credential-token", "./web", "./command", "./process", "./toolchain", "./proxy-env", "./shell", "./child-environment"]);
-    for (const [subpath, source] of [["./asset-cache", "asset-cache"], ["./secrets/credential-token", "secrets/credential-token"], ["./net", "net/index"], ["./fs/file-lock", "fs/file-lock"], ["./secrets", "secrets/index"], ["./secrets/credential-sets", "secrets/credential-sets/index"], ["./secrets/testing", "secrets/testing"], ["./http/multipart", "http/multipart.adapter"], ["./http/guarded", "http/guarded/index"], ["./mail", "mail/index"], ["./mail/smtp", "mail/smtp"], ["./fs/guarded-reader", "fs/guarded-reader"], ["./fs/durable-json", "fs/durable-json"], ["./fs", "fs/index"], ["./object-store", "object-store/index"], ["./web", "web/index"], ["./command", "command"], ["./process", "process"], ["./toolchain", "toolchain"], ["./proxy-env", "proxy-env"], ["./shell", "shell"], ["./child-environment", "child-environment"]]) {
+    expect(Object.keys(manifest.exports)).toEqual([".", "./fetch-with-timeout", "./asset-cache", "./secrets", "./secrets/credential-sets", "./secrets/credential-sets/contracts", "./secrets/testing", "./http/multipart", "./http/guarded", "./mail", "./system", "./mail/senders", "./mail/email-template", "./mail/smtp", "./fs/guarded-reader", "./fs/durable-json", "./fs", "./object-store", "./net", "./fs/file-lock", "./secrets/credential-token", "./web", "./command", "./process", "./toolchain", "./proxy-env", "./shell", "./child-environment"]);
+    for (const [subpath, source] of [["./asset-cache", "asset-cache"], ["./secrets/credential-token", "secrets/credential-token"], ["./net", "net/index"], ["./fs/file-lock", "fs/file-lock"], ["./secrets", "secrets/index"], ["./secrets/credential-sets", "secrets/credential-sets/index"], ["./secrets/testing", "secrets/testing"], ["./http/multipart", "http/multipart.adapter"], ["./http/guarded", "http/guarded/index"], ["./mail", "mail/index"], ["./system", "system"], ["./mail/email-template", "mail/email-template"], ["./mail/smtp", "mail/smtp"], ["./fs/guarded-reader", "fs/guarded-reader"], ["./fs/durable-json", "fs/durable-json"], ["./fs", "fs/index"], ["./object-store", "object-store/index"], ["./web", "web/index"], ["./command", "command"], ["./process", "process"], ["./toolchain", "toolchain"], ["./proxy-env", "proxy-env"], ["./shell", "shell"], ["./child-environment", "child-environment"]]) {
         expect(manifest.exports[subpath!]).toEqual({ types: `./dist/${source}.d.ts`, import: `./dist/${source}.js`, default: `./dist/${source}.js` });
         expect(existsSync(fileURLToPath(new URL(`src/${source}.ts`, root)))).toBe(true);
-        expect(manifest.jini.entries[subpath!]).toBe(subpath === "./secrets/credential-token" ? "universal" : "node");
+        expect(manifest.jini.entries[subpath!]).toBe(subpath === "./secrets/credential-token" || subpath === "./system" ? "universal" : "node");
     }
     // 5e48b4f: undici is a production dependency — the default asset-cache dispatcher constructs it
     // with no optional-peer branch (README, docs/spec/api.spec.md); only the ./web HTML set stays opt-in.
-    expect(manifest.dependencies).toEqual({ "@jini-ai/core": "^0.6.13", undici: "^7.25.0" });
-    expect(manifest.devDependencies.undici).toBe("^7.25.0");
+    // Assert the shape (which packages, which major), not an exact patch range that every dependency bump invalidates.
+    expect(Object.keys(manifest.dependencies).sort()).toEqual(["@jini-ai/core", "undici"]);
+    expect(manifest.dependencies["@jini-ai/core"]).toBe("workspace:^");
+    expect(manifest.dependencies.undici).toMatch(/^\^7\./);
+    expect(manifest.devDependencies.undici).toBe(manifest.dependencies.undici);
     const adapterPeers = { parse5: "7.3.0", "hast-util-from-parse5": "8.0.3", "hast-util-to-mdast": "10.1.2", "mdast-util-to-markdown": "2.1.2", "mdast-util-gfm-table": "2.0.0" };
     expect(manifest.peerDependencies).toEqual(adapterPeers);
     expect(manifest.peerDependenciesMeta).toEqual(Object.fromEntries(Object.keys(adapterPeers).map(name => [name, { optional: true }])));
