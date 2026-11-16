@@ -1,4 +1,4 @@
-import { createSystemClock, nowIso as kernelNowIso } from "@jini-ai/core/primitives";
+import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 import type { Clock, IdGenerator, UUID } from "@jini-ai/core/primitives";
 import type { IdentityRepos, PasswordHasherPort, PrincipalRepoPort } from "../core/ports.js";
 import { normalizeUsername } from "./username.js";
@@ -573,16 +573,16 @@ export async function seedIdentity(required: {
 
 /**
  * Ensure a credential-free user principal, using externalId as its stable principal ID.
- * @param required Repository and caller identity; strings are trimmed and limited to 255 characters.
- * @param optional Workspace scope (defaults to "local" for single-owner hosts) and clock.
+ * @param required Repository, clock and caller identity; strings are trimmed and limited to 255 characters.
+ * @param optional Workspace scope (defaults to "local" for single-owner hosts).
  * @returns The inserted or existing row, preserving existing names and disabled status.
  * @throws IdentityValidationError for invalid input or an adapter without atomic insertion.
  */
 export async function ensurePrincipal(required: {
-  principalRepo: PrincipalRepoPort; externalId: string; displayName: string;
-}, optional: { workspaceId?: UUID; clock?: Clock } = {}): Promise<PrincipalRecord> {
-  const { principalRepo, externalId, displayName } = required;
-  const { workspaceId = "local", clock = createSystemClock() } = optional;
+  principalRepo: PrincipalRepoPort; externalId: string; displayName: string; clock: Clock;
+}, optional: { workspaceId?: UUID } = {}): Promise<PrincipalRecord> {
+  const { principalRepo, externalId, displayName, clock } = required;
+  const { workspaceId = "local" } = optional;
   for (const [name, value] of Object.entries({ externalId, displayName, workspaceId })) {
     if (typeof value !== "string" || !value.trim() || value.trim().length > 255) {
       throw new IdentityValidationError({ message: `${name} must contain 1–255 trimmed characters` });
