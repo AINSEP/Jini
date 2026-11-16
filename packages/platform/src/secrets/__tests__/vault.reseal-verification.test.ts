@@ -1,5 +1,5 @@
-/** Security review A2: every fresh seal is opened again before it is written, a key switch reads the
- * stored row through an explicit source opener, and a refusal says which step failed without leaking. */
+/** Security review A2: rotation opens its fresh seal again before writing, a key switch reads the stored
+ * row through an explicit source opener, and a refusal says which step failed without leaking. */
 import assert from "node:assert/strict";
 import { test, vi } from "vitest";
 import { AesGcmSecretSealer } from "../secret-sealer.aesgcm.js";
@@ -153,33 +153,4 @@ test("a cause whose name or code is not a plain identifier is dropped rather tha
   assert.ok(refusal instanceof VaultResealRefusedError);
   assert.deepEqual([refusal.causeName, refusal.causeCode], [undefined, undefined]);
   assertRedacted(refusal, []);
-});
-
-test("a put whose fresh seal does not open is refused and nothing is written", async () => {
-  const repo = new InMemoryVaultRepo({});
-  const current = keyed("current");
-  const service = serviceOver({ repo, ...current });
-  const seal = current.sealer.seal.bind(current.sealer);
-  vi.spyOn(current.sealer, "seal").mockImplementationOnce(async value => seal({ ...value, aad: buildVaultAad({ ...context, id: "other" }) }));
-  await assert.rejects(service.put(input), (error: unknown) => error instanceof VaultResealRefusedError && error.step === "open-new-envelope");
-  assert.equal(await repo.find(context), null);
-});
-
-test("copy with overwrite leaves the target row untouched when the fresh seal does not open", async () => {
-  const site = (workspaceId: string) => {
-    const repo = new InMemoryVaultRepo({});
-    const key = keyed(workspaceId);
-    const siteContext = { workspaceId, kind: "vendor" as const, ownerKey: "feature", principalId: null, binding: null };
-    return { repo, ...key, service: serviceOver({ repo, ...key }), siteContext, put: { ...siteContext, id: "same-id", provider: "host", label: "Main",
-      meta: { credentialType: "vendor", worksFor: ["host"] }, payload: { token: secret }, hintToken: secret, expectedRevision: null } satisfies VaultPutInput };
-  };
-  const source = site("source"), target = site("target");
-  await source.service.put(source.put);
-  await target.service.put({ ...target.put, payload: { token: "target-value-123" } });
-  const before = (await target.repo.find({ workspaceId: "target", id: "same-id" }))!;
-  const seal = target.sealer.seal.bind(target.sealer);
-  vi.spyOn(target.sealer, "seal").mockImplementationOnce(async value => seal({ ...value, plaintext: JSON.stringify({ token: "swapped-value" }) }));
-  const copied = await target.service.copyToSite({ source: source.service, sourceContext: source.siteContext, targetContext: target.siteContext, ids: ["same-id"], overwrite: true });
-  assert.deepEqual(copied, [{ kind: "vendor", id: "same-id", status: "failed", reasonCode: "invalid-record" }]);
-  assert.deepEqual(await target.repo.find({ workspaceId: "target", id: "same-id" }), before);
 });

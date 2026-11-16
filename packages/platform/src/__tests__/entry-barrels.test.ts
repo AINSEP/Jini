@@ -12,6 +12,7 @@ import { htmlToMarkdown } from '../web/html-to-markdown.js';
 import { stripHtmlPresentation } from '../web/strip-html-presentation.js';
 import * as secretsTesting from '../secrets/testing.js';
 import { InMemoryKeyring } from '../secrets/keyring.memory.js';
+import { secretSealerContractViolations } from '../secrets/sealer-contract.js';
 import { FixedRootKeyKeyring } from '../secrets/keyring.env.js';
 
 test('./net publishes the private-address check and the loopback probe by identity (the pure classifiers moved to core/net)', () => {
@@ -28,8 +29,9 @@ test('./web publishes the page reader, document projections, markdown converter 
   for (const [name, binding] of Object.entries(expected)) expect(web[name as keyof typeof web]).toBe(binding);
 });
 
-test('./secrets/testing publishes the two test keyrings by identity', () => {
-  expect(Object.keys(secretsTesting).sort()).toEqual(['FixedRootKeyKeyring', 'InMemoryKeyring']);
+test('./secrets/testing publishes the two test keyrings and the sealer contract by identity', () => {
+  expect(Object.keys(secretsTesting).sort()).toEqual(['FixedRootKeyKeyring', 'InMemoryKeyring', 'secretSealerContractViolations']);
+  expect(secretsTesting.secretSealerContractViolations).toBe(secretSealerContractViolations);
   expect(secretsTesting.InMemoryKeyring).toBe(InMemoryKeyring);
   expect(secretsTesting.FixedRootKeyKeyring).toBe(FixedRootKeyKeyring);
 });

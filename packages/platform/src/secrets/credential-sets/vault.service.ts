@@ -159,27 +159,24 @@ export class SecretsVaultService {
     assertContext(record);
     return parseMeta ? this.parse(record) : record;
   }
-  /** Seals under the active key, then opens the fresh envelope with this service's own sealer and
-   * requires the exact plaintext back before any caller can persist it. `openAs` names the stored row
-   * whose binding the envelope must open under (rotation); it defaults to the sealing context. */
-  private async seal(input: { context: VaultIdentity; payload: VaultMeta | null; openAs?: VaultIdentity }): Promise<VaultRecord["sealed"]> {
+  private async seal(input: { context: VaultIdentity; payload: VaultMeta | null }): Promise<VaultRecord["sealed"]> {
     if (input.payload === null) return null;
     // JSON round-trip makes the payload contract explicit; encryption never receives an object
     // coerced to '[object Object]' or a connection URI masquerading as an entire payload.
     if (typeof input.payload !== "object" || Array.isArray(input.payload)) throw invalidRecord();
     const plaintext = JSON.stringify(input.payload);
-    const key = await this.deps.keyring.activeKey({});
-    const sealed = await this.deps.sealer.seal({ plaintext, key, aad: buildVaultAad(input.context) });
-    await this.assertOpensTo({ sealed, plaintext, aad: buildVaultAad(input.openAs ?? input.context), keyId: key.keyId });
-    return sealed;
+    return this.deps.sealer.seal({ plaintext, key: await this.deps.keyring.activeKey({}), aad: buildVaultAad(input.context) });
   }
-  /** A seal that cannot be read back would replace a secret with something nobody can open.
+  /** Opens a fresh envelope with this service's own sealer, under the stored row's own binding, and
+   * requires the exact sealed plaintext back. A seal that cannot be read back would replace the only
+   * copy of a secret with something nobody can open.
    * @throws VaultResealRefusedError naming the failing step, the key and the sealer error's name/code only. */
-  private async assertOpensTo({ sealed, plaintext, aad, keyId }: { sealed: NonNullable<VaultRecord["sealed"]>; plaintext: string; aad: string; keyId: string }): Promise<void> {
+  private async assertOpensTo({ record, sealed, payload }: { record: VaultRecord; sealed: VaultRecord["sealed"]; payload: VaultMeta | null }): Promise<void> {
+    if (sealed === null) return;
     let reopened: string;
-    try { reopened = await this.deps.sealer.open({ sealed }, { aad }); }
-    catch (error) { throw new VaultResealRefusedError({ step: "open-new-envelope", keyId }, { cause: error }); }
-    if (reopened !== plaintext) throw new VaultResealRefusedError({ step: "plaintext-mismatch", keyId });
+    try { reopened = await this.deps.sealer.open({ sealed }, { aad: buildVaultAad(record) }); }
+    catch (error) { throw new VaultResealRefusedError({ step: "open-new-envelope", keyId: sealed.keyId }, { cause: error }); }
+    if (reopened !== JSON.stringify(payload)) throw new VaultResealRefusedError({ step: "plaintext-mismatch", keyId: sealed.keyId });
   }
   private async open(record: VaultRecord, { opener = this.deps.sealer }: { opener?: Pick<SecretSealerPort, "open"> } = {}): Promise<VaultMeta | null> {
     if (!record.sealed) return null;
@@ -396,7 +393,8 @@ export class SecretsVaultService {
     const existing = await this.find(input);
     if (existing?.revision !== input.expectedRevision) throw new VaultError({ code: "conflict" });
     const payload = await this.open(existing, sourceOpener ? { opener: sourceOpener } : {});
-    const sealed = await this.seal({ context: input, payload, openAs: existing });
+    const sealed = await this.seal({ context: input, payload });
+    await this.assertOpensTo({ record: existing, sealed, payload });
     return summary(this.parse(await this.deps.repo.put({ expectedRevision: input.expectedRevision,
       record: { ...existing, sealed, revision: existing.revision + 1, updatedAt: this.deps.now({}) } })));
   }
