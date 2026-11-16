@@ -41,12 +41,15 @@ export async function openStream(
 ): Promise<OpenedStream> {
   const [method = 'GET', path = '/'] = route.split(' ');
   const controller = new AbortController();
-  const response = await harness.fetch(new Request(`http://harness.invalid${concretePath(path)}${query}`, {
+  const request = new Request(`http://harness.invalid${concretePath(path)}${query}`, {
     method,
     headers: { ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...headers },
     ...(body === undefined ? {} : { body }),
     signal: controller.signal,
-  }));
+  });
+  // The headers of a stream must arrive before its first piece; a route that holds them back fails here.
+  const opening = deadline('(no headers yet)');
+  const response = await Promise.race([harness.fetch(request), opening.promise]).finally(() => { opening.cancel(); });
   const reader = response.body?.getReader();
   const decoder = new TextDecoder();
   let pending = '';
