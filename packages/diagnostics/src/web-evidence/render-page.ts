@@ -1,6 +1,7 @@
 import { PageWorkBudget, PageWorkTimeout } from "./page-work-budget.js";
 import { isSameOriginUrl } from "./same-origin.js";
 import { MAX_REDIRECT_HOPS, isMainFrameNavigation, type RequestRouter, type RouteLike } from "./request-guard.js";
+import { ignoreBestEffortFailure } from "../best-effort.js";
 
 /** Structural browser ports shared by evidence, public reading and screenshots. No vendor SDK. */
 export interface RenderResponse { status(): number; url?(): string; headers?(): Record<string, string> }
@@ -141,7 +142,7 @@ async function openContext(
     const opened = await browser.newContext({ ...allowed, ignoreHTTPSErrors: false, serviceWorkers: "block", acceptDownloads: false });
     // A context that opens after cancellation/deadline still belongs to this call.
     if (budget.remainingMs() <= 0 || signal.aborted) {
-      void opened.close().catch(() => {});
+      void opened.close().catch(ignoreBestEffortFailure({ operation: "close the render context" })) /* why: cleanup after abort/failure */;
       signal.throwIfAborted();
       throw new PageWorkTimeout({ timeoutMs });
     }
@@ -155,7 +156,7 @@ async function guardRequests(
   { router, onRequest }: RenderPageOptions,
 ): Promise<() => string | undefined> {
   let refusedOrigin: string | undefined;
-  await budget.run({ work: async () => { await context.routeWebSocket?.(/.*/, socket => socket.close().catch(() => {})); } });
+  await budget.run({ work: async () => { await context.routeWebSocket?.(/.*/, socket => socket.close().catch(ignoreBestEffortFailure({ operation: "close a blocked websocket" })) /* why: the socket is blocked by policy; a failed close changes nothing */); } });
   await budget.run({ work: () => context.route("**/*", async route => {
     const pending = route.request();
     const offOrigin = isMainFrameNavigation({ request: pending }) && isOffOrigin({ url: pending.url(), originPolicy, originBaseUrl });
@@ -165,7 +166,7 @@ async function guardRequests(
     const blocked = offOrigin || (originPolicy !== "public" && !["GET", "HEAD"].includes(pending.method().toUpperCase()));
     const markBlocked = onRequest?.({ route, blocked });
     if (blocked) {
-      await route.abort("blockedbyclient").catch(() => {});
+      await route.abort("blockedbyclient").catch(ignoreBestEffortFailure({ operation: "abort a blocked request" })) /* why: the page may already be closed */;
       return;
     }
     if (router) {
@@ -308,7 +309,7 @@ async function consumeOnePage<T>(
 ): Promise<T> {
   const budget = new PageWorkBudget({ timeoutMs }, { signal });
   let context: RenderContext | undefined;
-  const onAbort = () => { void context?.close().catch(() => {}); };
+  const onAbort = () => { void context?.close().catch(ignoreBestEffortFailure({ operation: "close the render context on abort" })); };
   signal.throwIfAborted();
   signal.addEventListener("abort", onAbort, { once: true });
   try {
@@ -317,6 +318,6 @@ async function consumeOnePage<T>(
     return await budget.run({ work: () => consume(session) });
   } finally {
     signal.removeEventListener("abort", onAbort);
-    if (context) await budget.release({ close: () => context!.close().catch(() => {}) });
+    if (context) await budget.release({ close: () => context!.close().catch(ignoreBestEffortFailure({ operation: "close the render context after capture" })) });
   }
 }

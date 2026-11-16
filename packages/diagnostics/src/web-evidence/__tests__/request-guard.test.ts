@@ -1,5 +1,5 @@
 /** request-guard: pure decisions, then one router per test driven through typed route/transport fakes. */
-import { test, expect } from "vitest";
+import { test, expect, vi } from "vitest";
 import type { HttpClientPort, HttpRequest, HttpResponse } from "@jini-ai/core/primitives";
 import { createRequestRouter, decideRequest, isMainFrameNavigation, MAX_REDIRECT_HOPS, type FetchedResource, type OwnSiteFetch, type RequestRouterOptions, type RoutedRequest, type RouteLike } from "../request-guard.js";
 
@@ -145,12 +145,16 @@ test("a transport failure aborts with the failed code, and the host port classif
   expect(classified.blocked).toEqual(["refused:https://public.example/"]);
 });
 
-test("an abort on a route that is already gone is swallowed, and so is a fulfill", async () => {
-  const net = transport({});
-  const { router: guard } = router(net.httpClient);
-  await guard.handle(route(request({ url: "ftp://public.example/" }), { closed: true }).like);
-  await guard.handle(route(request({ url: "https://public.example/" }), { closed: true }).like);
-  expect(guard.report()).toMatchObject({ blocked: 1, fulfilled: 1 });
+test("an abort on a route that is already gone does not throw, and its cause is logged at debug", async () => {
+  const debug = vi.spyOn(console, "debug").mockImplementation(() => {});
+  try {
+    const net = transport({});
+    const { router: guard } = router(net.httpClient);
+    await guard.handle(route(request({ url: "ftp://public.example/" }), { closed: true }).like);
+    await guard.handle(route(request({ url: "https://public.example/" }), { closed: true }).like);
+    expect(guard.report()).toMatchObject({ blocked: 1, fulfilled: 1 });
+    expect(debug.mock.calls.map(call => call[0])).toContain("[diagnostics] best-effort step failed and was ignored: abort a refused request: Error: route is gone");
+  } finally { debug.mockRestore(); }
 });
 
 test("the request budget refuses fetches past maxRequests without contacting the transport", async () => {

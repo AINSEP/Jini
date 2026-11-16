@@ -2,6 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 
 import { redactSecrets } from "@jini-ai/core";
 import type { ObservabilityPort } from "./ports.js";
+import { ignoreBestEffortFailure } from "../best-effort.js";
 
 /**
  * @file The shared way a host hands an error to `ObservabilityPort.reportError` (provider wave 2,
@@ -94,7 +95,11 @@ export function reportErrorOnce(
   try {
     const result = observability.reportError({ error: redactedError({ error }, { exactSecrets: optional.exactSecrets }), context: { operation, ...(optional.attributes ? { attributes: optional.attributes } : {}), ...(optional.level ? { level: optional.level } : {}) } });
     const accepted = (result: boolean | void) => recordAdmission({ result, scope, observability, error });
-    if (result instanceof Promise) { void result.then(accepted).catch(() => {}); return false; }
+    if (result instanceof Promise) { void result.then(accepted).catch(ignoreBestEffortFailure({ operation: "record the async error-report admission" })); /* why: reporting must never fail the caller */ return false; }
     return accepted(result);
-  } catch { return false; /* never let reporting fail the caller */ }
+  } catch (reportFailure) {
+    // why: reporting an error must never fail the caller, but the reporter's own failure is logged at debug.
+    ignoreBestEffortFailure({ operation: "report an error to observability" })(reportFailure);
+    return false;
+  }
 }

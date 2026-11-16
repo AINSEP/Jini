@@ -4,6 +4,7 @@ import { renderPage, type RenderBrowser, type RenderSession } from "./render-pag
 import { openPlaywrightRenderBrowser, PUBLIC_RENDER_LAUNCH_OPTIONS, type PlaywrightAdapterOptions } from "./playwright-runtime.js";
 import type { RenderBrowserPool, RenderBrowserLease } from "./lazy-browser.js";
 import { PageWorkBudget, PageWorkTimeout } from "./page-work-budget.js";
+import { ignoreBestEffortFailure } from "../best-effort.js";
 
 export interface CapturedJsonResponse { url: string; status: number; body: string; truncated: boolean }
 /** A deliberately omitted JSON body; size is the byte count observed by the bounded transport. */
@@ -173,7 +174,7 @@ async function launchOwnBrowser(
   const result = await openPlaywrightRenderBrowser({}, { ...launch, launchOptions: PUBLIC_RENDER_LAUNCH_OPTIONS });
   if (!result.available) throw browserUnavailable();
   if (budget.remainingMs() <= 0 || signal.aborted) {
-    void result.browser.close().catch(() => {});
+    void result.browser.close().catch(ignoreBestEffortFailure({ operation: "close the browser after a failed page open" })) /* why: cleanup after the real failure; must not replace it */;
     signal.throwIfAborted();
     throw new PageWorkTimeout({ timeoutMs });
   }
@@ -240,6 +241,6 @@ export async function renderPublicPage(
   } finally {
     abort.abort();
     if (opened.lease) opened.lease.release();
-    else await budget.release({ close: () => opened.browser.close().catch(() => {}) });
+    else await budget.release({ close: () => opened.browser.close().catch(ignoreBestEffortFailure({ operation: "close the browser after capture" })) /* why: cleanup; capture already finished */ });
   }
 }

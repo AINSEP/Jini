@@ -1,4 +1,5 @@
 import type { HttpClientPort } from "@jini-ai/core/primitives";
+import { ignoreBestEffortFailure } from "../best-effort.js";
 
 /**
  * @file Every network request the screenshot browser makes, decided and carried here — Chromium
@@ -272,7 +273,7 @@ export function createRequestRouter(
     onBlocked?.({ url: route.request().url(), resourceType: route.request().resourceType(), reason });
     if (reason === "refused" && isNavigation) report.navigationRefused = true;
     // The context may already be closing; a route that is gone has nothing left to abort.
-    await route.abort(reason === "failed" ? "failed" : "blockedbyclient").catch(() => {});
+    await route.abort(reason === "failed" ? "failed" : "blockedbyclient").catch(ignoreBestEffortFailure({ operation: "abort a refused request" })) /* why: the page may already be closed */;
   }
 
   async function fulfill(route: RouteLike, { url, resource }: { url: string; resource: FetchedResource }): Promise<void> {
@@ -280,7 +281,7 @@ export function createRequestRouter(
     onResponse?.({ url, resourceType: route.request().resourceType(), resource });
     await route.fulfill({ status: resource.status, headers: filterHeaders(resource.headers, preserveOwnSiteCookies
       ? OWN_SITE_RESPONSE_HEADERS
-      : DROPPED_RESPONSE_HEADERS), body: resource.body }).catch(() => {});
+      : DROPPED_RESPONSE_HEADERS), body: resource.body }).catch(ignoreBestEffortFailure({ operation: "fulfil an own-site request" })); // why: the page may already be closed
   }
 
   /** One hop of one request: decide, fetch, then fulfil, hand a page redirect back, or route the next hop. */
@@ -301,7 +302,7 @@ export function createRequestRouter(
       // `aborted` (net::ERR_ABORTED) commits no error page; `blockedbyclient` would commit
       // chrome-error://, which interrupts that next navigation (real Chromium, 2026-10-08).
       navigationRedirect = next;
-      return route.abort("aborted").catch(() => {});
+      return route.abort("aborted").catch(ignoreBestEffortFailure({ operation: "abort a request on signal" })) /* why: the page may already be closed */;
     }
     if (hop >= MAX_REDIRECT_HOPS) return abort(route, "failed", isNavigation);
     return routeHop({ route, isNavigation }, { hop: hop + 1, url: next, ...redirectedRequest({ status: resource.status, method, body, headers }) });
@@ -358,7 +359,7 @@ export const fetchOwnSiteResource: OwnSiteFetch = async ({ url, method, headers 
       read = await readCapped(reader, maxBytes);
     } finally {
       // Cleanup must not replace the original read error when the stream is already errored.
-      await reader.cancel().catch(() => {});
+      await reader.cancel().catch(ignoreBestEffortFailure({ operation: "cancel the response body reader" })) /* why: cleanup after the size limit was hit */;
       reader.releaseLock();
     }
   }

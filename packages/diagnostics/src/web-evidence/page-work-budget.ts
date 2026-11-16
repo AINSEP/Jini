@@ -1,3 +1,4 @@
+import { ignoreBestEffortFailure } from "../best-effort.js";
 /** Internal deadline shared by every asynchronous step of one page observation. */
 export class PageWorkTimeout extends Error {
   constructor({ timeoutMs }: { timeoutMs: number }) {
@@ -52,7 +53,7 @@ export class PageWorkBudget {
   async release({ close }: { close: () => Promise<void> }): Promise<void> {
     const closing = close();
     if (this.remainingMs() <= 0 || this.signal?.aborted) {
-      void closing.catch(() => {});
+      void closing.catch(ignoreBestEffortFailure({ operation: "finish closing after the page budget ran out" })); // why: the budget is spent; cleanup finishes in the background
       return;
     }
     try {

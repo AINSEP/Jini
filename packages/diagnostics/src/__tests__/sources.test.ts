@@ -88,14 +88,14 @@ describe("collectLogSource / collectLogSources", () => {
 
     expect(collected.content).toBeNull();
     expect(collected.bytes).toBe(0);
-    expect(collected.error).toBe("Error(ENOENT)");
+    expect(collected.error).toBe(`Error(ENOENT): ENOENT: no such file or directory, open '${join(tempDir, "does-not-exist.log")}'`);
   });
 
-  it("stores only the error class when the file cannot be read, never the message", async () => {
+  it("stores the error class and a credential-redacted message when the file cannot be read", async () => {
     const filesystem = { ...ports.filesystem, readFile: async () => { throw new Error("boom api_key=SECRETSECRETSECRETSECRET"); } };
     const collected = await collectLogSource({ source: { name: "secret.log", absolutePath: join(tempDir, "secret.log"), kind: "text" }, filesystem });
-    expect(collected.error).toBe("Error");
-    for (const text of ["boom", "SECRETSECRET", "sources.test"]) expect(JSON.stringify(collected)).not.toContain(text);
+    expect(collected.error).toBe("Error: boom api_key=[REDACTED:labeled_secret]");
+    for (const text of ["SECRETSECRET", "sources.test"]) expect(JSON.stringify(collected)).not.toContain(text);
   });
 
   it("collects multiple sources concurrently", async () => {
