@@ -802,6 +802,56 @@ export interface RetypeDefinitionRequired {
   };
 }
 
+/** One transaction body: deprecate the prior active version, insert the new one, ledger the retype. */
+async function writeRetypedVersion(
+  { deps, input, current }: { deps: SettingsWriteServiceDeps; input: RetypeDefinitionRequired["input"]; current: ActiveDefinition },
+): Promise<{ settingId: string; version: number }> {
+  const now = kernelNowIso({ clock: deps.clock });
+  const newVersion = current.version + 1;
+
+  // Step 1: deprecate the prior active version first.
+  await deps.repo.saveDefinition({ ...current, status: "deprecated", updatedAt: now });
+
+  // Step 2: insert the new version as active -- same setting_id/namespace/key.
+  await deps.repo.saveDefinition({
+    settingId: current.settingId,
+    version: newVersion,
+    workspaceId: current.workspaceId,
+    namespace: current.namespace,
+    key: current.key,
+    ownerKind: current.ownerKind,
+    ownerId: current.ownerId,
+    schema: input.schema,
+    defaultValue: input.defaultValue,
+    scopes: current.scopes,
+    secret: current.secret,
+    status: "active",
+    aliasOfNamespace: null,
+    aliasOfKey: null,
+    coercionTag: input.coercionTag,
+    createdAt: now,
+    updatedAt: now,
+  });
+
+  await deps.repo.appendRevision({
+    entityKind: "definition",
+    settingId: current.settingId,
+    scope: null,
+    workspaceId: current.workspaceId,
+    principalId: null,
+    op: "retype",
+    beforeJson: null,
+    afterJson: null,
+    defVersion: newVersion,
+    actor: input.callerPrincipalId,
+    originPluginId: null,
+    changeSetId: null,
+    createdAt: now,
+  });
+
+  return { settingId: current.settingId, version: newVersion };
+}
+
 /**
  * The retype mechanism : a same-tx pair --
  * (1) UPDATE the prior active version's `status` to `deprecated` FIRST (else
@@ -840,52 +890,7 @@ export async function retypeDefinition(
     }
   }
 
-  const result = await deps.repo.transaction(async () => {
-    const now = kernelNowIso({ clock: deps.clock });
-    const newVersion = current.version + 1;
-
-    // Step 1: deprecate the prior active version first.
-    await deps.repo.saveDefinition({ ...current, status: "deprecated", updatedAt: now });
-
-    // Step 2: insert the new version as active -- same setting_id/namespace/key.
-    await deps.repo.saveDefinition({
-      settingId: current.settingId,
-      version: newVersion,
-      workspaceId: current.workspaceId,
-      namespace: current.namespace,
-      key: current.key,
-      ownerKind: current.ownerKind,
-      ownerId: current.ownerId,
-      schema: input.schema,
-      defaultValue: input.defaultValue,
-      scopes: current.scopes,
-      secret: current.secret,
-      status: "active",
-      aliasOfNamespace: null,
-      aliasOfKey: null,
-      coercionTag: input.coercionTag,
-      createdAt: now,
-      updatedAt: now,
-    });
-
-    await deps.repo.appendRevision({
-      entityKind: "definition",
-      settingId: current.settingId,
-      scope: null,
-      workspaceId: current.workspaceId,
-      principalId: null,
-      op: "retype",
-      beforeJson: null,
-      afterJson: null,
-      defVersion: newVersion,
-      actor: input.callerPrincipalId,
-      originPluginId: null,
-      changeSetId: null,
-      createdAt: now,
-    });
-
-    return { settingId: current.settingId, version: newVersion };
-  });
+  const result = await deps.repo.transaction(() => writeRetypedVersion({ deps, input, current }));
 
   invalidateDefinitionNamespaceCache(deps.repo, input.namespace);
   return result;
