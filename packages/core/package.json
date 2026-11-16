@@ -39,7 +39,8 @@
       "./contracts/vault": "universal",
       "./contracts/oauth": "universal",
       "./contracts/content-types": "universal",
-      "./contracts/hosted-mcp": "universal"
+      "./contracts/hosted-mcp": "universal",
+      "./contracts/storage": "universal"
     },
     "isolation": {
       "entries": {
@@ -227,6 +228,11 @@
       "types": "./dist/contracts/hosted-mcp.d.ts",
       "import": "./dist/contracts/hosted-mcp.js",
       "default": "./dist/contracts/hosted-mcp.js"
+    },
+    "./contracts/storage": {
+      "types": "./dist/contracts/storage.d.ts",
+      "import": "./dist/contracts/storage.js",
+      "default": "./dist/contracts/storage.js"
     }
   },
   "files": [

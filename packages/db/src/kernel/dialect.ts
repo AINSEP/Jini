@@ -1,5 +1,6 @@
 import { type Expression, type RawBuilder, sql } from "kysely";
 
+import type { ColumnInfo } from "@jini-ai/core/contracts/storage";
 import type { StorageDialect, StorageKernel } from "./port.js";
 
 /**
