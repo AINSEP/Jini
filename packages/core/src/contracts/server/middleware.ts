@@ -31,9 +31,23 @@ export function withServerMiddleware(
         server.route(route);
         return;
       }
-      server.route({ ...route, handler: (args) => runChain({ route, middleware, args }) });
+      server.route(withRouteMiddleware({ route, middleware }));
     },
   };
+}
+
+/**
+ * Returns `route` with `middleware` (in array order) in front of its handler: the per-route form of
+ * {@link withServerMiddleware}, for a route group that must carry its own gates so a host cannot mount the
+ * route without them (it never sees the `Server` the group is mounted on). Method, path and `locals` sharing
+ * behave as in `withServerMiddleware`; the input route is not modified.
+ * @throws From the route's handler when a middleware calls `next()` twice for one request.
+ */
+export function withRouteMiddleware(
+  { route, middleware }: { readonly route: ServerRoute; readonly middleware: readonly ServerMiddleware[] },
+  _optional: Record<string, never> = {},
+): ServerRoute {
+  return { ...route, handler: (args) => runChain({ route, middleware, args }) };
 }
 
 /** Runs `middleware[index..]` and then the route's handler, sharing one `locals` object per request. */
