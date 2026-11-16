@@ -1,7 +1,7 @@
 import { forwardRef, useEffect, useMemo, useRef } from 'react';
 import type { FetchQueryAdapter, QueryResult } from '@jini-ai/core/fetch';
 import { type AdminKit, type DialogProps, type NativeDialogView, type SettlementGeneration, type ButtonProps, type IconButtonProps, type AdminKitComponents, type AdminKitHooks, type AdminThemeKit } from './kit.js';
-import type { AdminMediaProvidersKit } from './kit-media-providers.js';
+import { fakeMediaProviders } from './testing-kit-media-providers.js';
 
 const fakeComponents: AdminKitComponents = {
   Button: forwardRef<HTMLButtonElement, Omit<ButtonProps, 'ref'>>((p, ref) => <button ref={ref} {...p.attrs} type={p.type ?? 'button'} className={p.className} disabled={p.disabled || p.pending} onClick={() => p.onPress?.({})}>{p.children}</button>),
@@ -92,21 +92,6 @@ export function fixtureQuery(fixture: { data?: unknown } = {}): AdminKit['query'
   };
   return { ...adapter, useFetchQueryScope: () => 1 };
 }
-
-const fakeMediaProviders: AdminMediaProvidersKit = {
-  useMediaProvidersTab: () => ({
-    providers: {}, load: { status: 'ok' }, save: { status: 'idle' }, hasAnyConfigured: false,
-    pendingProviderIds: new Set<string>(), updateProvider: () => {}, clearProvider: () => {}, saveChanges: () => {}, reload: () => {},
-  }),
-  rules: {
-    sortProvidersByConfigured: (catalog) => catalog,
-    isEntryPresent: (entry) => !!entry,
-    isMarkerOnlyEntry: () => false,
-    maskedKeyLabel: () => null,
-    isProviderBaseUrlInvalid: () => false,
-    invalidBaseUrlProviderIds: () => [],
-  },
-};
 
 // Named colors only: admin source carries no literal color values (theme-boundaries), the host owns the palette.
 const neutralColors = Object.freeze({ primary: 'black', primaryInk: 'white', bg: 'white', surface: 'white', text: 'black', muted: 'dimgray', border: 'lightgray', danger: 'firebrick', success: 'green', warning: 'darkorange' });
