@@ -100,10 +100,18 @@ export interface CanvasStyling {
 }
 /** `flush()` before save/unmount syncs an open rich-text session's pending edit into onChange. */
 export interface InteractiveHtmlEditorHandle { flush(): Promise<string | undefined> }
+/** Which source element a protected block stands for: its tag, optional id, and occurrence among matches. */
+export interface HtmlEditorTarget { occurrenceIndex: number; tagName: string; id?: string }
+/** Structural mirror of the editor's options, so a host's editor keeps its HTML-source and error callbacks. */
 export interface HtmlEditorProps {
   html: string; onChange: (html: string) => void; className?: string; canvasStyling?: CanvasStyling;
   isProtectedElement?: (el: Element) => boolean;
   describeEmbedPlaceholder?: (el: Element) => CanvasEmbedPlaceholderDescriptor | undefined;
+  /** Opens the HTML source for a block the canvas cannot edit visually. */
+  onRequestEditHtml?: ((target: HtmlEditorTarget, options: object) => void | Promise<void>) | undefined;
+  /** Called when a visual edit cannot be written back to the source (the error carries a `code`). */
+  onSerializationError?: ((error: Error & { readonly code: string }) => void) | undefined;
+  translate?: Translate | undefined;
   ref?: Ref<InteractiveHtmlEditorHandle>;
 }
 export interface ErrorNoticeProps { readonly failure: UserFacingError; readonly t?: Translate; readonly className?: string; readonly role?: 'alert' | 'status' }
