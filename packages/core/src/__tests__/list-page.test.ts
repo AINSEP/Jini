@@ -19,15 +19,20 @@ describe('list cursors', () => {
   it('round-trips a position, including non-ASCII text', () => {
     const cursor = encodeListCursor({ position: ['Zoë ✓', 42, 'id/+='] });
     expect(cursor).toMatch(/^[A-Za-z0-9_-]+$/);
-    expect(decodeListCursor({ cursor, size: 3 })).toEqual(['Zoë ✓', 42, 'id/+=']);
+    expect(decodeListCursor({ cursor, shape: ['string', 'number', 'string'] })).toEqual(['Zoë ✓', 42, 'id/+=']);
   });
 
   it.each([['not-base64!'], [encodeListCursor({ position: ['a'] })], [btoa('{"a":1}')], [btoa('[null,"x"]')]])(
     'refuses a cursor it did not build for this list (%s) instead of restarting at page one',
     (cursor) => {
-      expect(() => decodeListCursor({ cursor, size: 2 })).toThrow(ToolInputError);
+      expect(() => decodeListCursor({ cursor, shape: ['string', 'string'] })).toThrow(ToolInputError);
     },
   );
+
+  it('refuses a string where the caller expects a number', () => {
+    const cursor = encodeListCursor({ position: ['2026-01-01', 'id'] });
+    expect(() => decodeListCursor({ cursor, shape: ['number', 'string'] })).toThrow(ToolInputError);
+  });
 });
 
 describe('parseListPageRequest', () => {
@@ -66,7 +71,7 @@ describe('pageFromOverfetch', () => {
     const page = pageFromOverfetch({ rows: [row(1), row(2), row(3)], limit: 2, positionOf });
     expect(page.items).toEqual([row(1), row(2)]);
     expect(page.nextCursor).not.toBeNull();
-    expect(decodeListCursor({ cursor: page.nextCursor ?? '', size: 2 })).toEqual(positionOf(row(2)));
+    expect(decodeListCursor({ cursor: page.nextCursor ?? '', shape: ['string', 'string'] })).toEqual(positionOf(row(2)));
   });
 
   it('returns no cursor on the last page', () => {
@@ -82,7 +87,7 @@ describe('pageFromArray', () => {
     const seen: string[] = [];
     let cursor: string | null = null;
     do {
-      const page: ReturnType<typeof pageFromArray<Row>> = pageFromArray({ rows, limit: 2, cursor, positionOf });
+      const page: ReturnType<typeof pageFromArray<Row>> = pageFromArray({ rows, limit: 2, cursor, positionOf, shape: ['string', 'string'] });
       seen.push(...page.items.map((r) => r.id));
       cursor = page.nextCursor;
     } while (cursor !== null);
@@ -90,18 +95,22 @@ describe('pageFromArray', () => {
   });
 
   it('resumes after a position whose row was deleted', () => {
-    const first = pageFromArray({ rows, limit: 2, cursor: null, positionOf });
+    const first = pageFromArray({ rows, limit: 2, cursor: null, positionOf, shape: ['string', 'string'] });
     const withoutId2 = rows.filter((r) => r.id !== 'id_2');
-    expect(pageFromArray({ rows: withoutId2, limit: 2, cursor: first.nextCursor, positionOf }).items.map((r) => r.id)).toEqual(['id_3', 'id_4']);
+    expect(pageFromArray({ rows: withoutId2, limit: 2, cursor: first.nextCursor, positionOf, shape: ['string', 'string'] }).items.map((r) => r.id)).toEqual(['id_3', 'id_4']);
   });
 
   it('orders numbers numerically', () => {
     const numbered = [{ n: 10 }, { n: 9 }];
-    expect(pageFromArray({ rows: numbered, limit: 5, cursor: null, positionOf: (r) => [r.n] }).items).toEqual([{ n: 9 }, { n: 10 }]);
+    expect(pageFromArray({ rows: numbered, limit: 5, cursor: null, positionOf: (r) => [r.n], shape: ['number'] }).items).toEqual([{ n: 9 }, { n: 10 }]);
   });
 
   it('answers an empty list with an empty last page', () => {
-    expect(pageFromArray({ rows: [], limit: 2, cursor: 'anything', positionOf })).toEqual({ items: [], nextCursor: null });
+    expect(pageFromArray({ rows: [], limit: 2, cursor: null, positionOf, shape: ['string', 'string'] })).toEqual({ items: [], nextCursor: null });
+  });
+
+  it('refuses a garbage cursor even when the list is empty', () => {
+    expect(() => pageFromArray({ rows: [], limit: 5, cursor: 'garbage', positionOf: (r: { id: string }) => [r.id], shape: ['string'] })).toThrow(ToolInputError);
   });
 });
 

@@ -26,6 +26,9 @@ export interface ListPage<T> {
 /** A keyset position: the row's sort values, ending with its unique id as the tie-breaker. */
 export type ListPosition = readonly (string | number)[];
 
+/** The type of each position component, sort keys then id. Given by the caller, never learned from a row. */
+export type ListPositionShape = readonly ('string' | 'number')[];
+
 /** Hard ceiling when a caller names none — big enough for any screen, small enough for one response. */
 export const DEFAULT_MAX_LIST_LIMIT = 200;
 
@@ -55,11 +58,11 @@ export function encodeListCursor(required: { position: ListPosition }, _optional
  * Reads a cursor {@link encodeListCursor} built. Refuses anything else instead of restarting from the
  * first page — a silently restarted scan repeats rows forever.
  *
- * @param required.size - How many values the caller's position has (sort keys + id).
+ * @param required.shape - The type of each value in the position (sort keys + id).
  * @throws {ToolInputError} `invalid cursor` (a 400 on HTTP, a correctable input error for a tool).
  * @complexity O(cursor length).
  */
-export function decodeListCursor(required: { cursor: string; size: number }, _optional: Record<string, never> = {}): ListPosition {
+export function decodeListCursor(required: { cursor: string; shape: ListPositionShape }, _optional: Record<string, never> = {}): ListPosition {
   let parsed: unknown;
   try {
     parsed = JSON.parse(fromBase64Url(required.cursor));
@@ -68,8 +71,8 @@ export function decodeListCursor(required: { cursor: string; size: number }, _op
   }
   if (
     !Array.isArray(parsed) ||
-    parsed.length !== required.size ||
-    !parsed.every((value) => typeof value === 'string' || (typeof value === 'number' && Number.isFinite(value)))
+    parsed.length !== required.shape.length ||
+    !parsed.every((value, index) => required.shape[index] === 'number' ? typeof value === 'number' && Number.isFinite(value) : typeof value === 'string')
   ) {
     throw new ToolInputError({ message: 'invalid cursor: pass the nextCursor value from the previous page unchanged' });
   }
@@ -136,18 +139,13 @@ function comparePositions(left: ListPosition, right: ListPosition): number {
  * @complexity O(n log n).
  */
 export function pageFromArray<T>(
-  required: { rows: readonly T[]; limit: number; cursor: string | null; positionOf: (row: T) => ListPosition },
+  required: { rows: readonly T[]; limit: number; cursor: string | null; positionOf: (row: T) => ListPosition; shape: ListPositionShape },
   _optional: Record<string, never> = {},
 ): ListPage<T> {
+  // The shape comes from the caller, never from a row, so an empty list still validates the cursor.
+  const marker = required.cursor === null ? null : decodeListCursor({ cursor: required.cursor, shape: required.shape });
   const sorted = [...required.rows].sort((a, b) => comparePositions(required.positionOf(a), required.positionOf(b)));
-  const first = sorted[0];
-  // An empty list has nothing after any cursor; there is no row to learn the position size from.
-  if (first === undefined) return { items: [], nextCursor: null };
-  let after = sorted;
-  if (required.cursor !== null) {
-    const marker = decodeListCursor({ cursor: required.cursor, size: required.positionOf(first).length });
-    after = sorted.filter((row) => comparePositions(required.positionOf(row), marker) > 0);
-  }
+  const after = marker === null ? sorted : sorted.filter((row) => comparePositions(required.positionOf(row), marker) > 0);
   return pageFromOverfetch({ rows: after.slice(0, required.limit + 1), limit: required.limit, positionOf: required.positionOf });
 }
 

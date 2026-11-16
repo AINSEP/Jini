@@ -1,5 +1,5 @@
 import { PeopleApiError, RolesApiError } from '../ports.js';
-import { decodeListCursor, encodeListCursor, pageFromArray } from '@jini-ai/core/list-page';
+import { encodeListCursor, pageFromArray } from '@jini-ai/core/list-page';
 import type { RolesApiPort, RolesCallOptions, UsersApiPort, UsersSafetyPort, MembersApiPort, AuthApiPort } from '../ports.js';
 import type { RoleRecord, PolicyRecord, PolicyPermissionRecord, AdminOperator, AdminMember, AdminAccount, CallerInfo, UserAction } from '../models.js';
 import { BUILTIN_PERMISSIONS } from '../../core/builtin-permissions.js';
@@ -264,8 +264,7 @@ export function createMemoryMembersApi({ workspaceId }: { workspaceId: string },
             if (o.afterId !== undefined && o.cursor != null) fail('VALIDATION_ERROR', 'Pass cursor or afterId, not both.');
             const limit = Math.min(o.limit !== undefined && Number.isFinite(o.limit) && o.limit > 0 ? Math.floor(o.limit) : 100, 100);
             const cursor = o.afterId === undefined ? o.cursor ?? null : encodeListCursor({ position: [o.afterId] });
-            if (cursor !== null) decodeListCursor({ cursor, size: 1 });
-            const page = pageFromArray({ rows: [...rows.values()], limit, cursor, positionOf: m => [m.id] });
+            const page = pageFromArray({ rows: [...rows.values()], limit, cursor, positionOf: m => [m.id], shape: ['string'] });
             return { members: page.items.map(m => ({ ...m })), nextCursor: page.nextCursor };
         },
         async getMember(r, o = {}) { check(o); return { member: { ...get(r.id) } }; },
