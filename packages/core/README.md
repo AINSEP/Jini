@@ -221,6 +221,8 @@ sequences, masks labeled/opaque credentials and caps the complete output at 500 
 by default. Correlation IDs and the delegated-tool route remain visible. This sanitizer
 keeps its existing policy; the telemetry redactor additionally masks PII.
 
+`@jini-ai/core/text` also exports `formatByteSize({ bytes }, { locale?, megabyteLabel? })`: 1024-based, whole B/KB and one decimal from MB up.
+
 `redactSecrets` and `redactSecretsWithCounts` cover the core, CLI and provider rule union.
 Exact secrets are literal strings (including regex metacharacters), applied longest first;
 null/undefined/empty entries are ignored. Extra patterns are `{ name, regex }` entries, cloned
