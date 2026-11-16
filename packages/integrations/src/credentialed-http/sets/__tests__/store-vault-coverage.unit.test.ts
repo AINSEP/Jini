@@ -360,3 +360,198 @@ describe('vault repository', () => {
     expect(entry.credentialSetVaultScope({ workspaceId: WS, ownerKey: OWNER, id: 'i', kind: 'custom' })).toEqual({ workspaceId: WS, kind: 'custom', ownerKey: OWNER, principalId: null, binding: null, id: 'i' });
   });
 });
+
+/** A second host that also has an attached project store: site rows first, then project rows. */
+function makeProjectHost(project: { createRepo?: boolean; replaceRepo?: boolean; inventoryRepo?: boolean } = {}) {
+  const s = makeHost();
+  const projectInner = new InMemoryVaultRepo({});
+  const projectRepo = new entry.CredentialSetVaultRepo<Cat>({ vault: projectInner as VaultRepoPort, policy: s.policy });
+  const replaceRepo = new entry.CredentialSetVaultRepo<Cat>({ vault: projectInner as VaultRepoPort, policy: s.policy });
+  const projectScope = {
+    workspaceId: 'proj-ws', repo: projectRepo, sealer: s.deps.sealer, keyring: s.deps.keyring,
+    ...(project.createRepo ? { createRepo: projectRepo } : {}), ...(project.replaceRepo ? { replaceRepo } : {}),
+    ...(project.inventoryRepo ? { inventoryRepo: projectRepo } : {}),
+  };
+  const siteRepo = new entry.CredentialSetVaultRepo<Cat>({ vault: s.vault, policy: s.policy }, { project: projectScope });
+  const deps: CredentialSetWriteDeps<Cat> = { ...s.deps, repo: siteRepo };
+  s.host.scopes = (d, workspaceId) => [
+    { deps: d, workspaceId, scope: 'site' as const },
+    ...(d.repo.project ? [{ deps: { ...d, repo: d.repo.project.repo }, workspaceId: d.repo.project.workspaceId, scope: 'project' as const }] : []),
+  ];
+  s.host.createTarget = (d, i, refuse) => {
+    if (i.scope === 'site' || !d.repo.project) return { deps: d, workspaceId: i.workspaceId, scope: 'site' as const };
+    if (i.scope !== undefined && i.scope !== 'project') throw refuse('scope must be site or project');
+    return { deps: { ...d, repo: d.repo.project.repo }, workspaceId: d.repo.project.workspaceId, scope: 'project' as const };
+  };
+  return { ...s, deps, projectInner, projectRepo, siteRepo };
+}
+const pcall = (s: ReturnType<typeof makeProjectHost>, over: Record<string, unknown>) =>
+  entry.createCredentialSet({ host: s.host, deps: s.deps, input: { ...input, ...over } as never });
+
+describe('project store', () => {
+  it('writes to the project store by default and to this site when asked, reporting each scope', async () => {
+    const s = makeProjectHost();
+    const shared = await pcall(s, { label: 'Shared' });
+    const own = await pcall(s, { label: 'Own', scope: 'site' });
+    expect([shared.scope, own.scope]).toEqual(['project', 'site']);
+    expect((await s.projectInner.list({ workspaceId: 'proj-ws', kind: 'vendor', ownerKey: OWNER, principalId: null })).map(r => r.label)).toEqual(['Shared']);
+    expect((await s.inner.list({ workspaceId: WS, kind: 'vendor', ownerKey: OWNER, principalId: null })).map(r => r.label)).toEqual(['Own']);
+    expect((await reason(pcall(s, { scope: 'elsewhere' }))).message).toBe('scope must be site or project');
+  });
+
+  it('lists effective rows with the site row overriding a same-label project row', async () => {
+    const s = makeProjectHost();
+    await pcall(s, { label: 'Same', baseUrl: 'https://project.test' });
+    await pcall(s, { label: 'Same', baseUrl: 'https://site.test', scope: 'site' });
+    await pcall(s, { label: 'Only-project' });
+    const listed = await entry.listCredentialSets({ host: s.host, deps: s.deps, input: { workspaceId: WS } });
+    expect(listed.map(x => `${x.label}:${x.scope}:${x.baseUrl}`)).toEqual(['Only-project:project:https://api.second.test', 'Same:site:https://site.test']);
+    const found = await entry.describeCredentialSetByLabel({ host: s.host, deps: s.deps, input: { workspaceId: WS, label: 'Only-project' } });
+    expect(found?.scope).toBe('project');
+  });
+
+  it('refuses a project row whose label this site already uses, with the same duplicate wording', async () => {
+    const s = makeProjectHost();
+    await pcall(s, { label: 'Taken', scope: 'site' });
+    const error = await reason(pcall(s, { label: 'Taken' }));
+    expect(error).toBeInstanceOf(entry.CustomCredentialDuplicateLabelError);
+    expect(error.message).toBe('second dup Taken');
+  });
+
+  it('distinguishes a hidden project duplicate from a plain CAS conflict, and uses the project wording', async () => {
+    const s = makeProjectHost();
+    await pcall(s, { label: 'Hidden' });
+    const conflict = new VaultError({ code: 'conflict' });
+    s.projectRepo.insert = async () => { throw conflict; };
+    const dup = await reason(pcall(s, { label: 'Hidden' }));
+    expect(dup).toBeInstanceOf(entry.CustomCredentialDuplicateLabelError);
+    expect(dup.message).toBe('second project dup Hidden');
+    expect(await reason(pcall(s, { label: 'Fresh' }))).toBe(conflict);
+    s.host.isUniqueViolation = () => true;
+    expect((await reason(pcall(s, { label: 'Fresh' }))).message).toBe('second project dup Fresh');
+  });
+
+  it('refuses replacing or deleting a granted shared row unless the trusted owner session allows it', async () => {
+    const s = makeProjectHost({ createRepo: true, replaceRepo: true });
+    const made = await pcall(s, { label: 'Granted' });
+    const update = (deps = s.deps) => entry.updateCredentialSet({ host: s.host, deps, input: { workspaceId: WS, id: made.id, label: 'Granted 2' } });
+    expect((await reason(update())).message).toBe('second replace read-only');
+    expect(await update({ ...s.deps, allowSharedKeyReplacement: true })).toMatchObject({ label: 'Granted 2', scope: 'project' });
+    expect((await reason(entry.deleteCredentialSet({ host: s.host, deps: s.deps, input: { workspaceId: WS, id: made.id } }))).message).toBe('second delete read-only');
+  });
+
+  it('refuses a trusted replacement when the project has no replace repository', async () => {
+    const s = makeProjectHost({ createRepo: true });
+    const made = await pcall(s, { label: 'Granted' });
+    const error = await reason(entry.updateCredentialSet({ host: s.host, deps: { ...s.deps, allowSharedKeyReplacement: true }, input: { workspaceId: WS, id: made.id, label: 'x' } }));
+    expect(error.message).toBe('second replace read-only');
+  });
+
+  it('updates and deletes an owned project row directly when the project has no shared-create repository', async () => {
+    const s = makeProjectHost();
+    const made = await pcall(s, { label: 'Owned' });
+    expect((await entry.updateCredentialSet({ host: s.host, deps: s.deps, input: { workspaceId: WS, id: made.id, category: 'blue' } })).category).toBe('blue');
+    await entry.deleteCredentialSet({ host: s.host, deps: s.deps, input: { workspaceId: WS, id: made.id } });
+    expect(await entry.describeCredentialSet({ host: s.host, deps: s.deps, input: { workspaceId: WS, id: made.id } })).toBeNull();
+  });
+
+  it('builds the admin inventory from the project inventory repo when present and from the scoped repo otherwise', async () => {
+    const a = makeProjectHost({ inventoryRepo: true });
+    await pcall(a, { label: 'B-proj' });
+    await pcall(a, { label: 'A-site', scope: 'site' });
+    expect((await entry.listCredentialSetInventory({ host: a.host, deps: a.deps, workspaceId: WS })).map(x => `${x.label}:${x.scope}`)).toEqual(['A-site:site', 'B-proj:project']);
+    const b = makeProjectHost();
+    await pcall(b, { label: 'C-proj' });
+    expect((await entry.listCredentialSetInventory({ host: b.host, deps: b.deps, workspaceId: WS })).map(x => x.label)).toEqual(['C-proj']);
+  });
+});
+
+describe('token hints', () => {
+  it('reports length and last4 for a long token, only length for a short one, and no hint once the envelope changed under compatibility rules', async () => {
+    const s = makeHost();
+    const long = await call(s, { label: 'Long' });
+    const short = await call(s, { label: 'Short', connection: { token: 'abcdefgh' } });
+    expect(long.tokenHint).toEqual({ length: 20, last4: 'mnop' });
+    expect(short.tokenHint).toEqual({ length: 8, last4: null });
+    const stored = (await s.repo.findById({ workspaceId: WS, id: long.id }))!;
+    await s.repo.update({ ...stored, sealed: { ...stored.sealed, ciphertext: 'other' } });
+    expect((await entry.describeCredentialSet({ host: s.host, deps: s.deps, input: { workspaceId: WS, id: long.id } }))?.tokenHint).toBeNull();
+  });
+});
+
+describe('remaining store and repository branches', () => {
+  /** Re-labels the stored row as a legacy `custom`-kind row (envelope untouched, so it is never opened here). */
+  async function makeLegacy(s: ReturnType<typeof makeHost>, id: string, dropMeta: string[] = []) {
+    const [row] = await s.inner.list({ workspaceId: WS, kind: 'vendor', ownerKey: OWNER, principalId: null });
+    await s.inner.delete({ workspaceId: WS, id, expectedRevision: row!.revision });
+    const meta = { ...row!.meta } as Record<string, unknown>;
+    for (const key of dropMeta) delete meta[key];
+    await s.inner.put({ record: { ...row!, kind: 'custom', meta: meta as never }, expectedRevision: null });
+  }
+
+  it('maps a token input error from normalization to a validation error with its message', async () => {
+    const error = await reason(call(makeHost(), { connection: { token: '   ' } }));
+    expect(error).toBeInstanceOf(entry.CustomCredentialValidationError);
+    expect(error.message).toBe('second: token needed');
+  });
+
+  it('updates a legacy custom-kind row under its own kind without opening it, tolerating a missing worksFor', async () => {
+    const s = makeHost();
+    const made = await call(s, {});
+    await makeLegacy(s, made.id, ['worksFor']);
+    const next = await entry.updateCredentialSet({ host: s.host, deps: s.deps, input: { workspaceId: WS, id: made.id, category: 'blue' } });
+    expect(next).toMatchObject({ category: 'blue', worksFor: [] });
+    expect((await s.inner.find({ workspaceId: WS, id: made.id }))!.kind).toBe('custom');
+    expect(s.counts.open).toBe(0);
+  });
+
+  it('resolves a token-only credential without a username', async () => {
+    const s = makeHost();
+    await call(s, {});
+    expect((await entry.resolveCredentialSetByLabel({ host: s.host, deps: s.deps, input: { workspaceId: WS, label: 'Main' } }))?.connection).toEqual({ token: 'tok-abcdefghijklmnop' });
+  });
+
+  it('writes a plain record through the compatibility path on insert, defaulting hints, flag, revision and worksFor', async () => {
+    const s = makeHost();
+    const made = await call(s, {});
+    const stored = (await s.repo.findById({ workspaceId: WS, id: made.id }))!;
+    const { worksFor: _drop, ...rest } = { ...stored };
+    await s.repo.insert({ ...rest, id: 'fresh-1', label: 'Fresh' } as never);
+    expect(await s.inner.find({ workspaceId: WS, id: 'fresh-1' })).toMatchObject({
+      label: 'Fresh', kind: 'vendor', isDefault: false, revision: 1, last4: null, tokenLength: null, meta: expect.objectContaining({ worksFor: [] }),
+    });
+  });
+
+  it('keeps stored worksFor on a compatibility update whose record carries none', async () => {
+    const s = makeHost();
+    const made = await call(s, { worksFor: ['w9'] });
+    const stored = (await s.repo.findById({ workspaceId: WS, id: made.id }))!;
+    const { worksFor: _drop, ...rest } = { ...stored };
+    await s.repo.update({ ...rest, label: 'Kept' } as never);
+    expect((await s.inner.find({ workspaceId: WS, id: made.id }))!.meta.worksFor).toEqual(['w9']);
+  });
+
+  it('refuses a prepared record whose vault row names another workspace or id than the record', async () => {
+    const s = makeHost();
+    const made = await call(s, {});
+    const stored = (await s.repo.findById({ workspaceId: WS, id: made.id }))!;
+    const prepared = (stored as unknown as { vaultRecord: unknown }).vaultRecord;
+    for (const over of [{ id: 'other-id' }, { workspaceId: 'other-ws' }]) {
+      const copy = { ...stored, ...over };
+      Object.defineProperty(copy, 'vaultRecord', { value: prepared });
+      Object.defineProperty(copy, 'vaultExpectedRevision', { value: 1 });
+      const error = await reason(s.repo.update(copy as never));
+      expect(s.policy.vaultErrors.codeOf(error)).toBe('context');
+    }
+  });
+
+  it('summarizes a record that carries no vault row without a token hint', async () => {
+    const s = makeHost();
+    const made = await call(s, {});
+    const stored = (await s.repo.findById({ workspaceId: WS, id: made.id }))!;
+    const plain = { ...stored };
+    const repo = { ...s.repo, findById: async () => plain, listByWorkspace: async () => [], vault: s.vault } as never;
+    const summary = await entry.describeCredentialSet({ host: s.host, deps: { ...s.deps, repo }, input: { workspaceId: WS, id: made.id } });
+    expect(summary).toMatchObject({ id: made.id, label: 'Main', tokenHint: null });
+  });
+});
