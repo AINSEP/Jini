@@ -1,4 +1,5 @@
 import { type Clock as ClockPort, nowIso as clockNowIso } from "@jini-ai/core/primitives";
+import { describeErrorForLog } from "@jini-ai/core";
 import { deriveAgentPluginConnectionId } from "./federate-mcp.js";
 import type { AgentPluginMcpRecord, AgentPluginMcpRepo } from "./ports.js";
 import type { McpServerConfig } from "../lifecycle/manifest.js";
@@ -127,7 +128,7 @@ async function applyServerToolRenames(
     log.info(`[agent-plugins] '${serverId}': renamed saved tools to follow the '${pluginId}' plugin (${renames}).`);
     return true;
   } catch (err) {
-    log.warn(`[agent-plugins] could not apply the '${pluginId}' plugin's tool renames to '${serverId}': ${err instanceof Error ? err.message : String(err)}`);
+    log.warn(`[agent-plugins] could not apply the '${pluginId}' plugin's tool renames to '${serverId}': ${describeErrorForLog({ err })}`);
   }
   return result.changed;
 }
@@ -146,7 +147,7 @@ export async function applyAgentPluginToolRenames(required: { readonly deps: App
   try {
     plugins = await deps.listPlugins();
   } catch (err) {
-    log.warn(`[agent-plugins] could not list plugins to apply tool renames: ${err instanceof Error ? err.message : String(err)}`);
+    log.warn(`[agent-plugins] could not list plugins to apply tool renames: ${describeErrorForLog({ err })}`);
     return;
   }
 

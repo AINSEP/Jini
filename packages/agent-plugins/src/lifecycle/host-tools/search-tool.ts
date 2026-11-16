@@ -1,4 +1,4 @@
-import { buildDomainRegistrations, indexCatalogById, optionalNumber, optionalString, requireInputRecord, ToolInputError, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration, type AgentToolDefinition } from "@jini-ai/core";
+import { buildDomainRegistrations, describeErrorForLog, indexCatalogById, optionalNumber, optionalString, requireInputRecord, ToolInputError, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration, type AgentToolDefinition } from "@jini-ai/core";
 import { describeAgentPluginCompatibility, agentPluginDependentWarnings } from "../compatibility.js";
 import { projectAgentPluginSearchPage } from "../search-projection.js";
 import type { AgentPluginSearchCandidate } from "../search.js";
@@ -215,7 +215,7 @@ export async function loadAgentPluginSearchCandidates(ctx: AgentPluginSearchTool
         requiredBy: agentPluginDependentWarnings({ plugin, installed, activations, nextProvides: [] }),
       });
     } catch (error) {
-      console.warn(`[agent-plugins] '${plugin.pluginId}': ${error instanceof Error ? error.message : String(error)} — excluded from search`);
+      console.warn(`[agent-plugins] '${plugin.pluginId}': ${describeErrorForLog({ err: error })} — excluded from search`);
     }
   }
 
@@ -321,7 +321,7 @@ async function resolveSkillsForSearchTolerant(plugin: {
     } catch (error) {
       console.warn(
         `[agent-plugins] '${plugin.pluginId}': skill '${skill.name}' could not be read ` +
-          `(${error instanceof Error ? error.message : String(error)}) — skipped from search`,
+          `(${describeErrorForLog({ err: error })}) — skipped from search`,
       );
     }
   }

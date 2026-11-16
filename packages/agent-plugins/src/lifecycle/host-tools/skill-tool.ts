@@ -1,4 +1,4 @@
-import { buildDomainRegistrations, indexCatalogById, optionalString, requireInputRecord, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration, type AgentToolDefinition } from "@jini-ai/core";
+import { buildDomainRegistrations, describeErrorForLog, indexCatalogById, optionalString, requireInputRecord, type AgentToolSideEffect, type DerivedRiskByToolId, type ToolHandler, type ToolRegistration, type AgentToolDefinition } from "@jini-ai/core";
 import { readInstalledAgentPluginIdentity, UNTESTED_PLUGIN_GUIDANCE, type PluginMaturity } from "./identity.js";
 import { buildPluginMemoryRegistrations } from "./memory-tools.js";
 import type { AgentPluginHostToolPorts, ApplyHostToolApprovalPolicy, HostGuidancePort, PluginToolGuidance } from "./ports.js";
@@ -303,7 +303,7 @@ export async function loadInstalledAgentPluginToolSources(ctx: {
       // itself is still a genuine, actionable refusal, just scoped to this one plugin now.
       sourceByPluginId.delete(plugin.pluginId);
       poisonedPluginIds.add(plugin.pluginId);
-      console.warn(`[agent-plugins] '${plugin.pluginId}': ${error instanceof Error ? error.message : String(error)} — skipped`);
+      console.warn(`[agent-plugins] '${plugin.pluginId}': ${describeErrorForLog({ err: error })} — skipped`);
     }
   }
   return [...sourceByPluginId.values()];

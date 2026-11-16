@@ -1,5 +1,6 @@
 import { ADMIN_SURFACE_ACTION_INTENTS, type AdminSurfaceAuthorizationStart, type AdminSurfaceConnections, type AdminSurfaceConnectionStatus, type AdminSurfaceSignInAttempt } from '../surface-capabilities.js';
 import type { AdminSurfaceConnectionsHost, AdminSurfaceDeclaredConnection, AdminSurfaceStagedAccount, AdminSurfaceStatusView } from './ports.js';
+import { describeErrorForLog } from '@jini-ai/core';
 
 
 /**
@@ -109,7 +110,7 @@ export function createAdminSurfaceConnections<Connection extends AdminSurfaceDec
       // Error codes only: a desktop sign-in that failed after the browser opened.
       (error: unknown) => {
         host.attempts.set(connectionRef, failedAttempt(error));
-        console.warn(`[admin-surfaces] desktop sign-in for '${pluginId}' did not complete: ${codeOf(error)}`);
+        console.warn(`[admin-surfaces] desktop sign-in for '${pluginId}' did not complete: ${describeErrorForLog({ err: error })}`);
       },
     );
   }

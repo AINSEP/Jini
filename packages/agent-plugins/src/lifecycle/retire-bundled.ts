@@ -49,6 +49,7 @@
  * cannot stop a workspace from booting.
  */
 /** Extracted from the host plugin lifecycle. Effects are supplied per host context. */
+import { describeErrorForLog } from "@jini-ai/core";
 import type {  BundledAgentPluginEnableOutcome } from "./activation.js";
 import { createActivationModule } from "./activation.js";
 import { createBundledDigestsModule } from "./bundled-digests.js";
@@ -126,7 +127,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
       try {
         outcomes.push(await retireOne(required, optional, pluginId, ids));
       } catch (error) {
-        outcomes.push({ pluginId, ...ids, status: "failed", reason: error instanceof Error ? error.message : String(error) });
+        outcomes.push({ pluginId, ...ids, status: "failed", reason: describeErrorForLog({ err: error }) });
       }
     }
     return outcomes;

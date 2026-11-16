@@ -81,6 +81,7 @@ import { createPersistentStateModule } from "./persistent-state.js";
 /** Extracted from the host plugin lifecycle. Effects are supplied per host context. */
 import type { Dirent } from "node:fs";
 import path from "node:path";
+import { describeErrorForLog } from "@jini-ai/core";
 import { createActivationModule } from "./activation.js";
 import { createBundledDigestsModule } from "./bundled-digests.js";
 import { createBundledSourceArchiveModule } from "./bundled-source-archive.js";
@@ -191,7 +192,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
         : await createPersistentStateModule(ports).migrate({ workspaceRoot: layout.forWorkspace({ workspaceId }).root });
       if (!migration.complete) throw new Error('Legacy plugin layout migration has unfinished filesystem moves; see boot log');
     } catch (error) {
-      const reason = error instanceof Error ? error.message : String(error);
+      const reason = describeErrorForLog({ err: error });
       return { sourceRoot, outcomes: pluginDirNames.map(pluginId => ({ pluginId, status: 'failed' as const, reason })), retirements: [] };
     }
 
@@ -234,7 +235,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
       });
       return undefined;
     } catch (error) {
-      return error instanceof Error ? error.message : String(error);
+      return describeErrorForLog({ err: error });
     }
   }
 
@@ -248,7 +249,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
       await assertAgentPluginActivationsWritable(layout.forWorkspace({ workspaceId }).root);
       return undefined;
     } catch (error) {
-      return error instanceof Error ? error.message : String(error);
+      return describeErrorForLog({ err: error });
     }
   }
 
@@ -291,7 +292,7 @@ function buildModule(ports: AgentPluginLifecyclePorts) {
       return {
         pluginId: args.dirName,
         status: "failed",
-        reason: error instanceof Error ? error.message : String(error),
+        reason: describeErrorForLog({ err: error }),
       };
     }
   }

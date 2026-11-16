@@ -1,4 +1,5 @@
 import { resolveTarget, saveStaticAccessToken, type AgentPluginTokenTargetDeps, type TokenAuthTarget } from "./access-token-tool.js";
+import { describeErrorForLog } from "@jini-ai/core";
 import { hasStoredAgentPluginCredential } from "./connect-tool.js";
 import type { McpServerConfig } from "../lifecycle/manifest.js";
 import type { AgentPluginInstalledMcpReads } from "./federate-mcp.js";
@@ -156,7 +157,7 @@ export async function importAgentPluginAccessTokensFromEnv(
   try {
     plugins = await deps.listPlugins();
   } catch (err) {
-    log.warn(`[agent-plugins] could not list plugins to import env tokens: ${err instanceof Error ? err.message : String(err)}`);
+    log.warn(`[agent-plugins] could not list plugins to import env tokens: ${describeErrorForLog({ err })}`);
     return;
   }
 

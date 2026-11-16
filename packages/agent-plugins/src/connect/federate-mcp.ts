@@ -402,7 +402,8 @@ export interface ProvisionAgentPluginMcpServersResult {
    *  see {@link failed}. */
   readonly adopted: readonly string[];
   readonly skipped: readonly SkippedAgentPluginMcpServer[];
-  readonly failed: readonly SkippedAgentPluginMcpServer[];
+  /** `reason` is the caller-facing text; `error` is the caught value (absent for a refused adoption), for host logs only. */
+  readonly failed: readonly (SkippedAgentPluginMcpServer & { readonly error?: unknown })[];
 }
 
 /** Builds the ONE-TIME creation input for a planned server that rule 1's existence check already
@@ -548,14 +549,14 @@ export async function provisionAgentPluginMcpServers(
   const provisioned: string[] = [];
   const alreadyProvisioned: string[] = [];
   const adopted: string[] = [];
-  const failed: SkippedAgentPluginMcpServer[] = [];
+  const failed: (SkippedAgentPluginMcpServer & { readonly error?: unknown })[] = [];
   // Resolved once per call: every stale-row check uses the host's own projections (required: a
   // portable body never falls back to one host's projections; a host's legacy shim adds its pair).
   const bound = { repo: deps.repo, saveServer: (save: Parameters<AgentPluginMcpPort['saveServer']>[0]) => deps.saveServer(save), projections: deps.projections, classifyError: deps.classifyError };
 
   for (const planned of plan.toUpsert) {
     const outcome = await provisionPlannedServer({ deps: bound, input, planned });
-    if (outcome.kind === "failed") failed.push({ serverKey: planned.serverKey, reason: outcome.reason });
+    if (outcome.kind === "failed") failed.push({ serverKey: planned.serverKey, reason: outcome.reason, ...(outcome.error === undefined ? {} : { error: outcome.error }) });
     else if (outcome.kind === "provisioned") provisioned.push(planned.connectionId);
     else if (outcome.kind === "adopted") adopted.push(planned.connectionId);
     else alreadyProvisioned.push(planned.connectionId);
@@ -575,7 +576,7 @@ async function provisionPlannedServer(
     readonly planned: PlannedAgentPluginMcpUpsert;
   },
   _options = {},
-): Promise<{ readonly kind: "provisioned" | "alreadyProvisioned" | "adopted" } | { readonly kind: "failed"; readonly reason: string }> {
+): Promise<{ readonly kind: "provisioned" | "alreadyProvisioned" | "adopted" } | { readonly kind: "failed"; readonly reason: string; readonly error?: unknown }> {
   const { deps, input, planned } = required;
   try {
     const existing = await deps.repo.findByServerId({ workspaceId: input.workspaceId, serverId: planned.connectionId });
@@ -589,6 +590,6 @@ async function provisionPlannedServer(
     await deps.saveServer(buildProvisioningSaveInput(planned, input));
     return { kind: "provisioned" };
   } catch (err) {
-    return { kind: "failed", reason: err instanceof Error ? err.message : String(err) };
+    return { kind: "failed", reason: err instanceof Error ? err.message : String(err), error: err };
   }
 }

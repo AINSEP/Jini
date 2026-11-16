@@ -5,7 +5,7 @@
  * required `grantSignedInDefaults` port (pinned by `portable-plugin-host.no-cycle` test).
  * Discovery is metadata-only and fresh on each call so disable/uninstall cannot leave stale grants. */
 import type { Clock } from "@jini-ai/core/primitives";
-import { redactSecrets, ToolInputError, type AccessApprovalResource } from '@jini-ai/core';
+import { describeErrorForLog, redactSecrets, ToolInputError, type AccessApprovalResource } from '@jini-ai/core';
 import { createPluginLookup, readPluginIdentity, assertPluginIdentityAvailable, type PluginIdentityCandidate, type PluginLookupPort, type PluginProvider } from '@jini-ai/core/plugin-directory';
 import type { InstalledAgentPlugin } from '../../lifecycle/types.js';
 import type { SetAgentPluginEnabledInput, SetAgentPluginEnabledResult } from '../../lifecycle/set-enabled.js';
@@ -156,7 +156,8 @@ export interface PortablePluginHost<UninstallInput> extends PluginLookupPort {
  * report a partial failure to its caller. O(s) in failed declared servers, no extra I/O.
  */
 function reportProvisioningFailures({ pluginId, failed, approved, warn, messages }: { pluginId: string; failed: readonly ProvisioningFailure[]; approved: boolean; warn: (message: string) => void; messages: PluginHostMessages }): void {
-  for (const failure of failed) warn(redactSecrets({ input: `Plugin '${pluginId}': MCP provisioning for server '${failure.serverKey}' failed — ${failure.reason}` }));
+  // A caught write failure logs its class only; a refused adoption (no `error`) logs its own fixed-word reason.
+  for (const failure of failed) warn(redactSecrets({ input: `Plugin '${pluginId}': MCP provisioning for server '${failure.serverKey}' failed — ${failure.error === undefined ? failure.reason : describeErrorForLog({ err: failure.error })}` }));
   if (approved && failed.length) throw new ToolInputError({ message: redactSecrets({ input: messages.provisioningFailed({ pluginId, failed }) }) });
 }
 
@@ -284,7 +285,7 @@ export function createPluginHost<UninstallInput, Layout extends AgentPluginLayou
       } catch (error) {
         const detail = error instanceof Error ? error.message : String(error);
         if (execution.approvedEnable) throw new ToolInputError({ message: redactSecrets({ input: deps.messages.approvedLoadFailed({ detail }) }) });
-        warn(redactSecrets({ input: `Plugin '${pluginId}': MCP provisioning could not run — ${detail}` }));
+        warn(redactSecrets({ input: `Plugin '${pluginId}': MCP provisioning could not run — ${describeErrorForLog({ err: error })}` }));
       }
     },
     uninstall: input => lifecycle.uninstall(input),
