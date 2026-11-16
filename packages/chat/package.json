@@ -63,7 +63,6 @@
       "@radix-ui/react-select": "opt-in: interactive ui controls; import @jini-ai/chat/react — Interactive UI controls could not load @radix-ui/react-select. Install @radix-ui/react-select to enable this feature, or check its installed version and native binaries.",
       "@radix-ui/react-slot": "opt-in: interactive ui controls — Interactive UI controls could not load @radix-ui/react-slot. Install @radix-ui/react-slot to enable this feature, or check its installed version and native binaries.",
       "@jini-ai/agent-runtime": "opt-in: agent execution adapters; import @jini-ai/chat/react — Agent execution adapters could not load @jini-ai/agent-runtime. Install @jini-ai/agent-runtime to enable this feature, or check its installed version and native binaries.",
-      "@jini-ai/protocol": "opt-in: agent protocol adapters; import @jini-ai/chat/server/durable-runs — Agent protocol adapters could not load @jini-ai/protocol. Install @jini-ai/protocol to enable this feature, or check its installed version and native binaries.",
       "@jini-ai/ui": "opt-in: ui integrations; import @jini-ai/chat/react — UI integrations could not load @jini-ai/ui. Install @jini-ai/ui to enable this feature, or check its installed version and native binaries.",
       "react": "opt-in: react chat ui; import @jini-ai/chat/react — React chat UI could not load react. Install react to enable this feature, or check its installed version.",
       "react-dom": "opt-in: react chat ui; import @jini-ai/chat/react — React chat UI could not load react-dom. Install react-dom to enable this feature, or check its installed version."
@@ -227,6 +226,7 @@
     "@jini-ai/agentic": "workspace:^",
     "@jini-ai/db": "workspace:^",
     "@jini-ai/diagnostics": "workspace:^",
+    "@jini-ai/protocol": "workspace:^",
     "kysely": "^0.29.6"
   },
   "peerDependencies": {
@@ -243,7 +243,6 @@
     "@radix-ui/react-select": "^2.3.7",
     "@radix-ui/react-slot": "^1.3.3",
     "@jini-ai/agent-runtime": "^0.7.0",
-    "@jini-ai/protocol": "^0.7.0",
     "@jini-ai/ui": "^0.7.0"
   },
   "devDependencies": {
@@ -379,9 +378,6 @@
       "optional": true
     },
     "@jini-ai/agent-runtime": {
-      "optional": true
-    },
-    "@jini-ai/protocol": {
       "optional": true
     },
     "@jini-ai/ui": {

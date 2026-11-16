@@ -403,3 +403,14 @@ export type { FrontendRequestCallerRequired, FrontendRequestInput } from './feat
 
 // Consumers can name the recovery metadata accepted by the shared tool caller.
 export type { SurfaceRecoveryInfo } from '../core/surface-recovery.js';
+
+// Hosts bind the rich-surface implementations (MCP-UI iframe host, interactive registry, WebMCP probe) once, at the React root.
+export { ChatSurfacesProvider, useChatSurfaces, McpUiHost } from './surfaces.js';
+export type {
+  ChatSurfaces,
+  McpUiHostProps,
+  ChatSurfaceComponentEntry,
+  ChatSurfaceRegistry,
+  AgentModelContextToolRegistration,
+  AgentModelContextLike,
+} from './surfaces.js';
