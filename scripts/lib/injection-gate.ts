@@ -6,7 +6,9 @@ import { cssTokenFindings, loadThemeTokens } from './css-tokens.js';
 import {
   advisoryTestEdges, hostPresets, injectedEdgeFindings, manifestEdges, ownerOf, payloadEdges, productionEdges, testEdges, type Edge,
 } from './injection-edges.js';
-import { applyDebt, loadDebt, loadExceptions, type DebtViolation, type Finding } from './injection-debt.js';
+import {
+  applyDebt, debtGrowth, gitDebtBase, loadDebt, loadExceptions, type DebtEntry, type DebtViolation, type Finding,
+} from './injection-debt.js';
 import type { SourcePackage } from './package-sources.js';
 
 interface Scope { root: string; packages: readonly SourcePackage[] }
@@ -31,11 +33,14 @@ export function advisoryTestFindings(required: Scope, _optional: Record<string, 
   return advisoryTestEdges({ edges: required.packages.flatMap(pkg => testEdges({ root: required.root, pkg })), presets: hostPresets({ packages: required.packages }) });
 }
 
-export function injectionViolations(
-  required: Scope,
-  { warn = (message: string): void => console.warn(message) }: { warn?: (message: string) => void } = {},
-): DebtViolation[] {
-  const violations = applyDebt({ findings: collectInjectionFindings(required), debt: loadDebt({ root: required.root }) }, { warn });
+/** `debtBase` reads the debt file at the trusted base commit (default: git, INJECTION_BASE_REF or HEAD). */
+export interface InjectionOptions { warn?: (message: string) => void; debtBase?: () => readonly DebtEntry[] | null }
+
+export function injectionViolations(required: Scope, optional: InjectionOptions = {}): DebtViolation[] {
+  const warn = optional.warn ?? ((message: string): void => console.warn(message));
+  const debt = loadDebt({ root: required.root });
+  const base = (optional.debtBase ?? (() => gitDebtBase({ root: required.root })))();
+  const violations = [...debtGrowth({ base, debt }), ...applyDebt({ findings: collectInjectionFindings(required), debt })];
   const advisory = advisoryTestFindings(required);
   if (advisory.length > 0) warn(`injection advisory: ${advisory.length} test-only cross-package imports in ${new Set(advisory.map(edge => edge.file)).size} files (not failing)`);
   return violations;

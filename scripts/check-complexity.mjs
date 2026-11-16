@@ -7,6 +7,7 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import ts from 'typescript';
+import { debtAtBase } from './lib/debt-base.mjs';
 import { complexityExcludedFiles, complexitySourceFiles } from '../eslint.config.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -141,26 +142,9 @@ export function compareDebt(debt, current, ruleLimits = limits) {
   return { added, worsened, improved, stale };
 }
 
-function git(args) {
-  const result = spawnSync('git', args, { cwd: root, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
-  if (result.error) throw result.error;
-  return result;
-}
-
 /** Compare debt to the trusted base so editing the JSON cannot increase allowances. */
 export function baseDebt(file = debtFile, baseRef = process.env.COMPLEXITY_BASE_REF, firstCommit = process.env.COMPLEXITY_FIRST_PUSH_COMMIT) {
-  let ref = baseRef || 'HEAD';
-  if (/^0+$/.test(ref)) {
-    ref = firstCommit ? `${firstCommit}^` : 'HEAD^';
-  }
-  const commit = git(['rev-parse', '--verify', `${ref}^{commit}`]);
-  if (commit.status !== 0) throw new Error(`Cannot resolve debt base ${ref}: ${commit.stderr.trim()}`);
-  const listing = git(['ls-tree', '-r', '--name-only', commit.stdout.trim(), '--', file]);
-  if (listing.status !== 0) throw new Error(`Cannot inspect debt base: ${listing.stderr.trim()}`);
-  if (!listing.stdout.trim()) return null; // Initial adoption creates the first baseline.
-  const show = git(['show', `${commit.stdout.trim()}:${file}`]);
-  if (show.status !== 0) throw new Error(`Cannot read debt base: ${show.stderr.trim()}`);
-  return JSON.parse(show.stdout);
+  return debtAtBase({ root, file }, { baseRef: baseRef || 'HEAD', firstCommit: firstCommit || '' });
 }
 
 function describe(v) {

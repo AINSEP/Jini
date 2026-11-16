@@ -8,7 +8,7 @@ import { join, relative } from 'node:path';
 import ts from 'typescript';
 import { REPO_ROOT } from './lib/walk-imports.js';
 import { packageSourceFiles, parseSource, sourcePackages, type SourcePackage } from './lib/package-sources.js';
-import { injectionViolations } from './lib/injection-gate.js';
+import { injectionViolations, type InjectionOptions } from './lib/injection-gate.js';
 
 export interface LayerViolation { rule: string; file: string; reason: string }
 const layers: Readonly<Record<string, number>> = {
@@ -176,7 +176,7 @@ function isLiteralModuleCall(node: ts.Node): node is ts.CallExpression & { argum
 
 export function checkPackageLayers(
   required: { repoRoot: string } = { repoRoot: REPO_ROOT },
-  optional: { injection?: boolean; warn?: (message: string) => void } = {},
+  optional: { injection?: boolean } & InjectionOptions = {},
 ): LayerViolation[] {
   const root = required.repoRoot;
   const violations: LayerViolation[] = [];
@@ -236,7 +236,8 @@ export function checkPackageLayers(
   }
   // L5-L7: the base-only rule, with its ratchet. Layer-table fixtures opt out; the real gate never does.
   if (optional.injection !== false) {
-    violations.push(...injectionViolations({ root, packages }, optional.warn ? { warn: optional.warn } : {}));
+    const { injection: _injection, ...injection } = optional;
+    violations.push(...injectionViolations({ root, packages }, injection));
   }
   return violations;
 }

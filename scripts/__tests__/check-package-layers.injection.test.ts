@@ -1,5 +1,6 @@
 /** Fixture tests for the injection rules (L5 base-only edges, L6 base purity, L7 CSS tokens) and the
  * debt ratchet. Each test builds one isolated fixture tree; none touches the real workspace. */
+import { execFileSync } from 'node:child_process';
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
@@ -16,12 +17,15 @@ const put = (file: string, content: string | object): void => {
   writeFileSync(path, typeof content === 'string' ? content : JSON.stringify(content));
 };
 const manifest = (name: string, extra: object = {}): void => put(`packages/${name}/package.json`, { name: `@jini-ai/${name}`, ...extra });
-const gate = (warnings: string[] = []): string[] => checkPackageLayers({ repoRoot: root }, { warn: message => warnings.push(message) })
-  .map(violation => `${violation.rule} ${violation.file}`).sort();
+let baseEntries: object[] | null = null;
+const gate = (warnings: string[] = []): string[] => checkPackageLayers({ repoRoot: root }, {
+  warn: message => warnings.push(message), debtBase: () => baseEntries as never,
+}).map(violation => `${violation.rule} ${violation.file}`).sort();
 const debt = (...entries: object[]): void => put('scripts/injection-debt.json', { entries: entries.map(entry => ({ lane: 'T', count: 1, ...entry })) });
 const L5 = 'L5-injected-edge';
 
 beforeEach(() => {
+  baseEntries = null;
   root = mkdtempSync(join(tmpdir(), 'jini-injection-test-'));
   manifest('core');
   manifest('protocol');
@@ -60,7 +64,7 @@ describe('L5-injected-edge', () => {
     expect(gate()).toEqual([`${L5} packages/daemon/package.json`]);
   });
 
-  it('passes a debt hit, fails a higher count, and warns on a lower count', () => {
+  it('passes a debt hit, fails a higher count, and fails a stale (too high) allowance', () => {
     manifest('daemon', { dependencies: { '@jini-ai/platform': '*' } });
     put('packages/daemon/src/a.ts', "import { a } from '@jini-ai/platform/fs'; import { b } from '@jini-ai/platform/fs'; export { a, b };");
     const manifestKey = { rule: L5, file: 'packages/daemon/package.json', spec: '@jini-ai/platform', kind: 'manifest-dependencies' };
@@ -70,9 +74,37 @@ describe('L5-injected-edge', () => {
     debt(manifestKey, sourceKey);
     expect(gate()).toEqual([`${L5} packages/daemon/src/a.ts`]);
     debt(manifestKey, { ...sourceKey, count: 3 });
-    const warnings: string[] = [];
-    expect(gate(warnings)).toEqual([]);
-    expect(warnings.join('\n')).toContain('stale');
+    expect(gate()).toEqual(['injection-debt-stale scripts/injection-debt.json']);
+    debt(manifestKey, { ...sourceKey, count: 2 }, { ...sourceKey, file: 'packages/daemon/src/gone.ts' });
+    expect(gate()).toEqual(['injection-debt-stale scripts/injection-debt.json']);
+  });
+
+  it('rejects debt growth against the trusted base: a new key or a raised count', () => {
+    manifest('daemon', { dependencies: { '@jini-ai/platform': '*' } });
+    put('packages/daemon/src/a.ts', "import { a } from '@jini-ai/platform/fs'; import { b } from '@jini-ai/platform/fs'; export { a, b };");
+    const manifestKey = { rule: L5, file: 'packages/daemon/package.json', spec: '@jini-ai/platform', kind: 'manifest-dependencies', count: 1, lane: 'T' };
+    const sourceKey = { rule: L5, file: 'packages/daemon/src/a.ts', spec: '@jini-ai/platform/fs', kind: 'import', count: 2, lane: 'T' };
+    debt(manifestKey, sourceKey);
+    baseEntries = [manifestKey, sourceKey];
+    expect(gate()).toEqual([]);
+    baseEntries = [manifestKey];
+    expect(gate()).toEqual(['injection-debt-growth scripts/injection-debt.json']);
+    baseEntries = [manifestKey, { ...sourceKey, count: 1 }];
+    expect(gate()).toEqual(['injection-debt-growth scripts/injection-debt.json']);
+  });
+
+  it('reads the trusted base from git by default (HEAD when no base ref is set)', () => {
+    manifest('daemon', { dependencies: { '@jini-ai/platform': '*' } });
+    const manifestKey = { rule: L5, file: 'packages/daemon/package.json', spec: '@jini-ai/platform', kind: 'manifest-dependencies' };
+    debt(manifestKey);
+    const git = (...args: string[]): void => { execFileSync('git', ['-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { cwd: root, stdio: 'ignore' }); };
+    git('init', '-q'); git('add', '.'); git('commit', '-q', '-m', 'base');
+    const run = (): string[] => checkPackageLayers({ repoRoot: root }, { warn: () => undefined })
+      .map(violation => `${violation.rule} ${violation.file}`);
+    expect(run()).toEqual([]);
+    put('packages/daemon/src/a.ts', "import { a } from '@jini-ai/platform/fs'; export { a };");
+    debt(manifestKey, { rule: L5, file: 'packages/daemon/src/a.ts', spec: '@jini-ai/platform/fs', kind: 'import' });
+    expect(run()).toEqual(['injection-debt-growth scripts/injection-debt.json']);
   });
 
   it('keys debt by file, specifier and kind, not by line', () => {

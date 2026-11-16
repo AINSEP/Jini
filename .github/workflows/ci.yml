@@ -73,6 +73,10 @@ jobs:
 
       - name: guard (ratcheted against scripts/guard-baseline.json — see that file and check-guard-drift.ts)
         id: guard
+        env:
+          # The injection debt (scripts/injection-debt.json) may only shrink against this base.
+          INJECTION_BASE_REF: ${{ github.event.pull_request.base.sha || github.event.before }}
+          INJECTION_FIRST_PUSH_COMMIT: ${{ github.event.commits[0].id }}
         run: pnpm guard:drift
         continue-on-error: true
 

@@ -152,8 +152,12 @@ function injectionSelfTest(required: { root: string }): string[] {
   write('packages/daemon/src/bad.ts', "import { run } from '@jini-ai/platform/fs'; export { run };");
   write('packages/core/src/impure.ts', 'export const home = process.env.HOME;');
   write('packages/ui/src/a.css', '.a { color: var(--unlisted-token); }');
-  const found = checkPackageLayers({ repoRoot: required.root }, { warn: () => undefined });
+  // The ratchet: a stale allowance fails, and so does any allowance the trusted base did not have.
+  write('scripts/injection-debt.json', { entries: [{ rule: 'L5-injected-edge', file: 'packages/daemon/src/gone.ts', spec: '@jini-ai/platform', kind: 'import', count: 1, lane: 'T' }] });
+  const found = checkPackageLayers({ repoRoot: required.root }, { warn: () => undefined, debtBase: () => [] });
   const has = (file: string, rule: string): boolean => found.some(v => v.file.endsWith(file) && v.rule === rule);
+  expect(has('scripts/injection-debt.json', 'injection-debt-stale'), 'a stale debt allowance must fail');
+  expect(has('scripts/injection-debt.json', 'injection-debt-growth'), 'debt growth against the base must fail');
   expect(!found.some(v => v.file.endsWith('daemon/src/ok.ts')), 'core and protocol imports must pass the base rule');
   expect(has('daemon/src/bad.ts', 'L5-injected-edge'), 'a non-base package import must fail L5');
   expect(has('core/src/impure.ts', 'L6-base-purity'), 'a process read in core must fail L6');
