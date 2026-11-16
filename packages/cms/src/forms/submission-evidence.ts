@@ -1,19 +1,8 @@
 import { submissionEvidenceSchema } from '../core/form-schema.js';
 export { submissionEvidenceSchema } from '../core/form-schema.js';
 import { canonicalArgumentDigest, isNonArrayRecord } from '@jini-ai/core/records';
-import type { FieldDescriptor, FormDefinitionRecord } from './types.js';
-
-/** Immutable form-owned context; answers remain in the existing answer map, never in evidence. */
-export interface FormSubmissionEvidence {
-  readonly version: 1;
-  readonly fields: FieldDescriptor[];
-  readonly consent: Array<{ fieldId: string; wording: string; helpText?: string }>;
-  readonly schemaHash: string;
-  readonly capturedAt: string;
-  readonly source: 'native' | 'cloudflare';
-  /** Complete authored body retains consent prose outside checkbox labels without guessing. */
-  readonly html?: string;
-}
+import type { FormSubmissionEvidence } from '@jini-ai/core/contracts/forms';
+import type { FieldDescriptor, FieldType, FormDefinitionRecord } from './types.js';
 
 const MAX_EVIDENCE_BYTES = 1024 * 1024;
 
@@ -22,11 +11,11 @@ const MAX_EVIDENCE_BYTES = 1024 * 1024;
  * @complexity O(schema bytes + key sorting) time and O(schema bytes) space; one local digest.
  * @overallScore 98 — relies on the existing canonical JSON/WebCrypto owner. */
 export async function captureSubmissionEvidence(
-  { definition, capturedAt, source }: { definition: FormDefinitionRecord & { html?: string | undefined }; capturedAt: string; source: FormSubmissionEvidence['source'] },
+  { definition, capturedAt, source }: { definition: FormDefinitionRecord & { html?: string | undefined }; capturedAt: string; source: FormSubmissionEvidence<FieldType>['source'] },
   _optional: Record<string, never> = {},
-): Promise<FormSubmissionEvidence> {
+): Promise<FormSubmissionEvidence<FieldType>> {
   const schema = submissionEvidenceSchema({ definition });
-  const evidence: FormSubmissionEvidence = { version: 1, ...schema, schemaHash: await canonicalArgumentDigest({ args: schema }), capturedAt, source };
+  const evidence: FormSubmissionEvidence<FieldType> = { version: 1, ...schema, schemaHash: await canonicalArgumentDigest({ args: schema }), capturedAt, source };
   assertEvidenceSize({ value: evidence });
   return evidence;
 }
@@ -57,7 +46,7 @@ function isConsent(value: unknown): boolean {
  * @throws TypeError for malformed/oversized evidence, without embedding visitor content.
  * @complexity O(evidence bytes) time and space, pure.
  * @overallScore 97 — validates presentation data; the authenticated receiver establishes provenance. */
-export function readSubmissionEvidence({ value }: { value: unknown }, _optional: Record<string, never> = {}): FormSubmissionEvidence | undefined {
+export function readSubmissionEvidence({ value }: { value: unknown }, _optional: Record<string, never> = {}): FormSubmissionEvidence<FieldType> | undefined {
   if (value === undefined || value === null) return undefined;
   if (!isNonArrayRecord({ value })) throw new TypeError('Invalid form submission evidence.');
   const evidence = value as Record<string, unknown>;
@@ -65,7 +54,7 @@ export function readSubmissionEvidence({ value }: { value: unknown }, _optional:
   if (!Array.isArray(evidence.fields) || !evidence.fields.every(isField)) throw new TypeError('Invalid form submission evidence fields.');
   if (!Array.isArray(evidence.consent) || !evidence.consent.every(isConsent)) throw new TypeError('Invalid form submission evidence consent.');
   assertEvidenceSize({ value });
-  return structuredClone(value) as unknown as FormSubmissionEvidence;
+  return structuredClone(value) as unknown as FormSubmissionEvidence<FieldType>;
 }
 
 function assertEvidenceHeader({ evidence }: { evidence: Record<string, unknown> }): void {
@@ -78,7 +67,7 @@ function assertEvidenceHeader({ evidence }: { evidence: Record<string, unknown> 
  * @complexity O(1) time/space, no mutation or I/O.
  * @overallScore 99 — old rows remain explicitly evidence-unavailable at display boundaries. */
 export function submissionEvidenceDefinition(
-  { definition, evidence }: { definition: FormDefinitionRecord; evidence?: FormSubmissionEvidence | undefined },
+  { definition, evidence }: { definition: FormDefinitionRecord; evidence?: FormSubmissionEvidence<FieldType> | undefined },
   _optional: Record<string, never> = {},
 ): FormDefinitionRecord {
   return evidence ? { ...definition, fields: evidence.fields } : definition;

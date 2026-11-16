@@ -2,35 +2,9 @@
  * Submission, persistence and notification behavior stay with the Forms domain. */
 /** Collection plans concern browser collection only; delivery and imported history keep their owners. */
 import { createProviderRegistry, type ProviderRegistry } from '@jini-ai/core';
+import { FORM_COLLECTION_CONTRACT, type FormCollectionCapabilities, type FormCollectionProvider, type FormProviderDescription } from '@jini-ai/core/contracts/forms';
 
-export interface FormProviderSelection { readonly id: string; readonly config: Readonly<Record<string, string>>; }
-export interface FormCollectionCapabilities {
-  readonly answers: string;
-  readonly validation: string;
-  readonly spamProtection: string;
-}
-/** Public settings only; secrets and provider credentials never belong in form definitions. */
-export interface FormProviderDescription {
-  readonly id: string;
-  readonly label: string;
-  readonly fields: readonly { readonly key: string; readonly label: string; readonly type: 'text' | 'url'; readonly helpText?: string }[];
-  readonly helpText?: string;
-  readonly answers: string;
-  readonly validation: string;
-  readonly frameOrigins: readonly string[];
-  readonly available: boolean;
-  readonly message?: string;
-}
-export type FormCollectionPlan =
-  | { readonly kind: 'post'; readonly action: string; readonly external: boolean; readonly capabilities: FormCollectionCapabilities }
-  | { readonly kind: 'embed'; readonly url: string; readonly title: string; readonly capabilities: FormCollectionCapabilities; readonly consent?: readonly ('necessary' | 'functional' | 'analytics' | 'marketing')[]; readonly publicUrl?: string; readonly fallbackMessage?: string }
-  | { readonly kind: 'unavailable'; readonly code: 'provider_unavailable' | 'invalid_configuration'; readonly message: string };
-export interface FormCollectionProvider {
-  describe?(): Omit<FormProviderDescription, 'id' | 'available'>;
-  plan(required: { readonly slug: string; readonly config: Readonly<Record<string, string>> }, optional?: Record<string, never>): FormCollectionPlan;
-}
 export type FormCollectionRegistry = ProviderRegistry<FormCollectionProvider>;
-export const FORM_COLLECTION_CONTRACT = 'form_collection';
 const BUILTIN_CAPABILITIES: FormCollectionCapabilities = {
   answers: 'Answers are stored in the built-in inbox.',
   validation: 'The built-in receiver validates the declared form fields.',
