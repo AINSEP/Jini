@@ -25,7 +25,7 @@
  * of the process that also touches it. {@link createOtelObservabilityAdapter} also returns `dispose`
  * (provider shutdown: flushes the batch queue, stops its timer) for the host's teardown.
  */
-// Span lifecycle rationale: @jini-ai/diagnostics src/observability/otel.ts.
+// Span lifecycle rationale: ./otel-port.ts.
 import { ROOT_CONTEXT, SpanKind, SpanStatusCode, trace, type Meter, type Span, type Tracer } from "@opentelemetry/api";
 import { getSharedConfigurationDefaults, OTLPExporterBase } from "@opentelemetry/otlp-exporter-base";
 import { createOtlpHttpExportDelegate, httpAgentFactoryFromOptions } from "@opentelemetry/otlp-exporter-base/node-http";
@@ -35,7 +35,8 @@ import { ATTR_SERVICE_NAME } from "@opentelemetry/semantic-conventions";
 import { BatchSpanProcessor, ParentBasedSampler, AlwaysOnSampler, type ReadableSpan, type SpanProcessor } from "@opentelemetry/sdk-trace-base";
 import { MeterProvider, PeriodicExportingMetricReader, type IMetricReader } from "@opentelemetry/sdk-metrics";
 import { NodeTracerProvider } from "@opentelemetry/sdk-trace-node";
-import { createOtelObservabilityPort, redactOperationAttributes, type MetricInput, type MetricOptions, type ExporterFactory, type ObservabilityAdapter, type ObservabilityConfigEnabled, type TraceSpanKind, type TraceSpanPort, type TracerPort, type TracerProviderFactory } from "@jini-ai/diagnostics/observability";
+import { errorType, redactLabel, redactOperationAttributes, type MetricInput, type MetricOptions, type ExporterFactory, type ObservabilityAdapter, type ObservabilityConfigEnabled, type TraceSpanKind, type TraceSpanPort, type TracerPort, type TracerProviderFactory } from "@jini-ai/diagnostics/observability";
+import { createOtelObservabilityPort } from "./otel-port.js";
 import { createAsyncLocalSpanScope } from "@jini-ai/diagnostics/observability/node";
 import { createProviderTelemetryReporter, type ProviderTelemetryOptions } from "../telemetry-reporter.js";
 import { trimTrailingSlashes } from "../trim-trailing-slashes.js";
@@ -291,7 +292,7 @@ export function createOtelObservabilityAdapter({ config }: { config: Observabili
   const reporter = createProviderTelemetryReporter({ endpoint: config.endpoint }, options);
   const { shutdown, ...factories } = createOtelFactories({}, options);
   const metrics = createMetrics({ config }, options);
-  const port = { ...createOtelObservabilityPort({ config, ...factories }, { scope: createAsyncLocalSpanScope({}) }), metric: metrics.metric, supportsMetric: true };
+  const port = { ...createOtelObservabilityPort({ config, ...factories }, { scope: createAsyncLocalSpanScope({}), helpers: { errorType, redactOperationAttributes, redactLabel } }), metric: metrics.metric, supportsMetric: true };
   reporter.initialized({ message: options.exportEnabled === true ? "OpenTelemetry exporting" : "OpenTelemetry export disabled" });
   return { port, dispose: async () => {
     try { await Promise.all([shutdown(), metrics.shutdown()]); reporter.result({ phase: "shutdown", outcome: "ok" }); }

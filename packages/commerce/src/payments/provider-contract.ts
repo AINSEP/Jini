@@ -1,4 +1,5 @@
 /** Commerce's structural adapter for host provider artifacts; trust and retirement stay host-owned. */
+import { moneyProblem } from "../money/money.js";
 import { paymentError, type PaymentProvider } from "./contract/provider.js";
 import { OPTIONAL_PROVIDER_METHODS, paymentProviderModuleProblem } from "./provider-module-guard.js";
 import type { LoadedProviderItem } from "./provider-registry.js";
@@ -6,9 +7,12 @@ import type { LoadedProviderItem } from "./provider-registry.js";
 export const paymentsProviderContract: {
   readonly contract: "payments";
   readonly validate: (required: { provider: unknown }, optional?: Record<string, never>) => string | undefined;
+  /** Kernel helpers handed to every payment provider as the factory's `optional.context`. */
+  readonly context: { readonly paymentError: typeof paymentError; readonly moneyProblem: typeof moneyProblem };
 } = {
   contract: "payments",
   validate: ({ provider }, _optional = {}) => paymentProviderModuleProblem(provider),
+  context: { paymentError, moneyProblem },
 };
 
 /** Structural mirror of the host lease; commerce never imports its host. */

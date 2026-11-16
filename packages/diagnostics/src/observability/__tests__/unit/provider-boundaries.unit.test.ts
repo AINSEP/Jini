@@ -4,7 +4,7 @@ import { describeReportedError } from '../../errors.js';
 import { combineObservabilityPorts } from '../../fanout.js';
 import { createHookObservabilityPort } from '../../hooks.js';
 import { createNoopObservabilityPort } from '../../noop.js';
-import { createOtelObservabilityPort, errorType } from '../../otel.js';
+import { errorType } from '../../otel.js';
 import { redactedError, reportErrorOnce, runWithErrorReportScope } from '../../report-error.js';
 import { createTelemetryTestProbe } from '../../telemetry-test.js';
 import { createNoopTracker } from '../../tracker-noop.js';
@@ -187,18 +187,7 @@ it('probe receipts ignore malformed inputs and incidental signals inside the dia
   expect(await probe.send({ tracker, error: new Error('diagnostic'), userId: 'user' })).toEqual({ providers: [{ providerId: 'analytics', signals: ['analytics'] }] });
 });
 
-it('OTel reports active IDs only when the host supplies them and keeps metrics inert', () => {
-  const ids = { traceId: 'trace', spanId: 'span' };
-  const span: TraceSpanPort = { ids: () => ids, updateName() {}, setAttribute() {}, setStatus() {}, addEvent() {}, end() {} };
-  const startSpan = vi.fn(() => span);
-  const deps = { config: { enabled: true as const, serviceName: 's', tracerName: 't', endpoint: 'https://collector/' },
-    exporterFactory: { create: () => ({}) }, tracerProviderFactory: { create: () => ({ getTracer: () => ({ startSpan }) }) } };
-  const scoped = createOtelObservabilityPort(deps, { scope: { active: () => span, run: ({ fn }) => fn() } });
-  expect(scoped.activeTraceIds!()).toBe(ids);
-  scoped.metric({ name: 'work', value: 1 }); expect(startSpan).not.toHaveBeenCalled();
-  const { ids: _ids, ...legacySpan } = span;
-  const legacy = createOtelObservabilityPort(deps, { scope: { active: () => legacySpan, run: ({ fn }) => fn() } });
-  expect(legacy.activeTraceIds!()).toBeUndefined();
+it('error labels fall back to Error for an empty error name', () => {
   const error = new Error('safe'); error.name = '';
   expect(errorType({ error })).toBe('Error');
 });

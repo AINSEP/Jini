@@ -1,11 +1,11 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
-import { SpanKind, SpanStatusCode } from "./observability-fakes.js";
-import { InMemorySpanExporter, createPort } from "./observability-fakes.js";
+import { SpanKind, SpanStatusCode } from "./otel-fakes.js";
+import { InMemorySpanExporter, createPort } from "./otel-fakes.js";
 
-import { createOtelObservabilityPort } from "../observability/otel.js";
-import type { ObservabilityConfigEnabled } from "../observability/config.js";
+import { createOtelObservabilityPort } from "../observability-opentelemetry/otel-port.js";
+import type { ObservabilityConfigEnabled } from "@jini-ai/diagnostics/observability";
 
 /** Request-span characterization cases run against injected trace/exporter ports, without loading an SDK. */
 

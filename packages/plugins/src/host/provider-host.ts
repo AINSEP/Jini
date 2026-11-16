@@ -8,6 +8,9 @@ export interface PluginProviderContract {
   /** Supplied by the domain owner; plugins never select or replace this validator. */
   readonly validate: (required: { provider: unknown }, optional?: Record<string, never>) => string | undefined;
   readonly seed?: readonly ProviderDefinition<unknown>[];
+  /** Domain-owned helper values handed to every provider of this contract as the factory's
+   * `optional.context`. Providers restate their shape and never import the domain. */
+  readonly context?: Readonly<Record<string, unknown>>;
 }
 export interface PluginProviderFailure {
   readonly pluginId: string;
@@ -34,26 +37,6 @@ export class PluginProviderError extends Error {
     super(required.message); this.name = 'PluginProviderError';
   }
 }
-/** Explicit plugin-authored startup guidance. Raw SDK errors must never be shown to users. */
-export class PluginProviderStartupError extends Error {
-  readonly reason: string;
-  readonly action: string;
-  constructor({ reason, action, cause }: { reason: string; action: string; cause?: unknown }, _optional = {}) {
-    super(reason, { cause });
-    this.name = 'PluginProviderStartupError';
-    this.reason = reason;
-    this.action = action;
-  }
-}
-
-/** Startup guidance from a {@link PluginProviderStartupError}, matched by shape: each provider plugin
- *  artifact bundles its own copy of this class, so `instanceof` against the host's copy is always false. */
-export function pluginProviderStartupGuidance({ error }: { error: unknown }, _optional = {}): { reason: string; action: string } | undefined {
-  if (!(error instanceof Error) || error.name !== 'PluginProviderStartupError') return undefined;
-  const { reason, action } = error as Partial<PluginProviderStartupError>;
-  return typeof reason === 'string' && typeof action === 'string' ? { reason, action } : undefined;
-}
-
 /** Applying saved settings either succeeds, requires a browser/process refresh, or fails to start. */
 export type PluginProviderApplyResult = 'now' | 'restart' | { appliesAt: 'failed'; reason: string; action: string };
 
@@ -237,7 +220,7 @@ export function createPluginProviderHost(required: {
     if (!selected) return undefined;
     const { snapshot, provider } = selected;
     let abandoned = false;
-    const produced = Promise.resolve(provider.factory(input.input, options.factoryOptions ?? {}))
+    const produced = Promise.resolve(provider.factory(input.input, { ...(contract.context ? { context: contract.context } : {}), ...(options.factoryOptions ?? {}) }))
       .then(resource => admit({ resource, contract, snapshot, provider, abandoned: () => abandoned }));
     return untilRetiredOrDeadline({ produced, snapshot, abandon: () => { abandoned = true; } });
   }

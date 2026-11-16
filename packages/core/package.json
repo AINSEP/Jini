@@ -49,7 +49,10 @@
       "./net": "universal",
       "./contracts/blob": "universal",
       "./contracts/runtime": "universal",
-      "./contracts/admin-module": "universal"
+      "./contracts/admin-module": "universal",
+      "./contracts/forms": "universal",
+      "./contracts/charts": "universal",
+      "./contracts/plugin-sdk": "universal"
     },
     "isolation": {
       "entries": {
@@ -287,6 +290,21 @@
       "types": "./dist/contracts/admin-module.d.ts",
       "import": "./dist/contracts/admin-module.js",
       "default": "./dist/contracts/admin-module.js"
+    },
+    "./contracts/forms": {
+      "types": "./dist/contracts/forms.d.ts",
+      "import": "./dist/contracts/forms.js",
+      "default": "./dist/contracts/forms.js"
+    },
+    "./contracts/charts": {
+      "types": "./dist/contracts/charts.d.ts",
+      "import": "./dist/contracts/charts.js",
+      "default": "./dist/contracts/charts.js"
+    },
+    "./contracts/plugin-sdk": {
+      "types": "./dist/contracts/plugin-sdk.d.ts",
+      "import": "./dist/contracts/plugin-sdk.js",
+      "default": "./dist/contracts/plugin-sdk.js"
     }
   },
   "files": [

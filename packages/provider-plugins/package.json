@@ -24,6 +24,7 @@
       "./analytics-posthog": "node",
       "./analytics-posthog/*": "node",
       "./observability-opentelemetry": "node",
+      "./observability-opentelemetry/port": "node",
       "./observability-opentelemetry/*": "node",
       "./observability-sentry": "node",
       "./observability-sentry/*": "node",
@@ -47,6 +48,10 @@
     "./analytics-posthog": "./plugins/analytics-posthog/0.7.1/jini.plugin.json",
     "./analytics-posthog/*": "./plugins/analytics-posthog/*",
     "./observability-opentelemetry": "./plugins/observability-opentelemetry/0.7.1/jini.plugin.json",
+    "./observability-opentelemetry/port": {
+      "types": "./dist/observability-opentelemetry/otel-port.d.ts",
+      "import": "./dist/observability-opentelemetry/otel-port.js"
+    },
     "./observability-opentelemetry/*": "./plugins/observability-opentelemetry/*",
     "./observability-sentry": "./plugins/observability-sentry/0.7.1/jini.plugin.json",
     "./observability-sentry/*": "./plugins/observability-sentry/*",
@@ -59,6 +64,7 @@
     "./google-forms/*": "./plugins/google-forms/*"
   },
   "files": [
+    "dist/observability-opentelemetry",
     "plugins/ai-trace-langfuse",
     "plugins/analytics-posthog",
     "plugins/charts-echarts",
@@ -76,7 +82,7 @@
     "NOTICE"
   ],
   "scripts": {
-    "build": "pnpm run typecheck && node --import tsx scripts/build.ts charts-recharts . && node --import tsx scripts/build.ts charts-echarts . && node --import tsx scripts/build.ts ai-trace-langfuse . && node --import tsx scripts/build.ts analytics-posthog . && node --import tsx scripts/build.ts observability-opentelemetry . && node --import tsx scripts/build.ts observability-sentry . && node --import tsx scripts/build.ts payments-stripe . && node --import tsx scripts/build.ts fixture-provider . && node --import tsx scripts/build.ts formspree . && node --import tsx scripts/build.ts google-forms .",
+    "build": "pnpm run typecheck && tsc -p tsconfig.lib.json && node --import tsx scripts/build.ts charts-recharts . && node --import tsx scripts/build.ts charts-echarts . && node --import tsx scripts/build.ts ai-trace-langfuse . && node --import tsx scripts/build.ts analytics-posthog . && node --import tsx scripts/build.ts observability-opentelemetry . && node --import tsx scripts/build.ts observability-sentry . && node --import tsx scripts/build.ts payments-stripe . && node --import tsx scripts/build.ts fixture-provider . && node --import tsx scripts/build.ts formspree . && node --import tsx scripts/build.ts google-forms .",
     "prepack": "pnpm run build",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.charts.json --noEmit",
     "test": "vitest run",

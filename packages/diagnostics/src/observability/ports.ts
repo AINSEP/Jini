@@ -101,22 +101,10 @@ export interface TraceSpanPort {
  addEvent(required: { name: string; attributes: Record<string, string | number> }): void;
  end(required: Record<string, never>): void;
 }
-export type TraceSpanKind = 'server' | 'client' | 'internal';
-export interface TracerPort {
- /** `parent` is a span this tracer returned earlier; absent means a root span. */
- startSpan(required: { name: string; kind: TraceSpanKind; attributes: Record<string, string | number> }, optional?: { parent?: TraceSpanPort }): TraceSpanPort;
-}
 /** Host-owned active-span storage (Node: AsyncLocalStorage). Without one, every span is a root. */
 export interface SpanScopePort {
  active(): TraceSpanPort | undefined;
  run<T>(required: { span: TraceSpanPort; fn: () => T }): T;
-}
-export interface TracerProviderPort { getTracer(required: { name: string }): TracerPort; }
-export interface ExporterFactory {
- create(required: { endpoint: string }): unknown;
-}
-export interface TracerProviderFactory {
- create(required: { serviceName: string; exporter: unknown }): TracerProviderPort;
 }
 /** What a vendor provider subpath returns: the port plus the host-owned lifecycle hook. The host
  * registers `dispose` with its teardown (a closed site, a stopped process) so SDK clients, timers

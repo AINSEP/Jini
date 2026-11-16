@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { InMemorySpanExporter, SpanKind, SpanStatusCode, createAsyncScope, createPort } from "./observability-fakes.js";
+import { InMemorySpanExporter, SpanKind, SpanStatusCode, createAsyncScope, createPort } from "./otel-fakes.js";
 
-import { createNoopObservabilityPort, isNoopObservabilityPort } from "../observability/noop.js";
-import { createHookObservabilityPort } from "../observability/hooks.js";
-import type { ObservabilityConfigEnabled } from "../observability/config.js";
+import { createNoopObservabilityPort, isNoopObservabilityPort } from "@jini-ai/diagnostics/observability";
+import { createHookObservabilityPort } from "@jini-ai/diagnostics/observability";
+import type { ObservabilityConfigEnabled } from "@jini-ai/diagnostics/observability";
 
 /**
  * @file The three signals beyond inbound requests — DB queries, outbound HTTP calls and agent runs —

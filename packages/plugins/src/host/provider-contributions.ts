@@ -2,23 +2,6 @@
 import { PROVIDER_ID_PATTERN } from '@jini-ai/core/provider-registry';
 import type { PluginProviderDeclaration, PluginValidationError } from './manifest-types.js';
 
-export const PLUGIN_PROVIDER_CAPABILITY = 'providers.register' as const;
-export interface PluginProviderResource<T = unknown> {
-  readonly port: T;
-  /** Release owned resources only; borrowed effect ports remain host-owned. */
-  readonly dispose: (required: Record<string, never>, optional?: Record<string, never>) => void | Promise<void>;
-}
-export type PluginProviderFactory = (
-  required: Readonly<Record<string, unknown>>,
-  optional?: Readonly<Record<string, unknown>>,
-) => PluginProviderResource | Promise<PluginProviderResource>;
-export interface PluginProviderContribution extends PluginProviderDeclaration {
-  readonly factory: PluginProviderFactory;
-}
-export interface PluginProvidersSdk {
-  register(required: PluginProviderContribution, optional?: Record<string, never>): void;
-}
-
 /** Shared grammar for manifest validation and runtime capture, using core's frozen id contract. */
 export function isPluginProviderDeclaration(
   required: { value: unknown }, _optional: Record<string, never> = {},

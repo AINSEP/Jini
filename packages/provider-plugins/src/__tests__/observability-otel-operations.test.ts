@@ -2,12 +2,12 @@ import assert from "node:assert/strict";
 import { test } from "vitest";
 import { registerLoggableErrors } from "@jini-ai/core";
 
-import { InMemorySpanExporter, createAsyncScope, createPort } from "./observability-fakes.js";
-import { createNoopObservabilityPort } from "../observability/noop.js";
-import { createHookObservabilityPort } from "../observability/hooks.js";
-import { describeReportedError } from "../observability/errors.js";
-import { errorType, redactOperationAttributes } from "../observability/otel.js";
-import type { ObservabilityConfigEnabled } from "../observability/config.js";
+import { InMemorySpanExporter, createAsyncScope, createPort } from "./otel-fakes.js";
+import { createNoopObservabilityPort } from "@jini-ai/diagnostics/observability";
+import { createHookObservabilityPort } from "@jini-ai/diagnostics/observability";
+import { describeReportedError } from "@jini-ai/diagnostics/observability";
+import { errorType, redactOperationAttributes } from "@jini-ai/diagnostics/observability";
+import type { ObservabilityConfigEnabled } from "@jini-ai/diagnostics/observability";
 
 /** Feature-level operations and error reports: the two signals no transport names. */
 
@@ -114,8 +114,8 @@ test("C61: redact multiline secrets before applying the stack line limit", () =>
 });
 
 test("combineObservabilityPorts: noop-only is the noop; one live port still delivers its signals", async () => {
-  const { combineObservabilityPorts } = await import("../observability/fanout.js");
-  const { isNoopObservabilityPort } = await import("../observability/noop.js");
+  const { combineObservabilityPorts } = await import("@jini-ai/diagnostics/observability");
+  const { isNoopObservabilityPort } = await import("@jini-ai/diagnostics/observability");
   assert.ok(isNoopObservabilityPort(combineObservabilityPorts({ ports: [createNoopObservabilityPort({}), createNoopObservabilityPort({})] })));
   const exporter = new InMemorySpanExporter();
   const port = combineObservabilityPorts({ ports: [createNoopObservabilityPort({}), createPort(CONFIG, exporter)] });
@@ -124,7 +124,7 @@ test("combineObservabilityPorts: noop-only is the noop; one live port still deli
 });
 
 test("recheck #2: a single live adapter is isolated too: its start, end and report throws never reach the caller", async () => {
-  const { combineObservabilityPorts } = await import("../observability/fanout.js");
+  const { combineObservabilityPorts } = await import("@jini-ai/diagnostics/observability");
   const down = () => { throw new Error("adapter down"); };
   const throwsOnStart = combineObservabilityPorts({ ports: [{ ...createPort(CONFIG, new InMemorySpanExporter()), trackOperation: down, reportError: down }] });
   const fallback = throwsOnStart.trackOperation({ name: "tool.call" });
@@ -136,7 +136,7 @@ test("recheck #2: a single live adapter is isolated too: its start, end and repo
 });
 
 test("combineObservabilityPorts: two live ports each get the operation, its nested report, and its end; a throwing reporter does not stop the other", async () => {
-  const { combineObservabilityPorts } = await import("../observability/fanout.js");
+  const { combineObservabilityPorts } = await import("@jini-ai/diagnostics/observability");
   const a = new InMemorySpanExporter(); const b = new InMemorySpanExporter();
   const scopeA = createAsyncScope(); const scopeB = createAsyncScope();
   const broken = { ...createPort(CONFIG, a, { scope: scopeA }), reportError: () => { throw new Error("tracker down"); } };
@@ -204,7 +204,7 @@ test("review #1: secret-shaped operation attribute strings are redacted before t
 });
 
 test("review #3: fan-out isolates each adapter's tracker creation and end; the caller never sees an adapter's throw", async () => {
-  const { combineObservabilityPorts } = await import("../observability/fanout.js");
+  const { combineObservabilityPorts } = await import("@jini-ai/diagnostics/observability");
   const b = new InMemorySpanExporter(); const c = new InMemorySpanExporter();
   const throwsOnStart = { ...createPort(CONFIG, new InMemorySpanExporter()), trackOperation: () => { throw new Error("start down"); } };
   const throwsOnEnd = { ...createPort(CONFIG, b), trackOperation: () => ({ run: <T>(fn: () => T) => fn(), end: () => { throw new Error("end down"); } }) };
@@ -216,7 +216,7 @@ test("review #3: fan-out isolates each adapter's tracker creation and end; the c
 });
 
 test("combineObservabilityPorts: a tracker whose run() throws before, after, or instead of its callback never blocks the work or later scopes; the callback runs exactly once", async () => {
-  const { combineObservabilityPorts } = await import("../observability/fanout.js");
+  const { combineObservabilityPorts } = await import("@jini-ai/diagnostics/observability");
   const noop = createNoopObservabilityPort({});
   const scoped: string[] = [];
   const withRun = (run: <T>(fn: () => T) => T) => ({ ...noop, trackOperation: () => ({ run, end() {} }) });
@@ -245,7 +245,7 @@ test("combineObservabilityPorts: a tracker whose run() throws before, after, or 
 });
 
 test("combineObservabilityPorts: app work runs exactly once and its recorded outcome wins, whatever a tracker's run() does with the callback", async () => {
-  const { combineObservabilityPorts } = await import("../observability/fanout.js");
+  const { combineObservabilityPorts } = await import("@jini-ai/diagnostics/observability");
   const noop = createNoopObservabilityPort({});
   const withRun = (run: <T>(fn: () => T) => T) => ({ ...noop, trackOperation: () => ({ run, end() {} }) });
   // A tracker that calls the callback twice must not run the app's mutation twice.
@@ -278,7 +278,7 @@ test("combineObservabilityPorts: app work runs exactly once and its recorded out
 });
 
 test("combineObservabilityPorts: every signal fans out, and a tracker without run() is simply skipped as a scope", async () => {
-  const { combineObservabilityPorts } = await import("../observability/fanout.js");
+  const { combineObservabilityPorts } = await import("@jini-ai/diagnostics/observability");
   const noop = createNoopObservabilityPort({});
   const seen: string[] = [];
   const recording = (tag: string) => ({

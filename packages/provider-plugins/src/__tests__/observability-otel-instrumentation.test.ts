@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { InMemorySpanExporter, createAsyncScope, createPort } from "./observability-fakes.js";
+import { InMemorySpanExporter, createAsyncScope, createPort } from "./otel-fakes.js";
 
-import { describeQueryNode, instrumentStorageKernel, trackFetch, trackHttpClient } from "../observability/instrumentation.js";
-import { createNoopObservabilityPort } from "../observability/noop.js";
-import type { ObservabilityConfigEnabled } from "../observability/config.js";
+import { describeQueryNode, instrumentStorageKernel, trackFetch, trackHttpClient } from "@jini-ai/diagnostics/observability";
+import { createNoopObservabilityPort } from "@jini-ai/diagnostics/observability";
+import type { ObservabilityConfigEnabled } from "@jini-ai/diagnostics/observability";
 import type { HttpClientPort, HttpRequest } from "@jini-ai/core/primitives";
 
 /**
