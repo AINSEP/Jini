@@ -12,6 +12,9 @@ import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { openSqliteEventLog as createInjectedEventLog, type SqliteEventLog, type SqliteEventLogOptions } from '../sqlite.js';
 
+// A package test supplies its own clock port; the system clock lives in the platform package.
+const testClock = { nowMs: () => Date.now() };
+
 let dir: string;
 let dbPath: string;
 let log: SqliteEventLog;
@@ -322,5 +325,5 @@ describe('createSqliteEventLog — durability across a restart', () => {
 
 /** Existing conformance bodies use a private fixture; the public owned adapter gets an explicit host opener. */
 function createSqliteEventLog(path: string, options: SqliteEventLogOptions = {}) {
- return createInjectedEventLog({ file: path, open: (file, settings) => new Database(file, settings) }, options);
+ return createInjectedEventLog({ file: path, open: (file, settings) => new Database(file, settings), clock: testClock }, options);
 }

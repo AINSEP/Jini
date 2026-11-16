@@ -3,11 +3,14 @@ import { describe, expect, it } from 'vitest';
 import { createSqliteEventLog } from '../sqlite.js';
 import type { EventLog } from '@jini-ai/protocol';
 
+// A package test supplies its own clock port; the system clock lives in the platform package.
+const testClock = { nowMs: () => Date.now() };
+
 describe('durable protocol call shape with unchanged SQL retention', () => {
   it('uses producer metadata separately, replays object cursors and drops object run ids', async () => {
     const db = new Database(':memory:');
     try {
-      const log: EventLog = createSqliteEventLog({ db }, { clock: { nowMs: () => 42 }, maxEntriesPerRun: 1 });
+      const log: EventLog = createSqliteEventLog({ db, clock: { nowMs: () => 42 } }, { maxEntriesPerRun: 1 });
       const first = await log.append({ runId: 'r', event: 'agent', data: { n: 1 } }, { dedupeKey: 'a' });
       expect(await log.append({ runId: 'r', event: 'other', data: { n: 99 } }, { dedupeKey: 'a' })).toEqual(first);
       expect(await log.listRunIds({})).toEqual(['r']);
@@ -30,7 +33,7 @@ describe('durable protocol call shape with unchanged SQL retention', () => {
 it('does not let producer metadata override the required run identity', async () => {
   const db = new Database(':memory:');
   try {
-    const log = createSqliteEventLog({ db }, { clock: { nowMs: () => 7 } });
+    const log = createSqliteEventLog({ db, clock: { nowMs: () => 7 } });
     await log.append({ runId: 'owner', event: 'agent', data: null }, { dedupeKey: 'key', runId: 'other' } as never);
     expect(await log.listRunIds({})).toEqual(['owner']);
   } finally { db.close(); }

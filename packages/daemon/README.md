@@ -107,7 +107,7 @@ See the archived provenance ledger for per-file provenance and scope decisions. 
 ## Storage concern subpaths
 
 The root remains driver-free. `./store/event-log/sqlite` exports the unchanged cursor/dedupe/replay
-adapter. `createSqliteEventLog({ db }, { maxEntriesPerRun, clock })` borrows the host handle, ensures
+adapter. `createSqliteEventLog({ db, clock }, { maxEntriesPerRun })` borrows the host handle, ensures
 its dedicated schema idempotently, never changes pragmas, and has a harmless `close({})`.
 `openSqliteEventLog({ file, open }, options)` owns a host-acquired handle, sets WAL, cleans up failed
 setup, and closes once. Owned acquisition uses only `openSqliteEventLog`; borrowed creation takes `{ db }`. No ambient driver is loaded.

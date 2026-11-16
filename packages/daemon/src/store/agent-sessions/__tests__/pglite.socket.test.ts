@@ -10,11 +10,14 @@ import type { AgentSessionDatabase } from '../sql.js';
 import { createPgliteAgentSessionStore } from '../pglite.js';
 import { schema } from './fixtures.js';
 import { sqlSessionContract } from './sql-contract.js';
+
+// A package test supplies its own clock port; the system clock lives in the platform package.
+const testClock = { nowMs: () => Date.now() };
 sqlSessionContract(async()=>{
  const dir=mkdtempSync(join(tmpdir(),'c2-session-socket-'));
  const owner=await startPgliteOwner({PGlite,dataDir:join(dir,'data'),lockFileName:'sessions.lock',runDirName:'sessions'},{socketDir:join(dir,'sock')});
  const kernel=openPgliteSocketKernel<AgentSessionDatabase>({pg,socketPath:owner.socketPath});
  const close=async()=>{try{await kernel.close();await owner.close();}finally{rmSync(dir,{recursive:true,force:true});}};
- try{await schema(kernel);return {kernel,store:createPgliteAgentSessionStore({kernel}),close};}
+ try{await schema(kernel);return {kernel,store:createPgliteAgentSessionStore({kernel, clock: testClock }),close};}
  catch(error){await close();throw error;}
-},createPgliteAgentSessionStore);
+},(input)=>createPgliteAgentSessionStore({clock:testClock,...input}));

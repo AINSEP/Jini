@@ -3,12 +3,15 @@ import { expect, it, vi } from 'vitest';
 import type { Clock } from '@jini-ai/core/primitives';
 import { createSqliteEventLog, openSqliteEventLog } from '../sqlite.js';
 
+// A package test supplies its own clock port; the system clock lives in the platform package.
+const testClock = { nowMs: () => Date.now() };
+
 // REGRESSION: fails if bindSqliteEventLog reads options.now instead of options.clock.nowMs().
 it('borrows and opens logs using the same stateful core Clock, preserving dedupe timestamps', async () => {
   const db = new Database(':memory:');
   const clock: Clock & { time: number } = { time: 4102444800123, nowMs() { return this.time; } };
-  const borrowed = createSqliteEventLog({ db }, { clock });
-  const owned = openSqliteEventLog({ file: ':memory:', open: (file, options) => new Database(file, options) }, { clock });
+  const borrowed = createSqliteEventLog({ db, clock });
+  const owned = openSqliteEventLog({ file: ':memory:', open: (file, options) => new Database(file, options), clock });
   try {
     const first = await borrowed.append({ runId: 'r', event: 'probe', data: 1 }, { dedupeKey: 'same' });
     expect(first.recordedAt).toBe(clock.time);
@@ -24,7 +27,7 @@ it('keeps system timestamps and retention when no Clock is supplied', async () =
   const db = new Database(':memory:');
   const now = vi.spyOn(Date, 'now').mockReturnValue(4102444800123);
   try {
-    const log = createSqliteEventLog({ db }, { maxEntriesPerRun: 1 });
+    const log = createSqliteEventLog({ db, clock: testClock }, { maxEntriesPerRun: 1 });
     await log.append({ runId: 'r', event: 'first', data: null });
     const last = await log.append({ runId: 'r', event: 'last', data: null });
     expect(last.recordedAt).toBe(4102444800123);

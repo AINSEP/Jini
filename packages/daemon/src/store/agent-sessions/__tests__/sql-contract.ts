@@ -7,7 +7,7 @@ import type { Clock } from '@jini-ai/core/primitives';
 import type { AgentSessionStore } from '../ports.js';
 import { sessionContract } from './contract.js';
 export interface SqlSessionFixture { kernel: StorageKernel<AgentSessionDatabase>; store:AgentSessionStore; close():Promise<void>; }
-export function sqlSessionContract(make:()=>Promise<SqlSessionFixture>,create:(input:{kernel:StorageKernel<AgentSessionDatabase>},options?:{clock?:Clock})=>AgentSessionStore):void {
+export function sqlSessionContract(make:()=>Promise<SqlSessionFixture>,create:(input:{kernel:StorageKernel<AgentSessionDatabase>;clock?:Clock})=>AgentSessionStore):void {
  sessionContract(make);
  it('shares the injected transaction for insert, overwrite and clear rollback',async()=>{
   const f=await make();try{
@@ -35,7 +35,7 @@ export function sqlSessionContract(make:()=>Promise<SqlSessionFixture>,create:(i
   const f=await make();try{
    const run=vi.spyOn(f.kernel,'run'),execute=vi.spyOn(f.kernel,'execute'),close=vi.spyOn(f.kernel,'close');
    const clock: Clock & { time: number } = { time: 4_102_444_800_123, nowMs() { return this.time; } };
-   const store=create({kernel:f.kernel},{clock});
+   const store=create({kernel:f.kernel,clock});
    expect(run).not.toHaveBeenCalled();expect(execute).not.toHaveBeenCalled();expect(close).not.toHaveBeenCalled();
    await store.setSessionId({ conversationId: 'a:b', agentId: 'c', sessionId: 'clock' });
    const rows=await f.kernel.query<{updated_at:string|number}>(sql`SELECT updated_at FROM assistant_agent_sessions WHERE conversation_id=${'a:b'} AND agent_id=${'c'}`);
