@@ -24,7 +24,13 @@ export function createInMemoryServer(_required = {}, _optional: Record<string, n
       if (found.kind === 'not-found') return plain(404);
       if (found.kind === 'method-not-allowed') return plain(405, { allow: found.allow.join(', ') });
       const response = await found.route.handler({ request, params: found.params, ...(client ? { client } : {}), ...(locals ? { locals } : {}) });
-      return request.method === 'HEAD' ? new Response(null, { status: response.status, headers: response.headers }) : response;
+      return request.method === 'HEAD' ? headResponse(response) : response;
     },
   };
+}
+
+/** HEAD drops the GET body; cancelling it stops its producer (an SSE stream's keepalive and subscription). */
+async function headResponse(response: Response): Promise<Response> {
+  await response.body?.cancel();
+  return new Response(null, { status: response.status, headers: response.headers });
 }
