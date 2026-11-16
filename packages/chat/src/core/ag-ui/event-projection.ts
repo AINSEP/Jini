@@ -116,7 +116,10 @@ function handleToolUseAgentEvent(event: Extract<AgentEvent, { kind: "tool_use" }
 
 /** A result's optional fields are written only when set, so a plain successful result is the
  *  standard event and nothing more. `isError` is absent for `false`: a reader takes absence as success. */
-function handleToolResultAgentEvent(event: Extract<AgentEvent, { kind: "tool_result" }>, state: AgUiTranslationState): AgUiEvent[] {
+function handleToolResultAgentEvent(
+  { event, state }: { event: Extract<AgentEvent, { kind: "tool_result" }>; state: AgUiTranslationState },
+  _optional: Record<string, never> = {},
+): AgUiEvent[] {
   return [
     {
       type: EventType.TOOL_CALL_RESULT,
@@ -144,7 +147,7 @@ export function translateAgentEventToAgUi({ event, state }: { event: AgentEvent;
       return handleToolUseAgentEvent(event, state);
 
     case "tool_result":
-      return handleToolResultAgentEvent(event, state);
+      return handleToolResultAgentEvent({ event, state });
 
     case "usage":
       return [{ type: EventType.CUSTOM, name: state.customEventNames.usage, value: event }];
