@@ -37,3 +37,86 @@ The 13 functions above (file + function keys for max-lines-per-function). Also a
 ## Pre-existing failures (identical on base)
 - `tsc --noEmit` in packages/ui: 8 errors in __tests__ and fake-ui-kit.tsx (so `pnpm --filter @jini-ai/ui build` fails).
 - admin-widgets Select.unit / Select.portal tests: 52 failures, same count with my change stashed.
+
+
+---
+
+# Continuation run (2026-11-16) — PARTIAL (stopped at tool-call / context budget)
+
+Branch: refactor/size-jini-ui. Every function below now passes eslint with no size/complexity warning
+(max-lines-per-function 50), `tsc --noEmit` in packages/ui adds no errors (only the 8 pre-existing ones in
+__tests__/fake-ui-kit), and the tests beside each file pass (or fail identically on the unmodified tree — see
+"Pre-existing failures"). One commit per file; last pushed commit is listed in the final message.
+
+## DONE (commit)
+- useMentionAutocomplete.ts useMentionAutocomplete — 1ad5867f
+- ResourceBoardToolbar.tsx ResourceBoardToolbar — 1e5e6fc7
+- useResourceRowList.ts useResourceRowList — 92a7cde2
+- TabLauncherMenu.tsx TabLauncherMenu — f3a8cdea
+- useTabLauncherMenu.ts useTabLauncherMenu — eb239aad
+- ProjectLocationsTab.tsx ProjectLocationsTab — d7fc2db1
+- useProjectLocationsTab.ts useProjectLocationsTab — 4d0079ce
+- useSourceConfigList.ts useSourceConfigList — 7496d43a
+- useTabStripDragReorder.ts useTabStripDragReorder — 342f038d
+- VersionSidebar.tsx VersionSidebar — 0532324f
+- VersionManagerModal.tsx VersionManagerModal — f0ae08be
+- useVersionManager.ts useVersionManager (+ new sibling useVersionManager.state.ts) — 78f11590
+- CommentSidePanel.tsx CommentSidePanel + CommentSideItem — bbd7db29
+- useMarkdownScrollSync.ts useMarkdownScrollSync — 5ee8579e
+- OnboardingDropdown.tsx useOnboardingDropdown — f0bbf596
+- TooltipLayer.tsx useTooltipLayer (+ useEffect callback#3) — f0cf32b2
+- useResizableSplitPane.ts useResizableSplitPane — c98c09b9
+- AnnotationCanvas.tsx AnnotationDock — 46db0fd2
+- usePreviewModalShell.ts usePreviewModalShell — 129598a8
+- SketchEditor.tsx SketchEditor — c5bb3446
+- memory/dependencies.ts createMemoryHttpPorts — bd85bfaa
+- MemoryAdvancedModal.tsx MemoryAdvancedModal — ac3f1aed (footer prop-type fix landed in 0c0275b8)
+- MemoryManualEditor.tsx MemoryManualEditor — 0c0275b8
+- MemoryConnectedPanel.tsx MemoryConnectedPanel — 93d7c8a8
+- useMemoryConfig.hooks.ts useMemoryConfig — 64c8821a
+- useMemoryConnectors.hooks.ts useMemoryConnectors (+ new sibling useMemoryConnectors.parts.hooks.ts;
+  `saveSelectedConnectorSuggestions` moved there and re-exported by name from the original file so the public
+  import path is unchanged) — 8157e8e5
+- useMemoryEntries.hooks.ts useMemoryEntries — 1a08ad8b
+- useMemoryExtractions.hooks.ts useMemoryExtractions — ed38fe99
+- useMemoryExtractions.store.ts createExtractionHistoryStore (closure state -> explicit StoreState + module
+  functions) — 497010f9
+- useResourceBoard.ts useResourceBoard — f6642729
+- useExecutionTab.ts useExecutionTab — 924cdd65
+
+## SKIPPED
+- use-execution-credential.hooks.ts useExecutionCredential (130 lines): still left from the previous run; same
+  reason (serial write lane / settlement generations closures need a careful design split).
+
+## NOT REACHED (still > 80 lines per a package-wide eslint pass at the end of this run)
+- useInteractiveHtmlEditor.ts useInteractiveHtmlEditor (122) + its useEffect callback (106)
+- useMediaProvidersTab.ts useMediaProvidersTab (168)
+- useSkillsTab.ts useSkillsTab (260)
+- useAnnotationCanvas.ts useAnnotationCanvas (739; closure-heavy: strokes/boxes/text-mark refs shared by pointer,
+  keyboard, capture and submit flows — needs a ref-bundle + several sub-hooks)
+- use-execution-credential.hooks.ts useExecutionCredential (see SKIPPED)
+Other >=80-line functions the lint still reports (Select, mountChart, ConnectorDetailDrawer, mcp-ui scripts,
+useSettingsSlice, useStandingDraftAutosave, CustomSelect, ...) are not in jini-ui.txt and were left alone.
+
+## size-debt entries now removable (scripts/size-debt.json; NOT edited here)
+Every function in the DONE list above (file + function keys for max-lines-per-function), plus any complexity
+entries for them. Functions that were between 50 and 80 lines and are not in the list (e.g.
+OnboardingDropdown, CommentSideCreateForm, MemorySuggestionPanel, TextMarkItem, SubmitPicker) still emit the
+50-line warning and keep their entries.
+
+## Notes for reviewers
+- Behaviour-preserving splits only; where a first split broke a test it was fixed before commit (e.g. a duplicated
+  load effect in useResourceBoard, a missing prop in MemoryConnectedPanel, a footer prop type in
+  MemoryAdvancedModal).
+- No new eslint-disable, no exported name / public signature changes. File sizes: useResizableSplitPane.ts 490
+  lines, useMemoryEntries.hooks.ts 476; CommentSidePanel.tsx and useMemoryConnectors.hooks.ts were already >500
+  before this run.
+
+## Pre-existing failures (identical on the unmodified tree)
+- `tsc --noEmit` in packages/ui: 8 errors in __tests__ and fake-ui-kit.tsx (so `pnpm --filter @jini-ai/ui build`
+  fails).
+- admin-widgets Select tests: 52 failures (from the previous run).
+- features/source-config-list: 118 failing tests (SourceConfigList.test.tsx, Select-backed) — same count with my
+  change stashed.
+- features/execution: 141 failing tests across ByokProviderForm / ExecutionTab / LocalCliAgentCard /
+  SearchableModelSelect tests — same 141 with my change stashed (hook tests pass).
