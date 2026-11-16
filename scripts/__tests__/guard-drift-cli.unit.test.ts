@@ -10,6 +10,7 @@ vi.mock('../check-agentic-dom-purity.js', () => ({ checkAgenticDomPurity: () => 
 vi.mock('../check-chatpane-public-surface.js', () => ({ checkChatPanePublicSurface: () => [] }));
 vi.mock('../check-driver-isolation.js', () => ({ checkDriverIsolation: () => [] }));
 vi.mock('../check-hardwiring.js', () => ({ checkHardwiring: () => [] }));
+vi.mock('../check-env-access.js', () => ({ checkEnvAccess: () => [] }));
 vi.mock('../check-engine-boundaries.js', () => ({ checkEngineBoundaries: () => [] }));
 vi.mock('../check-extensionless-imports.js', () => ({ checkExtensionlessImports: () => [] }));
 vi.mock('../check-model-fallback-freshness.js', () => ({ checkModelFallbackFreshness: () => [] }));
