@@ -1,7 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { useA2uiSurfaceRoot } from '../use-a2ui-surface.js';
-import type { A2uiInterpreter, ComponentInstance } from '../protocol.js';
+import type { A2uiInterpreter, ComponentInstance } from '@jini-ai/protocol/a2ui';
 
 function makeInterpreter(initialRoot: ComponentInstance | undefined): { interpreter: A2uiInterpreter; setRoot: (r: ComponentInstance | undefined) => void; notify: () => void } {
   let root = initialRoot;

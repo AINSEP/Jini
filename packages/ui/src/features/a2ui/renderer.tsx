@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react';
 import type { InteractiveUiRegistry } from '../interactive-ui/registry.js';
-import type { A2uiInterpreter, ComponentInstance } from './protocol.js';
+import type { A2uiInterpreter, ComponentInstance } from '@jini-ai/protocol/a2ui';
 import { useA2uiSurfaceRoot } from './use-a2ui-surface.js';
 import { createA2uiActionHandler, createA2uiNodeHelpers } from './renderer.hooks.js';
 
