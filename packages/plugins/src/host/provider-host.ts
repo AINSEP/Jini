@@ -8,6 +8,9 @@ export interface PluginProviderContract {
   /** Supplied by the domain owner; plugins never select or replace this validator. */
   readonly validate: (required: { provider: unknown }, optional?: Record<string, never>) => string | undefined;
   readonly seed?: readonly ProviderDefinition<unknown>[];
+  /** Domain-owned helper values handed to every provider of this contract as the factory's
+   * `optional.context`. Providers restate their shape and never import the domain. */
+  readonly context?: Readonly<Record<string, unknown>>;
 }
 export interface PluginProviderFailure {
   readonly pluginId: string;
@@ -217,7 +220,7 @@ export function createPluginProviderHost(required: {
     if (!selected) return undefined;
     const { snapshot, provider } = selected;
     let abandoned = false;
-    const produced = Promise.resolve(provider.factory(input.input, options.factoryOptions ?? {}))
+    const produced = Promise.resolve(provider.factory(input.input, { ...(contract.context ? { context: contract.context } : {}), ...(options.factoryOptions ?? {}) }))
       .then(resource => admit({ resource, contract, snapshot, provider, abandoned: () => abandoned }));
     return untilRetiredOrDeadline({ produced, snapshot, abandon: () => { abandoned = true; } });
   }
