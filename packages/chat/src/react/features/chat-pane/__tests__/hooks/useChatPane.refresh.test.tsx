@@ -153,7 +153,7 @@ describe('passive conversation refresh', () => {
   it('reports load failure without changing messages and allows another refresh', async () => {
     const report = vi.spyOn(console, 'error').mockImplementation(() => {});
     let fail = true;
-    const error = new Error('Read unavailable');
+    const error = new Error('boom api_key=SECRETSECRETSECRETSECRET');
     const h = signal(async () => { if (fail) throw error; return [message('saved', 'Read recovered')]; });
     const transport = createFakeChatTransport();
     const { result } = renderHook(() => useChatPane({ transport, agents: [], refreshSignal: h.refreshSignal }));
@@ -161,7 +161,8 @@ describe('passive conversation refresh', () => {
       await act(() => h.emit());
       expect(result.current.conversation.messages).toEqual([]);
       expect(report).toHaveBeenCalledTimes(1);
-      expect(report).toHaveBeenCalledWith('[chat] conversation refresh failed', error.stack);
+      expect(report).toHaveBeenCalledWith('[chat] conversation refresh failed', 'Error');
+      for (const leak of ['boom', 'SECRETSECRET', 'useChatPane.refresh.test']) expect(JSON.stringify(report.mock.calls)).not.toContain(leak);
       fail = false;
       await act(() => h.emit());
       expect(result.current.conversation.messages).toEqual([message('saved', 'Read recovered')]);

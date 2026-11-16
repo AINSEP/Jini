@@ -39,10 +39,11 @@ describe('Composer guards', () => {
 
   it('reports a host effect that throws synchronously and keeps rendering', () => {
     const error = vi.spyOn(console, 'error').mockImplementation(() => {});
-    const failure = new Error('sync boom');
+    const failure = new Error('boom api_key=SECRETSECRETSECRETSECRET');
     render(<Harness slots={{ plusMenuItems: [{ id: 'p', label: 'Boom', onSelect: () => { throw failure; } }] }} />);
     fireEvent.click(screen.getByRole('button', { name: 'Boom' }));
-    expect(error).toHaveBeenCalledWith('[@jini-ai/chat] Composer plusMenuItems.onSelect host effect failed:', failure.stack);
+    expect(error).toHaveBeenCalledWith('[@jini-ai/chat] Composer plusMenuItems.onSelect host effect failed:', 'Error');
+    for (const leak of ['boom', 'SECRETSECRET', 'Composer.guards.test']) expect(JSON.stringify(error.mock.calls)).not.toContain(leak);
     expect(screen.getByRole('button', { name: 'Boom' })).toBeInTheDocument();
   });
 

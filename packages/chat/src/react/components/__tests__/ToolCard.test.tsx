@@ -352,14 +352,15 @@ describe('ToolCard', () => {
   });
 
   it('falls back to the built-in family card when a custom renderer throws', () => {
-    const err = new Error('boom');
+    const err = new Error('boom api_key=SECRETSECRETSECRETSECRET');
     registerToolRenderer({ name: 'Bash', renderer: () => {
       throw err;
     } });
     const spy = vi.spyOn(console, 'error').mockImplementation(() => {});
     render(<ToolCard use={{ kind: 'tool_use', id: 't6', name: 'Bash', input: { command: 'x' } }} runSucceeded />);
     expect(screen.getByText('Bash')).toBeInTheDocument();
-    expect(spy).toHaveBeenCalledWith(expect.stringContaining('custom renderer for "Bash" threw'), err.stack);
+    expect(spy).toHaveBeenCalledWith(expect.stringContaining('custom renderer for "Bash" threw'), 'Error');
+    for (const leak of ['boom', 'SECRETSECRET', 'ToolCard.test']) expect(JSON.stringify(spy.mock.calls)).not.toContain(leak);
     spy.mockRestore();
   });
 

@@ -64,7 +64,7 @@ describe('useRunStream onCheckpoint', () => {
 
 describe('useRunStream stopRun host effect', () => {
   it('cancel() reports a synchronously throwing transport.stopRun and still cancels', async () => {
-    const failure = new Error('stopRun threw before returning a promise');
+    const failure = new Error('boom api_key=SECRETSECRETSECRETSECRET');
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     const transport = {
       startRun: vi.fn().mockResolvedValue({ runId: 'run-1' }),
@@ -83,8 +83,9 @@ describe('useRunStream stopRun host effect', () => {
       expect(transport.stopRun).toHaveBeenCalledWith('run-1');
       expect(consoleError).toHaveBeenCalledWith(
         '[@jini-ai/chat] useRunStream transport.stopRun (cancel) host effect failed:',
-        failure.stack,
+        'Error',
       );
+      for (const leak of ['boom', 'SECRETSECRET', 'useRunStream.checkpoint.cov-j2']) expect(JSON.stringify(consoleError.mock.calls)).not.toContain(leak);
     } finally {
       consoleError.mockRestore();
     }
