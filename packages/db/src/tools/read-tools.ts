@@ -100,7 +100,7 @@ function createRestorePointHandler({ ports, messages }: { ports: DatabaseReadToo
  */
 export function createDatabaseReadTools(ports: DatabaseReadToolPorts, _optional: { messages?: DbMessages } = {}): ToolRegistration[] {
   const messages = _optional.messages ?? defaultDbMessages;
-  const { noInput: requireNoInput, isRecord, optionalString, optionalBoolean } = ports.readers;
+  const { noInput: requireNoInput } = ports.readers;
   const handlers: Record<string, ToolHandler> = {
     database_query_timeline: queryTimelineHandler({ ports }),
 
