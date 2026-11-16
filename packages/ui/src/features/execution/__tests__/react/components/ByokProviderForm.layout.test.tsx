@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { render, screen } from '@testing-library/react';
+import { render, screen } from '../../../../../__tests__/ui-kit-render-support.js';
 import { describe, expect, it, vi } from 'vitest';
 import { ByokProviderForm } from '../../../react/components/ByokProviderForm.js';
 import type { ByokConfig, ProviderPreset } from '../../../types.js';

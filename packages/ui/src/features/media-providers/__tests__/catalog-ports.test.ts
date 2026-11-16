@@ -1,6 +1,6 @@
 import { createElement } from 'react';
 import { MediaProvidersTab } from '../react/components/MediaProvidersTab.js';
-import { act, render, renderHook, screen, waitFor } from '@testing-library/react';
+import { act, render, renderHook, screen, waitFor } from '../../../__tests__/ui-kit-render-support.js';
 import { expect, it } from 'vitest';
 import { DEFAULT_MEDIA_PROVIDER_CATALOG } from '../constants.js';
 import { DEFAULT_BASE_URL_BY_PROTOCOL } from '../../execution/constants.js';

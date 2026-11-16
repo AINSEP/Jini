@@ -1,4 +1,4 @@
-import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen, waitFor } from "../../../__tests__/ui-kit-render-support.js";
 import userEvent from "@testing-library/user-event";
 import { useEffect, useRef, useState } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";

@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '../../../../../__tests__/ui-kit-render-support.js';
 import { describe, expect, it, vi } from 'vitest';
 import { I18nProvider } from '../../../../i18n/index.js';
 import { LocalCliAgentCard, type LocalCliAgentCardProps } from '../LocalCliAgentCard.js';

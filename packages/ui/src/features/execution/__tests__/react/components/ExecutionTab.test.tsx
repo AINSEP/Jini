@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react';
+import { act, render, screen, waitFor, within } from '../../../../../__tests__/ui-kit-render-support.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { AGENT_ELEMENT_ATTRIBUTE } from '@jini-ai/core/agent-handles';
