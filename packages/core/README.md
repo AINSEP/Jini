@@ -196,6 +196,11 @@ Default adapters are `createSystemClock()`, `createRandomUuidGenerator()` and
 cryptographic UUID implementation and fails if unavailable. The console adapter routes
 info/warn/error with optional `{ meta, error }` to the same console severity.
 
+`@jini-ai/core/contracts/events` holds the type-only command/event/outbox vocabulary: `DomainEvent`, `EventBusPort`,
+`OutboxPort`, `OutboxRecord`, `TransactionalRepoPort`, the change-set records and `ChangeSetRepoPort`, the command
+envelope types, `AuthorizeFn` and `ExecuteCommandFn`. Hosts supply the implementations; `@jini-ai/cms/core` supplies the
+`executeCommand` gateway.
+
 Agent-tool catalogs import `AgentToolSideEffect`, `AgentToolActorClassRule` and
 `AgentToolDefinition` from the core root. Delete is a separate side-effect classification;
 domains may tighten the shared interface, including making `inputSchema` required.

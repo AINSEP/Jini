@@ -1,5 +1,5 @@
-import type { ISODateTime, JsonObject, UUID } from "@jini-ai/core/primitives";
-import type { DomainEvent } from "../ports.js";
+import type { ISODateTime, JsonObject, UUID } from "../../primitives/index.js";
+import type { DomainEvent } from "./ports.js";
 
 /**
  * @file Change-set vocabulary and persistence contract.
