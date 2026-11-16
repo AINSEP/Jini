@@ -29,18 +29,20 @@ test("resolution uses the supplied host only and a broken preset cannot suppress
   registry.register({ preset: { presetId: "working", resolve: input => { expect(input.env).toBe(env); return connection; } } });
   const logger = { warn: ({ message }: { message: string }) => { warnings.push(message); } };
   expect(resolveFederatedMcpPresets({ registry, env, logger })).toEqual([connection]);
-  expect(warnings).toEqual([expect.stringContaining("mcp-federation: preset 'broken' configuration is invalid, continuing without federated tools — Error: invalid fixture")]);
+  expect(warnings).toEqual(["mcp-federation: preset 'broken' configuration is invalid, continuing without federated tools"]);
   expect(resolveFederatedMcpPresets({ registry: createFederatedMcpPresetRegistry({}), env, logger })).toEqual([]);
 });
 
-test('redacts failed preset credentials while preserving sibling federation', () => {
-  const secret = 'ghp_' + 's'.repeat(36);
+test('a failed preset logs fixed words, hands the original error to the logger and keeps its sibling', () => {
+  const failure = new Error('boom api_key=SECRETSECRETSECRETSECRET');
   const registry = createFederatedMcpPresetRegistry({});
-  registry.register({ preset: { presetId: 'broken', resolve: () => { throw new Error(`invalid configuration ${secret}`); } } });
+  registry.register({ preset: { presetId: 'broken', resolve: () => { throw failure; } } });
   registry.register({ preset: { presetId: 'working', resolve: () => connection } });
   const warnings: string[] = [];
-  expect(resolveFederatedMcpPresets({ registry, env: {}, logger: { warn: ({ message }) => { warnings.push(message); } } })).toEqual([connection]);
-  expect(warnings).toHaveLength(1);
-  expect(warnings[0]).toContain('Error: invalid configuration [REDACTED:github_token]');
-  expect(warnings[0]).not.toContain(secret);
+  const errors: unknown[] = [];
+  expect(resolveFederatedMcpPresets({ registry, env: {}, logger: { warn: ({ message }, optional) => { warnings.push(message); errors.push(optional?.error); } } })).toEqual([connection]);
+  expect(warnings).toEqual(["mcp-federation: preset 'broken' configuration is invalid, continuing without federated tools"]);
+  expect(errors).toHaveLength(1);
+  expect(errors[0]).toBe(failure);
+  expect(warnings[0]).not.toMatch(/boom|SECRETSECRET/);
 });

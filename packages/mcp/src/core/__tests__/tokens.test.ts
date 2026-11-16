@@ -284,14 +284,13 @@ describe('isTokenExpired', () => {
   });
 });
 
-it('redacts credentials echoed by malformed token JSON', async () => {
+it('logs malformed token JSON as its class only, never the echoed file text', async () => {
   const dir = tmp();
-  const raw = 'Bearer ' + 'x';
-  writeRaw(dir, raw);
+  writeRaw(dir, 'boom api_key=SECRETSECRETSECRETSECRET');
   const log = vi.spyOn(console, 'error').mockImplementation(() => {});
   try {
     await expect(readTokensFile({ dataDir: dir })).resolves.toEqual({ servers: {} });
-    expect(log).toHaveBeenCalledWith('[mcp-tokens] Corrupted JSON, returning empty:', expect.stringContaining('[REDACTED:'));
-    expect(String(log.mock.calls[0]?.[1])).not.toContain(raw);
+    expect(log).toHaveBeenCalledWith('[mcp-tokens] Corrupted JSON, returning empty:', 'SyntaxError');
+    expect(JSON.stringify(log.mock.calls)).not.toMatch(/boom|SECRETSECRET/);
   } finally { log.mockRestore(); }
 });

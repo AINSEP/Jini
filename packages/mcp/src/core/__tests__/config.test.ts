@@ -484,15 +484,14 @@ it('accepts a legal dot-prefixed project while rejecting a sibling prefix', () =
   expect(isManagedProjectCwd({ projectsDir, cwd: projectsDir + '-sibling/site' }, { resolvePath })).toBe(false);
 });
 
-it('redacts credentials echoed by malformed config JSON', async () => {
+it('logs malformed config JSON as its class only, never the echoed file text', async () => {
   const dir = tmp();
-  const raw = 'Bearer ' + 'x';
-  fs.writeFileSync(path.join(dir, 'mcp-config.json'), raw);
+  fs.writeFileSync(path.join(dir, 'mcp-config.json'), 'boom api_key=SECRETSECRETSECRETSECRET');
   const log = vi.spyOn(console, 'error').mockImplementation(() => {});
   try {
     await expect(readMcpConfig({ dataDir: dir })).resolves.toEqual({ servers: [] });
-    expect(log).toHaveBeenCalledWith('[mcp-config] Corrupted JSON, returning empty:', expect.stringContaining('[REDACTED:'));
-    expect(String(log.mock.calls[0]?.[1])).not.toContain(raw);
+    expect(log).toHaveBeenCalledWith('[mcp-config] Corrupted JSON, returning empty:', 'SyntaxError');
+    expect(JSON.stringify(log.mock.calls)).not.toMatch(/boom|SECRETSECRET/);
   } finally { log.mockRestore(); }
 });
 

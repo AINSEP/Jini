@@ -63,7 +63,23 @@ describe("attachFederatedMcpTools — operator warnings", () => {
 
     expect(result.connectFailures).toEqual([{ connectionId: "down", reason: "ECONNREFUSED" }]);
     expect(result.reports).toEqual([]);
-    expect(messages).toContain("warn:mcp-federation: 'down' failed, continuing without its tools — 'ECONNREFUSED'");
+    expect(messages).toContain("warn:mcp-federation: 'down' failed, continuing without its tools");
+  });
+
+  it("logs a connect failure with fixed words only and hands the original error to the logger's error bag", async () => {
+    const warnings: { message: string; error: unknown }[] = [];
+    const logger = {
+      error: () => undefined,
+      info: () => undefined,
+      warn: ({ message }: { message: string }, optional: { error?: unknown } = {}) => { warnings.push({ message, error: optional.error }); },
+    };
+    const failure = new Error("boom api_key=SECRETSECRETSECRETSECRET");
+    await attachFederatedMcpTools({ registry: fakeRegistry(), deps: DEPS, connect: async () => { throw failure; } }, { connections: [connection("down")], logger });
+
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]?.message).toBe("mcp-federation: 'down' failed, continuing without its tools");
+    expect(warnings[0]?.error).toBe(failure);
+    expect(warnings[0]?.message).not.toMatch(/boom|SECRETSECRET|admission-logging/);
   });
 });
 
@@ -84,7 +100,7 @@ describe("createFederationReloadCoordinator — default attach", () => {
     expect(result.newlyAdmittedConnectionIds).toEqual(["vendor"]);
     expect(result.connectFailures).toEqual([{ connectionId: "down", reason: "handshake refused" }]);
     expect(registry.registered.map((registration) => registration.descriptor.id)).toHaveLength(1);
-    expect(messages).toContain("warn:mcp-federation: 'down' failed, continuing without its tools — Error: handshake refused\n    at connect fixture");
+    expect(messages).toContain("warn:mcp-federation: 'down' failed, continuing without its tools");
     expect([...coordinator.admittedConnectionIds()]).toEqual(["vendor"]);
   });
 });
