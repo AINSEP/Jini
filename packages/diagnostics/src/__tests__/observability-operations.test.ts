@@ -65,7 +65,7 @@ test("otel: reportError outside any tracker is its own ended root span", () => {
   assert.equal(span?.name, "error backup.run");
   assert.equal(span?.status.code, "error");
   assert.equal(span?.attributes["backup.kind"], "full");
-  assert.equal(span?.events[0]?.attributes["exception.type"], "ECONNRESET");
+  assert.equal(span?.events[0]?.attributes["exception.type"], "Error(ECONNRESET)");
 });
 
 test("otel: reportError never throws even when the span sink does", () => {
@@ -161,7 +161,7 @@ test("obs2 #1: a credential-shaped error.code is redacted before OTel and error-
   const port = createPort(CONFIG, exporter);
   port.reportError({ error, context: { operation: "tool.call" } });
   port.trackDbQuery({ system: "sqlite" }).end({ operation: "select", error });
-  const label = "[REDACTED:credential]";
+  const label = "TypeError";
   assert.equal(describeReportedError({ error }).type, label);
   const spans = exporter.getFinishedSpans();
   assert.equal(spans.length, 2);
@@ -173,13 +173,16 @@ test("obs2 #1: a credential-shaped error.code is redacted before OTel and error-
   assert.ok(!JSON.stringify(spans).includes(code));
 });
 
-test("error labels retain safe code precedence, class fallback and the redact-before-cap order", () => {
-  assert.equal(errorType(Object.assign(new TypeError("hidden"), { code: "ECONNRESET" })), "ECONNRESET");
-  assert.equal(errorType(Object.assign(new TypeError("hidden"), { code: "invalid code" })), "TypeError");
+test("error labels are the describer's class and approved code, never the message, name or cause text", () => {
+  assert.equal(errorType({ error: Object.assign(new TypeError("hidden"), { code: "ECONNRESET" }) }), "TypeError(ECONNRESET)");
+  assert.equal(errorType({ error: Object.assign(new TypeError("hidden"), { code: "invalid code" }) }), "TypeError");
   const error = new Error("hidden");
   error.name = `${"x".repeat(60)} ${SECRET}`;
-  assert.equal(errorType(error), `${"x".repeat(60)} [RE`);
-  assert.equal(errorType(null), "object");
+  assert.equal(errorType({ error }), "Error");
+  assert.equal(errorType({ error: null }), "object");
+  const secret = Object.assign(new Error("boom api_key=SECRETSECRETSECRETSECRET"), { code: "SECRETSECRETSECRETSECRET" });
+  assert.equal(errorType({ error: secret }), "Error");
+  assert.equal(errorType({ error: new TypeError("x", { cause: new Error("boom") }) }), "TypeError");
 });
 
 test("review #1: secret-shaped operation attribute strings are redacted before the SDK sees them", () => {

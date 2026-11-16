@@ -50,4 +50,13 @@ describe("provider delivery evidence", () => {
     const monitor = createTelemetryDeliveryMonitor({ warn: () => { throw error; } });
     expect(() => monitor.report({ providerId: "trace", report: { phase: "shutdown", outcome: "failed", host: "collector.test" } })).not.toThrow();
   });
+
+  it("reads each field once, so a name getter cannot pass the check and then store a secret", () => {
+    let reads = 0;
+    const error = { get name() { reads += 1; return reads === 1 ? "TypeError" : "SECRETSECRETSECRETSECRET"; } };
+    const described = describeTelemetryFailure({ error });
+    expect(described).toEqual({ errorClass: "TypeError" });
+    expect(JSON.stringify(described)).not.toContain("SECRETSECRET");
+    expect(reads).toBe(1);
+  });
 });

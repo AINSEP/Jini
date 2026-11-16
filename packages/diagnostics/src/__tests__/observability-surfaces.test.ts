@@ -39,9 +39,9 @@ describe("trackDbQuery", () => {
   port.trackDbQuery({ system: "postgresql" }).end({ operation: "transaction", error: failure });
   const [span] = exporter.getFinishedSpans();
   expect(span!.name).toBe("TRANSACTION");
-  expect(span!.attributes).toEqual({ "db.system.name": "postgresql", "db.operation.name": "TRANSACTION", "error.type": "SQLITE_CONSTRAINT" });
-  expect(span!.status).toEqual({ code: SpanStatusCode.ERROR, description: "SQLITE_CONSTRAINT" });
-  expect(span!.events).toEqual([{ name: "exception", attributes: { "exception.type": "SQLITE_CONSTRAINT" } }]);
+  expect(span!.attributes).toEqual({ "db.system.name": "postgresql", "db.operation.name": "TRANSACTION", "error.type": "Error(SQLITE_CONSTRAINT)" });
+  expect(span!.status).toEqual({ code: SpanStatusCode.ERROR, description: "Error(SQLITE_CONSTRAINT)" });
+  expect(span!.events).toEqual([{ name: "exception", attributes: { "exception.type": "Error(SQLITE_CONSTRAINT)" } }]);
   expect(JSON.stringify(span)).not.toContain("a@b.c");
   expect(JSON.stringify(span)).not.toContain("abc123");
  });

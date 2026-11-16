@@ -200,5 +200,5 @@ it('OTel reports active IDs only when the host supplies them and keeps metrics i
   const legacy = createOtelObservabilityPort(deps, { scope: { active: () => legacySpan, run: ({ fn }) => fn() } });
   expect(legacy.activeTraceIds!()).toBeUndefined();
   const error = new Error('safe'); error.name = '';
-  expect(errorType(error)).toBe('Error');
+  expect(errorType({ error })).toBe('Error');
 });
