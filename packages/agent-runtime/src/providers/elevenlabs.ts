@@ -17,7 +17,7 @@
  */
 import { createHash } from 'node:crypto';
 import type { Clock, HttpClientPort } from '@jini-ai/core/primitives';
-import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
+import { FETCH_TIMEOUT_MS } from '@jini-ai/platform/fetch-with-timeout';
 
 const ELEVENLABS_DEFAULT_BASE_URL = 'https://api.elevenlabs.io';
 const ELEVENLABS_DEFAULT_VOICE_LIMIT = 100;
@@ -141,6 +141,7 @@ function readVoiceCatalog({ payload }: { payload: unknown }, _options = {}): unk
 
 /** Owns transport, time and a bounded voice cache for one host lifecycle.
  * Supply the existing policy-enforcing HTTP client; this factory never constructs a raw transport.
+ * Hosts build one client with their clock and HttpClientPort, keep it for the process, and call clearCache() on shutdown.
  * @throws RangeError for an invalid cache bound; credential/transport/JSON errors propagate from listing.
  * @complexity O(c + v) per lookup, c <= maxCacheEntries and v <= the requested page size.
  */
@@ -203,45 +204,3 @@ export function createElevenLabsVoiceClient(
 }
 
 export type ElevenLabsVoiceClient = ReturnType<typeof createElevenLabsVoiceClient>;
-
-/** Native defaults stay in this compatibility assembly; injected clients use HttpClientPort directly. */
-function createCompatibilityClient({ clock }: { clock: Clock }, requestInit: Pick<RequestInit, 'dispatcher'> = {}): ElevenLabsVoiceClient {
-  return createElevenLabsVoiceClient({ clock, http: {
-    async send({ request }) {
-      const response = await fetchWithTimeout(request.url, {
-        ...requestInit, method: request.method, headers: request.headers,
-      }, { timeoutMs: FETCH_TIMEOUT_MS.QUICK });
-      // Same reads as before the port: json() on success, text() for the error message.
-      return { status: response.status, headers: {},
-        bodyText: response.ok ? JSON.stringify(await response.json()) : await response.text() };
-    },
-  } });
-}
-
-/** One cached client per host clock (and per dispatcher), so each host's clock governs its own cache expiry. */
-const compatibilityClients = new WeakMap<Clock, ElevenLabsVoiceClient>();
-const dispatcherClients = new WeakMap<object, WeakMap<Clock, ElevenLabsVoiceClient>>();
-
-function compatibilityClientFor(
-  { clock }: { clock: Clock },
-  requestInit: Pick<RequestInit, 'dispatcher'> | undefined,
-): ElevenLabsVoiceClient {
-  const dispatcher = requestInit?.dispatcher;
-  const cache = dispatcher && typeof dispatcher === 'object'
-    ? (dispatcherClients.get(dispatcher) ?? dispatcherClients.set(dispatcher, new WeakMap()).get(dispatcher)!)
-    : compatibilityClients;
-  let client = cache.get(clock);
-  if (!client) {
-    client = createCompatibilityClient({ clock }, dispatcher && typeof dispatcher === 'object' ? requestInit : {});
-    cache.set(clock, client);
-  }
-  return client;
-}
-
-/** Compatibility wrapper for existing callers. New hosts retain an injected client and clear it on shutdown. */
-export async function listElevenLabsVoiceOptions(required: ElevenLabsVoiceListRequired & { clock: Clock }, options: {
-  limit?: number;
-  requestInit?: Pick<RequestInit, 'dispatcher'>;
-} = {}): Promise<ElevenLabsVoiceOption[]> {
-  return compatibilityClientFor({ clock: required.clock }, options.requestInit).listVoiceOptions(required, options);
-}
