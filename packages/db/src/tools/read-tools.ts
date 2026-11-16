@@ -17,6 +17,80 @@ export interface DatabaseReadToolPorts {
   dbOps: { getCapabilities(): Promise<{ restorePoint: { costClass: "cheap" | "expensive" | "unavailable"; kind: string } }>; captureRestorePoint(input: { scopeId: string }): Promise<{ artifactRef: string; watermarkAtCapture: number }> };
   clock: Clock; idGen: { newId(): string };
 }
+/** Paged ledger timeline; every filter is an optional string and the limit is capped server-side. */
+function queryTimelineHandler({ ports }: { ports: DatabaseReadToolPorts }): ToolHandler {
+  const { isRecord, optionalString } = ports.readers;
+  return async (ctx) => {
+    if (ctx.input !== undefined && !isRecord(ctx.input)) throw new ToolInputError({ message: "input must be an object" });
+    const input = isRecord(ctx.input) ? ctx.input : {};
+    await ports.requirePermission({ principalId: ctx.principal.id, permission: DATABASE_READ_PERMISSION, entityType: "database-ledger" });
+
+    return getTimeline({
+      ledger: ports.ledger,
+      filter: {
+        kind: optionalString(input, "kind"),
+        outcome: optionalString(input, "outcome"),
+        fromDate: optionalString(input, "fromDate"),
+        toDate: optionalString(input, "toDate"),
+        cursor: optionalString(input, "cursor"),
+        // The catalog promises "server-capped at 200, defaults to 50": cap here, and refuse 0/-1/2.5
+        // as a ToolInputError the model can read instead of getTimeline's redacted plain Error.
+        limit: readToolLimit({ input, max: MAX_TIMELINE_PAGE_SIZE, fallback: DEFAULT_TIMELINE_PAGE_SIZE }),
+      },
+    });
+  };
+}
+
+/** Capture a restore point once the caller holds `backup.create`, then record it in the ledger as a manual one. */
+function createRestorePointHandler({ ports, messages }: { ports: DatabaseReadToolPorts; messages: DbMessages }): ToolHandler {
+  const { isRecord, optionalBoolean } = ports.readers;
+  return async (ctx) => {
+    if (ctx.input !== undefined && !isRecord(ctx.input)) throw new ToolInputError({ message: "input must be an object" });
+    const input = isRecord(ctx.input) ? ctx.input : {};
+    const costAck = optionalBoolean(input, "costAck");
+
+    // `createRestorePoint` (restore-points.ts) has no authorize() call of its own — the real HTTP
+    // route (`Tovu apps/website/src/server/inbound/admin-http/routes/database/restore-points.ts`) authorizes inline before calling it, so
+    // this handler does the identical inline check.
+    await ports.requirePermission({ principalId: ctx.principal.id, permission: "backup.create", entityType: "restore-point" });
+
+    const capabilities = await ports.dbOps.getCapabilities();
+    type Captured = { artifactRef: string; watermarkAtCapture: number };
+    let captured: Captured | undefined;
+
+    ctx.signal.throwIfAborted();
+    const summary = await createDatabaseRestorePoint({
+      costClass: capabilities.restorePoint.costClass,
+      kind: capabilities.restorePoint.kind,
+      costAck: costAck ?? false,
+      capture: async () => {
+        captured = await ports.dbOps.captureRestorePoint({ scopeId: ports.workspaceId });
+        return captured;
+      },
+    }, { messages });
+    // `createDatabaseRestorePoint` resolves only after awaiting `capture()` (restore-points.ts), so
+    // `captured` is always set here; the former `captured?.… ?? null` fallbacks could never apply.
+    const { watermarkAtCapture, artifactRef } = captured as Captured;
+
+    await ports.restorePoints.save({
+      restorePointId: summary.id,
+      idempotencyKey: ports.idGen.newId(),
+      // Always 'manual' — an agent call is never the system's own pre-migration/template-upgrade
+      // auto-snapshot, regardless of what a caller might ask for, so provenance in the ledger can
+      // never be mislabeled (see `features/database/agent-tools.ts`'s own schema comment).
+      trigger: "manual",
+      createdAt: nowIso({ clock: ports.clock }),
+      createdBy: ctx.principal.id,
+      costClass: summary.costClass,
+      kind: summary.kind,
+      watermarkAtCapture,
+      artifactRef,
+    });
+
+    return { restorePoint: summary };
+  };
+}
+
 /**
  * Binds six authorized read/restore-point handlers and their host-facing catalog copy.
  * @param ports Host effects; construction performs no I/O and retains the ports by reference.
@@ -28,25 +102,7 @@ export function createDatabaseReadTools(ports: DatabaseReadToolPorts, _optional:
   const messages = _optional.messages ?? defaultDbMessages;
   const { noInput: requireNoInput, isRecord, optionalString, optionalBoolean } = ports.readers;
   const handlers: Record<string, ToolHandler> = {
-    database_query_timeline: async (ctx) => {
-      if (ctx.input !== undefined && !isRecord(ctx.input)) throw new ToolInputError({ message: "input must be an object" });
-      const input = isRecord(ctx.input) ? ctx.input : {};
-      await ports.requirePermission({ principalId: ctx.principal.id, permission: DATABASE_READ_PERMISSION, entityType: "database-ledger" });
-
-      return getTimeline({
-        ledger: ports.ledger,
-        filter: {
-          kind: optionalString(input, "kind"),
-          outcome: optionalString(input, "outcome"),
-          fromDate: optionalString(input, "fromDate"),
-          toDate: optionalString(input, "toDate"),
-          cursor: optionalString(input, "cursor"),
-          // The catalog promises "server-capped at 200, defaults to 50": cap here, and refuse 0/-1/2.5
-          // as a ToolInputError the model can read instead of getTimeline's redacted plain Error.
-          limit: readToolLimit({ input, max: MAX_TIMELINE_PAGE_SIZE, fallback: DEFAULT_TIMELINE_PAGE_SIZE }),
-        },
-      });
-    },
+    database_query_timeline: queryTimelineHandler({ ports }),
 
     database_list_restore_points: async (ctx) => {
       requireNoInput(ctx.input);
@@ -72,52 +128,7 @@ export function createDatabaseReadTools(ports: DatabaseReadToolPorts, _optional:
       return ports.introspection.listPendingMigrations();
     },
 
-    backup_create_restore_point: async (ctx) => {
-      if (ctx.input !== undefined && !isRecord(ctx.input)) throw new ToolInputError({ message: "input must be an object" });
-      const input = isRecord(ctx.input) ? ctx.input : {};
-      const costAck = optionalBoolean(input, "costAck");
-
-      // `createRestorePoint` (restore-points.ts) has no authorize() call of its own — the real HTTP
-      // route (`Tovu apps/website/src/server/inbound/admin-http/routes/database/restore-points.ts`) authorizes inline before calling it, so
-      // this handler does the identical inline check.
-      await ports.requirePermission({ principalId: ctx.principal.id, permission: "backup.create", entityType: "restore-point" });
-
-      const capabilities = await ports.dbOps.getCapabilities();
-      type Captured = { artifactRef: string; watermarkAtCapture: number };
-      let captured: Captured | undefined;
-
-      ctx.signal.throwIfAborted();
-      const summary = await createDatabaseRestorePoint({
-        costClass: capabilities.restorePoint.costClass,
-        kind: capabilities.restorePoint.kind,
-        costAck: costAck ?? false,
-        capture: async () => {
-          captured = await ports.dbOps.captureRestorePoint({ scopeId: ports.workspaceId });
-          return captured;
-        },
-      }, { messages });
-      // `createDatabaseRestorePoint` resolves only after awaiting `capture()` (restore-points.ts), so
-      // `captured` is always set here; the former `captured?.… ?? null` fallbacks could never apply.
-      const { watermarkAtCapture, artifactRef } = captured as Captured;
-
-      await ports.restorePoints.save({
-        restorePointId: summary.id,
-        idempotencyKey: ports.idGen.newId(),
-        // Always 'manual' — an agent call is never the system's own pre-migration/template-upgrade
-        // auto-snapshot, regardless of what a caller might ask for, so provenance in the ledger can
-        // never be mislabeled (see `features/database/agent-tools.ts`'s own schema comment).
-        trigger: "manual",
-        createdAt: nowIso({ clock: ports.clock }),
-        createdBy: ctx.principal.id,
-        costClass: summary.costClass,
-        kind: summary.kind,
-        watermarkAtCapture,
-        artifactRef,
-      });
-
-      return { restorePoint: summary };
-    },
-
+    backup_create_restore_point: createRestorePointHandler({ ports, messages }),
   };
 
   // Classified from the lifted handlers: five repository reads and one capture + persisted record.
