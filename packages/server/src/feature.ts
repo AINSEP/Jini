@@ -21,6 +21,7 @@
  */
 import type { Pack } from '@jini-ai/core';
 import type { RouteHostContext } from '@jini-ai/core/contracts/server';
+import type { DaemonRouteHost } from '@jini-ai/daemon/http';
 
 import type { JiniKernelBase } from './kernel-base.js';
 
@@ -132,6 +133,12 @@ export interface FeatureBuildContext {
   /** Kernel-owned infrastructure. Features **borrow** from here; they never own or close it. */
   readonly kernel: JiniKernelBase;
   readonly adapter: RouteHostContext;
+  /**
+   * What a daemon route group that returns its routes as data is given: `adapter` plus the timers,
+   * the constant-time compare, the internal-error reporter and the JSON body limit. Built once per
+   * composition, so every group of one kernel shares the same policy.
+   */
+  readonly routeHost: DaemonRouteHost;
   /** The port the listener bound, read on every call because routes are built before the listener binds. */
   readonly resolvedPortRef: { readonly current: number };
   readonly env: NodeJS.ProcessEnv;

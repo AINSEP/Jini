@@ -50,6 +50,7 @@ import {
   requireStrictBearerToken,
 } from '@jini-ai/http-kit';
 import { type RouteHostContext } from '@jini-ai/core/contracts/server';
+import type { DaemonRouteHost } from '@jini-ai/daemon/http';
 
 import { createBuiltInFeatures, type BuiltInFeatureOptions } from './builtin-features.js';
 import {
@@ -63,6 +64,7 @@ import {
 } from './feature.js';
 import { resolveFeatureActivation, type FeatureActivationPlan } from './feature-activation.js';
 import { createJiniKernelBase, type JiniKernelBase, type JiniKernelStorage } from './kernel-base.js';
+import { PRESET_JSON_PARSER_LIMIT_BYTES, presetRouteHost } from './route-host.js';
 
 /** Replaceable server validation wording shared by every composition entry. */
 export const defaultServerMessages = { invalidSecurityMode: 'an explicit supported security mode is required' };
@@ -136,6 +138,13 @@ export interface ComposeJiniKernelConfig {
   readonly security: JiniKernelSecurity;
   /** @default true — set false when the caller's app already parses JSON bodies. */
   readonly installJsonBodyParser?: boolean;
+  /**
+   * The byte limit of the JSON parser in front of the routes. Leave it out when this function
+   * installs the parser (102,400, the parser's own default). A caller that set
+   * `installJsonBodyParser: false` passes the limit of its own parser: route groups size their
+   * own body limit from this number so that they never refuse a body the parser accepted.
+   */
+  readonly jsonBodyParserLimitBytes?: number;
   /**
    * Runs after `api`-phase routes and before `status`-phase ones.
    *
@@ -238,9 +247,10 @@ function prepareComposition(
 }
 
 function composeFeatures(
-  { base, adapter, resolvedPortRef, env, catalog, activation, composed }: {
+  { base, adapter, routeHost, resolvedPortRef, env, catalog, activation, composed }: {
     base: JiniKernelBase;
     adapter: RouteHostContext;
+    routeHost: DaemonRouteHost;
     resolvedPortRef: { readonly current: number };
     env: NodeJS.ProcessEnv;
     catalog: readonly JiniFeature[];
@@ -249,7 +259,7 @@ function composeFeatures(
   },
   _optional: Record<string, never> = {},
 ): void {
-  const featureContext: FeatureBuildContext = { kernel: base, adapter, resolvedPortRef, env };
+  const featureContext: FeatureBuildContext = { kernel: base, adapter, routeHost, resolvedPortRef, env };
   const byId = new Map(catalog.map((feature) => [feature.id, feature]));
   for (const record of activation.active) {
     const feature = byId.get(record.id)!;
@@ -364,7 +374,8 @@ export async function composeJiniKernel(config: ComposeJiniKernelConfig): Promis
 
     callerDaemon = createDaemon({ packs: callerPacks, bindings: boundBindings });
 
-    composeFeatures({ base, adapter: config.adapter, resolvedPortRef: config.resolvedPortRef, env, catalog, activation, composed });
+    const routeHost = presetRouteHost({ context: config.adapter, parserLimitBytes: config.jsonBodyParserLimitBytes ?? PRESET_JSON_PARSER_LIMIT_BYTES });
+    composeFeatures({ base, adapter: config.adapter, routeHost, resolvedPortRef: config.resolvedPortRef, env, catalog, activation, composed });
 
     const featurePacks = composed.map((entry) => entry.pack);
     featureDaemon = createDaemon({ packs: featurePacks, bindings: bindings({}) });
