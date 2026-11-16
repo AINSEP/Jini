@@ -46,6 +46,7 @@
       "./contracts/hosted-mcp": "universal",
       "./contracts/storage": "universal",
       "./contracts/events": "universal",
+      "./contracts/capabilities": "universal",
       "./net": "universal",
       "./contracts/blob": "universal",
       "./contracts/runtime": "universal",
@@ -270,6 +271,11 @@
       "types": "./dist/contracts/events.d.ts",
       "import": "./dist/contracts/events.js",
       "default": "./dist/contracts/events.js"
+    },
+    "./contracts/capabilities": {
+      "types": "./dist/contracts/capabilities.d.ts",
+      "import": "./dist/contracts/capabilities.js",
+      "default": "./dist/contracts/capabilities.js"
     },
     "./net": {
       "types": "./dist/net/index.d.ts",

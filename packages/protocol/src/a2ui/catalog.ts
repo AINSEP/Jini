@@ -71,17 +71,24 @@ export type ComponentKind =
   | 'divider'
   | 'input';
 
+/** What a catalog component validates its wire props with. Any zod schema satisfies it structurally; protocol's
+ * callers never need zod's types. `issues[0]` is read by the interpreter, so a failure carries at least one issue. */
+export interface A2uiPropsValidator {
+  safeParse(value: unknown):
+    | { readonly success: true; readonly data: unknown }
+    | { readonly success: false; readonly error: { readonly issues: readonly { readonly path: readonly PropertyKey[]; readonly message: string }[] } };
+}
+
 export interface ComponentSpec {
   readonly kind: ComponentKind;
   /**
    * Validates everything on the wire component object except `id`/`component` (already checked
-   * generically by `WireComponentSchema`). Typed as `z.ZodTypeAny` rather than
-   * `z.ZodType<Record<string, unknown>>` deliberately — each concrete schema's *input* type is
-   * narrower than a bare record (known keys, some required), and zod's `parse`/`safeParse` are
-   * effectively contravariant in that position; callers (`interpreter.ts`) treat `.safeParse(...)`'s
-   * `data` as `Record<string, unknown>` via an explicit cast instead of fighting that variance here.
+   * generically by `WireComponentSchema`). Any validator with the `A2uiPropsValidator` shape fits (zod in
+   * practice). It is not typed as a zod schema: each concrete schema's *input* type is narrower than a bare
+   * record (known keys, some required), and callers (`interpreter.ts`) treat `.safeParse(...)`'s `data` as
+   * `Record<string, unknown>` via an explicit cast instead of fighting that variance here.
    */
-  readonly propsSchema: z.ZodTypeAny;
+  readonly propsSchema: A2uiPropsValidator;
 }
 
 export interface Catalog {

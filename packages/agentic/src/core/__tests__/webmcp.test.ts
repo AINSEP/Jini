@@ -7,8 +7,8 @@ import {
   toWebMcpTool,
   toWebMcpTools,
   WebMcpConfirmationRequiredError,
-  type CapabilityDef,
 } from '../index.js';
+import type { CapabilityDef } from '@jini-ai/core/contracts/capabilities';
 
 // PAGE_CAPABILITIES alone already has multiple entries, which is all "projects a whole manifest
 // in order" below needs — this package ships no product-specific manifest of its own to combine

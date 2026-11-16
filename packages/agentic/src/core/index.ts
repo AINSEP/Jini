@@ -2,7 +2,7 @@
  * @jini-ai/agentic — the framework-free half of agent control.
  *
  * Everything an outside caller needs to drive a Jini frontend, with no React, no DOM, and no
- * transport: the capability vocabulary, the two shipped manifests, the `data-agent-*` markup
+ * transport: the two shipped manifests, the `data-agent-*` markup
  * convention (from `@jini-ai/core/agent-handles`), and the refusals that must hold everywhere.
  *
  * Framework bindings (`@jini-ai/chat-react`, via `@jini-ai/agentic/dom`'s `createDomPageDriver`, and
@@ -16,16 +16,6 @@
  * OWN capabilities (`@jini-ai/chat-core`'s `chat.*` verbs stay in chat-core, which depends on this
  * package for the vocabulary rather than the other way around).
  */
-export {
-  findCapability,
-  findCapabilityInputError,
-  availableCapabilities,
-  type CapabilityDef,
-  type CapabilityInputSchema,
-  type CapabilityRisk,
-  type CapabilitySurface,
-} from './capability.js';
-
 export type { PageDriver, FindElementsFilter, PageSummary } from './page-driver.js';
 
 export {
@@ -57,7 +47,7 @@ export {
 /**
  * Protocol adapters, named for what they derive from.
  *
- * Each is a ONE-WAY projection out of the neutral core: they import `capability.js`, and nothing
+ * Each is a ONE-WAY projection out of the neutral core: they import `@jini-ai/core/contracts/capabilities`, and nothing
  * imports back. That direction is the whole point — if the core ever imported an adapter, the
  * protocol we happened to build against would leak into the vocabulary and the layer would stop
  * being neutral. None of them opens a connection or touches a browser global; a framework

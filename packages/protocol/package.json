@@ -14,7 +14,8 @@
     "runtime": "universal",
     "entries": {
       ".": "universal",
-      "./mcp-ui": "universal"
+      "./mcp-ui": "universal",
+      "./a2ui": "universal"
     }
   },
   "type": "module",
@@ -31,6 +32,11 @@
       "types": "./dist/mcp-ui.d.ts",
       "import": "./dist/mcp-ui.js",
       "default": "./dist/mcp-ui.js"
+    },
+    "./a2ui": {
+      "types": "./dist/a2ui/index.d.ts",
+      "import": "./dist/a2ui/index.js",
+      "default": "./dist/a2ui/index.js"
     }
   },
   "files": [

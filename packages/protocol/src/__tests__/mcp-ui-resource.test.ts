@@ -13,7 +13,7 @@ import {
   readActionPlan,
   readExpiresAt,
   readPreferredFrameSize,
-} from '../resource.js';
+} from '../mcp-ui-resource.js';
 
 describe('createUIResource', () => {
   it('builds an EmbeddedResource with the standardized MCP Apps MIME type', () => {
