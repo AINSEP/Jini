@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
-import { describeErrorForLog, describeErrorParts, LOGGABLE_ERROR_CODES, registerLoggableErrors } from '../model-facing-tool-errors.js';
+import { describeErrorForLog, describeErrorParts, LOGGABLE_ERROR_CODES, createErrorDescriber } from '../model-facing-tool-errors.js';
 import { ToolInputError } from '../tool-input-errors.js';
 
 class SqliteError extends Error {
@@ -107,18 +107,33 @@ test('reads code, name and cause at most once each', () => {
   assert.equal(describeErrorForLog({ err: flipping }), 'Error');
 });
 
-// Packages extend the approved set by registration (their own constant codes and classes); there
-// is no pattern a stranger's value can match.
-test('a package registers its own codes and classes; malformed registrations are refused', () => {
+// Packages extend the approved set by building their own describer (their own constant codes and
+// classes); there is no pattern a stranger's value can match, and no shared state to mutate.
+test('a package builds its own describer; malformed vocabularies are refused', () => {
   class PluginRegistryError extends Error {}
   class PluginRegistryConflictError extends PluginRegistryError {}
-  registerLoggableErrors({ codes: ['PLUGIN_TEST_CONFLICT'], classes: [{ error: PluginRegistryError, label: 'PluginRegistryError' }] });
-  registerLoggableErrors({ classes: [{ error: PluginRegistryConflictError, label: 'PluginRegistryConflictError' }] });
-  assert.equal(describeErrorForLog({ err: Object.assign(new PluginRegistryError('x'), { code: 'PLUGIN_TEST_CONFLICT' }) }), 'PluginRegistryError(PLUGIN_TEST_CONFLICT)');
-  assert.equal(describeErrorForLog({ err: new PluginRegistryConflictError('x') }), 'PluginRegistryConflictError');
-  assert.ok(LOGGABLE_ERROR_CODES.has('PLUGIN_TEST_CONFLICT'));
-  assert.throws(() => registerLoggableErrors({ codes: ['free text'] }), TypeError);
-  assert.throws(() => registerLoggableErrors({ classes: [{ error: PluginRegistryError, label: 'has space' }] }), TypeError);
+  const describer = createErrorDescriber({
+    codes: ['PLUGIN_TEST_CONFLICT'],
+    classes: [{ error: PluginRegistryError, label: 'PluginRegistryError' }, { error: PluginRegistryConflictError, label: 'PluginRegistryConflictError' }],
+  });
+  assert.equal(describer.describeErrorForLog({ err: Object.assign(new PluginRegistryError('x'), { code: 'PLUGIN_TEST_CONFLICT' }) }), 'PluginRegistryError(PLUGIN_TEST_CONFLICT)');
+  assert.equal(describer.describeErrorForLog({ err: new PluginRegistryConflictError('x') }), 'PluginRegistryConflictError');
+  assert.deepEqual(describer.describeErrorParts({ err: Object.assign(new PluginRegistryError('x'), { code: 'PLUGIN_TEST_CONFLICT' }) }), { label: 'PluginRegistryError', code: 'PLUGIN_TEST_CONFLICT' });
+  assert.equal(describer.describeErrorForLog({ err: Object.assign(new TypeError('x'), { code: 'ECONNREFUSED' }) }), 'TypeError(ECONNREFUSED)');
+  assert.throws(() => createErrorDescriber({ codes: ['free text'] }), TypeError);
+  assert.throws(() => createErrorDescriber({ classes: [{ error: PluginRegistryError, label: 'has space' }] }), TypeError);
+});
+
+test('describers are isolated: a code or class added to one is not loggable through another or the built-ins', () => {
+  class OwnError extends Error {}
+  const own = createErrorDescriber({ codes: ['ISOLATED_CODE'], classes: [{ error: OwnError, label: 'OwnError' }] });
+  const other = createErrorDescriber({});
+  const err = Object.assign(new OwnError('x'), { code: 'ISOLATED_CODE' });
+  assert.equal(own.describeErrorForLog({ err }), 'OwnError(ISOLATED_CODE)');
+  assert.equal(other.describeErrorForLog({ err }), 'Error');
+  assert.equal(describeErrorForLog({ err }), 'Error');
+  assert.equal(describeErrorParts({ err }).code, undefined);
+  assert.equal(LOGGABLE_ERROR_CODES.has('ISOLATED_CODE'), false);
 });
 
 // Telemetry needs one label, not a log line: a reader beats every caller parsing `Label(CODE) cause=…`.

@@ -9,12 +9,12 @@ export interface OtelAdapterOptions { scope?: SpanScopePort; }
 type Attributes = Record<string, string | number>;
 
 /** A low-cardinality error label: an approved code (`ECONNREFUSED`, `SQLITE_CONSTRAINT`), else the
- * fixed class label (`TypeError`, a label a package registered), both from core's `describeErrorParts`.
+ * fixed class label (`TypeError`, a label from a describer the package built), both from core's `describeErrorParts`.
  * This is the shape hosts' dashboards and alerts match on (review jini-batch1 M2: `Error(ECONNREFUSED)`
  * silently broke them). Messages are never exported: they carry SQL fragments, hostnames, emails, even
  * credentials. Both `error.code` and `Error.name` are writable secret channels (review 2026-10-25 #2),
  * so an unapproved code or an unregistered class name is never printed (it reads as the class label,
- * often `Error`; a package names its own through `registerLoggableErrors`). The label is still
+ * often `Error`; a package names its own through core's `createErrorDescriber`). The label is still
  * redacted and capped to {@link MAX_ERROR_TYPE} (redact first: a cut could leave a secret prefix too
  * short to match). */
 export function errorType({ error }: { error: unknown }, _optional: Record<string, never> = {}): string {
