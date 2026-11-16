@@ -50,9 +50,10 @@ import {
 } from './models.js';
 import { buildAcpSessionNewParams, type AcpMcpServerInput } from './session-params.js';
 import {
-  buildAcpEffects, buildAcpController, createAcpRun, failRun, replyPermission, resetStageTimer,
+  buildAcpEffects, buildAcpController, createAcpRun, failRun, resetStageTimer,
   sendInitialize, wireAcpProcessListeners, type AcpRun,
 } from './session-run.js';
+import { replyPermission } from './session-permission.js';
 import { noopAccountFailureClassifier, type AccountFailureClassifier } from './account-failure.js';
 
 /** One option offered by an ACP agent for a pending tool permission request. */
