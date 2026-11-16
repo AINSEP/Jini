@@ -62,7 +62,7 @@ describe('createMemoryWidgetsApi regions', () => {
 
 describe('widget regions controller', () => {
   it('describes a plain load failure with its own message', async () => {
-    const api = { ...createMemoryWidgetsApi({}), listWidgetRegions: () => Promise.reject(new Error('regions offline')) };
+    const api = { ...createMemoryWidgetsApi({}), listWidgetRegions: () => Promise.reject(new AdminApiError({ message: 'regions offline', status: 503 })) };
     const controller = widgets.createWidgetRegionsController({ api });
     await controller.load({});
     expect(controller.getSnapshot().error).toBe('regions offline');
@@ -79,7 +79,7 @@ describe('widget regions controller', () => {
   });
 
   it('describes a plain bind failure with its own message', async () => {
-    const api = { ...createMemoryWidgetsApi({}), bindWidgetRegion: () => Promise.reject(new Error('bind transport down')) };
+    const api = { ...createMemoryWidgetsApi({}), bindWidgetRegion: () => Promise.reject(new AdminApiError({ message: 'bind transport down', status: 503 })) };
     const controller = widgets.createWidgetRegionsController({ api });
     controller.setNewRegionKey({ value: 'header' });
     await controller.bind({});

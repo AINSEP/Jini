@@ -6,7 +6,7 @@ import type { AdminIdentityUser } from "../../models.js";
  *  `confirmResetPassword`/the server. The inline message below is driven by the same `mismatch`
  *  value, so it is already visible by the time a blocked click can happen; there is nothing
  *  further to surface here. */
-export function createResetPasswordConfirmHandler({ mismatch, confirmResetPassword }: { mismatch: boolean; confirmResetPassword: () => Promise<void> }, _options = {}) {
+export function createResetPasswordConfirmHandler({ mismatch, confirmResetPassword }: { mismatch: boolean; confirmResetPassword: () => Promise<void> }, _options: Record<string, never> = {}) {
   return () => {
     if (mismatch) return;
     void confirmResetPassword();

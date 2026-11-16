@@ -27,7 +27,7 @@ import type { Clock, Result } from "@jini-ai/core/primitives";
  * self-enforce fails rather than silently inheriting the pass-through.
  *
  * `collections_content_type_list` is the exception: `listContentTypes` (`list.ts`) is a pure
- * pass-through read with no `authorize()` call of its own — exactly like `Tovu apps/website/src/server/inbound/admin-http/routes/content-types/list.ts`,
+ * pass-through read with no `authorize()` call of its own — exactly like the host app's `src/server/inbound/admin-http/routes/content-types/list.ts`,
  * which checks `admin.collections.read` in the route BEFORE calling it. Its handler
  * below does the identical explicit `requireToolPermission` check, in the route's place, the same
  * pattern `comments/tool-registrations.ts` uses for `comments_list_moderation_queue`.

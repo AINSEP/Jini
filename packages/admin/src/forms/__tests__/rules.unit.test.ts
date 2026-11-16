@@ -133,7 +133,7 @@ describe("describeTrashError", () => {
 
   it("falls through to the fallback for a non-ApiError failure (e.g. a network error)", () => {
     const result = describeTrashError(new Error("network down"), "failed to delete form", versionChangedMessage);
-    expect(result).toEqual({ alreadyGone: false, message: "network down" });
+    expect(result).toEqual({ alreadyGone: false, message: "failed to delete form" });
   });
 });
 
@@ -150,7 +150,7 @@ describe("formsListError", () => {
 
   it("a delete's own version-changed failure outranks the toggle and list errors", () => {
     const message = formsListError({
-      toggleError: new Error("toggle failed"),
+      toggleError: new ApiError("toggle failed", 500),
       deleteError: new ApiError("changed", 409, "TRASH_VERSION_CHANGED"),
       listError: new Error("list failed"),
       hasForms: true,
@@ -161,7 +161,7 @@ describe("formsListError", () => {
 
   it("a delete's 404 (already gone) contributes no banner, so the toggle error surfaces instead", () => {
     const message = formsListError({
-      toggleError: new Error("toggle failed"),
+      toggleError: new ApiError("toggle failed", 500),
       deleteError: new ApiError("gone", 404, "NOT_FOUND"),
       listError: null,
       hasForms: true,
@@ -171,7 +171,7 @@ describe("formsListError", () => {
   });
 
   it("falls back to the list error only once forms have never loaded", () => {
-    const message = formsListError({ toggleError: null, deleteError: null, listError: new Error("boom"), hasForms: false, ...copy });
+    const message = formsListError({ toggleError: null, deleteError: null, listError: new ApiError("boom", 500), hasForms: false, ...copy });
     expect(message).toBe("boom");
   });
 

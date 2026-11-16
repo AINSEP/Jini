@@ -25,7 +25,7 @@ function acmeHost(steps: Step[]) {
     projections,
   } as unknown as PluginHostDeps<never>['mcp'];
   const deps: PluginHostDeps<never> = {
-    workspaceId: 'acme-ws', agentPluginLayout: { forWorkspace: (id: string) => ({ root: `/srv/acme/${id}` }) }, clock: { now: () => new Date(0) } as never,
+    workspaceId: 'acme-ws', agentPluginLayout: { forWorkspace: ({ workspaceId }: { workspaceId: string }) => ({ root: `/srv/acme/${workspaceId}` }) }, clock: { now: () => new Date(0) } as never,
     namespace: 'acme',
     discoverPlugins: async () => [], getActivation: async () => null,
     lifecycle: {

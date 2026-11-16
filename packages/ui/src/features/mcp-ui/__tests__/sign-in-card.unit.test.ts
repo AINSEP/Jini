@@ -75,10 +75,12 @@ describe('neutral sign-in card', () => {
   });
   it('closes immediately on parent abort and cleans up a failed connection', async () => {
     const f = fixture();
-    await expect(waitAtSignInCard({ ...f.required, connect: async ({ signal, showSignIn }) => {
+    // The abort reason only exists once `connect` has aborted, so read it after the rejection settles.
+    const rejection = await waitAtSignInCard({ ...f.required, connect: async ({ signal, showSignIn }) => {
       await showSignIn({ signInUrl: 'https://atlas.test/login' }); f.controller.abort();
       expect(f.exchange.close).toHaveBeenCalled(); signal.throwIfAborted(); return { status: 'connected' };
-    } }, { emitSurface: async () => {} })).rejects.toThrow(f.controller.signal.reason.message);
+    } }, { emitSurface: async () => {} }).catch((error: unknown) => error);
+    expect(rejection).toBe(f.controller.signal.reason);
     expect(f.ctx.signal.aborted).toBe(true);
   });
   it('never starts authorization on a pre-aborted run', async () => {

@@ -68,7 +68,7 @@ describe("useCommentQueue", () => {
   });
 
   it.each([
-    [new Error("network down"), "network down"],
+    [new ApiError("network down", 500), "network down"],
     [new ApiError("", 500), "failed to load the moderation queue"],
   ])("exposes an initial queue load failure: %s", async (listError, message) => {
     const port = createFakeCommentQueuePort({ listError });
@@ -123,7 +123,7 @@ describe("useCommentQueue", () => {
   });
 
   it("sets the row's own error (not a global one) when the injected port's moderate call rejects", async () => {
-    const port = createFakeCommentQueuePort({ items: [COMMENT], moderateError: new Error("stale version") });
+    const port = createFakeCommentQueuePort({ items: [COMMENT], moderateError: new ApiError("stale version", 403) });
     const { result } = renderHook(() => useCommentQueue({ port, locale: "en" }), { wrapper });
     await waitFor(() => expect(result.current.items).not.toBeNull());
 
@@ -154,7 +154,7 @@ describe("useCommentQueue", () => {
   });
 
   it.each([
-    [new Error("purge denied"), "purge denied"],
+    [new ApiError("purge denied", 403), "purge denied"],
     [new ApiError("", 500), "Failed to purge comment."],
   ])("closes the purge dialog and shows the row error on failure: %s", async (purgeError, message) => {
     const port = createFakeCommentQueuePort({ items: [COMMENT], purgeError });
@@ -402,7 +402,7 @@ describe("useCommentQueue — Load more paging (2026-09-20)", () => {
     await waitFor(() => expect(cursorCalls).toHaveLength(1));
     await act(async () => {
       assert.isDefined(cursorCalls[0]);
-      cursorCalls[0].reject(new Error("network down"));
+      cursorCalls[0].reject(new ApiError("network down", 500));
       await Promise.resolve();
     });
     await waitFor(() => expect(result.current.error).toBe("network down"));

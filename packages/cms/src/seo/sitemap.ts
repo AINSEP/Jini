@@ -270,7 +270,7 @@ export function createSitemapService(required: { deps: SeoSitemapDeps }, _option
    * REQ-10 — the 3 outbox-event subscription handlers (idempotent per
    * ADR-009): any `entry.published`/`entry.updated`/`entry.unpublished`
    * delivery invalidates that workspace's sitemap cache entry. Wired to
-   * `bus.subscribe` at `Tovu apps/website/src/server/runtime/composition/app.ts` boot (T038).
+   * `bus.subscribe` at the host app's `src/server/runtime/composition/app.ts` boot (T038).
    */
   function createSeoEventSubscriptions(_required: Record<string, never>, _optional: Record<string, never> = {}): SeoEventSubscriptions {
     const handler = async (event: { workspaceId: UUID }, _optional: Record<string, never> = {}) => {

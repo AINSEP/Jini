@@ -232,6 +232,6 @@ export function registerToolExecutionRoutes(
   const parser = express.json({ limit: maxBodyBytes });
   const runGate = authorizeRun ? [authorizeRun] : [];
   app.post(TOOL_EXECUTIONS_ROUTE_PATH, gate, parser, ...runGate, executionHandler({ executor }, runWithContext === undefined ? {} : { runWithContext }), bodyParserFailure);
-  app.get(TOOL_CATALOG_ROUTE_PATH, gate, ...runGate, catalogHandler({ listToolsFor }, { onInternalError }));
+  app.get(TOOL_CATALOG_ROUTE_PATH, gate, ...runGate, catalogHandler({ listToolsFor }, onInternalError === undefined ? {} : { onInternalError }));
 }
 

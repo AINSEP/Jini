@@ -20,6 +20,6 @@ it('the shim has no driver dependencies or runtime references to the removed pac
  expect(manifest.name).toBe('@jini-ai/sqlite');
  // Owner decision (2026-11-01, #8): freeze the shim API, publish its version with the Jini lockstep.
  expect(manifest.version).toBe(JSON.parse(readFileSync(new URL('../../../core/package.json', import.meta.url), 'utf8')).version);
- expect(Object.keys(manifest.dependencies).sort()).toEqual(['@jini-ai/chat','@jini-ai/daemon','@jini-ai/db','@jini-ai/registry']);
+ expect(Object.keys(manifest.dependencies).sort()).toEqual(['@jini-ai/chat','@jini-ai/core','@jini-ai/daemon','@jini-ai/db','@jini-ai/registry']);
  expect(readFileSync(new URL('../index.ts',import.meta.url),'utf8')).not.toContain('sqlite-chat');
 });

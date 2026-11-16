@@ -224,7 +224,7 @@ export const WIDGET_TYPE_REGISTRATIONS = {
  * The total lookup accessor — pure, O(1), no I/O. Only valid for a `typeKey` already narrowed to
  * `WidgetTypeKey` by the type system itself (a literal, or a value whose type was proven, not
  * asserted). For a raw/untrusted string that merely claims to be a `WidgetTypeKey` (an HTTP body
- * field cast at the boundary, e.g. `Tovu apps/website/src/server/inbound/admin-http/routes/widgets/create.ts`, or a value decoded out
+ * field cast at the boundary, e.g. the host app's `src/server/inbound/admin-http/routes/widgets/create.ts`, or a value decoded out
  * of stored JSON via `entry-payload.ts`'s `parseWidgetInstancePayload`), `undefined` is genuinely
  * reachable — use `findWidgetTypeRegistration` instead; do not smuggle an unverified string past
  * this signature with a cast.

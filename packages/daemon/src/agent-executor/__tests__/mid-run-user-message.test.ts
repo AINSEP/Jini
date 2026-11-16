@@ -166,7 +166,7 @@ describe('AgentExecutor.sendUserMessage — a message sent during a run reaches 
       expect(h.onCleanupFailure).toHaveBeenCalledTimes(1);
       expect(h.onCleanupFailure).toHaveBeenCalledWith({ runId, phase: 'tool-cancellation', pid: 4242, error });
       expect(warning).toHaveBeenCalledWith(
-        expect.stringContaining('output observer unavailable'), 'event replay unavailable',
+        expect.stringContaining('output observer unavailable'), 'Error', // the logger prints the error class only, never its message
       );
       const errors: RunProtocolEvent[] = [];
       const subscription = await h.lifecycle.stream({ runId, onEvent: event => {

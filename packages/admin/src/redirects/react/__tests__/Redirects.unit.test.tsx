@@ -1,4 +1,5 @@
 import { render, screen, waitFor, within } from "../../../__tests__/fetch-query-support.js";
+import { AdminApiError } from "../../../core/transport/errors.js";
 import userEvent from "@testing-library/user-event";
 import { assert, afterEach, describe, expect, it, vi } from "vitest";
 
@@ -40,7 +41,7 @@ describe("Redirects — create form", () => {
     const user = userEvent.setup();
     const port = {
       ...createFakeRedirectsPort(),
-      createRedirect: vi.fn().mockRejectedValue(new Error("fromPattern '/old-path-x' conflicts with an existing rule")),
+      createRedirect: vi.fn().mockRejectedValue(new AdminApiError({ status: 409, message: "fromPattern '/old-path-x' conflicts with an existing rule" })),
     };
     render(
       <FetchQueryProvider>

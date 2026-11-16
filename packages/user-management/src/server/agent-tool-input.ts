@@ -25,9 +25,9 @@
  */
 
 /** The keywords this interpreter implements. Anything else in a schema is a hard error, never ignored. */
-const OBJECT_KEYWORDS = new Set(["type", "properties", "required", "additionalProperties", "description"]);
-const STRING_KEYWORDS = new Set(["type", "minLength", "description"]);
-const INTEGER_KEYWORDS = new Set(["type", "minimum", "description"]);
+const OBJECT_KEYWORDS: ReadonlySet<string> = new Set(["type", "properties", "required", "additionalProperties", "description"]);
+const STRING_KEYWORDS: ReadonlySet<string> = new Set(["type", "minLength", "description"]);
+const INTEGER_KEYWORDS: ReadonlySet<string> = new Set(["type", "minimum", "description"]);
 
 /** Strings stay in `value` (its shape predates integers); integer properties come back in the
  *  additive `integers` map, so existing readers of `value` keep their `string` typing. */

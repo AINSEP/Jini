@@ -436,21 +436,21 @@ describe('routineRunsListRoute.parse', () => {
   it('defaults limit to 20 when absent', () => {
     expect(routineRunsListRoute.parse({ body: {}, query: {}, params: { id: 'routine-1' } })).toEqual({
       ok: true,
-      value: { id: 'routine-1', limit: 20 },
+      value: { id: 'routine-1', limit: 20, cursor: null },
     });
   });
 
   it('honors a valid limit within range', () => {
     expect(routineRunsListRoute.parse({ body: {}, query: { limit: '50' }, params: { id: 'routine-1' } })).toEqual({
       ok: true,
-      value: { id: 'routine-1', limit: 50 },
+      value: { id: 'routine-1', limit: 50, cursor: null },
     });
   });
 
   it('clamps a limit above 100 down to 100', () => {
     expect(routineRunsListRoute.parse({ body: {}, query: { limit: '500' }, params: { id: 'routine-1' } })).toEqual({
       ok: true,
-      value: { id: 'routine-1', limit: 100 },
+      value: { id: 'routine-1', limit: 100, cursor: null },
     });
   });
 
@@ -458,24 +458,24 @@ describe('routineRunsListRoute.parse', () => {
     // Zero and NaN retain the historical fallback; negatives now use the same documented default.
     expect(routineRunsListRoute.parse({ body: {}, query: { limit: '0' }, params: { id: 'routine-1' } })).toEqual({
       ok: true,
-      value: { id: 'routine-1', limit: 20 },
+      value: { id: 'routine-1', limit: 20, cursor: null },
     });
     expect(routineRunsListRoute.parse({ body: {}, query: { limit: 'garbage' }, params: { id: 'routine-1' } })).toEqual(
-      { ok: true, value: { id: 'routine-1', limit: 20 } },
+      { ok: true, value: { id: 'routine-1', limit: 20, cursor: null } },
     );
   });
 
   it.each([{ limit: '-5' }, { limit: '-0.5' }, { limit: ['-5', '99'] }])('falls back to 20 for a negative limit ($limit)', ({ limit }) => {
     expect(routineRunsListRoute.parse({ body: {}, query: { limit }, params: { id: 'routine-1' } })).toEqual({
       ok: true,
-      value: { id: 'routine-1', limit: 20 },
+      value: { id: 'routine-1', limit: 20, cursor: null },
     });
   });
 
   it('takes the first element when limit is a repeated query param (array)', () => {
     expect(
       routineRunsListRoute.parse({ body: {}, query: { limit: ['5', '99'] }, params: { id: 'routine-1' } }),
-    ).toEqual({ ok: true, value: { id: 'routine-1', limit: 5 } });
+    ).toEqual({ ok: true, value: { id: 'routine-1', limit: 5, cursor: null } });
   });
 });
 
@@ -785,7 +785,7 @@ describe('routineRunNowRoute.handle', () => {
 describe('routineRunsListRoute.handle', () => {
   it('returns NOT_FOUND for an unknown id', async () => {
     const deps = makeDeps();
-    const result = await routineRunsListRoute.handle({ input: { id: 'missing', limit: 20 }, deps });
+    const result = await routineRunsListRoute.handle({ input: { id: 'missing', limit: 20, cursor: null }, deps });
     expect(result).toEqual({ ok: false, error: { code: 'NOT_FOUND', message: 'routine not found' } });
   });
 
@@ -807,7 +807,7 @@ describe('routineRunsListRoute.handle', () => {
       errorCode: null,
     } });
     const deps = makeDeps({ store });
-    const result = await routineRunsListRoute.handle({ input: { id: routine.id, limit: 20 }, deps });
+    const result = await routineRunsListRoute.handle({ input: { id: routine.id, limit: 20, cursor: null }, deps });
     expect(result.ok).toBe(true);
     if (result.ok) expect(result.value.runs).toHaveLength(1);
   });

@@ -1,4 +1,5 @@
 import { act, renderHook, waitFor } from "../../../__tests__/fetch-query-support.js";
+import { AdminApiError } from '../../../core/transport/errors.js';
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { FetchQueryProvider } from "@jini-ai/ui/fetch-query";
@@ -183,7 +184,7 @@ it('discovers current choices without replacing an edited draft when discovery f
   await waitFor(() => expect(result.current.form).not.toBeNull());
   const selection = { id: 'fourth', config: { destination: 'kept' } };
   act(() => { result.current.setName('Unsaved name'); result.current.setProvider(selection); });
-  await act(async () => { rejectDiscovery(new Error('offline')); });
+  await act(async () => { rejectDiscovery(new AdminApiError({ message: 'offline', status: 503 })); });
   await waitFor(() => expect(result.current.providersError).toBe('Could not load form providers: offline'));
   expect(result.current.name).toBe('Unsaved name');
   expect(result.current.provider).toEqual(selection);

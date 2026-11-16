@@ -25,8 +25,8 @@ it('publishes every isolated extraction entry with its browser or universal clas
     '@radix-ui/react-radio-group': '^1.4.7',
     '@radix-ui/react-select': '^2.3.7',
     '@radix-ui/react-slot': '^1.3.3',
-    '@jini-ai/agent-runtime': '^0.6.10',
-    '@jini-ai/ui': '^0.6.10',
+    '@jini-ai/agent-runtime': '^0.7.0',
+    '@jini-ai/ui': '^0.7.0',
   };
   expect(manifest.peerDependencies).toEqual(expectedPeers);
   expect(manifest.peerDependenciesMeta).toEqual(

@@ -209,7 +209,7 @@ describe('useChatPaneAgentControl — chat.send_message goes through the pane gu
 
     await expect(
       context.tools.get('chat.send_message')?.execute({ prompt: 'second, mid-stream' }),
-    ).rejects.toThrow(/streaming/);
+    ).rejects.toThrow(/still running/);
     expect(transport.calls).toHaveLength(1);
   });
 

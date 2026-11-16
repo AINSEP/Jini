@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { AdminApiError } from '../../../core/transport/errors.js';
 import { act, renderHook, waitFor } from "../../../__tests__/fetch-query-support.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FetchQueryProvider } from "@jini-ai/ui/fetch-query";
@@ -107,7 +108,7 @@ describe("useFormEditor status and embed", () => {
     await waitFor(() => expect(result.current.editor.form?.status).toBe("disabled"));
     await act(async () => { await result.current.editor.handleStatusToggle(); });
     expect(result.current.editor.form?.status).toBe("active");
-    api.updateFormDefinition = async () => { throw new Error("locked"); };
+    api.updateFormDefinition = async () => { throw new AdminApiError({ message: "locked", status: 423 }); };
     await act(async () => { await result.current.editor.handleStatusToggle(); });
     expect(result.current.editor.form?.status).toBe("active");
     expect(result.current.editor.error).toBe("locked");

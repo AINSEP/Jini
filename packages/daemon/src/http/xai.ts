@@ -199,7 +199,7 @@ export interface XaiHttpDeps {
   /** Deadline for one search request *and* its response body, in milliseconds. Defaults to {@link DEFAULT_SEARCH_TIMEOUT_MS}. */
   readonly searchTimeoutMs?: number;
   /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). It receives the original error: upstream bodies can carry secrets, so the host redacts under its own policy. Without it the default line prints the class only. */
-  readonly onInternalError?: (context: XaiInternalErrorContext) => void;
+  readonly onInternalError?: ((context: XaiInternalErrorContext) => void) | undefined;
 }
 
 interface ResolvedXaiHttpDeps {

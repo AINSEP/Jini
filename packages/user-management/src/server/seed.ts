@@ -15,10 +15,10 @@ import { IdentityNotFoundError, IdentityValidationError, type PrincipalRecord, t
  * `viewer`) each 1:1 with a built-in policy; and the initial `owner` user.
  *
  * How it relates to the project:
- * - Called once by each composition root (`Tovu apps/website/src/server/runtime/composition/app.ts` in-memory,
+ * - Called once by each composition root (the host app's `src/server/runtime/composition/app.ts` in-memory,
  * `server/deps.ts` SQLite-content-with-in-memory-identity) before the
  * server accepts requests. `RouteDeps.identityReady` is this call's
- * promise — auth-adjacent middleware awaits it (see `Tovu apps/website/src/server/inbound/admin-http/dev-auth.ts`).
+ * promise — auth-adjacent middleware awaits it (see the host app's `src/server/inbound/admin-http/dev-auth.ts`).
  *
  * Architectural role:
  * Seed data lives in one place so both composition roots stay identical

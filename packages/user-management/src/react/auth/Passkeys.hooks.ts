@@ -9,7 +9,7 @@ type Ceremony = typeof runPasskeyCeremony;
 /** Keep obsolete sign-in attempts from updating a replacement or unmounted view. */
 export function usePasskeySignIn({ port, pendingToken, onComplete, t, ceremony }: {
   port: PasskeySignInPort; pendingToken: string; onComplete: () => void | Promise<void>; t: Translate; ceremony: Ceremony;
-}, _options = {}) {
+}, _options: Record<string, never> = {}) {
   const [busy, setBusy] = useState(false), [error, setError] = useState('');
   const generation = useRef(0);
   useEffect(() => () => { generation.current++; }, [pendingToken]);
@@ -32,7 +32,7 @@ export function usePasskeySignIn({ port, pendingToken, onComplete, t, ceremony }
 /** Load owner credentials and run the existing enrollment or removal ceremony. */
 export function usePasskeySettings({ port, t, ceremony }: {
   port: PasskeySettingsPort; t: Translate; ceremony: Ceremony;
-}, _options = {}) {
+}, _options: Record<string, never> = {}) {
   const [status, setStatus] = useState<Awaited<ReturnType<PasskeySettingsPort['status']>>>();
   const [error, setError] = useState(''), [busy, setBusy] = useState(false);
   const [password, setPassword] = useState(''), [code, setCode] = useState('');

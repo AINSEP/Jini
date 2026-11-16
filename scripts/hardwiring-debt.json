@@ -121,13 +121,6 @@
       "fingerprint": "564f19d77a1cabb28958d48de3de39b643af31b158da40e4a3087871ed673373"
     },
     {
-      "rule": "HW3-module-state",
-      "file": "packages/agent-runtime/src/defs/amp.ts",
-      "line": 34,
-      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
-      "fingerprint": "0742f6f003e70405c31a752b2194f6ad477efefcfa7821bb4f426c7c8144d4bd"
-    },
-    {
       "rule": "HW1-env-default",
       "file": "packages/agent-runtime/src/defs/reasonix.ts",
       "line": 13,
@@ -318,13 +311,6 @@
     },
     {
       "rule": "HW3-module-state",
-      "file": "packages/chat/src/react/components/A2uiSurfaceCard.tsx",
-      "line": 47,
-      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
-      "fingerprint": "331da961fb407a2818621f38e1ce056f97a7f4bbc9194c65d37b1b0b3217df3d"
-    },
-    {
-      "rule": "HW3-module-state",
       "file": "packages/chat/src/react/components/AttachmentPreviewModal.hooks.ts",
       "line": 47,
       "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
@@ -483,13 +469,6 @@
       "line": 81,
       "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
       "fingerprint": "acab57357b6a3fd806edc015ab865de552ed4e2d9d5726913673d6e5c4b7edf9"
-    },
-    {
-      "rule": "HW3-module-state",
-      "file": "packages/core/src/settings/settings.ts",
-      "line": 129,
-      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
-      "fingerprint": "556cbfdb1283936105ea5adb7972acb529cbd24859230a391d39720f5f529833"
     },
     {
       "rule": "HW3-module-state",
@@ -735,13 +714,6 @@
       "line": 29,
       "reason": "Driver/vendor dependency belongs in an adapter, kernel or provider.",
       "fingerprint": "9043402da0ddf12f45b1a71e6925019336c448f3e11e5601d1bfdde8f338a463"
-    },
-    {
-      "rule": "HW1-env-default",
-      "file": "packages/platform/src/command.ts",
-      "line": 69,
-      "reason": "process.env is allowed only as an injected environment default (?? process.env or env = process.env).",
-      "fingerprint": "faab2f4d1f42e85435cac88b6426abfde91e334e6f902d8000c42f7c25b5108b"
     },
     {
       "rule": "HW3-module-state",
@@ -1403,13 +1375,6 @@
     },
     {
       "rule": "HW3-module-state",
-      "file": "packages/ui/src/features/sketch-editor/react/dependencies-fake.tsx",
-      "line": 20,
-      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
-      "fingerprint": "0c1ab4f82cd788cb6e7f9120e7b24a657cfbe4615d4fc6ceb4a41dea1c08aca9"
-    },
-    {
-      "rule": "HW3-module-state",
       "file": "packages/ui/src/features/skills/dependencies.ts",
       "line": 25,
       "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
@@ -1484,20 +1449,6 @@
       "line": 8,
       "reason": "process.env is allowed only as an injected environment default (?? process.env or env = process.env).",
       "fingerprint": "bad235beef56966ca0b4887eb3a3787b1db890efb2414aa61a405af40daa7f2a"
-    },
-    {
-      "rule": "HW3-module-state",
-      "file": "packages/user-management/src/server/agent-tool-input.ts",
-      "line": 27,
-      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
-      "fingerprint": "2690bf4c8a8227cf8fcbde439f891ca0814bd5845707ef62aa1d4d5a65c652ee"
-    },
-    {
-      "rule": "HW3-module-state",
-      "file": "packages/user-management/src/server/agent-tool-input.ts",
-      "line": 28,
-      "reason": "Module state must be instance-owned; readonly collections or explicitly reviewed path-keyed locks may be retained.",
-      "fingerprint": "06b2f9d0ad3f15b5ae1bf20a36b9d16d424fa965fb64b1f4d1c90c430ab374f3"
     },
     {
       "rule": "HW3-module-state",

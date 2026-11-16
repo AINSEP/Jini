@@ -6,7 +6,7 @@ import { type Translate } from '@jini-ai/core/text';
 type Setup = Awaited<ReturnType<TotpSettingsPort['enroll']>>;
 
 /** Read owner authenticator status, ignoring a result after unmount. */
-export function useTotpSettings({ port, t }: { port: TotpSettingsPort; t: Translate }, _options = {}) {
+export function useTotpSettings({ port, t }: { port: TotpSettingsPort; t: Translate }, _options: Record<string, never> = {}) {
   const [status, setStatus] = useState<Awaited<ReturnType<TotpSettingsPort['status']>>>();
   const [error, setError] = useState('');
   useEffect(() => {
@@ -20,7 +20,7 @@ export function useTotpSettings({ port, t }: { port: TotpSettingsPort; t: Transl
 }
 
 /** Keep enrollment secrets and action state within the mounted form. */
-export function useTotpSettingsForm({ port, initialEnrolled, t }: { port: TotpSettingsPort; initialEnrolled: boolean; t: Translate }, _options = {}) {
+export function useTotpSettingsForm({ port, initialEnrolled, t }: { port: TotpSettingsPort; initialEnrolled: boolean; t: Translate }, _options: Record<string, never> = {}) {
   const [enrolled, setEnrolled] = useState(initialEnrolled), [setup, setSetup] = useState<Setup>();
   const [password, setPassword] = useState(''), [code, setCode] = useState('');
   const [busy, setBusy] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState('');

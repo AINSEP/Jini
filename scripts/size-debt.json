@@ -116,7 +116,7 @@
     "function": "<file>",
     "line": 725,
     "rule": "max-lines",
-    "value": 588
+    "value": 587
   },
   {
     "file": "packages/admin/src/widgets/react/pages/WidgetInstanceEditor.tsx",
@@ -417,7 +417,7 @@
     "function": "useA2uiSurfaceCard",
     "line": 54,
     "rule": "max-lines-per-function",
-    "value": 98
+    "value": 97
   },
   {
     "file": "packages/chat/src/react/components/Composer.hooks.ts",
@@ -606,7 +606,7 @@
     "function": "createChatRunLedger",
     "line": 126,
     "rule": "max-lines-per-function",
-    "value": 186
+    "value": 185
   },
   {
     "file": "packages/chat/src/store/sql/store.ts",
@@ -648,7 +648,7 @@
     "function": "<file>",
     "line": 787,
     "rule": "max-lines",
-    "value": 712
+    "value": 711
   },
   {
     "file": "packages/cms/src/trash/write-service.ts",
@@ -887,13 +887,6 @@
     "line": 6,
     "rule": "max-lines-per-function",
     "value": 89
-  },
-  {
-    "file": "packages/diagnostics/src/observability/otel.ts",
-    "function": "createOtelObservabilityPort",
-    "line": 105,
-    "rule": "max-lines-per-function",
-    "value": 96
   },
   {
     "file": "packages/diagnostics/src/web-evidence/page-structure-script.ts",

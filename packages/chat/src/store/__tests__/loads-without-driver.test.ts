@@ -38,8 +38,9 @@ beforeAll(()=>{
   const dir=join(root,name);dirs[name]=dir;mkdirSync(dir,{recursive:true});writeFileSync(join(dir,'package.json'),JSON.stringify({type:'module'}));const dest=join(dir,'node_modules/@jini-ai/chat');mkdirSync(dest,{recursive:true});
   execFileSync('tar',['-xzf',join(root,pack),'-C',dest,'--strip-components','1']);
   // Optional peers are installed per entry: store is peer-free, while core and SQL redact via diagnostics.
+  // The neutral store's declarations import core's `list-page` types, so core is installed for every entry.
+  copyPackage('@jini-ai/core',join(packageRoot,'../core'),dir);
   if(name!=='store'){
-   copyPackage('@jini-ai/core',join(packageRoot,'../core'),dir);
    // 24d45ab9 added a declared tokenizer dependency; isolated installs need its runtime closure.
    copyRuntimeTree('@jini-ai/diagnostics',join(packageRoot,'../diagnostics'),dir);
   }

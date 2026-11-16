@@ -1,4 +1,5 @@
 import { Component, Suspense, type ReactNode } from "react";
+import { AdminApiError } from '../../../core/transport/errors.js';
 import { act, cleanup, render, renderHook, screen, waitFor } from "../../../__tests__/fetch-query-support.js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { FetchQueryProvider } from "@jini-ai/ui/fetch-query";
@@ -112,7 +113,7 @@ describe("useFormSubmissionDetail", () => {
 describe("useFormSubmissions", () => {
   it("reports a failed first page", async () => {
     const api = createMemoryFormsApi({}, { forms: [storedForm("f1")] });
-    api.listFormSubmissions = async () => { throw new Error("submissions offline"); };
+    api.listFormSubmissions = async () => { throw new AdminApiError({ message: "submissions offline", status: 503 }); };
     const { result } = renderHook(() => useFormSubmissions({ formId: "f1", port: api }), { wrapper });
     await waitFor(() => expect(result.current.error).toBe("submissions offline"));
     expect(result.current.submissions).toBeNull();
