@@ -303,7 +303,7 @@ describe('clearStandingDraft result', () => {
     ['the server drops it', async () => ({ ok: true }), true],
     ['the server keeps it', async () => ({ ok: false }), false],
     ['the request fails', async (): Promise<{ ok: boolean }> => { throw new Error('offline'); }, false],
-  ])('says discarded=%s-appropriately when %s', async (_name, discardAutosave, expected) => {
+  ])('reports the discard outcome when %s', async (_name, discardAutosave, expected) => {
     vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const { port } = makePort({ discardAutosave });
     const { result } = mount({ port, backup: makeBackup() });
