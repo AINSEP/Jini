@@ -352,7 +352,7 @@
   {
     "file": "packages/core/src/optimistic-concurrency.ts",
     "rule": "stored-error-text",
-    "value": 2
+    "value": 1
   },
   {
     "file": "packages/core/src/primitives/logger.ts",
@@ -401,11 +401,6 @@
   },
   {
     "file": "packages/daemon/src/http/media.ts",
-    "rule": "stored-error-text",
-    "value": 1
-  },
-  {
-    "file": "packages/daemon/src/http/routines.ts",
     "rule": "stored-error-text",
     "value": 1
   },
