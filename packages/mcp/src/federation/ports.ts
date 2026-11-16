@@ -203,7 +203,7 @@ export interface McpStdioLaunchSpec {
  *
  * Deliberately a plain header bag rather than a token field: this layer should not know that OAuth
  * exists. It is handed headers and sends them. Which credential produced them, whether it can be
- * refreshed, and what to do when it expires are all `Tovu apps/website/src/features/external-mcp/external-mcp-oauth.ts`'s questions,
+ * refreshed, and what to do when it expires are all a host module's questions,
  * decided before a launch spec is ever built.
  */
 export interface McpHttpLaunchSpec {

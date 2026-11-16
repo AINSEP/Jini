@@ -41,7 +41,7 @@ export interface PluginDiscoveryRecord {
    * re-reading `jini.plugin.json` a second time. This matters beyond avoiding duplicate I/O: every
    * real caller of `onPluginEnabled` (`activation.ts`'s `setPluginEnabled`, BR-05 step 1) already
    * calls `discoverPlugins()` fresh, in the SAME request, immediately before invoking it (see
-   * `Tovu apps/website/src/server/inbound/admin-http/routes/plugins/set-enabled.ts`) — so reusing that record's manifest is not a staleness
+   * a host module) — so reusing that record's manifest is not a staleness
    * risk, it is the one-and-only read for this attempt. A second, independent load-time re-read
    * would instead open a narrow TOCTOU window: an attacker who can write to `installDir` between
    * the discovery read and a second load-time read could swap in a self-consistent tampered
