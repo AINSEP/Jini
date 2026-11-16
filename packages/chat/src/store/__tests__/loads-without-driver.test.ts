@@ -44,9 +44,10 @@ beforeAll(()=>{
    copyRuntimeTree('@jini-ai/diagnostics',join(packageRoot,'../diagnostics'),dir);
   }
   if(name==='neutral'){
-   // Core's A2UI activity projection owns this peer closure; SQL stores must not need it.
-   copyPackage('@jini-ai/agentic',join(packageRoot,'../agentic'),dir);
-   copyRuntimeTree('zod',join(packageRoot,'../agentic/node_modules/zod'),dir);
+   // Core's A2UI activity projection owns this closure; SQL stores must not need it. Wave B moved
+   // the A2UI surface readers from @jini-ai/agentic/a2ui to @jini-ai/protocol/a2ui (now a required
+   // chat dependency), so core needs protocol and its zod, not agentic.
+   copyRuntimeTree('@jini-ai/protocol',join(packageRoot,'../protocol'),dir);
   }else if(name!=='store'){
    copyPackage('@jini-ai/db',dbRoot,dir);copyPackage('kysely',join(dbRoot,'node_modules/kysely'),dir);
   }

@@ -1,6 +1,7 @@
 import { createRef } from 'react';
 import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
 import { renderWithChatSurfaces } from '../../../../__tests__/fake-chat-surfaces.js';
+import { hostChatSurfaces } from '../../../../__tests__/host-chat-surfaces.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -633,6 +634,8 @@ describe('ChatPane', () => {
       const transport = createFakeChatTransport();
       renderWithChatSurfaces(
         <ChatPane transport={transport} agents={agents} agentControl={{ enabled: true, webmcp: true }} />,
+        // WebMCP detection is the host's page port; bind the detector a host binds.
+        { surfaces: hostChatSurfaces() },
       );
       expect(registerTool).toHaveBeenCalled();
     } finally {

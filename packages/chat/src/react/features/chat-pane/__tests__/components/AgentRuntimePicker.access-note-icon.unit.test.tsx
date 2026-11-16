@@ -1,4 +1,4 @@
-import { act, render, screen, within } from '@testing-library/react';
+import { act, render, screen, within } from '../../../../__tests__/ui-kit-render-support.js';
 import userEvent from '@testing-library/user-event';
 import { expect, it, vi } from 'vitest';
 import { AgentRuntimePicker } from '../../components/AgentRuntimePicker.js';

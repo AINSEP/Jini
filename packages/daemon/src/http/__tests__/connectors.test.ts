@@ -2,7 +2,7 @@ import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { isLocalSameOrigin } from '@jini-ai/core';
+import { allowSameOrigin, rejectCrossOrigin } from './fixtures/same-origin-gate.js';
 import { ClientFacingError } from '@jini-ai/core/contracts/server';
 import {
   type AuthCredentials,
@@ -32,10 +32,11 @@ import {
   type ConnectorsHttpDeps,
 } from '../connectors.js';
 
-vi.mock('@jini-ai/core', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@jini-ai/core')>(),
-  isLocalSameOrigin: vi.fn(() => true),
-}));
+// The same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
+vi.mock('@jini-ai/core/contracts/server', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@jini-ai/core/contracts/server')>();
+  return { ...actual, guardSameOrigin: vi.fn(() => actual.ok({ value: undefined })) };
+});
 
 interface MockApp {
   get: (path: string, handler: any) => void;
@@ -114,7 +115,7 @@ function makeDeps(overrides: Partial<ConnectorsHttpDeps> = {}): ConnectorsHttpDe
 }
 
 beforeEach(() => {
-  vi.mocked(isLocalSameOrigin).mockReturnValue(true);
+  allowSameOrigin();
 });
 
 describe('auth routes', () => {
@@ -400,7 +401,7 @@ describe('registerConnectorsRoutes', () => {
   });
 
   it('credential-bearing and mutating routes enforce same-origin; GET routes do not gate on it', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    rejectCrossOrigin();
     const app = makeApp();
     registerConnectorsRoutes({ app: app as any, deps: makeDeps({ auth: makeAuthProvider() }), adapter });
 
@@ -770,7 +771,7 @@ describe('registerConnectorsRoutes — real Express server on a real socket', ()
   });
 
   it('rejects a cross-origin mutating request with 403 before reaching the provider', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    rejectCrossOrigin();
     const deps = fullyConfigured();
     const base = await listen(deps);
     const response = await fetch(`${base}/api/connectors/auth/signup`, {

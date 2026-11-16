@@ -190,7 +190,10 @@ export function createChatRunLedger<DB extends ChatDatabase>(
     if (!optional.onPersisted) return;
     if (!exact) { optional.onPersisted(undefined); return; }
     const receiptVersion = kernel.dialect === 'sqlite'
-      ? (await kernel.query<{ version: string }>(sql`select ${version} as version`))[0]!.version : nativeVersion!;
+      // The core kernel contract has no `query`; `run` picks the same executor (open transaction
+      // or base handle) that db's `KyselyKernel.query` used, so the read stays under the write lock.
+      ? (await kernel.run((db) => sql<{ version: string }>`select ${version} as version`.execute(db))).rows[0]!.version
+      : nativeVersion!;
     optional.onPersisted(checkpointState({ progress, length, contentLength, version: receiptVersion }));
   }
 

@@ -1,12 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { isLocalSameOrigin } from '@jini-ai/core';
+import { allowSameOrigin, rejectCrossOrigin } from './fixtures/same-origin-gate.js';
 import { createInMemoryEventLog, createRunLifecycle, type UserMessageDelivery } from '../../index.js';
 import { registerRunRoutes, runMessageRoute, type RunHttpDeps } from '../runs.js';
 
-vi.mock('@jini-ai/core', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@jini-ai/core')>(),
-  isLocalSameOrigin: vi.fn(() => true),
-}));
+// The same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
+vi.mock('@jini-ai/core/contracts/server', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@jini-ai/core/contracts/server')>();
+  return { ...actual, guardSameOrigin: vi.fn(() => actual.ok({ value: undefined })) };
+});
 
 const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 7456 } };
 
@@ -19,7 +20,7 @@ function makeJsonRes() {
 }
 
 beforeEach(() => {
-  vi.mocked(isLocalSameOrigin).mockReturnValue(true);
+  allowSameOrigin();
 });
 
 describe('POST /api/runs/:runId/messages — a message sent while the run is going', () => {
@@ -99,7 +100,7 @@ describe('POST /api/runs/:runId/messages — a message sent while the run is goi
   });
 
   it('requires same-origin like every other run write', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    rejectCrossOrigin();
     const app = { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn(), patch: vi.fn() };
     registerRunRoutes({ app: app as never, deps: makeDeps(() => 'delivered'), adapter });
     const handler = app.post.mock.calls.find(([path]) => path === '/api/runs/:runId/messages')![1];

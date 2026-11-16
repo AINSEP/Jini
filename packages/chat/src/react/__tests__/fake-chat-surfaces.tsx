@@ -1,5 +1,8 @@
 import type { ReactElement, ReactNode } from 'react';
-import { render, renderHook, type RenderHookOptions } from '@testing-library/react';
+import type { RenderHookOptions, RenderResult } from '@testing-library/react';
+// Kit-scoped render: chat panes and cards reach ui's kit-backed selects and secret inputs, so the
+// surfaces wrapper also needs the UiKitProvider a host mounts at its root.
+import { render, renderHook } from './ui-kit-render-support.js';
 import { z } from 'zod';
 import {
   ChatSurfacesProvider,
@@ -44,7 +47,9 @@ function surfacesWrapper(surfaces: ChatSurfaces) {
   };
 }
 
-export function renderWithChatSurfaces(ui: ReactElement, { surfaces = fakeChatSurfaces() }: { surfaces?: ChatSurfaces } = {}) {
+export function renderWithChatSurfaces(ui: ReactElement, { surfaces = fakeChatSurfaces() }: { surfaces?: ChatSurfaces } = {}): RenderResult {
+  // Explicit return type: the inferred one names a pnpm-internal @testing-library/dom path, and
+  // this helper ships in the declaration build (TS2742).
   return render(ui, { wrapper: surfacesWrapper(surfaces) });
 }
 

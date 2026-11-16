@@ -2,7 +2,7 @@ import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { isLocalSameOrigin } from '@jini-ai/core';
+import { allowSameOrigin, rejectCrossOrigin } from './fixtures/same-origin-gate.js';
 import {
   mediaGenerateRoute,
   mediaTaskDeleteRoute,
@@ -85,10 +85,11 @@ function createInMemoryMediaTaskStore(): MediaTaskStore {
   };
 }
 
-vi.mock('@jini-ai/core', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@jini-ai/core')>(),
-  isLocalSameOrigin: vi.fn(() => true),
-}));
+// The same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
+vi.mock('@jini-ai/core/contracts/server', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@jini-ai/core/contracts/server')>();
+  return { ...actual, guardSameOrigin: vi.fn(() => actual.ok({ value: undefined })) };
+});
 
 interface MockApp {
   get: (path: string, handler: any) => void;
@@ -140,7 +141,7 @@ function makeDeps(overrides: Partial<MediaHttpDeps> = {}): MediaHttpDeps {
 }
 
 beforeEach(() => {
-  vi.mocked(isLocalSameOrigin).mockReturnValue(true);
+  allowSameOrigin();
 });
 
 describe('mediaGenerateRoute.parse', () => {
@@ -709,7 +710,7 @@ describe('registerMediaRoutes', () => {
   });
 
   it('requires same-origin for generate: blocks a cross-origin request with 403', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    rejectCrossOrigin();
     const app = makeApp();
     registerMediaRoutes({ app: app as any, deps: makeDeps(), adapter });
     const res = makeJsonRes();
@@ -718,7 +719,7 @@ describe('registerMediaRoutes', () => {
   });
 
   it('requires same-origin for delete: blocks a cross-origin request with 403', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    rejectCrossOrigin();
     const app = makeApp();
     registerMediaRoutes({ app: app as any, deps: makeDeps(), adapter });
     const res = makeJsonRes();
@@ -727,7 +728,7 @@ describe('registerMediaRoutes', () => {
   });
 
   it('does not require same-origin for get/list', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    rejectCrossOrigin();
     const app = makeApp();
     const deps = makeDeps();
     registerMediaRoutes({ app: app as any, deps, adapter });
@@ -831,7 +832,7 @@ describe('registerMediaRoutes — real Express server on a real socket', () => {
   });
 
   it('rejects a cross-origin generate request with 403 before the task store is ever called', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    rejectCrossOrigin();
     const taskStore = createInMemoryMediaTaskStore();
     const createSpy = vi.spyOn(taskStore, 'create');
     const base = await listen(makeDeps({ taskStore }));

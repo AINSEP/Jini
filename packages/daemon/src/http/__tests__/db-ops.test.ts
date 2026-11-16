@@ -3,7 +3,7 @@ import express from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createToolRegistry, type Principal, type ToolPolicy, type ToolRegistry } from '@jini-ai/core';
 import { createToolExecutor, type ToolExecutor } from '../../index.js';
-import { isLocalSameOrigin } from '@jini-ai/core';
+import { allowSameOrigin, rejectCrossOrigin } from './fixtures/same-origin-gate.js';
 import {
   createDaemonDbToolRegistrations,
   daemonDbInspectRoute,
@@ -18,10 +18,11 @@ import {
   type DaemonDbOperations,
 } from '../db-ops.js';
 
-vi.mock('@jini-ai/core', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@jini-ai/core')>(),
-  isLocalSameOrigin: vi.fn(() => true),
-}));
+// The same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
+vi.mock('@jini-ai/core/contracts/server', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@jini-ai/core/contracts/server')>();
+  return { ...actual, guardSameOrigin: vi.fn(() => actual.ok({ value: undefined })) };
+});
 
 interface MockApp {
   get: (path: string, handler: any) => void;
@@ -151,7 +152,7 @@ function fakeExecutorResolving(result: Awaited<ReturnType<ToolExecutor['execute'
 }
 
 beforeEach(() => {
-  vi.mocked(isLocalSameOrigin).mockReturnValue(true);
+  allowSameOrigin();
 });
 
 describe('createDaemonDbToolRegistrations', () => {
@@ -447,7 +448,7 @@ describe('registerDaemonDbRoutes', () => {
   });
 
   it('requires same-origin on all three mounted routes: blocks a cross-origin request before the tool executor ever runs', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    rejectCrossOrigin();
     const app = makeApp();
     const { deps, operations } = makeDeps();
     registerDaemonDbRoutes({ app: app as any, deps, adapter });

@@ -10,7 +10,7 @@ import {
   type ToolExecutor,
 } from '../../index.js';
 import type { PtyProcess, PtySpawn } from '@jini-ai/core/contracts/runtime';
-import { isLocalSameOrigin } from '@jini-ai/core';
+import { allowSameOrigin, rejectCrossOrigin } from './fixtures/same-origin-gate.js';
 import {
   actionResultToApiResult,
   createDeferredEndGate,
@@ -26,10 +26,11 @@ import {
 } from '../terminals.js';
 import type { WorkspaceRootResolver } from '../workspace-root.js';
 
-vi.mock('@jini-ai/core', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@jini-ai/core')>(),
-  isLocalSameOrigin: vi.fn(() => true),
-}));
+// The same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
+vi.mock('@jini-ai/core/contracts/server', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@jini-ai/core/contracts/server')>();
+  return { ...actual, guardSameOrigin: vi.fn(() => actual.ok({ value: undefined })) };
+});
 
 interface MockApp {
   get: (path: string, handler: any) => void;
@@ -150,7 +151,7 @@ function makeDeps(overrides: Partial<TerminalsHttpDeps> & { policy?: ToolPolicy 
 }
 
 beforeEach(() => {
-  vi.mocked(isLocalSameOrigin).mockReturnValue(true);
+  allowSameOrigin();
 });
 
 describe('terminalCreateRoute.parse', () => {
@@ -560,7 +561,7 @@ describe('registerTerminalRoutes', () => {
   });
 
   it('blocks a cross-origin create request before the tool executor ever runs', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    rejectCrossOrigin();
     const app = makeApp();
     const { deps, manager } = makeDeps();
     registerTerminalRoutes({ app: app as any, deps, adapter });
@@ -571,7 +572,7 @@ describe('registerTerminalRoutes', () => {
   });
 
   it('the list route does not require same-origin (matches runListRoute precedent)', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    rejectCrossOrigin();
     const app = makeApp();
     const { deps } = makeDeps();
     registerTerminalRoutes({ app: app as any, deps, adapter });
@@ -634,7 +635,7 @@ describe('registerTerminalEventStream', () => {
   }
 
   it('rejects a cross-origin request before touching the manager or opening the stream', () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    rejectCrossOrigin();
     const { deps, manager } = makeDeps();
     const attachSpy = vi.spyOn(manager, 'attach');
     const handler = mount(deps);

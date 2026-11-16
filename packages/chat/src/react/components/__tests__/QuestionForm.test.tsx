@@ -1,4 +1,4 @@
-import { render, screen, fireEvent } from '@testing-library/react';
+import { render, screen, fireEvent } from '../../__tests__/ui-kit-render-support.js';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import type { DirectionCard, FormQuestion, QuestionForm as QuestionFormType } from '../../../core/index.js';

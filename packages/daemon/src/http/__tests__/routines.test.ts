@@ -9,7 +9,7 @@ import {
   type RoutineRun,
   type RoutineStore,
 } from '../../index.js';
-import { isLocalSameOrigin } from '@jini-ai/core';
+import { allowSameOrigin, rejectCrossOrigin } from './fixtures/same-origin-gate.js';
 import {
   registerRoutineRoutes,
   routineCreateRoute,
@@ -23,10 +23,11 @@ import {
   type RoutineScheduler,
 } from '../routines.js';
 
-vi.mock('@jini-ai/core', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@jini-ai/core')>(),
-  isLocalSameOrigin: vi.fn(() => true),
-}));
+// The same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
+vi.mock('@jini-ai/core/contracts/server', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@jini-ai/core/contracts/server')>();
+  return { ...actual, guardSameOrigin: vi.fn(() => actual.ok({ value: undefined })) };
+});
 
 // `validateSchedule`/`validateTarget` (real @jini-ai/daemon logic, unmocked in every other test in this
 // file via the wrapping vi.fn below) always throw genuine `Error` instances in practice — confirmed by
@@ -92,7 +93,7 @@ function makeDeps(overrides: Partial<RoutineHttpDeps> = {}): RoutineHttpDeps {
 }
 
 beforeEach(() => {
-  vi.mocked(isLocalSameOrigin).mockReturnValue(true);
+  allowSameOrigin();
 });
 
 // ---------------------------------------------------------------------------
@@ -834,7 +835,7 @@ describe('registerRoutineRoutes', () => {
   });
 
   it('does not require same-origin for the three read-only GET routes', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    rejectCrossOrigin();
     const app = makeApp();
     const store = createInMemoryRoutineStore({});
     const routine = await store.create(validCreateBody() as any);
@@ -854,7 +855,7 @@ describe('registerRoutineRoutes', () => {
   });
 
   it('requires same-origin for POST /api/routines', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    rejectCrossOrigin();
     const app = makeApp();
     registerRoutineRoutes({ app: app as any, deps: makeDeps(), adapter });
     const res = makeRes();
@@ -863,7 +864,7 @@ describe('registerRoutineRoutes', () => {
   });
 
   it('requires same-origin for PATCH /api/routines/:id', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    rejectCrossOrigin();
     const app = makeApp();
     registerRoutineRoutes({ app: app as any, deps: makeDeps(), adapter });
     const res = makeRes();
@@ -872,7 +873,7 @@ describe('registerRoutineRoutes', () => {
   });
 
   it('requires same-origin for DELETE /api/routines/:id', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    rejectCrossOrigin();
     const app = makeApp();
     registerRoutineRoutes({ app: app as any, deps: makeDeps(), adapter });
     const res = makeRes();
@@ -881,7 +882,7 @@ describe('registerRoutineRoutes', () => {
   });
 
   it('requires same-origin for POST /api/routines/:id/run', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    rejectCrossOrigin();
     const app = makeApp();
     registerRoutineRoutes({ app: app as any, deps: makeDeps(), adapter });
     const res = makeRes();
@@ -1044,7 +1045,7 @@ describe('registerRoutineRoutes — real Express server on a real socket', () =>
   });
 
   it('rejects a cross-origin create request with 403 before the routine store is ever called', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    rejectCrossOrigin();
     const store = createInMemoryRoutineStore({});
     const createSpy = vi.spyOn(store, 'create');
     const base = await listen(makeDeps({ store }));
