@@ -184,6 +184,11 @@ export interface SetValueRequired {
      * wildcard-owner).
      */
     authWorkspaceId?: UUID | undefined;
+    /** Set by a caller that has ALREADY opened a transaction around this write —
+     *  see `resetNamespace`. Explicit rather than an ambient depth counter,
+     *  because an ambient one cannot tell a genuine nesting from a concurrent
+     *  unrelated transaction and silently merges the two. */
+    skipTransaction?: boolean | undefined;
     /**
      * `deriveRequiredPermission` unconditionally derives `settings.workspace.write` for
      * `scope: "workspace"` — a caller that already authorized a narrower, domain-specific
@@ -362,7 +367,7 @@ export async function set(required: SetValueRequired, optional: SettingsValueWri
 
   await assertTargetPrincipalInWorkspace(deps, input);
 
-  return deps.repo.transaction(async () => {
+  const runSet = async () => {
     const now = kernelNowIso({ clock: deps.clock });
     const revisionSeq = await deps.repo.appendRevision({
       entityKind: "value",
@@ -411,7 +416,11 @@ export async function set(required: SetValueRequired, optional: SettingsValueWri
     }
 
     return { value: input.value, revisionSeq };
-  });
+  };
+
+  // `skipTransaction` means an enclosing caller already owns the boundary, so
+  // this write joins it and a later failure rolls this one back too.
+  return input.skipTransaction ? runSet() : deps.repo.transaction(runSet);
 }
 
 export interface ClearValueRequired {
