@@ -54,7 +54,7 @@ export function modelConfigFiles(agentId: string, context: ModelDiscoveryContext
 function dotted(value: unknown, key: string): unknown {
   return key.split('.').reduce<unknown>((item, part) => item && typeof item === 'object' ? (item as Record<string, unknown>)[part] : undefined, value);
 }
-const JSON_MODEL_PARSERS = new Map<string, (model: unknown, settings: Record<string, unknown> | null) => string | undefined>([
+const JSON_MODEL_PARSERS: ReadonlyMap<string, (model: unknown, settings: Record<string, unknown> | null) => string | undefined> = new Map([
   ['recent', parseOpenCodeRecentModel],
   ['defaultModel', parsePiDefaultModel],
 ]);

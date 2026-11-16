@@ -46,6 +46,7 @@ describe('claudeAgentDef shape', () => {
       'claude-sonnet-5-5',
       'claude-haiku-5-5',
       'claude-haiku-4-5-20251001',
+      'claude-fable-5-2',
       'claude-fable-5-1',
       'claude-fable-5',
       'claude-opus-5',
@@ -449,6 +450,7 @@ describe('claudeAgentDef.fetchModels', () => {
 describe('claudeAgentDef.fallbackModels — the list the picker actually renders', () => {
   it('offers the current Fable models and the `fable` CLI alias', () => {
     const ids = claudeAgentDef.fallbackModels.map((m) => m.id);
+    expect(ids).toContain('claude-fable-5-2');
     expect(ids).toContain('claude-fable-5-1');
     expect(ids).toContain('claude-fable-5');
     expect(ids).toContain('fable');
