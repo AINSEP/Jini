@@ -12,10 +12,7 @@ describe('@jini-ai/ui/mcp-ui/surfaces barrel', () => {
     expect(mcpUi.MCP_UI_PROTOCOL_VERSION).toBe('2026-01-26');
   });
 
-  it('exports the resource, escaping, store and buffer halves', () => {
-    expect(mcpUi.createUIResource).toBeTypeOf('function');
-    expect(mcpUi.buildUIToolResult).toBeTypeOf('function');
-    expect(mcpUi.parseUIResource).toBeTypeOf('function');
+  it('exports the escaping, store and buffer halves (resource readers live in @jini-ai/protocol/mcp-ui)', () => {
     expect(mcpUi.escapeHtml).toBeTypeOf('function');
     expect(mcpUi.escapeJsValue).toBeTypeOf('function');
     expect(mcpUi.createConfirmationStore).toBeTypeOf('function');
