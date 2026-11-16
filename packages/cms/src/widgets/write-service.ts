@@ -178,7 +178,7 @@ export async function createWidgetInstance(required: CreateWidgetInstanceRequire
   });
 
   // `input.widgetType` is typed `WidgetTypeKey` but only ASSERTED to be one — HTTP routes
-  // (`Tovu apps/website/src/server/inbound/admin-http/routes/widgets/create.ts`/`agent-tools.ts`) cast an unvalidated request-body
+  // (the host app's `src/server/inbound/admin-http/routes/widgets/create.ts`/`agent-tools.ts`) cast an unvalidated request-body
   // string to it. `findWidgetTypeRegistration` is the correct accessor here: `undefined` is
   // genuinely reachable, and this check is what catches an unregistered type at this boundary.
   assertValidWidgetConfig({ widgetType: input.widgetType, config: input.config });

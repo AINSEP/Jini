@@ -9,12 +9,12 @@ import type { ContentTypeRecord } from "./types.js";
  * `listContentTypes` mirrors `features/database/timeline.ts`'s `getTimeline` shape exactly: a thin
  * pass-through over an injected read port, no authorization/business logic of its own (the caller
  * route checks `admin.collections.read` before calling this, same division of labor
- * `Tovu apps/website/src/server/inbound/admin-http/routes/database/timeline.ts` already established).
+ * the host app's `src/server/inbound/admin-http/routes/database/timeline.ts` already established).
  *
  * How it relates to the project:
  * `ContentTypeListPort` is deliberately a NEW, narrower port — not an addition to
  * `write-service.ts`'s `ContentTypeRepoPort` — so a caller who only needs read access
- * (`Tovu apps/website/src/server/inbound/admin-http/routes/content-types/list.ts`) can be typed against just this port, matching this
+ * (the host app's `src/server/inbound/admin-http/routes/content-types/list.ts`) can be typed against just this port, matching this
  * codebase's port-segregation convention (`LedgerReadPort` vs `BootLedgerPort` on the same
  * underlying table, `db/sqlite/database-journal-repo.ts`). The concrete adapter
  * (`repo.memory.ts`'s `InMemoryContentTypeRepo`) implements both this and `ContentTypeRepoPort`.

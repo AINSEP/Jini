@@ -35,7 +35,7 @@ export interface CreateFormSubmitHandlerRequired {
  * @file Public submission route for `forms` (SPEC-010 `FORMS_POST_SUBMIT`, REQ-05).
  *
  * Mirrors `routes/site/analytics-ingest.ts`'s public-route shape: no session required, registered
- * before the site `/:slug` catch-all (see `Tovu apps/website/src/server/runtime/composition/app.ts`'s wiring). Reuses `resolveClientIp`
+ * before the site `/:slug` catch-all (see the host app's `src/server/runtime/composition/app.ts`'s wiring). Reuses `resolveClientIp`
  * (`core/rate-limit/rate-limit.ts`) rather than re-deriving IP resolution — all real validation
  * happens inside `submitForm` (C-008); this file owns only the HTTP boundary.
  *

@@ -75,7 +75,7 @@ export interface IdentityToolDeps {
 
 /**
  * Assembles `auth-service.ts`'s `IdentityRepos` bag from {@link IdentityToolDeps}'s flat fields — a
- * local duplicate of `Tovu apps/website/src/server/inbound/admin-http/routes/users/deps.ts`'s `identityReposFrom` rather than an import
+ * local duplicate of the host app's `src/server/inbound/admin-http/routes/users/deps.ts`'s `identityReposFrom` rather than an import
  * of it, for the same reason `features/settings/tool-registrations.ts`'s header gives for
  * duplicating `toWriteServiceDeps`: importing from the HTTP admin layer would invert this codebase's
  * ports/adapters direction. It is a field mapping, not an authorization decision. Host route bags must bind the same
@@ -153,7 +153,7 @@ export const identityDerivedRisk: DerivedRiskByToolId = new Map<string, AgentToo
 /**
  * Upper bound on the roster `identity_user_list` will fan out over.
  *
- * `Tovu apps/website/src/server/inbound/admin-http/routes/users/list.ts` does the same O(n) per-user fan-out uncapped, on the documented
+ * the host app's `src/server/inbound/admin-http/routes/users/list.ts` does the same O(n) per-user fan-out uncapped, on the documented
  * "operator-managed roster, not member/content scale" assumption. That assumption is fine for a
  * human screen and NOT fine here for a different reason than scale: this result is spent as model
  * context, so an unexpectedly large roster would silently consume the run's context window. The
@@ -249,7 +249,7 @@ function identityPermissionsFor(toolId: string): string[] {
  * The mutating tools need no equivalent: their domain function opens with this same
  * `assertCallerHasAnyPermission` call itself. Reads have no service-layer function to inherit it
  * from — `identity` exports grant-writing transitions, not read wrappers, which is why
- * `Tovu apps/website/src/server/inbound/admin-http/routes/users/list.ts` also gates in the route and then reads the repo ports directly.
+ * the host app's `src/server/inbound/admin-http/routes/users/list.ts` also gates in the route and then reads the repo ports directly.
  * This calls the domain's own exported helper rather than re-deriving an OR gate (and rather than
  * the kit's generic `requireToolPermission`, which cannot express an OR), so the single
  * evaluator is reached by an identical path from both tool kinds.

@@ -133,7 +133,7 @@ export class InMemoryFormDefinitionRepo implements FormDefinitionRepoPort {
 
   /** Memory-only, NOT part of `FormDefinitionRepoPort`. Removes only the definition row — the
    *  composition root pairs this with `InMemoryFormSubmissionRepo.deleteAllForDefinition` the same
-   *  way `Tovu apps/website/src/features/trash/registry.ts` deletes submissions before the definition. */
+   *  way the host app's `src/features/trash/registry.ts` deletes submissions before the definition. */
   async hardDelete(required: { workspaceId: UUID; id: UUID }): Promise<void> {
     deleteMapRecord({ records: this.rows, key: required.id, fields: { workspaceId: required.workspaceId } });
   }

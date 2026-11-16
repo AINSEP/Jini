@@ -27,7 +27,7 @@ import type {
  *
  * Purpose:
  * Test/dev implementations of the nine identity repo ports. Mirrors the exact
- * style of `src/features/post/repo.memory.ts` / `Tovu apps/website/src/features/members/repo.memory.ts`:
+ * style of `src/features/post/repo.memory.ts` / the host app's `src/features/members/repo.memory.ts`:
  * constructor takes seed rows, methods filter/mutate an internal array. No
  * business rules live here — that belongs to `authorize.ts`/`auth-service.ts`/
  * `seed.ts`.

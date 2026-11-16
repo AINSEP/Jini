@@ -368,7 +368,7 @@ export interface ResolveHtmlPageEmbedsDeps extends WidgetInstanceResolutionDeps 
    * Video/embed capability (2026-08-24) — optional, same "degrade gracefully when absent" contract
    * `mediaRepo`/`transformRepo` already have. When present, {@link resolveMediaTypeEmbeds} uses it
    * to tell a video asset from an image one (keyed by `MediaRecord.source.sha256`, the same key
-   * `Tovu apps/website/src/server/inbound/admin-http/routes/media/upload.ts` already records under). Absent (every pre-existing call site
+   * the host app's `src/server/inbound/admin-http/routes/media/upload.ts` already records under). Absent (every pre-existing call site
    * before this feature, and any future one that never touches media) means every asset resolves as
    * an image exactly as it always has — this is additive, not a behavior change for images.
    */
@@ -382,7 +382,7 @@ export interface ResolveHtmlPageEmbedsDeps extends WidgetInstanceResolutionDeps 
   /**
    * Template-preview pending-body fix (2026-08-12) — an explicitly-passed, per-call override for
    * exactly one entity id's content, consulted ONLY by {@link resolveContentTypeEmbeds}. Lets
-   * `Tovu apps/website/src/server/inbound/admin-http/routes/posts/template-preview.ts` preview the operator's unsaved, in-editor `bodyJson`
+   * the host app's `src/server/inbound/admin-http/routes/posts/template-preview.ts` preview the operator's unsaved, in-editor `bodyJson`
    * through the real render pipeline: without this, the current entity's own `{"type":"content"}`
    * slot (`injectCurrentEntityContentId`) always re-fetches by id via {@link findPublishedPostById},
    * which returns the last-SAVED row and silently discards any in-memory override the caller built
@@ -588,7 +588,7 @@ async function resolveFormTypeEmbeds(
  * MIME TYPE. `MediaRecord` (`@jini-ai/cms/media`) still has no mime/contentType field of its own —
  * that remains an upstream `@jini-ai/cms` gap, not fixed here — but this host now has a
  * host-owned side channel for it: `mediaContentTypeStore` (`media/content-type-store.ts`), keyed by
- * `record.source.sha256`, already populated at upload time (`Tovu apps/website/src/server/inbound/admin-http/routes/media/upload.ts`) for the
+ * `record.source.sha256`, already populated at upload time (the host app's `src/server/inbound/admin-http/routes/media/upload.ts`) for the
  * admin Media screen's own Images/Videos filter. When present and it knows the asset's type as
  * `video/*`, this resolver now skips the image-transform lookup entirely and resolves a `video`-kind
  * IR instead — `render.ts`'s `renderWidgetMediaImage` branches on it. Everything else (no store
@@ -1043,7 +1043,7 @@ async function findPublishedPostByRef(
  * authoritative when both are present).
  *
  * Returns RAW post data (title/bodyJson/updatedAt/slug), not rendered HTML — this file (`widgets/`)
- * must not depend on `Tovu apps/website/src/server/inbound/public-http/http/site/render.ts` (that module sits above this one in the codebase's
+ * must not depend on the host app's `src/server/inbound/public-http/http/site/render.ts` (that module sits above this one in the codebase's
  * layering, the same constraint `resolveMediaTypeEmbeds`'s own doc discloses for why it returns
  * `{assetId, transformName, ...}` instead of an `<img>` string). `render.ts`'s `renderWidgetIr`
  * `"post-content"` case (which already has `renderDocNode` in scope) does the actual TipTap-to-HTML
@@ -1220,7 +1220,7 @@ async function resolveOneContentEmbed({ ref, deps, context, resolved }: {
  *
  * `pendingContentOverride` (2026-08-12; slug matching added S3 2026-09-23) bypasses this specific
  * `findPublishedPostByRef` call, but NOT the visibility guard's intent: it only ever matches ONE
- * row — the exact one `Tovu apps/website/src/server/inbound/admin-http/routes/posts/template-preview.ts` already fetched (any status, but
+ * row — the exact one the host app's `src/server/inbound/admin-http/routes/posts/template-preview.ts` already fetched (any status, but
  * through its own `content.read`-authorized, session-gated lookup) and is previewing back to the
  * SAME authenticated operator who owns that unsaved edit. It matches by `id` when the ref carries
  * one (never falling through to `slug` for that same ref — the identical authoritative-when-present

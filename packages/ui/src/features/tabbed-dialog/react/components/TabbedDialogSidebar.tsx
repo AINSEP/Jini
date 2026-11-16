@@ -24,8 +24,8 @@ export function TabbedDialogNavItem({ tab, active, isModal, onSelect }: TabbedDi
       /*
        * `settings-dialog-nav-${tab.id}`, not `tabbed-dialog-nav-${tab.id}`: this
        * testid predates this component's extraction and several of a downstream
-       * consumer's Playwright e2e specs (Tovu development/e2e/journeys/byok.pins.journey.ts,
-       * Tovu development/e2e/journeys/admin-layout.pins.journey.ts) hard-code the old prefix. Renaming
+       * consumer's Playwright e2e specs (the host's development/e2e/journeys/byok.pins.journey.ts,
+       * the host's development/e2e/journeys/admin-layout.pins.journey.ts) hard-code the old prefix. Renaming
        * it here would silently break those specs with no local way to catch it —
        * this package's own test suite can't see that consumer's e2e tree. Left unchanged
        * on purpose; see the extraction handoff for the full consumer list.

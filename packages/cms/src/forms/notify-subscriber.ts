@@ -7,7 +7,7 @@ import type { FormDefinitionRecord, FormSubmissionRecord } from "./types.js";
  * Subscribes `form.submission.received`; on a notify-enabled definition, calls `MailerPort.send()`
  * per configured recipient. The one piece of Forms-owned business logic riding the outbox — kept
  * separate from the webhook-fanout forwarding (which is not Forms-owned logic; see
- * `Tovu apps/website/src/server/runtime/composition/app.ts`'s wiring). Legacy hosts log send failures outside the source
+ * the host app's `src/server/runtime/composition/app.ts`'s wiring). Legacy hosts log send failures outside the source
  * `EventBusPort.publish()` subscriber loop (`core/events/memory-bus.ts`'s `publish`
  * does not catch handler errors itself — a subscriber that fails to catch its own errors would
  * break every OTHER subscriber to the same event, including the webhook fan-out). Durable hosts

@@ -7,7 +7,7 @@ import type { AgentToolDefinition } from "@jini-ai/core";
  * Purpose:
  * A static, in-process catalog describing every agent-callable tool this domain exposes and the
  * permission/actor-class rule each one carries. `collections_content_type_list` (admin-UI-backend-
- * gap closure, mirroring `Tovu apps/website/src/server/inbound/admin-http/routes/content-types/list.ts`) and `collections_plan_cleanup` are
+ * gap closure, mirroring the host app's `src/server/inbound/admin-http/routes/content-types/list.ts`) and `collections_plan_cleanup` are
  * both free reads (`admin.collections.read`, `sideEffects:'none'`) — the former lists the registry,
  * the latter only recomputes and returns an eligibility plan. `collections_execute_cleanup` is the
  * one destructive tool, gated to
