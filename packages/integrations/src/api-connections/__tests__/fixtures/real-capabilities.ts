@@ -7,7 +7,7 @@ import {
   MAX_AUTHORIZATION_STATE_LENGTH, MAX_CALLBACK_FIELD_LENGTH, MAX_CALLBACK_FIELDS,
   oauthFlowOperations, PENDING_AUTHORIZATION_STATE_BYTES, secureEqualsForOwnerBinding,
 } from '@jini-ai/oauth';
-import { VaultError } from '@jini-ai/platform/secrets/credential-sets';
+import { VaultError } from '@jini-ai/core/contracts/vault';
 import type { ApiConnectionOAuthCapabilities } from '../../index.js';
 
 export const realCallbackFieldRules = { maxFields: MAX_CALLBACK_FIELDS, maxLength: MAX_CALLBACK_FIELD_LENGTH, acceptsName: isCallbackFieldName };

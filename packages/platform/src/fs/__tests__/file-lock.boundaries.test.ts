@@ -4,7 +4,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test, vi } from "vitest";
 import { defaultPlatformMessages, type PlatformMessages } from "../../messages.js";
-import { FileLockLostError, FileLockTimeoutError, withFileLock, withFileLockSync } from "../file-lock.js";
+import { withFileLock, withFileLockSync } from "../file-lock.js";
+import { FileLockLostError, FileLockTimeoutError } from "@jini-ai/core/contracts/runtime";
 import { BOOT_CLOCK_TOLERANCE_MS } from "../boot-identity.js";
 
 /** Boundary pins for both lock adapters: failure classification, cleanup ownership and defaults. */

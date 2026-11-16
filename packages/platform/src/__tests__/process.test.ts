@@ -38,7 +38,6 @@ vi.mock('node:child_process', async (importOriginal) => {
 import { spawn } from 'node:child_process';
 
 import {
-  collectProcessTreePids,
   createProcessStampArgs,
   isProcessAlive,
   listProcessSnapshots,
@@ -56,6 +55,7 @@ import {
   waitForProcessExit,
   type ProcessStampContract,
 } from '../process.js';
+import { collectProcessTreePids } from '@jini-ai/core/contracts/runtime';
 
 const POWERSHELL_PATH = /^[A-Za-z]:\\.*\\System32\\WindowsPowerShell\\v1\.0\\powershell\.exe$/i;
 

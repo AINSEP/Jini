@@ -25,7 +25,7 @@ import { partitionArgs } from '../../args.js';
  * queue it already runs — this package performs no I/O of its own beyond the vendor calls it is
  * handed a guarded `httpClient` for, a standing invariant across `@jini-ai/integrations/media-providers`.
  */
-import { FETCH_TIMEOUT_MS } from '@jini-ai/platform/fetch-with-timeout';
+import { FETCH_TIMEOUT_MS } from '@jini-ai/core/net';
 
 import { fetchMediaOutbound, requireMediaHttpClient } from './outbound.js';
 import type { MediaOutboundOptions } from './outbound.js';

@@ -27,7 +27,6 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 
 import {
   atomicCopyFile,
-  collectProcessTreePids,
   createCommandInvocation,
   createPackageManagerInvocation,
   createProcessStampArgs,
@@ -48,6 +47,7 @@ import {
   wellKnownUserToolchainBins,
   type ProcessStampContract,
 } from "../index.js";
+import { collectProcessTreePids } from "@jini-ai/core/contracts/runtime";
 
 // root (CAP_DAC_OVERRIDE) always bypasses a directory's own permission bits, so `chmod(dir,
 // 0o000)` cannot actually block root's own read/write/remove access the way a couple of tests

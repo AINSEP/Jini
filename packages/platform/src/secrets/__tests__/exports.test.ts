@@ -4,7 +4,7 @@ import { expect, test } from "vitest";
 import * as contracts from "../credential-sets/contracts.js";
 import * as existingContracts from "../credential-sets/vault.types.js";
 import { suggestCredentialWorksFor } from "../credential-sets/provider-matches.js";
-import { VaultError } from "../credential-sets/index.js";
+import { VaultError } from "@jini-ai/core/contracts/vault";
 test("retains published subpaths and declares adapter dependencies as optional peers", () => {
     const root = new URL("../../../", import.meta.url);
     const manifest = JSON.parse(readFileSync(new URL("package.json", root), "utf8"));

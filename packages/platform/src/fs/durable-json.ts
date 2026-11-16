@@ -5,7 +5,8 @@
  * Recovery policy stays with each store: salvage, restart, or leave untouched is not decided here.
  * Native effects are Electron-free so desktop, CLI, and bridge processes can share the mechanism.
  */
-import { readBootIdentity, type BootIdentity } from "./boot-identity.js";
+import { readBootIdentity } from "./boot-identity.js";
+import { type BootIdentity } from "@jini-ai/core/contracts/runtime";
 import nodeFs from "node:fs";
 import path from "node:path";
 import { randomBytes } from "node:crypto";

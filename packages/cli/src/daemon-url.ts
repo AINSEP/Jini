@@ -1,4 +1,4 @@
-import { isLoopbackHostname } from '@jini-ai/platform/net';
+import { isLoopbackHostname } from '@jini-ai/core/net';
 /**
  * @module daemon-url
  *

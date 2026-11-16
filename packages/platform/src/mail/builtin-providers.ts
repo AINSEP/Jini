@@ -10,7 +10,8 @@ import { effectivePort } from "../core/effective-port.js";
 import type { MailAdapterCredential } from "./adapter-module.js";
 import type { MailerPort } from "./ports.js";
 import type { MailProviderModule } from "./provider.js";
-import { SmtpMailerAdapter, type SmtpTransport } from "./smtp.js";
+import { SmtpMailerAdapter } from "./smtp.js";
+import { type SmtpTransport } from "@jini-ai/core/contracts/mail";
 
 /**
  * SMTP endpoint packed into a credential `baseUrl` (`https://host:port`); 443/465 = implicit TLS.

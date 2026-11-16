@@ -1,9 +1,25 @@
-import type { KeyringPort, SecretSealerPort } from "../ports.js";
+import type { KeyringPort, SecretSealerPort } from "@jini-ai/core/contracts/vault";
 import { credentialTokenHint } from "../credential-token.js";
 import { buildVaultAad } from "./vault.aad.js";
 import { isCopyableKind } from "./vault.meta.js";
-import { VAULT_KINDS, VaultError, isInVaultQueryScope, type VaultContext, type VaultIdentity, type VaultKind, type VaultMeta, type VaultMetaParsers,
-  type VaultCopyResult, type VaultDefaultQuery, type VaultOptions, type VaultQuery, type VaultRecord, type VaultPutRecord, type VaultRepoPort, type VaultSummary } from "./vault.types.js";
+import {
+  VAULT_KINDS,
+  VaultError,
+  isInVaultQueryScope,
+  type VaultContext,
+  type VaultIdentity,
+  type VaultKind,
+  type VaultMeta,
+  type VaultMetaParsers,
+  type VaultCopyResult,
+  type VaultDefaultQuery,
+  type VaultOptions,
+  type VaultQuery,
+  type VaultRecord,
+  type VaultPutRecord,
+  type VaultRepoPort,
+  type VaultSummary,
+} from "@jini-ai/core/contracts/vault";
 
 export interface VaultServiceDeps {
   repo: VaultRepoPort;

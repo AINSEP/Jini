@@ -54,10 +54,10 @@ import {
 } from '@jini-ai/agent-runtime';
 import { createCommandInvocation } from '@jini-ai/platform/command';
 import {
-  collectProcessTreePids,
   listProcessSnapshots,
   stopProcesses,
 } from '@jini-ai/platform/process';
+import { collectProcessTreePids } from '@jini-ai/core/contracts/runtime';
 import {
   applyImagePromptDelivery,
   type ImagePromptDelivery,

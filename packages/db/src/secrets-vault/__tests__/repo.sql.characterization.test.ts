@@ -1,7 +1,7 @@
 import Database from "better-sqlite3";
 import { sql, type Kysely } from "kysely";
 import { afterEach, beforeEach, expect, test } from "vitest";
-import type { VaultPutRecord } from "@jini-ai/platform/secrets/credential-sets/contracts";
+import type { VaultPutRecord } from "@jini-ai/core/contracts/vault";
 import type { KyselyKernel } from "../../kernel/port.js";
 import { sqliteKernel } from "../../kernel/sqlite/index.js";
 import { SqlSecretsVaultRepo, type SecretsVaultDatabase } from "../repo.sql.js";

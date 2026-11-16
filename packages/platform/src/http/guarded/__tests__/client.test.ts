@@ -3,8 +3,7 @@ import { test, vi, afterEach } from "vitest";
 afterEach(() => vi.restoreAllMocks());
 import { EgressRefusedError } from "../errors.js";
 import type { HttpRequest, HttpResponse } from "@jini-ai/core/primitives";
-import type { EgressPolicy, PinnedPeer } from "../ports.js";
-import type { HttpTransportAdapter } from "../ports.js";
+import type { EgressPolicy, PinnedPeer, PinnedHttpTransport } from "@jini-ai/core/contracts/runtime";
 const dnsFailure = Object.assign(new Error("fixture DNS lookup failed"), { code: "ENOTFOUND" });
 const dns = { async resolve({ hostname }: {
         hostname: string;
@@ -43,7 +42,7 @@ function makeRequest(overrides: Partial<HttpRequest> = {}): HttpRequest {
         ...overrides,
     };
 }
-class ScriptedTransport implements HttpTransportAdapter {
+class ScriptedTransport implements PinnedHttpTransport {
     calls: Array<{
         req: HttpRequest;
         peer: PinnedPeer;

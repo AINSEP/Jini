@@ -1,8 +1,14 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
 import { ProviderRegistryError } from "@jini-ai/core/provider-registry";
-import { createEmailSenderRegistry, EmailSenderError, listEmailSources, prepareSenderEmail,
-  validateEmailSourceTemplate, type EmailSender, type EmailSourceDescription, type EmailTemplatePort } from "../senders.js";
+import { createEmailSenderRegistry, listEmailSources, prepareSenderEmail } from "../senders.js";
+import {
+  EmailSenderError,
+  validateEmailSourceTemplate,
+  type EmailSender,
+  type EmailSourceDescription,
+  type EmailTemplatePort,
+} from "@jini-ai/core/contracts/mail";
 
 const context = { workspaceId: "w1", principalId: "owner", sourceId: "contact", eventId: "s1" };
 function fixture({ id = "forms" }: { id?: string } = {}, _optional: Record<string, never> = {}) {

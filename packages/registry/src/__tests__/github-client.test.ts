@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { fetchWithTimeout } from '@jini-ai/platform';
-import { FETCH_TIMEOUT_MS } from '@jini-ai/platform/fetch-with-timeout';
+import { FETCH_TIMEOUT_MS } from '@jini-ai/core/net';
 import type { HttpClientPort, HttpRequest, HttpResponse } from '@jini-ai/core/primitives';
 import { GithubApiRegistryClient } from '../github-client.js';
 

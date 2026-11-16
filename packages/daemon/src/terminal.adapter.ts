@@ -8,10 +8,12 @@ import type { IPty } from 'node-pty';
 import {
   ensureSpawnHelperExecutable,
   spawnHelperCandidatePaths,
+} from '@jini-ai/platform';
+import {
   type PtyProcess,
   type PtySpawn,
   type PtySpawnOptions,
-} from '@jini-ai/platform';
+} from '@jini-ai/core/contracts/runtime';
 
 const daemonRequire = createRequire(import.meta.url);
 

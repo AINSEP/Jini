@@ -2,7 +2,8 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { FileLockTimeoutError, withFileLock, withFileLockSync } from '../file-lock.js';
+import { withFileLock, withFileLockSync } from '../file-lock.js';
+import { FileLockTimeoutError } from '@jini-ai/core/contracts/runtime';
 const roots: string[] = [];
 function makeTemporaryDirectory(): string { const root = fs.mkdtempSync(path.join(os.tmpdir(), 'shared-sync-lock-')); roots.push(root); return root; }
 afterEach(() => { vi.restoreAllMocks(); for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true }); });

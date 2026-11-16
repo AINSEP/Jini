@@ -3,7 +3,7 @@ import { describe, test } from "vitest";
 import { ProviderRegistryError } from "@jini-ai/core/provider-registry";
 import { computeMailStatus, createMailProviderRegistry, initialMailProviderSetting, validateMailProvider, type MailProviderModule } from "../provider.js";
 import { createConsoleMailProvider, createSmtpMailProvider, parseSmtpEndpoint } from "../builtin-providers.js";
-import type { SmtpTransport } from "../smtp.js";
+import type { SmtpTransport } from "@jini-ai/core/contracts/mail";
 
 const CLOCK = { nowMs: () => Date.parse("2026-10-21T00:00:00Z") };
 

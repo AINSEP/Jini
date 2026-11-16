@@ -1,5 +1,14 @@
 import type { SecretsVaultService } from "./vault.service.js";
-import { VaultError, isInVaultQueryScope, type VaultKind, type VaultMeta, type VaultOptions, type VaultPutRecord, type VaultQuery, type VaultRepoPort } from "./vault.types.js";
+import {
+  VaultError,
+  isInVaultQueryScope,
+  type VaultKind,
+  type VaultMeta,
+  type VaultOptions,
+  type VaultPutRecord,
+  type VaultQuery,
+  type VaultRepoPort,
+} from "@jini-ai/core/contracts/vault";
 
 /** Logical transport only: source workspace, root keys, envelopes and revision history never travel. */
 export interface VaultArchiveEntry {

@@ -1,4 +1,5 @@
-import { fromEarlierBoot, type BootIdentity } from "./boot-identity.js";
+import { fromEarlierBoot } from "./boot-identity.js";
+import { type BootIdentity } from "@jini-ai/core/contracts/runtime";
 import type { DurableJsonFile } from "./durable-json.js";
 
 export interface DirectoryRunningRecord {

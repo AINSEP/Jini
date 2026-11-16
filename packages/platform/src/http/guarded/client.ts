@@ -1,18 +1,16 @@
 // Policy refusals use EgressRefusedError; DNS, connection and transport failures retain their
 // own errors because they are operational failures, not decisions that a different URL fixes.
-import { classifyIpAddress, isLoopbackHostname } from "../../net/address.js";
+import { classifyIpAddress } from "../../net/address.js";
+import { isLoopbackHostname } from "@jini-ai/core/net";
 import { effectivePort } from "../../core/effective-port.js";
 import { FetchTimeoutError } from "../../fetch-with-timeout.js";
 import { isIP } from "node:net";
 
 import { EgressRefusedError } from "./errors.js";
 import type { HttpClientPort } from "@jini-ai/core/primitives";
-import type { EgressPolicy, HttpTransportAdapter } from "./ports.js";
-import type { DnsResolver, GuardedHttpRequired } from "./ports.js";
+import type { EgressPolicy, PinnedHttpTransport, DnsResolver, GuardedHttpRequired, PinnedPeer } from "@jini-ai/core/contracts/runtime";
 import type { HttpRequest, HttpResponse, RequestRedirect } from "@jini-ai/core/primitives";
-import type { PinnedPeer } from "./types.js";
 
-export type { AddressClass } from "../../net/address.js";
 /** Uses the canonical net address validator; labels preserve the guarded refusal contract. */
 export const classifyAddress = classifyIpAddress;
 const CROSS_ORIGIN_HEADERS: ReadonlySet<string> = new Set(["accept", "accept-language", "user-agent"]);
@@ -142,7 +140,7 @@ function capResponse({ response, maxBytes, bodyAs }: { response: HttpResponse; m
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 
 /** Per-client collaborators and the per-call redirect mode, fixed for every hop of one send. */
-interface HopContext { transport: HttpTransportAdapter; policy: EgressPolicy; dns: DnsResolver; redirect: RequestRedirect }
+interface HopContext { transport: PinnedHttpTransport; policy: EgressPolicy; dns: DnsResolver; redirect: RequestRedirect }
 
 async function sendWithPolicy({ hop, request, redirectsFollowed }: { hop: HopContext; request: HttpRequest; redirectsFollowed: number }, _options: Record<string, never> = {}): Promise<HttpResponse> {
   const url = new URL(request.url);

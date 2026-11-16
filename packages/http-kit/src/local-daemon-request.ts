@@ -11,7 +11,7 @@
  */
 import net from 'node:net';
 import type { NextFunction, Request, Response } from 'express';
-import { isLoopbackHostname } from '@jini-ai/platform/net';
+import { isLoopbackHostname } from '@jini-ai/core/net';
 import { createCompatApiError } from './compat.js';
 import { sendApiError } from './response.js';
 

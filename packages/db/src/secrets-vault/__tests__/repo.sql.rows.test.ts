@@ -3,7 +3,7 @@ import Database from "better-sqlite3";
 import { PGlite, type PGliteOptions } from "@electric-sql/pglite";
 import { sql } from "kysely";
 import { afterEach, describe, test } from "vitest";
-import { VaultError, type VaultRecord } from "@jini-ai/platform/secrets/credential-sets/contracts";
+import { VaultError, type VaultRecord } from "@jini-ai/core/contracts/vault";
 
 import { openPgliteKernel } from "../../kernel/pglite/index.js";
 import type { KyselyKernel } from "../../kernel/port.js";

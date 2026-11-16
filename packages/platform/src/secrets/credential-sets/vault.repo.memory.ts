@@ -1,4 +1,18 @@
-import { assertVaultReplacement, isInVaultQueryScope, vaultGroupKey, VaultError, type VaultBatchOp, type VaultBatchResult, type VaultDefaultQuery, type VaultSingletonQuery, type VaultMeta, type VaultOptions, type VaultQuery, type VaultRecord, type VaultRepoPort } from "./vault.types.js";
+import {
+  assertVaultReplacement,
+  isInVaultQueryScope,
+  vaultGroupKey,
+  VaultError,
+  type VaultBatchOp,
+  type VaultBatchResult,
+  type VaultDefaultQuery,
+  type VaultSingletonQuery,
+  type VaultMeta,
+  type VaultOptions,
+  type VaultQuery,
+  type VaultRecord,
+  type VaultRepoPort,
+} from "@jini-ai/core/contracts/vault";
 
 /** Single-turn mutations are atomic in JS; clones prevent callers bypassing CAS through aliases. */
 export class InMemoryVaultRepo implements VaultRepoPort {

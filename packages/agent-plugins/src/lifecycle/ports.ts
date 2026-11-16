@@ -1,5 +1,5 @@
 import type { Clock, IdGenerator } from "@jini-ai/core/primitives";
-import type { BootIdentity } from "@jini-ai/platform/fs/file-lock";
+import type { BootIdentity } from "@jini-ai/core/contracts/runtime";
 import type { AgentPluginServerMetadataReader } from './manifest.js';
 import type { AgentPluginLayoutPort } from './layout.js';
 import type { AgentPluginDeliveryMode, InstalledAgentPlugin } from './types.js';

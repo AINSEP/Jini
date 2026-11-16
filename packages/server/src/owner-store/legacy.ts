@@ -6,7 +6,12 @@ import { openSqliteFileKernel } from "@jini-ai/db/kernel/sqlite";
 import type { SqliteOpener } from "@jini-ai/core/contracts/storage";
 import { AesGcmSecretSealer, EnvOrFileKeyring } from "@jini-ai/platform/secrets";
 import { createVaultMetaParsers, isCopyableKind, SecretsVaultService, type VaultServiceDeps } from "@jini-ai/platform/secrets/credential-sets";
-import { VaultError, type VaultContext, type VaultKind, type VaultMeta } from "@jini-ai/platform/secrets/credential-sets/contracts";
+import {
+  VaultError,
+  type VaultContext,
+  type VaultKind,
+  type VaultMeta,
+} from "@jini-ai/core/contracts/vault";
 
 /** @file Read-only reader for a legacy owner store (owner.db + owner.key). Shared keys are now
  * project references, so nothing opens this store for writing, runs its migrations, or creates its

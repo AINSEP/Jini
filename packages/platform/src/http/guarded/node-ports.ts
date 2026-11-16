@@ -1,6 +1,10 @@
 import { lookup } from "node:dns/promises";
 import { FetchHttpTransportAdapter } from "./transport.fetch.js";
-import type { GuardedClock, DnsResolver, PinnedHttpTransport } from "./ports.js";
+import type {
+  GuardedClock,
+  DnsResolver,
+  PinnedHttpTransport,
+} from "@jini-ai/core/contracts/runtime";
 
 /** Constructs native effect ports without resolving or connecting to any destination. */
 export function createNodeGuardedHttpPorts(_required: Record<string, never>): { dns: DnsResolver; clock: GuardedClock; transport: PinnedHttpTransport } {

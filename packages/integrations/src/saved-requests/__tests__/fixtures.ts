@@ -1,5 +1,5 @@
 import type { HttpRequest, HttpResponse } from "@jini-ai/core/primitives";
-import type { PinnedPeer } from "@jini-ai/platform/http/guarded";
+import type { PinnedPeer } from "@jini-ai/core/contracts/runtime";
 import { InMemoryCredentialedRequestAuditLog, makeCredentialedRequest } from "../../credentialed-http/credentialed-request.js";
 import type { SavedRequestDefinition, SavedRequestDeps } from "../types.js";
 

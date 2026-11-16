@@ -1,7 +1,8 @@
 import { realpathSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { describe, expect, it } from 'vitest';
-import { nodeLoginShellPorts, omitEnvironmentKeys, type LoginShellPorts } from '../child-environment.js';
+import { nodeLoginShellPorts, type LoginShellPorts } from '../child-environment.js';
+import { omitEnvironmentKeys } from '@jini-ai/core/contracts/runtime';
 
 describe('omitEnvironmentKeys', () => {
   it('omits scoped overrides without changing the parent or reporting their values', () => {

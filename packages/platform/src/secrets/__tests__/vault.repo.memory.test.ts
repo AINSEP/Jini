@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, test } from "vitest";
-import { InMemoryVaultRepo, type VaultRecord, type VaultPutRecord } from "../credential-sets/index.js";
+import { InMemoryVaultRepo } from "../credential-sets/index.js";
+import { type VaultRecord, type VaultPutRecord } from "@jini-ai/core/contracts/vault";
 
 function row(id: string, patch: Partial<VaultPutRecord> = {}): VaultPutRecord {
   return { workspaceId: "ws", id, kind: "vendor", ownerKey: "deploy", principalId: null, binding: null,

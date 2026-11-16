@@ -17,7 +17,7 @@
  */
 import { createHash } from 'node:crypto';
 import type { Clock, HttpClientPort } from '@jini-ai/core/primitives';
-import { FETCH_TIMEOUT_MS } from '@jini-ai/platform/fetch-with-timeout';
+import { FETCH_TIMEOUT_MS } from '@jini-ai/core/net';
 
 const ELEVENLABS_DEFAULT_BASE_URL = 'https://api.elevenlabs.io';
 const ELEVENLABS_DEFAULT_VOICE_LIMIT = 100;

@@ -1,4 +1,4 @@
-import { isLoopbackApiHost, isBlockedExternalApiHostname } from '@jini-ai/platform/net';
+import { isLoopbackApiHost, isBlockedExternalApiHostname } from '@jini-ai/core/net';
 import { redactSecrets } from '@jini-ai/core';
 import * as http from 'node:http';
 import * as net from 'node:net';

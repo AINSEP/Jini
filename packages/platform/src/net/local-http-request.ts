@@ -1,7 +1,7 @@
 import { X509Certificate } from 'node:crypto';
 import { request as httpRequest } from 'node:http';
 import { request as httpsRequest } from 'node:https';
-import { isLoopbackHostname } from './address.js';
+import { isLoopbackHostname } from '@jini-ai/core/net';
 
 /** Bounded private local-control request, with the same pinned-leaf TLS policy as local probes.
  * Never follows redirects, resolves DNS, logs payloads, or permits remote credentials.

@@ -38,7 +38,7 @@
 import {
   isLoopbackApiHost as isLoopbackEndpointHost,
   isBlockedExternalApiHostname as isBlockedEndpointHost,
-} from '@jini-ai/platform/net/endpoint-policy';
+} from '@jini-ai/core/net';
 
 // Preserve the UI's published names and object signatures as aliases of the owner.
 export { isLoopbackEndpointHost, isBlockedEndpointHost };

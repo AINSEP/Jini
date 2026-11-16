@@ -4,7 +4,7 @@
 import { realVaultConflict } from '../../__tests__/fixtures/real-capabilities.js';
 import { describe, expect, it } from "vitest";
 import { createTokenRefresher, type TokenRefreshPort } from "@jini-ai/oauth";
-import { VaultError } from "@jini-ai/platform/secrets/credential-sets";
+import { VaultError } from "@jini-ai/core/contracts/vault";
 import { OAuthTokenStoreError, parseOAuthTokenVaultMeta, type OAuthTokenStoreErrorCode } from "../index.js";
 import { buildRecordMeta, buildTokenPayload } from "../record.js";
 import { createVaultOAuthTokenStore, type OAuthTokenVaultPort } from "../vault-token-store.js";

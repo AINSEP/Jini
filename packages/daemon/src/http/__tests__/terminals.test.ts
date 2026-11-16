@@ -9,7 +9,7 @@ import {
   type ToolExecutionResult,
   type ToolExecutor,
 } from '../../index.js';
-import type { PtyProcess, PtySpawn } from '@jini-ai/platform';
+import type { PtyProcess, PtySpawn } from '@jini-ai/core/contracts/runtime';
 import { isLocalSameOrigin } from '@jini-ai/core';
 import {
   actionResultToApiResult,

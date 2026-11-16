@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import type { BlobFileMeta, BlobStorage } from '@jini-ai/platform';
-import { StorageError } from '@jini-ai/platform';
+import type { BlobFileMeta, BlobStorage } from '@jini-ai/core/contracts/blob';
+import { StorageError } from '@jini-ai/core/contracts/blob';
 import { BlobStorageProvider } from '../index.js';
 
 /**

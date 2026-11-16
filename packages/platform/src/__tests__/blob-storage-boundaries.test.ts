@@ -10,7 +10,8 @@ import { join } from 'node:path';
 
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { LocalBlobStorage, S3BlobStorage, StorageError, type S3BlobStorageOptions } from '../blob-storage.js';
+import { LocalBlobStorage, S3BlobStorage, type S3BlobStorageOptions } from '../blob-storage.js';
+import { StorageError } from '@jini-ai/core/contracts/blob';
 
 function storageRefusal(fn: () => unknown): StorageError {
   try {

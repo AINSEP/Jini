@@ -48,13 +48,14 @@
 import type { Principal, ToolPolicy, ToolRegistration } from '@jini-ai/core';
 import {
   createTerminalService,
+} from '@jini-ai/platform';
+import {
   type PtySpawn,
   type TerminalService,
   type TerminalSession as PlatformTerminalSession,
   type TerminalSseSink,
-} from '@jini-ai/platform';
+} from '@jini-ai/core/contracts/runtime';
 
-export type { TerminalSseSink } from '@jini-ai/platform';
 
 /** The `ToolRegistry` id `terminal.create` executes through — see module doc §2. */
 export const TERMINAL_CREATE_TOOL_ID = 'terminal.create';

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { isPrivateAddress } from '../address.js';
-import { isBlockedExternalApiHostname, isLoopbackApiHost } from '../endpoint-policy.js';
+import { isBlockedExternalApiHostname, isLoopbackApiHost } from '@jini-ai/core/net';
 import { classifyAddress } from '../../http/guarded/client.js';
 
 const EMBEDDED = [

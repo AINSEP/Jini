@@ -3,7 +3,7 @@ import { test } from "vitest";
 import { AesGcmSecretSealer } from "../secret-sealer.aesgcm.js";
 import { InMemoryKeyring } from "../keyring.memory.js";
 import { createCipheriv, randomBytes } from "node:crypto";
-import type { KeyringPort, RootKeyHandle } from "../ports.js";
+import type { KeyringPort, RootKeyHandle } from "@jini-ai/core/contracts/vault";
 test("seal then open round-trips the plaintext exactly", async () => {
     const keyring = new InMemoryKeyring({ hkdfSalt: "fixture-salt" });
     const sealer = new AesGcmSecretSealer({ keyring: keyring });

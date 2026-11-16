@@ -3,8 +3,7 @@ import { request as httpsRequest, type RequestOptions } from "node:https";
 import { createBrotliDecompress, createGunzip, createInflate } from "node:zlib";
 
 import type { HttpRequest, HttpResponse } from "@jini-ai/core/primitives";
-import type { PinnedPeer } from "./types.js";
-import type { HttpTransportAdapter } from "./ports.js";
+import type { PinnedPeer, PinnedHttpTransport } from "@jini-ai/core/contracts/runtime";
 
 /**
  * Dial only the policy-vetted IP, never re-resolve the URL hostname: otherwise DNS rebinding
@@ -22,7 +21,7 @@ export interface NativeHttpTransportOptions {
   request?: (input: { secure: boolean; options: RequestOptions; onResponse: (response: IncomingMessage) => void }, optional?: Record<string, never>) => ClientRequest;
 }
 
-export class FetchHttpTransportAdapter implements HttpTransportAdapter {
+export class FetchHttpTransportAdapter implements PinnedHttpTransport {
   constructor(_required: Record<string, never>, private readonly optional: NativeHttpTransportOptions = {}) {}
   async requestPinned({ request: req, peer }: { request: HttpRequest; peer: PinnedPeer }): Promise<HttpResponse> {
     const url = new URL(req.url);

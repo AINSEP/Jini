@@ -32,8 +32,8 @@ import type {
   TerminalSessionActionResult,
   TerminalSessionInfo,
   TerminalSessionManager,
-  TerminalSseSink,
 } from '../index.js';
+import type { TerminalSseSink } from '@jini-ai/core/contracts/runtime';
 import { TERMINAL_CREATE_TOOL_ID } from '../index.js';
 import type { ToolExecutionResult, ToolExecutor } from '../index.js';
 import { createApiError } from '@jini-ai/protocol';

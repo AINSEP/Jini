@@ -12,7 +12,7 @@ import {
   createOAuthUrlGuard, MAX_AUTHORIZATION_STATE_LENGTH, MAX_CALLBACK_FIELD_LENGTH, OAuthError, oauthFlowOperations,
   PENDING_AUTHORIZATION_STATE_BYTES, type OAuthFetch,
 } from '@jini-ai/oauth';
-import { VaultError } from '@jini-ai/platform/secrets/credential-sets';
+import { VaultError } from '@jini-ai/core/contracts/vault';
 import {
   ApiConnectionError, createApiConnectionService, createSignInHandoffs, parseApiConnectionDescriptor, type ApiConnectionService,
 } from '../index.js';

@@ -1,8 +1,16 @@
 /** MOVE: Forms owns submission identity, exported answers and recipient selection. This adapter
  * extends that ownership; it never creates a settings store, queue, renderer or notification path. */
-import { EmailSenderError, validateEmailSourceTemplate, type EmailBinding, type EmailReadiness,
-  type EmailSender, type EmailSenderContext, type EmailSourceRequest, type EmailSourceSummary,
-  type EmailTemplatePort } from "@jini-ai/platform/mail/senders";
+import {
+  EmailSenderError,
+  validateEmailSourceTemplate,
+  type EmailBinding,
+  type EmailReadiness,
+  type EmailSender,
+  type EmailSenderContext,
+  type EmailSourceRequest,
+  type EmailSourceSummary,
+  type EmailTemplatePort,
+} from "@jini-ai/core/contracts/mail";
 import { describeFormEmailFields, emailAnswerFields, formEmailFieldToken, resolveFormEmailValues } from "./email-sender-fields.js";
 import { isValidFormEmail } from "./email-format.js";
 import type { FormDefinitionRepoPort, FormSubmissionRepoPort } from "./ports.js";

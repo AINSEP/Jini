@@ -1,8 +1,12 @@
 import { beforeAll, describe, expect, it } from 'vitest';
 import fc from 'fast-check';
 import { classifyIpAddress, isPrivateAddress } from '../../address.js';
-import { classifyAddressLiteral, isBlockedExternalApiHostname, isLoopbackApiHost } from '../../endpoint-policy.js';
-import type { AddressClass } from '../../endpoint-policy.js';
+import {
+  classifyAddressLiteral,
+  isBlockedExternalApiHostname,
+  isLoopbackApiHost,
+} from '@jini-ai/core/net';
+import type { AddressClass } from '@jini-ai/core/net';
 
 const seed = Number(process.env.FC_SEED ?? 20261020);
 const options = { seed, numRuns: 150 };

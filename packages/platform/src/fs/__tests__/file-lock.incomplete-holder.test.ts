@@ -4,7 +4,8 @@ import path from "node:path";
 import { afterEach, expect, test, vi } from "vitest";
 import { createNodeDurableJsonPorts } from "../durable-json.js";
 import { createNodeDirectoryWorkspace } from "../directory-workspace.js";
-import { FileLockTimeoutError, withFileLock, withFileLockSync } from "../file-lock.js";
+import { withFileLock, withFileLockSync } from "../file-lock.js";
+import { FileLockTimeoutError } from "@jini-ai/core/contracts/runtime";
 
 const roots: string[] = [];
 function temporaryRoot(): string {

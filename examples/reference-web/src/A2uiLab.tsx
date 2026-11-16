@@ -1,7 +1,8 @@
 import { streamA2uiRun } from './a2ui-run-stream.js';
 import { createSystemClock } from "@jini-ai/platform/system";
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
+import { fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
+import { FETCH_TIMEOUT_MS } from '@jini-ai/core/net';
 import { createA2uiInterpreter, createLabCatalog, DynamicValueSchema, type A2uiInterpreter } from '@jini-ai/agentic/a2ui';
 import { A2uiSurfaceCard, registerExtEventRenderer } from '@jini-ai/chat/react';
 

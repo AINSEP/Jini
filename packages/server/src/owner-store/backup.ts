@@ -1,6 +1,11 @@
 import { openWithPassphrase } from "@jini-ai/platform/secrets";
 import { isCopyableKind } from "@jini-ai/platform/secrets/credential-sets";
-import { VAULT_KINDS, type VaultKind, type VaultOptions, type VaultSummary } from "@jini-ai/platform/secrets/credential-sets/contracts";
+import {
+  VAULT_KINDS,
+  type VaultKind,
+  type VaultOptions,
+  type VaultSummary,
+} from "@jini-ai/core/contracts/vault";
 import type { LegacyOwnerEntry, LegacyOwnerSnapshot } from "./legacy.js";
 
 type BackupHint = Pick<VaultSummary, "last4" | "tokenLength">;

@@ -17,7 +17,8 @@ import Database from 'better-sqlite3';
 import { acpFixtureDef } from './acp-fixture.ts';
 import { createAgentExecutor } from '@jini-ai/daemon';
 import { createNativeAgentRuntime, type AgentLaunchResolution } from '@jini-ai/agent-runtime';
-import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform';
+import { fetchWithTimeout } from '@jini-ai/platform';
+import { FETCH_TIMEOUT_MS } from '@jini-ai/core/net';
 import { createLocalNodeDaemon } from '@jini-ai/server';
 
 interface DaemonStatusBody {

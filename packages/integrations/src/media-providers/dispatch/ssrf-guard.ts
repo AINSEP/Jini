@@ -37,11 +37,10 @@
  * RFC1918/CGNAT/link-local/multicast addresses. Platform's parser validates both hex groups
  * before its non-null assertions; this module no longer maintains another parser copy.
  */
-import { isLoopbackApiHost, isBlockedExternalApiHostname } from '@jini-ai/platform/net';
+import { isLoopbackApiHost, isBlockedExternalApiHostname, FETCH_TIMEOUT_MS } from '@jini-ai/core/net';
 import { promises as dnsPromises } from 'node:dns';
 import { isIpLiteralHostname } from '@jini-ai/core';
 import { trimCharsEnd } from '@jini-ai/core/primitives';
-import { FETCH_TIMEOUT_MS } from '@jini-ai/platform/fetch-with-timeout';
 import { defaultMediaOutboundMessages, fetchMediaOutbound, requireMediaHttpClient } from './outbound.js';
 import type { MediaOutboundOptions } from './outbound.js';
 

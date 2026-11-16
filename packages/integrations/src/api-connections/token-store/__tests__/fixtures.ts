@@ -5,7 +5,8 @@ import { realVaultConflict } from '../../__tests__/fixtures/real-capabilities.js
 import type { OAuthTokenSet } from "@jini-ai/oauth";
 import { AesGcmSecretSealer } from "@jini-ai/platform/secrets";
 import { InMemoryKeyring } from "@jini-ai/platform/secrets/testing";
-import { InMemoryVaultRepo, SecretsVaultService, createVaultMetaParsers, type VaultContext } from "@jini-ai/platform/secrets/credential-sets";
+import { InMemoryVaultRepo, SecretsVaultService, createVaultMetaParsers } from "@jini-ai/platform/secrets/credential-sets";
+import { type VaultContext } from "@jini-ai/core/contracts/vault";
 import { createVaultOAuthTokenStore, parseOAuthTokenVaultMeta, type OAuthConnectionOwner, type VaultOAuthTokenStore } from "../index.js";
 
 export const KEY = "connection-key-1";

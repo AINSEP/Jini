@@ -5,7 +5,8 @@ import { lstat, mkdir, mkdtemp, readdir, readFile, rename, rm, writeFile, unlink
 import path from 'node:path';
 import { tmpdir } from 'node:os';
 import * as semver from 'semver';
-import { withFileLock, FileLockTimeoutError, type FileLockOptions } from '@jini-ai/platform/fs/file-lock';
+import { withFileLock, type FileLockOptions } from '@jini-ai/platform/fs/file-lock';
+import { FileLockTimeoutError } from '@jini-ai/core/contracts/runtime';
 import { validateManifest, validatePluginIdFormat } from '../manifest.js';
 import { PLUGIN_MANIFEST_FILENAME as MANIFEST, LEGACY_PLUGIN_MANIFEST_FILENAME, PLUGIN_MANIFEST_FILENAMES, canonicalizePluginManifest } from '../plugin-format.js';
 import type { ManifestHostPorts } from '../ports.js';

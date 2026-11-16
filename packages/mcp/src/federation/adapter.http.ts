@@ -4,7 +4,7 @@ import { redactSecrets } from '@jini-ai/core';
 import { scrubFederatedResponseValue } from "./result-secrets.js";
 import type { FederationMessages } from "./messages.js";
 import { parseSseRecord } from "@jini-ai/core/primitives";
-import type { TextReadOptions } from "@jini-ai/platform/fetch-with-timeout";
+import type { TextReadOptions } from "@jini-ai/core/net";
 import type { McpToolCallRequiredArgs, McpToolCallOptions } from "./ports.js";
 import {
   buildInitializeParams,

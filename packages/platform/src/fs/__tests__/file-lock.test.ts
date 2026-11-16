@@ -3,7 +3,8 @@ import * as asyncFs from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import { afterEach, expect, test, vi } from "vitest";
-import { isLockStale, withFileLockSync, withFileLock, FileLockTimeoutError } from "../file-lock.js";
+import { isLockStale, withFileLockSync, withFileLock } from "../file-lock.js";
+import { FileLockTimeoutError } from "@jini-ai/core/contracts/runtime";
 const roots: string[] = [];
 function target(): string { const root = fs.mkdtempSync(path.join(os.tmpdir(), "inode-lock-")); roots.push(root); return path.join(root, "file.lock"); }
 afterEach(() => { vi.restoreAllMocks(); for (const root of roots.splice(0)) fs.rmSync(root, { recursive: true, force: true }); });

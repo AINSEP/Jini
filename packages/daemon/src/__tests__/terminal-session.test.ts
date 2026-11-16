@@ -3,11 +3,13 @@ import { createToolRegistry, type Principal, type ToolPolicy, type ToolRegistry 
 import type {
   ensureSpawnHelperExecutable as EnsureSpawnHelperExecutableFn,
   spawnHelperCandidatePaths as SpawnHelperCandidatePathsFn,
+} from '@jini-ai/platform';
+import type {
   PtyProcess,
   PtySpawn,
   PtySpawnOptions,
   TerminalSseSink,
-} from '@jini-ai/platform';
+} from '@jini-ai/core/contracts/runtime';
 import { createTerminalService } from '@jini-ai/platform';
 import { createToolExecutor, type ToolExecutor } from '../tool-executor.js';
 import { loadRealSpawnPty } from '../terminal.adapter.js';

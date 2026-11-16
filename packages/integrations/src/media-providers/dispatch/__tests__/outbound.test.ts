@@ -1,7 +1,7 @@
 import { createNodeMediaHttpClient } from '../node.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { HttpClientPort, HttpRequest } from '@jini-ai/core/primitives';
-import type { DnsResolver } from '@jini-ai/platform/http/guarded';
+import type { DnsResolver } from '@jini-ai/core/contracts/runtime';
 import { defaultMediaOutboundMessages, fetchMediaOutbound } from '../outbound.js';
 import { testPinnedRequests } from './outbound-fixtures.js';
 

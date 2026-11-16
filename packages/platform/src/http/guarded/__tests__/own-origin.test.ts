@@ -3,7 +3,7 @@ import { test } from 'vitest';
 import type { HttpRequest, HttpResponse } from '@jini-ai/core/primitives';
 import { createHttpClient } from '../client.js';
 import { EgressRefusedError } from '../errors.js';
-import type { EgressPolicy, PinnedPeer } from '../ports.js';
+import type { EgressPolicy, PinnedPeer } from '@jini-ai/core/contracts/runtime';
 
 const origin = 'http://localhost:43127';
 const policy: EgressPolicy = {

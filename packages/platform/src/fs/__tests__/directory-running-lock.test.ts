@@ -1,7 +1,8 @@
 import { expect, it } from "vitest";
 import { createDirectoryRunningLock, type DirectoryRunningRecord } from "../directory-running-lock.js";
 import type { DurableJsonFile, JsonFileRead } from "../durable-json.js";
-import { BOOT_CLOCK_TOLERANCE_MS, type BootIdentity } from "../boot-identity.js";
+import { BOOT_CLOCK_TOLERANCE_MS } from "../boot-identity.js";
+import { type BootIdentity } from "@jini-ai/core/contracts/runtime";
 
 function fixture(_required = {}, { bootIdentity }: { bootIdentity?: () => BootIdentity | undefined } = {}) {
   let stored: JsonFileRead = { state: "missing" }, locked = false;

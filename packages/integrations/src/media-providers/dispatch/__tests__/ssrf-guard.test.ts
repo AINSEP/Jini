@@ -2,7 +2,7 @@ import { createNodeMediaHttpClient } from '../node.js';
 import { promises as dnsPromises } from 'node:dns';
 import type { LookupAddress } from 'node:dns';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { isBlockedExternalApiHostname, isLoopbackApiHost } from "@jini-ai/platform/net";
+import { isBlockedExternalApiHostname, isLoopbackApiHost } from "@jini-ai/core/net";
 import { assertAndFetchExternalAsset, assertExternalAssetUrl, validateBaseUrlResolved } from '../ssrf-guard.js';
 
 afterEach(() => {

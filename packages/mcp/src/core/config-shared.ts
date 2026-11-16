@@ -1,4 +1,4 @@
-import { isLoopbackHostname } from '@jini-ai/platform/net';
+import { isLoopbackHostname } from '@jini-ai/core/net';
 import type { McpAuthMode, McpServerConfig } from './config.js';
 
 export function isPlainObject(v: unknown): v is Record<string, unknown> {

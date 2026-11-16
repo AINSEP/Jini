@@ -26,7 +26,7 @@
  * `response-parsers.ts`'s `createHexEnvelopeAudioParser` for the shared,
  * reusable piece.
  */
-import { FETCH_TIMEOUT_MS } from '@jini-ai/platform/fetch-with-timeout';
+import { FETCH_TIMEOUT_MS } from '@jini-ai/core/net';
 import { fetchMediaOutbound, requireMediaHttpClient } from './outbound.js';
 import type { ProviderCredentials, RenderContext, RenderResult, VendorAdapter, VendorCredentialGuard } from './types.js';
 export type { VendorRequest, VendorRequestBuilder, VendorResponseParser, VendorCredentialGuard, VendorAdapter } from './types.js';

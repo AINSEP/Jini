@@ -43,7 +43,12 @@
  * acquire within 15 seconds or loses the lock before rename reports busy and publishes nothing.
  */
 import path from "node:path";
-import { FileLockLostError, FileLockTimeoutError, type FileLockHolder, type HeldFileLock } from "@jini-ai/platform/fs/file-lock";
+import {
+  FileLockLostError,
+  FileLockTimeoutError,
+  type FileLockHolder,
+  type HeldFileLock,
+} from "@jini-ai/core/contracts/runtime";
 import { withFileLock } from "@jini-ai/platform/fs/file-lock";
 import type { AgentPluginLifecyclePorts } from "./ports.js";
 

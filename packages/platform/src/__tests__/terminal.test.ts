@@ -11,12 +11,14 @@ import {
   ensureSpawnHelperExecutable,
   resolveShell,
   spawnHelperCandidatePaths,
+} from '../terminal.js';
+import {
   type CreateTerminalServiceOptions,
   type PtyProcess,
   type PtySpawn,
   type TerminalEventData,
   type TerminalSseSink,
-} from '../terminal.js';
+} from '@jini-ai/core/contracts/runtime';
 
 class FakePty implements PtyProcess {
   dataCb: ((chunk: string) => void) | null = null;

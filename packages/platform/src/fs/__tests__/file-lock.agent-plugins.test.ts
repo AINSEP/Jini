@@ -10,7 +10,12 @@ import { test } from "vitest";
 
 import { rm } from "node:fs/promises";
 const forceRemove = (target: string) => rm(target, { recursive: true, force: true });
-import { DEFAULT_LOCK_STALE_AFTER_MS, FileLockLostError, FileLockTimeoutError, type FileLockHolder, type FileLockOptions, withFileLock, withFileLockSync, isContendedLockError } from "../file-lock.js";
+import { DEFAULT_LOCK_STALE_AFTER_MS, type FileLockOptions, withFileLock, withFileLockSync, isContendedLockError } from "../file-lock.js";
+import {
+  FileLockLostError,
+  FileLockTimeoutError,
+  type FileLockHolder,
+} from "@jini-ai/core/contracts/runtime";
 
 /**
  * @file U1-U14 — the shared async file lock's own contract, exercised against a REAL filesystem

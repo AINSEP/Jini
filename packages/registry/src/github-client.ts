@@ -24,7 +24,7 @@
  * the QUICK total bound and an explicit idle budget; request orchestration never chooses global
  * fetch. Hosts can bind the existing helper or a policy-enforcing egress client without a new port.
  */
-import { FETCH_TIMEOUT_MS } from '@jini-ai/platform/fetch-with-timeout';
+import { FETCH_TIMEOUT_MS } from '@jini-ai/core/net';
 import type { HttpClientPort, HttpRequest, HttpResponse } from '@jini-ai/core/primitives';
 import type { RegistryManifest } from '@jini-ai/protocol';
 import type { GithubPublishMutation, GithubRegistryClient } from './github-backend.js';

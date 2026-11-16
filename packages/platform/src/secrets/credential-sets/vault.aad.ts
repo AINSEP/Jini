@@ -1,5 +1,5 @@
 import { formatAad } from "../aad.js";
-import type { VaultIdentity, VaultOptions } from "./vault.types.js";
+import type { VaultIdentity, VaultOptions } from "@jini-ai/core/contracts/vault";
 
 /** JSON tuple encoding prevents colons or separators in host identifiers aliasing another row. */
 export function buildVaultAad(input: VaultIdentity, _options: VaultOptions = {}): string {

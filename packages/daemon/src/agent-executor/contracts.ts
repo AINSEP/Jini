@@ -40,9 +40,8 @@ import type {
 import type { createCommandInvocation } from '@jini-ai/platform/command';
 import type {
    listProcessSnapshots,
-   ProcessSnapshot,
-   StopProcessesResult,
 } from '@jini-ai/platform/process';
+import type { ProcessSnapshot, StopProcessesResult } from '@jini-ai/core/contracts/runtime';
 import type {
    RunByteJournal,
 } from '../continuation/journal.js';

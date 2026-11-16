@@ -39,7 +39,7 @@
 import { existsSync, realpathSync } from 'node:fs';
 import type { Readable, Writable } from 'node:stream';
 import { fileURLToPath } from 'node:url';
-import { isLoopbackHostname } from '@jini-ai/platform/net';
+import { isLoopbackHostname } from '@jini-ai/core/net';
 import { createMcpToolServer as createMcpToolServerDefault } from '../server/tool-server.js';
 import { assembleRunToolHost } from '../server/run-tool-host.js';
 import type { McpMessageRelay } from '../server/message-relay.js';

@@ -1,7 +1,7 @@
 import express from 'express';
 import { installRouteRegistrationGuard } from '@jini-ai/http-kit';
 import type { TerminalSessionManager } from '@jini-ai/daemon';
-import type { PtyProcess } from '@jini-ai/platform';
+import type { PtyProcess } from '@jini-ai/core/contracts/runtime';
 import { expect, it, vi } from 'vitest';
 import { composeJiniKernel } from '../compose-jini-kernel.js';
 

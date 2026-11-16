@@ -1,4 +1,5 @@
-import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
+import { fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
+import { FETCH_TIMEOUT_MS } from '@jini-ai/core/net';
 import type { ChatPaneAgent, ChatPaneRuntimeAccess } from '@jini-ai/chat/react';
 
 async function readAgents(response: Response): Promise<readonly ChatPaneAgent[]> {

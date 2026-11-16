@@ -10,7 +10,12 @@ import path from "node:path";
 import { test } from "../legacy-test.js";
 
 import { forceRemove } from "../fixtures/force-remove.js";
-import { DEFAULT_LOCK_STALE_AFTER_MS, FileLockLostError, FileLockTimeoutError, type FileLockHolder } from "@jini-ai/platform/fs/file-lock";
+import { DEFAULT_LOCK_STALE_AFTER_MS } from "@jini-ai/platform/fs/file-lock";
+import {
+  FileLockLostError,
+  FileLockTimeoutError,
+  type FileLockHolder,
+} from "@jini-ai/core/contracts/runtime";
 
 /**
  * @file U1-U14 — `platform/fs/file-lock`'s own contract, exercised against a REAL filesystem

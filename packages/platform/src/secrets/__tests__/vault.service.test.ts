@@ -3,7 +3,15 @@ import { test, vi } from "vitest";
 import { AesGcmSecretSealer } from "../secret-sealer.aesgcm.js";
 import { InMemoryKeyring } from "../keyring.memory.js";
 import { SecretsVaultService, InMemoryVaultRepo, buildVaultAad, createVaultMetaParsers, isCopyableKind,
-  VAULT_KINDS, VaultError, type VaultIdentity, type VaultMeta, type VaultMetaParsers, type VaultPutInput, type VaultRepoPort } from "../credential-sets/index.js";
+  type VaultPutInput } from "../credential-sets/index.js";
+import {
+  VAULT_KINDS,
+  VaultError,
+  type VaultIdentity,
+  type VaultMeta,
+  type VaultMetaParsers,
+  type VaultRepoPort,
+} from "@jini-ai/core/contracts/vault";
 
 const context: VaultIdentity = { workspaceId: "ws", id: "a", kind: "site-assistant", ownerKey: "assistant", principalId: null, binding: null };
 const query = { workspaceId: "ws", kind: context.kind, ownerKey: context.ownerKey, principalId: null };

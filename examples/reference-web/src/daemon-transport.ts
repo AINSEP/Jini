@@ -1,5 +1,6 @@
 import { drainRunEventFrames } from './run-event-frames.js';
-import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
+import { fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
+import { FETCH_TIMEOUT_MS } from '@jini-ai/core/net';
 import {
   buildTranscript,
   type AgentEvent,

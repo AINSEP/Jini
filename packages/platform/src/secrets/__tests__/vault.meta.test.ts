@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, test, vi } from "vitest";
-import { createVaultMetaParsers, VaultError, type VaultMeta, type VaultMetaParser } from "../credential-sets/index.js";
+import { createVaultMetaParsers } from "../credential-sets/index.js";
+import { VaultError, type VaultMeta, type VaultMetaParser } from "@jini-ai/core/contracts/vault";
 
 const invalidMeta = { code: "invalid-meta", message: "Secrets vault: invalid-meta", name: "VaultError" };
 

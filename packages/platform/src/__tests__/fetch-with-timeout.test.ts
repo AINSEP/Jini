@@ -1,7 +1,8 @@
 import { inspect } from 'node:util';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { FETCH_TIMEOUT_MS, FetchTimeoutError, fetchWithTimeout } from '../fetch-with-timeout.js';
+import { FetchTimeoutError, fetchWithTimeout } from '../fetch-with-timeout.js';
+import { FETCH_TIMEOUT_MS } from '@jini-ai/core/net';
 
 /**
  * A `fetch` stand-in that mirrors real fetch/undici's abort contract: it never settles on its own

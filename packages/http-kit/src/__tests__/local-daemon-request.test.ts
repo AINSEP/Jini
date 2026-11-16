@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { isLoopbackHostname } from '@jini-ai/platform/net';
+import { isLoopbackHostname } from '@jini-ai/core/net';
 import {
   isLoopbackPeerAddress,
   localOriginFromHeader,

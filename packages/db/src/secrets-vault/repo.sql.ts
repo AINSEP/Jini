@@ -1,6 +1,17 @@
 import { sql, type Expression, type Kysely } from "kysely";
-import { assertVaultReplacement, VaultError, type VaultBatchOp, type VaultBatchResult, type VaultDefaultQuery, type VaultSingletonQuery, type VaultMeta, type VaultOptions, type VaultQuery,
-  type VaultRecord, type VaultRepoPort } from "@jini-ai/platform/secrets/credential-sets/contracts";
+import {
+  assertVaultReplacement,
+  VaultError,
+  type VaultBatchOp,
+  type VaultBatchResult,
+  type VaultDefaultQuery,
+  type VaultSingletonQuery,
+  type VaultMeta,
+  type VaultOptions,
+  type VaultQuery,
+  type VaultRecord,
+  type VaultRepoPort,
+} from "@jini-ai/core/contracts/vault";
 import { jsonSet } from "../kernel/dialect.js";
 import { toBool } from "@jini-ai/core/contracts/storage";
 import type { KyselyKernel } from "../kernel/port.js";

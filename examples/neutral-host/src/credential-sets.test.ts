@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import { AesGcmSecretSealer } from '@jini-ai/platform/secrets';
-import { createVaultMetaParsers, InMemoryVaultRepo, SecretsVaultService, VaultError } from '@jini-ai/platform/secrets/credential-sets';
+import { createVaultMetaParsers, InMemoryVaultRepo, SecretsVaultService } from '@jini-ai/platform/secrets/credential-sets';
+import { VaultError } from '@jini-ai/core/contracts/vault';
 import { InMemoryKeyring } from '@jini-ai/platform/secrets/testing';
 import {
   createCredentialSet, CredentialSetVaultRepo, CustomCredentialDuplicateLabelError, deleteCredentialSet, describeCredentialSetByLabel,

@@ -45,7 +45,7 @@ import { readProviderResponseText, MAX_PROVIDER_ERROR_BYTES } from './response-t
  * that actually matters, the UI accepts one this guard would have refused.
  */
 
-import { isLoopbackApiHost, isBlockedExternalApiHostname } from '@jini-ai/platform/net';
+import { isLoopbackApiHost, isBlockedExternalApiHostname } from '@jini-ai/core/net';
 import { isIpLiteralHostname } from '@jini-ai/core';
 import { trimCharsEnd } from '@jini-ai/core/text';
 

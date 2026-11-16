@@ -1,6 +1,5 @@
-import type { MailAdapterCredential, MailProviderModule, MailProviderRegistry, MailProviderSetup } from "@jini-ai/core/contracts/mail";
+import type { MailAdapterCredential, MailProviderModule, MailProviderRegistry, MailProviderSetup, SmtpMailPayload as SmtpPayload } from "@jini-ai/core/contracts/mail";
 import type { PluginCredentialCard } from "@jini-ai/core/contracts/credentials";
-import type { SmtpMailPayload as SmtpPayload } from "@jini-ai/platform/mail/smtp";
 import type { MailAdapterRegistry } from "./contribution.js";
 export interface MailCatalogDeps {
  loadMailAdapters: () => Promise<MailAdapterRegistry>;
