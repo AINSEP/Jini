@@ -1,5 +1,9 @@
 import { expect, test } from "vitest";
-import { createAiTraceRecorder, createFanOutAiTraceSink, createRecordingAiTraceSink } from "@jini-ai/agent-runtime/ai-trace";
+import {
+  createAiTraceRecorder,
+  createFanOutAiTraceSink,
+  createRecordingAiTraceSink,
+} from "@jini-ai/core/contracts/ai-trace";
 import { createAiGenerationSink, createNoopProductAnalytics, withProductAnalyticsGuards, type ProductAiGeneration, type ProductAnalyticsPort } from "../product/index.js";
 
 function recordingAnalytics({ includeAiContent = false }: { includeAiContent?: boolean } = {}) {

@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createAiTraceRecorder, createRecordingAiTraceSink, createFanOutAiTraceSink, createLazyAiTraceSink, type AiTraceEvent, type AiTraceSink } from '../index.js';
+import {
+  createAiTraceRecorder,
+  createRecordingAiTraceSink,
+  createFanOutAiTraceSink,
+  createLazyAiTraceSink,
+  type AiTraceEvent,
+  type AiTraceSink,
+} from '@jini-ai/core/contracts/ai-trace';
 import { runGoogleToolTurn } from '../../providers/google-messages.js';
 import { runAnthropicToolTurn } from '../../providers/anthropic-messages.js';
 import { runOpenAiToolTurn } from '../../providers/openai-chat.js';

@@ -6,7 +6,7 @@
  * that is why `metadata` (char counts only) exists and is the recommended default for prompts
  * that may hold customer data.
  */
-import { redactSecretsWithCounts } from '@jini-ai/core';
+import { redactSecretsWithCounts } from '../../redact.js';
 import type { AiCapturedText, AiContentCapture } from './types.js';
 
 export const DEFAULT_MAX_CAPTURED_CHARS = 16_000;

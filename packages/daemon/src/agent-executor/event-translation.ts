@@ -2,7 +2,7 @@ import type {
    RunAgentPayload,
    RunErrorPayload,
 } from '@jini-ai/protocol';
-import { normalizeAiUsage } from '@jini-ai/agent-runtime';
+import { normalizeAiUsage } from '@jini-ai/core/contracts/ai-trace';
 import type {
    AgentRuntimeEventTranslation,
 } from './contracts.js';

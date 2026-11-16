@@ -5,7 +5,11 @@
  * cannot supply — a `null` here is the provider's gap, recorded honestly, not a test shortcut.
  */
 import { describe, expect, it, vi } from 'vitest';
-import { createAiTraceRecorder, createRecordingAiTraceSink, type AiTraceEvent } from '../index.js';
+import {
+  createAiTraceRecorder,
+  createRecordingAiTraceSink,
+  type AiTraceEvent,
+} from '@jini-ai/core/contracts/ai-trace';
 import { createClaudeStreamHandler } from '../../claude-stream.js';
 import { createQoderStreamHandler } from '../../qoder-stream.js';
 import { createJsonEventStreamHandler } from '../../json-event-stream.js';

@@ -16,7 +16,8 @@
 import { openSqliteConnection } from '@jini-ai/db/sqlite';
 import { type SqliteDb, type SqliteSyncOpener } from '@jini-ai/core/contracts/storage';
 import { join } from 'node:path';
-import { createNativeAgentRuntime, type AiTraceSink, type NativeAgentRuntime } from '@jini-ai/agent-runtime';
+import { createNativeAgentRuntime, type NativeAgentRuntime } from '@jini-ai/agent-runtime';
+import { type AiTraceSink } from '@jini-ai/core/contracts/ai-trace';
 
 import { createToolRegistry, type ToolRegistry } from '@jini-ai/core';
 import {

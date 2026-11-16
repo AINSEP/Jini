@@ -12,7 +12,13 @@
  * want prompt capture call `noteRunInput` with the text they sent. Resumed runs keep their
  * original trace closed; a resume is not re-traced in this prototype.
  */
-import { createAiTraceRecorder, type AiRunOutcome, type AiTraceRecorder, type AiTraceRecorderOptions, type AiTraceSink } from '@jini-ai/agent-runtime';
+import {
+  createAiTraceRecorder,
+  type AiRunOutcome,
+  type AiTraceRecorder,
+  type AiTraceRecorderOptions,
+  type AiTraceSink,
+} from '@jini-ai/core/contracts/ai-trace';
 import type { RunProtocolEvent } from '@jini-ai/protocol';
 import type { RunLifecycle } from './run-lifecycle.js';
 

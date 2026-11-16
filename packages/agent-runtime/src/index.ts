@@ -78,7 +78,6 @@ export * from './pi-models.js';
 export * from './prompt-augmenter.js';
 export * from './artifact-taxonomy.js';
 export * from './telemetry-sink.js';
-export * from './ai-trace/index.js';
 
 // LLM-provider integrations (BYOK model catalogs, OAuth+PKCE, gateway helpers).
 export * from './providers/index.js';

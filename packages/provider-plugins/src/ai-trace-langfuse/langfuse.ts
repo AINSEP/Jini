@@ -1,7 +1,7 @@
 /**
  * @module ai-trace-langfuse/langfuse
  *
- * Langfuse backend for `@jini-ai/agent-runtime/ai-trace`'s sink port, shipped as the
+ * Langfuse backend for `@jini-ai/core/contracts/ai-trace`'s sink port, shipped as the
  * `ai-trace-langfuse` provider plugin (moved out of the former `@jini-ai/agent-runtime/ai-trace/langfuse`
  * subpath 2026-10-25, Langfuse review #10). Maps run → Langfuse trace, model turn → generation,
  * tool call → span (child of the generation that requested it), failures → `level: 'ERROR'` with
@@ -19,7 +19,7 @@
  * tracing off pays nothing and the runtime core needs no Langfuse dependency.
  */
 import { Langfuse } from 'langfuse';
-import type { AiCapturedText, AiTraceEvent, AiTraceSink } from '@jini-ai/agent-runtime/ai-trace';
+import type { AiCapturedText, AiTraceEvent, AiTraceSink } from '@jini-ai/core/contracts/ai-trace';
 
 type Body = Record<string, unknown>;
 

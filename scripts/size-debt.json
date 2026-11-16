@@ -294,7 +294,7 @@
     "value": 119
   },
   {
-    "file": "packages/agent-runtime/src/ai-trace/recorder.ts",
+    "file": "packages/core/src/contracts/ai-trace/recorder.ts",
     "function": "createAiTraceRecorder",
     "line": 95,
     "rule": "max-lines-per-function",
