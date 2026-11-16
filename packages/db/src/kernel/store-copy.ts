@@ -281,6 +281,30 @@ async function advanceIdentityCounters(
   }
 }
 
+/** A table present on both sides must have identical columns; copying into a different shape would corrupt rows. */
+function assertSharedTableShapesAgree(
+  { sourceTables, targetTables }: { sourceTables: CatalogTable[]; targetTables: Map<string, CatalogTable> },
+): void {
+  for (const table of sourceTables) {
+    const other = targetTables.get(qualified(table));
+    if (other === undefined) continue;
+    const shape = (t: CatalogTable) => t.columns.map((c) => `${c.name} ${c.type}`).join(", ");
+    if (shape(table) !== shape(other)) {
+      throw new StoreCopyError(`table ${qualified(table)} differs: source (${shape(table)}), target (${shape(other)})`);
+    }
+  }
+}
+
+/** Every copied table must hash identically on both sides, or the copy is rolled back. */
+async function verifyFingerprints(
+  { source, target, tables }: { source: KyselyKernel<unknown>; target: KyselyKernel<unknown>; tables: CatalogTable[] },
+): Promise<void> {
+  for (const table of tables) {
+    const [a, b] = [await fingerprint(source, table), await fingerprint(target, table)];
+    if (a !== b) throw new StoreCopyError(`table ${qualified(table)} did not verify after the copy: source ${a}, target ${b}`);
+  }
+}
+
 /**
  * Copies every table of `source` into `target` (see this file's header). Call it with both at head
  * and the target empty ({@link nonEmptyTables}); the ledgers are checked here first.
@@ -300,14 +324,7 @@ async function copyPgStoreInternal(
   await assertLedgersAgreeInternal(source, target, scope);
   const sourceTables = (await readCatalogInternal(source, scope)).filter((t) => !isLedger(t, scope));
   const targetTables = new Map((await readCatalogInternal(target, scope)).map((t) => [qualified(t), t]));
-  for (const table of sourceTables) {
-    const other = targetTables.get(qualified(table));
-    if (other === undefined) continue;
-    const shape = (t: CatalogTable) => t.columns.map((c) => `${c.name} ${c.type}`).join(", ");
-    if (shape(table) !== shape(other)) {
-      throw new StoreCopyError(`table ${qualified(table)} differs: source (${shape(table)}), target (${shape(other)})`);
-    }
-  }
+  assertSharedTableShapesAgree({ sourceTables, targetTables });
   const created = sourceTables.filter((t) => !targetTables.has(qualified(t)));
   const createdIds = new Set(created.map(qualified));
   const sourceConstraints = await readConstraints(source, scope);
@@ -343,10 +360,7 @@ async function copyPgStoreInternal(
 
     await addConstraints({ target, constraints: [...foreignKeys, ...createdConstraints.filter((c) => c.type === "f")] });
     await advanceIdentityCounters({ target, tables: sourceTables });
-    for (const table of sourceTables) {
-      const [a, b] = [await fingerprint(source, table), await fingerprint(target, table)];
-      if (a !== b) throw new StoreCopyError(`table ${qualified(table)} did not verify after the copy: source ${a}, target ${b}`);
-    }
+    await verifyFingerprints({ source, target, tables: sourceTables });
     await optional.onCopied?.();
     return report;
   });
