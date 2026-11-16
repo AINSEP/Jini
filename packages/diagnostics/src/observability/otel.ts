@@ -1,6 +1,6 @@
 import type { ObservabilityConfigEnabled } from './config.js';
 import type { AgentRunStatus, ExporterFactory, TracerProviderFactory, ObservabilityPort, SpanScopePort, TraceSpanKind, TraceSpanPort, TracerPort } from './ports.js';
-import { describeErrorParts } from '@jini-ai/core';
+import { describeErrorParts, type ErrorDescriber } from '@jini-ai/core';
 import { redactSecretShapes } from '../core/secrets-only.js';
 export interface OtelAdapterDependencies {
  config: ObservabilityConfigEnabled; exporterFactory: ExporterFactory; tracerProviderFactory: TracerProviderFactory;
@@ -17,11 +17,16 @@ type Attributes = Record<string, string | number>;
  * often `Error`; a package names its own through core's `createErrorDescriber`). The label is still
  * redacted and capped to {@link MAX_ERROR_TYPE} (redact first: a cut could leave a secret prefix too
  * short to match). */
-export function errorType({ error }: { error: unknown }, _optional: Record<string, never> = {}): string {
- const { label, code } = describeErrorParts({ err: error });
+export function errorType(
+ { error }: { error: unknown },
+ { describer = BUILT_IN_DESCRIBER }: { describer?: Pick<ErrorDescriber, 'describeErrorParts'> } = {},
+): string {
+ const { label, code } = describer.describeErrorParts({ err: error });
  return redactLabel(code ?? label).slice(0, MAX_ERROR_TYPE) || 'Error';
 }
 
+/** Core's built-in-only describer (pure); a host passes one from `createErrorDescriber` for its own vocabulary. */
+const BUILT_IN_DESCRIBER = { describeErrorParts };
 const MAX_ERROR_TYPE = 64;
 const MAX_ATTRIBUTE_TEXT = 256;
 const MAX_ATTRIBUTES = 64;

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
+import { createErrorDescriber } from "@jini-ai/core";
 
 import { InMemorySpanExporter, createAsyncScope, createPort } from "./observability-fakes.js";
 import { createNoopObservabilityPort } from "../observability/noop.js";
@@ -175,12 +176,12 @@ test("obs2 #1: a credential-shaped error.code is redacted before OTel and error-
   assert.ok(!JSON.stringify(spans).includes(code));
 });
 
-// SKIPPED (C11a): registerLoggableErrors was deleted (module registry). errorType reads core's
-// built-in describer, so package-registered labels need a describer injected into the otel
-// adapter; that is diagnostics/otel work owned by another lane. Assertions kept verbatim.
-test.skip("error labels include package-supplied classes and codes once a describer is injected", () => {
-  assert.equal(errorType({ error: new RepoLabelTestError("hidden") }), "RepoLabelTestError");
-  assert.equal(errorType({ error: Object.assign(new Error("hidden"), { code: "REPO_LABEL_TEST_CODE" }) }), "REPO_LABEL_TEST_CODE");
+test("error labels include package-supplied classes and codes through an injected describer", () => {
+  const repoDescriber = createErrorDescriber({ codes: ["REPO_LABEL_TEST_CODE"], classes: [{ error: RepoLabelTestError, label: "RepoLabelTestError" }] });
+  assert.equal(errorType({ error: new RepoLabelTestError("hidden") }, { describer: repoDescriber }), "RepoLabelTestError");
+  assert.equal(errorType({ error: Object.assign(new Error("hidden"), { code: "REPO_LABEL_TEST_CODE" }) }, { describer: repoDescriber }), "REPO_LABEL_TEST_CODE");
+  // Without the describer the same errors read as the built-in class label, never the package's name.
+  assert.equal(errorType({ error: new RepoLabelTestError("hidden") }), "Error");
 });
 
 // Review jini-batch1 M2: host dashboards and alerts match `error.type = "ECONNREFUSED"`; the label
