@@ -31,6 +31,7 @@
  * surfaces as a visible, honest notice instead of vanishing or hitting the wrong endpoint.
  */
 import type { ReactNode } from 'react';
+import type { Clock } from '@jini-ai/core/primitives';
 import { DEFAULT_INTERACTIVE_UI_REGISTRY, type InteractiveUiRegistry } from '@jini-ai/ui/interactive-ui';
 import type { ExtEventRenderProps } from '../ext-event-renderer-registry.js';
 import { useT } from '../hooks/context.js';
@@ -148,6 +149,8 @@ function RenderComponent({
 export type A2uiAgentActionOutcome = { readonly ok: true } | { readonly ok: false; readonly reason: string };
 
 export interface A2uiSurfaceCardProps extends ExtEventRenderProps {
+  /** Host clock port; the card derives action ids and interpreter timing from it. */
+  clock: Clock;
   /** Host registry used for both wire validation and rendering. Defaults to ui's built-ins.
    * Supply a stable registry for the card's lifetime; remount the card to switch catalogs. */
   registry?: Pick<InteractiveUiRegistry, 'list' | 'resolveById'>;
@@ -171,9 +174,9 @@ export interface A2uiSurfaceCardProps extends ExtEventRenderProps {
 }
 
 /** Registered against `ext-event-renderer-registry.ts`'s `'a2ui'` name — see module doc. */
-export function A2uiSurfaceCard({ events, runId, onAgentAction, registry = DEFAULT_INTERACTIVE_UI_REGISTRY }: A2uiSurfaceCardProps) {
+export function A2uiSurfaceCard({ events, runId, onAgentAction, clock, registry = DEFAULT_INTERACTIVE_UI_REGISTRY }: A2uiSurfaceCardProps) {
   const t = useT();
-  const { interpreter, surfaceId, root, refusalNotice, pendingAgentAction, localActionResult, deliveryFailureNotice, handleAction, formatLocalActionValue } = useA2uiSurfaceCard({ events, runId, onAgentAction, registry, t });
+  const { interpreter, surfaceId, root, refusalNotice, pendingAgentAction, localActionResult, deliveryFailureNotice, handleAction, formatLocalActionValue } = useA2uiSurfaceCard({ events, runId, onAgentAction, registry, t, clock });
 
   if (!root) {
     return refusalNotice ? (

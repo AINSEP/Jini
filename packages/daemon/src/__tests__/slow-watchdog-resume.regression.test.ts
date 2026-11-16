@@ -3,11 +3,14 @@ import { expect, it, vi } from 'vitest';
 import { createSqliteEventLog } from '../store/event-log/sqlite.js';
 import { createRunLifecycle } from '../run-lifecycle.js';
 
+// A package test supplies its own clock port; the system clock lives in the platform package.
+const testClock = { nowMs: () => Date.now() };
+
 it('resumes a fresh slow-notice window after permanent suspension cancellation', async () => {
   vi.useFakeTimers();
   const db = new Database(':memory:');
   try {
-    const eventLog = createSqliteEventLog({ db });
+    const eventLog = createSqliteEventLog({ db, clock: testClock });
     const lifecycle = createRunLifecycle({ eventLog }, { slowRunThresholdMs: 20 });
     const { run } = await lifecycle.start({ contextRef: 'ctx' });
     await vi.advanceTimersByTimeAsync(5);

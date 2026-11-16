@@ -5,7 +5,6 @@ import { sanitizeSvg } from "./sanitize-svg.js";
 import { sniffContentType } from "./content-type-sniffer.js";
 import { isValidMediaSlugFormat } from "./slug.js";
 export { isValidMediaSlugFormat } from "./slug.js";
-import { createSystemClock } from "@jini-ai/core/primitives";
 import { nowIso as kernelNowIso } from "@jini-ai/core/primitives";
 /**
  * @file `media` write/read service — walking-skeleton build.
@@ -781,14 +780,6 @@ export interface PurgeMediaDeps extends MediaRowCleanupDeps {
   referenceCheck: MediaReferenceCheckPort;
   /** Purge only journals/removes rows; the delayed cleanup owner performs storage operations. */
   blobStore?: BlobStorePort;
-  /**
-   * Optional — only used to timestamp the blob-GC tombstone-pass this
-   * function triggers after the media row is removed (`tombstoneBlobIfUnreferenced`,
-   * `blob-gc.ts`). Falls back to the system clock when omitted so a caller
-   * that doesn't wire a clock into `PurgeMediaDeps` keeps compiling and
-   * behaving correctly unchanged.
-   */
-  clock?: Clock | undefined;
 }
 
 export interface PurgeMediaRequired {
@@ -867,8 +858,9 @@ export interface MediaRowCleanupDeps {
   mediaRepo: MediaRepoPort;
   blobRepo: AssetBlobRepoPort;
   renditionRepo: AssetRenditionRepoPort;
-  /** Optional — see `PurgeMediaDeps.clock`'s identical doc. */
-  clock?: Clock | undefined;
+  /** Required — timestamps the blob-GC tombstone pass triggered after the media row is removed
+   * (`tombstoneBlobIfUnreferenced`, `blob-gc.ts`). The host supplies its own clock port. */
+  clock: Clock;
 }
 
 /**
@@ -894,9 +886,8 @@ async function removeMediaRowsAndTombstoneBlob(
     await deps.renditionRepo.removeByAsset({ workspaceId: input.workspaceId, assetId: input.id });
     await deps.mediaRepo.remove({ workspaceId: input.workspaceId, id: input.id });
 
-    const clock = deps.clock ?? createSystemClock();
     await tombstoneBlobIfUnreferenced({
-      deps: { mediaRepo: deps.mediaRepo, blobRepo: deps.blobRepo, clock, withHashLock: deps.tombstoneLock ?? withSha256Lock },
+      deps: { mediaRepo: deps.mediaRepo, blobRepo: deps.blobRepo, clock: deps.clock, withHashLock: deps.tombstoneLock ?? withSha256Lock },
       input: { workspaceId: input.workspaceId, sha256: input.sha256 },
     });
   };

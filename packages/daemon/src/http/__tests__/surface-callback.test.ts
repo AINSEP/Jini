@@ -2,7 +2,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Response } from 'express';
 import { createSurfaceExchangeStore } from '../../surface-exchanges.js';
 import { createTimeoutScheduler } from '../../scheduler.js';
-import { createRandomUuidGenerator, createSystemClock } from '@jini-ai/core/primitives';
 import { deliverSurfaceCallback, isSurfaceCallbackPermitted } from '../surface-callback.js';
 import * as restoration from '../surface-restoration.js';
 
@@ -26,7 +25,7 @@ describe('surface callback admission', () => {
 });
 
 describe('terminal surface callback delivery', () => {
-  const makeStore = () => createSurfaceExchangeStore({ scheduler: createTimeoutScheduler({}), clock: createSystemClock(), idGenerator: createRandomUuidGenerator(), defaultChannel: 'mcp-ui' });
+  const makeStore = () => createSurfaceExchangeStore({ scheduler: createTimeoutScheduler({}), clock: { nowMs: () => Date.now() }, idGenerator: { newId: () => globalThis.crypto.randomUUID() }, defaultChannel: 'mcp-ui' });
   it('delivers only to a matching principal/tool and returns the existing acknowledgment', async () => {
     const store = makeStore();
     const exchange = store.open({ binding: { toolId: 'neutral_connect', principalId: 'reader' }, emit: async () => {} });

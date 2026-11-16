@@ -261,7 +261,7 @@ RoutineSchedule supports hourly minute, daily/weekdays time+timezone, weekly tim
 ## SQLite event log
 
 ```ts
-createSqliteEventLog(input: { db: SqliteDb }, options: SqliteEventLogOptions = {}): SqliteEventLog;
+createSqliteEventLog(input: { db: SqliteDb; clock: Clock }, options: SqliteEventLogOptions = {}): SqliteEventLog;
 openSqliteEventLog(input: { file: string; open: SqliteSyncOpener }, options: SqliteEventLogOptions = {}): SqliteEventLog;
 ```
 

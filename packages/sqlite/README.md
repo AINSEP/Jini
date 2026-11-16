@@ -11,7 +11,7 @@ including their erased types. Server-owned composition is no longer forwarded by
 `@jini-ai/db/{core,sqlite}`, and `@jini-ai/server/{storage,storage/legacy/sqlite,store/projects/sqlite}`.
 
 Pre-1.0 breaking acquisition change: Jini never autoloads a database driver. Use
-`createSqliteEventLog({ db }, options)` for a borrowed connection. Canonical owned acquisition is
+`createSqliteEventLog({ db, clock }, options)` for a borrowed connection. Canonical owned acquisition is
 `openSqliteEventLog({ file, open }, options)` from the daemon concern entry. Server
 `openDatabase({ projectRoot, open }, { dataDir? })` likewise requires the host opener. Hosts may use `(file, options) => new Database(file, options)`.
 Borrowed event-log close never closes the host handle. Owned close is idempotent; failed setup

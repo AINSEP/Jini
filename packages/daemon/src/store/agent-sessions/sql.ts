@@ -1,5 +1,5 @@
 /** One simple-session query implementation over the host's borrowed, migrated kernel. */
-import { createSystemClock, type Clock } from '@jini-ai/core/primitives';
+import type { Clock } from '@jini-ai/core/primitives';
 import type { ColumnType,Kysely } from 'kysely';
 import type { StorageKernel,StorageDialect,StorageTransport } from '@jini-ai/db/kernel';
 import type { AgentSessionStore } from './ports.js';
@@ -38,12 +38,12 @@ async function atSessionBoundary<T>(operation:()=>Promise<T>):Promise<T> {
  * Constructs a three-method mapping with no migration, pragma, open, close, or query at construction.
  * All queries join the host kernel's existing transaction; concurrent set is one atomic upsert.
  * @param kernel Borrowed host kernel with assistant_agent_sessions already migrated.
- * @param optional Core Clock, evaluated once per set; defaults to system wall time.
+ * @param clock Core Clock, evaluated once per set.
  * @returns Session-id port; missing pairs read null and clear is idempotent.
  * @throws AgentSessionStoreError when a driver/query fails.
  * @complexity Each operation is one primary-key statement, O(log n) index lookup for n pairs.
  */
-export function createSqlAgentSessionStore<DB extends AgentSessionDatabase>({ kernel }: { readonly kernel: StorageKernel<DB> }, { clock = createSystemClock() }: { readonly clock?: Clock } = {}):AgentSessionStore {
+export function createSqlAgentSessionStore<DB extends AgentSessionDatabase>({ kernel, clock }: { readonly kernel: StorageKernel<DB>; readonly clock: Clock }, _optional = {}):AgentSessionStore {
  return {
   getSessionId({ conversationId, agentId }: { readonly conversationId: string; readonly agentId: string }) {
    return atSessionBoundary(async()=>{

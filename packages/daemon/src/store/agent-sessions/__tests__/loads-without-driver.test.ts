@@ -27,7 +27,7 @@ import {createPgliteAgentSessionStore} from '@jini-ai/daemon/store/agent-session
 import {createPostgresAgentSessionStore} from '@jini-ai/daemon/store/agent-sessions/postgres';
 type HostDatabase={assistant_agent_sessions:{conversation_id:string;agent_id:string;session_id:string;updated_at:number};ai_chats:{id:string};assistant_conversation_tool_approvals:{conversation_id:string}};
 declare const kernel:StorageKernel<HostDatabase>;
-void [createSqliteAgentSessionStore({kernel}),createPgliteAgentSessionStore({kernel}),createPostgresAgentSessionStore({kernel})];`);
+void [createSqliteAgentSessionStore({clock:{nowMs:()=>0},kernel}),createPgliteAgentSessionStore({clock:{nowMs:()=>0},kernel}),createPostgresAgentSessionStore({clock:{nowMs:()=>0},kernel})];`);
   const req=createRequire(join(packages,'daemon/package.json'));const check=spawnSync(process.execPath,[req.resolve('typescript/bin/tsc'),'--noEmit','--strict','--skipLibCheck','--module','NodeNext','--moduleResolution','NodeNext','--target','ES2022','consumer.ts'],{cwd:dir,encoding:'utf8'});
   expect(check.stdout+check.stderr).toBe('');expect(check.status).toBe(0);
  }finally{rmSync(dir,{recursive:true,force:true});}

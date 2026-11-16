@@ -4,6 +4,9 @@ import { describe, expect, it, vi } from 'vitest';
 import { createLabCatalog } from '@jini-ai/agentic/a2ui';
 import { A2uiSurfaceCard } from '../A2uiSurfaceCard.js';
 
+// A package test supplies its own clock port; the system clock lives in the platform package.
+const testClock = { nowMs: () => Date.now() };
+
 const CATALOG_ID = createLabCatalog({}).catalogId;
 
 /** Wire components are flat: `{id, component, ...props}` — never `{id, component, props: {...}}`. That nested shape only exists in the interpreter's own internal `ComponentInstance` representation (see `interpreter.ts`'s `applyComponentsList`), not on the wire. */
@@ -13,7 +16,7 @@ function createSurfaceMessage(surfaceId: string, components: unknown[]) {
 
 describe('A2uiSurfaceCard', () => {
   it('shows a waiting notice before any root component has arrived', () => {
-    render(<A2uiSurfaceCard name="a2ui" events={[]} runStreaming runSucceeded={false} runId="run-1" />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={[]} runStreaming runSucceeded={false} runId="run-1" />);
     expect(screen.getByText('Waiting for the agent to send a root component…')).toBeInTheDocument();
   });
 
@@ -24,7 +27,7 @@ describe('A2uiSurfaceCard', () => {
         { id: 't1', component: 'Text', text: 'Hello from A2UI' },
       ]),
     ];
-    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming runSucceeded={false} runId="run-1" />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming runSucceeded={false} runId="run-1" />);
     expect(screen.getByText('Hello from A2UI')).toBeInTheDocument();
     expect(document.querySelector('.a2ui-column')).not.toBeNull();
   });
@@ -34,7 +37,7 @@ describe('A2uiSurfaceCard', () => {
       createSurfaceMessage('s1', [{ id: 'root', component: 'Text', text: 'first' }]),
       { version: 'v1.0', updateComponents: { surfaceId: 's1', components: [{ id: 'root', component: 'Text', text: 'second' }] } },
     ];
-    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming={false} runSucceeded runId="run-1" />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming={false} runSucceeded runId="run-1" />);
     expect(screen.getByText('second')).toBeInTheDocument();
     expect(screen.queryByText('first')).not.toBeInTheDocument();
   });
@@ -46,7 +49,7 @@ describe('A2uiSurfaceCard', () => {
         { id: 'label', component: 'Text', text: 'Reset' },
       ]),
     ];
-    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming runSucceeded={false} runId="run-1" />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming runSucceeded={false} runId="run-1" />);
     await userEvent.click(screen.getByRole('button', { name: 'Reset' }));
     expect(screen.queryByText(/has not wired up a live agent-action relay/)).not.toBeInTheDocument();
     expect(screen.queryByText(/Action refused/)).not.toBeInTheDocument();
@@ -67,7 +70,7 @@ describe('A2uiSurfaceCard', () => {
         { id: 'label', component: 'Text', text: 'Greet' },
       ]),
     ];
-    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming runSucceeded={false} runId="run-1" />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming runSucceeded={false} runId="run-1" />);
     await userEvent.click(screen.getByRole('button', { name: 'Greet' }));
     expect(screen.getByText('Local action resolved: Hello, Ada!')).toBeInTheDocument();
   });
@@ -80,7 +83,7 @@ describe('A2uiSurfaceCard', () => {
       ]),
     ];
     const onAgentAction = vi.fn();
-    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming runSucceeded={false} runId="run-42" onAgentAction={onAgentAction} />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming runSucceeded={false} runId="run-42" onAgentAction={onAgentAction} />);
     await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
     expect(onAgentAction).toHaveBeenCalledTimes(1);
     expect(onAgentAction).toHaveBeenCalledWith(
@@ -99,7 +102,7 @@ describe('A2uiSurfaceCard', () => {
       ]),
     ];
     const onAgentAction = vi.fn(() => undefined);
-    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming runSucceeded={false} runId="run-1" onAgentAction={onAgentAction} />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming runSucceeded={false} runId="run-1" onAgentAction={onAgentAction} />);
     await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
     expect(onAgentAction).toHaveBeenCalledTimes(1);
     expect(screen.queryByText(/could not be delivered/)).not.toBeInTheDocument();
@@ -125,7 +128,7 @@ describe('A2uiSurfaceCard', () => {
     };
     expect(thenable).not.toBeInstanceOf(Promise);
     const onAgentAction = vi.fn(() => thenable as unknown as Promise<{ ok: false; reason: string }>);
-    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming runSucceeded={false} runId="run-1" onAgentAction={onAgentAction} />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming runSucceeded={false} runId="run-1" onAgentAction={onAgentAction} />);
     await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
     expect(await screen.findByText('This action could not be delivered: hand-built thenable failure')).toBeInTheDocument();
   });
@@ -138,7 +141,7 @@ describe('A2uiSurfaceCard', () => {
       ]),
     ];
     const onAgentAction = vi.fn().mockResolvedValue({ ok: false, reason: 'this surface is no longer waiting for a response' });
-    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming runSucceeded={false} runId="run-1" onAgentAction={onAgentAction} />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming runSucceeded={false} runId="run-1" onAgentAction={onAgentAction} />);
     await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
     expect(
       await screen.findByText('This action could not be delivered: this surface is no longer waiting for a response'),
@@ -156,7 +159,7 @@ describe('A2uiSurfaceCard', () => {
       ]),
     ];
     const onAgentAction = vi.fn().mockRejectedValue(new Error('network down'));
-    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming runSucceeded={false} runId="run-1" onAgentAction={onAgentAction} />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming runSucceeded={false} runId="run-1" onAgentAction={onAgentAction} />);
     await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
     expect(await screen.findByText('This action could not be delivered: network down')).toBeInTheDocument();
   });
@@ -181,7 +184,7 @@ describe('A2uiSurfaceCard', () => {
           deferreds.push(resolve);
         }) as Promise<{ ok: true } | { ok: false; reason: string }>,
     );
-    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming runSucceeded={false} runId="run-1" onAgentAction={onAgentAction} />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming runSucceeded={false} runId="run-1" onAgentAction={onAgentAction} />);
 
     const button = screen.getByRole('button', { name: 'Continue' });
     await userEvent.click(button);
@@ -205,7 +208,7 @@ describe('A2uiSurfaceCard', () => {
       ]),
     ];
     const onAgentAction = vi.fn().mockResolvedValue({ ok: true });
-    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming runSucceeded={false} runId="run-1" onAgentAction={onAgentAction} />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming runSucceeded={false} runId="run-1" onAgentAction={onAgentAction} />);
     await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
     await waitFor(() => expect(onAgentAction).toHaveBeenCalledTimes(1));
     expect(screen.queryByText(/could not be delivered/)).not.toBeInTheDocument();
@@ -225,7 +228,7 @@ describe('A2uiSurfaceCard', () => {
       .fn()
       .mockResolvedValueOnce({ ok: false, reason: 'timed out' })
       .mockResolvedValueOnce({ ok: true });
-    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming runSucceeded={false} runId="run-1" onAgentAction={onAgentAction} />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming runSucceeded={false} runId="run-1" onAgentAction={onAgentAction} />);
     await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
     expect(await screen.findByText('This action could not be delivered: timed out')).toBeInTheDocument();
 
@@ -240,14 +243,14 @@ describe('A2uiSurfaceCard', () => {
         { id: 'label', component: 'Text', text: 'Continue' },
       ]),
     ];
-    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming runSucceeded={false} runId="run-1" />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming runSucceeded={false} runId="run-1" />);
     await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
     expect(screen.getByText(/has not wired up a live agent-action relay/)).toBeInTheDocument();
   });
 
   it('shows a refusal notice for a component type the active catalog rejects, without crashing', () => {
     const events = [createSurfaceMessage('s1', [{ id: 'root', component: 'TotallyMadeUpType' }])];
-    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming={false} runSucceeded runId="run-1" />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming={false} runSucceeded runId="run-1" />);
     expect(screen.getByText(/A2UI surface refused/)).toBeInTheDocument();
   });
 
@@ -259,7 +262,7 @@ describe('A2uiSurfaceCard', () => {
     // exact same one, not a second bespoke channel.
     const events = [createSurfaceMessage('s1', [{ id: 'root', component: 'Text' }])];
     const onAgentAction = vi.fn();
-    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming={false} runSucceeded runId="run-1" onAgentAction={onAgentAction} />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming={false} runSucceeded runId="run-1" onAgentAction={onAgentAction} />);
 
     expect(screen.getByText(/A2UI surface refused/)).toBeInTheDocument();
     expect(onAgentAction).toHaveBeenCalledTimes(1);
@@ -277,7 +280,7 @@ describe('A2uiSurfaceCard', () => {
       createSurfaceMessage('s1', [{ id: 'root', component: 'TotallyMadeUpType' }]),
       { version: 'v1.0', updateComponents: { surfaceId: 's1', components: [{ id: 'root', component: 'Text', text: 'fixed!' }] } },
     ];
-    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming={false} runSucceeded runId="run-1" />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming={false} runSucceeded runId="run-1" />);
 
     expect(screen.getByText('fixed!')).toBeInTheDocument();
     expect(screen.queryByText(/A2UI surface refused/)).not.toBeInTheDocument();
@@ -286,7 +289,7 @@ describe('A2uiSurfaceCard', () => {
 
   it('degrades to a visible placeholder for a missing child id instead of crashing', () => {
     const events = [createSurfaceMessage('s1', [{ id: 'root', component: 'Column', children: ['does-not-exist'] }])];
-    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming={false} runSucceeded runId="run-1" />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming={false} runSucceeded runId="run-1" />);
     expect(screen.getByText(/missing component/)).toBeInTheDocument();
   });
 
@@ -296,7 +299,7 @@ describe('A2uiSurfaceCard', () => {
   // become `a2ui-text-undefined` and these are what would catch it.
   it('emits the default Text variant className when the agent sent no variant', () => {
     const events = [createSurfaceMessage('s1', [{ id: 'root', component: 'Text', text: 'hi' }])];
-    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming={false} runSucceeded runId="run-1" />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming={false} runSucceeded runId="run-1" />);
     expect(document.querySelector('.a2ui-text')?.className).toBe('a2ui-text a2ui-text-body');
   });
 
@@ -307,7 +310,7 @@ describe('A2uiSurfaceCard', () => {
         { id: 'label', component: 'Text', text: 'Go', variant: 'caption' },
       ]),
     ];
-    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming={false} runSucceeded runId="run-1" />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming={false} runSucceeded runId="run-1" />);
     expect(document.querySelector('.a2ui-button')?.className).toBe('a2ui-button a2ui-button-primary');
     expect(document.querySelector('.a2ui-text')?.className).toBe('a2ui-text a2ui-text-caption');
   });
@@ -320,7 +323,7 @@ describe('A2uiSurfaceCard', () => {
         { id: 'b', component: 'Text', text: 'right' },
       ]),
     ];
-    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming={false} runSucceeded runId="run-1" />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming={false} runSucceeded runId="run-1" />);
     const row = document.querySelector('.a2ui-row');
     expect(row).not.toBeNull();
     expect(row?.textContent).toBe('leftright');
@@ -335,7 +338,7 @@ describe('A2uiSurfaceCard', () => {
         { id: 'child', component: 'Column', children: ['root'] },
       ]),
     ];
-    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming={false} runSucceeded runId="run-1" />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming={false} runSucceeded runId="run-1" />);
     expect(screen.getByText(/circular reference at “root”/)).toBeInTheDocument();
     expect(document.querySelector('[data-a2ui-status="cycle"]')).not.toBeNull();
   });
@@ -350,7 +353,7 @@ describe('A2uiSurfaceCard', () => {
         { id: 'item', component: 'Text', text: 'row' },
       ]),
     ];
-    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming={false} runSucceeded runId="run-1" />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming={false} runSucceeded runId="run-1" />);
     expect(screen.getByText(/dynamic \(template\) child lists are not implemented/)).toBeInTheDocument();
     expect(document.querySelector('[data-a2ui-status="unimplemented-template-list"]')).not.toBeNull();
   });
@@ -359,7 +362,7 @@ describe('A2uiSurfaceCard', () => {
     // `Divider` is one of the 18 the catalog validates, so it lands in the component map — but this
     // port only has React cases for Text/Column/Row/Button. That gap must be visible, not silent.
     const events = [createSurfaceMessage('s1', [{ id: 'root', component: 'Divider' }])];
-    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming={false} runSucceeded runId="run-1" />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming={false} runSucceeded runId="run-1" />);
     expect(screen.getByText(/no renderer yet for component type “Divider”/)).toBeInTheDocument();
     expect(document.querySelector('[data-a2ui-status="unrenderable-type"]')).not.toBeNull();
   });
@@ -368,7 +371,7 @@ describe('A2uiSurfaceCard', () => {
     const events = [
       createSurfaceMessage('s1', [{ id: 'root', component: 'Text', text: { path: '/user/name' } }]),
     ];
-    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming={false} runSucceeded runId="run-1" />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming={false} runSucceeded runId="run-1" />);
     expect(screen.getByText('⚠ unresolved (PATH_NOT_FOUND)')).toBeInTheDocument();
   });
 
@@ -376,19 +379,19 @@ describe('A2uiSurfaceCard', () => {
     const events = [
       { version: 'v1.0', createSurface: { surfaceId: 's1', catalogId: CATALOG_ID, components: [{ id: 'root', component: 'Text', text: { path: '/count' } }], dataModel: { count: 42 } } },
     ];
-    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming={false} runSucceeded runId="run-1" />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming={false} runSucceeded runId="run-1" />);
     expect(screen.getByText('42')).toBeInTheDocument();
   });
 
   it('surfaces an out-of-band protocol violation (no message key) as a refusal, with no surface to attribute it to', () => {
     // A malformed envelope carries no surfaceId, so the interpreter reports it via
     // `unattributedViolation` instead of a wire-shaped error — the only channel left is the UI.
-    render(<A2uiSurfaceCard name="a2ui" events={[{ version: 'v1.0' }]} runStreaming={false} runSucceeded runId="run-1" />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={[{ version: 'v1.0' }]} runStreaming={false} runSucceeded runId="run-1" />);
     expect(screen.getByText(/A2UI surface refused/)).toBeInTheDocument();
   });
 
   it('survives a null event in the stream, treating it as an unattributable violation', () => {
-    render(<A2uiSurfaceCard name="a2ui" events={[null]} runStreaming={false} runSucceeded runId="run-1" />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={[null]} runStreaming={false} runSucceeded runId="run-1" />);
     expect(screen.getByText(/A2UI surface refused/)).toBeInTheDocument();
   });
 
@@ -401,7 +404,7 @@ describe('A2uiSurfaceCard', () => {
         { id: 'label', component: 'Text', text: 'Log it' },
       ]),
     ];
-    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming={false} runSucceeded runId="run-1" />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming={false} runSucceeded runId="run-1" />);
     await userEvent.click(screen.getByRole('button', { name: 'Log it' }));
     expect(screen.getByText(/Action refused: .*callableFrom="agentOnly"/)).toBeInTheDocument();
     // Still rendered — the refusal is a notice, not a replacement for the surface.
@@ -415,7 +418,7 @@ describe('A2uiSurfaceCard', () => {
         { id: 'label', component: 'Text', text: 'Negate' },
       ]),
     ];
-    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming={false} runSucceeded runId="run-1" />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming={false} runSucceeded runId="run-1" />);
     await userEvent.click(screen.getByRole('button', { name: 'Negate' }));
     expect(screen.getByText('Local action resolved: true')).toBeInTheDocument();
   });
@@ -432,7 +435,7 @@ describe('A2uiSurfaceCard', () => {
         { id: 'good-label', component: 'Text', text: 'Greet' },
       ]),
     ];
-    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming={false} runSucceeded runId="run-1" />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming={false} runSucceeded runId="run-1" />);
     await userEvent.click(screen.getByRole('button', { name: 'Refuse me' }));
     expect(screen.getByText(/Action refused/)).toBeInTheDocument();
     await userEvent.click(screen.getByRole('button', { name: 'Greet' }));
@@ -452,7 +455,7 @@ describe('A2uiSurfaceCard', () => {
         { id: 'local-label', component: 'Text', text: 'Locally' },
       ]),
     ];
-    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming={false} runSucceeded runId="run-1" />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming={false} runSucceeded runId="run-1" />);
     await userEvent.click(screen.getByRole('button', { name: 'To agent' }));
     expect(screen.getByText(/has not wired up a live agent-action relay/)).toBeInTheDocument();
 
@@ -474,7 +477,7 @@ describe('A2uiSurfaceCard', () => {
         { id: 'btn', component: 'shadcn.button', label: 'Publish' },
       ]),
     ];
-    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming runSucceeded={false} runId="run-1" />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming runSucceeded={false} runId="run-1" />);
     expect(document.querySelector('.a2ui-card')).not.toBeNull();
     expect(screen.queryByText(/no renderer yet for component type/)).not.toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Publish' })).toBeInTheDocument();
@@ -495,7 +498,7 @@ describe('A2uiSurfaceCard', () => {
         },
       ]),
     ];
-    render(<A2uiSurfaceCard name="a2ui" events={events} runStreaming runSucceeded={false} runId="run-1" />);
+    render(<A2uiSurfaceCard name="a2ui" clock={testClock} events={events} runStreaming runSucceeded={false} runId="run-1" />);
     expect(screen.getByText('Posts vs Pages')).toBeInTheDocument();
     expect(screen.getByRole('table')).toHaveTextContent('Posts12Pages4');
     expect(document.querySelector('svg.recharts-surface')).toBeNull();

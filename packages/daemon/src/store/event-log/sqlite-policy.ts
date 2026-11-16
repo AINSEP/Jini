@@ -22,8 +22,6 @@ export interface SqliteEventLogOptions {
    * fractional, `NaN`, `Infinity`) throws at construction time.
    */
   readonly maxEntriesPerRun?: number;
-  /** Core Clock for durable recordedAt values; omitted clock preserves system wall time. */
-  readonly clock?: Clock;
   /** Ensure tables by default; host skips DDL and requires an already migrated schema. */
   readonly schemaSetup?: 'ensure' | 'host';
 }

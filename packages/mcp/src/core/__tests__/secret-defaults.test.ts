@@ -37,6 +37,9 @@ vi.mock('node:fs/promises', async (importOriginal) => {
 import { writeMcpConfig } from '../config.js';
 import { readTokensFile, sanitizeTokensFile, setToken } from '../tokens.js';
 
+// A package test supplies its own clock port; the system clock lives in the platform package.
+const testClock = { nowMs: () => Date.now() };
+
 const dirs: string[] = [];
 function nestedMissingDir(): string {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'jini-mcp-secret-'));
@@ -60,9 +63,9 @@ describe.skipIf(process.platform === 'win32')('default secret-file port', () => 
 
   it('setToken creates missing parents and writes the file 0600', async () => {
     const dataDir = nestedMissingDir();
-    await setToken({ dataDir, serverId: 's1', token });
+    await setToken({ dataDir, serverId: 's1', token, clock: testClock });
     expect(fs.statSync(path.join(dataDir, 'mcp-tokens.json')).mode & 0o777).toBe(0o600);
-    expect((await readTokensFile({ dataDir })).servers.s1).toMatchObject({ accessToken: 'tok' });
+    expect((await readTokensFile({ dataDir, clock: testClock })).servers.s1).toMatchObject({ accessToken: 'tok' });
   });
 
   it('writeMcpConfig fails closed when the written file is not owner-only', async () => {
@@ -75,7 +78,7 @@ describe.skipIf(process.platform === 'win32')('default secret-file port', () => 
   it('setToken fails closed when the written file is not owner-only', async () => {
     const dataDir = nestedMissingDir();
     hoisted.statMode = 'group-readable';
-    await expect(setToken({ dataDir, serverId: 's1', token })).rejects.toThrow(/owner-only/);
+    await expect(setToken({ dataDir, serverId: 's1', token, clock: testClock })).rejects.toThrow(/owner-only/);
     expect(fs.existsSync(path.join(dataDir, 'mcp-tokens.json'))).toBe(false);
   });
 });
@@ -85,7 +88,7 @@ describe('sanitizeTokensFile prototype-key guard', () => {
   // tokens file arrives; assigning it onto `out` would swap the servers map's prototype.
   it('never lets a "__proto__" or "constructor" server id through', () => {
     const raw = JSON.parse('{"servers":{"__proto__":{"accessToken":"p"},"constructor":{"accessToken":"c"},"ok":{"accessToken":"t"}}}');
-    const out = sanitizeTokensFile({ raw }, { clock: { nowMs: () => 7 } });
+    const out = sanitizeTokensFile({ raw, clock: { nowMs: () => 7 } });
     expect(Object.getPrototypeOf(out.servers)).toBe(Object.prototype);
     expect((out.servers as Record<string, unknown>).accessToken).toBeUndefined();
     expect(Object.keys(out.servers)).toEqual(['ok']);

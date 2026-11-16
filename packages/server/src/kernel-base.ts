@@ -34,6 +34,7 @@ import {
   type ToolExecutor,
 } from '@jini-ai/daemon';
 import { openSqliteEventLog } from '@jini-ai/daemon/store/event-log/sqlite';
+import { createSystemClock } from '@jini-ai/platform/system';
 
 /** Where a composition's durable state lives. */
 export type JiniKernelStorage =
@@ -148,7 +149,7 @@ export async function createJiniKernelBase(options: CreateJiniKernelBaseOptions)
     if (path === null) log = createInMemoryEventLog({});
     else {
       // A non-null path is derived only from sqliteStorage above.
-      log = openSqliteEventLog({ file: path, open: sqliteStorage!.open });
+      log = openSqliteEventLog({ file: path, open: sqliteStorage!.open, clock: createSystemClock() });
     }
     opened.push(log);
     return log;

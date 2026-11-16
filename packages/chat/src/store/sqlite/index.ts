@@ -12,12 +12,12 @@ import { validateKernel } from '../sql/boundary.js';
 export type { ChatDatabase, AiChatsTable, AiChatMessagesTable } from '../sql/tables.js';
 
 /** Borrow an existing kernel, with no configuration, migration or connection lifecycle effects.
- * @example createSqliteChatStore({ kernel, scope }, { clock: { nowMs: () => 42 } })
+ * @example createSqliteChatStore({ kernel, scope, clock: { nowMs: () => 42 } })
  * @throws ChatStoreError invalid-input for a mismatched dialect/transport or owner scope.
  */
 export function createSqliteChatStore<DB extends ChatDatabase>(
-  required: { kernel: StorageKernel<DB>; scope: ChatOwnerScope },
-  optional: { clock?: Clock } & UserTextRedactionOptions = {},
+  required: { kernel: StorageKernel<DB>; scope: ChatOwnerScope; clock: Clock },
+  optional: UserTextRedactionOptions = {},
 ): ChatStore {
   validateKernel({ kernel: required.kernel, transports: ['better-sqlite3'], dialect: 'sqlite' });
   return createSqlChatStore(required, optional);
@@ -33,10 +33,10 @@ import { sqliteKernel, type SqliteConnectionSource } from '@jini-ai/db/kernel/sq
 export { CHAT_HISTORY_DDL, ensureChatHistoryTables } from './schema.js';
 
 /** Compatibility wrapper over db's memoized kernel; joins the exact raw-handle kernel context.
- * @example createChatHistoryStore({ db, scope }, { clock: { nowMs: () => 42 } })
+ * @example createChatHistoryStore({ db, scope, clock: { nowMs: () => 42 } })
  */
-export function createChatHistoryStore({ db, scope }: { db: SqliteConnectionSource; scope: ChatOwnerScope }, optional: { clock?: Clock } & UserTextRedactionOptions = {}): ChatStore {
-  return createSqliteChatStore({ kernel: sqliteKernel<ChatDatabase>(db), scope }, optional);
+export function createChatHistoryStore({ db, scope, clock }: { db: SqliteConnectionSource; scope: ChatOwnerScope; clock: Clock }, optional: UserTextRedactionOptions = {}): ChatStore {
+  return createSqliteChatStore({ kernel: sqliteKernel<ChatDatabase>(db), scope, clock }, optional);
 }
 
 /** Compatibility retention wrapper; the caller still owns the handle and its configuration. */

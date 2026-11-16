@@ -133,7 +133,7 @@ export type {
 
 // Object-argument contracts and injected ports.
 export type { McpConfigFilesystemPort } from './core/config.js';
-export type { McpTokenClockOptions, McpTokenStoreOptions } from './core/tokens.js';
+export type { McpTokenStoreOptions } from './core/tokens.js';
 export type { BuildMcpInstallPayloadOptions } from './core/install-info.js';
 export type { McpIdleTimerPort } from './client/client.js';
 export type { McpToolServerRequiredArgs } from './server/tool-server.js';

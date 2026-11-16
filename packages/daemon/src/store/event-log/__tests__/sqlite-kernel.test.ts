@@ -10,6 +10,9 @@ import {
   type SqliteEventLogDatabase,
 } from '../sqlite.js';
 
+// A package test supplies its own clock port; the system clock lives in the platform package.
+const testClock = { nowMs: () => Date.now() };
+
 interface HostDatabase extends SqliteEventLogDatabase {
   projection: { id: string; value: number };
 }
@@ -25,7 +28,7 @@ it('awaits readiness, routes through the injected kernel, and never closes it', 
     ...real, ready: new Promise<void>(resolve => { release = resolve; }), close,
   };
   try {
-    const pending = createKernelSqliteEventLog({ kernel }, { clock: { nowMs: () => 987 } });
+    const pending = createKernelSqliteEventLog({ kernel, clock: { nowMs: () => 987 } });
     await Promise.resolve();
     expect(run).not.toHaveBeenCalled();
     release();
@@ -54,7 +57,7 @@ it('commits event and projection together and rolls back both on projection fail
   db.exec(`${SQLITE_EVENT_LOG_SCHEMA} CREATE TABLE projection (id TEXT PRIMARY KEY, value INTEGER NOT NULL);`);
   const kernel = sqliteKernel<HostDatabase>(db);
   try {
-    const log = await createKernelSqliteEventLog({ kernel }, { schemaSetup: 'host' });
+    const log = await createKernelSqliteEventLog({ kernel, clock: testClock }, { schemaSetup: 'host' });
     const event = { runId: 'r', event: 'e', data: 1 };
     await kernel.transaction(async () => {
       await log.append(event);
@@ -68,7 +71,7 @@ it('commits event and projection together and rolls back both on projection fail
     })).rejects.toThrow(/UNIQUE/);
     // A refusal is a value; the host chooses to abort using its existing exception path.
     const denied = new Error('host rejected capacity receipt');
-    const full = await createKernelSqliteEventLog({ kernel }, { maxEntriesPerRun: 1, schemaSetup: 'host' });
+    const full = await createKernelSqliteEventLog({ kernel, clock: testClock }, { maxEntriesPerRun: 1, schemaSetup: 'host' });
     await expect(kernel.transaction(async () => {
       await kernel.run(tx => tx.updateTable('projection').set({ value: 3 }).where('id', '=', 'p').execute());
       const result = await full.appendWithResult(event, { retentionPolicy: 'reject' });
@@ -92,7 +95,7 @@ it('blocks concurrent callers until an outer transaction completes, then allocat
   let entered!: () => void;
   const inside = new Promise<void>(resolve => { entered = resolve; });
   try {
-    const log = await createKernelSqliteEventLog({ kernel });
+    const log = await createKernelSqliteEventLog({ kernel, clock: testClock });
     const outer = kernel.transaction(async () => {
       const first = await log.append({ runId: 'r', event: 'e', data: 1 });
       entered();
@@ -113,7 +116,7 @@ it('blocks concurrent callers until an outer transaction completes, then allocat
 it('replay reads one snapshot: run, oldest retained cursor and entries come from a single statement', async () => {
   const db = new Database(':memory:');
   try {
-    const log = await createKernelSqliteEventLog({ kernel: sqliteKernel<SqliteEventLogDatabase>(db) }, { maxEntriesPerRun: 3 });
+    const log = await createKernelSqliteEventLog({ kernel: sqliteKernel<SqliteEventLogDatabase>(db), clock: testClock }, { maxEntriesPerRun: 3 });
     for (const n of [1, 2, 3, 4, 5]) await log.append({ runId: 'r', event: 'e', data: n });
     const prepare = vi.spyOn(db, 'prepare');
     // One statement leaves no point where another process could evict between gap check and read.
@@ -141,12 +144,12 @@ it('replays through a read-only kernel with host-managed schema', async () => {
   const path = join(dir, 'log.db');
   try {
     const writer = new Database(path);
-    const seeded = await createKernelSqliteEventLog({ kernel: sqliteKernel<SqliteEventLogDatabase>(writer) });
+    const seeded = await createKernelSqliteEventLog({ kernel: sqliteKernel<SqliteEventLogDatabase>(writer), clock: testClock });
     await seeded.append({ runId: 'r', event: 'e', data: 1 });
     writer.close();
     const reader = new Database(path, { readonly: true, fileMustExist: true });
     try {
-      const log = await createKernelSqliteEventLog({ kernel: sqliteKernel<SqliteEventLogDatabase>(reader) }, { schemaSetup: 'host' });
+      const log = await createKernelSqliteEventLog({ kernel: sqliteKernel<SqliteEventLogDatabase>(reader), clock: testClock }, { schemaSetup: 'host' });
       expect(await log.replay({ runId: 'r', afterCursor: null }))
         .toMatchObject({ kind: 'ok', entries: [{ id: '1', event: 'e', data: 1 }] });
     } finally { reader.close(); }
@@ -157,7 +160,7 @@ it('replays inside a host run() body on the same executor', async () => {
   const db = new Database(':memory:');
   const kernel = sqliteKernel<SqliteEventLogDatabase>(db);
   try {
-    const log = await createKernelSqliteEventLog({ kernel });
+    const log = await createKernelSqliteEventLog({ kernel, clock: testClock });
     await log.append({ runId: 'r', event: 'e', data: 1 });
     const result = await kernel.run(() => log.replay({ runId: 'r', afterCursor: null }));
     expect(result).toMatchObject({ kind: 'ok', entries: [{ id: '1' }] });
@@ -170,12 +173,12 @@ it('rejects non-SQLite kernels and propagates readiness failures without queryin
   const run = vi.spyOn(real, 'run');
   const close = vi.fn(async () => {});
   try {
-    await expect(createKernelSqliteEventLog({ kernel: { ...real, dialect: 'postgres', close } }))
+    await expect(createKernelSqliteEventLog({ kernel: { ...real, dialect: 'postgres', close }, clock: testClock }))
       .rejects.toThrow(/SQLite better-sqlite3 kernel/);
-    await expect(createKernelSqliteEventLog({ kernel: { ...real, transport: 'pglite', close } }))
+    await expect(createKernelSqliteEventLog({ kernel: { ...real, transport: 'pglite', close }, clock: testClock }))
       .rejects.toThrow(/SQLite better-sqlite3 kernel/);
     const failure = new Error('migration failed');
-    await expect(createKernelSqliteEventLog({ kernel: { ...real, ready: Promise.reject(failure), close } }))
+    await expect(createKernelSqliteEventLog({ kernel: { ...real, ready: Promise.reject(failure), close }, clock: testClock }))
       .rejects.toBe(failure);
     expect(run).not.toHaveBeenCalled();
     expect(close).not.toHaveBeenCalled();

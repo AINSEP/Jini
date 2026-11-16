@@ -188,8 +188,6 @@ interface Logger {
 type UUID = string;
 type ISODateTime = string;
 type Result<T, E = Error> = { ok: true; value: T } | { ok: false; error: E };
-createSystemClock(): Clock;
-createRandomUuidGenerator(): IdGenerator;
 createConsoleLogger({ prefix }: { prefix: string }): Logger;
 toIsoDateTime({ epochMs }: { epochMs: number }): ISODateTime;
 nowIso({ clock }: { clock: Clock }): ISODateTime;

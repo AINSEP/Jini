@@ -14,7 +14,7 @@ import {
   pluginNoteHandler, pluginNoteToolCatalog, pluginNoteRisk, registerInstalledAgentPluginTools, WRITE_PLUGIN_NOTE, type ApplyHostToolApprovalPolicy,
 } from '@jini-ai/agent-plugins/lifecycle/host-tools';
 import { buildDomainRegistrations, indexCatalogById } from '@jini-ai/core';
-import { createRandomUuidGenerator, createSystemClock } from '@jini-ai/core/primitives';
+import { createRandomUuidGenerator, createSystemClock } from '@jini-ai/platform/system';
 import { createTimeoutScheduler } from '@jini-ai/daemon/scheduler';
 import { askOnce, createSurfaceExchangeStore } from '@jini-ai/daemon/surface-exchanges';
 import {

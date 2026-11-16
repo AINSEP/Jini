@@ -1,5 +1,5 @@
 import { describeErrorForLog } from '@jini-ai/core';
-import { createSystemClock, type Clock } from "@jini-ai/core/primitives";
+import type { Clock } from "@jini-ai/core/primitives";
 /**
  * @module @jini-ai/mcp/core/tokens
  * Persistent, 0600-guarded OAuth-token store for remote MCP servers, keyed by
@@ -71,10 +71,8 @@ export interface McpTokensFile {
   servers: Record<string, StoredMcpToken>;
 }
 
-/** Optional clock used when imported tokens have no saved timestamp. */
-export interface McpTokenClockOptions { clock?: Clock; }
-/** Injectable store boundaries; defaults use the Node filesystem and wall clock. */
-export interface McpTokenStoreOptions extends McpTokenClockOptions { filesystem?: McpConfigFilesystemPort; }
+/** Injectable store boundaries; the default uses the Node filesystem. The clock is a required argument. */
+export interface McpTokenStoreOptions { filesystem?: McpConfigFilesystemPort; }
 
 const EMPTY: McpTokensFile = { servers: {} };
 
@@ -89,7 +87,7 @@ function isPlainObject(v: unknown): v is Record<string, unknown> {
 /** Coerce a freeform JSON blob into the typed shape, dropping anything that
  * doesn't deserialize cleanly. Used both at read time and as a defensive
  * pass when third-party tooling has hand-edited the file. */
-export function sanitizeTokensFile({ raw }: { raw: unknown }, { clock = createSystemClock() }: McpTokenClockOptions = {}): McpTokensFile {
+export function sanitizeTokensFile({ raw, clock }: { raw: unknown; clock: Clock }, _optional = {}): McpTokensFile {
   if (!isPlainObject(raw)) return { servers: {} };
   const servers = raw.servers;
   if (!isPlainObject(servers)) return { servers: {} };
@@ -149,12 +147,12 @@ function sanitizeToken(raw: unknown, clock: Clock): StoredMcpToken | null {
  * @throws On unexpected read errors or a failed backup; the damaged file is left untouched.
  * @complexity O(n) time and space in the token file length, including a backup write on corruption.
  */
-export async function readTokensFile({ dataDir }: { dataDir: string }, options: McpTokenStoreOptions = {}): Promise<McpTokensFile> {
+export async function readTokensFile({ dataDir, clock }: { dataDir: string; clock: Clock }, options: McpTokenStoreOptions = {}): Promise<McpTokensFile> {
   const filesystem = options.filesystem ?? defaultMcpSecretFilesystem;
   let raw: string | undefined;
   try {
     raw = await filesystem.readText({ filePath: tokensFile(dataDir) });
-    return sanitizeTokensFile({ raw: JSON.parse(raw) }, options);
+    return sanitizeTokensFile({ raw: JSON.parse(raw), clock });
   } catch (err: unknown) {
     const e = err as { code?: string; name?: string; message?: string };
     if (e.code === 'ENOENT') return { ...EMPTY, servers: { ...EMPTY.servers } };
@@ -202,20 +200,20 @@ async function writeTokensFile(
 /** Get the current token for a given server, or null when none is stored
  * (or the persisted entry is malformed). */
 export async function getToken(
-  { dataDir, serverId }: { dataDir: string; serverId: string },
+  { dataDir, serverId, clock }: { dataDir: string; serverId: string; clock: Clock },
   options: McpTokenStoreOptions = {},
 ): Promise<StoredMcpToken | null> {
-  const file = await readTokensFile({ dataDir }, options);
+  const file = await readTokensFile({ dataDir, clock }, options);
   return Object.hasOwn(file.servers, serverId) ? file.servers[serverId]! : null;
 }
 
 /** Atomically merge a new token for `serverId` into the tokens file. */
 export async function setToken(
-  { dataDir, serverId, token }: { dataDir: string; serverId: string; token: StoredMcpToken },
+  { dataDir, serverId, token, clock }: { dataDir: string; serverId: string; token: StoredMcpToken; clock: Clock },
   options: McpTokenStoreOptions = {},
 ): Promise<void> {
   await withLock(dataDir, async () => {
-    const file = await readTokensFile({ dataDir }, options);
+    const file = await readTokensFile({ dataDir, clock }, options);
     file.servers[serverId] = token;
     await writeTokensFile(dataDir, file, options);
   });
@@ -223,11 +221,11 @@ export async function setToken(
 
 /** Atomically delete the stored token for `serverId`. No-op when absent. */
 export async function clearToken(
-  { dataDir, serverId }: { dataDir: string; serverId: string },
+  { dataDir, serverId, clock }: { dataDir: string; serverId: string; clock: Clock },
   options: McpTokenStoreOptions = {},
 ): Promise<void> {
   await withLock(dataDir, async () => {
-    const file = await readTokensFile({ dataDir }, options);
+    const file = await readTokensFile({ dataDir, clock }, options);
     if (!(serverId in file.servers)) return;
     delete file.servers[serverId];
     await writeTokensFile(dataDir, file, options);
@@ -237,10 +235,10 @@ export async function clearToken(
 /** Bulk read used by the spawn pipeline so we make one disk hit per spawn,
  * not one per server. */
 export async function readAllTokens(
-  { dataDir }: { dataDir: string },
+  { dataDir, clock }: { dataDir: string; clock: Clock },
   options: McpTokenStoreOptions = {},
 ): Promise<Record<string, StoredMcpToken>> {
-  const file = await readTokensFile({ dataDir }, options);
+  const file = await readTokensFile({ dataDir, clock }, options);
   return file.servers;
 }
 
@@ -248,8 +246,8 @@ export async function readAllTokens(
  * milliseconds of expiring). Returns false when no `expiresAt` is recorded
  * — many providers issue non-expiring tokens. */
 export function isTokenExpired(
-  { token }: { token: StoredMcpToken },
-  { clock = createSystemClock(), now = clock.nowMs(), skew = 30_000 }: { clock?: Clock; now?: number; skew?: number } = {},
+  { token, clock }: { token: StoredMcpToken; clock: Clock },
+  { now = clock.nowMs(), skew = 30_000 }: { now?: number; skew?: number } = {},
 ): boolean {
   if (typeof token.expiresAt !== 'number') return false;
   return token.expiresAt - skew <= now;

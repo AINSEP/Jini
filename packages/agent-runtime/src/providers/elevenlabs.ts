@@ -16,7 +16,7 @@
  * ElevenLabs wire API once it has a key.
  */
 import { createHash } from 'node:crypto';
-import { createSystemClock, type Clock, type HttpClientPort } from '@jini-ai/core/primitives';
+import type { Clock, HttpClientPort } from '@jini-ai/core/primitives';
 import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
 
 const ELEVENLABS_DEFAULT_BASE_URL = 'https://api.elevenlabs.io';
@@ -205,8 +205,8 @@ export function createElevenLabsVoiceClient(
 export type ElevenLabsVoiceClient = ReturnType<typeof createElevenLabsVoiceClient>;
 
 /** Native defaults stay in this compatibility assembly; injected clients use HttpClientPort directly. */
-function createCompatibilityClient(requestInit: Pick<RequestInit, 'dispatcher'> = {}): ElevenLabsVoiceClient {
-  return createElevenLabsVoiceClient({ clock: createSystemClock(), http: {
+function createCompatibilityClient({ clock }: { clock: Clock }, requestInit: Pick<RequestInit, 'dispatcher'> = {}): ElevenLabsVoiceClient {
+  return createElevenLabsVoiceClient({ clock, http: {
     async send({ request }) {
       const response = await fetchWithTimeout(request.url, {
         ...requestInit, method: request.method, headers: request.headers,
@@ -218,23 +218,30 @@ function createCompatibilityClient(requestInit: Pick<RequestInit, 'dispatcher'> 
   } });
 }
 
-const compatibilityClient = createCompatibilityClient();
-const dispatcherClients = new WeakMap<object, ElevenLabsVoiceClient>();
+/** One cached client per host clock (and per dispatcher), so each host's clock governs its own cache expiry. */
+const compatibilityClients = new WeakMap<Clock, ElevenLabsVoiceClient>();
+const dispatcherClients = new WeakMap<object, WeakMap<Clock, ElevenLabsVoiceClient>>();
+
+function compatibilityClientFor(
+  { clock }: { clock: Clock },
+  requestInit: Pick<RequestInit, 'dispatcher'> | undefined,
+): ElevenLabsVoiceClient {
+  const dispatcher = requestInit?.dispatcher;
+  const cache = dispatcher && typeof dispatcher === 'object'
+    ? (dispatcherClients.get(dispatcher) ?? dispatcherClients.set(dispatcher, new WeakMap()).get(dispatcher)!)
+    : compatibilityClients;
+  let client = cache.get(clock);
+  if (!client) {
+    client = createCompatibilityClient({ clock }, dispatcher && typeof dispatcher === 'object' ? requestInit : {});
+    cache.set(clock, client);
+  }
+  return client;
+}
 
 /** Compatibility wrapper for existing callers. New hosts retain an injected client and clear it on shutdown. */
-export async function listElevenLabsVoiceOptions(required: ElevenLabsVoiceListRequired, options: {
+export async function listElevenLabsVoiceOptions(required: ElevenLabsVoiceListRequired & { clock: Clock }, options: {
   limit?: number;
   requestInit?: Pick<RequestInit, 'dispatcher'>;
 } = {}): Promise<ElevenLabsVoiceOption[]> {
-  let client = compatibilityClient;
-  const dispatcher = options.requestInit?.dispatcher;
-  if (dispatcher && typeof dispatcher === 'object') {
-    let owned = dispatcherClients.get(dispatcher);
-    if (!owned) {
-      owned = createCompatibilityClient(options.requestInit);
-      dispatcherClients.set(dispatcher, owned);
-    }
-    client = owned;
-  }
-  return client.listVoiceOptions(required, options);
+  return compatibilityClientFor({ clock: required.clock }, options.requestInit).listVoiceOptions(required, options);
 }

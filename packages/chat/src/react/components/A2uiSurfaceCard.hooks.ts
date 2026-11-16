@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { createA2uiInterpreter, createLabCatalog, type A2uiInterpreter } from '@jini-ai/agentic/a2ui';
-import { createSystemClock } from '@jini-ai/core/primitives';
+import type { Clock } from '@jini-ai/core/primitives';
 import { buildA2uiCatalogFromRegistry } from '@jini-ai/ui/a2ui';
 import type { InteractiveUiRegistry } from '@jini-ai/ui/interactive-ui';
 import type { useT } from '../hooks/context.js';
@@ -51,7 +51,8 @@ function isThenable(value: unknown): value is PromiseLike<A2uiAgentActionOutcome
 }
 
 /** Apply streamed surface events and report local or agent action outcomes. */
-export function useA2uiSurfaceCard({ events, runId, onAgentAction, registry, t }: {
+export function useA2uiSurfaceCard({ events, runId, onAgentAction, registry, t, clock }: {
+  clock: Clock;
   events: A2uiSurfaceCardProps['events']; runId: A2uiSurfaceCardProps['runId'];
   onAgentAction: A2uiSurfaceCardProps['onAgentAction']; registry: NonNullable<A2uiSurfaceCardProps['registry']>;
   t: ReturnType<typeof useT>;
@@ -66,7 +67,6 @@ export function useA2uiSurfaceCard({ events, runId, onAgentAction, registry, t }
   }, [registry]);
   const interpreterRef = useRef<A2uiInterpreter | null>(null);
   if (!interpreterRef.current) {
-    const clock = createSystemClock();
     interpreterRef.current = createA2uiInterpreter({
       catalog,
       clock,

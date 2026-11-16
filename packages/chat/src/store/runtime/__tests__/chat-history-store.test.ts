@@ -7,6 +7,9 @@ import { createSqlChatStore } from '../../sql/store.js';
 import { createRunGuardedChatStore } from '../run-guarded-chat-store.js';
 import { runtimeFixture, type RuntimeFixture } from './runtime-fixture.js';
 
+// A package test supplies its own clock port; the system clock lives in the platform package.
+const testClock = { nowMs: () => Date.now() };
+
 const scope = { scopeId: 'ws', ownerKind: 'user', ownerId: 'alice' } as const;
 const isDaemonRunId = ({ runId }: { runId: string }) => runId.startsWith('daemon-');
 let f: RuntimeFixture;
@@ -143,7 +146,7 @@ describe('history read allocation boundaries', () => {
   it('validates PostgreSQL 14 raw JSON one row at a time and omits malformed events', async () => {
     f = runtimeFixture();
     // The query uses portable SQL here; this exercises the PG14 validation policy without a server.
-    const store = createSqlChatStore({ kernel: { ...f.kernel, dialect: 'postgres' }, scope });
+    const store = createSqlChatStore({ clock: testClock, kernel: { ...f.kernel, dialect: 'postgres' }, scope });
     await store.create({ id: 'c' });
     await store.appendMessage({ conversationId: 'c', message: { ...answer('a', 1), events: [{ kind: 'text', text: 'saved' }] } });
     await store.appendMessage({ conversationId: 'c', message: answer('b', 2) });

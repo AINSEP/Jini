@@ -1233,7 +1233,7 @@ describe('createLocalNodeDaemon', () => {
 
     await daemon.stop();
 
-    const reopened = SqliteModule.openSqliteEventLog({ file: join(dataDir, 'events.db'), open: openSqlite });
+    const reopened = SqliteModule.openSqliteEventLog({ file: join(dataDir, 'events.db'), open: openSqlite, clock: { nowMs: () => Date.now() } });
     await expect(reopened.append({ runId: 'probe', event: 'probe', data: {} })).resolves.toBeDefined();
     await reopened.close({});
   });

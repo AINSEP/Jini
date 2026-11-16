@@ -579,7 +579,7 @@ function splitNdjsonLines({ buffer }: { buffer: string }): { readonly lines: rea
 ### [providers/elevenlabs.ts](../../src/providers/elevenlabs.ts)
 
 ```ts
-function listElevenLabsVoiceOptions({ workspaceKey, resolveCredentials }: { workspaceKey: string; resolveCredentials: ElevenLabsCredentialResolver }, options: { limit?: number; requestInit?: Pick<RequestInit, 'dispatcher'>; } = {} ): Promise<ElevenLabsVoiceOption[]>;
+function listElevenLabsVoiceOptions({ workspaceKey, resolveCredentials, clock }: { workspaceKey: string; resolveCredentials: ElevenLabsCredentialResolver; clock: Clock }, options: { limit?: number; requestInit?: Pick<RequestInit, 'dispatcher'>; } = {} ): Promise<ElevenLabsVoiceOption[]>;
 ```
 
 ### [providers/pkce.ts](../../src/providers/pkce.ts)

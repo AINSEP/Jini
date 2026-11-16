@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import type { ToolExecutionContext } from '@jini-ai/core';
-import { createSystemClock } from '@jini-ai/core/primitives';
+import { createSystemClock } from '@jini-ai/platform/system';
 import { createTimeoutScheduler } from '@jini-ai/daemon/scheduler';
 import { askThenReport, createSurfaceExchangeStore } from '@jini-ai/daemon/surface-exchanges';
 import { createCredentialSaveTools } from '@jini-ai/agent-plugins/connect';

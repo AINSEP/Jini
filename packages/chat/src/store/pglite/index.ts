@@ -10,12 +10,12 @@ import { validateKernel } from '../sql/boundary.js';
 export type { ChatDatabase, AiChatsTable, AiChatMessagesTable } from '../sql/tables.js';
 
 /** Borrow an existing kernel, with no configuration, migration or connection lifecycle effects.
- * @example createPgliteChatStore({ kernel, scope }, { clock: { nowMs: () => 42 } })
+ * @example createPgliteChatStore({ kernel, scope, clock: { nowMs: () => 42 } })
  * @throws ChatStoreError invalid-input for a mismatched dialect/transport or owner scope.
  */
 export function createPgliteChatStore<DB extends ChatDatabase>(
-  required: { kernel: StorageKernel<DB>; scope: ChatOwnerScope },
-  optional: { clock?: Clock } & UserTextRedactionOptions = {},
+  required: { kernel: StorageKernel<DB>; scope: ChatOwnerScope; clock: Clock },
+  optional: UserTextRedactionOptions = {},
 ): ChatStore {
   validateKernel({ kernel: required.kernel, transports: ['pglite', 'pglite-socket'], dialect: 'postgres' });
   return createSqlChatStore(required, optional);

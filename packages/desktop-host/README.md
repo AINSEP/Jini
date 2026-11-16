@@ -172,7 +172,7 @@ commands and later consumer rewiring requests are in
 `./electron/updates` accepts the structural native electron-updater surface directly: `on(event, listener)` and `quitAndInstall(isSilent?, isForceRunAfter?)`. `createElectronUpdaterAdapter({ updater })` forwards mutable flags and retains the native receiver without importing Electron. Controllers take a core `Clock` in `clock`; effects remain required. Timer, timing and message overrides go in the second options object:
 
 ```ts
-import { createSystemClock } from '@jini-ai/core/primitives';
+import { createSystemClock } from '@jini-ai/platform/system';
 import { createAutoUpdateController } from '@jini-ai/desktop-host/electron/updates';
 
 const controller = createAutoUpdateController({

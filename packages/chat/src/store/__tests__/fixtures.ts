@@ -10,6 +10,9 @@ import type { Clock } from '@jini-ai/core/primitives';
 import type { StorageKernel } from '@jini-ai/db/kernel';
 import type { ChatDatabase } from '../sql/tables.js';
 import type { ChatOwnerScope, ChatStore } from '../ports.js';
+
+// A package test supplies its own clock port; the system clock lives in the platform package.
+const testClock = { nowMs: () => Date.now() };
 export type FixtureDatabase = ChatDatabase & {
  assistant_agent_sessions: { conversation_id: string; agent_id: string; session_id: string; updated_at: number };
  assistant_conversation_tool_approvals: { conversation_id: string; principal_id: string; connection_id: string; tool_name: string; fingerprint: string; granted_at: string };
@@ -43,7 +46,7 @@ export async function sqliteFixture(): Promise<Fixture> {
   st.get=(...args:unknown[])=>{ const result=get(...args); reads++; rows+=result ? 1 : 0; return result; };
   return st;
  };
- return { kernel, make: (scope, clock) => createChatHistoryStore({ db: db, scope: scope }, { ...(clock ? { clock } : {}) }),
+ return { kernel, make: (scope, clock) => createChatHistoryStore({ db: db, scope: scope, clock: clock ?? testClock }),
  maintenance: createChatHistoryMaintenance({ db: db }),
  messageCount: async () => db.prepare('SELECT COUNT(*) AS n FROM ai_chat_messages').get().n,
  readCount:()=>reads,readRows:()=>rows,resetReadRows:()=>{rows=0;},
@@ -58,6 +61,6 @@ export async function twoSqliteConnections() {
  const dbs=[new Database(file),new Database(file)];
  for(const db of dbs){db.pragma('foreign_keys=ON');db.pragma('busy_timeout=5000');}
  ensureChatHistoryTables({ db: dbs[0] });dbs[0].exec(HOST_DDL);
- const wrap=(db:any):Fixture=>({kernel:sqliteKernel<FixtureDatabase>(db),make:(scope,clock)=>createChatHistoryStore({ db: db, scope: scope }, { ...(clock ? { clock } : {}) }),maintenance:createChatHistoryMaintenance({ db: db }),messageCount:async()=>db.prepare('SELECT COUNT(*) n FROM ai_chat_messages').get().n,readCount:()=>0,readRows:()=>0,resetReadRows:()=>{},deleteMessage:async id=>{db.prepare('DELETE FROM ai_chat_messages WHERE id=?').run(id);},close:async()=>{}});
+ const wrap=(db:any):Fixture=>({kernel:sqliteKernel<FixtureDatabase>(db),make:(scope,clock)=>createChatHistoryStore({ db: db, scope: scope, clock: clock ?? testClock }),maintenance:createChatHistoryMaintenance({ db: db }),messageCount:async()=>db.prepare('SELECT COUNT(*) n FROM ai_chat_messages').get().n,readCount:()=>0,readRows:()=>0,resetReadRows:()=>{},deleteMessage:async id=>{db.prepare('DELETE FROM ai_chat_messages WHERE id=?').run(id);},close:async()=>{}});
  return {a:wrap(dbs[0]),b:wrap(dbs[1]),close:async()=>{for(const db of dbs)db.close();rmSync(dir,{recursive:true,force:true});}};
 }

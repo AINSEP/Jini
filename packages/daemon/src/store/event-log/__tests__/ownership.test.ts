@@ -3,11 +3,14 @@ import Database from 'better-sqlite3';
 import { expect, it, vi } from 'vitest';
 import { createSqliteEventLog, openSqliteEventLog } from '../sqlite.js';
 
+// A package test supplies its own clock port; the system clock lives in the platform package.
+const testClock = { nowMs: () => Date.now() };
+
 it('uses the host opener and closes its owned connection exactly once', async () => {
   const db = new Database(':memory:');
   const close = vi.spyOn(db, 'close');
   const open = vi.fn(() => db);
-  const log = openSqliteEventLog({ file: ':memory:', open });
+  const log = openSqliteEventLog({ file: ':memory:', open, clock: testClock });
   try {
     expect(open).toHaveBeenCalledTimes(1);
     expect(open).toHaveBeenCalledWith(':memory:', {});
@@ -22,7 +25,7 @@ it('a borrowed handle survives log close and does not change host pragmas', asyn
   const db = new Database(':memory:');
   const pragma = vi.spyOn(db, 'pragma');
   try {
-    const log = createSqliteEventLog({db} as any);
+    const log = createSqliteEventLog({db, clock: testClock } as any);
     await log.append({ runId: 'r', event: 'start', data: 1 });
     await log.close({}); await log.close({});
     expect(db.open).toBe(true);
@@ -37,7 +40,7 @@ it('schema failure closes an acquired handle and preserves the original failure'
   vi.spyOn(db, 'exec').mockImplementation(() => { throw failure; });
   const close = vi.spyOn(db, 'close');
   try {
-    expect(() => openSqliteEventLog({ file: ':memory:', open: () => db })).toThrow(failure);
+    expect(() => openSqliteEventLog({ file: ':memory:', open: () => db, clock: testClock })).toThrow(failure);
     expect(close).toHaveBeenCalledTimes(1);
     expect(db.open).toBe(false);
   } finally { if (db.open) db.close(); }
@@ -48,7 +51,7 @@ it('schema failure never closes a borrowed connection', () => {
   const failure = new Error('borrowed schema denied');
   vi.spyOn(db, 'exec').mockImplementation(() => { throw failure; });
   try {
-    expect(() => createSqliteEventLog({db} as any)).toThrow(failure);
+    expect(() => createSqliteEventLog({db, clock: testClock } as any)).toThrow(failure);
     expect(db.open).toBe(true);
   } finally { db.close(); }
 });
@@ -60,7 +63,7 @@ it('has no ambient opener and reports exactly how to inject one', () => {
 it('propagates failed acquisition without acquiring any other resource', () => {
   const failure = new Error('host open denied');
   const open = vi.fn(() => { throw failure; });
-  expect(() => openSqliteEventLog({ file: ':memory:', open })).toThrow(failure);
+  expect(() => openSqliteEventLog({ file: ':memory:', open, clock: testClock })).toThrow(failure);
   expect(open).toHaveBeenCalledTimes(1);
 });
 
@@ -71,7 +74,7 @@ it('a cleanup close that itself throws never masks the original schema failure',
   const realClose = db.close.bind(db);
   const close = vi.spyOn(db, 'close').mockImplementation(() => { throw new Error('close failed'); });
   try {
-    expect(() => openSqliteEventLog({ file: ':memory:', open: () => db })).toThrow(failure);
+    expect(() => openSqliteEventLog({ file: ':memory:', open: () => db, clock: testClock })).toThrow(failure);
     expect(close).toHaveBeenCalledTimes(1);
   } finally { close.mockRestore(); if (db.open) realClose(); }
 });

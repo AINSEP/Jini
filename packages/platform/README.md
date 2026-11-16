@@ -97,6 +97,8 @@ The package also exposes `./http/guarded`, `./mail`, `./mail/smtp`,
 `./fs/guarded-reader`, `./fs/durable-json`, and `./secrets`. New APIs take a required
 object followed by an optional object. Application identity and policy values belong to the caller.
 
+`@jini-ai/platform/system` (universal) exports `createSystemClock()` (wall `Clock`) and `createRandomUuidGenerator()` (cryptographic `IdGenerator`); Jini packages take these ports as required arguments and hosts pass these adapters.
+
 Email event senders use the universal `@jini-ai/platform/mail/senders` entry (also exported by `/mail`).
 `EmailSender` exposes `listSources`, `describeSource`, `resolveEvent`, and `configureEmail`.
 Each operation authorizes its workspace and principal; the sender owns values, recipients and binding.

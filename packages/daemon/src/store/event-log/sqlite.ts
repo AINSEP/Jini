@@ -1,4 +1,4 @@
-import { createSystemClock } from '@jini-ai/core/primitives';
+import type { Clock } from '@jini-ai/core/primitives';
 /**
  * `createSqliteEventLog` — the durable `EventLog` adapter (extraction-plan §8 task 8,
  * §2.6: "`@jini-ai/daemon/store/event-log/sqlite` is the default adapter... an adapter conformance suite covers
@@ -51,14 +51,14 @@ export { createKernelSqliteEventLog } from './sqlite-kernel.js';
  * @complexity Setup O(1) statements; append costs depend on the retained per-run cap.
  */
 export function createSqliteEventLog(
-  input: { db: SqliteDb },
+  input: { db: SqliteDb; clock: Clock },
   options: SqliteEventLogOptions = {},
 ): SqliteEventLogWithReceipts {
   resolveMaxEntriesPerRun(options.maxEntriesPerRun);
   if (!input || typeof input !== 'object' || !input.db) {
     throw new Error('createSqliteEventLog: pass a borrowed SqliteDb');
   }
-  return bindSqliteEventLog(input.db, options);
+  return bindSqliteEventLog(input.db, input.clock, options);
 }
 
 /**
@@ -70,7 +70,7 @@ export function createSqliteEventLog(
  * @complexity O(1) acquisition calls; subsequent costs are the borrowed adapter's.
  */
 export function openSqliteEventLog(
-  input: { file: string; open: SqliteSyncOpener },
+  input: { file: string; open: SqliteSyncOpener; clock: Clock },
   options: SqliteEventLogOptions = {},
 ): SqliteEventLogWithReceipts {
   resolveMaxEntriesPerRun(options.maxEntriesPerRun);
@@ -80,7 +80,7 @@ export function openSqliteEventLog(
       db = input.open(filePath, settings);
       return db;
     } }, { pragmas: ['journal_mode = WAL'] });
-    const log = bindSqliteEventLog(db, options);
+    const log = bindSqliteEventLog(db, input.clock, options);
     let closed = false;
     return { ...log, async close(_args: Record<string, never>) { if (closed) return;
       closed = true; db!.close(); } };
@@ -91,9 +91,8 @@ export function openSqliteEventLog(
 }
 
 /** Binds event-log policies to a borrowed synchronous connection and its atomic transactions. */
-function bindSqliteEventLog(db: SqliteDb, options: SqliteEventLogOptions): SqliteEventLogWithReceipts {
+function bindSqliteEventLog(db: SqliteDb, clock: Clock, options: SqliteEventLogOptions): SqliteEventLogWithReceipts {
   const maxEntriesPerRun = resolveMaxEntriesPerRun(options.maxEntriesPerRun);
-  const clock = options.clock ?? createSystemClock();
   if (options.schemaSetup !== 'host') db.exec(SQLITE_EVENT_LOG_SCHEMA);
 
   const getRunStmt = db.prepare<[string], RunRow>(

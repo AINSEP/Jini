@@ -2,7 +2,6 @@
  * Uses real exchange delivery and DI fakes; imports no UI, chat or federation implementation. */
 import { expect, test } from 'vitest';
 import type { SurfaceEmitter, ToolDescriptor } from '@jini-ai/core';
-import { createSystemClock } from '@jini-ai/core/primitives';
 import type { ToolExecutor, ToolExecutionResult } from '../../tool-executor.js';
 import { createSurfaceExchangeStore } from '../../surface-exchanges.js';
 import { createTimeoutScheduler } from '../../scheduler.js';
@@ -12,7 +11,7 @@ const required = { principal: { id: 'operator' }, run: { id: 'run' }, toolId: 'o
 const readOnlyMessages = { unverifiableMessage: 'cannot verify', toolRefusalMessage: () => 'write refused', unknownToolMessage: () => 'unknown tool' };
 const descriptor: ToolDescriptor = { id: 'remedy', readOnly: true, inputSchema: { type: 'object', required: [], properties: {} } };
 function exchanges() {
-  return createSurfaceExchangeStore({ scheduler: createTimeoutScheduler({}, {}), clock: createSystemClock(),
+  return createSurfaceExchangeStore({ scheduler: createTimeoutScheduler({}, {}), clock: { nowMs: () => Date.now() },
     idGenerator: { newId: () => 'exchange' }, defaultChannel: 'mcp-ui' });
 }
 function executor(execute: ToolExecutor['execute']): ToolExecutor {

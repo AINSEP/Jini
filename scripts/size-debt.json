@@ -837,7 +837,7 @@
     "function": "bindSqliteEventLog",
     "line": 94,
     "rule": "max-lines-per-function",
-    "value": 106
+    "value": 105
   },
   {
     "file": "packages/daemon/src/surface-exchanges.ts",

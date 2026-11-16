@@ -1,5 +1,5 @@
 import { streamA2uiRun } from './a2ui-run-stream.js';
-import { createSystemClock } from "@jini-ai/core/primitives";
+import { createSystemClock } from "@jini-ai/platform/system";
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { FETCH_TIMEOUT_MS, fetchWithTimeout } from '@jini-ai/platform/fetch-with-timeout';
 import { createA2uiInterpreter, createLabCatalog, DynamicValueSchema, type A2uiInterpreter } from '@jini-ai/agentic/a2ui';
@@ -29,7 +29,8 @@ import { A2uiSurfaceCard, registerExtEventRenderer } from '@jini-ai/chat/react';
  * deliberately omitted here — see `A2uiSurfaceCard`'s own module doc for why an agent-directed
  * action has nowhere real to go yet outside this fixed lab demo's own `/a2ui-action` relay.
  */
-registerExtEventRenderer({ name: 'a2ui', renderer: (props) => <A2uiSurfaceCard {...props} /> });
+const hostClock = createSystemClock();
+registerExtEventRenderer({ name: 'a2ui', renderer: (props) => <A2uiSurfaceCard {...props} clock={hostClock} /> });
 
 const A2UI_DEMO_AGENT_ID = 'a2ui-demo';
 
