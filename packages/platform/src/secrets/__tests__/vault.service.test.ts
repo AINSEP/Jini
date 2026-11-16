@@ -502,3 +502,39 @@ test("unmigrated vendor replacement adopts defaults without changing subtype or 
   await assert.rejects(repo.put({ expectedRevision: current.revision, record: { ...current, revision: current.revision + 1,
     meta: { ...current.meta, credentialType: null } } }), { code: "context" });
 });
+
+test("rotation refuses a re-seal that does not open, and leaves the stored row untouched", async () => {
+  const { service, input, repo, sealer } = fixture();
+  await service.put(input);
+  const before = (await repo.find(context))!;
+  const seal = sealer.seal.bind(sealer);
+  // Sealed under the wrong binding: it is a well-formed envelope that cannot open under this row's AAD.
+  vi.spyOn(sealer, "seal").mockImplementationOnce(async value => seal({ ...value, aad: buildVaultAad({ ...context, id: "other" }) }));
+  await assert.rejects(service.rotate({ ...context, expectedRevision: 1 }), (error: unknown) =>
+    error instanceof VaultError && error.code === "invalid-record" && !String(error.message).includes(secret));
+  const after = (await repo.find(context))!;
+  assert.equal(after.revision, 1);
+  assert.deepEqual(after.sealed, before.sealed);
+  assert.deepEqual((await service.get(context))?.payload, input.payload);
+});
+
+test("rotation refuses a re-seal whose plaintext differs from the stored payload", async () => {
+  const { service, input, repo, sealer } = fixture();
+  await service.put(input);
+  const before = (await repo.find(context))!;
+  const seal = sealer.seal.bind(sealer);
+  vi.spyOn(sealer, "seal").mockImplementationOnce(async value => seal({ ...value, plaintext: JSON.stringify({ token: "swapped" }) }));
+  await assert.rejects(service.rotate({ ...context, expectedRevision: 1 }), { code: "invalid-record" });
+  const after = (await repo.find(context))!;
+  assert.equal(after.revision, 1);
+  assert.deepEqual(after.sealed, before.sealed);
+  assert.deepEqual((await service.get(context))?.payload, input.payload);
+});
+
+test("rotation of a row with no payload never opens anything", async () => {
+  const { service, input, sealer } = fixture();
+  await service.put({ ...input, payload: null });
+  const open = vi.spyOn(sealer, "open");
+  assert.equal((await service.rotate({ ...context, expectedRevision: 1 })).configured, false);
+  assert.equal(open.mock.calls.length, 0);
+});
