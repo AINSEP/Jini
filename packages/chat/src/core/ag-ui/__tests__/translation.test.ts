@@ -4,7 +4,7 @@ import { test } from "vitest";
 import {
   closeAgUiRun as close, createAgUiTranslationState as create,
   reduceAgentWirePayload as reduce, translateAgentEventToAgUi as translate,
-} from '../entry.js';
+} from '../event-projection.js';
 import { terminalReasonNotice as reason } from '../../run-events/entry.js';
 import { notices } from '../../run-events/__tests__/fixture.js';
 import type { AgentEvent } from '../../events.js';

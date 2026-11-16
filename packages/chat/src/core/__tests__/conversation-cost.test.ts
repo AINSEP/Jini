@@ -5,7 +5,7 @@ import { conversationUsage } from '../turn-usage.js';
 import { formatUsageCost } from '../usage-format.js';
 import { mergeRunEvents } from '../durable-projection.js';
 import { parseUsageEvent } from '../run-events/entry.js';
-import { reduceAgentWirePayload } from '../ag-ui/entry.js';
+import { reduceAgentWirePayload } from '../ag-ui/event-projection.js';
 
 const message = (id: string, events: AgentEvent[], agentId = 'claude'): ChatMessage => ({ id, role: 'assistant', content: '', agentId, events });
 const snapshot = (session: string, cumulative: number): AgentEvent => ({ kind: 'usage', costSessionId: session, cumulativeCostUsd: cumulative });

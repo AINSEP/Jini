@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { createAgUiTranslationState, translateAgentEventToAgUi, closeAgUiRun, reduceAgentWirePayload } from '../entry.js';
+import { createAgUiTranslationState, translateAgentEventToAgUi, closeAgUiRun, reduceAgentWirePayload } from '../event-projection.js';
 
 it('injects host IDs and custom names and keeps concurrent runs isolated', () => {
   const names = { usage: 'consumer.usage', status: 'consumer.status', extensionPrefix: 'consumer.ext.' };

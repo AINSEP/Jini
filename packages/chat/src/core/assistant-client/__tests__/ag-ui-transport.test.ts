@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { EventType, type RunAgentInput } from "@ag-ui/core";
 import { createAgUiRunClient, type AgUiClient } from "../ag-ui-transport.js";
-import { createAgUiToAgentTranslationState } from "../../ag-ui/entry.js";
+import { createAgUiToAgentTranslationState } from "../../ag-ui/event-reduction.js";
 import type { ChatMessage } from "../../messages.js";
 import type { RunHandlers } from "../../transport.js";
 

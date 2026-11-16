@@ -7,7 +7,7 @@
 import { describe, expect, it } from 'vitest';
 import { translateRunAgentPayload } from '../../run-events/entry.js';
 import type { AgentEvent } from '../../events.js';
-import { closeAgUiRun, createAgUiTranslationState, reduceAgentWirePayload, translateAgentEventToAgUi } from '../entry.js';
+import { closeAgUiRun, createAgUiTranslationState, reduceAgentWirePayload, translateAgentEventToAgUi } from '../event-projection.js';
 import { IDS, NAMES, PAYLOADS, type FixturePayload } from './wire-fixture.js';
 
 /** The AG-UI events one reduced event becomes, as the bytes a client would read. */

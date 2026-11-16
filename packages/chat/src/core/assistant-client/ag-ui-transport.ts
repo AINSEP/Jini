@@ -10,8 +10,9 @@
  */
 import type { Message, RunAgentInput } from "@ag-ui/core";
 import { EventType } from "@ag-ui/core";
-import { createAgUiToAgentTranslationState, translateAgUiEventToAgentEvent } from "../ag-ui/entry.js";
-import type { AgUiEvent, AgUiToAgentTranslationState, CustomEventNames } from "../ag-ui/entry.js";
+import { createAgUiToAgentTranslationState, translateAgUiEventToAgentEvent } from "../ag-ui/event-reduction.js";
+import type { AgUiToAgentTranslationState } from "../ag-ui/event-reduction.js";
+import type { AgUiEvent, CustomEventNames } from "../ag-ui/event-projection.js";
 import type { AgentEvent } from "../events.js";
 import type { ChatMessage } from "../messages.js";
 import type { RunHandlers, StartRunInput } from "../transport.js";
