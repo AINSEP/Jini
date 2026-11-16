@@ -1,4 +1,4 @@
-import { formatErrorForLog } from '@jini-ai/core';
+import { describeErrorForLog } from '@jini-ai/core/model-facing-tool-errors';
 import { useEffect, useLayoutEffect, useRef, useState, type ChangeEvent, type ClipboardEvent, type CSSProperties, type KeyboardEvent } from 'react';
 import { useComposerHistoryKeys } from '../hooks/useComposerHistoryKeys.hooks.js';
 import type { ComposerDiscoveryGroup, ComposerDiscoveryItem, ComposerDiscoveryOutcome } from '../slots.js';
@@ -6,7 +6,7 @@ import type { ComposerProps } from './Composer.js';
 import { appendComposerDiscovery, composerDiscoveryMenuPosition, composerSlashMenuPosition, filterComposerDiscovery, parseComposerSlashQuery, replaceComposerSlashTrigger, resolveComposerSlashInvocation, resolveComposerSlashKeyAction } from './composer-discovery.js';
 
 function reportComposerHostEffectFailure({ effectName, error }: { effectName: string; error: unknown }, _options = {}) {
-  console.error(`[@jini-ai/chat] Composer ${effectName} host effect failed:`, formatErrorForLog({ error }));
+  console.error(`[@jini-ai/chat] Composer ${effectName} host effect failed:`, describeErrorForLog({ err: error }));
 }
 
 /**

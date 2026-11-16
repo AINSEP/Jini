@@ -1,4 +1,4 @@
-import { formatErrorForLog } from '@jini-ai/core';
+import { describeErrorForLog } from '@jini-ai/core/model-facing-tool-errors';
 import { acceptedInputUserEvent, projectAcceptedInputEvents, type AcceptedChatInput } from '../../core/accepted-input.js';
 import { redactUserHistory, redactUserMessage, type UserTextRedactionOptions } from '../../core/user-text-redaction.js';
 import { preserveAssistantContent, mergeRunEvents } from '../../core/durable-projection.js';
@@ -162,7 +162,7 @@ export function useConversation(options: UseConversationOptions): UseConversatio
       try {
         const saved = await source.loadMessages();
         if (!disposed) setMessagesState(prev => mergeSavedMessages({ previous: prev, saved }));
-      } catch (error) { if (!disposed) console.error('[chat] conversation refresh failed', formatErrorForLog({ error })); }
+      } catch (error) { if (!disposed) console.error('[chat] conversation refresh failed', describeErrorForLog({ err: error })); }
       finally { pending = false; }
     };
     const schedule = () => {

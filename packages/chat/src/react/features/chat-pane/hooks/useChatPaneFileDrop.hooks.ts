@@ -1,4 +1,4 @@
-import { formatErrorForLog } from '@jini-ai/core';
+import { describeErrorForLog } from '@jini-ai/core/model-facing-tool-errors';
 import {
   useCallback,
   type DragEvent,
@@ -36,11 +36,11 @@ function runOnFilesHostEffect(onFiles: UseChatPaneFileDropOptions['onFiles'], fi
   try {
     result = onFiles(files);
   } catch (error) {
-    console.error('[@jini-ai/chat] useChatPaneFileDrop onFiles host effect failed:', formatErrorForLog({ error }));
+    console.error('[@jini-ai/chat] useChatPaneFileDrop onFiles host effect failed:', describeErrorForLog({ err: error }));
     return;
   }
   void Promise.resolve(result).catch((error: unknown) => {
-    console.error('[@jini-ai/chat] useChatPaneFileDrop onFiles host effect failed:', formatErrorForLog({ error }));
+    console.error('[@jini-ai/chat] useChatPaneFileDrop onFiles host effect failed:', describeErrorForLog({ err: error }));
   });
 }
 

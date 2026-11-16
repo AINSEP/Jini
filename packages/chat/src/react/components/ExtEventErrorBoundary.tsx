@@ -1,4 +1,4 @@
-import { formatErrorForLog } from '@jini-ai/core';
+import { describeErrorForLog } from '@jini-ai/core/model-facing-tool-errors';
 /**
  * @module ExtEventErrorBoundary
  *
@@ -40,7 +40,7 @@ export class ExtEventErrorBoundary extends Component<ExtEventErrorBoundaryProps,
     // React already surfaces this in the dev console via its own error-boundary reporting; this
     // adds the ext-event `name` React's generic report has no way to know, and gives a host a
     // hook to route it into its own error reporting.
-    console.error(`[ExtEventErrorBoundary] ext event "${this.props.name}" failed to render:`, formatErrorForLog({ error }));
+    console.error(`[ExtEventErrorBoundary] ext event "${this.props.name}" failed to render:`, describeErrorForLog({ err: error }));
     this.props.onError?.(error, info);
   }
 

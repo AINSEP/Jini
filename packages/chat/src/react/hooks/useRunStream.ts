@@ -1,4 +1,4 @@
-import { formatErrorForLog } from '@jini-ai/core';
+import { describeErrorForLog } from '@jini-ai/core/model-facing-tool-errors';
 /**
  * @module useRunStream
  *
@@ -49,7 +49,7 @@ export interface UseRunStreamResult extends RunStreamState {
 }
 
 function reportRunStreamHostEffectFailure(effectName: string, error: unknown) {
-  console.error(`[@jini-ai/chat] useRunStream ${effectName} host effect failed:`, formatErrorForLog({ error }));
+  console.error(`[@jini-ai/chat] useRunStream ${effectName} host effect failed:`, describeErrorForLog({ err: error }));
 }
 
 /**

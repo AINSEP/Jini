@@ -1,6 +1,4 @@
 import { createConsoleLogger } from '@jini-ai/core/primitives';
-import { inspect } from 'node:util';
-import { redactSecrets } from '@jini-ai/core';
 import type { ChatHistoryMaintenance } from "../ports.js";
 import { ChatStoreError } from "../errors.js";
 
@@ -63,7 +61,7 @@ export function startChatExpirySweep(
   const onError =
     options.onError ??
     ((error: unknown) => {
-      createConsoleLogger({ prefix: '' }).warn({ message: '[chat-expiry-sweep] sweep failed:' }, { error: redactSecrets({ input: inspect(error) }, { redactPii: false }) });
+      createConsoleLogger({ prefix: '' }).warn({ message: '[chat-expiry-sweep] sweep failed:' }, { error });
     });
   let active: Promise<void> | undefined;
   const pass = (): void => {

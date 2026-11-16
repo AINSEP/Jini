@@ -1,5 +1,5 @@
 import { useCallback, useDeferredValue, useEffect, useMemo, useRef, useState } from 'react';
-import { formatErrorForLog } from '@jini-ai/core';
+import { describeErrorForLog } from '@jini-ai/core/model-facing-tool-errors';
 import type { ConversationListProps } from './ConversationList.js';
 import type { useT } from '../hooks/context.js';
 import { stripConversationTitleMarkdown } from '../../core/persistence/title.js';
@@ -39,7 +39,7 @@ export function useConversationListTitles({ conversations, serverResults }: {
 const DOUBLE_CLICK_GRACE_MS = 500;
 
 function reportConversationListHostEffectFailure({ effectName, error }: { effectName: string; error: unknown }, _options = {}) {
-  console.error(`[@jini-ai/chat] ConversationList ${effectName} host effect failed:`, formatErrorForLog({ error }));
+  console.error(`[@jini-ai/chat] ConversationList ${effectName} host effect failed:`, describeErrorForLog({ err: error }));
 }
 
 /** Invokes a host callback and reports a synchronous throw or async rejection without leaving it unhandled. */
