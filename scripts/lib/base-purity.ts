@@ -2,11 +2,13 @@
  * whose state lives only in the object they return; `protocol` holds wire schemas and guards.
  * Forbidden: Node built-ins, runtime dependencies (core none, protocol only zod), reads of
  * process/window/document/navigator/globalThis, module-scope `let` or a Map/Set written later, and
- * direct timer or fetch calls (those arrive as injected ports with a default). */
+ * direct timer or fetch calls (those arrive as injected ports with a default). A parameter, destructured
+ * name, local or import of the same name is that injected port, not the global. */
 import { builtinModules } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { join, relative } from 'node:path';
 import ts from 'typescript';
+import { createHardwiringInspector } from '../../packages/devops/src/checks/hardwiring.js';
 import { importSites } from './import-sites.js';
 import { packageSourceFiles, parseSource, type SourcePackage } from './package-sources.js';
 import type { Finding } from './injection-debt.js';
@@ -17,6 +19,9 @@ const GLOBALS = new Set(['process', 'window', 'document', 'navigator', 'globalTh
 const EFFECT_CALLS = new Set(['setTimeout', 'setInterval', 'setImmediate', 'fetch']);
 const MUTATORS = new Set(['set', 'add', 'delete', 'clear']);
 const NODE_BUILTINS = new Set(builtinModules);
+// The hardwiring check owns lexical-binding resolution: an injected `fetch` port is not the global.
+const inspector = createHardwiringInspector({ compiler: ts });
+const isGlobal = (node: ts.Identifier): boolean => !inspector.hasLocalBinding({ node, name: node.text });
 
 const isNodeBuiltin = (spec: string): boolean => spec.startsWith('node:') || NODE_BUILTINS.has(spec.split('/')[0]!);
 const isBaseSpec = (spec: string): boolean => /^@jini-ai\/(?:core|protocol)(?:\/|$)/.test(spec);
@@ -59,8 +64,8 @@ function writtenCollections(ast: ts.SourceFile): Set<string> {
 function globalFindings(required: { where: Where; ast: ts.SourceFile }): Finding[] {
   const found: Finding[] = [];
   function visit(node: ts.Node): void {
-    if (ts.isIdentifier(node) && GLOBALS.has(node.text) && !isNameOnly(node)) found.push(finding(required.where, node.text, 'global'));
-    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && EFFECT_CALLS.has(node.expression.text)) {
+    if (ts.isIdentifier(node) && GLOBALS.has(node.text) && !isNameOnly(node) && isGlobal(node)) found.push(finding(required.where, node.text, 'global'));
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) && EFFECT_CALLS.has(node.expression.text) && isGlobal(node.expression)) {
       found.push(finding(required.where, node.expression.text, 'effect-call'));
     }
     ts.forEachChild(node, visit);

@@ -183,39 +183,39 @@ export function createHardwiringInspector({ compiler: c }: { compiler: typeof ts
   }
 
   /** BindingName is Identifier | ObjectBindingPattern | ArrayBindingPattern; array holes are OmittedExpressions. */
-  function bindsFetch(name: ts.BindingName): boolean {
-    if (c.isIdentifier(name)) return name.text === 'fetch';
-    return name.elements.some((e) => c.isBindingElement(e) && bindsFetch(e.name));
+  function binds(name: ts.BindingName, id: string): boolean {
+    if (c.isIdentifier(name)) return name.text === id;
+    return name.elements.some((e) => c.isBindingElement(e) && binds(e.name, id));
   }
 
-  function scopeBindsFetch(scope: ts.Node): boolean {
-    if (c.isFunctionLike(scope)) return scope.parameters.some((p) => bindsFetch(p.name));
-    if (c.isCatchClause(scope)) return Boolean(scope.variableDeclaration && bindsFetch(scope.variableDeclaration.name));
-    if (c.isBlock(scope) || c.isSourceFile(scope)) return scope.statements.some(statementBindsFetch);
+  function scopeBinds(scope: ts.Node, id: string): boolean {
+    if (c.isFunctionLike(scope)) return scope.parameters.some((p) => binds(p.name, id));
+    if (c.isCatchClause(scope)) return Boolean(scope.variableDeclaration && binds(scope.variableDeclaration.name, id));
+    if (c.isBlock(scope) || c.isSourceFile(scope)) return scope.statements.some((statement) => statementBinds(statement, id));
     return false;
   }
 
-  function hasLocalFetch(node: ts.Node): boolean {
-    for (let scope: ts.Node | undefined = node.parent; scope; scope = scope.parent) if (scopeBindsFetch(scope)) return true;
+  /** A lexical binding of `id` (parameter, destructured name, local, import) shadows the global of that name. */
+  function hasLocalBinding(node: ts.Node, id: string): boolean {
+    for (let scope: ts.Node | undefined = node.parent; scope; scope = scope.parent) if (scopeBinds(scope, id)) return true;
     return false;
   }
 
-  function isGlobalThisFetch(value: ts.Expression | undefined): boolean {
-    if (!value || !member(value, 'fetch') || !('expression' in value)) return false;
+  function isGlobalThisMember(value: ts.Expression | undefined, id: string): boolean {
+    if (!value || !member(value, id) || !('expression' in value)) return false;
     const target = value.expression as ts.Node;
     return c.isIdentifier(target) && target.text === 'globalThis';
   }
 
-  function statementBindsFetch(statement: ts.Statement): boolean {
-    if (c.isVariableStatement(statement)) return statement.declarationList.declarations.some((d) => {
-      // Renaming the global to a local `fetch` is still a global call, not an injected port.
-      return bindsFetch(d.name) && !isGlobalThisFetch(d.initializer);
-    });
-    if (c.isFunctionDeclaration(statement)) return statement.name?.text === 'fetch';
+  function statementBinds(statement: ts.Statement, id: string): boolean {
+    // Renaming the global to a local of the same name is still a global call, not an injected port.
+    if (c.isVariableStatement(statement)) return statement.declarationList.declarations.some((d) =>
+      binds(d.name, id) && !isGlobalThisMember(d.initializer, id));
+    if (c.isFunctionDeclaration(statement)) return statement.name?.text === id;
     if (!c.isImportDeclaration(statement) || !statement.importClause) return false;
     const clause = statement.importClause;
-    if (clause.name?.text === 'fetch') return true;
-    return Boolean(clause.namedBindings && c.isNamedImports(clause.namedBindings) && clause.namedBindings.elements.some((e) => e.name.text === 'fetch'));
+    if (clause.name?.text === id) return true;
+    return Boolean(clause.namedBindings && c.isNamedImports(clause.namedBindings) && clause.namedBindings.elements.some((e) => e.name.text === id));
   }
 
   function isEnvDefault(node: ts.Node): boolean {
@@ -246,7 +246,7 @@ export function createHardwiringInspector({ compiler: c }: { compiler: typeof ts
 
   function globalFetchCall(node: ts.Node): boolean {
     if (!c.isCallExpression(node)) return false;
-    if (c.isIdentifier(node.expression)) return node.expression.text === 'fetch' && !hasLocalFetch(node);
+    if (c.isIdentifier(node.expression)) return node.expression.text === 'fetch' && !hasLocalBinding(node, 'fetch');
     if (!member(node.expression, 'fetch') || !('expression' in node.expression)) return false;
     const object = node.expression.expression as ts.Node;
     return c.isIdentifier(object) && object.text === 'globalThis';
@@ -381,6 +381,7 @@ export function createHardwiringInspector({ compiler: c }: { compiler: typeof ts
 
   return { inspect, inspectPublicGraph, parse, imports, exportedFunctions,
     envKey: ({ node }: { node: ts.Node }, _options: Record<string, never> = {}) => envKey(node),
+    hasLocalBinding: ({ node, name }: { node: ts.Node; name: string }, _options: Record<string, never> = {}) => hasLocalBinding(node, name),
   };
 }
 

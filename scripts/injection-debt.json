@@ -580,7 +580,6 @@
   {"rule": "L5-injected-edge", "file": "packages/user-management/src/react/users/Users.tsx", "spec": "@jini-ai/ui/panel-kit", "kind": "import", "count": 1, "lane": "L-TEXT"},
   {"rule": "L5-injected-edge", "file": "packages/user-management/src/react/users/Users.tsx", "spec": "@jini-ai/ui", "kind": "import", "count": 1, "lane": "L-KIT-UM"},
   {"rule": "L6-base-purity", "file": "packages/core/src/approval.ts", "spec": "setTimeout", "kind": "effect-call", "count": 1, "lane": "L-BASE-PURITY"},
-  {"rule": "L6-base-purity", "file": "packages/core/src/fetch/cache.ts", "spec": "fetch", "kind": "effect-call", "count": 1, "lane": "L-BASE-PURITY"},
   {"rule": "L6-base-purity", "file": "packages/core/src/fetch/cache.ts", "spec": "setTimeout", "kind": "effect-call", "count": 1, "lane": "L-BASE-PURITY"},
   {"rule": "L6-base-purity", "file": "packages/core/src/model-facing-tool-errors.ts", "spec": "mutable LOGGABLE_CODES", "kind": "module-state", "count": 1, "lane": "L-BASE-PURITY"},
   {"rule": "L6-base-purity", "file": "packages/core/src/primitives/ids.ts", "spec": "globalThis", "kind": "global", "count": 1, "lane": "L-BASE-PURITY"},

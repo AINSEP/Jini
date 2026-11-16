@@ -213,6 +213,28 @@ describe('L6-base-purity', () => {
     expect(gate()).toEqual([]);
   });
 
+  it('passes injected ports named fetch, setTimeout or process: a lexical binding is not the global', () => {
+    put('packages/core/src/a.ts', [
+      'export function create({ fetch }: { fetch: (url: string) => Promise<unknown> }) { return { run: (url: string) => fetch(url) }; }',
+      'export function later(setTimeout: (cb: () => void) => void): void { setTimeout(() => undefined); }',
+      'export function home(process: { env: Record<string, string> }): string | undefined { return process.env.HOME; }',
+      'export function retry([setInterval]: [(cb: () => void) => void]): void { { setInterval(() => undefined); } }',
+    ].join('\n'));
+    expect(gate()).toEqual([]);
+  });
+
+  it('still fails the global behind a same-named local alias and outside the binding scope', () => {
+    put('packages/core/src/a.ts', 'const fetch = globalThis.fetch; export const get = () => fetch("/x");');
+    put('packages/core/src/b.ts', 'export function f({ fetch }: { fetch: () => void }) { fetch(); } export const g = () => fetch("/y");');
+    const L6 = 'L6-base-purity';
+    expect(gate()).toEqual([`${L6} packages/core/src/a.ts`, `${L6} packages/core/src/a.ts`, `${L6} packages/core/src/b.ts`]);
+    // Exactly one global fetch site in b.ts: the injected one inside f() is not counted.
+    debt({ rule: L6, file: 'packages/core/src/a.ts', spec: 'globalThis', kind: 'global' },
+      { rule: L6, file: 'packages/core/src/a.ts', spec: 'fetch', kind: 'effect-call' },
+      { rule: L6, file: 'packages/core/src/b.ts', spec: 'fetch', kind: 'effect-call' });
+    expect(gate()).toEqual([]);
+  });
+
   it('fails core dependencies and any protocol dependency but zod', () => {
     manifest('core', { dependencies: { zod: '*' } });
     manifest('protocol', { dependencies: { zod: '*', express: '*' } });
