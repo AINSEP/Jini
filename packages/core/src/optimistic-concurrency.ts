@@ -15,7 +15,7 @@
  */
 import { ToolInputError } from './tool-input-errors.js';
 import type { ModelFacingErrorRule } from './model-facing-tool-errors.js';
-import { SettingsRevisionConflictError } from './settings/errors.js';
+import { SettingsRevisionConflictError } from './revision-conflict-error.js';
 
 /** The machine-readable code every arm publishes for a superseded basis — the same string posts,
  *  entries, menus and content types already send, so existing admin classifiers keep working. */
@@ -159,7 +159,7 @@ export interface VersionConflictBody {
 /**
  * The 409 body. `details` carries the versions as fields so the admin "Copy details" text and any
  * client can show "yours N, theirs M" without parsing prose. Same `{ error, code, details }` shape
- * `features/post/expected-version.ts` in Tovu already sends.
+ * `features/post/expected-version.ts` in a host already sends.
  *
  * @complexity O(1).
  */
