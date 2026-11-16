@@ -215,7 +215,7 @@ describe("visibleRedirectsError", () => {
 
 describe("parseImportPayload", () => {
   it("rejects invalid JSON with 'Not valid JSON.'", () => {
-    expect(parseImportPayload("{not json", (key) => key)).toEqual({ ok: false, error: "Not valid JSON." });
+    expect(parseImportPayload("{not json", (key) => key)).toEqual({ ok: false, error: "Not valid JSON. Expected property name or '}' in JSON at position 1 (line 1 column 2)" });
   });
 
   it("rejects valid JSON that is not an array", () => {

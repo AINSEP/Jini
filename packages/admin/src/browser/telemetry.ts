@@ -1,3 +1,4 @@
+import { ignoreBestEffortFailure } from '@jini-ai/core/model-facing-tool-errors';
 /** Browser telemetry over host-bound transport, timers and session state. Route names stay with the host. */
 export type BrowserTelemetryPayload =
   | { type: "error"; message: string; stack: string; componentStack?: string | undefined; route: string }
@@ -58,7 +59,10 @@ export function createBrowserTelemetry(deps: BrowserTelemetryDeps, { maxErrorsPe
   const seen = new Map<string, number>();
 
   const post = (payload: BrowserTelemetryPayload): void => {
-    try { void deps.send(payload).catch(() => {}); } catch { /* never throws */ }
+    try { void deps.send(payload).catch(ignoreBestEffortFailure({ operation: 'send a browser error report' }, { scope: 'admin' })); } catch (error) {
+      // why: telemetry must never throw into the page (and reporting its own failure would loop); the cause goes to debug.
+      ignoreBestEffortFailure({ operation: 'send a browser error report' }, { scope: 'admin' })(error);
+    }
   };
   const underCap = (now: number): boolean => {
     sentAt = sentAt.filter((at) => now - at < WINDOW_MS);

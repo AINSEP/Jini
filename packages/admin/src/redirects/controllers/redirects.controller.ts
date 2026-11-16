@@ -25,7 +25,7 @@ export function createRedirectsController({ actions }: { actions: () => Redirect
       if (actions().saving || store.signal.aborted) return;
       actions().resetOthers('toggle');
       // The mutation owns the visible error; handle this derived promise too.
-      void actions().toggle(rule).catch(() => {});
+      void actions().toggle(rule).catch(() => { /* why: the mutation already shows the failure; this derived promise only needs handling. */ });
     },
     onRequestDelete({ rule }: { rule: AdminRedirect }, _options = {}) {
       if (actions().saving || store.signal.aborted) return;
@@ -37,7 +37,7 @@ export function createRedirectsController({ actions }: { actions: () => Redirect
       actions().resetOthers('remove');
       // Catch BEFORE finally: finally creates a new rejection even if mutate handled its own.
       // Failure is already surfaced by the mutation; always close confirmation once it settles.
-      void actions().remove(rule).catch(() => {}).finally(() => store.set({ patch: { pendingDelete: null } }));
+      void actions().remove(rule).catch(() => { /* why: the mutation already shows the failure; confirmation closes once it settles. */ }).finally(() => store.set({ patch: { pendingDelete: null } }));
     },
   };
 }

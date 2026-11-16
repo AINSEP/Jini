@@ -1,4 +1,5 @@
 import { createControllerStore } from '../../core/module/controller-store.js';
+import { describeApiError } from '../../core/transport/errors.js';
 import type { SourceControlApiPort } from '../ports.js';
 import type { SourceControlState, SourceControlDraft, SourceControlCredential, SourceControlConnection, SourceControlProviderInfo } from '../models.js';
 import { blankSourceControlDraft, sourceControlProviders, defaultSourceControlCredential, sourceControlReady, buildSourceControlConnection, sourceControlSummary, sourceControlErrorMessage } from '../rules.js';
@@ -26,8 +27,8 @@ export function createSourceControlController({ api, permissions = [] }: { api: 
     const ticket = generation, revision = credentialRevision; store.set({ patch: { loading: true } });
     // Catalog failure must not hide saved connections; retain each successful store independently.
     await Promise.all([
-      (async () => { try { const credentials = await api.list({}, { signal: store.signal }); if (ticket === generation && revision === credentialRevision) store.set({ patch: { credentials: credentials.map(row => sourceControlSummary({ row })), loaded: true, error: null } }); } catch { if (ticket === generation) store.set({ patch: { error: 'Connections unavailable' } }); } })(),
-      (async () => { try { const providers = await api.providers({}, { signal: store.signal }); if (ticket === generation) store.set({ patch: { providers, catalogError: null } }); } catch { if (ticket === generation) store.set({ patch: { catalogError: 'Provider catalog unavailable' } }); } })(),
+      (async () => { try { const credentials = await api.list({}, { signal: store.signal }); if (ticket === generation && revision === credentialRevision) store.set({ patch: { credentials: credentials.map(row => sourceControlSummary({ row })), loaded: true, error: null } }); } catch (error) { if (ticket === generation) store.set({ patch: { error: describeApiError({ e: error, fallback: 'Connections unavailable' }) } }); } })(),
+      (async () => { try { const providers = await api.providers({}, { signal: store.signal }); if (ticket === generation) store.set({ patch: { providers, catalogError: null } }); } catch (error) { if (ticket === generation) store.set({ patch: { catalogError: describeApiError({ e: error, fallback: 'Provider catalog unavailable' }) } }); } })(),
     ]); if (ticket === generation) store.set({ patch: { loading: false } });
   }
   /** Replaces the provider's current default credential, or creates one labelled 'default'. */

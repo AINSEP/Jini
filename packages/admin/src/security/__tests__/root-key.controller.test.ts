@@ -1,5 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { createMemoryRootKey } from '../adapters/memory.js';
+import { AdminApiError } from '../../core/transport/errors.js';
 import { createRootKeyController } from '../controllers/root-key.controller.js';
 import type { RootKeyPreview, RootKeyResult, RootKeyState, RootKeyStatus } from '../models.js';
 const GRANT = ['admin.security.tokens.manage'];
@@ -21,6 +22,21 @@ describe('root key controller: load', () => {
   it('ignores a superseded status failure', async () => {
     const api = createMemoryRootKey({}); const late = deferred<RootKeyStatus>(); let n = 0; const real = api.status; api.status = (r, o) => (++n === 1 ? late.promise : real(r, o));
     const c = createRootKeyController({ api, permissions: GRANT }); const stale = c.load({}); await c.load({}); late.reject(new Error('x')); await stale; expect(c.getSnapshot().error).toBeNull();
+  });
+});
+describe('root key controller: failures say what failed', () => {
+  it('shows the host API\'s own message for a refused generation, and logs the cause of an unexpected one', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      const { api, c } = await setup();
+      api.generate = () => Promise.reject(new AdminApiError({ message: 'Key file is read-only', status: 403 }));
+      expect(await c.generate({})).toBe(false);
+      expect(c.getSnapshot().error).toBe('Key file is read-only');
+      api.generate = () => Promise.reject(Object.assign(new Error('EACCES: permission denied'), { code: 'EACCES' }));
+      expect(await c.generate({})).toBe(false);
+      expect(c.getSnapshot().error).toBe('Recovery refused. Check the host key configuration.');
+      expect(warn).toHaveBeenCalledWith('[admin] Recovery refused. Check the host key configuration. Cause: Error(EACCES): EACCES: permission denied');
+    } finally { warn.mockRestore(); }
   });
 });
 describe('root key controller: generate', () => {

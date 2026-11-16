@@ -148,8 +148,9 @@ export function parseImportPayload({ raw, translate }: { raw: string; translate:
   let rules: unknown;
   try {
     rules = JSON.parse(raw);
-  } catch {
-    return { ok: false, error: translate("Not valid JSON.") };
+  } catch (error) {
+    // The parser's own message (position, token) is the user's own pasted text, so it is safe to show.
+    return { ok: false, error: `${translate("Not valid JSON.")} ${error instanceof Error ? error.message : String(error)}`.trim() };
   }
   if (!Array.isArray(rules)) {
     return { ok: false, error: translate("Must be a JSON array of rule objects.") };

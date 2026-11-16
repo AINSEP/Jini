@@ -1,4 +1,5 @@
 import { createControllerStore } from '../../core/module/controller-store.js';
+import { describeApiError } from '../../core/transport/errors.js';
 import type { SecurityApiPort } from '../ports.js';
 import type { CredentialSummary, CredentialProvider, CredentialDraft, CredentialKind, CredentialCategory, CredentialInput } from '../models.js';
 import { blankCredentialDraft, buildCredentialPatch, credentialCategory, credentialStore, validateCredentialDraft, writePermission, credentialLabel } from '../rules.js';
@@ -19,9 +20,9 @@ export function createAccessTokensController({ api, permissions = [] }: { api: S
     const kinds = ['publish', 'source-control', 'custom'] as const;
     const tasks = kinds.map(async kind => {
       try { const rows = await credentialStore({ api, kind }).list({}, { signal: store.signal }); if (ticket === generation) { const errors = { ...store.getSnapshot().errors }; delete errors[kind]; store.set({ patch: { rows: Object.freeze([...store.getSnapshot().rows.filter(r => r.kind !== kind), ...rows]), errors } }); } }
-      catch { if (ticket === generation) store.set({ patch: { errors: { ...store.getSnapshot().errors, [kind]: 'Credential store unavailable' } } }); }
+      catch (error) { if (ticket === generation) store.set({ patch: { errors: { ...store.getSnapshot().errors, [kind]: describeApiError({ e: error, fallback: 'Credential store unavailable' }) } } }); }
     });
-    tasks.push((async () => { try { const providers = await api.providers({}, { signal: store.signal }); if (ticket === generation) store.set({ patch: { providers, error: null } }); } catch { if (ticket === generation) store.set({ patch: { error: 'Provider catalog unavailable' } }); } })());
+    tasks.push((async () => { try { const providers = await api.providers({}, { signal: store.signal }); if (ticket === generation) store.set({ patch: { providers, error: null } }); } catch (error) { if (ticket === generation) store.set({ patch: { error: describeApiError({ e: error, fallback: 'Provider catalog unavailable' }) } }); } })());
     await Promise.all(tasks); if (ticket === generation) store.set({ patch: { loading: false } });
   }
   function begin({ row, kind, providerId }: { row?: CredentialSummary; kind?: CredentialKind; providerId?: string }, _optional = {}) {

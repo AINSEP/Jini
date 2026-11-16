@@ -1,4 +1,5 @@
 import { createControllerStore } from '../../core/module/controller-store.js';
+import { describeApiError } from '../../core/transport/errors.js';
 import type { RootKeyPort } from '../ports.js';
 import type { RootKeyStatus, RootKeyPreview, RootKeyResult } from '../models.js';
 import { ROOT_KEY_PERMISSION, START_FRESH_CONFIRMATION, isRootKeyLocked } from '../rules.js';
@@ -18,14 +19,14 @@ export function createRootKeyController({ api, permissions = [] }: { api: RootKe
     generation += 1;
     const ticket = generation; store.set({ patch: { loading: true } });
     try { const status = await api.status({}, { signal: store.signal }); if (ticket === generation) store.set({ patch: { status, error: null } }); }
-    catch { if (ticket === generation) store.set({ patch: { error: 'Root key status unavailable' } }); }
+    catch (error) { if (ticket === generation) store.set({ patch: { error: describeApiError({ e: error, fallback: 'Root key status unavailable' }) } }); }
     finally { if (ticket === generation) store.set({ patch: { loading: false } }); }
   }
   async function execute(run: () => Promise<RootKeyResult>, result: string) {
     if (!allowed() || store.getSnapshot().saving) return false;
     store.set({ patch: { saving: true, error: null } }); let ok = false;
     try { const response = await run(); store.set({ patch: { token: '', confirm: '', preview: null, confirming: false, result: resultMessage({ result, response }) } }); await load({}); ok = !store.signal.aborted; }
-    catch { store.set({ patch: { error: 'Recovery refused. Check the host key configuration.' } }); }
+    catch (error) { store.set({ patch: { error: describeApiError({ e: error, fallback: 'Recovery refused. Check the host key configuration.' }) } }); }
     finally { store.set({ patch: { saving: false } }); }
     return ok;
   }
@@ -45,7 +46,7 @@ export function createRootKeyController({ api, permissions = [] }: { api: RootKe
       generation += 1;
       const ticket = generation; store.set({ patch: { loading: true, preview: null, confirm: '', error: null } }); let ok = false;
       try { const preview = await api.previewStartFresh({}, { signal: store.signal }); if (ticket === generation && allowed()) { store.set({ patch: { preview, confirming: true } }); ok = true; } }
-      catch { if (ticket === generation) store.set({ patch: { error: 'Recovery preview unavailable' } }); }
+      catch (error) { if (ticket === generation) store.set({ patch: { error: describeApiError({ e: error, fallback: 'Recovery preview unavailable' }) } }); }
       finally { if (ticket === generation) store.set({ patch: { loading: false } }); }
       return ok;
     },
