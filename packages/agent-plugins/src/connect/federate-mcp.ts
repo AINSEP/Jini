@@ -190,7 +190,7 @@ export interface AgentPluginMcpFederationMessages {
 
 /** The host's plugin directory tree; only each workspace's root is read here. */
 export interface AgentPluginLayout {
-  forWorkspace(workspaceId: string): { readonly root: string };
+  forWorkspace(required: { readonly workspaceId: string }, optional?: Record<string, never>): { readonly root: string };
 }
 
 /** @agent-note Installed-package reads, bundled-digest preference and the declared `mcp.json` read,
@@ -324,7 +324,7 @@ export async function resolveAgentPluginMcpServers(input: {
   /** Read-only trust grants require the build's bundled digest, never an arbitrary install. */
   readonly bundledOnly?: boolean;
 }, _optional = {}): Promise<Readonly<Record<string, McpServerConfig>>> {
-  const workspaceLayout = input.agentPluginLayout.forWorkspace(input.workspaceId);
+  const workspaceLayout = input.agentPluginLayout.forWorkspace({ workspaceId: input.workspaceId });
   // A bundled plugin that was upgraded in place has its superseded package dropped here, so the
   // servers this provisions come from the digest the running build published rather than whichever
   // one the directory walk happened to reach first (`bundled-digests.ts`).
