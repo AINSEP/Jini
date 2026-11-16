@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, screen } from '@testing-library/react';
+import { renderWithChatSurfaces } from '../../__tests__/fake-chat-surfaces.js';
 import { describe, expect, it, vi } from 'vitest';
 import type { ChatMessage } from '../../../core/index.js';
 import { ChatPane } from '../../features/chat-pane/components/ChatPane.js';
@@ -25,7 +26,7 @@ function surface({ kind, sending = true, sendingLabel }: {
 
 describe.each(['row', 'list'] as const)('%s sendingLabel', kind => {
   it('keeps the default Sending… text and restores it when the host removes its override', () => {
-    const view = render(surface({ kind }));
+    const view = renderWithChatSurfaces(surface({ kind }));
     expect(screen.getByText('Sending…')).toBeVisible();
     view.rerender(surface({ kind, sendingLabel: HOST_LABEL }));
     expect(screen.getByText(HOST_LABEL)).toBeVisible();
@@ -36,7 +37,7 @@ describe.each(['row', 'list'] as const)('%s sendingLabel', kind => {
   });
 
   it('shows the host label verbatim, without translating it again', () => {
-    render(<I18nContext.Provider value={{ locale: 'test', t: key => `translated: ${key}` }}>
+    renderWithChatSurfaces(<I18nContext.Provider value={{ locale: 'test', t: key => `translated: ${key}` }}>
       {surface({ kind, sendingLabel: HOST_LABEL })}
     </I18nContext.Provider>);
     expect(screen.getByText(HOST_LABEL)).toBeVisible();
@@ -45,7 +46,7 @@ describe.each(['row', 'list'] as const)('%s sendingLabel', kind => {
   });
 
   it('stops showing the host label when the pending input is accepted, even if the prop remains', () => {
-    const view = render(surface({ kind, sendingLabel: HOST_LABEL }));
+    const view = renderWithChatSurfaces(surface({ kind, sendingLabel: HOST_LABEL }));
     expect(screen.getByText(HOST_LABEL)).toBeVisible();
     view.rerender(surface({ kind, sending: false, sendingLabel: HOST_LABEL }));
     expect(screen.queryByText(HOST_LABEL)).not.toBeInTheDocument();
@@ -67,7 +68,7 @@ it('threads a changing host sendingLabel from the public ChatPane to its pending
     transport={transport} agents={[{ id: 'assistant', name: 'Assistant', available: true }]}
     {...{ sendingLabel }}
   />;
-  const view = render(pane({ sendingLabel: HOST_LABEL }));
+  const view = renderWithChatSurfaces(pane({ sendingLabel: HOST_LABEL }));
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'Hello' } });
   await act(async () => {
     fireEvent.click(screen.getByRole('button', { name: 'Send' }));
@@ -84,7 +85,7 @@ it('threads a changing host sendingLabel from the public ChatPane to its pending
 });
 
 it('does not retain Sending after reloading an accepted run beside a stale pending input', () => {
-  render(<MessageList messages={[
+  renderWithChatSurfaces(<MessageList messages={[
     { id: 'user', role: 'user', content: 'Publish first', inputPending: true },
     { ...assistant, runId: 'accepted-run', runStatus: 'running' },
   ]} isStreaming />);

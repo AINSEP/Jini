@@ -1,5 +1,5 @@
-import type { ReactElement } from 'react';
-import { render } from '@testing-library/react';
+import type { ReactElement, ReactNode } from 'react';
+import { render, renderHook, type RenderHookOptions } from '@testing-library/react';
 import { z } from 'zod';
 import {
   ChatSurfacesProvider,
@@ -37,6 +37,20 @@ export function fakeChatSurfaces(overrides: Partial<ChatSurfaces> = {}): ChatSur
   };
 }
 
+/** Provider wrapper, so `rerender` keeps the surfaces too. */
+function surfacesWrapper(surfaces: ChatSurfaces) {
+  return function Wrapper({ children }: { children: ReactNode }) {
+    return <ChatSurfacesProvider surfaces={surfaces}>{children}</ChatSurfacesProvider>;
+  };
+}
+
 export function renderWithChatSurfaces(ui: ReactElement, { surfaces = fakeChatSurfaces() }: { surfaces?: ChatSurfaces } = {}) {
-  return render(<ChatSurfacesProvider surfaces={surfaces}>{ui}</ChatSurfacesProvider>);
+  return render(ui, { wrapper: surfacesWrapper(surfaces) });
+}
+
+export function renderHookWithChatSurfaces<Result, Props>(
+  callback: (props: Props) => Result,
+  { surfaces = fakeChatSurfaces(), ...options }: Omit<RenderHookOptions<Props>, 'wrapper'> & { surfaces?: ChatSurfaces } = {},
+) {
+  return renderHook(callback, { ...options, wrapper: surfacesWrapper(surfaces) });
 }

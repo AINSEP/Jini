@@ -135,6 +135,8 @@ Ids are strings or numbers. Request builder params are records. `JsonRpcMessage`
 
 `createDomPageDriver({ root, pages }, { currentPage? } = {}) → PageDriver` declares a DOM `ParentNode` root with `querySelector`, and a page map `{ [id]: { label, navigate({}): void } }`. The driver reads root/pages from the required object and uses the optional currentPage override.
 
+`createDriverPagePort({ driver }) → { capabilityIds, execute({ capabilityId, input }, { signal? } = {}) }` (from `@jini-ai/agentic/dom`) binds any `PageDriver` as a page-control port: ids come from `PAGE_CAPABILITIES`, execution goes through `executePageCapability`. The shape is structural, so chat's `frontend session bridge` accepts it as its `page` option.
+
 `currentAgentPage({ root }, {} = {}) → string | undefined` finds a page marker. `getAgentModelContext({ host }, {} = {}) → AgentModelContextLike | undefined` requires `host.candidates({}): readonly unknown[]`; it adapts the first usable candidate. The returned port supports `registerTool({ tool }, { signal?, exposedTo? } = {}): Promise<void>` and optional `unregisterTool({ name }, {} = {}): void`. Native host methods are bridged internally. Consumers own DOM availability, candidate order, registration cleanup and transport security.
 
 ```ts

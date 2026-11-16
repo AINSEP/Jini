@@ -7,7 +7,8 @@
  */
 import { Profiler } from 'react';
 import { existsSync, readFileSync } from 'node:fs';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
+import { renderWithChatSurfaces } from '../../../../__tests__/fake-chat-surfaces.js';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { ChatMessage } from '@jini-ai/chat';
@@ -33,7 +34,7 @@ describe.skipIf(!source || !existsSync(source))('ChatPane long-transcript benchm
     } });
     let commitMs = 0;
     const mountStart = performance.now();
-    render(
+    renderWithChatSurfaces(
       <Profiler id="pane" onRender={(_id, _phase, actual) => { commitMs += actual; }}>
         <ChatPane transport={createFakeChatTransport()} agents={agents} initialMessages={messages} conversationId="c1" placeholder="Ask" />
       </Profiler>,

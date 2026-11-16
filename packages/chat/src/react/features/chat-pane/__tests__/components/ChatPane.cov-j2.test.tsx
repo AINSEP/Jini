@@ -1,4 +1,5 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor } from '@testing-library/react';
+import { renderWithChatSurfaces } from '../../../../__tests__/fake-chat-surfaces.js';
 import { describe, expect, it, vi } from 'vitest';
 
 import { SECRET_REDACTED_NOTICE, type RedactUserText } from '../../../../../core/user-text-redaction.js';
@@ -17,7 +18,7 @@ describe('ChatPane secret redaction notice', () => {
       return { text: redacted, secretRedacted: redacted !== text, count: redacted === text ? 0 : 1 };
     };
     const onSecretRedacted = vi.fn();
-    render(<ChatPane transport={transport} agents={agents} redactUserText={redactUserText} onSecretRedacted={onSecretRedacted} />);
+    renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} redactUserText={redactUserText} onSecretRedacted={onSecretRedacted} />);
     expect(screen.queryByText(SECRET_REDACTED_NOTICE)).toBeNull();
 
     fireEvent.change(screen.getByRole('textbox'), { target: { value: `deploy with key:${'x'.repeat(8)}` } });
