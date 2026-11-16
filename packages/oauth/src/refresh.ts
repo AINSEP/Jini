@@ -33,135 +33,156 @@ export function isTokenDueForRefresh({ tokens, nowIso, skewMs }: {
 function isHardExpired(tokens: OAuthTokenSet, nowIso: string): boolean {
     return tokens.expiresAt !== null && Date.parse(tokens.expiresAt) <= Date.parse(nowIso);
 }
-export function createTokenRefresher(deps: OAuthRequiredArgs<TokenRefresherDeps>, optionalArgs: OAuthOptionalArgs<TokenRefresherDeps> = {}): TokenRefresher {
-    const skewMs = optionalArgs.refreshSkewMs ?? DEFAULT_REFRESH_SKEW_MS;
-    const leaseWaitMs = optionalArgs.leaseWaitMs ?? DEFAULT_LEASE_WAIT_MS;
-    const leasePollMs = optionalArgs.leasePollMs ?? DEFAULT_LEASE_POLL_MS;
-    const sleep = deps.sleep;
-    const inFlight = new Map<string, Promise<string>>();
-    // Preserve the terminal OAuth signal if the durable status write itself fails.
-    const markNeedsReauthBestEffort = async (key: string, reason: string): Promise<unknown> => {
-        try {
-            await deps.port.markNeedsReauth({
-                key: key,
-                reason: reason
-            });
-            return undefined;
-        }
-        catch (error) {
-            return error;
-        }
-    };
-    const performRefresh = async (key: string, current: OAuthTokenSet): Promise<string> => {
-        if (current.refreshToken === null) {
-            const reason = isHardExpired(current, readNowIso({ clock: deps.clock }))
-                ? "the provider issued no refresh token and the access token has expired"
-                : "the provider issued no refresh token and the access token is due for refresh";
-            const writeFailure = await markNeedsReauthBestEffort(key, reason);
-            throw needsReauthError("no refresh token", { cause: writeFailure });
-        }
-        let rotated: OAuthTokenSet;
-        try {
-            rotated = await deps.port.refresh({
-                key: key,
-                refreshToken: current.refreshToken
-            });
-        }
-        catch (error) {
-            const terminal = error instanceof OAuthError && (error.code === "OAUTH_INVALID_GRANT" || error.code === "OAUTH_ACCESS_DENIED");
-            if (terminal) {
-                const reason = "the provider rejected the stored refresh token";
-                const writeFailure = await markNeedsReauthBestEffort(key, reason);
-                throw needsReauthError(reason, { cause: writeFailure });
-            }
-            throw error;
-        }
-        // Never hand out a rotated token before storage knows its new refresh token.
-        await deps.port.persist({
+interface RefreshCtx {
+    readonly deps: OAuthRequiredArgs<TokenRefresherDeps>;
+    readonly skewMs: number;
+    readonly leaseWaitMs: number;
+    readonly leasePollMs: number;
+}
+// Preserve the terminal OAuth signal if the durable status write itself fails.
+async function markNeedsReauthBestEffort(ctx: RefreshCtx, key: string, reason: string): Promise<unknown> {
+    try {
+        await ctx.deps.port.markNeedsReauth({
             key: key,
-            tokens: rotated
+            reason: reason
         });
-        return rotated.accessToken;
-    };
-    /** Poll durable storage without redeeming another holder's token; deletion requires reauthorization. */
-    const awaitLeaseHolder = async ({ key }: { readonly key: string }, _optionalArgs = {}): Promise<string> => {
-        const deadline = Date.parse(readNowIso({ clock: deps.clock })) + leaseWaitMs;
-        for (;;) {
-            await sleep({
-                ms: leasePollMs
-            });
-            const reloaded = await deps.port.load({
-                key: key
-            });
-            if (reloaded === null)
-                throw needsReauthError("this connection holds no token");
-            const nowIso = readNowIso({ clock: deps.clock });
-            if (!isTokenDueForRefresh({
-                tokens: reloaded,
-                nowIso: nowIso,
-                skewMs: skewMs
-            }))
-                return reloaded.accessToken;
-            if (Date.parse(nowIso) >= deadline) {
-                if (!isHardExpired(reloaded, nowIso))
-                    return reloaded.accessToken;
-                throw new OAuthError({
-                    code: "OAUTH_PROVIDER_UNREACHABLE", message: "another process is refreshing this connection's token and did not finish in time",
-                    operatorAction: "Try again in a moment. If it keeps happening, reconnect this server in the connection settings."
-                });
-            }
+        return undefined;
+    }
+    catch (error) {
+        return error;
+    }
+}
+async function failMissingRefreshToken(ctx: RefreshCtx, key: string, current: OAuthTokenSet): Promise<never> {
+    const reason = isHardExpired(current, readNowIso({ clock: ctx.deps.clock }))
+        ? "the provider issued no refresh token and the access token has expired"
+        : "the provider issued no refresh token and the access token is due for refresh";
+    const writeFailure = await markNeedsReauthBestEffort(ctx, key, reason);
+    throw needsReauthError("no refresh token", { cause: writeFailure });
+}
+async function redeemRefreshToken(ctx: RefreshCtx, key: string, refreshToken: string): Promise<OAuthTokenSet> {
+    try {
+        return await ctx.deps.port.refresh({
+            key: key,
+            refreshToken: refreshToken
+        });
+    }
+    catch (error) {
+        const terminal = error instanceof OAuthError && (error.code === "OAUTH_INVALID_GRANT" || error.code === "OAUTH_ACCESS_DENIED");
+        if (terminal) {
+            const reason = "the provider rejected the stored refresh token";
+            const writeFailure = await markNeedsReauthBestEffort(ctx, key, reason);
+            throw needsReauthError(reason, { cause: writeFailure });
         }
-    };
-    const refreshOnce = async (key: string, current: OAuthTokenSet): Promise<string> => {
-        if (!deps.port.tryAcquireRefreshLease)
-            return performRefresh(key, current);
-        const acquired = await deps.port.tryAcquireRefreshLease({
+        throw error;
+    }
+}
+async function performRefresh(ctx: RefreshCtx, key: string, current: OAuthTokenSet): Promise<string> {
+    if (current.refreshToken === null)
+        return failMissingRefreshToken(ctx, key, current);
+    const rotated = await redeemRefreshToken(ctx, key, current.refreshToken);
+    // Never hand out a rotated token before storage knows its new refresh token.
+    await ctx.deps.port.persist({
+        key: key,
+        tokens: rotated
+    });
+    return rotated.accessToken;
+}
+function leaseWaitTimeoutError(): OAuthError {
+    return new OAuthError({
+        code: "OAUTH_PROVIDER_UNREACHABLE", message: "another process is refreshing this connection's token and did not finish in time",
+        operatorAction: "Try again in a moment. If it keeps happening, reconnect this server in the connection settings."
+    });
+}
+/** Poll durable storage without redeeming another holder's token; deletion requires reauthorization. */
+async function awaitLeaseHolder(ctx: RefreshCtx, { key }: { readonly key: string }): Promise<string> {
+    const { deps } = ctx;
+    const deadline = Date.parse(readNowIso({ clock: deps.clock })) + ctx.leaseWaitMs;
+    for (;;) {
+        await deps.sleep({
+            ms: ctx.leasePollMs
+        });
+        const reloaded = await deps.port.load({
             key: key
         });
-        if (!acquired)
-            return awaitLeaseHolder({ key });
-        try {
-            // Another holder may have rotated or cleared the token after our initial load.
-            const reloaded = await deps.port.load({ key });
-            if (reloaded === null)
-                throw needsReauthError("this connection holds no token");
-            if (!isTokenDueForRefresh({
-                tokens: reloaded,
-                nowIso: readNowIso({ clock: deps.clock }),
-                skewMs: skewMs
-            }))
+        if (reloaded === null)
+            throw needsReauthError("this connection holds no token");
+        const nowIso = readNowIso({ clock: deps.clock });
+        if (!isTokenDueForRefresh({
+            tokens: reloaded,
+            nowIso: nowIso,
+            skewMs: ctx.skewMs
+        }))
+            return reloaded.accessToken;
+        if (Date.parse(nowIso) >= deadline) {
+            if (!isHardExpired(reloaded, nowIso))
                 return reloaded.accessToken;
-            return await performRefresh(key, reloaded);
+            throw leaseWaitTimeoutError();
         }
-        finally {
-            await deps.port.releaseRefreshLease?.({
-                key: key
-            }).catch(() => undefined);
-        }
+    }
+}
+async function refreshUnderLease(ctx: RefreshCtx, key: string): Promise<string> {
+    // Another holder may have rotated or cleared the token after our initial load.
+    const reloaded = await ctx.deps.port.load({ key });
+    if (reloaded === null)
+        throw needsReauthError("this connection holds no token");
+    if (!isTokenDueForRefresh({
+        tokens: reloaded,
+        nowIso: readNowIso({ clock: ctx.deps.clock }),
+        skewMs: ctx.skewMs
+    }))
+        return reloaded.accessToken;
+    return await performRefresh(ctx, key, reloaded);
+}
+async function refreshOnce(ctx: RefreshCtx, key: string, current: OAuthTokenSet): Promise<string> {
+    const { port } = ctx.deps;
+    if (!port.tryAcquireRefreshLease)
+        return performRefresh(ctx, key, current);
+    const acquired = await port.tryAcquireRefreshLease({
+        key: key
+    });
+    if (!acquired)
+        return awaitLeaseHolder(ctx, { key });
+    try {
+        return await refreshUnderLease(ctx, key);
+    }
+    finally {
+        await port.releaseRefreshLease?.({
+            key: key
+        }).catch(() => undefined);
+    }
+}
+async function getAccessTokenCoalesced(ctx: RefreshCtx, inFlight: Map<string, Promise<string>>, key: string): Promise<string> {
+    const current = await ctx.deps.port.load({
+        key: key
+    });
+    if (current === null)
+        throw needsReauthError("this connection holds no token");
+    const nowIso = readNowIso({ clock: ctx.deps.clock });
+    if (!isTokenDueForRefresh({
+        tokens: current,
+        nowIso: nowIso,
+        skewMs: ctx.skewMs
+    }))
+        return current.accessToken;
+    const existing = inFlight.get(key);
+    if (existing)
+        return existing;
+    const attempt = refreshOnce(ctx, key, current).finally(() => {
+        inFlight.delete(key);
+    });
+    inFlight.set(key, attempt);
+    return attempt;
+}
+export function createTokenRefresher(deps: OAuthRequiredArgs<TokenRefresherDeps>, optionalArgs: OAuthOptionalArgs<TokenRefresherDeps> = {}): TokenRefresher {
+    const ctx: RefreshCtx = {
+        deps,
+        skewMs: optionalArgs.refreshSkewMs ?? DEFAULT_REFRESH_SKEW_MS,
+        leaseWaitMs: optionalArgs.leaseWaitMs ?? DEFAULT_LEASE_WAIT_MS,
+        leasePollMs: optionalArgs.leasePollMs ?? DEFAULT_LEASE_POLL_MS,
     };
+    const inFlight = new Map<string, Promise<string>>();
     return {
-        async getAccessToken({ key }) {
-            const current = await deps.port.load({
-                key: key
-            });
-            if (current === null)
-                throw needsReauthError("this connection holds no token");
-            const nowIso = readNowIso({ clock: deps.clock });
-            if (!isTokenDueForRefresh({
-                tokens: current,
-                nowIso: nowIso,
-                skewMs: skewMs
-            }))
-                return current.accessToken;
-            const existing = inFlight.get(key);
-            if (existing)
-                return existing;
-            const attempt = refreshOnce(key, current).finally(() => {
-                inFlight.delete(key);
-            });
-            inFlight.set(key, attempt);
-            return attempt;
-        },
+        getAccessToken: ({ key }) => getAccessTokenCoalesced(ctx, inFlight, key),
         inFlightCount(_requiredArgs) {
             return inFlight.size;
         },
