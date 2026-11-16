@@ -1,6 +1,6 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
 import { render as renderController } from '../../../__tests__/fetch-query-support.js';
-import { render, screen, fireEvent, waitFor, cleanup, act, configure } from '../../../__tests__/fetch-query-support.js';
+import { render, screen, fireEvent, waitFor, cleanup, act, configure, testAdminKit } from '../../../__tests__/fetch-query-support.js';
 import { StrictMode, Suspense, createRef } from 'react';
 import { createAdmin } from '../../../core/module/index.js';
 import { defineAdminModule } from '@jini-ai/core/contracts/admin-module';
@@ -11,7 +11,7 @@ import { media } from '../index.js';
 import { createOverlayController } from '../../../react/overlays.js';
 import { OverlayHost } from '../../../react/OverlayHost.js';
 import { KitProvider, createKit } from '@jini-ai/ui-kit/react';
-import { Button, Dialog, TextField } from '../../../react/kit.js';
+import { AdminKitProvider, Button, Dialog, TextField } from '../../../react/kit.js';
 import type { ButtonProps } from '../../../react/kit.js';
 import { MediaPurgeDialog } from '../components/MediaPurgeDialog.js';
 import { useController } from '../../../react/use-controller.js';
@@ -171,7 +171,7 @@ describe('media React slice', () => {
       );
     }
     render(
-      <KitProvider kit={createKit({ components: { Button: HostButton } })}>
+      <AdminKitProvider kit={{ ...testAdminKit, components: { ...testAdminKit.components, Button: HostButton } }}>
         <Button
           attrs={{ 'data-jini-part': 'test.button', 'data-agent-element': 'test-press' }}
           onPress={press}
@@ -184,7 +184,7 @@ describe('media React slice', () => {
           value="text"
           onValueChange={() => {}}
         />
-      </KitProvider>,
+      </AdminKitProvider>,
     );
     const button = screen.getByRole('button', { name: 'Host action' });
     expect(button).toHaveAttribute('data-host-button', 'yes');

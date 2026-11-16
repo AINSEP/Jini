@@ -16,7 +16,7 @@ function pickNative(kit: typeof nativeKit) {
   const { Button, IconButton, TextField, TextArea, Select: NativeSelect, Switch, Dialog, Tabs, Menu, Notice, Spinner, Badge } = kit;
   return { Button, IconButton, TextField, TextArea, Select: NativeSelect, Switch, Dialog, ConfirmDialog, Tabs, Menu, Notice, Spinner, Badge };
 }
-const adminKit = fakeAdminKit({
+export const testAdminKit = fakeAdminKit({
   // The searchable select, tooltip and lightbox are ui's real widgets, which a host binds into these slots.
   components: { ...pickNative(nativeKit), WidgetSelect: Select, InfoTip, Lightbox },
   hooks: { useConfirmController, useNativeDialog },
@@ -29,7 +29,7 @@ function scope(wrapper?: ComponentType<{ children: ReactNode }>) {
     const inner = wrapper ? createElement(wrapper, { children }) : children;
     return createElement(UiKitProvider, {
       kit: uiKit,
-      children: createElement(AdminKitProvider, { kit: adminKit, children: createElement(FetchQueryProvider, { children: inner }) }),
+      children: createElement(AdminKitProvider, { kit: testAdminKit, children: createElement(FetchQueryProvider, { children: inner }) }),
     });
   };
 }
