@@ -5,4 +5,5 @@ export * from "./postgres-target.js";
 export * from "./postgres-ddl.js";
 export * from "./table-catalog.js";
 export * from "./plan.js";
+export * from "./copy-order.js";
 export * from "./copy-engine.js";
