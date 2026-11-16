@@ -88,7 +88,8 @@
  * token as a header, the highest-risk path) — `redactSecrets` (reused from `@jini-ai/core`'s
  * `connection-guard.ts`, already this package's `research.ts` precedent) additionally strips any
  * Bearer/api-key-shaped text out of the message before it is even logged to the host's own sink
- * (`redactError`/`callXaiSearch`'s own inline redaction), belt-and-braces beyond the generic-message
+ * (`callXaiSearch`'s own inline redaction; token exchange/refresh failures reach the host sink as the
+ * original error, which the host redacts under its own policy), belt-and-braces beyond the generic-message
  * substitution the caller already gets. Purely local failures (a listener-bind `EADDRINUSE`, an
  * `fs` read/write error) carry no upstream text and are passed through to the sink unredacted — the
  * generic response substitution alone already satisfies SEC-005 for those. The one deliberate
@@ -116,10 +117,7 @@
  *    `@jini-ai/agent-runtime`'s already-shipped generic module, outside this file's own scope to alter
  *    without special-casing one provider's capitalization inside otherwise-generic code.
  */
-import { createConsoleLogger } from '@jini-ai/core/primitives';
-import { inspect } from 'node:util';
 import { redactSecrets } from '@jini-ai/core';
-import { randomUUID } from 'node:crypto';
 import type { Express } from 'express';
 import {
   beginOAuthPkce,
@@ -144,12 +142,18 @@ import {
 } from '@jini-ai/agent-runtime';
 import { createApiError } from '@jini-ai/protocol';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
-import { validationError } from '@jini-ai/http-kit';
+import { reportRouteInternalError, validationError } from '@jini-ai/http-kit';
 import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
 import { trimCharsEnd } from '@jini-ai/core/text';
 
-/** The redacted message every internal failure answers with; details go to the error sink. */
-const INTERNAL_ERROR_MESSAGE = 'an internal error occurred';
+/** Plain words per failing operation; the caller also gets the request ID. */
+const XAI_FAILURE_MESSAGES: Readonly<Record<XaiInternalErrorContext['source'], string>> = {
+  'oauth-start': 'xAI sign-in could not start. Try again; if it keeps failing, copy the request ID and report this problem.',
+  'oauth-complete': 'xAI sign-in could not be completed. Try again; if it keeps failing, copy the request ID and report this problem.',
+  'oauth-disconnect': 'xAI could not be disconnected. Try again; if it keeps failing, copy the request ID and report this problem.',
+  'auth-status': 'The xAI connection status could not be read. Try again; if it keeps failing, copy the request ID and report this problem.',
+  search: 'The X search could not be completed. Try again; if it keeps failing, copy the request ID and report this problem.',
+};
 
 const DEFAULT_TOKEN_FILE_NAME = 'xai-oauth-token.json';
 /** Matches the loopback listener's own 30-minute self-close timeout (OD's real comment: keeps the
@@ -194,7 +198,7 @@ export interface XaiHttpDeps {
   readonly fetchImpl?: typeof fetch;
   /** Deadline for one search request *and* its response body, in milliseconds. Defaults to {@link DEFAULT_SEARCH_TIMEOUT_MS}. */
   readonly searchTimeoutMs?: number;
-  /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). Defaults to `console.error`. */
+  /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). It receives the original error: upstream bodies can carry secrets, so the host redacts under its own policy. Without it the default line prints the class only. */
   readonly onInternalError?: (context: XaiInternalErrorContext) => void;
 }
 
@@ -212,11 +216,15 @@ interface ResolvedXaiHttpDeps {
   searchDefaultModel: string;
   fetchImpl: typeof fetch;
   searchTimeoutMs: number;
-  onInternalError: (context: XaiInternalErrorContext) => void;
+  onInternalError?: ((context: XaiInternalErrorContext) => void) | undefined;
 }
 
-function defaultInternalErrorSink(context: XaiInternalErrorContext): void {
-  createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/http-kit] internal error (xai/${context.source}, correlationId=${context.correlationId})` }, { error: redactSecrets({ input: inspect(context.error) }, { redactPii: false }) });
+/** The one incident owner for every xAI route failure (local wrapper: it picks the message). */
+function reportXaiInternalError(
+  { resolved, source, error }: { readonly resolved: Pick<ResolvedXaiHttpDeps, 'onInternalError'>; readonly source: XaiInternalErrorContext['source']; readonly error: unknown },
+  _optional: Record<string, never> = {},
+): ReturnType<typeof createApiError> {
+  return reportRouteInternalError<Omit<XaiInternalErrorContext, 'correlationId'>>({ report: { source, error }, logSource: `xai/${source}`, message: XAI_FAILURE_MESSAGES[source] }, { onInternalError: resolved.onInternalError });
 }
 
 /** Resolves every optional `XaiHttpDeps` field to a concrete value. Idempotent — calling this again on an already-resolved object (e.g. `registerXaiRoutes`'s own single resolution, passed through to each route's `handle`) is a harmless pass-through. See module doc on why stateful fields (`pending`/`listenerRef`) must be resolved once per registration, not once per request. */
@@ -246,7 +254,7 @@ function resolveStorageAndSearchDeps(deps: XaiHttpDeps): Pick<ResolvedXaiHttpDep
     searchDefaultModel: deps.searchDefaultModel ?? DEFAULT_SEARCH_MODEL,
     fetchImpl: deps.fetchImpl ?? fetch,
     searchTimeoutMs: deps.searchTimeoutMs ?? DEFAULT_SEARCH_TIMEOUT_MS,
-    onInternalError: deps.onInternalError ?? defaultInternalErrorSink,
+    onInternalError: deps.onInternalError,
   };
 }
 
@@ -302,12 +310,6 @@ function serializeOauthStart<T>(key: object, task: () => Promise<T>): Promise<T>
   return next;
 }
 
-/** Redacts any Bearer/api-key/`key=`-shaped secret out of a thrown value's message before it reaches the internal-error sink — belt-and-braces even on paths (token exchange/refresh) that don't send a bearer header of our own, since the upstream error body is otherwise passed through verbatim. Matches `callXaiSearch`'s own redaction; kept as a separate helper since those two paths have no exact-secret value in common to pass as `redactSecrets`' second argument. */
-function redactError(error: unknown): Error {
-  const message = error instanceof Error ? error.message : String(error);
-  return new Error(redactSecrets({ input: message }));
-}
-
 /**
  * Maps a token-endpoint response onto the persisted record. Pure (the save instant is a parameter)
  * so the mapping is testable on its own. `token_type` is optional on the wire type; today's
@@ -337,11 +339,7 @@ async function persistToken(resolved: ResolvedXaiHttpDeps, tokenResp: OAuthToken
 async function handleListenerCallback(resolved: ResolvedXaiHttpDeps, outcome: OAuthCallbackOutcome): Promise<void> {
   resolved.listenerRef.current = null;
   if (outcome.kind !== 'ok') {
-    resolved.onInternalError({
-      source: 'oauth-start',
-      correlationId: randomUUID(),
-      error: new Error(`xAI OAuth callback failed: ${outcome.error}`),
-    });
+    reportXaiInternalError({ resolved, source: 'oauth-start', error: new Error(`xAI OAuth callback failed: ${outcome.error}`) });
     return;
   }
   try {
@@ -355,7 +353,7 @@ fetchImpl: resolved.fetchImpl
 });
     await persistToken(resolved, tokenResp);
   } catch (error) {
-    resolved.onInternalError({ source: 'oauth-start', correlationId: randomUUID(), error: redactError(error) });
+    reportXaiInternalError({ resolved, source: 'oauth-start', error });
   }
 }
 
@@ -456,9 +454,7 @@ export const xaiOauthStartRoute = defineJsonRoute<void, XaiOauthStartResponse, X
         });
       } catch (error) {
         await stopListener(resolved);
-        const correlationId = randomUUID();
-        resolved.onInternalError({ source: 'oauth-start', correlationId, error });
-        return err({ error: createApiError({ code: 'INTERNAL_ERROR', message: INTERNAL_ERROR_MESSAGE }, { requestId: correlationId }) });
+        return err({ error: reportXaiInternalError({ resolved, source: 'oauth-start', error }) });
       }
     });
   }
@@ -516,9 +512,7 @@ fetchImpl: resolved.fetchImpl
       if (message.startsWith(`${resolved.providerConfig.providerId} OAuth state`)) {
         return err({ error: validationError({ message }) });
       }
-      const correlationId = randomUUID();
-      resolved.onInternalError({ source: 'oauth-complete', correlationId, error: redactError(error) });
-      return err({ error: createApiError({ code: 'INTERNAL_ERROR', message: INTERNAL_ERROR_MESSAGE }, { requestId: correlationId }) });
+      return err({ error: reportXaiInternalError({ resolved, source: 'oauth-complete', error }) });
     }
   }
 }, { requireSameOrigin: true });
@@ -567,9 +561,7 @@ export const xaiAuthStatusRoute = defineJsonRoute<void, XaiAuthStatusResponse, X
         }
       });
     } catch (error) {
-      const correlationId = randomUUID();
-      resolved.onInternalError({ source: 'auth-status', correlationId, error });
-      return err({ error: createApiError({ code: 'INTERNAL_ERROR', message: INTERNAL_ERROR_MESSAGE }, { requestId: correlationId }) });
+      return err({ error: reportXaiInternalError({ resolved, source: 'auth-status', error }) });
     }
   }
 }, { requireSameOrigin: true });
@@ -586,9 +578,7 @@ export const xaiOauthDisconnectRoute = defineJsonRoute<void, XaiOkResponse, XaiH
       await clearStoredOAuthToken({ dataDir: resolved.dataDir, fileName: resolved.tokenFileName });
       return ok({ value: { ok: true } });
     } catch (error) {
-      const correlationId = randomUUID();
-      resolved.onInternalError({ source: 'oauth-disconnect', correlationId, error });
-      return err({ error: createApiError({ code: 'INTERNAL_ERROR', message: INTERNAL_ERROR_MESSAGE }, { requestId: correlationId }) });
+      return err({ error: reportXaiInternalError({ resolved, source: 'oauth-disconnect', error }) });
     }
   }
 }, { requireSameOrigin: true });
@@ -781,9 +771,7 @@ export const xaiSearchRoute = defineJsonRoute<XaiSearchRequest, XaiSearchRespons
     try {
       credential = await resolveOAuthBearer({ config: resolved.providerConfig, tokenFileName: resolved.tokenFileName, dataDir: resolved.dataDir }, { fetchImpl: resolved.fetchImpl });
     } catch (error) {
-      const correlationId = randomUUID();
-      resolved.onInternalError({ source: 'search', correlationId, error });
-      return err({ error: createApiError({ code: 'INTERNAL_ERROR', message: INTERNAL_ERROR_MESSAGE }, { requestId: correlationId }) });
+      return err({ error: reportXaiInternalError({ resolved, source: 'search', error }) });
     }
     if (!credential) {
       // No entitlement gate here — see module doc's "Dropped: OD's SuperGrok subscription gate"
@@ -797,9 +785,7 @@ export const xaiSearchRoute = defineJsonRoute<XaiSearchRequest, XaiSearchRespons
       const result = await callXaiSearch(resolved, credential.accessToken, request);
       return ok({ value: result });
     } catch (error) {
-      const correlationId = randomUUID();
-      resolved.onInternalError({ source: 'search', correlationId, error });
-      return err({ error: createApiError({ code: 'INTERNAL_ERROR', message: INTERNAL_ERROR_MESSAGE }, { requestId: correlationId }) });
+      return err({ error: reportXaiInternalError({ resolved, source: 'search', error }) });
     }
   }
 }, { requireSameOrigin: true });

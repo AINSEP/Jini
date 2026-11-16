@@ -28,19 +28,15 @@
  * composition root can make (it is the thing that starts runs), so it calls `registry.bindRun`
  * directly — see `@jini-ai/daemon`'s own module doc for why attach and bind are separate.
  */
-import { createConsoleLogger } from '@jini-ai/core/primitives';
-import { inspect } from 'node:util';
-import { redactSecrets } from '@jini-ai/core';
 import { randomUUID } from 'node:crypto';
 import type { ToolApprovalDecision } from '@jini-ai/core';
 import type { Express, Request, Response } from 'express';
-import { createApiError } from '@jini-ai/protocol';
 import type { FrontendSessionHandle, FrontendSessionRegistry, FrontendSessionOwner } from '../frontend-session-registry.js';
 import { FrontendSessionCapacityError } from '../frontend-session-registry.js';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
 import { guardSameOrigin } from '@jini-ai/http-kit';
 import { createSseResponse } from '@jini-ai/http-kit';
-import { validationError } from '@jini-ai/http-kit';
+import { reportRouteInternalError, validationError } from '@jini-ai/http-kit';
 import { sendApiError, statusForError } from '@jini-ai/http-kit';
 import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
 
@@ -130,15 +126,8 @@ export interface FrontendSessionsHttpDeps {
   readonly onInternalError?: (context: { readonly source: string; readonly error: unknown }) => void;
 }
 
-function reportInternalError(deps: FrontendSessionsHttpDeps, source: string, error: unknown): void {
-  try {
-    if (deps.onInternalError) deps.onInternalError({ source, error });
-    else createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/http-kit] internal error (frontend-sessions:${source})` }, { error: redactSecrets({ input: inspect(error) }, { redactPii: false }) });
-  } catch (sinkError) {
-    // A diagnostic sink must never turn a contained failure into an unhandled rejection of its own.
-    createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/http-kit] internal error sink failed (frontend-sessions:${source})` }, { error: redactSecrets({ input: inspect(sinkError) }, { redactPii: false }) });
-  }
-}
+/** Plain words for a stream that could not open before its headers; the caller also gets the request ID. */
+const FRONTEND_STREAM_FAILED_MESSAGE = 'The page connection could not be opened. Reload the page; if it keeps failing, copy the request ID and report this problem.';
 
 /**
  * Reads the repeatable `?capability=` query parameter.
@@ -332,11 +321,13 @@ export function registerFrontendSessionRoutes({ app, deps, adapter }: { readonly
 /** Capacity is ordinary admission refusal, not a loggable internal failure. */
 function endStreamOnError({ error, res, deps }: { error: unknown; res: Response; deps: FrontendSessionsHttpDeps }): void {
   if (error instanceof FrontendSessionCapacityError && !res.headersSent) { res.sendStatus(429); return; }
-  reportInternalError(deps, 'stream', error);
+  // A diagnostic sink must never turn a contained failure into an unhandled rejection of its own:
+  // `reportRouteInternalError` contains a throwing sink and still logs the incident.
+  const apiError = reportRouteInternalError({ report: { source: 'stream', error }, logSource: 'frontend-sessions:stream', message: FRONTEND_STREAM_FAILED_MESSAGE }, { onInternalError: deps.onInternalError });
   if (res.headersSent) {
     if (!res.writableEnded) res.end();
   } else {
-    res.status(500).json({ error: createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }) });
+    res.status(500).json({ error: apiError });
   }
 }
 

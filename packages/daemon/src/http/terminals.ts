@@ -25,9 +25,6 @@
  * - Adapts `deps.manager.attach`'s push/end sink to `sse.ts`'s generic SSE
  *   channel, the same way `runs.ts` adapts `RunLifecycle.stream`.
  */
-import { createConsoleLogger } from '@jini-ai/core/primitives';
-import { inspect } from 'node:util';
-import { redactSecrets } from '@jini-ai/core';
 import { randomUUID } from 'node:crypto';
 import type { Express, Request, Response } from 'express';
 import type { Principal } from '@jini-ai/core';
@@ -42,7 +39,7 @@ import type { ToolExecutionResult, ToolExecutor } from '../index.js';
 import { createApiError } from '@jini-ai/protocol';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
 import { guardSameOrigin } from '@jini-ai/http-kit';
-import { validationError } from '@jini-ai/http-kit';
+import { reportRouteInternalError, validationError } from '@jini-ai/http-kit';
 import { sendApiError, statusForError } from '@jini-ai/http-kit';
 import { createSseChannel, requestedAfterCursor, type SseEvent } from '@jini-ai/http-kit';
 import { denyAllWorkspaceRoots, type WorkspaceRootResolver } from './workspace-root.js';
@@ -54,10 +51,6 @@ export interface TerminalsInternalErrorContext {
   readonly source: 'terminal-create';
   readonly correlationId: string;
   readonly error: unknown;
-}
-
-function defaultTerminalsInternalErrorSink(context: TerminalsInternalErrorContext): void {
-  createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/http-kit] internal error (${context.source}, correlationId=${context.correlationId})` }, { error: redactSecrets({ input: inspect(context.error) }, { redactPii: false }) });
 }
 
 /** Everything this route pack needs from the host. */
@@ -88,10 +81,8 @@ function toolResultToApiResult(deps: TerminalsHttpDeps, result: ToolExecutionRes
     case 'timed-out':
     case 'cancelled':
     case 'failed': {
-      const correlationId = randomUUID();
-      const sink = deps.onInternalError ?? defaultTerminalsInternalErrorSink;
-      sink({ source: 'terminal-create', correlationId, error: result.status === 'failed' ? result.error : result.status });
-      return err({ error: createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId }) });
+      const message = 'The terminal could not be opened. Try again; if it keeps failing, copy the request ID and report this problem.';
+      return err({ error: reportRouteInternalError<Omit<TerminalsInternalErrorContext, 'correlationId'>>({ report: { source: 'terminal-create', error: result.status === 'failed' ? result.error : result.status }, logSource: 'terminal-create', message }, { onInternalError: deps.onInternalError }) });
     }
     default: {
       // Unreachable: every tool result status has a case above, and a new one fails typecheck here.

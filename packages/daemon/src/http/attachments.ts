@@ -99,9 +99,6 @@
  * correlation-id-bearing generic `INTERNAL_ERROR`, with the real error reaching a host-owned sink —
  * the same `reportInternalError` shape `media.ts`/`delegated-tools.ts` use.
  */
-import { createConsoleLogger } from '@jini-ai/core/primitives';
-import { inspect } from 'node:util';
-import { redactSecrets } from '@jini-ai/core';
 import { chmod, copyFile, lstat, mkdir, mkdtemp, open, readFile, readdir, realpath, rm, rmdir, type FileHandle } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import { basename, dirname, extname, resolve } from 'node:path';
@@ -109,7 +106,7 @@ import type { Express, Request, Response } from 'express';
 import { createApiError, type ApiError } from '@jini-ai/protocol';
 import type { AdapterContext } from '@jini-ai/http-kit';
 import { guardSameOrigin } from '@jini-ai/http-kit';
-import { sendApiError, sendJson } from '@jini-ai/http-kit';
+import { reportRouteInternalError, sendApiError, sendJson } from '@jini-ai/http-kit';
 import { writeJsonFileAtomicAsync } from '@jini-ai/platform/fs';
 
 /**
@@ -1420,20 +1417,14 @@ export interface AttachmentsHttpDeps {
 
 export const ATTACHMENTS_ROUTE_PATH = '/api/attachments';
 
-function defaultInternalErrorSink(context: AttachmentsInternalErrorContext): void {
-  createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/http-kit] internal error (${context.source}, correlationId=${context.correlationId})` }, { error: redactSecrets({ input: inspect(context.error) }, { redactPii: false }) });
-}
-
 function reportInternalError(
-  deps: AttachmentsHttpDeps,
-  source: AttachmentsInternalErrorContext['source'],
-  error: unknown,
-  batchId: string | null,
+  { deps, source, error, batchId }: { readonly deps: AttachmentsHttpDeps; readonly source: AttachmentsInternalErrorContext['source']; readonly error: unknown; readonly batchId: string | null },
+  _optional: Record<string, never> = {},
 ): ApiError {
-  const correlationId = randomUUID();
-  const sink = deps.onInternalError ?? defaultInternalErrorSink;
-  sink({ source, batchId, correlationId, error });
-  return createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId });
+  const message = source === 'attachment-upload'
+    ? 'The file could not be attached. Try again; if it keeps failing, copy the request ID and report this problem.'
+    : 'The attachment could not be removed. Try again; if it keeps failing, copy the request ID and report this problem.';
+  return reportRouteInternalError<Omit<AttachmentsInternalErrorContext, 'correlationId'>>({ report: { source, batchId, error }, logSource: source, message }, { onInternalError: deps.onInternalError });
 }
 
 /**
@@ -1452,7 +1443,7 @@ function respondToUploadFailure(
     sendApiError({ res, status: REJECTION_STATUS[error.reason], error: apiErrorForRejection(error) });
     return;
   }
-  sendApiError({ res, status: 500, error: reportInternalError(deps, source, error, batchId) });
+  sendApiError({ res, status: 500, error: reportInternalError({ deps, source, error, batchId }) });
 }
 
 /** `false` when the same-origin guard rejected the request (and already answered it). */
@@ -1640,7 +1631,7 @@ export function registerAttachmentRoutes({ app, deps, adapter }: { readonly app:
       if (!passesOriginGuard(req, res, deps, adapter)) return;
       await handleAttachmentCleanup({ req, res, deps });
     } catch (error) {
-      if (!res.headersSent) sendApiError({ res, status: 500, error: reportInternalError(deps, 'attachment-cleanup', error, null) });
+      if (!res.headersSent) sendApiError({ res, status: 500, error: reportInternalError({ deps, source: 'attachment-cleanup', error, batchId: null }) });
     } finally {
       release?.();
     }

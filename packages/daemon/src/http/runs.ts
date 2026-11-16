@@ -3,9 +3,6 @@
  * agent, tool, or product vocabulary: a host optionally supplies `onStarted`
  * to attach its chosen driver after the lifecycle has durably recorded start.
  */
-import { createConsoleLogger } from '@jini-ai/core/primitives';
-import { inspect } from 'node:util';
-import { redactSecrets } from '@jini-ai/core';
 import { randomUUID } from 'node:crypto';
 import type { Express, Request, Response } from 'express';
 import { createApiError, type RunProtocolEvent, type RunStatus } from '@jini-ai/protocol';
@@ -16,6 +13,7 @@ import {
   err,
   mountJsonRoute,
   ok,
+  reportRouteInternalError,
   requestedAfterCursor,
   sendApiError,
   sendRawApiError,
@@ -38,11 +36,6 @@ export interface RunInternalErrorContext {
   readonly runId: string;
   readonly correlationId: string;
   readonly error: unknown;
-}
-
-/** Default sink when a host does not supply `onInternalError`: still observable, never silent. */
-function defaultInternalErrorSink(context: RunInternalErrorContext): void {
-  createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/http-kit] internal error (${context.source}, correlationId=${context.correlationId})` }, { error: redactSecrets({ input: inspect(context.error) }, { redactPii: false }) });
 }
 
 export interface RunCreateRequest {
@@ -86,18 +79,14 @@ export interface RunHttpDeps {
  * @complexity O(1) time and space besides the injected diagnostic sink.
  */
 function reportInternalError(
-  deps: RunHttpDeps,
-  source: RunInternalErrorContext['source'],
-  error: unknown,
-  runId: string,
+  { deps, source, error, runId }: { readonly deps: RunHttpDeps; readonly source: RunInternalErrorContext['source']; readonly error: unknown; readonly runId: string },
+  _optional: Record<string, never> = {},
 ): ReturnType<typeof createApiError> {
-  const correlationId = randomUUID();
-  const sink = deps.onInternalError ?? defaultInternalErrorSink;
-  sink({ source, runId, correlationId, error });
   const message = source === 'run-start'
     ? 'The agent could not be started. Check the run status before starting another task. Copy the request ID and report this problem.'
     : 'The connection to run updates could not be opened. Check the run status before starting another task. Copy the request ID and report this problem.';
-  return createApiError({ code: 'INTERNAL_ERROR', message }, { requestId: correlationId });
+  // No host sink: `reportRouteInternalError`'s default line keeps the failure observable, never silent.
+  return reportRouteInternalError<Omit<RunInternalErrorContext, 'correlationId'>>({ report: { source, runId, error }, logSource: source, message }, { onInternalError: deps.onInternalError });
 }
 
 export interface RunStartResponse {
@@ -230,7 +219,7 @@ export const runStartRoute = defineJsonRoute<RunCreateRequest, RunStartResponse,
         await deps.onStarted({ request: input, run: started.run, lifecycle: deps.lifecycle });
       } catch (error) {
         await deps.lifecycle.finish({ runId: started.run.id, status: 'failed', code: null, signal: null, resumable: false });
-        return err({ error: reportInternalError(deps, 'run-start', error, started.run.id) });
+        return err({ error: reportInternalError({ deps, source: 'run-start', error, runId: started.run.id }) });
       }
     }
     // A host-owned driver may finish immediately (for example, a single-step
@@ -351,7 +340,7 @@ export async function handleRunEventStreamRequest({ res, runId, afterCursor, dep
       // Using `channel.end()` here instead would end the response before this write, turning
       // it into a write-after-end failure.
       channel.abandon();
-      sendRawApiError({ res, status: 500, error: reportInternalError(deps, 'run-stream', error, runId) });
+      sendRawApiError({ res, status: 500, error: reportInternalError({ deps, source: 'run-stream', error, runId }) });
       return;
     }
     // Headers were already sent (the stream had started, or `open()` partially ran before

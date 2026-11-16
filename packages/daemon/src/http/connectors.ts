@@ -44,14 +44,10 @@
  *   to the provider.
  * - `RealtimeProvider.subscribe` has no route here — see the realtime section below for why.
  */
-import { createConsoleLogger } from '@jini-ai/core/primitives';
-import { inspect } from 'node:util';
-import { redactSecrets } from '@jini-ai/core';
-import { randomUUID } from 'node:crypto';
 import type { Express } from 'express';
 import { createApiError } from '@jini-ai/protocol';
 import { ClientFacingError, defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
-import { validationError } from '@jini-ai/http-kit';
+import { reportRouteInternalError, validationError } from '@jini-ai/http-kit';
 import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
 
 /** Validation message for a request body that is not a JSON object. */
@@ -137,9 +133,13 @@ export interface ConnectorsHttpDeps {
   readonly onInternalError?: (context: ConnectorsInternalErrorContext) => void;
 }
 
-function defaultInternalErrorSink(context: ConnectorsInternalErrorContext): void {
-  createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/http-kit] internal error (connectors/${context.source}.${context.operation}, correlationId=${context.correlationId})` }, { error: redactSecrets({ input: inspect(context.error) }, { redactPii: false }) });
-}
+/** Plain words per provider; the caller also gets the request ID. */
+const CONNECTOR_FAILURE_MESSAGES: Readonly<Record<ConnectorsInternalErrorContext['source'], string>> = {
+  auth: 'The sign-in provider could not finish this request. Try again; if it keeps failing, copy the request ID and report this problem.',
+  storage: 'The file storage provider could not finish this request. Try again; if it keeps failing, copy the request ID and report this problem.',
+  db: 'The database provider could not finish this request. Try again; if it keeps failing, copy the request ID and report this problem.',
+  realtime: 'The realtime provider could not finish this request. Try again; if it keeps failing, copy the request ID and report this problem.',
+};
 
 function notConfiguredError(capability: string): ReturnType<typeof createApiError> {
   return createApiError({ code: 'NOT_CONFIGURED', message: `${capability} provider not configured` });
@@ -160,10 +160,7 @@ async function guardedCall<T>(
     return ok({ value: await fn() });
   } catch (error) {
     if (error instanceof ClientFacingError) return err({ error: error.apiError });
-    const correlationId = randomUUID();
-    const sink = deps.onInternalError ?? defaultInternalErrorSink;
-    sink({ source, operation, correlationId, error });
-    return err({ error: createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId }) });
+    return err({ error: reportRouteInternalError<Omit<ConnectorsInternalErrorContext, 'correlationId'>>({ report: { source, operation, error }, logSource: `connectors/${source}.${operation}`, message: CONNECTOR_FAILURE_MESSAGES[source] }, { onInternalError: deps.onInternalError }) });
   }
 }
 

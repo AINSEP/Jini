@@ -1,5 +1,4 @@
 import { createConsoleLogger } from '@jini-ai/core/primitives';
-import { inspect } from 'node:util';
 import type { DelegatedResultCorrelation } from '../delegated-result-correlation.js';
 /**
  * @module delegated-tools
@@ -31,9 +30,9 @@ import type { DelegatedResultCorrelation } from '../delegated-result-correlation
 import { randomUUID } from 'node:crypto';
 import type { Express } from 'express';
 import { createApiError } from '@jini-ai/protocol';
-import { redactSecrets, batchOutcomeFor, ToolInputError, type Principal, type ToolRegistry } from '@jini-ai/core';
+import { batchOutcomeFor, ToolInputError, type Principal, type ToolRegistry } from '@jini-ai/core';
 import { createDelegatedToolBridge, type RunLifecycle, type ToolExecutionResult, type ToolExecutor } from '../index.js';
-import { defineJsonRoute, err, mountJsonRoute, ok, validationError, type AdapterContext, type Result, type RouteInputContext } from '@jini-ai/http-kit';
+import { defineJsonRoute, err, mountJsonRoute, ok, reportRouteInternalError, validationError, type AdapterContext, type Result, type RouteInputContext } from '@jini-ai/http-kit';
 import * as readOnlyTools from '../core/read-only-tools.js';
 
 export interface DelegatedToolExecuteRequest {
@@ -154,11 +153,8 @@ function checkReadOnlyConstraint(
   return createApiError({ code: 'TOOL_OPERATION_DENIED', message: refusal });
 }
 
-/** Logs the real failure server-side and returns the generic, correlation-id-bearing public error (SEC-005: never the raw exception). */
-function defaultInternalErrorSink(context: DelegatedToolsInternalErrorContext): void {
-  // Exceptions can echo credentials; inspect preserves stacks and codes before shared redaction.
-  createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/http-kit] internal error (${context.source}, correlationId=${context.correlationId})` }, { error: redactSecrets({ input: inspect(context.error) }, { redactPii: false }) });
-}
+/** Plain words for a server fault behind a tool call: the model reads them, so they say what to do next. */
+const DELEGATED_TOOL_FAULT_MESSAGE = 'The tool could not run because of a server fault. Do not retry the same call; tell the user to copy the request ID and report this problem.';
 
 /**
  * The host's {@link DelegatedToolsHttpDeps.describeInternalError} text for `context`, or `undefined`
@@ -172,7 +168,7 @@ function describeSafely(deps: DelegatedToolsHttpDeps, context: DelegatedToolsInt
     const text = deps.describeInternalError(context);
     return typeof text === 'string' && text.length > 0 ? text : undefined;
   } catch (error) {
-    createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/http-kit] describeInternalError threw (correlationId=${context.correlationId})` }, { error: redactSecrets({ input: inspect(error) }, { redactPii: false }) });
+    createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/http-kit] describeInternalError threw (correlationId=${context.correlationId})` }, { error });
     return undefined;
   }
 }
@@ -180,14 +176,14 @@ function describeSafely(deps: DelegatedToolsHttpDeps, context: DelegatedToolsInt
 /** Which failure `reportInternalError` reports: everything in its context except the minted `correlationId`. */
 type InternalErrorReport = Omit<DelegatedToolsInternalErrorContext, 'correlationId'>;
 
-function reportInternalError(deps: DelegatedToolsHttpDeps, report: InternalErrorReport): ReturnType<typeof createApiError> {
-  const correlationId = randomUUID();
+/** Logs the real failure through the incident owner and returns plain words with the request ID (SEC-005: never the raw exception). */
+function reportInternalError({ deps, report }: { readonly deps: DelegatedToolsHttpDeps; readonly report: InternalErrorReport }, _optional: Record<string, never> = {}): ReturnType<typeof createApiError> {
+  // Exceptions can echo credentials: the default line prints class and code only; the host sink gets the original.
+  const apiError = reportRouteInternalError<InternalErrorReport>({ report, logSource: report.source, message: DELEGATED_TOOL_FAULT_MESSAGE }, { onInternalError: deps.onInternalError });
+  const requestId = String(apiError.requestId);
   // Every caller either omits `status` or sets it, so spreading keeps "absent" absent.
-  const context: DelegatedToolsInternalErrorContext = { ...report, correlationId };
-  const sink = deps.onInternalError ?? defaultInternalErrorSink;
-  sink(context);
-  const message = describeSafely(deps, context) ?? 'an internal error occurred';
-  return createApiError({ code: 'INTERNAL_ERROR', message }, { requestId: correlationId });
+  const described = describeSafely(deps, { ...report, correlationId: requestId });
+  return described === undefined ? apiError : createApiError({ code: 'INTERNAL_ERROR', message: described }, { requestId });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -262,7 +258,7 @@ function toolExecutionResultToApiResult(
       return err({ error: createApiError({ code: 'TOOL_OPERATION_DENIED', message: 'this operation was denied during confirmation' }) });
     case 'timed-out':
     case 'cancelled':
-      return err({ error: reportInternalError(deps, { source: 'delegated-tool-execute', error: result.status, runId, toolId, ...(recoveryMessage ? { recoveryMessage } : {}), status: result.status }) });
+      return err({ error: reportInternalError({ deps, report: { source: 'delegated-tool-execute', error: result.status, runId, toolId, ...(recoveryMessage ? { recoveryMessage } : {}), status: result.status } }) });
     case 'failed':
       return err({ error: failedResultToApiError(deps, { runId, toolId, result }) });
     default: {
@@ -284,7 +280,7 @@ function failedResultToApiError(
   if (result.error && deps.isModelSafeToolFailure?.({ result }) === true) {
     return createApiError({ code: 'TOOL_EXECUTION_FAILED', message: result.error });
   }
-  return reportInternalError(deps, { source: 'delegated-tool-execute', error: result.error ?? result.status, runId, toolId, status: 'failed' });
+  return reportInternalError({ deps, report: { source: 'delegated-tool-execute', error: result.error ?? result.status, runId, toolId, status: 'failed' } });
 }
 
 /** Read host-owned recovery facts once after interruption. The host supplies the deadline and
@@ -334,7 +330,7 @@ export const delegatedToolExecuteRoute = defineJsonRoute<
     try {
       principal = await deps.resolvePrincipal({ request: input });
     } catch (error) {
-      return err({ error: reportInternalError(deps, { source: 'resolve-principal', error, runId: input.runId, toolId: input.toolId }) });
+      return err({ error: reportInternalError({ deps, report: { source: 'resolve-principal', error, runId: input.runId, toolId: input.toolId } }) });
     }
 
     // Attenuates the resolved principal itself for a `requireReadOnly` call, so the constraint
@@ -377,7 +373,7 @@ export const delegatedToolExecuteRoute = defineJsonRoute<
       if (error instanceof ToolInputError) {
         return err({ error: createApiError({ code: 'BAD_REQUEST', message: error.message }) });
       }
-      return err({ error: reportInternalError(deps, { source: 'delegated-tool-execute', error, runId: input.runId, toolId: input.toolId }) });
+      return err({ error: reportInternalError({ deps, report: { source: 'delegated-tool-execute', error, runId: input.runId, toolId: input.toolId } }) });
     }
   }
 }, { requireSameOrigin: true });

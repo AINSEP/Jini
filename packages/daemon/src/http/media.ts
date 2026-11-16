@@ -39,14 +39,11 @@
  * itself can throw before ever creating a task — an unregistered `toolId`-shaped programming
  * error, per `MediaDispatchEngine.generate`'s own contract).
  */
-import { createConsoleLogger } from '@jini-ai/core/primitives';
-import { inspect } from 'node:util';
-import { redactSecrets } from '@jini-ai/core';
 import { randomUUID } from 'node:crypto';
 import type { Express } from 'express';
 import { createApiError } from '@jini-ai/protocol';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
-import { validationError } from '@jini-ai/http-kit';
+import { reportRouteInternalError, validationError } from '@jini-ai/http-kit';
 import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
 
 type MediaSurface = 'image' | 'video' | 'audio';
@@ -168,21 +165,17 @@ export interface MediaHttpDeps {
   readonly onInternalError?: (context: MediaInternalErrorContext) => void;
 }
 
-function defaultInternalErrorSink(context: MediaInternalErrorContext): void {
-  createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/http-kit] internal error (${context.source}, correlationId=${context.correlationId})` }, { error: redactSecrets({ input: inspect(context.error) }, { redactPii: false }) });
-}
+/** Plain words per failing operation; the caller also gets the request ID. */
+const MEDIA_FAILURE_MESSAGES: Readonly<Record<MediaInternalErrorContext['source'], string>> = {
+  'media-generate-dispatch': 'The media could not be generated. Try again; if it keeps failing, copy the request ID and report this problem.',
+  'media-task-store': 'The media task could not be read or saved. Reload to check the task; if it keeps failing, copy the request ID and report this problem.',
+};
 
 function reportInternalError(
-  deps: MediaHttpDeps,
-  source: MediaInternalErrorContext['source'],
-  error: unknown,
-  taskId: string | null,
-  ownerRef: string | null,
+  { deps, source, error, taskId, ownerRef }: { readonly deps: MediaHttpDeps; readonly source: MediaInternalErrorContext['source']; readonly error: unknown; readonly taskId: string | null; readonly ownerRef: string | null },
+  _optional: Record<string, never> = {},
 ): ReturnType<typeof createApiError> {
-  const correlationId = randomUUID();
-  const sink = deps.onInternalError ?? defaultInternalErrorSink;
-  sink({ source, taskId, ownerRef, correlationId, error });
-  return createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId });
+  return reportRouteInternalError<Omit<MediaInternalErrorContext, 'correlationId'>>({ report: { source, taskId, ownerRef, error }, logSource: source, message: MEDIA_FAILURE_MESSAGES[source] }, { onInternalError: deps.onInternalError });
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -355,7 +348,7 @@ async function runMediaGenerationInBackground(deps: MediaHttpDeps, taskId: strin
       }
     });
   } catch (error) {
-    const apiError = reportInternalError(deps, 'media-generate-dispatch', error, taskId, ownerRef);
+    const apiError = reportInternalError({ deps, source: 'media-generate-dispatch', error, taskId, ownerRef });
     try {
       await deps.taskStore.update({
         id: taskId, patch: {
@@ -374,7 +367,7 @@ async function runMediaGenerationInBackground(deps: MediaHttpDeps, taskId: strin
       // condition that isn't actually fatal (the real generation failure was already reported
       // above; this is only "the store couldn't also persist that fact"). Reported through the
       // same sink, never rethrown.
-      reportInternalError(deps, 'media-generate-dispatch', writeError, taskId, ownerRef);
+      reportInternalError({ deps, source: 'media-generate-dispatch', error: writeError, taskId, ownerRef });
     }
   }
 }
@@ -416,7 +409,7 @@ export const mediaGenerateRoute = defineJsonRoute<MediaGenerateRequest, MediaGen
         }
       });
     } catch (error) {
-      return err({ error: reportInternalError(deps, 'media-task-store', error, null, ownerRef) });
+      return err({ error: reportInternalError({ deps, source: 'media-task-store', error, taskId: null, ownerRef }) });
     }
     void runMediaGenerationInBackground(deps, task.id, ownerRef, request);
     return ok({ value: { task } });
@@ -437,7 +430,7 @@ export const mediaTaskGetRoute = defineJsonRoute<string, MediaTaskResponse, Medi
       const task = await deps.taskStore.get({ id });
       return task === null ? err({ error: createApiError({ code: 'NOT_FOUND', message: 'media task not found' }) }) : ok({ value: { task } });
     } catch (error) {
-      return err({ error: reportInternalError(deps, 'media-task-store', error, id, null) });
+      return err({ error: reportInternalError({ deps, source: 'media-task-store', error, taskId: id, ownerRef: null }) });
     }
   }
 });
@@ -456,7 +449,7 @@ export const mediaTaskDeleteRoute = defineJsonRoute<string, MediaTaskDeleteRespo
       await deps.taskStore.delete({ id });
       return ok({ value: { ok: true } });
     } catch (error) {
-      return err({ error: reportInternalError(deps, 'media-task-store', error, id, ownerRef) });
+      return err({ error: reportInternalError({ deps, source: 'media-task-store', error, taskId: id, ownerRef }) });
     }
   }
 }, { requireSameOrigin: true });
@@ -475,7 +468,7 @@ export const mediaTaskListRoute = defineJsonRoute<MediaTaskListQuery, MediaTaskL
       const tasks = await deps.taskStore.listByOwner({ ownerRef }, options);
       return ok({ value: { tasks } });
     } catch (error) {
-      return err({ error: reportInternalError(deps, 'media-task-store', error, null, ownerRef) });
+      return err({ error: reportInternalError({ deps, source: 'media-task-store', error, taskId: null, ownerRef }) });
     }
   }
 });

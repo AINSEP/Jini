@@ -36,16 +36,13 @@
  * boundary — see {@link denyAllDaemonDbPolicy}'s doc for why the default
  * policy denies every call rather than allowing one.
  */
-import { createConsoleLogger } from '@jini-ai/core/primitives';
-import { inspect } from 'node:util';
-import { redactSecrets } from '@jini-ai/core';
 import { randomUUID } from 'node:crypto';
 import type { Express } from 'express';
 import type { Principal, RunRef, ToolPolicy, ToolRegistration } from '@jini-ai/core';
 import type { ToolExecutionResult, ToolExecutor } from '../index.js';
 import { createApiError } from '@jini-ai/protocol';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
-import { validationError } from '@jini-ai/http-kit';
+import { reportRouteInternalError, validationError } from '@jini-ai/http-kit';
 import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
 
 /** The `ToolRegistry` id `GET /api/daemon/db` executes through. */
@@ -195,9 +192,12 @@ export interface DaemonDbInternalErrorContext {
   readonly error: unknown;
 }
 
-function defaultDaemonDbInternalErrorSink(context: DaemonDbInternalErrorContext): void {
-  createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/http-kit] internal error (${context.source}, correlationId=${context.correlationId})` }, { error: redactSecrets({ input: inspect(context.error) }, { redactPii: false }) });
-}
+/** Plain words per failing operation; the caller also gets the request ID. */
+const DB_FAILURE_MESSAGES: Readonly<Record<DaemonDbInternalErrorContext['source'], string>> = {
+  'db-inspect': 'The database could not be inspected. Try again; if it keeps failing, copy the request ID and report this problem.',
+  'db-verify': 'The database check could not finish. Try again; if it keeps failing, copy the request ID and report this problem.',
+  'db-vacuum': 'The database could not be compacted. Try again; if it keeps failing, copy the request ID and report this problem.',
+};
 
 export interface DaemonDbHttpDeps {
   readonly toolExecutor: ToolExecutor;
@@ -235,10 +235,7 @@ function toolResultToApiResult<T>(
     case 'timed-out':
     case 'cancelled':
     case 'failed': {
-      const correlationId = randomUUID();
-      const sink = deps.onInternalError ?? defaultDaemonDbInternalErrorSink;
-      sink({ source, correlationId, error: result.status === 'failed' ? result.error : result.status });
-      return err({ error: createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId }) });
+      return err({ error: reportRouteInternalError<Omit<DaemonDbInternalErrorContext, 'correlationId'>>({ report: { source, error: result.status === 'failed' ? result.error : result.status }, logSource: source, message: DB_FAILURE_MESSAGES[source] }, { onInternalError: deps.onInternalError }) });
     }
     default: {
       // Unreachable: every tool result status has a case above, and a new one fails typecheck here.

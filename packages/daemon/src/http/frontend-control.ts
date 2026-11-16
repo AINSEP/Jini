@@ -35,8 +35,6 @@
  * their own metadata in it. The engine stays neutral and the host keeps one place to look.
  */
 import { createConsoleLogger } from '@jini-ai/core/primitives';
-import { inspect } from 'node:util';
-import { redactSecrets } from '@jini-ai/core';
 import type { Express } from 'express';
 import type { FrontendSessionOwner } from '../frontend-session-registry.js';
 import type { FrontendSessionsHttpDeps } from './frontend-sessions.js';
@@ -76,7 +74,7 @@ export interface CreateFrontendControlOptions {
    * (see `frontend-capability-tools.ts`'s module doc for why the edge points one way).
    */
   readonly capabilities: readonly FrontendCapabilitySpec[];
-  readonly session?: Pick<FrontendSessionsHttpDeps, 'routePrefix' | 'resolveOwner' | 'sessionTtlMs' | 'resolveCapacityKeys'> & { readonly maxSessions?: number; readonly maxSessionsPerKey?: number };
+  readonly session?: Pick<FrontendSessionsHttpDeps, 'routePrefix' | 'resolveOwner' | 'sessionTtlMs' | 'resolveCapacityKeys' | 'onInternalError'> & { readonly maxSessions?: number; readonly maxSessionsPerKey?: number };
   /**
    * Reads this run's bind token out of the host's own run request, or returns `undefined` when the
    * run has no originating surface.
@@ -137,7 +135,7 @@ export interface FrontendControl {
 }
 
 function defaultBindErrorSink(context: FrontendBindErrorContext): void {
-  createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/server] could not bind run "${context.runId}" to a frontend surface` }, { error: redactSecrets({ input: inspect(context.error) }, { redactPii: false }) });
+  createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/server] could not bind run "${context.runId}" to a frontend surface` }, { error: context.error });
 }
 
 /**

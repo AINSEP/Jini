@@ -22,16 +22,12 @@
  * would also present, and this route grants direct run-event-injection, a materially different
  * capability from what the general API token was designed to gate.
  */
-import { createConsoleLogger } from '@jini-ai/core/primitives';
-import { inspect } from 'node:util';
-import { redactSecrets } from '@jini-ai/core';
-import { randomUUID } from 'node:crypto';
 import type { Express, NextFunction, Request, Response } from 'express';
 import { createApiError, isTerminalRunState } from '@jini-ai/protocol';
 import type { RemoteToolEventRecorder, RunLifecycle } from '../index.js';
 import { defineJsonRoute, mountJsonRoute, type AdapterContext } from '@jini-ai/http-kit';
 import { bearerTokenFromHeader, timingSafeTokenMatch } from '@jini-ai/http-kit';
-import { validationError } from '@jini-ai/http-kit';
+import { reportRouteInternalError, validationError } from '@jini-ai/http-kit';
 import { sendApiError, statusForError } from '@jini-ai/http-kit';
 import { err, ok, type Result, type RouteInputContext } from '@jini-ai/http-kit';
 
@@ -42,6 +38,7 @@ export interface RemoteToolBridgeTokenConfig {
 
 export interface RemoteRunEventInternalErrorContext {
   readonly source: 'tool-use' | 'tool-result';
+  readonly runId: string;
   readonly correlationId: string;
   readonly error: unknown;
 }
@@ -55,10 +52,6 @@ export interface RemoteRunEventHttpDeps {
   readonly env?: NodeJS.ProcessEnv;
   /** Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005). Defaults to `console.error`. */
   readonly onInternalError?: (context: RemoteRunEventInternalErrorContext) => void;
-}
-
-function defaultInternalErrorSink(context: RemoteRunEventInternalErrorContext): void {
-  createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/http-kit] internal error (remote-run-events/${context.source}, correlationId=${context.correlationId})` }, { error: redactSecrets({ input: inspect(context.error) }, { redactPii: false }) });
 }
 
 const DEFAULT_TOKEN_ENV_VAR = 'JINI_REMOTE_TOOL_BRIDGE_TOKEN';
@@ -217,10 +210,8 @@ function parseRemoteToolResult(input: RouteInputContext): Result<RemoteToolResul
  * the property that mattered.
  */
 async function toRemoteEventError(
-  error: unknown,
-  runId: string,
-  deps: RemoteRunEventHttpDeps,
-  source: RemoteRunEventInternalErrorContext['source'],
+  { error, runId, deps, source }: { readonly error: unknown; readonly runId: string; readonly deps: RemoteRunEventHttpDeps; readonly source: RemoteRunEventInternalErrorContext['source'] },
+  _optional: Record<string, never> = {},
 ): Promise<ReturnType<typeof createApiError>> {
   const status = await deps.lifecycle.get({ runId }).catch(() => undefined);
   if (status === undefined) {
@@ -231,10 +222,10 @@ async function toRemoteEventError(
       details: { runId },
     });
   }
-  const correlationId = randomUUID();
-  const sink = deps.onInternalError ?? defaultInternalErrorSink;
-  sink({ source, correlationId, error });
-  return createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }, { requestId: correlationId });
+  const message = source === 'tool-use'
+    ? 'The tool call could not be recorded for this run. Check the run status; copy the request ID and report this problem.'
+    : 'The tool result could not be recorded for this run. Check the run status; copy the request ID and report this problem.';
+  return reportRouteInternalError<Omit<RemoteRunEventInternalErrorContext, 'correlationId'>>({ report: { source, runId, error }, logSource: `remote-run-events/${source}`, message }, { onInternalError: deps.onInternalError });
 }
 
 export const remoteToolUseRoute = defineJsonRoute<RemoteToolUseRequest, RemoteRunEventResponse, RemoteRunEventHttpDeps>({
@@ -245,7 +236,7 @@ export const remoteToolUseRoute = defineJsonRoute<RemoteToolUseRequest, RemoteRu
       await deps.recorder.recordToolUse({ runId: input.runId, record: { toolUseId: input.toolUseId, toolId: input.toolId, input: input.input } });
       return ok({ value: { recorded: true } });
     } catch (error) {
-      return err({ error: await toRemoteEventError(error, input.runId, deps, 'tool-use') });
+      return err({ error: await toRemoteEventError({ error, runId: input.runId, deps, source: 'tool-use' }) });
     }
   }
 });
@@ -262,7 +253,7 @@ export const remoteToolResultRoute = defineJsonRoute<RemoteToolResultRequest, Re
       } });
       return ok({ value: { recorded: true } });
     } catch (error) {
-      return err({ error: await toRemoteEventError(error, input.runId, deps, 'tool-result') });
+      return err({ error: await toRemoteEventError({ error, runId: input.runId, deps, source: 'tool-result' }) });
     }
   }
 });

@@ -17,7 +17,7 @@
  */
 import express, { type Request, type RequestHandler, type Response } from 'express';
 import { createApiError } from '@jini-ai/protocol';
-import { sendApiError, sendJson } from '@jini-ai/http-kit';
+import { reportRouteInternalError, sendApiError, sendJson, type RouteInternalErrorSink } from '@jini-ai/http-kit';
 import { AttachmentRejectedError, type AttachmentStore } from './attachments.js';
 
 export const ATTACHMENT_LOOKUP_ROUTE_PATH = '/internal/attachment-lookup';
@@ -56,19 +56,24 @@ async function runLookup(store: AttachmentLookup, lookup: AttachmentLookupReques
   return store.listPendingForOwner({ ownerId: lookup.ownerId }, lookup.runId === undefined ? {} : { runId: lookup.runId });
 }
 
-function sendLookupFailure(res: Response, error: unknown): void {
+function sendLookupFailure(
+  { res, error }: { readonly res: Response; readonly error: unknown },
+  { onInternalError, runId }: { readonly onInternalError?: RouteInternalErrorSink | undefined; readonly runId?: string | undefined } = {},
+): void {
   if (error instanceof AttachmentRejectedError) {
     sendApiError({ res, status: 400, error: createApiError({ code: 'ATTACHMENT_REJECTED', message: error.message }, { details: { reason: error.reason } }) });
     return;
   }
-  sendApiError({ res, status: 500, error: createApiError({ code: 'INTERNAL_ERROR', message: 'an internal error occurred' }) });
+  const report = { source: 'attachment-lookup', ...(runId === undefined ? {} : { runId }), error };
+  sendApiError({ res, status: 500, error: reportRouteInternalError({ report, logSource: 'attachment-lookup', message: 'The attachment could not be looked up. Try again; if it keeps failing, copy the request ID and report this problem.' }, { onInternalError }) });
 }
 
 /**
  * Mounts the lookup route. It brings a small JSON parser of its own, which is a no-op when the host
- * already parsed the body upstream.
+ * already parsed the body upstream. `onInternalError` (optional) gets an unexpected failure's original
+ * error, the run ID and the request ID the caller sees; without it the default line prints the class only.
  */
-export function registerAttachmentLookupRoutes({ app, store }: AttachmentLookupRoutesRequired, _optional: Record<string, never> = {}): void {
+export function registerAttachmentLookupRoutes({ app, store }: AttachmentLookupRoutesRequired, { onInternalError }: { readonly onInternalError?: RouteInternalErrorSink | undefined } = {}): void {
   app.post(ATTACHMENT_LOOKUP_ROUTE_PATH, express.json({ limit: '64kb' }), async (req: Request, res: Response) => {
     const lookup = parseLookup(req.body);
     if (lookup === null) {
@@ -78,7 +83,7 @@ export function registerAttachmentLookupRoutes({ app, store }: AttachmentLookupR
     try {
       sendJson({ res, status: 200, body: { value: await runLookup(store, lookup) } });
     } catch (error) {
-      sendLookupFailure(res, error);
+      sendLookupFailure({ res, error }, { onInternalError, runId: lookup.runId });
     }
   });
 }
