@@ -32,7 +32,7 @@
  */
 import type { ReactNode } from 'react';
 import type { Clock } from '@jini-ai/core/primitives';
-import { DEFAULT_INTERACTIVE_UI_REGISTRY, type InteractiveUiRegistry } from '@jini-ai/ui/interactive-ui';
+import { useChatSurfaces, type ChatSurfaceRegistry } from '../surfaces.js';
 import type { ExtEventRenderProps } from '../ext-event-renderer-registry.js';
 import { useT } from '../hooks/context.js';
 import { useA2uiSurfaceCard, type RenderComponentProps } from './A2uiSurfaceCard.hooks.js';
@@ -151,9 +151,9 @@ export type A2uiAgentActionOutcome = { readonly ok: true } | { readonly ok: fals
 export interface A2uiSurfaceCardProps extends ExtEventRenderProps {
   /** Host clock port; the card derives action ids and interpreter timing from it. */
   clock: Clock;
-  /** Host registry used for both wire validation and rendering. Defaults to ui's built-ins.
+  /** Host registry used for both wire validation and rendering. Defaults to the host's `surfaces.interactiveUi.defaultRegistry`.
    * Supply a stable registry for the card's lifetime; remount the card to switch catalogs. */
-  registry?: Pick<InteractiveUiRegistry, 'list' | 'resolveById'>;
+  registry?: Pick<ChatSurfaceRegistry, 'list' | 'resolveById'>;
   /**
    * Called when a rendered surface produces a `message`-shaped action meant for the agent (as
    * opposed to a `local` client-side function call, which this component already resolves and
@@ -174,8 +174,10 @@ export interface A2uiSurfaceCardProps extends ExtEventRenderProps {
 }
 
 /** Registered against `ext-event-renderer-registry.ts`'s `'a2ui'` name — see module doc. */
-export function A2uiSurfaceCard({ events, runId, onAgentAction, clock, registry = DEFAULT_INTERACTIVE_UI_REGISTRY }: A2uiSurfaceCardProps) {
+export function A2uiSurfaceCard({ events, runId, onAgentAction, clock, registry: registryProp }: A2uiSurfaceCardProps) {
   const t = useT();
+  const surfaces = useChatSurfaces();
+  const registry = registryProp ?? surfaces.interactiveUi.defaultRegistry;
   const { interpreter, surfaceId, root, refusalNotice, pendingAgentAction, localActionResult, deliveryFailureNotice, handleAction, formatLocalActionValue } = useA2uiSurfaceCard({ events, runId, onAgentAction, registry, t, clock });
 
   if (!root) {

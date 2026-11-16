@@ -50,8 +50,8 @@ The framework-free chat vocabulary lives in this package's `./core` subpath.
   `useChatPaneRuntimeInventory`) and `CHAT_PANE_AGENT_TOOLS` for wiring an in-app agent-control
   surface.
 - **Agent bridge** — `createFrontendSessionBridge`, the browser half of daemon-relayed frontend
-  control; `createDomPageDriver`/`currentAgentPage` are re-exported here from
-  `@jini-ai/agentic/dom` for pre-2026-07-26 import paths.
+  control. The DOM page driver is `@jini-ai/agentic/dom`'s `createDomPageDriver`; bind it through the
+  bridge's `page` port (`ChatPagePort`).
 
 ## Usage
 

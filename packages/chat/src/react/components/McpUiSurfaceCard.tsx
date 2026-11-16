@@ -64,9 +64,7 @@ import { trimChars } from '@jini-ai/core/primitives';
 import { questionAnswerFromResult, questionAnswerLabel } from '../../core/question-answer.js';
 import { MidRunUserMessage } from './MidRunUserMessage.js';
 import { Fragment, useMemo } from 'react';
-import {
-  McpUiHost,
-} from '@jini-ai/ui/mcp-ui';
+import { McpUiHost } from '../surfaces.js';
 import {
   parseUIResource,
   readActionPlan,
