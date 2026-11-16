@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createInMemoryEventLog, createRunLifecycle, type RunLifecycle } from '../../index.js';
 import { RUN_PROTOCOL_VERSION } from '@jini-ai/protocol';
-import { isLocalSameOrigin } from '@jini-ai/core';
+import { allowSameOrigin, rejectCrossOrigin } from './fixtures/same-origin-gate.js';
 import {
   handleRunEventStreamRequest,
   registerRunEventStream,
@@ -14,10 +14,11 @@ import {
   type RunStartContext,
 } from '../runs.js';
 
-vi.mock('@jini-ai/core', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@jini-ai/core')>(),
-  isLocalSameOrigin: vi.fn(() => true),
-}));
+// The same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
+vi.mock('@jini-ai/core/contracts/server', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@jini-ai/core/contracts/server')>();
+  return { ...actual, guardSameOrigin: vi.fn(() => actual.ok({ value: undefined })) };
+});
 
 interface MockApp {
   get: (path: string, handler: any) => void;
@@ -103,7 +104,7 @@ function makeDeps(overrides: Partial<RunHttpDeps> = {}): RunHttpDeps {
 }
 
 beforeEach(() => {
-  vi.mocked(isLocalSameOrigin).mockReturnValue(true);
+  allowSameOrigin();
 });
 
 describe('runStartRoute.parse (parseRunCreate)', () => {
@@ -935,7 +936,7 @@ describe('registerRunRoutes', () => {
   });
 
   it('does not require same-origin for GET /api/runs: allows a cross-origin list read', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    rejectCrossOrigin();
     const app = makeApp();
     const deps = makeDeps();
     await deps.lifecycle.start({ contextRef: 'ctx-1' });
@@ -948,7 +949,7 @@ describe('registerRunRoutes', () => {
   });
 
   it('requires same-origin for POST /api/runs: blocks a cross-origin request with 403', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    rejectCrossOrigin();
     const app = makeApp();
     registerRunRoutes({ app: app as any, deps: makeDeps(), adapter });
     const res = makeJsonRes();
@@ -957,7 +958,7 @@ describe('registerRunRoutes', () => {
   });
 
   it('requires same-origin for POST /api/runs/:runId/cancel: blocks a cross-origin request with 403', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    rejectCrossOrigin();
     const app = makeApp();
     registerRunRoutes({ app: app as any, deps: makeDeps(), adapter });
     const res = makeJsonRes();
@@ -966,7 +967,7 @@ describe('registerRunRoutes', () => {
   });
 
   it('does not require same-origin for GET /api/runs/:runId: allows a cross-origin status read', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    rejectCrossOrigin();
     const app = makeApp();
     const deps = makeDeps();
     const { run } = await deps.lifecycle.start({ contextRef: 'ctx-1' });

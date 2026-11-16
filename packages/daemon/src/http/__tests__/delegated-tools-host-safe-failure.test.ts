@@ -9,10 +9,11 @@ import {
 } from '../../index.js';
 import { delegatedToolExecuteRoute, registerDelegatedToolRoutes, type DelegatedToolsHttpDeps } from '../delegated-tools.js';
 
-vi.mock('@jini-ai/core', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@jini-ai/core')>(),
-  isLocalSameOrigin: vi.fn(() => true),
-}));
+// The same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
+vi.mock('@jini-ai/core/contracts/server', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@jini-ai/core/contracts/server')>();
+  return { ...actual, guardSameOrigin: vi.fn(() => actual.ok({ value: undefined })) };
+});
 
 const PRINCIPAL: Principal = { id: 'test-principal' };
 const ERROR_ID = 'ERR-E498-0000-1111-2222';

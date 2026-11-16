@@ -2,13 +2,14 @@ import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { isLocalSameOrigin } from '@jini-ai/core';
+import { allowSameOrigin, rejectCrossOrigin } from './fixtures/same-origin-gate.js';
 import { registerResearchRoutes, researchSearchRoute, type ResearchHttpDeps } from '../research.js';
 
-vi.mock('@jini-ai/core', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@jini-ai/core')>(),
-  isLocalSameOrigin: vi.fn(() => true),
-}));
+// The same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
+vi.mock('@jini-ai/core/contracts/server', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@jini-ai/core/contracts/server')>();
+  return { ...actual, guardSameOrigin: vi.fn(() => actual.ok({ value: undefined })) };
+});
 
 interface MockApp {
   get: (path: string, handler: any) => void;
@@ -55,7 +56,7 @@ function makeDeps(overrides: Partial<ResearchHttpDeps> = {}): ResearchHttpDeps {
 }
 
 beforeEach(() => {
-  vi.mocked(isLocalSameOrigin).mockReturnValue(true);
+  allowSameOrigin();
 });
 
 afterEach(() => {
@@ -410,7 +411,7 @@ describe('registerResearchRoutes', () => {
   });
 
   it('requires same-origin: rejects a cross-origin request with 403 before touching fetch', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    rejectCrossOrigin();
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     const app = makeApp();
@@ -517,7 +518,7 @@ describe('registerResearchRoutes — real Express server on a real socket', () =
   });
 
   it('answers 403 over the wire for a cross-origin request, before calling the provider', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    rejectCrossOrigin();
     const upstream = vi.fn();
     vi.stubGlobal('fetch', upstream);
     const base = await listen(makeDeps());

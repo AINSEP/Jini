@@ -3,7 +3,7 @@ import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { isLocalSameOrigin } from '@jini-ai/core';
+import { allowSameOrigin, rejectCrossOrigin } from './fixtures/same-origin-gate.js';
 import {
   memoryClearExtractionsRoute,
   memoryClearVerificationsRoute,
@@ -42,10 +42,11 @@ describe('void-input routes: parse() always succeeds with no input', () => {
   });
 });
 
-vi.mock('@jini-ai/core', async (importOriginal) => ({
-  ...await importOriginal<typeof import('@jini-ai/core')>(),
-  isLocalSameOrigin: vi.fn(() => true),
-}));
+// The same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
+vi.mock('@jini-ai/core/contracts/server', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@jini-ai/core/contracts/server')>();
+  return { ...actual, guardSameOrigin: vi.fn(() => actual.ok({ value: undefined })) };
+});
 
 interface MockApp {
   get: (path: string, handler: any) => void;
@@ -136,7 +137,7 @@ function makeDeps(overrides: Partial<MemoryHttpDeps> = {}): MemoryHttpDeps {
 }
 
 beforeEach(() => {
-  vi.mocked(isLocalSameOrigin).mockReturnValue(true);
+  allowSameOrigin();
 });
 
 describe('memoryOverviewRoute', () => {
@@ -628,7 +629,7 @@ describe('registerMemoryRoutes', () => {
   });
 
   it('requires same-origin on mutating routes: blocks a cross-origin POST', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    rejectCrossOrigin();
     const app = makeApp();
     registerMemoryRoutes({ app: app as any, deps: makeDeps(), adapter });
     const res = makeRes();
@@ -637,7 +638,7 @@ describe('registerMemoryRoutes', () => {
   });
 
   it('allows cross-origin GET reads (no requireSameOrigin on read routes)', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    rejectCrossOrigin();
     const app = makeApp();
     registerMemoryRoutes({ app: app as any, deps: makeDeps(), adapter });
     const res = makeRes();
@@ -773,7 +774,7 @@ describe('registerMemoryRoutes / registerMemoryEventStream — real Express serv
   });
 
   it('rejects a cross-origin mutating request with 403 before reaching the note store', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    rejectCrossOrigin();
     const notes = makeNoteStore();
     const base = await listen(makeDeps({ notes }));
     const response = await send(base, 'POST', '/api/memory', { name: 'n', type: 'user' }, 'http://evil.example.com');
@@ -801,7 +802,7 @@ describe('registerMemoryRoutes / registerMemoryEventStream — real Express serv
   });
 
   it('rejects a cross-origin request to /api/memory/events before opening the SSE stream', async () => {
-    vi.mocked(isLocalSameOrigin).mockReturnValue(false);
+    rejectCrossOrigin();
     const base = await listen(makeDeps());
     const response = await fetch(`${base}/api/memory/events`, {
       headers: { origin: 'http://evil.example.com' },
