@@ -75,6 +75,31 @@ describe('L5-injected-edge', () => {
     expect(() => gate()).toThrow(/Cannot parse .*bad\.mjs: syntax error at line 2/);
   });
 
+  it('resolves package.json imports (#aliases) before classifying the target', () => {
+    manifest('daemon', { dependencies: { '@jini-ai/core': '*' }, imports: {
+      '#platform': '@jini-ai/platform', '#plat/*': { node: '@jini-ai/platform/*', default: './src/local/*.js' }, '#own': './src/own.js',
+    } });
+    put('packages/daemon/src/a.ts', "import { a } from '#platform'; export { a };");
+    put('packages/daemon/src/b.ts', "import { b } from '#plat/fs'; export { b };");
+    put('packages/daemon/src/c.ts', "import { c } from '#own'; export { c };");
+    expect(gate().filter(line => line.startsWith(L5))).toEqual([`${L5} packages/daemon/src/a.ts`, `${L5} packages/daemon/src/b.ts`]);
+  });
+
+  it('resolves npm: and workspace: dependency aliases in source and manifest', () => {
+    manifest('daemon', { dependencies: { '@jini-ai/core': '*', plat: 'npm:@jini-ai/platform@^1', wplat: 'workspace:@jini-ai/platform@*' } });
+    put('packages/daemon/src/a.ts', "import { a } from 'plat/fs'; import { b } from 'wplat'; export { a, b };");
+    const found = gate().filter(line => line.startsWith(L5));
+    expect(found.filter(line => line.endsWith('src/a.ts'))).toHaveLength(2);
+    expect(found.filter(line => line.endsWith('package.json'))).toHaveLength(1);
+  });
+
+  it('resolves tsconfig paths to the package that owns the target directory', () => {
+    manifest('daemon', { dependencies: { '@jini-ai/core': '*' } });
+    put('packages/daemon/tsconfig.json', '{ // paths are part of resolution\n "compilerOptions": { "paths": { "~p/*": ["../platform/src/*"], "kysely": ["../platform/node_modules/kysely/index.d.ts"], "@jini-ai/core/x": ["../core/dist/x.d.ts"] } } }');
+    put('packages/daemon/src/a.ts', "import { a } from '~p/fs'; import { k } from 'kysely'; import { x } from '@jini-ai/core/x'; export { a, k, x };");
+    expect(gate().filter(line => line.startsWith(L5))).toEqual([`${L5} packages/daemon/src/a.ts`]);
+  });
+
   it('fails a manifest peer declaration', () => {
     manifest('daemon', { peerDependencies: { '@jini-ai/platform': '*' } });
     expect(gate()).toEqual([`${L5} packages/daemon/package.json`]);

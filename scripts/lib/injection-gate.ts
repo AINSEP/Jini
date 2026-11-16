@@ -4,23 +4,28 @@
 import { basePurityFindings } from './base-purity.js';
 import { cssTokenFindings, loadThemeTokens } from './css-tokens.js';
 import {
-  advisoryTestEdges, hostPresets, injectedEdgeFindings, manifestEdges, ownerOf, payloadEdges, productionEdges, testEdges, type Edge,
+  advisoryTestEdges, hostPresets, injectedEdgeFindings, manifestEdges, ownerOf, payloadEdges, productionEdges, testEdges, type Edge, type EdgeScope,
 } from './injection-edges.js';
 import {
   applyDebt, debtGrowth, gitDebtBase, loadDebt, loadExceptions, type DebtEntry, type DebtViolation, type Finding,
 } from './injection-debt.js';
 import type { SourcePackage } from './package-sources.js';
+import { createSpecResolver } from './spec-aliases.js';
 
 interface Scope { root: string; packages: readonly SourcePackage[] }
 
-function edgesOf(required: { root: string; pkg: SourcePackage }): Edge[] {
+function scopeOf(required: { root: string; pkg: SourcePackage; packages: readonly SourcePackage[] }): EdgeScope {
+  return { root: required.root, pkg: required.pkg, resolve: createSpecResolver({ pkg: required.pkg, packages: required.packages }) };
+}
+
+function edgesOf(required: EdgeScope): Edge[] {
   const payload = ownerOf(required.pkg) === 'agent-plugins' ? payloadEdges(required) : [];
   return [...productionEdges(required), ...manifestEdges(required), ...payload];
 }
 
 export function collectInjectionFindings(required: Scope, _optional: Record<string, never> = {}): Finding[] {
   const { root, packages } = required;
-  const edges = packages.flatMap(pkg => edgesOf({ root, pkg }));
+  const edges = packages.flatMap(pkg => edgesOf(scopeOf({ root, pkg, packages })));
   return [
     ...injectedEdgeFindings({ edges, exceptions: loadExceptions({ root }), presets: hostPresets({ packages }) }),
     ...basePurityFindings({ root, packages }),
@@ -30,7 +35,7 @@ export function collectInjectionFindings(required: Scope, _optional: Record<stri
 
 /** Cross-package imports in test files: reported as a count, never failing (owner Q5). */
 export function advisoryTestFindings(required: Scope, _optional: Record<string, never> = {}): Edge[] {
-  return advisoryTestEdges({ edges: required.packages.flatMap(pkg => testEdges({ root: required.root, pkg })), presets: hostPresets({ packages: required.packages }) });
+  return advisoryTestEdges({ edges: required.packages.flatMap(pkg => testEdges(scopeOf({ root: required.root, pkg, packages: required.packages }))), presets: hostPresets({ packages: required.packages }) });
 }
 
 /** `debtBase` reads the debt file at the trusted base commit (default: git, INJECTION_BASE_REF or HEAD). */

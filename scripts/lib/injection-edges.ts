@@ -7,6 +7,7 @@ import { join, relative } from 'node:path';
 import { importSites } from './import-sites.js';
 import { packageSourceFiles, packageTestFiles, payloadSourceFiles, type SourcePackage } from './package-sources.js';
 import { specMatches, type Finding, type InjectionException } from './injection-debt.js';
+import type { SpecResolver } from './spec-aliases.js';
 
 const BASE_PACKAGES = new Set(['core', 'protocol']);
 /** Owner decision 2026-11-15 (Q1): wiring-only packages the host may use as a standard preset.
@@ -20,48 +21,54 @@ export function hostPresets(required: { packages: readonly SourcePackage[] }, _o
 }
 const SCOPE = '@jini-ai/';
 
-export interface Edge { owner: string; target: string; spec: string; kind: string; file: string }
+/** `spec` is what the import resolves to; `written` is the alias it was written as, when different. */
+export interface Edge { owner: string; target: string; spec: string; kind: string; file: string; written?: string }
+/** Edges of one package; `resolve` applies that package's aliases (see spec-aliases.ts). */
+export interface EdgeScope { root: string; pkg: SourcePackage; resolve: SpecResolver }
 
 export const ownerOf = (pkg: SourcePackage): string => pkg.manifest.name.slice(SCOPE.length);
 const posix = (path: string): string => path.split('\\').join('/');
 
-function edgeOf(required: { owner: string; spec: string; kind: string; file: string }): Edge | undefined {
-  if (!required.spec.startsWith(SCOPE)) return undefined;
-  const target = required.spec.slice(SCOPE.length).split('/')[0]!;
-  return target === required.owner ? undefined : { ...required, target };
+function edgesOf(required: { owner: string; spec: string; kind: string; file: string; resolve: SpecResolver }): Edge[] {
+  const { resolve, ...site } = required;
+  return resolve(site.spec).flatMap(spec => {
+    if (!spec.startsWith(SCOPE)) return [];
+    const target = spec.slice(SCOPE.length).split('/')[0]!;
+    if (target === site.owner) return [];
+    return [{ ...site, spec, target, ...(spec === site.spec ? {} : { written: site.spec }) }];
+  });
 }
 
-function fileEdges(required: { owner: string; files: readonly string[]; root: string }, { jsdoc = false }: { jsdoc?: boolean } = {}): Edge[] {
+function fileEdges(required: { owner: string; files: readonly string[]; root: string; resolve: SpecResolver }, { jsdoc = false }: { jsdoc?: boolean } = {}): Edge[] {
   const edges: Edge[] = [];
   for (const filename of required.files) {
     const file = posix(relative(required.root, filename));
     for (const site of importSites({ file: filename, source: readFileSync(filename, 'utf8') }, { jsdoc })) {
-      const edge = edgeOf({ owner: required.owner, spec: site.spec, kind: site.kind, file });
-      if (edge) edges.push(edge);
+      edges.push(...edgesOf({ owner: required.owner, spec: site.spec, kind: site.kind, file, resolve: required.resolve }));
     }
   }
   return edges;
 }
 
-export function productionEdges(required: { root: string; pkg: SourcePackage }, _optional: Record<string, never> = {}): Edge[] {
+export function productionEdges(required: EdgeScope, _optional: Record<string, never> = {}): Edge[] {
   const files = packageSourceFiles({ directory: required.pkg.directory }).filter(file => !file.endsWith('.css'));
-  return fileEdges({ owner: ownerOf(required.pkg), files, root: required.root });
+  return fileEdges({ owner: ownerOf(required.pkg), files, root: required.root, resolve: required.resolve });
 }
 
-export function payloadEdges(required: { root: string; pkg: SourcePackage }, _optional: Record<string, never> = {}): Edge[] {
-  return fileEdges({ owner: ownerOf(required.pkg), files: payloadSourceFiles({ directory: required.pkg.directory }), root: required.root }, { jsdoc: true });
+export function payloadEdges(required: EdgeScope, _optional: Record<string, never> = {}): Edge[] {
+  return fileEdges({ owner: ownerOf(required.pkg), files: payloadSourceFiles({ directory: required.pkg.directory }), root: required.root, resolve: required.resolve }, { jsdoc: true });
 }
 
-export function testEdges(required: { root: string; pkg: SourcePackage }, _optional: Record<string, never> = {}): Edge[] {
-  return fileEdges({ owner: ownerOf(required.pkg), files: packageTestFiles({ directory: required.pkg.directory }), root: required.root });
+export function testEdges(required: EdgeScope, _optional: Record<string, never> = {}): Edge[] {
+  return fileEdges({ owner: ownerOf(required.pkg), files: packageTestFiles({ directory: required.pkg.directory }), root: required.root, resolve: required.resolve });
 }
 
-export function manifestEdges(required: { root: string; pkg: SourcePackage }, _optional: Record<string, never> = {}): Edge[] {
+export function manifestEdges(required: EdgeScope, _optional: Record<string, never> = {}): Edge[] {
   const file = posix(relative(required.root, join(required.pkg.directory, 'package.json')));
   const owner = ownerOf(required.pkg);
   const sections = [['manifest-dependencies', required.pkg.manifest.dependencies], ['manifest-peer', required.pkg.manifest.peerDependencies]] as const;
   return sections.flatMap(([kind, deps]) => Object.keys(deps ?? {})
-    .flatMap(spec => edgeOf({ owner, spec, kind, file }) ?? []));
+    .flatMap(spec => edgesOf({ owner, spec, kind, file, resolve: required.resolve })));
 }
 
 function l5Reason(required: { edge: Edge; exceptions: readonly InjectionException[]; presets: ReadonlySet<string> }): string | undefined {
@@ -77,7 +84,7 @@ function l5Reason(required: { edge: Edge; exceptions: readonly InjectionExceptio
 export function injectedEdgeFindings(required: { edges: readonly Edge[]; exceptions: readonly InjectionException[]; presets: ReadonlySet<string> }, _optional: Record<string, never> = {}): Finding[] {
   return required.edges.flatMap(edge => {
     const why = l5Reason({ edge, exceptions: required.exceptions, presets: required.presets });
-    return why ? [{ rule: 'L5-injected-edge', file: edge.file, spec: edge.spec, kind: edge.kind, reason: `${edge.owner} → ${edge.spec}: ${why}` }] : [];
+    return why ? [{ rule: 'L5-injected-edge', file: edge.file, spec: edge.spec, kind: edge.kind, reason: `${edge.owner} → ${edge.spec}${edge.written ? ` (written as ${edge.written})` : ''}: ${why}` }] : [];
   });
 }
 
