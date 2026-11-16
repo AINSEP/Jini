@@ -87,6 +87,8 @@ export function createSseStream<E extends SseEvent>(
   };
   timer = scheduler.every({ callback: () => push(': ping\n\n'), intervalMs: options.keepAliveMs ?? 15_000 });
   options.signal?.addEventListener('abort', close, { once: true });
+  // A client that disconnected while the handler was still setting up never fires 'abort' again.
+  if (options.signal?.aborted) close();
   const body = new ReadableStream<Uint8Array>({
     pull: (controller) => pullFrame({ state, controller, encoder, close }),
     cancel: close,

@@ -49,6 +49,15 @@ describe('createSseStream', () => {
     controller.abort();
     expect(stream.closed).toBe(true);
   });
+  it('closes at once and stops the keepalive when the signal is already aborted', async () => {
+    const { scheduler, state } = fakeScheduler();
+    const controller = new AbortController();
+    controller.abort();
+    let closed = 0;
+    const stream = createSseStream<SseEvent>({ scheduler }, { signal: controller.signal, onClose: () => { closed += 1; } });
+    expect([stream.closed, closed, state.cancelled]).toEqual([true, 1, 1]);
+    expect(await stream.response.body!.getReader().read()).toEqual({ done: true, value: undefined });
+  });
 });
 
 describe('lastEventCursor', () => {
