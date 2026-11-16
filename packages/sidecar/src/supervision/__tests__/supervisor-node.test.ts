@@ -6,7 +6,9 @@ const mocks = vi.hoisted(() => ({
 }));
 vi.mock("node:child_process", () => ({ spawn: mocks.spawn, execFileSync: mocks.exec }));
 vi.mock("@jini-ai/platform/command", () => ({ createCommandInvocation: mocks.invocation }));
-vi.mock("@jini-ai/platform/process", () => ({ listProcessSnapshots: mocks.snapshots, collectProcessTreePids: mocks.collect, stopProcesses: mocks.stop }));
+vi.mock("@jini-ai/platform/process", () => ({ listProcessSnapshots: mocks.snapshots, stopProcesses: mocks.stop }));
+// collectProcessTreePids is a pure helper owned by core's runtime contract; the rest of that entry stays real.
+vi.mock("@jini-ai/core/contracts/runtime", async (importOriginal) => ({ ...await importOriginal<object>(), collectProcessTreePids: mocks.collect }));
 vi.mock("../../daemon-registry.js", () => ({ readLiveDaemonRegistryRecord: mocks.read, writeDaemonRegistryRecord: mocks.write, removeDaemonRegistryRecordIfCurrent: mocks.remove }));
 
 import { createNodeDaemonProcessAdapter, createSupervisorRegistry } from "../supervisor-node.js";
