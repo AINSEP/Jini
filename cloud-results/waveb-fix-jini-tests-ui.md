@@ -10,7 +10,7 @@ Runner: vitest `--maxWorkers=2..3 --minWorkers=1`, Node 24, per package (ui ran 
 | user-management | 114 / 1233 | 3 | **3** | the 3 are PRE-EXISTING |
 | ui | 418 / 8575 | 6 | **3** | all PRE-EXISTING |
 | cms | 3 / 4061 | 3 | **3** | nothing NEW; all PRE-EXISTING |
-| admin | 797 / 2853 | 27 | **~73** (last full run, before the final two small edits) | 27 PRE-EXISTING + ~46 NEW left, see below |
+| admin | 797 / 2853 | 27 | **27 / 2853** (full run, continuation) | all 27 PRE-EXISTING; 0 NEW (diffed per test against terra) |
 
 ## Root causes and fixes
 
@@ -23,12 +23,18 @@ Runner: vitest `--maxWorkers=2..3 --minWorkers=1`, Node 24, per package (ui ran 
 
 No skips, no weakened assertions, no re-export shells, no new Jini->Jini import beyond devDependencies already declared (admin/user-management already depend on ui, ui-kit, admin as workspace devDeps).
 
-## NEW failures still open in admin (~46)
+## Continuation run: NEW admin failures (was ~46, now 0)
 
-- `media/react/__tests__/providers-tab-hooks.test.tsx` (15): the real `useMediaProvidersTab`/rules live in `ui/src/features/media-providers` but are not exported from any `@jini-ai/ui` subpath, so the test kit keeps a stub. Needs either a public export or a fixture matching the hook's contract (design decision, not done).
-- `forms/react/__tests__/FormEditor.unit.test.tsx`, `copy-polish`, `submissions-states` (some may be fixed by root cause 3; unverified).
-- `media/react/__tests__/media.test.tsx` (3), `agent-plugins.test.tsx` (1): tests override a slot via ui-kit `KitProvider`; now must override through `AdminKitProvider` (edit for media.test.tsx made locally, see Pending; agent-plugins not done).
-- `__tests__/fqfix-loading.unit.test.tsx` (2), `widgets/.../use-widget-instance-editor.hooks.unit.test.ts` (2), `react/__tests__/components/ConfirmDialog.test.tsx` (2), `media/library-parity` (1), `InteractiveHtmlEditor.wiring` (1), `media-component-states` (3) — not yet triaged.
+Measured 73 -> 56 on the unmodified branch head (29 NEW), then all fixed. Owner rule applied: fakes implementing public interfaces, no real implementations of other packages, no `vi.mock` of another package.
+
+- providers-tab-hooks (15) + media-component-states (3) + library-parity (1) + media.test.tsx credential tab (1) + fqfix-loading (2): the test admin kit's media-providers slot was an inert stub. Decision: not exporting the ui hook; instead a stateful fake `useMediaProvidersTab` + rules implementing `AdminMediaProvidersKit` lives in admin's `/react/testing-kit` entry (`src/react/testing-kit-media-providers.ts`). SHA 6693e31d3.
+- media.test.tsx StrictMode probe (1): React 19 replays effects only when StrictMode is the root; the probe went back to bare RTL render. agent-plugins Button override (1): through `AdminKitProvider`. SHA 6a793d872.
+- use-widget-instance-editor confirmLeave (2) + ConfirmDialog Tab cycling (2): the fake `useDirtyGuard` always returned true and the fake `useFocusTrap` was a no-op; both now honor their kit contracts. InteractiveHtmlEditor.wiring (1): replaced `vi.mock('@jini-ai/ui/html-editor')` with a recording `HtmlEditor` kit slot. Commit "fake kit honors dirty-guard confirm and focus-trap contracts" (see git log).
+- FormEditor / copy-polish / submissions-states: already green after root cause 3.
+
+Verification: admin full vitest 27 failed / 2853, `tsc --noEmit` clean. The 27 are identical to terra's (plain Error -> fallback copy in widgets etc.; 3 of them in use-widget-instance-editor.hooks.unit.test.ts). Mutation check not run on the fakes (time/ordering; fake behavior is asserted by the existing tests that fail without it, e.g. confirmLeave, Tab wrap).
+
+Left: nothing NEW. Setup note: examples/reference-web build fails on both trees' setup and user-management build fails on terra (not touched).
 
 ## PRE-EXISTING (fail on terra too; left)
 
