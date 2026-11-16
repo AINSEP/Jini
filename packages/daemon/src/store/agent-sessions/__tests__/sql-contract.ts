@@ -7,7 +7,7 @@ import type { Clock } from '@jini-ai/core/primitives';
 import type { AgentSessionStore } from '../ports.js';
 import { sessionContract } from './contract.js';
 export interface SqlSessionFixture { kernel: StorageKernel<AgentSessionDatabase>; store:AgentSessionStore; close():Promise<void>; }
-export function sqlSessionContract(make:()=>Promise<SqlSessionFixture>,create:(input:{kernel:StorageKernel<AgentSessionDatabase>;clock?:Clock})=>AgentSessionStore):void {
+export function sqlSessionContract(make:()=>Promise<SqlSessionFixture>,create:(input:{kernel:StorageKernel<AgentSessionDatabase>;clock:Clock})=>AgentSessionStore):void {
  sessionContract(make);
  it('shares the injected transaction for insert, overwrite and clear rollback',async()=>{
   const f=await make();try{

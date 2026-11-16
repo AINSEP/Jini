@@ -20,4 +20,4 @@ sqlSessionContract(async()=>{
  const close=async()=>{try{await kernel.close();await owner.close();}finally{rmSync(dir,{recursive:true,force:true});}};
  try{await schema(kernel);return {kernel,store:createPgliteAgentSessionStore({kernel, clock: testClock }),close};}
  catch(error){await close();throw error;}
-},(input)=>createPgliteAgentSessionStore({clock:testClock,...input}));
+},(input)=>createPgliteAgentSessionStore(input));

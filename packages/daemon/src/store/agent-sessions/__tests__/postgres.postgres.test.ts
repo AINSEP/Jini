@@ -28,7 +28,7 @@ async function pair(){
   return {a:ka,b:kb,close:async()=>{try{await a.execute(sql`DROP SCHEMA ${sql.id(name)} CASCADE`);}finally{await Promise.all([a.close(),b.close()]);}}};
  }catch(error){await Promise.all([a.close(),b.close()]);throw error;}
 }
-sqlSessionContract(async()=>{const f=await pair();return {kernel:f.a,store:createPostgresAgentSessionStore({kernel:f.a, clock: testClock }),close:f.close};},(input)=>createPostgresAgentSessionStore({clock:testClock,...input}));
+sqlSessionContract(async()=>{const f=await pair();return {kernel:f.a,store:createPostgresAgentSessionStore({kernel:f.a, clock: testClock }),close:f.close};},(input)=>createPostgresAgentSessionStore(input));
 it('two independent connections concurrently set the same pair without duplicate rows',async()=>{
  const f=await pair();try {
   const a=createPostgresAgentSessionStore({kernel:f.a, clock: testClock }),b=createPostgresAgentSessionStore({kernel:f.b, clock: testClock });
