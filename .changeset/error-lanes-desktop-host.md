@@ -1,5 +1,5 @@
 ---
-"@jini-ai/desktop-host": patch
+"@jini-ai/desktop-host": minor
 ---
 
-Update-check, prompt and presence failure messages name the error class instead of quoting the message.
+`createFileLogger(required, { diagnostics })` takes the same optional host sink as core's console logger. Update-check, prompt and presence failure messages name the error class instead of quoting the message.
