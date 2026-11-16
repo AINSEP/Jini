@@ -1,28 +1,14 @@
-import type { ObservabilityConfig } from './config.js';
-import type { ExporterFactory, TracerProviderFactory, ObservabilityPort } from './ports.js';
-import { createNoopObservabilityPort } from './noop.js';
-import { createOtelObservabilityPort, type OtelAdapterOptions } from './otel.js';
 export * from './config.js';
 export * from './export-policy.js';
 export * from './ports.js';
 export * from './noop.js';
-export * from './otel.js';
+export { redactOperationAttributes, errorType, redactLabel } from './otel.js';
 export * from './errors.js';
 export * from './fanout.js';
 export * from './hooks.js';
 export * from './instrumentation.js';
 export * from './delivery.js';
 export type { TelemetryTestResult, TelemetryTestSignal } from './telemetry-test.js';
-
-/** Selects an adapter from explicit config; disabled telemetry never invokes either factory.
- * @param options Adapter options (host span scope); ignored when telemetry is disabled. */
-export function createObservabilityPort(
- { config, exporterFactory, tracerProviderFactory }: { config: ObservabilityConfig; exporterFactory: ExporterFactory; tracerProviderFactory: TracerProviderFactory },
- options: OtelAdapterOptions = {},
-): ObservabilityPort {
- if (!config.enabled) return createNoopObservabilityPort({});
- return createOtelObservabilityPort({ config, exporterFactory, tracerProviderFactory }, options);
-}
 
 export type * from "./tracker-types.js";
 export { createNoopTracker } from "./tracker-noop.js";
