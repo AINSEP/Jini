@@ -510,6 +510,9 @@ importers:
       '@jini-ai/diagnostics':
         specifier: workspace:^
         version: link:../diagnostics
+      '@jini-ai/protocol':
+        specifier: workspace:^
+        version: link:../protocol
       kysely:
         specifier: ^0.29.6
         version: 0.29.6
@@ -523,9 +526,6 @@ importers:
       '@jini-ai/agent-runtime':
         specifier: workspace:*
         version: link:../agent-runtime
-      '@jini-ai/protocol':
-        specifier: workspace:^
-        version: link:../protocol
       '@jini-ai/ui':
         specifier: workspace:^
         version: link:../ui
@@ -1375,6 +1375,9 @@ importers:
       '@jini-ai/platform':
         specifier: workspace:^
         version: link:../platform
+      '@jini-ai/protocol':
+        specifier: workspace:^
+        version: link:../protocol
       '@jini-ai/ui-kit':
         specifier: workspace:^
         version: link:../ui-kit
