@@ -120,7 +120,7 @@ createPgliteChatStore(required: { kernel: StorageKernel<DB>; scope: ChatOwnerSco
 createPgliteChatMaintenance(required: { kernel: StorageKernel<DB> }): ChatHistoryMaintenance;
 createPostgresChatStore(required: { kernel: StorageKernel<DB>; scope: ChatOwnerScope; clock: Clock }, optional: UserTextRedactionOptions = {}): ChatStore;
 createPostgresChatMaintenance(required: { kernel: StorageKernel<DB> }): ChatHistoryMaintenance;
-createChatHistoryStore({ db, scope }: { db: SqliteConnectionSource; scope: ChatOwnerScope; clock: Clock }, optional: UserTextRedactionOptions = {}): ChatStore; // SQLite compatibility
+createChatHistoryStore({ db, scope, clock }: { db: SqliteConnectionSource; scope: ChatOwnerScope; clock: Clock }, optional: UserTextRedactionOptions = {}): ChatStore; // SQLite compatibility
 createChatHistoryMaintenance({ db }: { db: SqliteConnectionSource }): ChatHistoryMaintenance;
 ensureChatHistoryTables({ db }: { db: Pick<SqliteClient, 'exec'> }): void;
 ```

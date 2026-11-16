@@ -33,10 +33,10 @@ import { sqliteKernel, type SqliteConnectionSource } from '@jini-ai/db/kernel/sq
 export { CHAT_HISTORY_DDL, ensureChatHistoryTables } from './schema.js';
 
 /** Compatibility wrapper over db's memoized kernel; joins the exact raw-handle kernel context.
- * @example createChatHistoryStore({ db, scope }, { clock: { nowMs: () => 42 } })
+ * @example createChatHistoryStore({ db, scope, clock: { nowMs: () => 42 } })
  */
-export function createChatHistoryStore({ db, scope }: { db: SqliteConnectionSource; scope: ChatOwnerScope }, optional: { clock?: Clock } & UserTextRedactionOptions = {}): ChatStore {
-  return createSqliteChatStore({ kernel: sqliteKernel<ChatDatabase>(db), scope }, optional);
+export function createChatHistoryStore({ db, scope, clock }: { db: SqliteConnectionSource; scope: ChatOwnerScope; clock: Clock }, optional: UserTextRedactionOptions = {}): ChatStore {
+  return createSqliteChatStore({ kernel: sqliteKernel<ChatDatabase>(db), scope, clock }, optional);
 }
 
 /** Compatibility retention wrapper; the caller still owns the handle and its configuration. */

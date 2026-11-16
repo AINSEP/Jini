@@ -27,7 +27,7 @@ function fixture(kernel:StorageKernel<FixtureDatabase>,create:typeof createPglit
   async transformResult(args){if(selects.delete(args.queryId)){reads++;rows+=args.result.rows.length;}return args.result;},
  };
  const run=kernel.run.bind(kernel);kernel.run=fn=>run(db=>fn(db.withPlugin(plugin)));
- return {kernel,make:(scope,clock)=>create({kernel,scope},{...(clock?{clock}:{})}),maintenance:maintenance({kernel}),
+ return {kernel,make:(scope,clock)=>create({kernel,scope,clock:clock??{nowMs:()=>Date.now()}}),maintenance:maintenance({kernel}),
  messageCount:async()=>Number((await kernel.run(db=>db.selectFrom('ai_chat_messages').select(eb=>eb.fn.countAll().as('n')).executeTakeFirstOrThrow())).n),
  readCount:()=>reads,readRows:()=>rows,resetReadRows:()=>{rows=0;},
  deleteMessage:async id=>{await kernel.run(db=>db.deleteFrom('ai_chat_messages').where('id','=',id).execute());},close};

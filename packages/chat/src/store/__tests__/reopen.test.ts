@@ -18,7 +18,7 @@ it('reopening existing rows leaves schema, values and host ledger untouched',asy
  try{
   db.pragma('foreign_keys=ON');ensureChatHistoryTables({ db: db });
   db.exec('CREATE TABLE host_migrations (id TEXT PRIMARY KEY, checksum TEXT); INSERT INTO host_migrations VALUES (\'frozen\',\'bytes\')');
-  const s=createChatHistoryStore({ db: db, scope: scope }, { clock: { nowMs: ()=>1790000000000 } });await s.create({id:'c',title:'retained',expiresAt:1790000000100});
+  const s=createChatHistoryStore({ db: db, scope: scope, clock: { nowMs: ()=>1790000000000 } });await s.create({id:'c',title:'retained',expiresAt:1790000000100});
   await s.appendMessage({ conversationId: 'c', message: {id:'m',role:'assistant',content:'old text',createdAt:1790000000001} });
   db.prepare('UPDATE ai_chat_messages SET events_json=? WHERE id=?').run('{legacy damage','m');
   const snapshot=()=>({schema:db.prepare('SELECT type,name,sql FROM sqlite_master ORDER BY name').all(),chats:db.prepare('SELECT * FROM ai_chats').all(),messages:db.prepare('SELECT * FROM ai_chat_messages').all(),ledger:db.prepare('SELECT * FROM host_migrations').all(),foreignKeys:db.pragma('foreign_keys',{simple:true})});
