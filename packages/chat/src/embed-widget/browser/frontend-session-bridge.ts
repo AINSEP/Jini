@@ -18,7 +18,7 @@ import { decodeSseFrames } from '@jini-ai/core/primitives';
  *   control dies when the pane unmounts — and the page is drivable whether or not a chat pane
  *   exists. `subscribe` registers a listener; `close()` tears the connection down.
  * - **Capabilities are claimed from what is actually wired.** The claim sent at connect time is
- *   derived from the presence of a `pageDriver` and the keys of `executors`, never from a static
+ *   derived from the presence of a `page` port and the keys of `executors`, never from a static
  *   list. A surface that claims what it cannot serve turns a fast, named refusal into a timeout.
  * - **An executed invocation is never executed twice.** If the stream drops between the daemon
  *   delivering an invocation and this page POSTing the answer, the daemon correctly fails that
@@ -36,7 +36,7 @@ import { decodeSseFrames } from '@jini-ai/core/primitives';
  *   belongs in a run request. Park/failure closes the transport; hosts explicitly rebind after wake.
  */
 import { CHAT_CAPABILITIES } from '../../core/index.js';
-import { PAGE_CAPABILITIES, executePageCapability, type PageDriver } from '@jini-ai/agentic';
+import type { ChatPagePort } from '../../core/page-port.js';
 
 import type { ApprovalAnswer } from '@jini-ai/core';
 import type { ChatPaneAgentToolAction, ChatPaneAgentBridgeAccess } from '../../react/features/chat-pane/types.js';
@@ -59,7 +59,7 @@ export interface FrontendSessionBridgeOptions {
     request(required: { capabilityId: string; input: Record<string, unknown>; signal: AbortSignal }): Promise<ApprovalAnswer>;
   };
   /** Supplying one claims the six `page.*` verbs. Omit for a chat-only surface. */
-  readonly pageDriver?: PageDriver;
+  readonly page?: ChatPagePort;
   /**
    * Product capabilities, keyed by id prefix (`'cms.'`). Each claims every capability under it.
    * This is how a consumer exposes verbs the engine has never heard of.
@@ -112,8 +112,8 @@ export interface FrontendSessionBridge {
 function claimedCapabilities(options: FrontendSessionBridgeOptions): readonly string[] {
   if (options.capabilityIds) return [...options.capabilityIds];
   const claims: string[] = CHAT_CAPABILITIES.map((capability) => capability.id);
-  if (options.pageDriver !== undefined) {
-    claims.push(...PAGE_CAPABILITIES.map((capability) => capability.id));
+  if (options.page !== undefined) {
+    claims.push(...options.page.capabilityIds);
   }
   // Dialog-support handshake only; page.approval is not an executable tool id.
   if (options.pageApproval) claims.push('page.approval');
@@ -296,7 +296,7 @@ export function createFrontendSessionBridge(
       if (!answer.confirmed) return { executed: false, reason: answer.reason };
     }
     if (signal.aborted) return { executed: false, reason: 'abandoned' };
-    return executePageCapability({ driver: options.pageDriver!, ...args }, { signal });
+    return options.page!.execute(args, { signal });
   }
 
   /** Runs one non-chat invocation here and answers it. Chat ones go to the pane instead. */
@@ -304,7 +304,7 @@ export function createFrontendSessionBridge(
     let output: unknown;
     try {
       controller.signal.throwIfAborted();
-      if (options.pageDriver !== undefined && action.capabilityId.startsWith('page.')) {
+      if (options.page !== undefined && action.capabilityId.startsWith('page.')) {
         output = await servePage(action, controller.signal);
       } else {
         const entry = Object.entries(options.executors ?? {})

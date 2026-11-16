@@ -5,8 +5,7 @@ import {
   type A2uiInterpreter,
 } from '@jini-ai/protocol/a2ui';
 import type { Clock } from '@jini-ai/core/primitives';
-import { buildA2uiCatalogFromRegistry } from '@jini-ai/ui/a2ui';
-import type { InteractiveUiRegistry } from '@jini-ai/ui/interactive-ui';
+import { useChatSurfaces, type ChatSurfaceRegistry } from '../surfaces.js';
 import type { useT } from '../hooks/context.js';
 import type { A2uiAgentActionOutcome, A2uiSurfaceCardProps } from './A2uiSurfaceCard.js';
 
@@ -16,7 +15,7 @@ export interface RenderComponentProps {
   componentId: string;
   ancestors: ReadonlySet<string>;
   onAction: (componentId: string) => void;
-  registry: Pick<InteractiveUiRegistry, 'list' | 'resolveById'>;
+  registry: Pick<ChatSurfaceRegistry, 'list' | 'resolveById'>;
 }
 
 /** Every agent→renderer message shape carries `surfaceId` under exactly one of these keys. */
@@ -61,14 +60,15 @@ export function useA2uiSurfaceCard({ events, runId, onAgentAction, registry, t, 
   onAgentAction: A2uiSurfaceCardProps['onAgentAction']; registry: NonNullable<A2uiSurfaceCardProps['registry']>;
   t: ReturnType<typeof useT>;
 }, _options = {}) {
+  const surfaces = useChatSurfaces();
   // Merges the host registry (shadcn/recharts by default) into the lab catalog, keyed under
   // the SAME `catalogId` the lab catalog already uses — so a tool built against
   // `createLabCatalog({}).catalogId` (e.g. `demo-a2ui-tool.ts`) still validates unchanged, and now
   // ALSO gains every registry component as a real, addable/removable catalog entry.
   const catalog = useMemo(() => {
     const base = createLabCatalog({});
-    return buildA2uiCatalogFromRegistry({ registry, catalogId: base.catalogId }, { base });
-  }, [registry]);
+    return surfaces.a2ui.catalogFromRegistry({ registry, catalogId: base.catalogId }, { base });
+  }, [registry, surfaces]);
   const interpreterRef = useRef<A2uiInterpreter | null>(null);
   if (!interpreterRef.current) {
     interpreterRef.current = createA2uiInterpreter({
