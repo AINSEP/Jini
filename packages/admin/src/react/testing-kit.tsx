@@ -1,6 +1,6 @@
-import { forwardRef, useEffect, useRef } from 'react';
+import { forwardRef, useEffect, useMemo, useRef } from 'react';
 import type { FetchQueryAdapter, QueryResult } from '@jini-ai/core/fetch';
-import { type AdminKit, type DialogProps, type NativeDialogView, type ButtonProps, type IconButtonProps, type AdminKitComponents, type AdminKitHooks, type AdminThemeKit } from './kit.js';
+import { type AdminKit, type DialogProps, type NativeDialogView, type SettlementGeneration, type ButtonProps, type IconButtonProps, type AdminKitComponents, type AdminKitHooks, type AdminThemeKit } from './kit.js';
 import type { AdminMediaProvidersKit } from './kit-media-providers.js';
 
 const fakeComponents: AdminKitComponents = {
@@ -66,7 +66,8 @@ const fakeHooks: AdminKitHooks = {
   useDirtyGuard: (r) => ({ isDirty: r.original !== null && JSON.stringify(r.current) !== JSON.stringify(r.original), confirmLeave: () => true }),
   useSettlementGeneration: () => {
     const ref = useRef(0);
-    return { next: () => ++ref.current, isCurrent: (r) => r.generation === ref.current };
+    // Stable identity across renders, like a host's: callers list it in effect deps.
+    return useMemo<SettlementGeneration>(() => ({ next: () => ++ref.current, isCurrent: (r) => r.generation === ref.current }), []);
   },
   useConfirmController: (r) => ({
     pending: !!r.pending, error: null,
