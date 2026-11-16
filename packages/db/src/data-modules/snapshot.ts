@@ -14,7 +14,7 @@
  * snapshot exists. Before this fix, `path.dirname(":memory:")` resolved to `"."` (the process's
  * current working directory) and `path.basename(":memory:")` resolved to the literal string
  * `":memory:"`, so every call against an in-memory test db (used pervasively by this repo's test
- * suite, e.g. `Tovu apps/website/src/features/newsletter/__tests__/repo.contract.test.ts` via `openContentDb(":memory:")`)
+ * suite, e.g. a host module via `openContentDb(":memory:")`)
  * wrote a REAL, non-empty SQLite backup file literally named `:memory:.snapshot-<label>-<ts>` into
  * the repo root — hundreds of MB accumulated across a single session's test runs.
  */

@@ -114,7 +114,7 @@ export interface RestorePointListPort {
 }
 
 /** Widens `recovery/restore-points.ts`'s `CreateRestorePointRepoPort.save()` shape with the
- * optional descriptive fields `Tovu apps/website/src/server/inbound/admin-http/routes/database/restore-points.ts`'s create route persists
+ * optional descriptive fields a host module's create route persists
  * (the real `SqliteRestorePointsRepo.save()` already accepts all of these; this port just names
  * the subset a route composing `database/restore-points.ts`'s `createRestorePoint` needs). Declared
  * independently rather than importing/extending `CreateRestorePointRepoPort` so this file keeps
