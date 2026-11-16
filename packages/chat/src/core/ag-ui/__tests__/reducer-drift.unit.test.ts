@@ -2,8 +2,8 @@
  * `translateRunAgentPayload`. The `ag-ui` copy and the host copy are deleted (owner decision OD-2).
  * This file keeps the rows where the copies used to differ, so a second reducer cannot come back
  * with the old behaviour unnoticed: each row pins the reduced object and the serialized AG-UI
- * events a client reads. Fields the projection does not carry yet (bridge correlation, media,
- * outcome) are pinned as absent from the wire; design step B4 changes those rows on purpose. */
+ * events a client reads. Since design step B4 the projection carries bridge correlation, the error
+ * flag, media and outcome as extra fields; those rows pin them on the wire. */
 import { describe, expect, it } from 'vitest';
 import { translateRunAgentPayload } from '../../run-events/entry.js';
 import type { AgentEvent } from '../../events.js';
@@ -25,20 +25,20 @@ describe('the one reducer: rows where the deleted copies differed', () => {
     expect(Object.hasOwn(reduce('statusWithoutDetail') as object, 'detail')).toBe(false);
   });
 
-  it('tool_use keeps the bridge correlation on the event; the projection does not carry it yet', () => {
+  it('tool_use keeps the bridge correlation on the event and on TOOL_CALL_START', () => {
     expect(reduce('toolUse')).toStrictEqual({
       kind: 'tool_use', id: 'call-1', name: 'search', input: { q: 'posts' },
       toolOrigin: 'bridge', bridgeCall: { name: 'posts.search', input: { q: 'posts' }, buffered: true },
     });
-    expect(wire(reduce('toolUse'))).toBe('[{"type":"TOOL_CALL_START","toolCallId":"call-1","toolCallName":"search"},{"type":"TOOL_CALL_ARGS","toolCallId":"call-1","delta":"{\\"q\\":\\"posts\\"}"},{"type":"TOOL_CALL_END","toolCallId":"call-1"}]');
+    expect(wire(reduce('toolUse'))).toBe('[{"type":"TOOL_CALL_START","toolCallId":"call-1","toolCallName":"search","toolOrigin":"bridge","bridgeCall":{"name":"posts.search","input":{"q":"posts"},"buffered":true}},{"type":"TOOL_CALL_ARGS","toolCallId":"call-1","delta":"{\\"q\\":\\"posts\\"}"},{"type":"TOOL_CALL_END","toolCallId":"call-1"}]');
   });
 
-  it('tool_result keeps media and the unknown outcome on the event; the projection does not carry them yet', () => {
+  it('tool_result keeps the error flag, media and the unknown outcome on the event and on TOOL_CALL_RESULT', () => {
     expect(reduce('toolResult')).toStrictEqual({
       kind: 'tool_result', toolUseId: 'call-1', content: 'found 3', isError: true,
       media: [{ type: 'image', mimeType: 'image/png', data: 'AAAA' }], outcome: 'unknown',
     });
-    expect(wire(reduce('toolResult'))).toBe('[{"type":"TOOL_CALL_RESULT","messageId":"tool_result_msg_1","toolCallId":"call-1","content":"found 3","role":"tool"}]');
+    expect(wire(reduce('toolResult'))).toBe('[{"type":"TOOL_CALL_RESULT","messageId":"tool_result_msg_1","toolCallId":"call-1","content":"found 3","role":"tool","isError":true,"media":[{"type":"image","mimeType":"image/png","data":"AAAA"}],"outcome":"unknown"}]');
   });
 
   it('tool_input_delta is dropped: nothing reaches the wire', () => {

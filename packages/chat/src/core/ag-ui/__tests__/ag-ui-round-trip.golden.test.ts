@@ -1,9 +1,9 @@
 /** T0-3 (AG-UI design S0): `AgentEvent[]` -> AG-UI events -> SSE bytes -> the official
  * `EventSchemas` parse -> reducer -> `AgentEvent[]`, with every optional field populated.
  * The bytes are `data: <json>\n\n`, the framing `@ag-ui/encoder` `encodeSSE` writes; the host route
- * golden pins the real encoder. The expected reverse list is the loss list of design §4.1 as it
- * stands today: bridge correlation, `isError`, `media` and `outcome` do not survive, and a
- * `TEXT_MESSAGE_START` comes back as a `step_start` status. A change to either direction, or an
+ * golden pins the real encoder. The expected reverse list is the field table of design §4.1:
+ * every event comes back exactly (bridge correlation, `isError`, `media` and `outcome` ride as extra
+ * fields), and a `TEXT_MESSAGE_START` adds a `step_start` status. A change to either direction, or an
  * AG-UI upgrade that rejects one of these events, fails here.
  * Regenerate with `UPDATE_GOLDEN=1` only in a commit that names the wire change. */
 import { readFileSync, writeFileSync } from 'node:fs';
@@ -67,13 +67,12 @@ describe('AG-UI round trip golden', () => {
     }
   });
 
-  it('the stated losses are exactly the ones in the golden', () => {
+  it('the only stated loss is the step boundary: every other event comes back exactly', () => {
     const { back } = roundTrip();
-    const toolUse = back.find((event) => event.kind === 'tool_use');
-    const toolResult = back.find((event) => event.kind === 'tool_result');
-    expect(toolUse).toStrictEqual({ kind: 'tool_use', id: 'call-1', name: 'search', input: { q: 'posts' } });
-    expect(toolResult).toStrictEqual({ kind: 'tool_result', toolUseId: 'call-1', content: 'found 3', isError: false });
+    expect(back.find((event) => event.kind === 'tool_use')).toStrictEqual(EVENTS.find((event) => event.kind === 'tool_use'));
+    expect(back.find((event) => event.kind === 'tool_result')).toStrictEqual(EVENTS.find((event) => event.kind === 'tool_result'));
     expect(back.filter((event) => event.kind === 'status' && event.code === 'step_start')).toHaveLength(2);
+    expect(back.filter((event) => !(event.kind === 'status' && event.code === 'step_start'))).toStrictEqual([...EVENTS]);
     expect(back[0]).toStrictEqual(EVENTS[0]);
     expect(back.filter((event) => event.kind === 'usage' || event.kind === 'raw' || event.kind === 'ext'))
       .toStrictEqual(EVENTS.filter((event) => event.kind === 'usage' || event.kind === 'raw' || event.kind === 'ext'));

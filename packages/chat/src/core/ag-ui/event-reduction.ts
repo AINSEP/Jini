@@ -1,8 +1,11 @@
 /** AG-UI events back to chat events: the reverse of `event-projection.ts`.
- * Tool-call arguments are accumulated per run; the custom event names are the host's. */
+ * Tool-call arguments are accumulated per run; the custom event names are the host's.
+ * A tool call's and a tool result's optional fields arrive as extra fields under their chat-event
+ * names. They are read by `run-events` `translateRunAgentPayload`, the one reducer, so this wire and
+ * the daemon wire accept and ignore exactly the same shapes. */
 import { EventType } from '@ag-ui/core';
 import type { AgentEvent } from '../events.js';
-import { asString } from '../run-events/entry.js';
+import { asString, translateRunAgentPayload } from '../run-events/entry.js';
 import type { AgUiEvent, CustomEventNames } from './event-projection.js';
 
 /**
@@ -14,8 +17,17 @@ import type { AgUiEvent, CustomEventNames } from './event-projection.js';
  * module-level singleton — the same reasoning `assistant-ag-ui.ts`'s `AgUiTranslationState` gives.
  */
 export interface AgUiToAgentTranslationState {
-  toolCalls: Map<string, { name: string; argsJson: string }>;
+  toolCalls: Map<string, AgUiOpenToolCall>;
   readonly customEventNames: CustomEventNames;
+}
+
+/** One call between its `TOOL_CALL_START` and `TOOL_CALL_END`. `toolOrigin` and `bridgeCall` are
+ *  the start event's extra fields as received, not yet checked. */
+export interface AgUiOpenToolCall {
+  name: string;
+  argsJson: string;
+  toolOrigin?: unknown;
+  bridgeCall?: unknown;
 }
 
 export function createAgUiToAgentTranslationState({ customEventNames }: { customEventNames: CustomEventNames }, _options: Record<string, never> = {}): AgUiToAgentTranslationState {
@@ -41,7 +53,7 @@ function translateAgUiStepStart({ event }: { event: AgUiEvent }, _options = {}):
 /** The `TOOL_CALL_END` case of {@link translateAgUiEventToAgentEvent} — parses the accumulated
  *  args buffer (already removed from `state` by the caller) into one `tool_use` event, or `[]` for
  *  an id with no matching `TOOL_CALL_START`. */
-function finalizeToolCallAgentEvent(toolCallId: string, call: { name: string; argsJson: string } | undefined): AgentEvent[] {
+function finalizeToolCallAgentEvent(toolCallId: string, call: AgUiOpenToolCall | undefined): AgentEvent[] {
   if (!call) return [];
   let input: unknown = {};
   try {
@@ -51,7 +63,13 @@ function finalizeToolCallAgentEvent(toolCallId: string, call: { name: string; ar
     // string is still more useful to a human than nothing.
     input = call.argsJson;
   }
-  return [{ kind: "tool_use", id: toolCallId, name: call.name, input }];
+  return reduced({ payload: { type: "tool_use", id: toolCallId, name: call.name, input, toolOrigin: call.toolOrigin, bridgeCall: call.bridgeCall } });
+}
+
+/** Hands a rebuilt daemon payload to the one reducer; a type it drops yields no event. */
+function reduced({ payload }: { payload: { readonly type: string; readonly [key: string]: unknown } }, _options: Record<string, never> = {}): AgentEvent[] {
+  const event = translateRunAgentPayload({ payload });
+  return event ? [event] : [];
 }
 
 /** The `CUSTOM` case of {@link translateAgUiEventToAgentEvent}. */
@@ -82,7 +100,7 @@ export function translateAgUiEventToAgentEvent({ event, state }: { event: AgUiEv
       return [{ kind: "thinking", text: event.delta }];
 
     case EventType.TOOL_CALL_START:
-      state.toolCalls.set(event.toolCallId, { name: event.toolCallName, argsJson: "" });
+      state.toolCalls.set(event.toolCallId, { name: event.toolCallName, argsJson: "", toolOrigin: event.toolOrigin, bridgeCall: event.bridgeCall });
       return [];
 
     case EventType.TOOL_CALL_ARGS:
@@ -96,10 +114,10 @@ export function translateAgUiEventToAgentEvent({ event, state }: { event: AgUiEv
     }
 
     case EventType.TOOL_CALL_RESULT:
-      // AG-UI's `ToolCallResultEvent` carries no `isError` field (verified against the real schema)
-      // — a genuine protocol-level fidelity gap, not a translator bug: chat's `isError` flag cannot
-      // survive the round trip through AG-UI's wire shape, so it always reconstructs as `false`.
-      return [{ kind: "tool_result", toolUseId: event.toolCallId, content: event.content, isError: false }];
+      // AG-UI's `ToolCallResultEvent` has no standard `isError`, `media` or `outcome` field. The
+      // projection writes them as extra fields; a server that sends none (an older one, or another
+      // AG-UI server) reads as a plain successful result, as before.
+      return reduced({ payload: { type: "tool_result", toolUseId: event.toolCallId, content: event.content, isError: event.isError, media: event.media, outcome: event.outcome } });
 
     case EventType.RAW:
       return [{ kind: "raw", line: asString({ value: event.event }) }];
