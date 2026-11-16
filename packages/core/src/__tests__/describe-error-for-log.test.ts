@@ -131,3 +131,12 @@ test('describeErrorParts returns the same fixed label and approved code, without
   Object.defineProperty(hostile, 'code', { get() { throw new Error('getter'); } });
   assert.deepEqual(describeErrorParts({ err: hostile }), { label: 'Error' });
 });
+
+test('every Node system error code (libuv errno name) is fixed vocabulary and printed; other E-codes are not', () => {
+  // Owner ruling 2026-11-15: Node errno codes (EIO, EAGAIN, ...) are a fixed set, not user text.
+  for (const code of ['EIO', 'EAGAIN', 'ENOTSUP', 'EAI_NONAME', 'ELOOP', 'ESRCH']) {
+    assert.equal(describeErrorForLog({ err: Object.assign(new Error(SECRET), { code }) }), `Error(${code})`);
+  }
+  // A list, not an `E[A-Z0-9_]+` rule: a thrown value's code is caller text and could be a secret.
+  assert.equal(describeErrorForLog({ err: Object.assign(new Error('x'), { code: `E${SECRET}` }) }), 'Error');
+});
