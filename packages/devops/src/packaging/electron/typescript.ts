@@ -1,13 +1,17 @@
 import type ts from 'typescript';
 import type { ImportReaderPort } from './ports.js';
-export interface RuntimeImportRef { specifier: string; kind: 'import' | 'require'; line: number; deferred: boolean; typeOnly?: boolean }
+/** `syntax` names the form that loads the module (`import-equals` is `import x = require()`). */
+export type RuntimeImportSyntax = 'import' | 'export' | 'import-equals' | 'dynamic' | 'require';
+type Reference = { literal: ts.Expression | undefined; kind: 'import' | 'require'; syntax: RuntimeImportSyntax; typeOnly?: boolean };
+export interface RuntimeImportRef { specifier: string; kind: 'import' | 'require'; syntax: RuntimeImportSyntax; line: number; deferred: boolean; typeOnly?: boolean }
 
-/** Read syntax with the host's maintained parser. No module is executed. O(source length). */
+/** Read syntax with the host's maintained parser. No module is executed. O(source length).
+ * A caller that already parsed the file passes its `tree` so the source is parsed once. */
 export function runtimeImportReferences(
   { compiler: c, file, source }: { compiler: typeof ts; file: string; source: string },
-  _options: Record<string, never> = {},
+  { tree: parsed }: { tree?: ts.SourceFile } = {},
 ): RuntimeImportRef[] {
-  const tree = c.createSourceFile(file, source, c.ScriptTarget.Latest, true,
+  const tree = parsed ?? c.createSourceFile(file, source, c.ScriptTarget.Latest, true,
     file.endsWith('.tsx') ? c.ScriptKind.TSX : c.ScriptKind.TS);
   type Binding = 'require' | 'creator' | 'other';
   const scopes = new Map<ts.Node, Map<string, Binding>>();
@@ -71,22 +75,22 @@ export function runtimeImportReferences(
     }
     return node.isTypeOnly || inlineTypes(node.exportClause);
   }
-  function callReference(node: ts.CallExpression): { literal: ts.Expression | undefined; kind: 'import' | 'require' } | undefined {
-    if (node.expression.kind === c.SyntaxKind.ImportKeyword) return { literal: node.arguments[0], kind: 'import' };
+  function callReference(node: ts.CallExpression): Reference | undefined {
+    if (node.expression.kind === c.SyntaxKind.ImportKeyword) return { literal: node.arguments[0], kind: 'import', syntax: 'dynamic' };
     const call = node.expression;
-    if (isRequire(call)) return { literal: node.arguments[0], kind: 'require' };
-    if (c.isPropertyAccessExpression(call) && call.name.text === 'resolve' && isRequire(call.expression)) return { literal: node.arguments[0], kind: 'require' };
+    if (isRequire(call)) return { literal: node.arguments[0], kind: 'require', syntax: 'require' };
+    if (c.isPropertyAccessExpression(call) && call.name.text === 'resolve' && isRequire(call.expression)) return { literal: node.arguments[0], kind: 'require', syntax: 'require' };
     return undefined;
   }
-  function reference(node: ts.Node): { literal: ts.Expression | undefined; kind: 'import' | 'require'; typeOnly?: boolean } | undefined {
-    if (c.isImportDeclaration(node) || c.isExportDeclaration(node)) return { literal: node.moduleSpecifier, kind: 'import', typeOnly: erased(node) };
-    if (c.isImportEqualsDeclaration(node) && c.isExternalModuleReference(node.moduleReference)) return { literal: node.moduleReference.expression, kind: 'require', typeOnly: node.isTypeOnly };
+  function reference(node: ts.Node): Reference | undefined {
+    if (c.isImportDeclaration(node) || c.isExportDeclaration(node)) return { literal: node.moduleSpecifier, kind: 'import', syntax: c.isImportDeclaration(node) ? 'import' : 'export', typeOnly: erased(node) };
+    if (c.isImportEqualsDeclaration(node) && c.isExternalModuleReference(node.moduleReference)) return { literal: node.moduleReference.expression, kind: 'require', syntax: 'import-equals', typeOnly: node.isTypeOnly };
     return c.isCallExpression(node) ? callReference(node) : undefined;
   }
 
   function visit(node: ts.Node, deferred = false): void {
     const ref = reference(node);
-    if (ref?.literal && c.isStringLiteralLike(ref.literal)) found.push({ specifier: ref.literal.text, kind: ref.kind,
+    if (ref?.literal && c.isStringLiteralLike(ref.literal)) found.push({ specifier: ref.literal.text, kind: ref.kind, syntax: ref.syntax,
       typeOnly: ref.typeOnly ?? false, line: tree.getLineAndCharacterOfPosition(node.getStart(tree)).line + 1, deferred });
     const nested = deferred || c.isFunctionLike(node);
     c.forEachChild(node, child => visit(child, nested));

@@ -59,6 +59,16 @@ describe('L5-injected-edge', () => {
     expect(found).toHaveLength(5);
   });
 
+  it('fails a template-literal dynamic import, a createRequire load and an import = require', () => {
+    manifest('daemon', { dependencies: { '@jini-ai/core': '*' } });
+    put('packages/daemon/src/a.ts', [
+      'export const d = import(`@jini-ai/platform/net`);',
+      "import { createRequire } from 'node:module'; const load = createRequire(import.meta.url); export const r = load('@jini-ai/platform/fs');",
+      "import os = require('@jini-ai/platform/os'); export { os };",
+    ].join('\n'));
+    expect(gate().filter(line => line.startsWith(L5))).toEqual([`${L5} packages/daemon/src/a.ts`, `${L5} packages/daemon/src/a.ts`, `${L5} packages/daemon/src/a.ts`]);
+  });
+
   it('fails a manifest peer declaration', () => {
     manifest('daemon', { peerDependencies: { '@jini-ai/platform': '*' } });
     expect(gate()).toEqual([`${L5} packages/daemon/package.json`]);
@@ -213,6 +223,17 @@ describe('helpers', () => {
     ].join('\n') }).map(site => `${site.spec}:${site.kind}`);
     expect(kinds).toEqual(['x1:import', 'x2:type-import', 'x3:export-from', 'x4:type-import', 'x5:dynamic', 'x6:require', 'x7:import-type']);
   });
+
+  it('reads template-literal imports, createRequire bindings and import = require', () => {
+    const kinds = importSites({ file: 'a.ts', source: [
+      'const a = import(`x8`);',
+      "import { createRequire as cr } from 'node:module'; const load = cr(import.meta.url); load('x9');",
+      "import x10 = require('x10');",
+      "function local(require: (id: string) => unknown) { return require('not-a-module'); }",
+    ].join('\n') }).map(site => `${site.spec}:${site.kind}`).sort();
+    expect(kinds).toEqual(['node:module:import', 'x10:require', 'x8:dynamic', 'x9:require']);
+  });
+
 });
 
 describe('the real workspace baseline', () => {
