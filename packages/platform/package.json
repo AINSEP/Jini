@@ -52,6 +52,7 @@
         "./child-environment": "os"
       },
       "shared": [
+        "src/system.ts",
         "src/net/address.ts",
         "src/fetch-with-timeout.ts",
         "src/http/guarded/errors.ts"
