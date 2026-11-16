@@ -1,4 +1,4 @@
-export { FetchQueryProvider } from './adapter.react.js';
+export { FetchQueryProvider, type FetchQueryProviderProps } from './adapter.react.js';
 export { useFetchQuery, useFetchMutation, useCachedLoader, useInvalidate, useFetchQueryScope } from './binding.react.js';
 /** @deprecated Import the framework-neutral environment port from @jini-ai/core/fetch. */
 export type { FetchQueryEnvironmentPort } from '@jini-ai/core/fetch';

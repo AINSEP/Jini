@@ -20,6 +20,16 @@ function recordingScheduler() {
 }
 
 describe('built-in provider timing ports', () => {
+  it('works with no timing props: the browser clock and scheduler fill in', async () => {
+    function Probe() {
+      const { status } = useFetchQuery({ key: ['no-timing'], fetch: async () => 'ok' });
+      return <p data-testid="status">{status}</p>;
+    }
+    render(<FetchQueryProvider><Probe /></FetchQueryProvider>);
+    await act(async () => { await Promise.resolve(); });
+    expect((await screen.findByTestId('status')).textContent).toBe('success');
+  });
+
   it('shares clock-controlled loader freshness with reactive reads, including exact expiry', async () => {
     let now = 100;
     const clock = { nowMs: () => now };
