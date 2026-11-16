@@ -9,6 +9,7 @@ import { readBootIdentity, type BootIdentity } from "./boot-identity.js";
 import nodeFs from "node:fs";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
+import { describeErrorForLog } from "@jini-ai/core";
 import type { Clock } from "@jini-ai/core/primitives";
 import { createNodeAtomicFilesystem, writeJsonFileAtomic } from "./atomic-write.js";
 import { withFileLockSync } from "./file-lock.js";
@@ -109,7 +110,7 @@ function quarantineUnreadableFile(filePath: string, notice: QuarantineNotice): b
     fs.renameSync(filePath, asidePath);
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === "ENOENT") return true;
-    report.error({ message: `${notices.prefix}: ${notice.label} ${filePath} is unreadable and could not be moved aside (${String(error)}). Left untouched; nothing was written over it.` });
+    report.error({ message: `${notices.prefix}: ${notice.label} ${filePath} is unreadable and could not be moved aside (${describeErrorForLog({ err: error })}). Left untouched; nothing was written over it.` });
     return false;
   }
   report.error({ message: `${notices.prefix}: ${notice.label} ${filePath} was unreadable (torn or corrupt). Moved it aside to ${asidePath}; ${notice.consequence}` });
