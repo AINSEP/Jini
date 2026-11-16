@@ -3,6 +3,9 @@
  * chat/core vocabulary. Every export is explicit: adding or renaming a name here is a public API
  * review, so internal module exports cannot silently become public. Do not use export *.
  */
+// The chat-pane feature renders this glyph set; a consumer composing the same surface needs the same icons.
+export { Icon } from './components/Icon.js';
+export type { IconName } from './components/Icon.js';
 export { ChatSettingsDialog } from './components/ChatSettingsDialog.js';
 export { ChatSettingsSegmented } from './components/ChatSettingsSegmented.js';
 export { useChatSettingsDialog } from './components/ChatSettingsDialog.hooks.js';
