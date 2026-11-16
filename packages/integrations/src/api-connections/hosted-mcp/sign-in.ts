@@ -1,7 +1,7 @@
 import { randomBytes } from "node:crypto";
 import { nowIso as readNowIso, type UUID } from "@jini-ai/core/primitives";
 import type { DeviceAuthorization, DiscoveredOAuthConfiguration, OAuthClient, OAuthClientAuthMethod, OAuthProviderDescriptor, OAuthTokenSet, OAuthAppOptions, OAuthProviderRegistry } from "@jini-ai/core/contracts/oauth";
-import type { ExternalMcpOAuthGrant, ExternalMcpOAuthStatus, ExternalMcpServerRecord } from "@jini-ai/core/contracts/hosted-mcp";
+import type { ExternalMcpConnectStart, ExternalMcpOAuthGrant, ExternalMcpOAuthStatus, ExternalMcpServerRecord } from "@jini-ai/core/contracts/hosted-mcp";
 import type { DeviceAuthorizationStore, ExternalMcpOAuthDeps as HostedMcpOAuthDeps, ExternalMcpOAuthService, HostedMcpSignInPorts } from "./contracts.js";
 import { createSharedExternalMcpOAuth, type SharedExternalMcpOwner } from "./shared-sign-in.js";
 
@@ -572,6 +572,29 @@ function resourceOption(resource: string | undefined): { resource?: string } {
   return resource === undefined ? {} : { resource };
 }
 
+/** Device-code grant: start the device authorization, park it for polling, and hand the user code back. */
+async function beginDeviceCodeConnect(
+  { deps, record, provider, client, scopes, resource }: {
+    deps: ExternalMcpOAuthServiceDeps; record: ExternalMcpServerRecord; provider: OAuthProviderDescriptor;
+    client: OAuthClient; scopes: string[]; resource: string | undefined;
+  },
+): Promise<ExternalMcpConnectStart> {
+  const authorization = await deps.ports.withCopy({ call: () => deps.ports.flow.beginDeviceAuthorization(
+    { ...deps.httpPorts, provider, clock: deps.clock, client },
+    { scopes, ...resourceOption(resource), timeoutMs: CONNECT_TIMEOUT_MS },
+  ) });
+  await deps.devices.put(record.serverId, authorization);
+  await setOAuthStatus(deps, record.serverId, "pending");
+  return {
+    kind: "device_code",
+    userCode: authorization.userCode,
+    verificationUri: authorization.verificationUri,
+    verificationUriComplete: authorization.verificationUriComplete,
+    expiresAt: authorization.expiresAt,
+    intervalSeconds: authorization.intervalSeconds,
+  };
+}
+
 /** Thin site-key codec; Jini owns the expiring redirect payload and all binding checks.
  * Stateless (no pending-store row) because the agent daemon can begin a connect that the web server
  * completes in a different process; a process-local Map cannot join those two legs, and a sealed
@@ -847,22 +870,7 @@ export function createHostedMcpSignInService(required: SignInDeps, _optional: Re
       // Keep the advertised audience across grants; the MCP URL need not be the resource id.
       const resource = readStoredEndpoints(record).resource;
 
-      if (record.oauthGrant === "device_code") {
-        const authorization = await deps.ports.withCopy({ call: () => deps.ports.flow.beginDeviceAuthorization(
-          { ...deps.httpPorts, provider, clock: deps.clock, client },
-          { scopes, ...resourceOption(resource), timeoutMs: CONNECT_TIMEOUT_MS },
-        ) });
-        await deps.devices.put(record.serverId, authorization);
-        await setOAuthStatus(deps, record.serverId, "pending");
-        return {
-          kind: "device_code",
-          userCode: authorization.userCode,
-          verificationUri: authorization.verificationUri,
-          verificationUriComplete: authorization.verificationUriComplete,
-          expiresAt: authorization.expiresAt,
-          intervalSeconds: authorization.intervalSeconds,
-        };
-      }
+      if (record.oauthGrant === "device_code") return beginDeviceCodeConnect({ deps, record, provider, client, scopes, resource });
 
       // Every path below this line is redirect-based, so the requirement is real rather than
       // defensive — and it is stated where it can name both the grant and the fix, instead of being
