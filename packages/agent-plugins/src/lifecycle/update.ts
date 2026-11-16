@@ -49,28 +49,6 @@ const PLAN_REFUSALS: Partial<Record<AgentPluginUpdatePlan['action'], { code: str
   'id-mismatch': { code: 'PLUGIN_ID_MISMATCH', message: 'Choose a candidate for this plugin.' },
 };
 
-/** Update transaction owner for operator-installed plugins (bundled ones stay seed-managed).
- *
- * Runs inside the installer's identity lock and per-plugin file lock (the publish guard), so it is
- * serialized against enable/disable/uninstall, which take the same plugin lock. Nothing called in
- * the guard re-takes that lock: activation writes use their own activations.json lock.
- *
- * Invariant: never two live digests. The old revision moves to a frozen rollback area outside
- * `package/sha256` before the candidate is published; a per-plugin journal (pending -> published ->
- * committed) lets boot reconciliation restore it if the process dies before commit.
- *
- * Documented behavior:
- * - In-flight MCP calls against the old revision may fail once the roster is re-provisioned.
- * - Running chats keep the skill text they already captured; new runs resolve the new revision.
- * - Rollback bytes are retained after commit (a run may still read them) and collected by the next
- *   boot's reconciliation, when no run can hold those paths.
- * - Plugin data and memory directories carry over untouched. A rollback restores package bytes and
- *   activation only; it does NOT revert data, memory or settings written while the candidate ran.
- *   The settings snapshot is an audit record, not a restore source.
- * - Caches: this package keeps no cache of skill prompt indexes or search ranking keyed by plugin
- *   (search ranking is computed per call from the installed list; per-run automatic-use state is
- *   per run; module imports are keyed by the digest path), so a switch has nothing to invalidate.
- */
 /** Verifies and stages the candidate through the installer, then runs the transaction in its
  * publish guard. @throws AgentPluginUpdateError, AgentPluginHostIncompatibleError, install errors. */
 async function updateAgentPlugin(scope: UpdateScope, required: UpdateAgentPluginRequired, _optional: Record<string, never> = {}): Promise<UpdateAgentPluginResult> {
@@ -350,6 +328,28 @@ interface UpdateScope {
 
 type WithoutPorts<F> = F extends (scope: never, ...rest: infer R) => unknown ? R : never;
 
+/** Update transaction owner for operator-installed plugins (bundled ones stay seed-managed).
+ *
+ * Runs inside the installer's identity lock and per-plugin file lock (the publish guard), so it is
+ * serialized against enable/disable/uninstall, which take the same plugin lock. Nothing called in
+ * the guard re-takes that lock: activation writes use their own activations.json lock.
+ *
+ * Invariant: never two live digests. The old revision moves to a frozen rollback area outside
+ * `package/sha256` before the candidate is published; a per-plugin journal (pending -> published ->
+ * committed) lets boot reconciliation restore it if the process dies before commit.
+ *
+ * Documented behavior:
+ * - In-flight MCP calls against the old revision may fail once the roster is re-provisioned.
+ * - Running chats keep the skill text they already captured; new runs resolve the new revision.
+ * - Rollback bytes are retained after commit (a run may still read them) and collected by the next
+ *   boot's reconciliation, when no run can hold those paths.
+ * - Plugin data and memory directories carry over untouched. A rollback restores package bytes and
+ *   activation only; it does NOT revert data, memory or settings written while the candidate ran.
+ *   The settings snapshot is an audit record, not a restore source.
+ * - Caches: this package keeps no cache of skill prompt indexes or search ranking keyed by plugin
+ *   (search ranking is computed per call from the installed list; per-run automatic-use state is
+ *   per run; module imports are keyed by the digest path), so a switch has nothing to invalidate.
+ */
 export function createUpdateModule(ports: AgentPluginLifecyclePorts, optional: { installAgentPlugin?: InstallAgentPluginPort } = {}) {
   const scope: UpdateScope = {
     ports,
