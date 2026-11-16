@@ -7,6 +7,7 @@ import type {
 } from './contract.js';
 
 
+export type { TraceSpanKind, TracerPort } from './contract.js';
 export interface OtelAdapterDependencies {
  config: ObservabilityConfigEnabled; exporterFactory: ExporterFactory; tracerProviderFactory: TracerProviderFactory;
 }
