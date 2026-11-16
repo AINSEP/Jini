@@ -24,9 +24,15 @@ const FUNCTION_VALUE = '[function]';
 const SYMBOL_VALUE = '[symbol]';
 const UNREADABLE_VALUE = '[unreadable]';
 const TOO_DEEP_VALUE = '[nested too deep]';
-/** Bounds per call: a log line is not a data dump, and a cycle must end. */
+const TOO_LARGE_VALUE = '[too many entries]';
+/** Bounds per call: a log line is not a data dump, and a cycle must end. Per-level limits alone still
+ *  allowed ~50^3 entries on one call (meta of arrays of objects), so one total budget is shared by
+ *  the whole projection; once spent, objects become {@link TOO_LARGE_VALUE} and further keys drop. */
 const MAX_META_DEPTH = 4;
 const MAX_META_ENTRIES = 50;
+const MAX_META_TOTAL_ENTRIES = 200;
+/** Entries still allowed in this call's projection; shared and decremented by every container. */
+interface MetaBudget { left: number }
 /** Payload keys: whatever sits under them is a caught value or its text, so it is described, never
  *  printed. `message`/`stack` belong here too: the line already has its own message. */
 const PAYLOAD_KEY = /^(error|err|reason|cause|message|stack)$/;
@@ -42,14 +48,14 @@ const PAYLOAD_KEY = /^(error|err|reason|cause|message|stack)$/;
  * Never throws: each field is read once inside a guard, so a throwing getter or a revoked Proxy
  * becomes `[unreadable]` instead of replacing the failure being logged. Originals reach only a host
  * `diagnostics` sink.
- * @complexity O(min(entries, 50) ^ depth), depth at most 4.
+ * @complexity O(200) projected entries per call (a shared budget; at most 50 per level, depth 4).
  */
 export function describeLogMeta(required: { meta: Record<string, unknown> }, _optional: Record<string, never> = {}): Record<string, unknown> {
   try {
     const { meta } = required;
     // The whole meta can itself be a thrown plain object.
     if (isErrorShaped({ value: meta })) return { meta: describeErrorForLog({ err: meta }) };
-    return projectRecord({ record: meta, depth: 1 });
+    return projectRecord({ record: meta, depth: 1, budget: { left: MAX_META_TOTAL_ENTRIES } });
   } catch {
     // Even the key list could not be read (a Proxy whose `ownKeys` throws): fixed words only.
     return { meta: UNREADABLE_VALUE };
@@ -62,33 +68,42 @@ function isErrorShaped({ value }: { value: object }, _optional: Record<string, n
   return Object.prototype.hasOwnProperty.call(value, 'message') || Object.prototype.hasOwnProperty.call(value, 'stack');
 }
 
-function projectRecord({ record, depth }: { record: object; depth: number }, _optional: Record<string, never> = {}): Record<string, unknown> {
-  const keys = Object.keys(record).slice(0, MAX_META_ENTRIES);
-  return Object.fromEntries(keys.map(key => [key, projectEntry({ key, read: () => (record as Record<string, unknown>)[key], depth })]));
+/** How many of `available` entries this container may project; takes them from the shared budget. */
+function takeEntries({ available, budget }: { available: number; budget: MetaBudget }, _optional: Record<string, never> = {}): number {
+  const count = Math.min(available, MAX_META_ENTRIES, budget.left);
+  budget.left -= count;
+  return count;
 }
 
-function projectArray({ list, depth }: { list: readonly unknown[]; depth: number }, _optional: Record<string, never> = {}): unknown[] {
-  const length = Math.min(list.length, MAX_META_ENTRIES);
-  return Array.from({ length }, (_, index) => projectEntry({ key: String(index), read: () => list[index], depth }));
+function projectRecord({ record, depth, budget }: { record: object; depth: number; budget: MetaBudget }, _optional: Record<string, never> = {}): Record<string, unknown> {
+  const allKeys = Object.keys(record);
+  const keys = allKeys.slice(0, takeEntries({ available: allKeys.length, budget }));
+  return Object.fromEntries(keys.map(key => [key, projectEntry({ key, read: () => (record as Record<string, unknown>)[key], depth, budget })]));
+}
+
+function projectArray({ list, depth, budget }: { list: readonly unknown[]; depth: number; budget: MetaBudget }, _optional: Record<string, never> = {}): unknown[] {
+  const length = takeEntries({ available: list.length, budget });
+  return Array.from({ length }, (_, index) => projectEntry({ key: String(index), read: () => list[index], depth, budget }));
 }
 
 /** One field, read once and projected; a throwing read or check becomes fixed words. */
-function projectEntry({ key, read, depth }: { key: string; read: () => unknown; depth: number }, _optional: Record<string, never> = {}): unknown {
+function projectEntry({ key, read, depth, budget }: { key: string; read: () => unknown; depth: number; budget: MetaBudget }, _optional: Record<string, never> = {}): unknown {
   try {
     const value = read();
     if (PAYLOAD_KEY.test(key) || value instanceof Error) return describeErrorForLog({ err: value });
-    return typeof value === 'object' && value !== null ? projectObject({ value, depth }) : projectScalar({ value });
+    return typeof value === 'object' && value !== null ? projectObject({ value, depth, budget }) : projectScalar({ value });
   } catch {
     return UNREADABLE_VALUE;
   }
 }
 
-function projectObject({ value, depth }: { value: object; depth: number }, _optional: Record<string, never> = {}): unknown {
+function projectObject({ value, depth, budget }: { value: object; depth: number; budget: MetaBudget }, _optional: Record<string, never> = {}): unknown {
   if (isErrorShaped({ value })) return describeErrorForLog({ err: value });
   if (depth >= MAX_META_DEPTH) return TOO_DEEP_VALUE;
-  if (Array.isArray(value)) return projectArray({ list: value, depth: depth + 1 });
+  if (budget.left <= 0) return TOO_LARGE_VALUE;
+  if (Array.isArray(value)) return projectArray({ list: value, depth: depth + 1, budget });
   const prototype = Object.getPrototypeOf(value);
-  return prototype === Object.prototype || prototype === null ? projectRecord({ record: value, depth: depth + 1 }) : OPAQUE_VALUE;
+  return prototype === Object.prototype || prototype === null ? projectRecord({ record: value, depth: depth + 1, budget }) : OPAQUE_VALUE;
 }
 
 function projectScalar({ value }: { value: unknown }, _optional: Record<string, never> = {}): unknown {
