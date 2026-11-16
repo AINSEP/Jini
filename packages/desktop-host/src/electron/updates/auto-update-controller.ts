@@ -1,4 +1,5 @@
 import type { Clock } from '@jini-ai/core/primitives';
+import { describeErrorForLog } from '@jini-ai/core';
 import type { InstancePresencePort } from './instance-presence.js';
 import { decideFinalQuit, decideRestartClick, electUpdaterOwner, shouldCheckNow, FIRST_CHECK_DELAY_MS, UPDATER_TICK_MS, UPDATE_CHECK_INTERVAL_MS, PRESENCE_STALE_MS } from './update-policy.js';
 
@@ -146,7 +147,6 @@ export interface AutoUpdateController {
   beforeFinalQuit(): boolean;
   willQuit(): void;
 }
-const messageOf = (error: unknown): string => error instanceof Error ? error.message : String(error);
 
 /** Coordinates quiet downloads and last-instance installs through injected effects.
  * No single-instance lock is acquired. Construction registers updater listeners but starts no timers.
@@ -183,12 +183,12 @@ export function createAutoUpdateController(deps: AutoUpdateControllerDeps, optio
     // Promise wrapping catches a prompt that throws synchronously as well as a rejection.
     Promise.resolve().then(() => deps.promptUpdateReady({ version: info.version })).then(
       restart => { if (restart && !stopped) requestRestart(); },
-      error => log({ message: messages.promptFailed({ message: messageOf(error) }) }),
+      error => log({ message: messages.promptFailed({ message: describeErrorForLog({ err: error }) }) }),
     );
   };
   const onError = (error: unknown) => {
     if (stopped) return;
-    log({ message: messages.error({ message: messageOf(error) }) });
+    log({ message: messages.error({ message: describeErrorForLog({ err: error }) }) });
     // A failed Squirrel handoff must release the held quit rather than leave the app hanging.
     if (installStarted) deps.quit();
   };
@@ -203,15 +203,15 @@ export function createAutoUpdateController(deps: AutoUpdateControllerDeps, optio
   function otherInstances(): number { return presence.readLive().filter(record => record.pid !== pid).length; }
   function heartbeat(): void {
     try { presence.write({ record: { pid, startedAt, heartbeatAt: now() } }); }
-    catch (error) { log({ message: messages.presenceWriteFailed({ message: messageOf(error) }) }); }
+    catch (error) { log({ message: messages.presenceWriteFailed({ message: describeErrorForLog({ err: error }) }) }); }
   }
   function check(): void {
     lastCheckAt = now(); checking = true;
     let result: ReturnType<UpdaterLike['checkForUpdates']>;
     try { result = updater.checkForUpdates(); }
-    catch (error) { checking = false; log({ message: messages.checkFailed({ message: messageOf(error) }) }); return; }
+    catch (error) { checking = false; log({ message: messages.checkFailed({ message: describeErrorForLog({ err: error }) }) }); return; }
     result.then(value => value?.downloadPromise ?? null)
-      .catch(error => log({ message: messages.checkFailed({ message: messageOf(error) }) }))
+      .catch(error => log({ message: messages.checkFailed({ message: describeErrorForLog({ err: error }) }) }))
       .finally(() => { checking = false; });
   }
   function tick(): void {
@@ -248,7 +248,7 @@ export function createAutoUpdateController(deps: AutoUpdateControllerDeps, optio
     catch (error) {
       timers.clear({ timer: fallback });
       handles.splice(handles.indexOf(fallback), 1);
-      log({ message: messages.error({ message: messageOf(error) }) });
+      log({ message: messages.error({ message: describeErrorForLog({ err: error }) }) });
       return false;
     }
     return true;

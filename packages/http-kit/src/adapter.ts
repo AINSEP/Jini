@@ -3,12 +3,9 @@
  * `handle`, and response serialization into a single Express route handler. This is the only
  * file in the module that knows about Express `req`/`res` on the mounting side.
  */
-import { createConsoleLogger } from '@jini-ai/core/primitives';
-import { inspect } from 'node:util';
-import { redactSecrets } from '@jini-ai/core';
-import { randomUUID } from 'node:crypto';
 import type { Express, Request, Response } from 'express';
-import { createApiError, type ApiError } from '@jini-ai/protocol';
+import { type ApiError } from '@jini-ai/protocol';
+import { reportRouteInternalError } from './internal-error.js';
 import { rawInput } from './request.js';
 import { sendApiError, sendJson, statusForError } from './response.js';
 import { passesSameOriginGuard, type OriginContext } from './origin.js';
@@ -34,11 +31,6 @@ export interface AdapterContext extends OriginContext {
    * guarded path.
    */
   readonly onInternalError?: (context: AdapterInternalErrorContext) => void;
-}
-
-function defaultInternalErrorSink(context: AdapterInternalErrorContext): void {
-  // Exceptions can echo credentials; inspect preserves stacks and codes before shared redaction.
-  createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/http-kit] internal error (${context.method.toUpperCase()} ${context.path}, correlationId=${context.correlationId})` }, { error: redactSecrets({ input: inspect(context.error) }, { redactPii: false }) });
 }
 
 /**
@@ -198,9 +190,11 @@ function sendRouteException<Deps, Context>({ res, spec, adapter, error: e }: {
   // mounted ahead of the security middleware and exempted from the bearer gate, an unauthorized
   // caller could read it too, simply by getting a readiness dependency to fail. The real error
   // still reaches the operator through the sink, correlated to what the caller was told.
-  const correlationId = randomUUID();
-  const sink = adapter?.onInternalError ?? defaultInternalErrorSink;
-  sink({ method: spec.method, path: spec.path, correlationId, error: e });
-  sendApiError({ res, status: 500, error: createApiError({ code: 'INTERNAL_ERROR', message: 'The server could not finish this request. Check whether your change was saved, then copy the request ID and report this problem.' },
-    { requestId: correlationId }) });
+  // Exceptions can echo credentials: the host sink gets the original; the default line prints class and code only.
+  const apiError = reportRouteInternalError<Omit<AdapterInternalErrorContext, 'correlationId'>>({
+    report: { method: spec.method, path: spec.path, error: e },
+    logSource: `${spec.method.toUpperCase()} ${spec.path}`,
+    message: 'The server could not finish this request. Check whether your change was saved, then copy the request ID and report this problem.',
+  }, { onInternalError: adapter?.onInternalError });
+  sendApiError({ res, status: 500, error: apiError });
 }

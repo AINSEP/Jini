@@ -1,4 +1,5 @@
 import { nowIso } from '@jini-ai/core/primitives';
+import { describeErrorForLog } from '@jini-ai/core';
 import type { EventEnvelope, OutboxClaim, OutboxRecord, OutboxRetryPolicy, OutboxWorkerArgs, OutboxWorkerOptions, Scheduler } from './ports.js';
 import { computeOutboxBackoffMs, MAX_OUTBOX_ATTEMPTS, resolvePolicy } from './policy.js';
 import type { ResolvedPolicy } from './policy.js';
@@ -131,7 +132,7 @@ async function recordOutcome<Event extends EventEnvelope>(required: {
   // because the correct anchor costs one clock read, not because it was observed in the wild.
   const plan = failurePlan({ args, row, retry, error });
   const nextAttemptAt = addMs(nowIso({ clock: args.clock }), plan.delayMs);
-  await args.outbox.markFailed({ ...claim(row), error: error instanceof Error ? error.message : 'unknown outbox error',
+  await args.outbox.markFailed({ ...claim(row), error: describeErrorForLog({ err: error }),
     nextAttemptAt, nextStatus: plan.nextStatus });
 }
 

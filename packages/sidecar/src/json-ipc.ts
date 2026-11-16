@@ -18,7 +18,7 @@ import { createServer as createNetServer } from "node:net";
 import { dirname } from "node:path";
 import { StringDecoder } from "node:string_decoder";
 
-import { redactSecrets } from "@jini-ai/core";
+import { describeErrorForLog } from "@jini-ai/core";
 
 import { isWindowsNamedPipePath } from "./ipc-path.js";
 import { closeServer } from "./net.js";
@@ -256,7 +256,7 @@ export async function createJsonIpcServer({
       // behavior (see archived provenance ledger's 2026-07-22 entry).
       traceJsonIpc("server.socket_error", {
         durationMs: jsonIpcTraceDurationMs(startedAt),
-        error: errorMessage(error),
+        error: describeErrorForLog({ err: error }),
         socketPath,
         traceId,
       });
@@ -313,7 +313,7 @@ export async function createJsonIpcServer({
         // archived provenance ledger's 2026-07-22 entry).
         traceJsonIpc("server.frame_parse_failed", {
           durationMs: jsonIpcTraceDurationMs(startedAt),
-          error: errorMessage(error),
+          error: describeErrorForLog({ err: error }),
           frameBytes: Buffer.byteLength(frame),
           socketPath,
           traceId,
@@ -352,13 +352,12 @@ export async function createJsonIpcServer({
       } catch (error) {
         // SEC-004: a handler failure can embed paths, credentials, or other host detail (the
         // same trust-boundary concern as SEC-005's HTTP fix). The peer gets a stable code plus
-        // the traceId as a correlation handle; the real detail is redacted and logged
+        // the traceId as a correlation handle; the error's class and code are logged
         // server-side only, unconditionally (not gated behind JINI_JSON_IPC_TRACE).
-        const redactedDetail = redactSecrets({ input: errorMessage(error) });
-        createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/sidecar] json-ipc handler failed (traceId=${traceId})` }, { error: redactedDetail });
+        createConsoleLogger({ prefix: '' }).error({ message: `[@jini-ai/sidecar] json-ipc handler failed (traceId=${traceId})` }, { error });
         traceJsonIpc("server.handler_failed", {
           durationMs: jsonIpcTraceDurationMs(startedAt),
-          error: redactedDetail,
+          error: describeErrorForLog({ err: error }),
           message: messageSummary,
           socketPath,
           traceId,
@@ -513,7 +512,7 @@ export async function requestJsonIpc<T = any>(
       // comment + archived provenance ledger's 2026-07-22 entry).
       traceJsonIpc("client.socket_error", {
         durationMs: jsonIpcTraceDurationMs(startedAt),
-        error: errorMessage(error),
+        error: describeErrorForLog({ err: error }),
         message: messageSummary,
         socketPath,
         traceId,
