@@ -12,7 +12,6 @@ export { useSettlementGeneration } from './hooks/use-settlement-generation.hooks
 export type { SettlementGeneration } from './hooks/use-settlement-generation.hooks.js';
 export { hasPermission } from './helpers/permissions.js';
 export { retryWhileUnreachable, UNREACHABLE_RETRY_DELAYS_MS } from './helpers/retry-unreachable.js';
-export { buildAgentListHandles } from '@jini-ai/agentic';
 export type { DirtyGuardHostPort } from './hooks/use-dirty-guard.hooks.js';
 
 export { useSettingsSlice, mergeSaveStates, commitQueuedSave, canAcceptRefresh, SAVE_DEBOUNCE_MS } from './hooks/use-settings-slice.hooks.js';

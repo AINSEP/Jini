@@ -1,10 +1,10 @@
 /**
  * Direct tests for `utils/file-transfer.ts`, filling what `asset-tree-browser/__tests__/rules.test.ts`
- * (which reaches it through a re-export) leaves open: the AVIF extension, and the exact synthetic
+ * (which reaches it through a re-export) leaves open: the exact synthetic
  * name, type and lastModified of an unnamed pasted file under a pinned clock.
  */
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { extensionForMimeType, filesFromClipboardData, normalizePastedFile } from '../file-transfer.js';
+import { filesFromClipboardData, normalizePastedFile } from '../file-transfer.js';
 
 afterEach(() => { vi.useRealTimers(); });
 

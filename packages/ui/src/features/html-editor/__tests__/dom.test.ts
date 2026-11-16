@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { hasAttributeOnAnyNodeShape, sourceElementAttributeView } from '../dom.js';
+import { hasAttributeOnAnyNodeShape } from '@jini-ai/core/primitives';
+import { sourceElementAttributeView } from '../dom.js';
 
 describe('hasAttributeOnAnyNodeShape', () => {
   it('works over the DOM-free source attribute view as well', () => {

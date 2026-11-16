@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import * as HtmlEditor from '../index.js';
-import { hasAttributeOnAnyNodeShape } from '@jini-ai/core/primitives';
 import { prettifyCss } from '../css.js';
 import { detectEditorBlocks, findEditorBlockOpening, prepareEditorSource } from '../editor-blocks.js';
 import { EditorSourceError, isEditorSourceError, protectTextAncestors, registerProtectedElementType } from '../protected-elements.js';
@@ -11,12 +10,12 @@ import { useInteractiveHtmlEditor } from '../react/hooks/useInteractiveHtmlEdito
 describe('html-editor public entry', () => {
   it('re-exports exactly the implementations the `./html-editor` subpath documents', () => {
     expect(HtmlEditor).toMatchObject({
-      InteractiveHtmlEditor, useInteractiveHtmlEditor, hasAttributeOnAnyNodeShape, prettifyCss,
+      InteractiveHtmlEditor, useInteractiveHtmlEditor, prettifyCss,
       detectEditorBlocks, prepareEditorSource, findEditorBlockOpening,
       EditorSourceError, isEditorSourceError, registerProtectedElementType, protectTextAncestors, serializeEditorSource,
     });
     expect(Object.keys(HtmlEditor).sort()).toEqual([
-      'EditorSourceError', 'InteractiveHtmlEditor', 'detectEditorBlocks', 'findEditorBlockOpening', 'hasAttributeOnAnyNodeShape',
+      'EditorSourceError', 'InteractiveHtmlEditor', 'detectEditorBlocks', 'findEditorBlockOpening',
       'isEditorSourceError', 'prepareEditorSource', 'prettifyCss', 'protectTextAncestors', 'registerProtectedElementType',
       'serializeEditorSource', 'useInteractiveHtmlEditor',
     ]);

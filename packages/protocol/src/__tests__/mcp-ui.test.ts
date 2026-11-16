@@ -5,6 +5,7 @@ import {
   JSON_RPC_ERROR_CODES,
   MCP_UI_HOST_NOTIFICATIONS,
   MCP_UI_HOST_REQUESTS,
+  MCP_UI_SANDBOX_NOTE,
   MCP_UI_VIEW_METHODS,
   MCP_UI_VIEW_NOTIFICATIONS,
   createJsonRpcError,
@@ -319,5 +320,9 @@ describe('mcp-ui envelope — optional field branches', () => {
         id: 7,
         error: { code: -32602, message: 'bad', data: { field: 'element' } },
       });
+  });
+
+  it('explains why spec Views may carry allow-same-origin', () => {
+    expect(MCP_UI_SANDBOX_NOTE).toContain('allow-same-origin');
   });
 });
