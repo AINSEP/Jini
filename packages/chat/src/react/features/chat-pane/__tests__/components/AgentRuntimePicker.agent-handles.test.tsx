@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '../../../../__tests__/ui-kit-render-support.js';
 import { describe, expect, it, vi } from 'vitest';
 import { createDomPageDriver } from '@jini-ai/agentic/dom';
 // Exercise the existing shared overlay context without adding a chat runtime dependency.
