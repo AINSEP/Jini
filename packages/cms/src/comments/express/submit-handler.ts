@@ -1,5 +1,4 @@
-import { inspect } from 'node:util';
-import { redactSecrets } from '@jini-ai/core';
+import { describeErrorForLog } from '@jini-ai/core';
 import { createHash } from "node:crypto";
 
 import type { Request, RequestHandler } from "express";
@@ -131,7 +130,7 @@ export function createCommentSubmitHandler(deps: CommentSubmitRequired, optional
       // Public, unauthenticated route (this file's own header) — any visitor's malformed or
       // hostile submission must still get a fast, honest response, never a hang; an unguarded
       // failure here is reachable by anyone, not just an authenticated admin.
-      console.error("[site/comments-submit] unexpected error", redactSecrets({ input: inspect(err) }, { redactPii: false }));
+      console.error("[site/comments-submit] unexpected error", describeErrorForLog({ err }));
       res.status(500).json({ error: "internal error", code: "INTERNAL_ERROR" });
     }
   };

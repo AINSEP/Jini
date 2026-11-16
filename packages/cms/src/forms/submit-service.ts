@@ -1,7 +1,6 @@
 import { assertCurrentFormSchema } from "./stale-form.js";
 import { FORM_SCHEMA_HASH_FIELD } from "./portable-validation.js";
 import { captureSubmissionEvidence } from "./submission-evidence.js";
-import { formatErrorForLog } from '@jini-ai/core';
 /**
  * @file `submit-service.ts` — the sole public submission write path (SPEC-010 REQ-05..09/16,
  * ADR-PIPE-010 C-008).
@@ -278,7 +277,7 @@ async function discardUploads(
     try { await deps.files!.discard({ workspaceId: input.workspaceId, reference }); }
     catch (cleanupError) {
       // Retain the original submission failure; a failed cleanup is visible to operators.
-      try { deps.logger.warn({ message: "form upload cleanup failed" }, { error: formatErrorForLog({ error: cleanupError }) }); } catch { /* Logging cannot replace the original error. */ }
+      try { deps.logger.warn({ message: "form upload cleanup failed" }, { error: cleanupError }); } catch { /* Logging cannot replace the original error. */ }
     }
   }
 }
@@ -288,7 +287,7 @@ function dispatchInBackground({ deps }: { deps: SubmitFormDeps }, { dispatch }: 
   // Never await delivery here: a subscriber sends mail, so awaiting it would reintroduce the
   // response-blocking bug. Persistence/enqueue are awaited; outbox drainage remains background work.
   void Promise.resolve().then(() => (dispatch ?? deps.dispatcher.dispatch.bind(deps.dispatcher))({})).catch((error: unknown) => {
-    try { deps.logger.warn({ message: "form outbox dispatch failed" }, { error: formatErrorForLog({ error }) }); } catch { /* Logging must not reject background work. */ }
+    try { deps.logger.warn({ message: "form outbox dispatch failed" }, { error }); } catch { /* Logging must not reject background work. */ }
   });
 }
 

@@ -1,8 +1,7 @@
 import { formRetryFields } from "../stale-form.js";
 import { repopulateFormRetryHtml } from "../html/retry-draft.js";
 import { randomUUID } from "node:crypto";
-import { inspect } from 'node:util';
-import { redactSecrets } from '@jini-ai/core';
+import { describeErrorForLog } from '@jini-ai/core';
 import type { Request, Response } from "express";
 import { FormDefinitionNotFoundError, FormRateLimitExceededError, FormSubmissionValidationError, FormSubmissionTooFastError, FormAttachmentSpaceError, FormSchemaChangedError } from "../errors.js";
 import { renderHtmlForm, escapeFormHtml } from "../html-render.js";
@@ -266,7 +265,7 @@ export function createFormSubmitHandler(
         try {
           await setFormFlashCookieForValidationFailure(req, res, deps, slug, body);
         } catch (flashErr) {
-          console.error(`[site/forms-submit] failed to set validation flash cookie (slug=${slug})`, redactSecrets({ input: inspect(flashErr) }, { redactPii: false }));
+          console.error(`[site/forms-submit] failed to set validation flash cookie (slug=${slug})`, describeErrorForLog({ err: flashErr }));
         }
       }
       sendFormSubmitOutcome(req, res, outcomeForError(slug, err), deps);

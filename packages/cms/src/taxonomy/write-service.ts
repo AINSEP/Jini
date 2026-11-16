@@ -855,7 +855,7 @@ export async function onContentDeleted(
   required: OnContentDeletedRequired,
   optional: {
     logger?: {
-      warn(required: { message: string; error: unknown; event: OnContentDeletedRequired["event"] }): void | Promise<void>;
+      warn(required: { message: string }, optional: { meta: { event: OnContentDeletedRequired["event"] }; error: unknown }): void | Promise<void>;
     }
   } = {}
 ): Promise<void> {
@@ -868,7 +868,7 @@ export async function onContentDeleted(
     });
   } catch (error) {
     try {
-      await optional.logger?.warn({ message: "content-deletion taxonomy cleanup failed", error, event });
+      await optional.logger?.warn({ message: "content-deletion taxonomy cleanup failed" }, { meta: { event }, error });
     } catch {
       // Cleanup is best effort even when its diagnostic sink is unavailable.
     }
