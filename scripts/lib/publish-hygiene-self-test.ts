@@ -5,6 +5,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { checkPackageLayers } from '../check-package-layers.js';
+import { importSites } from './import-sites.js';
 import { checkSourceNeutrality } from './source-neutrality.js';
 import { checkSubpathIsolation } from '../check-subpath-isolation.js';
 
@@ -146,11 +147,14 @@ function injectionSelfTest(required: { root: string }): string[] {
     writeFileSync(path, typeof content === 'string' ? content : JSON.stringify(content));
   };
   for (const name of ['core', 'protocol', 'platform']) write(`packages/${name}/package.json`, { name: `@jini-ai/${name}` });
-  write('packages/daemon/package.json', { name: '@jini-ai/daemon', dependencies: { '@jini-ai/core': '*', '@jini-ai/protocol': '*' } });
+  write('packages/daemon/package.json', { name: '@jini-ai/daemon', dependencies: { '@jini-ai/core': '*', '@jini-ai/protocol': '*' }, imports: { '#platform': '@jini-ai/platform' } });
   write('packages/ui/package.json', { name: '@jini-ai/ui' });
   write('packages/daemon/src/ok.ts', "import { a } from '@jini-ai/core/records'; import type { B } from '@jini-ai/protocol'; export { a };");
   write('packages/daemon/src/bad.ts', "import { run } from '@jini-ai/platform/fs'; export { run };");
+  write('packages/daemon/src/template.ts', 'export const d = import(`@jini-ai/platform/net`);');
+  write('packages/daemon/src/alias.ts', "import { a } from '#platform'; export { a };");
   write('packages/core/src/impure.ts', 'export const home = process.env.HOME;');
+  write('packages/core/src/injected.ts', 'export const create = ({ fetch }: { fetch: (url: string) => unknown }) => ({ run: (url: string) => fetch(url) });');
   write('packages/ui/src/a.css', '.a { color: var(--unlisted-token); }');
   // The ratchet: a stale allowance fails, and so does any allowance the trusted base did not have.
   write('scripts/injection-debt.json', { entries: [{ rule: 'L5-injected-edge', file: 'packages/daemon/src/gone.ts', spec: '@jini-ai/platform', kind: 'import', count: 1, lane: 'T' }] });
@@ -160,7 +164,13 @@ function injectionSelfTest(required: { root: string }): string[] {
   expect(has('scripts/injection-debt.json', 'injection-debt-growth'), 'debt growth against the base must fail');
   expect(!found.some(v => v.file.endsWith('daemon/src/ok.ts')), 'core and protocol imports must pass the base rule');
   expect(has('daemon/src/bad.ts', 'L5-injected-edge'), 'a non-base package import must fail L5');
+  expect(has('daemon/src/template.ts', 'L5-injected-edge'), 'a template-literal dynamic import must fail L5');
+  expect(has('daemon/src/alias.ts', 'L5-injected-edge'), 'a #imports alias of another package must fail L5');
   expect(has('core/src/impure.ts', 'L6-base-purity'), 'a process read in core must fail L6');
+  expect(!found.some(v => v.file.endsWith('core/src/injected.ts')), 'an injected fetch port must pass L6');
+  let parsed = true;
+  try { importSites({ file: 'bad.mjs', source: 'export const = ;' }); } catch { parsed = false; }
+  expect(!parsed, 'an unparsable file must fail closed, not report zero imports');
   expect(has('ui/src/a.css', 'L7-css-tokens'), 'an unlisted CSS token must fail L7');
   return failures;
 }
