@@ -1,4 +1,21 @@
-import type { PortMap, PortValues } from './token.js';
+/**
+ * @file Admin-module descriptor vocabulary: the plain data a feature package exports so a host can
+ * register it with an admin shell, plus typed port tokens. Pure: no registry, no React, no I/O.
+ * The registry (`createAdmin`) lives in the admin package; a module package imports only this file.
+ */
+import { token, type Token } from '../token.js';
+/** Admin port tokens are core tokens, frozen so a registered identity cannot be mutated after boot. */
+export type AdminPortToken<T = unknown, Id extends string = string> = Token<T, Id>;
+export function adminPort<T, const Id extends string = string>(
+  { id }: { id: Id },
+  { version = 1 }: { version?: number } = {},
+): AdminPortToken<T, Id> {
+  return Object.freeze(token<T, Id>({ id }, { version }));
+}
+export type PortMap = Readonly<Record<string, AdminPortToken>>;
+export type PortValues<P extends PortMap> = {
+  readonly [K in keyof P]: P[K] extends AdminPortToken<infer T> ? T : never;
+};
 export interface AdminTab {
   readonly label: string;
   readonly params?: Readonly<Record<string, unknown>>;
@@ -88,4 +105,11 @@ export interface AdminInstance {
     optional?: Record<string, never>,
   ): ScopedPorts<M>;
   dispose(required?: Record<string, never>, optional?: Record<string, never>): void;
+}
+/** Definition is data only; boot validates identities before any factory runs. */
+export function defineAdminModule<const M extends AdminModule>(
+  required: M,
+  _optional: Record<string, never> = {},
+): M {
+  return Object.freeze(required);
 }
