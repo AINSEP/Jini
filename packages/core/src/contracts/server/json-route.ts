@@ -45,7 +45,7 @@ export type Handler<Input, Output, Deps, Context = undefined> = (
 ) => Promise<Result<Output>> | Result<Output>;
 
 /** What a host's incident sink receives for an exception no route anticipated. */
-export interface RouteExceptionContext {
+export interface RouteHostInternalErrorContext {
   /** HTTP method of the route whose handler threw. */
   readonly method: string;
   /** Registered path of the route whose handler threw. */
@@ -71,9 +71,7 @@ export interface RouteHostContext extends OriginContext {
    * Host-owned sink for the real exception behind a generic `INTERNAL_ERROR` response (SEC-005).
    * The catch-all for a route that throws outside its own guarded path.
    */
-  readonly onInternalError?: (context: RouteExceptionContext) => void;
-  /** The host's incident reporter. */
-  readonly reportInternalError: ReportRouteInternalError;
+  readonly onInternalError?: (context: RouteHostInternalErrorContext) => void;
 }
 
 /**
@@ -147,6 +145,7 @@ const errorAnswer = ({ error }: { readonly error: ServerApiError }): Response =>
 interface RouteCall<I, O, D, C> {
   readonly spec: JsonRouteSpec<I, O, D, C>;
   readonly deps: D;
+  readonly reportInternalError: ReportRouteInternalError;
   readonly request: Request;
   readonly params: Record<string, string>;
   readonly locals: Record<string, unknown>;
@@ -158,13 +157,21 @@ interface RouteCall<I, O, D, C> {
  * required only for routes that opt into the same-origin guard or that can throw unanticipated errors.
  */
 export function jsonRoute<I, O, D, C = undefined>(
-  { spec, deps }: { readonly spec: JsonRouteSpec<I, O, D, C>; readonly deps: D },
+  { spec, deps, reportInternalError }: {
+    readonly spec: JsonRouteSpec<I, O, D, C>;
+    readonly deps: D;
+    // SEC-005 incident reporter. Required, with no default in core: a default would call
+    // `crypto.randomUUID()` (an L6 violation), and a host-context field would force every host to build it.
+    // It is a route-level argument so a route mounted with no host context (no same-origin check) still
+    // never leaks an exception message.
+    readonly reportInternalError: ReportRouteInternalError;
+  },
   { host }: { readonly host?: RouteHostContext } = {},
 ): ServerRoute {
   return {
     method: spec.method.toUpperCase() as ServerMethod,
     path: spec.path,
-    handler: ({ request, params, locals = {} }) => answerJsonRoute({ spec, deps, request, params: { ...params }, locals }, { host }),
+    handler: ({ request, params, locals = {} }) => answerJsonRoute({ spec, deps, reportInternalError, request, params: { ...params }, locals }, { host }),
   };
 }
 
@@ -238,16 +245,14 @@ async function exceptionAnswer<I, O, D, C>({ call, error }: { readonly call: Rou
   // A route (or something it called) already classified this failure as safe to disclose, so it is
   // sent verbatim at its own status and never routed to the SEC-005 sink below.
   if (error instanceof ClientFacingError) return errorAnswer({ error: error.apiError });
-  // No host context means no incident reporter: rethrow so the adapter's own last-resort answer applies.
-  if (!host) throw error;
   // SEC-005. This catch exists for exceptions no route anticipated, which makes it precisely the
   // path most likely to be holding something private: a driver error naming a database file, a
   // connection string, a credential a provider echoed back. The real error reaches the operator
   // through the sink, correlated to what the caller was told by the request ID.
-  const apiError = host.reportInternalError<Omit<RouteExceptionContext, 'correlationId'>>({
+  const apiError = call.reportInternalError<Omit<RouteHostInternalErrorContext, 'correlationId'>>({
     report: { method: spec.method, path: spec.path, error },
     logSource: `${spec.method.toUpperCase()} ${spec.path}`,
     message: 'The server could not finish this request. Check whether your change was saved, then copy the request ID and report this problem.',
-  }, { onInternalError: host.onInternalError });
+  }, { onInternalError: host?.onInternalError });
   return errorAnswer({ error: apiError });
 }

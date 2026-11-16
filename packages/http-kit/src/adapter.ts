@@ -4,7 +4,7 @@
  * file in the module that knows about Express `req`/`res` on the mounting side.
  */
 import type { Express, Request, Response } from 'express';
-import { ClientFacingError, statusForError, type JsonRouteAuthorize, type Result, type RouteExceptionContext, type RouteHostContext } from '@jini-ai/core/contracts/server';
+import { ClientFacingError, statusForError, type JsonRouteAuthorize, type Result, type RouteHostInternalErrorContext, type RouteHostContext } from '@jini-ai/core/contracts/server';
 import { reportRouteInternalError } from './internal-error.js';
 import { rawInput } from './request.js';
 import { sendApiError, sendJson } from './response.js';
@@ -34,7 +34,7 @@ export function defineJsonRoute<Input, Output, Deps, Context = undefined>(requir
  * @returns Void; registers one handler, without starting a listener.
  * @complexity O(1) setup and per-request overhead, plus parsing, host ports and handling.
  */
-export function mountJsonRoute<Input, Output, Deps, Context = undefined>({ app, spec, deps, adapter }: { readonly app: Express; readonly spec: JsonRouteSpec<Input, Output, Deps, Context>; readonly deps: Deps; readonly adapter?: MountHostContext }, _optional: Record<string, never> = {}
+export function mountJsonRoute<Input, Output, Deps, Context = undefined>({ app, spec, deps, adapter }: { readonly app: Express; readonly spec: JsonRouteSpec<Input, Output, Deps, Context>; readonly deps: Deps; readonly adapter?: RouteHostContext }, _optional: Record<string, never> = {}
 ): void {
   app[spec.method](spec.path, async (req: Request, res: Response) => {
     // The client-disconnect signal a `handle` can opt into via optional arguments. Observed on `res`,
@@ -81,14 +81,11 @@ export function mountJsonRoute<Input, Output, Deps, Context = undefined>({ app, 
   });
 }
 
-/** The host state the Express mount reads; a full `RouteHostContext` satisfies it, the incident reporter is not needed here. */
-export type MountHostContext = Omit<RouteHostContext, 'reportInternalError'>;
-
 function allowRouteOrigin({ req, res, spec, adapter }: {
   readonly req: Request;
   readonly res: Response;
   readonly spec: Pick<JsonRouteSpec<unknown, unknown, unknown>, 'requireSameOrigin'>;
-  readonly adapter: MountHostContext | undefined;
+  readonly adapter: RouteHostContext | undefined;
 }, _optional: Record<string, never> = {}): boolean {
   if (!spec.requireSameOrigin) return true;
   if (!adapter) throw new Error('same-origin adapter context is required');
@@ -117,7 +114,7 @@ function sendRouteResult<Output>({ res, result, spec, signal }: {
 function sendRouteException<Deps, Context>({ res, spec, adapter, error: e }: {
   readonly res: Response;
   readonly spec: Pick<JsonRouteSpec<unknown, unknown, Deps, Context>, 'method' | 'path' | 'ports'>;
-  readonly adapter: MountHostContext | undefined;
+  readonly adapter: RouteHostContext | undefined;
   readonly error: unknown;
 }, _optional: Record<string, never> = {}): void {
   // An explicit host error port owns exception classification and serialization, including
@@ -141,7 +138,7 @@ function sendRouteException<Deps, Context>({ res, spec, adapter, error: e }: {
   // caller could read it too, simply by getting a readiness dependency to fail. The real error
   // still reaches the operator through the sink, correlated to what the caller was told.
   // Exceptions can echo credentials: the host sink gets the original; the default line prints class and code only.
-  const apiError = reportRouteInternalError<Omit<RouteExceptionContext, 'correlationId'>>({
+  const apiError = reportRouteInternalError<Omit<RouteHostInternalErrorContext, 'correlationId'>>({
     report: { method: spec.method, path: spec.path, error: e },
     logSource: `${spec.method.toUpperCase()} ${spec.path}`,
     message: 'The server could not finish this request. Check whether your change was saved, then copy the request ID and report this problem.',

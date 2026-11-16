@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { err, ok } from '../result.js';
-import { ClientFacingError, jsonResponse, jsonRoute, type JsonRouteSpec, type RouteHostContext } from '../json-route.js';
+import { ClientFacingError, jsonResponse, jsonRoute, type JsonRouteSpec, type ReportRouteInternalError, type RouteHostContext } from '../json-route.js';
 import { createInMemoryServer } from '../testing.js';
 
 describe('jsonResponse', () => {
@@ -18,14 +18,19 @@ const post = (body: unknown, init: { headers?: Record<string, string>; signal?: 
   new Request('http://local/r', { method: 'POST', body: JSON.stringify(body), headers: { 'content-type': 'application/json', ...init.headers }, ...(init.signal ? { signal: init.signal } : {}) });
 
 const reports: unknown[] = [];
+const optionals: unknown[] = [];
+const reportInternalError: ReportRouteInternalError = ({ report, message }, optional) => {
+  reports.push(report);
+  optionals.push(optional);
+  return { code: 'INTERNAL_ERROR', message, requestId: 'req-1' };
+};
 const host: RouteHostContext = {
   resolvedPortRef: { current: 7000 }, env: {}, allowedOriginsEnvVar: 'A', webPortEnvVar: 'W', bindHostEnvVar: 'B',
-  reportInternalError: ({ report, message }) => { reports.push(report); return { code: 'INTERNAL_ERROR', message, requestId: 'req-1' }; },
 };
 
 function mount(spec: Partial<JsonRouteSpec<{ n: number }, { n: number }, null>> = {}, withHost = true) {
   const app = createInMemoryServer();
-  app.server.route(jsonRoute({ deps: null, spec: {
+  app.server.route(jsonRoute({ deps: null, reportInternalError, spec: {
     method: 'post', path: '/r', parse: ({ body }) => ok({ value: body as { n: number } }), handle: ({ input }) => ok({ value: input }), ...spec,
   } }, withHost ? { host } : {}));
   return app;
@@ -55,6 +60,23 @@ describe('jsonRoute', () => {
     const response = await mount({ handle: () => { throw new Error('secret db path'); } }).fetch(post({}));
     const text = await response.text();
     expect([response.status, text.includes('secret'), text.includes('req-1'), reports.length]).toEqual([500, false, true, 1]);
+  });
+  it('reports a plain throw with no host context at all, still hiding the message', async () => {
+    reports.length = 0; optionals.length = 0;
+    const response = await mount({ handle: () => { throw new Error('secret path /etc/x'); } }, false).fetch(post({}));
+    const text = await response.text();
+    expect([response.status, (JSON.parse(text) as { error: { requestId: string } }).error.requestId, text.includes('secret path'), reports.length]).toEqual([500, 'req-1', false, 1]);
+    expect(reports[0]).toMatchObject({ method: 'post', path: '/r', error: expect.objectContaining({ message: 'secret path /etc/x' }) });
+  });
+  it('passes the host sink to the reporter, or undefined when the host has none', async () => {
+    reports.length = 0; optionals.length = 0;
+    await mount({ handle: () => { throw new Error('x'); } }).fetch(post({}));
+    expect(optionals[0]).toEqual({ onInternalError: undefined });
+    const onInternalError = () => undefined;
+    const app = createInMemoryServer();
+    app.server.route(jsonRoute({ deps: null, reportInternalError, spec: { method: 'post', path: '/r', parse: ({ body }) => ok({ value: body }), handle: () => { throw new Error('y'); } } }, { host: { ...host, onInternalError } }));
+    await app.fetch(post({}));
+    expect(optionals[1]).toEqual({ onInternalError });
   });
   it('lets ports.onError own the answer', async () => {
     const app = mount({ handle: () => { throw new Error('x'); }, ports: { onError: () => new Response('mine', { status: 418 }) } });

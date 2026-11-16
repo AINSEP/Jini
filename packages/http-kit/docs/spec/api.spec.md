@@ -29,13 +29,13 @@ type JsonRouteSpec<I, O, D> = {
 };
 ```
 
-`ApiError`, run protocol/status values and tool outcomes come from `@jini-ai/protocol`, `@jini-ai/core` and `@jini-ai/daemon`. The consumer supplies a real Express app and any body parser/security middleware. `AdapterContext` requires `resolvedPortRef: {current:number}`; required `env: NodeJS.ProcessEnv`, `allowedOriginsEnvVar`, `webPortEnvVar`, `bindHostEnvVar`, and optional `onInternalError(context)` control origin configuration and private exception reporting.
+`ApiError`, run protocol/status values and tool outcomes come from `@jini-ai/protocol`, `@jini-ai/core` and `@jini-ai/daemon`. The consumer supplies a real Express app and any body parser/security middleware. `RouteHostContext` (from `@jini-ai/core/contracts/server`) requires `resolvedPortRef: {current:number}`; required `env: NodeJS.ProcessEnv`, `allowedOriginsEnvVar`, `webPortEnvVar`, `bindHostEnvVar`, and optional `onInternalError(context: RouteHostInternalErrorContext)` control origin configuration and private exception reporting.
 
 | Root export | Required object; optional object → result |
 |---|---|
 | `ok<T,E>` / `err<T,E>` | `{value: T}` / `{error: E}` → `Result<T,E>` |
 | `defineJsonRoute<I,O,D>` | `{method, path, parse, handle}`; `{requireSameOrigin?, successStatus?}` → `JsonRouteSpec<I,O,D>` |
-| `mountJsonRoute<I,O,D>` | `{app: Express, spec, deps: D, adapter: AdapterContext}` → `void` |
+| `mountJsonRoute<I,O,D>` | `{app: Express, spec, deps: D, adapter: RouteHostContext}` → `void` |
 | `ClientFacingError` | `new ClientFacingError({apiError}, {})` → `Error` with `apiError` |
 | `createCompatApiError` | `{code, message}`; `Omit<ApiError, 'code' \| 'message'>` → `ApiError` |
 | `createCompatApiErrorResponse` | Same input → `{error: ApiError}` |
@@ -132,7 +132,7 @@ applyRequestTracking({ app, observability: hostRequestMetrics });
 
 ## Public request/response primitives
 
-Root also exports `rawInput`, parser helpers, `sendJson`, `sendApiError`, `statusForError`, and `guardSameOrigin({ req, origin }, {} = {}): Result<void>` through their source barrels. AdapterContext extends required OriginContext. Root SSE defaults remain 1000 queued events; shared origin, response and error rules operate without domain store or runtime dependencies. See `src/request.ts` and `src/response.ts` for the concrete parser and status exports.
+Root also exports `rawInput`, parser helpers, `sendJson`, `sendApiError`, `statusForError`, and `guardSameOrigin({ req, origin }, {} = {}): Result<void>` through their source barrels. RouteHostContext extends required OriginContext. Root SSE defaults remain 1000 queued events; shared origin, response and error rules operate without domain store or runtime dependencies. See `src/request.ts` and `src/response.ts` for the concrete parser and status exports.
 
 Source: the five package export targets and `src/index.ts`. This is source-level verification; distribution and runtime behavior were not executed.
 

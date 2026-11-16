@@ -61,7 +61,7 @@ export function statusForError({ error }: { readonly error: ServerApiError }, _o
 }
 
 /** Issue shape attached to a validation failure so clients can render per-field errors. */
-export interface ServerValidationIssue { path: string; message: string }
+export interface ServerValidationIssue { readonly path: string; readonly message: string }
 
 /**
  * Builds a `BAD_REQUEST` error for a failed parse. When `issues` is non-empty, attaches

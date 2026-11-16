@@ -10,7 +10,6 @@
  * rejection mapping and host-owned claim/cleanup lifecycle rather than duplicating those rules here.
  */
 export type { JsonRouteSpec, JsonRoutePorts } from './types.js';
-export type { MountHostContext } from './adapter.js';
 export { defineJsonRoute, mountJsonRoute } from './adapter.js';
 export type { RouteInternalErrorContext, RouteInternalErrorSink } from './internal-error.js';
 export { reportRouteInternalError } from './internal-error.js';
