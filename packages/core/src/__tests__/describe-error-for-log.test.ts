@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'vitest';
-import { describeErrorForLog, LOGGABLE_ERROR_CODES, registerLoggableErrors } from '../model-facing-tool-errors.js';
+import { describeErrorForLog, describeErrorParts, LOGGABLE_ERROR_CODES, registerLoggableErrors } from '../model-facing-tool-errors.js';
 import { ToolInputError } from '../tool-input-errors.js';
 
 class SqliteError extends Error {
@@ -119,4 +119,15 @@ test('a package registers its own codes and classes; malformed registrations are
   assert.ok(LOGGABLE_ERROR_CODES.has('PLUGIN_TEST_CONFLICT'));
   assert.throws(() => registerLoggableErrors({ codes: ['free text'] }), TypeError);
   assert.throws(() => registerLoggableErrors({ classes: [{ error: PluginRegistryError, label: 'has space' }] }), TypeError);
+});
+
+// Telemetry needs one label, not a log line: a reader beats every caller parsing `Label(CODE) cause=…`.
+test('describeErrorParts returns the same fixed label and approved code, without the cause', () => {
+  const err = Object.assign(new TypeError('password=hunter2', { cause: new Error('x') }), { code: 'ECONNREFUSED' });
+  assert.deepEqual(describeErrorParts({ err }), { label: 'TypeError', code: 'ECONNREFUSED' });
+  assert.deepEqual(describeErrorParts({ err: Object.assign(new Error('x'), { code: SECRET }) }), { label: 'Error' });
+  assert.deepEqual(describeErrorParts({ err: null }), { label: 'object' });
+  const hostile = new Error('x');
+  Object.defineProperty(hostile, 'code', { get() { throw new Error('getter'); } });
+  assert.deepEqual(describeErrorParts({ err: hostile }), { label: 'Error' });
 });

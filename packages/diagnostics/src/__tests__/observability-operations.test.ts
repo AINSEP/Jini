@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "vitest";
+import { registerLoggableErrors } from "@jini-ai/core";
 
 import { InMemorySpanExporter, createAsyncScope, createPort } from "./observability-fakes.js";
 import { createNoopObservabilityPort } from "../observability/noop.js";
@@ -11,6 +12,9 @@ import type { ObservabilityConfigEnabled } from "../observability/config.js";
 /** Feature-level operations and error reports: the two signals no transport names. */
 
 const CONFIG: ObservabilityConfigEnabled = { enabled: true, serviceName: "svc", tracerName: "svc.ops", endpoint: "http://collector/v1/traces" };
+class RepoLabelTestError extends Error {}
+registerLoggableErrors({ codes: ["REPO_LABEL_TEST_CODE"], classes: [{ error: RepoLabelTestError, label: "RepoLabelTestError" }] });
+
 const SECRET = "ghp_abcdefghijklmnopqrstuvwxyz0123456789";
 
 test("noop: trackOperation returns one shared frozen tracker and reportError does nothing", () => {
@@ -65,7 +69,7 @@ test("otel: reportError outside any tracker is its own ended root span", () => {
   assert.equal(span?.name, "error backup.run");
   assert.equal(span?.status.code, "error");
   assert.equal(span?.attributes["backup.kind"], "full");
-  assert.equal(span?.events[0]?.attributes["exception.type"], "Error(ECONNRESET)");
+  assert.equal(span?.events[0]?.attributes["exception.type"], "ECONNRESET");
 });
 
 test("otel: reportError never throws even when the span sink does", () => {
@@ -173,8 +177,14 @@ test("obs2 #1: a credential-shaped error.code is redacted before OTel and error-
   assert.ok(!JSON.stringify(spans).includes(code));
 });
 
-test("error labels are the describer's class and approved code, never the message, name or cause text", () => {
-  assert.equal(errorType({ error: Object.assign(new TypeError("hidden"), { code: "ECONNRESET" }) }), "TypeError(ECONNRESET)");
+// Review jini-batch1 M2: host dashboards and alerts match `error.type = "ECONNREFUSED"`; the label
+// keeps that shape (approved code, else fixed class label) and still never carries raw text.
+test("error labels are an approved code, else the describer's class label, never the message, name or cause text", () => {
+  assert.equal(errorType({ error: Object.assign(new TypeError("hidden"), { code: "ECONNRESET" }) }), "ECONNRESET");
+  assert.equal(errorType({ error: Object.assign(new Error("hidden"), { code: "SQLITE_CONSTRAINT" }) }), "SQLITE_CONSTRAINT");
+  assert.equal(errorType({ error: new RepoLabelTestError("hidden") }), "RepoLabelTestError");
+  assert.equal(errorType({ error: Object.assign(new Error("hidden"), { code: "REPO_LABEL_TEST_CODE" }) }), "REPO_LABEL_TEST_CODE");
+  assert.equal(errorType({ error: Object.assign(new Error("hidden"), { code: "UNLISTED_CODE" }) }), "Error");
   assert.equal(errorType({ error: Object.assign(new TypeError("hidden"), { code: "invalid code" }) }), "TypeError");
   const error = new Error("hidden");
   error.name = `${"x".repeat(60)} ${SECRET}`;

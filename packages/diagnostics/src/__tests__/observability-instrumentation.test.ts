@@ -164,7 +164,7 @@ describe("trackHttpClient", () => {
   const exporter = new InMemorySpanExporter();
   const client: HttpClientPort = { send: async () => { throw Object.assign(new Error("refused"), { code: "ECONNREFUSED" }); } };
   await expect(trackHttpClient({ client, observability: createPort(CONFIG, exporter) }).send({ request })).rejects.toThrow("refused");
-  expect(exporter.getFinishedSpans()[0]?.attributes["error.type"]).toBe("Error(ECONNREFUSED)");
+  expect(exporter.getFinishedSpans()[0]?.attributes["error.type"]).toBe("ECONNREFUSED");
  });
 
  it("returns the client itself for the disabled port", () => {
@@ -217,7 +217,7 @@ describe("trackFetch", () => {
   const fetch = async (_input: unknown) => { throw Object.assign(new Error("connect to https://api.example.com/secret failed"), { code: "ECONNREFUSED" }); };
   await expect(trackFetch({ fetch, observability: createPort(CONFIG, exporter) })("https://api.example.com/secret")).rejects.toThrow("connect");
   const [span] = exporter.getFinishedSpans();
-  expect(span?.attributes["error.type"]).toBe("Error(ECONNREFUSED)");
+  expect(span?.attributes["error.type"]).toBe("ECONNREFUSED");
   expect(span!.status.code).toBe("error");
   expect(JSON.stringify(span)).not.toMatch(/secret/);
  });

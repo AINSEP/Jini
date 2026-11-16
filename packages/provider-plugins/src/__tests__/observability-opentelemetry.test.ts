@@ -257,8 +257,8 @@ test("an outbound failure exports ERROR status, error.type and an exception even
   const [span] = finished(exporter);
   assert.equal(span.kind, SpanKind.CLIENT);
   assert.equal(span.status.code, SpanStatusCode.ERROR);
-  assert.equal(span.attributes["error.type"], "Error(ECONNREFUSED)");
-  assert.deepEqual(span.events.map((event) => [event.name, event.attributes?.["exception.type"]]), [["exception", "Error(ECONNREFUSED)"]]);
+  assert.equal(span.attributes["error.type"], "ECONNREFUSED");
+  assert.deepEqual(span.events.map((event) => [event.name, event.attributes?.["exception.type"]]), [["exception", "ECONNREFUSED"]]);
   assert.doesNotMatch(JSON.stringify(span.attributes), /hooks|s3cret/);
 });
 
