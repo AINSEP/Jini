@@ -91,7 +91,8 @@ describe('http adapter', () => {
       for (const word of ['synthetic', 'two words']) expect(output).not.toContain(word);
       expect(output).toContain('ECONNREFUSED');
       expect(output).toContain('Error(ECONNREFUSED)');
-      for (const word of ['UPSTREAM_FAILED', 'adapter.test.ts:']) expect(output).not.toContain(word);
+      expect(output).toContain('Error(ECONNREFUSED): UPSTREAM_FAILED');
+      expect(output).not.toContain('adapter.test.ts:');
       expect(output).toContain(body.error.requestId);
       expect(body.error.requestId).toEqual(expect.any(String));
       expect(res.status).toHaveBeenCalledWith(500);
@@ -116,8 +117,7 @@ describe('http adapter', () => {
       expect(body.error.requestId).toEqual(expect.any(String));
       const output = log.mock.calls.flat().map(String).join(' ');
       expect(output).toContain(body.error.requestId);
-      expect(output).not.toContain('UPSTREAM_FAILED');
-      expect(output).toContain(nonError ? 'string' : 'Error(ECONNREFUSED)');
+      expect(output).toContain(nonError ? 'string' : 'Error(ECONNREFUSED): UPSTREAM_FAILED');
       for (const value of [secret, 'abcdefghijklmnopqrst', 'hunter2']) expect(output).not.toContain(value);
       if (!nonError) expect(output).toContain('ECONNREFUSED');
     } finally { log.mockRestore(); }
@@ -133,8 +133,8 @@ describe('http adapter', () => {
       const res = makeRes();
       await app.handlers['GET /incident']?.({ body: {}, query: {}, params: {} }, res);
       const body = res.json.mock.calls[0]?.[0] as { error: { requestId: string } };
-      expect(consoleError.mock.calls).toEqual([[`[@jini-ai/http-kit] internal error (GET /incident, correlationId=${body.error.requestId})`, 'Error']]);
-      for (const text of ['boom', 'SECRETSECRET', 'adapter.test']) expect(JSON.stringify(consoleError.mock.calls)).not.toContain(text);
+      expect(consoleError.mock.calls).toEqual([[`[@jini-ai/http-kit] internal error (GET /incident, correlationId=${body.error.requestId})`, 'Error: boom api_key=[REDACTED:labeled_secret]']]);
+      for (const text of ['SECRETSECRET', 'adapter.test']) expect(JSON.stringify(consoleError.mock.calls)).not.toContain(text);
       const onInternalError = vi.fn();
       const hosted = makeApp();
       mountJsonRoute({ app: hosted, spec: route, deps: {}, adapter: { ...adapter, onInternalError } });

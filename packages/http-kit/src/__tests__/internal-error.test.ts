@@ -41,19 +41,18 @@ describe('reportRouteInternalError', () => {
     expect(lines[0]).toContain('internal-error.test.ts');
   });
 
-  it('logs only the error class and request ID when the host gives no sink (the message can quote input)', () => {
+  it('logs the error class, redacted message and request ID when the host gives no sink', () => {
     const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const apiError = reportRouteInternalError({
       report: { source: 'tool-catalog', error: new TypeError('boom api_key=SECRETSECRETSECRETSECRET') }, logSource: 'tool-catalog', message: MESSAGE,
     });
     const line = logged.mock.calls.map(args => args.join(' ')).join('\n');
-    expect(line).toBe(`[@jini-ai/http-kit] internal error (tool-catalog, correlationId=${apiError.requestId}) TypeError`);
-    expect(line).not.toContain('boom');
+    expect(line).toBe(`[@jini-ai/http-kit] internal error (tool-catalog, correlationId=${apiError.requestId}) TypeError: boom api_key=[REDACTED:labeled_secret]`);
     expect(line).not.toContain('internal-error.test.ts');
     expect(line).not.toContain('SECRETSECRET');
   });
 
-  it('keeps the answer and logs the class of the original error and of the sink failure when the host sink throws', () => {
+  it('keeps the answer and logs the original error and the sink failure (class + redacted message) when the host sink throws', () => {
     const logged = vi.spyOn(console, 'error').mockImplementation(() => undefined);
     const apiError = reportRouteInternalError(
       { report: { source: 'stream', error: new Error('original api_key=SECRETSECRETSECRETSECRET') }, logSource: 'frontend-sessions:stream', message: MESSAGE },
@@ -61,10 +60,8 @@ describe('reportRouteInternalError', () => {
     );
     expect(apiError.message).toBe(MESSAGE);
     const line = logged.mock.calls.map(args => args.join(' ')).join('\n');
-    expect(line).toContain(`internal error (frontend-sessions:stream, correlationId=${apiError.requestId}) Error`);
-    expect(line).toContain(`internal error sink failed (frontend-sessions:stream, correlationId=${apiError.requestId}) Error`);
-    expect(line).not.toContain('original');
-    expect(line).not.toContain('sink down');
+    expect(line).toContain(`internal error (frontend-sessions:stream, correlationId=${apiError.requestId}) Error: original api_key=[REDACTED:labeled_secret]`);
+    expect(line).toContain(`internal error sink failed (frontend-sessions:stream, correlationId=${apiError.requestId}) Error: sink down password=[REDACTED:labeled_secret]`);
     expect(line).not.toContain('SECRETSECRET');
     expect(line).not.toContain('hunter2hunter2');
   });
