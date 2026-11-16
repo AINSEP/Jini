@@ -82,6 +82,6 @@ test("unserialisable schema values are rejected instead of sharing a null finger
 test("host approvals and plugin digests use the same canonical preimage", async () => {
   const args = ['g3-approval-v2', identity.connectionId, ['roster', 'revision-1'], identity.remoteName,
     identity.declaredAnnotations, identity.description, identity.inputSchema];
-  assert.equal(await canonicalArgumentDigest({ args }), expected);
+  assert.equal(await canonicalArgumentDigest({ args, crypto: globalThis.crypto }), expected);
   assert.equal(federatedToolApprovalFingerprint({ identity, fingerprintDomain: 'g3-approval-v2' }), expected);
 });

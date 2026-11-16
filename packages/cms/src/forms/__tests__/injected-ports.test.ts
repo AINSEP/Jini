@@ -1,3 +1,4 @@
+import { webcrypto } from "node:crypto";
 import assert from "node:assert/strict";
 import { expect, test, vi } from "vitest";
 import { createConsoleLogger } from "@jini-ai/core/primitives";
@@ -25,7 +26,7 @@ function setup() {
   const input = { workspaceId: "workspace", actor: { id: "user", kind: "user" as const },
     name: "Contact", slug: "new", fields: [{ id: "name", label: "Name", type: "text" as const, required: true }] };
   const submitDeps = {
-    definitionRepo, submissionRepo, clock, idGen, outbox: new InMemoryOutbox(),
+    definitionRepo, submissionRepo, clock, idGen, crypto: webcrypto, outbox: new InMemoryOutbox(),
     rateLimiter: { check: vi.fn(async (_required: { key: string }) => ({ allowed: true as const })) },
     dispatcher: { dispatch: vi.fn(async () => {}) }, logger: { warn: vi.fn() },
   };

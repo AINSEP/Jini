@@ -1,3 +1,4 @@
+import { webcrypto } from "node:crypto";
 import { toDefinitionRecord, toDefinitionRow, type FormDefinitionRow } from "../../sql/repo.rows.js";
 import type { RateLimiterPort } from "../../index.js";
 import assert from "node:assert/strict";
@@ -20,7 +21,7 @@ function harness() {
   const idGen = { newId: () => `html-${++counter}` };
   const writeDeps = { repo, clock, idGen, executeCommand, changeSets: new InMemoryChangeSetRepo(), authorize: async () => ({ allowed: true, reason: "ok" }) };
   const submissions = new InMemoryFormSubmissionRepo();
-  const submitDeps = { definitionRepo: repo, submissionRepo: submissions, clock, idGen, outbox: new InMemoryOutbox(), bus: new InMemoryEventBus(), rateLimiter: { check: async (_required: { key: string }) => ({ allowed: true }) } as RateLimiterPort };
+  const submitDeps = { definitionRepo: repo, submissionRepo: submissions, clock, idGen, crypto: webcrypto, outbox: new InMemoryOutbox(), bus: new InMemoryEventBus(), rateLimiter: { check: async (_required: { key: string }) => ({ allowed: true }) } as RateLimiterPort };
   return { repo, submissions, writeDeps, submitDeps };
 }
 const target = { workspaceId: "ws", actor: { id: "owner", kind: "user" as const } };

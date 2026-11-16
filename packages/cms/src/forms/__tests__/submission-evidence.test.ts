@@ -1,3 +1,4 @@
+import { webcrypto } from "node:crypto";
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
 import { test } from 'vitest';
@@ -15,7 +16,7 @@ const definition: FormDefinitionRecord & { html?: string } = {
 
 test('captures immutable labels, options and exact consent before definitions change', async () => {
   const source = structuredClone(definition);
-  const evidence = await captureSubmissionEvidence({definition:source,capturedAt:'2026-11-05T18:00:00.000Z',source:'native'});
+  const evidence = await captureSubmissionEvidence({crypto:webcrypto,definition:source,capturedAt:'2026-11-05T18:00:00.000Z',source:'native'});
   const schema = submissionEvidenceSchema({definition});
   assert.equal(evidence.schemaHash, createHash('sha256').update(canonicalJson({value:schema})).digest('hex'));
   source.fields[0]!.label='Changed'; source.fields[0]!.options![0]!.label='Changed'; source.fields[1]!.label='Changed consent'; source.html='New prose';
@@ -23,11 +24,11 @@ test('captures immutable labels, options and exact consent before definitions ch
   assert.equal(evidence.fields[0]!.options![0]!.label,'Original option');
   assert.deepEqual(evidence.consent,[{fieldId:'accept',wording:'I agree to the original terms',helpText:'Original privacy notice'}]);
   assert.equal(evidence.html,definition.html);
-  assert.notEqual((await captureSubmissionEvidence({definition:source,capturedAt:'later',source:'native'})).schemaHash,evidence.schemaHash);
+  assert.notEqual((await captureSubmissionEvidence({crypto:webcrypto,definition:source,capturedAt:'later',source:'native'})).schemaHash,evidence.schemaHash);
 });
 
 test('SQL envelope retains captured evidence separately from colliding visitor field names', async () => {
-  const evidence=await captureSubmissionEvidence({definition,capturedAt:'now',source:'cloudflare'});
+  const evidence=await captureSubmissionEvidence({crypto:webcrypto,definition,capturedAt:'now',source:'cloudflare'});
   const record:FormSubmissionRecord={id:'s',workspaceId:'w',formDefinitionId:'f',data:{evidence:'visitor evidence',validation:'visitor validation'},sourceIp:null,submittedAt:'now',evidence};
   const row=toSubmissionRow(record);
   const decoded=toSubmissionRecord({...row,version:1,deleted_at:null} as never);

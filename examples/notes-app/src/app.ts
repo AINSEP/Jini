@@ -117,7 +117,7 @@ export async function registerNotesApp({ app, kernel }: { app: Server; kernel: A
       await submitForm({
         deps: {
           definitionRepo, submissionRepo, outbox: ports.outbox, dispatcher: ports.dispatcher, logger: ports.logger,
-          clock: ports.clock, idGen: ports.idGen, rateLimiter: ports.rateLimiter, transaction: (work) => kernel.transaction(work),
+          clock: ports.clock, idGen: ports.idGen, crypto: globalThis.crypto, rateLimiter: ports.rateLimiter, transaction: (work) => kernel.transaction(work),
         },
         input: { workspaceId: WORKSPACE_ID, slug: params.slug ?? '', body, sourceIp },
       });

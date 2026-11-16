@@ -1,3 +1,4 @@
+import { webcrypto } from "node:crypto";
 import assert from "node:assert/strict";
 import { test } from "vitest";
 
@@ -44,7 +45,7 @@ function makeDeps() {
   const warnings: unknown[] = [];
   const logger = { warn: (args: unknown) => { warnings.push(args); } };
   const dispatcher = { async dispatch() { const events = outbox.events.splice(0); for (const event of events) await bus.publish(event); } };
-  return { definitionRepo, submissionRepo, outbox, bus, clock, idGen, rateLimiter, dispatcher, logger, warnings };
+  return { definitionRepo, submissionRepo, outbox, bus, clock, idGen, crypto: webcrypto, rateLimiter, dispatcher, logger, warnings };
 }
 
 test("submitForm: AC-07/REQ-05 — accepts a valid submission to an active form", async () => {

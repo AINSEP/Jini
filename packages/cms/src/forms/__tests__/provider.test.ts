@@ -1,3 +1,4 @@
+import { webcrypto } from "node:crypto";
 import { test, expect } from 'vitest';
 import { createFormCollectionRegistry, resolveFormCollectionPlan, describeFormCollectionProviders } from '../provider.js';
 import { encodeFormFields, decodeFormFields } from '../fields-json.js';
@@ -53,7 +54,7 @@ test('widget resolves the plan from the host registry and reports inactive provi
   const record = { id: 'contact', status: 'active', ...definition };
   const providers = createFormCollectionRegistry({});
   providers.contribute({ pluginId: 'test', definition: { id: 'formspree', provider: { plan: () => external } } });
-  const deps = { formDefinitionRepo: { findById: async () => record, findBySlug: async () => record } };
+  const deps = { crypto: webcrypto, formDefinitionRepo: { findById: async () => record, findBySlug: async () => record } };
   const instance = { id: 'widget', widgetType: 'contact-form' as const, config: { formDefinitionId: 'contact' } };
   const context = { workspaceId: 'ws', preview: false };
   const result = (await createContactFormResolver({ ...deps, formCollectionProviders: () => providers }).resolveMany([instance], context)).get('widget');
