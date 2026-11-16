@@ -13,6 +13,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { flag, parseCliArgs, runIfMain, text } from "./lib/script-cli.mjs";
+import { errorClassLabel } from "./lib/diagnostic-labels.mjs";
 
 // Unknown arguments are ignored (historical behaviour of this script).
 const ARG_SPEC = {
@@ -226,7 +227,7 @@ function scaffold(args, io) {
   try {
     enrich(dna, flattenRecon(JSON.parse(io.fs.readFileSync(path.resolve(io.cwd(), args.recon), "utf8"))));
   } catch (e) {
-    io.warn(`⚠️ 读 recon 失败(${e.message})，只输出空骨架。`);
+    io.warn(`⚠️ 读 recon 失败(${errorClassLabel({ error: e })})，只输出空骨架。`);
   }
   return dna;
 }
@@ -259,7 +260,7 @@ export function main({ argv }, deps = {}) {
   try {
     code = run(argv, io);
   } catch (e) {
-    io.error(`dna-scaffold 失败: ${e.message}`);
+    io.error(`dna-scaffold 失败: ${errorClassLabel({ error: e })}`);
   }
   return code;
 }

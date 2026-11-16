@@ -5,6 +5,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { flag, parseCliArgs, rejectUnknown, runIfMain, text } from "./lib/script-cli.mjs";
+import { errorClassLabel } from "./lib/diagnostic-labels.mjs";
+import { CliUsageError } from "./lib/main-guard.mjs";
 
 export function usage(log) {
   log(`Usage:
@@ -290,7 +292,7 @@ export function main({ argv }, deps = {}) {
   try {
     code = compare(argv, io);
   } catch (error) {
-    io.error(`compare-recon failed: ${error.message}`);
+    io.error(`compare-recon failed: ${error instanceof CliUsageError ? error.message : errorClassLabel({ error })}`);
   }
   return code;
 }

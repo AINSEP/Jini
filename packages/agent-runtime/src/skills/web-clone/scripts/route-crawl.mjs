@@ -4,7 +4,8 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { loadPlaywright, launchChromium } from "./lib/playwright-loader.mjs";
 import { HELP_OPTIONS, num, parseCliArgs, text } from "./lib/cli-args.mjs";
-import { runCli, runIfMain } from "./lib/main-guard.mjs";
+import { CliUsageError, runCli, runIfMain } from "./lib/main-guard.mjs";
+import { errorClassLabel } from "./lib/diagnostic-labels.mjs";
 import { trimDashes } from "./lib/trim-dashes.mjs";
 
 // Hard dependencies are ports with real defaults wired here at the CLI edge;
@@ -188,7 +189,7 @@ async function visit(page, current, crawl) {
     });
     enqueueLinks(data.links, current, crawl);
   } catch (error) {
-    crawl.skipped.push({ url: current.url, reason: error.message });
+    crawl.skipped.push({ url: current.url, reason: errorClassLabel({ error }) });
   } finally {
     page.off("console", onConsole);
   }
@@ -214,7 +215,7 @@ async function crawlRoutes(page, crawl) {
 
 async function crawlSite(args, deps) {
   const startUrl = normalizeUrl(args.url, args.url);
-  if (!startUrl) throw new Error(`Invalid URL: ${args.url}`);
+  if (!startUrl) throw new CliUsageError("Invalid --url: pass an absolute http(s) URL.");
 
   const outDir = path.resolve(args.outDir);
   const dirs = { outDir, screenshotsDir: path.join(outDir, "screenshots") };

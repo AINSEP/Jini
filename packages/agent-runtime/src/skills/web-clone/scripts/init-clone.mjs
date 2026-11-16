@@ -6,6 +6,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { flag, parseCliArgs, rejectUnknown, runIfMain, text } from "./lib/script-cli.mjs";
 import { trimDashes } from "./lib/trim-dashes.mjs";
+import { errorClassLabel } from "./lib/diagnostic-labels.mjs";
+import { CliUsageError } from "./lib/main-guard.mjs";
 
 export function usage(log) {
   log(`Usage:
@@ -122,13 +124,13 @@ function init(argv, io) {
   }
 
   const slug = cleanSlug(args.slug);
-  if (!slug) throw new Error("Slug is empty after normalization.");
+  if (!slug) throw new CliUsageError("Slug is empty after normalization.");
   const name = slug.endsWith("-clone") ? slug : `${slug}-clone`;
   const root = path.resolve(io.cwd(), args.root);
   const project = args.inPlace ? root : path.join(root, name);
 
   if (!args.inPlace && io.fs.existsSync(project)) {
-    throw new Error(`Project already exists: ${project}`);
+    throw new CliUsageError(`Project already exists: ${project}`);
   }
 
   io.fs.mkdirSync(path.join(project, "RECON", "screenshots"), { recursive: true });
@@ -147,7 +149,7 @@ export function main({ argv }, deps = {}) {
   try {
     code = init(argv, io);
   } catch (error) {
-    io.error(`init-clone failed: ${error.message}`);
+    io.error(`init-clone failed: ${error instanceof CliUsageError ? error.message : errorClassLabel({ error })}`);
   }
   return code;
 }

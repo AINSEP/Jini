@@ -4,6 +4,7 @@ import path from "node:path";
 import { loadPlaywright, launchChromium } from "./lib/playwright-loader.mjs";
 import { HELP_OPTIONS, num, parseCliArgs, text } from "./lib/cli-args.mjs";
 import { runCli, runIfMain } from "./lib/main-guard.mjs";
+import { errorClassLabel } from "./lib/diagnostic-labels.mjs";
 
 // Hard dependencies are ports with real defaults wired here at the CLI edge;
 // tests pass fakes (no real browser, captured output, fixed clock).
@@ -410,7 +411,7 @@ async function captureWidth(browser, args, width, consoleState, dirs) {
     if (message.type() === "warning") consoleState.warnings.push(entry);
   });
   page.on("pageerror", (error) => {
-    consoleState.pageErrors.push({ message: error.message, viewport: width });
+    consoleState.pageErrors.push({ message: errorClassLabel({ error }), viewport: width });
   });
 
   await page.goto(args.url, { waitUntil: "domcontentloaded", timeout: 45000 });

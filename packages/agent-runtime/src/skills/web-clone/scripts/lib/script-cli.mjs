@@ -1,5 +1,6 @@
 import fs from "node:fs";
 import { pathToFileURL } from "node:url";
+import { CliUsageError } from "./main-guard.mjs";
 
 // Shared CLI plumbing for the web-clone scripts (asset-harvest, audit-clone,
 // compare-recon, dna-scaffold, init-clone). Each script exports its logic and
@@ -59,7 +60,7 @@ export const flag = (key) => ({ key, read: null });
 
 /** Unknown-argument policy shared by the strict scripts. */
 export function rejectUnknown(arg) {
-  throw new Error(`Unexpected argument: ${arg}`);
+  throw new CliUsageError(`Unexpected argument: ${arg}`);
 }
 
 /**

@@ -4,6 +4,7 @@ import path from "node:path";
 import crypto from "node:crypto";
 import { HELP_OPTIONS, parseCliArgs, text } from "./lib/cli-args.mjs";
 import { runCli, runIfMain } from "./lib/main-guard.mjs";
+import { errorClassLabel } from "./lib/diagnostic-labels.mjs";
 
 // fs / fetch / output are ports with real defaults wired here at the CLI edge.
 const DEFAULT_DEPS = { fs, fetch: globalThis.fetch, log: console.log, error: console.error };
@@ -83,7 +84,7 @@ async function huntScript(scriptUrl, outDir, deps) {
     }
   } catch (error) {
     entry.status = "error";
-    entry.error = error.message;
+    entry.error = errorClassLabel({ error });
   }
   return entry;
 }

@@ -34,6 +34,7 @@ import crypto from "node:crypto";
 import { loadPlaywright, launchChromium } from "./lib/playwright-loader.mjs";
 import { flag, list, parseCliArgs, rejectUnknown, runIfMain, text } from "./lib/script-cli.mjs";
 import { replaceCssUrls } from "./lib/css-url.mjs";
+import { CliUsageError } from "./lib/main-guard.mjs";
 import { assetId, errorClassLabel, hostLabel } from "./lib/diagnostic-labels.mjs";
 
 export function usage(log) {
@@ -348,7 +349,7 @@ async function harvest(argv, io, session) {
   }
   const recon = loadRecon(args, io);
   const pageUrl = args.url || recon?.url;
-  if (!pageUrl) throw new Error("need --url or a recon JSON with a url");
+  if (!pageUrl) throw new CliUsageError("need --url or a recon JSON with a url");
   const outDir = path.resolve(io.cwd(), args.outDir);
 
   const { entries, get } = await collectCandidates({ args, recon, pageUrl, io, session });
@@ -391,7 +392,7 @@ export async function main({ argv }, deps = {}) {
   const io = { ...DEFAULT_DEPS, ...deps };
   const session = { browser: null };
   const code = await harvest(argv, io, session).catch((error) => {
-    io.error(`asset-harvest failed: ${error.message}`);
+    io.error(`asset-harvest failed: ${error instanceof CliUsageError ? error.message : errorClassLabel({ error })}`);
     return 1;
   });
   if (session.browser) await session.browser.close();

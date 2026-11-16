@@ -3,6 +3,8 @@
 // per-flag fallbacks ("--wait" with no value → the default) stay identical
 // to the hand-written parsers they replace while keeping each script small.
 
+import { CliUsageError } from "./main-guard.mjs";
+
 /**
  * Parse `argv` against an option table.
  *
@@ -30,7 +32,7 @@ function applyArg({ out, argv, i, options, strict }) {
   // Own-property lookup only: "constructor"/"__proto__" are not flags.
   const option = Object.hasOwn(options, arg) ? options[arg] : undefined;
   if (!option) {
-    if (strict) throw new Error(`Unexpected argument: ${arg}`);
+    if (strict) throw new CliUsageError(`Unexpected argument: ${arg}`);
     return 1;
   }
   if (option.flag) {

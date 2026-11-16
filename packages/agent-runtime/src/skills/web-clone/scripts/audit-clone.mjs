@@ -5,6 +5,8 @@
 import fs from "node:fs";
 import path from "node:path";
 import { flag, list, parseCliArgs, rejectUnknown, runIfMain, text as textValue } from "./lib/script-cli.mjs";
+import { errorClassLabel } from "./lib/diagnostic-labels.mjs";
+import { CliUsageError } from "./lib/main-guard.mjs";
 
 export function usage(log) {
   log(`Usage:
@@ -260,7 +262,7 @@ function audit(argv, io) {
     return 0;
   }
   const project = path.resolve(io.cwd(), args.project);
-  if (!io.fs.existsSync(project)) throw new Error(`Project not found: ${project}`);
+  if (!io.fs.existsSync(project)) throw new CliUsageError(`Project not found: ${project}`);
 
   const checks = buildChecks(args.brand);
   const files = walk(project, io.fs);
@@ -289,7 +291,7 @@ export function main({ argv }, deps = {}) {
   try {
     code = audit(argv, io);
   } catch (error) {
-    io.error(`audit-clone failed: ${error.message}`);
+    io.error(`audit-clone failed: ${error instanceof CliUsageError ? error.message : errorClassLabel({ error })}`);
   }
   return code;
 }

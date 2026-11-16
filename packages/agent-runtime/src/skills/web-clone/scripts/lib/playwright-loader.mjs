@@ -1,5 +1,6 @@
 import path from "node:path";
 import { createRequire } from "node:module";
+import { CliUsageError } from "./main-guard.mjs";
 
 // Resolve Playwright from wherever it can actually be found:
 //   1. relative to this script (covers a checkout that has its own dep);
@@ -32,7 +33,7 @@ export function loadPlaywright({
       // Try next candidate.
     }
   }
-  throw new Error(
+  throw new CliUsageError(
     "Playwright not found. Fix (run in the project root, once per project):\n" +
       "  npm install -D playwright\n" +
       "Then re-run this script. If launch later fails with a missing-browser " +

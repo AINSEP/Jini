@@ -6,6 +6,7 @@ import { loadPlaywright, launchChromium } from "./lib/playwright-loader.mjs";
 import { HELP_OPTIONS, num, parseCliArgs, text } from "./lib/cli-args.mjs";
 import { runCli, runIfMain } from "./lib/main-guard.mjs";
 import { trimDashes } from "./lib/trim-dashes.mjs";
+import { errorClassLabel } from "./lib/diagnostic-labels.mjs";
 
 // Hard dependencies are ports with real defaults wired here at the CLI edge.
 const DEFAULT_DEPS = { fs, loadPlaywright, launchChromium, log: console.log, error: console.error, now: () => new Date() };
@@ -71,7 +72,7 @@ async function saveFixture(response, entry, args, dirs, deps) {
       entry.error = `body too large: ${body.length}`;
     }
   } catch (error) {
-    entry.error = error.message;
+    entry.error = errorClassLabel({ error });
   }
 }
 

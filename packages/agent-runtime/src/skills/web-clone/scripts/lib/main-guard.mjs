@@ -4,6 +4,14 @@
 
 import fs from "node:fs";
 import { pathToFileURL } from "node:url";
+import { errorClassLabel } from "./diagnostic-labels.mjs";
+
+/**
+ * An argument or setup error whose message is fixed words the script wrote (what is wrong and what
+ * to do), so it is printed as is. Any other error prints its class only: its text can quote a page,
+ * a file or a credential.
+ */
+export class CliUsageError extends Error {}
 
 /**
  * True when `moduleUrl` is the file Node was asked to run (`argv1`).
@@ -43,7 +51,7 @@ export async function runIfMain({ moduleUrl, main }, { argv = process.argv, real
 }
 
 /**
- * Run a CLI body, reporting a thrown error as `<label> failed: <message>`
+ * Run a CLI body, reporting a thrown error as `<label> failed: <usage text or error class>`
  * and mapping it to exit code 1 (the scripts' historical contract).
  * @returns {Promise<number>} the body's exit code, or 1 on error.
  */
@@ -52,7 +60,7 @@ export async function runCli({ label, body, report }) {
   try {
     code = await body();
   } catch (error) {
-    report(`${label} failed: ${error.message}`);
+    report(`${label} failed: ${error instanceof CliUsageError ? error.message : errorClassLabel({ error })}`);
   }
   return code;
 }
