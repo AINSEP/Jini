@@ -1,12 +1,12 @@
 import type { AgentToolDefinition, HumanConfirmer, LegacyToolAuthorizeFn, ToolExecutionContext, ToolExecutionOptions, ToolHandler, ToolMetadataById, AccessApprovalResource } from '@jini-ai/core';
 import type { Clock } from '@jini-ai/core/primitives';
 import type { ModelFacingErrorRule } from '@jini-ai/core/model-facing-tool-errors';
-import { type PluginActivationRecord, type PluginActivationRepoPort } from '../activation.js';
-import { type PluginConflict } from '../plugin-claims.js';
-import { type RemovePluginFn, type PluginUninstallPreview } from '../uninstall.js';
-import { type PluginDiscoveryRecord } from '../discovery-types.js';
-import { type PluginInstallInput, type PluginInstallerPort, type PluginInstallPreview } from '../node/install.js';
-import { type PluginSourcePort } from '../node/source-drafts.js';
+import type { PluginActivationRecord, PluginActivationRepoPort } from '../activation.js';
+import type { PluginConflict } from '../plugin-claims.js';
+import type { RemovePluginFn, PluginUninstallPreview } from '../uninstall.js';
+import type { PluginDiscoveryRecord } from '../discovery-types.js';
+import type { PluginInstallInput, PluginInstallerPort, PluginInstallPreview } from '../node/install.js';
+import type { PluginSourcePort } from '../node/source-drafts.js';
 
 export type PluginFamily = 'site-runtime' | 'agent-plugin';
 export interface SetEnabledRequest {
