@@ -1,4 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import * as CoreRoot from '@jini-ai/core';
+import * as CoreNet from '@jini-ai/core/net';
+import * as CoreServer from '@jini-ai/core/contracts/server';
 import * as HttpBarrel from '../index.js';
 
 /**
@@ -20,19 +23,25 @@ describe('@jini-ai/http-kit barrel', () => {
     ['10.0.0.1', false],
     ['', false],
   ])('preserves the public loopback hostname result for %s', (hostname, expected) => {
-    expect(HttpBarrel.isLoopbackHostname({ hostname })).toBe(expected);
+    expect(CoreNet.isLoopbackHostname({ hostname })).toBe(expected);
   });
 
-  it('re-exports the Result helpers', () => {
-    expect(typeof HttpBarrel.ok).toBe('function');
-    expect(typeof HttpBarrel.err).toBe('function');
+  // No shells: names that moved to core are imported from core, never re-exported here.
+  it('leaves the moved Result helpers, origin predicates, loopback predicate and SSE cap to core', () => {
+    const moved = ['isLoopbackHostname', 'ok', 'err', 'isLocalSameOrigin', 'isAllowedBrowserOrigin', 'allowedBrowserPorts', 'configuredAllowedOrigins', 'DEFAULT_MAX_QUEUED_SSE_EVENTS'];
+    expect(moved.filter((name) => name in HttpBarrel)).toEqual([]);
   });
 
-  it('re-exports the origin-validation predicates, including the same-origin guard', () => {
-    expect(typeof HttpBarrel.isLocalSameOrigin).toBe('function');
-    expect(typeof HttpBarrel.isAllowedBrowserOrigin).toBe('function');
-    expect(typeof HttpBarrel.allowedBrowserPorts).toBe('function');
-    expect(typeof HttpBarrel.configuredAllowedOrigins).toBe('function');
+  it('the Result helpers live in core/contracts/server', () => {
+    expect(typeof CoreServer.ok).toBe('function');
+    expect(typeof CoreServer.err).toBe('function');
+  });
+
+  it('the origin-validation predicates, including the same-origin guard, live in core', () => {
+    expect(typeof CoreRoot.isLocalSameOrigin).toBe('function');
+    expect(typeof CoreRoot.isAllowedBrowserOrigin).toBe('function');
+    expect(typeof CoreRoot.allowedBrowserPorts).toBe('function');
+    expect(typeof CoreRoot.configuredAllowedOrigins).toBe('function');
   });
 
   it('re-exports the pack-http registrar', () => {
@@ -54,7 +63,7 @@ describe('@jini-ai/http-kit barrel', () => {
     expect(typeof HttpBarrel.createSseChannel).toBe('function');
     expect(typeof HttpBarrel.requestedAfterCursor).toBe('function');
     expect(typeof HttpBarrel.sendRawApiError).toBe('function');
-    expect(HttpBarrel.DEFAULT_MAX_QUEUED_SSE_EVENTS).toBe(1000);
+    expect(CoreServer.DEFAULT_MAX_QUEUED_SSE_EVENTS).toBe(1000);
   });
 
   it('re-exports the raw SSE primitive used by run-stream mounting (a distinct mechanism from createSseChannel)', () => {
