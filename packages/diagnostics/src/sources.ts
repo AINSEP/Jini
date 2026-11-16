@@ -1,4 +1,5 @@
 import type { Clock } from "@jini-ai/core/primitives";
+import { describeErrorForLog } from "@jini-ai/core";
 import type { DiagnosticsFilesystemPort, DiagnosticsSystemPort } from "./ports.js";
 import type { CollectedFile } from "./types.js";
 export type { CollectedFile } from "./types.js";
@@ -37,7 +38,7 @@ export async function collectLogSource(
       absolutePath: source.absolutePath,
       content: null,
       bytes: 0,
-      error: error instanceof Error ? error.message : String(error),
+      error: describeErrorForLog({ err: error }),
     };
   }
 }

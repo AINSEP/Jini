@@ -1,5 +1,6 @@
 import type { ObservabilityConfigEnabled } from './config.js';
 import type { AgentRunStatus, ExporterFactory, TracerProviderFactory, ObservabilityPort, SpanScopePort, TraceSpanKind, TraceSpanPort, TracerPort } from './ports.js';
+import { describeErrorForLog } from '@jini-ai/core';
 import { redactSecretShapes } from '../core/secrets-only.js';
 export interface OtelAdapterDependencies {
  config: ObservabilityConfigEnabled; exporterFactory: ExporterFactory; tracerProviderFactory: TracerProviderFactory;
@@ -7,17 +8,14 @@ export interface OtelAdapterDependencies {
 export interface OtelAdapterOptions { scope?: SpanScopePort; }
 type Attributes = Record<string, string | number>;
 
-/** A low-cardinality error label: a SCREAMING_CASE code (ECONNREFUSED, SQLITE_BUSY), else the class
- * name. Messages are never exported: they carry SQL fragments, hostnames, emails, even credentials.
- * Both `error.code` and `Error.name` are writable secret channels (review 2026-10-25 #2):
- * select the label, then redact and cap it
- * to {@link MAX_ERROR_TYPE} (redact first: a cut could leave a secret prefix too short to match). */
-function fallbackErrorLabel(error: unknown): string {
- return error instanceof Error ? String(error.name) : typeof error;
-}
-export function errorType(error: unknown): string {
- const code = (error as { code?: unknown } | null)?.code;
- const label = typeof code === 'string' && /^[A-Z][A-Z0-9_]{1,63}$/.test(code) ? code : fallbackErrorLabel(error);
+/** A low-cardinality error label: the class and an approved code from `describeErrorForLog`
+ * (`TypeError`, `Error(ECONNREFUSED)`), without its `cause=` part. Messages are never exported:
+ * they carry SQL fragments, hostnames, emails, even credentials. Both `error.code` and `Error.name`
+ * are writable secret channels (review 2026-10-25 #2), so the describer prints neither raw; the label
+ * is still redacted and capped to {@link MAX_ERROR_TYPE} (redact first: a cut could leave a secret
+ * prefix too short to match). */
+export function errorType({ error }: { error: unknown }, _optional: Record<string, never> = {}): string {
+ const label = describeErrorForLog({ err: error }).split(' cause=')[0] ?? '';
  return redactLabel(label).slice(0, MAX_ERROR_TYPE) || 'Error';
 }
 
@@ -156,7 +154,7 @@ export function createOtelObservabilityPort({ config, exporterFactory, tracerPro
     const op = operation.toUpperCase();
     span.updateName({ name: table ? `${op} ${table}` : op });
     finish({ span, attributes: { 'db.operation.name': op, ...(table ? { 'db.collection.name': table } : {}) } },
-     error !== undefined ? { failure: errorType(error), error } : {});
+     error !== undefined ? { failure: errorType({ error }), error } : {});
    }) };
   },
   trackOutboundCall({ method, url }) {
@@ -165,7 +163,7 @@ export function createOtelObservabilityPort({ config, exporterFactory, tracerPro
    return { run: runIn(span), end: once(({ statusCode, error }) => {
     const attributes = statusCode !== undefined ? { 'http.response.status_code': statusCode } : {};
     if (error !== undefined) {
-     finish({ span, attributes }, { failure: errorType(error), error });
+     finish({ span, attributes }, { failure: errorType({ error }), error });
      return;
     }
     // Client-span semantics: a 4xx is this caller's failure, unlike a server span's 4xx.
@@ -185,7 +183,7 @@ export function createOtelObservabilityPort({ config, exporterFactory, tracerPro
     // short root span. Type only, never the message: the same export rule errorType documents.
     const active = scope?.active();
     const span = active ?? start({ name: `error ${context.operation}`, kind: 'internal', attributes: redactOperationAttributes({ attributes: context.attributes ?? {} }) }, { root: true });
-    const type = errorType(error);
+    const type = errorType({ error });
     span.addEvent({ name: 'exception', attributes: { 'exception.type': type, 'operation.name': context.operation } });
     span.setAttribute({ name: 'error.type', value: type });
     span.setStatus({ code: 'error', description: type });
@@ -206,7 +204,7 @@ export function createOtelObservabilityPort({ config, exporterFactory, tracerPro
    return { run: runIn(span), end: once(({ status, error }) => {
     const attributes = { 'agent.run.status': status };
     if (error !== undefined) {
-     finish({ span, attributes }, { failure: errorType(error), error });
+     finish({ span, attributes }, { failure: errorType({ error }), error });
      return;
     }
     finish({ span, attributes }, FAILED_RUN_STATUSES.has(status) ? { failure: status } : {});

@@ -25,7 +25,7 @@ function rawMessage({ error, type }: { error: unknown; type: string }): string {
  return typeof error === 'string' ? error : type;
 }
 export function describeReportedError({ error }: { error: unknown }, _options = {}): ReportedErrorDescription {
- const type = errorType(error);
+ const type = errorType({ error });
  const raw = rawMessage({ error, type });
  const stack = error instanceof Error && typeof error.stack === 'string'
   ? redact(error.stack).split('\n').slice(0, MAX_STACK_LINES).join('\n') : undefined;
