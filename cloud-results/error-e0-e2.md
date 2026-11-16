@@ -145,9 +145,9 @@ Changeset (patch): `error-id-one-owner` (core, daemon). The Tovu branch cannot i
 | Baseline, unmodified tree | Jini build exit 0; gate test 12 passed; `check:errors` 913 findings |
 | Jini `scripts/__tests__/check-error-gate.test.ts` | 103 passed |
 | Jini `scripts/__tests__/check-error-disclosure-callers.test.ts` | 5 passed |
-| Jini core, whole package | 2784 passed (run at `172f9b4c`). After `1a30b153` only `src/errors` was re-run: 71 passed |
+| Jini core, whole package | 2784 passed (run again at `1a30b153`, the last code commit) |
 | Jini daemon `src/tool-recovery` | 139 passed (29 before the move, in the two files that import the function) |
-| `pnpm guard` | ok. `pnpm -r typecheck` exit 0, 0 errors, and `tsc -p scripts/tsconfig.json` exit 0 (both at `172f9b4c`; core rebuilt clean after `1a30b153`) |
+| `pnpm guard` | ok (at `1a30b153`). `pnpm -r typecheck` exit 0, 0 errors (at `1a30b153`). `tsc -p scripts/tsconfig.json` exit 0 (at `172f9b4c`; no script changed after it) |
 | `check:size`, `check:complexity`, `check:log-safety` | pass |
 | `check:errors` (Jini) | 978 findings in 543 entries = the new baseline |
 | Tovu root `tsc` | 0 errors (2 before the repoint, both caused by the Jini move) |
