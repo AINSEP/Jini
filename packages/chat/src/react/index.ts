@@ -412,3 +412,6 @@ export type {
   AgentModelContextToolRegistration,
   AgentModelContextLike,
 } from './surfaces.js';
+
+// Hosts implement this to let the frontend session bridge forward page-control requests.
+export type { ChatPagePort } from '../core/page-port.js';
