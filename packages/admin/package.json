@@ -27,6 +27,7 @@
       "./react/bind-react": "browser",
       "./react/use-controller": "browser",
       "./react/overlays": "browser",
+      "./react/kit": "browser",
       "./media": "universal",
       "./media/react": "browser",
       "./media/adapters/http": "universal",
@@ -86,7 +87,8 @@
         "src/react/components/DataTable.tsx",
         "src/react/components/ConfirmDialog",
         "src/react/components/RowMenu",
-        "src/react/types.ts"
+        "src/react/types.ts",
+        "src/react/kit.tsx"
       ],
       "forbidden": {
         "universal": [
@@ -170,6 +172,11 @@
       "types": "./dist/react/overlays.d.ts",
       "import": "./dist/react/overlays.js",
       "default": "./dist/react/overlays.js"
+    },
+    "./react/kit": {
+      "types": "./dist/react/kit.d.ts",
+      "import": "./dist/react/kit.js",
+      "default": "./dist/react/kit.js"
     },
     "./media": {
       "types": "./dist/media/index.d.ts",
