@@ -1,5 +1,4 @@
-import { inspect } from 'node:util';
-import { redactSecrets } from '@jini-ai/core';
+import { describeErrorForLog } from '@jini-ai/core';
 import { createSystemClock, type Clock } from "@jini-ai/core/primitives";
 /**
  * @module @jini-ai/mcp/core/tokens
@@ -166,7 +165,7 @@ export async function readTokensFile({ dataDir }: { dataDir: string }, options: 
         filePath: `${tokensFile(dataDir)}.corrupt-${digest}`,
         contents: raw,
       });
-      console.error('[mcp-tokens] Corrupted JSON, returning empty:', redactSecrets({ input: inspect(e) }, { redactPii: false }));
+      console.error('[mcp-tokens] Corrupted JSON, returning empty:', describeErrorForLog({ err }));
       return { ...EMPTY, servers: { ...EMPTY.servers } };
     }
     throw err;

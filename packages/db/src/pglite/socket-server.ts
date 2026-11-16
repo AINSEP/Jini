@@ -7,6 +7,7 @@
 import { createServer as createNetServer } from "node:net";
 
 import type { PGlite } from "@electric-sql/pglite";
+import { describeErrorForLog } from "@jini-ai/core";
 
 /**
  * @file One PGlite served to several processes over a Unix socket, speaking the Postgres wire
@@ -390,7 +391,7 @@ export class PgliteSocketServer {
         resolve();
       });
     });
-    server.on("error", (error) => this.options.log?.(`socket server error: ${error.message}`));
+    server.on("error", (error) => this.options.log?.(`socket server error: ${describeErrorForLog({ err: error })}`));
   }
 
   /**

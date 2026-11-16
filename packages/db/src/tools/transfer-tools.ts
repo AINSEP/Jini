@@ -1,5 +1,5 @@
 import { readFile, unlink } from "node:fs/promises";
-import { createApprovalHandler, ToolInputError, type SurfaceEmission, type ToolExecutionContext, type ToolExecutionOptions, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
+import { createApprovalHandler, describeErrorForLog, ToolInputError, type SurfaceEmission, type ToolExecutionContext, type ToolExecutionOptions, type ToolHandler, type ToolRegistration } from "@jini-ai/core";
 import { countSourceRows, inspectTarget, runCopy, planTransfer, SourceSchemaMismatchError, IncompleteTransferPlanError, InvalidConnectionStringError, LEFT_OUT_REASON, type PostgresTargetPort, type TransferSource, type TargetDescription, type TransferNaming, type SnapshotTablePlan, type TransferPlanSource } from "../transfer/index.js";
 import { DOMAIN, PLAN_TOOL_ID, STATUS_TOOL_ID, RUN_PERMISSION, SNAPSHOT_SCOPE_ID, MIN_SERVER_VERSION_NUM, getDatabaseTransferAgentToolCatalog } from "./transfer-catalog.js";
 import { defaultDbMessages, type DbMessages, type DbTransferMessages } from "../core/messages.js";
@@ -90,14 +90,14 @@ async function captureSnapshot(deps: TransferExecutionPorts): Promise<{ ok: true
   try {
     ({ artifactRef } = await deps.ports.dbOps.captureRestorePoint({ scopeId: SNAPSHOT_SCOPE_ID }));
   } catch (err) {
-    log(deps, `snapshot failed: ${deps.ports.describeError(err)}`);
+    log(deps, `snapshot failed: ${describeErrorForLog({ err })}`);
     return { code: "DATABASE_SNAPSHOT_FAILED", message: "the site database could not be snapshotted; nothing was copied" };
   }
   let bytes: Buffer;
   try {
     bytes = await deps.files.readFile(artifactRef);
   } catch (err) {
-    log(deps, `snapshot read failed: ${deps.ports.describeError(err)}`);
+    log(deps, `snapshot read failed: ${describeErrorForLog({ err })}`);
     return { code: "DATABASE_SNAPSHOT_FAILED", message: "the site database snapshot could not be read; nothing was copied" };
   } finally {
     await deps.files.unlink(artifactRef).catch(() => undefined);
@@ -203,7 +203,7 @@ async function handlePlan(deps: TransferExecutionPorts, ctx: ToolExecutionContex
   let chatSnapshot: Buffer;
   try { chatSnapshot = await deps.ports.captureChatSnapshot(); }
   catch (error) {
-    log(deps, `chat snapshot failed: ${deps.ports.describeError(error)}`);
+    log(deps, `chat snapshot failed: ${describeErrorForLog({ err: error })}`);
     return { planned: false, code: "DATABASE_SNAPSHOT_FAILED", message: "the chat database could not be snapshotted; nothing was copied" };
   }
   const counted = countSnapshot(deps, snapshot.bytes, chatSnapshot);

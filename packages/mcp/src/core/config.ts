@@ -1,5 +1,4 @@
-import { inspect } from 'node:util';
-import { redactSecrets } from '@jini-ai/core';
+import { describeErrorForLog } from '@jini-ai/core';
 /**
  * @module @jini-ai/mcp/core/config
  * Config schema + on-disk store for the external MCP servers the daemon connects
@@ -240,7 +239,7 @@ export async function readMcpConfig({ dataDir }: { dataDir: string }, { filesyst
     const e = err as { code?: string; name?: string; message?: string };
     if (e.code === 'ENOENT') return { servers: [] };
     if (e.name === 'SyntaxError') {
-      console.error('[mcp-config] Corrupted JSON, returning empty:', redactSecrets({ input: inspect(e) }, { redactPii: false }));
+      console.error('[mcp-config] Corrupted JSON, returning empty:', describeErrorForLog({ err }));
       return { servers: [] };
     }
     throw err;

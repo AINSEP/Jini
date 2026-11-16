@@ -1,5 +1,4 @@
-import { inspect } from 'node:util';
-import { redactSecrets } from '@jini-ai/core';
+import { describeErrorForLog } from '@jini-ai/core';
 import { Kysely, PostgresDialect } from "kysely";
 
 import { PG_PARSERS } from "../../core/index.js";
@@ -33,7 +32,7 @@ export function openPostgresKernel<DB>(
   // An idle connection dropped by the server (restart, failover, pg_terminate_backend, a pooler's
   // idle cut) is evicted by the pool and reopened on next use; without a listener it would crash the
   // process.
-  pool.on("error", (err) => console.warn('[postgres] idle pool connection dropped:', redactSecrets({ input: inspect(err) }, { redactPii: false })));
+  pool.on("error", (err) => console.warn('[postgres] idle pool connection dropped:', describeErrorForLog({ err })));
   // Pool error listeners cover idle clients only. Session-owned workers hold a client for
   // longer, so absorb its error event while the next query rejects and stops that owner.
   const connected = new WeakSet<object>();
