@@ -1,5 +1,5 @@
 import { describe, it, expect, afterEach, vi } from 'vitest';
-import { render as renderController } from '../../../__tests__/fetch-query-support.js';
+import { render as renderController } from '@testing-library/react';
 import { render, screen, fireEvent, waitFor, cleanup, act, configure, testAdminKit } from '../../../__tests__/fetch-query-support.js';
 import { StrictMode, Suspense, createRef } from 'react';
 import { createAdmin } from '../../../core/module/index.js';
@@ -259,8 +259,8 @@ describe('media React slice', () => {
       });
       return null;
     }
-    // This controller has no query dependency. Mount StrictMode at the root so
-    // React 19 replays its effects, rather than beneath the query helper's provider.
+    // This controller needs no kit or query scope. Mount StrictMode at the root so
+    // React 19 replays its effects (it does not when StrictMode sits beneath a provider).
     const view = renderController(<Probe id={1} />, { wrapper: StrictMode });
     await waitFor(() => expect(created).toBe(2));
     expect(disposed).toEqual([1]);
