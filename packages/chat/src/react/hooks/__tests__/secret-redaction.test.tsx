@@ -1,4 +1,5 @@
-import { act, fireEvent, render, renderHook, screen } from '@testing-library/react';
+import { act, fireEvent, renderHook, screen } from '@testing-library/react';
+import { renderWithChatSurfaces } from '../../__tests__/fake-chat-surfaces.js';
 import { expect, it } from 'vitest';
 import { formatDroppedFolderPaths } from '@jini-ai/ui/core';
 import { useConversation } from '../useConversation.js';
@@ -77,7 +78,7 @@ it('sensitive question text is masked and no raw answer escapes submit or draft 
   const changes: unknown[] = [];
   const signals: unknown[] = [];
   const form = { id: 'f', title: 'Question', questions: [{ id: 'q', name: 'accessToken', label: 'Access', type: 'text' as const, defaultValue: 'model-prefill' }] };
-  const { container } = render(<QuestionForm form={form} interactive onDraftChange={answers => drafts.push(answers)} onAnswerChange={(_id, value) => changes.push(value)} onSecretRedacted={signal => signals.push(signal)} onSubmit={(text, answers) => calls.push({ text, answers })} />);
+  const { container } = renderWithChatSurfaces(<QuestionForm form={form} interactive onDraftChange={answers => drafts.push(answers)} onAnswerChange={(_id, value) => changes.push(value)} onSecretRedacted={signal => signals.push(signal)} onSubmit={(text, answers) => calls.push({ text, answers })} />);
   const input = container.querySelector('input')!;
   expect(input.type).toBe('password');
   expect(input.value).toBe('');
@@ -100,7 +101,7 @@ it('a secret text or textarea question gets the shared eye toggle, named from ch
     { id: 'j', name: 'serviceAccountSecret', label: 'Account JSON', type: 'textarea' as const },
   ] };
   const t = (key: string) => ({ Show: 'Mostrar', Hide: 'Ocultar' } as Record<string, string>)[key] ?? key;
-  const { container } = render(<JiniChatProvider transport={createFakeChatTransport()} i18n={{ locale: 'es', t }}><QuestionForm form={form} interactive onSubmit={() => undefined} /></JiniChatProvider>);
+  const { container } = renderWithChatSurfaces(<JiniChatProvider transport={createFakeChatTransport()} i18n={{ locale: 'es', t }}><QuestionForm form={form} interactive onSubmit={() => undefined} /></JiniChatProvider>);
   const input = container.querySelector('input')!;
   const area = container.querySelector('textarea')!;
   expect(input.closest('.jini-secret')).not.toBeNull();
@@ -119,7 +120,7 @@ it('a secret text or textarea question gets the shared eye toggle, named from ch
 
 it('ordinary labelled answers still pass secret-shaped pasted text through the guard', () => {
   const answers: unknown[] = [];
-  render(<QuestionForm form={{ id: 'f', title: 'Question', questions: [{ id: 'notes', label: 'Notes', type: 'text' }] }} interactive onSubmit={(_text, values) => answers.push(values)} />);
+  renderWithChatSurfaces(<QuestionForm form={{ id: 'f', title: 'Question', questions: [{ id: 'notes', label: 'Notes', type: 'text' }] }} interactive onSubmit={(_text, values) => answers.push(values)} />);
   fireEvent.change(screen.getByRole('textbox'), { target: { value: 'api_key=x' } });
   fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
   expect(answers).toEqual([{ notes: 'api_key=[token removed]' }]);
@@ -128,7 +129,7 @@ it('ordinary labelled answers still pass secret-shaped pasted text through the g
 it('pane notice uses the host translator and exposes only safe metadata to open a card', async () => {
   const transport = createFakeChatTransport();
   const signals: unknown[] = [];
-  render(<JiniChatProvider transport={transport} i18n={{ locale: 'es', t: key => key === SECRET_REDACTED_NOTICE ? 'Aviso seguro' : key }}><ChatPane transport={transport} agents={agents} initialSelection={{ agentId: 'a' }} initialDraft="api_key=x" onSecretRedacted={signal => signals.push(signal)} /></JiniChatProvider>);
+  renderWithChatSurfaces(<JiniChatProvider transport={transport} i18n={{ locale: 'es', t: key => key === SECRET_REDACTED_NOTICE ? 'Aviso seguro' : key }}><ChatPane transport={transport} agents={agents} initialSelection={{ agentId: 'a' }} initialDraft="api_key=x" onSecretRedacted={signal => signals.push(signal)} /></JiniChatProvider>);
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Send' })); });
   expect(screen.getByText('Aviso seguro').textContent).toBe('Aviso seguro');
   expect(signals).toEqual([{ secretRedacted: true, count: 1 }]);
@@ -146,7 +147,7 @@ it.each([
   const contexts: string[] = [];
   // b2c3f637e: the picker quotes whitespace-containing paths before they reach chat.
   const prompt = `Please inspect ${formatDroppedFolderPaths([path])}`;
-  render(<ChatPane transport={transport} agents={agents} initialSelection={{ agentId: 'a' }} initialDraft={prompt}
+  renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} initialSelection={{ agentId: 'a' }} initialDraft={prompt}
     onSecretRedacted={signal => signals.push(signal)} runContext={({ prompt }) => { contexts.push(prompt); return {}; }} />);
   await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Send' })); });
   expect(transport.calls).toHaveLength(1);
@@ -172,7 +173,7 @@ it('direct conversation sends and retries sanitize legacy user history before tr
 it('question panel forwards the card-opening callback with only a safe count', () => {
   const signals: unknown[] = [];
   const answers: unknown[] = [];
-  const { container } = render(<QuestionsPanel form={{ id: 'f', title: 'Question', questions: [{ id: 'token', label: 'Token', type: 'text' }] }} interactive onSecretRedacted={signal => signals.push(signal)} onSubmit={(_text, values) => answers.push(values)} />);
+  const { container } = renderWithChatSurfaces(<QuestionsPanel form={{ id: 'f', title: 'Question', questions: [{ id: 'token', label: 'Token', type: 'text' }] }} interactive onSecretRedacted={signal => signals.push(signal)} onSubmit={(_text, values) => answers.push(values)} />);
   fireEvent.change(container.querySelector('input')!, { target: { value: 'short' } });
   fireEvent.click(screen.getByRole('button', { name: 'Continue' }));
   expect(signals).toEqual([{ secretRedacted: true, count: 1 }]);

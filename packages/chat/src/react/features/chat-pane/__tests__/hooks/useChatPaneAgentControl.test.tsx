@@ -1,4 +1,5 @@
-import { act, renderHook, waitFor } from '@testing-library/react';
+import { act, waitFor } from '@testing-library/react';
+import { renderHookWithChatSurfaces } from '../../../../__tests__/fake-chat-surfaces.js';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { createFakeChatTransport } from '../../../../hooks/testing/fake-transport.js';
@@ -69,7 +70,7 @@ function renderControlledPane(
 ) {
   const transport = createFakeChatTransport();
   const needsAccess = options.directoryExists !== undefined || options.recentDirectories !== undefined;
-  const view = renderHook(() => {
+  const view = renderHookWithChatSurfaces(() => {
     const pane = useChatPane({
       transport,
       agents: options.agents ?? agents,
@@ -107,7 +108,7 @@ describe('useChatPaneAgentControl — registration lifecycle', () => {
   it('registers and revokes WebMCP tools when the host changes its opt-in', () => {
     const context = installModelContext();
     const transport = createFakeChatTransport();
-    const view = renderHook(({ webmcp }) => {
+    const view = renderHookWithChatSurfaces(({ webmcp }) => {
       const pane = useChatPane({ transport, agents, selection: { agentId: 'codex' } });
       useChatPaneAgentControl({ pane }, { enabled: true, webmcp });
     }, { initialProps: { webmcp: false } });
@@ -131,7 +132,7 @@ describe('useChatPaneAgentControl — registration lifecycle', () => {
     };
     const transport = createFakeChatTransport();
 
-    const view = renderHook(() => {
+    const view = renderHookWithChatSurfaces(() => {
       const pane = useChatPane({ transport, agents, selection: { agentId: 'codex' } });
       // A NEW object literal every render — exactly how hosts write this prop in JSX.
       useChatPaneAgentControl({ pane: pane }, { enabled: true, webmcp: true, bridgeAccess: { ...bridge } });
@@ -421,7 +422,7 @@ describe('useChatPaneAgentControl — host surface detection', () => {
   it('defaults to disabled when `enabled` is omitted', () => {
     const context = installModelContext();
     const transport = createFakeChatTransport();
-    renderHook(() => {
+    renderHookWithChatSurfaces(() => {
       const pane = useChatPane({ transport, agents, selection: { agentId: 'codex' } });
       useChatPaneAgentControl({ pane: pane }, {});
       return pane;
@@ -436,7 +437,7 @@ describe('useChatPaneAgentControl — host surface detection', () => {
     // otherwise drive the pane ungated the moment a host enabled the daemon-relayed channel.
     const context = installModelContext();
     const transport = createFakeChatTransport();
-    renderHook(() => {
+    renderHookWithChatSurfaces(() => {
       const pane = useChatPane({ transport, agents, selection: { agentId: 'codex' } });
       useChatPaneAgentControl({ pane: pane }, { enabled: true });
       return pane;
@@ -447,7 +448,7 @@ describe('useChatPaneAgentControl — host surface detection', () => {
   it('registers with WebMCP once the host accepts the tradeoff', () => {
     const context = installModelContext();
     const transport = createFakeChatTransport();
-    renderHook(() => {
+    renderHookWithChatSurfaces(() => {
       const pane = useChatPane({ transport, agents, selection: { agentId: 'codex' } });
       useChatPaneAgentControl({ pane: pane }, { enabled: true, webmcp: true });
       return pane;

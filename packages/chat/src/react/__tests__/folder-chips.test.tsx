@@ -1,5 +1,6 @@
 import { createRef } from 'react';
-import { act, fireEvent, render, renderHook, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, renderHook, screen, waitFor, within } from '@testing-library/react';
+import { renderWithChatSurfaces } from './fake-chat-surfaces.js';
 import { beforeEach, expect, it, vi } from 'vitest';
 import { ChatPane } from '../features/chat-pane/components/ChatPane.js';
 import type { ChatPaneComposerHandle } from '../features/chat-pane/types.js';
@@ -21,7 +22,7 @@ it('keeps folders separate from text through draft reload, acceptance, storage a
   __resetComposerDraftCacheForTests({ keepStorage: true });
   const transport = createFakeChatTransport();
   let messages: ChatMessage[] = [];
-  render(<ChatPane transport={transport} agents={agents} conversationId="folders" onMessagesChange={next => { messages = next; }} />);
+  renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} conversationId="folders" onMessagesChange={next => { messages = next; }} />);
   expect(screen.getByRole('textbox')).toHaveValue('Inspect these');
   fireEvent.click(screen.getByRole('button', { name: 'Send' }));
   await waitFor(() => expect(transport.calls).toHaveLength(1));
@@ -37,7 +38,7 @@ it('expands all folder names, copies exact paths, collapses and removes only the
   const transport = createFakeChatTransport();
   const writeText = vi.fn(async () => {});
   Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText } });
-  render(<ChatPane transport={transport} agents={agents} composerHandle={handle} initialDraft="inspect" />);
+  renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} composerHandle={handle} initialDraft="inspect" />);
   act(() => handle.current!.addFolders({ folders }));
   const disclosure = screen.getByRole('button', { name: 'Folders (3)' });
   expect(disclosure).toHaveAttribute('aria-expanded', 'false');
@@ -83,7 +84,7 @@ it('isolates folder drafts by conversation and clears folders on reset', () => {
 it('keeps folder chips visible while queued and sends their references on the next ordinary turn', async () => {
   const transport = createFakeChatTransport();
   const handle = createRef<ChatPaneComposerHandle>();
-  render(<ChatPane transport={transport} agents={agents} composerHandle={handle} initialDraft="First" />);
+  renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} composerHandle={handle} initialDraft="First" />);
   fireEvent.click(screen.getByRole('button', { name: 'Send' }));
   await waitFor(() => expect(transport.calls).toHaveLength(1));
   act(() => handle.current!.addFolders({ folders }));
@@ -102,7 +103,7 @@ it('restores refused folders without overwriting folders picked while sending', 
   const pending = new Promise<never>((_resolve, no) => { reject = no; });
   const transport = { ...createFakeChatTransport(), startRun: vi.fn(() => pending) };
   const handle = createRef<ChatPaneComposerHandle>();
-  render(<ChatPane transport={transport} agents={agents} composerHandle={handle} initialDraft="Inspect" />);
+  renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} composerHandle={handle} initialDraft="Inspect" />);
   act(() => handle.current!.addFolders({ folders }));
   fireEvent.click(screen.getByRole('button', { name: 'Send' }));
   act(() => handle.current!.addFolders({ folders: ['/new/pick'] }));
@@ -117,7 +118,7 @@ it('does not consume a folder picked again while the prior send is awaiting acce
   const pending = new Promise<void>(resolve => { release = resolve; });
   const transport = { ...fake, startRun: async (...args: Parameters<typeof fake.startRun>) => { await pending; return fake.startRun(...args); } };
   const handle = createRef<ChatPaneComposerHandle>();
-  render(<ChatPane transport={transport} agents={agents} composerHandle={handle} initialDraft="Inspect" />);
+  renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} composerHandle={handle} initialDraft="Inspect" />);
   act(() => handle.current!.addFolders({ folders: [folders[0]!] }));
   fireEvent.click(screen.getByRole('button', { name: 'Send' }));
   act(() => handle.current!.addFolders({ folders: [folders[0]!] }));
@@ -132,7 +133,7 @@ it('does not consume a folder picked again while the prior send is awaiting acce
 it('shows a single folder as its chip directly — no toggle — with copy and remove tooltips', async () => {
   const handle = createRef<ChatPaneComposerHandle>();
   const transport = createFakeChatTransport();
-  render(<ChatPane transport={transport} agents={agents} composerHandle={handle} initialDraft="inspect" />);
+  renderWithChatSurfaces(<ChatPane transport={transport} agents={agents} composerHandle={handle} initialDraft="inspect" />);
   act(() => handle.current!.addFolders({ folders: [folders[0]!] }));
   const composer = document.querySelector('.jini-composer-attachments')! as HTMLElement;
   expect(within(composer).queryByRole('button', { name: /Folders \(/ })).toBeNull();

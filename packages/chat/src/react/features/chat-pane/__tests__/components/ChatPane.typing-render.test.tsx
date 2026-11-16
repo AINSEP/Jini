@@ -4,7 +4,8 @@
  * message row, ~750 ms per key in the dev build. The probe below is an ext-event renderer, which
  * `MessageRow` calls on every one of its own renders — so its call count is the row's render count.
  */
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, screen } from '@testing-library/react';
+import { renderWithChatSurfaces } from '../../../../__tests__/fake-chat-surfaces.js';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import type { ChatMessage } from '@jini-ai/chat';
@@ -37,7 +38,7 @@ describe('ChatPane typing', () => {
       rowRenders += 1;
       return <div data-testid="probe">probe</div>;
     } });
-    render(
+    renderWithChatSurfaces(
       <ChatPane
         transport={createFakeChatTransport()}
         agents={agents}
@@ -84,7 +85,7 @@ describe('ChatPane typing', () => {
         toolCallDisplay="show"
       />
     );
-    const { rerender, container } = render(pane('first'));
+    const { rerender, container } = renderWithChatSurfaces(pane('first'));
     expect(container.querySelectorAll('.op-card')).toHaveLength(300);
     const mounted = rowRenders;
     expect(mounted).toBeGreaterThanOrEqual(20);
