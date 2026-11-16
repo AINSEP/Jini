@@ -8,6 +8,7 @@ export * from './fanout.js';
 export * from './hooks.js';
 export * from './instrumentation.js';
 export * from './delivery.js';
+export { observabilityProviderContract } from './provider-contract.js';
 export type { TelemetryTestResult, TelemetryTestSignal } from './telemetry-test.js';
 
 export type * from "./tracker-types.js";
