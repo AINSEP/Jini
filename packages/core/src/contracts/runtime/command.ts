@@ -55,7 +55,7 @@ function quoteWindowsCommandArg({ value }: { value: string }, _options = {}): st
 // Without this, paths containing spaces (`C:\Users\First Last\...\foo.cmd`)
 // get split on the first space and cmd.exe reports "not recognized as an
 // internal or external command" — see issue #315.
-function buildCmdShimInvocation({ command, args, env, fallbackComSpec }: { command: string; args: string[]; env: Readonly<Record<string, string | undefined>>; fallbackComSpec?: string }, _options = {}): CommandInvocation {
+export function buildCmdShimInvocation({ command, args, env, fallbackComSpec }: { command: string; args: string[]; env: Readonly<Record<string, string | undefined>>; fallbackComSpec?: string | undefined }, _options = {}): CommandInvocation {
   const inner = [command, ...args].map((value) => quoteWindowsCommandArg({ value })).join(" ");
   return {
     args: ["/d", "/s", "/c", `"${inner}"`],
@@ -71,10 +71,10 @@ function buildCmdShimInvocation({ command, args, env, fallbackComSpec }: { comma
  */
 export function planCommandInvocation(
   { command, platform, env }: { command: string; platform: RuntimePlatform; env: Readonly<Record<string, string | undefined>> },
-  { args = [], fallbackComSpec }: { args?: string[]; fallbackComSpec?: string } = {},
+  { args = [], fallbackComSpec }: { args?: string[]; fallbackComSpec?: string | undefined } = {},
 ): CommandInvocation {
   if (platform === "win32" && /\.(bat|cmd)$/i.test(command)) {
-    return buildCmdShimInvocation({ command, args, env, ...(fallbackComSpec === undefined ? {} : { fallbackComSpec }) });
+    return buildCmdShimInvocation({ command, args, env, fallbackComSpec });
   }
   return { args, command };
 }
@@ -82,5 +82,5 @@ export function planCommandInvocation(
 /** A host may swap the planner; `planCommandInvocation` satisfies it. */
 export type CommandInvocationPort = (
   required: { command: string; platform: RuntimePlatform; env: Readonly<Record<string, string | undefined>> },
-  optional?: { args?: string[]; fallbackComSpec?: string },
+  optional?: { args?: string[]; fallbackComSpec?: string | undefined },
 ) => CommandInvocation;

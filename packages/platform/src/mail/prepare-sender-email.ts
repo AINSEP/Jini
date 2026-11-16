@@ -1,4 +1,4 @@
-import { EmailSenderError, type EmailSender, type EmailSourceDescription, type EmailSourceField,
+import { EmailSenderError, validateEmailSourceTemplate, type EmailSender, type EmailSourceDescription, type EmailSourceField,
   type EmailSourceRequest, type EmailTemplatePort, type ResolvedEmailEvent } from "@jini-ai/core/contracts/mail";
 import type { EmailAddress } from "./types.js";
 

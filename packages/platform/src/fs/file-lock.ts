@@ -28,7 +28,7 @@ export const DEFAULT_LOCK_TIMEOUT_MS = 15_000;
 export const DEFAULT_LOCK_STALE_AFTER_MS = 10_000;
 export type FileLockSyncFilesystem = Pick<typeof fs, "mkdirSync" | "openSync" | "writeSync" | "fstatSync" | "readFileSync" | "statSync" | "closeSync" | "rmSync">;
 export type FileLockAsyncFilesystem = Pick<typeof asyncFs, "mkdir" | "open" | "stat" | "rm">;
-export interface FileLockOptions extends FileLockPortOptions {
+export interface FileLockOptions extends Omit<FileLockPortOptions, "filesystem"> {
   messages?: PlatformMessages;
 }
 /** Platform-specific contention classification retains the Windows exclusive-open behavior. */
