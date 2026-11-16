@@ -55,15 +55,8 @@ export type { UninstallAgentPluginRequired, UninstallAgentPluginOptional, Uninst
 export type { TrustedPluginPackage, TrustedPluginPackagesQuery, TrustedPluginVerdict } from './trusted-plugin-files.js';
 export type { AgentPluginSearchSkill, AgentPluginSearchCandidate, AgentPluginSearchMatch } from './search.js';
 
-/** One host context owns queues and effects. Keep this object and its ports stable for its lifetime.
- * Installation/activation and MCP provisioning are separate operations: the host explicitly wires
- * provisioning using the exported helpers, with its own retry/recovery policy. */
-export function createAgentPluginLifecycle(required: AgentPluginLifecycleRequired, optional: AgentPluginLifecycleOptional = {}) {
-  const context: AgentPluginLifecyclePorts = Object.keys(optional).length ? { ...required, ...optional } : required;
-  if (!context.productName.trim() || !context.extensionNamespace.trim() || !context.bundledArchiveMagic) {
-    throw new Error('productName, extensionNamespace and bundledArchiveMagic are required');
-  }
-  if (context.deliveryMode !== 'inject' && context.deliveryMode !== 'pointer') throw new Error('Invalid deliveryMode');
+/** The per-context sibling modules the lifecycle surface is assembled from. */
+function buildLifecycleModules(context: AgentPluginLifecyclePorts) {
   const activation = createActivationModule(context);
   const digests = createBundledDigestsModule(context);
   const archive = createBundledSourceArchiveModule(context);
@@ -81,9 +74,15 @@ export function createAgentPluginLifecycle(required: AgentPluginLifecycleRequire
     importModule: ({ plugin, modulePath }) => trusted.importContainedModule(plugin, modulePath),
   });
   const uninstall = createUninstallModule(context);
+  return { activation, digests, archive, capabilities, install, fromUrl, paths, refs, search, enabled, trusted, contributions, uninstall };
+}
+
+type LifecycleModules = ReturnType<typeof buildLifecycleModules>;
+
+/** One slice of the lifecycle's public surface, bound to its host context and sibling modules. */
+function lifecycleCoreFacade(context: AgentPluginLifecyclePorts, modules: LifecycleModules) {
+  const { activation, digests, install, fromUrl, enabled } = modules;
   return {
-    ...createUpdateModule(context),
-    ...contributions,
     fetchAgentPluginArchive: (input: { readonly url: string }, optional: FetchAgentPluginArchiveOptional = {}) => fetchAgentPluginArchive({ ...input, fetch: context.fetch, outboundGuard: context.outboundGuard }, optional),
     maxAgentPluginArchiveBytes,
     seedBundledAgentPlugins: createSeedBundledModule(context).seedBundledAgentPlugins,
@@ -98,6 +97,13 @@ export function createAgentPluginLifecycle(required: AgentPluginLifecycleRequire
     installAgentPlugin: install.installAgentPlugin,
     installAgentPluginFromUrl: fromUrl.installAgentPluginFromUrl,
     setAgentPluginEnabled: enabled.setAgentPluginEnabled,
+  };
+}
+
+/** One slice of the lifecycle's public surface, bound to its host context and sibling modules. */
+function lifecycleActivationFacade(context: AgentPluginLifecyclePorts, modules: LifecycleModules) {
+  const { activation, digests, trusted, uninstall } = modules;
+  return {
     findTrustedPluginPackages: (input: Omit<Parameters<typeof trusted.findTrustedPluginPackages>[0], 'orderByPluginId' | 'onInactive'>, optional: Pick<Parameters<typeof trusted.findTrustedPluginPackages>[0], 'orderByPluginId' | 'onInactive'> = {}) => trusted.findTrustedPluginPackages({ ...input, ...optional }),
     previewAgentPluginUninstall: uninstall.previewAgentPluginUninstall,
     uninstallAgentPlugin: uninstall.uninstallAgentPlugin,
@@ -113,6 +119,13 @@ export function createAgentPluginLifecycle(required: AgentPluginLifecycleRequire
     normalizeActivations: (input: { readonly value: unknown }) => activation.normalizeActivations(input.value),
     readBundledAgentPluginDigests: (input: { readonly workspaceRoot: string }) => digests.readBundledAgentPluginDigests(input.workspaceRoot),
     normalizeBundledDigests: (input: { readonly value: unknown }) => digests.normalizeBundledDigests(input.value),
+  };
+}
+
+/** One slice of the lifecycle's public surface, bound to its host context and sibling modules. */
+function lifecycleInstallFacade(context: AgentPluginLifecyclePorts, modules: LifecycleModules) {
+  const { digests, capabilities, paths, refs, search, trusted } = modules;
+  return {
     preferBundledAgentPluginDigests: <T extends InstalledDigestIdentity>(input: { readonly installed: readonly T[]; readonly bundled: Parameters<typeof digests.preferBundledAgentPluginDigests>[1] }) => digests.preferBundledAgentPluginDigests(input.installed, input.bundled),
     normalizePackageEntryPath: (input: { readonly rawEntryPath: string }) => paths.normalizePackageEntryPath(input.rawEntryPath),
     assertContainedOnDisk: (input: { readonly packageRoot: string; readonly entryPath: string }) => paths.assertContainedOnDisk(input.packageRoot, input.entryPath),
@@ -132,11 +145,38 @@ export function createAgentPluginLifecycle(required: AgentPluginLifecycleRequire
     isInstalledDigestPresent: (input: { readonly packagesDir: string; readonly archiveDigest: string }) => refs.isInstalledDigestPresent(input.packagesDir, input.archiveDigest),
     rankInstalledAgentPlugins: (input: { readonly query: string; readonly candidates: Parameters<typeof search.rankInstalledAgentPlugins>[1]; readonly limit: number }, optional: { readonly automatic?: boolean } = {}) => search.rankInstalledAgentPlugins(input.query, input.candidates, input.limit, optional.automatic),
     readTrustedPluginFile: (input: { readonly plugin: Parameters<typeof trusted.readTrustedPluginFile>[0]; readonly filename: string }) => trusted.readTrustedPluginFile(input.plugin, input.filename),
+  };
+}
+
+/** One slice of the lifecycle's public surface, bound to its host context and sibling modules. */
+function lifecycleQueryFacade(context: AgentPluginLifecyclePorts, modules: LifecycleModules) {
+  const { archive, install, trusted } = modules;
+  return {
     importContainedModule: (input: { readonly plugin: Parameters<typeof trusted.importContainedModule>[0]; readonly modulePath: string }) => trusted.importContainedModule(input.plugin, input.modulePath),
     maxAgentPluginInstallArchiveBytes: (_input: Record<string, never>) => install.maxAgentPluginInstallArchiveBytes(),
     indexInstalledRoot: (input: { readonly packageRoot: string; readonly archiveDigest: string }) => install.indexInstalledRoot(input.packageRoot, input.archiveDigest),
     packAgentPluginDirectory: (input: { readonly sourceDir: string }, optional: PackAgentPluginDirectoryOptional = {}) => archive.packAgentPluginDirectory(input.sourceDir, optional),
     createBundledSourceArchiveReader: (_input: Record<string, never>) => archive.createBundledSourceArchiveReader(),
+  };
+}
+
+/** One host context owns queues and effects. Keep this object and its ports stable for its lifetime.
+ * Installation/activation and MCP provisioning are separate operations: the host explicitly wires
+ * provisioning using the exported helpers, with its own retry/recovery policy. */
+export function createAgentPluginLifecycle(required: AgentPluginLifecycleRequired, optional: AgentPluginLifecycleOptional = {}) {
+  const context: AgentPluginLifecyclePorts = Object.keys(optional).length ? { ...required, ...optional } : required;
+  if (!context.productName.trim() || !context.extensionNamespace.trim() || !context.bundledArchiveMagic) {
+    throw new Error('productName, extensionNamespace and bundledArchiveMagic are required');
+  }
+  if (context.deliveryMode !== 'inject' && context.deliveryMode !== 'pointer') throw new Error('Invalid deliveryMode');
+  const modules = buildLifecycleModules(context);
+  return {
+    ...createUpdateModule(context),
+    ...modules.contributions,
+    ...lifecycleCoreFacade(context, modules),
+    ...lifecycleActivationFacade(context, modules),
+    ...lifecycleInstallFacade(context, modules),
+    ...lifecycleQueryFacade(context, modules),
   };
 }
 
