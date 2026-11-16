@@ -339,18 +339,46 @@ function errorClassLabel({ value }: { readonly value: Error }): string {
   return typeof name === "string" && WELL_KNOWN_ERROR_NAMES.has(name) ? name : "Error";
 }
 
-/** `Label` or `Label(CODE)` for one thrown value (`typeof` for a non-`Error`), plus its direct cause
- *  when asked for. Never throws. */
-function describeValueForLog({ value }: { readonly value: unknown }, { withCause = false }: { readonly withCause?: boolean } = {}): { readonly text: string; readonly cause?: unknown } {
+/** The fixed class label and approved code of one value, as {@link describeErrorForLog} prints them. */
+export interface ErrorLogParts {
+  /** A fixed class label (`TypeError`, a registered label), `typeof` for a non-`Error`, or `[diagnostic unavailable]`. */
+  readonly label: string;
+  /** An approved code (`ECONNREFUSED`); absent when the value has none. */
+  readonly code?: string;
+}
+
+/** Label and approved code for one thrown value, plus its direct cause when asked for. Never throws. */
+function readErrorParts({ value }: { readonly value: unknown }, { withCause = false }: { readonly withCause?: boolean } = {}): ErrorLogParts & { readonly cause?: unknown } {
   try {
-    if (!(value instanceof Error)) return { text: typeof value };
+    if (!(value instanceof Error)) return { label: typeof value };
     const label = errorClassLabel({ value });
     const code = readFieldOnce({ value, key: "code" });
-    const text = typeof code === "string" && LOGGABLE_CODES.has(code) ? `${label}(${code})` : label;
-    return withCause ? { text, cause: readFieldOnce({ value, key: "cause" }) } : { text };
+    const parts = typeof code === "string" && LOGGABLE_CODES.has(code) ? { label, code } : { label };
+    return withCause ? { ...parts, cause: readFieldOnce({ value, key: "cause" }) } : parts;
   } catch {
-    return { text: UNDESCRIBABLE_ERROR };
+    return { label: UNDESCRIBABLE_ERROR };
   }
+}
+
+/** `Label` or `Label(CODE)` for one thrown value, plus its direct cause when asked for. Never throws. */
+function describeValueForLog({ value }: { readonly value: unknown }, { withCause = false }: { readonly withCause?: boolean } = {}): { readonly text: string; readonly cause?: unknown } {
+  const { label, code, cause } = readErrorParts({ value }, { withCause });
+  const text = code === undefined ? label : `${label}(${code})`;
+  return withCause ? { text, cause } : { text };
+}
+
+/**
+ * The same fixed class label and approved code {@link describeErrorForLog} prints, as fields, without
+ * the cause. For a caller that needs one low-cardinality label (a telemetry `error.type`) rather than a
+ * log line, so it never parses `Label(CODE) cause=…`. Same guarantee: no message, no raw `name`, no
+ * unapproved code.
+ * @param required.err - The caught value.
+ * @returns `{ label }` or `{ label, code }`. Never throws.
+ * @complexity O(registered classes).
+ */
+export function describeErrorParts(required: { err: unknown }, _optional: Record<string, never> = {}): ErrorLogParts {
+  const { label, code } = readErrorParts({ value: required.err });
+  return code === undefined ? { label } : { label, code };
 }
 
 /**
