@@ -8,6 +8,7 @@ All entries use the Node runtime. Public operations take a required argument obj
 | `@jini-ai/oauth/testing` | Three independent memory store factories |
 | `@jini-ai/oauth/discovery-policy` | `createIssuerBoundDiscoveryPolicy`, `OAuthDiscoveryPolicy` |
 | `@jini-ai/oauth/dns-pinned-transport` | `createDnsPinnedOAuthTransport`, `DnsPinnedOAuthTransport`, `DnsPinnedOAuthTransportDeps` and DNS/address/dispatcher port types |
+| `@jini-ai/oauth/callback-page` | `renderOAuthCallbackPage`, `OAuthCallbackPageCopy`, `OAuthCallbackPageInput`, `OAuthCallbackPageOptions` |
 | `@jini-ai/oauth/loopback-receiver` | `startLoopbackAuthorizationReceiver`, `MAX_CALLBACK_FIELDS`, `MAX_CALLBACK_FIELD_LENGTH`, `LoopbackAuthorizationReceiver`, `LoopbackAuthorizationResult`, `LoopbackReceiverOptions`, `LoopbackReceiverTimers` |
 
 The direct entries and root export the same implementations. The package depends on the kernel `@jini-ai/core`; hosts supply network policy, identity and persistence.
