@@ -11,6 +11,7 @@ export {
   type StorageTransport,
   UnsupportedCapabilityError,
 } from "./port.js";
+export type { DbTransport, KyselyKernel } from "./port.js";
 export { buildKernel, type KernelDriver } from "./kernel-core.js";
 export { TurnLock } from "./turn-lock.js";
 export {

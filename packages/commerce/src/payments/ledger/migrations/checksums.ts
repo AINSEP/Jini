@@ -14,3 +14,13 @@ export const COMMERCE_PAYMENTS_MIGRATION_CHECKSUMS: Readonly<Record<string, stri
   "0004_payments_attempt_recovery": "902fb1230f456c3420e64c2093cbdbc0ab18ee65184febdc777c76a0574bbe4c",
   "0005_payments_intent_replay": "7d49e170dbe7f7b89befc1bcc0d02429e0bbc6f169b3c7c597469038b15bbbac",
 };
+
+/** sha256 of each step file's normalized source as it stands now (the edit guard). It differs from the ledger
+ * checksum above only after a reviewed edit that changes no behavior (2026-11-15, C3: import specifiers and kernel
+ * type arguments). The ledger checksum is what databases recorded; it never changes. */
+export const COMMERCE_PAYMENTS_SOURCE_DIGESTS: Readonly<Record<string, string>> = {
+  "0001_payments_ledger": "TBD",
+  "0002_payments_operator_actions": "TBD",
+  "0004_payments_attempt_recovery": "TBD",
+  "0005_payments_intent_replay": "TBD",
+};

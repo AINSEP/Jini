@@ -1,6 +1,7 @@
 import path from "node:path";
 import { assertDatabaseCopySpace } from "../../sqlite/backup-policy.js";
 
+import type { SqliteConnectionSource } from "@jini-ai/core/contracts/storage";
 import { Kysely, type SqliteDatabase, SqliteDialect } from "kysely";
 
 import { buildKernel, type StorageKernel, TurnLock } from "../index.js";
@@ -33,10 +34,7 @@ import { inheritOwnedTransaction } from "../owned-transaction.js";
  * The connection's opener closes it; `close()` here does nothing.
  */
 
-export type SqliteKernel<DB> = StorageKernel<DB>;
-
-/** An ORM handle that carries its better-sqlite3 client as `$client`, or the client itself. */
-export type SqliteConnectionSource = SqliteClient | { readonly $client: SqliteClient };
+export type SqliteKernel<DB> = KyselyKernel<DB>;
 
 const kernels = new WeakMap<SqliteClient, SqliteKernel<unknown>>();
 
