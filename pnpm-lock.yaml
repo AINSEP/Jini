@@ -1300,6 +1300,9 @@ importers:
       '@jini-ai/http-kit':
         specifier: workspace:^
         version: link:../http-kit
+      '@jini-ai/platform':
+        specifier: workspace:^
+        version: link:../platform
       '@jini-ai/registry':
         specifier: workspace:^
         version: link:../registry
@@ -1310,9 +1313,6 @@ importers:
       '@jini-ai/chat':
         specifier: workspace:*
         version: link:../chat
-      '@jini-ai/platform':
-        specifier: workspace:*
-        version: link:../platform
       '@types/better-sqlite3':
         specifier: ^7.6.11
         version: 7.6.13
