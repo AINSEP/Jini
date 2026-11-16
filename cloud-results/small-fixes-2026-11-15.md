@@ -18,3 +18,20 @@ Setup: Node 24.22.3, pnpm 10.33.2. Baseline (unmodified tree): `pnpm -r build` f
 - Breaking changes read: 8.0.0 error code NoAuth->ENOAUTH (unused here; adapter relies on EAUTH/EENVELOPE/EMESSAGE, unchanged); 9.0.0 TLS validated by default for remote fetches (attachments are inline base64, no URL fetch -> n/a); 10.0.0 Node>=20 (repo on 24), TS rewrite with CJS build (createRequire load still works). No code change needed.
 - Verified: smtp.nodemailer unit tests 19/19 pass; jsonTransport smoke send OK; root tsc 146 errors before AND after (pre-existing, registry-Jini mismatch, none nodemailer).
 - Left: @types/nodemailer ^7.0.12 kept (nodemailer now ships its own types); consider removing.
+
+## Dependency hardening (2026-11-16)
+
+Node 24.22.3 / npm 11.19.1 (Tovu), pnpm 10.33.2 (Jini).
+
+**Task 1 — Tovu nodemailer.** 51133f44 had upgraded 7.0.13 -> 10.6.0 (published 2026-11-15). Cutoff 2026-11-02;
+`npm view nodemailer time --json` -> newest older than 14 d is **10.3.1** (2026-10-29; 10.4.0 is 11-07, too young).
+Pinned exact `10.3.1`; it ships types (`dist/cjs/nodemailer.d.ts`), so `@types/nodemailer` removed; lockfile updated, no code change needed.
+Test: `TSX_TSCONFIG_PATH=apps/site-chat/tsconfig.json node --import tsx --import ./development/test-support/composed-bundle-env.ts --test --experimental-test-module-mocks --test-concurrency=1 apps/website/src/platform/mail/adapters/__tests__/smtp.nodemailer.unit.test.ts`
+Before (10.6.0): 13/13 pass. After (10.3.1): 13/13 pass. Tovu commit 939ee65d.
+
+**Task 2 — Tovu (npm).** `.npmrc`: `min-release-age=14`, `min-release-age-exclude[]=@jini-ai/*`; CONTRIBUTING.md documents it. Commit 52ac8c1b.
+Proof: `npm install --dry-run` leaves lockfile unchanged; `npm install nodemailer@10.6.0 --dry-run` -> `ETARGET No matching version ... with a date before 11/2/2026`.
+
+**Task 2 — Jini (pnpm).** `pnpm-workspace.yaml`: `minimumReleaseAge: 20160` (min), `minimumReleaseAgeExclude: ['@jini-ai/*']`; CONTRIBUTING.md added.
+Proof: `pnpm install --frozen-lockfile --lockfile-only` leaves pnpm-lock.yaml unchanged; `pnpm add -w nodemailer@10.6.0 --lockfile-only` is refused (minimumReleaseAge), `nodemailer@10.3.1` resolves (reverted afterwards).
+Not verified: that the `@jini-ai/*` glob exclusion matches (no young @jini-ai package was available to test).
