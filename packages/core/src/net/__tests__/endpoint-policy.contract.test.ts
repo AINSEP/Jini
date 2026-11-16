@@ -43,8 +43,10 @@ describe('literal endpoint hostname contract', () => {
       import: './dist/net/index.js',
       default: './dist/net/index.js',
     });
-    const source = readFileSync(new URL('../endpoint-policy.ts', import.meta.url), 'utf8');
-    expect(source.match(/^\s*(?:import\b|export\s+[^\n]*\bfrom\b)/gm)).toBeNull();
+    for (const file of ['endpoint-policy.ts', 'loopback.ts', 'fetch-timeouts.ts']) {
+      const source = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8');
+      expect(source.match(/^\s*(?:import\b|export\s+[^\n]*\bfrom\b)/gm)).toBeNull();
+    }
   });
 
   it.each(HOSTS)('classifies %j without changing its loopback exception or blocked range', (hostname, loopback, blocked) => {

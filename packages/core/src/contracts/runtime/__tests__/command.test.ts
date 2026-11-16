@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { planCommandInvocation } from '../command.js';
+import { planCmdShimInvocation, planCommandInvocation } from '../command.js';
 
 describe('planCommandInvocation', () => {
   it('passes a non-shim command through on linux', () => {
@@ -19,6 +19,19 @@ describe('planCommandInvocation', () => {
   });
   it('refuses line breaks in a shim argument', () => {
     expect(() => planCommandInvocation({ command: 'x.cmd', platform: 'win32', env: {} }, { args: ['a\nb'] })).toThrow(/line breaks/);
+  });
+  it('plans the corepack shim for a command that is not a .cmd or .bat file', () => {
+    expect(planCmdShimInvocation({ command: 'corepack', args: ['pnpm', 'install'], env: {} }, {})).toEqual({
+      command: 'cmd.exe', args: ['/d', '/s', '/c', '"corepack pnpm install"'], windowsVerbatimArguments: true,
+    });
+  });
+  it('shim planner: env.ComSpec wins over the fallback, which wins over cmd.exe', () => {
+    const pick = (env: Record<string, string>, fallbackComSpec?: string) =>
+      planCmdShimInvocation({ command: 'corepack', args: [], env }, fallbackComSpec === undefined ? {} : { fallbackComSpec }).command;
+    expect([pick({ ComSpec: 'E' }, 'F'), pick({}, 'F'), pick({})]).toEqual(['E', 'F', 'cmd.exe']);
+  });
+  it('shim planner refuses line breaks in an argument', () => {
+    expect(() => planCmdShimInvocation({ command: 'corepack', args: ['a\nb'], env: {} })).toThrow(/line breaks/);
   });
   it('resolves ComSpec from env, then the fallback, then cmd.exe', () => {
     const pick = (env: Record<string, string>, fallbackComSpec?: string) =>

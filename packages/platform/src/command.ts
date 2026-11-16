@@ -11,7 +11,7 @@
  * itself.
  */
 import { extname } from "node:path";
-import { buildCmdShimInvocation, planCommandInvocation, type CommandInvocation, type CommandInvocationRequest } from "@jini-ai/core/contracts/runtime";
+import { planCmdShimInvocation, planCommandInvocation, type CommandInvocation, type CommandInvocationRequest } from "@jini-ai/core/contracts/runtime";
 
 const nodeLoadablePackageManagerExtensions = new Set([".js", ".cjs", ".mjs"]);
 
@@ -53,7 +53,7 @@ export function createPackageManagerInvocation(args: string[], env: NodeJS.Proce
   // package manager out of the box, while a bare `pnpm` only resolves when a
   // separate global install or a `corepack enable` shim is present. See #2438.
   if (process.platform === "win32") {
-    return buildCmdShimInvocation({ command: "corepack", args: ["pnpm", ...args], env, fallbackComSpec: process.env.ComSpec });
+    return planCmdShimInvocation({ command: "corepack", args: ["pnpm", ...args], env }, { fallbackComSpec: process.env.ComSpec });
   }
   return { args: ["pnpm", ...args], command: "corepack" };
 }

@@ -187,6 +187,19 @@ describe('@jini-ai/platform — command — createPackageManagerInvocation', () 
     });
   });
 
+  it('falls back to process.env.ComSpec for the corepack shim when env has none', () => {
+    withPlatform('win32', () => {
+      const previousComSpec = process.env.ComSpec;
+      process.env.ComSpec = 'C:\\real\\cmd.exe';
+      try {
+        expect(createPackageManagerInvocation(['install'], {}).command).toBe('C:\\real\\cmd.exe');
+      } finally {
+        if (previousComSpec === undefined) delete process.env.ComSpec;
+        else process.env.ComSpec = previousComSpec;
+      }
+    });
+  });
+
   it('defaults env to process.env when omitted', () => {
     const previousExecPath = process.env.npm_execpath;
     delete process.env.npm_execpath;

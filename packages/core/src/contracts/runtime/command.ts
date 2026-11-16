@@ -55,7 +55,10 @@ function quoteWindowsCommandArg({ value }: { value: string }, _options = {}): st
 // Without this, paths containing spaces (`C:\Users\First Last\...\foo.cmd`)
 // get split on the first space and cmd.exe reports "not recognized as an
 // internal or external command" — see issue #315.
-export function buildCmdShimInvocation({ command, args, env, fallbackComSpec }: { command: string; args: string[]; env: Readonly<Record<string, string | undefined>>; fallbackComSpec?: string | undefined }, _options = {}): CommandInvocation {
+export function planCmdShimInvocation(
+  { command, args, env }: { readonly command: string; readonly args: readonly string[]; readonly env: Readonly<Record<string, string | undefined>> },
+  { fallbackComSpec }: { readonly fallbackComSpec?: string | undefined } = {},
+): CommandInvocation {
   const inner = [command, ...args].map((value) => quoteWindowsCommandArg({ value })).join(" ");
   return {
     args: ["/d", "/s", "/c", `"${inner}"`],
@@ -74,7 +77,7 @@ export function planCommandInvocation(
   { args = [], fallbackComSpec }: { args?: string[]; fallbackComSpec?: string | undefined } = {},
 ): CommandInvocation {
   if (platform === "win32" && /\.(bat|cmd)$/i.test(command)) {
-    return buildCmdShimInvocation({ command, args, env, fallbackComSpec });
+    return planCmdShimInvocation({ command, args, env }, { fallbackComSpec });
   }
   return { args, command };
 }
