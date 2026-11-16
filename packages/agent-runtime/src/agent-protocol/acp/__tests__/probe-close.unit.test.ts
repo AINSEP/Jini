@@ -65,3 +65,18 @@ it('P16: settles after the probe exits even when an inherited stdout pipe stays 
     vi.useRealTimers();
   }
 });
+
+it('rejects the probe with the stream error when a startup JSON line exceeds the multiline limit', async () => {
+  const child = createProbeChild();
+  const spawnProcess = (() => child) as unknown as typeof spawn;
+  const pending = detectAcpModels({ bin: '/fake-cli', args: ['acp'] }, { spawnProcess });
+  const settled = pending.then(() => null, (error: Error) => error);
+  child.stdout.write(`{"padding":"${'x'.repeat(130_000)}\n`);
+  // The failing settle waits for the probe child to close (it was told to terminate).
+  await Promise.resolve();
+  child.exitCode = 0;
+  child.emit('close', 0, null);
+  const error = await settled;
+  expect(error).toBeInstanceOf(Error);
+  expect(error!.message).toBe('Agent output multiline JSON exceeded 128000 characters or 256 lines.');
+});
