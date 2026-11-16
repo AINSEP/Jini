@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
   baselineFileName, buildPackageSurface, coveredByChangeset, diffSurface, isBreaking,
   parseChangesetBumps, pickTarget,
-} from "../lib/api-surface.ts";
+} from "../lib/api-surface.js";
 
 function pkg(files: Record<string, string>, exportsField: unknown) {
   const dir = mkdtempSync(join(tmpdir(), "api-surface-"));

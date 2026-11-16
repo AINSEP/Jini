@@ -12,7 +12,7 @@ import { join } from "node:path";
 import {
   baselineFileName, buildPackageSurface, coveredByChangeset, diffSurface, isBreaking,
   type PackageSurface,
-} from "./lib/api-surface.ts";
+} from "./lib/api-surface.js";
 
 const root = join(import.meta.dirname, "..");
 const baseDir = join(root, "api-baseline");
