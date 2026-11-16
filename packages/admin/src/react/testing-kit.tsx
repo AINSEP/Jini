@@ -107,7 +107,8 @@ const fakeMediaProviders: AdminMediaProvidersKit = {
   },
 };
 
-const neutralColors = Object.freeze({ primary: '#000', primaryInk: '#fff', bg: '#fff', surface: '#fff', text: '#000', muted: '#666', border: '#ccc', danger: '#c00', success: '#080', warning: '#c80' });
+// Named colors only: admin source carries no literal color values (theme-boundaries), the host owns the palette.
+const neutralColors = Object.freeze({ primary: 'black', primaryInk: 'white', bg: 'white', surface: 'white', text: 'black', muted: 'dimgray', border: 'lightgray', danger: 'firebrick', success: 'green', warning: 'darkorange' });
 const fakeTheme: AdminThemeKit = {
   applyAdminTheme: () => () => {},
   resolveColorScheme: (r) => (r.preference === 'dark' ? 'dark' : 'light'),
