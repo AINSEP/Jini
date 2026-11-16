@@ -3,6 +3,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useSyncExte
 import { isCancelledError, replaceEqualDeep, QueryClient, QueryClientProvider, useMutation, useQuery } from '@tanstack/react-query';
 import { DEFAULT_STALE_TIME, FetchQueryCache, IDLE_RETENTION, toQueryError, withCachedLoaderFetch, type FetchQueryEnvironmentPort } from '@jini-ai/core/fetch';
 import { browserFetchQueryEnvironment } from './environment.browser.js';
+import { browserClock, browserScheduler } from './browser-timing.js';
 import { resolveFetchQueryError, resolveFetchQueryStatus } from './adapter.react.js';
 import { FetchQueryBinding } from './binding.react.js';
 import type { CachedLoader, CachedLoaderDefaults, CachedLoaderOptions, FetchMutationOptions, FetchQueryAdapter, FetchQueryOptions, MutationResult, QueryKey, QueryResult } from '@jini-ai/core/fetch';
@@ -30,7 +31,7 @@ function createScope({ environment }: { environment: FetchQueryEnvironmentPort }
     } }),
     // Reuse the existing connectivity gate; TanStack's online/focus managers are global
     // and cannot represent two providers with independent host environment ports.
-    gate: new FetchQueryCache({}, { environment }), environment, history: new WeakMap(),
+    gate: new FetchQueryCache({ clock: browserClock, scheduler: browserScheduler }, { environment }), environment, history: new WeakMap(),
   };
 }
 
