@@ -218,6 +218,14 @@ function toHistoryMessage(row: HistoryRow, { includeToolEvents }: { includeToolE
   };
 }
 
+/** @throws {ChatStoreError} `invalid-input` for an out-of-range limit or an over-long/non-string query. */
+function assertHistoryListInputs({ limit, query }: { limit: number; query: unknown }, _optional = {}): void {
+  if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw new ChatStoreError({ code: 'invalid-input' });
+  if (query !== undefined && (typeof query !== 'string' || query.length > 200)) {
+    throw new ChatStoreError({ code: 'invalid-input' });
+  }
+}
+
 /**
  * Returns a {@link ChatHistoryStore} that can only ever see `scope`'s own conversations.
  *
@@ -386,10 +394,7 @@ export function createSqlChatStore<DB extends ChatDatabase>(
        * @complexity The database scans owned content for search; at most limit+1 rows are returned.
        */
       async list(_required, { query, limit = 20, cursor } = {}) {
-        if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw new ChatStoreError({ code: 'invalid-input' });
-        if (query !== undefined && (typeof query !== 'string' || query.length > 200)) {
-          throw new ChatStoreError({ code: 'invalid-input' });
-        }
+        assertHistoryListInputs({ limit, query });
         const anchor = decodeCursor({ cursor: cursor ?? undefined, kind: 'conversations', scope, conversation: null });
         const id = ordinalId(kernel.dialect, 'c.id');
         const rows = await run(db => {

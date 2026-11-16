@@ -611,9 +611,9 @@
   {
     "file": "packages/chat/src/store/sql/store.ts",
     "function": "createSqlChatStore",
-    "line": 232,
+    "line": 240,
     "rule": "max-lines-per-function",
-    "value": 328
+    "value": 325
   },
   {
     "file": "packages/cms/src/media/tool-registrations.ts",
