@@ -87,13 +87,16 @@ describe.each(profiles)('%s', (mode, security) => {
       expect((await send({ daemon, method: 'POST', path: '/api/agents/rescan', body: OVERSIZED })).status).toBe(401);
     });
   } else {
-    it('a caller with no token and malformed JSON is refused with 400: the body is parsed before any token check', async () => {
+    // A loopback caller is never asked for a token in this profile, so these two rows record the
+    // answers but cannot show which of parser and token check runs first; only a caller from
+    // another machine could, and a test cannot be one.
+    it('a loopback caller with no token and malformed JSON gets the parser\'s 400', async () => {
       const daemon = await startDaemon(security as never);
       const answer = await send({ daemon, method: 'POST', path: '/api/agents/rescan', body: MALFORMED });
       expect(answer.status).toBe(400);
     });
 
-    it('a caller with no token and an oversized body is refused with 413: the body is read before any token check', async () => {
+    it('a loopback caller with no token and an oversized body gets the parser\'s 413', async () => {
       const daemon = await startDaemon(security as never);
       expect((await send({ daemon, method: 'POST', path: '/api/agents/rescan', body: OVERSIZED })).status).toBe(413);
     });
