@@ -18,19 +18,6 @@ import {
   type TerminalSessionManager,
 } from '../terminal-session.js';
 
-// Records the options each manager hands the real engine, so knob forwarding is asserted, not assumed.
-const createTerminalServiceOptions: Array<Parameters<typeof import('@jini-ai/platform').createTerminalService>[0]> = [];
-vi.mock('@jini-ai/platform', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@jini-ai/platform')>();
-  return {
-    ...actual,
-    createTerminalService: (...args: Parameters<typeof actual.createTerminalService>) => {
-      createTerminalServiceOptions.push(args[0]);
-      return actual.createTerminalService(...args);
-    },
-  };
-});
-
 class FakeIPty {
   dataListener: ((chunk: string) => void) | null = null;
   exitListener: ((event: { exitCode: number; signal?: number }) => void) | null = null;
@@ -102,9 +89,9 @@ function lastPty(ptys: Map<string, FakeIPty>): FakeIPty {
   return values[values.length - 1]!;
 }
 
-function makeManager(overrides: NonNullable<Parameters<typeof createTerminalSessionManager>[1]> = {}) {
+function makeManager(tuning: { ttlMs?: number } = {}) {
   const { spawnPty, ptys } = fakeSpawnPty();
-  const manager = createTerminalSessionManager({}, { loadSpawnPty: async () => spawnPty, ...overrides });
+  const manager = createTerminalSessionManager({ terminalService: createTerminalService({ loadSpawnPty: async () => spawnPty, ...tuning }) });
   return { manager, ptys };
 }
 
@@ -136,36 +123,11 @@ describe('createTerminalSessionManager — create/get/list', () => {
     expect(session.shell).toBe('/bin/zsh');
   });
 
-  it('keeps boot inert and rejects terminal creation without a host-supplied implementation', async () => {
-    const manager = createTerminalSessionManager({});
-    expect(manager.list({ principal: alice })).toEqual([]);
-    await expect(manager.create({ principal: alice, options: { cwd: '/work' } })).rejects.toThrow(
-      'Interactive terminals require a host-supplied terminalService or loadSpawnPty. Import loadRealSpawnPty from @jini-ai/daemon/terminal to enable node-pty.',
-    );
-  });
-
-  it('forwards exactly the tuning knobs that were supplied to the engine, and only those', () => {
-    createTerminalServiceOptions.length = 0;
-    const loadSpawnPty = async (): Promise<PtySpawn> => fakeSpawnPty().spawnPty;
-    createTerminalSessionManager({}, { loadSpawnPty });
-    createTerminalSessionManager({}, { loadSpawnPty, maxEvents: 1, maxBufferBytes: 2, exitTailBytes: 3, flushIntervalMs: 4, flushThresholdBytes: 5, ttlMs: 6, shutdownGraceMs: 7 });
-    createTerminalSessionManager({}, { loadSpawnPty, maxEvents: 9 });
-    expect(createTerminalServiceOptions).toEqual([
-      { loadSpawnPty },
-      { loadSpawnPty, maxEvents: 1, maxBufferBytes: 2, exitTailBytes: 3, flushIntervalMs: 4, flushThresholdBytes: 5, ttlMs: 6, shutdownGraceMs: 7 },
-      { loadSpawnPty, maxEvents: 9 },
-    ]);
-    expect(Object.keys(createTerminalServiceOptions[2]!)).toEqual(['loadSpawnPty', 'maxEvents']);
-  });
-
-  it('uses an injected terminalService instead of building one', async () => {
-    createTerminalServiceOptions.length = 0;
+  it('wraps the service it is given: a session created through the manager lives in that service', async () => {
     const { spawnPty } = fakeSpawnPty();
     const terminalService = createTerminalService({ loadSpawnPty: async () => spawnPty });
-    createTerminalServiceOptions.length = 0;
-    const manager = createTerminalSessionManager({}, { terminalService, maxEvents: 1 });
+    const manager = createTerminalSessionManager({ terminalService });
     const session = await manager.create({ principal: alice, options: { cwd: '/work' } });
-    expect(createTerminalServiceOptions).toEqual([]);
     expect(terminalService.get(session.id)?.id).toBe(session.id);
     await manager.shutdownActive({ graceMs: 0 });
   });
@@ -175,7 +137,7 @@ describe('createTerminalSessionManager — create/get/list', () => {
     const { spawnPty } = fakeSpawnPty();
     const terminalService = createTerminalService({ loadSpawnPty: async () => spawnPty });
     const shutdown = vi.spyOn(terminalService, 'shutdownActive');
-    const manager = createTerminalSessionManager({}, { terminalService });
+    const manager = createTerminalSessionManager({ terminalService });
     await manager.shutdownActive({ graceMs: 25 });
     await manager.shutdownActive();
     expect(shutdown.mock.calls).toEqual([[{ graceMs: 25 }], [undefined]]);

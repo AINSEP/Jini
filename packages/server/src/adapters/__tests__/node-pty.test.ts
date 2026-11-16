@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { ensureSpawnHelperExecutable as EnsureSpawnHelperExecutableFn, spawnHelperCandidatePaths as SpawnHelperCandidatePathsFn } from '@jini-ai/platform';
 import type { PtyProcess, PtySpawnOptions } from '@jini-ai/core/contracts/runtime';
 import { createTerminalSessionManager } from '@jini-ai/daemon';
+import { createTerminalService } from '@jini-ai/platform';
 import { loadRealSpawnPty } from '../node-pty.js';
 
 // `loadRealSpawnPty` touches the real filesystem (`ensureSpawnHelperExecutable`) and dynamically
@@ -116,10 +117,11 @@ describe('loadRealSpawnPty', () => {
 });
 
 describe('loadRealSpawnPty feeding a session manager', () => {
-  it('uses the host-injected native loader and forwards tuning knobs', async () => {
+  it('uses the host-injected native loader through a host-built service', async () => {
     const fakePty = new FakeIPty();
     nodePtySpawnMock.mockReturnValue(fakePty);
-    const manager = createTerminalSessionManager({  }, { loadSpawnPty: () => loadRealSpawnPty({}), maxEvents: 10, maxBufferBytes: 1024, exitTailBytes: 256, flushIntervalMs: 1, flushThresholdBytes: 64, shutdownGraceMs: 1 });
+    const terminalService = createTerminalService({ loadSpawnPty: () => loadRealSpawnPty({}), maxEvents: 10, maxBufferBytes: 1024, exitTailBytes: 256, flushIntervalMs: 1, flushThresholdBytes: 64, shutdownGraceMs: 1 });
+    const manager = createTerminalSessionManager({ terminalService });
     const session = await manager.create({ principal: alice, options: { cwd: '/work' } });
     expect(session.status).toBe('running');
     expect(nodePtySpawnMock).toHaveBeenCalledTimes(1);

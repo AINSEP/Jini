@@ -10,10 +10,12 @@
  * before this task) — this module does **not** reimplement that. It adds
  * exactly the three things that engine deliberately left to a caller:
  *
- * 1. **A host-injected `PtySpawn` or `TerminalService`.** The native adapter
- *    lives exclusively at `@jini-ai/daemon/terminal`; this default-entry
- *    session manager never imports it. The host opts in by supplying
- *    `loadSpawnPty: () => loadRealSpawnPty({})` from that subpath.
+ * 1. **A host-built `TerminalService`.** The manager is handed its service and
+ *    builds none: the service, its PTY loader and its tuning options (buffer
+ *    sizes, flush timing, TTL, shutdown grace) are the host's, so this package
+ *    imports no platform implementation and no PTY library. The native adapter
+ *    lives at `@jini-ai/server/adapters/node-pty`; the host opts in by passing
+ *    `loadSpawnPty: () => loadRealSpawnPty({})` where it builds the service.
  *
  * 2. **Session-token gating.** The proposal's blocker was that a
  *    *session-scoped* dangerous capability (once a shell is spawned, every
@@ -47,10 +49,6 @@
  */
 import type { Principal, ToolPolicy, ToolRegistration } from '@jini-ai/core';
 import {
-  createTerminalService,
-} from '@jini-ai/platform';
-import {
-  type PtySpawn,
   type TerminalService,
   type TerminalSession as PlatformTerminalSession,
   type TerminalSseSink,
@@ -152,18 +150,9 @@ export interface TerminalSessionManager {
   shutdownActive(options?: { graceMs?: number }): Promise<void>;
 }
 
-export interface CreateTerminalSessionManagerOptions {
-  /** Host-owned session service. Otherwise a fresh platform service uses the injected `loadSpawnPty`. */
-  readonly terminalService?: TerminalService;
-  /** Host-owned PTY loader, e.g. `() => loadRealSpawnPty({})` from `@jini-ai/daemon/terminal`. Required for creation unless `terminalService` is supplied. */
-  readonly loadSpawnPty?: () => Promise<PtySpawn>;
-  readonly maxEvents?: number;
-  readonly maxBufferBytes?: number;
-  readonly exitTailBytes?: number;
-  readonly flushIntervalMs?: number;
-  readonly flushThresholdBytes?: number;
-  readonly ttlMs?: number;
-  readonly shutdownGraceMs?: number;
+export interface CreateTerminalSessionManagerRequired {
+  /** The host's session service; the manager wraps it with ownership checks and the kill/write/resize lock and never builds one. */
+  readonly terminalService: TerminalService;
 }
 
 interface SessionMetadata {
@@ -203,28 +192,10 @@ async function runExclusive<T>(locks: Map<string, Promise<unknown>>, id: string,
  * around a `@jini-ai/platform` `TerminalService` adding session ownership,
  * the kill/write/resize lock, and (via {@link createTerminalToolRegistrations})
  * `ToolExecutor` gating for creation. See module doc for the full design.
- * Without a host-owned service or loader, boot is inert and `create()` rejects
- * with injection guidance. Wrapper setup is O(1); session work stays in the platform service.
+ * Wrapper setup is O(1); session work stays in the host's service.
  */
-export function createTerminalSessionManager(_requiredArgs: Record<string, never>, options: Pick<CreateTerminalSessionManagerOptions, "terminalService" | "loadSpawnPty" | "maxEvents" | "maxBufferBytes" | "exitTailBytes" | "flushIntervalMs" | "flushThresholdBytes" | "ttlMs" | "shutdownGraceMs"> = {}
+export function createTerminalSessionManager({ terminalService }: CreateTerminalSessionManagerRequired, _optional: Record<string, never> = {}
 ): TerminalSessionManager {
-  const terminalService =
-    options.terminalService ??
-    createTerminalService({
-      loadSpawnPty: options.loadSpawnPty ?? (() => {
-        throw new Error('Interactive terminals require a host-supplied terminalService or loadSpawnPty. Import loadRealSpawnPty from @jini-ai/daemon/terminal to enable node-pty.');
-      }),
-      ...definedOnly({
-        maxEvents: options.maxEvents,
-        maxBufferBytes: options.maxBufferBytes,
-        exitTailBytes: options.exitTailBytes,
-        flushIntervalMs: options.flushIntervalMs,
-        flushThresholdBytes: options.flushThresholdBytes,
-        ttlMs: options.ttlMs,
-        shutdownGraceMs: options.shutdownGraceMs,
-      }),
-    });
-
   const metadata = new Map<string, SessionMetadata>();
   const locks = new Map<string, Promise<unknown>>();
 

@@ -21,13 +21,16 @@ npm install @jini-ai/daemon
 `node-pty` is no longer a dependency of this package — it boots and every other capability
 (run lifecycle, tool executor, agent executor, routines) works without it. Only
 the native adapter at `@jini-ai/server/adapters/node-pty` needs `node-pty` installed.
-The default entry's session manager requires a host-supplied `terminalService` or `loadSpawnPty`:
+The session manager wraps a host-built `TerminalService`; the host also owns the PTY loader and the
+service's tuning (buffer sizes, flush timing, TTL, shutdown grace):
 
 ```ts
 import { createTerminalSessionManager } from '@jini-ai/daemon';
+import { createTerminalService } from '@jini-ai/platform';
 import { loadRealSpawnPty } from '@jini-ai/server/adapters/node-pty';
 
-const manager = createTerminalSessionManager({}, { loadSpawnPty: () => loadRealSpawnPty({}) });
+const terminalService = createTerminalService({ loadSpawnPty: () => loadRealSpawnPty({}) });
+const manager = createTerminalSessionManager({ terminalService });
 ```
 
 With `@jini-ai/server`, pass that loader as `featureOptions.terminal.loadSpawnPty` to

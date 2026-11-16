@@ -10,6 +10,7 @@ import {
   type ToolExecutor,
 } from '../../index.js';
 import type { PtyProcess, PtySpawn } from '@jini-ai/core/contracts/runtime';
+import { createTerminalService } from '@jini-ai/platform';
 import { allowSameOrigin, rejectCrossOrigin } from './fixtures/same-origin-gate.js';
 import {
   actionResultToApiResult,
@@ -120,7 +121,7 @@ class FakePty implements PtyProcess {
 function makeManager(): { manager: TerminalSessionManager; pty: FakePty } {
   const pty = new FakePty();
   const spawnPty: PtySpawn = () => pty;
-  const manager = createTerminalSessionManager({}, { loadSpawnPty: async () => spawnPty });
+  const manager = createTerminalSessionManager({ terminalService: createTerminalService({ loadSpawnPty: async () => spawnPty }) });
   return { manager, pty };
 }
 
