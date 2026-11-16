@@ -51,9 +51,18 @@ export async function stripeRequest(
     let json: unknown;
     try { json = JSON.parse(response.bodyText); } catch { json = null; }
     return stripeOutcome({ status: response.status, json });
-  } catch {
+  } catch (error) {
+    // why: the outcome is genuinely unknown (the request may have reached Stripe). Only the failure's class and a constant-shaped
+    // code are reported: this plugin ships standalone (no core dependency) and a transport message can quote request headers.
     return { kind: "unknown", error: paymentError(
-      { code: "TRANSPORT_ERROR", message: "payment provider request could not be confirmed" }, { retryable: true }
+      { code: "TRANSPORT_ERROR", message: `payment provider request could not be confirmed (${transportFailureLabel({ error })})` }, { retryable: true }
     ) };
   }
+}
+
+/** `ENOTFOUND`-style code when the failure carries one, else its class (`TypeError`, `Error`); never its message. */
+function transportFailureLabel({ error }: { error: unknown }): string {
+  const code = error instanceof Error ? (error as { code?: unknown }).code : undefined;
+  if (typeof code === "string" && /^[A-Z][A-Z0-9_]{1,40}$/.test(code)) return code;
+  return error instanceof Error ? error.constructor.name || "Error" : typeof error;
 }

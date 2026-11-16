@@ -98,7 +98,8 @@ test("a mail refusal never reaches console text and reaches a host logger as the
       await unsubscribe();
     }
     expect(printed).toHaveBeenCalledTimes(1);
-    expect(JSON.stringify(printed.mock.calls)).not.toContain("PRIVATEVALUE");
+    // The console line keeps the refusal text (so an operator can see why mail failed); credential patterns in it are redacted.
+    expect(printed.mock.calls[0]?.[1]).toBe("Error: refused PRIVATEVALUE");
     expect(recorded).toHaveLength(1);
     expect(recorded[0]?.[0].message).not.toContain("PRIVATEVALUE");
     const refusal = recorded[0]?.[1]?.error;

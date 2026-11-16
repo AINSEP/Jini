@@ -1,3 +1,4 @@
+import { describeErrorForLog } from "@jini-ai/core/model-facing-tool-errors";
 import { FORM_ATTACHMENT_CLEANUP_EVENT } from "./attachment-cleanup.js";
 
 /** Exact identity supplied by trusted storage records, never inferred from a filename. */
@@ -17,6 +18,8 @@ export interface FormAttachmentReconciliationResult {
   mediaId: string;
   outcome: 'kept' | 'eligible' | 'queued';
   reason: FormAttachmentInspection | 'inspection-failed' | 'protection-failed' | 'cleanup-failed';
+  /** For the three `*-failed` reasons: what failed (class, code, redacted message), so the report says why the file was kept. */
+  detail?: string;
 }
 /** Explicit maintenance only: inspect one keyset page, preserving uncertain files with a reason.
  * @param required Trusted identity/ownership reads and the existing private/cleanup adapters.
@@ -53,13 +56,13 @@ async function reconcileOne({ required, candidate, apply }: { required: FormAtta
   const input = { workspaceId: required.workspaceId, candidate };
   let reason: FormAttachmentInspection;
   try { reason = await required.inspect(input); }
-  catch { return { mediaId: candidate.mediaId, outcome: 'kept', reason: 'inspection-failed' }; }
+  catch (error) { return { mediaId: candidate.mediaId, outcome: 'kept', reason: 'inspection-failed', detail: describeErrorForLog({ err: error }) }; }
   if (reason !== 'proven-orphan') return { mediaId: candidate.mediaId, outcome: 'kept', reason };
   if (!apply) return { mediaId: candidate.mediaId, outcome: 'eligible', reason };
   try { await required.protect(input); }
-  catch { return { mediaId: candidate.mediaId, outcome: 'kept', reason: 'protection-failed' }; }
+  catch (error) { return { mediaId: candidate.mediaId, outcome: 'kept', reason: 'protection-failed', detail: describeErrorForLog({ err: error }) }; }
   try { await required.cleanup(input); }
-  catch { return { mediaId: candidate.mediaId, outcome: 'kept', reason: 'cleanup-failed' }; }
+  catch (error) { return { mediaId: candidate.mediaId, outcome: 'kept', reason: 'cleanup-failed', detail: describeErrorForLog({ err: error }) }; }
   return { mediaId: candidate.mediaId, outcome: 'queued', reason };
 }
 

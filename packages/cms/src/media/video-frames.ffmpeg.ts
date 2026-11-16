@@ -1,3 +1,4 @@
+import { describeErrorParts } from '@jini-ai/core/model-facing-tool-errors';
 import { spawn } from 'node:child_process';
 import { constants } from 'node:fs';
 import { access, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
@@ -325,9 +326,18 @@ async function extractLocked(
   return { ok: true, metadata, frames: [], sheets: sheetLayouts.map((sheet, index) => ({ ...sheet, mimeType: 'image/jpeg', bytes: sheets[index]! })) };
 }
 
+/** ` (EACCES)` for an approved code, else nothing. */
+function codeSuffix({ code }: { code: string | undefined }): string {
+  return code === undefined ? '' : ` (${code})`;
+}
+
 async function removeWorkspace({ directory }: { directory?: string }): Promise<VideoFrameFailure | undefined> {
   try { if (directory) await rm(directory, { recursive: true, force: true }); }
-  catch { return { ok: false, reason: 'invalid', message: 'Video preview temporary files could not be removed.' }; }
+  catch (error) {
+    // Only the approved code (EACCES, EBUSY...) is added: the full message quotes the temp directory path.
+    const { code } = describeErrorParts({ err: error });
+    return { ok: false, reason: 'invalid', message: `Video preview temporary files could not be removed${codeSuffix({ code })}.` };
+  }
   return undefined;
 }
 

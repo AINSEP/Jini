@@ -22,7 +22,13 @@ test('blob deletion failure reaches the outbox for retry; missing and active blo
     deleteBytes: async () => { throw new Error('provider token=secret'); }, removeBlob: async () => assert.fail('bytes must delete first') });
   const events: any[] = [];
   await scheduleFormAttachmentCleanup({ outbox: { enqueue: async e => { events.push(e); } }, workspaceId: 'w', mediaId: 'm', sha256: 'sha', graceMs: DEFAULT_GC_GRACE_MS, now: 0 });
-  await assert.rejects(bus.publish(events[0]), error => { assert.equal((error as Error).message.includes('secret'), false); return true; });
+  await assert.rejects(bus.publish(events[0]), error => {
+    assert.equal((error as Error).message.includes('secret'), false);
+    // The public text stays the bare code, but the cause rides on the error for host sinks and logs.
+    assert.equal((error as Error).message, 'delivery-failed');
+    assert.equal(((error as Error).cause as Error).message, 'provider token=secret');
+    return true;
+  });
   status = 'active'; await bus.publish(events[0]); status = 'missing'; await bus.publish(events[0]);
 });
 

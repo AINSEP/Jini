@@ -402,7 +402,7 @@ export function createGuardedFileReader({ rootPath, denyRules, limits, filesyste
         catch (cause) {
             // Only the approved code (ELOOP, EACCES...) is added: the full message quotes the host's absolute path.
             const { code } = describeErrorParts({ err: cause });
-            throw new FsFilePathError({ message: `path '${relativePath}' is a symbolic link or could not be opened${code === undefined ? '' : ` (${code})`}` });
+            throw new FsFilePathError({ message: `path '${relativePath}' is a symbolic link or could not be opened${code === undefined ? '' : ' (' + code + ')'}` });
         }
     }
     /** Transfer ownership to the stream only after construction; it alone closes on end/error. */

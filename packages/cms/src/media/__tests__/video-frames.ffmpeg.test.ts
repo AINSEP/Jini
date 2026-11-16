@@ -723,7 +723,7 @@ it('reports temporary files that cannot be removed and still releases the lock',
     throw new Error('probe failed');
   } }, {});
   try {
-    expect(await extractor.extract({ bytes: mp4 }, {})).toEqual({ ok: false, reason: 'invalid', message: 'Video preview temporary files could not be removed.' });
+    expect(await extractor.extract({ bytes: mp4 }, {})).toEqual({ ok: false, reason: 'invalid', message: 'Video preview temporary files could not be removed (EACCES).' });
     expect(removal).toHaveBeenCalledWith(directory, { recursive: true, force: true });
     expect(await createFfmpegVideoFrameExtractor({ findBinaries: async () => undefined }, {}).extract({ bytes: mp4 }, {})).toMatchObject({ reason: 'unavailable' });
   } finally {

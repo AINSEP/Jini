@@ -51,7 +51,7 @@ export function registerFormAttachmentCleanup(
         await deleteBytes({ storageKey: blob.storageKey });
         await removeBlob(payload);
       } });
-    } catch { throw new FormDeliveryError({ code: 'delivery-failed', retryable: true }); }
+    } catch (cause) { throw new FormDeliveryError({ code: 'delivery-failed', retryable: true }, { cause }); }
   } });
 }
 

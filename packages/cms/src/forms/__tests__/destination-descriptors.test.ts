@@ -13,7 +13,7 @@ describe('parseFormDestinationsFile', () => {
   });
 
   it('refuses bad JSON, versions, ids, absolute modules, receive options and duplicates', () => {
-    expect(parseFormDestinationsFile({ raw: '{' })).toEqual({ ok: false, reason: 'not valid JSON' });
+    expect(parseFormDestinationsFile({ raw: '{' })).toEqual({ ok: false, reason: "not valid JSON: SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)" });
     expect(parseFormDestinationsFile({ raw: JSON.stringify({ schemaVersion: 2, destinations: [] }) })).toEqual({ ok: false, reason: 'schemaVersion must be 1' });
     expect(parseFormDestinationsFile({ raw: file([{ ...entry, id: 'Bad_Id' }]) })).toEqual({ ok: false, reason: 'destinations[0].id must be a lowercase hyphenated id' });
     expect(parseFormDestinationsFile({ raw: file([{ ...entry, module: '/abs/x.mjs' }]) })).toEqual({ ok: false, reason: 'destinations[0].module must be a relative path ending in .mjs' });

@@ -1,3 +1,4 @@
+import { describeErrorForLog } from "@jini-ai/core/model-facing-tool-errors";
 export interface CredentialSchemeRule {
   readonly id: string;
   readonly prefix: string;
@@ -41,8 +42,8 @@ export function parseCredentialSchemesFile(required: { raw: string }): { readonl
   let value: unknown;
   try {
     value = JSON.parse(required.raw);
-  } catch {
-    return { ok: false, reason: "not valid JSON" };
+  } catch (error) {
+    return { ok: false, reason: `not valid JSON: ${describeErrorForLog({ err: error })}` };
   }
   if (!isPlainObject(value) || value.schemaVersion !== 1) return { ok: false, reason: "schemaVersion must be 1" };
   if (!Array.isArray(value.schemes) || value.schemes.length > MAX_RULES) return { ok: false, reason: `schemes must be an array of at most ${MAX_RULES} rules` };

@@ -28,19 +28,19 @@ test('a failed ownership read keeps the file and does not hide later candidates'
   const deps = ports(); const rows = [candidate, { mediaId: 'n', sha256: 'other' }];
   const result = await reconcileFormAttachments({ ...deps, readPage: async () => rows,
     inspect: async ({ candidate: row }) => { if (row.mediaId === 'm') throw new Error('private data'); return 'proven-orphan'; } }, { apply: true });
-  assert.deepEqual(result.results.map(row => [row.mediaId, row.outcome, row.reason]), [['m', 'kept', 'inspection-failed'], ['n', 'queued', 'proven-orphan']]);
+  assert.deepEqual(result.results.map(row => [row.mediaId, row.outcome, row.reason, row.detail]), [['m', 'kept', 'inspection-failed', 'Error: private data'], ['n', 'queued', 'proven-orphan', undefined]]);
   assert.deepEqual(deps.effects, ['private', 'cleanup']);
 });
 test('failed cleanup preserves the committed privacy step and reports a retryable candidate', async () => {
   const deps = ports();
   const result = await reconcileFormAttachments({ ...deps, cleanup: async () => { throw new Error('provider secret'); } }, { apply: true });
-  assert.deepEqual(result.results, [{ mediaId: 'm', outcome: 'kept', reason: 'cleanup-failed' }]);
+  assert.deepEqual(result.results, [{ mediaId: 'm', outcome: 'kept', reason: 'cleanup-failed', detail: 'Error: provider secret' }]);
   assert.deepEqual(deps.effects, ['private']);
 });
 test('failed protection never permits cleanup', async () => {
   const deps = ports();
   const result = await reconcileFormAttachments({ ...deps, protect: async () => { throw new Error('database secret'); } }, { apply: true });
-  assert.deepEqual(result.results, [{ mediaId: 'm', outcome: 'kept', reason: 'protection-failed' }]);
+  assert.deepEqual(result.results, [{ mediaId: 'm', outcome: 'kept', reason: 'protection-failed', detail: 'Error: database secret' }]);
   assert.deepEqual(deps.effects, []);
 });
 test('one run reads at most 100 candidates and returns a resumable keyset cursor', async () => {

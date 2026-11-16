@@ -1,3 +1,4 @@
+import { describeErrorForLog } from "@jini-ai/core/model-facing-tool-errors";
 /**
  * @file The pure half of the form-destinations Agent Plugin contribution: the descriptor parser and
  * the module rules a loaded destination must meet. The host names the file, loads the contained
@@ -35,8 +36,8 @@ export function parseFormDestinationsFile(required: { readonly raw: string }, _o
   let value: unknown;
   try {
     value = JSON.parse(required.raw);
-  } catch {
-    return { ok: false, reason: "not valid JSON" };
+  } catch (error) {
+    return { ok: false, reason: `not valid JSON: ${describeErrorForLog({ err: error })}` };
   }
   if (!isPlainObject(value) || value.schemaVersion !== 1) return { ok: false, reason: "schemaVersion must be 1" };
   if (!Array.isArray(value.destinations)) return { ok: false, reason: "destinations must be an array" };

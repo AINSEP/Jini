@@ -48,7 +48,7 @@ test("parse: accepts a valid file and ignores unknown keys such as note", () => 
 
 test("parse: rejects each malformed shape with its exact reason", () => {
   const cases: [string, string][] = [
-    ["{", "not valid JSON"],
+    ["{", "not valid JSON: SyntaxError: Expected property name or '}' in JSON at position 1 (line 1 column 2)"],
     [JSON.stringify({ schemaVersion: 2, schemes: [] }), "schemaVersion must be 1"],
     [JSON.stringify({ schemaVersion: 1 }), "schemes must be an array of at most 32 rules"],
     [JSON.stringify({ schemaVersion: 1, schemes: ["x"] }), "schemes[0] must be an object"],

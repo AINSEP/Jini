@@ -37,10 +37,11 @@ export class FormDeliveryError extends Error {
 
   constructor(
     required: { code: string; retryable: boolean; retryAfterMs?: number; outcome?: "not-applied" | "unknown" },
-    _optional: Record<string, never> = {},
+    optional: { cause?: unknown } = {},
   ) {
     const code = safeFormDeliveryErrorCode({ code: required.code });
-    super(code);
+    // why: the code is the only public text, but the cause stays on the error object for host sinks and logs.
+    super(code, optional.cause === undefined ? undefined : { cause: optional.cause });
     this.name = "FormDeliveryError";
     this.code = code;
     // Only an explicit, recognised `retryable: false` stops retries; the attempt cap still bounds the rest.

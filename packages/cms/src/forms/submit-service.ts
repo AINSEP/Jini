@@ -269,7 +269,7 @@ async function assertUploadSpace({ deps, files, submission }: { deps: SubmitForm
   if (!incomingBytes || !deps.readUploadFreeBytes) return;
   let free: number | undefined;
   try { free = await deps.readUploadFreeBytes({}, {}); }
-  catch { try { deps.logger.warn({ message: "form upload free-disk check unavailable; allowing attachments" }); } catch { /* Logging cannot refuse an upload. */ } return; }
+  catch (error) { try { deps.logger.warn({ message: "form upload free-disk check unavailable; allowing attachments" }, { error }); } catch { /* Logging cannot refuse an upload. */ } return; }
   if (free !== undefined && free - incomingBytes < 512 * 1024 ** 2) throw new FormAttachmentSpaceError({ answers: submission.data, fields: submission.evidence!.fields, ...(deps.uploadSpaceMessage ? { message: deps.uploadSpaceMessage } : {}) });
 }
 

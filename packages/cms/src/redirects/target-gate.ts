@@ -1,3 +1,4 @@
+import { describeErrorForLog } from "@jini-ai/core/model-facing-tool-errors";
 /** The shared INV-03 read gate used by runtime resolution and host export. */
 import type {
   OriginRegistryPort,
@@ -12,7 +13,7 @@ export type RedirectTargetOracle = Pick<OriginRegistryPort, "canonicalOrigin" | 
 export type RedirectLocationRefusalReason = "referrer-alias" | "origin-unavailable" | "target-not-allowed" | "reserved-destination";
 export type RedirectLocationCheck =
   | { kind: "allowed"; candidate: string }
-  | { kind: "refused"; reason: RedirectLocationRefusalReason; destinationCheck?: SameOriginDestinationCheck };
+  | { kind: "refused"; reason: RedirectLocationRefusalReason; destinationCheck?: SameOriginDestinationCheck; /** For `origin-unavailable` after a thrown lookup: what failed (redacted). */ detail?: string };
 
 /** A candidate `location` that already carries (or claims to carry) its own scheme/authority. */
 function isPotentiallyCrossOrigin(location: string): boolean {
@@ -109,7 +110,7 @@ async function checkReservedDestination(
     const destinationCheck = checkSameOriginDestination({ candidate, canonical, reservedSegments }, {});
     if (destinationCheck.kind !== "ok") return { kind: "refused", reason: "reserved-destination", destinationCheck };
     return { kind: "allowed", candidate };
-  } catch {
-    return { kind: "refused", reason: "origin-unavailable" };
+  } catch (error) {
+    return { kind: "refused", reason: "origin-unavailable", detail: describeErrorForLog({ err: error }) };
   }
 }

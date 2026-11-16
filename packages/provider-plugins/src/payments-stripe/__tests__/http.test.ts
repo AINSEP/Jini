@@ -78,6 +78,13 @@ describe("Stripe HTTP requests", () => {
     const result = await stripeRequest({ ctx: context(send), method: "POST", path: "/v1/checkout/sessions" });
     expect(result).toEqual(unknown("TRANSPORT_ERROR"));
     expect(JSON.stringify(result)).not.toContain("test-secret");
+    expect(result).toMatchObject({ error: { message: "payment provider request could not be confirmed (Error)" } });
+  });
+  it("names the transport failure's code, never its message", async () => {
+    const send = vi.fn(async () => { throw Object.assign(new Error("connect ECONNRESET test-secret"), { code: "ECONNRESET" }); });
+    const result = await stripeRequest({ ctx: context(send), method: "GET", path: "/v1/checkout/sessions" });
+    expect(result).toMatchObject({ kind: "unknown", error: { code: "TRANSPORT_ERROR", message: "payment provider request could not be confirmed (ECONNRESET)" } });
+    expect(JSON.stringify(result)).not.toContain("test-secret");
     expect(send).toHaveBeenCalledTimes(1);
   });
 });

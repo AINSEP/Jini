@@ -265,8 +265,8 @@ test("a failing definition lookup is logged and the validation redirect still ha
     definitionRepo: { findBySlug: async () => { throw lookupError; } },
   });
   const sent = await send(deps, request({ slug: "contact", body: { name: "Ada" }, headers: HTML_HEADERS }));
-  assert.deepEqual(logged, [["[site/forms-submit] failed to set validation flash cookie (slug=contact)", "Error"]]);
-  for (const leak of ["boom", "SECRETSECRET", "handler.test"]) assert.ok(!JSON.stringify(logged).includes(leak));
+  assert.deepEqual(logged, [["[site/forms-submit] failed to set validation flash cookie (slug=contact)", "Error: boom api_key=[REDACTED:labeled_secret]"]]);
+  for (const leak of ["SECRETSECRET", "handler.test"]) assert.ok(!JSON.stringify(logged).includes(leak));
   assert.deepEqual(sent.cookies, []);
   assert.deepEqual(sent.redirect, { status: 303, location: "/?form_result=validation&form_slug=contact" });
 });
