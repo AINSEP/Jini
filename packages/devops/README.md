@@ -18,7 +18,7 @@ public subpath and permission boundary.
 | `./checks/published-types` | Published type-surface, registry-drift, linked-package and captured-log checks. |
 | `./checks/coverage` | LCOV, floor, diff, disk-inventory and contamination/baseline policies. |
 | `./checks/node` | Explicit filesystem, process, environment-loader and installer adapters. |
-| `./local-dev` | Environment-file and listener lookup helpers with host-supplied paths/commands. |
+| `./local-dev` | Environment-file, listener lookup and advisory free-port helpers with host-supplied paths/commands. |
 | `./ci-cd` | Reserved for pipeline definitions, run status, logs, cancellation, and deployment orchestration. |
 
 ```ts
