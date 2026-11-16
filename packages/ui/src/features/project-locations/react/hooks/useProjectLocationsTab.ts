@@ -115,6 +115,9 @@ export function useProjectLocationsTab({
         setLocations(next);
         setDrafts(externalLocations(next));
       })
+      .catch((error: unknown) => {
+        if (!cancelled && alive.current) setResult({ status: 'load-error', message: error instanceof Error ? error.message : String(error) });
+      })
       .finally(() => {
         if (!cancelled && alive.current) setLoading(false);
       });

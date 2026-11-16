@@ -19,6 +19,7 @@ export interface ProjectLocationsTabLabels {
   savedLabel?: string;
   defaultSavedLabel?: string;
   saveErrorLabel?: string;
+  loadErrorLabel?: string;
   scanErrorLabel?: string;
   /** i18n template with `{imported}`/`{existing}` placeholders. */
   scanCompleteTemplate?: string;
@@ -51,6 +52,7 @@ function resolveLabels(
     savedLabel: 'Saved.',
     defaultSavedLabel: 'Default location updated.',
     saveErrorLabel: 'Could not save project locations.',
+    loadErrorLabel: 'Could not load project locations.',
     scanErrorLabel: 'Could not scan the new folder for existing projects.',
     scanCompleteTemplate: 'Imported {imported}, {existing} already tracked.',
   };
@@ -74,7 +76,7 @@ export function ProjectLocationsTab({ port, defaultLocationId, onDefaultLocation
 
   const {
     title, description, builtInLabel, defaultBadge, makeDefaultLabel, deleteLabel, addFolderLabel, rowHint,
-    noFolderSelectedLabel, duplicateLabel, savedLabel, defaultSavedLabel, saveErrorLabel, scanErrorLabel,
+    noFolderSelectedLabel, duplicateLabel, savedLabel, defaultSavedLabel, saveErrorLabel, loadErrorLabel, scanErrorLabel,
     scanCompleteTemplate,
   } = resolveLabels({ t }, labels);
 
@@ -96,7 +98,7 @@ export function ProjectLocationsTab({ port, defaultLocationId, onDefaultLocation
         return null;
     }
   })();
-  const errorNoticeByStatus: Partial<Record<typeof result.status, string>> = { 'save-error': saveErrorLabel, 'scan-error': scanErrorLabel };
+  const errorNoticeByStatus: Partial<Record<typeof result.status, string>> = { 'save-error': saveErrorLabel, 'load-error': loadErrorLabel, 'scan-error': scanErrorLabel };
   const errorNotice = errorNoticeByStatus[result.status] ?? null;
 
   return (

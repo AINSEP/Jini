@@ -37,6 +37,19 @@ describe('useProjectLocationsTab — initial load', () => {
   });
 });
 
+describe('useProjectLocationsTab — load failure', () => {
+  it('reports load-error and ends loading when fetchLocations rejects', async () => {
+    const port: ProjectLocationsPort = {
+      fetchLocations: () => Promise.reject(new Error('disk gone')),
+      openFolderDialog: () => Promise.resolve(null),
+      saveLocations: () => Promise.reject(new Error('n/a')),
+    };
+    const { result } = renderHook(() => useProjectLocationsTab({ port }));
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.result.status).toBe('load-error');
+  });
+});
+
 describe('useProjectLocationsTab — save (via addFolder)', () => {
   it('does not finish the save once unmounted before saveLocations resolves', async () => {
     const save = deferred<readonly ProjectLocation[]>();
