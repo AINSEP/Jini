@@ -1,10 +1,9 @@
 import { forwardRef } from 'react';
-import { SecretInput as KitSecretInput } from '@jini-ai/ui-kit/react';
+import { SecretInput as KitSecretInput, useSecretReveal } from '../kit.js';
 import { secretControlAttrs } from '@jini-ai/core/agent-handles';
 import type { CSSProperties, InputHTMLAttributes, TextareaHTMLAttributes } from 'react';
 import { useT } from '../../features/i18n/index.js';
 import { Icon } from './Icon.js';
-import { useSecretReveal } from './SecretInput.hooks.js';
 
 /**
  * @file The shared masked input: a password/token/key `<input>` with an eye toggle inside its right

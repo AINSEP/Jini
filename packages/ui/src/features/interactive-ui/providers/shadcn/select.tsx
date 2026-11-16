@@ -5,7 +5,7 @@
  * Unused private group, label, and separator primitives are omitted.
  */
 import * as React from 'react';
-import { useOverlayContainer } from '@jini-ai/ui-kit/react';
+import { useOverlayContainer } from '../../../../react/kit.js';
 import * as SelectPrimitive from '@radix-ui/react-select';
 
 import { Check, ChevronDown, ChevronUp } from './icons.js';

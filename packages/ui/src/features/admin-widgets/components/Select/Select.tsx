@@ -1,4 +1,4 @@
-import { useOverlayContainer } from '@jini-ai/ui-kit/react';
+import { useOverlayContainer } from '../../../../react/kit.js';
 import { useAgentHandle } from '../../../../react/hooks/useAgentHandle.js';
 import { resolveSelectPortalContainer, resolveSelectOriginPage } from '../../../../react/components/select-popover.js';
 import { createPortal } from "react-dom";

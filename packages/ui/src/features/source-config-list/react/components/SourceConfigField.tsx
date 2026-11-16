@@ -2,7 +2,7 @@ import { useEffect, useRef, type ChangeEvent } from 'react';
 import type { AgentHandleProps } from '@jini-ai/core/agent-handles';
 import { useT } from '../../../i18n/index.js';
 import { SecretInput, SecretTextarea } from '../../../../react/components/SecretInput.js';
-import { useSecretReveal as useSecretInputReveal } from '../../../../react/components/SecretInput.hooks.js';
+import { useSecretReveal as useSecretInputReveal } from '../../../../react/kit.js';
 import { sourceConfigAgentProps } from '../../agent-handles.js';
 import { maskFieldValue } from '../../rules.js';
 import type { SourceFieldSpec } from '../../types.js';

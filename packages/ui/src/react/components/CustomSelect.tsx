@@ -11,7 +11,7 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import type { CSSProperties, KeyboardEvent, MutableRefObject, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { useOverlayContainer } from '@jini-ai/ui-kit/react';
+import { useOverlayContainer } from '../kit.js';
 import { useSelectPopover, isSelectEventInside, openSelectOnKey, applySelectNavigationKey, resolveSelectPortalContainer, resolveSelectOriginPage } from './select-popover.js';
 import { Icon } from './Icon.js';
 import { agentHandleProps } from '@jini-ai/core/agent-handles';
