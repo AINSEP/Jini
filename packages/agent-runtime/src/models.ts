@@ -4,7 +4,8 @@ import { defaultRuntimeState, type AgentRuntimeState } from './runtime-state.js'
  * @module models
  * Model-option defaults, a per-agent last-surfaced live-model cache and model-id sanitization.
  */
-import type { DetectedAgent, RuntimeAgentDef, RuntimeModelOption } from './types.js';
+import type { DetectedAgent } from './types.js';
+import type { RuntimeAgentDef, RuntimeModelOption } from '@jini-ai/core/contracts/agents';
 
 type SelectableAgent = Pick<DetectedAgent, 'id' | 'available' | 'models' | 'modelsSource' | 'reasoningOptions' | 'reasoningInModelId' | 'authStatus' | 'supportsConcreteModelSelection' | 'defaultModelResolution'>;
 type SelectionRequest = { agent: SelectableAgent; agentId: string; modelId?: string | undefined; effort?: string | undefined };

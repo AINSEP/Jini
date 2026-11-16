@@ -2,7 +2,7 @@ import { constants, promises as fs } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
-import type { RuntimeAgentDef } from '@jini-ai/agent-runtime';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import { resolveMcpBridgeForRun } from '../mcp-bridge.js';
 
 const home = vi.hoisted(() => ({ path: '' }));

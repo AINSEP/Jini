@@ -1,10 +1,10 @@
 import { createAgentModelDiscovery } from '../model-discovery-native.js';
 import { acpModelFetcher, DEFAULT_MODEL_OPTION } from './shared.js';
-import type { RuntimeAgentDef } from '../types.js';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 export const traeCliAgentDef = {
   // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
-  ...createAgentModelDiscovery('trae-cli', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => traeCliAgentDef.fallbackModels }),
+  ...createAgentModelDiscovery('trae-cli', { fallbackModels: (): readonly import('@jini-ai/core/contracts/agents').RuntimeModelOption[] => traeCliAgentDef.fallbackModels }),
     id: 'trae-cli',
     name: 'Trae CLI',
     bin: 'traecli',

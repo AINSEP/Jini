@@ -343,7 +343,7 @@ async function main(): Promise<void> {
   };
   const runtime = createNativeAgentRuntime({ env });
   const runtimeExecutorOptions = { runtimeState: runtime.state, hostEnv: runtime.hostEnv,
-    codexDisablePlugins: runtime.codexDisablePlugins, piGracefulShutdownMs: runtime.piGracefulShutdownMs,
+    codexDisablePlugins: runtime.codex.disablePlugins === true, piGracefulShutdownMs: runtime.pi.gracefulShutdownMs ?? 5000,
     getAgentDef: runtime.getAgentDef, resolveAgentLaunch: runtime.resolveAgentLaunch };
   const mediaTaskStore = await createSqliteMediaTaskStore(resolve(dataDir, 'media-tasks.db'));
   const memoryRoutesDeps = {

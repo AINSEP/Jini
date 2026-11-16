@@ -16,7 +16,7 @@
  */
 import path from 'node:path';
 import type { ExecutionProfile } from './types.js';
-import type { RuntimeBuildOptions } from '../../types.js';
+import type { RuntimeBuildOptions } from '@jini-ai/core/contracts/agents';
 import {
   createDsmlArtifactTextSuppressor,
   createToolCallTextSuppressor,

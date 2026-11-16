@@ -1,7 +1,7 @@
 import { promises as fsPromises } from 'node:fs';
 import { homedir, tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { RuntimeAgentDef } from '@jini-ai/agent-runtime';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import type { ClaudeConfigDirIsolationOptions, ClaudeConfigDirSeams, FailBeforeSpawn, PreparedClaudeConfigDir } from '../contracts.js';
 import { defaultReadMcpJsonFile, defaultWriteMcpJsonFile } from '../mcp-bridge.js';
 import { errorMessage } from '../values.js';

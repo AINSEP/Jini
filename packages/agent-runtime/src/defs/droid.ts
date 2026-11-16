@@ -15,11 +15,11 @@ import { createAgentModelDiscovery } from '../model-discovery-native.js';
  * No `externalMcpInjection` for the same reason.
  */
 import { DEFAULT_MODEL_OPTION } from './shared.js';
-import type { RuntimeAgentDef } from '../types.js';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 export const droidAgentDef = {
   // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
-  ...createAgentModelDiscovery('droid', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => droidAgentDef.fallbackModels }),
+  ...createAgentModelDiscovery('droid', { fallbackModels: (): readonly import('@jini-ai/core/contracts/agents').RuntimeModelOption[] => droidAgentDef.fallbackModels }),
     id: 'droid',
     name: 'Factory Droid',
     bin: 'droid',

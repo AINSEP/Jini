@@ -1,4 +1,4 @@
-import type { RuntimeAgentDef } from '@jini-ai/agent-runtime';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 /**
  * A portable ACP subprocess fixture. It requires no vendor binary or account,

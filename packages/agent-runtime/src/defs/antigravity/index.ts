@@ -1,7 +1,12 @@
 import { createAgentModelDiscovery } from '../../model-discovery-native.js';
 import { redactOAuthUrls } from '@jini-ai/oauth';
 import { DEFAULT_MODEL_OPTION } from '../shared.js';
-import type { RuntimeAgentDef, RuntimeBuildOptions, RuntimeContext, RuntimeModelOption } from '../../types.js';
+import type {
+  RuntimeAgentDef,
+  RuntimeBuildOptions,
+  RuntimeContext,
+  RuntimeModelOption,
+} from '@jini-ai/core/contracts/agents';
 
 // `agy` v1.1.24 has a real `--model <id>` flag (`agy --help`: "Model for the current CLI
 // session") plus a machine-readable `agy models` subcommand that lists every selectable model as

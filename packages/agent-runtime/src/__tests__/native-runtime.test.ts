@@ -3,9 +3,10 @@ import { afterEach, expect, it } from 'vitest';
 import { createNativeAgentRuntime } from '../native-runtime.js';
 import { createAgentRuntimeState } from '../runtime-state.js';
 import { AGENT_DEFS } from '../registry.js';
-import { setAcpModelProbe, type AcpModelProbe } from '../acp-model-probe.js';
+import { setAcpModelProbe } from '../acp-model-probe.js';
+import { type AcpModelProbe } from '@jini-ai/core/contracts/agents';
 import { getRuntimeModelDiscoveryDeps } from '../model-discovery-adapters.js';
-import type { ModelDiscoveryContext } from '../model-discovery-types.js';
+import type { ModelDiscoveryContext } from '@jini-ai/core/contracts/agents';
 import type { DetectedAgent } from '../types.js';
 
 const context: ModelDiscoveryContext = { executable: '/fake/cli', cwd: '/workspace', env: { PATH: '/fake/bin' } };
@@ -69,14 +70,14 @@ it('rebinds a supplied state transport without discarding its other discovery po
 it('resolves env policy once and lets explicit values override it for each host', async () => {
   const env = { CODEX_DISABLE_PLUGINS: '1', PI_GRACEFUL_SHUTDOWN_MS: '91' };
   const baseline = createNativeAgentRuntime({ env });
-  const treatment = createNativeAgentRuntime({ env }, { codexDisablePlugins: false, piGracefulShutdownMs: 0 });
+  const treatment = createNativeAgentRuntime({ env }, { codex: { disablePlugins: false }, pi: { gracefulShutdownMs: 0 } });
   env.CODEX_DISABLE_PLUGINS = '0';
   const input = { prompt: 'question', imagePaths: [] };
   const args = baseline.getAgentDef({ id: 'codex' })!.buildArgs(input);
   expect(args.slice(args.indexOf('--disable'), args.indexOf('--disable') + 2)).toEqual(['--disable', 'plugins']);
   expect(treatment.getAgentDef({ id: 'codex' })!.buildArgs(input)).not.toContain('--disable');
-  expect(baseline.piGracefulShutdownMs).toBe(91);
-  expect(treatment.piGracefulShutdownMs).toBe(0);
+  expect(baseline.pi.gracefulShutdownMs).toBe(91);
+  expect(treatment.pi.gracefulShutdownMs).toBe(0);
   await Promise.all([baseline.dispose({}), treatment.dispose({})]);
 });
 

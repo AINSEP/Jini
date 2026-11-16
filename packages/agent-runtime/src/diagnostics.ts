@@ -3,9 +3,9 @@
  * Explain executable/authentication detection failures and preserve safe startup evidence.
  */
 import { agentBinEnvKey, agentSearchDirs, type ExecutableResolutionOptions } from './executables.js';
-import type { AgentLaunchResolution } from './launch.js';
+import type { AgentLaunchResolution, RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import type { AgentAuthProbeResult } from './auth.js';
-import type { AgentDiagnostic, AgentFixIntent, RuntimeAgentDef } from './types.js';
+import type { AgentDiagnostic, AgentFixIntent } from '@jini-ai/protocol';
 import { formatErrorForLog } from '@jini-ai/core';
 
 /** Pasteable startup evidence, redacted before a UTF-8 byte cap is applied. No stack or input

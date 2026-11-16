@@ -2,7 +2,7 @@
  * @module pi-models
  * Parse the pi --list-models whitespace table into model options, independently of the stdio transport.
  */
-import type { RuntimeModelOption } from './types.js';
+import type { RuntimeModelOption } from '@jini-ai/core/contracts/agents';
 
 /**
  * Parses the tabular stdout of `pi --list-models` into an array of model options.

@@ -1,10 +1,10 @@
 import { createAgentModelDiscovery } from '../../model-discovery-native.js';
 import { detectAcpModels, DEFAULT_MODEL_OPTION } from '../shared.js';
-import type { RuntimeAgentDef } from '../../types.js';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 export const hermesAgentDef = {
   // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
-  ...createAgentModelDiscovery('hermes', { fallbackModels: (): readonly import('../../types.js').RuntimeModelOption[] => hermesAgentDef.fallbackModels }),
+  ...createAgentModelDiscovery('hermes', { fallbackModels: (): readonly import('@jini-ai/core/contracts/agents').RuntimeModelOption[] => hermesAgentDef.fallbackModels }),
     id: 'hermes',
     name: 'Hermes',
     bin: 'hermes',

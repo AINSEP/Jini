@@ -3,7 +3,8 @@ import { redactSecrets } from '@jini-ai/core';
 import * as http from 'node:http';
 import * as net from 'node:net';
 import { describe, expect, it, vi } from 'vitest';
-import { defaultDnsLookup, pinnedFetch, validateBaseUrl, validateBaseUrlResolved, type DnsLookupAddress } from '../connection-guard.js';
+import { defaultDnsLookup, pinnedFetch, validateBaseUrl, validateBaseUrlResolved } from '../connection-guard.js';
+import { type DnsLookupAddress } from '@jini-ai/core/contracts/agents';
 
 describe('isLoopbackApiHost', () => {
   it('recognizes localhost and ::1', () => {

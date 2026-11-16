@@ -30,7 +30,7 @@
  * exact-equality regression proof.
  */
 import path from 'node:path';
-import type { RuntimeAgentDef } from '@jini-ai/agent-runtime';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 /** The two values `applyImagePromptDelivery` actually changes — everything else about a run is untouched. */
 export interface ImagePromptDelivery {

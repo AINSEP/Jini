@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { testProviderConnection, type ProviderConnectionTestInput } from '../connection-test.js';
-import type { DnsLookupAddress } from '../connection-guard.js';
+import type { DnsLookupAddress } from '@jini-ai/core/contracts/agents';
 
 const noDns = async (): Promise<DnsLookupAddress[]> => [{ address: '8.8.8.8', family: 4 }];
 

@@ -3,7 +3,7 @@
  * No network I/O — accepts the raw stdout string and returns a typed array or null.
  */
 
-import type { RuntimeModelOption } from '../../types.js';
+import type { RuntimeModelOption } from '@jini-ai/core/contracts/agents';
 
 /** A single model entry for the daemon's model-picker: an opaque id and a display label. */
 export type PiModelOption = RuntimeModelOption;

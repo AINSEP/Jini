@@ -66,8 +66,6 @@ export * from './amr-profile-resolver.js';
 // `probeAcpModels` is the replaceable probe used by defs/shared.ts; the native ACP transport
 // keeps `detectAcpModels`. See acp-model-probe.ts for defaults and injection behavior.
 export {
-  type AcpModelProbe,
-  type AcpModelProbeRequest,
   noopAcpModelProbe,
   setAcpModelProbe,
   detectAcpModels as probeAcpModels,
@@ -76,6 +74,9 @@ export {
 // below to avoid a public-name collision while preserving both consumers' contracts.
 export * from './pi-models.js';
 export * from './prompt-augmenter.js';
+export * from './runtime-def-binding.js';
+export * from './defs/codex/options.js';
+export * from './defs/pi/options.js';
 export * from './artifact-taxonomy.js';
 export * from './telemetry-sink.js';
 

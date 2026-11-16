@@ -1,19 +1,9 @@
+import type { NativeCapabilities, NativeToolPolicyInput, RunConsentKey, RunPlan, RunPlanHost } from '@jini-ai/core/contracts/agents';
 /** Native fallback tools, independent of a host's catalog and identity policy. */
 export const NATIVE_FALLBACK_TOOLS: readonly string[] = Object.freeze([
   'Bash', 'Edit', 'Write', 'MultiEdit', 'NotebookEdit', 'BashOutput', 'KillShell',
 ]);
 
-/** Independent native CLI dimensions; hosts own identity, defaults and persistence. */
-export interface NativeCapabilities {
-  shell: boolean;
-  fileWrite: boolean;
-  userMcp: boolean;
-  subagents: boolean;
-  userSettings: boolean;
-  web: boolean;
-  workflows: boolean;
-  loginEnvironment: boolean;
-}
 
 const CAPABILITY_TOOLS = {
   shell: ['Bash', 'BashOutput', 'KillShell'],
@@ -49,13 +39,6 @@ export function resolveNativeToolDenies(required: {
   return [...new Set([...denied, ...NATIVE_FALLBACK_TOOLS])];
 }
 
-/** Current run limits, shared by launch enforcement and browser preflight. */
-export interface NativeToolPolicyInput {
-  nativeToolAccess?: boolean;
-  nativeCapabilities?: Partial<NativeCapabilities>;
-  cliParity?: boolean;
-  permissionMode?: 'bypass' | 'restricted';
-}
 
 /** Resolve without granting authority: runtimes requiring full access need explicit host consent.
  * Pure O(1); a definition is never an authorization decision.
@@ -101,20 +84,8 @@ export function assessNativeToolPolicy({ def, policy }: {
   return null;
 }
 
-/** Consent keys are the existing master switch and independently stored native capabilities. */
-export type RunConsentKey = 'enabled' | keyof NativeCapabilities;
-export type RunPlan =
-  | { verdict: 'RUN'; loadsOwn: boolean; bridged: boolean }
-  | { verdict: 'ASK'; keys: RunConsentKey[]; why?: 'isolation_blocked' }
-  | { verdict: 'SETUP'; reason: 'not_installed' | 'not_signed_in' | 'host_locked'; keys?: RunConsentKey[]; lock?: string };
 
 type PlanningDef = { name: string; supportsNativeToolAccess?: boolean; mcpIsolation?: 'none' | 'no-client' | { readonly perRun: string }; externalMcpInjection?: string; mcpHttp?: boolean };
-export interface RunPlanHost {
-  installed?: boolean;
-  auth?: 'ok' | 'missing' | 'unknown';
-  locked?: string;
-  isolationBlocked?: boolean;
-}
 
 function loadsOwnSources(def: PlanningDef, policy: NativeToolPolicyInput, blocked: boolean): boolean {
   const isolation = blocked ? 'none' : def.mcpIsolation;

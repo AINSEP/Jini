@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createAgentExecutor, createInMemoryEventLog, createRunLifecycle } from '@jini-ai/daemon';
-import type { AgentLaunchResolution } from '@jini-ai/agent-runtime';
+import type { AgentLaunchResolution } from '@jini-ai/core/contracts/agents';
 import { acpFixtureDef } from './acp-fixture.js';
 
 describe('minimal host static ACP definition', () => {

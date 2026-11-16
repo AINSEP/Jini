@@ -1,7 +1,4 @@
-import type {
-   RuntimeAgentDef,
-   RuntimeLockHold,
-} from '@jini-ai/agent-runtime';
+import type { RuntimeAgentDef, RuntimeLockHold } from '@jini-ai/core/contracts/agents';
 
 /**
  * Phase 7: acquires a `runtimeLock` def's process-global mutex before `buildArgs` runs — see

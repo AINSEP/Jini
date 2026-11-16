@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import { AgentIcon, RemixIcon, SearchableModelSelect, useAgentHandle, useOverlayContainer } from '@jini-ai/ui';
 import { agentHandleProps, agentHandleSegment } from '@jini-ai/core/agent-handles';
 import { InfoTip } from '@jini-ai/ui/admin-widgets';
-import { assessNativeToolPolicy, type NativeToolPolicyInput } from '@jini-ai/agent-runtime/native-tool-policy';
+import { assessNativeToolPolicy } from '@jini-ai/agent-runtime/native-tool-policy';
 
 import { useT } from '../../../hooks/context.js';
 import { definedProps } from '../../../util/defined-props.js';
@@ -57,7 +57,7 @@ function FullAccessNoteTip({ note, descriptionId, t }: {
 
 /** Selection preflight uses the launch assessor; it never substitutes for enforcement. */
 function NativeToolPolicyWarning({ agent, policy, isApi }: {
-  agent: ChatPaneAgent | undefined; policy: NativeToolPolicyInput | undefined; isApi: boolean;
+  agent: ChatPaneAgent | undefined; policy: import('@jini-ai/core/contracts/agents').NativeToolPolicyInput | undefined; isApi: boolean;
 }): ReactNode {
   const t = useT();
   if (!agent || isApi) return null;

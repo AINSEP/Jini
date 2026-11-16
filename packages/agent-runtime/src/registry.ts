@@ -47,7 +47,7 @@ import {
   traeCliAgentDef,
   vibeAgentDef,
 } from './defs/index.js';
-import type { RuntimeAgentDef } from './types.js';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 export const BASE_AGENT_DEFS: RuntimeAgentDef[] = [
   amrAgentDef,

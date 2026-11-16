@@ -4,7 +4,8 @@ import { readFile, stat } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { createCommandInvocation } from '@jini-ai/platform/command';
-import { nativeAcpModelProbe, type AcpModelProbe } from './acp-model-probe.js';
+import { nativeAcpModelProbe } from './acp-model-probe.js';
+import { type AcpModelProbe } from '@jini-ai/core/contracts/agents';
 import { CLAUDE_CODE_INITIALIZE_ARGS, CLAUDE_CODE_INITIALIZE_REQUEST } from './claude-code-models.js';
 import { listProviderModels, type ProviderModelsInput } from './providers/model-catalog.js';
 import { execAgentFile } from './invocation.js';
@@ -12,8 +13,14 @@ import { scheduleProbeProcess } from './probe-scheduler.js';
 import { probeDroidSdk } from './model-discovery-sdk.js';
 import { parseSettingsJson, readModelConfiguration } from './model-discovery-config.js';
 import { ModelProbeError, modelIdentityKind, withModelProbeTimeout } from './core/model-discovery-shared.js';
-import type { AgentDiscoveryConfiguration, DiscoveredModel, ModelDiscoveryContext, ModelDiscoveryDeps, ModelProbeResult } from './model-discovery-types.js';
-import type { ProviderModelsKind } from './providers/types.js';
+import type { AgentDiscoveryConfiguration } from './model-discovery-types.js';
+import type {
+  DiscoveredModel,
+  ModelDiscoveryContext,
+  ModelDiscoveryDeps,
+  ModelProbeResult,
+  ProviderModelsKind,
+} from '@jini-ai/core/contracts/agents';
 
 const ACP_ARGS: Record<string, readonly string[]> = {
   amr: ['agent', 'run', '--runtime', 'opencode'],

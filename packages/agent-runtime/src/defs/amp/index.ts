@@ -1,6 +1,6 @@
 import { createAgentModelDiscovery } from '../../model-discovery-native.js';
 import { DEFAULT_MODEL_OPTION } from '../shared.js';
-import type { RuntimeAgentDef } from '../../types.js';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 // Amp CLI (https://ampcode.com) is a full agentic coding CLI, argv-shaped
 // much like Claude Code: it has a headless execute mode and emits a
@@ -35,7 +35,7 @@ const AMP_MODES: ReadonlySet<string> = new Set(['deep', 'smart', 'rush']);
 
 export const ampAgentDef = {
   // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
-  ...createAgentModelDiscovery('amp', { fallbackModels: (): readonly import('../../types.js').RuntimeModelOption[] => ampAgentDef.fallbackModels }),
+  ...createAgentModelDiscovery('amp', { fallbackModels: (): readonly import('@jini-ai/core/contracts/agents').RuntimeModelOption[] => ampAgentDef.fallbackModels }),
   id: 'amp',
   name: 'Amp',
   bin: 'amp',

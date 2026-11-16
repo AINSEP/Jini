@@ -1,7 +1,11 @@
 import { createAgentModelDiscovery } from '../model-discovery-native.js';
 import { DEFAULT_MODEL_OPTION, parseLineSeparatedModels } from './shared.js';
 import { agentCapabilities } from '../capabilities.js';
-import type { RuntimeAgentDef, RuntimeBuildOptions, RuntimeContext } from '../types.js';
+import type {
+  RuntimeAgentDef,
+  RuntimeBuildOptions,
+  RuntimeContext,
+} from '@jini-ai/core/contracts/agents';
 
 const SKIP_PERMISSIONS_FLAG = '--dangerously-skip-permissions';
 
@@ -25,7 +29,7 @@ function resumeArgs(runtimeContext: RuntimeContext): string[] {
 }
 
 export const opencodeAgentDef = {
-  ...createAgentModelDiscovery('opencode', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => opencodeAgentDef.fallbackModels, args: ['models'], parse: parseLineSeparatedModels }),
+  ...createAgentModelDiscovery('opencode', { fallbackModels: (): readonly import('@jini-ai/core/contracts/agents').RuntimeModelOption[] => opencodeAgentDef.fallbackModels, args: ['models'], parse: parseLineSeparatedModels }),
     id: 'opencode',
     name: 'OpenCode',
     bin: 'opencode-cli',

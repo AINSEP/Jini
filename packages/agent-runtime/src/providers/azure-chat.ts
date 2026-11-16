@@ -72,7 +72,8 @@
  * beyond this pointer to avoid the two copies drifting.
  * See docs/decisions/DR-001-provider-native-tool-lifecycle.md.
  */
-import { defaultDnsLookup, validateBaseUrlResolved, type DnsLookupFn, type PinnedFetch } from './connection-guard.js';
+import { defaultDnsLookup, validateBaseUrlResolved, type PinnedFetch } from './connection-guard.js';
+import { type DnsLookupFn } from '@jini-ai/core/contracts/agents';
 import { runOpenAiCompatibleRequest, refreshOpenAiTools, createStrictToolRetry, type StrictToolRetryState, type OpenAiCompatibleRequestOutcome } from './openai-chat.js';
 import type { ProviderToolSnapshotOptions, ProviderSchemaFallback } from './provider-tool-policy.js';
 import { buildLegacyMaxTokensParam, buildMaxCompletionTokensParam, isUnsupportedMaxTokensError } from './token-params.js';

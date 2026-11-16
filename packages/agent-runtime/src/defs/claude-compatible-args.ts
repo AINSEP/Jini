@@ -7,7 +7,11 @@
  * implementation rather than a copy per def.
  */
 import { agentCapabilities } from '../capabilities.js';
-import type { RuntimeBuildOptions, RuntimeCapabilityMap, RuntimeContext } from '../types.js';
+import type {
+  RuntimeBuildOptions,
+  RuntimeCapabilityMap,
+  RuntimeContext,
+} from '@jini-ai/core/contracts/agents';
 
 /** Host-scoped capabilities when supplied, else the published `--help` probe cache for `agentId`. */
 export function resolveCapabilities({ agentId, options }: { agentId: string; options: RuntimeBuildOptions }): RuntimeCapabilityMap {

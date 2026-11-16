@@ -1,11 +1,11 @@
-/** C6 characterization: behaviour the vocabulary move and the Codex option re-homing must keep (pinned before either). */
+/** C6 characterization: behaviour the vocabulary move and the Codex option re-homing must keep (pinned before either;
+ * after the move only the import paths and the option's spelling changed, never an expectation). */
 import { describe, expect, it } from 'vitest';
-import { RuntimeSelectionError } from '../index.js';
+import { RuntimeSelectionError, type ModelDiscoveryContext, type ModelDiscoveryDeps, type RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import { resolveModelForLaunch } from '../model-discovery.js';
-import { bindRuntimeAgentDef, createAgentRuntimeState } from '../runtime-state.js';
+import { createAgentRuntimeState } from '../runtime-state.js';
+import { bindRuntimeAgentDef } from '../runtime-def-binding.js';
 import { getAgentDef } from '../registry.js';
-import type { ModelDiscoveryContext, ModelDiscoveryDeps } from '../model-discovery-types.js';
-import type { RuntimeAgentDef } from '../types.js';
 
 const context: ModelDiscoveryContext = { executable: '/host-cli', cwd: '/workspace', env: { HOME: '/fixture' } };
 
@@ -41,15 +41,15 @@ describe('binding a definition to runtime state', () => {
   it('gives Codex `--disable plugins` only when the host policy says so', () => {
     const state = createAgentRuntimeState({});
     const codex = getAgentDef({ id: 'codex' })!;
-    expect(pluginFlag(bindRuntimeAgentDef({ def: codex, state }, { codexDisablePlugins: true }).buildArgs(input))).toEqual(['--disable', 'plugins']);
-    expect(bindRuntimeAgentDef({ def: codex, state }, { codexDisablePlugins: false }).buildArgs(input)).not.toContain('--disable');
+    expect(pluginFlag(bindRuntimeAgentDef({ def: codex, state }, { codex: { disablePlugins: true } }).buildArgs(input))).toEqual(['--disable', 'plugins']);
+    expect(bindRuntimeAgentDef({ def: codex, state }, { codex: { disablePlugins: false } }).buildArgs(input)).not.toContain('--disable');
     expect(bindRuntimeAgentDef({ def: codex, state }).buildArgs(input)).not.toContain('--disable');
   });
 
   it('never gives the Codex plugin flag to another CLI', () => {
     const state = createAgentRuntimeState({});
     const claude = getAgentDef({ id: 'claude' })!;
-    expect(bindRuntimeAgentDef({ def: claude, state }, { codexDisablePlugins: true }).buildArgs(input)).not.toContain('--disable');
+    expect(bindRuntimeAgentDef({ def: claude, state }, { codex: { disablePlugins: true } }).buildArgs(input)).not.toContain('--disable');
   });
 
   it('passes the probed capabilities of that state and keeps the caller options', () => {

@@ -3,7 +3,12 @@ import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import type { spawn } from 'node:child_process';
 import { describe, expect, it, vi } from 'vitest';
-import { claudeAgentDef, getAgentDef, type AgentLaunchResolution, type RuntimeBuildOptions, type RuntimeAgentDef } from '@jini-ai/agent-runtime';
+import { claudeAgentDef, getAgentDef } from '@jini-ai/agent-runtime';
+import {
+  type AgentLaunchResolution,
+  type RuntimeBuildOptions,
+  type RuntimeAgentDef,
+} from '@jini-ai/core/contracts/agents';
 import { createInMemoryEventLog } from '../../event-log.js';
 import { createRunLifecycle } from '../../run-lifecycle.js';
 import { createAgentExecutor } from '../index.js';

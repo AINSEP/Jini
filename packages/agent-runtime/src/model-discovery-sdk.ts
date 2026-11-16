@@ -1,4 +1,8 @@
-import type { ModelDiscoveryContext, ModelDiscoveryDeps, ModelProbeResult } from './model-discovery-types.js';
+import type {
+  ModelDiscoveryContext,
+  ModelDiscoveryDeps,
+  ModelProbeResult,
+} from '@jini-ai/core/contracts/agents';
 import { ModelProbeError, modelIdentityKind } from './model-discovery-shared.js';
 
 /** UNVERIFIED locally. Official Python SDK metadata bridge; no session/inference call.

@@ -8,11 +8,11 @@ import { createAgentModelDiscovery } from '../model-discovery-native.js';
  * `auggie login` in a terminal.
  */
 import { acpModelFetcher, DEFAULT_MODEL_OPTION } from './shared.js';
-import type { RuntimeAgentDef } from '../types.js';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 export const auggieAgentDef = {
   // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
-  ...createAgentModelDiscovery('auggie', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => auggieAgentDef.fallbackModels }),
+  ...createAgentModelDiscovery('auggie', { fallbackModels: (): readonly import('@jini-ai/core/contracts/agents').RuntimeModelOption[] => auggieAgentDef.fallbackModels }),
     id: 'auggie',
     name: 'Auggie CLI',
     bin: 'auggie',

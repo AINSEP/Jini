@@ -5,18 +5,10 @@ import type { ExecutableResolutionOptions } from './executables.js';
  */
 import path, { delimiter } from 'node:path';
 import { inspectAgentExecutableResolution, userToolchainBinDirs } from './executables.js';
-import type { RuntimeAgentDef } from './types.js';
+import type { AgentLaunchResolution, RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import { trimCharsEnd } from '@jini-ai/core/text';
 import { resolveCodexLaunch } from './defs/codex/launch.js';
 
-export type AgentLaunchKind = 'selected' | 'codex-native';
-
-export type AgentLaunchResolution = ReturnType<typeof inspectAgentExecutableResolution> & {
-  launchPath: string | null;
-  launchKind: AgentLaunchKind;
-  childPathPrepend: string[];
-  diagnostic: string | null;
-};
 
 const LAUNCH_ADAPTERS: ReadonlyMap<string, typeof resolveCodexLaunch> = new Map([['codex', resolveCodexLaunch]]);
 

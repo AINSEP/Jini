@@ -1,4 +1,4 @@
-import type { RuntimeAgentDef } from '@jini-ai/agent-runtime';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import type { RunAgentPayload, RelayedUserMessage, MessageRelayVia } from '@jini-ai/protocol';
 
 export interface RunMessageRelay {

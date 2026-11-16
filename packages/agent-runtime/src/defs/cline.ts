@@ -10,11 +10,11 @@ import { createAgentModelDiscovery } from '../model-discovery-native.js';
  * which `auth.ts`'s generic classifier already reads as a missing sign-in (fix: `cline auth`).
  */
 import { acpModelFetcher, DEFAULT_MODEL_OPTION } from './shared.js';
-import type { RuntimeAgentDef } from '../types.js';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 export const clineAgentDef = {
   // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
-  ...createAgentModelDiscovery('cline', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => clineAgentDef.fallbackModels }),
+  ...createAgentModelDiscovery('cline', { fallbackModels: (): readonly import('@jini-ai/core/contracts/agents').RuntimeModelOption[] => clineAgentDef.fallbackModels }),
     id: 'cline',
     name: 'Cline',
     bin: 'cline',

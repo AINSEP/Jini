@@ -6,7 +6,12 @@ import {
   type ModelDiscoveryDefinition,
 } from './model-discovery.js';
 import { defaultModelDiscoveryDeps, modelProbeTimeoutMs, probeAgentCatalog, probeCliCache } from './model-discovery-adapters.js';
-import type { AgentDiscoveryConfiguration, AgentModelDiscoveryPort, ModelDiscoveryContext, ModelDiscoveryDeps, ModelDiscoveryProbes } from './model-discovery-types.js';
+import type { AgentDiscoveryConfiguration, ModelDiscoveryProbes } from './model-discovery-types.js';
+import type {
+  AgentModelDiscoveryPort,
+  ModelDiscoveryContext,
+  ModelDiscoveryDeps,
+} from '@jini-ai/core/contracts/agents';
 
 export * from './model-discovery.js';
 

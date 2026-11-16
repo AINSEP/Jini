@@ -1,7 +1,7 @@
 import { homedir } from 'node:os';
 import { describe, expect, it } from 'vitest';
 import { modelConfigFiles, parseConfiguredModel, parseSettingsJson, readModelConfiguration } from '../model-discovery-config.js';
-import type { ModelDiscoveryContext, ModelDiscoveryDeps } from '../model-discovery-types.js';
+import type { ModelDiscoveryContext, ModelDiscoveryDeps } from '@jini-ai/core/contracts/agents';
 
 const context: ModelDiscoveryContext = { executable: '/cli', cwd: '/work', env: { HOME: '/h' } };
 const signal = new AbortController().signal;

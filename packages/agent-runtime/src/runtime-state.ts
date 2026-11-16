@@ -1,7 +1,6 @@
 /** Mutable runtime data belongs to one host. Compatibility functions use defaultRuntimeState. */
-import type { AcpModelProbe } from './acp-model-probe.js';
-import type { RuntimeAgentDef, RuntimeCapabilityMap, RuntimeModelOption, DetectedAgent } from './types.js';
-import type { ModelCacheEntry, ModelDiscoveryDeps } from './model-discovery-types.js';
+import type { AcpModelProbe, RuntimeAgentDef, RuntimeCapabilityMap, RuntimeModelOption, ModelCacheEntry, ModelDiscoveryDeps } from '@jini-ai/core/contracts/agents';
+import type { DetectedAgent } from './types.js';
 
 export interface AgentRuntimeState {
   /** One in-flight or settled detection per launch scope; catalog expiry refreshes only models. */
@@ -40,17 +39,3 @@ export function createAgentRuntimeState(_required: Record<string, never>, _optio
   return state;
 }
 export const defaultRuntimeState = createAgentRuntimeState({});
-
-/** Bind model probes and the argument builder to the host transport, capability state and plugin policy.
- * Returns a definition copy without mutating the registry. @complexity O(1). */
-export function bindRuntimeAgentDef({ def, state }: { def: RuntimeAgentDef; state: AgentRuntimeState }, { codexDisablePlugins }: { codexDisablePlugins?: boolean } = {}): RuntimeAgentDef {
-  const fetchModels = def.fetchModels;
-  const boundFetchModels: RuntimeAgentDef['fetchModels'] = fetchModels
-    ? (required, optional = {}) => fetchModels(required, {
-      ...optional, ...(state.acpModelProbe ? { acpModelProbe: state.acpModelProbe } : {}),
-    }) : undefined;
-  return { ...def, ...(boundFetchModels ? { fetchModels: boundFetchModels } : {}), buildArgs: (required, optional = {}) => def.buildArgs(required, {
-    ...optional, options: { ...optional.options, capabilities: state.capabilities.get(def.id) ?? {},
-      ...(codexDisablePlugins !== undefined ? { codexDisablePlugins } : {}) },
-  }) };
-}

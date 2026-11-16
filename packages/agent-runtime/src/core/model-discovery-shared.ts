@@ -1,6 +1,6 @@
 /** Shared discovery normalization and timeout/error contracts; no native adapters. */
-import type { DetectedAgent, RuntimeModelOption, RuntimeReasoningOption } from '../types.js';
-import type { DiscoveredModel, ModelCatalogSnapshot } from '../model-discovery-types.js';
+import type { DetectedAgent } from '../types.js';
+import type { DiscoveredModel, ModelCatalogSnapshot, RuntimeModelOption, RuntimeReasoningOption } from '@jini-ai/core/contracts/agents';
 
 export function modelIdentityKind(id: string): DiscoveredModel['identityKind'] {
   const token = id.slice(id.lastIndexOf('/') + 1);
@@ -121,5 +121,3 @@ export function validateRuntimeModelSelection({ agent, agentId, modelId, effort 
   return null;
 }
 
-/** A refusal assembled by the shared selection validator, safe to show instead of provider errors. */
-export class RuntimeSelectionError extends Error {}

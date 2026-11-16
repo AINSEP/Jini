@@ -738,7 +738,7 @@ Every listed name is exported from the root; source links define fields and lite
 | [prompt-augmenter.ts](../../src/prompt-augmenter.ts) | `PromptAugmenter`, `RunContextSelection`, `WorkspaceContextItem`, `noopPromptAugmenter` |
 | [artifact-taxonomy.ts](../../src/artifact-taxonomy.ts) | `ArtifactTaxonomy`, `noopArtifactTaxonomy` |
 | [telemetry-sink.ts](../../src/telemetry-sink.ts) | `RunLifecycleEvent`, `TelemetrySink`, `noopTelemetrySink` |
-| [providers/types.ts](../../src/providers/types.ts) | `ConnectionTestKind`, `ConnectionTestProtocol`, `ProviderModelOption`, `ProviderModelsKind`, `ProviderModelsRequest`, `ProviderModelsResponse` |
+| [core contracts/agents/model-catalog.ts](../../../core/src/contracts/agents/model-catalog.ts) | `ConnectionTestKind`, `ConnectionTestProtocol`, `ProviderModelOption`, `ProviderModelsKind`, `ProviderModelsRequest`, `ProviderModelsResponse` |
 | [providers/aihubmix.ts](../../src/providers/aihubmix.ts) | `AIHUBMIX_APP_CODE`, `AIHUBMIX_DEFAULT_BASE_URL`, `AIHUBMIX_IMAGE_ASPECT_TO_SIZE`, `AIHubMixCatalogModel`, `AIHubMixCatalogType`, `AIHubMixGeminiImageRequest`, `AIHubMixProtocol`, `ParseAIHubMixCatalogOptions` |
 | [providers/connection-guard.ts](../../src/providers/connection-guard.ts) | `BaseUrlValidationResult`, `DnsLookupAddress`, `DnsLookupFn`, `PinnedFetch`, `PinnedFetchInit`, `PinnedFetchResponse` |
 | [providers/model-catalog.ts](../../src/providers/model-catalog.ts) | `ProviderModelsInput` |

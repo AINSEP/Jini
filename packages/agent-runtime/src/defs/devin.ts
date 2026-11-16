@@ -1,10 +1,10 @@
 import { createAgentModelDiscovery } from '../model-discovery-native.js';
 import { acpModelFetcher, DEFAULT_MODEL_OPTION } from './shared.js';
-import type { RuntimeAgentDef } from '../types.js';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 export const devinAgentDef = {
   // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
-  ...createAgentModelDiscovery('devin', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => devinAgentDef.fallbackModels }),
+  ...createAgentModelDiscovery('devin', { fallbackModels: (): readonly import('@jini-ai/core/contracts/agents').RuntimeModelOption[] => devinAgentDef.fallbackModels }),
     id: 'devin',
     name: 'Devin for Terminal',
     bin: 'devin',

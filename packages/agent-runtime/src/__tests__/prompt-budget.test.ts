@@ -4,7 +4,7 @@ import {
   checkWindowsCmdShimCommandLineBudget,
   checkWindowsDirectExeCommandLineBudget,
 } from '../prompt-budget.js';
-import type { RuntimeAgentDef } from '../types.js';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 function makeDef(overrides: Partial<RuntimeAgentDef> = {}): RuntimeAgentDef {
   return {

@@ -7,7 +7,7 @@ import { readFile } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { DEFAULT_MODEL_OPTION, sanitizeCustomModel } from './models.js';
-import type { RuntimeEnv, RuntimeModelOption } from './types.js';
+import type { RuntimeEnv, RuntimeModelOption } from '@jini-ai/core/contracts/agents';
 
 const DEFAULT_MMD_MODEL_ROUTES_FILE = join('.config', 'mms', 'model-routes.json');
 const MMD_MODEL_ROUTES_FILE_ENV = 'MMD_MODEL_ROUTES_FILE';

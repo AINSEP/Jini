@@ -1,7 +1,8 @@
 import { fixtureModelDiscovery } from './model-discovery-fixture.js';
 import type { ChildProcess, spawn as nodeSpawn } from 'node:child_process';
 import { describe, expect, it } from 'vitest';
-import { agentCapabilities, type AgentLaunchResolution, type RuntimeAgentDef } from '@jini-ai/agent-runtime';
+import { agentCapabilities } from '@jini-ai/agent-runtime';
+import { type AgentLaunchResolution, type RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import { createInMemoryEventLog } from '../../event-log.js';
 import { createRunLifecycle } from '../../run-lifecycle.js';
 import { createAgentExecutor } from '../index.js';

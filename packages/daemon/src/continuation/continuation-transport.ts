@@ -25,7 +25,7 @@
  * comment states it deliberately stays plain-text stdin. Keying off
  * `streamFormat` would misroute it into `'stdin-injection'`.
  */
-import type { RuntimeAgentDef } from '@jini-ai/agent-runtime';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 export type ContinuationTransport = 'mcp-callback' | 'stdin-injection' | 'none';
 

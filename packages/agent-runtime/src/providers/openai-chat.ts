@@ -69,7 +69,7 @@ import { redactSecrets } from '@jini-ai/core';
  */
 import { createRoleMarkerGuard, emitGuardedTextDelta } from '../role-marker-guard.js';
 import { extractProviderErrorDetail } from './response-text.js';
-import { defaultDnsLookup, pinnedFetch, validateBaseUrlResolved, type DnsLookupAddress, type DnsLookupFn, type PinnedFetch } from './connection-guard.js';
+import { defaultDnsLookup, pinnedFetch, validateBaseUrlResolved, type PinnedFetch } from './connection-guard.js';
 import { decodeSseStream, parseSseJsonRecord, type DecodedSseEvent } from './sse-decode.js';
 import { buildOpenAIChatTokenParam } from './token-params.js';
 import { createTurnEndGuard, type TurnEndReason } from './turn-end-guard.js';
@@ -168,7 +168,7 @@ export interface OpenAiTurnOptions {
   /** Injectable HTTP transport, defaulting to {@link pinnedFetch} (SSRF-guarded, DNS-pinned). See `anthropic-messages.ts#AnthropicTurnOptions.fetchImpl`'s doc for the seam this exists for and why production wiring must never override it. Forwarded to {@link runOpenAiCompatibleRequest} via `OpenAiCompatibleRequestInit.fetchImpl` — `azure-chat.ts`/`ollama-chat.ts` accept and forward their own copy of this field the same way. */
   readonly fetchImpl?: PinnedFetch;
   /** Injectable DNS resolver for {@link validateBaseUrlResolved}'s DNS-pinning check, defaulting to {@link defaultDnsLookup}. Same test-only override rationale as `fetchImpl`. */
-  readonly dnsLookup?: DnsLookupFn;
+  readonly dnsLookup?: import('@jini-ai/core/contracts/agents').DnsLookupFn;
 }
 
 export interface OpenAiTurnResult {
@@ -237,7 +237,7 @@ export interface OpenAiCompatibleRequestInit {
   readonly headers: Record<string, string>;
   readonly body: Record<string, unknown>;
   /** The address `validateBaseUrlResolved` validated for `url`'s hostname, forwarded verbatim to `pinnedFetch` so the connection dials it directly instead of re-resolving DNS. `undefined` for the loopback-literal / IP-literal hosts that skip resolution — see `pinnedFetch`'s doc. */
-  readonly pinnedAddress?: DnsLookupAddress;
+  readonly pinnedAddress?: import('@jini-ai/core/contracts/agents').DnsLookupAddress;
   readonly signal?: AbortSignal;
   /** Secrets to strip out of any error message surfaced to the caller (e.g. the request's API key) — forwarded verbatim to `redactSecrets`'s `exactSecrets` parameter. */
   readonly redactSecretsList: ReadonlyArray<string | undefined | null>;

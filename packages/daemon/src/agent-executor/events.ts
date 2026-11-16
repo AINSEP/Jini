@@ -7,7 +7,7 @@ import { createSanitizedLineStream } from './sanitized-line-stream.js';
 import { acceptsMidRunUserMessages, createMessageRelay, type RunMessageRelay } from './message-relay.js';
 import { randomUUID } from 'node:crypto';
 import type { probeMcpBridge, McpBridgeProbeResult } from './mcp-bridge-probe.js';
-import type { ModelCatalogSnapshot } from '@jini-ai/agent-runtime';
+import type { ModelCatalogSnapshot } from '@jini-ai/core/contracts/agents';
 import { createModelReceiptTracker } from './model-receipts.js';
 import { observeRunOutput } from './run-output.js';
 import { messageContentWithImages, type MessageAttachmentImage } from '../attachment-content.js';
@@ -31,8 +31,8 @@ import {
   type AcpPermissionHandler,
   type AcpSessionController,
   type PiRpcSession,
-  type RuntimeAgentDef,
 } from '@jini-ai/agent-runtime';
+import { type RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import {
   listProcessSnapshots,
   stopProcesses,

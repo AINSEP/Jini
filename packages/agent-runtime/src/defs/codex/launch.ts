@@ -1,6 +1,6 @@
 import { accessSync, closeSync, constants, openSync, readdirSync, readSync, realpathSync, statSync } from 'node:fs';
 import path from 'node:path';
-import type { AgentLaunchResolution } from '../../launch.js';
+import type { AgentLaunchResolution } from '@jini-ai/core/contracts/agents';
 
 export function resolveCodexLaunch(selectedPath: string, childPathPrepend: string[]): Pick<AgentLaunchResolution, 'launchPath' | 'launchKind' | 'childPathPrepend' | 'diagnostic'> {
   const native = tryResolveCodexNativeBinary(selectedPath);

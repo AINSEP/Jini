@@ -118,9 +118,9 @@ import {
   type OpenAiToolExecutor,
   type OpenAiToolResult,
   type OpenAiTurnEvent,
-  type DnsLookupFn,
   type PinnedFetch,
 } from '@jini-ai/agent-runtime';
+import { type DnsLookupFn } from '@jini-ai/core/contracts/agents';
 import { createApiError, type ApiError } from '@jini-ai/protocol';
 import type { RouteHostContext } from '@jini-ai/core/contracts/server';
 import { validationError, guardSameOrigin, type SseEvent, err, ok, type Result } from '@jini-ai/core/contracts/server';

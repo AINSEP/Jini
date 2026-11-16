@@ -12,7 +12,11 @@ import { detectAcpModels } from '../acp-model-probe.js';
 import { parsePiModels } from '../pi-models.js';
 import { execAgentFile } from '../invocation.js';
 import { DEFAULT_MODEL_OPTION } from '../models.js';
-import type { RuntimeAgentDef, RuntimeContext, RuntimeModelOption } from '../types.js';
+import type {
+  RuntimeAgentDef,
+  RuntimeContext,
+  RuntimeModelOption,
+} from '@jini-ai/core/contracts/agents';
 
 export { detectAcpModels, parsePiModels, execAgentFile, DEFAULT_MODEL_OPTION };
 

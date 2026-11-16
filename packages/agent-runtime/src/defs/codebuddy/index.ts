@@ -1,7 +1,7 @@
 import { createAgentModelDiscovery } from '../../model-discovery-native.js';
 import { addDirArgs, nonDefaultFlag, permissionModeArgs, resolveCapabilities, sessionArgs } from '../claude-compatible-args.js';
 import { buildClaudeMcpConfigArgs, DEFAULT_MODEL_OPTION } from '../shared.js';
-import type { RuntimeAgentDef } from '../../types.js';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 // Codebuddy Code (https://www.codebuddy.cn) — a Claude Code–compatible CLI
 // that ships as `codebuddy` (short alias: `cbc`). The argument surface is a
@@ -47,7 +47,7 @@ const CODEBUDDY_FALLBACK_MODELS = [
 
 export const codebuddyAgentDef = {
   // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
-  ...createAgentModelDiscovery('codebuddy', { fallbackModels: (): readonly import('../../types.js').RuntimeModelOption[] => codebuddyAgentDef.fallbackModels }),
+  ...createAgentModelDiscovery('codebuddy', { fallbackModels: (): readonly import('@jini-ai/core/contracts/agents').RuntimeModelOption[] => codebuddyAgentDef.fallbackModels }),
     id: 'codebuddy',
     name: 'Codebuddy Code',
     bin: 'codebuddy',

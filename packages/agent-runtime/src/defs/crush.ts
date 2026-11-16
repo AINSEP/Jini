@@ -12,11 +12,11 @@ import { createAgentModelDiscovery } from '../model-discovery-native.js';
  * per-run flag to point it elsewhere.
  */
 import { DEFAULT_MODEL_OPTION } from './shared.js';
-import type { RuntimeAgentDef } from '../types.js';
+import type { RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
 export const crushAgentDef = {
   // UNVERIFIED live integration locally; source/category and limits are documented in model-discovery-adapters.ts.
-  ...createAgentModelDiscovery('crush', { fallbackModels: (): readonly import('../types.js').RuntimeModelOption[] => crushAgentDef.fallbackModels }),
+  ...createAgentModelDiscovery('crush', { fallbackModels: (): readonly import('@jini-ai/core/contracts/agents').RuntimeModelOption[] => crushAgentDef.fallbackModels }),
     id: 'crush',
     name: 'Crush',
     bin: 'crush',

@@ -1,7 +1,7 @@
 import { EventEmitter } from 'node:events';
 import type { ChildProcess, spawn as nodeSpawn } from 'node:child_process';
 import { describe, expect, it, vi } from 'vitest';
-import type { AgentLaunchResolution, RuntimeAgentDef } from '@jini-ai/agent-runtime';
+import type { AgentLaunchResolution, RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import type { RunProtocolEvent } from '@jini-ai/protocol';
 import { createInMemoryEventLog } from '../../event-log.js';
 import { createRunLifecycle, type RunLifecycle } from '../../run-lifecycle.js';

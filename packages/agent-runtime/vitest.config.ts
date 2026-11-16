@@ -38,10 +38,6 @@ export default defineConfig({
         // (same reasoning as packages/ui/vitest.config.ts's settings-dialog
         // types.ts excludes).
         'src/types.ts',
-        // Same carve-out as `src/types.ts` above: pure `export type`/
-        // `export interface` file, zero runtime declarations (verified via
-        // the same grep). Vendored provider-connectivity shapes only.
-        'src/providers/types.ts',
         'src/agent-protocol/acp/types.ts',
       ],
       // 2026-07-22 audit-fix pass: pushed the package to genuine

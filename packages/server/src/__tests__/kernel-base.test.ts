@@ -155,8 +155,8 @@ describe('L039a runtime option pins', () => {
     } });
     try {
       expect(base.agentRuntime.hostEnv).toEqual(hostEnv);
-      expect(base.agentRuntime.piGracefulShutdownMs).toBe(0);
-      expect(base.agentRuntime.codexDisablePlugins).toBe(codexDisablePlugins ?? false);
+      expect(base.agentRuntime.pi.gracefulShutdownMs).toBe(0);
+      expect(base.agentRuntime.codex.disablePlugins).toBe(codexDisablePlugins ?? false);
     } finally { await base.close(); }
   });
   it('shares a supplied runtime state and disposes it only once', async () => {

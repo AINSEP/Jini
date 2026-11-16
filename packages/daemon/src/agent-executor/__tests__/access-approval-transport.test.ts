@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parse } from 'smol-toml';
-import { AGENT_DEFS, buildAcpSessionNewParams, runtimeSupportsExternalTools, type RuntimeAgentDef } from '@jini-ai/agent-runtime';
+import { AGENT_DEFS, buildAcpSessionNewParams, runtimeSupportsExternalTools } from '@jini-ai/agent-runtime';
+import { type RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 import { createApprovalHandler, createToolRegistry, type AccessApprovalDescription } from '@jini-ai/core';
 import { createDelegatedToolBridge } from '../../delegated-tool-bridge.js';
 import { createInMemoryEventLog } from '../../event-log.js';

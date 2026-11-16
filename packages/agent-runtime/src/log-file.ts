@@ -21,14 +21,8 @@
 import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { RuntimeAgentDef } from './types.js';
+import type { PreparedAgentLogFile, RuntimeAgentDef } from '@jini-ai/core/contracts/agents';
 
-export type PreparedAgentLogFile = {
-  /** Absolute path to hand over as `RuntimeContext.agentLogFilePath`. The file itself does not exist yet — the spawned CLI creates it. */
-  path: string;
-  /** Removes the staged directory and whatever the CLI wrote into it. Safe to call more than once (`force: true`). */
-  cleanup: () => Promise<void>;
-};
 
 /**
  * Stages a temp log-file path for a `needsAgentLogFile` adapter.

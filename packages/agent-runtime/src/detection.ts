@@ -17,7 +17,17 @@ import { getRuntimeModelDiscoveryDeps } from './model-discovery-adapters.js';
  */
 import { execAgentFile } from './invocation.js';
 import { offlineSnapshot, modelDiscoveryForDef } from './model-discovery-native.js';
-import type { ModelDiscoveryContext, ModelDiscoveryDeps, ModelCatalogSnapshot, DefaultModelResolution } from './model-discovery-types.js';
+import type {
+  ModelDiscoveryContext,
+  ModelDiscoveryDeps,
+  ModelCatalogSnapshot,
+  DefaultModelResolution,
+  RuntimeAgentDef,
+  RuntimeCapabilityMap,
+  RuntimeModelSource,
+  RuntimeModelOption,
+  RuntimeReasoningOption,
+} from '@jini-ai/core/contracts/agents';
 import { rememberLiveModels } from './models.js';
 import { installMetaForAgent } from './metadata.js';
 import { AGENT_DEFS } from './registry.js';
@@ -27,14 +37,9 @@ import { probeAgentAuthStatus, type AgentAuthProbeResult } from './auth.js';
 import { noopAmrProfileResolver, type AmrProfileResolver } from './amr-profile-resolver.js';
 import { buildAuthDiagnostic, buildExecutableDiagnostic, buildNotInvocableDiagnostic, type NotInvocableCause } from './diagnostics.js';
 import type {
-  AgentDiagnostic,
   DetectedAgent,
-  RuntimeAgentDef,
-  RuntimeCapabilityMap,
-  RuntimeModelSource,
-  RuntimeModelOption,
-  RuntimeReasoningOption,
 } from './types.js';
+import type { AgentDiagnostic } from '@jini-ai/protocol';
 import { omitKeys } from './core/omit-keys.js';
 
 type FetchedRuntimeModels = {

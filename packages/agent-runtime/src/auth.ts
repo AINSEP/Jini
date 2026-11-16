@@ -19,7 +19,7 @@
  * through to whichever guidance function they call. See `archived provenance ledger`.
  */
 import { execAgentFile } from './invocation.js';
-import type { RuntimeAgentDef, RuntimeEnv } from './types.js';
+import type { AgentServiceFailureCode, RuntimeAgentDef, RuntimeEnv } from '@jini-ai/core/contracts/agents';
 
 import { DEFAULT_HOST_NAME } from './auth-common.js';
 import { claudeAuthProfile } from './defs/claude/auth.js';
@@ -75,13 +75,6 @@ export function classifyAgentAuthFailure({ agentId, text }: { agentId: string; t
   return { status: 'missing', message: classifier.guidance({ hostName: hostName }) };
 }
 
-// Model-service failure classes that map a CLI agent's raw error text to a
-// structured API error code. `classifyAgentAuthFailure` only covers the
-// agents that ship a tailored sign-in hint; every other CLI agent used to
-// collapse auth / quota / upstream failures into a generic execution
-// failure. This agent-agnostic, text-based classifier recovers the
-// specific class so the chat shows an accurate reason.
-export type AgentServiceFailureCode = 'AGENT_AUTH_REQUIRED' | 'RATE_LIMITED' | 'UPSTREAM_UNAVAILABLE';
 
 // A bare HTTP status number (`500`, `429`, …) is too noisy to trust on its own
 // — agent stderr is full of unrelated numbers (`line 500`, `read 502 bytes`,

@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { homedir } from 'node:os';
-import type { ModelDiscoveryContext, ModelDiscoveryDeps } from './model-discovery-types.js';
+import type { ModelDiscoveryContext, ModelDiscoveryDeps } from '@jini-ai/core/contracts/agents';
 import { yamlModelCapture } from './model-discovery-yaml.js';
 
 import { codexModelConfig } from './defs/codex/model-discovery.js';
