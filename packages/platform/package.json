@@ -32,7 +32,6 @@
       "./fs": "node",
       "./object-store": "node",
       "./net": "node",
-      "./net/endpoint-policy": "universal",
       "./fs/file-lock": "node",
       "./secrets/credential-token": "universal",
       "./web": "node",
@@ -54,7 +53,6 @@
       },
       "shared": [
         "src/net/address.ts",
-        "src/net/endpoint-policy.ts",
         "src/fetch-with-timeout.ts",
         "src/http/guarded/errors.ts"
       ]
@@ -166,11 +164,6 @@
       "types": "./dist/net/index.d.ts",
       "import": "./dist/net/index.js",
       "default": "./dist/net/index.js"
-    },
-    "./net/endpoint-policy": {
-      "types": "./dist/net/endpoint-policy.d.ts",
-      "import": "./dist/net/endpoint-policy.js",
-      "default": "./dist/net/endpoint-policy.js"
     },
     "./fs/file-lock": {
       "types": "./dist/fs/file-lock.d.ts",
