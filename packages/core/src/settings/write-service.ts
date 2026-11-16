@@ -402,11 +402,7 @@ export async function set(required: SetValueRequired, optional: SettingsValueWri
     if (input.scope === "global") {
       await deps.repo.saveGlobalValue({ ...base, workspaceId: null, principalId: null });
     } else if (input.scope === "workspace") {
-      await deps.repo.saveWorkspaceValue({
-        ...base,
-        workspaceId: input.workspaceId ?? null,
-        principalId: null,
-      });
+      await deps.repo.saveWorkspaceValue({ ...base, workspaceId: input.workspaceId ?? null, principalId: null });
     } else {
       await deps.repo.saveUserValue({
         ...base,

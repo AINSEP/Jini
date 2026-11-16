@@ -442,12 +442,7 @@ export function useStandingDraftAutosave(deps: StandingDraftAutosaveOptions, _op
     liftStaleGate();
     dropLocalBackup();
     if (!entryId) return { discarded: true };
-    let discarded = false;
-    await enqueue(async () => {
-      // A throw is logged by `enqueue` and leaves `discarded` false; `{ ok: false }` is the server keeping it.
-      discarded = (await port.discardAutosave({ id: entryId }, {})).ok;
-    });
-    return { discarded };
+    return discardOnServer({ enqueue, port, entryId });
   }, [clearPendingTimer, dropLocalBackup, enqueue, entryId, liftStaleGate, port]);
 
   const dismissRecoverable = useCallback(() => setRecoverableDraft(null), []);
@@ -465,6 +460,18 @@ export function useStandingDraftAutosave(deps: StandingDraftAutosaveOptions, _op
 
   const comparedDraft = useMemo(() => recoverableDraft ? { ...recoverableDraft, serverUpdatedAt } : null, [recoverableDraft, serverUpdatedAt]);
   return { recoverableDraft: comparedDraft, staleBasis, dismissRecoverable, scheduleAutosave, clearStandingDraft, supersedeBasis, preserveFailedSave };
+}
+
+/** Queues the server discard behind any pending write and says whether the server dropped the draft.
+ *  A throw is logged by `enqueue` and leaves `discarded` false; `{ ok: false }` is the server keeping it.
+ *  @complexity O(1) plus one queued request. */
+async function discardOnServer(
+  { enqueue, port, entryId }: { enqueue: (op: () => Promise<void>) => Promise<void>; port: StandingDraftAutosavePort; entryId: string },
+  _optional = {},
+): Promise<{ discarded: boolean }> {
+  let discarded = false;
+  await enqueue(async () => { discarded = (await port.discardAutosave({ id: entryId }, {})).ok; });
+  return { discarded };
 }
 
 /** Whether a write built on `baseVersion` belongs to a basis the caller has left (see

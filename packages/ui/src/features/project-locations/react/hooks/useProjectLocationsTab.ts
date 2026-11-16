@@ -62,6 +62,32 @@ export async function scanAddedLocation(
   }
 }
 
+/** The tab's initial fetch. A disposed or re-run effect (`isLive` false) publishes nothing; a failed
+ *  fetch says so (`load-error`) instead of showing an empty list as if there were no locations. */
+async function loadLocations(
+  { port, isLive, setLocations, setDrafts, setResult, setLoading }: {
+    port: ProjectLocationsPort;
+    isLive: () => boolean;
+    setLocations: (locations: readonly ProjectLocation[]) => void;
+    setDrafts: (drafts: readonly ProjectLocationDraft[]) => void;
+    setResult: (result: ProjectLocationsActionResult) => void;
+    setLoading: (loading: boolean) => void;
+  },
+  _options = {},
+): Promise<void> {
+  setLoading(true);
+  try {
+    const next = await port.fetchLocations();
+    if (!isLive()) return;
+    setLocations(next);
+    setDrafts(externalLocations(next));
+  } catch (error: unknown) {
+    if (isLive()) setResult({ status: 'load-error', message: error instanceof Error ? error.message : String(error) });
+  } finally {
+    if (isLive()) setLoading(false);
+  }
+}
+
 /**
  * Owns the tab's async edges: the initial locations fetch, the add-folder ->
  * duplicate-check -> save -> (optional) scan sequence, and removal. Origin:
@@ -107,20 +133,7 @@ export function useProjectLocationsTab({
 
   useEffect(() => {
     let cancelled = false;
-    setLoading(true);
-    portRef.current
-      .fetchLocations()
-      .then((next) => {
-        if (cancelled || !alive.current) return;
-        setLocations(next);
-        setDrafts(externalLocations(next));
-      })
-      .catch((error: unknown) => {
-        if (!cancelled && alive.current) setResult({ status: 'load-error', message: error instanceof Error ? error.message : String(error) });
-      })
-      .finally(() => {
-        if (!cancelled && alive.current) setLoading(false);
-      });
+    void loadLocations({ port: portRef.current, isLive: () => !cancelled && alive.current, setLocations, setDrafts, setResult, setLoading });
     return () => {
       cancelled = true;
     };
