@@ -184,12 +184,11 @@ describe('helpers', () => {
 });
 
 describe('the real workspace baseline', () => {
-  it('ships a parsable debt file, the frozen sqlite/infra forwarder exceptions, and passes the gate', () => {
+  it('ships a parsable debt file, no exceptions, and passes the gate', () => {
     const entries = loadDebt({ root: REPO_ROOT });
     expect(entries.length).toBeGreaterThan(0);
     expect(entries.every(entry => entry.count > 0 && entry.lane.length > 0)).toBe(true);
-    const owners = new Set(loadExceptions({ root: REPO_ROOT }).map(item => `${item.owner}:${item.ownerQuestion}:${item.approved}`));
-    expect([...owners].sort()).toEqual(['infra:Q2:2026-11-15', 'sqlite:Q2:2026-11-15']);
+    expect(loadExceptions({ root: REPO_ROOT })).toEqual([]);
     expect(checkPackageLayers({ repoRoot: REPO_ROOT }, { warn: () => undefined })).toEqual([]);
   }, 180_000);
 });

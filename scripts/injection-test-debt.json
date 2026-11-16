@@ -1,5 +1,5 @@
 {
   "_comment": "Advisory only (owner Q5): cross-package imports in test files besides /testing and /conformance. Not enforced.",
-  "files": 335,
-  "imports": 448
+  "files": 334,
+  "imports": 447
 }
