@@ -44,7 +44,8 @@
       "./charts": "universal",
       "./charts/browser": "browser",
       "./charts/react": "browser",
-      "./mcp-ui/credential-card": "universal"
+      "./mcp-ui/credential-card": "universal",
+      "./react-kit": "browser"
     },
     "isolation": {
       "entries": {
@@ -223,6 +224,11 @@
       "types": "./dist/features/mcp-ui/credential-card.d.ts",
       "import": "./dist/features/mcp-ui/credential-card.js",
       "default": "./dist/features/mcp-ui/credential-card.js"
+    },
+    "./react-kit": {
+      "types": "./dist/react/kit.d.ts",
+      "import": "./dist/react/kit.js",
+      "default": "./dist/react/kit.js"
     }
   },
   "files": [

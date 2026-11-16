@@ -520,3 +520,9 @@ automatically. `refetch()` retries a failed read explicitly. Set
 `staleTime: 0` when every focus should revalidate. The optional `environment` port
 controls offline pausing and reconnect/focus events independently per provider.
 Keep the selected adapter fixed for a provider's lifetime; remount to switch it.
+
+## Component kit (`@jini-ai/ui/react-kit`)
+
+Selects and secret inputs render through a host-supplied `UiKit` (`components.SecretInput`,
+`hooks.useOverlayContainer`, `hooks.useSecretReveal`). Mount `<UiKitProvider kit={kit}>` once at each
+React root; without it these components throw a message naming the missing provider.
