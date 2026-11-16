@@ -193,10 +193,10 @@ function refusal(required: { context: ReporterContext; error: unknown; scope: st
 }
 
 function describeFailure(
-  context: ReporterContext,
-  required: { error: unknown; step: string; scope: string; fallback: { readonly message: string; readonly action: string } },
-  optional: DescribeFailureOptions,
+  required: { context: ReporterContext; error: unknown; step: string; scope: string; fallback: { readonly message: string; readonly action: string } },
+  optional: DescribeFailureOptions = {},
 ): DescribedFailure {
+  const { context } = required;
   const audience = optional.audience ?? 'anonymous';
   const refused = attempt({ read: () => refusal({ context, error: required.error, scope: required.scope, fallback: required.fallback, audience }), fallback: undefined });
   if (refused !== undefined) return refused;
@@ -222,7 +222,7 @@ export function createErrorReporter(required: ErrorReporterPorts, optional: Erro
   const describer = attempt<ErrorDescriber>({ read: () => createErrorDescriber(required.catalog.describerVocabulary()), fallback: { describeErrorParts, describeErrorForLog } });
   const context: ReporterContext = { ports: required, redaction: optional.redaction ?? {}, describer };
   return {
-    describe: (args, options = {}) => describeFailure(context, args, options),
+    describe: (args, options = {}) => describeFailure({ context, ...args }, options),
     record: (args, options = {}) => ({ errorId: recordIncident({ context, error: args.error, step: args.step }, options).errorId }),
   };
 }
