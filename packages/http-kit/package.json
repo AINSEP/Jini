@@ -16,7 +16,8 @@
       "./rate-limit": "node",
       "./middleware": "node",
       "./observability": "node",
-      "./html-response": "node"
+      "./html-response": "node",
+      "./node-bridge": "node"
     },
     "runtime": "node"
   },
@@ -49,6 +50,11 @@
       "types": "./dist/html-response.d.ts",
       "import": "./dist/html-response.js",
       "default": "./dist/html-response.js"
+    },
+    "./node-bridge": {
+      "types": "./dist/node-bridge.d.ts",
+      "import": "./dist/node-bridge.js",
+      "default": "./dist/node-bridge.js"
     }
   },
   "files": [
