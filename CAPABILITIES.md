@@ -269,6 +269,7 @@ state · [README](packages/chat/README.md)
 | `@jini-ai/chat/store/legacy/sqlite` | Synchronous legacy conversation/message CRUD and unchanged DDL. | `listConversations`, `upsertMessage`, `LEGACY_CHAT_DDL` | node | Jini: server, sqlite |
 | `@jini-ai/chat/core/run-events` | Translate daemon wire events to chat events and terminal notices. | `asString`, `parseUsageEvent`, `translateRunAgentPayload` | universal | none yet |
 | `@jini-ai/chat/core/ag-ui` | Project chat/run events into AG-UI and close interrupted message boundaries. | `createAgUiTranslationState`, `translateAgentEventToAgUi`, `closeAgUiRun` | universal | none yet |
+| `@jini-ai/chat/server/ag-ui/run-input` | Parse and bound an inbound AG-UI run request: history, ids, forwarded agent and tab binding. | `resolveAgUiRunInput`, `resolveAgUiMessages` | universal | none yet |
 | `@jini-ai/chat/core/ag-ui/reduction` | Reduce AG-UI events back into chat events, accumulating tool-call arguments per run. | `createAgUiToAgentTranslationState`, `translateAgUiEventToAgentEvent` | universal | none yet |
 | `@jini-ai/chat/server/run-finalizer` | Finalize assistant runs with injected ledger, clock and daemon ports. | `createAssistantRunFinalizer` | universal | none yet |
 | `@jini-ai/chat/react/embed` | Mount an embeddable chat widget with host copy and header. | `EmbedChatWidget`, `mountEmbedChat` | browser | none yet |

@@ -221,6 +221,7 @@
         "src/core/run-events/entry.ts",
         "src/core/ag-ui/event-projection.ts",
         "src/core/ag-ui/event-reduction.ts",
+        "src/core/ag-ui/run-input.ts",
         "src/server/run-finalizer/entry.ts",
         "src/embed-widget/react/embed.tsx",
         "src/core/assistant-client/ag-ui-transport.ts",
