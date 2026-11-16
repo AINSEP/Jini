@@ -371,13 +371,6 @@
     "value": 86
   },
   {
-    "file": "packages/chat/src/core/assistant-client/ag-ui-transport.ts",
-    "function": "createAgUiRunClient",
-    "line": 54,
-    "rule": "max-lines-per-function",
-    "value": 113
-  },
-  {
     "file": "packages/chat/src/core/assistant-client/durable-run-subscription.ts",
     "function": "followDurableRun",
     "line": 21,

@@ -51,169 +51,199 @@ function frontendBinding({ input }: { input: StartRunInput }, _options = {}): Re
   };
 }
 
+/** What one in-flight turn's start, subscription and single settle share. `agents` is the owning
+ *  client's registry, so forgetting a turn is one step wherever it happens. */
+interface AgUiRunTurn {
+  readonly runId: string;
+  readonly agent: AgUiClient;
+  readonly signal: AbortSignal;
+  readonly abort: () => void;
+  readonly handlers: RunHandlers;
+  readonly collected: AgentEvent[];
+  readonly agents: Map<string, AgUiClient>;
+  settled: boolean;
+}
+
+/**
+ * Dispatches one already-parsed AG-UI event. `HttpAgent` owns SSE framing and per-event zod
+ * validation entirely, and hands us finished event objects. `RUN_ERROR` with `code: "abort"` is the
+ * real package's own convention for a mid-stream abort (see module doc) — routed to `finish()`, not
+ * `onError`. Every other event is reduced through {@link translateAgUiEventToAgentEvent} and
+ * forwarded to both `collected` (the final transcript `onDone` receives) and `handlers.onEvent`
+ * (live rendering).
+ */
+function handleAgUiEvent({ event, ctx }: { event: AgUiEvent; ctx: AgUiEventContext }, _optional: Record<string, never> = {}): void {
+  if (event.type === EventType.RUN_ERROR) {
+    if (event.code === "abort") {
+      ctx.finish();
+      return;
+    }
+    ctx.handlers.onError(new Error(event.message || "AG-UI run failed"));
+    return;
+  }
+  if (event.type === EventType.RUN_FINISHED) {
+    ctx.finish();
+    return;
+  }
+  for (const translated of translateAgUiEventToAgentEvent({ event, state: ctx.state }, {})) {
+    ctx.collected.push(translated);
+    ctx.handlers.onEvent(translated);
+  }
+}
+
+/** Every AG-UI message role requires an id; preserve ChatMessage.id across translation. */
+function toAgUiMessage({ message }: { message: ChatMessage }, _optional: Record<string, never> = {}): Message {
+  if (message.role === "user") return { id: message.id, role: "user", content: message.content };
+  return { id: message.id, role: "assistant", content: message.content };
+}
+
+/** The request body of one turn. The daemon owns tool registrations, so `tools` stays empty; blank
+ *  messages are left out because they carry nothing to answer. */
+function toRunAgentInput(
+  { input, runId, threadId }: { input: StartRunInput; runId: string; threadId: string },
+  _optional: Record<string, never> = {},
+): RunAgentInput {
+  return {
+    threadId,
+    runId,
+    state: null,
+    messages: input.history.filter((message) => message.content.trim().length > 0).map((message) => toAgUiMessage({ message })),
+    tools: [],
+    context: [],
+    forwardedProps: {
+      ...frontendBinding({ input }),
+      ...(input.agentId ? { agentId: input.agentId } : {}),
+      ...(input.history.findLast(message => message.role === "user")?.secretRedaction?.secretRedacted ? { secretRedacted: true } : {}),
+    },
+  };
+}
+
+/** Drops the turn's two handles: its registry entry (so `stopAgUiRun` cannot reach a dead agent) and
+ *  its listener on the host signal. Safe to repeat. */
+function forgetRun({ turn }: { turn: AgUiRunTurn }, _optional: Record<string, never> = {}): void {
+  turn.agents.delete(turn.runId);
+  turn.signal.removeEventListener("abort", turn.abort);
+}
+
+/** The one place a turn is finished: `onDone` receives the collected events exactly once, however
+ *  many of RUN_FINISHED, an abort, a stream error and `complete` arrive. */
+function settleRunOnce({ turn }: { turn: AgUiRunTurn }, _optional: Record<string, never> = {}): void {
+  if (turn.settled) return;
+  turn.settled = true;
+  forgetRun({ turn });
+  turn.handlers.onDone(turn.collected);
+}
+
+/**
+ * Deliberately racing the Observable's first `next`/`error`/`complete` against this Promise rather than
+ * awaiting it directly — `HttpAgent.run()` returns a cold Observable, never a Promise (module
+ * doc). The subscription itself keeps running after this Promise settles, driving `handlers`
+ * through to `settleRunOnce` in the background — matching `startByokRun`'s "resolves once STARTED, not
+ * once finished" contract.
+ */
+function subscribeRun(
+  { turn, runAgentInput, state }: { turn: AgUiRunTurn; runAgentInput: RunAgentInput; state: AgUiToAgentTranslationState },
+  _optional: Record<string, never> = {},
+): Promise<{ runId: string }> {
+  const finish = () => settleRunOnce({ turn });
+  return new Promise<{ runId: string }>((resolve, reject) => {
+    let startSettled = false;
+    turn.agent.run(runAgentInput).subscribe({
+      next: (event) => {
+        if (!startSettled) {
+          startSettled = true;
+          resolve({ runId: turn.runId });
+        }
+        handleAgUiEvent({ event: event as AgUiEvent, ctx: { collected: turn.collected, handlers: turn.handlers, state, finish } });
+      },
+      error: (error: unknown) => {
+        forgetRun({ turn });
+        const err = error instanceof Error ? error : new Error(String(error));
+        if (!startSettled) {
+          startSettled = true;
+          reject(err);
+          return;
+        }
+        // Aborting BEFORE headers arrive rejects the underlying fetch() itself, surfacing here
+        // rather than through `handleAgUiEvent`'s `code: "abort"` check (module doc).
+        if (turn.agent.abortController.signal.aborted) {
+          finish();
+          return;
+        }
+        // Error THEN finish: an errored Observable never calls `complete`, so without this the turn
+        // is never settled and the events collected before the failure never reach `onDone`. Same
+        // order as `subscribeToRun`'s `end` listener, so the run is still recorded as failed.
+        turn.handlers.onError(err);
+        finish();
+      },
+      complete: () => {
+        // An empty stream has no first notification to settle the start promise.
+        if (!startSettled) {
+          startSettled = true;
+          resolve({ runId: turn.runId });
+        }
+        finish();
+      },
+    });
+  });
+}
+
+/**
+ * The AG-UI canary run path (ADR-059) — drives a real `@ag-ui/client` `HttpAgent` against
+ * `assistant-ag-ui.ts`'s route, same one-turn-per-call shape as `startByokRun`. `credentials:
+ * "same-origin"` is explicit even though modern `fetch()` already defaults to it for same-origin
+ * requests, matching this transport's other paths' explicitness about the session cookie.
+ */
+async function startRun(
+  { ports, agents, input, handlers }: { ports: AgUiClientPorts; agents: Map<string, AgUiClient>; input: StartRunInput; handlers: RunHandlers },
+  _optional: Record<string, never> = {},
+): Promise<{ runId: string }> {
+  const runId = `${ports.runIdPrefix}${ports.mintId({}, {})}`;
+  // The conversation-level id, stable across turns — a genuine AG-UI `threadId`, distinct from the
+  // per-turn `runId` minted fresh above. Falls back to minting one only for a conversation that has
+  // none yet (e.g. the very first turn).
+  const threadId = input.conversationId ?? ports.mintId({}, {});
+
+  const agent = ports.createAgent({ url: ports.endpoint, threadId }, {});
+  if (input.signal.aborted) throw new DOMException("Run cancelled", "AbortError");
+  agents.set(runId, agent);
+  const abort = () => agent.abortRun();
+  input.signal.addEventListener("abort", abort, { once: true });
+
+  const turn: AgUiRunTurn = { runId, agent, signal: input.signal, abort, handlers, collected: [], agents, settled: false };
+  const state = createAgUiToAgentTranslationState({ customEventNames: ports.customEventNames }, {});
+  return subscribeRun({ turn, runAgentInput: toRunAgentInput({ input, runId, threadId }), state });
+}
+
+/** No server-side run record exists on this path (module doc) — a reload has already discarded the
+ *  original `fetch()`'s response body, so there is nothing to resume. Same honest "already over"
+ *  answer `assistant-transport.ts`'s BYOK branch gives for the identical situation. */
+async function reattachAgUiRun({ handlers }: { handlers: RunHandlers }, _optional: Record<string, never> = {}): Promise<void> {
+  handlers.onDone([]);
+}
+
+/** Same reasoning as {@link reattachAgUiRun} — no server-side run record to fetch status for. */
+async function fetchAgUiRunStatus(_required: Record<string, never>, _optional: Record<string, never> = {}): Promise<null> {
+  return null;
+}
+
 /** Bind the official client without adding its dependency to every chat consumer. */
 export function createAgUiRunClient({ ports }: { ports: AgUiClientPorts }, _options: Record<string, never> = {}): AgUiRunClient {
   /** In-flight AG-UI turns' driving `HttpAgent`, keyed by the client-minted runId — the ONLY way
-   *  {@link stopAgUiRun} can cancel a turn: like BYOK, there is no server-side run record on THIS
+   *  `stopAgUiRun` can cancel a turn: like BYOK, there is no server-side run record on THIS
    *  path to `POST .../cancel` against. Storing the agent (not a bare `AbortController`) lets
    *  `stopAgUiRun` call its own `abortRun()`, which both aborts the fetch AND (per the package's own
    *  convention) surfaces a clean `RUN_ERROR{code:"abort"}` through the normal event path rather than
    *  a raw network error. */
-   const agUiAgents = new Map<string, AgUiClient>();
-  /**
-   * Dispatches one already-parsed AG-UI event. `HttpAgent` owns SSE framing and per-event zod
-   * validation entirely, and hands us finished event objects. `RUN_ERROR` with `code: "abort"` is the
-   * real package's own convention for a mid-stream abort (see module doc) — routed to `finish()`, not
-   * `onError`. Every other event is reduced through {@link translateAgUiEventToAgentEvent} and
-   * forwarded to both `collected` (the final transcript `onDone` receives) and `handlers.onEvent`
-   * (live rendering).
-   */
-  function handleAgUiEvent(
-    event: AgUiEvent,
-    ctx: { collected: AgentEvent[]; handlers: RunHandlers; state: AgUiToAgentTranslationState; finish: () => void },
-  ): void {
-    if (event.type === EventType.RUN_ERROR) {
-      if (event.code === "abort") {
-        ctx.finish();
-        return;
-      }
-      ctx.handlers.onError(new Error(event.message || "AG-UI run failed"));
-      return;
-    }
-    if (event.type === EventType.RUN_FINISHED) {
-      ctx.finish();
-      return;
-    }
-    for (const translated of translateAgUiEventToAgentEvent({ event, state: ctx.state }, {})) {
-      ctx.collected.push(translated);
-      ctx.handlers.onEvent(translated);
-    }
-  }
-
-  /** Every AG-UI message role requires an id; preserve ChatMessage.id across translation. */
-  function toAgUiMessage(message: ChatMessage): Message {
-    if (message.role === "user") return { id: message.id, role: "user", content: message.content };
-    return { id: message.id, role: "assistant", content: message.content };
-  }
-
-  /**
-   * The AG-UI canary run path (ADR-059) — drives a real `@ag-ui/client` `HttpAgent` against
-   * `assistant-ag-ui.ts`'s route, same one-turn-per-call shape as `startByokRun`. `credentials:
-   * "same-origin"` is explicit even though modern `fetch()` already defaults to it for same-origin
-   * requests, matching this transport's other paths' explicitness about the session cookie.
-   */
-  async function startAgUiRun(input: StartRunInput, handlers: RunHandlers): Promise<{ runId: string }> {
-    const runId = `${ports.runIdPrefix}${ports.mintId({}, {})}`;
-    // The conversation-level id, stable across turns — a genuine AG-UI `threadId`, distinct from the
-    // per-turn `runId` minted fresh above. Falls back to minting one only for a conversation that has
-    // none yet (e.g. the very first turn).
-    const threadId = input.conversationId ?? ports.mintId({}, {});
-
-    const agent = ports.createAgent({ url: ports.endpoint, threadId }, {});
-    if (input.signal.aborted) throw new DOMException("Run cancelled", "AbortError");
-    agUiAgents.set(runId, agent);
-    const abort = () => agent.abortRun();
-    input.signal.addEventListener("abort", abort, { once: true });
-
-    const messages: Message[] = input.history.filter((message) => message.content.trim().length > 0).map(toAgUiMessage);
-
-    const runAgentInput: RunAgentInput = {
-      threadId,
-      runId,
-      state: null,
-      messages,
-      tools: [],
-      context: [],
-      forwardedProps: {
-        ...frontendBinding({ input }),
-        ...(input.agentId ? { agentId: input.agentId } : {}),
-        ...(input.history.findLast(message => message.role === "user")?.secretRedaction?.secretRedacted ? { secretRedacted: true } : {}),
-      },
-    };
-
-    const collected: AgentEvent[] = [];
-    let settled = false;
-    const finish = () => {
-      if (settled) return;
-      settled = true;
-      agUiAgents.delete(runId);
-      input.signal.removeEventListener("abort", abort);
-      handlers.onDone(collected);
-    };
-    const state = createAgUiToAgentTranslationState({ customEventNames: ports.customEventNames }, {});
-
-    // Deliberately racing the Observable's first `next`/`error`/`complete` against this Promise rather than
-    // awaiting it directly — `HttpAgent.run()` returns a cold Observable, never a Promise (module
-    // doc). The subscription itself keeps running after this Promise settles, driving `handlers`
-    // through to `finish()` in the background — matching `startByokRun`'s "resolves once STARTED, not
-    // once finished" contract.
-    return new Promise<{ runId: string }>((resolve, reject) => {
-      let startSettled = false;
-      agent.run(runAgentInput).subscribe({
-        next: (event) => {
-          if (!startSettled) {
-            startSettled = true;
-            resolve({ runId });
-          }
-          handleAgUiEvent(event as AgUiEvent, { collected, handlers, state, finish });
-        },
-        error: (error: unknown) => {
-          agUiAgents.delete(runId);
-          input.signal.removeEventListener("abort", abort);
-          const err = error instanceof Error ? error : new Error(String(error));
-          if (!startSettled) {
-            startSettled = true;
-            reject(err);
-            return;
-          }
-          // Aborting BEFORE headers arrive rejects the underlying fetch() itself, surfacing here
-          // rather than through `handleAgUiEvent`'s `code: "abort"` check (module doc).
-          if (agent.abortController.signal.aborted) {
-            finish();
-            return;
-          }
-          // Error THEN finish: an errored Observable never calls `complete`, so without this the turn
-          // is never settled and the events collected before the failure never reach `onDone`. Same
-          // order as `subscribeToRun`'s `end` listener, so the run is still recorded as failed.
-          handlers.onError(err);
-          finish();
-        },
-        complete: () => {
-          // An empty stream has no first notification to settle the start promise.
-          if (!startSettled) {
-            startSettled = true;
-            resolve({ runId });
-          }
-          finish();
-        },
-      });
-    });
-  }
-
-  /** No server-side run record exists on this path (module doc) — a reload has already discarded the
-   *  original `fetch()`'s response body, so there is nothing to resume. Same honest "already over"
-   *  answer `assistant-transport.ts`'s BYOK branch gives for the identical situation. */
-  async function reattachAgUiRun(handlers: RunHandlers): Promise<void> {
-    handlers.onDone([]);
-  }
-
-  /** Same reasoning as {@link reattachAgUiRun} — no server-side run record to fetch status for. */
-  async function fetchAgUiRunStatus(): Promise<null> {
-    return null;
-  }
-
-  /** An AG-UI run's only cancellation handle is the `HttpAgent` {@link startAgUiRun} registered for
-   *  this exact id — same shape as BYOK's `stopRun` branch. */
-  async function stopAgUiRun(runId: string): Promise<void> {
-    agUiAgents.get(runId)?.abortRun();
-  }
-
+  const agents = new Map<string, AgUiClient>();
   return {
-   isAgUiRunId: ({ runId }: { runId: string }, _options: Record<string, never> = {}) => runId.startsWith(ports.runIdPrefix),
-   handleAgUiEvent: ({ event, ctx }: { event: AgUiEvent; ctx: Parameters<typeof handleAgUiEvent>[1] }, _options: Record<string, never> = {}) => handleAgUiEvent(event, ctx),
-   startAgUiRun: ({ input, handlers }: { input: StartRunInput; handlers: RunHandlers }, _options: Record<string, never> = {}) => startAgUiRun(input, handlers),
-   reattachAgUiRun: ({ handlers }: { handlers: RunHandlers }, _options: Record<string, never> = {}) => reattachAgUiRun(handlers),
-   fetchAgUiRunStatus: (_required: Record<string, never>, _options: Record<string, never> = {}) => fetchAgUiRunStatus(),
-   stopAgUiRun: ({ runId }: { runId: string }, _options: Record<string, never> = {}) => stopAgUiRun(runId),
+    isAgUiRunId: ({ runId }: { runId: string }, _optional: Record<string, never> = {}) => runId.startsWith(ports.runIdPrefix),
+    handleAgUiEvent,
+    startAgUiRun: ({ input, handlers }: { input: StartRunInput; handlers: RunHandlers }, _optional: Record<string, never> = {}) => startRun({ ports, agents, input, handlers }),
+    reattachAgUiRun,
+    fetchAgUiRunStatus,
+    /** An AG-UI run's only cancellation handle is the `HttpAgent` {@link startRun} registered for
+     *  this exact id — same shape as BYOK's `stopRun` branch. */
+    stopAgUiRun: async ({ runId }: { runId: string }, _optional: Record<string, never> = {}) => { agents.get(runId)?.abortRun(); },
   };
 }
