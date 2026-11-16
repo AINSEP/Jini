@@ -93,6 +93,51 @@ export interface RegisterDefinitionsRequired {
   };
 }
 
+/** One definition, one transaction: the row and its `register` revision commit together. Returns the new setting id. */
+async function saveRegisteredDefinition(
+  { deps, definitionInput, callerPrincipalId }: { deps: SettingsWriteServiceDeps; definitionInput: DefinitionInput; callerPrincipalId: UUID },
+): Promise<string> {
+  return deps.repo.transaction(async () => {
+    const now = kernelNowIso({ clock: deps.clock });
+    const settingId = deps.ids.newId();
+    await deps.repo.saveDefinition({
+      settingId,
+      version: 1,
+      workspaceId: definitionInput.workspaceId,
+      namespace: definitionInput.namespace,
+      key: definitionInput.key,
+      ownerKind: definitionInput.ownerKind,
+      ownerId: definitionInput.ownerId ?? null,
+      schema: definitionInput.schema,
+      defaultValue: definitionInput.defaultValue,
+      scopes: definitionInput.scopes,
+      secret: false,
+      status: "active",
+      aliasOfNamespace: null,
+      aliasOfKey: null,
+      coercionTag: null,
+      createdAt: now,
+      updatedAt: now,
+    });
+    await deps.repo.appendRevision({
+      entityKind: "definition",
+      settingId,
+      scope: null,
+      workspaceId: definitionInput.workspaceId,
+      principalId: null,
+      op: "register",
+      beforeJson: null,
+      afterJson: null,
+      defVersion: 1,
+      actor: callerPrincipalId,
+      originPluginId: null,
+      changeSetId: null,
+      createdAt: now,
+    });
+    return settingId;
+  });
+}
+
 /** chokepoint write: authorize `settings.definitions.manage` -> validate -> write + revision, one per definition, each its own tx. See docs/decisions/DR-003-settings-ledger-invariants.md. */
 export async function registerDefinitions(
   required: RegisterDefinitionsRequired
@@ -116,45 +161,7 @@ export async function registerDefinitions(
     const validation = validateDefinitionInput(definitionInput);
     if (!validation.valid) throw validation.error;
 
-    await deps.repo.transaction(async () => {
-      const now = kernelNowIso({ clock: deps.clock });
-      const settingId = deps.ids.newId();
-      await deps.repo.saveDefinition({
-        settingId,
-        version: 1,
-        workspaceId: definitionInput.workspaceId,
-        namespace: definitionInput.namespace,
-        key: definitionInput.key,
-        ownerKind: definitionInput.ownerKind,
-        ownerId: definitionInput.ownerId ?? null,
-        schema: definitionInput.schema,
-        defaultValue: definitionInput.defaultValue,
-        scopes: definitionInput.scopes,
-        secret: false,
-        status: "active",
-        aliasOfNamespace: null,
-        aliasOfKey: null,
-        coercionTag: null,
-        createdAt: now,
-        updatedAt: now,
-      });
-      await deps.repo.appendRevision({
-        entityKind: "definition",
-        settingId,
-        scope: null,
-        workspaceId: definitionInput.workspaceId,
-        principalId: null,
-        op: "register",
-        beforeJson: null,
-        afterJson: null,
-        defVersion: 1,
-        actor: input.callerPrincipalId,
-        originPluginId: null,
-        changeSetId: null,
-        createdAt: now,
-      });
-      registered.push(settingId);
-    });
+    registered.push(await saveRegisteredDefinition({ deps, definitionInput, callerPrincipalId: input.callerPrincipalId }));
     invalidateDefinitionNamespaceCache(deps.repo, definitionInput.namespace);
   }
 
