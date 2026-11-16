@@ -382,6 +382,11 @@ export function createHardwiringInspector({ compiler: c }: { compiler: typeof ts
   return { inspect, inspectPublicGraph, parse, imports, exportedFunctions,
     envKey: ({ node }: { node: ts.Node }, _options: Record<string, never> = {}) => envKey(node),
     hasLocalBinding: ({ node, name }: { node: ts.Node; name: string }, _options: Record<string, never> = {}) => hasLocalBinding(node, name),
+    // Shared with the env-access rules (env-access.ts), so both audits agree on what `process.env` and module scope mean.
+    isProcessEnv: ({ node }: { node: ts.Node }, _options: Record<string, never> = {}) => env(node),
+    isModuleScope: ({ node }: { node: ts.Node }, _options: Record<string, never> = {}) => moduleScope(node),
+    violation: ({ tree, node, rule, reason, identity }: { tree: ts.SourceFile; node: ts.Node; rule: string; reason: string; identity: string },
+      _options: Record<string, never> = {}) => violation(tree, node, rule, reason, identity),
   };
 }
 
