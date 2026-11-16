@@ -134,8 +134,15 @@ export function defineJsonRoute<Input, Output, Deps, Context = undefined>(requir
   return { ...requiredArgs, ...optionalArgs };
 }
 
-/** A JSON response with Express's `res.json` content type, so clients see the same header. */
+/** Statuses whose response must not carry a body; the web `Response` constructor throws on one with a body. */
+const NULL_BODY_STATUSES: ReadonlySet<number> = new Set([204, 205, 304]);
+
+/**
+ * A JSON response with Express's `res.json` content type, so clients see the same header. A null-body
+ * status (204, 205, 304) gets no body and no content type.
+ */
 export function jsonResponse({ status, body }: { readonly status: number; readonly body: unknown }, { headers = {} }: { readonly headers?: Readonly<Record<string, string>> } = {}): Response {
+  if (NULL_BODY_STATUSES.has(status)) return new Response(null, { status, headers });
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json; charset=utf-8', ...headers } });
 }
 

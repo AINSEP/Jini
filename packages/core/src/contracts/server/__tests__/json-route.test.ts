@@ -41,6 +41,12 @@ describe('jsonRoute', () => {
     const response = await mount({ successStatus: 201 }).fetch(post({ n: 1 }));
     expect([response.status, await response.json()]).toEqual([201, { n: 1 }]);
   });
+  it('answers a null-body success status (204, 205, 304) without a body', async () => {
+    for (const successStatus of [204, 205, 304]) {
+      const response = await mount({ successStatus }).fetch(post({ n: 1 }));
+      expect([response.status, response.body, response.headers.get('content-type')]).toEqual([successStatus, null, null]);
+    }
+  });
   it('maps a parse failure to its status envelope', async () => {
     const response = await mount({ parse: () => err({ error: { code: 'BAD_REQUEST', message: 'no' } }) }).fetch(post({}));
     expect([response.status, await response.json()]).toEqual([400, { error: { code: 'BAD_REQUEST', message: 'no' } }]);
