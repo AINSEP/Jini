@@ -776,7 +776,6 @@
         "src/renderers/index.ts",
         "src/renderers/preview-modal-shell/index.ts",
         "src/features/admin-widgets/index.ts",
-        "src/features/i18n/universal.ts",
         "src/features/panel-kit/index.ts",
         "src/features/panel-kit/fetch-query/index.ts",
         "src/features/panel-kit/fetch-query/tanstack.ts",

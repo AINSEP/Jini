@@ -1,15 +1,12 @@
 import { agentHandle } from "@jini-ai/agentic";
 import { Dialog } from "@jini-ai/ui-kit/react";
-import { formatTimestamp } from "@jini-ai/ui/panel-kit";
-
-
 
 import { useSeoCopy, useSeoOptions } from "../hooks/SeoPorts.hooks.js";
 import { actionLabel } from "../../rules.js";
 import { useWiredSitemapModal, type SitemapModalController } from "../hooks/use-sitemap-modal.hooks.js";
 import { useSitemapModalRegenerate, useSitemapPresentation, useSitemapTable, useSitemapViewToggle } from "../hooks/SitemapModal.hooks.js";
 
-
+import { formatTimestamp } from '@jini-ai/core/text';
 /**
  * `SitemapModal` — "View sitemap" (owner request, `react/pages/SeoPage.tsx`'s Sitemap card). Reads the exact same
  * `GET /sitemap.xml` bytes a crawler gets (`sitemap-dependencies.hooks.ts`'s `defaultSitemapPort`,
@@ -107,8 +104,6 @@ function SitemapModalTable({ locale, modal }: { locale: string; modal: SitemapMo
   const { formatDate = formatTimestamp } = useSeoOptions();
   const { rowHandles } = useSitemapTable({ modal });
   if (modal.entries.length === 0) return <div className="notice">{t({ locale: locale, key: "The sitemap has no URLs yet." })}</div>;
-
-
 
   return (
     <>

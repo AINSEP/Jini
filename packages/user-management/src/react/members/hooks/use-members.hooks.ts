@@ -5,8 +5,8 @@ import type { AdminMember } from "../../models.js";
 import { describeApiError, emptyRowState, type RowActionState } from "../rules.js";
 import { useCachedLoader, useFetchMutation, useFetchQuery, useInvalidate } from "@jini-ai/ui/fetch-query";
 import type { MembersPort } from "../../ports.js";
-import type { Translate } from "@jini-ai/ui/panel-kit";
 
+import { type Translate } from '@jini-ai/core/text';
 /**
  * @file Everything the Members screen does, so `Members.tsx` is only markup.
  *
@@ -112,7 +112,6 @@ export function useMembers({ port, translate, queryScope = "members" }: MembersD
   const [rowState, setRowState] = useState<Record<string, RowActionState>>({});
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [detailById, setDetailById] = useState<Record<string, AdminMember>>({});
-
 
   // Disable now confirms via a `RowMenu` item -> `ConfirmDialog` modal (replacing the in-place
   // two-click `ConfirmButton`, which has no menu-item equivalent — same migration Tovu apps/admin/src/features/posts/Posts.tsx,

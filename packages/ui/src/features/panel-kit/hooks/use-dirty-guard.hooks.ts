@@ -1,6 +1,7 @@
-import type { Translate } from "../../i18n/dictionary-translator.js";
+
 import { useEffect } from "react";
 
+import { type Translate } from '@jini-ai/core/text';
 // JSON equality is intentionally limited to small form states built with consistent key order.
 // This avoids a general deep-equality dependency; large documents or arbitrary values need another seam.
 function shallowJsonEqual<T>(a: T, b: T): boolean {

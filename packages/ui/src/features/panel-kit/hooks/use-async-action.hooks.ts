@@ -1,6 +1,6 @@
 import { type Dispatch, type SetStateAction, useState } from "react";
 
-import { isAbortError } from "../helpers/retry-unreachable.js";
+import { isAbortError } from "@jini-ai/core/text";
 
 export interface AsyncActionState {
   // Explicit mutations own their success effects/reloads, so this hook deliberately stores no

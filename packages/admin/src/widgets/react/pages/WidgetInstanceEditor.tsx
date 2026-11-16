@@ -4,7 +4,6 @@ import { useWidgetsOptions } from '../hooks/WidgetsPorts.hooks.js';
 import { agentHandle } from "@jini-ai/agentic";
 import { widgetTypeLabel } from "../../rules.js";
 import { useWiredWidgetInstanceEditor } from "../hooks/use-widget-instance-editor.hooks.js";
-import type { Translate } from "@jini-ai/ui/panel-kit";
 
 /**
  * @file `WidgetInstanceEditorScreen` (`ui.spec.md` §2.2/§3.3/§4.3) — create/edit one widget
@@ -19,6 +18,7 @@ import type { Translate } from "@jini-ai/ui/panel-kit";
 export { widgetInstanceGuard } from '../../rules.js';
 import { WhereUsedBanner, WidgetInstanceGuardNotice } from '../components/WidgetInstanceNotices.js';
 
+import { type Translate } from '@jini-ai/core/text';
 export interface WidgetInstanceEditorProps {
   widgetId: string | null;
   widgetType: string | null;

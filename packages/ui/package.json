@@ -15,7 +15,6 @@
     "entries": {
       ".": "browser",
       "./core": "universal",
-      "./i18n": "universal",
       "./sketch-editor": "browser",
       "./html-editor": "browser",
       "./mcp-ui": "browser",
@@ -171,11 +170,6 @@
       "types": "./dist/features/admin-widgets/index.d.ts",
       "import": "./dist/features/admin-widgets/index.js",
       "default": "./dist/features/admin-widgets/index.js"
-    },
-    "./i18n": {
-      "types": "./dist/features/i18n/universal.d.ts",
-      "import": "./dist/features/i18n/universal.js",
-      "default": "./dist/features/i18n/universal.js"
     },
     "./panel-kit": {
       "types": "./dist/features/panel-kit/index.d.ts",

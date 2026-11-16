@@ -1,6 +1,6 @@
 import type { StandingDraftAutosaveSnapshot } from "../hooks/use-standing-draft-autosave.hooks.js";
-import { formatTimestamp } from "./format-timestamp.js";
 
+import { formatTimestamp } from '@jini-ai/core/text';
 /** The viewer's wall-clock time of the capture, `YYYY-MM-DD HH:MM`. The raw ISO string read as
  *  "from 2026-10-11T19:26:00.665Z" in the restore banner (2026-10-11): UTC and milliseconds the
  *  operator never thinks in. The draft was captured in this browser, so local time is the honest one. */

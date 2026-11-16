@@ -5,10 +5,11 @@ import { DataTable } from '../../../react/components/DataTable.js';
 import { RowMenu } from '../../../react/components/RowMenu/RowMenu.js';
 import { ConfirmDialog } from '../../../react/components/ConfirmDialog/ConfirmDialog.js';
 import { agentHandle } from '@jini-ai/agentic';
-import { interpolate } from '@jini-ai/ui/panel-kit';
+
 import { useWiredCommentQueue } from '../hooks/use-comment-queue.hooks.js';
 import { useQueueSection, useQueueActionsCell, useQueueTable, useQueueToolbar } from '../hooks/QueueSection.hooks.js';
 
+import { interpolate } from '@jini-ai/core/text';
 const STATUS_OPTIONS: readonly CommentStatus[] = ["pending", "approved", "spam", "trash"];
 
 /** The status-filter `<select>` — pure presentation, no state of its own. */

@@ -1,6 +1,6 @@
 import { createElement, type ChangeEvent } from 'react';
 import { buildAgentListHandles } from '@jini-ai/agentic';
-import { formatTimestamp } from '@jini-ai/ui/panel-kit';
+
 import type { DataTableColumn } from '../../../react/components/DataTable.js';
 import type { AdminComment, CommentModerationAction, CommentStatus } from '../../../core/ports/comments.js';
 import { commentRowMenuItems, truncate, type RowActionState } from '../../rules.js';
@@ -9,6 +9,7 @@ import { QueueActionsCell, type QueueSectionProps } from '../components/QueueSec
 import { useWiredCommentQueue } from './use-comment-queue.hooks.js';
 import { useCommentsTranslation } from './CommentsPorts.hooks.js';
 
+import { formatTimestamp } from '@jini-ai/core/text';
 export function useQueueSection(props: QueueSectionProps, _optional: Record<string, never> = {}) {
   const contextT = useCommentsTranslation();
   const useQueue = props.useCommentQueueHook ?? useWiredCommentQueue;
@@ -62,7 +63,6 @@ export function queueColumns(props: {
     },
   ];
 }
-
 
 export function useQueueTable(props: {
   items: readonly AdminComment[]; permissions: readonly string[]; status: CommentStatus;

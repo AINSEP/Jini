@@ -4,10 +4,11 @@ import { resolveSelectPortalContainer, resolveSelectOriginPage } from '../../../
 import { createPortal } from "react-dom";
 import { agentHandle } from "@jini-ai/agentic";
 import { agentHandleSegment } from "@jini-ai/agentic";
-import type { Translate } from "../../../i18n/dictionary-translator.js";
+
 import { Fragment } from "react";
 import { useSelectDropdown, useSelectOptionRef, groupHeadingAt, type PanelPosition, type SelectOption } from "./Select.hooks.js";
 
+import { type Translate } from '@jini-ai/core/text';
 export type { SelectOption };
 /** Use this custom listbox when in-panel search is needed: a native OS option list cannot host it.
  * Native selects otherwise avoid the accessibility/behavior tradeoffs of a simulated listbox.

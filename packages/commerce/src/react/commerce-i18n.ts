@@ -1,4 +1,4 @@
-import { createDictionaryTranslator } from "@jini-ai/ui/panel-kit";
+import { createDictionaryTranslator } from '@jini-ai/core/text';
 
 /** Translations for the Commerce payments overview. */
 const COMMERCE_DICT: Record<string, Record<string, string>> = {

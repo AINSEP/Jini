@@ -3,7 +3,8 @@ import { afterEach, beforeEach, expect, test, vi } from "vitest";
 class ApiError extends Error { readonly code = "unreachable"; }
 const isUnreachable = (error: unknown) => error instanceof ApiError;
 
-import { isAbortError, retryWhileUnreachable } from "../retry-unreachable.js";
+import { isAbortError } from "@jini-ai/core/text";
+import { retryWhileUnreachable } from "../retry-unreachable.js";
 
 /**
  * @file `retryWhileUnreachable`'s own contract — the branches `AssistantDock.load-recovery.unit.test.tsx`

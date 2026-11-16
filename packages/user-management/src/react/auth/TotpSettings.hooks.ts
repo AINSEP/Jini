@@ -1,7 +1,8 @@
 import { useEffect, useId, useState, type FormEvent } from 'react';
-import type { Translate } from '@jini-ai/ui/panel-kit';
+
 import type { TotpSettingsPort } from './TotpSettings.js';
 
+import { type Translate } from '@jini-ai/core/text';
 type Setup = Awaited<ReturnType<TotpSettingsPort['enroll']>>;
 
 /** Read owner authenticator status, ignoring a result after unmount. */

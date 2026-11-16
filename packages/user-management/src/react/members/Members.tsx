@@ -2,14 +2,14 @@ import { Fragment } from "react";
 import { RowMenu, ConfirmDialog } from "@jini-ai/admin/react";
 import { agentHandle } from "@jini-ai/agentic";
 import type { AdminMember } from "../models.js";
-import { formatTimestamp } from "@jini-ai/ui/panel-kit";
-import type { Translate } from "@jini-ai/ui/panel-kit";
+
 import { buildAgentListHandles } from "@jini-ai/ui/panel-kit";
 
 import { memberRowMenuItems, type RowActionState } from "./rules.js";
 import { useMembers, type MembersDependencies, type MembersOptions } from "./hooks/use-members.hooks.js";
 import type { ReactNode } from "react";
 
+import { formatTimestamp, type Translate } from '@jini-ai/core/text';
 /**
  * @file Admin "Members" screen (ADR-030, ADR-PIPE-013 Decision §7) — markup only.
  *

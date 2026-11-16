@@ -45,9 +45,6 @@ export interface DatabaseTransferToolPorts {
   partialExclusions(name: string, source: TransferSource): { table: string; rows: number; reason: string }[];
   captureChatSnapshot(): Promise<Buffer>;
   failureLog(line: string): void;
-  /** @deprecated Unread since failure lines name the error class through core's `describeErrorForLog`.
-   *  Optional rather than removed so a host that still passes it in an object literal keeps compiling. */
-  describeError?(error: unknown): string;
   readonly schemaMismatchGuidance: string;
   readers: Pick<InputReaders, "inputRecord" | "string">;
   surfaces: TransferSurfacePorts;

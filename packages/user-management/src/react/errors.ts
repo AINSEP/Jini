@@ -1,4 +1,4 @@
-import type { Translate } from "@jini-ai/ui/panel-kit";
+import { type Translate } from '@jini-ai/core/text';
 
 /** A non-empty `Error.message`, or `undefined` for anything else — the "raw server text" both
  *  branches of {@link describeIdentityError} prefer over a translated default. */

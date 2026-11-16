@@ -1,8 +1,9 @@
 import type { AdminIdentityUser } from "../models.js";
-import type { Translate, QueryKey } from "@jini-ai/ui/panel-kit";
+import type { QueryKey } from "@jini-ai/ui/panel-kit";
 import { describeIdentityError } from "../errors.js";
 import type { RowMenuItem } from "@jini-ai/admin/react";
 
+import { type Translate } from '@jini-ai/core/text';
 /**
  * @file Pure logic for the `users` feature — everything that computes a value rather than
  * rendering one. Follows the `posts/rules.ts` convention: no React import, no hooks, directly

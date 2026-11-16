@@ -76,7 +76,7 @@ function harness({ costClass = "cheap", kind = "file-snapshot" }: { costClass?: 
       return source;
     },
     catalog: (_name, source) => ({ tables: source.tableNames().map(name => ({ name, columns: [{ name: "id", sqlType: "text", notNull: true }], primaryKey: ["id"], indexes: [], foreignKeys: [], checks: [] })), leftOut: [] }),
-    partialExclusions: () => [], failureLog: line => { logs.push(line); }, describeError: error => error instanceof Error ? error.message : String(error),
+    partialExclusions: () => [], failureLog: line => { logs.push(line); },
     schemaMismatchGuidance: "rebuild the destination",
     readers: { inputRecord: input => input as Record<string, unknown>, string: (input, key) => String(input[key]) },
   };

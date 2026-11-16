@@ -1,4 +1,5 @@
 import { COMMON_I18N } from "./common-i18n.js";
+import { createDictionaryTranslator } from '@jini-ai/core/text';
 /**
  * @file Spanish dictionary for the four widget screens: `WidgetRegions.tsx` (region list),
  * `WidgetsLibrary.tsx` (widget list), `WidgetRegionEditor.tsx` (per-region placement list), and
@@ -18,7 +19,6 @@ import { COMMON_I18N } from "./common-i18n.js";
  * literally say "recent entries" in each language), a known gap left for a real localization pass,
  * not invented English-only copy in the meantime.
  */
-import { createDictionaryTranslator } from "@jini-ai/ui/panel-kit";
 
 const WIDGETS_TRANSLATIONS: Record<string, Record<string, string>> = {
   es: {

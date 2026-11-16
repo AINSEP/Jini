@@ -1,6 +1,6 @@
 import { agentHandle } from '@jini-ai/agentic';
-import type { Translate } from '../../../i18n/dictionary-translator.js';
 
+import { type Translate } from '@jini-ai/core/text';
 export interface CodeWrapToggleProps {
   wrap: boolean;
   onToggle: () => void;

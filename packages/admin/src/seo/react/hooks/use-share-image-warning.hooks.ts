@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { interpolate } from '@jini-ai/ui/i18n';
+
 import type { AdminSeoPort } from '../../ports.js';
 import { shareImageWarning } from '../../rules.js';
 import type { MediaRefFieldController, SeoTranslator } from '../../models.js';
 
+import { interpolate } from '@jini-ai/core/text';
 /** Probe original file size through the host port; decoded dimensions come from the existing preview.
  * Unknown size is not zero. URL-keyed state and cancellation prevent a prior choice's response
  * or image event from warning against the current selection. The probe has a 10-second bound.

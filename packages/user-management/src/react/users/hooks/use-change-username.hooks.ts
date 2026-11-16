@@ -1,9 +1,10 @@
 import { useRef, useState, type Dispatch, type SetStateAction } from "react";
-import { useFetchMutation, type Translate } from "@jini-ai/ui/panel-kit";
+import { useFetchMutation } from "@jini-ai/ui/panel-kit";
 import type { AdminIdentityUser } from "../../models.js";
 import type { UsersPort } from "../../ports.js";
 import { describeApiError, KEYS } from "../rules.js";
 
+import { type Translate } from '@jini-ai/core/text';
 export interface ChangeUsernameController {
   target: AdminIdentityUser | null;
   username: string;

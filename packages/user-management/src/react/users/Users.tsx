@@ -8,12 +8,13 @@ import { grantOptionLabel, type UserAccountCapabilities } from "./rules.js";
 import { UserGrantCells, UserNameCell, UserStatusCell, userRowMenuItemsFor } from "./UserRowParts.js";
 import { useUsers, type UsersController, type UsersDependencies, type UsersOptions } from "./hooks/use-users.hooks.js";
 import type { ReactNode } from "react";
-import type { Translate } from "@jini-ai/ui/panel-kit";
+
 import { InfoTip } from "@jini-ai/ui/admin-widgets";
 import { SecretInput } from "@jini-ai/ui";
 import { createResetPasswordConfirmHandler, useResetPasswordFields } from "./hooks/use-reset-password-fields.hooks.js";
 import { ChangeUsernameDialog } from "./ChangeUsernameDialog.js";
 
+import { type Translate } from '@jini-ai/core/text';
 /**
  * @file Admin "Users" screen (SPEC-006 §3 human grant-writing transitions + 0.6.0 CRUD-completion
  * amendment) — markup only.

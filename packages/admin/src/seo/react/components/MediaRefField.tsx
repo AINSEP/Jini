@@ -1,11 +1,11 @@
 import { agentHandle } from "@jini-ai/agentic";
-import { interpolate } from "@jini-ai/ui/i18n";
+
 import { MediaPickerBridge } from "./MediaPickerBridge.js";
 import { useSeoCopy } from "../hooks/SeoPorts.hooks.js";
 import { useWiredMediaRefField, useMediaRefPresentation, handleSpread } from "../hooks/MediaRefField.hooks.js";
 import type { MediaRefFieldController } from "../hooks/MediaRefField.hooks.js";
 
-
+import { interpolate } from '@jini-ai/core/text';
 /**
  * @file `MediaRefField` — an `{assetId}:{transformName}` media reference (or an absolute URL),
  * shown as the chosen file's thumbnail and name, plus a "Choose image" affordance that opens the existing

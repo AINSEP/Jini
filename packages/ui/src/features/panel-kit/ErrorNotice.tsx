@@ -1,8 +1,9 @@
 import type { UserFacingError } from '@jini-ai/core';
 import type { CopyToClipboardOptions } from '../../utils/copy-to-clipboard.js';
-import type { Translate } from '../i18n/index.js';
+
 import { useErrorNotice } from './ErrorNotice.hooks.js';
 
+import { type Translate } from '@jini-ai/core/text';
 /** A formatted failure, optional host translation, and injectable clipboard ports. */
 export interface ErrorNoticeProps extends CopyToClipboardOptions {
   readonly failure: UserFacingError;

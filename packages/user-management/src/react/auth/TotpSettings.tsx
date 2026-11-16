@@ -1,7 +1,8 @@
 import { SecretInput } from '@jini-ai/ui';
-import type { Translate } from '@jini-ai/ui/panel-kit';
+
 import { useTotpSettings, useTotpSettingsForm } from './TotpSettings.hooks.js';
 
+import { type Translate } from '@jini-ai/core/text';
 export interface TotpSettingsPort {
   status(): Promise<{ isOwner: boolean; available: boolean; enrolled: boolean }>;
   enroll(input: { password: string; code?: string }): Promise<{ pendingToken: string; secret: string; uri: string }>;

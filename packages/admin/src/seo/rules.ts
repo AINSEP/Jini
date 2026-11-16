@@ -1,8 +1,9 @@
 import type { AdminSeoIssue as SeoIssue, AdminSeoSettingsPatch as SeoSettingsPatch } from "../core/ports/seo.js";
-import { interpolate } from '@jini-ai/ui/i18n';
+
 import type { SeoTranslator } from './models.js';
 import type { AdminSeoEntryChoice, AdminSeoMediaSummary, AdminSeoMeta } from '../core/ports/seo.js';
 
+import { interpolate } from '@jini-ai/core/text';
 /**
  * @file Pure logic for the `seo` feature — everything that computes a value rather than rendering
  * one.
@@ -419,7 +420,6 @@ export function buildSeoSettingsPatch({ form }: { form: FormData }, _optional: R
     sitemapEnabled: form.get("sitemapEnabled") === "on",
   };
 }
-
 
 /** Three stable query ids; defaults remains the first and fallback tab. */
 export const SEO_TAB_IDS = ['defaults', 'sitemap', 'entries'] as const;

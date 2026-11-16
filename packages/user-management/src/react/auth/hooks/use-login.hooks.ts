@@ -1,9 +1,10 @@
-import type { Translate } from "@jini-ai/ui/panel-kit";
+
 import { useState } from "react";
 
 import type { AdminUser } from "../../models.js";
 import type { LoginPort } from "../../ports.js";
 
+import { type Translate } from '@jini-ai/core/text';
 export interface LoginHookProps {
   onLogin: (user: AdminUser) => void;
   port: LoginPort;

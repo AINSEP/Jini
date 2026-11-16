@@ -1,8 +1,9 @@
-import type { Translate } from '@jini-ai/ui/panel-kit';
+
 import type { PasskeyOptions } from '../../core/types.js';
 import { runPasskeyCeremony } from './passkey-browser.js';
 import { usePasskeySettings, usePasskeySignIn } from './Passkeys.hooks.js';
 
+import { type Translate } from '@jini-ai/core/text';
 type Started = { pendingToken: string; options: PasskeyOptions };
 type Finish = { pendingToken: string; response: unknown };
 type Ceremony = typeof runPasskeyCeremony;

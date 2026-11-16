@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
-import type { Translate } from '@jini-ai/ui/panel-kit';
+
 import type { PasskeySettingsPort, PasskeySignInPort } from './Passkeys.js';
 import type { runPasskeyCeremony } from './passkey-browser.js';
 
+import { type Translate } from '@jini-ai/core/text';
 type Ceremony = typeof runPasskeyCeremony;
 
 /** Keep obsolete sign-in attempts from updating a replacement or unmounted view. */

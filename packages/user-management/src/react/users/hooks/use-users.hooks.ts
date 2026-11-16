@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState, type Dispatch, type FormEvent, type SetStateAction } from "react";
 
 import type { AdminIdentityUser, AdminPolicy, AdminRole } from "../../models.js";
-import { interpolate, type Translate } from "@jini-ai/ui/panel-kit";
+
 import { useFetchMutation, useFetchQuery } from "@jini-ai/ui/panel-kit";
 import { useAsyncAction } from "@jini-ai/ui/panel-kit";
 import { describeApiError, KEYS, isOwnerAccount, userAccountCapabilities, type UserAccountCapabilities } from "../rules.js";
 import type { UsersPort } from "../../ports.js";
 import { useChangeUsername } from "./use-change-username.hooks.js";
 
+import { interpolate, type Translate } from '@jini-ai/core/text';
 /**
  * @file Everything the Users screen does, so `Users.tsx` is only markup.
  *

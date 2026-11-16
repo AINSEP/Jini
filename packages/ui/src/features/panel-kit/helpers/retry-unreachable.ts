@@ -1,7 +1,3 @@
-import { isAbortError } from "@jini-ai/core/text";
-
-export { isAbortError };
-
 /** About 60 seconds of waits spans a short restart/redeploy while still bounding downtime reporting. */
 export const UNREACHABLE_RETRY_DELAYS_MS: readonly number[] = [1_000, 2_000, 4_000, 8_000, 15_000, 30_000];
 
