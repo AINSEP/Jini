@@ -46,4 +46,19 @@ describe('verifyCustomCredential probe path', () => {
     if (String(path).trim() !== '') expect((error as Error).message).not.toContain(String(path));
     expect(sent).toEqual([]);
   });
+
+  it('gives the same value-free refusal when the saved base URL itself cannot be used (credentials embedded in it)', async () => {
+    const sent: HttpRequest[] = [];
+    const httpClient = { send: async ({ request }: { request: HttpRequest }) => { sent.push(request); return { status: 200, headers: {}, bodyText: '' }; } } as unknown as HttpClientPort;
+    const write = makeWriteDeps();
+    await createCustomCredential(write, { workspaceId: WS, label: 'probe.example', category: 'hosting', baseUrl: 'https://user:pw@api.probe.example', connection: { token: 'probe-secret-token' } });
+    const deps: CredentialedRequestDeps = { resolver: write.repo, clock: write.clock, httpClient, schemeRegistry: { load: loadBundledAuthSchemes }, audit: new InMemoryCredentialedRequestAuditLog() };
+    for (const path of [undefined, '/user']) {
+      const error = await verify(deps, path).catch((e: unknown) => e);
+      expect(error).toBeInstanceOf(CredentialedRequestValidationError);
+      expect((error as Error).message).toBe(REFUSAL);
+      expect((error as Error).message).not.toContain('pw');
+    }
+    expect(sent).toEqual([]);
+  });
 });
