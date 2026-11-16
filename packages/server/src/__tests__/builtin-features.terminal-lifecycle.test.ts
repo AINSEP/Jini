@@ -4,6 +4,7 @@ import type { TerminalSessionManager } from '@jini-ai/daemon';
 import type { PtyProcess } from '@jini-ai/core/contracts/runtime';
 import { expect, it, vi } from 'vitest';
 import { composeJiniKernel } from '../compose-jini-kernel.js';
+import { createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
 
 const managers: TerminalSessionManager[] = [];
 const child = { running: false };
@@ -32,8 +33,7 @@ it('P9: closing the kernel terminates PTYs owned by the terminal feature', async
   let kernel: Awaited<ReturnType<typeof composeJiniKernel>> | undefined;
   try {
     kernel = await composeJiniKernel({
-      app, adapter: { resolvedPortRef: { current: 0 }, env: {}, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS',
-        webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' },
+      app, adapter: createTestRouteHost(), resolvedPortRef: { current: 0 },
       security: { mode: 'host' }, storage: { kind: 'memory' }, profile: 'agent-core-v1',
       capabilities: { 'host:exec': true }, features: { terminal: true },
       featureOptions: { terminal: { loadSpawnPty: async () => () => { child.running = true; return pty; } } },

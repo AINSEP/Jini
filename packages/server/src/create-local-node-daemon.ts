@@ -41,7 +41,7 @@ import type { Bindings, Principal, ToolRegistration } from '@jini-ai/core';
 import type { AnyPack, MissingTokenIds } from '@jini-ai/core/composition';
 import type { CreateTerminalSessionManagerOptions, ResolveRunInput, RunLifecycle } from '@jini-ai/daemon';
 import { installRouteRegistrationGuard, mountPackHttp } from '@jini-ai/http-kit';
-import { type RouteHostContext } from '@jini-ai/core/contracts/server';
+import { createLocalSameOriginPolicy, type RouteHostContext } from '@jini-ai/core/contracts/server';
 import type {  DelegatedToolExecuteRequest,  RunStartHandler,  WorkspaceRootResolver } from '@jini-ai/daemon/http';
 import { removeDaemonRegistryRecordIfCurrent, resolveDaemonRegistryPath, writeDaemonRegistryRecord } from '@jini-ai/sidecar';
 
@@ -312,6 +312,18 @@ function localFeatureOptions(
   };
 }
 
+/** The daemon's own same-origin policy: the bound port is read on every call because routes are built before the listener binds. */
+function localOriginPolicy(
+  { env, resolvedPortRef }: { env: NodeJS.ProcessEnv; resolvedPortRef: { readonly current: number } },
+  _optional: Record<string, never> = {},
+) {
+  return createLocalSameOriginPolicy({
+    port: () => resolvedPortRef.current,
+    env,
+    config: { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' },
+  });
+}
+
 /**
  * Boots a complete, runnable `@jini-ai/core` daemon process.
  *
@@ -362,7 +374,7 @@ export async function createLocalNodeDaemon(
 
   const resolvedPortRef = { current: requestedPort };
   // The kernel's origin middleware and per-route guards must share the same daemon-local env.
-  const adapter: RouteHostContext = { resolvedPortRef, env, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST' };
+  const adapter: RouteHostContext = { originPolicy: localOriginPolicy({ env, resolvedPortRef }) };
 
   let shuttingDown = false;
   let stopPromise: Promise<void> | null = null;
@@ -376,8 +388,7 @@ export async function createLocalNodeDaemon(
   installRouteRegistrationGuard({ app });
 
   const kernel = await composeJiniKernel({
-    app,
-    adapter,
+    app, adapter, resolvedPortRef,
     storage: { kind: 'sqlite', dataDir: config.dataDir, open: config.open },
     ...localKernelOptions({ config }),
     security: localSecurity({ config, host }),

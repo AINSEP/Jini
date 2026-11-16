@@ -1,5 +1,6 @@
 import express from 'express';
 import { describe, expect, it, vi } from 'vitest';
+import { createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
 import {
   createResearchSearchRoute,
   registerResearchRoutes,
@@ -9,12 +10,6 @@ import {
   type ResearchProvider,
   type ResearchSource,
 } from '../research.js';
-
-// The same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
-vi.mock('@jini-ai/core/contracts/server', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@jini-ai/core/contracts/server')>();
-  return { ...actual, guardSameOrigin: vi.fn(() => actual.ok({ value: undefined })) };
-});
 
 /**
  * Pins `createResearchSearchRoute`'s `handle` — provider precedence, default credential resolution,
@@ -120,7 +115,7 @@ describe('registerResearchRoutes with deps.provider', () => {
     // A real Express app; the spy captures the handler `mountJsonRoute` registers so it can be driven directly.
     const app = express();
     const post = vi.spyOn(app, 'post');
-    registerResearchRoutes({ app, deps: { provider: provider('host'), resolveCredentials: async () => ({ apiKey: KEY }) }, adapter: { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 7456 } } });
+    registerResearchRoutes({ app, deps: { provider: provider('host'), resolveCredentials: async () => ({ apiKey: KEY }) }, adapter: createTestRouteHost() });
     const res = { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() };
     expect(post.mock.calls.map((call) => call[0])).toEqual(['/api/research/search']);
     const handler = post.mock.calls[0]!.at(-1) as (req: unknown, res: unknown) => Promise<void>;

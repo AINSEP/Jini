@@ -4,6 +4,7 @@ import { EventEmitter } from 'node:events';
 import express from 'express';
 import type { RouteHostContext } from '@jini-ai/core/contracts/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createLocalTestOrigin } from './fixtures/local-origin.js';
 
 import { createFrontendControl } from '../frontend-control.js';
 
@@ -36,11 +37,7 @@ describe('createFrontendControl', () => {
   async function listen(control: ReturnType<typeof createFrontendControl>): Promise<string> {
     const app = express();
     app.use(express.json());
-    const resolvedPortRef = { current: 0 };
-    const adapter: RouteHostContext = {
-      resolvedPortRef, env: {}, allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS',
-      webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST',
-    };
+    const { adapter, portRef: resolvedPortRef } = createLocalTestOrigin();
     control.httpExtension({ app, context: { adapter } });
     const server = await new Promise<Server>((resolve, reject) => {
       const s = app.listen(0, '127.0.0.1', () => resolve(s));
@@ -285,7 +282,7 @@ describe('createFrontendControl', () => {
         get: (_path: string, handler: (req: unknown, res: unknown) => unknown) => { getHandler = handler; },
         post: () => undefined,
       };
-      const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 4310 } };
+      const { adapter: adapter, portRef: adapterPortRef } = createLocalTestOrigin({}, { port: 4310 });
       control.httpExtension({ app: fakeApp as never, context: { adapter: adapter as never } });
       const failure = new Error('boom api_key=SECRETSECRETSECRETSECRET');
       const status = vi.fn().mockReturnThis();

@@ -2,14 +2,9 @@ import type { Server } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import express from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { allowSameOrigin, rejectCrossOrigin } from './fixtures/same-origin-gate.js';
+import { createLocalTestOrigin } from './fixtures/local-origin.js';
+import { createRecordingOriginPolicy, createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
 import { registerResearchRoutes, researchSearchRoute, type ResearchHttpDeps } from '../research.js';
-
-// The same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
-vi.mock('@jini-ai/core/contracts/server', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@jini-ai/core/contracts/server')>();
-  return { ...actual, guardSameOrigin: vi.fn(() => actual.ok({ value: undefined })) };
-});
 
 interface MockApp {
   get: (path: string, handler: any) => void;
@@ -35,7 +30,9 @@ function makeRes() {
   };
 }
 
-const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 7456 } };
+const testOriginPolicy = createRecordingOriginPolicy();
+
+const adapter = createTestRouteHost({}, { originPolicy: testOriginPolicy });
 
 /**
  * The real `fetch`, captured before any test stubs the global. `research.ts` reaches for global
@@ -56,7 +53,7 @@ function makeDeps(overrides: Partial<ResearchHttpDeps> = {}): ResearchHttpDeps {
 }
 
 beforeEach(() => {
-  allowSameOrigin();
+  testOriginPolicy.set({ allow: true });
 });
 
 afterEach(() => {
@@ -411,7 +408,7 @@ describe('registerResearchRoutes', () => {
   });
 
   it('requires same-origin: rejects a cross-origin request with 403 before touching fetch', async () => {
-    rejectCrossOrigin();
+    testOriginPolicy.set({ allow: false });
     const fetchMock = vi.fn();
     vi.stubGlobal('fetch', fetchMock);
     const app = makeApp();
@@ -452,7 +449,7 @@ describe('registerResearchRoutes', () => {
  */
 describe('registerResearchRoutes — real Express server on a real socket', () => {
   const servers: Server[] = [];
-  const adapterRef = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 0 } };
+  const { adapter: adapterRef, portRef: adapterRefPortRef } = createLocalTestOrigin({}, { port: 0 });
 
   afterEach(() => {
     for (const server of servers.splice(0)) server.close();
@@ -466,8 +463,8 @@ describe('registerResearchRoutes — real Express server on a real socket', () =
       const s = app.listen(0, '127.0.0.1', () => resolve(s));
     });
     servers.push(server);
-    adapterRef.resolvedPortRef.current = (server.address() as AddressInfo).port;
-    return `http://127.0.0.1:${adapterRef.resolvedPortRef.current}`;
+    adapterRefPortRef.current = (server.address() as AddressInfo).port;
+    return `http://127.0.0.1:${adapterRefPortRef.current}`;
   }
 
   async function search(base: string, body: unknown, origin = base) {
@@ -518,7 +515,7 @@ describe('registerResearchRoutes — real Express server on a real socket', () =
   });
 
   it('answers 403 over the wire for a cross-origin request, before calling the provider', async () => {
-    rejectCrossOrigin();
+    testOriginPolicy.set({ allow: false });
     const upstream = vi.fn();
     vi.stubGlobal('fetch', upstream);
     const base = await listen(makeDeps());

@@ -34,6 +34,7 @@ import {
 } from 'node:fs/promises';
 import express from 'express';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createLocalTestOrigin } from './fixtures/local-origin.js';
 import type { ChatAttachment } from '@jini-ai/chat';
 import {
   ATTACHMENTS_ROUTE_PATH,
@@ -169,12 +170,12 @@ async function harness(
   // does this for every daemon). `DELETE` needs it, and having it present is also what makes the
   // "body already drained" case below a genuine reproduction rather than a contrived one.
   app.use(express.json());
-  const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 0 } };
+  const { adapter: adapter, portRef: adapterPortRef } = createLocalTestOrigin({}, { port: 0 });
   registerAttachmentRoutes({ app, deps, adapter });
   const server: Server = app.listen(0);
   await new Promise((ready) => server.once('listening', ready));
   const { port } = server.address() as { port: number };
-  adapter.resolvedPortRef.current = port;
+  adapterPortRef.current = port;
   cleanups.push(
     () => new Promise<void>((closed) => {
       server.close(() => closed());
@@ -1732,12 +1733,12 @@ describe('attachment routes — same-origin guard', () => {
   it('defaults the guard on, so a host must opt out deliberately', async () => {
     const { store } = await diskStore();
     const app = express();
-    const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 0 } };
+    const { adapter: adapter, portRef: adapterPortRef } = createLocalTestOrigin({}, { port: 0 });
     registerAttachmentRoutes({ app, deps: { store }, adapter });
     const server: Server = app.listen(0);
     await new Promise((ready) => server.once('listening', ready));
     const { port } = server.address() as { port: number };
-    adapter.resolvedPortRef.current = port;
+    adapterPortRef.current = port;
     cleanups.push(
       () => new Promise<void>((closed) => {
         server.close(() => closed());

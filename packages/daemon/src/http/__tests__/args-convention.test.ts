@@ -2,6 +2,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it, vi } from 'vitest';
+import { createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
 import { defineJsonRoute, mountJsonRoute } from '@jini-ai/http-kit';
 import { ClientFacingError, ok, err } from '@jini-ai/core/contracts/server';
 import { createCompatApiError } from '@jini-ai/http-kit';
@@ -40,7 +41,7 @@ describe('required and optional argument objects', () => {
       return ok({ value: `${supplied.tag}:${input}` });
     });
     const spec = defineJsonRoute({ method: 'post', path: '/example', parse: () => ok({ value: 'input' }), handle }, { successStatus: 201 });
-    mountJsonRoute({ app: app as never, spec, deps, adapter: { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 1234 } } });
+    mountJsonRoute({ app: app as never, spec, deps, adapter: createTestRouteHost() });
     const res = { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() };
     await handler({ body: {}, params: {}, query: {} }, res);
     expect(app.post).toHaveBeenCalledWith('/example', expect.any(Function));
@@ -55,7 +56,7 @@ describe('required and optional argument objects', () => {
     expect(result).toEqual({ ok: true, value: { object: { key: 'file', size: 1, updatedAt: 0 } } });
     expect(put).toHaveBeenCalledWith({ key: 'file', data: Buffer.from('a') }, { contentType: 'text/plain' });
     const app = { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn(), patch: vi.fn() };
-    registerConnectorsRoutes({ app: app as never, deps: { storage }, adapter: { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 1234 } } });
+    registerConnectorsRoutes({ app: app as never, deps: { storage }, adapter: createTestRouteHost() });
     expect(app.put.mock.calls.map(([path]) => path)).toContain('/api/connectors/storage/:key');
   });
 });

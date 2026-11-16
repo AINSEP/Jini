@@ -1,7 +1,8 @@
 import type { Server } from 'node:http';
 import express from 'express';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { allowSameOrigin, rejectCrossOrigin } from './fixtures/same-origin-gate.js';
+import { createLocalTestOrigin } from './fixtures/local-origin.js';
+import { createRecordingOriginPolicy, createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
 import {
   ACTIVE_CONTEXT_TTL_MS,
   getActiveRoute,
@@ -9,12 +10,6 @@ import {
   setActiveRoute,
   type ActiveContextDeps,
 } from '../active-context.js';
-
-// The same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
-vi.mock('@jini-ai/core/contracts/server', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@jini-ai/core/contracts/server')>();
-  return { ...actual, guardSameOrigin: vi.fn(() => actual.ok({ value: undefined })) };
-});
 
 interface MockApp {
   get: (path: string, handler: any) => void;
@@ -34,10 +29,12 @@ function makeRes() {
   return { status: vi.fn().mockReturnThis(), json: vi.fn().mockReturnThis() };
 }
 
-const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 7456 } };
+const testOriginPolicy = createRecordingOriginPolicy();
+
+const adapter = createTestRouteHost({}, { originPolicy: testOriginPolicy });
 
 beforeEach(() => {
-  allowSameOrigin();
+  testOriginPolicy.set({ allow: true });
 });
 
 describe('setActiveRoute.parse', () => {
@@ -282,7 +279,7 @@ describe('registerActiveContextRoutes', () => {
   });
 
   it('requires same-origin: blocks a cross-origin GET with 403', async () => {
-    rejectCrossOrigin();
+    testOriginPolicy.set({ allow: false });
     const app = makeApp();
     registerActiveContextRoutes({ app: app as any, deps: makeDeps(), adapter });
     const res = makeRes();
@@ -291,7 +288,7 @@ describe('registerActiveContextRoutes', () => {
   });
 
   it('requires same-origin: blocks a cross-origin POST with 403', async () => {
-    rejectCrossOrigin();
+    testOriginPolicy.set({ allow: false });
     const app = makeApp();
     registerActiveContextRoutes({ app: app as any, deps: makeDeps(), adapter });
     const res = makeRes();
@@ -323,11 +320,11 @@ describe('registerActiveContextRoutes — real Express server on a real socket, 
   it('a real POST /api/active followed by a real GET /api/active round-trips through actual body parsing, path routing, and JSON serialization', async () => {
     const app = express();
     app.use(express.json());
-    const realAdapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 0 } };
+    const { adapter: realAdapter, portRef: realAdapterPortRef } = createLocalTestOrigin({}, { port: 0 });
     registerActiveContextRoutes({ app, deps: makeDeps({ resolveResource: () => ({ name: 'Widget' }) }), adapter: realAdapter });
     server = app.listen(0);
     const port = (server.address() as { port: number }).port;
-    realAdapter.resolvedPortRef.current = port;
+    realAdapterPortRef.current = port;
     const base = `http://127.0.0.1:${port}`;
 
     const postRes = await fetch(`${base}/api/active`, {
@@ -349,11 +346,11 @@ describe('registerActiveContextRoutes — real Express server on a real socket, 
   it('a real malformed POST /api/active (missing resourceRef) gets a genuine 400 over the wire', async () => {
     const app = express();
     app.use(express.json());
-    const realAdapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 0 } };
+    const { adapter: realAdapter, portRef: realAdapterPortRef } = createLocalTestOrigin({}, { port: 0 });
     registerActiveContextRoutes({ app, deps: makeDeps(), adapter: realAdapter });
     server = app.listen(0);
     const port = (server.address() as { port: number }).port;
-    realAdapter.resolvedPortRef.current = port;
+    realAdapterPortRef.current = port;
 
     const res = await fetch(`http://127.0.0.1:${port}/api/active`, {
       method: 'POST',

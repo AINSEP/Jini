@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Express, Request, Response } from 'express';
 import { createApiError } from '@jini-ai/protocol';
 import { defineJsonRoute, mountJsonRoute } from '../adapter.js';
-import { ClientFacingError, type RouteHostContext, err, ok } from '@jini-ai/core/contracts/server';
+import { ClientFacingError, createLocalSameOriginPolicy, type RouteHostContext, err, ok } from '@jini-ai/core/contracts/server';
 import { type JsonRouteSpec } from '../types.js';
 
 type Spec = JsonRouteSpec<string, string, { tag: string }, { id: string }>;
@@ -40,8 +40,10 @@ function route({ handle = () => ok({ value: 'response' }) }: { readonly handle?:
 }
 
 const originContext: RouteHostContext = {
-  env: {}, allowedOriginsEnvVar: 'PIN_ALLOWED_ORIGINS', webPortEnvVar: 'PIN_WEB_PORT',
-  bindHostEnvVar: 'PIN_BIND_HOST', resolvedPortRef: { current: 7456 },
+  originPolicy: createLocalSameOriginPolicy({
+    port: () => 7456, env: {},
+    config: { allowedOriginsEnvVar: 'PIN_ALLOWED_ORIGINS', webPortEnvVar: 'PIN_WEB_PORT', bindHostEnvVar: 'PIN_BIND_HOST' },
+  }),
 };
 
 afterEach(() => { vi.restoreAllMocks(); });

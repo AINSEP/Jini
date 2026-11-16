@@ -114,6 +114,8 @@ export interface ComposeJiniKernelConfig {
   /** The app to mount onto. Always caller-supplied — this function never opens a listener. */
   readonly app: Express;
   readonly adapter: RouteHostContext;
+  /** The port the listener bound; the host updates `current` after binding, and features and the origin middleware read it per call. */
+  readonly resolvedPortRef: { readonly current: number };
   readonly storage: JiniKernelStorage;
   /** @default 'agent-core-v1' — the conservative embedding posture. */
   readonly profile?: JiniProfileId;
@@ -236,9 +238,10 @@ function prepareComposition(
 }
 
 function composeFeatures(
-  { base, adapter, env, catalog, activation, composed }: {
+  { base, adapter, resolvedPortRef, env, catalog, activation, composed }: {
     base: JiniKernelBase;
     adapter: RouteHostContext;
+    resolvedPortRef: { readonly current: number };
     env: NodeJS.ProcessEnv;
     catalog: readonly JiniFeature[];
     activation: FeatureActivationPlan;
@@ -246,7 +249,7 @@ function composeFeatures(
   },
   _optional: Record<string, never> = {},
 ): void {
-  const featureContext: FeatureBuildContext = { kernel: base, adapter, env };
+  const featureContext: FeatureBuildContext = { kernel: base, adapter, resolvedPortRef, env };
   const byId = new Map(catalog.map((feature) => [feature.id, feature]));
   for (const record of activation.active) {
     const feature = byId.get(record.id)!;
@@ -324,7 +327,7 @@ function mountApiSecurity(
     registerApiOriginGuardMiddleware({ app, deps: {
       host: security.host,
       extraAllowedOrigins: configuredAllowedOrigins({ config: originConfig, env }),
-      getResolvedPort: () => config.adapter.resolvedPortRef.current,
+      getResolvedPort: () => config.resolvedPortRef.current,
       env,
       ...originConfig,
     } });
@@ -361,7 +364,7 @@ export async function composeJiniKernel(config: ComposeJiniKernelConfig): Promis
 
     callerDaemon = createDaemon({ packs: callerPacks, bindings: boundBindings });
 
-    composeFeatures({ base, adapter: config.adapter, env, catalog, activation, composed });
+    composeFeatures({ base, adapter: config.adapter, resolvedPortRef: config.resolvedPortRef, env, catalog, activation, composed });
 
     const featurePacks = composed.map((entry) => entry.pack);
     featureDaemon = createDaemon({ packs: featurePacks, bindings: bindings({}) });

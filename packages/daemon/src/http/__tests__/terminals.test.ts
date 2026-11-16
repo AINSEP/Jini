@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { createRecordingOriginPolicy, createTestRouteHost } from '@jini-ai/core/contracts/server/testing';
 import { createToolRegistry, type Principal, type ToolPolicy, type ToolRegistry } from '@jini-ai/core';
 import {
   createTerminalSessionManager,
@@ -10,7 +11,6 @@ import {
   type ToolExecutor,
 } from '../../index.js';
 import type { PtyProcess, PtySpawn } from '@jini-ai/core/contracts/runtime';
-import { allowSameOrigin, rejectCrossOrigin } from './fixtures/same-origin-gate.js';
 import {
   actionResultToApiResult,
   createDeferredEndGate,
@@ -25,12 +25,6 @@ import {
   type TerminalsHttpDeps,
 } from '../terminals.js';
 import type { WorkspaceRootResolver } from '../workspace-root.js';
-
-// The same-origin gate is spied where routes import it; see fixtures/same-origin-gate.ts.
-vi.mock('@jini-ai/core/contracts/server', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@jini-ai/core/contracts/server')>();
-  return { ...actual, guardSameOrigin: vi.fn(() => actual.ok({ value: undefined })) };
-});
 
 interface MockApp {
   get: (path: string, handler: any) => void;
@@ -89,7 +83,9 @@ function makeSseRes() {
   return res;
 }
 
-const adapter = { allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS', webPortEnvVar: 'JINI_WEB_PORT', bindHostEnvVar: 'JINI_BIND_HOST', env: {}, resolvedPortRef: { current: 7456 } };
+const testOriginPolicy = createRecordingOriginPolicy();
+
+const adapter = createTestRouteHost({}, { originPolicy: testOriginPolicy });
 const alice: Principal = { id: 'alice' };
 const bob: Principal = { id: 'bob' };
 
@@ -151,7 +147,7 @@ function makeDeps(overrides: Partial<TerminalsHttpDeps> & { policy?: ToolPolicy 
 }
 
 beforeEach(() => {
-  allowSameOrigin();
+  testOriginPolicy.set({ allow: true });
 });
 
 describe('terminalCreateRoute.parse', () => {
@@ -561,7 +557,7 @@ describe('registerTerminalRoutes', () => {
   });
 
   it('blocks a cross-origin create request before the tool executor ever runs', async () => {
-    rejectCrossOrigin();
+    testOriginPolicy.set({ allow: false });
     const app = makeApp();
     const { deps, manager } = makeDeps();
     registerTerminalRoutes({ app: app as any, deps, adapter });
@@ -572,7 +568,7 @@ describe('registerTerminalRoutes', () => {
   });
 
   it('the list route does not require same-origin (matches runListRoute precedent)', async () => {
-    rejectCrossOrigin();
+    testOriginPolicy.set({ allow: false });
     const app = makeApp();
     const { deps } = makeDeps();
     registerTerminalRoutes({ app: app as any, deps, adapter });
@@ -635,7 +631,7 @@ describe('registerTerminalEventStream', () => {
   }
 
   it('rejects a cross-origin request before touching the manager or opening the stream', () => {
-    rejectCrossOrigin();
+    testOriginPolicy.set({ allow: false });
     const { deps, manager } = makeDeps();
     const attachSpy = vi.spyOn(manager, 'attach');
     const handler = mount(deps);

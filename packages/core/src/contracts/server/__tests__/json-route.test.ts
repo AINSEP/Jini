@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { err, ok } from '../result.js';
 import { ClientFacingError, jsonResponse, jsonRoute, type JsonRouteSpec, type ReportRouteInternalError, type RouteHostContext } from '../json-route.js';
 import { createInMemoryServer } from '../testing.js';
+import { createLocalSameOriginPolicy } from '../origin.js';
 
 describe('jsonResponse', () => {
   it('uses Express res.json content type and extra headers', async () => {
@@ -25,7 +26,7 @@ const reportInternalError: ReportRouteInternalError = ({ report, message }, opti
   return { code: 'INTERNAL_ERROR', message, requestId: 'req-1' };
 };
 const host: RouteHostContext = {
-  resolvedPortRef: { current: 7000 }, env: {}, allowedOriginsEnvVar: 'A', webPortEnvVar: 'W', bindHostEnvVar: 'B',
+  originPolicy: createLocalSameOriginPolicy({ port: () => 7000, env: {}, config: { allowedOriginsEnvVar: 'A', webPortEnvVar: 'W', bindHostEnvVar: 'B' } }),
 };
 
 function mount(spec: Partial<JsonRouteSpec<{ n: number }, { n: number }, null>> = {}, withHost = true) {

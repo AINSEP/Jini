@@ -19,6 +19,8 @@ import { mkdtemp, readFile, rm, stat, utimes, writeFile } from 'node:fs/promises
 import express from 'express';
 import type { RouteHostContext } from '@jini-ai/core/contracts/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { createLocalSameOriginPolicy } from '@jini-ai/core/contracts/server';
+import { testOriginConfig } from './fixtures/local-origin.js';
 import {
   ATTACHMENTS_ROUTE_PATH,
   createDiskAttachmentStore,
@@ -116,20 +118,15 @@ async function throwingGuardHarness(): Promise<{ url: string; sink: ReturnType<t
   const store = await diskStore();
   const sink = vi.fn<(context: AttachmentsInternalErrorContext) => void>();
   const deps: AttachmentsHttpDeps = { store, onInternalError: sink };
-  const adapter: RouteHostContext = {
-    allowedOriginsEnvVar: 'JINI_ALLOWED_ORIGINS',
-    webPortEnvVar: 'JINI_WEB_PORT',
-    bindHostEnvVar: 'JINI_BIND_HOST',
-    env: throwingEnv(),
-    resolvedPortRef: { current: 0 },
-  };
+  const portRef = { current: 0 };
+  const adapter: RouteHostContext = { originPolicy: createLocalSameOriginPolicy({ port: () => portRef.current, env: throwingEnv(), config: testOriginConfig }) };
   const app = express();
   app.use(express.json());
   registerAttachmentRoutes({ app, deps, adapter });
   const server: Server = app.listen(0);
   await new Promise((ready) => server.once('listening', ready));
   const { port } = server.address() as { port: number };
-  adapter.resolvedPortRef.current = port;
+  portRef.current = port;
   cleanups.push(
     () => new Promise<void>((closed) => {
       server.close(() => closed());

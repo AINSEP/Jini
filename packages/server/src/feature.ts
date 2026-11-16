@@ -132,6 +132,8 @@ export interface FeatureBuildContext {
   /** Kernel-owned infrastructure. Features **borrow** from here; they never own or close it. */
   readonly kernel: JiniKernelBase;
   readonly adapter: RouteHostContext;
+  /** The port the listener bound, read on every call because routes are built before the listener binds. */
+  readonly resolvedPortRef: { readonly current: number };
   readonly env: NodeJS.ProcessEnv;
 }
 
