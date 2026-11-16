@@ -103,6 +103,7 @@ Tool handlers receive required execution context first and optional `{ emitSurfa
 | `./fetch` | Framework-neutral query contracts and `FetchQueryCache`; inject transport callbacks, `Clock`, scheduler and connectivity/focus ports. No React, DOM or TanStack dependency. |
 | `./net` | Literal host classification (loopback, blocked and deployed API hosts) and the `FETCH_TIMEOUT_MS` classes. Pure, no Node imports. |
 | `./contracts/blob` | Backend-agnostic blob storage port and `StorageError`. |
+| `./contracts/admin-module` | `adminPort` token and the admin module contract types (`defineAdminModule`, `AdminModule`, `AdminDescription`, port map types). Admin hosts and plugin authors import it from core; `@jini-ai/admin` consumes it. |
 | `./contracts/runtime` | Fs-lock, atomic-writer, process, command, pty, http and guarded-reader port types plus pure helpers (`planCommandInvocation`, `omitEnvironmentKeys`, `collectProcessTreePids`). Node implementations live in `@jini-ai/platform`. |
 | `./records` | `canonicalJson({ value })`, async WebCrypto `canonicalArgumentDigest({ args }, { crypto? })`, and `CanonicalJsonError`; recursively sorted Unicode code-point keys, strict JSON validation, and lowercase SHA-256 hex. |
 | `./contracts/storage` | Library-neutral storage kernel (`StorageKernel<Handle, Schema>`, generic over the host's query handle), row/value helpers, SQLite client shapes and the migration-step type. Kernels and drivers live in `@jini-ai/db`; the command/event vocabulary is `./contracts/events`. |

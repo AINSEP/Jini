@@ -48,7 +48,8 @@
       "./contracts/events": "universal",
       "./net": "universal",
       "./contracts/blob": "universal",
-      "./contracts/runtime": "universal"
+      "./contracts/runtime": "universal",
+      "./contracts/admin-module": "universal"
     },
     "isolation": {
       "entries": {
@@ -281,6 +282,11 @@
       "types": "./dist/contracts/runtime.d.ts",
       "import": "./dist/contracts/runtime.js",
       "default": "./dist/contracts/runtime.js"
+    },
+    "./contracts/admin-module": {
+      "types": "./dist/contracts/admin-module.d.ts",
+      "import": "./dist/contracts/admin-module.js",
+      "default": "./dist/contracts/admin-module.js"
     }
   },
   "files": [

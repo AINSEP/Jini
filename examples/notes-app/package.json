@@ -15,6 +15,7 @@
     "@jini-ai/core": "workspace:*",
     "@jini-ai/db": "workspace:*",
     "@jini-ai/http-kit": "workspace:*",
+    "@jini-ai/platform": "workspace:*",
     "better-sqlite3": "^13.0.0"
   },
   "devDependencies": {

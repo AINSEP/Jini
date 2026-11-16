@@ -151,4 +151,4 @@ export * from './react/components/ValueChip.js';
 export * from './react/components/ComponentKitPreview.js';
 
 // Share the existing kit overlay context with consumers of these React primitives.
-export { useOverlayContainer } from '@jini-ai/ui-kit/react';
+export { useOverlayContainer, UiKitProvider, type UiKit } from './react/kit.js';
