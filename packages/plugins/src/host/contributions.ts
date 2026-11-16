@@ -11,7 +11,12 @@ import {
 import { createContributionRegistry } from '@jini-ai/core/contribution-registry';
 import { normalizeRoute, resolveClaimConflicts, type ExtensionClaim } from './claim-conflicts.js';
 import type { PluginManifest } from './manifest-types.js';
-import type { PluginSdk } from '@jini-ai/core/contracts/plugin-sdk';
+import type {
+  PluginRouteContribution,
+  PluginSdk,
+  PluginToolContribution,
+  PluginWidgetContribution,
+} from '@jini-ai/core/contracts/plugin-sdk';
 
 export const PLUGIN_CONTRIBUTION_CAPABILITIES = ['http.route.register', 'tools.register', 'render.contribute', PLUGIN_PROVIDER_CAPABILITY] as const;
 export interface PluginContributionsSnapshot {
